@@ -1,0 +1,199 @@
+package store
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"go.etcd.io/bbolt"
+)
+
+// MemoryEntry represents a single memory entry.
+type MemoryEntry struct {
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SessionEntry represents a conversation session entry.
+type SessionEntry struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Messages  []byte    `json:"messages"` // JSON-encoded messages
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Store provides persistent storage for memory, sessions, and configuration.
+type Store struct {
+	db *bbolt.DB
+}
+
+// NewStore creates or opens the bolt database.
+func NewStore() (*Store, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("cannot find home directory: %w", err)
+	}
+
+	dir := filepath.Join(home, ".co-shell")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("cannot create data directory: %w", err)
+	}
+
+	dbPath := filepath.Join(dir, "co-shell.db")
+	db, err := bbolt.Open(dbPath, 0600, &bbolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		return nil, fmt.Errorf("cannot open database: %w", err)
+	}
+
+	// Create buckets
+	if err := db.Update(func(tx *bbolt.Tx) error {
+		for _, bucket := range []string{"memory", "sessions", "context"} {
+			if _, err := tx.CreateBucketIfNotExists([]byte(bucket)); err != nil {
+				return fmt.Errorf("cannot create bucket %s: %w", bucket, err)
+			}
+		}
+		return nil
+	}); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	return &Store{db: db}, nil
+}
+
+// Close closes the database.
+func (s *Store) Close() error {
+	return s.db.Close()
+}
+
+// --- Memory Operations ---
+
+// SaveMemory stores a key-value pair in the memory bucket.
+func (s *Store) SaveMemory(key, value string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		entry := MemoryEntry{
+			Key:       key,
+			Value:     value,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		data, err := json.Marshal(entry)
+		if err != nil {
+			return err
+		}
+		return bucket.Put([]byte(key), data)
+	})
+}
+
+// GetMemory retrieves a value by key from the memory bucket.
+func (s *Store) GetMemory(key string) (string, bool, error) {
+	var value string
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		data := bucket.Get([]byte(key))
+		if data == nil {
+			return nil
+		}
+		var entry MemoryEntry
+		if err := json.Unmarshal(data, &entry); err != nil {
+			return err
+		}
+		value = entry.Value
+		return nil
+	})
+	if err != nil {
+		return "", false, err
+	}
+	return value, value != "", nil
+}
+
+// SearchMemory searches memory entries by key prefix.
+func (s *Store) SearchMemory(prefix string) ([]MemoryEntry, error) {
+	var entries []MemoryEntry
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		cursor := bucket.Cursor()
+		prefixBytes := []byte(prefix)
+		for k, v := cursor.Seek(prefixBytes); k != nil && len(k) >= len(prefixBytes) && string(k[:len(prefixBytes)]) == prefix; k, v = cursor.Next() {
+			var entry MemoryEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				return err
+			}
+			entries = append(entries, entry)
+		}
+		return nil
+	})
+	return entries, err
+}
+
+// DeleteMemory removes a memory entry.
+func (s *Store) DeleteMemory(key string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		return tx.Bucket([]byte("memory")).Delete([]byte(key))
+	})
+}
+
+// ListMemory returns all memory entries.
+func (s *Store) ListMemory() ([]MemoryEntry, error) {
+	var entries []MemoryEntry
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		return bucket.ForEach(func(k, v []byte) error {
+			var entry MemoryEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				return err
+			}
+			entries = append(entries, entry)
+			return nil
+		})
+	})
+	return entries, err
+}
+
+// ClearMemory removes all memory entries.
+func (s *Store) ClearMemory() error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		return bucket.ForEach(func(k, _ []byte) error {
+			return bucket.Delete(k)
+		})
+	})
+}
+
+// --- Context Operations ---
+
+// SaveContext stores context data.
+func (s *Store) SaveContext(key string, data []byte) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		return tx.Bucket([]byte("context")).Put([]byte(key), data)
+	})
+}
+
+// GetContext retrieves context data.
+func (s *Store) GetContext(key string) ([]byte, bool, error) {
+	var data []byte
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		data = tx.Bucket([]byte("context")).Get([]byte(key))
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return data, data != nil, nil
+}
+
+// ClearContext removes all context data.
+func (s *Store) ClearContext() error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("context"))
+		return bucket.ForEach(func(k, _ []byte) error {
+			return bucket.Delete(k)
+		})
+	})
+}
