@@ -116,7 +116,7 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ### v0.1.0 — Alpha（当前版本）
 
-> **BUILD**: 00029 | **最后更新**: 2026-04-25
+> **BUILD**: 00033 | **最后更新**: 2026-04-25
 
 首个 Alpha 预览版，核心功能可运行。
 
@@ -134,10 +134,12 @@ co-shell [选项] <指令>             执行单条指令后退出
 - 系统命令直接运行
 - 日志系统（文件日志，支持运行时开关）
 - API Key 脱敏显示
-- 命令行参数支持（--help / --version / --model / --endpoint / --api-key / --log / --max-iterations）
+- 命令行参数支持（--help / --version / --model / --endpoint / --api-key / --log / --max-iterations / --lang）
 - 会话历史管理（上下键翻页，跨会话持久化）
 - 基础错误处理和用户提示
 - 最大迭代次数可配置
+- 国际化（i18n）支持中文/英文，--lang 参数，自动检测系统语言
+- 多供应商支持（DeepSeek v4 / 阿里千问 / OpenAI 兼容兜底）
 
 ---
 

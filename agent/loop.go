@@ -1,4 +1,28 @@
 // Author: L.Shuang
+// Created: 2026-04-25
+// Last Modified: 2026-04-25
+//
+// # MIT License
+//
+// # Copyright (c) 2026 L.Shuang
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 package agent
 
 import (
@@ -6,6 +30,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +45,22 @@ const (
 	defaultMaxIterations = 10
 	toolTimeout          = 30 * time.Second
 )
+
+// shellCmd returns the appropriate shell command and argument for the current platform.
+func shellCmd() (string, string) {
+	if runtime.GOOS == "windows" {
+		return "cmd", "/c"
+	}
+	return "bash", "-c"
+}
+
+// shellName returns the human-readable shell name for the current platform.
+func shellName() string {
+	if runtime.GOOS == "windows" {
+		return "cmd/powershell"
+	}
+	return "bash/zsh"
+}
 
 // StreamCallback is a function called for each streaming event from the LLM.
 type StreamCallback func(eventType string, content string)
@@ -81,10 +122,11 @@ func (a *Agent) SetMaxIterations(n int) {
 
 // buildSystemPrompt constructs the system prompt with rules and context.
 func buildSystemPrompt(rules string) string {
-	prompt := `You are co-shell, an intelligent command-line assistant that helps users interact with their system through natural language.
+	sh := shellName()
+	prompt := fmt.Sprintf(`You are co-shell, an intelligent command-line assistant that helps users interact with their system through natural language.
 
 You have access to the following capabilities:
-1. Execute system commands (bash, zsh, etc.)
+1. Execute system commands (%s)
 2. Call MCP (Model Context Protocol) tools
 3. Read and write files
 4. Manage memory and context
@@ -99,7 +141,7 @@ IMPORTANT RULES:
 - For destructive operations (delete, overwrite), ask for confirmation first
 - Use the user's preferred language for responses
 
-Available tools will be provided to you as function definitions.`
+Available tools will be provided to you as function definitions.`, sh)
 
 	if rules != "" {
 		prompt += fmt.Sprintf("\n\nUser-defined Rules:\n%s", rules)
@@ -336,10 +378,11 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 
 // buildTools constructs the list of available tools for the LLM.
 func (a *Agent) buildTools() []llm.Tool {
+	sh := shellName()
 	tools := []llm.Tool{
 		{
 			Name:        "execute_command",
-			Description: "Execute a system command (bash/zsh) and return its output. Use this to run shell commands, scripts, or any CLI tools.",
+			Description: fmt.Sprintf("Execute a system command (%s) and return its output. Use this to run shell commands, scripts, or any CLI tools.", sh),
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -410,8 +453,9 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	log.Debug("Executing command: %s (timeout: %ds)", command, timeout)
-	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	shell, shellArg := shellCmd()
+	log.Debug("Executing command: %s (timeout: %ds, shell: %s)", command, timeout, shell)
+	cmd := exec.CommandContext(ctx, shell, shellArg, command)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
@@ -432,8 +476,9 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), toolTimeout)
 	defer cancel()
 
-	log.Info("Direct command: %s", command)
-	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	shell, shellArg := shellCmd()
+	log.Info("Direct command: %s (shell: %s)", command, shell)
+	cmd := exec.CommandContext(ctx, shell, shellArg, command)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {

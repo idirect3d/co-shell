@@ -18,3 +18,13 @@ config.json
 # Private Notes
 ROADMAP.md
 NOTE.md
+
+# Logs
+*.log
+
+# Temp files
+/tmp/
+*.tmp
+
+# Change notes (auto-generated)
+change/

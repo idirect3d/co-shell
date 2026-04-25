@@ -1,4 +1,28 @@
 // Author: L.Shuang
+// Created: 2026-04-25
+// Last Modified: 2026-04-25
+//
+// # MIT License
+//
+// # Copyright (c) 2026 L.Shuang
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 package repl
 
 import (
@@ -8,8 +32,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"regexp"
+	"runtime"
 	"strings"
-	"syscall"
 
 	prompt "github.com/c-bata/go-prompt"
 	"github.com/idirect3d/co-shell/agent"
@@ -21,11 +45,32 @@ import (
 	"github.com/idirect3d/co-shell/store"
 )
 
-// commandPattern matches inputs that look like system commands:
-// - Starts with a known command word (alphanumeric, hyphens, underscores, dots, slashes, tildes)
-// - Optionally followed by arguments (anything)
-// - May contain shell operators (|, >, <, &&, ||, ;)
-var commandPattern = regexp.MustCompile(`^[a-zA-Z0-9._/~-]+(\s+.*)?$`)
+// commandPattern matches inputs that look like system commands.
+// On Unix: starts with alphanumeric, dots, underscores, hyphens, slashes, tildes
+// On Windows: also allows backslashes, colons (drive letters)
+var commandPattern = regexp.MustCompile(commandPatternString())
+
+// commandPatternString returns the appropriate regex pattern for the current platform.
+func commandPatternString() string {
+	if runtime.GOOS == "windows" {
+		return `^[a-zA-Z0-9._~\\:/-]+(\s+.*)?$`
+	}
+	return `^[a-zA-Z0-9._/~-]+(\s+.*)?$`
+}
+
+// windowsBuiltins is a set of cmd.exe built-in commands that are not found by exec.LookPath.
+var windowsBuiltins = map[string]bool{
+	"dir": true, "copy": true, "del": true, "erase": true, "move": true,
+	"ren": true, "rename": true, "type": true, "cd": true, "chdir": true,
+	"md": true, "mkdir": true, "rd": true, "rmdir": true, "cls": true,
+	"echo": true, "set": true, "path": true, "prompt": true, "title": true,
+	"date": true, "time": true, "ver": true, "vol": true, "label": true,
+	"pushd": true, "popd": true, "where": true, "find": true, "findstr": true,
+	"more": true, "sort": true, "pause": true, "color": true, "help": true,
+	"break": true, "call": true, "exit": true, "for": true, "goto": true,
+	"if": true, "rem": true, "shift": true, "start": true,
+	"assoc": true, "ftype": true, "dpath": true, "subst": true,
+}
 
 // isDirectCommand checks if the input looks like a system command that can be
 // executed directly. It extracts the first word and checks if it exists in PATH.
@@ -45,11 +90,16 @@ func isDirectCommand(input string) (string, bool) {
 
 	// Check if the command exists in PATH
 	_, err := exec.LookPath(firstWord)
-	if err != nil {
-		return "", false
+	if err == nil {
+		return trimmed, true
 	}
 
-	return trimmed, true
+	// On Windows, also check for cmd.exe built-in commands
+	if runtime.GOOS == "windows" && windowsBuiltins[strings.ToLower(firstWord)] {
+		return trimmed, true
+	}
+
+	return "", false
 }
 
 // BuiltinHandler defines the interface for built-in command handlers.
@@ -87,9 +137,9 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 
 // Run starts the REPL loop.
 func (r *REPL) Run() error {
-	// Set up signal handling
+	// Set up signal handling using cross-platform os.Signal values
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, os.Interrupt, os.Kill)
 
 	go func() {
 		<-sigCh

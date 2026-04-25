@@ -1,4 +1,29 @@
 // Author: L.Shuang
+// Created: 2026-04-25
+// Last Modified: 2026-04-25
+//
+// MIT License
+//
+// Copyright (c) 2026 L.Shuang
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 package main
 
 import (
@@ -7,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -274,20 +300,57 @@ func main() {
 	}
 }
 
+// windowsBuiltins is a set of cmd.exe built-in commands that are not found by exec.LookPath.
+var windowsBuiltins = map[string]bool{
+	"dir": true, "copy": true, "del": true, "erase": true, "move": true,
+	"ren": true, "rename": true, "type": true, "cd": true, "chdir": true,
+	"md": true, "mkdir": true, "rd": true, "rmdir": true, "cls": true,
+	"echo": true, "set": true, "path": true, "prompt": true, "title": true,
+	"date": true, "time": true, "ver": true, "vol": true, "label": true,
+	"pushd": true, "popd": true, "where": true, "find": true, "findstr": true,
+	"more": true, "sort": true, "pause": true, "color": true, "help": true,
+	"break": true, "call": true, "exit": true, "for": true, "goto": true,
+	"if": true, "rem": true, "shift": true, "start": true,
+	"assoc": true, "ftype": true, "dpath": true, "subst": true,
+}
+
+// isDirectCommand checks if the input looks like a system command that can be
+// executed directly. It extracts the first word and checks if it exists in PATH.
+func isDirectCommand(input string) bool {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return false
+	}
+
+	// Extract the first word as the command name
+	firstWord := strings.Fields(trimmed)[0]
+
+	// Check if the command exists in PATH
+	_, err := exec.LookPath(firstWord)
+	if err == nil {
+		return true
+	}
+
+	// On Windows, also check for cmd.exe built-in commands
+	if runtime.GOOS == "windows" && windowsBuiltins[strings.ToLower(firstWord)] {
+		return true
+	}
+
+	return false
+}
+
 // executeSingleCommand executes a single command (natural language or system command)
 // and prints the result, then exits.
 func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 	log.Info("Single command mode: %s", input)
 
 	// Check if it's a direct system command
-	trimmed := strings.TrimSpace(input)
-	firstWord := strings.Fields(trimmed)[0]
-	if _, err := exec.LookPath(firstWord); err == nil {
+	if isDirectCommand(input) {
 		// Direct system command
 		if cfg.LLM.ShowCommand {
-			fmt.Printf("$ %s\n", trimmed)
+			fmt.Printf("$ %s\n", input)
 		}
-		output, err := ag.ExecuteCommandDirectly(trimmed)
+		output, err := ag.ExecuteCommandDirectly(input)
 		if err != nil {
 			fmt.Print(output)
 			fmt.Printf("❌ Error: %v\n", err)
