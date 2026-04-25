@@ -9,11 +9,11 @@ import (
 	"syscall"
 
 	prompt "github.com/c-bata/go-prompt"
-	"github.com/liangshuang/co-shell/agent"
-	"github.com/liangshuang/co-shell/cmd"
-	"github.com/liangshuang/co-shell/config"
-	"github.com/liangshuang/co-shell/mcp"
-	"github.com/liangshuang/co-shell/store"
+	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/cmd"
+	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/mcp"
+	"github.com/idirect3d/co-shell/store"
 )
 
 // BuiltinHandler defines the interface for built-in command handlers.

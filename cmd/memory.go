@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/liangshuang/co-shell/store"
+	"github.com/idirect3d/co-shell/store"
 )
 
 // MemoryHandler handles the .memory built-in command.

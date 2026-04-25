@@ -36,14 +36,14 @@ type Config struct {
 	Rules  []string   `json:"rules"`
 }
 
-// DefaultConfig returns a Config with sensible defaults.
+// DefaultConfig returns a Config with sensible defaults (DeepSeek, key empty).
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Endpoint:    "https://api.openai.com/v1",
-			Model:       "gpt-4o",
+			Endpoint:    "https://api.deepseek.com",
+			Model:       "deepseek-v4-flash",
 			Temperature: 0.7,
-			MaxTokens:   4096,
+			MaxTokens:   1000000,
 		},
 		MCP: MCPConfig{
 			Servers: []MCPServerConfig{},

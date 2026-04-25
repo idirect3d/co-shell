@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/liangshuang/co-shell/store"
+	"github.com/idirect3d/co-shell/store"
 )
 
 // ContextHandler handles the .context built-in command.

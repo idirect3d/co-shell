@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/liangshuang/co-shell/config"
-	"github.com/liangshuang/co-shell/mcp"
+	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/mcp"
 )
 
 // MCPHandler handles the .mcp built-in command.

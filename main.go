@@ -1,17 +1,28 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/liangshuang/co-shell/agent"
-	"github.com/liangshuang/co-shell/config"
-	"github.com/liangshuang/co-shell/llm"
-	"github.com/liangshuang/co-shell/mcp"
-	"github.com/liangshuang/co-shell/repl"
-	"github.com/liangshuang/co-shell/store"
+	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/llm"
+	"github.com/idirect3d/co-shell/mcp"
+	"github.com/idirect3d/co-shell/repl"
+	"github.com/idirect3d/co-shell/store"
 )
+
+// readLine reads a line from stdin, trimming whitespace and carriage returns.
+func readLine() string {
+	scanner := bufio.NewScanner(os.Stdin)
+	if scanner.Scan() {
+		return strings.TrimRight(scanner.Text(), "\r\n ")
+	}
+	return ""
+}
 
 func main() {
 	// Load configuration
@@ -40,6 +51,11 @@ func main() {
 				fmt.Fprintf(os.Stderr, "Warning: cannot connect to MCP server %q: %v\n", serverCfg.Name, err)
 			}
 		}
+	}
+
+	// Run API setup wizard if configuration is incomplete
+	if !isLLMConfigComplete(cfg) {
+		runSetupWizard(cfg)
 	}
 
 	// Initialize LLM client
@@ -72,6 +88,82 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// isLLMConfigComplete checks whether the LLM configuration has all required fields.
+func isLLMConfigComplete(cfg *config.Config) bool {
+	return cfg.LLM.APIKey != "" &&
+		cfg.LLM.Endpoint != "" &&
+		cfg.LLM.Model != ""
+}
+
+// runSetupWizard guides the user through configuring the LLM API settings interactively.
+func runSetupWizard(cfg *config.Config) {
+	fmt.Println()
+	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
+	fmt.Println("║        🔧 co-shell API 设置向导                           ║")
+	fmt.Println("╠══════════════════════════════════════════════════════════════╣")
+	fmt.Println("║  您需要先完成大模型 API 的配置，才能开始使用 co-shell。    ║")
+	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	fmt.Println()
+
+	// Step 1: API Endpoint
+	fmt.Printf("📌 API 端点 [%s]: ", cfg.LLM.Endpoint)
+	input := readLine()
+	if input != "" {
+		cfg.LLM.Endpoint = input
+	}
+
+	// Step 2: Model name
+	fmt.Printf("📌 模型名称 [%s]: ", cfg.LLM.Model)
+	input = readLine()
+	if input != "" {
+		cfg.LLM.Model = input
+	}
+
+	// Step 3: API Key (required, loop until test passes)
+	for {
+		fmt.Print("📌 API Key (必填): ")
+		input = readLine()
+		if input == "" {
+			fmt.Println("⚠️  API Key 不能为空，请重新输入。")
+			continue
+		}
+		cfg.LLM.APIKey = input
+
+		// Test the connection
+		fmt.Print("🔄 正在测试 API 连接...")
+		if err := testAPIConnection(cfg); err != nil {
+			fmt.Printf("\n❌ 连接测试失败: %v\n", err)
+			fmt.Println("请检查 API Key 是否正确，或重新输入。")
+			cfg.LLM.APIKey = "" // reset so wizard continues
+			continue
+		}
+		fmt.Println(" ✅ 连接成功！")
+		break
+	}
+
+	// Save configuration
+	if err := cfg.Save(); err != nil {
+		fmt.Printf("⚠️  配置保存失败: %v\n", err)
+	} else {
+		fmt.Println("✅ 配置已保存到 ~/.co-shell/config.json")
+	}
+	fmt.Println()
+}
+
+// testAPIConnection sends a simple chat completion request to verify the configuration.
+func testAPIConnection(cfg *config.Config) error {
+	client := llm.NewClient(cfg.LLM.Endpoint, cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.Temperature, cfg.LLM.MaxTokens)
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15)
+	defer cancel()
+
+	_, err := client.Chat(ctx, []llm.Message{
+		{Role: "user", Content: "Respond with exactly: OK"},
+	}, nil)
+	return err
 }
 
 // noopClient is a placeholder LLM client used when no API key is configured.

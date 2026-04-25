@@ -1,4 +1,4 @@
-module github.com/liangshuang/co-shell
+module github.com/idirect3d/co-shell
 
 go 1.23
 

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/liangshuang/co-shell/config"
+	"github.com/idirect3d/co-shell/config"
 )
 
 // SettingsHandler handles the .settings built-in command.

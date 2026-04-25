@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/liangshuang/co-shell/llm"
-	"github.com/liangshuang/co-shell/mcp"
-	"github.com/liangshuang/co-shell/store"
+	"github.com/idirect3d/co-shell/llm"
+	"github.com/idirect3d/co-shell/mcp"
+	"github.com/idirect3d/co-shell/store"
 )
 
 const (

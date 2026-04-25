@@ -1,0 +1,16 @@
+# Binary
+co-shell
+co-shell.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (user-specific)
+config.json
