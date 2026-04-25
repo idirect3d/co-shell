@@ -15,6 +15,7 @@ import (
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/store"
@@ -92,7 +93,7 @@ func (r *REPL) Run() error {
 
 	go func() {
 		<-sigCh
-		fmt.Println("\n👋 Goodbye!")
+		fmt.Println(i18n.T(i18n.KeyGoodbye))
 		r.cleanup()
 		os.Exit(0)
 	}()
@@ -160,7 +161,7 @@ func (r *REPL) executor(input string) {
 
 	// Handle exit commands
 	if input == "exit" || input == "quit" || input == ".exit" || input == ".quit" {
-		fmt.Println("👋 Goodbye!")
+		fmt.Println(i18n.T(i18n.KeyGoodbye))
 		r.cleanup()
 		os.Exit(0)
 	}
@@ -212,12 +213,12 @@ func (r *REPL) handleBuiltin(input string) {
 	case ".context":
 		result, err = r.contextHandler.Handle(args)
 	default:
-		fmt.Printf("❌ 未知命令: %s\n输入 .help 查看可用命令列表\n", command)
+		fmt.Printf(i18n.T(i18n.KeyUnknownCommand)+"\n", command)
 		return
 	}
 
 	if err != nil {
-		fmt.Printf("❌ 错误: %v\n", err)
+		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyError), err)
 		return
 	}
 	fmt.Println(result)
@@ -243,7 +244,7 @@ func (r *REPL) handleSystemCommand(command string) {
 		if output != "" {
 			fmt.Print(output)
 		}
-		fmt.Printf("❌ 命令执行失败: %v\n", err)
+		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyCmdFailed), err)
 		return
 	}
 
@@ -259,8 +260,8 @@ func (r *REPL) handleAgentInput(input string) {
 	// Use streaming version
 	_, err := r.agent.RunStream(ctx, input, r.streamCallback)
 	if err != nil {
-		fmt.Printf("❌ 处理失败: %v\n", err)
-		fmt.Println("💡 提示: 请检查 API 配置是否正确，输入 .settings 查看当前配置")
+		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyProcessFailed), err)
+		fmt.Println(i18n.T(i18n.KeyCheckConfig))
 		return
 	}
 }
@@ -291,10 +292,10 @@ func (r *REPL) streamCallback(eventType string, content string) {
 	case "output":
 		// Show the full command output (stdout + stderr) before LLM analysis
 		fmt.Println()
-		fmt.Println("📋 命令输出:")
-		fmt.Println("────────────────────────────────────────────")
+		fmt.Println(i18n.T(i18n.KeyOutputTitle))
+		fmt.Println(i18n.T(i18n.KeyOutputSep))
 		fmt.Println(content)
-		fmt.Println("────────────────────────────────────────────")
+		fmt.Println(i18n.T(i18n.KeyOutputSep))
 		fmt.Println()
 
 	case "tool_call":
@@ -401,44 +402,42 @@ func (r *REPL) printWelcome() {
 ║   Intelligent Command-Line Shell     ║
 ╚══════════════════════════════════════╝
 
-Type .help for available commands, or just type in natural language!
+` + i18n.T(i18n.KeyWelcomeTip) + `
 `)
 }
 
 // printHelp displays the help information.
 func (r *REPL) printHelp() {
-	fmt.Print(`
-Available Commands:
-
-  Natural Language:
-    Just type your request in natural language, and I'll help you execute it.
-
-  Built-in Commands (start with .):
-    .settings     - Manage LLM API settings (key, model, endpoint, etc.)
-    .mcp          - Manage MCP server connections
-    .rule         - Manage global rules for the AI
-    .memory       - Manage memory and persistent knowledge
-    .context      - Manage conversation context
-    .help         - Show this help message
-    .exit         - Exit co-shell
-
-  Examples:
-    ❯ List all files in the current directory
-    ❯ Find all large files over 100MB
-    ❯ .settings model gpt-4o
-    ❯ .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp
-    ❯ .rule add "Always confirm before deleting files"
-`)
+	fmt.Println(i18n.T(i18n.KeyHelpTitle))
+	fmt.Println()
+	fmt.Println(i18n.T(i18n.KeyHelpNLTitle))
+	fmt.Println(i18n.T(i18n.KeyHelpNLDesc))
+	fmt.Println()
+	fmt.Println(i18n.T(i18n.KeyHelpBuiltinTitle))
+	fmt.Println(i18n.T(i18n.KeyHelpSettings))
+	fmt.Println(i18n.T(i18n.KeyHelpMCP))
+	fmt.Println(i18n.T(i18n.KeyHelpRule))
+	fmt.Println(i18n.T(i18n.KeyHelpMemory))
+	fmt.Println(i18n.T(i18n.KeyHelpContext))
+	fmt.Println(i18n.T(i18n.KeyHelpHelp))
+	fmt.Println(i18n.T(i18n.KeyHelpExit))
+	fmt.Println()
+	fmt.Println(i18n.T(i18n.KeyHelpExampleTitle))
+	fmt.Println(i18n.T(i18n.KeyHelpExample1))
+	fmt.Println(i18n.T(i18n.KeyHelpExample2))
+	fmt.Println(i18n.T(i18n.KeyHelpExample3))
+	fmt.Println(i18n.T(i18n.KeyHelpExample4))
+	fmt.Println(i18n.T(i18n.KeyHelpExample5))
 }
 
 // cleanup performs cleanup operations before exit.
 func (r *REPL) cleanup() {
-	fmt.Print("Cleaning up...")
+	fmt.Print(i18n.T(i18n.KeyCleaningUp))
 	if err := r.mcpMgr.Close(); err != nil {
 		fmt.Printf(" MCP error: %v", err)
 	}
 	if err := r.store.Close(); err != nil {
 		fmt.Printf(" DB error: %v", err)
 	}
-	fmt.Println(" Done.")
+	fmt.Println(i18n.T(i18n.KeyDone))
 }

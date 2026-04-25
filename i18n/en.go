@@ -1,0 +1,198 @@
+// Author: L.Shuang
+// Package i18n - English translations.
+package i18n
+
+var enMessages = map[string]string{
+	// General
+	KeyCancelled:      "Cancelled",
+	KeySetupCancelled: "❌ Setup incomplete, exiting.",
+	KeyYes:            "Yes",
+	KeyNo:             "No",
+	KeyOn:             "On",
+	KeyOff:            "Off",
+	KeyError:          "Error",
+	KeyWarning:        "Warning",
+	KeySuccess:        "Success",
+	KeyUnlimited:      "Unlimited",
+	KeyDefault:        "Default",
+
+	// Wizard
+	KeyWizardTitle:       "🔧 co-shell API Setup Wizard",
+	KeyWizardDescription: "Configure LLM API before using co-shell.\nPress ESC at any time to exit.",
+	KeySelectProvider:    "📌 Select LLM Provider (Enter for default, Tab to show list)",
+	KeyProviderSelected:  "📌 Selected provider: %s",
+	KeyProviderLabel:     "📌 Provider",
+	KeyEndpointLabel:     "📌 API Endpoint",
+	KeyEndpointRequired:  "📌 API Endpoint (required)",
+	KeyAPIKeyLabel:       "📌 API Key (required)",
+	KeyAPIKeyRequired:    "🔑 Enter API Key to fetch available models.",
+	KeyModelName:         "📌 Model Name",
+	KeyAPITest:           "🔄 Testing API connection...",
+	KeyAPITestOK:         " ✅ Connection successful!",
+	KeyAPITestFail:       "\n❌ Connection test failed: %v\n",
+	KeyFetchModels:       "🔄 Fetching available models...",
+	KeyFetchModelsOK:     " ✅ Found %d available models!",
+	KeyFetchModelsFail:   "\n❌ Failed to fetch models: %v\n",
+	KeyEndpointTest:      "🔄 Testing endpoint connectivity...",
+	KeyEndpointTestOK:    " ✅ Endpoint reachable!",
+	KeyEndpointTestFail:  "\n❌ Endpoint connection failed: %v\n",
+	KeyEndpointRetry:     "⚠️ Please check the endpoint URL and re-enter.",
+	KeyAPIKeyGetPrompt:   "🔑 An API key is required to call the %s API.",
+	KeyAPIKeyManualGet:   "   Manually get an API key and paste it below.",
+	KeyAPIKeyOpenPage:    "   Open %s API key page?",
+	KeyAPIKeyOpeningPage: "   🔗 Opening: %s",
+	KeyAPIKeyManualOpen:  "   Please visit: %s",
+	KeyEmptyField:        "⚠️ This field cannot be empty, please re-enter.",
+	KeyInvalidChoice:     "⚠️ Invalid choice, please enter number 1-%d or provider name.",
+	KeyConfigSaved:       "✅ Configuration saved to ~/.co-shell/config.json",
+
+	// REPL
+	KeyGoodbye:     "\n👋 Goodbye!",
+	KeyExit:        "exit",
+	KeyCleanup:     "Cleaning up...",
+	KeyCleanupDone: "Done.",
+	KeyUnknownCmd:  "Unknown command: %s",
+	KeyCmdError:    "Command error",
+	KeyCmdExecFail: "Command execution failed",
+	KeyAgentFail:   "Agent error",
+	KeyAgentHint:   "Type help or .help to see available commands.",
+	KeyOutputTitle: "=== Command Output ===",
+	KeyOutputSep:   "---",
+	KeyToolCall:    "Tool call",
+
+	// Settings - Labels
+	KeySettingsLabel:        "Settings",
+	KeyAPIKeyLabelSetting:   "API Key",
+	KeyEndpointLabelSetting: "Endpoint",
+	KeyModelLabel:           "Model",
+	KeyTempLabel:            "Temperature",
+	KeyMaxTokensLabel:       "Max Tokens",
+	KeyProviderLabelSetting: "Provider",
+
+	// Settings - Messages
+	KeySettingsUpdated:  "✅ Settings updated.",
+	KeyEndpointUpdated:  "✅ Endpoint updated.",
+	KeyModelUpdated:     "✅ Model updated.",
+	KeyTempUpdated:      "✅ Temperature set to %.1f.",
+	KeyMaxTokensUpdated: "✅ Max tokens set to %d.",
+	KeyShowThinking:     "Show thinking: %s",
+	KeyShowCommand:      "Show command: %s",
+	KeyShowOutput:       "Show output: %s",
+	KeyLogEnabled:       "Logging: %s",
+	KeyMaxIterations:    "Max iterations: %s",
+	KeyProviderUpdated:  "✅ Provider updated.",
+
+	// Settings - Config Show
+	KeyConfigTitle:         "Current Configuration:",
+	KeyConfigProvider:      "  Provider:      %s\n",
+	KeyConfigEndpoint:      "  Endpoint:      %s\n",
+	KeyConfigModel:         "  Model:         %s\n",
+	KeyConfigTemperature:   "  Temperature:   %.1f\n",
+	KeyConfigMaxTokens:     "  Max Tokens:    %d\n",
+	KeyConfigMaxIterations: "  Max Iterations: %s\n",
+	KeyConfigShowThinking:  "  Show Thinking: %s\n",
+	KeyConfigShowCommand:   "  Show Command:  %s\n",
+	KeyConfigShowOutput:    "  Show Output:   %s\n",
+	KeyConfigLogging:       "  Logging:       %s\n",
+	KeyConfigMCPServers:    "  MCP Servers:   %s\n",
+	KeyConfigRules:         "  Rules:         %s\n",
+
+	// MCP
+	KeyMCPAlreadyExists: "MCP server already exists: %s",
+	KeyMCPAdded:         "✅ MCP server added: %s",
+	KeyMCPRemoved:       "✅ MCP server removed: %s",
+	KeyMCPNotFound:      "MCP server not found: %s",
+	KeyMCPEnabled:       "✅ MCP server enabled: %s",
+	KeyMCPDisabled:      "✅ MCP server disabled: %s",
+	KeyMCPEmpty:         "No MCP servers configured.",
+	KeyMCPListTitle:     "MCP Servers:",
+
+	// Rule
+	KeyRuleAdded:   "✅ Rule added: %s",
+	KeyRuleRemoved: "✅ Rule removed: %s",
+	KeyRuleCleared: "✅ All rules cleared.",
+	KeyRuleInvalid: "Invalid rule index: %s",
+	KeyRuleNoRules: "No rules configured.",
+
+	// Memory
+	KeyMemorySaved:   "✅ Memory saved: %s = %s",
+	KeyMemoryDeleted: "✅ Memory deleted: %s",
+	KeyMemoryCleared: "✅ All memory cleared.",
+	KeyMemoryEmpty:   "No memory entries.",
+	KeyMemoryGet:     "%s = %s",
+
+	// Context
+	KeyContextShow:  "Current Context:",
+	KeyContextEmpty: "Context is empty.",
+	KeyContextReset: "✅ Context reset.",
+	KeyContextSet:   "✅ Context set: %s = %s",
+
+	// Agent
+	KeyNoopClientError: "LLM client not configured. Please run the setup wizard or configure API settings.",
+
+	// Settings - Extended
+	KeySettingsLabelLog:           "Log",
+	KeySettingsLabelShowThinking:  "Show Thinking",
+	KeySettingsLabelShowCommand:   "Show Command",
+	KeySettingsLabelShowOutput:    "Show Output",
+	KeySettingsLabelMaxIterations: "Max Iterations",
+	KeySettingsLabelProvider:      "Provider",
+
+	// Config format
+	KeyConfigFormat: "%s: %s",
+
+	// REPL - Additional
+	KeyWelcomeTip:     "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.",
+	KeyUnknownCommand: "❌ Unknown command: %s",
+	KeyCmdFailed:      "Command failed",
+	KeyProcessFailed:  "Processing failed",
+	KeyCheckConfig:    "💡 Check your API configuration with .settings",
+	KeyCleaningUp:     "Cleaning up...",
+	KeyDone:           " Done.",
+
+	// Help
+	KeyHelpTitle:        "📖 co-shell Help",
+	KeyHelpNLTitle:      "Natural Language Commands:",
+	KeyHelpNLDesc:       "    Just type what you want to do, and co-shell will figure it out.",
+	KeyHelpBuiltinTitle: "Built-in Commands:",
+	KeyHelpSettings:     "    .settings           - View/change LLM API settings",
+	KeyHelpMCP:          "    .mcp                - Manage MCP server connections",
+	KeyHelpRule:         "    .rule               - Manage global rules",
+	KeyHelpMemory:       "    .memory             - Manage memory and knowledge",
+	KeyHelpContext:      "    .context            - Manage conversation context",
+	KeyHelpHelp:         "    .help               - Show this help message",
+	KeyHelpExit:         "    .exit               - Exit co-shell",
+	KeyHelpExampleTitle: "Examples:",
+	KeyHelpExample1:     "    ❯ \"List files in current directory\"",
+	KeyHelpExample2:     "    ❯ \"What is the weather today?\"",
+	KeyHelpExample3:     "    ❯ ls -la",
+	KeyHelpExample4:     "    ❯ .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
+	KeyHelpExample5:     "    ❯ .rule add \"Always confirm before deleting files\"",
+
+	// CLI Help
+	KeyCLIHelpTitle:     "co-shell v%s - Intelligent Command-Line Shell",
+	KeyCLIHelpUsage:     "Usage:",
+	KeyCLIHelpUsageREPL: "  co-shell [options]                    Start interactive REPL",
+	KeyCLIHelpUsageCmd:  "  co-shell [options] <command>          Execute a single command and exit",
+	KeyCLIHelpOptions:   "Options:",
+	KeyCLIHelpConfig:    "  -c, --config <path>    Config file path (default: ~/.co-shell/config.json)",
+	KeyCLIHelpModel:     "  -m, --model <name>     Temporarily override model (overrides config)",
+	KeyCLIHelpEndpoint:  "  -e, --endpoint <url>   Temporarily override API endpoint (overrides config)",
+	KeyCLIHelpAPIKey:    "  -k, --api-key <key>    Temporarily override API Key (overrides config)",
+	KeyCLIHelpLang:      "      --lang <code>      Set language (zh/en, auto-detect by default)",
+	KeyCLIHelpLog:       "      --log on|off       Temporarily enable/disable logging (overrides config)",
+	KeyCLIHelpMaxIter:   "      --max-iterations   Max iterations (-1 for unlimited, default 10)",
+	KeyCLIHelpVersion:   "  -v, --version          Show version information",
+	KeyCLIHelpHelp:      "  -h, --help             Show this help message",
+	KeyCLIHelpExamples:  "Examples:",
+	KeyCLIHelpEx1:       "  co-shell                             Start interactive REPL",
+	KeyCLIHelpEx2:       `  co-shell "list files in current dir"  Execute natural language command`,
+	KeyCLIHelpEx3:       `  co-shell "cat ~/.co-shell/config.json"  Execute system command`,
+	KeyCLIHelpEx4:       "  co-shell -m gpt-4o hello              Specify model and execute command",
+	KeyCLIHelpEx5:       "  co-shell -k sk-xxxx --log off         Temporarily set API Key and disable logging",
+	KeyCLIHelpEx6:       "  co-shell --lang zh                     Start with Chinese interface",
+	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 list files  Set max iterations and execute command",
+
+	// Custom
+	KeyCustom: "Custom",
+}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
@@ -32,6 +33,7 @@ type cliFlags struct {
 	maxIterations int
 	showHelp      bool
 	showVersion   bool
+	lang          string
 }
 
 func parseFlags() cliFlags {
@@ -48,6 +50,7 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.apiKey, "k", "", "临时指定 API Key（简写）")
 	flag.StringVar(&f.log, "log", "", "临时指定日志开关（on/off，覆盖配置文件）")
 	flag.IntVar(&f.maxIterations, "max-iterations", -1, "最大迭代次数（-1 为不限制，默认 10）")
+	flag.StringVar(&f.lang, "lang", "", "设置语言（zh/en，默认自动检测）")
 	flag.BoolVar(&f.showHelp, "help", false, "显示帮助信息")
 	flag.BoolVar(&f.showHelp, "h", false, "显示帮助信息（简写）")
 	flag.BoolVar(&f.showVersion, "version", false, "显示版本信息")
@@ -55,29 +58,58 @@ func parseFlags() cliFlags {
 
 	// Custom usage message
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, `co-shell v%s - 智能命令行 Shell
+		fmt.Fprintf(os.Stderr, `%s
 
-用法:
-  co-shell [选项]                    启动交互式 REPL
-  co-shell [选项] <指令>             执行单条指令后退出
+%s
 
-选项:
-  -c, --config <path>    指定配置文件路径（默认: ~/.co-shell/config.json）
-  -m, --model <name>     临时指定模型名称（覆盖配置文件）
-  -e, --endpoint <url>   临时指定 API 端点（覆盖配置文件）
-  -k, --api-key <key>    临时指定 API Key（覆盖配置文件）
-      --log on|off       临时指定日志开关（覆盖配置文件）
-      --max-iterations   最大迭代次数（-1 为不限制，默认 10）
-  -v, --version          显示版本信息
-  -h, --help             显示帮助信息
+  %s
+  %s
 
-示例:
-  co-shell                             启动交互式 REPL
-  co-shell 列出当前目录的文件           执行自然语言指令
-  co-shell "cat ~/.co-shell/config.json"  执行系统命令
-  co-shell -m deepseek-chat 你好       指定模型并执行指令
-  co-shell -k sk-xxxx --log off        临时指定 API Key 并关闭日志
-`, version)
+%s
+
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+
+%s
+
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+`,
+			i18n.TF(i18n.KeyCLIHelpTitle, version),
+			i18n.T(i18n.KeyCLIHelpUsage),
+			i18n.T(i18n.KeyCLIHelpUsageREPL),
+			i18n.T(i18n.KeyCLIHelpUsageCmd),
+			i18n.T(i18n.KeyCLIHelpOptions),
+			i18n.T(i18n.KeyCLIHelpConfig),
+			i18n.T(i18n.KeyCLIHelpModel),
+			i18n.T(i18n.KeyCLIHelpEndpoint),
+			i18n.T(i18n.KeyCLIHelpAPIKey),
+			i18n.T(i18n.KeyCLIHelpLang),
+			i18n.T(i18n.KeyCLIHelpLog),
+			i18n.T(i18n.KeyCLIHelpMaxIter),
+			i18n.T(i18n.KeyCLIHelpVersion),
+			i18n.T(i18n.KeyCLIHelpHelp),
+			i18n.T(i18n.KeyCLIHelpExamples),
+			i18n.T(i18n.KeyCLIHelpEx1),
+			i18n.T(i18n.KeyCLIHelpEx2),
+			i18n.T(i18n.KeyCLIHelpEx3),
+			i18n.T(i18n.KeyCLIHelpEx4),
+			i18n.T(i18n.KeyCLIHelpEx5),
+			i18n.T(i18n.KeyCLIHelpEx6),
+			i18n.T(i18n.KeyCLIHelpEx7),
+		)
 	}
 
 	flag.Parse()
@@ -92,6 +124,9 @@ func parseFlags() cliFlags {
 
 func main() {
 	flags := parseFlags()
+
+	// Initialize i18n before any user-facing output
+	i18n.Init(flags.lang)
 
 	// Handle --help
 	if flags.showHelp {
@@ -180,7 +215,7 @@ func main() {
 	if !isLLMConfigComplete(cfg) {
 		log.Info("Running API setup wizard")
 		if !wizard.RunSetupWizard(cfg) {
-			fmt.Println("❌ 设置未完成，程序退出。")
+			fmt.Println(i18n.T(i18n.KeySetupCancelled))
 			os.Exit(1)
 		}
 	}
@@ -276,10 +311,10 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 			fmt.Printf("⚡ %s\n", content)
 		case "output":
 			fmt.Println()
-			fmt.Println("📋 命令输出:")
-			fmt.Println("────────────────────────────────────────────")
+			fmt.Println(i18n.T(i18n.KeyOutputTitle))
+			fmt.Println(i18n.T(i18n.KeyOutputSep))
 			fmt.Println(content)
-			fmt.Println("────────────────────────────────────────────")
+			fmt.Println(i18n.T(i18n.KeyOutputSep))
 		case "tool_call":
 			fmt.Println(content)
 		case "error":
@@ -305,15 +340,15 @@ func isLLMConfigComplete(cfg *config.Config) bool {
 type noopClient struct{}
 
 func (c *noopClient) Chat(ctx context.Context, messages []llm.Message, tools []llm.Tool) (*llm.LLMResponse, error) {
-	return nil, fmt.Errorf("LLM not configured. Set your API key with: .settings api-key <your-key>")
+	return nil, fmt.Errorf(i18n.T(i18n.KeyNoopClientError))
 }
 
 func (c *noopClient) ChatStream(ctx context.Context, messages []llm.Message, tools []llm.Tool) (<-chan llm.StreamEvent, error) {
-	return nil, fmt.Errorf("LLM not configured. Set your API key with: .settings api-key <your-key>")
+	return nil, fmt.Errorf(i18n.T(i18n.KeyNoopClientError))
 }
 
 func (c *noopClient) ListModels(ctx context.Context) ([]string, error) {
-	return nil, fmt.Errorf("LLM not configured. Set your API key with: .settings api-key <your-key>")
+	return nil, fmt.Errorf(i18n.T(i18n.KeyNoopClientError))
 }
 
 func (c *noopClient) Close() error {

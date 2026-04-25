@@ -3,32 +3,25 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 )
 
 // MCPHandler handles the .mcp built-in command.
 type MCPHandler struct {
-	cfg     *config.Config
-	manager *mcp.Manager
+	cfg    *config.Config
+	mcpMgr *mcp.Manager
 }
 
 // NewMCPHandler creates a new MCPHandler.
-func NewMCPHandler(cfg *config.Config, manager *mcp.Manager) *MCPHandler {
-	return &MCPHandler{cfg: cfg, manager: manager}
+func NewMCPHandler(cfg *config.Config, mcpMgr *mcp.Manager) *MCPHandler {
+	return &MCPHandler{cfg: cfg, mcpMgr: mcpMgr}
 }
 
 // Handle processes .mcp commands.
-// Syntax:
-//
-//	.mcp                          - list all MCP servers
-//	.mcp add <name> <cmd> [args]  - add a new MCP server
-//	.mcp remove <name>            - remove an MCP server
-//	.mcp list                     - list all MCP servers and their tools
-//	.mcp enable <name>            - enable an MCP server
-//	.mcp disable <name>           - disable an MCP server
 func (h *MCPHandler) Handle(args []string) (string, error) {
 	if len(args) == 0 {
 		return h.listServers(), nil
@@ -38,21 +31,16 @@ func (h *MCPHandler) Handle(args []string) (string, error) {
 	switch subcommand {
 	case "add":
 		return h.addServer(args[1:])
-
-	case "remove", "rm":
+	case "remove":
 		return h.removeServer(args[1:])
-
-	case "list", "ls":
+	case "list":
 		return h.listServers(), nil
-
 	case "enable":
 		return h.enableServer(args[1:])
-
 	case "disable":
 		return h.disableServer(args[1:])
-
 	default:
-		return "", fmt.Errorf("unknown subcommand: %s\n\nAvailable commands:\n  add <name> <cmd> [args]  - Add a new MCP server\n  remove <name>            - Remove an MCP server\n  list                     - List all MCP servers\n  enable <name>            - Enable an MCP server\n  disable <name>           - Disable an MCP server", subcommand)
+		return "", fmt.Errorf("unknown mcp subcommand: %s", subcommand)
 	}
 }
 
@@ -60,7 +48,6 @@ func (h *MCPHandler) addServer(args []string) (string, error) {
 	if len(args) < 2 {
 		return "", fmt.Errorf("usage: .mcp add <name> <command> [args...]")
 	}
-
 	name := args[0]
 	command := args[1]
 	var cmdArgs []string
@@ -68,134 +55,119 @@ func (h *MCPHandler) addServer(args []string) (string, error) {
 		cmdArgs = args[2:]
 	}
 
-	// Add to config
-	serverCfg := config.MCPServerConfig{
+	// Check for duplicates
+	for _, s := range h.cfg.MCP.Servers {
+		if s.Name == name {
+			return "", fmt.Errorf(i18n.TF(i18n.KeyMCPAlreadyExists, name))
+		}
+	}
+
+	server := config.MCPServerConfig{
 		Name:    name,
 		Command: command,
 		Args:    cmdArgs,
 		Enabled: true,
 	}
-	h.cfg.MCP.Servers = append(h.cfg.MCP.Servers, serverCfg)
+	h.cfg.MCP.Servers = append(h.cfg.MCP.Servers, server)
+
+	if err := h.mcpMgr.AddServer(name, command, cmdArgs); err != nil {
+		log.Warn("MCP server %s added to config but connection failed: %v", name, err)
+	}
+
 	if err := h.cfg.Save(); err != nil {
 		return "", err
 	}
-
-	// Connect to the server
-	if err := h.manager.AddServer(name, command, cmdArgs); err != nil {
-		return "", fmt.Errorf("added to config but failed to connect: %w", err)
-	}
-
-	return fmt.Sprintf("✅ MCP server %q added and connected", name), nil
+	log.Info("MCP server added: %s", name)
+	return i18n.TF(i18n.KeyMCPAdded, name), nil
 }
 
 func (h *MCPHandler) removeServer(args []string) (string, error) {
 	if len(args) < 1 {
 		return "", fmt.Errorf("usage: .mcp remove <name>")
 	}
-
 	name := args[0]
 
-	// Remove from config
-	var updatedServers []config.MCPServerConfig
-	for _, s := range h.cfg.MCP.Servers {
-		if s.Name != name {
-			updatedServers = append(updatedServers, s)
+	index := -1
+	for i, s := range h.cfg.MCP.Servers {
+		if s.Name == name {
+			index = i
+			break
 		}
 	}
-	h.cfg.MCP.Servers = updatedServers
+	if index == -1 {
+		return "", fmt.Errorf(i18n.TF(i18n.KeyMCPNotFound, name))
+	}
+
+	h.cfg.MCP.Servers = append(h.cfg.MCP.Servers[:index], h.cfg.MCP.Servers[index+1:]...)
+
+	if err := h.mcpMgr.RemoveServer(name); err != nil {
+		log.Warn("MCP server %s removed from config but disconnect error: %v", name, err)
+	}
+
 	if err := h.cfg.Save(); err != nil {
 		return "", err
 	}
-
-	// Disconnect
-	if err := h.manager.RemoveServer(name); err != nil {
-		return fmt.Sprintf("⚠️  Removed from config but disconnect had error: %v", err), nil
-	}
-
-	return fmt.Sprintf("✅ MCP server %q removed", name), nil
-}
-
-func (h *MCPHandler) listServers() string {
-	servers := h.manager.ListServers()
-	if len(servers) == 0 {
-		return "No MCP servers connected.\n\nAdd one with: .mcp add <name> <command> [args...]"
-	}
-
-	var sb strings.Builder
-	sb.WriteString("MCP Servers:\n")
-	for _, s := range servers {
-		sb.WriteString(fmt.Sprintf("\n  📡 %s\n", s.Name))
-		if len(s.Tools) == 0 {
-			sb.WriteString("    No tools available\n")
-		} else {
-			sb.WriteString("    Tools:\n")
-			for _, t := range s.Tools {
-				sb.WriteString(fmt.Sprintf("      • %s", t.Name))
-				if t.Description != "" {
-					sb.WriteString(fmt.Sprintf(" - %s", t.Description))
-				}
-				sb.WriteString("\n")
-			}
-		}
-	}
-	return sb.String()
+	log.Info("MCP server removed: %s", name)
+	return i18n.TF(i18n.KeyMCPRemoved, name), nil
 }
 
 func (h *MCPHandler) enableServer(args []string) (string, error) {
 	if len(args) < 1 {
 		return "", fmt.Errorf("usage: .mcp enable <name>")
 	}
-
 	name := args[0]
+
 	for i, s := range h.cfg.MCP.Servers {
 		if s.Name == name {
 			h.cfg.MCP.Servers[i].Enabled = true
+			if err := h.mcpMgr.AddServer(name, s.Command, s.Args); err != nil {
+				log.Warn("MCP server %s enabled but connection failed: %v", name, err)
+			}
 			if err := h.cfg.Save(); err != nil {
 				return "", err
 			}
-			// Try to connect if not already connected
-			if err := h.manager.AddServer(name, s.Command, s.Args); err != nil {
-				return fmt.Sprintf("⚠️  Enabled in config but failed to connect: %v", err), nil
-			}
-			return fmt.Sprintf("✅ MCP server %q enabled", name), nil
+			log.Info("MCP server enabled: %s", name)
+			return i18n.TF(i18n.KeyMCPEnabled, name), nil
 		}
 	}
-	return "", fmt.Errorf("server %q not found in config", name)
+	return "", fmt.Errorf(i18n.TF(i18n.KeyMCPNotFound, name))
 }
 
 func (h *MCPHandler) disableServer(args []string) (string, error) {
 	if len(args) < 1 {
 		return "", fmt.Errorf("usage: .mcp disable <name>")
 	}
-
 	name := args[0]
+
 	for i, s := range h.cfg.MCP.Servers {
 		if s.Name == name {
 			h.cfg.MCP.Servers[i].Enabled = false
+			if err := h.mcpMgr.RemoveServer(name); err != nil {
+				log.Warn("MCP server %s disabled but disconnect error: %v", name, err)
+			}
 			if err := h.cfg.Save(); err != nil {
 				return "", err
 			}
-			h.manager.RemoveServer(name)
-			return fmt.Sprintf("✅ MCP server %q disabled", name), nil
+			log.Info("MCP server disabled: %s", name)
+			return i18n.TF(i18n.KeyMCPDisabled, name), nil
 		}
 	}
-	return "", fmt.Errorf("server %q not found in config", name)
+	return "", fmt.Errorf(i18n.TF(i18n.KeyMCPNotFound, name))
 }
 
-// Help returns the help text for the MCP command.
-func (h *MCPHandler) Help() string {
-	return `MCP Server Management (.mcp)
+func (h *MCPHandler) listServers() string {
+	if len(h.cfg.MCP.Servers) == 0 {
+		return i18n.T(i18n.KeyMCPEmpty)
+	}
 
-Usage:
-  .mcp                              List all MCP servers
-  .mcp add <name> <cmd> [args...]   Add a new MCP server
-  .mcp remove <name>                Remove an MCP server
-  .mcp list                         List all MCP servers and their tools
-  .mcp enable <name>                Enable an MCP server
-  .mcp disable <name>               Disable an MCP server
-
-Examples:
-  .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp
-  .mcp add github npx @modelcontextprotocol/server-github
-  .mcp list`
+	var result string
+	result = i18n.T(i18n.KeyMCPListTitle) + "\n"
+	for _, s := range h.cfg.MCP.Servers {
+		status := i18n.T(i18n.KeyOff)
+		if s.Enabled {
+			status = i18n.T(i18n.KeyOn)
+		}
+		result += fmt.Sprintf("  [%s] %s: %s %v\n", status, s.Name, s.Command, s.Args)
+	}
+	return result
 }

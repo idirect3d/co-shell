@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // LLMConfig holds all LLM-related configuration.
@@ -154,47 +156,33 @@ func (c *Config) Save() error {
 
 // Show returns a human-readable representation of the config.
 func (c *Config) Show() string {
-	thinkingStatus := "on"
+	thinkingStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ShowThinking {
-		thinkingStatus = "off"
+		thinkingStatus = i18n.T(i18n.KeyOff)
 	}
-	commandStatus := "on"
+	commandStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ShowCommand {
-		commandStatus = "off"
+		commandStatus = i18n.T(i18n.KeyOff)
 	}
-	outputStatus := "on"
+	outputStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ShowOutput {
-		outputStatus = "off"
+		outputStatus = i18n.T(i18n.KeyOff)
 	}
-	logStatus := "on"
+	logStatus := i18n.T(i18n.KeyOn)
 	if !c.LogEnabled {
-		logStatus = "off"
+		logStatus = i18n.T(i18n.KeyOff)
 	}
 	maxIterStr := fmt.Sprintf("%d", c.LLM.MaxIterations)
 	if c.LLM.MaxIterations == -1 {
-		maxIterStr = "unlimited"
+		maxIterStr = i18n.T(i18n.KeyUnlimited)
 	} else if c.LLM.MaxIterations == 0 {
-		maxIterStr = "10 (default)"
+		maxIterStr = "10 (" + i18n.T(i18n.KeyDefault) + ")"
 	}
 	providerName := c.LLM.Provider
 	if providerName == "" {
-		providerName = "custom"
+		providerName = i18n.T(i18n.KeyCustom)
 	}
-	return fmt.Sprintf(`LLM Configuration:
-  Provider:        %s
-  Endpoint:        %s
-  Model:           %s
-  Temperature:     %.1f
-  Max Tokens:     %d
-  Max Iterations:  %s
-  Show Thinking:   %s
-  Show Command:    %s
-  Show Output:     %s
-
-Logging: %s
-
-MCP Servers: %d
-Rules: %d`,
+	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
 		providerName,
 		c.LLM.Endpoint, c.LLM.Model, c.LLM.Temperature, c.LLM.MaxTokens,
 		maxIterStr,

@@ -1,0 +1,326 @@
+// Author: L.Shuang
+// Package i18n provides internationalization support for co-shell.
+// It supports Chinese (zh) and English (en) with easy extensibility.
+//
+// Language selection priority:
+//  1. --lang CLI flag (highest priority)
+//  2. LANG / LC_ALL environment variable
+//  3. Default to Chinese (zh)
+package i18n
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"sync"
+)
+
+// Lang defines a language code.
+type Lang string
+
+const (
+	LangZH Lang = "zh"
+	LangEN Lang = "en"
+)
+
+// currentLang holds the currently active language.
+var (
+	mu          sync.RWMutex
+	currentLang Lang = LangZH
+)
+
+// DetectLang detects the user's preferred language from environment.
+func DetectLang() Lang {
+	env := os.Getenv("LANG")
+	if env == "" {
+		env = os.Getenv("LC_ALL")
+	}
+	if env == "" {
+		return LangZH
+	}
+
+	env = strings.ToLower(env)
+	switch {
+	case strings.HasPrefix(env, "zh"):
+		return LangZH
+	case strings.HasPrefix(env, "en"):
+		return LangEN
+	default:
+		return LangZH
+	}
+}
+
+// SetLang sets the current language from a string code.
+// Returns true if the language is supported.
+func SetLang(code string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	switch strings.ToLower(code) {
+	case "zh", "zh-cn", "zh_cn", "chinese":
+		currentLang = LangZH
+		return true
+	case "en", "en-us", "en_us", "english":
+		currentLang = LangEN
+		return true
+	default:
+		return false
+	}
+}
+
+// GetLang returns the current language code.
+func GetLang() Lang {
+	mu.RLock()
+	defer mu.RUnlock()
+	return currentLang
+}
+
+// Init initializes the i18n system.
+// If langFlag is provided and valid, it takes highest priority.
+// Otherwise, detects from environment.
+func Init(langFlag string) {
+	if langFlag != "" && SetLang(langFlag) {
+		return
+	}
+	_ = SetLang(string(DetectLang()))
+}
+
+// T returns the translated string for the given key.
+// If the key is not found, returns the key itself as fallback.
+func T(key string) string {
+	mu.RLock()
+	lang := currentLang
+	mu.RUnlock()
+
+	if msg := lookup(lang, key); msg != "" {
+		return msg
+	}
+
+	// Fallback to Chinese
+	if msg := lookup(LangZH, key); msg != "" {
+		return msg
+	}
+
+	return key
+}
+
+// TF returns the translated string with fmt.Sprintf-style formatting.
+func TF(key string, args ...interface{}) string {
+	msg := T(key)
+	if len(args) > 0 {
+		return fmt.Sprintf(msg, args...)
+	}
+	return msg
+}
+
+// lookup finds a translation for a given language and key.
+func lookup(lang Lang, key string) string {
+	switch lang {
+	case LangZH:
+		if msg, ok := zhMessages[key]; ok {
+			return msg
+		}
+	case LangEN:
+		if msg, ok := enMessages[key]; ok {
+			return msg
+		}
+	}
+	return ""
+}
+
+// Translation key constants for compile-time safety and discoverability.
+const (
+	// General
+	KeyCancelled      = "cancelled"
+	KeySetupCancelled = "setup_cancelled"
+	KeyYes            = "yes"
+	KeyNo             = "no"
+	KeyOn             = "on"
+	KeyOff            = "off"
+	KeyError          = "error"
+	KeyWarning        = "warning"
+	KeySuccess        = "success"
+	KeyUnlimited      = "unlimited"
+	KeyDefault        = "default"
+
+	// Wizard - General
+	KeyWizardTitle       = "wizard_title"
+	KeyWizardDescription = "wizard_description"
+	KeySelectProvider    = "wizard_select_provider"
+	KeyProviderSelected  = "wizard_provider_selected"
+	KeyProviderLabel     = "wizard_provider_label"
+	KeyEndpointLabel     = "wizard_endpoint_label"
+	KeyEndpointRequired  = "wizard_endpoint_required"
+	KeyAPIKeyLabel       = "wizard_api_key_label"
+	KeyAPIKeyRequired    = "wizard_api_key_required"
+	KeyModelName         = "wizard_model_name"
+	KeyAPITest           = "wizard_api_test"
+	KeyAPITestOK         = "wizard_api_test_ok"
+	KeyAPITestFail       = "wizard_api_test_fail"
+	KeyAPITestPrompt     = "wizard_api_test_prompt"
+	KeyFetchModels       = "wizard_fetch_models"
+	KeyFetchModelsOK     = "wizard_fetch_models_ok"
+	KeyFetchModelsFail   = "wizard_fetch_models_fail"
+	KeyEndpointTest      = "wizard_endpoint_test"
+	KeyEndpointTestOK    = "wizard_endpoint_test_ok"
+	KeyEndpointTestFail  = "wizard_endpoint_test_fail"
+	KeyEndpointRetry     = "wizard_endpoint_retry"
+	KeyAPIKeyGetPrompt   = "wizard_api_key_get_prompt"
+	KeyAPIKeyManualGet   = "wizard_api_key_manual_get"
+	KeyAPIKeyOpenPage    = "wizard_api_key_open_page"
+	KeyAPIKeyOpeningPage = "wizard_api_key_opening_page"
+	KeyAPIKeyManualOpen  = "wizard_api_key_manual_open"
+	KeyEmptyField        = "wizard_empty_field"
+	KeyInvalidChoice     = "wizard_invalid_choice"
+	KeyConfigSaved       = "wizard_config_saved"
+
+	// REPL
+	KeyGoodbye     = "repl_goodbye"
+	KeyExit        = "repl_exit"
+	KeyCleanup     = "repl_cleanup"
+	KeyCleanupDone = "repl_cleanup_done"
+	KeyUnknownCmd  = "repl_unknown_cmd"
+	KeyCmdError    = "repl_cmd_error"
+	KeyCmdExecFail = "repl_cmd_exec_fail"
+	KeyAgentFail   = "repl_agent_fail"
+	KeyAgentHint   = "repl_agent_hint"
+	KeyOutputTitle = "repl_output_title"
+	KeyOutputSep   = "repl_output_sep"
+	KeyToolCall    = "repl_tool_call"
+
+	// Settings - Labels
+	KeySettingsLabel        = "settings_label"
+	KeyAPIKeyLabelSetting   = "settings_api_key_label"
+	KeyEndpointLabelSetting = "settings_endpoint_label"
+	KeyModelLabel           = "settings_model_label"
+	KeyTempLabel            = "settings_temp_label"
+	KeyMaxTokensLabel       = "settings_max_tokens_label"
+	KeyProviderLabelSetting = "settings_provider_label"
+
+	// Settings - Messages
+	KeySettingsUpdated  = "settings_updated"
+	KeyEndpointUpdated  = "settings_endpoint_updated"
+	KeyModelUpdated     = "settings_model_updated"
+	KeyTempUpdated      = "settings_temp_updated"
+	KeyMaxTokensUpdated = "settings_max_tokens_updated"
+	KeyShowThinking     = "settings_show_thinking"
+	KeyShowCommand      = "settings_show_command"
+	KeyShowOutput       = "settings_show_output"
+	KeyLogEnabled       = "settings_log_enabled"
+	KeyMaxIterations    = "settings_max_iterations"
+	KeyProviderUpdated  = "settings_provider_updated"
+
+	// Settings - Config Show
+	KeyConfigTitle         = "config_title"
+	KeyConfigProvider      = "config_provider"
+	KeyConfigEndpoint      = "config_endpoint"
+	KeyConfigModel         = "config_model"
+	KeyConfigTemperature   = "config_temperature"
+	KeyConfigMaxTokens     = "config_max_tokens"
+	KeyConfigMaxIterations = "config_max_iterations"
+	KeyConfigShowThinking  = "config_show_thinking"
+	KeyConfigShowCommand   = "config_show_command"
+	KeyConfigShowOutput    = "config_show_output"
+	KeyConfigLogging       = "config_logging"
+	KeyConfigMCPServers    = "config_mcp_servers"
+	KeyConfigRules         = "config_rules"
+
+	// MCP
+	KeyMCPAlreadyExists = "mcp_already_exists"
+	KeyMCPAdded         = "mcp_added"
+	KeyMCPRemoved       = "mcp_removed"
+	KeyMCPNotFound      = "mcp_not_found"
+	KeyMCPEnabled       = "mcp_enabled"
+	KeyMCPDisabled      = "mcp_disabled"
+	KeyMCPEmpty         = "mcp_empty"
+	KeyMCPListTitle     = "mcp_list_title"
+
+	// Rule
+	KeyRuleAdded   = "rule_added"
+	KeyRuleRemoved = "rule_removed"
+	KeyRuleCleared = "rule_cleared"
+	KeyRuleInvalid = "rule_invalid"
+	KeyRuleNoRules = "rule_no_rules"
+
+	// Memory
+	KeyMemorySaved   = "memory_saved"
+	KeyMemoryDeleted = "memory_deleted"
+	KeyMemoryCleared = "memory_cleared"
+	KeyMemoryEmpty   = "memory_empty"
+	KeyMemoryGet     = "memory_get"
+
+	// Context
+	KeyContextShow  = "context_show"
+	KeyContextEmpty = "context_empty"
+	KeyContextReset = "context_reset"
+	KeyContextSet   = "context_set"
+
+	// Agent
+	KeyNoopClientError = "noop_client_error"
+
+	// Settings - Extended
+	KeySettingsLabelLog           = "settings_label_log"
+	KeySettingsLabelShowThinking  = "settings_label_show_thinking"
+	KeySettingsLabelShowCommand   = "settings_label_show_command"
+	KeySettingsLabelShowOutput    = "settings_label_show_output"
+	KeySettingsLabelMaxIterations = "settings_label_max_iterations"
+	KeySettingsLabelProvider      = "settings_label_provider"
+
+	// Config format
+	KeyConfigFormat = "config_format"
+
+	// REPL - Additional
+	KeyWelcomeTip     = "repl_welcome_tip"
+	KeyUnknownCommand = "repl_unknown_command"
+	KeyCmdFailed      = "repl_cmd_failed"
+	KeyProcessFailed  = "repl_process_failed"
+	KeyCheckConfig    = "repl_check_config"
+	KeyCleaningUp     = "repl_cleaning_up"
+	KeyDone           = "repl_done"
+
+	// Help
+	KeyHelpTitle        = "help_title"
+	KeyHelpNLTitle      = "help_nl_title"
+	KeyHelpNLDesc       = "help_nl_desc"
+	KeyHelpBuiltinTitle = "help_builtin_title"
+	KeyHelpSettings     = "help_settings"
+	KeyHelpMCP          = "help_mcp"
+	KeyHelpRule         = "help_rule"
+	KeyHelpMemory       = "help_memory"
+	KeyHelpContext      = "help_context"
+	KeyHelpHelp         = "help_help"
+	KeyHelpExit         = "help_exit"
+	KeyHelpExampleTitle = "help_example_title"
+	KeyHelpExample1     = "help_example_1"
+	KeyHelpExample2     = "help_example_2"
+	KeyHelpExample3     = "help_example_3"
+	KeyHelpExample4     = "help_example_4"
+	KeyHelpExample5     = "help_example_5"
+
+	// CLI Help
+	KeyCLIHelpTitle     = "cli_help_title"
+	KeyCLIHelpUsage     = "cli_help_usage"
+	KeyCLIHelpUsageREPL = "cli_help_usage_repl"
+	KeyCLIHelpUsageCmd  = "cli_help_usage_cmd"
+	KeyCLIHelpOptions   = "cli_help_options"
+	KeyCLIHelpConfig    = "cli_help_config"
+	KeyCLIHelpModel     = "cli_help_model"
+	KeyCLIHelpEndpoint  = "cli_help_endpoint"
+	KeyCLIHelpAPIKey    = "cli_help_api_key"
+	KeyCLIHelpLang      = "cli_help_lang"
+	KeyCLIHelpLog       = "cli_help_log"
+	KeyCLIHelpMaxIter   = "cli_help_max_iter"
+	KeyCLIHelpVersion   = "cli_help_version"
+	KeyCLIHelpHelp      = "cli_help_help"
+	KeyCLIHelpExamples  = "cli_help_examples"
+	KeyCLIHelpEx1       = "cli_help_ex1"
+	KeyCLIHelpEx2       = "cli_help_ex2"
+	KeyCLIHelpEx3       = "cli_help_ex3"
+	KeyCLIHelpEx4       = "cli_help_ex4"
+	KeyCLIHelpEx5       = "cli_help_ex5"
+	KeyCLIHelpEx6       = "cli_help_ex6"
+	KeyCLIHelpEx7       = "cli_help_ex7"
+
+	// Custom
+	KeyCustom = "custom"
+)
