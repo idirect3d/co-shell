@@ -47,6 +47,12 @@ type LLMConfig struct {
 	ShowCommand    bool    `json:"show_command"`
 	ShowOutput     bool    `json:"show_output"`
 	ConfirmCommand bool    `json:"confirm_command"`
+
+	// Timeout settings (in seconds, 0 means no timeout)
+	ToolTimeout         int `json:"tool_timeout"`          // Tool call timeout (default: 0 = no timeout)
+	CommandTimeout      int `json:"command_timeout"`       // System command execution timeout (default: 0 = no timeout)
+	LLMTimeout          int `json:"llm_timeout"`           // LLM API non-streaming request timeout (default: 0 = no timeout)
+	EndpointTestTimeout int `json:"endpoint_test_timeout"` // Endpoint connectivity test timeout (default: 0 = no timeout)
 }
 
 // MCPConfig holds MCP server configuration.
@@ -210,11 +216,27 @@ func (c *Config) Show() string {
 	if providerName == "" {
 		providerName = i18n.T(i18n.KeyCustom)
 	}
+
+	// Format timeout values
+	toolTimeoutStr := fmt.Sprintf("%ds", c.LLM.ToolTimeout)
+	if c.LLM.ToolTimeout <= 0 {
+		toolTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+	cmdTimeoutStr := fmt.Sprintf("%ds", c.LLM.CommandTimeout)
+	if c.LLM.CommandTimeout <= 0 {
+		cmdTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+	llmTimeoutStr := fmt.Sprintf("%ds", c.LLM.LLMTimeout)
+	if c.LLM.LLMTimeout <= 0 {
+		llmTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
 		providerName,
 		c.LLM.Endpoint, c.LLM.Model, c.LLM.Temperature, c.LLM.MaxTokens,
 		maxIterStr,
 		thinkingStatus, commandStatus, outputStatus,
 		logStatus,
-		len(c.MCP.Servers), len(c.Rules))
+		len(c.MCP.Servers), len(c.Rules),
+		toolTimeoutStr, cmdTimeoutStr, llmTimeoutStr)
 }

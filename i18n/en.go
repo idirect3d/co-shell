@@ -163,7 +163,24 @@ var enMessages = map[string]string{
 	KeySettingsLabelProvider:      "Provider",
 
 	// Config format
-	KeyConfigFormat: "%s: %s",
+	KeyConfigFormat: `LLM Configuration:
+  Provider:        %s
+  Endpoint:        %s
+  Model:           %s
+  Temperature:     %.1f
+  Max Tokens:      %d
+  Max Iterations:  %s
+  Show Thinking:   %s
+  Show Command:    %s
+  Show Output:     %s
+  Tool Timeout:    %s
+  Cmd Timeout:     %s
+  LLM Timeout:     %s
+
+Logging: %s
+
+MCP Servers: %d
+Rules: %d`,
 
 	// REPL - Additional
 	KeyWelcomeTip: "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.\n   Example: \"List files in current directory\"",

@@ -368,4 +368,12 @@ const (
 
 	// Custom
 	KeyCustom = "custom"
+
+	// Timeout settings
+	KeyConfigToolTimeout   = "config_tool_timeout"
+	KeyConfigCmdTimeout    = "config_cmd_timeout"
+	KeyConfigLLMTimeout    = "config_llm_timeout"
+	KeySettingsToolTimeout = "settings_tool_timeout"
+	KeySettingsCmdTimeout  = "settings_cmd_timeout"
+	KeySettingsLLMTimeout  = "settings_llm_timeout"
 )

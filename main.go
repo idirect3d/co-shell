@@ -261,8 +261,9 @@ func main() {
 			cfg.LLM.Model,
 			cfg.LLM.Temperature,
 			cfg.LLM.MaxTokens,
+			cfg.LLM.LLMTimeout,
 		)
-		log.Info("LLM client initialized: endpoint=%s model=%s", cfg.LLM.Endpoint, cfg.LLM.Model)
+		log.Info("LLM client initialized: endpoint=%s model=%s llm_timeout=%ds", cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout)
 	} else {
 		// Create a no-op client that warns about missing API key
 		llmClient = &noopClient{}
@@ -290,6 +291,9 @@ func main() {
 
 	// Apply command confirmation setting
 	ag.SetConfirmCommand(cfg.LLM.ConfirmCommand)
+
+	// Pass config to agent for timeout settings
+	ag.SetConfig(cfg)
 
 	log.Info("Agent initialized with %d rules", len(cfg.Rules))
 

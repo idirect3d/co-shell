@@ -166,15 +166,18 @@ var zhMessages = map[string]string{
 
 	// Config format
 	KeyConfigFormat: `LLM 配置:
-  提供商:        %s
-  端点:          %s
-  模型:          %s
-  温度:          %.1f
-  最大令牌数:    %d
-  最大迭代次数:  %s
-  显示思考过程:  %s
-  显示命令:      %s
-  显示输出:      %s
+  提供商:          %s
+  端点:            %s
+  模型:            %s
+  温度:            %.1f
+  最大令牌数:      %d
+  最大迭代次数:    %s
+  显示思考过程:    %s
+  显示命令:        %s
+  显示输出:        %s
+  工具调用超时:    %s
+  命令执行超时:    %s
+  LLM 请求超时:    %s
 
 日志: %s
 

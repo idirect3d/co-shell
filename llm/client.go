@@ -225,16 +225,28 @@ type openAIClient struct {
 }
 
 // NewClient creates a new LLM client from configuration.
-func NewClient(endpoint, apiKey, model string, temperature float64, maxTokens int) Client {
+// timeoutSeconds: timeout for non-streaming requests in seconds (0 = no timeout).
+func NewClient(endpoint, apiKey, model string, temperature float64, maxTokens int, timeoutSeconds ...int) Client {
 	// Ensure endpoint ends without trailing slash
 	baseURL := endpoint
 	for len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
 		baseURL = baseURL[:len(baseURL)-1]
 	}
 
+	// Determine timeout: use provided value, default to 60s if not specified
+	timeout := 60
+	if len(timeoutSeconds) > 0 && timeoutSeconds[0] > 0 {
+		timeout = timeoutSeconds[0]
+	}
+
+	var httpTimeout time.Duration
+	if timeout > 0 {
+		httpTimeout = time.Duration(timeout) * time.Second
+	}
+
 	return &openAIClient{
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: httpTimeout,
 		},
 		// Stream client has no timeout - relies on context.Context for cancellation.
 		// This is necessary because streaming responses can take a long time

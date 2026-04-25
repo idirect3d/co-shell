@@ -39,6 +39,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
@@ -50,7 +51,6 @@ import (
 
 const (
 	defaultMaxIterations = 10
-	toolTimeout          = 30 * time.Second
 )
 
 // shellCmd returns the appropriate shell command and argument for the current platform.
@@ -109,6 +109,7 @@ type Agent struct {
 	showOutput     bool
 	maxIterations  int
 	confirmCommand bool
+	cfg            *config.Config // configuration for timeout settings
 }
 
 // New creates a new Agent instance.
@@ -155,6 +156,29 @@ func (a *Agent) SetMaxIterations(n int) {
 // SetConfirmCommand sets whether to prompt the user for confirmation before executing commands.
 func (a *Agent) SetConfirmCommand(confirm bool) {
 	a.confirmCommand = confirm
+}
+
+// SetConfig sets the configuration for timeout settings.
+func (a *Agent) SetConfig(cfg *config.Config) {
+	a.cfg = cfg
+}
+
+// getToolTimeout returns the tool call timeout duration.
+// Returns 0 (no timeout) if not configured.
+func (a *Agent) getToolTimeout() time.Duration {
+	if a.cfg != nil && a.cfg.LLM.ToolTimeout > 0 {
+		return time.Duration(a.cfg.LLM.ToolTimeout) * time.Second
+	}
+	return 0
+}
+
+// getCommandTimeout returns the system command execution timeout duration.
+// Returns 0 (no timeout) if not configured.
+func (a *Agent) getCommandTimeout() time.Duration {
+	if a.cfg != nil && a.cfg.LLM.CommandTimeout > 0 {
+		return time.Duration(a.cfg.LLM.CommandTimeout) * time.Second
+	}
+	return 0
 }
 
 // buildSystemPrompt constructs the system prompt with rules and context.
@@ -522,8 +546,12 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	tools := a.buildTools()
 	for _, tool := range tools {
 		if tool.Name == tc.Name {
-			ctx, cancel := context.WithTimeout(ctx, toolTimeout)
-			defer cancel()
+			timeout := a.getToolTimeout()
+			if timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, timeout)
+				defer cancel()
+			}
 			return tool.Callback(ctx, args)
 		}
 	}
@@ -603,7 +631,12 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		return "", fmt.Errorf("command argument is required")
 	}
 
+	// Use configured command timeout as default, fallback to 30s
 	timeout := 30
+	cmdTimeout := a.getCommandTimeout()
+	if cmdTimeout > 0 {
+		timeout = int(cmdTimeout.Seconds())
+	}
 	if t, ok := args["timeout_seconds"].(float64); ok {
 		timeout = int(t)
 	}
@@ -633,20 +666,40 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 // ExecuteCommandDirectly runs a system command directly without LLM involvement.
 // This is used by the REPL when user input is detected as a direct system command.
 func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), toolTimeout)
-	defer cancel()
+	timeout := a.getCommandTimeout()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 
+		shell, shellArg := shellCmd()
+		log.Info("Direct command: %s (timeout: %ds, shell: %s)", command, int(timeout.Seconds()), shell)
+		cmd := exec.CommandContext(ctx, shell, shellArg, command)
+		output, err := cmd.CombinedOutput()
+		// Decode GBK to UTF-8 on Windows
+		decoded := decodeToUTF8(output)
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				log.Warn("Direct command timed out: %s", command)
+				return "", fmt.Errorf("command timed out after %d seconds", int(timeout.Seconds()))
+			}
+			log.Error("Direct command failed: %s, error: %v", command, err)
+			return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
+		}
+
+		log.Debug("Direct command completed: %s (output length: %d)", command, len(output))
+		return strings.TrimSpace(decoded), nil
+	}
+
+	// No timeout - use background context
 	shell, shellArg := shellCmd()
-	log.Info("Direct command: %s (shell: %s)", command, shell)
-	cmd := exec.CommandContext(ctx, shell, shellArg, command)
+	log.Info("Direct command: %s (no timeout, shell: %s)", command, shell)
+	cmd := exec.CommandContext(context.Background(), shell, shellArg, command)
+
 	output, err := cmd.CombinedOutput()
 	// Decode GBK to UTF-8 on Windows
 	decoded := decodeToUTF8(output)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Warn("Direct command timed out: %s", command)
-			return "", fmt.Errorf("command timed out after %d seconds", int(toolTimeout.Seconds()))
-		}
 		log.Error("Direct command failed: %s, error: %v", command, err)
 		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 	}
