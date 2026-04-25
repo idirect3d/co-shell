@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -76,11 +77,11 @@ func main() {
 // noopClient is a placeholder LLM client used when no API key is configured.
 type noopClient struct{}
 
-func (c *noopClient) Chat(ctx interface{}, messages interface{}, tools interface{}) (*llm.LLMResponse, error) {
+func (c *noopClient) Chat(ctx context.Context, messages []llm.Message, tools []llm.Tool) (*llm.LLMResponse, error) {
 	return nil, fmt.Errorf("LLM not configured. Set your API key with: .settings api-key <your-key>")
 }
 
-func (c *noopClient) ChatStream(ctx interface{}, messages interface{}, tools interface{}) (<-chan llm.StreamEvent, error) {
+func (c *noopClient) ChatStream(ctx context.Context, messages []llm.Message, tools []llm.Tool) (<-chan llm.StreamEvent, error) {
 	return nil, fmt.Errorf("LLM not configured. Set your API key with: .settings api-key <your-key>")
 }
 

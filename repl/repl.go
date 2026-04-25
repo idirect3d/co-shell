@@ -166,8 +166,6 @@ func (r *REPL) handleAgentInput(input string) {
 
 // completer provides tab completion suggestions.
 func (r *REPL) completer(d prompt.Document) []prompt.Suggest {
-	text := d.GetWordBeforeCursor()
-
 	// If we're typing a builtin command
 	if strings.HasPrefix(d.Text, ".") {
 		return r.builtinCompleter(d)
@@ -254,7 +252,7 @@ func (r *REPL) builtinCompleter(d prompt.Document) []prompt.Suggest {
 
 // printWelcome displays the welcome message.
 func (r *REPL) printWelcome() {
-	fmt.Println(`
+	fmt.Print(`
 ╔══════════════════════════════════════╗
 ║         co-shell v0.1.0              ║
 ║   Intelligent Command-Line Shell     ║
@@ -266,7 +264,7 @@ Type .help for available commands, or just type in natural language!
 
 // printHelp displays the help information.
 func (r *REPL) printHelp() {
-	fmt.Println(`
+	fmt.Print(`
 Available Commands:
 
   Natural Language:

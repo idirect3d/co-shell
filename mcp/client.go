@@ -1,12 +1,9 @@
 package mcp
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os/exec"
 	"sync"
 
 	"github.com/mark3labs/mcp-go/client"
@@ -19,6 +16,20 @@ type ToolInfo struct {
 	Description string
 	InputSchema map[string]interface{}
 	ServerName  string
+}
+
+// toolInputSchemaToMap converts mcp.ToolInputSchema to map[string]interface{}.
+func toolInputSchemaToMap(s mcp.ToolInputSchema) map[string]interface{} {
+	result := map[string]interface{}{
+		"type": s.Type,
+	}
+	if len(s.Properties) > 0 {
+		result["properties"] = s.Properties
+	}
+	if len(s.Required) > 0 {
+		result["required"] = s.Required
+	}
+	return result
 }
 
 // ServerStatus represents the status of an MCP server connection.
@@ -61,6 +72,7 @@ func (m *Manager) AddServer(name, command string, args []string) error {
 	// Create stdio-based MCP client
 	c, err := client.NewStdioMCPClient(
 		command,
+		nil, // env
 		args...,
 	)
 	if err != nil {
@@ -93,7 +105,7 @@ func (m *Manager) AddServer(name, command string, args []string) error {
 		tools = append(tools, ToolInfo{
 			Name:        t.Name,
 			Description: t.Description,
-			InputSchema: t.InputSchema,
+			InputSchema: toolInputSchemaToMap(t.InputSchema),
 			ServerName:  name,
 		})
 	}
@@ -201,10 +213,17 @@ func (m *Manager) CallTool(ctx context.Context, toolName string, args map[string
 			output += v.Text
 		case mcp.ImageContent:
 			output += fmt.Sprintf("[Image: %s]", v.MIMEType)
-		case mcp.ResourceContent:
-			output += fmt.Sprintf("[Resource: %s]", v.URI)
 		default:
-			output += fmt.Sprintf("[Unknown content type: %T]", content)
+			// Try to handle as embedded resource or unknown
+			if b, ok := content.(map[string]interface{}); ok {
+				if text, ok := b["text"]; ok {
+					output += fmt.Sprintf("%v", text)
+				} else {
+					output += fmt.Sprintf("[Resource: %v]", b)
+				}
+			} else {
+				output += fmt.Sprintf("[Unknown content type: %T]", content)
+			}
 		}
 	}
 
@@ -226,73 +245,3 @@ func (m *Manager) Close() error {
 	return lastErr
 }
 
-// StdioMCPClient is a simple stdio-based MCP client implementation.
-type StdioMCPClient struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout *bufio.Scanner
-	stderr io.ReadCloser
-	mu     sync.Mutex
-}
-
-// NewStdioMCPClient creates a new stdio-based MCP client.
-func NewStdioMCPClient(command string, args ...string) (*StdioMCPClient, error) {
-	cmd := exec.Command(command, args...)
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, fmt.Errorf("cannot create stdin pipe: %w", err)
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("cannot create stdout pipe: %w", err)
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("cannot create stderr pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("cannot start MCP server: %w", err)
-	}
-
-	return &StdioMCPClient{
-		cmd:    cmd,
-		stdin:  stdin,
-		stdout: bufio.NewScanner(stdout),
-		stderr: stderr,
-	}, nil
-}
-
-// SendRequest sends a JSON-RPC request and reads the response.
-func (c *StdioMCPClient) SendRequest(request []byte) ([]byte, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Write request
-	if _, err := c.stdin.Write(request); err != nil {
-		return nil, fmt.Errorf("cannot write request: %w", err)
-	}
-	if _, err := c.stdin.Write([]byte("\n")); err != nil {
-		return nil, fmt.Errorf("cannot write newline: %w", err)
-	}
-
-	// Read response
-	if c.stdout.Scan() {
-		return c.stdout.Bytes(), nil
-	}
-
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("cannot read response: %w", err)
-	}
-
-	return nil, io.EOF
-}
-
-// Close terminates the MCP server process.
-func (c *StdioMCPClient) Close() error {
-	c.stdin.Close()
-	return c.cmd.Wait()
-}
