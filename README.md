@@ -65,20 +65,22 @@ By using this software, you acknowledge that you fully understand the above risk
 
 Download the executable for your platform from the [Releases](https://github.com/idirect3d/co-shell/releases) page:
 
-| OS | Architecture | File |
+| OS | Architecture | Download |
 |---|---|---|
-| macOS | Intel | `co-shell-darwin-amd64` |
-| macOS | Apple Silicon | `co-shell-darwin-arm64` |
-| Linux | x86_64 | `co-shell-linux-amd64` |
-| Linux | ARM64 | `co-shell-linux-arm64` |
-| Windows | x86_64 | `co-shell-windows-amd64.exe` |
-| Windows | ARM64 | `co-shell-windows-arm64.exe` |
+| macOS | Intel | [co-shell-darwin-amd64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-amd64) |
+| macOS | Apple Silicon | [co-shell-darwin-arm64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-arm64) |
+| Linux | x86_64 | [co-shell-linux-amd64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-linux-amd64) |
+| Linux | ARM64 | [co-shell-linux-arm64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-linux-arm64) |
+| Windows | x86_64 | [co-shell-windows-amd64.exe](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-windows-amd64.exe) |
+| Windows | ARM64 | [co-shell-windows-arm64.exe](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-windows-arm64.exe) |
 
 ```bash
 # Example: macOS Apple Silicon
-chmod +x co-shell-darwin-arm64
-./co-shell-darwin-arm64
+curl -L -o co-shell https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-arm64
+chmod +x co-shell
+./co-shell
 ```
+
 
 #### Option 2: Build from Source
 
