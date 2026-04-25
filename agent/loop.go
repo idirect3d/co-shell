@@ -91,9 +91,10 @@ type StreamCallback func(eventType string, content string)
 type CmdConfirmResult int
 
 const (
-	CmdConfirmApprove CmdConfirmResult = iota
-	CmdConfirmReject
-	CmdConfirmModify // User entered custom input to modify the command
+	CmdConfirmApprove    CmdConfirmResult = iota
+	CmdConfirmApproveAll                  // Approve all commands for this request
+	CmdConfirmCancel                      // User cancelled, return to REPL
+	CmdConfirmModify                      // User entered custom input to modify the command
 )
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
@@ -109,7 +110,10 @@ type Agent struct {
 	showOutput     bool
 	maxIterations  int
 	confirmCommand bool
+	approveAll     bool           // if true, skip confirmation for all commands in this request
 	cfg            *config.Config // configuration for timeout settings
+	resultMode     config.ResultMode
+	rules          string // user-defined rules for rebuilding system prompt
 }
 
 // New creates a new Agent instance.
@@ -122,6 +126,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		store:         s,
 		systemPrompt:  systemPrompt,
 		maxIterations: defaultMaxIterations,
+		rules:         rules,
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
@@ -163,6 +168,20 @@ func (a *Agent) SetConfig(cfg *config.Config) {
 	a.cfg = cfg
 }
 
+// SetResultMode sets the result processing mode and rebuilds the system prompt.
+// This resets the conversation history to apply the new mode.
+func (a *Agent) SetResultMode(mode config.ResultMode) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.resultMode = mode
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode)
+	a.messages = []llm.Message{
+		{Role: "system", Content: a.systemPrompt},
+	}
+	log.Info("Result mode set to %s, system prompt rebuilt", config.ResultModeString(mode))
+}
+
 // getToolTimeout returns the tool call timeout duration.
 // Returns 0 (no timeout) if not configured.
 func (a *Agent) getToolTimeout() time.Duration {
@@ -183,6 +202,11 @@ func (a *Agent) getCommandTimeout() time.Duration {
 
 // buildSystemPrompt constructs the system prompt with rules and context.
 func buildSystemPrompt(rules string) string {
+	return buildSystemPromptWithMode(rules, config.ResultModeMinimal)
+}
+
+// buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
+func buildSystemPromptWithMode(rules string, mode config.ResultMode) string {
 	sh := shellName()
 
 	// Gather environment context
@@ -219,15 +243,34 @@ IMPORTANT RULES:
 - Use the user's preferred language for responses.
 - You have full autonomy to choose the best tools and approaches for each task — use your judgment.
 
+RESULT PROCESSING MODE:
+%s
 
 Available tools will be provided to you as function definitions.`,
-		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username, sh)
+		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username, sh, resultModeInstruction(mode))
 
 	if rules != "" {
 		prompt += fmt.Sprintf("\n\nUser-defined Rules:\n%s", rules)
 	}
 
 	return prompt
+}
+
+// resultModeInstruction returns the instruction text for the given result mode.
+func resultModeInstruction(mode config.ResultMode) string {
+	switch mode {
+	case config.ResultModeMinimal:
+		return `When you execute a system command and receive its output, do NOT repeat the command output in your response. Instead, simply indicate whether the command succeeded or failed. If it succeeded, respond with a brief success confirmation (e.g., "✅ 命令执行成功" or "✅ Command executed successfully"). If it failed, respond with a brief error message. Do not add any additional explanation, analysis, or commentary.`
+
+	case config.ResultModeExplain:
+		return `When you execute a system command and receive its output, provide a brief explanation of what the output means. Keep your explanation concise (2-3 sentences max). Focus on the key information the user would want to know.`
+	case config.ResultModeAnalyze:
+		return `When you execute a system command and receive its output, perform a thorough analysis. Explain patterns, anomalies, and implications in detail. Provide actionable insights and recommendations based on the output.`
+	case config.ResultModeFree:
+		return `You have full autonomy to decide how to present command execution results. Use your judgment to determine the best way to respond based on the context and the user's needs.`
+	default:
+		return ""
+	}
 }
 
 // Run processes a user input through the agent loop.
@@ -301,6 +344,9 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
+	// Reset approveAll flag for each new request
+	a.approveAll = false
+
 	a.mu.Lock()
 	// Add user message to history
 	a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
@@ -339,6 +385,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// This must come BEFORE tool result messages to satisfy the API requirement
 		// that tool messages must follow a message with tool_calls.
 		a.mu.Lock()
+		assistantMsgIdx := len(a.messages)
 		a.messages = append(a.messages, llm.Message{
 			Role:             "assistant",
 			Content:          finalContent,
@@ -349,6 +396,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		// Step 4: Execute tool calls and add results
 		modifyRequested := false
+		cancelled := false
 		for _, tc := range toolCalls {
 			// Show command if enabled
 			if a.showCommand && tc.Name == "execute_command" {
@@ -365,13 +413,25 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
 			result, execErr := a.executeToolCall(ctx, tc)
 			if execErr != nil {
-				// Check if this is a USER_MODIFY_REQUEST (user wants to modify and re-evaluate)
 				errStr := execErr.Error()
+				// Check if user cancelled
+				if strings.HasPrefix(errStr, "CANCEL_AGENT") {
+					cancelled = true
+					// Remove the incomplete assistant message (with tool_calls) from history
+					a.mu.Lock()
+					a.messages = a.messages[:assistantMsgIdx]
+					a.mu.Unlock()
+					break
+				}
+				// Check if this is a USER_MODIFY_REQUEST (user wants to modify and re-evaluate)
 				if strings.HasPrefix(errStr, "USER_MODIFY_REQUEST:") {
 					modifyRequested = true
 					modifyInput := strings.TrimPrefix(errStr, "USER_MODIFY_REQUEST:")
-					// Add the user's modification as a new user message
+					// Remove the incomplete assistant message (with tool_calls) from history
+					// since its tool_calls were not fully executed.
 					a.mu.Lock()
+					a.messages = a.messages[:assistantMsgIdx]
+					// Add the user's modification as a new user message
 					a.messages = append(a.messages, llm.Message{
 						Role:    "user",
 						Content: modifyInput,
@@ -396,6 +456,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				ToolCallID: tc.ID,
 			})
 			a.mu.Unlock()
+		}
+
+		// If user cancelled, return to REPL
+		if cancelled {
+			return "", nil
 		}
 
 		// If user requested modification, continue the loop to re-ask the LLM
@@ -489,7 +554,7 @@ func (a *Agent) buildTools() []llm.Tool {
 					},
 					"timeout_seconds": map[string]interface{}{
 						"type":        "number",
-						"description": "Timeout in seconds (default: 30)",
+						"description": "Timeout in seconds (0 = no timeout, default: 0)",
 					},
 				},
 				"required": []string{"command"},
@@ -526,19 +591,22 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	// prompt the user for confirmation before proceeding
 	if a.confirmCommand && tc.Name == "execute_command" {
 		if cmd, ok := args["command"].(string); ok {
-			result := promptCommandConfirmation(cmd)
-			switch result {
-			case CmdConfirmReject:
-				return i18n.T(i18n.KeyCmdConfirmRejected), nil
-			case CmdConfirmModify:
-				// Read the user's supplementary instructions and return a special marker
-				// so the caller knows to re-ask the LLM with the additional context
-				fmt.Print(i18n.T(i18n.KeyCmdConfirmModifyHint))
-				modifyInput := readLine()
-				return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
-
+			// Skip confirmation if user chose "approve all" for this request
+			if !a.approveAll {
+				result, modifyInput := promptCommandConfirmation(cmd)
+				switch result {
+				case CmdConfirmCancel:
+					return i18n.T(i18n.KeyCmdConfirmCancelled), fmt.Errorf("CANCEL_AGENT")
+				case CmdConfirmApproveAll:
+					a.approveAll = true
+					// fall through to execute
+				case CmdConfirmModify:
+					// Use the user's input directly as supplementary instructions
+					// for the LLM to re-evaluate the command
+					return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
+				}
+				// CmdConfirmApprove: continue execution
 			}
-			// CmdConfirmApprove: continue execution
 		}
 	}
 
@@ -547,24 +615,34 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	for _, tool := range tools {
 		if tool.Name == tc.Name {
 			timeout := a.getToolTimeout()
+			timeoutStr := "no timeout"
 			if timeout > 0 {
+				timeoutStr = timeout.String()
 				var cancel context.CancelFunc
 				ctx, cancel = context.WithTimeout(ctx, timeout)
 				defer cancel()
 			}
-			return tool.Callback(ctx, args)
+			log.Info("Tool call: %s, timeout=%s, args=%v", tc.Name, timeoutStr, args)
+			result, err := tool.Callback(ctx, args)
+			if err != nil {
+				log.Error("Tool call failed: %s, error: %v", tc.Name, err)
+				return "", err
+			}
+			log.Debug("Tool call result: %s -> %s", tc.Name, result)
+			return result, nil
 		}
 	}
 
 	return "", fmt.Errorf("tool %q not found", tc.Name)
+
 }
 
 // promptCommandConfirmation displays the command to the user and asks for confirmation.
-// Returns the user's choice.
+// Returns the user's choice and any supplementary input.
 // - Enter: approve and execute
-// - d/D: reject
+// - c/C: cancel, return to REPL
 // - Any other input: treated as supplementary instructions for the LLM to re-evaluate
-func promptCommandConfirmation(command string) CmdConfirmResult {
+func promptCommandConfirmation(command string) (CmdConfirmResult, string) {
 	fmt.Println()
 	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, command))
 	fmt.Println()
@@ -591,17 +669,22 @@ func promptCommandConfirmation(command string) CmdConfirmResult {
 		response := strings.TrimSpace(string(lineBuf))
 
 		if response == "" {
-			return CmdConfirmApprove
+			return CmdConfirmApprove, ""
 		}
 
 		lower := strings.ToLower(response)
-		if lower == "d" {
-			return CmdConfirmReject
+		if lower == "c" {
+			return CmdConfirmCancel, ""
+		}
+
+		if lower == "a" {
+			return CmdConfirmApproveAll, ""
 		}
 
 		// Any other input is treated as supplementary instructions
 		// for the LLM to re-evaluate the command
-		return CmdConfirmModify
+		return CmdConfirmModify, response
+
 	}
 }
 
@@ -631,18 +714,23 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		return "", fmt.Errorf("command argument is required")
 	}
 
-	// Use configured command timeout as default, fallback to 30s
-	timeout := 30
-	cmdTimeout := a.getCommandTimeout()
-	if cmdTimeout > 0 {
-		timeout = int(cmdTimeout.Seconds())
-	}
+	// Determine timeout: use args timeout_seconds first, then configured command timeout
+	var timeout int
 	if t, ok := args["timeout_seconds"].(float64); ok {
 		timeout = int(t)
+	} else {
+		cmdTimeout := a.getCommandTimeout()
+		if cmdTimeout > 0 {
+			timeout = int(cmdTimeout.Seconds())
+		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-	defer cancel()
+	// Only set timeout if a positive value is specified
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+	}
 
 	shell, shellArg := shellCmd()
 	log.Debug("Executing command: %s (timeout: %ds, shell: %s)", command, timeout, shell)

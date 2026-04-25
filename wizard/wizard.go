@@ -33,6 +33,7 @@ import (
 
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/llm"
+	"github.com/idirect3d/co-shell/log"
 )
 
 // RunSetupWizard guides the user through configuring the LLM API settings interactively.
@@ -214,12 +215,16 @@ func testEndpointConnectivity(endpoint string) error {
 		return fmt.Errorf("无法创建请求: %w", err)
 	}
 
+	log.Info("Endpoint connectivity test: GET %s, timeout=10s", endpoint)
+
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Error("Endpoint connectivity test failed: GET %s, error: %v", endpoint, err)
 		return fmt.Errorf("无法连接到端点: %w", err)
 	}
 	defer resp.Body.Close()
 
+	log.Info("Endpoint connectivity test succeeded: GET %s, status=%d", endpoint, resp.StatusCode)
 	return nil
 }
 
@@ -231,5 +236,12 @@ func fetchModels(endpoint, apiKey string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	return client.ListModels(ctx)
+	log.Info("Fetching models: endpoint=%s, timeout=30s", endpoint)
+	models, err := client.ListModels(ctx)
+	if err != nil {
+		log.Error("Fetch models failed: endpoint=%s, error: %v", endpoint, err)
+		return nil, err
+	}
+	log.Info("Fetch models succeeded: endpoint=%s, count=%d", endpoint, len(models))
+	return models, nil
 }

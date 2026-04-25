@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -144,6 +144,34 @@ func (s *Store) LoadHistory() ([]string, error) {
 		return nil
 	})
 	return inputs, err
+}
+
+// HistoryEntryWithTime represents a history entry with its timestamp.
+type HistoryEntryWithTime struct {
+	Input     string    `json:"input"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// ListHistory returns all history entries in chronological order (oldest first).
+func (s *Store) ListHistory() ([]HistoryEntryWithTime, error) {
+	var entries []HistoryEntryWithTime
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("history"))
+		cursor := bucket.Cursor()
+
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			var entry HistoryEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				continue // skip corrupted entries
+			}
+			entries = append(entries, HistoryEntryWithTime{
+				Input:     entry.Input,
+				Timestamp: entry.Timestamp,
+			})
+		}
+		return nil
+	})
+	return entries, err
 }
 
 // ClearHistory removes all history entries.

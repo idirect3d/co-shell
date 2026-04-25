@@ -34,6 +34,52 @@ import (
 	"github.com/idirect3d/co-shell/i18n"
 )
 
+// ResultMode defines how command execution results are presented to the user.
+type ResultMode int
+
+const (
+	// ResultModeMinimal: return raw command output directly to the user, no LLM processing.
+	ResultModeMinimal ResultMode = iota
+	// ResultModeExplain: LLM explains the command output briefly.
+	ResultModeExplain
+	// ResultModeAnalyze: LLM performs deep analysis of the command output.
+	ResultModeAnalyze
+	// ResultModeFree: no specific instruction, LLM decides how to present results.
+	ResultModeFree
+)
+
+// ResultModeString returns the string representation of a ResultMode.
+func ResultModeString(m ResultMode) string {
+	switch m {
+	case ResultModeMinimal:
+		return "minimal"
+	case ResultModeExplain:
+		return "explain"
+	case ResultModeAnalyze:
+		return "analyze"
+	case ResultModeFree:
+		return "free"
+	default:
+		return "minimal"
+	}
+}
+
+// ParseResultMode parses a string into a ResultMode.
+func ParseResultMode(s string) (ResultMode, bool) {
+	switch s {
+	case "minimal":
+		return ResultModeMinimal, true
+	case "explain":
+		return ResultModeExplain, true
+	case "analyze":
+		return ResultModeAnalyze, true
+	case "free":
+		return ResultModeFree, true
+	default:
+		return ResultModeMinimal, false
+	}
+}
+
 // LLMConfig holds all LLM-related configuration.
 type LLMConfig struct {
 	Provider       string  `json:"provider"`
@@ -47,6 +93,7 @@ type LLMConfig struct {
 	ShowCommand    bool    `json:"show_command"`
 	ShowOutput     bool    `json:"show_output"`
 	ConfirmCommand bool    `json:"confirm_command"`
+	ResultMode     int     `json:"result_mode"` // 0=minimal, 1=explain, 2=analyze, 3=free
 
 	// Timeout settings (in seconds, 0 means no timeout)
 	ToolTimeout         int `json:"tool_timeout"`          // Tool call timeout (default: 0 = no timeout)
@@ -86,6 +133,7 @@ func DefaultConfig() *Config {
 			Model:          "deepseek-v4-flash",
 			Temperature:    0.7,
 			MaxTokens:      393216,
+			MaxIterations:  1000,
 			ShowThinking:   true,
 			ShowCommand:    true,
 			ShowOutput:     true,
@@ -189,6 +237,7 @@ func (c *Config) Save() error {
 }
 
 // Show returns a human-readable representation of the config.
+// Two-column layout: parameter name (left) | value with label and range (right)
 func (c *Config) Show() string {
 	thinkingStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ShowThinking {
@@ -202,6 +251,10 @@ func (c *Config) Show() string {
 	if !c.LLM.ShowOutput {
 		outputStatus = i18n.T(i18n.KeyOff)
 	}
+	confirmStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ConfirmCommand {
+		confirmStatus = i18n.T(i18n.KeyOff)
+	}
 	logStatus := i18n.T(i18n.KeyOn)
 	if !c.LogEnabled {
 		logStatus = i18n.T(i18n.KeyOff)
@@ -210,8 +263,9 @@ func (c *Config) Show() string {
 	if c.LLM.MaxIterations == -1 {
 		maxIterStr = i18n.T(i18n.KeyUnlimited)
 	} else if c.LLM.MaxIterations == 0 {
-		maxIterStr = "10 (" + i18n.T(i18n.KeyDefault) + ")"
+		maxIterStr = "1000 (" + i18n.T(i18n.KeyDefault) + ")"
 	}
+
 	providerName := c.LLM.Provider
 	if providerName == "" {
 		providerName = i18n.T(i18n.KeyCustom)
@@ -231,12 +285,56 @@ func (c *Config) Show() string {
 		llmTimeoutStr = i18n.T(i18n.KeyUnlimited)
 	}
 
+	// Mask API key
+	maskedKey := "********"
+	if c.LLM.APIKey != "" {
+		if len(c.LLM.APIKey) <= 8 {
+			maskedKey = "****"
+		} else {
+			maskedKey = c.LLM.APIKey[:4] + "****" + c.LLM.APIKey[len(c.LLM.APIKey)-4:]
+		}
+	}
+
+	// Build three columns: param name | current value | (label, options/range)
+	col3Provider := i18n.T(i18n.KeyCol3Provider)
+	col3Endpoint := i18n.T(i18n.KeyCol3Endpoint)
+	col3Model := i18n.T(i18n.KeyCol3Model)
+	col3Temp := i18n.T(i18n.KeyCol3Temperature)
+	col3MaxTokens := i18n.T(i18n.KeyCol3MaxTokens)
+	col3MaxIter := i18n.T(i18n.KeyCol3MaxIter)
+	col3Thinking := i18n.T(i18n.KeyCol3Thinking)
+	col3Command := i18n.T(i18n.KeyCol3Command)
+	col3Output := i18n.T(i18n.KeyCol3Output)
+	col3Confirm := i18n.T(i18n.KeyCol3Confirm)
+	col3ToolTimeout := i18n.T(i18n.KeyCol3ToolTimeout)
+	col3CmdTimeout := i18n.T(i18n.KeyCol3CmdTimeout)
+	col3LLMTimeout := i18n.T(i18n.KeyCol3LLMTimeout)
+	col3Log := i18n.T(i18n.KeyCol3Log)
+	col3ResultMode := i18n.T(i18n.KeyCol3ResultMode)
+	col3MCP := ""
+	col3Rules := ""
+	col3APIKey := i18n.T(i18n.KeyCol3APIKey)
+
+	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
+
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
-		providerName,
-		c.LLM.Endpoint, c.LLM.Model, c.LLM.Temperature, c.LLM.MaxTokens,
-		maxIterStr,
-		thinkingStatus, commandStatus, outputStatus,
-		logStatus,
-		len(c.MCP.Servers), len(c.Rules),
-		toolTimeoutStr, cmdTimeoutStr, llmTimeoutStr)
+		"provider:", providerName, col3Provider,
+		"endpoint:", c.LLM.Endpoint, col3Endpoint,
+		"model:", c.LLM.Model, col3Model,
+		"temperature:", fmt.Sprintf("%.1f", c.LLM.Temperature), col3Temp,
+		"max-tokens:", fmt.Sprintf("%d", c.LLM.MaxTokens), col3MaxTokens,
+		"max-iterations:", maxIterStr, col3MaxIter,
+		"show-thinking:", thinkingStatus, col3Thinking,
+		"show-command:", commandStatus, col3Command,
+		"show-output:", outputStatus, col3Output,
+		"confirm-command:", confirmStatus, col3Confirm,
+		"result-mode:", resultModeStr, col3ResultMode,
+		"tool-timeout:", toolTimeoutStr, col3ToolTimeout,
+		"cmd-timeout:", cmdTimeoutStr, col3CmdTimeout,
+		"llm-timeout:", llmTimeoutStr, col3LLMTimeout,
+		"log:", logStatus, col3Log,
+		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
+		"规则:", len(c.Rules), col3Rules,
+		"api-key:", maskedKey, col3APIKey)
+
 }

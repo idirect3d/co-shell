@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-04-26
 //
 // # MIT License
 //
@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
@@ -37,25 +38,26 @@ import (
 
 // SettingsHandler handles the .settings built-in command.
 type SettingsHandler struct {
-	cfg *config.Config
+	cfg   *config.Config
+	agent *agent.Agent
 }
 
 // NewSettingsHandler creates a new SettingsHandler.
-func NewSettingsHandler(cfg *config.Config) *SettingsHandler {
-	return &SettingsHandler{cfg: cfg}
+func NewSettingsHandler(cfg *config.Config, ag *agent.Agent) *SettingsHandler {
+	return &SettingsHandler{cfg: cfg, agent: ag}
 }
 
 // Handle processes .settings commands.
 func (h *SettingsHandler) Handle(args []string) (string, error) {
 	if len(args) == 0 {
-		return h.cfg.Show(), nil
+		return showSettingsHelp(h.cfg), nil
 	}
 
 	subcommand := args[0]
 	switch subcommand {
 	case "api-key":
 		if len(args) < 2 {
-			return "", fmt.Errorf("usage: .settings api-key <key>")
+			return "", fmt.Errorf("usage: .set api-key <key>")
 		}
 		h.cfg.LLM.APIKey = args[1]
 		if err := h.cfg.Save(); err != nil {
@@ -66,7 +68,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 
 	case "endpoint":
 		if len(args) < 2 {
-			return "", fmt.Errorf("usage: .settings endpoint <url>")
+			return "", fmt.Errorf("usage: .set endpoint <url>")
 		}
 		h.cfg.LLM.Endpoint = args[1]
 		if err := h.cfg.Save(); err != nil {
@@ -77,7 +79,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 
 	case "model":
 		if len(args) < 2 {
-			return "", fmt.Errorf("usage: .settings model <model>")
+			return "", fmt.Errorf("usage: .set model <model>")
 		}
 		h.cfg.LLM.Model = args[1]
 		if err := h.cfg.Save(); err != nil {
@@ -88,7 +90,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 
 	case "temperature":
 		if len(args) < 2 {
-			return "", fmt.Errorf("usage: .settings temperature <value>")
+			return "", fmt.Errorf("usage: .set temperature <value>")
 		}
 		temp, err := strconv.ParseFloat(args[1], 64)
 		if err != nil {
@@ -106,7 +108,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 
 	case "max-tokens":
 		if len(args) < 2 {
-			return "", fmt.Errorf("usage: .settings max-tokens <count>")
+			return "", fmt.Errorf("usage: .set max-tokens <count>")
 		}
 		tokens, err := strconv.Atoi(args[1])
 		if err != nil {
@@ -136,7 +138,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		case "off", "0", "false", "no":
 			h.cfg.LLM.ShowThinking = false
 		default:
-			return "", fmt.Errorf("usage: .settings show-thinking on|off")
+			return "", fmt.Errorf("usage: .set show-thinking on|off")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -162,7 +164,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		case "off", "0", "false", "no":
 			h.cfg.LLM.ShowCommand = false
 		default:
-			return "", fmt.Errorf("usage: .settings show-command on|off")
+			return "", fmt.Errorf("usage: .set show-command on|off")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -188,7 +190,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		case "off", "0", "false", "no":
 			h.cfg.LLM.ShowOutput = false
 		default:
-			return "", fmt.Errorf("usage: .settings show-output on|off")
+			return "", fmt.Errorf("usage: .set show-output on|off")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -214,11 +216,13 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		case "off", "0", "false", "no":
 			h.cfg.LLM.ConfirmCommand = false
 		default:
-			return "", fmt.Errorf("usage: .settings confirm-command on|off")
+			return "", fmt.Errorf("usage: .set confirm-command on|off")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Sync to agent immediately
+		h.agent.SetConfirmCommand(h.cfg.LLM.ConfirmCommand)
 		status := i18n.T(i18n.KeyOn)
 		if !h.cfg.LLM.ConfirmCommand {
 			status = i18n.T(i18n.KeyOff)
@@ -231,7 +235,52 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		}
 		return fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmEnabled), status), nil
 
+	case "result-mode":
+		if len(args) < 2 {
+			currentMode := config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))
+			return fmt.Sprintf("结果处理模式: %s", currentMode), nil
+		}
+		mode, ok := config.ParseResultMode(args[1])
+		if !ok {
+			return "", fmt.Errorf("无效的结果处理模式: %s（可选值: minimal, explain, analyze, free）", args[1])
+		}
+		h.cfg.LLM.ResultMode = int(mode)
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Result mode set to %s", args[1])
+		return fmt.Sprintf("✅ 结果处理模式已设置为: %s", config.ResultModeString(mode)), nil
+
+	case "max-iterations":
+		if len(args) < 2 {
+			maxIterStr := fmt.Sprintf("%d", h.cfg.LLM.MaxIterations)
+			if h.cfg.LLM.MaxIterations <= 0 {
+				maxIterStr = "1000（默认）"
+			}
+			return fmt.Sprintf("最大迭代次数: %s", maxIterStr), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的迭代次数: %s", args[1])
+		}
+		if n < -1 || n == 0 {
+			return "", fmt.Errorf("迭代次数必须 >= 1，或 -1（不限制）")
+		}
+		h.cfg.LLM.MaxIterations = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetMaxIterations(n)
+		log.Info("Max iterations set to %d", n)
+		maxIterStr := fmt.Sprintf("%d", n)
+		if n == -1 {
+			maxIterStr = "不限制"
+		}
+		return fmt.Sprintf("✅ 最大迭代次数已设置为: %s", maxIterStr), nil
+
 	case "log":
+
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
 			if !h.cfg.LogEnabled {
@@ -245,7 +294,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		case "off", "0", "false", "no":
 			h.cfg.LogEnabled = false
 		default:
-			return "", fmt.Errorf("usage: .settings log on|off")
+			return "", fmt.Errorf("usage: .set log on|off")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -264,6 +313,16 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
 
 	}
+}
+
+// showSettingsHelp displays the current configuration with parameter names and value ranges.
+func showSettingsHelp(cfg *config.Config) string {
+	var sb strings.Builder
+	sb.WriteString(i18n.T(i18n.KeySettingsHelpFooter) + "\n")
+	sb.WriteString("\n")
+	sb.WriteString(i18n.T(i18n.KeySettingsCurrentTitle) + "\n")
+	sb.WriteString(cfg.Show())
+	return sb.String()
 }
 
 // formatSettings formats the settings for display.

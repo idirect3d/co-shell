@@ -33,6 +33,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/idirect3d/co-shell/log"
 )
 
 // Message represents a chat message in the conversation.
@@ -393,9 +395,18 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 
+	// Log HTTP call info
+	timeoutStr := "no timeout"
+	if c.httpClient.Timeout > 0 {
+		timeoutStr = c.httpClient.Timeout.String()
+	}
+	log.Info("LLM Chat request: POST %s, timeout=%s, model=%s, messages=%d, tools=%d",
+		apiURL, timeoutStr, c.model, len(messages), len(tools))
+
 	// Send request
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		log.Error("LLM Chat request failed: POST %s, error: %v", apiURL, err)
 		return nil, fmt.Errorf("chat request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -403,17 +414,21 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	// Read response body
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Error("LLM Chat response read failed: POST %s, error: %v", apiURL, err)
 		return nil, fmt.Errorf("cannot read response: %w", err)
 	}
 
 	// Parse response
 	var chatResp chatResponseJSON
 	if err := json.Unmarshal(respBytes, &chatResp); err != nil {
+		log.Error("LLM Chat response parse failed: POST %s, error: %v", apiURL, err)
 		return nil, fmt.Errorf("cannot parse response: %w", err)
 	}
 
 	// Check for API error
 	if chatResp.Error != nil {
+		errMsg := fmt.Sprintf("API error: %s (type=%s, code=%s)", chatResp.Error.Message, chatResp.Error.Type, chatResp.Error.Code)
+		log.Error("LLM Chat API error: POST %s, status=%d, error=%s", apiURL, resp.StatusCode, errMsg)
 		return nil, &OpenAIError{
 			StatusCode: resp.StatusCode,
 			Message:    chatResp.Error.Message,
@@ -422,17 +437,30 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 
 	// Check HTTP status
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(respBytes))
+		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
+		log.Error("LLM Chat HTTP error: POST %s, status=%d, body=%s", apiURL, resp.StatusCode, string(respBytes))
+		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	// Parse response content and tool calls
 	content, reasoningContent, toolCalls := parseResponseChoices(chatResp.Choices)
+
+	// Log response content at DEBUG level
+	log.Debug("LLM Chat response: model=%s, content_len=%d, tool_calls=%d, reasoning_len=%d",
+		c.model, len(content), len(toolCalls), len(reasoningContent))
+	if content != "" {
+		log.Debug("LLM Chat response content: %s", content)
+	}
+	if reasoningContent != "" {
+		log.Debug("LLM Chat response reasoning: %s", reasoningContent)
+	}
 
 	return &LLMResponse{
 		Content:          content,
 		ReasoningContent: reasoningContent,
 		ToolCalls:        toolCalls,
 	}, nil
+
 }
 
 func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools []Tool) (<-chan StreamEvent, error) {
@@ -473,6 +501,10 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 
+	// Log HTTP call info
+	log.Info("LLM ChatStream request: POST %s, model=%s, messages=%d, tools=%d",
+		c.baseURL+"/chat/completions", c.model, len(messages), len(tools))
+
 	// Use streamClient (no timeout) for streaming requests.
 	// The httpClient has a 60s timeout which would cause streaming requests
 	// to fail when the LLM takes a long time to respond (e.g., thinking mode,
@@ -480,13 +512,16 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	// for cancellation instead.
 	resp, err := c.streamClient.Do(httpReq)
 	if err != nil {
+		log.Error("LLM ChatStream request failed: POST %s, error: %v", c.baseURL+"/chat/completions", err)
 		return nil, fmt.Errorf("chat stream request failed: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		respBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(respBytes))
+		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
+		log.Error("LLM ChatStream HTTP error: POST %s, status=%d, body=%s", c.baseURL+"/chat/completions", resp.StatusCode, string(respBytes))
+		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	eventCh := make(chan StreamEvent, 100)
@@ -735,15 +770,25 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]string, error) {
 
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 
+	// Log HTTP call info
+	timeoutStr := "no timeout"
+	if c.httpClient.Timeout > 0 {
+		timeoutStr = c.httpClient.Timeout.String()
+	}
+	log.Info("LLM ListModels request: GET %s, timeout=%s", apiURL, timeoutStr)
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		log.Error("LLM ListModels request failed: GET %s, error: %v", apiURL, err)
 		return nil, fmt.Errorf("list models request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		respBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(respBytes))
+		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
+		log.Error("LLM ListModels HTTP error: GET %s, status=%d, body=%s", apiURL, resp.StatusCode, string(respBytes))
+		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	var modelsResp struct {

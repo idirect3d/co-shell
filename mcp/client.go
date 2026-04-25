@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/idirect3d/co-shell/log"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -59,10 +60,10 @@ func toolInputSchemaToMap(s mcp.ToolInputSchema) map[string]interface{} {
 
 // ServerStatus represents the status of an MCP server connection.
 type ServerStatus struct {
-	Name   string
-	Alive  bool
-	Tools  []ToolInfo
-	Error  string
+	Name  string
+	Alive bool
+	Tools []ToolInfo
+	Error string
 }
 
 // Manager manages multiple MCP server connections.
@@ -225,8 +226,11 @@ func (m *Manager) CallTool(ctx context.Context, toolName string, args map[string
 	callRequest.Params.Name = toolName
 	callRequest.Params.Arguments = rawArgs
 
+	log.Info("MCP CallTool: server=%s, tool=%s, args=%v", target.name, toolName, args)
+
 	result, err := target.client.CallTool(ctx, callRequest)
 	if err != nil {
+		log.Error("MCP CallTool failed: server=%s, tool=%s, error: %v", target.name, toolName, err)
 		return "", fmt.Errorf("cannot call tool %q: %w", toolName, err)
 	}
 
@@ -269,4 +273,3 @@ func (m *Manager) Close() error {
 	m.servers = make(map[string]*mcpClient)
 	return lastErr
 }
-

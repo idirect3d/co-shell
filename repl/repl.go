@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-04-26
 //
 // # MIT License
 //
@@ -26,14 +26,18 @@
 package repl
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 
-	prompt "github.com/c-bata/go-prompt"
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/config"
@@ -41,9 +45,14 @@ import (
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/store"
+	"github.com/idirect3d/co-shell/wizard"
 )
 
+// version is the current co-shell version displayed in the welcome message.
+const version = "0.1.0"
+
 // commandPattern matches inputs that look like system commands.
+
 // On Unix: starts with alphanumeric, dots, underscores, hyphens, slashes, tildes
 // On Windows: also allows backslashes, colons (drive letters)
 var commandPattern = regexp.MustCompile(commandPatternString())
@@ -70,9 +79,10 @@ var windowsBuiltins = map[string]bool{
 	"assoc": true, "ftype": true, "dpath": true, "subst": true,
 }
 
-// isDirectCommand checks if the input looks like a system command that can be
+// IsDirectCommand checks if the input looks like a system command that can be
 // executed directly. It extracts the first word and checks if it exists in PATH.
-func isDirectCommand(input string) (string, bool) {
+func IsDirectCommand(input string) (string, bool) {
+
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
 		return "", false
@@ -116,6 +126,10 @@ type REPL struct {
 	ruleHandler     *cmd.RuleHandler
 	memoryHandler   *cmd.MemoryHandler
 	contextHandler  *cmd.ContextHandler
+	listHandler     *cmd.ListHandler
+
+	history    []string
+	historyPos int
 }
 
 // New creates a new REPL instance.
@@ -125,76 +139,122 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		store:           s,
 		mcpMgr:          mcpMgr,
 		agent:           ag,
-		settingsHandler: cmd.NewSettingsHandler(cfg),
-		mcpHandler:      cmd.NewMCPHandler(cfg, mcpMgr),
-		ruleHandler:     cmd.NewRuleHandler(cfg),
-		memoryHandler:   cmd.NewMemoryHandler(s),
-		contextHandler:  cmd.NewContextHandler(s),
+		settingsHandler: cmd.NewSettingsHandler(cfg, ag),
+
+		mcpHandler:     cmd.NewMCPHandler(cfg, mcpMgr),
+		ruleHandler:    cmd.NewRuleHandler(cfg),
+		memoryHandler:  cmd.NewMemoryHandler(s),
+		contextHandler: cmd.NewContextHandler(s),
+		listHandler:    cmd.NewListHandler(s),
 	}
+
 }
 
-// Run starts the REPL loop.
+// Run starts the REPL loop using standard library input/output.
+// No go-prompt, no raw terminal mode, no complex terminal control.
 func (r *REPL) Run() error {
 	// Print welcome message
 	r.printWelcome()
 
 	// Load persistent history from store
-	history := r.loadHistory()
+	r.loadHistory()
 
-	// Start the prompt
-	p := prompt.New(
-		r.executor,
-		r.completer,
-		prompt.OptionTitle("co-shell"),
-		prompt.OptionPrefix("❯ "),
-		prompt.OptionInputTextColor(prompt.Cyan),
-		prompt.OptionPrefixTextColor(prompt.Blue),
-		prompt.OptionSuggestionBGColor(prompt.DarkGray),
-		prompt.OptionDescriptionBGColor(prompt.DarkGray),
-		prompt.OptionSelectedSuggestionBGColor(prompt.LightGray),
-		prompt.OptionHistory(history),
-		prompt.OptionMaxSuggestion(10),
-		prompt.OptionSetExitCheckerOnInput(func(in string, breakline bool) bool {
-			// Check if the input is an exit command
-			trimmed := strings.TrimSpace(in)
-			if trimmed == "exit" || trimmed == "quit" || trimmed == ".exit" || trimmed == ".quit" {
-				return true
-			}
-			return false
-		}),
-	)
+	// Set up signal handling for Ctrl+C
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	// Note: go-prompt handles SIGINT (Ctrl+C) internally:
-	//   1. Calls p.tearDown() to restore terminal from raw mode
-	//   2. Calls os.Exit(0)
-	// So we do NOT register our own signal handler here, as it would
-	// conflict with go-prompt's handler and cause terminal state corruption.
-	p.Run()
+	// Channel to signal main loop to exit
+	done := make(chan struct{})
 
-	// After go-prompt exits cleanly (via ExitChecker), perform cleanup
+	// Handle signals in a goroutine
+	go func() {
+		select {
+		case <-sigCh:
+			fmt.Println("\n" + i18n.T(i18n.KeyGoodbye))
+			r.cleanup()
+			os.Exit(0)
+		case <-done:
+			return
+		}
+	}()
+
+	// Main input loop using bufio.Scanner (standard line-buffered input)
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("❯ ")
+
+		if !scanner.Scan() {
+			// EOF (Ctrl+D) or error
+			break
+		}
+
+		input := scanner.Text()
+		input = strings.TrimSpace(input)
+
+		if input == "" {
+			continue
+		}
+
+		// Save to persistent history
+		r.saveHistory(input)
+
+		// Handle exit commands
+		if input == "exit" || input == "quit" || input == ".exit" || input == ".quit" {
+			break
+		}
+
+		// Handle help
+		if input == "help" || input == ".help" || input == "?" {
+			r.printHelp()
+			continue
+		}
+
+		// Handle built-in commands (start with .)
+		if strings.HasPrefix(input, ".") {
+			r.handleBuiltin(input)
+			continue
+		}
+
+		// Handle numeric input: re-execute a history entry by number
+		if num, err := strconv.Atoi(input); err == nil && num > 0 {
+			r.handleHistoryReExecute(num)
+			continue
+		}
+
+		// Handle direct system commands (bypass LLM)
+		if cmd, ok := IsDirectCommand(input); ok {
+
+			r.handleSystemCommand(cmd)
+			continue
+		}
+
+		// Handle natural language input via agent
+		r.handleAgentInput(input)
+	}
+
+	close(done)
 	r.cleanup()
 	fmt.Println(i18n.T(i18n.KeyGoodbye))
 	return nil
-
 }
 
 // loadHistory loads persistent history from the store.
-// Returns history entries in chronological order (oldest first) for go-prompt.
-func (r *REPL) loadHistory() []string {
+func (r *REPL) loadHistory() {
 	entries, err := r.store.LoadHistory()
 	if err != nil {
 		log.Warn("Cannot load history: %v", err)
-		return []string{}
+		r.history = []string{}
+		return
 	}
 
-	// Reverse to chronological order (oldest first) for go-prompt
-	// LoadHistory returns newest first
+	// Reverse to chronological order (oldest first)
 	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
 		entries[i], entries[j] = entries[j], entries[i]
 	}
 
+	r.history = entries
+	r.historyPos = len(r.history)
 	log.Debug("Loaded %d history entries", len(entries))
-	return entries
 }
 
 // saveHistory saves a single input to the persistent history store.
@@ -202,45 +262,6 @@ func (r *REPL) saveHistory(input string) {
 	if err := r.store.SaveHistory(input); err != nil {
 		log.Warn("Cannot save history: %v", err)
 	}
-}
-
-// executor handles each line of input.
-func (r *REPL) executor(input string) {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return
-	}
-
-	// Save to persistent history
-	r.saveHistory(input)
-
-	// Handle exit commands - ExitChecker handles the actual exit,
-	// but we still need to handle it here for the case where
-	// ExitChecker is not set (e.g., tests).
-	if input == "exit" || input == "quit" || input == ".exit" || input == ".quit" {
-		return
-	}
-
-	// Handle help
-	if input == "help" || input == ".help" || input == "?" {
-		r.printHelp()
-		return
-	}
-
-	// Handle built-in commands (start with .)
-	if strings.HasPrefix(input, ".") {
-		r.handleBuiltin(input)
-		return
-	}
-
-	// Handle direct system commands (bypass LLM)
-	if cmd, ok := isDirectCommand(input); ok {
-		r.handleSystemCommand(cmd)
-		return
-	}
-
-	// Handle natural language input via agent
-	r.handleAgentInput(input)
 }
 
 // handleBuiltin processes built-in commands.
@@ -257,8 +278,9 @@ func (r *REPL) handleBuiltin(input string) {
 	var err error
 
 	switch command {
-	case ".settings":
+	case ".settings", ".set":
 		result, err = r.settingsHandler.Handle(args)
+
 	case ".mcp":
 		result, err = r.mcpHandler.Handle(args)
 	case ".rule":
@@ -267,6 +289,15 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.memoryHandler.Handle(args)
 	case ".context":
 		result, err = r.contextHandler.Handle(args)
+	case ".wizard":
+		r.handleWizard()
+		return
+	case ".list":
+		result, err = r.listHandler.HandleList(args)
+	case ".last":
+		result, err = r.listHandler.HandleLast(args)
+	case ".first":
+		result, err = r.listHandler.HandleFirst(args)
 	default:
 		fmt.Printf(i18n.T(i18n.KeyUnknownCommand)+"\n", command)
 		return
@@ -279,10 +310,54 @@ func (r *REPL) handleBuiltin(input string) {
 	fmt.Println(result)
 
 	// Update agent settings after handling settings command that may have changed them
-	if command == ".settings" {
+	if command == ".settings" || command == ".set" {
+
 		r.agent.SetShowThinking(r.cfg.LLM.ShowThinking)
 		r.agent.SetShowCommand(r.cfg.LLM.ShowCommand)
 		r.agent.SetShowOutput(r.cfg.LLM.ShowOutput)
+	}
+}
+
+// handleHistoryReExecute re-executes a history entry by its 1-based index.
+func (r *REPL) handleHistoryReExecute(num int) {
+	entries, err := r.store.ListHistory()
+	if err != nil {
+		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyError), err)
+		return
+	}
+
+	if num < 1 || num > len(entries) {
+		fmt.Println(i18n.TF(i18n.KeyListInvalid, len(entries)))
+		return
+	}
+
+	input := entries[num-1].Input
+	fmt.Printf("🔄 %s\n", input)
+
+	// Check if it's a built-in command
+	if strings.HasPrefix(input, ".") {
+		r.handleBuiltin(input)
+		return
+	}
+
+	// Check if it's a direct system command
+	if cmd, ok := IsDirectCommand(input); ok {
+		r.handleSystemCommand(cmd)
+		return
+	}
+
+	// Otherwise, send to agent
+	r.handleAgentInput(input)
+}
+
+// handleWizard runs the API setup wizard.
+func (r *REPL) handleWizard() {
+	fmt.Print(i18n.T(i18n.KeyWizardCmdRunning))
+
+	if wizard.RunSetupWizard(r.cfg) {
+		fmt.Print(i18n.T(i18n.KeyWizardCmdDone))
+	} else {
+		fmt.Println(i18n.T(i18n.KeySetupCancelled))
 	}
 }
 
@@ -325,11 +400,9 @@ func (r *REPL) handleAgentInput(input string) {
 func (r *REPL) streamCallback(eventType string, content string) {
 	switch eventType {
 	case "content_chunk":
-		// Stream output content in real-time
 		fmt.Print(content)
 
 	case "thinking_chunk":
-		// Thinking content is displayed dimmed/grayed
 		fmt.Print(content)
 
 	case "content":
@@ -341,11 +414,9 @@ func (r *REPL) streamCallback(eventType string, content string) {
 		fmt.Println()
 
 	case "command":
-		// Show the command that will be executed
 		fmt.Printf("⚡ %s\n", content)
 
 	case "output":
-		// Show the full command output (stdout + stderr) before LLM analysis
 		fmt.Println()
 		fmt.Println(i18n.T(i18n.KeyOutputTitle))
 		fmt.Println(i18n.T(i18n.KeyOutputSep))
@@ -364,101 +435,13 @@ func (r *REPL) streamCallback(eventType string, content string) {
 	}
 }
 
-// completer provides tab completion suggestions.
-// Only shows suggestions when input starts with "." (built-in commands).
-// Press Tab to show, Esc to hide.
-func (r *REPL) completer(d prompt.Document) []prompt.Suggest {
-	// Only show suggestions for built-in commands (starting with .)
-	if strings.HasPrefix(d.Text, ".") {
-		return r.builtinCompleter(d)
-	}
-
-	// Return empty list for natural language input to avoid auto-popup
-	return []prompt.Suggest{}
-}
-
-// builtinCompleter provides completion for built-in commands.
-func (r *REPL) builtinCompleter(d prompt.Document) []prompt.Suggest {
-	text := d.TextBeforeCursor()
-
-	// Complete the command name
-	if !strings.Contains(text, " ") {
-		return []prompt.Suggest{
-			{Text: ".settings", Description: "Manage LLM API settings"},
-			{Text: ".mcp", Description: "Manage MCP server connections"},
-			{Text: ".rule", Description: "Manage global rules"},
-			{Text: ".memory", Description: "Manage memory and knowledge"},
-			{Text: ".context", Description: "Manage conversation context"},
-			{Text: ".help", Description: "Show help information"},
-			{Text: ".exit", Description: "Exit co-shell"},
-		}
-	}
-
-	// Complete subcommands
-	parts := strings.Fields(text)
-	if len(parts) <= 1 {
-		return nil
-	}
-
-	command := parts[0]
-	subPrefix := parts[len(parts)-1]
-
-	switch command {
-	case ".settings":
-		return prompt.FilterHasPrefix([]prompt.Suggest{
-			{Text: "api-key", Description: "Set API key"},
-			{Text: "endpoint", Description: "Set API endpoint URL"},
-			{Text: "model", Description: "Set model name"},
-			{Text: "temperature", Description: "Set temperature (0.0-2.0)"},
-			{Text: "max-tokens", Description: "Set max tokens"},
-			{Text: "show-thinking", Description: "Show/hide LLM thinking process (on|off)"},
-			{Text: "show-command", Description: "Show/hide commands before execution (on|off)"},
-			{Text: "show-output", Description: "Show/hide command output before LLM analysis (on|off)"},
-			{Text: "log", Description: "Enable/disable file logging (on|off)"},
-		}, subPrefix, true)
-	case ".mcp":
-		return prompt.FilterHasPrefix([]prompt.Suggest{
-			{Text: "add", Description: "Add a new MCP server"},
-			{Text: "remove", Description: "Remove an MCP server"},
-			{Text: "list", Description: "List all MCP servers"},
-			{Text: "enable", Description: "Enable an MCP server"},
-			{Text: "disable", Description: "Disable an MCP server"},
-		}, subPrefix, true)
-	case ".rule":
-		return prompt.FilterHasPrefix([]prompt.Suggest{
-			{Text: "add", Description: "Add a new rule"},
-			{Text: "remove", Description: "Remove a rule by index"},
-			{Text: "clear", Description: "Clear all rules"},
-		}, subPrefix, true)
-	case ".memory":
-		return prompt.FilterHasPrefix([]prompt.Suggest{
-			{Text: "save", Description: "Save a memory entry"},
-			{Text: "get", Description: "Get a memory entry"},
-			{Text: "search", Description: "Search memory entries"},
-			{Text: "delete", Description: "Delete a memory entry"},
-			{Text: "clear", Description: "Clear all memory"},
-		}, subPrefix, true)
-	case ".context":
-		return prompt.FilterHasPrefix([]prompt.Suggest{
-			{Text: "show", Description: "Show current context"},
-			{Text: "reset", Description: "Reset context"},
-			{Text: "set", Description: "Set a context variable"},
-		}, subPrefix, true)
-	}
-
-	return nil
-}
-
-// printWelcome displays the welcome message.
+// printWelcome displays the welcome message in a compact format
+// similar to traditional Unix tools (e.g., zip, tar).
 func (r *REPL) printWelcome() {
-	fmt.Print(`
-╔══════════════════════════════════════╗
-║         co-shell v0.1.0              ║
-║   Intelligent Command-Line Shell     ║
-╚══════════════════════════════════════╝
+	fmt.Printf("co-shell v%s\n", version)
 
-` + i18n.T(i18n.KeyWelcomeTip) + `
-`)
+	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
+	fmt.Println()
 }
 
 // printHelp displays the help information.
@@ -474,8 +457,10 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpRule))
 	fmt.Println(i18n.T(i18n.KeyHelpMemory))
 	fmt.Println(i18n.T(i18n.KeyHelpContext))
+	fmt.Println(i18n.T(i18n.KeyHelpWizard))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
+
 	fmt.Println()
 	fmt.Println(i18n.T(i18n.KeyHelpExampleTitle))
 	fmt.Println(i18n.T(i18n.KeyHelpExample1))

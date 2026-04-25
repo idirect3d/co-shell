@@ -166,23 +166,25 @@ var zhMessages = map[string]string{
 
 	// Config format
 	KeyConfigFormat: `LLM 配置:
-  提供商:          %s
-  端点:            %s
-  模型:            %s
-  温度:            %.1f
-  最大令牌数:      %d
-  最大迭代次数:    %s
-  显示思考过程:    %s
-  显示命令:        %s
-  显示输出:        %s
-  工具调用超时:    %s
-  命令执行超时:    %s
-  LLM 请求超时:    %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
 
-日志: %s
+  %-20s %-30s %s
 
-MCP 服务器: %d
-规则: %d`,
+  %-20s %-30d %s
+  %-20s %-30d %s
+  %-20s %-30s %s`,
 
 	// REPL - Additional
 	KeyWelcomeTip: "输入 .help 查看可用命令，或直接输入自然语言！\n   例如：\"列出当前目录的文件\"",
@@ -199,7 +201,8 @@ MCP 服务器: %d
 	KeyHelpNLTitle:      "  自然语言:",
 	KeyHelpNLDesc:       "    直接输入自然语言请求，我会帮你执行。",
 	KeyHelpBuiltinTitle: "  内置命令（以 . 开头）:",
-	KeyHelpSettings:     "    .settings     - 管理 LLM API 设置（密钥、模型、端点等）",
+	KeyHelpSettings:     "    .set          - 管理 LLM API 设置（密钥、模型、端点等）",
+
 	KeyHelpMCP:          "    .mcp          - 管理 MCP 服务器连接",
 	KeyHelpRule:         "    .rule         - 管理 AI 全局规则",
 	KeyHelpMemory:       "    .memory       - 管理记忆和持久知识",
@@ -243,12 +246,13 @@ MCP 服务器: %d
 	KeyCmdConfirmEnabled:     "命令执行确认: 开启",
 	KeyCmdConfirmDisableWarn: "⚠️ 警告: 关闭命令执行确认后，AI 将直接执行命令而不经您确认，可能存在安全风险（如误删文件、无限循环等）。请谨慎操作。",
 
-	KeyCmdConfirmPrompt:     "请选择操作:\n  [Enter] 批准执行\n  [d] 拒绝执行\n  其他输入: 作为补充说明，AI 将重新评估\n请输入: ",
+	KeyCmdConfirmPrompt:     "请选择操作:\n  [Enter] 批准执行\n  [A] 本次都批准\n  [C] 取消\n  其他输入: 作为补充说明，AI 将重新评估\n请输入: ",
 	KeyCmdConfirmApprove:    "a",
-	KeyCmdConfirmReject:     "d",
+	KeyCmdConfirmApproveAll: "aa",
+	KeyCmdConfirmCancel:     "c",
 	KeyCmdConfirmModify:     "m",
-	KeyCmdConfirmInvalid:    "无效输入，请直接回车批准、输入 d 拒绝，或输入补充说明。",
-	KeyCmdConfirmRejected:   "用户已拒绝执行该命令。",
+	KeyCmdConfirmInvalid:    "无效输入，请直接回车批准、输入 a 本次都批准、输入 c 取消，或输入补充说明。",
+	KeyCmdConfirmCancelled:  "已取消。",
 	KeyCmdConfirmModifyHint: "请输入补充说明，AI 将重新评估: ",
 
 	// Disclaimer
@@ -271,6 +275,60 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDisclaimerYes:     "y",
 	KeyDisclaimerNo:      "n",
 	KeyDisclaimerRefused: "您已拒绝风险声明，程序退出。",
+
+	// Wizard command
+	KeyWizardCmdRunning: "🔄 正在启动 API 设置向导...\n",
+	KeyWizardCmdDone:    "✅ API 设置向导已完成。\n",
+	KeyHelpWizard:       "    .wizard        - 重新启动 API 设置向导",
+
+	// Settings help table
+	KeySettingsHelpTitle:        "📋 .set 参数清单",
+	KeySettingsColParam:         "参数名",
+	KeySettingsColValues:        "可选项 / 值范围",
+	KeySettingsColDesc:          "说明",
+	KeySettingsDescAPIKey:       "设置 API 密钥",
+	KeySettingsDescEndpoint:     "设置 API 端点 URL",
+	KeySettingsDescModel:        "设置模型名称",
+	KeySettingsDescTemp:         "设置温度参数（越高越随机）",
+	KeySettingsDescMaxTokens:    "设置最大输出令牌数",
+	KeySettingsDescShowThinking: "显示 AI 思考过程",
+	KeySettingsDescShowCommand:  "显示执行的系统命令",
+	KeySettingsDescShowOutput:   "显示命令执行输出",
+	KeySettingsDescConfirmCmd:   "执行命令前需确认",
+	KeySettingsDescLog:          "日志开关",
+	KeySettingsDescMaxIter:      "最大迭代次数（-1=不限）",
+	KeySettingsDescToolTimeout:  "工具调用超时（0=不限）",
+	KeySettingsDescCmdTimeout:   "命令执行超时（0=不限）",
+	KeySettingsDescLLMTimeout:   "LLM 请求超时（0=不限）",
+	KeySettingsHelpFooter:       "💡 使用 .set <参数名> <值> 修改参数，例如: .set model deepseek-chat",
+	KeySettingsCurrentTitle:     "当前配置:",
+
+	// Config show column 3 labels
+	KeyCol3Provider:    "提供商(deepseek/qwen/openai)",
+	KeyCol3Endpoint:    "API服务器",
+	KeyCol3Model:       "模型ID",
+	KeyCol3Temperature: "温度(0.0 ~ 2.0)",
+	KeyCol3MaxTokens:   "最大输出令牌数(1 ~ N（不限制）)",
+	KeyCol3MaxIter:     "最大迭代次数(-1 ~ N)",
+	KeyCol3Thinking:    "显示思考过程(on|off)",
+	KeyCol3Command:     "显示命令(on|off)",
+	KeyCol3Output:      "显示输出(on|off)",
+	KeyCol3Confirm:     "命令确认(on|off)",
+	KeyCol3ToolTimeout: "工具调用超时(0 ~ N 秒)",
+	KeyCol3CmdTimeout:  "命令执行超时(0 ~ N 秒)",
+	KeyCol3LLMTimeout:  "LLM 请求超时(0 ~ N 秒)",
+	KeyCol3Log:         "日志(on|off)",
+	KeyCol3ResultMode:  "结果模式(minimal/explain/analyze/free)",
+	KeyCol3APIKey:      "API 密钥",
+
+	// History list
+	KeyListTitle:     "📋 历史任务列表:",
+	KeyListEmpty:     "暂无历史记录。",
+	KeyListReExecute: "输入编号重新执行，或输入其他内容继续。",
+	KeyListInvalid:   "无效编号，请输入 1-%d 之间的数字。",
+	KeyLastUsage:     "用法: .last [N] — 显示最近 N 条历史记录（默认 10）",
+	KeyFirstUsage:    "用法: .first [N] — 显示最早 N 条历史记录（默认 10）",
+	KeyListUsage:     "用法: .list [start] [end] — 显示历史记录范围（序号从 1 开始）",
 
 	// Custom
 	KeyCustom: "自定义",

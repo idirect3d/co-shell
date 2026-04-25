@@ -164,23 +164,25 @@ var enMessages = map[string]string{
 
 	// Config format
 	KeyConfigFormat: `LLM Configuration:
-  Provider:        %s
-  Endpoint:        %s
-  Model:           %s
-  Temperature:     %.1f
-  Max Tokens:      %d
-  Max Iterations:  %s
-  Show Thinking:   %s
-  Show Command:    %s
-  Show Output:     %s
-  Tool Timeout:    %s
-  Cmd Timeout:     %s
-  LLM Timeout:     %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
 
-Logging: %s
+  %-20s %-30s %s
 
-MCP Servers: %d
-Rules: %d`,
+  %-20s %-30d %s
+  %-20s %-30d %s
+  %-20s %-30s %s`,
 
 	// REPL - Additional
 	KeyWelcomeTip: "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.\n   Example: \"List files in current directory\"",
@@ -197,7 +199,8 @@ Rules: %d`,
 	KeyHelpNLTitle:      "Natural Language Commands:",
 	KeyHelpNLDesc:       "    Just type what you want to do, and co-shell will figure it out.",
 	KeyHelpBuiltinTitle: "Built-in Commands:",
-	KeyHelpSettings:     "    .settings           - View/change LLM API settings",
+	KeyHelpSettings:     "    .set                - View/change LLM API settings",
+
 	KeyHelpMCP:          "    .mcp                - Manage MCP server connections",
 	KeyHelpRule:         "    .rule               - Manage global rules",
 	KeyHelpMemory:       "    .memory             - Manage memory and knowledge",
@@ -241,12 +244,13 @@ Rules: %d`,
 	KeyCmdConfirmEnabled:     "Command confirmation: On",
 	KeyCmdConfirmDisableWarn: "⚠️ Warning: Disabling command confirmation will allow AI to execute commands directly without your approval. This may pose security risks (e.g., accidental file deletion, infinite loops). Proceed with caution.",
 
-	KeyCmdConfirmPrompt:     "Choose an action:\n  [Enter] Approve and execute\n  [d] Reject\n  Other input: supplementary instructions for AI to re-evaluate\nEnter: ",
+	KeyCmdConfirmPrompt:     "Choose an action:\n  [Enter] Approve and execute\n  [A] Approve all for this request\n  [C] Cancel\n  Other input: supplementary instructions for AI to re-evaluate\nEnter: ",
 	KeyCmdConfirmApprove:    "a",
-	KeyCmdConfirmReject:     "d",
+	KeyCmdConfirmApproveAll: "aa",
+	KeyCmdConfirmCancel:     "c",
 	KeyCmdConfirmModify:     "m",
-	KeyCmdConfirmInvalid:    "Invalid input. Press Enter to approve, enter d to reject, or type supplementary instructions.",
-	KeyCmdConfirmRejected:   "The user has rejected this command.",
+	KeyCmdConfirmInvalid:    "Invalid input. Press Enter to approve, enter a to approve all, enter c to cancel, or type supplementary instructions.",
+	KeyCmdConfirmCancelled:  "Cancelled.",
 	KeyCmdConfirmModifyHint: "Enter additional instructions for the AI to re-evaluate: ",
 
 	// Disclaimer
@@ -270,6 +274,60 @@ no liability whatsoever.`,
 	KeyDisclaimerYes:     "y",
 	KeyDisclaimerNo:      "n",
 	KeyDisclaimerRefused: "You have declined the disclaimer. Exiting.",
+
+	// Wizard command
+	KeyWizardCmdRunning: "🔄 Starting API setup wizard...\n",
+	KeyWizardCmdDone:    "✅ API setup wizard completed.\n",
+	KeyHelpWizard:       "    .wizard        - Restart the API setup wizard",
+
+	// Settings help table
+	KeySettingsHelpTitle:        "📋 .set Parameter List",
+	KeySettingsColParam:         "Parameter",
+	KeySettingsColValues:        "Values / Range",
+	KeySettingsColDesc:          "Description",
+	KeySettingsDescAPIKey:       "Set API key",
+	KeySettingsDescEndpoint:     "Set API endpoint URL",
+	KeySettingsDescModel:        "Set model name",
+	KeySettingsDescTemp:         "Set temperature (higher = more random)",
+	KeySettingsDescMaxTokens:    "Set max output tokens",
+	KeySettingsDescShowThinking: "Show AI thinking process",
+	KeySettingsDescShowCommand:  "Show executed system commands",
+	KeySettingsDescShowOutput:   "Show command execution output",
+	KeySettingsDescConfirmCmd:   "Confirm before executing commands",
+	KeySettingsDescLog:          "Enable/disable logging",
+	KeySettingsDescMaxIter:      "Max iterations (-1=unlimited)",
+	KeySettingsDescToolTimeout:  "Tool call timeout (0=unlimited)",
+	KeySettingsDescCmdTimeout:   "Command timeout (0=unlimited)",
+	KeySettingsDescLLMTimeout:   "LLM request timeout (0=unlimited)",
+	KeySettingsHelpFooter:       "💡 Use .set <parameter> <value> to modify, e.g.: .set model gpt-4o",
+	KeySettingsCurrentTitle:     "Current Configuration:",
+
+	// Config show column 3 labels
+	KeyCol3Provider:    "provider(deepseek/qwen/openai)",
+	KeyCol3Endpoint:    "API server",
+	KeyCol3Model:       "model ID",
+	KeyCol3Temperature: "temperature(0.0 ~ 2.0)",
+	KeyCol3MaxTokens:   "max output tokens(1 ~ N (unlimited))",
+	KeyCol3MaxIter:     "max iterations(-1 ~ N)",
+	KeyCol3Thinking:    "show thinking(on|off)",
+	KeyCol3Command:     "show command(on|off)",
+	KeyCol3Output:      "show output(on|off)",
+	KeyCol3Confirm:     "confirm command(on|off)",
+	KeyCol3ToolTimeout: "tool timeout(0 ~ N sec)",
+	KeyCol3CmdTimeout:  "cmd timeout(0 ~ N sec)",
+	KeyCol3LLMTimeout:  "LLM timeout(0 ~ N sec)",
+	KeyCol3Log:         "logging(on|off)",
+	KeyCol3ResultMode:  "result mode(minimal/explain/analyze/free)",
+	KeyCol3APIKey:      "API key",
+
+	// History list
+	KeyListTitle:     "📋 History Tasks:",
+	KeyListEmpty:     "No history entries.",
+	KeyListReExecute: "Enter a number to re-execute, or type something else to continue.",
+	KeyListInvalid:   "Invalid number, please enter a number between 1-%d.",
+	KeyLastUsage:     "Usage: .last [N] — Show last N history entries (default 10)",
+	KeyFirstUsage:    "Usage: .first [N] — Show first N history entries (default 10)",
+	KeyListUsage:     "Usage: .list [start] [end] — Show history range (index starts from 1)",
 
 	// Custom
 	KeyCustom: "Custom",

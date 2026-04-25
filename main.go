@@ -32,8 +32,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -287,6 +285,10 @@ func main() {
 		ag.SetMaxIterations(flags.maxIterations)
 	} else if cfg.LLM.MaxIterations > 0 {
 		ag.SetMaxIterations(cfg.LLM.MaxIterations)
+	} else {
+		// Config has MaxIterations == 0 (e.g., loaded from old config.json without this field),
+		// use the default value from DefaultConfig()
+		ag.SetMaxIterations(config.DefaultConfig().LLM.MaxIterations)
 	}
 
 	// Apply command confirmation setting
@@ -294,6 +296,9 @@ func main() {
 
 	// Pass config to agent for timeout settings
 	ag.SetConfig(cfg)
+
+	// Apply result mode
+	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
 
 	log.Info("Agent initialized with %d rules", len(cfg.Rules))
 
@@ -347,43 +352,11 @@ func showDisclaimer(cfg *config.Config) {
 	}
 }
 
-// windowsBuiltins is a set of cmd.exe built-in commands that are not found by exec.LookPath.
-var windowsBuiltins = map[string]bool{
-	"dir": true, "copy": true, "del": true, "erase": true, "move": true,
-	"ren": true, "rename": true, "type": true, "cd": true, "chdir": true,
-	"md": true, "mkdir": true, "rd": true, "rmdir": true, "cls": true,
-	"echo": true, "set": true, "path": true, "prompt": true, "title": true,
-	"date": true, "time": true, "ver": true, "vol": true, "label": true,
-	"pushd": true, "popd": true, "where": true, "find": true, "findstr": true,
-	"more": true, "sort": true, "pause": true, "color": true, "help": true,
-	"break": true, "call": true, "exit": true, "for": true, "goto": true,
-	"if": true, "rem": true, "shift": true, "start": true,
-	"assoc": true, "ftype": true, "dpath": true, "subst": true,
-}
-
 // isDirectCommand checks if the input looks like a system command that can be
-// executed directly. It extracts the first word and checks if it exists in PATH.
+// executed directly. Delegates to repl package.
 func isDirectCommand(input string) bool {
-	trimmed := strings.TrimSpace(input)
-	if trimmed == "" {
-		return false
-	}
-
-	// Extract the first word as the command name
-	firstWord := strings.Fields(trimmed)[0]
-
-	// Check if the command exists in PATH
-	_, err := exec.LookPath(firstWord)
-	if err == nil {
-		return true
-	}
-
-	// On Windows, also check for cmd.exe built-in commands
-	if runtime.GOOS == "windows" && windowsBuiltins[strings.ToLower(firstWord)] {
-		return true
-	}
-
-	return false
+	_, ok := repl.IsDirectCommand(input)
+	return ok
 }
 
 // executeSingleCommand executes a single command (natural language or system command)

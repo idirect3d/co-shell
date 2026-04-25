@@ -7,15 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 00045
-
-
-
-
-
-
-
-
+> **BUILD**: 72
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XXXXX]` 标记完成时的编译版本。
@@ -29,30 +21,39 @@
 
 ### 功能清单
 
-- [x] FEATURE-00001 REPL 交互界面（go-prompt，Tab 补全）[BUILD-00001]
-- [x] FEATURE-00002 LLM 客户端抽象（OpenAI 兼容 API）[BUILD-00001]
-- [x] FEATURE-00003 Agent 核心循环（LLM 调用 → 工具执行 → 迭代）[BUILD-00001]
-- [x] FEATURE-00004 内置命令系统（.settings / .mcp / .rule / .memory / .context）[BUILD-00001]
-- [x] FEATURE-00005 持久化存储（bbolt 记忆/上下文）[BUILD-00001]
-- [x] FEATURE-00006 MCP 客户端管理器（多 Server 连接）[BUILD-00001]
-- [x] FEATURE-00007 系统命令执行（超时控制）[BUILD-00001]
-- [x] FEATURE-00008 配置管理（JSON 持久化到 ~/.co-shell/）[BUILD-00001]
-- [x] FEATURE-00009 API初始设置（默认设置为deepseek，但Key留空）[BUILD-00001]
-- [x] FEATURE-00010 API设置向导（co-shell启动后当系统大模型API参数不完整时，提示用户输入不完整的参数，比如默认deepseek配置不带key，那么就先提示用户输入正确的key并需要至测试成功为止）[BUILD-00001]
-- [x] FEATURE-00011 系统命令直接运行（如果用户直接输入系统命令或执行程序在当前环境下可以直接执行，则直接执行用户输入的所有内容，而不用通过大模型解释。）[BUILD-00001]
-- [x] FEATURE-00012 流式输出支持 [BUILD-00001]
-- [x] FEATURE-00013 日志系统（文件日志，支持运行时开关）[BUILD-00024]
-- [x] FEATURE-00014 API Key 脱敏显示 [BUILD-00024]
-- [x] FEATURE-00015 命令行参数支持（--help/--version/--model/--endpoint/--api-key/--log）[BUILD-00024]
-- [x] FEATURE-00016 命令行指令支持（-c/--cmd 执行单条自然语言或系统指令后退出）[BUILD-00024]
-- [x] FEATURE-00018 会话历史管理（用户可以通过上、下键在自己输入的历史内容之间翻页，包括上一次执行co-shell时的内容）[BUILD-00025]
-- [x] FEATURE-00019 基础错误处理和用户提示 [BUILD-00025]
-- [x] FEATURE-00020 最大迭代次数可配置（--max-iterations 命令行参数、.settings max-iterations 运行时设置、config.json 持久化）[BUILD-00027]
-- [x] FEATURE-00021 多配置文件位置支持（优先级：命令行参数指定 > 当前目录 config.json > ~/.co-shell/config.json）[BUILD-00028]
-- [x] FEATURE-00022 多供应商支持（DeepSeek v4 / 阿里千问 / OpenAI 兼容兜底），设置向导支持供应商选择、自动打开官网获取 API Key [BUILD-00029]
-- [x] ENHANCEMENT-00023 设置向导增强：Tab 键显示可选列表、上下键选择、ESC 退出、连接测试 [BUILD-00031]
-- [x] ENHANCEMENT-00024 设置向导增强：OpenAI 兼容模式下输入端点后自动测试连通性，输入 API Key 后自动获取模型列表 [BUILD-00032]
-- [x] FEATURE-00047 国际化（i18n）支持中文/英文，--lang 命令行参数，自动检测系统语言 [BUILD-00033]
+- [x] FEATURE-1 REPL 交互界面（go-prompt，Tab 补全）[BUILD-1]
+- [x] FEATURE-2 LLM 客户端抽象（OpenAI 兼容 API）[BUILD-1]
+- [x] FEATURE-3 Agent 核心循环（LLM 调用 → 工具执行 → 迭代）[BUILD-1]
+- [x] FEATURE-4 内置命令系统（.settings / .mcp / .rule / .memory / .context）[BUILD-1]
+- [x] FEATURE-5 持久化存储（bbolt 记忆/上下文）[BUILD-1]
+- [x] FEATURE-6 MCP 客户端管理器（多 Server 连接）[BUILD-1]
+- [x] FEATURE-7 系统命令执行（超时控制）[BUILD-1]
+- [x] FEATURE-8 配置管理（JSON 持久化到 ~/.co-shell/）[BUILD-1]
+- [x] FEATURE-9 API初始设置（默认设置为deepseek，但Key留空）[BUILD-1]
+- [x] FEATURE-10 API设置向导（co-shell启动后当系统大模型API参数不完整时，提示用户输入不完整的参数，比如默认deepseek配置不带key，那么就先提示用户输入正确的key并需要至测试成功为止）[BUILD-1]
+- [x] FEATURE-11 系统命令直接运行（如果用户直接输入系统命令或执行程序在当前环境下可以直接执行，则直接执行用户输入的所有内容，而不用通过大模型解释。）[BUILD-1]
+- [x] FEATURE-12 流式输出支持 [BUILD-1]
+- [x] FEATURE-13 日志系统（文件日志，支持运行时开关）[BUILD-24]
+- [x] FEATURE-14 API Key 脱敏显示 [BUILD-24]
+- [x] FEATURE-15 命令行参数支持（--help/--version/--model/--endpoint/--api-key/--log）[BUILD-24]
+- [x] FEATURE-16 命令行指令支持（-c/--cmd 执行单条自然语言或系统指令后退出）[BUILD-24]
+- [x] FEATURE-18 会话历史管理（用户可以通过上、下键在自己输入的历史内容之间翻页，包括上一次执行co-shell时的内容）[BUILD-25]
+- [x] FEATURE-19 基础错误处理和用户提示 [BUILD-25]
+- [x] FEATURE-20 最大迭代次数可配置（--max-iterations 命令行参数、.settings max-iterations 运行时设置、config.json 持久化）[BUILD-27]
+- [x] FEATURE-21 多配置文件位置支持（优先级：命令行参数指定 > 当前目录 config.json > ~/.co-shell/config.json）[BUILD-28]
+- [x] FEATURE-22 多供应商支持（DeepSeek v4 / 阿里千问 / OpenAI 兼容兜底），设置向导支持供应商选择、自动打开官网获取 API Key [BUILD-29]
+- [x] ENHANCEMENT-23 设置向导增强：Tab 键显示可选列表、上下键选择、ESC 退出、连接测试 [BUILD-31]
+- [x] ENHANCEMENT-24 设置向导增强：OpenAI 兼容模式下输入端点后自动测试连通性，输入 API Key 后自动获取模型列表 [BUILD-32]
+- [x] FEATURE-47 国际化（i18n）支持中文/英文，--lang 命令行参数，自动检测系统语言 [BUILD-33]
+- [x] FEATURE-51 多平台支持（macOS/Linux/Windows）[BUILD-35]
+- [x] FEATURE-52 首次运行风险声明 [BUILD-36]
+- [x] FEATURE-53 命令执行确认机制（执行命令前等待用户确认：批准/拒绝/修改后重新评估），由配置控制开关 [BUILD-37]
+- [x] ENHANCEMENT-63 超时时间参数化改造：所有超时动作可配置，默认永不超时，超时异常传递上下文给LLM；日志增强：所有HTTP/工具调用前INFO记录、异常ERROR记录、传递给LLM的内容DEBUG记录；修复RunStream中USER_MODIFY_REQUEST导致消息历史不完整（assistant含tool_calls但缺少对应tool消息）的API 400错误 [BUILD-47]
+- [x] FEATURE-64 新增 .wizard 内置命令，在 REPL 中重新启动 API 设置向导；wizard 全面改用标准 fmt.Scanln 输入，移除所有 raw terminal 和 ANSI 控制码，确保跨平台兼容；REPL 移除 completer（Tab 补全下拉列表）和颜色样式选项，简化终端控制 [BUILD-54]
+- [x] ENHANCEMENT-65 .settings 命令改为 .set（同时兼容 .settings），执行 .set 时显示参数清单（参数名、可选项/值范围、说明）；当前配置每行增加参数名和值范围 [BUILD-63]
+- [x] ENHANCEMENT-66 命令确认改进：增加 [A] 本次都同意选项；拒绝执行改为 [C] 取消，用户选择后直接返回 REPL 等待输入；去掉 [d] 拒绝执行选项 [BUILD-64]
+- [x] FEATURE-67 会话历史管理：历史任务列表命令（.list/.last/.first），支持编号重新执行；用户可以通过上、下键在自己输入的历史内容之间翻页，包括上一次执行co-shell时的内容 [BUILD-68]
+- [x] FEATURE-68 结果处理模式选项：minimal（极简，默认，直接返回原始输出）/ explain（解释）/ analyze（分析）/ free（自由），通过 .set result-mode 配置 [BUILD-70]
 
 
 ## v0.2.0 — Beta
@@ -63,32 +64,19 @@
 
 ### 功能清单
 
-- [x] FEATURE-00051 多平台支持（macOS/Linux/Windows）[BUILD-00035]
-- [x] FEATURE-00052 首次运行风险声明 [BUILD-00036]
-- [x] FEATURE-00053 命令执行确认机制（执行命令前等待用户确认：批准/拒绝/修改后重新评估），由配置控制开关 [BUILD-00037]
-
-- [ ] ENHANCEMENT-00033 命令执行用户确认改进，每次确认时，增加一个输入A本次任务都同意的选项。
-
-- [ ] FEATURE-00025 会话历史管理（保存/恢复对话）
-
-
-- [ ] FEATURE-00026 多轮对话上下文管理
-- [ ] FEATURE-00027 系统命令执行安全沙箱
-- [ ] FEATURE-00028 命令执行确认机制（危险操作）
-- [ ] ENHANCEMENT-00029 更好的错误处理和用户提示
-- [ ] FEATURE-00030 配置文件热重载
-- [ ] FEATURE-00031 MCP Server 自动重连
-- [ ] FEATURE-00061 增加对多模态模型的支持（图片输入、多模态理解）
-- [ ] FIX-00062 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-00043]
-- [x] ENHANCEMENT-00063 超时时间参数化改造：所有超时动作可配置，默认永不超时，超时异常传递上下文给LLM [BUILD-00045]
-
-
-
-
+- [ ] FEATURE-26 多轮对话上下文管理
+- [ ] FEATURE-27 系统命令执行安全沙箱
+- [ ] FEATURE-28 命令执行确认机制（危险操作）
+- [ ] ENHANCEMENT-29 更好的错误处理和用户提示
+- [ ] FEATURE-30 配置文件热重载
+- [ ] FEATURE-31 MCP Server 自动重连
+- [ ] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）
+- [ ] FIX-62 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-43]
+- [x] FIX-69 修复 config.json 中 max_iterations=0 导致 Agent 使用内部默认值 10 的问题；新增 .set max-iterations 运行时修改支持 [BUILD-72]
 
 ### 技术债务
 
-- [ ] ENHANCEMENT-00032 单元测试覆盖核心逻辑（Agent Loop、命令解析）
+- [ ] ENHANCEMENT-32 单元测试覆盖核心逻辑（Agent Loop、命令解析）
 
 ---
 
@@ -100,19 +88,19 @@
 
 ### 功能清单
 
-- [ ] FEATURE-00034 插件系统（WASM 插件支持）
-- [ ] FEATURE-00035 自定义 Prompt 模板
-- [ ] FEATURE-00036 多会话管理（Tab 切换）
-- [ ] FEATURE-00037 输出格式化（JSON/表格/树形）
-- [ ] FEATURE-00038 命令别名
-- [ ] FEATURE-00039 批量命令执行
-- [ ] FEATURE-00040 管道支持（Pipe）
+- [ ] FEATURE-34 插件系统（WASM 插件支持）
+- [ ] FEATURE-35 自定义 Prompt 模板
+- [ ] FEATURE-36 多会话管理（Tab 切换）
+- [ ] FEATURE-37 输出格式化（JSON/表格/树形）
+- [ ] FEATURE-38 命令别名
+- [ ] FEATURE-39 批量命令执行
+- [ ] FEATURE-40 管道支持（Pipe）
 
 ### 优化
 
-- [ ] ENHANCEMENT-00041 启动速度优化
-- [ ] ENHANCEMENT-00042 内存使用优化
-- [ ] ENHANCEMENT-00043 大模型响应缓存
+- [ ] ENHANCEMENT-41 启动速度优化
+- [ ] ENHANCEMENT-42 内存使用优化
+- [ ] ENHANCEMENT-43 大模型响应缓存
 
 ---
 
@@ -124,12 +112,12 @@
 
 ### 功能清单
 
-- [ ] FEATURE-00044 Homebrew 安装支持
-- [ ] FEATURE-00045 自动更新机制
-- [ ] FEATURE-00046 多平台发布（macOS/Linux/Windows）
-- [ ] FEATURE-00048 主题系统
-- [ ] ENHANCEMENT-00049 性能基准测试
-- [ ] FEATURE-00050 完整文档站
+- [ ] FEATURE-44 Homebrew 安装支持
+- [ ] FEATURE-45 自动更新机制
+- [ ] FEATURE-46 多平台发布（macOS/Linux/Windows）
+- [ ] FEATURE-48 主题系统
+- [ ] ENHANCEMENT-49 性能基准测试
+- [ ] FEATURE-50 完整文档站
 
 
 ## v1.1.0 — 增强版
@@ -139,11 +127,11 @@
 
 ### 功能清单
 
-- [ ] FEATURE-00056 MCP Hub 集成（发现和安装 MCP Server）
-- [ ] FEATURE-00057 社区插件市场
-- [ ] FEATURE-00058 多 Agent 协作
-- [ ] FEATURE-00059 可视化工作流编排
-- [ ] FEATURE-00060 远程执行（SSH）
+- [ ] FEATURE-56 MCP Hub 集成（发现和安装 MCP Server）
+- [ ] FEATURE-57 社区插件市场
+- [ ] FEATURE-58 多 Agent 协作
+- [ ] FEATURE-59 可视化工作流编排
+- [ ] FEATURE-60 远程执行（SSH）
 
 
 ## 版本发布记录
