@@ -218,6 +218,27 @@ var enMessages = map[string]string{
 	KeyCLIHelpEx6:       "  co-shell --lang zh                     Start with Chinese interface",
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 list files  Set max iterations and execute command",
 
+	// Disclaimer
+	KeyDisclaimerTitle: "⚠️ Disclaimer",
+	KeyDisclaimerBody: `co-shell is an intelligent command-line tool powered by Large Language Models (LLM).
+AI models may generate and execute dangerous commands, including but not limited to:
+
+  • Deleting files or directories (e.g., rm -rf /)
+  • Formatting disks (e.g., mkfs, format)
+  • Modifying critical system configurations (e.g., /etc/passwd, /etc/shadow)
+  • Shutting down or rebooting the system (e.g., shutdown, reboot)
+  • Downloading and executing untrusted programs
+  • Leaking sensitive information (e.g., API Keys, passwords, private keys)
+
+By continuing to use this software, you acknowledge that you fully understand
+the above risks and agree to assume all responsibility for any loss or damage
+that may result from using this program. The developers and publishers assume
+no liability whatsoever.`,
+	KeyDisclaimerPrompt:  "Do you accept the above disclaimer and wish to continue? [Y/n] ",
+	KeyDisclaimerYes:     "y",
+	KeyDisclaimerNo:      "n",
+	KeyDisclaimerRefused: "You have declined the disclaimer. Exiting.",
+
 	// Custom
 	KeyCustom: "Custom",
 }

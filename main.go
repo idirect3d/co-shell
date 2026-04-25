@@ -27,6 +27,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -212,6 +213,11 @@ func main() {
 			flags.model, flags.endpoint, maskKey(flags.apiKey))
 	}
 
+	// Show disclaimer on first run
+	if !cfg.DisclaimerAccepted {
+		showDisclaimer(cfg)
+	}
+
 	// Initialize persistent store
 	s, err := store.NewStore()
 	if err != nil {
@@ -297,6 +303,40 @@ func main() {
 		log.Error("REPL error: %v", err)
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+// showDisclaimer displays the risk disclaimer and prompts the user to accept.
+// If accepted, it saves the config with DisclaimerAccepted=true.
+// If declined, it exits the program.
+func showDisclaimer(cfg *config.Config) {
+	fmt.Println()
+	fmt.Println(i18n.T(i18n.KeyDisclaimerTitle))
+	fmt.Println()
+	fmt.Println(i18n.T(i18n.KeyDisclaimerBody))
+	fmt.Println()
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print(i18n.T(i18n.KeyDisclaimerPrompt))
+		response, _ := reader.ReadString('\n')
+		response = strings.TrimSpace(strings.ToLower(response))
+
+		if response == "" || response == i18n.T(i18n.KeyDisclaimerYes) || response == "yes" {
+			cfg.DisclaimerAccepted = true
+			if err := cfg.Save(); err != nil {
+				log.Warn("Cannot save disclaimer acceptance: %v", err)
+			}
+			fmt.Println()
+			return
+		}
+
+		if response == i18n.T(i18n.KeyDisclaimerNo) || response == "no" {
+			fmt.Println(i18n.T(i18n.KeyDisclaimerRefused))
+			os.Exit(0)
+		}
+
+		// Invalid input, prompt again
 	}
 }
 

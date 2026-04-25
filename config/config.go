@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -63,10 +63,11 @@ type MCPServerConfig struct {
 
 // Config is the top-level configuration structure.
 type Config struct {
-	LLM        LLMConfig `json:"llm"`
-	MCP        MCPConfig `json:"mcp"`
-	Rules      []string  `json:"rules"`
-	LogEnabled bool      `json:"log_enabled"`
+	LLM                LLMConfig `json:"llm"`
+	MCP                MCPConfig `json:"mcp"`
+	Rules              []string  `json:"rules"`
+	LogEnabled         bool      `json:"log_enabled"`
+	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
 }
 
 // DefaultConfig returns a Config with sensible defaults (DeepSeek, key empty).

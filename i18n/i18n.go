@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -344,6 +344,14 @@ const (
 	KeyCLIHelpEx5       = "cli_help_ex5"
 	KeyCLIHelpEx6       = "cli_help_ex6"
 	KeyCLIHelpEx7       = "cli_help_ex7"
+
+	// Disclaimer
+	KeyDisclaimerTitle   = "disclaimer_title"
+	KeyDisclaimerBody    = "disclaimer_body"
+	KeyDisclaimerPrompt  = "disclaimer_prompt"
+	KeyDisclaimerYes     = "disclaimer_yes"
+	KeyDisclaimerNo      = "disclaimer_no"
+	KeyDisclaimerRefused = "disclaimer_refused"
 
 	// Custom
 	KeyCustom = "custom"

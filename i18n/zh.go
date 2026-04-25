@@ -234,6 +234,26 @@ MCP 服务器: %d
 	KeyCLIHelpEx6:       "  co-shell --lang en                    以英文界面启动",
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 列出文件  设置最大迭代次数并执行指令",
 
+	// Disclaimer
+	KeyDisclaimerTitle: "⚠️ 风险声明",
+	KeyDisclaimerBody: `co-shell 是一个由大语言模型（LLM）驱动的智能命令行工具。
+AI 模型可能会生成并执行以下类型的危险命令：
+
+  • 删除文件或目录（如 rm -rf / 等）
+  • 格式化磁盘（如 mkfs、format 等）
+  • 修改系统关键配置（如 /etc/passwd、/etc/shadow 等）
+  • 关闭或重启系统（如 shutdown、reboot 等）
+  • 下载并执行未知来源的程序
+  • 泄露敏感信息（如 API Key、密码、密钥等）
+
+继续使用本程序即表示您已充分了解上述风险，
+并同意自行承担所有因使用本程序可能导致的任何损失或损害。
+开发者和发布者不承担任何责任。`,
+	KeyDisclaimerPrompt:  "是否接受上述声明并继续？[Y/n] ",
+	KeyDisclaimerYes:     "y",
+	KeyDisclaimerNo:      "n",
+	KeyDisclaimerRefused: "您已拒绝风险声明，程序退出。",
+
 	// Custom
 	KeyCustom: "自定义",
 }
