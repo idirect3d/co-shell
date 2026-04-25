@@ -234,8 +234,19 @@ MCP 服务器: %d
 	KeyCLIHelpEx6:       "  co-shell --lang en                    以英文界面启动",
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 列出文件  设置最大迭代次数并执行指令",
 
+	// Command Confirmation
+	KeyCmdConfirmTitle:      "⚡ 即将执行命令: %s",
+	KeyCmdConfirmPrompt:     "请选择操作:\n  [a] 批准执行\n  [r] 拒绝执行\n  [m] 修改后重新评估\n请输入 [a/r/m]: ",
+	KeyCmdConfirmApprove:    "a",
+	KeyCmdConfirmReject:     "r",
+	KeyCmdConfirmModify:     "m",
+	KeyCmdConfirmInvalid:    "无效输入，请输入 a、r 或 m。",
+	KeyCmdConfirmRejected:   "用户已拒绝执行该命令。",
+	KeyCmdConfirmModifyHint: "请输入补充说明，AI 将重新评估后生成新命令: ",
+
 	// Disclaimer
 	KeyDisclaimerTitle: "⚠️ 风险声明",
+
 	KeyDisclaimerBody: `co-shell 是一个由大语言模型（LLM）驱动的智能命令行工具。
 AI 模型可能会生成并执行以下类型的危险命令：
 

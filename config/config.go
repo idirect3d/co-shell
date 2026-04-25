@@ -36,16 +36,17 @@ import (
 
 // LLMConfig holds all LLM-related configuration.
 type LLMConfig struct {
-	Provider      string  `json:"provider"`
-	APIKey        string  `json:"api_key"`
-	Endpoint      string  `json:"endpoint"`
-	Model         string  `json:"model"`
-	Temperature   float64 `json:"temperature"`
-	MaxTokens     int     `json:"max_tokens"`
-	MaxIterations int     `json:"max_iterations"`
-	ShowThinking  bool    `json:"show_thinking"`
-	ShowCommand   bool    `json:"show_command"`
-	ShowOutput    bool    `json:"show_output"`
+	Provider       string  `json:"provider"`
+	APIKey         string  `json:"api_key"`
+	Endpoint       string  `json:"endpoint"`
+	Model          string  `json:"model"`
+	Temperature    float64 `json:"temperature"`
+	MaxTokens      int     `json:"max_tokens"`
+	MaxIterations  int     `json:"max_iterations"`
+	ShowThinking   bool    `json:"show_thinking"`
+	ShowCommand    bool    `json:"show_command"`
+	ShowOutput     bool    `json:"show_output"`
+	ConfirmCommand bool    `json:"confirm_command"`
 }
 
 // MCPConfig holds MCP server configuration.

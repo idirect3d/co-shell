@@ -288,6 +288,9 @@ func main() {
 		ag.SetMaxIterations(cfg.LLM.MaxIterations)
 	}
 
+	// Apply command confirmation setting
+	ag.SetConfirmCommand(cfg.LLM.ConfirmCommand)
+
 	log.Info("Agent initialized with %d rules", len(cfg.Rules))
 
 	// If --command flag is provided, execute the single command and exit

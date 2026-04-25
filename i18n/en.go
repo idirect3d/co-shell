@@ -218,8 +218,19 @@ var enMessages = map[string]string{
 	KeyCLIHelpEx6:       "  co-shell --lang zh                     Start with Chinese interface",
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 list files  Set max iterations and execute command",
 
+	// Command Confirmation
+	KeyCmdConfirmTitle:      "⚡ About to execute command: %s",
+	KeyCmdConfirmPrompt:     "Choose an action:\n  [a] Approve and execute\n  [r] Reject\n  [m] Modify and re-evaluate\nEnter [a/r/m]: ",
+	KeyCmdConfirmApprove:    "a",
+	KeyCmdConfirmReject:     "r",
+	KeyCmdConfirmModify:     "m",
+	KeyCmdConfirmInvalid:    "Invalid input, please enter a, r, or m.",
+	KeyCmdConfirmRejected:   "The user has rejected this command.",
+	KeyCmdConfirmModifyHint: "Enter additional instructions for the AI to re-evaluate: ",
+
 	// Disclaimer
 	KeyDisclaimerTitle: "⚠️ Disclaimer",
+
 	KeyDisclaimerBody: `co-shell is an intelligent command-line tool powered by Large Language Models (LLM).
 AI models may generate and execute dangerous commands, including but not limited to:
 

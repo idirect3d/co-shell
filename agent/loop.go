@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// # MIT License
+// MIT License
 //
-// # Copyright (c) 2026 L.Shuang
+// Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,9 +23,11 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+
 package agent
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -38,6 +40,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
@@ -85,18 +88,28 @@ func decodeToUTF8(data []byte) string {
 // StreamCallback is a function called for each streaming event from the LLM.
 type StreamCallback func(eventType string, content string)
 
+// CmdConfirmResult represents the result of a command confirmation prompt.
+type CmdConfirmResult int
+
+const (
+	CmdConfirmApprove CmdConfirmResult = iota
+	CmdConfirmReject
+	CmdConfirmModify
+)
+
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
 type Agent struct {
-	mu            sync.Mutex
-	llmClient     llm.Client
-	mcpMgr        *mcp.Manager
-	store         *store.Store
-	systemPrompt  string
-	messages      []llm.Message
-	showThinking  bool
-	showCommand   bool
-	showOutput    bool
-	maxIterations int
+	mu             sync.Mutex
+	llmClient      llm.Client
+	mcpMgr         *mcp.Manager
+	store          *store.Store
+	systemPrompt   string
+	messages       []llm.Message
+	showThinking   bool
+	showCommand    bool
+	showOutput     bool
+	maxIterations  int
+	confirmCommand bool
 }
 
 // New creates a new Agent instance.
@@ -138,6 +151,11 @@ func (a *Agent) SetMaxIterations(n int) {
 	} else {
 		a.maxIterations = n
 	}
+}
+
+// SetConfirmCommand sets whether to prompt the user for confirmation before executing commands.
+func (a *Agent) SetConfirmCommand(confirm bool) {
+	a.confirmCommand = confirm
 }
 
 // buildSystemPrompt constructs the system prompt with rules and context.
@@ -307,21 +325,38 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.mu.Unlock()
 
 		// Step 4: Execute tool calls and add results
+		modifyRequested := false
 		for _, tc := range toolCalls {
 			// Show command if enabled
 			if a.showCommand && tc.Name == "execute_command" {
-				var args map[string]interface{}
-				if err := json.Unmarshal([]byte(tc.Arguments), &args); err == nil {
-					if cmd, ok := args["command"].(string); ok {
+				var cmdArgs map[string]interface{}
+				if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
+					if cmd, ok := cmdArgs["command"].(string); ok {
 						cb("command", cmd)
 					}
 				}
 			}
+
 			cb("tool_call", fmt.Sprintf("🛠 Calling tool: %s\n", tc.Name))
 
 			log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
 			result, execErr := a.executeToolCall(ctx, tc)
 			if execErr != nil {
+				// Check if this is a USER_MODIFY_REQUEST (user wants to modify and re-evaluate)
+				errStr := execErr.Error()
+				if strings.HasPrefix(errStr, "USER_MODIFY_REQUEST:") {
+					modifyRequested = true
+					modifyInput := strings.TrimPrefix(errStr, "USER_MODIFY_REQUEST:")
+					// Add the user's modification as a new user message
+					a.mu.Lock()
+					a.messages = append(a.messages, llm.Message{
+						Role:    "user",
+						Content: modifyInput,
+					})
+					a.mu.Unlock()
+					cb("info", fmt.Sprintf("\n🔄 用户补充说明: %s\n", modifyInput))
+					break
+				}
 				result = fmt.Sprintf("Error: %v", execErr)
 				log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 			}
@@ -339,6 +374,12 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			})
 			a.mu.Unlock()
 		}
+
+		// If user requested modification, continue the loop to re-ask the LLM
+		if modifyRequested {
+			continue
+		}
+
 	}
 
 	log.Error("Agent.RunStream: reached maximum iterations (%d)", a.maxIterations)
@@ -466,6 +507,22 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 		return "", fmt.Errorf("cannot parse tool arguments: %w", err)
 	}
 
+	// If confirmCommand is enabled and this is an execute_command call,
+	// prompt the user for confirmation before proceeding
+	if a.confirmCommand && tc.Name == "execute_command" {
+		if cmd, ok := args["command"].(string); ok {
+			result := promptCommandConfirmation(cmd)
+			switch result {
+			case CmdConfirmReject:
+				return i18n.T(i18n.KeyCmdConfirmRejected), nil
+			case CmdConfirmModify:
+				// Return a special marker so the caller knows to re-ask the LLM
+				return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", readModifyInput())
+			}
+			// CmdConfirmApprove: continue execution
+		}
+	}
+
 	// Find and execute the tool
 	tools := a.buildTools()
 	for _, tool := range tools {
@@ -477,6 +534,40 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	}
 
 	return "", fmt.Errorf("tool %q not found", tc.Name)
+}
+
+// promptCommandConfirmation displays the command to the user and asks for confirmation.
+// Returns the user's choice.
+func promptCommandConfirmation(command string) CmdConfirmResult {
+	fmt.Println()
+	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, command))
+	fmt.Println()
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print(i18n.T(i18n.KeyCmdConfirmPrompt))
+		response, _ := reader.ReadString('\n')
+		response = strings.TrimSpace(strings.ToLower(response))
+
+		switch response {
+		case i18n.T(i18n.KeyCmdConfirmApprove), "approve", "yes", "y":
+			return CmdConfirmApprove
+		case i18n.T(i18n.KeyCmdConfirmReject), "reject", "no", "n":
+			return CmdConfirmReject
+		case i18n.T(i18n.KeyCmdConfirmModify), "modify", "m":
+			return CmdConfirmModify
+		default:
+			fmt.Println(i18n.T(i18n.KeyCmdConfirmInvalid))
+		}
+	}
+}
+
+// readModifyInput reads additional instructions from the user for re-evaluation.
+func readModifyInput() string {
+	fmt.Print(i18n.T(i18n.KeyCmdConfirmModifyHint))
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	return strings.TrimSpace(input)
 }
 
 // executeSystemCommand runs a system command with timeout.
