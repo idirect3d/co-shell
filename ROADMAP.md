@@ -74,6 +74,8 @@
 - [ ] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）
 - [ ] FIX-62 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-43]
 - [x] FIX-69 修复 config.json 中 max_iterations=0 导致 Agent 使用内部默认值 10 的问题；新增 .set max-iterations 运行时修改支持 [BUILD-72]
+- [x] FIX-70 修复 DeepSeek thinking 模式下 reasoning_content 未正确传回导致 API 400 错误 [BUILD-73]
+
 
 ### 技术债务
 
