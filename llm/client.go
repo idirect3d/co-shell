@@ -129,7 +129,7 @@ type chatMessageJSON struct {
 	Content          string         `json:"content"`
 	ToolCallID       string         `json:"tool_call_id,omitempty"`
 	ToolCalls        []toolCallJSON `json:"tool_calls,omitempty"`
-	ReasoningContent string         `json:"reasoning_content,omitempty"`
+	ReasoningContent *string        `json:"reasoning_content,omitempty"`
 }
 
 // toolCallJSON is the JSON structure for a tool call in messages.
@@ -267,11 +267,18 @@ func NewClient(endpoint, apiKey, model string, temperature float64, maxTokens in
 func buildMessages(messages []Message) []chatMessageJSON {
 	result := make([]chatMessageJSON, 0, len(messages))
 	for _, msg := range messages {
+		// DeepSeek thinking mode requires reasoning_content to be passed back
+		// for assistant messages. Use a pointer so we can distinguish between
+		// "empty string" (include in JSON as "") and "not set" (omit from JSON).
+		var rc *string
+		if msg.ReasoningContent != "" || msg.Role == "assistant" {
+			rc = &msg.ReasoningContent
+		}
 		m := chatMessageJSON{
 			Role:             msg.Role,
 			Content:          msg.Content,
 			ToolCallID:       msg.ToolCallID,
-			ReasoningContent: msg.ReasoningContent,
+			ReasoningContent: rc,
 		}
 
 		// Map ToolCalls if present
