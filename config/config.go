@@ -138,6 +138,7 @@ func DefaultConfig() *Config {
 			ShowCommand:    true,
 			ShowOutput:     true,
 			ConfirmCommand: true,
+			ResultMode:     int(ResultModeFree),
 		},
 
 		MCP: MCPConfig{

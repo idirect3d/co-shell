@@ -1,56 +1,97 @@
 # co-shell
 
-> 智能命令行 Shell — 通过自然语言与 AI Agent 交互，智能编排和执行系统命令。
+> Intelligent Command-Line Shell — Interact with AI Agent via natural language to intelligently orchestrate and execute system commands.
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00029-blue)]()
+[![Build](https://img.shields.io/badge/Build-00075-blue)]()
+
+[![中文](https://img.shields.io/badge/README-中文-blue)](docs/zh-CN/README.md)
 
 ---
 
-## 简介
+## Introduction
 
-**co-shell** 是一个革命性的命令行工具，它让你可以用**自然语言**与操作系统交互。不再需要记忆复杂的命令参数，只需说出你想做什么，AI Agent 会自动理解、编排并执行相应的系统命令。
+**co-shell** is a universal command — simple yet powerful.
+
+At just ~10MB with zero external dependencies, it can orchestrate virtually every capability of your computer with a single instruction. To accomplish a task, it can call upon almost any command it knows, with virtually no limits. It's safe — every command execution requires your consent; it's transparent — every command is displayed before execution.
+
+And remember, it's just a command itself — it can call itself. Infinite possibilities?
+
+> **Your imagination is its fuel — the command is everything.**
+
+No more memorizing complex command parameters. Just say what you want, and co-shell will automatically understand, orchestrate, and execute the appropriate system commands, programs, or scripts.
 
 ```bash
-# 传统方式
+# Traditional way
 $ find . -type f -name "*.go" | xargs wc -l | tail -1
 
-# co-shell 方式
-❯ 统计项目中所有 Go 文件的代码行数
+# co-shell way
+❯ Count all lines of Go source code in this project
 ```
 
-### 核心特性
+### ⚠️ Disclaimer
 
-- 🗣️ **自然语言交互** — 用中文或英文直接描述任务
-- 🤖 **AI Agent 驱动** — 智能理解意图、编排命令、执行并分析结果
-- 🔧 **MCP 协议支持** — 接入丰富的 MCP 工具生态（文件系统、GitHub、数据库等）
-- 💾 **持久化记忆** — Agent 可以记住你的偏好和历史上下文
-- 📜 **会话历史** — 支持上下键翻页浏览历史命令
-- ⚡ **流式输出** — 实时显示 AI 思考过程和命令执行结果
-- 🔌 **可扩展** — 支持自定义规则、MCP Server、多模型切换
+co-shell is an intelligent command-line tool powered by Large Language Models (LLM). AI models may generate and execute dangerous commands including:
+
+- Deleting files or directories (e.g., `rm -rf /`)
+- Formatting disks (e.g., `mkfs`, `format`)
+- Modifying critical system configurations
+- Shutting down or rebooting the system
+- Downloading and executing untrusted programs
+- Leaking sensitive information (e.g., API keys, passwords, credentials)
+
+By using this software, you acknowledge that you fully understand the above risks and agree to assume all responsibility for any loss or damage resulting from its use. The developers and publishers assume no liability.
+
+> The full disclaimer is shown on first launch and requires confirmation. It will not be shown again after acceptance.
+
+### Key Features
+
+- 🗣️ **Natural Language Interaction** — Describe tasks in plain English
+- 🤖 **AI Agent Driven** — Intelligent intent understanding, command orchestration, execution, and result analysis
+- 🔧 **MCP Protocol Support** — Access a rich ecosystem of MCP tools (filesystem, GitHub, databases, etc.)
+- 💾 **Persistent Memory** — Agent remembers your preferences and historical context
+- 📜 **Session History** — Browse past commands with arrow keys
+- ⚡ **Streaming Output** — Real-time display of AI thinking and command execution results
+- 🔌 **Extensible** — Custom rules, MCP Servers, multi-model switching
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 安装
+### Installation
+
+#### Option 1: Download Binary (Recommended)
+
+Download the executable for your platform from the [Releases](https://github.com/idirect3d/co-shell/releases) page:
+
+| OS | Architecture | File |
+|---|---|---|
+| macOS | Intel | `co-shell-darwin-amd64` |
+| macOS | Apple Silicon | `co-shell-darwin-arm64` |
+| Linux | x86_64 | `co-shell-linux-amd64` |
+| Linux | ARM64 | `co-shell-linux-arm64` |
+| Windows | x86_64 | `co-shell-windows-amd64.exe` |
+| Windows | ARM64 | `co-shell-windows-arm64.exe` |
 
 ```bash
-# 克隆仓库
+# Example: macOS Apple Silicon
+chmod +x co-shell-darwin-arm64
+./co-shell-darwin-arm64
+```
+
+#### Option 2: Build from Source
+
+```bash
 git clone https://github.com/idirect3d/co-shell.git
 cd co-shell
-
-# 编译
 go build -o co-shell .
-
-# 运行
 ./co-shell
 ```
 
-### 配置 API
+### Configure API
 
-首次启动会自动进入设置向导，或手动配置：
+The setup wizard will launch automatically on first startup. You can also configure manually:
 
 ```bash
 ❯ .settings api-key sk-your-api-key-here
@@ -58,116 +99,122 @@ go build -o co-shell .
 ❯ .settings model deepseek-chat
 ```
 
-### 开始使用
+### Start Using
 
 ```bash
-❯ 列出当前目录下所有文件
-❯ 查找所有大于 100MB 的文件
-❯ 看看磁盘还剩多少空间
-❯ 帮我创建一个新的 Go 项目
+❯ List all files in the current directory
+❯ Find all files larger than 100MB
+❯ Check how much disk space is left
+❯ Create a new Go project
 ```
 
 ---
 
-## 命令行选项
+## Command-Line Options
 
 ```bash
-co-shell [选项]                    启动交互式 REPL
-co-shell [选项] <指令>             执行单条指令后退出
+co-shell [options]                    Start interactive REPL
+co-shell [options] <instruction>      Execute single instruction and exit
 
-选项:
-  -c, --config <path>    指定配置文件路径（默认: ~/.co-shell/config.json）
-  -m, --model <name>     临时指定模型名称
-  -e, --endpoint <url>   临时指定 API 端点
-  -k, --api-key <key>    临时指定 API Key
-      --log on|off       临时指定日志开关
-      --max-iterations   最大迭代次数（-1 为不限制，默认 10）
-  -v, --version          显示版本信息
-  -h, --help             显示帮助信息
+Options:
+  -c, --config <path>    Specify config file path (default: ~/.co-shell/config.json)
+  -m, --model <name>     Temporarily override model name
+  -e, --endpoint <url>   Temporarily override API endpoint
+  -k, --api-key <key>    Temporarily override API Key
+      --log on|off       Temporarily toggle logging
+      --max-iterations   Max iterations (-1 for unlimited, default 10)
+  -v, --version          Show version info
+  -h, --help             Show help
 ```
 
 ---
 
-## 内置命令
+## Built-in Commands
 
-所有内置命令以 `.` 开头，支持 Tab 自动补全。
+All built-in commands start with `.` and support Tab completion.
 
-| 命令 | 功能 |
+| Command | Description |
 |---|---|
-| `.settings` | LLM API 参数管理（api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log） |
-| `.mcp` | MCP Server 管理（add / remove / list / enable / disable） |
-| `.rule` | 全局规则管理（add / remove / clear） |
-| `.memory` | 持久化记忆管理（save / get / search / delete / clear） |
-| `.context` | 上下文管理（show / reset / set） |
+| `.settings` | LLM API parameter management (api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log) |
+| `.mcp` | MCP Server management (add / remove / list / enable / disable) |
+| `.rule` | Global rule management (add / remove / clear) |
+| `.memory` | Persistent memory management (save / get / search / delete / clear) |
+| `.context` | Context management (show / reset / set) |
 
 ---
 
-## 技术栈
+## Tech Stack
 
-- **语言**: Go 1.22+
+- **Language**: Go 1.22+
 - **REPL**: [go-prompt](https://github.com/c-bata/go-prompt)
-- **LLM**: [go-openai](https://github.com/sashabaranov/go-openai)（兼容 OpenAI / DeepSeek / 国产模型）
+- **LLM**: [go-openai](https://github.com/sashabaranov/go-openai) (OpenAI / DeepSeek / compatible models)
 - **MCP**: [mcp-go](https://github.com/mark3labs/mcp-go)
-- **存储**: [bbolt](https://go.etcd.io/bbolt)（嵌入式 KV 数据库）
+- **Storage**: [bbolt](https://go.etcd.io/bbolt) (embedded KV database)
 
 ---
 
-## 版本历史
+## Version History
 
-### v0.1.0 — Alpha（当前版本）
+### v0.1.0 — Alpha (Current)
 
-> **BUILD**: 00033 | **最后更新**: 2026-04-25
+> **BUILD**: 00074 | **Release Date**: 2026-04-26
 
-首个 Alpha 预览版，核心功能可运行。
+First Alpha preview with core functionality.
 
-**已实现功能：**
+**Implemented Features:**
 
-- REPL 交互界面（go-prompt，Tab 补全）
-- LLM 客户端抽象（OpenAI 兼容 API，流式输出支持）
-- Agent 核心循环（LLM 调用 → 工具执行 → 迭代）
-- 内置命令系统（.settings / .mcp / .rule / .memory / .context）
-- 持久化存储（bbolt 记忆/上下文）
-- MCP 客户端管理器（多 Server 连接）
-- 系统命令执行（超时控制）
-- 配置管理（JSON 持久化到 ~/.co-shell/）
-- API 初始设置与设置向导
-- 系统命令直接运行
-- 日志系统（文件日志，支持运行时开关）
-- API Key 脱敏显示
-- 命令行参数支持（--help / --version / --model / --endpoint / --api-key / --log / --max-iterations / --lang）
-- 会话历史管理（上下键翻页，跨会话持久化）
-- 基础错误处理和用户提示
-- 最大迭代次数可配置
-- 国际化（i18n）支持中文/英文，--lang 参数，自动检测系统语言
-- 多供应商支持（DeepSeek v4 / 阿里千问 / OpenAI 兼容兜底）
+- REPL interactive interface (go-prompt, Tab completion)
+- LLM client abstraction (OpenAI-compatible API, streaming support)
+- Agent core loop (LLM call → tool execution → iteration)
+- Built-in command system (.set / .mcp / .rule / .memory / .context / .list / .last / .first / .wizard)
+- Persistent storage (bbolt for memory/context)
+- MCP client manager (multi-server connection)
+- System command execution (timeout control, command confirmation)
+- Configuration management (JSON persistence to ~/.co-shell/, multi-location loading)
+- API initial setup with setup wizard (multi-provider support)
+- Direct system command execution (bypass LLM for native commands)
+- Logging system (file log, runtime toggle)
+- API Key masking (show first 4 + last 4 chars)
+- Command-line flags (--help / --version / --model / --endpoint / --api-key / --log / --max-iterations / --lang)
+- Session history (arrow key navigation, cross-session persistence, .list/.last/.first commands)
+- Internationalization (i18n) support: Chinese and English, --lang flag, auto-detect system language
+- Multi-provider support (DeepSeek v4 / Alibaba Qwen / OpenAI-compatible fallback)
+- Result processing modes (minimal / explain / analyze / free)
+- Configurable timeouts for all operations
+- Cross-platform support (macOS / Linux / Windows)
+- Streaming output with thinking process display
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 co-shell/
-├── main.go              # 程序入口，初始化所有模块
-├── config/              # 配置管理（LLM/MCP/Rules）
-├── repl/                # REPL 交互层
-├── agent/               # Agent 核心循环
-├── llm/                 # LLM 客户端抽象
-├── mcp/                 # MCP 客户端管理器
-├── store/               # 持久化存储（bbolt）
-├── cmd/                 # 内置命令处理器
-├── log/                 # 日志系统
-├── USAGE.md             # 详细使用说明
-└── ROADMAP.md           # 版本计划与路线图
+├── main.go              # Entry point, module initialization
+├── config/              # Configuration management (LLM/MCP/Rules)
+├── repl/                # REPL interaction layer
+├── agent/               # Agent core loop
+├── llm/                 # LLM client abstraction
+├── mcp/                 # MCP client manager
+├── store/               # Persistent storage (bbolt)
+├── cmd/                 # Built-in command handlers
+├── log/                 # Logging system
+├── i18n/                # Internationalization
+├── wizard/              # Setup wizard
+├── USAGE.md             # Detailed usage guide
+├── docs/                # Multi-language documentation
+│   └── zh-CN/           # Chinese documentation
+└── ROADMAP.md           # Version plan and roadmap
 ```
 
 ---
 
-## 许可证
+## License
 
 [MIT](LICENSE) © 2026 L.Shuang
 
 ---
 
-## 作者
+## Author
 
 - **L.Shuang** — [GitHub](https://github.com/idirect3d)

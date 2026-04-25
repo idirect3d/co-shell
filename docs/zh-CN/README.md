@@ -1,0 +1,222 @@
+# co-shell
+
+> 智能命令行 Shell — 通过自然语言与 AI Agent 交互，智能编排和执行系统命令。
+
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Build](https://img.shields.io/badge/Build-00074-blue)]()
+[![English](https://img.shields.io/badge/README-English-blue)](../en/README.md)
+
+
+
+
+---
+
+## 简介
+
+**co-shell** 是一个万能命令——它既简单又复杂。
+
+仅 10MB 左右的体积，不依赖其他环境和组件，却能够将电脑上几乎所有的功能编排进来，而你只需要一个指令。为了实现一个任务目标，它可以几乎不受限制地调用它所知道的一切命令。它是安全的——每次执行命令前都会征求你的同意；它是透明的——所有被执行的命令在执行前都会完整显示。
+
+别忘了，它本身也只是一个命令，自己也可以调用自己——是不是拥有了无限可能？
+
+> **你的想象力就是它的动力——指令即一切。**
+
+不再需要记忆复杂的命令参数，只需说出你想做什么，co-shell会自动理解、编排并执行相应的系统命令、程序或脚本。
+
+
+```bash
+# 传统方式
+$ find . -type f -name "*.go" | xargs wc -l | tail -1
+
+# co-shell 方式
+❯ 统计项目中所有 Go 文件的代码行数
+```
+
+### ⚠️ 风险声明
+
+co-shell 是一个由大语言模型（LLM）驱动的智能命令行工具。AI 模型可能会生成并执行以下类型的危险命令：
+
+- 删除文件或目录（如 `rm -rf /` 等）
+- 格式化磁盘（如 `mkfs`、`format` 等）
+- 修改系统关键配置
+- 关闭或重启系统
+- 下载并执行未知来源的程序
+- 泄露敏感信息（如 API Key、密码、密钥等）
+
+继续使用本程序即表示您已充分了解上述风险，并同意自行承担所有因使用本程序可能导致的任何损失或损害。开发者和发布者不承担任何责任。
+
+> 首次启动时会显示完整声明并要求确认，确认后不再显示。
+
+### 核心特性
+
+
+- 🗣️ **自然语言交互** — 用中文或英文直接描述任务
+- 🤖 **AI Agent 驱动** — 智能理解意图、编排命令、执行并分析结果
+- 🔧 **MCP 协议支持** — 接入丰富的 MCP 工具生态（文件系统、GitHub、数据库等）
+- 💾 **持久化记忆** — Agent 可以记住你的偏好和历史上下文
+- 📜 **会话历史** — 支持上下键翻页浏览历史命令
+- ⚡ **流式输出** — 实时显示 AI 思考过程和命令执行结果
+- 🔌 **可扩展** — 支持自定义规则、MCP Server、多模型切换
+
+---
+
+## 快速开始
+
+### 安装
+
+#### 方式一：直接下载二进制文件（推荐）
+
+从 [Releases](https://github.com/idirect3d/co-shell/releases) 页面下载对应系统的可执行文件，解压后即可运行：
+
+| 操作系统 | 架构 | 文件名 |
+|---|---|---|
+| macOS | Intel | `co-shell-darwin-amd64` |
+| macOS | Apple Silicon | `co-shell-darwin-arm64` |
+| Linux | x86_64 | `co-shell-linux-amd64` |
+| Linux | ARM64 | `co-shell-linux-arm64` |
+| Windows | x86_64 | `co-shell-windows-amd64.exe` |
+| Windows | ARM64 | `co-shell-windows-arm64.exe` |
+
+```bash
+# 示例：macOS Apple Silicon
+chmod +x co-shell-darwin-arm64
+./co-shell-darwin-arm64
+```
+
+#### 方式二：从源码编译
+
+```bash
+git clone https://github.com/idirect3d/co-shell.git
+cd co-shell
+go build -o co-shell .
+./co-shell
+```
+
+
+### 配置 API
+
+首次启动会自动进入设置向导，或手动配置：
+
+```bash
+❯ .settings api-key sk-your-api-key-here
+❯ .settings endpoint https://api.deepseek.com/v1
+❯ .settings model deepseek-chat
+```
+
+### 开始使用
+
+```bash
+❯ 列出当前目录下所有文件
+❯ 查找所有大于 100MB 的文件
+❯ 看看磁盘还剩多少空间
+❯ 帮我创建一个新的 Go 项目
+```
+
+---
+
+## 命令行选项
+
+```bash
+co-shell [选项]                    启动交互式 REPL
+co-shell [选项] <指令>             执行单条指令后退出
+
+选项:
+  -c, --config <path>    指定配置文件路径（默认: ~/.co-shell/config.json）
+  -m, --model <name>     临时指定模型名称
+  -e, --endpoint <url>   临时指定 API 端点
+  -k, --api-key <key>    临时指定 API Key
+      --log on|off       临时指定日志开关
+      --max-iterations   最大迭代次数（-1 为不限制，默认 10）
+  -v, --version          显示版本信息
+  -h, --help             显示帮助信息
+```
+
+---
+
+## 内置命令
+
+所有内置命令以 `.` 开头，支持 Tab 自动补全。
+
+| 命令 | 功能 |
+|---|---|
+| `.settings` | LLM API 参数管理（api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log） |
+| `.mcp` | MCP Server 管理（add / remove / list / enable / disable） |
+| `.rule` | 全局规则管理（add / remove / clear） |
+| `.memory` | 持久化记忆管理（save / get / search / delete / clear） |
+| `.context` | 上下文管理（show / reset / set） |
+
+---
+
+## 技术栈
+
+- **语言**: Go 1.22+
+- **REPL**: [go-prompt](https://github.com/c-bata/go-prompt)
+- **LLM**: [go-openai](https://github.com/sashabaranov/go-openai)（兼容 OpenAI / DeepSeek / 国产模型）
+- **MCP**: [mcp-go](https://github.com/mark3labs/mcp-go)
+- **存储**: [bbolt](https://go.etcd.io/bbolt)（嵌入式 KV 数据库）
+
+---
+
+## 版本历史
+
+### v0.1.0 — Alpha（当前版本）
+
+> **BUILD**: 00074 | **发布日期**: 2026-04-26
+
+首个 Alpha 预览版，核心功能可运行。
+
+**已实现功能：**
+
+- REPL 交互界面（go-prompt，Tab 补全）
+- LLM 客户端抽象（OpenAI 兼容 API，流式输出支持）
+- Agent 核心循环（LLM 调用 → 工具执行 → 迭代）
+- 内置命令系统（.set / .mcp / .rule / .memory / .context / .list / .last / .first / .wizard）
+- 持久化存储（bbolt 记忆/上下文）
+- MCP 客户端管理器（多 Server 连接）
+- 系统命令执行（超时控制，命令确认机制）
+- 配置管理（JSON 持久化到 ~/.co-shell/，多位置加载）
+- API 初始设置与设置向导（多供应商支持）
+- 系统命令直接运行
+- 日志系统（文件日志，支持运行时开关）
+- API Key 脱敏显示
+- 命令行参数支持（--help / --version / --model / --endpoint / --api-key / --log / --max-iterations / --lang）
+- 会话历史管理（上下键翻页，跨会话持久化，.list/.last/.first 命令）
+- 国际化（i18n）支持中文/英文，--lang 参数，自动检测系统语言
+- 多供应商支持（DeepSeek v4 / 阿里千问 / OpenAI 兼容兜底）
+- 结果处理模式（minimal / explain / analyze / free）
+- 超时时间参数化配置
+- 跨平台支持（macOS / Linux / Windows）
+- 流式输出与思考过程显示
+
+
+---
+
+## 项目结构
+
+```
+co-shell/
+├── main.go              # 程序入口，初始化所有模块
+├── config/              # 配置管理（LLM/MCP/Rules）
+├── repl/                # REPL 交互层
+├── agent/               # Agent 核心循环
+├── llm/                 # LLM 客户端抽象
+├── mcp/                 # MCP 客户端管理器
+├── store/               # 持久化存储（bbolt）
+├── cmd/                 # 内置命令处理器
+├── log/                 # 日志系统
+├── USAGE.md             # 详细使用说明
+└── ROADMAP.md           # 版本计划与路线图
+```
+
+---
+
+## 许可证
+
+[MIT](LICENSE) © 2026 L.Shuang
+
+---
+
+## 作者
+
+- **L.Shuang** — [GitHub](https://github.com/idirect3d)

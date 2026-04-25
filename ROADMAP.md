@@ -7,7 +7,9 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 73
+> **BUILD**: 75
+
+
 
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -18,7 +20,8 @@
 ## v0.1.0 — Alpha（已完成）
 
 > **状态**: ✅ 已完成
-> **目标日期**: 2026-04-25
+> **发布日期**: 2026-04-26
+
 
 ### 功能清单
 
@@ -55,6 +58,8 @@
 - [x] ENHANCEMENT-66 命令确认改进：增加 [A] 本次都同意选项；拒绝执行改为 [C] 取消，用户选择后直接返回 REPL 等待输入；去掉 [d] 拒绝执行选项 [BUILD-64]
 - [x] FEATURE-67 会话历史管理：历史任务列表命令（.list/.last/.first），支持编号重新执行；用户可以通过上、下键在自己输入的历史内容之间翻页，包括上一次执行co-shell时的内容 [BUILD-68]
 - [x] FEATURE-68 结果处理模式选项：minimal（极简，默认，直接返回原始输出）/ explain（解释）/ analyze（分析）/ free（自由），通过 .set result-mode 配置 [BUILD-70]
+- [x] FIX-69 修复 config.json 中 max_iterations=0 导致 Agent 使用内部默认值 10 的问题；新增 .set max-iterations 运行时修改支持 [BUILD-72]
+- [x] FIX-70 修复 DeepSeek thinking 模式下 reasoning_content 未正确传回导致 API 400 错误 [BUILD-73]
 
 
 ## v0.2.0 — Beta
@@ -73,8 +78,6 @@
 - [ ] FEATURE-31 MCP Server 自动重连
 - [ ] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）
 - [ ] FIX-62 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-43]
-- [x] FIX-69 修复 config.json 中 max_iterations=0 导致 Agent 使用内部默认值 10 的问题；新增 .set max-iterations 运行时修改支持 [BUILD-72]
-- [x] FIX-70 修复 DeepSeek thinking 模式下 reasoning_content 未正确传回导致 API 400 错误 [BUILD-73]
 
 
 ### 技术债务
