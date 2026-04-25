@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -68,42 +68,63 @@ func RunSetupWizard(cfg *config.Config) bool {
 	fmt.Printf("📌 默认模型: %s\n", cfg.LLM.Model)
 	fmt.Println()
 
-	// Step 2: For "OpenAI 兼容（自定义）", input endpoint, test connectivity,
-	// then input API Key and fetch available models
+	// Step 2: Input endpoint (optional for preset providers, required for custom)
 	if selectedProvider.Name == "openai-compatible" {
 		if !setupOpenAICompatible(cfg) {
 			return false
 		}
-	} else {
-		// For preset providers, just input endpoint (optional)
-		endpoint := promptOptionalText("📌 API 端点", cfg.LLM.Endpoint)
-		if endpoint == nil {
+		return true
+	}
+
+	// For preset providers (DeepSeek, Qwen, etc.):
+	// 1. Input endpoint (optional, has default)
+	// 2. Input API Key → test connection → fetch available models
+	// 3. Select model from fetched list
+
+	// Step 2a: API Endpoint (optional, has default)
+	endpoint := promptOptionalText("📌 API 端点", cfg.LLM.Endpoint)
+	if endpoint == nil {
+		fmt.Println("\n⚠️  已取消设置。")
+		return false
+	}
+	cfg.LLM.Endpoint = *endpoint
+
+	// Step 2b: API Key with connection test, then fetch models
+	fmt.Println()
+	apiKeyURL := selectedProvider.APIKeyURL
+
+	for {
+		apiKey := promptAPIKey(apiKeyURL)
+		if apiKey == nil {
 			fmt.Println("\n⚠️  已取消设置。")
 			return false
 		}
-		cfg.LLM.Endpoint = *endpoint
+		cfg.LLM.APIKey = *apiKey
 
-		// Step 3: Model name for preset providers
-		if len(selectedProvider.Models) > 0 {
-			model := selectModel(selectedProvider.Models, cfg.LLM.Model)
-			if model == nil {
-				fmt.Println("\n⚠️  已取消设置。")
-				return false
-			}
-			cfg.LLM.Model = *model
-		} else {
-			model := promptOptionalText("📌 模型名称", cfg.LLM.Model)
-			if model == nil {
-				fmt.Println("\n⚠️  已取消设置。")
-				return false
-			}
-			cfg.LLM.Model = *model
+		// Test connection and fetch models
+		fmt.Print("🔄 正在测试 API 连接并获取可用模型...")
+		models, err := fetchModels(cfg.LLM.Endpoint, cfg.LLM.APIKey)
+		if err != nil {
+			fmt.Printf("\n❌ 连接测试失败: %v\n", err)
+			fmt.Println("请检查 API Key 是否正确，或重新输入。")
+			cfg.LLM.APIKey = ""
+			continue
 		}
+		fmt.Printf(" ✅ 连接成功！获取到 %d 个可用模型。\n", len(models))
 
-		// Step 4: API Key for preset providers
-		if !inputAPIKey(cfg, selectedProvider) {
+		// Step 3: Select model from fetched list
+		fmt.Println()
+		defaultModel := cfg.LLM.Model
+		if defaultModel == "" && len(models) > 0 {
+			defaultModel = models[0]
+		}
+		model := selectModel(models, defaultModel)
+		if model == nil {
+			fmt.Println("\n⚠️  已取消设置。")
 			return false
 		}
+		cfg.LLM.Model = *model
+		break
 	}
 
 	// Save configuration
@@ -144,9 +165,8 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 
 	// Step 2b: API Key input
 	fmt.Println()
-	fmt.Println("🔑 请输入 API Key 以获取可用模型列表。")
 	for {
-		apiKey := promptRequiredText("📌 API Key (必填)", "")
+		apiKey := promptAPIKey("")
 		if apiKey == nil {
 			fmt.Println("\n⚠️  已取消设置。")
 			return false
@@ -179,53 +199,8 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 	return true
 }
 
-// inputAPIKey handles API Key input with connection test for preset providers.
-func inputAPIKey(cfg *config.Config, provider *config.ProviderPreset) bool {
-	fmt.Println()
-	fmt.Printf("🔑 API Key 是调用 %s API 的身份凭证，用于验证您的身份并计费。\n", provider.DisplayName)
-
-	if provider.APIKeyURL != "" {
-		fmt.Println()
-		choice := promptConfirm(fmt.Sprintf("   是否打开 %s 的 API Key 页面？", provider.DisplayName), true)
-		if choice {
-			fmt.Printf("   🔗 正在打开: %s\n", provider.APIKeyURL)
-			if err := config.OpenURL(provider.APIKeyURL); err != nil {
-				fmt.Printf("   ⚠️  无法自动打开浏览器: %v\n", err)
-				fmt.Printf("   请手动访问: %s\n", provider.APIKeyURL)
-			}
-		} else {
-			fmt.Println("   请手动获取 API Key 后粘贴到下方。")
-		}
-		fmt.Println()
-	} else {
-		fmt.Println("   请手动获取 API Key 后粘贴到下方。")
-		fmt.Println()
-	}
-
-	// API Key input with connection test loop
-	for {
-		apiKey := promptRequiredText("📌 API Key (必填)", "")
-		if apiKey == nil {
-			fmt.Println("\n⚠️  已取消设置。")
-			return false
-		}
-		cfg.LLM.APIKey = *apiKey
-
-		fmt.Print("🔄 正在测试 API 连接...")
-		if err := testAPIConnection(cfg); err != nil {
-			fmt.Printf("\n❌ 连接测试失败: %v\n", err)
-			fmt.Println("请检查 API Key 是否正确，或重新输入。")
-			cfg.LLM.APIKey = ""
-			continue
-		}
-		fmt.Println(" ✅ 连接成功！")
-		break
-	}
-
-	return true
-}
-
 // testEndpointConnectivity checks if the API endpoint is reachable via HTTP.
+
 func testEndpointConnectivity(endpoint string) error {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -257,18 +232,4 @@ func fetchModels(endpoint, apiKey string) ([]string, error) {
 	defer cancel()
 
 	return client.ListModels(ctx)
-}
-
-// testAPIConnection sends a simple chat completion request to verify the configuration.
-func testAPIConnection(cfg *config.Config) error {
-	client := llm.NewClient(cfg.LLM.Endpoint, cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.Temperature, cfg.LLM.MaxTokens)
-	defer client.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	_, err := client.Chat(ctx, []llm.Message{
-		{Role: "user", Content: "Respond with exactly: OK"},
-	}, nil)
-	return err
 }

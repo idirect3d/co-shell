@@ -28,9 +28,7 @@ package repl
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
-	"os/signal"
 	"regexp"
 	"runtime"
 	"strings"
@@ -137,17 +135,6 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 
 // Run starts the REPL loop.
 func (r *REPL) Run() error {
-	// Set up signal handling using cross-platform os.Signal values
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, os.Kill)
-
-	go func() {
-		<-sigCh
-		fmt.Println(i18n.T(i18n.KeyGoodbye))
-		r.cleanup()
-		os.Exit(0)
-	}()
-
 	// Print welcome message
 	r.printWelcome()
 
@@ -167,10 +154,28 @@ func (r *REPL) Run() error {
 		prompt.OptionSelectedSuggestionBGColor(prompt.LightGray),
 		prompt.OptionHistory(history),
 		prompt.OptionMaxSuggestion(10),
+		prompt.OptionSetExitCheckerOnInput(func(in string, breakline bool) bool {
+			// Check if the input is an exit command
+			trimmed := strings.TrimSpace(in)
+			if trimmed == "exit" || trimmed == "quit" || trimmed == ".exit" || trimmed == ".quit" {
+				return true
+			}
+			return false
+		}),
 	)
 
+	// Note: go-prompt handles SIGINT (Ctrl+C) internally:
+	//   1. Calls p.tearDown() to restore terminal from raw mode
+	//   2. Calls os.Exit(0)
+	// So we do NOT register our own signal handler here, as it would
+	// conflict with go-prompt's handler and cause terminal state corruption.
 	p.Run()
+
+	// After go-prompt exits cleanly (via ExitChecker), perform cleanup
+	r.cleanup()
+	fmt.Println(i18n.T(i18n.KeyGoodbye))
 	return nil
+
 }
 
 // loadHistory loads persistent history from the store.
@@ -209,11 +214,11 @@ func (r *REPL) executor(input string) {
 	// Save to persistent history
 	r.saveHistory(input)
 
-	// Handle exit commands
+	// Handle exit commands - ExitChecker handles the actual exit,
+	// but we still need to handle it here for the case where
+	// ExitChecker is not set (e.g., tests).
 	if input == "exit" || input == "quit" || input == ".exit" || input == ".quit" {
-		fmt.Println(i18n.T(i18n.KeyGoodbye))
-		r.cleanup()
-		os.Exit(0)
+		return
 	}
 
 	// Handle help

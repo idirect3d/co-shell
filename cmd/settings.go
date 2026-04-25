@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -200,6 +200,37 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Show output set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeyShowOutput), status), nil
 
+	case "confirm-command":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ConfirmCommand {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmEnabled), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ConfirmCommand = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ConfirmCommand = false
+		default:
+			return "", fmt.Errorf("usage: .settings confirm-command on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ConfirmCommand {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Confirm command set to %s", status)
+
+		// Show warning when disabling
+		if !h.cfg.LLM.ConfirmCommand {
+			return fmt.Sprintf("%s\n%s", fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmDisabled), status), i18n.T(i18n.KeyCmdConfirmDisableWarn)), nil
+		}
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmEnabled), status), nil
+
 	case "log":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
@@ -231,6 +262,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
+
 	}
 }
 

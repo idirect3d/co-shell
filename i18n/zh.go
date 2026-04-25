@@ -235,14 +235,18 @@ MCP 服务器: %d
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 列出文件  设置最大迭代次数并执行指令",
 
 	// Command Confirmation
-	KeyCmdConfirmTitle:      "⚡ 即将执行命令: %s",
-	KeyCmdConfirmPrompt:     "请选择操作:\n  [a] 批准执行\n  [r] 拒绝执行\n  [m] 修改后重新评估\n请输入 [a/r/m]: ",
+	KeyCmdConfirmTitle:       "⚡ 即将执行命令: %s",
+	KeyCmdConfirmDisabled:    "命令执行确认: 关闭",
+	KeyCmdConfirmEnabled:     "命令执行确认: 开启",
+	KeyCmdConfirmDisableWarn: "⚠️ 警告: 关闭命令执行确认后，AI 将直接执行命令而不经您确认，可能存在安全风险（如误删文件、无限循环等）。请谨慎操作。",
+
+	KeyCmdConfirmPrompt:     "请选择操作:\n  [Enter] 批准执行\n  [d] 拒绝执行\n  其他输入: 作为补充说明，AI 将重新评估\n请输入: ",
 	KeyCmdConfirmApprove:    "a",
-	KeyCmdConfirmReject:     "r",
+	KeyCmdConfirmReject:     "d",
 	KeyCmdConfirmModify:     "m",
-	KeyCmdConfirmInvalid:    "无效输入，请输入 a、r 或 m。",
+	KeyCmdConfirmInvalid:    "无效输入，请直接回车批准、输入 d 拒绝，或输入补充说明。",
 	KeyCmdConfirmRejected:   "用户已拒绝执行该命令。",
-	KeyCmdConfirmModifyHint: "请输入补充说明，AI 将重新评估后生成新命令: ",
+	KeyCmdConfirmModifyHint: "请输入补充说明，AI 将重新评估: ",
 
 	// Disclaimer
 	KeyDisclaimerTitle: "⚠️ 风险声明",

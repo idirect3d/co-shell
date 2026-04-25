@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -82,7 +82,7 @@ func (h *MCPHandler) addServer(args []string) (string, error) {
 	// Check for duplicates
 	for _, s := range h.cfg.MCP.Servers {
 		if s.Name == name {
-			return "", fmt.Errorf(i18n.TF(i18n.KeyMCPAlreadyExists, name))
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeyMCPAlreadyExists, name))
 		}
 	}
 
@@ -119,7 +119,7 @@ func (h *MCPHandler) removeServer(args []string) (string, error) {
 		}
 	}
 	if index == -1 {
-		return "", fmt.Errorf(i18n.TF(i18n.KeyMCPNotFound, name))
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyMCPNotFound, name))
 	}
 
 	h.cfg.MCP.Servers = append(h.cfg.MCP.Servers[:index], h.cfg.MCP.Servers[index+1:]...)
@@ -154,7 +154,7 @@ func (h *MCPHandler) enableServer(args []string) (string, error) {
 			return i18n.TF(i18n.KeyMCPEnabled, name), nil
 		}
 	}
-	return "", fmt.Errorf(i18n.TF(i18n.KeyMCPNotFound, name))
+	return "", fmt.Errorf("%s", i18n.TF(i18n.KeyMCPNotFound, name))
 }
 
 func (h *MCPHandler) disableServer(args []string) (string, error) {
@@ -176,7 +176,7 @@ func (h *MCPHandler) disableServer(args []string) (string, error) {
 			return i18n.TF(i18n.KeyMCPDisabled, name), nil
 		}
 	}
-	return "", fmt.Errorf(i18n.TF(i18n.KeyMCPNotFound, name))
+	return "", fmt.Errorf("%s", i18n.TF(i18n.KeyMCPNotFound, name))
 }
 
 func (h *MCPHandler) listServers() string {

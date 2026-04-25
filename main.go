@@ -446,15 +446,15 @@ func isLLMConfigComplete(cfg *config.Config) bool {
 type noopClient struct{}
 
 func (c *noopClient) Chat(ctx context.Context, messages []llm.Message, tools []llm.Tool) (*llm.LLMResponse, error) {
-	return nil, fmt.Errorf(i18n.T(i18n.KeyNoopClientError))
+	return nil, fmt.Errorf("%s", i18n.T(i18n.KeyNoopClientError))
 }
 
 func (c *noopClient) ChatStream(ctx context.Context, messages []llm.Message, tools []llm.Tool) (<-chan llm.StreamEvent, error) {
-	return nil, fmt.Errorf(i18n.T(i18n.KeyNoopClientError))
+	return nil, fmt.Errorf("%s", i18n.T(i18n.KeyNoopClientError))
 }
 
 func (c *noopClient) ListModels(ctx context.Context) ([]string, error) {
-	return nil, fmt.Errorf(i18n.T(i18n.KeyNoopClientError))
+	return nil, fmt.Errorf("%s", i18n.T(i18n.KeyNoopClientError))
 }
 
 func (c *noopClient) Close() error {

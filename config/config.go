@@ -75,15 +75,17 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Provider:     "deepseek",
-			Endpoint:     "https://api.deepseek.com",
-			Model:        "deepseek-v4-flash",
-			Temperature:  0.7,
-			MaxTokens:    393216,
-			ShowThinking: true,
-			ShowCommand:  true,
-			ShowOutput:   true,
+			Provider:       "deepseek",
+			Endpoint:       "https://api.deepseek.com",
+			Model:          "deepseek-v4-flash",
+			Temperature:    0.7,
+			MaxTokens:      393216,
+			ShowThinking:   true,
+			ShowCommand:    true,
+			ShowOutput:     true,
+			ConfirmCommand: true,
 		},
+
 		MCP: MCPConfig{
 			Servers: []MCPServerConfig{},
 		},

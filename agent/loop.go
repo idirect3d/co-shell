@@ -27,7 +27,6 @@
 package agent
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -94,7 +93,7 @@ type CmdConfirmResult int
 const (
 	CmdConfirmApprove CmdConfirmResult = iota
 	CmdConfirmReject
-	CmdConfirmModify
+	CmdConfirmModify // User entered custom input to modify the command
 )
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
@@ -516,8 +515,12 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			case CmdConfirmReject:
 				return i18n.T(i18n.KeyCmdConfirmRejected), nil
 			case CmdConfirmModify:
-				// Return a special marker so the caller knows to re-ask the LLM
-				return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", readModifyInput())
+				// Read the user's supplementary instructions and return a special marker
+				// so the caller knows to re-ask the LLM with the additional context
+				fmt.Print(i18n.T(i18n.KeyCmdConfirmModifyHint))
+				modifyInput := readLine()
+				return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
+
 			}
 			// CmdConfirmApprove: continue execution
 		}
@@ -538,39 +541,70 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 
 // promptCommandConfirmation displays the command to the user and asks for confirmation.
 // Returns the user's choice.
+// - Enter: approve and execute
+// - d/D: reject
+// - Any other input: treated as supplementary instructions for the LLM to re-evaluate
 func promptCommandConfirmation(command string) CmdConfirmResult {
 	fmt.Println()
 	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, command))
 	fmt.Println()
 
-	reader := bufio.NewReader(os.Stdin)
+	// Read a single line from stdin using os.Stdin.Read() which works
+	// even when go-prompt has set the terminal to raw mode.
+	// We read byte by byte until we get a newline.
 	for {
 		fmt.Print(i18n.T(i18n.KeyCmdConfirmPrompt))
-		response, _ := reader.ReadString('\n')
-		response = strings.TrimSpace(strings.ToLower(response))
 
-		switch response {
-		case i18n.T(i18n.KeyCmdConfirmApprove), "approve", "yes", "y":
-			return CmdConfirmApprove
-		case i18n.T(i18n.KeyCmdConfirmReject), "reject", "no", "n":
-			return CmdConfirmReject
-		case i18n.T(i18n.KeyCmdConfirmModify), "modify", "m":
-			return CmdConfirmModify
-		default:
-			fmt.Println(i18n.T(i18n.KeyCmdConfirmInvalid))
+		var lineBuf []byte
+		buf := make([]byte, 1)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if err != nil || n == 0 {
+				break
+			}
+			if buf[0] == '\n' || buf[0] == '\r' {
+				break
+			}
+			lineBuf = append(lineBuf, buf[0])
 		}
+
+		response := strings.TrimSpace(string(lineBuf))
+
+		if response == "" {
+			return CmdConfirmApprove
+		}
+
+		lower := strings.ToLower(response)
+		if lower == "d" {
+			return CmdConfirmReject
+		}
+
+		// Any other input is treated as supplementary instructions
+		// for the LLM to re-evaluate the command
+		return CmdConfirmModify
 	}
 }
 
-// readModifyInput reads additional instructions from the user for re-evaluation.
-func readModifyInput() string {
-	fmt.Print(i18n.T(i18n.KeyCmdConfirmModifyHint))
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
-	return strings.TrimSpace(input)
+// readLine reads a line of input from stdin using os.Stdin.Read() which works
+// even when go-prompt has set the terminal to raw mode.
+func readLine() string {
+	var lineBuf []byte
+	buf := make([]byte, 1)
+	for {
+		n, err := os.Stdin.Read(buf)
+		if err != nil || n == 0 {
+			break
+		}
+		if buf[0] == '\n' || buf[0] == '\r' {
+			break
+		}
+		lineBuf = append(lineBuf, buf[0])
+	}
+	return strings.TrimSpace(string(lineBuf))
 }
 
 // executeSystemCommand runs a system command with timeout.
+
 func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interface{}) (string, error) {
 	command, ok := args["command"].(string)
 	if !ok {

@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -489,7 +489,124 @@ func promptTextSimple(prompt string, defaultValue string, required bool) *string
 	}
 }
 
+// promptAPIKey prompts for API Key input with support for pressing W to open the
+// provider's API Key webpage. Returns nil if user cancelled (ESC).
+func promptAPIKey(apiKeyURL string) *string {
+	for {
+		oldState, err := rawTerminal()
+		if err != nil {
+			restoreTerminal(nil)
+			return promptAPIKeySimple(apiKeyURL)
+		}
+
+		result := readAPIKeyInput(apiKeyURL, oldState)
+		if result == nil {
+			return nil
+		}
+		if *result != "" {
+			return result
+		}
+		fmt.Println("⚠️  API Key 不能为空，请重新输入。")
+	}
+}
+
+// readAPIKeyInput reads API Key input with support for W key to open webpage.
+func readAPIKeyInput(apiKeyURL string, oldState *terminalState) *string {
+	var input strings.Builder
+	promptStr := "📌 API Key (必填)"
+	if apiKeyURL != "" {
+		promptStr += " [按 W 打开官网获取 Key]"
+	}
+
+	fmt.Print(promptStr + ": ")
+
+	hideCursor()
+	defer showCursor()
+
+	for {
+		key, isSpecial := readKey()
+
+		if isSpecial {
+			switch key {
+			case "esc":
+				clearLine()
+				restoreTerminal(oldState)
+				return nil
+
+			case "enter":
+				text := strings.TrimSpace(input.String())
+				restoreTerminal(oldState)
+				clearLine()
+				fmt.Printf("%s: %s\n", promptStr, text)
+				return &text
+
+			case "backspace":
+				if input.Len() > 0 {
+					s := input.String()
+					input.Reset()
+					input.WriteString(s[:len(s)-1])
+					clearLine()
+					fmt.Print(promptStr + ": " + input.String())
+				}
+			}
+		} else {
+			// Check if user pressed W (or w) to open the API Key webpage
+			if apiKeyURL != "" && strings.ToLower(key) == "w" && input.Len() == 0 {
+				clearLine()
+				restoreTerminal(oldState)
+				fmt.Printf("%s: W\n", promptStr)
+				fmt.Printf("   🔗 正在打开: %s\n", apiKeyURL)
+				if err := config.OpenURL(apiKeyURL); err != nil {
+					fmt.Printf("   ⚠️  无法自动打开浏览器: %v\n", err)
+					fmt.Printf("   请手动访问: %s\n", apiKeyURL)
+				}
+				fmt.Println()
+				// Re-prompt for input
+				return readAPIKeyInput(apiKeyURL, oldState)
+			}
+
+			input.WriteString(key)
+			clearLine()
+			fmt.Print(promptStr + ": " + input.String())
+		}
+	}
+}
+
+// promptAPIKeySimple is a fallback for API Key input when raw terminal is not available.
+func promptAPIKeySimple(apiKeyURL string) *string {
+	for {
+		if apiKeyURL != "" {
+			fmt.Printf("📌 API Key (必填) [输入 W 打开 %s 获取 Key]: ", apiKeyURL)
+		} else {
+			fmt.Print("📌 API Key (必填): ")
+		}
+
+		var input string
+		fmt.Scanln(&input)
+		input = strings.TrimSpace(input)
+
+		if input == "" {
+			fmt.Println("⚠️  API Key 不能为空，请重新输入。")
+			continue
+		}
+
+		// Check if user wants to open the webpage
+		if apiKeyURL != "" && strings.ToLower(input) == "w" {
+			fmt.Printf("   🔗 正在打开: %s\n", apiKeyURL)
+			if err := config.OpenURL(apiKeyURL); err != nil {
+				fmt.Printf("   ⚠️  无法自动打开浏览器: %v\n", err)
+				fmt.Printf("   请手动访问: %s\n", apiKeyURL)
+			}
+			fmt.Println()
+			continue
+		}
+
+		return &input
+	}
+}
+
 // promptConfirm asks a yes/no question. Returns true for yes.
+
 func promptConfirm(prompt string, defaultYes bool) bool {
 	yn := "Y/n"
 	if !defaultYes {

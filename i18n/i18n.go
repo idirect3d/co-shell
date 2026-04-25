@@ -354,14 +354,17 @@ const (
 	KeyDisclaimerRefused = "disclaimer_refused"
 
 	// Command Confirmation
-	KeyCmdConfirmTitle      = "cmd_confirm_title"
-	KeyCmdConfirmPrompt     = "cmd_confirm_prompt"
-	KeyCmdConfirmApprove    = "cmd_confirm_approve"
-	KeyCmdConfirmReject     = "cmd_confirm_reject"
-	KeyCmdConfirmModify     = "cmd_confirm_modify"
-	KeyCmdConfirmInvalid    = "cmd_confirm_invalid"
-	KeyCmdConfirmRejected   = "cmd_confirm_rejected"
-	KeyCmdConfirmModifyHint = "cmd_confirm_modify_hint"
+	KeyCmdConfirmTitle       = "cmd_confirm_title"
+	KeyCmdConfirmPrompt      = "cmd_confirm_prompt"
+	KeyCmdConfirmApprove     = "cmd_confirm_approve"
+	KeyCmdConfirmReject      = "cmd_confirm_reject"
+	KeyCmdConfirmModify      = "cmd_confirm_modify"
+	KeyCmdConfirmInvalid     = "cmd_confirm_invalid"
+	KeyCmdConfirmRejected    = "cmd_confirm_rejected"
+	KeyCmdConfirmModifyHint  = "cmd_confirm_modify_hint"
+	KeyCmdConfirmDisabled    = "cmd_confirm_disabled"
+	KeyCmdConfirmEnabled     = "cmd_confirm_enabled"
+	KeyCmdConfirmDisableWarn = "cmd_confirm_disable_warn"
 
 	// Custom
 	KeyCustom = "custom"

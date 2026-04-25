@@ -219,12 +219,16 @@ var enMessages = map[string]string{
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 list files  Set max iterations and execute command",
 
 	// Command Confirmation
-	KeyCmdConfirmTitle:      "⚡ About to execute command: %s",
-	KeyCmdConfirmPrompt:     "Choose an action:\n  [a] Approve and execute\n  [r] Reject\n  [m] Modify and re-evaluate\nEnter [a/r/m]: ",
+	KeyCmdConfirmTitle:       "⚡ About to execute command: %s",
+	KeyCmdConfirmDisabled:    "Command confirmation: Off",
+	KeyCmdConfirmEnabled:     "Command confirmation: On",
+	KeyCmdConfirmDisableWarn: "⚠️ Warning: Disabling command confirmation will allow AI to execute commands directly without your approval. This may pose security risks (e.g., accidental file deletion, infinite loops). Proceed with caution.",
+
+	KeyCmdConfirmPrompt:     "Choose an action:\n  [Enter] Approve and execute\n  [d] Reject\n  Other input: supplementary instructions for AI to re-evaluate\nEnter: ",
 	KeyCmdConfirmApprove:    "a",
-	KeyCmdConfirmReject:     "r",
+	KeyCmdConfirmReject:     "d",
 	KeyCmdConfirmModify:     "m",
-	KeyCmdConfirmInvalid:    "Invalid input, please enter a, r, or m.",
+	KeyCmdConfirmInvalid:    "Invalid input. Press Enter to approve, enter d to reject, or type supplementary instructions.",
 	KeyCmdConfirmRejected:   "The user has rejected this command.",
 	KeyCmdConfirmModifyHint: "Enter additional instructions for the AI to re-evaluate: ",
 
