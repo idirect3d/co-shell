@@ -1,10 +1,13 @@
+// Author: L.Shuang
 package repl
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -12,9 +15,41 @@ import (
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/store"
 )
+
+// commandPattern matches inputs that look like system commands:
+// - Starts with a known command word (alphanumeric, hyphens, underscores, dots, slashes, tildes)
+// - Optionally followed by arguments (anything)
+// - May contain shell operators (|, >, <, &&, ||, ;)
+var commandPattern = regexp.MustCompile(`^[a-zA-Z0-9._/~-]+(\s+.*)?$`)
+
+// isDirectCommand checks if the input looks like a system command that can be
+// executed directly. It extracts the first word and checks if it exists in PATH.
+func isDirectCommand(input string) (string, bool) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return "", false
+	}
+
+	// Must match the basic command pattern
+	if !commandPattern.MatchString(trimmed) {
+		return "", false
+	}
+
+	// Extract the first word as the command name
+	firstWord := strings.Fields(trimmed)[0]
+
+	// Check if the command exists in PATH
+	_, err := exec.LookPath(firstWord)
+	if err != nil {
+		return "", false
+	}
+
+	return trimmed, true
+}
 
 // BuiltinHandler defines the interface for built-in command handlers.
 type BuiltinHandler interface {
@@ -65,6 +100,9 @@ func (r *REPL) Run() error {
 	// Print welcome message
 	r.printWelcome()
 
+	// Load persistent history from store
+	history := r.loadHistory()
+
 	// Start the prompt
 	p := prompt.New(
 		r.executor,
@@ -76,12 +114,38 @@ func (r *REPL) Run() error {
 		prompt.OptionSuggestionBGColor(prompt.DarkGray),
 		prompt.OptionDescriptionBGColor(prompt.DarkGray),
 		prompt.OptionSelectedSuggestionBGColor(prompt.LightGray),
-		prompt.OptionHistory([]string{}),
+		prompt.OptionHistory(history),
 		prompt.OptionMaxSuggestion(10),
 	)
 
 	p.Run()
 	return nil
+}
+
+// loadHistory loads persistent history from the store.
+// Returns history entries in chronological order (oldest first) for go-prompt.
+func (r *REPL) loadHistory() []string {
+	entries, err := r.store.LoadHistory()
+	if err != nil {
+		log.Warn("Cannot load history: %v", err)
+		return []string{}
+	}
+
+	// Reverse to chronological order (oldest first) for go-prompt
+	// LoadHistory returns newest first
+	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+		entries[i], entries[j] = entries[j], entries[i]
+	}
+
+	log.Debug("Loaded %d history entries", len(entries))
+	return entries
+}
+
+// saveHistory saves a single input to the persistent history store.
+func (r *REPL) saveHistory(input string) {
+	if err := r.store.SaveHistory(input); err != nil {
+		log.Warn("Cannot save history: %v", err)
+	}
 }
 
 // executor handles each line of input.
@@ -90,6 +154,9 @@ func (r *REPL) executor(input string) {
 	if input == "" {
 		return
 	}
+
+	// Save to persistent history
+	r.saveHistory(input)
 
 	// Handle exit commands
 	if input == "exit" || input == "quit" || input == ".exit" || input == ".quit" {
@@ -107,6 +174,12 @@ func (r *REPL) executor(input string) {
 	// Handle built-in commands (start with .)
 	if strings.HasPrefix(input, ".") {
 		r.handleBuiltin(input)
+		return
+	}
+
+	// Handle direct system commands (bypass LLM)
+	if cmd, ok := isDirectCommand(input); ok {
+		r.handleSystemCommand(cmd)
 		return
 	}
 
@@ -139,47 +212,113 @@ func (r *REPL) handleBuiltin(input string) {
 	case ".context":
 		result, err = r.contextHandler.Handle(args)
 	default:
-		fmt.Printf("Unknown command: %s\nType .help for available commands\n", command)
+		fmt.Printf("❌ 未知命令: %s\n输入 .help 查看可用命令列表\n", command)
 		return
 	}
 
 	if err != nil {
-		fmt.Printf("❌ Error: %v\n", err)
+		fmt.Printf("❌ 错误: %v\n", err)
 		return
 	}
 	fmt.Println(result)
+
+	// Update agent settings after handling settings command that may have changed them
+	if command == ".settings" {
+		r.agent.SetShowThinking(r.cfg.LLM.ShowThinking)
+		r.agent.SetShowCommand(r.cfg.LLM.ShowCommand)
+		r.agent.SetShowOutput(r.cfg.LLM.ShowOutput)
+	}
 }
 
-// handleAgentInput sends natural language input to the agent.
-func (r *REPL) handleAgentInput(input string) {
-	fmt.Println("🤔 Thinking...")
+// handleSystemCommand executes a system command directly and displays the output.
+func (r *REPL) handleSystemCommand(command string) {
+	// Show command if enabled
+	if r.cfg.LLM.ShowCommand {
+		fmt.Printf("$ %s\n", command)
+	}
 
-	ctx := context.Background()
-	response, err := r.agent.Run(ctx, input)
+	output, err := r.agent.ExecuteCommandDirectly(command)
 	if err != nil {
-		fmt.Printf("❌ Error: %v\n", err)
+		// output may contain partial stdout before the error occurred
+		if output != "" {
+			fmt.Print(output)
+		}
+		fmt.Printf("❌ 命令执行失败: %v\n", err)
 		return
 	}
 
-	fmt.Println(response)
+	if output != "" {
+		fmt.Println(output)
+	}
+}
+
+// handleAgentInput sends natural language input to the agent with streaming output.
+func (r *REPL) handleAgentInput(input string) {
+	ctx := context.Background()
+
+	// Use streaming version
+	_, err := r.agent.RunStream(ctx, input, r.streamCallback)
+	if err != nil {
+		fmt.Printf("❌ 处理失败: %v\n", err)
+		fmt.Println("💡 提示: 请检查 API 配置是否正确，输入 .settings 查看当前配置")
+		return
+	}
+}
+
+// streamCallback handles streaming events from the agent.
+func (r *REPL) streamCallback(eventType string, content string) {
+	switch eventType {
+	case "content_chunk":
+		// Stream output content in real-time
+		fmt.Print(content)
+
+	case "thinking_chunk":
+		// Thinking content is displayed dimmed/grayed
+		fmt.Print(content)
+
+	case "content":
+		fmt.Print(content)
+		fmt.Println()
+
+	case "thinking":
+		fmt.Print(content)
+		fmt.Println()
+
+	case "command":
+		// Show the command that will be executed
+		fmt.Printf("⚡ %s\n", content)
+
+	case "output":
+		// Show the full command output (stdout + stderr) before LLM analysis
+		fmt.Println()
+		fmt.Println("📋 命令输出:")
+		fmt.Println("────────────────────────────────────────────")
+		fmt.Println(content)
+		fmt.Println("────────────────────────────────────────────")
+		fmt.Println()
+
+	case "tool_call":
+		fmt.Println(content)
+
+	case "error":
+		fmt.Printf("❌ %s\n", content)
+
+	case "done":
+		fmt.Println()
+	}
 }
 
 // completer provides tab completion suggestions.
+// Only shows suggestions when input starts with "." (built-in commands).
+// Press Tab to show, Esc to hide.
 func (r *REPL) completer(d prompt.Document) []prompt.Suggest {
-	// If we're typing a builtin command
+	// Only show suggestions for built-in commands (starting with .)
 	if strings.HasPrefix(d.Text, ".") {
 		return r.builtinCompleter(d)
 	}
 
-	return []prompt.Suggest{
-		{Text: ".settings", Description: "Manage LLM settings"},
-		{Text: ".mcp", Description: "Manage MCP servers"},
-		{Text: ".rule", Description: "Manage global rules"},
-		{Text: ".memory", Description: "Manage memory"},
-		{Text: ".context", Description: "Manage context"},
-		{Text: ".help", Description: "Show help"},
-		{Text: ".exit", Description: "Exit co-shell"},
-	}
+	// Return empty list for natural language input to avoid auto-popup
+	return []prompt.Suggest{}
 }
 
 // builtinCompleter provides completion for built-in commands.
@@ -216,6 +355,10 @@ func (r *REPL) builtinCompleter(d prompt.Document) []prompt.Suggest {
 			{Text: "model", Description: "Set model name"},
 			{Text: "temperature", Description: "Set temperature (0.0-2.0)"},
 			{Text: "max-tokens", Description: "Set max tokens"},
+			{Text: "show-thinking", Description: "Show/hide LLM thinking process (on|off)"},
+			{Text: "show-command", Description: "Show/hide commands before execution (on|off)"},
+			{Text: "show-output", Description: "Show/hide command output before LLM analysis (on|off)"},
+			{Text: "log", Description: "Enable/disable file logging (on|off)"},
 		}, subPrefix, true)
 	case ".mcp":
 		return prompt.FilterHasPrefix([]prompt.Suggest{

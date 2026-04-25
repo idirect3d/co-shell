@@ -14,3 +14,7 @@ Thumbs.db
 
 # Config (user-specific)
 config.json
+
+# Private Notes
+ROADMAP.md
+NOTE.md

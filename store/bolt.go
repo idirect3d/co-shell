@@ -1,3 +1,4 @@
+// Author: L.Shuang
 package store
 
 import (
@@ -27,6 +28,12 @@ type SessionEntry struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// HistoryEntry represents a single history entry.
+type HistoryEntry struct {
+	Input     string    `json:"input"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // Store provides persistent storage for memory, sessions, and configuration.
 type Store struct {
 	db *bbolt.DB
@@ -52,7 +59,7 @@ func NewStore() (*Store, error) {
 
 	// Create buckets
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, bucket := range []string{"memory", "sessions", "context"} {
+		for _, bucket := range []string{"memory", "sessions", "context", "history"} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(bucket)); err != nil {
 				return fmt.Errorf("cannot create bucket %s: %w", bucket, err)
 			}
@@ -69,6 +76,60 @@ func NewStore() (*Store, error) {
 // Close closes the database.
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// --- History Operations ---
+
+const maxHistoryEntries = 1000
+
+// SaveHistory appends a history entry to the history bucket.
+func (s *Store) SaveHistory(input string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("history"))
+
+		// Generate a sequential key using timestamp + counter
+		key := fmt.Sprintf("%020d", time.Now().UnixNano())
+
+		entry := HistoryEntry{
+			Input:     input,
+			Timestamp: time.Now(),
+		}
+		data, err := json.Marshal(entry)
+		if err != nil {
+			return err
+		}
+		return bucket.Put([]byte(key), data)
+	})
+}
+
+// LoadHistory retrieves all history entries in reverse chronological order.
+func (s *Store) LoadHistory() ([]string, error) {
+	var inputs []string
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("history"))
+		cursor := bucket.Cursor()
+
+		// Iterate in reverse order (newest first)
+		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
+			var entry HistoryEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				continue // skip corrupted entries
+			}
+			inputs = append(inputs, entry.Input)
+		}
+		return nil
+	})
+	return inputs, err
+}
+
+// ClearHistory removes all history entries.
+func (s *Store) ClearHistory() error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("history"))
+		return bucket.ForEach(func(k, _ []byte) error {
+			return bucket.Delete(k)
+		})
+	})
 }
 
 // --- Memory Operations ---

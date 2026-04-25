@@ -5,7 +5,6 @@ go 1.23
 require (
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/mark3labs/mcp-go v0.8.3
-	github.com/sashabaranov/go-openai v1.36.1
 	go.etcd.io/bbolt v1.3.11
 )
 
