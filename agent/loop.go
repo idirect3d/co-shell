@@ -26,9 +26,12 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -39,6 +42,8 @@ import (
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/store"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 const (
@@ -60,6 +65,21 @@ func shellName() string {
 		return "cmd/powershell"
 	}
 	return "bash/zsh"
+}
+
+// decodeToUTF8 converts GBK encoded bytes to UTF-8 string on Windows.
+// On non-Windows platforms, it returns the raw string as-is.
+func decodeToUTF8(data []byte) string {
+	if runtime.GOOS != "windows" {
+		return string(data)
+	}
+	// Try GBK decode first; if it fails, return raw string
+	reader := transform.NewReader(bytes.NewReader(data), simplifiedchinese.GBK.NewDecoder())
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		return string(data)
+	}
+	return string(decoded)
 }
 
 // StreamCallback is a function called for each streaming event from the LLM.
@@ -111,10 +131,10 @@ func (a *Agent) SetShowOutput(show bool) {
 }
 
 // SetMaxIterations sets the maximum number of LLM call iterations.
-// If set to -1 or 0, the default value (10) will be used.
+// n <= 0 means unlimited; n > 0 sets a specific limit.
 func (a *Agent) SetMaxIterations(n int) {
 	if n <= 0 {
-		a.maxIterations = defaultMaxIterations
+		a.maxIterations = -1 // unlimited
 	} else {
 		a.maxIterations = n
 	}
@@ -123,7 +143,25 @@ func (a *Agent) SetMaxIterations(n int) {
 // buildSystemPrompt constructs the system prompt with rules and context.
 func buildSystemPrompt(rules string) string {
 	sh := shellName()
+
+	// Gather environment context
+	cwd, _ := os.Getwd()
+	hostname, _ := os.Hostname()
+	now := time.Now().Format("2006-01-02 15:04:05 Monday")
+	username := os.Getenv("USER")
+	if username == "" {
+		username = os.Getenv("USERNAME")
+	}
+
 	prompt := fmt.Sprintf(`You are co-shell, an intelligent command-line assistant that helps users interact with their system through natural language.
+
+Current Environment:
+- Platform: %s (%s)
+- Shell: %s
+- Current Time: %s
+- Working Directory: %s
+- Hostname: %s
+- User: %s
 
 You have access to the following capabilities:
 1. Execute system commands (%s)
@@ -132,16 +170,17 @@ You have access to the following capabilities:
 4. Manage memory and context
 
 IMPORTANT RULES:
-- When the user asks you to read a file or show file contents, use "cat <filepath>" command directly. Do NOT write or generate code (Go, Python, etc.) to read files.
-- When the user asks you to list directory contents, use "ls -la <path>" command directly.
-- Always prefer simple shell commands over writing scripts or programs.
-- If you need to execute a system command, use the "execute_command" tool
-- If you need to call an MCP tool, use the appropriate tool name
-- Always explain what you're doing before executing commands
-- For destructive operations (delete, overwrite), ask for confirmation first
-- Use the user's preferred language for responses
+- Use the "execute_command" tool to run system commands, and the appropriate MCP tool names for MCP operations.
+- Unless the user specifies otherwise, prefer using standard system commands (e.g., cat, ls, dir, type) over writing scripts or programs.
+- Actively explore the system to discover available tools (e.g., check PATH, common tool directories). If the required tool is not found, try to install it, or use scripts and programming languages (Shell, Python, Go, Node.js, etc.) to write custom tools to fulfill the user's needs.
+- Always explain what you're doing before executing commands.
+- For destructive operations (delete, overwrite, rm -rf, etc.), ask for confirmation first.
+- Use the user's preferred language for responses.
+- You have full autonomy to choose the best tools and approaches for each task — use your judgment.
 
-Available tools will be provided to you as function definitions.`, sh)
+
+Available tools will be provided to you as function definitions.`,
+		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username, sh)
 
 	if rules != "" {
 		prompt += fmt.Sprintf("\n\nUser-defined Rules:\n%s", rules)
@@ -162,9 +201,10 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	// Build available tools
 	tools := a.buildTools()
 
-	for iteration := 0; iteration < a.maxIterations; iteration++ {
+	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
 		// Call LLM
 		resp, err := a.llmClient.Chat(ctx, a.messages, tools)
+
 		if err != nil {
 			log.Error("Agent.Run: LLM call failed at iteration %d: %v", iteration, err)
 			return "", fmt.Errorf("LLM call failed: %w", err)
@@ -230,8 +270,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// Build available tools
 	tools := a.buildTools()
 
-	for iteration := 0; iteration < a.maxIterations; iteration++ {
+	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
 		// Step 1: Stream the LLM response
+
 		finalContent, finalReasoning, toolCalls, streamErr := a.streamLLMResponse(ctx, tools, cb)
 		if streamErr != nil {
 			log.Error("Agent.RunStream: stream error at iteration %d: %v", iteration, streamErr)
@@ -457,17 +498,19 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	log.Debug("Executing command: %s (timeout: %ds, shell: %s)", command, timeout, shell)
 	cmd := exec.CommandContext(ctx, shell, shellArg, command)
 	output, err := cmd.CombinedOutput()
+	// Decode GBK to UTF-8 on Windows
+	decoded := decodeToUTF8(output)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			log.Warn("Command timed out after %d seconds: %s", timeout, command)
 			return "", fmt.Errorf("command timed out after %d seconds", timeout)
 		}
 		log.Error("Command failed: %s, error: %v", command, err)
-		return string(output), fmt.Errorf("command failed: %w\nOutput: %s", err, string(output))
+		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 	}
 
 	log.Debug("Command completed: %s (output length: %d)", command, len(output))
-	return strings.TrimSpace(string(output)), nil
+	return strings.TrimSpace(decoded), nil
 }
 
 // ExecuteCommandDirectly runs a system command directly without LLM involvement.
@@ -480,17 +523,19 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	log.Info("Direct command: %s (shell: %s)", command, shell)
 	cmd := exec.CommandContext(ctx, shell, shellArg, command)
 	output, err := cmd.CombinedOutput()
+	// Decode GBK to UTF-8 on Windows
+	decoded := decodeToUTF8(output)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			log.Warn("Direct command timed out: %s", command)
 			return "", fmt.Errorf("command timed out after %d seconds", int(toolTimeout.Seconds()))
 		}
 		log.Error("Direct command failed: %s, error: %v", command, err)
-		return string(output), fmt.Errorf("command failed: %w\nOutput: %s", err, string(output))
+		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 	}
 
 	log.Debug("Direct command completed: %s (output length: %d)", command, len(output))
-	return strings.TrimSpace(string(output)), nil
+	return strings.TrimSpace(decoded), nil
 }
 
 // Reset clears the conversation history but keeps the system prompt.

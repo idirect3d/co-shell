@@ -1,6 +1,6 @@
 module github.com/idirect3d/co-shell
 
-go 1.23
+go 1.25.0
 
 require (
 	github.com/c-bata/go-prompt v0.2.6
@@ -16,4 +16,5 @@ require (
 	github.com/pkg/term v1.2.0-beta.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 )

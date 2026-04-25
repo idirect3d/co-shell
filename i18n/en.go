@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -166,7 +166,8 @@ var enMessages = map[string]string{
 	KeyConfigFormat: "%s: %s",
 
 	// REPL - Additional
-	KeyWelcomeTip:     "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.",
+	KeyWelcomeTip: "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.\n   Example: \"List files in current directory\"",
+
 	KeyUnknownCommand: "❌ Unknown command: %s",
 	KeyCmdFailed:      "Command failed",
 	KeyProcessFailed:  "Processing failed",

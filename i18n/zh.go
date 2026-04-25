@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -182,7 +182,8 @@ MCP 服务器: %d
 规则: %d`,
 
 	// REPL - Additional
-	KeyWelcomeTip:     "输入 .help 查看可用命令，或直接输入自然语言！",
+	KeyWelcomeTip: "输入 .help 查看可用命令，或直接输入自然语言！\n   例如：\"列出当前目录的文件\"",
+
 	KeyUnknownCommand: "❌ 未知命令: %s\n输入 .help 查看可用命令列表",
 	KeyCmdFailed:      "命令执行失败",
 	KeyProcessFailed:  "处理失败",
