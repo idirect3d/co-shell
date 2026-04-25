@@ -215,12 +215,13 @@ type responseErrorJSON struct {
 
 // openAIClient implements Client using the OpenAI-compatible API.
 type openAIClient struct {
-	httpClient  *http.Client
-	baseURL     string
-	apiKey      string
-	model       string
-	temperature float64
-	maxTokens   int
+	httpClient   *http.Client
+	streamClient *http.Client // separate client for streaming (no timeout, relies on context)
+	baseURL      string
+	apiKey       string
+	model        string
+	temperature  float64
+	maxTokens    int
 }
 
 // NewClient creates a new LLM client from configuration.
@@ -235,12 +236,17 @@ func NewClient(endpoint, apiKey, model string, temperature float64, maxTokens in
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-		baseURL:     baseURL,
-		apiKey:      apiKey,
-		model:       model,
-		temperature: temperature,
-		maxTokens:   maxTokens,
+		// Stream client has no timeout - relies on context.Context for cancellation.
+		// This is necessary because streaming responses can take a long time
+		// (e.g., DeepSeek thinking mode, large context processing).
+		streamClient: &http.Client{},
+		baseURL:      baseURL,
+		apiKey:       apiKey,
+		model:        model,
+		temperature:  temperature,
+		maxTokens:    maxTokens,
 	}
+
 }
 
 // buildMessages converts our Message type to the JSON-serializable format.
@@ -455,8 +461,12 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 
-	// Send request
-	resp, err := c.httpClient.Do(httpReq)
+	// Use streamClient (no timeout) for streaming requests.
+	// The httpClient has a 60s timeout which would cause streaming requests
+	// to fail when the LLM takes a long time to respond (e.g., thinking mode,
+	// large context processing). The streamClient relies on context.Context
+	// for cancellation instead.
+	resp, err := c.streamClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("chat stream request failed: %w", err)
 	}
@@ -749,5 +759,6 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]string, error) {
 
 func (c *openAIClient) Close() error {
 	c.httpClient.CloseIdleConnections()
+	c.streamClient.CloseIdleConnections()
 	return nil
 }
