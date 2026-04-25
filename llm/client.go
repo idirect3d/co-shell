@@ -2,9 +2,9 @@
 // Created: 2026-04-25
 // Last Modified: 2026-04-25
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -50,6 +50,7 @@ type ToolCall struct {
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 	Type      string `json:"type,omitempty"`
+	Index     int    `json:"index,omitempty"` // index in stream delta chunks
 }
 
 // Tool defines a function that the LLM can call.
@@ -91,10 +92,12 @@ type Client interface {
 
 // StreamEvent represents an event in the streaming response.
 type StreamEvent struct {
-	Type    StreamEventType
-	Content string
-	Done    bool
-	Err     error
+	Type         StreamEventType
+	Content      string
+	ToolCall     *ToolCall // accumulated tool call from stream deltas
+	FinishReason string    // finish_reason from the stream (e.g. "stop", "tool_calls")
+	Done         bool
+	Err          error
 }
 
 // StreamEventType indicates the type of stream event.
@@ -471,11 +474,28 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		defer resp.Body.Close()
 
 		reader := NewStreamReader(resp.Body)
+		// Accumulate tool calls from stream deltas.
+		// SSE tool_calls are sent in chunks: first chunk has ID+Name,
+		// subsequent chunks have arguments fragments for the same index.
+		accumulatedToolCalls := make(map[int]*ToolCall)
+		finishReason := ""
+
 		for {
 			line, err := reader.Read()
 			if err != nil {
 				if err == io.EOF {
-					eventCh <- StreamEvent{Type: StreamEventDone, Done: true}
+					// Send accumulated tool calls before done
+					for _, tc := range accumulatedToolCalls {
+						eventCh <- StreamEvent{
+							Type:     StreamEventToolCall,
+							ToolCall: tc,
+						}
+					}
+					eventCh <- StreamEvent{
+						Type:         StreamEventDone,
+						FinishReason: finishReason,
+						Done:         true,
+					}
 					return
 				}
 				eventCh <- StreamEvent{Type: StreamEventError, Err: err}
@@ -508,11 +528,41 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 
 			if len(event.ToolCalls) > 0 {
 				for _, tc := range event.ToolCalls {
-					eventCh <- StreamEvent{
-						Type:    StreamEventToolCall,
-						Content: tc.Name,
+					// Use index to identify which tool call this delta belongs to
+					// If no index, treat as a complete tool call
+					if tc.Index < 0 {
+						// Complete tool call (non-streaming fallback)
+						tcCopy := tc
+						eventCh <- StreamEvent{
+							Type:     StreamEventToolCall,
+							ToolCall: &tcCopy,
+						}
+					} else {
+						// Delta chunk - accumulate
+						existing, exists := accumulatedToolCalls[tc.Index]
+						if !exists {
+							accumulatedToolCalls[tc.Index] = &ToolCall{
+								ID:   tc.ID,
+								Name: tc.Name,
+							}
+						} else {
+							if tc.ID != "" {
+								existing.ID = tc.ID
+							}
+							if tc.Name != "" {
+								existing.Name = tc.Name
+							}
+							if tc.Arguments != "" {
+								existing.Arguments += tc.Arguments
+							}
+						}
 					}
 				}
+			}
+
+			// Track finish_reason from the stream
+			if event.FinishReason != "" {
+				finishReason = event.FinishReason
 			}
 		}
 	}()
@@ -525,6 +575,7 @@ type streamEventJSON struct {
 	Content          string     `json:"content,omitempty"`
 	ReasoningContent string     `json:"reasoning_content,omitempty"`
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
+	FinishReason     string     `json:"finish_reason,omitempty"`
 }
 
 // parseSSELine parses a single SSE line from the streaming response.
@@ -562,6 +613,7 @@ func parseSSELine(line []byte) (*streamEventJSON, error) {
 					} `json:"function,omitempty"`
 				} `json:"tool_calls,omitempty"`
 			} `json:"delta"`
+			FinishReason string `json:"finish_reason,omitempty"`
 		} `json:"choices"`
 	}
 
@@ -573,23 +625,31 @@ func parseSSELine(line []byte) (*streamEventJSON, error) {
 		return nil, nil
 	}
 
-	delta := chunk.Choices[0].Delta
+	choice := chunk.Choices[0]
+	delta := choice.Delta
 	event := &streamEventJSON{
 		Content:          delta.Content,
 		ReasoningContent: delta.ReasoningContent,
+		FinishReason:     choice.FinishReason,
 	}
 
 	if delta.ToolCalls != nil {
 		for _, tc := range delta.ToolCalls {
+			tcIndex := -1
+			if tc.Index != nil {
+				tcIndex = *tc.Index
+			}
 			event.ToolCalls = append(event.ToolCalls, ToolCall{
 				ID:        tc.ID,
 				Name:      tc.Function.Name,
 				Arguments: tc.Function.Arguments,
+				Index:     tcIndex,
 			})
 		}
 	}
 
 	return event, nil
+
 }
 
 // StreamReader reads SSE (Server-Sent Events) from a stream.

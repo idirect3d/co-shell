@@ -398,6 +398,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 
 	var contentBuilder strings.Builder
 	var reasoningBuilder strings.Builder
+	var toolCalls []llm.ToolCall
 
 	for event := range eventCh {
 		switch event.Type {
@@ -411,26 +412,17 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				cb("thinking_chunk", event.Content)
 			}
 
-		case llm.StreamEventDone:
-			// Stream finished - now make a non-streaming call to detect tool calls
-			finalContent := contentBuilder.String()
-			finalReasoning := reasoningBuilder.String()
-
-			// Build temporary messages with the streamed assistant response
-			tempMessages := make([]llm.Message, len(a.messages))
-			copy(tempMessages, a.messages)
-			tempMessages = append(tempMessages, llm.Message{
-				Role:             "assistant",
-				Content:          finalContent,
-				ReasoningContent: finalReasoning,
-			})
-
-			resp, chatErr := a.llmClient.Chat(ctx, tempMessages, tools)
-			if chatErr != nil {
-				return "", "", nil, fmt.Errorf("LLM call failed after stream: %w", chatErr)
+		case llm.StreamEventToolCall:
+			if event.ToolCall != nil {
+				toolCalls = append(toolCalls, *event.ToolCall)
 			}
 
-			return finalContent, finalReasoning, resp.ToolCalls, nil
+		case llm.StreamEventDone:
+			// Stream finished - tool calls are already accumulated from stream deltas.
+			// No need for an extra non-streaming API call.
+			finalContent := contentBuilder.String()
+			finalReasoning := reasoningBuilder.String()
+			return finalContent, finalReasoning, toolCalls, nil
 
 		case llm.StreamEventError:
 			return "", "", nil, event.Err
