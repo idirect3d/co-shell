@@ -123,7 +123,8 @@ type Config struct {
 	LogEnabled         bool      `json:"log_enabled"`
 	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
 
-	ws *workspace.Workspace // workspace reference for Save()
+	ws         *workspace.Workspace // workspace reference for Save()
+	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }
 
 // DefaultConfig returns a Config with sensible defaults (DeepSeek, key empty).
@@ -176,6 +177,7 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, "", fmt.Errorf("cannot parse config %s: %w", path, err)
 	}
+	cfg.configPath = path
 	return cfg, path, nil
 }
 
@@ -185,12 +187,17 @@ func Load() (*Config, error) {
 	return DefaultConfig(), nil
 }
 
-// Save writes the config to the workspace config.json.
+// Save writes the config to disk.
+// If the config was loaded from a specific path (via -c/--config), it saves there.
+// Otherwise, it saves to the workspace config.json.
 func (c *Config) Save() error {
-	if c.ws == nil {
-		return fmt.Errorf("workspace not set, cannot save config")
+	path := c.configPath
+	if path == "" {
+		if c.ws == nil {
+			return fmt.Errorf("workspace not set, cannot save config")
+		}
+		path = c.ws.ConfigPath()
 	}
-	path := c.ws.ConfigPath()
 
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
