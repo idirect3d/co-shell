@@ -47,6 +47,7 @@ import (
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/store"
+	"github.com/idirect3d/co-shell/subagent"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
@@ -116,6 +117,7 @@ type Agent struct {
 	cfg            *config.Config // configuration for timeout settings
 	resultMode     config.ResultMode
 	rules          string // user-defined rules for rebuilding system prompt
+	subAgentMgr    *subagent.Manager
 }
 
 // New creates a new Agent instance.
@@ -129,6 +131,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		systemPrompt:  systemPrompt,
 		maxIterations: defaultMaxIterations,
 		rules:         rules,
+		subAgentMgr:   subagent.NewManager(),
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
@@ -654,6 +657,29 @@ func (a *Agent) buildTools() []llm.Tool {
 				"required": []string{"path", "content"},
 			},
 			Callback: a.writeToFileTool,
+		},
+		{
+			Name:        "launch_sub_agent",
+			Description: "Launch a sub-agent process that runs independently in its own workspace. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to delegate complex or long-running tasks to a separate co-shell instance.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"workspace": map[string]interface{}{
+						"type":        "string",
+						"description": "The absolute path to the sub-agent's workspace directory. The workspace will be created if it doesn't exist.",
+					},
+					"instruction": map[string]interface{}{
+						"type":        "string",
+						"description": "The natural language instruction or system command for the sub-agent to execute.",
+					},
+					"timeout_seconds": map[string]interface{}{
+						"type":        "number",
+						"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
+					},
+				},
+				"required": []string{"workspace", "instruction"},
+			},
+			Callback: a.launchSubAgentTool,
 		},
 	}
 
@@ -1222,6 +1248,61 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 	}
 
 	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), path), nil
+}
+
+// launchSubAgentTool launches a sub-agent process and returns its results.
+func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	workspacePath, ok := args["workspace"].(string)
+	if !ok {
+		return "", fmt.Errorf("workspace argument is required")
+	}
+
+	instruction, ok := args["instruction"].(string)
+	if !ok {
+		return "", fmt.Errorf("instruction argument is required")
+	}
+
+	var timeout int
+	if t, ok := args["timeout_seconds"].(float64); ok {
+		timeout = int(t)
+	}
+
+	cfg := subagent.SubAgentConfig{
+		Workspace:      workspacePath,
+		Instruction:    instruction,
+		TimeoutSeconds: timeout,
+	}
+
+	log.Info("Launching sub-agent: workspace=%s, instruction=%s, timeout=%ds", workspacePath, instruction, timeout)
+
+	result, err := a.subAgentMgr.LaunchSubAgent(ctx, cfg)
+	if err != nil {
+		log.Error("Failed to launch sub-agent: %v", err)
+		return "", fmt.Errorf("failed to launch sub-agent: %w", err)
+	}
+
+	// Build result summary
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Sub-agent completed.\n"))
+	sb.WriteString(result.ResultSummary())
+
+	// Include output file contents if any
+	for _, f := range result.OutputFiles {
+		filePath := filepath.Join(workspacePath, "output", f)
+		data, readErr := os.ReadFile(filePath)
+		if readErr != nil {
+			sb.WriteString(fmt.Sprintf("\n  ⚠️ Cannot read output file %s: %v\n", f, readErr))
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("\n📄 Output file: %s\n", f))
+		sb.WriteString(string(data))
+		if !strings.HasSuffix(string(data), "\n") {
+			sb.WriteString("\n")
+		}
+	}
+
+	log.Info("Sub-agent completed: duration=%s, exitCode=%d", result.Duration, result.ExitCode)
+	return sb.String(), nil
 }
 
 // Reset clears the conversation history but keeps the system prompt.
