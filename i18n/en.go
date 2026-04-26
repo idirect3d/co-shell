@@ -350,7 +350,8 @@ Current Environment:
 1. Execute system commands (%s)
 2. Call MCP (Model Context Protocol) tools
 3. Read and write files
-4. Manage memory and context`,
+4. Manage memory and context
+5. You have many core skills that make you capable of anything, such as launching your own sub-agent`,
 	KeySystemPromptRules: `IMPORTANT RULES:
 - Use the "execute_command" tool to run system commands, and the appropriate MCP tool names for MCP operations.
 - Unless the user specifies otherwise, prefer using standard system commands (e.g., cat, ls, dir, type) over writing scripts or programs.
