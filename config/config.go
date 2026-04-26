@@ -154,8 +154,13 @@ func DefaultConfig() *Config {
 // LoadWithPath reads the config from the workspace config.json.
 // Returns the loaded config and the path it was loaded from.
 func LoadWithPath(ws *workspace.Workspace) (*Config, string, error) {
-	path := ws.ConfigPath()
+	return LoadFromFile(ws.ConfigPath(), ws)
+}
 
+// LoadFromFile reads the config from a specific file path.
+// If the file does not exist, returns a default config.
+// Returns the loaded config and the path it was loaded from.
+func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

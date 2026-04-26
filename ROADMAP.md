@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 81
+> **BUILD**: 82
 
 
 
@@ -86,6 +86,7 @@
 - [x] FEATURE-73 Agent 系统提示词多语言支持：核心提示词（buildSystemPromptWithMode）根据当前 i18n 语言设置自动切换中文/英文版本，确保 LLM 使用用户语言进行交互 [BUILD-80]
 - [x] FEATURE-74 新增创建sub-agent方法，当前co-shell可以通过"co-shell -w sub-agents/1 指令"的方式，启动一个预先准备好workspace的新进程作为当前co-shell的影分身（sub-agent）。这个准备一般是用户准备，当然，co-shell也可以帮用户准备。当前co-shell应该创建一个线程来监视sub-agent进程的执行情况，母子agent在同一个终端上共享标准输入、输出流，执行完毕后负责收集sub-agent的工作成果反馈，并向用户汇报。[BUILD-81]
 - [ ] FEATURE-75 新增定时执行任务方法，co-shell可调用定时器方法，定时启动一个sub-agent，该方法接收一个定时表达式（类似于crontab表达式）和一个指令，到时后启动一个sub-agent，把定时方法中的指令传给sub-agent，指令中应该告诉这个sub-agent，他是被定时启动的。
+- [x] ENHANCEMENT-76 新增 -c/--config 命令行参数，允许用户单独指定配置文件路径，优先级高于 {workspace}/config.json；新增 config.LoadFromFile() 方法支持从任意路径加载配置 [BUILD-82]
 
 ### 技术债务
 

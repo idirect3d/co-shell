@@ -51,6 +51,7 @@ const version = "0.1.0"
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
 	workspacePath string
+	configPath    string
 	model         string
 	endpoint      string
 	apiKey        string
@@ -68,6 +69,8 @@ func parseFlags() cliFlags {
 	// Define flags
 	flag.StringVar(&f.workspacePath, "workspace", "", "指定工作区路径（默认：当前目录）")
 	flag.StringVar(&f.workspacePath, "w", "", "指定工作区路径（简写）")
+	flag.StringVar(&f.configPath, "config", "", "指定配置文件路径（默认：{workspace}/config.json）")
+	flag.StringVar(&f.configPath, "c", "", "指定配置文件路径（简写）")
 	flag.StringVar(&f.model, "model", "", "临时指定模型名称（覆盖配置文件）")
 	flag.StringVar(&f.model, "m", "", "临时指定模型名称（简写）")
 	flag.StringVar(&f.endpoint, "endpoint", "", "临时指定 API 端点（覆盖配置文件）")
@@ -177,8 +180,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load configuration from workspace config.json
-	cfg, configPath, err := config.LoadWithPath(ws)
+	// Load configuration with priority:
+	// 1. -c/--config <path> (highest priority)
+	// 2. {workspace}/config.json (default)
+	var cfg *config.Config
+	var configPath string
+	if flags.configPath != "" {
+		cfg, configPath, err = config.LoadFromFile(flags.configPath, ws)
+	} else {
+		cfg, configPath, err = config.LoadWithPath(ws)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot load config: %v\n", err)
 		cfg = config.DefaultConfig()
