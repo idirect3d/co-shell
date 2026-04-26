@@ -128,8 +128,13 @@ func (m *Manager) LaunchSubAgent(ctx context.Context, cfg SubAgentConfig) (*SubA
 	// Prepare command
 	cmd := exec.CommandContext(ctx, execPath, args...)
 
-	// Set environment: mark as sub-agent
-	cmd.Env = append(os.Environ(), "CO_SHELL_SUB_AGENT=true")
+	// Set environment: mark as sub-agent and pass config path
+	env := os.Environ()
+	env = append(env, "CO_SHELL_SUB_AGENT=true")
+	if configPath := os.Getenv("CO_SHELL_CONFIG_PATH"); configPath != "" {
+		env = append(env, "CO_SHELL_CONFIG_PATH="+configPath)
+	}
+	cmd.Env = env
 
 	// Share stdin/stdout/stderr with parent
 	cmd.Stdin = os.Stdin

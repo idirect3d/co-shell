@@ -182,11 +182,14 @@ func main() {
 
 	// Load configuration with priority:
 	// 1. -c/--config <path> (highest priority)
-	// 2. {workspace}/config.json (default)
+	// 2. CO_SHELL_CONFIG_PATH environment variable (inherited from parent agent)
+	// 3. {workspace}/config.json (default)
 	var cfg *config.Config
 	var configPath string
 	if flags.configPath != "" {
 		cfg, configPath, err = config.LoadFromFile(flags.configPath, ws)
+	} else if envConfigPath := os.Getenv("CO_SHELL_CONFIG_PATH"); envConfigPath != "" {
+		cfg, configPath, err = config.LoadFromFile(envConfigPath, ws)
 	} else {
 		cfg, configPath, err = config.LoadWithPath(ws)
 	}
@@ -196,6 +199,8 @@ func main() {
 	}
 	if configPath != "" {
 		log.Info("Config loaded from: %s", configPath)
+		// Set environment variable so sub-agent processes inherit the config path
+		os.Setenv("CO_SHELL_CONFIG_PATH", configPath)
 	}
 
 	// Apply CLI overrides
