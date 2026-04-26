@@ -16,6 +16,7 @@ Thumbs.db
 config.json
 
 # Private Notes
+notes/
 NOTE.md
 
 # Logs
@@ -28,6 +29,7 @@ work/tmp/
 work/log/
 work/db/
 work/output/
+work/sub-agents/
 
 # Change notes (auto-generated)
 change/

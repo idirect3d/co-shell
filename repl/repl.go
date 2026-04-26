@@ -387,6 +387,10 @@ func (r *REPL) handleSystemCommand(command string) {
 func (r *REPL) handleAgentInput(input string) {
 	ctx := context.Background()
 
+	// Print agent name with timestamp before streaming response
+	fmt.Println()
+	fmt.Println(r.agent.Said())
+
 	// Use streaming version
 	_, err := r.agent.RunStream(ctx, input, r.streamCallback)
 	if err != nil {
