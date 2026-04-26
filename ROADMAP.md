@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 88
+> **BUILD**: 89
 
 
 
@@ -106,6 +106,7 @@
 
 - [ ] FEATURE-31 MCP Server 自动重连
 - [x] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）[BUILD-88]
+- [x] FIX-79 修复设置向导中获取到空模型列表时 panic（index out of range）[BUILD-89]
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
 - [ ] FEATURE-36 多会话管理（Tab 切换）
