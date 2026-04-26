@@ -385,6 +385,13 @@ const (
 	// Custom
 	KeyCustom = "custom"
 
+	// System Prompt
+	KeySystemPromptTitle        = "system_prompt_title"
+	KeySystemPromptEnv          = "system_prompt_env"
+	KeySystemPromptCapabilities = "system_prompt_capabilities"
+	KeySystemPromptRules        = "system_prompt_rules"
+	KeySystemPromptResultMode   = "system_prompt_result_mode"
+
 	// Timeout settings
 	KeyConfigToolTimeout   = "config_tool_timeout"
 	KeyConfigCmdTimeout    = "config_cmd_timeout"

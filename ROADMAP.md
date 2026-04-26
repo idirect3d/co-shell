@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 79
+> **BUILD**: 80
 
 
 
@@ -83,7 +83,7 @@
 - [ ] FIX-62 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-43]
 - [ ] FEATURE-71 Agent 内置文件操作工具：read_file（读取文件，支持行号范围）、search_files（正则搜索文件内容）、list_code_definition_names（列出目录中源码定义）、replace_in_file（SEARCH/REPLACE 精确替换）、write_to_file（写入/覆盖文件，自动创建目录）[BUILD-78]
 - [x] ENHANCEMENT-72 Workspace 架构改造：支持 --workspace 命令行参数指定工作区，默认为当前运行目录；workspace 下自动创建 bin/、db/、log/、output/、tmp/ 子目录；配置文件、记忆数据库、日志、工具运行路径均基于 workspace；更新 USAGE.md 文档 [BUILD-79]
-- [ ] FEATURE-73 Agent 系统提示词多语言支持：核心提示词（buildSystemPromptWithMode）根据当前 i18n 语言设置自动切换中文/英文版本，确保 LLM 使用用户语言进行交互 [BUILD-80]
+- [x] FEATURE-73 Agent 系统提示词多语言支持：核心提示词（buildSystemPromptWithMode）根据当前 i18n 语言设置自动切换中文/英文版本，确保 LLM 使用用户语言进行交互 [BUILD-80]
 
 
 ### 技术债务

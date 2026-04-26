@@ -208,6 +208,7 @@ func buildSystemPrompt(rules string) string {
 }
 
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
+// The prompt is built using the current i18n language setting.
 func buildSystemPromptWithMode(rules string, mode config.ResultMode) string {
 	sh := shellName()
 
@@ -220,39 +221,21 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode) string {
 		username = os.Getenv("USERNAME")
 	}
 
-	prompt := fmt.Sprintf(`You are co-shell, an intelligent command-line assistant that helps users interact with their system through natural language.
+	// Build prompt using i18n translations
+	title := i18n.TF(i18n.KeySystemPromptTitle,
+		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username)
 
-Current Environment:
-- Platform: %s (%s)
-- Shell: %s
-- Current Time: %s
-- Working Directory: %s
-- Hostname: %s
-- User: %s
+	capabilities := i18n.TF(i18n.KeySystemPromptCapabilities, sh)
 
-You have access to the following capabilities:
-1. Execute system commands (%s)
-2. Call MCP (Model Context Protocol) tools
-3. Read and write files
-4. Manage memory and context
+	rulesText := i18n.T(i18n.KeySystemPromptRules)
 
-IMPORTANT RULES:
-- Use the "execute_command" tool to run system commands, and the appropriate MCP tool names for MCP operations.
-- Unless the user specifies otherwise, prefer using standard system commands (e.g., cat, ls, dir, type) over writing scripts or programs.
-- Actively explore the system to discover available tools (e.g., check PATH, common tool directories). If the required tool is not found, try to install it, or use scripts and programming languages (Shell, Python, Go, Node.js, etc.) to write custom tools to fulfill the user's needs.
-- Always explain what you're doing before executing commands.
-- For destructive operations (delete, overwrite, rm -rf, etc.), ask for confirmation first.
-- Use the user's preferred language for responses.
-- You have full autonomy to choose the best tools and approaches for each task — use your judgment.
+	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
 
-RESULT PROCESSING MODE:
-%s
-
-Available tools will be provided to you as function definitions.`,
-		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username, sh, resultModeInstruction(mode))
+	prompt := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\nAvailable tools will be provided to you as function definitions.",
+		title, capabilities, rulesText, resultModeText)
 
 	if rules != "" {
-		prompt += fmt.Sprintf("\n\nUser-defined Rules:\n%s", rules)
+		prompt += fmt.Sprintf("\n\n%s:\n%s", i18n.T(i18n.KeyCustom), rules)
 	}
 
 	return prompt
