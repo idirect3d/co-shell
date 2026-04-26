@@ -239,6 +239,10 @@ var zhMessages = map[string]string{
 	KeyCLIHelpEx5:       "  co-shell -k sk-xxxx --log off        临时指定 API Key 并关闭日志",
 	KeyCLIHelpEx6:       "  co-shell --lang en                    以英文界面启动",
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 列出文件  设置最大迭代次数并执行指令",
+	KeyCLIHelpEx8:       "  co-shell -w /path/to/workspace         使用自定义工作区启动",
+
+	// CLI Help - Workspace
+	KeyCLIHelpWorkspace: "  -w, --workspace <path>  工作区路径（默认：当前目录）",
 
 	// Command Confirmation
 	KeyCmdConfirmTitle:       "⚡ 即将执行命令: %s",

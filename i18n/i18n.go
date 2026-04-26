@@ -376,6 +376,12 @@ const (
 	KeyFirstUsage    = "first_usage"
 	KeyListUsage     = "list_usage"
 
+	// CLI Help - Workspace
+	KeyCLIHelpWorkspace = "cli_help_workspace"
+
+	// CLI Help - Example 8
+	KeyCLIHelpEx8 = "cli_help_ex8"
+
 	// Custom
 	KeyCustom = "custom"
 

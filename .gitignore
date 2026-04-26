@@ -16,7 +16,6 @@ Thumbs.db
 config.json
 
 # Private Notes
-ROADMAP.md
 NOTE.md
 
 # Logs
@@ -25,6 +24,10 @@ NOTE.md
 # Temp files
 /tmp/
 *.tmp
+work/tmp/
+work/log/
+work/db/
+work/output/
 
 # Change notes (auto-generated)
 change/

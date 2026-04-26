@@ -1,10 +1,10 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-04-26
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,17 +29,19 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/idirect3d/co-shell/workspace"
 )
 
 // Logger provides file-based logging for co-shell.
-// Logs are written to a file in the current working directory.
+// Logs are written to a file in the workspace log/ directory.
 type Logger struct {
 	mu      sync.Mutex
 	writer  io.WriteCloser
 	enabled bool
+	ws      *workspace.Workspace
 }
 
 var (
@@ -48,12 +50,12 @@ var (
 )
 
 // Init initializes the global logger.
-// The log file is created in the current working directory with the name co-shell-YYYY-MM-DD.log.
+// The log file is created in the workspace log/ directory with the name co-shell-YYYY-MM-DD.log.
 // If enabled is false, no log file is created and all log calls are no-ops.
-func Init(enabled bool) error {
+func Init(enabled bool, ws *workspace.Workspace) error {
 	var err error
 	once.Do(func() {
-		defaultLogger = &Logger{enabled: enabled}
+		defaultLogger = &Logger{enabled: enabled, ws: ws}
 		if enabled {
 			err = defaultLogger.openFile()
 		}
@@ -63,13 +65,12 @@ func Init(enabled bool) error {
 
 // openFile creates or opens the log file for writing.
 func (l *Logger) openFile() error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("cannot get working directory: %w", err)
+	if l.ws == nil {
+		return fmt.Errorf("workspace not initialized")
 	}
 
-	filename := fmt.Sprintf("co-shell-%s.log", time.Now().Format("2006-01-02"))
-	path := filepath.Join(cwd, filename)
+	date := time.Now().Format("2006-01-02")
+	path := l.ws.LogFilePath(date)
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {

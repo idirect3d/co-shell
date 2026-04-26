@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-04-26
 //
 // MIT License
 //
@@ -43,13 +43,14 @@ import (
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/wizard"
+	"github.com/idirect3d/co-shell/workspace"
 )
 
 const version = "0.1.0"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
-	configPath    string
+	workspacePath string
 	model         string
 	endpoint      string
 	apiKey        string
@@ -65,8 +66,8 @@ func parseFlags() cliFlags {
 	var f cliFlags
 
 	// Define flags
-	flag.StringVar(&f.configPath, "config", "", "指定配置文件路径")
-	flag.StringVar(&f.configPath, "c", "", "指定配置文件路径（简写）")
+	flag.StringVar(&f.workspacePath, "workspace", "", "指定工作区路径（默认：当前目录）")
+	flag.StringVar(&f.workspacePath, "w", "", "指定工作区路径（简写）")
 	flag.StringVar(&f.model, "model", "", "临时指定模型名称（覆盖配置文件）")
 	flag.StringVar(&f.model, "m", "", "临时指定模型名称（简写）")
 	flag.StringVar(&f.endpoint, "endpoint", "", "临时指定 API 端点（覆盖配置文件）")
@@ -101,9 +102,11 @@ func parseFlags() cliFlags {
   %s
   %s
   %s
+  %s
 
 %s
 
+  %s
   %s
   %s
   %s
@@ -117,6 +120,7 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpUsageREPL),
 			i18n.T(i18n.KeyCLIHelpUsageCmd),
 			i18n.T(i18n.KeyCLIHelpOptions),
+			i18n.T(i18n.KeyCLIHelpWorkspace),
 			i18n.T(i18n.KeyCLIHelpConfig),
 			i18n.T(i18n.KeyCLIHelpModel),
 			i18n.T(i18n.KeyCLIHelpEndpoint),
@@ -134,6 +138,7 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpEx5),
 			i18n.T(i18n.KeyCLIHelpEx6),
 			i18n.T(i18n.KeyCLIHelpEx7),
+			i18n.T(i18n.KeyCLIHelpEx8),
 		)
 	}
 
@@ -165,11 +170,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Load configuration from multiple locations in priority order:
-	// 1. CLI-specified path (--config / -c)
-	// 2. ./config.json (current directory)
-	// 3. ~/.co-shell/config.json (home directory)
-	cfg, configPath, err := config.LoadWithPath(flags.configPath)
+	// Initialize workspace
+	ws, err := workspace.New(flags.workspacePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: cannot initialize workspace: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Load configuration from workspace config.json
+	cfg, configPath, err := config.LoadWithPath(ws)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot load config: %v\n", err)
 		cfg = config.DefaultConfig()
@@ -199,13 +208,13 @@ func main() {
 		}
 	}
 
-	// Initialize logger
-	if err := log.Init(cfg.LogEnabled); err != nil {
+	// Initialize logger with workspace
+	if err := log.Init(cfg.LogEnabled, ws); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot initialize logger: %v\n", err)
 	}
 	defer log.Close()
 
-	log.Info("co-shell v%s started", version)
+	log.Info("co-shell v%s started (workspace: %s)", version, ws.Root())
 	if flags.model != "" || flags.endpoint != "" || flags.apiKey != "" {
 		log.Info("CLI overrides applied: model=%s endpoint=%s api-key=%s",
 			flags.model, flags.endpoint, maskKey(flags.apiKey))
@@ -213,11 +222,11 @@ func main() {
 
 	// Show disclaimer on first run
 	if !cfg.DisclaimerAccepted {
-		showDisclaimer(cfg)
+		showDisclaimer(cfg, ws)
 	}
 
-	// Initialize persistent store
-	s, err := store.NewStore()
+	// Initialize persistent store with workspace
+	s, err := store.NewStore(ws)
 	if err != nil {
 		log.Error("Cannot initialize store: %v", err)
 		fmt.Fprintf(os.Stderr, "Error: cannot initialize store: %v\n", err)
@@ -321,7 +330,7 @@ func main() {
 // showDisclaimer displays the risk disclaimer and prompts the user to accept.
 // If accepted, it saves the config with DisclaimerAccepted=true.
 // If declined, it exits the program.
-func showDisclaimer(cfg *config.Config) {
+func showDisclaimer(cfg *config.Config, ws *workspace.Workspace) {
 	fmt.Println()
 	fmt.Println(i18n.T(i18n.KeyDisclaimerTitle))
 	fmt.Println()

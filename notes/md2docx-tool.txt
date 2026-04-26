@@ -1,0 +1,6 @@
+TOOL: md2docx - Markdown to Word converter
+PATH: /Users/liangshuang/Documents/Project/co-shell/dist/md2docx.py
+ALIAS: ~/bin/md2docx (in PATH)
+README: dist/MD2DOCX_README.md
+CREATED: 2026-04-26
+QUICK: md2docx input.md -o output.docx [--style modern|classic|minimal]

@@ -7,7 +7,10 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 75
+> **BUILD**: 79
+
+
+
 
 
 
@@ -78,9 +81,14 @@
 - [ ] FEATURE-31 MCP Server 自动重连
 - [ ] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）
 - [ ] FIX-62 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-43]
+- [ ] FEATURE-71 Agent 内置文件操作工具：read_file（读取文件，支持行号范围）、search_files（正则搜索文件内容）、list_code_definition_names（列出目录中源码定义）、replace_in_file（SEARCH/REPLACE 精确替换）、write_to_file（写入/覆盖文件，自动创建目录）[BUILD-78]
+- [x] ENHANCEMENT-72 Workspace 架构改造：支持 --workspace 命令行参数指定工作区，默认为当前运行目录；workspace 下自动创建 bin/、db/、log/、output/、tmp/ 子目录；配置文件、记忆数据库、日志、工具运行路径均基于 workspace；更新 USAGE.md 文档 [BUILD-79]
+
+
 
 
 ### 技术债务
+
 
 - [ ] ENHANCEMENT-32 单元测试覆盖核心逻辑（Agent Loop、命令解析）
 

@@ -237,6 +237,10 @@ var enMessages = map[string]string{
 	KeyCLIHelpEx5:       "  co-shell -k sk-xxxx --log off         Temporarily set API Key and disable logging",
 	KeyCLIHelpEx6:       "  co-shell --lang zh                     Start with Chinese interface",
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 list files  Set max iterations and execute command",
+	KeyCLIHelpEx8:       "  co-shell -w /path/to/workspace          Start with custom workspace",
+
+	// CLI Help - Workspace
+	KeyCLIHelpWorkspace: "  -w, --workspace <path>  Workspace path (default: current directory)",
 
 	// Command Confirmation
 	KeyCmdConfirmTitle:       "⚡ About to execute command: %s",

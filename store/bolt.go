@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-04-26
 //
 // # MIT License
 //
@@ -28,10 +28,9 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/idirect3d/co-shell/workspace"
 	"go.etcd.io/bbolt"
 )
 
@@ -63,19 +62,9 @@ type Store struct {
 	db *bbolt.DB
 }
 
-// NewStore creates or opens the bolt database.
-func NewStore() (*Store, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("cannot find home directory: %w", err)
-	}
-
-	dir := filepath.Join(home, ".co-shell")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("cannot create data directory: %w", err)
-	}
-
-	dbPath := filepath.Join(dir, "co-shell.db")
+// NewStore creates or opens the bolt database in the workspace db/ directory.
+func NewStore(ws *workspace.Workspace) (*Store, error) {
+	dbPath := ws.DBPath()
 	db, err := bbolt.Open(dbPath, 0600, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("cannot open database: %w", err)

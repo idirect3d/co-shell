@@ -548,8 +548,14 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 			line, err := reader.Read()
 			if err != nil {
 				if err == io.EOF {
-					// Send accumulated tool calls before done
+					// Send accumulated tool calls before done.
+					// Filter out any tool calls with empty name or ID to avoid
+					// "missing field 'name'" API errors on subsequent requests.
 					for _, tc := range accumulatedToolCalls {
+						if tc.Name == "" || tc.ID == "" {
+							log.Warn("ChatStream: skipping accumulated tool call with empty name or ID (name=%q, id=%q, args=%q)", tc.Name, tc.ID, tc.Arguments)
+							continue
+						}
 						eventCh <- StreamEvent{
 							Type:     StreamEventToolCall,
 							ToolCall: tc,

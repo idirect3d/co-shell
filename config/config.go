@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-04-26
 //
 // # MIT License
 //
@@ -29,9 +29,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/workspace"
 )
 
 // ResultMode defines how command execution results are presented to the user.
@@ -122,6 +122,8 @@ type Config struct {
 	Rules              []string  `json:"rules"`
 	LogEnabled         bool      `json:"log_enabled"`
 	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
+
+	ws *workspace.Workspace // workspace reference for Save()
 }
 
 // DefaultConfig returns a Config with sensible defaults (DeepSeek, key empty).
@@ -149,82 +151,41 @@ func DefaultConfig() *Config {
 	}
 }
 
-// configPaths returns a list of config file paths to search, in priority order.
-// Priority: 1. CLI-specified path  2. ./config.json  3. ~/.co-shell/config.json
-func configPaths(cliPath string) []string {
-	var paths []string
-
-	// 1. CLI-specified path (highest priority)
-	if cliPath != "" {
-		paths = append(paths, cliPath)
-	}
-
-	// 2. Current directory config.json
-	paths = append(paths, filepath.Join(".", "config.json"))
-
-	// 3. Home directory ~/.co-shell/config.json
-	home, err := os.UserHomeDir()
-	if err == nil {
-		paths = append(paths, filepath.Join(home, ".co-shell", "config.json"))
-	}
-
-	return paths
-}
-
-// defaultConfigPath returns the default config path (~/.co-shell/config.json).
-// This is used for saving config and ensuring the directory exists.
-func defaultConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cannot find home directory: %w", err)
-	}
-	dir := filepath.Join(home, ".co-shell")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("cannot create config directory: %w", err)
-	}
-	return filepath.Join(dir, "config.json"), nil
-}
-
-// Load reads the config from disk, searching multiple locations in priority order.
-// Priority: CLI-specified path > ./config.json > ~/.co-shell/config.json
-// If cliPath is empty, it will be skipped.
+// LoadWithPath reads the config from the workspace config.json.
 // Returns the loaded config and the path it was loaded from.
-func LoadWithPath(cliPath string) (*Config, string, error) {
-	paths := configPaths(cliPath)
+func LoadWithPath(ws *workspace.Workspace) (*Config, string, error) {
+	path := ws.ConfigPath()
 
-	for _, path := range paths {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, "", fmt.Errorf("cannot read config %s: %w", path, err)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg := DefaultConfig()
+			cfg.ws = ws
+			return cfg, "", nil
 		}
-
-		cfg := DefaultConfig()
-		if err := json.Unmarshal(data, cfg); err != nil {
-			return nil, "", fmt.Errorf("cannot parse config %s: %w", path, err)
-		}
-		return cfg, path, nil
+		return nil, "", fmt.Errorf("cannot read config %s: %w", path, err)
 	}
 
-	// No config file found, return defaults
-	return DefaultConfig(), "", nil
+	cfg := DefaultConfig()
+	cfg.ws = ws
+	if err := json.Unmarshal(data, cfg); err != nil {
+		return nil, "", fmt.Errorf("cannot parse config %s: %w", path, err)
+	}
+	return cfg, path, nil
 }
 
 // Load reads the config from disk using default search paths.
-// Equivalent to LoadWithPath("").
+// Deprecated: Use LoadWithPath with a workspace instead.
 func Load() (*Config, error) {
-	cfg, _, err := LoadWithPath("")
-	return cfg, err
+	return DefaultConfig(), nil
 }
 
-// Save writes the config to the default location (~/.co-shell/config.json).
+// Save writes the config to the workspace config.json.
 func (c *Config) Save() error {
-	path, err := defaultConfigPath()
-	if err != nil {
-		return err
+	if c.ws == nil {
+		return fmt.Errorf("workspace not set, cannot save config")
 	}
+	path := c.ws.ConfigPath()
 
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
