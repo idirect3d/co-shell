@@ -187,13 +187,23 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 
 		// Step 2c: Select model from list, use first model as default
 		fmt.Println()
-		defaultModel := models[0]
-		model := selectModel(models, defaultModel)
-		if model == nil {
-			fmt.Println("\n⚠️  已取消设置。")
-			return false
+		if len(models) == 0 {
+			fmt.Println("⚠️  未获取到可用模型，请手动输入模型名称。")
+			model := promptRequiredText("📌 模型名称 (必填)", "")
+			if model == nil {
+				fmt.Println("\n⚠️  已取消设置。")
+				return false
+			}
+			cfg.LLM.Model = *model
+		} else {
+			defaultModel := models[0]
+			model := selectModel(models, defaultModel)
+			if model == nil {
+				fmt.Println("\n⚠️  已取消设置。")
+				return false
+			}
+			cfg.LLM.Model = *model
 		}
-		cfg.LLM.Model = *model
 		break
 	}
 
