@@ -1267,6 +1267,20 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 		timeout = int(t)
 	}
 
+	// If the sub-agent workspace is the same as the parent's workspace,
+	// create a subdirectory under the parent's workspace to avoid conflicts.
+	parentWorkspace, _ := os.Getwd()
+	if parentWorkspace != "" {
+		parentAbs, _ := filepath.Abs(parentWorkspace)
+		subAbs, _ := filepath.Abs(workspacePath)
+		if parentAbs == subAbs {
+			// Create a unique subdirectory: {parent}/sub-agents/{timestamp}/
+			timestamp := time.Now().Format("20060102-150405")
+			workspacePath = filepath.Join(parentAbs, "sub-agents", timestamp)
+			fmt.Printf("\n📂 Sub-agent workspace auto-created: %s\n\n", workspacePath)
+		}
+	}
+
 	cfg := subagent.SubAgentConfig{
 		Workspace:      workspacePath,
 		Instruction:    instruction,
