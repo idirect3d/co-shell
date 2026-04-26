@@ -326,7 +326,12 @@ func main() {
 	defer sch.Stop()
 
 	ag.SetScheduler(sch)
-	ag.SetName(flags.agentName)
+
+	// Apply agent name: CLI flag overrides config
+	if flags.agentName != "" {
+		cfg.LLM.AgentName = flags.agentName
+	}
+	ag.SetName(cfg.LLM.AgentName)
 	ag.SetShowThinking(cfg.LLM.ShowThinking)
 	ag.SetShowCommand(cfg.LLM.ShowCommand)
 	ag.SetShowOutput(cfg.LLM.ShowOutput)

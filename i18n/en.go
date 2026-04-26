@@ -342,6 +342,13 @@ no liability whatsoever.`,
 	KeyCustom: "Custom",
 
 	// System Prompt
+	KeySystemPromptIdentity: `## Your Identity
+
+You are %s, an intelligent command-line assistant that helps users interact with their system through natural language.
+
+%s
+
+%s`,
 	KeySystemPromptTitle: `You are co-shell, an intelligent command-line assistant that helps users interact with their system through natural language.
 
 Current Environment:

@@ -207,6 +207,13 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 		break
 	}
 
+	// Save configuration
+	if err := cfg.Save(); err != nil {
+		fmt.Printf("⚠️  配置保存失败: %v\n", err)
+	} else {
+		fmt.Println("✅ 配置已保存到 ~/.co-shell/config.json")
+	}
+	fmt.Println()
 	return true
 }
 

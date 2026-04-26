@@ -195,9 +195,28 @@ func (a *Agent) SetConfirmCommand(confirm bool) {
 	a.confirmCommand = confirm
 }
 
-// SetConfig sets the configuration for timeout settings.
+// SetConfig sets the configuration for timeout settings and agent identity.
+// It also rebuilds the system prompt with identity information.
 func (a *Agent) SetConfig(cfg *config.Config) {
 	a.cfg = cfg
+	// Rebuild system prompt with identity info from config
+	a.rebuildSystemPrompt()
+}
+
+// rebuildSystemPrompt rebuilds the system prompt with current config identity info.
+func (a *Agent) rebuildSystemPrompt() {
+	agentName := ""
+	agentDesc := ""
+	agentPrinciples := ""
+	if a.cfg != nil {
+		agentName = a.cfg.LLM.AgentName
+		agentDesc = a.cfg.LLM.AgentDescription
+		agentPrinciples = a.cfg.LLM.AgentPrinciples
+	}
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples)
+	a.messages = []llm.Message{
+		{Role: "system", Content: a.systemPrompt},
+	}
 }
 
 // SetImagePaths sets the paths to image files for multimodal input.
@@ -290,7 +309,16 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	defer a.mu.Unlock()
 
 	a.resultMode = mode
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode)
+	// Rebuild system prompt with current identity info from config
+	agentName := ""
+	agentDesc := ""
+	agentPrinciples := ""
+	if a.cfg != nil {
+		agentName = a.cfg.LLM.AgentName
+		agentDesc = a.cfg.LLM.AgentDescription
+		agentPrinciples = a.cfg.LLM.AgentPrinciples
+	}
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples)
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
 	}
@@ -317,12 +345,13 @@ func (a *Agent) getCommandTimeout() time.Duration {
 
 // buildSystemPrompt constructs the system prompt with rules and context.
 func buildSystemPrompt(rules string) string {
-	return buildSystemPromptWithMode(rules, config.ResultModeMinimal)
+	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "")
 }
 
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
 // The prompt is built using the current i18n language setting.
-func buildSystemPromptWithMode(rules string, mode config.ResultMode) string {
+// agentName, agentDescription, agentPrinciples are optional identity fields from config.
+func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples string) string {
 	sh := shellName()
 
 	// Gather environment context
@@ -346,6 +375,12 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode) string {
 
 	prompt := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\nAvailable tools will be provided to you as function definitions.",
 		title, capabilities, rulesText, resultModeText)
+
+	// Add agent identity if configured
+	if agentName != "" || agentDescription != "" || agentPrinciples != "" {
+		identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
+		prompt = fmt.Sprintf("%s\n\n%s", identityText, prompt)
+	}
 
 	if rules != "" {
 		prompt += fmt.Sprintf("\n\n%s:\n%s", i18n.T(i18n.KeyCustom), rules)

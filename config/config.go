@@ -95,6 +95,11 @@ type LLMConfig struct {
 	ConfirmCommand bool    `json:"confirm_command"`
 	ResultMode     int     `json:"result_mode"` // 0=minimal, 1=explain, 2=analyze, 3=free
 
+	// Agent identity
+	AgentName        string `json:"agent_name"`        // Agent name (default: co-shell)
+	AgentDescription string `json:"agent_description"` // Agent expertise description
+	AgentPrinciples  string `json:"agent_principles"`  // Agent core principles
+
 	// Timeout settings (in seconds, 0 means no timeout)
 	ToolTimeout         int `json:"tool_timeout"`          // Tool call timeout (default: 0 = no timeout)
 	CommandTimeout      int `json:"command_timeout"`       // System command execution timeout (default: 0 = no timeout)

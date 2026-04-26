@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 89
+> **BUILD**: 90
 
 
 
@@ -107,6 +107,7 @@
 - [ ] FEATURE-31 MCP Server 自动重连
 - [x] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）[BUILD-88]
 - [x] FIX-79 修复设置向导中获取到空模型列表时 panic（index out of range）[BUILD-89]
+- [x] FEATURE-80 Agent 身份自定义：config 新增 AgentName/AgentDescription/AgentPrinciples 字段，系统提示词中注入身份信息，支持通过 .set name/description/principles 运行时修改 [BUILD-90]
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
 - [ ] FEATURE-36 多会话管理（Tab 切换）

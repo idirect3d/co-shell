@@ -401,6 +401,7 @@ const (
 	KeySystemPromptCapabilities = "system_prompt_capabilities"
 	KeySystemPromptRules        = "system_prompt_rules"
 	KeySystemPromptResultMode   = "system_prompt_result_mode"
+	KeySystemPromptIdentity     = "system_prompt_identity"
 
 	// Timeout settings
 	KeyConfigToolTimeout   = "config_tool_timeout"
