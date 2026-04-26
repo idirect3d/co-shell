@@ -312,6 +312,10 @@ const (
 	KeyHelpRule         = "help_rule"
 	KeyHelpMemory       = "help_memory"
 	KeyHelpContext      = "help_context"
+	KeyHelpList         = "help_list"
+	KeyHelpLast         = "help_last"
+	KeyHelpFirst        = "help_first"
+	KeyHelpWizard       = "help_wizard"
 	KeyHelpHelp         = "help_help"
 	KeyHelpExit         = "help_exit"
 	KeyHelpExampleTitle = "help_example_title"
@@ -409,7 +413,6 @@ const (
 	// Wizard command
 	KeyWizardCmdRunning = "wizard_cmd_running"
 	KeyWizardCmdDone    = "wizard_cmd_done"
-	KeyHelpWizard       = "help_wizard"
 
 	// Settings help table
 	KeySettingsHelpTitle        = "settings_help_title"
