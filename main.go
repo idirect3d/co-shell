@@ -64,6 +64,7 @@ type cliFlags struct {
 	showVersion   bool
 	lang          string
 	agentName     string
+	imagePaths    string // comma-separated image file paths for multimodal input
 }
 
 func parseFlags() cliFlags {
@@ -85,6 +86,8 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.agentName, "name", "", "指定 agent 名称（默认：co-shell，用于标识日志、sub-agent workspace 等）")
 	flag.StringVar(&f.agentName, "n", "", "指定 agent 名称（简写）")
 	flag.StringVar(&f.lang, "lang", "", "设置语言（zh/en，默认自动检测）")
+	flag.StringVar(&f.imagePaths, "image", "", "图片文件路径（多张图片用逗号分隔），用于多模态输入")
+	flag.StringVar(&f.imagePaths, "i", "", "图片文件路径（简写）")
 	flag.BoolVar(&f.showHelp, "help", false, "显示帮助信息")
 	flag.BoolVar(&f.showHelp, "h", false, "显示帮助信息（简写）")
 	flag.BoolVar(&f.showVersion, "version", false, "显示版本信息")
@@ -347,6 +350,17 @@ func main() {
 
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
+
+	// Set image paths for multimodal input if provided
+	if flags.imagePaths != "" {
+		paths := strings.Split(flags.imagePaths, ",")
+		// Trim whitespace from each path
+		for i := range paths {
+			paths[i] = strings.TrimSpace(paths[i])
+		}
+		ag.SetImagePaths(paths)
+		log.Info("Image paths set for multimodal input: %v", paths)
+	}
 
 	log.Info("Agent initialized with %d rules", len(cfg.Rules))
 

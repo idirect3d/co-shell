@@ -29,6 +29,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -120,7 +121,8 @@ type Agent struct {
 	rules          string // user-defined rules for rebuilding system prompt
 	subAgentMgr    *subagent.Manager
 	scheduler      *scheduler.Scheduler
-	name           string // agent name for identification (default: "co-shell")
+	name           string   // agent name for identification (default: "co-shell")
+	imagePaths     []string // paths to image files for multimodal input
 }
 
 // New creates a new Agent instance.
@@ -196,6 +198,79 @@ func (a *Agent) SetConfirmCommand(confirm bool) {
 // SetConfig sets the configuration for timeout settings.
 func (a *Agent) SetConfig(cfg *config.Config) {
 	a.cfg = cfg
+}
+
+// SetImagePaths sets the paths to image files for multimodal input.
+// These images will be included in the next user message.
+func (a *Agent) SetImagePaths(paths []string) {
+	a.imagePaths = paths
+}
+
+// buildMultimodalMessage creates a Message with multimodal content from text and image paths.
+// Images are read from disk and encoded as base64 data URIs.
+func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Message, error) {
+	parts := make([]llm.ContentPart, 0, 1+len(imagePaths))
+
+	// Add text part
+	parts = append(parts, llm.ContentPart{
+		Type: llm.ContentPartText,
+		Text: text,
+	})
+
+	// Add image parts
+	for _, imgPath := range imagePaths {
+		// Resolve relative paths
+		absPath := imgPath
+		if !filepath.IsAbs(imgPath) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return llm.Message{}, fmt.Errorf("cannot get current working directory: %w", err)
+			}
+			absPath = filepath.Join(cwd, imgPath)
+		}
+
+		// Read image file
+		data, err := os.ReadFile(absPath)
+		if err != nil {
+			return llm.Message{}, fmt.Errorf("cannot read image %q: %w", imgPath, err)
+		}
+
+		// Detect MIME type from extension
+		ext := strings.ToLower(filepath.Ext(absPath))
+		mimeType := ""
+		switch ext {
+		case ".png":
+			mimeType = "image/png"
+		case ".jpg", ".jpeg":
+			mimeType = "image/jpeg"
+		case ".gif":
+			mimeType = "image/gif"
+		case ".webp":
+			mimeType = "image/webp"
+		case ".bmp":
+			mimeType = "image/bmp"
+		default:
+			mimeType = "image/png" // default fallback
+		}
+
+		// Encode as base64 data URI
+		base64Data := base64.StdEncoding.EncodeToString(data)
+		dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+
+		parts = append(parts, llm.ContentPart{
+			Type: llm.ContentPartImageURL,
+			ImageURL: &llm.ContentPartImage{
+				URL:    dataURI,
+				Detail: "auto",
+			},
+		})
+	}
+
+	return llm.Message{
+		Role:         "user",
+		Content:      text,
+		ContentParts: parts,
+	}, nil
 }
 
 // SetScheduler sets the scheduler for this agent.
@@ -299,8 +374,19 @@ func resultModeInstruction(mode config.ResultMode) string {
 // Run processes a user input through the agent loop.
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	a.mu.Lock()
-	// Add user message to history
-	a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
+	// If there are image paths, create a multimodal message
+	if len(a.imagePaths) > 0 {
+		multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
+		if err != nil {
+			a.mu.Unlock()
+			return "", fmt.Errorf("cannot build multimodal message: %w", err)
+		}
+		a.messages = append(a.messages, multimodalMsg)
+		a.imagePaths = nil // clear after use
+	} else {
+		// Add user message to history
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
+	}
 	a.mu.Unlock()
 
 	log.Info("Agent.Run: user input: %s", userInput)
@@ -371,8 +457,19 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	a.approveAll = false
 
 	a.mu.Lock()
-	// Add user message to history
-	a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
+	// If there are image paths, create a multimodal message
+	if len(a.imagePaths) > 0 {
+		multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
+		if err != nil {
+			a.mu.Unlock()
+			return "", fmt.Errorf("cannot build multimodal message: %w", err)
+		}
+		a.messages = append(a.messages, multimodalMsg)
+		a.imagePaths = nil // clear after use
+	} else {
+		// Add user message to history
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
+	}
 	a.mu.Unlock()
 
 	log.Info("Agent.RunStream: user input: %s", userInput)

@@ -37,13 +37,40 @@ import (
 	"github.com/idirect3d/co-shell/log"
 )
 
+// ContentPartType indicates the type of a content part in a multimodal message.
+type ContentPartType string
+
+const (
+	ContentPartText     ContentPartType = "text"
+	ContentPartImageURL ContentPartType = "image_url"
+)
+
+// ContentPart represents a single part of a multimodal message content.
+type ContentPart struct {
+	Type     ContentPartType   `json:"type"`
+	Text     string            `json:"text,omitempty"`
+	ImageURL *ContentPartImage `json:"image_url,omitempty"`
+}
+
+// ContentPartImage represents an image URL in a multimodal message.
+type ContentPartImage struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
+}
+
 // Message represents a chat message in the conversation.
 type Message struct {
-	Role             string     `json:"role"`
-	Content          string     `json:"content"`
-	ToolCallID       string     `json:"tool_call_id,omitempty"`
-	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
-	ReasoningContent string     `json:"reasoning_content,omitempty"`
+	Role             string        `json:"role"`
+	Content          string        `json:"content"`
+	ContentParts     []ContentPart `json:"content_parts,omitempty"`
+	ToolCallID       string        `json:"tool_call_id,omitempty"`
+	ToolCalls        []ToolCall    `json:"tool_calls,omitempty"`
+	ReasoningContent string        `json:"reasoning_content,omitempty"`
+}
+
+// HasMultimodalContent returns true if the message contains multimodal content (images).
+func (m *Message) HasMultimodalContent() bool {
+	return len(m.ContentParts) > 0
 }
 
 // ToolCall represents a function call requested by the LLM.
@@ -124,9 +151,10 @@ func (e *OpenAIError) Error() string {
 }
 
 // chatMessageJSON is the JSON structure for a single message in the request.
+// Content can be either a string (text-only) or an array of ContentPart (multimodal).
 type chatMessageJSON struct {
 	Role             string         `json:"role"`
-	Content          string         `json:"content"`
+	Content          interface{}    `json:"content"`
 	ToolCallID       string         `json:"tool_call_id,omitempty"`
 	ToolCalls        []toolCallJSON `json:"tool_calls,omitempty"`
 	ReasoningContent *string        `json:"reasoning_content,omitempty"`
@@ -274,9 +302,19 @@ func buildMessages(messages []Message) []chatMessageJSON {
 		if msg.ReasoningContent != "" || msg.Role == "assistant" {
 			rc = &msg.ReasoningContent
 		}
+
+		// Determine content: if multimodal, use array of ContentPart;
+		// otherwise, use plain string.
+		var content interface{}
+		if msg.HasMultimodalContent() {
+			content = msg.ContentParts
+		} else {
+			content = msg.Content
+		}
+
 		m := chatMessageJSON{
 			Role:             msg.Role,
-			Content:          msg.Content,
+			Content:          content,
 			ToolCallID:       msg.ToolCallID,
 			ReasoningContent: rc,
 		}
