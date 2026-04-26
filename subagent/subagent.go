@@ -42,12 +42,30 @@ import (
 	"time"
 )
 
+// SubAgentInfo holds the metadata for a registered sub-agent.
+type SubAgentInfo struct {
+	// ID is the sequential number (1, 2, 3, ...).
+	ID int `json:"id"`
+
+	// Workspace is the absolute path to the sub-agent's workspace directory.
+	Workspace string `json:"workspace"`
+
+	// Purpose describes what this sub-agent is used for.
+	Purpose string `json:"purpose"`
+
+	// CreatedAt is the timestamp when the sub-agent was created.
+	CreatedAt string `json:"created_at"`
+
+	// LastInstruction is the last instruction given to this sub-agent.
+	LastInstruction string `json:"last_instruction"`
+}
+
 // SubAgentConfig holds the configuration for launching a sub-agent.
 type SubAgentConfig struct {
 	// Workspace is the path to the sub-agent's workspace directory.
 	Workspace string
 
-	// Instruction is the natural language or system command to execute.
+	// Instruction is the natural language instruction or system command to execute.
 	Instruction string
 
 	// TimeoutSeconds is the maximum time to wait for the sub-agent to complete.
@@ -57,6 +75,9 @@ type SubAgentConfig struct {
 	// ExecPath is the path to the co-shell executable.
 	// If empty, it will be determined from os.Executable().
 	ExecPath string
+
+	// Purpose describes what this sub-agent is used for (for memory tracking).
+	Purpose string
 }
 
 // SubAgentResult holds the result of a sub-agent execution.
@@ -115,6 +136,14 @@ func (m *Manager) LaunchSubAgent(ctx context.Context, cfg SubAgentConfig) (*SubA
 		"-w", cfg.Workspace,
 		"-c", cfg.Instruction,
 	}
+
+	// If parent has a config path, pass it via -c/--config
+	if configPath := os.Getenv("CO_SHELL_CONFIG_PATH"); configPath != "" {
+		args = append([]string{"-c", configPath}, args...)
+	}
+
+	// Print the full command for debugging
+	fmt.Printf("\n🔧 Sub-agent command: %s %s\n\n", execPath, strings.Join(args, " "))
 
 	// Create context with timeout if specified
 	var cancel context.CancelFunc

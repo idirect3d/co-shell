@@ -660,24 +660,28 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "launch_sub_agent",
-			Description: "Launch a sub-agent process that runs independently in its own workspace. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to delegate complex or long-running tasks to a separate co-shell instance.",
+			Description: "Launch a sub-agent process that runs independently in its own workspace under the parent's sub-agents/ directory. Each sub-agent gets a sequential ID (1, 2, 3, ...) and its workspace is auto-created at {parent_workspace}/sub-agents/{id}/. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to delegate complex or long-running tasks to a separate co-shell instance. You can reuse an existing sub-agent by specifying its ID to continue working on the same task.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"workspace": map[string]interface{}{
-						"type":        "string",
-						"description": "The absolute path to the sub-agent's workspace directory. The workspace will be created if it doesn't exist.",
+					"sub_agent_id": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional: the ID of an existing sub-agent to reuse. If provided, the sub-agent's existing workspace will be used. If omitted, a new sub-agent with a new ID will be created.",
 					},
 					"instruction": map[string]interface{}{
 						"type":        "string",
 						"description": "The natural language instruction or system command for the sub-agent to execute.",
+					},
+					"purpose": map[string]interface{}{
+						"type":        "string",
+						"description": "A brief description of what this sub-agent is used for. This is stored in memory for future reference. Required when creating a new sub-agent.",
 					},
 					"timeout_seconds": map[string]interface{}{
 						"type":        "number",
 						"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
 					},
 				},
-				"required": []string{"workspace", "instruction"},
+				"required": []string{"instruction"},
 			},
 			Callback: a.launchSubAgentTool,
 		},
@@ -1250,13 +1254,61 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), path), nil
 }
 
-// launchSubAgentTool launches a sub-agent process and returns its results.
-func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	workspacePath, ok := args["workspace"].(string)
-	if !ok {
-		return "", fmt.Errorf("workspace argument is required")
+// subAgentMemoryKey returns the memory key for a sub-agent by ID.
+func subAgentMemoryKey(id int) string {
+	return fmt.Sprintf("sub_agent:%d", id)
+}
+
+// getNextSubAgentID finds the next available sub-agent ID by scanning memory.
+func (a *Agent) getNextSubAgentID() (int, error) {
+	entries, err := a.store.SearchMemory("sub_agent:")
+	if err != nil {
+		return 1, nil // start from 1 if search fails
 	}
 
+	maxID := 0
+	for _, entry := range entries {
+		var info subagent.SubAgentInfo
+		if err := json.Unmarshal([]byte(entry.Value), &info); err != nil {
+			continue
+		}
+		if info.ID > maxID {
+			maxID = info.ID
+		}
+	}
+	return maxID + 1, nil
+}
+
+// getSubAgentInfo retrieves sub-agent info from memory by ID.
+func (a *Agent) getSubAgentInfo(id int) (*subagent.SubAgentInfo, error) {
+	val, found, err := a.store.GetMemory(subAgentMemoryKey(id))
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("sub-agent #%d not found in memory", id)
+	}
+
+	var info subagent.SubAgentInfo
+	if err := json.Unmarshal([]byte(val), &info); err != nil {
+		return nil, fmt.Errorf("cannot parse sub-agent info: %w", err)
+	}
+	return &info, nil
+}
+
+// saveSubAgentInfo saves sub-agent info to memory.
+func (a *Agent) saveSubAgentInfo(info *subagent.SubAgentInfo) error {
+	data, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("cannot marshal sub-agent info: %w", err)
+	}
+	return a.store.SaveMemory(subAgentMemoryKey(info.ID), string(data))
+}
+
+// launchSubAgentTool launches a sub-agent process and returns its results.
+// Sub-agent workspaces are auto-created under {parent_workspace}/sub-agents/{id}/.
+// Each sub-agent is tracked in memory with its ID, workspace path, and purpose.
+func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	instruction, ok := args["instruction"].(string)
 	if !ok {
 		return "", fmt.Errorf("instruction argument is required")
@@ -1267,37 +1319,81 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 		timeout = int(t)
 	}
 
-	// If the sub-agent workspace is the same as the parent's workspace,
-	// create a subdirectory under the parent's workspace to avoid conflicts.
-	parentWorkspace, _ := os.Getwd()
-	if parentWorkspace != "" {
-		parentAbs, _ := filepath.Abs(parentWorkspace)
-		subAbs, _ := filepath.Abs(workspacePath)
-		if parentAbs == subAbs {
-			// Create a unique subdirectory: {parent}/sub-agents/{timestamp}/
-			timestamp := time.Now().Format("20060102-150405")
-			workspacePath = filepath.Join(parentAbs, "sub-agents", timestamp)
-			fmt.Printf("\n📂 Sub-agent workspace auto-created: %s\n\n", workspacePath)
+	purpose, _ := args["purpose"].(string)
+
+	// Determine parent workspace
+	parentWorkspace, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("cannot get parent workspace: %w", err)
+	}
+
+	// Check if reusing an existing sub-agent
+	var subID int
+	var workspacePath string
+	var isNew bool
+
+	if idVal, ok := args["sub_agent_id"].(float64); ok {
+		// Reuse existing sub-agent
+		subID = int(idVal)
+		info, err := a.getSubAgentInfo(subID)
+		if err != nil {
+			return "", fmt.Errorf("cannot reuse sub-agent #%d: %v", subID, err)
 		}
+		workspacePath = info.Workspace
+		// Update last instruction
+		info.LastInstruction = instruction
+		if purpose != "" {
+			info.Purpose = purpose
+		}
+		if err := a.saveSubAgentInfo(info); err != nil {
+			log.Warn("Cannot update sub-agent #%d memory: %v", subID, err)
+		}
+		fmt.Printf("\n🔄 Reusing sub-agent #%d (workspace: %s)\n\n", subID, workspacePath)
+	} else {
+		// Create new sub-agent
+		subID, err = a.getNextSubAgentID()
+		if err != nil {
+			return "", fmt.Errorf("cannot allocate sub-agent ID: %w", err)
+		}
+		workspacePath = filepath.Join(parentWorkspace, "sub-agents", fmt.Sprintf("%d", subID))
+
+		// Save to memory
+		info := &subagent.SubAgentInfo{
+			ID:              subID,
+			Workspace:       workspacePath,
+			Purpose:         purpose,
+			CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+			LastInstruction: instruction,
+		}
+		if err := a.saveSubAgentInfo(info); err != nil {
+			log.Warn("Cannot save sub-agent #%d memory: %v", subID, err)
+		}
+		isNew = true
+		fmt.Printf("\n📂 Creating sub-agent #%d (workspace: %s)\n\n", subID, workspacePath)
 	}
 
 	cfg := subagent.SubAgentConfig{
 		Workspace:      workspacePath,
 		Instruction:    instruction,
 		TimeoutSeconds: timeout,
+		Purpose:        purpose,
 	}
 
-	log.Info("Launching sub-agent: workspace=%s, instruction=%s, timeout=%ds", workspacePath, instruction, timeout)
+	log.Info("Launching sub-agent #%d: workspace=%s, instruction=%s, timeout=%ds", subID, workspacePath, instruction, timeout)
 
 	result, err := a.subAgentMgr.LaunchSubAgent(ctx, cfg)
 	if err != nil {
-		log.Error("Failed to launch sub-agent: %v", err)
-		return "", fmt.Errorf("failed to launch sub-agent: %w", err)
+		log.Error("Failed to launch sub-agent #%d: %v", subID, err)
+		return "", fmt.Errorf("failed to launch sub-agent #%d: %w", subID, err)
 	}
 
 	// Build result summary
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Sub-agent completed.\n"))
+	if isNew {
+		sb.WriteString(fmt.Sprintf("Sub-agent #%d completed.\n", subID))
+	} else {
+		sb.WriteString(fmt.Sprintf("Sub-agent #%d (reused) completed.\n", subID))
+	}
 	sb.WriteString(result.ResultSummary())
 
 	// Include output file contents if any
@@ -1315,7 +1411,7 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 		}
 	}
 
-	log.Info("Sub-agent completed: duration=%s, exitCode=%d", result.Duration, result.ExitCode)
+	log.Info("Sub-agent #%d completed: duration=%s, exitCode=%d", subID, result.Duration, result.ExitCode)
 	return sb.String(), nil
 }
 
