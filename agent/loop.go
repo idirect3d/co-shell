@@ -1533,6 +1533,7 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 		Instruction:    instruction,
 		TimeoutSeconds: timeout,
 		Purpose:        purpose,
+		ImagePaths:     a.imagePaths,
 	}
 
 	log.Info("Launching sub-agent #%d: workspace=%s, instruction=%s, timeout=%ds", subID, workspacePath, instruction, timeout)
