@@ -30,6 +30,7 @@ work/log/
 work/db/
 work/output/
 work/sub-agents/
+dist/
 
 # Change notes (auto-generated)
 change/
