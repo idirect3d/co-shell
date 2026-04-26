@@ -118,6 +118,7 @@ type Agent struct {
 	resultMode     config.ResultMode
 	rules          string // user-defined rules for rebuilding system prompt
 	subAgentMgr    *subagent.Manager
+	name           string // agent name for identification (default: "co-shell")
 }
 
 // New creates a new Agent instance.
@@ -132,10 +133,32 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		maxIterations: defaultMaxIterations,
 		rules:         rules,
 		subAgentMgr:   subagent.NewManager(),
+		name:          "co-shell",
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
 	}
+}
+
+// SetName sets the agent name for identification.
+// The name is used in log messages, sub-agent workspace naming, and output.
+func (a *Agent) SetName(name string) {
+	if name == "" {
+		name = "co-shell"
+	}
+	a.name = name
+}
+
+// Name returns the agent name.
+func (a *Agent) Name() string {
+	return a.name
+}
+
+// Said returns a formatted string with timestamp and agent name.
+// Format: "2026-12-31 15:30:10 co-shell said:"
+func (a *Agent) Said() string {
+	now := time.Now().Format("2006-01-02 15:04:05")
+	return i18n.TF(i18n.KeyAgentSaid, now, a.name)
 }
 
 // SetShowThinking sets whether to display thinking process.
@@ -1355,7 +1378,8 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 		if err != nil {
 			return "", fmt.Errorf("cannot allocate sub-agent ID: %w", err)
 		}
-		workspacePath = filepath.Join(parentWorkspace, "sub-agents", fmt.Sprintf("%d", subID))
+		// Use agent name in workspace folder: {name}-{id}
+		workspacePath = filepath.Join(parentWorkspace, "sub-agents", fmt.Sprintf("%s-%d", a.name, subID))
 
 		// Save to memory
 		info := &subagent.SubAgentInfo{
@@ -1369,7 +1393,7 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 			log.Warn("Cannot save sub-agent #%d memory: %v", subID, err)
 		}
 		isNew = true
-		fmt.Printf("\n📂 Creating sub-agent #%d (workspace: %s)\n\n", subID, workspacePath)
+		fmt.Printf("\n📂 [%s] Creating sub-agent #%d (workspace: %s)\n\n", a.name, subID, workspacePath)
 	}
 
 	cfg := subagent.SubAgentConfig{

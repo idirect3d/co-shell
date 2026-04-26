@@ -239,6 +239,8 @@ var zhMessages = map[string]string{
 	KeyCLIHelpEx5:       "  co-shell -k sk-xxxx --log off        临时指定 API Key 并关闭日志",
 	KeyCLIHelpEx6:       "  co-shell --lang en                    以英文界面启动",
 	KeyCLIHelpEx7:       "  co-shell --max-iterations 20 列出文件  设置最大迭代次数并执行指令",
+	KeyCLIHelpName:      "  --name, -n <名称>                    指定 agent 名称（默认：co-shell）",
+	KeyAgentSaid:        "%s %s 说：",
 	KeyCLIHelpEx8:       "  co-shell -w /path/to/workspace         使用自定义工作区启动",
 
 	// CLI Help - Workspace
@@ -351,7 +353,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 1. 执行系统命令 (%s)
 2. 调用 MCP（Model Context Protocol）工具
 3. 读写文件
-4. 管理记忆和上下文`,
+4. 管理记忆和上下文
+5. 你还有很多核心技能让你无所不能，比如启动一给你的分身sub-agent`,
 	KeySystemPromptRules: `重要规则:
 - 使用 "execute_command" 工具运行系统命令，使用对应的 MCP 工具名称进行 MCP 操作。
 - 除非用户特别指定，否则优先使用标准系统命令（如 cat、ls、dir、type），而不是编写脚本或程序。

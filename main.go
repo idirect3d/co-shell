@@ -61,6 +61,7 @@ type cliFlags struct {
 	showHelp      bool
 	showVersion   bool
 	lang          string
+	agentName     string
 }
 
 func parseFlags() cliFlags {
@@ -79,6 +80,8 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.apiKey, "k", "", "临时指定 API Key（简写）")
 	flag.StringVar(&f.log, "log", "", "临时指定日志开关（on/off，覆盖配置文件）")
 	flag.IntVar(&f.maxIterations, "max-iterations", -1, "最大迭代次数（-1 为不限制，默认 10）")
+	flag.StringVar(&f.agentName, "name", "", "指定 agent 名称（默认：co-shell，用于标识日志、sub-agent workspace 等）")
+	flag.StringVar(&f.agentName, "n", "", "指定 agent 名称（简写）")
 	flag.StringVar(&f.lang, "lang", "", "设置语言（zh/en，默认自动检测）")
 	flag.BoolVar(&f.showHelp, "help", false, "显示帮助信息")
 	flag.BoolVar(&f.showHelp, "h", false, "显示帮助信息（简写）")
@@ -106,6 +109,7 @@ func parseFlags() cliFlags {
   %s
   %s
   %s
+  %s
 
 %s
 
@@ -123,6 +127,7 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpUsageREPL),
 			i18n.T(i18n.KeyCLIHelpUsageCmd),
 			i18n.T(i18n.KeyCLIHelpOptions),
+			i18n.T(i18n.KeyCLIHelpName),
 			i18n.T(i18n.KeyCLIHelpWorkspace),
 			i18n.T(i18n.KeyCLIHelpConfig),
 			i18n.T(i18n.KeyCLIHelpModel),
@@ -301,6 +306,7 @@ func main() {
 
 	// Initialize agent
 	ag := agent.New(llmClient, mcpMgr, s, rules)
+	ag.SetName(flags.agentName)
 	ag.SetShowThinking(cfg.LLM.ShowThinking)
 	ag.SetShowCommand(cfg.LLM.ShowCommand)
 	ag.SetShowOutput(cfg.LLM.ShowOutput)

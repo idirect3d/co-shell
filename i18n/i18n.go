@@ -376,6 +376,12 @@ const (
 	KeyFirstUsage    = "first_usage"
 	KeyListUsage     = "list_usage"
 
+	// Agent output
+	KeyAgentSaid = "agent_said"
+
+	// CLI Help - Name
+	KeyCLIHelpName = "cli_help_name"
+
 	// CLI Help - Workspace
 	KeyCLIHelpWorkspace = "cli_help_workspace"
 

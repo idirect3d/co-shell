@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 83
+> **BUILD**: 84
 
 
 
@@ -88,6 +88,8 @@
 - [ ] FEATURE-75 新增定时执行任务方法，co-shell可调用定时器方法，定时启动一个sub-agent，该方法接收一个定时表达式（类似于crontab表达式）和一个指令，到时后启动一个sub-agent，把定时方法中的指令传给sub-agent，指令中应该告诉这个sub-agent，他是被定时启动的。
 - [x] ENHANCEMENT-76 新增 -c/--config 命令行参数，允许用户单独指定配置文件路径，优先级高于 {workspace}/config.json；新增 config.LoadFromFile() 方法支持从任意路径加载配置；Save() 保存到实际加载的路径；sub-agent 通过 CO_SHELL_CONFIG_PATH 环境变量继承父进程配置文件路径；sub-agent 固定 workspace 到 sub-agents/{id}/，母 agent 在 memory 中维护清单 [BUILD-83]
 - [x] FIX-77 sub-agent 指令改为非 flag 参数传递，避免 -c 参数冲突导致配置文件路径丢失 [BUILD-83]
+- [x] FEATURE-78 新增 --name/-n 命令行参数，支持自定义 agent 名称，用于标识日志、sub-agent workspace 命名等；Agent 新增 SetName/Name/Said 方法，Said() 输出带时间戳和 agent 名称的多语言消息 [BUILD-84]
+- [x] ENHANCEMENT-79 帮助信息中新增 --name/-n 选项说明；i18n 新增 KeyAgentSaid 和 KeyCLIHelpName 翻译键 [BUILD-84]
 
 ### 技术债务
 
