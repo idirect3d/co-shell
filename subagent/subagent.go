@@ -131,16 +131,19 @@ func (m *Manager) LaunchSubAgent(ctx context.Context, cfg SubAgentConfig) (*SubA
 		return nil, fmt.Errorf("cannot create sub-agent workspace %q: %w", cfg.Workspace, err)
 	}
 
-	// Build command: co-shell -w <workspace> -c <instruction>
+	// Build command: co-shell -w <workspace> -c <config_path> -- <instruction>
+	// Instruction is passed as a non-flag argument (after --) to avoid conflict with -c flag.
 	args := []string{
 		"-w", cfg.Workspace,
-		"-c", cfg.Instruction,
 	}
 
 	// If parent has a config path, pass it via -c/--config
 	if configPath := os.Getenv("CO_SHELL_CONFIG_PATH"); configPath != "" {
-		args = append([]string{"-c", configPath}, args...)
+		args = append(args, "-c", configPath)
 	}
+
+	// Instruction as non-flag argument (after --)
+	args = append(args, "--", cfg.Instruction)
 
 	// Print the full command for debugging
 	fmt.Printf("\n🔧 Sub-agent command: %s %s\n\n", execPath, strings.Join(args, " "))
