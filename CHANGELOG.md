@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2026-04-27
+
+### Added
+- Agent built-in file operation tools: `read_file`, `search_files`, `list_code_definition_names`, `replace_in_file`, `write_to_file`
+- Workspace architecture: `--workspace` flag, auto-created `bin/`, `db/`, `log/`, `output/`, `tmp/` subdirectories
+- Agent system prompt multi-language support (auto-switch Chinese/English based on i18n)
+- Sub-agent support: launch child co-shell processes as sub-agents, shared I/O, result collection
+- Scheduled task execution: crontab-like scheduling for sub-agents
+- `-c`/`--config` flag for custom config file path, `config.LoadFromFile()` method
+- `--name`/`-n` flag for custom agent name, `Said()` method with timestamp and name
+- `.list`/`.last`/`.first` help documentation in `.help` command
+
+### Fixed
+- Sub-agent command argument conflict with `-c` flag causing config path loss
+
 ## [0.1.0] - 2026-04-26
 
 ### Added

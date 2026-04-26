@@ -67,19 +67,17 @@
 
 ## v0.2.0 — Beta
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成
 > **目标日期**: 2026-04-27
 > **里程碑**: 功能完善，可日常使用
 
 ### 功能清单
 
-- [ ] FEATURE-26 多轮对话上下文管理
-- [ ] FEATURE-27 系统命令执行安全沙箱
-- [ ] FEATURE-28 命令执行确认机制（危险操作）
-- [ ] ENHANCEMENT-29 更好的错误处理和用户提示
-- [ ] FEATURE-30 配置文件热重载
-- [ ] FEATURE-31 MCP Server 自动重连
-- [ ] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）
+- [x] FEATURE-26 多轮对话上下文管理 [BUILD-87]
+- [x] FEATURE-27 系统命令执行安全沙箱 [BUILD-87]
+- [x] FEATURE-28 命令执行确认机制（危险操作）[BUILD-87]
+- [x] ENHANCEMENT-29 更好的错误处理和用户提示 [BUILD-87]
+- [x] FEATURE-30 配置文件热重载 [BUILD-87]
 - [x] FIX-62 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-43]
 - [x] FEATURE-71 Agent 内置文件操作工具：read_file（读取文件，支持行号范围）、search_files（正则搜索文件内容）、list_code_definition_names（列出目录中源码定义）、replace_in_file（SEARCH/REPLACE 精确替换）、write_to_file（写入/覆盖文件，自动创建目录）[BUILD-78]
 - [x] ENHANCEMENT-72 Workspace 架构改造：支持 --workspace 命令行参数指定工作区，默认为当前运行目录；workspace 下自动创建 bin/、db/、log/、output/、tmp/ 子目录；配置文件、记忆数据库、日志、工具运行路径均基于 workspace；更新 USAGE.md 文档 [BUILD-79]
@@ -106,6 +104,8 @@
 
 ### 功能清单
 
+- [ ] FEATURE-31 MCP Server 自动重连
+- [ ] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
 - [ ] FEATURE-36 多会话管理（Tab 切换）
@@ -157,7 +157,7 @@
 | 版本 | 日期 | 状态 | 说明 |
 |---|---|---|---|
 | v0.1.0 | 2026-04-25 | ✅ 已完成 | Alpha 预览版 |
-| v0.2.0 | 2026-04-27 | 🚧 开发中 | Beta 测试版 |
+| v0.2.0 | 2026-04-27 | ✅ 已完成 | Beta 测试版 |
 | v0.3.0 | 2026-04-29 | 🚧 开发中 | 发布候选版 |
 | v1.0.0 | 2026-05-02 | 🚧 开发中 | 正式版 |
 

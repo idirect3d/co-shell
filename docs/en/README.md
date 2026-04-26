@@ -158,10 +158,30 @@ All built-in commands start with `.` and support Tab completion.
 
 ## Version History
 
-### v0.1.0 — Alpha (Current)
+### v0.2.0 — Beta (Current)
+
+> **BUILD**: 00087 | **Release Date**: 2026-04-27
+
+Beta release with enhanced capabilities for daily use.
+
+**Implemented Features:**
+
+- Agent built-in file operation tools (read_file, search_files, list_code_definition_names, replace_in_file, write_to_file)
+- Workspace architecture with --workspace flag and auto-created subdirectories
+- Agent system prompt multi-language support (auto-switch Chinese/English)
+- Sub-agent support: launch child co-shell processes, shared I/O, result collection
+- Scheduled task execution with crontab-like scheduling
+- Custom config file path via -c/--config flag
+- Custom agent name via --name/-n flag
+- Multi-turn conversation context management
+- System command execution sandbox
+- Command confirmation for dangerous operations
+- Config file hot-reload
+- Enhanced error handling and user prompts
+
+### v0.1.0 — Alpha
 
 > **BUILD**: 00075 | **Release Date**: 2026-04-26
-
 
 First Alpha preview with core functionality.
 

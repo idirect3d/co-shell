@@ -162,7 +162,28 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ## 版本历史
 
-### v0.1.0 — Alpha（当前版本）
+### v0.2.0 — Beta（当前版本）
+
+> **BUILD**: 00087 | **发布日期**: 2026-04-27
+
+Beta 测试版，功能完善，可日常使用。
+
+**已实现功能：**
+
+- Agent 内置文件操作工具（read_file、search_files、list_code_definition_names、replace_in_file、write_to_file）
+- Workspace 架构（--workspace 参数，自动创建子目录）
+- Agent 系统提示词多语言支持（根据 i18n 自动切换中英文）
+- Sub-agent 支持（启动子进程作为影分身，共享 I/O，收集成果）
+- 定时任务执行（类 crontab 表达式调度 sub-agent）
+- 自定义配置文件路径（-c/--config 参数）
+- 自定义 Agent 名称（--name/-n 参数）
+- 多轮对话上下文管理
+- 系统命令执行安全沙箱
+- 危险操作命令确认机制
+- 配置文件热重载
+- 增强的错误处理和用户提示
+
+### v0.1.0 — Alpha
 
 > **BUILD**: 00074 | **发布日期**: 2026-04-26
 
