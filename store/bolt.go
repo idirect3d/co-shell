@@ -72,7 +72,7 @@ func NewStore(ws *workspace.Workspace) (*Store, error) {
 
 	// Create buckets
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, bucket := range []string{"memory", "sessions", "context", "history"} {
+		for _, bucket := range []string{"memory", "sessions", "context", "history", "schedules"} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(bucket)); err != nil {
 				return fmt.Errorf("cannot create bucket %s: %w", bucket, err)
 			}
@@ -297,5 +297,47 @@ func (s *Store) ClearContext() error {
 		return bucket.ForEach(func(k, _ []byte) error {
 			return bucket.Delete(k)
 		})
+	})
+}
+
+// --- Schedule Operations ---
+
+// ScheduleEntry represents a persisted scheduled task entry.
+type ScheduleEntry struct {
+	Data []byte `json:"data"`
+}
+
+// SaveSchedule stores a scheduled task entry.
+func (s *Store) SaveSchedule(id int, data []byte) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("schedules"))
+		key := fmt.Sprintf("%010d", id)
+		return bucket.Put([]byte(key), data)
+	})
+}
+
+// LoadSchedules loads all scheduled task entries.
+func (s *Store) LoadSchedules() (map[int][]byte, error) {
+	result := make(map[int][]byte)
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("schedules"))
+		return bucket.ForEach(func(k, v []byte) error {
+			var id int
+			if _, err := fmt.Sscanf(string(k), "%010d", &id); err != nil {
+				return nil // skip corrupted keys
+			}
+			result[id] = v
+			return nil
+		})
+	})
+	return result, err
+}
+
+// DeleteSchedule removes a scheduled task entry.
+func (s *Store) DeleteSchedule(id int) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("schedules"))
+		key := fmt.Sprintf("%010d", id)
+		return bucket.Delete([]byte(key))
 	})
 }

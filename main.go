@@ -29,6 +29,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -41,6 +42,7 @@ import (
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/repl"
+	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/wizard"
 	"github.com/idirect3d/co-shell/workspace"
@@ -306,6 +308,21 @@ func main() {
 
 	// Initialize agent
 	ag := agent.New(llmClient, mcpMgr, s, rules)
+
+	// Initialize scheduler
+	sch := scheduler.New(func(entry *scheduler.CronEntry) {
+		ag.OnScheduledTaskTriggered(entry)
+	})
+	// Load persisted scheduler entries from store
+	if entries, err := loadSchedulerEntries(s); err != nil {
+		log.Warn("Cannot load scheduler entries: %v", err)
+	} else {
+		sch.LoadEntries(entries)
+	}
+	sch.Start()
+	defer sch.Stop()
+
+	ag.SetScheduler(sch)
 	ag.SetName(flags.agentName)
 	ag.SetShowThinking(cfg.LLM.ShowThinking)
 	ag.SetShowCommand(cfg.LLM.ShowCommand)
@@ -467,6 +484,25 @@ func (c *noopClient) ListModels(ctx context.Context) ([]string, error) {
 
 func (c *noopClient) Close() error {
 	return nil
+}
+
+// loadSchedulerEntries loads persisted scheduler entries from the store.
+func loadSchedulerEntries(s *store.Store) ([]*scheduler.CronEntry, error) {
+	entries, err := s.LoadSchedules()
+	if err != nil {
+		return nil, fmt.Errorf("cannot load schedules: %w", err)
+	}
+
+	var result []*scheduler.CronEntry
+	for _, data := range entries {
+		var entry scheduler.CronEntry
+		if err := json.Unmarshal(data, &entry); err != nil {
+			log.Warn("Cannot unmarshal scheduler entry: %v", err)
+			continue
+		}
+		result = append(result, &entry)
+	}
+	return result, nil
 }
 
 // maskKey masks the API key for display.

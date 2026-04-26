@@ -46,6 +46,7 @@ import (
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
+	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/subagent"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -118,6 +119,7 @@ type Agent struct {
 	resultMode     config.ResultMode
 	rules          string // user-defined rules for rebuilding system prompt
 	subAgentMgr    *subagent.Manager
+	scheduler      *scheduler.Scheduler
 	name           string // agent name for identification (default: "co-shell")
 }
 
@@ -194,6 +196,16 @@ func (a *Agent) SetConfirmCommand(confirm bool) {
 // SetConfig sets the configuration for timeout settings.
 func (a *Agent) SetConfig(cfg *config.Config) {
 	a.cfg = cfg
+}
+
+// SetScheduler sets the scheduler for this agent.
+func (a *Agent) SetScheduler(s *scheduler.Scheduler) {
+	a.scheduler = s
+}
+
+// Scheduler returns the scheduler instance.
+func (a *Agent) Scheduler() *scheduler.Scheduler {
+	return a.scheduler
 }
 
 // SetResultMode sets the result processing mode and rebuilds the system prompt.
@@ -707,6 +719,29 @@ func (a *Agent) buildTools() []llm.Tool {
 				"required": []string{"instruction"},
 			},
 			Callback: a.launchSubAgentTool,
+		},
+		{
+			Name:        "schedule_task",
+			Description: "Schedule a recurring task using a cron expression. The task will launch a sub-agent at the specified times. The cron expression uses 5 fields: minute hour day month weekday. Use * for any value, or a specific number. Example: '0 9 * * *' means every day at 9:00 AM. When the scheduled time arrives, a sub-agent will be launched with the given instruction. If a previous execution is still running, the next scheduled run will be skipped to avoid overlap.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "A human-readable name for this scheduled task (e.g., 'Daily Report', 'Health Check').",
+					},
+					"cron": map[string]interface{}{
+						"type":        "string",
+						"description": "5-field cron expression: minute hour day month weekday. Example: '0 9 * * *' for daily at 9:00 AM.",
+					},
+					"instruction": map[string]interface{}{
+						"type":        "string",
+						"description": "The instruction to pass to the sub-agent when the task is triggered.",
+					},
+				},
+				"required": []string{"name", "cron", "instruction"},
+			},
+			Callback: a.scheduleTaskTool,
 		},
 	}
 
@@ -1437,6 +1472,106 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 
 	log.Info("Sub-agent #%d completed: duration=%s, exitCode=%d", subID, result.Duration, result.ExitCode)
 	return sb.String(), nil
+}
+
+// scheduleTaskTool schedules a recurring task using a cron expression.
+func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	name, ok := args["name"].(string)
+	if !ok {
+		return "", fmt.Errorf("name argument is required")
+	}
+
+	cron, ok := args["cron"].(string)
+	if !ok {
+		return "", fmt.Errorf("cron argument is required")
+	}
+
+	instruction, ok := args["instruction"].(string)
+	if !ok {
+		return "", fmt.Errorf("instruction argument is required")
+	}
+
+	if a.scheduler == nil {
+		return "", fmt.Errorf("scheduler is not initialized")
+	}
+
+	id, err := a.scheduler.Add(name, cron, instruction)
+	if err != nil {
+		return "", fmt.Errorf("cannot schedule task: %w", err)
+	}
+
+	// Persist to store
+	if err := a.persistSchedulerEntries(); err != nil {
+		log.Warn("Cannot persist scheduler entries: %v", err)
+	}
+
+	return fmt.Sprintf("✅ 定时任务 #%d (%s) 已创建\n  Cron: %s\n  指令: %s\n  下次执行: %s",
+		id, name, cron, instruction, scheduler.FormatNextRun(a.scheduler.Get(id).NextRun)), nil
+}
+
+// OnScheduledTaskTriggered is called by the scheduler when a task is triggered.
+// It launches a sub-agent with the task's instruction.
+func (a *Agent) OnScheduledTaskTriggered(entry *scheduler.CronEntry) {
+	fmt.Printf("\n⏰ [%s] 定时任务 #%d (%s) 已触发\n\n", time.Now().Format("2006-01-02 15:04:05"), entry.ID, entry.Name)
+
+	// Build instruction with context about being a scheduled task
+	instruction := fmt.Sprintf("[定时任务触发] 任务名称: %s\n\n%s\n\n注意：你是被定时任务调度器自动启动的 sub-agent。请执行上述指令，完成后退出。",
+		entry.Name, entry.Instruction)
+
+	// Determine parent workspace
+	parentWorkspace, err := os.Getwd()
+	if err != nil {
+		log.Error("Cannot get parent workspace for scheduled task: %v", err)
+		return
+	}
+
+	// Create a workspace for this scheduled task execution
+	workspacePath := filepath.Join(parentWorkspace, "sub-agents", fmt.Sprintf("scheduled-%s-%d", a.name, entry.ID))
+
+	cfg := subagent.SubAgentConfig{
+		Workspace:   workspacePath,
+		Instruction: instruction,
+		Purpose:     fmt.Sprintf("Scheduled task: %s", entry.Name),
+	}
+
+	log.Info("Scheduled task #%d (%s): launching sub-agent, workspace=%s", entry.ID, entry.Name, workspacePath)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	result, err := a.subAgentMgr.LaunchSubAgent(ctx, cfg)
+	if err != nil {
+		log.Error("Scheduled task #%d sub-agent failed: %v", entry.ID, err)
+		fmt.Printf("❌ 定时任务 #%d (%s) 执行失败: %v\n", entry.ID, entry.Name, err)
+		return
+	}
+
+	fmt.Printf("\n✅ 定时任务 #%d (%s) 执行完成 (退出码: %d, 耗时: %s)\n",
+		entry.ID, entry.Name, result.ExitCode, result.Duration)
+
+	// Persist updated entries (next run time may have changed)
+	if err := a.persistSchedulerEntries(); err != nil {
+		log.Warn("Cannot persist scheduler entries after trigger: %v", err)
+	}
+}
+
+// persistSchedulerEntries saves all scheduler entries to the store.
+func (a *Agent) persistSchedulerEntries() error {
+	if a.store == nil || a.scheduler == nil {
+		return nil
+	}
+
+	entries := a.scheduler.GetEntriesForStorage()
+	for _, entry := range entries {
+		data, err := json.Marshal(entry)
+		if err != nil {
+			return fmt.Errorf("cannot marshal scheduler entry #%d: %w", entry.ID, err)
+		}
+		if err := a.store.SaveSchedule(entry.ID, data); err != nil {
+			return fmt.Errorf("cannot save scheduler entry #%d: %w", entry.ID, err)
+		}
+	}
+	return nil
 }
 
 // Reset clears the conversation history but keeps the system prompt.
