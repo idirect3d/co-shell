@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Markdown to Beautiful Word Document Converter.
 
+Supports multiple styles including official Chinese government document format
+(GB/T 9704-2012).
+
 Usage:
     python3 md2docx.py input.md -o output.docx
     python3 md2docx.py input.md --style modern
+    python3 md2docx.py input.md --style official
 """
 
 import argparse
@@ -13,8 +17,8 @@ import sys
 from datetime import datetime
 
 from docx import Document
-from docx.shared import Inches, Pt, Cm, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt, Cm, Mm, RGBColor, Emu
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn, nsdecls
 from docx.oxml import parse_xml
@@ -68,6 +72,21 @@ STYLES = {
         "table_header": "333333",
         "table_alt_row": "F5F5F5",
     },
+    "official": {
+        # GB/T 9704-2012 党政机关公文格式
+        "primary": _rgb(0x00, 0x00, 0x00),
+        "secondary": _rgb(0x00, 0x00, 0x00),
+        "heading1": _rgb(0x00, 0x00, 0x00),
+        "heading2": _rgb(0x00, 0x00, 0x00),
+        "heading3": _rgb(0x00, 0x00, 0x00),
+        "body": _rgb(0x00, 0x00, 0x00),
+        "code_bg": "F5F5F5",
+        "code_fg": _rgb(0x00, 0x00, 0x00),
+        "link": _rgb(0x00, 0x00, 0x00),
+        "blockquote_bg": "F5F5F5",
+        "table_header": "000000",
+        "table_alt_row": "F5F5F5",
+    },
 }
 
 HEADING_SIZES = {1: 22, 2: 18, 3: 15, 4: 13, 5: 12, 6: 11}
@@ -79,25 +98,51 @@ def set_cell_shading(cell, color_hex):
     cell._tc.get_or_add_tcPr().append(shading)
 
 
-def set_spacing(para, before=0, after=0, line=None):
+def set_spacing(para, before=0, after=0, line=None, line_rule=None):
     """Set paragraph spacing."""
     pf = para.paragraph_format
     pf.space_before = Pt(before)
     pf.space_after = Pt(after)
-    if line:
-        pf.line_spacing = line
+    if line is not None:
+        if line_rule == WD_LINE_SPACING.EXACTLY:
+            pf.line_spacing = Pt(line)
+            pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+        else:
+            pf.line_spacing = line
 
 
 def add_run(paragraph, text, bold=False, italic=False, color=None,
-            size=None, font_name=None, underline=False):
+            size=None, font_name=None, font_east_asia=None, underline=False):
     """Add a styled run to a paragraph."""
     run = paragraph.add_run(text)
-    if bold: run.bold = True
-    if italic: run.italic = True
-    if color: run.font.color.rgb = color
-    if size: run.font.size = Pt(size)
-    if font_name: run.font.name = font_name
-    if underline: run.font.underline = True
+    if bold:
+        run.bold = True
+    if italic:
+        run.italic = True
+    if color:
+        run.font.color.rgb = color
+    if size:
+        run.font.size = Pt(size)
+    if font_name:
+        run.font.name = font_name
+        # Set East-Asian font
+        r = run._element
+        rPr = r.find(qn('w:rPr'))
+        if rPr is None:
+            rPr = parse_xml('<w:rPr ' + nsdecls('w') + '/>')
+            r.insert(0, rPr)
+        rFonts = rPr.find(qn('w:rFonts'))
+        if rFonts is None:
+            rFonts = parse_xml('<w:rFonts ' + nsdecls('w') + '/>')
+            rPr.insert(0, rFonts)
+        rFonts.set(qn('w:ascii'), font_name)
+        rFonts.set(qn('w:hAnsi'), font_name)
+        if font_east_asia:
+            rFonts.set(qn('w:eastAsia'), font_east_asia)
+        else:
+            rFonts.set(qn('w:eastAsia'), font_name)
+    if underline:
+        run.font.underline = True
     return run
 
 
@@ -148,7 +193,7 @@ def add_table_borders(table):
 
 def parse_inline(text):
     """Parse markdown inline formatting.
-    
+
     Supports: **bold**, *italic*, `code`, [link](url)
     Returns list of (text, properties_dict).
     """
@@ -174,7 +219,8 @@ def parse_inline(text):
     return tokens if tokens else [(text, {})]
 
 
-def apply_inline(paragraph, text, style_name, font_size=11, font_family='Arial'):
+def apply_inline(paragraph, text, style_name, font_size=11, font_family='Arial',
+                 font_east_asia=None):
     """Apply inline markdown formatting to a paragraph."""
     s = STYLES[style_name]
     for token_text, props in parse_inline(text):
@@ -183,6 +229,23 @@ def apply_inline(paragraph, text, style_name, font_size=11, font_family='Arial')
         run = paragraph.add_run(token_text)
         run.font.name = font_family
         run.font.size = Pt(font_size)
+        # Set East-Asian font
+        r = run._element
+        rPr = r.find(qn('w:rPr'))
+        if rPr is None:
+            rPr = parse_xml('<w:rPr ' + nsdecls('w') + '/>')
+            r.insert(0, rPr)
+        rFonts = rPr.find(qn('w:rFonts'))
+        if rFonts is None:
+            rFonts = parse_xml('<w:rFonts ' + nsdecls('w') + '/>')
+            rPr.insert(0, rFonts)
+        rFonts.set(qn('w:ascii'), font_family)
+        rFonts.set(qn('w:hAnsi'), font_family)
+        if font_east_asia:
+            rFonts.set(qn('w:eastAsia'), font_east_asia)
+        else:
+            rFonts.set(qn('w:eastAsia'), font_family)
+
         if props.get('bold'):
             run.bold = True
         elif props.get('italic'):
@@ -254,7 +317,38 @@ def build_heading(doc, text, level, style_name, base_size):
         add_bottom_border(p, color_to_hex(color))
     sb = {1: 24, 2: 18, 3: 12, 4: 8, 5: 6, 6: 6}
     sa = {1: 12, 2: 8, 3: 6, 4: 4, 5: 3, 6: 3}
-    set_spacing(p, before=sb.get(level, ), after=sa.get(level, 4))
+    set_spacing(p, before=sb.get(level, 6), after=sa.get(level, 4))
+
+
+def build_heading_official(doc, text, level):
+    """Build a heading in official Chinese government document format.
+
+    GB/T 9704-2012:
+    - Level 1 (一级标题，如一、)：黑体, 二号 (22pt), centered, 不加粗
+    - Level 2 (二级标题，如（一）)：楷体_GB2312, 三号 (16pt), 加粗
+    - Level 3+ (三级及以下)：仿宋_GB2312, 三号 (16pt), 加粗
+    """
+    if level == 1:
+        # Level 1 heading: 黑体, 二号 (22pt), centered, 不加粗
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        add_run(p, text, bold=False, size=22, font_name='黑体',
+                font_east_asia='黑体')
+        set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
+    elif level == 2:
+        # Level 2 heading: 楷体_GB2312, 三号 (16pt), 加粗
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        add_run(p, text, bold=True, size=16, font_name='楷体',
+                font_east_asia='楷体')
+        set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
+    else:
+        # Level 3+ headings: 仿宋_GB2312, 三号 (16pt), 加粗
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        add_run(p, text, bold=True, size=16, font_name='仿宋',
+                font_east_asia='仿宋')
+        set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
 
 
 def build_code_block(doc, code_text, style_name, font_size):
@@ -304,6 +398,50 @@ def build_list(doc, items, ordered, style_name, font_size):
         pf.left_indent = Cm(1.0)
         pf.first_line_indent = Cm(-0.5)
         set_spacing(p, before=2, after=2)
+
+
+def build_list_official(doc, items, ordered, font_size=16):
+    """Build a list in official Chinese government document format.
+
+    Uses 仿宋_GB2312, 三号 (16pt), 固定行距28磅.
+    """
+    for idx, item_text in enumerate(items):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        prefix = str(idx + 1) + '.\u3000' if ordered else '\u3000\u3000'
+        run = p.add_run(prefix)
+        run.font.name = '仿宋'
+        run.font.size = Pt(font_size)
+        r = run._element
+        rPr = r.find(qn('w:rPr'))
+        if rPr is None:
+            rPr = parse_xml('<w:rPr ' + nsdecls('w') + '/>')
+            r.insert(0, rPr)
+        rFonts = rPr.find(qn('w:rFonts'))
+        if rFonts is None:
+            rFonts = parse_xml('<w:rFonts ' + nsdecls('w') + '/>')
+            rPr.insert(0, rFonts)
+        rFonts.set(qn('w:eastAsia'), '仿宋')
+
+        # Add item text
+        run2 = p.add_run(item_text)
+        run2.font.name = '仿宋'
+        run2.font.size = Pt(font_size)
+        r2 = run2._element
+        rPr2 = r2.find(qn('w:rPr'))
+        if rPr2 is None:
+            rPr2 = parse_xml('<w:rPr ' + nsdecls('w') + '/>')
+            r2.insert(0, rPr2)
+        rFonts2 = rPr2.find(qn('w:rFonts'))
+        if rFonts2 is None:
+            rFonts2 = parse_xml('<w:rFonts ' + nsdecls('w') + '/>')
+            rPr2.insert(0, rFonts2)
+        rFonts2.set(qn('w:eastAsia'), '仿宋')
+
+        pf = p.paragraph_format
+        pf.left_indent = Cm(0.74)
+        pf.first_line_indent = Cm(-0.74)
+        set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
 
 
 def build_table(doc, data, style_name, font_size):
@@ -357,11 +495,105 @@ def build_image(doc, img_path, alt_text, style_name, input_dir):
         except Exception as e:
             p = doc.add_paragraph()
             msg = '[Image: ' + alt_text + ' - error: ' + str(e) + ']'
-            add_run(p, msg, color=s['accent'], size=10, italic=True)
+            add_run(p, msg, color=s['primary'], size=10, italic=True)
     else:
         p = doc.add_paragraph()
         msg = '[Image: ' + alt_text + ' - not found: ' + img_path + ']'
-        add_run(p, msg, color=s['accent'], size=10, italic=True)
+        add_run(p, msg, color=s['primary'], size=10, italic=True)
+
+
+def setup_official_page(doc):
+    """Set up page layout for official Chinese government document.
+
+    GB/T 9704-2012:
+    - Paper: A4 (210mm x 297mm)
+    - Top margin: 37mm
+    - Bottom margin: 35mm
+    - Left margin: 28mm
+    - Right margin: 26mm
+    """
+    section = doc.sections[0]
+    section.page_width = Mm(210)
+    section.page_height = Mm(297)
+    section.top_margin = Mm(37)
+    section.bottom_margin = Mm(35)
+    section.left_margin = Mm(28)
+    section.right_margin = Mm(26)
+
+
+def build_paragraph_official(doc, text, font_size=16):
+    """Build a body paragraph in official Chinese government document format.
+
+    GB/T 9704-2012:
+    - Font: 仿宋_GB2312, 三号 (16pt)
+    - Line spacing: fixed 28pt
+    - First line indent: 2 characters (2 x 16pt = 32pt ≈ 1.13cm)
+    """
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    pf = p.paragraph_format
+    pf.first_line_indent = Pt(font_size * 2)  # 2 character indent
+    set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
+
+    run = p.add_run(text)
+    run.font.name = '仿宋'
+    run.font.size = Pt(font_size)
+    # Set East-Asian font
+    r = run._element
+    rPr = r.find(qn('w:rPr'))
+    if rPr is None:
+        rPr = parse_xml('<w:rPr ' + nsdecls('w') + '/>')
+        r.insert(0, rPr)
+    rFonts = rPr.find(qn('w:rFonts'))
+    if rFonts is None:
+        rFonts = parse_xml('<w:rFonts ' + nsdecls('w') + '/>')
+        rPr.insert(0, rFonts)
+    rFonts.set(qn('w:ascii'), '仿宋')
+    rFonts.set(qn('w:hAnsi'), '仿宋')
+    rFonts.set(qn('w:eastAsia'), '仿宋')
+
+    return p
+
+
+# Chinese ordinal number patterns for heading level detection
+# Level 1: 一、二、三、... (single Chinese number + 、)
+# Level 2: （一）（二）（三）... (Chinese number in brackets)
+# Level 3: 1. 2. 3. ... (Arabic number + .)
+CN_ORDINAL_PATTERNS = {
+    1: re.compile(r'^[一二三四五六七八九十百千]+[、]'),
+    2: re.compile(r'^（[一二三四五六七八九十百千]+）'),
+    3: re.compile(r'^\d+[\.\、]'),
+}
+
+
+def detect_heading_level(text):
+    """Detect Chinese document heading level from ordinal number prefix.
+
+    Returns level (1, 2, 3) or 0 if no ordinal detected.
+    """
+    for level, pattern in CN_ORDINAL_PATTERNS.items():
+        if pattern.match(text):
+            return level
+    return 0
+
+
+def compute_heading_shift(headings):
+    """Compute heading level shift for official style.
+
+    Scans all headings to find the first one with a Chinese ordinal number,
+    then computes shift = (detected_level - raw_level) so that all headings
+    are adjusted accordingly.
+
+    Example:
+        ## 一、产品概况 -> raw_level=2, detected=1, shift=-1
+        ### （一）特性 -> raw_level=3, detected=2, shift=-1
+    """
+    for raw_level, text in headings:
+        detected = detect_heading_level(text)
+        if detected > 0:
+            shift = detected - raw_level
+            return shift
+    return 0
 
 
 def convert(md_content, output_path, args):
@@ -371,28 +603,43 @@ def convert(md_content, output_path, args):
     base_font = args.font_family
     s = STYLES[style_name]
     doc = Document()
-    section = doc.sections[0]
-    section.top_margin = Cm(2.54)
-    section.bottom_margin = Cm(2.54)
-    section.left_margin = Cm(2.54)
-    section.right_margin = Cm(2.54)
+
+    if style_name == 'official':
+        setup_official_page(doc)
+    else:
+        section = doc.sections[0]
+        section.top_margin = Cm(2.54)
+        section.bottom_margin = Cm(2.54)
+        section.left_margin = Cm(2.54)
+        section.right_margin = Cm(2.54)
+
     headings = []
     for line in md_content.split('\n'):
         m = re.match(r'^(#{1,6})\s+(.+)$', line)
         if m:
             headings.append((len(m.group(1)), m.group(2).strip()))
-    if not args.no_cover:
+
+    # Compute heading level shift for official style
+    heading_shift = 0
+    if style_name == 'official':
+        heading_shift = compute_heading_shift(headings)
+
+    if not args.no_cover and style_name != 'official':
         build_cover_page(doc, args.title, args.author, style_name)
-    if not args.no_toc and headings:
+    if not args.no_toc and headings and style_name != 'official':
         build_toc(doc, headings, style_name)
+
     lines = md_content.split('\n')
     i = 0
     in_code_block = False
     code_buffer = []
     input_dir = os.path.dirname(os.path.abspath(args.input))
+
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
+
+        # Code block
         if stripped.startswith('```'):
             if in_code_block:
                 build_code_block(doc, '\n'.join(code_buffer), style_name, base_size - 1)
@@ -407,6 +654,8 @@ def convert(md_content, output_path, args):
             code_buffer.append(line)
             i += 1
             continue
+
+        # Table
         if stripped.startswith('|') and stripped.endswith('|'):
             table_data = []
             while i < len(lines) and '|' in lines[i].strip():
@@ -418,25 +667,43 @@ def convert(md_content, output_path, args):
             if table_data:
                 build_table(doc, table_data, style_name, base_size)
             continue
+
+        # Horizontal rule
         if re.match(r'^[-*_]{3,}\s*$', stripped):
             p = doc.add_paragraph()
             add_run(p, '\u2501' * 60, color=s['secondary'], size=8)
             set_spacing(p, before=6, after=6)
             i += 1
             continue
+
+        # Heading
         m = re.match(r'^(#{1,6})\s+(.+)$', line)
         if m:
-            build_heading(doc, m.group(2).strip(), len(m.group(1)),
-                          style_name, base_size)
+            if style_name == 'official':
+                raw_level = len(m.group(1))
+                adjusted_level = raw_level + heading_shift
+                # Clamp to valid range [1, 6]
+                adjusted_level = max(1, min(6, adjusted_level))
+                build_heading_official(doc, m.group(2).strip(), adjusted_level)
+            else:
+                build_heading(doc, m.group(2).strip(), len(m.group(1)),
+                              style_name, base_size)
             i += 1
             continue
+
+        # Blockquote
         if stripped.startswith('>'):
             quotes = []
             while i < len(lines) and lines[i].strip().startswith('>'):
                 quotes.append(lines[i].strip().lstrip('>').strip())
                 i += 1
-            build_blockquote(doc, ' '.join(quotes), style_name, base_size)
+            if style_name == 'official':
+                build_paragraph_official(doc, ' '.join(quotes))
+            else:
+                build_blockquote(doc, ' '.join(quotes), style_name, base_size)
             continue
+
+        # Unordered list
         if re.match(r'^[\s]*[-*+]\s+', stripped):
             items = []
             while i < len(lines):
@@ -446,8 +713,13 @@ def convert(md_content, output_path, args):
                     i += 1
                 else:
                     break
-            build_list(doc, items, False, style_name, base_size)
+            if style_name == 'official':
+                build_list_official(doc, items, False)
+            else:
+                build_list(doc, items, False, style_name, base_size)
             continue
+
+        # Ordered list
         if re.match(r'^\s*\d+[\.)]\s+', stripped):
             items = []
             while i < len(lines):
@@ -457,21 +729,32 @@ def convert(md_content, output_path, args):
                     i += 1
                 else:
                     break
-            build_list(doc, items, True, style_name, base_size)
+            if style_name == 'official':
+                build_list_official(doc, items, True)
+            else:
+                build_list(doc, items, True, style_name, base_size)
             continue
+
+        # Image
         img_match = re.match(r'!\[(.*?)\]\((.*?)\)', stripped)
         if img_match:
             build_image(doc, img_match.group(2), img_match.group(1),
                         style_name, input_dir)
             i += 1
             continue
+
+        # Empty line
         if stripped == '':
             i += 1
             continue
-        p = doc.add_paragraph()
-        apply_inline(p, stripped, style_name, base_size, base_font)
-        set_spacing(p, before=3, after=3)
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        # Regular paragraph
+        if style_name == 'official':
+            build_paragraph_official(doc, stripped, base_size)
+        else:
+            p = doc.add_paragraph()
+            apply_inline(p, stripped, style_name, base_size, base_font)
+            set_spacing(p, before=3, after=3)
         i += 1
     doc.save(output_path)
     return True
@@ -484,7 +767,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('input', help='Input Markdown file path')
     parser.add_argument('-o', '--output', help='Output Word file path')
-    parser.add_argument('--style', choices=['modern', 'classic', 'minimal'],
+    parser.add_argument('--style', choices=['modern', 'classic', 'minimal', 'official'],
                         default='modern', help='Visual style')
     parser.add_argument('--title', help='Document title')
     parser.add_argument('--author', default='co-shell', help='Author name')
