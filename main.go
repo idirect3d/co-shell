@@ -50,6 +50,7 @@ import (
 )
 
 const version = "0.3.0"
+const build = "113"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -277,7 +278,7 @@ func main() {
 				visionIndicator = " 👀"
 			}
 		}
-		fmt.Printf("co-shell v%s%s\n", version, visionIndicator)
+		fmt.Printf("co-shell v%s [BUILD-%s]%s\n", version, build, visionIndicator)
 		os.Exit(0)
 	}
 
