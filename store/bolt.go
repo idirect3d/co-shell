@@ -72,7 +72,7 @@ func NewStore(ws *workspace.Workspace) (*Store, error) {
 
 	// Create buckets
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, bucket := range []string{"memory", "sessions", "context", "history", "schedules"} {
+		for _, bucket := range []string{"memory", "sessions", "context", "history", "schedules", "taskplans"} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(bucket)); err != nil {
 				return fmt.Errorf("cannot create bucket %s: %w", bucket, err)
 			}
@@ -337,6 +337,78 @@ func (s *Store) LoadSchedules() (map[int][]byte, error) {
 func (s *Store) DeleteSchedule(id int) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte("schedules"))
+		key := fmt.Sprintf("%010d", id)
+		return bucket.Delete([]byte(key))
+	})
+}
+
+// --- Task Plan Operations ---
+
+// NextTaskPlanID returns the next available task plan ID.
+func (s *Store) NextTaskPlanID() (int, error) {
+	var maxID int
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("taskplans"))
+		cursor := bucket.Cursor()
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			var id int
+			if _, err := fmt.Sscanf(string(k), "%010d", &id); err != nil {
+				continue
+			}
+			if id > maxID {
+				maxID = id
+			}
+		}
+		return nil
+	})
+	return maxID + 1, err
+}
+
+// SaveTaskPlan stores a task plan by ID.
+func (s *Store) SaveTaskPlan(id int, data []byte) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("taskplans"))
+		key := fmt.Sprintf("%010d", id)
+		return bucket.Put([]byte(key), data)
+	})
+}
+
+// GetTaskPlan retrieves a task plan by ID.
+func (s *Store) GetTaskPlan(id int) ([]byte, bool, error) {
+	var data []byte
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("taskplans"))
+		key := fmt.Sprintf("%010d", id)
+		data = bucket.Get([]byte(key))
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return data, data != nil, nil
+}
+
+// ListTaskPlans returns all task plan entries.
+func (s *Store) ListTaskPlans() (map[int][]byte, error) {
+	result := make(map[int][]byte)
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("taskplans"))
+		return bucket.ForEach(func(k, v []byte) error {
+			var id int
+			if _, err := fmt.Sscanf(string(k), "%010d", &id); err != nil {
+				return nil // skip corrupted keys
+			}
+			result[id] = v
+			return nil
+		})
+	})
+	return result, err
+}
+
+// DeleteTaskPlan removes a task plan by ID.
+func (s *Store) DeleteTaskPlan(id int) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("taskplans"))
 		key := fmt.Sprintf("%010d", id)
 		return bucket.Delete([]byte(key))
 	})

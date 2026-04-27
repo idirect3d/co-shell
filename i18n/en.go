@@ -214,6 +214,7 @@ var enMessages = map[string]string{
 	KeyHelpLast:         "    .last               - View recent history tasks",
 	KeyHelpFirst:        "    .first              - View earliest history tasks",
 	KeyHelpImage:        "    .image              - Manage multimodal image cache (add/remove/clear/list)",
+	KeyHelpPlan:         "    .plan               - Manage task plans (list/view/create/insert/remove/update)",
 	KeyHelpHelp:         "    .help               - Show this help message",
 	KeyHelpExit:         "    .exit               - Exit co-shell",
 	KeyHelpExampleTitle: "Examples:",
@@ -386,7 +387,7 @@ Current Environment:
 3. Call MCP (Model Context Protocol) tools
 4. Read and write files
 5. Manage memory and context
-6. When necessary, launch multiple co-shell processes as sub-agents, assigning different roles (--description/--principles) to tackle different types of sub-tasks in parallel`,
+6. For complex tasks that require assistance from other domain experts, launch one or more co-shell sub-processes (sub-agents) to share the workload. Each sub-agent can be assigned a different role via --description/--principles to independently complete specific sub-tasks, and finally aggregate the results.`,
 	KeySystemPromptRules: `IMPORTANT RULES:
 - Use the "execute_command" tool to run system commands, and the appropriate MCP tool names for MCP operations.
 - Unless the user specifies otherwise, prefer using standard system commands (e.g., cat, ls, dir, type) over writing scripts or programs.

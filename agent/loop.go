@@ -50,6 +50,7 @@ import (
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/subagent"
+	"github.com/idirect3d/co-shell/taskplan"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
@@ -120,6 +121,7 @@ type Agent struct {
 	resultMode     config.ResultMode
 	rules          string // user-defined rules for rebuilding system prompt
 	subAgentMgr    *subagent.Manager
+	taskPlanMgr    *taskplan.Manager
 	scheduler      *scheduler.Scheduler
 	name           string   // agent name for identification (default: "co-shell")
 	imagePaths     []string // paths to image files for multimodal input
@@ -137,6 +139,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		maxIterations: defaultMaxIterations,
 		rules:         rules,
 		subAgentMgr:   subagent.NewManager(),
+		taskPlanMgr:   taskplan.NewManager(s),
 		name:          "co-shell",
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
@@ -375,6 +378,11 @@ func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Me
 		Content:      text,
 		ContentParts: parts,
 	}, nil
+}
+
+// TaskPlanManager returns the task plan manager.
+func (a *Agent) TaskPlanManager() *taskplan.Manager {
+	return a.taskPlanMgr
 }
 
 // SetScheduler sets the scheduler for this agent.
@@ -1018,6 +1026,134 @@ func (a *Agent) buildTools() []llm.Tool {
 				"required":   []string{},
 			},
 			Callback: a.clearImagesTool,
+		},
+		{
+			Name:        "create_task_plan",
+			Description: "Create a new task plan with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into manageable steps that can be tracked individually.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"title": map[string]interface{}{
+						"type":        "string",
+						"description": "The title of the task plan",
+					},
+					"description": map[string]interface{}{
+						"type":        "string",
+						"description": "A brief description of the overall task plan",
+					},
+					"steps": map[string]interface{}{
+						"type": "array",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
+						"description": "An array of step descriptions, each representing a sub-task",
+					},
+				},
+				"required": []string{"title", "steps"},
+			},
+			Callback: a.createTaskPlanTool,
+		},
+		{
+			Name:        "update_task_step",
+			Description: "Update the status of a specific step in a task plan. Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"plan_id": map[string]interface{}{
+						"type":        "number",
+						"description": "The ID of the task plan",
+					},
+					"step_id": map[string]interface{}{
+						"type":        "number",
+						"description": "The ID of the step to update",
+					},
+					"status": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"pending", "in_progress", "completed", "failed", "cancelled"},
+						"description": "The new status for the step",
+					},
+					"note": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional note to add context about the status change",
+					},
+				},
+				"required": []string{"plan_id", "step_id", "status"},
+			},
+			Callback: a.updateTaskStepTool,
+		},
+		{
+			Name:        "insert_task_steps",
+			Description: "Insert one or more new steps after a specified step in a task plan. The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"plan_id": map[string]interface{}{
+						"type":        "number",
+						"description": "The ID of the task plan to modify",
+					},
+					"after_step_id": map[string]interface{}{
+						"type":        "number",
+						"description": "The ID of the step after which to insert new steps. Use 0 to insert at the beginning. Example: if plan has steps 1,2,3 and after_step_id=1, new steps are inserted between step 1 and step 2.",
+					},
+					"steps": map[string]interface{}{
+						"type": "array",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
+						"description": "An array of step descriptions to insert after the specified step",
+					},
+				},
+				"required": []string{"plan_id", "after_step_id", "steps"},
+			},
+			Callback: a.insertTaskStepsTool,
+		},
+		{
+			Name:        "remove_task_steps",
+			Description: "Remove one or more steps from a task plan by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"plan_id": map[string]interface{}{
+						"type":        "number",
+						"description": "The ID of the task plan to modify",
+					},
+					"from": map[string]interface{}{
+						"type":        "number",
+						"description": "The starting step ID of the range to remove (inclusive)",
+					},
+					"to": map[string]interface{}{
+						"type":        "number",
+						"description": "The ending step ID of the range to remove (inclusive)",
+					},
+				},
+				"required": []string{"plan_id", "from", "to"},
+			},
+			Callback: a.removeTaskStepsTool,
+		},
+		{
+			Name:        "list_task_plans",
+			Description: "List all task plans with their progress summary. Returns each plan's ID, title, completion percentage, and step count. Use this to get an overview of all active and completed task plans.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
+			},
+			Callback: a.listTaskPlansTool,
+		},
+		{
+			Name:        "view_task_plan",
+			Description: "View the full details of a specific task plan, including all steps with their statuses and notes. Use this to examine the progress of a particular plan in detail.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"plan_id": map[string]interface{}{
+						"type":        "number",
+						"description": "The ID of the task plan to view",
+					},
+				},
+				"required": []string{"plan_id"},
+			},
+			Callback: a.viewTaskPlanTool,
 		},
 		{
 			Name:        "schedule_task",
@@ -1876,6 +2012,149 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 
 	return fmt.Sprintf("✅ 定时任务 #%d (%s) 已创建\n  Cron: %s\n  指令: %s\n  下次执行: %s",
 		id, name, cron, instruction, scheduler.FormatNextRun(a.scheduler.Get(id).NextRun)), nil
+}
+
+// createTaskPlanTool creates a new task plan with title, description, and steps.
+func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	title, ok := args["title"].(string)
+	if !ok {
+		return "", fmt.Errorf("title argument is required")
+	}
+
+	description, _ := args["description"].(string)
+
+	stepsRaw, ok := args["steps"].([]interface{})
+	if !ok {
+		return "", fmt.Errorf("steps argument is required and must be an array of strings")
+	}
+
+	steps := make([]string, 0, len(stepsRaw))
+	for _, s := range stepsRaw {
+		stepStr, ok := s.(string)
+		if !ok {
+			return "", fmt.Errorf("each step must be a string")
+		}
+		steps = append(steps, stepStr)
+	}
+
+	plan, err := a.taskPlanMgr.Create(title, description, steps)
+	if err != nil {
+		return "", fmt.Errorf("cannot create task plan: %w", err)
+	}
+
+	return taskplan.FormatPlan(plan), nil
+}
+
+// updateTaskStepTool updates the status of a specific step in a task plan.
+func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	planID, ok := args["plan_id"].(float64)
+	if !ok {
+		return "", fmt.Errorf("plan_id argument is required")
+	}
+
+	stepID, ok := args["step_id"].(float64)
+	if !ok {
+		return "", fmt.Errorf("step_id argument is required")
+	}
+
+	statusStr, ok := args["status"].(string)
+	if !ok {
+		return "", fmt.Errorf("status argument is required")
+	}
+
+	note, _ := args["note"].(string)
+
+	status := taskplan.TaskStatus(statusStr)
+	plan, err := a.taskPlanMgr.UpdateStepStatus(int(planID), int(stepID), status, note)
+	if err != nil {
+		return "", fmt.Errorf("cannot update step status: %w", err)
+	}
+
+	return taskplan.FormatPlan(plan), nil
+}
+
+// insertTaskStepsTool inserts new steps after a specified step in a task plan.
+func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	planID, ok := args["plan_id"].(float64)
+	if !ok {
+		return "", fmt.Errorf("plan_id argument is required")
+	}
+
+	afterStepID, ok := args["after_step_id"].(float64)
+	if !ok {
+		return "", fmt.Errorf("after_step_id argument is required")
+	}
+
+	stepsRaw, ok := args["steps"].([]interface{})
+	if !ok {
+		return "", fmt.Errorf("steps argument is required and must be an array of strings")
+	}
+
+	steps := make([]string, 0, len(stepsRaw))
+	for _, s := range stepsRaw {
+		stepStr, ok := s.(string)
+		if !ok {
+			return "", fmt.Errorf("each step must be a string")
+		}
+		steps = append(steps, stepStr)
+	}
+
+	plan, err := a.taskPlanMgr.InsertStepsAfter(int(planID), int(afterStepID), steps)
+	if err != nil {
+		return "", fmt.Errorf("cannot insert steps: %w", err)
+	}
+
+	return taskplan.FormatPlan(plan), nil
+}
+
+// removeTaskStepsTool removes steps from a task plan by step ID range.
+func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	planID, ok := args["plan_id"].(float64)
+	if !ok {
+		return "", fmt.Errorf("plan_id argument is required")
+	}
+
+	from, ok := args["from"].(float64)
+	if !ok {
+		return "", fmt.Errorf("from argument is required")
+	}
+
+	to, ok := args["to"].(float64)
+	if !ok {
+		return "", fmt.Errorf("to argument is required")
+	}
+
+	plan, err := a.taskPlanMgr.RemoveSteps(int(planID), int(from), int(to))
+	if err != nil {
+		return "", fmt.Errorf("cannot remove steps: %w", err)
+	}
+
+	return taskplan.FormatPlan(plan), nil
+}
+
+// listTaskPlansTool lists all task plans with progress summary.
+func (a *Agent) listTaskPlansTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	plans, err := a.taskPlanMgr.List()
+	if err != nil {
+		return "", fmt.Errorf("cannot list task plans: %w", err)
+	}
+
+	return taskplan.FormatPlanList(plans), nil
+}
+
+// viewTaskPlanTool views the full details of a specific task plan.
+func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	planID, ok := args["plan_id"].(float64)
+	if !ok {
+		return "", fmt.Errorf("plan_id argument is required")
+	}
+
+	plan, err := a.taskPlanMgr.Get(int(planID))
+	if err != nil {
+		return "", fmt.Errorf("cannot get task plan: %w", err)
+	}
+
+	return taskplan.FormatPlan(plan), nil
 }
 
 // OnScheduledTaskTriggered is called by the scheduler when a task is triggered.

@@ -216,6 +216,7 @@ var zhMessages = map[string]string{
 	KeyHelpLast:         "    .last         - 查看最近的历史任务",
 	KeyHelpFirst:        "    .first        - 查看最早的历史任务",
 	KeyHelpImage:        "    .image        - 管理多模态图片缓存（add/remove/clear/list）",
+	KeyHelpPlan:         "    .plan         - 管理任务计划（list/view/create/insert/remove/update）",
 	KeyHelpHelp:         "    .help         - 显示此帮助信息",
 	KeyHelpExit:         "    .exit         - 退出 co-shell",
 	KeyHelpExampleTitle: "  示例:",
@@ -405,7 +406,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 3. 调用 MCP（Model Context Protocol）工具
 4. 读写文件
 5. 管理记忆和上下文
-6. 必要时可以启动多个co-shell进程作为sub-agent，并通过赋予不同的角色（--description/--principles）去分头完成不同性质的子任务`,
+6. 对于需要其他领域专家协助共同完成的复杂任务，可以启动一个或多个 co-shell 子进程（sub-agent）来分担工作。每个 sub-agent 可通过 --description/--principles 赋予不同角色，各自独立完成特定子任务，最终汇总成果。`,
 	KeySystemPromptRules: `重要规则:
 - 使用 "execute_command" 工具运行系统命令，使用对应的 MCP 工具名称进行 MCP 操作。
 - 除非用户特别指定，否则优先使用标准系统命令（如 cat、ls、dir、type），而不是编写脚本或程序。

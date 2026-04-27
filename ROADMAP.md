@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 110
+> **BUILD**: 112
 
 
 
@@ -110,7 +110,7 @@
 - [x] ENHANCEMENT-85 多模态图片缓存机制：建立图片缓存，--image 传入的图片路径不再自动清空；新增 .image 内置命令（add/remove/clear/list）；新增 add_images/remove_images/clear_images 三个 LLM 工具，让大模型能操纵图片缓存；去掉 sub-agent 图像识别相关系统提示词 [BUILD-109]
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
-- [ ] FEATURE-36 任务管理，增加记事本方法
+- [x] FEATURE-36 任务计划管理（Task Plan Management）：提供 create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具及 .plan 内置命令（list/view/create/insert/remove/update），让大模型和用户都能规划制定多步骤任务计划、跟踪进度、根据实际情况调整计划，数据持久化到 bbolt [BUILD-112]
 - [ ] FEATURE-37 输出格式化（JSON/表格/树形）
 - [ ] FEATURE-38 命令别名
 - [ ] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项
