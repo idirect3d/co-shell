@@ -392,6 +392,11 @@ const (
 	// CLI Help - Example 8
 	KeyCLIHelpEx8 = "cli_help_ex8"
 
+	// CLI Help - Example 9-11 (new parameters)
+	KeyCLIHelpEx9  = "cli_help_ex9"
+	KeyCLIHelpEx10 = "cli_help_ex10"
+	KeyCLIHelpEx11 = "cli_help_ex11"
+
 	// CLI Help - LLM Behavior
 	KeyCLIHelpTemperature    = "cli_help_temperature"
 	KeyCLIHelpMaxTokens      = "cli_help_max_tokens"

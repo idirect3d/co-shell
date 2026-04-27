@@ -245,6 +245,9 @@ var enMessages = map[string]string{
 	KeyCLIHelpName:      "  --name, -n <name>                    Set agent name (default: co-shell)",
 	KeyAgentSaid:        "%s %s said:",
 	KeyCLIHelpEx8:       "  co-shell -w /path/to/workspace          Start with custom workspace",
+	KeyCLIHelpEx9:       "  co-shell --temperature 0.8 write a poem  Set temperature and execute command",
+	KeyCLIHelpEx10:      "  co-shell --show-thinking on --show-command on analyze logs  Show thinking and commands",
+	KeyCLIHelpEx11:      `  co-shell --result-mode analyze "check system status"  Process result in analyze mode`,
 
 	// CLI Help - Workspace
 	KeyCLIHelpWorkspace: "  -w, --workspace <path>  Workspace path (default: current directory)",

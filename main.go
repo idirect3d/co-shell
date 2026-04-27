@@ -174,6 +174,9 @@ func parseFlags() cliFlags {
   %s
   %s
   %s
+  %s
+  %s
+  %s
 `,
 			i18n.TF(i18n.KeyCLIHelpTitle, version),
 			i18n.T(i18n.KeyCLIHelpUsage),
@@ -212,6 +215,9 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpEx6),
 			i18n.T(i18n.KeyCLIHelpEx7),
 			i18n.T(i18n.KeyCLIHelpEx8),
+			i18n.T(i18n.KeyCLIHelpEx9),
+			i18n.T(i18n.KeyCLIHelpEx10),
+			i18n.T(i18n.KeyCLIHelpEx11),
 		)
 	}
 
