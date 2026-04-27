@@ -279,6 +279,52 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		}
 		return fmt.Sprintf("✅ 最大迭代次数已设置为: %s", maxIterStr), nil
 
+	case "name":
+		if len(args) < 2 {
+			name := h.cfg.LLM.AgentName
+			if name == "" {
+				name = "co-shell"
+			}
+			return fmt.Sprintf("Agent 名称: %s", name), nil
+		}
+		h.cfg.LLM.AgentName = args[1]
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetName(args[1])
+		log.Info("Agent name set to %s", args[1])
+		return fmt.Sprintf("✅ Agent 名称已设置为: %s", args[1]), nil
+
+	case "description":
+		if len(args) < 2 {
+			desc := h.cfg.LLM.AgentDescription
+			if desc == "" {
+				desc = "（未设置）"
+			}
+			return fmt.Sprintf("Agent 描述: %s", desc), nil
+		}
+		h.cfg.LLM.AgentDescription = args[1]
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Agent description set to %s", args[1])
+		return fmt.Sprintf("✅ Agent 描述已设置为: %s", args[1]), nil
+
+	case "principles":
+		if len(args) < 2 {
+			principles := h.cfg.LLM.AgentPrinciples
+			if principles == "" {
+				principles = "（未设置）"
+			}
+			return fmt.Sprintf("Agent 核心原则: %s", principles), nil
+		}
+		h.cfg.LLM.AgentPrinciples = args[1]
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Agent principles set to %s", args[1])
+		return fmt.Sprintf("✅ Agent 核心原则已设置为: %s", args[1]), nil
+
 	case "log":
 
 		if len(args) < 2 {

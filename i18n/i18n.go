@@ -454,4 +454,7 @@ const (
 	KeyCol3Log         = "col3_log"
 	KeyCol3ResultMode  = "col3_result_mode"
 	KeyCol3APIKey      = "col3_api_key"
+	KeyCol3Name        = "col3_name"
+	KeyCol3Desc        = "col3_desc"
+	KeyCol3Principles  = "col3_principles"
 )

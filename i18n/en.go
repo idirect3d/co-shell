@@ -179,6 +179,8 @@ var enMessages = map[string]string{
   %-20s %-30s %s
 
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
 
   %-20s %-30d %s
   %-20s %-30d %s
@@ -328,6 +330,9 @@ no liability whatsoever.`,
 	KeyCol3Log:         "logging(on|off)",
 	KeyCol3ResultMode:  "result mode(minimal/explain/analyze/free)",
 	KeyCol3APIKey:      "API key",
+	KeyCol3Name:        "Agent name",
+	KeyCol3Desc:        "Agent description",
+	KeyCol3Principles:  "Agent principles",
 
 	// History list
 	KeyListTitle:     "📋 History Tasks:",

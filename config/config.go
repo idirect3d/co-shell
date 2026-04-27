@@ -293,8 +293,24 @@ func (c *Config) Show() string {
 	col3MCP := ""
 	col3Rules := ""
 	col3APIKey := i18n.T(i18n.KeyCol3APIKey)
+	col3Name := i18n.T(i18n.KeyCol3Name)
+	col3Desc := i18n.T(i18n.KeyCol3Desc)
+	col3Principles := i18n.T(i18n.KeyCol3Principles)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
+
+	agentName := c.LLM.AgentName
+	if agentName == "" {
+		agentName = "co-shell"
+	}
+	agentDesc := c.LLM.AgentDescription
+	if agentDesc == "" {
+		agentDesc = "（未设置）"
+	}
+	agentPrinciples := c.LLM.AgentPrinciples
+	if agentPrinciples == "" {
+		agentPrinciples = "（未设置）"
+	}
 
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
 		"provider:", providerName, col3Provider,
@@ -312,6 +328,9 @@ func (c *Config) Show() string {
 		"cmd-timeout:", cmdTimeoutStr, col3CmdTimeout,
 		"llm-timeout:", llmTimeoutStr, col3LLMTimeout,
 		"log:", logStatus, col3Log,
+		"name:", agentName, col3Name,
+		"description:", agentDesc, col3Desc,
+		"principles:", agentPrinciples, col3Principles,
 		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
 		"规则:", len(c.Rules), col3Rules,
 		"api-key:", maskedKey, col3APIKey)

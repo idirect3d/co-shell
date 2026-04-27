@@ -181,6 +181,8 @@ var zhMessages = map[string]string{
   %-20s %-30s %s
 
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
 
   %-20s %-30d %s
   %-20s %-30d %s
@@ -329,6 +331,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Log:         "日志(on|off)",
 	KeyCol3ResultMode:  "结果模式(minimal/explain/analyze/free)",
 	KeyCol3APIKey:      "API 密钥",
+	KeyCol3Name:        "Agent 名称",
+	KeyCol3Desc:        "Agent 描述",
+	KeyCol3Principles:  "Agent 核心原则",
 
 	// History list
 	KeyListTitle:     "📋 历史任务列表:",
