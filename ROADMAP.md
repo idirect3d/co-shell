@@ -110,12 +110,6 @@
 - [x] FEATURE-36 任务计划管理（Task Plan Management）：提供 create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具及 .plan 内置命令（list/view/create/insert/remove/update），让大模型和用户都能规划制定多步骤任务计划、跟踪进度、根据实际情况调整计划，数据持久化到 bbolt [BUILD-112]
 - [ ] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项
 
-### 优化
-
-- [ ] ENHANCEMENT-41 启动速度优化
-- [ ] ENHANCEMENT-42 内存使用优化
-- [ ] ENHANCEMENT-43 大模型响应缓存
-
 ---
 
 ## v1.0.0 — 正式版
@@ -151,6 +145,12 @@
 - [ ] FEATURE-58 多 Agent 协作
 - [ ] FEATURE-59 可视化工作流编排
 - [ ] FEATURE-60 远程执行（SSH）
+
+### 优化
+
+- [ ] ENHANCEMENT-41 启动速度优化
+- [ ] ENHANCEMENT-42 内存使用优化
+- [ ] ENHANCEMENT-43 大模型响应缓存
 
 
 ## 版本发布记录
