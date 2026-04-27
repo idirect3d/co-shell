@@ -95,7 +95,7 @@ func RunSetupWizard(cfg *config.Config) bool {
 	apiKeyURL := selectedProvider.APIKeyURL
 
 	for {
-		apiKey := promptAPIKey(apiKeyURL)
+		apiKey := promptAPIKey(apiKeyURL, cfg.LLM.APIKey)
 		if apiKey == nil {
 			fmt.Println("\n⚠️  已取消设置。")
 			return false
@@ -167,7 +167,7 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 	// Step 2b: API Key input
 	fmt.Println()
 	for {
-		apiKey := promptAPIKey("")
+		apiKey := promptAPIKey("", cfg.LLM.APIKey)
 		if apiKey == nil {
 			fmt.Println("\n⚠️  已取消设置。")
 			return false

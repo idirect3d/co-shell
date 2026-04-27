@@ -146,9 +146,10 @@ func promptTextSimple(prompt string, defaultValue string, required bool) *string
 }
 
 // promptAPIKey prompts for API Key input.
-func promptAPIKey(apiKeyURL string) *string {
+// If currentKey is not empty, it will be shown as default and returned on empty input.
+func promptAPIKey(apiKeyURL string, currentKey string) *string {
 	for {
-		result := promptAPIKeySimple(apiKeyURL)
+		result := promptAPIKeySimple(apiKeyURL, currentKey)
 		if result == nil {
 			return nil
 		}
@@ -160,17 +161,28 @@ func promptAPIKey(apiKeyURL string) *string {
 }
 
 // promptAPIKeySimple reads API Key input using standard fmt.Scanln.
-func promptAPIKeySimple(apiKeyURL string) *string {
+// If currentKey is not empty, it will be shown as default and returned on empty input.
+func promptAPIKeySimple(apiKeyURL string, currentKey string) *string {
 	for {
-		if apiKeyURL != "" {
-			fmt.Printf("📌 API Key (必填) [输入 W 打开 %s 获取 Key]: ", apiKeyURL)
+		promptStr := "📌 API Key"
+		if currentKey != "" {
+			masked := maskKey(currentKey)
+			promptStr += " [" + masked + "]"
 		} else {
-			fmt.Print("📌 API Key (必填): ")
+			promptStr += " (必填)"
 		}
+		if apiKeyURL != "" {
+			promptStr += " [输入 W 打开 " + apiKeyURL + " 获取 Key]"
+		}
+		fmt.Print(promptStr + ": ")
 
 		var input string
 		fmt.Scanln(&input)
 		input = strings.TrimSpace(input)
+
+		if input == "" && currentKey != "" {
+			return &currentKey
+		}
 
 		if input == "" {
 			fmt.Println("⚠️  API Key 不能为空，请重新输入。")
@@ -190,6 +202,14 @@ func promptAPIKeySimple(apiKeyURL string) *string {
 
 		return &input
 	}
+}
+
+// maskKey masks the API key for display, showing first 4 and last 4 characters.
+func maskKey(key string) string {
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:4] + "****" + key[len(key)-4:]
 }
 
 // promptConfirm asks a yes/no question. Returns true for yes.
