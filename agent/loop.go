@@ -514,9 +514,27 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
 		// Step 1: Stream the LLM response
+		var finalContent, finalReasoning string
+		var toolCalls []llm.ToolCall
+		var streamErr error
 
-		finalContent, finalReasoning, toolCalls, streamErr := a.streamLLMResponse(ctx, tools, cb)
+		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
 		if streamErr != nil {
+			// If the error is about invalid tool call arguments, feed the error back to the LLM
+			// as a tool result so it can learn from the mistake and retry with proper arguments.
+			if strings.Contains(streamErr.Error(), "invalid arguments") {
+				log.Warn("Agent.RunStream: LLM returned invalid tool call arguments, feeding error back to LLM")
+				// Add a system-like message to inform the LLM about the issue
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: "你刚才生成的 tool call 参数无效（arguments 为空），请重新生成有效的 tool call。确保每个 tool call 的 arguments 是完整的 JSON 对象。",
+				})
+				a.mu.Unlock()
+				cb("info", "\n⚠️ Tool call 参数无效，正在重新请求 LLM...\n")
+				continue
+			}
+			// For other errors, fail immediately
 			log.Error("Agent.RunStream: stream error at iteration %d: %v", iteration, streamErr)
 			return "", streamErr
 		}

@@ -100,6 +100,9 @@ type LLMConfig struct {
 	AgentDescription string `json:"agent_description"` // Agent expertise description
 	AgentPrinciples  string `json:"agent_principles"`  // Agent core principles
 
+	// Retry settings
+	MaxRetries int `json:"max_retries"` // Max retries for transient LLM errors (default: 3)
+
 	// Timeout settings (in seconds, 0 means no timeout)
 	ToolTimeout         int `json:"tool_timeout"`          // Tool call timeout (default: 0 = no timeout)
 	CommandTimeout      int `json:"command_timeout"`       // System command execution timeout (default: 0 = no timeout)
