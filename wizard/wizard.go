@@ -125,6 +125,7 @@ func RunSetupWizard(cfg *config.Config) bool {
 			return false
 		}
 		cfg.LLM.Model = *model
+		cfg.LLM.VisionSupport = getModelVisionSupport(*model)
 		break
 	}
 
@@ -203,6 +204,7 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 				return false
 			}
 			cfg.LLM.Model = *model
+			cfg.LLM.VisionSupport = getModelVisionSupport(*model)
 		}
 		break
 	}
