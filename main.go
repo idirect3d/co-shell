@@ -65,6 +65,24 @@ type cliFlags struct {
 	lang          string
 	agentName     string
 	imagePaths    string // comma-separated image file paths for multimodal input
+
+	// LLM behavior parameters
+	temperature    float64
+	maxTokens      int
+	showThinking   string // "on"/"off"
+	showCommand    string // "on"/"off"
+	showOutput     string // "on"/"off"
+	confirmCommand string // "on"/"off"
+	resultMode     string // minimal/explain/analyze/free
+
+	// Agent identity parameters
+	description string
+	principles  string
+
+	// Timeout parameters
+	toolTimeout int
+	cmdTimeout  int
+	llmTimeout  int
 }
 
 func parseFlags() cliFlags {
@@ -93,6 +111,24 @@ func parseFlags() cliFlags {
 	flag.BoolVar(&f.showVersion, "version", false, "显示版本信息")
 	flag.BoolVar(&f.showVersion, "v", false, "显示版本信息（简写）")
 
+	// LLM behavior parameters
+	flag.Float64Var(&f.temperature, "temperature", -1, "温度参数（0.0 ~ 2.0，覆盖配置文件）")
+	flag.IntVar(&f.maxTokens, "max-tokens", -1, "最大输出令牌数（覆盖配置文件）")
+	flag.StringVar(&f.showThinking, "show-thinking", "", "显示 AI 思考过程（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showCommand, "show-command", "", "显示执行的系统命令（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showOutput, "show-output", "", "显示命令执行输出（on/off，覆盖配置文件）")
+	flag.StringVar(&f.confirmCommand, "confirm-command", "", "执行命令前需确认（on/off，覆盖配置文件）")
+	flag.StringVar(&f.resultMode, "result-mode", "", "结果处理模式（minimal/explain/analyze/free，覆盖配置文件）")
+
+	// Agent identity parameters
+	flag.StringVar(&f.description, "description", "", "指定 agent 描述/专长（覆盖配置文件）")
+	flag.StringVar(&f.principles, "principles", "", "指定 agent 核心原则（覆盖配置文件）")
+
+	// Timeout parameters
+	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
+	flag.IntVar(&f.cmdTimeout, "cmd-timeout", -1, "系统命令执行超时秒数（0=不限，覆盖配置文件）")
+	flag.IntVar(&f.llmTimeout, "llm-timeout", -1, "LLM API 请求超时秒数（0=不限，覆盖配置文件）")
+
 	// Custom usage message
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `%s
@@ -104,6 +140,18 @@ func parseFlags() cliFlags {
 
 %s
 
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
+  %s
   %s
   %s
   %s
@@ -141,6 +189,18 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpLang),
 			i18n.T(i18n.KeyCLIHelpLog),
 			i18n.T(i18n.KeyCLIHelpMaxIter),
+			i18n.T(i18n.KeyCLIHelpTemperature),
+			i18n.T(i18n.KeyCLIHelpMaxTokens),
+			i18n.T(i18n.KeyCLIHelpShowThinking),
+			i18n.T(i18n.KeyCLIHelpShowCommand),
+			i18n.T(i18n.KeyCLIHelpShowOutput),
+			i18n.T(i18n.KeyCLIHelpConfirmCommand),
+			i18n.T(i18n.KeyCLIHelpResultMode),
+			i18n.T(i18n.KeyCLIHelpDescription),
+			i18n.T(i18n.KeyCLIHelpPrinciples),
+			i18n.T(i18n.KeyCLIHelpToolTimeout),
+			i18n.T(i18n.KeyCLIHelpCmdTimeout),
+			i18n.T(i18n.KeyCLIHelpLLMTimeout),
 			i18n.T(i18n.KeyCLIHelpVersion),
 			i18n.T(i18n.KeyCLIHelpHelp),
 			i18n.T(i18n.KeyCLIHelpExamples),
@@ -232,6 +292,80 @@ func main() {
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: invalid --log value %q, use on|off\n", flags.log)
 		}
+	}
+
+	// Apply LLM behavior CLI overrides
+	if flags.temperature >= 0 {
+		cfg.LLM.Temperature = flags.temperature
+	}
+	if flags.maxTokens >= 0 {
+		cfg.LLM.MaxTokens = flags.maxTokens
+	}
+	if flags.showThinking != "" {
+		switch flags.showThinking {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowThinking = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowThinking = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-thinking value %q, use on|off\n", flags.showThinking)
+		}
+	}
+	if flags.showCommand != "" {
+		switch flags.showCommand {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowCommand = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowCommand = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-command value %q, use on|off\n", flags.showCommand)
+		}
+	}
+	if flags.showOutput != "" {
+		switch flags.showOutput {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowOutput = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowOutput = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-output value %q, use on|off\n", flags.showOutput)
+		}
+	}
+	if flags.confirmCommand != "" {
+		switch flags.confirmCommand {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ConfirmCommand = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ConfirmCommand = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --confirm-command value %q, use on|off\n", flags.confirmCommand)
+		}
+	}
+	if flags.resultMode != "" {
+		if mode, ok := config.ParseResultMode(flags.resultMode); ok {
+			cfg.LLM.ResultMode = int(mode)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: invalid --result-mode value %q, use minimal/explain/analyze/free\n", flags.resultMode)
+		}
+	}
+
+	// Apply agent identity CLI overrides
+	if flags.description != "" {
+		cfg.LLM.AgentDescription = flags.description
+	}
+	if flags.principles != "" {
+		cfg.LLM.AgentPrinciples = flags.principles
+	}
+
+	// Apply timeout CLI overrides
+	if flags.toolTimeout >= 0 {
+		cfg.LLM.ToolTimeout = flags.toolTimeout
+	}
+	if flags.cmdTimeout >= 0 {
+		cfg.LLM.CommandTimeout = flags.cmdTimeout
+	}
+	if flags.llmTimeout >= 0 {
+		cfg.LLM.LLMTimeout = flags.llmTimeout
 	}
 
 	// Initialize logger with workspace

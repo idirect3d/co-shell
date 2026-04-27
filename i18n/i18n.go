@@ -392,6 +392,24 @@ const (
 	// CLI Help - Example 8
 	KeyCLIHelpEx8 = "cli_help_ex8"
 
+	// CLI Help - LLM Behavior
+	KeyCLIHelpTemperature    = "cli_help_temperature"
+	KeyCLIHelpMaxTokens      = "cli_help_max_tokens"
+	KeyCLIHelpShowThinking   = "cli_help_show_thinking"
+	KeyCLIHelpShowCommand    = "cli_help_show_command"
+	KeyCLIHelpShowOutput     = "cli_help_show_output"
+	KeyCLIHelpConfirmCommand = "cli_help_confirm_command"
+	KeyCLIHelpResultMode     = "cli_help_result_mode"
+
+	// CLI Help - Agent Identity
+	KeyCLIHelpDescription = "cli_help_description"
+	KeyCLIHelpPrinciples  = "cli_help_principles"
+
+	// CLI Help - Timeout
+	KeyCLIHelpToolTimeout = "cli_help_tool_timeout"
+	KeyCLIHelpCmdTimeout  = "cli_help_cmd_timeout"
+	KeyCLIHelpLLMTimeout  = "cli_help_llm_timeout"
+
 	// Custom
 	KeyCustom = "custom"
 
