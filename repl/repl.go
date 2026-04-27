@@ -442,7 +442,11 @@ func (r *REPL) streamCallback(eventType string, content string) {
 // printWelcome displays the welcome message in a compact format
 // similar to traditional Unix tools (e.g., zip, tar).
 func (r *REPL) printWelcome() {
-	fmt.Printf("co-shell v%s\n", version)
+	visionIndicator := ""
+	if r.cfg.LLM.VisionSupport {
+		visionIndicator = " 👀"
+	}
+	fmt.Printf("co-shell v%s%s\n", version, visionIndicator)
 
 	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
 	fmt.Println()
