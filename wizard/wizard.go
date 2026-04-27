@@ -145,7 +145,7 @@ func RunSetupWizard(cfg *config.Config) bool {
 func setupOpenAICompatible(cfg *config.Config) bool {
 	// Step 2a: API Endpoint with connectivity test
 	for {
-		endpoint := promptRequiredText("📌 API 端点 (必填)", "")
+		endpoint := promptRequiredText("📌 API 端点", cfg.LLM.Endpoint)
 		if endpoint == nil {
 			fmt.Println("\n⚠️  已取消设置。")
 			return false
