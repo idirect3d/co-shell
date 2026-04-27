@@ -213,6 +213,7 @@ var enMessages = map[string]string{
 	KeyHelpList:         "    .list               - View history task list",
 	KeyHelpLast:         "    .last               - View recent history tasks",
 	KeyHelpFirst:        "    .first              - View earliest history tasks",
+	KeyHelpImage:        "    .image              - Manage multimodal image cache (add/remove/clear/list)",
 	KeyHelpHelp:         "    .help               - Show this help message",
 	KeyHelpExit:         "    .exit               - Exit co-shell",
 	KeyHelpExampleTitle: "Examples:",

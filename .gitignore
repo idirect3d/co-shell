@@ -23,6 +23,9 @@ NOTE.md
 # Logs
 *.log
 
+# Database
+db/
+
 # Temp files
 /tmp/
 *.tmp

@@ -315,6 +315,7 @@ const (
 	KeyHelpList         = "help_list"
 	KeyHelpLast         = "help_last"
 	KeyHelpFirst        = "help_first"
+	KeyHelpImage        = "help_image"
 	KeyHelpWizard       = "help_wizard"
 	KeyHelpHelp         = "help_help"
 	KeyHelpExit         = "help_exit"
