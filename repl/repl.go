@@ -49,7 +49,7 @@ import (
 )
 
 // version is the current co-shell version displayed in the welcome message.
-const version = "0.1.0"
+const version = "0.3.0"
 
 // commandPattern matches inputs that look like system commands.
 
