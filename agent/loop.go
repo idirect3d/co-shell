@@ -1936,11 +1936,12 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 	}
 
 	cfg := subagent.SubAgentConfig{
-		Workspace:      workspacePath,
-		Instruction:    instruction,
-		TimeoutSeconds: timeout,
-		Purpose:        purpose,
-		ImagePaths:     a.imagePaths,
+		Workspace:         workspacePath,
+		Instruction:       instruction,
+		TimeoutSeconds:    timeout,
+		Purpose:           purpose,
+		ImagePaths:        a.imagePaths,
+		ConfirmCommandOff: a.approveAll,
 	}
 
 	log.Info("Launching sub-agent #%d: workspace=%s, instruction=%s, timeout=%ds", subID, workspacePath, instruction, timeout)

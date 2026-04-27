@@ -82,6 +82,10 @@ type SubAgentConfig struct {
 	// ImagePaths are paths to image files for multimodal input.
 	// These will be passed to the sub-agent via --image flag.
 	ImagePaths []string
+
+	// ConfirmCommandOff indicates whether to pass --confirm-command off to the sub-agent.
+	// When true, the sub-agent will skip command confirmation prompts.
+	ConfirmCommandOff bool
 }
 
 // SubAgentResult holds the result of a sub-agent execution.
@@ -149,6 +153,11 @@ func (m *Manager) LaunchSubAgent(ctx context.Context, cfg SubAgentConfig) (*SubA
 	// Pass image paths for multimodal input if provided
 	if len(cfg.ImagePaths) > 0 {
 		args = append(args, "--image", strings.Join(cfg.ImagePaths, ","))
+	}
+
+	// If confirm-command is off (parent approved all), pass it to sub-agent
+	if cfg.ConfirmCommandOff {
+		args = append(args, "--confirm-command", "off")
 	}
 
 	// Instruction as non-flag argument (after --)
