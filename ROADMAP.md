@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 101
+> **BUILD**: 102
 
 
 
@@ -109,7 +109,7 @@
 - [x] ENHANCEMENT-84 优化多模态能力：在配置文件模型信息中增加视觉识别能力标记（vision_support），可通过命令行参数（--vision）、内部命令（.set vision）设置，wizard 选择模型后自动通过模型 API 获取视觉支持信息；优化系统提示词中图片识别相关描述，完善 --image 参数在 sub-agent 间的传递机制；ListModels 返回类型从 []string 改为 []ModelInfo（含 VisionSupport）；传入 --image 但模型不支持 vision 时输出错误并退出；模型支持视觉时在欢迎信息版本号旁显示 👀 标识；更新版本号 v0.1.0 -> v0.3.0 [BUILD-101]
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
-- [ ] FEATURE-36 多会话管理（Tab 切换）
+- [ ] FEATURE-36 任务管理，增加记事本方法
 - [ ] FEATURE-37 输出格式化（JSON/表格/树形）
 - [ ] FEATURE-38 命令别名
 - [ ] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项
