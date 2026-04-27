@@ -225,6 +225,91 @@ func (a *Agent) SetImagePaths(paths []string) {
 	a.imagePaths = paths
 }
 
+// AddImages adds image file paths to the image cache.
+// paths is a comma-separated list of image file paths.
+func (a *Agent) AddImages(paths string) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	newPaths := strings.Split(paths, ",")
+	added := 0
+	for _, p := range newPaths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// Check if already in cache
+		exists := false
+		for _, existing := range a.imagePaths {
+			if existing == p {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			a.imagePaths = append(a.imagePaths, p)
+			added++
+		}
+	}
+
+	return fmt.Sprintf("✅ 已添加 %d 张图片到缓存（当前共 %d 张）", added, len(a.imagePaths)), nil
+}
+
+// RemoveImages removes image file paths from the image cache.
+// paths is a comma-separated list of image file paths.
+func (a *Agent) RemoveImages(paths string) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	removePaths := strings.Split(paths, ",")
+	removed := 0
+	var remaining []string
+	for _, p := range a.imagePaths {
+		shouldRemove := false
+		for _, rp := range removePaths {
+			if p == strings.TrimSpace(rp) {
+				shouldRemove = true
+				break
+			}
+		}
+		if shouldRemove {
+			removed++
+		} else {
+			remaining = append(remaining, p)
+		}
+	}
+	a.imagePaths = remaining
+
+	return fmt.Sprintf("✅ 已从缓存中移除 %d 张图片（当前共 %d 张）", removed, len(a.imagePaths)), nil
+}
+
+// ClearImages clears all cached image file paths.
+func (a *Agent) ClearImages() (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	count := len(a.imagePaths)
+	a.imagePaths = nil
+	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
+}
+
+// ListImages returns a formatted list of all cached image file paths.
+func (a *Agent) ListImages() (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if len(a.imagePaths) == 0 {
+		return "📷 图片缓存为空", nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("📷 图片缓存（共 %d 张）:\n", len(a.imagePaths)))
+	for i, p := range a.imagePaths {
+		sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, p))
+	}
+	return sb.String(), nil
+}
+
 // buildMultimodalMessage creates a Message with multimodal content from text and image paths.
 // Images are read from disk and encoded as base64 data URIs.
 func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Message, error) {
@@ -409,7 +494,7 @@ func resultModeInstruction(mode config.ResultMode) string {
 // Run processes a user input through the agent loop.
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	a.mu.Lock()
-	// If there are image paths, create a multimodal message
+	// If there are image paths, create a multimodal message with cached images
 	if len(a.imagePaths) > 0 {
 		multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
 		if err != nil {
@@ -417,7 +502,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			return "", fmt.Errorf("cannot build multimodal message: %w", err)
 		}
 		a.messages = append(a.messages, multimodalMsg)
-		a.imagePaths = nil // clear after use
+		// Keep imagePaths for reuse in subsequent conversations
 	} else {
 		// Add user message to history
 		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
@@ -497,7 +582,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	a.approveAll = false
 
 	a.mu.Lock()
-	// If there are image paths, create a multimodal message
+	// If there are image paths, create a multimodal message with cached images
 	if len(a.imagePaths) > 0 {
 		multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
 		if err != nil {
@@ -505,7 +590,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			return "", fmt.Errorf("cannot build multimodal message: %w", err)
 		}
 		a.messages = append(a.messages, multimodalMsg)
-		a.imagePaths = nil // clear after use
+		// Keep imagePaths for reuse in subsequent conversations
 	} else {
 		// Add user message to history
 		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
@@ -893,6 +978,46 @@ func (a *Agent) buildTools() []llm.Tool {
 				"required": []string{"instruction"},
 			},
 			Callback: a.launchSubAgentTool,
+		},
+		{
+			Name:        "add_images",
+			Description: "Add image file paths to the image cache. These images will be included in all subsequent conversations with the LLM for multimodal (vision) understanding. Multiple paths can be separated by commas. Use this when you need the LLM to see additional images.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"paths": map[string]interface{}{
+						"type":        "string",
+						"description": "Comma-separated list of image file paths to add to the cache",
+					},
+				},
+				"required": []string{"paths"},
+			},
+			Callback: a.addImagesTool,
+		},
+		{
+			Name:        "remove_images",
+			Description: "Remove image file paths from the image cache. Multiple paths can be separated by commas. Use this when you no longer need certain images in the conversation.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"paths": map[string]interface{}{
+						"type":        "string",
+						"description": "Comma-separated list of image file paths to remove from the cache",
+					},
+				},
+				"required": []string{"paths"},
+			},
+			Callback: a.removeImagesTool,
+		},
+		{
+			Name:        "clear_images",
+			Description: "Clear all cached image file paths. After calling this, no images will be included in subsequent conversations. Use this when you want to stop sending images to the LLM.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
+			},
+			Callback: a.clearImagesTool,
 		},
 		{
 			Name:        "schedule_task",
@@ -1484,6 +1609,75 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 	}
 
 	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), path), nil
+}
+
+// addImagesTool adds image file paths to the image cache.
+func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	pathsStr, ok := args["paths"].(string)
+	if !ok {
+		return "", fmt.Errorf("paths argument is required")
+	}
+
+	// Split by comma and trim spaces
+	newPaths := strings.Split(pathsStr, ",")
+	added := 0
+	for _, p := range newPaths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// Check if already in cache
+		exists := false
+		for _, existing := range a.imagePaths {
+			if existing == p {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			a.imagePaths = append(a.imagePaths, p)
+			added++
+		}
+	}
+
+	return fmt.Sprintf("✅ 已添加 %d 张图片到缓存（当前共 %d 张）", added, len(a.imagePaths)), nil
+}
+
+// removeImagesTool removes image file paths from the image cache.
+func (a *Agent) removeImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	pathsStr, ok := args["paths"].(string)
+	if !ok {
+		return "", fmt.Errorf("paths argument is required")
+	}
+
+	// Split by comma and trim spaces
+	removePaths := strings.Split(pathsStr, ",")
+	removed := 0
+	var remaining []string
+	for _, p := range a.imagePaths {
+		shouldRemove := false
+		for _, rp := range removePaths {
+			if p == strings.TrimSpace(rp) {
+				shouldRemove = true
+				break
+			}
+		}
+		if shouldRemove {
+			removed++
+		} else {
+			remaining = append(remaining, p)
+		}
+	}
+	a.imagePaths = remaining
+
+	return fmt.Sprintf("✅ 已从缓存中移除 %d 张图片（当前共 %d 张）", removed, len(a.imagePaths)), nil
+}
+
+// clearImagesTool clears all cached image file paths.
+func (a *Agent) clearImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	count := len(a.imagePaths)
+	a.imagePaths = nil
+	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
 }
 
 // subAgentMemoryKey returns the memory key for a sub-agent by ID.

@@ -1,6 +1,7 @@
 # Binary
 co-shell
 co-shell.exe
+co-shell-test
 
 # IDE
 .idea/
@@ -31,6 +32,7 @@ work/db/
 work/output/
 work/sub-agents/
 dist/
+sample/
 
 # Change notes (auto-generated)
 change/

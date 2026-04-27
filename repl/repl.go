@@ -127,6 +127,7 @@ type REPL struct {
 	memoryHandler   *cmd.MemoryHandler
 	contextHandler  *cmd.ContextHandler
 	listHandler     *cmd.ListHandler
+	imageHandler    *cmd.ImageHandler
 
 	history    []string
 	historyPos int
@@ -146,6 +147,7 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		memoryHandler:  cmd.NewMemoryHandler(s),
 		contextHandler: cmd.NewContextHandler(s),
 		listHandler:    cmd.NewListHandler(s),
+		imageHandler:   cmd.NewImageHandler(ag),
 	}
 
 }
@@ -302,6 +304,8 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.listHandler.HandleLast(args)
 	case ".first":
 		result, err = r.listHandler.HandleFirst(args)
+	case ".image":
+		result, err = r.imageHandler.Handle(args)
 	default:
 		fmt.Printf(i18n.T(i18n.KeyUnknownCommand)+"\n", command)
 		return

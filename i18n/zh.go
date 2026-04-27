@@ -404,8 +404,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 3. 调用 MCP（Model Context Protocol）工具
 4. 读写文件
 5. 管理记忆和上下文
-6. 必要时可以启动多个co-shell进程作为sub-agent，并通过赋予不同的角色（--description/--principles）去分头完成不同性质的子任务
-7. 启动一个sub-agent并通过指令和-i参数实现图片识别和必要的方法调用（比sub-agent返回识别结果后再由主agent调用更直接），但要注意：为保证workspace空间不冲突，-w参数必须指定到当前{workspace}/sub-agents/下一个与其他已启动的sub-agents不冲突的文件夹`,
+6. 必要时可以启动多个co-shell进程作为sub-agent，并通过赋予不同的角色（--description/--principles）去分头完成不同性质的子任务`,
 	KeySystemPromptRules: `重要规则:
 - 使用 "execute_command" 工具运行系统命令，使用对应的 MCP 工具名称进行 MCP 操作。
 - 除非用户特别指定，否则优先使用标准系统命令（如 cat、ls、dir、type），而不是编写脚本或程序。

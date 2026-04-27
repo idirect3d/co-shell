@@ -304,7 +304,7 @@ func getModelVisionSupport(cfg *config.Config, modelID string) bool {
 	// Perform live test: send a minimal multimodal request
 	fmt.Println()
 	fmt.Print("🔄 正在检测模型是否支持视觉识别...")
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Create a temporary client with the current config for testing
@@ -314,7 +314,7 @@ func getModelVisionSupport(cfg *config.Config, modelID string) bool {
 		modelID,
 		cfg.LLM.Temperature,
 		cfg.LLM.MaxTokens,
-		3, // 30s timeout for test
+		10, // 10s timeout for test
 	)
 	defer client.Close()
 

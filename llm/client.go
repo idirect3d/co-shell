@@ -966,7 +966,7 @@ func (c *openAIClient) TestVisionSupport(ctx context.Context) bool {
 		ContentParts: []ContentPart{
 			{
 				Type: ContentPartText,
-				Text: "What color is this pixel?",
+				Text: "直接说什么颜色?",
 			},
 			{
 				Type: ContentPartImageURL,

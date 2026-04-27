@@ -385,8 +385,7 @@ Current Environment:
 3. Call MCP (Model Context Protocol) tools
 4. Read and write files
 5. Manage memory and context
-6. When necessary, launch multiple co-shell processes as sub-agents, assigning different roles (--description/--principles) to tackle different types of sub-tasks in parallel
-7. Launch a sub-agent with instructions and the --image parameter for image recognition and necessary method calls (more direct than having the sub-agent return recognition results for the main agent to process), but note: to avoid workspace conflicts, the -w parameter must point to a folder under {workspace}/sub-agents/ that does not conflict with other running sub-agents`,
+6. When necessary, launch multiple co-shell processes as sub-agents, assigning different roles (--description/--principles) to tackle different types of sub-tasks in parallel`,
 	KeySystemPromptRules: `IMPORTANT RULES:
 - Use the "execute_command" tool to run system commands, and the appropriate MCP tool names for MCP operations.
 - Unless the user specifies otherwise, prefer using standard system commands (e.g., cat, ls, dir, type) over writing scripts or programs.
