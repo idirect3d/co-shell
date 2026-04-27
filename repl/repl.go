@@ -181,7 +181,11 @@ func (r *REPL) Run() error {
 	// Main input loop using bufio.Scanner (standard line-buffered input)
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("❯ ")
+		prompt := "❯ "
+		if r.cfg.LLM.VisionSupport {
+			prompt = "👀 "
+		}
+		fmt.Print(prompt)
 
 		if !scanner.Scan() {
 			// EOF (Ctrl+D) or error
