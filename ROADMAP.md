@@ -6,8 +6,8 @@
 
 ## 当前版本
 
-> **版本**: v0.1.0 — Alpha
-> **BUILD**: 92
+> **版本**: v0.3.0 — RC1
+> **BUILD**: 101
 
 
 
@@ -89,11 +89,6 @@
 - [x] FEATURE-78 新增 --name/-n 命令行参数，支持自定义 agent 名称，用于标识日志、sub-agent workspace 命名等；Agent 新增 SetName/Name/Said 方法，Said() 输出带时间戳和 agent 名称的多语言消息 [BUILD-84]
 - [x] ENHANCEMENT-79 帮助信息中新增 --name/-n 选项说明；i18n 新增 KeyAgentSaid 和 KeyCLIHelpName 翻译键 [BUILD-84]
 
-### 技术债务
-
-
-- [ ] ENHANCEMENT-32 单元测试覆盖核心逻辑（Agent Loop、命令解析）
-
 ---
 
 ## v0.3.0 — RC1
@@ -110,12 +105,14 @@
 - [x] FEATURE-80 Agent 身份自定义：config 新增 AgentName/AgentDescription/AgentPrinciples 字段，系统提示词中注入身份信息，支持通过 .set name/description/principles 运行时修改 [BUILD-90]
 - [x] FEATURE-81 补齐缺失的 CLI 命令行参数：新增 --temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout 共 12 个 CLI 标志，遵循 CLI > 配置文件 > 默认值优先级 [BUILD-91]
 - [x] ENHANCEMENT-82 在 --help 示例中增加 3 个新参数使用示例（--temperature、--show-thinking/--show-command、--result-mode）[BUILD-92]
+- [x] FIX-83 修复帮助信息中默认值与实际不一致的问题：1) --config 显示"~/.co-shell/config.json"实际为"{workspace}/config.json"；2) --max-iterations 显示"默认 10"实际 config 默认值为 1000；3) .set 参数清单缺少 max-retries 参数说明；4) .set 参数清单缺少 result-mode/name/description/principles 参数说明；5) --help 缺少 --image/-i 参数说明 [BUILD-95]
+- [x] ENHANCEMENT-84 优化多模态能力：在配置文件模型信息中增加视觉识别能力标记（vision_support），可通过命令行参数（--vision）、内部命令（.set vision）设置，wizard 选择模型后自动通过模型 API 获取视觉支持信息；优化系统提示词中图片识别相关描述，完善 --image 参数在 sub-agent 间的传递机制 [BUILD-101]
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
 - [ ] FEATURE-36 多会话管理（Tab 切换）
 - [ ] FEATURE-37 输出格式化（JSON/表格/树形）
 - [ ] FEATURE-38 命令别名
-- [ ] FEATURE-39 批量命令执行
+- [ ] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项
 - [ ] FEATURE-40 管道支持（Pipe）
 
 ### 优化
@@ -129,14 +126,13 @@
 ## v1.0.0 — 正式版
 
 > **状态**: 🚧 开发中
-> **目标日期**: 2026-05-02
+> **目标日期**: 2026-05-07
 > **里程碑**: 稳定可用，可发布
 
 ### 功能清单
 
 - [ ] FEATURE-44 Homebrew 安装支持
 - [ ] FEATURE-45 自动更新机制
-- [ ] FEATURE-46 多平台发布（macOS/Linux/Windows）
 - [ ] FEATURE-48 主题系统
 - [ ] ENHANCEMENT-49 性能基准测试
 - [ ] FEATURE-50 完整文档站

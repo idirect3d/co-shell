@@ -397,6 +397,9 @@ const (
 	KeyCLIHelpEx10 = "cli_help_ex10"
 	KeyCLIHelpEx11 = "cli_help_ex11"
 
+	// CLI Help - Image
+	KeyCLIHelpImage = "cli_help_image"
+
 	// CLI Help - LLM Behavior
 	KeyCLIHelpTemperature    = "cli_help_temperature"
 	KeyCLIHelpMaxTokens      = "cli_help_max_tokens"
@@ -454,6 +457,11 @@ const (
 	KeySettingsDescConfirmCmd   = "settings_desc_confirm_cmd"
 	KeySettingsDescLog          = "settings_desc_log"
 	KeySettingsDescMaxIter      = "settings_desc_max_iter"
+	KeySettingsDescMaxRetries   = "settings_desc_max_retries"
+	KeySettingsDescResultMode   = "settings_desc_result_mode"
+	KeySettingsDescName         = "settings_desc_name"
+	KeySettingsDescDescription  = "settings_desc_description"
+	KeySettingsDescPrinciples   = "settings_desc_principles"
 	KeySettingsDescToolTimeout  = "settings_desc_tool_timeout"
 	KeySettingsDescCmdTimeout   = "settings_desc_cmd_timeout"
 	KeySettingsDescLLMTimeout   = "settings_desc_llm_timeout"
@@ -467,6 +475,7 @@ const (
 	KeyCol3Temperature = "col3_temperature"
 	KeyCol3MaxTokens   = "col3_max_tokens"
 	KeyCol3MaxIter     = "col3_max_iter"
+	KeyCol3MaxRetries  = "col3_max_retries"
 	KeyCol3Thinking    = "col3_thinking"
 	KeyCol3Command     = "col3_command"
 	KeyCol3Output      = "col3_output"
@@ -480,4 +489,5 @@ const (
 	KeyCol3Name        = "col3_name"
 	KeyCol3Desc        = "col3_desc"
 	KeyCol3Principles  = "col3_principles"
+	KeyCol3Vision      = "col3_vision"
 )

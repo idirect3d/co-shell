@@ -225,13 +225,14 @@ var enMessages = map[string]string{
 	KeyCLIHelpUsageREPL: "  co-shell [options]                    Start interactive REPL",
 	KeyCLIHelpUsageCmd:  "  co-shell [options] <command>          Execute a single command and exit",
 	KeyCLIHelpOptions:   "Options:",
-	KeyCLIHelpConfig:    "  -c, --config <path>    Config file path (default: ~/.co-shell/config.json)",
+	KeyCLIHelpConfig:    "  -c, --config <path>    Config file path (default: {workspace}/config.json)",
 	KeyCLIHelpModel:     "  -m, --model <name>     Temporarily override model (overrides config)",
 	KeyCLIHelpEndpoint:  "  -e, --endpoint <url>   Temporarily override API endpoint (overrides config)",
 	KeyCLIHelpAPIKey:    "  -k, --api-key <key>    Temporarily override API Key (overrides config)",
 	KeyCLIHelpLang:      "      --lang <code>      Set language (zh/en, auto-detect by default)",
 	KeyCLIHelpLog:       "      --log on|off       Temporarily enable/disable logging (overrides config)",
-	KeyCLIHelpMaxIter:   "      --max-iterations   Max iterations (-1 for unlimited, default 10)",
+	KeyCLIHelpMaxIter:   "      --max-iterations   Max iterations (-1 for unlimited, default 1000)",
+	KeyCLIHelpImage:     "  -i, --image <path>     Image file path(s) (comma-separated for multiple), for multimodal input",
 	KeyCLIHelpVersion:   "  -v, --version          Show version information",
 	KeyCLIHelpHelp:      "  -h, --help             Show this help message",
 	KeyCLIHelpExamples:  "Examples:",
@@ -310,6 +311,11 @@ no liability whatsoever.`,
 	KeySettingsDescConfirmCmd:   "Confirm before executing commands",
 	KeySettingsDescLog:          "Enable/disable logging",
 	KeySettingsDescMaxIter:      "Max iterations (-1=unlimited)",
+	KeySettingsDescMaxRetries:   "LLM transient error retries (default: 3)",
+	KeySettingsDescResultMode:   "Result mode (minimal/explain/analyze/free)",
+	KeySettingsDescName:         "Set agent name",
+	KeySettingsDescDescription:  "Set agent description/expertise",
+	KeySettingsDescPrinciples:   "Set agent core principles",
 	KeySettingsDescToolTimeout:  "Tool call timeout (0=unlimited)",
 	KeySettingsDescCmdTimeout:   "Command timeout (0=unlimited)",
 	KeySettingsDescLLMTimeout:   "LLM request timeout (0=unlimited)",
@@ -323,6 +329,7 @@ no liability whatsoever.`,
 	KeyCol3Temperature: "temperature(0.0 ~ 2.0)",
 	KeyCol3MaxTokens:   "max output tokens(1 ~ N (unlimited))",
 	KeyCol3MaxIter:     "max iterations(-1 ~ N)",
+	KeyCol3MaxRetries:  "LLM retries(0 ~ N)",
 	KeyCol3Thinking:    "show thinking(on|off)",
 	KeyCol3Command:     "show command(on|off)",
 	KeyCol3Output:      "show output(on|off)",
@@ -336,6 +343,7 @@ no liability whatsoever.`,
 	KeyCol3Name:        "Agent name",
 	KeyCol3Desc:        "Agent description",
 	KeyCol3Principles:  "Agent principles",
+	KeyCol3Vision:      "vision(on|off)",
 
 	// History list
 	KeyListTitle:     "📋 History Tasks:",
@@ -368,18 +376,22 @@ Current Environment:
 - Working Directory: %s
 - Hostname: %s
 - User: %s`,
-	KeySystemPromptCapabilities: `You have access to the following capabilities:
+	KeySystemPromptCapabilities: `You have the following capabilities:
 1. Execute system commands (%s)
-2. Call MCP (Model Context Protocol) tools
-3. Read and write files
-4. Manage memory and context
-5. You have many core skills that make you capable of anything, such as ready-to-use tools in {current working directory}/bin and launching multiple sub-agents with different roles via command-line arguments when necessary`,
+2. Call tools in {current working directory}/bin
+3. Call MCP (Model Context Protocol) tools
+4. Read and write files
+5. Manage memory and context
+6. When necessary, launch multiple co-shell processes as sub-agents, assigning different roles (--description/--principles) to tackle different types of sub-tasks in parallel
+7. Launch a sub-agent with instructions and the --image parameter for image recognition and necessary method calls (more direct than having the sub-agent return recognition results for the main agent to process), but note: to avoid workspace conflicts, the -w parameter must point to a folder under {workspace}/sub-agents/ that does not conflict with other running sub-agents`,
 	KeySystemPromptRules: `IMPORTANT RULES:
 - Use the "execute_command" tool to run system commands, and the appropriate MCP tool names for MCP operations.
 - Unless the user specifies otherwise, prefer using standard system commands (e.g., cat, ls, dir, type) over writing scripts or programs.
 - Actively explore the system to discover available tools (e.g., check PATH, common tool directories).
 - If the required tool is not found, try to install it.
-- If existing tools cannot solve the problem, use scripts and programming languages (Shell, Python, Go, Node.js, etc.) to write custom tools to fulfill the user's needs. For successfully executed programs, you can place them in {current working directory}/bin for reuse.
+- If existing tools cannot solve the problem, use scripts and programming languages (Shell, Python, Go, Node.js, etc.) to write custom tools to fulfill the user's needs.
+- For successfully executed custom tools/programs, you can place them in {current working directory}/bin for reuse after verification.
+- Unless otherwise specified, the materials you collect and files you produce should be placed in the {current working directory}/research/ folder.
 - Always explain what you're doing before executing commands.
 - For destructive operations (delete, overwrite, rm -rf, etc.), ask for confirmation first.
 - Use the user's preferred language for responses.

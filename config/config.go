@@ -100,6 +100,9 @@ type LLMConfig struct {
 	AgentDescription string `json:"agent_description"` // Agent expertise description
 	AgentPrinciples  string `json:"agent_principles"`  // Agent core principles
 
+	// Vision support
+	VisionSupport bool `json:"vision_support"` // Whether the model supports vision/multimodal input
+
 	// Retry settings
 	MaxRetries int `json:"max_retries"` // Max retries for transient LLM errors (default: 3)
 
@@ -284,6 +287,7 @@ func (c *Config) Show() string {
 	col3Temp := i18n.T(i18n.KeyCol3Temperature)
 	col3MaxTokens := i18n.T(i18n.KeyCol3MaxTokens)
 	col3MaxIter := i18n.T(i18n.KeyCol3MaxIter)
+	col3MaxRetries := i18n.T(i18n.KeyCol3MaxRetries)
 	col3Thinking := i18n.T(i18n.KeyCol3Thinking)
 	col3Command := i18n.T(i18n.KeyCol3Command)
 	col3Output := i18n.T(i18n.KeyCol3Output)
@@ -299,8 +303,14 @@ func (c *Config) Show() string {
 	col3Name := i18n.T(i18n.KeyCol3Name)
 	col3Desc := i18n.T(i18n.KeyCol3Desc)
 	col3Principles := i18n.T(i18n.KeyCol3Principles)
+	col3Vision := i18n.T(i18n.KeyCol3Vision)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
+
+	visionStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.VisionSupport {
+		visionStatus = i18n.T(i18n.KeyOff)
+	}
 
 	agentName := c.LLM.AgentName
 	if agentName == "" {
@@ -322,6 +332,7 @@ func (c *Config) Show() string {
 		"temperature:", fmt.Sprintf("%.1f", c.LLM.Temperature), col3Temp,
 		"max-tokens:", fmt.Sprintf("%d", c.LLM.MaxTokens), col3MaxTokens,
 		"max-iterations:", maxIterStr, col3MaxIter,
+		"max-retries:", fmt.Sprintf("%d", c.LLM.MaxRetries), col3MaxRetries,
 		"show-thinking:", thinkingStatus, col3Thinking,
 		"show-command:", commandStatus, col3Command,
 		"show-output:", outputStatus, col3Output,
@@ -334,6 +345,7 @@ func (c *Config) Show() string {
 		"name:", agentName, col3Name,
 		"description:", agentDesc, col3Desc,
 		"principles:", agentPrinciples, col3Principles,
+		"vision:", visionStatus, col3Vision,
 		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
 		"规则:", len(c.Rules), col3Rules,
 		"api-key:", maskedKey, col3APIKey)

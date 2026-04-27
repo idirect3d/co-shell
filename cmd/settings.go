@@ -279,6 +279,24 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		}
 		return fmt.Sprintf("✅ 最大迭代次数已设置为: %s", maxIterStr), nil
 
+	case "max-retries":
+		if len(args) < 2 {
+			return fmt.Sprintf("LLM 重试次数: %d", h.cfg.LLM.MaxRetries), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的重试次数: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("重试次数必须 >= 0")
+		}
+		h.cfg.LLM.MaxRetries = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Max retries set to %d", n)
+		return fmt.Sprintf("✅ LLM 重试次数已设置为: %d", n), nil
+
 	case "name":
 		if len(args) < 2 {
 			name := h.cfg.LLM.AgentName
@@ -327,6 +345,32 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		}
 		log.Info("Agent principles set to %s", value)
 		return fmt.Sprintf("✅ Agent 核心原则已设置为: %s", value), nil
+
+	case "vision":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.VisionSupport {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("视觉识别: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.VisionSupport = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.VisionSupport = false
+		default:
+			return "", fmt.Errorf("usage: .set vision on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.VisionSupport {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Vision support set to %s", status)
+		return fmt.Sprintf("✅ 视觉识别已设置为: %s", status), nil
 
 	case "log":
 

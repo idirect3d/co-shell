@@ -104,6 +104,15 @@ type LLMResponse struct {
 	ToolCalls        []ToolCall
 }
 
+// ModelInfo holds information about a model from the API.
+type ModelInfo struct {
+	// ID is the model identifier (e.g., "gpt-4o", "deepseek-chat").
+	ID string `json:"id"`
+
+	// VisionSupport indicates whether the model supports image input (multimodal).
+	VisionSupport bool `json:"vision_support"`
+}
+
 // Client is the interface for LLM interactions.
 type Client interface {
 	// Chat sends a chat completion request and returns the response.
@@ -113,7 +122,8 @@ type Client interface {
 	ChatStream(ctx context.Context, messages []Message, tools []Tool) (<-chan StreamEvent, error)
 
 	// ListModels retrieves the list of available models from the API.
-	ListModels(ctx context.Context) ([]string, error)
+	// Returns model info including vision support detection.
+	ListModels(ctx context.Context) ([]ModelInfo, error)
 
 	// Close cleans up any resources.
 	Close() error
@@ -860,7 +870,8 @@ func (sr *StreamReader) Read() ([]byte, error) {
 
 // ListModels retrieves the list of available models from the API.
 // Uses the OpenAI-compatible GET /models endpoint.
-func (c *openAIClient) ListModels(ctx context.Context) ([]string, error) {
+// Attempts to detect vision support from model capabilities if available in the API response.
+func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	apiURL := c.baseURL + "/models"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
@@ -890,9 +901,18 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
+	// Parse response with optional capabilities field.
+	// Different providers may return different structures:
+	//   OpenAI: {"data": [{"id": "gpt-4o", ...}]}
+	//   DeepSeek: {"data": [{"id": "deepseek-chat", ...}]}
+	//   Some providers include "capabilities" with vision info.
 	var modelsResp struct {
 		Data []struct {
 			ID string `json:"id"`
+			// Some providers include capabilities info (e.g., OpenAI)
+			Capabilities *struct {
+				Vision bool `json:"vision"`
+			} `json:"capabilities,omitempty"`
 		} `json:"data"`
 	}
 
@@ -905,9 +925,16 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("cannot parse response: %w", err)
 	}
 
-	models := make([]string, 0, len(modelsResp.Data))
+	models := make([]ModelInfo, 0, len(modelsResp.Data))
 	for _, m := range modelsResp.Data {
-		models = append(models, m.ID)
+		vision := false
+		if m.Capabilities != nil {
+			vision = m.Capabilities.Vision
+		}
+		models = append(models, ModelInfo{
+			ID:            m.ID,
+			VisionSupport: vision,
+		})
 	}
 
 	return models, nil

@@ -246,6 +246,7 @@ func testEndpointConnectivity(endpoint string) error {
 }
 
 // fetchModels retrieves the list of available models from the API.
+// Returns model IDs as strings for backward compatibility with the model selector.
 func fetchModels(endpoint, apiKey string) ([]string, error) {
 	client := llm.NewClient(endpoint, apiKey, "", 0, 0)
 	defer client.Close()
@@ -254,11 +255,39 @@ func fetchModels(endpoint, apiKey string) ([]string, error) {
 	defer cancel()
 
 	log.Info("Fetching models: endpoint=%s, timeout=30s", endpoint)
-	models, err := client.ListModels(ctx)
+	modelInfos, err := client.ListModels(ctx)
 	if err != nil {
 		log.Error("Fetch models failed: endpoint=%s, error: %v", endpoint, err)
 		return nil, err
 	}
-	log.Info("Fetch models succeeded: endpoint=%s, count=%d", endpoint, len(models))
+	log.Info("Fetch models succeeded: endpoint=%s, count=%d", endpoint, len(modelInfos))
+
+	// Extract model IDs and detect vision support for the selected model
+	models := make([]string, 0, len(modelInfos))
+	for _, mi := range modelInfos {
+		models = append(models, mi.ID)
+	}
+
+	// Store model info for later use (vision support detection)
+	storeModelInfos(modelInfos)
+
 	return models, nil
+}
+
+// modelInfoCache stores the last fetched model info for vision support detection.
+var modelInfoCache []llm.ModelInfo
+
+// storeModelInfos caches model info for later use.
+func storeModelInfos(infos []llm.ModelInfo) {
+	modelInfoCache = infos
+}
+
+// getModelVisionSupport checks if a model supports vision based on cached model info.
+func getModelVisionSupport(modelID string) bool {
+	for _, mi := range modelInfoCache {
+		if mi.ID == modelID {
+			return mi.VisionSupport
+		}
+	}
+	return false
 }

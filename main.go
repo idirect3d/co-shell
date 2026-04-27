@@ -79,6 +79,9 @@ type cliFlags struct {
 	description string
 	principles  string
 
+	// Vision support
+	vision string // "on"/"off"
+
 	// Timeout parameters
 	toolTimeout int
 	cmdTimeout  int
@@ -100,7 +103,7 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.apiKey, "api-key", "", "临时指定 API Key（覆盖配置文件）")
 	flag.StringVar(&f.apiKey, "k", "", "临时指定 API Key（简写）")
 	flag.StringVar(&f.log, "log", "", "临时指定日志开关（on/off，覆盖配置文件）")
-	flag.IntVar(&f.maxIterations, "max-iterations", -1, "最大迭代次数（-1 为不限制，默认 10）")
+	flag.IntVar(&f.maxIterations, "max-iterations", -1, "最大迭代次数（-1 为不限制，默认 1000）")
 	flag.StringVar(&f.agentName, "name", "", "指定 agent 名称（默认：co-shell，用于标识日志、sub-agent workspace 等）")
 	flag.StringVar(&f.agentName, "n", "", "指定 agent 名称（简写）")
 	flag.StringVar(&f.lang, "lang", "", "设置语言（zh/en，默认自动检测）")
@@ -124,6 +127,9 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.description, "description", "", "指定 agent 描述/专长（覆盖配置文件）")
 	flag.StringVar(&f.principles, "principles", "", "指定 agent 核心原则（覆盖配置文件）")
 
+	// Vision support
+	flag.StringVar(&f.vision, "vision", "", "视觉识别能力（on/off，覆盖配置文件）")
+
 	// Timeout parameters
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
 	flag.IntVar(&f.cmdTimeout, "cmd-timeout", -1, "系统命令执行超时秒数（0=不限，覆盖配置文件）")
@@ -140,6 +146,7 @@ func parseFlags() cliFlags {
 
 %s
 
+  %s
   %s
   %s
   %s
@@ -192,6 +199,7 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpLang),
 			i18n.T(i18n.KeyCLIHelpLog),
 			i18n.T(i18n.KeyCLIHelpMaxIter),
+			i18n.T(i18n.KeyCLIHelpImage),
 			i18n.T(i18n.KeyCLIHelpTemperature),
 			i18n.T(i18n.KeyCLIHelpMaxTokens),
 			i18n.T(i18n.KeyCLIHelpShowThinking),
@@ -361,6 +369,18 @@ func main() {
 	}
 	if flags.principles != "" {
 		cfg.LLM.AgentPrinciples = flags.principles
+	}
+
+	// Apply vision CLI override
+	if flags.vision != "" {
+		switch flags.vision {
+		case "on", "1", "true", "yes":
+			cfg.LLM.VisionSupport = true
+		case "off", "0", "false", "no":
+			cfg.LLM.VisionSupport = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --vision value %q, use on|off\n", flags.vision)
+		}
 	}
 
 	// Apply timeout CLI overrides
@@ -637,7 +657,7 @@ func (c *noopClient) ChatStream(ctx context.Context, messages []llm.Message, too
 	return nil, fmt.Errorf("%s", i18n.T(i18n.KeyNoopClientError))
 }
 
-func (c *noopClient) ListModels(ctx context.Context) ([]string, error) {
+func (c *noopClient) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 	return nil, fmt.Errorf("%s", i18n.T(i18n.KeyNoopClientError))
 }
 

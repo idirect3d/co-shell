@@ -227,13 +227,14 @@ var zhMessages = map[string]string{
 	KeyCLIHelpUsageREPL: "  co-shell [选项]                    启动交互式 REPL",
 	KeyCLIHelpUsageCmd:  "  co-shell [选项] <指令>             执行单条指令后退出",
 	KeyCLIHelpOptions:   "选项:",
-	KeyCLIHelpConfig:    "  -c, --config <path>    指定配置文件路径（默认: ~/.co-shell/config.json）",
+	KeyCLIHelpConfig:    "  -c, --config <path>    指定配置文件路径（默认: {workspace}/config.json）",
 	KeyCLIHelpModel:     "  -m, --model <name>     临时指定模型名称（覆盖配置文件）",
 	KeyCLIHelpEndpoint:  "  -e, --endpoint <url>   临时指定 API 端点（覆盖配置文件）",
 	KeyCLIHelpAPIKey:    "  -k, --api-key <key>    临时指定 API Key（覆盖配置文件）",
 	KeyCLIHelpLang:      "      --lang <code>      设置语言（zh/en，默认自动检测）",
 	KeyCLIHelpLog:       "      --log on|off       临时指定日志开关（覆盖配置文件）",
-	KeyCLIHelpMaxIter:   "      --max-iterations   最大迭代次数（-1 为不限制，默认 10）",
+	KeyCLIHelpMaxIter:   "      --max-iterations   最大迭代次数（-1 为不限制，默认 1000）",
+	KeyCLIHelpImage:     "  -i, --image <path>     图片文件路径（多张图片用逗号分隔），用于多模态输入",
 	KeyCLIHelpVersion:   "  -v, --version          显示版本信息",
 	KeyCLIHelpHelp:      "  -h, --help             显示帮助信息",
 	KeyCLIHelpExamples:  "示例:",
@@ -329,6 +330,11 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescConfirmCmd:   "执行命令前需确认",
 	KeySettingsDescLog:          "日志开关",
 	KeySettingsDescMaxIter:      "最大迭代次数（-1=不限）",
+	KeySettingsDescMaxRetries:   "LLM 临时错误重试次数（默认 3）",
+	KeySettingsDescResultMode:   "结果处理模式（minimal/explain/analyze/free）",
+	KeySettingsDescName:         "设置 Agent 名称",
+	KeySettingsDescDescription:  "设置 Agent 描述/专长",
+	KeySettingsDescPrinciples:   "设置 Agent 核心原则",
 	KeySettingsDescToolTimeout:  "工具调用超时（0=不限）",
 	KeySettingsDescCmdTimeout:   "命令执行超时（0=不限）",
 	KeySettingsDescLLMTimeout:   "LLM 请求超时（0=不限）",
@@ -342,6 +348,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Temperature: "温度(0.0 ~ 2.0)",
 	KeyCol3MaxTokens:   "最大输出令牌数(1 ~ N（不限制）)",
 	KeyCol3MaxIter:     "最大迭代次数(-1 ~ N)",
+	KeyCol3MaxRetries:  "LLM 重试次数(0 ~ N)",
 	KeyCol3Thinking:    "显示思考过程(on|off)",
 	KeyCol3Command:     "显示命令(on|off)",
 	KeyCol3Output:      "显示输出(on|off)",
@@ -355,6 +362,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Name:        "Agent 名称",
 	KeyCol3Desc:        "Agent 描述",
 	KeyCol3Principles:  "Agent 核心原则",
+	KeyCol3Vision:      "视觉识别(on|off)",
 
 	// History list
 	KeyListTitle:     "📋 历史任务列表:",
@@ -389,16 +397,20 @@ AI 模型可能会生成并执行以下类型的危险命令：
 - 用户: %s`,
 	KeySystemPromptCapabilities: `你拥有以下能力:
 1. 执行系统命令 (%s)
-2. 调用 MCP（Model Context Protocol）工具
-3. 读写文件
-4. 管理记忆和上下文
-5. 你还有很多核心技能让你无所不能，比如在{当前工作目录}/bin下的现成工具以及在必要的时候启动多个通过命令行参数赋予不同角色的你自己的分身（sub-agent）`,
+2. 调用{当前工作目录}/bin/下的工具
+3. 调用 MCP（Model Context Protocol）工具
+4. 读写文件
+5. 管理记忆和上下文
+6. 必要时可以启动多个co-shell进程作为sub-agent，并通过赋予不同的角色（--description/--principles）去分头完成不同性质的子任务
+7. 启动一个sub-agent并通过指令和-i参数实现图片识别和必要的方法调用（比sub-agent返回识别结果后再由主agent调用更直接），但要注意：为保证workspace空间不冲突，-w参数必须指定到当前{workspace}/sub-agents/下一个与其他已启动的sub-agents不冲突的文件夹`,
 	KeySystemPromptRules: `重要规则:
 - 使用 "execute_command" 工具运行系统命令，使用对应的 MCP 工具名称进行 MCP 操作。
 - 除非用户特别指定，否则优先使用标准系统命令（如 cat、ls、dir、type），而不是编写脚本或程序。
 - 主动探索系统以发现可用工具（如检查 PATH、常见工具目录）。
 - 如果找不到所需工具，尝试安装它。
-- 如果现有工具都解决不了，使用脚本和编程语言（Shell、Python、Go、Node.js 等）编写自定义工具来满足用户需求，对于执行成功的程序，可以放到{当前工作目录}/bin下复用。
+- 如果现有工具都解决不了，使用脚本和编程语言（Shell、Python、Go、Node.js 等）编写自定义工具来满足用户需求
+- 对于执行成功的自主编写自定义工具程序，可以在验证成功后放到{当前工作目录}/bin/下复用。
+- 如果没有特别说明，你收集的资料和产出的文件应该放在{当前工作目录}/research/文件夹下
 - 在执行命令前，始终解释你要做什么。
 - 对于破坏性操作（删除、覆盖、rm -rf 等），先请求确认。
 - 使用用户偏好的语言进行回复。
