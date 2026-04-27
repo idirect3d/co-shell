@@ -33,6 +33,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -253,7 +254,30 @@ func main() {
 
 	// Handle --version
 	if flags.showVersion {
-		fmt.Printf("co-shell v%s\n", version)
+		// Try to load config to check vision support (without creating workspace dirs)
+		visionIndicator := ""
+		configPath := flags.configPath
+		if configPath == "" {
+			root := flags.workspacePath
+			if root == "" {
+				wd, err := os.Getwd()
+				if err == nil {
+					root = wd
+				}
+			}
+			if root != "" {
+				if absRoot, err := filepath.Abs(root); err == nil {
+					configPath = filepath.Join(absRoot, "config.json")
+				}
+			}
+		}
+		if configPath != "" {
+			cfg, _, err := config.LoadFromFile(configPath, nil)
+			if err == nil && cfg.LLM.VisionSupport {
+				visionIndicator = " 👀"
+			}
+		}
+		fmt.Printf("co-shell v%s%s\n", version, visionIndicator)
 		os.Exit(0)
 	}
 
