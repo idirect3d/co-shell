@@ -204,14 +204,40 @@ type thinkingConfig struct {
 }
 
 // chatResponseJSON is the JSON structure for the chat completion response.
+// Uses json.RawMessage for the Error field to handle both object and string formats.
+// Some APIs return error as a string: {"error": "Rate limit exceeded"}
+// Others return as an object: {"error": {"message": "Rate limit exceeded"}}
 type chatResponseJSON struct {
-	ID      string             `json:"id"`
-	Object  string             `json:"object"`
-	Created int64              `json:"created"`
-	Model   string             `json:"model"`
-	Choices []choiceJSON       `json:"choices"`
-	Usage   *usageJSON         `json:"usage,omitempty"`
-	Error   *responseErrorJSON `json:"error,omitempty"`
+	ID      string          `json:"id"`
+	Object  string          `json:"object"`
+	Created int64           `json:"created"`
+	Model   string          `json:"model"`
+	Choices []choiceJSON    `json:"choices"`
+	Usage   *usageJSON      `json:"usage,omitempty"`
+	Error   json.RawMessage `json:"error,omitempty"`
+}
+
+// parseError parses the raw error field into a responseErrorJSON.
+// Handles both string and object formats.
+func (r *chatResponseJSON) parseError() *responseErrorJSON {
+	if len(r.Error) == 0 {
+		return nil
+	}
+
+	// Try object format first: {"message": "...", "type": "...", "code": "..."}
+	var errObj responseErrorJSON
+	if err := json.Unmarshal(r.Error, &errObj); err == nil && errObj.Message != "" {
+		return &errObj
+	}
+
+	// Try string format: "error message"
+	var errStr string
+	if err := json.Unmarshal(r.Error, &errStr); err == nil && errStr != "" {
+		return &responseErrorJSON{Message: errStr}
+	}
+
+	// Fallback: use raw string
+	return &responseErrorJSON{Message: string(r.Error)}
 }
 
 // choiceJSON is the JSON structure for a response choice.
@@ -471,12 +497,12 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	}
 
 	// Check for API error
-	if chatResp.Error != nil {
-		errMsg := fmt.Sprintf("API error: %s (type=%s, code=%s)", chatResp.Error.Message, chatResp.Error.Type, chatResp.Error.Code)
+	if errObj := chatResp.parseError(); errObj != nil {
+		errMsg := fmt.Sprintf("API error: %s (type=%s, code=%s)", errObj.Message, errObj.Type, errObj.Code)
 		log.Error("LLM Chat API error: POST %s, status=%d, error=%s", apiURL, resp.StatusCode, errMsg)
 		return nil, &OpenAIError{
 			StatusCode: resp.StatusCode,
-			Message:    chatResp.Error.Message,
+			Message:    errObj.Message,
 		}
 	}
 
