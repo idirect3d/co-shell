@@ -39,3 +39,18 @@ sample/
 
 # Change notes (auto-generated)
 change/
+
+# Cline rules (not for public repo)
+.roorules
+.clinerules/
+
+# Roadmap (internal, not for public repo)
+ROADMAP.md
+
+# Work research & tools (not for public repo)
+work/research/
+work/bin/
+work/config.json
+work/co-shell
+work/co-shell.exe
+work/co-shell-test
