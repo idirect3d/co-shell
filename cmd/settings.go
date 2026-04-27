@@ -287,13 +287,14 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 			}
 			return fmt.Sprintf("Agent 名称: %s", name), nil
 		}
-		h.cfg.LLM.AgentName = args[1]
+		value := strings.Join(args[1:], " ")
+		h.cfg.LLM.AgentName = value
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		h.agent.SetName(args[1])
-		log.Info("Agent name set to %s", args[1])
-		return fmt.Sprintf("✅ Agent 名称已设置为: %s", args[1]), nil
+		h.agent.SetName(value)
+		log.Info("Agent name set to %s", value)
+		return fmt.Sprintf("✅ Agent 名称已设置为: %s", value), nil
 
 	case "description":
 		if len(args) < 2 {
@@ -303,12 +304,13 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 			}
 			return fmt.Sprintf("Agent 描述: %s", desc), nil
 		}
-		h.cfg.LLM.AgentDescription = args[1]
+		value := strings.Join(args[1:], " ")
+		h.cfg.LLM.AgentDescription = value
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		log.Info("Agent description set to %s", args[1])
-		return fmt.Sprintf("✅ Agent 描述已设置为: %s", args[1]), nil
+		log.Info("Agent description set to %s", value)
+		return fmt.Sprintf("✅ Agent 描述已设置为: %s", value), nil
 
 	case "principles":
 		if len(args) < 2 {
@@ -318,12 +320,13 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 			}
 			return fmt.Sprintf("Agent 核心原则: %s", principles), nil
 		}
-		h.cfg.LLM.AgentPrinciples = args[1]
+		value := strings.Join(args[1:], " ")
+		h.cfg.LLM.AgentPrinciples = value
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		log.Info("Agent principles set to %s", args[1])
-		return fmt.Sprintf("✅ Agent 核心原则已设置为: %s", args[1]), nil
+		log.Info("Agent principles set to %s", value)
+		return fmt.Sprintf("✅ Agent 核心原则已设置为: %s", value), nil
 
 	case "log":
 
