@@ -644,6 +644,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	var reasoningBuilder strings.Builder
 	var toolCalls []llm.ToolCall
 
+	// Track whether we saw any tool call events (even invalid ones) from the stream.
+	// This helps distinguish between "LLM returned no tool calls" (final answer)
+	// and "LLM returned tool calls but all were invalid" (should retry).
+	hasToolCallEvents := false
+
 	// Filter function for tool calls that may have incomplete data from stream deltas
 	// (e.g., empty name, ID, or arguments which would cause API errors)
 	isValidToolCall := func(tc llm.ToolCall) bool {
@@ -663,6 +668,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			}
 
 		case llm.StreamEventToolCall:
+			hasToolCallEvents = true
 			if event.ToolCall != nil && isValidToolCall(*event.ToolCall) {
 				toolCalls = append(toolCalls, *event.ToolCall)
 			}
@@ -672,6 +678,13 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			// No need for an extra non-streaming API call.
 			finalContent := contentBuilder.String()
 			finalReasoning := reasoningBuilder.String()
+
+			// If the LLM intended to call tools but all were invalid (e.g., empty arguments),
+			// treat this as an error so the agent can retry rather than returning empty content.
+			if hasToolCallEvents && len(toolCalls) == 0 {
+				return "", "", nil, fmt.Errorf("LLM returned tool calls with invalid arguments (all filtered out)")
+			}
+
 			return finalContent, finalReasoning, toolCalls, nil
 
 		case llm.StreamEventError:
