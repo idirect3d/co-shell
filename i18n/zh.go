@@ -179,7 +179,10 @@ var zhMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
 
+  %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
