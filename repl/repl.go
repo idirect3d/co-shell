@@ -481,6 +481,7 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpLast))
 	fmt.Println(i18n.T(i18n.KeyHelpFirst))
 	fmt.Println(i18n.T(i18n.KeyHelpImage))
+	fmt.Println(i18n.T(i18n.KeyHelpPlan))
 	fmt.Println(i18n.T(i18n.KeyHelpWizard))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
