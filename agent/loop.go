@@ -645,9 +645,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	var toolCalls []llm.ToolCall
 
 	// Filter function for tool calls that may have incomplete data from stream deltas
-	// (e.g., empty name or ID which would cause "missing field 'name'" API errors)
+	// (e.g., empty name, ID, or arguments which would cause API errors)
 	isValidToolCall := func(tc llm.ToolCall) bool {
-		return tc.Name != "" && tc.ID != ""
+		return tc.Name != "" && tc.ID != "" && tc.Arguments != ""
 	}
 
 	for event := range eventCh {

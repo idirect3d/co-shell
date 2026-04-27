@@ -331,9 +331,13 @@ func buildMessages(messages []Message) []chatMessageJSON {
 
 		// Determine content: if multimodal, use array of ContentPart;
 		// otherwise, use plain string.
+		// For tool role messages, empty content should be null (not empty string)
+		// to satisfy API requirements (some APIs reject empty string content).
 		var content interface{}
 		if msg.HasMultimodalContent() {
 			content = msg.ContentParts
+		} else if msg.Role == "tool" && msg.Content == "" {
+			content = nil
 		} else {
 			content = msg.Content
 		}
