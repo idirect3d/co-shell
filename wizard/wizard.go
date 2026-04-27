@@ -125,7 +125,7 @@ func RunSetupWizard(cfg *config.Config) bool {
 			return false
 		}
 		cfg.LLM.Model = *model
-		cfg.LLM.VisionSupport = getModelVisionSupport(*model)
+		cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
 		break
 	}
 
@@ -204,7 +204,7 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 				return false
 			}
 			cfg.LLM.Model = *model
-			cfg.LLM.VisionSupport = getModelVisionSupport(*model)
+			cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
 		}
 		break
 	}
@@ -284,12 +284,45 @@ func storeModelInfos(infos []llm.ModelInfo) {
 	modelInfoCache = infos
 }
 
-// getModelVisionSupport checks if a model supports vision based on cached model info.
-func getModelVisionSupport(modelID string) bool {
+// getModelVisionSupport checks if a model supports vision.
+// First tries cached model info from API response.
+// If the API didn't provide vision info (e.g., custom models without capabilities field),
+// performs a live test by sending a minimal multimodal request.
+func getModelVisionSupport(cfg *config.Config, modelID string) bool {
+	// Try cached model info first
 	for _, mi := range modelInfoCache {
 		if mi.ID == modelID {
-			return mi.VisionSupport
+			if mi.VisionSupport {
+				return true
+			}
+			// If API explicitly says no vision, still try live test
+			// as some APIs may not report capabilities correctly
+			break
 		}
 	}
-	return false
+
+	// Perform live test: send a minimal multimodal request
+	fmt.Println()
+	fmt.Print("🔄 正在检测模型是否支持视觉识别...")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Create a temporary client with the current config for testing
+	client := llm.NewClient(
+		cfg.LLM.Endpoint,
+		cfg.LLM.APIKey,
+		modelID,
+		cfg.LLM.Temperature,
+		cfg.LLM.MaxTokens,
+		3, // 30s timeout for test
+	)
+	defer client.Close()
+
+	supportsVision := client.TestVisionSupport(ctx)
+	if supportsVision {
+		fmt.Println(" ✅ 支持视觉识别！")
+	} else {
+		fmt.Println(" ❌ 不支持视觉识别。")
+	}
+	return supportsVision
 }

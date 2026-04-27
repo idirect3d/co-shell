@@ -125,6 +125,16 @@ type Client interface {
 	// Returns model info including vision support detection.
 	ListModels(ctx context.Context) ([]ModelInfo, error)
 
+	// TestVisionSupport tests whether the model supports vision (image input)
+	// by sending a minimal multimodal request with a 1x1 pixel base64 image.
+	// Returns true if the model accepts the request without error.
+	TestVisionSupport(ctx context.Context) bool
+
+	// TestTextSupport tests whether the model supports basic text chat
+	// by sending a minimal text request.
+	// Returns true if the model responds without error.
+	TestTextSupport(ctx context.Context) bool
+
 	// Close cleans up any resources.
 	Close() error
 }
@@ -941,6 +951,57 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	}
 
 	return models, nil
+}
+
+// TestVisionSupport tests whether the model supports vision (image input)
+// by sending a minimal multimodal request with a 1x1 pixel base64 image.
+// Returns true if the model accepts the request without error.
+func (c *openAIClient) TestVisionSupport(ctx context.Context) bool {
+	// A 1x1 pixel transparent PNG in base64
+	// This is the smallest valid PNG image possible
+	const pixelBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+	msg := Message{
+		Role: "user",
+		ContentParts: []ContentPart{
+			{
+				Type: ContentPartText,
+				Text: "What color is this pixel?",
+			},
+			{
+				Type: ContentPartImageURL,
+				ImageURL: &ContentPartImage{
+					URL: "data:image/png;base64," + pixelBase64,
+				},
+			},
+		},
+	}
+
+	_, err := c.Chat(ctx, []Message{msg}, nil)
+	if err != nil {
+		log.Debug("TestVisionSupport failed for model %s: %v", c.model, err)
+		return false
+	}
+	log.Info("TestVisionSupport succeeded for model %s", c.model)
+	return true
+}
+
+// TestTextSupport tests whether the model supports basic text chat
+// by sending a minimal text request.
+// Returns true if the model responds without error.
+func (c *openAIClient) TestTextSupport(ctx context.Context) bool {
+	msg := Message{
+		Role:    "user",
+		Content: "Hi",
+	}
+
+	_, err := c.Chat(ctx, []Message{msg}, nil)
+	if err != nil {
+		log.Debug("TestTextSupport failed for model %s: %v", c.model, err)
+		return false
+	}
+	log.Info("TestTextSupport succeeded for model %s", c.model)
+	return true
 }
 
 func (c *openAIClient) Close() error {

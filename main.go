@@ -688,7 +688,15 @@ func (c *noopClient) ChatStream(ctx context.Context, messages []llm.Message, too
 }
 
 func (c *noopClient) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
-	return nil, fmt.Errorf("%s", i18n.T(i18n.KeyNoopClientError))
+	return nil, nil
+}
+
+func (c *noopClient) TestVisionSupport(ctx context.Context) bool {
+	return false
+}
+
+func (c *noopClient) TestTextSupport(ctx context.Context) bool {
+	return false
 }
 
 func (c *noopClient) Close() error {
