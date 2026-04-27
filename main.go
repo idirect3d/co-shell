@@ -518,6 +518,12 @@ func main() {
 
 	// Set image paths for multimodal input if provided
 	if flags.imagePaths != "" {
+		// Check if the current model supports vision
+		if !cfg.LLM.VisionSupport {
+			fmt.Fprintf(os.Stderr, "❌ 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n")
+			fmt.Fprintf(os.Stderr, "   请去掉-image参数或使用支持多模态的模型。\n")
+			os.Exit(1)
+		}
 		paths := strings.Split(flags.imagePaths, ",")
 		// Trim whitespace from each path
 		for i := range paths {
