@@ -331,13 +331,15 @@ func buildMessages(messages []Message) []chatMessageJSON {
 
 		// Determine content: if multimodal, use array of ContentPart;
 		// otherwise, use plain string.
-		// For tool role messages, empty content should be null (not empty string)
-		// to satisfy API requirements (some APIs reject empty string content).
+		// Assert: tool role messages must never have nil content,
+		// as some APIs (e.g., DeepSeek) reject null content.
+		// The caller (agent/loop.go) should have already replaced empty results
+		// with a descriptive message like "（工具调用无输出）".
 		var content interface{}
 		if msg.HasMultimodalContent() {
 			content = msg.ContentParts
 		} else if msg.Role == "tool" && msg.Content == "" {
-			content = nil
+			panic("BUG: tool message content must not be empty; caller should have replaced empty results with a descriptive message")
 		} else {
 			content = msg.Content
 		}

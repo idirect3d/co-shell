@@ -471,10 +471,15 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			}
 
 			// Add tool result to messages
+			// If the result is empty, provide a clear message to the LLM
+			toolContent := result
+			if toolContent == "" {
+				toolContent = "（工具调用无输出）"
+			}
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{
 				Role:       "tool",
-				Content:    result,
+				Content:    toolContent,
 				ToolCallID: tc.ID,
 			})
 			a.mu.Unlock()
@@ -622,10 +627,16 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				cb("output", result)
 			}
 
+			// If the result is empty, provide a clear message to the LLM
+			toolContent := result
+			if toolContent == "" {
+				toolContent = "（工具调用无输出）"
+			}
+
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{
 				Role:       "tool",
-				Content:    result,
+				Content:    toolContent,
 				ToolCallID: tc.ID,
 			})
 			a.mu.Unlock()
