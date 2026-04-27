@@ -921,6 +921,9 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 		return nil, fmt.Errorf("cannot read response: %w", err)
 	}
 
+	// Log raw response for debugging (especially useful for vision support detection)
+	log.Debug("LLM ListModels raw response: %s", string(respBytes))
+
 	if err := json.Unmarshal(respBytes, &modelsResp); err != nil {
 		return nil, fmt.Errorf("cannot parse response: %w", err)
 	}
