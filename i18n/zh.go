@@ -350,7 +350,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 %s
 
 %s`,
-	KeySystemPromptTitle: `你是 co-shell，一个智能命令行助手，帮助用户通过自然语言与系统交互。
+	KeySystemPromptTitle: `你是 co-shell，一个由 Go 语言编写的智能命令行应用程序，可通过自然语言指令直接操作系统。
 
 当前环境:
 - 平台: %s (%s)

@@ -349,7 +349,7 @@ You are %s, an intelligent command-line assistant that helps users interact with
 %s
 
 %s`,
-	KeySystemPromptTitle: `You are co-shell, an intelligent command-line assistant that helps users interact with their system through natural language.
+	KeySystemPromptTitle: `You are co-shell, a Go-powered intelligent command-line application that can directly operate the system through natural language instructions.
 
 Current Environment:
 - Platform: %s (%s)
