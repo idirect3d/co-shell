@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 113
+> **BUILD**: 114
 
 
 
@@ -108,7 +108,7 @@
 - [x] ENHANCEMENT-84 优化多模态能力：在配置文件模型信息中增加视觉识别能力标记（vision_support），可通过命令行参数（--vision）、内部命令（.set vision）设置，wizard 选择模型后自动通过模型 API 获取视觉支持信息；优化系统提示词中图片识别相关描述，完善 --image 参数在 sub-agent 间的传递机制；ListModels 返回类型从 []string 改为 []ModelInfo（含 VisionSupport）；传入 --image 但模型不支持 vision 时输出错误并退出；模型支持视觉时在欢迎信息版本号旁显示 👀 标识；更新版本号 v0.1.0 -> v0.3.0 [BUILD-101]
 - [x] ENHANCEMENT-85 多模态图片缓存机制：建立图片缓存，--image 传入的图片路径不再自动清空；新增 .image 内置命令（add/remove/clear/list）；新增 add_images/remove_images/clear_images 三个 LLM 工具，让大模型能操纵图片缓存；去掉 sub-agent 图像识别相关系统提示词 [BUILD-109]
 - [x] FEATURE-36 任务计划管理（Task Plan Management）：提供 create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具及 .plan 内置命令（list/view/create/insert/remove/update），让大模型和用户都能规划制定多步骤任务计划、跟踪进度、根据实际情况调整计划，数据持久化到 bbolt [BUILD-113]
-- [ ] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项
+- [x] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项 [BUILD-114]
 
 ---
 
