@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.1.0 — Alpha
-> **BUILD**: 91
+> **BUILD**: 92
 
 
 
@@ -109,6 +109,7 @@
 - [x] FIX-79 修复设置向导中获取到空模型列表时 panic（index out of range）[BUILD-89]
 - [x] FEATURE-80 Agent 身份自定义：config 新增 AgentName/AgentDescription/AgentPrinciples 字段，系统提示词中注入身份信息，支持通过 .set name/description/principles 运行时修改 [BUILD-90]
 - [x] FEATURE-81 补齐缺失的 CLI 命令行参数：新增 --temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout 共 12 个 CLI 标志，遵循 CLI > 配置文件 > 默认值优先级 [BUILD-91]
+- [x] ENHANCEMENT-82 在 --help 示例中增加 3 个新参数使用示例（--temperature、--show-thinking/--show-command、--result-mode）[BUILD-92]
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
 - [ ] FEATURE-36 多会话管理（Tab 切换）
