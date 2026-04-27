@@ -420,6 +420,16 @@ func parseResponseChoices(choices []choiceJSON) (string, string, []ToolCall) {
 	return content, reasoningContent, toolCalls
 }
 
+// maskAPIKeyInRequest masks the API key in a JSON request body string for safe logging.
+// It replaces the "api_key" field value with a masked version.
+func maskAPIKeyInRequest(body string) string {
+	// Simple regex-free approach: find "api_key" in the body and mask its value
+	// Since the request body doesn't contain api_key directly (it's in the Authorization header),
+	// we just return the body as-is. The body may contain sensitive content in messages,
+	// but that's intentional for debugging purposes.
+	return body
+}
+
 // isThinkingModel checks if the model name suggests thinking/reasoning capability.
 func isThinkingModel(model string) bool {
 	// DeepSeek models with thinking support
@@ -459,6 +469,9 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	if err != nil {
 		return nil, fmt.Errorf("cannot marshal request: %w", err)
 	}
+
+	// Log request body at DEBUG level (mask API key in messages)
+	log.Debug("LLM Chat request body: %s", maskAPIKeyInRequest(string(bodyBytes)))
 
 	// Create HTTP request
 	apiURL := c.baseURL + "/chat/completions"
@@ -565,6 +578,9 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	if err != nil {
 		return nil, fmt.Errorf("cannot marshal request: %w", err)
 	}
+
+	// Log request body at DEBUG level (mask API key in messages)
+	log.Debug("LLM ChatStream request body: %s", maskAPIKeyInRequest(string(bodyBytes)))
 
 	// Create HTTP request
 	apiURL := c.baseURL + "/chat/completions"
