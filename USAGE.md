@@ -13,6 +13,8 @@
   - [.rule — 全局规则管理](#rule--全局规则管理)
   - [.memory — 记忆管理](#memory--记忆管理)
   - [.context — 上下文管理](#context--上下文管理)
+  - [.image — 多模态图片缓存管理](#image--多模态图片缓存管理)
+  - [.plan — 任务计划管理](#plan--任务计划管理)
 - [自然语言交互](#自然语言交互)
 - [MCP 集成](#mcp-集成)
 - [配置文件](#配置文件)
@@ -236,6 +238,66 @@ Current Context:
 
 ❯ .context reset
 ✅ Context reset. Conversation history cleared.
+```
+
+### .image — 多模态图片缓存管理
+
+管理用于多模态输入的图片缓存。
+
+```bash
+.image                    # 列出所有缓存的图片
+.image add <path>         # 添加一张图片到缓存
+.image remove <index>     # 按索引移除一张图片
+.image clear              # 清除所有缓存的图片
+.image list               # 列出所有缓存的图片
+```
+
+**示例：**
+
+```bash
+❯ .image add /path/to/photo.jpg
+✅ Image added: /path/to/photo.jpg
+
+❯ .image
+Cached Images:
+  [0] /path/to/photo.jpg
+  [1] /path/to/diagram.png
+
+❯ .image remove 0
+✅ Image removed: /path/to/photo.jpg
+```
+
+### .plan — 任务计划管理
+
+管理多步骤任务计划，支持创建、查看、修改和跟踪进度。
+
+```bash
+.plan                     # 列出所有任务计划
+.plan list                # 列出所有任务计划
+.plan view <id>           # 查看指定任务计划的详细内容
+.plan create <title>      # 创建一个新的任务计划
+.plan insert <id> <pos>   # 在指定位置插入新步骤
+.plan remove <id> <step>  # 移除指定步骤
+.plan update <id> <step>  # 更新指定步骤的状态或内容
+```
+
+**示例：**
+
+```bash
+❯ .plan create "部署新版本"
+✅ Task plan created: id=plan-001, title=部署新版本
+
+❯ .plan view plan-001
+Task Plan: 部署新版本 (plan-001)
+  Status: 进行中
+  Steps:
+    [0] ⏳ 拉取最新代码
+    [1] ⏳ 运行测试
+    [2] ⏳ 构建镜像
+    [3] ⏳ 部署到服务器
+
+❯ .plan update plan-001 0
+✅ Step 0 marked as completed
 ```
 
 ---

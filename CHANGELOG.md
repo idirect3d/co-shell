@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-04-29
+
+### Added
+- Multimodal model support: image input, visual understanding, 👀 indicator in version display
+- Image cache management: `.image` built-in command (add/remove/clear/list), `add_images`/`remove_images`/`clear_images` LLM tools
+- Agent identity customization: `name`/`description`/`principles` fields in config, `.set name/description/principles` runtime modification
+- Task plan management: `.plan` built-in command (list/view/create/insert/remove/update), 6 LLM tools for plan CRUD and progress tracking
+- Batch command execution: "Approve All" option inheritable to sub-agents
+- 12 new CLI flags: `--temperature`, `--max-tokens`, `--show-thinking`, `--show-command`, `--show-output`, `--confirm-command`, `--result-mode`, `--description`, `--principles`, `--tool-timeout`, `--cmd-timeout`, `--llm-timeout`
+- Vision support auto-detection: `ListModels` returns `ModelInfo` with `VisionSupport`, wizard auto-fetches vision capability
+- Image path propagation to sub-agents via `--image` flag
+- `--vision` CLI flag and `.set vision` runtime toggle for vision support
+
+### Fixed
+- Setup wizard panic on empty model list (index out of range)
+- Help text inconsistencies: config default path, max-iterations default value, missing parameter descriptions in `.set` and `--help`
+
+### Changed
+- Version bumped from v0.1.0 to v0.3.0
+- `ListModels` return type from `[]string` to `[]ModelInfo` (with VisionSupport field)
+- Enhanced help documentation with complete parameter descriptions
+
 ## [0.2.0] - 2026-04-27
 
 ### Added

@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00074-blue)]()
+[![Build](https://img.shields.io/badge/Build-00114-blue)]()
 [![English](https://img.shields.io/badge/README-English-blue)](../en/README.md)
 
 
@@ -124,14 +124,31 @@ co-shell [选项]                    启动交互式 REPL
 co-shell [选项] <指令>             执行单条指令后退出
 
 选项:
-  -c, --config <path>    指定配置文件路径（默认: ~/.co-shell/config.json）
-  -m, --model <name>     临时指定模型名称
-  -e, --endpoint <url>   临时指定 API 端点
-  -k, --api-key <key>    临时指定 API Key
-      --log on|off       临时指定日志开关
-      --max-iterations   最大迭代次数（-1 为不限制，默认 10）
-  -v, --version          显示版本信息
-  -h, --help             显示帮助信息
+  -w, --workspace <path>  工作区路径（默认：当前目录）
+  -c, --config <path>     配置文件路径（默认：{workspace}/config.json）
+  -m, --model <name>      临时指定模型名称
+  -e, --endpoint <url>    临时指定 API 端点
+  -k, --api-key <key>     临时指定 API Key
+  -n, --name <name>       设置 Agent 名称（默认：co-shell）
+  -i, --image <path>      图片文件路径，用于多模态输入
+      --lang <code>       设置语言（zh/en，默认自动检测）
+      --log on|off        临时指定日志开关
+      --max-iterations N  最大迭代次数（-1 为不限制，默认 1000）
+      --temperature N     温度参数（0.0 ~ 2.0）
+      --max-tokens N      最大输出令牌数
+      --show-thinking     显示 AI 思考过程（on/off）
+      --show-command      显示执行的命令（on/off）
+      --show-output       显示命令输出（on/off）
+      --confirm-command   执行命令前需确认（on/off）
+      --result-mode       结果处理模式（minimal/explain/analyze/free）
+      --description       Agent 描述/专长
+      --principles        Agent 核心原则
+      --tool-timeout N    工具调用超时秒数（0=不限）
+      --cmd-timeout N     命令执行超时秒数（0=不限）
+      --llm-timeout N     LLM 请求超时秒数（0=不限）
+      --vision            视觉识别能力（on/off）
+  -v, --version           显示版本信息
+  -h, --help              显示帮助信息
 ```
 
 ---
@@ -142,11 +159,19 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 | 命令 | 功能 |
 |---|---|
-| `.settings` | LLM API 参数管理（api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log） |
+| `.set` | LLM API 参数管理（api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log / result-mode / name / description / principles / vision / tool-timeout / cmd-timeout / llm-timeout） |
 | `.mcp` | MCP Server 管理（add / remove / list / enable / disable） |
 | `.rule` | 全局规则管理（add / remove / clear） |
 | `.memory` | 持久化记忆管理（save / get / search / delete / clear） |
 | `.context` | 上下文管理（show / reset / set） |
+| `.image` | 多模态图片缓存管理（add / remove / clear / list） |
+| `.plan` | 任务计划管理（list / view / create / insert / remove / update） |
+| `.wizard` | 重新启动 API 设置向导 |
+| `.list` | 查看历史任务列表 |
+| `.last` | 查看最近的历史任务 |
+| `.first` | 查看最早的历史任务 |
+| `.help` | 显示帮助信息 |
+| `.exit` | 退出 co-shell |
 
 ---
 
@@ -162,7 +187,24 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ## 版本历史
 
-### v0.2.0 — Beta（当前版本）
+### v0.3.0 — RC1（当前版本）
+
+> **BUILD**: 00114 | **发布日期**: 2026-04-29
+
+发布候选版，功能完整，可预览。
+
+**已实现功能：**
+
+- 多模态模型支持（图片输入、视觉理解），👀 标识
+- 图片缓存管理（.image 命令，add_images/remove_images/clear_images 工具）
+- Agent 身份自定义（name/description/principles 通过 .set 设置）
+- 任务计划管理（.plan 命令，create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans 工具）
+- 批量命令执行，"本次都批准"选项可继承给子 agent
+- 12 个新 CLI 参数（--temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout）
+- 视觉识别能力自动检测（通过模型 API）
+- 增强的帮助文档，完整参数描述
+
+### v0.2.0 — Beta
 
 > **BUILD**: 00087 | **发布日期**: 2026-04-27
 

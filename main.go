@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.3.0"
-const build = "114"
+const build = "115"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -88,6 +88,10 @@ type cliFlags struct {
 	toolTimeout int
 	cmdTimeout  int
 	llmTimeout  int
+
+	// External config file generation
+	initCapabilities bool
+	initRules        bool
 }
 
 func parseFlags() cliFlags {
@@ -136,6 +140,10 @@ func parseFlags() cliFlags {
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
 	flag.IntVar(&f.cmdTimeout, "cmd-timeout", -1, "系统命令执行超时秒数（0=不限，覆盖配置文件）")
 	flag.IntVar(&f.llmTimeout, "llm-timeout", -1, "LLM API 请求超时秒数（0=不限，覆盖配置文件）")
+
+	// External config file generation
+	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
+	flag.BoolVar(&f.initRules, "init-rules", false, "在工作区生成默认 RULES.md 文件并退出")
 
 	// Custom usage message
 	flag.Usage = func() {
@@ -287,6 +295,38 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: cannot initialize workspace: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Handle --init-capabilities: generate default CAPABILITIES.md in workspace root
+	if flags.initCapabilities {
+		capPath := filepath.Join(ws.Root(), "CAPABILITIES.md")
+		if _, err := os.Stat(capPath); err == nil {
+			fmt.Printf("⚠️  %s 已存在，跳过生成。\n", capPath)
+			os.Exit(0)
+		}
+		content := i18n.T(i18n.KeySystemPromptCapabilities)
+		if err := os.WriteFile(capPath, []byte(content), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", capPath, err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ 已生成默认 CAPABILITIES.md: %s\n", capPath)
+		os.Exit(0)
+	}
+
+	// Handle --init-rules: generate default RULES.md in workspace root
+	if flags.initRules {
+		rulesPath := filepath.Join(ws.Root(), "RULES.md")
+		if _, err := os.Stat(rulesPath); err == nil {
+			fmt.Printf("⚠️  %s 已存在，跳过生成。\n", rulesPath)
+			os.Exit(0)
+		}
+		content := i18n.T(i18n.KeySystemPromptRules)
+		if err := os.WriteFile(rulesPath, []byte(content), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", rulesPath, err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ 已生成默认 RULES.md: %s\n", rulesPath)
+		os.Exit(0)
 	}
 
 	// Load configuration with priority:
@@ -496,6 +536,7 @@ func main() {
 
 	// Initialize agent
 	ag := agent.New(llmClient, mcpMgr, s, rules)
+	ag.SetWorkspacePath(ws.Root())
 
 	// Initialize scheduler
 	sch := scheduler.New(func(entry *scheduler.CronEntry) {

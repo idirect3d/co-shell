@@ -125,6 +125,7 @@ type Agent struct {
 	scheduler      *scheduler.Scheduler
 	name           string   // agent name for identification (default: "co-shell")
 	imagePaths     []string // paths to image files for multimodal input
+	workspacePath  string   // workspace root path for loading external config files
 }
 
 // New creates a new Agent instance.
@@ -220,6 +221,12 @@ func (a *Agent) rebuildSystemPrompt() {
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
 	}
+}
+
+// SetWorkspacePath sets the workspace root path for loading external config files
+// such as capabilities.md and rules.md.
+func (a *Agent) SetWorkspacePath(path string) {
+	a.workspacePath = path
 }
 
 // SetImagePaths sets the paths to image files for multimodal input.
@@ -441,9 +448,25 @@ func buildSystemPrompt(rules string) string {
 	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "")
 }
 
+// loadExternalFile attempts to load a text file from the workspace root directory.
+// If the file does not exist or cannot be read, returns empty string.
+func loadExternalFile(workspacePath, filename string) string {
+	if workspacePath == "" {
+		return ""
+	}
+	filePath := filepath.Join(workspacePath, filename)
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
 // The prompt is built using the current i18n language setting.
 // agentName, agentDescription, agentPrinciples are optional identity fields from config.
+// If workspacePath is non-empty, it tries to load capabilities.md and rules.md from the workspace
+// root to override the built-in i18n defaults.
 func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples string) string {
 	sh := shellName()
 
@@ -460,9 +483,17 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	title := i18n.TF(i18n.KeySystemPromptTitle,
 		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username)
 
-	capabilities := i18n.TF(i18n.KeySystemPromptCapabilities, sh)
+	// Try to load external CAPABILITIES.md and RULES.md from workspace
+	// If not found, fall back to built-in i18n values
+	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
+	if capabilities == "" {
+		capabilities = i18n.TF(i18n.KeySystemPromptCapabilities, sh)
+	}
 
-	rulesText := i18n.T(i18n.KeySystemPromptRules)
+	rulesText := loadExternalFile(cwd, "RULES.md")
+	if rulesText == "" {
+		rulesText = i18n.T(i18n.KeySystemPromptRules)
+	}
 
 	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
 
@@ -1029,7 +1060,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "create_task_plan",
-			Description: "Create a new task plan with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into manageable steps that can be tracked individually.",
+			Description: "Create a new task plan (checklist) with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into a structured checklist of manageable steps that can be tracked individually. The checklist should have moderate granularity: not too fine-grained (e.g., 'which character was typed'), nor too coarse (e.g., 'complete the entire project'). Each step should be a verifiable, independent unit with clear completion criteria.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1055,7 +1086,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "update_task_step",
-			Description: "Update the status of a specific step in a task plan. Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change.",
+			Description: "Update the status of a specific step (checklist item) in a task plan (checklist). Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change. After completing each step, immediately call this tool to update the checklist progress.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1083,7 +1114,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "insert_task_steps",
-			Description: "Insert one or more new steps after a specified step in a task plan. The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information.",
+			Description: "Insert one or more new steps (checklist items) after a specified step in a task plan (checklist). The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information — the checklist is dynamic and can be adjusted as needed.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1109,7 +1140,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "remove_task_steps",
-			Description: "Remove one or more steps from a task plan by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan.",
+			Description: "Remove one or more steps (checklist items) from a task plan (checklist) by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan — the checklist is dynamic and can be adjusted as needed.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1132,7 +1163,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "list_task_plans",
-			Description: "List all task plans with their progress summary. Returns each plan's ID, title, completion percentage, and step count. Use this to get an overview of all active and completed task plans.",
+			Description: "List all task plans (checklists) with their progress summary. Returns each plan's ID, title, completion percentage, and step count. Use this to get an overview of all active and completed task plans (checklists).",
 			Parameters: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -1142,7 +1173,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "view_task_plan",
-			Description: "View the full details of a specific task plan, including all steps with their statuses and notes. Use this to examine the progress of a particular plan in detail.",
+			Description: "View the full details of a specific task plan (checklist), including all steps (checklist items) with their statuses and notes. Use this to examine the progress of a particular plan in detail.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{

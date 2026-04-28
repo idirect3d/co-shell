@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00075-blue)]()
+[![Build](https://img.shields.io/badge/Build-00114-blue)]()
 
 [![中文](https://img.shields.io/badge/README-中文-blue)](../zh-CN/README.md)
 
@@ -120,14 +120,31 @@ co-shell [options]                    Start interactive REPL
 co-shell [options] <instruction>      Execute single instruction and exit
 
 Options:
-  -c, --config <path>    Specify config file path (default: ~/.co-shell/config.json)
-  -m, --model <name>     Temporarily override model name
-  -e, --endpoint <url>   Temporarily override API endpoint
-  -k, --api-key <key>    Temporarily override API Key
-      --log on|off       Temporarily toggle logging
-      --max-iterations   Max iterations (-1 for unlimited, default 10)
-  -v, --version          Show version info
-  -h, --help             Show help
+  -w, --workspace <path>  Workspace path (default: current directory)
+  -c, --config <path>     Config file path (default: {workspace}/config.json)
+  -m, --model <name>      Temporarily override model name
+  -e, --endpoint <url>    Temporarily override API endpoint
+  -k, --api-key <key>     Temporarily override API Key
+  -n, --name <name>       Set agent name (default: co-shell)
+  -i, --image <path>      Image file path(s) for multimodal input
+      --lang <code>       Set language (zh/en, auto-detect by default)
+      --log on|off        Temporarily toggle logging
+      --max-iterations N  Max iterations (-1 for unlimited, default 1000)
+      --temperature N     Temperature (0.0 ~ 2.0)
+      --max-tokens N      Max output tokens
+      --show-thinking     Show AI thinking process (on/off)
+      --show-command      Show executed commands (on/off)
+      --show-output       Show command output (on/off)
+      --confirm-command   Confirm before executing commands (on/off)
+      --result-mode       Result mode (minimal/explain/analyze/free)
+      --description       Agent description/expertise
+      --principles        Agent core principles
+      --tool-timeout N    Tool call timeout in seconds (0=unlimited)
+      --cmd-timeout N     Command timeout in seconds (0=unlimited)
+      --llm-timeout N     LLM request timeout in seconds (0=unlimited)
+      --vision            Vision support (on/off)
+  -v, --version           Show version info
+  -h, --help              Show help
 ```
 
 ---
@@ -138,11 +155,19 @@ All built-in commands start with `.` and support Tab completion.
 
 | Command | Description |
 |---|---|
-| `.settings` | LLM API parameter management (api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log) |
+| `.set` | LLM API parameter management (api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log / result-mode / name / description / principles / vision / tool-timeout / cmd-timeout / llm-timeout) |
 | `.mcp` | MCP Server management (add / remove / list / enable / disable) |
 | `.rule` | Global rule management (add / remove / clear) |
 | `.memory` | Persistent memory management (save / get / search / delete / clear) |
 | `.context` | Context management (show / reset / set) |
+| `.image` | Multimodal image cache management (add / remove / clear / list) |
+| `.plan` | Task plan management (list / view / create / insert / remove / update) |
+| `.wizard` | Restart the API setup wizard |
+| `.list` | View history task list |
+| `.last` | View recent history tasks |
+| `.first` | View earliest history tasks |
+| `.help` | Show this help message |
+| `.exit` | Exit co-shell |
 
 ---
 
@@ -158,7 +183,24 @@ All built-in commands start with `.` and support Tab completion.
 
 ## Version History
 
-### v0.2.0 — Beta (Current)
+### v0.3.0 — RC1 (Current)
+
+> **BUILD**: 00114 | **Release Date**: 2026-04-29
+
+Release Candidate 1 — feature complete, ready for preview.
+
+**Implemented Features:**
+
+- Multimodal model support (image input, visual understanding) with 👀 indicator
+- Image cache management (.image command, add_images/remove_images/clear_images tools)
+- Agent identity customization (name/description/principles via .set)
+- Task plan management (.plan command, create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans tools)
+- Batch command execution with "Approve All" inheritance for sub-agents
+- 12 new CLI flags (--temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout)
+- Vision support auto-detection via model API
+- Enhanced help documentation with complete parameter descriptions
+
+### v0.2.0 — Beta
 
 > **BUILD**: 00087 | **Release Date**: 2026-04-27
 
