@@ -187,6 +187,7 @@ var enMessages = map[string]string{
 
   %-20s %-30d %s
   %-20s %-30d %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -328,27 +329,34 @@ no liability whatsoever.`,
 	KeySettingsCurrentTitle:     "Current Configuration:",
 
 	// Config show column 3 labels
-	KeyCol3Provider:    "provider(deepseek/qwen/openai)",
-	KeyCol3Endpoint:    "API server",
-	KeyCol3Model:       "model ID",
-	KeyCol3Temperature: "temperature(0.0 ~ 2.0)",
-	KeyCol3MaxTokens:   "max output tokens(1 ~ N (unlimited))",
-	KeyCol3MaxIter:     "max iterations(-1 ~ N)",
-	KeyCol3MaxRetries:  "LLM retries(0 ~ N)",
-	KeyCol3Thinking:    "show thinking(on|off)",
-	KeyCol3Command:     "show command(on|off)",
-	KeyCol3Output:      "show output(on|off)",
-	KeyCol3Confirm:     "confirm command(on|off)",
-	KeyCol3ToolTimeout: "tool timeout(0 ~ N sec)",
-	KeyCol3CmdTimeout:  "cmd timeout(0 ~ N sec)",
-	KeyCol3LLMTimeout:  "LLM timeout(0 ~ N sec)",
-	KeyCol3Log:         "logging(on|off)",
-	KeyCol3ResultMode:  "result mode(minimal/explain/analyze/free)",
-	KeyCol3APIKey:      "API key",
-	KeyCol3Name:        "Agent name",
-	KeyCol3Desc:        "Agent description",
-	KeyCol3Principles:  "Agent principles",
-	KeyCol3Vision:      "vision(on|off)",
+	KeyCol3Provider:     "provider(deepseek/qwen/openai)",
+	KeyCol3Endpoint:     "API server",
+	KeyCol3Model:        "model ID",
+	KeyCol3Temperature:  "temperature(0.0 ~ 2.0)",
+	KeyCol3MaxTokens:    "max output tokens(1 ~ N (unlimited))",
+	KeyCol3MaxIter:      "max iterations(-1 ~ N)",
+	KeyCol3MaxRetries:   "LLM retries(0 ~ N)",
+	KeyCol3Thinking:     "show thinking(on|off)",
+	KeyCol3Command:      "show command(on|off)",
+	KeyCol3Output:       "show output(on|off)",
+	KeyCol3Confirm:      "confirm command(on|off)",
+	KeyCol3ToolTimeout:  "tool timeout(0 ~ N sec)",
+	KeyCol3CmdTimeout:   "cmd timeout(0 ~ N sec)",
+	KeyCol3LLMTimeout:   "LLM timeout(0 ~ N sec)",
+	KeyCol3Log:          "logging(on|off)",
+	KeyCol3ResultMode:   "result mode(minimal/explain/analyze/free)",
+	KeyCol3APIKey:       "API key",
+	KeyCol3Name:         "Agent name",
+	KeyCol3Desc:         "Agent description",
+	KeyCol3Principles:   "Agent principles",
+	KeyCol3Vision:       "vision(on|off)",
+	KeyCol3ContextLimit: "context limit(0=no history, N=last N, -1=all)",
+
+	// Context limit
+	KeyContextLimitLabel:    "Context Limit",
+	KeyContextLimitUpdated:  "✅ Context limit set to: %d (will include last %d messages)",
+	KeySettingsDescCtxLimit: "Set context limit (0=no history, N=last N, -1=all)",
+	KeyConfigContextLimit:   "  Context Limit: %s\n",
 
 	// History list
 	KeyListTitle:     "📋 History Tasks:",

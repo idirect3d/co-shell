@@ -109,6 +109,8 @@
 - [x] ENHANCEMENT-85 多模态图片缓存机制：建立图片缓存，--image 传入的图片路径不再自动清空；新增 .image 内置命令（add/remove/clear/list）；新增 add_images/remove_images/clear_images 三个 LLM 工具，让大模型能操纵图片缓存；去掉 sub-agent 图像识别相关系统提示词 [BUILD-109]
 - [x] FEATURE-36 任务计划管理（Task Plan Management）：提供 create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具及 .plan 内置命令（list/view/create/insert/remove/update），让大模型和用户都能规划制定多步骤任务计划、跟踪进度、根据实际情况调整计划，数据持久化到 bbolt [BUILD-113]
 - [x] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项 [BUILD-114]
+- [x] FEATURE-87 对话上下文限制（context-limit）：支持通过 .set context-limit 配置发送给 LLM 的历史消息数量（0=仅当前输入，-1=全部，N=最近N条），始终保留用户最新输入 [BUILD-115]
+- [x] FEATURE-88 持久化记忆管理：新增 memory 包（memory.Manager），支持对话消息的持久化存储、历史切片检索（GetHistorySlice）和关键词搜索（Search）；新增 store.SaveMemory/GetMemory/SearchMemory 方法；新增 cmd/memory.go 恢复 .memory 内置命令；新增 get_history_slice 和 memory_search 两个 LLM 工具 [BUILD-115]
 
 ---
 
@@ -145,6 +147,7 @@
 - [ ] FEATURE-58 多 Agent 协作
 - [ ] FEATURE-59 可视化工作流编排
 - [ ] FEATURE-60 远程执行（SSH）
+- [ ] FEATURE-86 支持永久记忆接入数据库
 
 ### 优化
 

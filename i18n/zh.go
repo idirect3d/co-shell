@@ -189,6 +189,7 @@ var zhMessages = map[string]string{
 
   %-20s %-30d %s
   %-20s %-30d %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -347,27 +348,34 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsCurrentTitle:     "当前配置:",
 
 	// Config show column 3 labels
-	KeyCol3Provider:    "提供商(deepseek/qwen/openai)",
-	KeyCol3Endpoint:    "API服务器",
-	KeyCol3Model:       "模型ID",
-	KeyCol3Temperature: "温度(0.0 ~ 2.0)",
-	KeyCol3MaxTokens:   "最大输出令牌数(1 ~ N（不限制）)",
-	KeyCol3MaxIter:     "最大迭代次数(-1 ~ N)",
-	KeyCol3MaxRetries:  "LLM 重试次数(0 ~ N)",
-	KeyCol3Thinking:    "显示思考过程(on|off)",
-	KeyCol3Command:     "显示命令(on|off)",
-	KeyCol3Output:      "显示输出(on|off)",
-	KeyCol3Confirm:     "命令确认(on|off)",
-	KeyCol3ToolTimeout: "工具调用超时(0 ~ N 秒)",
-	KeyCol3CmdTimeout:  "命令执行超时(0 ~ N 秒)",
-	KeyCol3LLMTimeout:  "LLM 请求超时(0 ~ N 秒)",
-	KeyCol3Log:         "日志(on|off)",
-	KeyCol3ResultMode:  "结果模式(minimal/explain/analyze/free)",
-	KeyCol3APIKey:      "API 密钥",
-	KeyCol3Name:        "Agent 名称",
-	KeyCol3Desc:        "Agent 描述",
-	KeyCol3Principles:  "Agent 核心原则",
-	KeyCol3Vision:      "视觉识别(on|off)",
+	KeyCol3Provider:     "提供商(deepseek/qwen/openai)",
+	KeyCol3Endpoint:     "API服务器",
+	KeyCol3Model:        "模型ID",
+	KeyCol3Temperature:  "温度(0.0 ~ 2.0)",
+	KeyCol3MaxTokens:    "最大输出令牌数(1 ~ N（不限制）)",
+	KeyCol3MaxIter:      "最大迭代次数(-1 ~ N)",
+	KeyCol3MaxRetries:   "LLM 重试次数(0 ~ N)",
+	KeyCol3Thinking:     "显示思考过程(on|off)",
+	KeyCol3Command:      "显示命令(on|off)",
+	KeyCol3Output:       "显示输出(on|off)",
+	KeyCol3Confirm:      "命令确认(on|off)",
+	KeyCol3ToolTimeout:  "工具调用超时(0 ~ N 秒)",
+	KeyCol3CmdTimeout:   "命令执行超时(0 ~ N 秒)",
+	KeyCol3LLMTimeout:   "LLM 请求超时(0 ~ N 秒)",
+	KeyCol3Log:          "日志(on|off)",
+	KeyCol3ResultMode:   "结果模式(minimal/explain/analyze/free)",
+	KeyCol3APIKey:       "API 密钥",
+	KeyCol3Name:         "Agent 名称",
+	KeyCol3Desc:         "Agent 描述",
+	KeyCol3Principles:   "Agent 核心原则",
+	KeyCol3Vision:       "视觉识别(on|off)",
+	KeyCol3ContextLimit: "对话上下文限制(0=不包含历史, N=最近N条, -1=所有)",
+
+	// Context limit
+	KeyContextLimitLabel:    "对话上下文限制",
+	KeyContextLimitUpdated:  "✅ 对话上下文限制已设置为: %d（将包含最近 %d 条对话消息）",
+	KeySettingsDescCtxLimit: "设置对话上下文限制（0=不包含历史, N=最近N条, -1=所有）",
+	KeyConfigContextLimit:   "  对话上下文限制: %s\n",
 
 	// History list
 	KeyListTitle:     "📋 历史任务列表:",

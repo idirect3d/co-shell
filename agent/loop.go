@@ -47,6 +47,7 @@ import (
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
+	"github.com/idirect3d/co-shell/memory"
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/subagent"
@@ -109,6 +110,7 @@ type Agent struct {
 	llmClient      llm.Client
 	mcpMgr         *mcp.Manager
 	store          *store.Store
+	memoryManager  *memory.Manager
 	systemPrompt   string
 	messages       []llm.Message
 	showThinking   bool
@@ -136,6 +138,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		llmClient:     llmClient,
 		mcpMgr:        mcpMgr,
 		store:         s,
+		memoryManager: memory.NewManager(s),
 		systemPrompt:  systemPrompt,
 		maxIterations: defaultMaxIterations,
 		rules:         rules,
@@ -782,11 +785,55 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	return "", fmt.Errorf("agent reached maximum iterations (%d) without a final answer", a.maxIterations)
 }
 
+// buildContextMessages returns a truncated message list based on ContextLimit.
+// Message layout: [0]=system, [1..n-2]=history, [n-1]=current user input
+// The current user input (last message) is ALWAYS kept.
+// ContextLimit == 0: only system prompt + current user input (no history)
+// ContextLimit == -1: all messages (unlimited)
+// ContextLimit > 0: system prompt + current user input + last N history messages
+func (a *Agent) buildContextMessages() []llm.Message {
+	if a.cfg == nil || a.cfg.LLM.ContextLimit == -1 {
+		return a.messages
+	}
+
+	// Always keep system prompt (first message)
+	if len(a.messages) <= 1 {
+		return a.messages
+	}
+
+	systemMsg := a.messages[0]
+
+	// The last message is always the current user input, always keep it
+	currentMsg := a.messages[len(a.messages)-1]
+
+	// History messages are between system and current user input
+	historyMsgs := a.messages[1 : len(a.messages)-1]
+
+	if a.cfg.LLM.ContextLimit == 0 {
+		// Only system prompt + current user input, no history
+		return []llm.Message{systemMsg, currentMsg}
+	}
+
+	// Keep last N history messages
+	if len(historyMsgs) > a.cfg.LLM.ContextLimit {
+		historyMsgs = historyMsgs[len(historyMsgs)-a.cfg.LLM.ContextLimit:]
+	}
+
+	result := make([]llm.Message, 0, 2+len(historyMsgs))
+	result = append(result, systemMsg)
+	result = append(result, historyMsgs...)
+	result = append(result, currentMsg)
+	return result
+}
+
 // streamLLMResponse streams the LLM response and returns the complete content, reasoning, and tool calls.
 // If streaming fails, it falls back to non-streaming Chat.
 func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
+	// Apply context limit to messages
+	contextMsgs := a.buildContextMessages()
+
 	// Try streaming first
-	eventCh, err := a.llmClient.ChatStream(ctx, a.messages, tools)
+	eventCh, err := a.llmClient.ChatStream(ctx, contextMsgs, tools)
 	if err != nil {
 		// Fall back to non-streaming
 		log.Debug("ChatStream not available, falling back to non-streaming: %v", err)
@@ -853,7 +900,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 
 // nonStreamingFallback handles the case when streaming is not available.
 func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
-	resp, err := a.llmClient.Chat(ctx, a.messages, tools)
+	// Apply context limit to messages
+	contextMsgs := a.buildContextMessages()
+	resp, err := a.llmClient.Chat(ctx, contextMsgs, tools)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("LLM call failed: %w", err)
 	}
@@ -1185,6 +1234,49 @@ func (a *Agent) buildTools() []llm.Tool {
 				"required": []string{"plan_id"},
 			},
 			Callback: a.viewTaskPlanTool,
+		},
+		{
+			Name:        "get_history_slice",
+			Description: "Retrieve a slice of recent conversation history from persistent memory. Use this to recall what was discussed in previous conversations. Parameters: last_from (starting position from the end, 1=most recent), last_to (ending position from the end, 1=most recent). Example: last_from=5, last_to=1 returns the 5 most recent messages in chronological order.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"last_from": map[string]interface{}{
+						"type":        "number",
+						"description": "Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.",
+					},
+					"last_to": map[string]interface{}{
+						"type":        "number",
+						"description": "Ending position from the end (inclusive). 1 = most recent message.",
+					},
+				},
+				"required": []string{"last_from", "last_to"},
+			},
+			Callback: a.getHistorySliceTool,
+		},
+		{
+			Name:        "memory_search",
+			Description: "Search persistent conversation memory for messages matching given keywords or criteria. Use this to find specific information from past conversations. Supports keyword search (AND logic), time-based filtering (since), and speaker name filtering.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"keywords": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Keywords to search for (AND logic: all keywords must match). Empty array returns all messages matching other filters.",
+					},
+					"since": map[string]interface{}{
+						"type":        "string",
+						"description": "Only return messages after this time (ISO 8601 format, e.g. '2026-04-01T00:00:00Z'). Empty string means no time filter.",
+					},
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Filter by speaker name (case-insensitive). Empty string means no name filter.",
+					},
+				},
+				"required": []string{},
+			},
+			Callback: a.memorySearchTool,
 		},
 		{
 			Name:        "schedule_task",
@@ -1845,6 +1937,61 @@ func (a *Agent) clearImagesTool(ctx context.Context, args map[string]interface{}
 	count := len(a.imagePaths)
 	a.imagePaths = nil
 	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
+}
+
+// getHistorySliceTool retrieves a slice of conversation history from persistent memory.
+func (a *Agent) getHistorySliceTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	lastFrom, ok := args["last_from"].(float64)
+	if !ok {
+		return "", fmt.Errorf("last_from argument is required")
+	}
+	lastTo, ok := args["last_to"].(float64)
+	if !ok {
+		return "", fmt.Errorf("last_to argument is required")
+	}
+
+	entries, err := a.memoryManager.GetHistorySlice(int(lastFrom), int(lastTo))
+	if err != nil {
+		return "", fmt.Errorf("cannot get history slice: %w", err)
+	}
+
+	return memory.FormatHistorySlice(entries), nil
+}
+
+// memorySearchTool searches persistent conversation memory for messages matching given criteria.
+func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	params := memory.SearchParams{}
+
+	// Parse keywords
+	if keywordsRaw, ok := args["keywords"].([]interface{}); ok {
+		params.Keywords = make([]string, 0, len(keywordsRaw))
+		for _, kw := range keywordsRaw {
+			if kwStr, ok := kw.(string); ok {
+				params.Keywords = append(params.Keywords, kwStr)
+			}
+		}
+	}
+
+	// Parse since time
+	if sinceStr, ok := args["since"].(string); ok && sinceStr != "" {
+		since, err := time.Parse(time.RFC3339, sinceStr)
+		if err != nil {
+			return "", fmt.Errorf("invalid since time format (use ISO 8601, e.g. '2026-04-01T00:00:00Z'): %w", err)
+		}
+		params.Since = since
+	}
+
+	// Parse name filter
+	if name, ok := args["name"].(string); ok {
+		params.Name = name
+	}
+
+	results, err := a.memoryManager.Search(params)
+	if err != nil {
+		return "", fmt.Errorf("memory search failed: %w", err)
+	}
+
+	return memory.FormatSearchResults(results), nil
 }
 
 // subAgentMemoryKey returns the memory key for a sub-agent by ID.
