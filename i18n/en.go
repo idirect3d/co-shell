@@ -256,6 +256,24 @@ var enMessages = map[string]string{
 	KeyCLIHelpEx10:      "  co-shell --show-thinking on --show-command on analyze logs  Show thinking and commands",
 	KeyCLIHelpEx11:      `  co-shell --result-mode analyze "check system status"  Process result in analyze mode`,
 
+	// CLI Help - LLM Behavior
+	KeyCLIHelpTemperature:    "      --temperature <n>   Temperature (0.0 ~ 2.0, overrides config)",
+	KeyCLIHelpMaxTokens:      "      --max-tokens <n>   Max output tokens (overrides config)",
+	KeyCLIHelpShowThinking:   "      --show-thinking    Show AI thinking process (on/off, overrides config)",
+	KeyCLIHelpShowCommand:    "      --show-command     Show executed system commands (on/off, overrides config)",
+	KeyCLIHelpShowOutput:     "      --show-output      Show command execution output (on/off, overrides config)",
+	KeyCLIHelpConfirmCommand: "      --confirm-command  Confirm before executing commands (on/off, overrides config)",
+	KeyCLIHelpResultMode:     "      --result-mode      Result processing mode (minimal/explain/analyze/free, overrides config)",
+
+	// CLI Help - Agent Identity
+	KeyCLIHelpDescription: "      --description <text>  Set agent description/expertise (overrides config)",
+	KeyCLIHelpPrinciples:  "      --principles <text>   Set agent core principles (overrides config)",
+
+	// CLI Help - Timeout
+	KeyCLIHelpToolTimeout: "      --tool-timeout <s>  Tool call timeout in seconds (0=unlimited, overrides config)",
+	KeyCLIHelpCmdTimeout:  "      --cmd-timeout <s>   System command timeout in seconds (0=unlimited, overrides config)",
+	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API request timeout in seconds (0=unlimited, overrides config)",
+
 	// CLI Help - Workspace
 	KeyCLIHelpWorkspace: "  -w, --workspace <path>  Workspace path (default: current directory)",
 

@@ -1538,6 +1538,7 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 
 // readFileTool reads the contents of a file and returns it with line numbers.
 func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("readFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1608,6 +1609,7 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 
 // searchFilesTool searches for a regex pattern across files in a directory.
 func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("searchFilesTool called: args=%v", args)
 	dirPath, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1690,6 +1692,7 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 
 // listCodeDefinitionNamesTool lists definition names in source code files at the top level of a directory.
 func (a *Agent) listCodeDefinitionNamesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("listCodeDefinitionNamesTool called: args=%v", args)
 	dirPath, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1804,6 +1807,7 @@ func (a *Agent) listCodeDefinitionNamesTool(ctx context.Context, args map[string
 
 // replaceInFileTool replaces sections of content in an existing file using SEARCH/REPLACE.
 func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("replaceInFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1846,6 +1850,7 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 
 // writeToFileTool writes content to a file, creating directories as needed.
 func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("writeToFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1872,6 +1877,7 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 
 // addImagesTool adds image file paths to the image cache.
 func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("addImagesTool called: args=%v", args)
 	pathsStr, ok := args["paths"].(string)
 	if !ok {
 		return "", fmt.Errorf("paths argument is required")
@@ -1904,6 +1910,7 @@ func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) 
 
 // removeImagesTool removes image file paths from the image cache.
 func (a *Agent) removeImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("removeImagesTool called: args=%v", args)
 	pathsStr, ok := args["paths"].(string)
 	if !ok {
 		return "", fmt.Errorf("paths argument is required")
@@ -1934,6 +1941,7 @@ func (a *Agent) removeImagesTool(ctx context.Context, args map[string]interface{
 
 // clearImagesTool clears all cached image file paths.
 func (a *Agent) clearImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("clearImagesTool called: args=%v", args)
 	count := len(a.imagePaths)
 	a.imagePaths = nil
 	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
@@ -1941,6 +1949,7 @@ func (a *Agent) clearImagesTool(ctx context.Context, args map[string]interface{}
 
 // getHistorySliceTool retrieves a slice of conversation history from persistent memory.
 func (a *Agent) getHistorySliceTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("getHistorySliceTool called: args=%v", args)
 	lastFrom, ok := args["last_from"].(float64)
 	if !ok {
 		return "", fmt.Errorf("last_from argument is required")
@@ -1955,11 +1964,14 @@ func (a *Agent) getHistorySliceTool(ctx context.Context, args map[string]interfa
 		return "", fmt.Errorf("cannot get history slice: %w", err)
 	}
 
-	return memory.FormatHistorySlice(entries), nil
+	formatted := memory.FormatHistorySlice(entries)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // memorySearchTool searches persistent conversation memory for messages matching given criteria.
 func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("memorySearchTool called: args=%v", args)
 	params := memory.SearchParams{}
 
 	// Parse keywords
@@ -1991,7 +2003,9 @@ func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{
 		return "", fmt.Errorf("memory search failed: %w", err)
 	}
 
-	return memory.FormatSearchResults(results), nil
+	formatted := memory.FormatSearchResults(results)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // subAgentMemoryKey returns the memory key for a sub-agent by ID.
@@ -2049,6 +2063,7 @@ func (a *Agent) saveSubAgentInfo(info *subagent.SubAgentInfo) error {
 // Sub-agent workspaces are auto-created under {parent_workspace}/sub-agents/{id}/.
 // Each sub-agent is tracked in memory with its ID, workspace path, and purpose.
 func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("launchSubAgentTool called: args=%v", args)
 	instruction, ok := args["instruction"].(string)
 	if !ok {
 		return "", fmt.Errorf("instruction argument is required")
@@ -2160,6 +2175,7 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 
 // scheduleTaskTool schedules a recurring task using a cron expression.
 func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("scheduleTaskTool called: args=%v", args)
 	name, ok := args["name"].(string)
 	if !ok {
 		return "", fmt.Errorf("name argument is required")
@@ -2195,6 +2211,7 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 
 // createTaskPlanTool creates a new task plan with title, description, and steps.
 func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("createTaskPlanTool called: args=%v", args)
 	title, ok := args["title"].(string)
 	if !ok {
 		return "", fmt.Errorf("title argument is required")
@@ -2221,11 +2238,14 @@ func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("cannot create task plan: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // updateTaskStepTool updates the status of a specific step in a task plan.
 func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("updateTaskStepTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2249,11 +2269,14 @@ func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("cannot update step status: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // insertTaskStepsTool inserts new steps after a specified step in a task plan.
 func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("insertTaskStepsTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2283,11 +2306,14 @@ func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interfa
 		return "", fmt.Errorf("cannot insert steps: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // removeTaskStepsTool removes steps from a task plan by step ID range.
 func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("removeTaskStepsTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2308,21 +2334,27 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 		return "", fmt.Errorf("cannot remove steps: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // listTaskPlansTool lists all task plans with progress summary.
 func (a *Agent) listTaskPlansTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("listTaskPlansTool called: args=%v", args)
 	plans, err := a.taskPlanMgr.List()
 	if err != nil {
 		return "", fmt.Errorf("cannot list task plans: %w", err)
 	}
 
-	return taskplan.FormatPlanList(plans), nil
+	formatted := taskplan.FormatPlanList(plans)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // viewTaskPlanTool views the full details of a specific task plan.
 func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("viewTaskPlanTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2333,7 +2365,9 @@ func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{
 		return "", fmt.Errorf("cannot get task plan: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // OnScheduledTaskTriggered is called by the scheduler when a task is triggered.

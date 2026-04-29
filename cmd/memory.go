@@ -27,12 +27,74 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/store"
 )
+
+// formatMemoryValue formats a memory value for display.
+// If the value is valid JSON, it formats it as indented fields.
+// String values are unescaped so that special characters (e.g., \n, \t, \")
+// are displayed in their raw form rather than escaped.
+// Otherwise, it returns the raw value.
+func formatMemoryValue(value string) string {
+	var parsed interface{}
+	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
+		return value
+	}
+	formatted, err := json.MarshalIndent(parsed, "    ", "  ")
+	if err != nil {
+		return value
+	}
+	// Unescape string values in the formatted JSON so that special characters
+	// (like \n, \t, \") are displayed in their raw form.
+	result := unescapeJSONString(string(formatted))
+	return result
+}
+
+// unescapeJSONString unescapes JSON string escape sequences in the formatted output.
+// It handles common escape sequences: \n, \t, \", \\, \r.
+func unescapeJSONString(s string) string {
+	var sb strings.Builder
+	sb.Grow(len(s))
+	i := 0
+	for i < len(s) {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case 'n':
+				sb.WriteByte('\n')
+				i += 2
+				continue
+			case 't':
+				sb.WriteByte('\t')
+				i += 2
+				continue
+			case 'r':
+				sb.WriteByte('\r')
+				i += 2
+				continue
+			case '\\':
+				sb.WriteByte('\\')
+				i += 2
+				continue
+			case '"':
+				sb.WriteByte('"')
+				i += 2
+				continue
+			default:
+				sb.WriteByte(s[i])
+				i++
+			}
+		} else {
+			sb.WriteByte(s[i])
+			i++
+		}
+	}
+	return sb.String()
+}
 
 // MemoryHandler handles the .memory built-in command.
 type MemoryHandler struct {
@@ -114,7 +176,8 @@ func (h *MemoryHandler) searchMemory(args []string) (string, error) {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Found %d memory entries:\n", len(entries)))
 	for _, entry := range entries {
-		sb.WriteString(fmt.Sprintf("  %s = %s\n", entry.Key, entry.Value))
+		sb.WriteString(fmt.Sprintf("  %s:\n", entry.Key))
+		sb.WriteString(fmt.Sprintf("    %s\n", formatMemoryValue(entry.Value)))
 	}
 	return sb.String(), nil
 }
@@ -152,7 +215,8 @@ func (h *MemoryHandler) listMemory() (string, error) {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Memory entries (%d):\n", len(entries)))
 	for _, entry := range entries {
-		sb.WriteString(fmt.Sprintf("  %s = %s\n", entry.Key, entry.Value))
+		sb.WriteString(fmt.Sprintf("  %s:\n", entry.Key))
+		sb.WriteString(fmt.Sprintf("    %s\n", formatMemoryValue(entry.Value)))
 	}
 	return sb.String(), nil
 }

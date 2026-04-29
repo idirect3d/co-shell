@@ -29,11 +29,32 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/idirect3d/co-shell/workspace"
 	"go.etcd.io/bbolt"
 )
+
+// memoryKeyNumRe matches the trailing numeric part of a memory key (e.g., "sub_agent:123").
+var memoryKeyNumRe = regexp.MustCompile(`\d+$`)
+
+// formatMemoryKey zero-pads the trailing numeric part of a key to 8 digits
+// for natural sort order in BoltDB's B+tree.
+// Example: "sub_agent:1" -> "sub_agent:00000001"
+func formatMemoryKey(key string) string {
+	loc := memoryKeyNumRe.FindStringIndex(key)
+	if loc == nil {
+		return key
+	}
+	numStr := key[loc[0]:loc[1]]
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return key
+	}
+	return key[:loc[0]] + fmt.Sprintf("%08d", num)
+}
 
 // SessionEntry represents a conversation session entry.
 type SessionEntry struct {
@@ -340,19 +361,27 @@ func (s *Store) ListConversationMessages() ([][]byte, error) {
 }
 
 // SaveMemory stores a key-value pair in the memory bucket.
+// The key's trailing numeric part is zero-padded to 8 digits for natural sort order.
 func (s *Store) SaveMemory(key, value string) error {
+	formattedKey := formatMemoryKey(key)
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte("memory"))
-		return bucket.Put([]byte(key), []byte(value))
+		return bucket.Put([]byte(formattedKey), []byte(value))
 	})
 }
 
 // GetMemory retrieves a value from the memory bucket by key.
+// Tries both the original key and the zero-padded format for backward compatibility.
 func (s *Store) GetMemory(key string) (string, bool, error) {
 	var data []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte("memory"))
+		// Try the key as-is first (for backward compatibility with old data)
 		data = bucket.Get([]byte(key))
+		if data == nil {
+			// Try zero-padded format
+			data = bucket.Get([]byte(formatMemoryKey(key)))
+		}
 		return nil
 	})
 	if err != nil {
@@ -365,6 +394,7 @@ func (s *Store) GetMemory(key string) (string, bool, error) {
 }
 
 // SearchMemory searches the memory bucket for keys containing the given prefix.
+// The prefix is also matched against zero-padded keys for backward compatibility.
 type MemoryEntry struct {
 	Key   string
 	Value string
@@ -372,16 +402,41 @@ type MemoryEntry struct {
 
 func (s *Store) SearchMemory(prefix string) ([]MemoryEntry, error) {
 	var entries []MemoryEntry
+	seen := make(map[string]bool) // deduplicate keys
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte("memory"))
 		cursor := bucket.Cursor()
+
+		// Search with original prefix
 		prefixBytes := []byte(prefix)
 		for k, v := cursor.Seek(prefixBytes); k != nil && bytes.HasPrefix(k, prefixBytes); k, v = cursor.Next() {
-			entries = append(entries, MemoryEntry{
-				Key:   string(k),
-				Value: string(v),
-			})
+			key := string(k)
+			if !seen[key] {
+				seen[key] = true
+				entries = append(entries, MemoryEntry{
+					Key:   key,
+					Value: string(v),
+				})
+			}
 		}
+
+		// Also search with zero-padded prefix for backward compatibility
+		// (old data stored with unpadded keys may not match the padded prefix)
+		paddedPrefix := formatMemoryKey(prefix)
+		if paddedPrefix != prefix {
+			paddedBytes := []byte(paddedPrefix)
+			for k, v := cursor.Seek(paddedBytes); k != nil && bytes.HasPrefix(k, paddedBytes); k, v = cursor.Next() {
+				key := string(k)
+				if !seen[key] {
+					seen[key] = true
+					entries = append(entries, MemoryEntry{
+						Key:   key,
+						Value: string(v),
+					})
+				}
+			}
+		}
+
 		return nil
 	})
 	return entries, err

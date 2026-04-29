@@ -157,7 +157,7 @@ func DefaultConfig() *Config {
 			ShowOutput:     true,
 			ConfirmCommand: true,
 			ResultMode:     int(ResultModeFree),
-			ContextLimit:   0, // 0 = 不自动包含历史消息，LLM 需通过记忆工具获取；-1=所有消息
+			ContextLimit:   -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 		},
 
 		MCP: MCPConfig{
