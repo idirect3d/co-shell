@@ -1126,7 +1126,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		planTools := []llm.Tool{
 			{
 				Name:        "create_task_plan",
-				Description: "Create a new task plan (checklist) with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into a structured checklist of manageable steps that can be tracked individually. The checklist should have moderate granularity: not too fine-grained (e.g., 'which character was typed'), nor too coarse (e.g., 'complete the entire project'). Each step should be a verifiable, independent unit with clear completion criteria.",
+				Description: "Create a new task plan (checklist) with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into a structured checklist of manageable steps that can be tracked individually. The checklist should have moderate granularity: not too fine-grained (e.g., 'which character was typed'), nor too coarse (e.g., 'complete the entire project'). Each step should be a verifiable, independent unit with clear completion criteria. IMPORTANT: Only one task plan can exist at a time. If there are unfinished steps in the current plan, you cannot create a new one — you must first complete all steps or adjust the existing plan. If the current plan is fully completed, it will be automatically archived to memory before creating the new one.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -1152,14 +1152,10 @@ func (a *Agent) buildTools() []llm.Tool {
 			},
 			{
 				Name:        "update_task_step",
-				Description: "Update the status of a specific step (checklist item) in a task plan (checklist). Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change. After completing each step, immediately call this tool to update the checklist progress.",
+				Description: "Update the status of a specific step (checklist item) in the current task plan (checklist). Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change. After completing each step, immediately call this tool to update the checklist progress.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"plan_id": map[string]interface{}{
-							"type":        "number",
-							"description": "The ID of the task plan",
-						},
 						"step_id": map[string]interface{}{
 							"type":        "number",
 							"description": "The ID of the step to update",
@@ -1174,20 +1170,16 @@ func (a *Agent) buildTools() []llm.Tool {
 							"description": "Optional note to add context about the status change",
 						},
 					},
-					"required": []string{"plan_id", "step_id", "status"},
+					"required": []string{"step_id", "status"},
 				},
 				Callback: a.updateTaskStepTool,
 			},
 			{
 				Name:        "insert_task_steps",
-				Description: "Insert one or more new steps (checklist items) after a specified step in a task plan (checklist). The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information — the checklist is dynamic and can be adjusted as needed.",
+				Description: "Insert one or more new steps (checklist items) after a specified step in the current task plan (checklist). The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information — the checklist is dynamic and can be adjusted as needed.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"plan_id": map[string]interface{}{
-							"type":        "number",
-							"description": "The ID of the task plan to modify",
-						},
 						"after_step_id": map[string]interface{}{
 							"type":        "number",
 							"description": "The ID of the step after which to insert new steps. Use 0 to insert at the beginning. Example: if plan has steps 1,2,3 and after_step_id=1, new steps are inserted between step 1 and step 2.",
@@ -1200,20 +1192,16 @@ func (a *Agent) buildTools() []llm.Tool {
 							"description": "An array of step descriptions to insert after the specified step",
 						},
 					},
-					"required": []string{"plan_id", "after_step_id", "steps"},
+					"required": []string{"after_step_id", "steps"},
 				},
 				Callback: a.insertTaskStepsTool,
 			},
 			{
 				Name:        "remove_task_steps",
-				Description: "Remove one or more steps (checklist items) from a task plan (checklist) by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan — the checklist is dynamic and can be adjusted as needed.",
+				Description: "Remove one or more steps (checklist items) from the current task plan (checklist) by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan — the checklist is dynamic and can be adjusted as needed.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"plan_id": map[string]interface{}{
-							"type":        "number",
-							"description": "The ID of the task plan to modify",
-						},
 						"from": map[string]interface{}{
 							"type":        "number",
 							"description": "The starting step ID of the range to remove (inclusive)",
@@ -1223,13 +1211,13 @@ func (a *Agent) buildTools() []llm.Tool {
 							"description": "The ending step ID of the range to remove (inclusive)",
 						},
 					},
-					"required": []string{"plan_id", "from", "to"},
+					"required": []string{"from", "to"},
 				},
 				Callback: a.removeTaskStepsTool,
 			},
 			{
 				Name:        "list_task_plans",
-				Description: "List all task plans (checklists) with their progress summary. Returns each plan's ID, title, completion percentage, and step count. Use this to get an overview of all active and completed task plans (checklists).",
+				Description: "Show the current task plan (checklist) with its progress summary. Returns the plan's ID, title, completion percentage, and all steps with their statuses. Use this to check the current progress of the active task plan.",
 				Parameters: map[string]interface{}{
 					"type":       "object",
 					"properties": map[string]interface{}{},
@@ -1239,16 +1227,11 @@ func (a *Agent) buildTools() []llm.Tool {
 			},
 			{
 				Name:        "view_task_plan",
-				Description: "View the full details of a specific task plan (checklist), including all steps (checklist items) with their statuses and notes. Use this to examine the progress of a particular plan in detail.",
+				Description: "View the full details of the current task plan (checklist), including all steps (checklist items) with their statuses and notes. Use this to examine the progress of the current plan in detail.",
 				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"plan_id": map[string]interface{}{
-							"type":        "number",
-							"description": "The ID of the task plan to view",
-						},
-					},
-					"required": []string{"plan_id"},
+					"type":       "object",
+					"properties": map[string]interface{}{},
+					"required":   []string{},
 				},
 				Callback: a.viewTaskPlanTool,
 			},
@@ -2238,6 +2221,8 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 }
 
 // createTaskPlanTool creates a new task plan with title, description, and steps.
+// If there is an existing plan with unfinished steps, it returns an error.
+// If there is an existing plan (all completed), it is archived to memory first.
 func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("createTaskPlanTool called: args=%v", args)
 	title, ok := args["title"].(string)
@@ -2271,14 +2256,9 @@ func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interfac
 	return formatted, nil
 }
 
-// updateTaskStepTool updates the status of a specific step in a task plan.
+// updateTaskStepTool updates the status of a specific step in the current task plan.
 func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("updateTaskStepTool called: args=%v", args)
-	planID, ok := args["plan_id"].(float64)
-	if !ok {
-		return "", fmt.Errorf("plan_id argument is required")
-	}
-
 	stepID, ok := args["step_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("step_id argument is required")
@@ -2292,7 +2272,7 @@ func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interfac
 	note, _ := args["note"].(string)
 
 	status := taskplan.TaskStatus(statusStr)
-	plan, err := a.taskPlanMgr.UpdateStepStatus(int(planID), int(stepID), status, note)
+	plan, err := a.taskPlanMgr.UpdateStepStatus(int(stepID), status, note)
 	if err != nil {
 		return "", fmt.Errorf("cannot update step status: %w", err)
 	}
@@ -2302,14 +2282,9 @@ func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interfac
 	return formatted, nil
 }
 
-// insertTaskStepsTool inserts new steps after a specified step in a task plan.
+// insertTaskStepsTool inserts new steps after a specified step in the current task plan.
 func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("insertTaskStepsTool called: args=%v", args)
-	planID, ok := args["plan_id"].(float64)
-	if !ok {
-		return "", fmt.Errorf("plan_id argument is required")
-	}
-
 	afterStepID, ok := args["after_step_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("after_step_id argument is required")
@@ -2329,7 +2304,7 @@ func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interfa
 		steps = append(steps, stepStr)
 	}
 
-	plan, err := a.taskPlanMgr.InsertStepsAfter(int(planID), int(afterStepID), steps)
+	plan, err := a.taskPlanMgr.InsertStepsAfter(int(afterStepID), steps)
 	if err != nil {
 		return "", fmt.Errorf("cannot insert steps: %w", err)
 	}
@@ -2339,14 +2314,9 @@ func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interfa
 	return formatted, nil
 }
 
-// removeTaskStepsTool removes steps from a task plan by step ID range.
+// removeTaskStepsTool removes steps from the current task plan by step ID range.
 func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("removeTaskStepsTool called: args=%v", args)
-	planID, ok := args["plan_id"].(float64)
-	if !ok {
-		return "", fmt.Errorf("plan_id argument is required")
-	}
-
 	from, ok := args["from"].(float64)
 	if !ok {
 		return "", fmt.Errorf("from argument is required")
@@ -2357,7 +2327,7 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 		return "", fmt.Errorf("to argument is required")
 	}
 
-	plan, err := a.taskPlanMgr.RemoveSteps(int(planID), int(from), int(to))
+	plan, err := a.taskPlanMgr.RemoveSteps(int(from), int(to))
 	if err != nil {
 		return "", fmt.Errorf("cannot remove steps: %w", err)
 	}
@@ -2367,30 +2337,25 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 	return formatted, nil
 }
 
-// listTaskPlansTool lists all task plans with progress summary.
+// listTaskPlansTool shows the current task plan.
 func (a *Agent) listTaskPlansTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("listTaskPlansTool called: args=%v", args)
-	plans, err := a.taskPlanMgr.List()
+	log.Debug("listTaskPlansTool called")
+	plan, err := a.taskPlanMgr.GetCurrent()
 	if err != nil {
-		return "", fmt.Errorf("cannot list task plans: %w", err)
+		return "", fmt.Errorf("cannot get current task plan: %w", err)
 	}
 
-	formatted := taskplan.FormatPlanList(plans)
+	formatted := taskplan.FormatPlan(plan)
 	fmt.Println(formatted)
 	return formatted, nil
 }
 
-// viewTaskPlanTool views the full details of a specific task plan.
+// viewTaskPlanTool views the full details of the current task plan.
 func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("viewTaskPlanTool called: args=%v", args)
-	planID, ok := args["plan_id"].(float64)
-	if !ok {
-		return "", fmt.Errorf("plan_id argument is required")
-	}
-
-	plan, err := a.taskPlanMgr.Get(int(planID))
+	log.Debug("viewTaskPlanTool called")
+	plan, err := a.taskPlanMgr.GetCurrent()
 	if err != nil {
-		return "", fmt.Errorf("cannot get task plan: %w", err)
+		return "", fmt.Errorf("cannot get current task plan: %w", err)
 	}
 
 	formatted := taskplan.FormatPlan(plan)
