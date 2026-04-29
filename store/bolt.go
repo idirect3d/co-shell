@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-26
+// Last Modified: 2026-04-28
 //
 // # MIT License
 //
@@ -26,20 +26,34 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/idirect3d/co-shell/workspace"
 	"go.etcd.io/bbolt"
 )
 
-// MemoryEntry represents a single memory entry.
-type MemoryEntry struct {
-	Key       string    `json:"key"`
-	Value     string    `json:"value"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+// memoryKeyNumRe matches the trailing numeric part of a memory key (e.g., "sub_agent:123").
+var memoryKeyNumRe = regexp.MustCompile(`\d+$`)
+
+// formatMemoryKey zero-pads the trailing numeric part of a key to 8 digits
+// for natural sort order in BoltDB's B+tree.
+// Example: "sub_agent:1" -> "sub_agent:00000001"
+func formatMemoryKey(key string) string {
+	loc := memoryKeyNumRe.FindStringIndex(key)
+	if loc == nil {
+		return key
+	}
+	numStr := key[loc[0]:loc[1]]
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return key
+	}
+	return key[:loc[0]] + fmt.Sprintf("%08d", num)
 }
 
 // SessionEntry represents a conversation session entry.
@@ -57,7 +71,7 @@ type HistoryEntry struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// Store provides persistent storage for memory, sessions, and configuration.
+// Store provides persistent storage for sessions, configuration, and conversation memory.
 type Store struct {
 	db *bbolt.DB
 }
@@ -72,7 +86,7 @@ func NewStore(ws *workspace.Workspace) (*Store, error) {
 
 	// Create buckets
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, bucket := range []string{"memory", "sessions", "context", "history", "schedules", "taskplans"} {
+		for _, bucket := range []string{"sessions", "context", "history", "schedules", "taskplans", "memory"} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(bucket)); err != nil {
 				return fmt.Errorf("cannot create bucket %s: %w", bucket, err)
 			}
@@ -167,101 +181,6 @@ func (s *Store) ListHistory() ([]HistoryEntryWithTime, error) {
 func (s *Store) ClearHistory() error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte("history"))
-		return bucket.ForEach(func(k, _ []byte) error {
-			return bucket.Delete(k)
-		})
-	})
-}
-
-// --- Memory Operations ---
-
-// SaveMemory stores a key-value pair in the memory bucket.
-func (s *Store) SaveMemory(key, value string) error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte("memory"))
-		entry := MemoryEntry{
-			Key:       key,
-			Value:     value,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-		data, err := json.Marshal(entry)
-		if err != nil {
-			return err
-		}
-		return bucket.Put([]byte(key), data)
-	})
-}
-
-// GetMemory retrieves a value by key from the memory bucket.
-func (s *Store) GetMemory(key string) (string, bool, error) {
-	var value string
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte("memory"))
-		data := bucket.Get([]byte(key))
-		if data == nil {
-			return nil
-		}
-		var entry MemoryEntry
-		if err := json.Unmarshal(data, &entry); err != nil {
-			return err
-		}
-		value = entry.Value
-		return nil
-	})
-	if err != nil {
-		return "", false, err
-	}
-	return value, value != "", nil
-}
-
-// SearchMemory searches memory entries by key prefix.
-func (s *Store) SearchMemory(prefix string) ([]MemoryEntry, error) {
-	var entries []MemoryEntry
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte("memory"))
-		cursor := bucket.Cursor()
-		prefixBytes := []byte(prefix)
-		for k, v := cursor.Seek(prefixBytes); k != nil && len(k) >= len(prefixBytes) && string(k[:len(prefixBytes)]) == prefix; k, v = cursor.Next() {
-			var entry MemoryEntry
-			if err := json.Unmarshal(v, &entry); err != nil {
-				return err
-			}
-			entries = append(entries, entry)
-		}
-		return nil
-	})
-	return entries, err
-}
-
-// DeleteMemory removes a memory entry.
-func (s *Store) DeleteMemory(key string) error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		return tx.Bucket([]byte("memory")).Delete([]byte(key))
-	})
-}
-
-// ListMemory returns all memory entries.
-func (s *Store) ListMemory() ([]MemoryEntry, error) {
-	var entries []MemoryEntry
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte("memory"))
-		return bucket.ForEach(func(k, v []byte) error {
-			var entry MemoryEntry
-			if err := json.Unmarshal(v, &entry); err != nil {
-				return err
-			}
-			entries = append(entries, entry)
-			return nil
-		})
-	})
-	return entries, err
-}
-
-// ClearMemory removes all memory entries.
-func (s *Store) ClearMemory() error {
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte("memory"))
 		return bucket.ForEach(func(k, _ []byte) error {
 			return bucket.Delete(k)
 		})
@@ -411,5 +330,124 @@ func (s *Store) DeleteTaskPlan(id int) error {
 		bucket := tx.Bucket([]byte("taskplans"))
 		key := fmt.Sprintf("%010d", id)
 		return bucket.Delete([]byte(key))
+	})
+}
+
+// --- Conversation Memory Operations ---
+
+// SaveConversationMessage stores a conversation message in the memory bucket.
+func (s *Store) SaveConversationMessage(id string, data []byte) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		return bucket.Put([]byte(id), data)
+	})
+}
+
+// ListConversationMessages returns all conversation messages in chronological order (oldest first).
+func (s *Store) ListConversationMessages() ([][]byte, error) {
+	var result [][]byte
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		cursor := bucket.Cursor()
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			// Make a copy of v since it's only valid within the transaction
+			data := make([]byte, len(v))
+			copy(data, v)
+			result = append(result, data)
+		}
+		return nil
+	})
+	return result, err
+}
+
+// SaveMemory stores a key-value pair in the memory bucket.
+// The key's trailing numeric part is zero-padded to 8 digits for natural sort order.
+func (s *Store) SaveMemory(key, value string) error {
+	formattedKey := formatMemoryKey(key)
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		return bucket.Put([]byte(formattedKey), []byte(value))
+	})
+}
+
+// GetMemory retrieves a value from the memory bucket by key.
+// Tries both the original key and the zero-padded format for backward compatibility.
+func (s *Store) GetMemory(key string) (string, bool, error) {
+	var data []byte
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		// Try the key as-is first (for backward compatibility with old data)
+		data = bucket.Get([]byte(key))
+		if data == nil {
+			// Try zero-padded format
+			data = bucket.Get([]byte(formatMemoryKey(key)))
+		}
+		return nil
+	})
+	if err != nil {
+		return "", false, err
+	}
+	if data == nil {
+		return "", false, nil
+	}
+	return string(data), true, nil
+}
+
+// SearchMemory searches the memory bucket for keys containing the given prefix.
+// The prefix is also matched against zero-padded keys for backward compatibility.
+type MemoryEntry struct {
+	Key   string
+	Value string
+}
+
+func (s *Store) SearchMemory(prefix string) ([]MemoryEntry, error) {
+	var entries []MemoryEntry
+	seen := make(map[string]bool) // deduplicate keys
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		cursor := bucket.Cursor()
+
+		// Search with original prefix
+		prefixBytes := []byte(prefix)
+		for k, v := cursor.Seek(prefixBytes); k != nil && bytes.HasPrefix(k, prefixBytes); k, v = cursor.Next() {
+			key := string(k)
+			if !seen[key] {
+				seen[key] = true
+				entries = append(entries, MemoryEntry{
+					Key:   key,
+					Value: string(v),
+				})
+			}
+		}
+
+		// Also search with zero-padded prefix for backward compatibility
+		// (old data stored with unpadded keys may not match the padded prefix)
+		paddedPrefix := formatMemoryKey(prefix)
+		if paddedPrefix != prefix {
+			paddedBytes := []byte(paddedPrefix)
+			for k, v := cursor.Seek(paddedBytes); k != nil && bytes.HasPrefix(k, paddedBytes); k, v = cursor.Next() {
+				key := string(k)
+				if !seen[key] {
+					seen[key] = true
+					entries = append(entries, MemoryEntry{
+						Key:   key,
+						Value: string(v),
+					})
+				}
+			}
+		}
+
+		return nil
+	})
+	return entries, err
+}
+
+// ClearConversationMessages removes all conversation messages from the memory bucket.
+func (s *Store) ClearConversationMessages() error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		return bucket.ForEach(func(k, _ []byte) error {
+			return bucket.Delete(k)
+		})
 	})
 }

@@ -47,6 +47,7 @@ import (
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
+	"github.com/idirect3d/co-shell/memory"
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/subagent"
@@ -109,6 +110,7 @@ type Agent struct {
 	llmClient      llm.Client
 	mcpMgr         *mcp.Manager
 	store          *store.Store
+	memoryManager  *memory.Manager
 	systemPrompt   string
 	messages       []llm.Message
 	showThinking   bool
@@ -136,6 +138,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		llmClient:     llmClient,
 		mcpMgr:        mcpMgr,
 		store:         s,
+		memoryManager: memory.NewManager(s),
 		systemPrompt:  systemPrompt,
 		maxIterations: defaultMaxIterations,
 		rules:         rules,
@@ -782,11 +785,55 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	return "", fmt.Errorf("agent reached maximum iterations (%d) without a final answer", a.maxIterations)
 }
 
+// buildContextMessages returns a truncated message list based on ContextLimit.
+// Message layout: [0]=system, [1..n-2]=history, [n-1]=current user input
+// The current user input (last message) is ALWAYS kept.
+// ContextLimit == 0: only system prompt + current user input (no history)
+// ContextLimit == -1: all messages (unlimited)
+// ContextLimit > 0: system prompt + current user input + last N history messages
+func (a *Agent) buildContextMessages() []llm.Message {
+	if a.cfg == nil || a.cfg.LLM.ContextLimit == -1 {
+		return a.messages
+	}
+
+	// Always keep system prompt (first message)
+	if len(a.messages) <= 1 {
+		return a.messages
+	}
+
+	systemMsg := a.messages[0]
+
+	// The last message is always the current user input, always keep it
+	currentMsg := a.messages[len(a.messages)-1]
+
+	// History messages are between system and current user input
+	historyMsgs := a.messages[1 : len(a.messages)-1]
+
+	if a.cfg.LLM.ContextLimit == 0 {
+		// Only system prompt + current user input, no history
+		return []llm.Message{systemMsg, currentMsg}
+	}
+
+	// Keep last N history messages
+	if len(historyMsgs) > a.cfg.LLM.ContextLimit {
+		historyMsgs = historyMsgs[len(historyMsgs)-a.cfg.LLM.ContextLimit:]
+	}
+
+	result := make([]llm.Message, 0, 2+len(historyMsgs))
+	result = append(result, systemMsg)
+	result = append(result, historyMsgs...)
+	result = append(result, currentMsg)
+	return result
+}
+
 // streamLLMResponse streams the LLM response and returns the complete content, reasoning, and tool calls.
 // If streaming fails, it falls back to non-streaming Chat.
 func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
+	// Apply context limit to messages
+	contextMsgs := a.buildContextMessages()
+
 	// Try streaming first
-	eventCh, err := a.llmClient.ChatStream(ctx, a.messages, tools)
+	eventCh, err := a.llmClient.ChatStream(ctx, contextMsgs, tools)
 	if err != nil {
 		// Fall back to non-streaming
 		log.Debug("ChatStream not available, falling back to non-streaming: %v", err)
@@ -853,7 +900,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 
 // nonStreamingFallback handles the case when streaming is not available.
 func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
-	resp, err := a.llmClient.Chat(ctx, a.messages, tools)
+	// Apply context limit to messages
+	contextMsgs := a.buildContextMessages()
+	resp, err := a.llmClient.Chat(ctx, contextMsgs, tools)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("LLM call failed: %w", err)
 	}
@@ -1187,6 +1236,49 @@ func (a *Agent) buildTools() []llm.Tool {
 			Callback: a.viewTaskPlanTool,
 		},
 		{
+			Name:        "get_history_slice",
+			Description: "Retrieve a slice of recent conversation history from persistent memory. Use this to recall what was discussed in previous conversations. Parameters: last_from (starting position from the end, 1=most recent), last_to (ending position from the end, 1=most recent). Example: last_from=5, last_to=1 returns the 5 most recent messages in chronological order.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"last_from": map[string]interface{}{
+						"type":        "number",
+						"description": "Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.",
+					},
+					"last_to": map[string]interface{}{
+						"type":        "number",
+						"description": "Ending position from the end (inclusive). 1 = most recent message.",
+					},
+				},
+				"required": []string{"last_from", "last_to"},
+			},
+			Callback: a.getHistorySliceTool,
+		},
+		{
+			Name:        "memory_search",
+			Description: "Search persistent conversation memory for messages matching given keywords or criteria. Use this to find specific information from past conversations. Supports keyword search (AND logic), time-based filtering (since), and speaker name filtering.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"keywords": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Keywords to search for (AND logic: all keywords must match). Empty array returns all messages matching other filters.",
+					},
+					"since": map[string]interface{}{
+						"type":        "string",
+						"description": "Only return messages after this time (ISO 8601 format, e.g. '2026-04-01T00:00:00Z'). Empty string means no time filter.",
+					},
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Filter by speaker name (case-insensitive). Empty string means no name filter.",
+					},
+				},
+				"required": []string{},
+			},
+			Callback: a.memorySearchTool,
+		},
+		{
 			Name:        "schedule_task",
 			Description: "Schedule a recurring task using a cron expression. The task will launch a sub-agent at the specified times. The cron expression uses 5 fields: minute hour day month weekday. Use * for any value, or a specific number. Example: '0 9 * * *' means every day at 9:00 AM. When the scheduled time arrives, a sub-agent will be launched with the given instruction. If a previous execution is still running, the next scheduled run will be skipped to avoid overlap.",
 			Parameters: map[string]interface{}{
@@ -1446,6 +1538,7 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 
 // readFileTool reads the contents of a file and returns it with line numbers.
 func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("readFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1516,6 +1609,7 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 
 // searchFilesTool searches for a regex pattern across files in a directory.
 func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("searchFilesTool called: args=%v", args)
 	dirPath, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1598,6 +1692,7 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 
 // listCodeDefinitionNamesTool lists definition names in source code files at the top level of a directory.
 func (a *Agent) listCodeDefinitionNamesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("listCodeDefinitionNamesTool called: args=%v", args)
 	dirPath, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1712,6 +1807,7 @@ func (a *Agent) listCodeDefinitionNamesTool(ctx context.Context, args map[string
 
 // replaceInFileTool replaces sections of content in an existing file using SEARCH/REPLACE.
 func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("replaceInFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1754,6 +1850,7 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 
 // writeToFileTool writes content to a file, creating directories as needed.
 func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("writeToFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path argument is required")
@@ -1780,6 +1877,7 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 
 // addImagesTool adds image file paths to the image cache.
 func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("addImagesTool called: args=%v", args)
 	pathsStr, ok := args["paths"].(string)
 	if !ok {
 		return "", fmt.Errorf("paths argument is required")
@@ -1812,6 +1910,7 @@ func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) 
 
 // removeImagesTool removes image file paths from the image cache.
 func (a *Agent) removeImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("removeImagesTool called: args=%v", args)
 	pathsStr, ok := args["paths"].(string)
 	if !ok {
 		return "", fmt.Errorf("paths argument is required")
@@ -1842,9 +1941,71 @@ func (a *Agent) removeImagesTool(ctx context.Context, args map[string]interface{
 
 // clearImagesTool clears all cached image file paths.
 func (a *Agent) clearImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("clearImagesTool called: args=%v", args)
 	count := len(a.imagePaths)
 	a.imagePaths = nil
 	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
+}
+
+// getHistorySliceTool retrieves a slice of conversation history from persistent memory.
+func (a *Agent) getHistorySliceTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("getHistorySliceTool called: args=%v", args)
+	lastFrom, ok := args["last_from"].(float64)
+	if !ok {
+		return "", fmt.Errorf("last_from argument is required")
+	}
+	lastTo, ok := args["last_to"].(float64)
+	if !ok {
+		return "", fmt.Errorf("last_to argument is required")
+	}
+
+	entries, err := a.memoryManager.GetHistorySlice(int(lastFrom), int(lastTo))
+	if err != nil {
+		return "", fmt.Errorf("cannot get history slice: %w", err)
+	}
+
+	formatted := memory.FormatHistorySlice(entries)
+	fmt.Println(formatted)
+	return formatted, nil
+}
+
+// memorySearchTool searches persistent conversation memory for messages matching given criteria.
+func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("memorySearchTool called: args=%v", args)
+	params := memory.SearchParams{}
+
+	// Parse keywords
+	if keywordsRaw, ok := args["keywords"].([]interface{}); ok {
+		params.Keywords = make([]string, 0, len(keywordsRaw))
+		for _, kw := range keywordsRaw {
+			if kwStr, ok := kw.(string); ok {
+				params.Keywords = append(params.Keywords, kwStr)
+			}
+		}
+	}
+
+	// Parse since time
+	if sinceStr, ok := args["since"].(string); ok && sinceStr != "" {
+		since, err := time.Parse(time.RFC3339, sinceStr)
+		if err != nil {
+			return "", fmt.Errorf("invalid since time format (use ISO 8601, e.g. '2026-04-01T00:00:00Z'): %w", err)
+		}
+		params.Since = since
+	}
+
+	// Parse name filter
+	if name, ok := args["name"].(string); ok {
+		params.Name = name
+	}
+
+	results, err := a.memoryManager.Search(params)
+	if err != nil {
+		return "", fmt.Errorf("memory search failed: %w", err)
+	}
+
+	formatted := memory.FormatSearchResults(results)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // subAgentMemoryKey returns the memory key for a sub-agent by ID.
@@ -1902,6 +2063,7 @@ func (a *Agent) saveSubAgentInfo(info *subagent.SubAgentInfo) error {
 // Sub-agent workspaces are auto-created under {parent_workspace}/sub-agents/{id}/.
 // Each sub-agent is tracked in memory with its ID, workspace path, and purpose.
 func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("launchSubAgentTool called: args=%v", args)
 	instruction, ok := args["instruction"].(string)
 	if !ok {
 		return "", fmt.Errorf("instruction argument is required")
@@ -2013,6 +2175,7 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 
 // scheduleTaskTool schedules a recurring task using a cron expression.
 func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("scheduleTaskTool called: args=%v", args)
 	name, ok := args["name"].(string)
 	if !ok {
 		return "", fmt.Errorf("name argument is required")
@@ -2048,6 +2211,7 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 
 // createTaskPlanTool creates a new task plan with title, description, and steps.
 func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("createTaskPlanTool called: args=%v", args)
 	title, ok := args["title"].(string)
 	if !ok {
 		return "", fmt.Errorf("title argument is required")
@@ -2074,11 +2238,14 @@ func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("cannot create task plan: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // updateTaskStepTool updates the status of a specific step in a task plan.
 func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("updateTaskStepTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2102,11 +2269,14 @@ func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("cannot update step status: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // insertTaskStepsTool inserts new steps after a specified step in a task plan.
 func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("insertTaskStepsTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2136,11 +2306,14 @@ func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interfa
 		return "", fmt.Errorf("cannot insert steps: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // removeTaskStepsTool removes steps from a task plan by step ID range.
 func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("removeTaskStepsTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2161,21 +2334,27 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 		return "", fmt.Errorf("cannot remove steps: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // listTaskPlansTool lists all task plans with progress summary.
 func (a *Agent) listTaskPlansTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("listTaskPlansTool called: args=%v", args)
 	plans, err := a.taskPlanMgr.List()
 	if err != nil {
 		return "", fmt.Errorf("cannot list task plans: %w", err)
 	}
 
-	return taskplan.FormatPlanList(plans), nil
+	formatted := taskplan.FormatPlanList(plans)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // viewTaskPlanTool views the full details of a specific task plan.
 func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("viewTaskPlanTool called: args=%v", args)
 	planID, ok := args["plan_id"].(float64)
 	if !ok {
 		return "", fmt.Errorf("plan_id argument is required")
@@ -2186,7 +2365,9 @@ func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{
 		return "", fmt.Errorf("cannot get task plan: %w", err)
 	}
 
-	return taskplan.FormatPlan(plan), nil
+	formatted := taskplan.FormatPlan(plan)
+	fmt.Println(formatted)
+	return formatted, nil
 }
 
 // OnScheduledTaskTriggered is called by the scheduler when a task is triggered.

@@ -372,6 +372,30 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Vision support set to %s", status)
 		return fmt.Sprintf("✅ 视觉识别已设置为: %s", status), nil
 
+	case "context-limit":
+		if len(args) < 2 {
+			limitStr := fmt.Sprintf("%d", h.cfg.LLM.ContextLimit)
+			if h.cfg.LLM.ContextLimit == 0 {
+				limitStr = "0（不包含历史）"
+			} else if h.cfg.LLM.ContextLimit == -1 {
+				limitStr = "不限制（所有消息）"
+			}
+			return fmt.Sprintf("对话上下文限制: %s", limitStr), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的对话上下文限制值: %s", args[1])
+		}
+		if n < -1 {
+			return "", fmt.Errorf("对话上下文限制必须 >= -1")
+		}
+		h.cfg.LLM.ContextLimit = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Context limit set to %d", n)
+		return i18n.TF(i18n.KeyContextLimitUpdated, n, n), nil
+
 	case "log":
 
 		if len(args) < 2 {

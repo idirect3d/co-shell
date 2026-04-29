@@ -189,6 +189,7 @@ var zhMessages = map[string]string{
 
   %-20s %-30d %s
   %-20s %-30d %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -347,27 +348,34 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsCurrentTitle:     "当前配置:",
 
 	// Config show column 3 labels
-	KeyCol3Provider:    "提供商(deepseek/qwen/openai)",
-	KeyCol3Endpoint:    "API服务器",
-	KeyCol3Model:       "模型ID",
-	KeyCol3Temperature: "温度(0.0 ~ 2.0)",
-	KeyCol3MaxTokens:   "最大输出令牌数(1 ~ N（不限制）)",
-	KeyCol3MaxIter:     "最大迭代次数(-1 ~ N)",
-	KeyCol3MaxRetries:  "LLM 重试次数(0 ~ N)",
-	KeyCol3Thinking:    "显示思考过程(on|off)",
-	KeyCol3Command:     "显示命令(on|off)",
-	KeyCol3Output:      "显示输出(on|off)",
-	KeyCol3Confirm:     "命令确认(on|off)",
-	KeyCol3ToolTimeout: "工具调用超时(0 ~ N 秒)",
-	KeyCol3CmdTimeout:  "命令执行超时(0 ~ N 秒)",
-	KeyCol3LLMTimeout:  "LLM 请求超时(0 ~ N 秒)",
-	KeyCol3Log:         "日志(on|off)",
-	KeyCol3ResultMode:  "结果模式(minimal/explain/analyze/free)",
-	KeyCol3APIKey:      "API 密钥",
-	KeyCol3Name:        "Agent 名称",
-	KeyCol3Desc:        "Agent 描述",
-	KeyCol3Principles:  "Agent 核心原则",
-	KeyCol3Vision:      "视觉识别(on|off)",
+	KeyCol3Provider:     "提供商(deepseek/qwen/openai)",
+	KeyCol3Endpoint:     "API服务器",
+	KeyCol3Model:        "模型ID",
+	KeyCol3Temperature:  "温度(0.0 ~ 2.0)",
+	KeyCol3MaxTokens:    "最大输出令牌数(1 ~ N（不限制）)",
+	KeyCol3MaxIter:      "最大迭代次数(-1 ~ N)",
+	KeyCol3MaxRetries:   "LLM 重试次数(0 ~ N)",
+	KeyCol3Thinking:     "显示思考过程(on|off)",
+	KeyCol3Command:      "显示命令(on|off)",
+	KeyCol3Output:       "显示输出(on|off)",
+	KeyCol3Confirm:      "命令确认(on|off)",
+	KeyCol3ToolTimeout:  "工具调用超时(0 ~ N 秒)",
+	KeyCol3CmdTimeout:   "命令执行超时(0 ~ N 秒)",
+	KeyCol3LLMTimeout:   "LLM 请求超时(0 ~ N 秒)",
+	KeyCol3Log:          "日志(on|off)",
+	KeyCol3ResultMode:   "结果模式(minimal/explain/analyze/free)",
+	KeyCol3APIKey:       "API 密钥",
+	KeyCol3Name:         "Agent 名称",
+	KeyCol3Desc:         "Agent 描述",
+	KeyCol3Principles:   "Agent 核心原则",
+	KeyCol3Vision:       "视觉识别(on|off)",
+	KeyCol3ContextLimit: "对话上下文限制(0=不包含历史, N=最近N条, -1=所有)",
+
+	// Context limit
+	KeyContextLimitLabel:    "对话上下文限制",
+	KeyContextLimitUpdated:  "✅ 对话上下文限制已设置为: %d（将包含最近 %d 条对话消息）",
+	KeySettingsDescCtxLimit: "设置对话上下文限制（0=不包含历史, N=最近N条, -1=所有）",
+	KeyConfigContextLimit:   "  对话上下文限制: %s\n",
 
 	// History list
 	KeyListTitle:     "📋 历史任务列表:",
@@ -405,9 +413,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 2. 调用{当前工作目录}/bin/下的工具
 3. 调用 MCP（Model Context Protocol）工具
 4. 读写文件
-5. 管理记忆和上下文
-6. 复杂任务管理和跟踪（创建任务计划、分解步骤、跟踪进度、动态调整）
-7. 创建一个或多个 sub-agent，用以完成不同专业领域的任务`,
+5. 搜索历史记忆 memory_search 和获取历史记忆片段 get_history_slice
+6. 复杂任务管理和跟踪（创建任务计划 create_task_plan 、更新执行状态 update_task_step 、动态调整计划 insert_task_steps remove_task_steps 、跟踪执行状态 view_task_plan ）`,
 	KeySystemPromptRules: `## 重要规则:
 - 使用 "execute_command" 工具运行系统命令，使用对应的 MCP 工具名称进行 MCP 操作。
 - 除非用户特别指定，否则优先使用标准系统命令（如 cat、ls、dir、type），而不是重新编写程序。
@@ -421,10 +428,10 @@ AI 模型可能会生成并执行以下类型的危险命令：
 - 使用用户偏好的语言进行回复。
 
 ## 任务规划与跟踪规则（Checklist 机制）
-- 收到任务后，先分析需求，将复杂任务拆解为可执行的子步骤，确定步骤间的依赖关系。
-- 使用 create_task_plan 工具创建任务计划（checklist），将拆解后的步骤逐一录入。
-- **Checklist 粒度**：每个步骤的粒度要适中——不要太细（如"敲了哪个字符"），也不要太粗（如"完成整个项目"，或预估工作量占比大于30%，除非是你不擅长的领域）。每个步骤应该是可验证的、独立的单元，有明确的完成标准。
-- **排序规则**：必须先完成的步骤排前面，互不依赖的步骤可以并行。
+- 收到用户的指令后，先分析需求并进行任务规划，将任务拆解为可执行的子步骤（也可能只有1步），确定步骤间的依赖关系。
+- 使用 create_task_plan 工具创建任务计划，建立 checklist，将拆解后的步骤逐一录入。
+- ** Checklist 粒度**：每个步骤的粒度要适中——不要太细（如"敲了哪个字符"），也不要太粗（如"完成整个项目"）。每个步骤应该是可验证的、独立的单元，有明确的完成标准。
+- 使用批处理方式顺序执行各个步骤，禁止并行执行。
 - 每完成一个步骤，立即使用 update_task_step 工具更新其状态为 completed，并添加必要的执行备注。
 - **动态调整**：如果中途发现计划不合理（如遗漏步骤、顺序不对），使用 insert_task_steps 或 remove_task_steps 动态调整计划。不要死守原计划——checklist 是动态的，可以随任务进展增、删、改。但已完成步骤不可修改，以保持历史完整性。
 - 遇到信息不足时，主动向用户提问澄清，不要猜测。
@@ -436,11 +443,12 @@ AI 模型可能会生成并执行以下类型的危险命令：
 - 如果有你认为不确定就无法完成最终目标的事用户没有说清楚，你就要大胆的向用户提出你的疑问。
 
 ## sub-agent创建原则
-- 优先使用任务规划与跟踪规则机制进行任务拆分和跟踪，不能使用 sub-agent 机制替代任务拆分。
-- 仅对于需要其他领域专家协助共同完成的复杂任务才使用sub-agent机制解决。
+- **当且仅当**任务必须由其他领域专家才能更好完成的时才使用sub-agent。
+- sub-agent无法并行执行，因此**无法通过**启动多个sub-agent提高效率。
 - 通过启动一个或多个 co-shell 子进程的方式创建 sub-agent 。
 - 可通过 --description/--principles 赋予 sub-agent 不同角色和专业背景能力。
 - 所有 sub-agent 完成任务后，由上级 co-shell 汇总后输出结果。
+- **只能使用**任务规划与跟踪规则机制 create_task_plan 进行任务拆分和跟踪，不能使用 sub-agent 机制替代任务拆分。
 `,
 
 	KeySystemPromptResultMode: `结果处理模式:

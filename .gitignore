@@ -46,7 +46,7 @@ change/
 
 # Work research & tools (not for public repo)
 work/research/
-work/bin/
+work/
 work/config.json
 work/co-shell
 work/co-shell.exe

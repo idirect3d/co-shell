@@ -111,6 +111,10 @@ type LLMConfig struct {
 	CommandTimeout      int `json:"command_timeout"`       // System command execution timeout (default: 0 = no timeout)
 	LLMTimeout          int `json:"llm_timeout"`           // LLM API non-streaming request timeout (default: 0 = no timeout)
 	EndpointTestTimeout int `json:"endpoint_test_timeout"` // Endpoint connectivity test timeout (default: 0 = no timeout)
+
+	// ContextLimit: number of recent conversation messages to include in LLM context
+	// 0 = no history auto-included, -1 = all messages, N = last N messages
+	ContextLimit int `json:"context_limit"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -153,6 +157,7 @@ func DefaultConfig() *Config {
 			ShowOutput:     true,
 			ConfirmCommand: true,
 			ResultMode:     int(ResultModeFree),
+			ContextLimit:   -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 		},
 
 		MCP: MCPConfig{
@@ -304,12 +309,21 @@ func (c *Config) Show() string {
 	col3Desc := i18n.T(i18n.KeyCol3Desc)
 	col3Principles := i18n.T(i18n.KeyCol3Principles)
 	col3Vision := i18n.T(i18n.KeyCol3Vision)
+	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 
 	visionStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.VisionSupport {
 		visionStatus = i18n.T(i18n.KeyOff)
+	}
+
+	// Format context limit
+	contextLimitStr := fmt.Sprintf("%d", c.LLM.ContextLimit)
+	if c.LLM.ContextLimit == 0 {
+		contextLimitStr = "0 (" + i18n.T(i18n.KeyOff) + ")"
+	} else if c.LLM.ContextLimit == -1 {
+		contextLimitStr = i18n.T(i18n.KeyUnlimited)
 	}
 
 	agentName := c.LLM.AgentName
@@ -346,6 +360,7 @@ func (c *Config) Show() string {
 		"description:", agentDesc, col3Desc,
 		"principles:", agentPrinciples, col3Principles,
 		"vision:", visionStatus, col3Vision,
+		"context-limit:", contextLimitStr, col3ContextLimit,
 		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
 		"规则:", len(c.Rules), col3Rules,
 		"api-key:", maskedKey, col3APIKey)
