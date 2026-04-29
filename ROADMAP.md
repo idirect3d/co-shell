@@ -94,7 +94,7 @@
 ## v0.3.0 — RC1
 
 > **状态**: 🚧 开发中
-> **目标日期**: 2026-04-29
+> **目标日期**: 2026-05-30
 > **里程碑**: 功能完整，可发布预览
 
 ### 功能清单
@@ -111,8 +111,9 @@
 - [x] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项 [BUILD-114]
 - [x] FEATURE-87 对话上下文限制（context-limit）：支持通过 .set context-limit 配置发送给 LLM 的历史消息数量（0=仅当前输入，-1=全部，N=最近N条），始终保留用户最新输入 [BUILD-115]
 - [x] FEATURE-88 持久化记忆管理：新增 memory 包（memory.Manager），支持对话消息的持久化存储、历史切片检索（GetHistorySlice）和关键词搜索（Search）；新增 store.SaveMemory/GetMemory/SearchMemory 方法；新增 cmd/memory.go 恢复 .memory 内置命令；新增 get_history_slice 和 memory_search 两个 LLM 工具 [BUILD-115]
-- [ ] FEATURE-89 记忆功能开关：支持通过配置文件（config.json）、命令行参数（--memory-enabled/--memory-disabled）和 REPL 命令（.set memory-enabled）控制记忆功能的开启/关闭。关闭时，get_history_slice 和 memory_search 两个 LLM 工具不可用，LLM 无法调用。
+- [x] FEATURE-89 记忆功能开关：支持通过配置文件（config.json）、命令行参数（--memory-enabled/--memory-disabled）和 REPL 命令（.set memory-enabled）控制记忆功能的开启/关闭。关闭时，get_history_slice 和 memory_search 两个 LLM 工具不可用，LLM 无法调用。
 - [ ] FEATURE-90 任务计划（checklist）功能开关：支持通过配置文件（config.json）、命令行参数（--plan-enabled/--plan-disabled）和 REPL 命令（.set plan-enabled）控制任务计划功能的开启/关闭。关闭时，create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具不可用，LLM 无法调用。
+- [ ] FIX-91 解决用 .set 设置参数之后，必须重启才能生效的问题。
 
 
 ## v1.0.0 — 正式版

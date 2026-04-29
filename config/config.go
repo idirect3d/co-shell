@@ -115,6 +115,9 @@ type LLMConfig struct {
 	// ContextLimit: number of recent conversation messages to include in LLM context
 	// 0 = no history auto-included, -1 = all messages, N = last N messages
 	ContextLimit int `json:"context_limit"`
+
+	// MemoryEnabled: whether persistent memory (get_history_slice, memory_search) is enabled
+	MemoryEnabled bool `json:"memory_enabled"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -158,6 +161,7 @@ func DefaultConfig() *Config {
 			ConfirmCommand: true,
 			ResultMode:     int(ResultModeFree),
 			ContextLimit:   -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			MemoryEnabled:  false,
 		},
 
 		MCP: MCPConfig{
@@ -310,12 +314,18 @@ func (c *Config) Show() string {
 	col3Principles := i18n.T(i18n.KeyCol3Principles)
 	col3Vision := i18n.T(i18n.KeyCol3Vision)
 	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
+	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 
 	visionStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.VisionSupport {
 		visionStatus = i18n.T(i18n.KeyOff)
+	}
+
+	memoryEnabledStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.MemoryEnabled {
+		memoryEnabledStatus = i18n.T(i18n.KeyOff)
 	}
 
 	// Format context limit
@@ -361,6 +371,7 @@ func (c *Config) Show() string {
 		"principles:", agentPrinciples, col3Principles,
 		"vision:", visionStatus, col3Vision,
 		"context-limit:", contextLimitStr, col3ContextLimit,
+		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
 		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
 		"规则:", len(c.Rules), col3Rules,
 		"api-key:", maskedKey, col3APIKey)

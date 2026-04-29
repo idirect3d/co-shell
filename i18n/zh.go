@@ -347,6 +347,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsHelpFooter:       "💡 使用 .set <参数名> <值> 修改参数，例如: .set model deepseek-chat",
 	KeySettingsCurrentTitle:     "当前配置:",
 
+	// Memory enabled
+	KeyCol3MemoryEnabled:     "记忆功能(on|off)",
+	KeySettingsDescMemory:    "持久化记忆功能开关",
+	KeyMemoryEnabledUpdated:  "✅ 记忆功能已设置为: %s",
+	KeyCLIHelpMemoryEnabled:  "      --memory-enabled   启用持久化记忆功能（覆盖配置文件）",
+	KeyCLIHelpMemoryDisabled: "      --memory-disabled  禁用持久化记忆功能（覆盖配置文件）",
+
 	// Config show column 3 labels
 	KeyCol3Provider:     "提供商(deepseek/qwen/openai)",
 	KeyCol3Endpoint:     "API服务器",

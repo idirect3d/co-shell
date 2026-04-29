@@ -128,6 +128,7 @@ type Agent struct {
 	name           string   // agent name for identification (default: "co-shell")
 	imagePaths     []string // paths to image files for multimodal input
 	workspacePath  string   // workspace root path for loading external config files
+	memoryEnabled  bool     // whether persistent memory tools are enabled
 }
 
 // New creates a new Agent instance.
@@ -200,6 +201,11 @@ func (a *Agent) SetMaxIterations(n int) {
 // SetConfirmCommand sets whether to prompt the user for confirmation before executing commands.
 func (a *Agent) SetConfirmCommand(confirm bool) {
 	a.confirmCommand = confirm
+}
+
+// SetMemoryEnabled sets whether persistent memory tools are enabled.
+func (a *Agent) SetMemoryEnabled(enabled bool) {
+	a.memoryEnabled = enabled
 }
 
 // SetConfig sets the configuration for timeout settings and agent identity.
@@ -1236,49 +1242,6 @@ func (a *Agent) buildTools() []llm.Tool {
 			Callback: a.viewTaskPlanTool,
 		},
 		{
-			Name:        "get_history_slice",
-			Description: "Retrieve a slice of recent conversation history from persistent memory. Use this to recall what was discussed in previous conversations. Parameters: last_from (starting position from the end, 1=most recent), last_to (ending position from the end, 1=most recent). Example: last_from=5, last_to=1 returns the 5 most recent messages in chronological order.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"last_from": map[string]interface{}{
-						"type":        "number",
-						"description": "Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.",
-					},
-					"last_to": map[string]interface{}{
-						"type":        "number",
-						"description": "Ending position from the end (inclusive). 1 = most recent message.",
-					},
-				},
-				"required": []string{"last_from", "last_to"},
-			},
-			Callback: a.getHistorySliceTool,
-		},
-		{
-			Name:        "memory_search",
-			Description: "Search persistent conversation memory for messages matching given keywords or criteria. Use this to find specific information from past conversations. Supports keyword search (AND logic), time-based filtering (since), and speaker name filtering.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"keywords": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": "Keywords to search for (AND logic: all keywords must match). Empty array returns all messages matching other filters.",
-					},
-					"since": map[string]interface{}{
-						"type":        "string",
-						"description": "Only return messages after this time (ISO 8601 format, e.g. '2026-04-01T00:00:00Z'). Empty string means no time filter.",
-					},
-					"name": map[string]interface{}{
-						"type":        "string",
-						"description": "Filter by speaker name (case-insensitive). Empty string means no name filter.",
-					},
-				},
-				"required": []string{},
-			},
-			Callback: a.memorySearchTool,
-		},
-		{
 			Name:        "schedule_task",
 			Description: "Schedule a recurring task using a cron expression. The task will launch a sub-agent at the specified times. The cron expression uses 5 fields: minute hour day month weekday. Use * for any value, or a specific number. Example: '0 9 * * *' means every day at 9:00 AM. When the scheduled time arrives, a sub-agent will be launched with the given instruction. If a previous execution is still running, the next scheduled run will be skipped to avoid overlap.",
 			Parameters: map[string]interface{}{
@@ -1301,6 +1264,56 @@ func (a *Agent) buildTools() []llm.Tool {
 			},
 			Callback: a.scheduleTaskTool,
 		},
+	}
+
+	// Add memory tools only if persistent memory is enabled
+	if a.memoryEnabled {
+		memoryTools := []llm.Tool{
+			{
+				Name:        "get_history_slice",
+				Description: "Retrieve a slice of recent conversation history from persistent memory. Use this to recall what was discussed in previous conversations. Parameters: last_from (starting position from the end, 1=most recent), last_to (ending position from the end, 1=most recent). Example: last_from=5, last_to=1 returns the 5 most recent messages in chronological order.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"last_from": map[string]interface{}{
+							"type":        "number",
+							"description": "Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.",
+						},
+						"last_to": map[string]interface{}{
+							"type":        "number",
+							"description": "Ending position from the end (inclusive). 1 = most recent message.",
+						},
+					},
+					"required": []string{"last_from", "last_to"},
+				},
+				Callback: a.getHistorySliceTool,
+			},
+			{
+				Name:        "memory_search",
+				Description: "Search persistent conversation memory for messages matching given keywords or criteria. Use this to find specific information from past conversations. Supports keyword search (AND logic), time-based filtering (since), and speaker name filtering.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"keywords": map[string]interface{}{
+							"type":        "array",
+							"items":       map[string]interface{}{"type": "string"},
+							"description": "Keywords to search for (AND logic: all keywords must match). Empty array returns all messages matching other filters.",
+						},
+						"since": map[string]interface{}{
+							"type":        "string",
+							"description": "Only return messages after this time (ISO 8601 format, e.g. '2026-04-01T00:00:00Z'). Empty string means no time filter.",
+						},
+						"name": map[string]interface{}{
+							"type":        "string",
+							"description": "Filter by speaker name (case-insensitive). Empty string means no name filter.",
+						},
+					},
+					"required": []string{},
+				},
+				Callback: a.memorySearchTool,
+			},
+		}
+		tools = append(tools, memoryTools...)
 	}
 
 	// Add MCP tools
