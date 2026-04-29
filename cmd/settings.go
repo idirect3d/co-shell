@@ -396,6 +396,34 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Context limit set to %d", n)
 		return i18n.TF(i18n.KeyContextLimitUpdated, n, n), nil
 
+	case "memory-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.MemoryEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("记忆功能: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.MemoryEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.MemoryEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set memory-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetMemoryEnabled(h.cfg.LLM.MemoryEnabled)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.MemoryEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Memory enabled set to %s", status)
+		return fmt.Sprintf("✅ 记忆功能已设置为: %s", status), nil
+
 	case "log":
 
 		if len(args) < 2 {

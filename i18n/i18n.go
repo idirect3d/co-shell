@@ -499,4 +499,11 @@ const (
 	KeyContextLimitUpdated  = "context_limit_updated"
 	KeySettingsDescCtxLimit = "settings_desc_ctx_limit"
 	KeyConfigContextLimit   = "config_context_limit"
+
+	// Memory enabled
+	KeyCol3MemoryEnabled     = "col3_memory_enabled"
+	KeySettingsDescMemory    = "settings_desc_memory"
+	KeyMemoryEnabledUpdated  = "memory_enabled_updated"
+	KeyCLIHelpMemoryEnabled  = "cli_help_memory_enabled"
+	KeyCLIHelpMemoryDisabled = "cli_help_memory_disabled"
 )

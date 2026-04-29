@@ -51,6 +51,9 @@ import (
 // version is the current co-shell version displayed in the welcome message.
 const version = "0.3.0"
 
+// build is the BUILD counter displayed in the welcome message.
+const build = "115"
+
 // commandPattern matches inputs that look like system commands.
 
 // On Unix: starts with alphanumeric, dots, underscores, hyphens, slashes, tildes
@@ -458,7 +461,7 @@ func (r *REPL) printWelcome() {
 	if r.cfg.LLM.VisionSupport {
 		visionIndicator = " 👀"
 	}
-	fmt.Printf("co-shell v%s%s\n", version, visionIndicator)
+	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", version, build, visionIndicator)
 
 	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
 	fmt.Println()

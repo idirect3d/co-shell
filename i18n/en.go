@@ -346,6 +346,13 @@ no liability whatsoever.`,
 	KeySettingsHelpFooter:       "💡 Use .set <parameter> <value> to modify, e.g.: .set model gpt-4o",
 	KeySettingsCurrentTitle:     "Current Configuration:",
 
+	// Memory enabled
+	KeyCol3MemoryEnabled:     "memory(on|off)",
+	KeySettingsDescMemory:    "Toggle persistent memory",
+	KeyMemoryEnabledUpdated:  "✅ Memory enabled set to: %s",
+	KeyCLIHelpMemoryEnabled:  "      --memory-enabled   Enable persistent memory (overrides config)",
+	KeyCLIHelpMemoryDisabled: "      --memory-disabled  Disable persistent memory (overrides config)",
+
 	// Config show column 3 labels
 	KeyCol3Provider:     "provider(deepseek/qwen/openai)",
 	KeyCol3Endpoint:     "API server",

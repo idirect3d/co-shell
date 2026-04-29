@@ -84,6 +84,9 @@ type cliFlags struct {
 	// Vision support
 	vision string // "on"/"off"
 
+	// Memory enabled
+	memoryEnabled string // "on"/"off"
+
 	// Timeout parameters
 	toolTimeout int
 	cmdTimeout  int
@@ -135,6 +138,10 @@ func parseFlags() cliFlags {
 
 	// Vision support
 	flag.StringVar(&f.vision, "vision", "", "视觉识别能力（on/off，覆盖配置文件）")
+
+	// Memory enabled
+	flag.StringVar(&f.memoryEnabled, "memory-enabled", "", "启用持久化记忆功能（覆盖配置文件）")
+	flag.StringVar(&f.memoryEnabled, "memory-disabled", "", "禁用持久化记忆功能（覆盖配置文件）")
 
 	// Timeout parameters
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
@@ -219,6 +226,8 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpResultMode),
 			i18n.T(i18n.KeyCLIHelpDescription),
 			i18n.T(i18n.KeyCLIHelpPrinciples),
+			i18n.T(i18n.KeyCLIHelpMemoryEnabled),
+			i18n.T(i18n.KeyCLIHelpMemoryDisabled),
 			i18n.T(i18n.KeyCLIHelpToolTimeout),
 			i18n.T(i18n.KeyCLIHelpCmdTimeout),
 			i18n.T(i18n.KeyCLIHelpLLMTimeout),
@@ -448,6 +457,18 @@ func main() {
 		}
 	}
 
+	// Apply memory-enabled CLI override
+	if flags.memoryEnabled != "" {
+		switch flags.memoryEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.MemoryEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.MemoryEnabled = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --memory-enabled value %q, use on|off\n", flags.memoryEnabled)
+		}
+	}
+
 	// Apply timeout CLI overrides
 	if flags.toolTimeout >= 0 {
 		cfg.LLM.ToolTimeout = flags.toolTimeout
@@ -578,6 +599,9 @@ func main() {
 
 	// Pass config to agent for timeout settings
 	ag.SetConfig(cfg)
+
+	// Apply memory enabled setting
+	ag.SetMemoryEnabled(cfg.LLM.MemoryEnabled)
 
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
