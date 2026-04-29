@@ -87,6 +87,9 @@ type cliFlags struct {
 	// Memory enabled
 	memoryEnabled string // "on"/"off"
 
+	// Plan enabled
+	planEnabled string // "on"/"off"
+
 	// Timeout parameters
 	toolTimeout int
 	cmdTimeout  int
@@ -143,6 +146,10 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.memoryEnabled, "memory-enabled", "", "启用持久化记忆功能（覆盖配置文件）")
 	flag.StringVar(&f.memoryEnabled, "memory-disabled", "", "禁用持久化记忆功能（覆盖配置文件）")
 
+	// Plan enabled
+	flag.StringVar(&f.planEnabled, "plan-enabled", "", "启用任务计划功能（覆盖配置文件）")
+	flag.StringVar(&f.planEnabled, "plan-disabled", "", "禁用任务计划功能（覆盖配置文件）")
+
 	// Timeout parameters
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
 	flag.IntVar(&f.cmdTimeout, "cmd-timeout", -1, "系统命令执行超时秒数（0=不限，覆盖配置文件）")
@@ -163,6 +170,10 @@ func parseFlags() cliFlags {
 
 %s
 
+  %s
+  %s
+  %s
+  %s
   %s
   %s
   %s
@@ -228,6 +239,8 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpPrinciples),
 			i18n.T(i18n.KeyCLIHelpMemoryEnabled),
 			i18n.T(i18n.KeyCLIHelpMemoryDisabled),
+			i18n.T(i18n.KeyCLIHelpPlanEnabled),
+			i18n.T(i18n.KeyCLIHelpPlanDisabled),
 			i18n.T(i18n.KeyCLIHelpToolTimeout),
 			i18n.T(i18n.KeyCLIHelpCmdTimeout),
 			i18n.T(i18n.KeyCLIHelpLLMTimeout),
@@ -469,6 +482,18 @@ func main() {
 		}
 	}
 
+	// Apply plan-enabled CLI override
+	if flags.planEnabled != "" {
+		switch flags.planEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.PlanEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.PlanEnabled = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --plan-enabled value %q, use on|off\n", flags.planEnabled)
+		}
+	}
+
 	// Apply timeout CLI overrides
 	if flags.toolTimeout >= 0 {
 		cfg.LLM.ToolTimeout = flags.toolTimeout
@@ -602,6 +627,9 @@ func main() {
 
 	// Apply memory enabled setting
 	ag.SetMemoryEnabled(cfg.LLM.MemoryEnabled)
+
+	// Apply plan enabled setting
+	ag.SetPlanEnabled(cfg.LLM.PlanEnabled)
 
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))

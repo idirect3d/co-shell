@@ -186,6 +186,7 @@ var zhMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
 
   %-20s %-30d %s
   %-20s %-30d %s
@@ -353,6 +354,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyMemoryEnabledUpdated:  "✅ 记忆功能已设置为: %s",
 	KeyCLIHelpMemoryEnabled:  "      --memory-enabled   启用持久化记忆功能（覆盖配置文件）",
 	KeyCLIHelpMemoryDisabled: "      --memory-disabled  禁用持久化记忆功能（覆盖配置文件）",
+
+	// Plan enabled
+	KeyCol3PlanEnabled:     "任务计划(on|off)",
+	KeySettingsDescPlan:    "任务计划功能开关",
+	KeyPlanEnabledUpdated:  "✅ 任务计划功能已设置为: %s",
+	KeyCLIHelpPlanEnabled:  "      --plan-enabled    启用任务计划功能（覆盖配置文件）",
+	KeyCLIHelpPlanDisabled: "      --plan-disabled   禁用任务计划功能（覆盖配置文件）",
 
 	// Config show column 3 labels
 	KeyCol3Provider:     "提供商(deepseek/qwen/openai)",

@@ -424,6 +424,34 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Memory enabled set to %s", status)
 		return fmt.Sprintf("✅ 记忆功能已设置为: %s", status), nil
 
+	case "plan-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.PlanEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("任务计划功能: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.PlanEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.PlanEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set plan-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetPlanEnabled(h.cfg.LLM.PlanEnabled)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.PlanEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Plan enabled set to %s", status)
+		return fmt.Sprintf("✅ 任务计划功能已设置为: %s", status), nil
+
 	case "log":
 
 		if len(args) < 2 {

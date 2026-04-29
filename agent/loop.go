@@ -129,6 +129,7 @@ type Agent struct {
 	imagePaths     []string // paths to image files for multimodal input
 	workspacePath  string   // workspace root path for loading external config files
 	memoryEnabled  bool     // whether persistent memory tools are enabled
+	planEnabled    bool     // whether task plan tools are enabled
 }
 
 // New creates a new Agent instance.
@@ -206,6 +207,11 @@ func (a *Agent) SetConfirmCommand(confirm bool) {
 // SetMemoryEnabled sets whether persistent memory tools are enabled.
 func (a *Agent) SetMemoryEnabled(enabled bool) {
 	a.memoryEnabled = enabled
+}
+
+// SetPlanEnabled sets whether task plan tools are enabled.
+func (a *Agent) SetPlanEnabled(enabled bool) {
+	a.planEnabled = enabled
 }
 
 // SetConfig sets the configuration for timeout settings and agent identity.
@@ -1113,158 +1119,167 @@ func (a *Agent) buildTools() []llm.Tool {
 			},
 			Callback: a.clearImagesTool,
 		},
-		{
-			Name:        "create_task_plan",
-			Description: "Create a new task plan (checklist) with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into a structured checklist of manageable steps that can be tracked individually. The checklist should have moderate granularity: not too fine-grained (e.g., 'which character was typed'), nor too coarse (e.g., 'complete the entire project'). Each step should be a verifiable, independent unit with clear completion criteria.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"title": map[string]interface{}{
-						"type":        "string",
-						"description": "The title of the task plan",
-					},
-					"description": map[string]interface{}{
-						"type":        "string",
-						"description": "A brief description of the overall task plan",
-					},
-					"steps": map[string]interface{}{
-						"type": "array",
-						"items": map[string]interface{}{
-							"type": "string",
-						},
-						"description": "An array of step descriptions, each representing a sub-task",
-					},
-				},
-				"required": []string{"title", "steps"},
-			},
-			Callback: a.createTaskPlanTool,
-		},
-		{
-			Name:        "update_task_step",
-			Description: "Update the status of a specific step (checklist item) in a task plan (checklist). Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change. After completing each step, immediately call this tool to update the checklist progress.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"plan_id": map[string]interface{}{
-						"type":        "number",
-						"description": "The ID of the task plan",
-					},
-					"step_id": map[string]interface{}{
-						"type":        "number",
-						"description": "The ID of the step to update",
-					},
-					"status": map[string]interface{}{
-						"type":        "string",
-						"enum":        []string{"pending", "in_progress", "completed", "failed", "cancelled"},
-						"description": "The new status for the step",
-					},
-					"note": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional note to add context about the status change",
-					},
-				},
-				"required": []string{"plan_id", "step_id", "status"},
-			},
-			Callback: a.updateTaskStepTool,
-		},
-		{
-			Name:        "insert_task_steps",
-			Description: "Insert one or more new steps (checklist items) after a specified step in a task plan (checklist). The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information — the checklist is dynamic and can be adjusted as needed.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"plan_id": map[string]interface{}{
-						"type":        "number",
-						"description": "The ID of the task plan to modify",
-					},
-					"after_step_id": map[string]interface{}{
-						"type":        "number",
-						"description": "The ID of the step after which to insert new steps. Use 0 to insert at the beginning. Example: if plan has steps 1,2,3 and after_step_id=1, new steps are inserted between step 1 and step 2.",
-					},
-					"steps": map[string]interface{}{
-						"type": "array",
-						"items": map[string]interface{}{
-							"type": "string",
-						},
-						"description": "An array of step descriptions to insert after the specified step",
-					},
-				},
-				"required": []string{"plan_id", "after_step_id", "steps"},
-			},
-			Callback: a.insertTaskStepsTool,
-		},
-		{
-			Name:        "remove_task_steps",
-			Description: "Remove one or more steps (checklist items) from a task plan (checklist) by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan — the checklist is dynamic and can be adjusted as needed.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"plan_id": map[string]interface{}{
-						"type":        "number",
-						"description": "The ID of the task plan to modify",
-					},
-					"from": map[string]interface{}{
-						"type":        "number",
-						"description": "The starting step ID of the range to remove (inclusive)",
-					},
-					"to": map[string]interface{}{
-						"type":        "number",
-						"description": "The ending step ID of the range to remove (inclusive)",
-					},
-				},
-				"required": []string{"plan_id", "from", "to"},
-			},
-			Callback: a.removeTaskStepsTool,
-		},
-		{
-			Name:        "list_task_plans",
-			Description: "List all task plans (checklists) with their progress summary. Returns each plan's ID, title, completion percentage, and step count. Use this to get an overview of all active and completed task plans (checklists).",
-			Parameters: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-				"required":   []string{},
-			},
-			Callback: a.listTaskPlansTool,
-		},
-		{
-			Name:        "view_task_plan",
-			Description: "View the full details of a specific task plan (checklist), including all steps (checklist items) with their statuses and notes. Use this to examine the progress of a particular plan in detail.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"plan_id": map[string]interface{}{
-						"type":        "number",
-						"description": "The ID of the task plan to view",
-					},
-				},
-				"required": []string{"plan_id"},
-			},
-			Callback: a.viewTaskPlanTool,
-		},
-		{
-			Name:        "schedule_task",
-			Description: "Schedule a recurring task using a cron expression. The task will launch a sub-agent at the specified times. The cron expression uses 5 fields: minute hour day month weekday. Use * for any value, or a specific number. Example: '0 9 * * *' means every day at 9:00 AM. When the scheduled time arrives, a sub-agent will be launched with the given instruction. If a previous execution is still running, the next scheduled run will be skipped to avoid overlap.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"name": map[string]interface{}{
-						"type":        "string",
-						"description": "A human-readable name for this scheduled task (e.g., 'Daily Report', 'Health Check').",
-					},
-					"cron": map[string]interface{}{
-						"type":        "string",
-						"description": "5-field cron expression: minute hour day month weekday. Example: '0 9 * * *' for daily at 9:00 AM.",
-					},
-					"instruction": map[string]interface{}{
-						"type":        "string",
-						"description": "The instruction to pass to the sub-agent when the task is triggered.",
-					},
-				},
-				"required": []string{"name", "cron", "instruction"},
-			},
-			Callback: a.scheduleTaskTool,
-		},
 	}
+
+	// Add task plan tools only if plan enabled
+	if a.planEnabled {
+		planTools := []llm.Tool{
+			{
+				Name:        "create_task_plan",
+				Description: "Create a new task plan (checklist) with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into a structured checklist of manageable steps that can be tracked individually. The checklist should have moderate granularity: not too fine-grained (e.g., 'which character was typed'), nor too coarse (e.g., 'complete the entire project'). Each step should be a verifiable, independent unit with clear completion criteria.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"title": map[string]interface{}{
+							"type":        "string",
+							"description": "The title of the task plan",
+						},
+						"description": map[string]interface{}{
+							"type":        "string",
+							"description": "A brief description of the overall task plan",
+						},
+						"steps": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "string",
+							},
+							"description": "An array of step descriptions, each representing a sub-task",
+						},
+					},
+					"required": []string{"title", "steps"},
+				},
+				Callback: a.createTaskPlanTool,
+			},
+			{
+				Name:        "update_task_step",
+				Description: "Update the status of a specific step (checklist item) in a task plan (checklist). Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change. After completing each step, immediately call this tool to update the checklist progress.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"plan_id": map[string]interface{}{
+							"type":        "number",
+							"description": "The ID of the task plan",
+						},
+						"step_id": map[string]interface{}{
+							"type":        "number",
+							"description": "The ID of the step to update",
+						},
+						"status": map[string]interface{}{
+							"type":        "string",
+							"enum":        []string{"pending", "in_progress", "completed", "failed", "cancelled"},
+							"description": "The new status for the step",
+						},
+						"note": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional note to add context about the status change",
+						},
+					},
+					"required": []string{"plan_id", "step_id", "status"},
+				},
+				Callback: a.updateTaskStepTool,
+			},
+			{
+				Name:        "insert_task_steps",
+				Description: "Insert one or more new steps (checklist items) after a specified step in a task plan (checklist). The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information — the checklist is dynamic and can be adjusted as needed.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"plan_id": map[string]interface{}{
+							"type":        "number",
+							"description": "The ID of the task plan to modify",
+						},
+						"after_step_id": map[string]interface{}{
+							"type":        "number",
+							"description": "The ID of the step after which to insert new steps. Use 0 to insert at the beginning. Example: if plan has steps 1,2,3 and after_step_id=1, new steps are inserted between step 1 and step 2.",
+						},
+						"steps": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "string",
+							},
+							"description": "An array of step descriptions to insert after the specified step",
+						},
+					},
+					"required": []string{"plan_id", "after_step_id", "steps"},
+				},
+				Callback: a.insertTaskStepsTool,
+			},
+			{
+				Name:        "remove_task_steps",
+				Description: "Remove one or more steps (checklist items) from a task plan (checklist) by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan — the checklist is dynamic and can be adjusted as needed.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"plan_id": map[string]interface{}{
+							"type":        "number",
+							"description": "The ID of the task plan to modify",
+						},
+						"from": map[string]interface{}{
+							"type":        "number",
+							"description": "The starting step ID of the range to remove (inclusive)",
+						},
+						"to": map[string]interface{}{
+							"type":        "number",
+							"description": "The ending step ID of the range to remove (inclusive)",
+						},
+					},
+					"required": []string{"plan_id", "from", "to"},
+				},
+				Callback: a.removeTaskStepsTool,
+			},
+			{
+				Name:        "list_task_plans",
+				Description: "List all task plans (checklists) with their progress summary. Returns each plan's ID, title, completion percentage, and step count. Use this to get an overview of all active and completed task plans (checklists).",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+					"required":   []string{},
+				},
+				Callback: a.listTaskPlansTool,
+			},
+			{
+				Name:        "view_task_plan",
+				Description: "View the full details of a specific task plan (checklist), including all steps (checklist items) with their statuses and notes. Use this to examine the progress of a particular plan in detail.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"plan_id": map[string]interface{}{
+							"type":        "number",
+							"description": "The ID of the task plan to view",
+						},
+					},
+					"required": []string{"plan_id"},
+				},
+				Callback: a.viewTaskPlanTool,
+			},
+		}
+		tools = append(tools, planTools...)
+	}
+
+	// Add schedule_task tool
+	tools = append(tools, llm.Tool{
+		Name:        "schedule_task",
+		Description: "Schedule a recurring task using a cron expression. The task will launch a sub-agent at the specified times. The cron expression uses 5 fields: minute hour day month weekday. Use * for any value, or a specific number. Example: '0 9 * * *' means every day at 9:00 AM. When the scheduled time arrives, a sub-agent will be launched with the given instruction. If a previous execution is still running, the next scheduled run will be skipped to avoid overlap.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "A human-readable name for this scheduled task (e.g., 'Daily Report', 'Health Check').",
+				},
+				"cron": map[string]interface{}{
+					"type":        "string",
+					"description": "5-field cron expression: minute hour day month weekday. Example: '0 9 * * *' for daily at 9:00 AM.",
+				},
+				"instruction": map[string]interface{}{
+					"type":        "string",
+					"description": "The instruction to pass to the sub-agent when the task is triggered.",
+				},
+			},
+			"required": []string{"name", "cron", "instruction"},
+		},
+		Callback: a.scheduleTaskTool,
+	})
 
 	// Add memory tools only if persistent memory is enabled
 	if a.memoryEnabled {
