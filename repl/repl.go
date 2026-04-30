@@ -48,12 +48,6 @@ import (
 	"github.com/idirect3d/co-shell/wizard"
 )
 
-// version is the current co-shell version displayed in the welcome message.
-const version = "0.3.0"
-
-// build is the BUILD counter displayed in the welcome message.
-const build = "115"
-
 // commandPattern matches inputs that look like system commands.
 
 // On Unix: starts with alphanumeric, dots, underscores, hyphens, slashes, tildes
@@ -135,6 +129,8 @@ type REPL struct {
 
 	history    []string
 	historyPos int
+	version    string // co-shell version for welcome message
+	build      string // BUILD counter for welcome message
 }
 
 // New creates a new REPL instance.
@@ -155,6 +151,12 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		planHandler:    cmd.NewPlanHandler(ag.TaskPlanManager()),
 	}
 
+}
+
+// SetVersion sets the version and build number for the welcome message.
+func (r *REPL) SetVersion(ver, bld string) {
+	r.version = ver
+	r.build = bld
 }
 
 // Run starts the REPL loop using standard library input/output.
@@ -461,7 +463,7 @@ func (r *REPL) printWelcome() {
 	if r.cfg.LLM.VisionSupport {
 		visionIndicator = " 👀"
 	}
-	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", version, build, visionIndicator)
+	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", r.version, r.build, visionIndicator)
 
 	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
 	fmt.Println()

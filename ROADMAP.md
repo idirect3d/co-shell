@@ -16,7 +16,7 @@
 
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
-> 完成任务时，在任务后标注 `[BUILD-XXXXX]` 标记完成时的编译版本。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ---
 
@@ -114,7 +114,9 @@
 - [x] FEATURE-89 记忆功能开关：支持通过配置文件（config.json）、命令行参数（--memory-enabled/--memory-disabled）和 REPL 命令（.set memory-enabled）控制记忆功能的开启/关闭。关闭时，get_history_slice 和 memory_search 两个 LLM 工具不可用，LLM 无法调用。
 - [x] FEATURE-90 任务计划（checklist）单例模式改造：同一时间只能有一个任务计划；有未完成步骤时不能新建计划，只能调整（插入/删除未完成子任务）；所有步骤完成后才能新建计划，旧计划自动归档到记忆；create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具及 .plan 命令均适配单 plan 模式，不再需要 plan_id 参数 [BUILD-116]
 - [x] FIX-91 解决用 .set 设置参数之后，必须重启才能生效的问题。[BUILD-117]
-
+- [ ] FEATURE-92 LLM 前端输出模式开关：支持精简（compact）、标准（normal）和调试（debug）三种模式。精简模式：只显示 LLM 返回的内容，隐藏所有工具调用信息；标准模式：在精简基础上，显示工具调用方法名，但不显示调用细节和方法返回结果；调试模式：在标准基础上，显示工具调用输入参数和返回结果。通过 .set output-mode 配置、--output-mode 命令行参数、config.json 持久化。
+- [ ] FEATURE-93 日历与待办事项管理：提供日历功能，支持记录和管理待办事项（todo）。提供 .calendar 内置命令（add/list/remove/update）管理待办事项；提供 add_todo / list_todos / update_todo / remove_todo 四个 LLM 工具，让大模型能操作待办事项；数据持久化到 bbolt。如果系统有日历应用（如 macOS 日历），提供选项帮助用户将待办事项同步到系统日历。
+- [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 
 ## v1.0.0 — 正式版
 

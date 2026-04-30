@@ -686,23 +686,25 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
 		if streamErr != nil {
-			// If the error is about invalid tool call arguments, feed the error back to the LLM
-			// as a tool result so it can learn from the mistake and retry with proper arguments.
-			if strings.Contains(streamErr.Error(), "invalid arguments") {
-				log.Warn("Agent.RunStream: LLM returned invalid tool call arguments, feeding error back to LLM")
-				// Add a system-like message to inform the LLM about the issue
-				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{
-					Role:    "user",
-					Content: "你刚才生成的 tool call 参数无效（arguments 为空），请重新生成有效的 tool call。确保每个 tool call 的 arguments 是完整的 JSON 对象。",
-				})
-				a.mu.Unlock()
-				cb("info", "\n⚠️ Tool call 参数无效，正在重新请求 LLM...\n")
-				continue
-			}
-			// For other errors, fail immediately
-			log.Error("Agent.RunStream: stream error at iteration %d: %v", iteration, streamErr)
-			return "", streamErr
+			// Feed all errors back to the LLM so it can decide how to handle them.
+			// The LLM can determine whether the error is recoverable (e.g., invalid arguments,
+			// temporary timeout) and retry with corrections, or unrecoverable (e.g., auth failure,
+			// model not found) and report to the user.
+			log.Warn("Agent.RunStream: stream error at iteration %d: %v, feeding back to LLM", iteration, streamErr)
+			a.mu.Lock()
+			a.messages = append(a.messages, llm.Message{
+				Role: "user",
+				Content: fmt.Sprintf(
+					"注意：刚才的 LLM 调用返回了错误，请根据错误信息判断如何处理。\n"+
+						"如果错误是可恢复的（如参数格式问题、临时超时），请修正后重试。\n"+
+						"如果错误是不可恢复的（如认证失败、模型不存在），请向用户报告错误并终止。\n\n"+
+						"错误信息：%s",
+					streamErr.Error(),
+				),
+			})
+			a.mu.Unlock()
+			cb("info", fmt.Sprintf("\n⚠️ LLM 调用出错: %v\n正在请求 LLM 判断如何处理...\n", streamErr))
+			continue
 		}
 
 		// Step 2: If no tool calls, this is the final answer

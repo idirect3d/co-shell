@@ -661,6 +661,7 @@ func main() {
 
 	// Start REPL (interactive mode)
 	r := repl.New(cfg, s, mcpMgr, ag)
+	r.SetVersion(version, build)
 	log.Info("REPL started")
 	if err := r.Run(); err != nil {
 		log.Error("REPL error: %v", err)
