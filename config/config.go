@@ -389,7 +389,7 @@ func (c *Config) Show() string {
 	// Format context limit
 	contextLimitStr := fmt.Sprintf("%d", c.LLM.ContextLimit)
 	if c.LLM.ContextLimit == 0 {
-		contextLimitStr = "0 (" + i18n.T(i18n.KeyOff) + ")"
+		contextLimitStr = i18n.T(i18n.KeyOff)
 	} else if c.LLM.ContextLimit == -1 {
 		contextLimitStr = i18n.T(i18n.KeyUnlimited)
 	}

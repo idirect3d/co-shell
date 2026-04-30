@@ -410,9 +410,9 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if len(args) < 2 {
 			limitStr := fmt.Sprintf("%d", h.cfg.LLM.ContextLimit)
 			if h.cfg.LLM.ContextLimit == 0 {
-				limitStr = "0（不包含历史）"
+				limitStr = i18n.T(i18n.KeyOff)
 			} else if h.cfg.LLM.ContextLimit == -1 {
-				limitStr = "不限制（所有消息）"
+				limitStr = i18n.T(i18n.KeyUnlimited)
 			}
 			return fmt.Sprintf("对话上下文限制: %s", limitStr), nil
 		}

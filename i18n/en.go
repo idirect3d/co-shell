@@ -186,8 +186,8 @@ var enMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
 
-  %-20s %-30d %s
-  %-20s %-30d %s
+  %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s`,
 
