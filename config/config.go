@@ -174,6 +174,10 @@ type LLMConfig struct {
 	// SearchMaxResultBytes: maximum total bytes for search results
 	// Results exceeding this will be truncated. Default: 65536
 	SearchMaxResultBytes int `json:"search_max_result_bytes"`
+
+	// SearchContextLines: number of context lines before and after each match in search results
+	// Default: 5
+	SearchContextLines int `json:"search_context_lines"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -222,6 +226,7 @@ func DefaultConfig() *Config {
 			OutputMode:           int(OutputModeNormal),
 			SearchMaxLineLength:  8192,
 			SearchMaxResultBytes: 65536,
+			SearchContextLines:   5,
 		},
 
 		MCP: MCPConfig{
@@ -366,8 +371,6 @@ func (c *Config) Show() string {
 	col3LLMTimeout := i18n.T(i18n.KeyCol3LLMTimeout)
 	col3Log := i18n.T(i18n.KeyCol3Log)
 	col3ResultMode := i18n.T(i18n.KeyCol3ResultMode)
-	col3MCP := ""
-	col3Rules := ""
 	col3APIKey := i18n.T(i18n.KeyCol3APIKey)
 	col3Name := i18n.T(i18n.KeyCol3Name)
 	col3Desc := i18n.T(i18n.KeyCol3Desc)
@@ -379,6 +382,7 @@ func (c *Config) Show() string {
 	col3OutputMode := i18n.T(i18n.KeyCol3OutputMode)
 	col3SearchMaxLineLength := i18n.T(i18n.KeyCol3SearchMaxLineLength)
 	col3SearchMaxResultBytes := i18n.T(i18n.KeyCol3SearchMaxResultBytes)
+	col3SearchContextLines := i18n.T(i18n.KeyCol3SearchContextLines)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 	outputModeStr := OutputModeString(OutputMode(c.LLM.OutputMode))
@@ -446,8 +450,7 @@ func (c *Config) Show() string {
 		"output-mode:", outputModeStr, col3OutputMode,
 		"search-max-line-length:", fmt.Sprintf("%d", c.LLM.SearchMaxLineLength), col3SearchMaxLineLength,
 		"search-max-result-bytes:", fmt.Sprintf("%d", c.LLM.SearchMaxResultBytes), col3SearchMaxResultBytes,
-		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
-		"规则:", len(c.Rules), col3Rules,
+		"search-context-lines:", fmt.Sprintf("%d", c.LLM.SearchContextLines), col3SearchContextLines,
 		"api-key:", maskedKey, col3APIKey)
 
 }

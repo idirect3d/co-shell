@@ -189,6 +189,10 @@ var enMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -280,6 +284,9 @@ var enMessages = map[string]string{
 
 	"col3_search_max_line_length":           "Max line length for search",
 	"col3_search_max_result_bytes":          "Max result bytes for search",
+	"col3_search_context_lines":             "Search context lines",
+	"col3_mcp":                              "MCP server count",
+	"col3_rules":                            "Rules count",
 	"settings_desc_search_max_line_length":  "Max characters per line in search results, longer lines truncated (default: 8192)",
 	"settings_desc_search_max_result_bytes": "Max total bytes for search results, results truncated (default: 65536)",
 

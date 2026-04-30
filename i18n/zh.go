@@ -191,6 +191,10 @@ var zhMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -282,6 +286,9 @@ var zhMessages = map[string]string{
 
 	"col3_search_max_line_length":           "搜索单行最大字符数",
 	"col3_search_max_result_bytes":          "搜索结果最大字节数",
+	"col3_search_context_lines":             "搜索匹配上下文行数",
+	"col3_mcp":                              "MCP 服务器数量",
+	"col3_rules":                            "规则数量",
 	"settings_desc_search_max_line_length":  "搜索文件时单行最大字符数，超长截断（默认 8192）",
 	"settings_desc_search_max_result_bytes": "搜索文件时返回结果最大字节数，超长截断（默认 65536）",
 

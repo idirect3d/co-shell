@@ -33,12 +33,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -53,40 +50,7 @@ import (
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/subagent"
 	"github.com/idirect3d/co-shell/taskplan"
-	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/transform"
 )
-
-// shellCmd returns the appropriate shell command and argument for the current platform.
-func shellCmd() (string, string) {
-	if runtime.GOOS == "windows" {
-		return "cmd", "/c"
-	}
-	return "bash", "-c"
-}
-
-// shellName returns the human-readable shell name for the current platform.
-func shellName() string {
-	if runtime.GOOS == "windows" {
-		return "cmd/powershell"
-	}
-	return "bash/zsh"
-}
-
-// decodeToUTF8 converts GBK encoded bytes to UTF-8 string on Windows.
-// On non-Windows platforms, it returns the raw string as-is.
-func decodeToUTF8(data []byte) string {
-	if runtime.GOOS != "windows" {
-		return string(data)
-	}
-	// Try GBK decode first; if it fails, return raw string
-	reader := transform.NewReader(bytes.NewReader(data), simplifiedchinese.GBK.NewDecoder())
-	decoded, err := io.ReadAll(reader)
-	if err != nil {
-		return string(data)
-	}
-	return string(decoded)
-}
 
 // StreamCallback is a function called for each streaming event from the LLM.
 type StreamCallback func(eventType string, content string)
@@ -481,93 +445,6 @@ func (a *Agent) getCommandTimeout() time.Duration {
 		return time.Duration(a.cfg.LLM.CommandTimeout) * time.Second
 	}
 	return 0
-}
-
-// buildSystemPrompt constructs the system prompt with rules and context.
-func buildSystemPrompt(rules string) string {
-	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "")
-}
-
-// loadExternalFile attempts to load a text file from the workspace root directory.
-// If the file does not exist or cannot be read, returns empty string.
-func loadExternalFile(workspacePath, filename string) string {
-	if workspacePath == "" {
-		return ""
-	}
-	filePath := filepath.Join(workspacePath, filename)
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
-}
-
-// buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
-// The prompt is built using the current i18n language setting.
-// agentName, agentDescription, agentPrinciples are optional identity fields from config.
-// If workspacePath is non-empty, it tries to load capabilities.md and rules.md from the workspace
-// root to override the built-in i18n defaults.
-func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples string) string {
-	sh := shellName()
-
-	// Gather environment context
-	cwd, _ := os.Getwd()
-	hostname, _ := os.Hostname()
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
-	username := os.Getenv("USER")
-	if username == "" {
-		username = os.Getenv("USERNAME")
-	}
-
-	// Build prompt using i18n translations
-	title := i18n.TF(i18n.KeySystemPromptTitle,
-		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username)
-
-	// Try to load external CAPABILITIES.md and RULES.md from workspace
-	// If not found, fall back to built-in i18n values
-	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
-	if capabilities == "" {
-		capabilities = i18n.TF(i18n.KeySystemPromptCapabilities, sh)
-	}
-
-	rulesText := loadExternalFile(cwd, "RULES.md")
-	if rulesText == "" {
-		rulesText = i18n.T(i18n.KeySystemPromptRules)
-	}
-
-	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
-
-	prompt := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\nAvailable tools will be provided to you as function definitions.",
-		title, capabilities, rulesText, resultModeText)
-
-	// Add agent identity if configured
-	if agentName != "" || agentDescription != "" || agentPrinciples != "" {
-		identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
-		prompt = fmt.Sprintf("%s\n\n%s", identityText, prompt)
-	}
-
-	if rules != "" {
-		prompt += fmt.Sprintf("\n\n%s:\n%s", i18n.T(i18n.KeyCustom), rules)
-	}
-
-	return prompt
-}
-
-// resultModeInstruction returns the instruction text for the given result mode.
-func resultModeInstruction(mode config.ResultMode) string {
-	switch mode {
-	case config.ResultModeMinimal:
-		return `When you execute a system command and receive its output, do NOT repeat the command output in your response. Instead, simply indicate whether the command succeeded or failed. If it succeeded, respond with a brief success confirmation (e.g., "✅ 命令执行成功" or "✅ Command executed successfully"). If it failed, respond with a brief error message. Do not add any additional explanation, analysis, or commentary.`
-
-	case config.ResultModeExplain:
-		return `When you execute a system command and receive its output, provide a brief explanation of what the output means. Keep your explanation concise (2-3 sentences max). Focus on the key information the user would want to know.`
-	case config.ResultModeAnalyze:
-		return `When you execute a system command and receive its output, perform a thorough analysis. Explain patterns, anomalies, and implications in detail. Provide actionable insights and recommendations based on the output.`
-	case config.ResultModeFree:
-		return `You have full autonomy to decide how to present command execution results. Use your judgment to determine the best way to respond based on the context and the user's needs.`
-	default:
-		return ""
-	}
 }
 
 // Run processes a user input through the agent loop.
@@ -1458,165 +1335,6 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 
 }
 
-// promptCommandConfirmation displays the command to the user and asks for confirmation.
-// Returns the user's choice and any supplementary input.
-// - Enter: approve and execute
-// - c/C: cancel, return to REPL
-// - Any other input: treated as supplementary instructions for the LLM to re-evaluate
-func promptCommandConfirmation(command string) (CmdConfirmResult, string) {
-	fmt.Println()
-	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, command))
-	fmt.Println()
-
-	// Read a single line from stdin using os.Stdin.Read() which works
-	// even when go-prompt has set the terminal to raw mode.
-	// We read byte by byte until we get a newline.
-	for {
-		fmt.Print(i18n.T(i18n.KeyCmdConfirmPrompt))
-
-		var lineBuf []byte
-		buf := make([]byte, 1)
-		for {
-			n, err := os.Stdin.Read(buf)
-			if err != nil || n == 0 {
-				break
-			}
-			if buf[0] == '\n' || buf[0] == '\r' {
-				break
-			}
-			lineBuf = append(lineBuf, buf[0])
-		}
-
-		response := strings.TrimSpace(string(lineBuf))
-
-		if response == "" {
-			return CmdConfirmApprove, ""
-		}
-
-		lower := strings.ToLower(response)
-		if lower == "c" {
-			return CmdConfirmCancel, ""
-		}
-
-		if lower == "a" {
-			return CmdConfirmApproveAll, ""
-		}
-
-		// Any other input is treated as supplementary instructions
-		// for the LLM to re-evaluate the command
-		return CmdConfirmModify, response
-
-	}
-}
-
-// readLine reads a line of input from stdin using os.Stdin.Read() which works
-// even when go-prompt has set the terminal to raw mode.
-func readLine() string {
-	var lineBuf []byte
-	buf := make([]byte, 1)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			break
-		}
-		if buf[0] == '\n' || buf[0] == '\r' {
-			break
-		}
-		lineBuf = append(lineBuf, buf[0])
-	}
-	return strings.TrimSpace(string(lineBuf))
-}
-
-// executeSystemCommand runs a system command with timeout.
-
-func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interface{}) (string, error) {
-	command, ok := args["command"].(string)
-	if !ok {
-		return "", fmt.Errorf("command argument is required")
-	}
-
-	// Determine timeout: use args timeout_seconds first, then configured command timeout
-	var timeout int
-	if t, ok := args["timeout_seconds"].(float64); ok {
-		timeout = int(t)
-	} else {
-		cmdTimeout := a.getCommandTimeout()
-		if cmdTimeout > 0 {
-			timeout = int(cmdTimeout.Seconds())
-		}
-	}
-
-	// Only set timeout if a positive value is specified
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-		defer cancel()
-	}
-
-	shell, shellArg := shellCmd()
-	log.Debug("Executing command: %s (timeout: %ds, shell: %s)", command, timeout, shell)
-	cmd := exec.CommandContext(ctx, shell, shellArg, command)
-	output, err := cmd.CombinedOutput()
-	// Decode GBK to UTF-8 on Windows
-	decoded := decodeToUTF8(output)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Warn("Command timed out after %d seconds: %s", timeout, command)
-			return "", fmt.Errorf("command timed out after %d seconds", timeout)
-		}
-		log.Error("Command failed: %s, error: %v", command, err)
-		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
-	}
-
-	log.Debug("Command completed: %s (output length: %d)", command, len(output))
-	return strings.TrimSpace(decoded), nil
-}
-
-// ExecuteCommandDirectly runs a system command directly without LLM involvement.
-// This is used by the REPL when user input is detected as a direct system command.
-func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
-	timeout := a.getCommandTimeout()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-
-		shell, shellArg := shellCmd()
-		log.Info("Direct command: %s (timeout: %ds, shell: %s)", command, int(timeout.Seconds()), shell)
-		cmd := exec.CommandContext(ctx, shell, shellArg, command)
-		output, err := cmd.CombinedOutput()
-		// Decode GBK to UTF-8 on Windows
-		decoded := decodeToUTF8(output)
-		if err != nil {
-			if ctx.Err() == context.DeadlineExceeded {
-				log.Warn("Direct command timed out: %s", command)
-				return "", fmt.Errorf("command timed out after %d seconds", int(timeout.Seconds()))
-			}
-			log.Error("Direct command failed: %s, error: %v", command, err)
-			return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
-		}
-
-		log.Debug("Direct command completed: %s (output length: %d)", command, len(output))
-		return strings.TrimSpace(decoded), nil
-	}
-
-	// No timeout - use background context
-	shell, shellArg := shellCmd()
-	log.Info("Direct command: %s (no timeout, shell: %s)", command, shell)
-	cmd := exec.CommandContext(context.Background(), shell, shellArg, command)
-
-	output, err := cmd.CombinedOutput()
-	// Decode GBK to UTF-8 on Windows
-	decoded := decodeToUTF8(output)
-	if err != nil {
-		log.Error("Direct command failed: %s, error: %v", command, err)
-		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
-	}
-
-	log.Debug("Direct command completed: %s (output length: %d)", command, len(output))
-	return strings.TrimSpace(decoded), nil
-}
-
 // readFileTool reads the contents of a file and returns it with line numbers.
 func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("readFileTool called: args=%v", args)
@@ -1849,8 +1567,11 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 		fileHeader := fmt.Sprintf("%s:%d-%d:", relPath, firstLine, lastLine)
 		writeLine(fileHeader)
 
-		// Write each matching line with context (5 lines before and after)
+		// Determine context lines from config (default: 5)
 		contextLines := 5
+		if a.cfg != nil && a.cfg.LLM.SearchContextLines > 0 {
+			contextLines = a.cfg.LLM.SearchContextLines
+		}
 		writtenLines := make(map[int]bool) // track which lines have been written to avoid duplicates
 		for _, fm := range fileMatches {
 			start := fm.lineNum - 1 - contextLines

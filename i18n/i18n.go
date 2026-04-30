@@ -522,8 +522,14 @@ const (
 	// Search settings
 	KeyCol3SearchMaxLineLength          = "col3_search_max_line_length"
 	KeyCol3SearchMaxResultBytes         = "col3_search_max_result_bytes"
+	KeyCol3SearchContextLines           = "col3_search_context_lines"
 	KeySettingsDescSearchMaxLineLength  = "settings_desc_search_max_line_length"
 	KeySettingsDescSearchMaxResultBytes = "settings_desc_search_max_result_bytes"
+	KeySettingsDescSearchContextLines   = "settings_desc_search_context_lines"
+
+	// MCP and Rules column 3 labels
+	KeyCol3MCP   = "col3_mcp"
+	KeyCol3Rules = "col3_rules"
 
 	// Search results (used in searchFilesTool output)
 	KeySearchResultFound        = "search_result_found"

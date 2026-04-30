@@ -38,22 +38,6 @@ import (
 	"github.com/idirect3d/co-shell/i18n"
 )
 
-// shellCmd returns the appropriate shell command and argument for the current platform.
-func shellCmd() (string, string) {
-	if runtime.GOOS == "windows" {
-		return "cmd", "/c"
-	}
-	return "bash", "-c"
-}
-
-// shellName returns the human-readable shell name for the current platform.
-func shellName() string {
-	if runtime.GOOS == "windows" {
-		return "cmd/powershell"
-	}
-	return "bash/zsh"
-}
-
 // buildSystemPrompt constructs the system prompt with rules and context.
 func buildSystemPrompt(rules string) string {
 	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "")
@@ -131,3 +115,12 @@ func resultModeInstruction(mode config.ResultMode) string {
 		return `When you execute a system command and receive its output, do NOT repeat the command output in your response. Instead, simply indicate whether the command succeeded or failed. If it succeeded, respond with a brief success confirmation (e.g., "✅ 命令执行成功" or "✅ Command executed successfully"). If it failed, respond with a brief error message. Do not add any additional explanation, analysis, or commentary.`
 
 	case config.ResultModeExplain:
+		return `When you execute a system command and receive its output, provide a brief explanation of what the output means. Keep your explanation concise (2-3 sentences max). Focus on the key information the user would want to know.`
+	case config.ResultModeAnalyze:
+		return `When you execute a system command and receive its output, perform a thorough analysis. Explain patterns, anomalies, and implications in detail. Provide actionable insights and recommendations based on the output.`
+	case config.ResultModeFree:
+		return `You have full autonomy to decide how to present command execution results. Use your judgment to determine the best way to respond based on the context and the user's needs.`
+	default:
+		return ""
+	}
+}
