@@ -80,6 +80,47 @@ func ParseResultMode(s string) (ResultMode, bool) {
 	}
 }
 
+// OutputMode defines how LLM front-end output is displayed to the user.
+type OutputMode int
+
+const (
+	// OutputModeCompact: only show LLM response content, hide all tool call info.
+	OutputModeCompact OutputMode = iota
+	// OutputModeNormal: show LLM response content and tool call method names,
+	// but hide tool call details and return results.
+	OutputModeNormal
+	// OutputModeDebug: show everything including tool call input parameters and return results.
+	OutputModeDebug
+)
+
+// OutputModeString returns the string representation of an OutputMode.
+func OutputModeString(m OutputMode) string {
+	switch m {
+	case OutputModeCompact:
+		return "compact"
+	case OutputModeNormal:
+		return "normal"
+	case OutputModeDebug:
+		return "debug"
+	default:
+		return "normal"
+	}
+}
+
+// ParseOutputMode parses a string into an OutputMode.
+func ParseOutputMode(s string) (OutputMode, bool) {
+	switch s {
+	case "compact":
+		return OutputModeCompact, true
+	case "normal":
+		return OutputModeNormal, true
+	case "debug":
+		return OutputModeDebug, true
+	default:
+		return OutputModeNormal, false
+	}
+}
+
 // LLMConfig holds all LLM-related configuration.
 type LLMConfig struct {
 	Provider       string  `json:"provider"`
@@ -121,6 +162,10 @@ type LLMConfig struct {
 
 	// PlanEnabled: whether task plan tools (create_task_plan, etc.) are enabled
 	PlanEnabled bool `json:"plan_enabled"`
+
+	// OutputMode: how LLM front-end output is displayed
+	// 0=compact, 1=normal, 2=debug
+	OutputMode int `json:"output_mode"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -166,6 +211,7 @@ func DefaultConfig() *Config {
 			ContextLimit:   -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 			MemoryEnabled:  false,
 			PlanEnabled:    false,
+			OutputMode:     int(OutputModeNormal),
 		},
 
 		MCP: MCPConfig{
@@ -320,8 +366,10 @@ func (c *Config) Show() string {
 	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
 	col3PlanEnabled := i18n.T(i18n.KeyCol3PlanEnabled)
+	col3OutputMode := i18n.T(i18n.KeyCol3OutputMode)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
+	outputModeStr := OutputModeString(OutputMode(c.LLM.OutputMode))
 
 	visionStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.VisionSupport {
@@ -383,6 +431,7 @@ func (c *Config) Show() string {
 		"context-limit:", contextLimitStr, col3ContextLimit,
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
 		"plan-enabled:", planEnabledStatus, col3PlanEnabled,
+		"output-mode:", outputModeStr, col3OutputMode,
 		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
 		"规则:", len(c.Rules), col3Rules,
 		"api-key:", maskedKey, col3APIKey)

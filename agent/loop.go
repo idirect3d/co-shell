@@ -121,6 +121,7 @@ type Agent struct {
 	approveAll     bool           // if true, skip confirmation for all commands in this request
 	cfg            *config.Config // configuration for timeout settings
 	resultMode     config.ResultMode
+	outputMode     config.OutputMode
 	rules          string // user-defined rules for rebuilding system prompt
 	subAgentMgr    *subagent.Manager
 	taskPlanMgr    *taskplan.Manager
@@ -212,6 +213,11 @@ func (a *Agent) SetMemoryEnabled(enabled bool) {
 // SetPlanEnabled sets whether task plan tools are enabled.
 func (a *Agent) SetPlanEnabled(enabled bool) {
 	a.planEnabled = enabled
+}
+
+// SetOutputMode sets the output display mode.
+func (a *Agent) SetOutputMode(mode config.OutputMode) {
+	a.outputMode = mode
 }
 
 // SetConfig sets the configuration for timeout settings and agent identity.
@@ -739,8 +745,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		modifyRequested := false
 		cancelled := false
 		for _, tc := range toolCalls {
-			// Show command if enabled
-			if a.showCommand && tc.Name == "execute_command" {
+			// Show command if enabled (normal/debug mode only)
+			if a.outputMode >= config.OutputModeNormal && a.showCommand && tc.Name == "execute_command" {
 				var cmdArgs map[string]interface{}
 				if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
 					if cmd, ok := cmdArgs["command"].(string); ok {
@@ -749,7 +755,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 			}
 
-			cb("tool_call", fmt.Sprintf("🛠 Calling tool: %s\n", tc.Name))
+			// Show tool call name (normal/debug mode only)
+			if a.outputMode >= config.OutputModeNormal {
+				cb("tool_call", fmt.Sprintf("🛠 Calling tool: %s\n", tc.Name))
+			}
 
 			log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
 			result, execErr := a.executeToolCall(ctx, tc)
@@ -785,8 +794,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 			}
 
-			// Show command output if enabled (before LLM analysis)
-			if a.showOutput && tc.Name == "execute_command" && result != "" {
+			// Show command output if enabled (debug mode only)
+			if a.outputMode >= config.OutputModeDebug && a.showOutput && tc.Name == "execute_command" && result != "" {
 				cb("output", result)
 			}
 

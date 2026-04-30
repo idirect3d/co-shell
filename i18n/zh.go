@@ -277,6 +277,9 @@ var zhMessages = map[string]string{
 	KeyCLIHelpCmdTimeout:  "      --cmd-timeout <s>   系统命令执行超时秒数（0=不限，覆盖配置文件）",
 	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API 请求超时秒数（0=不限，覆盖配置文件）",
 
+	// CLI Help - Output Mode
+	KeyCLIHelpOutputMode: "      --output-mode       LLM 前端输出模式（compact/normal/debug，覆盖配置文件）",
+
 	// CLI Help - Workspace
 	KeyCLIHelpWorkspace: "  -w, --workspace <path>  工作区路径（默认：当前目录）",
 
@@ -385,12 +388,17 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Principles:   "Agent 核心原则",
 	KeyCol3Vision:       "视觉识别(on|off)",
 	KeyCol3ContextLimit: "对话上下文限制(0=不包含历史, N=最近N条, -1=所有)",
+	KeyCol3OutputMode:   "输出模式(compact/normal/debug)",
 
 	// Context limit
 	KeyContextLimitLabel:    "对话上下文限制",
 	KeyContextLimitUpdated:  "✅ 对话上下文限制已设置为: %d（将包含最近 %d 条对话消息）",
 	KeySettingsDescCtxLimit: "设置对话上下文限制（0=不包含历史, N=最近N条, -1=所有）",
 	KeyConfigContextLimit:   "  对话上下文限制: %s\n",
+
+	// Output mode
+	KeyOutputModeUpdated:   "✅ 输出模式已设置为: %s",
+	KeySettingsDescOutMode: "设置输出模式（compact=精简/normal=标准/debug=调试）",
 
 	// History list
 	KeyListTitle:     "📋 历史任务列表:",

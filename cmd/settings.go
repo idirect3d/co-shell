@@ -486,6 +486,24 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Plan enabled set to %s", status)
 		return fmt.Sprintf("✅ 任务计划功能已设置为: %s", status), nil
 
+	case "output-mode":
+		if len(args) < 2 {
+			currentMode := config.OutputModeString(config.OutputMode(h.cfg.LLM.OutputMode))
+			return fmt.Sprintf("输出模式: %s", currentMode), nil
+		}
+		mode, ok := config.ParseOutputMode(args[1])
+		if !ok {
+			return "", fmt.Errorf("无效的输出模式: %s（可选值: compact, normal, debug）", args[1])
+		}
+		h.cfg.LLM.OutputMode = int(mode)
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetOutputMode(config.OutputMode(mode))
+		log.Info("Output mode set to %s", args[1])
+		return i18n.TF(i18n.KeyOutputModeUpdated, config.OutputModeString(mode)), nil
+
 	case "log":
 
 		if len(args) < 2 {

@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.3.0"
-const build = "118"
+const build = "119"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -94,6 +94,9 @@ type cliFlags struct {
 	toolTimeout int
 	cmdTimeout  int
 	llmTimeout  int
+
+	// Output mode
+	outputMode string // compact/normal/debug
 
 	// External config file generation
 	initCapabilities bool
@@ -155,6 +158,9 @@ func parseFlags() cliFlags {
 	flag.IntVar(&f.cmdTimeout, "cmd-timeout", -1, "系统命令执行超时秒数（0=不限，覆盖配置文件）")
 	flag.IntVar(&f.llmTimeout, "llm-timeout", -1, "LLM API 请求超时秒数（0=不限，覆盖配置文件）")
 
+	// Output mode
+	flag.StringVar(&f.outputMode, "output-mode", "", "LLM 前端输出模式（compact/normal/debug，覆盖配置文件）")
+
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
 	flag.BoolVar(&f.initRules, "init-rules", false, "在工作区生成默认 RULES.md 文件并退出")
@@ -170,6 +176,7 @@ func parseFlags() cliFlags {
 
 %s
 
+  %s
   %s
   %s
   %s
@@ -244,6 +251,7 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpToolTimeout),
 			i18n.T(i18n.KeyCLIHelpCmdTimeout),
 			i18n.T(i18n.KeyCLIHelpLLMTimeout),
+			i18n.T(i18n.KeyCLIHelpOutputMode),
 			i18n.T(i18n.KeyCLIHelpVersion),
 			i18n.T(i18n.KeyCLIHelpHelp),
 			i18n.T(i18n.KeyCLIHelpExamples),
@@ -505,6 +513,15 @@ func main() {
 		cfg.LLM.LLMTimeout = flags.llmTimeout
 	}
 
+	// Apply output mode CLI override
+	if flags.outputMode != "" {
+		if mode, ok := config.ParseOutputMode(flags.outputMode); ok {
+			cfg.LLM.OutputMode = int(mode)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: invalid --output-mode value %q, use compact/normal/debug\n", flags.outputMode)
+		}
+	}
+
 	// Initialize logger with workspace
 	if err := log.Init(cfg.LogEnabled, ws); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot initialize logger: %v\n", err)
@@ -633,6 +650,9 @@ func main() {
 
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
+
+	// Apply output mode
+	ag.SetOutputMode(config.OutputMode(cfg.LLM.OutputMode))
 
 	// Set image paths for multimodal input if provided
 	if flags.imagePaths != "" {

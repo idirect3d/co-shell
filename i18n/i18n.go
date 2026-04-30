@@ -513,4 +513,10 @@ const (
 	KeyPlanEnabledUpdated  = "plan_enabled_updated"
 	KeyCLIHelpPlanEnabled  = "cli_help_plan_enabled"
 	KeyCLIHelpPlanDisabled = "cli_help_plan_disabled"
+
+	// Output mode
+	KeyCol3OutputMode      = "col3_output_mode"
+	KeySettingsDescOutMode = "settings_desc_out_mode"
+	KeyOutputModeUpdated   = "output_mode_updated"
+	KeyCLIHelpOutputMode   = "cli_help_output_mode"
 )

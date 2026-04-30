@@ -275,6 +275,9 @@ var enMessages = map[string]string{
 	KeyCLIHelpCmdTimeout:  "      --cmd-timeout <s>   System command timeout in seconds (0=unlimited, overrides config)",
 	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API request timeout in seconds (0=unlimited, overrides config)",
 
+	// CLI Help - Output Mode
+	KeyCLIHelpOutputMode: "      --output-mode       LLM output display mode (compact/normal/debug, overrides config)",
+
 	// CLI Help - Workspace
 	KeyCLIHelpWorkspace: "  -w, --workspace <path>  Workspace path (default: current directory)",
 
@@ -384,12 +387,17 @@ no liability whatsoever.`,
 	KeyCol3Principles:   "Agent principles",
 	KeyCol3Vision:       "vision(on|off)",
 	KeyCol3ContextLimit: "context limit(0=no history, N=last N, -1=all)",
+	KeyCol3OutputMode:   "output mode(compact/normal/debug)",
 
 	// Context limit
 	KeyContextLimitLabel:    "Context Limit",
 	KeyContextLimitUpdated:  "✅ Context limit set to: %d (will include last %d messages)",
 	KeySettingsDescCtxLimit: "Set context limit (0=no history, N=last N, -1=all)",
 	KeyConfigContextLimit:   "  Context Limit: %s\n",
+
+	// Output mode
+	KeyOutputModeUpdated:   "✅ Output mode set to: %s",
+	KeySettingsDescOutMode: "Set output mode (compact/normal/debug)",
 
 	// History list
 	KeyListTitle:     "📋 History Tasks:",
