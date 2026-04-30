@@ -120,7 +120,7 @@
 - [ ] FEATURE-95 sub-agent 开关：新增 subagent-enabled 配置项，支持通过 .set subagent-enabled 配置、--subagent-enabled/--subagent-disabled 命令行参数、config.json 控制是否允许大模型调用 launch_sub_agent 工具。关闭时，launch_sub_agent 工具不可用，LLM 无法调用。
 - [ ] FEATURE-96 checklist 上下文重置：当 create_task_plan 创建新 checklist 或 insert_task_steps/remove_task_steps 更新 checklist 后，将当前 checklist 内容作为新的任务目标注入 LLM 上下文，忽略 checklist 更新前的所有对话记录，确保 LLM 聚焦于当前任务目标。
 - [ ] FEATURE-97 对话管理命令：新增 .clear 内置命令，用于清空本次会话中所有历史对话内容（包括系统提示词和用户/助手消息），重置对话上下文，让 LLM 从全新状态开始。支持通过 .clear 命令一键清空，无需重启 co-shell。
-- [ ] FIX-98 修复可能无限迭代的问题
+- [x] FIX-98 修复可能无限迭代的问题
 - [x] FIX-99 context-limit、memory-enabled 在 REPL 中显示的值简化 [BUILD-120]
 
 ## v1.0.0 — 正式版
