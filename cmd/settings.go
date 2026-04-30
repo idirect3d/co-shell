@@ -33,6 +33,7 @@ import (
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -45,6 +46,21 @@ type SettingsHandler struct {
 // NewSettingsHandler creates a new SettingsHandler.
 func NewSettingsHandler(cfg *config.Config, ag *agent.Agent) *SettingsHandler {
 	return &SettingsHandler{cfg: cfg, agent: ag}
+}
+
+// rebuildLLMClient creates a new LLM client from current config and replaces it in the agent.
+// This is called when LLM-related settings (api-key, endpoint, model, temperature, max-tokens, vision)
+// are changed at runtime so the changes take effect immediately without restart.
+func (h *SettingsHandler) rebuildLLMClient() {
+	client := llm.NewClient(
+		h.cfg.LLM.Endpoint,
+		h.cfg.LLM.APIKey,
+		h.cfg.LLM.Model,
+		h.cfg.LLM.Temperature,
+		h.cfg.LLM.MaxTokens,
+	)
+	h.agent.SetLLMClient(client)
+	log.Info("LLM client rebuilt and replaced in agent")
 }
 
 // Handle processes .settings commands.
@@ -63,6 +79,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild LLM client to apply new API key immediately
+		h.rebuildLLMClient()
 		log.Info("API key updated")
 		return i18n.T(i18n.KeySettingsUpdated), nil
 
@@ -74,6 +92,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild LLM client to apply new endpoint immediately
+		h.rebuildLLMClient()
 		log.Info("Endpoint updated to %s", args[1])
 		return i18n.T(i18n.KeyEndpointUpdated), nil
 
@@ -85,6 +105,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild LLM client to apply new model immediately
+		h.rebuildLLMClient()
 		log.Info("Model updated to %s", args[1])
 		return i18n.T(i18n.KeyModelUpdated), nil
 
@@ -103,6 +125,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild LLM client to apply new temperature immediately
+		h.rebuildLLMClient()
 		log.Info("Temperature set to %.1f", temp)
 		return i18n.TF(i18n.KeyTempUpdated, temp), nil
 
@@ -121,6 +145,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild LLM client to apply new max tokens immediately
+		h.rebuildLLMClient()
 		log.Info("Max tokens set to %d", tokens)
 		return i18n.TF(i18n.KeyMaxTokensUpdated, tokens), nil
 
@@ -248,6 +274,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Sync to agent immediately (rebuilds system prompt)
+		h.agent.SetResultMode(config.ResultMode(mode))
 		log.Info("Result mode set to %s", args[1])
 		return fmt.Sprintf("✅ 结果处理模式已设置为: %s", config.ResultModeString(mode)), nil
 
@@ -327,6 +355,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild system prompt to apply new description immediately
+		h.agent.SetConfig(h.cfg)
 		log.Info("Agent description set to %s", value)
 		return fmt.Sprintf("✅ Agent 描述已设置为: %s", value), nil
 
@@ -343,6 +373,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild system prompt to apply new principles immediately
+		h.agent.SetConfig(h.cfg)
 		log.Info("Agent principles set to %s", value)
 		return fmt.Sprintf("✅ Agent 核心原则已设置为: %s", value), nil
 
@@ -365,6 +397,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Rebuild LLM client to apply new vision setting immediately
+		h.rebuildLLMClient()
 		status := i18n.T(i18n.KeyOn)
 		if !h.cfg.LLM.VisionSupport {
 			status = i18n.T(i18n.KeyOff)

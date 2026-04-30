@@ -222,7 +222,22 @@ func (a *Agent) SetConfig(cfg *config.Config) {
 	a.rebuildSystemPrompt()
 }
 
+// SetLLMClient replaces the LLM client at runtime.
+// This is used when settings like api-key, endpoint, model, temperature,
+// max-tokens, or vision are changed via .set command without restarting.
+func (a *Agent) SetLLMClient(client llm.Client) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	// Close old client if it has a Close method
+	if a.llmClient != nil {
+		a.llmClient.Close()
+	}
+	a.llmClient = client
+	log.Info("LLM client replaced at runtime")
+}
+
 // rebuildSystemPrompt rebuilds the system prompt with current config identity info.
+// It preserves the conversation history (only replaces the system message at index 0).
 func (a *Agent) rebuildSystemPrompt() {
 	agentName := ""
 	agentDesc := ""
@@ -233,8 +248,15 @@ func (a *Agent) rebuildSystemPrompt() {
 		agentPrinciples = a.cfg.LLM.AgentPrinciples
 	}
 	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples)
-	a.messages = []llm.Message{
-		{Role: "system", Content: a.systemPrompt},
+	// Preserve conversation history: only replace the system message at index 0
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.messages) > 0 {
+		a.messages[0] = llm.Message{Role: "system", Content: a.systemPrompt}
+	} else {
+		a.messages = []llm.Message{
+			{Role: "system", Content: a.systemPrompt},
+		}
 	}
 }
 
