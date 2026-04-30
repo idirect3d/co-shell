@@ -514,6 +514,13 @@ const (
 	KeyCLIHelpPlanEnabled  = "cli_help_plan_enabled"
 	KeyCLIHelpPlanDisabled = "cli_help_plan_disabled"
 
+	// SubAgent enabled
+	KeyCol3SubAgentEnabled     = "col3_sub_agent_enabled"
+	KeySettingsDescSubAgent    = "settings_desc_sub_agent"
+	KeySubAgentEnabledUpdated  = "sub_agent_enabled_updated"
+	KeyCLIHelpSubAgentEnabled  = "cli_help_sub_agent_enabled"
+	KeyCLIHelpSubAgentDisabled = "cli_help_sub_agent_disabled"
+
 	// Output mode
 	KeyCol3OutputMode      = "col3_output_mode"
 	KeySettingsDescOutMode = "settings_desc_out_mode"

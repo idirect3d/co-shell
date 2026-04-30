@@ -90,6 +90,9 @@ type cliFlags struct {
 	// Plan enabled
 	planEnabled string // "on"/"off"
 
+	// SubAgent enabled
+	subAgentEnabled string // "on"/"off"
+
 	// Timeout parameters
 	toolTimeout int
 	cmdTimeout  int
@@ -152,6 +155,10 @@ func parseFlags() cliFlags {
 	// Plan enabled
 	flag.StringVar(&f.planEnabled, "plan-enabled", "", "启用任务计划功能（覆盖配置文件）")
 	flag.StringVar(&f.planEnabled, "plan-disabled", "", "禁用任务计划功能（覆盖配置文件）")
+
+	// SubAgent enabled
+	flag.StringVar(&f.subAgentEnabled, "subagent-enabled", "", "启用子代理功能（覆盖配置文件）")
+	flag.StringVar(&f.subAgentEnabled, "subagent-disabled", "", "禁用子代理功能（覆盖配置文件）")
 
 	// Timeout parameters
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
@@ -502,6 +509,18 @@ func main() {
 		}
 	}
 
+	// Apply subagent-enabled CLI override
+	if flags.subAgentEnabled != "" {
+		switch flags.subAgentEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.SubAgentEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.SubAgentEnabled = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --subagent-enabled value %q, use on|off\n", flags.subAgentEnabled)
+		}
+	}
+
 	// Apply timeout CLI overrides
 	if flags.toolTimeout >= 0 {
 		cfg.LLM.ToolTimeout = flags.toolTimeout
@@ -647,6 +666,9 @@ func main() {
 
 	// Apply plan enabled setting
 	ag.SetPlanEnabled(cfg.LLM.PlanEnabled)
+
+	// Apply subagent enabled setting
+	ag.SetSubAgentEnabled(cfg.LLM.SubAgentEnabled)
 
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))

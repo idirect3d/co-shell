@@ -67,31 +67,32 @@ const (
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
 type Agent struct {
-	mu             sync.Mutex
-	llmClient      llm.Client
-	mcpMgr         *mcp.Manager
-	store          *store.Store
-	memoryManager  *memory.Manager
-	systemPrompt   string
-	messages       []llm.Message
-	showThinking   bool
-	showCommand    bool
-	showOutput     bool
-	maxIterations  int
-	confirmCommand bool
-	approveAll     bool           // if true, skip confirmation for all commands in this request
-	cfg            *config.Config // configuration for timeout settings
-	resultMode     config.ResultMode
-	outputMode     config.OutputMode
-	rules          string // user-defined rules for rebuilding system prompt
-	subAgentMgr    *subagent.Manager
-	taskPlanMgr    *taskplan.Manager
-	scheduler      *scheduler.Scheduler
-	name           string   // agent name for identification (default: "co-shell")
-	imagePaths     []string // paths to image files for multimodal input
-	workspacePath  string   // workspace root path for loading external config files
-	memoryEnabled  bool     // whether persistent memory tools are enabled
-	planEnabled    bool     // whether task plan tools are enabled
+	mu              sync.Mutex
+	llmClient       llm.Client
+	mcpMgr          *mcp.Manager
+	store           *store.Store
+	memoryManager   *memory.Manager
+	systemPrompt    string
+	messages        []llm.Message
+	showThinking    bool
+	showCommand     bool
+	showOutput      bool
+	maxIterations   int
+	confirmCommand  bool
+	approveAll      bool           // if true, skip confirmation for all commands in this request
+	cfg             *config.Config // configuration for timeout settings
+	resultMode      config.ResultMode
+	outputMode      config.OutputMode
+	rules           string // user-defined rules for rebuilding system prompt
+	subAgentMgr     *subagent.Manager
+	taskPlanMgr     *taskplan.Manager
+	scheduler       *scheduler.Scheduler
+	name            string   // agent name for identification (default: "co-shell")
+	imagePaths      []string // paths to image files for multimodal input
+	workspacePath   string   // workspace root path for loading external config files
+	memoryEnabled   bool     // whether persistent memory tools are enabled
+	planEnabled     bool     // whether task plan tools are enabled
+	subAgentEnabled bool     // whether sub-agent tools are enabled
 }
 
 // New creates a new Agent instance.
@@ -174,6 +175,11 @@ func (a *Agent) SetMemoryEnabled(enabled bool) {
 // SetPlanEnabled sets whether task plan tools are enabled.
 func (a *Agent) SetPlanEnabled(enabled bool) {
 	a.planEnabled = enabled
+}
+
+// SetSubAgentEnabled sets whether sub-agent tools are enabled.
+func (a *Agent) SetSubAgentEnabled(enabled bool) {
+	a.subAgentEnabled = enabled
 }
 
 // SetOutputMode sets the output display mode.
@@ -1000,33 +1006,6 @@ func (a *Agent) buildTools() []llm.Tool {
 			Callback: a.writeToFileTool,
 		},
 		{
-			Name:        "launch_sub_agent",
-			Description: "Launch a sub-agent process that runs independently in its own workspace under the parent's sub-agents/ directory. Each sub-agent gets a sequential ID (1, 2, 3, ...) and its workspace is auto-created at {parent_workspace}/sub-agents/{id}/. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to delegate complex or long-running tasks to a separate co-shell instance. You can reuse an existing sub-agent by specifying its ID to continue working on the same task.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"sub_agent_id": map[string]interface{}{
-						"type":        "number",
-						"description": "Optional: the ID of an existing sub-agent to reuse. If provided, the sub-agent's existing workspace will be used. If omitted, a new sub-agent with a new ID will be created.",
-					},
-					"instruction": map[string]interface{}{
-						"type":        "string",
-						"description": "The natural language instruction or system command for the sub-agent to execute.",
-					},
-					"purpose": map[string]interface{}{
-						"type":        "string",
-						"description": "A brief description of what this sub-agent is used for. This is stored in memory for future reference. Required when creating a new sub-agent.",
-					},
-					"timeout_seconds": map[string]interface{}{
-						"type":        "number",
-						"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
-					},
-				},
-				"required": []string{"instruction"},
-			},
-			Callback: a.launchSubAgentTool,
-		},
-		{
 			Name:        "add_images",
 			Description: "Add image file paths to the image cache. These images will be included in all subsequent conversations with the LLM for multimodal (vision) understanding. Multiple paths can be separated by commas. Use this when you need the LLM to see additional images.",
 			Parameters: map[string]interface{}{
@@ -1066,6 +1045,67 @@ func (a *Agent) buildTools() []llm.Tool {
 			},
 			Callback: a.clearImagesTool,
 		},
+	}
+
+	// Add sub-agent tools only if sub-agent enabled
+	if a.subAgentEnabled {
+		subAgentTools := []llm.Tool{
+			{
+				Name:        "launch_sub_agent",
+				Description: "Launch a sub-agent process that runs independently in its own workspace under the parent's sub-agents/ directory. Each sub-agent gets a sequential ID (1, 2, 3, ...) and its workspace is auto-created at {parent_workspace}/sub-agents/{id}/. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to delegate complex or long-running tasks to a separate co-shell instance. You can reuse an existing sub-agent by specifying its ID to continue working on the same task.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"sub_agent_id": map[string]interface{}{
+							"type":        "number",
+							"description": "Optional: the ID of an existing sub-agent to reuse. If provided, the sub-agent's existing workspace will be used. If omitted, a new sub-agent with a new ID will be created.",
+						},
+						"instruction": map[string]interface{}{
+							"type":        "string",
+							"description": "The natural language instruction or system command for the sub-agent to execute.",
+						},
+						"purpose": map[string]interface{}{
+							"type":        "string",
+							"description": "A brief description of what this sub-agent is used for. This is stored in memory for future reference. Required when creating a new sub-agent.",
+						},
+						"timeout_seconds": map[string]interface{}{
+							"type":        "number",
+							"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
+						},
+					},
+					"required": []string{"instruction"},
+				},
+				Callback: a.launchSubAgentTool,
+			},
+		}
+		tools = append(tools, subAgentTools...)
+	}
+
+	// Add schedule_task tool only if sub-agent enabled (it depends on sub-agent)
+	if a.subAgentEnabled {
+		tools = append(tools, llm.Tool{
+			Name:        "schedule_task",
+			Description: "Schedule a recurring task using a cron expression. The task will launch a sub-agent at the specified times. The cron expression uses 5 fields: minute hour day month weekday. Use * for any value, or a specific number. Example: '0 9 * * *' means every day at 9:00 AM. When the scheduled time arrives, a sub-agent will be launched with the given instruction. If a previous execution is still running, the next scheduled run will be skipped to avoid overlap.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "A human-readable name for this scheduled task (e.g., 'Daily Report', 'Health Check').",
+					},
+					"cron": map[string]interface{}{
+						"type":        "string",
+						"description": "5-field cron expression: minute hour day month weekday. Example: '0 9 * * *' for daily at 9:00 AM.",
+					},
+					"instruction": map[string]interface{}{
+						"type":        "string",
+						"description": "The instruction to pass to the sub-agent when the task is triggered.",
+					},
+				},
+				"required": []string{"name", "cron", "instruction"},
+			},
+			Callback: a.scheduleTaskTool,
+		})
 	}
 
 	// Add task plan tools only if plan enabled
@@ -1185,31 +1225,6 @@ func (a *Agent) buildTools() []llm.Tool {
 		}
 		tools = append(tools, planTools...)
 	}
-
-	// Add schedule_task tool
-	tools = append(tools, llm.Tool{
-		Name:        "schedule_task",
-		Description: "Schedule a recurring task using a cron expression. The task will launch a sub-agent at the specified times. The cron expression uses 5 fields: minute hour day month weekday. Use * for any value, or a specific number. Example: '0 9 * * *' means every day at 9:00 AM. When the scheduled time arrives, a sub-agent will be launched with the given instruction. If a previous execution is still running, the next scheduled run will be skipped to avoid overlap.",
-		Parameters: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"name": map[string]interface{}{
-					"type":        "string",
-					"description": "A human-readable name for this scheduled task (e.g., 'Daily Report', 'Health Check').",
-				},
-				"cron": map[string]interface{}{
-					"type":        "string",
-					"description": "5-field cron expression: minute hour day month weekday. Example: '0 9 * * *' for daily at 9:00 AM.",
-				},
-				"instruction": map[string]interface{}{
-					"type":        "string",
-					"description": "The instruction to pass to the sub-agent when the task is triggered.",
-				},
-			},
-			"required": []string{"name", "cron", "instruction"},
-		},
-		Callback: a.scheduleTaskTool,
-	})
 
 	// Add memory tools only if persistent memory is enabled
 	if a.memoryEnabled {
