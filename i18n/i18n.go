@@ -539,6 +539,25 @@ const (
 	KeyCol3MCP   = "col3_mcp"
 	KeyCol3Rules = "col3_rules"
 
+	// Session
+	KeySessionTitle          = "session_title"
+	KeySessionTotalMessages  = "session_total_messages"
+	KeySessionRoleSystem     = "session_role_system"
+	KeySessionRoleUser       = "session_role_user"
+	KeySessionRoleAssistant  = "session_role_assistant"
+	KeySessionRoleTool       = "session_role_tool"
+	KeySessionContextLimit   = "session_context_limit"
+	KeySessionNoHistory      = "session_no_history"
+	KeySessionModel          = "session_model"
+	KeySessionProvider       = "session_provider"
+	KeySessionAgentName      = "session_agent_name"
+	KeySessionRecentMessages = "session_recent_messages"
+
+	// History command
+	KeyHelpHistory  = "help_history"
+	KeyHelpSession  = "help_session"
+	KeyHistoryUsage = "history_usage"
+
 	// Search results (used in searchFilesTool output)
 	KeySearchResultFound        = "search_result_found"
 	KeySearchResultFoundTrunc   = "search_result_found_trunc"

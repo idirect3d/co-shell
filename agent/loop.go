@@ -116,6 +116,15 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 	}
 }
 
+// Messages returns a copy of the current conversation message queue.
+func (a *Agent) Messages() []llm.Message {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	result := make([]llm.Message, len(a.messages))
+	copy(result, a.messages)
+	return result
+}
+
 // SetName sets the agent name for identification.
 // The name is used in log messages, sub-agent workspace naming, and output.
 func (a *Agent) SetName(name string) {

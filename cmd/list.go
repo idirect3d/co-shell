@@ -39,7 +39,7 @@ type errUsage string
 
 func (e errUsage) Error() string { return string(e) }
 
-// ListHandler handles the .list, .last, and .first built-in commands.
+// ListHandler handles the .history (also .list), .last, and .first built-in commands.
 type ListHandler struct {
 	store *store.Store
 }
@@ -49,7 +49,33 @@ func NewListHandler(s *store.Store) *ListHandler {
 	return &ListHandler{store: s}
 }
 
-// HandleList handles the .list command.
+// HandleHistory handles the .history command.
+// Usage:
+//
+//	.history              — show subcommand usage
+//	.history [start] [end] — show history range
+//	.history last [N]      — show last N entries (default 10)
+//	.history first [N]     — show first N entries (default 10)
+func (h *ListHandler) HandleHistory(args []string) (string, error) {
+	if len(args) == 0 {
+		return i18n.T(i18n.KeyHistoryUsage), nil
+	}
+
+	sub := args[0]
+	subArgs := args[1:]
+
+	switch sub {
+	case "last":
+		return h.HandleLast(subArgs)
+	case "first":
+		return h.HandleFirst(subArgs)
+	default:
+		// Treat as range: .history [start] [end]
+		return h.HandleList(args)
+	}
+}
+
+// HandleList handles the .list command (compatible alias for .history).
 // Usage: .list [start] [end]
 // If no arguments, shows all history entries.
 // If one argument, shows from that index to the end.

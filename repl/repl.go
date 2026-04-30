@@ -126,6 +126,7 @@ type REPL struct {
 	listHandler     *cmd.ListHandler
 	imageHandler    *cmd.ImageHandler
 	planHandler     *cmd.PlanHandler
+	sessionHandler  *cmd.SessionHandler
 
 	history    []string
 	historyPos int
@@ -149,6 +150,7 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		listHandler:    cmd.NewListHandler(s),
 		imageHandler:   cmd.NewImageHandler(ag),
 		planHandler:    cmd.NewPlanHandler(ag.TaskPlanManager()),
+		sessionHandler: cmd.NewSessionHandler(ag, cfg),
 	}
 
 }
@@ -305,12 +307,10 @@ func (r *REPL) handleBuiltin(input string) {
 	case ".wizard":
 		r.handleWizard()
 		return
-	case ".list":
-		result, err = r.listHandler.HandleList(args)
-	case ".last":
-		result, err = r.listHandler.HandleLast(args)
-	case ".first":
-		result, err = r.listHandler.HandleFirst(args)
+	case ".history":
+		result, err = r.listHandler.HandleHistory(args)
+	case ".session":
+		result, err = r.sessionHandler.Handle(args)
 	case ".image":
 		result, err = r.imageHandler.Handle(args)
 	case ".plan":
@@ -486,9 +486,8 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpRule))
 	fmt.Println(i18n.T(i18n.KeyHelpMemory))
 	fmt.Println(i18n.T(i18n.KeyHelpContext))
-	fmt.Println(i18n.T(i18n.KeyHelpList))
-	fmt.Println(i18n.T(i18n.KeyHelpLast))
-	fmt.Println(i18n.T(i18n.KeyHelpFirst))
+	fmt.Println(i18n.T(i18n.KeyHelpHistory))
+	fmt.Println(i18n.T(i18n.KeyHelpSession))
 	fmt.Println(i18n.T(i18n.KeyHelpImage))
 	fmt.Println(i18n.T(i18n.KeyHelpPlan))
 	fmt.Println(i18n.T(i18n.KeyHelpNew))
