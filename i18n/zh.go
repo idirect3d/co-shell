@@ -224,6 +224,7 @@ var zhMessages = map[string]string{
 	KeyHelpFirst:        "    .first        - 查看最早的历史任务",
 	KeyHelpImage:        "    .image        - 管理多模态图片缓存（add/remove/clear/list）",
 	KeyHelpPlan:         "    .plan         - 管理任务计划（list/view/create/insert/remove/update）",
+	KeyHelpNew:          "    .new          - 清空当前会话，开始全新对话",
 	KeyHelpHelp:         "    .help         - 显示此帮助信息",
 	KeyHelpExit:         "    .exit         - 退出 co-shell",
 	KeyHelpExampleTitle: "  示例:",

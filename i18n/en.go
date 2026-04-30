@@ -222,6 +222,7 @@ var enMessages = map[string]string{
 	KeyHelpFirst:        "    .first              - View earliest history tasks",
 	KeyHelpImage:        "    .image              - Manage multimodal image cache (add/remove/clear/list)",
 	KeyHelpPlan:         "    .plan               - Manage task plans (list/view/create/insert/remove/update)",
+	KeyHelpNew:          "    .new                - Clear current session and start a new conversation",
 	KeyHelpHelp:         "    .help               - Show this help message",
 	KeyHelpExit:         "    .exit               - Exit co-shell",
 	KeyHelpExampleTitle: "Examples:",

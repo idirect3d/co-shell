@@ -119,7 +119,7 @@
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [x] FEATURE-95 sub-agent 开关：新增 subagent-enabled 配置项，支持通过 .set subagent-enabled 配置、--subagent-enabled/--subagent-disabled 命令行参数、config.json 控制是否允许大模型调用 launch_sub_agent 工具。关闭时，launch_sub_agent 工具不可用，LLM 无法调用。[BUILD-122]
 - [ ] FEATURE-96 checklist 上下文重置：当 create_task_plan 创建新 checklist 或 insert_task_steps/remove_task_steps 更新 checklist 后，将当前 checklist 内容作为新的任务目标注入 LLM 上下文，忽略 checklist 更新前的所有对话记录，确保 LLM 聚焦于当前任务目标。
-- [ ] FEATURE-97 对话管理命令：新增 .clear 内置命令，用于清空本次会话中所有历史对话内容（包括系统提示词和用户/助手消息），重置对话上下文，让 LLM 从全新状态开始。支持通过 .clear 命令一键清空，无需重启 co-shell。
+- [ ] FEATURE-97 对话管理命令：新增 .new 内置命令，用于清空本次会话中所有历史对话内容（包括系统提示词和用户/助手消息），重置对话上下文，让 LLM 从全新状态开始。支持通过 .new 命令一键清空，无需重启 co-shell。
 - [x] FIX-98 修复可能无限迭代的问题
 - [x] FIX-99 context-limit、memory-enabled 在 REPL 中显示的值简化 [BUILD-120]
 - [x] ENHANCEMENT-100 优化search_files方法，增加返回内容及长度保护：1、忽略二进制文件；2、开头需要给出有多少匹配的文件，如：”在 agent/ 目录下找到 5 处匹配模式 "fmt.Errorf" 的结果：“; 3、匹配到一个文件，先输出文件名和带上下文的匹配范围，如：“agent/loop.go:40-44:”，然后再输出匹配行及上下文的内容，如："40: 	multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)\n41: 	if err != nil {\n42: 		return "", fmt.Errorf("cannot build multimodal message: %w", err)\n43: 	}\n44: 	a.messages = append(a.messages, multimodalMsg)"; 4、内容长度需要有所保护，如果一行的长度超长，需要在首行提示用户，如：“在 agent/ 目录下找到 5 处匹配模式 "fmt.Errorf" 的结果，但有1行内容超长返回被截断（见行尾标注）：”，超长行末尾为：“（...后面被截断128000字符）”；5、如果总内容超过规定的最大字节数，则在开头需要进行提示，如：“在 agent/ 目录下至少找到 5 处匹配模式 "fmt.Errorf" 的结果，由于内容超长，无法全部返回：”，引发超长的最后一行需要被去掉，结尾最后一行参照上述4的处理方法；6、最大行字符长度（默认8192）、最大合计返回字节数（默认65536）、上下文数（默认为5行）可以通过命令行、REPL、和配置文件设置。[BUILD-121]
