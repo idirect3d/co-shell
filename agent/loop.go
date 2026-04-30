@@ -31,6 +31,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -894,6 +895,14 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	// and "LLM returned tool calls but all were invalid" (should retry).
 	hasToolCallEvents := false
 
+	// Collect details about invalid tool calls for better error reporting.
+	type invalidToolCallInfo struct {
+		Name   string
+		ID     string
+		Issues []string
+	}
+	var invalidCalls []invalidToolCallInfo
+
 	// Filter function for tool calls that may have incomplete data from stream deltas
 	// (e.g., empty name, ID, or arguments which would cause API errors)
 	isValidToolCall := func(tc llm.ToolCall) bool {
@@ -914,8 +923,26 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 
 		case llm.StreamEventToolCall:
 			hasToolCallEvents = true
-			if event.ToolCall != nil && isValidToolCall(*event.ToolCall) {
-				toolCalls = append(toolCalls, *event.ToolCall)
+			if event.ToolCall != nil {
+				if isValidToolCall(*event.ToolCall) {
+					toolCalls = append(toolCalls, *event.ToolCall)
+				} else {
+					// Collect details about why this tool call is invalid
+					info := invalidToolCallInfo{
+						Name: event.ToolCall.Name,
+						ID:   event.ToolCall.ID,
+					}
+					if event.ToolCall.Name == "" {
+						info.Issues = append(info.Issues, "name is empty")
+					}
+					if event.ToolCall.ID == "" {
+						info.Issues = append(info.Issues, "ID is empty")
+					}
+					if event.ToolCall.Arguments == "" {
+						info.Issues = append(info.Issues, "arguments is empty")
+					}
+					invalidCalls = append(invalidCalls, info)
+				}
 			}
 
 		case llm.StreamEventDone:
@@ -926,8 +953,22 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 
 			// If the LLM intended to call tools but all were invalid (e.g., empty arguments),
 			// treat this as an error so the agent can retry rather than returning empty content.
+			// Provide detailed feedback about which tool calls were invalid and why.
 			if hasToolCallEvents && len(toolCalls) == 0 {
-				return "", "", nil, fmt.Errorf("LLM returned tool calls with invalid arguments (all filtered out)")
+				var sb strings.Builder
+				sb.WriteString("LLM returned tool calls with invalid arguments (all filtered out). Details:\n")
+				for _, ic := range invalidCalls {
+					sb.WriteString(fmt.Sprintf("  - tool call"))
+					if ic.Name != "" {
+						sb.WriteString(fmt.Sprintf(" %q", ic.Name))
+					}
+					if ic.ID != "" {
+						sb.WriteString(fmt.Sprintf(" (ID: %s)", ic.ID))
+					}
+					sb.WriteString(fmt.Sprintf(": %s\n", strings.Join(ic.Issues, ", ")))
+				}
+				sb.WriteString("Please check the tool definitions and ensure all required parameters are provided correctly.")
+				return "", "", nil, errors.New(sb.String())
 			}
 
 			return finalContent, finalReasoning, toolCalls, nil

@@ -352,7 +352,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsCurrentTitle:     "当前配置:",
 
 	// Memory enabled
-	KeyCol3MemoryEnabled:     "记忆功能(on|off)",
+	KeyCol3MemoryEnabled:     "记忆(on|off)",
 	KeySettingsDescMemory:    "持久化记忆功能开关",
 	KeyMemoryEnabledUpdated:  "✅ 记忆功能已设置为: %s",
 	KeyCLIHelpMemoryEnabled:  "      --memory-enabled   启用持久化记忆功能（覆盖配置文件）",

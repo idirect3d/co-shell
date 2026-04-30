@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 119
+> **BUILD**: 120
 
 
 
@@ -117,6 +117,11 @@
 - [x] FEATURE-92 LLM 前端输出模式开关：支持精简（compact）、标准（normal）和调试（debug）三种模式。精简模式：只显示 LLM 返回的内容，隐藏所有工具调用信息；标准模式：在精简基础上，显示工具调用方法名，但不显示调用细节和方法返回结果；调试模式：在标准基础上，显示工具调用输入参数和返回结果。通过 .set output-mode 配置、--output-mode 命令行参数、config.json 持久化。[BUILD-119]
 - [ ] FEATURE-93 日历与待办事项管理：提供日历功能，支持记录和管理待办事项（todo）。提供 .calendar 内置命令（add/list/remove/update）管理待办事项；提供 add_todo / list_todos / update_todo / remove_todo 四个 LLM 工具，让大模型能操作待办事项；数据持久化到 bbolt。如果系统有日历应用（如 macOS 日历），提供选项帮助用户将待办事项同步到系统日历。
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
+- [ ] FEATURE-95 sub-agent 开关：新增 subagent-enabled 配置项，支持通过 .set subagent-enabled 配置、--subagent-enabled/--subagent-disabled 命令行参数、config.json 控制是否允许大模型调用 launch_sub_agent 工具。关闭时，launch_sub_agent 工具不可用，LLM 无法调用。
+- [ ] FEATURE-96 checklist 上下文重置：当 create_task_plan 创建新 checklist 或 insert_task_steps/remove_task_steps 更新 checklist 后，将当前 checklist 内容作为新的任务目标注入 LLM 上下文，忽略 checklist 更新前的所有对话记录，确保 LLM 聚焦于当前任务目标。
+- [ ] FEATURE-97 对话管理命令：新增 .clear 内置命令，用于清空本次会话中所有历史对话内容（包括系统提示词和用户/助手消息），重置对话上下文，让 LLM 从全新状态开始。支持通过 .clear 命令一键清空，无需重启 co-shell。
+- [ ] FIX-98 修复可能无限迭代的问题
+- [x] FIX-99 context-limit、memory-enabled 在 REPL 中显示的值简化 [BUILD-120]
 
 ## v1.0.0 — 正式版
 
