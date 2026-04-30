@@ -315,6 +315,10 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.imageHandler.Handle(args)
 	case ".plan":
 		result, err = r.planHandler.Handle(args)
+	case ".new":
+		r.agent.Reset()
+		fmt.Println("✅ " + i18n.T(i18n.KeyHelpNew))
+		return
 	default:
 		fmt.Printf(i18n.T(i18n.KeyUnknownCommand)+"\n", command)
 		return
@@ -487,6 +491,7 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpFirst))
 	fmt.Println(i18n.T(i18n.KeyHelpImage))
 	fmt.Println(i18n.T(i18n.KeyHelpPlan))
+	fmt.Println(i18n.T(i18n.KeyHelpNew))
 	fmt.Println(i18n.T(i18n.KeyHelpWizard))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
