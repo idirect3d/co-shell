@@ -166,6 +166,14 @@ type LLMConfig struct {
 	// OutputMode: how LLM front-end output is displayed
 	// 0=compact, 1=normal, 2=debug
 	OutputMode int `json:"output_mode"`
+
+	// SearchMaxLineLength: maximum character length for a single line in search results
+	// Lines longer than this will be truncated. Default: 8192
+	SearchMaxLineLength int `json:"search_max_line_length"`
+
+	// SearchMaxResultBytes: maximum total bytes for search results
+	// Results exceeding this will be truncated. Default: 65536
+	SearchMaxResultBytes int `json:"search_max_result_bytes"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -197,21 +205,23 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Provider:       "deepseek",
-			Endpoint:       "https://api.deepseek.com",
-			Model:          "deepseek-v4-flash",
-			Temperature:    0.7,
-			MaxTokens:      393216,
-			MaxIterations:  1000,
-			ShowThinking:   true,
-			ShowCommand:    true,
-			ShowOutput:     true,
-			ConfirmCommand: true,
-			ResultMode:     int(ResultModeFree),
-			ContextLimit:   -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
-			MemoryEnabled:  false,
-			PlanEnabled:    false,
-			OutputMode:     int(OutputModeNormal),
+			Provider:             "deepseek",
+			Endpoint:             "https://api.deepseek.com",
+			Model:                "deepseek-v4-flash",
+			Temperature:          0.7,
+			MaxTokens:            393216,
+			MaxIterations:        1000,
+			ShowThinking:         true,
+			ShowCommand:          true,
+			ShowOutput:           true,
+			ConfirmCommand:       true,
+			ResultMode:           int(ResultModeFree),
+			ContextLimit:         -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			MemoryEnabled:        false,
+			PlanEnabled:          false,
+			OutputMode:           int(OutputModeNormal),
+			SearchMaxLineLength:  8192,
+			SearchMaxResultBytes: 65536,
 		},
 
 		MCP: MCPConfig{
@@ -367,6 +377,8 @@ func (c *Config) Show() string {
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
 	col3PlanEnabled := i18n.T(i18n.KeyCol3PlanEnabled)
 	col3OutputMode := i18n.T(i18n.KeyCol3OutputMode)
+	col3SearchMaxLineLength := i18n.T(i18n.KeyCol3SearchMaxLineLength)
+	col3SearchMaxResultBytes := i18n.T(i18n.KeyCol3SearchMaxResultBytes)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 	outputModeStr := OutputModeString(OutputMode(c.LLM.OutputMode))
@@ -432,6 +444,8 @@ func (c *Config) Show() string {
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
 		"plan-enabled:", planEnabledStatus, col3PlanEnabled,
 		"output-mode:", outputModeStr, col3OutputMode,
+		"search-max-line-length:", fmt.Sprintf("%d", c.LLM.SearchMaxLineLength), col3SearchMaxLineLength,
+		"search-max-result-bytes:", fmt.Sprintf("%d", c.LLM.SearchMaxResultBytes), col3SearchMaxResultBytes,
 		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
 		"规则:", len(c.Rules), col3Rules,
 		"api-key:", maskedKey, col3APIKey)

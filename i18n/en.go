@@ -278,6 +278,20 @@ var enMessages = map[string]string{
 	// CLI Help - Output Mode
 	KeyCLIHelpOutputMode: "      --output-mode       LLM output display mode (compact/normal/debug, overrides config)",
 
+	"col3_search_max_line_length":           "Max line length for search",
+	"col3_search_max_result_bytes":          "Max result bytes for search",
+	"settings_desc_search_max_line_length":  "Max characters per line in search results, longer lines truncated (default: 8192)",
+	"settings_desc_search_max_result_bytes": "Max total bytes for search results, results truncated (default: 65536)",
+
+	// Search results
+	"search_result_found":         "Found %d matches for pattern %q in %s:",
+	"search_result_found_trunc":   "Found %d matches for pattern %q in %s, but %d lines were truncated (see line endings):",
+	"search_result_found_partial": "Found at least %d matches for pattern %q in %s, results truncated due to size limit:",
+	"search_result_none":          "No matches found for pattern %q in %s",
+	"search_line_truncated":       "（...truncated %d chars）",
+	"search_result_file_header":   "%s:%d-%d:",
+	"search_result_match_line":    "%d: %s",
+
 	// CLI Help - Workspace
 	KeyCLIHelpWorkspace: "  -w, --workspace <path>  Workspace path (default: current directory)",
 

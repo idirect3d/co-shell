@@ -57,10 +57,6 @@ import (
 	"golang.org/x/text/transform"
 )
 
-const (
-	defaultMaxIterations = 10
-)
-
 // shellCmd returns the appropriate shell command and argument for the current platform.
 func shellCmd() (string, string) {
 	if runtime.GOOS == "windows" {
@@ -144,7 +140,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		store:         s,
 		memoryManager: memory.NewManager(s),
 		systemPrompt:  systemPrompt,
-		maxIterations: defaultMaxIterations,
+		maxIterations: config.DefaultConfig().LLM.MaxIterations,
 		rules:         rules,
 		subAgentMgr:   subagent.NewManager(),
 		taskPlanMgr:   taskplan.NewManager(s),
@@ -1693,6 +1689,8 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 }
 
 // searchFilesTool searches for a regex pattern across files in a directory.
+// It returns results with context lines, handles binary files, and enforces
+// configurable limits on line length and total result size.
 func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("searchFilesTool called: args=%v", args)
 	dirPath, ok := args["path"].(string)
@@ -1722,16 +1720,75 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 		return "", fmt.Errorf("invalid regex %q: %w", pattern, err)
 	}
 
+	// Get configurable limits from agent config
+	maxLineLength := 8192
+	maxResultBytes := 65536
+	if a.cfg != nil {
+		if a.cfg.LLM.SearchMaxLineLength > 0 {
+			maxLineLength = a.cfg.LLM.SearchMaxLineLength
+		}
+		if a.cfg.LLM.SearchMaxResultBytes > 0 {
+			maxResultBytes = a.cfg.LLM.SearchMaxResultBytes
+		}
+	}
+
+	// Binary file extensions to skip
+	binaryExts := map[string]bool{
+		".exe": true, ".bin": true, ".o": true, ".a": true, ".so": true, ".dll": true, ".dylib": true,
+		".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".bmp": true, ".ico": true, ".svg": true, ".webp": true,
+		".mp3": true, ".mp4": true, ".avi": true, ".mov": true, ".wav": true, ".flac": true,
+		".zip": true, ".tar": true, ".gz": true, ".bz2": true, ".xz": true, ".7z": true, ".rar": true,
+		".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true, ".ppt": true, ".pptx": true,
+		".ttf": true, ".otf": true, ".woff": true, ".woff2": true,
+		".db": true, ".sqlite": true,
+		".pyc": true, ".pyo": true, ".class": true, ".jar": true,
+	}
+
 	// Walk the directory
 	var result strings.Builder
 	var matchCount int
-	const maxMatches = 100
+	var truncatedLineCount int
+	var totalBytes int
+	var headerWritten bool
+
+	// Helper to write the header with match count info
+	writeHeader := func() {
+		if headerWritten {
+			return
+		}
+		headerWritten = true
+		if truncatedLineCount > 0 {
+			result.WriteString(i18n.TF(i18n.KeySearchResultFoundTrunc, dirPath, matchCount, pattern, truncatedLineCount) + "\n\n")
+		} else {
+			result.WriteString(i18n.TF(i18n.KeySearchResultFound, dirPath, matchCount, pattern) + "\n\n")
+		}
+	}
+
+	// Helper to write a line with truncation protection
+	writeLine := func(line string) {
+		if len(line) > maxLineLength {
+			truncatedLineCount++
+			line = line[:maxLineLength] + i18n.TF(i18n.KeySearchLineTruncated, len(line)-maxLineLength)
+		}
+		lineBytes := len(line) + 1 // +1 for newline
+		if totalBytes+lineBytes > maxResultBytes {
+			return // skip this line, we've hit the limit
+		}
+		result.WriteString(line + "\n")
+		totalBytes += lineBytes
+	}
 
 	err = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // skip inaccessible files
 		}
 		if info.IsDir() {
+			return nil
+		}
+
+		// Skip binary files by extension
+		ext := strings.ToLower(filepath.Ext(info.Name()))
+		if binaryExts[ext] {
 			return nil
 		}
 
@@ -1749,18 +1806,73 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 			return nil
 		}
 
+		// Detect binary content: check for null bytes in first 8KB
+		checkLen := len(data)
+		if checkLen > 8192 {
+			checkLen = 8192
+		}
+		if bytes.IndexByte(data[:checkLen], 0) >= 0 {
+			return nil // skip binary files
+		}
+
 		lines := strings.Split(string(data), "\n")
+		fileMatched := false
+		type matchInfo struct {
+			lineNum int
+			line    string
+		}
+		var fileMatches []matchInfo
+
 		for i, line := range lines {
 			if re.MatchString(line) {
-				if matchCount >= maxMatches {
-					return filepath.SkipDir
-				}
-				relPath, _ := filepath.Rel(dirPath, path)
-				result.WriteString(fmt.Sprintf("%s:%d: %s\n", relPath, i+1, strings.TrimSpace(line)))
-				matchCount++
+				fileMatched = true
+				fileMatches = append(fileMatches, matchInfo{lineNum: i + 1, line: line})
 			}
 		}
 
+		if !fileMatched {
+			return nil
+		}
+
+		// Check if we've hit the max result bytes limit before adding this file
+		// Estimate: header + file name + context lines
+		relPath, _ := filepath.Rel(dirPath, path)
+		estimatedBytes := len(relPath) + 20 + len(fileMatches)*80
+		if totalBytes+estimatedBytes > maxResultBytes && headerWritten {
+			return filepath.SkipDir
+		}
+
+		// Write file header with context range
+		writeHeader()
+		firstLine := fileMatches[0].lineNum
+		lastLine := fileMatches[len(fileMatches)-1].lineNum
+		fileHeader := fmt.Sprintf("%s:%d-%d:", relPath, firstLine, lastLine)
+		writeLine(fileHeader)
+
+		// Write each matching line with context (5 lines before and after)
+		contextLines := 5
+		writtenLines := make(map[int]bool) // track which lines have been written to avoid duplicates
+		for _, fm := range fileMatches {
+			start := fm.lineNum - 1 - contextLines
+			if start < 0 {
+				start = 0
+			}
+			end := fm.lineNum - 1 + contextLines
+			if end >= len(lines) {
+				end = len(lines) - 1
+			}
+			for i := start; i <= end; i++ {
+				if writtenLines[i] {
+					continue
+				}
+				writtenLines[i] = true
+				contextLine := fmt.Sprintf("%d: %s", i+1, lines[i])
+				writeLine(contextLine)
+			}
+		}
+		writeLine("") // blank line between files
+
+		matchCount += len(fileMatches)
 		return nil
 	})
 
@@ -1769,10 +1881,32 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 	}
 
 	if matchCount == 0 {
-		return fmt.Sprintf("No matches found for pattern %q in %s", pattern, dirPath), nil
+		return i18n.TF(i18n.KeySearchResultNone, pattern, dirPath), nil
 	}
 
-	return fmt.Sprintf("Found %d matches for pattern %q in %s:\n%s", matchCount, pattern, dirPath, result.String()), nil
+	// If we didn't write the header (shouldn't happen, but just in case)
+	if !headerWritten {
+		writeHeader()
+	}
+
+	// Check if we hit the byte limit
+	if totalBytes >= maxResultBytes {
+		// Remove the last incomplete line and add a truncation notice
+		finalResult := result.String()
+		lastNewline := strings.LastIndex(finalResult, "\n")
+		if lastNewline >= 0 {
+			finalResult = finalResult[:lastNewline]
+		}
+		// Find the last blank line separator to cleanly truncate
+		lastSep := strings.LastIndex(finalResult, "\n\n")
+		if lastSep >= 0 {
+			finalResult = finalResult[:lastSep+1]
+		}
+		finalResult += i18n.TF(i18n.KeySearchResultFoundPartial, dirPath, matchCount, pattern) + "\n"
+		return finalResult, nil
+	}
+
+	return result.String(), nil
 }
 
 // listCodeDefinitionNamesTool lists definition names in source code files at the top level of a directory.

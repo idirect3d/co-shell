@@ -280,6 +280,21 @@ var zhMessages = map[string]string{
 	// CLI Help - Output Mode
 	KeyCLIHelpOutputMode: "      --output-mode       LLM 前端输出模式（compact/normal/debug，覆盖配置文件）",
 
+	"col3_search_max_line_length":           "搜索单行最大字符数",
+	"col3_search_max_result_bytes":          "搜索结果最大字节数",
+	"settings_desc_search_max_line_length":  "搜索文件时单行最大字符数，超长截断（默认 8192）",
+	"settings_desc_search_max_result_bytes": "搜索文件时返回结果最大字节数，超长截断（默认 65536）",
+
+	// Search results
+	"search_result_found":         "在 %s 目录下找到 %d 处匹配模式 %q 的结果：",
+	"search_result_found_trunc":   "在 %s 目录下找到 %d 处匹配模式 %q 的结果，但有 %d 行内容超长返回被截断（见行尾标注）：",
+	"search_result_found_partial": "在 %s 目录下找到至少 %d 处匹配模式 %q 的结果，由于内容超长，无法全部返回：",
+
+	"search_result_none":        "在 %s 目录下未找到匹配模式 %q 的结果",
+	"search_line_truncated":     "（...后面被截断%d字符）",
+	"search_result_file_header": "%s:%d-%d:",
+	"search_result_match_line":  "%d: %s",
+
 	// CLI Help - Workspace
 	KeyCLIHelpWorkspace: "  -w, --workspace <path>  工作区路径（默认：当前目录）",
 
