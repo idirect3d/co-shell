@@ -118,6 +118,9 @@ type LLMConfig struct {
 
 	// MemoryEnabled: whether persistent memory (get_history_slice, memory_search) is enabled
 	MemoryEnabled bool `json:"memory_enabled"`
+
+	// PlanEnabled: whether task plan tools (create_task_plan, etc.) are enabled
+	PlanEnabled bool `json:"plan_enabled"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -162,6 +165,7 @@ func DefaultConfig() *Config {
 			ResultMode:     int(ResultModeFree),
 			ContextLimit:   -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 			MemoryEnabled:  false,
+			PlanEnabled:    false,
 		},
 
 		MCP: MCPConfig{
@@ -315,6 +319,7 @@ func (c *Config) Show() string {
 	col3Vision := i18n.T(i18n.KeyCol3Vision)
 	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
+	col3PlanEnabled := i18n.T(i18n.KeyCol3PlanEnabled)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 
@@ -326,6 +331,11 @@ func (c *Config) Show() string {
 	memoryEnabledStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.MemoryEnabled {
 		memoryEnabledStatus = i18n.T(i18n.KeyOff)
+	}
+
+	planEnabledStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.PlanEnabled {
+		planEnabledStatus = i18n.T(i18n.KeyOff)
 	}
 
 	// Format context limit
@@ -372,6 +382,7 @@ func (c *Config) Show() string {
 		"vision:", visionStatus, col3Vision,
 		"context-limit:", contextLimitStr, col3ContextLimit,
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
+		"plan-enabled:", planEnabledStatus, col3PlanEnabled,
 		"MCP 服务器:", len(c.MCP.Servers), col3MCP,
 		"规则:", len(c.Rules), col3Rules,
 		"api-key:", maskedKey, col3APIKey)

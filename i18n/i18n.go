@@ -506,4 +506,11 @@ const (
 	KeyMemoryEnabledUpdated  = "memory_enabled_updated"
 	KeyCLIHelpMemoryEnabled  = "cli_help_memory_enabled"
 	KeyCLIHelpMemoryDisabled = "cli_help_memory_disabled"
+
+	// Plan enabled
+	KeyCol3PlanEnabled     = "col3_plan_enabled"
+	KeySettingsDescPlan    = "settings_desc_plan"
+	KeyPlanEnabledUpdated  = "plan_enabled_updated"
+	KeyCLIHelpPlanEnabled  = "cli_help_plan_enabled"
+	KeyCLIHelpPlanDisabled = "cli_help_plan_disabled"
 )

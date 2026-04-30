@@ -184,6 +184,7 @@ var enMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
 
   %-20s %-30d %s
   %-20s %-30d %s
@@ -352,6 +353,13 @@ no liability whatsoever.`,
 	KeyMemoryEnabledUpdated:  "✅ Memory enabled set to: %s",
 	KeyCLIHelpMemoryEnabled:  "      --memory-enabled   Enable persistent memory (overrides config)",
 	KeyCLIHelpMemoryDisabled: "      --memory-disabled  Disable persistent memory (overrides config)",
+
+	// Plan enabled
+	KeyCol3PlanEnabled:     "task plan(on|off)",
+	KeySettingsDescPlan:    "Toggle task plan tools",
+	KeyPlanEnabledUpdated:  "✅ Task plan enabled set to: %s",
+	KeyCLIHelpPlanEnabled:  "      --plan-enabled    Enable task plan tools (overrides config)",
+	KeyCLIHelpPlanDisabled: "      --plan-disabled   Disable task plan tools (overrides config)",
 
 	// Config show column 3 labels
 	KeyCol3Provider:     "provider(deepseek/qwen/openai)",
