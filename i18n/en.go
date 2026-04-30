@@ -217,9 +217,9 @@ var enMessages = map[string]string{
 	KeyHelpRule:         "    .rule               - Manage global rules",
 	KeyHelpMemory:       "    .memory             - Manage memory and knowledge",
 	KeyHelpContext:      "    .context            - Manage conversation context",
-	KeyHelpList:         "    .list               - View history task list",
-	KeyHelpLast:         "    .last               - View recent history tasks",
-	KeyHelpFirst:        "    .first              - View earliest history tasks",
+	KeyHelpList:         "    .list               - View history task list (same as .history)",
+	KeyHelpLast:         "    .last               - View recent history tasks (use .history last)",
+	KeyHelpFirst:        "    .first              - View earliest history tasks (use .history first)",
 	KeyHelpImage:        "    .image              - Manage multimodal image cache (add/remove/clear/list)",
 	KeyHelpPlan:         "    .plan               - Manage task plans (list/view/create/insert/remove/update)",
 	KeyHelpNew:          "    .new                - Clear current session and start a new conversation",
@@ -503,4 +503,27 @@ Current Environment:
 
 	KeySystemPromptResultMode: `RESULT PROCESSING MODE:
 %s`,
+
+	// Session
+	KeySessionTitle:          "📋 Current Session",
+	KeySessionTotalMessages:  "Total Messages",
+	KeySessionRoleSystem:     "System Messages",
+	KeySessionRoleUser:       "User Messages",
+	KeySessionRoleAssistant:  "Assistant Messages",
+	KeySessionRoleTool:       "Tool Messages",
+	KeySessionContextLimit:   "Context Limit",
+	KeySessionNoHistory:      "No history (current input only)",
+	KeySessionModel:          "Model",
+	KeySessionProvider:       "Provider",
+	KeySessionAgentName:      "Agent Name",
+	KeySessionRecentMessages: "Recent Messages (max 10 shown):",
+
+	// History command
+	KeyHelpHistory: "    .history            - View history of user input commands (.history last/first [N])",
+	KeyHelpSession: "    .session            - View current session info (message count, role distribution, etc.)",
+	KeyHistoryUsage: `📋 .history subcommands:
+  .history [start] [end]    View history range
+  .history last [N]         View last N entries (default 10)
+  .history first [N]        View first N entries (default 10)
+  Enter a number to re-execute a history command`,
 }

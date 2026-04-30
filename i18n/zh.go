@@ -219,7 +219,7 @@ var zhMessages = map[string]string{
 	KeyHelpRule:         "    .rule         - 管理 AI 全局规则",
 	KeyHelpMemory:       "    .memory       - 管理记忆和持久知识",
 	KeyHelpContext:      "    .context      - 管理对话上下文",
-	KeyHelpList:         "    .list         - 查看历史任务列表",
+	KeyHelpList:         "    .list         - 查看历史用户输入命令列表（同 .history）",
 	KeyHelpLast:         "    .last         - 查看最近的历史任务",
 	KeyHelpFirst:        "    .first        - 查看最早的历史任务",
 	KeyHelpImage:        "    .image        - 管理多模态图片缓存（add/remove/clear/list）",
@@ -507,4 +507,27 @@ AI 模型可能会生成并执行以下类型的危险命令：
 
 	KeySystemPromptResultMode: `结果处理模式:
 %s`,
+
+	// Session
+	KeySessionTitle:          "📋 当前会话信息",
+	KeySessionTotalMessages:  "消息总数",
+	KeySessionRoleSystem:     "系统消息",
+	KeySessionRoleUser:       "用户消息",
+	KeySessionRoleAssistant:  "助手消息",
+	KeySessionRoleTool:       "工具消息",
+	KeySessionContextLimit:   "上下文限制",
+	KeySessionNoHistory:      "无历史（仅当前输入）",
+	KeySessionModel:          "模型",
+	KeySessionProvider:       "供应商",
+	KeySessionAgentName:      "Agent 名称",
+	KeySessionRecentMessages: "最近消息（最多显示 10 条）:",
+
+	// History command
+	KeyHelpHistory: "    .history            - 查看历史用户输入命令列表（.history last/first [N]）",
+	KeyHelpSession: "    .session            - 查看当前会话信息（消息数量、角色分布等）",
+	KeyHistoryUsage: `📋 .history 子命令:
+  .history [start] [end]    查看指定范围的历史记录
+  .history last [N]         查看最近 N 条记录（默认 10）
+  .history first [N]        查看最早 N 条记录（默认 10）
+  直接输入编号可重新执行对应历史命令`,
 }
