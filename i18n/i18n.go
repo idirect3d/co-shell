@@ -519,4 +519,24 @@ const (
 	KeySettingsDescOutMode = "settings_desc_out_mode"
 	KeyOutputModeUpdated   = "output_mode_updated"
 	KeyCLIHelpOutputMode   = "cli_help_output_mode"
+	// Search settings
+	KeyCol3SearchMaxLineLength          = "col3_search_max_line_length"
+	KeyCol3SearchMaxResultBytes         = "col3_search_max_result_bytes"
+	KeyCol3SearchContextLines           = "col3_search_context_lines"
+	KeySettingsDescSearchMaxLineLength  = "settings_desc_search_max_line_length"
+	KeySettingsDescSearchMaxResultBytes = "settings_desc_search_max_result_bytes"
+	KeySettingsDescSearchContextLines   = "settings_desc_search_context_lines"
+
+	// MCP and Rules column 3 labels
+	KeyCol3MCP   = "col3_mcp"
+	KeyCol3Rules = "col3_rules"
+
+	// Search results (used in searchFilesTool output)
+	KeySearchResultFound        = "search_result_found"
+	KeySearchResultFoundTrunc   = "search_result_found_trunc"
+	KeySearchResultFoundPartial = "search_result_found_partial"
+	KeySearchResultNone         = "search_result_none"
+	KeySearchLineTruncated      = "search_line_truncated"
+	KeySearchResultFileHeader   = "search_result_file_header"
+	KeySearchResultMatchLine    = "search_result_match_line"
 )

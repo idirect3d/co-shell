@@ -504,6 +504,60 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Output mode set to %s", args[1])
 		return i18n.TF(i18n.KeyOutputModeUpdated, config.OutputModeString(mode)), nil
 
+	case "search-max-line-length":
+		if len(args) < 2 {
+			return fmt.Sprintf("搜索单行最大字符数: %d", h.cfg.LLM.SearchMaxLineLength), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("搜索单行最大字符数必须 >= 0")
+		}
+		h.cfg.LLM.SearchMaxLineLength = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Search max line length set to %d", n)
+		return fmt.Sprintf("✅ 搜索单行最大字符数已设置为: %d", n), nil
+
+	case "search-max-result-bytes":
+		if len(args) < 2 {
+			return fmt.Sprintf("搜索结果最大字节数: %d", h.cfg.LLM.SearchMaxResultBytes), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("搜索结果最大字节数必须 >= 0")
+		}
+		h.cfg.LLM.SearchMaxResultBytes = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Search max result bytes set to %d", n)
+		return fmt.Sprintf("✅ 搜索结果最大字节数已设置为: %d", n), nil
+
+	case "search-context-lines":
+		if len(args) < 2 {
+			return fmt.Sprintf("搜索匹配上下文行数: %d", h.cfg.LLM.SearchContextLines), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("搜索匹配上下文行数必须 >= 0")
+		}
+		h.cfg.LLM.SearchContextLines = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Search context lines set to %d", n)
+		return fmt.Sprintf("✅ 搜索匹配上下文行数已设置为: %d", n), nil
+
 	case "log":
 
 		if len(args) < 2 {
