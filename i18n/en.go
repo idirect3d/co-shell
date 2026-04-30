@@ -193,6 +193,7 @@ var enMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -384,6 +385,13 @@ no liability whatsoever.`,
 	KeyPlanEnabledUpdated:  "✅ Task plan enabled set to: %s",
 	KeyCLIHelpPlanEnabled:  "      --plan-enabled    Enable task plan tools (overrides config)",
 	KeyCLIHelpPlanDisabled: "      --plan-disabled   Disable task plan tools (overrides config)",
+
+	// SubAgent enabled
+	KeyCol3SubAgentEnabled:     "sub-agent(on|off)",
+	KeySettingsDescSubAgent:    "Toggle sub-agent tools",
+	KeySubAgentEnabledUpdated:  "✅ Sub-agent enabled set to: %s",
+	KeyCLIHelpSubAgentEnabled:  "      --subagent-enabled    Enable sub-agent tools (overrides config)",
+	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   Disable sub-agent tools (overrides config)",
 
 	// Config show column 3 labels
 	KeyCol3Provider:     "provider(deepseek/qwen/openai)",

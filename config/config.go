@@ -163,6 +163,9 @@ type LLMConfig struct {
 	// PlanEnabled: whether task plan tools (create_task_plan, etc.) are enabled
 	PlanEnabled bool `json:"plan_enabled"`
 
+	// SubAgentEnabled: whether sub-agent tools (launch_sub_agent) are enabled
+	SubAgentEnabled bool `json:"sub_agent_enabled"`
+
 	// OutputMode: how LLM front-end output is displayed
 	// 0=compact, 1=normal, 2=debug
 	OutputMode int `json:"output_mode"`
@@ -223,6 +226,7 @@ func DefaultConfig() *Config {
 			ContextLimit:         -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 			MemoryEnabled:        false,
 			PlanEnabled:          false,
+			SubAgentEnabled:      true,
 			OutputMode:           int(OutputModeNormal),
 			SearchMaxLineLength:  8192,
 			SearchMaxResultBytes: 65536,
@@ -379,6 +383,7 @@ func (c *Config) Show() string {
 	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
 	col3PlanEnabled := i18n.T(i18n.KeyCol3PlanEnabled)
+	col3SubAgentEnabled := i18n.T(i18n.KeyCol3SubAgentEnabled)
 	col3OutputMode := i18n.T(i18n.KeyCol3OutputMode)
 	col3SearchMaxLineLength := i18n.T(i18n.KeyCol3SearchMaxLineLength)
 	col3SearchMaxResultBytes := i18n.T(i18n.KeyCol3SearchMaxResultBytes)
@@ -400,6 +405,11 @@ func (c *Config) Show() string {
 	planEnabledStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.PlanEnabled {
 		planEnabledStatus = i18n.T(i18n.KeyOff)
+	}
+
+	subAgentEnabledStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.SubAgentEnabled {
+		subAgentEnabledStatus = i18n.T(i18n.KeyOff)
 	}
 
 	// Format context limit
@@ -447,6 +457,7 @@ func (c *Config) Show() string {
 		"context-limit:", contextLimitStr, col3ContextLimit,
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
 		"plan-enabled:", planEnabledStatus, col3PlanEnabled,
+		"subagent-enabled:", subAgentEnabledStatus, col3SubAgentEnabled,
 		"output-mode:", outputModeStr, col3OutputMode,
 		"search-max-line-length:", fmt.Sprintf("%d", c.LLM.SearchMaxLineLength), col3SearchMaxLineLength,
 		"search-max-result-bytes:", fmt.Sprintf("%d", c.LLM.SearchMaxResultBytes), col3SearchMaxResultBytes,

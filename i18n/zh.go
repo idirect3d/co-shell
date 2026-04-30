@@ -195,6 +195,7 @@ var zhMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -386,6 +387,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyPlanEnabledUpdated:  "✅ 任务计划功能已设置为: %s",
 	KeyCLIHelpPlanEnabled:  "      --plan-enabled    启用任务计划功能（覆盖配置文件）",
 	KeyCLIHelpPlanDisabled: "      --plan-disabled   禁用任务计划功能（覆盖配置文件）",
+
+	// SubAgent enabled
+	KeyCol3SubAgentEnabled:     "子代理(on|off)",
+	KeySettingsDescSubAgent:    "子代理功能开关",
+	KeySubAgentEnabledUpdated:  "✅ 子代理功能已设置为: %s",
+	KeyCLIHelpSubAgentEnabled:  "      --subagent-enabled    启用子代理功能（覆盖配置文件）",
+	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   禁用子代理功能（覆盖配置文件）",
 
 	// Config show column 3 labels
 	KeyCol3Provider:     "提供商(deepseek/qwen/openai)",
