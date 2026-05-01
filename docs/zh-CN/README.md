@@ -200,6 +200,36 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ---
 
+## 成果样例
+
+co-shell 可以自主进行深度调研，通过搜索网络、收集数据并生成综合报告。以下是 co-shell 完全自主生成的真实案例：
+
+### 1. 北冰洋品牌深度调研报告
+
+对中华老字号汽水品牌"北冰洋"的全面品牌调研报告，追溯其从 1936 年至今的发展历程，涵盖品牌沿革、产品体系演进、市场竞争态势及战略建议。
+
+> **报告**: [arctic-ocean-brand-research-report.md](../samples/research/arctic-ocean-brand-research/arctic-ocean-brand-research-report.md)（267页）| [DOCX](../samples/research/arctic-ocean-brand-research/arctic-ocean-brand-research-report.docx)
+
+### 2. 北京动物园大熊猫最新动态研究报告
+
+关于北京动物园大熊猫群体最新动态的及时研究报告，涵盖场馆升级改造、新成员加入及 2023 年至 2026 年的公共事件。
+
+> **报告**: [beijing-zoo-panda-latest-report.md](../samples/research/beijing-zoo-panda-news/beijing-zoo-panda-latest-report.md)（196页）| [DOCX](../samples/research/beijing-zoo-panda-news/beijing-zoo-panda-latest-report.docx)
+
+### 3. 中国再保险市场 2026-2027 年调研报告
+
+专业市场调研报告，分析 2026 年伊朗战争对中国再保险市场的影响，涵盖地缘政治风险、能源市场动荡及战略建议。
+
+> **报告**: [china-reinsurance-market-report-2026-2027.md](../samples/research/china-reinsurance-market-2026-2027/china-reinsurance-market-report-2026-2027.md)（442页）| [DOCX](../samples/research/china-reinsurance-market-2026-2027/china-reinsurance-market-report-2026-2027.docx)
+
+### 4. 中国运-10 飞机深度调研报告
+
+关于中国首架自主研制喷气式客机运-10（Y-10）的深度调研报告，涵盖研发历史、技术参数及历史意义。
+
+> **报告**: [Y-10-in-depth-research-report.md](../samples/research/yun10/Y-10-in-depth-research-report.md)（290页）| [DOCX](../samples/research/yun10/Y-10-in-depth-research-report.docx)
+
+---
+
 ## 技术栈
 
 - **语言**: Go 1.22+

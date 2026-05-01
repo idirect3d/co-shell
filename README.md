@@ -195,6 +195,36 @@ All built-in commands start with `.` and support Tab completion.
 
 ---
 
+## Sample Research Reports
+
+co-shell can autonomously conduct in-depth research by searching the web, collecting data, and generating comprehensive reports. Here are some real-world examples produced entirely by co-shell:
+
+### 1. Arctic Ocean Brand Research (北冰洋品牌深度调研报告)
+
+A comprehensive brand research report on the iconic Chinese soda brand "Arctic Ocean" (北冰洋), tracing its history from 1936 to the present. The report covers brand evolution, product development, market competition, and strategic recommendations.
+
+> **Report**: [arctic-ocean-brand-research-report.md](samples/research/arctic-ocean-brand-research/arctic-ocean-brand-research-report.md) (267 pages) | [DOCX](samples/research/arctic-ocean-brand-research/arctic-ocean-brand-research-report.docx)
+
+### 2. Beijing Zoo Panda Latest News (北京动物园大熊猫最新动态研究报告)
+
+A timely research report on the latest developments of giant pandas at Beijing Zoo, covering facility upgrades, new arrivals, and public events from 2023 to 2026.
+
+> **Report**: [beijing-zoo-panda-latest-report.md](samples/research/beijing-zoo-panda-news/beijing-zoo-panda-latest-report.md) (196 pages) | [DOCX](samples/research/beijing-zoo-panda-news/beijing-zoo-panda-latest-report.docx)
+
+### 3. China Reinsurance Market 2026-2027 (中国再保险市场调研报告)
+
+A professional market research report analyzing the impact of the 2026 Iran war on China's reinsurance market, covering geopolitical risks, energy market turmoil, and strategic recommendations.
+
+> **Report**: [china-reinsurance-market-report-2026-2027.md](samples/research/china-reinsurance-market-2026-2027/china-reinsurance-market-report-2026-2027.md) (442 pages) | [DOCX](samples/research/china-reinsurance-market-2026-2027/china-reinsurance-market-report-2026-2027.docx)
+
+### 4. Y-10 Aircraft Research (中国运-10飞机深度调研报告)
+
+An in-depth research report on China's first domestically developed jet airliner — the Y-10 (运-10), covering its development history, technical specifications, and historical significance.
+
+> **Report**: [Y-10-in-depth-research-report.md](samples/research/yun10/Y-10-in-depth-research-report.md) (290 pages) | [DOCX](samples/research/yun10/Y-10-in-depth-research-report.docx)
+
+---
+
 ## Tech Stack
 
 - **Language**: Go 1.22+
