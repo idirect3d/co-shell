@@ -69,7 +69,9 @@ func RunSetupWizard(cfg *config.Config) bool {
 	fmt.Printf("📌 默认模型: %s\n", cfg.LLM.Model)
 	fmt.Println()
 
-	// Step 2: Input endpoint (optional for preset providers, required for custom)
+	// Step 2: For preset providers (DeepSeek, Qwen, Xiaomi, Zhipu, etc.):
+	// Skip endpoint input since it's fixed. Go directly to API Key input.
+	// For OpenAI-compatible (custom), go through the full setup flow.
 	if selectedProvider.Name == "openai-compatible" {
 		if !setupOpenAICompatible(cfg) {
 			return false
@@ -77,20 +79,8 @@ func RunSetupWizard(cfg *config.Config) bool {
 		return true
 	}
 
-	// For preset providers (DeepSeek, Qwen, etc.):
-	// 1. Input endpoint (optional, has default)
-	// 2. Input API Key → test connection → fetch available models
-	// 3. Select model from fetched list
-
-	// Step 2a: API Endpoint (optional, has default)
-	endpoint := promptOptionalText("📌 API 端点", cfg.LLM.Endpoint)
-	if endpoint == nil {
-		fmt.Println("\n⚠️  已取消设置。")
-		return false
-	}
-	cfg.LLM.Endpoint = *endpoint
-
-	// Step 2b: API Key with connection test, then fetch models
+	// For preset providers: skip endpoint input (fixed), go directly to API Key
+	// API Key with connection test, then fetch models
 	fmt.Println()
 	apiKeyURL := selectedProvider.APIKeyURL
 
