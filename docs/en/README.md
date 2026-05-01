@@ -244,6 +244,8 @@ An in-depth research report on China's first domestically developed jet airliner
 
 Release Candidate 1 — feature complete, ready for preview. This version introduces comprehensive context and memory management, output mode switching, thinking toggle, and extensive model support.
 
+**Highlights**: Comprehensive context & memory management, LLM output mode switching, thinking toggle, token usage stats, intelligent error retry limits, number-based batch approval, Xiaomi/GLM latest model support, **official document format DOCX output** (GB/T 9704-2012 compliant).
+
 **Implemented Features:**
 
 - Multimodal model support (image input, visual understanding) with 👀 indicator
@@ -270,6 +272,7 @@ Release Candidate 1 — feature complete, ready for preview. This version introd
 - **New model support** — Xiaomi (Mi), GLM (Z.ai) latest models
 - **Setup wizard enhancement** — skip endpoint for built-in providers, enhanced risk warnings
 - **Sample research reports** — added real-world usage examples
+- **Official document format output** — research reports auto-generated as GB/T 9704-2012 compliant DOCX (小标宋 title, 黑体/楷体/仿宋 headings, fixed 28pt line spacing, 2-char first-line indent). [Download samples](#sample-research-reports) to see the effect.
 
 ### v0.2.0 — Beta
 
