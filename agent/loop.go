@@ -112,6 +112,11 @@ type Agent struct {
 	// errorApproveAll is set to true when the user chooses to ignore all error limits
 	// for the current request.
 	errorApproveAll bool
+
+	// Token usage statistics
+	totalPromptTokens     int // accumulated prompt tokens across all LLM calls
+	totalCompletionTokens int // accumulated completion tokens across all LLM calls
+	totalTokens           int // accumulated total tokens across all LLM calls
 }
 
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
@@ -732,4 +737,21 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 	}
 
 	return resp.Content, resp.ReasoningContent, resp.ToolCalls, nil
+}
+
+// TokenUsage returns the accumulated token usage statistics.
+// Returns prompt tokens, completion tokens, and total tokens.
+func (a *Agent) TokenUsage() (prompt, completion, total int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.totalPromptTokens, a.totalCompletionTokens, a.totalTokens
+}
+
+// ResetTokenUsage resets the accumulated token usage statistics to zero.
+func (a *Agent) ResetTokenUsage() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.totalPromptTokens = 0
+	a.totalCompletionTokens = 0
+	a.totalTokens = 0
 }
