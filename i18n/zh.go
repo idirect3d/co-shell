@@ -311,11 +311,13 @@ var zhMessages = map[string]string{
 
 	// Command Confirmation
 	KeyCmdConfirmTitle:       "⚡ 即将执行命令: %s",
+	KeyCmdConfirmRiskWarning: "⚠️ 风险提示: 请仔细检查命令内容，确认无误后再执行。\n    AI 可能生成危险命令（如删除文件、修改系统配置等），请谨慎操作并根据使用经验自行判断风险。",
 	KeyCmdConfirmDisabled:    "命令执行确认: 关闭",
 	KeyCmdConfirmEnabled:     "命令执行确认: 开启",
-	KeyCmdConfirmDisableWarn: "⚠️ 警告: 关闭命令执行确认后，AI 将直接执行命令而不经您确认，可能存在安全风险（如误删文件、无限循环等）。请谨慎操作。",
+	KeyCmdConfirmDisableWarn: "⚠️ 警告: 关闭命令执行确认后，AI 将直接执行命令而不经您确认，可能存在安全风险（如误删文件、无限循环等）。请谨慎操作并根据使用经验自行判断风险。",
 
-	KeyCmdConfirmPrompt:     "请选择操作:\n  [Enter] 批准执行\n  [A] 本次都批准\n  [C] 取消\n  其他输入: 作为补充说明，AI 将重新评估\n请输入: ",
+	KeyCmdConfirmPrompt:     "请选择操作:\n  [Enter] 批准执行\n  [A] 本次都批准\n  [C] 取消\n  其他输入: 暂不执行，输入的内容将提交AI 重新评估\n请输入: ",
+	KeyErrorRiskWarning:     "⚠️ 风险提示: 错误反复出现可能表明 AI 陷入了死循环或遇到了无法解决的问题。\n    请关注错误内容，必要时选择 [C] 取消操作以避免潜在风险（如：将您的Token余额用尽或信息外泄）。",
 	KeyCmdConfirmApprove:    "a",
 	KeyCmdConfirmApproveAll: "aa",
 	KeyCmdConfirmCancel:     "c",
