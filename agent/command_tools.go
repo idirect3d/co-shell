@@ -174,6 +174,7 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 func promptCommandConfirmation(command string) (CmdConfirmResult, string) {
 	fmt.Println()
 	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, command))
+	fmt.Println(i18n.T(i18n.KeyCmdConfirmRiskWarning))
 	fmt.Println()
 
 	// Read a single line from stdin using os.Stdin.Read() which works

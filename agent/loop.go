@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
@@ -306,6 +307,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Prompt user for action
 				fmt.Printf("\n⚠️ 错误反复出现: %s\n", promptReason)
 				fmt.Printf("  最新错误: %v\n", streamErr)
+				fmt.Println()
+				fmt.Println(i18n.T(i18n.KeyErrorRiskWarning))
 				fmt.Println()
 				fmt.Println("  请选择操作:")
 				fmt.Println("  [Enter] 继续让 LLM 尝试处理")

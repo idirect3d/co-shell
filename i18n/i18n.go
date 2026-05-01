@@ -362,6 +362,7 @@ const (
 
 	// Command Confirmation
 	KeyCmdConfirmTitle       = "cmd_confirm_title"
+	KeyCmdConfirmRiskWarning = "cmd_confirm_risk_warning"
 	KeyCmdConfirmPrompt      = "cmd_confirm_prompt"
 	KeyCmdConfirmApprove     = "cmd_confirm_approve"
 	KeyCmdConfirmApproveAll  = "cmd_confirm_approve_all"
@@ -373,6 +374,7 @@ const (
 	KeyCmdConfirmDisabled    = "cmd_confirm_disabled"
 	KeyCmdConfirmEnabled     = "cmd_confirm_enabled"
 	KeyCmdConfirmDisableWarn = "cmd_confirm_disable_warn"
+	KeyErrorRiskWarning      = "error_risk_warning"
 
 	// History list
 	KeyListTitle     = "list_title"
