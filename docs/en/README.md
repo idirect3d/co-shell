@@ -236,7 +236,7 @@ Release Candidate 1 — feature complete, ready for preview. This version introd
 - **Error retry limit** — configurable single-error and type-error max counts with user prompt
 - **Number-based approval** — enter a number to auto-approve N subsequent command executions
 - **search_files enhancement** — binary file ignore, content length protection, configurable limits
-- **Instant .set生效** — no restart needed after parameter changes
+- **Instant .set effect** — no restart needed after parameter changes
 - **New model support** — Xiaomi (Mi), GLM (Z.ai) latest models
 - **Setup wizard enhancement** — skip endpoint for built-in providers, enhanced risk warnings
 - **Sample research reports** — added real-world usage examples
@@ -264,7 +264,7 @@ Beta release with enhanced capabilities for daily use.
 
 ### v0.1.0 — Alpha
 
-> **BUILD**: 00075 | **Release Date**: 2026-04-26
+> **BUILD**: 00074 | **Release Date**: 2026-04-26
 
 First Alpha preview with core functionality.
 
@@ -309,7 +309,8 @@ co-shell/
 ├── i18n/                # Internationalization
 ├── wizard/              # Setup wizard
 ├── USAGE.md             # Detailed usage guide
-├── README.zh.md         # Chinese documentation
+├── docs/                # Multi-language documentation
+│   └── zh-CN/           # Chinese documentation
 └── ROADMAP.md           # Version plan and roadmap
 ```
 
