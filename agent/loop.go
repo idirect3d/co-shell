@@ -36,6 +36,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -59,10 +60,11 @@ type StreamCallback func(eventType string, content string)
 type CmdConfirmResult int
 
 const (
-	CmdConfirmApprove    CmdConfirmResult = iota
-	CmdConfirmApproveAll                  // Approve all commands for this request
-	CmdConfirmCancel                      // User cancelled, return to REPL
-	CmdConfirmModify                      // User entered custom input to modify the command
+	CmdConfirmApprove      CmdConfirmResult = iota
+	CmdConfirmApproveAll                    // Approve all commands for this request
+	CmdConfirmApproveCount                  // Approve N commands (user entered a number)
+	CmdConfirmCancel                        // User cancelled, return to REPL
+	CmdConfirmModify                        // User entered custom input to modify the command
 )
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
@@ -80,6 +82,7 @@ type Agent struct {
 	maxIterations   int
 	confirmCommand  bool
 	approveAll      bool           // if true, skip confirmation for all commands in this request
+	approveCount    int            // remaining number of commands to auto-approve (decremented on each use)
 	cfg             *config.Config // configuration for timeout settings
 	resultMode      config.ResultMode
 	outputMode      config.OutputMode
@@ -1454,7 +1457,8 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	if a.confirmCommand && tc.Name == "execute_command" {
 		if cmd, ok := args["command"].(string); ok {
 			// Skip confirmation if user chose "approve all" for this request
-			if !a.approveAll {
+			// or if there are remaining auto-approve counts
+			if !a.approveAll && a.approveCount <= 0 {
 				result, modifyInput := promptCommandConfirmation(cmd)
 				switch result {
 				case CmdConfirmCancel:
@@ -1462,12 +1466,23 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				case CmdConfirmApproveAll:
 					a.approveAll = true
 					// fall through to execute
+				case CmdConfirmApproveCount:
+					// Parse the number of commands to auto-approve
+					if n, err := strconv.Atoi(modifyInput); err == nil && n > 0 {
+						a.approveCount = n
+						fmt.Printf("\n✅ 已批准后续 %d 次命令执行\n", a.approveCount)
+					}
+					// fall through to execute
 				case CmdConfirmModify:
 					// Use the user's input directly as supplementary instructions
 					// for the LLM to re-evaluate the command
 					return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
 				}
 				// CmdConfirmApprove: continue execution
+			} else if a.approveCount > 0 {
+				// Decrement approve count and auto-approve
+				a.approveCount--
+				fmt.Printf("\n✅ 已自动批准（剩余 %d 次）\n", a.approveCount)
 			}
 		}
 	}
