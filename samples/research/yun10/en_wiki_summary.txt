@@ -1,0 +1,24 @@
+# 英文维基百科摘要 - Shanghai Y-10 (Yun-10)
+
+The Shanghai Y-10 or Yun-10 (Chinese: 运-10; lit. 'Transporter-10') is a four engined narrow-body jet airliner developed in the 1970s by the Shanghai Aircraft Research Institute. The plane used Boeing's 707-320C as reference, designed according to Federal Aviation Regulation (Part 25, 1970 edition).
+
+Due to unavailability of the intended WS-8 turbofan engines the prototype aircraft used Pratt & Whitney JT3D-7 turbofan engines, acquired as spare engines for CAAC's small fleet of Boeing 707 aircraft. The cabin could be configured to seat 178 in high-density, 149 in economy, or 124 in mixed-class and the large flight deck accommodated five crew members: pilot, co-pilot, flight engineer, navigator, and radio operator.
+
+## Design and Development
+Development of the Y-10 began in August 1970, designated as the "708 Project". The aircraft was intended to carry 124-178 passengers and cargo, with estimated specifications including a maximum takeoff weight of 110,000 kg and a range of up to 8,300 km (5,200 mi) with 5,000 kg payload.
+
+## Technical Specifications
+- Crew: 5 (pilot, co-pilot, flight engineer, navigator, radio operator)
+- Capacity: 124-178 passengers
+- Length: 42.93 m (140 ft 10 in)
+- Wingspan: 42.24 m (138 ft 7 in)
+- Height: 13.42 m (44 ft 0 in)
+- Wing area: 244.46 m2 (2,631.3 sq ft)
+- Empty weight: 58,000 kg (127,868 lb)
+- Max takeoff weight: 110,000 kg (242,508 lb)
+- Fuel capacity: 51,000 kg (112,436 lb)
+- Powerplant: 4 × WS-8 (intended) / Pratt & Whitney JT3D-7 (actual) turbofan engines
+- Maximum speed: 974 km/h (605 mph, 526 kn)
+- Cruise speed: 917 km/h (570 mph, 495 kn)
+- Range: 6,400 km (4,000 mi, 3,500 nmi) with 15,000 kg payload / 8,300 km with 5,000 kg payload
+- Service ceiling: 12,000 m (39,000 ft)
