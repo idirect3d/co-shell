@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00114-blue)]()
+[![Build](https://img.shields.io/badge/Build-00135-blue)]()
 
 [![中文](https://img.shields.io/badge/README-中文-blue)](../zh-CN/README.md)
 
@@ -185,9 +185,9 @@ All built-in commands start with `.` and support Tab completion.
 
 ### v0.3.0 — RC1 (Current)
 
-> **BUILD**: 00114 | **Release Date**: 2026-04-29
+> **BUILD**: 00135 | **Release Date**: 2026-05-01
 
-Release Candidate 1 — feature complete, ready for preview.
+Release Candidate 1 — feature complete, ready for preview. This version introduces comprehensive context and memory management, output mode switching, thinking toggle, and extensive model support.
 
 **Implemented Features:**
 
@@ -195,10 +195,26 @@ Release Candidate 1 — feature complete, ready for preview.
 - Image cache management (.image command, add_images/remove_images/clear_images tools)
 - Agent identity customization (name/description/principles via .set)
 - Task plan management (.plan command, create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans tools)
+- Task plan singleton mode — only one active plan at a time, auto-archive on completion
 - Batch command execution with "Approve All" inheritance for sub-agents
 - 12 new CLI flags (--temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout)
 - Vision support auto-detection via model API
 - Enhanced help documentation with complete parameter descriptions
+- **Conversation context limit** (.set context-limit) — control how many history messages sent to LLM
+- **Persistent memory management** (.memory command, get_memory_slice/memory_search tools)
+- **Memory toggle** (.set memory-enabled, --memory-enabled/--memory-disabled)
+- **LLM output mode** (.set output-mode) — compact / normal / debug modes
+- **Sub-agent toggle** (.set subagent-enabled) — control sub-agent tool availability
+- **Thinking toggle** (.set thinking-enabled, --thinking-enabled/--thinking-disabled) — control AI reasoning process display
+- **Token usage statistics** — cumulative token tracking via Agent.TokenUsage()
+- **Conversation reset** (.new command) — clear all history without restart
+- **Error retry limit** — configurable single-error and type-error max counts with user prompt
+- **Number-based approval** — enter a number to auto-approve N subsequent command executions
+- **search_files enhancement** — binary file ignore, content length protection, configurable limits
+- **Instant .set生效** — no restart needed after parameter changes
+- **New model support** — Xiaomi (Mi), GLM (Z.ai) latest models
+- **Setup wizard enhancement** — skip endpoint for built-in providers, enhanced risk warnings
+- **Sample research reports** — added real-world usage examples
 
 ### v0.2.0 — Beta
 

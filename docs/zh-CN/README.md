@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00114-blue)]()
+[![Build](https://img.shields.io/badge/Build-00135-blue)]()
 [![English](https://img.shields.io/badge/README-English-blue)](../en/README.md)
 
 
@@ -189,9 +189,9 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ### v0.3.0 — RC1（当前版本）
 
-> **BUILD**: 00114 | **发布日期**: 2026-04-29
+> **BUILD**: 00135 | **发布日期**: 2026-05-01
 
-发布候选版，功能完整，可预览。
+发布候选版，功能完整，可预览。本版本引入了全面的上下文与记忆管理、输出模式切换、思考过程开关以及广泛的模型支持。
 
 **已实现功能：**
 
@@ -199,10 +199,26 @@ co-shell [选项] <指令>             执行单条指令后退出
 - 图片缓存管理（.image 命令，add_images/remove_images/clear_images 工具）
 - Agent 身份自定义（name/description/principles 通过 .set 设置）
 - 任务计划管理（.plan 命令，create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans 工具）
+- 任务计划单例模式——同一时间只能有一个活跃计划，完成后自动归档
 - 批量命令执行，"本次都批准"选项可继承给子 agent
 - 12 个新 CLI 参数（--temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout）
 - 视觉识别能力自动检测（通过模型 API）
 - 增强的帮助文档，完整参数描述
+- **对话上下文限制**（.set context-limit）——控制发送给 LLM 的历史消息数量
+- **持久化记忆管理**（.memory 命令，get_memory_slice/memory_search 工具）
+- **记忆功能开关**（.set memory-enabled，--memory-enabled/--memory-disabled）
+- **LLM 输出模式**（.set output-mode）——精简 / 标准 / 调试三种模式
+- **Sub-agent 开关**（.set subagent-enabled）——控制子 agent 工具可用性
+- **思考过程开关**（.set thinking-enabled，--thinking-enabled/--thinking-disabled）——控制 AI 推理过程显示
+- **Token 用量统计**——通过 Agent.TokenUsage() 累计追踪
+- **对话重置**（.new 命令）——无需重启即可清空所有历史
+- **错误重试限制**——可配置单错误和错误类型最大次数，超限提示用户
+- **数字批准机制**——输入数字自动批准后续 N 次命令执行
+- **search_files 增强**——忽略二进制文件、内容长度保护、可配置限制
+- **即时生效**——.set 修改参数后无需重启
+- **新增模型支持**——小米（Mi）、GLM（Z.ai）最新模型
+- **设置向导增强**——内置供应商跳过地址设置、增强风险警示
+- **成果样例**——新增真实使用案例
 
 ### v0.2.0 — Beta
 
