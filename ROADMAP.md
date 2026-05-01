@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 129
+> **BUILD**: 130
 
 
 
@@ -125,7 +125,7 @@
 - [x] ENHANCEMENT-100 优化search_files方法，增加返回内容及长度保护：1、忽略二进制文件；2、开头需要给出有多少匹配的文件，如：”在 agent/ 目录下找到 5 处匹配模式 "fmt.Errorf" 的结果：“; 3、匹配到一个文件，先输出文件名和带上下文的匹配范围，如：“agent/loop.go:40-44:”，然后再输出匹配行及上下文的内容，如："40: 	multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)\n41: 	if err != nil {\n42: 		return "", fmt.Errorf("cannot build multimodal message: %w", err)\n43: 	}\n44: 	a.messages = append(a.messages, multimodalMsg)"; 4、内容长度需要有所保护，如果一行的长度超长，需要在首行提示用户，如：“在 agent/ 目录下找到 5 处匹配模式 "fmt.Errorf" 的结果，但有1行内容超长返回被截断（见行尾标注）：”，超长行末尾为：“（...后面被截断128000字符）”；5、如果总内容超过规定的最大字节数，则在开头需要进行提示，如：“在 agent/ 目录下至少找到 5 处匹配模式 "fmt.Errorf" 的结果，由于内容超长，无法全部返回：”，引发超长的最后一行需要被去掉，结尾最后一行参照上述4的处理方法；6、最大行字符长度（默认8192）、最大合计返回字节数（默认65536）、上下文数（默认为5行）可以通过命令行、REPL、和配置文件设置。[BUILD-121]
 - [ ] FEATURE-101 增加thinking开关设置，可以通过命令行、REPL、和配置文件设置。
 - [ ] FEATURE-102 增加对小米最新模型的调用支持。
-- [ ] ENHANCEMENT-103 改进loop.go程序过长的问题，将其中的方法分类整理后，将其拆解为更小的文件。
+- [x] ENHANCEMENT-103 改进loop.go程序过长的问题，将其中的方法分类整理后，将其拆解为更小的文件。[BUILD-130]
 - [ ] FEATURE-103 动态上下文调整，尝试让LLM决定取多少上下文。
 - [x] FEATURE-104 用户确认操作时，可以输入一个数字，表示批准后面多少次执行命令。[BUILD-127]
 - [ ] FEATURE-105 提供用户选择对话框，大模型可以给出选项让用户显式选择。
