@@ -74,6 +74,7 @@ Download the zip archive for your platform from the [Releases](https://github.co
 | Linux | ARM64 | [co-shell-v0.3.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-arm64.zip) |
 | Windows | x86_64 | [co-shell-v0.3.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip) |
 | Windows | ARM64 | [co-shell-v0.3.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-arm64.zip) |
+| Tool | Cross-platform | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/md2docx.py) — Markdown to Word document converter |
 
 **macOS / Linux:**
 ```bash
@@ -107,6 +108,8 @@ del co-shell.zip
 co-shell.exe
 ```
 
+
+> **💡 md2docx.py Tool**: Converts Markdown files to beautifully formatted Word documents (supports official Chinese government document format GB/T 9704-2012). Just download and place it in the `bin/` folder under your co-shell working directory — co-shell will automatically install dependencies and use it to generate DOCX reports.
 
 #### Option 2: Build from Source
 
