@@ -252,8 +252,8 @@ func DefaultConfig() *Config {
 			ConfirmCommand:            true,
 			ResultMode:                int(ResultModeFree),
 			ContextLimit:              -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
-			MemoryEnabled:             false,
-			PlanEnabled:               false,
+			MemoryEnabled:             true,
+			PlanEnabled:               true,
 			SubAgentEnabled:           true,
 			OutputMode:                int(OutputModeNormal),
 			SearchMaxLineLength:       8192,

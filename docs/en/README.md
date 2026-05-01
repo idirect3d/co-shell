@@ -108,6 +108,7 @@ del co-shell.zip
 co-shell.exe
 ```
 
+> **⚠️ Windows Security Notice**: co-shell is compiled with Go and is a standard native executable. Since it is not digitally signed, Windows Defender or some antivirus software may falsely flag it as a virus. This is common for Go-compiled CLI tools (e.g., Hugo, Terraform). Rest assured, this project is fully open source — you can verify by building from source. If blocked, click "More info" → "Run anyway".
 
 > **💡 md2docx.py Tool**: Converts Markdown files to beautifully formatted Word documents (supports official Chinese government document format GB/T 9704-2012). Just download and place it in the `bin/` folder under your co-shell working directory — co-shell will automatically install dependencies and use it to generate DOCX reports.
 
@@ -177,13 +178,69 @@ Options:
 
 ---
 
+## Configuration Reference
+
+The following table lists all configurable parameters, their CLI flags, REPL `.set` commands, JSON config keys, default values, and descriptions.
+
+| Parameter | CLI Flag | REPL `.set` | Config Key | Default | Description |
+|---|---|---|---|---|---|
+| **API & Model** | | | | | |
+| API Key | `-k, --api-key` | `api-key` | `api_key` | `""` | LLM provider API key |
+| Endpoint | `-e, --endpoint` | `endpoint` | `endpoint` | `https://api.deepseek.com` | LLM API endpoint URL |
+| Model | `-m, --model` | `model` | `model` | `deepseek-v4-flash` | LLM model name |
+| Provider | — | — | `provider` | `deepseek` | LLM provider preset name |
+| Temperature | `--temperature` | `temperature` | `temperature` | `0.7` | LLM temperature (0.0–2.0) |
+| Max Tokens | `--max-tokens` | `max-tokens` | `max_tokens` | `393216` | Max output tokens |
+| Max Iterations | `--max-iterations` | `max-iterations` | `max_iterations` | `1000` | Max agent loop iterations (-1 = unlimited) |
+| Max Retries | — | `max-retries` | `max_retries` | `3` | Max retries for transient LLM errors |
+| Vision Support | `--vision` | `vision` | `vision_support` | `off` | Enable multimodal image input |
+| Thinking Mode | — | `thinking-enabled` | `thinking_enabled` | `off` | Enable LLM reasoning/thinking mode |
+| Reasoning Effort | — | `reasoning-effort` | `reasoning_effort` | `low` | Reasoning depth (low/medium/high) |
+| **Display & Output** | | | | | |
+| Show Thinking | `--show-thinking` | `show-thinking` | `show_thinking` | `off` | Display AI thinking process |
+| Show Command | `--show-command` | `show-command` | `show_command` | `on` | Display executed system commands |
+| Show Output | `--show-output` | `show-output` | `show_output` | `on` | Display command execution output |
+| Result Mode | `--result-mode` | `result-mode` | `result_mode` | `free` | Result presentation (minimal/explain/analyze/free) |
+| Output Mode | — | `output-mode` | `output_mode` | `normal` | LLM front-end output (compact/normal/debug) |
+| **Safety & Timeout** | | | | | |
+| Confirm Command | `--confirm-command` | `confirm-command` | `confirm_command` | `on` | Require confirmation before executing commands |
+| Tool Timeout | `--tool-timeout` | `tool-timeout` | `tool_timeout` | `0` (unlimited) | Tool call timeout in seconds |
+| Command Timeout | `--cmd-timeout` | `cmd-timeout` | `cmd_timeout` | `0` (unlimited) | System command timeout in seconds |
+| LLM Timeout | `--llm-timeout` | `llm-timeout` | `llm_timeout` | `0` (unlimited) | LLM API request timeout in seconds |
+| Error Max Single | — | `error-max-single-count` | `error_max_single_count` | `10` | Max occurrences of same error before prompt |
+| Error Max Types | — | `error-max-type-count` | `error_max_type_count` | `100` | Max distinct error types before prompt |
+| **Memory & Context** | | | | | |
+| Memory Enabled | `--memory-enabled` | `memory-enabled` | `memory_enabled` | `on` | Enable persistent memory tools |
+| Context Limit | — | `context-limit` | `context_limit` | `-1` (all) | Recent messages in LLM context (0=off, N=last N) |
+| Memory Search Max Content | — | `memory-search-max-content-len` | `memory_search_max_content_len` | `512` | Max content length in memory search results |
+| Memory Search Max Results | — | `memory-search-max-results` | `memory_search_max_results` | `100` | Max results returned by memory search |
+| **Tasks & Sub-Agents** | | | | | |
+| Plan Enabled | `--plan-enabled` | `plan-enabled` | `plan_enabled` | `on` | Enable task plan tools |
+| SubAgent Enabled | `--subagent-enabled` | `subagent-enabled` | `sub_agent_enabled` | `on` | Enable sub-agent tools |
+| **Search & Debug** | | | | | |
+| Search Max Line Length | — | `search-max-line-length` | `search_max_line_length` | `8192` | Max chars per line in search results |
+| Search Max Result Bytes | — | `search-max-result-bytes` | `search_max_result_bytes` | `65536` | Max total bytes for search results |
+| Search Context Lines | — | `search-context-lines` | `search_context_lines` | `5` | Context lines before/after each match |
+| Log Enabled | `--log` | `log` | `log_enabled` | `on` | Enable file logging |
+| **Agent Identity** | | | | | |
+| Agent Name | `-n, --name` | `name` | `agent_name` | `co-shell` | Agent name for identification |
+| Agent Description | `--description` | `description` | `agent_description` | `""` | Agent expertise description |
+| Agent Principles | `--principles` | `principles` | `agent_principles` | `""` | Agent core principles |
+| **Workspace** | | | | | |
+| Workspace Path | `-w, --workspace` | — | — | current dir | Workspace root directory |
+| Config Path | `-c, --config` | — | — | `{workspace}/config.json` | Config file path |
+| Language | `--lang` | — | — | auto-detect | Interface language (zh/en) |
+| Image Input | `-i, --image` | — | — | `""` | Image path(s) for multimodal input |
+
+---
+
 ## Built-in Commands
 
 All built-in commands start with `.` and support Tab completion.
 
 | Command | Description |
 |---|---|
-| `.set` | LLM API parameter management (api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log / result-mode / name / description / principles / vision / tool-timeout / cmd-timeout / llm-timeout) |
+| `.set` | LLM API parameter management (see Configuration Reference above) |
 | `.mcp` | MCP Server management (add / remove / list / enable / disable) |
 | `.rule` | Global rule management (add / remove / clear) |
 | `.memory` | Persistent memory management (save / get / search / delete / clear) |
