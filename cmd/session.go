@@ -107,22 +107,21 @@ func (h *SessionHandler) showSession() (string, error) {
 		// Show agent name
 		sb.WriteString(fmt.Sprintf("  %s: %s\n", i18n.T(i18n.KeySessionAgentName), h.agent.Name()))
 
-		// Show last few messages as summary
+		// Show all messages
 		sb.WriteString("\n" + i18n.T(i18n.KeySessionRecentMessages) + "\n")
-		start := 0
-		if total > 10 {
-			start = total - 10
-		}
-		for i := start; i < total; i++ {
+		// Get message pointer from agent
+		pointerIdx := h.agent.MessagePointer()
+		for i := 0; i < total; i++ {
 			msg := messages[i]
 			content := msg.Content
-			// Truncate long content
-			if len(content) > 80 {
-				content = content[:77] + "..."
-			}
 			// Replace newlines with spaces for display
 			content = strings.ReplaceAll(content, "\n", " ")
-			sb.WriteString(fmt.Sprintf("  %4d  [%-9s] %s\n", i+1, msg.Role, content))
+			// Mark the pointer message with a star
+			marker := " "
+			if i == pointerIdx {
+				marker = "*"
+			}
+			sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s\n", marker, i+1, msg.Role, content))
 		}
 	}
 

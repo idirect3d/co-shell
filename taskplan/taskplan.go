@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/memory"
 	"github.com/idirect3d/co-shell/store"
 )
@@ -77,16 +78,19 @@ const currentPlanKey = "current"
 // Manager handles task plan CRUD operations.
 // Only one active plan exists at a time.
 type Manager struct {
-	store       *store.Store
-	memoryMgr   *memory.Manager
-	planCounter int // monotonically increasing counter for plan IDs
+	store         *store.Store
+	memoryMgr     *memory.Manager
+	planCounter   int    // monotonically increasing counter for plan IDs
+	memoryEnabled bool   // whether memory archival is enabled
+	agentName     string // name of the agent for memory archival
 }
 
 // NewManager creates a new TaskPlan manager.
 func NewManager(s *store.Store) *Manager {
 	mgr := &Manager{
-		store:     s,
-		memoryMgr: memory.NewManager(s),
+		store:         s,
+		memoryMgr:     memory.NewManager(s),
+		memoryEnabled: false, // disabled by default, agent will enable it
 	}
 	// Load the current plan to determine the counter
 	plan, err := mgr.loadCurrent()
@@ -94,6 +98,16 @@ func NewManager(s *store.Store) *Manager {
 		mgr.planCounter = plan.ID
 	}
 	return mgr
+}
+
+// SetMemoryEnabled enables or disables memory archival for task plans.
+func (m *Manager) SetMemoryEnabled(enabled bool) {
+	m.memoryEnabled = enabled
+}
+
+// SetAgentName sets the agent name used for memory archival.
+func (m *Manager) SetAgentName(name string) {
+	m.agentName = name
 }
 
 // HasUnfinished returns true if there is a current plan with unfinished steps.
@@ -128,7 +142,7 @@ func (m *Manager) Create(title, description string, steps []string) (*TaskPlan, 
 	// Archive existing plan to memory if it exists
 	existing, err := m.loadCurrent()
 	if err == nil && existing != nil && len(existing.Steps) > 0 {
-		if err := m.archiveToMemory(existing); err != nil {
+		if err := m.archiveToMemory(existing, false); err != nil {
 			return nil, fmt.Errorf("无法归档旧任务计划: %w", err)
 		}
 	}
@@ -205,6 +219,8 @@ func (m *Manager) UpdateStepStatus(stepID int, status TaskStatus, note string) (
 // Steps after `to` are renumbered.
 // IMPORTANT: no completed steps can be removed.
 // Returns an error if any step in the range is completed.
+// If all steps are removed, the plan is auto-archived to memory (if enabled) and deleted,
+// allowing the LLM to create a new plan.
 func (m *Manager) RemoveSteps(from, to int) (*TaskPlan, error) {
 	plan, err := m.loadCurrent()
 	if err != nil {
@@ -231,6 +247,17 @@ func (m *Manager) RemoveSteps(from, to int) (*TaskPlan, error) {
 
 	// Remove steps [from-1, to)
 	plan.Steps = append(plan.Steps[:from-1], plan.Steps[to:]...)
+
+	// If all steps were removed, archive as cancelled and delete the plan
+	if len(plan.Steps) == 0 {
+		if err := m.archiveToMemory(plan, true); err != nil {
+			log.Warn("Failed to archive cancelled plan: %v", err)
+		}
+		if err := m.store.DeleteContext(currentPlanKey); err != nil {
+			return nil, fmt.Errorf("无法删除空任务计划: %w", err)
+		}
+		return plan, nil
+	}
 
 	// Re-assign sequential IDs
 	for i := range plan.Steps {
@@ -323,13 +350,23 @@ func (m *Manager) InsertStepsAfter(afterStepID int, newStepDescriptions []string
 
 // archiveToMemory archives the given task plan to conversation memory.
 // The plan is formatted as a human-readable string and saved as a memory entry.
-func (m *Manager) archiveToMemory(plan *TaskPlan) error {
-	content := fmt.Sprintf("📋 已完成任务计划 #%d: %s\n", plan.ID, plan.Title)
+// If memory is not enabled, this is a no-op.
+// If cancelled is true, the plan is marked as cancelled instead of completed.
+func (m *Manager) archiveToMemory(plan *TaskPlan, cancelled bool) error {
+	if !m.memoryEnabled {
+		return nil
+	}
+
+	statusLabel := "已完成"
+	if cancelled {
+		statusLabel = "已取消"
+	}
+	content := fmt.Sprintf("📋 %s任务计划 #%d: %s\n", statusLabel, plan.ID, plan.Title)
 	if plan.Description != "" {
 		content += fmt.Sprintf("   描述: %s\n", plan.Description)
 	}
 	content += fmt.Sprintf("   创建时间: %s\n", plan.CreatedAt)
-	content += fmt.Sprintf("   完成时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	content += fmt.Sprintf("   %s时间: %s\n", statusLabel, time.Now().Format("2006-01-02 15:04:05"))
 
 	total := len(plan.Steps)
 	completed := 0
@@ -348,7 +385,11 @@ func (m *Manager) archiveToMemory(plan *TaskPlan) error {
 		}
 	}
 
-	return m.memoryMgr.AddMessage("system", content, time.Now())
+	name := m.agentName
+	if name == "" {
+		name = "system"
+	}
+	return m.memoryMgr.AddMessage(name, content, time.Now())
 }
 
 // loadCurrent loads the current task plan from the store.
