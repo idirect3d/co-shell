@@ -243,7 +243,7 @@ An in-depth research report on China's first domestically developed jet airliner
 
 Release Candidate 1 — feature complete, ready for preview.
 
-**亮点**: 全面对话上下文管理、持久化记忆与检索、LLM 输出模式切换、思考过程开关、Token 用量统计、错误重试智能限制、数字批量批准、小米/GLM 最新模型支持。
+**版本亮点**: 全面对话上下文管理、持久化记忆与检索、LLM 输出模式切换、思考过程开关、Token 用量统计、错误重试智能限制、数字批量批准、小米/GLM 最新模型支持、**报告自动生成公文格式 DOCX**（GB/T 9704-2012 标准）。
 
 **Implemented Features:**
 
@@ -272,6 +272,7 @@ Release Candidate 1 — feature complete, ready for preview.
 - **New model support** — Xiaomi (Mi), GLM (Z.ai) latest models
 - **Setup wizard enhancement** — skip endpoint for built-in providers, enhanced risk warnings
 - **Sample research reports** — added real-world usage examples
+- **Official document format output** — research reports auto-generated as GB/T 9704-2012 compliant DOCX (小标宋 title, 黑体/楷体/仿宋 headings, fixed 28pt line spacing, 2-char first-line indent). [Download samples](#sample-research-reports) to see the effect.
 
 ### v0.2.0 — Beta
 
