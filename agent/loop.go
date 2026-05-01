@@ -97,9 +97,14 @@ type Agent struct {
 	// messagePointer is the index in a.messages that marks the starting position
 	// for sending to LLM. Messages before this index are ignored when building
 	// context for LLM calls. When a new checklist is created or updated, the
-	// checklist content is appended as a new assistant message (not saved to memory),
-	// and the pointer is moved to the end, effectively ignoring prior conversation.
+	// pointer is moved to the end, effectively ignoring prior conversation.
 	messagePointer int
+
+	// needAdjustPointer is set by createTaskPlanTool/insertTaskStepsTool/removeTaskStepsTool
+	// when the task plan is successfully modified. The agent loop checks this flag after
+	// all tool messages have been appended, and adjusts messagePointer to skip past
+	// the tool messages, so the next LLM iteration starts fresh from the checklist context.
+	needAdjustPointer bool
 }
 
 // New creates a new Agent instance.
@@ -577,6 +582,17 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			})
 			a.mu.Unlock()
 		}
+
+		// If a task plan was modified (created/inserted/removed), adjust messagePointer
+		// to skip past all tool messages, so the next LLM iteration starts fresh
+		// from the checklist context (the tool result containing the checklist).
+		a.mu.Lock()
+		if a.needAdjustPointer {
+			a.messagePointer = len(a.messages) - 1
+			a.adjustMessagePointer()
+			a.needAdjustPointer = false
+		}
+		a.mu.Unlock()
 	}
 
 	log.Error("Agent.Run: reached maximum iterations (%d)", a.maxIterations)
@@ -770,6 +786,17 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		if modifyRequested {
 			continue
 		}
+
+		// If a task plan was modified (created/inserted/removed), adjust messagePointer
+		// to skip past all tool messages, so the next LLM iteration starts fresh
+		// from the checklist context (the tool result containing the checklist).
+		a.mu.Lock()
+		if a.needAdjustPointer {
+			a.messagePointer = len(a.messages) - 1
+			a.adjustMessagePointer()
+			a.needAdjustPointer = false
+		}
+		a.mu.Unlock()
 
 	}
 
@@ -2288,11 +2315,11 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 // createTaskPlanTool creates a new task plan with title, description, and steps.
 // If there is an existing plan with unfinished steps, it returns an error.
 // If there is an existing plan (all completed), it is archived to memory first.
-// After creating the plan, the checklist content is appended to messages as a new
-// assistant message (not saved to memory), and the messagePointer is moved to the end.
-// If the pointer position is preceded by tool messages, the pointer is moved further
-// back to the first non-tool message, ensuring the LLM sees a clean context starting
-// from the checklist.
+// After creating the plan, needAdjustPointer is set to true so the agent loop
+// will adjust messagePointer after all tool messages have been appended.
+// The checklist content is returned as the tool result (visible to LLM),
+// but no extra assistant message is inserted to avoid breaking the
+// assistant(tool_calls) -> tool message sequence required by the API.
 func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("createTaskPlanTool called: args=%v", args)
 	title, ok := args["title"].(string)
@@ -2324,16 +2351,9 @@ func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interfac
 	formatted := taskplan.FormatPlan(plan)
 	fmt.Println(formatted)
 
-	// Append checklist as assistant message (not saved to memory) and move pointer
+	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
-	checklistMsg := fmt.Sprintf("📋 我已制定以下任务计划，请按步骤执行：\n\n%s", formatted)
-	a.messages = append(a.messages, llm.Message{
-		Role:    "assistant",
-		Content: checklistMsg,
-	})
-	a.messagePointer = len(a.messages) - 1
-	// Move pointer back past any tool messages to ensure clean context
-	a.adjustMessagePointer()
+	a.needAdjustPointer = true
 	a.mu.Unlock()
 
 	return formatted, nil
@@ -2366,8 +2386,11 @@ func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interfac
 }
 
 // insertTaskStepsTool inserts new steps after a specified step in the current task plan.
-// After inserting steps, the updated checklist content is appended to messages as a new
-// assistant message (not saved to memory), and the messagePointer is moved to the end.
+// After inserting steps, needAdjustPointer is set to true so the agent loop
+// will adjust messagePointer after all tool messages have been appended.
+// The updated checklist content is returned as the tool result (visible to LLM),
+// but no extra assistant message is inserted to avoid breaking the
+// assistant(tool_calls) -> tool message sequence required by the API.
 func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("insertTaskStepsTool called: args=%v", args)
 	afterStepID, ok := args["after_step_id"].(float64)
@@ -2397,24 +2420,20 @@ func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interfa
 	formatted := taskplan.FormatPlan(plan)
 	fmt.Println(formatted)
 
-	// Append updated checklist as assistant message (not saved to memory) and move pointer
+	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
-	checklistMsg := fmt.Sprintf("📋 我已调整任务计划，新增了步骤，请按更新后的计划执行：\n\n%s", formatted)
-	a.messages = append(a.messages, llm.Message{
-		Role:    "assistant",
-		Content: checklistMsg,
-	})
-	a.messagePointer = len(a.messages) - 1
-	// Move pointer back past any tool messages to ensure clean context
-	a.adjustMessagePointer()
+	a.needAdjustPointer = true
 	a.mu.Unlock()
 
 	return formatted, nil
 }
 
 // removeTaskStepsTool removes steps from the current task plan by step ID range.
-// After removing steps, the updated checklist content is appended to messages as a new
-// assistant message (not saved to memory), and the messagePointer is moved to the end.
+// After removing steps, needAdjustPointer is set to true so the agent loop
+// will adjust messagePointer after all tool messages have been appended.
+// The updated checklist content is returned as the tool result (visible to LLM),
+// but no extra assistant message is inserted to avoid breaking the
+// assistant(tool_calls) -> tool message sequence required by the API.
 func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("removeTaskStepsTool called: args=%v", args)
 	from, ok := args["from"].(float64)
@@ -2435,16 +2454,9 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 	formatted := taskplan.FormatPlan(plan)
 	fmt.Println(formatted)
 
-	// Append updated checklist as assistant message (not saved to memory) and move pointer
+	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
-	checklistMsg := fmt.Sprintf("📋 我已调整任务计划，移除了部分步骤，请按更新后的计划执行：\n\n%s", formatted)
-	a.messages = append(a.messages, llm.Message{
-		Role:    "assistant",
-		Content: checklistMsg,
-	})
-	a.messagePointer = len(a.messages) - 1
-	// Move pointer back past any tool messages to ensure clean context
-	a.adjustMessagePointer()
+	a.needAdjustPointer = true
 	a.mu.Unlock()
 
 	return formatted, nil
