@@ -196,6 +196,8 @@ var enMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -420,7 +422,7 @@ no liability whatsoever.`,
 	KeyCol3Desc:         "Agent description",
 	KeyCol3Principles:   "Agent principles",
 	KeyCol3Vision:       "vision(on|off)",
-	KeyCol3ContextLimit: "context limit(0=no history, N=last N, -1=all)",
+	KeyCol3ContextLimit: "context limit(0=no history, N=last N, -1=unlimited)",
 	KeyCol3OutputMode:   "output mode(compact/normal/debug)",
 
 	// Context limit
@@ -536,4 +538,21 @@ Current Environment:
 	KeyCol3MemorySearchMaxResults:    "Memory search max results",
 	KeySettingsDescMemSearchMaxLen:   "Max character length for content in memory search results, truncated if exceeded (default: 32)",
 	KeySettingsDescMemSearchMaxRes:   "Max number of results returned by memory search (default: 1000)",
+
+	// Thinking enabled
+	KeyCol3ThinkingEnabled: "AI thinking(on|off)",
+	KeyCol3ReasoningEffort: "reasoning effort(low/medium/high)",
+
+	// Settings group titles
+	KeySettingsGroupIdentity:    "[ Identity & Personality ]",
+	KeySettingsGroupModel:       "[ Model Parameters ]",
+	KeySettingsGroupDisplay:     "[ Display & Output ]",
+	KeySettingsGroupSafety:      "[ Safety & Confirmation ]",
+	KeySettingsGroupMemory:      "[ Memory & Context ]",
+	KeySettingsGroupTask:        "[ Tasks & Sub-Agents ]",
+	KeySettingsGroupSearchDebug: "[ Search & Debug ]",
+
+	// Error settings column 3 labels
+	KeyCol3ErrorMaxSingleCount: "Max occurrences of same error",
+	KeyCol3ErrorMaxTypeCount:   "Max distinct error types",
 }

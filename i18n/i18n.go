@@ -574,4 +574,21 @@ const (
 	KeyCol3MemorySearchMaxResults    = "col3_memory_search_max_results"
 	KeySettingsDescMemSearchMaxLen   = "settings_desc_mem_search_max_len"
 	KeySettingsDescMemSearchMaxRes   = "settings_desc_mem_search_max_res"
+
+	// Thinking enabled
+	KeyCol3ThinkingEnabled = "col3_thinking_enabled"
+	KeyCol3ReasoningEffort = "col3_reasoning_effort"
+
+	// Settings group titles
+	KeySettingsGroupIdentity    = "settings_group_identity"
+	KeySettingsGroupModel       = "settings_group_model"
+	KeySettingsGroupDisplay     = "settings_group_display"
+	KeySettingsGroupSafety      = "settings_group_safety"
+	KeySettingsGroupMemory      = "settings_group_memory"
+	KeySettingsGroupTask        = "settings_group_task"
+	KeySettingsGroupSearchDebug = "settings_group_search_debug"
+
+	// Error settings column 3 labels
+	KeyCol3ErrorMaxSingleCount = "col3_error_max_single_count"
+	KeyCol3ErrorMaxTypeCount   = "col3_error_max_type_count"
 )

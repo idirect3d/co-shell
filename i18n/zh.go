@@ -198,6 +198,8 @@ var zhMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -422,7 +424,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Desc:         "Agent 描述",
 	KeyCol3Principles:   "Agent 核心原则",
 	KeyCol3Vision:       "视觉识别(on|off)",
-	KeyCol3ContextLimit: "对话上下文限制(0=不包含历史, N=最近N条, -1=所有)",
+	KeyCol3ContextLimit: "对话上下文限制(0=不包含历史, N=最近N条, -1=不限制)",
 	KeyCol3OutputMode:   "输出模式(compact/normal/debug)",
 
 	// Context limit
@@ -540,4 +542,21 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3MemorySearchMaxResults:    "记忆搜索最大结果数",
 	KeySettingsDescMemSearchMaxLen:   "记忆搜索返回结果中 content 的最大字符长度，超长截断（默认 32）",
 	KeySettingsDescMemSearchMaxRes:   "记忆搜索最大召回记录数（默认 1000）",
+
+	// Thinking enabled
+	KeyCol3ThinkingEnabled: "AI 思考模式(on|off)",
+	KeyCol3ReasoningEffort: "推理努力程度(low/medium/high)",
+
+	// Settings group titles
+	KeySettingsGroupIdentity:    "[ 身份 与 人格 ]",
+	KeySettingsGroupModel:       "[ 模型参数 ]",
+	KeySettingsGroupDisplay:     "[ 显示 与 输出 ]",
+	KeySettingsGroupSafety:      "[ 安全 与 确认 ]",
+	KeySettingsGroupMemory:      "[ 记忆 与 上下文 ]",
+	KeySettingsGroupTask:        "[ 任务 与 子代理 ]",
+	KeySettingsGroupSearchDebug: "[ 搜索 与 调试 ]",
+
+	// Error settings column 3 labels
+	KeyCol3ErrorMaxSingleCount: "相同错误最大出现次数",
+	KeyCol3ErrorMaxTypeCount:   "不同错误类型最大数量",
 }
