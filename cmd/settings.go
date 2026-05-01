@@ -658,6 +658,53 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Error max type count set to %d", n)
 		return fmt.Sprintf("✅ 不同错误类型最大数量已设置为: %d", n), nil
 
+	case "thinking-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ThinkingEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("AI 思考模式: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ThinkingEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ThinkingEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set thinking-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Rebuild LLM client to apply new thinking setting immediately
+		h.rebuildLLMClient()
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ThinkingEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Thinking enabled set to %s", status)
+		return fmt.Sprintf("✅ AI 思考模式已设置为: %s", status), nil
+
+	case "reasoning-effort":
+		if len(args) < 2 {
+			return fmt.Sprintf("推理努力程度: %s", h.cfg.LLM.ReasoningEffort), nil
+		}
+		effort := args[1]
+		switch effort {
+		case "low", "medium", "high":
+			h.cfg.LLM.ReasoningEffort = effort
+		default:
+			return "", fmt.Errorf("无效的推理努力程度: %s（可选值: low, medium, high）", effort)
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Rebuild LLM client to apply new reasoning effort immediately
+		h.rebuildLLMClient()
+		log.Info("Reasoning effort set to %s", effort)
+		return fmt.Sprintf("✅ 推理努力程度已设置为: %s", effort), nil
+
 	case "log":
 
 		if len(args) < 2 {
@@ -694,13 +741,220 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	}
 }
 
-// showSettingsHelp displays the current configuration with parameter names and value ranges.
+// showSettingsHelp displays the current configuration grouped by category.
 func showSettingsHelp(cfg *config.Config) string {
 	var sb strings.Builder
 	sb.WriteString(i18n.T(i18n.KeySettingsHelpFooter) + "\n")
 	sb.WriteString("\n")
 	sb.WriteString(i18n.T(i18n.KeySettingsCurrentTitle) + "\n")
-	sb.WriteString(cfg.Show())
+
+	// Prepare all value strings first to calculate max width for alignment
+	type settingLine struct {
+		name  string
+		value string
+		col3  string
+	}
+
+	// Helper to build a setting line struct
+	makeLine := func(name, value, col3 string) settingLine {
+		return settingLine{name: name + ":", value: value, col3: col3}
+	}
+
+	// Prepare values
+	thinkingStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowThinking {
+		thinkingStatus = i18n.T(i18n.KeyOn)
+	}
+	commandStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowCommand {
+		commandStatus = i18n.T(i18n.KeyOn)
+	}
+	outputStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowOutput {
+		outputStatus = i18n.T(i18n.KeyOn)
+	}
+	confirmStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ConfirmCommand {
+		confirmStatus = i18n.T(i18n.KeyOn)
+	}
+	logStatus := i18n.T(i18n.KeyOff)
+	if cfg.LogEnabled {
+		logStatus = i18n.T(i18n.KeyOn)
+	}
+	visionStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.VisionSupport {
+		visionStatus = i18n.T(i18n.KeyOn)
+	}
+	memoryEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.MemoryEnabled {
+		memoryEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	planEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.PlanEnabled {
+		planEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	subAgentEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.SubAgentEnabled {
+		subAgentEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	thinkingEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ThinkingEnabled {
+		thinkingEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+
+	maxIterStr := fmt.Sprintf("%d", cfg.LLM.MaxIterations)
+	if cfg.LLM.MaxIterations <= 0 {
+		maxIterStr = "1000 (" + i18n.T(i18n.KeyDefault) + ")"
+	}
+
+	toolTimeoutStr := fmt.Sprintf("%d", cfg.LLM.ToolTimeout)
+	if cfg.LLM.ToolTimeout <= 0 {
+		toolTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+	cmdTimeoutStr := fmt.Sprintf("%d", cfg.LLM.CommandTimeout)
+	if cfg.LLM.CommandTimeout <= 0 {
+		cmdTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+	llmTimeoutStr := fmt.Sprintf("%d", cfg.LLM.LLMTimeout)
+	if cfg.LLM.LLMTimeout <= 0 {
+		llmTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+
+	contextLimitStr := fmt.Sprintf("%d", cfg.LLM.ContextLimit)
+	if cfg.LLM.ContextLimit == 0 {
+		contextLimitStr = i18n.T(i18n.KeyOff)
+	} else if cfg.LLM.ContextLimit == -1 {
+		contextLimitStr = i18n.T(i18n.KeyUnlimited)
+	}
+
+	agentName := cfg.LLM.AgentName
+	if agentName == "" {
+		agentName = "co-shell"
+	}
+	agentDesc := cfg.LLM.AgentDescription
+	if agentDesc == "" {
+		agentDesc = "（" + i18n.T(i18n.KeyUnlimited) + "）"
+	}
+	agentPrinciples := cfg.LLM.AgentPrinciples
+	if agentPrinciples == "" {
+		agentPrinciples = "（" + i18n.T(i18n.KeyUnlimited) + "）"
+	}
+
+	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
+	outputModeStr := config.OutputModeString(config.OutputMode(cfg.LLM.OutputMode))
+
+	// Collect all lines
+	var allLines []settingLine
+
+	// Group 1: Identity & Personality
+	allLines = append(allLines,
+		makeLine("name", agentName, i18n.T(i18n.KeyCol3Name)),
+		makeLine("description", agentDesc, i18n.T(i18n.KeyCol3Desc)),
+		makeLine("principles", agentPrinciples, i18n.T(i18n.KeyCol3Principles)),
+	)
+
+	// Group 2: Model Parameters
+	allLines = append(allLines,
+		makeLine("provider", cfg.LLM.Provider, i18n.T(i18n.KeyCol3Provider)),
+		makeLine("endpoint", cfg.LLM.Endpoint, i18n.T(i18n.KeyCol3Endpoint)),
+		makeLine("model", cfg.LLM.Model, i18n.T(i18n.KeyCol3Model)),
+		makeLine("temperature", fmt.Sprintf("%.1f", cfg.LLM.Temperature), i18n.T(i18n.KeyCol3Temperature)),
+		makeLine("max-tokens", fmt.Sprintf("%d", cfg.LLM.MaxTokens), i18n.T(i18n.KeyCol3MaxTokens)),
+		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
+		makeLine("max-retries", fmt.Sprintf("%d", cfg.LLM.MaxRetries), i18n.T(i18n.KeyCol3MaxRetries)),
+		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
+		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
+		makeLine("reasoning-effort", cfg.LLM.ReasoningEffort, i18n.T(i18n.KeyCol3ReasoningEffort)),
+		makeLine("api-key", maskKey(cfg.LLM.APIKey), i18n.T(i18n.KeyCol3APIKey)),
+	)
+
+	// Group 3: Display & Output
+	allLines = append(allLines,
+		makeLine("show-thinking", thinkingStatus, i18n.T(i18n.KeyCol3Thinking)),
+		makeLine("show-command", commandStatus, i18n.T(i18n.KeyCol3Command)),
+		makeLine("show-output", outputStatus, i18n.T(i18n.KeyCol3Output)),
+		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
+		makeLine("output-mode", outputModeStr, i18n.T(i18n.KeyCol3OutputMode)),
+	)
+
+	// Group 4: Safety & Confirmation
+	allLines = append(allLines,
+		makeLine("confirm-command", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
+		makeLine("tool-timeout", toolTimeoutStr, i18n.T(i18n.KeyCol3ToolTimeout)),
+		makeLine("cmd-timeout", cmdTimeoutStr, i18n.T(i18n.KeyCol3CmdTimeout)),
+		makeLine("llm-timeout", llmTimeoutStr, i18n.T(i18n.KeyCol3LLMTimeout)),
+		makeLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.T(i18n.KeyCol3ErrorMaxSingleCount)),
+		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
+	)
+
+	// Group 5: Memory & Context
+	allLines = append(allLines,
+		makeLine("memory-enabled", memoryEnabledStatus, i18n.T(i18n.KeyCol3MemoryEnabled)),
+		makeLine("context-limit", contextLimitStr, i18n.T(i18n.KeyCol3ContextLimit)),
+		makeLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)),
+		makeLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), i18n.T(i18n.KeyCol3MemorySearchMaxResults)),
+	)
+
+	// Group 6: Tasks & Sub-Agents
+	allLines = append(allLines,
+		makeLine("plan-enabled", planEnabledStatus, i18n.T(i18n.KeyCol3PlanEnabled)),
+		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
+	)
+
+	// Group 7: Search & Debug
+	allLines = append(allLines,
+		makeLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.T(i18n.KeyCol3SearchMaxLineLength)),
+		makeLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.T(i18n.KeyCol3SearchMaxResultBytes)),
+		makeLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), i18n.T(i18n.KeyCol3SearchContextLines)),
+		makeLine("log", logStatus, i18n.T(i18n.KeyCol3Log)),
+	)
+
+	// Helper to format a setting line with fixed column widths
+	formatLine := func(name, value, col3 string) string {
+		return fmt.Sprintf("  %-32s %-30s %s\n", name, value, col3)
+	}
+
+	// Helper to write a group
+	writeGroup := func(title string, lines ...string) {
+		sb.WriteString("\n  " + title + "\n")
+		for _, line := range lines {
+			sb.WriteString(line)
+		}
+	}
+
+	// Track index for iterating through allLines
+	lineIdx := 0
+	nextLines := func(n int) []string {
+		result := make([]string, 0, n)
+		for i := 0; i < n && lineIdx < len(allLines); i++ {
+			l := allLines[lineIdx]
+			result = append(result, formatLine(l.name, l.value, l.col3))
+			lineIdx++
+		}
+		return result
+	}
+
+	// Group 1: Identity & Personality
+	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
+
+	// Group 2: Model Parameters
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(11)...)
+
+	// Group 3: Display & Output
+	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(5)...)
+
+	// Group 4: Safety & Confirmation
+	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(6)...)
+
+	// Group 5: Memory & Context
+	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(4)...)
+
+	// Group 6: Tasks & Sub-Agents
+	writeGroup(i18n.T(i18n.KeySettingsGroupTask), nextLines(2)...)
+
+	// Group 7: Search & Debug
+	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
+
 	return sb.String()
 }
 

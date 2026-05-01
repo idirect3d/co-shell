@@ -135,6 +135,13 @@ type Client interface {
 	// Returns true if the model responds without error.
 	TestTextSupport(ctx context.Context) bool
 
+	// SetThinkingEnabled enables or disables thinking/reasoning mode in API requests.
+	SetThinkingEnabled(enabled bool)
+
+	// SetReasoningEffort sets the reasoning effort level for models that support it.
+	// Valid values: "low", "medium", "high" (model-dependent).
+	SetReasoningEffort(effort string)
+
 	// Close cleans up any resources.
 	Close() error
 }
@@ -291,13 +298,15 @@ type responseErrorJSON struct {
 
 // openAIClient implements Client using the OpenAI-compatible API.
 type openAIClient struct {
-	httpClient   *http.Client
-	streamClient *http.Client // separate client for streaming (no timeout, relies on context)
-	baseURL      string
-	apiKey       string
-	model        string
-	temperature  float64
-	maxTokens    int
+	httpClient      *http.Client
+	streamClient    *http.Client // separate client for streaming (no timeout, relies on context)
+	baseURL         string
+	apiKey          string
+	model           string
+	temperature     float64
+	maxTokens       int
+	thinkingEnabled bool   // whether to enable thinking/reasoning mode in API requests
+	reasoningEffort string // reasoning effort level: "low", "medium", "high"
 }
 
 // NewClient creates a new LLM client from configuration.
@@ -327,12 +336,14 @@ func NewClient(endpoint, apiKey, model string, temperature float64, maxTokens in
 		// Stream client has no timeout - relies on context.Context for cancellation.
 		// This is necessary because streaming responses can take a long time
 		// (e.g., DeepSeek thinking mode, large context processing).
-		streamClient: &http.Client{},
-		baseURL:      baseURL,
-		apiKey:       apiKey,
-		model:        model,
-		temperature:  temperature,
-		maxTokens:    maxTokens,
+		streamClient:    &http.Client{},
+		baseURL:         baseURL,
+		apiKey:          apiKey,
+		model:           model,
+		temperature:     temperature,
+		maxTokens:       maxTokens,
+		thinkingEnabled: false,
+		reasoningEffort: "low",
 	}
 
 }
@@ -478,10 +489,10 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		reqBody.Tools = buildTools(tools)
 	}
 
-	// Enable thinking mode for supported models
-	if isThinkingModel(c.model) {
+	// Enable thinking mode for supported models when thinking is enabled
+	if c.thinkingEnabled && isThinkingModel(c.model) {
 		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
-		reqBody.ReasoningEffort = "high"
+		reqBody.ReasoningEffort = c.reasoningEffort
 		// Thinking mode doesn't support temperature
 		reqBody.Temperature = 0
 	}
@@ -588,10 +599,10 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		reqBody.Tools = buildTools(tools)
 	}
 
-	// Enable thinking mode for supported models
-	if isThinkingModel(c.model) {
+	// Enable thinking mode for supported models when thinking is enabled
+	if c.thinkingEnabled && isThinkingModel(c.model) {
 		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
-		reqBody.ReasoningEffort = "high"
+		reqBody.ReasoningEffort = c.reasoningEffort
 		reqBody.Temperature = 0
 	}
 
@@ -1002,6 +1013,14 @@ func (c *openAIClient) TestTextSupport(ctx context.Context) bool {
 	}
 	log.Info("TestTextSupport succeeded for model %s", c.model)
 	return true
+}
+
+func (c *openAIClient) SetThinkingEnabled(enabled bool) {
+	c.thinkingEnabled = enabled
+}
+
+func (c *openAIClient) SetReasoningEffort(effort string) {
+	c.reasoningEffort = effort
 }
 
 func (c *openAIClient) Close() error {

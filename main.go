@@ -635,7 +635,11 @@ func main() {
 			cfg.LLM.MaxTokens,
 			cfg.LLM.LLMTimeout,
 		)
-		log.Info("LLM client initialized: endpoint=%s model=%s llm_timeout=%ds", cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout)
+		// Apply thinking/reasoning configuration
+		llmClient.SetThinkingEnabled(cfg.LLM.ThinkingEnabled)
+		llmClient.SetReasoningEffort(cfg.LLM.ReasoningEffort)
+		log.Info("LLM client initialized: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
+			cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout, cfg.LLM.ThinkingEnabled, cfg.LLM.ReasoningEffort)
 	} else {
 		// Create a no-op client that warns about missing API key
 		llmClient = &noopClient{}
@@ -873,6 +877,10 @@ func (c *noopClient) TestVisionSupport(ctx context.Context) bool {
 func (c *noopClient) TestTextSupport(ctx context.Context) bool {
 	return false
 }
+
+func (c *noopClient) SetThinkingEnabled(enabled bool) {}
+
+func (c *noopClient) SetReasoningEffort(effort string) {}
 
 func (c *noopClient) Close() error {
 	return nil

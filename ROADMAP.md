@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 130
+> **BUILD**: 135
 
 
 
@@ -135,7 +135,9 @@
 - [x] FEATURE-109 增加对GLM（Z.ai）最新模型的调用支持。[BUILD-132]
 - [x] ENHANCEMENT-110 大模型设置向导选择大模型类型后，如果选择的是内置支持的几个商用模型，则直接跳过地址设置环节（因为是固定的地址）。[BUILD-133]
 - [x] ENHANCEMENT-111 改进命令提示页和错误提示页，增加风险警示。[BUILD-134]
+- [x] FEATURE-112 增加thinking开关设置，可以通过命令行、REPL、和配置文件设置。[BUILD-135]
 - [x] FEATURE-115 Agent 增加 TokenUsage 和 ResetTokenUsage 方法，用于获取和重置累计 Token 用量统计 [BUILD-135]
+- [ ] FEATURE-116 增加显示token数功能，每次任务（checklist）完成时可以统计本次任务所用的token数，另外还有一个从程序启动到现在的总数。
 
 ## v1.0.0 — 正式版
 
