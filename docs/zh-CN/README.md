@@ -262,7 +262,13 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ## 成果样例
 
-co-shell 可以自主进行深度调研，通过搜索网络、收集数据并生成综合报告。以下是 co-shell 完全自主生成的真实案例：
+co-shell 可以自主进行深度调研，通过搜索网络、收集数据并生成综合报告。
+
+<video src="https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell.mp4" controls width="800"></video>
+
+*演示：co-shell 自主调研并生成综合报告的过程。*
+
+以下是 co-shell 完全自主生成的真实案例：
 
 ### 1. 北冰洋品牌深度调研报告
 

@@ -258,7 +258,13 @@ All built-in commands start with `.` and support Tab completion.
 
 ## Sample Research Reports
 
-co-shell can autonomously conduct in-depth research by searching the web, collecting data, and generating comprehensive reports. Here are some real-world examples produced entirely by co-shell:
+co-shell can autonomously conduct in-depth research by searching the web, collecting data, and generating comprehensive reports.
+
+<video src="https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell.mp4" controls width="800"></video>
+
+*Demo: co-shell autonomously researching and generating a comprehensive report.*
+
+Here are some real-world examples produced entirely by co-shell:
 
 ### 1. Arctic Ocean Brand Research (北冰洋品牌深度调研报告)
 
