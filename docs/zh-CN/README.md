@@ -111,6 +111,7 @@ del co-shell.zip
 co-shell.exe
 ```
 
+> **⚠️ Windows 安全提示**：co-shell 使用 Go 语言编译，是标准的原生可执行程序。由于未进行数字签名，Windows Defender 或部分杀毒软件可能会误报病毒。这是 Go 编译的 CLI 工具的常见情况（如 Hugo、Terraform 等均会遇到）。请放心，本项目完全开源，您可自行从源码编译验证。如遇到拦截，点击"更多信息"→"仍要运行"即可。
 
 > **💡 md2docx.py 工具**：用于将 Markdown 文件转换为精美 Word 文档（支持公文格式 GB/T 9704-2012）。下载后放入 co-shell 运行目录下的 `bin/` 文件夹即可，co-shell 会自动安装依赖并调用它生成 DOCX 报告。
 
@@ -181,13 +182,69 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ---
 
+## 配置清单
+
+下表列出了所有可配置参数，包含命令行参数、REPL `.set` 命令、JSON 配置键名、默认值和功能描述。
+
+| 参数 | 命令行参数 | REPL `.set` | 配置键 | 默认值 | 功能描述 |
+|---|---|---|---|---|---|
+| **API 与模型** | | | | | |
+| API Key | `-k, --api-key` | `api-key` | `api_key` | `""` | LLM 供应商 API 密钥 |
+| 端点地址 | `-e, --endpoint` | `endpoint` | `endpoint` | `https://api.deepseek.com` | LLM API 端点地址 |
+| 模型名称 | `-m, --model` | `model` | `model` | `deepseek-v4-flash` | LLM 模型名称 |
+| 供应商 | — | — | `provider` | `deepseek` | LLM 供应商预设名称 |
+| 温度参数 | `--temperature` | `temperature` | `temperature` | `0.7` | LLM 温度参数（0.0–2.0） |
+| 最大令牌数 | `--max-tokens` | `max-tokens` | `max_tokens` | `393216` | 最大输出令牌数 |
+| 最大迭代次数 | `--max-iterations` | `max-iterations` | `max_iterations` | `1000` | Agent 最大循环次数（-1=不限） |
+| 最大重试次数 | — | `max-retries` | `max_retries` | `3` | LLM 临时错误最大重试次数 |
+| 视觉识别 | `--vision` | `vision` | `vision_support` | `off` | 启用多模态图片输入 |
+| 思考模式 | — | `thinking-enabled` | `thinking_enabled` | `off` | 启用 LLM 推理/思考模式 |
+| 推理努力程度 | — | `reasoning-effort` | `reasoning_effort` | `low` | 推理深度（low/medium/high） |
+| **显示与输出** | | | | | |
+| 显示思考过程 | `--show-thinking` | `show-thinking` | `show_thinking` | `off` | 显示 AI 思考过程 |
+| 显示命令 | `--show-command` | `show-command` | `show_command` | `on` | 显示执行的系统命令 |
+| 显示输出 | `--show-output` | `show-output` | `show_output` | `on` | 显示命令执行输出 |
+| 结果处理模式 | `--result-mode` | `result-mode` | `result_mode` | `free` | 结果呈现方式（minimal/explain/analyze/free） |
+| 输出模式 | — | `output-mode` | `output_mode` | `normal` | LLM 前端输出（compact/normal/debug） |
+| **安全与超时** | | | | | |
+| 命令确认 | `--confirm-command` | `confirm-command` | `confirm_command` | `on` | 执行命令前需确认 |
+| 工具超时 | `--tool-timeout` | `tool-timeout` | `tool_timeout` | `0`（不限） | 工具调用超时秒数 |
+| 命令超时 | `--cmd-timeout` | `cmd-timeout` | `cmd_timeout` | `0`（不限） | 系统命令执行超时秒数 |
+| LLM 超时 | `--llm-timeout` | `llm-timeout` | `llm_timeout` | `0`（不限） | LLM API 请求超时秒数 |
+| 单错误上限 | — | `error-max-single-count` | `error_max_single_count` | `10` | 相同错误最大出现次数 |
+| 错误类型上限 | — | `error-max-type-count` | `error_max_type_count` | `100` | 不同错误类型最大数量 |
+| **记忆与上下文** | | | | | |
+| 记忆功能 | `--memory-enabled` | `memory-enabled` | `memory_enabled` | `on` | 启用持久化记忆工具 |
+| 上下文限制 | — | `context-limit` | `context_limit` | `-1`（全部） | 发送给 LLM 的最近消息数（0=关闭，N=最近 N 条） |
+| 记忆搜索内容长度 | — | `memory-search-max-content-len` | `memory_search_max_content_len` | `512` | 记忆搜索结果内容最大字符数 |
+| 记忆搜索结果数 | — | `memory-search-max-results` | `memory_search_max_results` | `100` | 记忆搜索返回的最大结果数 |
+| **任务与子代理** | | | | | |
+| 任务计划 | `--plan-enabled` | `plan-enabled` | `plan_enabled` | `on` | 启用任务计划工具 |
+| 子代理 | `--subagent-enabled` | `subagent-enabled` | `sub_agent_enabled` | `on` | 启用子代理工具 |
+| **搜索与调试** | | | | | |
+| 搜索单行长度 | — | `search-max-line-length` | `search_max_line_length` | `8192` | 搜索结果单行最大字符数 |
+| 搜索结果字节数 | — | `search-max-result-bytes` | `search_max_result_bytes` | `65536` | 搜索结果最大总字节数 |
+| 搜索上下文行数 | — | `search-context-lines` | `search_context_lines` | `5` | 匹配前后上下文行数 |
+| 日志开关 | `--log` | `log` | `log_enabled` | `on` | 启用文件日志 |
+| **Agent 身份** | | | | | |
+| Agent 名称 | `-n, --name` | `name` | `agent_name` | `co-shell` | Agent 标识名称 |
+| Agent 描述 | `--description` | `description` | `agent_description` | `""` | Agent 专长描述 |
+| Agent 原则 | `--principles` | `principles` | `agent_principles` | `""` | Agent 核心原则 |
+| **工作区** | | | | | |
+| 工作区路径 | `-w, --workspace` | — | — | 当前目录 | 工作区根目录 |
+| 配置文件路径 | `-c, --config` | — | — | `{workspace}/config.json` | 配置文件路径 |
+| 语言 | `--lang` | — | — | 自动检测 | 界面语言（zh/en） |
+| 图片输入 | `-i, --image` | — | — | `""` | 多模态图片路径 |
+
+---
+
 ## 内置命令
 
 所有内置命令以 `.` 开头，支持 Tab 自动补全。
 
 | 命令 | 功能 |
 |---|---|
-| `.set` | LLM API 参数管理（api-key / endpoint / model / temperature / max-tokens / max-iterations / show-thinking / show-command / show-output / log / result-mode / name / description / principles / vision / tool-timeout / cmd-timeout / llm-timeout） |
+| `.set` | LLM API 参数管理（详见上方配置清单） |
 | `.mcp` | MCP Server 管理（add / remove / list / enable / disable） |
 | `.rule` | 全局规则管理（add / remove / clear） |
 | `.memory` | 持久化记忆管理（save / get / search / delete / clear） |
