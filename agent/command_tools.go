@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -167,6 +168,8 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 // Returns the user's choice and any supplementary input.
 // - Enter: approve and execute
 // - c/C: cancel, return to REPL
+// - a/A: approve all commands for this request
+// - N (a positive integer): approve the next N commands
 // - Any other input: treated as supplementary instructions for the LLM to re-evaluate
 func promptCommandConfirmation(command string) (CmdConfirmResult, string) {
 	fmt.Println()
@@ -205,6 +208,11 @@ func promptCommandConfirmation(command string) (CmdConfirmResult, string) {
 
 		if lower == "a" {
 			return CmdConfirmApproveAll, ""
+		}
+
+		// Check if the user entered a positive integer (approve N commands)
+		if n, err := strconv.Atoi(response); err == nil && n > 0 {
+			return CmdConfirmApproveCount, strconv.Itoa(n)
 		}
 
 		// Any other input is treated as supplementary instructions
