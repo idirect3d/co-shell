@@ -196,6 +196,8 @@ var zhMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -530,4 +532,10 @@ AI 模型可能会生成并执行以下类型的危险命令：
   .history last [N]         查看最近 N 条记录（默认 10）
   .history first [N]        查看最早 N 条记录（默认 10）
   直接输入编号可重新执行对应历史命令`,
+
+	// Memory search config
+	KeyCol3MemorySearchMaxContentLen: "记忆搜索内容最大长度",
+	KeyCol3MemorySearchMaxResults:    "记忆搜索最大结果数",
+	KeySettingsDescMemSearchMaxLen:   "记忆搜索返回结果中 content 的最大字符长度，超长截断（默认 32）",
+	KeySettingsDescMemSearchMaxRes:   "记忆搜索最大召回记录数（默认 1000）",
 }

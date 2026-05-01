@@ -194,6 +194,8 @@ var enMessages = map[string]string{
   %-20s %-30s %s
   %-20s %-30s %s
   %-20s %-30s %s
+  %-20s %-30s %s
+  %-20s %-30s %s
   %-20s %-30s %s`,
 
 	// REPL - Additional
@@ -526,4 +528,10 @@ Current Environment:
   .history last [N]         View last N entries (default 10)
   .history first [N]        View first N entries (default 10)
   Enter a number to re-execute a history command`,
+
+	// Memory search config
+	KeyCol3MemorySearchMaxContentLen: "Memory search max content length",
+	KeyCol3MemorySearchMaxResults:    "Memory search max results",
+	KeySettingsDescMemSearchMaxLen:   "Max character length for content in memory search results, truncated if exceeded (default: 32)",
+	KeySettingsDescMemSearchMaxRes:   "Max number of results returned by memory search (default: 1000)",
 }

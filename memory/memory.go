@@ -153,9 +153,11 @@ type SearchResult struct {
 
 // SearchParams defines parameters for memory search.
 type SearchParams struct {
-	Keywords []string  // keywords to search for (AND logic: all must match)
-	Since    time.Time // only return messages after this time (zero value = no filter)
-	Name     string    // filter by speaker name (empty = no filter)
+	Keywords      []string  // keywords to search for (AND logic: all must match)
+	Since         time.Time // only return messages after this time (zero value = no filter)
+	Name          string    // filter by speaker name (empty = no filter)
+	MaxResults    int       // maximum number of results to return (0 = no limit)
+	MaxContentLen int       // maximum character length for content in results (0 = no truncation)
 }
 
 // Search searches conversation memory for messages matching the given criteria.
@@ -238,6 +240,11 @@ func (m *Manager) Search(params SearchParams) ([]SearchResult, error) {
 		}
 	}
 
+	// Limit results if MaxResults is set
+	if params.MaxResults > 0 && len(results) > params.MaxResults {
+		results = results[:params.MaxResults]
+	}
+
 	return results, nil
 }
 
@@ -258,7 +265,8 @@ func FormatHistorySlice(entries []MessageEntry) string {
 }
 
 // FormatSearchResults formats search results as a human-readable string.
-func FormatSearchResults(results []SearchResult) string {
+// If maxContentLen > 0, content longer than this will be truncated with "...".
+func FormatSearchResults(results []SearchResult, maxContentLen int) string {
 	if len(results) == 0 {
 		return "（未找到匹配的记忆）"
 	}
@@ -268,7 +276,11 @@ func FormatSearchResults(results []SearchResult) string {
 	for i, r := range results {
 		timeStr := r.Entry.Datetime.Format("2006-01-02 15:04:05")
 		sb.WriteString(fmt.Sprintf("[%d] %s | %s (匹配: %s):\n", i+1, timeStr, r.Entry.Name, r.MatchOn))
-		sb.WriteString(fmt.Sprintf("    %s\n", r.Entry.Content))
+		content := r.Entry.Content
+		if maxContentLen > 0 && len(content) > maxContentLen {
+			content = content[:maxContentLen] + "..."
+		}
+		sb.WriteString(fmt.Sprintf("    %s\n", content))
 	}
 	return sb.String()
 }

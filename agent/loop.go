@@ -93,6 +93,13 @@ type Agent struct {
 	memoryEnabled   bool     // whether persistent memory tools are enabled
 	planEnabled     bool     // whether task plan tools are enabled
 	subAgentEnabled bool     // whether sub-agent tools are enabled
+
+	// messagePointer is the index in a.messages that marks the starting position
+	// for sending to LLM. Messages before this index are ignored when building
+	// context for LLM calls. When a new checklist is created or updated, the
+	// checklist content is appended as a new assistant message (not saved to memory),
+	// and the pointer is moved to the end, effectively ignoring prior conversation.
+	messagePointer int
 }
 
 // New creates a new Agent instance.
@@ -179,6 +186,15 @@ func (a *Agent) SetConfirmCommand(confirm bool) {
 // SetMemoryEnabled sets whether persistent memory tools are enabled.
 func (a *Agent) SetMemoryEnabled(enabled bool) {
 	a.memoryEnabled = enabled
+}
+
+// MessagePointer returns the current message pointer index.
+// The pointer marks the starting position for sending to LLM.
+// Messages before this index are ignored when building context.
+func (a *Agent) MessagePointer() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.messagePointer
 }
 
 // SetPlanEnabled sets whether task plan tools are enabled.
@@ -475,8 +491,15 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.messages = append(a.messages, multimodalMsg)
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
-		// Add user message to history
-		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
+		// Add user message to history with timestamp prefix
+		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
+		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
+				log.Warn("Failed to save user message to memory: %v", err)
+			}
+		}
 	}
 	a.mu.Unlock()
 
@@ -497,11 +520,18 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		// If no tool calls, this is the final answer
 		if len(resp.ToolCalls) == 0 {
 			a.mu.Lock()
+			tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
-				Content:          resp.Content,
+				Content:          tsPrefix + resp.Content,
 				ReasoningContent: resp.ReasoningContent,
 			})
+			// Sync to memory (content without timestamp prefix)
+			if a.memoryEnabled {
+				if err := a.memoryManager.AddMessage(a.name, resp.Content, time.Now()); err != nil {
+					log.Warn("Failed to save assistant message to memory: %v", err)
+				}
+			}
 			a.mu.Unlock()
 			log.Info("Agent.Run: completed after %d iterations", iteration+1)
 			return resp.Content, nil
@@ -509,12 +539,19 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 
 		// Add assistant message with tool calls
 		a.mu.Lock()
+		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
 		a.messages = append(a.messages, llm.Message{
 			Role:             "assistant",
-			Content:          resp.Content,
+			Content:          tsPrefix + resp.Content,
 			ToolCalls:        resp.ToolCalls,
 			ReasoningContent: resp.ReasoningContent,
 		})
+		// Sync to memory (content without timestamp prefix)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage(a.name, resp.Content, time.Now()); err != nil {
+				log.Warn("Failed to save assistant message to memory: %v", err)
+			}
+		}
 		a.mu.Unlock()
 
 		// Execute each tool call
@@ -563,8 +600,15 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.messages = append(a.messages, multimodalMsg)
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
-		// Add user message to history
-		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
+		// Add user message to history with timestamp prefix
+		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
+		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
+				log.Warn("Failed to save user message to memory: %v", err)
+			}
+		}
 	}
 	a.mu.Unlock()
 
@@ -607,11 +651,18 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			cb("done", "")
 
 			a.mu.Lock()
+			tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
-				Content:          finalContent,
+				Content:          tsPrefix + finalContent,
 				ReasoningContent: finalReasoning,
 			})
+			// Sync to memory (content without timestamp prefix)
+			if a.memoryEnabled {
+				if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+					log.Warn("Failed to save assistant message to memory: %v", err)
+				}
+			}
 			a.mu.Unlock()
 			log.Info("Agent.RunStream: completed after %d iterations", iteration+1)
 			return finalContent, nil
@@ -622,12 +673,19 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// that tool messages must follow a message with tool_calls.
 		a.mu.Lock()
 		assistantMsgIdx := len(a.messages)
+		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
 		a.messages = append(a.messages, llm.Message{
 			Role:             "assistant",
-			Content:          finalContent,
+			Content:          tsPrefix + finalContent,
 			ToolCalls:        toolCalls,
 			ReasoningContent: finalReasoning,
 		})
+		// Sync to memory (content without timestamp prefix)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+				log.Warn("Failed to save assistant message to memory: %v", err)
+			}
+		}
 		a.mu.Unlock()
 
 		// Step 4: Execute tool calls and add results
@@ -719,15 +777,20 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	return "", fmt.Errorf("agent reached maximum iterations (%d) without a final answer", a.maxIterations)
 }
 
-// buildContextMessages returns a truncated message list based on ContextLimit.
+// buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.
 // Message layout: [0]=system, [1..n-2]=history, [n-1]=current user input
 // The current user input (last message) is ALWAYS kept.
 // ContextLimit == 0: only system prompt + current user input (no history)
 // ContextLimit == -1: all messages (unlimited)
 // ContextLimit > 0: system prompt + current user input + last N history messages
+// If messagePointer > 0, messages before the pointer are ignored (the pointer message
+// and everything after it are kept). This is used when a checklist is created/updated
+// to focus the LLM on the current task plan.
+// Each message's content is prefixed with its original index in a.messages,
+// e.g. "123: 2026-05-01 12:09:24 - ...", to help the LLM understand the conversation order.
 func (a *Agent) buildContextMessages() []llm.Message {
 	if a.cfg == nil || a.cfg.LLM.ContextLimit == -1 {
-		return a.messages
+		return a.addIndexPrefixToMessages(a.messages)
 	}
 
 	// Always keep system prompt (first message)
@@ -740,12 +803,20 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	// The last message is always the current user input, always keep it
 	currentMsg := a.messages[len(a.messages)-1]
 
-	// History messages are between system and current user input
-	historyMsgs := a.messages[1 : len(a.messages)-1]
+	// Determine the effective start index based on messagePointer
+	// If pointer > 0, start from pointer (ignore messages before it)
+	startIdx := 1
+	if a.messagePointer > 0 && a.messagePointer < len(a.messages) {
+		startIdx = a.messagePointer
+	}
+
+	// History messages are between startIdx and current user input
+	historyMsgs := a.messages[startIdx : len(a.messages)-1]
 
 	if a.cfg.LLM.ContextLimit == 0 {
 		// Only system prompt + current user input, no history
-		return []llm.Message{systemMsg, currentMsg}
+		result := []llm.Message{systemMsg, currentMsg}
+		return a.addIndexPrefixToMessages(result)
 	}
 
 	// Keep last N history messages
@@ -757,6 +828,37 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	result = append(result, systemMsg)
 	result = append(result, historyMsgs...)
 	result = append(result, currentMsg)
+	return a.addIndexPrefixToMessages(result)
+}
+
+// addIndexPrefixToMessages adds the original message index prefix to each message's content.
+// The format is: "index: content"
+// For example: "123: 2026-05-01 12:09:24 - 现在来更新主报告。"
+// The index is the position in a.messages (0-based), which helps the LLM
+// understand the conversation order even when context truncation is applied.
+// System messages are not prefixed (they are always at index 0 and have no timestamp).
+func (a *Agent) addIndexPrefixToMessages(msgs []llm.Message) []llm.Message {
+	result := make([]llm.Message, len(msgs))
+	for i, msg := range msgs {
+		// Find the original index in a.messages by matching content and role
+		origIdx := -1
+		a.mu.Lock()
+		for j := range a.messages {
+			if a.messages[j].Role == msg.Role && a.messages[j].Content == msg.Content {
+				origIdx = j
+				break
+			}
+		}
+		a.mu.Unlock()
+
+		if origIdx >= 0 && msg.Role != "system" {
+			// Add index prefix before the content
+			result[i] = msg
+			result[i].Content = fmt.Sprintf("%d: %s", origIdx, msg.Content)
+		} else {
+			result[i] = msg
+		}
+	}
 	return result
 }
 
@@ -1239,7 +1341,7 @@ func (a *Agent) buildTools() []llm.Tool {
 	if a.memoryEnabled {
 		memoryTools := []llm.Tool{
 			{
-				Name:        "get_history_slice",
+				Name:        "get_memory_slice",
 				Description: "Retrieve a slice of recent conversation history from persistent memory. Use this to recall what was discussed in previous conversations. Parameters: last_from (starting position from the end, 1=most recent), last_to (ending position from the end, 1=most recent). Example: last_from=5, last_to=1 returns the 5 most recent messages in chronological order.",
 				Parameters: map[string]interface{}{
 					"type": "object",
@@ -1255,7 +1357,7 @@ func (a *Agent) buildTools() []llm.Tool {
 					},
 					"required": []string{"last_from", "last_to"},
 				},
-				Callback: a.getHistorySliceTool,
+				Callback: a.getMemorySliceTool,
 			},
 			{
 				Name:        "memory_search",
@@ -1911,9 +2013,9 @@ func (a *Agent) clearImagesTool(ctx context.Context, args map[string]interface{}
 	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
 }
 
-// getHistorySliceTool retrieves a slice of conversation history from persistent memory.
-func (a *Agent) getHistorySliceTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("getHistorySliceTool called: args=%v", args)
+// getMemorySliceTool retrieves a slice of conversation history from persistent memory.
+func (a *Agent) getMemorySliceTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("getMemorySliceTool called: args=%v", args)
 	lastFrom, ok := args["last_from"].(float64)
 	if !ok {
 		return "", fmt.Errorf("last_from argument is required")
@@ -1937,6 +2039,12 @@ func (a *Agent) getHistorySliceTool(ctx context.Context, args map[string]interfa
 func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("memorySearchTool called: args=%v", args)
 	params := memory.SearchParams{}
+
+	// Apply config limits
+	if a.cfg != nil {
+		params.MaxResults = a.cfg.LLM.MemorySearchMaxResults
+		params.MaxContentLen = a.cfg.LLM.MemorySearchMaxContentLen
+	}
 
 	// Parse keywords
 	if keywordsRaw, ok := args["keywords"].([]interface{}); ok {
@@ -1967,7 +2075,11 @@ func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{
 		return "", fmt.Errorf("memory search failed: %w", err)
 	}
 
-	formatted := memory.FormatSearchResults(results)
+	maxContentLen := 0
+	if a.cfg != nil {
+		maxContentLen = a.cfg.LLM.MemorySearchMaxContentLen
+	}
+	formatted := memory.FormatSearchResults(results, maxContentLen)
 	fmt.Println(formatted)
 	return formatted, nil
 }
@@ -2176,6 +2288,11 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 // createTaskPlanTool creates a new task plan with title, description, and steps.
 // If there is an existing plan with unfinished steps, it returns an error.
 // If there is an existing plan (all completed), it is archived to memory first.
+// After creating the plan, the checklist content is appended to messages as a new
+// assistant message (not saved to memory), and the messagePointer is moved to the end.
+// If the pointer position is preceded by tool messages, the pointer is moved further
+// back to the first non-tool message, ensuring the LLM sees a clean context starting
+// from the checklist.
 func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("createTaskPlanTool called: args=%v", args)
 	title, ok := args["title"].(string)
@@ -2206,6 +2323,19 @@ func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interfac
 
 	formatted := taskplan.FormatPlan(plan)
 	fmt.Println(formatted)
+
+	// Append checklist as assistant message (not saved to memory) and move pointer
+	a.mu.Lock()
+	checklistMsg := fmt.Sprintf("📋 我已制定以下任务计划，请按步骤执行：\n\n%s", formatted)
+	a.messages = append(a.messages, llm.Message{
+		Role:    "assistant",
+		Content: checklistMsg,
+	})
+	a.messagePointer = len(a.messages) - 1
+	// Move pointer back past any tool messages to ensure clean context
+	a.adjustMessagePointer()
+	a.mu.Unlock()
+
 	return formatted, nil
 }
 
@@ -2236,6 +2366,8 @@ func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interfac
 }
 
 // insertTaskStepsTool inserts new steps after a specified step in the current task plan.
+// After inserting steps, the updated checklist content is appended to messages as a new
+// assistant message (not saved to memory), and the messagePointer is moved to the end.
 func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("insertTaskStepsTool called: args=%v", args)
 	afterStepID, ok := args["after_step_id"].(float64)
@@ -2264,10 +2396,25 @@ func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interfa
 
 	formatted := taskplan.FormatPlan(plan)
 	fmt.Println(formatted)
+
+	// Append updated checklist as assistant message (not saved to memory) and move pointer
+	a.mu.Lock()
+	checklistMsg := fmt.Sprintf("📋 我已调整任务计划，新增了步骤，请按更新后的计划执行：\n\n%s", formatted)
+	a.messages = append(a.messages, llm.Message{
+		Role:    "assistant",
+		Content: checklistMsg,
+	})
+	a.messagePointer = len(a.messages) - 1
+	// Move pointer back past any tool messages to ensure clean context
+	a.adjustMessagePointer()
+	a.mu.Unlock()
+
 	return formatted, nil
 }
 
 // removeTaskStepsTool removes steps from the current task plan by step ID range.
+// After removing steps, the updated checklist content is appended to messages as a new
+// assistant message (not saved to memory), and the messagePointer is moved to the end.
 func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("removeTaskStepsTool called: args=%v", args)
 	from, ok := args["from"].(float64)
@@ -2287,6 +2434,19 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 
 	formatted := taskplan.FormatPlan(plan)
 	fmt.Println(formatted)
+
+	// Append updated checklist as assistant message (not saved to memory) and move pointer
+	a.mu.Lock()
+	checklistMsg := fmt.Sprintf("📋 我已调整任务计划，移除了部分步骤，请按更新后的计划执行：\n\n%s", formatted)
+	a.messages = append(a.messages, llm.Message{
+		Role:    "assistant",
+		Content: checklistMsg,
+	})
+	a.messagePointer = len(a.messages) - 1
+	// Move pointer back past any tool messages to ensure clean context
+	a.adjustMessagePointer()
+	a.mu.Unlock()
+
 	return formatted, nil
 }
 
@@ -2412,4 +2572,16 @@ func (a *Agent) GetMessages() []llm.Message {
 	result := make([]llm.Message, len(a.messages))
 	copy(result, a.messages)
 	return result
+}
+
+// adjustMessagePointer moves the messagePointer back past any tool messages
+// to ensure the LLM sees a clean context starting from a non-tool message.
+// This is called after setting messagePointer to a new position (e.g., after
+// creating/updating a checklist). If the pointer position is preceded by tool
+// messages, the pointer is moved further back to the first non-tool message.
+// Caller must hold a.mu lock.
+func (a *Agent) adjustMessagePointer() {
+	for a.messagePointer > 0 && a.messages[a.messagePointer].Role == "tool" {
+		a.messagePointer--
+	}
 }

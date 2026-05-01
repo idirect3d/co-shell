@@ -586,6 +586,42 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Search context lines set to %d", n)
 		return fmt.Sprintf("✅ 搜索匹配上下文行数已设置为: %d", n), nil
 
+	case "memory-search-max-content-len":
+		if len(args) < 2 {
+			return fmt.Sprintf("记忆搜索内容最大长度: %d", h.cfg.LLM.MemorySearchMaxContentLen), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("记忆搜索内容最大长度必须 >= 0")
+		}
+		h.cfg.LLM.MemorySearchMaxContentLen = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Memory search max content len set to %d", n)
+		return fmt.Sprintf("✅ 记忆搜索内容最大长度已设置为: %d", n), nil
+
+	case "memory-search-max-results":
+		if len(args) < 2 {
+			return fmt.Sprintf("记忆搜索最大结果数: %d", h.cfg.LLM.MemorySearchMaxResults), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("记忆搜索最大结果数必须 >= 0")
+		}
+		h.cfg.LLM.MemorySearchMaxResults = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Memory search max results set to %d", n)
+		return fmt.Sprintf("✅ 记忆搜索最大结果数已设置为: %d", n), nil
+
 	case "log":
 
 		if len(args) < 2 {

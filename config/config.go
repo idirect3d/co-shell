@@ -181,6 +181,13 @@ type LLMConfig struct {
 	// SearchContextLines: number of context lines before and after each match in search results
 	// Default: 5
 	SearchContextLines int `json:"search_context_lines"`
+
+	// MemorySearchMaxContentLen: maximum character length for content in memory search results.
+	// Content longer than this will be truncated with "...". Default: 512
+	MemorySearchMaxContentLen int `json:"memory_search_max_content_len"`
+
+	// MemorySearchMaxResults: maximum number of results returned by memory search. Default: 100
+	MemorySearchMaxResults int `json:"memory_search_max_results"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -212,25 +219,27 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Provider:             "deepseek",
-			Endpoint:             "https://api.deepseek.com",
-			Model:                "deepseek-v4-flash",
-			Temperature:          0.7,
-			MaxTokens:            393216,
-			MaxIterations:        1000,
-			ShowThinking:         true,
-			ShowCommand:          true,
-			ShowOutput:           true,
-			ConfirmCommand:       true,
-			ResultMode:           int(ResultModeFree),
-			ContextLimit:         -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
-			MemoryEnabled:        false,
-			PlanEnabled:          false,
-			SubAgentEnabled:      true,
-			OutputMode:           int(OutputModeNormal),
-			SearchMaxLineLength:  8192,
-			SearchMaxResultBytes: 65536,
-			SearchContextLines:   5,
+			Provider:                  "deepseek",
+			Endpoint:                  "https://api.deepseek.com",
+			Model:                     "deepseek-v4-flash",
+			Temperature:               0.7,
+			MaxTokens:                 393216,
+			MaxIterations:             1000,
+			ShowThinking:              true,
+			ShowCommand:               true,
+			ShowOutput:                true,
+			ConfirmCommand:            true,
+			ResultMode:                int(ResultModeFree),
+			ContextLimit:              -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			MemoryEnabled:             false,
+			PlanEnabled:               false,
+			SubAgentEnabled:           true,
+			OutputMode:                int(OutputModeNormal),
+			SearchMaxLineLength:       8192,
+			SearchMaxResultBytes:      65536,
+			SearchContextLines:        5,
+			MemorySearchMaxContentLen: 512,
+			MemorySearchMaxResults:    100,
 		},
 
 		MCP: MCPConfig{
@@ -388,6 +397,8 @@ func (c *Config) Show() string {
 	col3SearchMaxLineLength := i18n.T(i18n.KeyCol3SearchMaxLineLength)
 	col3SearchMaxResultBytes := i18n.T(i18n.KeyCol3SearchMaxResultBytes)
 	col3SearchContextLines := i18n.T(i18n.KeyCol3SearchContextLines)
+	col3MemorySearchMaxContentLen := i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)
+	col3MemorySearchMaxResults := i18n.T(i18n.KeyCol3MemorySearchMaxResults)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 	outputModeStr := OutputModeString(OutputMode(c.LLM.OutputMode))
@@ -462,6 +473,8 @@ func (c *Config) Show() string {
 		"search-max-line-length:", fmt.Sprintf("%d", c.LLM.SearchMaxLineLength), col3SearchMaxLineLength,
 		"search-max-result-bytes:", fmt.Sprintf("%d", c.LLM.SearchMaxResultBytes), col3SearchMaxResultBytes,
 		"search-context-lines:", fmt.Sprintf("%d", c.LLM.SearchContextLines), col3SearchContextLines,
+		"memory-search-max-content-len:", fmt.Sprintf("%d", c.LLM.MemorySearchMaxContentLen), col3MemorySearchMaxContentLen,
+		"memory-search-max-results:", fmt.Sprintf("%d", c.LLM.MemorySearchMaxResults), col3MemorySearchMaxResults,
 		"api-key:", maskedKey, col3APIKey)
 
 }

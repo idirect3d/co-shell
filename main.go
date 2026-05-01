@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.3.0"
-const build = "124"
+const build = "125"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -100,6 +100,10 @@ type cliFlags struct {
 
 	// Output mode
 	outputMode string // compact/normal/debug
+
+	// Memory search config
+	memorySearchMaxContentLen int
+	memorySearchMaxResults    int
 
 	// External config file generation
 	initCapabilities bool
@@ -167,6 +171,10 @@ func parseFlags() cliFlags {
 
 	// Output mode
 	flag.StringVar(&f.outputMode, "output-mode", "", "LLM 前端输出模式（compact/normal/debug，覆盖配置文件）")
+
+	// Memory search config
+	flag.IntVar(&f.memorySearchMaxContentLen, "memory-search-max-content-len", -1, "记忆搜索内容最大字符长度（默认 512，覆盖配置文件）")
+	flag.IntVar(&f.memorySearchMaxResults, "memory-search-max-results", -1, "记忆搜索最大结果数（默认 100，覆盖配置文件）")
 
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
@@ -541,6 +549,14 @@ func main() {
 		}
 	}
 
+	// Apply memory search config CLI overrides
+	if flags.memorySearchMaxContentLen >= 0 {
+		cfg.LLM.MemorySearchMaxContentLen = flags.memorySearchMaxContentLen
+	}
+	if flags.memorySearchMaxResults >= 0 {
+		cfg.LLM.MemorySearchMaxResults = flags.memorySearchMaxResults
+	}
+
 	// Initialize logger with workspace
 	if err := log.Init(cfg.LogEnabled, ws); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot initialize logger: %v\n", err)
@@ -666,6 +682,12 @@ func main() {
 
 	// Apply plan enabled setting
 	ag.SetPlanEnabled(cfg.LLM.PlanEnabled)
+
+	// Sync memory enabled to task plan manager
+	ag.TaskPlanManager().SetMemoryEnabled(cfg.LLM.MemoryEnabled)
+
+	// Sync agent name to task plan manager for memory archival
+	ag.TaskPlanManager().SetAgentName(cfg.LLM.AgentName)
 
 	// Apply subagent enabled setting
 	ag.SetSubAgentEnabled(cfg.LLM.SubAgentEnabled)
