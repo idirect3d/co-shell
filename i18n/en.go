@@ -308,11 +308,13 @@ var enMessages = map[string]string{
 
 	// Command Confirmation
 	KeyCmdConfirmTitle:       "⚡ About to execute command: %s",
+	KeyCmdConfirmRiskWarning: "⚠️ Risk Warning: Please carefully review the command before executing.\n    AI may generate dangerous commands (e.g., file deletion, system config changes).\n    Exercise caution and assess risks based on your own judgment.",
 	KeyCmdConfirmDisabled:    "Command confirmation: Off",
 	KeyCmdConfirmEnabled:     "Command confirmation: On",
-	KeyCmdConfirmDisableWarn: "⚠️ Warning: Disabling command confirmation will allow AI to execute commands directly without your approval. This may pose security risks (e.g., accidental file deletion, infinite loops). Proceed with caution.",
+	KeyCmdConfirmDisableWarn: "⚠️ Warning: Disabling command confirmation will allow AI to execute commands directly without your approval. This may pose security risks (e.g., accidental file deletion, infinite loops). Proceed with caution and assess risks based on your own judgment.",
 
-	KeyCmdConfirmPrompt:     "Choose an action:\n  [Enter] Approve and execute\n  [A] Approve all for this request\n  [C] Cancel\n  Other input: supplementary instructions for AI to re-evaluate\nEnter: ",
+	KeyCmdConfirmPrompt:     "Choose an action:\n  [Enter] Approve and execute\n  [A] Approve all for this request\n  [C] Cancel\n  Other input: hold execution, input will be sent to AI for re-evaluation\nEnter: ",
+	KeyErrorRiskWarning:     "⚠️ Risk Warning: Repeated errors may indicate the AI is stuck in a loop or facing an unsolvable problem.\n    Please review the errors and choose [C] to cancel if necessary to avoid potential risks\n    (e.g., exhausting your token balance or leaking sensitive information).",
 	KeyCmdConfirmApprove:    "a",
 	KeyCmdConfirmApproveAll: "aa",
 	KeyCmdConfirmCancel:     "c",
