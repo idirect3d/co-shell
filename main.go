@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.3.0"
-const build = "127"
+const build = "128"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -104,6 +104,10 @@ type cliFlags struct {
 	// Memory search config
 	memorySearchMaxContentLen int
 	memorySearchMaxResults    int
+
+	// Error tracking config
+	errorMaxSingleCount int
+	errorMaxTypeCount   int
 
 	// External config file generation
 	initCapabilities bool
@@ -175,6 +179,10 @@ func parseFlags() cliFlags {
 	// Memory search config
 	flag.IntVar(&f.memorySearchMaxContentLen, "memory-search-max-content-len", -1, "记忆搜索内容最大字符长度（默认 512，覆盖配置文件）")
 	flag.IntVar(&f.memorySearchMaxResults, "memory-search-max-results", -1, "记忆搜索最大结果数（默认 100，覆盖配置文件）")
+
+	// Error tracking config
+	flag.IntVar(&f.errorMaxSingleCount, "error-max-single-count", -1, "相同错误最大出现次数（默认 10，覆盖配置文件）")
+	flag.IntVar(&f.errorMaxTypeCount, "error-max-type-count", -1, "不同错误类型最大数量（默认 100，覆盖配置文件）")
 
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
@@ -555,6 +563,14 @@ func main() {
 	}
 	if flags.memorySearchMaxResults >= 0 {
 		cfg.LLM.MemorySearchMaxResults = flags.memorySearchMaxResults
+	}
+
+	// Apply error tracking config CLI overrides
+	if flags.errorMaxSingleCount >= 0 {
+		cfg.LLM.ErrorMaxSingleCount = flags.errorMaxSingleCount
+	}
+	if flags.errorMaxTypeCount >= 0 {
+		cfg.LLM.ErrorMaxTypeCount = flags.errorMaxTypeCount
 	}
 
 	// Initialize logger with workspace

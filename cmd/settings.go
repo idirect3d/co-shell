@@ -622,6 +622,42 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Memory search max results set to %d", n)
 		return fmt.Sprintf("✅ 记忆搜索最大结果数已设置为: %d", n), nil
 
+	case "error-max-single-count":
+		if len(args) < 2 {
+			return fmt.Sprintf("相同错误最大出现次数: %d", h.cfg.LLM.ErrorMaxSingleCount), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("相同错误最大出现次数必须 >= 0")
+		}
+		h.cfg.LLM.ErrorMaxSingleCount = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Error max single count set to %d", n)
+		return fmt.Sprintf("✅ 相同错误最大出现次数已设置为: %d", n), nil
+
+	case "error-max-type-count":
+		if len(args) < 2 {
+			return fmt.Sprintf("不同错误类型最大数量: %d", h.cfg.LLM.ErrorMaxTypeCount), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("不同错误类型最大数量必须 >= 0")
+		}
+		h.cfg.LLM.ErrorMaxTypeCount = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Error max type count set to %d", n)
+		return fmt.Sprintf("✅ 不同错误类型最大数量已设置为: %d", n), nil
+
 	case "log":
 
 		if len(args) < 2 {
