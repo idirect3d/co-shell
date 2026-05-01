@@ -184,13 +184,23 @@ def main():
 
     html = convert(md_text)
 
-    # Wrap in a container div with WeChat-friendly base styles
+    # Wrap in a complete HTML document with UTF-8 charset
     full_html = (
+        '<!DOCTYPE html>\n'
+        '<html lang="zh-CN">\n'
+        '<head>\n'
+        '<meta charset="UTF-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        '<title>co-shell 公众号文章</title>\n'
+        '</head>\n'
+        '<body>\n'
         '<div style="max-width: 677px; margin: 0 auto; padding: 10px 15px; '
         'font-family: -apple-system, BlinkMacSystemFont, \'Helvetica Neue\', '
         '\'PingFang SC\', \'Microsoft YaHei\', sans-serif; color: #333;">\n'
         f'{html}\n'
-        '</div>'
+        '</div>\n'
+        '</body>\n'
+        '</html>'
     )
 
     if output_path:
