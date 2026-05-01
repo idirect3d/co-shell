@@ -399,7 +399,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   禁用子代理功能（覆盖配置文件）",
 
 	// Config show column 3 labels
-	KeyCol3Provider:     "提供商(deepseek/qwen/xiaomi/openai)",
+	KeyCol3Provider:     "提供商(deepseek/qwen/xiaomi/zhipu/openai)",
 	KeyCol3Endpoint:     "API服务器",
 	KeyCol3Model:        "模型ID",
 	KeyCol3Temperature:  "温度(0.0 ~ 2.0)",
