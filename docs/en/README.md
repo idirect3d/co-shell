@@ -338,6 +338,15 @@ co-shell/
 ├── log/                 # Logging system
 ├── i18n/                # Internationalization
 ├── wizard/              # Setup wizard
+├── scheduler/           # Scheduled task scheduler
+├── subagent/            # Sub-agent management
+├── taskplan/            # Task plan management
+├── memory/              # Persistent memory management
+├── workspace/           # Workspace management
+├── samples/             # Sample research reports
+├── bin/                 # Binary output directory
+├── output/              # Output directory
+├── CHANGELOG.md         # Changelog
 ├── USAGE.md             # Detailed usage guide
 ├── docs/                # Multi-language documentation
 │   └── zh-CN/           # Chinese documentation

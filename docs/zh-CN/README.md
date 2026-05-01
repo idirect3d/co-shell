@@ -343,6 +343,15 @@ co-shell/
 ├── log/                 # 日志系统
 ├── i18n/                # 国际化
 ├── wizard/              # 设置向导
+├── scheduler/           # 定时任务调度器
+├── subagent/            # Sub-agent 管理
+├── taskplan/            # 任务计划管理
+├── memory/              # 持久化记忆管理
+├── workspace/           # 工作区管理
+├── samples/             # 成果样例
+├── bin/                 # 二进制输出目录
+├── output/              # 输出目录
+├── CHANGELOG.md         # 变更日志
 ├── USAGE.md             # 详细使用说明
 ├── docs/                # 多语言文档
 │   └── en/              # 英文文档
