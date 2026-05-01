@@ -73,6 +73,7 @@ Download the zip archive for your platform from the [Releases](https://github.co
 | Linux | ARM64 | [co-shell-v0.3.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-arm64.zip) |
 | Windows | x86_64 | [co-shell-v0.3.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip) |
 | Windows | ARM64 | [co-shell-v0.3.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-arm64.zip) |
+| 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/md2docx.py) — Markdown 转 Word 文档转换器 |
 
 **macOS / Linux:**
 ```bash
@@ -106,6 +107,8 @@ del co-shell.zip
 co-shell.exe
 ```
 
+
+> **💡 md2docx.py 工具**: 用于将 Markdown 文件转换为精美 Word 文档（支持公文格式 GB/T 9704-2012）。下载后放入 co-shell 运行目录下的 `bin/` 文件夹即可，co-shell 会自动安装依赖并调用它生成 DOCX 报告。
 
 #### Option 2: Build from Source
 
