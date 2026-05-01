@@ -198,6 +198,17 @@ type LLMConfig struct {
 	// When the number of unique error messages exceeds this, the user is prompted.
 	// Default: 100
 	ErrorMaxTypeCount int `json:"error_max_type_count"`
+
+	// ThinkingEnabled: whether to enable LLM thinking/reasoning mode.
+	// When enabled, the LLM API request includes thinking configuration
+	// (e.g., DeepSeek thinking mode, OpenAI reasoning_effort).
+	// Default: true
+	ThinkingEnabled bool `json:"thinking_enabled"`
+
+	// ReasoningEffort: the reasoning effort level for models that support it.
+	// Valid values: "low", "medium", "high" (model-dependent).
+	// Default: "high"
+	ReasoningEffort string `json:"reasoning_effort"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -235,7 +246,7 @@ func DefaultConfig() *Config {
 			Temperature:               0.7,
 			MaxTokens:                 393216,
 			MaxIterations:             1000,
-			ShowThinking:              true,
+			ShowThinking:              false,
 			ShowCommand:               true,
 			ShowOutput:                true,
 			ConfirmCommand:            true,
@@ -252,6 +263,8 @@ func DefaultConfig() *Config {
 			MemorySearchMaxResults:    100,
 			ErrorMaxSingleCount:       10,
 			ErrorMaxTypeCount:         100,
+			ThinkingEnabled:           false,
+			ReasoningEffort:           "low",
 		},
 
 		MCP: MCPConfig{
@@ -326,6 +339,14 @@ func (c *Config) Show() string {
 	thinkingStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ShowThinking {
 		thinkingStatus = i18n.T(i18n.KeyOff)
+	}
+	thinkingEnabledStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ThinkingEnabled {
+		thinkingEnabledStatus = i18n.T(i18n.KeyOff)
+	}
+	reasoningEffortStr := c.LLM.ReasoningEffort
+	if reasoningEffortStr == "" {
+		reasoningEffortStr = "low"
 	}
 	commandStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ShowCommand {
@@ -411,6 +432,8 @@ func (c *Config) Show() string {
 	col3SearchContextLines := i18n.T(i18n.KeyCol3SearchContextLines)
 	col3MemorySearchMaxContentLen := i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)
 	col3MemorySearchMaxResults := i18n.T(i18n.KeyCol3MemorySearchMaxResults)
+	col3ThinkingEnabled := i18n.T(i18n.KeyCol3ThinkingEnabled)
+	col3ReasoningEffort := i18n.T(i18n.KeyCol3ReasoningEffort)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 	outputModeStr := OutputModeString(OutputMode(c.LLM.OutputMode))
@@ -487,6 +510,8 @@ func (c *Config) Show() string {
 		"search-context-lines:", fmt.Sprintf("%d", c.LLM.SearchContextLines), col3SearchContextLines,
 		"memory-search-max-content-len:", fmt.Sprintf("%d", c.LLM.MemorySearchMaxContentLen), col3MemorySearchMaxContentLen,
 		"memory-search-max-results:", fmt.Sprintf("%d", c.LLM.MemorySearchMaxResults), col3MemorySearchMaxResults,
+		"thinking-enabled:", thinkingEnabledStatus, col3ThinkingEnabled,
+		"reasoning-effort:", reasoningEffortStr, col3ReasoningEffort,
 		"api-key:", maskedKey, col3APIKey)
 
 }
