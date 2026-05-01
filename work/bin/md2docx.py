@@ -313,37 +313,50 @@ def build_heading(doc, text, level, style_name, base_size):
     set_spacing(p, before=sb.get(level, 6), after=sa.get(level, 4))
 
 
-def build_heading_official(doc, text, level):
+def build_heading_official(doc, text, doc_level):
     """Build a heading in official Chinese government document format.
 
     GB/T 9704-2012:
-    - Level 1 (一级标题，如一、)：黑体, 二号 (22pt), centered, 不加粗
-    - Level 2 (二级标题，如（一）)：楷体_GB2312, 三号 (16pt), 加粗
-    - Level 3+ (三级及以下)：仿宋_GB2312, 三号 (16pt), 加粗
+    - doc_level=0 (主标题/文档标题)：小标宋, 二号 (22pt), centered, 不加粗
+    - doc_level=1 (一级标题，如一、)：黑体, 三号 (16pt), 不加粗, 首行缩进2字符
+    - doc_level=2 (二级标题，如（一）)：楷体_GB2312, 三号 (16pt), 加粗, 首行缩进2字符
+    - doc_level=3+ (三级及以下)：仿宋_GB2312, 三号 (16pt), 加粗, 首行缩进2字符
 
     Supports inline formatting (bold/italic/code/link) within heading text.
     """
-    if level == 1:
-        # Level 1 heading: 黑体, 二号 (22pt), centered, 不加粗
+    if doc_level == 0:
+        # Document title (主标题): 小标宋, 二号 (22pt), centered, 不加粗
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        apply_inline(p, text, 'official', font_size=22, font_family='黑体',
-                     font_east_asia='黑体')
+        apply_inline(p, text, 'official', font_size=22, font_family='小标宋',
+                     font_east_asia='小标宋')
         set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
-    elif level == 2:
-        # Level 2 heading: 楷体_GB2312, 三号 (16pt), 加粗
+    elif doc_level == 1:
+        # Level 1 heading (一级标题): 黑体, 三号 (16pt), 不加粗, 首行缩进2字符
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        pf = p.paragraph_format
+        pf.first_line_indent = Pt(16 * 2)  # 2 character indent
+        apply_inline(p, text, 'official', font_size=16, font_family='黑体',
+                     font_east_asia='黑体')
+        set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
+    elif doc_level == 2:
+        # Level 2 heading (二级标题): 楷体_GB2312, 三号 (16pt), 加粗, 首行缩进2字符
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        pf = p.paragraph_format
+        pf.first_line_indent = Pt(16 * 2)  # 2 character indent
         apply_inline(p, text, 'official', font_size=16, font_family='楷体',
                      font_east_asia='楷体')
-        # Bold all runs in the paragraph
         for run in p.runs:
             run.bold = True
         set_spacing(p, before=0, after=0, line=28, line_rule=WD_LINE_SPACING.EXACTLY)
     else:
-        # Level 3+ headings: 仿宋_GB2312, 三号 (16pt), 加粗
+        # Level 3+ headings (三级及以下): 仿宋_GB2312, 三号 (16pt), 加粗, 首行缩进2字符
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        pf = p.paragraph_format
+        pf.first_line_indent = Pt(16 * 2)  # 2 character indent
         apply_inline(p, text, 'official', font_size=16, font_family='仿宋',
                      font_east_asia='仿宋')
         for run in p.runs:
@@ -537,34 +550,37 @@ CN_ORDINAL_PATTERNS = {
 }
 
 
-def detect_heading_level(text):
-    """Detect Chinese document heading level from ordinal number prefix.
+def compute_official_heading_levels(headings):
+    """Compute document heading levels for official style.
 
-    Returns level (1, 2, 3) or 0 if no ordinal detected.
+    Rules:
+    - The first # heading is treated as the document title (doc_level=0)
+    - Subsequent headings have their level shifted down by 1:
+      ## -> doc_level=1 (一级标题), ### -> doc_level=2 (二级标题), etc.
+    - If there is no # heading, the first ## is treated as doc_level=1
+
+    Returns a dict mapping (raw_level, index) -> doc_level.
     """
-    for level, pattern in CN_ORDINAL_PATTERNS.items():
-        if pattern.match(text):
-            return level
-    return 0
-
-
-def compute_heading_shift(headings):
-    """Compute heading level shift for official style.
-
-    Scans all headings to find the first one with a Chinese ordinal number,
-    then computes shift = (detected_level - raw_level) so that all headings
-    are adjusted accordingly.
-
-    Example:
-        ## 一、产品概况 -> raw_level=2, detected=1, shift=-1
-        ### （一）特性 -> raw_level=3, detected=2, shift=-1
-    """
-    for raw_level, text in headings:
-        detected = detect_heading_level(text)
-        if detected > 0:
-            shift = detected - raw_level
-            return shift
-    return 0
+    result = {}
+    first_heading_seen = False
+    for idx, (raw_level, text) in enumerate(headings):
+        if not first_heading_seen:
+            first_heading_seen = True
+            if raw_level == 1:
+                # First heading is # -> document title
+                result[(raw_level, idx)] = 0
+                continue
+            else:
+                # First heading is ## or lower -> no document title
+                # The first heading becomes doc_level=1
+                result[(raw_level, idx)] = 1
+                continue
+        # Subsequent headings: shift down by 1
+        doc_level = raw_level - 1
+        if doc_level < 1:
+            doc_level = 1
+        result[(raw_level, idx)] = doc_level
+    return result
 
 
 def convert(md_content, output_path, args):
@@ -584,16 +600,17 @@ def convert(md_content, output_path, args):
         section.left_margin = Cm(2.54)
         section.right_margin = Cm(2.54)
 
+    # Collect all headings for official style level computation
     headings = []
     for line in md_content.split('\n'):
         m = re.match(r'^(#{1,6})\s+(.+)$', line)
         if m:
             headings.append((len(m.group(1)), m.group(2).strip()))
 
-    # Compute heading level shift for official style
-    heading_shift = 0
+    # Compute heading doc_level mapping for official style
+    heading_level_map = {}
     if style_name == 'official':
-        heading_shift = compute_heading_shift(headings)
+        heading_level_map = compute_official_heading_levels(headings)
 
     if not args.no_cover and style_name != 'official':
         build_cover_page(doc, args.title, args.author, style_name)
@@ -602,6 +619,7 @@ def convert(md_content, output_path, args):
 
     lines = md_content.split('\n')
     i = 0
+    heading_idx = 0  # Track heading index for official style level lookup
     in_code_block = False
     code_buffer = []
     input_dir = os.path.dirname(os.path.abspath(args.input))
@@ -652,10 +670,9 @@ def convert(md_content, output_path, args):
         if m:
             if style_name == 'official':
                 raw_level = len(m.group(1))
-                adjusted_level = raw_level + heading_shift
-                # Clamp to valid range [1, 6]
-                adjusted_level = max(1, min(6, adjusted_level))
-                build_heading_official(doc, m.group(2).strip(), adjusted_level)
+                doc_level = heading_level_map.get((raw_level, heading_idx), 1)
+                build_heading_official(doc, m.group(2).strip(), doc_level)
+                heading_idx += 1
             else:
                 build_heading(doc, m.group(2).strip(), len(m.group(1)),
                               style_name, base_size)
