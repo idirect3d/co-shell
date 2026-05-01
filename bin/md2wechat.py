@@ -162,10 +162,10 @@ def inline_convert(text):
     text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
     # Inline code `text`
     text = re.sub(r'`([^`]+)`', r'<code style="background-color: #f5f5f5; padding: 2px 4px; border-radius: 3px; font-size: 13px; font-family: Menlo, Monaco, Consolas, monospace;">\1</code>', text)
-    # Links [text](url)
+    # Links [text](url) — WeChat editor strips <a> tags, so output as plain URL text
     text = re.sub(
         r'\[([^\]]+)\]\(([^)]+)\)',
-        r'<a href="\2" style="color: #07c160; text-decoration: none;">\1</a>',
+        r'\1: \2',
         text
     )
     return text
