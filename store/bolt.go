@@ -209,6 +209,13 @@ func (s *Store) GetContext(key string) ([]byte, bool, error) {
 	return data, data != nil, nil
 }
 
+// DeleteContext removes a specific context entry by key.
+func (s *Store) DeleteContext(key string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		return tx.Bucket([]byte("context")).Delete([]byte(key))
+	})
+}
+
 // ClearContext removes all context data.
 func (s *Store) ClearContext() error {
 	return s.db.Update(func(tx *bbolt.Tx) error {

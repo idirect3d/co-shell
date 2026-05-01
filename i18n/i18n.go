@@ -566,4 +566,10 @@ const (
 	KeySearchLineTruncated      = "search_line_truncated"
 	KeySearchResultFileHeader   = "search_result_file_header"
 	KeySearchResultMatchLine    = "search_result_match_line"
+
+	// Memory search config
+	KeyCol3MemorySearchMaxContentLen = "col3_memory_search_max_content_len"
+	KeyCol3MemorySearchMaxResults    = "col3_memory_search_max_results"
+	KeySettingsDescMemSearchMaxLen   = "settings_desc_mem_search_max_len"
+	KeySettingsDescMemSearchMaxRes   = "settings_desc_mem_search_max_res"
 )
