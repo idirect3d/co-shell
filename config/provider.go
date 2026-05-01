@@ -36,6 +36,14 @@ var ProviderPresets = []ProviderPreset{
 		APIKeyURL:    "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
 	},
 	{
+		Name:         "xiaomi",
+		DisplayName:  "小米 MiMo 大模型",
+		Endpoint:     "https://api.xiaomimimo.com/v1",
+		Models:       []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash"},
+		DefaultModel: "mimo-v2.5-pro",
+		APIKeyURL:    "https://platform.xiaomimimo.com/#/console/api-keys",
+	},
+	{
 		Name:         "openai-compatible",
 		DisplayName:  "OpenAI 兼容（自定义）",
 		Endpoint:     "",
