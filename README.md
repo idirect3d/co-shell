@@ -238,7 +238,7 @@ Release Candidate 1 — feature complete, ready for preview.
 - **Error retry limit** — configurable single-error and type-error max counts with user prompt
 - **Number-based approval** — enter a number to auto-approve N subsequent command executions
 - **search_files enhancement** — binary file ignore, content length protection, configurable limits
-- **Instant .set生效** — no restart needed after parameter changes
+- **Instant .set effect** — no restart needed after parameter changes
 - **New model support** — Xiaomi (Mi), GLM (Z.ai) latest models
 - **Setup wizard enhancement** — skip endpoint for built-in providers, enhanced risk warnings
 - **Sample research reports** — added real-world usage examples

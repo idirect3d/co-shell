@@ -311,7 +311,11 @@ co-shell/
 ├── store/               # 持久化存储（bbolt）
 ├── cmd/                 # 内置命令处理器
 ├── log/                 # 日志系统
+├── i18n/                # 国际化
+├── wizard/              # 设置向导
 ├── USAGE.md             # 详细使用说明
+├── docs/                # 多语言文档
+│   └── en/              # 英文文档
 └── ROADMAP.md           # 版本计划与路线图
 ```
 
