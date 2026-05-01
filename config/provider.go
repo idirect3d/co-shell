@@ -44,6 +44,14 @@ var ProviderPresets = []ProviderPreset{
 		APIKeyURL:    "https://platform.xiaomimimo.com/#/console/api-keys",
 	},
 	{
+		Name:         "zhipu",
+		DisplayName:  "智谱 AI（GLM）",
+		Endpoint:     "https://open.bigmodel.cn/api/paas/v4/",
+		Models:       []string{"glm-4-plus", "glm-4-0520", "glm-4-air", "glm-4-flash", "glm-4v-plus"},
+		DefaultModel: "glm-4-plus",
+		APIKeyURL:    "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
+	},
+	{
 		Name:         "openai-compatible",
 		DisplayName:  "OpenAI 兼容（自定义）",
 		Endpoint:     "",
