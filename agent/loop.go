@@ -817,7 +817,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 // e.g. "123: 2026-05-01 12:09:24 - ...", to help the LLM understand the conversation order.
 func (a *Agent) buildContextMessages() []llm.Message {
 	if a.cfg == nil || a.cfg.LLM.ContextLimit == -1 {
-		return a.addIndexPrefixToMessages(a.messages)
+		return a.addIndexPrefixToMessages(a.messages, 0)
 	}
 
 	// Always keep system prompt (first message)
@@ -843,19 +843,22 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	if a.cfg.LLM.ContextLimit == 0 {
 		// Only system prompt + current user input, no history
 		result := []llm.Message{systemMsg, currentMsg}
-		return a.addIndexPrefixToMessages(result)
+		return a.addIndexPrefixToMessages(result, 0)
 	}
 
 	// Keep last N history messages
 	if len(historyMsgs) > a.cfg.LLM.ContextLimit {
-		historyMsgs = historyMsgs[len(historyMsgs)-a.cfg.LLM.ContextLimit:]
+		// When truncating history, we need to adjust the startIdx for prefix calculation
+		truncatedCount := len(historyMsgs) - a.cfg.LLM.ContextLimit
+		historyMsgs = historyMsgs[truncatedCount:]
+		startIdx += truncatedCount
 	}
 
 	result := make([]llm.Message, 0, 2+len(historyMsgs))
 	result = append(result, systemMsg)
 	result = append(result, historyMsgs...)
 	result = append(result, currentMsg)
-	return a.addIndexPrefixToMessages(result)
+	return a.addIndexPrefixToMessages(result, startIdx)
 }
 
 // addIndexPrefixToMessages adds the original message index prefix to each message's content.
@@ -864,19 +867,27 @@ func (a *Agent) buildContextMessages() []llm.Message {
 // The index is the position in a.messages (0-based), which helps the LLM
 // understand the conversation order even when context truncation is applied.
 // System messages are not prefixed (they are always at index 0 and have no timestamp).
-func (a *Agent) addIndexPrefixToMessages(msgs []llm.Message) []llm.Message {
+// startIdx is the index in a.messages where msgs[0] corresponds to.
+// If startIdx < 0, the function falls back to content-based matching (legacy behavior).
+func (a *Agent) addIndexPrefixToMessages(msgs []llm.Message, startIdx int) []llm.Message {
 	result := make([]llm.Message, len(msgs))
 	for i, msg := range msgs {
-		// Find the original index in a.messages by matching content and role
+		// Determine the original index
 		origIdx := -1
-		a.mu.Lock()
-		for j := range a.messages {
-			if a.messages[j].Role == msg.Role && a.messages[j].Content == msg.Content {
-				origIdx = j
-				break
+		if startIdx >= 0 {
+			// Use sequential indexing starting from startIdx
+			origIdx = startIdx + i
+		} else {
+			// Fallback: find the original index in a.messages by matching content and role
+			a.mu.Lock()
+			for j := range a.messages {
+				if a.messages[j].Role == msg.Role && a.messages[j].Content == msg.Content {
+					origIdx = j
+					break
+				}
 			}
+			a.mu.Unlock()
 		}
-		a.mu.Unlock()
 
 		if origIdx >= 0 && msg.Role != "system" {
 			// Add index prefix before the content
