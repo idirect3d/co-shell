@@ -22,6 +22,7 @@ NOTE.md
 
 # Logs
 *.log
+debug/
 
 # Database
 db/
