@@ -63,22 +63,47 @@ By using this software, you acknowledge that you fully understand the above risk
 
 #### Option 1: Download Binary (Recommended)
 
-Download the executable for your platform from the [Releases](https://github.com/idirect3d/co-shell/releases) page:
+Download the zip archive for your platform from the [Releases](https://github.com/idirect3d/co-shell/releases) page:
 
 | OS | Architecture | Download |
 |---|---|---|
-| macOS | Intel | [co-shell-darwin-amd64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-amd64) |
-| macOS | Apple Silicon | [co-shell-darwin-arm64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-arm64) |
-| Linux | x86_64 | [co-shell-linux-amd64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-linux-amd64) |
-| Linux | ARM64 | [co-shell-linux-arm64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-linux-arm64) |
-| Windows | x86_64 | [co-shell-windows-amd64.exe](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-windows-amd64.exe) |
-| Windows | ARM64 | [co-shell-windows-arm64.exe](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-windows-arm64.exe) |
+| macOS | Intel | [co-shell-v0.3.0-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-v0.3.0-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-v0.3.0-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-v0.3.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-v0.3.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-v0.3.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-arm64.zip) |
 
+**macOS / Linux:**
 ```bash
-# Example: macOS Apple Silicon
-curl -L -o co-shell https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-arm64
+# curl
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip
+unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
+
+# or wget
+wget https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip
+unzip co-shell-v0.3.0-darwin-arm64.zip && rm co-shell-v0.3.0-darwin-arm64.zip
+chmod +x co-shell
+./co-shell
+```
+
+**Windows (PowerShell):**
+```powershell
+# PowerShell
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip -OutFile co-shell.zip
+Expand-Archive -Path co-shell.zip -DestinationPath .
+.\co-shell.exe
+```
+
+**Windows (CMD):**
+```cmd
+:: CMD
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip
+tar -xf co-shell.zip
+del co-shell.zip
+co-shell.exe
 ```
 
 
@@ -186,7 +211,9 @@ All built-in commands start with `.` and support Tab completion.
 
 > **BUILD**: 00135 | **Release Date**: 2026-05-01
 
-Release Candidate 1 — feature complete, ready for preview. This version introduces comprehensive context and memory management, output mode switching, thinking toggle, and extensive model support.
+Release Candidate 1 — feature complete, ready for preview.
+
+**亮点**: 全面对话上下文管理、持久化记忆与检索、LLM 输出模式切换、思考过程开关、Token 用量统计、错误重试智能限制、数字批量批准、小米/GLM 最新模型支持。
 
 **Implemented Features:**
 
@@ -205,6 +232,7 @@ Release Candidate 1 — feature complete, ready for preview. This version introd
 - **LLM output mode** (.set output-mode) — compact / normal / debug modes
 - **Sub-agent toggle** (.set subagent-enabled) — control sub-agent tool availability
 - **Thinking toggle** (.set thinking-enabled, --thinking-enabled/--thinking-disabled) — control AI reasoning process display
+- **Reasoning effort** (.set reasoning-effort) — control AI reasoning depth (low/medium/high)
 - **Token usage statistics** — cumulative token tracking via Agent.TokenUsage()
 - **Conversation reset** (.new command) — clear all history without restart
 - **Error retry limit** — configurable single-error and type-error max counts with user prompt

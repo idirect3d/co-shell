@@ -67,22 +67,47 @@ co-shell 是一个由大语言模型（LLM）驱动的智能命令行工具。AI
 
 #### 方式一：直接下载二进制文件（推荐）
 
-从 [Releases](https://github.com/idirect3d/co-shell/releases) 页面下载对应系统的可执行文件，解压后即可运行：
+从 [Releases](https://github.com/idirect3d/co-shell/releases) 页面下载对应系统的压缩包，解压后即可运行：
 
 | 操作系统 | 架构 | 下载 |
 |---|---|---|
-| macOS | Intel | [co-shell-darwin-amd64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-amd64) |
-| macOS | Apple Silicon | [co-shell-darwin-arm64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-arm64) |
-| Linux | x86_64 | [co-shell-linux-amd64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-linux-amd64) |
-| Linux | ARM64 | [co-shell-linux-arm64](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-linux-arm64) |
-| Windows | x86_64 | [co-shell-windows-amd64.exe](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-windows-amd64.exe) |
-| Windows | ARM64 | [co-shell-windows-arm64.exe](https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-windows-arm64.exe) |
+| macOS | Intel | [co-shell-v0.3.0-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-v0.3.0-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-v0.3.0-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-v0.3.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-v0.3.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-v0.3.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-arm64.zip) |
 
+**macOS / Linux：**
 ```bash
-# 示例：macOS Apple Silicon
-curl -L -o co-shell https://github.com/idirect3d/co-shell/releases/download/v0.1.0/co-shell-darwin-arm64
+# curl
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip
+unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
+
+# 或 wget
+wget https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip
+unzip co-shell-v0.3.0-darwin-arm64.zip && rm co-shell-v0.3.0-darwin-arm64.zip
+chmod +x co-shell
+./co-shell
+```
+
+**Windows（PowerShell）：**
+```powershell
+# PowerShell
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip -OutFile co-shell.zip
+Expand-Archive -Path co-shell.zip -DestinationPath .
+.\co-shell.exe
+```
+
+**Windows（CMD）：**
+```cmd
+:: CMD
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip
+tar -xf co-shell.zip
+del co-shell.zip
+co-shell.exe
 ```
 
 
