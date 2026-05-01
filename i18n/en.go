@@ -397,7 +397,7 @@ no liability whatsoever.`,
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   Disable sub-agent tools (overrides config)",
 
 	// Config show column 3 labels
-	KeyCol3Provider:     "provider(deepseek/qwen/xiaomi/openai)",
+	KeyCol3Provider:     "provider(deepseek/qwen/xiaomi/zhipu/openai)",
 	KeyCol3Endpoint:     "API server",
 	KeyCol3Model:        "model ID",
 	KeyCol3Temperature:  "temperature(0.0 ~ 2.0)",
