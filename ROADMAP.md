@@ -131,6 +131,7 @@
 - [x] ENHANCEMENT-111 改进命令提示页和错误提示页，增加风险警示。[BUILD-134]
 - [x] FEATURE-112 增加thinking开关设置，可以通过命令行、REPL、和配置文件设置。[BUILD-135]
 - [x] FEATURE-115 Agent 增加 TokenUsage 和 ResetTokenUsage 方法，用于获取和重置累计 Token 用量统计 [BUILD-135]
+- [ ] FEATURE-117 改进公文风格 Word 文档生成：优化 DOCX 生成质量，支持更美观的排版样式（字体、字号、行距、标题样式等），支持公文格式规范（红头文件、公文编号、落款等），增强 Markdown 到 DOCX 的转换效果。
 
 ## v0.4.0 — RC2
 
