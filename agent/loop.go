@@ -108,6 +108,15 @@ type Agent struct {
 	// all tool messages have been appended, and adjusts messagePointer to skip past
 	// the tool messages, so the next LLM iteration starts fresh from the checklist context.
 	needAdjustPointer bool
+
+	// errorCounter tracks the number of times each distinct error message has occurred
+	// during the current request. Key is the error message string, value is the count.
+	// Reset at the start of each RunStream call.
+	errorCounter map[string]int
+
+	// errorApproveAll is set to true when the user chooses to ignore all error limits
+	// for the current request.
+	errorApproveAll bool
 }
 
 // New creates a new Agent instance.
@@ -605,8 +614,10 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
-	// Reset approveAll flag for each new request
+	// Reset approveAll and error tracking flags for each new request
 	a.approveAll = false
+	a.errorCounter = make(map[string]int)
+	a.errorApproveAll = false
 
 	a.mu.Lock()
 	// If there are image paths, create a multimodal message with cached images
@@ -644,6 +655,78 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
 		if streamErr != nil {
+			// Track error count for this request
+			errMsg := streamErr.Error()
+			a.errorCounter[errMsg]++
+			singleCount := a.errorCounter[errMsg]
+			typeCount := len(a.errorCounter)
+
+			// Get configured limits
+			maxSingle := 10
+			maxType := 100
+			if a.cfg != nil {
+				if a.cfg.LLM.ErrorMaxSingleCount > 0 {
+					maxSingle = a.cfg.LLM.ErrorMaxSingleCount
+				}
+				if a.cfg.LLM.ErrorMaxTypeCount > 0 {
+					maxType = a.cfg.LLM.ErrorMaxTypeCount
+				}
+			}
+
+			// Check if we need to prompt the user
+			needUserPrompt := false
+			promptReason := ""
+
+			if singleCount >= maxSingle && !a.errorApproveAll {
+				needUserPrompt = true
+				promptReason = fmt.Sprintf("相同错误已出现 %d 次（上限 %d 次）", singleCount, maxSingle)
+			} else if typeCount >= maxType && !a.errorApproveAll {
+				needUserPrompt = true
+				promptReason = fmt.Sprintf("不同错误类型已达 %d 种（上限 %d 种）", typeCount, maxType)
+			}
+
+			if needUserPrompt {
+				// Prompt user for action
+				fmt.Printf("\n⚠️ 错误反复出现: %s\n", promptReason)
+				fmt.Printf("  最新错误: %v\n", streamErr)
+				fmt.Println()
+				fmt.Println("  请选择操作:")
+				fmt.Println("  [Enter] 继续让 LLM 尝试处理")
+				fmt.Println("  [C] 取消，返回 REPL")
+				fmt.Println("  [A] 忽略限制，继续执行")
+				fmt.Println()
+				fmt.Print("  请选择 (Enter/C/A): ")
+
+				var lineBuf []byte
+				buf := make([]byte, 1)
+				for {
+					n, err := os.Stdin.Read(buf)
+					if err != nil || n == 0 {
+						break
+					}
+					if buf[0] == '\n' || buf[0] == '\r' {
+						break
+					}
+					lineBuf = append(lineBuf, buf[0])
+				}
+
+				userChoice := strings.TrimSpace(string(lineBuf))
+				lower := strings.ToLower(userChoice)
+
+				if lower == "c" {
+					// User cancelled, return to REPL
+					cb("info", "\n🛑 用户取消了操作\n")
+					return "", nil
+				} else if lower == "a" {
+					// User chose to ignore all error limits
+					a.errorApproveAll = true
+					fmt.Println("\n✅ 已忽略错误限制，继续执行")
+				} else {
+					// Continue (Enter pressed)
+					fmt.Println("\n✅ 继续让 LLM 尝试处理")
+				}
+			}
+
 			// Feed all errors back to the LLM so it can decide how to handle them.
 			// The LLM can determine whether the error is recoverable (e.g., invalid arguments,
 			// temporary timeout) and retry with corrections, or unrecoverable (e.g., auth failure,

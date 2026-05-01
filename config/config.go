@@ -188,6 +188,16 @@ type LLMConfig struct {
 
 	// MemorySearchMaxResults: maximum number of results returned by memory search. Default: 100
 	MemorySearchMaxResults int `json:"memory_search_max_results"`
+
+	// ErrorMaxSingleCount: maximum count for a single error type before prompting user.
+	// When the same error message appears this many times, the user is prompted.
+	// Default: 10
+	ErrorMaxSingleCount int `json:"error_max_single_count"`
+
+	// ErrorMaxTypeCount: maximum number of distinct error types before prompting user.
+	// When the number of unique error messages exceeds this, the user is prompted.
+	// Default: 100
+	ErrorMaxTypeCount int `json:"error_max_type_count"`
 }
 
 // MCPConfig holds MCP server configuration.
@@ -240,6 +250,8 @@ func DefaultConfig() *Config {
 			SearchContextLines:        5,
 			MemorySearchMaxContentLen: 512,
 			MemorySearchMaxResults:    100,
+			ErrorMaxSingleCount:       10,
+			ErrorMaxTypeCount:         100,
 		},
 
 		MCP: MCPConfig{
