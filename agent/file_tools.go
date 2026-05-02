@@ -832,9 +832,8 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 			for _, ld := range r.lineDiffs {
 				switch {
 				case ld.isModified:
-					// Modified line: show old → new
-					result.WriteString(fmt.Sprintf("    %d*: %s\n", ld.lineNum, ld.oldLine))
-					result.WriteString(fmt.Sprintf("    %d*: %s\n", ld.lineNum, ld.newLine))
+					// Modified line: old -----> new
+					result.WriteString(fmt.Sprintf("    %d*: %s -----> %s\n", ld.lineNum, ld.oldLine, ld.newLine))
 				case ld.isDeleted:
 					// Deleted line: show with line number and asterisk
 					result.WriteString(fmt.Sprintf("    %d*: %s\n", ld.lineNum, ld.oldLine))
