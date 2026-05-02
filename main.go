@@ -69,9 +69,10 @@ type cliFlags struct {
 	imagePaths    string // comma-separated image file paths for multimodal input
 
 	// LLM behavior parameters
-	temperature       float64
-	maxTokens         int
-	showThinking      string // "on"/"off"
+	temperature     float64
+	maxTokens       int
+	showLlmThinking string // "on"/"off"
+
 	showLlmContent    string // "on"/"off"
 	showTool          string // "on"/"off"
 	showToolInput     string // "on"/"off"
@@ -150,7 +151,8 @@ func parseFlags() cliFlags {
 	// LLM behavior parameters
 	flag.Float64Var(&f.temperature, "temperature", -1, "温度参数（0.0 ~ 2.0，覆盖配置文件）")
 	flag.IntVar(&f.maxTokens, "max-tokens", -1, "最大输出令牌数（覆盖配置文件）")
-	flag.StringVar(&f.showThinking, "show-thinking", "", "显示 AI 思考过程（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showLlmThinking, "show-llm-thinking", "", "显示 LLM 返回的思考内容（on/off，覆盖配置文件）")
+
 	flag.StringVar(&f.showCommand, "show-command", "", "显示执行的系统命令（on/off，覆盖配置文件）")
 	flag.StringVar(&f.showLlmContent, "show-llm-content", "", "显示 LLM 返回的主要内容（on/off，覆盖配置文件）")
 	flag.StringVar(&f.showTool, "show-tool", "", "显示工具调用名称（on/off，覆盖配置文件）")
@@ -456,14 +458,14 @@ func main() {
 	if flags.maxTokens >= 0 {
 		cfg.LLM.MaxTokens = flags.maxTokens
 	}
-	if flags.showThinking != "" {
-		switch flags.showThinking {
+	if flags.showLlmThinking != "" {
+		switch flags.showLlmThinking {
 		case "on", "1", "true", "yes":
 			cfg.LLM.ShowLlmThinking = true
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLlmThinking = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-thinking value %q, use on|off\n", flags.showThinking)
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-llm-thinking value %q, use on|off\n", flags.showLlmThinking)
 		}
 	}
 
