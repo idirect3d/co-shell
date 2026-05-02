@@ -121,7 +121,7 @@ func (h *SessionHandler) showSession() (string, error) {
 			if i == pointerIdx {
 				marker = "*"
 			}
-			sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s\n", marker, i+1, msg.Role, content))
+			sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s\n", marker, i, msg.Role, content))
 		}
 	}
 
