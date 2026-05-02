@@ -162,6 +162,42 @@ var enMessages = map[string]string{
 	KeySettingsLabelMaxIterations: "Max Iterations",
 	KeySettingsLabelProvider:      "Provider",
 
+	// New output control keys (ENHANCEMENT-126)
+	KeyShowLlmThinking:  "Show LLM thinking: %s",
+	KeyShowLlmContent:   "Show LLM content: %s",
+	KeyShowTool:         "Show tool call name: %s",
+	KeyShowToolInput:    "Show tool call input: %s",
+	KeyShowToolOutput:   "Show tool call output: %s",
+	KeyShowCommandOutput: "Show command output: %s",
+
+	KeySettingsLabelShowLlmThinking:  "Show LLM Thinking",
+	KeySettingsLabelShowLlmContent:   "Show LLM Content",
+	KeySettingsLabelShowTool:         "Show Tool Call",
+	KeySettingsLabelShowToolInput:    "Show Tool Input",
+	KeySettingsLabelShowToolOutput:   "Show Tool Output",
+	KeySettingsLabelShowCommandOutput: "Show Cmd Output",
+
+	KeyCol3LlmThinking:  "show llm thinking(on|off)",
+	KeyCol3LlmContent:   "show llm content(on|off)",
+	KeyCol3Tool:         "show tool call(on|off)",
+	KeyCol3ToolInput:    "show tool input(on|off)",
+	KeyCol3ToolOutput:   "show tool output(on|off)",
+	KeyCol3CommandOutput: "show command output(on|off)",
+
+	KeySettingsDescLlmThinking:  "Show LLM thinking process",
+	KeySettingsDescLlmContent:   "Show LLM response content",
+	KeySettingsDescTool:         "Show tool call method name",
+	KeySettingsDescToolInput:    "Show tool call input parameters",
+	KeySettingsDescToolOutput:   "Show tool call return data",
+	KeySettingsDescCommandOutput: "Show command execution return data",
+
+	KeyCLIHelpShowLlmThinking:  "      --show-llm-thinking  Show LLM thinking process (on/off, overrides config)",
+	KeyCLIHelpShowLlmContent:   "      --show-llm-content   Show LLM response content (on/off, overrides config)",
+	KeyCLIHelpShowTool:         "      --show-tool          Show tool call name (on/off, overrides config)",
+	KeyCLIHelpShowToolInput:    "      --show-tool-input    Show tool call input (on/off, overrides config)",
+	KeyCLIHelpShowToolOutput:   "      --show-tool-output   Show tool call output (on/off, overrides config)",
+	KeyCLIHelpShowCommandOutput: "      --show-command-output Show command output (on/off, overrides config)",
+
 	// Config format
 	KeyConfigFormat: `LLM Configuration:
   %-20s %-30s %s
@@ -272,7 +308,6 @@ var enMessages = map[string]string{
 	KeyCLIHelpMaxTokens:      "      --max-tokens <n>   Max output tokens (overrides config)",
 	KeyCLIHelpShowThinking:   "      --show-thinking    Show AI thinking process (on/off, overrides config)",
 	KeyCLIHelpShowCommand:    "      --show-command     Show executed system commands (on/off, overrides config)",
-	KeyCLIHelpShowOutput:     "      --show-output      Show command execution output (on/off, overrides config)",
 	KeyCLIHelpConfirmCommand: "      --confirm-command  Confirm before executing commands (on/off, overrides config)",
 	KeyCLIHelpResultMode:     "      --result-mode      Result processing mode (minimal/explain/analyze/free, overrides config)",
 
@@ -286,7 +321,6 @@ var enMessages = map[string]string{
 	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API request timeout in seconds (0=unlimited, overrides config)",
 
 	// CLI Help - Output Mode
-	KeyCLIHelpOutputMode: "      --output-mode       LLM output display mode (compact/normal/debug, overrides config)",
 
 	"col3_search_max_line_length":           "Max line length for search",
 	"col3_search_max_result_bytes":          "Max result bytes for search",
@@ -423,7 +457,6 @@ no liability whatsoever.`,
 	KeyCol3Principles:   "Agent principles",
 	KeyCol3Vision:       "vision(on|off)",
 	KeyCol3ContextLimit: "context limit(0=no history, N=last N, -1=unlimited)",
-	KeyCol3OutputMode:   "output mode(compact/normal/debug)",
 
 	// Context limit
 	KeyContextLimitLabel:    "Context Limit",
@@ -432,8 +465,6 @@ no liability whatsoever.`,
 	KeyConfigContextLimit:   "  Context Limit: %s\n",
 
 	// Output mode
-	KeyOutputModeUpdated:   "✅ Output mode set to: %s",
-	KeySettingsDescOutMode: "Set output mode (compact/normal/debug)",
 
 	// History list
 	KeyListTitle:     "📋 History Tasks:",

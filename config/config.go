@@ -80,47 +80,6 @@ func ParseResultMode(s string) (ResultMode, bool) {
 	}
 }
 
-// OutputMode defines how LLM front-end output is displayed to the user.
-type OutputMode int
-
-const (
-	// OutputModeCompact: only show LLM response content, hide all tool call info.
-	OutputModeCompact OutputMode = iota
-	// OutputModeNormal: show LLM response content and tool call method names,
-	// but hide tool call details and return results.
-	OutputModeNormal
-	// OutputModeDebug: show everything including tool call input parameters and return results.
-	OutputModeDebug
-)
-
-// OutputModeString returns the string representation of an OutputMode.
-func OutputModeString(m OutputMode) string {
-	switch m {
-	case OutputModeCompact:
-		return "compact"
-	case OutputModeNormal:
-		return "normal"
-	case OutputModeDebug:
-		return "debug"
-	default:
-		return "normal"
-	}
-}
-
-// ParseOutputMode parses a string into an OutputMode.
-func ParseOutputMode(s string) (OutputMode, bool) {
-	switch s {
-	case "compact":
-		return OutputModeCompact, true
-	case "normal":
-		return OutputModeNormal, true
-	case "debug":
-		return OutputModeDebug, true
-	default:
-		return OutputModeNormal, false
-	}
-}
-
 // LLMConfig holds all LLM-related configuration.
 type LLMConfig struct {
 	Provider       string  `json:"provider"`
@@ -130,11 +89,17 @@ type LLMConfig struct {
 	Temperature    float64 `json:"temperature"`
 	MaxTokens      int     `json:"max_tokens"`
 	MaxIterations  int     `json:"max_iterations"`
-	ShowThinking   bool    `json:"show_thinking"`
-	ShowCommand    bool    `json:"show_command"`
-	ShowOutput     bool    `json:"show_output"`
 	ConfirmCommand bool    `json:"confirm_command"`
 	ResultMode     int     `json:"result_mode"` // 0=minimal, 1=explain, 2=analyze, 3=free
+
+	// Output control switches (ENHANCEMENT-126)
+	ShowLlmThinking   bool `json:"show_llm_thinking"`   // Show LLM thinking content (default: true)
+	ShowLlmContent    bool `json:"show_llm_content"`    // Show LLM main content (default: true)
+	ShowTool          bool `json:"show_tool"`           // Show tool call name (default: true)
+	ShowToolInput     bool `json:"show_tool_input"`     // Show tool call input parameters (default: false)
+	ShowToolOutput    bool `json:"show_tool_output"`    // Show tool call return data (default: false)
+	ShowCommand       bool `json:"show_command"`        // Show system command (default: true)
+	ShowCommandOutput bool `json:"show_command_output"` // Show command return data (default: true)
 
 	// Agent identity
 	AgentName        string `json:"agent_name"`        // Agent name (default: co-shell)
@@ -165,10 +130,6 @@ type LLMConfig struct {
 
 	// SubAgentEnabled: whether sub-agent tools (launch_sub_agent) are enabled
 	SubAgentEnabled bool `json:"sub_agent_enabled"`
-
-	// OutputMode: how LLM front-end output is displayed
-	// 0=compact, 1=normal, 2=debug
-	OutputMode int `json:"output_mode"`
 
 	// SearchMaxLineLength: maximum character length for a single line in search results
 	// Lines longer than this will be truncated. Default: 8192
@@ -247,16 +208,19 @@ func DefaultConfig() *Config {
 			Temperature:               0.7,
 			MaxTokens:                 393216,
 			MaxIterations:             1000,
-			ShowThinking:              false,
+			ShowLlmThinking:           true,
+			ShowLlmContent:            true,
+			ShowTool:                  true,
+			ShowToolInput:             false,
+			ShowToolOutput:            false,
 			ShowCommand:               true,
-			ShowOutput:                true,
+			ShowCommandOutput:         true,
 			ConfirmCommand:            true,
 			ResultMode:                int(ResultModeFree),
 			ContextLimit:              -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 			MemoryEnabled:             true,
 			PlanEnabled:               true,
 			SubAgentEnabled:           true,
-			OutputMode:                int(OutputModeNormal),
 			SearchMaxLineLength:       8192,
 			SearchMaxResultBytes:      65536,
 			SearchContextLines:        5,
@@ -337,9 +301,33 @@ func (c *Config) Save() error {
 // Show returns a human-readable representation of the config.
 // Two-column layout: parameter name (left) | value with label and range (right)
 func (c *Config) Show() string {
-	thinkingStatus := i18n.T(i18n.KeyOn)
-	if !c.LLM.ShowThinking {
-		thinkingStatus = i18n.T(i18n.KeyOff)
+	llmThinkingStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ShowLlmThinking {
+		llmThinkingStatus = i18n.T(i18n.KeyOff)
+	}
+	llmContentStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ShowLlmContent {
+		llmContentStatus = i18n.T(i18n.KeyOff)
+	}
+	toolStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ShowTool {
+		toolStatus = i18n.T(i18n.KeyOff)
+	}
+	toolInputStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ShowToolInput {
+		toolInputStatus = i18n.T(i18n.KeyOff)
+	}
+	toolOutputStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ShowToolOutput {
+		toolOutputStatus = i18n.T(i18n.KeyOff)
+	}
+	commandStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ShowCommand {
+		commandStatus = i18n.T(i18n.KeyOff)
+	}
+	commandOutputStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ShowCommandOutput {
+		commandOutputStatus = i18n.T(i18n.KeyOff)
 	}
 	thinkingEnabledStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ThinkingEnabled {
@@ -348,14 +336,6 @@ func (c *Config) Show() string {
 	reasoningEffortStr := c.LLM.ReasoningEffort
 	if reasoningEffortStr == "" {
 		reasoningEffortStr = "low"
-	}
-	commandStatus := i18n.T(i18n.KeyOn)
-	if !c.LLM.ShowCommand {
-		commandStatus = i18n.T(i18n.KeyOff)
-	}
-	outputStatus := i18n.T(i18n.KeyOn)
-	if !c.LLM.ShowOutput {
-		outputStatus = i18n.T(i18n.KeyOff)
 	}
 	confirmStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ConfirmCommand {
@@ -413,9 +393,13 @@ func (c *Config) Show() string {
 	col3MaxTokens := i18n.T(i18n.KeyCol3MaxTokens)
 	col3MaxIter := i18n.T(i18n.KeyCol3MaxIter)
 	col3MaxRetries := i18n.T(i18n.KeyCol3MaxRetries)
-	col3Thinking := i18n.T(i18n.KeyCol3Thinking)
+	col3LlmThinking := i18n.T(i18n.KeyCol3LlmThinking)
+	col3LlmContent := i18n.T(i18n.KeyCol3LlmContent)
+	col3Tool := i18n.T(i18n.KeyCol3Tool)
+	col3ToolInput := i18n.T(i18n.KeyCol3ToolInput)
+	col3ToolOutput := i18n.T(i18n.KeyCol3ToolOutput)
 	col3Command := i18n.T(i18n.KeyCol3Command)
-	col3Output := i18n.T(i18n.KeyCol3Output)
+	col3CommandOutput := i18n.T(i18n.KeyCol3CommandOutput)
 	col3Confirm := i18n.T(i18n.KeyCol3Confirm)
 	col3ToolTimeout := i18n.T(i18n.KeyCol3ToolTimeout)
 	col3CmdTimeout := i18n.T(i18n.KeyCol3CmdTimeout)
@@ -431,7 +415,6 @@ func (c *Config) Show() string {
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
 	col3PlanEnabled := i18n.T(i18n.KeyCol3PlanEnabled)
 	col3SubAgentEnabled := i18n.T(i18n.KeyCol3SubAgentEnabled)
-	col3OutputMode := i18n.T(i18n.KeyCol3OutputMode)
 	col3SearchMaxLineLength := i18n.T(i18n.KeyCol3SearchMaxLineLength)
 	col3SearchMaxResultBytes := i18n.T(i18n.KeyCol3SearchMaxResultBytes)
 	col3SearchContextLines := i18n.T(i18n.KeyCol3SearchContextLines)
@@ -441,7 +424,6 @@ func (c *Config) Show() string {
 	col3ReasoningEffort := i18n.T(i18n.KeyCol3ReasoningEffort)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
-	outputModeStr := OutputModeString(OutputMode(c.LLM.OutputMode))
 
 	visionStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.VisionSupport {
@@ -492,9 +474,13 @@ func (c *Config) Show() string {
 		"max-tokens:", fmt.Sprintf("%d", c.LLM.MaxTokens), col3MaxTokens,
 		"max-iterations:", maxIterStr, col3MaxIter,
 		"max-retries:", fmt.Sprintf("%d", c.LLM.MaxRetries), col3MaxRetries,
-		"show-thinking:", thinkingStatus, col3Thinking,
+		"show-llm-thinking:", llmThinkingStatus, col3LlmThinking,
+		"show-llm-content:", llmContentStatus, col3LlmContent,
+		"show-tool:", toolStatus, col3Tool,
+		"show-tool-input:", toolInputStatus, col3ToolInput,
+		"show-tool-output:", toolOutputStatus, col3ToolOutput,
 		"show-command:", commandStatus, col3Command,
-		"show-output:", outputStatus, col3Output,
+		"show-command-output:", commandOutputStatus, col3CommandOutput,
 		"confirm-command:", confirmStatus, col3Confirm,
 		"result-mode:", resultModeStr, col3ResultMode,
 		"tool-timeout:", toolTimeoutStr, col3ToolTimeout,
@@ -509,7 +495,6 @@ func (c *Config) Show() string {
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
 		"plan-enabled:", planEnabledStatus, col3PlanEnabled,
 		"subagent-enabled:", subAgentEnabledStatus, col3SubAgentEnabled,
-		"output-mode:", outputModeStr, col3OutputMode,
 		"search-max-line-length:", fmt.Sprintf("%d", c.LLM.SearchMaxLineLength), col3SearchMaxLineLength,
 		"search-max-result-bytes:", fmt.Sprintf("%d", c.LLM.SearchMaxResultBytes), col3SearchMaxResultBytes,
 		"search-context-lines:", fmt.Sprintf("%d", c.LLM.SearchContextLines), col3SearchContextLines,
