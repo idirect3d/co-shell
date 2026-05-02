@@ -95,11 +95,20 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	prompt := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\nAvailable tools will be provided to you as function definitions.",
 		title, capabilities, rulesText, resultModeText)
 
-	// Add agent identity if configured
-	if agentName != "" || agentDescription != "" || agentPrinciples != "" {
-		identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
-		prompt = fmt.Sprintf("%s\n\n%s", identityText, prompt)
+	// Use i18n defaults for empty identity fields
+	if agentName == "" {
+		agentName = "co-shell"
 	}
+	if agentDescription == "" {
+		agentDescription = i18n.T(i18n.KeyDefaultAgentDescription)
+	}
+	if agentPrinciples == "" {
+		agentPrinciples = i18n.T(i18n.KeyDefaultAgentPrinciples)
+	}
+
+	// Add agent identity
+	identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
+	prompt = fmt.Sprintf("%s\n\n%s", identityText, prompt)
 
 	if rules != "" {
 		prompt += fmt.Sprintf("\n\n%s:\n%s", i18n.T(i18n.KeyCustom), rules)
