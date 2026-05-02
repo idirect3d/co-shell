@@ -230,6 +230,7 @@ type Config struct {
 	MCP                MCPConfig `json:"mcp"`
 	Rules              []string  `json:"rules"`
 	LogEnabled         bool      `json:"log_enabled"`
+	LogLevel           string    `json:"log_level"` // debug/info/warn/error/off
 	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
 
 	ws         *workspace.Workspace // workspace reference for Save()
@@ -360,9 +361,13 @@ func (c *Config) Show() string {
 	if !c.LLM.ConfirmCommand {
 		confirmStatus = i18n.T(i18n.KeyOff)
 	}
-	logStatus := i18n.T(i18n.KeyOn)
+	logLevel := c.LogLevel
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	logStatus := logLevel
 	if !c.LogEnabled {
-		logStatus = i18n.T(i18n.KeyOff)
+		logStatus = "off"
 	}
 	maxIterStr := fmt.Sprintf("%d", c.LLM.MaxIterations)
 	if c.LLM.MaxIterations == -1 {
