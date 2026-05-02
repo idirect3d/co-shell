@@ -92,9 +92,29 @@ func (a *Agent) Said() string {
 	return i18n.TF(i18n.KeyAgentSaid, now, a.name)
 }
 
-// SetShowThinking sets whether to display thinking process.
-func (a *Agent) SetShowThinking(show bool) {
-	a.showThinking = show
+// SetShowLlmThinking sets whether to display LLM thinking content.
+func (a *Agent) SetShowLlmThinking(show bool) {
+	a.showLlmThinking = show
+}
+
+// SetShowLlmContent sets whether to display LLM main content.
+func (a *Agent) SetShowLlmContent(show bool) {
+	a.showLlmContent = show
+}
+
+// SetShowTool sets whether to display tool call name.
+func (a *Agent) SetShowTool(show bool) {
+	a.showTool = show
+}
+
+// SetShowToolInput sets whether to display tool call input parameters.
+func (a *Agent) SetShowToolInput(show bool) {
+	a.showToolInput = show
+}
+
+// SetShowToolOutput sets whether to display tool call return data.
+func (a *Agent) SetShowToolOutput(show bool) {
+	a.showToolOutput = show
 }
 
 // SetShowCommand sets whether to display commands before execution.
@@ -102,9 +122,9 @@ func (a *Agent) SetShowCommand(show bool) {
 	a.showCommand = show
 }
 
-// SetShowOutput sets whether to display command output before LLM analysis.
-func (a *Agent) SetShowOutput(show bool) {
-	a.showOutput = show
+// SetShowCommandOutput sets whether to display command return data.
+func (a *Agent) SetShowCommandOutput(show bool) {
+	a.showCommandOutput = show
 }
 
 // SetMaxIterations sets the maximum number of LLM call iterations.
@@ -146,12 +166,8 @@ func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }
 
-// SetOutputMode sets the output display mode.
-func (a *Agent) SetOutputMode(mode config.OutputMode) {
-	a.outputMode = mode
-}
-
 // SetConfig sets the configuration for timeout settings and agent identity.
+
 // It also rebuilds the system prompt with identity information.
 func (a *Agent) SetConfig(cfg *config.Config) {
 	a.cfg = cfg

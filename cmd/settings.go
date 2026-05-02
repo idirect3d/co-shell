@@ -150,31 +150,33 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Max tokens set to %d", tokens)
 		return i18n.TF(i18n.KeyMaxTokensUpdated, tokens), nil
 
-	case "show-thinking":
+	case "show-llm-thinking":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.ShowThinking {
+			if !h.cfg.LLM.ShowLlmThinking {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf(i18n.T(i18n.KeyShowThinking), status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyShowLlmThinking), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
-			h.cfg.LLM.ShowThinking = true
+			h.cfg.LLM.ShowLlmThinking = true
 		case "off", "0", "false", "no":
-			h.cfg.LLM.ShowThinking = false
+			h.cfg.LLM.ShowLlmThinking = false
 		default:
-			return "", fmt.Errorf("usage: .set show-thinking on|off")
+			return "", fmt.Errorf("usage: .set show-llm-thinking on|off")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Sync to agent immediately
+		h.agent.SetShowLlmThinking(h.cfg.LLM.ShowLlmThinking)
 		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.ShowThinking {
+		if !h.cfg.LLM.ShowLlmThinking {
 			status = i18n.T(i18n.KeyOff)
 		}
-		log.Info("Show thinking set to %s", status)
-		return fmt.Sprintf(i18n.T(i18n.KeyShowThinking), status), nil
+		log.Info("Show LLM thinking set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeyShowLlmThinking), status), nil
 
 	case "show-command":
 		if len(args) < 2 {
@@ -195,6 +197,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Sync to agent immediately
+		h.agent.SetShowCommand(h.cfg.LLM.ShowCommand)
 		status := i18n.T(i18n.KeyOn)
 		if !h.cfg.LLM.ShowCommand {
 			status = i18n.T(i18n.KeyOff)
@@ -202,31 +206,143 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Show command set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeyShowCommand), status), nil
 
-	case "show-output":
+	case "show-tool":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.ShowOutput {
+			if !h.cfg.LLM.ShowTool {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf(i18n.T(i18n.KeyShowOutput), status), nil
+			return fmt.Sprintf("显示工具调用名称: %s", status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
-			h.cfg.LLM.ShowOutput = true
+			h.cfg.LLM.ShowTool = true
 		case "off", "0", "false", "no":
-			h.cfg.LLM.ShowOutput = false
+			h.cfg.LLM.ShowTool = false
 		default:
-			return "", fmt.Errorf("usage: .set show-output on|off")
+			return "", fmt.Errorf("usage: .set show-tool on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowTool(h.cfg.LLM.ShowTool)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowTool {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show tool set to %s", status)
+		return fmt.Sprintf("✅ 显示工具调用名称已设置为: %s", status), nil
+
+	case "show-tool-input":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowToolInput {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("显示工具调用输入参数: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowToolInput = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowToolInput = false
+		default:
+			return "", fmt.Errorf("usage: .set show-tool-input on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowToolInput(h.cfg.LLM.ShowToolInput)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowToolInput {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show tool input set to %s", status)
+		return fmt.Sprintf("✅ 显示工具调用输入参数已设置为: %s", status), nil
+
+	case "show-tool-output":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowToolOutput {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("显示工具调用返回数据: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowToolOutput = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowToolOutput = false
+		default:
+			return "", fmt.Errorf("usage: .set show-tool-output on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowToolOutput(h.cfg.LLM.ShowToolOutput)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowToolOutput {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show tool output set to %s", status)
+		return fmt.Sprintf("✅ 显示工具调用返回数据已设置为: %s", status), nil
+
+	case "show-command-output":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowCommandOutput {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("显示命令返回数据: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowCommandOutput = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowCommandOutput = false
+		default:
+			return "", fmt.Errorf("usage: .set show-command-output on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowCommandOutput(h.cfg.LLM.ShowCommandOutput)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowCommandOutput {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show command output set to %s", status)
+		return fmt.Sprintf("✅ 显示命令返回数据已设置为: %s", status), nil
+
+	case "show-llm-content":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowLlmContent {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeyShowLlmContent), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowLlmContent = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowLlmContent = false
+		default:
+			return "", fmt.Errorf("usage: .set show-llm-content on|off")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.ShowOutput {
+		if !h.cfg.LLM.ShowLlmContent {
 			status = i18n.T(i18n.KeyOff)
 		}
-		log.Info("Show output set to %s", status)
-		return fmt.Sprintf(i18n.T(i18n.KeyShowOutput), status), nil
+		log.Info("Show LLM content set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeyShowLlmContent), status), nil
 
 	case "confirm-command":
 		if len(args) < 2 {
@@ -514,25 +630,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("SubAgent enabled set to %s", status)
 		return fmt.Sprintf("✅ 子代理功能已设置为: %s", status), nil
 
-	case "output-mode":
-		if len(args) < 2 {
-			currentMode := config.OutputModeString(config.OutputMode(h.cfg.LLM.OutputMode))
-			return fmt.Sprintf("输出模式: %s", currentMode), nil
-		}
-		mode, ok := config.ParseOutputMode(args[1])
-		if !ok {
-			return "", fmt.Errorf("无效的输出模式: %s（可选值: compact, normal, debug）", args[1])
-		}
-		h.cfg.LLM.OutputMode = int(mode)
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		// Sync to agent immediately
-		h.agent.SetOutputMode(config.OutputMode(mode))
-		log.Info("Output mode set to %s", args[1])
-		return i18n.TF(i18n.KeyOutputModeUpdated, config.OutputModeString(mode)), nil
-
 	case "search-max-line-length":
+
 		if len(args) < 2 {
 			return fmt.Sprintf("搜索单行最大字符数: %d", h.cfg.LLM.SearchMaxLineLength), nil
 		}
@@ -753,18 +852,35 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 
 	// Prepare values
-	thinkingStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ShowThinking {
-		thinkingStatus = i18n.T(i18n.KeyOn)
+	llmThinkingStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowLlmThinking {
+		llmThinkingStatus = i18n.T(i18n.KeyOn)
+	}
+	llmContentStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowLlmContent {
+		llmContentStatus = i18n.T(i18n.KeyOn)
 	}
 	commandStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.ShowCommand {
 		commandStatus = i18n.T(i18n.KeyOn)
 	}
-	outputStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ShowOutput {
-		outputStatus = i18n.T(i18n.KeyOn)
+	toolStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowTool {
+		toolStatus = i18n.T(i18n.KeyOn)
 	}
+	toolInputStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowToolInput {
+		toolInputStatus = i18n.T(i18n.KeyOn)
+	}
+	toolOutputStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowToolOutput {
+		toolOutputStatus = i18n.T(i18n.KeyOn)
+	}
+	commandOutputStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowCommandOutput {
+		commandOutputStatus = i18n.T(i18n.KeyOn)
+	}
+
 	confirmStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.ConfirmCommand {
 		confirmStatus = i18n.T(i18n.KeyOn)
@@ -830,7 +946,6 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
-	outputModeStr := config.OutputModeString(config.OutputMode(cfg.LLM.OutputMode))
 
 	// Collect all lines
 	var allLines []settingLine
@@ -859,11 +974,14 @@ func showSettingsHelp(cfg *config.Config) string {
 
 	// Group 3: Display & Output
 	allLines = append(allLines,
-		makeLine("show-thinking", thinkingStatus, i18n.T(i18n.KeyCol3Thinking)),
+		makeLine("show-llm-thinking", llmThinkingStatus, i18n.T(i18n.KeyCol3LlmThinking)),
+		makeLine("show-llm-content", llmContentStatus, i18n.T(i18n.KeyCol3LlmContent)),
+		makeLine("show-tool", toolStatus, i18n.T(i18n.KeyCol3Tool)),
+		makeLine("show-tool-input", toolInputStatus, i18n.T(i18n.KeyCol3ToolInput)),
+		makeLine("show-tool-output", toolOutputStatus, i18n.T(i18n.KeyCol3ToolOutput)),
 		makeLine("show-command", commandStatus, i18n.T(i18n.KeyCol3Command)),
-		makeLine("show-output", outputStatus, i18n.T(i18n.KeyCol3Output)),
+		makeLine("show-command-output", commandOutputStatus, i18n.T(i18n.KeyCol3CommandOutput)),
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
-		makeLine("output-mode", outputModeStr, i18n.T(i18n.KeyCol3OutputMode)),
 	)
 
 	// Group 4: Safety & Confirmation
@@ -930,7 +1048,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(11)...)
 
 	// Group 3: Display & Output
-	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(5)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)
 
 	// Group 4: Safety & Confirmation
 	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(6)...)
