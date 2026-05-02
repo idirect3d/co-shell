@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
@@ -450,6 +451,8 @@ func (a *Agent) listCodeDefinitionNamesTool(ctx context.Context, args map[string
 }
 
 // replaceInFileTool replaces sections of content in an existing file using SEARCH/REPLACE.
+// Supports multiple SEARCH/REPLACE blocks, relative path resolution, backup mechanism,
+// and returns detailed diff information.
 func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("replaceInFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
@@ -457,14 +460,13 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 		return "", fmt.Errorf("path argument is required")
 	}
 
-	search, ok := args["search"].(string)
-	if !ok {
-		return "", fmt.Errorf("search argument is required")
-	}
-
-	replace, ok := args["replace"].(string)
-	if !ok {
-		return "", fmt.Errorf("replace argument is required")
+	// Resolve relative paths (like readFileTool does)
+	if !filepath.IsAbs(path) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("cannot get current working directory: %w", err)
+		}
+		path = filepath.Join(cwd, path)
 	}
 
 	// Read the file
@@ -474,22 +476,246 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 	}
 
 	content := string(data)
+	originalContent := content
 
-	// Find the search string
-	idx := strings.Index(content, search)
-	if idx < 0 {
-		return "", fmt.Errorf("search content not found in file %q. The SEARCH content must match the file exactly (including whitespace and indentation)", path)
+	// Collect all SEARCH/REPLACE blocks from the "replacements" array
+	// Each replacement is an object with "search" and "replace" string properties.
+	var searches, replaces []string
+
+	if replacementsRaw, ok := args["replacements"].([]interface{}); ok {
+		for i, r := range replacementsRaw {
+			rMap, ok := r.(map[string]interface{})
+			if !ok {
+				return "", fmt.Errorf("replacements[%d] must be an object with 'search' and 'replace' fields", i)
+			}
+			search, ok := rMap["search"].(string)
+			if !ok {
+				return "", fmt.Errorf("replacements[%d].search is required and must be a string", i)
+			}
+			replace, ok := rMap["replace"].(string)
+			if !ok {
+				return "", fmt.Errorf("replacements[%d].replace is required and must be a string", i)
+			}
+			searches = append(searches, search)
+			replaces = append(replaces, replace)
+		}
 	}
 
-	// Replace only the first occurrence
-	newContent := content[:idx] + replace + content[idx+len(search):]
+	if len(searches) == 0 {
+		return "", fmt.Errorf("replacements argument is required: an array of objects with 'search' and 'replace' fields")
+	}
+
+	// Track replacements for diff output
+	type replacementInfo struct {
+		search       string
+		replace      string
+		startLine    int
+		endLine      int
+		searchLines  int
+		replaceLines int
+		success      bool
+		err          string
+	}
+	var replacements []replacementInfo
+
+	// Perform all replacements sequentially
+	for i := 0; i < len(searches); i++ {
+		search := searches[i]
+		replace := replaces[i]
+
+		// Try exact match first
+		idx := strings.Index(content, search)
+		if idx < 0 {
+			// Try whitespace-tolerant match: normalize trailing whitespace on each line
+			searchLines := strings.Split(search, "\n")
+			contentLines := strings.Split(content, "\n")
+
+			// Try to find a fuzzy match
+			found := false
+			for lineIdx := 0; lineIdx <= len(contentLines)-len(searchLines); lineIdx++ {
+				match := true
+				for j, sLine := range searchLines {
+					cLine := contentLines[lineIdx+j]
+					// Compare trimmed lines (ignore trailing whitespace)
+					if strings.TrimRight(sLine, " \t\r") != strings.TrimRight(cLine, " \t\r") {
+						match = false
+						break
+					}
+				}
+				if match {
+					// Reconstruct the exact match from content lines
+					matchedContent := strings.Join(contentLines[lineIdx:lineIdx+len(searchLines)], "\n")
+					idx = strings.Index(content, matchedContent)
+					if idx >= 0 {
+						found = true
+						break
+					}
+				}
+			}
+
+			if !found {
+				// Provide helpful error with closest match info
+				closestLine := findClosestMatch(content, search)
+				errMsg := fmt.Sprintf("SEARCH block %d not found in file %q.", i+1, path)
+				if closestLine > 0 {
+					errMsg += fmt.Sprintf(" Closest match found near line %d. The SEARCH content must match the file exactly (including whitespace and indentation).", closestLine)
+				} else {
+					errMsg += " The SEARCH content must match the file exactly (including whitespace and indentation)."
+				}
+				replacements = append(replacements, replacementInfo{
+					search:  search,
+					replace: replace,
+					success: false,
+					err:     errMsg,
+				})
+				continue
+			}
+		}
+
+		// Calculate line numbers for the matched content
+		beforeMatch := content[:idx]
+		startLine := strings.Count(beforeMatch, "\n") + 1
+		endLine := startLine + strings.Count(search, "\n")
+		searchLines := strings.Count(search, "\n") + 1
+		replaceLines := strings.Count(replace, "\n") + 1
+
+		// Replace only the first occurrence
+		content = content[:idx] + replace + content[idx+len(search):]
+
+		replacements = append(replacements, replacementInfo{
+			search:       search,
+			replace:      replace,
+			startLine:    startLine,
+			endLine:      endLine,
+			searchLines:  searchLines,
+			replaceLines: replaceLines,
+			success:      true,
+		})
+	}
+
+	// Check if any replacements failed
+	failedCount := 0
+	for _, r := range replacements {
+		if !r.success {
+			failedCount++
+		}
+	}
+
+	if failedCount == len(replacements) {
+		// All failed, return the first error
+		for _, r := range replacements {
+			if !r.success {
+				return "", fmt.Errorf("%s", r.err)
+			}
+		}
+	}
+
+	// Create backup before writing
+	backupPath := ""
+	if a.cfg != nil && a.cfg.LLM.ToolTimeout >= 0 {
+		// Use workspace tmp directory for backup
+		tmpDir := filepath.Join(filepath.Dir(path), "..", "tmp")
+		if absTmp, err := filepath.Abs(tmpDir); err == nil {
+			if info, err := os.Stat(absTmp); err == nil && info.IsDir() {
+				backupDir := absTmp
+				baseName := filepath.Base(path)
+				backupName := fmt.Sprintf("%s.bak.%d", baseName, time.Now().UnixNano())
+				backupPath = filepath.Join(backupDir, backupName)
+				if err := os.WriteFile(backupPath, []byte(originalContent), 0644); err != nil {
+					backupPath = "" // backup failed, continue anyway
+				}
+			}
+		}
+	}
 
 	// Write back
-	if err := os.WriteFile(path, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return "", fmt.Errorf("cannot write file %q: %w", path, err)
 	}
 
-	return fmt.Sprintf("Successfully replaced content in %s", path), nil
+	// Build result with diff information
+	var result strings.Builder
+	totalSuccess := 0
+	totalFailed := 0
+	for _, r := range replacements {
+		if r.success {
+			totalSuccess++
+		} else {
+			totalFailed++
+		}
+	}
+
+	result.WriteString(fmt.Sprintf("File: %s\n", path))
+	if totalFailed > 0 {
+		result.WriteString(fmt.Sprintf("⚠️  %d of %d replacements succeeded, %d failed:\n\n", totalSuccess, len(replacements), totalFailed))
+	} else {
+		result.WriteString(fmt.Sprintf("✅  All %d replacements succeeded:\n\n", len(replacements)))
+	}
+
+	for i, r := range replacements {
+		if r.success {
+			lineRange := fmt.Sprintf("L%d", r.startLine)
+			if r.endLine > r.startLine {
+				lineRange = fmt.Sprintf("L%d-L%d", r.startLine, r.endLine)
+			}
+			result.WriteString(fmt.Sprintf("  [%d/%d] %s (%d lines → %d lines)\n", i+1, len(replacements), lineRange, r.searchLines, r.replaceLines))
+		} else {
+			result.WriteString(fmt.Sprintf("  [%d/%d] ❌ FAILED: %s\n", i+1, len(replacements), r.err))
+		}
+	}
+
+	if backupPath != "" {
+		result.WriteString(fmt.Sprintf("\n📦 Backup saved to: %s", backupPath))
+	}
+
+	return result.String(), nil
+}
+
+// findClosestMatch attempts to find the closest matching line in content for the given search text.
+// Returns the line number (1-based) of the closest match, or 0 if no reasonable match found.
+func findClosestMatch(content, search string) int {
+	searchLines := strings.Split(search, "\n")
+	if len(searchLines) == 0 {
+		return 0
+	}
+
+	contentLines := strings.Split(content, "\n")
+	firstSearchLine := strings.TrimSpace(searchLines[0])
+	if firstSearchLine == "" {
+		return 0
+	}
+
+	// Find the line in content that best matches the first line of the search
+	bestScore := 0
+	bestLine := 0
+	for i, cLine := range contentLines {
+		trimmed := strings.TrimSpace(cLine)
+		if trimmed == "" {
+			continue
+		}
+		// Calculate similarity score based on common prefix length
+		score := 0
+		minLen := len(firstSearchLine)
+		if len(trimmed) < minLen {
+			minLen = len(trimmed)
+		}
+		for j := 0; j < minLen; j++ {
+			if j < len(firstSearchLine) && j < len(trimmed) && firstSearchLine[j] == trimmed[j] {
+				score++
+			} else {
+				break
+			}
+		}
+		if score > bestScore {
+			bestScore = score
+			bestLine = i + 1
+		}
+	}
+
+	if bestScore > 3 { // At least 3 matching characters to be considered a close match
+		return bestLine
+	}
+	return 0
 }
 
 // writeToFileTool writes content to a file, creating directories as needed.
