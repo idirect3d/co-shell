@@ -769,13 +769,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.ConfirmCommand {
 		confirmStatus = i18n.T(i18n.KeyOn)
 	}
-	logLevel := log.LogLevelString(log.GetLevel())
-	logStatus := logLevel
-	if cfg.LogEnabled {
-		logStatus = logLevel
-	} else {
-		logStatus = "off"
-	}
+	logStatus := log.LogLevelString(log.GetLevel())
 	visionStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.VisionSupport {
 		visionStatus = i18n.T(i18n.KeyOn)
