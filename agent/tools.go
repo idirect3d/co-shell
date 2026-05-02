@@ -123,24 +123,34 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "replace_in_file",
-			Description: "Replace sections of content in an existing file using SEARCH/REPLACE blocks. The SEARCH content must match the file exactly (including whitespace and indentation). Only the first match is replaced. Use this to make targeted changes to specific parts of a file.",
+			Description: "Replace sections of content in an existing file using SEARCH/REPLACE blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find) and 'replace' (the new content). Supports multiple replacements in a single call. The SEARCH content must match the file exactly (including whitespace and indentation). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "The absolute path to the file to modify",
+						"description": "The path to the file to modify (absolute or relative to current working directory)",
 					},
-					"search": map[string]interface{}{
-						"type":        "string",
-						"description": "The exact content to find in the file (must match character-for-character including whitespace and indentation)",
-					},
-					"replace": map[string]interface{}{
-						"type":        "string",
-						"description": "The new content to replace the matched section with",
+					"replacements": map[string]interface{}{
+						"type": "array",
+						"items": map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"search": map[string]interface{}{
+									"type":        "string",
+									"description": "The exact content to find in the file (must match character-for-character including whitespace and indentation)",
+								},
+								"replace": map[string]interface{}{
+									"type":        "string",
+									"description": "The new content to replace the matched section with",
+								},
+							},
+							"required": []string{"search", "replace"},
+						},
+						"description": "An array of replacement objects, each with 'search' and 'replace' string fields. All replacements are performed sequentially in order.",
 					},
 				},
-				"required": []string{"path", "search", "replace"},
+				"required": []string{"path", "replacements"},
 			},
 			Callback: a.replaceInFileTool,
 		},
