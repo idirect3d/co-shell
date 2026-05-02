@@ -448,12 +448,29 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 			}
 
-			// Show tool call name if enabled
+			// Show tool call name (and input arguments if enabled)
 			if a.showTool {
-				cb("tool_call", fmt.Sprintf("🛠 Calling tool: %s\n", tc.Name))
+				msg := fmt.Sprintf("🛠 Calling tool: %s", tc.Name)
+				if a.showToolInput {
+					// Pretty-print the JSON arguments
+					var argsPretty string
+					var argsMap map[string]interface{}
+					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
+						if pretty, err := json.MarshalIndent(argsMap, "", "  "); err == nil {
+							argsPretty = string(pretty)
+						}
+					}
+					if argsPretty == "" {
+						argsPretty = tc.Arguments
+					}
+					msg += "\n" + argsPretty
+				}
+				msg += "\n"
+				cb("tool_call", msg)
 			}
 
 			log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
+
 			result, execErr := a.executeToolCall(ctx, tc)
 			if execErr != nil {
 				errStr := execErr.Error()
@@ -487,12 +504,18 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 			}
 
-			// Show command output if enabled
+			// Show tool call output if enabled (for all tools)
+			if a.showToolOutput && result != "" {
+				cb("tool_call", fmt.Sprintf("  Result:\n%s\n", result))
+			}
+
+			// Show command output if enabled (legacy, for execute_command specifically)
 			if a.showCommandOutput && tc.Name == "execute_command" && result != "" {
 				cb("output", result)
 			}
 
 			// If the result is empty, provide a clear message to the LLM
+
 			toolContent := result
 			if toolContent == "" {
 				toolContent = "（工具调用无输出）"
