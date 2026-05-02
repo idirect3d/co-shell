@@ -332,11 +332,15 @@ func (r *REPL) handleBuiltin(input string) {
 
 	// Update agent settings after handling settings command that may have changed them
 	if command == ".settings" || command == ".set" {
-
-		r.agent.SetShowThinking(r.cfg.LLM.ShowThinking)
+		r.agent.SetShowLlmThinking(r.cfg.LLM.ShowLlmThinking)
+		r.agent.SetShowLlmContent(r.cfg.LLM.ShowLlmContent)
+		r.agent.SetShowTool(r.cfg.LLM.ShowTool)
+		r.agent.SetShowToolInput(r.cfg.LLM.ShowToolInput)
+		r.agent.SetShowToolOutput(r.cfg.LLM.ShowToolOutput)
 		r.agent.SetShowCommand(r.cfg.LLM.ShowCommand)
-		r.agent.SetShowOutput(r.cfg.LLM.ShowOutput)
+		r.agent.SetShowCommandOutput(r.cfg.LLM.ShowCommandOutput)
 	}
+
 }
 
 // handleHistoryReExecute re-executes a history entry by its 1-based index.
