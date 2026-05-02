@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 136
+> **BUILD**: 138
 
 
 
@@ -154,10 +154,11 @@
 - [ ] ENHANCEMENT-119 优化文件读取、写入工具，以便增强LLM对源码的控制力。
 - [ ] FEATURE-120 新增Excel文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Excel的能力。
 - [ ] FEATURE-121 新增Word文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Word的能力。
-- [ ] FEATURE-122 新增日志级别控制，可以通过.log debug/info/warn/error/off控制日志输出级别。
+- [x] FEATURE-122 新增日志级别控制，可以通过 .set log debug/info/warn/error/off 控制日志输出级别，支持 --log-level 命令行参数和 config.json 持久化。[BUILD-138]
 - [ ] FEATURE-123 新增对接飞书功能，以便用户可以通过即时通讯软件，以跟特定机器人会话对话的方式，与co-shell交互。
 - [ ] ENHANCEMENT-124 改进工具调用和执行系统命令的超时时间，以便LLM可以根据任务实际情况自行预判这两项的超时时间。
 - [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
+- [ ] ENHANCEMENT-126 优化输出模式控制，。
 
 
 ## v1.0.0 — 正式版

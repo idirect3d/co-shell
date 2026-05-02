@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.3.0"
-const build = "137"
+const build = "138"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -108,6 +108,9 @@ type cliFlags struct {
 	// Error tracking config
 	errorMaxSingleCount int
 	errorMaxTypeCount   int
+
+	// Log level
+	logLevel string // debug/info/warn/error/off
 
 	// External config file generation
 	initCapabilities bool
@@ -183,6 +186,9 @@ func parseFlags() cliFlags {
 	// Error tracking config
 	flag.IntVar(&f.errorMaxSingleCount, "error-max-single-count", -1, "相同错误最大出现次数（默认 10，覆盖配置文件）")
 	flag.IntVar(&f.errorMaxTypeCount, "error-max-type-count", -1, "不同错误类型最大数量（默认 100，覆盖配置文件）")
+
+	// Log level
+	flag.StringVar(&f.logLevel, "log-level", "", "日志输出级别（debug/info/warn/error/off，覆盖配置文件）")
 
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
@@ -578,6 +584,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Warning: cannot initialize logger: %v\n", err)
 	}
 	defer log.Close()
+
+	// Apply log level: CLI flag overrides config, config overrides default
+	if flags.logLevel != "" {
+		if level, ok := log.ParseLogLevel(flags.logLevel); ok {
+			log.SetLevel(level)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: invalid --log-level value %q, use debug/info/warn/error/off\n", flags.logLevel)
+		}
+	} else if cfg.LogLevel != "" {
+		if level, ok := log.ParseLogLevel(cfg.LogLevel); ok {
+			log.SetLevel(level)
+		}
+	}
 
 	log.Info("co-shell v%s started (workspace: %s)", version, ws.Root())
 	if flags.model != "" || flags.endpoint != "" || flags.apiKey != "" {
