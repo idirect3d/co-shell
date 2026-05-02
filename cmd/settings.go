@@ -197,12 +197,126 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		// Sync to agent immediately
+		h.agent.SetShowCommand(h.cfg.LLM.ShowCommand)
 		status := i18n.T(i18n.KeyOn)
 		if !h.cfg.LLM.ShowCommand {
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Show command set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeyShowCommand), status), nil
+
+	case "show-tool":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowTool {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("显示工具调用名称: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowTool = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowTool = false
+		default:
+			return "", fmt.Errorf("usage: .set show-tool on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowTool(h.cfg.LLM.ShowTool)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowTool {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show tool set to %s", status)
+		return fmt.Sprintf("✅ 显示工具调用名称已设置为: %s", status), nil
+
+	case "show-tool-input":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowToolInput {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("显示工具调用输入参数: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowToolInput = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowToolInput = false
+		default:
+			return "", fmt.Errorf("usage: .set show-tool-input on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowToolInput(h.cfg.LLM.ShowToolInput)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowToolInput {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show tool input set to %s", status)
+		return fmt.Sprintf("✅ 显示工具调用输入参数已设置为: %s", status), nil
+
+	case "show-tool-output":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowToolOutput {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("显示工具调用返回数据: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowToolOutput = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowToolOutput = false
+		default:
+			return "", fmt.Errorf("usage: .set show-tool-output on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowToolOutput(h.cfg.LLM.ShowToolOutput)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowToolOutput {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show tool output set to %s", status)
+		return fmt.Sprintf("✅ 显示工具调用返回数据已设置为: %s", status), nil
+
+	case "show-command-output":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowCommandOutput {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("显示命令返回数据: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowCommandOutput = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowCommandOutput = false
+		default:
+			return "", fmt.Errorf("usage: .set show-command-output on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetShowCommandOutput(h.cfg.LLM.ShowCommandOutput)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowCommandOutput {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show command output set to %s", status)
+		return fmt.Sprintf("✅ 显示命令返回数据已设置为: %s", status), nil
 
 	case "show-llm-content":
 		if len(args) < 2 {
