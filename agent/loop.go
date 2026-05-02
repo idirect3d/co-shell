@@ -64,23 +64,29 @@ const (
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
 type Agent struct {
-	mu              sync.Mutex
-	llmClient       llm.Client
-	mcpMgr          *mcp.Manager
-	store           *store.Store
-	memoryManager   *memory.Manager
-	systemPrompt    string
-	messages        []llm.Message
-	showThinking    bool
-	showCommand     bool
-	showOutput      bool
-	maxIterations   int
-	confirmCommand  bool
-	approveAll      bool           // if true, skip confirmation for all commands in this request
-	approveCount    int            // remaining number of commands to auto-approve (decremented on each use)
-	cfg             *config.Config // configuration for timeout settings
-	resultMode      config.ResultMode
-	outputMode      config.OutputMode
+	mu             sync.Mutex
+	llmClient      llm.Client
+	mcpMgr         *mcp.Manager
+	store          *store.Store
+	memoryManager  *memory.Manager
+	systemPrompt   string
+	messages       []llm.Message
+	maxIterations  int
+	confirmCommand bool
+	approveAll     bool           // if true, skip confirmation for all commands in this request
+	approveCount   int            // remaining number of commands to auto-approve (decremented on each use)
+	cfg            *config.Config // configuration for timeout settings
+	resultMode     config.ResultMode
+
+	// Output control switches (ENHANCEMENT-126)
+	showLlmThinking   bool
+	showLlmContent    bool
+	showTool          bool
+	showToolInput     bool
+	showToolOutput    bool
+	showCommand       bool
+	showCommandOutput bool
+
 	rules           string // user-defined rules for rebuilding system prompt
 	subAgentMgr     *subagent.Manager
 	taskPlanMgr     *taskplan.Manager
@@ -432,8 +438,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		modifyRequested := false
 		cancelled := false
 		for _, tc := range toolCalls {
-			// Show command if enabled (normal/debug mode only)
-			if a.outputMode >= config.OutputModeNormal && a.showCommand && tc.Name == "execute_command" {
+			// Show command if enabled
+			if a.showCommand && tc.Name == "execute_command" {
 				var cmdArgs map[string]interface{}
 				if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
 					if cmd, ok := cmdArgs["command"].(string); ok {
@@ -442,8 +448,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 			}
 
-			// Show tool call name (normal/debug mode only)
-			if a.outputMode >= config.OutputModeNormal {
+			// Show tool call name if enabled
+			if a.showTool {
 				cb("tool_call", fmt.Sprintf("🛠 Calling tool: %s\n", tc.Name))
 			}
 
@@ -481,8 +487,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 			}
 
-			// Show command output if enabled (debug mode only)
-			if a.outputMode >= config.OutputModeDebug && a.showOutput && tc.Name == "execute_command" && result != "" {
+			// Show command output if enabled
+			if a.showCommandOutput && tc.Name == "execute_command" && result != "" {
 				cb("output", result)
 			}
 
@@ -669,7 +675,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 
 		case llm.StreamEventReasoning:
 			reasoningBuilder.WriteString(event.Content)
-			if a.showThinking {
+			if a.showLlmThinking {
 				cb("thinking_chunk", event.Content)
 			}
 
@@ -745,7 +751,7 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 		return "", "", nil, fmt.Errorf("LLM call failed: %w", err)
 	}
 
-	if a.showThinking && resp.ReasoningContent != "" {
+	if a.showLlmThinking && resp.ReasoningContent != "" {
 		cb("thinking", resp.ReasoningContent)
 	}
 

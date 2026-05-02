@@ -229,10 +229,18 @@ const (
 	KeyMaxTokensUpdated = "settings_max_tokens_updated"
 	KeyShowThinking     = "settings_show_thinking"
 	KeyShowCommand      = "settings_show_command"
-	KeyShowOutput       = "settings_show_output"
+	KeyShowOutput       = "settings_show_output" // DEPRECATED: replaced by show-command-output
 	KeyLogEnabled       = "settings_log_enabled"
-	KeyMaxIterations    = "settings_max_iterations"
-	KeyProviderUpdated  = "settings_provider_updated"
+
+	// New output control keys (ENHANCEMENT-126)
+	KeyShowLlmThinking   = "settings_show_llm_thinking"
+	KeyShowLlmContent    = "settings_show_llm_content"
+	KeyShowTool          = "settings_show_tool"
+	KeyShowToolInput     = "settings_show_tool_input"
+	KeyShowToolOutput    = "settings_show_tool_output"
+	KeyShowCommandOutput = "settings_show_command_output"
+	KeyMaxIterations     = "settings_max_iterations"
+	KeyProviderUpdated   = "settings_provider_updated"
 
 	// Settings - Config Show
 	KeyConfigTitle         = "config_title"
@@ -283,12 +291,18 @@ const (
 	KeyNoopClientError = "noop_client_error"
 
 	// Settings - Extended
-	KeySettingsLabelLog           = "settings_label_log"
-	KeySettingsLabelShowThinking  = "settings_label_show_thinking"
-	KeySettingsLabelShowCommand   = "settings_label_show_command"
-	KeySettingsLabelShowOutput    = "settings_label_show_output"
-	KeySettingsLabelMaxIterations = "settings_label_max_iterations"
-	KeySettingsLabelProvider      = "settings_label_provider"
+	KeySettingsLabelLog               = "settings_label_log"
+	KeySettingsLabelShowThinking      = "settings_label_show_thinking"
+	KeySettingsLabelShowCommand       = "settings_label_show_command"
+	KeySettingsLabelShowOutput        = "settings_label_show_output" // DEPRECATED
+	KeySettingsLabelShowLlmThinking   = "settings_label_show_llm_thinking"
+	KeySettingsLabelShowLlmContent    = "settings_label_show_llm_content"
+	KeySettingsLabelShowTool          = "settings_label_show_tool"
+	KeySettingsLabelShowToolInput     = "settings_label_show_tool_input"
+	KeySettingsLabelShowToolOutput    = "settings_label_show_tool_output"
+	KeySettingsLabelShowCommandOutput = "settings_label_show_command_output"
+	KeySettingsLabelMaxIterations     = "settings_label_max_iterations"
+	KeySettingsLabelProvider          = "settings_label_provider"
 
 	// Config format
 	KeyConfigFormat = "config_format"
@@ -410,9 +424,16 @@ const (
 	KeyCLIHelpMaxTokens      = "cli_help_max_tokens"
 	KeyCLIHelpShowThinking   = "cli_help_show_thinking"
 	KeyCLIHelpShowCommand    = "cli_help_show_command"
-	KeyCLIHelpShowOutput     = "cli_help_show_output"
 	KeyCLIHelpConfirmCommand = "cli_help_confirm_command"
 	KeyCLIHelpResultMode     = "cli_help_result_mode"
+
+	// CLI Help - New output control (ENHANCEMENT-126)
+	KeyCLIHelpShowLlmThinking   = "cli_help_show_llm_thinking"
+	KeyCLIHelpShowLlmContent    = "cli_help_show_llm_content"
+	KeyCLIHelpShowTool          = "cli_help_show_tool"
+	KeyCLIHelpShowToolInput     = "cli_help_show_tool_input"
+	KeyCLIHelpShowToolOutput    = "cli_help_show_tool_output"
+	KeyCLIHelpShowCommandOutput = "cli_help_show_command_output"
 
 	// CLI Help - Agent Identity
 	KeyCLIHelpDescription = "cli_help_description"
@@ -473,6 +494,14 @@ const (
 	KeySettingsHelpFooter       = "settings_help_footer"
 	KeySettingsCurrentTitle     = "settings_current_title"
 
+	// Settings descriptions - New output control (ENHANCEMENT-126)
+	KeySettingsDescLlmThinking   = "settings_desc_llm_thinking"
+	KeySettingsDescLlmContent    = "settings_desc_llm_content"
+	KeySettingsDescTool          = "settings_desc_tool"
+	KeySettingsDescToolInput     = "settings_desc_tool_input"
+	KeySettingsDescToolOutput    = "settings_desc_tool_output"
+	KeySettingsDescCommandOutput = "settings_desc_command_output"
+
 	// Config show column 3 labels (i18n for the third column)
 	KeyCol3Provider     = "col3_provider"
 	KeyCol3Endpoint     = "col3_endpoint"
@@ -496,6 +525,14 @@ const (
 	KeyCol3Principles   = "col3_principles"
 	KeyCol3Vision       = "col3_vision"
 	KeyCol3ContextLimit = "col3_context_limit"
+
+	// Config show column 3 labels - New output control (ENHANCEMENT-126)
+	KeyCol3LlmThinking   = "col3_llm_thinking"
+	KeyCol3LlmContent    = "col3_llm_content"
+	KeyCol3Tool          = "col3_tool"
+	KeyCol3ToolInput     = "col3_tool_input"
+	KeyCol3ToolOutput    = "col3_tool_output"
+	KeyCol3CommandOutput = "col3_command_output"
 
 	// Context limit
 	KeyContextLimitLabel    = "context_limit_label"
@@ -524,11 +561,6 @@ const (
 	KeyCLIHelpSubAgentEnabled  = "cli_help_sub_agent_enabled"
 	KeyCLIHelpSubAgentDisabled = "cli_help_sub_agent_disabled"
 
-	// Output mode
-	KeyCol3OutputMode      = "col3_output_mode"
-	KeySettingsDescOutMode = "settings_desc_out_mode"
-	KeyOutputModeUpdated   = "output_mode_updated"
-	KeyCLIHelpOutputMode   = "cli_help_output_mode"
 	// Search settings
 	KeyCol3SearchMaxLineLength          = "col3_search_max_line_length"
 	KeyCol3SearchMaxResultBytes         = "col3_search_max_result_bytes"

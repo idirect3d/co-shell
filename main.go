@@ -198,13 +198,9 @@ func parseFlags() cliFlags {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `%s
 
-%s
-
   %s
   %s
-
-%s
-
+  %s
   %s
   %s
   %s
@@ -241,6 +237,9 @@ func parseFlags() cliFlags {
   %s
   %s
   %s
+
+%s
+
   %s
   %s
   %s
@@ -248,6 +247,11 @@ func parseFlags() cliFlags {
   %s
   %s
   %s
+  %s
+  %s
+  %s
+  %s
+
 `,
 			i18n.TF(i18n.KeyCLIHelpTitle, version),
 			i18n.T(i18n.KeyCLIHelpUsage),
@@ -268,7 +272,12 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpMaxTokens),
 			i18n.T(i18n.KeyCLIHelpShowThinking),
 			i18n.T(i18n.KeyCLIHelpShowCommand),
-			i18n.T(i18n.KeyCLIHelpShowOutput),
+			i18n.T(i18n.KeyCLIHelpShowLlmThinking),
+			i18n.T(i18n.KeyCLIHelpShowLlmContent),
+			i18n.T(i18n.KeyCLIHelpShowTool),
+			i18n.T(i18n.KeyCLIHelpShowToolInput),
+			i18n.T(i18n.KeyCLIHelpShowToolOutput),
+			i18n.T(i18n.KeyCLIHelpShowCommandOutput),
 			i18n.T(i18n.KeyCLIHelpConfirmCommand),
 			i18n.T(i18n.KeyCLIHelpResultMode),
 			i18n.T(i18n.KeyCLIHelpDescription),
@@ -280,7 +289,6 @@ func parseFlags() cliFlags {
 			i18n.T(i18n.KeyCLIHelpToolTimeout),
 			i18n.T(i18n.KeyCLIHelpCmdTimeout),
 			i18n.T(i18n.KeyCLIHelpLLMTimeout),
-			i18n.T(i18n.KeyCLIHelpOutputMode),
 			i18n.T(i18n.KeyCLIHelpVersion),
 			i18n.T(i18n.KeyCLIHelpHelp),
 			i18n.T(i18n.KeyCLIHelpExamples),
@@ -442,13 +450,14 @@ func main() {
 	if flags.showThinking != "" {
 		switch flags.showThinking {
 		case "on", "1", "true", "yes":
-			cfg.LLM.ShowThinking = true
+			cfg.LLM.ShowLlmThinking = true
 		case "off", "0", "false", "no":
-			cfg.LLM.ShowThinking = false
+			cfg.LLM.ShowLlmThinking = false
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: invalid --show-thinking value %q, use on|off\n", flags.showThinking)
 		}
 	}
+
 	if flags.showCommand != "" {
 		switch flags.showCommand {
 		case "on", "1", "true", "yes":
@@ -462,13 +471,14 @@ func main() {
 	if flags.showOutput != "" {
 		switch flags.showOutput {
 		case "on", "1", "true", "yes":
-			cfg.LLM.ShowOutput = true
+			cfg.LLM.ShowLlmContent = true
 		case "off", "0", "false", "no":
-			cfg.LLM.ShowOutput = false
+			cfg.LLM.ShowLlmContent = false
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: invalid --show-output value %q, use on|off\n", flags.showOutput)
 		}
 	}
+
 	if flags.confirmCommand != "" {
 		switch flags.confirmCommand {
 		case "on", "1", "true", "yes":
@@ -554,16 +564,8 @@ func main() {
 		cfg.LLM.LLMTimeout = flags.llmTimeout
 	}
 
-	// Apply output mode CLI override
-	if flags.outputMode != "" {
-		if mode, ok := config.ParseOutputMode(flags.outputMode); ok {
-			cfg.LLM.OutputMode = int(mode)
-		} else {
-			fmt.Fprintf(os.Stderr, "Warning: invalid --output-mode value %q, use compact/normal/debug\n", flags.outputMode)
-		}
-	}
-
 	// Apply memory search config CLI overrides
+
 	if flags.memorySearchMaxContentLen >= 0 {
 		cfg.LLM.MemorySearchMaxContentLen = flags.memorySearchMaxContentLen
 	}
@@ -695,9 +697,13 @@ func main() {
 		cfg.LLM.AgentName = flags.agentName
 	}
 	ag.SetName(cfg.LLM.AgentName)
-	ag.SetShowThinking(cfg.LLM.ShowThinking)
+	ag.SetShowLlmThinking(cfg.LLM.ShowLlmThinking)
+	ag.SetShowLlmContent(cfg.LLM.ShowLlmContent)
+	ag.SetShowTool(cfg.LLM.ShowTool)
+	ag.SetShowToolInput(cfg.LLM.ShowToolInput)
+	ag.SetShowToolOutput(cfg.LLM.ShowToolOutput)
 	ag.SetShowCommand(cfg.LLM.ShowCommand)
-	ag.SetShowOutput(cfg.LLM.ShowOutput)
+	ag.SetShowCommandOutput(cfg.LLM.ShowCommandOutput)
 
 	// Apply max iterations: CLI flag overrides config, config overrides default
 	if flags.maxIterations >= 0 {
@@ -734,10 +740,8 @@ func main() {
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
 
-	// Apply output mode
-	ag.SetOutputMode(config.OutputMode(cfg.LLM.OutputMode))
-
 	// Set image paths for multimodal input if provided
+
 	if flags.imagePaths != "" {
 		// Check if the current model supports vision
 		if !cfg.LLM.VisionSupport {
