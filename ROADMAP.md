@@ -7,7 +7,8 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 138
+> **BUILD**: 139
+
 
 
 
@@ -158,7 +159,8 @@
 - [ ] FEATURE-123 新增对接飞书功能，以便用户可以通过即时通讯软件，以跟特定机器人会话对话的方式，与co-shell交互。
 - [ ] ENHANCEMENT-124 改进工具调用和执行系统命令的超时时间，以便LLM可以根据任务实际情况自行预判这两项的超时时间。
 - [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
-- [ ] ENHANCEMENT-126 优化输出模式控制，梳理与LLM迭代相关的输出，合理分类后，进行参数话控制，以便用户能够更清晰的控制：LLM返回的thinking内容（show-llm-thinking，默认开）、LLM返回的主要内容（show-llm-content，默认开）、输出Tool-call名（show-tool，默认开）、输出Tool-call输入参数（show-tool-input，默认关）、输出Tool-call返回数据（show-tool-output，默认关）、输出系统命令行（show-command，默认开）、输出命令返回数据（show-command-output，默认开），删除现有的show-output、output-mode两个快关。
+- [x] ENHANCEMENT-126 优化输出模式控制，梳理与LLM迭代相关的输出，合理分类后，进行参数话控制，以便用户能够更清晰的控制：LLM返回的thinking内容（show-llm-thinking，默认开）、LLM返回的主要内容（show-llm-content，默认开）、输出Tool-call名（show-tool，默认开）、输出Tool-call输入参数（show-tool-input，默认关）、输出Tool-call返回数据（show-tool-output，默认关）、输出系统命令行（show-command，默认开）、输出命令返回数据（show-command-output，默认开），删除现有的show-output、output-mode两个快关。[BUILD-139]
+
 - [ ] FEATURE-127 增加Agent身份定义的默认值，以便发行版能够具备比较一致的行为。
 
 
