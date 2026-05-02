@@ -69,13 +69,17 @@ type cliFlags struct {
 	imagePaths    string // comma-separated image file paths for multimodal input
 
 	// LLM behavior parameters
-	temperature    float64
-	maxTokens      int
-	showThinking   string // "on"/"off"
-	showCommand    string // "on"/"off"
-	showOutput     string // "on"/"off"
-	confirmCommand string // "on"/"off"
-	resultMode     string // minimal/explain/analyze/free
+	temperature       float64
+	maxTokens         int
+	showThinking      string // "on"/"off"
+	showLlmContent    string // "on"/"off"
+	showTool          string // "on"/"off"
+	showToolInput     string // "on"/"off"
+	showToolOutput    string // "on"/"off"
+	showCommand       string // "on"/"off"
+	showCommandOutput string // "on"/"off"
+	confirmCommand    string // "on"/"off"
+	resultMode        string // minimal/explain/analyze/free
 
 	// Agent identity parameters
 	description string
@@ -148,7 +152,12 @@ func parseFlags() cliFlags {
 	flag.IntVar(&f.maxTokens, "max-tokens", -1, "最大输出令牌数（覆盖配置文件）")
 	flag.StringVar(&f.showThinking, "show-thinking", "", "显示 AI 思考过程（on/off，覆盖配置文件）")
 	flag.StringVar(&f.showCommand, "show-command", "", "显示执行的系统命令（on/off，覆盖配置文件）")
-	flag.StringVar(&f.showOutput, "show-output", "", "显示命令执行输出（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showLlmContent, "show-llm-content", "", "显示 LLM 返回的主要内容（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showTool, "show-tool", "", "显示工具调用名称（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showToolInput, "show-tool-input", "", "显示工具调用输入参数（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showToolOutput, "show-tool-output", "", "显示工具调用返回数据（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showCommandOutput, "show-command-output", "", "显示命令返回数据（on/off，覆盖配置文件）")
+
 	flag.StringVar(&f.confirmCommand, "confirm-command", "", "执行命令前需确认（on/off，覆盖配置文件）")
 	flag.StringVar(&f.resultMode, "result-mode", "", "结果处理模式（minimal/explain/analyze/free，覆盖配置文件）")
 
@@ -468,14 +477,54 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Warning: invalid --show-command value %q, use on|off\n", flags.showCommand)
 		}
 	}
-	if flags.showOutput != "" {
-		switch flags.showOutput {
+	if flags.showLlmContent != "" {
+		switch flags.showLlmContent {
 		case "on", "1", "true", "yes":
 			cfg.LLM.ShowLlmContent = true
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLlmContent = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-output value %q, use on|off\n", flags.showOutput)
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-llm-content value %q, use on|off\n", flags.showLlmContent)
+		}
+	}
+	if flags.showTool != "" {
+		switch flags.showTool {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowTool = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowTool = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool value %q, use on|off\n", flags.showTool)
+		}
+	}
+	if flags.showToolInput != "" {
+		switch flags.showToolInput {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowToolInput = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowToolInput = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool-input value %q, use on|off\n", flags.showToolInput)
+		}
+	}
+	if flags.showToolOutput != "" {
+		switch flags.showToolOutput {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowToolOutput = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowToolOutput = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool-output value %q, use on|off\n", flags.showToolOutput)
+		}
+	}
+	if flags.showCommandOutput != "" {
+		switch flags.showCommandOutput {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowCommandOutput = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowCommandOutput = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-command-output value %q, use on|off\n", flags.showCommandOutput)
 		}
 	}
 
