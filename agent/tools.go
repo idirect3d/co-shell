@@ -123,7 +123,7 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "replace_in_file",
-			Description: "Replace sections of content in an existing file using SEARCH/REPLACE blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find) and 'replace' (the new content). Supports multiple replacements in a single call. The SEARCH content must match the file exactly (including whitespace and indentation). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
+			Description: "Replace sections of content in an existing file using SEARCH/REPLACE blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find), 'replace' (the new content), and optional 'start_line' (the 1-based line number in the original file for precise positioning). Supports multiple replacements in a single call. The SEARCH content must match the file exactly (including whitespace and indentation). When 'start_line' is provided, the search is anchored to that line (adjusted for previous replacements' line changes). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -144,10 +144,14 @@ func (a *Agent) buildTools() []llm.Tool {
 									"type":        "string",
 									"description": "The new content to replace the matched section with",
 								},
+								"start_line": map[string]interface{}{
+									"type":        "number",
+									"description": "Optional: the 1-based line number in the original file where this SEARCH block is expected to start. Used for precise positioning and to avoid duplicate matches. The system automatically adjusts for line count changes from previous replacements.",
+								},
 							},
 							"required": []string{"search", "replace"},
 						},
-						"description": "An array of replacement objects, each with 'search' and 'replace' string fields. All replacements are performed sequentially in order.",
+						"description": "An array of replacement objects, each with 'search' and 'replace' string fields, and optional 'start_line' number. All replacements are performed sequentially in order.",
 					},
 				},
 				"required": []string{"path", "replacements"},
