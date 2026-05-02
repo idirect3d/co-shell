@@ -35,12 +35,66 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
+// LogLevel defines the minimum log level to output.
+type LogLevel int
+
+const (
+	// LogLevelDebug: all log messages are output.
+	LogLevelDebug LogLevel = iota
+	// LogLevelInfo: INFO, WARN, ERROR messages are output.
+	LogLevelInfo
+	// LogLevelWarn: WARN, ERROR messages are output.
+	LogLevelWarn
+	// LogLevelError: only ERROR messages are output.
+	LogLevelError
+	// LogLevelOff: no log messages are output.
+	LogLevelOff
+)
+
+// ParseLogLevel parses a string into a LogLevel.
+// Returns the parsed level and true if valid, or LogLevelInfo and false if invalid.
+func ParseLogLevel(s string) (LogLevel, bool) {
+	switch s {
+	case "debug":
+		return LogLevelDebug, true
+	case "info":
+		return LogLevelInfo, true
+	case "warn", "warning":
+		return LogLevelWarn, true
+	case "error":
+		return LogLevelError, true
+	case "off":
+		return LogLevelOff, true
+	default:
+		return LogLevelInfo, false
+	}
+}
+
+// LogLevelString returns the string representation of a LogLevel.
+func LogLevelString(l LogLevel) string {
+	switch l {
+	case LogLevelDebug:
+		return "debug"
+	case LogLevelInfo:
+		return "info"
+	case LogLevelWarn:
+		return "warn"
+	case LogLevelError:
+		return "error"
+	case LogLevelOff:
+		return "off"
+	default:
+		return "info"
+	}
+}
+
 // Logger provides file-based logging for co-shell.
 // Logs are written to a file in the workspace log/ directory.
 type Logger struct {
 	mu      sync.Mutex
 	writer  io.WriteCloser
 	enabled bool
+	level   LogLevel
 	ws      *workspace.Workspace
 }
 
@@ -86,12 +140,34 @@ func (l *Logger) openFile() error {
 	return nil
 }
 
+// levelToLogLevel converts a level string to LogLevel for filtering.
+func levelToLogLevel(level string) LogLevel {
+	switch level {
+	case "DEBUG":
+		return LogLevelDebug
+	case "INFO":
+		return LogLevelInfo
+	case "WARN":
+		return LogLevelWarn
+	case "ERROR":
+		return LogLevelError
+	default:
+		return LogLevelInfo
+	}
+}
+
 // write writes a formatted log entry to the file.
+// It filters based on the current log level: messages below the configured level are skipped.
 func (l *Logger) write(level, format string, args ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	if !l.enabled || l.writer == nil {
+		return
+	}
+
+	// Level filtering: skip messages below the configured level
+	if levelToLogLevel(level) < l.level {
 		return
 	}
 
@@ -139,6 +215,27 @@ func IsEnabled() bool {
 	defaultLogger.mu.Lock()
 	defer defaultLogger.mu.Unlock()
 	return defaultLogger.enabled
+}
+
+// SetLevel sets the minimum log level for filtering.
+// Messages below this level will not be written to the log file.
+func SetLevel(level LogLevel) {
+	if defaultLogger == nil {
+		return
+	}
+	defaultLogger.mu.Lock()
+	defer defaultLogger.mu.Unlock()
+	defaultLogger.level = level
+}
+
+// GetLevel returns the current minimum log level.
+func GetLevel() LogLevel {
+	if defaultLogger == nil {
+		return LogLevelInfo
+	}
+	defaultLogger.mu.Lock()
+	defer defaultLogger.mu.Unlock()
+	return defaultLogger.level
 }
 
 // --- Public log functions ---
