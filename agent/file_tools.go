@@ -518,6 +518,16 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 		return "", fmt.Errorf("replacements argument is required: an array of objects with 'search' and 'replace' fields")
 	}
 
+	// lineDiff represents a single line change in a replacement block
+	type lineDiff struct {
+		lineNum    int    // line number in current content (0 means no line number, for inserted lines)
+		oldLine    string // the original line content (empty for inserted lines)
+		newLine    string // the new line content (empty for deleted lines)
+		isModified bool   // true if this line was changed
+		isInserted bool   // true if this is a newly inserted line
+		isDeleted  bool   // true if this line was deleted
+	}
+
 	// Track replacements for diff output
 	type replacementInfo struct {
 		search       string
@@ -528,6 +538,8 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 		replaceLines int
 		success      bool
 		err          string
+		// Per-line diff details
+		lineDiffs []lineDiff
 	}
 	var replacements []replacementInfo
 
@@ -660,12 +672,76 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 			continue
 		}
 
+		// Verify that the matched content exactly matches the search string
+		matchedText := content[idx : idx+len(search)]
+		if matchedText != search {
+			// Show the difference for debugging
+			errMsg := fmt.Sprintf("SEARCH block %d: matched content does not match search exactly. Expected %d bytes but got different content. This may be due to whitespace differences.", i+1, len(search))
+			replacements = append(replacements, replacementInfo{
+				search:  search,
+				replace: replace,
+				success: false,
+				err:     errMsg,
+			})
+			continue
+		}
+
 		// Calculate line numbers for the matched content (in current content)
 		beforeMatch := content[:idx]
 		currentStartLine := strings.Count(beforeMatch, "\n") + 1
 		currentEndLine := currentStartLine + strings.Count(search, "\n")
 		searchLineCount := strings.Count(search, "\n") + 1
 		replaceLineCount := strings.Count(replace, "\n") + 1
+
+		// Build per-line diff information
+		searchLines := strings.Split(search, "\n")
+		replaceLines := strings.Split(replace, "\n")
+		var lineDiffs []lineDiff
+
+		// Compare search lines vs replace lines line by line
+		maxLines := searchLineCount
+		if replaceLineCount > maxLines {
+			maxLines = replaceLineCount
+		}
+		for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
+			var oldLine, newLine string
+			hasOld := lineIdx < searchLineCount
+			hasNew := lineIdx < replaceLineCount
+
+			if hasOld {
+				oldLine = searchLines[lineIdx]
+			}
+			if hasNew {
+				newLine = replaceLines[lineIdx]
+			}
+
+			if hasOld && hasNew {
+				if oldLine == newLine {
+					// Unchanged line - skip (don't add to diffs)
+					continue
+				}
+				// Modified line
+				lineDiffs = append(lineDiffs, lineDiff{
+					lineNum:    currentStartLine + lineIdx,
+					oldLine:    oldLine,
+					newLine:    newLine,
+					isModified: true,
+				})
+			} else if hasOld && !hasNew {
+				// Deleted line
+				lineDiffs = append(lineDiffs, lineDiff{
+					lineNum:   currentStartLine + lineIdx,
+					oldLine:   oldLine,
+					isDeleted: true,
+				})
+			} else if !hasOld && hasNew {
+				// Inserted line (no corresponding line number)
+				lineDiffs = append(lineDiffs, lineDiff{
+					newLine:    newLine,
+					isInserted: true,
+				})
+			}
+		}
 
 		// Update lineOffset: how many lines this replacement adds/removes
 		lineOffset += replaceLineCount - searchLineCount
@@ -681,6 +757,7 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 			searchLines:  searchLineCount,
 			replaceLines: replaceLineCount,
 			success:      true,
+			lineDiffs:    lineDiffs,
 		})
 	}
 
@@ -750,6 +827,22 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 				lineRange = fmt.Sprintf("L%d-L%d", r.startLine, r.endLine)
 			}
 			result.WriteString(fmt.Sprintf("  [%d/%d] %s (%d lines → %d lines)\n", i+1, len(replacements), lineRange, r.searchLines, r.replaceLines))
+
+			// Output per-line diff details
+			for _, ld := range r.lineDiffs {
+				switch {
+				case ld.isModified:
+					// Modified line: show old → new
+					result.WriteString(fmt.Sprintf("    %d*: %s\n", ld.lineNum, ld.oldLine))
+					result.WriteString(fmt.Sprintf("    %d*: %s\n", ld.lineNum, ld.newLine))
+				case ld.isDeleted:
+					// Deleted line: show with line number and asterisk
+					result.WriteString(fmt.Sprintf("    %d*: %s\n", ld.lineNum, ld.oldLine))
+				case ld.isInserted:
+					// Inserted line: no line number, just asterisk
+					result.WriteString(fmt.Sprintf("    *: %s\n", ld.newLine))
+				}
+			}
 		} else {
 			result.WriteString(fmt.Sprintf("  [%d/%d] ❌ FAILED: %s\n", i+1, len(replacements), r.err))
 		}
