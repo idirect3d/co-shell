@@ -417,7 +417,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3ToolTimeout:  "工具调用超时(0 ~ N 秒)",
 	KeyCol3CmdTimeout:   "命令执行超时(0 ~ N 秒)",
 	KeyCol3LLMTimeout:   "LLM 请求超时(0 ~ N 秒)",
-	KeyCol3Log:          "日志(on|off)",
+	KeyCol3Log:          "日志级别(debug/info/warn/error/off)",
 	KeyCol3ResultMode:   "结果模式(minimal/explain/analyze/free)",
 	KeyCol3APIKey:       "API 密钥",
 	KeyCol3Name:         "Agent 名称",
