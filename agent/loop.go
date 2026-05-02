@@ -277,6 +277,19 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		var streamErr error
 
 		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+
+		// Log the LLM response content and tool calls at DEBUG level for diagnostics.
+		// This helps identify issues like the LLM including historical message prefixes
+		// in its response content when returning tool calls.
+		if streamErr == nil {
+			log.Debug("Agent.RunStream: LLM response at iteration %d: content=%q, tool_calls=%d, reasoning_len=%d",
+				iteration, finalContent, len(toolCalls), len(finalReasoning))
+			for i, tc := range toolCalls {
+				log.Debug("Agent.RunStream: LLM tool call #%d: name=%q, id=%q, args=%q",
+					i, tc.Name, tc.ID, tc.Arguments)
+			}
+		}
+
 		if streamErr != nil {
 			// Track error count for this request
 			errMsg := streamErr.Error()

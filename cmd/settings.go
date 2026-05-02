@@ -706,34 +706,26 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		return fmt.Sprintf("✅ 推理努力程度已设置为: %s", effort), nil
 
 	case "log":
-
 		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LogEnabled {
-				status = i18n.T(i18n.KeyOff)
-			}
-			return fmt.Sprintf(i18n.T(i18n.KeyLogEnabled), status), nil
+			currentLevel := log.LogLevelString(log.GetLevel())
+			return fmt.Sprintf("日志级别: %s（可选值: debug, info, warn, error, off）", currentLevel), nil
 		}
-		switch args[1] {
-		case "on", "1", "true", "yes":
-			h.cfg.LogEnabled = true
-		case "off", "0", "false", "no":
-			h.cfg.LogEnabled = false
-		default:
-			return "", fmt.Errorf("usage: .set log on|off")
+		level, ok := log.ParseLogLevel(args[1])
+		if !ok {
+			return "", fmt.Errorf("无效的日志级别: %s（可选值: debug, info, warn, error, off）", args[1])
 		}
+		h.cfg.LogLevel = args[1]
+		// Set log enabled based on level: off = disabled, anything else = enabled
+		h.cfg.LogEnabled = level != log.LogLevelOff
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
+		log.SetLevel(level)
 		if err := log.SetEnabled(h.cfg.LogEnabled); err != nil {
 			return "", fmt.Errorf("failed to update logger: %w", err)
 		}
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LogEnabled {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("Logging set to %s", status)
-		return fmt.Sprintf(i18n.T(i18n.KeyLogEnabled), status), nil
+		log.Info("Log level set to %s", args[1])
+		return fmt.Sprintf("✅ 日志级别已设置为: %s", args[1]), nil
 
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
@@ -777,9 +769,12 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.ConfirmCommand {
 		confirmStatus = i18n.T(i18n.KeyOn)
 	}
-	logStatus := i18n.T(i18n.KeyOff)
+	logLevel := log.LogLevelString(log.GetLevel())
+	logStatus := logLevel
 	if cfg.LogEnabled {
-		logStatus = i18n.T(i18n.KeyOn)
+		logStatus = logLevel
+	} else {
+		logStatus = "off"
 	}
 	visionStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.VisionSupport {
