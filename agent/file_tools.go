@@ -479,8 +479,14 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 	originalContent := content
 
 	// Collect all SEARCH/REPLACE blocks from the "replacements" array
-	// Each replacement is an object with "search" and "replace" string properties.
-	var searches, replaces []string
+	// Each replacement is an object with "search", "replace", and optional "start_line" fields.
+	// "start_line" refers to the line number in the original file (before any replacements).
+	type replacementBlock struct {
+		search    string
+		replace   string
+		startLine int // 0 means not specified
+	}
+	var blocks []replacementBlock
 
 	if replacementsRaw, ok := args["replacements"].([]interface{}); ok {
 		for i, r := range replacementsRaw {
@@ -496,12 +502,19 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 			if !ok {
 				return "", fmt.Errorf("replacements[%d].replace is required and must be a string", i)
 			}
-			searches = append(searches, search)
-			replaces = append(replaces, replace)
+			block := replacementBlock{
+				search:  search,
+				replace: replace,
+			}
+			// Optional start_line (1-based, refers to original file)
+			if sl, ok := rMap["start_line"].(float64); ok {
+				block.startLine = int(sl)
+			}
+			blocks = append(blocks, block)
 		}
 	}
 
-	if len(searches) == 0 {
+	if len(blocks) == 0 {
 		return "", fmt.Errorf("replacements argument is required: an array of objects with 'search' and 'replace' fields")
 	}
 
@@ -518,50 +531,33 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 	}
 	var replacements []replacementInfo
 
+	// lineOffset tracks the cumulative line count change from previous replacements.
+	// Positive means lines were added, negative means lines were removed.
+	lineOffset := 0
+
 	// Perform all replacements sequentially
-	for i := 0; i < len(searches); i++ {
-		search := searches[i]
-		replace := replaces[i]
+	for i := 0; i < len(blocks); i++ {
+		block := blocks[i]
+		search := block.search
+		replace := block.replace
 
-		// Try exact match first
-		idx := strings.Index(content, search)
-		if idx < 0 {
-			// Try whitespace-tolerant match: normalize trailing whitespace on each line
-			searchLines := strings.Split(search, "\n")
-			contentLines := strings.Split(content, "\n")
+		// Determine the search position in the current (modified) content
+		var idx int
+		found := false
 
-			// Try to find a fuzzy match
-			found := false
-			for lineIdx := 0; lineIdx <= len(contentLines)-len(searchLines); lineIdx++ {
-				match := true
-				for j, sLine := range searchLines {
-					cLine := contentLines[lineIdx+j]
-					// Compare trimmed lines (ignore trailing whitespace)
-					if strings.TrimRight(sLine, " \t\r") != strings.TrimRight(cLine, " \t\r") {
-						match = false
-						break
-					}
-				}
-				if match {
-					// Reconstruct the exact match from content lines
-					matchedContent := strings.Join(contentLines[lineIdx:lineIdx+len(searchLines)], "\n")
-					idx = strings.Index(content, matchedContent)
-					if idx >= 0 {
-						found = true
-						break
-					}
-				}
+		if block.startLine > 0 {
+			// Use start_line for precise positioning.
+			// Adjust for line offset from previous replacements:
+			// adjustedLine = originalStartLine + lineOffset
+			adjustedLine := block.startLine + lineOffset
+			if adjustedLine < 1 {
+				adjustedLine = 1
 			}
 
-			if !found {
-				// Provide helpful error with closest match info
-				closestLine := findClosestMatch(content, search)
-				errMsg := fmt.Sprintf("SEARCH block %d not found in file %q.", i+1, path)
-				if closestLine > 0 {
-					errMsg += fmt.Sprintf(" Closest match found near line %d. The SEARCH content must match the file exactly (including whitespace and indentation).", closestLine)
-				} else {
-					errMsg += " The SEARCH content must match the file exactly (including whitespace and indentation)."
-				}
+			// Convert adjusted line number to byte position in current content
+			contentLines := strings.Split(content, "\n")
+			if adjustedLine > len(contentLines) {
+				errMsg := fmt.Sprintf("SEARCH block %d: start_line %d (adjusted to %d after previous replacements) exceeds file length (%d lines).", i+1, block.startLine, adjustedLine, len(contentLines))
 				replacements = append(replacements, replacementInfo{
 					search:  search,
 					replace: replace,
@@ -570,14 +566,109 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 				})
 				continue
 			}
+
+			// Calculate byte offset for the adjusted line (0-based line index)
+			lineIdx := adjustedLine - 1
+			byteOffset := 0
+			for j := 0; j < lineIdx; j++ {
+				byteOffset += len(contentLines[j]) + 1 // +1 for newline
+			}
+
+			// Search for the content starting from this byte offset
+			searchIdx := strings.Index(content[byteOffset:], search)
+			if searchIdx >= 0 {
+				idx = byteOffset + searchIdx
+				found = true
+			} else {
+				// Fallback: try whitespace-tolerant match near the target line
+				searchLines := strings.Split(search, "\n")
+				maxCheckLines := len(contentLines) - lineIdx
+				if len(searchLines) < maxCheckLines {
+					maxCheckLines = len(searchLines)
+				}
+				for checkIdx := lineIdx; checkIdx <= lineIdx+maxCheckLines && checkIdx+len(searchLines) <= len(contentLines); checkIdx++ {
+					match := true
+					for j, sLine := range searchLines {
+						cLine := contentLines[checkIdx+j]
+						if strings.TrimRight(sLine, " \t\r") != strings.TrimRight(cLine, " \t\r") {
+							match = false
+							break
+						}
+					}
+					if match {
+						matchedContent := strings.Join(contentLines[checkIdx:checkIdx+len(searchLines)], "\n")
+						searchIdx = strings.Index(content, matchedContent)
+						if searchIdx >= 0 {
+							idx = searchIdx
+							found = true
+							break
+						}
+					}
+				}
+			}
+		} else {
+			// No start_line: search the entire content (exact match first)
+			idx = strings.Index(content, search)
+			if idx >= 0 {
+				found = true
+			}
 		}
 
-		// Calculate line numbers for the matched content
+		if !found {
+			// Try full-content fuzzy match as last resort
+			searchLines := strings.Split(search, "\n")
+			contentLines := strings.Split(content, "\n")
+			for lineIdx := 0; lineIdx <= len(contentLines)-len(searchLines); lineIdx++ {
+				match := true
+				for j, sLine := range searchLines {
+					cLine := contentLines[lineIdx+j]
+					if strings.TrimRight(sLine, " \t\r") != strings.TrimRight(cLine, " \t\r") {
+						match = false
+						break
+					}
+				}
+				if match {
+					matchedContent := strings.Join(contentLines[lineIdx:lineIdx+len(searchLines)], "\n")
+					searchIdx := strings.Index(content, matchedContent)
+					if searchIdx >= 0 {
+						idx = searchIdx
+						found = true
+						break
+					}
+				}
+			}
+		}
+
+		if !found {
+			// Provide helpful error with closest match info
+			closestLine := findClosestMatch(content, search)
+			errMsg := fmt.Sprintf("SEARCH block %d not found in file %q.", i+1, path)
+			if block.startLine > 0 {
+				errMsg += fmt.Sprintf(" Specified start_line=%d", block.startLine)
+			}
+			if closestLine > 0 {
+				errMsg += fmt.Sprintf(" Closest match found near line %d. The SEARCH content must match the file exactly (including whitespace and indentation).", closestLine)
+			} else {
+				errMsg += " The SEARCH content must match the file exactly (including whitespace and indentation)."
+			}
+			replacements = append(replacements, replacementInfo{
+				search:  search,
+				replace: replace,
+				success: false,
+				err:     errMsg,
+			})
+			continue
+		}
+
+		// Calculate line numbers for the matched content (in current content)
 		beforeMatch := content[:idx]
-		startLine := strings.Count(beforeMatch, "\n") + 1
-		endLine := startLine + strings.Count(search, "\n")
-		searchLines := strings.Count(search, "\n") + 1
-		replaceLines := strings.Count(replace, "\n") + 1
+		currentStartLine := strings.Count(beforeMatch, "\n") + 1
+		currentEndLine := currentStartLine + strings.Count(search, "\n")
+		searchLineCount := strings.Count(search, "\n") + 1
+		replaceLineCount := strings.Count(replace, "\n") + 1
+
+		// Update lineOffset: how many lines this replacement adds/removes
+		lineOffset += replaceLineCount - searchLineCount
 
 		// Replace only the first occurrence
 		content = content[:idx] + replace + content[idx+len(search):]
@@ -585,10 +676,10 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 		replacements = append(replacements, replacementInfo{
 			search:       search,
 			replace:      replace,
-			startLine:    startLine,
-			endLine:      endLine,
-			searchLines:  searchLines,
-			replaceLines: replaceLines,
+			startLine:    currentStartLine,
+			endLine:      currentEndLine,
+			searchLines:  searchLineCount,
+			replaceLines: replaceLineCount,
 			success:      true,
 		})
 	}

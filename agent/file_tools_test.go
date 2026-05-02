@@ -401,6 +401,55 @@ func TestReplaceInFileTool(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "single replacement with start_line",
+			args: map[string]interface{}{
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":     "func oldName()",
+						"replace":    "func newName()",
+						"start_line": float64(3),
+					},
+				},
+			},
+			want:    "package main\n\nfunc newName() {\n\t// do something\n}\n",
+			wantErr: false,
+		},
+		{
+			name: "multiple replacements with start_line and line offset",
+			args: map[string]interface{}{
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":     "func oldName() {",
+						"replace":    "func newName() {\n\t// added line\n\t// another line",
+						"start_line": float64(3),
+					},
+					map[string]interface{}{
+						"search":     "// do something",
+						"replace":    "// do something else",
+						"start_line": float64(4), // original line 4, after first replacement adds 2 lines, adjusted to 6
+					},
+				},
+			},
+			want:    "package main\n\nfunc newName() {\n\t// added line\n\t// another line\n\t// do something else\n}\n",
+			wantErr: false,
+		},
+		{
+			name: "start_line out of range",
+			args: map[string]interface{}{
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":     "func oldName()",
+						"replace":    "func newName()",
+						"start_line": float64(100),
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
