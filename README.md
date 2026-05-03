@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00150-blue)]()
+[![Build](https://img.shields.io/badge/Build-00151-blue)]()
 
 [![中文](https://img.shields.io/badge/README-中文-blue)](docs/zh-CN/README.md)
 
