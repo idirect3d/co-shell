@@ -76,40 +76,46 @@ func decodeToUTF8(data []byte) string {
 }
 
 // executeSystemCommand runs a system command with timeout.
+// The effective timeout is the maximum of the user-configured minimum timeout
+// and the LLM-suggested timeout_seconds parameter.
 func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interface{}) (string, error) {
 	command, ok := args["command"].(string)
 	if !ok {
 		return "", fmt.Errorf("command argument is required")
 	}
 
-	// Determine timeout: use args timeout_seconds first, then configured command timeout
-	var timeout int
+	// Get LLM-suggested timeout from args (optional)
+	llmSuggested := 0
 	if t, ok := args["timeout_seconds"].(float64); ok {
-		timeout = int(t)
-	} else {
-		cmdTimeout := a.getCommandTimeout()
-		if cmdTimeout > 0 {
-			timeout = int(cmdTimeout.Seconds())
-		}
+		llmSuggested = int(t)
+	}
+
+	// Effective timeout = max(user-configured minimum, LLM-suggested)
+	userMin := a.getCommandTimeout()
+	userMinSec := int(userMin.Seconds())
+	effectiveTimeout := userMinSec
+	if llmSuggested > effectiveTimeout {
+		effectiveTimeout = llmSuggested
 	}
 
 	// Only set timeout if a positive value is specified
-	if timeout > 0 {
+	if effectiveTimeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeout)*time.Second)
 		defer cancel()
 	}
 
 	shell, shellArg := shellCmd()
-	log.Debug("Executing command: %s (timeout: %ds, shell: %s)", command, timeout, shell)
+	log.Debug("Executing command: %s (effective timeout: %ds, user min: %ds, LLM suggested: %ds, shell: %s)",
+		command, effectiveTimeout, userMinSec, llmSuggested, shell)
 	cmd := exec.CommandContext(ctx, shell, shellArg, command)
 	output, err := cmd.CombinedOutput()
 	// Decode GBK to UTF-8 on Windows
 	decoded := decodeToUTF8(output)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			log.Warn("Command timed out after %d seconds: %s", timeout, command)
-			return "", fmt.Errorf("command timed out after %d seconds", timeout)
+			log.Warn("Command timed out after %d seconds: %s", effectiveTimeout, command)
+			return "", fmt.Errorf("command timed out after %d seconds", effectiveTimeout)
 		}
 		log.Error("Command failed: %s, error: %v", command, err)
 		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
