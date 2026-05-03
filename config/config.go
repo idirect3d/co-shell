@@ -197,24 +197,24 @@ type EmojiPrefixes struct {
 }
 
 // GetEmojiPrefixes returns the emoji prefixes based on whether emoji is enabled.
-// When disabled, returns i18n translation keys that should be resolved via i18n.T().
 // When enabled, returns emoji symbols directly.
+// When disabled, returns plain text labels (e.g., [user], [assistant], etc.).
 func GetEmojiPrefixes(enabled bool) EmojiPrefixes {
 	if !enabled {
 		return EmojiPrefixes{
-			UserInput:      "emoji_prefix_user",
-			LlmOutput:      "emoji_prefix_assistant",
-			ToolCallInput:  "emoji_prefix_tool_input",
-			ToolCallOutput: "emoji_prefix_tool_output",
-			CommandInput:   "emoji_prefix_cmd_input",
-			CommandOutput:  "emoji_prefix_cmd_output",
-			Info:           "emoji_prefix_info",
-			Error:          "emoji_prefix_error",
-			Warning:        "emoji_prefix_warning",
-			Success:        "emoji_prefix_success",
-			Thinking:       "emoji_prefix_thinking",
-			OutputTitle:    "emoji_prefix_output_title",
-			OutputSep:      "emoji_prefix_output_sep",
+			UserInput:      "[user]> ",
+			LlmOutput:      "[assistant]> ",
+			ToolCallInput:  "[tool]< ",
+			ToolCallOutput: "[tool]> ",
+			CommandInput:   "[cmd]< ",
+			CommandOutput:  "[cmd]> ",
+			Info:           "[info] ",
+			Error:          "[error] ",
+			Warning:        "[warn] ",
+			Success:        "[ok] ",
+			Thinking:       "[think] ",
+			OutputTitle:    "[output] Command Output:",
+			OutputSep:      "────────────────────────────────────────────",
 		}
 	}
 	return EmojiPrefixes{
