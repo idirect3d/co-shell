@@ -195,10 +195,8 @@ func (r *REPL) Run() error {
 		// Get emoji prefixes based on config
 		ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 		prompt := ep.UserInput
-		if !r.cfg.LLM.EmojiEnabled {
-			prompt = i18n.T(prompt)
-		}
 		if r.cfg.LLM.VisionSupport {
+
 			prompt = "👀 " + prompt
 		}
 		fmt.Print(prompt)
