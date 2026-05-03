@@ -381,6 +381,40 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Handle --init-capabilities: generate default CAPABILITIES.md in workspace root
+	if flags.initCapabilities {
+		ep := config.GetEmojiPrefixes(true) // default to enabled for CLI output
+		capPath := filepath.Join(ws.Root(), "CAPABILITIES.md")
+		if _, err := os.Stat(capPath); err == nil {
+			fmt.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, capPath)
+			os.Exit(0)
+		}
+		content := i18n.T(i18n.KeySystemPromptCapabilities)
+		if err := os.WriteFile(capPath, []byte(content), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", capPath, err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s 已生成默认 CAPABILITIES.md: %s\n", ep.Success, capPath)
+		os.Exit(0)
+	}
+
+	// Handle --init-rules: generate default RULES.md in workspace root
+	if flags.initRules {
+		ep := config.GetEmojiPrefixes(true) // default to enabled for CLI output
+		rulesPath := filepath.Join(ws.Root(), "RULES.md")
+		if _, err := os.Stat(rulesPath); err == nil {
+			fmt.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, rulesPath)
+			os.Exit(0)
+		}
+		content := i18n.T(i18n.KeySystemPromptRules)
+		if err := os.WriteFile(rulesPath, []byte(content), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", rulesPath, err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s 已生成默认 RULES.md: %s\n", ep.Success, rulesPath)
+		os.Exit(0)
+	}
+
 	// Load configuration with priority:
 	// 1. -c/--config <path> (highest priority)
 	// 2. CO_SHELL_CONFIG_PATH environment variable (inherited from parent agent)
