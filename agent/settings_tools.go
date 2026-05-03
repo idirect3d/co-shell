@@ -798,6 +798,177 @@ func boolToString(b bool) string {
 	return "off"
 }
 
+// listSettingsTool handles the "list_settings" tool call from the LLM.
+// It returns a formatted list of all available configuration parameters
+// with their current values, valid ranges, and descriptions.
+func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	cfg := a.cfg
+	if cfg == nil {
+		return "", fmt.Errorf("configuration not available")
+	}
+
+	var sb strings.Builder
+	sb.WriteString("以下是 co-shell 所有可配置的系统参数清单：\n\n")
+
+	// Helper to format a setting line
+	formatLine := func(name, current, validRange, desc string) string {
+		return fmt.Sprintf("  • %s\n    当前值: %s\n    取值范围: %s\n    说明: %s\n\n", name, current, validRange, desc)
+	}
+
+	// Group 1: Identity & Personality
+	sb.WriteString("━━━ [ 身份与个性 ] ━━━\n\n")
+	agentName := cfg.LLM.AgentName
+	if agentName == "" {
+		agentName = "co-shell"
+	}
+	agentDesc := cfg.LLM.AgentDescription
+	if agentDesc == "" {
+		agentDesc = "(未设置)"
+	}
+	agentPrinciples := cfg.LLM.AgentPrinciples
+	if agentPrinciples == "" {
+		agentPrinciples = "(未设置)"
+	}
+	sb.WriteString(formatLine("name", agentName, "任意字符串", "Agent 的名称，用于标识和日志"))
+	sb.WriteString(formatLine("description", agentDesc, "任意字符串", "Agent 的身份描述，告诉 LLM 它是什么"))
+	sb.WriteString(formatLine("principles", agentPrinciples, "任意字符串", "Agent 的行为准则和原则"))
+
+	// Group 2: Model Parameters
+	sb.WriteString("━━━ [ 模型参数 ] ━━━\n\n")
+	sb.WriteString(formatLine("api-key", maskKey(cfg.LLM.APIKey), "任意 API Key 字符串", "大模型 API 的认证密钥"))
+	sb.WriteString(formatLine("endpoint", cfg.LLM.Endpoint, "有效的 API 端点 URL", "大模型 API 的服务地址"))
+	sb.WriteString(formatLine("model", cfg.LLM.Model, "模型名称（如 deepseek-chat, gpt-4 等）", "当前使用的大模型名称"))
+	sb.WriteString(formatLine("temperature", fmt.Sprintf("%.1f", cfg.LLM.Temperature), "0.0 ~ 2.0（浮点数）", "模型输出的随机性，值越高越有创造性"))
+	sb.WriteString(formatLine("max-tokens", fmt.Sprintf("%d", cfg.LLM.MaxTokens), "1 ~ 128000（整数）", "每次 LLM 调用返回的最大 token 数"))
+	maxIterStr := fmt.Sprintf("%d", cfg.LLM.MaxIterations)
+	if cfg.LLM.MaxIterations <= 0 {
+		maxIterStr = "无限制"
+	}
+	sb.WriteString(formatLine("max-iterations", maxIterStr, ">= 1 的整数，或 -1（无限制）", "单次任务中 LLM 调用的最大迭代次数"))
+	sb.WriteString(formatLine("max-retries", fmt.Sprintf("%d", cfg.LLM.MaxRetries), ">= 0 的整数", "LLM 调用失败时的最大重试次数"))
+	visionStr := "关闭"
+	if cfg.LLM.VisionSupport {
+		visionStr = "开启"
+	}
+	sb.WriteString(formatLine("vision", visionStr, "on/off, 1/0, true/false, yes/no", "是否启用多模态视觉识别能力"))
+	thinkingStr := "关闭"
+	if cfg.LLM.ThinkingEnabled {
+		thinkingStr = "开启"
+	}
+	sb.WriteString(formatLine("thinking-enabled", thinkingStr, "on/off, 1/0, true/false, yes/no", "是否启用模型的思考（推理）能力"))
+	sb.WriteString(formatLine("reasoning-effort", cfg.LLM.ReasoningEffort, "low / medium / high", "模型推理的深度级别"))
+
+	// Group 3: Display & Output
+	sb.WriteString("━━━ [ 显示与输出 ] ━━━\n\n")
+	llmThinkingStr := "关闭"
+	if cfg.LLM.ShowLlmThinking {
+		llmThinkingStr = "开启"
+	}
+	sb.WriteString(formatLine("show-llm-thinking", llmThinkingStr, "on/off, 1/0, true/false, yes/no", "是否显示 LLM 的思考过程"))
+	llmContentStr := "关闭"
+	if cfg.LLM.ShowLlmContent {
+		llmContentStr = "开启"
+	}
+	sb.WriteString(formatLine("show-llm-content", llmContentStr, "on/off, 1/0, true/false, yes/no", "是否显示 LLM 返回的主要内容"))
+	toolStr := "关闭"
+	if cfg.LLM.ShowTool {
+		toolStr = "开启"
+	}
+	sb.WriteString(formatLine("show-tool", toolStr, "on/off, 1/0, true/false, yes/no", "是否显示工具调用名称"))
+	toolInputStr := "关闭"
+	if cfg.LLM.ShowToolInput {
+		toolInputStr = "开启"
+	}
+	sb.WriteString(formatLine("show-tool-input", toolInputStr, "on/off, 1/0, true/false, yes/no", "是否显示工具调用的输入参数"))
+	toolOutputStr := "关闭"
+	if cfg.LLM.ShowToolOutput {
+		toolOutputStr = "开启"
+	}
+	sb.WriteString(formatLine("show-tool-output", toolOutputStr, "on/off, 1/0, true/false, yes/no", "是否显示工具调用的返回数据"))
+	cmdStr := "关闭"
+	if cfg.LLM.ShowCommand {
+		cmdStr = "开启"
+	}
+	sb.WriteString(formatLine("show-command", cmdStr, "on/off, 1/0, true/false, yes/no", "是否显示要执行的系统命令"))
+	cmdOutputStr := "关闭"
+	if cfg.LLM.ShowCommandOutput {
+		cmdOutputStr = "开启"
+	}
+	sb.WriteString(formatLine("show-command-output", cmdOutputStr, "on/off, 1/0, true/false, yes/no", "是否显示命令执行结果"))
+	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
+	sb.WriteString(formatLine("result-mode", resultModeStr, "minimal / explain / analyze / free", "结果处理模式：极简/解释/分析/自由"))
+
+	// Group 4: Safety & Confirmation
+	sb.WriteString("━━━ [ 安全与确认 ] ━━━\n\n")
+	confirmStr := "关闭"
+	if cfg.LLM.ConfirmCommand {
+		confirmStr = "开启"
+	}
+	sb.WriteString(formatLine("confirm-command", confirmStr, "on/off, 1/0, true/false, yes/no", "执行系统命令前是否等待用户确认"))
+	toolTimeoutStr := fmt.Sprintf("%d秒", cfg.LLM.ToolTimeout)
+	if cfg.LLM.ToolTimeout <= 0 {
+		toolTimeoutStr = "无限制"
+	}
+	sb.WriteString(formatLine("tool-timeout", toolTimeoutStr, ">= 0 的整数（秒），0=无限制", "工具调用的超时时间"))
+	cmdTimeoutStr := fmt.Sprintf("%d秒", cfg.LLM.CommandTimeout)
+	if cfg.LLM.CommandTimeout <= 0 {
+		cmdTimeoutStr = "无限制"
+	}
+	sb.WriteString(formatLine("cmd-timeout", cmdTimeoutStr, ">= 0 的整数（秒），0=无限制", "系统命令执行的超时时间"))
+	llmTimeoutStr := fmt.Sprintf("%d秒", cfg.LLM.LLMTimeout)
+	if cfg.LLM.LLMTimeout <= 0 {
+		llmTimeoutStr = "无限制"
+	}
+	sb.WriteString(formatLine("llm-timeout", llmTimeoutStr, ">= 0 的整数（秒），0=无限制", "LLM API 调用的超时时间"))
+	sb.WriteString(formatLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), ">= 0 的整数", "相同错误的最大出现次数，超过后提示用户"))
+	sb.WriteString(formatLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), ">= 0 的整数", "最大错误类型数，超过后提示用户"))
+
+	// Group 5: Memory & Context
+	sb.WriteString("━━━ [ 记忆与上下文 ] ━━━\n\n")
+	memStr := "关闭"
+	if cfg.LLM.MemoryEnabled {
+		memStr = "开启"
+	}
+	sb.WriteString(formatLine("memory-enabled", memStr, "on/off, 1/0, true/false, yes/no", "是否启用持久化记忆功能"))
+	contextLimitStr := fmt.Sprintf("%d", cfg.LLM.ContextLimit)
+	if cfg.LLM.ContextLimit == 0 {
+		contextLimitStr = "关闭（仅当前输入）"
+	} else if cfg.LLM.ContextLimit == -1 {
+		contextLimitStr = "无限制"
+	}
+	sb.WriteString(formatLine("context-limit", contextLimitStr, "-1（无限制）/ 0（仅当前输入）/ N（最近N条）", "发送给 LLM 的历史消息数量限制"))
+	sb.WriteString(formatLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), ">= 0 的整数", "记忆搜索返回结果中每条内容的最大字符数"))
+	sb.WriteString(formatLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), ">= 0 的整数", "记忆搜索返回的最大结果数量"))
+
+	// Group 6: Tasks & Sub-Agents
+	sb.WriteString("━━━ [ 任务与子代理 ] ━━━\n\n")
+	planStr := "关闭"
+	if cfg.LLM.PlanEnabled {
+		planStr = "开启"
+	}
+	sb.WriteString(formatLine("plan-enabled", planStr, "on/off, 1/0, true/false, yes/no", "是否启用任务计划（checklist）功能"))
+	subStr := "关闭"
+	if cfg.LLM.SubAgentEnabled {
+		subStr = "开启"
+	}
+	sb.WriteString(formatLine("subagent-enabled", subStr, "on/off, 1/0, true/false, yes/no", "是否允许启动子代理（sub-agent）"))
+
+	// Group 7: Search & Debug
+	sb.WriteString("━━━ [ 搜索与调试 ] ━━━\n\n")
+	sb.WriteString(formatLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), ">= 0 的整数", "文件搜索时单行最大字符数，超长截断"))
+	sb.WriteString(formatLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), ">= 0 的整数", "文件搜索返回结果的最大总字节数"))
+	sb.WriteString(formatLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), ">= 0 的整数", "文件搜索时匹配行上下文的行数"))
+	logLevel := cfg.LogLevel
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	sb.WriteString(formatLine("log", logLevel, "debug / info / warn / error / off", "日志输出级别"))
+
+	sb.WriteString("\n使用 update_settings 工具可以修改以上参数。每次修改需要提供参数名、新值和修改原因，系统会提示用户确认。\n")
+
+	return sb.String(), nil
+}
+
 // maskKey masks the API key for display.
 func maskKey(key string) string {
 	if len(key) <= 8 {

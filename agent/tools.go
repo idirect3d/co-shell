@@ -484,6 +484,18 @@ func (a *Agent) buildTools() []llm.Tool {
 		Callback: a.updateSettingsTool,
 	})
 
+	// Add list_settings tool (always available)
+	tools = append(tools, llm.Tool{
+		Name:        "list_settings",
+		Description: "List all available co-shell system configuration parameters with their current values, valid ranges, and descriptions. Use this to discover what settings can be modified via the update_settings tool. This is useful when you need to understand the available configuration options before making changes.",
+		Parameters: map[string]interface{}{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+			"required":   []string{},
+		},
+		Callback: a.listSettingsTool,
+	})
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture
