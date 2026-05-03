@@ -625,4 +625,15 @@ const (
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount = "col3_error_max_single_count"
 	KeyCol3ErrorMaxTypeCount   = "col3_error_max_type_count"
+
+	// Settings confirmation (FEATURE-131)
+	KeySettingsConfirmTitle          = "settings_confirm_title"
+	KeySettingsConfirmRiskWarning    = "settings_confirm_risk_warning"
+	KeySettingsConfirmPrompt         = "settings_confirm_prompt"
+	KeySettingsConfirmRejected       = "settings_confirm_rejected"
+	KeySettingsConfirmRejectedResult = "settings_confirm_rejected_result"
+	KeySettingsConfirmApplied        = "settings_confirm_applied"
+	KeySettingsConfirmFailed         = "settings_confirm_failed"
+	KeySettingsConfirmResult         = "settings_confirm_result"
+	KeySettingsConfirmPaused         = "settings_confirm_paused"
 )
