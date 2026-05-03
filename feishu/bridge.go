@@ -31,7 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -94,14 +94,20 @@ func (b *Bridge) Stop() {
 }
 
 // connect establishes the WebSocket connection.
+// Feishu requires the token to be passed as a URL query parameter.
 func (b *Bridge) connect(token string) error {
 	b.connMu.Lock()
 	defer b.connMu.Unlock()
 
-	header := http.Header{}
-	header.Set("Authorization", "Bearer "+token)
+	u, err := url.Parse(wsBaseURL + "/event")
+	if err != nil {
+		return fmt.Errorf("cannot parse WebSocket URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("verify_token", token)
+	u.RawQuery = q.Encode()
 
-	conn, _, err := websocket.DefaultDialer.Dial(wsBaseURL+"/event", header)
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		return fmt.Errorf("websocket dial failed: %w", err)
 	}
