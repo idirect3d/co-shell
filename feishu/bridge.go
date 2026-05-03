@@ -40,8 +40,6 @@ import (
 
 const (
 	wsBaseURL = "wss://open.feishu.cn/ws/v1"
-	// Event types
-	eventPong = "pong"
 )
 
 // Bridge manages the WebSocket connection to Feishu.
@@ -107,10 +105,22 @@ func (b *Bridge) connect(token string) error {
 	q.Set("verify_token", token)
 	u.RawQuery = q.Encode()
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	dialer := *websocket.DefaultDialer
+	// Set PongHandler to respond to server pings automatically
+	dialer.HandshakeTimeout = 30 * time.Second
+
+	conn, _, err := dialer.Dial(u.String(), nil)
 	if err != nil {
 		return fmt.Errorf("websocket dial failed: %w", err)
 	}
+
+	// Set read deadline to detect stale connections
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	// Set PongHandler to extend read deadline on pong frames
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
 
 	b.conn = conn
 	b.connected = true
@@ -161,11 +171,15 @@ func (b *Bridge) eventLoop(ctx context.Context) {
 			continue
 		}
 
+		// Reset read deadline after successful read
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
 		b.handleMessage(message)
 	}
 }
 
 // handleMessage processes a raw WebSocket message.
+// It sends an ACK back to Feishu for event messages to prevent retries.
 func (b *Bridge) handleMessage(data []byte) {
 	// Try to parse as a generic event
 	var event Event
@@ -176,6 +190,9 @@ func (b *Bridge) handleMessage(data []byte) {
 
 	switch event.Type {
 	case "event":
+		// Send ACK to Feishu immediately to prevent retry
+		b.sendACK(event.ID)
+
 		// Process the event through the handler
 		if err := b.handler.HandleEvent(event); err != nil {
 			log.Printf("Event handling error: %v", err)
@@ -183,13 +200,41 @@ func (b *Bridge) handleMessage(data []byte) {
 
 	case "pong":
 		// Heartbeat response, nothing to do
-		log.Printf("Received pong")
+		if b.cfg.LogLevel == "debug" {
+			log.Printf("Received pong")
+		}
 
 	case "error":
 		log.Printf("Received error event: %s", string(data))
 
 	default:
 		log.Printf("Unknown event type: %s", event.Type)
+	}
+}
+
+// sendACK sends an acknowledgement to Feishu for a received event.
+// Feishu requires ACK within 3 seconds, otherwise it will retry the event.
+func (b *Bridge) sendACK(eventID string) {
+	b.connMu.Lock()
+	conn := b.conn
+	b.connMu.Unlock()
+
+	if conn == nil {
+		return
+	}
+
+	ack := map[string]string{
+		"id":   eventID,
+		"type": "pong",
+	}
+	data, err := json.Marshal(ack)
+	if err != nil {
+		log.Printf("Cannot marshal ACK: %v", err)
+		return
+	}
+
+	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		log.Printf("Cannot send ACK: %v", err)
 	}
 }
 
