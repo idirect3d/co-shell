@@ -93,6 +93,7 @@ func buildUsageOutputControl() string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowToolInput) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowToolOutput) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowCommandOutput) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEmojiEnabled) + "\n")
 	return sb.String()
 }
 
