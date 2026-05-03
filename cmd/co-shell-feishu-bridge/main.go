@@ -175,7 +175,7 @@ func main() {
 	executor := &bridge.Executor{
 		CoShellPath: coShellPath,
 		Workspace:   cfg.Workspace,
-		ConfigPath:  cfg.ConfigPath,
+		ConfigPath:  cfg.CoShellCfgPath,
 		Timeout:     120 * time.Second,
 	}
 
@@ -255,7 +255,7 @@ func loadConfig(flags cliFlags) *feishu.Config {
 		cfg.Workspace = flags.workspace
 	}
 	if flags.configPath != "" {
-		cfg.ConfigPath = flags.configPath
+		cfg.CoShellCfgPath = flags.configPath
 	}
 	if flags.mode != "" {
 		cfg.Mode = flags.mode

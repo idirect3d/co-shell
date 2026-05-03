@@ -38,13 +38,13 @@ import (
 
 // Config holds the Feishu bridge configuration.
 type Config struct {
-	AppID       string `json:"app_id"`
-	AppSecret   string `json:"app_secret"`
-	CoShellPath string `json:"co_shell_path"`
-	Workspace   string `json:"workspace"`
-	ConfigPath  string `json:"config_path"`
-	Mode        string `json:"mode"`      // sync / pool / preempt
-	LogLevel    string `json:"log_level"` // debug/info/warn/error/off
+	AppID          string `json:"app_id"`
+	AppSecret      string `json:"app_secret"`
+	CoShellPath    string `json:"co_shell_path"`
+	Workspace      string `json:"workspace"`
+	CoShellCfgPath string `json:"co_shell_config_path"` // Path to co-shell's config.json
+	Mode           string `json:"mode"`                 // sync / pool / preempt
+	LogLevel       string `json:"log_level"`            // debug/info/warn/error/off
 }
 
 // DefaultConfig returns a Config with default values.
