@@ -192,9 +192,9 @@ func (r *REPL) Run() error {
 	// Main input loop using bufio.Scanner (standard line-buffered input)
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		prompt := "❯ "
+		prompt := i18n.T(i18n.KeyEmojiPrefixUser)
 		if r.cfg.LLM.VisionSupport {
-			prompt = "👀 "
+			prompt = "👀 " + prompt
 		}
 		fmt.Print(prompt)
 
