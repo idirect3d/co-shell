@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.3.0 — RC1
-> **BUILD**: 139
+> **BUILD**: 141
 
 
 
@@ -152,7 +152,7 @@
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
 - [ ] FEATURE-50 完整文档站。
-- [ ] ENHANCEMENT-119 优化文件读取、写入工具，以便增强LLM对源码的控制力。
+- [x] ENHANCEMENT-119 优化文件读取、写入工具，以便增强LLM对源码的控制力。[BUILD-141]
 - [ ] FEATURE-120 新增Excel文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Excel的能力。
 - [ ] FEATURE-121 新增Word文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Word的能力。
 - [x] FEATURE-122 新增日志级别控制，可以通过 .set log debug/info/warn/error/off 控制日志输出级别，支持 --log-level 命令行参数和 config.json 持久化。[BUILD-138]
@@ -162,6 +162,8 @@
 - [x] ENHANCEMENT-126 优化输出模式控制，梳理与LLM迭代相关的输出，合理分类后，进行参数话控制，以便用户能够更清晰的控制：LLM返回的thinking内容（show-llm-thinking，默认开）、LLM返回的主要内容（show-llm-content，默认开）、输出Tool-call名（show-tool，默认开）、输出Tool-call输入参数（show-tool-input，默认关）、输出Tool-call返回数据（show-tool-output，默认关）、输出系统命令行（show-command，默认开）、输出命令返回数据（show-command-output，默认开），删除现有的show-output、output-mode两个快关。[BUILD-139]
 
 - [x] FEATURE-127 增加Agent身份定义的默认值，以便发行版能够具备比较一致的行为，对于身份描述内容需要支持多语言。[BUILD-140]
+- [ ] FEATURE-128 增加移动端APP和0信任网关，以便用户能够在手机端安全的操控co-shell。
+- [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 
 
 
@@ -173,6 +175,7 @@
 
 ### 功能清单
 
+- [ ] FEATURE-130 为co-shell正式发布中文名，以便中国用户能够记住并且具有亲和力，有利于推广。
 - [ ] FEATURE-31 MCP Server 自动重连
 - [ ] FEATURE-34 插件系统（WASM 插件支持）
 - [ ] FEATURE-35 自定义 Prompt 模板
