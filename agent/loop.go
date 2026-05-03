@@ -98,7 +98,10 @@ type Agent struct {
 	planEnabled     bool     // whether task plan tools are enabled
 	subAgentEnabled bool     // whether sub-agent tools are enabled
 
+	emojiEnabled bool // whether emoji prefixes are enabled for output
+
 	// messagePointer is the index in a.messages that marks the starting position
+
 	// for sending to LLM. Messages before this index are ignored when building
 	// context for LLM calls. When a new checklist is created or updated, the
 	// pointer is moved to the end, effectively ignoring prior conversation.
@@ -328,8 +331,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 
 			if needUserPrompt {
+				// Get emoji prefixes
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+
 				// Prompt user for action
-				fmt.Printf("\n⚠️ 错误反复出现: %s\n", promptReason)
+				fmt.Printf("\n%s 错误反复出现: %s\n", ep.Warning, promptReason)
 				fmt.Printf("  最新错误: %v\n", streamErr)
 				fmt.Println()
 				fmt.Println(i18n.T(i18n.KeyErrorRiskWarning))
@@ -359,15 +365,15 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				if lower == "c" {
 					// User cancelled, return to REPL
-					cb("info", "\n🛑 用户取消了操作\n")
+					cb("info", fmt.Sprintf("\n%s 用户取消了操作\n", ep.Error))
 					return "", nil
 				} else if lower == "a" {
 					// User chose to ignore all error limits
 					a.errorApproveAll = true
-					fmt.Println("\n✅ 已忽略错误限制，继续执行")
+					fmt.Printf("\n%s 已忽略错误限制，继续执行\n", ep.Success)
 				} else {
 					// Continue (Enter pressed)
-					fmt.Println("\n✅ 继续让 LLM 尝试处理")
+					fmt.Printf("\n%s 继续让 LLM 尝试处理\n", ep.Success)
 				}
 			}
 
@@ -388,7 +394,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				),
 			})
 			a.mu.Unlock()
-			cb("info", fmt.Sprintf("\n⚠️ LLM 调用出错: %v\n正在请求 LLM 判断如何处理...\n", streamErr))
+			ep := config.GetEmojiPrefixes(a.emojiEnabled)
+			cb("info", fmt.Sprintf("\n%s LLM 调用出错: %v\n正在请求 LLM 判断如何处理...\n", ep.Warning, streamErr))
 			continue
 		}
 
@@ -450,7 +457,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 			// Show tool call name (and input arguments if enabled)
 			if a.showTool {
-				msg := fmt.Sprintf("🛠 Calling tool: %s", tc.Name)
+				msg := tc.Name
 				if a.showToolInput {
 					// Pretty-print the JSON arguments
 					var argsPretty string
@@ -497,7 +504,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						Content: modifyInput,
 					})
 					a.mu.Unlock()
-					cb("info", fmt.Sprintf("\n🔄 用户补充说明: %s\n", modifyInput))
+					ep := config.GetEmojiPrefixes(a.emojiEnabled)
+					cb("info", fmt.Sprintf("\n%s 用户补充说明: %s\n", ep.Info, modifyInput))
 					break
 				}
 				result = fmt.Sprintf("Error: %v", execErr)

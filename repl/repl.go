@@ -286,6 +286,9 @@ func (r *REPL) handleBuiltin(input string) {
 		return
 	}
 
+	// Get emoji prefixes based on config
+	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+
 	command := parts[0]
 	args := parts[1:]
 
@@ -317,15 +320,15 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.planHandler.Handle(args)
 	case ".new":
 		r.agent.Reset()
-		fmt.Println("✅ " + i18n.T(i18n.KeyHelpNew))
+		fmt.Printf("%s%s\n", ep.Success, i18n.T(i18n.KeyHelpNew))
 		return
 	default:
-		fmt.Printf(i18n.T(i18n.KeyUnknownCommand)+"\n", command)
+		fmt.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return
 	}
 
 	if err != nil {
-		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyError), err)
+		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
 		return
 	}
 	fmt.Println(result)
@@ -345,9 +348,12 @@ func (r *REPL) handleBuiltin(input string) {
 
 // handleHistoryReExecute re-executes a history entry by its 1-based index.
 func (r *REPL) handleHistoryReExecute(num int) {
+	// Get emoji prefixes based on config
+	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+
 	entries, err := r.store.ListHistory()
 	if err != nil {
-		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyError), err)
+		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
 		return
 	}
 
@@ -357,7 +363,7 @@ func (r *REPL) handleHistoryReExecute(num int) {
 	}
 
 	input := entries[num-1].Input
-	fmt.Printf("🔄 %s\n", input)
+	fmt.Printf("%s%s\n", ep.Info, input)
 
 	// Check if it's a built-in command
 	if strings.HasPrefix(input, ".") {
@@ -388,9 +394,12 @@ func (r *REPL) handleWizard() {
 
 // handleSystemCommand executes a system command directly and displays the output.
 func (r *REPL) handleSystemCommand(command string) {
+	// Get emoji prefixes based on config
+	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+
 	// Show command if enabled
 	if r.cfg.LLM.ShowCommand {
-		fmt.Printf("$ %s\n", command)
+		fmt.Printf("%s%s\n", ep.CommandInput, command)
 	}
 
 	output, err := r.agent.ExecuteCommandDirectly(command)
@@ -399,12 +408,12 @@ func (r *REPL) handleSystemCommand(command string) {
 		if output != "" {
 			fmt.Print(output)
 		}
-		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyCmdFailed), err)
+		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
 		return
 	}
 
 	if output != "" {
-		fmt.Println(output)
+		fmt.Printf("%s%s\n", ep.OutputTitle, output)
 	}
 }
 
@@ -412,14 +421,17 @@ func (r *REPL) handleSystemCommand(command string) {
 func (r *REPL) handleAgentInput(input string) {
 	ctx := context.Background()
 
+	// Get emoji prefixes based on config
+	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+
 	// Print agent name with timestamp before streaming response
 	fmt.Println()
-	fmt.Println(r.agent.Said())
+	fmt.Printf("%s%s\n", ep.LlmOutput, r.agent.Said())
 
 	// Use streaming version
 	_, err := r.agent.RunStream(ctx, input, r.streamCallback)
 	if err != nil {
-		fmt.Printf("❌ %s: %v\n", i18n.T(i18n.KeyProcessFailed), err)
+		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyProcessFailed), err)
 		fmt.Println(i18n.T(i18n.KeyCheckConfig))
 		return
 	}
@@ -427,6 +439,9 @@ func (r *REPL) handleAgentInput(input string) {
 
 // streamCallback handles streaming events from the agent.
 func (r *REPL) streamCallback(eventType string, content string) {
+	// Get emoji prefixes based on config
+	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+
 	switch eventType {
 	case "content_chunk":
 		fmt.Print(content)
@@ -435,29 +450,31 @@ func (r *REPL) streamCallback(eventType string, content string) {
 		fmt.Print(content)
 
 	case "content":
+		fmt.Print(ep.LlmOutput)
 		fmt.Print(content)
 		fmt.Println()
 
 	case "thinking":
+		fmt.Print(ep.Thinking)
 		fmt.Print(content)
 		fmt.Println()
 
 	case "command":
-		fmt.Printf("⚡ %s\n", content)
+		fmt.Printf("%s%s\n", ep.CommandInput, content)
 
 	case "output":
 		fmt.Println()
-		fmt.Println(i18n.T(i18n.KeyOutputTitle))
-		fmt.Println(i18n.T(i18n.KeyOutputSep))
+		fmt.Println(ep.OutputTitle)
+		fmt.Println(ep.OutputSep)
 		fmt.Println(content)
-		fmt.Println(i18n.T(i18n.KeyOutputSep))
+		fmt.Println(ep.OutputSep)
 		fmt.Println()
 
 	case "tool_call":
-		fmt.Println(content)
+		fmt.Printf("%s%s\n", ep.ToolCallInput, content)
 
 	case "error":
-		fmt.Printf("❌ %s\n", content)
+		fmt.Printf("%s%s\n", ep.Error, content)
 
 	case "done":
 		fmt.Println()

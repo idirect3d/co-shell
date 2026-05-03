@@ -147,6 +147,11 @@ func (a *Agent) SetMemoryEnabled(enabled bool) {
 	a.memoryEnabled = enabled
 }
 
+// SetEmojiEnabled sets whether emoji prefixes are enabled for output.
+func (a *Agent) SetEmojiEnabled(enabled bool) {
+	a.emojiEnabled = enabled
+}
+
 // MessagePointer returns the current message pointer index.
 // The pointer marks the starting position for sending to LLM.
 // Messages before this index are ignored when building context.

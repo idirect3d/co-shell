@@ -287,9 +287,12 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount)
 	case "error-max-type-count":
 		return fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount)
+	case "emoji-enabled":
+		return boolToString(cfg.LLM.EmojiEnabled)
 	default:
 		return "(unknown)"
 	}
+
 }
 
 // applySetting applies a setting change to the config and syncs to the agent.
@@ -754,8 +757,21 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		log.Info("Error max type count set via LLM tool: %d", n)
 
+	case "emoji-enabled":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.EmojiEnabled = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		a.SetEmojiEnabled(b)
+		log.Info("Emoji enabled set via LLM tool: %v", b)
+
 	default:
 		return fmt.Errorf("unknown setting: %s", param)
+
 	}
 
 	return nil
