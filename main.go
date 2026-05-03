@@ -117,6 +117,9 @@ type cliFlags struct {
 	// Log level
 	logLevel string // debug/info/warn/error/off
 
+	// Emoji enabled
+	emojiEnabled string // "on"/"off"
+
 	// External config file generation
 	initCapabilities bool
 	initRules        bool
@@ -200,6 +203,9 @@ func parseFlags() cliFlags {
 
 	// Log level
 	flag.StringVar(&f.logLevel, "log-level", "", "日志输出级别（debug/info/warn/error/off，覆盖配置文件）")
+
+	// Emoji enabled
+	flag.StringVar(&f.emojiEnabled, "emoji-enabled", "", "启用表情符号前缀（on/off，覆盖配置文件）")
 
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
@@ -373,38 +379,6 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: cannot initialize workspace: %v\n", err)
 		os.Exit(1)
-	}
-
-	// Handle --init-capabilities: generate default CAPABILITIES.md in workspace root
-	if flags.initCapabilities {
-		capPath := filepath.Join(ws.Root(), "CAPABILITIES.md")
-		if _, err := os.Stat(capPath); err == nil {
-			fmt.Printf("⚠️  %s 已存在，跳过生成。\n", capPath)
-			os.Exit(0)
-		}
-		content := i18n.T(i18n.KeySystemPromptCapabilities)
-		if err := os.WriteFile(capPath, []byte(content), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", capPath, err)
-			os.Exit(1)
-		}
-		fmt.Printf("✅ 已生成默认 CAPABILITIES.md: %s\n", capPath)
-		os.Exit(0)
-	}
-
-	// Handle --init-rules: generate default RULES.md in workspace root
-	if flags.initRules {
-		rulesPath := filepath.Join(ws.Root(), "RULES.md")
-		if _, err := os.Stat(rulesPath); err == nil {
-			fmt.Printf("⚠️  %s 已存在，跳过生成。\n", rulesPath)
-			os.Exit(0)
-		}
-		content := i18n.T(i18n.KeySystemPromptRules)
-		if err := os.WriteFile(rulesPath, []byte(content), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", rulesPath, err)
-			os.Exit(1)
-		}
-		fmt.Printf("✅ 已生成默认 RULES.md: %s\n", rulesPath)
-		os.Exit(0)
 	}
 
 	// Load configuration with priority:
@@ -624,6 +598,18 @@ func main() {
 		cfg.LLM.MemorySearchMaxResults = flags.memorySearchMaxResults
 	}
 
+	// Apply emoji-enabled CLI override
+	if flags.emojiEnabled != "" {
+		switch flags.emojiEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.EmojiEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.EmojiEnabled = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --emoji-enabled value %q, use on|off\n", flags.emojiEnabled)
+		}
+	}
+
 	// Apply error tracking config CLI overrides
 	if flags.errorMaxSingleCount >= 0 {
 		cfg.LLM.ErrorMaxSingleCount = flags.errorMaxSingleCount
@@ -770,6 +756,9 @@ func main() {
 	// Apply command confirmation setting
 	ag.SetConfirmCommand(cfg.LLM.ConfirmCommand)
 
+	// Apply emoji enabled setting
+	ag.SetEmojiEnabled(cfg.LLM.EmojiEnabled)
+
 	// Pass config to agent for timeout settings
 	ag.SetConfig(cfg)
 
@@ -796,7 +785,8 @@ func main() {
 	if flags.imagePaths != "" {
 		// Check if the current model supports vision
 		if !cfg.LLM.VisionSupport {
-			fmt.Fprintf(os.Stderr, "❌ 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n")
+			ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
+			fmt.Fprintf(os.Stderr, "%s 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n", ep.Error)
 			fmt.Fprintf(os.Stderr, "   请去掉-image参数或使用支持多模态的模型。\n")
 			os.Exit(1)
 		}
@@ -874,6 +864,8 @@ func isDirectCommand(input string) bool {
 func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 	log.Info("Single command mode: %s", input)
 
+	ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
+
 	// Check if it's a direct system command
 	if isDirectCommand(input) {
 		// Direct system command
@@ -883,7 +875,7 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 		output, err := ag.ExecuteCommandDirectly(input)
 		if err != nil {
 			fmt.Print(output)
-			fmt.Printf("❌ Error: %v\n", err)
+			fmt.Printf("%s Error: %v\n", ep.Error, err)
 			os.Exit(1)
 		}
 		if output != "" {
@@ -901,23 +893,24 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 		case "thinking_chunk":
 			fmt.Print(content)
 		case "command":
-			fmt.Printf("⚡ %s\n", content)
+			fmt.Printf("%s%s\n", ep.CommandInput, content)
 		case "output":
 			fmt.Println()
-			fmt.Println(i18n.T(i18n.KeyOutputTitle))
-			fmt.Println(i18n.T(i18n.KeyOutputSep))
+			fmt.Println(ep.OutputTitle)
+			fmt.Println(ep.OutputSep)
 			fmt.Println(content)
-			fmt.Println(i18n.T(i18n.KeyOutputSep))
+			fmt.Println(ep.OutputSep)
 		case "tool_call":
-			fmt.Println(content)
+			fmt.Printf("%s%s\n", ep.ToolCallInput, content)
 		case "error":
-			fmt.Printf("❌ %s\n", content)
+			fmt.Printf("%s%s\n", ep.Error, content)
 		case "done":
 			fmt.Println()
 		}
 	})
+
 	if err != nil {
-		fmt.Printf("❌ Error: %v\n", err)
+		fmt.Printf("%s Error: %v\n", ep.Error, err)
 		os.Exit(1)
 	}
 }
