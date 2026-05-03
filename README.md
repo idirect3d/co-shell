@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00135-blue)]()
+[![Build](https://img.shields.io/badge/Build-00144-blue)]()
 
 [![中文](https://img.shields.io/badge/README-中文-blue)](docs/zh-CN/README.md)
 
@@ -67,25 +67,25 @@ Download the zip archive for your platform from the [Releases](https://github.co
 
 | OS | Architecture | Download |
 |---|---|---|
-| macOS | Intel | [co-shell-v0.3.0-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-amd64.zip) |
-| macOS | Apple Silicon | [co-shell-v0.3.0-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip) |
-| Linux | x86_64 | [co-shell-v0.3.0-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-amd64.zip) |
-| Linux | ARM64 | [co-shell-v0.3.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-linux-arm64.zip) |
-| Windows | x86_64 | [co-shell-v0.3.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip) |
-| Windows | ARM64 | [co-shell-v0.3.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-arm64.zip) |
-| 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.3.0/md2docx.py) — Markdown 转 Word 文档转换器 |
+| macOS | Intel | [co-shell-v0.4.0-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-v0.4.0-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-v0.4.0-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-v0.4.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-v0.4.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-v0.4.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-windows-arm64.zip) |
+| 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.4.0/md2docx.py) — Markdown 转 Word 文档转换器 |
 
 **macOS / Linux:**
 ```bash
 # curl
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-darwin-arm64.zip
 unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
 
 # or wget
-wget https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-darwin-arm64.zip
-unzip co-shell-v0.3.0-darwin-arm64.zip && rm co-shell-v0.3.0-darwin-arm64.zip
+wget https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-darwin-arm64.zip
+unzip co-shell-v0.4.0-darwin-arm64.zip && rm co-shell-v0.4.0-darwin-arm64.zip
 chmod +x co-shell
 ./co-shell
 ```
@@ -93,7 +93,7 @@ chmod +x co-shell
 **Windows (PowerShell):**
 ```powershell
 # PowerShell
-Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip -OutFile co-shell.zip
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-windows-amd64.zip -OutFile co-shell.zip
 Expand-Archive -Path co-shell.zip -DestinationPath .
 .\co-shell.exe
 ```
@@ -101,7 +101,7 @@ Expand-Archive -Path co-shell.zip -DestinationPath .
 **Windows (CMD):**
 ```cmd
 :: CMD
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.3.0/co-shell-v0.3.0-windows-amd64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.4.0/co-shell-v0.4.0-windows-amd64.zip
 tar -xf co-shell.zip
 del co-shell.zip
 co-shell.exe
@@ -303,7 +303,26 @@ An in-depth research report on China's first domestically developed jet airliner
 
 ## Version History
 
-### v0.3.0 — RC1 (Current)
+### v0.4.0 — RC2 (Current)
+
+> **BUILD**: 00144 | **Release Date**: 2026-05-03
+
+Release Candidate 2 — feature complete, stable and usable.
+
+**版本亮点**: LLM 自主设置系统参数、表情符号角色区分输出、日志级别控制、文件工具增强、超时时间智能预判。
+
+**Implemented Features:**
+
+- **LLM settings tool** — LLM can modify system parameters via tool calls (equivalent to `.set`), with user confirmation for each change
+- **Emoji role indicators** — distinct emoji prefixes for different output roles: 👤 user input, 🐚 LLM response, ⚙️ tool calls/results, 🔴 command execution. Configurable via `.set emoji-enabled`, `--emoji-enabled`, and `config.json`
+- **Log level control** — `.set log debug/info/warn/error/off`, `--log-level` CLI flag, config.json persistence
+- **Enhanced file tools** — improved read_file and write_file for better source code manipulation
+- **Intelligent timeout** — LLM can pass `timeout_seconds` in tool calls, system takes max of user-configured minimum and LLM-predicted timeout
+- **Agent identity defaults** — multi-language default agent descriptions for consistent behavior
+- **Output mode refactoring** — fine-grained control: show-llm-thinking, show-llm-content, show-tool, show-tool-input, show-tool-output, show-command, show-command-output
+- **Session display improvement** — message list numbering starts from 0 (system message = 0, user message 1 = 1, etc.)
+
+### v0.3.0 — RC1
 
 > **BUILD**: 00135 | **Release Date**: 2026-05-01
 
