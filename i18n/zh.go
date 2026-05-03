@@ -611,7 +611,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3EmojiEnabled:     "表情符号(on|off)",
 	KeySettingsDescEmoji:    "使用表情符号区分不同角色的输出",
 	KeyEmojiEnabledUpdated:  "✅ 表情符号已设置为: %s",
-	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   启用表情符号（覆盖配置文件）",
+	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled on|off  启用表情符号（覆盖配置文件）",
 	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  禁用表情符号（覆盖配置文件）",
 
 	// Init capabilities/rules
