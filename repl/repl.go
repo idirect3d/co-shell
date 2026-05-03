@@ -192,7 +192,12 @@ func (r *REPL) Run() error {
 	// Main input loop using bufio.Scanner (standard line-buffered input)
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		prompt := i18n.T(i18n.KeyEmojiPrefixUser)
+		// Get emoji prefixes based on config
+		ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+		prompt := ep.UserInput
+		if !r.cfg.LLM.EmojiEnabled {
+			prompt = i18n.T(prompt)
+		}
 		if r.cfg.LLM.VisionSupport {
 			prompt = "👀 " + prompt
 		}
