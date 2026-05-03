@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
@@ -43,7 +44,7 @@ func (a *Agent) buildTools() []llm.Tool {
 	tools := []llm.Tool{
 		{
 			Name:        "execute_command",
-			Description: fmt.Sprintf("Execute a system command (%s) and return its output. Use this to run shell commands, scripts, or any CLI tools.", sh),
+			Description: fmt.Sprintf("Execute a system command (%s) and return its output. Use this to run shell commands, scripts, or any CLI tools. You can optionally specify a timeout_seconds to limit execution time based on the task complexity.", sh),
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -53,7 +54,7 @@ func (a *Agent) buildTools() []llm.Tool {
 					},
 					"timeout_seconds": map[string]interface{}{
 						"type":        "number",
-						"description": "Timeout in seconds (0 = no timeout, default: 0)",
+						"description": "Optional timeout in seconds. Set this based on your estimate of how long the command will take. The actual timeout used will be the maximum of this value and the user-configured minimum timeout. 0 or omitted means use only the user-configured timeout.",
 					},
 				},
 				"required": []string{"command"},
@@ -511,15 +512,29 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	tools := a.buildTools()
 	for _, tool := range tools {
 		if tool.Name == tc.Name {
-			timeout := a.getToolTimeout()
+			// Get LLM-suggested timeout from args (optional)
+			llmSuggested := 0
+			if t, ok := args["timeout_seconds"].(float64); ok {
+				llmSuggested = int(t)
+			}
+
+			// Effective timeout = max(user-configured minimum, LLM-suggested)
+			userMin := a.getToolTimeout()
+			userMinSec := int(userMin.Seconds())
+			effectiveTimeout := userMinSec
+			if llmSuggested > effectiveTimeout {
+				effectiveTimeout = llmSuggested
+			}
+
 			timeoutStr := "no timeout"
-			if timeout > 0 {
-				timeoutStr = timeout.String()
+			if effectiveTimeout > 0 {
+				timeoutStr = fmt.Sprintf("%ds", effectiveTimeout)
 				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeout(ctx, timeout)
+				ctx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeout)*time.Second)
 				defer cancel()
 			}
-			log.Info("Tool call: %s, timeout=%s, args=%v", tc.Name, timeoutStr, args)
+			log.Info("Tool call: %s, effective timeout=%s (user min: %ds, LLM suggested: %ds), args=%v",
+				tc.Name, timeoutStr, userMinSec, llmSuggested, args)
 			result, err := tool.Callback(ctx, args)
 			if err != nil {
 				log.Error("Tool call failed: %s, error: %v", tc.Name, err)
