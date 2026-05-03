@@ -636,4 +636,26 @@ const (
 	KeySettingsConfirmFailed         = "settings_confirm_failed"
 	KeySettingsConfirmResult         = "settings_confirm_result"
 	KeySettingsConfirmPaused         = "settings_confirm_paused"
+
+	// Emoji prefix keys (ENHANCEMENT-131)
+	KeyEmojiPrefixUser        = "emoji_prefix_user"
+	KeyEmojiPrefixAssistant   = "emoji_prefix_assistant"
+	KeyEmojiPrefixToolInput   = "emoji_prefix_tool_input"
+	KeyEmojiPrefixToolOutput  = "emoji_prefix_tool_output"
+	KeyEmojiPrefixCmdInput    = "emoji_prefix_cmd_input"
+	KeyEmojiPrefixCmdOutput   = "emoji_prefix_cmd_output"
+	KeyEmojiPrefixInfo        = "emoji_prefix_info"
+	KeyEmojiPrefixError       = "emoji_prefix_error"
+	KeyEmojiPrefixWarning     = "emoji_prefix_warning"
+	KeyEmojiPrefixSuccess     = "emoji_prefix_success"
+	KeyEmojiPrefixThinking    = "emoji_prefix_thinking"
+	KeyEmojiPrefixOutputTitle = "emoji_prefix_output_title"
+	KeyEmojiPrefixOutputSep   = "emoji_prefix_output_sep"
+
+	// Emoji enabled settings
+	KeyCol3EmojiEnabled     = "col3_emoji_enabled"
+	KeySettingsDescEmoji    = "settings_desc_emoji"
+	KeyEmojiEnabledUpdated  = "emoji_enabled_updated"
+	KeyCLIHelpEmojiEnabled  = "cli_help_emoji_enabled"
+	KeyCLIHelpEmojiDisabled = "cli_help_emoji_disabled"
 )

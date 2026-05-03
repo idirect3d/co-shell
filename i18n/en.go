@@ -600,4 +600,26 @@ Current Environment:
 	KeySettingsConfirmFailed:         "Failed to apply the following parameter changes",
 	KeySettingsConfirmResult:         "Parameter modification complete: %d succeeded, %d failed",
 	KeySettingsConfirmPaused:         "User paused the operation with instructions",
+
+	// Emoji prefix keys (ENHANCEMENT-131)
+	KeyEmojiPrefixUser:        "👤 > ",
+	KeyEmojiPrefixAssistant:   "🐚 > ",
+	KeyEmojiPrefixToolInput:   "⚙️ < ",
+	KeyEmojiPrefixToolOutput:  "⚙️ > ",
+	KeyEmojiPrefixCmdInput:    "🔴 < ",
+	KeyEmojiPrefixCmdOutput:   "🔴 > ",
+	KeyEmojiPrefixInfo:        "ℹ️ ",
+	KeyEmojiPrefixError:       "❌ ",
+	KeyEmojiPrefixWarning:     "⚠️ ",
+	KeyEmojiPrefixSuccess:     "✅ ",
+	KeyEmojiPrefixThinking:    "💬 ",
+	KeyEmojiPrefixOutputTitle: "📋 Command Output:",
+	KeyEmojiPrefixOutputSep:   "────────────────────────────────────────────",
+
+	// Emoji enabled settings
+	KeyCol3EmojiEnabled:     "emoji(on|off)",
+	KeySettingsDescEmoji:    "Use emoji to distinguish different roles' output",
+	KeyEmojiEnabledUpdated:  "✅ Emoji enabled set to: %s",
+	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   Enable emoji (overrides config)",
+	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  Disable emoji (overrides config)",
 }

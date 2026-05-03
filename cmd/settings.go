@@ -804,6 +804,34 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Reasoning effort set to %s", effort)
 		return fmt.Sprintf("✅ 推理努力程度已设置为: %s", effort), nil
 
+	case "emoji-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.EmojiEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("表情符号前缀: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.EmojiEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.EmojiEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set emoji-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetEmojiEnabled(h.cfg.LLM.EmojiEnabled)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.EmojiEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Emoji enabled set to %s", status)
+		return fmt.Sprintf("✅ 表情符号前缀已设置为: %s", status), nil
+
 	case "log":
 		if len(args) < 2 {
 			currentLevel := log.LogLevelString(log.GetLevel())

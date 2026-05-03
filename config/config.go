@@ -170,9 +170,72 @@ type LLMConfig struct {
 	// Valid values: "low", "medium", "high" (model-dependent).
 	// Default: "high"
 	ReasoningEffort string `json:"reasoning_effort"`
+
+	// EmojiEnabled: whether to use emoji prefixes to distinguish different roles' output.
+	// When enabled, user input is prefixed with 👤>, LLM output with 💬>,
+	// tool call input/output with ⚙️</⚙️>, command input/output with 🔴</🔴>.
+	// Default: true
+	EmojiEnabled bool `json:"emoji_enabled"`
+}
+
+// EmojiPrefixes defines the emoji prefixes for different output roles.
+// When emoji is enabled, uses emoji symbols; when disabled, uses i18n text labels.
+type EmojiPrefixes struct {
+	UserInput      string // 👤 >  or i18n key "emoji_prefix_user"
+	LlmOutput      string // 🐚 >  or i18n key "emoji_prefix_assistant"
+	ToolCallInput  string // ⚙️ <  or i18n key "emoji_prefix_tool_input"
+	ToolCallOutput string // ⚙️ >  or i18n key "emoji_prefix_tool_output"
+	CommandInput   string // 🔴 <  or i18n key "emoji_prefix_cmd_input"
+	CommandOutput  string // 🔴 >  or i18n key "emoji_prefix_cmd_output"
+	Info           string // ℹ️   or i18n key "emoji_prefix_info"
+	Error          string // ❌   or i18n key "emoji_prefix_error"
+	Warning        string // ⚠️   or i18n key "emoji_prefix_warning"
+	Success        string // ✅   or i18n key "emoji_prefix_success"
+	Thinking       string // 💬   or i18n key "emoji_prefix_thinking"
+	OutputTitle    string // 📋   or i18n key "emoji_prefix_output_title"
+	OutputSep      string // ───  or i18n key "emoji_prefix_output_sep"
+}
+
+// GetEmojiPrefixes returns the emoji prefixes based on whether emoji is enabled.
+// When disabled, returns i18n translation keys that should be resolved via i18n.T().
+// When enabled, returns emoji symbols directly.
+func GetEmojiPrefixes(enabled bool) EmojiPrefixes {
+	if !enabled {
+		return EmojiPrefixes{
+			UserInput:      "emoji_prefix_user",
+			LlmOutput:      "emoji_prefix_assistant",
+			ToolCallInput:  "emoji_prefix_tool_input",
+			ToolCallOutput: "emoji_prefix_tool_output",
+			CommandInput:   "emoji_prefix_cmd_input",
+			CommandOutput:  "emoji_prefix_cmd_output",
+			Info:           "emoji_prefix_info",
+			Error:          "emoji_prefix_error",
+			Warning:        "emoji_prefix_warning",
+			Success:        "emoji_prefix_success",
+			Thinking:       "emoji_prefix_thinking",
+			OutputTitle:    "emoji_prefix_output_title",
+			OutputSep:      "emoji_prefix_output_sep",
+		}
+	}
+	return EmojiPrefixes{
+		UserInput:      "👤 > ",
+		LlmOutput:      "🐚 > ",
+		ToolCallInput:  "⚙️ < ",
+		ToolCallOutput: "⚙️ > ",
+		CommandInput:   "🔴 < ",
+		CommandOutput:  "🔴 > ",
+		Info:           "ℹ️ ",
+		Error:          "❌ ",
+		Warning:        "⚠️ ",
+		Success:        "✅ ",
+		Thinking:       "💬 ",
+		OutputTitle:    "📋 Command Output:",
+		OutputSep:      "────────────────────────────────────────────",
+	}
 }
 
 // MCPConfig holds MCP server configuration.
+
 type MCPConfig struct {
 	Servers []MCPServerConfig `json:"servers"`
 }
@@ -230,6 +293,7 @@ func DefaultConfig() *Config {
 			ErrorMaxTypeCount:         100,
 			ThinkingEnabled:           false,
 			ReasoningEffort:           "low",
+			EmojiEnabled:              true,
 		},
 
 		MCP: MCPConfig{
