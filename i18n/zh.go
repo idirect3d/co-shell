@@ -591,4 +591,26 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsConfirmFailed:         "以下参数修改失败",
 	KeySettingsConfirmResult:         "参数修改完成：%d 个成功，%d 个失败",
 	KeySettingsConfirmPaused:         "用户暂停了操作，补充说明",
+
+	// Emoji prefix keys (ENHANCEMENT-131)
+	KeyEmojiPrefixUser:        "👤 > ",
+	KeyEmojiPrefixAssistant:   "🐚 > ",
+	KeyEmojiPrefixToolInput:   "⚙️ < ",
+	KeyEmojiPrefixToolOutput:  "⚙️ > ",
+	KeyEmojiPrefixCmdInput:    "🔴 < ",
+	KeyEmojiPrefixCmdOutput:   "🔴 > ",
+	KeyEmojiPrefixInfo:        "ℹ️ ",
+	KeyEmojiPrefixError:       "❌ ",
+	KeyEmojiPrefixWarning:     "⚠️ ",
+	KeyEmojiPrefixSuccess:     "✅ ",
+	KeyEmojiPrefixThinking:    "💬 ",
+	KeyEmojiPrefixOutputTitle: "📋 命令输出:",
+	KeyEmojiPrefixOutputSep:   "────────────────────────────────────────────",
+
+	// Emoji enabled settings
+	KeyCol3EmojiEnabled:     "表情符号(on|off)",
+	KeySettingsDescEmoji:    "使用表情符号区分不同角色的输出",
+	KeyEmojiEnabledUpdated:  "✅ 表情符号已设置为: %s",
+	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   启用表情符号（覆盖配置文件）",
+	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  禁用表情符号（覆盖配置文件）",
 }
