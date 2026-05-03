@@ -330,45 +330,123 @@ func TestReplaceInFileTool(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "replace function name",
+			name: "single replacement",
 			args: map[string]interface{}{
-				"path":    testFile,
-				"search":  "func oldName()",
-				"replace": "func newName()",
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":  "func oldName()",
+						"replace": "func newName()",
+					},
+				},
 			},
 			want:    "package main\n\nfunc newName() {\n\t// do something\n}\n",
 			wantErr: false,
 		},
 		{
+			name: "multiple replacements",
+			args: map[string]interface{}{
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":  "func oldName()",
+						"replace": "func newName()",
+					},
+					map[string]interface{}{
+						"search":  "// do something",
+						"replace": "// do something else",
+					},
+				},
+			},
+			want:    "package main\n\nfunc newName() {\n\t// do something else\n}\n",
+			wantErr: false,
+		},
+		{
 			name: "search not found",
 			args: map[string]interface{}{
-				"path":    testFile,
-				"search":  "nonexistent content",
-				"replace": "replacement",
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":  "nonexistent content",
+						"replace": "replacement",
+					},
+				},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing path",
 			args: map[string]interface{}{
-				"search":  "abc",
-				"replace": "xyz",
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":  "abc",
+						"replace": "xyz",
+					},
+				},
 			},
 			wantErr: true,
 		},
 		{
-			name: "missing search",
+			name: "missing replacements",
 			args: map[string]interface{}{
-				"path":    testFile,
-				"replace": "xyz",
+				"path": testFile,
 			},
 			wantErr: true,
 		},
 		{
-			name: "missing replace",
+			name: "empty replacements",
 			args: map[string]interface{}{
-				"path":   testFile,
-				"search": "abc",
+				"path":         testFile,
+				"replacements": []interface{}{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "single replacement with start_line",
+			args: map[string]interface{}{
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":     "func oldName()",
+						"replace":    "func newName()",
+						"start_line": float64(3),
+					},
+				},
+			},
+			want:    "package main\n\nfunc newName() {\n\t// do something\n}\n",
+			wantErr: false,
+		},
+		{
+			name: "multiple replacements with start_line and line offset",
+			args: map[string]interface{}{
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":     "func oldName() {",
+						"replace":    "func newName() {\n\t// added line\n\t// another line",
+						"start_line": float64(3),
+					},
+					map[string]interface{}{
+						"search":     "// do something",
+						"replace":    "// do something else",
+						"start_line": float64(4), // original line 4, after first replacement adds 2 lines, adjusted to 6
+					},
+				},
+			},
+			want:    "package main\n\nfunc newName() {\n\t// added line\n\t// another line\n\t// do something else\n}\n",
+			wantErr: false,
+		},
+		{
+			name: "start_line out of range",
+			args: map[string]interface{}{
+				"path": testFile,
+				"replacements": []interface{}{
+					map[string]interface{}{
+						"search":     "func oldName()",
+						"replace":    "func newName()",
+						"start_line": float64(100),
+					},
+				},
 			},
 			wantErr: true,
 		},
