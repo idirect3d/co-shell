@@ -52,6 +52,14 @@ var ProviderPresets = []ProviderPreset{
 		APIKeyURL:    "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
 	},
 	{
+		Name:         "ollama",
+		DisplayName:  "Ollama（本地部署）",
+		Endpoint:     "http://localhost:11434/v1",
+		Models:       []string{},
+		DefaultModel: "",
+		APIKeyURL:    "",
+	},
+	{
 		Name:         "openai-compatible",
 		DisplayName:  "OpenAI 兼容（自定义）",
 		Endpoint:     "",

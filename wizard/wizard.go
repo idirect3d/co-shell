@@ -82,23 +82,28 @@ func RunSetupWizard(cfg *config.Config) bool {
 	// For preset providers: skip endpoint input (fixed), go directly to API Key
 	// API Key with connection test, then fetch models
 	fmt.Println()
-	apiKeyURL := selectedProvider.APIKeyURL
 
 	for {
-		apiKey := promptAPIKey(apiKeyURL, cfg.LLM.APIKey)
-		if apiKey == nil {
-			fmt.Println("\n⚠️  已取消设置。")
-			return false
+		apiKey := cfg.LLM.APIKey
+		if selectedProvider.Name != "ollama" {
+			key := promptAPIKey(selectedProvider.APIKeyURL, apiKey)
+			if key == nil {
+				fmt.Println("\n⚠️  已取消设置。")
+				return false
+			}
+			apiKey = *key
 		}
-		cfg.LLM.APIKey = *apiKey
 
 		// Test connection and fetch models
 		fmt.Print("🔄 正在测试 API 连接并获取可用模型...")
-		models, err := fetchModels(cfg.LLM.Endpoint, cfg.LLM.APIKey)
+		models, err := fetchModels(cfg.LLM.Endpoint, apiKey)
 		if err != nil {
 			fmt.Printf("\n❌ 连接测试失败: %v\n", err)
-			fmt.Println("请检查 API Key 是否正确，或重新输入。")
-			cfg.LLM.APIKey = ""
+			if selectedProvider.Name == "ollama" {
+				fmt.Println("请检查 Ollama 服务是否已启动，端点地址是否正确。")
+			} else {
+				fmt.Println("请检查 API Key 是否正确，或重新输入。")
+			}
 			continue
 		}
 		fmt.Printf(" ✅ 连接成功！获取到 %d 个可用模型。\n", len(models))
@@ -116,15 +121,32 @@ func RunSetupWizard(cfg *config.Config) bool {
 		}
 		cfg.LLM.Model = *model
 		cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
+		cfg.LLM.APIKey = apiKey
 		break
+	}
+
+	// Final connection test with summary
+	fmt.Println()
+	fmt.Printf("🔄 正在连接 %s[%s]... ", cfg.LLM.Endpoint, cfg.LLM.Model)
+	if err := testEndpointConnectivity(cfg.LLM.Endpoint); err != nil {
+		fmt.Printf("失败: %v\n", err)
+	} else {
+		fmt.Println("成功")
 	}
 
 	// Save configuration
 	if err := cfg.Save(); err != nil {
 		fmt.Printf("⚠️  配置保存失败: %v\n", err)
 	} else {
-		fmt.Println("✅ 配置已保存到 ~/.co-shell/config.json")
+		fmt.Println("✅ 配置已保存")
 	}
+
+	// Show how to modify settings later
+	fmt.Println()
+	fmt.Println("💡 提示：以后如需修改配置，可以使用以下方法：")
+	fmt.Println("   1. 在 REPL 中输入 .wizard 重新运行设置向导")
+	fmt.Println("   2. 在 REPL 中输入 .set <参数名> <值> 修改单个参数")
+	fmt.Println("   3. 直接编辑配置文件 config.json")
 	fmt.Println()
 	return true
 }
@@ -199,12 +221,28 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 		break
 	}
 
+	// Final connection test with summary
+	fmt.Println()
+	fmt.Printf("🔄 正在连接 %s[%s]... ", cfg.LLM.Endpoint, cfg.LLM.Model)
+	if err := testEndpointConnectivity(cfg.LLM.Endpoint); err != nil {
+		fmt.Printf("失败: %v\n", err)
+	} else {
+		fmt.Println("成功")
+	}
+
 	// Save configuration
 	if err := cfg.Save(); err != nil {
 		fmt.Printf("⚠️  配置保存失败: %v\n", err)
 	} else {
-		fmt.Println("✅ 配置已保存到 ~/.co-shell/config.json")
+		fmt.Println("✅ 配置已保存")
 	}
+
+	// Show how to modify settings later
+	fmt.Println()
+	fmt.Println("💡 提示：以后如需修改配置，可以使用以下方法：")
+	fmt.Println("   1. 在 REPL 中输入 .wizard 重新运行设置向导")
+	fmt.Println("   2. 在 REPL 中输入 .set <参数名> <值> 修改单个参数")
+	fmt.Println("   3. 直接编辑配置文件 config.json")
 	fmt.Println()
 	return true
 }
