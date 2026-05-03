@@ -181,7 +181,7 @@
 - [ ] FEATURE-128 增加移动端APP和0信任网关，以便用户能够在手机端安全的操控co-shell。
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 - [ ] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题
-- [ ] FIX-134 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题
+- [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
 
 ## v1.0.0 — 正式版
 

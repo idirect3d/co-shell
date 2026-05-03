@@ -53,6 +53,8 @@ import (
 	"syscall"
 	"time"
 
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+
 	"github.com/idirect3d/co-shell/bridge"
 	"github.com/idirect3d/co-shell/feishu"
 )
@@ -189,14 +191,14 @@ func main() {
 	// Create scheduler
 	scheduler := bridge.NewScheduler(mode, executor)
 
-	// Create Feishu client
-	client := feishu.NewClient(cfg.AppID, cfg.AppSecret)
+	// Create Feishu SDK client (for API calls like sending messages)
+	larkClient := lark.NewClient(cfg.AppID, cfg.AppSecret)
 
 	// Create handler
-	handler := feishu.NewHandler(client, scheduler, cfg.Workspace)
+	handler := feishu.NewHandler(larkClient, scheduler, cfg.Workspace)
 
-	// Create bridge
-	feishuBridge := feishu.NewBridge(cfg, client, handler)
+	// Create bridge (uses SDK's larkws.NewClient internally)
+	feishuBridge := feishu.NewBridge(cfg, handler)
 
 	// Print startup info
 	fmt.Printf("🚀 co-shell-feishu-bridge v%s 启动中...\n", version)

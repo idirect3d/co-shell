@@ -28,273 +28,102 @@ package feishu
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/url"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 )
 
-const (
-	wsBaseURL = "wss://open.feishu.cn/ws/v1"
-)
-
-// Bridge manages the WebSocket connection to Feishu.
+// Bridge manages the Feishu long-connection via official SDK.
 type Bridge struct {
-	client  *Client
-	handler *Handler
 	cfg     *Config
+	handler *Handler
 
-	conn      *websocket.Conn
-	connMu    sync.Mutex
-	connected bool
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
+	wsClient *larkws.Client
+	mu       sync.Mutex
+	started  bool
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
 }
 
-// NewBridge creates a new Feishu WebSocket bridge.
-func NewBridge(cfg *Config, client *Client, handler *Handler) *Bridge {
+// NewBridge creates a new Feishu bridge using the official SDK.
+func NewBridge(cfg *Config, handler *Handler) *Bridge {
 	return &Bridge{
-		client:  client,
-		handler: handler,
 		cfg:     cfg,
+		handler: handler,
 		stopCh:  make(chan struct{}),
 	}
 }
 
-// Start establishes the WebSocket connection and begins processing events.
+// Start establishes the WebSocket long-connection to Feishu.
 func (b *Bridge) Start(ctx context.Context) error {
-	token, err := b.client.GetTenantAccessToken()
-	if err != nil {
-		return fmt.Errorf("cannot get tenant access token: %w", err)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.started {
+		return fmt.Errorf("bridge already started")
 	}
 
-	if err := b.connect(token); err != nil {
-		return fmt.Errorf("cannot connect to Feishu WebSocket: %w", err)
+	// Create event handler via SDK dispatcher
+	eventHandler := dispatcher.NewEventDispatcher("", "").
+		OnP2MessageReceiveV1(func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+			b.handler.HandleSDKEvent(ctx, event)
+			return nil
+		})
+
+	// Build WS client options
+	opts := []larkws.ClientOption{
+		larkws.WithEventHandler(eventHandler),
+	}
+	if b.cfg.LogLevel == "debug" {
+		opts = append(opts, larkws.WithLogLevel(larkcore.LogLevelDebug))
 	}
 
-	log.Printf("Connected to Feishu WebSocket")
+	// Create the WS client
+	b.wsClient = larkws.NewClient(b.cfg.AppID, b.cfg.AppSecret, opts...)
 
+	b.started = true
+
+	// Start in background goroutine (Start blocks)
 	b.wg.Add(1)
-	go b.eventLoop(ctx)
+	go func() {
+		defer b.wg.Done()
+		log.Printf("Starting Feishu WebSocket long-connection...")
+		if err := b.wsClient.Start(ctx); err != nil {
+			log.Printf("Feishu WebSocket client stopped with error: %v", err)
+		}
+	}()
 
+	// Give it a moment to connect
+	time.Sleep(2 * time.Second)
+
+	log.Printf("Feishu bridge started successfully")
 	return nil
 }
 
 // Stop gracefully shuts down the WebSocket connection.
 func (b *Bridge) Stop() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if !b.started {
+		return
+	}
+
 	close(b.stopCh)
 	b.wg.Wait()
-	b.disconnect()
-}
-
-// connect establishes the WebSocket connection.
-// Feishu requires the token to be passed as a URL query parameter.
-func (b *Bridge) connect(token string) error {
-	b.connMu.Lock()
-	defer b.connMu.Unlock()
-
-	u, err := url.Parse(wsBaseURL + "/event")
-	if err != nil {
-		return fmt.Errorf("cannot parse WebSocket URL: %w", err)
-	}
-	q := u.Query()
-	q.Set("verify_token", token)
-	u.RawQuery = q.Encode()
-
-	dialer := *websocket.DefaultDialer
-	// Set PongHandler to respond to server pings automatically
-	dialer.HandshakeTimeout = 30 * time.Second
-
-	conn, _, err := dialer.Dial(u.String(), nil)
-	if err != nil {
-		return fmt.Errorf("websocket dial failed: %w", err)
-	}
-
-	// Set read deadline to detect stale connections
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	// Set PongHandler to extend read deadline on pong frames
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		return nil
-	})
-
-	b.conn = conn
-	b.connected = true
-	return nil
-}
-
-// disconnect closes the WebSocket connection.
-func (b *Bridge) disconnect() {
-	b.connMu.Lock()
-	defer b.connMu.Unlock()
-
-	if b.conn != nil {
-		b.conn.Close()
-		b.conn = nil
-	}
-	b.connected = false
-}
-
-// eventLoop reads events from the WebSocket connection and processes them.
-func (b *Bridge) eventLoop(ctx context.Context) {
-	defer b.wg.Done()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-b.stopCh:
-			return
-		default:
-		}
-
-		b.connMu.Lock()
-		conn := b.conn
-		b.connMu.Unlock()
-
-		if conn == nil {
-			return
-		}
-
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				log.Printf("WebSocket connection closed")
-				return
-			}
-			log.Printf("WebSocket read error: %v", err)
-			b.reconnect(ctx)
-			continue
-		}
-
-		// Reset read deadline after successful read
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-
-		b.handleMessage(message)
-	}
-}
-
-// handleMessage processes a raw WebSocket message.
-// It sends an ACK back to Feishu for event messages to prevent retries.
-func (b *Bridge) handleMessage(data []byte) {
-	// Try to parse as a generic event
-	var event Event
-	if err := json.Unmarshal(data, &event); err != nil {
-		log.Printf("Cannot parse event: %v", err)
-		return
-	}
-
-	switch event.Type {
-	case "event":
-		// Send ACK to Feishu immediately to prevent retry
-		b.sendACK(event.ID)
-
-		// Process the event through the handler
-		if err := b.handler.HandleEvent(event); err != nil {
-			log.Printf("Event handling error: %v", err)
-		}
-
-	case "pong":
-		// Heartbeat response, nothing to do
-		if b.cfg.LogLevel == "debug" {
-			log.Printf("Received pong")
-		}
-
-	case "error":
-		log.Printf("Received error event: %s", string(data))
-
-	default:
-		log.Printf("Unknown event type: %s", event.Type)
-	}
-}
-
-// sendACK sends an acknowledgement to Feishu for a received event.
-// Feishu requires ACK within 3 seconds, otherwise it will retry the event.
-func (b *Bridge) sendACK(eventID string) {
-	b.connMu.Lock()
-	conn := b.conn
-	b.connMu.Unlock()
-
-	if conn == nil {
-		return
-	}
-
-	ack := map[string]string{
-		"id":   eventID,
-		"type": "pong",
-	}
-	data, err := json.Marshal(ack)
-	if err != nil {
-		log.Printf("Cannot marshal ACK: %v", err)
-		return
-	}
-
-	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-		log.Printf("Cannot send ACK: %v", err)
-	}
-}
-
-// reconnect attempts to reconnect to the Feishu WebSocket with exponential backoff.
-func (b *Bridge) reconnect(ctx context.Context) {
-	b.disconnect()
-
-	backoff := 1 * time.Second
-	maxBackoff := 60 * time.Second
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-b.stopCh:
-			return
-		default:
-		}
-
-		log.Printf("Reconnecting in %v...", backoff)
-
-		select {
-		case <-time.After(backoff):
-		case <-ctx.Done():
-			return
-		case <-b.stopCh:
-			return
-		}
-
-		token, err := b.client.GetTenantAccessToken()
-		if err != nil {
-			log.Printf("Cannot get token for reconnection: %v", err)
-			backoff = minDuration(backoff*2, maxBackoff)
-			continue
-		}
-
-		if err := b.connect(token); err != nil {
-			log.Printf("Reconnection failed: %v", err)
-			backoff = minDuration(backoff*2, maxBackoff)
-			continue
-		}
-
-		log.Printf("Reconnected to Feishu WebSocket")
-		b.wg.Add(1)
-		go b.eventLoop(ctx)
-		return
-	}
+	b.started = false
+	log.Printf("Feishu bridge stopped")
 }
 
 // IsConnected returns whether the bridge is currently connected.
 func (b *Bridge) IsConnected() bool {
-	b.connMu.Lock()
-	defer b.connMu.Unlock()
-	return b.connected
-}
-
-// minDuration returns the smaller of two durations.
-func minDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.started
 }
