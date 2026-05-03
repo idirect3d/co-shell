@@ -523,11 +523,11 @@ func (c *Config) Show() string {
 	}
 	agentDesc := c.LLM.AgentDescription
 	if agentDesc == "" {
-		agentDesc = "（未设置）"
+		agentDesc = i18n.T(i18n.KeyDefaultAgentDescription)
 	}
 	agentPrinciples := c.LLM.AgentPrinciples
 	if agentPrinciples == "" {
-		agentPrinciples = "（未设置）"
+		agentPrinciples = i18n.T(i18n.KeyDefaultAgentPrinciples)
 	}
 
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),

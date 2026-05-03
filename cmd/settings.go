@@ -462,7 +462,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if len(args) < 2 {
 			desc := h.cfg.LLM.AgentDescription
 			if desc == "" {
-				desc = "（未设置）"
+				desc = i18n.T(i18n.KeyDefaultAgentDescription)
 			}
 			return fmt.Sprintf("Agent 描述: %s", desc), nil
 		}
@@ -480,7 +480,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if len(args) < 2 {
 			principles := h.cfg.LLM.AgentPrinciples
 			if principles == "" {
-				principles = "（未设置）"
+				principles = i18n.T(i18n.KeyDefaultAgentPrinciples)
 			}
 			return fmt.Sprintf("Agent 核心原则: %s", principles), nil
 		}
@@ -966,11 +966,11 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 	agentDesc := cfg.LLM.AgentDescription
 	if agentDesc == "" {
-		agentDesc = "（" + i18n.T(i18n.KeyUnlimited) + "）"
+		agentDesc = i18n.T(i18n.KeyDefaultAgentDescription)
 	}
 	agentPrinciples := cfg.LLM.AgentPrinciples
 	if agentPrinciples == "" {
-		agentPrinciples = "（" + i18n.T(i18n.KeyUnlimited) + "）"
+		agentPrinciples = i18n.T(i18n.KeyDefaultAgentPrinciples)
 	}
 
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
