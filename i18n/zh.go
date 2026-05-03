@@ -580,4 +580,15 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "相同错误最大出现次数",
 	KeyCol3ErrorMaxTypeCount:   "最大错误类型数",
+
+	// Settings confirmation (FEATURE-131)
+	KeySettingsConfirmTitle:          "⚠️ co-shell 将自主修改系统参数",
+	KeySettingsConfirmRiskWarning:    "⚠️ 风险提示：修改系统参数可能影响 co-shell 的行为和稳定性，请谨慎操作。",
+	KeySettingsConfirmPrompt:         "请选择操作：[Enter/Y] 同意修改  [C/N] 拒绝修改  [其他文字] 暂停并补充说明",
+	KeySettingsConfirmRejected:       "用户已拒绝修改系统参数",
+	KeySettingsConfirmRejectedResult: "用户拒绝了参数修改请求，未应用任何更改。",
+	KeySettingsConfirmApplied:        "已成功应用以下参数修改",
+	KeySettingsConfirmFailed:         "以下参数修改失败",
+	KeySettingsConfirmResult:         "参数修改完成：%d 个成功，%d 个失败",
+	KeySettingsConfirmPaused:         "用户暂停了操作，补充说明",
 }
