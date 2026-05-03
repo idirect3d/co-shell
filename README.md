@@ -305,7 +305,7 @@ An in-depth research report on China's first domestically developed jet airliner
 
 ### v0.4.0 — RC2 (Current)
 
-> **BUILD**: 00150 | **Release Date**: 2026-05-04
+> **BUILD**: 00151 | **Release Date**: 2026-05-04
 
 Release Candidate 2 — feature complete, stable and usable.
 
