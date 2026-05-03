@@ -266,11 +266,11 @@ var enMessages = map[string]string{
 	KeyHelpHelp:         "    .help               - Show this help message",
 	KeyHelpExit:         "    .exit               - Exit co-shell",
 	KeyHelpExampleTitle: "Examples:",
-	KeyHelpExample1:     "    ❯ \"List files in current directory\"",
-	KeyHelpExample2:     "    ❯ \"What is the weather today?\"",
-	KeyHelpExample3:     "    ❯ ls -la",
-	KeyHelpExample4:     "    ❯ .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
-	KeyHelpExample5:     "    ❯ .rule add \"Always confirm before deleting files\"",
+	KeyHelpExample1:     "\"List files in current directory\"",
+	KeyHelpExample2:     "\"What is the weather today?\"",
+	KeyHelpExample3:     "ls -la",
+	KeyHelpExample4:     ".mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
+	KeyHelpExample5:     ".rule add \"Always confirm before deleting files\"",
 
 	// CLI Help
 	KeyCLIHelpTitle:     "co-shell v%s - Intelligent Command-Line Shell",
@@ -622,4 +622,8 @@ Current Environment:
 	KeyEmojiEnabledUpdated:  "✅ Emoji enabled set to: %s",
 	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   Enable emoji (overrides config)",
 	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  Disable emoji (overrides config)",
+
+	// Init capabilities/rules
+	KeyCLIHelpInitCapabilities: "      --init-capabilities  Generate default CAPABILITIES.md in workspace and exit",
+	KeyCLIHelpInitRules:        "      --init-rules         Generate default RULES.md in workspace and exit",
 }

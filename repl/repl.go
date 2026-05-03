@@ -518,11 +518,12 @@ func (r *REPL) printHelp() {
 
 	fmt.Println()
 	fmt.Println(i18n.T(i18n.KeyHelpExampleTitle))
-	fmt.Println(i18n.T(i18n.KeyHelpExample1))
-	fmt.Println(i18n.T(i18n.KeyHelpExample2))
-	fmt.Println(i18n.T(i18n.KeyHelpExample3))
-	fmt.Println(i18n.T(i18n.KeyHelpExample4))
-	fmt.Println(i18n.T(i18n.KeyHelpExample5))
+	prefix := i18n.T(i18n.KeyEmojiPrefixUser)
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample1))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample2))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample3))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample4))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample5))
 }
 
 // cleanup performs cleanup operations before exit.

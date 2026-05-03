@@ -248,11 +248,11 @@ var zhMessages = map[string]string{
 	KeyHelpHelp:         "    .help         - 显示此帮助信息",
 	KeyHelpExit:         "    .exit         - 退出 co-shell",
 	KeyHelpExampleTitle: "  示例:",
-	KeyHelpExample1:     "    ❯ 列出当前目录的所有文件",
-	KeyHelpExample2:     "    ❯ 查找所有超过 100MB 的大文件",
-	KeyHelpExample3:     "    ❯ .settings model gpt-4o",
-	KeyHelpExample4:     "    ❯ .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
-	KeyHelpExample5:     "    ❯ .rule add \"删除文件前先确认\"",
+	KeyHelpExample1:     "列出当前目录的所有文件",
+	KeyHelpExample2:     "查找所有超过 100MB 的大文件",
+	KeyHelpExample3:     ".settings model gpt-4o",
+	KeyHelpExample4:     ".mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
+	KeyHelpExample5:     ".rule add \"删除文件前先确认\"",
 
 	// CLI Help
 	KeyCLIHelpTitle:     "co-shell v%s - 智能命令行 Shell",
@@ -613,4 +613,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyEmojiEnabledUpdated:  "✅ 表情符号已设置为: %s",
 	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   启用表情符号（覆盖配置文件）",
 	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  禁用表情符号（覆盖配置文件）",
+
+	// Init capabilities/rules
+	KeyCLIHelpInitCapabilities: "      --init-capabilities  在工作区生成默认 CAPABILITIES.md 文件并退出",
+	KeyCLIHelpInitRules:        "      --init-rules         在工作区生成默认 RULES.md 文件并退出",
 }

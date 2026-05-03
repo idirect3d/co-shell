@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.4.0"
-const build = "144"
+const build = "146"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -213,114 +213,7 @@ func parseFlags() cliFlags {
 
 	// Custom usage message
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, `%s
-
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-
-%s
-
-  %s
-  %s
-  %s
-  %s
-
-%s
-
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-  %s
-
-`,
-			i18n.TF(i18n.KeyCLIHelpTitle, version),
-			i18n.T(i18n.KeyCLIHelpUsage),
-			i18n.T(i18n.KeyCLIHelpUsageREPL),
-			i18n.T(i18n.KeyCLIHelpUsageCmd),
-			i18n.T(i18n.KeyCLIHelpOptions),
-			i18n.T(i18n.KeyCLIHelpName),
-			i18n.T(i18n.KeyCLIHelpWorkspace),
-			i18n.T(i18n.KeyCLIHelpConfig),
-			i18n.T(i18n.KeyCLIHelpModel),
-			i18n.T(i18n.KeyCLIHelpEndpoint),
-			i18n.T(i18n.KeyCLIHelpAPIKey),
-			i18n.T(i18n.KeyCLIHelpLang),
-			i18n.T(i18n.KeyCLIHelpLog),
-			i18n.T(i18n.KeyCLIHelpMaxIter),
-			i18n.T(i18n.KeyCLIHelpImage),
-			i18n.T(i18n.KeyCLIHelpTemperature),
-			i18n.T(i18n.KeyCLIHelpMaxTokens),
-			i18n.T(i18n.KeyCLIHelpShowThinking),
-			i18n.T(i18n.KeyCLIHelpShowCommand),
-			i18n.T(i18n.KeyCLIHelpShowLlmThinking),
-			i18n.T(i18n.KeyCLIHelpShowLlmContent),
-			i18n.T(i18n.KeyCLIHelpShowTool),
-			i18n.T(i18n.KeyCLIHelpShowToolInput),
-			i18n.T(i18n.KeyCLIHelpShowToolOutput),
-			i18n.T(i18n.KeyCLIHelpShowCommandOutput),
-			i18n.T(i18n.KeyCLIHelpConfirmCommand),
-			i18n.T(i18n.KeyCLIHelpResultMode),
-			i18n.T(i18n.KeyCLIHelpDescription),
-			i18n.T(i18n.KeyCLIHelpPrinciples),
-			i18n.T(i18n.KeyCLIHelpMemoryEnabled),
-			i18n.T(i18n.KeyCLIHelpMemoryDisabled),
-			i18n.T(i18n.KeyCLIHelpPlanEnabled),
-			i18n.T(i18n.KeyCLIHelpPlanDisabled),
-			i18n.T(i18n.KeyCLIHelpToolTimeout),
-			i18n.T(i18n.KeyCLIHelpCmdTimeout),
-			i18n.T(i18n.KeyCLIHelpLLMTimeout),
-			i18n.T(i18n.KeyCLIHelpVersion),
-			i18n.T(i18n.KeyCLIHelpHelp),
-			i18n.T(i18n.KeyCLIHelpExamples),
-			i18n.T(i18n.KeyCLIHelpEx1),
-			i18n.T(i18n.KeyCLIHelpEx2),
-			i18n.T(i18n.KeyCLIHelpEx3),
-			i18n.T(i18n.KeyCLIHelpEx4),
-			i18n.T(i18n.KeyCLIHelpEx5),
-			i18n.T(i18n.KeyCLIHelpEx6),
-			i18n.T(i18n.KeyCLIHelpEx7),
-			i18n.T(i18n.KeyCLIHelpEx8),
-			i18n.T(i18n.KeyCLIHelpEx9),
-			i18n.T(i18n.KeyCLIHelpEx10),
-			i18n.T(i18n.KeyCLIHelpEx11),
-		)
+		fmt.Fprint(os.Stderr, buildUsage(version))
 	}
 
 	flag.Parse()
