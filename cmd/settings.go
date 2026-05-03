@@ -1001,7 +1001,12 @@ func showSettingsHelp(cfg *config.Config) string {
 	)
 
 	// Group 3: Display & Output
+	emojiStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.EmojiEnabled {
+		emojiStatus = i18n.T(i18n.KeyOn)
+	}
 	allLines = append(allLines,
+		makeLine("emoji-enabled", emojiStatus, i18n.T(i18n.KeyCol3EmojiEnabled)),
 		makeLine("show-llm-thinking", llmThinkingStatus, i18n.T(i18n.KeyCol3LlmThinking)),
 		makeLine("show-llm-content", llmContentStatus, i18n.T(i18n.KeyCol3LlmContent)),
 		makeLine("show-tool", toolStatus, i18n.T(i18n.KeyCol3Tool)),
@@ -1076,7 +1081,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(11)...)
 
 	// Group 3: Display & Output
-	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
 
 	// Group 4: Safety & Confirmation
 	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(6)...)
