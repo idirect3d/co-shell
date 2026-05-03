@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0
-> **BUILD**: 150
+> **BUILD**: 151
 
 
 
@@ -177,6 +177,7 @@
 - [ ] FEATURE-128 增加移动端APP和0信任网关，以便用户能够在手机端安全的操控co-shell。
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 - [ ] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题
+- [x] FIX-134 修复 .set 显示时 description/principles 空值回退到 i18n 默认值的问题 [BUILD-151]
 
 
 ## v1.0.0 — 正式版
