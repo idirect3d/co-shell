@@ -658,4 +658,8 @@ const (
 	KeyEmojiEnabledUpdated  = "emoji_enabled_updated"
 	KeyCLIHelpEmojiEnabled  = "cli_help_emoji_enabled"
 	KeyCLIHelpEmojiDisabled = "cli_help_emoji_disabled"
+
+	// Init capabilities/rules
+	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
+	KeyCLIHelpInitRules        = "cli_help_init_rules"
 )
