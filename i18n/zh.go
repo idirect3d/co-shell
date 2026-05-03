@@ -248,11 +248,11 @@ var zhMessages = map[string]string{
 	KeyHelpHelp:         "    .help         - 显示此帮助信息",
 	KeyHelpExit:         "    .exit         - 退出 co-shell",
 	KeyHelpExampleTitle: "  示例:",
-	KeyHelpExample1:     "    ❯ 列出当前目录的所有文件",
-	KeyHelpExample2:     "    ❯ 查找所有超过 100MB 的大文件",
-	KeyHelpExample3:     "    ❯ .settings model gpt-4o",
-	KeyHelpExample4:     "    ❯ .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
-	KeyHelpExample5:     "    ❯ .rule add \"删除文件前先确认\"",
+	KeyHelpExample1:     "列出当前目录的所有文件",
+	KeyHelpExample2:     "查找所有超过 100MB 的大文件",
+	KeyHelpExample3:     ".settings model gpt-4o",
+	KeyHelpExample4:     ".mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
+	KeyHelpExample5:     ".rule add \"删除文件前先确认\"",
 
 	// CLI Help
 	KeyCLIHelpTitle:     "co-shell v%s - 智能命令行 Shell",
@@ -584,7 +584,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle:          "⚠️ co-shell 将自主修改系统参数",
 	KeySettingsConfirmRiskWarning:    "⚠️ 风险提示：修改系统参数可能影响 co-shell 的行为和稳定性，请谨慎操作。",
-	KeySettingsConfirmPrompt:         "请选择操作：[Enter/Y] 同意修改  [C/N] 拒绝修改  [其他文字] 暂停并补充说明",
+	KeySettingsConfirmPrompt:         "请选择操作:\n  [A] 批准执行\n  [C] 取消\n  其他输入: 暂停并补充说明\n请输入: ",
 	KeySettingsConfirmRejected:       "用户已拒绝修改系统参数",
 	KeySettingsConfirmRejectedResult: "用户拒绝了参数修改请求，未应用任何更改。",
 	KeySettingsConfirmApplied:        "已成功应用以下参数修改",
@@ -593,24 +593,28 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsConfirmPaused:         "用户暂停了操作，补充说明",
 
 	// Emoji prefix keys (ENHANCEMENT-131)
-	KeyEmojiPrefixUser:        "👤 > ",
-	KeyEmojiPrefixAssistant:   "🐚 > ",
-	KeyEmojiPrefixToolInput:   "⚙️ < ",
-	KeyEmojiPrefixToolOutput:  "⚙️ > ",
-	KeyEmojiPrefixCmdInput:    "🔴 < ",
-	KeyEmojiPrefixCmdOutput:   "🔴 > ",
-	KeyEmojiPrefixInfo:        "ℹ️ ",
-	KeyEmojiPrefixError:       "❌ ",
-	KeyEmojiPrefixWarning:     "⚠️ ",
-	KeyEmojiPrefixSuccess:     "✅ ",
-	KeyEmojiPrefixThinking:    "💬 ",
-	KeyEmojiPrefixOutputTitle: "📋 命令输出:",
+	KeyEmojiPrefixUser:        "[👤]> ",
+	KeyEmojiPrefixAssistant:   "[🐚]> ",
+	KeyEmojiPrefixToolInput:   "[⚙️]< ",
+	KeyEmojiPrefixToolOutput:  "[⚙️]> ",
+	KeyEmojiPrefixCmdInput:    "[🔴]< ",
+	KeyEmojiPrefixCmdOutput:   "[🔴]> ",
+	KeyEmojiPrefixInfo:        "[ℹ️] ",
+	KeyEmojiPrefixError:       "[❌] ",
+	KeyEmojiPrefixWarning:     "[⚠️] ",
+	KeyEmojiPrefixSuccess:     "[✅] ",
+	KeyEmojiPrefixThinking:    "[💬] ",
+	KeyEmojiPrefixOutputTitle: "[📋] 命令输出:",
 	KeyEmojiPrefixOutputSep:   "────────────────────────────────────────────",
 
 	// Emoji enabled settings
 	KeyCol3EmojiEnabled:     "表情符号(on|off)",
 	KeySettingsDescEmoji:    "使用表情符号区分不同角色的输出",
 	KeyEmojiEnabledUpdated:  "✅ 表情符号已设置为: %s",
-	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   启用表情符号（覆盖配置文件）",
+	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled on|off  启用表情符号（覆盖配置文件）",
 	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  禁用表情符号（覆盖配置文件）",
+
+	// Init capabilities/rules
+	KeyCLIHelpInitCapabilities: "      --init-capabilities  在工作区生成默认 CAPABILITIES.md 文件并退出",
+	KeyCLIHelpInitRules:        "      --init-rules         在工作区生成默认 RULES.md 文件并退出",
 }

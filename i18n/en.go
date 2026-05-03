@@ -266,11 +266,11 @@ var enMessages = map[string]string{
 	KeyHelpHelp:         "    .help               - Show this help message",
 	KeyHelpExit:         "    .exit               - Exit co-shell",
 	KeyHelpExampleTitle: "Examples:",
-	KeyHelpExample1:     "    ❯ \"List files in current directory\"",
-	KeyHelpExample2:     "    ❯ \"What is the weather today?\"",
-	KeyHelpExample3:     "    ❯ ls -la",
-	KeyHelpExample4:     "    ❯ .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
-	KeyHelpExample5:     "    ❯ .rule add \"Always confirm before deleting files\"",
+	KeyHelpExample1:     "\"List files in current directory\"",
+	KeyHelpExample2:     "\"What is the weather today?\"",
+	KeyHelpExample3:     "ls -la",
+	KeyHelpExample4:     ".mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
+	KeyHelpExample5:     ".rule add \"Always confirm before deleting files\"",
 
 	// CLI Help
 	KeyCLIHelpTitle:     "co-shell v%s - Intelligent Command-Line Shell",
@@ -593,7 +593,7 @@ Current Environment:
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle:          "⚠️ co-shell will modify system parameters",
 	KeySettingsConfirmRiskWarning:    "⚠️ Risk Warning: Modifying system parameters may affect co-shell's behavior and stability. Please proceed with caution.",
-	KeySettingsConfirmPrompt:         "Choose action: [Enter/Y] Approve  [C/N] Reject  [Other text] Pause and provide instructions",
+	KeySettingsConfirmPrompt:         "Choose action:\n  [A] Approve\n  [C] Cancel\n  Other input: Pause and provide instructions\nEnter: ",
 	KeySettingsConfirmRejected:       "User rejected the parameter modification",
 	KeySettingsConfirmRejectedResult: "User rejected the parameter modification request. No changes were applied.",
 	KeySettingsConfirmApplied:        "Successfully applied the following parameter changes",
@@ -602,18 +602,18 @@ Current Environment:
 	KeySettingsConfirmPaused:         "User paused the operation with instructions",
 
 	// Emoji prefix keys (ENHANCEMENT-131)
-	KeyEmojiPrefixUser:        "👤 > ",
-	KeyEmojiPrefixAssistant:   "🐚 > ",
-	KeyEmojiPrefixToolInput:   "⚙️ < ",
-	KeyEmojiPrefixToolOutput:  "⚙️ > ",
-	KeyEmojiPrefixCmdInput:    "🔴 < ",
-	KeyEmojiPrefixCmdOutput:   "🔴 > ",
-	KeyEmojiPrefixInfo:        "ℹ️ ",
-	KeyEmojiPrefixError:       "❌ ",
-	KeyEmojiPrefixWarning:     "⚠️ ",
-	KeyEmojiPrefixSuccess:     "✅ ",
-	KeyEmojiPrefixThinking:    "💬 ",
-	KeyEmojiPrefixOutputTitle: "📋 Command Output:",
+	KeyEmojiPrefixUser:        "[👤]> ",
+	KeyEmojiPrefixAssistant:   "[🐚]> ",
+	KeyEmojiPrefixToolInput:   "[⚙️]< ",
+	KeyEmojiPrefixToolOutput:  "[⚙️]> ",
+	KeyEmojiPrefixCmdInput:    "[🔴]< ",
+	KeyEmojiPrefixCmdOutput:   "[🔴]> ",
+	KeyEmojiPrefixInfo:        "[ℹ️] ",
+	KeyEmojiPrefixError:       "[❌] ",
+	KeyEmojiPrefixWarning:     "[⚠️] ",
+	KeyEmojiPrefixSuccess:     "[✅] ",
+	KeyEmojiPrefixThinking:    "[💬] ",
+	KeyEmojiPrefixOutputTitle: "[📋] Command Output:",
 	KeyEmojiPrefixOutputSep:   "────────────────────────────────────────────",
 
 	// Emoji enabled settings
@@ -622,4 +622,8 @@ Current Environment:
 	KeyEmojiEnabledUpdated:  "✅ Emoji enabled set to: %s",
 	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   Enable emoji (overrides config)",
 	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  Disable emoji (overrides config)",
+
+	// Init capabilities/rules
+	KeyCLIHelpInitCapabilities: "      --init-capabilities  Generate default CAPABILITIES.md in workspace and exit",
+	KeyCLIHelpInitRules:        "      --init-rules         Generate default RULES.md in workspace and exit",
 }

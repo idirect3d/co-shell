@@ -192,9 +192,14 @@ func (r *REPL) Run() error {
 	// Main input loop using bufio.Scanner (standard line-buffered input)
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		prompt := "❯ "
+		// Get emoji prefixes based on config
+		ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+		prompt := ep.UserInput
+		if !r.cfg.LLM.EmojiEnabled {
+			prompt = i18n.T(prompt)
+		}
 		if r.cfg.LLM.VisionSupport {
-			prompt = "👀 "
+			prompt = "👀 " + prompt
 		}
 		fmt.Print(prompt)
 
@@ -518,11 +523,12 @@ func (r *REPL) printHelp() {
 
 	fmt.Println()
 	fmt.Println(i18n.T(i18n.KeyHelpExampleTitle))
-	fmt.Println(i18n.T(i18n.KeyHelpExample1))
-	fmt.Println(i18n.T(i18n.KeyHelpExample2))
-	fmt.Println(i18n.T(i18n.KeyHelpExample3))
-	fmt.Println(i18n.T(i18n.KeyHelpExample4))
-	fmt.Println(i18n.T(i18n.KeyHelpExample5))
+	prefix := i18n.T(i18n.KeyEmojiPrefixUser)
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample1))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample2))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample3))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample4))
+	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample5))
 }
 
 // cleanup performs cleanup operations before exit.

@@ -72,11 +72,12 @@ func selectProvider() *config.ProviderPreset {
 	}
 }
 
-// selectModel presents a simple text-based model selection.
+// selectModel presents a numbered model selection with prefix matching support.
+// Input a number to select by index, or type a prefix to match the first model.
 func selectModel(models []string, defaultModel string) *string {
-	fmt.Println("📌 请选择模型（直接回车使用默认）：")
-	for _, m := range models {
-		fmt.Printf("  %s\n", m)
+	fmt.Println("📌 请选择模型（直接回车使用默认，输入编号选择，输入前缀匹配）：")
+	for i, m := range models {
+		fmt.Printf("  [%d] %s\n", i+1, m)
 	}
 	fmt.Println()
 
@@ -90,9 +91,26 @@ func selectModel(models []string, defaultModel string) *string {
 			return &defaultModel
 		}
 
-		// Check if input matches any model
+		// Try number input
+		if num, err := strconv.Atoi(input); err == nil {
+			if num >= 1 && num <= len(models) {
+				return &models[num-1]
+			}
+			fmt.Printf("⚠️  无效编号，请输入 1-%d 之间的数字。\n", len(models))
+			continue
+		}
+
+		// Try exact match
 		for _, m := range models {
 			if strings.EqualFold(input, m) {
+				return &m
+			}
+		}
+
+		// Try prefix match (case-insensitive)
+		inputLower := strings.ToLower(input)
+		for _, m := range models {
+			if strings.HasPrefix(strings.ToLower(m), inputLower) {
 				return &m
 			}
 		}

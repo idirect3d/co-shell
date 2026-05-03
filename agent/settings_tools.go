@@ -133,7 +133,7 @@ func (a *Agent) updateSettingsTool(ctx context.Context, args map[string]interfac
 	response := strings.TrimSpace(string(lineBuf))
 	lower := strings.ToLower(response)
 
-	if lower == "c" || lower == "no" || lower == "n" {
+	if lower == "c" {
 		// User rejected
 		fmt.Println()
 		fmt.Println("❌ " + i18n.T(i18n.KeySettingsConfirmRejected))
@@ -141,7 +141,7 @@ func (a *Agent) updateSettingsTool(ctx context.Context, args map[string]interfac
 		return i18n.T(i18n.KeySettingsConfirmRejectedResult), nil
 	}
 
-	if response == "" || lower == "y" || lower == "yes" || lower == "a" {
+	if response == "" || lower == "a" {
 		// User approved - apply all changes
 		var applied []string
 		var failed []string
