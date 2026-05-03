@@ -199,9 +199,13 @@ go build -o work/co-shell-feishu-bridge ./cmd/co-shell-feishu-bridge/
 
 ---
 
-## 配置持久化
+## 配置文件说明
 
-桥接器启动后，会将配置保存到工作空间下的 `feishu-bridge.json` 文件中：
+桥接器涉及**两个独立的配置文件**，不要混淆：
+
+### 1. 桥接器配置文件 `feishu-bridge.json`
+
+保存飞书桥接器自身的参数，位于工作空间目录下：
 
 ```json
 {
@@ -209,13 +213,29 @@ go build -o work/co-shell-feishu-bridge ./cmd/co-shell-feishu-bridge/
   "app_secret": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
   "co_shell_path": "/usr/local/bin/co-shell",
   "workspace": "/path/to/workspace",
-  "config_path": "/path/to/workspace/config.json",
+  "co_shell_config_path": "/path/to/workspace/config.json",
   "mode": "sync",
   "log_level": "info"
 }
 ```
 
+| 字段 | 说明 |
+|------|------|
+| `app_id` | 飞书应用 App ID |
+| `app_secret` | 飞书应用 App Secret |
+| `co_shell_path` | co-shell 可执行文件路径 |
+| `workspace` | co-shell 工作空间路径 |
+| `co_shell_config_path` | **co-shell 的** config.json 路径 |
+| `mode` | 工作模式 |
+| `log_level` | 日志级别 |
+
 下次启动时，如果命令行参数未指定，将自动从该文件加载配置。命令行参数优先级高于配置文件。
+
+### 2. co-shell 配置文件 `config.json`
+
+这是 co-shell 自身的配置文件（LLM 参数、MCP 服务器等），由 `--config` / `-c` 参数指定，默认路径为 `{workspace}/config.json`。桥接器通过 `--config` 参数告诉 co-shell 使用哪个配置文件，但**不会修改 co-shell 的配置内容**。
+
+> **安全提示**：`feishu-bridge.json` 包含 App Secret 敏感信息，**不要**将其提交到版本控制中。建议将 `feishu-bridge.json` 添加到 `.gitignore`。
 
 ---
 
