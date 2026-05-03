@@ -432,12 +432,12 @@ co-shell/
 ├── memory/              # Persistent memory management
 ├── workspace/           # Workspace management
 ├── samples/             # Sample research reports
-├── bin/                 # Binary output directory
-├── output/              # Output directory
+├── bin/                 # Utility scripts (md2docx, md2wechat)
+├── docs/                # Multi-language documentation
+│   ├── en/              # English documentation
+│   └── zh-CN/           # Chinese documentation
 ├── CHANGELOG.md         # Changelog
 ├── USAGE.md             # Detailed usage guide
-├── docs/                # Multi-language documentation
-│   └── zh-CN/           # Chinese documentation
 └── ROADMAP.md           # Version plan and roadmap
 ```
 

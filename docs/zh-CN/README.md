@@ -437,12 +437,12 @@ co-shell/
 ├── memory/              # 持久化记忆管理
 ├── workspace/           # 工作区管理
 ├── samples/             # 成果样例
-├── bin/                 # 二进制输出目录
-├── output/              # 输出目录
+├── bin/                 # 工具脚本（md2docx, md2wechat）
+├── docs/                # 多语言文档
+│   ├── en/              # 英文文档
+│   └── zh-CN/           # 中文文档
 ├── CHANGELOG.md         # 变更日志
 ├── USAGE.md             # 详细使用说明
-├── docs/                # 多语言文档
-│   └── en/              # 英文文档
 └── ROADMAP.md           # 版本计划与路线图
 ```
 
