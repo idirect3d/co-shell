@@ -449,6 +449,41 @@ func (a *Agent) buildTools() []llm.Tool {
 		tools = append(tools, memoryTools...)
 	}
 
+	// Add update_settings tool (always available)
+	tools = append(tools, llm.Tool{
+		Name:        "update_settings",
+		Description: "Update co-shell system configuration parameters. Use this to modify settings such as model, temperature, display options, safety settings, etc. You must provide a reason for each change. The user will be prompted to confirm all changes before they are applied. IMPORTANT: Only use this when the user explicitly asks to change settings, or when a setting change is necessary to complete the user's request.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"settings": map[string]interface{}{
+					"type": "array",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"param": map[string]interface{}{
+								"type":        "string",
+								"description": "The parameter name to change. See the .set command help for all available parameters (e.g., model, temperature, max-tokens, show-llm-thinking, confirm-command, etc.)",
+							},
+							"value": map[string]interface{}{
+								"type":        "string",
+								"description": "The new value for the parameter",
+							},
+							"reason": map[string]interface{}{
+								"type":        "string",
+								"description": "Explain why this change is needed. This will be shown to the user for confirmation.",
+							},
+						},
+						"required": []string{"param", "value", "reason"},
+					},
+					"description": "An array of setting changes to apply. Each change must include param, value, and reason.",
+				},
+			},
+			"required": []string{"settings"},
+		},
+		Callback: a.updateSettingsTool,
+	})
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture

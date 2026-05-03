@@ -589,4 +589,15 @@ Current Environment:
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "Max occurrences of same error",
 	KeyCol3ErrorMaxTypeCount:   "Max distinct error types",
+
+	// Settings confirmation (FEATURE-131)
+	KeySettingsConfirmTitle:          "⚠️ co-shell will modify system parameters",
+	KeySettingsConfirmRiskWarning:    "⚠️ Risk Warning: Modifying system parameters may affect co-shell's behavior and stability. Please proceed with caution.",
+	KeySettingsConfirmPrompt:         "Choose action: [Enter/Y] Approve  [C/N] Reject  [Other text] Pause and provide instructions",
+	KeySettingsConfirmRejected:       "User rejected the parameter modification",
+	KeySettingsConfirmRejectedResult: "User rejected the parameter modification request. No changes were applied.",
+	KeySettingsConfirmApplied:        "Successfully applied the following parameter changes",
+	KeySettingsConfirmFailed:         "Failed to apply the following parameter changes",
+	KeySettingsConfirmResult:         "Parameter modification complete: %d succeeded, %d failed",
+	KeySettingsConfirmPaused:         "User paused the operation with instructions",
 }
