@@ -6,8 +6,8 @@
 
 ## 当前版本
 
-> **版本**: v0.4.0-RC2
-> **BUILD**: 151
+> **版本**: v0.5.0-RC3
+> **BUILD**: 152
 
 
 
@@ -154,7 +154,7 @@
 - [x] ENHANCEMENT-134 模型API设置向导改进：1) 提供商列表增加Ollama选项（倒数第二），默认地址 http://localhost:11434/v1；2) 模型列表增加编号选项，输入数字选择模型，输入非数字则作为前缀匹配；3) 最终检测时列出全部地址和模型参数让用户确认；4) 最终测试成功后提示用户再次修改模型的方法。[BUILD-147]
 - [x] FIX-134 修复 .set 显示时 description/principles 空值回退到 i18n 默认值的问题 [BUILD-151]
 
-## v0.5.0
+## v0.5.0 — RC3
 
 > **状态**: 🚧 开发中
 > **目标日期**: 2026-05-05
@@ -173,12 +173,15 @@
 - [ ] FEATURE-50 完整文档站。
 - [ ] FEATURE-120 新增Excel文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Excel的能力。
 - [ ] FEATURE-121 新增Word文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Word的能力。
-- [ ] FEATURE-123 新增对接飞书功能，以便用户可以通过即时通讯软件，以跟特定机器人会话对话的方式，与co-shell交互。
+- [x] FEATURE-123 新增对接飞书功能，以便用户可以通过即时通讯软件，以跟特定机器人会话对话的方式，与co-shell交互。[BUILD-152]
+  - FIX-123a 修复 WebSocket ACK 确认机制：收到事件后立即写回 ACK（`{"id":"...","type":"pong"}`），防止飞书 3 秒超时重推
+  - FIX-123b 修复 Ping/Pong 心跳处理：设置 WebSocket 协议层的 PongHandler，自动响应服务端 Ping 帧；设置 ReadDeadline 检测连接状态
+  - FIX-123c 优化日志：pong 心跳消息仅在 debug 级别输出，减少日志噪音
 - [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
 - [ ] FEATURE-128 增加移动端APP和0信任网关，以便用户能够在手机端安全的操控co-shell。
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 - [ ] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题
-- [ ] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题
+- [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
 
 ## v1.0.0 — 正式版
 
