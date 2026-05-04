@@ -52,3 +52,5 @@ work/config.json
 work/co-shell
 work/co-shell.exe
 work/co-shell-test
+work/co-shell-feishu-bridge
+work/feishu-bridge.json
