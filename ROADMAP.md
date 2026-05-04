@@ -182,6 +182,7 @@
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 - [ ] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题
 - [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
+- [ ] FEATURE-137 新增co-shell之间相互调用能力，以便Agent可以向人和人那样分工和交流，让形成真正的AI团队成为可能。
 - [ ] FEATURE-138 增加删除记忆memory的REPL和tool call方法，可以按key_from和key_to删除一段记忆。可通过一个开关控制是否向LLM启用这个方法，默认关闭。可以通过命令行、REPL、配置文件配置。
 
 ## v1.0.0 — 正式版
