@@ -445,6 +445,25 @@ func (a *Agent) buildTools() []llm.Tool {
 				},
 				Callback: a.memorySearchTool,
 			},
+			{
+				Name:        "delete_memory",
+				Description: "Delete a range of conversation history from persistent memory. Use this to remove outdated or incorrect information from memory. Parameters: last_from (starting position from the end, 1=most recent), last_to (ending position from the end, 1=most recent). Example: last_from=5, last_to=1 deletes the 5 most recent messages.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"last_from": map[string]interface{}{
+							"type":        "number",
+							"description": "Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.",
+						},
+						"last_to": map[string]interface{}{
+							"type":        "number",
+							"description": "Ending position from the end (inclusive). 1 = most recent message.",
+						},
+					},
+					"required": []string{"last_from", "last_to"},
+				},
+				Callback: a.deleteMemoryTool,
+			},
 		}
 		tools = append(tools, memoryTools...)
 	}

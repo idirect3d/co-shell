@@ -449,6 +449,76 @@ func (s *Store) SearchMemory(prefix string) ([]MemoryEntry, error) {
 	return entries, err
 }
 
+// DeleteMemory removes a specific memory entry by key.
+func (s *Store) DeleteMemory(key string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		// Try the key as-is first (for backward compatibility with old data)
+		if err := bucket.Delete([]byte(key)); err != nil {
+			return err
+		}
+		// Also try zero-padded format
+		if err := bucket.Delete([]byte(formatMemoryKey(key))); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// DeleteMemoryRange removes a range of conversation messages from the memory bucket.
+// Parameters:
+//   - lastFrom: starting position from the end (inclusive). 1 = most recent message.
+//   - lastTo: ending position from the end (inclusive). 1 = most recent message.
+//
+// Example: lastFrom=5, lastTo=1 deletes the 5 most recent messages.
+func (s *Store) DeleteMemoryRange(lastFrom, lastTo int) error {
+	if lastFrom < 1 || lastTo < 1 {
+		return fmt.Errorf("lastFrom and lastTo must be >= 1")
+	}
+	if lastFrom < lastTo {
+		return fmt.Errorf("lastFrom (%d) must be >= lastTo (%d)", lastFrom, lastTo)
+	}
+
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("memory"))
+		cursor := bucket.Cursor()
+
+		// Collect all keys in order
+		var keys [][]byte
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			keyCopy := make([]byte, len(k))
+			copy(keyCopy, k)
+			keys = append(keys, keyCopy)
+		}
+
+		total := len(keys)
+		if total == 0 {
+			return nil
+		}
+
+		// Calculate slice boundaries (from end)
+		startIdx := total - lastFrom
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		endIdx := total - lastTo + 1
+		if endIdx > total {
+			endIdx = total
+		}
+		if startIdx >= endIdx {
+			return nil
+		}
+
+		// Delete keys in the range
+		for i := startIdx; i < endIdx; i++ {
+			if err := bucket.Delete(keys[i]); err != nil {
+				return fmt.Errorf("cannot delete memory key %q: %w", string(keys[i]), err)
+			}
+		}
+		return nil
+	})
+}
+
 // ClearConversationMessages removes all conversation messages from the memory bucket.
 func (s *Store) ClearConversationMessages() error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
