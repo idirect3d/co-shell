@@ -76,6 +76,11 @@ type Message struct {
 	UserID      string
 	Instruction string
 	ReplyFunc   func(string, error) // Callback to send the reply
+
+	// InputRequestFunc is called when co-shell is waiting for user input.
+	// It receives the current accumulated output and returns a channel that
+	// will receive the user's input. The channel is closed when input is received.
+	InputRequestFunc func(currentOutput string) <-chan string
 }
 
 // Scheduler manages the execution of co-shell processes based on the configured mode.
@@ -90,13 +95,18 @@ type Scheduler struct {
 
 	// Preempt mode fields
 	cancel context.CancelFunc
+
+	// Global context for cancellation (e.g., Ctrl+C)
+	globalCtx context.Context
 }
 
 // NewScheduler creates a new Scheduler with the given mode and executor.
-func NewScheduler(mode Mode, executor *Executor) *Scheduler {
+// The ctx parameter is the global context for cancellation (e.g., Ctrl+C).
+func NewScheduler(ctx context.Context, mode Mode, executor *Executor) *Scheduler {
 	return &Scheduler{
-		mode:     mode,
-		executor: executor,
+		mode:      mode,
+		executor:  executor,
+		globalCtx: ctx,
 	}
 }
 
@@ -137,7 +147,27 @@ func (s *Scheduler) processNext() {
 		s.queue = s.queue[1:]
 		s.mu.Unlock()
 
-		output, err := s.executor.Execute(msg.Instruction)
+		// Show processing start
+		fmt.Println()
+		fmt.Printf("⚙️  co-shell 正在处理 \"%s\"\n", msg.Instruction)
+		fmt.Println(strings.Repeat("─", 50))
+
+		var output string
+		var err error
+
+		if msg.InputRequestFunc != nil {
+			// Use interactive mode when InputRequestFunc is provided
+			output, err = s.executor.ExecuteInteractive(s.globalCtx, msg.Instruction, msg.InputRequestFunc)
+		} else {
+			// Fall back to non-interactive mode
+			output, err = s.executor.Execute(msg.Instruction)
+		}
+
+		// Show completion
+		fmt.Println()
+		fmt.Println("✅ 处理已完成")
+		fmt.Println(strings.Repeat("─", 50))
+
 		msg.ReplyFunc(output, err)
 	}
 }
@@ -191,8 +221,8 @@ func (s *Scheduler) submitPreempt(msg Message) {
 		s.cancel()
 	}
 
-	// Create a new cancellable context
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create a new cancellable context derived from global context
+	ctx, cancel := context.WithCancel(s.globalCtx)
 	s.cancel = cancel
 
 	// Execute in background

@@ -47,7 +47,7 @@ type Bridge struct {
 	wsClient *larkws.Client
 	mu       sync.Mutex
 	started  bool
-	stopCh   chan struct{}
+	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 }
 
@@ -56,7 +56,6 @@ func NewBridge(cfg *Config, handler *Handler) *Bridge {
 	return &Bridge{
 		cfg:     cfg,
 		handler: handler,
-		stopCh:  make(chan struct{}),
 	}
 }
 
@@ -69,12 +68,19 @@ func (b *Bridge) Start(ctx context.Context) error {
 		return fmt.Errorf("bridge already started")
 	}
 
+	// Create a cancellable context for the WS client
+	wsCtx, cancel := context.WithCancel(ctx)
+	b.cancel = cancel
+
 	// Create event handler via SDK dispatcher
+	log.Printf("Registering event handler for P2MessageReceiveV1...")
 	eventHandler := dispatcher.NewEventDispatcher("", "").
 		OnP2MessageReceiveV1(func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+			log.Printf("Received P2MessageReceiveV1 event")
 			b.handler.HandleSDKEvent(ctx, event)
 			return nil
 		})
+	log.Printf("Event handler registered")
 
 	// Build WS client options
 	opts := []larkws.ClientOption{
@@ -94,7 +100,7 @@ func (b *Bridge) Start(ctx context.Context) error {
 	go func() {
 		defer b.wg.Done()
 		log.Printf("Starting Feishu WebSocket long-connection...")
-		if err := b.wsClient.Start(ctx); err != nil {
+		if err := b.wsClient.Start(wsCtx); err != nil {
 			log.Printf("Feishu WebSocket client stopped with error: %v", err)
 		}
 	}()
@@ -107,6 +113,7 @@ func (b *Bridge) Start(ctx context.Context) error {
 }
 
 // Stop gracefully shuts down the WebSocket connection.
+// It waits up to 5 seconds for the WebSocket client to close.
 func (b *Bridge) Stop() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -115,8 +122,26 @@ func (b *Bridge) Stop() {
 		return
 	}
 
-	close(b.stopCh)
-	b.wg.Wait()
+	// Cancel the WS client context to trigger shutdown
+	if b.cancel != nil {
+		b.cancel()
+	}
+
+	// Wait for the WS client goroutine to finish, with a timeout
+	// to prevent hanging on Ctrl+C if the SDK takes too long.
+	done := make(chan struct{}, 1)
+	go func() {
+		b.wg.Wait()
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+		// WS client closed normally
+	case <-time.After(5 * time.Second):
+		log.Printf("Warning: Feishu WebSocket client did not close within 5 seconds, forcing shutdown")
+	}
+
 	b.started = false
 	log.Printf("Feishu bridge stopped")
 }

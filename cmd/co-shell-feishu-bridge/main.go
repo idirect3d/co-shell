@@ -188,8 +188,12 @@ func main() {
 		mode = bridge.ModeSync
 	}
 
-	// Create scheduler
-	scheduler := bridge.NewScheduler(mode, executor)
+	// Create global context for cancellation (Ctrl+C propagates to all subprocesses)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create scheduler with global context for cancellation
+	scheduler := bridge.NewScheduler(ctx, mode, executor)
 
 	// Create Feishu SDK client (for API calls like sending messages)
 	larkClient := lark.NewClient(cfg.AppID, cfg.AppSecret)
@@ -208,9 +212,6 @@ func main() {
 	fmt.Println()
 
 	// Start the bridge
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	if err := feishuBridge.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ 启动失败: %v\n", err)
 		os.Exit(1)
@@ -238,9 +239,20 @@ func main() {
 func loadConfig(flags cliFlags) *feishu.Config {
 	cfg := feishu.DefaultConfig()
 
-	// Try to load existing config
-	if err := cfg.Load(); err == nil {
-		log.Printf("Loaded config from: %s", cfg.BridgeConfigPath())
+	// Determine bridge config file path
+	// Priority: --config flag > default ({workspace}/feishu-bridge.json)
+	bridgeConfigPath := cfg.BridgeConfigPath()
+	if flags.configPath != "" {
+		if absPath, err := filepath.Abs(flags.configPath); err == nil {
+			bridgeConfigPath = absPath
+		} else {
+			bridgeConfigPath = flags.configPath
+		}
+	}
+
+	// Try to load existing bridge config
+	if err := bridge.LoadConfig(bridgeConfigPath, cfg); err == nil {
+		log.Printf("Loaded config from: %s", bridgeConfigPath)
 	}
 
 	// Apply CLI overrides
@@ -257,7 +269,8 @@ func loadConfig(flags cliFlags) *feishu.Config {
 		cfg.Workspace = flags.workspace
 	}
 	if flags.configPath != "" {
-		cfg.CoShellCfgPath = flags.configPath
+		// --config flag specifies bridge config path, not co-shell config path
+		// co-shell config path should be set in the bridge config file
 	}
 	if flags.mode != "" {
 		cfg.Mode = flags.mode
