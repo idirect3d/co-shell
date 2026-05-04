@@ -57,6 +57,29 @@ func (a *Agent) getMemorySliceTool(ctx context.Context, args map[string]interfac
 	return formatted, nil
 }
 
+// deleteMemoryTool deletes a range of conversation history from persistent memory.
+// Parameters: last_from (starting position from the end, 1=most recent), last_to (ending position from the end, 1=most recent).
+// Example: last_from=5, last_to=1 deletes the 5 most recent messages.
+func (a *Agent) deleteMemoryTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("deleteMemoryTool called: args=%v", args)
+	lastFrom, ok := args["last_from"].(float64)
+	if !ok {
+		return "", fmt.Errorf("last_from argument is required")
+	}
+	lastTo, ok := args["last_to"].(float64)
+	if !ok {
+		return "", fmt.Errorf("last_to argument is required")
+	}
+
+	if err := a.store.DeleteMemoryRange(int(lastFrom), int(lastTo)); err != nil {
+		return "", fmt.Errorf("cannot delete memory range: %w", err)
+	}
+
+	result := fmt.Sprintf("✅ 已删除最近 %d 条记忆（从倒数第 %d 条到倒数第 %d 条）", int(lastFrom)-int(lastTo)+1, int(lastFrom), int(lastTo))
+	fmt.Println(result)
+	return result, nil
+}
+
 // memorySearchTool searches persistent conversation memory for messages matching given criteria.
 func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("memorySearchTool called: args=%v", args)

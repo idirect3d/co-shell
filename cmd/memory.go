@@ -140,8 +140,7 @@ func (h *MemoryHandler) deleteMemory(args []string) (string, error) {
 		return "", fmt.Errorf("usage: .memory delete <key>")
 	}
 	key := args[0]
-	// Use SaveMemory with empty value to delete
-	if err := h.store.SaveMemory(key, ""); err != nil {
+	if err := h.store.DeleteMemory(key); err != nil {
 		return "", fmt.Errorf("cannot delete memory: %w", err)
 	}
 	return fmt.Sprintf(i18n.T(i18n.KeyMemoryDeleted), key), nil
