@@ -33,6 +33,7 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -40,11 +41,23 @@ import (
 	"github.com/idirect3d/co-shell/bridge"
 )
 
+const (
+	// maxMessageLen is the maximum length of a Feishu text message content.
+	// Feishu has a limit of approximately 30KB for text messages.
+	// We use a conservative limit to avoid 413 errors.
+	maxMessageLen = 28000
+)
+
 // Handler processes incoming Feishu messages.
 type Handler struct {
 	larkClient *lark.Client
 	scheduler  *bridge.Scheduler
 	uploadDir  string
+
+	// pendingInputs maps chatID to a channel for receiving user input
+	// when co-shell is waiting for interactive input.
+	mu            sync.Mutex
+	pendingInputs map[string]chan string
 }
 
 // NewHandler creates a new message handler.
@@ -88,6 +101,8 @@ func (h *Handler) HandleSDKEvent(ctx context.Context, event *larkim.P2MessageRec
 }
 
 // handleTextMessage processes a text message.
+// If there is a pending input request for this chat, the message is treated
+// as a reply to that request instead of a new instruction.
 func (h *Handler) handleTextMessage(ctx context.Context, chatID, content, chatType string) {
 	// Parse text content
 	var textContent struct {
@@ -110,26 +125,94 @@ func (h *Handler) handleTextMessage(ctx context.Context, chatID, content, chatTy
 		return
 	}
 
-	// Submit to scheduler
-	h.scheduler.Submit(bridge.Message{
-		ChatID:      chatID,
-		Instruction: instruction,
-		ReplyFunc: func(output string, err error) {
-			if err != nil {
-				reply := fmt.Sprintf("❌ 执行出错：%v", err)
-				if output != "" {
-					reply += "\n\n输出：\n" + output
+	// Check if there is a pending input request for this chat
+	h.mu.Lock()
+	inputCh, hasPending := h.pendingInputs[chatID]
+	h.mu.Unlock()
+
+	if hasPending {
+		// This message is a reply to a pending input request
+		fmt.Printf("\n📩 [飞书输入回复] %s\n", instruction)
+		fmt.Println(strings.Repeat("─", 50))
+
+		// Send the input to the waiting co-shell process
+		select {
+		case inputCh <- instruction:
+			// Input sent successfully
+		default:
+			// Channel full or closed - treat as new instruction
+			log.Printf("Input channel full or closed for chat %s, treating as new instruction", chatID)
+			hasPending = false
+		}
+	}
+
+	if !hasPending {
+		// This is a new instruction
+		fmt.Printf("\n📩 [飞书消息] %s\n", instruction)
+		fmt.Println(strings.Repeat("─", 50))
+
+		// Submit to scheduler with InputRequestFunc for interactive support
+		h.scheduler.Submit(bridge.Message{
+			ChatID:      chatID,
+			Instruction: instruction,
+			InputRequestFunc: func(currentOutput string) <-chan string {
+				return h.createInputRequest(ctx, chatID, currentOutput)
+			},
+			ReplyFunc: func(output string, err error) {
+				if err != nil {
+					reply := fmt.Sprintf("❌ 执行出错：%v", err)
+					if output != "" {
+						reply += "\n\n输出：\n" + output
+					}
+					fmt.Printf("\n📤 [回复飞书] %s\n", reply)
+					fmt.Println(strings.Repeat("─", 50))
+					if sendErr := h.sendTextMessage(ctx, chatID, reply); sendErr != nil {
+						log.Printf("Failed to send error reply: %v", sendErr)
+					}
+					return
 				}
-				if sendErr := h.sendTextMessage(ctx, chatID, reply); sendErr != nil {
-					log.Printf("Failed to send error reply: %v", sendErr)
+				fmt.Printf("\n📤 [回复飞书] %s\n", output)
+				fmt.Println(strings.Repeat("─", 50))
+				if sendErr := h.sendTextMessage(ctx, chatID, output); sendErr != nil {
+					log.Printf("Failed to send reply: %v", sendErr)
 				}
-				return
-			}
-			if sendErr := h.sendTextMessage(ctx, chatID, output); sendErr != nil {
-				log.Printf("Failed to send reply: %v", sendErr)
-			}
-		},
-	})
+			},
+		})
+	}
+}
+
+// createInputRequest creates a pending input request for a chat.
+// It sends the current output to the user via Feishu and returns a channel
+// that will receive the user's reply.
+func (h *Handler) createInputRequest(ctx context.Context, chatID, currentOutput string) <-chan string {
+	// Create a channel for receiving the user's input
+	inputCh := make(chan string, 1)
+
+	// Register the pending input request
+	h.mu.Lock()
+	if h.pendingInputs == nil {
+		h.pendingInputs = make(map[string]chan string)
+	}
+	h.pendingInputs[chatID] = inputCh
+	h.mu.Unlock()
+
+	// Send the current output to the user via Feishu, asking for input
+	message := currentOutput + "\n\n---\n⚠️ co-shell 需要您的输入才能继续。\n请直接回复此消息，输入您的内容。\n• 直接输入内容作为回复\n• 输入 /cancel 取消操作\n• 输入 /approve 确认执行"
+
+	fmt.Printf("\n⏳ [等待飞书输入] %s\n", chatID)
+	fmt.Println(strings.Repeat("─", 50))
+
+	if sendErr := h.sendTextMessage(ctx, chatID, message); sendErr != nil {
+		log.Printf("Failed to send input request: %v", sendErr)
+		// Clean up on error
+		h.mu.Lock()
+		delete(h.pendingInputs, chatID)
+		h.mu.Unlock()
+		close(inputCh)
+		return nil
+	}
+
+	return inputCh
 }
 
 // handleFileMessage processes a file message.
@@ -170,11 +253,33 @@ func (h *Handler) handleImageMessage(ctx context.Context, chatID, content string
 	}
 }
 
+// truncateMessage truncates a message to fit within Feishu's size limit.
+func truncateMessage(text string) string {
+	if len(text) <= maxMessageLen {
+		return text
+	}
+	// Truncate to maxMessageLen bytes, preserving UTF-8 character boundaries
+	truncated := text[:maxMessageLen]
+	// Find the last valid UTF-8 rune boundary
+	for i := len(truncated) - 1; i >= 0; i-- {
+		if truncated[i]&0xC0 != 0x80 {
+			truncated = truncated[:i+1]
+			break
+		}
+	}
+	return truncated + "\n\n...（内容过长已截断，共 " + fmt.Sprintf("%d", len(text)) + " 字节）"
+}
+
 // sendTextMessage sends a text message to a chat using the SDK.
 func (h *Handler) sendTextMessage(ctx context.Context, chatID, text string) error {
-	content := larkim.NewTextMsgBuilder().
-		TextLine(text).
-		Build()
+	text = truncateMessage(text)
+	// Build JSON content manually to ensure proper escaping.
+	// The SDK's TextMsgBuilder does not escape special characters.
+	contentBytes, err := json.Marshal(map[string]string{"text": text})
+	if err != nil {
+		return fmt.Errorf("marshal message content failed: %w", err)
+	}
+	content := string(contentBytes)
 
 	req := larkim.NewCreateMessageReqBuilder().
 		ReceiveIdType(larkim.ReceiveIdTypeChatId).
