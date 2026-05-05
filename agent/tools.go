@@ -225,28 +225,24 @@ func (a *Agent) buildTools() []llm.Tool {
 		subAgentTools := []llm.Tool{
 			{
 				Name:        "launch_sub_agent",
-				Description: "Launch a sub-agent process that runs independently in its own workspace under the parent's sub-agents/ directory. Each sub-agent gets a sequential ID (1, 2, 3, ...) and its workspace is auto-created at {parent_workspace}/sub-agents/{id}/. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to delegate complex or long-running tasks to a separate co-shell instance. You can reuse an existing sub-agent by specifying its ID to continue working on the same task.",
+				Description: "Launch a sub-agent process to communicate with another co-shell agent for information sharing. The target agent's workspace is a sibling folder of the current agent's workspace, identified by sub_agent_name. The sub-agent shares the same terminal (stdin/stdout/stderr) with the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. Use this to ask questions and get information from another agent — **this is equal information sharing, not task delegation**.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"sub_agent_id": map[string]interface{}{
-							"type":        "number",
-							"description": "Optional: the ID of an existing sub-agent to reuse. If provided, the sub-agent's existing workspace will be used. If omitted, a new sub-agent with a new ID will be created.",
+						"sub_agent_name": map[string]interface{}{
+							"type":        "string",
+							"description": "Required: the name of the target co-shell agent. This name is used as the sibling workspace folder name.",
 						},
 						"instruction": map[string]interface{}{
 							"type":        "string",
 							"description": "The natural language instruction or system command for the sub-agent to execute.",
-						},
-						"purpose": map[string]interface{}{
-							"type":        "string",
-							"description": "A brief description of what this sub-agent is used for. This is stored in memory for future reference. Required when creating a new sub-agent.",
 						},
 						"timeout_seconds": map[string]interface{}{
 							"type":        "number",
 							"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
 						},
 					},
-					"required": []string{"instruction"},
+					"required": []string{"sub_agent_name", "instruction"},
 				},
 				Callback: a.launchSubAgentTool,
 			},
