@@ -614,6 +614,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled on|off  启用表情符号（覆盖配置文件）",
 	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  禁用表情符号（覆盖配置文件）",
 
+	// Show logo
+	KeyCLIHelpShowLogo: "      --show-logo on|off      显示 ASCII art Logo（覆盖配置文件）",
+
 	// Init capabilities/rules
 	KeyCLIHelpInitCapabilities: "      --init-capabilities  在工作区生成默认 CAPABILITIES.md 文件并退出",
 	KeyCLIHelpInitRules:        "      --init-rules         在工作区生成默认 RULES.md 文件并退出",

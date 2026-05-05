@@ -623,6 +623,9 @@ Current Environment:
 	KeyCLIHelpEmojiEnabled:  "      --emoji-enabled   Enable emoji (overrides config)",
 	KeyCLIHelpEmojiDisabled: "      --emoji-disabled  Disable emoji (overrides config)",
 
+	// Show logo
+	KeyCLIHelpShowLogo: "      --show-logo on|off    Show ASCII art logo (overrides config)",
+
 	// Init capabilities/rules
 	KeyCLIHelpInitCapabilities: "      --init-capabilities  Generate default CAPABILITIES.md in workspace and exit",
 	KeyCLIHelpInitRules:        "      --init-rules         Generate default RULES.md in workspace and exit",
