@@ -116,6 +116,11 @@ type ModelInfo struct {
 	// Defaults to true for most modern models; some lightweight or specialized
 	// models may not support it.
 	ToolCallSupport bool `json:"tool_call_support"`
+
+	// MaxModelLen is the maximum context length (in tokens) supported by the model.
+	// This value is automatically detected from the API when listing models.
+	// A value of 0 means unknown or not yet detected.
+	MaxModelLen int `json:"max_model_len"`
 }
 
 // Client is the interface for LLM interactions.
@@ -940,10 +945,11 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	// Parse response with optional capabilities field.
+	// Parse response with optional capabilities and max_model_len fields.
 	// Different providers may return different structures:
 	//   OpenAI: {"data": [{"id": "gpt-4o", ...}]}
 	//   DeepSeek: {"data": [{"id": "deepseek-chat", ...}]}
+	//   vLLM: {"data": [{"id": "...", "max_model_len": 262144, ...}]}
 	//   Some providers include "capabilities" with vision info.
 	var modelsResp struct {
 		Data []struct {
@@ -952,6 +958,8 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 			Capabilities *struct {
 				Vision bool `json:"vision"`
 			} `json:"capabilities,omitempty"`
+			// Some providers include max_model_len in model metadata (e.g., vLLM, Ollama)
+			MaxModelLen int `json:"max_model_len,omitempty"`
 		} `json:"data"`
 	}
 
@@ -976,6 +984,7 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 		models = append(models, ModelInfo{
 			ID:            m.ID,
 			VisionSupport: vision,
+			MaxModelLen:   m.MaxModelLen,
 		})
 	}
 

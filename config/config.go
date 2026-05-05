@@ -185,6 +185,11 @@ type LLMConfig struct {
 	// When disabled, the LLM operates in pure text mode without tool definitions.
 	// Default: true
 	ToolCallEnabled bool `json:"tool_call_enabled"`
+
+	// MaxModelLen: the maximum context length (in tokens) supported by the model.
+	// This value is automatically detected from the API when listing models.
+	// A value of 0 means unknown or not yet detected.
+	MaxModelLen int `json:"max_model_len"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -502,6 +507,7 @@ func (c *Config) Show() string {
 	col3ThinkingEnabled := i18n.T(i18n.KeyCol3ThinkingEnabled)
 	col3ReasoningEffort := i18n.T(i18n.KeyCol3ReasoningEffort)
 	col3ToolCallEnabled := i18n.T(i18n.KeyCol3ToolCallEnabled)
+	col3MaxModelLen := i18n.T(i18n.KeyCol3MaxModelLen)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 
@@ -583,6 +589,7 @@ func (c *Config) Show() string {
 		"thinking-enabled:", thinkingEnabledStatus, col3ThinkingEnabled,
 		"reasoning-effort:", reasoningEffortStr, col3ReasoningEffort,
 		"toolcall-enabled:", toolCallEnabledStatus, col3ToolCallEnabled,
+		"max-model-len:", fmt.Sprintf("%d", c.LLM.MaxModelLen), col3MaxModelLen,
 		"api-key:", maskedKey, col3APIKey)
 
 }

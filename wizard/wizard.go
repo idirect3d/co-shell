@@ -122,6 +122,7 @@ func RunSetupWizard(cfg *config.Config) bool {
 		cfg.LLM.Model = *model
 		cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
 		cfg.LLM.ToolCallEnabled = getModelToolCallSupport(cfg, *model)
+		cfg.LLM.MaxModelLen = getModelMaxModelLen(*model)
 		cfg.LLM.APIKey = apiKey
 		break
 	}
@@ -211,6 +212,7 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 			cfg.LLM.Model = *model
 			cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
 			cfg.LLM.ToolCallEnabled = getModelToolCallSupport(cfg, *model)
+			cfg.LLM.MaxModelLen = getModelMaxModelLen(*model)
 		} else {
 			defaultModel := models[0]
 			model := selectModel(models, defaultModel)
@@ -221,6 +223,7 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 			cfg.LLM.Model = *model
 			cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
 			cfg.LLM.ToolCallEnabled = getModelToolCallSupport(cfg, *model)
+			cfg.LLM.MaxModelLen = getModelMaxModelLen(*model)
 		}
 		break
 	}
@@ -357,6 +360,17 @@ func getModelVisionSupport(cfg *config.Config, modelID string) bool {
 		fmt.Println(" ❌ 不支持视觉识别。")
 	}
 	return supportsVision
+}
+
+// getModelMaxModelLen retrieves the maximum context length for a model from the cache.
+// Returns 0 if not found (unknown).
+func getModelMaxModelLen(modelID string) int {
+	for _, mi := range modelInfoCache {
+		if mi.ID == modelID {
+			return mi.MaxModelLen
+		}
+	}
+	return 0
 }
 
 // getModelToolCallSupport checks if a model supports tool/function calling.

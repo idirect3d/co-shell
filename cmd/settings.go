@@ -832,6 +832,24 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("ToolCall enabled set to %s", status)
 		return fmt.Sprintf("✅ 工具调用已设置为: %s", status), nil
 
+	case "max-model-len":
+		if len(args) < 2 {
+			return fmt.Sprintf("模型最大上下文长度: %d", h.cfg.LLM.MaxModelLen), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("模型最大上下文长度必须 >= 0")
+		}
+		h.cfg.LLM.MaxModelLen = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Max model len set to %d", n)
+		return fmt.Sprintf("✅ 模型最大上下文长度已设置为: %d", n), nil
+
 	case "show-logo":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
