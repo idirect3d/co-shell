@@ -432,7 +432,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   禁用子代理功能（覆盖配置文件）",
 
 	// ToolCall enabled
-	KeyCLIHelpToolCallEnabled: "      --toolcall-enabled   启用工具调用功能（覆盖配置文件）",
+	KeyCLIHelpToolCallEnabled:  "      --toolcall-enabled   启用工具调用功能（覆盖配置文件）",
+	KeyCLIHelpToolCallDisabled: "      --toolcall-disabled  禁用工具调用功能（覆盖配置文件）",
 
 	// Config show column 3 labels
 	KeyCol3Provider:     "提供商(deepseek/qwen/xiaomi/zhipu/openai)",

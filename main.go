@@ -193,6 +193,7 @@ func parseFlags() cliFlags {
 
 	// ToolCall enabled
 	flag.StringVar(&f.toolCallEnabled, "toolcall-enabled", "", "启用工具调用功能（on/off，覆盖配置文件）")
+	flag.StringVar(&f.toolCallEnabled, "toolcall-disabled", "", "禁用工具调用功能（覆盖配置文件）")
 
 	// Timeout parameters
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
