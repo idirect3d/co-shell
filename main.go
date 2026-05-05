@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.5.0-RC3"
-const build = "160"
+const build = "161"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -69,12 +69,12 @@ type cliFlags struct {
 	imagePaths    string // comma-separated image file paths for multimodal input
 
 	// LLM behavior parameters
-	temperature     float64
-	maxTokens       int
+	temperature       float64
+	maxTokens         int
 	topP              float64
 	topK              int
 	repetitionPenalty float64
-	showLlmThinking string // "on"/"off"
+	showLlmThinking   string // "on"/"off"
 
 	showLlmContent    string // "on"/"off"
 	showTool          string // "on"/"off"
