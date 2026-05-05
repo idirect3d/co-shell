@@ -659,6 +659,9 @@ const (
 	KeyCLIHelpEmojiEnabled  = "cli_help_emoji_enabled"
 	KeyCLIHelpEmojiDisabled = "cli_help_emoji_disabled"
 
+	// Show logo
+	KeyCLIHelpShowLogo = "cli_help_show_logo"
+
 	// Init capabilities/rules
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
