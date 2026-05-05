@@ -804,6 +804,34 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Reasoning effort set to %s", effort)
 		return fmt.Sprintf("✅ 推理努力程度已设置为: %s", effort), nil
 
+	case "toolcall-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ToolCallEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("工具调用: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ToolCallEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ToolCallEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set toolcall-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync to agent immediately
+		h.agent.SetToolCallEnabled(h.cfg.LLM.ToolCallEnabled)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ToolCallEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("ToolCall enabled set to %s", status)
+		return fmt.Sprintf("✅ 工具调用已设置为: %s", status), nil
+
 	case "show-logo":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
@@ -960,6 +988,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.ThinkingEnabled {
 		thinkingEnabledStatus = i18n.T(i18n.KeyOn)
 	}
+	toolCallEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ToolCallEnabled {
+		toolCallEnabledStatus = i18n.T(i18n.KeyOn)
+	}
 
 	maxIterStr := fmt.Sprintf("%d", cfg.LLM.MaxIterations)
 	if cfg.LLM.MaxIterations <= 0 {
@@ -1023,6 +1055,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
 		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
 		makeLine("reasoning-effort", cfg.LLM.ReasoningEffort, i18n.T(i18n.KeyCol3ReasoningEffort)),
+		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
 		makeLine("api-key", maskKey(cfg.LLM.APIKey), i18n.T(i18n.KeyCol3APIKey)),
 	)
 
@@ -1104,7 +1137,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Model Parameters
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(11)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(12)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)

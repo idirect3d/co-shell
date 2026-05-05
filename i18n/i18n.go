@@ -612,6 +612,7 @@ const (
 	// Thinking enabled
 	KeyCol3ThinkingEnabled = "col3_thinking_enabled"
 	KeyCol3ReasoningEffort = "col3_reasoning_effort"
+	KeyCol3ToolCallEnabled = "col3_tool_call_enabled"
 
 	// Settings group titles
 	KeySettingsGroupIdentity    = "settings_group_identity"

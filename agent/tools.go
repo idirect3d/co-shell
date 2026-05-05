@@ -40,6 +40,11 @@ import (
 
 // buildTools constructs the list of available tools for the LLM.
 func (a *Agent) buildTools() []llm.Tool {
+	// If tool calling is disabled, return empty tools list
+	if !a.toolCallEnabled {
+		return []llm.Tool{}
+	}
+
 	sh := shellName()
 	tools := []llm.Tool{
 		{
