@@ -513,9 +513,16 @@ func (r *REPL) streamCallback(eventType string, content string) {
 	}
 }
 
-// printWelcome displays the welcome message in a compact format
-// similar to traditional Unix tools (e.g., zip, tar).
+// printWelcome displays the welcome message with optional ASCII art logo.
 func (r *REPL) printWelcome() {
+	// Show ASCII art logo if enabled
+	if r.cfg.LLM.ShowLogo {
+		logoData, err := os.ReadFile("repl/logo.md")
+		if err == nil {
+			fmt.Println(string(logoData))
+		}
+	}
+
 	visionIndicator := ""
 	if r.cfg.LLM.VisionSupport {
 		visionIndicator = " 👀"

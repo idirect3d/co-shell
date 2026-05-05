@@ -176,6 +176,10 @@ type LLMConfig struct {
 	// tool call input/output with ⚙️</⚙️>, command input/output with 🔴</🔴>.
 	// Default: true
 	EmojiEnabled bool `json:"emoji_enabled"`
+
+	// ShowLogo: whether to display the ASCII art logo on startup.
+	// Default: true
+	ShowLogo bool `json:"show_logo"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -294,6 +298,7 @@ func DefaultConfig() *Config {
 			ThinkingEnabled:           false,
 			ReasoningEffort:           "low",
 			EmojiEnabled:              true,
+			ShowLogo:                  true,
 		},
 
 		MCP: MCPConfig{
