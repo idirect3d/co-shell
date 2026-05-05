@@ -28,6 +28,7 @@ package repl
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,6 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/wizard"
 )
+
+//go:embed logo.md
+var logoData string
 
 // commandPattern matches inputs that look like system commands.
 
@@ -513,8 +517,7 @@ func (r *REPL) streamCallback(eventType string, content string) {
 	}
 }
 
-// printWelcome displays the welcome message in a compact format
-// similar to traditional Unix tools (e.g., zip, tar).
+// printWelcome displays the welcome message with optional ASCII art logo.
 func (r *REPL) printWelcome() {
 	visionIndicator := ""
 	if r.cfg.LLM.VisionSupport {
@@ -523,7 +526,11 @@ func (r *REPL) printWelcome() {
 	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", r.version, r.build, visionIndicator)
 
 	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
-	fmt.Println()
+
+	// Show ASCII art logo if enabled (embedded via //go:embed)
+	if r.cfg.LLM.ShowLogo {
+		fmt.Println(logoData)
+	}
 }
 
 // printHelp displays the help information.
