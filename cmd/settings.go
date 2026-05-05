@@ -804,6 +804,32 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Reasoning effort set to %s", effort)
 		return fmt.Sprintf("✅ 推理努力程度已设置为: %s", effort), nil
 
+	case "show-logo":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShowLogo {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("启动 Logo 显示: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowLogo = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowLogo = false
+		default:
+			return "", fmt.Errorf("usage: .set show-logo on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowLogo {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show logo set to %s", status)
+		return fmt.Sprintf("✅ 启动 Logo 显示已设置为: %s", status), nil
+
 	case "emoji-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

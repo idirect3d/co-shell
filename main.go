@@ -120,6 +120,9 @@ type cliFlags struct {
 	// Emoji enabled
 	emojiEnabled string // "on"/"off"
 
+	// Show logo on startup
+	showLogo string // "on"/"off"
+
 	// External config file generation
 	initCapabilities bool
 	initRules        bool
@@ -206,6 +209,9 @@ func parseFlags() cliFlags {
 
 	// Emoji enabled
 	flag.StringVar(&f.emojiEnabled, "emoji-enabled", "", "启用表情符号前缀（on/off，覆盖配置文件）")
+
+	// Show logo on startup
+	flag.StringVar(&f.showLogo, "show-logo", "", "显示启动 Logo（on/off，覆盖配置文件）")
 
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
@@ -535,6 +541,21 @@ func main() {
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: invalid --emoji-enabled value %q, use on|off\n", flags.emojiEnabled)
 		}
+	}
+
+	// Apply show-logo CLI override
+	if flags.showLogo != "" {
+		switch flags.showLogo {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowLogo = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowLogo = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --show-logo value %q, use on|off\n", flags.showLogo)
+		}
+	} else if flags.command != "" {
+		// In single command mode, hide logo by default unless explicitly enabled
+		cfg.LLM.ShowLogo = false
 	}
 
 	// Apply error tracking config CLI overrides
