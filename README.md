@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00151-blue)]()
+[![Build](https://img.shields.io/badge/Build-00161-blue)]()
 
 [![中文](https://img.shields.io/badge/README-中文-blue)](docs/zh-CN/README.md)
 
@@ -67,25 +67,25 @@ Download the zip archive for your platform from the [Releases](https://github.co
 
 | OS | Architecture | Download |
 |---|---|---|
-| macOS | Intel | [co-shell-v0.4.0-RC2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-amd64.zip) |
-| macOS | Apple Silicon | [co-shell-v0.4.0-RC2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-arm64.zip) |
-| Linux | x86_64 | [co-shell-v0.4.0-RC2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-linux-amd64.zip) |
-| Linux | ARM64 | [co-shell-v0.4.0-RC2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-linux-arm64.zip) |
-| Windows | x86_64 | [co-shell-v0.4.0-RC2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-amd64.zip) |
-| Windows | ARM64 | [co-shell-v0.4.0-RC2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-arm64.zip) |
-| 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/md2docx.py) — Markdown 转 Word 文档转换器 |
+| macOS | Intel | [co-shell-v0.5.0-RC3-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-v0.5.0-RC3-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-v0.5.0-RC3-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-v0.5.0-RC3-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-v0.5.0-RC3-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-v0.5.0-RC3-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-windows-arm64.zip) |
+| 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/md2docx.py) — Markdown 转 Word 文档转换器 |
 
 **macOS / Linux:**
 ```bash
 # curl
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-arm64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-darwin-arm64.zip
 unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
 
 # or wget
-wget https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-arm64.zip
-unzip co-shell-v0.4.0-RC2-darwin-arm64.zip && rm co-shell-v0.4.0-RC2-darwin-arm64.zip
+wget https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-darwin-arm64.zip
+unzip co-shell-v0.5.0-RC3-darwin-arm64.zip && rm co-shell-v0.5.0-RC3-darwin-arm64.zip
 chmod +x co-shell
 ./co-shell
 ```
@@ -93,7 +93,7 @@ chmod +x co-shell
 **Windows (PowerShell):**
 ```powershell
 # PowerShell
-Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-amd64.zip -OutFile co-shell.zip
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-windows-amd64.zip -OutFile co-shell.zip
 Expand-Archive -Path co-shell.zip -DestinationPath .
 .\co-shell.exe
 ```
@@ -101,7 +101,7 @@ Expand-Archive -Path co-shell.zip -DestinationPath .
 **Windows (CMD):**
 ```cmd
 :: CMD
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-amd64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-RC3/co-shell-v0.5.0-RC3-windows-amd64.zip
 tar -xf co-shell.zip
 del co-shell.zip
 co-shell.exe
@@ -303,7 +303,26 @@ An in-depth research report on China's first domestically developed jet airliner
 
 ## Version History
 
-### v0.4.0 — RC2 (Current)
+### v0.5.0 — RC3 (Current)
+
+> **BUILD**: 00161 | **Release Date**: 2026-05-06
+
+Release Candidate 3 — feature complete, stable and usable.
+
+**版本亮点**: 采样参数精细控制（Top-P/Top-K/重复惩罚）、工具调用自动检测与配置、模型最大上下文长度自动检测、飞书即时通讯集成、记忆删除功能、ASCII Logo 显示、sub-agent 名称化调用。
+
+**Implemented Features:**
+
+- **Sampling parameters** — Top-P, Top-K, repetition penalty support via CLI (`--top-p`, `--top-k`, `--repetition-penalty`), `.set` command, and config.json. Temperature changed to pointer type to support -1 (don't send)
+- **Tool call auto-detection** — automatic detection of model's function calling capability during setup, configurable via `.set toolcall-enabled`, `--toolcall-enabled`
+- **Max model length auto-detection** — automatic detection of model's `max_model_len` during setup, displayed in `.set` and config
+- **Feishu (飞书) integration** — connect co-shell via Feishu bot for instant messaging interaction, with WebSocket ACK and Ping/Pong heartbeat
+- **Memory deletion** — `.memory delete` command and LLM tool to delete memory by range (last_from/last_to)
+- **Sub-agent name-based invocation** — `launch_sub_agent` tool uses `sub_agent_name` string parameter, calls existing agent workspaces only
+- **ASCII Logo display** — co-shell character logo on startup, configurable via `.set show-logo` and `--show-logo`
+- **Wizard enhancement** — Ollama support, model list with number selection, final confirmation before testing
+
+### v0.4.0 — RC2
 
 > **BUILD**: 00151 | **Release Date**: 2026-05-04
 
