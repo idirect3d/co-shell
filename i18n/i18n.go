@@ -671,4 +671,7 @@ const (
 	// Init capabilities/rules
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
+
+	// Unknown (fallback display)
+	KeyUnknown = "unknown"
 )

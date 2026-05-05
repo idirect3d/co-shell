@@ -1062,6 +1062,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	)
 
 	// Group 2: Model Parameters
+	maxModelLenStr := fmt.Sprintf("%d", cfg.LLM.MaxModelLen)
+	if cfg.LLM.MaxModelLen == 0 {
+		maxModelLenStr = i18n.T(i18n.KeyUnknown)
+	}
 	allLines = append(allLines,
 		makeLine("provider", cfg.LLM.Provider, i18n.T(i18n.KeyCol3Provider)),
 		makeLine("endpoint", cfg.LLM.Endpoint, i18n.T(i18n.KeyCol3Endpoint)),
@@ -1074,6 +1078,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
 		makeLine("reasoning-effort", cfg.LLM.ReasoningEffort, i18n.T(i18n.KeyCol3ReasoningEffort)),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
+		makeLine("max-model-len", maxModelLenStr, i18n.T(i18n.KeyCol3MaxModelLen)),
 		makeLine("api-key", maskKey(cfg.LLM.APIKey), i18n.T(i18n.KeyCol3APIKey)),
 	)
 
@@ -1155,7 +1160,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Model Parameters
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(12)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(13)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
