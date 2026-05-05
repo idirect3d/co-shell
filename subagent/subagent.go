@@ -139,20 +139,9 @@ func (m *Manager) LaunchSubAgent(ctx context.Context, cfg SubAgentConfig) (*SubA
 		return nil, fmt.Errorf("cannot create sub-agent workspace %q: %w", cfg.Workspace, err)
 	}
 
-	// Build command: co-shell -w <workspace> -c <config_path> [--image <paths>] -- <instruction>
-	// Instruction is passed as a non-flag argument (after --) to avoid conflict with -c flag.
+	// Build command: co-shell -w <workspace> [--confirm-command off] -- <instruction>
 	args := []string{
 		"-w", cfg.Workspace,
-	}
-
-	// If parent has a config path, pass it via -c/--config
-	if configPath := os.Getenv("CO_SHELL_CONFIG_PATH"); configPath != "" {
-		args = append(args, "-c", configPath)
-	}
-
-	// Pass image paths for multimodal input if provided
-	if len(cfg.ImagePaths) > 0 {
-		args = append(args, "--image", strings.Join(cfg.ImagePaths, ","))
 	}
 
 	// If confirm-command is off (parent approved all), pass it to sub-agent
