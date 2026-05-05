@@ -553,6 +553,9 @@ func main() {
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: invalid --show-logo value %q, use on|off\n", flags.showLogo)
 		}
+	} else if flags.command != "" {
+		// In single command mode, hide logo by default unless explicitly enabled
+		cfg.LLM.ShowLogo = false
 	}
 
 	// Apply error tracking config CLI overrides
