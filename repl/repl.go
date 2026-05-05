@@ -519,11 +519,6 @@ func (r *REPL) streamCallback(eventType string, content string) {
 
 // printWelcome displays the welcome message with optional ASCII art logo.
 func (r *REPL) printWelcome() {
-	// Show ASCII art logo if enabled (embedded via //go:embed)
-	if r.cfg.LLM.ShowLogo {
-		fmt.Println(logoData)
-	}
-
 	visionIndicator := ""
 	if r.cfg.LLM.VisionSupport {
 		visionIndicator = " 👀"
@@ -531,7 +526,11 @@ func (r *REPL) printWelcome() {
 	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", r.version, r.build, visionIndicator)
 
 	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
-	fmt.Println()
+
+	// Show ASCII art logo if enabled (embedded via //go:embed)
+	if r.cfg.LLM.ShowLogo {
+		fmt.Println(logoData)
+	}
 }
 
 // printHelp displays the help information.
