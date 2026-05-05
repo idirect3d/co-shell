@@ -121,6 +121,7 @@ func RunSetupWizard(cfg *config.Config) bool {
 		}
 		cfg.LLM.Model = *model
 		cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
+		cfg.LLM.ToolCallEnabled = getModelToolCallSupport(cfg, *model)
 		cfg.LLM.APIKey = apiKey
 		break
 	}
@@ -208,6 +209,8 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 				return false
 			}
 			cfg.LLM.Model = *model
+			cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
+			cfg.LLM.ToolCallEnabled = getModelToolCallSupport(cfg, *model)
 		} else {
 			defaultModel := models[0]
 			model := selectModel(models, defaultModel)
@@ -217,6 +220,7 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 			}
 			cfg.LLM.Model = *model
 			cfg.LLM.VisionSupport = getModelVisionSupport(cfg, *model)
+			cfg.LLM.ToolCallEnabled = getModelToolCallSupport(cfg, *model)
 		}
 		break
 	}
@@ -353,4 +357,33 @@ func getModelVisionSupport(cfg *config.Config, modelID string) bool {
 		fmt.Println(" ❌ 不支持视觉识别。")
 	}
 	return supportsVision
+}
+
+// getModelToolCallSupport checks if a model supports tool/function calling.
+// Performs a live test by sending a minimal request with a tool definition.
+// Returns true if the model accepts the tools parameter without error.
+func getModelToolCallSupport(cfg *config.Config, modelID string) bool {
+	fmt.Println()
+	fmt.Print("🔄 正在检测模型是否支持工具调用...")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Create a temporary client with the current config for testing
+	client := llm.NewClient(
+		cfg.LLM.Endpoint,
+		cfg.LLM.APIKey,
+		modelID,
+		cfg.LLM.Temperature,
+		cfg.LLM.MaxTokens,
+		15, // 15s timeout for test
+	)
+	defer client.Close()
+
+	supportsToolCall := client.TestToolCallSupport(ctx)
+	if supportsToolCall {
+		fmt.Println(" ✅ 支持工具调用！")
+	} else {
+		fmt.Println(" ❌ 不支持工具调用，已自动关闭工具调用开关。")
+	}
+	return supportsToolCall
 }

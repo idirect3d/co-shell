@@ -431,12 +431,15 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpSubAgentEnabled:  "      --subagent-enabled    启用子代理功能（覆盖配置文件）",
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   禁用子代理功能（覆盖配置文件）",
 
+	// ToolCall enabled
+	KeyCLIHelpToolCallEnabled: "      --toolcall-enabled   启用工具调用功能（覆盖配置文件）",
+
 	// Config show column 3 labels
 	KeyCol3Provider:     "提供商(deepseek/qwen/xiaomi/zhipu/openai)",
 	KeyCol3Endpoint:     "API服务器",
 	KeyCol3Model:        "模型ID",
 	KeyCol3Temperature:  "温度(0.0 ~ 2.0)",
-	KeyCol3MaxTokens:    "最大输出令牌数(1 ~ N（不限制）)",
+	KeyCol3MaxTokens:    "最大输出令牌数(-1[不发送] ~ N)",
 	KeyCol3MaxIter:      "最大迭代次数(-1 ~ N)",
 	KeyCol3MaxRetries:   "LLM 重试次数(0 ~ N)",
 	KeyCol3Thinking:     "显示思考过程(on|off)",
