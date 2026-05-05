@@ -289,6 +289,12 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount)
 	case "emoji-enabled":
 		return boolToString(cfg.LLM.EmojiEnabled)
+	case "top-p":
+		return fmt.Sprintf("%.1f", cfg.LLM.TopP)
+	case "top-k":
+		return fmt.Sprintf("%d", cfg.LLM.TopK)
+	case "repetition-penalty":
+		return fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty)
 	default:
 		return "(unknown)"
 	}
@@ -353,6 +359,51 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		a.rebuildLLMClient()
 		log.Info("Max tokens set via LLM tool: %d", tokens)
+
+	case "top-p":
+		val, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("invalid top-p value: %s", value)
+		}
+		if val < 0 || val > 1 {
+			return fmt.Errorf("top-p must be between 0.0 and 1.0, or -1 to disable")
+		}
+		cfg.LLM.TopP = val
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		a.rebuildLLMClient()
+		log.Info("Top-P set via LLM tool: %.1f", val)
+
+	case "top-k":
+		val, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid top-k value: %s", value)
+		}
+		if val < 1 && val != -1 {
+			return fmt.Errorf("top-k must be >= 1, or -1 to disable")
+		}
+		cfg.LLM.TopK = val
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		a.rebuildLLMClient()
+		log.Info("Top-K set via LLM tool: %d", val)
+
+	case "repetition-penalty":
+		val, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("invalid repetition-penalty value: %s", value)
+		}
+		if val < 0 || val > 2 {
+			return fmt.Errorf("repetition-penalty must be between 0.0 and 2.0, or -1 to disable")
+		}
+		cfg.LLM.RepetitionPenalty = val
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		a.rebuildLLMClient()
+		log.Info("Repetition penalty set via LLM tool: %.1f", val)
 
 	case "max-iterations":
 		n, err := strconv.Atoi(value)
@@ -789,6 +840,9 @@ func (a *Agent) rebuildLLMClient() {
 	)
 	client.SetThinkingEnabled(a.cfg.LLM.ThinkingEnabled)
 	client.SetReasoningEffort(a.cfg.LLM.ReasoningEffort)
+	client.SetTopP(a.cfg.LLM.TopP)
+	client.SetTopK(a.cfg.LLM.TopK)
+	client.SetRepetitionPenalty(a.cfg.LLM.RepetitionPenalty)
 	a.SetLLMClient(client)
 	log.Info("LLM client rebuilt and replaced in agent")
 }
@@ -873,6 +927,9 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 	}
 	sb.WriteString(formatLine("thinking-enabled", thinkingStr, "on/off, 1/0, true/false, yes/no", "是否启用模型的思考（推理）能力"))
 	sb.WriteString(formatLine("reasoning-effort", cfg.LLM.ReasoningEffort, "low / medium / high", "模型推理的深度级别"))
+	sb.WriteString(formatLine("top-p", fmt.Sprintf("%.1f", cfg.LLM.TopP), "0.0 ~ 1.0（浮点数），-1 不发送", "Top-P 采样参数，控制采样范围"))
+	sb.WriteString(formatLine("top-k", fmt.Sprintf("%d", cfg.LLM.TopK), ">= 1 的整数，-1 不发送", "Top-K 采样参数，限制候选 token 数量"))
+	sb.WriteString(formatLine("repetition-penalty", fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty), "0.0 ~ 2.0（浮点数），-1 不发送", "重复惩罚参数，抑制重复内容生成"))
 
 	// Group 3: Display & Output
 	sb.WriteString("━━━ [ 显示与输出 ] ━━━\n\n")

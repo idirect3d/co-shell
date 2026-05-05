@@ -49,8 +49,9 @@ func NewSettingsHandler(cfg *config.Config, ag *agent.Agent) *SettingsHandler {
 }
 
 // rebuildLLMClient creates a new LLM client from current config and replaces it in the agent.
-// This is called when LLM-related settings (api-key, endpoint, model, temperature, max-tokens, vision)
-// are changed at runtime so the changes take effect immediately without restart.
+// This is called when LLM-related settings (api-key, endpoint, model, temperature, max-tokens, vision,
+// top-p, top-k, repetition-penalty) are changed at runtime so the changes take effect immediately
+// without restart.
 func (h *SettingsHandler) rebuildLLMClient() {
 	client := llm.NewClient(
 		h.cfg.LLM.Endpoint,
@@ -59,6 +60,12 @@ func (h *SettingsHandler) rebuildLLMClient() {
 		h.cfg.LLM.Temperature,
 		h.cfg.LLM.MaxTokens,
 	)
+	// Apply additional sampling parameters
+	client.SetTopP(h.cfg.LLM.TopP)
+	client.SetTopK(h.cfg.LLM.TopK)
+	client.SetRepetitionPenalty(h.cfg.LLM.RepetitionPenalty)
+	client.SetThinkingEnabled(h.cfg.LLM.ThinkingEnabled)
+	client.SetReasoningEffort(h.cfg.LLM.ReasoningEffort)
 	h.agent.SetLLMClient(client)
 	log.Info("LLM client rebuilt and replaced in agent")
 }
@@ -832,6 +839,66 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("ToolCall enabled set to %s", status)
 		return fmt.Sprintf("✅ 工具调用已设置为: %s", status), nil
 
+	case "top-p":
+		if len(args) < 2 {
+			return fmt.Sprintf("Top-P 采样参数: %.1f", h.cfg.LLM.TopP), nil
+		}
+		val, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的 Top-P 值: %s", args[1])
+		}
+		if val < -1 || val > 1 {
+			return "", fmt.Errorf("Top-P 必须在 -1.0 ~ 1.0 之间（-1 表示不发送）")
+		}
+		h.cfg.LLM.TopP = val
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Rebuild LLM client to apply new top-p immediately
+		h.rebuildLLMClient()
+		log.Info("Top-P set to %.1f", val)
+		return fmt.Sprintf("✅ Top-P 采样参数已设置为: %.1f", val), nil
+
+	case "top-k":
+		if len(args) < 2 {
+			return fmt.Sprintf("Top-K 采样参数: %d", h.cfg.LLM.TopK), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的 Top-K 值: %s", args[1])
+		}
+		if n < -1 {
+			return "", fmt.Errorf("Top-K 必须 >= -1（-1 表示不发送）")
+		}
+		h.cfg.LLM.TopK = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Rebuild LLM client to apply new top-k immediately
+		h.rebuildLLMClient()
+		log.Info("Top-K set to %d", n)
+		return fmt.Sprintf("✅ Top-K 采样参数已设置为: %d", n), nil
+
+	case "repetition-penalty":
+		if len(args) < 2 {
+			return fmt.Sprintf("重复惩罚参数: %.1f", h.cfg.LLM.RepetitionPenalty), nil
+		}
+		val, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的重复惩罚值: %s", args[1])
+		}
+		if val < -1 || val > 2 {
+			return "", fmt.Errorf("重复惩罚参数必须在 -1.0 ~ 2.0 之间（-1 表示不发送）")
+		}
+		h.cfg.LLM.RepetitionPenalty = val
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Rebuild LLM client to apply new repetition penalty immediately
+		h.rebuildLLMClient()
+		log.Info("Repetition penalty set to %.1f", val)
+		return fmt.Sprintf("✅ 重复惩罚参数已设置为: %.1f", val), nil
+
 	case "max-model-len":
 		if len(args) < 2 {
 			return fmt.Sprintf("模型最大上下文长度: %d", h.cfg.LLM.MaxModelLen), nil
@@ -1079,6 +1146,9 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("reasoning-effort", cfg.LLM.ReasoningEffort, i18n.T(i18n.KeyCol3ReasoningEffort)),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
 		makeLine("max-model-len", maxModelLenStr, i18n.T(i18n.KeyCol3MaxModelLen)),
+		makeLine("top-p", fmt.Sprintf("%.1f", cfg.LLM.TopP), i18n.T(i18n.KeyCol3TopP)),
+		makeLine("top-k", fmt.Sprintf("%d", cfg.LLM.TopK), i18n.T(i18n.KeyCol3TopK)),
+		makeLine("repetition-penalty", fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty), i18n.T(i18n.KeyCol3RepetitionPenalty)),
 		makeLine("api-key", maskKey(cfg.LLM.APIKey), i18n.T(i18n.KeyCol3APIKey)),
 	)
 
@@ -1160,7 +1230,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Model Parameters
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(13)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(16)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)

@@ -311,6 +311,9 @@ var zhMessages = map[string]string{
 	KeyCLIHelpToolTimeout: "      --tool-timeout <s>  工具调用超时秒数（0=不限，覆盖配置文件）",
 	KeyCLIHelpCmdTimeout:  "      --cmd-timeout <s>   系统命令执行超时秒数（0=不限，覆盖配置文件）",
 	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API 请求超时秒数（0=不限，覆盖配置文件）",
+	KeyCLIHelpTopP:              "  --top-p <value>               Top-P 采样参数（0.0 ~ 1.0，-1 不发送，覆盖配置文件）\n",
+	KeyCLIHelpTopK:              "  --top-k <value>               Top-K 采样参数（>= 1 的整数，-1 不发送，覆盖配置文件）\n",
+	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  重复惩罚参数（0.0 ~ 2.0，-1 不发送，覆盖配置文件）\n",
 
 	"col3_search_max_line_length":           "搜索单行最大字符数",
 	"col3_search_max_result_bytes":          "搜索结果最大字节数",
@@ -397,6 +400,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescName:         "设置 Agent 名称",
 	KeySettingsDescDescription:  "设置 Agent 描述/专长",
 	KeySettingsDescPrinciples:   "设置 Agent 核心原则",
+	KeySettingsDescTopP:              "Top-P 采样参数（0.0 ~ 1.0，-1 不发送）",
+	KeySettingsDescTopK:              "Top-K 采样参数（>= 1 的整数，-1 不发送）",
+	KeySettingsDescRepetitionPenalty: "重复惩罚参数（0.0 ~ 2.0，-1 不发送）",
 	KeySettingsDescToolTimeout:  "工具调用超时（0=不限）",
 	KeySettingsDescCmdTimeout:   "命令执行超时（0=不限）",
 	KeySettingsDescLLMTimeout:   "LLM 请求超时（0=不限）",
@@ -575,6 +581,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3ReasoningEffort: "推理努力程度(low/medium/high)",
 	KeyCol3ToolCallEnabled: "工具调用(on|off)",
 	KeyCol3MaxModelLen:     "模型最大上下文长度(tokens)",
+	KeyCol3TopP:              "Top-P 采样参数",
+	KeyCol3TopK:              "Top-K 采样参数",
+	KeyCol3RepetitionPenalty: "重复惩罚参数",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ 身份与个性 ]",

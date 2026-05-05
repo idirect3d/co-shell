@@ -157,6 +157,15 @@ type Client interface {
 	// Valid values: "low", "medium", "high" (model-dependent).
 	SetReasoningEffort(effort string)
 
+	// SetTopP sets the top-p sampling parameter (-1 = don't send).
+	SetTopP(topP float64)
+
+	// SetTopK sets the top-k sampling parameter (-1 = don't send).
+	SetTopK(topK int)
+
+	// SetRepetitionPenalty sets the repetition penalty parameter (-1 = don't send).
+	SetRepetitionPenalty(penalty float64)
+
 	// Close cleans up any resources.
 	Close() error
 }
@@ -230,14 +239,17 @@ type functionDefinitionJSON struct {
 
 // chatRequestJSON is the JSON structure for the chat completion request.
 type chatRequestJSON struct {
-	Model           string            `json:"model"`
-	Messages        []chatMessageJSON `json:"messages"`
-	Temperature     float32           `json:"temperature,omitempty"`
-	MaxTokens       int               `json:"max_tokens,omitempty"`
-	Tools           []toolJSON        `json:"tools,omitempty"`
-	Stream          bool              `json:"stream,omitempty"`
-	Thinking        *thinkingConfig   `json:"thinking,omitempty"`
-	ReasoningEffort string            `json:"reasoning_effort,omitempty"`
+	Model             string            `json:"model"`
+	Messages          []chatMessageJSON `json:"messages"`
+	Temperature       *float32          `json:"temperature,omitempty"`
+	MaxTokens         int               `json:"max_tokens,omitempty"`
+	TopP              float32           `json:"top_p,omitempty"`
+	TopK              int               `json:"top_k,omitempty"`
+	RepetitionPenalty float32           `json:"repetition_penalty,omitempty"`
+	Tools             []toolJSON        `json:"tools,omitempty"`
+	Stream            bool              `json:"stream,omitempty"`
+	Thinking          *thinkingConfig   `json:"thinking,omitempty"`
+	ReasoningEffort   string            `json:"reasoning_effort,omitempty"`
 }
 
 // thinkingConfig represents the DeepSeek thinking mode configuration.
@@ -313,15 +325,18 @@ type responseErrorJSON struct {
 
 // openAIClient implements Client using the OpenAI-compatible API.
 type openAIClient struct {
-	httpClient      *http.Client
-	streamClient    *http.Client // separate client for streaming (no timeout, relies on context)
-	baseURL         string
-	apiKey          string
-	model           string
-	temperature     float64
-	maxTokens       int
-	thinkingEnabled bool   // whether to enable thinking/reasoning mode in API requests
-	reasoningEffort string // reasoning effort level: "low", "medium", "high"
+	httpClient        *http.Client
+	streamClient      *http.Client // separate client for streaming (no timeout, relies on context)
+	baseURL           string
+	apiKey            string
+	model             string
+	temperature       float64
+	maxTokens         int
+	topP              float64 // top-p sampling (-1 = don't send)
+	topK              int     // top-k sampling (-1 = don't send)
+	repetitionPenalty float64 // repetition penalty (-1 = don't send)
+	thinkingEnabled   bool    // whether to enable thinking/reasoning mode in API requests
+	reasoningEffort   string  // reasoning effort level: "low", "medium", "high"
 }
 
 // NewClient creates a new LLM client from configuration.
@@ -493,14 +508,34 @@ func isThinkingModel(model string) bool {
 func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Tool) (*LLMResponse, error) {
 	// Build request body
 	reqBody := chatRequestJSON{
-		Model:       c.model,
-		Messages:    buildMessages(messages),
-		Temperature: float32(c.temperature),
+		Model:    c.model,
+		Messages: buildMessages(messages),
+	}
+
+	// Only set temperature if configured (-1 means don't send)
+	if c.temperature >= 0 {
+		temp := float32(c.temperature)
+		reqBody.Temperature = &temp
 	}
 
 	// Only set max_tokens if a positive value is configured (-1 means don't send)
 	if c.maxTokens >= 0 {
 		reqBody.MaxTokens = c.maxTokens
+	}
+
+	// Set top_p if configured (-1 means don't send)
+	if c.topP >= 0 {
+		reqBody.TopP = float32(c.topP)
+	}
+
+	// Set top_k if configured (-1 means don't send)
+	if c.topK >= 0 {
+		reqBody.TopK = c.topK
+	}
+
+	// Set repetition_penalty if configured (-1 means don't send)
+	if c.repetitionPenalty >= 0 {
+		reqBody.RepetitionPenalty = float32(c.repetitionPenalty)
 	}
 
 	// Add tools if present
@@ -512,8 +547,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	if c.thinkingEnabled && isThinkingModel(c.model) {
 		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
 		reqBody.ReasoningEffort = c.reasoningEffort
-		// Thinking mode doesn't support temperature
-		reqBody.Temperature = 0
+		// Thinking mode doesn't support temperature, don't send it
+		reqBody.Temperature = nil
 	}
 
 	// Serialize request
@@ -606,15 +641,35 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools []Tool) (<-chan StreamEvent, error) {
 	// Build request body
 	reqBody := chatRequestJSON{
-		Model:       c.model,
-		Messages:    buildMessages(messages),
-		Temperature: float32(c.temperature),
-		Stream:      true,
+		Model:    c.model,
+		Messages: buildMessages(messages),
+		Stream:   true,
+	}
+
+	// Only set temperature if configured (-1 means don't send)
+	if c.temperature >= 0 {
+		temp := float32(c.temperature)
+		reqBody.Temperature = &temp
 	}
 
 	// Only set max_tokens if a positive value is configured (-1 means don't send)
 	if c.maxTokens >= 0 {
 		reqBody.MaxTokens = c.maxTokens
+	}
+
+	// Set top_p if configured (-1 means don't send)
+	if c.topP >= 0 {
+		reqBody.TopP = float32(c.topP)
+	}
+
+	// Set top_k if configured (-1 means don't send)
+	if c.topK >= 0 {
+		reqBody.TopK = c.topK
+	}
+
+	// Set repetition_penalty if configured (-1 means don't send)
+	if c.repetitionPenalty >= 0 {
+		reqBody.RepetitionPenalty = float32(c.repetitionPenalty)
 	}
 
 	// Add tools if present
@@ -626,7 +681,8 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	if c.thinkingEnabled && isThinkingModel(c.model) {
 		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
 		reqBody.ReasoningEffort = c.reasoningEffort
-		reqBody.Temperature = 0
+		// Thinking mode doesn't support temperature, don't send it
+		reqBody.Temperature = nil
 	}
 
 	// Serialize request
@@ -1091,6 +1147,18 @@ func (c *openAIClient) SetThinkingEnabled(enabled bool) {
 
 func (c *openAIClient) SetReasoningEffort(effort string) {
 	c.reasoningEffort = effort
+}
+
+func (c *openAIClient) SetTopP(topP float64) {
+	c.topP = topP
+}
+
+func (c *openAIClient) SetTopK(topK int) {
+	c.topK = topK
+}
+
+func (c *openAIClient) SetRepetitionPenalty(penalty float64) {
+	c.repetitionPenalty = penalty
 }
 
 func (c *openAIClient) Close() error {

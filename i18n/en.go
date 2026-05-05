@@ -321,6 +321,9 @@ var enMessages = map[string]string{
 	KeyCLIHelpToolTimeout: "      --tool-timeout <s>  Tool call timeout in seconds (0=unlimited, overrides config)",
 	KeyCLIHelpCmdTimeout:  "      --cmd-timeout <s>   System command timeout in seconds (0=unlimited, overrides config)",
 	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API request timeout in seconds (0=unlimited, overrides config)",
+	KeyCLIHelpTopP:              "  --top-p <value>               Top-P sampling (0.0 ~ 1.0, -1 = don't send, overrides config)\n",
+	KeyCLIHelpTopK:              "  --top-k <value>               Top-K sampling (>= 1 integer, -1 = don't send, overrides config)\n",
+	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  Repetition penalty (0.0 ~ 2.0, -1 = don't send, overrides config)\n",
 
 	// CLI Help - Output Mode
 
@@ -409,6 +412,9 @@ no liability whatsoever.`,
 	KeySettingsDescName:         "Set agent name",
 	KeySettingsDescDescription:  "Set agent description/expertise",
 	KeySettingsDescPrinciples:   "Set agent core principles",
+	KeySettingsDescTopP:              "Top-P sampling (0.0 ~ 1.0, -1 = don't send)",
+	KeySettingsDescTopK:              "Top-K sampling (>= 1 integer, -1 = don't send)",
+	KeySettingsDescRepetitionPenalty: "Repetition penalty (0.0 ~ 2.0, -1 = don't send)",
 	KeySettingsDescToolTimeout:  "Tool call timeout (0=unlimited)",
 	KeySettingsDescCmdTimeout:   "Command timeout (0=unlimited)",
 	KeySettingsDescLLMTimeout:   "LLM request timeout (0=unlimited)",
@@ -584,6 +590,9 @@ Current Environment:
 	KeyCol3ReasoningEffort: "reasoning effort(low/medium/high)",
 	KeyCol3ToolCallEnabled: "tool calling(on|off)",
 	KeyCol3MaxModelLen:     "max model context length(tokens)",
+	KeyCol3TopP:              "Top-P sampling parameter",
+	KeyCol3TopK:              "Top-K sampling parameter",
+	KeyCol3RepetitionPenalty: "Repetition penalty parameter",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",
