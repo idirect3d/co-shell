@@ -136,6 +136,28 @@ func RunSetupWizard(cfg *config.Config) bool {
 		fmt.Println("成功")
 	}
 
+	// Show final configuration summary
+	fmt.Println()
+	fmt.Println("📋 最终配置摘要：")
+	fmt.Printf("   供应商: %s\n", cfg.LLM.Provider)
+	fmt.Printf("   端点: %s\n", cfg.LLM.Endpoint)
+	fmt.Printf("   模型: %s\n", cfg.LLM.Model)
+	visionStatus := "❌ 不支持"
+	if cfg.LLM.VisionSupport {
+		visionStatus = "✅ 支持"
+	}
+	fmt.Printf("   视觉识别: %s\n", visionStatus)
+	toolCallStatus := "❌ 不支持（已关闭）"
+	if cfg.LLM.ToolCallEnabled {
+		toolCallStatus = "✅ 支持（已开启）"
+	}
+	fmt.Printf("   工具调用: %s\n", toolCallStatus)
+	if cfg.LLM.MaxModelLen > 0 {
+		fmt.Printf("   最大上下文长度: %d tokens\n", cfg.LLM.MaxModelLen)
+	} else {
+		fmt.Printf("   最大上下文长度: 未知\n")
+	}
+
 	// Save configuration
 	if err := cfg.Save(); err != nil {
 		fmt.Printf("⚠️  配置保存失败: %v\n", err)
@@ -235,6 +257,28 @@ func setupOpenAICompatible(cfg *config.Config) bool {
 		fmt.Printf("失败: %v\n", err)
 	} else {
 		fmt.Println("成功")
+	}
+
+	// Show final configuration summary
+	fmt.Println()
+	fmt.Println("📋 最终配置摘要：")
+	fmt.Printf("   供应商: %s\n", cfg.LLM.Provider)
+	fmt.Printf("   端点: %s\n", cfg.LLM.Endpoint)
+	fmt.Printf("   模型: %s\n", cfg.LLM.Model)
+	visionStatus := "❌ 不支持"
+	if cfg.LLM.VisionSupport {
+		visionStatus = "✅ 支持"
+	}
+	fmt.Printf("   视觉识别: %s\n", visionStatus)
+	toolCallStatus := "❌ 不支持（已关闭）"
+	if cfg.LLM.ToolCallEnabled {
+		toolCallStatus = "✅ 支持（已开启）"
+	}
+	fmt.Printf("   工具调用: %s\n", toolCallStatus)
+	if cfg.LLM.MaxModelLen > 0 {
+		fmt.Printf("   最大上下文长度: %d tokens\n", cfg.LLM.MaxModelLen)
+	} else {
+		fmt.Printf("   最大上下文长度: 未知\n")
 	}
 
 	// Save configuration
