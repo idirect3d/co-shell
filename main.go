@@ -71,6 +71,9 @@ type cliFlags struct {
 	// LLM behavior parameters
 	temperature     float64
 	maxTokens       int
+	topP              float64
+	topK              int
+	repetitionPenalty float64
 	showLlmThinking string // "on"/"off"
 
 	showLlmContent    string // "on"/"off"
@@ -160,6 +163,9 @@ func parseFlags() cliFlags {
 	// LLM behavior parameters
 	flag.Float64Var(&f.temperature, "temperature", -1, "温度参数（0.0 ~ 2.0，覆盖配置文件）")
 	flag.IntVar(&f.maxTokens, "max-tokens", -1, "最大输出令牌数（覆盖配置文件）")
+	flag.Float64Var(&f.topP, "top-p", -1, "Top-P 采样参数（0.0 ~ 1.0，-1 不发送，覆盖配置文件）")
+	flag.IntVar(&f.topK, "top-k", -1, "Top-K 采样参数（>= 1 的整数，-1 不发送，覆盖配置文件）")
+	flag.Float64Var(&f.repetitionPenalty, "repetition-penalty", -1, "重复惩罚参数（0.0 ~ 2.0，-1 不发送，覆盖配置文件）")
 	flag.StringVar(&f.showLlmThinking, "show-llm-thinking", "", "显示 LLM 返回的思考内容（on/off，覆盖配置文件）")
 
 	flag.StringVar(&f.showCommand, "show-command", "", "显示执行的系统命令（on/off，覆盖配置文件）")
@@ -371,6 +377,16 @@ func main() {
 	}
 	if flags.maxTokens >= 0 {
 		cfg.LLM.MaxTokens = flags.maxTokens
+	}
+
+	if flags.topP >= 0 {
+		cfg.LLM.TopP = flags.topP
+	}
+	if flags.topK >= 0 {
+		cfg.LLM.TopK = flags.topK
+	}
+	if flags.repetitionPenalty >= 0 {
+		cfg.LLM.RepetitionPenalty = flags.repetitionPenalty
 	}
 	if flags.showLlmThinking != "" {
 		switch flags.showLlmThinking {
@@ -663,6 +679,9 @@ func main() {
 		// Apply thinking/reasoning configuration
 		llmClient.SetThinkingEnabled(cfg.LLM.ThinkingEnabled)
 		llmClient.SetReasoningEffort(cfg.LLM.ReasoningEffort)
+		llmClient.SetTopP(cfg.LLM.TopP)
+		llmClient.SetTopK(cfg.LLM.TopK)
+		llmClient.SetRepetitionPenalty(cfg.LLM.RepetitionPenalty)
 		log.Info("LLM client initialized: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
 			cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout, cfg.LLM.ThinkingEnabled, cfg.LLM.ReasoningEffort)
 	} else {
@@ -922,6 +941,12 @@ func (c *noopClient) TestToolCallSupport(ctx context.Context) bool {
 func (c *noopClient) SetThinkingEnabled(enabled bool) {}
 
 func (c *noopClient) SetReasoningEffort(effort string) {}
+
+func (c *noopClient) SetTopP(topP float64) {}
+
+func (c *noopClient) SetTopK(topK int) {}
+
+func (c *noopClient) SetRepetitionPenalty(penalty float64) {}
 
 func (c *noopClient) Close() error {
 	return nil
