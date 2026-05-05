@@ -567,6 +567,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Thinking enabled
 	KeyCol3ThinkingEnabled: "AI 思考功能(on|off)",
 	KeyCol3ReasoningEffort: "推理努力程度(low/medium/high)",
+	KeyCol3ToolCallEnabled: "工具调用(on|off)",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ 身份与个性 ]",

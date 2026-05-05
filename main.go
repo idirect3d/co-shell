@@ -725,6 +725,9 @@ func main() {
 	// Apply subagent enabled setting
 	ag.SetSubAgentEnabled(cfg.LLM.SubAgentEnabled)
 
+	// Apply tool call enabled setting
+	ag.SetToolCallEnabled(cfg.LLM.ToolCallEnabled)
+
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
 

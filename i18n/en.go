@@ -576,6 +576,7 @@ Current Environment:
 	// Thinking enabled
 	KeyCol3ThinkingEnabled: "AI thinking(on|off)",
 	KeyCol3ReasoningEffort: "reasoning effort(low/medium/high)",
+	KeyCol3ToolCallEnabled: "tool calling(on|off)",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",

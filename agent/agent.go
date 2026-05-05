@@ -152,6 +152,11 @@ func (a *Agent) SetEmojiEnabled(enabled bool) {
 	a.emojiEnabled = enabled
 }
 
+// SetToolCallEnabled sets whether tool calling is enabled.
+func (a *Agent) SetToolCallEnabled(enabled bool) {
+	a.toolCallEnabled = enabled
+}
+
 // MessagePointer returns the current message pointer index.
 // The pointer marks the starting position for sending to LLM.
 // Messages before this index are ignored when building context.
