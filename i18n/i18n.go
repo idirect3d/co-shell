@@ -564,7 +564,8 @@ const (
 	KeyCLIHelpSubAgentDisabled = "cli_help_sub_agent_disabled"
 
 	// ToolCall enabled
-	KeyCLIHelpToolCallEnabled = "cli_help_tool_call_enabled"
+	KeyCLIHelpToolCallEnabled  = "cli_help_tool_call_enabled"
+	KeyCLIHelpToolCallDisabled = "cli_help_tool_call_disabled"
 
 	// Search settings
 	KeyCol3SearchMaxLineLength          = "col3_search_max_line_length"

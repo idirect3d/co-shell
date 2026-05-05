@@ -435,7 +435,8 @@ no liability whatsoever.`,
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   Disable sub-agent tools (overrides config)",
 
 	// ToolCall enabled
-	KeyCLIHelpToolCallEnabled: "      --toolcall-enabled    Enable tool calling (overrides config)",
+	KeyCLIHelpToolCallEnabled:  "      --toolcall-enabled    Enable tool calling (overrides config)",
+	KeyCLIHelpToolCallDisabled: "      --toolcall-disabled   Disable tool calling (overrides config)",
 
 	// Config show column 3 labels
 	KeyCol3Provider:     "provider(deepseek/qwen/xiaomi/zhipu/openai)",
