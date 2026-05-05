@@ -39,6 +39,7 @@ var enMessages = map[string]string{
 	KeySuccess:        "Success",
 	KeyUnlimited:      "Unlimited",
 	KeyDefault:        "Default",
+	KeyUnknown:        "Unknown",
 
 	// Wizard
 	KeyWizardTitle:       "🔧 co-shell API Setup Wizard",
@@ -200,41 +201,42 @@ var enMessages = map[string]string{
 
 	// Config format
 	KeyConfigFormat: `LLM Configuration:
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s`,
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s`,
 
 	// REPL - Additional
 	KeyWelcomeTip: "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.\n   Example: \"List files in current directory\"",
@@ -319,6 +321,9 @@ var enMessages = map[string]string{
 	KeyCLIHelpToolTimeout: "      --tool-timeout <s>  Tool call timeout in seconds (0=unlimited, overrides config)",
 	KeyCLIHelpCmdTimeout:  "      --cmd-timeout <s>   System command timeout in seconds (0=unlimited, overrides config)",
 	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API request timeout in seconds (0=unlimited, overrides config)",
+	KeyCLIHelpTopP:              "  --top-p <value>               Top-P sampling (0.0 ~ 1.0, -1 = don't send, overrides config)\n",
+	KeyCLIHelpTopK:              "  --top-k <value>               Top-K sampling (>= 1 integer, -1 = don't send, overrides config)\n",
+	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  Repetition penalty (0.0 ~ 2.0, -1 = don't send, overrides config)\n",
 
 	// CLI Help - Output Mode
 
@@ -407,6 +412,9 @@ no liability whatsoever.`,
 	KeySettingsDescName:         "Set agent name",
 	KeySettingsDescDescription:  "Set agent description/expertise",
 	KeySettingsDescPrinciples:   "Set agent core principles",
+	KeySettingsDescTopP:              "Top-P sampling (0.0 ~ 1.0, -1 = don't send)",
+	KeySettingsDescTopK:              "Top-K sampling (>= 1 integer, -1 = don't send)",
+	KeySettingsDescRepetitionPenalty: "Repetition penalty (0.0 ~ 2.0, -1 = don't send)",
 	KeySettingsDescToolTimeout:  "Tool call timeout (0=unlimited)",
 	KeySettingsDescCmdTimeout:   "Command timeout (0=unlimited)",
 	KeySettingsDescLLMTimeout:   "LLM request timeout (0=unlimited)",
@@ -434,12 +442,16 @@ no liability whatsoever.`,
 	KeyCLIHelpSubAgentEnabled:  "      --subagent-enabled    Enable sub-agent tools (overrides config)",
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   Disable sub-agent tools (overrides config)",
 
+	// ToolCall enabled
+	KeyCLIHelpToolCallEnabled:  "      --toolcall-enabled    Enable tool calling (overrides config)",
+	KeyCLIHelpToolCallDisabled: "      --toolcall-disabled   Disable tool calling (overrides config)",
+
 	// Config show column 3 labels
 	KeyCol3Provider:     "provider(deepseek/qwen/xiaomi/zhipu/openai)",
 	KeyCol3Endpoint:     "API server",
 	KeyCol3Model:        "model ID",
 	KeyCol3Temperature:  "temperature(0.0 ~ 2.0)",
-	KeyCol3MaxTokens:    "max output tokens(1 ~ N (unlimited))",
+	KeyCol3MaxTokens:    "max output tokens(-1[not sent] ~ N)",
 	KeyCol3MaxIter:      "max iterations(-1 ~ N)",
 	KeyCol3MaxRetries:   "LLM retries(0 ~ N)",
 	KeyCol3Thinking:     "show thinking(on|off)",
@@ -576,6 +588,11 @@ Current Environment:
 	// Thinking enabled
 	KeyCol3ThinkingEnabled: "AI thinking(on|off)",
 	KeyCol3ReasoningEffort: "reasoning effort(low/medium/high)",
+	KeyCol3ToolCallEnabled: "tool calling(on|off)",
+	KeyCol3MaxModelLen:     "max model context length(tokens)",
+	KeyCol3TopP:              "Top-P sampling parameter",
+	KeyCol3TopK:              "Top-K sampling parameter",
+	KeyCol3RepetitionPenalty: "Repetition penalty parameter",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",

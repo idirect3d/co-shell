@@ -111,6 +111,16 @@ type ModelInfo struct {
 
 	// VisionSupport indicates whether the model supports image input (multimodal).
 	VisionSupport bool `json:"vision_support"`
+
+	// ToolCallSupport indicates whether the model supports tool/function calling.
+	// Defaults to true for most modern models; some lightweight or specialized
+	// models may not support it.
+	ToolCallSupport bool `json:"tool_call_support"`
+
+	// MaxModelLen is the maximum context length (in tokens) supported by the model.
+	// This value is automatically detected from the API when listing models.
+	// A value of 0 means unknown or not yet detected.
+	MaxModelLen int `json:"max_model_len"`
 }
 
 // Client is the interface for LLM interactions.
@@ -135,12 +145,26 @@ type Client interface {
 	// Returns true if the model responds without error.
 	TestTextSupport(ctx context.Context) bool
 
+	// TestToolCallSupport tests whether the model supports tool/function calling
+	// by sending a minimal request with a simple tool definition.
+	// Returns true if the model responds with a tool call or responds without error.
+	TestToolCallSupport(ctx context.Context) bool
+
 	// SetThinkingEnabled enables or disables thinking/reasoning mode in API requests.
 	SetThinkingEnabled(enabled bool)
 
 	// SetReasoningEffort sets the reasoning effort level for models that support it.
 	// Valid values: "low", "medium", "high" (model-dependent).
 	SetReasoningEffort(effort string)
+
+	// SetTopP sets the top-p sampling parameter (-1 = don't send).
+	SetTopP(topP float64)
+
+	// SetTopK sets the top-k sampling parameter (-1 = don't send).
+	SetTopK(topK int)
+
+	// SetRepetitionPenalty sets the repetition penalty parameter (-1 = don't send).
+	SetRepetitionPenalty(penalty float64)
 
 	// Close cleans up any resources.
 	Close() error
@@ -215,14 +239,17 @@ type functionDefinitionJSON struct {
 
 // chatRequestJSON is the JSON structure for the chat completion request.
 type chatRequestJSON struct {
-	Model           string            `json:"model"`
-	Messages        []chatMessageJSON `json:"messages"`
-	Temperature     float32           `json:"temperature,omitempty"`
-	MaxTokens       int               `json:"max_tokens,omitempty"`
-	Tools           []toolJSON        `json:"tools,omitempty"`
-	Stream          bool              `json:"stream,omitempty"`
-	Thinking        *thinkingConfig   `json:"thinking,omitempty"`
-	ReasoningEffort string            `json:"reasoning_effort,omitempty"`
+	Model             string            `json:"model"`
+	Messages          []chatMessageJSON `json:"messages"`
+	Temperature       *float32          `json:"temperature,omitempty"`
+	MaxTokens         int               `json:"max_tokens,omitempty"`
+	TopP              float32           `json:"top_p,omitempty"`
+	TopK              int               `json:"top_k,omitempty"`
+	RepetitionPenalty float32           `json:"repetition_penalty,omitempty"`
+	Tools             []toolJSON        `json:"tools,omitempty"`
+	Stream            bool              `json:"stream,omitempty"`
+	Thinking          *thinkingConfig   `json:"thinking,omitempty"`
+	ReasoningEffort   string            `json:"reasoning_effort,omitempty"`
 }
 
 // thinkingConfig represents the DeepSeek thinking mode configuration.
@@ -298,15 +325,18 @@ type responseErrorJSON struct {
 
 // openAIClient implements Client using the OpenAI-compatible API.
 type openAIClient struct {
-	httpClient      *http.Client
-	streamClient    *http.Client // separate client for streaming (no timeout, relies on context)
-	baseURL         string
-	apiKey          string
-	model           string
-	temperature     float64
-	maxTokens       int
-	thinkingEnabled bool   // whether to enable thinking/reasoning mode in API requests
-	reasoningEffort string // reasoning effort level: "low", "medium", "high"
+	httpClient        *http.Client
+	streamClient      *http.Client // separate client for streaming (no timeout, relies on context)
+	baseURL           string
+	apiKey            string
+	model             string
+	temperature       float64
+	maxTokens         int
+	topP              float64 // top-p sampling (-1 = don't send)
+	topK              int     // top-k sampling (-1 = don't send)
+	repetitionPenalty float64 // repetition penalty (-1 = don't send)
+	thinkingEnabled   bool    // whether to enable thinking/reasoning mode in API requests
+	reasoningEffort   string  // reasoning effort level: "low", "medium", "high"
 }
 
 // NewClient creates a new LLM client from configuration.
@@ -478,10 +508,34 @@ func isThinkingModel(model string) bool {
 func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Tool) (*LLMResponse, error) {
 	// Build request body
 	reqBody := chatRequestJSON{
-		Model:       c.model,
-		Messages:    buildMessages(messages),
-		Temperature: float32(c.temperature),
-		MaxTokens:   c.maxTokens,
+		Model:    c.model,
+		Messages: buildMessages(messages),
+	}
+
+	// Only set temperature if configured (-1 means don't send)
+	if c.temperature >= 0 {
+		temp := float32(c.temperature)
+		reqBody.Temperature = &temp
+	}
+
+	// Only set max_tokens if a positive value is configured (-1 means don't send)
+	if c.maxTokens >= 0 {
+		reqBody.MaxTokens = c.maxTokens
+	}
+
+	// Set top_p if configured (-1 means don't send)
+	if c.topP >= 0 {
+		reqBody.TopP = float32(c.topP)
+	}
+
+	// Set top_k if configured (-1 means don't send)
+	if c.topK >= 0 {
+		reqBody.TopK = c.topK
+	}
+
+	// Set repetition_penalty if configured (-1 means don't send)
+	if c.repetitionPenalty >= 0 {
+		reqBody.RepetitionPenalty = float32(c.repetitionPenalty)
 	}
 
 	// Add tools if present
@@ -493,8 +547,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	if c.thinkingEnabled && isThinkingModel(c.model) {
 		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
 		reqBody.ReasoningEffort = c.reasoningEffort
-		// Thinking mode doesn't support temperature
-		reqBody.Temperature = 0
+		// Thinking mode doesn't support temperature, don't send it
+		reqBody.Temperature = nil
 	}
 
 	// Serialize request
@@ -587,11 +641,35 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools []Tool) (<-chan StreamEvent, error) {
 	// Build request body
 	reqBody := chatRequestJSON{
-		Model:       c.model,
-		Messages:    buildMessages(messages),
-		Temperature: float32(c.temperature),
-		MaxTokens:   c.maxTokens,
-		Stream:      true,
+		Model:    c.model,
+		Messages: buildMessages(messages),
+		Stream:   true,
+	}
+
+	// Only set temperature if configured (-1 means don't send)
+	if c.temperature >= 0 {
+		temp := float32(c.temperature)
+		reqBody.Temperature = &temp
+	}
+
+	// Only set max_tokens if a positive value is configured (-1 means don't send)
+	if c.maxTokens >= 0 {
+		reqBody.MaxTokens = c.maxTokens
+	}
+
+	// Set top_p if configured (-1 means don't send)
+	if c.topP >= 0 {
+		reqBody.TopP = float32(c.topP)
+	}
+
+	// Set top_k if configured (-1 means don't send)
+	if c.topK >= 0 {
+		reqBody.TopK = c.topK
+	}
+
+	// Set repetition_penalty if configured (-1 means don't send)
+	if c.repetitionPenalty >= 0 {
+		reqBody.RepetitionPenalty = float32(c.repetitionPenalty)
 	}
 
 	// Add tools if present
@@ -603,7 +681,8 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	if c.thinkingEnabled && isThinkingModel(c.model) {
 		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
 		reqBody.ReasoningEffort = c.reasoningEffort
-		reqBody.Temperature = 0
+		// Thinking mode doesn't support temperature, don't send it
+		reqBody.Temperature = nil
 	}
 
 	// Serialize request
@@ -922,10 +1001,11 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	// Parse response with optional capabilities field.
+	// Parse response with optional capabilities and max_model_len fields.
 	// Different providers may return different structures:
 	//   OpenAI: {"data": [{"id": "gpt-4o", ...}]}
 	//   DeepSeek: {"data": [{"id": "deepseek-chat", ...}]}
+	//   vLLM: {"data": [{"id": "...", "max_model_len": 262144, ...}]}
 	//   Some providers include "capabilities" with vision info.
 	var modelsResp struct {
 		Data []struct {
@@ -934,6 +1014,8 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 			Capabilities *struct {
 				Vision bool `json:"vision"`
 			} `json:"capabilities,omitempty"`
+			// Some providers include max_model_len in model metadata (e.g., vLLM, Ollama)
+			MaxModelLen int `json:"max_model_len,omitempty"`
 		} `json:"data"`
 	}
 
@@ -958,6 +1040,7 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 		models = append(models, ModelInfo{
 			ID:            m.ID,
 			VisionSupport: vision,
+			MaxModelLen:   m.MaxModelLen,
 		})
 	}
 
@@ -1015,12 +1098,67 @@ func (c *openAIClient) TestTextSupport(ctx context.Context) bool {
 	return true
 }
 
+// TestToolCallSupport tests whether the model supports tool/function calling
+// by sending a minimal request with a simple tool definition.
+// Returns true if the model responds with a tool call or responds without error.
+func (c *openAIClient) TestToolCallSupport(ctx context.Context) bool {
+	// Define a simple test tool
+	testTool := Tool{
+		Name:        "test_tool",
+		Description: "A test tool to verify tool calling support",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"message": map[string]interface{}{
+					"type":        "string",
+					"description": "A test message",
+				},
+			},
+			"required": []string{"message"},
+		},
+	}
+
+	msg := Message{
+		Role:    "user",
+		Content: "请调用 test_tool 工具，参数 message 为 'hello'。",
+	}
+
+	resp, err := c.Chat(ctx, []Message{msg}, []Tool{testTool})
+	if err != nil {
+		log.Debug("TestToolCallSupport failed for model %s: %v", c.model, err)
+		return false
+	}
+
+	// If the model returned tool calls, it definitely supports tool calling.
+	// If it returned text content without error, the model may still support
+	// tool calling but chose not to call the test tool. We consider this as
+	// supported since the API accepted the tools parameter without error.
+	if len(resp.ToolCalls) > 0 {
+		log.Info("TestToolCallSupport succeeded for model %s (returned tool calls)", c.model)
+	} else {
+		log.Info("TestToolCallSupport succeeded for model %s (accepted tools without error)", c.model)
+	}
+	return true
+}
+
 func (c *openAIClient) SetThinkingEnabled(enabled bool) {
 	c.thinkingEnabled = enabled
 }
 
 func (c *openAIClient) SetReasoningEffort(effort string) {
 	c.reasoningEffort = effort
+}
+
+func (c *openAIClient) SetTopP(topP float64) {
+	c.topP = topP
+}
+
+func (c *openAIClient) SetTopK(topK int) {
+	c.topK = topK
+}
+
+func (c *openAIClient) SetRepetitionPenalty(penalty float64) {
+	c.repetitionPenalty = penalty
 }
 
 func (c *openAIClient) Close() error {

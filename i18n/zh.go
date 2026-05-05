@@ -39,6 +39,7 @@ var zhMessages = map[string]string{
 	KeySuccess:        "成功",
 	KeyUnlimited:      "不限制",
 	KeyDefault:        "默认",
+	KeyUnknown:        "未知",
 
 	// Wizard
 	KeyWizardTitle:       "🔧 co-shell API 设置向导",
@@ -182,41 +183,42 @@ var zhMessages = map[string]string{
 
 	// Config format
 	KeyConfigFormat: `LLM 配置:
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s`,
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s`,
 
 	// REPL - Additional
 	KeyWelcomeTip: "输入 .help 查看可用命令，或直接输入自然语言！\n   例如：\"列出当前目录的文件\"",
@@ -309,6 +311,9 @@ var zhMessages = map[string]string{
 	KeyCLIHelpToolTimeout: "      --tool-timeout <s>  工具调用超时秒数（0=不限，覆盖配置文件）",
 	KeyCLIHelpCmdTimeout:  "      --cmd-timeout <s>   系统命令执行超时秒数（0=不限，覆盖配置文件）",
 	KeyCLIHelpLLMTimeout:  "      --llm-timeout <s>   LLM API 请求超时秒数（0=不限，覆盖配置文件）",
+	KeyCLIHelpTopP:              "  --top-p <value>               Top-P 采样参数（0.0 ~ 1.0，-1 不发送，覆盖配置文件）\n",
+	KeyCLIHelpTopK:              "  --top-k <value>               Top-K 采样参数（>= 1 的整数，-1 不发送，覆盖配置文件）\n",
+	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  重复惩罚参数（0.0 ~ 2.0，-1 不发送，覆盖配置文件）\n",
 
 	"col3_search_max_line_length":           "搜索单行最大字符数",
 	"col3_search_max_result_bytes":          "搜索结果最大字节数",
@@ -395,6 +400,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescName:         "设置 Agent 名称",
 	KeySettingsDescDescription:  "设置 Agent 描述/专长",
 	KeySettingsDescPrinciples:   "设置 Agent 核心原则",
+	KeySettingsDescTopP:              "Top-P 采样参数（0.0 ~ 1.0，-1 不发送）",
+	KeySettingsDescTopK:              "Top-K 采样参数（>= 1 的整数，-1 不发送）",
+	KeySettingsDescRepetitionPenalty: "重复惩罚参数（0.0 ~ 2.0，-1 不发送）",
 	KeySettingsDescToolTimeout:  "工具调用超时（0=不限）",
 	KeySettingsDescCmdTimeout:   "命令执行超时（0=不限）",
 	KeySettingsDescLLMTimeout:   "LLM 请求超时（0=不限）",
@@ -431,12 +439,16 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpSubAgentEnabled:  "      --subagent-enabled    启用子代理功能（覆盖配置文件）",
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   禁用子代理功能（覆盖配置文件）",
 
+	// ToolCall enabled
+	KeyCLIHelpToolCallEnabled:  "      --toolcall-enabled   启用工具调用功能（覆盖配置文件）",
+	KeyCLIHelpToolCallDisabled: "      --toolcall-disabled  禁用工具调用功能（覆盖配置文件）",
+
 	// Config show column 3 labels
 	KeyCol3Provider:     "提供商(deepseek/qwen/xiaomi/zhipu/openai)",
 	KeyCol3Endpoint:     "API服务器",
 	KeyCol3Model:        "模型ID",
 	KeyCol3Temperature:  "温度(0.0 ~ 2.0)",
-	KeyCol3MaxTokens:    "最大输出令牌数(1 ~ N（不限制）)",
+	KeyCol3MaxTokens:    "最大输出令牌数(-1[不发送] ~ N)",
 	KeyCol3MaxIter:      "最大迭代次数(-1 ~ N)",
 	KeyCol3MaxRetries:   "LLM 重试次数(0 ~ N)",
 	KeyCol3Thinking:     "显示思考过程(on|off)",
@@ -567,6 +579,11 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Thinking enabled
 	KeyCol3ThinkingEnabled: "AI 思考功能(on|off)",
 	KeyCol3ReasoningEffort: "推理努力程度(low/medium/high)",
+	KeyCol3ToolCallEnabled: "工具调用(on|off)",
+	KeyCol3MaxModelLen:     "模型最大上下文长度(tokens)",
+	KeyCol3TopP:              "Top-P 采样参数",
+	KeyCol3TopK:              "Top-K 采样参数",
+	KeyCol3RepetitionPenalty: "重复惩罚参数",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ 身份与个性 ]",

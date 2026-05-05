@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0-RC3
-> **BUILD**: 156
+> **BUILD**: 160
 
 
 
@@ -186,6 +186,10 @@
 - [x] FEATURE-138 增加删除记忆memory的REPL和tool call方法，可以按last_from和last_to删除一段记忆。[BUILD-154]
 - [x] FEATURE-139 launch_sub_agent 工具改为 sub_agent_name 字符串参数，仅调用已存在的 agent workspace，不再自动创建 workspace。[BUILD-155]
 - [x] FEATURE-140 新增 ASCII art Logo 显示功能：启动时显示 co-shell 字符 Logo，支持通过 .set show-logo on|off 和 --show-logo 命令行参数控制显示，Logo 文件通过 go:embed 嵌入程序。[BUILD-156]
+- [x] ENHANCEMENT-141 工具调用支持检测与配置：在配置模型时自动检测模型是否支持工具调用（function calling），新增 `toolcall-enabled` 配置项，支持通过 .set toolcall-enabled、--toolcall-enabled 命令行参数、config.json 控制。配置向导检测模型时自动测试工具调用能力，不支持则关闭开关，支持则默认开启。当开关关闭时，Agent 不向 LLM 传递工具定义，LLM 仅以纯文本模式工作。[BUILD-157]
+- [x] ENHANCEMENT-142 模型最大上下文长度（max-model-len）自动检测：在配置模型时，通过模型列表 API 获取模型的 `max_model_len` 值并自动记录到配置中。新增 `max-model-len` 配置项，在 `.set` 命令和配置显示中展示该值。配置向导选择模型后自动检测并记录模型的最大上下文长度，为未来上下文管理提供依据。[BUILD-159]
+- [x] ENHANCEMENT-143 优化模型工具调用自动检测以及手工配置机制：在配置模型检测时，增加工具调用支持检测选项，检测完成后在最终配置摘要中明确显示工具调用状态（支持/不支持、开启/关闭）。wizard 设置向导的最终确认界面（包括预设供应商和 OpenAI 兼容模式）均展示工具调用开关状态，让用户清晰了解当前模型的工具调用能力。[BUILD-160]
+- [x] ENHANCEMENT-140 新增 Top-P、Top-K、重复惩罚（repetition-penalty）三个采样参数的完整支持：LLM 客户端接口新增 SetTopP/SetTopK/SetRepetitionPenalty 方法；chatRequestJSON 结构体新增对应字段，Temperature 改为指针类型以支持 -1 不发送；config 新增 top_p/top_k/repetition_penalty 配置项及默认值；CLI 新增 --top-p/--top-k/--repetition-penalty 命令行参数；.set 命令和 LLM 工具支持运行时修改；i18n 中英文翻译支持；帮助信息展示。[BUILD-161]
 
 ## v1.0.0 — 正式版
 

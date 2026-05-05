@@ -109,6 +109,12 @@ type LLMConfig struct {
 	// Vision support
 	VisionSupport bool `json:"vision_support"` // Whether the model supports vision/multimodal input
 
+	// Sampling parameters (ENHANCEMENT-140)
+	// -1 means don't send the parameter to the API
+	TopP              float64 `json:"top_p"`              // Top-p sampling (default: 0.9, -1 = don't send)
+	TopK              int     `json:"top_k"`              // Top-k sampling (default: 20, -1 = don't send)
+	RepetitionPenalty float64 `json:"repetition_penalty"` // Repetition penalty (default: 1.0, -1 = don't send)
+
 	// Retry settings
 	MaxRetries int `json:"max_retries"` // Max retries for transient LLM errors (default: 3)
 
@@ -180,6 +186,16 @@ type LLMConfig struct {
 	// ShowLogo: whether to display the ASCII art logo on startup.
 	// Default: true
 	ShowLogo bool `json:"show_logo"`
+
+	// ToolCallEnabled: whether tool/function calling is enabled for the LLM.
+	// When disabled, the LLM operates in pure text mode without tool definitions.
+	// Default: true
+	ToolCallEnabled bool `json:"tool_call_enabled"`
+
+	// MaxModelLen: the maximum context length (in tokens) supported by the model.
+	// This value is automatically detected from the API when listing models.
+	// A value of 0 means unknown or not yet detected.
+	MaxModelLen int `json:"max_model_len"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -273,7 +289,7 @@ func DefaultConfig() *Config {
 			Endpoint:                  "https://api.deepseek.com",
 			Model:                     "deepseek-v4-flash",
 			Temperature:               0.7,
-			MaxTokens:                 393216,
+			MaxTokens:                 -1,
 			MaxIterations:             1000,
 			ShowLlmThinking:           true,
 			ShowLlmContent:            true,
@@ -295,10 +311,14 @@ func DefaultConfig() *Config {
 			MemorySearchMaxResults:    100,
 			ErrorMaxSingleCount:       10,
 			ErrorMaxTypeCount:         100,
+			TopP:                      0.9,
+			TopK:                      20,
+			RepetitionPenalty:         1.0,
 			ThinkingEnabled:           false,
 			ReasoningEffort:           "low",
 			EmojiEnabled:              true,
 			ShowLogo:                  true,
+			ToolCallEnabled:           true,
 		},
 
 		MCP: MCPConfig{
@@ -402,6 +422,10 @@ func (c *Config) Show() string {
 	if !c.LLM.ThinkingEnabled {
 		thinkingEnabledStatus = i18n.T(i18n.KeyOff)
 	}
+	toolCallEnabledStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.ToolCallEnabled {
+		toolCallEnabledStatus = i18n.T(i18n.KeyOff)
+	}
 	reasoningEffortStr := c.LLM.ReasoningEffort
 	if reasoningEffortStr == "" {
 		reasoningEffortStr = "low"
@@ -491,6 +515,11 @@ func (c *Config) Show() string {
 	col3MemorySearchMaxResults := i18n.T(i18n.KeyCol3MemorySearchMaxResults)
 	col3ThinkingEnabled := i18n.T(i18n.KeyCol3ThinkingEnabled)
 	col3ReasoningEffort := i18n.T(i18n.KeyCol3ReasoningEffort)
+	col3ToolCallEnabled := i18n.T(i18n.KeyCol3ToolCallEnabled)
+	col3MaxModelLen := i18n.T(i18n.KeyCol3MaxModelLen)
+	col3TopP := i18n.T(i18n.KeyCol3TopP)
+	col3TopK := i18n.T(i18n.KeyCol3TopK)
+	col3RepetitionPenalty := i18n.T(i18n.KeyCol3RepetitionPenalty)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 
@@ -571,6 +600,11 @@ func (c *Config) Show() string {
 		"memory-search-max-results:", fmt.Sprintf("%d", c.LLM.MemorySearchMaxResults), col3MemorySearchMaxResults,
 		"thinking-enabled:", thinkingEnabledStatus, col3ThinkingEnabled,
 		"reasoning-effort:", reasoningEffortStr, col3ReasoningEffort,
+		"toolcall-enabled:", toolCallEnabledStatus, col3ToolCallEnabled,
+		"max-model-len:", fmt.Sprintf("%d", c.LLM.MaxModelLen), col3MaxModelLen,
+		"top-p:", fmt.Sprintf("%.1f", c.LLM.TopP), col3TopP,
+		"top-k:", fmt.Sprintf("%d", c.LLM.TopK), col3TopK,
+		"repetition-penalty:", fmt.Sprintf("%.1f", c.LLM.RepetitionPenalty), col3RepetitionPenalty,
 		"api-key:", maskedKey, col3APIKey)
 
 }

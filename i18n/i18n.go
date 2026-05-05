@@ -443,6 +443,9 @@ const (
 	KeyCLIHelpToolTimeout = "cli_help_tool_timeout"
 	KeyCLIHelpCmdTimeout  = "cli_help_cmd_timeout"
 	KeyCLIHelpLLMTimeout  = "cli_help_llm_timeout"
+	KeyCLIHelpTopP              = "cli_help_top_p"
+	KeyCLIHelpTopK              = "cli_help_top_k"
+	KeyCLIHelpRepetitionPenalty = "cli_help_repetition_penalty"
 
 	// Custom
 	KeyCustom = "custom"
@@ -493,6 +496,9 @@ const (
 	KeySettingsDescToolTimeout  = "settings_desc_tool_timeout"
 	KeySettingsDescCmdTimeout   = "settings_desc_cmd_timeout"
 	KeySettingsDescLLMTimeout   = "settings_desc_llm_timeout"
+	KeySettingsDescTopP              = "settings_desc_top_p"
+	KeySettingsDescTopK              = "settings_desc_top_k"
+	KeySettingsDescRepetitionPenalty = "settings_desc_repetition_penalty"
 	KeySettingsHelpFooter       = "settings_help_footer"
 	KeySettingsCurrentTitle     = "settings_current_title"
 
@@ -563,6 +569,10 @@ const (
 	KeyCLIHelpSubAgentEnabled  = "cli_help_sub_agent_enabled"
 	KeyCLIHelpSubAgentDisabled = "cli_help_sub_agent_disabled"
 
+	// ToolCall enabled
+	KeyCLIHelpToolCallEnabled  = "cli_help_tool_call_enabled"
+	KeyCLIHelpToolCallDisabled = "cli_help_tool_call_disabled"
+
 	// Search settings
 	KeyCol3SearchMaxLineLength          = "col3_search_max_line_length"
 	KeyCol3SearchMaxResultBytes         = "col3_search_max_result_bytes"
@@ -612,6 +622,11 @@ const (
 	// Thinking enabled
 	KeyCol3ThinkingEnabled = "col3_thinking_enabled"
 	KeyCol3ReasoningEffort = "col3_reasoning_effort"
+	KeyCol3ToolCallEnabled = "col3_tool_call_enabled"
+	KeyCol3MaxModelLen     = "col3_max_model_len"
+	KeyCol3TopP              = "col3_top_p"
+	KeyCol3TopK              = "col3_top_k"
+	KeyCol3RepetitionPenalty = "col3_repetition_penalty"
 
 	// Settings group titles
 	KeySettingsGroupIdentity    = "settings_group_identity"
@@ -665,4 +680,7 @@ const (
 	// Init capabilities/rules
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
+
+	// Unknown (fallback display)
+	KeyUnknown = "unknown"
 )
