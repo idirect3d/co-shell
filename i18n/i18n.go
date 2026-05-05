@@ -617,6 +617,7 @@ const (
 	KeyCol3ThinkingEnabled = "col3_thinking_enabled"
 	KeyCol3ReasoningEffort = "col3_reasoning_effort"
 	KeyCol3ToolCallEnabled = "col3_tool_call_enabled"
+	KeyCol3MaxModelLen     = "col3_max_model_len"
 
 	// Settings group titles
 	KeySettingsGroupIdentity    = "settings_group_identity"

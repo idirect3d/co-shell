@@ -200,41 +200,42 @@ var enMessages = map[string]string{
 
 	// Config format
 	KeyConfigFormat: `LLM Configuration:
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s`,
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s`,
 
 	// REPL - Additional
 	KeyWelcomeTip: "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.\n   Example: \"List files in current directory\"",
@@ -581,6 +582,7 @@ Current Environment:
 	KeyCol3ThinkingEnabled: "AI thinking(on|off)",
 	KeyCol3ReasoningEffort: "reasoning effort(low/medium/high)",
 	KeyCol3ToolCallEnabled: "tool calling(on|off)",
+	KeyCol3MaxModelLen:     "max model context length(tokens)",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",

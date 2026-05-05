@@ -182,41 +182,42 @@ var zhMessages = map[string]string{
 
 	// Config format
 	KeyConfigFormat: `LLM 配置:
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
 
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s
-  %-20s %-30s %s`,
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s
+   %-20s %-30s %s`,
 
 	// REPL - Additional
 	KeyWelcomeTip: "输入 .help 查看可用命令，或直接输入自然语言！\n   例如：\"列出当前目录的文件\"",
@@ -572,6 +573,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3ThinkingEnabled: "AI 思考功能(on|off)",
 	KeyCol3ReasoningEffort: "推理努力程度(low/medium/high)",
 	KeyCol3ToolCallEnabled: "工具调用(on|off)",
+	KeyCol3MaxModelLen:     "模型最大上下文长度(tokens)",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ 身份与个性 ]",
