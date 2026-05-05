@@ -28,6 +28,7 @@ package repl
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,6 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/wizard"
 )
+
+//go:embed logo.md
+var logoData string
 
 // commandPattern matches inputs that look like system commands.
 
@@ -515,12 +519,9 @@ func (r *REPL) streamCallback(eventType string, content string) {
 
 // printWelcome displays the welcome message with optional ASCII art logo.
 func (r *REPL) printWelcome() {
-	// Show ASCII art logo if enabled
+	// Show ASCII art logo if enabled (embedded via //go:embed)
 	if r.cfg.LLM.ShowLogo {
-		logoData, err := os.ReadFile("repl/logo.md")
-		if err == nil {
-			fmt.Println(string(logoData))
-		}
+		fmt.Println(logoData)
 	}
 
 	visionIndicator := ""
