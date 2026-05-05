@@ -98,8 +98,8 @@ type Agent struct {
 	planEnabled     bool     // whether task plan tools are enabled
 	subAgentEnabled bool     // whether sub-agent tools are enabled
 
-	emojiEnabled bool // whether emoji prefixes are enabled for output
-
+	emojiEnabled    bool // whether emoji prefixes are enabled for output
+	toolCallEnabled bool // whether tool calling is enabled
 	// messagePointer is the index in a.messages that marks the starting position
 
 	// for sending to LLM. Messages before this index are ignored when building

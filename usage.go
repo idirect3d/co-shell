@@ -75,6 +75,9 @@ func buildUsageLLMBehavior() string {
 	var sb strings.Builder
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpTemperature) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpMaxTokens) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpTopP) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpTopK) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpRepetitionPenalty) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowThinking) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowCommand) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpConfirmCommand) + "\n")
@@ -107,6 +110,8 @@ func buildUsageFeatureSwitches() string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpPlanDisabled) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpSubAgentEnabled) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpSubAgentDisabled) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallEnabled) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallDisabled) + "\n")
 	return sb.String()
 }
 

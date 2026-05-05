@@ -350,6 +350,7 @@ func (r *REPL) handleBuiltin(input string) {
 		r.agent.SetShowToolOutput(r.cfg.LLM.ShowToolOutput)
 		r.agent.SetShowCommand(r.cfg.LLM.ShowCommand)
 		r.agent.SetShowCommandOutput(r.cfg.LLM.ShowCommandOutput)
+		r.agent.SetToolCallEnabled(r.cfg.LLM.ToolCallEnabled)
 	}
 
 }
