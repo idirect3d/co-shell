@@ -434,12 +434,15 @@ no liability whatsoever.`,
 	KeyCLIHelpSubAgentEnabled:  "      --subagent-enabled    Enable sub-agent tools (overrides config)",
 	KeyCLIHelpSubAgentDisabled: "      --subagent-disabled   Disable sub-agent tools (overrides config)",
 
+	// ToolCall enabled
+	KeyCLIHelpToolCallEnabled: "      --toolcall-enabled    Enable tool calling (overrides config)",
+
 	// Config show column 3 labels
 	KeyCol3Provider:     "provider(deepseek/qwen/xiaomi/zhipu/openai)",
 	KeyCol3Endpoint:     "API server",
 	KeyCol3Model:        "model ID",
 	KeyCol3Temperature:  "temperature(0.0 ~ 2.0)",
-	KeyCol3MaxTokens:    "max output tokens(1 ~ N (unlimited))",
+	KeyCol3MaxTokens:    "max output tokens(-1[not sent] ~ N)",
 	KeyCol3MaxIter:      "max iterations(-1 ~ N)",
 	KeyCol3MaxRetries:   "LLM retries(0 ~ N)",
 	KeyCol3Thinking:     "show thinking(on|off)",

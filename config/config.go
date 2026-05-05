@@ -278,7 +278,7 @@ func DefaultConfig() *Config {
 			Endpoint:                  "https://api.deepseek.com",
 			Model:                     "deepseek-v4-flash",
 			Temperature:               0.7,
-			MaxTokens:                 393216,
+			MaxTokens:                 -1,
 			MaxIterations:             1000,
 			ShowLlmThinking:           true,
 			ShowLlmContent:            true,

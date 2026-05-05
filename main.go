@@ -98,6 +98,9 @@ type cliFlags struct {
 	// SubAgent enabled
 	subAgentEnabled string // "on"/"off"
 
+	// ToolCall enabled
+	toolCallEnabled string // "on"/"off"
+
 	// Timeout parameters
 	toolTimeout int
 	cmdTimeout  int
@@ -187,6 +190,9 @@ func parseFlags() cliFlags {
 	// SubAgent enabled
 	flag.StringVar(&f.subAgentEnabled, "subagent-enabled", "", "启用子代理功能（覆盖配置文件）")
 	flag.StringVar(&f.subAgentEnabled, "subagent-disabled", "", "禁用子代理功能（覆盖配置文件）")
+
+	// ToolCall enabled
+	flag.StringVar(&f.toolCallEnabled, "toolcall-enabled", "", "启用工具调用功能（on/off，覆盖配置文件）")
 
 	// Timeout parameters
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
@@ -508,6 +514,18 @@ func main() {
 			cfg.LLM.SubAgentEnabled = false
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: invalid --subagent-enabled value %q, use on|off\n", flags.subAgentEnabled)
+		}
+	}
+
+	// Apply toolcall-enabled CLI override
+	if flags.toolCallEnabled != "" {
+		switch flags.toolCallEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ToolCallEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ToolCallEnabled = false
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --toolcall-enabled value %q, use on|off\n", flags.toolCallEnabled)
 		}
 	}
 
@@ -893,6 +911,10 @@ func (c *noopClient) TestVisionSupport(ctx context.Context) bool {
 }
 
 func (c *noopClient) TestTextSupport(ctx context.Context) bool {
+	return false
+}
+
+func (c *noopClient) TestToolCallSupport(ctx context.Context) bool {
 	return false
 }
 

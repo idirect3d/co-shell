@@ -138,8 +138,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("invalid token count: %s", args[1])
 		}
-		if tokens < 1 || tokens > 128000 {
-			return "", fmt.Errorf("max-tokens must be between 1 and 128000")
+		if tokens < -1 {
+			return "", fmt.Errorf("max-tokens must be -1 (not sent) or >= 0")
 		}
 		h.cfg.LLM.MaxTokens = tokens
 		if err := h.cfg.Save(); err != nil {

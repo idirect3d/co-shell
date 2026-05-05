@@ -111,6 +111,11 @@ type ModelInfo struct {
 
 	// VisionSupport indicates whether the model supports image input (multimodal).
 	VisionSupport bool `json:"vision_support"`
+
+	// ToolCallSupport indicates whether the model supports tool/function calling.
+	// Defaults to true for most modern models; some lightweight or specialized
+	// models may not support it.
+	ToolCallSupport bool `json:"tool_call_support"`
 }
 
 // Client is the interface for LLM interactions.
@@ -134,6 +139,11 @@ type Client interface {
 	// by sending a minimal text request.
 	// Returns true if the model responds without error.
 	TestTextSupport(ctx context.Context) bool
+
+	// TestToolCallSupport tests whether the model supports tool/function calling
+	// by sending a minimal request with a simple tool definition.
+	// Returns true if the model responds with a tool call or responds without error.
+	TestToolCallSupport(ctx context.Context) bool
 
 	// SetThinkingEnabled enables or disables thinking/reasoning mode in API requests.
 	SetThinkingEnabled(enabled bool)
@@ -481,7 +491,11 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		Model:       c.model,
 		Messages:    buildMessages(messages),
 		Temperature: float32(c.temperature),
-		MaxTokens:   c.maxTokens,
+	}
+
+	// Only set max_tokens if a positive value is configured (-1 means don't send)
+	if c.maxTokens >= 0 {
+		reqBody.MaxTokens = c.maxTokens
 	}
 
 	// Add tools if present
@@ -590,8 +604,12 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		Model:       c.model,
 		Messages:    buildMessages(messages),
 		Temperature: float32(c.temperature),
-		MaxTokens:   c.maxTokens,
 		Stream:      true,
+	}
+
+	// Only set max_tokens if a positive value is configured (-1 means don't send)
+	if c.maxTokens >= 0 {
+		reqBody.MaxTokens = c.maxTokens
 	}
 
 	// Add tools if present
@@ -1012,6 +1030,49 @@ func (c *openAIClient) TestTextSupport(ctx context.Context) bool {
 		return false
 	}
 	log.Info("TestTextSupport succeeded for model %s", c.model)
+	return true
+}
+
+// TestToolCallSupport tests whether the model supports tool/function calling
+// by sending a minimal request with a simple tool definition.
+// Returns true if the model responds with a tool call or responds without error.
+func (c *openAIClient) TestToolCallSupport(ctx context.Context) bool {
+	// Define a simple test tool
+	testTool := Tool{
+		Name:        "test_tool",
+		Description: "A test tool to verify tool calling support",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"message": map[string]interface{}{
+					"type":        "string",
+					"description": "A test message",
+				},
+			},
+			"required": []string{"message"},
+		},
+	}
+
+	msg := Message{
+		Role:    "user",
+		Content: "请调用 test_tool 工具，参数 message 为 'hello'。",
+	}
+
+	resp, err := c.Chat(ctx, []Message{msg}, []Tool{testTool})
+	if err != nil {
+		log.Debug("TestToolCallSupport failed for model %s: %v", c.model, err)
+		return false
+	}
+
+	// If the model returned tool calls, it definitely supports tool calling.
+	// If it returned text content without error, the model may still support
+	// tool calling but chose not to call the test tool. We consider this as
+	// supported since the API accepted the tools parameter without error.
+	if len(resp.ToolCalls) > 0 {
+		log.Info("TestToolCallSupport succeeded for model %s (returned tool calls)", c.model)
+	} else {
+		log.Info("TestToolCallSupport succeeded for model %s (accepted tools without error)", c.model)
+	}
 	return true
 }
 

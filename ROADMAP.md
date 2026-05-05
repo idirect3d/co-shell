@@ -186,7 +186,7 @@
 - [x] FEATURE-138 增加删除记忆memory的REPL和tool call方法，可以按last_from和last_to删除一段记忆。[BUILD-154]
 - [x] FEATURE-139 launch_sub_agent 工具改为 sub_agent_name 字符串参数，仅调用已存在的 agent workspace，不再自动创建 workspace。[BUILD-155]
 - [x] FEATURE-140 新增 ASCII art Logo 显示功能：启动时显示 co-shell 字符 Logo，支持通过 .set show-logo on|off 和 --show-logo 命令行参数控制显示，Logo 文件通过 go:embed 嵌入程序。[BUILD-156]
-- [ ] ENHANCEMENT-141 工具调用支持检测与配置：在配置模型时自动检测模型是否支持工具调用（function calling），新增 `toolcall-enabled` 配置项，支持通过 .set toolcall-enabled、--toolcall-enabled/--toolcall-disabled 命令行参数、config.json 控制。配置向导检测模型时自动测试工具调用能力，不支持则关闭开关，支持则默认开启。当开关关闭时，Agent 不向 LLM 传递工具定义，LLM 仅以纯文本模式工作。
+- [x] ENHANCEMENT-141 工具调用支持检测与配置：在配置模型时自动检测模型是否支持工具调用（function calling），新增 `toolcall-enabled` 配置项，支持通过 .set toolcall-enabled、--toolcall-enabled 命令行参数、config.json 控制。配置向导检测模型时自动测试工具调用能力，不支持则关闭开关，支持则默认开启。当开关关闭时，Agent 不向 LLM 传递工具定义，LLM 仅以纯文本模式工作。[BUILD-157]
 
 ## v1.0.0 — 正式版
 

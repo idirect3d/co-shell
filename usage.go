@@ -107,6 +107,7 @@ func buildUsageFeatureSwitches() string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpPlanDisabled) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpSubAgentEnabled) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpSubAgentDisabled) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallEnabled) + "\n")
 	return sb.String()
 }
 
