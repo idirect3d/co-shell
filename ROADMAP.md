@@ -191,6 +191,7 @@
 - [x] ENHANCEMENT-143 优化模型工具调用自动检测以及手工配置机制：在配置模型检测时，增加工具调用支持检测选项，检测完成后在最终配置摘要中明确显示工具调用状态（支持/不支持、开启/关闭）。wizard 设置向导的最终确认界面（包括预设供应商和 OpenAI 兼容模式）均展示工具调用开关状态，让用户清晰了解当前模型的工具调用能力。[BUILD-160]
 - [x] ENHANCEMENT-140 新增 Top-P、Top-K、重复惩罚（repetition-penalty）三个采样参数的完整支持：LLM 客户端接口新增 SetTopP/SetTopK/SetRepetitionPenalty 方法；chatRequestJSON 结构体新增对应字段，Temperature 改为指针类型以支持 -1 不发送；config 新增 top_p/top_k/repetition_penalty 配置项及默认值；CLI 新增 --top-p/--top-k/--repetition-penalty 命令行参数；.set 命令和 LLM 工具支持运行时修改；i18n 中英文翻译支持；帮助信息展示。[BUILD-161]
 - [x] ENHANCEMENT-144 新增 token-usage 开关，支持通过命令行（--token-usage）、REPL（.set token-usage）、配置文件（config.json）配置为 on/off/none，分别对应显示 token 用量、不显示、不发送 stream_options.include_usage 参数。[BUILD-163]
+- [ ] ENHANCEMENT-145 参数配置策略优化：1）能力测试方法将 Temperature 都设置为 0；2）新增 --body-add 命令行参数和 .body-add/.body-remove/.body-display REPL 命令，支持向 LLM 请求体 JSON 中增加/删除/查看自定义属性。
 
 ## v1.0.0 — 正式版
 
