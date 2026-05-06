@@ -97,11 +97,19 @@ type ToolResult struct {
 	Content    string
 }
 
+// TokenUsage holds token usage statistics from an LLM API response.
+type TokenUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // LLMResponse is the parsed response from the LLM.
 type LLMResponse struct {
 	Content          string
 	ReasoningContent string
 	ToolCalls        []ToolCall
+	Usage            *TokenUsage // token usage from the API response, may be nil
 }
 
 // ModelInfo holds information about a model from the API.
@@ -178,6 +186,7 @@ type StreamEvent struct {
 	FinishReason string    // finish_reason from the stream (e.g. "stop", "tool_calls")
 	Done         bool
 	Err          error
+	Usage        *TokenUsage // token usage from the final stream chunk, may be nil
 }
 
 // StreamEventType indicates the type of stream event.
@@ -620,6 +629,18 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	// Parse response content and tool calls
 	content, reasoningContent, toolCalls := parseResponseChoices(chatResp.Choices)
 
+	// Extract token usage from API response
+	var usage *TokenUsage
+	if chatResp.Usage != nil {
+		usage = &TokenUsage{
+			PromptTokens:     chatResp.Usage.PromptTokens,
+			CompletionTokens: chatResp.Usage.CompletionTokens,
+			TotalTokens:      chatResp.Usage.TotalTokens,
+		}
+		log.Debug("LLM Chat token usage: prompt=%d, completion=%d, total=%d",
+			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+	}
+
 	// Log response content at DEBUG level
 	log.Debug("LLM Chat response: model=%s, content_len=%d, tool_calls=%d, reasoning_len=%d",
 		c.model, len(content), len(toolCalls), len(reasoningContent))
@@ -634,6 +655,7 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		Content:          content,
 		ReasoningContent: reasoningContent,
 		ToolCalls:        toolCalls,
+		Usage:            usage,
 	}, nil
 
 }
@@ -842,6 +864,7 @@ type streamEventJSON struct {
 	ReasoningContent string     `json:"reasoning_content,omitempty"`
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 	FinishReason     string     `json:"finish_reason,omitempty"`
+	Usage            *usageJSON `json:"usage,omitempty"`
 }
 
 // parseSSELine parses a single SSE line from the streaming response.
@@ -863,7 +886,8 @@ func parseSSELine(line []byte) (*streamEventJSON, error) {
 		return nil, nil
 	}
 
-	// Parse JSON
+	// Parse JSON - use a flexible structure that can handle both
+	// streaming chunks (with delta) and final chunks (with usage).
 	var chunk struct {
 		Choices []struct {
 			Delta struct {
@@ -881,37 +905,45 @@ func parseSSELine(line []byte) (*streamEventJSON, error) {
 			} `json:"delta"`
 			FinishReason string `json:"finish_reason,omitempty"`
 		} `json:"choices"`
+		Usage *usageJSON `json:"usage,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &chunk); err != nil {
 		return nil, err
 	}
 
-	if len(chunk.Choices) == 0 {
-		return nil, nil
-	}
-
-	choice := chunk.Choices[0]
-	delta := choice.Delta
 	event := &streamEventJSON{
-		Content:          delta.Content,
-		ReasoningContent: delta.ReasoningContent,
-		FinishReason:     choice.FinishReason,
+		FinishReason: "",
 	}
 
-	if delta.ToolCalls != nil {
-		for _, tc := range delta.ToolCalls {
-			tcIndex := -1
-			if tc.Index != nil {
-				tcIndex = *tc.Index
+	// If there are choices, extract delta content and tool calls.
+	// Some stream chunks (e.g., final chunk with usage) may have empty choices.
+	if len(chunk.Choices) > 0 {
+		choice := chunk.Choices[0]
+		delta := choice.Delta
+		event.Content = delta.Content
+		event.ReasoningContent = delta.ReasoningContent
+		event.FinishReason = choice.FinishReason
+
+		if delta.ToolCalls != nil {
+			for _, tc := range delta.ToolCalls {
+				tcIndex := -1
+				if tc.Index != nil {
+					tcIndex = *tc.Index
+				}
+				event.ToolCalls = append(event.ToolCalls, ToolCall{
+					ID:        tc.ID,
+					Name:      tc.Function.Name,
+					Arguments: tc.Function.Arguments,
+					Index:     tcIndex,
+				})
 			}
-			event.ToolCalls = append(event.ToolCalls, ToolCall{
-				ID:        tc.ID,
-				Name:      tc.Function.Name,
-				Arguments: tc.Function.Arguments,
-				Index:     tcIndex,
-			})
 		}
+	}
+
+	// Extract token usage from the stream chunk (typically in the final chunk).
+	if chunk.Usage != nil {
+		event.Usage = chunk.Usage
 	}
 
 	return event, nil

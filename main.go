@@ -891,6 +891,11 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 			fmt.Println(ep.OutputSep)
 		case "tool_call":
 			fmt.Printf("%s%s\n", ep.ToolCallInput, content)
+		case "token_usage":
+			var prompt, completion, total int
+			if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
+				fmt.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
+			}
 		case "error":
 			fmt.Printf("%s%s\n", ep.Error, content)
 		case "done":

@@ -180,9 +180,9 @@
 - [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
 - [ ] FEATURE-128 增加移动端APP和0信任网关，以便用户能够在手机端安全的操控co-shell。
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
-- [ ] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题
+- [x] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题 [BUILD-161]
 - [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
-- [ ] FEATURE-137 新增co-shell之间相互调用能力，以便Agent可以向人和人那样分工和交流，让形成真正的AI团队成为可能。
+- [x] FEATURE-137 新增co-shell之间相互调用能力，以便Agent可以向人和人那样分工和交流，让形成真正的AI团队成为可能。[BUILD-161]
 - [x] FEATURE-138 增加删除记忆memory的REPL和tool call方法，可以按last_from和last_to删除一段记忆。[BUILD-154]
 - [x] FEATURE-139 launch_sub_agent 工具改为 sub_agent_name 字符串参数，仅调用已存在的 agent workspace，不再自动创建 workspace。[BUILD-155]
 - [x] FEATURE-140 新增 ASCII art Logo 显示功能：启动时显示 co-shell 字符 Logo，支持通过 .set show-logo on|off 和 --show-logo 命令行参数控制显示，Logo 文件通过 go:embed 嵌入程序。[BUILD-156]
