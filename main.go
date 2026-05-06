@@ -135,6 +135,9 @@ type cliFlags struct {
 	// External config file generation
 	initCapabilities bool
 	initRules        bool
+
+	// Body additions: custom JSON properties to add to the LLM request body
+	bodyAdd string // format: key=value, can be specified multiple times
 }
 
 func parseFlags() cliFlags {
@@ -235,6 +238,9 @@ func parseFlags() cliFlags {
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
 	flag.BoolVar(&f.initRules, "init-rules", false, "在工作区生成默认 RULES.md 文件并退出")
+
+	// Body additions: custom JSON properties to add to the LLM request body
+	flag.StringVar(&f.bodyAdd, "body-add", "", "向 LLM 请求体添加自定义 JSON 属性（格式：key=value，可多次指定，用逗号分隔）")
 
 	// Custom usage message
 	flag.Usage = func() {
@@ -594,6 +600,32 @@ func main() {
 		}
 	}
 
+	// Apply body-add CLI override
+	if flags.bodyAdd != "" {
+		if cfg.LLM.BodyAdditions == nil {
+			cfg.LLM.BodyAdditions = make(map[string]string)
+		}
+		// Parse comma-separated key=value pairs
+		pairs := strings.Split(flags.bodyAdd, ",")
+		for _, pair := range pairs {
+			pair = strings.TrimSpace(pair)
+			if pair == "" {
+				continue
+			}
+			parts := strings.SplitN(pair, "=", 2)
+			if len(parts) != 2 {
+				fmt.Fprintf(os.Stderr, "Warning: invalid --body-add format %q, use key=value\n", pair)
+				continue
+			}
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			if key == "" {
+				continue
+			}
+			cfg.LLM.BodyAdditions[key] = value
+		}
+	}
+
 	// Apply show-logo CLI override
 	if flags.showLogo != "" {
 		switch flags.showLogo {
@@ -699,6 +731,10 @@ func main() {
 		llmClient.SetTopK(cfg.LLM.TopK)
 		llmClient.SetRepetitionPenalty(cfg.LLM.RepetitionPenalty)
 		llmClient.SetTokenUsage(cfg.LLM.TokenUsage)
+		// Apply body additions from config
+		if len(cfg.LLM.BodyAdditions) > 0 {
+			llmClient.SetBodyAdditions(cfg.LLM.BodyAdditions)
+		}
 		log.Info("LLM client initialized: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
 			cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout, cfg.LLM.ThinkingEnabled, cfg.LLM.ReasoningEffort)
 	} else {
@@ -971,6 +1007,12 @@ func (c *noopClient) SetTopK(topK int) {}
 func (c *noopClient) SetRepetitionPenalty(penalty float64) {}
 
 func (c *noopClient) SetTokenUsage(mode string) {}
+
+func (c *noopClient) SetBodyAdditions(additions map[string]string) {}
+
+func (c *noopClient) RemoveBodyAddition(key string) {}
+
+func (c *noopClient) GetBodyAdditions() map[string]string { return nil }
 
 func (c *noopClient) Close() error {
 	return nil
