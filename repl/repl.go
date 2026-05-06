@@ -326,6 +326,12 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.imageHandler.Handle(args)
 	case ".plan":
 		result, err = r.planHandler.Handle(args)
+	case ".body-add":
+		result, err = r.handleBodyAdd(args)
+	case ".body-remove":
+		result, err = r.handleBodyRemove(args)
+	case ".body-display":
+		result, err = r.handleBodyDisplay(args)
 	case ".new":
 		r.agent.Reset()
 		fmt.Printf("%s%s\n", ep.Success, i18n.T(i18n.KeyHelpNew))
@@ -411,6 +417,92 @@ func (r *REPL) handleWizard() {
 	} else {
 		fmt.Println(i18n.T(i18n.KeySetupCancelled))
 	}
+}
+
+// handleBodyAdd adds a custom JSON property to the LLM request body.
+// Usage: .body-add key=value
+// The value is treated as a JSON string and will be parsed as JSON if valid.
+func (r *REPL) handleBodyAdd(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", fmt.Errorf("用法: .body-add key=value")
+	}
+
+	if r.cfg.LLM.BodyAdditions == nil {
+		r.cfg.LLM.BodyAdditions = make(map[string]string)
+	}
+
+	for _, arg := range args {
+		parts := strings.SplitN(arg, "=", 2)
+		if len(parts) != 2 {
+			return "", fmt.Errorf("无效格式 %q，请使用 key=value 格式", arg)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if key == "" {
+			return "", fmt.Errorf("属性名不能为空")
+		}
+		r.cfg.LLM.BodyAdditions[key] = value
+	}
+
+	// Sync to LLM client
+	r.agent.GetLLMClient().SetBodyAdditions(r.cfg.LLM.BodyAdditions)
+
+	// Save config
+	if err := r.cfg.Save(); err != nil {
+		return "", fmt.Errorf("保存配置失败: %w", err)
+	}
+
+	return fmt.Sprintf("已添加 %d 个自定义属性到 LLM 请求体", len(args)), nil
+}
+
+// handleBodyRemove removes a custom JSON property from the LLM request body.
+// Usage: .body-remove key
+func (r *REPL) handleBodyRemove(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", fmt.Errorf("用法: .body-remove key")
+	}
+
+	if r.cfg.LLM.BodyAdditions == nil {
+		return "", fmt.Errorf("没有自定义属性可删除")
+	}
+
+	removed := 0
+	for _, key := range args {
+		key = strings.TrimSpace(key)
+		if _, exists := r.cfg.LLM.BodyAdditions[key]; exists {
+			delete(r.cfg.LLM.BodyAdditions, key)
+			removed++
+		}
+	}
+
+	if removed == 0 {
+		return "", fmt.Errorf("未找到指定的属性")
+	}
+
+	// Sync to LLM client
+	r.agent.GetLLMClient().SetBodyAdditions(r.cfg.LLM.BodyAdditions)
+
+	// Save config
+	if err := r.cfg.Save(); err != nil {
+		return "", fmt.Errorf("保存配置失败: %w", err)
+	}
+
+	return fmt.Sprintf("已删除 %d 个自定义属性", removed), nil
+}
+
+// handleBodyDisplay displays all custom JSON properties in the LLM request body.
+// Usage: .body-display
+func (r *REPL) handleBodyDisplay(args []string) (string, error) {
+	if len(r.cfg.LLM.BodyAdditions) == 0 {
+		return "没有自定义属性", nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString("LLM 请求体自定义属性:\n")
+	for key, value := range r.cfg.LLM.BodyAdditions {
+		sb.WriteString(fmt.Sprintf("  %s = %s\n", key, value))
+	}
+	return sb.String(), nil
 }
 
 // rebuildLLMClient creates a new LLM client from current config and replaces it in the agent.
@@ -558,6 +650,9 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpSession))
 	fmt.Println(i18n.T(i18n.KeyHelpImage))
 	fmt.Println(i18n.T(i18n.KeyHelpPlan))
+	fmt.Println(i18n.T(i18n.KeyHelpBodyAdd))
+	fmt.Println(i18n.T(i18n.KeyHelpBodyRemove))
+	fmt.Println(i18n.T(i18n.KeyHelpBodyDisplay))
 	fmt.Println(i18n.T(i18n.KeyHelpNew))
 	fmt.Println(i18n.T(i18n.KeyHelpWizard))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))

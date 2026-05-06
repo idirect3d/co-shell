@@ -178,6 +178,17 @@ type Client interface {
 	// "on" = display and send include_usage, "off" = don't display but still send, "none" = don't display and don't send.
 	SetTokenUsage(mode string)
 
+	// SetBodyAdditions sets the custom JSON properties to add to the LLM request body.
+	// The additions map is key-value pairs where the key is the property name and
+	// the value is a JSON string that will be merged into the request body.
+	SetBodyAdditions(additions map[string]string)
+
+	// RemoveBodyAddition removes a custom JSON property from the LLM request body.
+	RemoveBodyAddition(key string)
+
+	// GetBodyAdditions returns the current custom JSON properties.
+	GetBodyAdditions() map[string]string
+
 	// Close cleans up any resources.
 	Close() error
 }
@@ -270,6 +281,9 @@ type chatRequestJSON struct {
 	StreamOptions     *streamOptionsJSON `json:"stream_options,omitempty"`
 	Thinking          *thinkingConfig    `json:"thinking,omitempty"`
 	ReasoningEffort   string             `json:"reasoning_effort,omitempty"`
+	// BodyAdditions holds custom JSON properties to merge into the request body.
+	// These are serialized separately and merged at the JSON level.
+	BodyAdditions map[string]interface{} `json:"-"`
 }
 
 // thinkingConfig represents the DeepSeek thinking mode configuration.
@@ -352,12 +366,13 @@ type openAIClient struct {
 	model             string
 	temperature       float64
 	maxTokens         int
-	topP              float64 // top-p sampling (-1 = don't send)
-	topK              int     // top-k sampling (-1 = don't send)
-	repetitionPenalty float64 // repetition penalty (-1 = don't send)
-	thinkingEnabled   bool    // whether to enable thinking/reasoning mode in API requests
-	reasoningEffort   string  // reasoning effort level: "low", "medium", "high"
-	tokenUsage        string  // token usage display mode: "on", "off", "none"
+	topP              float64           // top-p sampling (-1 = don't send)
+	topK              int               // top-k sampling (-1 = don't send)
+	repetitionPenalty float64           // repetition penalty (-1 = don't send)
+	thinkingEnabled   bool              // whether to enable thinking/reasoning mode in API requests
+	reasoningEffort   string            // reasoning effort level: "low", "medium", "high"
+	tokenUsage        string            // token usage display mode: "on", "off", "none"
+	bodyAdditions     map[string]string // custom JSON properties to add to the LLM request body
 }
 
 // NewClient creates a new LLM client from configuration.
@@ -504,6 +519,37 @@ func parseResponseChoices(choices []choiceJSON) (string, string, []ToolCall) {
 	return content, reasoningContent, toolCalls
 }
 
+// mergeBodyAdditions merges custom JSON properties into the serialized request body.
+// If there are no additions, returns the original bytes unchanged.
+// The additions map contains key-value pairs where the value is a JSON string.
+func mergeBodyAdditions(bodyBytes []byte, additions map[string]string) ([]byte, error) {
+	if len(additions) == 0 {
+		return bodyBytes, nil
+	}
+
+	var bodyMap map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &bodyMap); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal request body for merge: %w", err)
+	}
+
+	for key, value := range additions {
+		// Try to parse the value as JSON first (for objects, arrays, numbers, booleans)
+		var parsedValue interface{}
+		if err := json.Unmarshal([]byte(value), &parsedValue); err == nil {
+			bodyMap[key] = parsedValue
+		} else {
+			// If it's not valid JSON, use it as a raw string
+			bodyMap[key] = value
+		}
+	}
+
+	result, err := json.Marshal(bodyMap)
+	if err != nil {
+		return nil, fmt.Errorf("cannot re-marshal request body after merge: %w", err)
+	}
+	return result, nil
+}
+
 // maskAPIKeyInRequest masks the API key in a JSON request body string for safe logging.
 // It replaces the "api_key" field value with a masked version.
 func maskAPIKeyInRequest(body string) string {
@@ -576,6 +622,12 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("cannot marshal request: %w", err)
+	}
+
+	// Merge custom body additions if any
+	bodyBytes, err = mergeBodyAdditions(bodyBytes, c.bodyAdditions)
+	if err != nil {
+		return nil, fmt.Errorf("cannot merge body additions: %w", err)
 	}
 
 	// Log request body at DEBUG level (mask API key in messages)
@@ -730,6 +782,12 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("cannot marshal request: %w", err)
+	}
+
+	// Merge custom body additions if any
+	bodyBytes, err = mergeBodyAdditions(bodyBytes, c.bodyAdditions)
+	if err != nil {
+		return nil, fmt.Errorf("cannot merge body additions: %w", err)
 	}
 
 	// Log request body at DEBUG level (mask API key in messages)
@@ -1098,6 +1156,18 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	return models, nil
 }
 
+// testChat sends a chat request with temperature=0 for deterministic testing.
+// This is used by TestVisionSupport, TestTextSupport, and TestToolCallSupport
+// to ensure consistent results during capability testing.
+func (c *openAIClient) testChat(ctx context.Context, messages []Message, tools []Tool) (*LLMResponse, error) {
+	// Save original temperature and restore after test
+	origTemp := c.temperature
+	c.temperature = 0
+	defer func() { c.temperature = origTemp }()
+
+	return c.Chat(ctx, messages, tools)
+}
+
 // TestVisionSupport tests whether the model supports vision (image input)
 // by sending a minimal multimodal request with a 1x1 pixel base64 image.
 // Returns true if the model accepts the request without error.
@@ -1122,7 +1192,7 @@ func (c *openAIClient) TestVisionSupport(ctx context.Context) bool {
 		},
 	}
 
-	_, err := c.Chat(ctx, []Message{msg}, nil)
+	_, err := c.testChat(ctx, []Message{msg}, nil)
 	if err != nil {
 		log.Debug("TestVisionSupport failed for model %s: %v", c.model, err)
 		return false
@@ -1140,7 +1210,7 @@ func (c *openAIClient) TestTextSupport(ctx context.Context) bool {
 		Content: "Hi",
 	}
 
-	_, err := c.Chat(ctx, []Message{msg}, nil)
+	_, err := c.testChat(ctx, []Message{msg}, nil)
 	if err != nil {
 		log.Debug("TestTextSupport failed for model %s: %v", c.model, err)
 		return false
@@ -1174,7 +1244,7 @@ func (c *openAIClient) TestToolCallSupport(ctx context.Context) bool {
 		Content: "请调用 test_tool 工具，参数 message 为 'hello'。",
 	}
 
-	resp, err := c.Chat(ctx, []Message{msg}, []Tool{testTool})
+	resp, err := c.testChat(ctx, []Message{msg}, []Tool{testTool})
 	if err != nil {
 		log.Debug("TestToolCallSupport failed for model %s: %v", c.model, err)
 		return false
@@ -1214,6 +1284,20 @@ func (c *openAIClient) SetRepetitionPenalty(penalty float64) {
 
 func (c *openAIClient) SetTokenUsage(mode string) {
 	c.tokenUsage = mode
+}
+
+func (c *openAIClient) SetBodyAdditions(additions map[string]string) {
+	c.bodyAdditions = additions
+}
+
+func (c *openAIClient) RemoveBodyAddition(key string) {
+	if c.bodyAdditions != nil {
+		delete(c.bodyAdditions, key)
+	}
+}
+
+func (c *openAIClient) GetBodyAdditions() map[string]string {
+	return c.bodyAdditions
 }
 
 func (c *openAIClient) Close() error {

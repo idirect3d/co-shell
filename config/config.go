@@ -202,6 +202,11 @@ type LLMConfig struct {
 	// "off" = don't display token usage but still send include_usage=true
 	// "none" = don't display token usage and don't send include_usage
 	TokenUsage string `json:"token_usage"`
+
+	// BodyAdditions: custom JSON properties to add to the LLM request body.
+	// Each entry is a key-value pair where the key is the property name and
+	// the value is a JSON string that will be merged into the request body.
+	BodyAdditions map[string]string `json:"body_additions"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
