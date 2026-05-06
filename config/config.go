@@ -196,6 +196,12 @@ type LLMConfig struct {
 	// This value is automatically detected from the API when listing models.
 	// A value of 0 means unknown or not yet detected.
 	MaxModelLen int `json:"max_model_len"`
+
+	// TokenUsage: controls token usage display and stream_options.include_usage.
+	// "on" = display token usage and send include_usage=true
+	// "off" = don't display token usage but still send include_usage=true
+	// "none" = don't display token usage and don't send include_usage
+	TokenUsage string `json:"token_usage"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -319,6 +325,7 @@ func DefaultConfig() *Config {
 			EmojiEnabled:              true,
 			ShowLogo:                  true,
 			ToolCallEnabled:           true,
+			TokenUsage:                "on",
 		},
 
 		MCP: MCPConfig{
@@ -520,6 +527,7 @@ func (c *Config) Show() string {
 	col3TopP := i18n.T(i18n.KeyCol3TopP)
 	col3TopK := i18n.T(i18n.KeyCol3TopK)
 	col3RepetitionPenalty := i18n.T(i18n.KeyCol3RepetitionPenalty)
+	col3TokenUsage := i18n.T(i18n.KeyCol3TokenUsage)
 
 	resultModeStr := ResultModeString(ResultMode(c.LLM.ResultMode))
 
@@ -605,6 +613,7 @@ func (c *Config) Show() string {
 		"top-p:", fmt.Sprintf("%.1f", c.LLM.TopP), col3TopP,
 		"top-k:", fmt.Sprintf("%d", c.LLM.TopK), col3TopK,
 		"repetition-penalty:", fmt.Sprintf("%.1f", c.LLM.RepetitionPenalty), col3RepetitionPenalty,
+		"token-usage:", c.LLM.TokenUsage, col3TokenUsage,
 		"api-key:", maskedKey, col3APIKey)
 
 }
