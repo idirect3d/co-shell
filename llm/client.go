@@ -174,6 +174,10 @@ type Client interface {
 	// SetRepetitionPenalty sets the repetition penalty parameter (-1 = don't send).
 	SetRepetitionPenalty(penalty float64)
 
+	// SetTokenUsage sets the token usage display mode.
+	// "on" = display and send include_usage, "off" = don't display but still send, "none" = don't display and don't send.
+	SetTokenUsage(mode string)
+
 	// Close cleans up any resources.
 	Close() error
 }
@@ -246,19 +250,26 @@ type functionDefinitionJSON struct {
 	Parameters  interface{} `json:"parameters"`
 }
 
+// streamOptionsJSON represents the stream_options parameter for streaming requests.
+// Setting IncludeUsage to true requests the API to include token usage in the final chunk.
+type streamOptionsJSON struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
 // chatRequestJSON is the JSON structure for the chat completion request.
 type chatRequestJSON struct {
-	Model             string            `json:"model"`
-	Messages          []chatMessageJSON `json:"messages"`
-	Temperature       *float32          `json:"temperature,omitempty"`
-	MaxTokens         int               `json:"max_tokens,omitempty"`
-	TopP              float32           `json:"top_p,omitempty"`
-	TopK              int               `json:"top_k,omitempty"`
-	RepetitionPenalty float32           `json:"repetition_penalty,omitempty"`
-	Tools             []toolJSON        `json:"tools,omitempty"`
-	Stream            bool              `json:"stream,omitempty"`
-	Thinking          *thinkingConfig   `json:"thinking,omitempty"`
-	ReasoningEffort   string            `json:"reasoning_effort,omitempty"`
+	Model             string             `json:"model"`
+	Messages          []chatMessageJSON  `json:"messages"`
+	Temperature       *float32           `json:"temperature,omitempty"`
+	MaxTokens         int                `json:"max_tokens,omitempty"`
+	TopP              float32            `json:"top_p,omitempty"`
+	TopK              int                `json:"top_k,omitempty"`
+	RepetitionPenalty float32            `json:"repetition_penalty,omitempty"`
+	Tools             []toolJSON         `json:"tools,omitempty"`
+	Stream            bool               `json:"stream,omitempty"`
+	StreamOptions     *streamOptionsJSON `json:"stream_options,omitempty"`
+	Thinking          *thinkingConfig    `json:"thinking,omitempty"`
+	ReasoningEffort   string             `json:"reasoning_effort,omitempty"`
 }
 
 // thinkingConfig represents the DeepSeek thinking mode configuration.
@@ -346,6 +357,7 @@ type openAIClient struct {
 	repetitionPenalty float64 // repetition penalty (-1 = don't send)
 	thinkingEnabled   bool    // whether to enable thinking/reasoning mode in API requests
 	reasoningEffort   string  // reasoning effort level: "low", "medium", "high"
+	tokenUsage        string  // token usage display mode: "on", "off", "none"
 }
 
 // NewClient creates a new LLM client from configuration.
@@ -666,6 +678,13 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		Model:    c.model,
 		Messages: buildMessages(messages),
 		Stream:   true,
+	}
+
+	// Conditionally set StreamOptions based on token usage mode.
+	// "none" = don't send include_usage at all.
+	// "on" or "off" = send include_usage=true (display is controlled at the agent/loop level).
+	if c.tokenUsage != "none" {
+		reqBody.StreamOptions = &streamOptionsJSON{IncludeUsage: true}
 	}
 
 	// Only set temperature if configured (-1 means don't send)
@@ -1191,6 +1210,10 @@ func (c *openAIClient) SetTopK(topK int) {
 
 func (c *openAIClient) SetRepetitionPenalty(penalty float64) {
 	c.repetitionPenalty = penalty
+}
+
+func (c *openAIClient) SetTokenUsage(mode string) {
+	c.tokenUsage = mode
 }
 
 func (c *openAIClient) Close() error {

@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.5.0-RC3"
-const build = "162"
+const build = "163"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -125,6 +125,9 @@ type cliFlags struct {
 
 	// Emoji enabled
 	emojiEnabled string // "on"/"off"
+
+	// Token usage display mode
+	tokenUsage string // "on"/"off"/"none"
 
 	// Show logo on startup
 	showLogo string // "on"/"off"
@@ -222,6 +225,9 @@ func parseFlags() cliFlags {
 
 	// Emoji enabled
 	flag.StringVar(&f.emojiEnabled, "emoji-enabled", "", "启用表情符号前缀（on/off，覆盖配置文件）")
+
+	// Token usage display mode
+	flag.StringVar(&f.tokenUsage, "token-usage", "", "Token 用量显示模式（on/off/none，覆盖配置文件）")
 
 	// Show logo on startup
 	flag.StringVar(&f.showLogo, "show-logo", "", "显示启动 Logo（on/off，覆盖配置文件）")
@@ -578,6 +584,16 @@ func main() {
 		}
 	}
 
+	// Apply token-usage CLI override
+	if flags.tokenUsage != "" {
+		switch flags.tokenUsage {
+		case "on", "off", "none":
+			cfg.LLM.TokenUsage = flags.tokenUsage
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --token-usage value %q, use on|off|none\n", flags.tokenUsage)
+		}
+	}
+
 	// Apply show-logo CLI override
 	if flags.showLogo != "" {
 		switch flags.showLogo {
@@ -682,6 +698,7 @@ func main() {
 		llmClient.SetTopP(cfg.LLM.TopP)
 		llmClient.SetTopK(cfg.LLM.TopK)
 		llmClient.SetRepetitionPenalty(cfg.LLM.RepetitionPenalty)
+		llmClient.SetTokenUsage(cfg.LLM.TokenUsage)
 		log.Info("LLM client initialized: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
 			cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout, cfg.LLM.ThinkingEnabled, cfg.LLM.ReasoningEffort)
 	} else {
@@ -952,6 +969,8 @@ func (c *noopClient) SetTopP(topP float64) {}
 func (c *noopClient) SetTopK(topK int) {}
 
 func (c *noopClient) SetRepetitionPenalty(penalty float64) {}
+
+func (c *noopClient) SetTokenUsage(mode string) {}
 
 func (c *noopClient) Close() error {
 	return nil
