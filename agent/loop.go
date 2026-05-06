@@ -427,6 +427,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		// Step 2: If no tool calls, this is the final answer
 		if len(toolCalls) == 0 {
+			// Send token usage information before done
+			prompt, completion, total := a.TokenUsage()
+			if total > 0 {
+				cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+			}
 
 			cb("done", "")
 
