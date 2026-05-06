@@ -771,6 +771,30 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			finalContent := contentBuilder.String()
 			finalReasoning := reasoningBuilder.String()
 
+			// Accumulate token usage from the stream response (if provided by the API).
+			if event.Usage != nil {
+				a.mu.Lock()
+				a.totalPromptTokens += event.Usage.PromptTokens
+				a.totalCompletionTokens += event.Usage.CompletionTokens
+				a.totalTokens += event.Usage.TotalTokens
+				// Persist token usage to database
+				if a.store != nil {
+					entry := &store.TokenUsageEntry{
+						ID:               fmt.Sprintf("%020d", time.Now().UnixNano()),
+						PromptTokens:     event.Usage.PromptTokens,
+						CompletionTokens: event.Usage.CompletionTokens,
+						TotalTokens:      event.Usage.TotalTokens,
+						Timestamp:        time.Now(),
+					}
+					if err := a.store.SaveTokenUsage(entry); err != nil {
+						log.Warn("Failed to save token usage: %v", err)
+					}
+				}
+				a.mu.Unlock()
+				log.Debug("Agent.streamLLMResponse: accumulated token usage from stream: prompt=%d, completion=%d, total=%d",
+					event.Usage.PromptTokens, event.Usage.CompletionTokens, event.Usage.TotalTokens)
+			}
+
 			// If the LLM intended to call tools but all were invalid (e.g., empty arguments),
 			// treat this as an error so the agent can retry rather than returning empty content.
 			// Provide detailed feedback about which tool calls were invalid and why.
