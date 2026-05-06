@@ -167,7 +167,7 @@
 - [ ] FEATURE-103 动态上下文调整，尝试让LLM决定取多少上下文。
 - [ ] FEATURE-105 提供用户选择对话框，大模型可以给出选项让用户显式选择。
 - [ ] FEATURE-106 实现history命令翻页。
-- [ ] FEATURE-116 增加显示token数功能，每次任务（checklist）完成时可以统计本次任务所用的token数，另外还有一个从程序启动到现在的总数。
+- [x] FEATURE-116 增加显示token数功能，每次任务（checklist）完成时可以统计本次任务所用的token数，另外还有一个从程序启动到现在的总数。[BUILD-162]
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
 - [ ] FEATURE-50 完整文档站。
