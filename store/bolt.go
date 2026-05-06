@@ -519,6 +519,53 @@ func (s *Store) DeleteMemoryRange(lastFrom, lastTo int) error {
 	})
 }
 
+// --- Token Usage Operations ---
+
+// TokenUsageEntry records token usage for a single LLM API call.
+type TokenUsageEntry struct {
+	ID               string    `json:"id"`                // unique ID (timestamp-based)
+	PromptTokens     int       `json:"prompt_tokens"`     // input tokens
+	CompletionTokens int       `json:"completion_tokens"` // output tokens
+	TotalTokens      int       `json:"total_tokens"`      // total tokens
+	Timestamp        time.Time `json:"timestamp"`         // when the API call was made
+}
+
+// SaveTokenUsage stores a token usage entry in the token_usage bucket.
+func (s *Store) SaveTokenUsage(entry *TokenUsageEntry) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte("token_usage"))
+		if err != nil {
+			return fmt.Errorf("cannot create token_usage bucket: %w", err)
+		}
+		data, err := json.Marshal(entry)
+		if err != nil {
+			return fmt.Errorf("cannot marshal token usage entry: %w", err)
+		}
+		return bucket.Put([]byte(entry.ID), data)
+	})
+}
+
+// ListTokenUsage returns all token usage entries in chronological order (oldest first).
+func (s *Store) ListTokenUsage() ([]TokenUsageEntry, error) {
+	var entries []TokenUsageEntry
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("token_usage"))
+		if bucket == nil {
+			return nil
+		}
+		cursor := bucket.Cursor()
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			var entry TokenUsageEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				continue // skip corrupted entries
+			}
+			entries = append(entries, entry)
+		}
+		return nil
+	})
+	return entries, err
+}
+
 // ClearConversationMessages removes all conversation messages from the memory bucket.
 func (s *Store) ClearConversationMessages() error {
 	return s.db.Update(func(tx *bbolt.Tx) error {

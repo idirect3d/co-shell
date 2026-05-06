@@ -166,6 +166,32 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			return "", fmt.Errorf("LLM call failed: %w", err)
 		}
 
+		// Accumulate token usage from API response
+		if resp.Usage != nil {
+			a.mu.Lock()
+			a.totalPromptTokens += resp.Usage.PromptTokens
+			a.totalCompletionTokens += resp.Usage.CompletionTokens
+			a.totalTokens += resp.Usage.TotalTokens
+			// Persist token usage to database
+			if a.store != nil {
+				entry := &store.TokenUsageEntry{
+					ID:               fmt.Sprintf("%020d", time.Now().UnixNano()),
+					PromptTokens:     resp.Usage.PromptTokens,
+					CompletionTokens: resp.Usage.CompletionTokens,
+					TotalTokens:      resp.Usage.TotalTokens,
+					Timestamp:        time.Now(),
+				}
+				if err := a.store.SaveTokenUsage(entry); err != nil {
+					log.Warn("Failed to save token usage: %v", err)
+				}
+			}
+			a.mu.Unlock()
+			log.Debug("Agent.Run: accumulated token usage: prompt=%d, completion=%d, total=%d",
+				a.totalPromptTokens, a.totalCompletionTokens, a.totalTokens)
+		} else {
+			a.mu.Unlock()
+		}
+
 		// If no tool calls, this is the final answer
 		if len(resp.ToolCalls) == 0 {
 			a.mu.Lock()
@@ -401,6 +427,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		// Step 2: If no tool calls, this is the final answer
 		if len(toolCalls) == 0 {
+			// Send token usage information before done
+			prompt, completion, total := a.TokenUsage()
+			if total > 0 {
+				cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+			}
 			cb("done", "")
 
 			a.mu.Lock()
@@ -740,6 +771,30 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			finalContent := contentBuilder.String()
 			finalReasoning := reasoningBuilder.String()
 
+			// Accumulate token usage from the stream response (if provided by the API).
+			if event.Usage != nil {
+				a.mu.Lock()
+				a.totalPromptTokens += event.Usage.PromptTokens
+				a.totalCompletionTokens += event.Usage.CompletionTokens
+				a.totalTokens += event.Usage.TotalTokens
+				// Persist token usage to database
+				if a.store != nil {
+					entry := &store.TokenUsageEntry{
+						ID:               fmt.Sprintf("%020d", time.Now().UnixNano()),
+						PromptTokens:     event.Usage.PromptTokens,
+						CompletionTokens: event.Usage.CompletionTokens,
+						TotalTokens:      event.Usage.TotalTokens,
+						Timestamp:        time.Now(),
+					}
+					if err := a.store.SaveTokenUsage(entry); err != nil {
+						log.Warn("Failed to save token usage: %v", err)
+					}
+				}
+				a.mu.Unlock()
+				log.Debug("Agent.streamLLMResponse: accumulated token usage from stream: prompt=%d, completion=%d, total=%d",
+					event.Usage.PromptTokens, event.Usage.CompletionTokens, event.Usage.TotalTokens)
+			}
+
 			// If the LLM intended to call tools but all were invalid (e.g., empty arguments),
 			// treat this as an error so the agent can retry rather than returning empty content.
 			// Provide detailed feedback about which tool calls were invalid and why.
@@ -780,6 +835,30 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 	resp, err := a.llmClient.Chat(ctx, contextMsgs, tools)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("LLM call failed: %w", err)
+	}
+
+	// Accumulate token usage from API response
+	if resp.Usage != nil {
+		a.mu.Lock()
+		a.totalPromptTokens += resp.Usage.PromptTokens
+		a.totalCompletionTokens += resp.Usage.CompletionTokens
+		a.totalTokens += resp.Usage.TotalTokens
+		// Persist token usage to database
+		if a.store != nil {
+			entry := &store.TokenUsageEntry{
+				ID:               fmt.Sprintf("%020d", time.Now().UnixNano()),
+				PromptTokens:     resp.Usage.PromptTokens,
+				CompletionTokens: resp.Usage.CompletionTokens,
+				TotalTokens:      resp.Usage.TotalTokens,
+				Timestamp:        time.Now(),
+			}
+			if err := a.store.SaveTokenUsage(entry); err != nil {
+				log.Warn("Failed to save token usage: %v", err)
+			}
+		}
+		a.mu.Unlock()
+		log.Debug("Agent.nonStreamingFallback: accumulated token usage: prompt=%d, completion=%d, total=%d",
+			a.totalPromptTokens, a.totalCompletionTokens, a.totalTokens)
 	}
 
 	if a.showLlmThinking && resp.ReasoningContent != "" {
