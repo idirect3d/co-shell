@@ -97,11 +97,19 @@ type ToolResult struct {
 	Content    string
 }
 
+// TokenUsage holds token usage statistics from an LLM API response.
+type TokenUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // LLMResponse is the parsed response from the LLM.
 type LLMResponse struct {
 	Content          string
 	ReasoningContent string
 	ToolCalls        []ToolCall
+	Usage            *TokenUsage // token usage from the API response, may be nil
 }
 
 // ModelInfo holds information about a model from the API.
@@ -620,6 +628,18 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	// Parse response content and tool calls
 	content, reasoningContent, toolCalls := parseResponseChoices(chatResp.Choices)
 
+	// Extract token usage from API response
+	var usage *TokenUsage
+	if chatResp.Usage != nil {
+		usage = &TokenUsage{
+			PromptTokens:     chatResp.Usage.PromptTokens,
+			CompletionTokens: chatResp.Usage.CompletionTokens,
+			TotalTokens:      chatResp.Usage.TotalTokens,
+		}
+		log.Debug("LLM Chat token usage: prompt=%d, completion=%d, total=%d",
+			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+	}
+
 	// Log response content at DEBUG level
 	log.Debug("LLM Chat response: model=%s, content_len=%d, tool_calls=%d, reasoning_len=%d",
 		c.model, len(content), len(toolCalls), len(reasoningContent))
@@ -634,6 +654,7 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		Content:          content,
 		ReasoningContent: reasoningContent,
 		ToolCalls:        toolCalls,
+		Usage:            usage,
 	}, nil
 
 }
