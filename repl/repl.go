@@ -510,6 +510,13 @@ func (r *REPL) streamCallback(eventType string, content string) {
 	case "tool_call":
 		fmt.Printf("%s%s\n", ep.ToolCallInput, content)
 
+	case "token_usage":
+		// Parse token usage: "prompt=%d, completion=%d, total=%d"
+		var prompt, completion, total int
+		if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
+			fmt.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
+		}
+
 	case "error":
 		fmt.Printf("%s%s\n", ep.Error, content)
 
