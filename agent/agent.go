@@ -199,6 +199,13 @@ func (a *Agent) SetLLMClient(client llm.Client) {
 	log.Info("LLM client replaced at runtime")
 }
 
+// GetLLMClient returns the current LLM client.
+func (a *Agent) GetLLMClient() llm.Client {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.llmClient
+}
+
 // rebuildSystemPrompt rebuilds the system prompt with current config identity info.
 // It preserves the conversation history (only replaces the system message at index 0).
 func (a *Agent) rebuildSystemPrompt() {
