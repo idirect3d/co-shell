@@ -688,7 +688,60 @@ func main() {
 	}
 	defer s.Close()
 
-	// Initialize MCP manager
+	// Initialize model manager and load models from workspace
+	modelMgr := config.GetDefaultModelManager()
+	if loadedModels, err := config.LoadModelsFromWorkspace(ws.Root()); err != nil {
+		log.Warn("Cannot load models from workspace: %v", err)
+	} else if loadedModels != nil {
+		cfg.Models = loadedModels
+		log.Info("Loaded %d model configurations from workspace", len(loadedModels))
+	}
+
+	// If no models configured but we have a basic LLM config, create a default model entry
+	if len(cfg.Models) == 0 && cfg.LLM.Model != "" && cfg.LLM.Endpoint != "" {
+		defaultModel := &config.ModelConfig{
+			ID:       "default-" + strings.ReplaceAll(cfg.LLM.Model, "/", "-"),
+			Name:     cfg.LLM.Model,
+			Provider: cfg.LLM.Provider,
+			Endpoint: cfg.LLM.Endpoint,
+			Model:    cfg.LLM.Model,
+			APIKey:   cfg.LLM.APIKey,
+			Priority: 100,
+			Enabled:  true,
+			Capabilities: config.ModelCapability{
+				Vision:     cfg.LLM.VisionSupport,
+				ToolCall:   cfg.LLM.ToolCallEnabled,
+				Thinking:   cfg.LLM.ThinkingEnabled,
+				Multimodal: cfg.LLM.VisionSupport,
+			},
+		}
+		cfg.Models = append(cfg.Models, defaultModel)
+		log.Info("Created default model entry: %s", defaultModel.ID)
+	}
+
+	// Save models back to workspace
+	if len(cfg.Models) > 0 {
+		if err := config.SaveModelsToWorkspace(ws.Root(), cfg.Models); err != nil {
+			log.Warn("Cannot save models to workspace: %v", err)
+		}
+	}
+
+	// Check if we need to auto-select a model based on --image flag
+	if visionRequired := flags.imagePaths != ""; visionRequired {
+		if activeModel := modelMgr.GetActiveModel(true); activeModel != nil {
+			if activeModel.Capabilities.Vision {
+				cfg.LLM.Provider = activeModel.Provider
+				cfg.LLM.Endpoint = activeModel.Endpoint
+				cfg.LLM.Model = activeModel.Model
+				if activeModel.APIKey != "" {
+					cfg.LLM.APIKey = activeModel.APIKey
+				}
+				cfg.LLM.VisionSupport = true
+				log.Info("Auto-selected vision model: %s", activeModel.ID)
+			}
+		}
+	}
+
 	mcpMgr := mcp.NewManager()
 	defer mcpMgr.Close()
 
