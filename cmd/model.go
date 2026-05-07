@@ -26,7 +26,9 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -36,12 +38,18 @@ import (
 
 // ModelHandler handles the .model built-in command for multi-model management.
 type ModelHandler struct {
-	cfg *config.Config
+	cfg         *config.Config
+	scanner     *bufio.Scanner // for interactive wizard input
+	wizardStack []string       // stack of wizard steps to return to
 }
 
 // NewModelHandler creates a new ModelHandler.
 func NewModelHandler(cfg *config.Config) *ModelHandler {
-	return &ModelHandler{cfg: cfg}
+	return &ModelHandler{
+		cfg:         cfg,
+		scanner:     bufio.NewScanner(os.Stdin),
+		wizardStack: make([]string, 0),
+	}
 }
 
 // Handle processes .model commands.
@@ -55,7 +63,7 @@ func (h *ModelHandler) Handle(args []string) (string, error) {
 	case "list", "ls":
 		return h.listModels()
 	case "add":
-		return h.addModel(args[1:])
+		return h.addModelWizard()
 	case "remove", "rm":
 		return h.removeModel(args[1:])
 	case "switch", "use":
@@ -85,7 +93,7 @@ func (h *ModelHandler) showHelp() (string, error) {
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 	result.WriteString("  .model list / ls              - 列出所有已配置模型\n")
 	result.WriteString("  .model info <id>              - 显示模型详细信息\n")
-	result.WriteString("  .model add <prov> <model>     - 添加新模型 (--endpoint/--api-key/--priority)\n")
+	result.WriteString("  .model add                    - 向导模式添加新模型\n")
 	result.WriteString("  .model from-tpl <tpl> <mdl>   - 从模板添加模型 (--api-key)\n")
 	result.WriteString("  .model remove <id>            - 移除模型\n")
 	result.WriteString("  .model switch <id>            - 切换到指定模型\n")
@@ -101,7 +109,7 @@ func (h *ModelHandler) showHelp() (string, error) {
 func (h *ModelHandler) listModels() (string, error) {
 	models := h.cfg.Models
 	if len(models) == 0 {
-		return "未配置多模型。使用 .model from-tpl 或 .model add 添加模型。\n", nil
+		return "未配置多模型。使用 .model add 或 .model from-tpl 添加模型。\n", nil
 	}
 
 	sorted := make([]*config.ModelConfig, len(models))
@@ -209,73 +217,338 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	return result.String(), nil
 }
 
-// addModel adds a new model configuration.
-func (h *ModelHandler) addModel(args []string) (string, error) {
-	if len(args) < 2 {
-		return "", fmt.Errorf("用法: .model add <供应商> <模型> [--endpoint <url>] [--api-key <key>] [--priority <n>]")
+// addModelWizard starts the interactive wizard to add a new model.
+func (h *ModelHandler) addModelWizard() (string, error) {
+	var result strings.Builder
+	result.WriteString("═══════════════════════════════════════════════════════\n")
+	result.WriteString("  📋 添加模型向导 / Add Model Wizard\n")
+	result.WriteString("═══════════════════════════════════════════════════════\n\n")
+
+	// Step 1: Select template
+	template, err := h.wizardSelectTemplate()
+	if err != nil || template == nil {
+		return result.String(), err
 	}
 
-	provider := args[0]
-	modelName := args[1]
+	// Step 2: Enter model parameters
+	modelConfig, err := h.wizardEnterModelParams(template)
+	if err != nil {
+		return result.String(), err
+	}
 
-	var endpoint, apiKey string
-	var priority int = 50
+	// Step 3: Confirm and save
+	if err := h.saveModel(modelConfig); err != nil {
+		return result.String(), err
+	}
 
-	for i := 2; i < len(args); i++ {
-		switch args[i] {
-		case "--endpoint":
-			if i+1 < len(args) {
-				endpoint = args[i+1]
-				i++
+	result.WriteString(fmt.Sprintf("\n✅ 已成功添加模型: %s (%s)\n", modelConfig.ID, modelConfig.Model))
+	log.Info("Added model via wizard: %s (template=%s, model=%s)", modelConfig.ID, template.ID, modelConfig.Model)
+	return result.String(), nil
+}
+
+// wizardSelectTemplate displays template list and lets user select one.
+func (h *ModelHandler) wizardSelectTemplate() (*config.ModelTemplate, error) {
+	manager := config.GetDefaultModelManager()
+	templates := manager.GetAllTemplates()
+
+	for {
+		fmt.Print("\n请选择模板 (输入序号，0 返回):\n\n")
+		fmt.Printf("  [0] 返回上一步\n\n")
+
+		for i, t := range templates {
+			prefix := fmt.Sprintf("  [%d]", i+1)
+			fmt.Printf("%s %-20s %s\n", prefix, t.ID, t.Name)
+			fmt.Printf("%-4s %s\n", "", t.Description)
+			if len(t.Models) > 0 {
+				fmt.Printf("%-4s 默认模型: %s\n", "", strings.Join(t.Models, ", "))
 			}
-		case "--api-key":
-			if i+1 < len(args) {
-				apiKey = args[i+1]
-				i++
+			capStr := []string{}
+			if t.Capabilities.Vision {
+				capStr = append(capStr, "👁视觉")
 			}
-		case "--priority":
-			if i+1 < len(args) {
-				p, err := strconv.Atoi(args[i+1])
-				if err == nil {
-					priority = p
-				}
-				i++
+			if t.Capabilities.ToolCall {
+				capStr = append(capStr, "🔧工具")
 			}
+			if t.Capabilities.Thinking {
+				capStr = append(capStr, "💭思考")
+			}
+			if len(capStr) > 0 {
+				fmt.Printf("%-4s 能力: %s\n", "", strings.Join(capStr, " "))
+			}
+			fmt.Println()
 		}
-	}
 
-	if endpoint == "" {
-		endpoint = getProviderEndpoint(provider)
-	}
-
-	modelID := fmt.Sprintf("%s-%s", provider, strings.ReplaceAll(modelName, "/", "-"))
-
-	for _, m := range h.cfg.Models {
-		if m.ID == modelID {
-			return "", fmt.Errorf("模型 %s 已存在", modelID)
+		fmt.Print("  请选择: ")
+		if !h.scanner.Scan() {
+			return nil, fmt.Errorf("向导已取消")
 		}
+		input := strings.TrimSpace(h.scanner.Text())
+
+		if input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" || strings.ToUpper(input) == "BACK" || strings.ToUpper(input) == ".." {
+			fmt.Println("  返回上一步")
+			return nil, nil
+		}
+
+		if strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" {
+			return nil, fmt.Errorf("向导已取消")
+		}
+
+		idx, err := strconv.Atoi(input)
+		if err != nil || idx < 1 || idx > len(templates) {
+			fmt.Println("  无效输入，请重新选择")
+			continue
+		}
+
+		selected := templates[idx-1]
+		fmt.Printf("  ✅ 已选择模板: %s (%s)\n", selected.ID, selected.Name)
+		return selected, nil
+	}
+}
+
+// wizardEnterModelParams prompts user to enter model-specific parameters.
+func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*config.ModelConfig, error) {
+	var result strings.Builder
+	result.WriteString("\n")
+
+	// Step 1: Enter model name
+	modelName := h.wizardPromptString("请输入模型名称", template.Models, "q")
+	if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+	if modelName == "0" || strings.ToUpper(modelName) == "BACK" || strings.ToUpper(modelName) == ".." {
+		return nil, fmt.Errorf("返回上一步")
 	}
 
-	newModel := &config.ModelConfig{
+	// Step 2: Enter API key
+	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
+	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+
+	// Step 3: Enter endpoint (optional, default from template)
+	defaultEndpoint := template.Endpoint
+	endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", defaultEndpoint, "q")
+	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+	if endpoint == "0" || strings.ToUpper(endpoint) == "BACK" || strings.ToUpper(endpoint) == ".." {
+		endpoint = defaultEndpoint
+	}
+
+	// Step 4: Set priority
+	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", template.Priority)+")", fmt.Sprintf("%d", template.Priority), "q")
+	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+	if priorityStr == "0" || strings.ToUpper(priorityStr) == "BACK" || strings.ToUpper(priorityStr) == ".." {
+		priorityStr = fmt.Sprintf("%d", template.Priority)
+	}
+	priority, err := strconv.Atoi(priorityStr)
+	if err != nil {
+		priority = template.Priority
+	}
+
+	// Step 5: Choose capabilities
+	capabilities := h.wizardSelectCapabilities(template.Capabilities)
+
+	// Step 6: Enable model?
+	enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", true)
+	if !enabled {
+		enabled = false
+	}
+
+	modelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
+
+	return &config.ModelConfig{
 		ID:           modelID,
-		Name:         fmt.Sprintf("%s (%s)", provider, modelName),
-		Provider:     provider,
+		Name:         fmt.Sprintf("%s (%s)", template.Name, modelName),
+		Provider:     template.Provider,
 		Endpoint:     endpoint,
 		Model:        modelName,
 		APIKey:       apiKey,
 		Priority:     priority,
-		Enabled:      false,
-		Capabilities: config.ModelCapability{ToolCall: true},
+		Enabled:      enabled,
+		TemplateID:   template.ID,
+		Capabilities: capabilities,
+	}, nil
+}
+
+// wizardPromptString prompts for a string value with template suggestions.
+func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, cancelKeys string) string {
+	for {
+		if len(suggestions) > 0 {
+			fmt.Printf("\n%s:\n", prompt)
+			for i, s := range suggestions {
+				fmt.Printf("  [%d] %s\n", i+1, s)
+			}
+			fmt.Print("  请选择或输入: ")
+		} else {
+			fmt.Printf("\n%s: ", prompt)
+		}
+
+		if !h.scanner.Scan() {
+			return ""
+		}
+		input := strings.TrimSpace(h.scanner.Text())
+
+		if strings.Contains(cancelKeys, strings.ToUpper(input[:1])) && len(input) > 0 {
+			return ""
+		}
+
+		// Check if user selected a suggestion
+		if len(suggestions) > 0 {
+			if idx, err := strconv.Atoi(input); err == nil && idx >= 1 && idx <= len(suggestions) {
+				return suggestions[idx-1]
+			}
+		}
+
+		if input == "" {
+			fmt.Println("  输入不能为空，请重新输入")
+			continue
+		}
+
+		return input
+	}
+}
+
+// wizardPromptStringWithDefault prompts for a string value with a default.
+func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue string, cancelKeys string) string {
+	for {
+		fmt.Printf("\n%s [默认: %s]: ", prompt, defaultValue)
+
+		if !h.scanner.Scan() {
+			return ""
+		}
+		input := strings.TrimSpace(h.scanner.Text())
+
+		if input == "" {
+			fmt.Printf("  使用默认值: %s\n", defaultValue)
+			return defaultValue
+		}
+
+		return input
+	}
+}
+
+// wizardPromptSecret prompts for a secret value (API key).
+func (h *ModelHandler) wizardPromptSecret(prompt string) string {
+	for {
+		fmt.Printf("\n%s: ", prompt)
+
+		if !h.scanner.Scan() {
+			return ""
+		}
+		input := strings.TrimSpace(h.scanner.Text())
+
+		if input == "" {
+			fmt.Println("  使用配置文件中的 API Key")
+			return ""
+		}
+
+		return input
+	}
+}
+
+// wizardPromptBool prompts for a yes/no answer.
+func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
+	for {
+		defaultStr := "y"
+		if !defaultVal {
+			defaultStr = "n"
+		}
+		fmt.Printf("\n%s [默认: %s]: ", prompt, defaultStr)
+
+		if !h.scanner.Scan() {
+			return defaultVal
+		}
+		input := strings.TrimSpace(strings.ToLower(h.scanner.Text()))
+
+		if input == "" {
+			fmt.Printf("  使用默认值: %s\n", defaultStr)
+			return defaultVal
+		}
+
+		switch input {
+		case "y", "yes", "是", "yep", "yeah":
+			return true
+		case "n", "no", "否", "nope":
+			return false
+		default:
+			fmt.Println("  无效输入，请输入 y 或 n")
+		}
+	}
+}
+
+// wizardSelectCapabilities lets user select model capabilities.
+func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) config.ModelCapability {
+	caps := config.ModelCapability{
+		Vision:     base.Vision,
+		ToolCall:   base.ToolCall,
+		Thinking:   base.Thinking,
+		Multimodal: base.Multimodal,
 	}
 
-	h.cfg.Models = append(h.cfg.Models, newModel)
+	for {
+		fmt.Println("\n请选择模型能力:")
+		fmt.Println("  [1] 👁 视觉识别 (Vision)")
+		fmt.Println("  [2] 🔧 工具调用 (Tool Call)")
+		fmt.Println("  [3] 💭 思考模式 (Thinking)")
+		fmt.Println("  [4] 🖼 多模态 (Multimodal)")
+		fmt.Println("  [0] 完成选择")
+		fmt.Printf("\n  当前选择: ")
+		if caps.Vision {
+			fmt.Print("👁 ")
+		}
+		if caps.ToolCall {
+			fmt.Print("🔧 ")
+		}
+		if caps.Thinking {
+			fmt.Print("💭 ")
+		}
+		if caps.Multimodal {
+			fmt.Print("🖼 ")
+		}
+		fmt.Println()
+		fmt.Print("  请选择 (0 完成): ")
+
+		if !h.scanner.Scan() {
+			return caps
+		}
+		input := strings.TrimSpace(h.scanner.Text())
+
+		switch input {
+		case "1":
+			caps.Vision = !caps.Vision
+		case "2":
+			caps.ToolCall = !caps.ToolCall
+		case "3":
+			caps.Thinking = !caps.Thinking
+		case "4":
+			caps.Multimodal = !caps.Multimodal
+		case "0":
+			return caps
+		default:
+			fmt.Println("  无效输入")
+		}
+	}
+}
+
+// saveModel adds and saves a model configuration.
+func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
+	// Check for duplicate ID
+	for _, m := range h.cfg.Models {
+		if m.ID == model.ID {
+			return fmt.Errorf("模型 %s 已存在，请使用不同的模型名称", model.ID)
+		}
+	}
+
+	h.cfg.Models = append(h.cfg.Models, model)
 
 	if err := h.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return fmt.Errorf("保存配置失败: %w", err)
 	}
 
-	log.Info("Added new model: %s (provider=%s, model=%s)", modelID, provider, modelName)
-	return fmt.Sprintf("✅ 已添加模型: %s (%s)", modelID, modelName), nil
+	return nil
 }
 
 // addFromTemplate adds a model from a built-in template.
@@ -499,16 +772,7 @@ func (h *ModelHandler) listTemplates() (string, error) {
 		result.WriteString("\n")
 	}
 
-	result.WriteString("  使用 .model from-tpl <模板ID> <模型ID> 从模板添加模型\n")
+	result.WriteString("  使用 .model add 向导模式添加模型\n")
+	result.WriteString("  或使用 .model from-tpl <模板ID> <模型ID> 命令行添加\n")
 	return result.String(), nil
-}
-
-// getProviderEndpoint returns the default endpoint for a provider.
-func getProviderEndpoint(provider string) string {
-	manager := config.GetDefaultModelManager()
-	template := manager.GetTemplate(provider)
-	if template != nil {
-		return template.Endpoint
-	}
-	return ""
 }
