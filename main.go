@@ -688,16 +688,11 @@ func main() {
 	}
 	defer s.Close()
 
-	// Initialize model manager and load models from workspace
+	// Initialize model manager
 	modelMgr := config.GetDefaultModelManager()
-	if loadedModels, err := config.LoadModelsFromWorkspace(ws.Root()); err != nil {
-		log.Warn("Cannot load models from workspace: %v", err)
-	} else if loadedModels != nil {
-		cfg.Models = loadedModels
-		log.Info("Loaded %d model configurations from workspace", len(loadedModels))
-	}
 
 	// If no models configured but we have a basic LLM config, create a default model entry
+	// This happens on first run when config.json is auto-generated
 	if len(cfg.Models) == 0 && cfg.LLM.Model != "" && cfg.LLM.Endpoint != "" {
 		defaultModel := &config.ModelConfig{
 			ID:       "default-" + strings.ReplaceAll(cfg.LLM.Model, "/", "-"),
@@ -716,14 +711,7 @@ func main() {
 			},
 		}
 		cfg.Models = append(cfg.Models, defaultModel)
-		log.Info("Created default model entry: %s", defaultModel.ID)
-	}
-
-	// Save models back to workspace
-	if len(cfg.Models) > 0 {
-		if err := config.SaveModelsToWorkspace(ws.Root(), cfg.Models); err != nil {
-			log.Warn("Cannot save models to workspace: %v", err)
-		}
+		log.Info("Created default model entry: %s (will be saved to config.json)", defaultModel.ID)
 	}
 
 	// Check if we need to auto-select a model based on --image flag
