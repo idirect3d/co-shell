@@ -27,6 +27,8 @@
 package agent
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/config"
@@ -341,4 +343,53 @@ func (a *Agent) adjustMessagePointer() {
 	for a.messagePointer > 0 && a.messages[a.messagePointer].Role == "tool" {
 		a.messagePointer--
 	}
+}
+
+// removeLastAssistantWithToolCalls finds the last assistant message that has
+// tool_calls in a.messages, removes it and all subsequent messages (tool results,
+// etc.), and returns a string representation of the removed messages for error
+// feedback. If no such assistant message is found, returns empty string and does
+// nothing.
+// Caller must hold a.mu lock.
+func (a *Agent) removeLastAssistantWithToolCalls() string {
+	// Find the last assistant message with tool_calls from the end
+	lastAssistantIdx := -1
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if a.messages[i].Role == "assistant" && len(a.messages[i].ToolCalls) > 0 {
+			lastAssistantIdx = i
+			break
+		}
+	}
+
+	if lastAssistantIdx < 0 {
+		return ""
+	}
+
+	// Collect the removed messages as a string for error feedback
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("--- 已移除的消息 (从索引 %d 开始) ---\n", lastAssistantIdx))
+	for i := lastAssistantIdx; i < len(a.messages); i++ {
+		msg := a.messages[i]
+		sb.WriteString(fmt.Sprintf("[%d] role=%s", i, msg.Role))
+		if msg.Content != "" {
+			sb.WriteString(fmt.Sprintf(", content=%q", msg.Content))
+		}
+		if len(msg.ToolCalls) > 0 {
+			sb.WriteString(fmt.Sprintf(", tool_calls=%d", len(msg.ToolCalls)))
+			for j, tc := range msg.ToolCalls {
+				sb.WriteString(fmt.Sprintf("\n    tool_call[%d]: name=%q, id=%q, args=%q",
+					j, tc.Name, tc.ID, tc.Arguments))
+			}
+		}
+		if msg.ToolCallID != "" {
+			sb.WriteString(fmt.Sprintf(", tool_call_id=%q", msg.ToolCallID))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("--- 结束 ---")
+
+	// Remove messages from lastAssistantIdx to end
+	a.messages = a.messages[:lastAssistantIdx]
+
+	return sb.String()
 }

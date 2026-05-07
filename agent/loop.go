@@ -403,26 +403,57 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 			}
 
-			// Feed all errors back to the LLM so it can decide how to handle them.
-			// The LLM can determine whether the error is recoverable (e.g., invalid arguments,
-			// temporary timeout) and retry with corrections, or unrecoverable (e.g., auth failure,
-			// model not found) and report to the user.
-			log.Warn("Agent.RunStream: stream error at iteration %d: %v, feeding back to LLM", iteration, streamErr)
+			// FIX-146: Determine how to handle the error based on the context.
+			// The error occurs when sending messages to the LLM API. The problematic
+			// message is already in a.messages from a previous iteration.
+			//
+			// We check if there is an assistant message with tool_calls in the recent
+			// context (the last few messages). If so, the error is likely caused by
+			// malformed tool call arguments in that assistant message. We remove that
+			// assistant message and all subsequent messages (tool results, etc.) from
+			// the context, and include the removed content in the error feedback.
+			//
+			// If there is no recent assistant message with tool_calls, the error is
+			// likely caused by invalid user input, and we should exit the iteration
+			// and report the error to the user.
 			a.mu.Lock()
-			a.messages = append(a.messages, llm.Message{
-				Role: "user",
-				Content: fmt.Sprintf(
+			removedContent := a.removeLastAssistantWithToolCalls()
+			a.mu.Unlock()
+
+			if removedContent != "" {
+				// Found and removed a problematic assistant message with tool_calls.
+				log.Warn("Agent.RunStream: stream error at iteration %d: %v, removed problematic assistant+tool messages (%d bytes)",
+					iteration, streamErr, len(removedContent))
+
+				// Build error feedback message that includes the removed content
+				errorFeedback := fmt.Sprintf(
 					"注意：刚才的 LLM 调用返回了错误，请根据错误信息判断如何处理。\n"+
 						"如果错误是可恢复的（如参数格式问题、临时超时），请修正后重试。\n"+
 						"如果错误是不可恢复的（如认证失败、模型不存在），请向用户报告错误并终止。\n\n"+
-						"错误信息：%s",
+						"错误信息：%s\n\n"+
+						"以下是你刚才返回的有问题的消息内容，已被从上下文中移除，请参考修正：\n%s",
 					streamErr.Error(),
-				),
-			})
-			a.mu.Unlock()
-			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb("info", fmt.Sprintf("\n%s LLM 调用出错: %v\n正在请求 LLM 判断如何处理...\n", ep.Warning, streamErr))
-			continue
+					removedContent,
+				)
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: errorFeedback,
+				})
+				a.mu.Unlock()
+
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb("info", fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在请求 LLM 修正后重试...\n", ep.Warning, streamErr))
+				continue
+			} else {
+				// No recent assistant message with tool_calls found - the error is likely
+				// caused by invalid user input. Exit the iteration and report to the user.
+				log.Error("Agent.RunStream: stream error at iteration %d: %v, no assistant tool_calls found, exiting", iteration, streamErr)
+				cb("error", fmt.Sprintf("LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。", streamErr))
+				cb("done", "")
+				return "", fmt.Errorf("LLM call failed: %w", streamErr)
+			}
 		}
 
 		// Step 2: If no tool calls, this is the final answer
