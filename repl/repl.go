@@ -132,6 +132,7 @@ type REPL struct {
 	imageHandler    *cmd.ImageHandler
 	planHandler     *cmd.PlanHandler
 	sessionHandler  *cmd.SessionHandler
+	modelHandler    *cmd.ModelHandler
 
 	history    []string
 	historyPos int
@@ -156,6 +157,7 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		imageHandler:   cmd.NewImageHandler(ag),
 		planHandler:    cmd.NewPlanHandler(ag.TaskPlanManager()),
 		sessionHandler: cmd.NewSessionHandler(ag, cfg),
+		modelHandler:   cmd.NewModelHandler(cfg),
 	}
 
 }
@@ -336,6 +338,8 @@ func (r *REPL) handleBuiltin(input string) {
 		r.agent.Reset()
 		fmt.Printf("%s%s\n", ep.Success, i18n.T(i18n.KeyHelpNew))
 		return
+	case ".model":
+		result, err = r.modelHandler.Handle(args)
 	default:
 		fmt.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return
