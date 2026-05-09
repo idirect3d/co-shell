@@ -600,9 +600,14 @@ Current Environment:
 	KeyCol3RepetitionPenalty: "Repetition penalty parameter",
 	KeyCol3TokenUsage:        "Token usage display mode(on/off/none)",
 
+	// Model selection column 3 labels
+	KeyCol3DefaultToolModel:    "default tool model",
+	KeyCol3DefaultVisionModel:  "default vision model",
+	KeyCol3DefaultProblemModel: "default problem-solving model",
+
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",
-	KeySettingsGroupModel:       "[ Model Parameters ]",
+	KeySettingsGroupModel:       "[ Agent Settings ]",
 	KeySettingsGroupDisplay:     "[ Display & Output ]",
 	KeySettingsGroupSafety:      "[ Safety & Confirmation ]",
 	KeySettingsGroupMemory:      "[ Memory & Context ]",
