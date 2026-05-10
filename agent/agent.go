@@ -265,29 +265,65 @@ func (a *Agent) selectModelForCall() *config.ModelConfig {
 }
 
 // switchToModel creates a new LLM client for the given model config and replaces the current one.
-// It applies all current LLM settings (temperature, top_p, etc.) from the agent's config,
-// as well as model-specific CustomParams.
+// It uses model-level parameters from ModelConfig when set, falling back to global cfg.LLM settings.
+// Model-specific CustomParams are also merged into the request body.
 func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
 	if modelCfg == nil || a.cfg == nil {
 		return
 	}
 
-	// Create a new LLM client for the selected model
+	// Resolve parameters: model-level takes precedence, fall back to global cfg.LLM
+	temperature := a.cfg.LLM.Temperature
+	if modelCfg.Temperature != nil {
+		temperature = *modelCfg.Temperature
+	}
+
+	maxTokens := a.cfg.LLM.MaxTokens
+	if modelCfg.MaxTokens != nil {
+		maxTokens = *modelCfg.MaxTokens
+	}
+
+	thinkingEnabled := a.cfg.LLM.ThinkingEnabled
+	if modelCfg.ThinkingEnabled != nil {
+		thinkingEnabled = *modelCfg.ThinkingEnabled
+	}
+
+	reasoningEffort := a.cfg.LLM.ReasoningEffort
+	if modelCfg.ReasoningEffort != nil {
+		reasoningEffort = *modelCfg.ReasoningEffort
+	}
+
+	topP := a.cfg.LLM.TopP
+	if modelCfg.TopP != nil {
+		topP = *modelCfg.TopP
+	}
+
+	topK := a.cfg.LLM.TopK
+	if modelCfg.TopK != nil {
+		topK = *modelCfg.TopK
+	}
+
+	repetitionPenalty := a.cfg.LLM.RepetitionPenalty
+	if modelCfg.RepetitionPenalty != nil {
+		repetitionPenalty = *modelCfg.RepetitionPenalty
+	}
+
+	// Create a new LLM client for the selected model with resolved parameters
 	newClient := llm.NewClient(
 		modelCfg.Endpoint,
 		modelCfg.APIKey,
 		modelCfg.Model,
-		a.cfg.LLM.Temperature,
-		a.cfg.LLM.MaxTokens,
+		temperature,
+		maxTokens,
 		a.cfg.LLM.LLMTimeout,
 	)
 
-	// Apply all current LLM settings
-	newClient.SetThinkingEnabled(a.cfg.LLM.ThinkingEnabled)
-	newClient.SetReasoningEffort(a.cfg.LLM.ReasoningEffort)
-	newClient.SetTopP(a.cfg.LLM.TopP)
-	newClient.SetTopK(a.cfg.LLM.TopK)
-	newClient.SetRepetitionPenalty(a.cfg.LLM.RepetitionPenalty)
+	// Apply resolved LLM settings
+	newClient.SetThinkingEnabled(thinkingEnabled)
+	newClient.SetReasoningEffort(reasoningEffort)
+	newClient.SetTopP(topP)
+	newClient.SetTopK(topK)
+	newClient.SetRepetitionPenalty(repetitionPenalty)
 	newClient.SetTokenUsage(a.cfg.LLM.TokenUsage)
 
 	// Merge model-specific CustomParams with global BodyAdditions.
