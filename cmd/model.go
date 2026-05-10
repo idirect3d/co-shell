@@ -663,7 +663,6 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 		fmt.Println("  [1] 👁 视觉识别 (Vision)")
 		fmt.Println("  [2] 🔧 工具调用 (Tool Call)")
 		fmt.Println("  [3] 💭 思考模式 (Thinking)")
-		fmt.Println("  [0] 完成选择")
 		fmt.Printf("\n  当前选择: ")
 		if caps.Vision {
 			fmt.Print("👁 ")
@@ -675,7 +674,7 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 			fmt.Print("💭 ")
 		}
 		fmt.Println()
-		fmt.Print("  请选择 (回车完成, 0/back 返回上一步): ")
+		fmt.Print("  请选择 (回车完成, 0 返回上一步): ")
 
 		if !h.scanner.Scan() {
 			return caps, false
