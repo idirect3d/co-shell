@@ -201,13 +201,39 @@ func (m *ModelManager) GetTemplate(id string) *ModelTemplate {
 	return m.templates[id]
 }
 
-// GetAllTemplates returns all built-in templates.
+// GetAllTemplates returns all built-in templates in a fixed order.
 func (m *ModelManager) GetAllTemplates() []*ModelTemplate {
 	m.templatesMu.RLock()
 	defer m.templatesMu.RUnlock()
+
+	// Fixed order for built-in templates
+	order := []string{
+		"deepseek-official",
+		"qwen-official",
+		"xiaomi-mimo",
+		"zhipu-glm",
+		"ollama-local",
+		"custom-openai-compatible",
+	}
+
 	result := make([]*ModelTemplate, 0, len(m.templates))
+	for _, id := range order {
+		if t, ok := m.templates[id]; ok {
+			result = append(result, t)
+		}
+	}
+	// Append any custom templates not in the fixed order
 	for _, t := range m.templates {
-		result = append(result, t)
+		found := false
+		for _, id := range order {
+			if t.ID == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			result = append(result, t)
+		}
 	}
 	return result
 }
