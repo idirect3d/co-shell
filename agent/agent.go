@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -264,7 +265,8 @@ func (a *Agent) selectModelForCall() *config.ModelConfig {
 }
 
 // switchToModel creates a new LLM client for the given model config and replaces the current one.
-// It applies all current LLM settings (temperature, top_p, etc.) from the agent's config.
+// It applies all current LLM settings (temperature, top_p, etc.) from the agent's config,
+// as well as model-specific CustomParams.
 func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
 	if modelCfg == nil || a.cfg == nil {
 		return
@@ -287,15 +289,46 @@ func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
 	newClient.SetTopK(a.cfg.LLM.TopK)
 	newClient.SetRepetitionPenalty(a.cfg.LLM.RepetitionPenalty)
 	newClient.SetTokenUsage(a.cfg.LLM.TokenUsage)
+
+	// Merge model-specific CustomParams with global BodyAdditions.
+	// CustomParams take precedence over BodyAdditions for the same key.
+	// A value of "None" (string) means the parameter should NOT be sent.
+	mergedAdditions := make(map[string]string)
+
+	// Start with global BodyAdditions
 	if len(a.cfg.LLM.BodyAdditions) > 0 {
-		newClient.SetBodyAdditions(a.cfg.LLM.BodyAdditions)
+		for k, v := range a.cfg.LLM.BodyAdditions {
+			mergedAdditions[k] = v
+		}
+	}
+
+	// Apply model-specific CustomParams (override or add)
+	if len(modelCfg.CustomParams) > 0 {
+		for k, v := range modelCfg.CustomParams {
+			// "None" means remove this parameter entirely
+			if strVal, ok := v.(string); ok && strVal == "None" {
+				delete(mergedAdditions, k)
+				continue
+			}
+			// Serialize the value to JSON string for bodyAdditions format
+			jsonBytes, err := json.Marshal(v)
+			if err != nil {
+				log.Warn("Failed to marshal CustomParam %s: %v", k, err)
+				continue
+			}
+			mergedAdditions[k] = string(jsonBytes)
+		}
+	}
+
+	if len(mergedAdditions) > 0 {
+		newClient.SetBodyAdditions(mergedAdditions)
 	}
 
 	// Replace the current LLM client
 	a.SetLLMClient(newClient)
 
-	log.Info("Switched to model: %s (endpoint=%s, vision=%v)",
-		modelCfg.Model, modelCfg.Endpoint, modelCfg.Capabilities.Vision)
+	log.Info("Switched to model: %s (endpoint=%s, vision=%v, custom_params=%d)",
+		modelCfg.Model, modelCfg.Endpoint, modelCfg.Capabilities.Vision, len(modelCfg.CustomParams))
 }
 
 // TaskPlanManager returns the task plan manager.
