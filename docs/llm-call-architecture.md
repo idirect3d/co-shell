@@ -1,510 +1,599 @@
 # LLM 调用架构说明
 
-## 概述
+> 本文档详细说明 co-shell 中所有调用大模型（LLM）的地方，以及这些调用所使用的参数来源和传递链路。
 
-co-shell 使用 OpenAI 兼容的 API 协议调用大语言模型（LLM）。所有 LLM 调用都通过 `llm.Client` 接口进行，该接口定义在 `llm/client.go` 中。
+---
 
-## LLM Client 接口
+## 1. 概述
+
+co-shell 的 LLM 调用架构分为三层：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    调用层 (Callers)                          │
+│  agent/loop.go  │  cmd/model.go  │  cmd/settings.go        │
+│  agent/settings_tools.go  │  repl/repl.go  │  main.go       │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   客户端层 (Client)                          │
+│  llm/client.go  —  openAIClient                             │
+│  Chat() / ChatStream() / ListModels() / Test*()             │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   配置层 (Config)                            │
+│  config/config.go  —  LLMConfig / ModelConfig               │
+│  config/model_template.go  —  ModelManager / ModelTemplate  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- **配置层**: 定义所有 LLM 相关参数的结构体和默认值
+- **客户端层**: 实现与 LLM API 的 HTTP 通信，构建请求体
+- **调用层**: 实际发起 LLM 调用的各个模块
+
+---
+
+## 2. LLM 客户端接口
+
+文件: `llm/client.go`
+
+### 2.1 Client 接口
 
 ```go
 type Client interface {
-    Chat(ctx, messages, tools)           // 非流式聊天补全
-    ChatStream(ctx, messages, tools)     // 流式聊天补全
-    ListModels(ctx)                      // 获取可用模型列表
-    TestVisionSupport(ctx)               // 测试视觉支持
-    TestTextSupport(ctx)                 // 测试文本支持
-    TestToolCallSupport(ctx)             // 测试工具调用支持
-    TestThinkingSupport(ctx)             // 测试思考模式支持
-    SetThinkingEnabled(bool)             // 启用/禁用思考模式
-    SetReasoningEffort(string)           // 设置推理努力程度
-    SetTopP(float64)                     // 设置 top-p 采样
-    SetTopK(int)                         // 设置 top-k 采样
-    SetRepetitionPenalty(float64)        // 设置重复惩罚
-    SetTokenUsage(string)                // 设置 token 用量显示模式
-    SetBodyAdditions(map[string]string)  // 设置自定义请求体属性
-    RemoveBodyAddition(key)              // 移除自定义请求体属性
-    GetBodyAdditions() map[string]string // 获取自定义请求体属性
-    Close() error                        // 清理资源
+    Chat(ctx context.Context, messages []Message, tools []Tool) (*LLMResponse, error)
+    ChatStream(ctx context.Context, messages []Message, tools []Tool) (<-chan StreamEvent, error)
+    ListModels(ctx context.Context) ([]ModelInfo, error)
+    TestVisionSupport(ctx context.Context) bool
+    TestTextSupport(ctx context.Context) bool
+    TestToolCallSupport(ctx context.Context) bool
+    TestThinkingSupport(ctx context.Context) bool
+    SetThinkingEnabled(enabled bool)
+    SetReasoningEffort(effort string)
+    SetTopP(topP float64)
+    SetTopK(topK int)
+    SetRepetitionPenalty(penalty float64)
+    SetTokenUsage(mode string)
+    SetBodyAdditions(additions map[string]string)
+    RemoveBodyAddition(key string)
+    GetBodyAdditions() map[string]string
+    Close() error
 }
 ```
 
-## LLM 调用点总览
-
-项目中共有 **10 处** `llm.NewClient` 调用（创建 LLM 客户端），**3 处** `.Chat()` 调用（非流式），**1 处** `.ChatStream()` 调用（流式）。
-
----
-
-## 一、模型选择架构
-
-### 1. 三类模型的定义与选择逻辑
-
-系统利用 `.model list` 中配置的多个模型，根据能力标签（ToolCall、Vision、Thinking）和优先级，动态选择最适合当前任务的模型。
-
-| 模型类型 | 选择逻辑 | 用途 |
-|----------|----------|------|
-| **default-tool-model** | 具备 `ToolCall` 能力的**最高优先级**已启用模型 | Agent 主循环默认调用的模型 |
-| **default-vision-model** | 具备 `Vision` 能力的**最高优先级**已启用模型 | 当上下文中添加了图片文件（`.image add`）时调用 |
-| **default-problem-model** | 具备 `ToolCall` 能力的**第二优先级**已启用模型 | 当主循环模型调用出错时，用于诊断和恢复的辅助模型（预留，暂未实现） |
-
-**选择规则：**
-- 从 `ModelManager.GetAllModels()` 获取所有已配置模型，按优先级降序排列
-- 遍历模型列表，找到第一个满足能力条件的已启用模型
-- 如果没有任何模型满足条件，对应类型的模型 ID 显示为 `"-"`（表示 none）
-- `default-problem-model` 当前逻辑与 `default-tool-model` 相同（取同一模型），后续可独立配置
-
-### 2. 动态模型切换机制
-
-Agent 主循环中的 LLM 调用，**每次调用前**根据当前调用条件动态判断使用哪个模型：
-
-```
-Agent.RunStream() / Agent.Run()
-    │
-    ├── 判断当前上下文是否包含图片（imagePaths 非空）
-    │   ├── 是 → 使用 default-vision-model（需具备 Vision 能力）
-    │   └── 否 → 使用 default-tool-model（需具备 ToolCall 能力）
-    │
-    ├── 从 ModelManager 获取对应模型配置
-    │   ├── 获取模型的 Endpoint、APIKey、Model 名
-    │   └── 临时创建或复用 LLM Client
-    │
-    └── 发起 LLM 调用（Chat / ChatStream）
-```
-
-**当前实现状态：**
-- `main.go:718-731`：启动时根据 `--image` 标志自动选择视觉模型（已实现）
-- `cmd/settings.go:1131-1170`：`.set` 界面动态显示三类模型的 ID（已实现）
-- Agent 主循环中每次调用前动态判断模型：**待实现**
-
-### 3. `.set` 界面中的模型显示
-
-在 `.set` 命令的显示界面中，三类模型以只读方式显示其当前选中的模型 ID：
-
-```
-default-tool-model:    deepseek-official-deepseek-v4-flash    (default tool model)
-default-vision-model:  qwen-official-qwen-vl-max              (default vision model)
-default-problem-model: deepseek-official-deepseek-v4-flash    (default problem-solving model)
-```
-
-用户可以通过 `.model` 命令管理模型配置（添加、删除、启用/禁用），系统自动根据能力标签和优先级重新计算三类默认模型。
-
----
-
-## 二、LLM Client 创建点（10 处）
-
-### 1. `main.go:760` — 主程序初始化
-
-**用途：** 程序启动时创建主 LLM 客户端。
-
-**参数来源：**
-
-| 参数 | 来源 | 默认值 |
-|------|------|--------|
-| `Endpoint` | `cfg.LLM.Endpoint` (config.json) | `https://api.deepseek.com` |
-| `APIKey` | `cfg.LLM.APIKey` (config.json) | `""` |
-| `Model` | `cfg.LLM.Model` (config.json) | `deepseek-v4-flash` |
-| `Temperature` | `cfg.LLM.Temperature` (config.json) | `0.7` |
-| `MaxTokens` | `cfg.LLM.MaxTokens` (config.json) | `-1` (不发送) |
-| `LLMTimeout` | `cfg.LLM.LLMTimeout` (config.json) | `0` (无超时) |
-
-**后续设置（从 config.json 读取）：**
-
-| 设置方法 | 来源 | 默认值 |
-|----------|------|--------|
-| `SetThinkingEnabled` | `cfg.LLM.ThinkingEnabled` | `false` |
-| `SetReasoningEffort` | `cfg.LLM.ReasoningEffort` | `"low"` |
-| `SetTopP` | `cfg.LLM.TopP` | `0.9` |
-| `SetTopK` | `cfg.LLM.TopK` | `20` |
-| `SetRepetitionPenalty` | `cfg.LLM.RepetitionPenalty` | `1.0` |
-| `SetTokenUsage` | `cfg.LLM.TokenUsage` | `"on"` |
-| `SetBodyAdditions` | `cfg.LLM.BodyAdditions` | `nil` |
-
----
-
-### 2. `cmd/settings.go:56` — `.settings` 命令重建客户端
-
-**用途：** 当用户通过 `.set` 命令修改 LLM 相关参数时，重建客户端使设置立即生效。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `h.cfg.LLM.Endpoint` |
-| `APIKey` | `h.cfg.LLM.APIKey` |
-| `Model` | `h.cfg.LLM.Model` |
-| `Temperature` | `h.cfg.LLM.Temperature` |
-| `MaxTokens` | `h.cfg.LLM.MaxTokens` |
-| `LLMTimeout` | **未传递**（使用默认 60s） |
-
-**后续设置：** `SetTopP`, `SetTopK`, `SetRepetitionPenalty`, `SetThinkingEnabled`, `SetReasoningEffort` — 全部来自 `h.cfg.LLM`。
-
-> **注意：** 此处的 `rebuildLLMClient()` 未传递 `LLMTimeout` 参数，也未设置 `SetTokenUsage` 和 `SetBodyAdditions`。
-
----
-
-### 3. `repl/repl.go:514` — 向导完成后重建客户端
-
-**用途：** 设置向导（wizard）完成后重建 LLM 客户端。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `r.cfg.LLM.Endpoint` |
-| `APIKey` | `r.cfg.LLM.APIKey` |
-| `Model` | `r.cfg.LLM.Model` |
-| `Temperature` | `r.cfg.LLM.Temperature` |
-| `MaxTokens` | `r.cfg.LLM.MaxTokens` |
-| `LLMTimeout` | `r.cfg.LLM.LLMTimeout` |
-
-**后续设置：** `SetThinkingEnabled`, `SetReasoningEffort` — 来自 `r.cfg.LLM`。
-
-> **注意：** 此处的 `rebuildLLMClient()` 未设置 `SetTopP`, `SetTopK`, `SetRepetitionPenalty`, `SetTokenUsage`, `SetBodyAdditions`。
-
----
-
-### 4. `agent/settings_tools.go:833` — LLM 工具调用重建客户端
-
-**用途：** 当 LLM 通过 `update_setting` 工具修改设置时，重建客户端使设置立即生效。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `a.cfg.LLM.Endpoint` |
-| `APIKey` | `a.cfg.LLM.APIKey` |
-| `Model` | `a.cfg.LLM.Model` |
-| `Temperature` | `a.cfg.LLM.Temperature` |
-| `MaxTokens` | `a.cfg.LLM.MaxTokens` |
-| `LLMTimeout` | `a.cfg.LLM.LLMTimeout` |
-
-**后续设置：** `SetThinkingEnabled`, `SetReasoningEffort`, `SetTopP`, `SetTopK`, `SetRepetitionPenalty` — 来自 `a.cfg.LLM`。
-
-> **注意：** 此处的 `rebuildLLMClient()` 未设置 `SetTokenUsage` 和 `SetBodyAdditions`。
-
----
-
-### 5. `cmd/model.go:332` — 模型向导测试端点连通性
-
-**用途：** 在 `.model add` 向导中测试端点连通性。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | 用户输入的端点 |
-| `APIKey` | `""` (空字符串) |
-| `Model` | `"test"` (固定值) |
-| `Temperature` | `0` |
-| `MaxTokens` | `0` |
-| `LLMTimeout` | `10` (固定 10s) |
-
-**用途：** 仅调用 `ListModels()` 测试连通性，不进行对话。
-
----
-
-### 6. `cmd/model.go:376` — 模型向导获取模型列表
-
-**用途：** 在 `.model add` 向导中获取可用模型列表。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | 用户输入的端点 |
-| `APIKey` | 用户输入的 API Key |
-| `Model` | `"test"` (固定值) |
-| `Temperature` | `0` |
-| `MaxTokens` | `0` |
-| `LLMTimeout` | `15` (固定 15s) |
-
-**用途：** 仅调用 `ListModels()` 获取模型列表，不进行对话。
-
----
-
-### 7. `cmd/model.go:631` — 模型能力检测
-
-**用途：** 在 `.model add` 向导中检测模型能力（视觉、工具调用、思考模式）。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | 用户输入的端点 |
-| `APIKey` | 用户输入的 API Key |
-| `Model` | 用户选择的模型名 |
-| `Temperature` | `0` |
-| `MaxTokens` | `0` |
-| `LLMTimeout` | `30` (固定 30s) |
-
-**用途：** 调用 `TestVisionSupport()`, `TestToolCallSupport()`, `TestThinkingSupport()` 进行能力检测。
-
----
-
-### 8. `wizard/wizard.go:332` — 设置向导获取模型列表
-
-**用途：** 在首次设置向导中获取可用模型列表。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | 用户选择的预设端点 |
-| `APIKey` | 用户输入的 API Key |
-| `Model` | `""` (空字符串) |
-| `Temperature` | `0` |
-| `MaxTokens` | `0` |
-| `LLMTimeout` | 未传递 (默认 60s) |
-
-**用途：** 仅调用 `ListModels()`。
-
----
-
-### 9. `wizard/wizard.go:390` — 设置向导检测视觉支持
-
-**用途：** 在首次设置向导中检测模型是否支持视觉识别。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `cfg.LLM.Endpoint` |
-| `APIKey` | `cfg.LLM.APIKey` |
-| `Model` | 用户选择的模型 ID |
-| `Temperature` | `cfg.LLM.Temperature` |
-| `MaxTokens` | `cfg.LLM.MaxTokens` |
-| `LLMTimeout` | `10` (固定 10s) |
-
-**用途：** 调用 `TestVisionSupport()`。
-
----
-
-### 10. `wizard/wizard.go:430` — 设置向导检测工具调用支持
-
-**用途：** 在首次设置向导中检测模型是否支持工具调用。
-
-**参数来源：**
-
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `cfg.LLM.Endpoint` |
-| `APIKey` | `cfg.LLM.APIKey` |
-| `Model` | 用户选择的模型 ID |
-| `Temperature` | `cfg.LLM.Temperature` |
-| `MaxTokens` | `cfg.LLM.MaxTokens` |
-| `LLMTimeout` | `15` (固定 15s) |
-
-**用途：** 调用 `TestToolCallSupport()`。
-
----
-
-## 三、LLM 实际调用点（Chat / ChatStream）
-
-### 1. `agent/loop.go:162` — Agent.Run 非流式调用
-
-```go
-resp, err := a.llmClient.Chat(ctx, a.messages, tools)
-```
-
-**参数来源：**
-- `ctx`：从外部传入的 context
-- `a.messages`：Agent 维护的完整对话历史（包含 system prompt + 用户消息 + assistant 回复 + tool 结果）
-- `tools`：由 `a.buildTools()` 构建的可用工具列表
-
-**调用链路：** `main.go` → `repl/repl.go` (非流式模式) → `Agent.Run()` → `llmClient.Chat()`
-
-**发送到 API 的请求体参数：**
-- `model`：创建 client 时设置的 `c.model`
-- `messages`：`a.messages`（完整历史）
-- `temperature`：`c.temperature`（>=0 时发送）
-- `max_tokens`：`c.maxTokens`（>=0 时发送）
-- `top_p`：`c.topP`（>=0 时发送）
-- `top_k`：`c.topK`（>=0 时发送）
-- `repetition_penalty`：`c.repetitionPenalty`（>=0 时发送）
-- `tools`：`buildTools(tools)`（非空时发送）
-- `thinking`：`c.thinkingEnabled && isThinkingModel(c.model)` 时发送
-- `reasoning_effort`：thinking 模式下发送 `c.reasoningEffort`
-- 自定义属性：`c.bodyAdditions` 合并到请求体
-
----
-
-### 2. `agent/loop.go:740` — Agent.RunStream 流式调用
-
-```go
-eventCh, err := a.llmClient.ChatStream(ctx, contextMsgs, tools)
-```
-
-**参数来源：**
-- `ctx`：从外部传入的 context
-- `contextMsgs`：由 `a.buildContextMessages()` 构建的**截断后**的对话历史
-  - 根据 `cfg.LLM.ContextLimit` 截断历史消息
-  - 根据 `a.messagePointer` 跳过指定位置之前的消息
-  - 每条消息内容前添加索引前缀（如 `"123: 2026-05-01 12:09:24 - ..."`）
-- `tools`：由 `a.buildTools()` 构建的可用工具列表
-
-**调用链路：** `main.go` → `repl/repl.go` (流式模式) → `Agent.RunStream()` → `streamLLMResponse()` → `llmClient.ChatStream()`
-
-**发送到 API 的请求体参数：** 与 Chat 相同，额外包含：
-- `stream: true`
-- `stream_options.include_usage`：根据 `c.tokenUsage` 决定（`"none"` 时不发送）
-
----
-
-### 3. `agent/loop.go:873` — nonStreamingFallback 非流式回退
-
-```go
-resp, err := a.llmClient.Chat(ctx, contextMsgs, tools)
-```
-
-**用途：** 当流式调用失败时的回退方案。
-
-**参数来源：**
-- `ctx`：从外部传入的 context
-- `contextMsgs`：由 `a.buildContextMessages()` 构建的截断后对话历史
-- `tools`：由 `a.buildTools()` 构建的可用工具列表
-
----
-
-## 四、LLM 能力检测调用点
-
-### 1. `llm/client.go:1179` — TestVisionSupport
-
-通过 `testChat()` 发送包含 1x1 像素 base64 图片的多模态请求，检测模型是否支持视觉输入。
-
-**临时设置：** `temperature = 0`（测试后恢复）
-
-### 2. `llm/client.go:1212` — TestTextSupport
-
-通过 `testChat()` 发送简单文本请求 "Hi"，检测模型是否支持基本文本对话。
-
-**临时设置：** `temperature = 0`（测试后恢复）
-
-### 3. `llm/client.go:1230` — TestToolCallSupport
-
-通过 `testChat()` 发送包含 `test_tool` 工具定义的请求，检测模型是否支持工具调用。
-
-**临时设置：** `temperature = 0`（测试后恢复）
-
-### 4. `llm/client.go:1273` — TestThinkingSupport
-
-通过 `testChat()` 发送启用 thinking 模式的请求，检测模型是否支持思考模式。
-
-**临时设置：** `thinkingEnabled = true`, `reasoningEffort = "low"`（测试后恢复）
-
----
-
-## 五、参数传递完整链路图
-
-```
-config.json (持久化)
-    │
-    ├── config.LoadFromFile() → config.Config
-    │       │
-    │       ├── main.go → llm.NewClient(cfg.LLM.*) → llmClient
-    │       │       │
-    │       │       ├── agent.New(llmClient, ...) → Agent
-    │       │       │       │
-    │       │       │       ├── Agent.Run() → llmClient.Chat(ctx, a.messages, tools)
-    │       │       │       │       └── 使用完整对话历史 a.messages
-    │       │       │       │
-    │       │       │       └── Agent.RunStream() → streamLLMResponse()
-    │       │       │               ├── buildContextMessages() → 截断历史
-    │       │       │               └── llmClient.ChatStream(ctx, contextMsgs, tools)
-    │       │       │
-    │       │       └── 后续设置:
-    │       │           ├── SetThinkingEnabled(cfg.LLM.ThinkingEnabled)
-    │       │           ├── SetReasoningEffort(cfg.LLM.ReasoningEffort)
-    │       │           ├── SetTopP(cfg.LLM.TopP)
-    │       │           ├── SetTopK(cfg.LLM.TopK)
-    │       │           ├── SetRepetitionPenalty(cfg.LLM.RepetitionPenalty)
-    │       │           ├── SetTokenUsage(cfg.LLM.TokenUsage)
-    │       │           └── SetBodyAdditions(cfg.LLM.BodyAdditions)
-    │       │
-    │       ├── cmd/settings.go → rebuildLLMClient() (运行时重建)
-    │       │       └── 未传递: LLMTimeout, TokenUsage, BodyAdditions
-    │       │
-    │       ├── repl/repl.go → rebuildLLMClient() (向导后重建)
-    │       │       └── 未传递: TopP, TopK, RepetitionPenalty, TokenUsage, BodyAdditions
-    │       │
-    │       └── agent/settings_tools.go → rebuildLLMClient() (LLM工具调用重建)
-    │               └── 未传递: TokenUsage, BodyAdditions
-    │
-    ├── cmd/model.go (模型管理向导)
-    │       ├── 测试连通性: llm.NewClient(endpoint, "", "test", 0, 0, 10)
-    │       ├── 获取模型列表: llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
-    │       └── 能力检测: llm.NewClient(endpoint, apiKey, modelName, 0, 0, 30)
-    │
-    └── wizard/wizard.go (首次设置向导)
-            ├── 获取模型列表: llm.NewClient(endpoint, apiKey, "", 0, 0)
-            ├── 检测视觉: llm.NewClient(cfg.LLM.*, 10)
-            └── 检测工具调用: llm.NewClient(cfg.LLM.*, 15)
-```
-
-## 六、配置默认值
-
-所有 LLM 参数的默认值定义在 `config/config.go` 的 `DefaultConfig()` 函数中：
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `Provider` | `"deepseek"` | 供应商 |
-| `Endpoint` | `"https://api.deepseek.com"` | API 端点 |
-| `Model` | `"deepseek-v4-flash"` | 模型名 |
-| `Temperature` | `0.7` | 温度 (-1=不发送) |
-| `MaxTokens` | `-1` | 最大 token 数 (-1=不发送) |
-| `MaxIterations` | `1000` | 最大迭代次数 |
-| `TopP` | `0.9` | Top-p 采样 (-1=不发送) |
-| `TopK` | `20` | Top-k 采样 (-1=不发送) |
-| `RepetitionPenalty` | `1.0` | 重复惩罚 (-1=不发送) |
-| `ThinkingEnabled` | `false` | 思考模式 |
-| `ReasoningEffort` | `"low"` | 推理努力程度 |
-| `TokenUsage` | `"on"` | Token 用量显示 |
-| `LLMTimeout` | `0` | 非流式请求超时 (0=无超时) |
-| `ToolTimeout` | `0` | 工具调用超时 (0=无超时) |
-| `CommandTimeout` | `0` | 命令执行超时 (0=无超时) |
-
-## 七、请求体 JSON 结构
-
-最终发送到 API 的请求体结构（`chatRequestJSON`）：
+### 2.2 实现类: openAIClient
+
+`openAIClient` 是 `Client` 接口的唯一实现，内部维护以下状态：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `baseURL` | string | API 端点地址 |
+| `apiKey` | string | API 密钥 |
+| `model` | string | 模型名称 |
+| `temperature` | float64 | 温度参数 (-1=不发送) |
+| `maxTokens` | int | 最大输出令牌数 (-1=不发送) |
+| `topP` | float64 | Top-P 采样 (-1=不发送) |
+| `topK` | int | Top-K 采样 (-1=不发送) |
+| `repetitionPenalty` | float64 | 重复惩罚 (-1=不发送) |
+| `thinkingEnabled` | bool | 思考模式开关 |
+| `reasoningEffort` | string | 推理努力程度 |
+| `tokenUsage` | string | Token 用量显示模式 |
+| `bodyAdditions` | map[string]string | 自定义请求体属性 |
+
+### 2.3 请求体构建
+
+`Chat()` 和 `ChatStream()` 方法构建的请求体 JSON 结构：
 
 ```json
 {
-    "model": "deepseek-v4-flash",
-    "messages": [
-        {"role": "system", "content": "..."},
-        {"role": "user", "content": "..."},
-        {"role": "assistant", "content": "...", "tool_calls": [...]},
-        {"role": "tool", "content": "...", "tool_call_id": "..."}
-    ],
-    "temperature": 0.7,
-    "max_tokens": -1,
-    "top_p": 0.9,
-    "top_k": 20,
-    "repetition_penalty": 1.0,
-    "tools": [...],
-    "stream": true,
-    "stream_options": {"include_usage": true},
-    "thinking": {"type": "enabled"},
-    "reasoning_effort": "low",
-    // 自定义属性 (BodyAdditions) 在此合并
+  "model": "<model>",
+  "messages": [...],
+  "temperature": <float>,        // 仅当 >= 0 时发送
+  "max_tokens": <int>,           // 仅当 >= 0 时发送
+  "top_p": <float>,              // 仅当 >= 0 时发送
+  "top_k": <int>,                // 仅当 >= 0 时发送
+  "repetition_penalty": <float>, // 仅当 >= 0 时发送
+  "tools": [...],                // 仅当有工具定义时发送
+  "stream": <bool>,              // ChatStream 时为 true
+  "stream_options": {
+    "include_usage": <bool>      // tokenUsage != "none" 时发送
+  },
+  "thinking": {                  // 仅 thinkingEnabled && isThinkingModel 时发送
+    "type": "enabled"
+  },
+  "reasoning_effort": "<string>",// 同上
+  // ... bodyAdditions 合并的自定义属性
 }
 ```
 
-> **注意：** 参数值为 `-1` 时表示"不发送该参数到 API"，在序列化时会被省略。
+---
 
-## 八、关键发现
+## 3. 参数来源与传递链路
 
-1. **三个 `rebuildLLMClient()` 实现不完全一致：**
-   - `cmd/settings.go` 的 `rebuildLLMClient()` 未传递 `LLMTimeout`，未设置 `SetTokenUsage` 和 `SetBodyAdditions`
-   - `repl/repl.go` 的 `rebuildLLMClient()` 未设置 `SetTopP`、`SetTopK`、`SetRepetitionPenalty`、`SetTokenUsage`、`SetBodyAdditions`
-   - `agent/settings_tools.go` 的 `rebuildLLMClient()` 未设置 `SetTokenUsage` 和 `SetBodyAdditions`
+### 3.1 参数层级
 
-2. **流式 vs 非流式的消息差异：**
-   - `Agent.Run()`（非流式）使用 `a.messages`（完整历史）
-   - `Agent.RunStream()`（流式）使用 `buildContextMessages()` 构建的截断历史
+LLM 调用参数有三个层级，优先级从高到低：
 
-3. **能力检测使用独立客户端：** 所有能力检测（视觉、工具调用、思考模式）都创建临时客户端，使用 `temperature=0` 确保确定性结果，测试后恢复原始设置。
+```
+模型级参数 (ModelConfig)  ← 最高优先级
+    ↓ 回退
+全局级参数 (LLMConfig)    ← 中间优先级
+    ↓ 回退
+默认值 (DefaultConfig)    ← 最低优先级
+```
 
-4. **模型选择架构（新设计）：**
-   - 系统通过 `.model list` 管理多个模型，每个模型有独立的能力标签（Vision、ToolCall、Thinking）和优先级
-   - 三类默认模型（default-tool-model、default-vision-model、default-problem-model）根据能力标签和优先级自动计算
-   - `.set` 界面动态显示三类模型的当前选中 ID
-   - Agent 主循环中每次调用前动态判断使用哪个模型（待实现完整动态切换）
+### 3.2 参数定义位置
+
+#### 全局参数 (config.LLMConfig)
+
+文件: `config/config.go`
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `Provider` | string | "deepseek" | 供应商名称 |
+| `Endpoint` | string | "https://api.deepseek.com" | API 端点 |
+| `Model` | string | "deepseek-chat" | 模型名称 |
+| `APIKey` | string | "" | API 密钥 |
+| `Temperature` | float64 | 0.0 | 温度参数 |
+| `MaxTokens` | int | 8192 | 最大输出令牌数 |
+| `TopP` | float64 | -1 | Top-P (-1=不发送) |
+| `TopK` | int | -1 | Top-K (-1=不发送) |
+| `RepetitionPenalty` | float64 | -1 | 重复惩罚 (-1=不发送) |
+| `ThinkingEnabled` | bool | false | 思考模式 |
+| `ReasoningEffort` | string | "low" | 推理努力程度 |
+| `TokenUsage` | string | "off" | Token 用量显示模式 |
+| `LLMTimeout` | int | 60 | LLM 请求超时秒数 |
+| `BodyAdditions` | map[string]string | nil | 自定义请求体属性 |
+
+#### 模型级参数 (config.ModelConfig)
+
+文件: `config/config.go`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `Temperature` | *float64 | nil=使用全局值 |
+| `MaxTokens` | *int | nil=使用全局值 |
+| `TopP` | *float64 | nil=使用全局值 |
+| `TopK` | *int | nil=使用全局值 |
+| `RepetitionPenalty` | *float64 | nil=使用全局值 |
+| `ThinkingEnabled` | *bool | nil=使用全局值 |
+| `ReasoningEffort` | *string | nil=使用全局值 |
+| `CustomParams` | map[string]interface{} | 自定义参数，合并到 bodyAdditions |
+
+### 3.3 参数传递链路
+
+```
+config.json
+    │
+    ▼
+config.LoadWithPath() / config.LoadFromFile()
+    │
+    ▼
+config.Config  ← 包含 LLMConfig 和 []*ModelConfig
+    │
+    ├── main.go: 选择最高优先级模型 → 解析模型级参数 → llm.NewClient()
+    │       │
+    │       ▼
+    │   llm.Client 实例 (openAIClient)
+    │       │
+    │       ├── agent.New(client, ...) → Agent.llm
+    │       │       │
+    │       │       ├── agent.Run() → llm.Chat()
+    │       │       └── agent.RunStream() → llm.ChatStream()
+    │       │
+    │       ├── cmd/model.go: 能力检测 → llm.TestVisionSupport() / TestToolCallSupport() / TestThinkingSupport()
+    │       │
+    │       └── cmd/settings.go: 重建客户端 → llm.NewClient()
+    │
+    ├── agent/loop.go: 动态模型切换
+    │       │
+    │       ├── selectModelForCall() → 根据任务选择模型
+    │       └── switchToModel() → 重建 llm.Client
+    │
+    └── agent/settings_tools.go: LLM 工具调用 → 重建客户端
+```
+
+---
+
+## 4. 所有 LLM 调用点详细说明
+
+### 4.1 Agent 核心循环 — agent/loop.go
+
+这是最主要的 LLM 调用点，负责处理用户输入并生成回复。
+
+#### 4.1.1 Run() — 非流式调用
+
+```go
+func (a *Agent) Run(ctx context.Context, userInput string) (string, error)
+```
+
+- **调用位置**: `agent/loop.go`
+- **调用方法**: `a.llm.Chat(ctx, messages, tools)`
+- **参数来源**:
+  - `model`、`temperature`、`maxTokens` 等来自 `a.llm` (openAIClient 实例)
+  - `messages` 来自 Agent 维护的对话上下文 (`a.messages`)
+  - `tools` 来自 Agent 注册的工具列表 (`a.tools`)
+- **调用时机**: 当 `output-mode` 为非流式模式时使用
+- **调用频率**: 每次用户输入一次，可能多次迭代
+
+#### 4.1.2 RunStream() — 流式调用
+
+```go
+func (a *Agent) RunStream(ctx context.Context, userInput string, callback func(string, string)) (string, error)
+```
+
+- **调用位置**: `agent/loop.go`
+- **调用方法**: `a.llm.ChatStream(ctx, messages, tools)`
+- **参数来源**: 同 `Run()`
+- **调用时机**: 默认模式，流式输出 LLM 回复
+- **调用频率**: 每次用户输入一次，可能多次迭代
+
+#### 4.1.3 streamLLMResponse() — 流式响应处理
+
+```go
+func (a *Agent) streamLLMResponse(ctx context.Context, messages []llm.Message, tools []llm.Tool) (<-chan llm.StreamEvent, error)
+```
+
+- **调用位置**: `agent/loop.go`
+- **调用方法**: `a.llm.ChatStream(ctx, messages, tools)`
+- **参数来源**: 同 `RunStream()`
+- **特殊逻辑**: 调用前会通过 `selectModelForCall()` 动态选择模型
+
+#### 4.1.4 动态模型切换
+
+```go
+func (a *Agent) selectModelForCall(messages []llm.Message, tools []llm.Tool) *config.ModelConfig
+func (a *Agent) switchToModel(model *config.ModelConfig)
+```
+
+- **位置**: `agent/agent.go`
+- **逻辑**:
+  1. `selectModelForCall()` 根据当前消息和工具判断是否需要切换模型
+     - 如果消息包含图片 → 选择支持 Vision 的最高优先级模型
+     - 如果启用了 thinking → 选择支持 Thinking 的最高优先级模型
+     - 否则返回 nil (使用当前模型)
+  2. `switchToModel()` 使用目标模型的参数重建 `llm.Client`
+     - 模型级参数优先，未设置时回退到全局 `cfg.LLM`
+
+### 4.2 模型管理向导 — cmd/model.go
+
+#### 4.2.1 端点连通性测试
+
+```go
+client := llm.NewClient(endpoint, "", "test", 0, 0, 10)
+models, err := client.ListModels(ctx)
+```
+
+- **参数来源**: 用户输入的 `endpoint`，硬编码的 `apiKey=""`、`model="test"`、`temperature=0`、`maxTokens=0`、`timeout=10`
+- **调用时机**: 用户添加模型时输入端点后
+
+#### 4.2.2 获取模型列表
+
+```go
+client = llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
+models, err = client.ListModels(ctx)
+```
+
+- **参数来源**: 用户输入的 `endpoint` 和 `apiKey`，硬编码的 `model="test"`、`temperature=0`、`maxTokens=0`、`timeout=15`
+- **调用时机**: 用户输入 API Key 后
+
+#### 4.2.3 能力检测
+
+```go
+client := llm.NewClient(endpoint, testKey, modelName, 0, 0, 30)
+vision := client.TestVisionSupport(ctx)
+toolCall := client.TestToolCallSupport(ctx)
+thinking := client.TestThinkingSupport(ctx)
+```
+
+- **参数来源**: 用户输入的 `endpoint`、`apiKey`、`modelName`，硬编码的 `temperature=0`、`maxTokens=0`、`timeout=30`
+- **调用时机**: 用户选择模型后自动检测
+
+### 4.3 设置命令 — cmd/settings.go
+
+#### 4.3.1 重建 LLM 客户端
+
+```go
+client := llm.NewClient(
+    h.cfg.LLM.Endpoint,
+    h.cfg.LLM.APIKey,
+    h.cfg.LLM.Model,
+    h.cfg.LLM.Temperature,
+    h.cfg.LLM.MaxTokens,
+)
+client.SetTopP(h.cfg.LLM.TopP)
+client.SetTopK(h.cfg.LLM.TopK)
+client.SetRepetitionPenalty(h.cfg.LLM.RepetitionPenalty)
+client.SetThinkingEnabled(h.cfg.LLM.ThinkingEnabled)
+client.SetReasoningEffort(h.cfg.LLM.ReasoningEffort)
+client.SetTokenUsage(h.cfg.LLM.TokenUsage)
+```
+
+- **参数来源**: `h.cfg.LLM` (全局配置)
+- **调用时机**: 用户执行 `.set` 修改 LLM 相关参数后
+
+### 4.4 模型切换 — cmd/model.go switchModel
+
+```go
+client := llm.NewClient(
+    h.cfg.LLM.Endpoint,
+    h.cfg.LLM.APIKey,
+    h.cfg.LLM.Model,
+    h.cfg.LLM.Temperature,
+    h.cfg.LLM.MaxTokens,
+)
+client.SetTopP(h.cfg.LLM.TopP)
+// ... 其他参数设置
+h.agent.SetLLMClient(client)
+```
+
+- **参数来源**: `h.cfg.LLM` (全局配置，已从目标模型同步)
+- **调用时机**: 用户执行 `.model switch <id>` 切换模型后
+
+### 4.5 LLM 工具调用重建客户端 — agent/settings_tools.go
+
+```go
+client := llm.NewClient(
+    cfg.LLM.Endpoint,
+    cfg.LLM.APIKey,
+    cfg.LLM.Model,
+    cfg.LLM.Temperature,
+    cfg.LLM.MaxTokens,
+)
+// ... 设置其他参数
+ag.SetLLMClient(client)
+```
+
+- **参数来源**: `cfg.LLM` (全局配置)
+- **调用时机**: LLM 通过工具调用修改 LLM 相关参数后
+
+### 4.6 REPL 向导后重建 — repl/repl.go
+
+```go
+client := llm.NewClient(
+    cfg.LLM.Endpoint,
+    cfg.LLM.APIKey,
+    cfg.LLM.Model,
+    cfg.LLM.Temperature,
+    cfg.LLM.MaxTokens,
+)
+// ... 设置其他参数
+ag.SetLLMClient(client)
+```
+
+- **参数来源**: `cfg.LLM` (全局配置)
+- **调用时机**: 首次设置向导完成后
+
+### 4.7 主程序初始化 — main.go
+
+```go
+// 使用最高优先级模型的参数
+activeModel := modelMgr.GetActiveModel(false)
+if activeModel != nil && activeModel.APIKey != "" {
+    temperature := cfg.LLM.Temperature
+    if activeModel.Temperature != nil {
+        temperature = *activeModel.Temperature
+    }
+    // ... 类似处理其他参数
+    llmClient = llm.NewClient(
+        activeModel.Endpoint,
+        activeModel.APIKey,
+        activeModel.Model,
+        temperature,
+        maxTokens,
+        cfg.LLM.LLMTimeout,
+    )
+    llmClient.SetThinkingEnabled(thinkingEnabled)
+    // ... 设置其他参数
+}
+```
+
+- **参数来源**: 模型级参数优先，回退到全局 `cfg.LLM`
+- **调用时机**: 程序启动时
+
+---
+
+## 5. 模型选择架构
+
+### 5.1 模型管理器 (ModelManager)
+
+文件: `config/model_template.go`
+
+```go
+type ModelManager struct {
+    templates []*ModelTemplate
+    models    []*ModelConfig
+}
+```
+
+核心方法:
+
+| 方法 | 说明 |
+|---|---|
+| `GetActiveModel(visionRequired bool)` | 获取最高优先级的已启用模型，可选要求支持 Vision |
+| `GetModel(id string)` | 按 ID 获取模型 |
+| `GetAllModels()` | 获取所有模型 |
+| `AddModel(m *ModelConfig)` | 添加模型 |
+| `RemoveModel(id string)` | 移除模型 |
+
+### 5.2 模型选择策略
+
+```
+用户输入
+    │
+    ▼
+Agent.Run() / Agent.RunStream()
+    │
+    ├── 检查消息是否包含图片
+    │   └── 是 → selectModelForCall() → 选择支持 Vision 的最高优先级模型
+    │
+    ├── 检查是否启用了 thinking
+    │   └── 是 → selectModelForCall() → 选择支持 Thinking 的最高优先级模型
+    │
+    └── 否则 → 使用当前模型 (不切换)
+```
+
+### 5.3 模型参数模板
+
+文件: `config/model_template.go`
+
+内置模板定义了各供应商的默认参数:
+
+| 模板 ID | 供应商 | 默认端点 | 默认参数 |
+|---|---|---|---|
+| `deepseek` | DeepSeek | https://api.deepseek.com | thinking={"type":"enabled"} |
+| `qwen` | 阿里千问 | https://dashscope.aliyuncs.com/compatible-mode/v1 | extra_body={} |
+| `openai` | OpenAI | https://api.openai.com/v1 | 无 |
+| `glm` | 智谱 | https://open.bigmodel.cn/api/paas/v4 | 无 |
+| `xai` | xAI | https://api.x.ai/v1 | 无 |
+| `xiaomi` | 小米 | https://api.minimax.chat/v1 | 无 |
+| `ollama` | Ollama | http://localhost:11434/v1 | 无 |
+| `openai-compatible` | 通用 | (用户自定义) | 无 |
+
+---
+
+## 6. 参数汇总
+
+### 6.1 发送给 LLM 的请求参数
+
+| 参数 | 来源 | 优先级 |
+|---|---|---|
+| `model` | ModelConfig.Model → LLMConfig.Model | 模型级 |
+| `temperature` | ModelConfig.Temperature → LLMConfig.Temperature → 0.0 | 模型级 > 全局 > 默认 |
+| `max_tokens` | ModelConfig.MaxTokens → LLMConfig.MaxTokens → 8192 | 模型级 > 全局 > 默认 |
+| `top_p` | ModelConfig.TopP → LLMConfig.TopP → -1 (不发送) | 模型级 > 全局 > 默认 |
+| `top_k` | ModelConfig.TopK → LLMConfig.TopK → -1 (不发送) | 模型级 > 全局 > 默认 |
+| `repetition_penalty` | ModelConfig.RepetitionPenalty → LLMConfig.RepetitionPenalty → -1 (不发送) | 模型级 > 全局 > 默认 |
+| `thinking` | ModelConfig.ThinkingEnabled → LLMConfig.ThinkingEnabled → false | 模型级 > 全局 > 默认 |
+| `reasoning_effort` | ModelConfig.ReasoningEffort → LLMConfig.ReasoningEffort → "low" | 模型级 > 全局 > 默认 |
+| `stream_options.include_usage` | LLMConfig.TokenUsage → "off" | 全局 > 默认 |
+| `tools` | Agent 注册的工具列表 (受 ToolCallEnabled 控制) | 运行时 |
+| `bodyAdditions` | ModelConfig.CustomParams + LLMConfig.BodyAdditions | 模型级 + 全局合并 |
+
+### 6.2 参数配置方式
+
+| 方式 | 示例 | 优先级 |
+|---|---|---|
+| 命令行参数 | `--temperature 0.7 --max-tokens 4096` | 最高 |
+| REPL 命令 | `.set temperature 0.7` | 中 |
+| 配置文件 | `config.json` 中的 `llm` 字段 | 低 |
+| 默认值 | `config.DefaultConfig()` | 最低 |
+
+### 6.3 模型级参数配置方式
+
+| 方式 | 示例 | 说明 |
+|---|---|---|
+| `.model add` 向导 | 交互式设置 | 自动检测能力 |
+| `.model from-tpl` | `.model from-tpl deepseek deepseek-chat --api-key xxx` | 从模板创建 |
+| `.model set-param` | `.model set-param my-model thinking {"type":"enabled"}` | 设置自定义参数 |
+| `.model set-priority` | `.model set-priority my-model 50` | 设置优先级 |
+| `.model switch` | `.model switch my-model` | 切换并启用 |
+
+---
+
+## 7. 调用流程图
+
+### 7.1 正常对话流程
+
+```
+用户输入
+    │
+    ▼
+REPL (repl/repl.go)
+    │
+    ▼
+Agent.RunStream() (agent/loop.go)
+    │
+    ├── selectModelForCall()  ← 动态模型选择
+    │   └── 如需切换 → switchToModel() → 重建 llm.Client
+    │
+    ├── 构建 messages (含上下文、系统提示词)
+    │
+    ├── 构建 tools (工具定义列表)
+    │
+    ├── streamLLMResponse()
+    │   └── llm.ChatStream()  ← 发送 HTTP 请求到 LLM API
+    │       └── openAIClient.ChatStream()
+    │           ├── 构建 chatRequestJSON
+    │           ├── 合并 bodyAdditions
+    │           ├── POST /chat/completions
+    │           └── 解析 SSE 流 → 返回 StreamEvent 通道
+    │
+    ├── 处理流式事件 (content/thinking/tool_call/done)
+    │
+    ├── 如果 LLM 返回 tool_calls
+    │   ├── 执行工具 → 获取结果
+    │   ├── 将结果加入 messages
+    │   └── 再次调用 LLM (迭代)
+    │
+    └── 迭代完成 → 返回最终结果
+```
+
+### 7.2 模型切换流程
+
+```
+用户执行 .model switch <id>
+    │
+    ▼
+cmd/model.go switchModel()
+    │
+    ├── 将目标模型移到列表首位
+    ├── 重新编码优先级
+    ├── 同步参数到 cfg.LLM
+    │
+    ├── 重建 llm.Client
+    │   ├── llm.NewClient(activeModel.Endpoint, activeModel.APIKey, ...)
+    │   ├── client.SetTopP(...)
+    │   ├── client.SetTopK(...)
+    │   └── ...
+    │
+    └── agent.SetLLMClient(client)
+```
+
+### 7.3 参数修改生效流程
+
+```
+用户执行 .set temperature 0.7
+    │
+    ▼
+cmd/settings.go Handle()
+    │
+    ├── 修改 cfg.LLM.Temperature = 0.7
+    ├── 保存 config.json
+    │
+    ├── 重建 llm.Client
+    │   └── agent.SetLLMClient(newClient)
+    │
+    └── 立即生效 (无需重启)
+```
+
+---
+
+## 8. 关键代码位置索引
+
+| 功能 | 文件 | 行号范围 (参考) |
+|---|---|---|
+| Client 接口定义 | `llm/client.go` | 134-199 |
+| openAIClient 结构体 | `llm/client.go` | 366-381 |
+| NewClient 构造函数 | `llm/client.go` | 385-420 |
+| Chat() 非流式调用 | `llm/client.go` | 580-730 |
+| ChatStream() 流式调用 | `llm/client.go` | 732-941 |
+| 请求体构建 (chatRequestJSON) | `llm/client.go` | 276-292 |
+| 参数合并 (mergeBodyAdditions) | `llm/client.go` | 530-556 |
+| LLMConfig 结构体 | `config/config.go` | (LLMConfig 字段) |
+| ModelConfig 结构体 | `config/config.go` | (ModelConfig 字段) |
+| ModelManager | `config/model_template.go` | (GetActiveModel 等) |
+| Agent.Run() | `agent/loop.go` | (Run 方法) |
+| Agent.RunStream() | `agent/loop.go` | (RunStream 方法) |
+| streamLLMResponse() | `agent/loop.go` | (streamLLMResponse 方法) |
+| selectModelForCall() | `agent/agent.go` | (selectModelForCall 方法) |
+| switchToModel() | `agent/agent.go` | (switchToModel 方法) |
+| 主程序初始化 | `main.go` | (LLM Client 初始化部分) |
+| 设置命令重建客户端 | `cmd/settings.go` | (Handle 方法) |
+| 模型切换重建客户端 | `cmd/model.go` | (switchModel 方法) |
+| LLM 工具重建客户端 | `agent/settings_tools.go` | (HandleSetLLMConfig 等) |
+| REPL 向导后重建 | `repl/repl.go` | (Run 方法) |
+| 模型管理向导 | `cmd/model.go` | (wizardEnterModelParams 等) |
