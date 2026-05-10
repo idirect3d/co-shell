@@ -350,7 +350,15 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	// Step 2: Enter API key
-	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
+	// Find existing API key from models with the same template ID
+	defaultAPIKey := ""
+	for _, m := range h.cfg.Models {
+		if m.TemplateID == template.ID && m.APIKey != "" {
+			defaultAPIKey = m.APIKey
+			break
+		}
+	}
+	apiKey := h.wizardPromptSecret("请输入 API Key", defaultAPIKey)
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
 	}
@@ -526,9 +534,15 @@ func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue
 }
 
 // wizardPromptSecret prompts for a secret value (API key).
-func (h *ModelHandler) wizardPromptSecret(prompt string) string {
+// If defaultVal is provided, it will be shown as masked default.
+func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) string {
 	for {
-		fmt.Printf("\n%s: ", prompt)
+		if defaultVal != "" {
+			masked := defaultVal[:4] + "****" + defaultVal[len(defaultVal)-4:]
+			fmt.Printf("\n%s [默认: %s]: ", prompt, masked)
+		} else {
+			fmt.Printf("\n%s: ", prompt)
+		}
 
 		if !h.scanner.Scan() {
 			return ""
@@ -536,7 +550,11 @@ func (h *ModelHandler) wizardPromptSecret(prompt string) string {
 		input := strings.TrimSpace(h.scanner.Text())
 
 		if input == "" {
-			fmt.Println("  使用配置文件中的 API Key")
+			if defaultVal != "" {
+				fmt.Println("  使用默认 API Key")
+				return defaultVal
+			}
+			fmt.Println("  API Key 留空")
 			return ""
 		}
 
