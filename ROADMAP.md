@@ -197,7 +197,7 @@
 - [x] FEATURE-148 模型参数模板增加可自定义属性：ModelTemplate 新增 DefaultParams 字段，为每个内置模板设置合适的默认参数（如 DeepSeek 的 thinking 配置、Qwen 的 extra_body 等），创建模型时自动继承到 ModelConfig.CustomParams，切换模型时合并到 bodyAdditions 发送给 LLM。支持 "None" 字符串值表示不发送该参数。[BUILD-166]
 - [x] FEATURE-149 .model set-param 命令支持设置模型自定义参数：新增 .model set-param <id> <key> <value> 子命令，支持设置 None 表示不发送该属性，支持 JSON 格式的值（自动解析）和纯字符串值。model info 显示自定义参数列表。[BUILD-167]
 - [x] FIX-150 修复LLM请求参数仍由全局cfg.LLM决定的问题：ModelConfig新增Temperature/MaxTokens/TopP/TopK/RepetitionPenalty/ThinkingEnabled/ReasoningEffort七个模型级别参数字段（指针类型，nil表示使用全局默认值）；switchToModel优先使用ModelConfig中的参数，未设置时回退到cfg.LLM全局配置；main.go初始化LLM client时使用优先级最高的模型的参数。[BUILD-168]
-- [ ] ENHANCEMENT-151 改进.model list显示格式：第一行显示 `<No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]`，第二行显示模型参数（temperature/top-k/top-p等），不再显示 name 字段。
+- [x] ENHANCEMENT-151 改进.model list显示格式：第一行显示 `<No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]`，第二行显示模型参数（temperature/top-k/top-p等），不再显示 name 字段；.model add向导自动从API获取max_model_len并保存到ModelConfig；清理已废弃的wizard包（wizard/wizard.go、wizard/input.go、wizard/terminal.go）。[BUILD-169]
 
 ## v1.0.0 — 正式版
 
