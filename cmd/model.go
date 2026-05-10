@@ -224,26 +224,32 @@ func (h *ModelHandler) addModelWizard() (string, error) {
 	result.WriteString("  📋 添加模型向导 / Add Model Wizard\n")
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
-	// Step 1: Select template
-	template, err := h.wizardSelectTemplate()
-	if err != nil || template == nil {
-		return result.String(), err
-	}
+	for {
+		// Step 1: Select template
+		template, err := h.wizardSelectTemplate()
+		if err != nil || template == nil {
+			return result.String(), err
+		}
 
-	// Step 2: Enter model parameters
-	modelConfig, err := h.wizardEnterModelParams(template)
-	if err != nil {
-		return result.String(), err
-	}
+		// Step 2: Enter model parameters
+		modelConfig, err := h.wizardEnterModelParams(template)
+		if err != nil {
+			if err.Error() == "__BACK__" {
+				fmt.Println("\n  返回上一步")
+				continue
+			}
+			return result.String(), err
+		}
 
-	// Step 3: Confirm and save
-	if err := h.saveModel(modelConfig); err != nil {
-		return result.String(), err
-	}
+		// Step 3: Confirm and save
+		if err := h.saveModel(modelConfig); err != nil {
+			return result.String(), err
+		}
 
-	result.WriteString(fmt.Sprintf("\n✅ 已成功添加模型: %s (%s)\n", modelConfig.ID, modelConfig.Model))
-	log.Info("Added model via wizard: %s (template=%s, model=%s)", modelConfig.ID, template.ID, modelConfig.Model)
-	return result.String(), nil
+		result.WriteString(fmt.Sprintf("\n✅ 已成功添加模型: %s (%s)\n", modelConfig.ID, modelConfig.Model))
+		log.Info("Added model via wizard: %s (template=%s, model=%s)", modelConfig.ID, template.ID, modelConfig.Model)
+		return result.String(), nil
+	}
 }
 
 // wizardSelectTemplate displays template list and lets user select one.
@@ -317,7 +323,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("向导已取消")
 	}
 	if endpoint == "0" || strings.ToUpper(endpoint) == "BACK" || strings.ToUpper(endpoint) == ".." {
-		endpoint = defaultEndpoint
+		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Test endpoint connectivity
@@ -347,6 +353,9 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
+	}
+	if apiKey == "0" || strings.ToUpper(apiKey) == "BACK" || strings.ToUpper(apiKey) == ".." {
+		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Step 3: Fetch available models from API and let user select
@@ -386,7 +395,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("向导已取消")
 	}
 	if modelName == "0" || strings.ToUpper(modelName) == "BACK" || strings.ToUpper(modelName) == ".." {
-		return nil, fmt.Errorf("返回上一步")
+		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Step 4: Auto-detect capabilities by sending test requests
@@ -400,7 +409,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("向导已取消")
 	}
 	if modelID == "0" || strings.ToUpper(modelID) == "BACK" || strings.ToUpper(modelID) == ".." {
-		modelID = defaultModelID
+		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Step 6: Set priority
@@ -409,7 +418,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("向导已取消")
 	}
 	if priorityStr == "0" || strings.ToUpper(priorityStr) == "BACK" || strings.ToUpper(priorityStr) == ".." {
-		priorityStr = fmt.Sprintf("%d", template.Priority)
+		return nil, fmt.Errorf("__BACK__")
 	}
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil {
@@ -417,7 +426,10 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	// Step 7: Choose capabilities (pre-populated with detected results)
-	capabilities := h.wizardSelectCapabilities(detectedCaps)
+	capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
+	if goBack {
+		return nil, fmt.Errorf("__BACK__")
+	}
 
 	// Step 8: Enable model?
 	enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", true)
@@ -617,7 +629,8 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 
 // wizardSelectCapabilities lets user review and adjust model capabilities.
 // Shows detected capabilities and allows toggling.
-func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) config.ModelCapability {
+// Returns capabilities and whether user chose to go back.
+func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (config.ModelCapability, bool) {
 	caps := config.ModelCapability{
 		Vision:   base.Vision,
 		ToolCall: base.ToolCall,
@@ -641,12 +654,19 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) con
 			fmt.Print("💭 ")
 		}
 		fmt.Println()
-		fmt.Print("  请选择 (0 完成): ")
+		fmt.Print("  请选择 (0 完成, back 返回上一步): ")
 
 		if !h.scanner.Scan() {
-			return caps
+			return caps, false
 		}
 		input := strings.TrimSpace(h.scanner.Text())
+
+		if input == "0" || strings.ToUpper(input) == "BACK" || strings.ToUpper(input) == ".." {
+			if input == "0" {
+				return caps, false
+			}
+			return caps, true
+		}
 
 		switch input {
 		case "1":
@@ -655,8 +675,6 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) con
 			caps.ToolCall = !caps.ToolCall
 		case "3":
 			caps.Thinking = !caps.Thinking
-		case "0":
-			return caps
 		default:
 			fmt.Println("  无效输入")
 		}
