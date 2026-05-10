@@ -374,14 +374,21 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 }
 
 // wizardPromptString prompts for a string value with template suggestions.
+// Supports both numeric selection and direct text input.
+// Default value: first suggestion if available, otherwise empty.
 func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, cancelKeys string) string {
+	defaultVal := ""
+	if len(suggestions) > 0 {
+		defaultVal = suggestions[0]
+	}
+
 	for {
 		if len(suggestions) > 0 {
 			fmt.Printf("\n%s:\n", prompt)
 			for i, s := range suggestions {
 				fmt.Printf("  [%d] %s\n", i+1, s)
 			}
-			fmt.Print("  请选择或输入: ")
+			fmt.Printf("  请选择或输入 [默认: %s]: ", defaultVal)
 		} else {
 			fmt.Printf("\n%s: ", prompt)
 		}
@@ -391,22 +398,32 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 		}
 		input := strings.TrimSpace(h.scanner.Text())
 
-		if strings.Contains(cancelKeys, strings.ToUpper(input[:1])) && len(input) > 0 {
-			return ""
+		// Check cancel keys
+		if len(input) > 0 {
+			upper := strings.ToUpper(input)
+			if upper == "Q" || upper == "QUIT" {
+				return ""
+			}
 		}
 
-		// Check if user selected a suggestion
+		// Empty input: use default
+		if input == "" {
+			if defaultVal != "" {
+				fmt.Printf("  使用默认值: %s\n", defaultVal)
+				return defaultVal
+			}
+			fmt.Println("  输入不能为空，请重新输入")
+			continue
+		}
+
+		// Check if user selected a suggestion by number
 		if len(suggestions) > 0 {
 			if idx, err := strconv.Atoi(input); err == nil && idx >= 1 && idx <= len(suggestions) {
 				return suggestions[idx-1]
 			}
 		}
 
-		if input == "" {
-			fmt.Println("  输入不能为空，请重新输入")
-			continue
-		}
-
+		// Direct text input
 		return input
 	}
 }
