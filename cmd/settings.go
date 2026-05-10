@@ -1053,6 +1053,18 @@ func showSettingsHelp(cfg *config.Config) string {
 		confirmStatus = i18n.T(i18n.KeyOn)
 	}
 	logStatus := log.LogLevelString(log.GetLevel())
+	visionStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.VisionSupport {
+		visionStatus = i18n.T(i18n.KeyOn)
+	}
+	thinkingEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ThinkingEnabled {
+		thinkingEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	toolCallEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ToolCallEnabled {
+		toolCallEnabledStatus = i18n.T(i18n.KeyOn)
+	}
 	memoryEnabledStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.MemoryEnabled {
 		memoryEnabledStatus = i18n.T(i18n.KeyOn)
@@ -1150,6 +1162,9 @@ func showSettingsHelp(cfg *config.Config) string {
 
 	allLines = append(allLines,
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
+		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
+		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
+		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
 		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
 		makeLine("default-vision-model", defaultVisionModelID, i18n.T(i18n.KeyCol3DefaultVisionModel)),
 		makeLine("default-problem-model", defaultProblemModelID, i18n.T(i18n.KeyCol3DefaultProblemModel)),
@@ -1233,7 +1248,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(4)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(7)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
