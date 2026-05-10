@@ -118,7 +118,9 @@ func (h *ModelHandler) showHelp() (string, error) {
 	return result.String(), nil
 }
 
-// listModels shows all configured models.
+// listModels shows all configured models in a compact two-line format.
+// Line 1: <No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]
+// Line 2: model parameters (temperature/top-k/top-p/etc.)
 func (h *ModelHandler) listModels() (string, error) {
 	models := h.cfg.Models
 	if len(models) == 0 {
@@ -141,28 +143,76 @@ func (h *ModelHandler) listModels() (string, error) {
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
 	activeCount := 0
-	for _, m := range sorted {
+	for idx, m := range sorted {
 		status := "⬜"
 		if m.Enabled {
 			status = "✅"
 			activeCount++
 		}
+
+		// Build capabilities string
 		capStr := []string{}
 		if m.Capabilities.Vision {
-			capStr = append(capStr, "👁视觉")
+			capStr = append(capStr, "👁")
 		}
 		if m.Capabilities.ToolCall {
-			capStr = append(capStr, "🔧工具")
+			capStr = append(capStr, "🔧")
 		}
 		if m.Capabilities.Thinking {
-			capStr = append(capStr, "💭思考")
+			capStr = append(capStr, "💭")
+		}
+		capsDisplay := strings.Join(capStr, "")
+
+		// Build max_model_len display
+		maxModelLenDisplay := ""
+		if m.MaxModelLen > 0 {
+			maxModelLenDisplay = fmt.Sprintf("%d", m.MaxModelLen)
 		}
 
-		result.WriteString(fmt.Sprintf("  %s [%-30s] %s\n", status, m.ID, m.Name))
-		result.WriteString(fmt.Sprintf("     供应商: %s | 模型: %s | 优先级: %d\n", m.Provider, m.Model, m.Priority))
-		if len(capStr) > 0 {
-			result.WriteString(fmt.Sprintf("     能力: %s\n", strings.Join(capStr, " ")))
+		// Line 1: <No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]
+		no := idx + 1
+		result.WriteString(fmt.Sprintf("  %s %d.[%s][%s][%s:%s]",
+			status, no, m.ID, m.Provider, m.Endpoint, m.Model))
+		if maxModelLenDisplay != "" {
+			result.WriteString(fmt.Sprintf("[%s]", maxModelLenDisplay))
 		}
+		if capsDisplay != "" {
+			result.WriteString(fmt.Sprintf("[%s]", capsDisplay))
+		}
+		result.WriteString("\n")
+
+		// Line 2: model parameters
+		params := []string{}
+		if m.Temperature != nil {
+			params = append(params, fmt.Sprintf("temperature=%.1f", *m.Temperature))
+		}
+		if m.MaxTokens != nil {
+			params = append(params, fmt.Sprintf("max_tokens=%d", *m.MaxTokens))
+		}
+		if m.TopP != nil {
+			params = append(params, fmt.Sprintf("top_p=%.2f", *m.TopP))
+		}
+		if m.TopK != nil {
+			params = append(params, fmt.Sprintf("top_k=%d", *m.TopK))
+		}
+		if m.RepetitionPenalty != nil {
+			params = append(params, fmt.Sprintf("repetition_penalty=%.1f", *m.RepetitionPenalty))
+		}
+		if m.ThinkingEnabled != nil {
+			if *m.ThinkingEnabled {
+				params = append(params, "thinking=on")
+			} else {
+				params = append(params, "thinking=off")
+			}
+		}
+		if m.ReasoningEffort != nil {
+			params = append(params, fmt.Sprintf("reasoning_effort=%s", *m.ReasoningEffort))
+		}
+		if len(params) > 0 {
+			result.WriteString(fmt.Sprintf("      %s\n", strings.Join(params, " | ")))
+		}
+
+		result.WriteString(fmt.Sprintf("      优先级: %d\n", m.Priority))
 		result.WriteString("\n")
 	}
 
