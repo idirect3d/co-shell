@@ -310,32 +310,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	var result strings.Builder
 	result.WriteString("\n")
 
-	// Step 1: Enter model name
-	modelName := h.wizardPromptString("请输入模型名称", template.Models, "q")
-	if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
-	}
-	if modelName == "0" || strings.ToUpper(modelName) == "BACK" || strings.ToUpper(modelName) == ".." {
-		return nil, fmt.Errorf("返回上一步")
-	}
-
-	// Step 2: Enter model ID (customizable, default: templateID-modelName)
-	defaultModelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
-	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
-	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
-	}
-	if modelID == "0" || strings.ToUpper(modelID) == "BACK" || strings.ToUpper(modelID) == ".." {
-		modelID = defaultModelID
-	}
-
-	// Step 3: Enter API key
-	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
-	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
-	}
-
-	// Step 3: Enter endpoint (optional, default from template)
+	// Step 1: Enter endpoint (optional, default from template)
 	defaultEndpoint := template.Endpoint
 	endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", defaultEndpoint, "q")
 	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
@@ -345,7 +320,32 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		endpoint = defaultEndpoint
 	}
 
-	// Step 4: Set priority
+	// Step 2: Enter model name
+	modelName := h.wizardPromptString("请输入模型名称", template.Models, "q")
+	if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+	if modelName == "0" || strings.ToUpper(modelName) == "BACK" || strings.ToUpper(modelName) == ".." {
+		return nil, fmt.Errorf("返回上一步")
+	}
+
+	// Step 3: Enter model ID (customizable, default: templateID-modelName)
+	defaultModelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
+	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+	if modelID == "0" || strings.ToUpper(modelID) == "BACK" || strings.ToUpper(modelID) == ".." {
+		modelID = defaultModelID
+	}
+
+	// Step 4: Enter API key
+	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
+	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+
+	// Step 5: Set priority
 	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", template.Priority)+")", fmt.Sprintf("%d", template.Priority), "q")
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
