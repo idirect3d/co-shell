@@ -164,6 +164,18 @@ func (m *ModelManager) initBuiltInTemplates() {
 			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: false, Multimodal: true},
 		},
 		{
+			ID:           "lmstudio-local",
+			Name:         "LM Studio 本地部署",
+			Provider:     "lmstudio",
+			Endpoint:     "http://localhost:1234/v1",
+			DefaultModel: "",
+			Models:       []string{},
+			APIKeyURL:    "",
+			Priority:     55,
+			Description:  "本地部署的 LM Studio 服务，模型需自行加载",
+			Capabilities: ModelCapability{Vision: false, ToolCall: false, Thinking: false, Multimodal: false},
+		},
+		{
 			ID:           "ollama-local",
 			Name:         "Ollama 本地部署",
 			Provider:     "ollama",
@@ -213,6 +225,7 @@ func (m *ModelManager) GetAllTemplates() []*ModelTemplate {
 		"xiaomi-mimo",
 		"zhipu-glm",
 		"openai-official",
+		"lmstudio-local",
 		"ollama-local",
 		"custom-openai-compatible",
 	}
