@@ -726,6 +726,8 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 }
 
 // saveModel adds and saves a model configuration.
+// If priority conflicts with an existing model, the new model is inserted before it.
+// After insertion, all model priorities are re-encoded: lowest = 10, each step +10.
 func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
 	// Check for duplicate ID
 	for _, m := range h.cfg.Models {
@@ -734,13 +736,48 @@ func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
 		}
 	}
 
-	h.cfg.Models = append(h.cfg.Models, model)
+	// Insert model at the correct position based on priority
+	inserted := false
+	for i, m := range h.cfg.Models {
+		if model.Priority >= m.Priority {
+			// Insert before this model (same priority = insert before)
+			h.cfg.Models = append(h.cfg.Models[:i], append([]*config.ModelConfig{model}, h.cfg.Models[i:]...)...)
+			inserted = true
+			break
+		}
+	}
+	if !inserted {
+		// Append at the end (lowest priority)
+		h.cfg.Models = append(h.cfg.Models, model)
+	}
+
+	// Re-encode priorities: lowest = 10, each step +10
+	h.reencodePriorities()
 
 	if err := h.cfg.Save(); err != nil {
 		return fmt.Errorf("保存配置失败: %w", err)
 	}
 
 	return nil
+}
+
+// reencodePriorities re-encodes all model priorities so that the lowest = 10,
+// and each higher priority model gets +10.
+func (h *ModelHandler) reencodePriorities() {
+	// Sort by priority descending
+	for i := 0; i < len(h.cfg.Models); i++ {
+		for j := i + 1; j < len(h.cfg.Models); j++ {
+			if h.cfg.Models[j].Priority > h.cfg.Models[i].Priority {
+				h.cfg.Models[i], h.cfg.Models[j] = h.cfg.Models[j], h.cfg.Models[i]
+			}
+		}
+	}
+
+	// Re-encode: lowest = 10, each step +10
+	n := len(h.cfg.Models)
+	for i := 0; i < n; i++ {
+		h.cfg.Models[n-1-i].Priority = (i + 1) * 10
+	}
 }
 
 // addFromTemplate adds a model from a built-in template.
