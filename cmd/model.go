@@ -350,13 +350,17 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	// Step 2: Enter API key
-	// Find existing API key from models with the same template ID
+	// Find existing API key from models with the same template ID,
+	// fall back to config default API key
 	defaultAPIKey := ""
 	for _, m := range h.cfg.Models {
 		if m.TemplateID == template.ID && m.APIKey != "" {
 			defaultAPIKey = m.APIKey
 			break
 		}
+	}
+	if defaultAPIKey == "" && h.cfg.LLM.APIKey != "" {
+		defaultAPIKey = h.cfg.LLM.APIKey
 	}
 	apiKey := h.wizardPromptSecret("请输入 API Key", defaultAPIKey)
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
