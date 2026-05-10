@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
@@ -42,14 +43,16 @@ import (
 // ModelHandler handles the .model built-in command for multi-model management.
 type ModelHandler struct {
 	cfg         *config.Config
+	agent       *agent.Agent
 	scanner     *bufio.Scanner // for interactive wizard input
 	wizardStack []string       // stack of wizard steps to return to
 }
 
 // NewModelHandler creates a new ModelHandler.
-func NewModelHandler(cfg *config.Config) *ModelHandler {
+func NewModelHandler(cfg *config.Config, ag *agent.Agent) *ModelHandler {
 	return &ModelHandler{
 		cfg:         cfg,
+		agent:       ag,
 		scanner:     bufio.NewScanner(os.Stdin),
 		wizardStack: make([]string, 0),
 	}
@@ -66,7 +69,7 @@ func (h *ModelHandler) Handle(args []string) (string, error) {
 	case "list", "ls":
 		return h.listModels()
 	case "add":
-		return h.addModelWizard()
+		return h.AddModelWizard()
 	case "remove", "rm":
 		return h.removeModel(args[1:])
 	case "switch", "use":
@@ -217,8 +220,9 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	return result.String(), nil
 }
 
-// addModelWizard starts the interactive wizard to add a new model.
-func (h *ModelHandler) addModelWizard() (string, error) {
+// AddModelWizard starts the interactive wizard to add a new model.
+// This is a public method so it can be called from main.go for first-time setup.
+func (h *ModelHandler) AddModelWizard() (string, error) {
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
 	result.WriteString("  📋 添加模型向导 / Add Model Wizard\n")
@@ -856,7 +860,8 @@ func (h *ModelHandler) removeModel(args []string) (string, error) {
 	return "", fmt.Errorf("模型 %s 不存在", modelID)
 }
 
-// switchModel switches to a specific model.
+// switchModel switches to a specific model by moving it to the front of the queue
+// (highest priority) and re-encoding all priorities.
 func (h *ModelHandler) switchModel(args []string) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("用法: .model switch <模型ID>")
@@ -864,38 +869,63 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 
 	modelID := args[0]
 
-	found := false
-	for _, m := range h.cfg.Models {
+	// Find the target model index
+	targetIdx := -1
+	for i, m := range h.cfg.Models {
 		if m.ID == modelID {
-			m.Enabled = true
-			found = true
-		} else {
-			m.Enabled = false
+			targetIdx = i
+			break
 		}
 	}
 
-	if !found {
+	if targetIdx == -1 {
 		return "", fmt.Errorf("模型 %s 不存在", modelID)
 	}
 
-	for _, m := range h.cfg.Models {
-		if m.Enabled {
-			h.cfg.LLM.Provider = m.Provider
-			h.cfg.LLM.Endpoint = m.Endpoint
-			h.cfg.LLM.Model = m.Model
-			if m.APIKey != "" {
-				h.cfg.LLM.APIKey = m.APIKey
-			}
-			break
-		}
+	// Move the target model to the front of the slice
+	target := h.cfg.Models[targetIdx]
+	h.cfg.Models = append([]*config.ModelConfig{target}, append(h.cfg.Models[:targetIdx], h.cfg.Models[targetIdx+1:]...)...)
+
+	// Assign priorities: target gets highest, others get lower values
+	// This avoids reencodePriorities which would re-sort and lose the target's position
+	n := len(h.cfg.Models)
+	for i := 0; i < n; i++ {
+		h.cfg.Models[n-1-i].Priority = (i + 1) * 10
+	}
+
+	// Sync to global LLM config: use the first model (target, now at index 0)
+	activeModel := h.cfg.Models[0]
+	h.cfg.LLM.Provider = activeModel.Provider
+	h.cfg.LLM.Endpoint = activeModel.Endpoint
+	h.cfg.LLM.Model = activeModel.Model
+	if activeModel.APIKey != "" {
+		h.cfg.LLM.APIKey = activeModel.APIKey
 	}
 
 	if err := h.cfg.Save(); err != nil {
 		return "", fmt.Errorf("保存配置失败: %w", err)
 	}
 
-	log.Info("Switched to model: %s", modelID)
-	return fmt.Sprintf("✅ 已切换到模型: %s", modelID), nil
+	// Rebuild LLM client to apply the new model immediately
+	if h.agent != nil {
+		client := llm.NewClient(
+			h.cfg.LLM.Endpoint,
+			h.cfg.LLM.APIKey,
+			h.cfg.LLM.Model,
+			h.cfg.LLM.Temperature,
+			h.cfg.LLM.MaxTokens,
+		)
+		client.SetTopP(h.cfg.LLM.TopP)
+		client.SetTopK(h.cfg.LLM.TopK)
+		client.SetRepetitionPenalty(h.cfg.LLM.RepetitionPenalty)
+		client.SetThinkingEnabled(h.cfg.LLM.ThinkingEnabled)
+		client.SetReasoningEffort(h.cfg.LLM.ReasoningEffort)
+		h.agent.SetLLMClient(client)
+		log.Info("LLM client rebuilt after model switch")
+	}
+
+	log.Info("Switched to model: %s (priority=%d)", modelID, activeModel.Priority)
+	return fmt.Sprintf("✅ 已切换到模型: %s（优先级: %d）", modelID, activeModel.Priority), nil
 }
 
 // enableModel enables a specific model.

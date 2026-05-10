@@ -380,7 +380,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 正在启动 API 设置向导...\n",
 	KeyWizardCmdDone:    "✅ API 设置向导已完成。\n",
-	KeyHelpWizard:       "    .wizard        - 重新启动 API 设置向导",
+	KeyHelpModel:        "    .model        - 多模型管理（add/list/remove/switch/info）",
 
 	// Settings help table
 	KeySettingsHelpTitle:             "📋 .set 参数清单",

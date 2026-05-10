@@ -37,6 +37,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
@@ -45,7 +46,6 @@ import (
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
-	"github.com/idirect3d/co-shell/wizard"
 	"github.com/idirect3d/co-shell/workspace"
 )
 
@@ -714,6 +714,11 @@ func main() {
 		log.Info("Created default model entry: %s (will be saved to config.json)", defaultModel.ID)
 	}
 
+	// Sync cfg.Models to modelMgr so that selectModelForCall / GetActiveModel works
+	for _, m := range cfg.Models {
+		_ = modelMgr.AddModel(m) // ignore duplicate errors
+	}
+
 	// Check if we need to auto-select a model based on --image flag
 	if visionRequired := flags.imagePaths != ""; visionRequired {
 		if activeModel := modelMgr.GetActiveModel(true); activeModel != nil {
@@ -745,10 +750,11 @@ func main() {
 		}
 	}
 
-	// Run API setup wizard if configuration is incomplete
-	if !isLLMConfigComplete(cfg) {
-		log.Info("Running API setup wizard")
-		if !wizard.RunSetupWizard(cfg) {
+	// Run model setup wizard if no models are configured
+	if len(cfg.Models) == 0 {
+		log.Info("No models configured, running model setup wizard")
+		modelHandler := cmd.NewModelHandler(cfg, nil)
+		if _, err := modelHandler.AddModelWizard(); err != nil {
 			fmt.Println(i18n.T(i18n.KeySetupCancelled))
 			os.Exit(1)
 		}
@@ -793,6 +799,7 @@ func main() {
 	// Initialize agent
 	ag := agent.New(llmClient, mcpMgr, s, rules)
 	ag.SetWorkspacePath(ws.Root())
+	ag.SetModelManager(modelMgr)
 
 	// Initialize scheduler
 	sch := scheduler.New(func(entry *scheduler.CronEntry) {

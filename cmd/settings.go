@@ -1129,36 +1129,54 @@ func showSettingsHelp(cfg *config.Config) string {
 	)
 
 	// Group 2: Agent Settings (智能体设置)
-	// Get model manager for smart model selection display
-	modelMgr := config.GetDefaultModelManager()
-	allModels := modelMgr.GetAllModels()
+	// Use cfg.Models directly for smart model selection display
+	allModels := cfg.Models
+
+	// Sort by priority descending for display
+	sortedModels := make([]*config.ModelConfig, len(allModels))
+	copy(sortedModels, allModels)
+	for i := 0; i < len(sortedModels); i++ {
+		for j := i + 1; j < len(sortedModels); j++ {
+			if sortedModels[j].Priority > sortedModels[i].Priority {
+				sortedModels[i], sortedModels[j] = sortedModels[j], sortedModels[i]
+			}
+		}
+	}
 
 	// Find default tool model (highest priority enabled model with ToolCall capability)
 	defaultToolModelID := "-"
-	for _, m := range allModels {
+	for _, m := range sortedModels {
 		if m.Enabled && m.Capabilities.ToolCall {
 			defaultToolModelID = m.ID
 			break
 		}
 	}
-	if defaultToolModelID == "-" && len(allModels) > 0 {
-		defaultToolModelID = allModels[0].ID
+	if defaultToolModelID == "-" && len(sortedModels) > 0 {
+		defaultToolModelID = sortedModels[0].ID
 	}
 
 	// Find default vision model (highest priority enabled model with Vision capability)
+	// If none found, show "-" (no fallback to first model)
 	defaultVisionModelID := "-"
-	for _, m := range allModels {
+	for _, m := range sortedModels {
 		if m.Enabled && m.Capabilities.Vision {
 			defaultVisionModelID = m.ID
 			break
 		}
 	}
-	if defaultVisionModelID == "-" && len(allModels) > 0 {
-		defaultVisionModelID = allModels[0].ID
-	}
 
-	// Default problem-solving model is same as tool model
-	defaultProblemModelID := defaultToolModelID
+	// Default problem-solving model: second highest priority enabled model with ToolCall capability
+	defaultProblemModelID := "-"
+	toolModelCount := 0
+	for _, m := range sortedModels {
+		if m.Enabled && m.Capabilities.ToolCall {
+			toolModelCount++
+			if toolModelCount == 2 {
+				defaultProblemModelID = m.ID
+				break
+			}
+		}
+	}
 
 	allLines = append(allLines,
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),

@@ -392,7 +392,7 @@ no liability whatsoever.`,
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 Starting API setup wizard...\n",
 	KeyWizardCmdDone:    "✅ API setup wizard completed.\n",
-	KeyHelpWizard:       "    .wizard        - Restart the API setup wizard",
+	KeyHelpModel:        "    .model         - Multi-model management (add/list/remove/switch/info)",
 
 	// Settings help table
 	KeySettingsHelpTitle:             "📋 .set Parameter List",
