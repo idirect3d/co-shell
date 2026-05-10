@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0-RC3
-> **BUILD**: 166
+> **BUILD**: 167
 
 
 
@@ -195,6 +195,7 @@
 - [x] FIX-146 修复 LLM HTTP 报错时问题消息残留导致无限循环的问题：当 role=assistant 的消息导致 HTTP 报错时，将该消息及之后的消息从上下文队列中移除，并将移除内容拼接到错误提示消息中返回给 LLM；当 role=user 的消息导致 HTTP 报错时，立即退出迭代，将错误提示给用户。[BUILD-165]
 - [x] FEATURE-147 多模型切换和参数模版管理：支持配置多个模型参数并快速切换，系统内置大模型供应商模板，用户可从模板选择模型类型填入参数，程序根据任务能力自动选择优先级最高的模型。[BUILD-165]
 - [x] FEATURE-148 模型参数模板增加可自定义属性：ModelTemplate 新增 DefaultParams 字段，为每个内置模板设置合适的默认参数（如 DeepSeek 的 thinking 配置、Qwen 的 extra_body 等），创建模型时自动继承到 ModelConfig.CustomParams，切换模型时合并到 bodyAdditions 发送给 LLM。支持 "None" 字符串值表示不发送该参数。[BUILD-166]
+- [x] FEATURE-149 .model set-param 命令支持设置模型自定义参数：新增 .model set-param <id> <key> <value> 子命令，支持设置 None 表示不发送该属性，支持 JSON 格式的值（自动解析）和纯字符串值。model info 显示自定义参数列表。[BUILD-167]
 
 ## v1.0.0 — 正式版
 
