@@ -208,9 +208,6 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	if model.Capabilities.Thinking {
 		capStr = append(capStr, "💭 思考模式")
 	}
-	if model.Capabilities.Multimodal {
-		capStr = append(capStr, "🖼 多模态")
-	}
 	if len(capStr) > 0 {
 		result.WriteString(fmt.Sprintf("  能力: %s\n", strings.Join(capStr, "、")))
 	} else {
@@ -392,7 +389,11 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("返回上一步")
 	}
 
-	// Step 4: Enter model ID (customizable, default: templateID-modelName)
+	// Step 4: Auto-detect capabilities by sending test requests
+	fmt.Print("\n  🔍 正在检测模型能力...\n")
+	detectedCaps := h.detectModelCapabilities(endpoint, apiKey, modelName)
+
+	// Step 5: Enter model ID (customizable, default: templateID-modelName)
 	defaultModelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
 	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
 	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
@@ -402,7 +403,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		modelID = defaultModelID
 	}
 
-	// Step 5: Set priority
+	// Step 6: Set priority
 	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", template.Priority)+")", fmt.Sprintf("%d", template.Priority), "q")
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
@@ -415,10 +416,10 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		priority = template.Priority
 	}
 
-	// Step 6: Choose capabilities
-	capabilities := h.wizardSelectCapabilities(template.Capabilities)
+	// Step 7: Choose capabilities (pre-populated with detected results)
+	capabilities := h.wizardSelectCapabilities(detectedCaps)
 
-	// Step 7: Enable model?
+	// Step 8: Enable model?
 	enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", true)
 	if !enabled {
 		enabled = false
@@ -561,21 +562,73 @@ func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
 	}
 }
 
-// wizardSelectCapabilities lets user select model capabilities.
+// detectModelCapabilities auto-detects model capabilities by sending test requests.
+// Tests vision, tool call, and thinking support.
+func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName string) config.ModelCapability {
+	caps := config.ModelCapability{}
+
+	// Use the API key from config if not provided
+	if apiKey == "" {
+		apiKey = h.cfg.LLM.APIKey
+	}
+
+	// Create a test client
+	client := llm.NewClient(endpoint, apiKey, modelName, 0, 0, 30)
+	defer client.Close()
+
+	// Test vision support
+	fmt.Print("  👁 视觉识别... ")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	vision := client.TestVisionSupport(ctx)
+	cancel()
+	if vision {
+		fmt.Println("✅ 支持")
+		caps.Vision = true
+	} else {
+		fmt.Println("❌ 不支持")
+	}
+
+	// Test tool call support
+	fmt.Print("  🔧 工具调用... ")
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	toolCall := client.TestToolCallSupport(ctx)
+	cancel()
+	if toolCall {
+		fmt.Println("✅ 支持")
+		caps.ToolCall = true
+	} else {
+		fmt.Println("❌ 不支持")
+	}
+
+	// Test thinking support
+	fmt.Print("  💭 思考模式... ")
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	thinking := client.TestThinkingSupport(ctx)
+	cancel()
+	if thinking {
+		fmt.Println("✅ 支持")
+		caps.Thinking = true
+	} else {
+		fmt.Println("❌ 不支持")
+	}
+
+	return caps
+}
+
+// wizardSelectCapabilities lets user review and adjust model capabilities.
+// Shows detected capabilities and allows toggling.
 func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) config.ModelCapability {
 	caps := config.ModelCapability{
-		Vision:     base.Vision,
-		ToolCall:   base.ToolCall,
-		Thinking:   base.Thinking,
-		Multimodal: base.Multimodal,
+		Vision:   base.Vision,
+		ToolCall: base.ToolCall,
+		Thinking: base.Thinking,
 	}
 
 	for {
-		fmt.Println("\n请选择模型能力:")
+		fmt.Println("\n请确认模型能力 (可切换开关):")
 		fmt.Println("  [1] 👁 视觉识别 (Vision)")
 		fmt.Println("  [2] 🔧 工具调用 (Tool Call)")
 		fmt.Println("  [3] 💭 思考模式 (Thinking)")
-		fmt.Println("  [4] 🖼 多模态 (Multimodal)")
 		fmt.Println("  [0] 完成选择")
 		fmt.Printf("\n  当前选择: ")
 		if caps.Vision {
@@ -586,9 +639,6 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) con
 		}
 		if caps.Thinking {
 			fmt.Print("💭 ")
-		}
-		if caps.Multimodal {
-			fmt.Print("🖼 ")
 		}
 		fmt.Println()
 		fmt.Print("  请选择 (0 完成): ")
@@ -605,8 +655,6 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) con
 			caps.ToolCall = !caps.ToolCall
 		case "3":
 			caps.Thinking = !caps.Thinking
-		case "4":
-			caps.Multimodal = !caps.Multimodal
 		case "0":
 			return caps
 		default:
