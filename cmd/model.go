@@ -579,13 +579,12 @@ func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
 func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName string) config.ModelCapability {
 	caps := config.ModelCapability{}
 
-	// Use the API key from config if not provided
-	if apiKey == "" {
-		apiKey = h.cfg.LLM.APIKey
-	}
+	// If no API key provided, use empty string (don't fall back to config default)
+	// because the user may want to test with no key (e.g., local models)
+	testKey := apiKey
 
 	// Create a test client
-	client := llm.NewClient(endpoint, apiKey, modelName, 0, 0, 30)
+	client := llm.NewClient(endpoint, testKey, modelName, 0, 0, 30)
 	defer client.Close()
 
 	// Test vision support
