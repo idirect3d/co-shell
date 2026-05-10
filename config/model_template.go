@@ -82,6 +82,16 @@ type ModelConfig struct {
 	Enabled      bool                   `json:"enabled"`
 	TemplateID   string                 `json:"template_id,omitempty"`
 	CustomParams map[string]interface{} `json:"custom_params,omitempty"`
+
+	// Model-level LLM parameters (override global cfg.LLM settings when set)
+	// A value of nil/0 means "use global default from cfg.LLM"
+	Temperature       *float64 `json:"temperature,omitempty"`
+	MaxTokens         *int     `json:"max_tokens,omitempty"`
+	TopP              *float64 `json:"top_p,omitempty"`
+	TopK              *int     `json:"top_k,omitempty"`
+	RepetitionPenalty *float64 `json:"repetition_penalty,omitempty"`
+	ThinkingEnabled   *bool    `json:"thinking_enabled,omitempty"`
+	ReasoningEffort   *string  `json:"reasoning_effort,omitempty"`
 }
 
 // ModelManager manages model templates and configurations.

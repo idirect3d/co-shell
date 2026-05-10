@@ -760,9 +760,66 @@ func main() {
 		}
 	}
 
-	// Initialize LLM client
+	// Initialize LLM client using the highest priority enabled model's parameters.
+	// This ensures the initial client uses the correct model-level settings
+	// (endpoint, api_key, model, temperature, etc.) rather than the legacy
+	// global cfg.LLM fields which may be stale or inconsistent.
 	var llmClient llm.Client
-	if cfg.LLM.APIKey != "" {
+	activeModel := modelMgr.GetActiveModel(false)
+	if activeModel != nil && activeModel.APIKey != "" {
+		// Resolve parameters: model-level takes precedence, fall back to global cfg.LLM
+		temperature := cfg.LLM.Temperature
+		if activeModel.Temperature != nil {
+			temperature = *activeModel.Temperature
+		}
+		maxTokens := cfg.LLM.MaxTokens
+		if activeModel.MaxTokens != nil {
+			maxTokens = *activeModel.MaxTokens
+		}
+		thinkingEnabled := cfg.LLM.ThinkingEnabled
+		if activeModel.ThinkingEnabled != nil {
+			thinkingEnabled = *activeModel.ThinkingEnabled
+		}
+		reasoningEffort := cfg.LLM.ReasoningEffort
+		if activeModel.ReasoningEffort != nil {
+			reasoningEffort = *activeModel.ReasoningEffort
+		}
+		topP := cfg.LLM.TopP
+		if activeModel.TopP != nil {
+			topP = *activeModel.TopP
+		}
+		topK := cfg.LLM.TopK
+		if activeModel.TopK != nil {
+			topK = *activeModel.TopK
+		}
+		repetitionPenalty := cfg.LLM.RepetitionPenalty
+		if activeModel.RepetitionPenalty != nil {
+			repetitionPenalty = *activeModel.RepetitionPenalty
+		}
+
+		llmClient = llm.NewClient(
+			activeModel.Endpoint,
+			activeModel.APIKey,
+			activeModel.Model,
+			temperature,
+			maxTokens,
+			cfg.LLM.LLMTimeout,
+		)
+		llmClient.SetThinkingEnabled(thinkingEnabled)
+		llmClient.SetReasoningEffort(reasoningEffort)
+		llmClient.SetTopP(topP)
+		llmClient.SetTopK(topK)
+		llmClient.SetRepetitionPenalty(repetitionPenalty)
+		llmClient.SetTokenUsage(cfg.LLM.TokenUsage)
+
+		// Apply body additions from config
+		if len(cfg.LLM.BodyAdditions) > 0 {
+			llmClient.SetBodyAdditions(cfg.LLM.BodyAdditions)
+		}
+		log.Info("LLM client initialized from model %s: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
+			activeModel.ID, activeModel.Endpoint, activeModel.Model, cfg.LLM.LLMTimeout, thinkingEnabled, reasoningEffort)
+	} else if cfg.LLM.APIKey != "" {
+		// Fallback: use legacy global cfg.LLM fields
 		llmClient = llm.NewClient(
 			cfg.LLM.Endpoint,
 			cfg.LLM.APIKey,
@@ -771,18 +828,16 @@ func main() {
 			cfg.LLM.MaxTokens,
 			cfg.LLM.LLMTimeout,
 		)
-		// Apply thinking/reasoning configuration
 		llmClient.SetThinkingEnabled(cfg.LLM.ThinkingEnabled)
 		llmClient.SetReasoningEffort(cfg.LLM.ReasoningEffort)
 		llmClient.SetTopP(cfg.LLM.TopP)
 		llmClient.SetTopK(cfg.LLM.TopK)
 		llmClient.SetRepetitionPenalty(cfg.LLM.RepetitionPenalty)
 		llmClient.SetTokenUsage(cfg.LLM.TokenUsage)
-		// Apply body additions from config
 		if len(cfg.LLM.BodyAdditions) > 0 {
 			llmClient.SetBodyAdditions(cfg.LLM.BodyAdditions)
 		}
-		log.Info("LLM client initialized: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
+		log.Info("LLM client initialized (legacy): endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
 			cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout, cfg.LLM.ThinkingEnabled, cfg.LLM.ReasoningEffort)
 	} else {
 		// Create a no-op client that warns about missing API key
