@@ -479,17 +479,28 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 
-	// Step 4: Auto-detect capabilities by sending test requests
+	// Step 4: Look up max_model_len from the API model list
+	maxModelLen := 0
+	if models != nil {
+		for _, m := range models {
+			if m.ID == modelName {
+				maxModelLen = m.MaxModelLen
+				break
+			}
+		}
+	}
+
+	// Step 5: Auto-detect capabilities by sending test requests
 	fmt.Print("\n  🔍 正在检测模型能力...\n")
 	detectedCaps := h.detectModelCapabilities(endpoint, apiKey, modelName)
 
-	// Step 5: Choose capabilities (pre-populated with detected results)
+	// Step 6: Choose capabilities (pre-populated with detected results)
 	capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
 	if goBack {
 		return nil, fmt.Errorf("__BACK__")
 	}
 
-	// Step 6: Enter model ID (customizable, default: templateID-modelName)
+	// Step 7: Enter model ID (customizable, default: templateID-modelName)
 	defaultModelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
 	// If default ID already exists, append a suffix number
 	if h.modelIDExists(defaultModelID) {
@@ -541,6 +552,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		Enabled:      enabled,
 		TemplateID:   template.ID,
 		Capabilities: capabilities,
+		MaxModelLen:  maxModelLen,
 	}, nil
 }
 
