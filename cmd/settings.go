@@ -1057,6 +1057,14 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.VisionSupport {
 		visionStatus = i18n.T(i18n.KeyOn)
 	}
+	thinkingEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ThinkingEnabled {
+		thinkingEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	toolCallEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ToolCallEnabled {
+		toolCallEnabledStatus = i18n.T(i18n.KeyOn)
+	}
 	memoryEnabledStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.MemoryEnabled {
 		memoryEnabledStatus = i18n.T(i18n.KeyOn)
@@ -1068,14 +1076,6 @@ func showSettingsHelp(cfg *config.Config) string {
 	subAgentEnabledStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.SubAgentEnabled {
 		subAgentEnabledStatus = i18n.T(i18n.KeyOn)
-	}
-	thinkingEnabledStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ThinkingEnabled {
-		thinkingEnabledStatus = i18n.T(i18n.KeyOn)
-	}
-	toolCallEnabledStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ToolCallEnabled {
-		toolCallEnabledStatus = i18n.T(i18n.KeyOn)
 	}
 
 	maxIterStr := fmt.Sprintf("%d", cfg.LLM.MaxIterations)
@@ -1128,28 +1128,64 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("principles", agentPrinciples, i18n.T(i18n.KeyCol3Principles)),
 	)
 
-	// Group 2: Model Parameters
-	maxModelLenStr := fmt.Sprintf("%d", cfg.LLM.MaxModelLen)
-	if cfg.LLM.MaxModelLen == 0 {
-		maxModelLenStr = i18n.T(i18n.KeyUnknown)
+	// Group 2: Agent Settings (智能体设置)
+	// Use cfg.Models directly for smart model selection display
+	allModels := cfg.Models
+
+	// Sort by priority descending for display
+	sortedModels := make([]*config.ModelConfig, len(allModels))
+	copy(sortedModels, allModels)
+	for i := 0; i < len(sortedModels); i++ {
+		for j := i + 1; j < len(sortedModels); j++ {
+			if sortedModels[j].Priority > sortedModels[i].Priority {
+				sortedModels[i], sortedModels[j] = sortedModels[j], sortedModels[i]
+			}
+		}
 	}
+
+	// Find default tool model (highest priority enabled model with ToolCall capability)
+	defaultToolModelID := "-"
+	for _, m := range sortedModels {
+		if m.Enabled && m.Capabilities.ToolCall {
+			defaultToolModelID = m.ID
+			break
+		}
+	}
+	if defaultToolModelID == "-" && len(sortedModels) > 0 {
+		defaultToolModelID = sortedModels[0].ID
+	}
+
+	// Find default vision model (highest priority enabled model with Vision capability)
+	// If none found, show "-" (no fallback to first model)
+	defaultVisionModelID := "-"
+	for _, m := range sortedModels {
+		if m.Enabled && m.Capabilities.Vision {
+			defaultVisionModelID = m.ID
+			break
+		}
+	}
+
+	// Default problem-solving model: second highest priority enabled model with ToolCall capability
+	defaultProblemModelID := "-"
+	toolModelCount := 0
+	for _, m := range sortedModels {
+		if m.Enabled && m.Capabilities.ToolCall {
+			toolModelCount++
+			if toolModelCount == 2 {
+				defaultProblemModelID = m.ID
+				break
+			}
+		}
+	}
+
 	allLines = append(allLines,
-		makeLine("provider", cfg.LLM.Provider, i18n.T(i18n.KeyCol3Provider)),
-		makeLine("endpoint", cfg.LLM.Endpoint, i18n.T(i18n.KeyCol3Endpoint)),
-		makeLine("model", cfg.LLM.Model, i18n.T(i18n.KeyCol3Model)),
-		makeLine("temperature", fmt.Sprintf("%.1f", cfg.LLM.Temperature), i18n.T(i18n.KeyCol3Temperature)),
-		makeLine("max-tokens", fmt.Sprintf("%d", cfg.LLM.MaxTokens), i18n.T(i18n.KeyCol3MaxTokens)),
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
-		makeLine("max-retries", fmt.Sprintf("%d", cfg.LLM.MaxRetries), i18n.T(i18n.KeyCol3MaxRetries)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
 		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
-		makeLine("reasoning-effort", cfg.LLM.ReasoningEffort, i18n.T(i18n.KeyCol3ReasoningEffort)),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
-		makeLine("max-model-len", maxModelLenStr, i18n.T(i18n.KeyCol3MaxModelLen)),
-		makeLine("top-p", fmt.Sprintf("%.1f", cfg.LLM.TopP), i18n.T(i18n.KeyCol3TopP)),
-		makeLine("top-k", fmt.Sprintf("%d", cfg.LLM.TopK), i18n.T(i18n.KeyCol3TopK)),
-		makeLine("repetition-penalty", fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty), i18n.T(i18n.KeyCol3RepetitionPenalty)),
-		makeLine("api-key", maskKey(cfg.LLM.APIKey), i18n.T(i18n.KeyCol3APIKey)),
+		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
+		makeLine("default-vision-model", defaultVisionModelID, i18n.T(i18n.KeyCol3DefaultVisionModel)),
+		makeLine("default-problem-model", defaultProblemModelID, i18n.T(i18n.KeyCol3DefaultProblemModel)),
 	)
 
 	// Group 3: Display & Output
@@ -1229,8 +1265,8 @@ func showSettingsHelp(cfg *config.Config) string {
 	// Group 1: Identity & Personality
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
-	// Group 2: Model Parameters
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(16)...)
+	// Group 2: Agent Settings
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(7)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)

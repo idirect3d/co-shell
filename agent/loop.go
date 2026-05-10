@@ -77,6 +77,7 @@ type Agent struct {
 	approveCount   int            // remaining number of commands to auto-approve (decremented on each use)
 	cfg            *config.Config // configuration for timeout settings
 	resultMode     config.ResultMode
+	modelManager   *config.ModelManager // model manager for multi-model switching
 
 	// Output control switches (ENHANCEMENT-126)
 	showLlmThinking   bool
@@ -158,6 +159,11 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	tools := a.buildTools()
 
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
+		// Dynamically select and switch to the appropriate model based on current context
+		if modelCfg := a.selectModelForCall(); modelCfg != nil {
+			a.switchToModel(modelCfg)
+		}
+
 		// Call LLM
 		resp, err := a.llmClient.Chat(ctx, a.messages, tools)
 
@@ -732,7 +738,13 @@ func (a *Agent) addIndexPrefixToMessages(msgs []llm.Message, startIdx int) []llm
 
 // streamLLMResponse streams the LLM response and returns the complete content, reasoning, and tool calls.
 // If streaming fails, it falls back to non-streaming Chat.
+// Before each call, it dynamically selects the appropriate model based on current context.
 func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
+	// Dynamically select and switch to the appropriate model based on current context
+	if modelCfg := a.selectModelForCall(); modelCfg != nil {
+		a.switchToModel(modelCfg)
+	}
+
 	// Apply context limit to messages
 	contextMsgs := a.buildContextMessages()
 

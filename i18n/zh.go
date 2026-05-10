@@ -380,7 +380,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 正在启动 API 设置向导...\n",
 	KeyWizardCmdDone:    "✅ API 设置向导已完成。\n",
-	KeyHelpWizard:       "    .wizard        - 重新启动 API 设置向导",
+	KeyHelpModel:        "    .model        - 多模型管理（add/list/remove/switch/info）",
 
 	// Settings help table
 	KeySettingsHelpTitle:             "📋 .set 参数清单",
@@ -592,8 +592,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3TokenUsage:        "Token 用量显示模式(on/off/none)",
 
 	// Settings group titles
-	KeySettingsGroupIdentity:    "[ 身份与个性 ]",
-	KeySettingsGroupModel:       "[ 模型参数 ]",
+	KeySettingsGroupIdentity: "[ 身份与个性 ]",
+	KeySettingsGroupModel:    "[ 智能体设置 ]",
+
+	// Model selection column 3 labels
+	KeyCol3DefaultToolModel:     "默认工具模型",
+	KeyCol3DefaultVisionModel:   "默认视觉模型",
+	KeyCol3DefaultProblemModel:  "默认问题解决模型",
 	KeySettingsGroupDisplay:     "[ 显示与输出 ]",
 	KeySettingsGroupSafety:      "[ 安全与确认 ]",
 	KeySettingsGroupMemory:      "[ 记忆与上下文 ]",

@@ -287,6 +287,8 @@ type Config struct {
 	LogEnabled         bool      `json:"log_enabled"`
 	LogLevel           string    `json:"log_level"` // debug/info/warn/error/off
 	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
+	// Models stores multiple model configurations for switching.
+	Models []*ModelConfig `json:"models,omitempty"`
 
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
