@@ -319,7 +319,17 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("返回上一步")
 	}
 
-	// Step 2: Enter API key
+	// Step 2: Enter model ID (customizable, default: templateID-modelName)
+	defaultModelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
+	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+	if modelID == "0" || strings.ToUpper(modelID) == "BACK" || strings.ToUpper(modelID) == ".." {
+		modelID = defaultModelID
+	}
+
+	// Step 3: Enter API key
 	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
@@ -356,8 +366,6 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	if !enabled {
 		enabled = false
 	}
-
-	modelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
 
 	return &config.ModelConfig{
 		ID:           modelID,
