@@ -414,8 +414,26 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	fmt.Print("\n  🔍 正在检测模型能力...\n")
 	detectedCaps := h.detectModelCapabilities(endpoint, apiKey, modelName)
 
-	// Step 5: Enter model ID (customizable, default: templateID-modelName)
+	// Step 5: Choose capabilities (pre-populated with detected results)
+	capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
+	if goBack {
+		return nil, fmt.Errorf("__BACK__")
+	}
+
+	// Step 6: Enter model ID (customizable, default: templateID-modelName)
 	defaultModelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
+	// If default ID already exists, append a suffix number
+	if h.modelIDExists(defaultModelID) {
+		suffix := 2
+		for {
+			candidate := fmt.Sprintf("%s-%d", defaultModelID, suffix)
+			if !h.modelIDExists(candidate) {
+				defaultModelID = candidate
+				break
+			}
+			suffix++
+		}
+	}
 	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
 	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
@@ -424,7 +442,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 
-	// Step 6: Set priority
+	// Step 7: Set priority
 	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", template.Priority)+")", fmt.Sprintf("%d", template.Priority), "q")
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
@@ -435,12 +453,6 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil {
 		priority = template.Priority
-	}
-
-	// Step 7: Choose capabilities (pre-populated with detected results)
-	capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
-	if goBack {
-		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Step 8: Enable model?
@@ -461,6 +473,16 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		TemplateID:   template.ID,
 		Capabilities: capabilities,
 	}, nil
+}
+
+// modelIDExists checks if a model ID already exists in the configuration.
+func (h *ModelHandler) modelIDExists(id string) bool {
+	for _, m := range h.cfg.Models {
+		if m.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // wizardPromptString prompts for a string value with template suggestions.
