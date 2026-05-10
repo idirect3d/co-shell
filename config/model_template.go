@@ -83,6 +83,11 @@ type ModelConfig struct {
 	TemplateID   string                 `json:"template_id,omitempty"`
 	CustomParams map[string]interface{} `json:"custom_params,omitempty"`
 
+	// MaxModelLen is the maximum context length (in tokens) supported by the model.
+	// This value is automatically detected from the API when listing models.
+	// A value of 0 means unknown or not yet detected.
+	MaxModelLen int `json:"max_model_len,omitempty"`
+
 	// Model-level LLM parameters (override global cfg.LLM settings when set)
 	// A value of nil/0 means "use global default from cfg.LLM"
 	Temperature       *float64 `json:"temperature,omitempty"`
