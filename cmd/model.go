@@ -28,6 +28,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -86,6 +87,8 @@ func (h *ModelHandler) Handle(args []string) (string, error) {
 		return h.addFromTemplate(args[1:])
 	case "set-priority", "prio":
 		return h.setPriority(args[1:])
+	case "set-param", "param":
+		return h.setParam(args[1:])
 	default:
 		return "", fmt.Errorf("unknown model subcommand: %s (use .model for help)", subcommand)
 	}
@@ -106,8 +109,12 @@ func (h *ModelHandler) showHelp() (string, error) {
 	result.WriteString("  .model enable <id>            - 启用模型\n")
 	result.WriteString("  .model disable <id>           - 禁用模型\n")
 	result.WriteString("  .model set-priority <id> <n>  - 设置优先级\n")
+	result.WriteString("  .model set-param <id> <k> <v> - 设置模型自定义参数 (None=不发送)\n")
 	result.WriteString("  .model templates              - 列出可用模板\n\n")
 	result.WriteString("  优先级越高越优先使用，switch 会启用目标并禁用其他模型\n")
+	result.WriteString("  set-param 示例: .model set-param my-model thinking {\"type\":\"enabled\"}\n")
+	result.WriteString("  set-param 示例: .model set-param my-model reasoning_effort high\n")
+	result.WriteString("  set-param 示例: .model set-param my-model frequency_penalty None\n")
 	return result.String(), nil
 }
 
@@ -215,6 +222,14 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 		result.WriteString(fmt.Sprintf("  能力: %s\n", strings.Join(capStr, "、")))
 	} else {
 		result.WriteString("  能力: 未指定\n")
+	}
+
+	// Show custom params
+	if len(model.CustomParams) > 0 {
+		result.WriteString("  自定义参数:\n")
+		for k, v := range model.CustomParams {
+			result.WriteString(fmt.Sprintf("    %s: %v\n", k, v))
+		}
 	}
 
 	return result.String(), nil
@@ -1034,4 +1049,66 @@ func (h *ModelHandler) listTemplates() (string, error) {
 	result.WriteString("  使用 .model add 向导模式添加模型\n")
 	result.WriteString("  或使用 .model from-tpl <模板ID> <模型ID> 命令行添加\n")
 	return result.String(), nil
+}
+
+// setParam sets a custom parameter for a model.
+// Usage: .model set-param <modelID> <key> <value>
+// If value is "None", the parameter is removed (not sent to LLM).
+// If value is a valid JSON string, it is stored as a parsed JSON value.
+// Otherwise, it is stored as a plain string.
+func (h *ModelHandler) setParam(args []string) (string, error) {
+	if len(args) < 3 {
+		return "", fmt.Errorf("用法: .model set-param <模型ID> <参数名> <参数值>\n  示例: .model set-param my-model thinking {\"type\":\"enabled\"}\n  示例: .model set-param my-model reasoning_effort high\n  示例: .model set-param my-model frequency_penalty None")
+	}
+
+	modelID := args[0]
+	key := args[1]
+	value := strings.Join(args[2:], " ")
+
+	// Find the model
+	var model *config.ModelConfig
+	for _, m := range h.cfg.Models {
+		if m.ID == modelID {
+			model = m
+			break
+		}
+	}
+
+	if model == nil {
+		return "", fmt.Errorf("模型 %s 不存在", modelID)
+	}
+
+	// Initialize CustomParams map if nil
+	if model.CustomParams == nil {
+		model.CustomParams = make(map[string]interface{})
+	}
+
+	// Handle "None" value: remove the parameter
+	if value == "None" {
+		delete(model.CustomParams, key)
+		if len(model.CustomParams) == 0 {
+			model.CustomParams = nil
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", fmt.Errorf("保存配置失败: %w", err)
+		}
+		log.Info("Removed custom param %s from model %s", key, modelID)
+		return fmt.Sprintf("✅ 已移除模型 %s 的自定义参数: %s（将不发送此属性）", modelID, key), nil
+	}
+
+	// Try to parse as JSON first
+	var parsedValue interface{}
+	if err := json.Unmarshal([]byte(value), &parsedValue); err == nil {
+		model.CustomParams[key] = parsedValue
+	} else {
+		// Store as plain string
+		model.CustomParams[key] = value
+	}
+
+	if err := h.cfg.Save(); err != nil {
+		return "", fmt.Errorf("保存配置失败: %w", err)
+	}
+
+	log.Info("Set custom param %s=%v for model %s", key, model.CustomParams[key], modelID)
+	return fmt.Sprintf("✅ 已设置模型 %s 的自定义参数: %s = %v", modelID, key, model.CustomParams[key]), nil
 }
