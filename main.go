@@ -1037,6 +1037,10 @@ func (c *noopClient) TestToolCallSupport(ctx context.Context) bool {
 	return false
 }
 
+func (c *noopClient) TestThinkingSupport(ctx context.Context) bool {
+	return false
+}
+
 func (c *noopClient) SetThinkingEnabled(enabled bool) {}
 
 func (c *noopClient) SetReasoningEffort(effort string) {}

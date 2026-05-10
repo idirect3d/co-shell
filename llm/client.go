@@ -158,6 +158,11 @@ type Client interface {
 	// Returns true if the model responds with a tool call or responds without error.
 	TestToolCallSupport(ctx context.Context) bool
 
+	// TestThinkingSupport tests whether the model supports thinking/reasoning mode
+	// by sending a minimal request with reasoning_effort parameter.
+	// Returns true if the model accepts the request without error.
+	TestThinkingSupport(ctx context.Context) bool
+
 	// SetThinkingEnabled enables or disables thinking/reasoning mode in API requests.
 	SetThinkingEnabled(enabled bool)
 
@@ -1259,6 +1264,34 @@ func (c *openAIClient) TestToolCallSupport(ctx context.Context) bool {
 	} else {
 		log.Info("TestToolCallSupport succeeded for model %s (accepted tools without error)", c.model)
 	}
+	return true
+}
+
+// TestThinkingSupport tests whether the model supports thinking/reasoning mode
+// by sending a minimal request with reasoning_effort parameter.
+// Returns true if the model accepts the request without error.
+func (c *openAIClient) TestThinkingSupport(ctx context.Context) bool {
+	// Save original settings and restore after test
+	origThinking := c.thinkingEnabled
+	origEffort := c.reasoningEffort
+	c.thinkingEnabled = true
+	c.reasoningEffort = "low"
+	defer func() {
+		c.thinkingEnabled = origThinking
+		c.reasoningEffort = origEffort
+	}()
+
+	msg := Message{
+		Role:    "user",
+		Content: "Hi",
+	}
+
+	_, err := c.testChat(ctx, []Message{msg}, nil)
+	if err != nil {
+		log.Debug("TestThinkingSupport failed for model %s: %v", c.model, err)
+		return false
+	}
+	log.Info("TestThinkingSupport succeeded for model %s", c.model)
 	return true
 }
 
