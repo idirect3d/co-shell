@@ -335,7 +335,7 @@ const (
 	KeyHelpBodyRemove   = "help_body_remove"
 	KeyHelpBodyDisplay  = "help_body_display"
 	KeyHelpNew          = "help_new"
-	KeyHelpWizard       = "help_wizard"
+	KeyHelpModel        = "help_model"
 	KeyHelpHelp         = "help_help"
 	KeyHelpExit         = "help_exit"
 	KeyHelpExampleTitle = "help_example_title"

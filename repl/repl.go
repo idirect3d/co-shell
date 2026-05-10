@@ -43,11 +43,9 @@ import (
 	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
-	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/store"
-	"github.com/idirect3d/co-shell/wizard"
 )
 
 //go:embed logo.md
@@ -157,7 +155,7 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		imageHandler:   cmd.NewImageHandler(ag),
 		planHandler:    cmd.NewPlanHandler(ag.TaskPlanManager()),
 		sessionHandler: cmd.NewSessionHandler(ag, cfg),
-		modelHandler:   cmd.NewModelHandler(cfg),
+		modelHandler:   cmd.NewModelHandler(cfg, ag),
 	}
 
 }
@@ -317,9 +315,6 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.memoryHandler.Handle(args)
 	case ".context":
 		result, err = r.contextHandler.Handle(args)
-	case ".wizard":
-		r.handleWizard()
-		return
 	case ".history":
 		result, err = r.listHandler.HandleHistory(args)
 	case ".session":
@@ -398,29 +393,6 @@ func (r *REPL) handleHistoryReExecute(num int) {
 
 	// Otherwise, send to agent
 	r.handleAgentInput(input)
-}
-
-// handleWizard runs the API setup wizard.
-func (r *REPL) handleWizard() {
-	fmt.Print(i18n.T(i18n.KeyWizardCmdRunning))
-
-	if wizard.RunSetupWizard(r.cfg) {
-		// Rebuild LLM client to apply new endpoint/api-key/model/temperature/max-tokens immediately
-		r.rebuildLLMClient()
-
-		// Sync display settings to agent
-		r.agent.SetShowLlmThinking(r.cfg.LLM.ShowLlmThinking)
-		r.agent.SetShowLlmContent(r.cfg.LLM.ShowLlmContent)
-		r.agent.SetShowTool(r.cfg.LLM.ShowTool)
-		r.agent.SetShowToolInput(r.cfg.LLM.ShowToolInput)
-		r.agent.SetShowToolOutput(r.cfg.LLM.ShowToolOutput)
-		r.agent.SetShowCommand(r.cfg.LLM.ShowCommand)
-		r.agent.SetShowCommandOutput(r.cfg.LLM.ShowCommandOutput)
-
-		fmt.Print(i18n.T(i18n.KeyWizardCmdDone))
-	} else {
-		fmt.Println(i18n.T(i18n.KeySetupCancelled))
-	}
 }
 
 // handleBodyAdd adds a custom JSON property to the LLM request body.
@@ -507,22 +479,6 @@ func (r *REPL) handleBodyDisplay(args []string) (string, error) {
 		sb.WriteString(fmt.Sprintf("  %s = %s\n", key, value))
 	}
 	return sb.String(), nil
-}
-
-// rebuildLLMClient creates a new LLM client from current config and replaces it in the agent.
-func (r *REPL) rebuildLLMClient() {
-	client := llm.NewClient(
-		r.cfg.LLM.Endpoint,
-		r.cfg.LLM.APIKey,
-		r.cfg.LLM.Model,
-		r.cfg.LLM.Temperature,
-		r.cfg.LLM.MaxTokens,
-		r.cfg.LLM.LLMTimeout,
-	)
-	client.SetThinkingEnabled(r.cfg.LLM.ThinkingEnabled)
-	client.SetReasoningEffort(r.cfg.LLM.ReasoningEffort)
-	r.agent.SetLLMClient(client)
-	log.Info("LLM client rebuilt after wizard setup")
 }
 
 // handleSystemCommand executes a system command directly and displays the output.
@@ -658,7 +614,7 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpBodyRemove))
 	fmt.Println(i18n.T(i18n.KeyHelpBodyDisplay))
 	fmt.Println(i18n.T(i18n.KeyHelpNew))
-	fmt.Println(i18n.T(i18n.KeyHelpWizard))
+	fmt.Println(i18n.T(i18n.KeyHelpModel))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
 

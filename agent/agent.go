@@ -58,6 +58,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 		subAgentMgr:   subagent.NewManager(),
 		taskPlanMgr:   taskplan.NewManager(s),
 		name:          "co-shell",
+		modelManager:  config.GetDefaultModelManager(),
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
@@ -242,6 +243,59 @@ func (a *Agent) SetWorkspacePath(path string) {
 // These images will be included in the next user message.
 func (a *Agent) SetImagePaths(paths []string) {
 	a.imagePaths = paths
+}
+
+// SetModelManager sets the model manager for multi-model switching.
+func (a *Agent) SetModelManager(mm *config.ModelManager) {
+	a.modelManager = mm
+}
+
+// selectModelForCall selects the appropriate model based on current context.
+// If imagePaths is non-empty, it selects a model with Vision capability.
+// Otherwise, it selects a model with ToolCall capability.
+// Returns the model config, or nil if no suitable model is found.
+func (a *Agent) selectModelForCall() *config.ModelConfig {
+	if a.modelManager == nil {
+		return nil
+	}
+
+	visionRequired := len(a.imagePaths) > 0
+	return a.modelManager.GetActiveModel(visionRequired)
+}
+
+// switchToModel creates a new LLM client for the given model config and replaces the current one.
+// It applies all current LLM settings (temperature, top_p, etc.) from the agent's config.
+func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
+	if modelCfg == nil || a.cfg == nil {
+		return
+	}
+
+	// Create a new LLM client for the selected model
+	newClient := llm.NewClient(
+		modelCfg.Endpoint,
+		modelCfg.APIKey,
+		modelCfg.Model,
+		a.cfg.LLM.Temperature,
+		a.cfg.LLM.MaxTokens,
+		a.cfg.LLM.LLMTimeout,
+	)
+
+	// Apply all current LLM settings
+	newClient.SetThinkingEnabled(a.cfg.LLM.ThinkingEnabled)
+	newClient.SetReasoningEffort(a.cfg.LLM.ReasoningEffort)
+	newClient.SetTopP(a.cfg.LLM.TopP)
+	newClient.SetTopK(a.cfg.LLM.TopK)
+	newClient.SetRepetitionPenalty(a.cfg.LLM.RepetitionPenalty)
+	newClient.SetTokenUsage(a.cfg.LLM.TokenUsage)
+	if len(a.cfg.LLM.BodyAdditions) > 0 {
+		newClient.SetBodyAdditions(a.cfg.LLM.BodyAdditions)
+	}
+
+	// Replace the current LLM client
+	a.SetLLMClient(newClient)
+
+	log.Info("Switched to model: %s (endpoint=%s, vision=%v)",
+		modelCfg.Model, modelCfg.Endpoint, modelCfg.Capabilities.Vision)
 }
 
 // TaskPlanManager returns the task plan manager.
