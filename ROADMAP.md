@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0-RC3
-> **BUILD**: 164
+> **BUILD**: 165
 
 
 
@@ -193,7 +193,7 @@
 - [x] ENHANCEMENT-144 新增 token-usage 开关，支持通过命令行（--token-usage）、REPL（.set token-usage）、配置文件（config.json）配置为 on/off/none，分别对应显示 token 用量、不显示、不发送 stream_options.include_usage 参数。[BUILD-163]
 - [x] ENHANCEMENT-145 参数配置策略优化：1）能力测试方法将 Temperature 都设置为 0；2）新增 --body-add 命令行参数和 .body-add/.body-remove/.body-display REPL 命令，支持向 LLM 请求体 JSON 中增加/删除/查看自定义属性。[BUILD-164]
 - [x] FIX-146 修复 LLM HTTP 报错时问题消息残留导致无限循环的问题：当 role=assistant 的消息导致 HTTP 报错时，将该消息及之后的消息从上下文队列中移除，并将移除内容拼接到错误提示消息中返回给 LLM；当 role=user 的消息导致 HTTP 报错时，立即退出迭代，将错误提示给用户。[BUILD-165]
-- [ ] FEATURE-147 多模型切换和参数模版管理：支持配置多个模型参数并快速切换，系统内置大模型供应商模板，用户可从模板选择模型类型填入参数，程序根据任务能力自动选择优先级最高的模型。[BUILD-166]
+- [x] FEATURE-147 多模型切换和参数模版管理：支持配置多个模型参数并快速切换，系统内置大模型供应商模板，用户可从模板选择模型类型填入参数，程序根据任务能力自动选择优先级最高的模型。[BUILD-165]
 
 ## v1.0.0 — 正式版
 
