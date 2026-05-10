@@ -330,14 +330,17 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	models, err := client.ListModels(ctx)
 	cancel()
 	if err != nil {
-		fmt.Printf("❌ 连接失败: %v\n", err)
-		fmt.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
-		if !h.scanner.Scan() {
-			return nil, fmt.Errorf("向导已取消")
-		}
-		retry := strings.TrimSpace(strings.ToLower(h.scanner.Text()))
-		if retry != "y" && retry != "yes" {
-			return nil, fmt.Errorf("端点连接测试未通过，请检查端点后重试")
+		// HTTP error means connectivity is OK, no need to prompt
+		if !strings.Contains(err.Error(), "status") && !strings.Contains(err.Error(), "HTTP") {
+			fmt.Printf("❌ 连接失败: %v\n", err)
+			fmt.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
+			if !h.scanner.Scan() {
+				return nil, fmt.Errorf("向导已取消")
+			}
+			retry := strings.TrimSpace(strings.ToLower(h.scanner.Text()))
+			if retry != "y" && retry != "yes" {
+				return nil, fmt.Errorf("端点连接测试未通过，请检查端点后重试")
+			}
 		}
 	} else {
 		fmt.Printf("✅ 连接成功 (发现 %d 个模型)\n", len(models))
