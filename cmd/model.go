@@ -27,12 +27,15 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -320,8 +323,65 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		endpoint = defaultEndpoint
 	}
 
-	// Step 2: Enter model name
-	modelName := h.wizardPromptString("请输入模型名称", template.Models, "q")
+	// Test endpoint connectivity
+	fmt.Print("\n  🔍 正在测试端点连通性... ")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	client := llm.NewClient(endpoint, "", "test", 0, 0, 10)
+	models, err := client.ListModels(ctx)
+	cancel()
+	if err != nil {
+		fmt.Printf("❌ 连接失败: %v\n", err)
+		fmt.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
+		if !h.scanner.Scan() {
+			return nil, fmt.Errorf("向导已取消")
+		}
+		retry := strings.TrimSpace(strings.ToLower(h.scanner.Text()))
+		if retry != "y" && retry != "yes" {
+			return nil, fmt.Errorf("端点连接测试未通过，请检查端点后重试")
+		}
+	} else {
+		fmt.Printf("✅ 连接成功 (发现 %d 个模型)\n", len(models))
+	}
+
+	// Step 2: Enter API key
+	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
+	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
+		return nil, fmt.Errorf("向导已取消")
+	}
+
+	// Step 3: Fetch available models from API and let user select
+	fmt.Print("\n  🔍 正在获取可用模型列表... ")
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	client = llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
+	models, err = client.ListModels(ctx)
+	cancel()
+	if err != nil {
+		fmt.Printf("⚠️ 获取模型列表失败: %v\n", err)
+		fmt.Println("  将使用模板默认模型列表")
+		models = nil
+	} else {
+		fmt.Printf("✅ 获取到 %d 个模型\n", len(models))
+	}
+
+	// Build model name suggestions: API models first, then template defaults
+	modelSuggestions := make([]string, 0)
+	seen := make(map[string]bool)
+	if models != nil {
+		for _, m := range models {
+			if !seen[m.ID] {
+				modelSuggestions = append(modelSuggestions, m.ID)
+				seen[m.ID] = true
+			}
+		}
+	}
+	for _, m := range template.Models {
+		if !seen[m] {
+			modelSuggestions = append(modelSuggestions, m)
+			seen[m] = true
+		}
+	}
+
+	modelName := h.wizardPromptString("请选择或输入模型名称", modelSuggestions, "q")
 	if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
 	}
@@ -329,7 +389,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("返回上一步")
 	}
 
-	// Step 3: Enter model ID (customizable, default: templateID-modelName)
+	// Step 4: Enter model ID (customizable, default: templateID-modelName)
 	defaultModelID := fmt.Sprintf("%s-%s", template.ID, strings.ReplaceAll(modelName, "/", "-"))
 	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
 	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
@@ -337,12 +397,6 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 	if modelID == "0" || strings.ToUpper(modelID) == "BACK" || strings.ToUpper(modelID) == ".." {
 		modelID = defaultModelID
-	}
-
-	// Step 4: Enter API key
-	apiKey := h.wizardPromptSecret("请输入 API Key (留空使用配置文件中的密钥)")
-	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
 	}
 
 	// Step 5: Set priority
@@ -358,10 +412,10 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		priority = template.Priority
 	}
 
-	// Step 5: Choose capabilities
+	// Step 6: Choose capabilities
 	capabilities := h.wizardSelectCapabilities(template.Capabilities)
 
-	// Step 6: Enable model?
+	// Step 7: Enable model?
 	enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", true)
 	if !enabled {
 		enabled = false
