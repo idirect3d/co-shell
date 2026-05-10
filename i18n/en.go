@@ -392,7 +392,7 @@ no liability whatsoever.`,
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 Starting API setup wizard...\n",
 	KeyWizardCmdDone:    "✅ API setup wizard completed.\n",
-	KeyHelpWizard:       "    .wizard        - Restart the API setup wizard",
+	KeyHelpModel:        "    .model         - Multi-model management (add/list/remove/switch/info)",
 
 	// Settings help table
 	KeySettingsHelpTitle:             "📋 .set Parameter List",
@@ -600,9 +600,14 @@ Current Environment:
 	KeyCol3RepetitionPenalty: "Repetition penalty parameter",
 	KeyCol3TokenUsage:        "Token usage display mode(on/off/none)",
 
+	// Model selection column 3 labels
+	KeyCol3DefaultToolModel:    "default tool model",
+	KeyCol3DefaultVisionModel:  "default vision model",
+	KeyCol3DefaultProblemModel: "default problem-solving model",
+
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",
-	KeySettingsGroupModel:       "[ Model Parameters ]",
+	KeySettingsGroupModel:       "[ Agent Settings ]",
 	KeySettingsGroupDisplay:     "[ Display & Output ]",
 	KeySettingsGroupSafety:      "[ Safety & Confirmation ]",
 	KeySettingsGroupMemory:      "[ Memory & Context ]",

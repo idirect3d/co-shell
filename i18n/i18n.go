@@ -335,7 +335,7 @@ const (
 	KeyHelpBodyRemove   = "help_body_remove"
 	KeyHelpBodyDisplay  = "help_body_display"
 	KeyHelpNew          = "help_new"
-	KeyHelpWizard       = "help_wizard"
+	KeyHelpModel        = "help_model"
 	KeyHelpHelp         = "help_help"
 	KeyHelpExit         = "help_exit"
 	KeyHelpExampleTitle = "help_example_title"
@@ -632,6 +632,11 @@ const (
 	KeyCol3TopK              = "col3_top_k"
 	KeyCol3RepetitionPenalty = "col3_repetition_penalty"
 	KeyCol3TokenUsage        = "col3_token_usage"
+
+	// Model selection column 3 labels
+	KeyCol3DefaultToolModel    = "col3_default_tool_model"
+	KeyCol3DefaultVisionModel  = "col3_default_vision_model"
+	KeyCol3DefaultProblemModel = "col3_default_problem_model"
 
 	// Settings group titles
 	KeySettingsGroupIdentity    = "settings_group_identity"

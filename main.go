@@ -37,6 +37,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
@@ -45,7 +46,6 @@ import (
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
-	"github.com/idirect3d/co-shell/wizard"
 	"github.com/idirect3d/co-shell/workspace"
 )
 
@@ -688,7 +688,53 @@ func main() {
 	}
 	defer s.Close()
 
-	// Initialize MCP manager
+	// Initialize model manager
+	modelMgr := config.GetDefaultModelManager()
+
+	// If no models configured but we have a basic LLM config, create a default model entry
+	// This happens on first run when config.json is auto-generated
+	if len(cfg.Models) == 0 && cfg.LLM.Model != "" && cfg.LLM.Endpoint != "" {
+		defaultModel := &config.ModelConfig{
+			ID:       "default-" + strings.ReplaceAll(cfg.LLM.Model, "/", "-"),
+			Name:     cfg.LLM.Model,
+			Provider: cfg.LLM.Provider,
+			Endpoint: cfg.LLM.Endpoint,
+			Model:    cfg.LLM.Model,
+			APIKey:   cfg.LLM.APIKey,
+			Priority: 100,
+			Enabled:  true,
+			Capabilities: config.ModelCapability{
+				Vision:     cfg.LLM.VisionSupport,
+				ToolCall:   cfg.LLM.ToolCallEnabled,
+				Thinking:   cfg.LLM.ThinkingEnabled,
+				Multimodal: cfg.LLM.VisionSupport,
+			},
+		}
+		cfg.Models = append(cfg.Models, defaultModel)
+		log.Info("Created default model entry: %s (will be saved to config.json)", defaultModel.ID)
+	}
+
+	// Sync cfg.Models to modelMgr so that selectModelForCall / GetActiveModel works
+	for _, m := range cfg.Models {
+		_ = modelMgr.AddModel(m) // ignore duplicate errors
+	}
+
+	// Check if we need to auto-select a model based on --image flag
+	if visionRequired := flags.imagePaths != ""; visionRequired {
+		if activeModel := modelMgr.GetActiveModel(true); activeModel != nil {
+			if activeModel.Capabilities.Vision {
+				cfg.LLM.Provider = activeModel.Provider
+				cfg.LLM.Endpoint = activeModel.Endpoint
+				cfg.LLM.Model = activeModel.Model
+				if activeModel.APIKey != "" {
+					cfg.LLM.APIKey = activeModel.APIKey
+				}
+				cfg.LLM.VisionSupport = true
+				log.Info("Auto-selected vision model: %s", activeModel.ID)
+			}
+		}
+	}
+
 	mcpMgr := mcp.NewManager()
 	defer mcpMgr.Close()
 
@@ -704,10 +750,11 @@ func main() {
 		}
 	}
 
-	// Run API setup wizard if configuration is incomplete
-	if !isLLMConfigComplete(cfg) {
-		log.Info("Running API setup wizard")
-		if !wizard.RunSetupWizard(cfg) {
+	// Run model setup wizard if no models are configured
+	if len(cfg.Models) == 0 {
+		log.Info("No models configured, running model setup wizard")
+		modelHandler := cmd.NewModelHandler(cfg, nil)
+		if _, err := modelHandler.AddModelWizard(); err != nil {
 			fmt.Println(i18n.T(i18n.KeySetupCancelled))
 			os.Exit(1)
 		}
@@ -752,6 +799,7 @@ func main() {
 	// Initialize agent
 	ag := agent.New(llmClient, mcpMgr, s, rules)
 	ag.SetWorkspacePath(ws.Root())
+	ag.SetModelManager(modelMgr)
 
 	// Initialize scheduler
 	sch := scheduler.New(func(entry *scheduler.CronEntry) {
@@ -993,6 +1041,10 @@ func (c *noopClient) TestTextSupport(ctx context.Context) bool {
 }
 
 func (c *noopClient) TestToolCallSupport(ctx context.Context) bool {
+	return false
+}
+
+func (c *noopClient) TestThinkingSupport(ctx context.Context) bool {
 	return false
 }
 
