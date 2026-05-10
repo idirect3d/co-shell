@@ -58,6 +58,15 @@ type ModelTemplate struct {
 	CustomEndpoint       string   `json:"custom_endpoint,omitempty"`
 	CustomModels         []string `json:"custom_models,omitempty"`
 	OverrideCapabilities *bool    `json:"override_capabilities,omitempty"`
+	// DefaultParams defines the default custom parameters for models created from this template.
+	// These are provider-specific parameters that get injected into the LLM request body.
+	// The value can be any JSON value. A string value of "None" (case-sensitive) means
+	// the parameter should NOT be sent in the request body (removed if present).
+	// For example:
+	//   DeepSeek: {"thinking": {"type": "enabled"}}
+	//   Qwen:     {"extra_body": {"chat_template_kwargs": {"enable_thinking": true}}}
+	//   OpenAI:   {"reasoning_effort": "high"}
+	DefaultParams map[string]interface{} `json:"default_params,omitempty"`
 }
 
 // ModelConfig represents a configured model instance with its settings.
@@ -114,6 +123,13 @@ func (m *ModelManager) initBuiltInTemplates() {
 			Priority:     100,
 			Description:  "DeepSeek 官方 API，支持 thinking 模式",
 			Capabilities: ModelCapability{Vision: false, ToolCall: true, Thinking: true, Multimodal: false},
+			DefaultParams: map[string]interface{}{
+				"thinking":              map[string]interface{}{"type": "enabled"},
+				"reasoning_effort":      "high",
+				"max_completion_tokens": 8192,
+				"frequency_penalty":     float64(0),
+				"presence_penalty":      float64(0),
+			},
 		},
 		{
 			ID:           "qwen-official",
@@ -126,6 +142,15 @@ func (m *ModelManager) initBuiltInTemplates() {
 			Priority:     90,
 			Description:  "阿里通义千问 API，支持多模态模型",
 			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: false, Multimodal: true},
+			DefaultParams: map[string]interface{}{
+				"extra_body": map[string]interface{}{
+					"chat_template_kwargs": map[string]interface{}{
+						"enable_thinking": false,
+					},
+				},
+				"frequency_penalty": float64(0),
+				"presence_penalty":  float64(0),
+			},
 		},
 		{
 			ID:           "xiaomi-mimo",
@@ -138,6 +163,10 @@ func (m *ModelManager) initBuiltInTemplates() {
 			Priority:     80,
 			Description:  "小米 MiMo 大模型 API",
 			Capabilities: ModelCapability{Vision: false, ToolCall: true, Thinking: false, Multimodal: false},
+			DefaultParams: map[string]interface{}{
+				"frequency_penalty": float64(0),
+				"presence_penalty":  float64(0),
+			},
 		},
 		{
 			ID:           "zhipu-glm",
@@ -150,6 +179,10 @@ func (m *ModelManager) initBuiltInTemplates() {
 			Priority:     75,
 			Description:  "智谱 GLM 系列模型，支持视觉模型",
 			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: false, Multimodal: true},
+			DefaultParams: map[string]interface{}{
+				"frequency_penalty": float64(0),
+				"presence_penalty":  float64(0),
+			},
 		},
 		{
 			ID:           "openai-official",
@@ -162,6 +195,11 @@ func (m *ModelManager) initBuiltInTemplates() {
 			Priority:     95,
 			Description:  "OpenAI 官方 API，GPT-4o 支持多模态",
 			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: false, Multimodal: true},
+			DefaultParams: map[string]interface{}{
+				"reasoning_effort":  "medium",
+				"frequency_penalty": float64(0),
+				"presence_penalty":  float64(0),
+			},
 		},
 		{
 			ID:           "lmstudio-local",
@@ -511,6 +549,12 @@ func (m *ModelManager) CreateModelFromTemplate(templateID string, modelID string
 		name = fmt.Sprintf("%s (%s)", template.Name, modelID)
 	}
 
+	// Inherit default params from template
+	var customParams map[string]interface{}
+	if len(template.DefaultParams) > 0 {
+		customParams = deepCopyMap(template.DefaultParams)
+	}
+
 	modelConfig := &ModelConfig{
 		ID:           configID,
 		Name:         name,
@@ -522,6 +566,7 @@ func (m *ModelManager) CreateModelFromTemplate(templateID string, modelID string
 		Capabilities: template.Capabilities,
 		Enabled:      false,
 		TemplateID:   templateID,
+		CustomParams: customParams,
 	}
 
 	if err := m.AddModel(modelConfig); err != nil {
@@ -565,4 +610,40 @@ func LoadModelsFromWorkspace(wsRoot string) ([]*ModelConfig, error) {
 	}
 
 	return models, nil
+}
+
+// deepCopyMap performs a deep copy of a map[string]interface{}.
+// This is needed to avoid sharing references between template DefaultParams and model CustomParams.
+func deepCopyMap(src map[string]interface{}) map[string]interface{} {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]interface{}, len(src))
+	for k, v := range src {
+		switch val := v.(type) {
+		case map[string]interface{}:
+			dst[k] = deepCopyMap(val)
+		case []interface{}:
+			dst[k] = deepCopySlice(val)
+		default:
+			dst[k] = v
+		}
+	}
+	return dst
+}
+
+// deepCopySlice performs a deep copy of a []interface{}.
+func deepCopySlice(src []interface{}) []interface{} {
+	dst := make([]interface{}, len(src))
+	for i, v := range src {
+		switch val := v.(type) {
+		case map[string]interface{}:
+			dst[i] = deepCopyMap(val)
+		case []interface{}:
+			dst[i] = deepCopySlice(val)
+		default:
+			dst[i] = v
+		}
+	}
+	return dst
 }
