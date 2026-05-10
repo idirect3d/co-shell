@@ -212,6 +212,7 @@ func (m *ModelManager) GetAllTemplates() []*ModelTemplate {
 		"qwen-official",
 		"xiaomi-mimo",
 		"zhipu-glm",
+		"openai-official",
 		"ollama-local",
 		"custom-openai-compatible",
 	}
