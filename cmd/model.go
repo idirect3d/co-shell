@@ -675,17 +675,19 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 			fmt.Print("💭 ")
 		}
 		fmt.Println()
-		fmt.Print("  请选择 (0 完成, back 返回上一步): ")
+		fmt.Print("  请选择 (回车完成, 0/back 返回上一步): ")
 
 		if !h.scanner.Scan() {
 			return caps, false
 		}
 		input := strings.TrimSpace(h.scanner.Text())
 
+		// Empty input: complete selection
+		if input == "" {
+			return caps, false
+		}
+
 		if input == "0" || strings.ToUpper(input) == "BACK" || strings.ToUpper(input) == ".." {
-			if input == "0" {
-				return caps, false
-			}
 			return caps, true
 		}
 
