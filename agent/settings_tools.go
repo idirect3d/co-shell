@@ -305,6 +305,15 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return fmt.Sprintf("%d", cfg.LLM.TopK)
 	case "repetition-penalty":
 		return fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty)
+	case "context-start":
+		switch cfg.LLM.ContextStartMode {
+		case "window":
+			return i18n.T(i18n.KeyContextStartWindow)
+		case "smart":
+			return i18n.T(i18n.KeyContextStartSmart)
+		default:
+			return i18n.T(i18n.KeyContextStartTask)
+		}
 	default:
 		return "(unknown)"
 	}
@@ -839,6 +848,25 @@ func applySetting(a *Agent, param, value string) error {
 		a.SetEmojiEnabled(b)
 		log.Info("Emoji enabled set via LLM tool: %v", b)
 
+	case "context-start":
+		switch value {
+		case "window", "task", "smart":
+			cfg.LLM.ContextStartMode = value
+		default:
+			return fmt.Errorf("invalid context-start mode: %s (valid: window, task, smart)", value)
+		}
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		modeDesc := i18n.T(i18n.KeyContextStartTask)
+		switch value {
+		case "window":
+			modeDesc = i18n.T(i18n.KeyContextStartWindow)
+		case "smart":
+			modeDesc = i18n.T(i18n.KeyContextStartSmart)
+		}
+		log.Info("Context start mode set via LLM tool: %s (%s)", value, modeDesc)
+
 	default:
 		return fmt.Errorf("unknown setting: %s", param)
 
@@ -1081,6 +1109,13 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 	sb.WriteString(formatLine("context-limit", contextLimitStr, "-1（无限制）/ 0（仅当前输入）/ N（最近N条）", "发送给 LLM 的历史消息数量限制"))
 	sb.WriteString(formatLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), ">= 0 的整数", "记忆搜索返回结果中每条内容的最大字符数"))
 	sb.WriteString(formatLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), ">= 0 的整数", "记忆搜索返回的最大结果数量"))
+	contextStartMode := i18n.T(i18n.KeyContextStartTask)
+	if cfg.LLM.ContextStartMode == "window" {
+		contextStartMode = i18n.T(i18n.KeyContextStartWindow)
+	} else if cfg.LLM.ContextStartMode == "smart" {
+		contextStartMode = i18n.T(i18n.KeyContextStartSmart)
+	}
+	sb.WriteString(formatLine("context-start", contextStartMode, "window/task/smart", "上下文起始模式：window=固定窗口/task=任务模式/smart=智能调整"))
 
 	// Group 6: Tasks & Sub-Agents
 	sb.WriteString("━━━ [ 任务与子代理 ] ━━━\n\n")
@@ -1117,4 +1152,53 @@ func maskKey(key string) string {
 		return "****"
 	}
 	return key[:4] + "****" + key[len(key)-4:]
+}
+
+// adjustContextStartTool allows the LLM to dynamically adjust the context start position.
+// This tool is only available when context_start_mode is set to "smart".
+// The LLM can set the pointer to skip early messages and focus on relevant conversation context.
+func (a *Agent) adjustContextStartTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	// Check if smart mode is enabled
+	if a.cfg == nil || a.cfg.LLM.ContextStartMode != "smart" {
+		currentMode := "task"
+		if a.cfg != nil {
+			currentMode = a.cfg.LLM.ContextStartMode
+		}
+		if currentMode == "" {
+			currentMode = "task"
+		}
+		return "", fmt.Errorf(i18n.T(i18n.KeyAdjustContextStartNotSmart), currentMode)
+	}
+
+	// Extract target index parameter
+	targetIdx, ok := args["target_index"].(float64)
+	if !ok {
+		return "", fmt.Errorf("target_index must be a number")
+	}
+
+	newIndex := int(targetIdx)
+
+	// Validate index
+	a.mu.Lock()
+	totalMsgs := len(a.messages)
+	a.mu.Unlock()
+
+	if newIndex < 0 {
+		return "", fmt.Errorf("target_index must be >= 0")
+	}
+	if newIndex >= totalMsgs {
+		return "", fmt.Errorf("target_index %d out of range (total messages: %d)", newIndex, totalMsgs)
+	}
+
+	// Get current pointer position
+	a.mu.Lock()
+	oldIndex := a.messagePointer
+	a.messagePointer = newIndex
+	a.mu.Unlock()
+
+	log.Info("adjustContextStart: pointer moved from %d to %d (total messages: %d)", oldIndex, newIndex, totalMsgs)
+
+	// Build result message
+	result := i18n.TF(i18n.KeyAdjustContextStartResult, oldIndex, newIndex, totalMsgs-newIndex)
+	return result, nil
 }

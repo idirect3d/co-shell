@@ -541,6 +541,23 @@ func (a *Agent) buildTools() []llm.Tool {
 		Callback: a.askFollowupQuestionTool,
 	})
 
+	// Add adjust_context_start tool (always available, but will check mode in callback)
+	tools = append(tools, llm.Tool{
+		Name:        "adjust_context_start",
+		Description: "Adjust the context start pointer position. Allows the LLM to dynamically decide how much conversation history to keep based on context content, ignoring irrelevant early messages. Only available when context_start_mode is set to 'smart'.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"target_index": map[string]interface{}{
+					"type":        "number",
+					"description": "The message index to set as the new context start. Messages before this index will be ignored when building context for LLM calls. Set to a value >= the current messagePointer.",
+				},
+			},
+			"required": []string{"target_index"},
+		},
+		Callback: a.adjustContextStartTool,
+	})
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture

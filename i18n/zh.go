@@ -648,4 +648,20 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Init capabilities/rules
 	KeyCLIHelpInitCapabilities: "      --init-capabilities  在工作区生成默认 CAPABILITIES.md 文件并退出",
 	KeyCLIHelpInitRules:        "      --init-rules         在工作区生成默认 RULES.md 文件并退出",
+
+	// Context start mode (FEATURE-103)
+	KeyCol3ContextStartMode:     "上下文起始模式(window/task/smart)",
+	KeySettingsDescCtxStart:     "设置上下文起始模式（window=固定窗口, task=任务模式, smart=智能调整）",
+	KeyContextStartUpdated:      "✅ 上下文起始模式已设置为: %s",
+	KeyCLIHelpContextStart:      "      --context-start <mode>   上下文起始模式（window/task/smart，覆盖配置文件）",
+	KeyContextStartWindow:       "window",
+	KeyContextStartWindowDesc:   "固定窗口模式，上下文为最后 N 条消息",
+	KeyContextStartTask:         "task",
+	KeyContextStartTaskDesc:     "任务模式，上下文指针随任务边界自动移动",
+	KeyContextStartSmart:        "smart",
+	KeyContextStartSmartDesc:    "智能模式，LLM 可通过 adjust_context_start 工具自行决定上下文起始位置",
+	KeyAdjustContextStartDesc:   "调整上下文起始指针的位置。让 LLM 根据当前上下文内容动态决定保留多少历史对话，忽略不相关的早期对话。仅在 smart 模式下可用。",
+	KeyAdjustContextStartResult: "✅ 上下文起始指针已从索引 %d 调整到索引 %d，新上下文包含 %d 条消息",
+	KeyAdjustContextStartNotSmart: "⚠️ adjust_context_start 工具仅在 smart 模式下可用，当前模式为: %s",
+	KeyAdjustContextStartPrompt: "上下文起始索引",
 }
