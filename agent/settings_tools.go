@@ -189,13 +189,23 @@ func (a *Agent) updateSettingsTool(ctx context.Context, args map[string]interfac
 
 // getSettingValue returns the current string representation of a setting value.
 func getSettingValue(cfg *config.Config, param string) string {
+	activeModel := config.GetActiveModelFromConfig(cfg)
 	switch param {
 	case "api-key":
-		return maskKey(cfg.LLM.APIKey)
+		if activeModel != nil {
+			return maskKey(activeModel.APIKey)
+		}
+		return "(not set)"
 	case "endpoint":
-		return cfg.LLM.Endpoint
+		if activeModel != nil {
+			return activeModel.Endpoint
+		}
+		return "(not set)"
 	case "model":
-		return cfg.LLM.Model
+		if activeModel != nil {
+			return activeModel.Model
+		}
+		return "(not set)"
 	case "temperature":
 		return fmt.Sprintf("%.1f", cfg.LLM.Temperature)
 	case "max-tokens":
@@ -307,7 +317,10 @@ func applySetting(a *Agent, param, value string) error {
 
 	switch param {
 	case "api-key":
-		cfg.LLM.APIKey = value
+		activeModel := config.GetActiveModelFromConfig(cfg)
+		if activeModel != nil {
+			activeModel.APIKey = value
+		}
 		if err := cfg.Save(); err != nil {
 			return err
 		}
@@ -315,7 +328,10 @@ func applySetting(a *Agent, param, value string) error {
 		log.Info("API key updated via LLM tool")
 
 	case "endpoint":
-		cfg.LLM.Endpoint = value
+		activeModel := config.GetActiveModelFromConfig(cfg)
+		if activeModel != nil {
+			activeModel.Endpoint = value
+		}
 		if err := cfg.Save(); err != nil {
 			return err
 		}
@@ -323,7 +339,10 @@ func applySetting(a *Agent, param, value string) error {
 		log.Info("Endpoint updated via LLM tool: %s", value)
 
 	case "model":
-		cfg.LLM.Model = value
+		activeModel := config.GetActiveModelFromConfig(cfg)
+		if activeModel != nil {
+			activeModel.Model = value
+		}
 		if err := cfg.Save(); err != nil {
 			return err
 		}
@@ -830,21 +849,62 @@ func applySetting(a *Agent, param, value string) error {
 
 // rebuildLLMClient creates a new LLM client from current config and replaces it in the agent.
 func (a *Agent) rebuildLLMClient() {
+	activeModel := config.GetActiveModelFromConfig(a.cfg)
+	if activeModel == nil {
+		log.Warn("Cannot rebuild LLM client: no active model found")
+		return
+	}
+
+	// Resolve parameters: model-level takes precedence, fall back to global cfg.LLM
+	temperature := a.cfg.LLM.Temperature
+	if activeModel.Temperature != nil {
+		temperature = *activeModel.Temperature
+	}
+	maxTokens := a.cfg.LLM.MaxTokens
+	if activeModel.MaxTokens != nil {
+		maxTokens = *activeModel.MaxTokens
+	}
+	thinkingEnabled := a.cfg.LLM.ThinkingEnabled
+	if activeModel.ThinkingEnabled != nil {
+		thinkingEnabled = *activeModel.ThinkingEnabled
+	}
+	reasoningEffort := a.cfg.LLM.ReasoningEffort
+	if activeModel.ReasoningEffort != nil {
+		reasoningEffort = *activeModel.ReasoningEffort
+	}
+	topP := a.cfg.LLM.TopP
+	if activeModel.TopP != nil {
+		topP = *activeModel.TopP
+	}
+	topK := a.cfg.LLM.TopK
+	if activeModel.TopK != nil {
+		topK = *activeModel.TopK
+	}
+	repetitionPenalty := a.cfg.LLM.RepetitionPenalty
+	if activeModel.RepetitionPenalty != nil {
+		repetitionPenalty = *activeModel.RepetitionPenalty
+	}
+
 	client := llm.NewClient(
-		a.cfg.LLM.Endpoint,
-		a.cfg.LLM.APIKey,
-		a.cfg.LLM.Model,
-		a.cfg.LLM.Temperature,
-		a.cfg.LLM.MaxTokens,
+		activeModel.Endpoint,
+		activeModel.APIKey,
+		activeModel.Model,
+		temperature,
+		maxTokens,
 		a.cfg.LLM.LLMTimeout,
 	)
-	client.SetThinkingEnabled(a.cfg.LLM.ThinkingEnabled)
-	client.SetReasoningEffort(a.cfg.LLM.ReasoningEffort)
-	client.SetTopP(a.cfg.LLM.TopP)
-	client.SetTopK(a.cfg.LLM.TopK)
-	client.SetRepetitionPenalty(a.cfg.LLM.RepetitionPenalty)
+	client.SetThinkingEnabled(thinkingEnabled)
+	client.SetReasoningEffort(reasoningEffort)
+	client.SetTopP(topP)
+	client.SetTopK(topK)
+	client.SetRepetitionPenalty(repetitionPenalty)
+	client.SetTokenUsage(a.cfg.LLM.TokenUsage)
+	if len(a.cfg.LLM.BodyAdditions) > 0 {
+		client.SetBodyAdditions(a.cfg.LLM.BodyAdditions)
+	}
 	a.SetLLMClient(client)
-	log.Info("LLM client rebuilt and replaced in agent")
+	log.Info("LLM client rebuilt from model %s: endpoint=%s model=%s",
+		activeModel.ID, activeModel.Endpoint, activeModel.Model)
 }
 
 // parseBool parses a string as a boolean value.
@@ -905,9 +965,18 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 
 	// Group 2: Model Parameters
 	sb.WriteString("━━━ [ 模型参数 ] ━━━\n\n")
-	sb.WriteString(formatLine("api-key", maskKey(cfg.LLM.APIKey), "任意 API Key 字符串", "大模型 API 的认证密钥"))
-	sb.WriteString(formatLine("endpoint", cfg.LLM.Endpoint, "有效的 API 端点 URL", "大模型 API 的服务地址"))
-	sb.WriteString(formatLine("model", cfg.LLM.Model, "模型名称（如 deepseek-chat, gpt-4 等）", "当前使用的大模型名称"))
+	activeModel := config.GetActiveModelFromConfig(cfg)
+	apiKey := "(not set)"
+	endpoint := "(not set)"
+	modelName := "(not set)"
+	if activeModel != nil {
+		apiKey = maskKey(activeModel.APIKey)
+		endpoint = activeModel.Endpoint
+		modelName = activeModel.Model
+	}
+	sb.WriteString(formatLine("api-key", apiKey, "任意 API Key 字符串", "大模型 API 的认证密钥"))
+	sb.WriteString(formatLine("endpoint", endpoint, "有效的 API 端点 URL", "大模型 API 的服务地址"))
+	sb.WriteString(formatLine("model", modelName, "模型名称（如 deepseek-chat, gpt-4 等）", "当前使用的大模型名称"))
 	sb.WriteString(formatLine("temperature", fmt.Sprintf("%.1f", cfg.LLM.Temperature), "0.0 ~ 2.0（浮点数）", "模型输出的随机性，值越高越有创造性"))
 	sb.WriteString(formatLine("max-tokens", fmt.Sprintf("%d", cfg.LLM.MaxTokens), "1 ~ 128000（整数）", "每次 LLM 调用返回的最大 token 数"))
 	maxIterStr := fmt.Sprintf("%d", cfg.LLM.MaxIterations)

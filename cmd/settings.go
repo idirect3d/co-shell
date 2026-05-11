@@ -53,21 +53,62 @@ func NewSettingsHandler(cfg *config.Config, ag *agent.Agent) *SettingsHandler {
 // top-p, top-k, repetition-penalty) are changed at runtime so the changes take effect immediately
 // without restart.
 func (h *SettingsHandler) rebuildLLMClient() {
+	activeModel := config.GetActiveModelFromConfig(h.cfg)
+	if activeModel == nil {
+		log.Warn("Cannot rebuild LLM client: no active model found")
+		return
+	}
+
+	// Resolve parameters: model-level takes precedence, fall back to global cfg.LLM
+	temperature := h.cfg.LLM.Temperature
+	if activeModel.Temperature != nil {
+		temperature = *activeModel.Temperature
+	}
+	maxTokens := h.cfg.LLM.MaxTokens
+	if activeModel.MaxTokens != nil {
+		maxTokens = *activeModel.MaxTokens
+	}
+	thinkingEnabled := h.cfg.LLM.ThinkingEnabled
+	if activeModel.ThinkingEnabled != nil {
+		thinkingEnabled = *activeModel.ThinkingEnabled
+	}
+	reasoningEffort := h.cfg.LLM.ReasoningEffort
+	if activeModel.ReasoningEffort != nil {
+		reasoningEffort = *activeModel.ReasoningEffort
+	}
+	topP := h.cfg.LLM.TopP
+	if activeModel.TopP != nil {
+		topP = *activeModel.TopP
+	}
+	topK := h.cfg.LLM.TopK
+	if activeModel.TopK != nil {
+		topK = *activeModel.TopK
+	}
+	repetitionPenalty := h.cfg.LLM.RepetitionPenalty
+	if activeModel.RepetitionPenalty != nil {
+		repetitionPenalty = *activeModel.RepetitionPenalty
+	}
+
 	client := llm.NewClient(
-		h.cfg.LLM.Endpoint,
-		h.cfg.LLM.APIKey,
-		h.cfg.LLM.Model,
-		h.cfg.LLM.Temperature,
-		h.cfg.LLM.MaxTokens,
+		activeModel.Endpoint,
+		activeModel.APIKey,
+		activeModel.Model,
+		temperature,
+		maxTokens,
+		h.cfg.LLM.LLMTimeout,
 	)
-	// Apply additional sampling parameters
-	client.SetTopP(h.cfg.LLM.TopP)
-	client.SetTopK(h.cfg.LLM.TopK)
-	client.SetRepetitionPenalty(h.cfg.LLM.RepetitionPenalty)
-	client.SetThinkingEnabled(h.cfg.LLM.ThinkingEnabled)
-	client.SetReasoningEffort(h.cfg.LLM.ReasoningEffort)
+	client.SetTopP(topP)
+	client.SetTopK(topK)
+	client.SetRepetitionPenalty(repetitionPenalty)
+	client.SetThinkingEnabled(thinkingEnabled)
+	client.SetReasoningEffort(reasoningEffort)
+	client.SetTokenUsage(h.cfg.LLM.TokenUsage)
+	if len(h.cfg.LLM.BodyAdditions) > 0 {
+		client.SetBodyAdditions(h.cfg.LLM.BodyAdditions)
+	}
 	h.agent.SetLLMClient(client)
-	log.Info("LLM client rebuilt and replaced in agent")
+	log.Info("LLM client rebuilt from model %s: endpoint=%s model=%s",
+		activeModel.ID, activeModel.Endpoint, activeModel.Model)
 }
 
 // Handle processes .settings commands.
@@ -82,7 +123,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if len(args) < 2 {
 			return "", fmt.Errorf("usage: .set api-key <key>")
 		}
-		h.cfg.LLM.APIKey = args[1]
+		activeModel := config.GetActiveModelFromConfig(h.cfg)
+		if activeModel != nil {
+			activeModel.APIKey = args[1]
+		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
@@ -95,7 +139,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if len(args) < 2 {
 			return "", fmt.Errorf("usage: .set endpoint <url>")
 		}
-		h.cfg.LLM.Endpoint = args[1]
+		activeModel := config.GetActiveModelFromConfig(h.cfg)
+		if activeModel != nil {
+			activeModel.Endpoint = args[1]
+		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
@@ -108,7 +155,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		if len(args) < 2 {
 			return "", fmt.Errorf("usage: .set model <model>")
 		}
-		h.cfg.LLM.Model = args[1]
+		activeModel := config.GetActiveModelFromConfig(h.cfg)
+		if activeModel != nil {
+			activeModel.Model = args[1]
+		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
@@ -1290,9 +1340,18 @@ func showSettingsHelp(cfg *config.Config) string {
 func formatSettings(cfg *config.Config) string {
 	var sb strings.Builder
 	sb.WriteString(i18n.T(i18n.KeyConfigTitle) + "\n")
-	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigProvider), cfg.LLM.Provider))
-	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigEndpoint), cfg.LLM.Endpoint))
-	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigModel), cfg.LLM.Model))
+	activeModel := config.GetActiveModelFromConfig(cfg)
+	provider := "(not set)"
+	endpoint := "(not set)"
+	modelName := "(not set)"
+	if activeModel != nil {
+		provider = activeModel.Provider
+		endpoint = activeModel.Endpoint
+		modelName = activeModel.Model
+	}
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigProvider), provider))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigEndpoint), endpoint))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigModel), modelName))
 	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigTemperature), cfg.LLM.Temperature))
 	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyConfigMaxTokens), cfg.LLM.MaxTokens))
 	return sb.String()

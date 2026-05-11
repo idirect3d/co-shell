@@ -398,6 +398,24 @@ func (m *ModelManager) GetActiveModel(visionRequired bool) *ModelConfig {
 	return bestModel
 }
 
+// GetActiveModelFromConfig returns the highest priority enabled model from a Config's Models slice.
+// This is a convenience function for code that has access to *Config but not *ModelManager.
+// Returns nil if no enabled models are found.
+func GetActiveModelFromConfig(cfg *Config) *ModelConfig {
+	if cfg == nil {
+		return nil
+	}
+	var best *ModelConfig
+	bestPriority := -1
+	for _, m := range cfg.Models {
+		if m.Enabled && m.Priority > bestPriority {
+			bestPriority = m.Priority
+			best = m
+		}
+	}
+	return best
+}
+
 // GetModelsWithCapability returns all enabled models that have the specified capability.
 func (m *ModelManager) GetModelsWithCapability(vision, toolCall, thinking bool) []*ModelConfig {
 	m.modelsMu.RLock()
