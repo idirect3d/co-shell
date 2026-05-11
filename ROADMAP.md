@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0-RC3
-> **BUILD**: 170
+> **BUILD**: 171
 
 
 
@@ -199,6 +199,7 @@
 - [x] FEATURE-149 .model set-param 命令支持设置模型自定义参数：新增 .model set-param <id> <key> <value> 子命令，支持设置 None 表示不发送该属性，支持 JSON 格式的值（自动解析）和纯字符串值。model info 显示自定义参数列表。[BUILD-167]
 - [x] ENHANCEMENT-151 改进.model list显示格式：第一行显示 `<No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]`，第二行显示模型参数（temperature/top-k/top-p等），不再显示 name 字段；.model add向导自动从API获取max_model_len并保存到ModelConfig；清理已废弃的wizard包（wizard/wizard.go、wizard/input.go、wizard/terminal.go）。[BUILD-169]
 - [x] ENHANCEMENT-152 移除全局LLM配置中的单模型参数：从LLMConfig中移除Provider/APIKey/Endpoint/Model四个字段，将Temperature/MaxTokens等参数改为字符串覆盖类型，所有LLM调用参数统一从ModelConfig获取。[BUILD-168]
+- [x] FEATURE-171 模型视觉能力自动同步：新增模型具备视觉能力时自动开启全局 vision_support，移除后无视觉能力模型时自动关闭，修复 API Key 短字符 panic。[BUILD-171]
 
 ## v1.0.0 — 正式版
 
