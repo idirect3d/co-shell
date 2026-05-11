@@ -81,11 +81,10 @@ func ParseResultMode(s string) (ResultMode, bool) {
 }
 
 // LLMConfig holds all LLM-related configuration.
+// In the multi-model architecture, the actual model connection parameters
+// (endpoint, api_key, model name) are stored in ModelConfig entries.
+// The fields here serve as global overrides for model-level parameters.
 type LLMConfig struct {
-	Provider       string  `json:"provider"`
-	APIKey         string  `json:"api_key"`
-	Endpoint       string  `json:"endpoint"`
-	Model          string  `json:"model"`
 	Temperature    float64 `json:"temperature"`
 	MaxTokens      int     `json:"max_tokens"`
 	MaxIterations  int     `json:"max_iterations"`
@@ -298,9 +297,6 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Provider:                  "deepseek",
-			Endpoint:                  "https://api.deepseek.com",
-			Model:                     "deepseek-v4-flash",
 			Temperature:               0.7,
 			MaxTokens:                 -1,
 			MaxIterations:             1000,
@@ -463,11 +459,6 @@ func (c *Config) Show() string {
 		maxIterStr = "1000 (" + i18n.T(i18n.KeyDefault) + ")"
 	}
 
-	providerName := c.LLM.Provider
-	if providerName == "" {
-		providerName = i18n.T(i18n.KeyCustom)
-	}
-
 	// Format timeout values
 	toolTimeoutStr := fmt.Sprintf("%ds", c.LLM.ToolTimeout)
 	if c.LLM.ToolTimeout <= 0 {
@@ -482,20 +473,7 @@ func (c *Config) Show() string {
 		llmTimeoutStr = i18n.T(i18n.KeyUnlimited)
 	}
 
-	// Mask API key
-	maskedKey := "********"
-	if c.LLM.APIKey != "" {
-		if len(c.LLM.APIKey) <= 8 {
-			maskedKey = "****"
-		} else {
-			maskedKey = c.LLM.APIKey[:4] + "****" + c.LLM.APIKey[len(c.LLM.APIKey)-4:]
-		}
-	}
-
 	// Build three columns: param name | current value | (label, options/range)
-	col3Provider := i18n.T(i18n.KeyCol3Provider)
-	col3Endpoint := i18n.T(i18n.KeyCol3Endpoint)
-	col3Model := i18n.T(i18n.KeyCol3Model)
 	col3Temp := i18n.T(i18n.KeyCol3Temperature)
 	col3MaxTokens := i18n.T(i18n.KeyCol3MaxTokens)
 	col3MaxIter := i18n.T(i18n.KeyCol3MaxIter)
@@ -513,7 +491,6 @@ func (c *Config) Show() string {
 	col3LLMTimeout := i18n.T(i18n.KeyCol3LLMTimeout)
 	col3Log := i18n.T(i18n.KeyCol3Log)
 	col3ResultMode := i18n.T(i18n.KeyCol3ResultMode)
-	col3APIKey := i18n.T(i18n.KeyCol3APIKey)
 	col3Name := i18n.T(i18n.KeyCol3Name)
 	col3Desc := i18n.T(i18n.KeyCol3Desc)
 	col3Principles := i18n.T(i18n.KeyCol3Principles)
@@ -580,9 +557,6 @@ func (c *Config) Show() string {
 	}
 
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
-		"provider:", providerName, col3Provider,
-		"endpoint:", c.LLM.Endpoint, col3Endpoint,
-		"model:", c.LLM.Model, col3Model,
 		"temperature:", fmt.Sprintf("%.1f", c.LLM.Temperature), col3Temp,
 		"max-tokens:", fmt.Sprintf("%d", c.LLM.MaxTokens), col3MaxTokens,
 		"max-iterations:", maxIterStr, col3MaxIter,
@@ -620,7 +594,6 @@ func (c *Config) Show() string {
 		"top-p:", fmt.Sprintf("%.1f", c.LLM.TopP), col3TopP,
 		"top-k:", fmt.Sprintf("%d", c.LLM.TopK), col3TopK,
 		"repetition-penalty:", fmt.Sprintf("%.1f", c.LLM.RepetitionPenalty), col3RepetitionPenalty,
-		"token-usage:", c.LLM.TokenUsage, col3TokenUsage,
-		"api-key:", maskedKey, col3APIKey)
+		"token-usage:", c.LLM.TokenUsage, col3TokenUsage)
 
 }

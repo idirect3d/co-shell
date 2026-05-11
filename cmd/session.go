@@ -100,8 +100,15 @@ func (h *SessionHandler) showSession() (string, error) {
 
 		// Show model info
 		if h.cfg != nil {
-			sb.WriteString(fmt.Sprintf("  %s: %s\n", i18n.T(i18n.KeySessionModel), h.cfg.LLM.Model))
-			sb.WriteString(fmt.Sprintf("  %s: %s\n", i18n.T(i18n.KeySessionProvider), h.cfg.LLM.Provider))
+			activeModel := config.GetActiveModelFromConfig(h.cfg)
+			modelName := "(not set)"
+			providerName := "(not set)"
+			if activeModel != nil {
+				modelName = activeModel.Model
+				providerName = activeModel.Provider
+			}
+			sb.WriteString(fmt.Sprintf("  %s: %s\n", i18n.T(i18n.KeySessionModel), modelName))
+			sb.WriteString(fmt.Sprintf("  %s: %s\n", i18n.T(i18n.KeySessionProvider), providerName))
 		}
 
 		// Show agent name

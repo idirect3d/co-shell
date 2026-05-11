@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.5.0-RC3"
-const build = "168"
+const build = "169"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -362,16 +362,10 @@ func main() {
 		os.Setenv("CO_SHELL_CONFIG_PATH", configPath)
 	}
 
-	// Apply CLI overrides
-	if flags.model != "" {
-		cfg.LLM.Model = flags.model
-	}
-	if flags.endpoint != "" {
-		cfg.LLM.Endpoint = flags.endpoint
-	}
-	if flags.apiKey != "" {
-		cfg.LLM.APIKey = flags.apiKey
-	}
+	// Apply CLI overrides for model connection parameters.
+	// These override the active model's fields if a model exists,
+	// or will be used when creating the default model entry below.
+	// The actual application happens when creating/updating the model entry.
 	if flags.log != "" {
 		switch flags.log {
 		case "on", "1", "true", "yes":
@@ -691,44 +685,15 @@ func main() {
 	// Initialize model manager
 	modelMgr := config.GetDefaultModelManager()
 
-	// If no models configured but we have a basic LLM config, create a default model entry
-	// This happens on first run when config.json is auto-generated
-	if len(cfg.Models) == 0 && cfg.LLM.Model != "" && cfg.LLM.Endpoint != "" {
-		defaultModel := &config.ModelConfig{
-			ID:       "default-" + strings.ReplaceAll(cfg.LLM.Model, "/", "-"),
-			Name:     cfg.LLM.Model,
-			Provider: cfg.LLM.Provider,
-			Endpoint: cfg.LLM.Endpoint,
-			Model:    cfg.LLM.Model,
-			APIKey:   cfg.LLM.APIKey,
-			Priority: 100,
-			Enabled:  true,
-			Capabilities: config.ModelCapability{
-				Vision:     cfg.LLM.VisionSupport,
-				ToolCall:   cfg.LLM.ToolCallEnabled,
-				Thinking:   cfg.LLM.ThinkingEnabled,
-				Multimodal: cfg.LLM.VisionSupport,
-			},
-		}
-		cfg.Models = append(cfg.Models, defaultModel)
-		log.Info("Created default model entry: %s (will be saved to config.json)", defaultModel.ID)
-	}
-
 	// Sync cfg.Models to modelMgr so that selectModelForCall / GetActiveModel works
 	for _, m := range cfg.Models {
 		_ = modelMgr.AddModel(m) // ignore duplicate errors
 	}
 
-	// Check if we need to auto-select a model based on --image flag
+	// Check if we need to auto-select a vision-capable model based on --image flag
 	if visionRequired := flags.imagePaths != ""; visionRequired {
 		if activeModel := modelMgr.GetActiveModel(true); activeModel != nil {
 			if activeModel.Capabilities.Vision {
-				cfg.LLM.Provider = activeModel.Provider
-				cfg.LLM.Endpoint = activeModel.Endpoint
-				cfg.LLM.Model = activeModel.Model
-				if activeModel.APIKey != "" {
-					cfg.LLM.APIKey = activeModel.APIKey
-				}
 				cfg.LLM.VisionSupport = true
 				log.Info("Auto-selected vision model: %s", activeModel.ID)
 			}
@@ -818,27 +783,6 @@ func main() {
 		}
 		log.Info("LLM client initialized from model %s: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
 			activeModel.ID, activeModel.Endpoint, activeModel.Model, cfg.LLM.LLMTimeout, thinkingEnabled, reasoningEffort)
-	} else if cfg.LLM.APIKey != "" {
-		// Fallback: use legacy global cfg.LLM fields
-		llmClient = llm.NewClient(
-			cfg.LLM.Endpoint,
-			cfg.LLM.APIKey,
-			cfg.LLM.Model,
-			cfg.LLM.Temperature,
-			cfg.LLM.MaxTokens,
-			cfg.LLM.LLMTimeout,
-		)
-		llmClient.SetThinkingEnabled(cfg.LLM.ThinkingEnabled)
-		llmClient.SetReasoningEffort(cfg.LLM.ReasoningEffort)
-		llmClient.SetTopP(cfg.LLM.TopP)
-		llmClient.SetTopK(cfg.LLM.TopK)
-		llmClient.SetRepetitionPenalty(cfg.LLM.RepetitionPenalty)
-		llmClient.SetTokenUsage(cfg.LLM.TokenUsage)
-		if len(cfg.LLM.BodyAdditions) > 0 {
-			llmClient.SetBodyAdditions(cfg.LLM.BodyAdditions)
-		}
-		log.Info("LLM client initialized (legacy): endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
-			cfg.LLM.Endpoint, cfg.LLM.Model, cfg.LLM.LLMTimeout, cfg.LLM.ThinkingEnabled, cfg.LLM.ReasoningEffort)
 	} else {
 		// Create a no-op client that warns about missing API key
 		llmClient = &noopClient{}
@@ -1066,10 +1010,15 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 }
 
 // isLLMConfigComplete checks whether the LLM configuration has all required fields.
+// It checks if there is at least one enabled model with API key, endpoint, and model name.
 func isLLMConfigComplete(cfg *config.Config) bool {
-	return cfg.LLM.APIKey != "" &&
-		cfg.LLM.Endpoint != "" &&
-		cfg.LLM.Model != ""
+	activeModel := config.GetActiveModelFromConfig(cfg)
+	if activeModel == nil {
+		return false
+	}
+	return activeModel.APIKey != "" &&
+		activeModel.Endpoint != "" &&
+		activeModel.Model != ""
 }
 
 // noopClient is a placeholder LLM client used when no API key is configured.
