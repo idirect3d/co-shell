@@ -380,6 +380,108 @@ func (h *ModelHandler) wizardSelectTemplate() (*config.ModelTemplate, error) {
 	}
 }
 
+// isDomain checks if a string looks like a domain name.
+func isDomain(s string) bool {
+	// Simple check: contains a dot and doesn't look like an IP
+	return strings.Contains(s, ".") && !strings.Contains(s, ":") && !isIPv4(s)
+}
+
+// isIPv4 checks if a string looks like an IPv4 address (optionally with port).
+func isIPv4(s string) bool {
+	// Remove port if present
+	if idx := strings.LastIndex(s, ":"); idx != -1 {
+		s = s[:idx]
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) != 4 {
+		return false
+	}
+	for _, part := range parts {
+		if len(part) == 0 || len(part) > 3 {
+			return false
+		}
+		for _, c := range part {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// autoCompleteEndpoint tries to fix an endpoint URL based on user input.
+// It tries multiple combinations and returns the first working endpoint, or the
+// original endpoint if all attempts fail. The function tries:
+//
+// For domain names:
+//   - https://domain
+//   - https://domain/v1
+//   - http://domain
+//   - http://domain/v1
+//
+// For IP addresses (with optional port):
+//   - http://ip:port
+//   - http://ip:port/v1
+//   - https://ip:port
+//   - https://ip:port/v1
+//
+// Returns the tested endpoint and whether it succeeded.
+func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
+	// Determine the base prefix and suffix strategies based on input type
+	var baseStrategies, suffixStrategies []string
+
+	if isIPv4(rawEndpoint) || (strings.Contains(rawEndpoint, ":") && !strings.Contains(rawEndpoint, ".") || (strings.Contains(rawEndpoint, ":") && isIPv4(strings.Split(rawEndpoint, ":")[0]))) {
+		// Looks like IP address or IP:port
+		baseStrategies = []string{"http://", "https://"}
+	} else {
+		// Looks like a domain
+		baseStrategies = []string{"https://", "http://"}
+	}
+
+	// For endpoints already starting with http/https, don't add prefix again
+	if strings.HasPrefix(rawEndpoint, "http://") || strings.HasPrefix(rawEndpoint, "https://") {
+		baseStrategies = []string{""}
+	}
+
+	suffixStrategies = []string{"/v1", ""}
+
+	// Build all candidate endpoints
+	var candidates []string
+	for _, base := range baseStrategies {
+		for _, suffix := range suffixStrategies {
+			candidate := base + rawEndpoint + suffix
+			// Avoid duplicates
+			found := false
+			for _, c := range candidates {
+				if c == candidate {
+					found = true
+					break
+				}
+			}
+			if !found {
+				candidates = append(candidates, candidate)
+			}
+		}
+	}
+
+	// Try each candidate in order
+	for _, candidate := range candidates {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		client := llm.NewClient(candidate, "", "test", 0, 0, 5)
+		_, err := client.ListModels(ctx)
+		cancel()
+
+		// Success if no error or HTTP error (means connectivity OK)
+		if err == nil || strings.Contains(err.Error(), "status") || strings.Contains(err.Error(), "HTTP") {
+			log.Info("Auto-completed endpoint: %s -> %s", rawEndpoint, candidate)
+			return candidate, true
+		}
+	}
+
+	log.Warn("Auto-completion failed for endpoint: %s", rawEndpoint)
+	return rawEndpoint, false
+}
+
 // wizardEnterModelParams prompts user to enter model-specific parameters.
 func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*config.ModelConfig, error) {
 	var result strings.Builder
@@ -393,6 +495,18 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 	if endpoint == "0" || strings.ToUpper(endpoint) == "BACK" || strings.ToUpper(endpoint) == ".." {
 		return nil, fmt.Errorf("__BACK__")
+	}
+
+	// FEATURE-172: Auto-complete endpoint if needed
+	originalEndpoint := endpoint
+	if endpoint != "" {
+		completedEndpoint, success := autoCompleteEndpoint(endpoint)
+		if success {
+			endpoint = completedEndpoint
+			if endpoint != originalEndpoint {
+				fmt.Printf("\n  🔍 已自动补全端点: %s -> %s\n", originalEndpoint, endpoint)
+			}
+		}
 	}
 
 	// Test endpoint connectivity
