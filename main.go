@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.5.0-RC3"
-const build = "169"
+const build = "170"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -716,7 +716,8 @@ func main() {
 	}
 
 	// Run model setup wizard if no models are configured
-	if len(cfg.Models) == 0 {
+	wasModelsEmpty := len(cfg.Models) == 0
+	if wasModelsEmpty {
 		log.Info("No models configured, running model setup wizard")
 		modelHandler := cmd.NewModelHandler(cfg, nil)
 		if _, err := modelHandler.AddModelWizard(); err != nil {
@@ -725,12 +726,36 @@ func main() {
 		}
 	}
 
+	// Sync cfg.Models to modelMgr so that selectModelForCall / GetActiveModel works
+	// This must happen AFTER the setup wizard, as the wizard adds models to cfg.Models.
+	for _, m := range cfg.Models {
+		// Check if model already exists in modelMgr to avoid duplicate errors
+		existing := modelMgr.GetModel(m.ID)
+		if existing == nil {
+			if err := modelMgr.AddModel(m); err != nil {
+				log.Warn("Failed to add model %s to model manager: %v", m.ID, err)
+			}
+		}
+	}
+
+	log.Info("Model manager sync: cfg.Models count=%d, modelMgr models count=%d",
+		len(cfg.Models), len(modelMgr.GetAllModels()))
+
 	// Initialize LLM client using the highest priority enabled model's parameters.
 	// This ensures the initial client uses the correct model-level settings
 	// (endpoint, api_key, model, temperature, etc.) rather than the legacy
 	// global cfg.LLM fields which may be stale or inconsistent.
 	var llmClient llm.Client
 	activeModel := modelMgr.GetActiveModel(false)
+	log.Info("Model manager: %d models loaded, GetActiveModel returned: %v", len(modelMgr.GetAllModels()), activeModel != nil)
+	if activeModel != nil {
+		log.Info("Active model details: id=%s, enabled=%v, api_key='%s', endpoint=%s, model=%s",
+			activeModel.ID, activeModel.Enabled, activeModel.APIKey, activeModel.Endpoint, activeModel.Model)
+	}
+	log.Info("cfg.Models count: %d", len(cfg.Models))
+	for i, m := range cfg.Models {
+		log.Info("  cfg.Models[%d]: id=%s, enabled=%v, api_key='%s'", i, m.ID, m.Enabled, m.APIKey)
+	}
 	if activeModel != nil && activeModel.APIKey != "" {
 		// Resolve parameters: model-level takes precedence, fall back to global cfg.LLM
 		temperature := cfg.LLM.Temperature
