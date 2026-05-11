@@ -644,7 +644,14 @@ func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue
 func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) string {
 	for {
 		if defaultVal != "" {
-			masked := defaultVal[:4] + "****" + defaultVal[len(defaultVal)-4:]
+			// Mask the API key: show first 4 chars + **** + last 4 chars
+			// If the key is shorter than 8 chars, just show ****
+			var masked string
+			if len(defaultVal) >= 8 {
+				masked = defaultVal[:4] + "****" + defaultVal[len(defaultVal)-4:]
+			} else {
+				masked = "****"
+			}
 			fmt.Printf("\n%s [默认: %s]: ", prompt, masked)
 		} else {
 			fmt.Printf("\n%s: ", prompt)
@@ -808,6 +815,7 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 // saveModel adds and saves a model configuration.
 // If priority conflicts with an existing model, the new model is inserted before it.
 // After insertion, all model priorities are re-encoded: lowest = 10, each step +10.
+// If the added model has vision capability, automatically enable global vision support.
 func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
 	// Check for duplicate ID
 	for _, m := range h.cfg.Models {
@@ -836,6 +844,17 @@ func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
 
 	if err := h.cfg.Save(); err != nil {
 		return fmt.Errorf("保存配置失败: %w", err)
+	}
+
+	// FEATURE-171: If the added model has vision capability, automatically enable
+	// global vision support to improve user experience.
+	if model.Capabilities.Vision && !h.cfg.LLM.VisionSupport {
+		h.cfg.LLM.VisionSupport = true
+		if err := h.cfg.Save(); err != nil {
+			log.Warn("Failed to enable global vision support: %v", err)
+		} else {
+			log.Info("Auto-enabled global vision support due to model with vision capability: %s", model.ID)
+		}
 	}
 
 	return nil
@@ -915,6 +934,8 @@ func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 }
 
 // removeModel removes a model configuration.
+// If the removed model had vision capability and no remaining models have vision capability,
+// automatically disable global vision support.
 func (h *ModelHandler) removeModel(args []string) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("用法: .model remove <模型ID>")
@@ -924,10 +945,35 @@ func (h *ModelHandler) removeModel(args []string) (string, error) {
 
 	for i, m := range h.cfg.Models {
 		if m.ID == modelID {
+			// Check if the removed model had vision capability
+			hadVision := m.Capabilities.Vision
+
 			h.cfg.Models = append(h.cfg.Models[:i], h.cfg.Models[i+1:]...)
 			if err := h.cfg.Save(); err != nil {
 				return "", fmt.Errorf("保存配置失败: %w", err)
 			}
+
+			// FEATURE-171: If the removed model had vision capability, check if
+			// any remaining models still have vision capability. If not, disable
+			// global vision support to keep config consistent.
+			if hadVision && h.cfg.LLM.VisionSupport {
+				hasRemainingVision := false
+				for _, rm := range h.cfg.Models {
+					if rm.Capabilities.Vision {
+						hasRemainingVision = true
+						break
+					}
+				}
+				if !hasRemainingVision {
+					h.cfg.LLM.VisionSupport = false
+					if err := h.cfg.Save(); err != nil {
+						log.Warn("Failed to disable global vision support: %v", err)
+					} else {
+						log.Info("Disabled global vision support: no remaining models with vision capability after removing %s", modelID)
+					}
+				}
+			}
+
 			log.Info("Removed model: %s", modelID)
 			return fmt.Sprintf("✅ 已移除模型: %s", modelID), nil
 		}
