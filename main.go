@@ -132,6 +132,9 @@ type cliFlags struct {
 	// Show logo on startup
 	showLogo string // "on"/"off"
 
+	// Context start mode
+	contextStart string // "window"/"task"/"smart"
+
 	// External config file generation
 	initCapabilities bool
 	initRules        bool
@@ -234,6 +237,9 @@ func parseFlags() cliFlags {
 
 	// Show logo on startup
 	flag.StringVar(&f.showLogo, "show-logo", "", "显示启动 Logo（on/off，覆盖配置文件）")
+
+	// Context start mode
+	flag.StringVar(&f.contextStart, "context-start", "", "上下文起始模式（window/task/smart，覆盖配置文件）")
 
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
@@ -641,6 +647,16 @@ func main() {
 	}
 	if flags.errorMaxTypeCount >= 0 {
 		cfg.LLM.ErrorMaxTypeCount = flags.errorMaxTypeCount
+	}
+
+	// Apply context-start CLI override
+	if flags.contextStart != "" {
+		switch flags.contextStart {
+		case "window", "task", "smart":
+			cfg.LLM.ContextStartMode = flags.contextStart
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --context-start value %q, use window/task/smart\n", flags.contextStart)
+		}
 	}
 
 	// Initialize logger with workspace
