@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0-RC3
-> **BUILD**: 168
+> **BUILD**: 170
 
 
 
@@ -64,6 +64,7 @@
 - [x] FEATURE-68 结果处理模式选项：minimal（极简，默认，直接返回原始输出）/ explain（解释）/ analyze（分析）/ free（自由），通过 .set result-mode 配置 [BUILD-70]
 - [x] FIX-69 修复 config.json 中 max_iterations=0 导致 Agent 使用内部默认值 10 的问题；新增 .set max-iterations 运行时修改支持 [BUILD-72]
 - [x] FIX-70 修复 DeepSeek thinking 模式下 reasoning_content 未正确传回导致 API 400 错误 [BUILD-73]
+- [x] FIX-170 修复配置向导添加模型后 LLM 未配置问题：配置向导添加的模型未同步到 ModelManager，导致 Agent 初始化时使用 noopClient [BUILD-170]
 
 
 ## v0.2.0 — Beta
