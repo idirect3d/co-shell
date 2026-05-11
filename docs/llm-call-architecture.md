@@ -120,24 +120,27 @@ default-problem-model: deepseek-official-deepseek-v4-flash    (default problem-s
 
 ---
 
-### 2. `cmd/settings.go:56` — `.settings` 命令重建客户端
+### 2. `cmd/settings.go:55` — `.settings` 命令重建客户端
 
 **用途：** 当用户通过 `.set` 命令修改 LLM 相关参数时，重建客户端使设置立即生效。
 
-**参数来源：**
+**参数来源（统一使用 `GetActiveModelFromConfig`）：**
 
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `h.cfg.LLM.Endpoint` |
-| `APIKey` | `h.cfg.LLM.APIKey` |
-| `Model` | `h.cfg.LLM.Model` |
-| `Temperature` | `h.cfg.LLM.Temperature` |
-| `MaxTokens` | `h.cfg.LLM.MaxTokens` |
-| `LLMTimeout` | **未传递**（使用默认 60s） |
-
-**后续设置：** `SetTopP`, `SetTopK`, `SetRepetitionPenalty`, `SetThinkingEnabled`, `SetReasoningEffort` — 全部来自 `h.cfg.LLM`。
-
-> **注意：** 此处的 `rebuildLLMClient()` 未传递 `LLMTimeout` 参数，也未设置 `SetTokenUsage` 和 `SetBodyAdditions`。
+| 参数 | 来源 | 优先级规则 |
+|------|------|-----------|
+| `Endpoint` | `activeModel.Endpoint` | 模型级 |
+| `APIKey` | `activeModel.APIKey` | 模型级 |
+| `Model` | `activeModel.Model` | 模型级 |
+| `Temperature` | `activeModel.Temperature ?? cfg.LLM.Temperature` | 模型级优先，回退全局 |
+| `MaxTokens` | `activeModel.MaxTokens ?? cfg.LLM.MaxTokens` | 模型级优先，回退全局 |
+| `LLMTimeout` | `cfg.LLM.LLMTimeout` | 全局级 |
+| `ThinkingEnabled` | `activeModel.ThinkingEnabled ?? cfg.LLM.ThinkingEnabled` | 模型级优先，回退全局 |
+| `ReasoningEffort` | `activeModel.ReasoningEffort ?? cfg.LLM.ReasoningEffort` | 模型级优先，回退全局 |
+| `TopP` | `activeModel.TopP ?? cfg.LLM.TopP` | 模型级优先，回退全局 |
+| `TopK` | `activeModel.TopK ?? cfg.LLM.TopK` | 模型级优先，回退全局 |
+| `RepetitionPenalty` | `activeModel.RepetitionPenalty ?? cfg.LLM.RepetitionPenalty` | 模型级优先，回退全局 |
+| `TokenUsage` | `cfg.LLM.TokenUsage` | 全局级 |
+| `BodyAdditions` | `cfg.LLM.BodyAdditions` | 全局级 |
 
 ---
 
@@ -145,20 +148,23 @@ default-problem-model: deepseek-official-deepseek-v4-flash    (default problem-s
 
 **用途：** 设置向导（wizard）完成后重建 LLM 客户端。
 
-**参数来源：**
+**参数来源（统一使用 `GetActiveModelFromConfig`）：**
 
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `r.cfg.LLM.Endpoint` |
-| `APIKey` | `r.cfg.LLM.APIKey` |
-| `Model` | `r.cfg.LLM.Model` |
-| `Temperature` | `r.cfg.LLM.Temperature` |
-| `MaxTokens` | `r.cfg.LLM.MaxTokens` |
-| `LLMTimeout` | `r.cfg.LLM.LLMTimeout` |
-
-**后续设置：** `SetThinkingEnabled`, `SetReasoningEffort` — 来自 `r.cfg.LLM`。
-
-> **注意：** 此处的 `rebuildLLMClient()` 未设置 `SetTopP`, `SetTopK`, `SetRepetitionPenalty`, `SetTokenUsage`, `SetBodyAdditions`。
+| 参数 | 来源 | 优先级规则 |
+|------|------|-----------|
+| `Endpoint` | `activeModel.Endpoint` | 模型级 |
+| `APIKey` | `activeModel.APIKey` | 模型级 |
+| `Model` | `activeModel.Model` | 模型级 |
+| `Temperature` | `activeModel.Temperature ?? cfg.LLM.Temperature` | 模型级优先，回退全局 |
+| `MaxTokens` | `activeModel.MaxTokens ?? cfg.LLM.MaxTokens` | 模型级优先，回退全局 |
+| `LLMTimeout` | `cfg.LLM.LLMTimeout` | 全局级 |
+| `ThinkingEnabled` | `activeModel.ThinkingEnabled ?? cfg.LLM.ThinkingEnabled` | 模型级优先，回退全局 |
+| `ReasoningEffort` | `activeModel.ReasoningEffort ?? cfg.LLM.ReasoningEffort` | 模型级优先，回退全局 |
+| `TopP` | `activeModel.TopP ?? cfg.LLM.TopP` | 模型级优先，回退全局 |
+| `TopK` | `activeModel.TopK ?? cfg.LLM.TopK` | 模型级优先，回退全局 |
+| `RepetitionPenalty` | `activeModel.RepetitionPenalty ?? cfg.LLM.RepetitionPenalty` | 模型级优先，回退全局 |
+| `TokenUsage` | `cfg.LLM.TokenUsage` | 全局级 |
+| `BodyAdditions` | `cfg.LLM.BodyAdditions` | 全局级 |
 
 ---
 
@@ -166,20 +172,23 @@ default-problem-model: deepseek-official-deepseek-v4-flash    (default problem-s
 
 **用途：** 当 LLM 通过 `update_setting` 工具修改设置时，重建客户端使设置立即生效。
 
-**参数来源：**
+**参数来源（统一使用 `GetActiveModelFromConfig`）：**
 
-| 参数 | 来源 |
-|------|------|
-| `Endpoint` | `a.cfg.LLM.Endpoint` |
-| `APIKey` | `a.cfg.LLM.APIKey` |
-| `Model` | `a.cfg.LLM.Model` |
-| `Temperature` | `a.cfg.LLM.Temperature` |
-| `MaxTokens` | `a.cfg.LLM.MaxTokens` |
-| `LLMTimeout` | `a.cfg.LLM.LLMTimeout` |
-
-**后续设置：** `SetThinkingEnabled`, `SetReasoningEffort`, `SetTopP`, `SetTopK`, `SetRepetitionPenalty` — 来自 `a.cfg.LLM`。
-
-> **注意：** 此处的 `rebuildLLMClient()` 未设置 `SetTokenUsage` 和 `SetBodyAdditions`。
+| 参数 | 来源 | 优先级规则 |
+|------|------|-----------|
+| `Endpoint` | `activeModel.Endpoint` | 模型级 |
+| `APIKey` | `activeModel.APIKey` | 模型级 |
+| `Model` | `activeModel.Model` | 模型级 |
+| `Temperature` | `activeModel.Temperature ?? cfg.LLM.Temperature` | 模型级优先，回退全局 |
+| `MaxTokens` | `activeModel.MaxTokens ?? cfg.LLM.MaxTokens` | 模型级优先，回退全局 |
+| `LLMTimeout` | `cfg.LLM.LLMTimeout` | 全局级 |
+| `ThinkingEnabled` | `activeModel.ThinkingEnabled ?? cfg.LLM.ThinkingEnabled` | 模型级优先，回退全局 |
+| `ReasoningEffort` | `activeModel.ReasoningEffort ?? cfg.LLM.ReasoningEffort` | 模型级优先，回退全局 |
+| `TopP` | `activeModel.TopP ?? cfg.LLM.TopP` | 模型级优先，回退全局 |
+| `TopK` | `activeModel.TopK ?? cfg.LLM.TopK` | 模型级优先，回退全局 |
+| `RepetitionPenalty` | `activeModel.RepetitionPenalty ?? cfg.LLM.RepetitionPenalty` | 模型级优先，回退全局 |
+| `TokenUsage` | `cfg.LLM.TokenUsage` | 全局级 |
+| `BodyAdditions` | `cfg.LLM.BodyAdditions` | 全局级 |
 
 ---
 
@@ -420,13 +429,13 @@ config.json (持久化)
     │       │           └── SetBodyAdditions(cfg.LLM.BodyAdditions)
     │       │
     │       ├── cmd/settings.go → rebuildLLMClient() (运行时重建)
-    │       │       └── 未传递: LLMTimeout, TokenUsage, BodyAdditions
+    │       │       └── 已统一: 使用 GetActiveModelFromConfig + 模型级/全局级参数解析
     │       │
     │       ├── repl/repl.go → rebuildLLMClient() (向导后重建)
-    │       │       └── 未传递: TopP, TopK, RepetitionPenalty, TokenUsage, BodyAdditions
+    │       │       └── 已统一: 使用 GetActiveModelFromConfig + 模型级/全局级参数解析
     │       │
     │       └── agent/settings_tools.go → rebuildLLMClient() (LLM工具调用重建)
-    │               └── 未传递: TokenUsage, BodyAdditions
+    │               └── 已统一: 使用 GetActiveModelFromConfig + 模型级/全局级参数解析
     │
     ├── cmd/model.go (模型管理向导)
     │       ├── 测试连通性: llm.NewClient(endpoint, "", "test", 0, 0, 10)
@@ -492,10 +501,12 @@ config.json (持久化)
 
 ## 八、关键发现
 
-1. **三个 `rebuildLLMClient()` 实现不完全一致：**
-   - `cmd/settings.go` 的 `rebuildLLMClient()` 未传递 `LLMTimeout`，未设置 `SetTokenUsage` 和 `SetBodyAdditions`
-   - `repl/repl.go` 的 `rebuildLLMClient()` 未设置 `SetTopP`、`SetTopK`、`SetRepetitionPenalty`、`SetTokenUsage`、`SetBodyAdditions`
-   - `agent/settings_tools.go` 的 `rebuildLLMClient()` 未设置 `SetTokenUsage` 和 `SetBodyAdditions`
+1. **三个 `rebuildLLMClient()` 实现已统一：**
+   - `cmd/settings.go`、`repl/repl.go`、`agent/settings_tools.go` 以及 `cmd/model.go` 中的 `rebuildLLMClient()` 现在都使用统一的逻辑：
+     - 通过 `config.GetActiveModelFromConfig()` 获取当前活跃模型
+     - 模型级参数（Endpoint、APIKey、Model、Temperature、MaxTokens、ThinkingEnabled、ReasoningEffort、TopP、TopK、RepetitionPenalty）优先使用模型配置，回退到全局 `cfg.LLM` 默认值
+     - 全局级参数（LLMTimeout、TokenUsage、BodyAdditions）始终从 `cfg.LLM` 读取
+   - 所有重建点都完整设置了 `SetTokenUsage` 和 `SetBodyAdditions`
 
 2. **流式 vs 非流式的消息差异：**
    - `Agent.Run()`（非流式）使用 `a.messages`（完整历史）
@@ -508,3 +519,8 @@ config.json (持久化)
    - 三类默认模型（default-tool-model、default-vision-model、default-problem-model）根据能力标签和优先级自动计算
    - `.set` 界面动态显示三类模型的当前选中 ID
    - Agent 主循环中每次调用前动态判断使用哪个模型（待实现完整动态切换）
+
+5. **`cfg.LLM` 结构体简化：**
+   - `cfg.LLM` 不再包含 `Provider`、`Endpoint`、`APIKey`、`Model` 字段
+   - 这些字段现在只存在于 `ModelConfig` 中，通过 `GetActiveModelFromConfig()` 获取
+   - `cfg.LLM` 保留全局默认参数（Temperature、MaxTokens、TopP、TopK 等）作为模型级参数的 fallback

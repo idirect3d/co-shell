@@ -198,6 +198,7 @@
 - [x] FEATURE-149 .model set-param 命令支持设置模型自定义参数：新增 .model set-param <id> <key> <value> 子命令，支持设置 None 表示不发送该属性，支持 JSON 格式的值（自动解析）和纯字符串值。model info 显示自定义参数列表。[BUILD-167]
 - [x] FIX-150 修复LLM请求参数仍由全局cfg.LLM决定的问题：ModelConfig新增Temperature/MaxTokens/TopP/TopK/RepetitionPenalty/ThinkingEnabled/ReasoningEffort七个模型级别参数字段（指针类型，nil表示使用全局默认值）；switchToModel优先使用ModelConfig中的参数，未设置时回退到cfg.LLM全局配置；main.go初始化LLM client时使用优先级最高的模型的参数。[BUILD-168]
 - [ ] ENHANCEMENT-151 改进.model list显示格式：第一行显示 `<No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]`，第二行显示模型参数（temperature/top-k/top-p等），不再显示 name 字段。
+- [x] ENHANCEMENT-152 移除全局LLM配置中的单模型参数：从LLMConfig中移除Provider/APIKey/Endpoint/Model四个字段，将Temperature/MaxTokens等参数改为字符串覆盖类型，所有LLM调用参数统一从ModelConfig获取。[BUILD-168]
 
 ## v1.0.0 — 正式版
 

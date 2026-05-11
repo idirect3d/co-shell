@@ -378,9 +378,8 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 			break
 		}
 	}
-	if defaultAPIKey == "" && h.cfg.LLM.APIKey != "" {
-		defaultAPIKey = h.cfg.LLM.APIKey
-	}
+	// No fallback to global cfg.LLM.APIKey since it has been removed.
+	// If no existing model with the same template has an API key, defaultAPIKey stays empty.
 	apiKey := h.wizardPromptSecret("请输入 API Key", defaultAPIKey)
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
@@ -908,35 +907,62 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 		h.cfg.Models[n-1-i].Priority = (i + 1) * 10
 	}
 
-	// Sync to global LLM config: use the first model (target, now at index 0)
-	activeModel := h.cfg.Models[0]
-	h.cfg.LLM.Provider = activeModel.Provider
-	h.cfg.LLM.Endpoint = activeModel.Endpoint
-	h.cfg.LLM.Model = activeModel.Model
-	if activeModel.APIKey != "" {
-		h.cfg.LLM.APIKey = activeModel.APIKey
-	}
-
 	if err := h.cfg.Save(); err != nil {
 		return "", fmt.Errorf("保存配置失败: %w", err)
 	}
 
 	// Rebuild LLM client to apply the new model immediately
+	activeModel := h.cfg.Models[0]
 	if h.agent != nil {
+		// Resolve parameters: model-level takes precedence, fall back to global cfg.LLM
+		temperature := h.cfg.LLM.Temperature
+		if activeModel.Temperature != nil {
+			temperature = *activeModel.Temperature
+		}
+		maxTokens := h.cfg.LLM.MaxTokens
+		if activeModel.MaxTokens != nil {
+			maxTokens = *activeModel.MaxTokens
+		}
+		thinkingEnabled := h.cfg.LLM.ThinkingEnabled
+		if activeModel.ThinkingEnabled != nil {
+			thinkingEnabled = *activeModel.ThinkingEnabled
+		}
+		reasoningEffort := h.cfg.LLM.ReasoningEffort
+		if activeModel.ReasoningEffort != nil {
+			reasoningEffort = *activeModel.ReasoningEffort
+		}
+		topP := h.cfg.LLM.TopP
+		if activeModel.TopP != nil {
+			topP = *activeModel.TopP
+		}
+		topK := h.cfg.LLM.TopK
+		if activeModel.TopK != nil {
+			topK = *activeModel.TopK
+		}
+		repetitionPenalty := h.cfg.LLM.RepetitionPenalty
+		if activeModel.RepetitionPenalty != nil {
+			repetitionPenalty = *activeModel.RepetitionPenalty
+		}
+
 		client := llm.NewClient(
-			h.cfg.LLM.Endpoint,
-			h.cfg.LLM.APIKey,
-			h.cfg.LLM.Model,
-			h.cfg.LLM.Temperature,
-			h.cfg.LLM.MaxTokens,
+			activeModel.Endpoint,
+			activeModel.APIKey,
+			activeModel.Model,
+			temperature,
+			maxTokens,
+			h.cfg.LLM.LLMTimeout,
 		)
-		client.SetTopP(h.cfg.LLM.TopP)
-		client.SetTopK(h.cfg.LLM.TopK)
-		client.SetRepetitionPenalty(h.cfg.LLM.RepetitionPenalty)
-		client.SetThinkingEnabled(h.cfg.LLM.ThinkingEnabled)
-		client.SetReasoningEffort(h.cfg.LLM.ReasoningEffort)
+		client.SetTopP(topP)
+		client.SetTopK(topK)
+		client.SetRepetitionPenalty(repetitionPenalty)
+		client.SetThinkingEnabled(thinkingEnabled)
+		client.SetReasoningEffort(reasoningEffort)
+		client.SetTokenUsage(h.cfg.LLM.TokenUsage)
+		if len(h.cfg.LLM.BodyAdditions) > 0 {
+			client.SetBodyAdditions(h.cfg.LLM.BodyAdditions)
+		}
 		h.agent.SetLLMClient(client)
-		log.Info("LLM client rebuilt after model switch")
+		log.Info("LLM client rebuilt after model switch: %s", activeModel.ID)
 	}
 
 	log.Info("Switched to model: %s (priority=%d)", modelID, activeModel.Priority)
