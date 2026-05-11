@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0-RC3
-> **BUILD**: 171
+> **BUILD**: 173
 
 
 
@@ -166,7 +166,7 @@
 - [ ] FEATURE-93 日历与待办事项管理：提供日历功能，支持记录和管理待办事项（todo）。提供 .calendar 内置命令（add/list/remove/update）管理待办事项；提供 add_todo / list_todos / update_todo / remove_todo 四个 LLM 工具，让大模型能操作待办事项；数据持久化到 bbolt。如果系统有日历应用（如 macOS 日历），提供选项帮助用户将待办事项同步到系统日历。
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [ ] FEATURE-103 动态上下文调整，尝试让LLM决定取多少上下文。
-- [ ] FEATURE-105 提供用户选择对话框，大模型可以给出选项让用户显式选择。
+- [x] FEATURE-105 提供用户选择对话框：新增 ask_followup_question 工具，支持 question + options 格式，用户输入数字序号选择选项。[BUILD-173]
 - [ ] FEATURE-106 实现history命令翻页。
 - [x] FEATURE-116 增加显示token数功能，每次任务（checklist）完成时可以统计本次任务所用的token数，另外还有一个从程序启动到现在的总数。[BUILD-162]
 - [ ] FEATURE-45 自动更新机制（通过github）。
