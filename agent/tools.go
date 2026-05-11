@@ -27,10 +27,13 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/i18n"
@@ -516,6 +519,28 @@ func (a *Agent) buildTools() []llm.Tool {
 		Callback: a.listSettingsTool,
 	})
 
+	// Add ask_followup_question tool (always available)
+	tools = append(tools, llm.Tool{
+		Name:        "ask_followup_question",
+		Description: "Ask the user a question to gather additional information needed to complete the task. Use this when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"question": map[string]interface{}{
+					"type":        "string",
+					"description": "The question to ask the user. This should be a clear, specific question that addresses the information you need.",
+				},
+				"options": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually.",
+				},
+			},
+			"required": []string{"question"},
+		},
+		Callback: a.askFollowupQuestionTool,
+	})
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture
@@ -613,4 +638,56 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	}
 
 	return "", fmt.Errorf("tool %q not found", tc.Name)
+}
+
+// askFollowupQuestion presents a question with optional options to the user
+// and returns their selection. This tool allows interactive problem-solving
+// by enabling direct communication with the user.
+func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	question, _ := args["question"].(string)
+	if question == "" {
+		return "", fmt.Errorf("question is required")
+	}
+
+	// Get options (optional)
+	var options []string
+	if opts, ok := args["options"].([]interface{}); ok {
+		for _, opt := range opts {
+			if optStr, ok := opt.(string); ok {
+				options = append(options, optStr)
+			}
+		}
+	}
+
+	// Display the question
+	fmt.Println()
+	fmt.Printf("❓ %s\n", question)
+
+	if len(options) > 0 {
+		fmt.Println()
+		fmt.Println("  可选回复:")
+		for i, opt := range options {
+			fmt.Printf("    [%d] %s\n", i+1, opt)
+		}
+		fmt.Println()
+	}
+
+	fmt.Print("  请输入回复: ")
+
+	// Read user input using bufio.Scanner on stdin
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	input := strings.TrimSpace(scanner.Text())
+
+	// If options provided and user entered a number, return the selected option
+	if len(options) > 0 && input != "" {
+		if idx, err := strconv.Atoi(input); err == nil && idx >= 1 && idx <= len(options) {
+			selected := options[idx-1]
+			fmt.Printf("  ✅ 已选择: %s\n", selected)
+			return selected, nil
+		}
+	}
+
+	// Return the user's input as-is
+	return input, nil
 }
