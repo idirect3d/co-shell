@@ -575,3 +575,65 @@ func (s *Store) ClearConversationMessages() error {
 		})
 	})
 }
+
+// --- Session Persistence Operations ---
+
+// SessionData represents a persistable conversation session.
+type SessionData struct {
+	// Version is the schema version of the session data (for future compatibility).
+	Version int `json:"version"`
+	// Messages is the list of conversation messages in order.
+	Messages []byte `json:"messages"` // JSON-encoded []llm.Message
+	// LastUpdatedAt is the timestamp when this session was last persisted.
+	LastUpdatedAt time.Time `json:"last_updated_at"`
+}
+
+// SaveSession persists the current conversation session to the database.
+// It stores the session in the "sessions" bucket with key "current".
+func (s *Store) SaveSession(messages []byte) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		entry := SessionData{
+			Version:       1,
+			Messages:      messages,
+			LastUpdatedAt: time.Now(),
+		}
+		data, err := json.Marshal(entry)
+		if err != nil {
+			return fmt.Errorf("cannot marshal session data: %w", err)
+		}
+		return bucket.Put([]byte("current"), data)
+	})
+}
+
+// LoadSession loads the last persisted conversation session from the database.
+// Returns the messages bytes, whether a session was found, and any error.
+func (s *Store) LoadSession() ([]byte, bool, error) {
+	var data []byte
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		if bucket == nil {
+			return nil
+		}
+		data = bucket.Get([]byte("current"))
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if data == nil {
+		return nil, false, nil
+	}
+	return data, true, nil
+}
+
+// ClearSession removes the persisted session from the database.
+func (s *Store) ClearSession() error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		if bucket == nil {
+			return nil
+		}
+		return bucket.Delete([]byte("current"))
+	})
+}

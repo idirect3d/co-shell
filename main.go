@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-26
+// Last Modified: 2026-05-13
 //
 // MIT License
 //
@@ -840,6 +840,11 @@ func main() {
 	ag := agent.New(llmClient, mcpMgr, s, rules)
 	ag.SetWorkspacePath(ws.Root())
 	ag.SetModelManager(modelMgr)
+
+	// Restore previous session if available
+	if ag.RestoreSession() {
+		log.Info("Previous session restored from storage")
+	}
 
 	// Initialize scheduler
 	sch := scheduler.New(func(entry *scheduler.CronEntry) {
