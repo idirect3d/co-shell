@@ -110,9 +110,9 @@ type LLMConfig struct {
 
 	// Sampling parameters (ENHANCEMENT-140)
 	// -1 means don't send the parameter to the API
-	TopP              float64 `json:"top_p"`              // Top-p sampling (default: 0.9, -1 = don't send)
-	TopK              int     `json:"top_k"`              // Top-k sampling (default: 20, -1 = don't send)
-	RepetitionPenalty float64 `json:"repetition_penalty"` // Repetition penalty (default: 1.0, -1 = don't send)
+	TopP              float64 `json:"top_p"`              // Top-p sampling (default: -1, don't send)
+	TopK              int     `json:"top_k"`              // Top-k sampling (default: -1, don't send)
+	RepetitionPenalty float64 `json:"repetition_penalty"` // Repetition penalty (default: -1, don't send)
 
 	// Retry settings
 	MaxRetries int `json:"max_retries"` // Max retries for transient LLM errors (default: 3)
@@ -304,7 +304,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Temperature:               0.7,
+			Temperature:               0.5,
 			MaxTokens:                 -1,
 			MaxIterations:             1000,
 			ShowLlmThinking:           true,
@@ -327,9 +327,9 @@ func DefaultConfig() *Config {
 			MemorySearchMaxResults:    100,
 			ErrorMaxSingleCount:       10,
 			ErrorMaxTypeCount:         100,
-			TopP:                      0.9,
-			TopK:                      20,
-			RepetitionPenalty:         1.0,
+			TopP:                      -1,
+			TopK:                      -1,
+			RepetitionPenalty:         -1,
 			ThinkingEnabled:           false,
 			ReasoningEffort:           "low",
 			EmojiEnabled:              true,
