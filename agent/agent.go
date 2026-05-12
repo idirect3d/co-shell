@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-05-01
+// Last Modified: 2026-05-13
 //
 // MIT License
 //
@@ -159,6 +159,66 @@ func (a *Agent) SetEmojiEnabled(enabled bool) {
 // SetToolCallEnabled sets whether tool calling is enabled.
 func (a *Agent) SetToolCallEnabled(enabled bool) {
 	a.toolCallEnabled = enabled
+}
+
+// SetStore sets the persistent store for session persistence.
+func (a *Agent) SetStore(s *store.Store) {
+	a.store = s
+}
+
+// RestoreSession restores a previous conversation session from persistent storage.
+// If a session exists, it replaces the current messages with the restored ones.
+// Returns true if a session was restored, false if no session was found.
+func (a *Agent) RestoreSession() bool {
+	if a.store == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	data, found, err := a.store.LoadSession()
+	if err != nil || !found {
+		return false
+	}
+
+	// Parse the session data to extract messages
+	var session store.SessionData
+	if err := json.Unmarshal(data, &session); err != nil {
+		return false
+	}
+
+	// Only restore if the session has messages
+	if len(session.Messages) == 0 {
+		return false
+	}
+
+	// Parse messages from JSON
+	var messages []llm.Message
+	if err := json.Unmarshal(session.Messages, &messages); err != nil {
+		return false
+	}
+
+	// Restore the messages
+	a.messages = messages
+	return true
+}
+
+// PersistSession persists the current conversation session to storage.
+// This should be called after each user request is completed.
+func (a *Agent) PersistSession() error {
+	if a.store == nil {
+		return nil // silently skip if no store
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Serialize messages to JSON
+	data, err := json.Marshal(a.messages)
+	if err != nil {
+		return fmt.Errorf("cannot serialize messages: %w", err)
+	}
+
+	return a.store.SaveSession(data)
 }
 
 // MessagePointer returns the current message pointer index.

@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-26
+// Last Modified: 2026-05-13
 //
 // MIT License
 //
@@ -486,6 +486,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 			}
 			a.mu.Unlock()
+			// Persist session to storage after request completion
+			if err := a.PersistSession(); err != nil {
+				log.Warn("Failed to persist session: %v", err)
+			}
 			log.Info("Agent.RunStream: completed after %d iterations", iteration+1)
 			return finalContent, nil
 		}
