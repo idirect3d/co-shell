@@ -209,6 +209,7 @@
 - [x] ENHANCEMENT-152 移除全局LLM配置中的单模型参数：从LLMConfig中移除Provider/APIKey/Endpoint/Model四个字段，将Temperature/MaxTokens等参数改为字符串覆盖类型，所有LLM调用参数统一从ModelConfig获取。[BUILD-168]
 - [x] FEATURE-171 模型视觉能力自动同步：新增模型具备视觉能力时自动开启全局 vision_support，移除后无视觉能力模型时自动关闭，修复 API Key 短字符 panic。[BUILD-171]
 - [x] ENHANCEMENT-175 优化LLM调用参数的默认值，以便系统具有较高的适应性：temperature 默认值从 0.7 调整为 0.5；top_p/top_k/repetition_penalty 改为缺省为 None（不发送），即设置为 -1。[BUILD-175]
+- [ ] ENHANCEMENT-176 在 write_to_file 工具描述中增加提醒，建议 LLM 尽量使用 replace_in_file 而不是重写文件来修正文件错误，以避免重写复杂文件依旧产生新问题。
 
 ## v1.0.0 — 正式版
 
