@@ -142,7 +142,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
 		// Add user message to history with timestamp prefix
-		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
@@ -201,7 +201,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		// If no tool calls, this is the final answer
 		if len(resp.ToolCalls) == 0 {
 			a.mu.Lock()
-			tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
 				Content:          tsPrefix + resp.Content,
@@ -220,7 +220,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 
 		// Add assistant message with tool calls
 		a.mu.Lock()
-		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 		a.messages = append(a.messages, llm.Message{
 			Role:             "assistant",
 			Content:          tsPrefix + resp.Content,
@@ -295,7 +295,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
 		// Add user message to history with timestamp prefix
-		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
@@ -473,7 +473,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			cb("done", "")
 
 			a.mu.Lock()
-			tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
 				Content:          tsPrefix + finalContent,
@@ -499,7 +499,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// that tool messages must follow a message with tool_calls.
 		a.mu.Lock()
 		assistantMsgIdx := len(a.messages)
-		tsPrefix := time.Now().Format("2006-01-02 15:04:05") + " - "
+		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 		a.messages = append(a.messages, llm.Message{
 			Role:             "assistant",
 			Content:          tsPrefix + finalContent,
