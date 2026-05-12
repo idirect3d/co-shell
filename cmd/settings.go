@@ -1021,6 +1021,35 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Emoji enabled set to %s", status)
 		return fmt.Sprintf("✅ 表情符号前缀已设置为: %s", status), nil
 
+	case "context-start":
+		if len(args) < 2 {
+			mode := i18n.T(i18n.KeyContextStartTask)
+			if h.cfg.LLM.ContextStartMode == "window" {
+				mode = i18n.T(i18n.KeyContextStartWindow)
+			} else if h.cfg.LLM.ContextStartMode == "smart" {
+				mode = i18n.T(i18n.KeyContextStartSmart)
+			}
+			return fmt.Sprintf("上下文起始模式: %s", mode), nil
+		}
+		switch args[1] {
+		case "window", "task", "smart":
+			h.cfg.LLM.ContextStartMode = args[1]
+		default:
+			return "", fmt.Errorf("无效的上下文起始模式: %s（可选值: window, task, smart）", args[1])
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		modeDesc := i18n.T(i18n.KeyContextStartTask)
+		switch args[1] {
+		case "window":
+			modeDesc = i18n.T(i18n.KeyContextStartWindow)
+		case "smart":
+			modeDesc = i18n.T(i18n.KeyContextStartSmart)
+		}
+		log.Info("Context start mode set to %s (%s)", args[1], modeDesc)
+		return fmt.Sprintf("✅ 上下文起始模式已设置为: %s (%s)", args[1], modeDesc), nil
+
 	case "log":
 		if len(args) < 2 {
 			currentLevel := log.LogLevelString(log.GetLevel())
@@ -1266,9 +1295,16 @@ func showSettingsHelp(cfg *config.Config) string {
 	)
 
 	// Group 5: Memory & Context
+	contextStartMode := i18n.T(i18n.KeyContextStartTask)
+	if cfg.LLM.ContextStartMode == "window" {
+		contextStartMode = i18n.T(i18n.KeyContextStartWindow)
+	} else if cfg.LLM.ContextStartMode == "smart" {
+		contextStartMode = i18n.T(i18n.KeyContextStartSmart)
+	}
 	allLines = append(allLines,
 		makeLine("memory-enabled", memoryEnabledStatus, i18n.T(i18n.KeyCol3MemoryEnabled)),
 		makeLine("context-limit", contextLimitStr, i18n.T(i18n.KeyCol3ContextLimit)),
+		makeLine("context-start", contextStartMode, i18n.T(i18n.KeyCol3ContextStartMode)),
 		makeLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)),
 		makeLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), i18n.T(i18n.KeyCol3MemorySearchMaxResults)),
 	)
@@ -1325,7 +1361,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(6)...)
 
 	// Group 5: Memory & Context
-	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(4)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(5)...)
 
 	// Group 6: Tasks & Sub-Agents
 	writeGroup(i18n.T(i18n.KeySettingsGroupTask), nextLines(2)...)

@@ -657,4 +657,20 @@ Current Environment:
 	// Init capabilities/rules
 	KeyCLIHelpInitCapabilities: "      --init-capabilities  Generate default CAPABILITIES.md in workspace and exit",
 	KeyCLIHelpInitRules:        "      --init-rules         Generate default RULES.md in workspace and exit",
+
+	// Context start mode (FEATURE-103)
+	KeyCol3ContextStartMode:      "context start mode(window/task/smart)",
+	KeySettingsDescCtxStart:      "Set context start mode (window=fixed window, task=task mode, smart=smart adjustment)",
+	KeyContextStartUpdated:       "✅ Context start mode set to: %s",
+	KeyCLIHelpContextStart:       "      --context-start <mode>   Context start mode (window/task/smart, overrides config)",
+	KeyContextStartWindow:        "window",
+	KeyContextStartWindowDesc:    "Fixed window mode, context is the last N messages",
+	KeyContextStartTask:          "task",
+	KeyContextStartTaskDesc:      "Task mode, context pointer follows task boundaries automatically",
+	KeyContextStartSmart:         "smart",
+	KeyContextStartSmartDesc:     "Smart mode, LLM can adjust context start via adjust_context_start tool",
+	KeyAdjustContextStartDesc:    "Adjust the context start pointer position. Allows LLM to dynamically decide how much conversation history to keep based on context content, ignoring irrelevant early messages. Only available in smart mode.",
+	KeyAdjustContextStartResult:  "✅ Context start pointer adjusted from index %d to %d, new context contains %d messages",
+	KeyAdjustContextStartNotSmart: "⚠️ adjust_context_start tool is only available in smart mode, current mode: %s",
+	KeyAdjustContextStartPrompt:  "Context start index",
 }

@@ -206,6 +206,13 @@ type LLMConfig struct {
 	// Each entry is a key-value pair where the key is the property name and
 	// the value is a JSON string that will be merged into the request body.
 	BodyAdditions map[string]string `json:"body_additions"`
+
+	// ContextStartMode: controls how the context start position is managed.
+	// "window" = fixed window: context is the last N messages (N = context_limit)
+	// "task" = task mode: context start pointer follows task boundaries automatically
+	// "smart" = smart mode: allow LLM to adjust context start via adjust_context_start tool
+	// Default: "task" (backward compatible with current behavior)
+	ContextStartMode string `json:"context_start_mode"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
