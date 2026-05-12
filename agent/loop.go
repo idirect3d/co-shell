@@ -500,12 +500,18 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.mu.Lock()
 		assistantMsgIdx := len(a.messages)
 		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
-		a.messages = append(a.messages, llm.Message{
+		assistantMsg := llm.Message{
 			Role:             "assistant",
 			Content:          tsPrefix + finalContent,
 			ToolCalls:        toolCalls,
 			ReasoningContent: finalReasoning,
-		})
+		}
+		log.Debug("Agent.RunStream: preparing to add assistant message to a.messages at index %d: role=%s, content_len=%d, reasoning_len=%d, tool_calls=%d",
+			assistantMsgIdx, assistantMsg.Role, len(assistantMsg.Content), len(assistantMsg.ReasoningContent), len(assistantMsg.ToolCalls))
+		for i, tc := range toolCalls {
+			log.Debug("  tool_call[%d]: name=%s, id=%s, args_len=%d", i, tc.Name, tc.ID, len(tc.Arguments))
+		}
+		a.messages = append(a.messages, assistantMsg)
 		// Sync to memory (content without timestamp prefix)
 		if a.memoryEnabled {
 			if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
