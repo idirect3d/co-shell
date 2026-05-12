@@ -208,6 +208,7 @@
 - [x] ENHANCEMENT-151 改进.model list显示格式：第一行显示 `<No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]`，第二行显示模型参数（temperature/top-k/top-p等），不再显示 name 字段；.model add向导自动从API获取max_model_len并保存到ModelConfig；清理已废弃的wizard包（wizard/wizard.go、wizard/input.go、wizard/terminal.go）。[BUILD-169]
 - [x] ENHANCEMENT-152 移除全局LLM配置中的单模型参数：从LLMConfig中移除Provider/APIKey/Endpoint/Model四个字段，将Temperature/MaxTokens等参数改为字符串覆盖类型，所有LLM调用参数统一从ModelConfig获取。[BUILD-168]
 - [x] FEATURE-171 模型视觉能力自动同步：新增模型具备视觉能力时自动开启全局 vision_support，移除后无视觉能力模型时自动关闭，修复 API Key 短字符 panic。[BUILD-171]
+- [ ] ENHANCEMENT-175 优化LLM调用参数的默认值，以便系统具有较高的适应性：temperature 默认值从 0.7 调整为 0.5；top_p/top_k/repetition_penalty 改为缺省为 None（不发送），即设置为 -1。
 
 ## v1.0.0 — 正式版
 
