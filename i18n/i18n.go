@@ -691,6 +691,22 @@ const (
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
 
+	// Context start mode (FEATURE-103)
+	KeyCol3ContextStartMode     = "col3_context_start_mode"
+	KeySettingsDescCtxStart     = "settings_desc_ctx_start"
+	KeyContextStartUpdated      = "context_start_updated"
+	KeyCLIHelpContextStart      = "cli_help_context_start"
+	KeyContextStartWindow       = "context_start_window"
+	KeyContextStartWindowDesc   = "context_start_window_desc"
+	KeyContextStartTask         = "context_start_task"
+	KeyContextStartTaskDesc     = "context_start_task_desc"
+	KeyContextStartSmart        = "context_start_smart"
+	KeyContextStartSmartDesc    = "context_start_smart_desc"
+	KeyAdjustContextStartDesc   = "adjust_context_start_desc"
+	KeyAdjustContextStartResult = "adjust_context_start_result"
+	KeyAdjustContextStartNotSmart = "adjust_context_start_not_smart"
+	KeyAdjustContextStartPrompt = "adjust_context_start_prompt"
+
 	// Unknown (fallback display)
 	KeyUnknown = "unknown"
 )
