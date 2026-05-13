@@ -790,6 +790,23 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	}
 
 	for event := range eventCh {
+		// Log every stream event for diagnosing infinite loop issues (FIX-97)
+		eventName := "unknown"
+		switch event.Type {
+		case llm.StreamEventContent:
+			eventName = "content"
+		case llm.StreamEventReasoning:
+			eventName = "reasoning"
+		case llm.StreamEventToolCall:
+			eventName = "tool_call"
+		case llm.StreamEventDone:
+			eventName = "done"
+		case llm.StreamEventError:
+			eventName = "error"
+		}
+		log.Debug("Agent.streamLLMResponse: event=%s, content_len=%d, done=%v, err=%v",
+			eventName, len(event.Content), event.Done, event.Err)
+
 		switch event.Type {
 		case llm.StreamEventContent:
 			contentBuilder.WriteString(event.Content)

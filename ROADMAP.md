@@ -212,6 +212,8 @@
 - [x] FEATURE-176 会话持久化功能：实现程序中断重启后对话上下文自动恢复。新增 SessionData 结构和 SaveSession/LoadSession/ClearSession 存储方法；Agent 新增 RestoreSession/PersistSession 方法；RunStream 在请求完成后自动持久化会话；程序启动时自动恢复上次会话。[BUILD-176]
 - [x] ENHANCEMENT-177 在 write_to_file 工具描述中增加提醒，建议 LLM 尽量使用 replace_in_file 而不是重写文件来修正文件错误，以避免重写复杂文件依旧产生新问题。[BUILD-176]
 - [ ] FEATURE-178 修改对话上下文时间戳前缀格式：从 "2026-05-12 10:15:30 - " 改为 "在 2026-05-12 10:15:30 说："，提升用户可读性。
+- [ ] FIX-97 修正qwen3.6在遇到写大文件时LLM输出无限循环的问题：[BUILD-XXX]
+  - 在流式输出处增加每种event的日志输出（event类型、当前块内容），证明循环不是程序直接造成的
 
 ## v1.0.0 — 正式版
 
