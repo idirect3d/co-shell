@@ -83,6 +83,12 @@ func NewLoopDetector(threshold int, maxWindow int) *LoopDetector {
 // counts the frequency of each normalized pattern in the sliding window,
 // and triggers when any single pattern exceeds the threshold count.
 func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
+	// Skip very short chunks (< 20 chars) to avoid false positives
+	// Short content like "40: 在 [TIME] 说：" is likely a message prefix, not real loop content
+	if len(strings.TrimSpace(chunk)) < 20 {
+		return nil
+	}
+
 	// Normalize the chunk for pattern comparison
 	normalized := normalizeChunk(chunk)
 
