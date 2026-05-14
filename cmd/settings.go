@@ -1072,6 +1072,186 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Log level set to %s", args[1])
 		return fmt.Sprintf("✅ 日志级别已设置为: %s", args[1]), nil
 
+	// Loop detection settings (FIX-179)
+	case "loop-detect-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.LoopDetectEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeyCol3LoopDetectEnabled), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.LoopDetectEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.LoopDetectEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set loop-detect-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.LoopDetectEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Loop detect enabled set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeyLoopDetectEnabledUpdated), status), nil
+
+	case "loop-detect-threshold":
+		if len(args) < 2 {
+			return fmt.Sprintf("循环检测阈值: %d", h.cfg.LLM.LoopDetectThreshold), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 1 {
+			return "", fmt.Errorf("循环检测阈值必须 >= 1")
+		}
+		h.cfg.LLM.LoopDetectThreshold = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop detect threshold set to %d", n)
+		return fmt.Sprintf("✅ 循环检测阈值已设置为: %d", n), nil
+
+	case "loop-detect-max-window":
+		if len(args) < 2 {
+			return fmt.Sprintf("循环检测滑动窗口大小: %d", h.cfg.LLM.LoopDetectMaxWindow), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 1 {
+			return "", fmt.Errorf("循环检测滑动窗口大小必须 >= 1")
+		}
+		h.cfg.LLM.LoopDetectMaxWindow = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop detect max window set to %d", n)
+		return fmt.Sprintf("✅ 循环检测滑动窗口大小已设置为: %d", n), nil
+
+	// Message dedup settings (FIX-179)
+	case "dedup-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.DedupEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("消息去重检测: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.DedupEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.DedupEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set dedup-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.DedupEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Dedup enabled set to %s", status)
+		return fmt.Sprintf("✅ 消息去重检测已设置为: %s", status), nil
+
+	case "dedup-feature-ratio":
+		if len(args) < 2 {
+			return fmt.Sprintf("特征词抽取比例: %.1f", h.cfg.LLM.DedupFeatureRatio), nil
+		}
+		val, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的小数值: %s", args[1])
+		}
+		if val < 0 || val > 1 {
+			return "", fmt.Errorf("特征词抽取比例必须在 0.0 ~ 1.0 之间")
+		}
+		h.cfg.LLM.DedupFeatureRatio = val
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Dedup feature ratio set to %.1f", val)
+		return fmt.Sprintf("✅ 特征词抽取比例已设置为: %.1f", val), nil
+
+	case "dedup-match-ratio":
+		if len(args) < 2 {
+			return fmt.Sprintf("特征匹配率阈值: %.1f", h.cfg.LLM.DedupMatchRatio), nil
+		}
+		val, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的小数值: %s", args[1])
+		}
+		if val < 0 || val > 1 {
+			return "", fmt.Errorf("特征匹配率阈值必须在 0.0 ~ 1.0 之间")
+		}
+		h.cfg.LLM.DedupMatchRatio = val
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Dedup match ratio set to %.1f", val)
+		return fmt.Sprintf("✅ 特征匹配率阈值已设置为: %.1f", val), nil
+
+	case "dedup-similarity-threshold":
+		if len(args) < 2 {
+			return fmt.Sprintf("相似度阈值: %d%%", h.cfg.LLM.DedupSimilarityThreshold), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 1 || n > 100 {
+			return "", fmt.Errorf("相似度阈值必须在 1 ~ 100 之间")
+		}
+		h.cfg.LLM.DedupSimilarityThreshold = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Dedup similarity threshold set to %d", n)
+		return fmt.Sprintf("✅ 相似度阈值已设置为: %d%%", n), nil
+
+	case "dedup-max-history":
+		if len(args) < 2 {
+			return fmt.Sprintf("去重检查历史消息数: %d", h.cfg.LLM.DedupMaxHistory), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 1 {
+			return "", fmt.Errorf("去重检查历史消息数必须 >= 1")
+		}
+		h.cfg.LLM.DedupMaxHistory = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Dedup max history set to %d", n)
+		return fmt.Sprintf("✅ 去重检查历史消息数已设置为: %d", n), nil
+
+	case "dedup-repeat-limit":
+		if len(args) < 2 {
+			return fmt.Sprintf("去重触发重复次数: %d", h.cfg.LLM.DedupRepeatLimit), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if n < 1 {
+			return "", fmt.Errorf("去重触发重复次数必须 >= 1")
+		}
+		h.cfg.LLM.DedupRepeatLimit = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Dedup repeat limit set to %d", n)
+		return fmt.Sprintf("✅ 去重触发重复次数已设置为: %d", n), nil
+
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
 
@@ -1284,6 +1464,18 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
 	)
 
+	// Loop detection (FIX-179)
+	loopDetectStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.LoopDetectEnabled {
+		loopDetectStatus = i18n.T(i18n.KeyOn)
+	}
+
+	// Message dedup (FIX-179)
+	dedupStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.DedupEnabled {
+		dedupStatus = i18n.T(i18n.KeyOn)
+	}
+
 	// Group 4: Safety & Confirmation
 	allLines = append(allLines,
 		makeLine("confirm-command", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
@@ -1292,6 +1484,17 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("llm-timeout", llmTimeoutStr, i18n.T(i18n.KeyCol3LLMTimeout)),
 		makeLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.T(i18n.KeyCol3ErrorMaxSingleCount)),
 		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
+		// FIX-179: Loop detection
+		makeLine("loop-detect-enabled", loopDetectStatus, i18n.T(i18n.KeyCol3LoopDetectEnabled)),
+		makeLine("loop-detect-threshold", fmt.Sprintf("%d", cfg.LLM.LoopDetectThreshold), i18n.T(i18n.KeyCol3LoopDetectThreshold)),
+		makeLine("loop-detect-max-window", fmt.Sprintf("%d", cfg.LLM.LoopDetectMaxWindow), i18n.T(i18n.KeyCol3LoopDetectMaxWindow)),
+		// FIX-179: Message dedup
+		makeLine("dedup-enabled", dedupStatus, "消息去重(on|off)"),
+		makeLine("dedup-feature-ratio", fmt.Sprintf("%.1f", cfg.LLM.DedupFeatureRatio), "特征词比例(0.0~1.0)"),
+		makeLine("dedup-match-ratio", fmt.Sprintf("%.1f", cfg.LLM.DedupMatchRatio), "特征匹配率(0.0~1.0)"),
+		makeLine("dedup-similarity-threshold", fmt.Sprintf("%d%%", cfg.LLM.DedupSimilarityThreshold), "相似度阈值(1~100)"),
+		makeLine("dedup-max-history", fmt.Sprintf("%d", cfg.LLM.DedupMaxHistory), "历史消息数"),
+		makeLine("dedup-repeat-limit", fmt.Sprintf("%d", cfg.LLM.DedupRepeatLimit), "重复次数"),
 	)
 
 	// Group 5: Memory & Context
@@ -1357,8 +1560,8 @@ func showSettingsHelp(cfg *config.Config) string {
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
 
-	// Group 4: Safety & Confirmation
-	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(6)...)
+	// Group 4: Safety & Confirmation (6 + 9 new = 15)
+	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(15)...)
 
 	// Group 5: Memory & Context
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(5)...)

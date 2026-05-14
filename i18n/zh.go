@@ -318,6 +318,10 @@ var zhMessages = map[string]string{
 	KeyCLIHelpTopK:              "  --top-k <value>               Top-K 采样参数（>= 1 的整数，-1 不发送，覆盖配置文件）\n",
 	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  重复惩罚参数（0.0 ~ 2.0，-1 不发送，覆盖配置文件）\n",
 
+	// CLI Help - Loop Detection & Dedup (FIX-179)
+	KeyCLIHelpLoopDetect:    "      --loop-detect-enabled  启用循环检测（on/off，覆盖配置文件）",
+	KeyCLIHelpDedup:       "      --dedup-enabled      启用消息去重检测（on/off，覆盖配置文件）",
+
 	"col3_search_max_line_length":           "搜索单行最大字符数",
 	"col3_search_max_result_bytes":          "搜索结果最大字节数",
 	"col3_search_context_lines":             "搜索匹配上下文行数",
@@ -608,6 +612,17 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "相同错误最大出现次数",
 	KeyCol3ErrorMaxTypeCount:   "最大错误类型数",
+
+	// Loop detection settings (FIX-179)
+	KeyCol3LoopDetectEnabled:    "循环检测(on|off)",
+	KeyCol3LoopDetectThreshold:  "循环检测阈值(重复次数)",
+	KeyCol3LoopDetectMaxWindow:  "循环检测滑动窗口大小",
+	KeySettingsDescLoopDetect:   "循环检测开关，检测LLM输出是否陷入死循环",
+	KeySettingsDescLoopThreshold: "循环检测阈值，连续重复内容触发干预的次数（默认 5）",
+	KeySettingsDescLoopWindow:   "循环检测滑动窗口大小，用于检查重复模式的历史块数（默认 20）",
+	KeyLoopDetectEnabledUpdated: "✅ 循环检测已设置为: %s",
+	KeyCLIHelpLoopDetectEnabled: "      --loop-detect-enabled  启用循环检测功能（覆盖配置文件）",
+	KeyCLIHelpLoopDetectDisabled: "      --loop-detect-disabled 禁用循环检测功能（覆盖配置文件）",
 
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle:          "⚠️ co-shell 将自主修改系统参数",
