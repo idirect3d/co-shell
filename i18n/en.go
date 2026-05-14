@@ -328,6 +328,10 @@ var enMessages = map[string]string{
 	KeyCLIHelpTopK:              "  --top-k <value>               Top-K sampling (>= 1 integer, -1 = don't send, overrides config)\n",
 	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  Repetition penalty (0.0 ~ 2.0, -1 = don't send, overrides config)\n",
 
+	// CLI Help - Loop Detection & Dedup (FIX-179)
+	KeyCLIHelpLoopDetect:    "      --loop-detect-enabled  Enable loop detection (on/off, overrides config)",
+	KeyCLIHelpDedup:       "      --dedup-enabled      Enable message deduplication (on/off, overrides config)",
+
 	// CLI Help - Output Mode
 
 	"col3_search_max_line_length":           "Max line length for search",
@@ -615,8 +619,19 @@ Current Environment:
 	KeySettingsGroupSearchDebug: "[ Search & Debug ]",
 
 	// Error settings column 3 labels
-	KeyCol3ErrorMaxSingleCount: "Max occurrences of same error",
-	KeyCol3ErrorMaxTypeCount:   "Max distinct error types",
+	KeyCol3ErrorMaxSingleCount: "Max single error count",
+	KeyCol3ErrorMaxTypeCount:   "Max error type count",
+
+	// Loop detection settings (FIX-179)
+	KeyCol3LoopDetectEnabled:    "Loop detect (on|off)",
+	KeyCol3LoopDetectThreshold:  "Loop detect threshold (repeats)",
+	KeyCol3LoopDetectMaxWindow:  "Loop detect window size",
+	KeySettingsDescLoopDetect:   "Enable loop detection to detect if LLM output is stuck in a loop",
+	KeySettingsDescLoopThreshold: "Loop detection threshold, number of consecutive repeats to trigger intervention (default 5)",
+	KeySettingsDescLoopWindow:   "Loop detection sliding window size, history chunks to check for repeating patterns (default 20)",
+	KeyLoopDetectEnabledUpdated: "✅ Loop detection set to: %s",
+	KeyCLIHelpLoopDetectEnabled: "      --loop-detect-enabled   Enable loop detection (overrides config)",
+	KeyCLIHelpLoopDetectDisabled: "      --loop-detect-disabled  Disable loop detection (overrides config)",
 
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle:          "⚠️ co-shell will modify system parameters",
