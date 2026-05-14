@@ -651,6 +651,19 @@ const (
 	KeyCol3ErrorMaxSingleCount = "col3_error_max_single_count"
 	KeyCol3ErrorMaxTypeCount   = "col3_error_max_type_count"
 
+	// Loop detection settings (FIX-179)
+	KeyCol3LoopDetectEnabled     = "col3_loop_detect_enabled"
+	KeyCol3LoopDetectThreshold   = "col3_loop_detect_threshold"
+	KeyCol3LoopDetectMaxWindow   = "col3_loop_detect_max_window"
+	KeySettingsDescLoopDetect    = "settings_desc_loop_detect"
+	KeySettingsDescLoopThreshold = "settings_desc_loop_threshold"
+	KeySettingsDescLoopWindow    = "settings_desc_loop_window"
+	KeyLoopDetectEnabledUpdated  = "loop_detect_enabled_updated"
+	KeyCLIHelpLoopDetectEnabled  = "cli_help_loop_detect_enabled"
+	KeyCLIHelpLoopDetectDisabled = "cli_help_loop_detect_disabled"
+	KeyCLIHelpLoopDetect         = "cli_help_loop_detect"
+	KeyCLIHelpDedup              = "cli_help_dedup"
+
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle          = "settings_confirm_title"
 	KeySettingsConfirmRiskWarning    = "settings_confirm_risk_warning"

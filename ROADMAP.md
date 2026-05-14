@@ -210,6 +210,9 @@
 - [x] FEATURE-171 模型视觉能力自动同步：新增模型具备视觉能力时自动开启全局 vision_support，移除后无视觉能力模型时自动关闭，修复 API Key 短字符 panic。[BUILD-171]
 - [x] ENHANCEMENT-175 优化LLM调用参数的默认值，以便系统具有较高的适应性：temperature 默认值从 0.7 调整为 0.5；top_p/top_k/repetition_penalty 改为缺省为 None（不发送），即设置为 -1。[BUILD-175]
 - [x] FEATURE-176 会话持久化功能：实现程序中断重启后对话上下文自动恢复。新增 SessionData 结构和 SaveSession/LoadSession/ClearSession 存储方法；Agent 新增 RestoreSession/PersistSession 方法；RunStream 在请求完成后自动持久化会话；程序启动时自动恢复上次会话。[BUILD-176]
+- [x] FIX-179 修复 LLM 输出死循环问题：
+  - **流式循环检测**：监控 LLM 流式输出中的重复模式，当相同归一化模式在窗口中出现次数达到阈值（默认5次）时主动停止并向 LLM 发送纠正提示。支持 `loop-detect-enabled`、`loop-detect-threshold`、`loop-detect-max-window` 配置。
+  - **消息级去重检测**：新增旁路重复监测机制，在向 session 添加消息前，抽取 20% 随机特征词按顺序匹配历史消息，若特征匹配率 >= 60% 则进行 Jaccard 相似度计算，相似度 >= 85% 判定为重复。连续重复达到 3 次时发送警告提示。支持通过 `dedup-enabled`、`dedup-feature-ratio`、`dedup-match-ratio`、`dedup-similarity-threshold`、`dedup-max-history`、`dedup-repeat-limit` 配置项控制。[BUILD-179]
 - [x] ENHANCEMENT-177 在 write_to_file 工具描述中增加提醒，建议 LLM 尽量使用 replace_in_file 而不是重写文件来修正文件错误，以避免重写复杂文件依旧产生新问题。[BUILD-176]
 - [ ] FEATURE-178 修改对话上下文时间戳前缀格式：从 "2026-05-12 10:15:30 - " 改为 "在 2026-05-12 10:15:30 说："，提升用户可读性。
 

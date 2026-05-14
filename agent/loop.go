@@ -127,6 +127,14 @@ type Agent struct {
 	totalPromptTokens     int // accumulated prompt tokens across all LLM calls
 	totalCompletionTokens int // accumulated completion tokens across all LLM calls
 	totalTokens           int // accumulated total tokens across all LLM calls
+
+	// Loop detection (FIX-179)
+	loopDetector   *LoopDetector // monitors LLM output for repeating patterns
+	loopDetectOn   bool          // whether loop detection is enabled for current request
+	loopDetectCrit bool          // set to true when loop intervention occurs
+
+	// Message deduplication (FIX-179 extension)
+	messageDedup *MessageDedup // monitors for duplicate assistant messages
 }
 
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
@@ -283,6 +291,38 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	a.errorCounter = make(map[string]int)
 	a.errorApproveAll = false
 
+	// FIX-179: Initialize loop detector and message dedup for this request
+	a.loopDetectCrit = false
+	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
+		a.loopDetectOn = true
+		threshold := a.cfg.LLM.LoopDetectThreshold
+		window := a.cfg.LLM.LoopDetectMaxWindow
+		if threshold <= 0 {
+			threshold = 5
+		}
+		if window <= 0 {
+			window = 20
+		}
+		a.loopDetector = NewLoopDetector(threshold, window)
+	} else {
+		a.loopDetectOn = false
+		a.loopDetector = nil
+	}
+
+	// Initialize message deduplication checker
+	if a.cfg != nil && a.cfg.LLM.DedupEnabled {
+		a.messageDedup = NewMessageDedup(
+			a.cfg.LLM.DedupEnabled,
+			a.cfg.LLM.DedupFeatureRatio,
+			a.cfg.LLM.DedupMatchRatio,
+			a.cfg.LLM.DedupSimilarityThreshold,
+			a.cfg.LLM.DedupMaxHistory,
+			a.cfg.LLM.DedupRepeatLimit,
+		)
+	} else {
+		a.messageDedup = nil
+	}
+
 	a.mu.Lock()
 	// If there are image paths, create a multimodal message with cached images
 	if len(a.imagePaths) > 0 {
@@ -332,6 +372,48 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		}
 
 		if streamErr != nil {
+			// FIX-179: Handle loop detection error
+			if _, isLoopDetected := streamErr.(*LoopDetectedError); isLoopDetected && a.loopDetectCrit {
+				log.Warn("Agent.RunStream: loop detected at iteration %d, removing problematic messages and sending feedback", iteration)
+
+				// Find the last assistant message with tool_calls and remove it along with subsequent messages
+				a.mu.Lock()
+				for i := len(a.messages) - 1; i >= 0; i-- {
+					if a.messages[i].Role == "assistant" && len(a.messages[i].ToolCalls) > 0 {
+						a.messages = a.messages[:i]
+						break
+					}
+				}
+				a.mu.Unlock()
+
+				// Build loop feedback message for the LLM
+				loopFeedback := fmt.Sprintf(
+					"⚠️ 检测到你的输出陷入了死循环模式（连续重复相似内容）。\n"+
+						"请立即停止重复当前模式，重新检视之前的步骤，评估是否需要改变方法。\n"+
+						"请向前看，继续执行后续任务步骤。\n\n"+
+						"错误信息：%s",
+					streamErr.Error(),
+				)
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: loopFeedback,
+				})
+				a.mu.Unlock()
+
+				// Reset loop detector for next call
+				if a.loopDetector != nil {
+					a.loopDetector.Reset()
+				}
+				a.loopDetectCrit = false
+
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb("warning", fmt.Sprintf("\n%s 检测到循环输出，已发送纠正提示\n", ep.Warning))
+				continue
+			}
+
+
 			// Track error count for this request
 			errMsg := streamErr.Error()
 			a.errorCounter[errMsg]++
@@ -494,7 +576,25 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			return finalContent, nil
 		}
 
-		// Step 3: First add assistant message with tool_calls to history
+		// Step 3: Check for duplicate messages before adding to history
+		// FIX-179 extension: message deduplication monitoring
+		var dedupEvent *DuplicateEvent
+		if a.messageDedup != nil {
+			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
+			testMsg := llm.Message{
+				Role:             "assistant",
+				Content:          tsPrefix + finalContent,
+				ToolCalls:        toolCalls,
+				ReasoningContent: finalReasoning,
+			}
+			dedupEvent = a.messageDedup.CheckAndRecord(a.messages, testMsg)
+			if dedupEvent != nil {
+				log.Warn("Agent.RunStream: message dedup duplicate detected (count=%d, similarity=%.0f%%)",
+					dedupEvent.Count, dedupEvent.Similarity*100)
+			}
+		}
+
+		// First add assistant message with tool_calls to history
 		// This must come BEFORE tool result messages to satisfy the API requirement
 		// that tool messages must follow a message with tool_calls.
 		a.mu.Lock()
@@ -519,6 +619,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 		a.mu.Unlock()
+
+		// Handle dedup event if reached threshold
+		if dedupEvent != nil {
+			ep := config.GetEmojiPrefixes(a.emojiEnabled)
+			cb("warning", fmt.Sprintf("\n%s 检测到消息重复（第 %d 次，相似度 %.0f%%）\n",
+				ep.Warning, dedupEvent.Count, dedupEvent.Similarity*100))
+			cb("warning", fmt.Sprintf("  重复内容: %s\n", truncateString(dedupEvent.DuplicateWith, 200)))
+		}
 
 		// Step 4: Execute tool calls and add results
 		modifyRequested := false
@@ -792,6 +900,15 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	for event := range eventCh {
 		switch event.Type {
 		case llm.StreamEventContent:
+			// FIX-179: Check for loop patterns in LLM output
+			if a.loopDetectOn && a.loopDetector != nil {
+				if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
+					// Loop detected! Set flag and return error for intervention
+					a.loopDetectCrit = true
+					log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
+					return "", "", nil, err
+				}
+			}
 			contentBuilder.WriteString(event.Content)
 			cb("content_chunk", event.Content)
 
