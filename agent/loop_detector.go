@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-13
-// Last Modified: 2026-05-13
+// Last Modified: 2026-05-15
 //
 // MIT License
 //
@@ -34,12 +34,17 @@ import (
 
 // LoopDetector monitors LLM output for repeating patterns that indicate
 // the LLM is stuck in a loop. It detects when the same structural pattern
-// (e.g., "30: 在 [TIME] 说：") appears too frequently within a sliding window.
+// (e.g., "114: 2026-05-13 18:04:22 - 114: 2026-05-13 18:04:24 - ...")
+// appears too frequently within an accumulating output.
 type LoopDetector struct {
-	threshold    int // min occurrences of same pattern to trigger
-	maxWindow    int // max chunks to keep in history
-	patternFreq  map[string]int // frequency of each normalized pattern
-	currentTotal int            // total chunks in window
+	threshold     int             // min occurrences of same pattern to trigger
+	maxWindow     int             // max chars to keep in sliding window
+	accumulated   string          // accumulated output content
+	windowStart   int             // start position of sliding window in accumulated
+	patternFreq   map[string]int  // frequency of each normalized pattern
+	patternStart  map[string]int  // start position of each pattern occurrence
+	currentTotal  int             // total chunks added
+	lastCheckLen  int             // length of content last checked (for detecting new content)
 }
 
 // LoopDetectedError is returned when a loop is detected.
@@ -54,7 +59,7 @@ type LoopDetectedError struct {
 
 func (e *LoopDetectedError) Error() string {
 	return fmt.Sprintf(
-		"LLM output loop detected: structural pattern repeated %d times out of last %d chunks (threshold: %d). "+
+		"LLM output loop detected: structural pattern repeated %d times in recent %d chars (threshold: %d). "+
 			"The repeated pattern: %q. "+
 			"Please review your actions and consider a different approach.",
 		e.repeatCount, e.windowSize, e.threshold, truncateString(e.repeatedContent, 300),
@@ -67,43 +72,75 @@ func NewLoopDetector(threshold int, maxWindow int) *LoopDetector {
 		threshold = 5
 	}
 	if maxWindow <= 0 {
-		maxWindow = 20
+		maxWindow = 256 // ~256KB sliding window
 	}
 	return &LoopDetector{
-		threshold:   threshold,
-		maxWindow:   maxWindow,
-		patternFreq: make(map[string]int),
+		threshold:    threshold,
+		maxWindow:    maxWindow,
+		patternFreq:  make(map[string]int),
+		patternStart: make(map[string]int),
 	}
 }
 
 // AddChunk adds a new output chunk and checks for loop patterns.
 // Returns nil if no loop detected, or a *LoopDetectedError if a loop is found.
 //
-// This uses a pattern-frequency approach: it normalizes each chunk,
-// counts the frequency of each normalized pattern in the sliding window,
-// and triggers when any single pattern exceeds the threshold count.
+// This approach:
+// 1. Accumulates all output chunks
+// 2. Maintains a sliding window over the accumulated content
+// 3. Normalizes the window content (replace timestamps with [TIME])
+// 4. Splits the normalized content into segments and checks for repetition
 func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
-	// Skip very short chunks (< 20 chars) to avoid false positives
-	// Short content like "40: 在 [TIME] 说：" is likely a message prefix, not real loop content
-	if len(strings.TrimSpace(chunk)) < 20 {
+	// Skip empty chunks
+	chunk = strings.TrimSpace(chunk)
+	if chunk == "" {
 		return nil
 	}
 
-	// Normalize the chunk for pattern comparison
-	normalized := normalizeChunk(chunk)
+	// Append new content to accumulated buffer
+	ld.accumulated += chunk
+	ld.currentTotal++
 
-	// Skip empty chunks
+	// Only check when we have new content since last check
+	if len(ld.accumulated) <= ld.lastCheckLen {
+		return nil
+	}
+	ld.lastCheckLen = len(ld.accumulated)
+
+	// Maintain sliding window
+	windowStart := len(ld.accumulated) - ld.maxWindow
+	if windowStart < 0 {
+		windowStart = 0
+	}
+
+	// Get current window content
+	windowContent := ld.accumulated[windowStart:]
+
+	// Normalize the window content for pattern comparison
+	normalized := normalizeChunk(windowContent)
 	if normalized == "" {
 		return nil
 	}
 
-	// Add to frequency map
-	ld.patternFreq[normalized]++
-	ld.currentTotal++
+	// Clear old pattern frequencies
+	ld.patternFreq = make(map[string]int)
+	ld.patternStart = make(map[string]int)
 
-	// Trim old patterns if window is full
-	if ld.currentTotal > ld.maxWindow {
-		ld.pruneOldest()
+	// Split normalized content into segments for pattern detection
+	// Use a segment size that captures the repeating pattern
+	segmentSize := 50 // characters per segment
+	if len(normalized) < segmentSize*ld.threshold {
+		// Not enough content to detect loops yet
+		return nil
+	}
+
+	// Analyze segments for repetition patterns
+	// Split by common delimiters or use fixed-size segments
+	segments := ld.extractSegments(normalized)
+
+	// Count frequency of each segment pattern
+	for _, seg := range segments {
+		ld.patternFreq[seg]++
 	}
 
 	// Check if any pattern exceeds the threshold
@@ -114,38 +151,78 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 				repeatCount:     count,
 				windowSize:      ld.maxWindow,
 				threshold:       ld.threshold,
-				startTime:       timestamp.Add(-time.Duration(ld.currentTotal) * 2 * time.Second), // approximate
+				startTime:       timestamp.Add(-time.Duration(ld.currentTotal) * time.Second),
 				endTime:         timestamp,
 			}
 		}
 	}
 
+	// Update window start position
+	ld.windowStart = windowStart
+
 	return nil
+}
+
+// extractSegments splits normalized content into overlapping segments for pattern detection.
+// Uses overlapping segments to catch patterns that span segment boundaries.
+func (ld *LoopDetector) extractSegments(content string) []string {
+	if content == "" {
+		return nil
+	}
+
+	var segments []string
+	segmentSize := 50
+	overlap := 10
+	step := segmentSize - overlap
+
+	// Split by lines first to handle multi-line content
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// For each line, extract fixed-size segments
+		for i := 0; i < len(line); i += step {
+			end := i + segmentSize
+			if end > len(line) {
+				end = len(line)
+			}
+			if i > 0 && end <= len(line) {
+				// Overlap with previous segment
+				seg := line[i-overlap : end]
+				segments = append(segments, seg)
+			} else {
+				seg := line[i:end]
+				segments = append(segments, seg)
+			}
+		}
+	}
+
+	// Also check for line-level patterns (important for timestamp-based loops)
+	// Extract lines that match common patterns
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			segments = append(segments, line)
+		}
+	}
+
+	return segments
 }
 
 // Reset clears the detector state.
 func (ld *LoopDetector) Reset() {
+	ld.accumulated = ""
+	ld.windowStart = 0
 	ld.patternFreq = make(map[string]int)
+	ld.patternStart = make(map[string]int)
 	ld.currentTotal = 0
+	ld.lastCheckLen = 0
 }
 
-// pruneOldest simulates removing the oldest chunk from the sliding window.
-// Since we process chunks in order, we approximate pruning by decrementing
-// a random pattern's count when the window is full.
-func (ld *LoopDetector) pruneOldest() {
-	// Find a pattern with count > 1 to decrement
-	// This approximates removing an old chunk
-	for pattern := range ld.patternFreq {
-		ld.patternFreq[pattern]--
-		if ld.patternFreq[pattern] <= 0 {
-			delete(ld.patternFreq, pattern)
-		}
-		break
-	}
-	ld.currentTotal--
-}
-
-// normalizeChunk normalizes a chunk for pattern comparison by:
+// normalizeChunk normalizes content for pattern comparison by:
 // 1. Trimming whitespace
 // 2. Removing/normalizing timestamps
 // 3. Truncating to a fixed size for consistent comparison
@@ -158,12 +235,6 @@ func normalizeChunk(s string) string {
 
 	// Replace timestamp patterns with placeholder
 	result := replaceTimestamps(s)
-
-	// Take a fixed-size representative portion
-	// This ensures "30: 在 [TIME] 说：" is always the same length
-	if len(result) > 100 {
-		result = result[:100]
-	}
 
 	return result
 }
