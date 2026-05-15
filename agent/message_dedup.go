@@ -418,6 +418,11 @@ func isWhitespace(r rune) bool {
 	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 }
 
+// isDigit checks if a rune is a digit.
+func isDigit(r rune) bool {
+	return r >= '0' && r <= '9'
+}
+
 // isCJK checks if a rune is a CJK character.
 func isCJK(r rune) bool {
 	// Common CJK Unicode ranges

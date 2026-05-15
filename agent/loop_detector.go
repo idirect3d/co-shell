@@ -28,42 +28,57 @@ package agent
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
 
 // LoopDetector monitors LLM output for repeating patterns that indicate
 // the LLM is stuck in a loop. It detects when the same structural pattern
-// (e.g., "114: 2026-05-13 18:04:22 - 114: 2026-05-13 18:04:24 - ...")
-// appears too frequently within an accumulating output.
+// with incremental values (e.g., timestamps, counters) appears too frequently.
 type LoopDetector struct {
-	threshold     int             // min occurrences of same pattern to trigger
-	maxWindow     int             // max chars to keep in sliding window
-	accumulated   string          // accumulated output content
-	windowStart   int             // start position of sliding window in accumulated
-	patternFreq   map[string]int  // frequency of each normalized pattern
-	patternStart  map[string]int  // start position of each pattern occurrence
-	currentTotal  int             // total chunks added
-	lastCheckLen  int             // length of content last checked (for detecting new content)
+	threshold     int           // min occurrences of same pattern to trigger
+	maxWindow     int           // max chunks to keep in history
+	accumulated   string        // accumulated output content
+	patterns      map[string]*PatternCount // detected patterns and their counts
+	currentTotal  int           // total chunks added
+	lastCheckLen  int           // length of content last checked
+}
+
+// PatternCount tracks occurrences of a specific pattern.
+type PatternCount struct {
+	Pattern     string   // normalized pattern (timestamps replaced with [TIME])
+	PatternType string   // type of pattern (timestamp, counter, etc.)
+	RawSample   string   // raw sample of the pattern for feedback
+	Count       int      // number of occurrences
+	Timestamps  []time.Time // timestamps of each occurrence
+	Lines       []string // original lines containing this pattern
 }
 
 // LoopDetectedError is returned when a loop is detected.
 type LoopDetectedError struct {
-	repeatedContent string
-	repeatCount     int
-	windowSize      int
-	threshold       int
-	startTime       time.Time
-	endTime         time.Time
+	pattern       string   // the repeated pattern
+	patternType   string   // type of pattern (timestamp, counter, etc.)
+	repeatCount   int      // how many times it repeated
+	windowSize    int      // sliding window size
+	threshold     int      // detection threshold
+	startTime     time.Time
+	endTime       time.Time
+	suggestion    string   // suggestion for the agent to correct
 }
 
 func (e *LoopDetectedError) Error() string {
-	return fmt.Sprintf(
-		"LLM output loop detected: structural pattern repeated %d times in recent %d chars (threshold: %d). "+
-			"The repeated pattern: %q. "+
-			"Please review your actions and consider a different approach.",
-		e.repeatCount, e.windowSize, e.threshold, truncateString(e.repeatedContent, 300),
+	msg := fmt.Sprintf(
+		"LLM output loop detected: pattern '%s' repeated %d times (threshold: %d). ",
+		truncateString(e.pattern, 200), e.repeatCount, e.threshold,
 	)
+
+	if e.patternType != "" {
+		msg += fmt.Sprintf("Pattern type: %s. ", e.patternType)
+	}
+
+	msg += e.suggestion
+	return msg
 }
 
 // NewLoopDetector creates a new loop detector with the given configuration.
@@ -72,229 +87,221 @@ func NewLoopDetector(threshold int, maxWindow int) *LoopDetector {
 		threshold = 5
 	}
 	if maxWindow <= 0 {
-		maxWindow = 256 // ~256KB sliding window
+		maxWindow = 256
 	}
 	return &LoopDetector{
-		threshold:    threshold,
-		maxWindow:    maxWindow,
-		patternFreq:  make(map[string]int),
-		patternStart: make(map[string]int),
+		threshold:  threshold,
+		maxWindow:  maxWindow,
+		patterns:   make(map[string]*PatternCount),
 	}
 }
 
 // AddChunk adds a new output chunk and checks for loop patterns.
 // Returns nil if no loop detected, or a *LoopDetectedError if a loop is found.
-//
-// This approach:
-// 1. Accumulates all output chunks
-// 2. Maintains a sliding window over the accumulated content
-// 3. Normalizes the window content (replace timestamps with [TIME])
-// 4. Splits the normalized content into segments and checks for repetition
 func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
-	// Skip empty chunks
 	chunk = strings.TrimSpace(chunk)
 	if chunk == "" {
 		return nil
 	}
 
-	// Append new content to accumulated buffer
 	ld.accumulated += chunk
 	ld.currentTotal++
 
-	// Only check when we have new content since last check
+	// Only check when we have new content
 	if len(ld.accumulated) <= ld.lastCheckLen {
 		return nil
 	}
 	ld.lastCheckLen = len(ld.accumulated)
 
-	// Maintain sliding window
-	windowStart := len(ld.accumulated) - ld.maxWindow
-	if windowStart < 0 {
-		windowStart = 0
-	}
-
-	// Get current window content
-	windowContent := ld.accumulated[windowStart:]
-
-	// Normalize the window content for pattern comparison
-	normalized := normalizeChunk(windowContent)
-	if normalized == "" {
+	// Extract lines from the new chunk
+	lines := extractLines(chunk)
+	if len(lines) == 0 {
 		return nil
 	}
 
-	// Clear old pattern frequencies
-	ld.patternFreq = make(map[string]int)
-	ld.patternStart = make(map[string]int)
-
-	// Split normalized content into segments for pattern detection
-	// Use a segment size that captures the repeating pattern
-	segmentSize := 50 // characters per segment
-	if len(normalized) < segmentSize*ld.threshold {
-		// Not enough content to detect loops yet
-		return nil
-	}
-
-	// Analyze segments for repetition patterns
-	// Split by common delimiters or use fixed-size segments
-	segments := ld.extractSegments(normalized)
-
-	// Count frequency of each segment pattern
-	for _, seg := range segments {
-		ld.patternFreq[seg]++
-	}
-
-	// Check if any pattern exceeds the threshold
-	for pattern, count := range ld.patternFreq {
-		if count >= ld.threshold {
-			return &LoopDetectedError{
-				repeatedContent: pattern,
-				repeatCount:     count,
-				windowSize:      ld.maxWindow,
-				threshold:       ld.threshold,
-				startTime:       timestamp.Add(-time.Duration(ld.currentTotal) * time.Second),
-				endTime:         timestamp,
-			}
-		}
-	}
-
-	// Update window start position
-	ld.windowStart = windowStart
-
-	return nil
-}
-
-// extractSegments splits normalized content into overlapping segments for pattern detection.
-// Uses overlapping segments to catch patterns that span segment boundaries.
-func (ld *LoopDetector) extractSegments(content string) []string {
-	if content == "" {
-		return nil
-	}
-
-	var segments []string
-	segmentSize := 50
-	overlap := 10
-	step := segmentSize - overlap
-
-	// Split by lines first to handle multi-line content
-	lines := strings.Split(content, "\n")
+	// Check each line for loop patterns
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 
-		// For each line, extract fixed-size segments
-		for i := 0; i < len(line); i += step {
-			end := i + segmentSize
-			if end > len(line) {
-				end = len(line)
+		// Try to identify the pattern type
+		patternInfo := identifyPattern(line)
+		if patternInfo == nil {
+			continue
+		}
+
+		// Track this pattern
+		key := patternInfo.normalized
+		if _, exists := ld.patterns[key]; !exists {
+			ld.patterns[key] = &PatternCount{
+				Pattern: patternInfo.normalized,
 			}
-			if i > 0 && end <= len(line) {
-				// Overlap with previous segment
-				seg := line[i-overlap : end]
-				segments = append(segments, seg)
-			} else {
-				seg := line[i:end]
-				segments = append(segments, seg)
+		}
+
+		ld.patterns[key].Count++
+		ld.patterns[key].PatternType = patternInfo.patternType
+		ld.patterns[key].Timestamps = append(ld.patterns[key].Timestamps, timestamp)
+		ld.patterns[key].Lines = append(ld.patterns[key].Lines, line)
+
+		// Keep only recent entries (sliding window)
+		if len(ld.patterns[key].Timestamps) > ld.maxWindow {
+			ld.patterns[key].Timestamps = ld.patterns[key].Timestamps[1:]
+			ld.patterns[key].Lines = ld.patterns[key].Lines[1:]
+		}
+
+		// Check if this pattern exceeds the threshold
+		if ld.patterns[key].Count >= ld.threshold {
+			return ld.createLoopError(key, timestamp)
+		}
+	}
+
+	return nil
+}
+
+// identifyPattern analyzes a line and returns pattern information if it matches
+// a known loop pattern type (timestamp increment, counter, etc.).
+func identifyPattern(line string) *struct {
+	normalized string
+	patternType string
+} {
+	// Pattern 1: Timestamp increment pattern
+	// Examples: "114: 2026-05-13 18:04:22 - ", "30: 在 2026-05-14 15:30:29 说："
+	timestampPatterns := []string{
+		`^[\d:]+ \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, // "114: 2026-05-13 18:04:22"
+		`^[\d:]+ 在 \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, // "30: 在 2026-05-14 15:30:29"
+		`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, // bare timestamp
+	}
+
+	for _, pat := range timestampPatterns {
+		re := regexp.MustCompile(pat)
+		if re.MatchString(line) {
+			// Normalize: replace timestamp with [TIME]
+			normalized := normalizeTimestamps(line)
+			return &struct {
+				normalized    string
+				patternType string
+			}{
+				normalized:    normalized,
+				patternType: "timestamp increment",
 			}
 		}
 	}
 
-	// Also check for line-level patterns (important for timestamp-based loops)
-	// Extract lines that match common patterns
+	// Pattern 2: Counter increment pattern
+	// Examples: "Step 1: ", "Step 2: ", "Iteration 1", "Iteration 2"
+	counterPattern := `^(.*[Cc]ount|Step|Iteration|Round)[\s:]*\d+`
+	re := regexp.MustCompile(counterPattern)
+	if re.MatchString(line) {
+		normalized := re.ReplaceAllString(line, "${1}[NUM]")
+		return &struct {
+			normalized    string
+			patternType string
+		}{
+			normalized:    normalized,
+			patternType: "counter increment",
+		}
+	}
+
+	// Pattern 3: Repeated prefix pattern
+	// Lines that start with the same prefix followed by varying content
+	// Examples: "Output: ", "Result: ", "Analysis: "
+	prefixPattern := `^.{1,30}:[\s]`
+	re = regexp.MustCompile(prefixPattern)
+	if re.MatchString(line) && len(line) < 100 {
+		// Extract the prefix (up to the first colon + space)
+		idx := strings.Index(line, ":")
+		if idx > 0 && idx < 30 {
+			prefix := line[:idx+1]
+			// Check if this prefix is common
+			if isCommonPrefix(prefix) {
+				normalized := prefix + "[CONTENT]"
+				return &struct {
+					normalized    string
+					patternType string
+				}{
+					normalized:    normalized,
+					patternType: "repeated prefix",
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// isCommonPrefix checks if a prefix is commonly used in normal output.
+func isCommonPrefix(prefix string) bool {
+	commonPrefixes := []string{
+		"Output:", "Result:", "Analysis:", "Summary:", "Note:", "Info:",
+		"Warning:", "Error:", "Debug:", "Step:", "Task:",
+	}
+	for _, cp := range commonPrefixes {
+		if strings.HasPrefix(prefix, cp) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeTimestamps replaces timestamps in a string with [TIME].
+func normalizeTimestamps(s string) string {
+	// Replace YYYY-MM-DD HH:MM:SS pattern
+	re := regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`)
+	return re.ReplaceAllString(s, "[TIME]")
+}
+
+// extractLines extracts non-empty lines from a string.
+func extractLines(s string) []string {
+	lines := strings.Split(s, "\n")
+	var result []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line != "" {
-			segments = append(segments, line)
+			result = append(result, line)
 		}
 	}
+	return result
+}
 
-	return segments
+// createLoopError creates a LoopDetectedError with actionable feedback.
+func (ld *LoopDetector) createLoopError(key string, timestamp time.Time) *LoopDetectedError {
+	pattern := ld.patterns[key]
+
+	// Generate suggestion based on pattern type
+	suggestion := ""
+	if pattern.PatternType == "timestamp increment" {
+		suggestion = "You appear to be generating content with incrementing timestamps. " +
+			"This is likely a loop. Please review your output and stop repeating the same pattern with different timestamps. " +
+			"Consider summarizing your findings instead of listing each item separately."
+	} else if pattern.PatternType == "counter increment" {
+		suggestion = "You appear to be generating content with incrementing counters. " +
+			"This is likely a loop. Please review your output and stop repeating the same pattern with different counters. " +
+			"Consider summarizing your findings instead of listing each step separately."
+	} else {
+		suggestion = "You appear to be repeating the same content pattern. " +
+			"Please review your output and take a different approach."
+	}
+
+	return &LoopDetectedError{
+		pattern:     key,
+		patternType: pattern.PatternType,
+		repeatCount: pattern.Count,
+		windowSize:  ld.maxWindow,
+		threshold:   ld.threshold,
+		startTime:   pattern.Timestamps[0],
+		endTime:     timestamp,
+		suggestion:  suggestion,
+	}
 }
 
 // Reset clears the detector state.
 func (ld *LoopDetector) Reset() {
 	ld.accumulated = ""
-	ld.windowStart = 0
-	ld.patternFreq = make(map[string]int)
-	ld.patternStart = make(map[string]int)
+	ld.patterns = make(map[string]*PatternCount)
 	ld.currentTotal = 0
 	ld.lastCheckLen = 0
-}
-
-// normalizeChunk normalizes content for pattern comparison by:
-// 1. Trimming whitespace
-// 2. Removing/normalizing timestamps
-// 3. Truncating to a fixed size for consistent comparison
-func normalizeChunk(s string) string {
-	// Trim whitespace
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-
-	// Replace timestamp patterns with placeholder
-	result := replaceTimestamps(s)
-
-	return result
-}
-
-// replaceTimestamps replaces timestamp-like patterns with normalized placeholders.
-func replaceTimestamps(s string) string {
-	var result strings.Builder
-	runes := []rune(s)
-	i := 0
-
-	for i < len(runes) {
-		if isTimestampStart(runes, i) {
-			result.WriteString("[TIME]")
-			skipped := skipTimestamp(runes, i)
-			i += skipped
-			continue
-		}
-		result.WriteRune(runes[i])
-		i++
-	}
-
-	return result.String()
-}
-
-// isTimestampStart checks if position i is the start of a timestamp pattern.
-func isTimestampStart(runes []rune, start int) bool {
-	if start+19 > len(runes) {
-		return false
-	}
-	if !isDigit(runes[start]) || !isDigit(runes[start+1]) ||
-		!isDigit(runes[start+2]) || !isDigit(runes[start+3]) ||
-		runes[start+4] != '-' || !isDigit(runes[start+5]) ||
-		!isDigit(runes[start+6]) || runes[start+7] != '-' ||
-		!isDigit(runes[start+8]) || !isDigit(runes[start+9]) ||
-		runes[start+10] != ' ' || !isDigit(runes[start+11]) ||
-		!isDigit(runes[start+12]) || runes[start+13] != ':' ||
-		!isDigit(runes[start+14]) || !isDigit(runes[start+15]) ||
-		runes[start+16] != ':' || !isDigit(runes[start+17]) ||
-		!isDigit(runes[start+18]) {
-		return false
-	}
-	return true
-}
-
-// skipTimestamp skips past a timestamp pattern starting at position i.
-func skipTimestamp(runes []rune, start int) int {
-	if start+19 <= len(runes) {
-		return 19
-	}
-	for i := start; i < len(runes) && i < start+20; i++ {
-		if !isDigit(runes[i]) && runes[i] != '-' && runes[i] != ':' && runes[i] != ' ' {
-			return i - start
-		}
-	}
-	return 20
-}
-
-// isDigit checks if a rune is a digit.
-func isDigit(r rune) bool {
-	return r >= '0' && r <= '9'
 }
 
 // truncateString truncates a string to maxLen characters.
