@@ -169,20 +169,20 @@ func (a *Agent) buildTools() []llm.Tool {
 		},
 		{
 			Name:        "write_to_file",
-			Description: "Write content to a file at the specified path. If the file exists, it will be overwritten. If the file doesn't exist, it will be created. Any necessary directories will be created automatically. IMPORTANT: When fixing errors in an existing file, prefer using replace_in_file instead of write_to_file. Using write_to_file to rewrite complex files often reintroduces the same issues. Use write_to_file primarily for creating new files or when a complete rewrite is truly necessary.",
+			Description: "Create a NEW file at the specified path. If the file already exists, this tool will return an error — you MUST use replace_in_file instead to modify existing files. The 'content' parameter is OPTIONAL: if not provided, an empty file will be created. Any necessary parent directories will be created automatically.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "The absolute path to the file to write to",
+						"description": "The absolute path to the file to create.",
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
-						"description": "The full content to write to the file",
+						"description": "Optional: the content to write to the new file. If not provided, an empty file will be created.",
 					},
 				},
-				"required": []string{"path", "content"},
+				"required": []string{"path"},
 			},
 			Callback: a.writeToFileTool,
 		},
