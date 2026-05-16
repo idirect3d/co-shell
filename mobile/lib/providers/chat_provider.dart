@@ -35,27 +35,29 @@ class ChatProvider extends ChangeNotifier {
   bool _isSending = false;
   String? _serverAddress;
   int? _serverPort;
+  String? _currentAgentId;
 
   List<Message> get messages => _messages;
   bool get isConnected => _isConnected;
   bool get isSending => _isSending;
   String? get serverAddress => _serverAddress;
   int? get serverPort => _serverPort;
+  String? get currentAgentId => _currentAgentId;
 
-  /// 连接到 co-shell-bridge 服务器
+  /// 连接到 co-shell-hub 服务器
   Future<bool> connect(String address, int port) async {
     try {
       _serverAddress = address;
       _serverPort = port;
-      
+
       final success = await _udpClient.connect(address, port);
       _isConnected = success;
       notifyListeners();
-      
+
       if (success) {
         _addSystemMessage('已连接到 $address:$port');
       }
-      
+
       return success;
     } catch (e) {
       _addSystemMessage('连接失败: $e');
@@ -71,6 +73,28 @@ class ChatProvider extends ChangeNotifier {
     _isConnected = false;
     _addSystemMessage('已断开连接');
     notifyListeners();
+  }
+
+  /// 获取 Agent 列表
+  Future<List<Map<String, dynamic>>> getAgents() async {
+    if (!_isConnected) {
+      throw Exception('未连接到服务器');
+    }
+
+    final result = await _udpClient.sendRequest({
+      'type': 'get_agents',
+    });
+
+    if (result == null) {
+      throw Exception('获取 Agent 列表失败');
+    }
+
+    final agents = result['agents'] as List<dynamic>?;
+    if (agents == null) {
+      return [];
+    }
+
+    return agents.map((e) => e as Map<String, dynamic>).toList();
   }
 
   /// 发送消息
@@ -93,18 +117,33 @@ class ChatProvider extends ChangeNotifier {
       notifyListeners();
 
       // 通过 UDP 发送
-      final success = await _udpClient.send(text, imagePaths: imagePaths);
-      
-      if (!success) {
-        _addSystemMessage('发送失败，请检查连接状态');
-      }
+      final result = await _udpClient.sendRequest({
+        'type': 'message',
+        'agent_id': _currentAgentId ?? 'default',
+        'content': text,
+        if (imagePaths != null) 'images': imagePaths,
+      });
 
-      // 等待服务器响应（通过 UDP 监听器自动添加到消息列表）
-      // 这里设置一个超时，防止无限等待
+      if (result != null && result['type'] == 'message') {
+        final responseText = result['content'] as String?;
+        if (responseText != null && responseText.isNotEmpty) {
+          _addAssistantMessage(responseText);
+        }
+      }
+    } catch (e) {
+      _addSystemMessage('发送失败: $e');
     } finally {
       _isSending = false;
       notifyListeners();
     }
+  }
+
+  /// 设置当前 Agent
+  void setCurrentAgent(String agentId) {
+    _currentAgentId = agentId;
+    _messages.clear();
+    _addSystemMessage('已切换到 Agent: $agentId');
+    notifyListeners();
   }
 
   /// 添加系统消息
@@ -120,8 +159,8 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 添加收到的消息（由 UDP 监听器调用）
-  void addReceivedMessage(String text) {
+  /// 添加助手消息
+  void _addAssistantMessage(String text) {
     final assistantMessage = Message(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       text: text,

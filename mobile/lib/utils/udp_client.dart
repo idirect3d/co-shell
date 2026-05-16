@@ -29,7 +29,7 @@ import 'dart:io';
 
 /// UDP 通信客户端
 ///
-/// 使用 UDP 协议与 co-shell-bridge 通信
+/// 使用 UDP 协议与 co-shell-hub 通信
 /// 首次连接时发送握手请求进行身份验证
 class UdpClient {
   RawDatagramSocket? _datagramSocket;
@@ -37,8 +37,8 @@ class UdpClient {
   int? _serverPort;
   bool _isConnected = false;
 
-  // 回调
-  Function(String)? onMessageReceived;
+  // 请求-响应的回调映射
+  final Map<String, Completer<Map<String, dynamic>?>> _requestCompleters = {};
 
   /// 连接到服务器
   Future<bool> connect(String address, int port) async {
@@ -85,20 +85,31 @@ class UdpClient {
       _datagramSocket?.send(bytes, _serverAddress!, _serverPort!);
 
       // 等待握手响应（超时 5 秒）
+      final completer = Completer<bool>();
       final start = DateTime.now();
-      while (DateTime.now().difference(start).inSeconds < 5) {
+
+      // 临时监听响应
+      Timer.periodic(const Duration(milliseconds: 100), (timer) {
         final packet = _datagramSocket?.receive();
         if (packet != null) {
           final data = utf8.decode(packet.data);
           final jsonData = jsonDecode(data) as Map<String, dynamic>;
           if (jsonData['type'] == 'handshake_ack') {
-            return true;
+            timer.cancel();
+            if (!completer.isCompleted) {
+              completer.complete(true);
+            }
           }
         }
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
+        if (DateTime.now().difference(start).inSeconds >= 5) {
+          timer.cancel();
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+        }
+      });
 
-      return false;
+      return await completer.future;
     } catch (e) {
       return false;
     }
@@ -114,9 +125,18 @@ class UdpClient {
             final data = utf8.decode(packet.data);
             final jsonData = jsonDecode(data) as Map<String, dynamic>;
 
-            if (jsonData['type'] == 'message') {
-              final message = jsonData['content'] as String;
-              onMessageReceived?.call(message);
+            final msgType = jsonData['type'] as String?;
+
+            // 如果是响应消息（有 request_id）
+            final requestId = jsonData['request_id'] as String?;
+            if (requestId != null && _requestCompleters.containsKey(requestId)) {
+              _requestCompleters.remove(requestId)?.complete(jsonData);
+              return;
+            }
+
+            // 否则是主动推送的消息
+            if (msgType == 'message') {
+              // 可以由外部回调处理
             }
           }
         } catch (e) {
@@ -126,27 +146,37 @@ class UdpClient {
     });
   }
 
-  /// 发送消息
-  Future<bool> send(String text, {List<String>? imagePaths}) async {
+  /// 发送请求并等待响应
+  Future<Map<String, dynamic>?> sendRequest(Map<String, dynamic> request) async {
     if (!_isConnected || _datagramSocket == null) {
-      return false;
+      return null;
     }
 
     try {
-      final messageData = {
-        'type': 'message',
-        'content': text,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        if (imagePaths != null) 'images': imagePaths,
-      };
+      // 生成请求 ID
+      final requestId = DateTime.now().millisecondsSinceEpoch.toString();
+      request['request_id'] = requestId;
 
-      final jsonData = jsonEncode(messageData);
+      final jsonData = jsonEncode(request);
       final bytes = utf8.encode(jsonData);
 
       _datagramSocket?.send(bytes, _serverAddress!, _serverPort!);
-      return true;
+
+      // 等待响应（超时 30 秒）
+      final completer = Completer<Map<String, dynamic>?>();
+      _requestCompleters[requestId] = completer;
+
+      // 设置超时
+      Future.delayed(const Duration(seconds: 30), () {
+        _requestCompleters.remove(requestId);
+        if (!completer.isCompleted) {
+          completer.complete(null);
+        }
+      });
+
+      return await completer.future;
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
@@ -155,6 +185,9 @@ class UdpClient {
     _isConnected = false;
     _datagramSocket?.close();
     _datagramSocket = null;
+
+    // 取消所有待处理的请求
+    _requestCompleters.clear();
   }
 
   /// 释放资源
