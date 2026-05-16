@@ -1,0 +1,34 @@
+name: co_shell_mobile
+description: co-shell 移动端 APP - iOS/Android 跨平台应用
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # 状态管理
+  provider: ^6.1.2
+  # 语音识别
+  speech_to_text: ^7.0.0
+  # 图片选择
+  image_picker: ^1.1.2
+  # 本地存储
+  shared_preferences: ^2.3.3
+  # 网络请求（备用）
+  http: ^1.2.2
+  # 加密
+  pointycastle: ^3.9.1
+  # 音频播放
+  just_audio: ^0.9.40
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
