@@ -28,6 +28,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'config/constants.dart';
 import 'providers/chat_provider.dart';
+import 'screens/agent_list_screen.dart';
 
 void main() {
   // 设置状态栏样式
@@ -56,6 +57,7 @@ class CoShellApp extends StatelessWidget {
         themeMode: ThemeMode.system, // 自适应系统明/暗模式
         theme: _lightTheme, // 浅色主题
         darkTheme: _darkTheme, // 深色主题（终端风格）
+        home: const AgentListScreen(), // 首页：Agent 列表
       ),
     );
   }
