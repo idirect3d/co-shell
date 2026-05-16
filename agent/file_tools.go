@@ -901,7 +901,9 @@ func findClosestMatch(content, search string) int {
 	return 0
 }
 
-// writeToFileTool writes content to a file, creating directories as needed.
+// writeToFileTool creates a new file with optional content.
+// If the file already exists, it returns an error to prevent accidental overwrites.
+// The 'content' parameter is optional — if not provided, an empty file is created.
 func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("writeToFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
@@ -909,10 +911,12 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 		return "", fmt.Errorf("path argument is required")
 	}
 
-	content, ok := args["content"].(string)
-	if !ok {
-		return "", fmt.Errorf("content argument is required")
+	// Check if file already exists — refuse to overwrite existing files
+	if _, err := os.Stat(path); err == nil {
+		return "", fmt.Errorf("file %q already exists. write_to_file can only create NEW files. To modify an existing file, use replace_in_file instead", path)
 	}
+
+	content, _ := args["content"].(string)
 
 	// Create parent directories if they don't exist
 	dir := filepath.Dir(path)
@@ -925,5 +929,8 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 		return "", fmt.Errorf("cannot write file %q: %w", path, err)
 	}
 
+	if content == "" {
+		return fmt.Sprintf("Created empty file: %s", path), nil
+	}
 	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), path), nil
 }

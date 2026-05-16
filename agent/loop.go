@@ -228,10 +228,9 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 
 		// Add assistant message with tool calls
 		a.mu.Lock()
-		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 		a.messages = append(a.messages, llm.Message{
 			Role:             "assistant",
-			Content:          tsPrefix + resp.Content,
+			Content:          resp.Content,
 			ToolCalls:        resp.ToolCalls,
 			ReasoningContent: resp.ReasoningContent,
 		})
@@ -599,10 +598,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// that tool messages must follow a message with tool_calls.
 		a.mu.Lock()
 		assistantMsgIdx := len(a.messages)
-		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 		assistantMsg := llm.Message{
 			Role:             "assistant",
-			Content:          tsPrefix + finalContent,
+			Content:          finalContent,
 			ToolCalls:        toolCalls,
 			ReasoningContent: finalReasoning,
 		}
@@ -844,7 +842,7 @@ func (a *Agent) addIndexPrefixToMessages(msgs []llm.Message, startIdx int) []llm
 			a.mu.Unlock()
 		}
 
-		if origIdx >= 0 && msg.Role != "system" {
+		if origIdx >= 0 && msg.Role != "system" && !(msg.Role == "assistant" && len(msg.ToolCalls) > 0) {
 			// Add index prefix before the content
 			result[i] = msg
 			result[i].Content = fmt.Sprintf("%d: %s", origIdx, msg.Content)
@@ -899,6 +897,23 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	}
 
 	for event := range eventCh {
+		// Log every stream event for diagnosing infinite loop issues (FIX-97)
+		eventName := "unknown"
+		switch event.Type {
+		case llm.StreamEventContent:
+			eventName = "content"
+		case llm.StreamEventReasoning:
+			eventName = "reasoning"
+		case llm.StreamEventToolCall:
+			eventName = "tool_call"
+		case llm.StreamEventDone:
+			eventName = "done"
+		case llm.StreamEventError:
+			eventName = "error"
+		}
+		log.Debug("Agent.streamLLMResponse: event=%s, content_len=%d, done=%v, err=%v",
+			eventName, len(event.Content), event.Done, event.Err)
+
 		switch event.Type {
 		case llm.StreamEventContent:
 			// FIX-179: Check for loop patterns in LLM output
