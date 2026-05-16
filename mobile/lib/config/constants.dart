@@ -23,34 +23,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'config/constants.dart';
-import 'providers/chat_provider.dart';
-import 'screens/agent_list_screen.dart';
+/// co-shell 应用常量定义
+class Constants {
+  Constants._();
 
-void main() {
-  runApp(const CoShellApp());
-}
+  /// co-shell-hub 默认 UDP 端口
+  /// 128 = 2^7，是计算中的基础数字
+  static const int hubPort = 12800;
 
-class CoShellApp extends StatelessWidget {
-  const CoShellApp({super.key});
+  /// 默认服务器地址（用于演示）
+  static const String defaultServerAddress = '192.168.1.100';
 
-  @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ChatProvider()),
-      ],
-      child: MaterialApp(
-        title: Constants.appName,
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
-        ),
-        home: const AgentListScreen(),
-      ),
-    );
-  }
+  /// UDP 请求超时时间（秒）
+  static const int udpRequestTimeout = 30;
+
+  /// 握手超时时间（秒）
+  static const int handshakeTimeout = 5;
+
+  /// 应用名称
+  static const String appName = 'co-shell';
+
+  /// 应用版本
+  static const String appVersion = '0.1.0';
 }

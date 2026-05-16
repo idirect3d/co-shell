@@ -27,6 +27,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../config/constants.dart';
+
 /// UDP 通信客户端
 ///
 /// 使用 UDP 协议与 co-shell-hub 通信
@@ -84,7 +86,7 @@ class UdpClient {
 
       _datagramSocket?.send(bytes, _serverAddress!, _serverPort!);
 
-      // 等待握手响应（超时 5 秒）
+      // 等待握手响应（超时 Constants.handshakeTimeout 秒）
       final completer = Completer<bool>();
       final start = DateTime.now();
 
@@ -101,7 +103,7 @@ class UdpClient {
             }
           }
         }
-        if (DateTime.now().difference(start).inSeconds >= 5) {
+        if (DateTime.now().difference(start).inSeconds >= Constants.handshakeTimeout) {
           timer.cancel();
           if (!completer.isCompleted) {
             completer.complete(false);
@@ -162,12 +164,12 @@ class UdpClient {
 
       _datagramSocket?.send(bytes, _serverAddress!, _serverPort!);
 
-      // 等待响应（超时 30 秒）
+      // 等待响应（超时 Constants.udpRequestTimeout 秒）
       final completer = Completer<Map<String, dynamic>?>();
       _requestCompleters[requestId] = completer;
 
       // 设置超时
-      Future.delayed(const Duration(seconds: 30), () {
+      Future.delayed(Duration(seconds: Constants.udpRequestTimeout), () {
         _requestCompleters.remove(requestId);
         if (!completer.isCompleted) {
           completer.complete(null);
