@@ -26,7 +26,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -35,7 +34,14 @@ import '../models/message.dart';
 
 /// 聊天主屏幕
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final String agentId;
+  final String agentName;
+
+  const ChatScreen({
+    super.key,
+    required this.agentId,
+    required this.agentName,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -49,12 +55,12 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isListening = false;
   bool _speechAvailable = false;
   final List<String> _selectedImagePaths = [];
-  String _serverAddress = '192.168.1.100';
-  int _serverPort = 8080;
 
   @override
   void initState() {
     super.initState();
+    // 设置当前 Agent
+    context.read<ChatProvider>().setCurrentAgent(widget.agentId);
     _initSpeech();
   }
 
@@ -151,29 +157,11 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// 连接服务器
-  Future<void> _connectToServer() async {
-    final provider = context.read<ChatProvider>();
-    final success = await provider.connect(_serverAddress, _serverPort);
-
-    if (success) {
-      if (mounted) {
-        Navigator.pop(context);
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('连接失败，请检查服务器地址和端口')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('co-shell'),
+        title: Text(widget.agentName),
         actions: [
           // 连接状态指示
           Consumer<ChatProvider>(
@@ -193,11 +181,6 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () {
               context.read<ChatProvider>().clearMessages();
             },
-          ),
-          // 设置
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => _showSettingsDialog(),
           ),
         ],
       ),
@@ -268,9 +251,9 @@ class _ChatScreenState extends State<ChatScreen> {
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Text(
             message.text,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: Colors.grey,
             ),
           ),
         ),
@@ -447,53 +430,6 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  /// 显示设置对话框
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('连接设置'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: '服务器地址',
-                  hintText: '例如: 192.168.1.100',
-                ),
-                controller: TextEditingController(text: _serverAddress),
-                onChanged: (value) => _serverAddress = value,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: '端口',
-                  hintText: '例如: 8080',
-                ),
-                controller: TextEditingController(text: _serverPort.toString()),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onChanged: (value) =>
-                    _serverPort = int.tryParse(value) ?? 8080,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: _connectToServer,
-              child: const Text('连接'),
-            ),
-          ],
         );
       },
     );
