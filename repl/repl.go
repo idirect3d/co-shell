@@ -549,7 +549,8 @@ func (r *REPL) streamCallback(eventType string, content string) {
 		fmt.Println()
 
 	case "command":
-		fmt.Printf("%s%s\n", ep.CommandInput, content)
+		// Ensure command indicator starts on a new line
+		fmt.Printf("\n%s%s\n", ep.CommandInput, content)
 
 	case "output":
 		fmt.Println()
@@ -560,7 +561,8 @@ func (r *REPL) streamCallback(eventType string, content string) {
 		fmt.Println()
 
 	case "tool_call":
-		fmt.Printf("%s%s\n", ep.ToolCallInput, content)
+		// Ensure tool call indicator starts on a new line
+		fmt.Printf("\n%s%s\n", ep.ToolCallInput, content)
 
 	case "token_usage":
 		// Parse token usage: "prompt=%d, completion=%d, total=%d"
