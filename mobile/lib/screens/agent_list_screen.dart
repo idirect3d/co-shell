@@ -26,6 +26,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../config/constants.dart';
 import '../providers/chat_provider.dart';
 import 'chat_screen.dart';
 
@@ -189,8 +190,8 @@ class _ConnectionSettingsDialogState extends State<ConnectionSettingsDialog> {
   void initState() {
     super.initState();
     final provider = context.read<ChatProvider>();
-    _addressController.text = provider.serverAddress ?? '192.168.1.100';
-    _portController.text = provider.serverPort?.toString() ?? '8080';
+    _addressController.text = provider.serverAddress ?? Constants.defaultServerAddress;
+    _portController.text = provider.serverPort?.toString() ?? Constants.hubPort.toString();
   }
 
   @override
@@ -203,7 +204,7 @@ class _ConnectionSettingsDialogState extends State<ConnectionSettingsDialog> {
   /// 保存设置并连接
   Future<void> _saveAndConnect() async {
     final address = _addressController.text.trim();
-    final port = int.tryParse(_portController.text.trim()) ?? 8080;
+    final port = int.tryParse(_portController.text.trim()) ?? Constants.hubPort;
 
     if (address.isEmpty) {
       setState(() {
@@ -254,10 +255,10 @@ class _ConnectionSettingsDialogState extends State<ConnectionSettingsDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _portController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '端口',
-                hintText: '例如: 8080',
-                border: OutlineInputBorder(),
+                hintText: '例如: ${Constants.hubPort}',
+                border: const OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
