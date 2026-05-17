@@ -238,7 +238,7 @@
   - 修复 REPL 输出格式：command/tool_call 提示符从行首开始显示
   - 修复 loop.go：带 tool_calls 的 assistant 消息去掉时间戳前缀和索引前缀
 - [x] FIX-180 修复 LLM 调用 write_to_file 时缺少 content 参数导致死循环的问题：增强工具参数描述明确性、改进错误反馈格式，帮助 LLM 更快理解并修正参数缺失问题。[BUILD-177]
-- [ ] FIX-97 修正qwen3.6在遇到写大文件时LLM输出无限循环的问题：[BUILD-XXX]
+- [ ] FIX-181 修正qwen3.6在遇到写大文件时LLM输出无限循环的问题：[BUILD-XXX]
   - 在流式输出处增加每种event的日志输出（event类型、当前块内容），证明循环不是程序直接造成的
 
 ## v1.0.0 — 正式版
