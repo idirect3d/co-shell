@@ -1,6 +1,6 @@
-# co-shell 移动端 APP
+# co-der - co-shell 移动端 APP
 
-跨平台移动客户端，支持 iOS 和 Android，通过 UDP 与 co-shell-bridge 通信。
+跨平台移动客户端，支持 iOS 和 Android，通过 UDP 与 co-shell-hub 通信。
 
 ## 功能特性
 

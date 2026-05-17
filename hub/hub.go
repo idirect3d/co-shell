@@ -37,6 +37,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -52,6 +53,8 @@ type AgentConfig struct {
 	ConfigPath string `json:"config_path,omitempty"`
 	// NameFlag is the --name flag value.
 	NameFlag string `json:"name_flag,omitempty"`
+	// AutoStart indicates whether to start this agent on hub startup.
+	AutoStart bool `json:"auto_start,omitempty"`
 }
 
 // HubConfig holds the hub configuration.
@@ -64,6 +67,14 @@ type HubConfig struct {
 	CoShellPath string `json:"co_shell_path,omitempty"`
 	// Workspace is the base workspace directory.
 	Workspace string `json:"workspace"`
+	// Auth holds the authentication configuration.
+	Auth *AuthConfig `json:"auth,omitempty"`
+	// LazyMode indicates whether to start agents on demand (when message received).
+	LazyMode bool `json:"lazy_mode,omitempty"`
+	// DevMode enables development mode which returns error details via UDP.
+	// In production mode (default), invalid messages are silently discarded
+	// to avoid leaking service presence to port scanners.
+	DevMode bool `json:"dev_mode,omitempty"`
 }
 
 // DefaultConfig returns the default hub configuration.
@@ -72,12 +83,8 @@ func DefaultConfig() *HubConfig {
 		Port:        12800,
 		CoShellPath: "co-shell",
 		Workspace:   ".",
-		Agents: []AgentConfig{
-			{
-				ID:   "default",
-				Name: "默认助手",
-			},
-		},
+		LazyMode:    true,
+		Agents:      []AgentConfig{},
 	}
 }
 
@@ -97,14 +104,90 @@ func LoadConfig(path string) (*HubConfig, error) {
 	return cfg, nil
 }
 
+// SaveConfig saves the hub configuration to a JSON file.
+// It preserves the auth section from the existing config if present.
+func SaveConfig(path string, cfg *HubConfig) error {
+	// Load existing config to preserve auth section
+	existing, err := os.ReadFile(path)
+	if err == nil {
+		var existingCfg map[string]interface{}
+		if err := json.Unmarshal(existing, &existingCfg); err == nil {
+			if authData, ok := existingCfg["auth"]; ok {
+				// Marshal cfg without auth
+				cfg.Auth = nil
+				data, err := json.MarshalIndent(cfg, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal config: %w", err)
+				}
+				// Unmarshal back to map to merge auth
+				var cfgMap map[string]interface{}
+				if err := json.Unmarshal(data, &cfgMap); err == nil {
+					cfgMap["auth"] = authData
+					data, err = json.MarshalIndent(cfgMap, "", "  ")
+					if err != nil {
+						return fmt.Errorf("failed to marshal config with auth: %w", err)
+					}
+					return os.WriteFile(path, data, 0644)
+				}
+			}
+		}
+	}
+
+	// No existing auth section, just save normally
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// DiscoverAgents scans the workspace directory for subdirectories containing
+// co-shell config.json files and returns them as AgentConfig entries.
+func DiscoverAgents(workspace string) []AgentConfig {
+	var agents []AgentConfig
+
+	entries, err := os.ReadDir(workspace)
+	if err != nil {
+		log.Printf("Cannot read workspace %s: %v", workspace, err)
+		return agents
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		// Skip hidden directories
+		if entry.Name()[0] == '.' {
+			continue
+		}
+
+		configPath := filepath.Join(workspace, entry.Name(), "config.json")
+		if _, err := os.Stat(configPath); err == nil {
+			agents = append(agents, AgentConfig{
+				ID:         entry.Name(),
+				Name:       entry.Name(),
+				Workspace:  filepath.Join(workspace, entry.Name()),
+				ConfigPath: configPath,
+			})
+			log.Printf("Discovered agent: %s (workspace: %s)", entry.Name(), filepath.Join(workspace, entry.Name()))
+		}
+	}
+
+	return agents
+}
+
 // Hub manages multiple co-shell agent instances and UDP communication.
 type Hub struct {
 	config  *HubConfig
 	agents  map[string]*AgentSession
+	auth    *AuthConfig
 	mu      sync.RWMutex
 	udpConn *net.UDPConn
 	ctx     context.Context
 	cancel  context.CancelFunc
+	// clientNicknames maps remote address string to client nickname (after handshake).
+	clientNicknames map[string]string
+	nickMu          sync.RWMutex
 }
 
 // AgentSession represents a running co-shell agent session.
@@ -121,12 +204,13 @@ type AgentSession struct {
 }
 
 // New creates a new Hub instance.
-func New(config *HubConfig) (*Hub, error) {
+func New(config *HubConfig, auth *AuthConfig) (*Hub, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	h := &Hub{
 		config: config,
 		agents: make(map[string]*AgentSession),
+		auth:   auth,
 		ctx:    ctx,
 		cancel: cancel,
 	}
@@ -143,13 +227,27 @@ func New(config *HubConfig) (*Hub, error) {
 
 // Start starts the hub service.
 func (h *Hub) Start() error {
-	log.Printf("Starting co-shell-hub...")
-	log.Printf("UDP port: %d", h.config.Port)
-	log.Printf("Agents: %d", len(h.config.Agents))
+	Log(EventSystem, "INFO", "starting co-shell-hub (port=%d workspace=%s lazy=%v agents=%d)",
+		h.config.Port, h.config.Workspace, h.config.LazyMode, len(h.config.Agents))
 
 	// Start UDP listener
 	if err := h.startUDP(); err != nil {
 		return fmt.Errorf("failed to start UDP listener: %w", err)
+	}
+
+	// Start agents that have AutoStart enabled (only if not in lazy mode)
+	if !h.config.LazyMode {
+		h.mu.RLock()
+		for id, agent := range h.agents {
+			if agent.config.AutoStart {
+				h.mu.RUnlock()
+				if err := h.startAgent(id); err != nil {
+					log.Printf("Failed to auto-start agent %s: %v", id, err)
+				}
+				h.mu.RLock()
+			}
+		}
+		h.mu.RUnlock()
 	}
 
 	log.Println("co-shell-hub started")
@@ -158,7 +256,7 @@ func (h *Hub) Start() error {
 
 // Stop stops the hub service.
 func (h *Hub) Stop() {
-	log.Println("Stopping co-shell-hub...")
+	Log(EventSystem, "INFO", "stopping co-shell-hub")
 	h.cancel()
 
 	h.mu.Lock()
@@ -171,7 +269,8 @@ func (h *Hub) Stop() {
 		h.udpConn.Close()
 	}
 
-	log.Println("co-shell-hub stopped")
+	Log(EventSystem, "INFO", "co-shell-hub stopped")
+	CloseHubLogger()
 }
 
 // startUDP starts the UDP listener.
@@ -219,16 +318,26 @@ func (h *Hub) readLoop(conn *net.UDPConn) {
 }
 
 // handleMessage processes an incoming message from a client.
+// In production mode (DevMode=false), invalid messages are silently discarded
+// to avoid leaking service presence to port scanners.
 func (h *Hub) handleMessage(data []byte, remoteAddr *net.UDPAddr) {
+	addrStr := remoteAddr.String()
+
 	var msg map[string]interface{}
 	if err := json.Unmarshal(data, &msg); err != nil {
-		h.sendError(remoteAddr, "invalid JSON")
+		LogSecurity(addrStr, "invalid JSON from "+addrStr)
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "invalid JSON")
+		}
 		return
 	}
 
 	msgType, ok := msg["type"].(string)
 	if !ok {
-		h.sendError(remoteAddr, "missing type field")
+		LogSecurity(addrStr, "missing type field")
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "missing type field")
+		}
 		return
 	}
 
@@ -239,17 +348,67 @@ func (h *Hub) handleMessage(data []byte, remoteAddr *net.UDPAddr) {
 		h.handleClientMessage(remoteAddr, msg)
 	case "get_agents":
 		h.handleGetAgents(remoteAddr)
+	case "create_agent":
+		h.handleCreateAgent(remoteAddr, msg)
 	default:
-		h.sendError(remoteAddr, fmt.Sprintf("unknown message type: %s", msgType))
+		LogSecurity(addrStr, fmt.Sprintf("unknown message type: %s", msgType))
+		if h.config.DevMode {
+			h.sendError(remoteAddr, fmt.Sprintf("unknown message type: %s", msgType))
+		}
 	}
 }
 
 // handleHandshake responds to handshake requests.
+// The mobile client sends its nickname and access key as credential.
+// Hub verifies the access key matches a registered client.
+// The access key can be sent as "access_key" or "public_key" (backward compatible).
 func (h *Hub) handleHandshake(remoteAddr *net.UDPAddr, msg map[string]interface{}) {
+	addrStr := remoteAddr.String()
+
+	nickname, _ := msg["nickname"].(string)
+	// Accept both "access_key" and "public_key" for backward compatibility
+	clientPubKey, _ := msg["access_key"].(string)
+	if clientPubKey == "" {
+		clientPubKey, _ = msg["public_key"].(string)
+	}
+
+	// Verify the client's public key is registered
+	client := h.auth.GetClientByPublicKey(clientPubKey)
+	if client == nil {
+		LogHandshake(addrStr, false, fmt.Sprintf("unknown client (nickname=%s)", nickname))
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "unknown client: public key not registered")
+		}
+		return
+	}
+
+	// Verify nickname matches (optional, but good for consistency)
+	if nickname != "" && nickname != client.Nickname {
+		LogHandshake(addrStr, false, fmt.Sprintf("nickname mismatch: got=%s expected=%s", nickname, client.Nickname))
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "nickname mismatch")
+		}
+		return
+	}
+
+	// Record the client's nickname for this remote address
+	h.nickMu.Lock()
+	if h.clientNicknames == nil {
+		h.clientNicknames = make(map[string]string)
+	}
+	h.clientNicknames[addrStr] = client.Nickname
+	h.nickMu.Unlock()
+
+	LogHandshake(addrStr, true, fmt.Sprintf("client=%s handshake completed", client.Nickname))
+
+	hubPubKey, _ := h.auth.GetHubPublicKey()
+
 	response := map[string]interface{}{
 		"type":        "handshake_ack",
 		"timestamp":   time.Now().UnixMilli(),
 		"hub_version": "0.1.0",
+		"public_key":  hubPubKey,
+		"nickname":    client.Nickname,
 	}
 
 	h.sendJSON(remoteAddr, response)
@@ -257,15 +416,20 @@ func (h *Hub) handleHandshake(remoteAddr *net.UDPAddr, msg map[string]interface{
 
 // handleGetAgents returns the list of available agents.
 func (h *Hub) handleGetAgents(remoteAddr *net.UDPAddr) {
+	addrStr := remoteAddr.String()
+
 	h.mu.RLock()
 	agents := make([]map[string]interface{}, 0)
 	for id, agent := range h.agents {
 		agents = append(agents, map[string]interface{}{
-			"id":   id,
-			"name": agent.config.Name,
+			"id":         id,
+			"name":       agent.config.Name,
+			"is_running": agent.IsRunning(),
 		})
 	}
 	h.mu.RUnlock()
+
+	LogCommand(addrStr, "get_agents", fmt.Sprintf("returned %d agents", len(agents)))
 
 	response := map[string]interface{}{
 		"type":   "agents_list",
@@ -275,8 +439,95 @@ func (h *Hub) handleGetAgents(remoteAddr *net.UDPAddr) {
 	h.sendJSON(remoteAddr, response)
 }
 
+// handleCreateAgent creates a new agent from a mobile client request.
+func (h *Hub) handleCreateAgent(remoteAddr *net.UDPAddr, msg map[string]interface{}) {
+	addrStr := remoteAddr.String()
+
+	name, _ := msg["name"].(string)
+	if name == "" {
+		LogCommand(addrStr, "create_agent", "failed: missing name field")
+		h.sendError(remoteAddr, "missing name field")
+		return
+	}
+
+	count := 1
+	if countVal, ok := msg["count"].(float64); ok {
+		count = int(countVal)
+		if count < 1 {
+			count = 1
+		}
+	}
+
+	// Create agent folders
+	created := make([]AgentConfig, 0)
+	for i := 1; i <= count; i++ {
+		agentID := fmt.Sprintf("%s-%d", name, i)
+		agentWorkspace := filepath.Join(h.config.Workspace, agentID)
+
+		// Create workspace directory
+		if err := os.MkdirAll(agentWorkspace, 0755); err != nil {
+			h.sendError(remoteAddr, fmt.Sprintf("failed to create workspace for %s: %v", agentID, err))
+			return
+		}
+
+		// For the first agent, create a default config.json
+		if i == 1 {
+			defaultConfig := map[string]interface{}{
+				"llm": map[string]interface{}{
+					"temperature":     0.5,
+					"max_iterations":  1000,
+					"confirm_command": true,
+				},
+				"mcp": map[string]interface{}{
+					"servers": []interface{}{},
+				},
+				"rules": []interface{}{},
+			}
+			configData, _ := json.MarshalIndent(defaultConfig, "", "  ")
+			os.WriteFile(filepath.Join(agentWorkspace, "config.json"), configData, 0644)
+		} else {
+			// Copy config from the first agent
+			srcConfig := filepath.Join(h.config.Workspace, fmt.Sprintf("%s-%d", name, 1), "config.json")
+			dstConfig := filepath.Join(agentWorkspace, "config.json")
+			if data, err := os.ReadFile(srcConfig); err == nil {
+				os.WriteFile(dstConfig, data, 0644)
+			}
+		}
+
+		agentCfg := AgentConfig{
+			ID:         agentID,
+			Name:       agentID,
+			Workspace:  agentWorkspace,
+			ConfigPath: filepath.Join(agentWorkspace, "config.json"),
+		}
+
+		h.mu.Lock()
+		h.agents[agentID] = &AgentSession{
+			config: agentCfg,
+		}
+		h.mu.Unlock()
+
+		created = append(created, agentCfg)
+		LogAgent(addrStr, agentID, "created")
+	}
+
+	// Save updated config
+	h.config.Agents = append(h.config.Agents, created...)
+
+	LogCommand(addrStr, "create_agent", fmt.Sprintf("created %d agents (name=%s)", len(created), name))
+
+	response := map[string]interface{}{
+		"type":   "agent_created",
+		"agents": created,
+	}
+	h.sendJSON(remoteAddr, response)
+}
+
 // handleClientMessage routes a client message to the appropriate agent.
+// The message content is prefixed with "<nickname>说：" to identify the sender.
 func (h *Hub) handleClientMessage(remoteAddr *net.UDPAddr, msg map[string]interface{}) {
+	addrStr := remoteAddr.String()
+
 	agentID, _ := msg["agent_id"].(string)
 	if agentID == "" {
 		agentID = "default"
@@ -284,26 +535,42 @@ func (h *Hub) handleClientMessage(remoteAddr *net.UDPAddr, msg map[string]interf
 
 	content, _ := msg["content"].(string)
 
+	// Get the client's nickname from handshake record
+	h.nickMu.RLock()
+	nickname := h.clientNicknames[addrStr]
+	h.nickMu.RUnlock()
+
+	// Prepend nickname to content
+	if nickname != "" && content != "" {
+		content = fmt.Sprintf("<%s>说：%s", nickname, content)
+	}
+
+	LogMessage(addrStr, agentID, content)
+
 	h.mu.RLock()
 	agent, exists := h.agents[agentID]
 	h.mu.RUnlock()
 
 	if !exists {
+		LogError(EventMessage, addrStr, fmt.Sprintf("agent not found: %s", agentID))
 		h.sendError(remoteAddr, fmt.Sprintf("agent not found: %s", agentID))
 		return
 	}
 
-	// Start agent if not running
+	// Start agent if not running (lazy mode)
 	if !agent.IsRunning() {
-		if err := agent.Start(h.config.CoShellPath, h.config.Workspace); err != nil {
-			log.Printf("Failed to start agent %s: %v", agentID, err)
+		LogAgent(addrStr, agentID, "starting (lazy)")
+		if err := h.startAgent(agentID); err != nil {
+			LogError(EventAgent, addrStr, fmt.Sprintf("failed to start agent %s: %v", agentID, err))
 			h.sendError(remoteAddr, fmt.Sprintf("failed to start agent: %v", err))
 			return
 		}
+		LogAgent(addrStr, agentID, "started")
 	}
 
-	// Send message to agent
+	// Send message to agent (with nickname prefix)
 	if err := agent.Send(content); err != nil {
+		LogError(EventMessage, addrStr, fmt.Sprintf("failed to send message to agent %s: %v", agentID, err))
 		h.sendError(remoteAddr, fmt.Sprintf("failed to send message: %v", err))
 		return
 	}
@@ -312,7 +579,7 @@ func (h *Hub) handleClientMessage(remoteAddr *net.UDPAddr, msg map[string]interf
 	go func() {
 		response, err := agent.ReadResponse(30 * time.Second)
 		if err != nil {
-			log.Printf("Agent %s response error: %v", agentID, err)
+			LogError(EventAgent, addrStr, fmt.Sprintf("agent %s response error: %v", agentID, err))
 			return
 		}
 
@@ -324,6 +591,24 @@ func (h *Hub) handleClientMessage(remoteAddr *net.UDPAddr, msg map[string]interf
 
 		h.sendJSON(remoteAddr, responseMsg)
 	}()
+}
+
+// startAgent starts a co-shell agent process.
+func (h *Hub) startAgent(agentID string) error {
+	h.mu.RLock()
+	agent, exists := h.agents[agentID]
+	h.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("agent not found: %s", agentID)
+	}
+
+	workspace := agent.config.Workspace
+	if workspace == "" {
+		workspace = h.config.Workspace
+	}
+
+	return agent.Start(h.config.CoShellPath, workspace)
 }
 
 // sendJSON sends a JSON message to a remote UDP address.

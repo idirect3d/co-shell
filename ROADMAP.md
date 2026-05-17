@@ -191,11 +191,19 @@
   - [x] 使用 Flutter 开发 iOS/Android 跨平台应用
   - [x] 所有移动端代码放在 mobile/ 目录下
   - [x] 通信协议：UDP + 首次请求密钥验证（无密钥不回包，降低被扫描风险）
-  - [ ] 实现 co-shell-hub（多 agent 管理服务端）
+  - [x] 实现 co-shell-hub（多 agent 管理服务端）
     - hub 监听 UDP 端口，处理握手验证
     - 管理多个 co-shell 实例的生命周期
     - 消息路由（根据 agent_id 转发）
     - 会话管理（创建/切换 agent）
+  - [x] FEATURE-183 co-shell-hub 改进：简化认证流程，使用昵称+access key 替代公钥签名 [BUILD-XXX]
+    - 新增 --add-client 命令注册移动端客户端
+    - 新增 --gen-key 命令生成密钥对
+    - 新增 --dev 开发模式（返回错误详情）
+    - 新增 --log-dir/--log-level 日志配置
+    - 握手协议简化：客户端发送 nickname + access_key
+    - 消息自动添加 "<昵称>说：" 前缀
+    - 移动端 Flutter 代码同步更新
   - [ ] 移动端支持多 agent 会话列表
   - [ ] 支持功能：聊天界面、语音输入、图片选择、任务计划查看
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
