@@ -196,7 +196,7 @@
     - 管理多个 co-shell 实例的生命周期
     - 消息路由（根据 agent_id 转发）
     - 会话管理（创建/切换 agent）
-  - [x] FEATURE-183 co-shell-hub 改进：简化认证流程，使用昵称+access key 替代公钥签名 [BUILD-XXX]
+  - [x] FEATURE-183 co-shell-hub 改进：简化认证流程，使用昵称+access key 替代公钥签名 [BUILD-180]
     - 新增 --add-client 命令注册移动端客户端
     - 新增 --gen-key 命令生成密钥对
     - 新增 --dev 开发模式（返回错误详情）
