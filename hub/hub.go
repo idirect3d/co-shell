@@ -69,7 +69,7 @@ type HubConfig struct {
 // DefaultConfig returns the default hub configuration.
 func DefaultConfig() *HubConfig {
 	return &HubConfig{
-		Port:        8080,
+		Port:        12800,
 		CoShellPath: "co-shell",
 		Workspace:   ".",
 		Agents: []AgentConfig{
