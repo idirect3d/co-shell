@@ -187,7 +187,17 @@
   - FIX-123b 修复 Ping/Pong 心跳处理：设置 WebSocket 协议层的 PongHandler，自动响应服务端 Ping 帧；设置 ReadDeadline 检测连接状态
   - FIX-123c 优化日志：pong 心跳消息仅在 debug 级别输出，减少日志噪音
 - [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
-- [ ] FEATURE-128 增加移动端APP和0信任网关，以便用户能够在手机端安全的操控co-shell。
+- [ ] FEATURE-128 增加移动端APP和co-shell-hub，以便用户能够在手机端安全的操控co-shell。
+  - [x] 使用 Flutter 开发 iOS/Android 跨平台应用
+  - [x] 所有移动端代码放在 mobile/ 目录下
+  - [x] 通信协议：UDP + 首次请求密钥验证（无密钥不回包，降低被扫描风险）
+  - [ ] 实现 co-shell-hub（多 agent 管理服务端）
+    - hub 监听 UDP 端口，处理握手验证
+    - 管理多个 co-shell 实例的生命周期
+    - 消息路由（根据 agent_id 转发）
+    - 会话管理（创建/切换 agent）
+  - [ ] 移动端支持多 agent 会话列表
+  - [ ] 支持功能：聊天界面、语音输入、图片选择、任务计划查看
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 - [x] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题 [BUILD-161]
 - [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
