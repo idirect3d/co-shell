@@ -244,6 +244,7 @@
   - 增强 LoopDetector 单词重复检测模式（同一单词重复、交替两词模式）
   - 完善 streamLLMResponse debug 日志
   - 新增 docs/system-prompt-composition.md system prompt 组成文档
+- [ ] FEATURE-182 增加类CLINE的XML工具调用模式，以便能够与LLM自身能力解耦。
 
 ## v1.0.0 — 正式版
 
