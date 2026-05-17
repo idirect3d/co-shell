@@ -105,6 +105,10 @@ type LLMConfig struct {
 	AgentDescription string `json:"agent_description"` // Agent expertise description
 	AgentPrinciples  string `json:"agent_principles"`  // Agent core principles
 
+	// User identity
+	UserName string `json:"user_name"` // User name for LLM to identify different users (default: OS username)
+	Channel  string `json:"channel"`   // Communication channel: co-shell, feishu, co-tor, agent (default: co-shell)
+
 	// Vision support
 	VisionSupport bool `json:"vision_support"` // Whether the model supports vision/multimodal input
 

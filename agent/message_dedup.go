@@ -43,13 +43,13 @@ import (
 type MessageDedup struct {
 	mu                   sync.Mutex
 	enabled              bool
-	featureRatio         float64  // ratio of words to extract as features
-	matchRatio           float64  // minimum feature match ratio to proceed to stage 2
-	similarityThreshold  int      // Jaccard similarity threshold (0-100)
-	maxHistory           int      // max recent messages to check
-	repeatLimit          int      // duplicate count trigger
-	repeatCount          int      // current consecutive duplicate count
-	lastDuplicateContent string   // content of the last detected duplicate
+	featureRatio         float64 // ratio of words to extract as features
+	matchRatio           float64 // minimum feature match ratio to proceed to stage 2
+	similarityThreshold  int     // Jaccard similarity threshold (0-100)
+	maxHistory           int     // max recent messages to check
+	repeatLimit          int     // duplicate count trigger
+	repeatCount          int     // current consecutive duplicate count
+	lastDuplicateContent string  // content of the last detected duplicate
 	lastDuplicateTime    time.Time
 }
 
@@ -266,8 +266,13 @@ func (md *MessageDedup) findBestFeatureMatch(recent []messageWithContent, featur
 func findOrderedMatches(content string, features []string) []string {
 	var matched []string
 	lastPos := -1
+	contentLen := len(content)
 
 	for _, feature := range features {
+		// Guard: if lastPos is at or past the end, no more matches possible
+		if lastPos+1 >= contentLen {
+			break
+		}
 		// Find this feature after the last matched position
 		pos := strings.Index(content[lastPos+1:], feature)
 		if pos >= 0 {
@@ -340,9 +345,9 @@ func tokenize(content string) []stringWithPos {
 			for j := 0; j < len(segment)-1; j += 2 {
 				if j+2 <= len(segment) {
 					result = append(result, stringWithPos{
-						str:  segment[j : j+2],
-						pos:  start + j,
-						len:  2,
+						str: segment[j : j+2],
+						pos: start + j,
+						len: 2,
 					})
 				}
 			}
@@ -356,9 +361,9 @@ func tokenize(content string) []stringWithPos {
 				i++
 			}
 			result = append(result, stringWithPos{
-				str:  string(runes[start:i]),
-				pos:  start,
-				len:  i - start,
+				str: string(runes[start:i]),
+				pos: start,
+				len: i - start,
 			})
 			continue
 		}
@@ -372,9 +377,9 @@ func tokenize(content string) []stringWithPos {
 
 // stringWithPos represents a tokenized string with its position.
 type stringWithPos struct {
-	str  string
-	pos  int
-	len  int
+	str string
+	pos int
+	len int
 }
 
 // stripTimestampPrefix removes timestamp prefixes from message content.
@@ -432,7 +437,7 @@ func isCJK(r rune) bool {
 		(r >= 0xF900 && r <= 0xFAFF) || // CJK Compatibility Ideographs
 		(r >= 0x3040 && r <= 0x309F) || // Japanese Hiragana
 		(r >= 0x30A0 && r <= 0x30FF) || // Japanese Katakana
-		(r >= 0xAC00 && r <= 0xD7AF)    // Korean Hangul
+		(r >= 0xAC00 && r <= 0xD7AF) // Korean Hangul
 }
 
 // isAlphaNumeric checks if a rune is alphanumeric.

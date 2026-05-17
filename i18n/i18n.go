@@ -453,15 +453,28 @@ const (
 	// Custom
 	KeyCustom = "custom"
 
-	// System Prompt
-	KeySystemPromptTitle        = "system_prompt_title"
-	KeySystemPromptEnv          = "system_prompt_env"
-	KeySystemPromptCapabilities = "system_prompt_capabilities"
-	KeySystemPromptRules        = "system_prompt_rules"
-	KeySystemPromptResultMode   = "system_prompt_result_mode"
+	// System Prompt — keys used in buildSystemPromptWithMode (agent/system_prompt.go)
+	// Actual assembly order: Identity → Title → Capabilities → Rules → ResultMode
 	KeySystemPromptIdentity     = "system_prompt_identity"
 	KeyDefaultAgentDescription  = "default_agent_description"
 	KeyDefaultAgentPrinciples   = "default_agent_principles"
+	KeyAnonymousUser            = "anonymous_user"
+	KeySystemPromptObjective    = "system_prompt_objective"
+	KeySystemPromptEnvironment  = "system_prompt_environment"
+	KeySystemPromptCapabilities = "system_prompt_capabilities"
+	KeySystemPromptRules        = "system_prompt_rules"
+	KeySystemPromptResultMode   = "system_prompt_result_mode"
+
+	// System Prompt — legacy keys (not used in buildSystemPromptWithMode, kept for reference)
+	// These were inherited from Cline's system prompt structure but co-shell delivers
+	// tool definitions via function calling (tools.go) rather than inline text.
+	KeySystemPromptToolUsage        = "system_prompt_tool_usage"
+	KeySystemPromptEnv              = "system_prompt_env"
+	KeySystemPromptDynamicEnv       = "system_prompt_dynamic_env"
+	KeySystemPromptToolExamples     = "system_prompt_tool_examples"
+	KeySystemPromptToolGuidelines   = "system_prompt_tool_guidelines"
+	KeySystemPromptUpdatingProgress = "system_prompt_updating_progress"
+	KeySystemPromptEditingFiles     = "system_prompt_editing_files"
 
 	// Timeout settings
 	KeyConfigToolTimeout   = "config_tool_timeout"
@@ -705,20 +718,20 @@ const (
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
 
 	// Context start mode (FEATURE-103)
-	KeyCol3ContextStartMode     = "col3_context_start_mode"
-	KeySettingsDescCtxStart     = "settings_desc_ctx_start"
-	KeyContextStartUpdated      = "context_start_updated"
-	KeyCLIHelpContextStart      = "cli_help_context_start"
-	KeyContextStartWindow       = "context_start_window"
-	KeyContextStartWindowDesc   = "context_start_window_desc"
-	KeyContextStartTask         = "context_start_task"
-	KeyContextStartTaskDesc     = "context_start_task_desc"
-	KeyContextStartSmart        = "context_start_smart"
-	KeyContextStartSmartDesc    = "context_start_smart_desc"
-	KeyAdjustContextStartDesc   = "adjust_context_start_desc"
-	KeyAdjustContextStartResult = "adjust_context_start_result"
+	KeyCol3ContextStartMode       = "col3_context_start_mode"
+	KeySettingsDescCtxStart       = "settings_desc_ctx_start"
+	KeyContextStartUpdated        = "context_start_updated"
+	KeyCLIHelpContextStart        = "cli_help_context_start"
+	KeyContextStartWindow         = "context_start_window"
+	KeyContextStartWindowDesc     = "context_start_window_desc"
+	KeyContextStartTask           = "context_start_task"
+	KeyContextStartTaskDesc       = "context_start_task_desc"
+	KeyContextStartSmart          = "context_start_smart"
+	KeyContextStartSmartDesc      = "context_start_smart_desc"
+	KeyAdjustContextStartDesc     = "adjust_context_start_desc"
+	KeyAdjustContextStartResult   = "adjust_context_start_result"
 	KeyAdjustContextStartNotSmart = "adjust_context_start_not_smart"
-	KeyAdjustContextStartPrompt = "adjust_context_start_prompt"
+	KeyAdjustContextStartPrompt   = "adjust_context_start_prompt"
 
 	// Unknown (fallback display)
 	KeyUnknown = "unknown"

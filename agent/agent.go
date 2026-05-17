@@ -276,12 +276,16 @@ func (a *Agent) rebuildSystemPrompt() {
 	agentName := ""
 	agentDesc := ""
 	agentPrinciples := ""
+	userName := ""
+	channel := ""
 	if a.cfg != nil {
 		agentName = a.cfg.LLM.AgentName
 		agentDesc = a.cfg.LLM.AgentDescription
 		agentPrinciples = a.cfg.LLM.AgentPrinciples
+		userName = a.cfg.LLM.UserName
+		channel = a.cfg.LLM.Channel
 	}
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples)
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel)
 	// Preserve conversation history: only replace the system message at index 0
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -453,12 +457,16 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	agentName := ""
 	agentDesc := ""
 	agentPrinciples := ""
+	userName := ""
+	channel := ""
 	if a.cfg != nil {
 		agentName = a.cfg.LLM.AgentName
 		agentDesc = a.cfg.LLM.AgentDescription
 		agentPrinciples = a.cfg.LLM.AgentPrinciples
+		userName = a.cfg.LLM.UserName
+		channel = a.cfg.LLM.Channel
 	}
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples)
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel)
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
 	}
