@@ -40,7 +40,7 @@ import (
 
 // buildSystemPrompt constructs the system prompt with rules and context.
 func buildSystemPrompt(rules string) string {
-	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "")
+	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "", "", "")
 }
 
 // loadExternalFile attempts to load a text file from the workspace root directory.
@@ -60,40 +60,24 @@ func loadExternalFile(workspacePath, filename string) string {
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
 // The prompt is built using the current i18n language setting.
 // agentName, agentDescription, agentPrinciples are optional identity fields from config.
+// userName is the user's name for LLM to identify different users (default: OS username).
+// channel is the communication channel (co-shell, feishu, co-tor, agent).
 // If workspacePath is non-empty, it tries to load capabilities.md and rules.md from the workspace
 // root to override the built-in i18n defaults.
-func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples string) string {
+//
+// Assembly order (FIX-181):
+//
+//	Identity → ToolUsage → ResultMode → Capabilities → Rules → StaticEnv → Custom → DynamicEnv
+func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples, userName, channel string) string {
 	sh := shellName()
 
-	// Gather environment context
+	// Gather static environment context
 	cwd, _ := os.Getwd()
 	hostname, _ := os.Hostname()
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 	username := os.Getenv("USER")
 	if username == "" {
 		username = os.Getenv("USERNAME")
 	}
-
-	// Build prompt using i18n translations
-	title := i18n.TF(i18n.KeySystemPromptTitle,
-		runtime.GOOS, runtime.GOARCH, sh, now, cwd, hostname, username)
-
-	// Try to load external CAPABILITIES.md and RULES.md from workspace
-	// If not found, fall back to built-in i18n values
-	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
-	if capabilities == "" {
-		capabilities = i18n.TF(i18n.KeySystemPromptCapabilities, sh)
-	}
-
-	rulesText := loadExternalFile(cwd, "RULES.md")
-	if rulesText == "" {
-		rulesText = i18n.T(i18n.KeySystemPromptRules)
-	}
-
-	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
-
-	prompt := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\nAvailable tools will be provided to you as function definitions.",
-		title, capabilities, rulesText, resultModeText)
 
 	// Use i18n defaults for empty identity fields
 	if agentName == "" {
@@ -106,13 +90,69 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 		agentPrinciples = i18n.T(i18n.KeyDefaultAgentPrinciples)
 	}
 
-	// Add agent identity
+	// Part 1: Identity
 	identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
-	prompt = fmt.Sprintf("%s\n\n%s", identityText, prompt)
 
-	if rules != "" {
-		prompt += fmt.Sprintf("\n\n%s:\n%s", i18n.T(i18n.KeyCustom), rules)
+	// Part 2: Tool Usage Guide
+	toolUsageText := i18n.T(i18n.KeySystemPromptToolUsage)
+
+	// Part 3: Result Mode
+	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
+
+	// Part 4: Capabilities — try external file first, fall back to i18n
+	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
+	if capabilities == "" {
+		capabilities = i18n.TF(i18n.KeySystemPromptCapabilities, sh)
 	}
+
+	// Part 5: Rules — try external file first, fall back to i18n
+	rulesText := loadExternalFile(cwd, "RULES.md")
+	if rulesText == "" {
+		rulesText = i18n.T(i18n.KeySystemPromptRules)
+	}
+
+	// Part 6: Objective (task execution methodology)
+	objectiveText := i18n.T(i18n.KeySystemPromptObjective)
+
+	// Part 7: Static Environment (no dynamic fields like time)
+	envText := i18n.TF(i18n.KeySystemPromptEnvironment,
+		runtime.GOOS, runtime.GOARCH, sh, cwd, hostname, username)
+
+	// Separator between major sections (sections with English uppercase titles)
+	sep := "\n\n====\n\n"
+
+	// Assemble Parts 1-7 with separator
+	prompt := identityText + sep +
+		toolUsageText + sep +
+		resultModeText + sep +
+		capabilities + sep +
+		rulesText + sep +
+		objectiveText + sep +
+		envText
+
+	// Part 8: Custom Rules (optional)
+	if rules != "" {
+		prompt += sep + fmt.Sprintf("%s:\n%s", i18n.T(i18n.KeyCustom), rules)
+	}
+
+	// Part 9: Dynamic Environment (appended last, changes per request)
+	now := time.Now().Format("2006-01-02 15:04:05 Monday")
+
+	// Build channel info: "user-name @ channel-type"
+	// Default userName to anonymous user string if not set
+	displayUser := userName
+	if displayUser == "" {
+		displayUser = i18n.T(i18n.KeyAnonymousUser)
+	}
+	// Default channel to "co-shell" if not set
+	displayChannel := channel
+	if displayChannel == "" {
+		displayChannel = "co-shell"
+	}
+	channelInfo := displayUser + " @ " + displayChannel
+
+	dynamicEnv := i18n.TF(i18n.KeySystemPromptDynamicEnv, now, channelInfo)
+	prompt += sep + dynamicEnv
 
 	return prompt
 }
