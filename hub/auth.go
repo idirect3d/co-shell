@@ -1,5 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-17
+// Last Modified: 2026-05-17
 //
 // MIT License
 //
@@ -32,14 +33,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 )
 
+// ClientInfo represents a registered mobile client.
+type ClientInfo struct {
+	// Nickname is the display name of the mobile client.
+	Nickname string `json:"nickname"`
+	// PublicKey is the base64-encoded Ed25519 public key used as access credential.
+	PublicKey string `json:"public_key"`
+}
+
 // AuthConfig holds the authentication configuration for hub-mobile communication.
+// Hub holds a single private key. Mobile clients only need the hub's public key
+// as an access credential. Multiple mobile clients can be registered, each with
+// a nickname and their own public key.
 type AuthConfig struct {
 	// HubPrivateKey is the base64-encoded Ed25519 private key.
 	HubPrivateKey string `json:"hub_private_key,omitempty"`
-	// MobilePublicKey is the base64-encoded Ed25519 public key for mobile clients.
-	MobilePublicKey string `json:"mobile_public_key,omitempty"`
+	// Clients is the list of registered mobile clients.
+	Clients []ClientInfo `json:"clients,omitempty"`
+	// clientsByKey is an in-memory index for fast lookup by public key.
+	clientsByKey map[string]*ClientInfo
+	mu           sync.RWMutex
 }
 
 // KeyPair holds the Ed25519 key pair.
@@ -73,8 +89,22 @@ func LoadOrGenerateAuth(configPath string) (*AuthConfig, error) {
 				if pk, ok := authData["hub_private_key"].(string); ok {
 					auth.HubPrivateKey = pk
 				}
-				if mpk, ok := authData["mobile_public_key"].(string); ok {
-					auth.MobilePublicKey = mpk
+				// Load clients list
+				if clientsRaw, ok := authData["clients"].([]interface{}); ok {
+					for _, c := range clientsRaw {
+						if cm, ok := c.(map[string]interface{}); ok {
+							client := ClientInfo{}
+							if n, ok := cm["nickname"].(string); ok {
+								client.Nickname = n
+							}
+							if pk, ok := cm["public_key"].(string); ok {
+								client.PublicKey = pk
+							}
+							if client.Nickname != "" && client.PublicKey != "" {
+								auth.Clients = append(auth.Clients, client)
+							}
+						}
+					}
 				}
 			}
 		}
@@ -87,10 +117,22 @@ func LoadOrGenerateAuth(configPath string) (*AuthConfig, error) {
 			return nil, err
 		}
 		auth.HubPrivateKey = base64.StdEncoding.EncodeToString(keyPair.PrivateKey)
-		auth.MobilePublicKey = "" // Will be set manually or from config
 	}
 
+	// Build in-memory index
+	auth.rebuildIndex()
+
 	return auth, nil
+}
+
+// rebuildIndex rebuilds the in-memory client lookup index.
+func (a *AuthConfig) rebuildIndex() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.clientsByKey = make(map[string]*ClientInfo)
+	for i := range a.Clients {
+		a.clientsByKey[a.Clients[i].PublicKey] = &a.Clients[i]
+	}
 }
 
 // GetHubPublicKey returns the hub's public key as base64 string.
@@ -109,6 +151,45 @@ func (a *AuthConfig) GetHubPublicKey() (string, error) {
 	return base64.StdEncoding.EncodeToString(pub), nil
 }
 
+// AddClient adds a new mobile client and returns its generated public key.
+func (a *AuthConfig) AddClient(nickname string) (string, error) {
+	// Generate a new key pair for the client
+	keyPair, err := GenerateKeyPair()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate client key: %w", err)
+	}
+
+	pubKey := base64.StdEncoding.EncodeToString(keyPair.PublicKey)
+
+	client := ClientInfo{
+		Nickname:  nickname,
+		PublicKey: pubKey,
+	}
+
+	a.mu.Lock()
+	a.Clients = append(a.Clients, client)
+	if a.clientsByKey != nil {
+		a.clientsByKey[pubKey] = &a.Clients[len(a.Clients)-1]
+	}
+	a.mu.Unlock()
+
+	return pubKey, nil
+}
+
+// GetClientByPublicKey looks up a client by their public key.
+func (a *AuthConfig) GetClientByPublicKey(pubKey string) *ClientInfo {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.clientsByKey == nil {
+		return nil
+	}
+	client, ok := a.clientsByKey[pubKey]
+	if !ok {
+		return nil
+	}
+	return client
+}
+
 // SaveAuth saves the auth config to the hub config file.
 func (a *AuthConfig) SaveAuth(configPath string) error {
 	data, err := os.ReadFile(configPath)
@@ -118,8 +199,8 @@ func (a *AuthConfig) SaveAuth(configPath string) error {
 			"port":      12800,
 			"workspace": ".",
 			"auth": map[string]interface{}{
-				"hub_private_key":   a.HubPrivateKey,
-				"mobile_public_key": a.MobilePublicKey,
+				"hub_private_key": a.HubPrivateKey,
+				"clients":         a.Clients,
 			},
 			"agents": []interface{}{},
 		}
@@ -134,9 +215,7 @@ func (a *AuthConfig) SaveAuth(configPath string) error {
 
 	authData := map[string]interface{}{
 		"hub_private_key": a.HubPrivateKey,
-	}
-	if a.MobilePublicKey != "" {
-		authData["mobile_public_key"] = a.MobilePublicKey
+		"clients":         a.Clients,
 	}
 	rawConfig["auth"] = authData
 
