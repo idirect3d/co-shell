@@ -37,34 +37,34 @@ import (
 // the LLM is stuck in a loop. It detects when the same structural pattern
 // with incremental values (e.g., timestamps, counters) appears too frequently.
 type LoopDetector struct {
-	threshold     int           // min occurrences of same pattern to trigger
-	maxWindow     int           // max chunks to keep in history
-	accumulated   string        // accumulated output content
-	patterns      map[string]*PatternCount // detected patterns and their counts
-	currentTotal  int           // total chunks added
-	lastCheckLen  int           // length of content last checked
+	threshold    int                      // min occurrences of same pattern to trigger
+	maxWindow    int                      // max chunks to keep in history
+	accumulated  string                   // accumulated output content
+	patterns     map[string]*PatternCount // detected patterns and their counts
+	currentTotal int                      // total chunks added
+	lastCheckLen int                      // length of content last checked
 }
 
 // PatternCount tracks occurrences of a specific pattern.
 type PatternCount struct {
-	Pattern     string   // normalized pattern (timestamps replaced with [TIME])
-	PatternType string   // type of pattern (timestamp, counter, etc.)
-	RawSample   string   // raw sample of the pattern for feedback
-	Count       int      // number of occurrences
+	Pattern     string      // normalized pattern (timestamps replaced with [TIME])
+	PatternType string      // type of pattern (timestamp, counter, etc.)
+	RawSample   string      // raw sample of the pattern for feedback
+	Count       int         // number of occurrences
 	Timestamps  []time.Time // timestamps of each occurrence
-	Lines       []string // original lines containing this pattern
+	Lines       []string    // original lines containing this pattern
 }
 
 // LoopDetectedError is returned when a loop is detected.
 type LoopDetectedError struct {
-	pattern       string   // the repeated pattern
-	patternType   string   // type of pattern (timestamp, counter, etc.)
-	repeatCount   int      // how many times it repeated
-	windowSize    int      // sliding window size
-	threshold     int      // detection threshold
-	startTime     time.Time
-	endTime       time.Time
-	suggestion    string   // suggestion for the agent to correct
+	pattern     string // the repeated pattern
+	patternType string // type of pattern (timestamp, counter, etc.)
+	repeatCount int    // how many times it repeated
+	windowSize  int    // sliding window size
+	threshold   int    // detection threshold
+	startTime   time.Time
+	endTime     time.Time
+	suggestion  string // suggestion for the agent to correct
 }
 
 func (e *LoopDetectedError) Error() string {
@@ -90,9 +90,9 @@ func NewLoopDetector(threshold int, maxWindow int) *LoopDetector {
 		maxWindow = 256
 	}
 	return &LoopDetector{
-		threshold:  threshold,
-		maxWindow:  maxWindow,
-		patterns:   make(map[string]*PatternCount),
+		threshold: threshold,
+		maxWindow: maxWindow,
+		patterns:  make(map[string]*PatternCount),
 	}
 }
 
@@ -163,15 +163,15 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 // identifyPattern analyzes a line and returns pattern information if it matches
 // a known loop pattern type (timestamp increment, counter, etc.).
 func identifyPattern(line string) *struct {
-	normalized string
+	normalized  string
 	patternType string
 } {
 	// Pattern 1: Timestamp increment pattern
 	// Examples: "114: 2026-05-13 18:04:22 - ", "30: 在 2026-05-14 15:30:29 说："
 	timestampPatterns := []string{
-		`^[\d:]+ \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, // "114: 2026-05-13 18:04:22"
+		`^[\d:]+ \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`,   // "114: 2026-05-13 18:04:22"
 		`^[\d:]+ 在 \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, // "30: 在 2026-05-14 15:30:29"
-		`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`, // bare timestamp
+		`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`,           // bare timestamp
 	}
 
 	for _, pat := range timestampPatterns {
@@ -180,10 +180,10 @@ func identifyPattern(line string) *struct {
 			// Normalize: replace timestamp with [TIME]
 			normalized := normalizeTimestamps(line)
 			return &struct {
-				normalized    string
+				normalized  string
 				patternType string
 			}{
-				normalized:    normalized,
+				normalized:  normalized,
 				patternType: "timestamp increment",
 			}
 		}
@@ -196,10 +196,10 @@ func identifyPattern(line string) *struct {
 	if re.MatchString(line) {
 		normalized := re.ReplaceAllString(line, "${1}[NUM]")
 		return &struct {
-			normalized    string
+			normalized  string
 			patternType string
 		}{
-			normalized:    normalized,
+			normalized:  normalized,
 			patternType: "counter increment",
 		}
 	}
@@ -218,11 +218,63 @@ func identifyPattern(line string) *struct {
 			if isCommonPrefix(prefix) {
 				normalized := prefix + "[CONTENT]"
 				return &struct {
-					normalized    string
+					normalized  string
 					patternType string
 				}{
-					normalized:    normalized,
+					normalized:  normalized,
 					patternType: "repeated prefix",
+				}
+			}
+		}
+	}
+
+	// Pattern 4: Word/phrase repetition pattern
+	// Detects when the same word or short phrase is repeated consecutively.
+	// Examples: "oblivion oblivion oblivion oblivion", "test test test"
+	// This catches LLM loops where the model repeats the same word many times.
+	words := strings.Fields(line)
+	if len(words) >= 4 {
+		// Check if all words are the same (case-insensitive)
+		firstWord := strings.ToLower(words[0])
+		allSame := true
+		for _, w := range words[1:] {
+			if strings.ToLower(w) != firstWord {
+				allSame = false
+				break
+			}
+		}
+		if allSame && firstWord != "" {
+			normalized := firstWord + " [REPEATED]"
+			return &struct {
+				normalized  string
+				patternType string
+			}{
+				normalized:  normalized,
+				patternType: "word repetition",
+			}
+		}
+
+		// Check for alternating two-word pattern (e.g., "A B A B A B")
+		if len(words) >= 6 && len(words)%2 == 0 {
+			pairA := strings.ToLower(words[0])
+			pairB := strings.ToLower(words[1])
+			if pairA != pairB {
+				alternating := true
+				for i := 0; i < len(words); i += 2 {
+					if strings.ToLower(words[i]) != pairA || strings.ToLower(words[i+1]) != pairB {
+						alternating = false
+						break
+					}
+				}
+				if alternating {
+					normalized := pairA + " " + pairB + " [ALTERNATING]"
+					return &struct {
+						normalized  string
+						patternType string
+					}{
+						normalized:  normalized,
+						patternType: "word repetition",
+					}
 				}
 			}
 		}

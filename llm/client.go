@@ -1066,6 +1066,11 @@ func (sr *StreamReader) Read() ([]byte, error) {
 		buf := make([]byte, 4096)
 		n, readErr := sr.rawReader.Read(buf)
 		if n > 0 {
+			// Log each raw chunk immediately as it arrives from the network.
+			// This is critical for diagnosing hangs: if the LLM server is still
+			// sending data but the program appears stuck, the raw chunk log will
+			// show whether data is actually arriving.
+			log.Raw("|%s", string(buf[:n]))
 			sr.reader.Write(buf[:n])
 			continue
 		}

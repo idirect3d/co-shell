@@ -272,6 +272,27 @@ func Debug(format string, args ...interface{}) {
 	defaultLogger.write("DEBUG", format, args...)
 }
 
+// Raw writes raw content to the log file without any prefix (timestamp, level) and without trailing newline.
+// This is useful for tracing streaming data where each call appends to a continuous log line.
+// The content is written directly to the log file, bypassing the standard log format.
+// Only outputs when the log level is DEBUG or lower.
+func Raw(format string, args ...interface{}) {
+	if defaultLogger == nil {
+		return
+	}
+	defaultLogger.mu.Lock()
+	defer defaultLogger.mu.Unlock()
+	if !defaultLogger.enabled || defaultLogger.writer == nil {
+		return
+	}
+	// Only output at DEBUG level
+	if defaultLogger.level > LogLevelDebug {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	fmt.Fprint(defaultLogger.writer, msg)
+}
+
 // Close closes the log file.
 func Close() {
 	if defaultLogger == nil {
