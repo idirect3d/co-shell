@@ -62,6 +62,10 @@ func main() {
 	hubWorkspace := flag.String("hub-workspace", "", "hub workspace directory (default: current directory)")
 	lazyMode := flag.Bool("lazy-mode", true, "start agents on demand when message received")
 	startAll := flag.Bool("start-all", false, "start all agents on hub startup")
+	devMode := flag.Bool("dev", false, "development mode: return error details via UDP (insecure)")
+	logDir := flag.String("log-dir", "", "log directory (default: ./log)")
+	logLevel := flag.String("log-level", "info", "log level: debug, info, warn, error, off")
+	addClient := flag.String("add-client", "", "register a new mobile client with the given nickname and exit")
 	genKey := flag.Bool("gen-key", false, "generate a new Ed25519 key pair and exit")
 	showVersion := flag.Bool("version", false, "show version")
 	showHelp := flag.Bool("help", false, "show help")
@@ -86,11 +90,8 @@ func main() {
 		fmt.Println("=== Ed25519 Key Pair ===")
 		fmt.Printf("Private key: %x\n", keyPair.PrivateKey)
 		fmt.Printf("Public key:  %x\n", keyPair.PublicKey)
-		fmt.Println("\nAdd to hub.json:")
-		fmt.Printf(`"auth": {
-  "hub_private_key": "%x",
-  "mobile_public_key": ""
-}`, keyPair.PrivateKey)
+		fmt.Println("\nThis key pair is for the hub itself.")
+		fmt.Println("Use --add-client to register mobile clients.")
 		os.Exit(0)
 	}
 
@@ -110,6 +111,20 @@ func main() {
 	if err != nil {
 		log.Printf("Warning: cannot load auth config: %v", err)
 		auth = &hub.AuthConfig{}
+	}
+
+	// Add a new mobile client and exit
+	if *addClient != "" {
+		pubKey, err := auth.AddClient(*addClient)
+		if err != nil {
+			log.Fatalf("Failed to add client: %v", err)
+		}
+		if err := auth.SaveAuth(*configPath); err != nil {
+			log.Fatalf("Failed to save auth config: %v", err)
+		}
+		fmt.Printf("Client '%s' registered successfully.\n", *addClient)
+		fmt.Printf("Public key (save this on the mobile device): %s\n", pubKey)
+		os.Exit(0)
 	}
 
 	// Load config
@@ -139,6 +154,9 @@ func main() {
 			cfg.Agents[i].AutoStart = true
 		}
 	}
+	if *devMode {
+		cfg.DevMode = true
+	}
 
 	// Auto-discover agents from workspace subdirectories
 	if len(cfg.Agents) == 0 {
@@ -159,6 +177,19 @@ func main() {
 		log.Printf("Warning: cannot save config: %v", err)
 	}
 
+	// Initialize hub logger
+	logDirVal := *logDir
+	if logDirVal == "" {
+		logDirVal = filepath.Join(cfg.Workspace, "log")
+	}
+	logLevelVal := hub.LogLevelInfo
+	if parsed, ok := parseLogLevel(*logLevel); ok {
+		logLevelVal = parsed
+	}
+	if err := hub.InitHubLogger(logDirVal, true, logLevelVal); err != nil {
+		log.Printf("Warning: cannot initialize hub logger: %v", err)
+	}
+
 	// Create and run hub
 	h, err := hub.New(cfg, auth)
 	if err != nil {
@@ -166,6 +197,24 @@ func main() {
 	}
 
 	h.Run()
+}
+
+// parseLogLevel parses a string into hub.LogLevel.
+func parseLogLevel(s string) (hub.LogLevel, bool) {
+	switch s {
+	case "debug":
+		return hub.LogLevelDebug, true
+	case "info":
+		return hub.LogLevelInfo, true
+	case "warn", "warning":
+		return hub.LogLevelWarn, true
+	case "error":
+		return hub.LogLevelError, true
+	case "off":
+		return hub.LogLevelOff, true
+	default:
+		return hub.LogLevelInfo, false
+	}
 }
 
 func loadConfig(path string, port *int, coShellPath *string, hubWorkspace *string, lazyMode *bool, startAll *bool) (*hub.HubConfig, error) {
@@ -202,6 +251,8 @@ func printUsage() {
 
 Usage:
   co-shell-hub [flags]
+  co-shell-hub --add-client <nickname>  注册移动端客户端
+  co-shell-hub --gen-key                生成密钥对
 
 Flags:
   --config PATH           Config file path (default: ./hub.json)
@@ -210,9 +261,24 @@ Flags:
   --hub-workspace PATH    Hub workspace directory (default: current directory)
   --lazy-mode             Start agents on demand when message received (default: true)
   --start-all             Start all agents on hub startup
+  --dev                   Development mode (return error details via UDP, insecure)
+  --log-dir PATH          Log directory (default: <workspace>/log)
+  --log-level LEVEL       Log level: debug, info, warn, error, off (default: info)
+  --add-client NICKNAME   Register a new mobile client with the given nickname
   --gen-key               Generate a new Ed25519 key pair and exit
   --help                  Show help
   --version               Show version
+
+Examples:
+  # 首次启动（自动生成密钥对）
+  co-shell-hub --hub-workspace ./work
+
+  # 注册一个移动端客户端
+  co-shell-hub --add-client 张三
+
+  # 注册多个移动端客户端
+  co-shell-hub --add-client 张三
+  co-shell-hub --add-client 李四
 
 Config file (JSON):
   {
@@ -222,7 +288,10 @@ Config file (JSON):
     "lazy_mode": true,
     "auth": {
       "hub_private_key": "base64_encoded_private_key",
-      "mobile_public_key": "base64_encoded_public_key"
+      "clients": [
+        {"nickname": "张三", "public_key": "base64_encoded_public_key"},
+        {"nickname": "李四", "public_key": "base64_encoded_public_key"}
+      ]
     },
     "agents": [
       {"id": "default", "name": "默认助手"},

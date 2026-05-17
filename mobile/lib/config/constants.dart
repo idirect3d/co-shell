@@ -41,8 +41,16 @@ class Constants {
   static const int handshakeTimeout = 5;
 
   /// 应用名称
-  static const String appName = 'co-shell';
+  static const String appName = 'co-der';
 
   /// 应用版本
   static const String appVersion = '0.1.0';
+
+  /// 移动端昵称（在 Hub 中注册时使用的名称）
+  /// 修改为你在 hub 上注册的昵称
+  static const String clientNickname = '我的手机';
+
+  /// Hub 访问密钥（从 hub 注册时获取）
+  /// 使用 --add-client 注册后得到的 public_key
+  static const String hubAccessKey = '';
 }

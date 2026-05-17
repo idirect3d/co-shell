@@ -74,10 +74,13 @@ class UdpClient {
   }
 
   /// 发送首次握手请求
+  /// 发送昵称和 access key 作为身份凭证
   Future<bool> _sendHandshake() async {
     try {
       final handshakeData = {
         'type': 'handshake',
+        'nickname': Constants.clientNickname,
+        'access_key': Constants.hubAccessKey,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
 

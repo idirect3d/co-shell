@@ -71,6 +71,10 @@ type HubConfig struct {
 	Auth *AuthConfig `json:"auth,omitempty"`
 	// LazyMode indicates whether to start agents on demand (when message received).
 	LazyMode bool `json:"lazy_mode,omitempty"`
+	// DevMode enables development mode which returns error details via UDP.
+	// In production mode (default), invalid messages are silently discarded
+	// to avoid leaking service presence to port scanners.
+	DevMode bool `json:"dev_mode,omitempty"`
 }
 
 // DefaultConfig returns the default hub configuration.
@@ -181,6 +185,9 @@ type Hub struct {
 	udpConn *net.UDPConn
 	ctx     context.Context
 	cancel  context.CancelFunc
+	// clientNicknames maps remote address string to client nickname (after handshake).
+	clientNicknames map[string]string
+	nickMu          sync.RWMutex
 }
 
 // AgentSession represents a running co-shell agent session.
@@ -220,11 +227,8 @@ func New(config *HubConfig, auth *AuthConfig) (*Hub, error) {
 
 // Start starts the hub service.
 func (h *Hub) Start() error {
-	log.Printf("Starting co-shell-hub...")
-	log.Printf("UDP port: %d", h.config.Port)
-	log.Printf("Workspace: %s", h.config.Workspace)
-	log.Printf("Lazy mode: %v", h.config.LazyMode)
-	log.Printf("Agents: %d", len(h.config.Agents))
+	Log(EventSystem, "INFO", "starting co-shell-hub (port=%d workspace=%s lazy=%v agents=%d)",
+		h.config.Port, h.config.Workspace, h.config.LazyMode, len(h.config.Agents))
 
 	// Start UDP listener
 	if err := h.startUDP(); err != nil {
@@ -252,7 +256,7 @@ func (h *Hub) Start() error {
 
 // Stop stops the hub service.
 func (h *Hub) Stop() {
-	log.Println("Stopping co-shell-hub...")
+	Log(EventSystem, "INFO", "stopping co-shell-hub")
 	h.cancel()
 
 	h.mu.Lock()
@@ -265,7 +269,8 @@ func (h *Hub) Stop() {
 		h.udpConn.Close()
 	}
 
-	log.Println("co-shell-hub stopped")
+	Log(EventSystem, "INFO", "co-shell-hub stopped")
+	CloseHubLogger()
 }
 
 // startUDP starts the UDP listener.
@@ -313,16 +318,26 @@ func (h *Hub) readLoop(conn *net.UDPConn) {
 }
 
 // handleMessage processes an incoming message from a client.
+// In production mode (DevMode=false), invalid messages are silently discarded
+// to avoid leaking service presence to port scanners.
 func (h *Hub) handleMessage(data []byte, remoteAddr *net.UDPAddr) {
+	addrStr := remoteAddr.String()
+
 	var msg map[string]interface{}
 	if err := json.Unmarshal(data, &msg); err != nil {
-		h.sendError(remoteAddr, "invalid JSON")
+		LogSecurity(addrStr, "invalid JSON from "+addrStr)
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "invalid JSON")
+		}
 		return
 	}
 
 	msgType, ok := msg["type"].(string)
 	if !ok {
-		h.sendError(remoteAddr, "missing type field")
+		LogSecurity(addrStr, "missing type field")
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "missing type field")
+		}
 		return
 	}
 
@@ -336,19 +351,64 @@ func (h *Hub) handleMessage(data []byte, remoteAddr *net.UDPAddr) {
 	case "create_agent":
 		h.handleCreateAgent(remoteAddr, msg)
 	default:
-		h.sendError(remoteAddr, fmt.Sprintf("unknown message type: %s", msgType))
+		LogSecurity(addrStr, fmt.Sprintf("unknown message type: %s", msgType))
+		if h.config.DevMode {
+			h.sendError(remoteAddr, fmt.Sprintf("unknown message type: %s", msgType))
+		}
 	}
 }
 
 // handleHandshake responds to handshake requests.
+// The mobile client sends its nickname and access key as credential.
+// Hub verifies the access key matches a registered client.
+// The access key can be sent as "access_key" or "public_key" (backward compatible).
 func (h *Hub) handleHandshake(remoteAddr *net.UDPAddr, msg map[string]interface{}) {
-	pubKey, _ := h.auth.GetHubPublicKey()
+	addrStr := remoteAddr.String()
+
+	nickname, _ := msg["nickname"].(string)
+	// Accept both "access_key" and "public_key" for backward compatibility
+	clientPubKey, _ := msg["access_key"].(string)
+	if clientPubKey == "" {
+		clientPubKey, _ = msg["public_key"].(string)
+	}
+
+	// Verify the client's public key is registered
+	client := h.auth.GetClientByPublicKey(clientPubKey)
+	if client == nil {
+		LogHandshake(addrStr, false, fmt.Sprintf("unknown client (nickname=%s)", nickname))
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "unknown client: public key not registered")
+		}
+		return
+	}
+
+	// Verify nickname matches (optional, but good for consistency)
+	if nickname != "" && nickname != client.Nickname {
+		LogHandshake(addrStr, false, fmt.Sprintf("nickname mismatch: got=%s expected=%s", nickname, client.Nickname))
+		if h.config.DevMode {
+			h.sendError(remoteAddr, "nickname mismatch")
+		}
+		return
+	}
+
+	// Record the client's nickname for this remote address
+	h.nickMu.Lock()
+	if h.clientNicknames == nil {
+		h.clientNicknames = make(map[string]string)
+	}
+	h.clientNicknames[addrStr] = client.Nickname
+	h.nickMu.Unlock()
+
+	LogHandshake(addrStr, true, fmt.Sprintf("client=%s handshake completed", client.Nickname))
+
+	hubPubKey, _ := h.auth.GetHubPublicKey()
 
 	response := map[string]interface{}{
 		"type":        "handshake_ack",
 		"timestamp":   time.Now().UnixMilli(),
 		"hub_version": "0.1.0",
-		"public_key":  pubKey,
+		"public_key":  hubPubKey,
+		"nickname":    client.Nickname,
 	}
 
 	h.sendJSON(remoteAddr, response)
@@ -356,6 +416,8 @@ func (h *Hub) handleHandshake(remoteAddr *net.UDPAddr, msg map[string]interface{
 
 // handleGetAgents returns the list of available agents.
 func (h *Hub) handleGetAgents(remoteAddr *net.UDPAddr) {
+	addrStr := remoteAddr.String()
+
 	h.mu.RLock()
 	agents := make([]map[string]interface{}, 0)
 	for id, agent := range h.agents {
@@ -367,6 +429,8 @@ func (h *Hub) handleGetAgents(remoteAddr *net.UDPAddr) {
 	}
 	h.mu.RUnlock()
 
+	LogCommand(addrStr, "get_agents", fmt.Sprintf("returned %d agents", len(agents)))
+
 	response := map[string]interface{}{
 		"type":   "agents_list",
 		"agents": agents,
@@ -377,8 +441,11 @@ func (h *Hub) handleGetAgents(remoteAddr *net.UDPAddr) {
 
 // handleCreateAgent creates a new agent from a mobile client request.
 func (h *Hub) handleCreateAgent(remoteAddr *net.UDPAddr, msg map[string]interface{}) {
+	addrStr := remoteAddr.String()
+
 	name, _ := msg["name"].(string)
 	if name == "" {
+		LogCommand(addrStr, "create_agent", "failed: missing name field")
 		h.sendError(remoteAddr, "missing name field")
 		return
 	}
@@ -441,11 +508,13 @@ func (h *Hub) handleCreateAgent(remoteAddr *net.UDPAddr, msg map[string]interfac
 		h.mu.Unlock()
 
 		created = append(created, agentCfg)
-		log.Printf("Created agent: %s (workspace: %s)", agentID, agentWorkspace)
+		LogAgent(addrStr, agentID, "created")
 	}
 
 	// Save updated config
 	h.config.Agents = append(h.config.Agents, created...)
+
+	LogCommand(addrStr, "create_agent", fmt.Sprintf("created %d agents (name=%s)", len(created), name))
 
 	response := map[string]interface{}{
 		"type":   "agent_created",
@@ -455,7 +524,10 @@ func (h *Hub) handleCreateAgent(remoteAddr *net.UDPAddr, msg map[string]interfac
 }
 
 // handleClientMessage routes a client message to the appropriate agent.
+// The message content is prefixed with "<nickname>说：" to identify the sender.
 func (h *Hub) handleClientMessage(remoteAddr *net.UDPAddr, msg map[string]interface{}) {
+	addrStr := remoteAddr.String()
+
 	agentID, _ := msg["agent_id"].(string)
 	if agentID == "" {
 		agentID = "default"
@@ -463,26 +535,42 @@ func (h *Hub) handleClientMessage(remoteAddr *net.UDPAddr, msg map[string]interf
 
 	content, _ := msg["content"].(string)
 
+	// Get the client's nickname from handshake record
+	h.nickMu.RLock()
+	nickname := h.clientNicknames[addrStr]
+	h.nickMu.RUnlock()
+
+	// Prepend nickname to content
+	if nickname != "" && content != "" {
+		content = fmt.Sprintf("<%s>说：%s", nickname, content)
+	}
+
+	LogMessage(addrStr, agentID, content)
+
 	h.mu.RLock()
 	agent, exists := h.agents[agentID]
 	h.mu.RUnlock()
 
 	if !exists {
+		LogError(EventMessage, addrStr, fmt.Sprintf("agent not found: %s", agentID))
 		h.sendError(remoteAddr, fmt.Sprintf("agent not found: %s", agentID))
 		return
 	}
 
 	// Start agent if not running (lazy mode)
 	if !agent.IsRunning() {
+		LogAgent(addrStr, agentID, "starting (lazy)")
 		if err := h.startAgent(agentID); err != nil {
-			log.Printf("Failed to start agent %s: %v", agentID, err)
+			LogError(EventAgent, addrStr, fmt.Sprintf("failed to start agent %s: %v", agentID, err))
 			h.sendError(remoteAddr, fmt.Sprintf("failed to start agent: %v", err))
 			return
 		}
+		LogAgent(addrStr, agentID, "started")
 	}
 
-	// Send message to agent
+	// Send message to agent (with nickname prefix)
 	if err := agent.Send(content); err != nil {
+		LogError(EventMessage, addrStr, fmt.Sprintf("failed to send message to agent %s: %v", agentID, err))
 		h.sendError(remoteAddr, fmt.Sprintf("failed to send message: %v", err))
 		return
 	}
@@ -491,7 +579,7 @@ func (h *Hub) handleClientMessage(remoteAddr *net.UDPAddr, msg map[string]interf
 	go func() {
 		response, err := agent.ReadResponse(30 * time.Second)
 		if err != nil {
-			log.Printf("Agent %s response error: %v", agentID, err)
+			LogError(EventAgent, addrStr, fmt.Sprintf("agent %s response error: %v", agentID, err))
 			return
 		}
 

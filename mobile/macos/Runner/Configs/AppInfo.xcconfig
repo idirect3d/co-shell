@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = co_shell_mobile
+PRODUCT_NAME = co_der
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.co-shell.coShellMobile
+PRODUCT_BUNDLE_IDENTIFIER = com.co-der.app
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.co-shell. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 co-der. All rights reserved.

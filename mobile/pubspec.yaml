@@ -1,5 +1,5 @@
-name: co_shell_mobile
-description: co-shell 移动端 APP - iOS/Android 跨平台应用
+name: co_der
+description: co-der - co-shell 移动端 APP，iOS/Android 跨平台应用
 publish_to: 'none'
 version: 1.0.0+1
 
