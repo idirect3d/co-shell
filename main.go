@@ -50,7 +50,7 @@ import (
 )
 
 const version = "0.5.0-RC3"
-const build = "177"
+const build = "181"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -143,12 +143,12 @@ type cliFlags struct {
 	loopDetectEnabled string // "on"/"off"
 
 	// Message deduplication (FIX-179)
-	dedupEnabled       string  // "on"/"off"
-	dedupFeatureRatio  float64
-	dedupMatchRatio    float64
-	dedupSimThresh     int
-	dedupMaxHistory    int
-	dedupRepeatLimit   int
+	dedupEnabled      string // "on"/"off"
+	dedupFeatureRatio float64
+	dedupMatchRatio   float64
+	dedupSimThresh    int
+	dedupMaxHistory   int
+	dedupRepeatLimit  int
 
 	// Body additions: custom JSON properties to add to the LLM request body
 	bodyAdd string // format: key=value, can be specified multiple times
