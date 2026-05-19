@@ -59,6 +59,22 @@ func NewModelHandler(cfg *config.Config, ag *agent.Agent) *ModelHandler {
 	}
 }
 
+// syncModelsToManager synchronizes all models from h.cfg.Models to the singleton ModelManager.
+// This ensures that selectModelForCall() in the agent loop can find the latest models.
+// The ModelManager's internal list is fully replaced with the current cfg.Models.
+// Must be called after any mutation to h.cfg.Models (add/remove/switch/enable/disable/priority).
+func (h *ModelHandler) syncModelsToManager() {
+	manager := config.GetDefaultModelManager()
+	allModels := manager.GetAllModels()
+	for _, m := range allModels {
+		_ = manager.RemoveModel(m.ID)
+	}
+	for _, m := range h.cfg.Models {
+		_ = manager.AddModel(m)
+	}
+	log.Debug("Synced %d models from cfg.Models to ModelManager", len(h.cfg.Models))
+}
+
 // Handle processes .model commands.
 func (h *ModelHandler) Handle(args []string) (string, error) {
 	if len(args) == 0 {
@@ -971,6 +987,9 @@ func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
 		}
 	}
 
+	// FIX-183: Sync to ModelManager so selectModelForCall() can find the new model
+	h.syncModelsToManager()
+
 	return nil
 }
 
@@ -1043,6 +1062,9 @@ func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 		return "", fmt.Errorf("保存配置失败: %w", err)
 	}
 
+	// FIX-183: Sync to ModelManager so selectModelForCall() can find the new model
+	h.syncModelsToManager()
+
 	log.Info("Added model from template: %s (template=%s, model=%s)", modelID, templateID, modelName)
 	return fmt.Sprintf("✅ 已从模板 '%s' 添加模型: %s (%s)", template.Name, modelID, modelName), nil
 }
@@ -1087,6 +1109,9 @@ func (h *ModelHandler) removeModel(args []string) (string, error) {
 					}
 				}
 			}
+
+			// FIX-183: Sync to ModelManager so selectModelForCall() no longer uses the removed model
+			h.syncModelsToManager()
 
 			log.Info("Removed model: %s", modelID)
 			return fmt.Sprintf("✅ 已移除模型: %s", modelID), nil
@@ -1187,6 +1212,9 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 		log.Info("LLM client rebuilt after model switch: %s", activeModel.ID)
 	}
 
+	// FIX-183: Sync to ModelManager so selectModelForCall() uses the switched model
+	h.syncModelsToManager()
+
 	log.Info("Switched to model: %s (priority=%d)", modelID, activeModel.Priority)
 	return fmt.Sprintf("✅ 已切换到模型: %s（优先级: %d）", modelID, activeModel.Priority), nil
 }
@@ -1205,6 +1233,10 @@ func (h *ModelHandler) enableModel(args []string) (string, error) {
 			if err := h.cfg.Save(); err != nil {
 				return "", fmt.Errorf("保存配置失败: %w", err)
 			}
+
+			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the enabled state
+			h.syncModelsToManager()
+
 			log.Info("Enabled model: %s", modelID)
 			return fmt.Sprintf("✅ 已启用模型: %s", modelID), nil
 		}
@@ -1227,6 +1259,10 @@ func (h *ModelHandler) disableModel(args []string) (string, error) {
 			if err := h.cfg.Save(); err != nil {
 				return "", fmt.Errorf("保存配置失败: %w", err)
 			}
+
+			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the disabled state
+			h.syncModelsToManager()
+
 			log.Info("Disabled model: %s", modelID)
 			return fmt.Sprintf("✅ 已禁用模型: %s", modelID), nil
 		}
@@ -1253,6 +1289,10 @@ func (h *ModelHandler) setPriority(args []string) (string, error) {
 			if err := h.cfg.Save(); err != nil {
 				return "", fmt.Errorf("保存配置失败: %w", err)
 			}
+
+			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the new priority
+			h.syncModelsToManager()
+
 			log.Info("Set priority for model %s to %d", modelID, priority)
 			return fmt.Sprintf("✅ 已将模型 %s 的优先级设置为: %d", modelID, priority), nil
 		}
