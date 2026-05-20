@@ -245,6 +245,7 @@
   - 完善 streamLLMResponse debug 日志
   - 新增 docs/system-prompt-composition.md system prompt 组成文档
 - [ ] FEATURE-182 增加类CLINE的XML工具调用模式，以便能够与LLM自身能力解耦。
+- [x] FIX-183 修复 .model add/switch 后模型切换不生效的问题：ModelManager 与 cfg.Models 双列表不同步导致 selectModelForCall 仍使用旧模型。在 cmd/model.go 的 saveModel/switchModel/removeModel/enableModel/disableModel/setPriority 方法中增加 modelMgr 同步逻辑。[BUILD-182]
 
 ## v1.0.0 — 正式版
 
