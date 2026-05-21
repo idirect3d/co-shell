@@ -84,11 +84,11 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 	fmt.Printf("\n📡 [%s] Communicating with agent '%s' (workspace: %s)\n\n", a.name, agentName, targetWorkspace)
 
 	cfg := subagent.SubAgentConfig{
-		Workspace:         targetWorkspace,
-		Instruction:       instruction,
-		TimeoutSeconds:    timeout,
-		ImagePaths:        a.imagePaths,
-		ConfirmCommandOff: a.approveAll,
+		Workspace:      targetWorkspace,
+		Instruction:    instruction,
+		TimeoutSeconds: timeout,
+		ImagePaths:     a.imagePaths,
+		ConfirmToolOff: a.approveAll,
 	}
 
 	log.Info("Launching sub-agent for agent '%s': workspace=%s, instruction=%s, timeout=%ds",

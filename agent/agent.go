@@ -141,12 +141,31 @@ func (a *Agent) SetMaxIterations(n int) {
 	}
 }
 
-// SetConfirmCommand sets whether to prompt the user for confirmation before executing commands.
-func (a *Agent) SetConfirmCommand(confirm bool) {
-	a.confirmCommand = confirm
+// SetToolMode sets the mode for a specific tool.
+// mode is one of: "disabled" (not sent to LLM), "confirm" (enabled, requires user confirmation),
+// "auto" (enabled, auto-approved without confirmation).
+// If toolName is empty, sets the default for all tools.
+func (a *Agent) SetToolMode(toolName string, mode string) {
+	if a.toolModes == nil {
+		a.toolModes = make(map[string]string)
+	}
+	if toolName == "" {
+		a.toolModes["default"] = mode
+	} else {
+		a.toolModes[toolName] = mode
+	}
+}
+
+// SyncToolModes syncs the per-tool mode settings from config.
+func (a *Agent) SyncToolModes(cfg *config.Config) {
+	a.toolModes = make(map[string]string)
+	for k, v := range cfg.LLM.ToolModes {
+		a.toolModes[k] = v
+	}
 }
 
 // SetMemoryEnabled sets whether persistent memory tools are enabled.
+
 func (a *Agent) SetMemoryEnabled(enabled bool) {
 	a.memoryEnabled = enabled
 }

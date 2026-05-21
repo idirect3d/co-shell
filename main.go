@@ -82,7 +82,7 @@ type cliFlags struct {
 	showToolOutput    string // "on"/"off"
 	showCommand       string // "on"/"off"
 	showCommandOutput string // "on"/"off"
-	confirmCommand    string // "on"/"off"
+	confirmTool       string // "on"/"off" for default
 	resultMode        string // minimal/explain/analyze/free
 
 	// Agent identity parameters
@@ -195,7 +195,7 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.showToolOutput, "show-tool-output", "", "显示工具调用返回数据（on/off，覆盖配置文件）")
 	flag.StringVar(&f.showCommandOutput, "show-command-output", "", "显示命令返回数据（on/off，覆盖配置文件）")
 
-	flag.StringVar(&f.confirmCommand, "confirm-command", "", "执行命令前需确认（on/off，覆盖配置文件）")
+	flag.StringVar(&f.confirmTool, "confirm-tool", "", "工具调用前需确认（on/off，覆盖配置文件）")
 	flag.StringVar(&f.resultMode, "result-mode", "", "结果处理模式（minimal/explain/analyze/free，覆盖配置文件）")
 
 	// Agent identity parameters
@@ -494,14 +494,17 @@ func main() {
 		}
 	}
 
-	if flags.confirmCommand != "" {
-		switch flags.confirmCommand {
+	if flags.confirmTool != "" {
+		if cfg.LLM.ToolModes == nil {
+			cfg.LLM.ToolModes = make(map[string]string)
+		}
+		switch flags.confirmTool {
 		case "on", "1", "true", "yes":
-			cfg.LLM.ConfirmCommand = true
+			cfg.LLM.ToolModes["default"] = "confirm"
 		case "off", "0", "false", "no":
-			cfg.LLM.ConfirmCommand = false
+			cfg.LLM.ToolModes["default"] = "auto"
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --confirm-command value %q, use on|off\n", flags.confirmCommand)
+			fmt.Fprintf(os.Stderr, "Warning: invalid --confirm-tool value %q, use on|off\n", flags.confirmTool)
 		}
 	}
 	if flags.resultMode != "" {
@@ -946,8 +949,8 @@ func main() {
 		ag.SetMaxIterations(config.DefaultConfig().LLM.MaxIterations)
 	}
 
-	// Apply command confirmation setting
-	ag.SetConfirmCommand(cfg.LLM.ConfirmCommand)
+	// Apply tool mode settings from config
+	ag.SyncToolModes(cfg)
 
 	// Apply emoji enabled setting
 	ag.SetEmojiEnabled(cfg.LLM.EmojiEnabled)

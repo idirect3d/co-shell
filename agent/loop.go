@@ -58,26 +58,36 @@ const (
 	CmdConfirmApprove      CmdConfirmResult = iota
 	CmdConfirmApproveAll                    // Approve all commands for this request
 	CmdConfirmApproveCount                  // Approve N commands (user entered a number)
+	CmdConfirmApproveG                      // Approve and disable confirmation for this tool (G option)
 	CmdConfirmCancel                        // User cancelled, return to REPL
 	CmdConfirmModify                        // User entered custom input to modify the command
 )
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
 type Agent struct {
-	mu             sync.Mutex
-	llmClient      llm.Client
-	mcpMgr         *mcp.Manager
-	store          *store.Store
-	memoryManager  *memory.Manager
-	systemPrompt   string
-	messages       []llm.Message
-	maxIterations  int
-	confirmCommand bool
-	approveAll     bool           // if true, skip confirmation for all commands in this request
-	approveCount   int            // remaining number of commands to auto-approve (decremented on each use)
-	cfg            *config.Config // configuration for timeout settings
-	resultMode     config.ResultMode
-	modelManager   *config.ModelManager // model manager for multi-model switching
+	mu            sync.Mutex
+	llmClient     llm.Client
+	mcpMgr        *mcp.Manager
+	store         *store.Store
+	memoryManager *memory.Manager
+	systemPrompt  string
+	messages      []llm.Message
+	maxIterations int
+	// toolModes stores per-tool mode settings.
+	// Key is the tool name, "default" is the default for all tools.
+	// Value is one of: "disabled" (not sent to LLM), "confirm" (enabled, requires user confirmation),
+	// "auto" (enabled, auto-approved without confirmation).
+	// If a tool is not in the map, the default mode is "confirm".
+	toolModes    map[string]string
+	approveAll   bool // if true, skip confirmation for all commands in this request
+	approveCount int  // remaining number of commands to auto-approve (decremented on each use)
+	// Per-tool confirmation state
+	toolApproveCounts  map[string]int  // remaining auto-approve count per tool name
+	toolDisableConfirm map[string]bool // tools where confirmation is disabled via G option
+
+	cfg          *config.Config // configuration for timeout settings
+	resultMode   config.ResultMode
+	modelManager *config.ModelManager // model manager for multi-model switching
 
 	// Output control switches (ENHANCEMENT-126)
 	showLlmThinking   bool
@@ -285,8 +295,11 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
-	// Reset approveAll and error tracking flags for each new request
+	// Reset approveAll, per-tool counters, and error tracking flags for each new request
 	a.approveAll = false
+	a.approveCount = 0
+	a.toolApproveCounts = make(map[string]int)
+	a.toolDisableConfirm = make(map[string]bool)
 	a.errorCounter = make(map[string]int)
 	a.errorApproveAll = false
 

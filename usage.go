@@ -80,7 +80,7 @@ func buildUsageLLMBehavior() string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpRepetitionPenalty) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowThinking) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowCommand) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpConfirmCommand) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpConfirmTool) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpResultMode) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpDescription) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpPrinciples) + "\n")

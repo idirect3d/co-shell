@@ -291,12 +291,12 @@ var zhMessages = map[string]string{
 	KeyCLIHelpEx11:      "  co-shell --result-mode analyze \"查看系统状态\"  以分析模式处理结果",
 
 	// CLI Help - LLM Behavior
-	KeyCLIHelpTemperature:    "      --temperature <n>   温度参数（0.0 ~ 2.0，覆盖配置文件）",
-	KeyCLIHelpMaxTokens:      "      --max-tokens <n>   最大输出令牌数（覆盖配置文件）",
-	KeyCLIHelpShowThinking:   "      --show-thinking    显示 AI 思考过程（on/off，覆盖配置文件）",
-	KeyCLIHelpShowCommand:    "      --show-command     显示执行的系统命令（on/off，覆盖配置文件）",
-	KeyCLIHelpConfirmCommand: "      --confirm-command  执行命令前需确认（on/off，覆盖配置文件）",
-	KeyCLIHelpResultMode:     "      --result-mode      结果处理模式（minimal/explain/analyze/free，覆盖配置文件）",
+	KeyCLIHelpTemperature:  "      --temperature <n>   温度参数（0.0 ~ 2.0，覆盖配置文件）",
+	KeyCLIHelpMaxTokens:    "      --max-tokens <n>   最大输出令牌数（覆盖配置文件）",
+	KeyCLIHelpShowThinking: "      --show-thinking    显示 AI 思考过程（on/off，覆盖配置文件）",
+	KeyCLIHelpShowCommand:  "      --show-command     显示执行的系统命令（on/off，覆盖配置文件）",
+	KeyCLIHelpConfirmTool:  "      --confirm-tool  工具调用前需确认（on/off，覆盖配置文件）。\n                          可控制工具: execute_command, read_file, write_to_file,\n                          replace_in_file, search_files, list_code_definition_names,\n                          add_images, remove_images, clear_images, update_settings,\n                          list_settings, ask_followup_question, adjust_context_start,\n                          launch_sub_agent, schedule_task, create_task_plan,\n                          update_task_step, insert_task_steps, remove_task_steps,\n                          list_task_plans, view_task_plan, get_memory_slice,\n                          memory_search, delete_memory 及 MCP 工具",
+	KeyCLIHelpResultMode:   "      --result-mode      结果处理模式（minimal/explain/analyze/free，覆盖配置文件）",
 
 	// CLI Help - New output control (ENHANCEMENT-126)
 	KeyCLIHelpShowLlmThinking:   "      --show-llm-thinking  显示 LLM 思考过程（on/off，覆盖配置文件）",
@@ -350,15 +350,20 @@ var zhMessages = map[string]string{
 	KeyCmdConfirmEnabled:     "命令执行确认: 开启",
 	KeyCmdConfirmDisableWarn: "⚠️ 警告: 关闭命令执行确认后，AI 将直接执行命令而不经您确认，可能存在安全风险（如误删文件、无限循环等）。请谨慎操作并根据使用经验自行判断风险。",
 
-	KeyCmdConfirmPrompt:     "请选择操作:\n  [Enter] 批准执行\n  [A] 本次都批准\n  [C] 取消\n  其他输入: 暂不执行，输入的内容将提交AI 重新评估\n请输入: ",
-	KeyErrorRiskWarning:     "⚠️ 风险提示: 错误反复出现可能表明 AI 陷入了死循环或遇到了无法解决的问题。\n    请关注错误内容，必要时选择 [C] 取消操作以避免潜在风险（如：将您的Token余额用尽或信息外泄）。",
-	KeyCmdConfirmApprove:    "a",
-	KeyCmdConfirmApproveAll: "aa",
-	KeyCmdConfirmCancel:     "c",
-	KeyCmdConfirmModify:     "m",
-	KeyCmdConfirmInvalid:    "无效输入，请直接回车批准、输入 a 本次都批准、输入 c 取消，或输入补充说明。",
-	KeyCmdConfirmCancelled:  "已取消。",
-	KeyCmdConfirmModifyHint: "请输入补充说明，AI 将重新评估: ",
+	KeyCmdConfirmPrompt:       "请选择操作:\n  [Enter] 批准执行\n  [A] 本次都批准\n  [G] 批准，且取消此方法需用户确认标志\n  [C] 取消\n  输入数字: 批准后续 N 次此方法调用\n  其他输入: 暂不执行，输入的内容将提交AI 重新评估\n请输入: ",
+	KeyErrorRiskWarning:       "⚠️ 风险提示: 错误反复出现可能表明 AI 陷入了死循环或遇到了无法解决的问题。\n    请关注错误内容，必要时选择 [C] 取消操作以避免潜在风险（如：将您的Token余额用尽或信息外泄）。",
+	KeyCmdConfirmApprove:      "a",
+	KeyCmdConfirmApproveAll:   "aa",
+	KeyCmdConfirmCancel:       "c",
+	KeyCmdConfirmModify:       "m",
+	KeyCmdConfirmInvalid:      "无效输入，请直接回车批准、输入 a 本次都批准、输入 g 批准并取消此方法确认、输入 c 取消、输入数字批准后续 N 次，或输入补充说明。",
+	KeyCmdConfirmCancelled:    "已取消。",
+	KeyCmdConfirmModifyHint:   "请输入补充说明，AI 将重新评估: ",
+	KeyCmdConfirmDisableTool:  "此方法确认已取消（G 选项）",
+	KeyCmdConfirmApproveG:     "g",
+	KeyCmdConfirmApproveGDesc: "批准，且取消此方法需用户确认标志",
+	KeyCmdConfirmCountPrefix:  "✅ 已批准后续 ",
+	KeyCmdConfirmCountSuffix:  " 次此方法调用",
 
 	// Disclaimer
 	KeyDisclaimerTitle: "⚠️ 风险声明",
