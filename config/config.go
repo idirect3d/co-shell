@@ -85,11 +85,17 @@ func ParseResultMode(s string) (ResultMode, bool) {
 // (endpoint, api_key, model name) are stored in ModelConfig entries.
 // The fields here serve as global overrides for model-level parameters.
 type LLMConfig struct {
-	Temperature    float64 `json:"temperature"`
-	MaxTokens      int     `json:"max_tokens"`
-	MaxIterations  int     `json:"max_iterations"`
-	ConfirmCommand bool    `json:"confirm_command"`
-	ResultMode     int     `json:"result_mode"` // 0=minimal, 1=explain, 2=analyze, 3=free
+	Temperature   float64 `json:"temperature"`
+	MaxTokens     int     `json:"max_tokens"`
+	MaxIterations int     `json:"max_iterations"`
+	// ToolModes stores per-tool mode settings.
+	// Key is the tool name (e.g., "execute_command", "read_file", "write_to_file").
+	// Value is one of: "disabled" (not sent to LLM), "confirm" (enabled, requires user confirmation),
+	// "auto" (enabled, auto-approved without confirmation).
+	// Use "default" key to set the default for all tools.
+	// If a tool is not in the map, the default mode is "confirm".
+	ToolModes  map[string]string `json:"tool_modes"`
+	ResultMode int               `json:"result_mode"` // 0=minimal, 1=explain, 2=analyze, 3=free
 
 	// Output control switches (ENHANCEMENT-126)
 	ShowLlmThinking   bool `json:"show_llm_thinking"`   // Show LLM thinking content (default: true)
@@ -371,7 +377,7 @@ func DefaultConfig() *Config {
 			ShowToolOutput:            false,
 			ShowCommand:               true,
 			ShowCommandOutput:         true,
-			ConfirmCommand:            true,
+			ToolModes:                 map[string]string{"default": "confirm"},
 			ResultMode:                int(ResultModeFree),
 			ContextLimit:              -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 			MemoryEnabled:             true,
@@ -513,10 +519,11 @@ func (c *Config) Show() string {
 	if reasoningEffortStr == "" {
 		reasoningEffortStr = "low"
 	}
-	confirmStatus := i18n.T(i18n.KeyOn)
-	if !c.LLM.ConfirmCommand {
-		confirmStatus = i18n.T(i18n.KeyOff)
+	confirmDefault := "confirm"
+	if v, ok := c.LLM.ToolModes["default"]; ok {
+		confirmDefault = v
 	}
+	confirmDefaultStatus := confirmDefault
 	logLevel := c.LogLevel
 	if logLevel == "" {
 		logLevel = "info"
@@ -641,7 +648,7 @@ func (c *Config) Show() string {
 		"show-tool-output:", toolOutputStatus, col3ToolOutput,
 		"show-command:", commandStatus, col3Command,
 		"show-command-output:", commandOutputStatus, col3CommandOutput,
-		"confirm-command:", confirmStatus, col3Confirm,
+		"confirm-tool:", confirmDefaultStatus, col3Confirm,
 		"result-mode:", resultModeStr, col3ResultMode,
 		"tool-timeout:", toolTimeoutStr, col3ToolTimeout,
 		"cmd-timeout:", cmdTimeoutStr, col3CmdTimeout,
