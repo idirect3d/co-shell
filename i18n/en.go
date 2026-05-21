@@ -434,7 +434,7 @@ no liability whatsoever.`,
 	KeySettingsDescToolTimeout:       "Tool call timeout (0=unlimited)",
 	KeySettingsDescCmdTimeout:        "Command timeout (0=unlimited)",
 	KeySettingsDescLLMTimeout:        "LLM request timeout (0=unlimited)",
-	KeySettingsHelpFooter:            "💡 Use .set <parameter> <value> to modify, e.g.: .set model gpt-4o",
+	KeySettingsHelpFooter:            "💡 Use .set <parameter> <value> to modify, e.g.: .set model gpt-4o\n   .set db to view/configure database (first run starts the setup wizard)",
 	KeySettingsCurrentTitle:          "Current Configuration:",
 
 	// Memory enabled
@@ -970,4 +970,5 @@ You are co-shell, a Go-powered intelligent command-line application that can dir
 	KeyDBMigrating:         "Migrating data to PostgreSQL...",
 	KeyDBMigrationComplete: "✅ Data migration complete",
 	KeyDBMigrationFailed:   "❌ Data migration failed: %v",
+	KeyDBSubCmdDesc:        "Database persistent storage (.set db for details)",
 }

@@ -759,6 +759,9 @@ const (
 	KeyDBMigrationComplete = "db_migration_complete"
 	KeyDBMigrationFailed   = "db_migration_failed"
 
+	// DB sub-command display (FEATURE-186)
+	KeyDBSubCmdDesc = "db_sub_cmd_desc"
+
 	// Unknown (fallback display)
 	KeyUnknown = "unknown"
 )
