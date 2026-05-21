@@ -1145,4 +1145,22 @@ EDITING FILES
 	KeyAdjustContextStartResult:   "✅ 上下文起始指针已从索引 %d 调整到索引 %d，新上下文包含 %d 条消息",
 	KeyAdjustContextStartNotSmart: "⚠️ adjust_context_start 工具仅在 smart 模式下可用，当前模式为: %s",
 	KeyAdjustContextStartPrompt:   "上下文起始索引",
+
+	// Database (PostgreSQL) related keys (FEATURE-86)
+	KeyDBConnecting:        "正在连接 PostgreSQL 数据库 %s:%d/%s...",
+	KeyDBConnected:         "✅ PostgreSQL 数据库连接成功 (%s:%d/%s)",
+	KeyDBConnectFailed:     "⚠️ PostgreSQL 数据库连接失败: %v",
+	KeyDBFallbackToLocal:   "⚠️ 将使用本地 bbolt 存储作为替代",
+	KeyDBConfigLabel:       "数据库配置",
+	KeyDBHostLabel:         "数据库地址",
+	KeyDBPortLabel:         "数据库端口",
+	KeyDBNameLabel:         "数据库名称",
+	KeyDBSchemaLabel:       "数据库 Schema",
+	KeyDBUserLabel:         "数据库用户",
+	KeyDBPasswordLabel:     "数据库密码",
+	KeyDBEnabledLabel:      "数据库存储",
+	KeyDBNotConfigured:     "未配置 PostgreSQL 数据库，使用本地 bbolt 存储",
+	KeyDBMigrating:         "正在迁移数据到 PostgreSQL...",
+	KeyDBMigrationComplete: "✅ 数据迁移完成",
+	KeyDBMigrationFailed:   "❌ 数据迁移失败: %v",
 }
