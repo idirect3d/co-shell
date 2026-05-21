@@ -925,7 +925,14 @@ func main() {
 
 	ag.SetScheduler(sch)
 
-	// Apply agent name: CLI flag overrides config
+	// Apply agent name: default to current working directory name if not set in config
+	if cfg.LLM.AgentName == "" {
+		cwd, _ := os.Getwd()
+		if cwd != "" {
+			cfg.LLM.AgentName = filepath.Base(cwd)
+		}
+	}
+	// CLI flag overrides everything
 	if flags.agentName != "" {
 		cfg.LLM.AgentName = flags.agentName
 	}
