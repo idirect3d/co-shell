@@ -741,6 +741,24 @@ const (
 	KeyAdjustContextStartNotSmart = "adjust_context_start_not_smart"
 	KeyAdjustContextStartPrompt   = "adjust_context_start_prompt"
 
+	// Database (PostgreSQL) related keys (FEATURE-86)
+	KeyDBConnecting        = "db_connecting"
+	KeyDBConnected         = "db_connected"
+	KeyDBConnectFailed     = "db_connect_failed"
+	KeyDBFallbackToLocal   = "db_fallback_to_local"
+	KeyDBConfigLabel       = "db_config_label"
+	KeyDBHostLabel         = "db_host_label"
+	KeyDBPortLabel         = "db_port_label"
+	KeyDBNameLabel         = "db_name_label"
+	KeyDBSchemaLabel       = "db_schema_label"
+	KeyDBUserLabel         = "db_user_label"
+	KeyDBPasswordLabel     = "db_password_label"
+	KeyDBEnabledLabel      = "db_enabled_label"
+	KeyDBNotConfigured     = "db_not_configured"
+	KeyDBMigrating         = "db_migrating"
+	KeyDBMigrationComplete = "db_migration_complete"
+	KeyDBMigrationFailed   = "db_migration_failed"
+
 	// Unknown (fallback display)
 	KeyUnknown = "unknown"
 )

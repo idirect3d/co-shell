@@ -952,4 +952,22 @@ You are co-shell, a Go-powered intelligent command-line application that can dir
 	KeyAdjustContextStartResult:   "✅ Context start pointer adjusted from index %d to %d, new context contains %d messages",
 	KeyAdjustContextStartNotSmart: "⚠️ adjust_context_start tool is only available in smart mode, current mode: %s",
 	KeyAdjustContextStartPrompt:   "Context start index",
+
+	// Database (PostgreSQL) related keys (FEATURE-86)
+	KeyDBConnecting:        "Connecting to PostgreSQL database %s:%d/%s...",
+	KeyDBConnected:         "✅ PostgreSQL database connected (%s:%d/%s)",
+	KeyDBConnectFailed:     "⚠️ PostgreSQL database connection failed: %v",
+	KeyDBFallbackToLocal:   "⚠️ Falling back to local bbolt storage",
+	KeyDBConfigLabel:       "Database Config",
+	KeyDBHostLabel:         "Database Host",
+	KeyDBPortLabel:         "Database Port",
+	KeyDBNameLabel:         "Database Name",
+	KeyDBSchemaLabel:       "Database Schema",
+	KeyDBUserLabel:         "Database User",
+	KeyDBPasswordLabel:     "Database Password",
+	KeyDBEnabledLabel:      "Database Storage",
+	KeyDBNotConfigured:     "PostgreSQL not configured, using local bbolt storage",
+	KeyDBMigrating:         "Migrating data to PostgreSQL...",
+	KeyDBMigrationComplete: "✅ Data migration complete",
+	KeyDBMigrationFailed:   "❌ Data migration failed: %v",
 }
