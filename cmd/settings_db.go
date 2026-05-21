@@ -30,40 +30,83 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/store"
-	"github.com/idirect3d/co-shell/workspace"
 )
 
+// HandleDB handles the .db built-in command.
+// Usage:
+//
+//	.db              - Show current database configuration
+//	.db config       - Launch the database configuration wizard
+//	.db init         - Initialize PostgreSQL database (drop and recreate all tables)
+//	.db migrate      - Migrate data from local bbolt to PostgreSQL
+//	.db backup       - Backup all PostgreSQL tables to CSV files
+//	.db restore      - Restore PostgreSQL data from a backup
+//	.db <subkey> <value> - Set a specific DB parameter (same as .set db <subkey> <value>)
+func (h *SettingsHandler) HandleDB(args []string) (string, error) {
+	if len(args) == 0 {
+		// .db -> show current config and usage
+		return h.showDBConfig()
+	}
+	switch args[0] {
+	case "config":
+		// .db config -> launch configuration wizard
+		return h.dbConfigWizard()
+	case "init":
+		// .db init -> initialize PostgreSQL database
+		return h.dbInit()
+	case "migrate":
+		// .db migrate -> migrate data from bbolt to PostgreSQL
+		return h.dbMigrate()
+	case "backup":
+		// .db backup -> backup all tables to CSV
+		return h.dbBackup()
+	case "restore":
+		// .db restore -> restore from backup
+		return h.dbRestore()
+	default:
+		// .db <subkey> <value> -> delegate to handleDBSubCommand
+		return h.handleDBSubCommand(args)
+	}
+}
+
+// showDBConfig displays the current DB configuration and usage instructions.
+// Format follows the same pattern as showSettingsHelp: name: value col3
+func (h *SettingsHandler) showDBConfig() (string, error) {
+	enabledStatus := i18n.T(i18n.KeyOff)
+	if h.cfg.DB.Enabled {
+		enabledStatus = i18n.T(i18n.KeyOn)
+	}
+	var sb strings.Builder
+	sb.WriteString(i18n.T(i18n.KeyDBConfigLabel) + ":\n")
+	// Format: name: value col3 (name uses config key ID, col3 uses translated label)
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "enabled:", enabledStatus, i18n.T(i18n.KeyDBEnabledLabel)))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "host:", h.cfg.DB.Host, i18n.T(i18n.KeyDBHostLabel)))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20d %s\n", "port:", h.cfg.DB.Port, i18n.T(i18n.KeyDBPortLabel)))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "name:", h.cfg.DB.DBName, i18n.T(i18n.KeyDBNameLabel)))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "schema:", h.cfg.DB.Schema, i18n.T(i18n.KeyDBSchemaLabel)))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "user:", h.cfg.DB.User, i18n.T(i18n.KeyDBUserLabel)))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "password:", "****", i18n.T(i18n.KeyDBPasswordLabel)))
+	sb.WriteString("\n.set db <key> <value> - " + i18n.T(i18n.KeyDBSubCmdDesc) + "\n")
+	sb.WriteString(".db config - " + i18n.T(i18n.KeyDBConfigLabel) + "\n")
+	sb.WriteString(".db init - " + i18n.T(i18n.KeyDBInitDesc) + "\n")
+	sb.WriteString(".db migrate - " + i18n.T(i18n.KeyDBMigrateDesc) + "\n")
+	sb.WriteString(".db backup - " + i18n.T(i18n.KeyDBBackupTitle) + "\n")
+	sb.WriteString(".db restore - " + i18n.T(i18n.KeyDBRestoreTitle) + "\n")
+	return sb.String(), nil
+}
+
 // handleDBSubCommand handles the .set db <subkey> <value> sub-command.
-// When called with no arguments and all DB config fields are at their default
-// (empty) values, it launches an interactive configuration wizard.
 func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 	if len(args) == 0 {
-		// Check if all DB config fields are at defaults (empty)
-		if h.cfg.DB.Host == "" && h.cfg.DB.Port == 0 && h.cfg.DB.DBName == "" &&
-			h.cfg.DB.User == "" && h.cfg.DB.Password == "" {
-			return h.dbConfigWizard()
-		}
-		// Show all DB settings
-		enabledStatus := i18n.T(i18n.KeyOff)
-		if h.cfg.DB.Enabled {
-			enabledStatus = i18n.T(i18n.KeyOn)
-		}
-		var sb strings.Builder
-		sb.WriteString("数据库配置:\n")
-		sb.WriteString(fmt.Sprintf("  enabled:  %s\n", enabledStatus))
-		sb.WriteString(fmt.Sprintf("  host:     %s\n", h.cfg.DB.Host))
-		sb.WriteString(fmt.Sprintf("  port:     %d\n", h.cfg.DB.Port))
-		sb.WriteString(fmt.Sprintf("  name:     %s\n", h.cfg.DB.DBName))
-		sb.WriteString(fmt.Sprintf("  schema:   %s\n", h.cfg.DB.Schema))
-		sb.WriteString(fmt.Sprintf("  user:     %s\n", h.cfg.DB.User))
-		sb.WriteString(fmt.Sprintf("  password: ****\n"))
-		return sb.String(), nil
+		return h.showDBConfig()
 	}
 
 	subkey := args[0]
@@ -195,9 +238,86 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 	}
 }
 
+// dbInit initializes the PostgreSQL database by dropping and recreating all tables.
+func (h *SettingsHandler) dbInit() (string, error) {
+	if !h.cfg.DB.Enabled {
+		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+	}
+
+	fmt.Print("⚠️  此操作将删除 PostgreSQL 数据库中所有现有数据并重建表结构。是否继续? (y/n, 默认: n): ")
+	scanner := bufio.NewScanner(os.Stdin)
+	if scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		switch strings.ToLower(line) {
+		case "y", "yes", "on", "1", "true":
+			// Continue
+		default:
+			return "❌ 已取消初始化", nil
+		}
+	} else {
+		return "❌ 已取消初始化", nil
+	}
+
+	fmt.Println("⏳ 正在初始化 PostgreSQL 数据库...")
+	pgStore, err := store.NewPGStore(h.cfg.DB)
+	if err != nil {
+		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+	}
+	defer pgStore.Close()
+
+	if err := pgStore.DropTables(); err != nil {
+		return "", fmt.Errorf("删除表失败: %w", err)
+	}
+
+	if err := pgStore.RecreateTables(); err != nil {
+		return "", fmt.Errorf("重建表失败: %w", err)
+	}
+
+	return "✅ 数据库初始化完成，所有表已重建!", nil
+}
+
+// dbMigrate migrates data from local bbolt to PostgreSQL.
+func (h *SettingsHandler) dbMigrate() (string, error) {
+	if !h.cfg.DB.Enabled {
+		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+	}
+
+	fmt.Println("⚠️  数据迁移说明:")
+	fmt.Println("  - schedules、taskplans、session、context 表将全量覆盖 PostgreSQL 中的现有数据")
+	fmt.Println("  - history、memory、token_usage 表仅迁移新增数据（增量迁移）")
+	fmt.Println("  - 迁移过程中不会删除本地 bbolt 数据")
+	fmt.Println("  - 迁移后若数据不一致可能导致记忆混乱，建议先备份本地数据库")
+	fmt.Print("\n是否继续执行数据迁移? (y/n, 默认: n): ")
+	scanner := bufio.NewScanner(os.Stdin)
+	if scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		switch strings.ToLower(line) {
+		case "y", "yes", "on", "1", "true":
+			// Continue
+		default:
+			return "❌ 已取消数据迁移", nil
+		}
+	} else {
+		return "❌ 已取消数据迁移", nil
+	}
+
+	fmt.Println("\n⏳ 正在从本地 bbolt 迁移数据到 PostgreSQL...")
+	pgStore, err := store.NewPGStore(h.cfg.DB)
+	if err != nil {
+		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+	}
+	defer pgStore.Close()
+
+	if err := pgStore.MigrateFromBolt(h.store); err != nil {
+		return "", fmt.Errorf("迁移过程中出现错误: %w", err)
+	}
+
+	return "✅ 数据迁移完成!", nil
+}
+
 // dbConfigWizard launches an interactive wizard to configure PostgreSQL database
 // connection settings. It guides the user through each parameter step by step,
-// then offers to test the connection and optionally migrate data from bbolt.
+// then offers to test the connection.
 func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -206,16 +326,16 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	fmt.Println()
 
 	// Step 1: Enabled
-	fmt.Print("是否启用数据库连接? (y/n, 默认: n): ")
-	enabled := false
+	fmt.Print("是否启用数据库连接? (y/n, 默认: y): ")
+	enabled := true
 	if scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "q" || line == "quit" {
 			return "❌ 已退出数据库配置向导", nil
 		}
 		switch strings.ToLower(line) {
-		case "y", "yes", "on", "1", "true":
-			enabled = true
+		case "n", "no", "off", "0", "false":
+			enabled = false
 		}
 	}
 	h.cfg.DB.Enabled = enabled
@@ -272,7 +392,7 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	// Step 4: DB Name
 	defaultDBName := h.cfg.DB.DBName
 	if defaultDBName == "" {
-		defaultDBName = "coshell"
+		defaultDBName = "postgres"
 	}
 	fmt.Printf("数据库名称 (默认: %s): ", defaultDBName)
 	if scanner.Scan() {
@@ -287,12 +407,11 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 		}
 	}
 
-	// Step 5: Schema - use current directory name as default
+	// Step 5: Schema - use agent name as default
 	defaultSchema := h.cfg.DB.Schema
 	if defaultSchema == "" {
-		cwd, err := os.Getwd()
-		if err == nil {
-			defaultSchema = filepath.Base(cwd)
+		if h.agent != nil && h.agent.Name() != "" {
+			defaultSchema = h.agent.Name()
 		} else {
 			defaultSchema = "public"
 		}
@@ -329,13 +448,15 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	}
 
 	// Step 7: Password
-	fmt.Print("数据库密码 (输入后回车): ")
+	fmt.Print("数据库密码 (输入后回车，留空保留原值): ")
 	if scanner.Scan() {
 		line := scanner.Text()
 		if line == "q" || line == "quit" {
 			return "❌ 已退出数据库配置向导", nil
 		}
-		h.cfg.DB.Password = line
+		if line != "" {
+			h.cfg.DB.Password = line
+		}
 	}
 
 	// Save config first
@@ -384,42 +505,112 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 		} else {
 			fmt.Println("✅ 数据库连接成功!")
 			pgStore.Close()
-
-			// Step 9: Auto-migrate from bbolt
-			fmt.Print("\n是否从本地 bbolt 数据库迁移数据到 PostgreSQL? (y/n, 默认: n): ")
-			if scanner.Scan() {
-				line := strings.TrimSpace(scanner.Text())
-				switch strings.ToLower(line) {
-				case "y", "yes", "on", "1", "true":
-					fmt.Println("⏳ 正在迁移数据...")
-					// Open bbolt store from current workspace
-					ws, err := workspace.New("")
-					if err != nil {
-						fmt.Printf("⚠️  无法创建工作区: %v\n", err)
-					} else {
-						boltStore, err := store.NewStore(ws)
-						if err != nil {
-							fmt.Printf("⚠️  无法打开本地 bbolt 数据库: %v\n", err)
-						} else {
-							// Re-open PG store for migration
-							pgStore2, err := store.NewPGStore(h.cfg.DB)
-							if err != nil {
-								fmt.Printf("⚠️  无法重新连接 PostgreSQL: %v\n", err)
-							} else {
-								if err := pgStore2.MigrateFromBolt(boltStore); err != nil {
-									fmt.Printf("⚠️  迁移过程中出现错误: %v\n", err)
-								} else {
-									fmt.Println("✅ 数据迁移完成!")
-								}
-								pgStore2.Close()
-							}
-							boltStore.Close()
-						}
-					}
-				}
-			}
 		}
 	}
 
 	return "✅ 数据库配置完成!", nil
+}
+
+// dbBackup exports all PostgreSQL tables to CSV files in backup/<timestamp>/.
+func (h *SettingsHandler) dbBackup() (string, error) {
+	if !h.cfg.DB.Enabled {
+		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+	}
+
+	pgStore, err := store.NewPGStore(h.cfg.DB)
+	if err != nil {
+		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+	}
+	defer pgStore.Close()
+
+	// Create backup directory: backup/<timestamp>/
+	timestamp := time.Now().Format("20060102150405")
+	backupDir := filepath.Join("backup", timestamp)
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return "", fmt.Errorf("无法创建备份目录 %s: %w", backupDir, err)
+	}
+
+	fmt.Printf("⏳ 正在备份数据库到 %s/ ...\n", backupDir)
+	if err := pgStore.BackupToCSV(backupDir); err != nil {
+		return "", fmt.Errorf("备份失败: %w", err)
+	}
+
+	return fmt.Sprintf("✅ 数据库备份完成! 备份文件保存在 %s/", backupDir), nil
+}
+
+// dbRestore lists available backups and restores data from a selected one.
+func (h *SettingsHandler) dbRestore() (string, error) {
+	if !h.cfg.DB.Enabled {
+		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+	}
+
+	// List available backups
+	backupBase := "backup"
+	entries, err := os.ReadDir(backupBase)
+	if err != nil {
+		return "", fmt.Errorf("无法读取备份目录 %s/: %w", backupBase, err)
+	}
+
+	var backups []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			backups = append(backups, entry.Name())
+		}
+	}
+
+	if len(backups) == 0 {
+		return "❌ 未找到任何备份", nil
+	}
+
+	sort.Sort(sort.Reverse(sort.StringSlice(backups)))
+
+	fmt.Println("可用的备份:")
+	for i, b := range backups {
+		fmt.Printf("  %d. %s\n", i+1, b)
+	}
+
+	fmt.Print("\n请选择要恢复的备份编号 (输入 q 取消): ")
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		return "❌ 已取消恢复", nil
+	}
+	line := strings.TrimSpace(scanner.Text())
+	if line == "q" || line == "quit" {
+		return "❌ 已取消恢复", nil
+	}
+
+	idx, err := strconv.Atoi(line)
+	if err != nil || idx < 1 || idx > len(backups) {
+		return "", fmt.Errorf("无效的编号，请输入 1 ~ %d 之间的数字", len(backups))
+	}
+
+	selected := backups[idx-1]
+	backupDir := filepath.Join(backupBase, selected)
+
+	fmt.Printf("\n⚠️  恢复数据将覆盖 PostgreSQL 数据库中所有现有数据!\n")
+	fmt.Printf("   备份来源: %s/\n", backupDir)
+	fmt.Print("是否继续恢复? (y/n, 默认: n): ")
+	if !scanner.Scan() {
+		return "❌ 已取消恢复", nil
+	}
+	confirm := strings.TrimSpace(scanner.Text())
+	switch strings.ToLower(confirm) {
+	case "y", "yes", "on", "1", "true":
+		// Continue
+	default:
+		return "❌ 已取消恢复", nil
+	}
+
+	pgStore, err := store.NewPGStore(h.cfg.DB)
+	if err != nil {
+		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+	}
+	defer pgStore.Close()
+
+	fmt.Println("⏳ 正在恢复数据...")
+	if err := pgStore.RestoreFromCSV(backupDir); err != nil {
+		return "", fmt.Errorf("恢复失败: %w", err)
+	}
+
+	return fmt.Sprintf("✅ 数据恢复完成! 已从 %s/ 恢复数据", backupDir), nil
 }
