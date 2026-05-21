@@ -222,6 +222,10 @@ func promptToolConfirmation(toolName string, displayStr string) (CmdConfirmResul
 			return CmdConfirmApproveG, ""
 		}
 
+		if lower == "d" {
+			return CmdConfirmApproveD, ""
+		}
+
 		// Check if the user entered a positive integer (approve N calls of this tool)
 		if n, err := strconv.Atoi(response); err == nil && n > 0 {
 			return CmdConfirmApproveCount, strconv.Itoa(n)
