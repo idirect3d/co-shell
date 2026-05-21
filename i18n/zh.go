@@ -431,7 +431,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescToolOutput:    "显示工具调用返回数据",
 	KeySettingsDescCommandOutput: "显示命令执行返回数据",
 
-	KeySettingsHelpFooter:   "💡 使用 .set <参数名> <值> 修改参数，例如: .set model deepseek-chat",
+	KeySettingsHelpFooter:   "💡 使用 .set <参数名> <值> 修改参数，例如: .set model deepseek-chat\n   .set db 查看/配置数据库（首次运行自动启动配置向导）",
 	KeySettingsCurrentTitle: "当前配置:",
 
 	// Memory enabled
@@ -1163,4 +1163,23 @@ EDITING FILES
 	KeyDBMigrating:         "正在迁移数据到 PostgreSQL...",
 	KeyDBMigrationComplete: "✅ 数据迁移完成",
 	KeyDBMigrationFailed:   "❌ 数据迁移失败: %v",
+	KeyDBSubCmdDesc:        "数据库持久化存储（.set db 查看详情）",
+	KeyDBInitDesc:          "初始化 PostgreSQL 数据库（删除所有表并重建）",
+	KeyDBMigrateDesc:       "从本地 bbolt 迁移数据到 PostgreSQL",
+
+	// DB backup/restore (FEATURE-86)
+	KeyDBBackupTitle:    "备份 PostgreSQL 数据到 CSV 文件",
+	KeyDBRestoreTitle:   "从备份恢复 PostgreSQL 数据",
+	KeyDBBackupDir:      "正在备份数据库到 %s/ ...",
+	KeyDBRestoreDir:     "正在从 %s/ 恢复数据...",
+	KeyDBBackupDone:     "✅ 数据库备份完成! 备份文件保存在 %s/",
+	KeyDBRestoreDone:    "✅ 数据恢复完成! 已从 %s/ 恢复数据",
+	KeyDBBackupFailed:   "备份失败: %w",
+	KeyDBRestoreFailed:  "恢复失败: %w",
+	KeyDBNoBackupFound:  "❌ 未找到任何备份",
+	KeyDBSelectBackup:   "请选择要恢复的备份编号 (输入 q 取消): ",
+	KeyDBRestoreWarning: "⚠️  恢复数据将覆盖 PostgreSQL 数据库中所有现有数据!",
+	KeyDBRestoreConfirm: "是否继续恢复? (y/n, 默认: n): ",
+	KeyDBBackupCancel:   "❌ 已取消备份",
+	KeyDBRestoreCancel:  "❌ 已取消恢复",
 }

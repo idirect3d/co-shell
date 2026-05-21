@@ -145,7 +145,7 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		store:           s,
 		mcpMgr:          mcpMgr,
 		agent:           ag,
-		settingsHandler: cmd.NewSettingsHandler(cfg, ag),
+		settingsHandler: cmd.NewSettingsHandler(cfg, ag, s),
 
 		mcpHandler:     cmd.NewMCPHandler(cfg, mcpMgr),
 		ruleHandler:    cmd.NewRuleHandler(cfg),
@@ -335,6 +335,8 @@ func (r *REPL) handleBuiltin(input string) {
 		return
 	case ".model":
 		result, err = r.modelHandler.Handle(args)
+	case ".db":
+		result, err = r.settingsHandler.HandleDB(args)
 	default:
 		fmt.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return
