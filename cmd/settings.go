@@ -401,38 +401,113 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Show LLM content set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeyShowLlmContent), status), nil
 
-	case "confirm-command":
+	case "confirm-tool":
 		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.ConfirmCommand {
-				status = i18n.T(i18n.KeyOff)
+			// Show per-tool mode status
+			var sb strings.Builder
+			sb.WriteString("工具模式配置:\n")
+			confirmDefault := "confirm"
+			if v, ok := h.cfg.LLM.ToolModes["default"]; ok {
+				confirmDefault = v
 			}
-			return fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmEnabled), status), nil
+			sb.WriteString(fmt.Sprintf("  默认: %s\n\n", confirmDefault))
+			// List all known tools with their current mode
+			allTools := []string{
+				"execute_command", "read_file", "write_to_file",
+				"replace_in_file", "search_files", "list_code_definition_names",
+				"add_images", "remove_images", "clear_images",
+				"update_settings", "list_settings", "ask_followup_question",
+				"adjust_context_start",
+				"launch_sub_agent", "schedule_task",
+				"create_task_plan", "update_task_step", "insert_task_steps",
+				"remove_task_steps", "list_task_plans", "view_task_plan",
+				"get_memory_slice", "memory_search", "delete_memory",
+			}
+			for _, toolName := range allTools {
+				// Check if tool has explicit setting
+				mode := confirmDefault // fallback to default
+				if v, ok := h.cfg.LLM.ToolModes[toolName]; ok {
+					mode = v
+				}
+				sb.WriteString(fmt.Sprintf("  %-35s %s\n", toolName, mode))
+			}
+			return sb.String(), nil
 		}
-		switch args[1] {
+		// Check if args[1] is a tool name (not on/off/confirm/auto/disabled)
+		toolName := args[1]
+		switch toolName {
 		case "on", "1", "true", "yes":
-			h.cfg.LLM.ConfirmCommand = true
+			if h.cfg.LLM.ToolModes == nil {
+				h.cfg.LLM.ToolModes = make(map[string]string)
+			}
+			h.cfg.LLM.ToolModes["default"] = "confirm"
+			if err := h.cfg.Save(); err != nil {
+				return "", err
+			}
+			h.agent.SetToolMode("", "confirm")
+			log.Info("Confirm tool set to on (confirm)")
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmEnabled), i18n.T(i18n.KeyOn)), nil
 		case "off", "0", "false", "no":
-			h.cfg.LLM.ConfirmCommand = false
+			if h.cfg.LLM.ToolModes == nil {
+				h.cfg.LLM.ToolModes = make(map[string]string)
+			}
+			h.cfg.LLM.ToolModes["default"] = "auto"
+			if err := h.cfg.Save(); err != nil {
+				return "", err
+			}
+			h.agent.SetToolMode("", "auto")
+			log.Info("Confirm tool set to off (auto)")
+			return fmt.Sprintf("%s\n%s", fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmDisabled), i18n.T(i18n.KeyOff)), i18n.T(i18n.KeyCmdConfirmDisableWarn)), nil
+		case "confirm", "auto", "disabled":
+			// Setting default mode directly
+			if h.cfg.LLM.ToolModes == nil {
+				h.cfg.LLM.ToolModes = make(map[string]string)
+			}
+			h.cfg.LLM.ToolModes["default"] = toolName
+			if err := h.cfg.Save(); err != nil {
+				return "", err
+			}
+			h.agent.SetToolMode("", toolName)
+			log.Info("Confirm tool default set to %s", toolName)
+			return fmt.Sprintf("工具默认模式已设置为: %s", toolName), nil
+		}
+		// args[1] is a tool name, need args[2] for value
+		if len(args) < 3 {
+			// Show mode for this specific tool
+			mode := "confirm"
+			if v, ok := h.cfg.LLM.ToolModes[toolName]; ok {
+				mode = v
+			} else if v, ok := h.cfg.LLM.ToolModes["default"]; ok {
+				mode = v
+			}
+			return fmt.Sprintf("工具 %s 模式: %s", toolName, mode), nil
+		}
+		switch args[2] {
+		case "on", "1", "true", "yes":
+			if h.cfg.LLM.ToolModes == nil {
+				h.cfg.LLM.ToolModes = make(map[string]string)
+			}
+			h.cfg.LLM.ToolModes[toolName] = "confirm"
+		case "off", "0", "false", "no":
+			if h.cfg.LLM.ToolModes == nil {
+				h.cfg.LLM.ToolModes = make(map[string]string)
+			}
+			h.cfg.LLM.ToolModes[toolName] = "auto"
+		case "confirm", "auto", "disabled":
+			if h.cfg.LLM.ToolModes == nil {
+				h.cfg.LLM.ToolModes = make(map[string]string)
+			}
+			h.cfg.LLM.ToolModes[toolName] = args[2]
 		default:
-			return "", fmt.Errorf("usage: .set confirm-command on|off")
+			return "", fmt.Errorf("usage: .set confirm-tool [<tool_name>] on|off|confirm|auto|disabled")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		// Sync to agent immediately
-		h.agent.SetConfirmCommand(h.cfg.LLM.ConfirmCommand)
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.ConfirmCommand {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("Confirm command set to %s", status)
-
-		// Show warning when disabling
-		if !h.cfg.LLM.ConfirmCommand {
-			return fmt.Sprintf("%s\n%s", fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmDisabled), status), i18n.T(i18n.KeyCmdConfirmDisableWarn)), nil
-		}
-		return fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmEnabled), status), nil
+		h.agent.SetToolMode(toolName, h.cfg.LLM.ToolModes[toolName])
+		mode := h.cfg.LLM.ToolModes[toolName]
+		log.Info("Confirm tool %s set to %s", toolName, mode)
+		return fmt.Sprintf("工具 %s 模式已设置为: %s", toolName, mode), nil
 
 	case "result-mode":
 		if len(args) < 2 {
@@ -1307,10 +1382,11 @@ func showSettingsHelp(cfg *config.Config) string {
 		commandOutputStatus = i18n.T(i18n.KeyOn)
 	}
 
-	confirmStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ConfirmCommand {
-		confirmStatus = i18n.T(i18n.KeyOn)
+	confirmDefault := "confirm"
+	if v, ok := cfg.LLM.ToolModes["default"]; ok {
+		confirmDefault = v
 	}
+	confirmStatus := confirmDefault
 	logStatus := log.LogLevelString(log.GetLevel())
 	visionStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.VisionSupport {
@@ -1478,7 +1554,7 @@ func showSettingsHelp(cfg *config.Config) string {
 
 	// Group 4: Safety & Confirmation
 	allLines = append(allLines,
-		makeLine("confirm-command", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
+		makeLine("confirm-tool", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
 		makeLine("tool-timeout", toolTimeoutStr, i18n.T(i18n.KeyCol3ToolTimeout)),
 		makeLine("cmd-timeout", cmdTimeoutStr, i18n.T(i18n.KeyCol3CmdTimeout)),
 		makeLine("llm-timeout", llmTimeoutStr, i18n.T(i18n.KeyCol3LLMTimeout)),

@@ -256,7 +256,7 @@ func (a *Agent) OnScheduledTaskTriggered(entry *scheduler.CronEntry) {
 		Instruction:       entry.Instruction,
 		TimeoutSeconds:    1800,
 		Purpose:           fmt.Sprintf("Scheduled task #%d: %s", entry.ID, entry.Instruction),
-		ConfirmCommandOff: true,
+		ConfirmToolOff: true,
 	}
 
 	result, err := a.subAgentMgr.LaunchSubAgent(ctx, cfg)

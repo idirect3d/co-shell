@@ -83,9 +83,9 @@ type SubAgentConfig struct {
 	// These will be passed to the sub-agent via --image flag.
 	ImagePaths []string
 
-	// ConfirmCommandOff indicates whether to pass --confirm-command off to the sub-agent.
+	// ConfirmToolOff indicates whether to pass --confirm-tool off to the sub-agent.
 	// When true, the sub-agent will skip command confirmation prompts.
-	ConfirmCommandOff bool
+	ConfirmToolOff bool
 }
 
 // SubAgentResult holds the result of a sub-agent execution.
@@ -139,14 +139,14 @@ func (m *Manager) LaunchSubAgent(ctx context.Context, cfg SubAgentConfig) (*SubA
 		return nil, fmt.Errorf("cannot create sub-agent workspace %q: %w", cfg.Workspace, err)
 	}
 
-	// Build command: co-shell -w <workspace> [--confirm-command off] -- <instruction>
+	// Build command: co-shell -w <workspace> [--confirm-tool off] -- <instruction>
 	args := []string{
 		"-w", cfg.Workspace,
 	}
 
-	// If confirm-command is off (parent approved all), pass it to sub-agent
-	if cfg.ConfirmCommandOff {
-		args = append(args, "--confirm-command", "off")
+	// If confirm-tool is off (parent approved all), pass it to sub-agent
+	if cfg.ConfirmToolOff {
+		args = append(args, "--confirm-tool", "off")
 	}
 
 	// Instruction as non-flag argument (after --)

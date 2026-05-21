@@ -476,7 +476,7 @@ func (h *Hub) handleCreateAgent(remoteAddr *net.UDPAddr, msg map[string]interfac
 				"llm": map[string]interface{}{
 					"temperature":     0.5,
 					"max_iterations":  1000,
-					"confirm_command": true,
+					"confirm_tool": true,
 				},
 				"mcp": map[string]interface{}{
 					"servers": []interface{}{},
