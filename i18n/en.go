@@ -971,4 +971,22 @@ You are co-shell, a Go-powered intelligent command-line application that can dir
 	KeyDBMigrationComplete: "✅ Data migration complete",
 	KeyDBMigrationFailed:   "❌ Data migration failed: %v",
 	KeyDBSubCmdDesc:        "Database persistent storage (.set db for details)",
+	KeyDBInitDesc:          "Initialize PostgreSQL database (drop and recreate all tables)",
+	KeyDBMigrateDesc:       "Migrate data from local bbolt to PostgreSQL",
+
+	// DB backup/restore (FEATURE-86)
+	KeyDBBackupTitle:    "Backup PostgreSQL data to CSV files",
+	KeyDBRestoreTitle:   "Restore PostgreSQL data from backup",
+	KeyDBBackupDir:      "Backing up database to %s/ ...",
+	KeyDBRestoreDir:     "Restoring data from %s/ ...",
+	KeyDBBackupDone:     "✅ Database backup complete! Files saved in %s/",
+	KeyDBRestoreDone:    "✅ Data restore complete! Restored from %s/",
+	KeyDBBackupFailed:   "Backup failed: %w",
+	KeyDBRestoreFailed:  "Restore failed: %w",
+	KeyDBNoBackupFound:  "❌ No backups found",
+	KeyDBSelectBackup:   "Select backup number to restore (enter q to cancel): ",
+	KeyDBRestoreWarning: "⚠️  Restoring will overwrite ALL existing data in PostgreSQL!",
+	KeyDBRestoreConfirm: "Continue with restore? (y/n, default: n): ",
+	KeyDBBackupCancel:   "❌ Backup cancelled",
+	KeyDBRestoreCancel:  "❌ Restore cancelled",
 }

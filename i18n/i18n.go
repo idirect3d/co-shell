@@ -760,7 +760,25 @@ const (
 	KeyDBMigrationFailed   = "db_migration_failed"
 
 	// DB sub-command display (FEATURE-186)
-	KeyDBSubCmdDesc = "db_sub_cmd_desc"
+	KeyDBSubCmdDesc  = "db_sub_cmd_desc"
+	KeyDBInitDesc    = "db_init_desc"
+	KeyDBMigrateDesc = "db_migrate_desc"
+
+	// DB backup/restore (FEATURE-86)
+	KeyDBBackupTitle    = "db_backup_title"
+	KeyDBRestoreTitle   = "db_restore_title"
+	KeyDBBackupDir      = "db_backup_dir"
+	KeyDBRestoreDir     = "db_restore_dir"
+	KeyDBBackupDone     = "db_backup_done"
+	KeyDBRestoreDone    = "db_restore_done"
+	KeyDBBackupFailed   = "db_backup_failed"
+	KeyDBRestoreFailed  = "db_restore_failed"
+	KeyDBNoBackupFound  = "db_no_backup_found"
+	KeyDBSelectBackup   = "db_select_backup"
+	KeyDBRestoreWarning = "db_restore_warning"
+	KeyDBRestoreConfirm = "db_restore_confirm"
+	KeyDBBackupCancel   = "db_backup_cancel"
+	KeyDBRestoreCancel  = "db_restore_cancel"
 
 	// Unknown (fallback display)
 	KeyUnknown = "unknown"

@@ -177,6 +177,38 @@ func (s *Store) ListHistory() ([]HistoryEntryWithTime, error) {
 	return entries, err
 }
 
+// HistoryEntryWithKey represents a history entry with its bbolt key.
+type HistoryEntryWithKey struct {
+	Key       string
+	Input     string
+	Timestamp time.Time
+}
+
+// ListHistoryWithKeys returns all history entries with their bbolt keys in chronological order.
+func (s *Store) ListHistoryWithKeys() ([]HistoryEntryWithKey, error) {
+	var entries []HistoryEntryWithKey
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("history"))
+		if bucket == nil {
+			return nil
+		}
+		cursor := bucket.Cursor()
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			var entry HistoryEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				continue
+			}
+			entries = append(entries, HistoryEntryWithKey{
+				Key:       string(k),
+				Input:     entry.Input,
+				Timestamp: entry.Timestamp,
+			})
+		}
+		return nil
+	})
+	return entries, err
+}
+
 // ClearHistory removes all history entries.
 func (s *Store) ClearHistory() error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
