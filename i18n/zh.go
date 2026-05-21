@@ -431,7 +431,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescToolOutput:    "显示工具调用返回数据",
 	KeySettingsDescCommandOutput: "显示命令执行返回数据",
 
-	KeySettingsHelpFooter:   "💡 使用 .set <参数名> <值> 修改参数，例如: .set model deepseek-chat",
+	KeySettingsHelpFooter:   "💡 使用 .set <参数名> <值> 修改参数，例如: .set model deepseek-chat\n   .set db 查看/配置数据库（首次运行自动启动配置向导）",
 	KeySettingsCurrentTitle: "当前配置:",
 
 	// Memory enabled
@@ -1163,4 +1163,5 @@ EDITING FILES
 	KeyDBMigrating:         "正在迁移数据到 PostgreSQL...",
 	KeyDBMigrationComplete: "✅ 数据迁移完成",
 	KeyDBMigrationFailed:   "❌ 数据迁移失败: %v",
+	KeyDBSubCmdDesc:        "数据库持久化存储（.set db 查看详情）",
 }

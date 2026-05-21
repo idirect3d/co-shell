@@ -1327,104 +1327,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		log.Info("Dedup repeat limit set to %d", n)
 		return fmt.Sprintf("✅ 去重触发重复次数已设置为: %d", n), nil
 
-	case "db-enabled":
-		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOff)
-			if h.cfg.DB.Enabled {
-				status = i18n.T(i18n.KeyOn)
-			}
-			return fmt.Sprintf(i18n.T(i18n.KeyDBEnabledLabel)+": %s", status), nil
-		}
-		switch args[1] {
-		case "on", "1", "true", "yes":
-			h.cfg.DB.Enabled = true
-		case "off", "0", "false", "no":
-			h.cfg.DB.Enabled = false
-		default:
-			return "", fmt.Errorf("usage: .set db-enabled on|off")
-		}
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.DB.Enabled {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("DB enabled set to %s", status)
-		return fmt.Sprintf("✅ 数据库连接已设置为: %s", status), nil
-
-	case "db-host":
-		if len(args) < 2 {
-			return fmt.Sprintf(i18n.T(i18n.KeyDBHostLabel)+": %s", h.cfg.DB.Host), nil
-		}
-		h.cfg.DB.Host = args[1]
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("DB host set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库主机已设置为: %s", args[1]), nil
-
-	case "db-port":
-		if len(args) < 2 {
-			return fmt.Sprintf(i18n.T(i18n.KeyDBPortLabel)+": %d", h.cfg.DB.Port), nil
-		}
-		n, err := strconv.Atoi(args[1])
-		if err != nil {
-			return "", fmt.Errorf("无效的端口号: %s", args[1])
-		}
-		if n < 1 || n > 65535 {
-			return "", fmt.Errorf("端口号必须在 1 ~ 65535 之间")
-		}
-		h.cfg.DB.Port = n
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("DB port set to %d", n)
-		return fmt.Sprintf("✅ 数据库端口已设置为: %d", n), nil
-
-	case "db-name":
-		if len(args) < 2 {
-			return fmt.Sprintf(i18n.T(i18n.KeyDBNameLabel)+": %s", h.cfg.DB.DBName), nil
-		}
-		h.cfg.DB.DBName = args[1]
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("DB name set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库名称已设置为: %s", args[1]), nil
-
-	case "db-schema":
-		if len(args) < 2 {
-			return fmt.Sprintf(i18n.T(i18n.KeyDBSchemaLabel)+": %s", h.cfg.DB.Schema), nil
-		}
-		h.cfg.DB.Schema = args[1]
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("DB schema set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库 Schema 已设置为: %s", args[1]), nil
-
-	case "db-user":
-		if len(args) < 2 {
-			return fmt.Sprintf(i18n.T(i18n.KeyDBUserLabel)+": %s", h.cfg.DB.User), nil
-		}
-		h.cfg.DB.User = args[1]
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("DB user set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库用户已设置为: %s", args[1]), nil
-
-	case "db-password":
-		if len(args) < 2 {
-			return "", fmt.Errorf("usage: .set db-password <password>")
-		}
-		h.cfg.DB.Password = args[1]
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("DB password updated")
-		return "✅ 数据库密码已更新", nil
+	case "db":
+		return h.handleDBSubCommand(args[1:])
 
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
@@ -1679,12 +1583,17 @@ func showSettingsHelp(cfg *config.Config) string {
 	} else if cfg.LLM.ContextStartMode == "smart" {
 		contextStartMode = i18n.T(i18n.KeyContextStartSmart)
 	}
+	dbEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.DB.Enabled {
+		dbEnabledStatus = i18n.T(i18n.KeyOn)
+	}
 	allLines = append(allLines,
 		makeLine("memory-enabled", memoryEnabledStatus, i18n.T(i18n.KeyCol3MemoryEnabled)),
 		makeLine("context-limit", contextLimitStr, i18n.T(i18n.KeyCol3ContextLimit)),
 		makeLine("context-start", contextStartMode, i18n.T(i18n.KeyCol3ContextStartMode)),
 		makeLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)),
 		makeLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), i18n.T(i18n.KeyCol3MemorySearchMaxResults)),
+		makeLine("db", dbEnabledStatus, i18n.T(i18n.KeyDBSubCmdDesc)),
 	)
 
 	// Group 6: Tasks & Sub-Agents
@@ -1739,29 +1648,13 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(15)...)
 
 	// Group 5: Memory & Context
-	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(5)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
 
 	// Group 6: Tasks & Sub-Agents
 	writeGroup(i18n.T(i18n.KeySettingsGroupTask), nextLines(2)...)
 
 	// Group 7: Search & Debug
 	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
-
-	// Group 8: Database
-	dbEnabledStatus := i18n.T(i18n.KeyOff)
-	if cfg.DB.Enabled {
-		dbEnabledStatus = i18n.T(i18n.KeyOn)
-	}
-	dbLines := []string{
-		formatLine("db-enabled:", dbEnabledStatus, i18n.T(i18n.KeyDBEnabledLabel)),
-		formatLine("db-host:", cfg.DB.Host, i18n.T(i18n.KeyDBHostLabel)),
-		formatLine("db-port:", fmt.Sprintf("%d", cfg.DB.Port), i18n.T(i18n.KeyDBPortLabel)),
-		formatLine("db-name:", cfg.DB.DBName, i18n.T(i18n.KeyDBNameLabel)),
-		formatLine("db-schema:", cfg.DB.Schema, i18n.T(i18n.KeyDBSchemaLabel)),
-		formatLine("db-user:", cfg.DB.User, i18n.T(i18n.KeyDBUserLabel)),
-		formatLine("db-password:", "****", i18n.T(i18n.KeyDBPasswordLabel)),
-	}
-	writeGroup(i18n.T(i18n.KeyDBConfigLabel), dbLines...)
 
 	return sb.String()
 }
