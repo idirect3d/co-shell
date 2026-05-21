@@ -7,7 +7,7 @@
 ## 当前版本
 
 > **版本**: v0.5.0-RC3
-> **BUILD**: 176
+> **BUILD**: 183
 
 
 
@@ -155,7 +155,7 @@
 - [x] ENHANCEMENT-134 模型API设置向导改进：1) 提供商列表增加Ollama选项（倒数第二），默认地址 http://localhost:11434/v1；2) 模型列表增加编号选项，输入数字选择模型，输入非数字则作为前缀匹配；3) 最终检测时列出全部地址和模型参数让用户确认；4) 最终测试成功后提示用户再次修改模型的方法。[BUILD-147]
 - [x] FIX-134 修复 .set 显示时 description/principles 空值回退到 i18n 默认值的问题 [BUILD-151]
 
-## v0.5.0 — RC3
+## v0.5.0 — Beta2
 
 > **状态**: 🚧 开发中
 > **目标日期**: 2026-05-12
@@ -247,6 +247,7 @@
 - [ ] FEATURE-182 增加类CLINE的XML工具调用模式，以便能够与LLM自身能力解耦。
 - [x] FIX-183 修复 .model add/switch 后模型切换不生效的问题：ModelManager 与 cfg.Models 双列表不同步导致 selectModelForCall 仍使用旧模型。在 cmd/model.go 的 saveModel/switchModel/removeModel/enableModel/disableModel/setPriority 方法中增加 modelMgr 同步逻辑。[BUILD-182]
 - [ ] FEATURE-184 工具调用确认机制扩展：1) 将所有工具调用（不限于 execute_command）都增加用户确认；2) 每个工具增加 confirm-tool 控制参数，可通过命令行、REPL、参数文件设置，默认需要用户确认；3) 用户确认时增加 G 选项（同意，且取消此方法需用户确认标志）；4) 数字计数器改为每个方法独立，当前任务结束后全部清 0。
+- [x] FEATURE-86 支持永久记忆接入数据库。1）基于PostgreSQL进行设计；2）提供数据库连接配置方法，尽量简化数据库配置，仅提供地址（默认本地）、端口（数据库默认）、库名（默认为coshell_db，或其一个更好的名字）、schema使用默认public；3）如果配置数据库后，默认连接数据库，如果不通，则提示用户后依然使用本地库（不要因为远端数据库无法连接影响整体使用）。[BUILD-183]
 
 ## v1.0.0 — 正式版
 
@@ -268,7 +269,6 @@
 - [ ] FEATURE-58 多 Agent 协作
 - [ ] FEATURE-59 可视化工作流编排
 - [ ] FEATURE-60 远程执行（SSH）
-- [ ] FEATURE-86 支持永久记忆接入数据库
 
 ### 优化
 

@@ -348,10 +348,54 @@ type MCPServerConfig struct {
 	Enabled bool     `json:"enabled"`
 }
 
+// DBConfig holds PostgreSQL database connection configuration.
+type DBConfig struct {
+	// Enabled enables PostgreSQL storage. When enabled, co-shell will attempt
+	// to connect to the PostgreSQL database. If the connection fails, it will
+	// fall back to local bbolt storage with a warning.
+	Enabled bool `json:"enabled"`
+
+	// Host is the PostgreSQL server hostname or IP address.
+	// Default: "localhost"
+	Host string `json:"host"`
+
+	// Port is the PostgreSQL server port.
+	// Default: 5432 (standard PostgreSQL port)
+	Port int `json:"port"`
+
+	// DBName is the PostgreSQL database name.
+	// Default: "coshell_db"
+	DBName string `json:"db_name"`
+
+	// Schema is the PostgreSQL schema to use.
+	// Default: "public"
+	Schema string `json:"schema"`
+
+	// User is the PostgreSQL user for authentication.
+	// Default: "postgres"
+	User string `json:"user"`
+
+	// Password is the PostgreSQL password for authentication.
+	Password string `json:"password"`
+}
+
+// DefaultDBConfig returns a DBConfig with sensible defaults.
+func DefaultDBConfig() DBConfig {
+	return DBConfig{
+		Enabled: false,
+		Host:    "localhost",
+		Port:    5432,
+		DBName:  "coshell_db",
+		Schema:  "public",
+		User:    "postgres",
+	}
+}
+
 // Config is the top-level configuration structure.
 type Config struct {
 	LLM                LLMConfig `json:"llm"`
 	MCP                MCPConfig `json:"mcp"`
+	DB                 DBConfig  `json:"db"`
 	Rules              []string  `json:"rules"`
 	LogEnabled         bool      `json:"log_enabled"`
 	LogLevel           string    `json:"log_level"` // debug/info/warn/error/off
