@@ -59,6 +59,7 @@ const (
 	CmdConfirmApproveAll                    // Approve all commands for this request
 	CmdConfirmApproveCount                  // Approve N commands (user entered a number)
 	CmdConfirmApproveG                      // Approve and disable confirmation for this tool (G option)
+	CmdConfirmApproveD                      // Permanently disable this tool (D option)
 	CmdConfirmCancel                        // User cancelled, return to REPL
 	CmdConfirmModify                        // User entered custom input to modify the command
 )

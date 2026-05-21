@@ -639,6 +639,14 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				a.toolDisableConfirm[tc.Name] = true
 				fmt.Printf("\n%s\n", i18n.T(i18n.KeyCmdConfirmDisableTool))
 				// fall through to execute
+			case CmdConfirmApproveD:
+				// Permanently disable this tool
+				if a.toolModes == nil {
+					a.toolModes = make(map[string]string)
+				}
+				a.toolModes[tc.Name] = "disabled"
+				fmt.Printf("\n%s\n", i18n.T(i18n.KeyCmdConfirmDisableToolD))
+				return "", fmt.Errorf("tool %q has been permanently disabled by user (D option)", tc.Name)
 			case CmdConfirmApproveCount:
 				// Parse the number of tool calls to auto-approve for this tool
 				if n, err := strconv.Atoi(modifyInput); err == nil && n > 0 {
