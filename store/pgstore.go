@@ -27,9 +27,13 @@
 package store
 
 import (
+	"bufio"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/config"
@@ -76,6 +80,12 @@ func NewPGStore(cfg config.DBConfig) (*PGStore, error) {
 
 	store := &PGStore{db: db, schema: schema}
 
+	// Ensure schema exists (create if not exists)
+	if err := store.ensureSchema(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("cannot ensure PostgreSQL schema: %w", err)
+	}
+
 	// Create tables
 	if err := store.ensureTables(); err != nil {
 		db.Close()
@@ -85,12 +95,30 @@ func NewPGStore(cfg config.DBConfig) (*PGStore, error) {
 	return store, nil
 }
 
+// ensureSchema creates the schema if it doesn't exist and grants usage/creation
+// privileges to the current user. This is called before ensureTables to ensure
+// the target schema is available.
+func (s *PGStore) ensureSchema() error {
+	if s.schema == "public" {
+		return nil
+	}
+	// Create schema if not exists
+	if _, err := s.db.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, s.schema)); err != nil {
+		return fmt.Errorf("cannot create schema %s: %w", s.schema, err)
+	}
+	// Grant usage and create privileges on the schema to the current user
+	if _, err := s.db.Exec(fmt.Sprintf(`GRANT USAGE, CREATE ON SCHEMA %s TO CURRENT_USER`, s.schema)); err != nil {
+		return fmt.Errorf("cannot grant privileges on schema %s: %w", s.schema, err)
+	}
+	return nil
+}
+
 // ensureTables creates all required tables if they don't exist.
 func (s *PGStore) ensureTables() error {
 	tables := []string{
 		// History table
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s.history (
-			id BIGSERIAL PRIMARY KEY,
+			id TEXT PRIMARY KEY,
 			input TEXT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`, s.schema),
@@ -159,8 +187,10 @@ func (s *PGStore) Close() error {
 
 // SaveHistory appends a history entry.
 func (s *PGStore) SaveHistory(input string) error {
-	query := fmt.Sprintf(`INSERT INTO %s.history (input) VALUES ($1)`, s.schema)
-	_, err := s.db.Exec(query, input)
+	// Generate a timestamp-based key matching bbolt's format
+	key := fmt.Sprintf("%020d", time.Now().UnixNano())
+	query := fmt.Sprintf(`INSERT INTO %s.history (id, input) VALUES ($1, $2)`, s.schema)
+	_, err := s.db.Exec(query, key, input)
 	return err
 }
 
@@ -521,23 +551,112 @@ func (s *PGStore) ClearSession() error {
 // --- Migration Support ---
 
 // MigrateFromBolt migrates all data from a bbolt Store to this PGStore.
-// This is a one-time operation that copies all data from the local bbolt
-// database to the PostgreSQL database.
+// For each table, it first checks the maximum key/ID already in PostgreSQL,
+// then only migrates entries with keys greater than that maximum.
+// This allows the migration to be safely re-run to pick up new data.
+// Tables are migrated in parallel using goroutines for maximum throughput.
 func (s *PGStore) MigrateFromBolt(boltStore *Store) error {
-	// Migrate history
-	historyEntries, err := boltStore.ListHistory()
-	if err != nil {
-		return fmt.Errorf("cannot load history from bolt: %w", err)
+	type migrateResult struct {
+		name string
+		err  error
 	}
-	for _, entry := range historyEntries {
-		if err := s.SaveHistory(entry.Input); err != nil {
-			return fmt.Errorf("cannot save history to pg: %w", err)
+
+	results := make(chan migrateResult, 7)
+
+	// Launch all migrations in parallel
+	go func() { results <- migrateResult{"history", s.migrateHistory(boltStore)} }()
+	go func() { results <- migrateResult{"context", s.migrateContext(boltStore)} }()
+	go func() { results <- migrateResult{"schedules", s.migrateSchedules(boltStore)} }()
+	go func() { results <- migrateResult{"taskplans", s.migrateTaskPlans(boltStore)} }()
+	go func() { results <- migrateResult{"memory", s.migrateMemory(boltStore)} }()
+	go func() { results <- migrateResult{"token_usage", s.migrateTokenUsage(boltStore)} }()
+	go func() { results <- migrateResult{"session", s.migrateSession(boltStore)} }()
+
+	// Collect results
+	var firstErr error
+	for i := 0; i < 7; i++ {
+		r := <-results
+		if r.err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("%s: %w", r.name, r.err)
 		}
 	}
 
-	// Migrate context
-	// Since bbolt context is key-value, we iterate all keys
+	return firstErr
+}
+
+// migrateHistory migrates history entries that are not yet in PostgreSQL.
+// History keys in bbolt are timestamp strings (%020d = nanoseconds).
+// PG uses the same key as the primary key (TEXT), so we compare by key string.
+func (s *PGStore) migrateHistory(boltStore *Store) error {
+	// Find the maximum key already in PG
+	var maxKey string
+	query := fmt.Sprintf(`SELECT COALESCE(MAX(id), '') FROM %s.history`, s.schema)
+	s.db.QueryRow(query).Scan(&maxKey)
+
+	entries, err := boltStore.ListHistoryWithKeys()
+	if err != nil {
+		return fmt.Errorf("cannot load history from bolt: %w", err)
+	}
+	if len(entries) == 0 {
+		fmt.Println("✅ history: 无数据")
+		return nil
+	}
+
+	// Filter entries with key > maxKey
+	var toMigrate []HistoryEntryWithKey
+	for _, entry := range entries {
+		if entry.Key > maxKey {
+			toMigrate = append(toMigrate, entry)
+		}
+	}
+
+	if len(toMigrate) == 0 {
+		fmt.Println("✅ history: 无新增数据")
+		return nil
+	}
+
+	fmt.Printf("✅ history: 迁移 %d 条记录\n", len(toMigrate))
+
+	// Batch insert using multi-row VALUES for maximum throughput
+	batchSize := 500
+	for i := 0; i < len(toMigrate); i += batchSize {
+		end := i + batchSize
+		if end > len(toMigrate) {
+			end = len(toMigrate)
+		}
+		batch := toMigrate[i:end]
+
+		// Build multi-row INSERT: VALUES ($1,$2,$3),($4,$5,$6),...
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf(`INSERT INTO %s.history (id, input, created_at) VALUES `, s.schema))
+		args := make([]interface{}, 0, len(batch)*3)
+		for j, entry := range batch {
+			if j > 0 {
+				sb.WriteString(",")
+			}
+			base := j * 3
+			sb.WriteString(fmt.Sprintf("($%d,$%d,$%d)", base+1, base+2, base+3))
+			args = append(args, entry.Key, entry.Input, entry.Timestamp)
+		}
+		sb.WriteString(" ON CONFLICT (id) DO NOTHING")
+
+		if _, err := s.db.Exec(sb.String(), args...); err != nil {
+			return fmt.Errorf("cannot batch insert history: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// migrateContext migrates context entries (full table replace).
+func (s *PGStore) migrateContext(boltStore *Store) error {
+	// Clear existing data
+	if _, err := s.db.Exec(fmt.Sprintf(`DELETE FROM %s.context`, s.schema)); err != nil {
+		return fmt.Errorf("cannot clear context: %w", err)
+	}
+
 	contextKeys := []string{"current_context", "system_prompt", "user_preferences"}
+	migrated := 0
 	for _, key := range contextKeys {
 		data, found, err := boltStore.GetContext(key)
 		if err != nil {
@@ -547,75 +666,489 @@ func (s *PGStore) MigrateFromBolt(boltStore *Store) error {
 			if err := s.SaveContext(key, data); err != nil {
 				return fmt.Errorf("cannot save context %s to pg: %w", key, err)
 			}
+			migrated++
 		}
 	}
+	if migrated > 0 {
+		fmt.Printf("✅ context: 迁移 %d 条记录\n", migrated)
+	} else {
+		fmt.Println("✅ context: 无数据")
+	}
+	return nil
+}
 
-	// Migrate schedules
+// migrateSchedules migrates schedule entries (full table replace).
+func (s *PGStore) migrateSchedules(boltStore *Store) error {
+	// Clear existing data
+	if _, err := s.db.Exec(fmt.Sprintf(`DELETE FROM %s.schedules`, s.schema)); err != nil {
+		return fmt.Errorf("cannot clear schedules: %w", err)
+	}
+
 	schedules, err := boltStore.LoadSchedules()
 	if err != nil {
 		return fmt.Errorf("cannot load schedules from bolt: %w", err)
 	}
-	for id, data := range schedules {
-		if err := s.SaveSchedule(id, data); err != nil {
-			return fmt.Errorf("cannot save schedule %d to pg: %w", id, err)
-		}
+
+	if len(schedules) == 0 {
+		fmt.Println("✅ schedules: 无数据")
+		return nil
 	}
 
-	// Migrate task plans
+	// Collect all entries
+	var toMigrate []struct {
+		id   int
+		data []byte
+	}
+	for id, data := range schedules {
+		toMigrate = append(toMigrate, struct {
+			id   int
+			data []byte
+		}{id, data})
+	}
+
+	fmt.Printf("✅ schedules: 迁移 %d 条记录\n", len(toMigrate))
+
+	// Batch insert using multi-row VALUES
+	batchSize := 500
+	for i := 0; i < len(toMigrate); i += batchSize {
+		end := i + batchSize
+		if end > len(toMigrate) {
+			end = len(toMigrate)
+		}
+		batch := toMigrate[i:end]
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf(`INSERT INTO %s.schedules (id, data) VALUES `, s.schema))
+		args := make([]interface{}, 0, len(batch)*2)
+		for j, entry := range batch {
+			if j > 0 {
+				sb.WriteString(",")
+			}
+			base := j * 2
+			sb.WriteString(fmt.Sprintf("($%d,$%d)", base+1, base+2))
+			args = append(args, entry.id, entry.data)
+		}
+		sb.WriteString(" ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data")
+
+		if _, err := s.db.Exec(sb.String(), args...); err != nil {
+			return fmt.Errorf("cannot batch insert schedules: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateTaskPlans migrates task plan entries (full table replace).
+func (s *PGStore) migrateTaskPlans(boltStore *Store) error {
+	// Clear existing data
+	if _, err := s.db.Exec(fmt.Sprintf(`DELETE FROM %s.taskplans`, s.schema)); err != nil {
+		return fmt.Errorf("cannot clear taskplans: %w", err)
+	}
+
 	taskPlans, err := boltStore.ListTaskPlans()
 	if err != nil {
 		return fmt.Errorf("cannot load task plans from bolt: %w", err)
 	}
-	for id, data := range taskPlans {
-		if err := s.SaveTaskPlan(id, data); err != nil {
-			return fmt.Errorf("cannot save task plan %d to pg: %w", id, err)
-		}
+
+	if len(taskPlans) == 0 {
+		fmt.Println("✅ taskplans: 无数据")
+		return nil
 	}
 
-	// Migrate memory
+	var toMigrate []struct {
+		id   int
+		data []byte
+	}
+	for id, data := range taskPlans {
+		toMigrate = append(toMigrate, struct {
+			id   int
+			data []byte
+		}{id, data})
+	}
+
+	fmt.Printf("✅ taskplans: 迁移 %d 条记录\n", len(toMigrate))
+
+	batchSize := 500
+	for i := 0; i < len(toMigrate); i += batchSize {
+		end := i + batchSize
+		if end > len(toMigrate) {
+			end = len(toMigrate)
+		}
+		batch := toMigrate[i:end]
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf(`INSERT INTO %s.taskplans (id, data) VALUES `, s.schema))
+		args := make([]interface{}, 0, len(batch)*2)
+		for j, entry := range batch {
+			if j > 0 {
+				sb.WriteString(",")
+			}
+			base := j * 2
+			sb.WriteString(fmt.Sprintf("($%d,$%d)", base+1, base+2))
+			args = append(args, entry.id, entry.data)
+		}
+		sb.WriteString(" ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data")
+
+		if _, err := s.db.Exec(sb.String(), args...); err != nil {
+			return fmt.Errorf("cannot batch insert taskplans: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateMemory migrates memory entries with keys greater than the max in PG.
+func (s *PGStore) migrateMemory(boltStore *Store) error {
+	var maxKey string
+	query := fmt.Sprintf(`SELECT COALESCE(MAX(key), '') FROM %s.memory`, s.schema)
+	s.db.QueryRow(query).Scan(&maxKey)
+
 	memoryEntries, err := boltStore.SearchMemory("")
 	if err != nil {
 		return fmt.Errorf("cannot load memory from bolt: %w", err)
 	}
+	if len(memoryEntries) == 0 {
+		fmt.Println("✅ memory: 无数据")
+		return nil
+	}
+
+	// Filter entries with key > maxKey
+	var toMigrate []MemoryEntry
 	for _, entry := range memoryEntries {
-		if err := s.SaveMemory(entry.Key, entry.Value); err != nil {
-			return fmt.Errorf("cannot save memory %s to pg: %w", entry.Key, err)
+		if entry.Key > maxKey {
+			toMigrate = append(toMigrate, entry)
 		}
 	}
 
-	// Migrate token usage
-	tokenUsage, err := boltStore.ListTokenUsage()
-	if err != nil {
-		return fmt.Errorf("cannot load token usage from bolt: %w", err)
-	}
-	for _, entry := range tokenUsage {
-		if err := s.SaveTokenUsage(&entry); err != nil {
-			return fmt.Errorf("cannot save token usage %s to pg: %w", entry.ID, err)
-		}
+	if len(toMigrate) == 0 {
+		fmt.Println("✅ memory: 无新增数据")
+		return nil
 	}
 
-	// Migrate session
-	sessionData, found, err := boltStore.LoadSession()
-	if err != nil {
-		return fmt.Errorf("cannot load session from bolt: %w", err)
-	}
-	if found {
-		// Parse the session data to extract messages
-		var sd SessionData
-		if err := json.Unmarshal(sessionData, &sd); err != nil {
-			return fmt.Errorf("cannot unmarshal session data: %w", err)
+	fmt.Printf("✅ memory: 迁移 %d 条记录\n", len(toMigrate))
+
+	batchSize := 500
+	for i := 0; i < len(memoryEntries); i += batchSize {
+		end := i + batchSize
+		if end > len(memoryEntries) {
+			end = len(memoryEntries)
 		}
-		if err := s.SaveSession(sd.Messages); err != nil {
-			return fmt.Errorf("cannot save session to pg: %w", err)
+		batch := memoryEntries[i:end]
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf(`INSERT INTO %s.memory (key, value) VALUES `, s.schema))
+		args := make([]interface{}, 0, len(batch)*2)
+		for j, entry := range batch {
+			if j > 0 {
+				sb.WriteString(",")
+			}
+			base := j * 2
+			sb.WriteString(fmt.Sprintf("($%d,$%d)", base+1, base+2))
+			args = append(args, entry.Key, entry.Value)
+		}
+		sb.WriteString(" ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
+
+		if _, err := s.db.Exec(sb.String(), args...); err != nil {
+			return fmt.Errorf("cannot batch insert memory: %w", err)
 		}
 	}
 
 	return nil
 }
 
+// migrateTokenUsage migrates token usage entries with IDs greater than the max in PG.
+func (s *PGStore) migrateTokenUsage(boltStore *Store) error {
+	var maxID string
+	query := fmt.Sprintf(`SELECT COALESCE(MAX(id), '') FROM %s.token_usage`, s.schema)
+	s.db.QueryRow(query).Scan(&maxID)
+
+	tokenUsage, err := boltStore.ListTokenUsage()
+	if err != nil {
+		return fmt.Errorf("cannot load token usage from bolt: %w", err)
+	}
+
+	var toMigrate []TokenUsageEntry
+	for _, entry := range tokenUsage {
+		if entry.ID > maxID {
+			toMigrate = append(toMigrate, entry)
+		}
+	}
+
+	if len(toMigrate) == 0 {
+		fmt.Println("✅ token_usage: 无新增数据")
+		return nil
+	}
+
+	fmt.Printf("✅ token_usage: 迁移 %d 条记录\n", len(toMigrate))
+
+	batchSize := 500
+	for i := 0; i < len(toMigrate); i += batchSize {
+		end := i + batchSize
+		if end > len(toMigrate) {
+			end = len(toMigrate)
+		}
+		batch := toMigrate[i:end]
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf(`INSERT INTO %s.token_usage (id, prompt_tokens, completion_tokens, total_tokens, recorded_at) VALUES `, s.schema))
+		args := make([]interface{}, 0, len(batch)*5)
+		for j, entry := range batch {
+			if j > 0 {
+				sb.WriteString(",")
+			}
+			base := j * 5
+			sb.WriteString(fmt.Sprintf("($%d,$%d,$%d,$%d,$%d)", base+1, base+2, base+3, base+4, base+5))
+			args = append(args, entry.ID, entry.PromptTokens, entry.CompletionTokens, entry.TotalTokens, entry.Timestamp)
+		}
+		sb.WriteString(" ON CONFLICT (id) DO NOTHING")
+
+		if _, err := s.db.Exec(sb.String(), args...); err != nil {
+			return fmt.Errorf("cannot batch insert token_usage: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateSession migrates the session entry (fixed key "current", UPSERT).
+func (s *PGStore) migrateSession(boltStore *Store) error {
+	sessionData, found, err := boltStore.LoadSession()
+	if err != nil {
+		return fmt.Errorf("cannot load session from bolt: %w", err)
+	}
+	if !found {
+		fmt.Println("✅ session: 无数据")
+		return nil
+	}
+
+	var sd SessionData
+	if err := json.Unmarshal(sessionData, &sd); err != nil {
+		return fmt.Errorf("cannot unmarshal session data: %w", err)
+	}
+	if err := s.SaveSession(sd.Messages); err != nil {
+		return fmt.Errorf("cannot save session to pg: %w", err)
+	}
+	fmt.Println("✅ session: 迁移 1 条记录")
+	return nil
+}
+
+// DropTables drops all tables in the current schema.
+func (s *PGStore) DropTables() error {
+	tables := []string{"history", "context", "schedules", "taskplans", "memory", "token_usage", "sessions"}
+	for _, table := range tables {
+		query := fmt.Sprintf(`DROP TABLE IF EXISTS %s.%s CASCADE`, s.schema, table)
+		if _, err := s.db.Exec(query); err != nil {
+			return fmt.Errorf("cannot drop table %s: %w", table, err)
+		}
+	}
+	return nil
+}
+
+// RecreateTables recreates all tables (calls ensureTables).
+func (s *PGStore) RecreateTables() error {
+	return s.ensureTables()
+}
+
 // DSN returns the connection string (with password masked) for display purposes.
 func (s *PGStore) DSN() string {
 	return fmt.Sprintf("postgresql://%s:%d/%s (schema: %s)", "localhost", 5432, "coshell_db", s.schema)
+}
+
+// BackupToCSV exports all tables to CSV files in the specified directory.
+// Each table gets its own CSV file named <table>.csv.
+func (s *PGStore) BackupToCSV(dir string) error {
+	tables := []string{"history", "context", "schedules", "taskplans", "memory", "token_usage", "sessions"}
+	for _, table := range tables {
+		query := fmt.Sprintf(`SELECT * FROM %s.%s`, s.schema, table)
+		rows, err := s.db.Query(query)
+		if err != nil {
+			return fmt.Errorf("cannot query %s: %w", table, err)
+		}
+
+		columns, err := rows.Columns()
+		if err != nil {
+			rows.Close()
+			return fmt.Errorf("cannot get columns for %s: %w", table, err)
+		}
+
+		filePath := filepath.Join(dir, table+".csv")
+		f, err := os.Create(filePath)
+		if err != nil {
+			rows.Close()
+			return fmt.Errorf("cannot create %s: %w", filePath, err)
+		}
+
+		// Write CSV header
+		if _, err := fmt.Fprintln(f, strings.Join(columns, ",")); err != nil {
+			f.Close()
+			rows.Close()
+			return fmt.Errorf("cannot write header for %s: %w", table, err)
+		}
+
+		// Write rows
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		rowCount := 0
+		for rows.Next() {
+			if err := rows.Scan(valuePtrs...); err != nil {
+				f.Close()
+				rows.Close()
+				return fmt.Errorf("cannot scan row in %s: %w", table, err)
+			}
+
+			// Format values as CSV
+			line := make([]string, len(columns))
+			for i, v := range values {
+				if v == nil {
+					line[i] = ""
+				} else {
+					switch val := v.(type) {
+					case []byte:
+						// Escape special characters for CSV
+						str := string(val)
+						if strings.ContainsAny(str, ",\"\n") {
+							str = `"` + strings.ReplaceAll(str, `"`, `""`) + `"`
+						}
+						line[i] = str
+					case string:
+						if strings.ContainsAny(val, ",\"\n") {
+							val = `"` + strings.ReplaceAll(val, `"`, `""`) + `"`
+						}
+						line[i] = val
+					default:
+						line[i] = fmt.Sprintf("%v", val)
+					}
+				}
+			}
+			if _, err := fmt.Fprintln(f, strings.Join(line, ",")); err != nil {
+				f.Close()
+				rows.Close()
+				return fmt.Errorf("cannot write row in %s: %w", table, err)
+			}
+			rowCount++
+		}
+		f.Close()
+		rows.Close()
+
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("rows iteration error in %s: %w", table, err)
+		}
+
+		fmt.Printf("✅ %s: %d 条记录\n", table, rowCount)
+	}
+	return nil
+}
+
+// RestoreFromCSV imports data from CSV files in the specified directory.
+// It clears each table before importing.
+func (s *PGStore) RestoreFromCSV(dir string) error {
+	tables := []string{"history", "context", "schedules", "taskplans", "memory", "token_usage", "sessions"}
+	for _, table := range tables {
+		filePath := filepath.Join(dir, table+".csv")
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			fmt.Printf("✅ %s: 无备份文件，跳过\n", table)
+			continue
+		}
+
+		f, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("cannot open %s: %w", filePath, err)
+		}
+
+		// Read header
+		reader := bufio.NewReader(f)
+		headerLine, err := reader.ReadString('\n')
+		if err != nil {
+			f.Close()
+			return fmt.Errorf("cannot read header from %s: %w", filePath, err)
+		}
+		columns := strings.Split(strings.TrimRight(headerLine, "\r\n"), ",")
+
+		// Clear existing data
+		if _, err := s.db.Exec(fmt.Sprintf(`DELETE FROM %s.%s`, s.schema, table)); err != nil {
+			f.Close()
+			return fmt.Errorf("cannot clear %s: %w", table, err)
+		}
+
+		// Build INSERT statement with placeholders
+		placeholders := make([]string, len(columns))
+		for i := range placeholders {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+		}
+		insertSQL := fmt.Sprintf(`INSERT INTO %s.%s (%s) VALUES (%s)`,
+			s.schema, table,
+			strings.Join(columns, ","),
+			strings.Join(placeholders, ","))
+
+		// Read and insert rows
+		rowCount := 0
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				break // EOF
+			}
+			line = strings.TrimRight(line, "\r\n")
+			if line == "" {
+				continue
+			}
+
+			// Parse CSV line (simple parser, handles quoted fields)
+			values := parseCSVLine(line)
+			if len(values) != len(columns) {
+				f.Close()
+				return fmt.Errorf("column count mismatch in %s: expected %d, got %d", filePath, len(columns), len(values))
+			}
+
+			args := make([]interface{}, len(values))
+			for i, v := range values {
+				args[i] = v
+			}
+
+			if _, err := s.db.Exec(insertSQL, args...); err != nil {
+				f.Close()
+				return fmt.Errorf("cannot insert row into %s: %w", table, err)
+			}
+			rowCount++
+		}
+		f.Close()
+
+		fmt.Printf("✅ %s: %d 条记录\n", table, rowCount)
+	}
+	return nil
+}
+
+// parseCSVLine parses a single CSV line, handling quoted fields.
+func parseCSVLine(line string) []string {
+	var result []string
+	var current strings.Builder
+	inQuotes := false
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if inQuotes {
+			if c == '"' {
+				if i+1 < len(line) && line[i+1] == '"' {
+					current.WriteByte('"')
+					i++
+				} else {
+					inQuotes = false
+				}
+			} else {
+				current.WriteByte(c)
+			}
+		} else {
+			if c == '"' {
+				inQuotes = true
+			} else if c == ',' {
+				result = append(result, current.String())
+				current.Reset()
+			} else {
+				current.WriteByte(c)
+			}
+		}
+	}
+	result = append(result, current.String())
+	return result
 }
 
 // Ensure compile-time interface compliance

@@ -319,6 +319,20 @@ func getSettingValue(cfg *config.Config, param string) string {
 		default:
 			return i18n.T(i18n.KeyContextStartTask)
 		}
+	case "db-enabled":
+		return boolToString(cfg.DB.Enabled)
+	case "db-host":
+		return cfg.DB.Host
+	case "db-port":
+		return fmt.Sprintf("%d", cfg.DB.Port)
+	case "db-name":
+		return cfg.DB.DBName
+	case "db-schema":
+		return cfg.DB.Schema
+	case "db-user":
+		return cfg.DB.User
+	case "db-password":
+		return "****"
 	default:
 		return "(unknown)"
 	}
@@ -883,6 +897,66 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		log.Info("Context start mode set via LLM tool: %s (%s)", value, modeDesc)
 
+	case "db-enabled":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.DB.Enabled = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("DB enabled set via LLM tool: %v", b)
+
+	case "db-host":
+		cfg.DB.Host = value
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("DB host set via LLM tool: %s", value)
+
+	case "db-port":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid port: %s", value)
+		}
+		if n < 1 || n > 65535 {
+			return fmt.Errorf("port must be between 1 and 65535")
+		}
+		cfg.DB.Port = n
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("DB port set via LLM tool: %d", n)
+
+	case "db-name":
+		cfg.DB.DBName = value
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("DB name set via LLM tool: %s", value)
+
+	case "db-schema":
+		cfg.DB.Schema = value
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("DB schema set via LLM tool: %s", value)
+
+	case "db-user":
+		cfg.DB.User = value
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("DB user set via LLM tool: %s", value)
+
+	case "db-password":
+		cfg.DB.Password = value
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("DB password updated via LLM tool")
+
 	default:
 		return fmt.Errorf("unknown setting: %s", param)
 
@@ -1132,6 +1206,19 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 		contextStartMode = i18n.T(i18n.KeyContextStartSmart)
 	}
 	sb.WriteString(formatLine("context-start", contextStartMode, "window/task/smart", "上下文起始模式：window=固定窗口/task=任务模式/smart=智能调整"))
+
+	// Database config (part of Memory & Context)
+	dbEnabledStr := "关闭"
+	if cfg.DB.Enabled {
+		dbEnabledStr = "开启"
+	}
+	sb.WriteString(formatLine("db-enabled", dbEnabledStr, "on/off, 1/0, true/false, yes/no", "是否启用 PostgreSQL 持久化存储"))
+	sb.WriteString(formatLine("db-host", cfg.DB.Host, "主机名或 IP 地址", "PostgreSQL 数据库主机地址"))
+	sb.WriteString(formatLine("db-port", fmt.Sprintf("%d", cfg.DB.Port), "1 ~ 65535", "PostgreSQL 数据库端口"))
+	sb.WriteString(formatLine("db-name", cfg.DB.DBName, "数据库名称", "PostgreSQL 数据库名称"))
+	sb.WriteString(formatLine("db-schema", cfg.DB.Schema, "Schema 名称", "PostgreSQL 数据库 Schema"))
+	sb.WriteString(formatLine("db-user", cfg.DB.User, "用户名", "PostgreSQL 数据库用户"))
+	sb.WriteString(formatLine("db-password", "****", "密码字符串", "PostgreSQL 数据库密码"))
 
 	// Group 6: Tasks & Sub-Agents
 	sb.WriteString("━━━ [ 任务与子代理 ] ━━━\n\n")
