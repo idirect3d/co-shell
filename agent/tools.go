@@ -486,7 +486,7 @@ func (a *Agent) buildTools() []llm.Tool {
 						"properties": map[string]interface{}{
 							"param": map[string]interface{}{
 								"type":        "string",
-								"description": "The parameter name to change. See the .set command help for all available parameters (e.g., model, temperature, max-tokens, show-llm-thinking, confirm-command, etc.)",
+								"description": "The parameter name to change. See the .set command help for all available parameters (e.g., model, temperature, max-tokens, show-llm-thinking, confirm-tool, etc.)",
 							},
 							"value": map[string]interface{}{
 								"type":        "string",
@@ -571,6 +571,28 @@ func (a *Agent) buildTools() []llm.Tool {
 		})
 	}
 
+	// Filter out disabled tools (mode == "disabled")
+	for k, v := range a.toolModes {
+		if v == "disabled" {
+			filtered := make([]llm.Tool, 0, len(tools))
+			for _, tool := range tools {
+				if tool.Name == k || (k == "default" && a.toolModes[tool.Name] != "disabled") {
+					if k == "default" && a.toolModes[tool.Name] != "disabled" {
+						// default is disabled, but this tool has its own setting
+						continue
+					}
+				}
+				if a.toolModes[tool.Name] == "disabled" {
+					log.Debug("Tool %s is disabled, skipping registration", tool.Name)
+					continue
+				}
+				filtered = append(filtered, tool)
+			}
+			tools = filtered
+			break
+		}
+	}
+
 	return tools
 }
 
@@ -582,38 +604,67 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 		return "", fmt.Errorf("cannot parse tool arguments: %w", err)
 	}
 
-	// If confirmCommand is enabled and this is an execute_command call,
-	// prompt the user for confirmation before proceeding
-	if a.confirmCommand && tc.Name == "execute_command" {
-		if cmd, ok := args["command"].(string); ok {
-			// Skip confirmation if user chose "approve all" for this request
-			// or if there are remaining auto-approve counts
-			if !a.approveAll && a.approveCount <= 0 {
-				result, modifyInput := promptCommandConfirmation(cmd)
-				switch result {
-				case CmdConfirmCancel:
-					return i18n.T(i18n.KeyCmdConfirmCancelled), fmt.Errorf("CANCEL_AGENT")
-				case CmdConfirmApproveAll:
-					a.approveAll = true
-					// fall through to execute
-				case CmdConfirmApproveCount:
-					// Parse the number of commands to auto-approve
-					if n, err := strconv.Atoi(modifyInput); err == nil && n > 0 {
-						a.approveCount = n
-						fmt.Printf("\n✅ 已批准后续 %d 次命令执行\n", a.approveCount)
-					}
-					// fall through to execute
-				case CmdConfirmModify:
-					// Use the user's input directly as supplementary instructions
-					// for the LLM to re-evaluate the command
-					return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
-				}
-				// CmdConfirmApprove: continue execution
-			} else if a.approveCount > 0 {
-				// Decrement approve count and auto-approve
-				a.approveCount--
-				fmt.Printf("\n✅ 已自动批准（剩余 %d 次）\n", a.approveCount)
+	// Determine if confirmation is needed for this tool call.
+	// Check per-tool mode: first check specific tool, then "default", then default to "confirm".
+	mode := "confirm"
+	if a.toolModes != nil {
+		if v, ok := a.toolModes[tc.Name]; ok {
+			mode = v
+		} else if v, ok := a.toolModes["default"]; ok {
+			mode = v
+		}
+	}
+	needsConfirm := mode == "confirm"
+
+	if needsConfirm {
+		// Skip confirmation if:
+		// - User chose "approve all" for this request, OR
+		// - User disabled confirmation for this specific tool (G option), OR
+		// - There are remaining auto-approve counts for this tool
+		toolCount := a.toolApproveCounts[tc.Name]
+		if !a.approveAll && !a.toolDisableConfirm[tc.Name] && toolCount <= 0 {
+			// Build a display string from the tool arguments
+			displayStr := tc.Name
+			if cmd, ok := args["command"].(string); ok {
+				displayStr = cmd
 			}
+			result, modifyInput := promptToolConfirmation(tc.Name, displayStr)
+			switch result {
+			case CmdConfirmCancel:
+				return i18n.T(i18n.KeyCmdConfirmCancelled), fmt.Errorf("CANCEL_AGENT")
+			case CmdConfirmApproveAll:
+				a.approveAll = true
+				// fall through to execute
+			case CmdConfirmApproveG:
+				a.toolDisableConfirm[tc.Name] = true
+				fmt.Printf("\n%s\n", i18n.T(i18n.KeyCmdConfirmDisableTool))
+				// fall through to execute
+			case CmdConfirmApproveD:
+				// Permanently disable this tool
+				if a.toolModes == nil {
+					a.toolModes = make(map[string]string)
+				}
+				a.toolModes[tc.Name] = "disabled"
+				fmt.Printf("\n%s\n", i18n.T(i18n.KeyCmdConfirmDisableToolD))
+				return "", fmt.Errorf("tool %q has been permanently disabled by user (D option)", tc.Name)
+			case CmdConfirmApproveCount:
+				// Parse the number of tool calls to auto-approve for this tool
+				if n, err := strconv.Atoi(modifyInput); err == nil && n > 0 {
+					a.toolApproveCounts[tc.Name] = n
+					fmt.Printf("\n%s%s %s\n", i18n.T(i18n.KeyCmdConfirmCountPrefix), modifyInput, tc.Name)
+				}
+				// fall through to execute
+			case CmdConfirmModify:
+				// Use the user's input directly as supplementary instructions
+				// for the LLM to re-evaluate the command
+				return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
+			}
+			// CmdConfirmApprove: continue execution
+		} else if toolCount > 0 {
+			// Decrement per-tool approve count and auto-approve
+			a.toolApproveCounts[tc.Name]--
+			remaining := a.toolApproveCounts[tc.Name]
+			fmt.Printf("\n✅ 已自动批准 %s（剩余 %d 次）\n", tc.Name, remaining)
 		}
 	}
 

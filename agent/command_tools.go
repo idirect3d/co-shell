@@ -170,16 +170,17 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	return strings.TrimSpace(decoded), nil
 }
 
-// promptCommandConfirmation displays the command to the user and asks for confirmation.
+// promptToolConfirmation displays the tool call to the user and asks for confirmation.
 // Returns the user's choice and any supplementary input.
 // - Enter: approve and execute
 // - c/C: cancel, return to REPL
-// - a/A: approve all commands for this request
-// - N (a positive integer): approve the next N commands
+// - a/A: approve all tools for this request
+// - g/G: approve and disable confirmation for this tool
+// - N (a positive integer): approve the next N calls of this tool
 // - Any other input: treated as supplementary instructions for the LLM to re-evaluate
-func promptCommandConfirmation(command string) (CmdConfirmResult, string) {
+func promptToolConfirmation(toolName string, displayStr string) (CmdConfirmResult, string) {
 	fmt.Println()
-	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, command))
+	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, displayStr))
 	fmt.Println(i18n.T(i18n.KeyCmdConfirmRiskWarning))
 	fmt.Println()
 
@@ -217,7 +218,15 @@ func promptCommandConfirmation(command string) (CmdConfirmResult, string) {
 			return CmdConfirmApproveAll, ""
 		}
 
-		// Check if the user entered a positive integer (approve N commands)
+		if lower == "g" {
+			return CmdConfirmApproveG, ""
+		}
+
+		if lower == "d" {
+			return CmdConfirmApproveD, ""
+		}
+
+		// Check if the user entered a positive integer (approve N calls of this tool)
 		if n, err := strconv.Atoi(response); err == nil && n > 0 {
 			return CmdConfirmApproveCount, strconv.Itoa(n)
 		}

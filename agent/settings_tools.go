@@ -228,9 +228,14 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return boolToString(cfg.LLM.ShowCommand)
 	case "show-command-output":
 		return boolToString(cfg.LLM.ShowCommandOutput)
-	case "confirm-command":
-		return boolToString(cfg.LLM.ConfirmCommand)
+	case "confirm-tool":
+		confirmDefault := "confirm"
+		if v, ok := cfg.LLM.ToolModes["default"]; ok {
+			confirmDefault = v
+		}
+		return confirmDefault
 	case "result-mode":
+
 		return config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
 	case "vision":
 		return boolToString(cfg.LLM.VisionSupport)
@@ -545,19 +550,30 @@ func applySetting(a *Agent, param, value string) error {
 		a.SetShowCommandOutput(b)
 		log.Info("Show command output set via LLM tool: %v", b)
 
-	case "confirm-command":
-		b, err := parseBool(value)
-		if err != nil {
-			return err
+	case "confirm-tool":
+		// Accept both boolean (on/off) and mode (confirm/auto/disabled) values
+		mode := value
+		switch strings.ToLower(value) {
+		case "on", "1", "true", "yes":
+			mode = "confirm"
+		case "off", "0", "false", "no":
+			mode = "auto"
 		}
-		cfg.LLM.ConfirmCommand = b
+		if mode != "confirm" && mode != "auto" && mode != "disabled" {
+			return fmt.Errorf("invalid confirm-tool value: %s (valid: on/off, confirm/auto/disabled)", value)
+		}
+		if cfg.LLM.ToolModes == nil {
+			cfg.LLM.ToolModes = make(map[string]string)
+		}
+		cfg.LLM.ToolModes["default"] = mode
 		if err := cfg.Save(); err != nil {
 			return err
 		}
-		a.SetConfirmCommand(b)
-		log.Info("Confirm command set via LLM tool: %v", b)
+		a.SetToolMode("", mode)
+		log.Info("Confirm tool set via LLM tool: %s", mode)
 
 	case "result-mode":
+
 		mode, ok := config.ParseResultMode(value)
 		if !ok {
 			return fmt.Errorf("invalid result mode: %s (valid: minimal, explain, analyze, free)", value)
@@ -1070,11 +1086,11 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 
 	// Group 4: Safety & Confirmation
 	sb.WriteString("━━━ [ 安全与确认 ] ━━━\n\n")
-	confirmStr := "关闭"
-	if cfg.LLM.ConfirmCommand {
-		confirmStr = "开启"
+	confirmDefault := "confirm"
+	if v, ok := cfg.LLM.ToolModes["default"]; ok {
+		confirmDefault = v
 	}
-	sb.WriteString(formatLine("confirm-command", confirmStr, "on/off, 1/0, true/false, yes/no", "执行系统命令前是否等待用户确认"))
+	sb.WriteString(formatLine("confirm-tool", confirmDefault, "confirm / auto / disabled", "工具调用模式：confirm=需确认, auto=自动批准, disabled=禁用"))
 	toolTimeoutStr := fmt.Sprintf("%d秒", cfg.LLM.ToolTimeout)
 	if cfg.LLM.ToolTimeout <= 0 {
 		toolTimeoutStr = "无限制"
