@@ -1,0 +1,518 @@
+// Author: L.Shuang
+// Created: 2026-05-22
+// Last Modified: 2026-05-22
+//
+// MIT License
+//
+// Copyright (c) 2026 L.Shuang
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/llm"
+	"github.com/idirect3d/co-shell/log"
+)
+
+// RunStream processes a user input through the agent loop with streaming output.
+// It sends stream events to the provided callback function.
+func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
+	// Reset approveAll, per-tool counters, and error tracking flags for each new request
+	a.approveAll = false
+	a.approveCount = 0
+	a.toolApproveCounts = make(map[string]int)
+	a.toolDisableConfirm = make(map[string]bool)
+	a.errorCounter = make(map[string]int)
+	a.errorApproveAll = false
+
+	// FIX-179: Initialize loop detector and message dedup for this request
+	a.loopDetectCrit = false
+	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
+		a.loopDetectOn = true
+		threshold := a.cfg.LLM.LoopDetectThreshold
+		window := a.cfg.LLM.LoopDetectMaxWindow
+		if threshold <= 0 {
+			threshold = 5
+		}
+		if window <= 0 {
+			window = 20
+		}
+		a.loopDetector = NewLoopDetector(threshold, window)
+	} else {
+		a.loopDetectOn = false
+		a.loopDetector = nil
+	}
+
+	// Initialize message deduplication checker
+	if a.cfg != nil && a.cfg.LLM.DedupEnabled {
+		a.messageDedup = NewMessageDedup(
+			a.cfg.LLM.DedupEnabled,
+			a.cfg.LLM.DedupFeatureRatio,
+			a.cfg.LLM.DedupMatchRatio,
+			a.cfg.LLM.DedupSimilarityThreshold,
+			a.cfg.LLM.DedupMaxHistory,
+			a.cfg.LLM.DedupRepeatLimit,
+		)
+	} else {
+		a.messageDedup = nil
+	}
+
+	a.mu.Lock()
+	// If there are image paths, create a multimodal message with cached images
+	if len(a.imagePaths) > 0 {
+		multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
+		if err != nil {
+			a.mu.Unlock()
+			return "", fmt.Errorf("cannot build multimodal message: %w", err)
+		}
+		a.messages = append(a.messages, multimodalMsg)
+		// Keep imagePaths for reuse in subsequent conversations
+	} else {
+		// Add user message to history with timestamp prefix
+		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
+		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
+				log.Warn("Failed to save user message to memory: %v", err)
+			}
+		}
+	}
+	a.mu.Unlock()
+
+	log.Info("Agent.RunStream: user input: %s", userInput)
+
+	// Build available tools
+	tools := a.buildTools()
+
+	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
+		// Step 1: Stream the LLM response
+		var finalContent, finalReasoning string
+		var toolCalls []llm.ToolCall
+		var streamErr error
+
+		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+
+		// Log the LLM response content and tool calls at DEBUG level for diagnostics.
+		// This helps identify issues like the LLM including historical message prefixes
+		// in its response content when returning tool calls.
+		if streamErr == nil {
+			log.Debug("Agent.RunStream: LLM response at iteration %d: content=%q, tool_calls=%d, reasoning_len=%d",
+				iteration, finalContent, len(toolCalls), len(finalReasoning))
+			for i, tc := range toolCalls {
+				log.Debug("Agent.RunStream: LLM tool call #%d: name=%q, id=%q, args=%q",
+					i, tc.Name, tc.ID, tc.Arguments)
+			}
+		}
+
+		if streamErr != nil {
+			// FIX-179: Handle loop detection error
+			if _, isLoopDetected := streamErr.(*LoopDetectedError); isLoopDetected && a.loopDetectCrit {
+				log.Warn("Agent.RunStream: loop detected at iteration %d, removing problematic messages and sending feedback", iteration)
+
+				// Find the last assistant message with tool_calls and remove it along with subsequent messages
+				a.mu.Lock()
+				for i := len(a.messages) - 1; i >= 0; i-- {
+					if a.messages[i].Role == "assistant" && len(a.messages[i].ToolCalls) > 0 {
+						a.messages = a.messages[:i]
+						break
+					}
+				}
+				a.mu.Unlock()
+
+				// Build loop feedback message for the LLM
+				loopFeedback := fmt.Sprintf(
+					"⚠️ 检测到你的输出陷入了死循环模式（连续重复相似内容）。\n"+
+						"请立即停止重复当前模式，重新检视之前的步骤，评估是否需要改变方法。\n"+
+						"请向前看，继续执行后续任务步骤。\n\n"+
+						"错误信息：%s",
+					streamErr.Error(),
+				)
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: loopFeedback,
+				})
+				a.mu.Unlock()
+
+				// Reset loop detector for next call
+				if a.loopDetector != nil {
+					a.loopDetector.Reset()
+				}
+				a.loopDetectCrit = false
+
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb("warning", fmt.Sprintf("\n%s 检测到循环输出，已发送纠正提示\n", ep.Warning))
+				continue
+			}
+
+			// Track error count for this request
+			errMsg := streamErr.Error()
+			a.errorCounter[errMsg]++
+			singleCount := a.errorCounter[errMsg]
+			typeCount := len(a.errorCounter)
+
+			// Get configured limits
+			maxSingle := 10
+			maxType := 100
+			if a.cfg != nil {
+				if a.cfg.LLM.ErrorMaxSingleCount > 0 {
+					maxSingle = a.cfg.LLM.ErrorMaxSingleCount
+				}
+				if a.cfg.LLM.ErrorMaxTypeCount > 0 {
+					maxType = a.cfg.LLM.ErrorMaxTypeCount
+				}
+			}
+
+			// Check if we need to prompt the user
+			needUserPrompt := false
+			promptReason := ""
+
+			if singleCount >= maxSingle && !a.errorApproveAll {
+				needUserPrompt = true
+				promptReason = fmt.Sprintf("相同错误已出现 %d 次（上限 %d 次）", singleCount, maxSingle)
+			} else if typeCount >= maxType && !a.errorApproveAll {
+				needUserPrompt = true
+				promptReason = fmt.Sprintf("不同错误类型已达 %d 种（上限 %d 种）", typeCount, maxType)
+			}
+
+			if needUserPrompt {
+				// Get emoji prefixes
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+
+				// Prompt user for action
+				fmt.Printf("\n%s 错误反复出现: %s\n", ep.Warning, promptReason)
+				fmt.Printf("  最新错误: %v\n", streamErr)
+				fmt.Println()
+				fmt.Println(i18n.T(i18n.KeyErrorRiskWarning))
+				fmt.Println()
+				fmt.Println("  请选择操作:")
+				fmt.Println("  [Enter] 继续让 LLM 尝试处理")
+				fmt.Println("  [C] 取消，返回 REPL")
+				fmt.Println("  [A] 忽略限制，继续执行")
+				fmt.Println()
+				fmt.Print("  请选择 (Enter/C/A): ")
+
+				var lineBuf []byte
+				buf := make([]byte, 1)
+				for {
+					n, err := os.Stdin.Read(buf)
+					if err != nil || n == 0 {
+						break
+					}
+					if buf[0] == '\n' || buf[0] == '\r' {
+						break
+					}
+					lineBuf = append(lineBuf, buf[0])
+				}
+
+				userChoice := strings.TrimSpace(string(lineBuf))
+				lower := strings.ToLower(userChoice)
+
+				if lower == "c" {
+					// User cancelled, return to REPL
+					cb("info", fmt.Sprintf("\n%s 用户取消了操作\n", ep.Error))
+					return "", nil
+				} else if lower == "a" {
+					// User chose to ignore all error limits
+					a.errorApproveAll = true
+					fmt.Printf("\n%s 已忽略错误限制，继续执行\n", ep.Success)
+				} else {
+					// Continue (Enter pressed)
+					fmt.Printf("\n%s 继续让 LLM 尝试处理\n", ep.Success)
+				}
+			}
+
+			// FIX-146: Determine how to handle the error based on the context.
+			// The error occurs when sending messages to the LLM API. The problematic
+			// message is already in a.messages from a previous iteration.
+			//
+			// We check if there is an assistant message with tool_calls in the recent
+			// context (the last few messages). If so, the error is likely caused by
+			// malformed tool call arguments in that assistant message. We remove that
+			// assistant message and all subsequent messages (tool results, etc.) from
+			// the context, and include the removed content in the error feedback.
+			//
+			// If there is no recent assistant message with tool_calls, the error is
+			// likely caused by invalid user input, and we should exit the iteration
+			// and report the error to the user.
+			a.mu.Lock()
+			removedContent := a.removeLastAssistantWithToolCalls()
+			a.mu.Unlock()
+
+			if removedContent != "" {
+				// Found and removed a problematic assistant message with tool_calls.
+				log.Warn("Agent.RunStream: stream error at iteration %d: %v, removed problematic assistant+tool messages (%d bytes)",
+					iteration, streamErr, len(removedContent))
+
+				// Build error feedback message that includes the removed content
+				errorFeedback := fmt.Sprintf(
+					"注意：刚才的 LLM 调用返回了错误，请根据错误信息判断如何处理。\n"+
+						"如果错误是可恢复的（如参数格式问题、临时超时），请修正后重试。\n"+
+						"如果错误是不可恢复的（如认证失败、模型不存在），请向用户报告错误并终止。\n\n"+
+						"错误信息：%s\n\n"+
+						"以下是你刚才返回的有问题的消息内容，已被从上下文中移除，请参考修正：\n%s",
+					streamErr.Error(),
+					removedContent,
+				)
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: errorFeedback,
+				})
+				a.mu.Unlock()
+
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb("info", fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在请求 LLM 修正后重试...\n", ep.Warning, streamErr))
+				continue
+			} else {
+				// No recent assistant message with tool_calls found - the error is likely
+				// caused by invalid user input. Exit the iteration and report to the user.
+				log.Error("Agent.RunStream: stream error at iteration %d: %v, no assistant tool_calls found, exiting", iteration, streamErr)
+				cb("error", fmt.Sprintf("LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。", streamErr))
+				cb("done", "")
+				return "", fmt.Errorf("LLM call failed: %w", streamErr)
+			}
+		}
+
+		// Step 2: If no tool calls, this is the final answer
+		if len(toolCalls) == 0 {
+			// Send token usage information before done
+			prompt, completion, total := a.TokenUsage()
+			if total > 0 {
+				cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+			}
+
+			cb("done", "")
+
+			a.mu.Lock()
+			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
+			a.messages = append(a.messages, llm.Message{
+				Role:             "assistant",
+				Content:          tsPrefix + finalContent,
+				ReasoningContent: finalReasoning,
+			})
+			// Sync to memory (content without timestamp prefix)
+			if a.memoryEnabled {
+				if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+					log.Warn("Failed to save assistant message to memory: %v", err)
+				}
+			}
+			a.mu.Unlock()
+			// Persist session to storage after request completion
+			if err := a.PersistSession(); err != nil {
+				log.Warn("Failed to persist session: %v", err)
+			}
+			log.Info("Agent.RunStream: completed after %d iterations", iteration+1)
+			return finalContent, nil
+		}
+
+		// Step 3: Check for duplicate messages before adding to history
+		// FIX-179 extension: message deduplication monitoring
+		var dedupEvent *DuplicateEvent
+		if a.messageDedup != nil {
+			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
+			testMsg := llm.Message{
+				Role:             "assistant",
+				Content:          tsPrefix + finalContent,
+				ToolCalls:        toolCalls,
+				ReasoningContent: finalReasoning,
+			}
+			dedupEvent = a.messageDedup.CheckAndRecord(a.messages, testMsg)
+			if dedupEvent != nil {
+				log.Warn("Agent.RunStream: message dedup duplicate detected (count=%d, similarity=%.0f%%)",
+					dedupEvent.Count, dedupEvent.Similarity*100)
+			}
+		}
+
+		// First add assistant message with tool_calls to history
+		// This must come BEFORE tool result messages to satisfy the API requirement
+		// that tool messages must follow a message with tool_calls.
+		a.mu.Lock()
+		assistantMsgIdx := len(a.messages)
+		assistantMsg := llm.Message{
+			Role:             "assistant",
+			Content:          finalContent,
+			ToolCalls:        toolCalls,
+			ReasoningContent: finalReasoning,
+		}
+		log.Debug("Agent.RunStream: preparing to add assistant message to a.messages at index %d: role=%s, content_len=%d, reasoning_len=%d, tool_calls=%d",
+			assistantMsgIdx, assistantMsg.Role, len(assistantMsg.Content), len(assistantMsg.ReasoningContent), len(assistantMsg.ToolCalls))
+		for i, tc := range toolCalls {
+			log.Debug("  tool_call[%d]: name=%s, id=%s, args_len=%d", i, tc.Name, tc.ID, len(tc.Arguments))
+		}
+		a.messages = append(a.messages, assistantMsg)
+		// Sync to memory (content without timestamp prefix)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+				log.Warn("Failed to save assistant message to memory: %v", err)
+			}
+		}
+		a.mu.Unlock()
+
+		// Handle dedup event if reached threshold
+		if dedupEvent != nil {
+			ep := config.GetEmojiPrefixes(a.emojiEnabled)
+			cb("warning", fmt.Sprintf("\n%s 检测到消息重复（第 %d 次，相似度 %.0f%%）\n",
+				ep.Warning, dedupEvent.Count, dedupEvent.Similarity*100))
+			cb("warning", fmt.Sprintf("  重复内容: %s\n", truncateString(dedupEvent.DuplicateWith, 200)))
+		}
+
+		// Step 4: Execute tool calls and add results
+		modifyRequested := false
+		cancelled := false
+		for _, tc := range toolCalls {
+			// Show command if enabled
+			if a.showCommand && tc.Name == "execute_command" {
+				var cmdArgs map[string]interface{}
+				if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
+					if cmd, ok := cmdArgs["command"].(string); ok {
+						cb("command", cmd)
+					}
+				}
+			}
+
+			// Show tool call name (and input arguments if enabled)
+			if a.showTool {
+				msg := tc.Name
+				if a.showToolInput {
+					// Pretty-print the JSON arguments
+					var argsPretty string
+					var argsMap map[string]interface{}
+					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
+						if pretty, err := json.MarshalIndent(argsMap, "", "  "); err == nil {
+							argsPretty = string(pretty)
+						}
+					}
+					if argsPretty == "" {
+						argsPretty = tc.Arguments
+					}
+					msg += "\n" + argsPretty
+				}
+				msg += "\n"
+				cb("tool_call", msg)
+			}
+
+			log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
+
+			result, execErr := a.executeToolCall(ctx, tc)
+			if execErr != nil {
+				errStr := execErr.Error()
+				// Check if user cancelled
+				if strings.HasPrefix(errStr, "CANCEL_AGENT") {
+					cancelled = true
+					// Remove the incomplete assistant message (with tool_calls) from history
+					a.mu.Lock()
+					a.messages = a.messages[:assistantMsgIdx]
+					a.mu.Unlock()
+					break
+				}
+				// Check if this is a USER_MODIFY_REQUEST (user wants to modify and re-evaluate)
+				if strings.HasPrefix(errStr, "USER_MODIFY_REQUEST:") {
+					modifyRequested = true
+					modifyInput := strings.TrimPrefix(errStr, "USER_MODIFY_REQUEST:")
+					// Remove the incomplete assistant message (with tool_calls) from history
+					// since its tool_calls were not fully executed.
+					a.mu.Lock()
+					a.messages = a.messages[:assistantMsgIdx]
+					// Add the user's modification as a new user message
+					a.messages = append(a.messages, llm.Message{
+						Role:    "user",
+						Content: modifyInput,
+					})
+					a.mu.Unlock()
+					ep := config.GetEmojiPrefixes(a.emojiEnabled)
+					cb("info", fmt.Sprintf("\n%s 用户补充说明: %s\n", ep.Info, modifyInput))
+					break
+				}
+				// Format structured error feedback to help LLM understand and fix the issue
+				result = formatToolError(tc.Name, execErr)
+				log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
+			}
+
+			// Show tool call output if enabled (for all tools)
+			if a.showToolOutput && result != "" {
+				cb("tool_call", fmt.Sprintf("  Result:\n%s\n", result))
+			}
+
+			// Show command output if enabled (legacy, for execute_command specifically)
+			if a.showCommandOutput && tc.Name == "execute_command" && result != "" {
+				cb("output", result)
+			}
+
+			// If the result is empty, provide a clear message to the LLM
+
+			toolContent := result
+			if toolContent == "" {
+				toolContent = "（工具调用无输出）"
+			}
+
+			a.mu.Lock()
+			a.messages = append(a.messages, llm.Message{
+				Role:       "tool",
+				Content:    toolContent,
+				ToolCallID: tc.ID,
+			})
+			a.mu.Unlock()
+		}
+
+		// If user cancelled, return to REPL
+		if cancelled {
+			return "", nil
+		}
+
+		// If user requested modification, continue the loop to re-ask the LLM
+		if modifyRequested {
+			continue
+		}
+
+		// If a task plan was modified (created/inserted/removed), adjust messagePointer
+		// to skip past all tool messages, so the next LLM iteration starts fresh
+		// from the checklist context (the tool result containing the checklist).
+		a.mu.Lock()
+		if a.needAdjustPointer {
+			a.messagePointer = len(a.messages) - 1
+			a.adjustMessagePointer()
+			a.needAdjustPointer = false
+		}
+		a.mu.Unlock()
+
+		// Send token usage information at the end of each iteration
+		prompt, completion, total := a.TokenUsage()
+		if total > 0 {
+			cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+		}
+
+	}
+
+	log.Error("Agent.RunStream: reached maximum iterations (%d)", a.maxIterations)
+	return "", fmt.Errorf("agent reached maximum iterations (%d) without a final answer", a.maxIterations)
+}
