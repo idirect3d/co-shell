@@ -49,17 +49,18 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 	systemPrompt := buildSystemPrompt(rules)
 
 	return &Agent{
-		llmClient:     llmClient,
-		mcpMgr:        mcpMgr,
-		store:         s,
-		memoryManager: memory.NewManager(s),
-		systemPrompt:  systemPrompt,
-		maxIterations: config.DefaultConfig().LLM.MaxIterations,
-		rules:         rules,
-		subAgentMgr:   subagent.NewManager(),
-		taskPlanMgr:   taskplan.NewManager(s),
-		name:          "co-shell",
-		modelManager:  config.GetDefaultModelManager(),
+		llmClient:       llmClient,
+		mcpMgr:          mcpMgr,
+		store:           s,
+		memoryManager:   memory.NewManager(s),
+		systemPrompt:    systemPrompt,
+		maxIterations:   config.DefaultConfig().LLM.MaxIterations,
+		rules:           rules,
+		subAgentMgr:     subagent.NewManager(),
+		taskPlanMgr:     taskplan.NewManager(s),
+		name:            "co-shell",
+		modelManager:    config.GetDefaultModelManager(),
+		toolCallModeMgr: NewToolCallModeManager(),
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
@@ -180,6 +181,30 @@ func (a *Agent) SetToolCallEnabled(enabled bool) {
 	a.toolCallEnabled = enabled
 }
 
+// SetToolCallMode sets the tool call mode (e.g., "openai", "xml").
+// It also rebuilds the system prompt to include the appropriate tool usage guide.
+func (a *Agent) SetToolCallMode(mode string) {
+	if a.toolCallModeMgr == nil {
+		a.toolCallModeMgr = NewToolCallModeManager()
+	}
+	a.toolCallModeMgr.SetCurrentByString(mode)
+	// Rebuild system prompt with the new tool call mode
+	a.rebuildSystemPrompt()
+	log.Info("Tool call mode set to %s", mode)
+}
+
+// ToolCallMode returns the current tool call mode string.
+func (a *Agent) ToolCallMode() string {
+	if a.toolCallModeMgr == nil {
+		return string(ToolCallModeOpenAI)
+	}
+	mode := a.toolCallModeMgr.Current()
+	if mode == nil {
+		return string(ToolCallModeOpenAI)
+	}
+	return string(mode.Type)
+}
+
 // SetStore sets the persistent store for session persistence.
 func (a *Agent) SetStore(s *store.Store) {
 	a.store = s
@@ -289,8 +314,9 @@ func (a *Agent) GetLLMClient() llm.Client {
 	return a.llmClient
 }
 
-// rebuildSystemPrompt rebuilds the system prompt with current config identity info.
-// It preserves the conversation history (only replaces the system message at index 0).
+// rebuildSystemPrompt rebuilds the system prompt with current config identity info
+// and tool call mode. It preserves the conversation history (only replaces the system
+// message at index 0).
 func (a *Agent) rebuildSystemPrompt() {
 	agentName := ""
 	agentDesc := ""
@@ -304,7 +330,18 @@ func (a *Agent) rebuildSystemPrompt() {
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
 	}
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel)
+
+	// Determine the tool usage i18n key based on the current tool call mode
+	toolUsageKey := ""
+	if a.toolCallModeMgr != nil {
+		mode := a.toolCallModeMgr.Current()
+		if mode != nil && mode.SystemPromptKey != "" {
+			toolUsageKey = mode.SystemPromptKey
+		}
+	}
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageKey)
+
 	// Preserve conversation history: only replace the system message at index 0
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -485,7 +522,18 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
 	}
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel)
+
+	// Determine the tool usage i18n key based on the current tool call mode
+	toolUsageKey := ""
+	if a.toolCallModeMgr != nil {
+		mode := a.toolCallModeMgr.Current()
+		if mode != nil && mode.SystemPromptKey != "" {
+			toolUsageKey = mode.SystemPromptKey
+		}
+	}
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageKey)
+
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
 	}
