@@ -1,0 +1,184 @@
+// Author: L.Shuang
+// Created: 2026-05-22
+// Last Modified: 2026-05-22
+//
+// MIT License
+//
+// Copyright (c) 2026 L.Shuang
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+package agent
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/idirect3d/co-shell/llm"
+	"github.com/idirect3d/co-shell/log"
+	"github.com/idirect3d/co-shell/store"
+)
+
+// Run processes a user input through the agent loop without streaming.
+// It returns the final response content.
+func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
+	a.mu.Lock()
+	// If there are image paths, create a multimodal message with cached images
+	if len(a.imagePaths) > 0 {
+		multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
+		if err != nil {
+			a.mu.Unlock()
+			return "", fmt.Errorf("cannot build multimodal message: %w", err)
+		}
+		a.messages = append(a.messages, multimodalMsg)
+		// Keep imagePaths for reuse in subsequent conversations
+	} else {
+		// Add user message to history with timestamp prefix
+		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
+		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
+				log.Warn("Failed to save user message to memory: %v", err)
+			}
+		}
+	}
+	a.mu.Unlock()
+
+	log.Info("Agent.Run: user input: %s", userInput)
+
+	// Build available tools
+	tools := a.buildTools()
+
+	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
+		// Dynamically select and switch to the appropriate model based on current context
+		if modelCfg := a.selectModelForCall(); modelCfg != nil {
+			a.switchToModel(modelCfg)
+		}
+
+		// Call LLM
+		resp, err := a.llmClient.Chat(ctx, a.messages, tools)
+
+		if err != nil {
+			log.Error("Agent.Run: LLM call failed at iteration %d: %v", iteration, err)
+			return "", fmt.Errorf("LLM call failed: %w", err)
+		}
+
+		// Accumulate token usage from API response
+		if resp.Usage != nil {
+			a.mu.Lock()
+			a.totalPromptTokens += resp.Usage.PromptTokens
+			a.totalCompletionTokens += resp.Usage.CompletionTokens
+			a.totalTokens += resp.Usage.TotalTokens
+			// Persist token usage to database
+			if a.store != nil {
+				entry := &store.TokenUsageEntry{
+					ID:               fmt.Sprintf("%020d", time.Now().UnixNano()),
+					PromptTokens:     resp.Usage.PromptTokens,
+					CompletionTokens: resp.Usage.CompletionTokens,
+					TotalTokens:      resp.Usage.TotalTokens,
+					Timestamp:        time.Now(),
+				}
+				if err := a.store.SaveTokenUsage(entry); err != nil {
+					log.Warn("Failed to save token usage: %v", err)
+				}
+			}
+			a.mu.Unlock()
+			log.Debug("Agent.Run: accumulated token usage: prompt=%d, completion=%d, total=%d",
+				a.totalPromptTokens, a.totalCompletionTokens, a.totalTokens)
+		} else {
+			a.mu.Unlock()
+		}
+
+		// If no tool calls, this is the final answer
+		if len(resp.ToolCalls) == 0 {
+			a.mu.Lock()
+			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
+			a.messages = append(a.messages, llm.Message{
+				Role:             "assistant",
+				Content:          tsPrefix + resp.Content,
+				ReasoningContent: resp.ReasoningContent,
+			})
+			// Sync to memory (content without timestamp prefix)
+			if a.memoryEnabled {
+				if err := a.memoryManager.AddMessage(a.name, resp.Content, time.Now()); err != nil {
+					log.Warn("Failed to save assistant message to memory: %v", err)
+				}
+			}
+			a.mu.Unlock()
+			log.Info("Agent.Run: completed after %d iterations", iteration+1)
+			return resp.Content, nil
+		}
+
+		// Add assistant message with tool calls
+		a.mu.Lock()
+		a.messages = append(a.messages, llm.Message{
+			Role:             "assistant",
+			Content:          resp.Content,
+			ToolCalls:        resp.ToolCalls,
+			ReasoningContent: resp.ReasoningContent,
+		})
+		// Sync to memory (content without timestamp prefix)
+		if a.memoryEnabled {
+			if err := a.memoryManager.AddMessage(a.name, resp.Content, time.Now()); err != nil {
+				log.Warn("Failed to save assistant message to memory: %v", err)
+			}
+		}
+		a.mu.Unlock()
+
+		// Execute each tool call
+		for _, tc := range resp.ToolCalls {
+			log.Info("Agent.Run: executing tool %s (ID: %s)", tc.Name, tc.ID)
+			result, err := a.executeToolCall(ctx, tc)
+			if err != nil {
+				result = fmt.Sprintf("Error: %v", err)
+				log.Error("Agent.Run: tool %s failed: %v", tc.Name, err)
+			}
+
+			// Add tool result to messages
+			// If the result is empty, provide a clear message to the LLM
+			toolContent := result
+			if toolContent == "" {
+				toolContent = "（工具调用无输出）"
+			}
+			a.mu.Lock()
+			a.messages = append(a.messages, llm.Message{
+				Role:       "tool",
+				Content:    toolContent,
+				ToolCallID: tc.ID,
+			})
+			a.mu.Unlock()
+		}
+
+		// If a task plan was modified (created/inserted/removed), adjust messagePointer
+		// to skip past all tool messages, so the next LLM iteration starts fresh
+		// from the checklist context (the tool result containing the checklist).
+		a.mu.Lock()
+		if a.needAdjustPointer {
+			a.messagePointer = len(a.messages) - 1
+			a.adjustMessagePointer()
+			a.needAdjustPointer = false
+		}
+		a.mu.Unlock()
+	}
+
+	log.Error("Agent.Run: reached maximum iterations (%d)", a.maxIterations)
+	return "", fmt.Errorf("agent reached maximum iterations (%d) without a final answer", a.maxIterations)
+}
