@@ -42,10 +42,22 @@ import (
 )
 
 // buildTools constructs the list of available tools for the LLM.
+// In OpenAI mode, tools are returned as a JSON array for the "tools" parameter.
+// In XML mode, tools are described in the system prompt, so an empty list is returned
+// (the tools are still registered internally for execution).
 func (a *Agent) buildTools() []llm.Tool {
 	// If tool calling is disabled, return empty tools list
 	if !a.toolCallEnabled {
 		return []llm.Tool{}
+	}
+
+	// In XML mode, tools are described in the system prompt, not sent as API parameter.
+	// Return empty list so the LLM API doesn't receive the "tools" parameter.
+	if a.toolCallModeMgr != nil {
+		mode := a.toolCallModeMgr.Current()
+		if mode != nil && !mode.SendTools {
+			return []llm.Tool{}
+		}
 	}
 
 	sh := shellName()

@@ -40,7 +40,7 @@ import (
 
 // buildSystemPrompt constructs the system prompt with rules and context.
 func buildSystemPrompt(rules string) string {
-	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "", "", "")
+	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "", "", "", "")
 }
 
 // loadExternalFile attempts to load a text file from the workspace root directory.
@@ -64,11 +64,14 @@ func loadExternalFile(workspacePath, filename string) string {
 // channel is the communication channel (co-shell, feishu, co-tor, agent).
 // If workspacePath is non-empty, it tries to load capabilities.md and rules.md from the workspace
 // root to override the built-in i18n defaults.
+// toolUsageKey is the i18n key for the tool usage section (e.g., "system_prompt_tool_usage" for OpenAI,
+// "system_prompt_tool_usage_xml" for XML mode). If empty, defaults to "system_prompt_tool_usage".
 //
 // Assembly order (FIX-181):
 //
 //	Identity → ToolUsage → ResultMode → Capabilities → Rules → StaticEnv → Custom → DynamicEnv
-func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples, userName, channel string) string {
+func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples, userName, channel string, toolUsageKey ...string) string {
+
 	sh := shellName()
 
 	// Gather static environment context
@@ -94,7 +97,12 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
 
 	// Part 2: Tool Usage Guide
-	toolUsageText := i18n.T(i18n.KeySystemPromptToolUsage)
+	// Use the provided toolUsageKey if given, otherwise default to OpenAI-style tool usage.
+	toolUsageI18nKey := i18n.KeySystemPromptToolUsage
+	if len(toolUsageKey) > 0 && toolUsageKey[0] != "" {
+		toolUsageI18nKey = toolUsageKey[0]
+	}
+	toolUsageText := i18n.T(toolUsageI18nKey)
 
 	// Part 3: Result Mode
 	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
