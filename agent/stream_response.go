@@ -183,11 +183,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			// Parse them here if no API-level tool calls were returned.
 			if len(toolCalls) == 0 && a.toolCallModeMgr != nil {
 				mode := a.toolCallModeMgr.Current()
-				if mode != nil && !mode.SendTools && mode.ParseToolCalls != nil {
-					xmlCalls, parseErr := mode.ParseToolCalls(finalContent)
-					if parseErr != nil {
-						log.Warn("Agent.streamLLMResponse: XML tool call parse error: %v", parseErr)
-					} else if len(xmlCalls) > 0 {
+				if mode != nil && !mode.SendTools {
+					xmlCalls := ParseXMLToolCalls(finalContent)
+					if len(xmlCalls) > 0 {
 						toolCalls = xmlCalls
 						log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content", len(xmlCalls))
 					}

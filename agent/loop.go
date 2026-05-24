@@ -143,7 +143,7 @@ type Agent struct {
 	messageDedup *MessageDedup // monitors for duplicate assistant messages
 
 	// ToolCallModeMgr manages tool call mode (openai/xml/custom)
-	toolCallModeMgr *ToolCallModeManager
+	toolCallModeMgr *ToolCallModeMgr
 }
 
 // buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.
@@ -279,7 +279,21 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 		cb("thinking", resp.ReasoningContent)
 	}
 
-	return resp.Content, resp.ReasoningContent, resp.ToolCalls, nil
+	// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
+	// Parse them here if no API-level tool calls were returned.
+	toolCalls := resp.ToolCalls
+	if len(toolCalls) == 0 && a.toolCallModeMgr != nil {
+		mode := a.toolCallModeMgr.Current()
+		if mode != nil && !mode.SendTools {
+			xmlCalls := ParseXMLToolCalls(resp.Content)
+			if len(xmlCalls) > 0 {
+				toolCalls = xmlCalls
+				log.Debug("Agent.nonStreamingFallback: parsed %d XML tool calls from content", len(xmlCalls))
+			}
+		}
+	}
+
+	return resp.Content, resp.ReasoningContent, toolCalls, nil
 }
 
 // TokenUsage returns the accumulated token usage statistics.

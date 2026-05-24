@@ -666,4 +666,12 @@ no liability whatsoever.`,
 	KeyDBRestoreConfirm: "Continue with restore? (y/n, default: n): ",
 	KeyDBBackupCancel:   "❌ Backup cancelled",
 	KeyDBRestoreCancel:  "❌ Restore cancelled",
+
+	// Tool call mode (FEATURE-182)
+	KeyToolCallMode:         "Tool Call Mode",
+	KeyToolCallModeUpdated:  "✅ Tool call mode set to: %s",
+	KeyInvalidToolCallMode:  "Invalid tool call mode: %s (valid: openai, xml)",
+	KeyCol3ToolCallMode:     "Tool Call Mode(openai|xml)",
+	KeySettingsDescToolMode: "Tool call mode (openai: standard API, xml: inline XML tags)",
+	KeyCLIHelpToolCallMode:  "Tool call mode (openai/xml, overrides config file)",
 }

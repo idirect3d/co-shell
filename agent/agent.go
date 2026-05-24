@@ -331,16 +331,21 @@ func (a *Agent) rebuildSystemPrompt() {
 		channel = a.cfg.LLM.Channel
 	}
 
-	// Determine the tool usage i18n key based on the current tool call mode
-	toolUsageKey := ""
+	// Determine the tool usage text based on the current tool call mode
+	toolUsageText := ""
 	if a.toolCallModeMgr != nil {
-		mode := a.toolCallModeMgr.Current()
-		if mode != nil && mode.SystemPromptKey != "" {
-			toolUsageKey = mode.SystemPromptKey
+		mode := a.toolCallModeMgr.Mode()
+		if mode == ToolCallModeXML {
+			// Generate dynamic XML tool usage prompt from available tools.
+			// Use buildToolsInternal() to get the full tool list regardless of mode,
+			// since buildTools() returns empty in XML mode.
+			tools := a.buildToolsInternal()
+			lang := string(i18n.GetLang())
+			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang)
 		}
 	}
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageKey)
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText)
 
 	// Preserve conversation history: only replace the system message at index 0
 	a.mu.Lock()
@@ -523,16 +528,21 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 		channel = a.cfg.LLM.Channel
 	}
 
-	// Determine the tool usage i18n key based on the current tool call mode
-	toolUsageKey := ""
+	// Determine the tool usage text based on the current tool call mode
+	toolUsageText := ""
 	if a.toolCallModeMgr != nil {
-		mode := a.toolCallModeMgr.Current()
-		if mode != nil && mode.SystemPromptKey != "" {
-			toolUsageKey = mode.SystemPromptKey
+		mode := a.toolCallModeMgr.Mode()
+		if mode == ToolCallModeXML {
+			// Generate dynamic XML tool usage prompt from available tools.
+			// Use buildToolsInternal() to get the full tool list regardless of mode,
+			// since buildTools() returns empty in XML mode.
+			tools := a.buildToolsInternal()
+			lang := string(i18n.GetLang())
+			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang)
 		}
 	}
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageKey)
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText)
 
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
