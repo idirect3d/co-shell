@@ -38,6 +38,15 @@ import (
 	"github.com/idirect3d/co-shell/store"
 )
 
+// lastNChars returns the last n characters of a string.
+// If the string is shorter than n, the entire string is returned.
+func lastNChars(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
+}
+
 // streamLLMResponse streams the LLM response and returns the complete content, reasoning, and tool calls.
 // If streaming fails, it falls back to non-streaming Chat.
 // Before each call, it dynamically selects the appropriate model based on current context.

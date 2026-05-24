@@ -59,11 +59,12 @@ The specific tool names, parameters, and usage are defined by the API's tools pa
 
 ## execute_command Usage Example:
 
-Run a command and view its output:
+Run a command and view its output. When the command contains special characters (such as '<', '>', '&', '|', quotes, etc.), you MUST wrap it in CDATA:
 
 <execute_command>
-  <command>ls -la</command>
+  <command><![CDATA[grep -oP 'class="result__snippet"[^>]*>[^<]*' /var/log/nginx/access.log | head -20]]></command>
 </execute_command>
+
 
 ## read_file Usage Example:
 
@@ -95,17 +96,66 @@ View the code structure of a directory:
 
 ## replace_in_file Usage Example:
 
-Replace specific content in a file (array parameters use <item> tag):
+Replace specific content in a file (array parameters use <item> tag). **Important:** Whether modifying, deleting, or inserting, always include <start_line> for precise positioning to avoid matching the wrong location. When search or replace content contains special characters (such as '<', '>', '&', quotes, etc.), use CDATA to wrap them:
 
 <replace_in_file>
   <path>main.go</path>
   <replacements>
     <item>
-      <search>old content</search>
-      <replace>new content</replace>
+      <search><![CDATA[if (a < b && c > d) {]]></search>
+      <replace><![CDATA[if (a < b && c > d && e != f) {]]></replace>
+      <start_line>42</start_line>
     </item>
   </replacements>
 </replace_in_file>
+
+**Scenario 1: Multiple modifications** — Modify multiple non-contiguous locations simultaneously, each <item> corresponds to one change:
+
+<replace_in_file>
+  <path>main.go</path>
+  <replacements>
+    <item>
+      <search><![CDATA[<div class="old">]]></search>
+      <replace><![CDATA[<div class="new">]]></replace>
+      <start_line>10</start_line>
+    </item>
+    <item>
+      <search><![CDATA[<span id="name">]]></search>
+      <replace><![CDATA[<span id="username">]]></replace>
+      <start_line>42</start_line>
+    </item>
+  </replacements>
+</replace_in_file>
+
+**Scenario 2: Delete content** — Leave <replace> empty to delete the matched content:
+
+<replace_in_file>
+  <path>main.go</path>
+  <replacements>
+    <item>
+      <search><![CDATA[fmt.Println("debug: " + result) // TODO: remove]]></search>
+      <replace></replace>
+      <start_line>25</start_line>
+    </item>
+  </replacements>
+</replace_in_file>
+
+**Scenario 3: Insert content** — Insert new content at a specific position (search is the anchor text before the insertion point, replace is anchor text + new content):
+
+<replace_in_file>
+  <path>main.go</path>
+  <replacements>
+    <item>
+      <search><![CDATA[func main() {]]></search>
+      <replace><![CDATA[func main() {
+  log.Println("app started")]]></replace>
+      <start_line>30</start_line>
+    </item>
+  </replacements>
+</replace_in_file>
+
+
+
 
 ## write_to_file Usage Example:
 
