@@ -95,15 +95,15 @@ View the code structure of a directory:
 
 ## replace_in_file Usage Example:
 
-Replace specified content in a file:
+Replace specific content in a file (array parameters use <item> tag):
 
 <replace_in_file>
   <path>main.go</path>
   <replacements>
-    <replacement>
+    <item>
       <search>old content</search>
       <replace>new content</replace>
-    </replacement>
+    </item>
   </replacements>
 </replace_in_file>
 

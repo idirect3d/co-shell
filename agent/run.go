@@ -108,15 +108,21 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		}
 
 		// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
-		// Parse them here if no API-level tool calls were returned.
+		// We ALWAYS parse XML tool calls from content in XML mode, and IGNORE any
+		// API-level tool_calls. This prevents conflicts where the LLM returns both
+		// XML tool calls in content AND API-level tool_calls simultaneously.
 		toolCalls := resp.ToolCalls
-		if len(toolCalls) == 0 && a.toolCallModeMgr != nil {
+		if a.toolCallModeMgr != nil {
 			mode := a.toolCallModeMgr.Current()
 			if mode != nil && !mode.SendTools {
 				xmlCalls := ParseXMLToolCalls(resp.Content)
 				if len(xmlCalls) > 0 {
 					toolCalls = xmlCalls
-					log.Debug("Agent.Run: parsed %d XML tool calls from content", len(xmlCalls))
+					log.Debug("Agent.Run: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
+						len(xmlCalls), len(toolCalls))
+				} else {
+					// No XML tool calls found; clear any API-level tool calls in XML mode
+					toolCalls = nil
 				}
 			}
 		}

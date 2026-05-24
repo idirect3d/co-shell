@@ -251,6 +251,7 @@
 - [x] FEATURE-185 程序默认使用当前工作目录名（最后一层）作为 agent name。用户依旧可以通过已经实现的命令行参数、REPL、配置文件配置。[BUILD-184]
 - [x] FEATURE-186 数据库配置改为子命令模式：`.set db enabled on`、`.set db host 10.0.0.1` 等，模仿 confirm-tool 方式做成配置子集。DB 配置显示移到「记忆与上下文」分组中。新增交互式配置向导，首次运行 `.set db` 时自动引导用户完成 PostgreSQL 连接配置，支持连接测试和 bbolt 数据迁移。[BUILD-186]
 - [x] FEATURE-187 改进 .model 子命令交互体验：switch/remove/enable/disable/info/set-priority/set-param 等需要选择模型的命令，当不提供模型 ID 参数时，先显示模型列表让用户通过编号选择，提升易用性。[BUILD-188]
+- [ ] ENHANCEMENT-188 XML 模式数组参数支持 `<element>` 标签：修改 parseXMLChildrenToJSON 当子元素全为 element 时直接返回 JSON 数组；在 buildXMLToolDescription 中为数组参数标注 element 用法；在 buildXMLToolPrompt 和 i18n 示例中增加 element 示例。[BUILD-189]
 
 ## v1.0.0 — 正式版
 

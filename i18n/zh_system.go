@@ -175,15 +175,15 @@ Tool Use Formatting
 
 ## replace_in_file 用法示例：
 
-替换文件中的指定内容：
+替换文件中的指定内容（数组参数使用 <item> 标签）：
 
 <replace_in_file>
   <path>main.go</path>
   <replacements>
-    <replacement>
+    <item>
       <search>旧内容</search>
       <replace>新内容</replace>
-    </replacement>
+    </item>
   </replacements>
 </replace_in_file>
 
@@ -313,20 +313,20 @@ Tool Use Formatting
 
 ## update_settings 用法示例：
 
-同时修改多个系统配置：
+同时修改多个系统配置（数组参数使用 <item> 标签）：
 
 <update_settings>
   <settings>
-    <setting>
+    <item>
       <param>temperature</param>
       <value>0.7</value>
       <reason>需要更有创造性的回答</reason>
-    </setting>
-    <setting>
+    </item>
+    <item>
       <param>max-tokens</param>
       <value>8192</value>
       <reason>需要更长的输出</reason>
-    </setting>
+    </item>
   </settings>
 </update_settings>
 
