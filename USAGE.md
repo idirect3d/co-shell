@@ -98,6 +98,17 @@ Type .help for available commands, or just type in natural language!
 .settings model <model>            # 设置模型名称
 .settings temperature <value>      # 设置温度 (0.0-2.0)
 .settings max-tokens <count>       # 设置最大 Token 数 (1-128000)
+.settings tool mode <openai|xml>   # 设置工具调用模式
+.settings toolcall-enabled <on|off> # 启用/禁用工具调用
+.settings confirm-tool <on|off>    # 工具调用前需确认
+.settings loop-detect-enabled <on|off> # 启用/禁用循环检测
+.settings dedup-enabled <on|off>   # 启用/禁用消息去重
+.settings db enabled <on|off>      # 启用/禁用数据库
+.settings db host <host>           # 设置数据库主机
+.settings db port <port>           # 设置数据库端口
+.settings db dbname <name>         # 设置数据库名称
+.settings db user <user>           # 设置数据库用户
+.settings db password <pwd>        # 设置数据库密码
 ```
 
 **示例：**

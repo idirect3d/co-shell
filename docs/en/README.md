@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00150-blue)]()
+[![Build](https://img.shields.io/badge/Build-00190-blue)]()
 
 [![中文](https://img.shields.io/badge/README-中文-blue)](../zh-CN/README.md)
 
@@ -68,25 +68,31 @@ Download the zip archive for your platform from the [Releases](https://github.co
 
 | OS | Architecture | Download |
 |---|---|---|
-| macOS | Intel | [co-shell-v0.4.0-RC2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-amd64.zip) |
-| macOS | Apple Silicon | [co-shell-v0.4.0-RC2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-arm64.zip) |
-| Linux | x86_64 | [co-shell-v0.4.0-RC2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-linux-amd64.zip) |
-| Linux | ARM64 | [co-shell-v0.4.0-RC2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-linux-arm64.zip) |
-| Windows | x86_64 | [co-shell-v0.4.0-RC2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-amd64.zip) |
-| Windows | ARM64 | [co-shell-v0.4.0-RC2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-arm64.zip) |
-| Tool | Cross-platform | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/md2docx.py) — Markdown to Word document converter |
+| macOS | Intel | [co-shell-v0.5.0-Beta2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-v0.5.0-Beta2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-v0.5.0-Beta2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-v0.5.0-Beta2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-v0.5.0-Beta2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-v0.5.0-Beta2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-arm64.zip) |
+| Tool | Cross-platform | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/md2docx.py) — Markdown to Word document converter |
+| **Bridge** | macOS Intel | [co-shell-feishu-bridge-v0.1.0-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-darwin-amd64.zip) |
+| **Bridge** | macOS Apple Silicon | [co-shell-feishu-bridge-v0.1.0-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-darwin-arm64.zip) |
+| **Bridge** | Linux x86_64 | [co-shell-feishu-bridge-v0.1.0-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-linux-amd64.zip) |
+| **Bridge** | Linux ARM64 | [co-shell-feishu-bridge-v0.1.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-linux-arm64.zip) |
+| **Bridge** | Windows x86_64 | [co-shell-feishu-bridge-v0.1.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-windows-amd64.zip) |
+| **Bridge** | Windows ARM64 | [co-shell-feishu-bridge-v0.1.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-windows-arm64.zip) |
 
 **macOS / Linux:**
 ```bash
 # curl
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-arm64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-arm64.zip
 unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
 
 # or wget
-wget https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-darwin-arm64.zip
-unzip co-shell-v0.4.0-RC2-darwin-arm64.zip && rm co-shell-v0.4.0-RC2-darwin-arm64.zip
+wget https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-arm64.zip
+unzip co-shell-v0.5.0-Beta2-darwin-arm64.zip && rm co-shell-v0.5.0-Beta2-darwin-arm64.zip
 chmod +x co-shell
 ./co-shell
 ```
@@ -94,7 +100,7 @@ chmod +x co-shell
 **Windows (PowerShell):**
 ```powershell
 # PowerShell
-Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-amd64.zip -OutFile co-shell.zip
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-amd64.zip -OutFile co-shell.zip
 Expand-Archive -Path co-shell.zip -DestinationPath .
 .\co-shell.exe
 ```
@@ -102,7 +108,7 @@ Expand-Archive -Path co-shell.zip -DestinationPath .
 **Windows (CMD):**
 ```cmd
 :: CMD
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.4.0-RC2/co-shell-v0.4.0-RC2-windows-amd64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-amd64.zip
 tar -xf co-shell.zip
 del co-shell.zip
 co-shell.exe
@@ -172,6 +178,24 @@ Options:
       --cmd-timeout N     Command timeout in seconds (0=unlimited)
       --llm-timeout N     LLM request timeout in seconds (0=unlimited)
       --vision            Vision support (on/off)
+      --toolcall-enabled  Enable tool calling (on/off)
+      --toolcall-mode     Tool call mode (openai/xml)
+      --confirm-tool      Confirm before tool calls (on/off)
+      --memory-enabled    Enable persistent memory (on/off)
+      --plan-enabled      Enable task plan (on/off)
+      --subagent-enabled  Enable sub-agent (on/off)
+      --emoji-enabled     Enable emoji prefixes (on/off)
+      --show-logo         Show startup logo (on/off)
+      --token-usage       Token usage display (on/off/none)
+      --context-start     Context start mode (window/task/smart)
+      --loop-detect-enabled  Enable loop detection (on/off)
+      --dedup-enabled     Enable message deduplication (on/off)
+      --log-level         Log level (debug/info/warn/error/off)
+      --output-mode       Output mode (compact/normal/debug)
+      --top-p N           Top-P sampling (0.0~1.0)
+      --top-k N           Top-K sampling
+      --repetition-penalty N  Repetition penalty (0.0~2.0)
+      --body-add          Custom JSON body properties (key=value)
   -v, --version           Show version info
   -h, --help              Show help
 ```
@@ -196,14 +220,24 @@ The following table lists all configurable parameters, their CLI flags, REPL `.s
 | Vision Support | `--vision` | `vision` | `vision_support` | `off` | Enable multimodal image input |
 | Thinking Mode | — | `thinking-enabled` | `thinking_enabled` | `off` | Enable LLM reasoning/thinking mode |
 | Reasoning Effort | — | `reasoning-effort` | `reasoning_effort` | `low` | Reasoning depth (low/medium/high) |
+| ToolCall Enabled | `--toolcall-enabled` | `toolcall-enabled` | `tool_call_enabled` | `on` | Enable tool/function calling |
+| ToolCall Mode | `--toolcall-mode` | `tool mode` | `tool_call_mode` | `openai` | Tool call mode (openai/xml) |
+| Top-P | `--top-p` | `top-p` | `top_p` | `-1` (none) | Top-P sampling (0.0~1.0, -1=don't send) |
+| Top-K | `--top-k` | `top-k` | `top_k` | `-1` (none) | Top-K sampling (-1=don't send) |
+| Repetition Penalty | `--repetition-penalty` | `repetition-penalty` | `repetition_penalty` | `-1` (none) | Repetition penalty (0.0~2.0, -1=don't send) |
+| Body Additions | `--body-add` | — | `body_additions` | `{}` | Custom JSON properties for LLM request body |
 | **Display & Output** | | | | | |
 | Show Thinking | `--show-thinking` | `show-thinking` | `show_thinking` | `off` | Display AI thinking process |
 | Show Command | `--show-command` | `show-command` | `show_command` | `on` | Display executed system commands |
 | Show Output | `--show-output` | `show-output` | `show_output` | `on` | Display command execution output |
 | Result Mode | `--result-mode` | `result-mode` | `result_mode` | `free` | Result presentation (minimal/explain/analyze/free) |
-| Output Mode | — | `output-mode` | `output_mode` | `normal` | LLM front-end output (compact/normal/debug) |
+| Output Mode | `--output-mode` | `output-mode` | `output_mode` | `normal` | LLM front-end output (compact/normal/debug) |
+| Token Usage | `--token-usage` | `token-usage` | `token_usage` | `on` | Token usage display (on/off/none) |
+| Emoji Enabled | `--emoji-enabled` | `emoji-enabled` | `emoji_enabled` | `on` | Enable emoji role prefixes |
+| Show Logo | `--show-logo` | `show-logo` | `show_logo` | `on` | Show startup ASCII logo |
 | **Safety & Timeout** | | | | | |
 | Confirm Command | `--confirm-command` | `confirm-command` | `confirm_command` | `on` | Require confirmation before executing commands |
+| Confirm Tool | `--confirm-tool` | `confirm-tool` | `confirm_tool` | `on` | Require confirmation before tool calls |
 | Tool Timeout | `--tool-timeout` | `tool-timeout` | `tool_timeout` | `0` (unlimited) | Tool call timeout in seconds |
 | Command Timeout | `--cmd-timeout` | `cmd-timeout` | `cmd_timeout` | `0` (unlimited) | System command timeout in seconds |
 | LLM Timeout | `--llm-timeout` | `llm-timeout` | `llm_timeout` | `0` (unlimited) | LLM API request timeout in seconds |
@@ -212,16 +246,21 @@ The following table lists all configurable parameters, their CLI flags, REPL `.s
 | **Memory & Context** | | | | | |
 | Memory Enabled | `--memory-enabled` | `memory-enabled` | `memory_enabled` | `on` | Enable persistent memory tools |
 | Context Limit | — | `context-limit` | `context_limit` | `-1` (all) | Recent messages in LLM context (0=off, N=last N) |
+| Context Start Mode | `--context-start` | `context-start` | `context_start_mode` | `task` | Context start mode (window/task/smart) |
 | Memory Search Max Content | — | `memory-search-max-content-len` | `memory_search_max_content_len` | `512` | Max content length in memory search results |
 | Memory Search Max Results | — | `memory-search-max-results` | `memory_search_max_results` | `100` | Max results returned by memory search |
 | **Tasks & Sub-Agents** | | | | | |
 | Plan Enabled | `--plan-enabled` | `plan-enabled` | `plan_enabled` | `on` | Enable task plan tools |
 | SubAgent Enabled | `--subagent-enabled` | `subagent-enabled` | `sub_agent_enabled` | `on` | Enable sub-agent tools |
+| **Loop Detection & Dedup** | | | | | |
+| Loop Detect Enabled | `--loop-detect-enabled` | `loop-detect-enabled` | `loop_detect_enabled` | `on` | Enable LLM output loop detection |
+| Dedup Enabled | `--dedup-enabled` | `dedup-enabled` | `dedup_enabled` | `on` | Enable message deduplication |
 | **Search & Debug** | | | | | |
 | Search Max Line Length | — | `search-max-line-length` | `search_max_line_length` | `8192` | Max chars per line in search results |
 | Search Max Result Bytes | — | `search-max-result-bytes` | `search_max_result_bytes` | `65536` | Max total bytes for search results |
 | Search Context Lines | — | `search-context-lines` | `search_context_lines` | `5` | Context lines before/after each match |
 | Log Enabled | `--log` | `log` | `log_enabled` | `on` | Enable file logging |
+| Log Level | `--log-level` | `log-level` | `log_level` | `info` | Log level (debug/info/warn/error/off) |
 | **Agent Identity** | | | | | |
 | Agent Name | `-n, --name` | `name` | `agent_name` | `co-shell` | Agent name for identification |
 | Agent Description | `--description` | `description` | `agent_description` | `""` | Agent expertise description |
@@ -304,7 +343,32 @@ An in-depth research report on China's first domestically developed jet airliner
 
 ## Version History
 
-### v0.4.0 — RC2 (Current)
+### v0.5.0 — Beta2 (Current)
+
+> **BUILD**: 00190 | **Release Date**: 2026-05-22
+
+Beta2 release — feature complete, stable and usable.
+
+**Highlights**: Configurable tool call mode (OpenAI/XML), XML mode for non-function-calling models, PostgreSQL persistent storage, session auto-restore, LLM output loop detection & message deduplication, tool call confirmation extension, model management UX improvements, database configuration sub-command mode.
+
+**Implemented Features:**
+
+- **ToolCall mode** — configurable tool call mechanism supporting OpenAI standard API and XML embedded mode. XML mode enables tool calling for models without native function calling support, using `<tool_call>` XML tags in content. Configurable via `.set tool mode openai|xml`, `--toolcall-mode` CLI flag, and `config.json`
+- **PostgreSQL storage** — persistent storage via PostgreSQL as an alternative to bbolt. Configurable via `.set db` sub-commands (host/port/dbname/user/password/enabled), with connection test and bbolt data migration support
+- **Session persistence** — automatic conversation context restoration after program restart. Session data is saved after each LLM request and restored on startup
+- **Loop detection** — monitors LLM streaming output for repetitive patterns, automatically stops and sends correction prompts when detected. Configurable via `.set loop-detect-enabled`, `--loop-detect-enabled`
+- **Message deduplication** — feature-based duplicate message detection with Jaccard similarity comparison. Configurable via `.set dedup-enabled` and related parameters
+- **Tool call confirmation** — all tool calls (not just execute_command) require user confirmation. Each tool has independent confirm-tool control. Added "G" option (agree and disable confirmation for this method). Number-based approval counter is per-method, reset on task completion
+- **Model management UX** — `.model switch/remove/enable/disable/info/set-priority/set-param` commands show model list with number selection when no model ID is provided
+- **DB sub-command mode** — `.set db enabled/host/port/dbname/user/password` sub-commands for database configuration. Interactive setup wizard on first `.set db` run
+- **Default agent name** — program uses current working directory name (last segment) as default agent name
+- **XML mode `<item>` tag** — unified array parameter tag naming in XML tool call mode, all array elements use `<item>` tag
+- **Conversation timestamp format** — improved readability: changed from "2026-05-12 10:15:30 - " to "在 2026-05-12 10:15:30 说："
+- **write_to_file tool enhancement** — added reminder to prefer replace_in_file over rewriting entire files to avoid introducing new issues
+- **Model switch fix** — fixed `.model add/switch` not taking effect due to ModelManager and cfg.Models desynchronization
+- **Qwen 3.6 infinite loop fix** — fixed infinite loop when writing large files with Qwen 3.6 model
+
+### v0.4.0 — RC2
 
 > **BUILD**: 00150 | **Release Date**: 2026-05-04
 
@@ -408,6 +472,91 @@ First Alpha preview with core functionality.
 - Configurable timeouts for all operations
 - Cross-platform support (macOS / Linux / Windows)
 - Streaming output with thinking process display
+
+---
+
+## Extended Features
+
+### 🚀 co-shell-feishu-bridge — Feishu Bot Integration
+
+`co-shell-feishu-bridge` is a standalone gateway program that connects Feishu (Lark) bots to co-shell. Through Feishu WebSocket persistent connections, users can send natural language instructions to co-shell directly from Feishu chat and receive AI-processed results.
+
+**Security**: Uses an active WebSocket connection initiated by the bridge to Feishu servers — no public ports exposed, no reverse proxy or firewall rules needed.
+
+#### Quick Start
+
+```bash
+# Build the bridge
+go build -o work/co-shell-feishu-bridge ./cmd/co-shell-feishu-bridge/
+
+# Start (requires a Feishu app with App ID / App Secret)
+./work/co-shell-feishu-bridge \
+  --app-id cli_a5b3c4d5e6f7g8h9 \
+  --app-secret a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+#### Three Working Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `sync` (default) | Process messages one by one, sequential order | File operations, state-dependent tasks |
+| `pool` | Merge queued messages into a batch after current task completes | Rapid consecutive questions |
+| `preempt` | Interrupt current task on new message, process immediately | Scenarios requiring fast response |
+
+> Full documentation: [docs/bridge/feishu.md](../bridge/feishu.md)
+
+### 🗄️ PostgreSQL Persistent Storage
+
+co-shell supports PostgreSQL as a persistent storage backend, replacing the default embedded bbolt database. Ideal for multi-process data sharing, backup/restore, or environments with existing PostgreSQL infrastructure.
+
+#### Installing PostgreSQL
+
+**Recommended: Let co-shell install it for you!** Just tell it:
+
+```bash
+❯ Install PostgreSQL database for me
+```
+
+co-shell will automatically detect your OS and execute the appropriate installation command (macOS uses `brew install postgresql`, Ubuntu/Debian uses `apt install postgresql`, CentOS/RHEL uses `yum install postgresql-server`, Windows uses `winget install PostgreSQL.PostgreSQL`), then start the database service and guide you through configuration.
+
+**Manual installation reference:**
+
+```bash
+# macOS
+brew install postgresql@16
+brew services start postgresql@16
+
+# Ubuntu/Debian
+sudo apt update && sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+
+# Windows (PowerShell as Admin)
+winget install PostgreSQL.PostgreSQL
+```
+
+#### Configuration
+
+```bash
+# Interactive configuration wizard (recommended)
+❯ .db config
+
+# Or set parameters directly
+❯ .set db host localhost
+❯ .set db port 5432
+❯ .set db name co_shell
+❯ .set db user postgres
+❯ .set db password your-password
+❯ .set db enabled on
+```
+
+#### Data Management
+
+```bash
+❯ .db init      # Initialize database (recreate all tables)
+❯ .db migrate   # Migrate data from local bbolt to PostgreSQL
+❯ .db backup    # Backup all tables to CSV files
+❯ .db restore   # Restore data from a backup
+```
 
 ---
 
