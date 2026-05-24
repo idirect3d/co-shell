@@ -71,31 +71,31 @@ co-shell 是一个由大语言模型（LLM）驱动的智能命令行工具。AI
 
 | 操作系统 | 架构 | 下载 |
 |---|---|---|
-| macOS | Intel | [co-shell-v0.5.0-Beta2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-amd64.zip) |
-| macOS | Apple Silicon | [co-shell-v0.5.0-Beta2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-arm64.zip) |
-| Linux | x86_64 | [co-shell-v0.5.0-Beta2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-linux-amd64.zip) |
-| Linux | ARM64 | [co-shell-v0.5.0-Beta2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-linux-arm64.zip) |
-| Windows | x86_64 | [co-shell-v0.5.0-Beta2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-amd64.zip) |
-| Windows | ARM64 | [co-shell-v0.5.0-Beta2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-arm64.zip) |
+| macOS | Intel | [co-shell-0.5.0-Beta2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-0.5.0-Beta2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-0.5.0-Beta2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-0.5.0-Beta2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-0.5.0-Beta2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-0.5.0-Beta2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-arm64.zip) |
 | 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/md2docx.py) — Markdown 转 Word 文档转换器 |
-| **Bridge** | macOS Intel | [co-shell-feishu-bridge-v0.1.0-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-darwin-amd64.zip) |
-| **Bridge** | macOS Apple Silicon | [co-shell-feishu-bridge-v0.1.0-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-darwin-arm64.zip) |
-| **Bridge** | Linux x86_64 | [co-shell-feishu-bridge-v0.1.0-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-linux-amd64.zip) |
-| **Bridge** | Linux ARM64 | [co-shell-feishu-bridge-v0.1.0-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-linux-arm64.zip) |
-| **Bridge** | Windows x86_64 | [co-shell-feishu-bridge-v0.1.0-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-windows-amd64.zip) |
-| **Bridge** | Windows ARM64 | [co-shell-feishu-bridge-v0.1.0-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-feishu-bridge-v0.1.0-windows-arm64.zip) |
+| **Bridge** | macOS Intel | [co-shell-bridge-0.5.0-Beta2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-darwin-amd64.zip) |
+| **Bridge** | macOS Apple Silicon | [co-shell-bridge-0.5.0-Beta2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-darwin-arm64.zip) |
+| **Bridge** | Linux x86_64 | [co-shell-bridge-0.5.0-Beta2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-linux-amd64.zip) |
+| **Bridge** | Linux ARM64 | [co-shell-bridge-0.5.0-Beta2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-linux-arm64.zip) |
+| **Bridge** | Windows x86_64 | [co-shell-bridge-0.5.0-Beta2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-windows-amd64.zip) |
+| **Bridge** | Windows ARM64 | [co-shell-bridge-0.5.0-Beta2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-windows-arm64.zip) |
 
 **macOS / Linux：**
 ```bash
 # curl
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-arm64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-arm64.zip
 unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
 
 # 或 wget
-wget https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-darwin-arm64.zip
-unzip co-shell-v0.5.0-Beta2-darwin-arm64.zip && rm co-shell-v0.5.0-Beta2-darwin-arm64.zip
+wget https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-arm64.zip
+unzip co-shell-0.5.0-Beta2-darwin-arm64.zip && rm co-shell-0.5.0-Beta2-darwin-arm64.zip
 chmod +x co-shell
 ./co-shell
 ```
@@ -103,7 +103,7 @@ chmod +x co-shell
 **Windows（PowerShell）：**
 ```powershell
 # PowerShell
-Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-amd64.zip -OutFile co-shell.zip
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-amd64.zip -OutFile co-shell.zip
 Expand-Archive -Path co-shell.zip -DestinationPath .
 .\co-shell.exe
 ```
@@ -111,7 +111,7 @@ Expand-Archive -Path co-shell.zip -DestinationPath .
 **Windows（CMD）：**
 ```cmd
 :: CMD
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-v0.5.0-Beta2-windows-amd64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-amd64.zip
 tar -xf co-shell.zip
 del co-shell.zip
 co-shell.exe
