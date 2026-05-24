@@ -16,6 +16,7 @@ import (
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
+	"github.com/idirect3d/co-shell/log"
 )
 
 // ToolCallMode represents the mode of tool calling style.
@@ -109,6 +110,8 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 	depth := 0
 	i := 0
 
+	log.Debug("ParseXMLToolCalls: ENTER, content=%q, len=%d", content, len(content))
+
 	for i < len(remaining) {
 		// Find the next '<'
 		ltIdx := strings.IndexByte(remaining[i:], '<')
@@ -193,9 +196,27 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 			closeTag := "</" + tagName + ">"
 			closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
 			if closeIdx < 0 {
-				// No matching close tag found, skip
-				i = openEnd
-				continue
+				// No matching close tag found for the exact tag name.
+				// Try to find ANY closing tag as a fallback (handles LLM errors
+				// like <execute>...</execute_command> where tag names don't match).
+				fallbackIdx := findAnyCloseTag(remaining[openEnd:])
+				if fallbackIdx >= 0 {
+					// Use the fallback close tag
+					closeIdx = fallbackIdx
+					// Extract the actual close tag name from the content
+					closeContent := remaining[openEnd+fallbackIdx:]
+					closeEnd := strings.IndexByte(closeContent[2:], '>')
+					if closeEnd >= 0 {
+						actualCloseName := closeContent[2 : 2+closeEnd]
+						closeTag = "</" + actualCloseName + ">"
+						log.Debug("ParseXMLToolCalls: using fallback close tag %s for <%s>", closeTag, tagName)
+					}
+				} else {
+					// No matching close tag found, skip
+					log.Debug("ParseXMLToolCalls: no matching close tag for <%s>, skipping", tagName)
+					i = openEnd
+					continue
+				}
 			}
 
 			// Extract the inner content (between opening and closing tags)
@@ -203,19 +224,32 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 
 			// Check if this is a known non-tool tag
 			if knownNonToolTags[tagName] {
+				log.Debug("ParseXMLToolCalls: skipping known non-tool tag <%s>", tagName)
 				i = openEnd + closeIdx + len(closeTag)
 				continue
 			}
 
 			// Parse the inner content as parameters
 			params := parseXMLChildrenToJSON(innerContent)
-			if params != "{}" || hasChildElements(innerContent) {
-				// This looks like a tool call (has parameters)
+			log.Debug("ParseXMLToolCalls: tag=<%s>, innerContent=%q, params=%q, hasChildElements=%v",
+				tagName, innerContent, params, hasChildElements(innerContent))
+
+			// Determine if this is a valid tool call:
+			// 1. Has parameters (params != "{}")
+			// 2. Has child elements (nested XML structure)
+			// 3. Has only whitespace content (no-parameter tool like <view_task_plan></view_task_plan>)
+			trimmedInner := strings.TrimSpace(innerContent)
+			isNoParamTool := trimmedInner == ""
+			if params != "{}" || hasChildElements(innerContent) || isNoParamTool {
+				// This looks like a tool call
+				log.Debug("ParseXMLToolCalls: ADDING tool call: name=%s, params=%s", tagName, params)
 				calls = append(calls, llm.ToolCall{
 					ID:        fmt.Sprintf("xml_call_%d", len(calls)),
 					Name:      tagName,
 					Arguments: params,
 				})
+			} else {
+				log.Debug("ParseXMLToolCalls: SKIPPING tag <%s>: params is empty and no child elements", tagName)
 			}
 
 			i = openEnd + closeIdx + len(closeTag)
@@ -233,6 +267,7 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 		depth++
 	}
 
+	log.Debug("ParseXMLToolCalls: DONE, found %d tool calls", len(calls))
 	return calls
 }
 
@@ -298,18 +333,38 @@ func findMatchingCloseTag(content, tagName string) int {
 				afterName := content[ltIdx+1+len(tagName)]
 				if afterName == '>' || afterName == ' ' || afterName == '\t' || afterName == '\n' || afterName == '/' {
 					depth++
+					// Skip to the end of this tag
+					tagEnd := strings.IndexByte(content[ltIdx:], '>')
+					if tagEnd < 0 {
+						return -1
+					}
+					i = ltIdx + tagEnd + 1
+					continue
 				}
 			}
 		}
 
-		// Skip to the end of this tag
-		tagEnd := strings.IndexByte(content[ltIdx:], '>')
-		if tagEnd < 0 {
-			return -1
-		}
-		i = ltIdx + tagEnd + 1
+		// Not a valid XML tag (e.g., '<' in regex like [^<]*), skip this character
+		i = ltIdx + 1
 	}
 
+	return -1
+}
+
+// findAnyCloseTag finds the first closing tag (</...>) in the content.
+// This is a fallback for handling LLM errors where opening and closing tag names
+// don't match (e.g., <execute>...</execute_command>).
+// Returns the index (relative to content start) where the closing tag starts,
+// or -1 if not found.
+func findAnyCloseTag(content string) int {
+	for i := 0; i < len(content); i++ {
+		if content[i] == '<' && i+1 < len(content) && content[i+1] == '/' {
+			closeEnd := strings.IndexByte(content[i:], '>')
+			if closeEnd >= 0 {
+				return i
+			}
+		}
+	}
 	return -1
 }
 
@@ -330,6 +385,37 @@ func hasChildElements(content string) bool {
 		}
 	}
 	return false
+}
+
+// jsonValue converts a plain text string to a JSON value with automatic type detection.
+// - Integers (e.g., "5", "-3", "0") → JSON number (no quotes)
+// - Floats (e.g., "3.14", "-0.5") → JSON number (no quotes)
+// - Booleans ("true", "false") → JSON boolean (no quotes)
+// - Everything else → JSON string (with quotes)
+func jsonValue(s string) string {
+	// Try integer
+	if _, err := fmt.Sscanf(s, "%d", new(int)); err == nil {
+		// Verify the entire string is the integer (no extra chars)
+		var n int
+		var extra string
+		if _, e := fmt.Sscanf(s, "%d%s", &n, &extra); e != nil {
+			return s // pure integer
+		}
+	}
+	// Try float
+	if _, err := fmt.Sscanf(s, "%f", new(float64)); err == nil {
+		var f float64
+		var extra string
+		if _, e := fmt.Sscanf(s, "%f%s", &f, &extra); e != nil {
+			return s // pure float
+		}
+	}
+	// Try boolean
+	if s == "true" || s == "false" {
+		return s
+	}
+	// Default: JSON string
+	return fmt.Sprintf("%q", s)
 }
 
 // extractCDATA extracts content from a CDATA section if present.
@@ -371,6 +457,12 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 		return "{}"
 	}
 
+	// If the content does not start with '<', it is plain text (not XML structure).
+	// Return it as a JSON value with automatic type detection.
+	if xmlContent[0] != '<' {
+		return jsonValue(xmlContent)
+	}
+
 	// First pass: collect all child elements with their tag names and JSON values
 	type childEntry struct {
 		tagName string
@@ -387,7 +479,7 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 
 		// Find the next opening tag
 		if remaining[0] != '<' {
-			// Skip non-tag content
+			// Skip non-tag content (text between XML elements)
 			nextLT := strings.IndexByte(remaining, '<')
 			if nextLT < 0 {
 				break
@@ -454,6 +546,16 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 
 		innerContent := remaining[openEnd : openEnd+closeIdx]
 
+		// Check if the entire inner content is wrapped in CDATA
+		trimmedInner := strings.TrimSpace(innerContent)
+		if strings.HasPrefix(trimmedInner, "<![CDATA[") {
+			// CDATA-wrapped content - extract as plain text, do not parse as XML
+			value := extractCDATA(trimmedInner)
+			children = append(children, childEntry{tagName: tagName, jsonVal: jsonValue(value)})
+			remaining = remaining[openEnd+closeIdx+len(closeTag):]
+			continue
+		}
+
 		// Check if inner content has child elements (nested structure)
 		if hasChildElements(innerContent) {
 			// Nested elements - recursively parse
@@ -466,7 +568,7 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 			if cdataContent := extractCDATA(value); cdataContent != "" {
 				value = cdataContent
 			}
-			children = append(children, childEntry{tagName: tagName, jsonVal: fmt.Sprintf("%q", value)})
+			children = append(children, childEntry{tagName: tagName, jsonVal: jsonValue(value)})
 		}
 
 		remaining = remaining[openEnd+closeIdx+len(closeTag):]
@@ -884,6 +986,10 @@ func extractParamInfo(schema map[string]interface{}) []paramInfo {
 			if s, ok := r.(string); ok {
 				requiredFields[s] = true
 			}
+		}
+	} else if req, ok := schema["required"].([]string); ok {
+		for _, s := range req {
+			requiredFields[s] = true
 		}
 	}
 
