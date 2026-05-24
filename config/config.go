@@ -280,7 +280,7 @@ type LLMConfig struct {
 	// ToolCallMode: the tool call mode to use.
 	// "openai" = standard OpenAI API tool call mechanism (send tools as JSON array)
 	// "xml" = custom XML format embedded in system prompt (no tools parameter sent)
-	// Default: "openai"
+	// Default: "xml"
 	ToolCallMode string `json:"tool_call_mode"`
 
 	// ToolCallModeSystemPrompts stores custom system prompt sections per tool call mode.
@@ -463,6 +463,7 @@ func DefaultConfig() *Config {
 			EmojiEnabled:              true,
 			ShowLogo:                  true,
 			ToolCallEnabled:           true,
+			ToolCallMode:              "xml",
 			TokenUsage:                "on",
 		},
 
