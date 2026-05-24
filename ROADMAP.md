@@ -232,7 +232,7 @@
    - **流式循环检测**：监控 LLM 流式输出中的重复模式，当相同归一化模式在窗口中出现次数达到阈值（默认5次）时主动停止并向 LLM 发送纠正提示。支持 `loop-detect-enabled`、`loop-detect-threshold`、`loop-detect-max-window` 配置。
    - **消息级去重检测**：新增旁路重复监测机制，在向 session 添加消息前，抽取 20% 随机特征词按顺序匹配历史消息，若特征匹配率 >= 60% 则进行 Jaccard 相似度计算，相似度 >= 85% 判定为重复。连续重复达到 3 次时发送警告提示。支持通过 `dedup-enabled`、`dedup-feature-ratio`、`dedup-match-ratio`、`dedup-similarity-threshold`、`dedup-max-history`、`dedup-repeat-limit` 配置项控制。[BUILD-179]
 - [x] ENHANCEMENT-177 在 write_to_file 工具描述中增加提醒，建议 LLM 尽量使用 replace_in_file 而不是重写文件来修正文件错误，以避免重写复杂文件依旧产生新问题。[BUILD-176]
-- [ ] FEATURE-178 修改对话上下文时间戳前缀格式：从 "2026-05-12 10:15:30 - " 改为 "在 2026-05-12 10:15:30 说："，提升用户可读性。
+- [x] FEATURE-178 修改对话上下文时间戳前缀格式：从 "2026-05-12 10:15:30 - " 改为 "在 2026-05-12 10:15:30 说："，提升用户可读性。[BUILD-187]
 - [x] FIX-97 修正qwen3.6在遇到写大文件时LLM输出无限循环的问题：[BUILD-177]
   - 在流式输出处增加每种event的日志输出（event类型、当前块内容），证明循环不是程序直接造成的
   - 修复 REPL 输出格式：command/tool_call 提示符从行首开始显示
