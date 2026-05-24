@@ -139,11 +139,13 @@ Tool Use Formatting
 
 ## execute_command 用法示例：
 
-执行一个命令并查看输出：
+执行一个命令并查看输出。当命令包含特殊字符（如 '<'、'>'、'&'、'|'、引号等）时，必须使用 CDATA 包裹：
+
 
 <execute_command>
-  <command>ls -la</command>
+  <command><![CDATA[grep -oP 'class="result__snippet"[^>]*>[^<]*' /var/log/nginx/access.log | head -20]]></command>
 </execute_command>
+
 
 ## read_file 用法示例：
 
@@ -175,17 +177,67 @@ Tool Use Formatting
 
 ## replace_in_file 用法示例：
 
-替换文件中的指定内容：
+替换文件中的指定内容（数组参数使用 <item> 标签）。**重要：** 无论是修改、删除还是插入操作，都应包含 <start_line> 以便精确定位，避免匹配到错误的位置。当 search 或 replace 内容包含 '<'、'>'、'&'、引号等特殊字符时，使用 CDATA 包裹：
+
 
 <replace_in_file>
   <path>main.go</path>
   <replacements>
-    <replacement>
-      <search>旧内容</search>
-      <replace>新内容</replace>
-    </replacement>
+    <item>
+      <search><![CDATA[if (a < b && c > d) {]]></search>
+      <replace><![CDATA[if (a < b && c > d && e != f) {]]></replace>
+      <start_line>42</start_line>
+    </item>
   </replacements>
 </replace_in_file>
+
+**场景一：多处修改** — 同时修改文件中多个不连续的位置，每个 <item> 对应一处修改：
+
+<replace_in_file>
+  <path>main.go</path>
+  <replacements>
+    <item>
+      <search><![CDATA[<div class="old">]]></search>
+      <replace><![CDATA[<div class="new">]]></replace>
+      <start_line>10</start_line>
+    </item>
+    <item>
+      <search><![CDATA[<span id="name">]]></search>
+      <replace><![CDATA[<span id="username">]]></replace>
+      <start_line>42</start_line>
+    </item>
+  </replacements>
+</replace_in_file>
+
+**场景二：删除内容** — 将 <replace> 留空即可删除匹配的内容：
+
+<replace_in_file>
+  <path>main.go</path>
+  <replacements>
+    <item>
+      <search><![CDATA[fmt.Println("debug: " + result) // TODO: remove]]></search>
+      <replace></replace>
+      <start_line>25</start_line>
+    </item>
+  </replacements>
+</replace_in_file>
+
+**场景三：插入内容** — 在指定位置插入新内容（search 为插入位置前的锚点文本，replace 为锚点文本 + 新内容）：
+
+<replace_in_file>
+  <path>main.go</path>
+  <replacements>
+    <item>
+      <search><![CDATA[func main() {]]></search>
+      <replace><![CDATA[func main() {
+  log.Println("app started")]]></replace>
+      <start_line>30</start_line>
+    </item>
+  </replacements>
+</replace_in_file>
+
+
+
 
 ## write_to_file 用法示例：
 
@@ -313,20 +365,20 @@ Tool Use Formatting
 
 ## update_settings 用法示例：
 
-同时修改多个系统配置：
+同时修改多个系统配置（数组参数使用 <item> 标签）：
 
 <update_settings>
   <settings>
-    <setting>
+    <item>
       <param>temperature</param>
       <value>0.7</value>
       <reason>需要更有创造性的回答</reason>
-    </setting>
-    <setting>
+    </item>
+    <item>
       <param>max-tokens</param>
       <value>8192</value>
       <reason>需要更长的输出</reason>
-    </setting>
+    </item>
   </settings>
 </update_settings>
 
@@ -361,7 +413,16 @@ Tool Use Formatting
 2. 根据任务描述和工具说明选择最合适的工具。考虑是否需要额外信息，以及哪个工具最适合获取这些信息。
 3. 如果多个操作相互独立（如同时读取多个文件、并行搜索），可以在一次回复中调用多个工具。当操作存在依赖关系时（前一个结果决定后一个操作），应顺序调用工具，等待每个结果后再进行下一步。
 4. 按照 XML 格式构造工具调用，使用工具名称作为 XML 标签。XML 元素应按层级缩进，子元素比父元素多缩进 2 个空格。
-5. **XML 内容转义**：如果需要在非工具调用的上下文中输出 XML 标签内容（如讨论 XML 格式、展示代码示例等），必须使用 CDATA 包裹，避免被误解析为工具调用：
+5. **CDATA 使用**：当参数值为字符串类型且包含特殊字符（如 '<'、'>'、'&'、引号等）时，必须使用 '<![CDATA[ ... ]]>' 包裹参数值，避免被误解析为 XML 标签。例如，包含正则表达式或管道命令的复杂命令：
+
+
+
+   <execute_command>
+     <command><![CDATA[grep -oP 'class="result__snippet"[^>]*>[^<]*' | head -20]]></command>
+   </execute_command>
+
+   如果需要在非工具调用的上下文中输出 XML 标签内容（如讨论 XML 格式、展示代码示例等），也必须使用 CDATA 包裹，避免被误解析为工具调用：
+
 
    <thinking>用户问 XML 格式，我可以用 CDATA 展示示例：
    <![CDATA[
