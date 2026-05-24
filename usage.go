@@ -113,6 +113,7 @@ func buildUsageFeatureSwitches() string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpSubAgentDisabled) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallEnabled) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallDisabled) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallMode) + "\n")
 	// FIX-179: Loop detection and dedup settings
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpLoopDetect) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpDedup) + "\n")

@@ -126,7 +126,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "api-key", subcommand == "endpoint", subcommand == "model",
 		subcommand == "temperature", subcommand == "max-tokens", subcommand == "vision",
 		subcommand == "thinking-enabled", subcommand == "reasoning-effort",
-		subcommand == "toolcall-enabled", subcommand == "top-p", subcommand == "top-k",
+		subcommand == "toolcall-enabled", subcommand == "toolcall-mode",
+		subcommand == "top-p", subcommand == "top-k",
 		subcommand == "repetition-penalty", subcommand == "max-model-len":
 		return h.handleLLMSetting(subcommand, args)
 
@@ -170,6 +171,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	// DB subcommand
 	case subcommand == "db":
 		return h.handleDBSubCommand(args[1:])
+
+	// Tool call mode subcommand
+	case subcommand == "tool":
+		return h.handleToolSubCommand(args[1:])
 
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
@@ -356,11 +361,18 @@ func showSettingsHelp(cfg *config.Config) string {
 		}
 	}
 
+	// Tool call mode
+	toolCallMode := cfg.LLM.ToolCallMode
+	if toolCallMode == "" {
+		toolCallMode = "openai"
+	}
+
 	allLines = append(allLines,
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
 		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
+		makeLine("toolcall-mode", toolCallMode, i18n.T(i18n.KeyCol3ToolCallMode)),
 		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
 		makeLine("default-vision-model", defaultVisionModelID, i18n.T(i18n.KeyCol3DefaultVisionModel)),
 		makeLine("default-problem-model", defaultProblemModelID, i18n.T(i18n.KeyCol3DefaultProblemModel)),
@@ -479,7 +491,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(7)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(8)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
