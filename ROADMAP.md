@@ -6,8 +6,9 @@
 
 ## 当前版本
 
-> **版本**: v0.5.0-RC3
-> **BUILD**: 187
+> **版本**: v0.5.0-Beta2
+> **BUILD**: 190
+
 
 
 
@@ -157,14 +158,12 @@
 
 ## v0.5.0 — Beta2
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成
 > **目标日期**: 2026-05-12
 > **里程碑**: 功能完善，稳定可用
 
 ### 功能清单
 
-- [ ] FEATURE-93 日历与待办事项管理：提供日历功能，支持记录和管理待办事项（todo）。提供 .calendar 内置命令（add/list/remove/update）管理待办事项；提供 add_todo / list_todos / update_todo / remove_todo 四个 LLM 工具，让大模型能操作待办事项；数据持久化到 bbolt。如果系统有日历应用（如 macOS 日历），提供选项帮助用户将待办事项同步到系统日历。
-- [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [x] FEATURE-103 动态上下文调整，尝试让LLM决定取多少上下文。[BUILD-174]
   - 新增 `context_start_mode` 配置项，支持三种模式：
     - `window`：固定窗口模式，上下文为最后 N 条消息（N=context_limit）
@@ -175,40 +174,12 @@
   - 新增 `.set context-start` REPL 命令
   - 新增 `list_settings` 工具显示上下文起始模式参数
 - [x] FEATURE-105 提供用户选择对话框：新增 ask_followup_question 工具，支持 question + options 格式，用户输入数字序号选择选项。[BUILD-173]
-- [ ] FEATURE-106 实现history命令翻页。
 - [x] FEATURE-116 增加显示token数功能，每次任务（checklist）完成时可以统计本次任务所用的token数，另外还有一个从程序启动到现在的总数。[BUILD-162]
-- [ ] FEATURE-45 自动更新机制（通过github）。
-- [ ] ENHANCEMENT-49 性能基准测试。
-- [ ] FEATURE-50 完整文档站。
-- [ ] FEATURE-120 新增Excel文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Excel的能力。
-- [ ] FEATURE-121 新增Word文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Word的能力。
 - [x] FEATURE-123 新增对接飞书功能，以便用户可以通过即时通讯软件，以跟特定机器人会话对话的方式，与co-shell交互。[BUILD-153]
   - FIX-123a 修复 WebSocket ACK 确认机制：收到事件后立即写回 ACK（`{"id":"...","type":"pong"}`），防止飞书 3 秒超时重推
   - FIX-123b 修复 Ping/Pong 心跳处理：设置 WebSocket 协议层的 PongHandler，自动响应服务端 Ping 帧；设置 ReadDeadline 检测连接状态
   - FIX-123c 优化日志：pong 心跳消息仅在 debug 级别输出，减少日志噪音
-- [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
-- [ ] FEATURE-128 增加移动端APP和co-shell-hub，以便用户能够在手机端安全的操控co-shell。
-  - [x] 使用 Flutter 开发 iOS/Android 跨平台应用
-  - [x] 所有移动端代码放在 mobile/ 目录下
-  - [x] 通信协议：UDP + 首次请求密钥验证（无密钥不回包，降低被扫描风险）
-  - [x] 实现 co-shell-hub（多 agent 管理服务端）
-    - hub 监听 UDP 端口，处理握手验证
-    - 管理多个 co-shell 实例的生命周期
-    - 消息路由（根据 agent_id 转发）
-    - 会话管理（创建/切换 agent）
-  - [x] FEATURE-183 co-shell-hub 改进：简化认证流程，使用昵称+access key 替代公钥签名 [BUILD-180]
-    - 新增 --add-client 命令注册移动端客户端
-    - 新增 --gen-key 命令生成密钥对
-    - 新增 --dev 开发模式（返回错误详情）
-    - 新增 --log-dir/--log-level 日志配置
-    - 握手协议简化：客户端发送 nickname + access_key
-    - 消息自动添加 "<昵称>说：" 前缀
-    - 移动端 Flutter 代码同步更新
-  - [ ] 移动端支持多 agent 会话列表
-  - [ ] 支持功能：聊天界面、语音输入、图片选择、任务计划查看
-- [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 - [x] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题 [BUILD-161]
-- [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
 - [x] FEATURE-137 新增co-shell之间相互调用能力，以便Agent可以向人和人那样分工和交流，让形成真正的AI团队成为可能。[BUILD-161]
 - [x] FEATURE-138 增加删除记忆memory的REPL和tool call方法，可以按last_from和last_to删除一段记忆。[BUILD-154]
 - [x] FEATURE-139 launch_sub_agent 工具改为 sub_agent_name 字符串参数，仅调用已存在的 agent workspace，不再自动创建 workspace。[BUILD-155]
@@ -251,13 +222,55 @@
 - [x] FEATURE-185 程序默认使用当前工作目录名（最后一层）作为 agent name。用户依旧可以通过已经实现的命令行参数、REPL、配置文件配置。[BUILD-184]
 - [x] FEATURE-186 数据库配置改为子命令模式：`.set db enabled on`、`.set db host 10.0.0.1` 等，模仿 confirm-tool 方式做成配置子集。DB 配置显示移到「记忆与上下文」分组中。新增交互式配置向导，首次运行 `.set db` 时自动引导用户完成 PostgreSQL 连接配置，支持连接测试和 bbolt 数据迁移。[BUILD-186]
 - [x] FEATURE-187 改进 .model 子命令交互体验：switch/remove/enable/disable/info/set-priority/set-param 等需要选择模型的命令，当不提供模型 ID 参数时，先显示模型列表让用户通过编号选择，提升易用性。[BUILD-188]
-- [ ] ENHANCEMENT-188 XML 模式数组参数支持 `<element>` 标签：修改 parseXMLChildrenToJSON 当子元素全为 element 时直接返回 JSON 数组；在 buildXMLToolDescription 中为数组参数标注 element 用法；在 buildXMLToolPrompt 和 i18n 示例中增加 element 示例。[BUILD-189]
+- [x] ENHANCEMENT-188 XML 模式数组参数统一使用 `<item>` 标签：将 parseXMLChildrenToJSON/buildXMLToolDescription/buildXMLToolPrompt 中的 element 统一改为 item；修复 i18n 系统提示词中反引号导致 raw string literal 提前结束的问题；同步更新中英文示例。[BUILD-190]
+
+
+## v0.6.0 — Beta3
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-06-01
+> **里程碑**: 功能完善，稳定可用
+
+### 功能清单
+
+- [ ] FEATURE-93 日历与待办事项管理：提供日历功能，支持记录和管理待办事项（todo）。提供 .calendar 内置命令（add/list/remove/update）管理待办事项；提供 add_todo / list_todos / update_todo / remove_todo 四个 LLM 工具，让大模型能操作待办事项；数据持久化到 bbolt。如果系统有日历应用（如 macOS 日历），提供选项帮助用户将待办事项同步到系统日历。
+- [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
+- [ ] FEATURE-106 实现history命令翻页。
+- [ ] FEATURE-45 自动更新机制（通过github）。
+- [ ] ENHANCEMENT-49 性能基准测试。
+- [ ] FEATURE-50 完整文档站。
+- [ ] FEATURE-120 新增Excel文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Excel的能力。
+- [ ] FEATURE-121 新增Word文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Word的能力。
+- [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
+- [ ] FEATURE-128 增加移动端APP和co-shell-hub，以便用户能够在手机端安全的操控co-shell。
+  - [x] 使用 Flutter 开发 iOS/Android 跨平台应用
+  - [x] 所有移动端代码放在 mobile/ 目录下
+  - [x] 通信协议：UDP + 首次请求密钥验证（无密钥不回包，降低被扫描风险）
+  - [x] 实现 co-shell-hub（多 agent 管理服务端）
+    - hub 监听 UDP 端口，处理握手验证
+    - 管理多个 co-shell 实例的生命周期
+    - 消息路由（根据 agent_id 转发）
+    - 会话管理（创建/切换 agent）
+  - [x] FEATURE-183 co-shell-hub 改进：简化认证流程，使用昵称+access key 替代公钥签名 [BUILD-180]
+    - 新增 --add-client 命令注册移动端客户端
+    - 新增 --gen-key 命令生成密钥对
+    - 新增 --dev 开发模式（返回错误详情）
+    - 新增 --log-dir/--log-level 日志配置
+    - 握手协议简化：客户端发送 nickname + access_key
+    - 消息自动添加 "<昵称>说：" 前缀
+    - 移动端 Flutter 代码同步更新
+  - [ ] 移动端支持多 agent 会话列表
+  - [ ] 支持功能：聊天界面、语音输入、图片选择、任务计划查看
+- [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
+- [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
+
 
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
-> **目标日期**: 2026-05-07
+> **目标日期**: 2026-07-01
 > **里程碑**: 稳定可用，可发布
+
 
 ### 功能清单
 
@@ -289,8 +302,10 @@
 | v0.2.0 | 2026-04-27 | ✅ 已完成 | Beta 测试版 |
 | v0.3.0 | 2026-04-29 | ✅ 已完成 | 发布候选版 |
 | v0.4.0 | 2026-05-03 | ✅ 已完成 | 发布候选版 RC2 |
-| v0.5.0 | 2026-05-12 | 🚧 开发中 | 次版本更新 |
+| v0.5.0 | 2026-05-12 | ✅ 已完成 | Beta2 测试版 |
+| v0.6.0 | 2026-06-01 | 🚧 开发中 | Beta3 测试版 |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
+
 
 ### 发布条件
 
