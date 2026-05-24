@@ -658,4 +658,12 @@ const (
 
 	// Unknown (fallback display)
 	KeyUnknown = "unknown"
+
+	// Tool call mode (FEATURE-182)
+	KeyToolCallMode          = "tool_call_mode"
+	KeyToolCallModeUpdated   = "tool_call_mode_updated"
+	KeyInvalidToolCallMode   = "invalid_tool_call_mode"
+	KeyCol3ToolCallMode      = "col3_tool_call_mode"
+	KeySettingsDescToolMode  = "settings_desc_tool_mode"
+	KeyCLIHelpToolCallMode   = "cli_help_tool_call_mode"
 )

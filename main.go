@@ -104,6 +104,9 @@ type cliFlags struct {
 	// ToolCall enabled
 	toolCallEnabled string // "on"/"off"
 
+	// ToolCall mode (FEATURE-182)
+	toolCallMode string // "openai"/"xml"
+
 	// Timeout parameters
 	toolTimeout int
 	cmdTimeout  int
@@ -220,6 +223,9 @@ func parseFlags() cliFlags {
 	// ToolCall enabled
 	flag.StringVar(&f.toolCallEnabled, "toolcall-enabled", "", "启用工具调用功能（on/off，覆盖配置文件）")
 	flag.StringVar(&f.toolCallEnabled, "toolcall-disabled", "", "禁用工具调用功能（覆盖配置文件）")
+
+	// ToolCall mode (FEATURE-182)
+	flag.StringVar(&f.toolCallMode, "toolcall-mode", "", "工具调用模式（openai/xml，覆盖配置文件）")
 
 	// Timeout parameters
 	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
@@ -580,6 +586,16 @@ func main() {
 			cfg.LLM.ToolCallEnabled = false
 		default:
 			fmt.Fprintf(os.Stderr, "Warning: invalid --toolcall-enabled value %q, use on|off\n", flags.toolCallEnabled)
+		}
+	}
+
+	// Apply toolcall-mode CLI override (FEATURE-182)
+	if flags.toolCallMode != "" {
+		switch flags.toolCallMode {
+		case "openai", "xml":
+			cfg.LLM.ToolCallMode = flags.toolCallMode
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: invalid --toolcall-mode value %q, use openai|xml\n", flags.toolCallMode)
 		}
 	}
 
@@ -982,6 +998,13 @@ func main() {
 
 	// Apply tool call enabled setting
 	ag.SetToolCallEnabled(cfg.LLM.ToolCallEnabled)
+
+	// Apply tool call mode (FEATURE-182)
+	toolCallMode := cfg.LLM.ToolCallMode
+	if toolCallMode == "" {
+		toolCallMode = "openai"
+	}
+	ag.SetToolCallMode(toolCallMode)
 
 	// Apply result mode
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))

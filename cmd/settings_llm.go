@@ -296,6 +296,28 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		log.Info("Max model len set to %d", n)
 		return fmt.Sprintf("✅ 模型最大上下文长度已设置为: %d", n), nil
 
+	case "toolcall-mode":
+		if len(args) < 2 {
+			mode := h.cfg.LLM.ToolCallMode
+			if mode == "" {
+				mode = "openai"
+			}
+			return fmt.Sprintf("工具调用模式: %s（可选值: openai, xml）", mode), nil
+		}
+		mode := args[1]
+		switch mode {
+		case "openai", "xml":
+			h.cfg.LLM.ToolCallMode = mode
+			if err := h.cfg.Save(); err != nil {
+				return "", err
+			}
+			h.agent.SetToolCallMode(mode)
+			log.Info("Tool call mode set to %s", mode)
+			return fmt.Sprintf("✅ 工具调用模式已设置为: %s", mode), nil
+		default:
+			return "", fmt.Errorf("无效的工具调用模式: %s（可选值: openai, xml）", mode)
+		}
+
 	default:
 		return "", fmt.Errorf("unknown LLM setting: %s", subcommand)
 	}

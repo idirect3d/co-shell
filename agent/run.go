@@ -107,8 +107,22 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			a.mu.Unlock()
 		}
 
+		// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
+		// Parse them here if no API-level tool calls were returned.
+		toolCalls := resp.ToolCalls
+		if len(toolCalls) == 0 && a.toolCallModeMgr != nil {
+			mode := a.toolCallModeMgr.Current()
+			if mode != nil && !mode.SendTools {
+				xmlCalls := ParseXMLToolCalls(resp.Content)
+				if len(xmlCalls) > 0 {
+					toolCalls = xmlCalls
+					log.Debug("Agent.Run: parsed %d XML tool calls from content", len(xmlCalls))
+				}
+			}
+		}
+
 		// If no tool calls, this is the final answer
-		if len(resp.ToolCalls) == 0 {
+		if len(toolCalls) == 0 {
 			a.mu.Lock()
 			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			a.messages = append(a.messages, llm.Message{
@@ -132,7 +146,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.messages = append(a.messages, llm.Message{
 			Role:             "assistant",
 			Content:          resp.Content,
-			ToolCalls:        resp.ToolCalls,
+			ToolCalls:        toolCalls,
 			ReasoningContent: resp.ReasoningContent,
 		})
 		// Sync to memory (content without timestamp prefix)
@@ -144,7 +158,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.mu.Unlock()
 
 		// Execute each tool call
-		for _, tc := range resp.ToolCalls {
+		for _, tc := range toolCalls {
 			log.Info("Agent.Run: executing tool %s (ID: %s)", tc.Name, tc.ID)
 			result, err := a.executeToolCall(ctx, tc)
 			if err != nil {

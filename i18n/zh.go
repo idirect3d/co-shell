@@ -666,4 +666,12 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDBRestoreConfirm: "是否继续恢复? (y/n, 默认: n): ",
 	KeyDBBackupCancel:   "❌ 已取消备份",
 	KeyDBRestoreCancel:  "❌ 已取消恢复",
+
+	// Tool call mode (FEATURE-182)
+	KeyToolCallMode:         "工具调用模式",
+	KeyToolCallModeUpdated:  "✅ 工具调用模式已设置为: %s",
+	KeyInvalidToolCallMode:  "无效的工具调用模式: %s（可选值: openai, xml）",
+	KeyCol3ToolCallMode:     "工具调用模式(openai|xml)",
+	KeySettingsDescToolMode: "工具调用模式（openai: 标准API, xml: 内嵌XML标签）",
+	KeyCLIHelpToolCallMode:  "工具调用模式（openai/xml，覆盖配置文件）",
 }

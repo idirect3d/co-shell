@@ -60,6 +60,13 @@ func (a *Agent) buildTools() []llm.Tool {
 		}
 	}
 
+	return a.buildToolsInternal()
+}
+
+// buildToolsInternal returns the full list of available tools regardless of mode.
+// This is used for generating the XML tool usage prompt in the system prompt,
+// where we need the complete tool list even in XML mode.
+func (a *Agent) buildToolsInternal() []llm.Tool {
 	sh := shellName()
 	tools := []llm.Tool{
 		{
@@ -681,7 +688,12 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	}
 
 	// Find and execute the tool
-	tools := a.buildTools()
+	// Use buildToolsInternal() instead of buildTools() because we need the full
+	// tool list including callbacks, regardless of the current tool call mode.
+	// buildTools() may return an empty list in XML mode (where tools are described
+	// in the system prompt rather than sent as API parameters), but we still need
+	// the tool callbacks to execute the tool.
+	tools := a.buildToolsInternal()
 	for _, tool := range tools {
 		if tool.Name == tc.Name {
 			// Get LLM-suggested timeout from args (optional)
