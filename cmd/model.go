@@ -238,11 +238,16 @@ func (h *ModelHandler) listModels() (string, error) {
 
 // modelInfo shows detailed information about a specific model.
 func (h *ModelHandler) modelInfo(args []string) (string, error) {
+	var modelID string
 	if len(args) == 0 {
-		return "", fmt.Errorf("用法: .model info <模型ID>")
+		var err error
+		modelID, err = h.selectModelByNumber("请选择要查看的模型")
+		if err != nil {
+			return "", err
+		}
+	} else {
+		modelID = args[0]
 	}
-
-	modelID := args[0]
 	var model *config.ModelConfig
 	for _, m := range h.cfg.Models {
 		if m.ID == modelID {
@@ -1069,15 +1074,83 @@ func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 	return fmt.Sprintf("✅ 已从模板 '%s' 添加模型: %s (%s)", template.Name, modelID, modelName), nil
 }
 
+// selectModelByNumber displays a numbered list of models and prompts the user to select one.
+// Returns the selected model ID, or an error if cancelled.
+// If there are no models configured, returns an error.
+func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
+	models := h.cfg.Models
+	if len(models) == 0 {
+		return "", fmt.Errorf("未配置任何模型")
+	}
+
+	// Sort by priority descending
+	sorted := make([]*config.ModelConfig, len(models))
+	copy(sorted, models)
+	for i := 0; i < len(sorted); i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[j].Priority > sorted[i].Priority {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+
+	fmt.Printf("\n%s:\n\n", prompt)
+	for i, m := range sorted {
+		status := "⬜"
+		if m.Enabled {
+			status = "✅"
+		}
+		capStr := []string{}
+		if m.Capabilities.Vision {
+			capStr = append(capStr, "👁")
+		}
+		if m.Capabilities.ToolCall {
+			capStr = append(capStr, "🔧")
+		}
+		if m.Capabilities.Thinking {
+			capStr = append(capStr, "💭")
+		}
+		capsDisplay := strings.Join(capStr, "")
+		fmt.Printf("  [%d] %s %s [%s][%s:%s]",
+			i+1, status, m.ID, m.Provider, m.Endpoint, m.Model)
+		if capsDisplay != "" {
+			fmt.Printf("[%s]", capsDisplay)
+		}
+		fmt.Printf(" (优先级: %d)\n", m.Priority)
+	}
+	fmt.Print("\n  请选择 (输入序号, 0 取消): ")
+
+	if !h.scanner.Scan() {
+		return "", fmt.Errorf("已取消")
+	}
+	input := strings.TrimSpace(h.scanner.Text())
+
+	if input == "" || input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" {
+		return "", fmt.Errorf("已取消")
+	}
+
+	idx, err := strconv.Atoi(input)
+	if err != nil || idx < 1 || idx > len(sorted) {
+		return "", fmt.Errorf("无效选择")
+	}
+
+	return sorted[idx-1].ID, nil
+}
+
 // removeModel removes a model configuration.
 // If the removed model had vision capability and no remaining models have vision capability,
 // automatically disable global vision support.
 func (h *ModelHandler) removeModel(args []string) (string, error) {
+	var modelID string
 	if len(args) == 0 {
-		return "", fmt.Errorf("用法: .model remove <模型ID>")
+		var err error
+		modelID, err = h.selectModelByNumber("请选择要移除的模型")
+		if err != nil {
+			return "", err
+		}
+	} else {
+		modelID = args[0]
 	}
-
-	modelID := args[0]
 
 	for i, m := range h.cfg.Models {
 		if m.ID == modelID {
@@ -1124,11 +1197,16 @@ func (h *ModelHandler) removeModel(args []string) (string, error) {
 // switchModel switches to a specific model by moving it to the front of the queue
 // (highest priority) and re-encoding all priorities.
 func (h *ModelHandler) switchModel(args []string) (string, error) {
+	var modelID string
 	if len(args) == 0 {
-		return "", fmt.Errorf("用法: .model switch <模型ID>")
+		var err error
+		modelID, err = h.selectModelByNumber("请选择要切换到的模型")
+		if err != nil {
+			return "", err
+		}
+	} else {
+		modelID = args[0]
 	}
-
-	modelID := args[0]
 
 	// Find the target model index
 	targetIdx := -1
@@ -1221,11 +1299,16 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 
 // enableModel enables a specific model.
 func (h *ModelHandler) enableModel(args []string) (string, error) {
+	var modelID string
 	if len(args) == 0 {
-		return "", fmt.Errorf("用法: .model enable <模型ID>")
+		var err error
+		modelID, err = h.selectModelByNumber("请选择要启用的模型")
+		if err != nil {
+			return "", err
+		}
+	} else {
+		modelID = args[0]
 	}
-
-	modelID := args[0]
 
 	for _, m := range h.cfg.Models {
 		if m.ID == modelID {
@@ -1247,11 +1330,16 @@ func (h *ModelHandler) enableModel(args []string) (string, error) {
 
 // disableModel disables a specific model.
 func (h *ModelHandler) disableModel(args []string) (string, error) {
+	var modelID string
 	if len(args) == 0 {
-		return "", fmt.Errorf("用法: .model disable <模型ID>")
+		var err error
+		modelID, err = h.selectModelByNumber("请选择要禁用的模型")
+		if err != nil {
+			return "", err
+		}
+	} else {
+		modelID = args[0]
 	}
-
-	modelID := args[0]
 
 	for _, m := range h.cfg.Models {
 		if m.ID == modelID {
@@ -1273,16 +1361,62 @@ func (h *ModelHandler) disableModel(args []string) (string, error) {
 
 // setPriority sets the priority of a model.
 func (h *ModelHandler) setPriority(args []string) (string, error) {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		return "", fmt.Errorf("用法: .model set-priority <模型ID> <优先级>")
 	}
 
-	modelID := args[0]
+	var modelID string
+	if len(args) >= 1 {
+		modelID = args[0]
+	}
+	if len(args) < 2 {
+		// Only model ID provided, need priority value too
+		// Try interactive selection for model ID
+		var err error
+		modelID, err = h.selectModelByNumber("请选择要设置优先级的模型")
+		if err != nil {
+			return "", err
+		}
+		// Prompt for priority value
+		fmt.Print("请输入优先级 (数字): ")
+		if !h.scanner.Scan() {
+			return "", fmt.Errorf("已取消")
+		}
+		priorityStr := strings.TrimSpace(h.scanner.Text())
+		if priorityStr == "" {
+			return "", fmt.Errorf("已取消")
+		}
+		priority, err := strconv.Atoi(priorityStr)
+		if err != nil {
+			return "", fmt.Errorf("无效的优先级值: %s", priorityStr)
+		}
+		return h.setPriorityForModel(modelID, priority)
+	}
 	priority, err := strconv.Atoi(args[1])
 	if err != nil {
 		return "", fmt.Errorf("无效的优先级值: %s", args[1])
 	}
 
+	for _, m := range h.cfg.Models {
+		if m.ID == modelID {
+			m.Priority = priority
+			if err := h.cfg.Save(); err != nil {
+				return "", fmt.Errorf("保存配置失败: %w", err)
+			}
+
+			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the new priority
+			h.syncModelsToManager()
+
+			log.Info("Set priority for model %s to %d", modelID, priority)
+			return fmt.Sprintf("✅ 已将模型 %s 的优先级设置为: %d", modelID, priority), nil
+		}
+	}
+
+	return "", fmt.Errorf("模型 %s 不存在", modelID)
+}
+
+// setPriorityForModel sets the priority of a model and saves the configuration.
+func (h *ModelHandler) setPriorityForModel(modelID string, priority int) (string, error) {
 	for _, m := range h.cfg.Models {
 		if m.ID == modelID {
 			m.Priority = priority
