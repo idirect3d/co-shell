@@ -141,6 +141,15 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			log.Debug("Agent.streamLLMResponse: reasoningBuilder now %d bytes", reasoningBuilder.Len())
 
 		case llm.StreamEventToolCall:
+			// In XML mode, strictly ignore API-level tool_calls from the LLM response.
+			// Tool calls are only parsed from the content as XML tags.
+			if a.toolCallModeMgr != nil {
+				mode := a.toolCallModeMgr.Current()
+				if mode != nil && !mode.SendTools {
+					log.Debug("Agent.streamLLMResponse: ignoring StreamEventToolCall in XML mode")
+					continue
+				}
+			}
 			log.Debug("Agent.streamLLMResponse: processing StreamEventToolCall, toolCall=%v", event.ToolCall)
 			hasToolCallEvents = true
 			if event.ToolCall != nil {
@@ -180,14 +189,20 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			finalReasoning := reasoningBuilder.String()
 
 			// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
-			// Parse them here if no API-level tool calls were returned.
-			if len(toolCalls) == 0 && a.toolCallModeMgr != nil {
+			// We ALWAYS parse XML tool calls from content in XML mode, and IGNORE any
+			// API-level tool_calls. This prevents conflicts where the LLM returns both
+			// XML tool calls in content AND API-level tool_calls simultaneously.
+			if a.toolCallModeMgr != nil {
 				mode := a.toolCallModeMgr.Current()
 				if mode != nil && !mode.SendTools {
 					xmlCalls := ParseXMLToolCalls(finalContent)
 					if len(xmlCalls) > 0 {
 						toolCalls = xmlCalls
-						log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content", len(xmlCalls))
+						log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
+							len(xmlCalls), len(toolCalls))
+					} else {
+						// No XML tool calls found; clear any API-level tool calls in XML mode
+						toolCalls = nil
 					}
 				}
 			}

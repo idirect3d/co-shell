@@ -349,15 +349,34 @@ func extractCDATA(content string) string {
 // Input: <command>ls -la</command><cwd>/home</cwd>
 // Output: {"command": "ls -la", "cwd": "/home"}
 // Handles nested elements by flattening them into JSON strings.
+//
+// Array handling: when a child tag name is "item", it is treated as an
+// array element and its value is placed directly into a JSON array without
+// the "item" key. For example:
+//
+//	Input: <replacements>
+//	         <item><search>a</search><replace>b</replace></item>
+//	         <item><search>c</search><replace>d</replace></item>
+//	       </replacements>
+//	Output: {"replacements": [{"search": "a", "replace": "b"}, {"search": "c", "replace": "d"}]}
+//
+// When the same non-item tag name appears multiple times consecutively,
+// the values are also merged into a JSON array. For example:
+//
+//	Input: <item><a>1</a></item><item><a>2</a></item>
+//	Output: {"item": [{"a": "1"}, {"a": "2"}]}
 func parseXMLChildrenToJSON(xmlContent string) string {
 	xmlContent = strings.TrimSpace(xmlContent)
 	if xmlContent == "" {
 		return "{}"
 	}
 
-	var sb strings.Builder
-	sb.WriteString("{")
-	first := true
+	// First pass: collect all child elements with their tag names and JSON values
+	type childEntry struct {
+		tagName string
+		jsonVal string // the JSON value (quoted string or object)
+	}
+	var children []childEntry
 
 	remaining := xmlContent
 	for {
@@ -421,11 +440,7 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 		// Check for self-closing tag
 		if remaining[tagEnd] == '/' {
 			// Self-closing tag like <param/>
-			if !first {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(fmt.Sprintf("%q: \"\"", tagName))
-			first = false
+			children = append(children, childEntry{tagName: tagName, jsonVal: `""`})
 			remaining = remaining[openEnd:]
 			continue
 		}
@@ -443,11 +458,7 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 		if hasChildElements(innerContent) {
 			// Nested elements - recursively parse
 			nestedJSON := parseXMLChildrenToJSON(innerContent)
-			if !first {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(fmt.Sprintf("%q: %s", tagName, nestedJSON))
-			first = false
+			children = append(children, childEntry{tagName: tagName, jsonVal: nestedJSON})
 		} else {
 			// Simple text content
 			value := strings.TrimSpace(innerContent)
@@ -455,14 +466,86 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 			if cdataContent := extractCDATA(value); cdataContent != "" {
 				value = cdataContent
 			}
-			if !first {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(fmt.Sprintf("%q: %q", tagName, value))
-			first = false
+			children = append(children, childEntry{tagName: tagName, jsonVal: fmt.Sprintf("%q", value)})
 		}
 
 		remaining = remaining[openEnd+closeIdx+len(closeTag):]
+	}
+
+	// Second pass: build JSON.
+	// - If ALL children have tag name "item", output as a JSON array directly.
+	//   This handles the pattern where the parent tag name is the parameter name
+	//   and <item> represents array items:
+	//     <replacements>
+	//       <item><search>a</search><replace>b</replace></item>
+	//       <item><search>c</search><replace>d</replace></item>
+	//     </replacements>
+	//   → [{"search": "a", "replace": "b"}, {"search": "c", "replace": "d"}]
+	//   The caller (parent's second pass) will use "replacements" as the key.
+	// - Otherwise, build a JSON object with child tag names as keys.
+	// - Consecutive children with the same non-item tag name are merged
+	//   into a JSON array.
+	if len(children) > 0 {
+		allItem := true
+		for _, c := range children {
+			if c.tagName != "item" {
+				allItem = false
+				break
+			}
+		}
+		if allItem {
+			// All children are <item> - output as a JSON array directly
+			var sb strings.Builder
+			sb.WriteString("[")
+			for k := 0; k < len(children); k++ {
+				if k > 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(children[k].jsonVal)
+			}
+			sb.WriteString("]")
+			return sb.String()
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString("{")
+	first := true
+	i := 0
+	for i < len(children) {
+		currentTag := children[i].tagName
+
+		// Count how many consecutive entries have the same tag name
+		count := 1
+		for j := i + 1; j < len(children); j++ {
+			if children[j].tagName == currentTag {
+				count++
+			} else {
+				break
+			}
+		}
+
+		if !first {
+			sb.WriteString(", ")
+		}
+
+		if count == 1 {
+			// Single occurrence - output as a simple key-value pair
+			sb.WriteString(fmt.Sprintf("%q: %s", currentTag, children[i].jsonVal))
+		} else {
+			// Multiple occurrences - output as a JSON array
+			sb.WriteString(fmt.Sprintf("%q: [", currentTag))
+			for k := 0; k < count; k++ {
+				if k > 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(children[i+k].jsonVal)
+			}
+			sb.WriteString("]")
+		}
+
+		first = false
+		i += count
 	}
 
 	sb.WriteString("}")
@@ -601,6 +684,22 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string) string {
   <end_line>50</end_line>
 </read_file>
 
+对于数组类型的参数，使用 <item> 标签表示数组中的每个元素：
+
+<replace_in_file>
+  <path>/path/to/file</path>
+  <replacements>
+    <item>
+      <search>旧文本</search>
+      <replace>新文本</replace>
+    </item>
+    <item>
+      <search>另一段旧文本</search>
+      <replace>另一段新文本</replace>
+    </item>
+  </replacements>
+</replace_in_file>
+
 `)
 	} else {
 		sb.WriteString(`You can use the following tools to interact with the system. When multiple operations are independent (e.g., reading multiple files, searching in parallel), you can output multiple tool calls in a single response. When operations have dependencies (the result of one determines the next), call tools sequentially, waiting for each result before proceeding.
@@ -624,6 +723,22 @@ To call multiple tools in a single response, simply use multiple consecutive too
   <start_line>1</start_line>
   <end_line>50</end_line>
 </read_file>
+
+For array-type parameters, use the <item> tag to represent each item in the array:
+
+<replace_in_file>
+  <path>/path/to/file</path>
+  <replacements>
+    <item>
+      <search>old text</search>
+      <replace>new text</replace>
+    </item>
+    <item>
+      <search>another old text</search>
+      <replace>another new text</replace>
+    </item>
+  </replacements>
+</replace_in_file>
 
 `)
 	}
@@ -685,6 +800,7 @@ type paramInfo struct {
 	Type        string
 	Description string
 	Required    bool
+	IsArray     bool
 }
 
 // buildXMLToolDescription builds the description for a single tool in XML format.
@@ -719,7 +835,11 @@ func buildXMLToolDescription(tool llm.Tool, lang string) string {
 				if desc == "" {
 					desc = p.Type
 				}
-				sb.WriteString(fmt.Sprintf("- <%s> %s %s\n", p.Name, req, desc))
+				if p.IsArray {
+					sb.WriteString(fmt.Sprintf("- <%s> %s %s（数组类型，使用 <item> 标签表示每个元素）\n", p.Name, req, desc))
+				} else {
+					sb.WriteString(fmt.Sprintf("- <%s> %s %s\n", p.Name, req, desc))
+				}
 			} else {
 				req := ""
 				if p.Required {
@@ -731,7 +851,11 @@ func buildXMLToolDescription(tool llm.Tool, lang string) string {
 				if desc == "" {
 					desc = p.Type
 				}
-				sb.WriteString(fmt.Sprintf("- <%s> %s %s\n", p.Name, req, desc))
+				if p.IsArray {
+					sb.WriteString(fmt.Sprintf("- <%s> %s %s (array type, use <item> for each item)\n", p.Name, req, desc))
+				} else {
+					sb.WriteString(fmt.Sprintf("- <%s> %s %s\n", p.Name, req, desc))
+				}
 			}
 		}
 	}
@@ -790,6 +914,7 @@ func extractParamInfo(schema map[string]interface{}) []paramInfo {
 			Type:        paramType,
 			Description: paramDesc,
 			Required:    requiredFields[name],
+			IsArray:     paramType == "array",
 		})
 	}
 
