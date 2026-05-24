@@ -472,6 +472,7 @@ func DefaultConfig() *Config {
 		},
 		Rules:      []string{},
 		LogEnabled: true,
+		LogLevel:   "info",
 	}
 }
 
