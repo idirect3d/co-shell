@@ -276,6 +276,18 @@ type LLMConfig struct {
 	// "smart" = smart mode: allow LLM to adjust context start via adjust_context_start tool
 	// Default: "task" (backward compatible with current behavior)
 	ContextStartMode string `json:"context_start_mode"`
+
+	// ToolCallMode: the tool call mode to use.
+	// "openai" = standard OpenAI API tool call mechanism (send tools as JSON array)
+	// "xml" = custom XML format embedded in system prompt (no tools parameter sent)
+	// Default: "openai"
+	ToolCallMode string `json:"tool_call_mode"`
+
+	// ToolCallModeSystemPrompts stores custom system prompt sections per tool call mode.
+	// Key is the tool call mode type (e.g., "openai", "xml").
+	// Value is the custom system prompt text for that mode's tool usage section.
+	// If empty, the built-in i18n prompt is used.
+	ToolCallModeSystemPrompts map[string]string `json:"tool_call_mode_system_prompts"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.

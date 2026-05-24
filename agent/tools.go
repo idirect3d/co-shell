@@ -42,12 +42,31 @@ import (
 )
 
 // buildTools constructs the list of available tools for the LLM.
+// In OpenAI mode, tools are returned as a JSON array for the "tools" parameter.
+// In XML mode, tools are described in the system prompt, so an empty list is returned
+// (the tools are still registered internally for execution).
 func (a *Agent) buildTools() []llm.Tool {
 	// If tool calling is disabled, return empty tools list
 	if !a.toolCallEnabled {
 		return []llm.Tool{}
 	}
 
+	// In XML mode, tools are described in the system prompt, not sent as API parameter.
+	// Return empty list so the LLM API doesn't receive the "tools" parameter.
+	if a.toolCallModeMgr != nil {
+		mode := a.toolCallModeMgr.Current()
+		if mode != nil && !mode.SendTools {
+			return []llm.Tool{}
+		}
+	}
+
+	return a.buildToolsInternal()
+}
+
+// buildToolsInternal returns the full list of available tools regardless of mode.
+// This is used for generating the XML tool usage prompt in the system prompt,
+// where we need the complete tool list even in XML mode.
+func (a *Agent) buildToolsInternal() []llm.Tool {
 	sh := shellName()
 	tools := []llm.Tool{
 		{
@@ -669,7 +688,12 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	}
 
 	// Find and execute the tool
-	tools := a.buildTools()
+	// Use buildToolsInternal() instead of buildTools() because we need the full
+	// tool list including callbacks, regardless of the current tool call mode.
+	// buildTools() may return an empty list in XML mode (where tools are described
+	// in the system prompt rather than sent as API parameters), but we still need
+	// the tool callbacks to execute the tool.
+	tools := a.buildToolsInternal()
 	for _, tool := range tools {
 		if tool.Name == tc.Name {
 			// Get LLM-suggested timeout from args (optional)
