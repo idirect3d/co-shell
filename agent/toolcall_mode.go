@@ -10,7 +10,6 @@ package agent
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -90,6 +89,35 @@ var knownNonToolTags = map[string]bool{
 	"result":    true,
 	"analysis":  true,
 	"reasoning": true,
+}
+
+// toolUsageKeyMap maps tool names to their i18n keys for usage examples.
+// Used by buildXMLToolDescription to include per-tool usage examples.
+var toolUsageKeyMap = map[string]string{
+	"execute_command":            i18n.KeyToolUsageExecuteCommand,
+	"read_file":                  i18n.KeyToolUsageReadFile,
+	"search_files":               i18n.KeyToolUsageSearchFiles,
+	"list_code_definition_names": i18n.KeyToolUsageListCodeDefNames,
+	"replace_in_file":            i18n.KeyToolUsageReplaceInFile,
+	"write_to_file":              i18n.KeyToolUsageWriteToFile,
+	"add_images":                 i18n.KeyToolUsageAddImages,
+	"remove_images":              i18n.KeyToolUsageRemoveImages,
+	"clear_images":               i18n.KeyToolUsageClearImages,
+	"launch_sub_agent":           i18n.KeyToolUsageLaunchSubAgent,
+	"schedule_task":              i18n.KeyToolUsageScheduleTask,
+	"create_task_plan":           i18n.KeyToolUsageCreateTaskPlan,
+	"update_task_step":           i18n.KeyToolUsageUpdateTaskStep,
+	"insert_task_steps":          i18n.KeyToolUsageInsertTaskSteps,
+	"remove_task_steps":          i18n.KeyToolUsageRemoveTaskSteps,
+	"list_task_plans":            i18n.KeyToolUsageListTaskPlans,
+	"view_task_plan":             i18n.KeyToolUsageViewTaskPlan,
+	"get_memory_slice":           i18n.KeyToolUsageGetMemorySlice,
+	"memory_search":              i18n.KeyToolUsageMemorySearch,
+	"delete_memory":              i18n.KeyToolUsageDeleteMemory,
+	"update_settings":            i18n.KeyToolUsageUpdateSettings,
+	"list_settings":              i18n.KeyToolUsageListSettings,
+	"ask_followup_question":      i18n.KeyToolUsageAskFollowupQuestion,
+	"adjust_context_start":       i18n.KeyToolUsageAdjustContextStart,
 }
 
 // ParseXMLToolCalls parses XML-formatted tool calls from LLM response content.
@@ -758,271 +786,40 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string) string {
 
 	var sb strings.Builder
 
-	// Main title: always English uppercase, no markdown heading markers.
-	// This is a section separator rendered as a plain line.
-	sb.WriteString("TOOL USE\n\n")
-
-	// Determine language for the prompt body
-	if lang == "zh" {
-		sb.WriteString(`你可以使用以下工具来执行操作。当多个操作相互独立时（如读取多个文件、并行搜索），可以在一次回复中输出多个工具调用。当操作之间存在依赖关系（前一个结果决定下一个操作）时，应按顺序调用工具，等待每个结果后再继续。
-
-工具调用使用 XML 标签格式，工具名称直接作为 XML 标签名，参数作为子元素。XML 元素应按层级缩进，子元素比父元素多缩进 2 个空格：
-
-<read_file>
-  <path>main.go</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
-
-如果需要在一次回复中调用多个工具，只需连续使用多个工具标签：
-
-<execute_command>
-  <command>ls -la</command>
-</execute_command>
-
-<read_file>
-  <path>main.go</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
-
-对于数组类型的参数，使用 <item> 标签表示数组中的每个元素：
-
-<replace_in_file>
-  <path>/path/to/file</path>
-  <replacements>
-    <item>
-      <search>旧文本</search>
-      <replace>新文本</replace>
-    </item>
-    <item>
-      <search>另一段旧文本</search>
-      <replace>另一段新文本</replace>
-    </item>
-  </replacements>
-</replace_in_file>
-
-`)
-	} else {
-		sb.WriteString(`You can use the following tools to interact with the system. When multiple operations are independent (e.g., reading multiple files, searching in parallel), you can output multiple tool calls in a single response. When operations have dependencies (the result of one determines the next), call tools sequentially, waiting for each result before proceeding.
-
-Tool calls use XML tag format, with the tool name directly as the XML tag name and parameters as child elements. XML elements should be indented by hierarchy, with child elements indented 2 spaces more than their parent:
-
-<read_file>
-  <path>main.go</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
-
-To call multiple tools in a single response, simply use multiple consecutive tool tags:
-
-<execute_command>
-  <command>ls -la</command>
-</execute_command>
-
-<read_file>
-  <path>main.go</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
-
-For array-type parameters, use the <item> tag to represent each item in the array:
-
-<replace_in_file>
-  <path>/path/to/file</path>
-  <replacements>
-    <item>
-      <search>old text</search>
-      <replace>new text</replace>
-    </item>
-    <item>
-      <search>another old text</search>
-      <replace>another new text</replace>
-    </item>
-  </replacements>
-</replace_in_file>
-
-`)
-	}
+	// The TOOL USE header and XML format examples are now in i18n KeySystemPromptToolUsageXML.
+	// Write the i18n content first (header + XML examples).
+	sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageXML))
+	sb.WriteString("\n")
 
 	// List available tools
-	sb.WriteString("# Available Tools\n\n")
+	sb.WriteString("# Tools\n\n")
 
 	for _, tool := range tools {
 		sb.WriteString(buildXMLToolDescription(tool, lang))
 		sb.WriteString("\n")
 	}
 
-	if lang == "zh" {
-		sb.WriteString(`
-# 重要规则
-1. 每次回复可以包含多个工具调用，按顺序执行
-2. 不要在工具调用标签中包含多余的解释文字
-3. 参数值不需要加引号
-4. 如果需要在非工具调用的上下文中输出 XML 标签内容（如讨论 XML 格式、展示代码示例等），必须使用 CDATA 包裹，避免被误解析为工具调用
-
-**工具优先级（从高到低）：**
-1. **内部工具**（read_file、search_files、replace_in_file 等）— 优先使用内部工具解决问题
-2. **MCP 工具** — 当内部工具无法满足需求时，使用 MCP 工具
-3. **execute_command** — 当以上工具都无法解决问题时，使用系统命令
-   - 优先使用已有系统命令（ls、cat、dir、type、head、tail 等）
-   - 其次通过 shell、Python 等方式编程实现
-`)
-	} else {
-		sb.WriteString(`
-# Important Rules
-1. You can include multiple tool calls in one response, executed in order
-2. Do not include extra explanatory text inside tool call tags
-3. Parameter values do not need quotes
-4. If you need to output XML tag content in a non-tool-call context (e.g., discussing XML format, showing code examples), you MUST wrap it in CDATA to prevent it from being misinterpreted as a tool call
-
-**Tool Priority (highest to lowest):**
-1. **Internal tools** (read_file, search_files, replace_in_file, etc.) — Prefer internal tools first
-2. **MCP tools** — Use MCP tools when internal tools cannot fulfill the requirement
-3. **execute_command** — Use system commands when none of the above can solve the problem
-   - Prefer existing system commands (ls, cat, dir, type, head, tail, etc.)
-   - Then use shell scripts, Python, or other programming approaches
-`)
-	}
-
-	// Append the static supplementary content from i18n.
-	// This allows adding special-case notes or additional guidance
-	// without modifying the dynamic generation code.
-	// i18n.T() automatically returns the correct language version.
-	sb.WriteString("\n")
-	sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageXML))
-	sb.WriteString("\n")
+	// Append the supplementary rules (Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files)
+	// from i18n. The i18n key handles language selection automatically.
+	sb.WriteString(i18n.T(i18n.KeySystemPromptXMLRules))
 
 	return sb.String()
+
 }
 
-// paramInfo holds parsed information about a single parameter from JSON Schema.
-type paramInfo struct {
-	Name        string
-	Type        string
-	Description string
-	Required    bool
-	IsArray     bool
-}
-
-// buildXMLToolDescription builds the description for a single tool in XML format.
-// Uses the new format where the tool name is the XML tag directly.
+// buildXMLToolDescription builds the usage description for a single tool in XML format.
+// Outputs the i18n usage example for the tool (Parameters and Usage sections).
 func buildXMLToolDescription(tool llm.Tool, lang string) string {
 	var sb strings.Builder
 
-	if lang == "zh" {
-		sb.WriteString(fmt.Sprintf("## %s\n%s\n\n参数：\n", tool.Name, tool.Description))
-	} else {
-		sb.WriteString(fmt.Sprintf("## %s\n%s\n\nParameters:\n", tool.Name, tool.Description))
-	}
-
-	// Parse the JSON schema parameters to extract parameter info
-	params := extractParamInfo(tool.Parameters)
-	if len(params) == 0 {
-		if lang == "zh" {
-			sb.WriteString("无\n")
-		} else {
-			sb.WriteString("None\n")
-		}
-	} else {
-		for _, p := range params {
-			if lang == "zh" {
-				req := ""
-				if p.Required {
-					req = "（必需）"
-				} else {
-					req = "（可选）"
-				}
-				desc := p.Description
-				if desc == "" {
-					desc = p.Type
-				}
-				if p.IsArray {
-					sb.WriteString(fmt.Sprintf("- <%s> %s %s（数组类型，使用 <item> 标签表示每个元素）\n", p.Name, req, desc))
-				} else {
-					sb.WriteString(fmt.Sprintf("- <%s> %s %s\n", p.Name, req, desc))
-				}
-			} else {
-				req := ""
-				if p.Required {
-					req = "(required)"
-				} else {
-					req = "(optional)"
-				}
-				desc := p.Description
-				if desc == "" {
-					desc = p.Type
-				}
-				if p.IsArray {
-					sb.WriteString(fmt.Sprintf("- <%s> %s %s (array type, use <item> for each item)\n", p.Name, req, desc))
-				} else {
-					sb.WriteString(fmt.Sprintf("- <%s> %s %s\n", p.Name, req, desc))
-				}
-			}
+	// Append usage example from i18n if available
+	if key, ok := toolUsageKeyMap[tool.Name]; ok {
+		example := i18n.T(key)
+		if example != "" {
+			sb.WriteString(example)
+			sb.WriteString("\n")
 		}
 	}
 
 	return sb.String()
-}
-
-// extractParamInfo extracts parameter information from a JSON Schema map.
-// The schema is expected to have the standard JSON Schema structure:
-//
-//	{
-//	  "type": "object",
-//	  "properties": {
-//	    "path": {"type": "string", "description": "The file path"},
-//	    ...
-//	  },
-//	  "required": ["path"]
-//	}
-func extractParamInfo(schema map[string]interface{}) []paramInfo {
-	var params []paramInfo
-
-	// Parse required fields list
-	requiredFields := make(map[string]bool)
-	if req, ok := schema["required"].([]interface{}); ok {
-		for _, r := range req {
-			if s, ok := r.(string); ok {
-				requiredFields[s] = true
-			}
-		}
-	} else if req, ok := schema["required"].([]string); ok {
-		for _, s := range req {
-			requiredFields[s] = true
-		}
-	}
-
-	// Parse properties
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	// Iterate over properties in sorted order for deterministic output
-	propNames := make([]string, 0, len(props))
-	for name := range props {
-		propNames = append(propNames, name)
-	}
-	sort.Strings(propNames)
-
-	for _, name := range propNames {
-		prop, ok := props[name].(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		paramType, _ := prop["type"].(string)
-		paramDesc, _ := prop["description"].(string)
-
-		params = append(params, paramInfo{
-			Name:        name,
-			Type:        paramType,
-			Description: paramDesc,
-			Required:    requiredFields[name],
-			IsArray:     paramType == "array",
-		})
-	}
-
-	return params
 }

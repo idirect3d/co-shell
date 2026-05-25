@@ -345,7 +345,10 @@ func (a *Agent) rebuildSystemPrompt() {
 		}
 	}
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText)
+	// Get current task plan text for Objective section
+	taskPlanText := a.getTaskPlanText()
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText, taskPlanText)
 
 	// Preserve conversation history: only replace the system message at index 0
 	a.mu.Lock()
@@ -492,6 +495,23 @@ func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
 		modelCfg.Model, modelCfg.Endpoint, modelCfg.Capabilities.Vision, len(modelCfg.CustomParams))
 }
 
+// getTaskPlanText returns the formatted current task plan text if there are unfinished steps,
+// or empty string if no plan exists or all steps are completed.
+func (a *Agent) getTaskPlanText() string {
+	if a.taskPlanMgr == nil {
+		return ""
+	}
+	plan, err := a.taskPlanMgr.GetCurrent()
+	if err != nil || plan == nil {
+		return ""
+	}
+	// Only include task plan if there are unfinished steps
+	if !a.taskPlanMgr.HasUnfinished() {
+		return ""
+	}
+	return taskplan.FormatPlan(plan)
+}
+
 // TaskPlanManager returns the task plan manager.
 func (a *Agent) TaskPlanManager() *taskplan.Manager {
 	return a.taskPlanMgr
@@ -542,7 +562,10 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 		}
 	}
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText)
+	// Get current task plan text for Objective section
+	taskPlanText := a.getTaskPlanText()
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText, taskPlanText)
 
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
