@@ -49,7 +49,7 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.5.0-Beta2"
+const version = "0.5.1"
 
 const build = "192"
 
