@@ -223,6 +223,19 @@
 - [x] FEATURE-186 数据库配置改为子命令模式：`.set db enabled on`、`.set db host 10.0.0.1` 等，模仿 confirm-tool 方式做成配置子集。DB 配置显示移到「记忆与上下文」分组中。新增交互式配置向导，首次运行 `.set db` 时自动引导用户完成 PostgreSQL 连接配置，支持连接测试和 bbolt 数据迁移。[BUILD-186]
 - [x] FEATURE-187 改进 .model 子命令交互体验：switch/remove/enable/disable/info/set-priority/set-param 等需要选择模型的命令，当不提供模型 ID 参数时，先显示模型列表让用户通过编号选择，提升易用性。[BUILD-188]
 - [x] ENHANCEMENT-188 XML 模式数组参数统一使用 `<item>` 标签：将 parseXMLChildrenToJSON/buildXMLToolDescription/buildXMLToolPrompt 中的 element 统一改为 item；修复 i18n 系统提示词中反引号导致 raw string literal 提前结束的问题；同步更新中英文示例。[BUILD-190]
+- [x] FIX-189 修复 API URL 自动拼写时，如果 base URL 中已经有 /v1 后缀，不再重复添加 /v1。[BUILD-191]
+
+
+## v0.5.1 — 补丁版
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-05-26
+> **里程碑**: Bug 修复
+
+### 功能清单
+
+- [ ] 在 ROADMAP.md 中新建 v0.5.1 版本计划段，更新版本发布记录表
+- [ ] 更新 main.go 版本常量从 v0.5.0-Beta2 改为 v0.5.1
 
 
 ## v0.6.0 — Beta3
@@ -303,6 +316,7 @@
 | v0.3.0 | 2026-04-29 | ✅ 已完成 | 发布候选版 |
 | v0.4.0 | 2026-05-03 | ✅ 已完成 | 发布候选版 RC2 |
 | v0.5.0 | 2026-05-12 | ✅ 已完成 | Beta2 测试版 |
+| v0.5.1 | 2026-05-26 | 🚧 开发中 | 补丁版 |
 | v0.6.0 | 2026-06-01 | 🚧 开发中 | Beta3 测试版 |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 

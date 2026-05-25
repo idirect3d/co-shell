@@ -464,7 +464,18 @@ func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
 		baseStrategies = []string{""}
 	}
 
-	suffixStrategies = []string{"/v1", ""}
+	// FIX-189: If the endpoint already contains /v1 suffix, don't try to add /v1 again.
+	// This prevents generating invalid URLs like "https://api.openai.com/v1/v1".
+	cleanEndpoint := rawEndpoint
+	// Strip trailing slash for consistent checking
+	for len(cleanEndpoint) > 0 && cleanEndpoint[len(cleanEndpoint)-1] == '/' {
+		cleanEndpoint = cleanEndpoint[:len(cleanEndpoint)-1]
+	}
+	if strings.HasSuffix(cleanEndpoint, "/v1") {
+		suffixStrategies = []string{""}
+	} else {
+		suffixStrategies = []string{"/v1", ""}
+	}
 
 	// Build all candidate endpoints
 	var candidates []string
