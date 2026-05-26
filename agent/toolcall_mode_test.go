@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -91,7 +92,56 @@ func TestParseXMLToolCalls_CDATA(t *testing.T) {
 	t.Logf("command: %s", cmdStr)
 }
 
+func TestParseXMLToolCalls_SpecialCharsWithoutCDATA(t *testing.T) {
+	// LLM puts special chars like '<', '>', '&' in content without CDATA wrapping.
+	// The parser should still be able to find the closing tag and extract content.
+	xmlInput := `<execute_command>
+<command>curl -s "https://example.com/?q=test&lang=go" | grep -oP 'class="result__snippet"[^>]*>[^<]*' | head -20</command>
+<timeout_seconds>30</timeout_seconds>
+</execute_command>`
+
+	calls := ParseXMLToolCalls(xmlInput)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(calls))
+	}
+
+	call := calls[0]
+	if call.Name != "execute_command" {
+		t.Errorf("expected tool name 'execute_command', got %q", call.Name)
+	}
+
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+		t.Fatalf("failed to parse arguments JSON: %v\nJSON: %s", err, call.Arguments)
+	}
+
+	cmd, ok := args["command"]
+	if !ok {
+		t.Fatalf("missing 'command' argument, args: %v", args)
+	}
+	cmdStr, ok := cmd.(string)
+	if !ok {
+		t.Fatalf("expected 'command' to be a string, got %T: %v", cmd, cmd)
+	}
+	if len(cmdStr) == 0 {
+		t.Fatal("expected non-empty command string")
+	}
+	t.Logf("command: %s", cmdStr)
+
+	// Verify the command contains the special chars
+	if !strings.Contains(cmdStr, "&") {
+		t.Error("expected command to contain '&'")
+	}
+	if !strings.Contains(cmdStr, "<") {
+		t.Error("expected command to contain '<'")
+	}
+	if !strings.Contains(cmdStr, ">") {
+		t.Error("expected command to contain '>'")
+	}
+}
+
 func TestParseXMLToolCalls_CDATAWithXMLContent(t *testing.T) {
+
 	// CDATA wrapping content that contains XML-like tags
 	xmlInput := `<write_to_file>
 <path>output/result.md</path>

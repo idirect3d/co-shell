@@ -150,10 +150,27 @@ Usage:
 </list_code_definition_names>`
 
 	zhMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
-Description: 使用 SEARCH/REPLACE 块替换文件中的内容。接受 replacements 数组，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。SEARCH 内容必须与文件完全匹配（包括空格和缩进）。提供 start_line 时，搜索会锚定到该行。修改前自动创建备份。返回详细的 diff 信息。
+Description: 使用 search/replace 块替换文件中的内容。接受 replacements 数组，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
 Parameters:
 - path (必需) 要修改的文件路径（绝对路径或相对于当前工作目录）
 - replacements (必需) 替换对象数组，每个对象包含 search 和 replace 字符串字段，以及可选的 start_line 数字。所有替换按顺序依次执行。
+
+  <replacements>
+    <item>
+      <search>要查找的精确内容（必需），必须与文件完全匹配（包括空格和缩进）</search>
+      <replace>替换后的新内容（必需）</replace>
+      <start_line>搜索内容在原文件中的起始行号（可选，1-based）。系统会自动根据前面 replacement 的行数变化调整偏移量。使用 start_line 可以精确定位，避免重复匹配</start_line>
+    </item>
+  </replacements>
+
+关键规则：
+1. <search> 内容必须与文件中要查找的部分**完全匹配**（包括空格、缩进、换行符、注释、文档字符串等）。系统优先尝试精确匹配，失败后会进行去尾空白模糊匹配（忽略末尾空格/Tab/回车）。
+2. 每个 <item> 只替换**第一个匹配**。如需多处替换，需提供多个不同的 <search> 值。
+3. 保持 <item> 简洁：将大的替换拆分为多个小替换块，每个块只修改一小部分。<search> 只需包含足够唯一匹配的上下文行，不要包含大段未修改的内容。每行必须完整，不能截断。
+4. 特殊操作：
+   - 移动代码：使用两个 <item>（一个从原位置删除，一个在新位置插入）
+   - 删除代码：将 <replace> 留空
+5. 如果从 read_file 获取的上下文包含行号前缀（如 "42 | const x = 1"），<search> 中**不要包含**行号前缀，只匹配原始文件文本。
 Usage:
 <replace_in_file>
   <path>main.go</path>
@@ -236,6 +253,11 @@ Parameters:
 - title (必需) 任务计划的标题
 - description (可选) 整体任务计划的简要描述
 - steps (必需) 步骤描述数组，每个元素代表一个子任务
+
+  <steps>
+    <item>步骤描述文本（必需）</item>
+  </steps>
+
 Usage:
 <create_task_plan>
   <title>实现用户登录功能</title>
