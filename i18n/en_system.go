@@ -146,10 +146,27 @@ Usage:
 </list_code_definition_names>`
 
 	enMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
-Description: Replace content in a file using SEARCH/REPLACE blocks. Accepts a replacements array, each element containing search (exact match content), replace (new content), and optional start_line (precise line number anchor). Supports multiple replacements in a single call. SEARCH content must match the file exactly (including whitespace and indentation). When start_line is provided, the search is anchored to that line. Automatically creates a backup before modification. Returns detailed diff information.
+Description: Replace content in a file using search/replace blocks. Accepts a replacements array, each element containing search (exact match content), replace (new content), and optional start_line (precise line number anchor). Supports multiple replacements in a single call. Automatically creates a backup before modification. Returns detailed diff information.
 Parameters:
 - path (required) The file path to modify (absolute or relative to current working directory)
 - replacements (required) Array of replacement objects, each containing search and replace string fields, and optional start_line number. All replacements are applied sequentially.
+
+  <replacements>
+    <item>
+      <search>The exact content to find (required), must match the file exactly (including whitespace and indentation)</search>
+      <replace>The new content to replace with (required)</replace>
+      <start_line>The 1-based line number in the original file where the search content is expected to start (optional). The system automatically adjusts for line count changes from previous replacements. Use start_line for precise positioning and to avoid duplicate matches</start_line>
+    </item>
+  </replacements>
+
+Critical rules:
+1. The <search> content must match the file EXACTLY (character-for-character including whitespace, indentation, line endings, comments, docstrings, etc.). The system first attempts exact match, then falls back to whitespace-tolerant fuzzy matching (trailing whitespace ignored) if exact match fails.
+2. Each <item> replaces only the FIRST match. For multiple matches, use multiple unique <search> values.
+3. Keep <item> concise: break large changes into smaller blocks. Include just enough context lines for uniqueness. Each line must be complete — never truncate.
+4. Special operations:
+   - To move code: Use two <item> (one to delete from original, one to insert at new location)
+   - To delete code: Leave <replace> empty
+5. If source context came from read_file with line labels (e.g. "42 | const x = 1"), do NOT include the line label prefix in <search>. Match only the raw file text.
 Usage:
 <replace_in_file>
   <path>main.go</path>
@@ -232,6 +249,11 @@ Parameters:
 - title (required) The title of the task plan
 - description (optional) A brief description of the overall task plan
 - steps (required) Array of step descriptions, each element represents a sub-task
+
+  <steps>
+    <item>Step description text (required)</item>
+  </steps>
+
 Usage:
 <create_task_plan>
   <title>Implement user login</title>

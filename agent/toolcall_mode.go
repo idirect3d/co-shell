@@ -129,6 +129,8 @@ var toolUsageKeyMap = map[string]string{
 //	</execute_command>
 //
 // Returns a list of llm.ToolCall, one for each tool call block found.
+// If parsing fails for a particular tag, it returns a partial result with
+// an error message embedded in the tool call arguments for LLM feedback.
 func ParseXMLToolCalls(content string) []llm.ToolCall {
 	var calls []llm.ToolCall
 
@@ -240,10 +242,30 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 						log.Debug("ParseXMLToolCalls: using fallback close tag %s for <%s>", closeTag, tagName)
 					}
 				} else {
-					// No matching close tag found, skip
-					log.Debug("ParseXMLToolCalls: no matching close tag for <%s>, skipping", tagName)
-					i = openEnd
-					continue
+					// No matching close tag found at all.
+					// Try a more aggressive approach: search for the closing tag
+					// by scanning forward from the opening tag position, treating
+					// '<' characters inside content as literal text (not XML tags).
+					// This handles cases where the LLM puts special chars like
+					// '<', '>', '&' in content without CDATA wrapping.
+					aggressiveIdx := findCloseTagLenient(remaining[openEnd:], tagName)
+					if aggressiveIdx >= 0 {
+						closeIdx = aggressiveIdx
+						log.Debug("ParseXMLToolCalls: using lenient close tag for <%s> at idx %d", tagName, closeIdx)
+					} else {
+						// Truly cannot find any close tag. Return an error tool call
+						// with detailed position info so the LLM can fix it.
+						errMsg := fmt.Sprintf("XML解析错误：找不到 <%s> 的闭合标签 </%s>。位置：从第 %d 字符开始。可能原因：内容中包含未转义的特殊字符（如 <、>、&），请使用 <![CDATA[...]]> 包裹包含特殊字符的内容。",
+							tagName, tagName, ltIdx)
+						log.Debug("ParseXMLToolCalls: %s", errMsg)
+						calls = append(calls, llm.ToolCall{
+							ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+							Name:      "_xml_parse_error",
+							Arguments: fmt.Sprintf(`{"error": %q, "tag": %q, "position": %d}`, errMsg, tagName, ltIdx),
+						})
+						i = openEnd
+						continue
+					}
 				}
 			}
 
@@ -288,8 +310,14 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 		closeTag := "</" + tagName + ">"
 		closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
 		if closeIdx < 0 {
-			i = openEnd
-			continue
+			// Try lenient fallback for nested elements too
+			aggressiveIdx := findCloseTagLenient(remaining[openEnd:], tagName)
+			if aggressiveIdx >= 0 {
+				closeIdx = aggressiveIdx
+			} else {
+				i = openEnd
+				continue
+			}
 		}
 		i = openEnd + closeIdx + len(closeTag)
 		depth++
@@ -393,6 +421,45 @@ func findAnyCloseTag(content string) int {
 			}
 		}
 	}
+	return -1
+}
+
+// findCloseTagLenient finds a closing tag </tagName> in the content using a
+// lenient approach that treats '<' characters inside content as literal text
+// rather than XML tags. This handles cases where the LLM puts special chars
+// like '<', '>', '&' in content without CDATA wrapping.
+//
+// The algorithm scans for the pattern "</tagName>" directly, ignoring any
+// '<' characters that appear before it. This is intentionally simple:
+// it does not track nesting depth, so it works best for leaf elements
+// (elements that don't contain nested elements of the same name).
+//
+// Returns the index (relative to content start) where the closing tag starts,
+// or -1 if not found.
+func findCloseTagLenient(content, tagName string) int {
+	closePattern := "</" + tagName + ">"
+	idx := strings.Index(content, closePattern)
+	if idx >= 0 {
+		return idx
+	}
+
+	// Also try with whitespace variations (e.g., </tagName >)
+	// Some LLMs might add spaces inside the closing tag
+	for i := 0; i < len(content); i++ {
+		if content[i] == '<' && i+1 < len(content) && content[i+1] == '/' {
+			// Check if this looks like our tag name
+			potentialEnd := strings.IndexByte(content[i:], '>')
+			if potentialEnd < 0 {
+				continue
+			}
+			closeContent := content[i+2 : i+potentialEnd]
+			closeContent = strings.TrimSpace(closeContent)
+			if closeContent == tagName {
+				return i
+			}
+		}
+	}
+
 	return -1
 }
 
@@ -569,7 +636,14 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 		closeTag := "</" + tagName + ">"
 		closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
 		if closeIdx < 0 {
-			break
+			// Try lenient fallback for content with special characters
+			lenientIdx := findCloseTagLenient(remaining[openEnd:], tagName)
+			if lenientIdx >= 0 {
+				closeIdx = lenientIdx
+				log.Debug("parseXMLChildrenToJSON: using lenient close tag for <%s> at idx %d", tagName, closeIdx)
+			} else {
+				break
+			}
 		}
 
 		innerContent := remaining[openEnd : openEnd+closeIdx]
@@ -600,6 +674,7 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 		}
 
 		remaining = remaining[openEnd+closeIdx+len(closeTag):]
+
 	}
 
 	// Second pass: build JSON.
