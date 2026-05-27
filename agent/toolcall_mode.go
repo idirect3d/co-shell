@@ -109,7 +109,6 @@ var toolUsageKeyMap = map[string]string{
 	"update_task_step":           i18n.KeyToolUsageUpdateTaskStep,
 	"insert_task_steps":          i18n.KeyToolUsageInsertTaskSteps,
 	"remove_task_steps":          i18n.KeyToolUsageRemoveTaskSteps,
-	"list_task_plans":            i18n.KeyToolUsageListTaskPlans,
 	"view_task_plan":             i18n.KeyToolUsageViewTaskPlan,
 	"get_memory_slice":           i18n.KeyToolUsageGetMemorySlice,
 	"memory_search":              i18n.KeyToolUsageMemorySearch,

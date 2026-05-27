@@ -55,7 +55,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 				"adjust_context_start",
 				"launch_sub_agent", "schedule_task",
 				"create_task_plan", "update_task_step", "insert_task_steps",
-				"remove_task_steps", "list_task_plans", "view_task_plan",
+				"remove_task_steps", "view_task_plan",
 				"get_memory_slice", "memory_search", "delete_memory",
 			}
 			for _, toolName := range allTools {

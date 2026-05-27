@@ -305,16 +305,8 @@ Usage:
   <to>6</to>
 </remove_task_steps>`
 
-	enMessages[KeyToolUsageListTaskPlans] = `## list_task_plans
-Description: Display the current task plan (checklist) and its progress summary. Returns the plan's ID, title, completion percentage, and all steps with their statuses. Used to check the progress of the current active plan.
-Parameters:
-- none
-Usage:
-<list_task_plans>
-</list_task_plans>`
-
 	enMessages[KeyToolUsageViewTaskPlan] = `## view_task_plan
-Description: View the full details of the current task plan (checklist), including all steps (checklist items) with their statuses and notes. Used to examine the detailed execution progress of the current plan.
+Description: View the current task plan (checklist) with its progress summary, including all steps with their statuses and notes. Used to check the current progress of the active task plan.
 Parameters:
 - none
 Usage:
@@ -535,11 +527,6 @@ When steps need to be reduced, use remove_task_steps:
 
 View the current task plan's progress summary at any time:
 
-<list_task_plans>
-</list_task_plans>
-
-View full details (including all steps' statuses and notes):
-
 <view_task_plan>
 </view_task_plan>
 
@@ -694,8 +681,7 @@ Available task management tools:
 - **update_task_step(step_id, status, note)** — Update the status of a specific step. Supported statuses: pending, in_progress, completed, failed, cancelled.
 - **insert_task_steps(after_step_id, steps)** — Insert new steps after a specified step. Use after_step_id=0 to insert at the beginning. Completed steps cannot exist after the insertion point.
 - **remove_task_steps(from, to)** — Remove unfinished steps by range (inclusive). Completed steps cannot be removed.
-- **list_task_plans()** — View the current task plan's progress summary.
-- **view_task_plan()** — View full details of the current task plan, including all steps' statuses and notes.
+- **view_task_plan()** — View the current task plan's progress summary, including all steps with their statuses and notes.
 
 Key principles:
 - **Must create**: If the task has more than 1 step, you MUST create a task plan

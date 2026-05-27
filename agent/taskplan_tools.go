@@ -214,21 +214,6 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 	return formatted, nil
 }
 
-// listTaskPlansTool lists all task plans.
-func (a *Agent) listTaskPlansTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("listTaskPlansTool called: args=%v", args)
-	plan, err := a.taskPlanMgr.GetCurrent()
-	if err != nil {
-		return "", fmt.Errorf("cannot get current plan: %w", err)
-	}
-
-	if plan == nil {
-		return "当前没有任务计划。", nil
-	}
-
-	return taskplan.FormatPlan(plan), nil
-}
-
 // viewTaskPlanTool views the current active task plan.
 func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("viewTaskPlanTool called: args=%v", args)
@@ -252,10 +237,10 @@ func (a *Agent) OnScheduledTaskTriggered(entry *scheduler.CronEntry) {
 	defer cancel()
 
 	cfg := subagent.SubAgentConfig{
-		Workspace:         filepath.Join(a.workspacePath, "sub-agents", fmt.Sprintf("scheduled-%d", entry.ID)),
-		Instruction:       entry.Instruction,
-		TimeoutSeconds:    1800,
-		Purpose:           fmt.Sprintf("Scheduled task #%d: %s", entry.ID, entry.Instruction),
+		Workspace:      filepath.Join(a.workspacePath, "sub-agents", fmt.Sprintf("scheduled-%d", entry.ID)),
+		Instruction:    entry.Instruction,
+		TimeoutSeconds: 1800,
+		Purpose:        fmt.Sprintf("Scheduled task #%d: %s", entry.ID, entry.Instruction),
 		ConfirmToolOff: true,
 	}
 

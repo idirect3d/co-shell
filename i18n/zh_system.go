@@ -310,16 +310,8 @@ Usage:
   <to>6</to>
 </remove_task_steps>`
 
-	zhMessages[KeyToolUsageListTaskPlans] = `## list_task_plans
-Description: 显示当前任务计划（checklist）及其进度摘要。返回计划的 ID、标题、完成百分比以及所有步骤及其状态。用于检查当前活动计划的进度。
-Parameters:
-- 无
-Usage:
-<list_task_plans>
-</list_task_plans>`
-
 	zhMessages[KeyToolUsageViewTaskPlan] = `## view_task_plan
-Description: 查看当前任务计划（checklist）的完整详情，包括所有步骤（checklist 项）及其状态和备注。用于详细检查当前计划的执行进度。
+Description: 查看当前任务计划（checklist）及其进度摘要，包括所有步骤的状态和备注。用于检查当前活动计划的进度。
 Parameters:
 - 无
 Usage:
@@ -538,11 +530,6 @@ UPDATING TASK PROGRESS
 
 随时查看当前任务计划的进度摘要：
 
-<list_task_plans>
-</list_task_plans>
-
-查看完整详情（含所有步骤的状态和备注）：
-
 <view_task_plan>
 </view_task_plan>
 
@@ -687,8 +674,6 @@ EDITING FILES
 {TASK}
 <task>
 
-==任务规则==
-
 你应该使用任务管理工具来跟踪任务进度。对于需要多个步骤的任务，你必须创建任务计划，将分解后的步骤逐一录入，并在执行过程中动态维护。
 
 可用的任务管理工具：
@@ -696,8 +681,7 @@ EDITING FILES
 - **update_task_step(step_id, status, note)** — 更新指定步骤的状态。支持的状态：pending、in_progress、completed、failed、cancelled。
 - **insert_task_steps(after_step_id, steps)** — 在指定步骤后插入新步骤。使用 after_step_id=0 在开头插入。插入点之后不能有已完成步骤。
 - **remove_task_steps(from, to)** — 按范围删除未完成的步骤（含两端）。已完成步骤不可删除。
-- **list_task_plans()** — 查看当前任务计划的进度摘要。
-- **view_task_plan()** — 查看当前任务计划的完整详情，包括所有步骤的状态和备注。
+- **view_task_plan()** — 查看当前任务计划的进度摘要，包括所有步骤的状态和备注。
 
 关键原则：
 - **必须创建**：如果任务超过 1 个步骤，你必须创建任务计划

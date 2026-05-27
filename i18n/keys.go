@@ -686,7 +686,6 @@ const (
 	KeyToolUsageUpdateTaskStep      = "tool_usage_update_task_step"
 	KeyToolUsageInsertTaskSteps     = "tool_usage_insert_task_steps"
 	KeyToolUsageRemoveTaskSteps     = "tool_usage_remove_task_steps"
-	KeyToolUsageListTaskPlans       = "tool_usage_list_task_plans"
 	KeyToolUsageViewTaskPlan        = "tool_usage_view_task_plan"
 	KeyToolUsageGetMemorySlice      = "tool_usage_get_memory_slice"
 	KeyToolUsageMemorySearch        = "tool_usage_memory_search"
