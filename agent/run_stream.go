@@ -398,7 +398,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		}
 
 		// Step 4: Execute tool calls and add results
-		modifyRequested := false
 		cancelled := false
 		for _, tc := range toolCalls {
 			// Show command if enabled
@@ -444,24 +443,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					a.mu.Lock()
 					a.messages = a.messages[:assistantMsgIdx]
 					a.mu.Unlock()
-					break
-				}
-				// Check if this is a USER_MODIFY_REQUEST (user wants to modify and re-evaluate)
-				if strings.HasPrefix(errStr, "USER_MODIFY_REQUEST:") {
-					modifyRequested = true
-					modifyInput := strings.TrimPrefix(errStr, "USER_MODIFY_REQUEST:")
-					// Remove the incomplete assistant message (with tool_calls) from history
-					// since its tool_calls were not fully executed.
-					a.mu.Lock()
-					a.messages = a.messages[:assistantMsgIdx]
-					// Add the user's modification as a new user message
-					a.messages = append(a.messages, llm.Message{
-						Role:    "user",
-						Content: modifyInput,
-					})
-					a.mu.Unlock()
-					ep := config.GetEmojiPrefixes(a.emojiEnabled)
-					cb("info", fmt.Sprintf("\n%s 用户补充说明: %s\n", ep.Info, modifyInput))
 					break
 				}
 				// Format structured error feedback to help LLM understand and fix the issue
@@ -511,11 +492,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// If user cancelled, return to REPL
 		if cancelled {
 			return "", nil
-		}
-
-		// If user requested modification, continue the loop to re-ask the LLM
-		if modifyRequested {
-			continue
 		}
 
 		// If a task plan was modified (created/inserted/removed), adjust messagePointer
