@@ -9,7 +9,9 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -97,6 +99,7 @@ var toolUsageKeyMap = map[string]string{
 	"execute_command":            i18n.KeyToolUsageExecuteCommand,
 	"read_file":                  i18n.KeyToolUsageReadFile,
 	"search_files":               i18n.KeyToolUsageSearchFiles,
+	"list_files":                 i18n.KeyToolUsageListFiles,
 	"list_code_definition_names": i18n.KeyToolUsageListCodeDefNames,
 	"replace_in_file":            i18n.KeyToolUsageReplaceInFile,
 	"write_to_file":              i18n.KeyToolUsageWriteToFile,
@@ -119,6 +122,35 @@ var toolUsageKeyMap = map[string]string{
 	"adjust_context_start":       i18n.KeyToolUsageAdjustContextStart,
 }
 
+// sortedParamNames returns the keys of a map in sorted order.
+func sortedParamNames(params map[string]bool) []string {
+	names := make([]string, 0, len(params))
+	for name := range params {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// getToolParamNames extracts the set of valid parameter names for a given tool.
+// Returns nil if the tool is not found or has no properties defined.
+func getToolParamNames(tools []llm.Tool, toolName string) map[string]bool {
+	for _, tool := range tools {
+		if tool.Name == toolName {
+			props, ok := tool.Parameters["properties"].(map[string]interface{})
+			if !ok {
+				return nil
+			}
+			paramNames := make(map[string]bool, len(props))
+			for name := range props {
+				paramNames[name] = true
+			}
+			return paramNames
+		}
+	}
+	return nil
+}
+
 // ParseXMLToolCalls parses XML-formatted tool calls from LLM response content.
 // The new format uses the tool name directly as the XML tag, with parameters
 // as child elements:
@@ -128,9 +160,19 @@ var toolUsageKeyMap = map[string]string{
 //	</execute_command>
 //
 // Returns a list of llm.ToolCall, one for each tool call block found.
-// If parsing fails for a particular tag, it returns a partial result with
-// an error message embedded in the tool call arguments for LLM feedback.
+// If parsing fails for a particular tag (e.g., parameter name typos, missing
+// closing tags), it returns an error tool call with detailed diagnostics
+// instead of attempting to execute the malformed call. This prevents the LLM
+// from looping on the same error without understanding what went wrong.
 func ParseXMLToolCalls(content string) []llm.ToolCall {
+	return ParseXMLToolCallsWithTools(content, nil)
+}
+
+// ParseXMLToolCallsWithTools parses XML-formatted tool calls from LLM response content,
+// with optional tool definitions for parameter name validation.
+// If tools is non-nil, parameter names are validated against the tool definitions.
+// See ParseXMLToolCalls for details on the XML format.
+func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall {
 	var calls []llm.ToolCall
 
 	// Use a simple state machine to find top-level XML elements.
@@ -198,6 +240,64 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 
 		if tagName == "" {
 			i = ltIdx + 1
+			continue
+		}
+
+		// Check if the tag name is followed by a space (attribute syntax like <execute_command param=value>)
+		if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
+			// Find the '>' to skip past this malformed tag
+			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
+			if openEnd < 0 {
+				break
+			}
+			openEnd += tagEnd + 1
+
+			// Find the matching closing tag to skip the entire block
+			closeTag := "</" + tagName + ">"
+			closeIdx := findCloseTagLenient(remaining[openEnd:], tagName)
+			if closeIdx < 0 {
+				// No closing tag found, just skip the opening tag
+				i = openEnd
+			} else {
+				i = openEnd + closeIdx + len(closeTag)
+			}
+
+			errMsg := fmt.Sprintf("XML解析错误：方法标签 <%s 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>...</%s>，不要添加属性", tagName, tagName, tagName)
+			log.Debug("ParseXMLToolCalls: %s", errMsg)
+			calls = append(calls, llm.ToolCall{
+				ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+				Name:      "_xml_parse_error",
+				Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+			})
+			continue
+		}
+
+		// Validate tag name for illegal characters (e.g., <execute_command=xxx>)
+		if valid, reason := isValidTagName(tagName); !valid {
+			// Find the '>' to skip past this malformed tag
+			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
+			if openEnd < 0 {
+				break
+			}
+			openEnd += tagEnd + 1
+
+			// Find the matching closing tag to skip the entire block
+			closeTag := "</" + tagName + ">"
+			closeIdx := findCloseTagLenient(remaining[openEnd:], tagName)
+			if closeIdx < 0 {
+				// No closing tag found, just skip the opening tag
+				i = openEnd
+			} else {
+				i = openEnd + closeIdx + len(closeTag)
+			}
+
+			errMsg := fmt.Sprintf("XML解析错误：方法标签 %s", reason)
+			log.Debug("ParseXMLToolCalls: %s", errMsg)
+			calls = append(calls, llm.ToolCall{
+				ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+				Name:      "_xml_parse_error",
+				Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+			})
 			continue
 		}
 
@@ -278,10 +378,53 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 				continue
 			}
 
-			// Parse the inner content as parameters
-			params := parseXMLChildrenToJSON(innerContent)
-			log.Debug("ParseXMLToolCalls: tag=<%s>, innerContent=%q, params=%q, hasChildElements=%v",
-				tagName, innerContent, params, hasChildElements(innerContent))
+			// Parse the inner content as parameters, collecting any parse errors
+			params, parseErrors := parseXMLChildrenToJSON(innerContent)
+			log.Debug("ParseXMLToolCalls: tag=<%s>, innerContent=%q, params=%q, hasChildElements=%v, parseErrors=%v",
+				tagName, innerContent, params, hasChildElements(innerContent), parseErrors)
+
+			// If tools are provided, validate parameter names against the tool definition.
+			// This catches parameter name typos (e.g., "commmand" instead of "command").
+			if len(tools) > 0 {
+				validParams := getToolParamNames(tools, tagName)
+				if validParams != nil {
+					// Parse the params JSON to extract parameter names
+					var parsedArgs map[string]interface{}
+					if err := json.Unmarshal([]byte(params), &parsedArgs); err == nil {
+						for paramName := range parsedArgs {
+							if !validParams[paramName] {
+								errMsg := fmt.Sprintf("参数名 %q 不是工具 %q 的合法参数。%s 的合法参数有：%s",
+									paramName, tagName, tagName, strings.Join(sortedParamNames(validParams), "、"))
+								parseErrors = append(parseErrors, errMsg)
+							}
+						}
+					}
+				}
+			}
+
+			// If there were parameter parse errors, report them to the LLM instead of
+			// attempting to execute the malformed call. This prevents the LLM from
+			// looping on the same error without understanding what went wrong.
+			if len(parseErrors) > 0 {
+				errDetail := strings.Join(parseErrors, "; ")
+
+				// Try to get the tool's usage example from i18n for the reference format
+				refFormat := buildReferenceFormat(tagName)
+				errMsg := fmt.Sprintf(
+					"XML参数解析错误：调用 <%s> 时发现以下参数格式问题：\n%s\n\n"+
+						"请检查你的调用格式，确保每个参数标签名正确、闭合标签匹配。\n"+
+						"如果参数值包含特殊字符（如 <、>、&），请使用 <![CDATA[...]]> 包裹。\n"+
+						"参考格式：\n%s",
+					tagName, errDetail, refFormat)
+				log.Debug("ParseXMLToolCalls: parameter parse errors for <%s>: %s", tagName, errDetail)
+				calls = append(calls, llm.ToolCall{
+					ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+					Name:      "_xml_parse_error",
+					Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+				})
+				i = openEnd + closeIdx + len(closeTag)
+				continue
+			}
 
 			// Determine if this is a valid tool call:
 			// 1. Has parameters (params != "{}")
@@ -525,6 +668,34 @@ func extractCDATA(content string) string {
 	return ""
 }
 
+// isValidTagName checks if a tag name contains only valid characters.
+// Valid tag names consist of letters, digits, underscores, and hyphens.
+// Returns true if the tag name is valid, false otherwise.
+// Also returns a descriptive error message if invalid.
+func isValidTagName(tagName string) (bool, string) {
+	if tagName == "" {
+		return false, "标签名为空"
+	}
+
+	// Check for attribute-like syntax: <param=value>
+	if strings.Contains(tagName, "=") {
+		return false, fmt.Sprintf("标签名 %q 包含非法字符 '='，XML 标签中不允许包含属性。标签名只能包含字母、数字、下划线和连字符，不能包含 '='", tagName)
+	}
+
+	// Check each character
+	for i, ch := range tagName {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' {
+			continue
+		}
+		if ch == ' ' {
+			return false, fmt.Sprintf("标签名 %q 包含空格，XML 标签中不允许包含属性。正确的格式应为：<%s>值</%s>，不要添加属性", tagName, tagName, tagName)
+		}
+		return false, fmt.Sprintf("标签名 %q 在第 %d 个字符处包含非法字符 %q，标签名只能包含字母、数字、下划线和连字符", tagName, i+1, ch)
+	}
+
+	return true, ""
+}
+
 // parseXMLChildrenToJSON parses child XML elements into a JSON string.
 // Input: <command>ls -la</command><cwd>/home</cwd>
 // Output: {"command": "ls -la", "cwd": "/home"}
@@ -545,16 +716,22 @@ func extractCDATA(content string) string {
 //
 //	Input: <item><a>1</a></item><item><a>2</a></item>
 //	Output: {"item": [{"a": "1"}, {"a": "2"}]}
-func parseXMLChildrenToJSON(xmlContent string) string {
+//
+// Returns the JSON string and any parse errors encountered. If there are parse
+// errors, the returned JSON may be incomplete. Callers should check the errors
+// and report them to the LLM instead of attempting to execute the malformed call.
+func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
+	var parseErrors []string
+
 	xmlContent = strings.TrimSpace(xmlContent)
 	if xmlContent == "" {
-		return "{}"
+		return "{}", nil
 	}
 
 	// If the content does not start with '<', it is plain text (not XML structure).
 	// Return it as a JSON value with automatic type detection.
 	if xmlContent[0] != '<' {
-		return jsonValue(xmlContent)
+		return jsonValue(xmlContent), nil
 	}
 
 	// First pass: collect all child elements with their tag names and JSON values
@@ -616,6 +793,31 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 			break
 		}
 
+		// Check if the tag name is followed by a space (attribute syntax like <param name=value>)
+		if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
+			errMsg := fmt.Sprintf("标签名 %q 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>值</%s>，不要添加属性", tagName, tagName, tagName)
+			parseErrors = append(parseErrors, errMsg)
+			// Skip past this malformed tag by finding the '>'
+			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
+			if openEnd < 0 {
+				break
+			}
+			remaining = remaining[tagEnd+openEnd+1:]
+			continue
+		}
+
+		// Validate tag name for illegal characters (e.g., <param=value>)
+		if valid, reason := isValidTagName(tagName); !valid {
+			parseErrors = append(parseErrors, reason)
+			// Skip past this malformed tag by finding the '>'
+			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
+			if openEnd < 0 {
+				break
+			}
+			remaining = remaining[tagEnd+openEnd+1:]
+			continue
+		}
+
 		// Find end of opening tag
 		openEnd := strings.IndexByte(remaining[tagEnd:], '>')
 		if openEnd < 0 {
@@ -641,6 +843,10 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 				closeIdx = lenientIdx
 				log.Debug("parseXMLChildrenToJSON: using lenient close tag for <%s> at idx %d", tagName, closeIdx)
 			} else {
+				// Cannot find closing tag for this parameter - record error
+				errMsg := fmt.Sprintf("参数 <%s> 缺少闭合标签 </%s>", tagName, tagName)
+				parseErrors = append(parseErrors, errMsg)
+				log.Debug("parseXMLChildrenToJSON: %s", errMsg)
 				break
 			}
 		}
@@ -660,7 +866,10 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 		// Check if inner content has child elements (nested structure)
 		if hasChildElements(innerContent) {
 			// Nested elements - recursively parse
-			nestedJSON := parseXMLChildrenToJSON(innerContent)
+			nestedJSON, nestedErrors := parseXMLChildrenToJSON(innerContent)
+			if len(nestedErrors) > 0 {
+				parseErrors = append(parseErrors, nestedErrors...)
+			}
 			children = append(children, childEntry{tagName: tagName, jsonVal: nestedJSON})
 		} else {
 			// Simple text content
@@ -708,7 +917,7 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 				sb.WriteString(children[k].jsonVal)
 			}
 			sb.WriteString("]")
-			return sb.String()
+			return sb.String(), parseErrors
 		}
 	}
 
@@ -753,7 +962,7 @@ func parseXMLChildrenToJSON(xmlContent string) string {
 	}
 
 	sb.WriteString("}")
-	return sb.String()
+	return sb.String(), parseErrors
 }
 
 // ToolCallModeMgr manages the tool calling mode and provides
@@ -879,6 +1088,30 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string) string {
 
 	return sb.String()
 
+}
+
+// buildReferenceFormat extracts the Usage section from the i18n tool description
+// for the given tool name. Returns the Usage XML block if found, or a generic
+// format string as fallback.
+func buildReferenceFormat(toolName string) string {
+	// Try to get the tool's usage example from i18n
+	if key, ok := toolUsageKeyMap[toolName]; ok {
+		example := i18n.T(key)
+		if example != "" {
+			// Extract the Usage section (everything after "Usage:")
+			usageIdx := strings.Index(example, "Usage:")
+			if usageIdx >= 0 {
+				usageSection := example[usageIdx+len("Usage:"):]
+				usageSection = strings.TrimSpace(usageSection)
+				if usageSection != "" {
+					return usageSection
+				}
+			}
+		}
+	}
+
+	// Fallback: generic format
+	return fmt.Sprintf("<%s>\n  <参数名1>参数值1</参数名1>\n  <参数名2>参数值2</参数名2>\n</%s>", toolName, toolName)
 }
 
 // buildXMLToolDescription builds the usage description for a single tool in XML format.

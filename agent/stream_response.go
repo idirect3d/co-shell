@@ -28,6 +28,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -106,27 +107,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	eventCount := 0
 	for event := range eventCh {
 		eventCount++
-		// Log every stream event for diagnosing infinite loop issues (FIX-97)
-		eventName := "unknown"
-		switch event.Type {
-		case llm.StreamEventContent:
-			eventName = "content"
-		case llm.StreamEventReasoning:
-			eventName = "reasoning"
-		case llm.StreamEventToolCall:
-			eventName = "tool_call"
-		case llm.StreamEventDone:
-			eventName = "done"
-		case llm.StreamEventError:
-			eventName = "error"
-		}
-		log.Debug("Agent.streamLLMResponse: event #%d: type=%s, content=%q, content_len=%d, done=%v, err=%v",
-			eventCount, eventName, event.Content, len(event.Content), event.Done, event.Err)
 
 		switch event.Type {
 		case llm.StreamEventContent:
-			log.Debug("Agent.streamLLMResponse: processing StreamEventContent, content_len=%d, contentBuilder_before=%d",
-				len(event.Content), contentBuilder.Len())
 			// FIX-179: Check for loop patterns in LLM output
 			if a.loopDetectOn && a.loopDetector != nil {
 				if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
@@ -138,16 +121,12 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			}
 			contentBuilder.WriteString(event.Content)
 			cb("content_chunk", event.Content)
-			log.Debug("Agent.streamLLMResponse: contentBuilder now %d bytes", contentBuilder.Len())
 
 		case llm.StreamEventReasoning:
-			log.Debug("Agent.streamLLMResponse: processing StreamEventReasoning, content_len=%d, reasoningBuilder_before=%d",
-				len(event.Content), reasoningBuilder.Len())
 			reasoningBuilder.WriteString(event.Content)
 			if a.showLlmThinking {
 				cb("thinking_chunk", event.Content)
 			}
-			log.Debug("Agent.streamLLMResponse: reasoningBuilder now %d bytes", reasoningBuilder.Len())
 
 		case llm.StreamEventToolCall:
 			// In XML mode, strictly ignore API-level tool_calls from the LLM response.
@@ -206,9 +185,34 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				if mode != nil && !mode.SendTools {
 					xmlCalls := ParseXMLToolCalls(finalContent)
 					if len(xmlCalls) > 0 {
-						toolCalls = xmlCalls
-						log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
-							len(xmlCalls), len(toolCalls))
+						// Filter out _xml_parse_error calls - these are parse errors that
+						// should be returned directly to the LLM as feedback, not executed.
+						var validCalls []llm.ToolCall
+						var parseErrors []string
+						for _, c := range xmlCalls {
+							if c.Name == "_xml_parse_error" {
+								var args map[string]interface{}
+								if err := json.Unmarshal([]byte(c.Arguments), &args); err == nil {
+									if errMsg, ok := args["error"].(string); ok {
+										parseErrors = append(parseErrors, errMsg)
+									}
+								}
+							} else {
+								validCalls = append(validCalls, c)
+							}
+						}
+						if len(parseErrors) > 0 {
+							// Return parse errors directly to the LLM as assistant content,
+							// so it can see and fix the format issues immediately.
+							finalContent = strings.Join(parseErrors, "\n---\n")
+							toolCalls = nil
+							log.Debug("Agent.streamLLMResponse: returning %d XML parse errors to LLM as content (no tool calls)",
+								len(parseErrors))
+						} else {
+							toolCalls = validCalls
+							log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
+								len(validCalls), len(toolCalls))
+						}
 					} else {
 						// No XML tool calls found; clear any API-level tool calls in XML mode
 						toolCalls = nil

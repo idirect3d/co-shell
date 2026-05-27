@@ -27,7 +27,6 @@
 package agent
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -126,6 +125,12 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	if rulesText == "" {
 		rulesText = strings.ReplaceAll("RULES\n\n"+i18n.T(i18n.KeySystemPromptRules), "{CWD}", cwd)
 	}
+	// Inject custom rules into the {CUSTOM_RULES} placeholder
+	if rules != "" {
+		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", rules)
+	} else {
+		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", "")
+	}
 
 	// Part 6: Objective (task execution methodology)
 	objectiveText := "OBJECTIVE\n\n" + i18n.T(i18n.KeySystemPromptObjective)
@@ -146,9 +151,6 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
 	envText = strings.ReplaceAll(envText, "{WORKSPACE}", cwd)
 
-	// Append file listing: current directory (up to 50 items), ./bin/, and ./research/
-	envText += buildFileListing(cwd)
-
 	// Separator between major sections (sections with English uppercase titles)
 	sep := "\n\n====\n\n"
 
@@ -161,12 +163,7 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 		objectiveText + sep +
 		envText
 
-	// Part 8: Custom Rules (optional)
-	if rules != "" {
-		prompt += sep + fmt.Sprintf("%s:\n%s", i18n.T(i18n.KeyCustom), rules)
-	}
-
-	// Part 9: Dynamic Environment (appended last, changes per request)
+	// Part 8: Dynamic Environment (appended last, changes per request)
 	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 
 	// Build channel info: "user-name @ channel-type"
@@ -182,72 +179,13 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	}
 	channelInfo := displayUser + " @ " + displayChannel
 
-	dynamicEnv := "DYNAMIC ENVIRONMENT\n\n" + i18n.T(i18n.KeySystemPromptDynamicEnv)
-	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CURRENT_TIME}", now)
-	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CWD}", cwd)
-	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CURRENT_FILES}", strings.TrimRight(listFilesForPrompt(cwd, true, 100), "\n"))
-	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CHANNEL}", channelInfo)
-	prompt += sep + dynamicEnv
+	envText = strings.ReplaceAll(envText, "{CURRENT_TIME}", now)
+	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
+	envText = strings.ReplaceAll(envText, "{CURRENT_FILES}", strings.TrimRight(listFilesForPrompt(cwd, true, 100), "\n"))
+	envText = strings.ReplaceAll(envText, "{CHANNEL}", channelInfo)
+	prompt += sep + envText
 
 	return prompt
-}
-
-// buildFileListing builds a file listing section for the current directory,
-// ./bin/, and ./research/ directories. Limits to 50 items per directory.
-func buildFileListing(cwd string) string {
-	var b strings.Builder
-
-	// Current directory listing (up to 50 items)
-	b.WriteString("\n\n## 工作目录文件列表\n\n")
-	entries, err := os.ReadDir(cwd)
-	if err == nil {
-		total := len(entries)
-		limit := 50
-		if total > limit {
-			entries = entries[:limit]
-		}
-		for _, e := range entries {
-			name := e.Name()
-			if e.IsDir() {
-				name += "/"
-			}
-			b.WriteString("- " + name + "\n")
-		}
-		if total > limit {
-			b.WriteString(fmt.Sprintf("- ... (共 %d 项，显示前 %d 项)\n", total, limit))
-		}
-		b.WriteString(fmt.Sprintf("\n共 %d 项\n", total))
-	}
-
-	// ./bin/ directory listing
-	binPath := filepath.Join(cwd, "bin")
-	b.WriteString("\n\n### ./bin/ 可用工具\n\n")
-	entries, err = os.ReadDir(binPath)
-	if err == nil {
-		for _, e := range entries {
-			if !e.IsDir() {
-				b.WriteString("- " + e.Name() + "\n")
-			}
-		}
-	} else {
-		b.WriteString("（目录不存在或无法访问）\n")
-	}
-
-	// ./research/ directory listing (first level only)
-	researchPath := filepath.Join(cwd, "research")
-	b.WriteString("\n### ./research/ 已有工作成果\n\n")
-	entries, err = os.ReadDir(researchPath)
-	if err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				b.WriteString("- " + e.Name() + "/\n")
-			}
-		}
-	} else {
-		b.WriteString("（目录不存在或无法访问）\n")
-	}
-
-	return b.String()
 }
 
 // resultModeInstruction returns the instruction text for the given result mode.
