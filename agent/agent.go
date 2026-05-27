@@ -521,6 +521,19 @@ func (a *Agent) getTaskPlanText() string {
 	return taskplan.FormatPlan(plan)
 }
 
+// formatXMLToolResult formats a tool result as a user message for XML mode.
+// Uses the i18n template with {TOOL_CALL}, {TOOL_CALL_PARAMETERS}, {TOOL_RESULT},
+// {TASK_PLAN}, and {CURRENT_TIME} placeholders.
+func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string) string {
+	template := i18n.T(i18n.KeyXMLToolResultTemplate)
+	result := strings.ReplaceAll(template, "{TOOL_CALL}", toolName)
+	result = strings.ReplaceAll(result, "{TOOL_CALL_PARAMETERS}", toolArgs)
+	result = strings.ReplaceAll(result, "{TOOL_RESULT}", toolResult)
+	result = strings.ReplaceAll(result, "{TASK_PLAN}", a.getTaskPlanText())
+	result = strings.ReplaceAll(result, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
+	return result
+}
+
 // TaskPlanManager returns the task plan manager.
 func (a *Agent) TaskPlanManager() *taskplan.Manager {
 	return a.taskPlanMgr
