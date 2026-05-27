@@ -348,7 +348,16 @@ func (a *Agent) rebuildSystemPrompt() {
 	// Get current task plan text for Objective section
 	taskPlanText := a.getTaskPlanText()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText, taskPlanText)
+	// Find the first user message after messagePointer as task description
+	var taskDesc string
+	for i := a.messagePointer; i < len(a.messages); i++ {
+		if a.messages[i].Role == "user" {
+			taskDesc = a.messages[i].Content
+			break
+		}
+	}
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	// Preserve conversation history: only replace the system message at index 0
 	a.mu.Lock()
@@ -565,7 +574,16 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	// Get current task plan text for Objective section
 	taskPlanText := a.getTaskPlanText()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText, taskPlanText)
+	// Find the first user message after messagePointer as task description
+	var taskDesc string
+	for i := a.messagePointer; i < len(a.messages); i++ {
+		if a.messages[i].Role == "user" {
+			taskDesc = a.messages[i].Content
+			break
+		}
+	}
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
