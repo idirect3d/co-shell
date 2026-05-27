@@ -151,21 +151,6 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
 	envText = strings.ReplaceAll(envText, "{WORKSPACE}", cwd)
 
-	// Separator between major sections (sections with English uppercase titles)
-	sep := "\n\n====\n\n"
-
-	// Assemble Parts 1-7 with separator
-	prompt := identityText + sep +
-		toolUsageSection + sep +
-		resultModeText + sep +
-		capabilities + sep +
-		rulesText + sep +
-		objectiveText + sep +
-		envText
-
-	// Part 8: Dynamic Environment (appended last, changes per request)
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
-
 	// Build channel info: "user-name @ channel-type"
 	// Default userName to anonymous user string if not set
 	displayUser := userName
@@ -179,11 +164,25 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	}
 	channelInfo := displayUser + " @ " + displayChannel
 
+	// Replace dynamic placeholders before assembling into prompt,
+	// so the SYSTEM INFORMATION section is complete in one pass.
+	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 	envText = strings.ReplaceAll(envText, "{CURRENT_TIME}", now)
 	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
 	envText = strings.ReplaceAll(envText, "{CURRENT_FILES}", strings.TrimRight(listFilesForPrompt(cwd, true, 100), "\n"))
 	envText = strings.ReplaceAll(envText, "{CHANNEL}", channelInfo)
-	prompt += sep + envText
+
+	// Separator between major sections (sections with English uppercase titles)
+	sep := "\n\n====\n\n"
+
+	// Assemble Parts 1-7 with separator
+	prompt := identityText + sep +
+		toolUsageSection + sep +
+		resultModeText + sep +
+		capabilities + sep +
+		rulesText + sep +
+		objectiveText + sep +
+		envText
 
 	return prompt
 }

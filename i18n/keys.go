@@ -669,6 +669,10 @@ const (
 	// XML mode supplementary rules (FIX-190) — Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files
 	KeySystemPromptXMLRules = "system_prompt_xml_rules"
 
+	// XML tool result template (FIX-190) — template for tool result messages in XML mode.
+	// Placeholders: {TOOL_RESULT}, {TASK_PLAN}, {CURRENT_TIME}
+	KeyXMLToolResultTemplate = "xml_tool_result_template"
+
 	// Tool usage examples (FIX-190) — one key per tool, dynamically included based on available tools
 	KeyToolUsageExecuteCommand      = "tool_usage_execute_command"
 	KeyToolUsageReadFile            = "tool_usage_read_file"

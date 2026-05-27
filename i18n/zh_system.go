@@ -27,9 +27,7 @@
 package i18n
 
 func init() {
-	zhMessages[KeySystemPromptIdentity] = `# Your Identity
-
-	你的名字是 %s，一位经验丰富的软件工程师，在多种编程语言、框架、设计模式和最佳实践方面拥有广泛知识。
+	zhMessages[KeySystemPromptIdentity] = `你的名字是 %s，一位经验丰富的软件工程师，在多种编程语言、框架、设计模式和最佳实践方面拥有广泛知识。
 
 %s
 
@@ -726,4 +724,13 @@ EDITING FILES
 
 </environment_details>`
 
+	zhMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}({TOOL_CALL_PARAMETERS})] 返回结果：{TOOL_RESULT}
+
+{TASK_PLAN}
+
+<environment_details>
+
+{CURRENT_TIME}
+
+</environment_details>`
 }

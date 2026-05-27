@@ -723,4 +723,14 @@ Work Space: {WORKSPACE}
 {CHANNEL}
 
 </environment_details>`
+
+	enMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}({TOOL_CALL_PARAMETERS})] Result: {TOOL_RESULT}
+
+{TASK_PLAN}
+
+<environment_details>
+
+{CURRENT_TIME}
+
+</environment_details>`
 }
