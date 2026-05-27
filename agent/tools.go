@@ -428,18 +428,8 @@ Critical rules:
 				Callback: a.removeTaskStepsTool,
 			},
 			{
-				Name:        "list_task_plans",
-				Description: "Show the current task plan (checklist) with its progress summary. Returns the plan's ID, title, completion percentage, and all steps with their statuses. Use this to check the current progress of the active task plan.",
-				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
-				},
-				Callback: a.listTaskPlansTool,
-			},
-			{
 				Name:        "view_task_plan",
-				Description: "View the full details of the current task plan (checklist), including all steps (checklist items) with their statuses and notes. Use this to examine the progress of the current plan in detail.",
+				Description: "View the current task plan (checklist) with its progress summary, including all steps with their statuses and notes. Use this to check the current progress of the active task plan.",
 				Parameters: map[string]interface{}{
 					"type":       "object",
 					"properties": map[string]interface{}{},
