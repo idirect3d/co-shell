@@ -693,9 +693,10 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				}
 				// fall through to execute
 			case CmdConfirmModify:
-				// Use the user's input directly as supplementary instructions
-				// for the LLM to re-evaluate the command
-				return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
+				// Return the user's supplementary input as the tool result,
+				// telling the LLM that the user modified the command and
+				// the original tool call was not executed.
+				return fmt.Sprintf("用户暂时取消了工具调用，并补充说明如下: %s\n\n请根据用户补充内容重新评估后再继续下一步操作。", modifyInput), nil
 			}
 			// CmdConfirmApprove: continue execution
 		} else if toolCount > 0 {
