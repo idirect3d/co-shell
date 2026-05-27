@@ -684,23 +684,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 {TASK}
 <task>
 
-You should use task management tools to track task progress. For tasks that require multiple steps, you must create a task plan, enter the decomposed steps one by one, and dynamically maintain them during execution.
-
-Available task management tools:
-- **create_task_plan(title, description, steps)** — Create a new task plan with a title, optional description, and a list of step descriptions. Each step should be a verifiable, independent unit. If there is more than 1 step, you MUST create a task plan.
-- **update_task_step(step_id, status, note)** — Update the status of a specific step. Supported statuses: pending, in_progress, completed, failed, cancelled.
-- **insert_task_steps(after_step_id, steps)** — Insert new steps after a specified step. Use after_step_id=0 to insert at the beginning. Completed steps cannot exist after the insertion point.
-- **remove_task_steps(from, to)** — Remove unfinished steps by range (inclusive). Completed steps cannot be removed.
-- **view_task_plan()** — View the current task plan's progress summary, including all steps with their statuses and notes.
-
-Key principles:
-- **Must create**: If the task has more than 1 step, you MUST create a task plan
-- **Update promptly**: Update status immediately after completing each step
-- **Adjust flexibly**: Add or remove steps as needed based on execution
-- **Execute sequentially**: Execute steps in order one by one, do NOT execute in parallel
-- **Failure handling**: When a step fails, analyze the cause and adjust the strategy to retry
-
-{TASK_PLAN}
+{TASK_TRACKING}
 `
 
 	enMessages[KeySystemPromptEnvironment] = `
@@ -733,4 +717,29 @@ Work Space: {WORKSPACE}
 {CURRENT_TIME}
 
 </environment_details>`
+
+	enMessages[KeyToolResultNoPlan] = `# Task Management (Strongly Recommended)
+
+No pending task plan. It is recommended to create a task plan (checklist) for the current task, breaking down complex tasks into manageable steps for progress tracking.
+
+You can use the following tools to manage task plans:
+- **create_task_plan** — Create a new task plan (checklist) with title, description, and step list
+- **update_task_step** — Update step status (pending/in_progress/completed/failed/cancelled)
+- **insert_task_steps** — Insert new steps after a specified step
+- **remove_task_steps** — Remove a range of steps
+- **view_task_plan** — View the current task plan progress
+
+After creating a task plan, update the step status immediately upon completion to track overall progress.`
+
+	enMessages[KeyToolResultWithPlan] = `# Next Steps
+
+There is a pending task plan. Please continue to follow the plan:
+
+{TASK_PLAN}
+
+## Next Steps
+
+If you have completed the current step, use **update_task_step** to update the step status, then proceed to the next step.
+If you need to adjust the plan, use **insert_task_steps** or **remove_task_steps** to modify steps.
+If all steps are completed, use **attempt_completion** to report the final result to the user.`
 }

@@ -137,9 +137,9 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	if taskDesc != "" {
 		objectiveText = strings.ReplaceAll(objectiveText, "{TASK}", taskDesc)
 	}
-	// Replace task plan placeholder: if there is an active task plan with unfinished steps,
+	// Replace task tracking placeholder: if there is an active task plan with unfinished steps,
 	// taskPlanText will contain the formatted plan; otherwise it's empty.
-	objectiveText = strings.ReplaceAll(objectiveText, "{TASK_PLAN}", taskPlanText)
+	objectiveText = strings.ReplaceAll(objectiveText, "{TASK_TRACKING}", taskPlanText)
 
 	// Part 7: Static Environment (no dynamic fields like time)
 	envText := "SYSTEM INFORMATION\n\n" + i18n.T(i18n.KeySystemPromptEnvironment)
