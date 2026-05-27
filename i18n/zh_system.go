@@ -749,4 +749,14 @@ EDITING FILES
 如果你已完成当前步骤，请使用 **update_task_step** 更新步骤状态，然后继续执行下一步。
 如果你需要调整计划，可以使用 **insert_task_steps** 或 **remove_task_steps** 修改步骤。
 如果所有步骤已完成，使用 **attempt_completion** 工具向用户报告最终结果。`
+
+	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION} 
+  
+{TASK_TRACKING}
+
+<environment_details>
+
+{CURRENT_TIME}
+
+</environment_details>`
 }

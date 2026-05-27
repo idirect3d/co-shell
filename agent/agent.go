@@ -534,6 +534,16 @@ func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string) strin
 	return result
 }
 
+// formatUserMessage formats a user message for subsequent instructions during a task.
+// Uses the i18n template with {INSTRUCTION}, {TASK_TRACKING}, and {CURRENT_TIME} placeholders.
+func (a *Agent) formatUserMessage(instruction string) string {
+	template := i18n.T(i18n.KeyUserMessageTemplate)
+	result := strings.ReplaceAll(template, "{INSTRUCTION}", instruction)
+	result = strings.ReplaceAll(result, "{TASK_TRACKING}", a.getTaskPlanPrompt())
+	result = strings.ReplaceAll(result, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
+	return result
+}
+
 // getTaskPlanPrompt returns the appropriate task plan prompt based on whether
 // there are unfinished steps in the current task plan.
 func (a *Agent) getTaskPlanPrompt() string {

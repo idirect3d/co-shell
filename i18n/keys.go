@@ -682,6 +682,11 @@ const (
 	// Placeholders: {TASK_PLAN}
 	KeyToolResultWithPlan = "tool_result_with_plan"
 
+	// User message template for subsequent instructions during a task (FIX-190)
+	// Used to format user messages with task tracking and environment details.
+	// Placeholders: {INSTRUCTION}, {TASK_TRACKING}, {CURRENT_TIME}
+	KeyUserMessageTemplate = "user_message_template"
+
 	// Tool usage examples (FIX-190) — one key per tool, dynamically included based on available tools
 	KeyToolUsageExecuteCommand      = "tool_usage_execute_command"
 	KeyToolUsageReadFile            = "tool_usage_read_file"

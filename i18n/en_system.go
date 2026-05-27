@@ -710,7 +710,7 @@ Work Space: {WORKSPACE}
 
 	enMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}({TOOL_CALL_PARAMETERS})] Result: {TOOL_RESULT}
 
-{TASK_PLAN}
+{TASK_TRACKING}
 
 <environment_details>
 
@@ -742,4 +742,14 @@ There is a pending task plan. Please continue to follow the plan:
 If you have completed the current step, use **update_task_step** to update the step status, then proceed to the next step.
 If you need to adjust the plan, use **insert_task_steps** or **remove_task_steps** to modify steps.
 If all steps are completed, use **attempt_completion** to report the final result to the user.`
+
+	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION} 
+  
+{TASK_TRACKING}
+
+<environment_details>
+
+{CURRENT_TIME}
+
+</environment_details>`
 }
