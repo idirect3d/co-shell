@@ -673,6 +673,15 @@ const (
 	// Placeholders: {TOOL_RESULT}, {TASK_PLAN}, {CURRENT_TIME}
 	KeyXMLToolResultTemplate = "xml_tool_result_template"
 
+	// Tool result — no task plan (FIX-190)
+	// Shown when there is no unfinished task plan, prompting the LLM to create one.
+	KeyToolResultNoPlan = "tool_result_no_plan"
+
+	// Tool result — with task plan (FIX-190)
+	// Shown when there are unfinished steps in the current task plan.
+	// Placeholders: {TASK_PLAN}
+	KeyToolResultWithPlan = "tool_result_with_plan"
+
 	// Tool usage examples (FIX-190) — one key per tool, dynamically included based on available tools
 	KeyToolUsageExecuteCommand      = "tool_usage_execute_command"
 	KeyToolUsageReadFile            = "tool_usage_read_file"

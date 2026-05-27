@@ -684,23 +684,7 @@ EDITING FILES
 {TASK}
 <task>
 
-你应该使用任务管理工具来跟踪任务进度。对于需要多个步骤的任务，你必须创建任务计划，将分解后的步骤逐一录入，并在执行过程中动态维护。
-
-可用的任务管理工具：
-- **create_task_plan(title, description, steps)** — 创建新的任务计划，包含标题、可选描述和步骤列表。每个步骤应是一个可验证的独立单元。如果步骤超过 1 个，你必须创建任务计划。
-- **update_task_step(step_id, status, note)** — 更新指定步骤的状态。支持的状态：pending、in_progress、completed、failed、cancelled。
-- **insert_task_steps(after_step_id, steps)** — 在指定步骤后插入新步骤。使用 after_step_id=0 在开头插入。插入点之后不能有已完成步骤。
-- **remove_task_steps(from, to)** — 按范围删除未完成的步骤（含两端）。已完成步骤不可删除。
-- **view_task_plan()** — 查看当前任务计划的进度摘要，包括所有步骤的状态和备注。
-
-关键原则：
-- **必须创建**：如果任务超过 1 个步骤，你必须创建任务计划
-- **及时更新**：每完成一个步骤立即更新状态
-- **灵活调整**：根据执行情况灵活增删步骤
-- **顺序执行**：按顺序逐一执行步骤，不要并行执行
-- **失败处理**：步骤失败时，分析原因并调整策略后重试
-
-{TASK_PLAN}
+{TASK_TRACKING}
 `
 
 	zhMessages[KeySystemPromptEnvironment] = `
@@ -726,11 +710,43 @@ EDITING FILES
 
 	zhMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}({TOOL_CALL_PARAMETERS})] 返回结果：{TOOL_RESULT}
 
-{TASK_PLAN}
+{TASK_TRACKING}
 
 <environment_details>
 
 {CURRENT_TIME}
 
 </environment_details>`
+
+	zhMessages[KeyToolResultNoPlan] = `# 任务跟踪（强烈建议）
+
+当前没有待办任务计划。建议你为当前任务创建一个任务计划（checklist），将复杂任务分解为可管理的步骤，以便跟踪进度。
+
+你可以使用以下工具来管理任务计划：
+- **create_task_plan** — 创建新的任务计划（checklist），包含标题、描述和步骤列表
+- **update_task_step** — 更新步骤状态（pending/in_progress/completed/failed/cancelled）
+- **insert_task_steps** — 在指定步骤后插入新步骤
+- **remove_task_steps** — 移除指定范围的步骤
+- **view_task_plan** — 查看当前任务计划的进度
+
+创建任务计划后，每完成一个步骤请立即更新其状态，以便跟踪整体进度。
+
+关键原则：
+- **必须创建**：如果任务超过 1 个步骤，你必须创建任务计划
+- **及时更新**：每完成一个步骤立即更新状态
+- **灵活调整**：根据执行情况灵活增删步骤
+- **顺序执行**：按顺序逐一执行步骤，不要并行执行
+- **失败处理**：步骤失败时，分析原因并调整策略后重试`
+
+	zhMessages[KeyToolResultWithPlan] = `# 下一步
+
+当前有待办任务计划，请继续按计划推进：
+
+{TASK_PLAN}
+
+## 下一步操作
+
+如果你已完成当前步骤，请使用 **update_task_step** 更新步骤状态，然后继续执行下一步。
+如果你需要调整计划，可以使用 **insert_task_steps** 或 **remove_task_steps** 修改步骤。
+如果所有步骤已完成，使用 **attempt_completion** 工具向用户报告最终结果。`
 }
