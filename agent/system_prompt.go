@@ -41,7 +41,7 @@ import (
 // buildSystemPrompt constructs the system prompt with rules and context.
 // Uses the default OpenAI-style tool usage text.
 func buildSystemPrompt(rules string) string {
-	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
+	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
 }
 
 // loadExternalFile attempts to load a text file from the workspace root directory.
@@ -68,25 +68,27 @@ func loadExternalFile(workspacePath, filename string) string {
 // toolUsageText is the tool usage section content to inject into the prompt.
 // If empty, defaults to the standard OpenAI-style tool usage text from i18n.
 // taskPlanText is an optional pre-formatted task plan text to include at the start of Objective.
+// If non-empty, it replaces the {TASK_PLAN} placeholder in the Objective section.
 //
 // Assembly order (FIX-181):
 //
 //	Identity → ToolUsage → ResultMode → Capabilities → Rules → Objective → StaticEnv → Custom → DynamicEnv
-func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples, userName, channel string, toolUsageText ...string) string {
-	// Extract optional taskPlanText from variadic args (after toolUsageText)
-	var taskPlanText string
-	if len(toolUsageText) > 1 {
-		taskPlanText = toolUsageText[1]
-		toolUsageText = toolUsageText[:1]
-	}
+func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
 	sh := shellName()
 
 	// Gather static environment context
 	cwd, _ := os.Getwd()
-	hostname, _ := os.Hostname()
 	username := os.Getenv("USER")
 	if username == "" {
 		username = os.Getenv("USERNAME")
+	}
+	execName := filepath.Base(os.Args[0])
+	homeDir, _ := os.UserHomeDir()
+	if homeDir == "" {
+		homeDir = os.Getenv("HOME")
+	}
+	if homeDir == "" {
+		homeDir = os.Getenv("USERPROFILE")
 	}
 
 	// Use i18n defaults for empty identity fields
@@ -116,27 +118,33 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	// Part 4: Capabilities — try external file first, fall back to i18n
 	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
 	if capabilities == "" {
-		capabilities = "CAPABILITIES\n\n" + i18n.TF(i18n.KeySystemPromptCapabilities, sh)
+		capabilities = strings.ReplaceAll("CAPABILITIES\n\n"+i18n.T(i18n.KeySystemPromptCapabilities), "{CWD}", cwd)
 	}
 
 	// Part 5: Rules — try external file first, fall back to i18n
 	rulesText := loadExternalFile(cwd, "RULES.md")
 	if rulesText == "" {
-		rulesText = "RULES\n\n" + i18n.T(i18n.KeySystemPromptRules)
+		rulesText = strings.ReplaceAll("RULES\n\n"+i18n.T(i18n.KeySystemPromptRules), "{CWD}", cwd)
 	}
 
 	// Part 6: Objective (task execution methodology)
-	// "OBJECTIVE\n\n" is the fixed header, followed by optional task plan info,
-	// then the i18n static content (task execution methodology).
-	objectiveText := "OBJECTIVE\n\n"
-	if taskPlanText != "" {
-		objectiveText += taskPlanText + "\n\n"
+	objectiveText := "OBJECTIVE\n\n" + i18n.T(i18n.KeySystemPromptObjective)
+	if taskDesc != "" {
+		objectiveText = strings.ReplaceAll(objectiveText, "{TASK}", taskDesc)
 	}
-	objectiveText += i18n.T(i18n.KeySystemPromptObjective)
+	// Replace task plan placeholder: if there is an active task plan with unfinished steps,
+	// taskPlanText will contain the formatted plan; otherwise it's empty.
+	objectiveText = strings.ReplaceAll(objectiveText, "{TASK_PLAN}", taskPlanText)
 
 	// Part 7: Static Environment (no dynamic fields like time)
-	envText := "ENVIRONMENT\n\n" + i18n.TF(i18n.KeySystemPromptEnvironment,
-		runtime.GOOS, runtime.GOARCH, sh, cwd, hostname, username)
+	envText := "SYSTEM INFORMATION\n\n" + i18n.T(i18n.KeySystemPromptEnvironment)
+	envText = strings.ReplaceAll(envText, "{OS}", runtime.GOOS)
+	envText = strings.ReplaceAll(envText, "{ARCH}", runtime.GOARCH)
+	envText = strings.ReplaceAll(envText, "{COMMAND}", execName)
+	envText = strings.ReplaceAll(envText, "{SHELL}", sh)
+	envText = strings.ReplaceAll(envText, "{HOME}", homeDir)
+	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
+	envText = strings.ReplaceAll(envText, "{WORKSPACE}", cwd)
 
 	// Append file listing: current directory (up to 50 items), ./bin/, and ./research/
 	envText += buildFileListing(cwd)
@@ -174,7 +182,11 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	}
 	channelInfo := displayUser + " @ " + displayChannel
 
-	dynamicEnv := "DYNAMIC ENVIRONMENT\n\n" + i18n.TF(i18n.KeySystemPromptDynamicEnv, now, channelInfo)
+	dynamicEnv := "DYNAMIC ENVIRONMENT\n\n" + i18n.T(i18n.KeySystemPromptDynamicEnv)
+	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CURRENT_TIME}", now)
+	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CWD}", cwd)
+	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CURRENT_FILES}", strings.TrimRight(listFilesForPrompt(cwd, true, 100), "\n"))
+	dynamicEnv = strings.ReplaceAll(dynamicEnv, "{CHANNEL}", channelInfo)
 	prompt += sep + dynamicEnv
 
 	return prompt

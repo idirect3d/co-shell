@@ -135,6 +135,25 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Callback: a.searchFilesTool,
 		},
 		{
+			Name:        "list_files",
+			Description: "List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Use this to explore directory structures and find files.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "The path of the directory to list contents for (absolute or relative to current working directory)",
+					},
+					"recursive": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Whether to list files recursively. true for recursive listing, false or omit for top-level only.",
+					},
+				},
+				"required": []string{"path"},
+			},
+			Callback: a.listFilesTool,
+		},
+		{
 			Name:        "list_code_definition_names",
 			Description: "List definition names (functions, types, methods, etc.) in source code files at the top level of a specified directory. Use this to quickly understand the structure and API of a codebase.",
 			Parameters: map[string]interface{}{
