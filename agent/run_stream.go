@@ -94,9 +94,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.messages = append(a.messages, multimodalMsg)
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
-		// Add user message to history with timestamp prefix
-		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
-		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
+		// Add user message to history
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
 			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
@@ -314,10 +313,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			cb("done", "")
 
 			a.mu.Lock()
-			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
-				Content:          tsPrefix + finalContent,
+				Content:          finalContent,
 				ReasoningContent: finalReasoning,
 			})
 			// Sync to memory (content without timestamp prefix)
@@ -339,10 +337,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// FIX-179 extension: message deduplication monitoring
 		var dedupEvent *DuplicateEvent
 		if a.messageDedup != nil {
-			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			testMsg := llm.Message{
 				Role:             "assistant",
-				Content:          tsPrefix + finalContent,
+				Content:          finalContent,
 				ToolCalls:        toolCalls,
 				ReasoningContent: finalReasoning,
 			}

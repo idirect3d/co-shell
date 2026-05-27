@@ -138,6 +138,17 @@ Usage:
   <file_pattern>*.go</file_pattern>
 </search_files>`
 
+	enMessages[KeyToolUsageListFiles] = `## list_files
+Description: List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Use this to explore directory structures and find files.
+Parameters:
+- path (required) The directory path to list contents for (absolute or relative to current working directory)
+- recursive (optional) Whether to list files recursively. true for recursive listing, false or omit for top-level only.
+Usage:
+<list_files>
+  <path>agent</path>
+  <recursive>true</recursive>
+</list_files>`
+
 	enMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
 Description: List definition names (functions, types, methods, etc.) in source code files at the top level of a specified directory. Used to quickly understand codebase structure and API.
 Parameters:
@@ -656,6 +667,7 @@ By thoughtfully choosing between write_to_file and replace_in_file, you can make
 - When using the replace_in_file tool, if you use multiple <search>/<relpace> parameters, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the <search>/<relpace> parameters for line 10, followed by the <search>/<relpace> parameters for line 50.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
+{CUSTOM_RULES}
 `
 
 	enMessages[KeySystemPromptObjective] = `
@@ -671,8 +683,6 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 <task>
 {TASK}
 <task>
-
-==TASK RULES==
 
 You should use task management tools to track task progress. For tasks that require multiple steps, you must create a task plan, enter the decomposed steps one by one, and dynamically maintain them during execution.
 
@@ -700,9 +710,7 @@ Default Shell: {SHELL}
 Home Directory: {HOME}
 Current Working Directory: {CWD}
 Work Space: {WORKSPACE}
-`
 
-	enMessages[KeySystemPromptDynamicEnv] = `
 <environment_details>
 
 # Current Time

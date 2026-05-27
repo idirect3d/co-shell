@@ -143,6 +143,17 @@ Usage:
   <file_pattern>*.go</file_pattern>
 </search_files>`
 
+	zhMessages[KeyToolUsageListFiles] = `## list_files
+Description: 列出指定目录中的文件和子目录。如果 recursive 为 true，则递归列出所有文件和目录。如果 recursive 为 false 或未提供，则只列出顶层内容。用于探索目录结构和查找文件。
+Parameters:
+- path (必需) 要列出内容的目录路径（绝对路径或相对于当前工作目录）
+- recursive (可选) 是否递归列出文件。true 表示递归列出，false 或省略表示只列出顶层内容。
+Usage:
+<list_files>
+  <path>agent</path>
+  <recursive>true</recursive>
+</list_files>`
+
 	zhMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
 Description: 列出指定目录顶层源代码文件中的定义名称（函数、类型、方法等）。用于快速了解代码库的结构和 API。
 Parameters:
@@ -622,7 +633,7 @@ EDITING FILES
 	zhMessages[KeySystemPromptCapabilities] = `# Capabilities
 
 - 你可以使用一组工具来执行 CLI 命令、列出文件、查看源代码定义、正则搜索、读写文件和提出追问。这些工具帮助你高效地完成广泛的任务，例如编写代码、对现有文件进行修改或改进、了解项目的当前状态、执行系统操作等。
-- 当用户最初给你一个任务时，environment_details 中将包含当前工作目录（'{CWD}'）下所有文件路径的递归列表。这提供了项目文件结构的概览，从目录/文件名（开发者如何概念化和组织代码）和文件扩展名（使用的语言）中获取关键洞察。这也可以指导你决定进一步探索哪些文件。如果需要进一步探索当前工作目录以外的目录，可以使用 list_files 工具。如果向递归参数传入 'true'，它将递归列出文件。否则只列出顶层内容，这对于不需要嵌套结构的通用目录（如桌面）更合适。
+- 当用户最初给你一个任务时，environment_details 中包含当前工作目录（'{CWD}'）下所有文件路径的递归列表。这提供了项目文件结构的概览，从目录/文件名（开发者如何概念化和组织代码）和文件扩展名（使用的语言）中获取关键洞察。这也可以指导你决定进一步探索哪些文件。如果需要进一步探索当前工作目录以外的目录，可以使用 list_files 工具。如果向递归参数传入 'true'，它将递归列出文件。否则只列出顶层内容，这对于不需要嵌套结构的通用目录（如桌面）更合适。
 - 你可以使用 search_files 在指定目录中执行正则搜索，输出包含上下文的丰富结果。这对于理解代码模式、查找特定实现或识别需要重构的区域特别有用。
 - 你可以使用 list_code_definition_names 工具获取指定目录顶层所有文件的源代码定义概览。当你需要理解代码库的 broader 上下文和某些部分之间的关系时特别有用。可能需要多次调用此工具以了解代码库中与任务相关的各个部分。
     - 例如，当需要做编辑或改进时，你可以先分析初始 environment_details 中的文件结构以了解项目概览，然后使用 list_code_definition_names 进一步了解相关目录中文件的源代码定义，接着使用 read_file 检查相关文件内容，分析代码并提出改进建议或进行必要的编辑，最后使用 replace_in_file 工具实现更改。如果你重构了可能影响代码库其他部分的代码，可以使用 search_files 确保同时更新其他文件。
@@ -659,6 +670,7 @@ EDITING FILES
 - 使用 replace_in_file 工具时，如果使用多个 <search>/<replace> 参数，请按它们在文件中出现的顺序列出。例如，如果需要同时修改第 10 行和第 50 行，先为第 10 行包含 <search>/<replace> 参数，然后是第 50 行的 <search>/<replace> 参数。
 - 每次工具使用后必须等待用户的响应，以确认工具使用成功。例如，如果要求制作一个待办事项应用，你会创建一个文件，等待用户确认创建成功，然后创建另一个文件（如果需要），等待用户确认成功，依此类推。
 - MCP 操作应一次使用一个，类似于其他工具的使用方式。在继续其他操作之前等待成功确认。
+{CUSTOM_RULES}
 `
 
 	zhMessages[KeySystemPromptObjective] = `你要迭代式地完成任务，将其分解为清晰的步骤并系统性地逐步执行。
@@ -699,9 +711,8 @@ EDITING FILES
 默认 Shell: {SHELL}
 主目录: {HOME}
 当前工作目录: {CWD}
-工作空间: {WORKSPACE}`
+工作空间: {WORKSPACE}
 
-	zhMessages[KeySystemPromptDynamicEnv] = `
 <environment_details>
 
 # 当前时间

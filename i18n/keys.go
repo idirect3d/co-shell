@@ -354,7 +354,6 @@ const (
 	KeySystemPromptToolUsageXML = "system_prompt_tool_usage_xml"
 	KeySystemPromptEnv          = "system_prompt_env"
 
-	KeySystemPromptDynamicEnv       = "system_prompt_dynamic_env"
 	KeySystemPromptToolExamples     = "system_prompt_tool_examples"
 	KeySystemPromptToolGuidelines   = "system_prompt_tool_guidelines"
 	KeySystemPromptUpdatingProgress = "system_prompt_updating_progress"
@@ -674,6 +673,7 @@ const (
 	KeyToolUsageExecuteCommand      = "tool_usage_execute_command"
 	KeyToolUsageReadFile            = "tool_usage_read_file"
 	KeyToolUsageSearchFiles         = "tool_usage_search_files"
+	KeyToolUsageListFiles           = "tool_usage_list_files"
 	KeyToolUsageListCodeDefNames    = "tool_usage_list_code_definition_names"
 	KeyToolUsageReplaceInFile       = "tool_usage_replace_in_file"
 	KeyToolUsageWriteToFile         = "tool_usage_write_to_file"

@@ -28,7 +28,9 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/llm"
@@ -50,9 +52,8 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.messages = append(a.messages, multimodalMsg)
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
-		// Add user message to history with timestamp prefix
-		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
-		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
+		// Add user message to history
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
 			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
@@ -117,9 +118,34 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			if mode != nil && !mode.SendTools {
 				xmlCalls := ParseXMLToolCalls(resp.Content)
 				if len(xmlCalls) > 0 {
-					toolCalls = xmlCalls
-					log.Debug("Agent.Run: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
-						len(xmlCalls), len(toolCalls))
+					// Filter out _xml_parse_error calls - these are parse errors that
+					// should be returned directly to the LLM as feedback, not executed.
+					var validCalls []llm.ToolCall
+					var parseErrors []string
+					for _, c := range xmlCalls {
+						if c.Name == "_xml_parse_error" {
+							var args map[string]interface{}
+							if err := json.Unmarshal([]byte(c.Arguments), &args); err == nil {
+								if errMsg, ok := args["error"].(string); ok {
+									parseErrors = append(parseErrors, errMsg)
+								}
+							}
+						} else {
+							validCalls = append(validCalls, c)
+						}
+					}
+					if len(parseErrors) > 0 {
+						// Return parse errors directly to the LLM as assistant content,
+						// so it can see and fix the format issues immediately.
+						resp.Content = strings.Join(parseErrors, "\n---\n")
+						toolCalls = nil
+						log.Debug("Agent.Run: returning %d XML parse errors to LLM as content (no tool calls)",
+							len(parseErrors))
+					} else {
+						toolCalls = validCalls
+						log.Debug("Agent.Run: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
+							len(validCalls), len(toolCalls))
+					}
 				} else {
 					// No XML tool calls found; clear any API-level tool calls in XML mode
 					toolCalls = nil
@@ -130,10 +156,9 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		// If no tool calls, this is the final answer
 		if len(toolCalls) == 0 {
 			a.mu.Lock()
-			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
-				Content:          tsPrefix + resp.Content,
+				Content:          resp.Content,
 				ReasoningContent: resp.ReasoningContent,
 			})
 			// Sync to memory (content without timestamp prefix)
