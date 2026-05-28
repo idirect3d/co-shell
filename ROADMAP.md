@@ -238,6 +238,7 @@
 - [x] 更新 main.go 版本常量从 v0.5.0-Beta2 改为 v0.5.1
 - [x] FIX-190 增强循环检测能力：新增内容级循环检测（checkContentLoop），在每次收到 LLM 流式输出 chunk 时立即检测 accumulated 内容中是否存在重复文本块（整段重复、URL编码重复字符等），使用滑动窗口自动匹配最佳块大小，复用现有 threshold 参数 [BUILD-192]
 - [x] FIX-190 补充：新增 attempt_completion 工具（function calling + XML 模式），修复用户消息模板未应用的问题 [BUILD-193]
+- [ ] FIX-191 修复 i18n/zh_system.go 中 <task> 闭合标签错误，并全面检查其他 i18n 文件是否存在类似 XML 标签错位问题
 
 ## v0.6.0 — Beta3
 

@@ -695,7 +695,7 @@ EDITING FILES
 
 <task>
 {TASK}
-<task>
+</task>
 
 {TASK_TRACKING}
 `
