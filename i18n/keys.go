@@ -712,4 +712,5 @@ const (
 	KeyToolUsageListSettings        = "tool_usage_list_settings"
 	KeyToolUsageAskFollowupQuestion = "tool_usage_ask_followup_question"
 	KeyToolUsageAdjustContextStart  = "tool_usage_adjust_context_start"
+	KeyToolUsageAttemptCompletion   = "tool_usage_attempt_completion"
 )
