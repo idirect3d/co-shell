@@ -32,6 +32,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -135,6 +136,25 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Callback: a.searchFilesTool,
 		},
 		{
+			Name:        "list_files",
+			Description: "List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Use this to explore directory structures and find files.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "The path of the directory to list contents for (absolute or relative to current working directory)",
+					},
+					"recursive": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Whether to list files recursively. true for recursive listing, false or omit for top-level only.",
+					},
+				},
+				"required": []string{"path"},
+			},
+			Callback: a.listFilesTool,
+		},
+		{
 			Name:        "list_code_definition_names",
 			Description: "List definition names (functions, types, methods, etc.) in source code files at the top level of a specified directory. Use this to quickly understand the structure and API of a codebase.",
 			Parameters: map[string]interface{}{
@@ -151,7 +171,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		},
 		{
 			Name:        "replace_in_file",
-			Description: "Replace sections of content in an existing file using SEARCH/REPLACE blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find), 'replace' (the new content), and optional 'start_line' (the 1-based line number in the original file for precise positioning). Supports multiple replacements in a single call. The SEARCH content must match the file exactly (including whitespace and indentation). When 'start_line' is provided, the search is anchored to that line (adjusted for previous replacements' line changes). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
+			Description: "Replace sections of content in an existing file using 'search'/'replace' blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find), 'replace' (the new content), and optional 'start_line' (the 1-based line number in the original file for precise positioning). Supports multiple replacements in a single call. The 'search' content must match the file exactly (including whitespace and indentation). When 'start_line' is provided, the search is anchored to that line (adjusted for previous replacements' line changes). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -174,12 +194,22 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 								},
 								"start_line": map[string]interface{}{
 									"type":        "number",
-									"description": "Optional: the 1-based line number in the original file where this SEARCH block is expected to start. Used for precise positioning and to avoid duplicate matches. The system automatically adjusts for line count changes from previous replacements.",
+									"description": "Optional: the 1-based line number in the original file where this 'search' content is expected to start. Used for precise positioning and to avoid duplicate matches. The system automatically adjusts for line count changes from previous replacements.",
 								},
 							},
 							"required": []string{"search", "replace"},
 						},
-						"description": "An array of replacement objects, each with 'search' and 'replace' string fields, and optional 'start_line' number. All replacements are performed sequentially in order.",
+						"description": `An array of replacement objects, each with 'search' and 'replace' string fields, and optional 'start_line' number. All replacements are performed sequentially in order.
+
+Critical rules:
+1. The 'search' field must match the file EXACTLY (character-for-character including whitespace, indentation, line endings, comments, docstrings, etc.). The system first attempts exact match, then falls back to whitespace-tolerant fuzzy matching (trailing whitespace ignored) if exact match fails.
+2. Each replacement replaces only the FIRST match. For multiple matches, use multiple unique 'search' values.
+3. Keep replacements concise: break large changes into smaller blocks. Include just enough context lines for uniqueness. Each line must be complete — never truncate.
+4. Special operations:
+   - To move code: Use two replacements (one to delete from original, one to insert at new location)
+   - To delete code: Leave 'replace' empty
+5. If source context came from read_file with line labels (e.g. "42 | const x = 1"), do NOT include the line label prefix in 'search'. Match only the raw file text.
+6. The optional 'start_line' is 1-based and refers to the line number in the ORIGINAL file (before any replacements). The system automatically adjusts for line count changes from previous replacements. Use 'start_line' for precise positioning and to avoid duplicate matches.`,
 					},
 				},
 				"required": []string{"path", "replacements"},
@@ -399,18 +429,8 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				Callback: a.removeTaskStepsTool,
 			},
 			{
-				Name:        "list_task_plans",
-				Description: "Show the current task plan (checklist) with its progress summary. Returns the plan's ID, title, completion percentage, and all steps with their statuses. Use this to check the current progress of the active task plan.",
-				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
-				},
-				Callback: a.listTaskPlansTool,
-			},
-			{
 				Name:        "view_task_plan",
-				Description: "View the full details of the current task plan (checklist), including all steps (checklist items) with their statuses and notes. Use this to examine the progress of the current plan in detail.",
+				Description: "View the current task plan (checklist) with its progress summary, including all steps with their statuses and notes. Use this to check the current progress of the active task plan.",
 				Parameters: map[string]interface{}{
 					"type":       "object",
 					"properties": map[string]interface{}{},
@@ -577,6 +597,29 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Callback: a.adjustContextStartTool,
 	})
 
+	// Add attempt_completion tool (always available)
+	tools = append(tools, llm.Tool{
+		Name: "attempt_completion",
+		Description: `After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
+IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.
+If you were using create_task_plan/update_task_step/... to manage the task progress, all unfinished tasks will be set to finish state.`,
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"result": map[string]interface{}{
+					"type":        "string",
+					"description": "The result of the tool use. This should be a clear, specific description of the result.",
+				},
+				"command": map[string]interface{}{
+					"type":        "string",
+					"description": "Optional: A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
+				},
+			},
+			"required": []string{"result"},
+		},
+		Callback: a.attemptCompletionTool,
+	})
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture
@@ -674,9 +717,10 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				}
 				// fall through to execute
 			case CmdConfirmModify:
-				// Use the user's input directly as supplementary instructions
-				// for the LLM to re-evaluate the command
-				return "", fmt.Errorf("USER_MODIFY_REQUEST: %s", modifyInput)
+				// Return the user's supplementary input as the tool result,
+				// telling the LLM that the user modified the command and
+				// the original tool call was not executed.
+				return fmt.Sprintf("用户暂时取消了工具调用，并补充说明如下: %s\n\n请根据用户补充内容重新评估后再继续下一步操作。", modifyInput), nil
 			}
 			// CmdConfirmApprove: continue execution
 		} else if toolCount > 0 {
@@ -782,4 +826,38 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 
 	// Return the user's input as-is
 	return input, nil
+}
+
+// attemptCompletionTool presents the final result to the user, optionally executing a demo command.
+func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	result, _ := args["result"].(string)
+	if result == "" {
+		return "", fmt.Errorf("result is required")
+	}
+
+	command, _ := args["command"].(string)
+
+	// If a command was provided, execute it as a demo
+	var cmdOutput string
+	if command != "" {
+		log.Info("attemptCompletion: executing demo command: %s", command)
+		shell, shellArg := shellCmd()
+		cmd := exec.CommandContext(ctx, shell, shellArg, command)
+		output, err := cmd.CombinedOutput()
+		decoded := decodeToUTF8(output)
+		if err != nil {
+			log.Warn("attemptCompletion: demo command failed: %v\nOutput: %s", err, decoded)
+			cmdOutput = fmt.Sprintf("\n命令执行失败: %v\n输出: %s", err, decoded)
+		} else {
+			cmdOutput = fmt.Sprintf("\n命令执行成功，输出:\n%s", strings.TrimSpace(decoded))
+		}
+	}
+
+	// Build the final completion message
+	message := fmt.Sprintf("✅ 任务完成\n\n%s", result)
+	if cmdOutput != "" {
+		message += "\n" + cmdOutput
+	}
+
+	return message, nil
 }

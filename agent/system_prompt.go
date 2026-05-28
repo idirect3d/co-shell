@@ -27,7 +27,6 @@
 package agent
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -41,7 +40,7 @@ import (
 // buildSystemPrompt constructs the system prompt with rules and context.
 // Uses the default OpenAI-style tool usage text.
 func buildSystemPrompt(rules string) string {
-	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
+	return buildSystemPromptWithMode(rules, config.ResultModeMinimal, "", "", "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
 }
 
 // loadExternalFile attempts to load a text file from the workspace root directory.
@@ -67,19 +66,28 @@ func loadExternalFile(workspacePath, filename string) string {
 // root to override the built-in i18n defaults.
 // toolUsageText is the tool usage section content to inject into the prompt.
 // If empty, defaults to the standard OpenAI-style tool usage text from i18n.
+// taskPlanText is an optional pre-formatted task plan text to include at the start of Objective.
+// If non-empty, it replaces the {TASK_PLAN} placeholder in the Objective section.
 //
 // Assembly order (FIX-181):
 //
-//	Identity → ToolUsage → ResultMode → Capabilities → Rules → StaticEnv → Custom → DynamicEnv
-func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples, userName, channel string, toolUsageText ...string) string {
+//	Identity → ToolUsage → ResultMode → Capabilities → Rules → Objective → StaticEnv → Custom → DynamicEnv
+func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
 	sh := shellName()
 
 	// Gather static environment context
 	cwd, _ := os.Getwd()
-	hostname, _ := os.Hostname()
 	username := os.Getenv("USER")
 	if username == "" {
 		username = os.Getenv("USERNAME")
+	}
+	execName := filepath.Base(os.Args[0])
+	homeDir, _ := os.UserHomeDir()
+	if homeDir == "" {
+		homeDir = os.Getenv("HOME")
+	}
+	if homeDir == "" {
+		homeDir = os.Getenv("USERPROFILE")
 	}
 
 	// Use i18n defaults for empty identity fields
@@ -94,56 +102,54 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	}
 
 	// Part 1: Identity
-	identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
+	identityText := "IDENTITY\n\n" + i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
 
 	// Part 2: Tool Usage Guide
 	// Use the provided toolUsageText if given, otherwise default to OpenAI-style tool usage.
-	toolUsageSection := i18n.T(i18n.KeySystemPromptToolUsage)
+	toolUsageSection := "TOOL USE\n\n" + i18n.T(i18n.KeySystemPromptToolUsage)
 	if len(toolUsageText) > 0 && toolUsageText[0] != "" {
 		toolUsageSection = toolUsageText[0]
 	}
 
 	// Part 3: Result Mode
-	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
+	resultModeText := "RESULT MODE\n\n" + i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
 
 	// Part 4: Capabilities — try external file first, fall back to i18n
 	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
 	if capabilities == "" {
-		capabilities = i18n.TF(i18n.KeySystemPromptCapabilities, sh)
+		capabilities = strings.ReplaceAll("CAPABILITIES\n\n"+i18n.T(i18n.KeySystemPromptCapabilities), "{CWD}", cwd)
 	}
 
 	// Part 5: Rules — try external file first, fall back to i18n
 	rulesText := loadExternalFile(cwd, "RULES.md")
 	if rulesText == "" {
-		rulesText = i18n.T(i18n.KeySystemPromptRules)
+		rulesText = strings.ReplaceAll("RULES\n\n"+i18n.T(i18n.KeySystemPromptRules), "{CWD}", cwd)
+	}
+	// Inject custom rules into the {CUSTOM_RULES} placeholder
+	if rules != "" {
+		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", rules)
+	} else {
+		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", "")
 	}
 
 	// Part 6: Objective (task execution methodology)
-	objectiveText := i18n.T(i18n.KeySystemPromptObjective)
+	objectiveText := "OBJECTIVE\n\n" + i18n.T(i18n.KeySystemPromptObjective)
+	if taskDesc != "" {
+		objectiveText = strings.ReplaceAll(objectiveText, "{TASK}", taskDesc)
+	}
+	// Replace task tracking placeholder: if there is an active task plan with unfinished steps,
+	// taskPlanText will contain the formatted plan; otherwise it's empty.
+	objectiveText = strings.ReplaceAll(objectiveText, "{TASK_TRACKING}", taskPlanText)
 
 	// Part 7: Static Environment (no dynamic fields like time)
-	envText := i18n.TF(i18n.KeySystemPromptEnvironment,
-		runtime.GOOS, runtime.GOARCH, sh, cwd, hostname, username)
-
-	// Separator between major sections (sections with English uppercase titles)
-	sep := "\n\n====\n\n"
-
-	// Assemble Parts 1-7 with separator
-	prompt := identityText + sep +
-		toolUsageSection + sep +
-		resultModeText + sep +
-		capabilities + sep +
-		rulesText + sep +
-		objectiveText + sep +
-		envText
-
-	// Part 8: Custom Rules (optional)
-	if rules != "" {
-		prompt += sep + fmt.Sprintf("%s:\n%s", i18n.T(i18n.KeyCustom), rules)
-	}
-
-	// Part 9: Dynamic Environment (appended last, changes per request)
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
+	envText := "SYSTEM INFORMATION\n\n" + i18n.T(i18n.KeySystemPromptEnvironment)
+	envText = strings.ReplaceAll(envText, "{OS}", runtime.GOOS)
+	envText = strings.ReplaceAll(envText, "{ARCH}", runtime.GOARCH)
+	envText = strings.ReplaceAll(envText, "{COMMAND}", execName)
+	envText = strings.ReplaceAll(envText, "{SHELL}", sh)
+	envText = strings.ReplaceAll(envText, "{HOME}", homeDir)
+	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
+	envText = strings.ReplaceAll(envText, "{WORKSPACE}", cwd)
 
 	// Build channel info: "user-name @ channel-type"
 	// Default userName to anonymous user string if not set
@@ -158,8 +164,25 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	}
 	channelInfo := displayUser + " @ " + displayChannel
 
-	dynamicEnv := i18n.TF(i18n.KeySystemPromptDynamicEnv, now, channelInfo)
-	prompt += sep + dynamicEnv
+	// Replace dynamic placeholders before assembling into prompt,
+	// so the SYSTEM INFORMATION section is complete in one pass.
+	now := time.Now().Format("2006-01-02 15:04:05 Monday")
+	envText = strings.ReplaceAll(envText, "{CURRENT_TIME}", now)
+	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
+	envText = strings.ReplaceAll(envText, "{CURRENT_FILES}", strings.TrimRight(listFilesForPrompt(cwd, true, 100), "\n"))
+	envText = strings.ReplaceAll(envText, "{CHANNEL}", channelInfo)
+
+	// Separator between major sections (sections with English uppercase titles)
+	sep := "\n\n====\n\n"
+
+	// Assemble Parts 1-7 with separator
+	prompt := identityText + sep +
+		toolUsageSection + sep +
+		resultModeText + sep +
+		capabilities + sep +
+		rulesText + sep +
+		objectiveText + sep +
+		envText
 
 	return prompt
 }

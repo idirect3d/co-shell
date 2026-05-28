@@ -94,9 +94,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.messages = append(a.messages, multimodalMsg)
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
-		// Add user message to history with timestamp prefix
-		tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
-		a.messages = append(a.messages, llm.Message{Role: "user", Content: tsPrefix + userInput})
+		// Add user message to history with template formatting
+		formattedInput := a.formatUserMessage(userInput)
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: formattedInput})
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
 			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
@@ -314,10 +314,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			cb("done", "")
 
 			a.mu.Lock()
-			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
-				Content:          tsPrefix + finalContent,
+				Content:          finalContent,
 				ReasoningContent: finalReasoning,
 			})
 			// Sync to memory (content without timestamp prefix)
@@ -339,10 +338,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// FIX-179 extension: message deduplication monitoring
 		var dedupEvent *DuplicateEvent
 		if a.messageDedup != nil {
-			tsPrefix := "在 " + time.Now().Format("2006-01-02 15:04:05") + " 说："
 			testMsg := llm.Message{
 				Role:             "assistant",
-				Content:          tsPrefix + finalContent,
+				Content:          finalContent,
 				ToolCalls:        toolCalls,
 				ReasoningContent: finalReasoning,
 			}
@@ -353,16 +351,30 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
+		// Determine if we're in XML mode (no API-level tool calls)
+		isXMLMode := false
+		if a.toolCallModeMgr != nil {
+			mode := a.toolCallModeMgr.Current()
+			if mode != nil && !mode.SendTools {
+				isXMLMode = true
+			}
+		}
+
 		// First add assistant message with tool_calls to history
 		// This must come BEFORE tool result messages to satisfy the API requirement
 		// that tool messages must follow a message with tool_calls.
+		// In XML mode, do NOT set ToolCalls on the assistant message — tool calls
+		// are embedded in the content as XML tags and the LLM expects results
+		// returned as user messages (not tool messages).
 		a.mu.Lock()
 		assistantMsgIdx := len(a.messages)
 		assistantMsg := llm.Message{
 			Role:             "assistant",
 			Content:          finalContent,
-			ToolCalls:        toolCalls,
 			ReasoningContent: finalReasoning,
+		}
+		if !isXMLMode {
+			assistantMsg.ToolCalls = toolCalls
 		}
 		log.Debug("Agent.RunStream: preparing to add assistant message to a.messages at index %d: role=%s, content_len=%d, reasoning_len=%d, tool_calls=%d",
 			assistantMsgIdx, assistantMsg.Role, len(assistantMsg.Content), len(assistantMsg.ReasoningContent), len(assistantMsg.ToolCalls))
@@ -387,7 +399,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		}
 
 		// Step 4: Execute tool calls and add results
-		modifyRequested := false
 		cancelled := false
 		for _, tc := range toolCalls {
 			// Show command if enabled
@@ -435,24 +446,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					a.mu.Unlock()
 					break
 				}
-				// Check if this is a USER_MODIFY_REQUEST (user wants to modify and re-evaluate)
-				if strings.HasPrefix(errStr, "USER_MODIFY_REQUEST:") {
-					modifyRequested = true
-					modifyInput := strings.TrimPrefix(errStr, "USER_MODIFY_REQUEST:")
-					// Remove the incomplete assistant message (with tool_calls) from history
-					// since its tool_calls were not fully executed.
-					a.mu.Lock()
-					a.messages = a.messages[:assistantMsgIdx]
-					// Add the user's modification as a new user message
-					a.messages = append(a.messages, llm.Message{
-						Role:    "user",
-						Content: modifyInput,
-					})
-					a.mu.Unlock()
-					ep := config.GetEmojiPrefixes(a.emojiEnabled)
-					cb("info", fmt.Sprintf("\n%s 用户补充说明: %s\n", ep.Info, modifyInput))
-					break
-				}
 				// Format structured error feedback to help LLM understand and fix the issue
 				result = formatToolError(tc.Name, execErr)
 				log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
@@ -475,23 +468,31 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				toolContent = "（工具调用无输出）"
 			}
 
-			a.mu.Lock()
-			a.messages = append(a.messages, llm.Message{
-				Role:       "tool",
-				Content:    toolContent,
-				ToolCallID: tc.ID,
-			})
-			a.mu.Unlock()
+			if isXMLMode {
+				// In XML mode, return tool results as user messages using the i18n template.
+				// This avoids the API-level tool message role which some LLMs don't support
+				// when tools are not sent via the API tools parameter.
+				userContent := a.formatXMLToolResult(tc.Name, tc.Arguments, toolContent)
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: userContent,
+				})
+				a.mu.Unlock()
+			} else {
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:       "tool",
+					Content:    toolContent,
+					ToolCallID: tc.ID,
+				})
+				a.mu.Unlock()
+			}
 		}
 
 		// If user cancelled, return to REPL
 		if cancelled {
 			return "", nil
-		}
-
-		// If user requested modification, continue the loop to re-ask the LLM
-		if modifyRequested {
-			continue
 		}
 
 		// If a task plan was modified (created/inserted/removed), adjust messagePointer

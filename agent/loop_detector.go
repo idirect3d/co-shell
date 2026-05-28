@@ -43,6 +43,18 @@ type LoopDetector struct {
 	patterns     map[string]*PatternCount // detected patterns and their counts
 	currentTotal int                      // total chunks added
 	lastCheckLen int                      // length of content last checked
+
+	// Content-level loop detection (FIX-190)
+	// Detects when the same text block repeats consecutively in the accumulated content.
+	// This catches cases like:
+	//   - Same paragraph repeating: "I need to break out... I need to break out..."
+	//   - URL with repeating encoded chars: "...%E7%9B%91%E7%9B%91%E7%9B%91..."
+	//   - Same sentence repeating across lines
+	// Uses a sliding window: compares the last N characters of accumulated content
+	// with the N characters before them. If they match, it's a repeat.
+	contentBlockSize int    // size of the text block to compare (auto-adjusted)
+	contentRepeatCnt int    // how many consecutive repeats detected
+	contentLastBlock string // the last detected repeating block
 }
 
 // PatternCount tracks occurrences of a specific pattern.
@@ -113,6 +125,17 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 	}
 	ld.lastCheckLen = len(ld.accumulated)
 
+	// FIX-190: Content-level loop detection — check accumulated content for
+	// repeating text blocks immediately on each chunk. This catches cases like:
+	//   - Same paragraph repeating: "I need to break out... I need to break out..."
+	//   - URL with repeating encoded chars: "...%E7%9B%91%E7%9B%91%E7%9B%91..."
+	//   - Same sentence repeating across lines
+	// The check is done on the accumulated content (not just the new chunk) to
+	// catch patterns that span multiple chunks.
+	if err := ld.checkContentLoop(timestamp); err != nil {
+		return err
+	}
+
 	// Extract lines from the new chunk
 	lines := extractLines(chunk)
 	if len(lines) == 0 {
@@ -155,6 +178,89 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 		if ld.patterns[key].Count >= ld.threshold {
 			return ld.createLoopError(key, timestamp)
 		}
+	}
+
+	return nil
+}
+
+// checkContentLoop checks the accumulated content for repeating text blocks.
+// It uses a sliding window approach: compares the last N characters of accumulated
+// content with the N characters before them. If they match consecutively, it's a loop.
+// The block size is auto-adjusted: starts with a minimum block size and grows
+// to find the largest matching block.
+func (ld *LoopDetector) checkContentLoop(timestamp time.Time) error {
+	acc := ld.accumulated
+	if len(acc) < 40 {
+		return nil // need at least 2 blocks of minimum size
+	}
+
+	// Try different block sizes to find the repeating pattern.
+	// Start with a minimum block size (20 chars) and try up to half the accumulated length.
+	// This handles both short repeats (URL encoded chars) and long repeats (paragraphs).
+	minBlock := 20
+	maxBlock := len(acc) / 2
+	if maxBlock > 500 {
+		maxBlock = 500 // cap at 500 chars to avoid excessive computation
+	}
+
+	// Try block sizes from largest to smallest — larger blocks are more specific
+	// and less likely to produce false positives.
+	for blockSize := maxBlock; blockSize >= minBlock; blockSize-- {
+		// We need at least 3 blocks worth of content to detect a repeat pattern
+		if len(acc) < blockSize*3 {
+			continue
+		}
+
+		// Get the last block (most recent content)
+		lastBlock := acc[len(acc)-blockSize:]
+
+		// Get the block before the last one
+		prevBlock := acc[len(acc)-blockSize*2 : len(acc)-blockSize]
+
+		// Check if they match (case-sensitive exact match)
+		if lastBlock != prevBlock {
+			continue
+		}
+
+		// Found a match! Check if this is a new pattern or continuation of previous.
+		if ld.contentLastBlock == lastBlock {
+			// Same block as before — increment repeat count
+			ld.contentRepeatCnt++
+		} else {
+			// New repeating block — reset and start counting
+			ld.contentRepeatCnt = 1
+			ld.contentLastBlock = lastBlock
+			ld.contentBlockSize = blockSize
+		}
+
+		// Check if we've exceeded the threshold
+		if ld.contentRepeatCnt >= ld.threshold {
+			// Build a descriptive pattern string for the error
+			patternStr := fmt.Sprintf("content block repeat (%d chars): %s...",
+				blockSize, truncateString(lastBlock, 100))
+
+			// Create a temporary PatternCount for the error
+			pc := &PatternCount{
+				Pattern:     patternStr,
+				PatternType: "content block repeat",
+				Count:       ld.contentRepeatCnt,
+				Timestamps:  []time.Time{timestamp},
+			}
+			ld.patterns[patternStr] = pc
+
+			return ld.createLoopError(patternStr, timestamp)
+		}
+
+		// Found a match at this block size — no need to try smaller sizes
+		// since we want the largest matching block
+		return nil
+	}
+
+	// No match found at any block size — reset repeat counter if we had one
+	if ld.contentRepeatCnt > 0 {
+		ld.contentRepeatCnt = 0
+		ld.contentLastBlock = ""
+		ld.contentBlockSize = 0
 	}
 
 	return nil
@@ -323,15 +429,20 @@ func (ld *LoopDetector) createLoopError(key string, timestamp time.Time) *LoopDe
 
 	// Generate suggestion based on pattern type
 	suggestion := ""
-	if pattern.PatternType == "timestamp increment" {
+	switch pattern.PatternType {
+	case "timestamp increment":
 		suggestion = "You appear to be generating content with incrementing timestamps. " +
 			"This is likely a loop. Please review your output and stop repeating the same pattern with different timestamps. " +
 			"Consider summarizing your findings instead of listing each item separately."
-	} else if pattern.PatternType == "counter increment" {
+	case "counter increment":
 		suggestion = "You appear to be generating content with incrementing counters. " +
 			"This is likely a loop. Please review your output and stop repeating the same pattern with different counters. " +
 			"Consider summarizing your findings instead of listing each step separately."
-	} else {
+	case "content block repeat":
+		suggestion = "You appear to be repeating the same text block consecutively. " +
+			"This is likely a loop. Please review your output and stop repeating the same content. " +
+			"Consider summarizing your findings or taking a different approach."
+	default:
 		suggestion = "You appear to be repeating the same content pattern. " +
 			"Please review your output and take a different approach."
 	}
@@ -354,6 +465,9 @@ func (ld *LoopDetector) Reset() {
 	ld.patterns = make(map[string]*PatternCount)
 	ld.currentTotal = 0
 	ld.lastCheckLen = 0
+	ld.contentBlockSize = 0
+	ld.contentRepeatCnt = 0
+	ld.contentLastBlock = ""
 }
 
 // truncateString truncates a string to maxLen characters.
