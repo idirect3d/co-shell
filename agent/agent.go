@@ -345,7 +345,19 @@ func (a *Agent) rebuildSystemPrompt() {
 		}
 	}
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText)
+	// Get current task plan text for Objective section
+	taskPlanText := a.getTaskPlanText()
+
+	// Find the first user message after messagePointer as task description
+	var taskDesc string
+	for i := a.messagePointer; i < len(a.messages); i++ {
+		if a.messages[i].Role == "user" {
+			taskDesc = a.messages[i].Content
+			break
+		}
+	}
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	// Preserve conversation history: only replace the system message at index 0
 	a.mu.Lock()
@@ -492,6 +504,66 @@ func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
 		modelCfg.Model, modelCfg.Endpoint, modelCfg.Capabilities.Vision, len(modelCfg.CustomParams))
 }
 
+// getTaskPlanText returns the formatted current task plan text if there are unfinished steps,
+// or empty string if no plan exists or all steps are completed.
+func (a *Agent) getTaskPlanText() string {
+	if a.taskPlanMgr == nil {
+		return ""
+	}
+	plan, err := a.taskPlanMgr.GetCurrent()
+	if err != nil || plan == nil {
+		return ""
+	}
+	// Only include task plan if there are unfinished steps
+	if !a.taskPlanMgr.HasUnfinished() {
+		return ""
+	}
+	return taskplan.FormatPlan(plan)
+}
+
+// formatXMLToolResult formats a tool result as a user message for XML mode.
+// Uses the i18n template with {TOOL_CALL}, {TOOL_CALL_PARAMETERS}, {TOOL_RESULT},
+// {TASK_TRACKING}, and {CURRENT_TIME} placeholders.
+func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string) string {
+	template := i18n.T(i18n.KeyXMLToolResultTemplate)
+	result := strings.ReplaceAll(template, "{TOOL_CALL}", toolName)
+	result = strings.ReplaceAll(result, "{TOOL_CALL_PARAMETERS}", toolArgs)
+	result = strings.ReplaceAll(result, "{TOOL_RESULT}", toolResult)
+	result = strings.ReplaceAll(result, "{TASK_TRACKING}", a.getTaskPlanPrompt())
+	result = strings.ReplaceAll(result, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
+	return result
+}
+
+// formatUserMessage formats a user message for subsequent instructions during a task.
+// Uses the i18n template with {INSTRUCTION}, {TASK_TRACKING}, and {CURRENT_TIME} placeholders.
+func (a *Agent) formatUserMessage(instruction string) string {
+	template := i18n.T(i18n.KeyUserMessageTemplate)
+	result := strings.ReplaceAll(template, "{INSTRUCTION}", instruction)
+	result = strings.ReplaceAll(result, "{TASK_TRACKING}", a.getTaskPlanPrompt())
+	result = strings.ReplaceAll(result, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
+	return result
+}
+
+// getTaskPlanPrompt returns the appropriate task plan prompt based on whether
+// there are unfinished steps in the current task plan.
+func (a *Agent) getTaskPlanPrompt() string {
+	if a.taskPlanMgr == nil {
+		return ""
+	}
+	plan, err := a.taskPlanMgr.GetCurrent()
+	if err != nil || plan == nil {
+		return ""
+	}
+	if a.taskPlanMgr.HasUnfinished() {
+		// There are unfinished steps — show the plan with next steps guidance
+		planText := taskplan.FormatPlan(plan)
+		template := i18n.T(i18n.KeyToolResultWithPlan)
+		return strings.ReplaceAll(template, "{TASK_PLAN}", planText)
+	}
+	// No unfinished steps — prompt to create a task plan
+	return i18n.T(i18n.KeyToolResultNoPlan)
+}
+
 // TaskPlanManager returns the task plan manager.
 func (a *Agent) TaskPlanManager() *taskplan.Manager {
 	return a.taskPlanMgr
@@ -542,7 +614,19 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 		}
 	}
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, toolUsageText)
+	// Get current task plan text for Objective section
+	taskPlanText := a.getTaskPlanText()
+
+	// Find the first user message after messagePointer as task description
+	var taskDesc string
+	for i := a.messagePointer; i < len(a.messages); i++ {
+		if a.messages[i].Role == "user" {
+			taskDesc = a.messages[i].Content
+			break
+		}
+	}
+
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},

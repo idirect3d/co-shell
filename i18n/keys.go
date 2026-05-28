@@ -354,7 +354,6 @@ const (
 	KeySystemPromptToolUsageXML = "system_prompt_tool_usage_xml"
 	KeySystemPromptEnv          = "system_prompt_env"
 
-	KeySystemPromptDynamicEnv       = "system_prompt_dynamic_env"
 	KeySystemPromptToolExamples     = "system_prompt_tool_examples"
 	KeySystemPromptToolGuidelines   = "system_prompt_tool_guidelines"
 	KeySystemPromptUpdatingProgress = "system_prompt_updating_progress"
@@ -660,10 +659,58 @@ const (
 	KeyUnknown = "unknown"
 
 	// Tool call mode (FEATURE-182)
-	KeyToolCallMode          = "tool_call_mode"
-	KeyToolCallModeUpdated   = "tool_call_mode_updated"
-	KeyInvalidToolCallMode   = "invalid_tool_call_mode"
-	KeyCol3ToolCallMode      = "col3_tool_call_mode"
-	KeySettingsDescToolMode  = "settings_desc_tool_mode"
-	KeyCLIHelpToolCallMode   = "cli_help_tool_call_mode"
+	KeyToolCallMode         = "tool_call_mode"
+	KeyToolCallModeUpdated  = "tool_call_mode_updated"
+	KeyInvalidToolCallMode  = "invalid_tool_call_mode"
+	KeyCol3ToolCallMode     = "col3_tool_call_mode"
+	KeySettingsDescToolMode = "settings_desc_tool_mode"
+	KeyCLIHelpToolCallMode  = "cli_help_tool_call_mode"
+
+	// XML mode supplementary rules (FIX-190) — Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files
+	KeySystemPromptXMLRules = "system_prompt_xml_rules"
+
+	// XML tool result template (FIX-190) — template for tool result messages in XML mode.
+	// Placeholders: {TOOL_RESULT}, {TASK_PLAN}, {CURRENT_TIME}
+	KeyXMLToolResultTemplate = "xml_tool_result_template"
+
+	// Tool result — no task plan (FIX-190)
+	// Shown when there is no unfinished task plan, prompting the LLM to create one.
+	KeyToolResultNoPlan = "tool_result_no_plan"
+
+	// Tool result — with task plan (FIX-190)
+	// Shown when there are unfinished steps in the current task plan.
+	// Placeholders: {TASK_PLAN}
+	KeyToolResultWithPlan = "tool_result_with_plan"
+
+	// User message template for subsequent instructions during a task (FIX-190)
+	// Used to format user messages with task tracking and environment details.
+	// Placeholders: {INSTRUCTION}, {TASK_TRACKING}, {CURRENT_TIME}
+	KeyUserMessageTemplate = "user_message_template"
+
+	// Tool usage examples (FIX-190) — one key per tool, dynamically included based on available tools
+	KeyToolUsageExecuteCommand      = "tool_usage_execute_command"
+	KeyToolUsageReadFile            = "tool_usage_read_file"
+	KeyToolUsageSearchFiles         = "tool_usage_search_files"
+	KeyToolUsageListFiles           = "tool_usage_list_files"
+	KeyToolUsageListCodeDefNames    = "tool_usage_list_code_definition_names"
+	KeyToolUsageReplaceInFile       = "tool_usage_replace_in_file"
+	KeyToolUsageWriteToFile         = "tool_usage_write_to_file"
+	KeyToolUsageAddImages           = "tool_usage_add_images"
+	KeyToolUsageRemoveImages        = "tool_usage_remove_images"
+	KeyToolUsageClearImages         = "tool_usage_clear_images"
+	KeyToolUsageLaunchSubAgent      = "tool_usage_launch_sub_agent"
+	KeyToolUsageScheduleTask        = "tool_usage_schedule_task"
+	KeyToolUsageCreateTaskPlan      = "tool_usage_create_task_plan"
+	KeyToolUsageUpdateTaskStep      = "tool_usage_update_task_step"
+	KeyToolUsageInsertTaskSteps     = "tool_usage_insert_task_steps"
+	KeyToolUsageRemoveTaskSteps     = "tool_usage_remove_task_steps"
+	KeyToolUsageViewTaskPlan        = "tool_usage_view_task_plan"
+	KeyToolUsageGetMemorySlice      = "tool_usage_get_memory_slice"
+	KeyToolUsageMemorySearch        = "tool_usage_memory_search"
+	KeyToolUsageDeleteMemory        = "tool_usage_delete_memory"
+	KeyToolUsageUpdateSettings      = "tool_usage_update_settings"
+	KeyToolUsageListSettings        = "tool_usage_list_settings"
+	KeyToolUsageAskFollowupQuestion = "tool_usage_ask_followup_question"
+	KeyToolUsageAdjustContextStart  = "tool_usage_adjust_context_start"
+	KeyToolUsageAttemptCompletion   = "tool_usage_attempt_completion"
 )

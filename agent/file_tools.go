@@ -335,6 +335,94 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 	return result.String(), nil
 }
 
+// listFilesForPrompt lists files in a directory and returns the listing as a string.
+// If recursive is true, it walks subdirectories recursively. Returns at most maxEntries
+// items. If there are more, a truncation notice is appended. This is a package-level
+// function used by both listFilesTool and buildSystemPromptWithMode.
+func listFilesForPrompt(dirPath string, recursive bool, maxEntries int) string {
+	var result strings.Builder
+	var count int
+
+	if recursive {
+		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if count >= maxEntries {
+				return filepath.SkipDir
+			}
+			relPath, _ := filepath.Rel(dirPath, path)
+			if info.IsDir() {
+				result.WriteString(relPath + "/\n")
+			} else {
+				result.WriteString(relPath + "\n")
+			}
+			count++
+			return nil
+		})
+	} else {
+		entries, err := os.ReadDir(dirPath)
+		if err != nil {
+			return ""
+		}
+		total := len(entries)
+		if total > maxEntries {
+			entries = entries[:maxEntries]
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if e.IsDir() {
+				name += "/"
+			}
+			result.WriteString(name + "\n")
+			count++
+		}
+	}
+
+	if count >= maxEntries {
+		result.WriteString(fmt.Sprintf("(File list truncated. Use list_files on specific subdirectories if you need to explore further.)\n"))
+	}
+	return result.String()
+}
+
+// listFilesTool lists files and directories within the specified directory.
+// If recursive is true, it lists all files and directories recursively.
+// If recursive is false or not provided, it only lists the top-level contents.
+// Returns at most 100 entries. If there are more, a truncation notice is appended.
+func (a *Agent) listFilesTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("listFilesTool called: args=%v", args)
+	dirPath, ok := args["path"].(string)
+	if !ok {
+		return "", fmt.Errorf("path argument is required")
+	}
+
+	// Resolve relative paths
+	if !filepath.IsAbs(dirPath) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("cannot get current working directory: %w", err)
+		}
+		dirPath = filepath.Join(cwd, dirPath)
+	}
+
+	// Check recursive flag
+	recursive := false
+	if r, ok := args["recursive"].(bool); ok {
+		recursive = r
+	}
+
+	const maxEntries = 100
+	listing := listFilesForPrompt(dirPath, recursive, maxEntries)
+	if listing == "" {
+		return "", fmt.Errorf("cannot read directory %q", dirPath)
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Directory: %s\n\n", dirPath))
+	result.WriteString(listing)
+	return result.String(), nil
+}
+
 // listCodeDefinitionNamesTool lists definition names in source code files at the top level of a directory.
 func (a *Agent) listCodeDefinitionNamesTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("listCodeDefinitionNamesTool called: args=%v", args)

@@ -28,7 +28,9 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -289,9 +291,34 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 		if mode != nil && !mode.SendTools {
 			xmlCalls := ParseXMLToolCalls(resp.Content)
 			if len(xmlCalls) > 0 {
-				toolCalls = xmlCalls
+				// Filter out _xml_parse_error calls - these are parse errors that
+				// should be returned directly to the LLM as feedback, not executed.
+				var validCalls []llm.ToolCall
+				var parseErrors []string
+				for _, c := range xmlCalls {
+					if c.Name == "_xml_parse_error" {
+						var args map[string]interface{}
+						if err := json.Unmarshal([]byte(c.Arguments), &args); err == nil {
+							if errMsg, ok := args["error"].(string); ok {
+								parseErrors = append(parseErrors, errMsg)
+							}
+						}
+					} else {
+						validCalls = append(validCalls, c)
+					}
+				}
+				if len(parseErrors) > 0 {
+					// Return parse errors directly to the LLM as assistant content,
+					// so it can see and fix the format issues immediately.
+					content := strings.Join(parseErrors, "\n---\n")
+					toolCalls = nil
+					log.Debug("Agent.nonStreamingFallback: returning %d XML parse errors to LLM as content (no tool calls)",
+						len(parseErrors))
+					return content, resp.ReasoningContent, nil, nil
+				}
+				toolCalls = validCalls
 				log.Debug("Agent.nonStreamingFallback: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
-					len(xmlCalls), len(toolCalls))
+					len(validCalls), len(toolCalls))
 			} else {
 				// No XML tool calls found; clear any API-level tool calls in XML mode
 				toolCalls = nil
