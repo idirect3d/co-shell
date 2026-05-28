@@ -41,6 +41,14 @@ import (
 // Run processes a user input through the agent loop without streaming.
 // It returns the final response content.
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
+	// Save raw user input for {TASK} in system prompt Objective section
+	// Must be set before rebuildSystemPrompt (which reads lastUserInput)
+	a.lastUserInput = userInput
+	// Rebuild system prompt so {TASK} gets the actual user instruction
+	// Note: must be called outside a.mu lock because rebuildSystemPrompt
+	// also acquires the lock internally.
+	a.rebuildSystemPrompt()
+
 	a.mu.Lock()
 	// If there are image paths, create a multimodal message with cached images
 	if len(a.imagePaths) > 0 {
