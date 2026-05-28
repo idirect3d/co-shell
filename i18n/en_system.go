@@ -695,7 +695,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 
 <task>
 {TASK}
-<task>
+</task>
 
 {TASK_TRACKING}
 `
