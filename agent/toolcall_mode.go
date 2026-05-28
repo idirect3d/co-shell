@@ -120,6 +120,7 @@ var toolUsageKeyMap = map[string]string{
 	"list_settings":              i18n.KeyToolUsageListSettings,
 	"ask_followup_question":      i18n.KeyToolUsageAskFollowupQuestion,
 	"adjust_context_start":       i18n.KeyToolUsageAdjustContextStart,
+	"attempt_completion":         i18n.KeyToolUsageAttemptCompletion,
 }
 
 // sortedParamNames returns the keys of a map in sorted order.

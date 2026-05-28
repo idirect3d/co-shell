@@ -32,6 +32,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -596,6 +597,29 @@ Critical rules:
 		Callback: a.adjustContextStartTool,
 	})
 
+	// Add attempt_completion tool (always available)
+	tools = append(tools, llm.Tool{
+		Name: "attempt_completion",
+		Description: `After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
+IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.
+If you were using create_task_plan/update_task_step/... to manage the task progress, all unfinished tasks will be set to finish state.`,
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"result": map[string]interface{}{
+					"type":        "string",
+					"description": "The result of the tool use. This should be a clear, specific description of the result.",
+				},
+				"command": map[string]interface{}{
+					"type":        "string",
+					"description": "Optional: A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
+				},
+			},
+			"required": []string{"result"},
+		},
+		Callback: a.attemptCompletionTool,
+	})
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture
@@ -802,4 +826,38 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 
 	// Return the user's input as-is
 	return input, nil
+}
+
+// attemptCompletionTool presents the final result to the user, optionally executing a demo command.
+func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	result, _ := args["result"].(string)
+	if result == "" {
+		return "", fmt.Errorf("result is required")
+	}
+
+	command, _ := args["command"].(string)
+
+	// If a command was provided, execute it as a demo
+	var cmdOutput string
+	if command != "" {
+		log.Info("attemptCompletion: executing demo command: %s", command)
+		shell, shellArg := shellCmd()
+		cmd := exec.CommandContext(ctx, shell, shellArg, command)
+		output, err := cmd.CombinedOutput()
+		decoded := decodeToUTF8(output)
+		if err != nil {
+			log.Warn("attemptCompletion: demo command failed: %v\nOutput: %s", err, decoded)
+			cmdOutput = fmt.Sprintf("\n命令执行失败: %v\n输出: %s", err, decoded)
+		} else {
+			cmdOutput = fmt.Sprintf("\n命令执行成功，输出:\n%s", strings.TrimSpace(decoded))
+		}
+	}
+
+	// Build the final completion message
+	message := fmt.Sprintf("✅ 任务完成\n\n%s", result)
+	if cmdOutput != "" {
+		message += "\n" + cmdOutput
+	}
+
+	return message, nil
 }

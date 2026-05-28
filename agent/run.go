@@ -52,8 +52,9 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.messages = append(a.messages, multimodalMsg)
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
-		// Add user message to history
-		a.messages = append(a.messages, llm.Message{Role: "user", Content: userInput})
+		// Add user message to history with template formatting
+		formattedInput := a.formatUserMessage(userInput)
+		a.messages = append(a.messages, llm.Message{Role: "user", Content: formattedInput})
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
 			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
