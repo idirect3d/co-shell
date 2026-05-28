@@ -146,6 +146,10 @@ type Agent struct {
 
 	// ToolCallModeMgr manages tool call mode (openai/xml/custom)
 	toolCallModeMgr *ToolCallModeMgr
+
+	// lastUserInput stores the raw user instruction (before formatUserMessage formatting)
+	// for use as {TASK} in the system prompt Objective section.
+	lastUserInput string
 }
 
 // buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.

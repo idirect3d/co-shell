@@ -348,14 +348,10 @@ func (a *Agent) rebuildSystemPrompt() {
 	// Get current task plan text for Objective section
 	taskPlanText := a.getTaskPlanText()
 
-	// Find the first user message after messagePointer as task description
-	var taskDesc string
-	for i := a.messagePointer; i < len(a.messages); i++ {
-		if a.messages[i].Role == "user" {
-			taskDesc = a.messages[i].Content
-			break
-		}
-	}
+	// Use the saved raw user input as task description for {TASK}.
+	// This ensures the <task> tag in system prompt only contains the pure instruction,
+	// not the formatted message (which includes task tracking and environment details).
+	taskDesc := a.lastUserInput
 
 	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
@@ -617,14 +613,10 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	// Get current task plan text for Objective section
 	taskPlanText := a.getTaskPlanText()
 
-	// Find the first user message after messagePointer as task description
-	var taskDesc string
-	for i := a.messagePointer; i < len(a.messages); i++ {
-		if a.messages[i].Role == "user" {
-			taskDesc = a.messages[i].Content
-			break
-		}
-	}
+	// Use the saved raw user input as task description for {TASK}.
+	// This ensures the <task> tag in system prompt only contains the pure instruction,
+	// not the formatted message (which includes task tracking and environment details).
+	taskDesc := a.lastUserInput
 
 	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
