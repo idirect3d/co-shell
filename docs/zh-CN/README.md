@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/Build-00190-blue)]()
+[![Build](https://img.shields.io/badge/Build-00193-blue)]()
 [![English](https://img.shields.io/badge/README-English-blue)](../en/README.md)
 
 
@@ -71,31 +71,31 @@ co-shell 是一个由大语言模型（LLM）驱动的智能命令行工具。AI
 
 | 操作系统 | 架构 | 下载 |
 |---|---|---|
-| macOS | Intel | [co-shell-0.5.0-Beta2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-amd64.zip) |
-| macOS | Apple Silicon | [co-shell-0.5.0-Beta2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-arm64.zip) |
-| Linux | x86_64 | [co-shell-0.5.0-Beta2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-linux-amd64.zip) |
-| Linux | ARM64 | [co-shell-0.5.0-Beta2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-linux-arm64.zip) |
-| Windows | x86_64 | [co-shell-0.5.0-Beta2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-amd64.zip) |
-| Windows | ARM64 | [co-shell-0.5.0-Beta2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-arm64.zip) |
+| macOS | Intel | [co-shell-0.5.1-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-0.5.1-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-0.5.1-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-0.5.1-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-0.5.1-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-0.5.1-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-arm64.zip) |
 | 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/md2docx.py) — Markdown 转 Word 文档转换器 |
-| **Bridge** | macOS Intel | [co-shell-bridge-0.5.0-Beta2-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-darwin-amd64.zip) |
-| **Bridge** | macOS Apple Silicon | [co-shell-bridge-0.5.0-Beta2-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-darwin-arm64.zip) |
-| **Bridge** | Linux x86_64 | [co-shell-bridge-0.5.0-Beta2-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-linux-amd64.zip) |
-| **Bridge** | Linux ARM64 | [co-shell-bridge-0.5.0-Beta2-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-linux-arm64.zip) |
-| **Bridge** | Windows x86_64 | [co-shell-bridge-0.5.0-Beta2-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-windows-amd64.zip) |
-| **Bridge** | Windows ARM64 | [co-shell-bridge-0.5.0-Beta2-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-bridge-0.5.0-Beta2-windows-arm64.zip) |
+| **Bridge** | macOS Intel | [co-shell-bridge-0.5.1-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-darwin-amd64.zip) |
+| **Bridge** | macOS Apple Silicon | [co-shell-bridge-0.5.1-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-darwin-arm64.zip) |
+| **Bridge** | Linux x86_64 | [co-shell-bridge-0.5.1-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-linux-amd64.zip) |
+| **Bridge** | Linux ARM64 | [co-shell-bridge-0.5.1-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-linux-arm64.zip) |
+| **Bridge** | Windows x86_64 | [co-shell-bridge-0.5.1-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-windows-amd64.zip) |
+| **Bridge** | Windows ARM64 | [co-shell-bridge-0.5.1-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-windows-arm64.zip) |
 
 **macOS / Linux：**
 ```bash
 # curl
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-arm64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-arm64.zip
 unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
 
 # 或 wget
-wget https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-darwin-arm64.zip
-unzip co-shell-0.5.0-Beta2-darwin-arm64.zip && rm co-shell-0.5.0-Beta2-darwin-arm64.zip
+wget https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-arm64.zip
+unzip co-shell-0.5.1-darwin-arm64.zip && rm co-shell-0.5.1-darwin-arm64.zip
 chmod +x co-shell
 ./co-shell
 ```
@@ -103,7 +103,7 @@ chmod +x co-shell
 **Windows（PowerShell）：**
 ```powershell
 # PowerShell
-Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-amd64.zip -OutFile co-shell.zip
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-amd64.zip -OutFile co-shell.zip
 Expand-Archive -Path co-shell.zip -DestinationPath .
 .\co-shell.exe
 ```
@@ -111,7 +111,7 @@ Expand-Archive -Path co-shell.zip -DestinationPath .
 **Windows（CMD）：**
 ```cmd
 :: CMD
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/co-shell-0.5.0-Beta2-windows-amd64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-amd64.zip
 tar -xf co-shell.zip
 del co-shell.zip
 co-shell.exe
@@ -347,7 +347,22 @@ co-shell 可以自主进行深度调研，通过搜索网络、收集数据并�
 
 ## 版本历史
 
-### v0.5.0 — Beta2（当前版本）
+### v0.5.1（当前版本）
+
+> **BUILD**: 00193 | **发布日期**: 2026-05-28
+
+补丁版——Bug 修复和稳定性改进。
+
+**版本亮点**: 增强内容级循环检测、用户消息模板统一格式化、新增 attempt_completion 工具、修复用户消息模板未应用的问题。
+
+**已实现功能：**
+
+- **内容级循环检测** — 增强的 `checkContentLoop` 在 LLM 流式输出中检测重复文本块（整段重复、URL编码重复字符），使用滑动窗口自动匹配最佳块大小
+- **用户消息模板** — `formatUserMessage` 现在应用于所有用户消息入队路径，确保每条用户消息中 `{TASK_TRACKING}` 和 `{CURRENT_TIME}` 占位符被正确填充
+- **attempt_completion 工具** — 在 OpenAI 模式和 XML 模式中注册，为 LLM 提供报告任务完成结果的标准方式
+- **API URL 修复** — 修复 base URL 已包含 `/v1` 后缀时重复添加 `/v1` 的问题
+
+### v0.5.0 — Beta2
 
 > **BUILD**: 00190 | **发布日期**: 2026-05-22
 

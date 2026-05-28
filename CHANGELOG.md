@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.1] - 2026-05-28
+
+### Added
+- 内容级循环检测（checkContentLoop）：在 LLM 流式输出中检测重复文本块，使用滑动窗口自动匹配最佳块大小
+- 用户消息模板统一格式化：`formatUserMessage` 应用于所有用户消息入队路径，确保 `{TASK_TRACKING}` 和 `{CURRENT_TIME}` 占位符被正确填充
+- `attempt_completion` 工具：在 OpenAI 模式和 XML 模式中注册，为 LLM 提供报告任务完成结果的标准方式
+
+### Fixed
+- 修复用户消息未按模板格式化的问题：用户消息段缺少 `{TASK_TRACKING}` 和 `{CURRENT_TIME}` 内容
+- 修复 API URL 自动拼写时重复添加 `/v1` 后缀的问题
+
+### Changed
+- BUILD 192 → 193
+
 ## [0.5.0-Beta2] - 2026-05-24
 
 ### Added
