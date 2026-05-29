@@ -189,6 +189,54 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Plan enabled set to %s", status)
 		return fmt.Sprintf("✅ 任务计划功能已设置为: %s", status), nil
 
+	case "shell-session-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.ShellSessionEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("持续Shell会话: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShellSessionEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShellSessionEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set shell-session-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetShellEnabled(h.cfg.LLM.ShellSessionEnabled)
+		if !h.cfg.LLM.ShellSessionEnabled {
+			h.agent.CloseShellSession()
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShellSessionEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Shell session enabled set to %s", status)
+		return fmt.Sprintf("✅ 持续Shell会话已设置为: %s", status), nil
+
+	case "shell-session-timeout":
+		if len(args) < 2 {
+			return fmt.Sprintf("持续Shell超时: %d秒（0=无限制）", h.cfg.LLM.ShellSessionTimeout), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", fmt.Errorf("无效的超时值: %s（请输入 >= 0 的整数，单位秒）", args[1])
+		}
+		h.cfg.LLM.ShellSessionTimeout = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Shell session timeout set to %d", n)
+		if n == 0 {
+			return "✅ 持续Shell超时已设置为: 无限制", nil
+		}
+		return fmt.Sprintf("✅ 持续Shell超时已设置为: %d秒", n), nil
+
 	case "subagent-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

@@ -143,7 +143,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "name", subcommand == "description", subcommand == "principles",
 		subcommand == "max-iterations", subcommand == "max-retries",
 		subcommand == "memory-enabled", subcommand == "plan-enabled",
-		subcommand == "subagent-enabled", subcommand == "context-limit",
+		subcommand == "subagent-enabled", subcommand == "shell-session-enabled",
+		subcommand == "shell-session-timeout", subcommand == "context-limit",
 		subcommand == "context-start":
 		return h.handleAgentSetting(subcommand, args)
 
@@ -448,10 +449,21 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("db", dbEnabledStatus, i18n.T(i18n.KeyDBSubCmdDesc)),
 	)
 
+	shellSessionEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShellSessionEnabled {
+		shellSessionEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	shellTimeoutStr := fmt.Sprintf("%d", cfg.LLM.ShellSessionTimeout)
+	if cfg.LLM.ShellSessionTimeout <= 0 {
+		shellTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+
 	// Group 6: Tasks & Sub-Agents
 	allLines = append(allLines,
 		makeLine("plan-enabled", planEnabledStatus, i18n.T(i18n.KeyCol3PlanEnabled)),
 		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
+		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),
+		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),
 	)
 
 	// Group 7: Search & Debug
@@ -503,7 +515,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
 
 	// Group 6: Tasks & Sub-Agents
-	writeGroup(i18n.T(i18n.KeySettingsGroupTask), nextLines(2)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupTask), nextLines(4)...)
 
 	// Group 7: Search & Debug
 	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
