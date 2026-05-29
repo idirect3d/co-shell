@@ -997,6 +997,9 @@ func main() {
 	// Apply subagent enabled setting
 	ag.SetSubAgentEnabled(cfg.LLM.SubAgentEnabled)
 
+	// Apply persistent shell session enabled setting
+	ag.SetShellEnabled(cfg.LLM.ShellSessionEnabled)
+
 	// Apply tool call enabled setting
 	ag.SetToolCallEnabled(cfg.LLM.ToolCallEnabled)
 

@@ -674,4 +674,10 @@ no liability whatsoever.`,
 	KeyCol3ToolCallMode:     "Tool Call Mode(openai|xml)",
 	KeySettingsDescToolMode: "Tool call mode (openai: standard API, xml: inline XML tags)",
 	KeyCLIHelpToolCallMode:  "Tool call mode (openai/xml, overrides config file)",
+
+	// Shell session
+	KeyCol3ShellSessionEnabled:         "Shell Session Enabled(on|off)",
+	KeyCol3ShellSessionTimeout:         "Shell Session Timeout(seconds, 0=unlimited)",
+	KeySettingsDescShellSessionEnabled: "Enable persistent shell session tools (shell_start, shell_exec, shell_stop)",
+	KeySettingsDescShellSessionTimeout: "Timeout for each command in the persistent shell session (0=no timeout)",
 }

@@ -284,6 +284,19 @@ func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }
 
+// SetShellEnabled sets whether persistent shell session tools are enabled.
+func (a *Agent) SetShellEnabled(enabled bool) {
+	a.shellEnabled = enabled
+}
+
+// CloseShellSession closes the persistent shell session if one is active.
+func (a *Agent) CloseShellSession() {
+	if a.shellSession != nil {
+		a.shellSession.Close()
+		a.shellSession = nil
+	}
+}
+
 // SetConfig sets the configuration for timeout settings and agent identity.
 
 // It also rebuilds the system prompt with identity information.
