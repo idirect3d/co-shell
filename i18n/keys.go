@@ -713,4 +713,17 @@ const (
 	KeyToolUsageAskFollowupQuestion = "tool_usage_ask_followup_question"
 	KeyToolUsageAdjustContextStart  = "tool_usage_adjust_context_start"
 	KeyToolUsageAttemptCompletion   = "tool_usage_attempt_completion"
+
+	// Shell session tool usage examples (XML mode)
+	KeyToolUsageShellStart     = "tool_usage_shell_start"
+	KeyToolUsageShellExec      = "tool_usage_shell_exec"
+	KeyToolUsageShellGetOutput = "tool_usage_shell_get_output"
+	KeyToolUsageShellStop      = "tool_usage_shell_stop"
+
+	// Shell session
+	KeyCol3ShellSessionEnabled = "col3_shell_session_enabled"
+	KeyCol3ShellSessionTimeout = "col3_shell_session_timeout"
+
+	KeySettingsDescShellSessionEnabled = "settings_desc_shell_session_enabled"
+	KeySettingsDescShellSessionTimeout = "settings_desc_shell_session_timeout"
 )
