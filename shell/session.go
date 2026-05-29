@@ -37,6 +37,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -51,15 +52,14 @@ const (
 	marker = "COSHELL__CMD_END_MARKER_1748489600"
 )
 
-// DefaultScrollbackLines is the default maximum number of lines kept in the scrollback buffer.
-const DefaultScrollbackLines = 1000
-
-// DefaultMaxLineLen is the default maximum characters per line in the scrollback buffer.
+// DefaultMaxLineLen is the default maximum characters per line in scrollback output.
 const DefaultMaxLineLen = 4096
 
 // Session represents a persistent interactive shell session.
 // It maintains a long-running shell process and allows sending commands
 // and capturing their output within the same environment.
+// All terminal I/O (commands, stdout, stderr) is recorded to a log file
+// for LLM inspection via GetOutput().
 type Session struct {
 	mu         sync.Mutex
 	cmd        *exec.Cmd
@@ -71,127 +71,31 @@ type Session struct {
 	workingDir string // current working directory (tracked via pwd)
 	cwd        string // last known working directory
 
-	// scrollback is a ring buffer that records all terminal output
-	// (stdin commands + stdout/stderr) for LLM inspection.
-	scrollback      *RingBuffer
-	scrollbackLines int // max lines in scrollback (default: DefaultScrollbackLines)
-	maxLineLen      int // max characters per line in output (default: DefaultMaxLineLen)
-}
-
-// RingBuffer is a fixed-size ring buffer for storing output lines.
-type RingBuffer struct {
-	lines []string
-	max   int
-	pos   int // next write position
-	count int // number of lines currently stored
-}
-
-// NewRingBuffer creates a ring buffer with the given maximum capacity.
-func NewRingBuffer(max int) *RingBuffer {
-	if max <= 0 {
-		max = DefaultScrollbackLines
-	}
-	return &RingBuffer{
-		lines: make([]string, max),
-		max:   max,
-	}
-}
-
-// Add appends a line to the ring buffer, overwriting oldest if full.
-func (rb *RingBuffer) Add(line string) {
-	rb.lines[rb.pos] = line
-	rb.pos = (rb.pos + 1) % rb.max
-	if rb.count < rb.max {
-		rb.count++
-	}
-}
-
-// Lines returns up to count lines from the buffer, starting from the oldest.
-// If count <= 0 or count > stored lines, returns all stored lines.
-func (rb *RingBuffer) Lines(count int) []string {
-	if rb.count == 0 {
-		return nil
-	}
-	if count <= 0 || count > rb.count {
-		count = rb.count
-	}
-	result := make([]string, count)
-	start := rb.pos - count
-	if start < 0 {
-		// Wrapped around: first read from end of array, then from beginning
-		firstPart := rb.lines[rb.max+start : rb.max]
-		secondPart := rb.lines[:rb.pos]
-		result = append(firstPart, secondPart...)
-	} else {
-		copy(result, rb.lines[start:rb.pos])
-	}
-	return result
-}
-
-// GetLastFrom returns a slice of lines starting from lastFrom (1-based from end, 1=most recent),
-// returning at most count lines. Each line is truncated to maxLineLen characters.
-// Returns (lines, truncatedCount) where truncatedCount is the total number of lines
-// that were truncated due to maxLineLen.
-func (rb *RingBuffer) GetLastFrom(lastFrom int, count int, maxLineLen int) ([]string, int) {
-	if rb.count == 0 || lastFrom <= 0 || count <= 0 {
-		return nil, 0
-	}
-
-	// Constrain: lastFrom cannot exceed total stored lines
-	if lastFrom > rb.count {
-		lastFrom = rb.count
-	}
-
-	// Calculate start position in ring buffer (lastFrom = 1 means most recent)
-	// The most recent line is at position (rb.pos - 1) mod rb.max (if count>0)
-	startInRing := (rb.pos - lastFrom + rb.max) % rb.max
-	linesToRead := count
-	if linesToRead > lastFrom {
-		linesToRead = lastFrom
-	}
-
-	result := make([]string, 0, linesToRead)
-	truncatedCount := 0
-
-	for i := 0; i < linesToRead; i++ {
-		idx := (startInRing + i) % rb.max
-		line := rb.lines[idx]
-		if maxLineLen > 0 && len(line) > maxLineLen {
-			line = line[:maxLineLen] + fmt.Sprintf("...(被截断%d字符)", len(line)-maxLineLen)
-			truncatedCount++
-		}
-		result = append(result, line)
-	}
-
-	return result, truncatedCount
-}
-
-// Total returns the total number of lines stored in the buffer.
-func (rb *RingBuffer) Total() int {
-	return rb.count
-}
-
-// Clear resets the ring buffer.
-func (rb *RingBuffer) Clear() {
-	rb.pos = 0
-	rb.count = 0
+	// logFile records all terminal I/O (commands sent + stdout/stderr)
+	// for LLM scrollback inspection. Written during Exec() and read
+	// by GetOutput(). Closed on Close().
+	logFile     *os.File
+	logFilePath string // absolute path to the log file
+	maxLineLen  int    // max characters per line in output (default: DefaultMaxLineLen)
 }
 
 // Status represents the current state of the shell session.
 type Status struct {
-	Running          bool   `json:"running"`
-	ShellType        string `json:"shell_type"`
-	WorkingDir       string `json:"working_dir"`
-	StartedAt        string `json:"started_at"`
-	CommandSent      int    `json:"command_sent"`
-	ErrorCount       int    `json:"error_count"`
-	ScrollbackLines  int    `json:"scrollback_lines"`
-	ScrollbackMaxLen int    `json:"scrollback_max_len"`
+	Running     bool   `json:"running"`
+	ShellType   string `json:"shell_type"`
+	WorkingDir  string `json:"working_dir"`
+	StartedAt   string `json:"started_at"`
+	CommandSent int    `json:"command_sent"`
+	ErrorCount  int    `json:"error_count"`
+	LogFilePath string `json:"log_file_path"`
+	LogFileSize int64  `json:"log_file_size"`
 }
 
 // Start initializes a new persistent shell session.
 // It spawns a long-running shell process connected via pipes.
 // Supports bash/zsh on Unix and cmd.exe on Windows.
+// A timestamped log file is created in the specified log directory
+// (defaults to the current working directory).
 // Returns the session status and any error encountered.
 func (s *Session) Start() (*Status, error) {
 	s.mu.Lock()
@@ -256,51 +160,83 @@ func (s *Session) Start() (*Status, error) {
 	s.cmd = cmd
 	s.stdin = stdin
 	s.stdout = stdout
-	// Initialize scrollback buffer
-	if s.scrollbackLines <= 0 {
-		s.scrollbackLines = DefaultScrollbackLines
-	}
-	if s.maxLineLen <= 0 {
-		s.maxLineLen = DefaultMaxLineLen
-	}
-	s.scrollback = NewRingBuffer(s.scrollbackLines)
 
-	s.started = true
-
-	// Get initial working directory
+	// Get initial working directory for log file placement
 	wd, _ := os.Getwd()
 	s.workingDir = wd
 	s.cwd = wd
 
+	// Create log directory if needed (default: ./log/shell/)
+	logDir := filepath.Join(wd, "log", "shell")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		log.Warn("Cannot create shell log directory %s: %v", logDir, err)
+		logDir = wd
+	}
+
+	// Generate timestamped log file name
+	now := time.Now()
+	logFileName := fmt.Sprintf("shell_%s_%s.log",
+		now.Format("20060102_150405"),
+		s.shellType)
+	logFilePath := filepath.Join(logDir, logFileName)
+
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		log.Warn("Cannot create shell log file %s: %v", logFilePath, err)
+	} else {
+		s.logFile = logFile
+		s.logFilePath = logFilePath
+		// Write session header
+		fmt.Fprintf(logFile, "=== Shell Session Started ===\n")
+		fmt.Fprintf(logFile, "Started At: %s\n", now.Format(time.RFC3339))
+		fmt.Fprintf(logFile, "Shell Type: %s\n", s.shellType)
+		fmt.Fprintf(logFile, "Working Dir: %s\n", wd)
+		fmt.Fprintf(logFile, "PID: %d\n", cmd.Process.Pid)
+		fmt.Fprintf(logFile, "============================\n")
+	}
+
+	if s.maxLineLen <= 0 {
+		s.maxLineLen = DefaultMaxLineLen
+	}
+
+	s.started = true
+
 	// For non-Windows, configure prompt to ensure reliable output parsing
 	if runtime.GOOS != "windows" {
-		// Set a simple, predictable prompt to avoid ANSI/color issues
 		s.sendRaw("PS1='$ '\nexport PS1='$ '\n")
-		// Also disable colors and ls grouping that may cause parsing issues
 		s.sendRaw("alias ls='ls --color=never 2>/dev/null || ls'\n")
 	}
 
 	// Wait for shell to be ready
 	time.Sleep(100 * time.Millisecond)
-	// Drain any initial output (like MOTD, prompt, etc.)
 	s.drainOutput()
 
-	startedAt := time.Now().Format(time.RFC3339)
+	startedAt := now.Format(time.RFC3339)
 
-	log.Info("Persistent shell session started: type=%s, pid=%d", s.shellType, cmd.Process.Pid)
+	log.Info("Persistent shell session started: type=%s, pid=%d, log=%s", s.shellType, cmd.Process.Pid, logFilePath)
 
 	return &Status{
-		Running:    true,
-		ShellType:  s.shellType,
-		WorkingDir: s.workingDir,
-		StartedAt:  startedAt,
+		Running:     true,
+		ShellType:   s.shellType,
+		WorkingDir:  s.workingDir,
+		StartedAt:   startedAt,
+		LogFilePath: logFilePath,
 	}, nil
+}
+
+// writeLog writes a line to the shell log file.
+// Must be called with s.mu held or in a safe context.
+func (s *Session) writeLog(line string) {
+	if s.logFile != nil {
+		fmt.Fprintln(s.logFile, line)
+	}
 }
 
 // Exec sends a command to the persistent shell and captures its output.
 // The command is executed within the existing shell session, preserving
 // all state (environment variables, current directory, etc.).
 // Returns the command output or an error if the session is not running.
+// All I/O is recorded to the session log file.
 func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -314,13 +250,13 @@ func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 	}
 
 	// Send the command followed by the marker
-	// The marker is printed after the command output so we know when to stop reading
 	fullCmd := fmt.Sprintf("%s\necho \"%s\" $?\n", command, marker)
-
-	// For multi-line commands (like heredocs), ensure they work properly
 	if strings.Contains(command, "\n") {
 		fullCmd = fmt.Sprintf("%s\necho \"%s\" $?\n", command, marker)
 	}
+
+	// Log the command
+	s.writeLog("$ " + command)
 
 	_, err := fmt.Fprint(s.stdin, fullCmd)
 	if err != nil {
@@ -329,16 +265,10 @@ func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 
 	log.Debug("Shell exec: %s", command)
 
-	// Record the command to scrollback
-	if s.scrollback != nil {
-		s.scrollback.Add("$ " + command)
-	}
-
 	// Read output until we find the marker line
 	var outputBuf bytes.Buffer
 	reader := bufio.NewReader(s.stdout)
 
-	// Use a channel to handle timeout
 	type readResult struct {
 		line string
 		err  error
@@ -353,13 +283,16 @@ func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 
 		select {
 		case <-ctx.Done():
-			return outputBuf.String(), fmt.Errorf("shell command timed out: %w", ctx.Err())
+			partial := outputBuf.String()
+			s.writeLog(partial)
+			return partial, fmt.Errorf("shell command timed out: %w", ctx.Err())
 		case result := <-resultCh:
 			if result.err != nil {
 				if result.err == io.EOF {
-					// Shell process died
 					s.started = false
-					return outputBuf.String(), fmt.Errorf("shell process terminated unexpectedly")
+					partial := outputBuf.String()
+					s.writeLog(partial)
+					return partial, fmt.Errorf("shell process terminated unexpectedly")
 				}
 				return outputBuf.String(), fmt.Errorf("cannot read shell output: %w", result.err)
 			}
@@ -375,59 +308,84 @@ func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 				if exitCodeStr != "" {
 					fmt.Sscanf(exitCodeStr, "%d", &exitCode)
 				}
-				// Remove marker line from output
 				output := strings.TrimRight(outputBuf.String(), "\n")
+				s.writeLog(fmt.Sprintf("(exit code: %d)", exitCode))
 				if exitCode != 0 {
 					return output, fmt.Errorf("command exited with code %d", exitCode)
 				}
 				return output, nil
 			}
 
-			// Record each output line to scrollback
-			if s.scrollback != nil {
-				s.scrollback.Add(strings.TrimRight(line, "\n\r"))
-			}
-
+			// Log output line and add to buffer
+			trimmed := strings.TrimRight(line, "\n\r")
+			s.writeLog(trimmed)
 			outputBuf.WriteString(line)
 		}
 	}
 }
 
-// GetOutput returns the scrollback content starting from lastFrom lines from the end,
-// returning up to count lines. Each line is truncated to max returns per-line character limit.
-// Returns the output as a string, total available lines in scrollback, and truncated line count.
+// GetOutput retrieves the tail of the shell log file.
+// Reads up to count lines from the end of the file (most recent).
+// Each line is truncated to s.maxLineLen characters.
+// Returns the output text, total number of lines in the file,
+// and how many lines were truncated.
 func (s *Session) GetOutput(lastFrom int, count int) (string, int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.scrollback == nil {
-		return "scrollback buffer not available", 0, 0
+	if s.logFile == nil || s.logFilePath == "" {
+		return "shell session log file not available", 0, 0
 	}
 
-	lines, truncatedCount := s.scrollback.GetLastFrom(lastFrom, count, s.maxLineLen)
+	// Reopen for reading (log file was opened for writing)
+	data, err := os.ReadFile(s.logFilePath)
+	if err != nil {
+		return fmt.Sprintf("cannot read log file: %v", err), 0, 0
+	}
 
+	// Split into lines
+	allLines := strings.Split(string(data), "\n")
+	// Remove trailing empty line from final newline
+	if len(allLines) > 0 && allLines[len(allLines)-1] == "" {
+		allLines = allLines[:len(allLines)-1]
+	}
+	totalLines := len(allLines)
+
+	if totalLines == 0 {
+		return "(empty)", 0, 0
+	}
+
+	// Constrain lastFrom
+	if lastFrom <= 0 || lastFrom > totalLines {
+		lastFrom = totalLines
+	}
+
+	linesToRead := count
+	if linesToRead <= 0 {
+		linesToRead = 50
+	}
+	if linesToRead > lastFrom {
+		linesToRead = lastFrom
+	}
+
+	startLine := totalLines - lastFrom
+	selected := allLines[startLine : startLine+linesToRead]
+
+	truncatedCount := 0
 	var result strings.Builder
-	for _, line := range lines {
+	for _, line := range selected {
+		if s.maxLineLen > 0 && len(line) > s.maxLineLen {
+			line = line[:s.maxLineLen] + fmt.Sprintf("...(被截断%d字符)", len(line)-s.maxLineLen)
+			truncatedCount++
+		}
 		result.WriteString(line)
 		result.WriteString("\n")
 	}
 
-	return strings.TrimRight(result.String(), "\n"), s.scrollback.Total(), truncatedCount
-}
-
-// SetScrollbackLines sets the maximum number of lines kept in the scrollback buffer.
-// Only effective before Start() is called.
-func (s *Session) SetScrollbackLines(n int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if n <= 0 {
-		n = DefaultScrollbackLines
-	}
-	s.scrollbackLines = n
+	return strings.TrimRight(result.String(), "\n"), totalLines, truncatedCount
 }
 
 // SetMaxLineLen sets the maximum characters per line for scrollback output.
-// Only effective before Start() is called.
 func (s *Session) SetMaxLineLen(n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -439,6 +397,7 @@ func (s *Session) SetMaxLineLen(n int) {
 
 // Close terminates the shell session gracefully.
 // It sends an exit command first, then kills the process if it doesn't exit.
+// The log file is closed and will no longer be appended to.
 func (s *Session) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -448,6 +407,16 @@ func (s *Session) Close() error {
 	}
 
 	s.closed = true
+
+	// Write session footer to log file
+	s.writeLog("============================")
+	s.writeLog("=== Shell Session Closed ===")
+
+	// Close log file
+	if s.logFile != nil {
+		s.logFile.Close()
+		s.logFile = nil
+	}
 
 	// Try graceful shutdown
 	if s.stdin != nil {
@@ -471,7 +440,7 @@ func (s *Session) Close() error {
 	}
 
 	s.started = false
-	log.Info("Persistent shell session closed")
+	log.Info("Persistent shell session closed, log saved to: %s", s.logFilePath)
 
 	return nil
 }
@@ -488,11 +457,27 @@ func (s *Session) Status() *Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return &Status{
-		Running:    s.started && !s.closed,
-		ShellType:  s.shellType,
-		WorkingDir: s.workingDir,
+	var fileSize int64
+	if s.logFile != nil {
+		if fi, err := s.logFile.Stat(); err == nil {
+			fileSize = fi.Size()
+		}
 	}
+
+	return &Status{
+		Running:     s.started && !s.closed,
+		ShellType:   s.shellType,
+		WorkingDir:  s.workingDir,
+		LogFilePath: s.logFilePath,
+		LogFileSize: fileSize,
+	}
+}
+
+// LogFilePath returns the full path to the session log file.
+func (s *Session) LogFilePath() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.logFilePath
 }
 
 // sendRaw sends raw text to the shell without adding markers.
@@ -509,7 +494,6 @@ func (s *Session) drainOutput() {
 	if s.stdout == nil {
 		return
 	}
-	// Read with a short timeout to get any pending output
 	done := make(chan struct{})
 	go func() {
 		buf := make([]byte, 4096)
