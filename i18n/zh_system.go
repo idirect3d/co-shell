@@ -412,7 +412,17 @@ Usage:
 </adjust_context_start>`
 
 	zhMessages[KeyToolUsageAttemptCompletion] = `## attempt_completion
-`
+Description: 每次工具调用后，用户会回应该工具调用的结果（成功或失败及原因）。当你已确认任务完成时，使用此工具向用户呈现你的工作成果。可选择提供一个 CLI 命令来展示运行结果。用户可能会对结果提供反馈，你可以据此进行改进并重试。
+重要提示：在确认所有之前的工具调用都已成功之前，不得使用此工具。在未确认的情况下使用将导致代码损坏和系统故障。使用此工具前，你必须在 <thinking></thinking> 标签中自问是否已确认所有之前的工具调用都成功了。如果没有，请不要使用此工具。
+如果你使用 create_task_plan/update_task_step 等来管理任务进度，所有未完成的任务会被标记为完成。
+Parameters:
+- result (必需) 工具调用的结果。应是对结果的清晰、具体描述。
+- command (可选) 可选的 CLI 命令，用于向用户演示结果。例如使用 'open index.html' 展示创建的 HTML 网站，或使用 'open localhost:3000' 展示本地开发服务器。不要使用 'echo' 或 'cat' 等仅输出文本的命令。命令必须对当前操作系统有效，确保格式正确且不包含有害指令。
+Usage:
+<attempt_completion>
+  <result>Your final result description here</result>
+  <command>Your command here (optional)</command>
+</attempt_completion>`
 
 	zhMessages[KeyToolUsageShellStart] = `## shell_start
 说明: 启动一个持久交互式 Shell 会话，保持状态（当前目录、环境变量等）跨多次命令执行。当需要连续执行依赖于彼此状态的命令时（如 cd 到目录、启动 Python REPL），应使用此方法代替 execute_command。返回会话状态，包括 Shell 类型和工作目录。
