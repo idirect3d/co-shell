@@ -90,16 +90,26 @@ func (a *Agent) shellExecTool(ctx context.Context, args map[string]interface{}) 
 	}
 
 	// Get LLM-suggested timeout (optional)
-	timeoutSeconds := 0
+	llmSuggested := 0
 	if t, ok := args["timeout_seconds"].(float64); ok {
-		timeoutSeconds = int(t)
+		llmSuggested = int(t)
+	}
+
+	// Effective timeout = max(user-configured ShellSessionTimeout, LLM-suggested)
+	userMin := 0
+	if a.cfg != nil {
+		userMin = a.cfg.LLM.ShellSessionTimeout
+	}
+	effectiveTimeout := userMin
+	if llmSuggested > effectiveTimeout {
+		effectiveTimeout = llmSuggested
 	}
 
 	// Create context with optional timeout
 	execCtx := ctx
-	if timeoutSeconds > 0 {
+	if effectiveTimeout > 0 {
 		var cancel context.CancelFunc
-		execCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+		execCtx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeout)*time.Second)
 		defer cancel()
 	}
 
