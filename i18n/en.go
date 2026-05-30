@@ -313,7 +313,7 @@ var enMessages = map[string]string{
 	KeyCLIHelpMaxTokens:    "      --max-tokens <n>   Max output tokens (overrides config)",
 	KeyCLIHelpShowThinking: "      --show-thinking    Show AI thinking process (on/off, overrides config)",
 	KeyCLIHelpShowCommand:  "      --show-command     Show executed system commands (on/off, overrides config)",
-	KeyCLIHelpConfirmTool:  "      --confirm-tool  Confirm before executing tools (on/off, overrides config).\n                          Controllable tools: execute_command, read_file, write_to_file,\n                          replace_in_file, search_files, list_code_definition_names,\n                          add_images, remove_images, clear_images, update_settings,\n                          list_settings, ask_followup_question, adjust_context_start,\n                          launch_sub_agent, schedule_task, create_task_plan,\n                          update_task_step, insert_task_steps, remove_task_steps,\n                          view_task_plan, get_memory_slice,\n                          memory_search, delete_memory and MCP tools",
+	KeyCLIHelpConfirmTool:  "      --confirm-tool  Confirm before executing tools (on/off, overrides config).\n                          Controllable tools: execute_command, read_file, write_to_file,\n                          replace_in_file, search_files, list_code_definition_names,\n                          add_images, remove_images, clear_images, update_settings,\n                          list_settings, ask_followup_question, adjust_context_start,\n                          launch_sub_agent, schedule_task, create_task_plan,\n                          update_task_step, insert_task_steps, remove_task_steps,\n                          view_task_plan, get_memory_slice,\n                          memory_search, delete_memory, shell_start, shell_exec,\n                          shell_get_output, shell_stop and MCP tools",
 	KeyCLIHelpResultMode:   "      --result-mode      Result processing mode (minimal/explain/analyze/free, overrides config)",
 
 	// CLI Help - Agent Identity
@@ -674,4 +674,10 @@ no liability whatsoever.`,
 	KeyCol3ToolCallMode:     "Tool Call Mode(openai|xml)",
 	KeySettingsDescToolMode: "Tool call mode (openai: standard API, xml: inline XML tags)",
 	KeyCLIHelpToolCallMode:  "Tool call mode (openai/xml, overrides config file)",
+
+	// Shell session
+	KeyCol3ShellSessionEnabled:         "Shell Session Enabled(on|off)",
+	KeyCol3ShellSessionTimeout:         "Shell Session Timeout(seconds, 0=unlimited)",
+	KeySettingsDescShellSessionEnabled: "Enable persistent shell session tools (shell_start, shell_exec, shell_stop)",
+	KeySettingsDescShellSessionTimeout: "Timeout for each command in the persistent shell session (0=no timeout)",
 }

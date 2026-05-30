@@ -57,6 +57,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 				"create_task_plan", "update_task_step", "insert_task_steps",
 				"remove_task_steps", "view_task_plan",
 				"get_memory_slice", "memory_search", "delete_memory",
+				"shell_start", "shell_exec", "shell_get_output", "shell_stop",
 			}
 			for _, toolName := range allTools {
 				mode := confirmDefault

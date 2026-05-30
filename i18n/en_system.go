@@ -421,6 +421,53 @@ Usage:
   <command>Your command here (optional)</command>
 </attempt_completion>`
 
+	enMessages[KeyToolUsageShellStart] = `## shell_start
+Description: Start a persistent interactive shell session that maintains state across multiple command executions. Use instead of execute_command when you need to run multiple sequential commands that depend on each other's state (e.g., cd into a directory and run commands there, or start a Python REPL). Returns session status including shell type and working directory.
+Parameters: None
+Usage:
+<shell_start>
+</shell_start>`
+
+	enMessages[KeyToolUsageShellExec] = `## shell_exec
+Description: Execute a command in the persistent shell session. The command runs in the same shell environment as previous shell_exec calls, preserving all state (current directory, environment variables, Python REPL variables, etc.). Use for sequential commands that depend on each other's state. Returns the command output.
+Parameters:
+- command (required) The command to execute in the persistent shell session
+- timeout_seconds (optional) Timeout in seconds to limit execution time
+
+Usage pattern - multiple sequential calls:
+  # Step 1: Enter the working directory
+  <shell_exec>
+    <command>cd /var/www/project</command>
+  </shell_exec>
+
+  # Step 2: List files (still in same directory from step 1)
+  <shell_exec>
+    <command>ls -la</command>
+  </shell_exec>
+
+  # Step 3: Read a file (still in same directory)
+  <shell_exec>
+    <command>cat package.json</command>
+  </shell_exec>`
+
+	enMessages[KeyToolUsageShellGetOutput] = `## shell_get_output
+Description: Retrieve the terminal scrollback history from the persistent shell session. Returns what you'd see scrolling up in a terminal window - all commands and their output. Use this when you need to review the history of what has happened in the session, for example to check Python REPL output or review previous command results.
+Parameters:
+- last_from (optional) Starting position from the end (1-based, 1=most recent line). Default: 1
+- count (optional) Number of lines to return. Default: 50
+Usage:
+<shell_get_output>
+  <last_from>100</last_from>
+  <count>50</count>
+</shell_get_output>`
+
+	enMessages[KeyToolUsageShellStop] = `## shell_stop
+Description: Stop and close the persistent shell session. This terminates the background shell process and releases resources. Call this when you no longer need the session.
+Parameters: None
+Usage:
+<shell_stop>
+</shell_stop>`
+
 	// Supplementary rules for XML mode — Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files
 	enMessages[KeySystemPromptXMLRules] = `
 # Tool Use Examples

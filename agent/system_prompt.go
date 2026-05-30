@@ -102,7 +102,7 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, agentName, 
 	}
 
 	// Part 1: Identity
-	identityText := "IDENTITY\n\n" + i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
+	identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName, agentDescription, agentPrinciples)
 
 	// Part 2: Tool Usage Guide
 	// Use the provided toolUsageText if given, otherwise default to OpenAI-style tool usage.
