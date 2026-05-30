@@ -30,7 +30,6 @@
 package shell
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -47,8 +46,6 @@ import (
 )
 
 const (
-	// marker is a unique sentinel string used to mark command output boundaries.
-	// It's highly unlikely to appear in real command output.
 	marker = "COSHELL__CMD_END_MARKER_1748489600"
 )
 
@@ -56,10 +53,10 @@ const (
 const DefaultMaxLineLen = 4096
 
 // Session represents a persistent interactive shell session.
-// It maintains a long-running shell process and allows sending commands
-// and capturing their output within the same environment.
-// All terminal I/O (commands, stdout, stderr) is recorded to a log file
-// for LLM inspection via GetOutput().
+// A single background goroutine reads all stdout data and pushes lines
+// into a channel. Each Exec() call reads from this channel until it
+// finds the end marker. This avoids goroutine leaks and data races
+// that occur with per-call buffered readers.
 type Session struct {
 	mu         sync.Mutex
 	cmd        *exec.Cmd
@@ -67,16 +64,20 @@ type Session struct {
 	stdout     io.ReadCloser
 	started    bool
 	closed     bool
-	shellType  string // "bash", "zsh", "cmd", or "powershell"
-	workingDir string // current working directory (tracked via pwd)
-	cwd        string // last known working directory
+	shellType  string
+	workingDir string
 
-	// logFile records all terminal I/O (commands sent + stdout/stderr)
-	// for LLM scrollback inspection. Written during Exec() and read
-	// by GetOutput(). Closed on Close().
+	// lineCh carries lines read from stdout by the background reader goroutine.
+	// Each Exec() call reads from this channel until marker found.
+	lineCh chan string
+	// readErr carries reader errors from the background goroutine.
+	readErr chan error
+	// stopRead signals the background reader goroutine to stop.
+	stopRead chan struct{}
+
 	logFile     *os.File
-	logFilePath string // absolute path to the log file
-	maxLineLen  int    // max characters per line in output (default: DefaultMaxLineLen)
+	logFilePath string
+	maxLineLen  int
 }
 
 // Status represents the current state of the shell session.
@@ -85,18 +86,11 @@ type Status struct {
 	ShellType   string `json:"shell_type"`
 	WorkingDir  string `json:"working_dir"`
 	StartedAt   string `json:"started_at"`
-	CommandSent int    `json:"command_sent"`
-	ErrorCount  int    `json:"error_count"`
 	LogFilePath string `json:"log_file_path"`
 	LogFileSize int64  `json:"log_file_size"`
 }
 
 // Start initializes a new persistent shell session.
-// It spawns a long-running shell process connected via pipes.
-// Supports bash/zsh on Unix and cmd.exe on Windows.
-// A timestamped log file is created in the specified log directory
-// (defaults to the current working directory).
-// Returns the session status and any error encountered.
 func (s *Session) Start() (*Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -109,7 +103,6 @@ func (s *Session) Start() (*Status, error) {
 	var shellArgs []string
 
 	if runtime.GOOS == "windows" {
-		// Try PowerShell first, fall back to cmd
 		if _, err := exec.LookPath("powershell.exe"); err == nil {
 			shellPath = "powershell.exe"
 			shellArgs = []string{"-NoLogo", "-NoProfile", "-Command", "-"}
@@ -120,35 +113,30 @@ func (s *Session) Start() (*Status, error) {
 			s.shellType = "cmd"
 		}
 	} else {
-		// Try zsh first, fall back to bash
+		// `script -q /dev/null zsh` allocates a PTY for line-buffered output.
+		shellPath = "/usr/bin/script"
+		shellArgs = []string{"-q", "/dev/null"}
 		if _, err := exec.LookPath("zsh"); err == nil {
-			shellPath = "zsh"
-			shellArgs = []string{"-i"}
+			shellArgs = append(shellArgs, "zsh")
 			s.shellType = "zsh"
 		} else {
-			shellPath = "bash"
-			shellArgs = []string{"-i"}
+			shellArgs = append(shellArgs, "bash")
 			s.shellType = "bash"
 		}
 	}
 
 	cmd := exec.Command(shellPath, shellArgs...)
 
-	// Set up pipes for stdin/stdout
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create stdin pipe: %w", err)
 	}
-
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create stdout pipe: %w", err)
 	}
-
-	// Merge stderr into stdout so we capture error output too
 	cmd.Stderr = cmd.Stdout
 
-	// Set PGID for process group management on Unix
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = sysProcAttr()
 	}
@@ -160,24 +148,25 @@ func (s *Session) Start() (*Status, error) {
 	s.cmd = cmd
 	s.stdin = stdin
 	s.stdout = stdout
+	s.lineCh = make(chan string, 1000)
+	s.readErr = make(chan error, 1)
+	s.stopRead = make(chan struct{})
 
-	// Get initial working directory for log file placement
+	// Start persistent background line reader.
+	// ONE goroutine for the entire session lifetime.
+	go s.readLines()
+
 	wd, _ := os.Getwd()
 	s.workingDir = wd
-	s.cwd = wd
 
-	// Create log directory if needed (default: ./log/shell/)
 	logDir := filepath.Join(wd, "log", "shell")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		log.Warn("Cannot create shell log directory %s: %v", logDir, err)
 		logDir = wd
 	}
 
-	// Generate timestamped log file name
 	now := time.Now()
-	logFileName := fmt.Sprintf("shell_%s_%s.log",
-		now.Format("20060102_150405"),
-		s.shellType)
+	logFileName := fmt.Sprintf("shell_%s_%s.log", now.Format("20060102_150405"), s.shellType)
 	logFilePath := filepath.Join(logDir, logFileName)
 
 	logFile, err := os.Create(logFilePath)
@@ -186,7 +175,6 @@ func (s *Session) Start() (*Status, error) {
 	} else {
 		s.logFile = logFile
 		s.logFilePath = logFilePath
-		// Write session header
 		fmt.Fprintf(logFile, "=== Shell Session Started ===\n")
 		fmt.Fprintf(logFile, "Started At: %s\n", now.Format(time.RFC3339))
 		fmt.Fprintf(logFile, "Shell Type: %s\n", s.shellType)
@@ -201,18 +189,19 @@ func (s *Session) Start() (*Status, error) {
 
 	s.started = true
 
-	// For non-Windows, configure prompt to ensure reliable output parsing
 	if runtime.GOOS != "windows" {
-		s.sendRaw("PS1='$ '\nexport PS1='$ '\n")
+		s.sendRaw("PS1='$ '\n")
+		s.sendRaw("export PS1='$ '\n")
 		s.sendRaw("alias ls='ls --color=never 2>/dev/null || ls'\n")
 	}
 
-	// Wait for shell to be ready
-	time.Sleep(100 * time.Millisecond)
-	s.drainOutput()
+	time.Sleep(150 * time.Millisecond)
+	// Drain initial output from the background reader by reading
+	// from lineCh briefly. Do NOT call drainOutput() which starts
+	// a competing goroutine reading the same s.stdout pipe.
+	s.drainLines()
 
 	startedAt := now.Format(time.RFC3339)
-
 	log.Info("Persistent shell session started: type=%s, pid=%d, log=%s", s.shellType, cmd.Process.Pid, logFilePath)
 
 	return &Status{
@@ -224,19 +213,55 @@ func (s *Session) Start() (*Status, error) {
 	}, nil
 }
 
-// writeLog writes a line to the shell log file.
-// Must be called with s.mu held or in a safe context.
+// readLines is a persistent goroutine that reads lines from stdout
+// and pushes them into lineCh. It runs for the entire session lifetime.
+// stdin/stderr write to logfile.
+func (s *Session) readLines() {
+	buf := make([]byte, 1)
+	var lineBuf bytes.Buffer
+
+	for {
+		select {
+		case <-s.stopRead:
+			return
+		default:
+		}
+
+		// Read one byte at a time
+		n, err := s.stdout.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				s.readErr <- err
+			}
+			return
+		}
+
+		if n == 0 {
+			continue
+		}
+
+		log.Raw("%c", buf[0])
+
+		lineBuf.WriteByte(buf[0])
+
+		// When we hit newline, push the complete line
+		if buf[0] == '\n' {
+			line := lineBuf.String()
+			log.Debug("shell readLines: complete line=%q", line)
+			lineBuf.Reset()
+			s.lineCh <- line
+		}
+	}
+}
+
 func (s *Session) writeLog(line string) {
 	if s.logFile != nil {
 		fmt.Fprintln(s.logFile, line)
 	}
 }
 
-// Exec sends a command to the persistent shell and captures its output.
-// The command is executed within the existing shell session, preserving
-// all state (environment variables, current directory, etc.).
-// Returns the command output or an error if the session is not running.
-// All I/O is recorded to the session log file.
+// Exec sends a command and reads output until the marker.
+// Uses the persistent background reader to avoid goroutine leaks.
 func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -244,108 +269,80 @@ func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 	if !s.started || s.closed {
 		return "", fmt.Errorf("shell session is not running")
 	}
-
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// Send the command followed by the marker
 	fullCmd := fmt.Sprintf("%s\necho \"%s\" $?\n", command, marker)
 	if strings.Contains(command, "\n") {
 		fullCmd = fmt.Sprintf("%s\necho \"%s\" $?\n", command, marker)
 	}
 
-	// Log the command
 	s.writeLog("$ " + command)
 
-	_, err := fmt.Fprint(s.stdin, fullCmd)
-	if err != nil {
+	if _, err := fmt.Fprint(s.stdin, fullCmd); err != nil {
 		return "", fmt.Errorf("cannot send command to shell: %w", err)
 	}
 
 	log.Debug("Shell exec: %s", command)
 
-	// Read output until we find the marker line
 	var outputBuf bytes.Buffer
-	reader := bufio.NewReader(s.stdout)
-
-	type readResult struct {
-		line string
-		err  error
-	}
-	resultCh := make(chan readResult, 1)
 
 	for {
-		go func() {
-			line, err := reader.ReadString('\n')
-			resultCh <- readResult{line: line, err: err}
-		}()
+		var line string
+		var err error
 
 		select {
+		case line = <-s.lineCh:
+		case err = <-s.readErr:
+			s.started = false
+			partial := outputBuf.String()
+			s.writeLog(partial)
+			return partial, fmt.Errorf("shell process terminated: %w", err)
 		case <-ctx.Done():
 			partial := outputBuf.String()
 			s.writeLog(partial)
 			return partial, fmt.Errorf("shell command timed out: %w", ctx.Err())
-		case result := <-resultCh:
-			if result.err != nil {
-				if result.err == io.EOF {
-					s.started = false
-					partial := outputBuf.String()
-					s.writeLog(partial)
-					return partial, fmt.Errorf("shell process terminated unexpectedly")
-				}
-				return outputBuf.String(), fmt.Errorf("cannot read shell output: %w", result.err)
-			}
-
-			line := result.line
-
-			// Check for marker
-			markerIdx := strings.Index(line, marker)
-			if markerIdx >= 0 {
-				// Extract exit code from after the marker
-				exitCodeStr := strings.TrimSpace(line[markerIdx+len(marker):])
-				exitCode := 0
-				if exitCodeStr != "" {
-					fmt.Sscanf(exitCodeStr, "%d", &exitCode)
-				}
-				output := strings.TrimRight(outputBuf.String(), "\n")
-				s.writeLog(fmt.Sprintf("(exit code: %d)", exitCode))
-				if exitCode != 0 {
-					return output, fmt.Errorf("command exited with code %d", exitCode)
-				}
-				return output, nil
-			}
-
-			// Log output line and add to buffer
-			trimmed := strings.TrimRight(line, "\n\r")
-			s.writeLog(trimmed)
-			outputBuf.WriteString(line)
 		}
+
+		markerIdx := strings.Index(line, marker)
+		if markerIdx >= 0 {
+			exitCodeStr := strings.TrimSpace(line[markerIdx+len(marker):])
+			exitCode := 0
+			if exitCodeStr != "" {
+				fmt.Sscanf(exitCodeStr, "%d", &exitCode)
+			}
+			output := strings.TrimRight(outputBuf.String(), "\n")
+			s.writeLog(fmt.Sprintf("(exit code: %d)", exitCode))
+			if exitCode != 0 {
+				return output, fmt.Errorf("command exited with code %d", exitCode)
+			}
+			return output, nil
+		}
+
+		trimmed := strings.TrimRight(line, "\n\r")
+		if trimmed != "" {
+			s.writeLog(trimmed)
+		}
+		outputBuf.WriteString(line)
 	}
 }
 
-// GetOutput retrieves the tail of the shell log file.
-// Reads up to count lines from the end of the file (most recent).
-// Each line is truncated to s.maxLineLen characters.
-// Returns the output text, total number of lines in the file,
-// and how many lines were truncated.
+// GetOutput reads lines from the end of the shell log file.
 func (s *Session) GetOutput(lastFrom int, count int) (string, int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.logFile == nil || s.logFilePath == "" {
-		return "shell session log file not available", 0, 0
+	if s.logFilePath == "" {
+		return "log file not available", 0, 0
 	}
 
-	// Reopen for reading (log file was opened for writing)
 	data, err := os.ReadFile(s.logFilePath)
 	if err != nil {
 		return fmt.Sprintf("cannot read log file: %v", err), 0, 0
 	}
 
-	// Split into lines
 	allLines := strings.Split(string(data), "\n")
-	// Remove trailing empty line from final newline
 	if len(allLines) > 0 && allLines[len(allLines)-1] == "" {
 		allLines = allLines[:len(allLines)-1]
 	}
@@ -355,11 +352,9 @@ func (s *Session) GetOutput(lastFrom int, count int) (string, int, int) {
 		return "(empty)", 0, 0
 	}
 
-	// Constrain lastFrom
 	if lastFrom <= 0 || lastFrom > totalLines {
 		lastFrom = totalLines
 	}
-
 	linesToRead := count
 	if linesToRead <= 0 {
 		linesToRead = 50
@@ -385,7 +380,6 @@ func (s *Session) GetOutput(lastFrom int, count int) (string, int, int) {
 	return strings.TrimRight(result.String(), "\n"), totalLines, truncatedCount
 }
 
-// SetMaxLineLen sets the maximum characters per line for scrollback output.
 func (s *Session) SetMaxLineLen(n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -396,8 +390,6 @@ func (s *Session) SetMaxLineLen(n int) {
 }
 
 // Close terminates the shell session gracefully.
-// It sends an exit command first, then kills the process if it doesn't exit.
-// The log file is closed and will no longer be appended to.
 func (s *Session) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -405,33 +397,30 @@ func (s *Session) Close() error {
 	if !s.started || s.closed {
 		return nil
 	}
-
 	s.closed = true
 
-	// Write session footer to log file
+	// Stop the background reader goroutine
+	close(s.stopRead)
+
 	s.writeLog("============================")
 	s.writeLog("=== Shell Session Closed ===")
 
-	// Close log file
 	if s.logFile != nil {
 		s.logFile.Close()
 		s.logFile = nil
 	}
 
-	// Try graceful shutdown
 	if s.stdin != nil {
 		fmt.Fprint(s.stdin, "exit\n")
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Kill the process group
 	if s.cmd != nil && s.cmd.Process != nil {
 		if err := killProcess(s.cmd); err != nil {
 			log.Warn("Failed to kill shell process: %v", err)
 		}
 	}
 
-	// Close pipes
 	if s.stdin != nil {
 		s.stdin.Close()
 	}
@@ -441,18 +430,15 @@ func (s *Session) Close() error {
 
 	s.started = false
 	log.Info("Persistent shell session closed, log saved to: %s", s.logFilePath)
-
 	return nil
 }
 
-// IsRunning returns true if the shell session is currently active.
 func (s *Session) IsRunning() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.started && !s.closed
 }
 
-// Status returns the current status of the shell session.
 func (s *Session) Status() *Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -463,7 +449,6 @@ func (s *Session) Status() *Status {
 			fileSize = fi.Size()
 		}
 	}
-
 	return &Status{
 		Running:     s.started && !s.closed,
 		ShellType:   s.shellType,
@@ -473,23 +458,33 @@ func (s *Session) Status() *Status {
 	}
 }
 
-// LogFilePath returns the full path to the session log file.
 func (s *Session) LogFilePath() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.logFilePath
 }
 
-// sendRaw sends raw text to the shell without adding markers.
-// Used for initialization commands.
 func (s *Session) sendRaw(text string) {
 	if s.stdin != nil {
 		fmt.Fprint(s.stdin, text)
 	}
 }
 
-// drainOutput reads and discards any pending output from the shell.
-// Used during initialization to clear MOTD and prompt.
+// drainLines reads and discards any pending lines from the background reader.
+// This replaces the old drainOutput() which spawned a competing goroutine.
+func (s *Session) drainLines() {
+	if s.lineCh == nil {
+		return
+	}
+	for {
+		select {
+		case <-s.lineCh:
+		case <-time.After(50 * time.Millisecond):
+			return
+		}
+	}
+}
+
 func (s *Session) drainOutput() {
 	if s.stdout == nil {
 		return
@@ -505,9 +500,8 @@ func (s *Session) drainOutput() {
 		}
 		close(done)
 	}()
-
 	select {
 	case <-done:
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(300 * time.Millisecond):
 	}
 }
