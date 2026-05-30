@@ -146,6 +146,12 @@ type LLMConfig struct {
 	// SubAgentEnabled: whether sub-agent tools (launch_sub_agent) are enabled
 	SubAgentEnabled bool `json:"sub_agent_enabled"`
 
+	// ShellSessionEnabled: whether persistent shell session tools (shell_start, shell_exec, shell_stop) are enabled
+	ShellSessionEnabled bool `json:"shell_session_enabled"`
+
+	// ShellSessionTimeout: persistent shell command execution timeout in seconds (0 = no timeout)
+	ShellSessionTimeout int `json:"shell_session_timeout"`
+
 	// SearchMaxLineLength: maximum character length for a single line in search results
 	// Lines longer than this will be truncated. Default: 8192
 	SearchMaxLineLength int `json:"search_max_line_length"`
@@ -439,6 +445,8 @@ func DefaultConfig() *Config {
 			MemoryEnabled:             true,
 			PlanEnabled:               true,
 			SubAgentEnabled:           true,
+			ShellSessionEnabled:       true,
+			ShellSessionTimeout:       0,
 			SearchMaxLineLength:       8192,
 			SearchMaxResultBytes:      65536,
 			SearchContextLines:        5,

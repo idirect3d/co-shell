@@ -40,6 +40,7 @@ import (
 	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/memory"
 	"github.com/idirect3d/co-shell/scheduler"
+	"github.com/idirect3d/co-shell/shell"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/subagent"
 	"github.com/idirect3d/co-shell/taskplan"
@@ -150,6 +151,11 @@ type Agent struct {
 	// lastUserInput stores the raw user instruction (before formatUserMessage formatting)
 	// for use as {TASK} in the system prompt Objective section.
 	lastUserInput string
+
+	// Persistent shell session for interactive command execution (FEATURE-192)
+	shellSession     *shell.Session
+	shellEnabled     bool   // whether persistent shell tools are enabled
+	shellSessionMode string // "confirm" or "auto" - user confirmation mode
 }
 
 // buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.

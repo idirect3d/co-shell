@@ -424,7 +424,52 @@ Usage:
   <command>Your command here (optional)</command>
 </attempt_completion>`
 
-	// Supplementary rules for XML mode — Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files
+	zhMessages[KeyToolUsageShellStart] = `## shell_start
+说明: 启动一个持久交互式 Shell 会话，保持状态（当前目录、环境变量等）跨多次命令执行。当需要连续执行依赖于彼此状态的命令时（如 cd 到目录、启动 Python REPL），应使用此方法代替 execute_command。返回会话状态，包括 Shell 类型和工作目录。
+参数: 无
+用法:
+<shell_start>
+</shell_start>`
+
+	zhMessages[KeyToolUsageShellExec] = `## shell_exec
+说明: 在持久 Shell 会话中执行命令。命令在上一次 shell_exec 调用的同一 Shell 环境中运行，保持所有状态（当前目录、环境变量、Python REPL 变量等）。用于状态依赖的连续命令。返回命令输出。
+参数:
+- command（必填）要在持久 Shell 会话中执行的命令
+- timeout_seconds（可选）超时秒数
+
+调用模式 - 多次连续调用:
+  # 第1步: 进入工作目录
+  <shell_exec>
+    <command>cd /var/www/project</command>
+  </shell_exec>
+
+  # 第2步: 列出文件（仍在上一步的目录中）
+  <shell_exec>
+    <command>ls -la</command>
+  </shell_exec>
+
+  # 第3步: 读取文件（仍在同一目录）
+  <shell_exec>
+    <command>cat package.json</command>
+  </shell_exec>`
+
+	zhMessages[KeyToolUsageShellGetOutput] = `## shell_get_output
+说明: 获取持久 Shell 会话的终端滚动历史内容。返回在终端中向上滚动才能看到的全部历史 - 所有命令及其输出。当你需要查看会话历史（如检查 Python REPL 输出或回顾之前的命令结果）时使用。
+参数:
+- last_from（可选）从末尾算起的起始位置（1 表示最近一行）。默认: 1
+- count（可选）返回的行数。默认: 50
+用法:
+<shell_get_output>
+  <last_from>100</last_from>
+  <count>50</count>
+</shell_get_output>`
+
+	zhMessages[KeyToolUsageShellStop] = `## shell_stop
+说明: 停止并关闭持久 Shell 会话。终止后台 Shell 进程并释放资源。不需要会话时调用。
+参数: 无
+用法:
+</shell_stop>`
+
 	zhMessages[KeySystemPromptXMLRules] = `
 # 工具使用示例
 

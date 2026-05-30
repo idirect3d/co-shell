@@ -90,6 +90,64 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Callback: a.executeSystemCommand,
 		},
 		{
+			Name:        "shell_start",
+			Description: "Start a persistent interactive shell session that maintains state (current directory, environment variables, etc.) across multiple command executions. Use this instead of execute_command when you need to run multiple commands in the same shell environment, for example: cd into a directory and then run commands there, or start a Python REPL and execute Python code interactively. Returns the session status including shell type and working directory. Only one session can be active at a time.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
+			},
+			Callback: a.shellStartTool,
+		},
+		{
+			Name:        "shell_exec",
+			Description: "Execute a command in the persistent shell session. The command runs in the same shell environment as previous shell_exec calls, preserving all state (current directory, environment variables, aliases, etc.). Use this to run sequential commands that depend on each other's state. Returns the command output. You can optionally specify timeout_seconds to limit execution time.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{
+						"type":        "string",
+						"description": "The command to execute in the persistent shell session",
+					},
+					"timeout_seconds": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional timeout in seconds. Set this based on your estimate of how long the command will take. 0 or omitted means no timeout (use the default shell-session-timeout).",
+					},
+				},
+				"required": []string{"command"},
+			},
+			Callback: a.shellExecTool,
+		},
+		{
+			Name:        "shell_get_output",
+			Description: "Retrieve the terminal scrollback content from the persistent shell session. This returns the terminal's output history including commands and their output, similar to scrolling up in a terminal window. Use this when you need to see what happened in the shell session before your last command, for example to check Python REPL history or review previous command output. Parameters: last_from (1-based from end, 1=most recent line), count (how many lines to return, default 50). Lines that exceed the maximum per-line character limit are truncated with a note.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"last_from": map[string]interface{}{
+						"type":        "number",
+						"description": "Starting position from the end (1-based, 1=most recent line). Must be >= 1.",
+					},
+					"count": map[string]interface{}{
+						"type":        "number",
+						"description": "Number of lines to return. Default: 50. Maximum will be limited by the scrollback buffer size.",
+					},
+				},
+				"required": []string{},
+			},
+			Callback: a.shellGetOutputTool,
+		},
+		{
+			Name:        "shell_stop",
+			Description: "Stop and close the persistent shell session. This terminates the background shell process and frees resources. Call this when you no longer need the persistent shell session.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
+			},
+			Callback: a.shellStopTool,
+		},
+		{
 			Name:        "read_file",
 			Description: "Read the contents of a file at the specified path. Use this to examine the contents of an existing file. Returns the file content with line numbers. Supports start_line and end_line to read specific sections of large files.",
 			Parameters: map[string]interface{}{
