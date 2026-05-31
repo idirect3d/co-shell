@@ -52,8 +52,12 @@ func (a *Agent) shellStartTool(ctx context.Context, args map[string]interface{})
 		a.shellSession = nil
 	}
 
-	// Create and start a new session
+	// Create and start a new session with virtual terminal
 	sess := &shell.Session{}
+	// Apply VT size from config if set
+	if a.cfg != nil && a.cfg.LLM.ShellVTRows > 0 && a.cfg.LLM.ShellVTCols > 0 {
+		sess.SetVT(a.cfg.LLM.ShellVTRows, a.cfg.LLM.ShellVTCols)
+	}
 	status, err := sess.Start()
 	if err != nil {
 		return "", fmt.Errorf("failed to start persistent shell: %w", err)
@@ -219,6 +223,29 @@ func truncatedOutputSummary(truncatedCount int) string {
 		return fmt.Sprintf("⚠️ 有%d行超出每行最大字符数限制被截断", truncatedCount)
 	}
 	return ""
+}
+
+// shellWindowContentTool returns the current virtual terminal window content.
+// This provides a snapshot of what the terminal currently displays, useful for
+// checking the state of a long-running process or reviewing command output
+// without sending a new command.
+func (a *Agent) shellWindowContentTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	if !a.shellEnabled {
+		return "", fmt.Errorf("persistent shell session is disabled")
+	}
+
+	if a.shellSession == nil {
+		return "", fmt.Errorf("no persistent shell session is active. Use shell_start to start one first")
+	}
+
+	content, err := a.shellSession.GetWindowContent()
+	if err != nil {
+		return "", fmt.Errorf("cannot get window content: %w", err)
+	}
+
+	rows, cols := a.shellSession.GetVTSize()
+
+	return fmt.Sprintf("终端窗口内容（%d行 x %d列）：\n%s", rows, cols, content), nil
 }
 
 // shellStopTool stops the persistent shell session.
