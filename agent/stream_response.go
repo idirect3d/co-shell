@@ -180,10 +180,18 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			// We ALWAYS parse XML tool calls from content in XML mode, and IGNORE any
 			// API-level tool_calls. This prevents conflicts where the LLM returns both
 			// XML tool calls in content AND API-level tool_calls simultaneously.
+			//
+			// Before parsing, strip REPL input masking markers (|mask_start|...|mask_end|)
+			// that may have leaked into the LLM context via shell session scrollback output.
+			// These markers are injected by the external REPL (go-prompt) during input masking
+			// and are not crafted by the LLM, so they should never trigger XML parse errors.
 			if a.toolCallModeMgr != nil {
 				mode := a.toolCallModeMgr.Current()
 				if mode != nil && !mode.SendTools {
-					xmlCalls := ParseXMLToolCalls(finalContent)
+					cleanContent := stripREPLMaskMarkers(finalContent)
+					// Pass tools list so ParseXMLToolCallsWithTools can skip unknown tags
+					// that are not recognized tool names, treating them as regular content.
+					xmlCalls := ParseXMLToolCallsWithTools(cleanContent, tools)
 					if len(xmlCalls) > 0 {
 						// Filter out _xml_parse_error calls - these are parse errors that
 						// should be returned directly to the LLM as feedback, not executed.
