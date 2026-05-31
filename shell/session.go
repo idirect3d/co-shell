@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-28
-// Last Modified: 2026-05-28
+// Last Modified: 2026-05-30
 //
 // MIT License
 //
@@ -45,18 +45,13 @@ import (
 	"github.com/idirect3d/co-shell/log"
 )
 
-const (
-	marker = "COSHELL__CMD_END_MARKER_1748489600"
-)
-
 // DefaultMaxLineLen is the default maximum characters per line in scrollback output.
 const DefaultMaxLineLen = 4096
 
 // Session represents a persistent interactive shell session.
 // A single background goroutine reads all stdout data and pushes lines
-// into a channel. Each Exec() call reads from this channel until it
-// finds the end marker. This avoids goroutine leaks and data races
-// that occur with per-call buffered readers.
+// into a channel. Each Exec() call reads from this channel until an idle
+// timeout expires (no new output for wait_ms) or the total timeout expires.
 type Session struct {
 	mu         sync.Mutex
 	cmd        *exec.Cmd
@@ -68,7 +63,7 @@ type Session struct {
 	workingDir string
 
 	// lineCh carries lines read from stdout by the background reader goroutine.
-	// Each Exec() call reads from this channel until marker found.
+	// Each Exec() call reads from this channel until idle timeout.
 	lineCh chan string
 	// readErr carries reader errors from the background goroutine.
 	readErr chan error
@@ -78,6 +73,11 @@ type Session struct {
 	logFile     *os.File
 	logFilePath string
 	maxLineLen  int
+
+	// outputPointer tracks the byte offset in logFile of the last output returned
+	// to the caller. Used by GetOutput() for auto-increment mode: when called
+	// without explicit last_from/count, it returns only new content since the last call.
+	outputPointer int64
 }
 
 // Status represents the current state of the shell session.
@@ -190,16 +190,22 @@ func (s *Session) Start() (*Status, error) {
 	s.started = true
 
 	if runtime.GOOS != "windows" {
-		s.sendRaw("PS1='$ '\n")
+		s.sendRaw("stty -echo 2>/dev/null\n")
 		s.sendRaw("export PS1='$ '\n")
 		s.sendRaw("alias ls='ls --color=never 2>/dev/null || ls'\n")
 	}
 
-	time.Sleep(150 * time.Millisecond)
 	// Drain initial output from the background reader by reading
-	// from lineCh briefly. Do NOT call drainOutput() which starts
-	// a competing goroutine reading the same s.stdout pipe.
+	// from lineCh briefly.
+	time.Sleep(200 * time.Millisecond)
 	s.drainLines()
+
+	// Initialise output pointer to current end of log file.
+	if s.logFile != nil {
+		if fi, err := s.logFile.Stat(); err == nil {
+			s.outputPointer = fi.Size()
+		}
+	}
 
 	startedAt := now.Format(time.RFC3339)
 	log.Info("Persistent shell session started: type=%s, pid=%d, log=%s", s.shellType, cmd.Process.Pid, logFilePath)
@@ -215,10 +221,13 @@ func (s *Session) Start() (*Status, error) {
 
 // readLines is a persistent goroutine that reads lines from stdout
 // and pushes them into lineCh. It runs for the entire session lifetime.
-// stdin/stderr write to logfile.
+//
+// All output is passed through faithfully; no filtering, no ANSI stripping,
+// no prompt removal. The caller (Exec) decides when output is complete
+// based on idle timeout.
 func (s *Session) readLines() {
-	buf := make([]byte, 1)
-	var lineBuf bytes.Buffer
+	buf := make([]byte, 4096)
+	var leftover []byte
 
 	for {
 		select {
@@ -227,7 +236,6 @@ func (s *Session) readLines() {
 		default:
 		}
 
-		// Read one byte at a time
 		n, err := s.stdout.Read(buf)
 		if err != nil {
 			if err != io.EOF {
@@ -240,29 +248,50 @@ func (s *Session) readLines() {
 			continue
 		}
 
-		log.Raw("%c", buf[0])
+		data := buf[:n]
+		if leftover != nil {
+			data = append(leftover, data...)
+			leftover = nil
+		}
 
-		lineBuf.WriteByte(buf[0])
+		// Strip ANSI control codes for both log file and LLM output.
+		cleanData := stripLogANSI(string(data))
 
-		// When we hit newline, push the complete line
-		if buf[0] == '\n' {
-			line := lineBuf.String()
-			log.Debug("shell readLines: complete line=%q", line)
-			lineBuf.Reset()
-			s.lineCh <- line
+		// Write to log file (clean)
+		if s.logFile != nil {
+			fmt.Fprint(s.logFile, cleanData)
+		}
+
+		// Split on newlines and push each complete line
+		cleanBytes := []byte(cleanData)
+		for len(cleanBytes) > 0 {
+			idx := bytes.IndexByte(cleanBytes, '\n')
+			if idx < 0 {
+				// Partial line without newline - buffer for next read
+				leftover = make([]byte, len(cleanBytes))
+				copy(leftover, cleanBytes)
+				break
+			}
+			// Include the newline in the line pushed to channel
+			line := cleanBytes[:idx+1]
+			cleanBytes = cleanBytes[idx+1:]
+			s.lineCh <- string(line)
 		}
 	}
 }
 
-func (s *Session) writeLog(line string) {
-	if s.logFile != nil {
-		fmt.Fprintln(s.logFile, line)
-	}
-}
-
-// Exec sends a command and reads output until the marker.
-// Uses the persistent background reader to avoid goroutine leaks.
-func (s *Session) Exec(ctx context.Context, command string) (string, error) {
+// Exec sends content to the shell session and observes the output.
+// Uses an idle timeout mechanism: after each new output line arrives,
+// a timer is reset for wait_ms. If no new output arrives within that
+// window, the accumulated output is returned.
+//
+// The command is sent verbatim to the shell's stdin — the LLM is
+// responsible for including any necessary newline (\n) in the command.
+//
+// If waitMs is 0, a default of 500ms is used.
+// If ctx has a deadline (via timeout_seconds), it serves as the total
+// timeout — after which whatever has been collected is returned.
+func (s *Session) Exec(ctx context.Context, command string, waitMs int) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -272,76 +301,121 @@ func (s *Session) Exec(ctx context.Context, command string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
-	fullCmd := fmt.Sprintf("%s\necho \"%s\" $?\n", command, marker)
-	if strings.Contains(command, "\n") {
-		fullCmd = fmt.Sprintf("%s\necho \"%s\" $?\n", command, marker)
+	if waitMs <= 0 {
+		waitMs = 500
 	}
 
-	s.writeLog("$ " + command)
-
-	if _, err := fmt.Fprint(s.stdin, fullCmd); err != nil {
+	// Write the command to stdin (PTY will echo it back).
+	if _, err := fmt.Fprint(s.stdin, command); err != nil {
 		return "", fmt.Errorf("cannot send command to shell: %w", err)
 	}
 
-	log.Debug("Shell exec: %s", command)
+	log.Debug("Shell exec: command=%q, wait_ms=%d", command, waitMs)
 
 	var outputBuf bytes.Buffer
+	dur := time.Duration(waitMs) * time.Millisecond
+	idleTimer := time.NewTimer(dur)
+	defer idleTimer.Stop()
+
+	// Drain the timer channel initially to prevent a stale fire on first select.
+	if !idleTimer.Stop() {
+		select {
+		case <-idleTimer.C:
+		default:
+		}
+	}
 
 	for {
-		var line string
-		var err error
+		// Reset idle timer: wait_ms after the last output line received.
+		idleTimer.Reset(dur)
 
 		select {
-		case line = <-s.lineCh:
-		case err = <-s.readErr:
+		case line := <-s.lineCh:
+			outputBuf.WriteString(line)
+
+		case err := <-s.readErr:
 			s.started = false
-			partial := outputBuf.String()
-			s.writeLog(partial)
-			return partial, fmt.Errorf("shell process terminated: %w", err)
+			s.updateOutputPointer()
+			return outputBuf.String(), fmt.Errorf("shell process terminated: %w", err)
+
+		case <-idleTimer.C:
+			// No new output for wait_ms — return what we have
+			s.updateOutputPointer()
+			return outputBuf.String(), nil
+
 		case <-ctx.Done():
-			partial := outputBuf.String()
-			s.writeLog(partial)
-			return partial, fmt.Errorf("shell command timed out: %w", ctx.Err())
+			// Total timeout (from context deadline) or cancellation.
+			// Return collected output with a timeout error.
+			s.updateOutputPointer()
+			return outputBuf.String(), fmt.Errorf("shell command timed out: %w", ctx.Err())
 		}
+	}
+}
 
-		markerIdx := strings.Index(line, marker)
-		if markerIdx >= 0 {
-			exitCodeStr := strings.TrimSpace(line[markerIdx+len(marker):])
-			exitCode := 0
-			if exitCodeStr != "" {
-				fmt.Sscanf(exitCodeStr, "%d", &exitCode)
-			}
-			output := strings.TrimRight(outputBuf.String(), "\n")
-			s.writeLog(fmt.Sprintf("(exit code: %d)", exitCode))
-			if exitCode != 0 {
-				return output, fmt.Errorf("command exited with code %d", exitCode)
-			}
-			return output, nil
+// updateOutputPointer sets outputPointer to the current size of the log file.
+func (s *Session) updateOutputPointer() {
+	if s.logFile != nil {
+		if fi, err := s.logFile.Stat(); err == nil {
+			s.outputPointer = fi.Size()
 		}
-
-		trimmed := strings.TrimRight(line, "\n\r")
-		if trimmed != "" {
-			s.writeLog(trimmed)
-		}
-		outputBuf.WriteString(line)
 	}
 }
 
 // GetOutput reads lines from the end of the shell log file.
-func (s *Session) GetOutput(lastFrom int, count int) (string, int, int) {
+//
+// If lastFrom is <= 0, it uses auto-increment mode: only returns content
+// that has been added to the log file since the last call to Exec() or
+// GetOutput(). The outputPointer is updated after each call.
+//
+// lastFrom is 1‑based from the end (1 = most recent line).
+// count is the number of lines to return.
+//
+// If lastFrom > 0 and count > 0, this function works as before.
+func (s *Session) GetOutput(lastFrom int, count int) (string, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.logFilePath == "" {
-		return "log file not available", 0, 0
+		return "log file not available", 0
 	}
 
 	data, err := os.ReadFile(s.logFilePath)
 	if err != nil {
-		return fmt.Sprintf("cannot read log file: %v", err), 0, 0
+		return fmt.Sprintf("cannot read log file: %v", err), 0
 	}
 
+	// Auto-increment mode: only return content since last outputPointer.
+	if lastFrom <= 0 || count <= 0 {
+		totalBytes := int64(len(data))
+		if s.outputPointer >= totalBytes {
+			s.outputPointer = totalBytes
+			return "(no new output)", 0
+		}
+		newData := data[s.outputPointer:]
+		s.outputPointer = totalBytes
+
+		allLines := strings.Split(string(newData), "\n")
+		if len(allLines) > 0 && allLines[len(allLines)-1] == "" {
+			allLines = allLines[:len(allLines)-1]
+		}
+
+		if len(allLines) == 0 {
+			return "(no new output)", 0
+		}
+
+		var result strings.Builder
+		for _, line := range allLines {
+			if s.maxLineLen > 0 && len(line) > s.maxLineLen {
+				line = line[:s.maxLineLen] + fmt.Sprintf("...（被截断%d字符）", len(line)-s.maxLineLen)
+			}
+			result.WriteString(line)
+			result.WriteString("\n")
+		}
+
+		return strings.TrimRight(result.String(), "\n"), len(allLines)
+	}
+
+	// Legacy mode: read last N lines from end.
 	allLines := strings.Split(string(data), "\n")
 	if len(allLines) > 0 && allLines[len(allLines)-1] == "" {
 		allLines = allLines[:len(allLines)-1]
@@ -349,7 +423,7 @@ func (s *Session) GetOutput(lastFrom int, count int) (string, int, int) {
 	totalLines := len(allLines)
 
 	if totalLines == 0 {
-		return "(empty)", 0, 0
+		return "(empty)", 0
 	}
 
 	if lastFrom <= 0 || lastFrom > totalLines {
@@ -366,18 +440,18 @@ func (s *Session) GetOutput(lastFrom int, count int) (string, int, int) {
 	startLine := totalLines - lastFrom
 	selected := allLines[startLine : startLine+linesToRead]
 
-	truncatedCount := 0
 	var result strings.Builder
 	for _, line := range selected {
 		if s.maxLineLen > 0 && len(line) > s.maxLineLen {
-			line = line[:s.maxLineLen] + fmt.Sprintf("...(被截断%d字符)", len(line)-s.maxLineLen)
-			truncatedCount++
+			line = line[:s.maxLineLen] + fmt.Sprintf("...（被截断%d字符）", len(line)-s.maxLineLen)
 		}
 		result.WriteString(line)
 		result.WriteString("\n")
 	}
 
-	return strings.TrimRight(result.String(), "\n"), totalLines, truncatedCount
+	s.updateOutputPointer()
+
+	return strings.TrimRight(result.String(), "\n"), totalLines
 }
 
 func (s *Session) SetMaxLineLen(n int) {
@@ -470,8 +544,60 @@ func (s *Session) sendRaw(text string) {
 	}
 }
 
+func (s *Session) writeLog(line string) {
+	if s.logFile != nil {
+		cleanLine := stripLogANSI(line)
+		fmt.Fprintln(s.logFile, cleanLine)
+	}
+}
+
+// stripLogANSI removes ANSI escape sequences and non-printable C0 control
+// characters from a string for clean log file output.
+// The following are preserved as they represent real content:
+//   - \t (0x09, tab)
+//   - \n (0x0a, newline)
+//   - \r (0x0d, carriage return)
+//
+// All other control characters (0x00-0x1f) and ANSI escape sequences (ESC)
+// are stripped. This keeps the log file readable while the raw data is still
+// passed through to the LLM via lineCh.
+func stripLogANSI(s string) string {
+	var result strings.Builder
+	inESC := false
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b == 0x1b {
+			inESC = true
+			continue
+		}
+		if inESC {
+			// OSC sequence ends with BEL (0x07) or ST (ESC \ i.e. 0x1b 0x5c).
+			if b == 0x07 {
+				inESC = false
+				continue
+			}
+			// CSI / single-letter ESC sequences end with a letter or tilde.
+			if (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || b == '~' {
+				inESC = false
+				continue
+			}
+			// Nested ESC — restart (handles ST as ESC + '\' ending ESC).
+			if b == 0x1b {
+				continue
+			}
+			// All other bytes inside ESC are parameters (digits, ;, etc.) — skip.
+			continue
+		}
+		// Outside ESC: skip all C0 control characters except \t(0x09), \n(0x0a), \r(0x0d).
+		if b <= 0x1f && b != '\t' && b != '\n' && b != '\r' {
+			continue
+		}
+		result.WriteByte(b)
+	}
+	return result.String()
+}
+
 // drainLines reads and discards any pending lines from the background reader.
-// This replaces the old drainOutput() which spawned a competing goroutine.
 func (s *Session) drainLines() {
 	if s.lineCh == nil {
 		return

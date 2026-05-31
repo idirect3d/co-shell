@@ -428,37 +428,79 @@ Usage:
 <shell_start>
 </shell_start>`
 
-	enMessages[KeyToolUsageShellExec] = `## shell_exec
-Description: Execute a command in the persistent shell session. The command runs in the same shell environment as previous shell_exec calls, preserving all state (current directory, environment variables, Python REPL variables, etc.). Use for sequential commands that depend on each other's state. Returns the command output.
+	enMessages[KeyToolUsageShellSend] = `## shell_send
+Description: Send content (command, Python statement, or control character) to the persistent shell session and observe the output. The content runs in the same shell environment as previous shell_send calls, preserving all state (current directory, environment variables, Python REPL state, etc.). Use this to interact with a running shell or REPL session.
+The command is sent VERBATIM to stdin — no bytes (including \n) are added automatically. The LLM must include all necessary bytes in the command string.
+Send only one logical unit at a time. Observe the output before deciding what to send next.
 Parameters:
-- command (required) The command to execute in the persistent shell session
-- timeout_seconds (optional) Timeout in seconds to limit execution time
+- command (required) The content to send to the shell session — a single shell command, Python statement, input line, or control character
+- wait_ms (optional) Idle timeout in milliseconds (default: 500). Resets each time new output arrives. Returns accumulated output after idle timeout. Increase for long-running processes.
+- timeout_seconds (optional) Total timeout in seconds.
 
-Usage pattern - multiple sequential calls:
-  # Step 1: Enter the working directory
-  <shell_exec>
-    <command>cd /var/www/project</command>
-  </shell_exec>
+Control characters (send as literal byte values in the command):
+  \n     = Enter (execute/submit input)
+  \x03  = Ctrl+C (SIGINT)
+  \x04  = Ctrl+D (EOF, exit REPL)
+  \x0c  = Ctrl+L (clear screen)
+  \x1b  = ESC
+  \x1b[A = Up arrow
+  \x1b[B = Down arrow
+  \x1b[D = Left arrow
+  \x1b[C = Right arrow
 
-  # Step 2: List files (still in same directory from step 1)
-  <shell_exec>
-    <command>ls -la</command>
-  </shell_exec>
+Output mechanism: After sending content, enters idle observation mode. Each new output line received resets the 500ms idle timer. When the timer expires (no new output), all accumulated output is returned. Set timeout_seconds as an overall safety net.
 
-  # Step 3: Read a file (still in same directory)
-  <shell_exec>
-    <command>cat package.json</command>
-  </shell_exec>`
+Usage pattern - interactive step-by-step (note the \n at end of each command):
+  # Step 1: Change directory
+  <shell_send>
+    <command>cd /var/www/project\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  # Step 2: List files
+  <shell_send>
+    <command>ls -la\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  # Step 3: Interactive Python REPL (line by line)
+  <shell_send>
+    <command>python3\n</command>
+    <wait_ms>1000</wait_ms>
+  </shell_send>
+
+  <shell_send>
+    <command>x = 10\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  <shell_send>
+    <command>y = 20\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  <shell_send>
+    <command>x + y\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  # Exit Python REPL (Ctrl+D)
+  <shell_send>
+    <command>\x04</command>
+    <wait_ms>1000</wait_ms>
+  </shell_send>`
 
 	enMessages[KeyToolUsageShellGetOutput] = `## shell_get_output
-Description: Retrieve the terminal scrollback history from the persistent shell session. Returns what you'd see scrolling up in a terminal window - all commands and their output. Use this when you need to review the history of what has happened in the session, for example to check Python REPL output or review previous command results.
+Description: Retrieve output from the persistent shell session. Auto-increment mode (no last_from/count): returns only new content since the last shell_send or shell_get_output call, useful for checking progress of long-running commands.
+With last_from/count: returns the specified range of terminal scrollback history.
 Parameters:
-- last_from (optional) Starting position from the end (1-based, 1=most recent line). Default: 1
-- count (optional) Number of lines to return. Default: 50
+- wait_ms (optional) Observation wait time in milliseconds (default: 200). Waits this long for new output before returning.
+- last_from (optional) Starting position from the end (1-based, 1=most recent line). If not provided, uses auto-increment mode.
+- count (optional) Number of lines to return. If not provided with last_from, uses auto-increment mode.
+- timeout_seconds (optional) Total timeout in seconds, prevents infinite waiting.
 Usage:
 <shell_get_output>
-  <last_from>100</last_from>
-  <count>50</count>
+  <wait_ms>1000</wait_ms>
 </shell_get_output>`
 
 	enMessages[KeyToolUsageShellStop] = `## shell_stop

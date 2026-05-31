@@ -431,37 +431,79 @@ Usage:
 <shell_start>
 </shell_start>`
 
-	zhMessages[KeyToolUsageShellExec] = `## shell_exec
-说明: 在持久 Shell 会话中执行命令。命令在上一次 shell_exec 调用的同一 Shell 环境中运行，保持所有状态（当前目录、环境变量、Python REPL 变量等）。用于状态依赖的连续命令。返回命令输出。
+	zhMessages[KeyToolUsageShellSend] = `## shell_send
+说明: 向持久 Shell 会话发送内容（命令、Python 语句或控制字符）并观察输出。内容在上一次 shell_send 调用的同一 Shell 环境中运行，保持所有状态（当前目录、环境变量、Python REPL 变量等）。用于与 Shell 或 REPL 会话交互。
+发送的内容会原样写入 stdin，不会自动添加任何字符（包括回车）。LLM 必须自行在 command 中包含所有需要的字节。
+每次只发送一个逻辑单元。观察输出结果后再决定下一步发送什么。
 参数:
-- command（必填）要在持久 Shell 会话中执行的命令
-- timeout_seconds（可选）超时秒数
+- command（必填）要发送到 Shell 会话的内容（一条命令、一条 Python 语句、一行输入）
+- wait_ms（可选）空闲超时毫秒数（默认 500）。连续收到新输出后重置计时器，空闲超时后返回已观察到的结果。长运行进程应提高此值。
+- timeout_seconds（可选）总超时秒数
 
-调用模式 - 多次连续调用:
-  # 第1步: 进入工作目录
-  <shell_exec>
-    <command>cd /var/www/project</command>
-  </shell_exec>
+控制字符（以字节形式写入 command 参数）:
+  \n     = 回车（执行/提交输入）
+  \x03  = Ctrl+C（中断程序）
+  \x04  = Ctrl+D（EOF，退出 REPL）
+  \x0c  = Ctrl+L（清屏）
+  \x1b  = ESC
+  \x1b[A = ↑ 上方向键
+  \x1b[B = ↓ 下方向键
+  \x1b[D = ← 左方向键
+  \x1b[C = → 右方向键
 
-  # 第2步: 列出文件（仍在上一步的目录中）
-  <shell_exec>
-    <command>ls -la</command>
-  </shell_exec>
+输出机制: 每个命令发送后进入空闲观察模式。连续收到新行时重置 500ms 空闲计时器。空闲超时后返回所有已收集的输出。可设置 timeout_seconds 作为总超时兜底。
 
-  # 第3步: 读取文件（仍在同一目录）
-  <shell_exec>
-    <command>cat package.json</command>
-  </shell_exec>`
+调用模式 - 逐行交互（注意每行末尾的 \n）:
+  # 第1步: 进入目录
+  <shell_send>
+    <command>cd /var/www/project\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  # 第2步: 列出文件
+  <shell_send>
+    <command>ls -la\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  # 第3步: Python 交互式编程（逐行）
+  <shell_send>
+    <command>python3\n</command>
+    <wait_ms>1000</wait_ms>
+  </shell_send>
+
+  <shell_send>
+    <command>x = 10\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  <shell_send>
+    <command>y = 20\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  <shell_send>
+    <command>x + y\n</command>
+    <wait_ms>500</wait_ms>
+  </shell_send>
+
+  # 退出 Python REPL（Ctrl+D）
+  <shell_send>
+    <command>\x04</command>
+    <wait_ms>1000</wait_ms>
+  </shell_send>`
 
 	zhMessages[KeyToolUsageShellGetOutput] = `## shell_get_output
-说明: 获取持久 Shell 会话的终端滚动历史内容。返回在终端中向上滚动才能看到的全部历史 - 所有命令及其输出。当你需要查看会话历史（如检查 Python REPL 输出或回顾之前的命令结果）时使用。
+说明: 获取持久 Shell 会话的输出内容。自动增量模式（不提供 last_from/count）：仅返回上次 shell_send 或 shell_get_output 之后的新增内容，适用于检查长运行命令的进度。
+指定 last_from/count：返回指定范围的终端滚动历史。
 参数:
-- last_from（可选）从末尾算起的起始位置（1 表示最近一行）。默认: 1
-- count（可选）返回的行数。默认: 50
+- wait_ms（可选）观察延迟毫秒数（默认 200）。等待此时间让新输出到达后返回。
+- last_from（可选）从末尾算起的起始位置（1 表示最近一行）。不提供则使用自动增量模式仅返回新内容。
+- count（可选）返回的行数。不提供则使用自动增量模式。
+- timeout_seconds（可选）总超时秒数，防止无限等待。
 用法:
 <shell_get_output>
-  <last_from>100</last_from>
-  <count>50</count>
+  <wait_ms>1000</wait_ms>
 </shell_get_output>`
 
 	zhMessages[KeyToolUsageShellStop] = `## shell_stop

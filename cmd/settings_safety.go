@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -42,14 +43,34 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		if len(args) < 2 {
 			var sb strings.Builder
 			sb.WriteString("工具模式配置:\n")
-			confirmDefault := "confirm"
-			if v, ok := h.cfg.LLM.ToolModes["default"]; ok {
-				confirmDefault = v
+
+			// Build effective modes: start with built-in defaults from agent, overlay config.
+			// If config sets a global "default", apply it to all tools that don't have
+			// their own explicit override.
+			effectiveModes := agent.DefaultToolModes()
+			globalDefault := ""
+			for k, v := range h.cfg.LLM.ToolModes {
+				if k == "default" {
+					globalDefault = v
+				} else {
+					effectiveModes[k] = v
+				}
 			}
-			sb.WriteString(fmt.Sprintf("  默认: %s\n\n", confirmDefault))
+			if globalDefault != "" {
+				// Apply global default to all tools that don't have an explicit override
+				for k := range effectiveModes {
+					if _, hasOwn := h.cfg.LLM.ToolModes[k]; !hasOwn {
+						effectiveModes[k] = globalDefault
+					}
+				}
+			}
+
+			sb.WriteString(fmt.Sprintf("  默认: %s\n\n", effectiveModes["default"]))
+
 			allTools := []string{
 				"execute_command", "read_file", "write_to_file",
-				"replace_in_file", "search_files", "list_code_definition_names",
+				"replace_in_file", "search_files", "list_files",
+				"list_code_definition_names",
 				"add_images", "remove_images", "clear_images",
 				"update_settings", "list_settings", "ask_followup_question",
 				"adjust_context_start",
@@ -57,14 +78,11 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 				"create_task_plan", "update_task_step", "insert_task_steps",
 				"remove_task_steps", "view_task_plan",
 				"get_memory_slice", "memory_search", "delete_memory",
-				"shell_start", "shell_exec", "shell_get_output", "shell_stop",
+				"shell_start", "shell_send", "shell_get_output", "shell_stop",
+				"attempt_completion",
 			}
 			for _, toolName := range allTools {
-				mode := confirmDefault
-				if v, ok := h.cfg.LLM.ToolModes[toolName]; ok {
-					mode = v
-				}
-				sb.WriteString(fmt.Sprintf("  %-35s %s\n", toolName, mode))
+				sb.WriteString(fmt.Sprintf("  %-35s %s\n", toolName, effectiveModes[toolName]))
 			}
 			return sb.String(), nil
 		}
@@ -92,6 +110,16 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			h.agent.SetToolMode("", "auto")
 			log.Info("Confirm tool set to off (auto)")
 			return fmt.Sprintf("%s\n%s", fmt.Sprintf(i18n.T(i18n.KeyCmdConfirmDisabled), i18n.T(i18n.KeyOff)), i18n.T(i18n.KeyCmdConfirmDisableWarn)), nil
+		case "reset":
+			// Reset all tool mode settings: clear config and re-sync from defaults.
+			h.cfg.LLM.ToolModes = make(map[string]string)
+			if err := h.cfg.Save(); err != nil {
+				return "", err
+			}
+			h.agent.SyncToolModes(h.cfg)
+			log.Info("Confirm tool modes reset to defaults")
+			return "所有工具确认模式已重置为默认值", nil
+
 		case "confirm", "auto", "disabled":
 			if h.cfg.LLM.ToolModes == nil {
 				h.cfg.LLM.ToolModes = make(map[string]string)

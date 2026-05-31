@@ -716,7 +716,7 @@ const (
 
 	// Shell session tool usage examples (XML mode)
 	KeyToolUsageShellStart     = "tool_usage_shell_start"
-	KeyToolUsageShellExec      = "tool_usage_shell_exec"
+	KeyToolUsageShellSend      = "tool_usage_shell_send"
 	KeyToolUsageShellGetOutput = "tool_usage_shell_get_output"
 	KeyToolUsageShellStop      = "tool_usage_shell_stop"
 

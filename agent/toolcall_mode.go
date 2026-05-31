@@ -122,7 +122,7 @@ var toolUsageKeyMap = map[string]string{
 	"adjust_context_start":       i18n.KeyToolUsageAdjustContextStart,
 	"attempt_completion":         i18n.KeyToolUsageAttemptCompletion,
 	"shell_start":                i18n.KeyToolUsageShellStart,
-	"shell_exec":                 i18n.KeyToolUsageShellExec,
+	"shell_send":                 i18n.KeyToolUsageShellSend,
 	"shell_get_output":           i18n.KeyToolUsageShellGetOutput,
 	"shell_stop":                 i18n.KeyToolUsageShellStop,
 }
@@ -169,13 +169,19 @@ func getToolParamNames(tools []llm.Tool, toolName string) map[string]bool {
 // closing tags), it returns an error tool call with detailed diagnostics
 // instead of attempting to execute the malformed call. This prevents the LLM
 // from looping on the same error without understanding what went wrong.
+//
+// Only tags whose names match known tool names are parsed as tool calls.
+// Unknown tags are silently ignored (treated as regular content).
+// Use ParseXMLToolCallsWithTools to provide the list of known tools.
 func ParseXMLToolCalls(content string) []llm.ToolCall {
 	return ParseXMLToolCallsWithTools(content, nil)
 }
 
 // ParseXMLToolCallsWithTools parses XML-formatted tool calls from LLM response content,
 // with optional tool definitions for parameter name validation.
-// If tools is non-nil, parameter names are validated against the tool definitions.
+// If tools is non-nil, parameter names are validated against the tool definitions,
+// AND only tags whose names match known tool names are parsed as tool calls.
+// Unknown tags are silently ignored (treated as regular content).
 // See ParseXMLToolCalls for details on the XML format.
 func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall {
 	var calls []llm.ToolCall
@@ -248,64 +254,6 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 			continue
 		}
 
-		// Check if the tag name is followed by a space (attribute syntax like <execute_command param=value>)
-		if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
-			// Find the '>' to skip past this malformed tag
-			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
-			if openEnd < 0 {
-				break
-			}
-			openEnd += tagEnd + 1
-
-			// Find the matching closing tag to skip the entire block
-			closeTag := "</" + tagName + ">"
-			closeIdx := findCloseTagLenient(remaining[openEnd:], tagName)
-			if closeIdx < 0 {
-				// No closing tag found, just skip the opening tag
-				i = openEnd
-			} else {
-				i = openEnd + closeIdx + len(closeTag)
-			}
-
-			errMsg := fmt.Sprintf("XML解析错误：方法标签 <%s 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>...</%s>，不要添加属性", tagName, tagName, tagName)
-			log.Debug("ParseXMLToolCalls: %s", errMsg)
-			calls = append(calls, llm.ToolCall{
-				ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-				Name:      "_xml_parse_error",
-				Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-			})
-			continue
-		}
-
-		// Validate tag name for illegal characters (e.g., <execute_command=xxx>)
-		if valid, reason := isValidTagName(tagName); !valid {
-			// Find the '>' to skip past this malformed tag
-			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
-			if openEnd < 0 {
-				break
-			}
-			openEnd += tagEnd + 1
-
-			// Find the matching closing tag to skip the entire block
-			closeTag := "</" + tagName + ">"
-			closeIdx := findCloseTagLenient(remaining[openEnd:], tagName)
-			if closeIdx < 0 {
-				// No closing tag found, just skip the opening tag
-				i = openEnd
-			} else {
-				i = openEnd + closeIdx + len(closeTag)
-			}
-
-			errMsg := fmt.Sprintf("XML解析错误：方法标签 %s", reason)
-			log.Debug("ParseXMLToolCalls: %s", errMsg)
-			calls = append(calls, llm.ToolCall{
-				ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-				Name:      "_xml_parse_error",
-				Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-			})
-			continue
-		}
-
 		// Skip self-closing tags like <br/>
 		if tagEnd < len(remaining) && remaining[tagEnd] == '/' {
 			// Find the '>'
@@ -326,6 +274,110 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 
 		if depth == 0 {
 			// This is a top-level element - could be a tool call
+			// Check if this is a known tool BEFORE any attribute or validity checks.
+			// If tools list is provided and tag is NOT in the known tool list, skip
+			// the entire block silently — this prevents HTML/Python content with angle
+			// brackets (<div>, <for>) from generating spurious XML parse errors.
+			if len(tools) > 0 {
+				isKnown := false
+				for _, t := range tools {
+					if t.Name == tagName {
+						isKnown = true
+						break
+					}
+				}
+				if !isKnown {
+					// Unknown tag - skip the entire block and treat as content
+					closeTag := "</" + tagName + ">"
+					closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
+					if closeIdx < 0 {
+						closeIdx = findCloseTagLenient(remaining[openEnd:], tagName)
+					}
+					if closeIdx >= 0 {
+						i = openEnd + closeIdx + len(closeTag)
+					} else {
+						i = openEnd
+					}
+					log.Debug("ParseXMLToolCalls: skipping unknown tag <%s> (not a known tool)", tagName)
+					continue
+				}
+				// Known tool — now validate syntax. Skip space/attribute and
+				// validity checks for non-tool tags.
+				if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
+					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
+					if openEnd2 < 0 {
+						break
+					}
+					openEnd2 += tagEnd + 1
+
+					errMsg := fmt.Sprintf("XML解析错误：方法标签 <%s 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>...</%s>，不要添加属性", tagName, tagName, tagName)
+					log.Debug("ParseXMLToolCalls: %s", errMsg)
+					calls = append(calls, llm.ToolCall{
+						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+						Name:      "_xml_parse_error",
+						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+					})
+					i = openEnd2
+					continue
+				}
+				if valid, reason := isValidTagName(tagName); !valid {
+					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
+					if openEnd2 < 0 {
+						break
+					}
+					openEnd2 += tagEnd + 1
+
+					errMsg := fmt.Sprintf("XML解析错误：方法标签 %s", reason)
+					log.Debug("ParseXMLToolCalls: %s", errMsg)
+					calls = append(calls, llm.ToolCall{
+						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+						Name:      "_xml_parse_error",
+						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+					})
+					i = openEnd2
+					continue
+				}
+			} else {
+				// No tools list — validate syntax for all tags
+				// Check if the tag name is followed by a space (attribute syntax like <execute_command param=value>)
+				if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
+					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
+					if openEnd2 < 0 {
+						break
+					}
+					openEnd2 += tagEnd + 1
+
+					errMsg := fmt.Sprintf("XML解析错误：方法标签 <%s 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>...</%s>，不要添加属性", tagName, tagName, tagName)
+					log.Debug("ParseXMLToolCalls: %s", errMsg)
+					calls = append(calls, llm.ToolCall{
+						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+						Name:      "_xml_parse_error",
+						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+					})
+					i = openEnd2
+					continue
+				}
+
+				// Validate tag name for illegal characters (e.g., <execute_command=xxx>)
+				if valid, reason := isValidTagName(tagName); !valid {
+					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
+					if openEnd2 < 0 {
+						break
+					}
+					openEnd2 += tagEnd + 1
+
+					errMsg := fmt.Sprintf("XML解析错误：方法标签 %s", reason)
+					log.Debug("ParseXMLToolCalls: %s", errMsg)
+					calls = append(calls, llm.ToolCall{
+						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+						Name:      "_xml_parse_error",
+						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+					})
+					i = openEnd2
+					continue
+				}
+			}
+
 			// Find the matching closing tag
 			closeTag := "</" + tagName + ">"
 			closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
@@ -673,6 +725,44 @@ func extractCDATA(content string) string {
 	return ""
 }
 
+// stripREPLMaskMarkers removes REPL input masking markers from content.
+// The external REPL (go-prompt) injects |mask_start|...|mask_end| markers
+// when masking sensitive input (e.g., passwords, API keys during confirmation).
+// These markers may leak into the shell session output and subsequently into
+// the LLM's context. In XML mode, the '|' character in these markers would
+// cause XML parse errors ('|' is illegal in XML tag names), so we strip them
+// before XML parsing.
+//
+// The marker format is: <|mask_start|>...<|mask_end|>
+// Note: The actual markers may have leading '<' as part of the user input,
+// or appear bare as |mask_start|...|mask_end| depending on context.
+func stripREPLMaskMarkers(content string) string {
+	// First, handle the format with angle brackets: <|mask_start|>...<|mask_end|>
+	// Strip the entire block including content between markers
+	result := content
+	for {
+		startIdx := strings.Index(result, "<|mask_start|>")
+		if startIdx < 0 {
+			startIdx = strings.Index(result, "|mask_start|")
+		}
+		if startIdx < 0 {
+			break
+		}
+
+		endIdx := strings.Index(result[startIdx:], "|mask_end|")
+		if endIdx < 0 {
+			// No end marker found, just remove from start to end
+			result = result[:startIdx]
+			break
+		}
+		endIdx += startIdx + len("|mask_end|")
+
+		result = result[:startIdx] + result[endIdx:]
+	}
+
+	return result
+}
+
 // isValidTagName checks if a tag name contains only valid characters.
 // Valid tag names consist of letters, digits, underscores, and hyphens.
 // Returns true if the tag name is valid, false otherwise.
@@ -877,9 +967,12 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 			}
 			children = append(children, childEntry{tagName: tagName, jsonVal: nestedJSON})
 		} else {
-			// Simple text content
-			value := strings.TrimSpace(innerContent)
-			// Extract CDATA content if present
+			// Simple text content — preserve all whitespace, do NOT trim.
+			// The LLM controls every byte including leading/trailing spaces,
+			// tabs, and newlines. For command/shell content, whitespace is
+			// semantically significant (e.g., Python indentation, shell args).
+			// CDATA is still extracted if present.
+			value := innerContent
 			if cdataContent := extractCDATA(value); cdataContent != "" {
 				value = cdataContent
 			}
