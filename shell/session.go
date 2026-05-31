@@ -78,6 +78,10 @@ type Session struct {
 	// to the caller. Used by GetOutput() for auto-increment mode: when called
 	// without explicit last_from/count, it returns only new content since the last call.
 	outputPointer int64
+
+	// vt is the virtual terminal that renders shell output as a character grid.
+	// When enabled, Exec() returns the VT window content instead of raw lines.
+	vt *VirtualTerminal
 }
 
 // Status represents the current state of the shell session.
@@ -187,6 +191,20 @@ func (s *Session) Start() (*Status, error) {
 		s.maxLineLen = DefaultMaxLineLen
 	}
 
+	// Initialize virtual terminal with default size.
+	// If a VT was configured before Start(), it's already set.
+	if s.vt == nil {
+		s.vt = NewVirtualTerminal(DefaultVTRows, DefaultVTCols)
+	} else {
+		// Reset existing VT for fresh session
+		s.vt.Reset()
+		// Ensure size is valid
+		r, c := s.vt.Size()
+		if r <= 0 || c <= 0 {
+			s.vt.Resize(DefaultVTRows, DefaultVTCols)
+		}
+	}
+
 	s.started = true
 
 	if runtime.GOOS != "windows" {
@@ -252,6 +270,13 @@ func (s *Session) readLines() {
 		if leftover != nil {
 			data = append(leftover, data...)
 			leftover = nil
+		}
+
+		// Feed raw data to virtual terminal before ANSI stripping.
+		// The VT parser handles ANSI sequences internally to maintain the
+		// character grid.
+		if s.vt != nil {
+			s.vt.Process(data)
 		}
 
 		// Strip ANSI control codes for both log file and LLM output.
@@ -341,6 +366,12 @@ func (s *Session) Exec(ctx context.Context, command string, waitMs int) (string,
 		case <-idleTimer.C:
 			// No new output for wait_ms — return what we have
 			s.updateOutputPointer()
+			// If virtual terminal is enabled, return the full window render
+			// instead of raw incremental output. This gives the LLM a complete
+			// view of the terminal screen, just like a human sees it.
+			if s.vt != nil {
+				return s.vt.Render(), nil
+			}
 			return outputBuf.String(), nil
 
 		case <-ctx.Done():
@@ -461,6 +492,65 @@ func (s *Session) SetMaxLineLen(n int) {
 		n = DefaultMaxLineLen
 	}
 	s.maxLineLen = n
+}
+
+// SetVT configures a virtual terminal for the session.
+// If the session is already started, the VT is initialized at the specified size.
+// This should be called before Start() to override the default VT configuration.
+func (s *Session) SetVT(rows, cols int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if rows <= 0 {
+		rows = DefaultVTRows
+	}
+	if cols <= 0 {
+		cols = DefaultVTCols
+	}
+	if s.started && s.vt != nil {
+		s.vt.Resize(rows, cols)
+	} else {
+		s.vt = NewVirtualTerminal(rows, cols)
+	}
+}
+
+// GetWindowContent returns the current virtual terminal window content as a
+// plain text string. This is a snapshot of what the terminal currently displays.
+// Returns an error if no VT is configured.
+func (s *Session) GetWindowContent() (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.vt == nil {
+		return "", fmt.Errorf("virtual terminal is not available")
+	}
+	return s.vt.Render(), nil
+}
+
+// GetVTSize returns the current virtual terminal dimensions (rows, cols).
+// Returns (0, 0) if no VT is configured.
+func (s *Session) GetVTSize() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.vt == nil {
+		return 0, 0
+	}
+	return s.vt.Size()
+}
+
+// SetVTSize resizes the virtual terminal window.
+// This is safe to call at any time during the session.
+func (s *Session) SetVTSize(rows, cols int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.vt == nil {
+		return
+	}
+	if rows <= 0 {
+		rows = DefaultVTRows
+	}
+	if cols <= 0 {
+		cols = DefaultVTCols
+	}
+	s.vt.Resize(rows, cols)
 }
 
 // Close terminates the shell session gracefully.

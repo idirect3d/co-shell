@@ -69,8 +69,19 @@ func (a *Agent) buildTools() []llm.Tool {
 // where we need the complete tool list even in XML mode.
 func (a *Agent) buildToolsInternal() []llm.Tool {
 	sh := shellName()
-	tools := []llm.Tool{
-		{
+	var tools []llm.Tool
+
+	// Conditional tool shielding based on shell-session-enabled:
+	// When shellEnabled is true, use shell tools instead of execute_command
+	// (more human-like interaction).
+	// When shellEnabled is false, shell tools are hidden and execute_command
+	// is available.
+	// Each tool also respects per-tool mode from .set confirm-tool:
+	// a tool set to "disabled" will be filtered out later, regardless of
+	// the shell-enabled state.
+	if !a.shellEnabled {
+		// Shell session disabled: use execute_command
+		tools = append(tools, llm.Tool{
 			Name:        "execute_command",
 			Description: fmt.Sprintf("Execute a system command (%s) and return its output. Use this to run shell commands, scripts, or any CLI tools. You can optionally specify a timeout_seconds to limit execution time based on the task complexity.", sh),
 			Parameters: map[string]interface{}{
@@ -88,20 +99,24 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"required": []string{"command"},
 			},
 			Callback: a.executeSystemCommand,
-		},
-		{
+		})
+	}
+
+	if a.shellEnabled {
+		// Shell session enabled: use shell tools (more human-like terminal interaction)
+		tools = append(tools, llm.Tool{
 			Name:        "shell_start",
-			Description: "Start a persistent interactive shell session that maintains state (current directory, environment variables, etc.) across multiple command executions. Use this instead of execute_command when you need to run multiple commands in the same shell environment, for example: cd into a directory and then run commands there, or start a Python REPL and execute Python code interactively. Returns the session status including shell type and working directory. Only one session can be active at a time.",
+			Description: "Start a persistent interactive shell session that maintains state (current directory, environment variables, etc.) across multiple command executions. Use this when you need to run multiple commands in the same shell environment, for example: cd into a directory and then run commands there, or start a Python REPL and execute Python code interactively. Returns the session status including shell type and working directory. Only one session can be active at a time.",
 			Parameters: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
 				"required":   []string{},
 			},
 			Callback: a.shellStartTool,
-		},
-		{
+		})
+		tools = append(tools, llm.Tool{
 			Name:        "shell_send",
-			Description: "Send content (command, Python statement, control character, etc.) to the persistent shell session and observe its output. The content runs in the same shell environment as previous shell_send calls, preserving all state (current directory, environment variables, Python REPL state, etc.).\n\nThe command is sent VERBATIM to the shell's stdin. You MUST explicitly include any required newline (\\n) — it is NOT added automatically. The content waits for output to become idle (wait_ms) before returning.\n\nIMPORTANT: Send one logical unit at a time. Observe the result before sending the next unit.\n\nControl characters (send these as literal byte values in the command string):\n  \\n  = Enter (execute/submit input)\n  \\x03 = Ctrl+C (SIGINT)\n  \\x04 = Ctrl+D (EOF, exit REPL)\n  \\x0c = Ctrl+L (clear screen)\n  \\x09 = Tab\n  \\x1b = ESC\n  \\x1b[A = Up arrow\n  \\x1b[B = Down arrow\n  \\x1b[D = Left arrow\n  \\x1b[C = Right arrow\n\nThe wait_ms parameter (optional, default 500ms) controls the idle timeout. For long-running processes, set a higher value or call shell_get_output afterward.",
+			Description: "Send content (command, Python statement, control character, etc.) to the persistent shell session and observe the terminal screen output. The content runs in the same shell environment as previous shell_send calls, preserving all state (current directory, environment variables, Python REPL state, etc.).\n\nThe command is sent VERBATIM to the shell's stdin. You MUST explicitly include any required newline (\\n) — it is NOT added automatically.\n\nThe return value is the full text content of the virtual terminal window (rows x cols character grid). This is like looking at a real terminal screen — you see the complete window content as a human would. Review the output carefully to understand command results, error messages, and prompt states.\n\nIMPORTANT: Send one logical unit at a time. Observe the result before sending the next unit. When you see a shell prompt (like '$ ' or '# ') at the end of the output, it means the command has completed and the shell is ready for the next command.\n\nControl characters (send these as literal byte values in the command string):\n  \\n  = Enter (execute/submit input)\n  \\x03 = Ctrl+C (SIGINT)\n  \\x04 = Ctrl+D (EOF, exit REPL)\n  \\x0c = Ctrl+L (clear screen)\n  \\x09 = Tab\n  \\x1b = ESC\n  \\x1b[A = Up arrow\n  \\x1b[B = Down arrow\n  \\x1b[D = Left arrow\n  \\x1b[C = Right arrow\n\nThe wait_ms parameter (optional, default 200ms) controls the idle timeout. For long-running processes, set a higher value or call shell_window_content afterward.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -121,8 +136,18 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"required": []string{"command"},
 			},
 			Callback: a.shellSendTool,
-		},
-		{
+		})
+		tools = append(tools, llm.Tool{
+			Name:        "shell_window_content",
+			Description: "Get the current virtual terminal window content as a text snapshot. This shows what is currently displayed on the terminal screen. Use this to check the state of a long-running process, review previous command output, or inspect the current terminal state without sending a new command. Returns the full window content as rows x cols text.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
+			},
+			Callback: a.shellWindowContentTool,
+		})
+		tools = append(tools, llm.Tool{
 			Name:        "shell_get_output",
 			Description: "Retrieve output from the persistent shell session since the last time shell_send or shell_get_output was called (auto-increment mode), or from a specific position.\n\nAuto-increment mode (no last_from/count): returns only the new content that has been produced since the last shell_send or shell_get_output call. This is useful for checking progress of a long-running command or REPL session.\n\nLegacy mode (with last_from/count): returns terminal scrollback history — like scrolling up in a terminal window. Use this to review what happened before the last command.\n\nParameters: wait_ms (optional, default 200ms — wait this long for new output before returning), last_from (optional, 1-based from end where 1=most recent line), count (optional, number of lines to return), timeout_seconds (optional, total timeout in seconds).",
 			Parameters: map[string]interface{}{
@@ -148,8 +173,8 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"required": []string{},
 			},
 			Callback: a.shellGetOutputTool,
-		},
-		{
+		})
+		tools = append(tools, llm.Tool{
 			Name:        "shell_stop",
 			Description: "Stop and close the persistent shell session. This terminates the background shell process and frees resources. Call this when you no longer need the persistent shell session.",
 			Parameters: map[string]interface{}{
@@ -158,118 +183,121 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				"required":   []string{},
 			},
 			Callback: a.shellStopTool,
-		},
-		{
-			Name:        "read_file",
-			Description: "Read the contents of a file at the specified path. Use this to examine the contents of an existing file. Returns the file content with line numbers. Supports start_line and end_line to read specific sections of large files.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
-						"type":        "string",
-						"description": "The path of the file to read (absolute or relative to current working directory)",
-					},
-					"start_line": map[string]interface{}{
-						"type":        "number",
-						"description": "The 1-based line number to start reading from (inclusive). Default: 1",
-					},
-					"end_line": map[string]interface{}{
-						"type":        "number",
-						"description": "The 1-based line number to stop reading at (inclusive). Default: start_line + 1000",
-					},
+		})
+	}
+
+	// File operation tools (always available)
+	tools = append(tools, llm.Tool{
+		Name:        "read_file",
+		Description: "Read the contents of a file at the specified path. Use this to examine the contents of an existing file. Returns the file content with line numbers. Supports start_line and end_line to read specific sections of large files.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The path of the file to read (absolute or relative to current working directory)",
 				},
-				"required": []string{"path"},
-			},
-			Callback: a.readFileTool,
-		},
-		{
-			Name:        "search_files",
-			Description: "Search for a regex pattern across files in a specified directory. Returns matching lines with surrounding context. Use this to find specific code patterns, function definitions, or text across multiple files.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
-						"type":        "string",
-						"description": "The directory path to search in (absolute or relative to current working directory)",
-					},
-					"regex": map[string]interface{}{
-						"type":        "string",
-						"description": "The regular expression pattern to search for",
-					},
-					"file_pattern": map[string]interface{}{
-						"type":        "string",
-						"description": "Glob pattern to filter files (e.g., '*.go' for Go files). If not provided, searches all files.",
-					},
+				"start_line": map[string]interface{}{
+					"type":        "number",
+					"description": "The 1-based line number to start reading from (inclusive). Default: 1",
 				},
-				"required": []string{"path", "regex"},
-			},
-			Callback: a.searchFilesTool,
-		},
-		{
-			Name:        "list_files",
-			Description: "List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Use this to explore directory structures and find files.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
-						"type":        "string",
-						"description": "The path of the directory to list contents for (absolute or relative to current working directory)",
-					},
-					"recursive": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Whether to list files recursively. true for recursive listing, false or omit for top-level only.",
-					},
+				"end_line": map[string]interface{}{
+					"type":        "number",
+					"description": "The 1-based line number to stop reading at (inclusive). Default: start_line + 1000",
 				},
-				"required": []string{"path"},
 			},
-			Callback: a.listFilesTool,
+			"required": []string{"path"},
 		},
-		{
-			Name:        "list_code_definition_names",
-			Description: "List definition names (functions, types, methods, etc.) in source code files at the top level of a specified directory. Use this to quickly understand the structure and API of a codebase.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
-						"type":        "string",
-						"description": "The directory path to list definitions for (absolute or relative to current working directory)",
-					},
+		Callback: a.readFileTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "search_files",
+		Description: "Search for a regex pattern across files in a specified directory. Returns matching lines with surrounding context. Use this to find specific code patterns, function definitions, or text across multiple files.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The directory path to search in (absolute or relative to current working directory)",
 				},
-				"required": []string{"path"},
+				"regex": map[string]interface{}{
+					"type":        "string",
+					"description": "The regular expression pattern to search for",
+				},
+				"file_pattern": map[string]interface{}{
+					"type":        "string",
+					"description": "Glob pattern to filter files (e.g., '*.go' for Go files). If not provided, searches all files.",
+				},
 			},
-			Callback: a.listCodeDefinitionNamesTool,
+			"required": []string{"path", "regex"},
 		},
-		{
-			Name:        "replace_in_file",
-			Description: "Replace sections of content in an existing file using 'search'/'replace' blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find), 'replace' (the new content), and optional 'start_line' (the 1-based line number in the original file for precise positioning). Supports multiple replacements in a single call. The 'search' content must match the file exactly (including whitespace and indentation). When 'start_line' is provided, the search is anchored to that line (adjusted for previous replacements' line changes). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
-						"type":        "string",
-						"description": "The path to the file to modify (absolute or relative to current working directory)",
-					},
-					"replacements": map[string]interface{}{
-						"type": "array",
-						"items": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"search": map[string]interface{}{
-									"type":        "string",
-									"description": "The exact content to find in the file (must match character-for-character including whitespace and indentation)",
-								},
-								"replace": map[string]interface{}{
-									"type":        "string",
-									"description": "The new content to replace the matched section with",
-								},
-								"start_line": map[string]interface{}{
-									"type":        "number",
-									"description": "Optional: the 1-based line number in the original file where this 'search' content is expected to start. Used for precise positioning and to avoid duplicate matches. The system automatically adjusts for line count changes from previous replacements.",
-								},
+		Callback: a.searchFilesTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "list_files",
+		Description: "List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Use this to explore directory structures and find files.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The path of the directory to list contents for (absolute or relative to current working directory)",
+				},
+				"recursive": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Whether to list files recursively. true for recursive listing, false or omit for top-level only.",
+				},
+			},
+			"required": []string{"path"},
+		},
+		Callback: a.listFilesTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "list_code_definition_names",
+		Description: "List definition names (functions, types, methods, etc.) in source code files at the top level of a specified directory. Use this to quickly understand the structure and API of a codebase.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The directory path to list definitions for (absolute or relative to current working directory)",
+				},
+			},
+			"required": []string{"path"},
+		},
+		Callback: a.listCodeDefinitionNamesTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "replace_in_file",
+		Description: "Replace sections of content in an existing file using 'search'/'replace' blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find), 'replace' (the new content), and optional 'start_line' (the 1-based line number in the original file for precise positioning). Supports multiple replacements in a single call. The 'search' content must match the file exactly (including whitespace and indentation). When 'start_line' is provided, the search is anchored to that line (adjusted for previous replacements' line changes). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The path to the file to modify (absolute or relative to current working directory)",
+				},
+				"replacements": map[string]interface{}{
+					"type": "array",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"search": map[string]interface{}{
+								"type":        "string",
+								"description": "The exact content to find in the file (must match character-for-character including whitespace and indentation)",
 							},
-							"required": []string{"search", "replace"},
+							"replace": map[string]interface{}{
+								"type":        "string",
+								"description": "The new content to replace the matched section with",
+							},
+							"start_line": map[string]interface{}{
+								"type":        "number",
+								"description": "Optional: the 1-based line number in the original file where this 'search' content is expected to start. Used for precise positioning and to avoid duplicate matches. The system automatically adjusts for line count changes from previous replacements.",
+							},
 						},
-						"description": `An array of replacement objects, each with 'search' and 'replace' string fields, and optional 'start_line' number. All replacements are performed sequentially in order.
+						"required": []string{"search", "replace"},
+					},
+					"description": `An array of replacement objects, each with 'search' and 'replace' string fields, and optional 'start_line' number. All replacements are performed sequentially in order.
 
 Critical rules:
 1. The 'search' field must match the file EXACTLY (character-for-character including whitespace, indentation, line endings, comments, docstrings, etc.). The system first attempts exact match, then falls back to whitespace-tolerant fuzzy matching (trailing whitespace ignored) if exact match fails.
@@ -280,72 +308,71 @@ Critical rules:
    - To delete code: Leave 'replace' empty
 5. If source context came from read_file with line labels (e.g. "42 | const x = 1"), do NOT include the line label prefix in 'search'. Match only the raw file text.
 6. The optional 'start_line' is 1-based and refers to the line number in the ORIGINAL file (before any replacements). The system automatically adjusts for line count changes from previous replacements. Use 'start_line' for precise positioning and to avoid duplicate matches.`,
-					},
 				},
-				"required": []string{"path", "replacements"},
 			},
-			Callback: a.replaceInFileTool,
+			"required": []string{"path", "replacements"},
 		},
-		{
-			Name:        "write_to_file",
-			Description: "Write content to a file at the specified path. If the file exists, it will be overwritten. If the file doesn't exist, it will be created. Any necessary directories will be created automatically. **CRITICAL: This tool REQUIRES BOTH 'path' AND 'content' parameters. The 'content' parameter is MANDATORY and must contain the complete file content. Omitting 'content' will cause an error.** IMPORTANT: When fixing errors in an existing file, prefer using replace_in_file instead of write_to_file. Using write_to_file to rewrite complex files often reintroduces the same issues. Use write_to_file primarily for creating new files or when a complete rewrite is truly necessary.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
-						"type":        "string",
-						"description": "The absolute path to the file to write to",
-					},
-					"content": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED/MANDATORY**: The full content to write to the file. This parameter MUST be provided in every call. The tool will fail if this parameter is omitted. Content should be the complete intended file content, not a partial update.",
-					},
+		Callback: a.replaceInFileTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "write_to_file",
+		Description: "Write content to a file at the specified path. If the file exists, it will be overwritten. If the file doesn't exist, it will be created. Any necessary directories will be created automatically. **CRITICAL: This tool REQUIRES BOTH 'path' AND 'content' parameters. The 'content' parameter is MANDATORY and must contain the complete file content. Omitting 'content' will cause an error.** IMPORTANT: When fixing errors in an existing file, prefer using replace_in_file instead of write_to_file. Using write_to_file to rewrite complex files often reintroduces the same issues. Use write_to_file primarily for creating new files or when a complete rewrite is truly necessary.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The absolute path to the file to write to",
 				},
-				"required": []string{"path", "content"},
-			},
-			Callback: a.writeToFileTool,
-		},
-		{
-			Name:        "add_images",
-			Description: "Add image file paths to the image cache. These images will be included in all subsequent conversations with the LLM for multimodal (vision) understanding. Multiple paths can be separated by commas. Use this when you need the LLM to see additional images.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"paths": map[string]interface{}{
-						"type":        "string",
-						"description": "Comma-separated list of image file paths to add to the cache",
-					},
+				"content": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED/MANDATORY**: The full content to write to the file. This parameter MUST be provided in every call. The tool will fail if this parameter is omitted. Content should be the complete intended file content, not a partial update.",
 				},
-				"required": []string{"paths"},
 			},
-			Callback: a.addImagesTool,
+			"required": []string{"path", "content"},
 		},
-		{
-			Name:        "remove_images",
-			Description: "Remove image file paths from the image cache. Multiple paths can be separated by commas. Use this when you no longer need certain images in the conversation.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"paths": map[string]interface{}{
-						"type":        "string",
-						"description": "Comma-separated list of image file paths to remove from the cache",
-					},
+		Callback: a.writeToFileTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "add_images",
+		Description: "Add image file paths to the image cache. These images will be included in all subsequent conversations with the LLM for multimodal (vision) understanding. Multiple paths can be separated by commas. Use this when you need the LLM to see additional images.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"paths": map[string]interface{}{
+					"type":        "string",
+					"description": "Comma-separated list of image file paths to add to the cache",
 				},
-				"required": []string{"paths"},
 			},
-			Callback: a.removeImagesTool,
+			"required": []string{"paths"},
 		},
-		{
-			Name:        "clear_images",
-			Description: "Clear all cached image file paths. After calling this, no images will be included in subsequent conversations. Use this when you want to stop sending images to the LLM.",
-			Parameters: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-				"required":   []string{},
+		Callback: a.addImagesTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "remove_images",
+		Description: "Remove image file paths from the image cache. Multiple paths can be separated by commas. Use this when you no longer need certain images in the conversation.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"paths": map[string]interface{}{
+					"type":        "string",
+					"description": "Comma-separated list of image file paths to remove from the cache",
+				},
 			},
-			Callback: a.clearImagesTool,
+			"required": []string{"paths"},
 		},
-	}
+		Callback: a.removeImagesTool,
+	})
+	tools = append(tools, llm.Tool{
+		Name:        "clear_images",
+		Description: "Clear all cached image file paths. After calling this, no images will be included in subsequent conversations. Use this when you want to stop sending images to the LLM.",
+		Parameters: map[string]interface{}{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+			"required":   []string{},
+		},
+		Callback: a.clearImagesTool,
+	})
 
 	// Add sub-agent tools only if sub-agent enabled
 	if a.subAgentEnabled {

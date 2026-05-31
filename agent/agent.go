@@ -167,13 +167,13 @@ func (a *Agent) SetToolMode(toolName string, mode string) {
 // without duplicating the map.
 func DefaultToolModes() map[string]string {
 	return map[string]string{
-		"execute_command":            "disabled",
+		"execute_command":            "confirm",
 		"read_file":                  "confirm",
 		"write_to_file":              "confirm",
 		"replace_in_file":            "confirm",
 		"search_files":               "confirm",
 		"list_files":                 "auto",
-		"list_code_definition_names": "confirm",
+		"list_code_definition_names": "auto",
 		"add_images":                 "auto",
 		"remove_images":              "auto",
 		"clear_images":               "auto",
@@ -193,7 +193,8 @@ func DefaultToolModes() map[string]string {
 		"delete_memory":              "confirm",
 		"shell_start":                "auto",
 		"shell_send":                 "confirm",
-		"shell_get_output":           "confirm",
+		"shell_get_output":           "auto",
+		"shell_window_content":       "auto",
 		"shell_stop":                 "auto",
 		"attempt_completion":         "auto",
 	}
