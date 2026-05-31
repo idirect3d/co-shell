@@ -100,37 +100,49 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Callback: a.shellStartTool,
 		},
 		{
-			Name:        "shell_exec",
-			Description: "Execute a command in the persistent shell session. The command runs in the same shell environment as previous shell_exec calls, preserving all state (current directory, environment variables, aliases, etc.). Use this to run sequential commands that depend on each other's state. Returns the command output. You can optionally specify timeout_seconds to limit execution time.",
+			Name:        "shell_send",
+			Description: "Send content (command, Python statement, control character, etc.) to the persistent shell session and observe its output. The content runs in the same shell environment as previous shell_send calls, preserving all state (current directory, environment variables, Python REPL state, etc.).\n\nThe command is sent VERBATIM to the shell's stdin. You MUST explicitly include any required newline (\\n) — it is NOT added automatically. The content waits for output to become idle (wait_ms) before returning.\n\nIMPORTANT: Send one logical unit at a time. Observe the result before sending the next unit.\n\nControl characters (send these as literal byte values in the command string):\n  \\n  = Enter (execute/submit input)\n  \\x03 = Ctrl+C (SIGINT)\n  \\x04 = Ctrl+D (EOF, exit REPL)\n  \\x0c = Ctrl+L (clear screen)\n  \\x09 = Tab\n  \\x1b = ESC\n  \\x1b[A = Up arrow\n  \\x1b[B = Down arrow\n  \\x1b[D = Left arrow\n  \\x1b[C = Right arrow\n\nThe wait_ms parameter (optional, default 500ms) controls the idle timeout. For long-running processes, set a higher value or call shell_get_output afterward.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"command": map[string]interface{}{
 						"type":        "string",
-						"description": "The command to execute in the persistent shell session",
+						"description": "The content to send to the shell session — a single shell command, Python statement, or input line",
+					},
+					"wait_ms": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional idle timeout in milliseconds (default: 200). Wait this long for new output after the last received output before returning the result. Increase for long-running processes.",
 					},
 					"timeout_seconds": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional timeout in seconds. Set this based on your estimate of how long the command will take. 0 or omitted means no timeout (use the default shell-session-timeout).",
+						"description": "Optional total timeout in seconds. Set this based on your estimate of how long the entire operation will take. 0 or omitted means no total timeout (use the default shell-session-timeout).",
 					},
 				},
 				"required": []string{"command"},
 			},
-			Callback: a.shellExecTool,
+			Callback: a.shellSendTool,
 		},
 		{
 			Name:        "shell_get_output",
-			Description: "Retrieve the terminal scrollback content from the persistent shell session. This returns the terminal's output history including commands and their output, similar to scrolling up in a terminal window. Use this when you need to see what happened in the shell session before your last command, for example to check Python REPL history or review previous command output. Parameters: last_from (1-based from end, 1=most recent line), count (how many lines to return, default 50). Lines that exceed the maximum per-line character limit are truncated with a note.",
+			Description: "Retrieve output from the persistent shell session since the last time shell_send or shell_get_output was called (auto-increment mode), or from a specific position.\n\nAuto-increment mode (no last_from/count): returns only the new content that has been produced since the last shell_send or shell_get_output call. This is useful for checking progress of a long-running command or REPL session.\n\nLegacy mode (with last_from/count): returns terminal scrollback history — like scrolling up in a terminal window. Use this to review what happened before the last command.\n\nParameters: wait_ms (optional, default 200ms — wait this long for new output before returning), last_from (optional, 1-based from end where 1=most recent line), count (optional, number of lines to return), timeout_seconds (optional, total timeout in seconds).",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
+					"wait_ms": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional observation wait time in milliseconds (default: 200). Wait this long for new output before returning. Increase for checking progress of a running command.",
+					},
 					"last_from": map[string]interface{}{
 						"type":        "number",
-						"description": "Starting position from the end (1-based, 1=most recent line). Must be >= 1.",
+						"description": "Optional: Starting position from the end (1-based, 1=most recent line). If not provided, uses auto-increment mode (returns only new content since last call).",
 					},
 					"count": map[string]interface{}{
 						"type":        "number",
-						"description": "Number of lines to return. Default: 50. Maximum will be limited by the scrollback buffer size.",
+						"description": "Optional: Number of lines to return. If not provided with last_from, uses auto-increment mode.",
+					},
+					"timeout_seconds": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional total timeout in seconds. Set this to prevent infinite waiting. 0 or omitted means no total timeout (use the default shell-session-timeout).",
 					},
 				},
 				"required": []string{},
@@ -691,26 +703,41 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 		})
 	}
 
-	// Filter out disabled tools (mode == "disabled")
+	// Filter out disabled tools.
+	// Each disabled entry in toolModes causes that tool to be skipped.
+	// If "default" is disabled, all tools are skipped unless they have
+	// their own non-disabled mode set.
 	for k, v := range a.toolModes {
-		if v == "disabled" {
+		if v != "disabled" {
+			continue
+		}
+		if k == "default" {
+			// Default mode is disabled: only keep tools that have their own
+			// explicit non-disabled mode.
 			filtered := make([]llm.Tool, 0, len(tools))
 			for _, tool := range tools {
-				if tool.Name == k || (k == "default" && a.toolModes[tool.Name] != "disabled") {
-					if k == "default" && a.toolModes[tool.Name] != "disabled" {
-						// default is disabled, but this tool has its own setting
-						continue
-					}
+				ownMode, hasOwn := a.toolModes[tool.Name]
+				if hasOwn && ownMode != "disabled" {
+					filtered = append(filtered, tool)
+				} else if !hasOwn {
+					// No own mode set — follows default which is disabled
+					log.Debug("Tool %s is disabled (default=disabled), skipping registration", tool.Name)
 				}
-				if a.toolModes[tool.Name] == "disabled" {
+			}
+			tools = filtered
+		} else {
+			// Specific tool disabled
+			filtered := make([]llm.Tool, 0, len(tools))
+			for _, tool := range tools {
+				if tool.Name == k {
 					log.Debug("Tool %s is disabled, skipping registration", tool.Name)
 					continue
 				}
 				filtered = append(filtered, tool)
 			}
 			tools = filtered
-			break
 		}
+		break
 	}
 
 	return tools
@@ -911,6 +938,9 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		}
 	}
 
+	// Mark the task as completed so RunStream knows this is the final answer
+	a.SetCompleted()
+
 	// Build the final completion message
 	message := fmt.Sprintf("✅ 任务完成\n\n%s", result)
 	if cmdOutput != "" {
@@ -918,4 +948,12 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 	}
 
 	return message, nil
+}
+
+// SetCompleted marks the current task as completed.
+// RunStream checks this flag before deciding whether to exit on 0 tool calls.
+func (a *Agent) SetCompleted() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.completed = true
 }

@@ -146,23 +146,69 @@ func (a *Agent) SetMaxIterations(n int) {
 // mode is one of: "disabled" (not sent to LLM), "confirm" (enabled, requires user confirmation),
 // "auto" (enabled, auto-approved without confirmation).
 // If toolName is empty, sets the default for all tools.
+// When the default is changed, all per-tool entries are cleared so they follow the new default
+// (unless they were explicitly set via a separate call with a non-empty toolName).
 func (a *Agent) SetToolMode(toolName string, mode string) {
 	if a.toolModes == nil {
 		a.toolModes = make(map[string]string)
 	}
 	if toolName == "" {
-		a.toolModes["default"] = mode
+		// Setting default - clear all per-tool entries so they follow the default.
+		// Build a fresh map with just the default.
+		a.toolModes = map[string]string{"default": mode}
 	} else {
 		a.toolModes[toolName] = mode
 	}
 }
 
-// SyncToolModes syncs the per-tool mode settings from config.
-func (a *Agent) SyncToolModes(cfg *config.Config) {
-	a.toolModes = make(map[string]string)
-	for k, v := range cfg.LLM.ToolModes {
-		a.toolModes[k] = v
+// DefaultToolModes returns the default per-tool confirmation modes.
+// Tools not listed default to "confirm". This function is exported so that
+// the settings handler (cmd/settings_safety.go) can display the defaults
+// without duplicating the map.
+func DefaultToolModes() map[string]string {
+	return map[string]string{
+		"execute_command":            "disabled",
+		"read_file":                  "confirm",
+		"write_to_file":              "confirm",
+		"replace_in_file":            "confirm",
+		"search_files":               "confirm",
+		"list_files":                 "auto",
+		"list_code_definition_names": "confirm",
+		"add_images":                 "auto",
+		"remove_images":              "auto",
+		"clear_images":               "auto",
+		"update_settings":            "confirm",
+		"list_settings":              "auto",
+		"ask_followup_question":      "auto",
+		"adjust_context_start":       "auto",
+		"launch_sub_agent":           "confirm",
+		"schedule_task":              "confirm",
+		"create_task_plan":           "auto",
+		"update_task_step":           "auto",
+		"insert_task_steps":          "auto",
+		"remove_task_steps":          "auto",
+		"view_task_plan":             "auto",
+		"get_memory_slice":           "auto",
+		"memory_search":              "auto",
+		"delete_memory":              "confirm",
+		"shell_start":                "auto",
+		"shell_send":                 "confirm",
+		"shell_get_output":           "confirm",
+		"shell_stop":                 "auto",
+		"attempt_completion":         "auto",
 	}
+}
+
+// SyncToolModes syncs the per-tool mode settings from config.
+// Config values override defaults; any tool not in config keeps its default.
+func (a *Agent) SyncToolModes(cfg *config.Config) {
+	// Start with built-in defaults
+	modes := DefaultToolModes()
+	// Config overrides
+	for k, v := range cfg.LLM.ToolModes {
+		modes[k] = v
+	}
+	a.toolModes = modes
 }
 
 // SetMemoryEnabled sets whether persistent memory tools are enabled.

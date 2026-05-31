@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-28
-// Last Modified: 2026-05-28
+// Last Modified: 2026-05-30
 //
 // MIT License
 //
@@ -72,10 +72,16 @@ func (a *Agent) shellStartTool(ctx context.Context, args map[string]interface{})
 	return string(result), nil
 }
 
-// shellExecTool executes a command in the persistent shell session.
-// The command runs in the same shell environment, preserving state
-// (current directory, environment variables, etc.).
-func (a *Agent) shellExecTool(ctx context.Context, args map[string]interface{}) (string, error) {
+// shellSendTool sends content to the persistent shell session and observes the output.
+// The content can be a shell command, a line of Python code, or any input for an
+// interactive program running in the shell. The function waits for output to become
+// idle (no new output for wait_ms milliseconds) before returning, allowing the LLM
+// to observe the result of each individual input.
+//
+// LLMs should send content one logical unit at a time (one shell command, one Python
+// statement, etc.) so they can observe the result of each input and decide what to
+// send next based on the output.
+func (a *Agent) shellSendTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if !a.shellEnabled {
 		return "", fmt.Errorf("persistent shell session is disabled")
 	}
@@ -89,7 +95,16 @@ func (a *Agent) shellExecTool(ctx context.Context, args map[string]interface{}) 
 		return "", fmt.Errorf("command argument is required")
 	}
 
-	// Get LLM-suggested timeout (optional)
+	// Unescape escape sequences in the command (\n, \xNN, etc.)
+	command = unescapeCommand(command)
+
+	// Get wait_ms (optional, in milliseconds, default 500)
+	waitMs := 200
+	if w, ok := args["wait_ms"].(float64); ok && w > 0 {
+		waitMs = int(w)
+	}
+
+	// Get LLM-suggested total timeout (optional)
 	llmSuggested := 0
 	if t, ok := args["timeout_seconds"].(float64); ok {
 		llmSuggested = int(t)
@@ -113,10 +128,9 @@ func (a *Agent) shellExecTool(ctx context.Context, args map[string]interface{}) 
 		defer cancel()
 	}
 
-	output, err := a.shellSession.Exec(execCtx, command)
+	output, err := a.shellSession.Exec(execCtx, command, waitMs)
 	if err != nil {
-		log.Debug("Shell exec error: %v (output: %s)", err, output)
-		// Return partial output with error info
+		log.Debug("Shell send error: %v (output: %s)", err, output)
 		if output != "" {
 			return fmt.Sprintf("%s\n\n⚠️ 命令执行出错：%v", output, err), nil
 		}
@@ -127,8 +141,9 @@ func (a *Agent) shellExecTool(ctx context.Context, args map[string]interface{}) 
 }
 
 // shellGetOutputTool retrieves scrollback content from the shell session.
-// Returns the requested lines from the terminal history, total lines available,
-// and whether any lines were truncated.
+// If no last_from/count is provided, it returns only content that has been
+// added since the last shell_send or shell_get_output call (auto-increment mode).
+// The wait_ms parameter controls how long to wait for new output before returning.
 func (a *Agent) shellGetOutputTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if !a.shellEnabled {
 		return "", fmt.Errorf("persistent shell session is disabled")
@@ -138,26 +153,64 @@ func (a *Agent) shellGetOutputTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("no persistent shell session is active. Use shell_start to start one first")
 	}
 
-	lastFrom := 1
+	// Get wait_ms (optional, in milliseconds, default 200)
+	waitMs := 200
+	if w, ok := args["wait_ms"].(float64); ok && w > 0 {
+		waitMs = int(w)
+	}
+
+	// Get last_from (optional, 1-based from end)
+	lastFrom := 0
 	if lf, ok := args["last_from"].(float64); ok {
 		lastFrom = int(lf)
 	}
-	if lastFrom < 1 {
-		lastFrom = 1
+	if lastFrom < 0 {
+		lastFrom = 0
 	}
 
-	count := 50
+	// Get count (optional)
+	count := 0
 	if c, ok := args["count"].(float64); ok {
 		count = int(c)
 	}
-	if count < 1 {
-		count = 50
+	if count < 0 {
+		count = 0
 	}
 
-	output, totalLines, truncatedCount := a.shellSession.GetOutput(lastFrom, count)
-	return fmt.Sprintf("终端历史输出（共%d行，本次返回从倒数第%d行开始%d行）：\n%s\n\n%s",
-		totalLines, lastFrom, count, output,
-		truncatedOutputSummary(truncatedCount)), nil
+	// Get LLM-suggested total timeout (optional)
+	llmSuggested := 0
+	if t, ok := args["timeout_seconds"].(float64); ok {
+		llmSuggested = int(t)
+	}
+
+	// Effective timeout = max(user-configured ShellSessionTimeout, LLM-suggested)
+	userMin := 0
+	if a.cfg != nil {
+		userMin = a.cfg.LLM.ShellSessionTimeout
+	}
+	effectiveTimeout := userMin
+	if llmSuggested > effectiveTimeout {
+		effectiveTimeout = llmSuggested
+	}
+
+	// Create context with optional timeout
+	execCtx := ctx
+	if effectiveTimeout > 0 {
+		var cancel context.CancelFunc
+		execCtx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeout)*time.Second)
+		defer cancel()
+	}
+
+	// If wait_ms > 0, wait briefly for any pending output to arrive (if not timed out)
+	select {
+	case <-execCtx.Done():
+		output, totalLines := a.shellSession.GetOutput(lastFrom, count)
+		return fmt.Sprintf("终端输出（共%d行）：\n%s", totalLines, output), nil
+	case <-time.After(time.Duration(waitMs) * time.Millisecond):
+	}
+
+	output, totalLines := a.shellSession.GetOutput(lastFrom, count)
+	return fmt.Sprintf("终端输出（共%d行）：\n%s", totalLines, output), nil
 }
 
 // truncatedOutputSummary returns a summary of how many lines were truncated
@@ -183,4 +236,65 @@ func (a *Agent) shellStopTool(ctx context.Context, args map[string]interface{}) 
 	a.shellSession = nil
 
 	return "persistent shell session closed successfully", nil
+}
+
+// unescapeCommand converts escape sequences in a command string to literal bytes.
+// Supports \n, \r, \t, \\, and \xNN (hex) sequences.
+// This allows LLMs to send control characters like \n (Enter) and \x03 (Ctrl+C)
+// as human-readable escape sequences in the command string.
+func unescapeCommand(s string) string {
+	var result []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] != '\\' {
+			result = append(result, s[i])
+			continue
+		}
+		if i+1 >= len(s) {
+			result = append(result, '\\')
+			break
+		}
+		switch s[i+1] {
+		case 'n':
+			result = append(result, '\n')
+			i++
+		case 'r':
+			result = append(result, '\r')
+			i++
+		case 't':
+			result = append(result, '\t')
+			i++
+		case '\\':
+			result = append(result, '\\')
+			i++
+		case 'x':
+			// \xNN hex escape
+			if i+3 < len(s) {
+				var b byte
+				for j := 0; j < 2; j++ {
+					c := s[i+2+j]
+					switch {
+					case c >= '0' && c <= '9':
+						b = b*16 + (c - '0')
+					case c >= 'a' && c <= 'f':
+						b = b*16 + (c - 'a' + 10)
+					case c >= 'A' && c <= 'F':
+						b = b*16 + (c - 'A' + 10)
+					default:
+						result = append(result, s[i:i+2+j]...)
+						i += 1 + j
+						goto next
+					}
+				}
+				result = append(result, b)
+				i += 3
+			} else {
+				result = append(result, s[i:]...)
+				i = len(s)
+			}
+		default:
+			result = append(result, '\\')
+		}
+	next:
+	}
+	return string(result)
 }

@@ -137,6 +137,10 @@ type Agent struct {
 	totalCompletionTokens int // accumulated completion tokens across all LLM calls
 	totalTokens           int // accumulated total tokens across all LLM calls
 
+	// completed is set to true when attempt_completion is called.
+	// RunStream checks this before treating 0-tool-call as final answer.
+	completed bool
+
 	// Loop detection (FIX-179)
 	loopDetector   *LoopDetector // monitors LLM output for repeating patterns
 	loopDetectOn   bool          // whether loop detection is enabled for current request

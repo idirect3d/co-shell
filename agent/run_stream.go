@@ -43,11 +43,12 @@ import (
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
-	// Reset approveAll, per-tool counters, and error tracking flags for each new request
+	// Reset approveAll, per-tool counters, completion flag, and error tracking for each new request
 	a.approveAll = false
 	a.approveCount = 0
 	a.toolApproveCounts = make(map[string]int)
 	a.toolDisableConfirm = make(map[string]bool)
+	a.completed = false
 	a.errorCounter = make(map[string]int)
 	a.errorApproveAll = false
 
@@ -311,35 +312,62 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
-		// Step 2: If no tool calls, this is the final answer
+		// Step 2: Handle responses with no tool calls.
+		// If attempt_completion was called (completed=true), this is the final answer.
+		// Otherwise, ask the LLM to continue if it seems like the task isn't done yet.
 		if len(toolCalls) == 0 {
-			// Send token usage information before done
-			prompt, completion, total := a.TokenUsage()
-			if total > 0 {
-				cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+			// Check if attempt_completion was invoked during this iteration.
+			// If yes, this response IS the final answer — exit.
+			if a.completed {
+				// Send token usage information before done
+				prompt, completion, total := a.TokenUsage()
+				if total > 0 {
+					cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+				}
+				cb("done", "")
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:             "assistant",
+					Content:          finalContent,
+					ReasoningContent: finalReasoning,
+				})
+				if a.memoryEnabled {
+					if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+						log.Warn("Failed to save assistant message to memory: %v", err)
+					}
+				}
+				a.mu.Unlock()
+				if err := a.PersistSession(); err != nil {
+					log.Warn("Failed to persist session: %v", err)
+				}
+				log.Info("Agent.RunStream: completed after %d iterations (via attempt_completion)", iteration+1)
+				return finalContent, nil
 			}
 
-			cb("done", "")
-
+			// attempt_completion was NOT called — don't exit yet. Remind the LLM it needs
+			// to either call attempt_completion when done, or continue working.
+			continuePrompt := "现在应该继续思考并完成任务直到达成任务目标，你可以调用合适的工具，以表示任务还将继续。如果确实认为任务已经完成了，需要调用 attempt_completion 工具来提交最终答案。"
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
 				Content:          finalContent,
 				ReasoningContent: finalReasoning,
 			})
-			// Sync to memory (content without timestamp prefix)
+			// Sync to memory
 			if a.memoryEnabled {
 				if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
 					log.Warn("Failed to save assistant message to memory: %v", err)
 				}
 			}
+			a.messages = append(a.messages, llm.Message{
+				Role:    "user",
+				Content: continuePrompt,
+			})
 			a.mu.Unlock()
-			// Persist session to storage after request completion
-			if err := a.PersistSession(); err != nil {
-				log.Warn("Failed to persist session: %v", err)
-			}
-			log.Info("Agent.RunStream: completed after %d iterations", iteration+1)
-			return finalContent, nil
+
+			log.Debug("Agent.RunStream: 0 tool calls but attempt_completion not called, prompting LLM to continue")
+			continue
 		}
 
 		// Step 3: Check for duplicate messages before adding to history
