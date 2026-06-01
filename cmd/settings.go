@@ -136,16 +136,17 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "show-command", subcommand == "show-tool",
 		subcommand == "show-tool-input", subcommand == "show-tool-output",
 		subcommand == "show-command-output", subcommand == "emoji-enabled",
-		subcommand == "show-logo", subcommand == "result-mode":
+		subcommand == "show-logo":
 		return h.handleDisplaySetting(subcommand, args)
 
 	// Agent settings
 	case subcommand == "name", subcommand == "description", subcommand == "principles",
 		subcommand == "max-iterations", subcommand == "max-retries",
 		subcommand == "memory-enabled", subcommand == "plan-enabled",
-		subcommand == "subagent-enabled", subcommand == "shell-session-enabled",
-		subcommand == "shell-session-timeout", subcommand == "context-limit",
-		subcommand == "context-start":
+		subcommand == "subagent-enabled", subcommand == "context-limit",
+		subcommand == "context-start", subcommand == "result-mode",
+		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
+		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols":
 		return h.handleAgentSetting(subcommand, args)
 
 	// Safety settings
@@ -368,6 +369,23 @@ func showSettingsHelp(cfg *config.Config) string {
 		toolCallMode = "openai"
 	}
 
+	shellSessionEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShellSessionEnabled {
+		shellSessionEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	shellTimeoutStr := fmt.Sprintf("%d", cfg.LLM.ShellSessionTimeout)
+	if cfg.LLM.ShellSessionTimeout <= 0 {
+		shellTimeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+	shellVtRows := cfg.LLM.ShellVTRows
+	if shellVtRows <= 0 {
+		shellVtRows = 24
+	}
+	shellVtCols := cfg.LLM.ShellVTCols
+	if shellVtCols <= 0 {
+		shellVtCols = 80
+	}
+
 	allLines = append(allLines,
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
@@ -377,6 +395,13 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
 		makeLine("default-vision-model", defaultVisionModelID, i18n.T(i18n.KeyCol3DefaultVisionModel)),
 		makeLine("default-problem-model", defaultProblemModelID, i18n.T(i18n.KeyCol3DefaultProblemModel)),
+		makeLine("plan-enabled", planEnabledStatus, i18n.T(i18n.KeyCol3PlanEnabled)),
+		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
+		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
+		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),
+		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),
+		makeLine("shell-vt-rows", fmt.Sprintf("%d", shellVtRows), "虚拟终端行数(5-200)"),
+		makeLine("shell-vt-cols", fmt.Sprintf("%d", shellVtCols), "虚拟终端列数(20-500)"),
 	)
 
 	// Group 3: Display & Output
@@ -393,7 +418,6 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("show-tool-output", toolOutputStatus, i18n.T(i18n.KeyCol3ToolOutput)),
 		makeLine("show-command", commandStatus, i18n.T(i18n.KeyCol3Command)),
 		makeLine("show-command-output", commandOutputStatus, i18n.T(i18n.KeyCol3CommandOutput)),
-		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
 	)
 
 	// Loop detection (FIX-179)
@@ -449,24 +473,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("db", dbEnabledStatus, i18n.T(i18n.KeyDBSubCmdDesc)),
 	)
 
-	shellSessionEnabledStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ShellSessionEnabled {
-		shellSessionEnabledStatus = i18n.T(i18n.KeyOn)
-	}
-	shellTimeoutStr := fmt.Sprintf("%d", cfg.LLM.ShellSessionTimeout)
-	if cfg.LLM.ShellSessionTimeout <= 0 {
-		shellTimeoutStr = i18n.T(i18n.KeyUnlimited)
-	}
-
-	// Group 6: Tasks & Sub-Agents
-	allLines = append(allLines,
-		makeLine("plan-enabled", planEnabledStatus, i18n.T(i18n.KeyCol3PlanEnabled)),
-		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
-		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),
-		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),
-	)
-
-	// Group 7: Search & Debug
+	// Group 6: Search & Debug
 	allLines = append(allLines,
 		makeLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.T(i18n.KeyCol3SearchMaxLineLength)),
 		makeLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.T(i18n.KeyCol3SearchMaxResultBytes)),
@@ -503,10 +510,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(8)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(15)...)
 
 	// Group 3: Display & Output
-	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)
 
 	// Group 4: Safety & Confirmation (6 + 9 new = 15)
 	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(15)...)
@@ -514,10 +521,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	// Group 5: Memory & Context
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
 
-	// Group 6: Tasks & Sub-Agents
-	writeGroup(i18n.T(i18n.KeySettingsGroupTask), nextLines(4)...)
-
-	// Group 7: Search & Debug
+	// Group 6: Search & Debug
 	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
 
 	return sb.String()
