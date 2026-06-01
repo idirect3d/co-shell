@@ -346,7 +346,7 @@ func (a *Agent) rebuildSystemPrompt() {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.lastUserInput
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -527,7 +527,7 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.lastUserInput
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
