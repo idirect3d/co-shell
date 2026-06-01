@@ -433,10 +433,11 @@ Usage:
 
 	zhMessages[KeyToolUsageShellSend] = `## shell_send
 说明: 向持久 Shell 会话发送内容（命令、Python 语句或控制字符）并观察输出。内容在上一次 shell_send 调用的同一 Shell 环境中运行，保持所有状态（当前目录、环境变量、Python REPL 变量等）。用于与 Shell 或 REPL 会话交互。
-发送的内容会原样写入 stdin，不会自动添加任何字符（包括回车）。LLM 必须自行在 command 中包含所有需要的字节。
+发送的内容会原样写入 stdin，不会自动添加任何字符（包括回车）。LLM 必须自行在 command 中包含回车 \n 来提交命令。
+**重要：每条命令末尾必须包含 \n（回车提交），否则命令不会执行，终端只是等待更多输入。**
 每次只发送一个逻辑单元。观察输出结果后再决定下一步发送什么。
 参数:
-- command（必填）要发送到 Shell 会话的内容（一条命令、一条 Python 语句、一行输入）
+- command（必填）要发送到 Shell 会话的内容（一条命令、一条 Python 语句、一行输入）。**末尾必须有 \n**
 - wait_ms（可选）空闲超时毫秒数（默认 500）。连续收到新输出后重置计时器，空闲超时后返回已观察到的结果。长运行进程应提高此值。
 - timeout_seconds（可选）总超时秒数
 
@@ -451,9 +452,16 @@ Usage:
   \x1b[D = ← 左方向键
   \x1b[C = → 右方向键
 
+**XML 模式下的换行处理（重要）：**
+XML 标签内的换行符会被保留，因此以下两种写法效果相同：
+- 写法 A（显式 \n）：<command>ls -la\n</command>
+- 写法 B（利用 XML 换行）：<command>
+ls -la\n</command>
+无论哪种写法，\n 必须出现在命令参数末尾，否则 shell 不会执行。
+
 输出机制: 每个命令发送后进入空闲观察模式。连续收到新行时重置 500ms 空闲计时器。空闲超时后返回所有已收集的输出。可设置 timeout_seconds 作为总超时兜底。
 
-调用模式 - 逐行交互（注意每行末尾的 \n）:
+调用模式 - 逐行交互（每行末尾必须有 \n 提交回车）:
   # 第1步: 进入目录
   <shell_send>
     <command>cd /var/www/project\n</command>
@@ -466,7 +474,7 @@ Usage:
     <wait_ms>500</wait_ms>
   </shell_send>
 
-  # 第3步: Python 交互式编程（逐行）
+  # 第3步: Python 交互式编程（逐行提交，每行末尾 \n）
   <shell_send>
     <command>python3\n</command>
     <wait_ms>1000</wait_ms>
@@ -483,11 +491,11 @@ Usage:
   </shell_send>
 
   <shell_send>
-    <command>x + y\n</command>
+    <command>print(x + y)\n</command>
     <wait_ms>500</wait_ms>
   </shell_send>
 
-  # 退出 Python REPL（Ctrl+D）
+  # 退出 Python REPL（Ctrl+D，不需要 \n）
   <shell_send>
     <command>\x04</command>
     <wait_ms>1000</wait_ms>
