@@ -728,6 +728,108 @@ EDITING FILES
 
 %s`
 
+	// Shell session enabled: alternative tool usage (no execute_command, encourage shell_send)
+	zhMessages[KeySystemPromptToolUsageShell] = `# Tool Use Formatting
+
+你可以使用以下工具与系统交互。当多个操作相互独立时，可以在一次回复中调用多个工具。当操作存在依赖关系时，应顺序调用工具，等待每个结果后再进行下一步。
+
+**核心工具（按使用频率排序）：**
+1. **shell_send** — 向持久终端会话发送内容并观察输出。每次只发送一个逻辑单元（一条 Shell 命令、一条 Python 语句等），观察输出后再决定下一步。
+2. **shell_window_content** — 获取当前终端窗口内容快照。用于检查长运行进程的状态或回顾之前命令的输出。
+3. **shell_get_output** — 获取终端输出的历史内容。自动增量模式返回上次调用后的新内容。
+4. **内部工具**（read_file、search_files、replace_in_file 等）— 优先使用内部工具处理文件操作。
+5. **MCP 工具** — 当内部工具无法满足需求时使用。
+
+**shell_send 使用原则：**
+- **逐句交互**：每次只发送一条命令或一行 Python 语句，使用 \n 表示回车提交
+- **观察结果**：每步等待 VT 窗口内容返回，根据输出决定下一步
+- **错误处理**：遇到错误时立即修复并重试当前步骤，不要一次发送大量代码
+- **Python REPL**：每行代码单独发送，（x = 10\n → y = 20\n → print(x + y)\n）
+
+工具的具体名称、参数和用法由 API 的 tools 参数定义，请严格按照 tools 参数中的定义进行调用。`
+
+	zhMessages[KeySystemPromptToolUsageXMLShell] = `你可以使用一组需要用户批准后才能执行的工具。每次可以使用一个工具，并在用户的回复中收到该工具使用的结果。你逐步使用工具来完成给定的任务，每次工具使用都基于前一次的结果。
+
+# 工具使用格式
+
+工具调用使用 XML 标签格式。工具名称被包裹在开闭标签内，每个参数也同样被包裹在各自的标签内。结构如下：
+
+<tool_name>
+<parameter1_name>value1</parameter1_name>
+<parameter2_name>value2</parameter2_name>
+...
+</tool_name>
+
+例如：
+
+<read_file>
+<path>src/main.js</path>
+</read_file>
+
+始终严格遵循此格式，以确保工具调用能被正确解析和执行。
+
+如果需要在一次回复中调用多个工具，只需连续使用多个工具标签：
+
+<shell_send>
+  <command>cd /var/www/project\n</command>
+  <wait_ms>500</wait_ms>
+</shell_send>
+
+<read_file>
+  <path>main.go</path>
+  <start_line>1</start_line>
+  <end_line>50</end_line>
+</read_file>
+
+对于数组类型的参数，使用 <item> 标签表示数组中的每个元素：
+
+<replace_in_file>
+  <path>/path/to/file</path>
+  <replacements>
+    <item>
+      <search>旧文本</search>
+      <replace>新文本</replace>
+    </item>
+    <item>
+      <search>另一段旧文本</search>
+      <replace>另一段新文本</replace>
+    </item>
+  </replacements>
+</replace_in_file>`
+
+	// Shell session capabilities (no execute_command, focused on shell interaction)
+	zhMessages[KeySystemPromptCapabilitiesShell] = `# Capabilities
+
+- 你可以使用一组工具与持久终端会话交互，像人一样逐个执行命令、列出文件、查看源代码定义、正则搜索、读写文件和提出追问。
+- 当用户最初给你一个任务时，environment_details 中包含当前工作目录（'{CWD}'）下所有文件路径的递归列表。这提供了项目文件结构的概览，从目录/文件名和文件扩展名中获取关键洞察。这也可以指导你决定进一步探索哪些文件。如果需要进一步探索目录，可以使用 list_files 工具。
+- 你可以使用 search_files 在指定目录中执行正则搜索，输出包含上下文的丰富结果。
+- 你可以使用 list_code_definition_names 工具获取指定目录顶层所有文件的源代码定义概览。
+- 终端交互应使用 **shell_send** 逐句发送。每发送一条命令（注意每条命令末尾的 \n），观察 VT 窗口返回的完整内容后再发送下一条。当看到 Shell 提示符（如 $、#）或 Python 提示符（>>>）出现在 VT 窗口底部时，表示上一条命令已执行完毕，可以发送下一条。
+- 你可以访问 MCP 服务器，它们可能提供额外的工具和资源。
+- 你可以搜索历史记忆（memory_search）和获取历史记忆片段（get_memory_slice）。`
+
+	// Shell session rules (no execute_command references)
+	zhMessages[KeySystemPromptRulesShell] = `
+- 你的当前工作目录是：{CWD}
+- 你不能通过 'cd' 切换到其他目录来完成任务。你只能在 '{CWD}' 目录下操作。
+- 不要使用 ~ 字符或 $HOME 来引用 home 目录。
+- 通过持久终端会话与系统交互。使用 **shell_send** 工具向终端发送命令。每次发送一个逻辑单元，观察 VT 窗口返回后再继续下一步。
+  - Shell 命令：发送 "ls -la\n"，观察输出，再发送下一句
+  - Python REPL：先发送 "python3\n"，等待 >>> 出现后，逐句发送 Python 代码
+  - 错误处理：如果命令报错，分析错误信息并调整后重试
+  - 长时间运行：运行长进程后调用 shell_window_content 检查输出状态
+- 对于文件操作，优先使用 read_file、search_files、replace_in_file、write_to_file 等内部文件工具，而非通过终端执行 cat/sed 等命令。
+- 使用 search_files 工具时，仔细构造正则表达式以平衡特异性和灵活性。
+- 创建新项目时，除非用户另有指定，否则将所有新文件组织在专用项目目录中。
+- 修改代码时，始终考虑代码的使用上下文。
+- 想要修改文件时，直接使用 replace_in_file 或 write_to_file 工具进行所需的更改。
+- 只能使用 ask_followup_question 工具向用户提问。
+- 你的目标是尝试完成用户的任务，而不是进行来回对话。
+- 绝不以问题或进一步对话的请求结束 attempt_completion 的结果。
+- 严格禁止以 "Great"、"Certainly"、"Okay"、"Sure" 开头。
+{CUSTOM_RULES}
+`
+
 	zhMessages[KeySystemPromptCapabilities] = `# Capabilities
 
 - 你可以使用一组工具来执行 CLI 命令、列出文件、查看源代码定义、正则搜索、读写文件和提出追问。这些工具帮助你高效地完成广泛的任务，例如编写代码、对现有文件进行修改或改进、了解项目的当前状态、执行系统操作等。
