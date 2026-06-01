@@ -720,10 +720,22 @@ const (
 	KeyToolUsageShellGetOutput = "tool_usage_shell_get_output"
 	KeyToolUsageShellStop      = "tool_usage_shell_stop"
 
-	// Shell session
+	// Shell session (column labels)
 	KeyCol3ShellSessionEnabled = "col3_shell_session_enabled"
 	KeyCol3ShellSessionTimeout = "col3_shell_session_timeout"
 
 	KeySettingsDescShellSessionEnabled = "settings_desc_shell_session_enabled"
 	KeySettingsDescShellSessionTimeout = "settings_desc_shell_session_timeout"
+
+	// Shell session alternative system prompts (used when shell-session-enabled=on)
+	KeySystemPromptToolUsageShell    = "system_prompt_tool_usage_shell"
+	KeySystemPromptToolUsageXMLShell = "system_prompt_tool_usage_xml_shell"
+	KeySystemPromptCapabilitiesShell = "system_prompt_capabilities_shell"
+	KeySystemPromptRulesShell        = "system_prompt_rules_shell"
+
+	// Shell session tool usage descriptions (XML mode, shell-enabled)
+	KeyToolUsageShellSendShell      = "tool_usage_shell_send_shell"
+	KeyToolUsageShellGetOutputShell = "tool_usage_shell_get_output_shell"
+	KeyToolUsageShellWindowContent  = "tool_usage_shell_window_content"
+	KeyToolUsageShellReset          = "tool_usage_shell_reset"
 )
