@@ -424,12 +424,12 @@ Usage:
   <command>Your command here (optional)</command>
 </attempt_completion>`
 
-	zhMessages[KeyToolUsageShellStart] = `## shell_start
-说明: 启动一个持久交互式 Shell 会话，保持状态（当前目录、环境变量等）跨多次命令执行。当需要连续执行依赖于彼此状态的命令时（如 cd 到目录、启动 Python REPL），应使用此方法代替 execute_command。返回会话状态，包括 Shell 类型和工作目录。
+	zhMessages[KeyToolUsageShellReset] = `## shell_reset
+说明: 重置持久 Shell 会话到干净状态。关闭当前会话并启动一个新会话，终端完全重置。当 Shell 处于意外状态（如 REPL 错误、卡在进程中）时使用。正常情况下 Shell 会话由系统自动管理——仅在需要手动重置时使用。
 参数: 无
 用法:
-<shell_start>
-</shell_start>`
+<shell_reset>
+</shell_reset>`
 
 	zhMessages[KeyToolUsageShellSend] = `## shell_send
 说明: 向持久 Shell 会话发送内容（命令、Python 语句或控制字符）并观察输出。内容在上一次 shell_send 调用的同一 Shell 环境中运行，保持所有状态（当前目录、环境变量、Python REPL 变量等）。用于与 Shell 或 REPL 会话交互。
@@ -515,12 +515,12 @@ Usage:
 	zhMessages[KeySystemPromptXMLRules] = `
 # 工具使用示例
 
-## 示例 1：执行命令
+## 示例 1：列出目录文件
 
-<execute_command>
-  <command>curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'</command>
-  <timeout_seconds>15</timeout_seconds>
-</execute_command>
+<list_files>
+  <path>.</path>
+  <recursive>false</recursive>
+</list_files>
 
 ## 示例 2：创建新文件
 
