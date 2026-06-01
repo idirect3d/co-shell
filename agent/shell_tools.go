@@ -225,6 +225,34 @@ func truncatedOutputSummary(truncatedCount int) string {
 	return ""
 }
 
+// shellResetTool stops and restarts the shell session, resetting it to a clean state.
+func (a *Agent) shellResetTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	if !a.shellEnabled {
+		return "", fmt.Errorf("persistent shell session is disabled")
+	}
+
+	if a.shellSession == nil {
+		return "", fmt.Errorf("no active shell session to reset. It will be auto-started")
+	}
+
+	// Close and reopen session
+	a.CloseShellSession()
+
+	sess := &shell.Session{}
+	if a.cfg != nil && a.cfg.LLM.ShellVTRows > 0 && a.cfg.LLM.ShellVTCols > 0 {
+		sess.SetVT(a.cfg.LLM.ShellVTRows, a.cfg.LLM.ShellVTCols)
+	}
+	if _, err := sess.Start(); err != nil {
+		return "", fmt.Errorf("failed to restart shell session: %w", err)
+	}
+
+	a.mu.Lock()
+	a.shellSession = sess
+	a.mu.Unlock()
+
+	return "shell session has been reset to a clean state", nil
+}
+
 // shellWindowContentTool returns the current virtual terminal window content.
 // This provides a snapshot of what the terminal currently displays, useful for
 // checking the state of a long-running process or reviewing command output

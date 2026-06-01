@@ -103,17 +103,8 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 	}
 
 	if a.shellEnabled {
-		// Shell session enabled: use shell tools (more human-like terminal interaction)
-		tools = append(tools, llm.Tool{
-			Name:        "shell_start",
-			Description: "Start a persistent interactive shell session that maintains state (current directory, environment variables, etc.) across multiple command executions. Use this when you need to run multiple commands in the same shell environment, for example: cd into a directory and then run commands there, or start a Python REPL and execute Python code interactively. Returns the session status including shell type and working directory. Only one session can be active at a time.",
-			Parameters: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-				"required":   []string{},
-			},
-			Callback: a.shellStartTool,
-		})
+		// Shell session enabled: use shell tools (more human-like terminal interaction).
+		// shell_start/shell_stop are managed automatically by the system.
 		tools = append(tools, llm.Tool{
 			Name:        "shell_send",
 			Description: "Send content (command, Python statement, control character, etc.) to the persistent shell session and observe the terminal screen output. The content runs in the same shell environment as previous shell_send calls, preserving all state (current directory, environment variables, Python REPL state, etc.).\n\nThe command is sent VERBATIM to the shell's stdin. You MUST explicitly include any required newline (\\n) — it is NOT added automatically.\n\nThe return value is the full text content of the virtual terminal window (rows x cols character grid). This is like looking at a real terminal screen — you see the complete window content as a human would. Review the output carefully to understand command results, error messages, and prompt states.\n\nIMPORTANT: Send one logical unit at a time. Observe the result before sending the next unit. When you see a shell prompt (like '$ ' or '# ') at the end of the output, it means the command has completed and the shell is ready for the next command.\n\nControl characters (send these as literal byte values in the command string):\n  \\n  = Enter (execute/submit input)\n  \\x03 = Ctrl+C (SIGINT)\n  \\x04 = Ctrl+D (EOF, exit REPL)\n  \\x0c = Ctrl+L (clear screen)\n  \\x09 = Tab\n  \\x1b = ESC\n  \\x1b[A = Up arrow\n  \\x1b[B = Down arrow\n  \\x1b[D = Left arrow\n  \\x1b[C = Right arrow\n\nThe wait_ms parameter (optional, default 200ms) controls the idle timeout. For long-running processes, set a higher value or call shell_window_content afterward.",
@@ -175,14 +166,14 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Callback: a.shellGetOutputTool,
 		})
 		tools = append(tools, llm.Tool{
-			Name:        "shell_stop",
-			Description: "Stop and close the persistent shell session. This terminates the background shell process and frees resources. Call this when you no longer need the persistent shell session.",
+			Name:        "shell_reset",
+			Description: "Reset the persistent shell session to a clean state. This closes the current session and starts a new one with a fresh terminal. Use this when the shell is in an unexpected state (e.g., inside a REPL with errors, or stuck in a process). The shell session is normally managed automatically — use this only when a manual reset is needed.",
 			Parameters: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
 				"required":   []string{},
 			},
-			Callback: a.shellStopTool,
+			Callback: a.shellResetTool,
 		})
 	}
 
