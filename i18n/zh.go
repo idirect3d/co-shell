@@ -667,6 +667,12 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDBBackupCancel:   "❌ 已取消备份",
 	KeyDBRestoreCancel:  "❌ 已取消恢复",
 
+	// Shell session
+	KeyCol3ShellSessionEnabled:         "持续Shell会话(on|off)",
+	KeyCol3ShellSessionTimeout:         "持续Shell超时(0=无限制)",
+	KeySettingsDescShellSessionEnabled: "控制是否启用持续Shell会话（启用时替换 execute_command）",
+	KeySettingsDescShellSessionTimeout: "Shell 命令超时时间（秒，0 表示无限制）",
+
 	// Tool call mode (FEATURE-182)
 	KeyToolCallMode:         "工具调用模式",
 	KeyToolCallModeUpdated:  "✅ 工具调用模式已设置为: %s",
