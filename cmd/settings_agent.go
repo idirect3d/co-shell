@@ -60,7 +60,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		if len(args) < 2 {
 			desc := h.cfg.LLM.AgentDescription
 			if desc == "" {
-				desc = i18n.T(i18n.KeyDefaultAgentDescription)
+				desc = ""
 			}
 			return fmt.Sprintf("Agent 描述: %s", desc), nil
 		}
@@ -77,7 +77,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		if len(args) < 2 {
 			principles := h.cfg.LLM.AgentPrinciples
 			if principles == "" {
-				principles = i18n.T(i18n.KeyDefaultAgentPrinciples)
+				principles = ""
 			}
 			return fmt.Sprintf("Agent 核心原则: %s", principles), nil
 		}

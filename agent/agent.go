@@ -47,7 +47,7 @@ import (
 
 // New creates a new Agent instance.
 func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string) *Agent {
-	systemPrompt := buildSystemPrompt(rules)
+	systemPrompt := buildSystemPromptWithMode(rules, config.ResultModeMinimal, false, "", "", "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
 
 	return &Agent{
 		llmClient:       llmClient,

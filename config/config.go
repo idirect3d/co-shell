@@ -702,11 +702,11 @@ func (c *Config) Show() string {
 	}
 	agentDesc := c.LLM.AgentDescription
 	if agentDesc == "" {
-		agentDesc = i18n.T(i18n.KeyDefaultAgentDescription)
+		agentDesc = ""
 	}
 	agentPrinciples := c.LLM.AgentPrinciples
 	if agentPrinciples == "" {
-		agentPrinciples = i18n.T(i18n.KeyDefaultAgentPrinciples)
+		agentPrinciples = ""
 	}
 
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
