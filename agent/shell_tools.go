@@ -293,6 +293,61 @@ func (a *Agent) shellStopTool(ctx context.Context, args map[string]interface{}) 
 	return "persistent shell session closed successfully", nil
 }
 
+// ExecuteViaShellSession sends a command to the persistent shell session and returns the output.
+// This is used by the REPL when shell-session-enabled=on and user input is a direct system command.
+// The command is executed in the same shell environment as the LLM's shell_send tool, preserving
+// all state (current directory, environment variables, etc.).
+func (a *Agent) ExecuteViaShellSession(command string) (string, error) {
+	if !a.shellEnabled || a.shellSession == nil {
+		return "", fmt.Errorf("shell session is not available")
+	}
+
+	// Append newline to execute the command (like user pressing Enter)
+	cmd := command + "\n"
+
+	output, err := a.shellSession.Exec(context.Background(), cmd, 2000)
+	if err != nil {
+		if output != "" {
+			return output, fmt.Errorf("shell command failed: %w", err)
+		}
+		return "", fmt.Errorf("shell command failed: %w", err)
+	}
+
+	return output, nil
+}
+
+// ExecuteViaShellSessionWithOutput sends a command and returns the complete output from the log.
+// Unlike ExecuteViaShellSession which returns VT window content, this method uses GetOutput
+// to retrieve the full scrollback content since the last command execution.
+func (a *Agent) ExecuteViaShellSessionWithOutput(command string) (string, error) {
+	if !a.shellEnabled || a.shellSession == nil {
+		return "", fmt.Errorf("shell session is not available")
+	}
+
+	// Send command to the shell session
+	cmd := command + "\n"
+
+	// Execute and wait for output to settle
+	_, err := a.shellSession.Exec(context.Background(), cmd, 2000)
+	if err != nil {
+		return "", fmt.Errorf("shell command failed: %w", err)
+	}
+
+	// Get the complete output from the shell session log
+	// Use legacy mode: get the last 200 lines to capture full output
+	output, totalLines := a.shellSession.GetOutput(200, 200)
+	if totalLines == 0 || output == "(no new output)" || output == "(empty)" {
+		// Fall back: try auto-increment mode
+		output, _ = a.shellSession.GetOutput(0, 0)
+	}
+
+	if output == "(no new output)" || output == "(empty)" {
+		output = ""
+	}
+
+	return output, nil
+}
+
 // unescapeCommand converts escape sequences in a command string to literal bytes.
 // Supports \n, \r, \t, \\, and \xNN (hex) sequences.
 // This allows LLMs to send control characters like \n (Enter) and \x03 (Ctrl+C)
