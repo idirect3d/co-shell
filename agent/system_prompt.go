@@ -50,6 +50,54 @@ func loadExternalFile(workspacePath, filename string) string {
 	return strings.TrimSpace(string(data))
 }
 
+// buildSectionWithPlaceholders returns a prompt section after applying all
+// named placeholders (e.g. {AGENT_NAME}, {CWD}, {OS}, etc.) to the given text.
+// Placeholders are resolved at call time using the provided environment values.
+func buildSectionWithPlaceholders(text string, env *promptEnv) string {
+	text = strings.ReplaceAll(text, "{AGENT_NAME}", env.agentName)
+	text = strings.ReplaceAll(text, "{AGENT_DESCRIPTION}", env.agentDescription)
+	text = strings.ReplaceAll(text, "{AGENT_PRINCIPLES}", env.agentPrinciples)
+	text = strings.ReplaceAll(text, "{USER_NAME}", env.userName)
+	text = strings.ReplaceAll(text, "{CHANNEL}", env.channelInfo)
+	text = strings.ReplaceAll(text, "{RESULT_MODE_INSTRUCTION}", env.resultModeInstruction)
+	text = strings.ReplaceAll(text, "{OS}", env.os)
+	text = strings.ReplaceAll(text, "{ARCH}", env.arch)
+	text = strings.ReplaceAll(text, "{SHELL}", env.shell)
+	text = strings.ReplaceAll(text, "{HOME}", env.homeDir)
+	text = strings.ReplaceAll(text, "{CWD}", env.cwd)
+	text = strings.ReplaceAll(text, "{WORKSPACE}", env.cwd)
+	text = strings.ReplaceAll(text, "{COMMAND}", env.execName)
+	text = strings.ReplaceAll(text, "{CURRENT_TIME}", env.currentTime)
+	text = strings.ReplaceAll(text, "{CURRENT_FILES}", env.currentFiles)
+	text = strings.ReplaceAll(text, "{TASK}", env.taskDesc)
+	text = strings.ReplaceAll(text, "{TASK_TRACKING}", env.taskPlanText)
+	text = strings.ReplaceAll(text, "{CUSTOM_RULES}", env.customRules)
+	return text
+}
+
+// promptEnv holds all environment values reused across multiple sections.
+type promptEnv struct {
+	agentName             string
+	agentDescription      string
+	agentPrinciples       string
+	userName              string
+	channelInfo           string
+	resultModeInstruction string
+	os                    string
+	arch                  string
+	shell                 string
+	homeDir               string
+	cwd                   string
+	execName              string
+	currentTime           string
+	currentFiles          string
+	taskDesc              string
+	taskPlanText          string
+	customRules           string
+	shellEnabled          bool
+	mode                  config.ResultMode
+}
+
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
 // shellEnabled: when true, uses Shell-session-specific prompts (no execute_command).
 //
@@ -60,116 +108,116 @@ func loadExternalFile(workspacePath, filename string) string {
 //	OBJECTIVE.md, ENVIRONMENT.md
 //
 // If the external file does not exist, the built-in i18n resource is used as fallback.
+//
+// Named placeholders (e.g. {AGENT_NAME}, {CWD}, {TASK}) are resolved for all sections
+// regardless of source (external file or i18n).
 func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
-	sh := shellName()
+	env := &promptEnv{}
+	env.cwd, _ = os.Getwd()
+	env.shell = shellName()
+	env.os = runtime.GOOS
+	env.arch = runtime.GOARCH
+	env.execName = filepath.Base(os.Args[0])
+	env.homeDir, _ = os.UserHomeDir()
+	if env.homeDir == "" {
+		env.homeDir = os.Getenv("HOME")
+	}
+	if env.homeDir == "" {
+		env.homeDir = os.Getenv("USERPROFILE")
+	}
+	env.mode = mode
+	env.shellEnabled = shellEnabled
 
-	cwd, _ := os.Getwd()
 	username := os.Getenv("USER")
 	if username == "" {
 		username = os.Getenv("USERNAME")
 	}
-	execName := filepath.Base(os.Args[0])
-	homeDir, _ := os.UserHomeDir()
-	if homeDir == "" {
-		homeDir = os.Getenv("HOME")
-	}
-	if homeDir == "" {
-		homeDir = os.Getenv("USERPROFILE")
-	}
-
 	if agentName == "" {
 		agentName = "co-shell"
 	}
-
-	// Part 1: Identity — try external IDENTITY.md, fallback to i18n
-	identityText := loadExternalFile(cwd, "IDENTITY.md")
-	if identityText == "" {
-		identityText = i18n.TF(i18n.KeySystemPromptIdentity, agentName)
+	env.agentName = agentName
+	env.agentDescription = agentDescription
+	env.agentPrinciples = agentPrinciples
+	env.userName = userName
+	if env.userName == "" {
+		env.userName = i18n.T(i18n.KeyAnonymousUser)
 	}
+	displayChannel := channel
+	if displayChannel == "" {
+		displayChannel = "co-shell"
+	}
+	env.channelInfo = env.userName + " @ " + displayChannel
+	env.currentTime = time.Now().Format("2006-01-02 15:04:05 Monday")
+	env.currentFiles = strings.TrimRight(listFilesForPrompt(env.cwd, true, 100), "\n")
+	env.taskDesc = taskDesc
+	env.taskPlanText = taskPlanText
+	env.customRules = rules
+	env.resultModeInstruction = resultModeInstruction(mode)
 
-	// Part 2: Tool Usage Guide — try external TOOL_USAGE.md, fallback to i18n
-	// If toolUsageText is provided (XML mode), it takes highest priority.
+	// Part 1: Identity
+	identityText := loadExternalFile(env.cwd, "IDENTITY.md")
+	if identityText == "" {
+		identityText = i18n.TF(i18n.KeySystemPromptIdentity, env.agentName)
+		// TF uses %s, which we keep; but also support named placeholder through buildSectionWithPlaceholders
+	}
+	identityText = buildSectionWithPlaceholders(identityText, env)
+
+	// Part 2: Tool Usage Guide
 	toolUsageKey := i18n.KeySystemPromptToolUsageShell
 	if !shellEnabled {
 		toolUsageKey = i18n.KeySystemPromptToolUsage
 	}
-	toolUsageSection := loadExternalFile(cwd, "TOOL_USAGE.md")
+	toolUsageSection := loadExternalFile(env.cwd, "TOOL_USAGE.md")
 	if toolUsageSection == "" {
 		toolUsageSection = i18n.T(toolUsageKey)
 	}
 	if len(toolUsageText) > 0 && toolUsageText[0] != "" {
 		toolUsageSection = toolUsageText[0]
 	}
+	toolUsageSection = buildSectionWithPlaceholders(toolUsageSection, env)
 
-	// Part 3: Result Mode — try external RESULT_MODE.md, fallback to i18n
-	resultModeText := loadExternalFile(cwd, "RESULT_MODE.md")
+	// Part 3: Result Mode
+	resultModeText := loadExternalFile(env.cwd, "RESULT_MODE.md")
 	if resultModeText == "" {
-		resultModeText = i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
+		resultModeText = i18n.TF(i18n.KeySystemPromptResultMode, env.resultModeInstruction)
 	}
+	resultModeText = buildSectionWithPlaceholders(resultModeText, env)
 
-	// Part 4: Capabilities — try external CAPABILITIES.md, fallback to i18n
+	// Part 4: Capabilities
 	capabilitiesKey := i18n.KeySystemPromptCapabilitiesShell
 	if !shellEnabled {
 		capabilitiesKey = i18n.KeySystemPromptCapabilities
 	}
-	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
+	capabilities := loadExternalFile(env.cwd, "CAPABILITIES.md")
 	if capabilities == "" {
-		capabilities = strings.ReplaceAll(i18n.T(capabilitiesKey), "{CWD}", cwd)
+		capabilities = i18n.T(capabilitiesKey)
 	}
+	capabilities = buildSectionWithPlaceholders(capabilities, env)
 
-	// Part 5: Rules — try external RULES.md, fallback to i18n
+	// Part 5: Rules
 	rulesKey := i18n.KeySystemPromptRulesShell
 	if !shellEnabled {
 		rulesKey = i18n.KeySystemPromptRules
 	}
-	rulesText := loadExternalFile(cwd, "RULES.md")
+	rulesText := loadExternalFile(env.cwd, "RULES.md")
 	if rulesText == "" {
-		rulesText = strings.ReplaceAll(i18n.T(rulesKey), "{CWD}", cwd)
+		rulesText = i18n.T(rulesKey)
 	}
-	if rules != "" {
-		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", rules)
-	} else {
-		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", "")
-	}
+	rulesText = buildSectionWithPlaceholders(rulesText, env)
 
-	// Part 6: Objective — try external OBJECTIVE.md, fallback to i18n
-	objectiveText := loadExternalFile(cwd, "OBJECTIVE.md")
+	// Part 6: Objective
+	objectiveText := loadExternalFile(env.cwd, "OBJECTIVE.md")
 	if objectiveText == "" {
 		objectiveText = i18n.T(i18n.KeySystemPromptObjective)
 	}
-	if taskDesc != "" {
-		objectiveText = strings.ReplaceAll(objectiveText, "{TASK}", taskDesc)
-	}
-	objectiveText = strings.ReplaceAll(objectiveText, "{TASK_TRACKING}", taskPlanText)
+	objectiveText = buildSectionWithPlaceholders(objectiveText, env)
 
-	// Part 7: Environment — try external ENVIRONMENT.md, fallback to i18n
-	envText := loadExternalFile(cwd, "ENVIRONMENT.md")
+	// Part 7: Environment
+	envText := loadExternalFile(env.cwd, "ENVIRONMENT.md")
 	if envText == "" {
 		envText = i18n.T(i18n.KeySystemPromptEnvironment)
 	}
-	envText = strings.ReplaceAll(envText, "{OS}", runtime.GOOS)
-	envText = strings.ReplaceAll(envText, "{ARCH}", runtime.GOARCH)
-	envText = strings.ReplaceAll(envText, "{COMMAND}", execName)
-	envText = strings.ReplaceAll(envText, "{SHELL}", sh)
-	envText = strings.ReplaceAll(envText, "{HOME}", homeDir)
-	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
-	envText = strings.ReplaceAll(envText, "{WORKSPACE}", cwd)
-
-	displayUser := userName
-	if displayUser == "" {
-		displayUser = i18n.T(i18n.KeyAnonymousUser)
-	}
-	displayChannel := channel
-	if displayChannel == "" {
-		displayChannel = "co-shell"
-	}
-	channelInfo := displayUser + " @ " + displayChannel
-
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
-	envText = strings.ReplaceAll(envText, "{CURRENT_TIME}", now)
-	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
-	envText = strings.ReplaceAll(envText, "{CURRENT_FILES}", strings.TrimRight(listFilesForPrompt(cwd, true, 100), "\n"))
-	envText = strings.ReplaceAll(envText, "{CHANNEL}", channelInfo)
+	envText = buildSectionWithPlaceholders(envText, env)
 
 	prompt := identityText + toolUsageSection + resultModeText + capabilities + rulesText + envText + objectiveText
 

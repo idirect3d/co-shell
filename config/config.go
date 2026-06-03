@@ -299,6 +299,9 @@ type LLMConfig struct {
 	// Value is the custom system prompt text for that mode's tool usage section.
 	// If empty, the built-in i18n prompt is used.
 	ToolCallModeSystemPrompts map[string]string `json:"tool_call_mode_system_prompts"`
+
+	// WorkMode: the name of the currently active work mode.
+	WorkMode string `json:"work_mode"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
