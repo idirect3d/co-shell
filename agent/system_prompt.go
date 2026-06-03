@@ -39,7 +39,7 @@ import (
 
 // loadExternalFile attempts to load a text file from the workspace root directory.
 func loadExternalFile(workspacePath, filename string) string {
-	if workspacePath == "" {
+	if workspacePath == "" || filename == "" {
 		return ""
 	}
 	filePath := filepath.Join(workspacePath, filename)
@@ -50,9 +50,28 @@ func loadExternalFile(workspacePath, filename string) string {
 	return strings.TrimSpace(string(data))
 }
 
+// getWorkModeSectionNames returns the list of section names for the given work mode name.
+// Falls back to default sections if the mode doesn't exist in config.
+func getWorkModeSectionNames(cfg *config.Config, modeName string) []string {
+	if cfg == nil || len(cfg.WorkModes) == 0 {
+		return config.DefaultBuiltInSections()
+	}
+	if modeName == "" {
+		modeName = cfg.LLM.WorkMode
+	}
+	for _, wm := range cfg.WorkModes {
+		if wm.Name == modeName {
+			if len(wm.Sections) > 0 {
+				return wm.Sections
+			}
+			return config.DefaultBuiltInSections()
+		}
+	}
+	return config.DefaultBuiltInSections()
+}
+
 // buildSectionWithPlaceholders returns a prompt section after applying all
 // named placeholders (e.g. {AGENT_NAME}, {CWD}, {OS}, etc.) to the given text.
-// Placeholders are resolved at call time using the provided environment values.
 func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{AGENT_NAME}", env.agentName)
 	text = strings.ReplaceAll(text, "{AGENT_DESCRIPTION}", env.agentDescription)
@@ -98,16 +117,96 @@ type promptEnv struct {
 	mode                  config.ResultMode
 }
 
+// buildNamedSection builds a single named prompt section. The section name determines
+// the source: custom sections look for {Name}.md, built-in names use i18n keys.
+// toolUsageText is passed through for sections that may need it (ToolUsage).
+func buildNamedSection(name string, env *promptEnv, shellEnabled bool, toolUsageText []string) string {
+	switch name {
+	case "Identity":
+		text := loadExternalFile(env.cwd, "IDENTITY.md")
+		if text == "" {
+			text = i18n.TF(i18n.KeySystemPromptIdentity, env.agentName)
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	case "ToolUsage":
+		key := i18n.KeySystemPromptToolUsageShell
+		if !shellEnabled {
+			key = i18n.KeySystemPromptToolUsage
+		}
+		text := loadExternalFile(env.cwd, "TOOL_USAGE.md")
+		if text == "" {
+			text = i18n.T(key)
+		}
+		if len(toolUsageText) > 0 && toolUsageText[0] != "" {
+			text = toolUsageText[0]
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	case "ResultMode":
+		text := loadExternalFile(env.cwd, "RESULT_MODE.md")
+		if text == "" {
+			text = i18n.TF(i18n.KeySystemPromptResultMode, env.resultModeInstruction)
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Capabilities":
+		key := i18n.KeySystemPromptCapabilitiesShell
+		if !shellEnabled {
+			key = i18n.KeySystemPromptCapabilities
+		}
+		text := loadExternalFile(env.cwd, "CAPABILITIES.md")
+		if text == "" {
+			text = i18n.T(key)
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Rules":
+		key := i18n.KeySystemPromptRulesShell
+		if !shellEnabled {
+			key = i18n.KeySystemPromptRules
+		}
+		text := loadExternalFile(env.cwd, "RULES.md")
+		if text == "" {
+			text = i18n.T(key)
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Objective":
+		text := loadExternalFile(env.cwd, "OBJECTIVE.md")
+		if text == "" {
+			text = i18n.T(i18n.KeySystemPromptObjective)
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Environment":
+		text := loadExternalFile(env.cwd, "ENVIRONMENT.md")
+		if text == "" {
+			text = i18n.T(i18n.KeySystemPromptEnvironment)
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	default:
+		// Custom user-defined section: try {Name}.md file, then inline Content,
+		// then fall back to i18n key "system_prompt_" + lowercase(name).
+		text := loadExternalFile(env.cwd, name+".md")
+		if text != "" {
+			return buildSectionWithPlaceholders(text, env)
+		}
+		// Try i18n fallback for custom named sections
+		i18nKey := "system_prompt_" + strings.ToLower(name)
+		if i18n.T(i18nKey) != "" {
+			return buildSectionWithPlaceholders(i18n.T(i18nKey), env)
+		}
+		return ""
+	}
+}
+
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
 // shellEnabled: when true, uses Shell-session-specific prompts (no execute_command).
 //
-// Each section (Identity, ToolUsage, ResultMode, Capabilities, Rules, Objective, Environment)
-// can be overridden by placing a corresponding .md file in the workspace root directory:
-//
-//	IDENTITY.md, TOOL_USAGE.md, RESULT_MODE.md, CAPABILITIES.md, RULES.md,
-//	OBJECTIVE.md, ENVIRONMENT.md
-//
-// If the external file does not exist, the built-in i18n resource is used as fallback.
+// The prompt is assembled from the sections defined by the current work mode (cfg.LLM.WorkMode),
+// or uses the default 7-section order if no work mode is configured.
 //
 // Named placeholders (e.g. {AGENT_NAME}, {CWD}, {TASK}) are resolved for all sections
 // regardless of source (external file or i18n).
@@ -128,10 +227,6 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnable
 	env.mode = mode
 	env.shellEnabled = shellEnabled
 
-	username := os.Getenv("USER")
-	if username == "" {
-		username = os.Getenv("USERNAME")
-	}
 	if agentName == "" {
 		agentName = "co-shell"
 	}
@@ -154,74 +249,14 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnable
 	env.customRules = rules
 	env.resultModeInstruction = resultModeInstruction(mode)
 
-	// Part 1: Identity
-	identityText := loadExternalFile(env.cwd, "IDENTITY.md")
-	if identityText == "" {
-		identityText = i18n.TF(i18n.KeySystemPromptIdentity, env.agentName)
-		// TF uses %s, which we keep; but also support named placeholder through buildSectionWithPlaceholders
+	// Get section names from work mode config (or default order)
+	sectionNames := getWorkModeSectionNames(nil, "")
+	var sections []string
+	for _, name := range sectionNames {
+		section := buildNamedSection(name, env, shellEnabled, toolUsageText)
+		sections = append(sections, section)
 	}
-	identityText = buildSectionWithPlaceholders(identityText, env)
-
-	// Part 2: Tool Usage Guide
-	toolUsageKey := i18n.KeySystemPromptToolUsageShell
-	if !shellEnabled {
-		toolUsageKey = i18n.KeySystemPromptToolUsage
-	}
-	toolUsageSection := loadExternalFile(env.cwd, "TOOL_USAGE.md")
-	if toolUsageSection == "" {
-		toolUsageSection = i18n.T(toolUsageKey)
-	}
-	if len(toolUsageText) > 0 && toolUsageText[0] != "" {
-		toolUsageSection = toolUsageText[0]
-	}
-	toolUsageSection = buildSectionWithPlaceholders(toolUsageSection, env)
-
-	// Part 3: Result Mode
-	resultModeText := loadExternalFile(env.cwd, "RESULT_MODE.md")
-	if resultModeText == "" {
-		resultModeText = i18n.TF(i18n.KeySystemPromptResultMode, env.resultModeInstruction)
-	}
-	resultModeText = buildSectionWithPlaceholders(resultModeText, env)
-
-	// Part 4: Capabilities
-	capabilitiesKey := i18n.KeySystemPromptCapabilitiesShell
-	if !shellEnabled {
-		capabilitiesKey = i18n.KeySystemPromptCapabilities
-	}
-	capabilities := loadExternalFile(env.cwd, "CAPABILITIES.md")
-	if capabilities == "" {
-		capabilities = i18n.T(capabilitiesKey)
-	}
-	capabilities = buildSectionWithPlaceholders(capabilities, env)
-
-	// Part 5: Rules
-	rulesKey := i18n.KeySystemPromptRulesShell
-	if !shellEnabled {
-		rulesKey = i18n.KeySystemPromptRules
-	}
-	rulesText := loadExternalFile(env.cwd, "RULES.md")
-	if rulesText == "" {
-		rulesText = i18n.T(rulesKey)
-	}
-	rulesText = buildSectionWithPlaceholders(rulesText, env)
-
-	// Part 6: Objective
-	objectiveText := loadExternalFile(env.cwd, "OBJECTIVE.md")
-	if objectiveText == "" {
-		objectiveText = i18n.T(i18n.KeySystemPromptObjective)
-	}
-	objectiveText = buildSectionWithPlaceholders(objectiveText, env)
-
-	// Part 7: Environment
-	envText := loadExternalFile(env.cwd, "ENVIRONMENT.md")
-	if envText == "" {
-		envText = i18n.T(i18n.KeySystemPromptEnvironment)
-	}
-	envText = buildSectionWithPlaceholders(envText, env)
-
-	prompt := identityText + toolUsageSection + resultModeText + capabilities + rulesText + envText + objectiveText
-
-	return prompt
+	return strings.Join(sections, "")
 }
 
 func resultModeInstruction(mode config.ResultMode) string {
