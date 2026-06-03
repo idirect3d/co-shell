@@ -459,9 +459,12 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			if err := setBoolPtr(&h.cfg.LLM.ShellSessionEnabled, v); err != nil {
 				return "", err
 			}
+			// Sync to agent: start or stop the VT session immediately
+			h.agent.SetShellEnabled(h.cfg.LLM.ShellSessionEnabled)
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-session-enabled", v), nil
 		}, ResetValue: func() string {
 			h.cfg.LLM.ShellSessionEnabled = false
+			h.agent.SetShellEnabled(false)
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-session-enabled", "off")
 		}},
 		{Name: "shell-session-timeout", CurrentValue: func() string {
