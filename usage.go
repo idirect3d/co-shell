@@ -32,125 +32,117 @@ import (
 	"github.com/idirect3d/co-shell/i18n"
 )
 
+const optionPad = 34 // width for option part (e.g. "  -c, --config <path>")
+
+// formatHelpLine takes a full i18n help line and re-formats it with consistent alignment.
+// The input format is: "  <option>  <description>"
+// The output format is: "  <option>  <description>" with option padded to optionPad width.
+func formatHelpLine(text string) string {
+	// Trim leading whitespace to get the raw option part
+	trimmed := strings.TrimLeft(text, " ")
+	if trimmed == "" {
+		return text
+	}
+
+	// Find the option end: look for the last char before description starts.
+	// Options end with either:
+	// - a closing bracket '>' (for params) or
+	// - a pattern like on|off, or
+	// - the last word before description
+	// We'll find the option by checking: after the option part, there should be 2+ spaces then description.
+
+	// Strategy: split the trimmed string by double (or more) spaces.
+	// Option part is before the first double-space sequence.
+	option := strings.TrimSpace(trimmed)
+	desc := ""
+
+	// Find the first occurrence of 2+ spaces, which separates option from description
+	for i := 0; i < len(trimmed); i++ {
+		if i+1 < len(trimmed) && trimmed[i] == ' ' && trimmed[i+1] == ' ' {
+			option = strings.TrimSpace(trimmed[:i])
+			desc = strings.TrimSpace(trimmed[i:])
+			break
+		}
+	}
+
+	if desc == "" {
+		// No description found, just return the original with consistent padding
+		return "  " + option + "\n"
+	}
+
+	// Format with consistent padding
+	line := "  " + option
+	if len(line) < optionPad {
+		line += strings.Repeat(" ", optionPad-len(line))
+	} else {
+		line += " "
+	}
+	line += desc + "\n"
+	return line
+}
+
 // buildUsage builds the complete usage/help message by assembling sections.
 func buildUsage(version string) string {
 	var sb strings.Builder
 
 	sb.WriteString(i18n.TF(i18n.KeyCLIHelpTitle, version))
 	sb.WriteString("\n\n")
-	sb.WriteString(buildUsageBasic())
-	sb.WriteString(buildUsageLLMBehavior())
-	sb.WriteString(buildUsageOutputControl())
-	sb.WriteString(buildUsageFeatureSwitches())
-	sb.WriteString(buildUsageTimeout())
-	sb.WriteString(buildUsageInit())
-	sb.WriteString(buildUsageVersionHelp())
-	sb.WriteString(buildUsageExamples())
+	sb.WriteString(formatHelpLine("  " + i18n.T(i18n.KeyCLIHelpUsage)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpUsageREPL)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpUsageCmd)))
+	sb.WriteString(formatHelpLine("  " + i18n.T(i18n.KeyCLIHelpOptions)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpName)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpWorkspace)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpConfig)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpModel)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpEndpoint)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpAPIKey)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLang)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLog)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpMaxIter)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpImage)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpInputMode)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpTemperature)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpMaxTokens)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpTopP)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpTopK)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpRepetitionPenalty)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowThinking)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowCommand)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpConfirmTool)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpResultMode)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpDescription)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpPrinciples)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowLlmThinking)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowLlmContent)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowTool)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowToolInput)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowToolOutput)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowCommandOutput)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpEmojiEnabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowLogo)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpContextStart)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpMemoryEnabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpMemoryDisabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpPlanEnabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpPlanDisabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpSubAgentEnabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpSubAgentDisabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallEnabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallDisabled)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallMode)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLoopDetect)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpDedup)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolTimeout)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpCmdTimeout)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLLMTimeout)))
 
-	return sb.String()
-}
-
-// buildUsageBasic returns the basic options section of the help message.
-func buildUsageBasic() string {
-	var sb strings.Builder
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpUsage) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpUsageREPL) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpUsageCmd) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpOptions) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpName) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpWorkspace) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpConfig) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpModel) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEndpoint) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpAPIKey) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpLang) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpLog) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpMaxIter) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpImage) + "\n")
-	return sb.String()
-}
-
-// buildUsageLLMBehavior returns the LLM behavior options section.
-func buildUsageLLMBehavior() string {
-	var sb strings.Builder
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpTemperature) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpMaxTokens) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpTopP) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpTopK) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpRepetitionPenalty) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowThinking) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowCommand) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpConfirmTool) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpResultMode) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpDescription) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpPrinciples) + "\n")
-	return sb.String()
-}
-
-// buildUsageOutputControl returns the output control options section.
-func buildUsageOutputControl() string {
-	var sb strings.Builder
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowLlmThinking) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowLlmContent) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowTool) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowToolInput) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowToolOutput) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowCommandOutput) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEmojiEnabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpShowLogo) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpContextStart) + "\n")
-	return sb.String()
-}
-
-// buildUsageFeatureSwitches returns the feature switch options section.
-func buildUsageFeatureSwitches() string {
-	var sb strings.Builder
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpMemoryEnabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpMemoryDisabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpPlanEnabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpPlanDisabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpSubAgentEnabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpSubAgentDisabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallEnabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallDisabled) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolCallMode) + "\n")
-	// FIX-179: Loop detection and dedup settings
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpLoopDetect) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpDedup) + "\n")
-	return sb.String()
-}
-
-// buildUsageTimeout returns the timeout options section.
-func buildUsageTimeout() string {
-	var sb strings.Builder
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpToolTimeout) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpCmdTimeout) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpLLMTimeout) + "\n")
-	return sb.String()
-}
-
-// buildUsageInit returns the init options section.
-func buildUsageInit() string {
-	var sb strings.Builder
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpInitCapabilities) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpInitRules) + "\n")
-	return sb.String()
-}
-
-// buildUsageVersionHelp returns the version and help options section.
-func buildUsageVersionHelp() string {
-	var sb strings.Builder
 	sb.WriteString("\n")
-	sb.WriteString(i18n.T(i18n.KeyCLIHelpVersion) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpHelp) + "\n")
-	return sb.String()
-}
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpVersion)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpHelp)))
 
-// buildUsageExamples returns the examples section of the help message.
-func buildUsageExamples() string {
-	var sb strings.Builder
 	sb.WriteString("\n")
-	sb.WriteString(i18n.T(i18n.KeyCLIHelpExamples) + "\n")
+	sb.WriteString(formatHelpLine("  " + i18n.T(i18n.KeyCLIHelpExamples)))
 	sb.WriteString("\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx1) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx2) + "\n")
@@ -163,5 +155,6 @@ func buildUsageExamples() string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx9) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx10) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx11) + "\n")
+
 	return sb.String()
 }

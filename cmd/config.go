@@ -515,6 +515,24 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			h.cfg.LLM.ShellVTCols = 80
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-vt-cols", "80")
 		}},
+		{Name: "input-mode", Options: []string{"enhanced", "stdio"}, CurrentValue: func() string {
+			m := h.cfg.LLM.InputMode
+			if m == "" {
+				return "enhanced"
+			}
+			return m
+		}, SetValue: func(v string) (string, error) {
+			switch v {
+			case "enhanced", "stdio":
+				h.cfg.LLM.InputMode = v
+			default:
+				return "", fmt.Errorf("请输入 enhanced 或 stdio")
+			}
+			return i18n.TF(i18n.KeySettingsUpdated, "input-mode", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.InputMode = "enhanced"
+			return i18n.TF(i18n.KeySettingsUpdated, "input-mode", "enhanced")
+		}},
 	}
 }
 
