@@ -46,17 +46,20 @@ func NewSectionHandler(cfg *config.Config) *SectionHandler {
 // Handle processes .section commands.
 // Syntax:
 //
-//	.section                          - list all sections
+//	.section                          - list all sections and available operations
+//	.section list                     - list all sections
 //	.section add <name> [content]     - add a new custom section
 //	.section remove <name>            - remove a custom section
 //	.section clear                    - clear all custom sections
 func (h *SectionHandler) Handle(args []string) (string, error) {
 	if len(args) == 0 {
-		return h.listSections(), nil
+		return h.showHelp(), nil
 	}
 
 	subcommand := args[0]
 	switch subcommand {
+	case "list":
+		return h.listSections(), nil
 	case "add":
 		return h.addSection(args[1:])
 	case "remove", "rm":
@@ -64,8 +67,36 @@ func (h *SectionHandler) Handle(args []string) (string, error) {
 	case "clear":
 		return h.clearSections()
 	default:
-		return "", fmt.Errorf(i18n.T(i18n.KeySectionInvalid))
+		// Try to treat the first argument as a section name and show its content
+		name := subcommand
+		// Check built-in sections first
+		for _, b := range config.DefaultBuiltInSections() {
+			if strings.EqualFold(b, name) {
+				return fmt.Sprintf("内置节 %s 的内容可通过 .mode edit 在工作模式中查看或通过外部 .md 文件自定义", name), nil
+			}
+		}
+		// Check custom sections
+		for _, s := range h.cfg.PromptSections {
+			if strings.EqualFold(s.Name, name) {
+				if s.Content != "" {
+					return fmt.Sprintf("自定义节 [%s]:\n%s", s.Name, s.Content), nil
+				}
+				return fmt.Sprintf("自定义节 [%s] (内容保存在 %s.md 文件中)", s.Name, s.Name), nil
+			}
+		}
+		return "", fmt.Errorf("未知节: %s。使用 .section 查看可用节列表", name)
 	}
+}
+
+func (h *SectionHandler) showHelp() string {
+	var sb strings.Builder
+	sb.WriteString("提示词节管理\n\n")
+	sb.WriteString(h.listSections())
+	sb.WriteString("\n可用操作:\n")
+	sb.WriteString("  add <name> [text]  - 添加自定义节\n")
+	sb.WriteString("  remove <name>      - 删除自定义节\n")
+	sb.WriteString("  clear              - 清空所有自定义节")
+	return sb.String()
 }
 
 func (h *SectionHandler) listSections() string {
@@ -104,7 +135,7 @@ func (h *SectionHandler) addSection(args []string) (string, error) {
 	// Check for duplicate
 	for _, s := range h.cfg.PromptSections {
 		if strings.EqualFold(s.Name, name) {
-			return "", fmt.Errorf(i18n.T(i18n.KeySectionInvalid))
+			return "", fmt.Errorf("节 '%s' 已存在。使用 .section remove %s 先删除再重新添加，或使用不同名称", name, name)
 		}
 	}
 	// Check for built-in name collision
@@ -134,7 +165,15 @@ func (h *SectionHandler) addSection(args []string) (string, error) {
 
 func (h *SectionHandler) removeSection(args []string) (string, error) {
 	if len(args) < 1 {
-		return "", fmt.Errorf("usage: .section remove <name>")
+		if len(h.cfg.PromptSections) == 0 {
+			return "", fmt.Errorf("暂无自定义节可删除")
+		}
+		var sb strings.Builder
+		sb.WriteString("选择要删除的节:\n")
+		for i, s := range h.cfg.PromptSections {
+			sb.WriteString(fmt.Sprintf("  [%d] %s\n", i+1, s.Name))
+		}
+		return sb.String(), nil
 	}
 
 	name := args[0]

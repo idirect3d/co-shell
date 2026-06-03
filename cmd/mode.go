@@ -87,7 +87,15 @@ func (h *ModeHandler) showCurrent() string {
 	if modeName == "" {
 		modeName = "default"
 	}
-	return fmt.Sprintf(i18n.T(i18n.KeyModeCurrent), modeName)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyModeCurrent), modeName))
+	sb.WriteString("\n\n可用操作:\n")
+	sb.WriteString("  list              - 显示所有工作模式\n")
+	sb.WriteString("  switch            - 交互式选择切换工作模式\n")
+	sb.WriteString("  create            - 创建工作模式\n")
+	sb.WriteString("  edit              - 编辑模式节顺序\n")
+	sb.WriteString("  remove            - 删除工作模式")
+	return sb.String()
 }
 
 func (h *ModeHandler) listModes() string {
@@ -365,6 +373,11 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		// Ensure default mode exists in config before looking it up
+		if len(h.cfg.WorkModes) == 0 {
+			// First edit of default mode: import it into config
+			h.cfg.WorkModes = config.DefaultWorkModes()
+		}
 		// Find the actual pointer
 		for i := range h.cfg.WorkModes {
 			if h.cfg.WorkModes[i].Name == selected.Name {
@@ -398,12 +411,35 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		for pos, idx := range currentIndices {
 			fmt.Printf("    [%d] %s\n", pos+1, allSections[idx])
 		}
+		// Show available sections not yet in the list (independently numbered from 1)
+		inCurrent := make(map[int]bool)
+		for _, idx := range currentIndices {
+			inCurrent[idx] = true
+		}
+		type availEntry struct {
+			globalIdx int
+			name      string
+		}
+		var availList []availEntry
+		for i, name := range allSections {
+			if !inCurrent[i] {
+				availList = append(availList, availEntry{globalIdx: i, name: name})
+			}
+		}
+		if len(availList) > 0 {
+			fmt.Println("\n  备选节:")
+			for avNum, ae := range availList {
+				fmt.Printf("    [%d] %s\n", avNum+1, ae.name)
+			}
+		}
 		fmt.Println()
 		fmt.Println("  操作说明:")
 		fmt.Println("    +<序号>  - 上移 (如 +2)")
 		fmt.Println("    -<序号>  - 下移 (如 -3)")
 		fmt.Println("    a<编号>  - 添加未包含的节 (如 a5)")
 		fmt.Println("    d<序号>  - 移除此节 (如 d2)")
+		fmt.Println("    v<序号>  - 查看节内容 (如 v3)")
+		fmt.Println("    p        - 预览最终完整提示词")
 		fmt.Println("    完成    - 保存并退出")
 		fmt.Print("\n  请输入: ")
 
@@ -443,21 +479,13 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 
 		if strings.HasPrefix(input, "a") {
 			num, err := strconv.Atoi(input[1:])
-			if err != nil || num < 1 || num > len(allSections) {
+			if err != nil || num < 1 || num > len(availList) {
 				fmt.Println("  无效编号")
 				continue
 			}
-			// Check if already in current
-			already := false
-			for _, v := range currentIndices {
-				if v == num-1 {
-					already = true
-					break
-				}
-			}
-			if !already {
-				currentIndices = append(currentIndices, num-1)
-			}
+			// Map to global index via availList
+			globalIdx := availList[num-1].globalIdx
+			currentIndices = append(currentIndices, globalIdx)
 			continue
 		}
 
@@ -469,6 +497,28 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 			}
 			pos := num - 1
 			currentIndices = append(currentIndices[:pos], currentIndices[pos+1:]...)
+			continue
+		}
+
+		if strings.HasPrefix(input, "v") {
+			num, err := strconv.Atoi(input[1:])
+			if err != nil || num < 1 || num > len(currentIndices) {
+				fmt.Println("  无效序号")
+				continue
+			}
+			globalIdx := currentIndices[num-1]
+			secName := allSections[globalIdx]
+			// Build and show the section content using the same logic as buildNamedSection
+			fmt.Printf("\n  ==== [%s] ====\n", secName)
+			fmt.Println(h.previewSection(secName))
+			fmt.Println("  ================")
+			continue
+		}
+
+		if input == "p" {
+			fmt.Println("\n  ==== 完整提示词预览 ====")
+			fmt.Print(h.previewFullPrompt(currentIndices, allSections))
+			fmt.Println("\n  =======================")
 			continue
 		}
 
@@ -538,6 +588,56 @@ func (h *ModeHandler) interactiveRemove(args []string) (string, error) {
 		h.ag.SetConfig(h.cfg)
 	}
 	return fmt.Sprintf(i18n.T(i18n.KeyModeRemoved), name), nil
+}
+
+// previewSection loads and returns the content of a single section.
+// Uses the same loading logic as agent.buildNamedSection.
+func (h *ModeHandler) previewSection(name string) string {
+	cwd, _ := os.Getwd()
+	// Check if there's a mode-specific file
+	modeName := h.cfg.LLM.WorkMode
+	if modeName != "" {
+		filePath := fmt.Sprintf("%s/mode/%s/%s.md", cwd, modeName, name)
+		if data, err := os.ReadFile(filePath); err == nil {
+			return strings.TrimSpace(string(data))
+		}
+	}
+	// Fallback: return the i18n key name as placeholder
+	i18nKey := "system_prompt_" + strings.ToLower(name)
+	content := i18n.T(i18nKey)
+	if content != "" && content != i18nKey {
+		// Try to replace common placeholders with static values
+		content = strings.ReplaceAll(content, "{AGENT_NAME}", h.cfg.LLM.AgentName)
+		content = strings.ReplaceAll(content, "{CWD}", cwd)
+		content = strings.ReplaceAll(content, "{CUSTOM_RULES}", "")
+		if len(content) > 500 {
+			content = content[:500] + "...(截断)"
+		}
+		return content
+	}
+	// Check custom prompt sections
+	for _, ps := range h.cfg.PromptSections {
+		if ps.Name == name && ps.Content != "" {
+			return ps.Content
+		}
+	}
+	return "(内容来自 i18n 内置资源，共 0 字符)"
+}
+
+// previewFullPrompt concatenates all current sections in order.
+func (h *ModeHandler) previewFullPrompt(indices []int, allSections []string) string {
+	var sb strings.Builder
+	for i, idx := range indices {
+		name := allSections[idx]
+		sb.WriteString(fmt.Sprintf("\n==== [%d] %s ====\n", i+1, name))
+		content := h.previewSection(name)
+		if len(content) > 300 {
+			content = content[:300] + "...(截断)"
+		}
+		sb.WriteString(content)
+		sb.WriteString("\n")
+	}
+	return sb.String()
 }
 
 func (h *ModeHandler) modeExists(name string) bool {
