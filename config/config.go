@@ -417,6 +417,57 @@ func DefaultDBConfig() DBConfig {
 	}
 }
 
+// PromptSection defines a named section of the system prompt that can be
+// customized by the user. Each section has a unique name and content source.
+// The content is loaded from an external .md file in the workspace root
+// (named {Name}.md) if it exists, or from the Content string if non-empty,
+// or falls back to the built-in i18n resource for built-in section names.
+type PromptSection struct {
+	// Name is the unique identifier for this section (e.g., "Identity", "CustomRules").
+	Name string `json:"name"`
+	// Content is the inline content override. If empty, the section tries to load
+	// from {Name}.md in the workspace root, then falls back to i18n.
+	Content string `json:"content,omitempty"`
+	// BuiltIn indicates this is a system-defined section (not user-created).
+	BuiltIn bool `json:"built_in"`
+}
+
+// WorkMode defines a named work mode that specifies which prompt sections
+// to include and in what order.
+type WorkMode struct {
+	// Name is the unique identifier for this work mode (e.g., "default", "coding").
+	Name string `json:"name"`
+	// Description provides a human-readable summary of this mode.
+	Description string `json:"description,omitempty"`
+	// Sections lists the names of PromptSection entries to assemble, in order.
+	Sections []string `json:"sections"`
+}
+
+// DefaultBuiltInSections returns the default list of built-in prompt section names
+// in their standard assembly order.
+func DefaultBuiltInSections() []string {
+	return []string{
+		"Identity",
+		"ToolUsage",
+		"ResultMode",
+		"Capabilities",
+		"Rules",
+		"Environment",
+		"Objective",
+	}
+}
+
+// DefaultWorkModes returns a map of default work modes with standard configuration.
+func DefaultWorkModes() []WorkMode {
+	return []WorkMode{
+		{
+			Name:        "default",
+			Description: "默认工作模式，包含所有标准提示词节",
+			Sections:    DefaultBuiltInSections(),
+		},
+	}
+}
+
 // Config is the top-level configuration structure.
 type Config struct {
 	LLM                LLMConfig `json:"llm"`
@@ -428,6 +479,11 @@ type Config struct {
 	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
 	// Models stores multiple model configurations for switching.
 	Models []*ModelConfig `json:"models,omitempty"`
+
+	// PromptSections stores user-defined and built-in prompt sections.
+	PromptSections []PromptSection `json:"prompt_sections,omitempty"`
+	// WorkModes stores user-defined work modes.
+	WorkModes []WorkMode `json:"work_modes,omitempty"`
 
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
