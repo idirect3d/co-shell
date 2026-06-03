@@ -537,6 +537,8 @@ func (r *REPL) handleBodyDisplay(args []string) (string, error) {
 }
 
 // handleSystemCommand executes a system command directly and displays the output.
+// If shell-session-enabled is on, the command is sent to the persistent VT session
+// for execution, preserving shell state (cd, env vars, etc.).
 func (r *REPL) handleSystemCommand(command string) {
 	// Get emoji prefixes based on config
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
@@ -544,6 +546,23 @@ func (r *REPL) handleSystemCommand(command string) {
 	// Show command if enabled
 	if r.cfg.LLM.ShowCommand {
 		fmt.Printf("%s%s\n", ep.CommandInput, command)
+	}
+
+	// If shell session is enabled, use VT session for command execution
+	if r.cfg.LLM.ShellSessionEnabled {
+		output, err := r.agent.ExecuteViaShellSessionWithOutput(command)
+		if err != nil {
+			if output != "" {
+				fmt.Print(output)
+			}
+			fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
+			return
+		}
+
+		if output != "" {
+			fmt.Printf("%s%s\n", ep.OutputTitle, output)
+		}
+		return
 	}
 
 	output, err := r.agent.ExecuteCommandDirectly(command)

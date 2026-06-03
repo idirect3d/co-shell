@@ -502,10 +502,52 @@ func (e *EnhancedInput) backspace() {
 		return
 	}
 
-	// Width of character being deleted
-	deletedWidth := runeWidth(e.buffer[e.cursor-1])
+	// Check if the character being deleted has non-standard display width.
+	// Tab characters depend on the cursor's terminal tab-stop position (every 8 columns),
+	// so their actual display width cannot be calculated with a fixed value.
+	// For Tab and other special-width characters, use full line redraw to avoid
+	// incorrect cursor positioning.
+	deleted := e.buffer[e.cursor-1]
+	needsFullRedraw := deleted == '\t'
 
-	// Remove rune before cursor
+	if !needsFullRedraw {
+		// Fast path: standard-width characters (ASCII, CJK, etc.)
+		// Width of character being deleted
+		deletedWidth := runeWidth(deleted)
+
+		// Remove rune before cursor
+		newLen := len(e.buffer) - 1
+		newBuf := make([]rune, newLen, cap(e.buffer))
+		copy(newBuf, e.buffer[:e.cursor-1])
+		copy(newBuf[e.cursor-1:], e.buffer[e.cursor:])
+		e.buffer = newBuf
+		e.cursor--
+
+		// Move cursor left by the display width of the deleted character
+		cursorLeftN(deletedWidth)
+
+		// Redraw from cursor to end
+		remaining := string(e.buffer[e.cursor:])
+		if len(remaining) > 0 {
+			fmt.Print(remaining)
+		}
+		// Clear the last character visually (it may still be on screen)
+		fmt.Print(" ")
+		// Move cursor back to where it should be
+		curCol := e.cursorDisplayColumn()
+		totalCol := bufferDisplayWidth(e.buffer)
+		back := totalCol - curCol
+		if back > 0 {
+			cursorLeftN(back)
+		}
+		// Also clear the extra space we added
+		cursorLeftN(1)
+		return
+	}
+
+	// Slow path: Tab or other variable-width characters.
+	// Remove the tab rune and redraw the entire line to ensure correct
+	// cursor positioning based on the terminal's actual tab-stop rendering.
 	newLen := len(e.buffer) - 1
 	newBuf := make([]rune, newLen, cap(e.buffer))
 	copy(newBuf, e.buffer[:e.cursor-1])
@@ -513,25 +555,8 @@ func (e *EnhancedInput) backspace() {
 	e.buffer = newBuf
 	e.cursor--
 
-	// Move cursor left by the display width of the deleted character
-	cursorLeftN(deletedWidth)
-
-	// Redraw from cursor to end
-	remaining := string(e.buffer[e.cursor:])
-	if len(remaining) > 0 {
-		fmt.Print(remaining)
-	}
-	// Clear the last character visually (it may still be on screen)
-	fmt.Print(" ")
-	// Move cursor back to where it should be
-	curCol := e.cursorDisplayColumn()
-	totalCol := bufferDisplayWidth(e.buffer)
-	back := totalCol - curCol
-	if back > 0 {
-		cursorLeftN(back)
-	}
-	// Also clear the extra space we added
-	cursorLeftN(1)
+	e.clearLine()
+	e.displayPrompt()
 }
 
 func (e *EnhancedInput) deleteForward() {
