@@ -60,7 +60,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		if len(args) < 2 {
 			desc := h.cfg.LLM.AgentDescription
 			if desc == "" {
-				desc = i18n.T(i18n.KeyDefaultAgentDescription)
+				desc = ""
 			}
 			return fmt.Sprintf("Agent 描述: %s", desc), nil
 		}
@@ -77,7 +77,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		if len(args) < 2 {
 			principles := h.cfg.LLM.AgentPrinciples
 			if principles == "" {
-				principles = i18n.T(i18n.KeyDefaultAgentPrinciples)
+				principles = ""
 			}
 			return fmt.Sprintf("Agent 核心原则: %s", principles), nil
 		}
@@ -287,6 +287,36 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		}
 		log.Info("Context limit set to %d", n)
 		return i18n.TF(i18n.KeyContextLimitUpdated, n, n), nil
+
+	case "shell-vt-rows":
+		if len(args) < 2 {
+			return fmt.Sprintf("虚拟终端行数: %d", h.cfg.LLM.ShellVTRows), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 5 || n > 200 {
+			return "", fmt.Errorf("无效的行数: %s（请输入 5-200 的整数）", args[1])
+		}
+		h.cfg.LLM.ShellVTRows = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Shell VT rows set to %d", n)
+		return fmt.Sprintf("✅ 虚拟终端行数已设置为: %d", n), nil
+
+	case "shell-vt-cols":
+		if len(args) < 2 {
+			return fmt.Sprintf("虚拟终端列数: %d", h.cfg.LLM.ShellVTCols), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 20 || n > 500 {
+			return "", fmt.Errorf("无效的列数: %s（请输入 20-500 的整数）", args[1])
+		}
+		h.cfg.LLM.ShellVTCols = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Shell VT cols set to %d", n)
+		return fmt.Sprintf("✅ 虚拟终端列数已设置为: %d", n), nil
 
 	case "context-start":
 		if len(args) < 2 {
