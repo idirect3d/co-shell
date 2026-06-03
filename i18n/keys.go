@@ -103,7 +103,7 @@ const (
 	KeyMaxTokensUpdated = "settings_max_tokens_updated"
 	KeyShowThinking     = "settings_show_thinking"
 	KeyShowCommand      = "settings_show_command"
-	KeyShowOutput       = "settings_show_output" // DEPRECATED: replaced by show-command-output
+	KeyShowOutput       = "settings_show_output"
 	KeyLogEnabled       = "settings_log_enabled"
 
 	// New output control keys (ENHANCEMENT-126)
@@ -168,7 +168,7 @@ const (
 	KeySettingsLabelLog               = "settings_label_log"
 	KeySettingsLabelShowThinking      = "settings_label_show_thinking"
 	KeySettingsLabelShowCommand       = "settings_label_show_command"
-	KeySettingsLabelShowOutput        = "settings_label_show_output" // DEPRECATED
+	KeySettingsLabelShowOutput        = "settings_label_show_output"
 	KeySettingsLabelShowLlmThinking   = "settings_label_show_llm_thinking"
 	KeySettingsLabelShowLlmContent    = "settings_label_show_llm_content"
 	KeySettingsLabelShowTool          = "settings_label_show_tool"
@@ -335,8 +335,7 @@ const (
 	// Custom
 	KeyCustom = "custom"
 
-	// System Prompt — keys used in buildSystemPromptWithMode (agent/system_prompt.go)
-	// Actual assembly order: Identity → Title → Capabilities → Rules → ResultMode
+	// System Prompt
 	KeySystemPromptIdentity     = "system_prompt_identity"
 	KeyAnonymousUser            = "anonymous_user"
 	KeySystemPromptObjective    = "system_prompt_objective"
@@ -345,9 +344,7 @@ const (
 	KeySystemPromptRules        = "system_prompt_rules"
 	KeySystemPromptResultMode   = "system_prompt_result_mode"
 
-	// System Prompt — legacy keys (not used in buildSystemPromptWithMode, kept for reference)
-	// These were inherited from Cline's system prompt structure but co-shell delivers
-	// tool definitions via function calling (tools.go) rather than inline text.
+	// System Prompt - legacy keys (not used in buildSystemPromptWithMode, kept for reference)
 	KeySystemPromptToolUsage    = "system_prompt_tool_usage"
 	KeySystemPromptToolUsageXML = "system_prompt_tool_usage_xml"
 	KeySystemPromptEnv          = "system_prompt_env"
@@ -405,7 +402,7 @@ const (
 	KeySettingsDescToolOutput    = "settings_desc_tool_output"
 	KeySettingsDescCommandOutput = "settings_desc_command_output"
 
-	// Config show column 3 labels (i18n for the third column)
+	// Config show column 3 labels
 	KeyCol3Provider     = "col3_provider"
 	KeyCol3Endpoint     = "col3_endpoint"
 	KeyCol3Model        = "col3_model"
@@ -661,8 +658,8 @@ const (
 	KeySettingsDescToolMode = "settings_desc_tool_mode"
 	KeyCLIHelpToolCallMode  = "cli_help_tool_call_mode"
 
-	// XML mode supplementary rules — split into parts
-	KeySystemPromptXMLRules        = "system_prompt_xml_rules" // kept for backward compatibility
+	// XML mode supplementary rules
+	KeySystemPromptXMLRules        = "system_prompt_xml_rules"
 	KeySystemPromptXMLExamples     = "system_prompt_xml_examples"
 	KeySystemPromptXMLGuidelines   = "system_prompt_xml_guidelines"
 	KeySystemPromptXMLTaskProgress = "system_prompt_xml_task_progress"
@@ -670,25 +667,21 @@ const (
 	KeySystemPromptToolUsageExamples     = "system_prompt_tool_usage_examples"
 	KeySystemPromptToolUsageTaskProgress = "system_prompt_tool_usage_task_progress"
 
-	// XML tool result template (FIX-190) — template for tool result messages in XML mode.
-	// Placeholders: {TOOL_RESULT}, {TASK_PLAN}, {CURRENT_TIME}
+	// XML tool result template (FIX-190)
 	KeyXMLToolResultTemplate = "xml_tool_result_template"
 
 	// Tool result — no task plan (FIX-190)
-	// Shown when there is no unfinished task plan, prompting the LLM to create one.
 	KeyToolResultNoPlan = "tool_result_no_plan"
 
 	// Tool result — with task plan (FIX-190)
-	// Shown when there are unfinished steps in the current task plan.
 	// Placeholders: {TASK_PLAN}
 	KeyToolResultWithPlan = "tool_result_with_plan"
 
 	// User message template for subsequent instructions during a task (FIX-190)
-	// Used to format user messages with task tracking and environment details.
 	// Placeholders: {INSTRUCTION}, {TASK_TRACKING}, {CURRENT_TIME}
 	KeyUserMessageTemplate = "user_message_template"
 
-	// Tool usage examples (FIX-190) — one key per tool, dynamically included based on available tools
+	// Tool usage examples (FIX-190)
 	KeyToolUsageExecuteCommand      = "tool_usage_execute_command"
 	KeyToolUsageReadFile            = "tool_usage_read_file"
 	KeyToolUsageSearchFiles         = "tool_usage_search_files"
@@ -728,7 +721,7 @@ const (
 	KeySettingsDescShellSessionEnabled = "settings_desc_shell_session_enabled"
 	KeySettingsDescShellSessionTimeout = "settings_desc_shell_session_timeout"
 
-	// Shell session alternative system prompts (used when shell-session-enabled=on)
+	// Shell session alternative system prompts
 	KeySystemPromptToolUsageShell    = "system_prompt_tool_usage_shell"
 	KeySystemPromptToolUsageXMLShell = "system_prompt_tool_usage_xml_shell"
 	KeySystemPromptCapabilitiesShell = "system_prompt_capabilities_shell"
@@ -762,4 +755,25 @@ const (
 	KeyHelpMode         = "help_mode"
 	KeyHelpSection      = "help_section"
 	KeyModeNoSects      = "mode_no_sections"
+
+	// Config wizard (FEATURE-197)
+	KeyHelpConfig             = "help_config"
+	KeyConfigWizardTitle      = "config_wizard_title"
+	KeyConfigWizardIntro      = "config_wizard_intro"
+	KeyConfigGroupTitle       = "config_group_title"
+	KeyConfigGroupPrompt      = "config_group_prompt"
+	KeyConfigParamPrompt      = "config_param_prompt"
+	KeyConfigValueLabParam    = "config_value_lab_param"
+	KeyConfigValueLabCurrent  = "config_value_lab_current"
+	KeyConfigValuePrompt      = "config_value_prompt"
+	KeyConfigExited           = "config_exited"
+	KeyConfigValueUnchanged   = "config_value_unchanged"
+	KeyConfigInvalidChoice    = "config_invalid_choice"
+	KeyConfigValOnOff         = "config_val_on_off"
+	KeyConfigValMinExplAnFree = "config_val_min_expl_an_free"
+	KeyConfigValWinTaskSmart  = "config_val_win_task_smart"
+	KeyConfigValDebugOff      = "config_val_debug_off"
+	KeyConfigValUnlimited     = "config_val_unlimited"
+	KeyConfigValCtxLimit      = "config_val_ctx_limit"
+	KeyConfigValCtxStart      = "config_val_ctx_start"
 )
