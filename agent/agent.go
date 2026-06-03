@@ -271,6 +271,13 @@ func (a *Agent) SetShellEnabled(enabled bool) {
 	}
 }
 
+// IsShellEnabled returns whether the shell session mode is enabled.
+func (a *Agent) IsShellEnabled() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.shellEnabled
+}
+
 // CloseShellSession closes the active shell session if one exists.
 func (a *Agent) CloseShellSession() {
 	a.mu.Lock()

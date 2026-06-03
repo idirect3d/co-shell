@@ -897,7 +897,8 @@ func (h *ConfigHandler) showParamMenu(group ConfigGroup) {
 		if strings.EqualFold(input, "Q") {
 			fmt.Println()
 			fmt.Println(i18n.T(i18n.KeyConfigExited))
-			os.Exit(0)
+			fmt.Println()
+			return
 		}
 		idx, err := strconv.Atoi(input)
 		if err != nil || idx < 1 || idx > len(group.Params) {
@@ -951,7 +952,8 @@ func (h *ConfigHandler) showSubCommandMenu(param ConfigParam) {
 		if strings.EqualFold(input, "Q") {
 			fmt.Println()
 			fmt.Println(i18n.T(i18n.KeyConfigExited))
-			os.Exit(0)
+			fmt.Println()
+			return
 		}
 		idx, err := strconv.Atoi(input)
 		if err != nil || idx < 1 || idx > len(param.SubCommands) {
@@ -1015,7 +1017,7 @@ func (h *ConfigHandler) showValueInput(param ConfigParam) {
 		}
 		if strings.EqualFold(input, "Q") {
 			fmt.Println(i18n.T(i18n.KeyConfigExited))
-			os.Exit(0)
+			return
 		}
 		if strings.EqualFold(input, "D") && param.ResetValue != nil {
 			msg := param.ResetValue()
