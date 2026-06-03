@@ -65,6 +65,9 @@ type VirtualTerminal struct {
 	paramStr  []byte
 	oscBuf    []byte
 
+	// utf8Buf accumulates UTF-8 multi-byte sequences.
+	utf8Buf []byte
+
 	// lineBuf accumulates displayable characters for the current line.
 	// \r resets the buffer. \n flushes it to log and lineCh.
 	lineBuf strings.Builder
@@ -224,12 +227,14 @@ func (vt *VirtualTerminal) processByte(b byte) {
 		case '\r':
 			// Flush current line before overwriting (captures prompts like $, >>>).
 			// Subsequent chars overwrite from column 1.
+			vt.utf8Buf = nil // discard incomplete UTF-8 sequence
 			if vt.lineBuf.Len() > 0 {
 				vt.flushLine(vt.lineBuf.String() + "\n")
 			}
 			vt.lineBuf.Reset()
 			vt.cursorC = 0
 		case '\n':
+			vt.utf8Buf = nil // discard incomplete UTF-8 sequence
 			if vt.lineBuf.Len() > 0 {
 				vt.flushLine(vt.lineBuf.String() + "\n")
 			} else {
@@ -269,6 +274,23 @@ func (vt *VirtualTerminal) processByte(b byte) {
 			}
 		case '\x07':
 		default:
+			if vt.utf8Buf != nil {
+				// We are in the middle of a UTF-8 multi-byte sequence.
+				// Continuation bytes must be 0x80-0xbf.
+				vt.utf8Buf = append(vt.utf8Buf, b)
+				if isCompleteUTF8(vt.utf8Buf) {
+					r, _ := decodeUTF8(vt.utf8Buf)
+					vt.utf8Buf = nil
+					vt.writeChar(r)
+					vt.lineBuf.WriteRune(r)
+				}
+				break
+			}
+			if b >= 0xc0 {
+				// Start of a UTF-8 multi-byte sequence (2-4 bytes).
+				vt.utf8Buf = append(vt.utf8Buf[:0], b)
+				break
+			}
 			if b >= 0x20 || b == 0x00 {
 				vt.writeChar(rune(b))
 				vt.lineBuf.WriteRune(rune(b))
@@ -522,6 +544,7 @@ func (vt *VirtualTerminal) resetAnsiState() {
 	vt.paramBuf = nil
 	vt.paramStr = nil
 	vt.oscBuf = nil
+	vt.utf8Buf = nil
 }
 func (vt *VirtualTerminal) Render() string { vt.mu.Lock(); defer vt.mu.Unlock(); return vt.render() }
 func (vt *VirtualTerminal) Size() (int, int) {
@@ -549,6 +572,53 @@ func (vt *VirtualTerminal) SetScrollbackSize(n int) {
 	vt.scrollH = n
 	if len(vt.scrollback) > vt.scrollH {
 		vt.scrollback = vt.scrollback[len(vt.scrollback)-vt.scrollH:]
+	}
+}
+
+// isCompleteUTF8 checks whether buf contains a complete UTF-8 multi-byte sequence.
+func isCompleteUTF8(buf []byte) bool {
+	if len(buf) == 0 {
+		return false
+	}
+	first := buf[0]
+	var expectedLen int
+	switch {
+	case first >= 0xf0:
+		expectedLen = 4
+	case first >= 0xe0:
+		expectedLen = 3
+	case first >= 0xc0:
+		expectedLen = 2
+	default:
+		return true
+	}
+	if len(buf) < expectedLen {
+		return false
+	}
+	// Validate continuation bytes
+	for i := 1; i < expectedLen; i++ {
+		if buf[i]&0xc0 != 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
+// decodeUTF8 decodes a complete UTF-8 sequence into a rune.
+// Assumes the buffer has been validated by isCompleteUTF8.
+func decodeUTF8(buf []byte) (rune, int) {
+	if len(buf) == 0 {
+		return 0, 0
+	}
+	switch {
+	case buf[0] >= 0xf0:
+		return rune(buf[0]&0x07)<<18 | rune(buf[1]&0x3f)<<12 | rune(buf[2]&0x3f)<<6 | rune(buf[3]&0x3f), 4
+	case buf[0] >= 0xe0:
+		return rune(buf[0]&0x0f)<<12 | rune(buf[1]&0x3f)<<6 | rune(buf[2]&0x3f), 3
+	case buf[0] >= 0xc0:
+		return rune(buf[0]&0x1f)<<6 | rune(buf[1]&0x3f), 2
+	default:
+		return rune(buf[0]), 1
 	}
 }
 
