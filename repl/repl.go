@@ -133,6 +133,7 @@ type REPL struct {
 	modelHandler    *cmd.ModelHandler
 	sectionHandler  *cmd.SectionHandler
 	modeHandler     *cmd.ModeHandler
+	configHandler   *cmd.ConfigHandler
 
 	history    []string
 	historyPos int
@@ -142,7 +143,7 @@ type REPL struct {
 
 // New creates a new REPL instance.
 func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agent) *REPL {
-	return &REPL{
+	r := &REPL{
 		cfg:             cfg,
 		store:           s,
 		mcpMgr:          mcpMgr,
@@ -160,8 +161,14 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		modelHandler:   cmd.NewModelHandler(cfg, ag),
 		sectionHandler: cmd.NewSectionHandler(cfg),
 		modeHandler:    cmd.NewModeHandler(cfg, ag),
+		configHandler:  cmd.NewConfigHandler(cfg, ag),
 	}
-
+	r.configHandler.SetScanner(bufio.NewScanner(os.Stdin))
+	r.configHandler.SetHandlers(r.mcpHandler, r.ruleHandler, r.memoryHandler,
+		r.contextHandler, r.listHandler, r.imageHandler, r.planHandler,
+		r.sessionHandler, r.modelHandler, r.sectionHandler, r.modeHandler,
+		r.settingsHandler)
+	return r
 }
 
 // SetVersion sets the version and build number for the welcome message.
@@ -343,6 +350,8 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.sectionHandler.Handle(args)
 	case ".mode":
 		result, err = r.modeHandler.Handle(args)
+	case ".config":
+		result, err = r.configHandler.Handle(args)
 	case ".db":
 		result, err = r.settingsHandler.HandleDB(args)
 	default:
@@ -613,6 +622,7 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpNLDesc))
 	fmt.Println()
 	fmt.Println(i18n.T(i18n.KeyHelpBuiltinTitle))
+	fmt.Println(i18n.T(i18n.KeyHelpConfig))
 	fmt.Println(i18n.T(i18n.KeyHelpSettings))
 	fmt.Println(i18n.T(i18n.KeyHelpMCP))
 	fmt.Println(i18n.T(i18n.KeyHelpRule))
