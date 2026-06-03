@@ -203,6 +203,7 @@ func buildNamedSection(name string, env *promptEnv, shellEnabled bool, toolUsage
 }
 
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
+// The cfg parameter provides work mode configuration (can be nil, uses default order).
 // shellEnabled: when true, uses Shell-session-specific prompts (no execute_command).
 //
 // The prompt is assembled from the sections defined by the current work mode (cfg.LLM.WorkMode),
@@ -210,7 +211,7 @@ func buildNamedSection(name string, env *promptEnv, shellEnabled bool, toolUsage
 //
 // Named placeholders (e.g. {AGENT_NAME}, {CWD}, {TASK}) are resolved for all sections
 // regardless of source (external file or i18n).
-func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
+func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
 	env := &promptEnv{}
 	env.cwd, _ = os.Getwd()
 	env.shell = shellName()

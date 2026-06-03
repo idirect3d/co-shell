@@ -47,7 +47,7 @@ import (
 
 // New creates a new Agent instance.
 func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string) *Agent {
-	systemPrompt := buildSystemPromptWithMode(rules, config.ResultModeMinimal, false, "", "", "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
+	systemPrompt := buildSystemPromptWithMode(nil, rules, config.ResultModeMinimal, false, "", "", "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
 
 	return &Agent{
 		llmClient:       llmClient,
@@ -346,8 +346,7 @@ func (a *Agent) rebuildSystemPrompt() {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.lastUserInput
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
-
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.rules, a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(a.messages) > 0 {
@@ -527,7 +526,7 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.lastUserInput
 
-	a.systemPrompt = buildSystemPromptWithMode(a.rules, mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.rules, mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
