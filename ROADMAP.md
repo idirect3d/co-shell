@@ -258,6 +258,13 @@
   - 完善 shell session 相关方法的使用说明和用例
   - `shell-session-enabled` 为 on 时自动屏蔽 `execute_command`；为 off 时自动屏蔽所有 shell session 工具
 - [ ] FEATURE-195 系统提示词外部化：所有系统提示词节（Identity/ToolUsage/ResultMode/Capabilities/Rules/Environment/Objective 及 XML 模式的 Examples/TaskProgress/EditingFiles）均支持通过外部 Markdown 文件覆盖，文件放在 workspace 根目录，启动时优先读取外部文件，不存在时回退到 i18n 内置资源。
+- [ ] FEATURE-196 工作模式配置系统：
+  - 新增 PromptSection 和 WorkMode 数据结构，config.json 持久化
+  - 新增 `.section` 命令管理自定义节（add/list/remove）
+  - 新增 `.mode` 命令管理工作模式（list/create/edit/switch）
+  - 新增 `--mode` 命令行参数和 `.set mode` REPL 命令切换
+  - 内置默认工作模式，含所有内置节的默认拼接顺序
+  - 修改 `buildSystemPromptWithMode` 按当前工作模式拼装
 - [ ] FEATURE-93 日历与待办事项管理：提供日历功能，支持记录和管理待办事项（todo）。提供 .calendar 内置命令（add/list/remove/update）管理待办事项；提供 add_todo / list_todos / update_todo / remove_todo 四个 LLM 工具，让大模型能操作待办事项；数据持久化到 bbolt。如果系统有日历应用（如 macOS 日历），提供选项帮助用户将待办事项同步到系统日历。
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [ ] FEATURE-106 实现history命令翻页。
