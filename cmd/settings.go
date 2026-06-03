@@ -292,16 +292,14 @@ func showSettingsHelp(cfg *config.Config) string {
 	if agentName == "" {
 		agentName = "co-shell"
 	}
-	agentDesc := cfg.LLM.AgentDescription
-	if agentDesc == "" {
-		agentDesc = ""
-	}
-	agentPrinciples := cfg.LLM.AgentPrinciples
-	if agentPrinciples == "" {
-		agentPrinciples = ""
-	}
-
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
+
+	// Build description from Identity i18n content
+	identityContent := strings.ReplaceAll(i18n.T(i18n.KeySystemPromptIdentity), "{AGENT_NAME}", agentName)
+	agentDescDisplay := identityContent
+	if len(agentDescDisplay) > 120 {
+		agentDescDisplay = agentDescDisplay[:120] + "..."
+	}
 
 	// Collect all lines
 	var allLines []settingLine
@@ -309,8 +307,16 @@ func showSettingsHelp(cfg *config.Config) string {
 	// Group 1: Identity & Personality
 	allLines = append(allLines,
 		makeLine("name", agentName, i18n.T(i18n.KeyCol3Name)),
-		makeLine("description", agentDesc, i18n.T(i18n.KeyCol3Desc)),
-		makeLine("principles", agentPrinciples, i18n.T(i18n.KeyCol3Principles)),
+		makeLine("description", agentDescDisplay, i18n.T(i18n.KeyCol3Desc)),
+	)
+
+	// Show current work mode
+	modeName := cfg.LLM.WorkMode
+	if modeName == "" {
+		modeName = "default"
+	}
+	allLines = append(allLines,
+		makeLine("mode", modeName, i18n.T(i18n.KeyCol3WorkMode)),
 	)
 
 	// Group 2: Agent Settings (智能体设置)

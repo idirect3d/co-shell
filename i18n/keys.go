@@ -739,4 +739,27 @@ const (
 	KeyToolUsageShellGetOutputShell = "tool_usage_shell_get_output_shell"
 	KeyToolUsageShellWindowContent  = "tool_usage_shell_window_content"
 	KeyToolUsageShellReset          = "tool_usage_shell_reset"
+
+	// Section command keys
+	KeySectionAdded   = "section_added"
+	KeySectionRemoved = "section_removed"
+	KeySectionCleared = "section_cleared"
+	KeySectionInvalid = "section_invalid"
+	KeySectionNoSects = "section_no_sections"
+	KeySectionList    = "section_list"
+
+	// Mode command keys
+	KeyModeAdded        = "mode_added"
+	KeyModeRemoved      = "mode_removed"
+	KeyModeNotFound     = "mode_not_found"
+	KeyModeExists       = "mode_already_exists"
+	KeyModeList         = "mode_list"
+	KeyModeCurrent      = "mode_current"
+	KeyModeSwitched     = "mode_switched"
+	KeyCol3WorkMode     = "col3_work_mode"
+	KeySettingsDescMode = "settings_desc_mode"
+	KeyCLIHelpMode      = "cli_help_mode"
+	KeyHelpMode         = "help_mode"
+	KeyHelpSection      = "help_section"
+	KeyModeNoSects      = "mode_no_sections"
 )
