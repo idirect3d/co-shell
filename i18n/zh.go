@@ -262,19 +262,19 @@ var zhMessages = map[string]string{
 	// CLI Help
 	KeyCLIHelpTitle:     "co-shell v%s - 智能命令行 Shell",
 	KeyCLIHelpUsage:     "用法:",
-	KeyCLIHelpUsageREPL: "  co-shell [选项]                    启动交互式 REPL",
-	KeyCLIHelpUsageCmd:  "  co-shell [选项] <指令>             执行单条指令后退出",
+	KeyCLIHelpUsageREPL: "  co-shell [选项]                         启动交互式 REPL",
+	KeyCLIHelpUsageCmd:  "  co-shell [选项] <指令>                  执行单条指令后退出",
 	KeyCLIHelpOptions:   "选项:",
-	KeyCLIHelpConfig:    "  -c, --config <path>    指定配置文件路径（默认: {workspace}/config.json）",
-	KeyCLIHelpModel:     "  -m, --model <name>     临时指定模型名称（覆盖配置文件）",
-	KeyCLIHelpEndpoint:  "  -e, --endpoint <url>   临时指定 API 端点（覆盖配置文件）",
-	KeyCLIHelpAPIKey:    "  -k, --api-key <key>    临时指定 API Key（覆盖配置文件）",
-	KeyCLIHelpLang:      "      --lang <code>      设置语言（zh/en，默认自动检测）",
-	KeyCLIHelpLog:       "      --log on|off       临时指定日志开关（覆盖配置文件）",
-	KeyCLIHelpMaxIter:   "      --max-iterations   最大迭代次数（-1 为不限制，默认 1000）",
-	KeyCLIHelpImage:     "  -i, --image <path>     图片文件路径（多张图片用逗号分隔），用于多模态输入",
-	KeyCLIHelpVersion:   "  -v, --version          显示版本信息",
-	KeyCLIHelpHelp:      "  -h, --help             显示帮助信息",
+	KeyCLIHelpConfig:    "  -c, --config <path>       指定配置文件路径（默认: {workspace}/config.json）",
+	KeyCLIHelpModel:     "  -m, --model <name>        临时指定模型名称（覆盖配置文件）",
+	KeyCLIHelpEndpoint:  "  -e, --endpoint <url>      临时指定 API 端点（覆盖配置文件）",
+	KeyCLIHelpAPIKey:    "  -k, --api-key <key>       临时指定 API Key（覆盖配置文件）",
+	KeyCLIHelpLang:      "      --lang <code>         设置语言（zh/en，默认自动检测）",
+	KeyCLIHelpLog:       "      --log on|off          临时指定日志开关（覆盖配置文件）",
+	KeyCLIHelpMaxIter:   "      --max-iterations      最大迭代次数（-1 为不限制，默认 1000）",
+	KeyCLIHelpImage:     "  -i, --image <path>        图片文件路径（多张图片用逗号分隔），用于多模态输入",
+	KeyCLIHelpVersion:   "  -v, --version             显示版本信息",
+	KeyCLIHelpHelp:      "  -h, --help                显示帮助信息",
 	KeyCLIHelpExamples:  "示例:",
 	KeyCLIHelpEx1:       "  co-shell                             启动交互式 REPL",
 	KeyCLIHelpEx2:       "  co-shell 列出当前目录的文件           执行自然语言指令",
@@ -627,8 +627,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpShowLogo: "      --show-logo on|off      显示 ASCII art Logo（覆盖配置文件）",
 
 	// Init capabilities/rules
-	KeyCLIHelpInitCapabilities: "      --init-capabilities  在工作区生成默认 CAPABILITIES.md 文件并退出",
-	KeyCLIHelpInitRules:        "      --init-rules         在工作区生成默认 RULES.md 文件并退出",
+	KeyCLIHelpInputMode: "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）",
 
 	// Context start mode (FEATURE-103)
 	KeyCol3ContextStartMode:       "上下文起始模式(window/task/smart)",
@@ -695,7 +694,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyInvalidToolCallMode:  "无效的工具调用模式: %s（可选值: openai, xml）",
 	KeyCol3ToolCallMode:     "工具调用模式(openai|xml)",
 	KeySettingsDescToolMode: "工具调用模式（openai: 标准API, xml: 内嵌XML标签）",
-	KeyCLIHelpToolCallMode:  "工具调用模式（openai/xml，覆盖配置文件）",
+	KeyCLIHelpToolCallMode:  "      --toolcall-mode   工具调用模式（openai/xml，覆盖配置文件）",
 
 	// Config wizard (FEATURE-197)
 	KeyHelpConfig:             "    .config     - 配置向导（菜单式配置）",
