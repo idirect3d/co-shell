@@ -294,11 +294,11 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 	agentDesc := cfg.LLM.AgentDescription
 	if agentDesc == "" {
-		agentDesc = i18n.T(i18n.KeyDefaultAgentDescription)
+		agentDesc = ""
 	}
 	agentPrinciples := cfg.LLM.AgentPrinciples
 	if agentPrinciples == "" {
-		agentPrinciples = i18n.T(i18n.KeyDefaultAgentPrinciples)
+		agentPrinciples = ""
 	}
 
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))

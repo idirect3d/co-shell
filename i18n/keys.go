@@ -338,8 +338,6 @@ const (
 	// System Prompt — keys used in buildSystemPromptWithMode (agent/system_prompt.go)
 	// Actual assembly order: Identity → Title → Capabilities → Rules → ResultMode
 	KeySystemPromptIdentity     = "system_prompt_identity"
-	KeyDefaultAgentDescription  = "default_agent_description"
-	KeyDefaultAgentPrinciples   = "default_agent_principles"
 	KeyAnonymousUser            = "anonymous_user"
 	KeySystemPromptObjective    = "system_prompt_objective"
 	KeySystemPromptEnvironment  = "system_prompt_environment"
@@ -354,10 +352,7 @@ const (
 	KeySystemPromptToolUsageXML = "system_prompt_tool_usage_xml"
 	KeySystemPromptEnv          = "system_prompt_env"
 
-	KeySystemPromptToolExamples     = "system_prompt_tool_examples"
-	KeySystemPromptToolGuidelines   = "system_prompt_tool_guidelines"
-	KeySystemPromptUpdatingProgress = "system_prompt_updating_progress"
-	KeySystemPromptEditingFiles     = "system_prompt_editing_files"
+	KeySystemPromptEditingFiles = "system_prompt_editing_files"
 
 	// Timeout settings
 	KeyConfigToolTimeout   = "config_tool_timeout"
@@ -666,8 +661,14 @@ const (
 	KeySettingsDescToolMode = "settings_desc_tool_mode"
 	KeyCLIHelpToolCallMode  = "cli_help_tool_call_mode"
 
-	// XML mode supplementary rules (FIX-190) — Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files
-	KeySystemPromptXMLRules = "system_prompt_xml_rules"
+	// XML mode supplementary rules — split into parts
+	KeySystemPromptXMLRules        = "system_prompt_xml_rules" // kept for backward compatibility
+	KeySystemPromptXMLExamples     = "system_prompt_xml_examples"
+	KeySystemPromptXMLGuidelines   = "system_prompt_xml_guidelines"
+	KeySystemPromptXMLTaskProgress = "system_prompt_xml_task_progress"
+	// OpenAI/standard tool usage supplementary rules (non-XML versions)
+	KeySystemPromptToolUsageExamples     = "system_prompt_tool_usage_examples"
+	KeySystemPromptToolUsageTaskProgress = "system_prompt_tool_usage_task_progress"
 
 	// XML tool result template (FIX-190) — template for tool result messages in XML mode.
 	// Placeholders: {TOOL_RESULT}, {TASK_PLAN}, {CURRENT_TIME}

@@ -1148,9 +1148,15 @@ func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string) stri
 	case ToolCallModeXML:
 		return buildXMLToolPrompt(tools, lang)
 	default:
-		// For OpenAI mode, a brief tool usage instruction is enough.
-		// The detailed tool definitions are sent via the "tools" parameter.
-		return ""
+		// For OpenAI mode, append examples, task progress, and editing files
+		// assembled from split components, separated by ====
+		var sb strings.Builder
+		sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageExamples))
+		sb.WriteString("\n====\n")
+		sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageTaskProgress))
+		sb.WriteString("\n====\n")
+		sb.WriteString(i18n.T(i18n.KeySystemPromptEditingFiles))
+		return sb.String()
 	}
 }
 
@@ -1180,12 +1186,15 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string) string {
 		sb.WriteString("\n")
 	}
 
-	// Append the supplementary rules (Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files)
-	// from i18n. The i18n key handles language selection automatically.
-	sb.WriteString(i18n.T(i18n.KeySystemPromptXMLRules))
+	// Append the supplementary rules assembled from split components:
+	// Tool Use Examples + Task Progress + Editing Files, separated by ====
+	sb.WriteString(i18n.T(i18n.KeySystemPromptXMLExamples))
+	sb.WriteString("\n====\n")
+	sb.WriteString(i18n.T(i18n.KeySystemPromptXMLTaskProgress))
+	sb.WriteString("\n====\n")
+	sb.WriteString(i18n.T(i18n.KeySystemPromptEditingFiles))
 
 	return sb.String()
-
 }
 
 // buildReferenceFormat extracts the Usage section from the i18n tool description
