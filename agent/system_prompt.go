@@ -117,16 +117,42 @@ type promptEnv struct {
 	mode                  config.ResultMode
 }
 
+// getModeSectionPath returns the path to a section file for the current work mode.
+// Format: {cwd}/mode/{modeName}/{sectionName}.md
+func getModeSectionPath(cwd, modeName, sectionName string) string {
+	if modeName == "" {
+		return ""
+	}
+	return filepath.Join(cwd, "mode", modeName, sectionName+".md")
+}
+
+// loadSectionText loads section content for a given work mode.
+// Priority:
+// 1. {cwd}/mode/{modeName}/{name}.md (if modeName is set and file exists)
+// 2. i18n fallback (handled by caller via fallbackFn)
+func loadSectionText(cwd, modeName, name string, fallbackFn func() string) string {
+	if modeName != "" {
+		modePath := getModeSectionPath(cwd, modeName, name)
+		if data, err := os.ReadFile(modePath); err == nil {
+			return strings.TrimSpace(string(data))
+		}
+	}
+	return fallbackFn()
+}
+
 // buildNamedSection builds a single named prompt section. The section name determines
 // the source: custom sections look for {Name}.md, built-in names use i18n keys.
 // toolUsageText is passed through for sections that may need it (ToolUsage).
-func buildNamedSection(name string, env *promptEnv, shellEnabled bool, toolUsageText []string) string {
+func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEnabled bool, toolUsageText []string) string {
+	modeName := ""
+	if cfg != nil {
+		modeName = cfg.LLM.WorkMode
+	}
 	switch name {
 	case "Identity":
-		text := loadExternalFile(env.cwd, "IDENTITY.md")
-		if text == "" {
-			text = i18n.TF(i18n.KeySystemPromptIdentity, env.agentName)
-		}
+		text := loadSectionText(env.cwd, modeName, "IDENTITY", func() string {
+			return i18n.TF(i18n.KeySystemPromptIdentity, env.agentName)
+		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "ToolUsage":
@@ -134,20 +160,18 @@ func buildNamedSection(name string, env *promptEnv, shellEnabled bool, toolUsage
 		if !shellEnabled {
 			key = i18n.KeySystemPromptToolUsage
 		}
-		text := loadExternalFile(env.cwd, "TOOL_USAGE.md")
-		if text == "" {
-			text = i18n.T(key)
-		}
+		text := loadSectionText(env.cwd, modeName, "TOOL_USAGE", func() string {
+			return i18n.T(key)
+		})
 		if len(toolUsageText) > 0 && toolUsageText[0] != "" {
 			text = toolUsageText[0]
 		}
 		return buildSectionWithPlaceholders(text, env)
 
 	case "ResultMode":
-		text := loadExternalFile(env.cwd, "RESULT_MODE.md")
-		if text == "" {
-			text = i18n.TF(i18n.KeySystemPromptResultMode, env.resultModeInstruction)
-		}
+		text := loadSectionText(env.cwd, modeName, "RESULT_MODE", func() string {
+			return i18n.TF(i18n.KeySystemPromptResultMode, env.resultModeInstruction)
+		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Capabilities":
@@ -155,10 +179,9 @@ func buildNamedSection(name string, env *promptEnv, shellEnabled bool, toolUsage
 		if !shellEnabled {
 			key = i18n.KeySystemPromptCapabilities
 		}
-		text := loadExternalFile(env.cwd, "CAPABILITIES.md")
-		if text == "" {
-			text = i18n.T(key)
-		}
+		text := loadSectionText(env.cwd, modeName, "CAPABILITIES", func() string {
+			return i18n.T(key)
+		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Rules":
@@ -166,39 +189,43 @@ func buildNamedSection(name string, env *promptEnv, shellEnabled bool, toolUsage
 		if !shellEnabled {
 			key = i18n.KeySystemPromptRules
 		}
-		text := loadExternalFile(env.cwd, "RULES.md")
-		if text == "" {
-			text = i18n.T(key)
-		}
+		text := loadSectionText(env.cwd, modeName, "RULES", func() string {
+			return i18n.T(key)
+		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Objective":
-		text := loadExternalFile(env.cwd, "OBJECTIVE.md")
-		if text == "" {
-			text = i18n.T(i18n.KeySystemPromptObjective)
-		}
+		text := loadSectionText(env.cwd, modeName, "OBJECTIVE", func() string {
+			return i18n.T(i18n.KeySystemPromptObjective)
+		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Environment":
-		text := loadExternalFile(env.cwd, "ENVIRONMENT.md")
-		if text == "" {
-			text = i18n.T(i18n.KeySystemPromptEnvironment)
-		}
+		text := loadSectionText(env.cwd, modeName, "ENVIRONMENT", func() string {
+			return i18n.T(i18n.KeySystemPromptEnvironment)
+		})
 		return buildSectionWithPlaceholders(text, env)
 
 	default:
-		// Custom user-defined section: try {Name}.md file, then inline Content,
-		// then fall back to i18n key "system_prompt_" + lowercase(name).
-		text := loadExternalFile(env.cwd, name+".md")
-		if text != "" {
-			return buildSectionWithPlaceholders(text, env)
-		}
-		// Try i18n fallback for custom named sections
-		i18nKey := "system_prompt_" + strings.ToLower(name)
-		if i18n.T(i18nKey) != "" {
-			return buildSectionWithPlaceholders(i18n.T(i18nKey), env)
-		}
-		return ""
+		// Custom user-defined section: try mode/{modeName}/{name}.md, then {name}.md,
+		// then Content from PromptSection, then i18n fallback.
+		text := loadSectionText(env.cwd, modeName, name, func() string {
+			// Check PromptSections from config for inline content
+			if cfg != nil {
+				for _, ps := range cfg.PromptSections {
+					if ps.Name == name && ps.Content != "" {
+						return ps.Content
+					}
+				}
+			}
+			// Try i18n fallback
+			i18nKey := "system_prompt_" + strings.ToLower(name)
+			if i18n.T(i18nKey) != "" {
+				return i18n.T(i18nKey)
+			}
+			return ""
+		})
+		return buildSectionWithPlaceholders(text, env)
 	}
 }
 
@@ -251,10 +278,10 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	env.resultModeInstruction = resultModeInstruction(mode)
 
 	// Get section names from work mode config (or default order)
-	sectionNames := getWorkModeSectionNames(nil, "")
+	sectionNames := getWorkModeSectionNames(cfg, "")
 	var sections []string
 	for _, name := range sectionNames {
-		section := buildNamedSection(name, env, shellEnabled, toolUsageText)
+		section := buildNamedSection(name, env, cfg, shellEnabled, toolUsageText)
 		sections = append(sections, section)
 	}
 	return strings.Join(sections, "")
