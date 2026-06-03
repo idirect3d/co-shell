@@ -237,10 +237,8 @@ func (vt *VirtualTerminal) processByte(b byte) {
 			vt.utf8Buf = nil // discard incomplete UTF-8 sequence
 			if vt.lineBuf.Len() > 0 {
 				vt.flushLine(vt.lineBuf.String() + "\n")
-			} else {
-				vt.flushLine("\n")
+				vt.lineBuf.Reset()
 			}
-			vt.lineBuf.Reset()
 			vt.cursorC = 0
 			vt.cursorR++
 			if vt.cursorR >= vt.rows {
