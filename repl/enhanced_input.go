@@ -28,9 +28,9 @@ package repl
 import (
 	"fmt"
 	"os"
-	"syscall"
 	"unicode/utf8"
-	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // EnhancedInput implements an interactive line editor with:
@@ -38,118 +38,129 @@ import (
 // - Proper multi-byte character handling (Chinese, emoji, etc.)
 // - Correct backspace behavior for multi-byte characters
 // - Home/End key navigation
-//
-// Pure standard library implementation (no external dependencies).
 type EnhancedInput struct {
-	buffer    []rune
-	cursor    int // cursor position within buffer (in runes)
-	prompt    string
-	history   []string
-	histIdx   int // current history position (-1 = new input, 0..len-1 = history entry)
-	oldTerm   *syscall.Termios
-	termWidth int
-	termFd    int
-	inRaw     bool
+	buffer  []rune
+	cursor  int // cursor position within buffer (in runes)
+	prompt  string
+	history []string
+	histIdx int // current history position (-1 = new input, 0..len-1 = history entry)
+	oldTerm *unix.Termios
+	termFd  int
+	inRaw   bool
 }
 
 // NewEnhancedInput creates a new EnhancedInput instance.
 func NewEnhancedInput(prompt string, history []string) *EnhancedInput {
 	e := &EnhancedInput{
-		buffer:    make([]rune, 0, 256),
-		cursor:    0,
-		prompt:    prompt,
-		history:   history,
-		histIdx:   -1,
-		termFd:    int(os.Stdin.Fd()),
-		termWidth: 80,
-		inRaw:     false,
-	}
-	if w, _, err := getTermSize(e.termFd); err == nil {
-		e.termWidth = w
+		buffer:  make([]rune, 0, 256),
+		cursor:  0,
+		prompt:  prompt,
+		history: history,
+		histIdx: -1,
+		termFd:  int(os.Stdin.Fd()),
+		inRaw:   false,
 	}
 	return e
 }
 
-// toTermiosPtr converts a *syscall.Termios to uintptr for syscall.
-func toTermiosPtr(t *syscall.Termios) uintptr {
-	return uintptr(unsafe.Pointer(t))
-}
-
-// toWinsizePtr converts a winsize struct pointer to uintptr for syscall.
-func toWinsizePtr(ws *winsize) uintptr {
-	return uintptr(unsafe.Pointer(ws))
-}
-
-// winsize mirrors the C struct winsize for ioctl TIOCGWINSZ.
-type winsize struct {
-	Row    uint16
-	Col    uint16
-	Xpixel uint16
-	Ypixel uint16
-}
-
-// makeRaw puts the terminal into raw mode and returns the original state.
-func makeRaw(fd int) (*syscall.Termios, error) {
-	var old syscall.Termios
-	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
-		syscall.TIOCGETA, toTermiosPtr(&old), 0, 0, 0); err != 0 {
+// MakeRaw puts the terminal into raw mode and returns the original state.
+func MakeRaw(fd int) (*unix.Termios, error) {
+	old, err := unix.IoctlGetTermios(fd, unix.TIOCGETA)
+	if err != nil {
 		return nil, fmt.Errorf("failed to get terminal attributes: %w", err)
 	}
-
-	raw := old
-
-	// Input modes: no BRKINT, no ICRNL, no INPCK, no ISTRIP, no IXON
-	raw.Iflag &^= syscall.BRKINT | syscall.ICRNL | syscall.INPCK | syscall.ISTRIP | syscall.IXON
-
-	// Output modes: disable all output processing
-	raw.Oflag &^= syscall.OPOST
-
-	// Control modes: enable CS8, no PARENB
-	raw.Cflag &^= syscall.CSIZE | syscall.PARENB
-	raw.Cflag |= syscall.CS8
-
-	// Local modes: disable ECHO, ICANON, ISIG, IEXTEN
-	raw.Lflag &^= syscall.ECHO | syscall.ECHONL | syscall.ICANON | syscall.ISIG | syscall.IEXTEN
-
-	// Control characters: VMIN=1, VTIME=0 (read minimal 1 byte, no timeout)
-	raw.Cc[syscall.VMIN] = 1
-	raw.Cc[syscall.VTIME] = 0
-
-	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
-		syscall.TIOCSETA, toTermiosPtr(&raw), 0, 0, 0); err != 0 {
+	raw := *old
+	raw.Iflag &^= unix.BRKINT | unix.ICRNL | unix.INPCK | unix.ISTRIP | unix.IXON
+	raw.Oflag &^= unix.OPOST
+	raw.Cflag &^= unix.CSIZE | unix.PARENB
+	raw.Cflag |= unix.CS8
+	raw.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+	raw.Cc[unix.VMIN] = 1
+	raw.Cc[unix.VTIME] = 0
+	if err := unix.IoctlSetTermios(fd, unix.TIOCSETA, &raw); err != nil {
 		return nil, fmt.Errorf("failed to set raw terminal mode: %w", err)
 	}
-
-	return &old, nil
+	return old, nil
 }
 
 // restoreTerm restores the terminal to its original state.
-func restoreTerm(fd int, old *syscall.Termios) error {
+func restoreTerm(fd int, old *unix.Termios) error {
 	if old == nil {
 		return nil
 	}
-	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
-		syscall.TIOCSETA, toTermiosPtr(old), 0, 0, 0); err != 0 {
-		return fmt.Errorf("failed to restore terminal: %w", err)
-	}
-	return nil
+	return unix.IoctlSetTermios(fd, unix.TIOCSETA, old)
 }
 
-// getTermSize returns the terminal width and height.
-func getTermSize(fd int) (int, int, error) {
-	var ws winsize
-	if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
-		syscall.TIOCGWINSZ, toWinsizePtr(&ws), 0, 0, 0); err != 0 {
-		return 0, 0, fmt.Errorf("failed to get terminal size")
+// cursorLeftN moves cursor left by N display columns.
+func cursorLeftN(n int) {
+	if n > 0 {
+		fmt.Printf("\033[%dD", n)
 	}
-	return int(ws.Col), int(ws.Row), nil
+}
+
+// cursorRightN moves cursor right by N display columns.
+func cursorRightN(n int) {
+	if n > 0 {
+		fmt.Printf("\033[%dC", n)
+	}
+}
+
+// runeWidth returns the display width of a rune.
+// CJK characters are 2 columns wide, ASCII is 1.
+func runeWidth(r rune) int {
+	if r == '\t' {
+		return 8
+	}
+	// CJK Unified Ideographs and related blocks
+	if r >= 0x1100 &&
+		(r <= 0x115f || r == 0x2329 || r == 0x232a ||
+			(r >= 0x2e80 && r <= 0x303e) ||
+			(r >= 0x3040 && r <= 0x33ff) ||
+			(r >= 0x3400 && r <= 0x4dbf) ||
+			(r >= 0x4e00 && r <= 0xa4cf) ||
+			(r >= 0xac00 && r <= 0xd7af) ||
+			(r >= 0xf900 && r <= 0xfaff) ||
+			(r >= 0xfe30 && r <= 0xfe6f) ||
+			(r >= 0xff01 && r <= 0xff60) ||
+			(r >= 0xffe0 && r <= 0xffe6) ||
+			(r >= 0x1b000 && r <= 0x1b0ff) ||
+			(r >= 0x1f000 && r <= 0x1f9ff) ||
+			(r >= 0x20000 && r <= 0x2ffff)) {
+		return 2
+	}
+	return 1
+}
+
+// promptDisplayLen returns the display column width of the prompt string.
+func promptDisplayLen(prompt string) int {
+	width := 0
+	for _, r := range prompt {
+		width += runeWidth(r)
+	}
+	return width
+}
+
+// bufferDisplayWidth returns total display columns of buffer content.
+func bufferDisplayWidth(buf []rune) int {
+	w := 0
+	for _, r := range buf {
+		w += runeWidth(r)
+	}
+	return w
+}
+
+// cursorDisplayColumn returns the display column of the cursor (0-based, after prompt).
+func (e *EnhancedInput) cursorDisplayColumn() int {
+	w := 0
+	for i := 0; i < e.cursor; i++ {
+		w += runeWidth(e.buffer[i])
+	}
+	return w
 }
 
 // ReadLine reads a line of input with full line editing support.
-// Returns the input string (without trailing newline) or an error.
 func (e *EnhancedInput) ReadLine() (string, error) {
-	// Save terminal state and switch to raw mode
-	oldState, err := makeRaw(e.termFd)
+	oldState, err := MakeRaw(e.termFd)
 	if err != nil {
 		return "", fmt.Errorf("failed to set raw terminal mode: %w", err)
 	}
@@ -162,10 +173,8 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 		}
 	}()
 
-	// Display initial prompt
 	e.displayPrompt()
 
-	// Read bytes one by one for proper escape sequence handling
 	buf := make([]byte, 1)
 	for {
 		n, err := os.Stdin.Read(buf)
@@ -175,12 +184,10 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 
 		b := buf[0]
 
-		// ESC sequence (potential arrow keys, Home, End, etc.)
 		if b == '\x1b' {
 			seq, err := e.readEscapeSequence()
 			if err != nil {
 				if seq == "" {
-					// Plain ESC key: cancel current input
 					e.clearLine()
 					e.buffer = e.buffer[:0]
 					e.cursor = 0
@@ -193,21 +200,18 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 			continue
 		}
 
-		// Enter/Return
 		if b == '\r' || b == '\n' {
 			e.clearLine()
-			// Restore terminal before returning
 			if e.oldTerm != nil {
 				restoreTerm(e.termFd, e.oldTerm)
 				e.inRaw = false
 			}
 			result := string(e.buffer)
 			e.resetState()
-			fmt.Println() // newline after input
+			fmt.Println()
 			return result, nil
 		}
 
-		// Ctrl+C
 		if b == 0x03 {
 			e.clearLine()
 			if e.oldTerm != nil {
@@ -218,7 +222,6 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 			return "", fmt.Errorf("interrupt")
 		}
 
-		// Ctrl+D (EOF)
 		if b == 0x04 {
 			if len(e.buffer) == 0 {
 				e.clearLine()
@@ -227,39 +230,33 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 					e.inRaw = false
 				}
 				e.resetState()
-				return "", nil // EOF
+				return "", nil
 			}
-			// Ctrl+D with non-empty buffer: delete forward
 			e.deleteForward()
 			continue
 		}
 
-		// Ctrl+A (Home)
 		if b == 0x01 {
 			e.moveCursorToStart()
 			continue
 		}
 
-		// Ctrl+E (End)
 		if b == 0x05 {
 			e.moveCursorToEnd()
 			continue
 		}
 
-		// Ctrl+K (kill to end of line)
 		if b == 0x0b {
 			e.killToEnd()
 			continue
 		}
 
-		// Ctrl+L (clear screen and redraw)
 		if b == 0x0c {
-			fmt.Print("\033[2J\033[H") // clear screen, home cursor
+			fmt.Print("\033[2J\033[H")
 			e.displayPrompt()
 			continue
 		}
 
-		// Ctrl+U (kill to start)
 		if b == 0x15 {
 			e.clearLine()
 			e.buffer = e.buffer[:0]
@@ -268,31 +265,26 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 			continue
 		}
 
-		// Ctrl+W (kill previous word)
 		if b == 0x17 {
 			e.deletePreviousWord()
 			continue
 		}
 
-		// Tab (no completion, just insert as regular char)
 		if b == '\t' {
 			e.insertRune('\t')
 			continue
 		}
 
-		// Backspace
 		if b == '\x7f' || b == '\b' {
 			e.backspace()
 			continue
 		}
 
-		// Regular ASCII printable characters
 		if b >= 0x20 && b < 0x7f {
 			e.insertRune(rune(b))
 			continue
 		}
 
-		// Multi-byte UTF-8 sequence
 		if b >= 0xc0 {
 			r, size := e.readRune(b)
 			if r != utf8.RuneError || size > 1 {
@@ -303,39 +295,22 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 }
 
 // readEscapeSequence reads a complete ANSI escape sequence.
-// Returns the sequence type: "up", "down", "left", "right", "home", "end",
-// "del", or empty string for plain ESC.
 func (e *EnhancedInput) readEscapeSequence() (string, error) {
-	// Read next byte after ESC
 	buf := make([]byte, 1)
 	_, err := os.Stdin.Read(buf)
 	if err != nil {
 		return "", err
 	}
-
-	// ESC sequence: ESC [ ...
 	if buf[0] == '[' {
-		seq, err := e.readCSI()
-		if err != nil {
-			return "", err
-		}
-		return seq, nil
+		return e.readCSI()
 	}
-
-	// ESC O ... (SS3 sequences for Home/End on some terminals)
 	if buf[0] == 'O' {
-		seq, err := e.readSS3()
-		if err != nil {
-			return "", err
-		}
-		return seq, nil
+		return e.readSS3()
 	}
-
-	// Plain ESC (single ESC key press)
 	return "", nil
 }
 
-// readCSI reads a Control Sequence Introducer (CSI) sequence: ESC [ ... ~ or ESC [ char
+// readCSI reads a CSI sequence.
 func (e *EnhancedInput) readCSI() (string, error) {
 	var seq []byte
 	for {
@@ -346,14 +321,10 @@ func (e *EnhancedInput) readCSI() (string, error) {
 		}
 		b := buf[0]
 		seq = append(seq, b)
-
-		// Standard CSI sequences end with a letter (A-Z, a-z)
-		// Extended CSI sequences end with ~ (e.g., ESC [ 3 ~ for Delete)
 		if (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || b == '~' {
 			break
 		}
 	}
-
 	s := string(seq)
 	switch s {
 	case "A":
@@ -374,26 +345,18 @@ func (e *EnhancedInput) readCSI() (string, error) {
 		return "home", nil
 	case "4~":
 		return "end", nil
-	case "5~":
-		return "pageup", nil
-	case "6~":
-		return "pagedown", nil
-	case "7~":
-		return "home", nil
 	default:
-		// Other CSI sequences: ignore
 		return "", nil
 	}
 }
 
-// readSS3 reads a SS3 sequence: ESC O char (used by some terminals for Home/End)
+// readSS3 reads a SS3 sequence.
 func (e *EnhancedInput) readSS3() (string, error) {
 	buf := make([]byte, 1)
 	_, err := os.Stdin.Read(buf)
 	if err != nil {
 		return "", err
 	}
-
 	switch buf[0] {
 	case 'H':
 		return "home", nil
@@ -411,7 +374,7 @@ func (e *EnhancedInput) readSS3() (string, error) {
 	return "", nil
 }
 
-// readRune reads a multi-byte UTF-8 rune starting with the first byte.
+// readRune reads a multi-byte UTF-8 rune.
 func (e *EnhancedInput) readRune(first byte) (rune, int) {
 	var size int
 	switch {
@@ -424,7 +387,6 @@ func (e *EnhancedInput) readRune(first byte) (rune, int) {
 	default:
 		return rune(first), 1
 	}
-
 	raw := make([]byte, size)
 	raw[0] = first
 	for i := 1; i < size; i++ {
@@ -435,12 +397,10 @@ func (e *EnhancedInput) readRune(first byte) (rune, int) {
 		}
 		raw[i] = buf[0]
 	}
-
 	r, _ := utf8.DecodeRune(raw)
 	return r, size
 }
 
-// handleEscapeSequence processes a recognized escape sequence.
 func (e *EnhancedInput) handleEscapeSequence(seq string) {
 	switch seq {
 	case "up":
@@ -460,20 +420,14 @@ func (e *EnhancedInput) handleEscapeSequence(seq string) {
 	}
 }
 
-// navigateHistory navigates through history entries.
-// dir: -1 = up (older), 1 = down (newer)
 func (e *EnhancedInput) navigateHistory(dir int) {
 	if len(e.history) == 0 {
 		return
 	}
-
 	newIdx := e.histIdx + dir
-
-	// Going up past oldest history entry: stay at oldest
 	if newIdx < 0 {
 		newIdx = len(e.history) - 1
 	} else if newIdx >= len(e.history) {
-		// Going down past newest history entry: clear input
 		e.clearLine()
 		e.buffer = e.buffer[:0]
 		e.cursor = 0
@@ -481,53 +435,39 @@ func (e *EnhancedInput) navigateHistory(dir int) {
 		e.displayPrompt()
 		return
 	}
-
 	e.histIdx = newIdx
-	entry := e.history[e.histIdx]
-
-	// Replace buffer with history entry
 	e.clearLine()
-	e.buffer = []rune(entry)
+	e.buffer = []rune(e.history[e.histIdx])
 	e.cursor = len(e.buffer)
 	e.displayPrompt()
 }
 
-// displayPrompt shows the prompt and current buffer content.
 func (e *EnhancedInput) displayPrompt() {
 	fmt.Print(e.prompt)
 	if len(e.buffer) > 0 {
 		fmt.Print(string(e.buffer))
 	}
-
-	// Move cursor back to e.cursor position (from end of buffer)
-	back := len(e.buffer) - e.cursor
+	// Move cursor back to current position using display width
+	curCol := e.cursorDisplayColumn()
+	totalCol := bufferDisplayWidth(e.buffer)
+	back := totalCol - curCol
 	if back > 0 {
-		fmt.Printf("\033[%dD", back)
+		cursorLeftN(back)
 	}
 }
 
-// clearLine clears the current line and moves cursor to beginning.
 func (e *EnhancedInput) clearLine() {
-	fmt.Print("\033[J") // Clear from cursor to end of screen
+	fmt.Print("\033[J")
 	fmt.Print("\r")
 }
 
-// redrawLine clears and redraws the prompt + buffer + positions cursor
-func (e *EnhancedInput) redrawLine() {
-	e.clearLine()
-	e.displayPrompt()
-}
-
-// resetState resets the buffer state for next input.
 func (e *EnhancedInput) resetState() {
 	e.buffer = e.buffer[:0]
 	e.cursor = 0
 	e.histIdx = -1
 }
 
-// insertRune inserts a rune at the cursor position.
 func (e *EnhancedInput) insertRune(r rune) {
-	// Grow buffer if capacity is full
 	if cap(e.buffer) == len(e.buffer) {
 		newCap := cap(e.buffer) * 2
 		if newCap < 64 {
@@ -539,37 +479,31 @@ func (e *EnhancedInput) insertRune(r rune) {
 		newBuf[e.cursor] = r
 		e.buffer = newBuf
 	} else {
-		// Insert at cursor position
-		e.buffer = append(e.buffer, 0) // make room
+		e.buffer = append(e.buffer, 0)
 		copy(e.buffer[e.cursor+1:], e.buffer[e.cursor:])
 		e.buffer[e.cursor] = r
 	}
 	e.cursor++
 
-	// Redraw from cursor to end
-	e.redrawToEnd()
-}
+	// Print everything from the inserted position to end of buffer
+	fmt.Print(string(e.buffer[e.cursor-1:]))
 
-// redrawToEnd redraws from cursor position to end of buffer.
-func (e *EnhancedInput) redrawToEnd() {
-	if len(e.buffer) == e.cursor {
-		return // nothing to redraw
-	}
-	remaining := string(e.buffer[e.cursor:])
-	fmt.Print(remaining)
-	// Move cursor back to correct position
-	back := len(e.buffer) - e.cursor
+	// Move cursor back to e.cursor position using display width
+	curCol := e.cursorDisplayColumn()
+	totalCol := bufferDisplayWidth(e.buffer)
+	back := totalCol - curCol
 	if back > 0 {
-		fmt.Printf("\033[%dD", back)
+		cursorLeftN(back)
 	}
 }
 
-// backspace removes the rune before the cursor.
-// Properly handles multi-byte characters (Chinese, emoji, etc.).
 func (e *EnhancedInput) backspace() {
 	if e.cursor <= 0 {
 		return
 	}
+
+	// Width of character being deleted
+	deletedWidth := runeWidth(e.buffer[e.cursor-1])
 
 	// Remove rune before cursor
 	newLen := len(e.buffer) - 1
@@ -579,83 +513,95 @@ func (e *EnhancedInput) backspace() {
 	e.buffer = newBuf
 	e.cursor--
 
+	// Move cursor left by the display width of the deleted character
+	cursorLeftN(deletedWidth)
+
 	// Redraw from cursor to end
-	fmt.Print("\033[D") // move cursor left
 	remaining := string(e.buffer[e.cursor:])
 	if len(remaining) > 0 {
 		fmt.Print(remaining)
-		// Move cursor back
-		fmt.Printf("\033[%dD", len(remaining))
-	} else {
-		// Clear the character that was at the end
-		fmt.Print(" \033[D")
 	}
+	// Clear the last character visually (it may still be on screen)
+	fmt.Print(" ")
+	// Move cursor back to where it should be
+	curCol := e.cursorDisplayColumn()
+	totalCol := bufferDisplayWidth(e.buffer)
+	back := totalCol - curCol
+	if back > 0 {
+		cursorLeftN(back)
+	}
+	// Also clear the extra space we added
+	cursorLeftN(1)
 }
 
-// deleteForward removes the rune at the cursor position (Delete key).
 func (e *EnhancedInput) deleteForward() {
 	if e.cursor >= len(e.buffer) {
 		return
 	}
-
 	newLen := len(e.buffer) - 1
 	newBuf := make([]rune, newLen, cap(e.buffer))
 	copy(newBuf, e.buffer[:e.cursor])
 	copy(newBuf[e.cursor:], e.buffer[e.cursor+1:])
 	e.buffer = newBuf
-	e.redrawToEnd()
+
+	// Redraw from cursor
+	remaining := string(e.buffer[e.cursor:])
+	if len(remaining) > 0 {
+		fmt.Print(remaining)
+	}
+	fmt.Print(" ") // clear last char
+	curCol := e.cursorDisplayColumn()
+	totalCol := bufferDisplayWidth(e.buffer)
+	back := totalCol - curCol
+	if back > 0 {
+		cursorLeftN(back)
+	}
+	cursorLeftN(1) // the extra space
 }
 
-// moveCursorLeft moves cursor one character left.
 func (e *EnhancedInput) moveCursorLeft() {
 	if e.cursor > 0 {
 		e.cursor--
-		fmt.Print("\033[D")
+		cursorLeftN(runeWidth(e.buffer[e.cursor]))
 	}
 }
 
-// moveCursorRight moves cursor one character right.
 func (e *EnhancedInput) moveCursorRight() {
 	if e.cursor < len(e.buffer) {
+		cursorRightN(runeWidth(e.buffer[e.cursor]))
 		e.cursor++
-		fmt.Print("\033[C")
 	}
 }
 
-// moveCursorToStart moves cursor to the beginning of the line.
 func (e *EnhancedInput) moveCursorToStart() {
-	if e.cursor > 0 {
-		fmt.Printf("\033[%dD", e.cursor)
+	curCol := e.cursorDisplayColumn()
+	if curCol > 0 {
+		cursorLeftN(curCol)
 		e.cursor = 0
 	}
 }
 
-// moveCursorToEnd moves cursor to the end of the line.
 func (e *EnhancedInput) moveCursorToEnd() {
-	if e.cursor < len(e.buffer) {
-		moveRight := len(e.buffer) - e.cursor
-		fmt.Printf("\033[%dC", moveRight)
+	curCol := e.cursorDisplayColumn()
+	totalCol := bufferDisplayWidth(e.buffer)
+	if curCol < totalCol {
+		cursorRightN(totalCol - curCol)
 		e.cursor = len(e.buffer)
 	}
 }
 
-// killToEnd deletes from cursor to end of line.
 func (e *EnhancedInput) killToEnd() {
 	if e.cursor >= len(e.buffer) {
 		return
 	}
 	e.buffer = e.buffer[:e.cursor]
-	// Clear to end of screen from cursor
 	fmt.Print("\033[J")
 }
 
-// deletePreviousWord deletes the word before the cursor.
 func (e *EnhancedInput) deletePreviousWord() {
 	if e.cursor <= 0 {
 		return
 	}
-
-	// Find the start of the word before cursor
 	start := e.cursor - 1
 	for start >= 0 && e.buffer[start] == ' ' {
 		start--
@@ -663,16 +609,35 @@ func (e *EnhancedInput) deletePreviousWord() {
 	for start >= 0 && e.buffer[start] != ' ' {
 		start--
 	}
-	start++ // Move past the space/word boundary
-
-	// Delete from start to cursor
+	start++
 	if start < e.cursor {
 		newLen := len(e.buffer) - (e.cursor - start)
 		newBuf := make([]rune, newLen, cap(e.buffer))
 		copy(newBuf, e.buffer[:start])
 		copy(newBuf[start:], e.buffer[e.cursor:])
 		e.buffer = newBuf
+		curCol := e.cursorDisplayColumn()
+		// We need to go back to start position, calculate columns back
+		targetCol := 0
+		for i := 0; i < start; i++ {
+			targetCol += runeWidth(e.buffer[i])
+		}
+		moveBack := curCol - targetCol
+		if moveBack > 0 {
+			cursorLeftN(moveBack)
+		}
 		e.cursor = start
-		e.redrawToEnd()
+		remaining := string(e.buffer[e.cursor:])
+		if len(remaining) > 0 {
+			fmt.Print(remaining)
+		}
+		fmt.Print(" ")
+		newCurCol := e.cursorDisplayColumn()
+		totalCol := bufferDisplayWidth(e.buffer)
+		back := totalCol - newCurCol
+		if back > 0 {
+			cursorLeftN(back)
+		}
+		cursorLeftN(1)
 	}
 }

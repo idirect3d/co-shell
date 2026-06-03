@@ -88,8 +88,6 @@ type cliFlags struct {
 
 	// Agent identity parameters
 	description string
-	principles  string
-
 	// Vision support
 	vision string // "on"/"off"
 
@@ -207,7 +205,6 @@ func parseFlags() cliFlags {
 
 	// Agent identity parameters
 	flag.StringVar(&f.description, "description", "", "指定 agent 描述/专长（覆盖配置文件）")
-	flag.StringVar(&f.principles, "principles", "", "指定 agent 核心原则（覆盖配置文件）")
 
 	// Vision support
 	flag.StringVar(&f.vision, "vision", "", "视觉识别能力（on/off，覆盖配置文件）")
@@ -531,9 +528,6 @@ func main() {
 	// Apply agent identity CLI overrides
 	if flags.description != "" {
 		cfg.LLM.AgentDescription = flags.description
-	}
-	if flags.principles != "" {
-		cfg.LLM.AgentPrinciples = flags.principles
 	}
 
 	// Apply vision CLI override

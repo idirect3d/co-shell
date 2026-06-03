@@ -8,13 +8,13 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mark3labs/mcp-go v0.8.3
 	go.etcd.io/bbolt v1.3.11
+	golang.org/x/sys v0.29.0
 	golang.org/x/text v0.36.0
 )
 
 require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	golang.org/x/sys v0.29.0 // indirect
 )
 
 replace github.com/idirect3d/co-shell/hub => ./hub
