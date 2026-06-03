@@ -627,6 +627,8 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpBodyDisplay))
 	fmt.Println(i18n.T(i18n.KeyHelpNew))
 	fmt.Println(i18n.T(i18n.KeyHelpModel))
+	fmt.Println(i18n.T(i18n.KeyHelpSection))
+	fmt.Println(i18n.T(i18n.KeyHelpMode))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
 

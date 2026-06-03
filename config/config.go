@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/workspace"
@@ -705,7 +706,6 @@ func (c *Config) Show() string {
 	col3ResultMode := i18n.T(i18n.KeyCol3ResultMode)
 	col3Name := i18n.T(i18n.KeyCol3Name)
 	col3Desc := i18n.T(i18n.KeyCol3Desc)
-	col3Principles := i18n.T(i18n.KeyCol3Principles)
 	col3Vision := i18n.T(i18n.KeyCol3Vision)
 	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
@@ -759,13 +759,12 @@ func (c *Config) Show() string {
 	if agentName == "" {
 		agentName = "co-shell"
 	}
-	agentDesc := c.LLM.AgentDescription
-	if agentDesc == "" {
-		agentDesc = ""
-	}
-	agentPrinciples := c.LLM.AgentPrinciples
-	if agentPrinciples == "" {
-		agentPrinciples = ""
+	// Build description from Identity i18n content (with agent name populated)
+	identityContent := strings.ReplaceAll(i18n.T(i18n.KeySystemPromptIdentity), "{AGENT_NAME}", agentName)
+	// Truncate long description for display
+	agentDescDisplay := identityContent
+	if len(agentDescDisplay) > 120 {
+		agentDescDisplay = agentDescDisplay[:120] + "..."
 	}
 
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
@@ -787,8 +786,7 @@ func (c *Config) Show() string {
 		"llm-timeout:", llmTimeoutStr, col3LLMTimeout,
 		"log:", logStatus, col3Log,
 		"name:", agentName, col3Name,
-		"description:", agentDesc, col3Desc,
-		"principles:", agentPrinciples, col3Principles,
+		"description:", agentDescDisplay, col3Desc,
 		"vision:", visionStatus, col3Vision,
 		"context-limit:", contextLimitStr, col3ContextLimit,
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
