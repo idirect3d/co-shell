@@ -139,6 +139,7 @@ type REPL struct {
 	historyPos int
 	version    string // co-shell version for welcome message
 	build      string // BUILD counter for welcome message
+	inputMode  string // "enhanced" or "stdio"
 }
 
 // New creates a new REPL instance.
@@ -177,6 +178,42 @@ func (r *REPL) SetVersion(ver, bld string) {
 	r.build = bld
 }
 
+// SetInputMode sets the REPL input mode ("enhanced" or "stdio").
+func (r *REPL) SetInputMode(mode string) {
+	r.inputMode = mode
+}
+
+// readLine reads one line of input using the configured input mode.
+// Returns the input string (trimmed) or an empty string on EOF, or an error.
+func (r *REPL) readLine(prompt string) (string, error) {
+	switch r.inputMode {
+	case "enhanced":
+		// Use enhanced input with raw terminal mode
+		ei := NewEnhancedInput(prompt, r.history)
+		input, err := ei.ReadLine()
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(input), nil
+	case "stdio":
+		// Standard mode: use bufio.Scanner
+		fmt.Print(prompt)
+		scanner := bufio.NewScanner(os.Stdin)
+		if !scanner.Scan() {
+			return "", scanner.Err()
+		}
+		return strings.TrimSpace(scanner.Text()), nil
+	default:
+		// Default to enhanced
+		ei := NewEnhancedInput(prompt, r.history)
+		input, err := ei.ReadLine()
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(input), nil
+	}
+}
+
 // Run starts the REPL loop using standard library input/output.
 // No go-prompt, no raw terminal mode, no complex terminal control.
 func (r *REPL) Run() error {
@@ -205,25 +242,25 @@ func (r *REPL) Run() error {
 		}
 	}()
 
-	// Main input loop using bufio.Scanner (standard line-buffered input)
-	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		// Get emoji prefixes based on config
 		ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 		prompt := ep.UserInput
 		if r.cfg.LLM.VisionSupport {
-
 			prompt = "👀 " + prompt
 		}
-		fmt.Print(prompt)
 
-		if !scanner.Scan() {
-			// EOF (Ctrl+D) or error
+		input, err := r.readLine(prompt)
+		if err != nil {
+			// Interrupt (Ctrl+C)
+			if err.Error() == "interrupt" {
+				fmt.Println("\n" + i18n.T(i18n.KeyGoodbye))
+				r.cleanup()
+				os.Exit(0)
+			}
+			// EOF (Ctrl+D)
 			break
 		}
-
-		input := scanner.Text()
-		input = strings.TrimSpace(input)
 
 		if input == "" {
 			continue
@@ -257,7 +294,6 @@ func (r *REPL) Run() error {
 
 		// Handle direct system commands (bypass LLM)
 		if cmd, ok := IsDirectCommand(input); ok {
-
 			r.handleSystemCommand(cmd)
 			continue
 		}

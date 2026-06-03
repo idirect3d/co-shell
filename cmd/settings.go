@@ -159,6 +159,12 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "dedup-max-history", subcommand == "dedup-repeat-limit":
 		return h.handleSafetySetting(subcommand, args)
 
+	// Shell settings
+	case subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
+		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
+		subcommand == "input-mode":
+		return h.handleAgentSetting(subcommand, args)
+
 	// Search settings
 	case subcommand == "search-max-line-length", subcommand == "search-max-result-bytes",
 		subcommand == "search-context-lines",

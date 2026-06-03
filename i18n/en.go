@@ -611,8 +611,7 @@ no liability whatsoever.`,
 	KeyCLIHelpShowLogo: "      --show-logo on|off    Show ASCII art logo (overrides config)",
 
 	// Init capabilities/rules
-	KeyCLIHelpInitCapabilities: "      --init-capabilities  Generate default CAPABILITIES.md in workspace and exit",
-	KeyCLIHelpInitRules:        "      --init-rules         Generate default RULES.md in workspace and exit",
+	KeyCLIHelpInputMode: "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
 
 	// Context start mode (FEATURE-103)
 	KeyCol3ContextStartMode:       "context start mode(window/task/smart)",

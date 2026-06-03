@@ -349,6 +349,26 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Context start mode set to %s (%s)", args[1], modeDesc)
 		return fmt.Sprintf("✅ 上下文起始模式已设置为: %s (%s)", args[1], modeDesc), nil
 
+	case "input-mode":
+		if len(args) < 2 {
+			mode := h.cfg.LLM.InputMode
+			if mode == "" {
+				mode = "enhanced"
+			}
+			return fmt.Sprintf("REPL 输入模式: %s", mode), nil
+		}
+		switch args[1] {
+		case "enhanced", "stdio":
+			h.cfg.LLM.InputMode = args[1]
+		default:
+			return "", fmt.Errorf("无效的输入模式: %s（可选值: enhanced, stdio）", args[1])
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Input mode set to %s", args[1])
+		return fmt.Sprintf("✅ REPL 输入模式已设置为: %s（重启后生效）", args[1]), nil
+
 	default:
 		return "", fmt.Errorf("unknown agent setting: %s", subcommand)
 	}

@@ -303,6 +303,11 @@ type LLMConfig struct {
 
 	// WorkMode: the name of the currently active work mode.
 	WorkMode string `json:"work_mode"`
+
+	// InputMode: the REPL input mode.
+	// "enhanced" = raw terminal mode with history navigation and proper multi-byte backspace (default)
+	// "stdio" = standard line-buffered input via bufio.Scanner
+	InputMode string `json:"input_mode"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -540,6 +545,7 @@ func DefaultConfig() *Config {
 			ToolCallEnabled:           true,
 			ToolCallMode:              "xml",
 			TokenUsage:                "on",
+			InputMode:                 "enhanced",
 		},
 
 		MCP: MCPConfig{
