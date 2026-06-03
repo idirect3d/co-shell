@@ -11,6 +11,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -1149,12 +1150,10 @@ func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string) stri
 		return buildXMLToolPrompt(tools, lang)
 	default:
 		// For OpenAI mode, append examples, task progress, and editing files
-		// assembled from split components, separated by ====
+		// assembled from split components (separators are part of i18n/external content).
 		var sb strings.Builder
 		sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageExamples))
-		sb.WriteString("\n====\n")
 		sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageTaskProgress))
-		sb.WriteString("\n====\n")
 		sb.WriteString(i18n.T(i18n.KeySystemPromptEditingFiles))
 		return sb.String()
 	}
@@ -1188,11 +1187,23 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string) string {
 
 	// Append the supplementary rules assembled from split components:
 	// Tool Use Examples + Task Progress + Editing Files, separated by ====
-	sb.WriteString(i18n.T(i18n.KeySystemPromptXMLExamples))
-	sb.WriteString("\n====\n")
-	sb.WriteString(i18n.T(i18n.KeySystemPromptXMLTaskProgress))
-	sb.WriteString("\n====\n")
-	sb.WriteString(i18n.T(i18n.KeySystemPromptEditingFiles))
+	// Each section can be overridden by an external .md file in the workspace root.
+	cwd, _ := os.Getwd()
+	examplesText := loadExternalFile(cwd, "TOOL_EXAMPLES.md")
+	if examplesText == "" {
+		examplesText = i18n.T(i18n.KeySystemPromptXMLExamples)
+	}
+	taskProgressText := loadExternalFile(cwd, "TASK_PROGRESS.md")
+	if taskProgressText == "" {
+		taskProgressText = i18n.T(i18n.KeySystemPromptXMLTaskProgress)
+	}
+	editingFilesText := loadExternalFile(cwd, "EDITING_FILES.md")
+	if editingFilesText == "" {
+		editingFilesText = i18n.T(i18n.KeySystemPromptEditingFiles)
+	}
+	sb.WriteString(examplesText)
+	sb.WriteString(taskProgressText)
+	sb.WriteString(editingFilesText)
 
 	return sb.String()
 }

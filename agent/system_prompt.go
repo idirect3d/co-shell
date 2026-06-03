@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-30
-// Last Modified: 2026-06-01
+// Last Modified: 2026-06-03
 //
 // MIT License
 //
@@ -52,6 +52,14 @@ func loadExternalFile(workspacePath, filename string) string {
 
 // buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
 // shellEnabled: when true, uses Shell-session-specific prompts (no execute_command).
+//
+// Each section (Identity, ToolUsage, ResultMode, Capabilities, Rules, Objective, Environment)
+// can be overridden by placing a corresponding .md file in the workspace root directory:
+//
+//	IDENTITY.md, TOOL_USAGE.md, RESULT_MODE.md, CAPABILITIES.md, RULES.md,
+//	OBJECTIVE.md, ENVIRONMENT.md
+//
+// If the external file does not exist, the built-in i18n resource is used as fallback.
 func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
 	sh := shellName()
 
@@ -72,28 +80,34 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnable
 	if agentName == "" {
 		agentName = "co-shell"
 	}
-	if agentDescription == "" {
-	}
-	if agentPrinciples == "" {
+
+	// Part 1: Identity — try external IDENTITY.md, fallback to i18n
+	identityText := loadExternalFile(cwd, "IDENTITY.md")
+	if identityText == "" {
+		identityText = i18n.TF(i18n.KeySystemPromptIdentity, agentName)
 	}
 
-	// Part 1: Identity — agentDescription and agentPrinciples are now embedded in the Identity i18n resource
-	identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName)
-
-	// Part 2: Tool Usage Guide — select based on shellEnabled
+	// Part 2: Tool Usage Guide — try external TOOL_USAGE.md, fallback to i18n
+	// If toolUsageText is provided (XML mode), it takes highest priority.
 	toolUsageKey := i18n.KeySystemPromptToolUsageShell
 	if !shellEnabled {
 		toolUsageKey = i18n.KeySystemPromptToolUsage
 	}
-	toolUsageSection := i18n.T(toolUsageKey)
+	toolUsageSection := loadExternalFile(cwd, "TOOL_USAGE.md")
+	if toolUsageSection == "" {
+		toolUsageSection = i18n.T(toolUsageKey)
+	}
 	if len(toolUsageText) > 0 && toolUsageText[0] != "" {
 		toolUsageSection = toolUsageText[0]
 	}
 
-	// Part 3: Result Mode
-	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
+	// Part 3: Result Mode — try external RESULT_MODE.md, fallback to i18n
+	resultModeText := loadExternalFile(cwd, "RESULT_MODE.md")
+	if resultModeText == "" {
+		resultModeText = i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
+	}
 
-	// Part 4: Capabilities — select based on shellEnabled
+	// Part 4: Capabilities — try external CAPABILITIES.md, fallback to i18n
 	capabilitiesKey := i18n.KeySystemPromptCapabilitiesShell
 	if !shellEnabled {
 		capabilitiesKey = i18n.KeySystemPromptCapabilities
@@ -103,7 +117,7 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnable
 		capabilities = strings.ReplaceAll(i18n.T(capabilitiesKey), "{CWD}", cwd)
 	}
 
-	// Part 5: Rules — select based on shellEnabled
+	// Part 5: Rules — try external RULES.md, fallback to i18n
 	rulesKey := i18n.KeySystemPromptRulesShell
 	if !shellEnabled {
 		rulesKey = i18n.KeySystemPromptRules
@@ -118,15 +132,21 @@ func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnable
 		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", "")
 	}
 
-	// Part 6: Objective
-	objectiveText := i18n.T(i18n.KeySystemPromptObjective)
+	// Part 6: Objective — try external OBJECTIVE.md, fallback to i18n
+	objectiveText := loadExternalFile(cwd, "OBJECTIVE.md")
+	if objectiveText == "" {
+		objectiveText = i18n.T(i18n.KeySystemPromptObjective)
+	}
 	if taskDesc != "" {
 		objectiveText = strings.ReplaceAll(objectiveText, "{TASK}", taskDesc)
 	}
 	objectiveText = strings.ReplaceAll(objectiveText, "{TASK_TRACKING}", taskPlanText)
 
-	// Part 7: Static Environment
-	envText := i18n.T(i18n.KeySystemPromptEnvironment)
+	// Part 7: Environment — try external ENVIRONMENT.md, fallback to i18n
+	envText := loadExternalFile(cwd, "ENVIRONMENT.md")
+	if envText == "" {
+		envText = i18n.T(i18n.KeySystemPromptEnvironment)
+	}
 	envText = strings.ReplaceAll(envText, "{OS}", runtime.GOOS)
 	envText = strings.ReplaceAll(envText, "{ARCH}", runtime.GOARCH)
 	envText = strings.ReplaceAll(envText, "{COMMAND}", execName)
