@@ -393,6 +393,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyWizardCmdRunning: "🔄 正在启动 API 设置向导...\n",
 	KeyWizardCmdDone:    "✅ API 设置向导已完成。\n",
 	KeyHelpModel:        "    .model        - 多模型管理（add/list/remove/switch/info）",
+	KeyHelpSection:      "    .section      - 自定义提示词节管理（add/list/remove）",
+	KeyHelpMode:         "    .mode         - 工作模式管理（list/switch/create/edit）",
 
 	// Settings help table
 	KeySettingsHelpTitle:             "📋 .set 参数清单",
