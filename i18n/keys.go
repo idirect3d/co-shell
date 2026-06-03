@@ -338,8 +338,6 @@ const (
 	// System Prompt — keys used in buildSystemPromptWithMode (agent/system_prompt.go)
 	// Actual assembly order: Identity → Title → Capabilities → Rules → ResultMode
 	KeySystemPromptIdentity     = "system_prompt_identity"
-	KeyDefaultAgentDescription  = "default_agent_description"
-	KeyDefaultAgentPrinciples   = "default_agent_principles"
 	KeyAnonymousUser            = "anonymous_user"
 	KeySystemPromptObjective    = "system_prompt_objective"
 	KeySystemPromptEnvironment  = "system_prompt_environment"
@@ -354,10 +352,7 @@ const (
 	KeySystemPromptToolUsageXML = "system_prompt_tool_usage_xml"
 	KeySystemPromptEnv          = "system_prompt_env"
 
-	KeySystemPromptToolExamples     = "system_prompt_tool_examples"
-	KeySystemPromptToolGuidelines   = "system_prompt_tool_guidelines"
-	KeySystemPromptUpdatingProgress = "system_prompt_updating_progress"
-	KeySystemPromptEditingFiles     = "system_prompt_editing_files"
+	KeySystemPromptEditingFiles = "system_prompt_editing_files"
 
 	// Timeout settings
 	KeyConfigToolTimeout   = "config_tool_timeout"
@@ -666,8 +661,14 @@ const (
 	KeySettingsDescToolMode = "settings_desc_tool_mode"
 	KeyCLIHelpToolCallMode  = "cli_help_tool_call_mode"
 
-	// XML mode supplementary rules (FIX-190) — Important Rules + Tool Use Examples + Guidelines + Task Progress + Editing Files
-	KeySystemPromptXMLRules = "system_prompt_xml_rules"
+	// XML mode supplementary rules — split into parts
+	KeySystemPromptXMLRules        = "system_prompt_xml_rules" // kept for backward compatibility
+	KeySystemPromptXMLExamples     = "system_prompt_xml_examples"
+	KeySystemPromptXMLGuidelines   = "system_prompt_xml_guidelines"
+	KeySystemPromptXMLTaskProgress = "system_prompt_xml_task_progress"
+	// OpenAI/standard tool usage supplementary rules (non-XML versions)
+	KeySystemPromptToolUsageExamples     = "system_prompt_tool_usage_examples"
+	KeySystemPromptToolUsageTaskProgress = "system_prompt_tool_usage_task_progress"
 
 	// XML tool result template (FIX-190) — template for tool result messages in XML mode.
 	// Placeholders: {TOOL_RESULT}, {TASK_PLAN}, {CURRENT_TIME}
@@ -720,10 +721,22 @@ const (
 	KeyToolUsageShellGetOutput = "tool_usage_shell_get_output"
 	KeyToolUsageShellStop      = "tool_usage_shell_stop"
 
-	// Shell session
+	// Shell session (column labels)
 	KeyCol3ShellSessionEnabled = "col3_shell_session_enabled"
 	KeyCol3ShellSessionTimeout = "col3_shell_session_timeout"
 
 	KeySettingsDescShellSessionEnabled = "settings_desc_shell_session_enabled"
 	KeySettingsDescShellSessionTimeout = "settings_desc_shell_session_timeout"
+
+	// Shell session alternative system prompts (used when shell-session-enabled=on)
+	KeySystemPromptToolUsageShell    = "system_prompt_tool_usage_shell"
+	KeySystemPromptToolUsageXMLShell = "system_prompt_tool_usage_xml_shell"
+	KeySystemPromptCapabilitiesShell = "system_prompt_capabilities_shell"
+	KeySystemPromptRulesShell        = "system_prompt_rules_shell"
+
+	// Shell session tool usage descriptions (XML mode, shell-enabled)
+	KeyToolUsageShellSendShell      = "tool_usage_shell_send_shell"
+	KeyToolUsageShellGetOutputShell = "tool_usage_shell_get_output_shell"
+	KeyToolUsageShellWindowContent  = "tool_usage_shell_window_content"
+	KeyToolUsageShellReset          = "tool_usage_shell_reset"
 )

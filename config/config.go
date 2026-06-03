@@ -152,6 +152,11 @@ type LLMConfig struct {
 	// ShellSessionTimeout: persistent shell command execution timeout in seconds (0 = no timeout)
 	ShellSessionTimeout int `json:"shell_session_timeout"`
 
+	// ShellVTRows: virtual terminal window rows (character height). Default: 24
+	ShellVTRows int `json:"shell_vt_rows"`
+	// ShellVTCols: virtual terminal window columns (character width). Default: 80
+	ShellVTCols int `json:"shell_vt_cols"`
+
 	// SearchMaxLineLength: maximum character length for a single line in search results
 	// Lines longer than this will be truncated. Default: 8192
 	SearchMaxLineLength int `json:"search_max_line_length"`
@@ -447,6 +452,8 @@ func DefaultConfig() *Config {
 			SubAgentEnabled:           true,
 			ShellSessionEnabled:       true,
 			ShellSessionTimeout:       0,
+			ShellVTRows:               24,
+			ShellVTCols:               80,
 			SearchMaxLineLength:       8192,
 			SearchMaxResultBytes:      65536,
 			SearchContextLines:        5,
@@ -695,11 +702,11 @@ func (c *Config) Show() string {
 	}
 	agentDesc := c.LLM.AgentDescription
 	if agentDesc == "" {
-		agentDesc = i18n.T(i18n.KeyDefaultAgentDescription)
+		agentDesc = ""
 	}
 	agentPrinciples := c.LLM.AgentPrinciples
 	if agentPrinciples == "" {
-		agentPrinciples = i18n.T(i18n.KeyDefaultAgentPrinciples)
+		agentPrinciples = ""
 	}
 
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
