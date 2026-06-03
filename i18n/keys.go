@@ -588,7 +588,10 @@ const (
 	// Show logo
 	KeyCLIHelpShowLogo = "cli_help_show_logo"
 
-	// Init capabilities/rules
+	// Input mode (FEATURE-198)
+	KeyCLIHelpInputMode = "cli_help_input_mode"
+
+	// Init capabilities/rules (deprecated)
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
 

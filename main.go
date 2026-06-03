@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "200"
+const build = "201"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -156,6 +156,9 @@ type cliFlags struct {
 
 	// Body additions: custom JSON properties to add to the LLM request body
 	bodyAdd string // format: key=value, can be specified multiple times
+
+	// Input mode
+	inputMode string
 }
 
 func parseFlags() cliFlags {
@@ -276,6 +279,9 @@ func parseFlags() cliFlags {
 
 	// Body additions: custom JSON properties to add to the LLM request body
 	flag.StringVar(&f.bodyAdd, "body-add", "", "向 LLM 请求体添加自定义 JSON 属性（格式：key=value，可多次指定，用逗号分隔）")
+
+	// Input mode (FEATURE-198)
+	flag.StringVar(&f.inputMode, "input-mode", "", "REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）")
 
 	// Custom usage message
 	flag.Usage = func() {
@@ -1043,7 +1049,16 @@ func main() {
 	// Start REPL (interactive mode)
 	r := repl.New(cfg, s, mcpMgr, ag)
 	r.SetVersion(version, build)
-	log.Info("REPL started")
+	// Apply input mode setting
+	inputMode := cfg.LLM.InputMode
+	if inputMode == "" {
+		inputMode = "enhanced"
+	}
+	if flags.inputMode != "" {
+		inputMode = flags.inputMode
+	}
+	r.SetInputMode(inputMode)
+	log.Info("REPL started (input mode: %s)", inputMode)
 	if err := r.Run(); err != nil {
 		log.Error("REPL error: %v", err)
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
