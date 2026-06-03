@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-30
-// Last Modified: 2026-06-01
+// Last Modified: 2026-06-03
 //
 // MIT License
 //
@@ -39,7 +39,7 @@ import (
 
 // loadExternalFile attempts to load a text file from the workspace root directory.
 func loadExternalFile(workspacePath, filename string) string {
-	if workspacePath == "" {
+	if workspacePath == "" || filename == "" {
 		return ""
 	}
 	filePath := filepath.Join(workspacePath, filename)
@@ -50,110 +50,241 @@ func loadExternalFile(workspacePath, filename string) string {
 	return strings.TrimSpace(string(data))
 }
 
-// buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
-// shellEnabled: when true, uses Shell-session-specific prompts (no execute_command).
-func buildSystemPromptWithMode(rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
-	sh := shellName()
+// getWorkModeSectionNames returns the list of section names for the given work mode name.
+// Falls back to default sections if the mode doesn't exist in config.
+func getWorkModeSectionNames(cfg *config.Config, modeName string) []string {
+	if cfg == nil || len(cfg.WorkModes) == 0 {
+		return config.DefaultBuiltInSections()
+	}
+	if modeName == "" {
+		modeName = cfg.LLM.WorkMode
+	}
+	for _, wm := range cfg.WorkModes {
+		if wm.Name == modeName {
+			if len(wm.Sections) > 0 {
+				return wm.Sections
+			}
+			return config.DefaultBuiltInSections()
+		}
+	}
+	return config.DefaultBuiltInSections()
+}
 
-	cwd, _ := os.Getwd()
-	username := os.Getenv("USER")
-	if username == "" {
-		username = os.Getenv("USERNAME")
+// buildSectionWithPlaceholders returns a prompt section after applying all
+// named placeholders (e.g. {AGENT_NAME}, {CWD}, {OS}, etc.) to the given text.
+func buildSectionWithPlaceholders(text string, env *promptEnv) string {
+	text = strings.ReplaceAll(text, "{AGENT_NAME}", env.agentName)
+	text = strings.ReplaceAll(text, "{AGENT_DESCRIPTION}", env.agentDescription)
+	text = strings.ReplaceAll(text, "{AGENT_PRINCIPLES}", env.agentPrinciples)
+	text = strings.ReplaceAll(text, "{USER_NAME}", env.userName)
+	text = strings.ReplaceAll(text, "{CHANNEL}", env.channelInfo)
+	text = strings.ReplaceAll(text, "{RESULT_MODE_INSTRUCTION}", env.resultModeInstruction)
+	text = strings.ReplaceAll(text, "{OS}", env.os)
+	text = strings.ReplaceAll(text, "{ARCH}", env.arch)
+	text = strings.ReplaceAll(text, "{SHELL}", env.shell)
+	text = strings.ReplaceAll(text, "{HOME}", env.homeDir)
+	text = strings.ReplaceAll(text, "{CWD}", env.cwd)
+	text = strings.ReplaceAll(text, "{WORKSPACE}", env.cwd)
+	text = strings.ReplaceAll(text, "{COMMAND}", env.execName)
+	text = strings.ReplaceAll(text, "{CURRENT_TIME}", env.currentTime)
+	text = strings.ReplaceAll(text, "{CURRENT_FILES}", env.currentFiles)
+	text = strings.ReplaceAll(text, "{TASK}", env.taskDesc)
+	text = strings.ReplaceAll(text, "{TASK_TRACKING}", env.taskPlanText)
+	text = strings.ReplaceAll(text, "{CUSTOM_RULES}", env.customRules)
+	return text
+}
+
+// promptEnv holds all environment values reused across multiple sections.
+type promptEnv struct {
+	agentName             string
+	agentDescription      string
+	agentPrinciples       string
+	userName              string
+	channelInfo           string
+	resultModeInstruction string
+	os                    string
+	arch                  string
+	shell                 string
+	homeDir               string
+	cwd                   string
+	execName              string
+	currentTime           string
+	currentFiles          string
+	taskDesc              string
+	taskPlanText          string
+	customRules           string
+	shellEnabled          bool
+	mode                  config.ResultMode
+}
+
+// getModeSectionPath returns the path to a section file for the current work mode.
+// Format: {cwd}/mode/{modeName}/{sectionName}.md
+func getModeSectionPath(cwd, modeName, sectionName string) string {
+	if modeName == "" {
+		return ""
 	}
-	execName := filepath.Base(os.Args[0])
-	homeDir, _ := os.UserHomeDir()
-	if homeDir == "" {
-		homeDir = os.Getenv("HOME")
+	return filepath.Join(cwd, "mode", modeName, sectionName+".md")
+}
+
+// loadSectionText loads section content for a given work mode.
+// Priority:
+// 1. {cwd}/mode/{modeName}/{name}.md (if modeName is set and file exists)
+// 2. i18n fallback (handled by caller via fallbackFn)
+func loadSectionText(cwd, modeName, name string, fallbackFn func() string) string {
+	if modeName != "" {
+		modePath := getModeSectionPath(cwd, modeName, name)
+		if data, err := os.ReadFile(modePath); err == nil {
+			return strings.TrimSpace(string(data))
+		}
 	}
-	if homeDir == "" {
-		homeDir = os.Getenv("USERPROFILE")
+	return fallbackFn()
+}
+
+// buildNamedSection builds a single named prompt section. The section name determines
+// the source: custom sections look for {Name}.md, built-in names use i18n keys.
+// toolUsageText is passed through for sections that may need it (ToolUsage).
+func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEnabled bool, toolUsageText []string) string {
+	modeName := ""
+	if cfg != nil {
+		modeName = cfg.LLM.WorkMode
 	}
+	switch name {
+	case "Identity":
+		text := loadSectionText(env.cwd, modeName, "IDENTITY", func() string {
+			return i18n.TF(i18n.KeySystemPromptIdentity, env.agentName)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "ToolUsage":
+		key := i18n.KeySystemPromptToolUsageShell
+		if !shellEnabled {
+			key = i18n.KeySystemPromptToolUsage
+		}
+		text := loadSectionText(env.cwd, modeName, "TOOL_USAGE", func() string {
+			return i18n.T(key)
+		})
+		if len(toolUsageText) > 0 && toolUsageText[0] != "" {
+			text = toolUsageText[0]
+		}
+		return buildSectionWithPlaceholders(text, env)
+
+	case "ResultMode":
+		text := loadSectionText(env.cwd, modeName, "RESULT_MODE", func() string {
+			return i18n.TF(i18n.KeySystemPromptResultMode, env.resultModeInstruction)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Capabilities":
+		key := i18n.KeySystemPromptCapabilitiesShell
+		if !shellEnabled {
+			key = i18n.KeySystemPromptCapabilities
+		}
+		text := loadSectionText(env.cwd, modeName, "CAPABILITIES", func() string {
+			return i18n.T(key)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Rules":
+		key := i18n.KeySystemPromptRulesShell
+		if !shellEnabled {
+			key = i18n.KeySystemPromptRules
+		}
+		text := loadSectionText(env.cwd, modeName, "RULES", func() string {
+			return i18n.T(key)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Objective":
+		text := loadSectionText(env.cwd, modeName, "OBJECTIVE", func() string {
+			return i18n.T(i18n.KeySystemPromptObjective)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "Environment":
+		text := loadSectionText(env.cwd, modeName, "ENVIRONMENT", func() string {
+			return i18n.T(i18n.KeySystemPromptEnvironment)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	default:
+		// Custom user-defined section: try mode/{modeName}/{name}.md, then {name}.md,
+		// then Content from PromptSection, then i18n fallback.
+		text := loadSectionText(env.cwd, modeName, name, func() string {
+			// Check PromptSections from config for inline content
+			if cfg != nil {
+				for _, ps := range cfg.PromptSections {
+					if ps.Name == name && ps.Content != "" {
+						return ps.Content
+					}
+				}
+			}
+			// Try i18n fallback
+			i18nKey := "system_prompt_" + strings.ToLower(name)
+			if i18n.T(i18nKey) != "" {
+				return i18n.T(i18nKey)
+			}
+			return ""
+		})
+		return buildSectionWithPlaceholders(text, env)
+	}
+}
+
+// buildSystemPromptWithMode constructs the system prompt with rules, context, and result mode.
+// The cfg parameter provides work mode configuration (can be nil, uses default order).
+// shellEnabled: when true, uses Shell-session-specific prompts (no execute_command).
+//
+// The prompt is assembled from the sections defined by the current work mode (cfg.LLM.WorkMode),
+// or uses the default 7-section order if no work mode is configured.
+//
+// Named placeholders (e.g. {AGENT_NAME}, {CWD}, {TASK}) are resolved for all sections
+// regardless of source (external file or i18n).
+func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
+	env := &promptEnv{}
+	env.cwd, _ = os.Getwd()
+	env.shell = shellName()
+	env.os = runtime.GOOS
+	env.arch = runtime.GOARCH
+	env.execName = filepath.Base(os.Args[0])
+	env.homeDir, _ = os.UserHomeDir()
+	if env.homeDir == "" {
+		env.homeDir = os.Getenv("HOME")
+	}
+	if env.homeDir == "" {
+		env.homeDir = os.Getenv("USERPROFILE")
+	}
+	env.mode = mode
+	env.shellEnabled = shellEnabled
 
 	if agentName == "" {
 		agentName = "co-shell"
 	}
-	if agentDescription == "" {
-	}
-	if agentPrinciples == "" {
-	}
-
-	// Part 1: Identity — agentDescription and agentPrinciples are now embedded in the Identity i18n resource
-	identityText := i18n.TF(i18n.KeySystemPromptIdentity, agentName)
-
-	// Part 2: Tool Usage Guide — select based on shellEnabled
-	toolUsageKey := i18n.KeySystemPromptToolUsageShell
-	if !shellEnabled {
-		toolUsageKey = i18n.KeySystemPromptToolUsage
-	}
-	toolUsageSection := i18n.T(toolUsageKey)
-	if len(toolUsageText) > 0 && toolUsageText[0] != "" {
-		toolUsageSection = toolUsageText[0]
-	}
-
-	// Part 3: Result Mode
-	resultModeText := i18n.TF(i18n.KeySystemPromptResultMode, resultModeInstruction(mode))
-
-	// Part 4: Capabilities — select based on shellEnabled
-	capabilitiesKey := i18n.KeySystemPromptCapabilitiesShell
-	if !shellEnabled {
-		capabilitiesKey = i18n.KeySystemPromptCapabilities
-	}
-	capabilities := loadExternalFile(cwd, "CAPABILITIES.md")
-	if capabilities == "" {
-		capabilities = strings.ReplaceAll(i18n.T(capabilitiesKey), "{CWD}", cwd)
-	}
-
-	// Part 5: Rules — select based on shellEnabled
-	rulesKey := i18n.KeySystemPromptRulesShell
-	if !shellEnabled {
-		rulesKey = i18n.KeySystemPromptRules
-	}
-	rulesText := loadExternalFile(cwd, "RULES.md")
-	if rulesText == "" {
-		rulesText = strings.ReplaceAll(i18n.T(rulesKey), "{CWD}", cwd)
-	}
-	if rules != "" {
-		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", rules)
-	} else {
-		rulesText = strings.ReplaceAll(rulesText, "{CUSTOM_RULES}", "")
-	}
-
-	// Part 6: Objective
-	objectiveText := i18n.T(i18n.KeySystemPromptObjective)
-	if taskDesc != "" {
-		objectiveText = strings.ReplaceAll(objectiveText, "{TASK}", taskDesc)
-	}
-	objectiveText = strings.ReplaceAll(objectiveText, "{TASK_TRACKING}", taskPlanText)
-
-	// Part 7: Static Environment
-	envText := i18n.T(i18n.KeySystemPromptEnvironment)
-	envText = strings.ReplaceAll(envText, "{OS}", runtime.GOOS)
-	envText = strings.ReplaceAll(envText, "{ARCH}", runtime.GOARCH)
-	envText = strings.ReplaceAll(envText, "{COMMAND}", execName)
-	envText = strings.ReplaceAll(envText, "{SHELL}", sh)
-	envText = strings.ReplaceAll(envText, "{HOME}", homeDir)
-	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
-	envText = strings.ReplaceAll(envText, "{WORKSPACE}", cwd)
-
-	displayUser := userName
-	if displayUser == "" {
-		displayUser = i18n.T(i18n.KeyAnonymousUser)
+	env.agentName = agentName
+	env.agentDescription = agentDescription
+	env.agentPrinciples = agentPrinciples
+	env.userName = userName
+	if env.userName == "" {
+		env.userName = i18n.T(i18n.KeyAnonymousUser)
 	}
 	displayChannel := channel
 	if displayChannel == "" {
 		displayChannel = "co-shell"
 	}
-	channelInfo := displayUser + " @ " + displayChannel
+	env.channelInfo = env.userName + " @ " + displayChannel
+	env.currentTime = time.Now().Format("2006-01-02 15:04:05 Monday")
+	env.currentFiles = strings.TrimRight(listFilesForPrompt(env.cwd, true, 100), "\n")
+	env.taskDesc = taskDesc
+	env.taskPlanText = taskPlanText
+	env.customRules = rules
+	env.resultModeInstruction = resultModeInstruction(mode)
 
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
-	envText = strings.ReplaceAll(envText, "{CURRENT_TIME}", now)
-	envText = strings.ReplaceAll(envText, "{CWD}", cwd)
-	envText = strings.ReplaceAll(envText, "{CURRENT_FILES}", strings.TrimRight(listFilesForPrompt(cwd, true, 100), "\n"))
-	envText = strings.ReplaceAll(envText, "{CHANNEL}", channelInfo)
-
-	prompt := identityText + toolUsageSection + resultModeText + capabilities + rulesText + envText + objectiveText
-
-	return prompt
+	// Get section names from work mode config (or default order)
+	sectionNames := getWorkModeSectionNames(cfg, "")
+	var sections []string
+	for _, name := range sectionNames {
+		section := buildNamedSection(name, env, cfg, shellEnabled, toolUsageText)
+		sections = append(sections, section)
+	}
+	return strings.Join(sections, "")
 }
 
 func resultModeInstruction(mode config.ResultMode) string {

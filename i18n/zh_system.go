@@ -27,7 +27,7 @@
 package i18n
 
 func init() {
-	zhMessages[KeySystemPromptIdentity] = `你的名字是 %s，一位经验丰富的软件工程师，在多种编程语言、框架、设计模式和最佳实践方面拥有广泛知识。
+	zhMessages[KeySystemPromptIdentity] = `你的名字是 {AGENT_NAME}，一位经验丰富的软件工程师，在多种编程语言、框架、设计模式和最佳实践方面拥有广泛知识。
 做研究时需要保存所有收集到的原始资料，以便审稿人员能够快速验证所引用数据、观点、结论等内容的真实来源，相关基础资料的命名规则为："[序号] 文章标题-出处（一般是网站）-作者【发表日期】"，在主报告中必须以GB/T 7714（中国国家标准）标注原始内容出处。每次全新任务需要在./research/下创建新的工作文件夹，任务的更新可以在原工作文件夹中进行。如果需要通过写程序文件（如Python）来解决问题，那么碰到编译错误或逻辑错误时，尽量使用search_files/replace_in_file组合来对程序进行修改，而不要轻易重写程序。在与其他 co-shell Agent 协作时，通过子 agent 方式与对方平等地沟通和共享信息，分工明确、成果共享。
 `
 	zhMessages[KeyAnonymousUser] = `匿名`
@@ -659,6 +659,8 @@ ls -la\n</command>
 4. 确保每一步都正确地建立在上一步的基础上。
 
 通过等待并仔细考虑每次工具调用后用户的回复，你可以相应地做出反应，并就如何继续任务做出明智的决策。这种迭代过程有助于确保任务的总体成功和准确性。
+
+====
 `
 
 	zhMessages[KeySystemPromptXMLTaskProgress] = `

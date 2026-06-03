@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/workspace"
@@ -299,6 +300,9 @@ type LLMConfig struct {
 	// Value is the custom system prompt text for that mode's tool usage section.
 	// If empty, the built-in i18n prompt is used.
 	ToolCallModeSystemPrompts map[string]string `json:"tool_call_mode_system_prompts"`
+
+	// WorkMode: the name of the currently active work mode.
+	WorkMode string `json:"work_mode"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -414,6 +418,57 @@ func DefaultDBConfig() DBConfig {
 	}
 }
 
+// PromptSection defines a named section of the system prompt that can be
+// customized by the user. Each section has a unique name and content source.
+// The content is loaded from an external .md file in the workspace root
+// (named {Name}.md) if it exists, or from the Content string if non-empty,
+// or falls back to the built-in i18n resource for built-in section names.
+type PromptSection struct {
+	// Name is the unique identifier for this section (e.g., "Identity", "CustomRules").
+	Name string `json:"name"`
+	// Content is the inline content override. If empty, the section tries to load
+	// from {Name}.md in the workspace root, then falls back to i18n.
+	Content string `json:"content,omitempty"`
+	// BuiltIn indicates this is a system-defined section (not user-created).
+	BuiltIn bool `json:"built_in"`
+}
+
+// WorkMode defines a named work mode that specifies which prompt sections
+// to include and in what order.
+type WorkMode struct {
+	// Name is the unique identifier for this work mode (e.g., "default", "coding").
+	Name string `json:"name"`
+	// Description provides a human-readable summary of this mode.
+	Description string `json:"description,omitempty"`
+	// Sections lists the names of PromptSection entries to assemble, in order.
+	Sections []string `json:"sections"`
+}
+
+// DefaultBuiltInSections returns the default list of built-in prompt section names
+// in their standard assembly order.
+func DefaultBuiltInSections() []string {
+	return []string{
+		"Identity",
+		"ToolUsage",
+		"ResultMode",
+		"Capabilities",
+		"Rules",
+		"Environment",
+		"Objective",
+	}
+}
+
+// DefaultWorkModes returns a map of default work modes with standard configuration.
+func DefaultWorkModes() []WorkMode {
+	return []WorkMode{
+		{
+			Name:        "default",
+			Description: "默认工作模式，包含所有标准提示词节",
+			Sections:    DefaultBuiltInSections(),
+		},
+	}
+}
+
 // Config is the top-level configuration structure.
 type Config struct {
 	LLM                LLMConfig `json:"llm"`
@@ -425,6 +480,11 @@ type Config struct {
 	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
 	// Models stores multiple model configurations for switching.
 	Models []*ModelConfig `json:"models,omitempty"`
+
+	// PromptSections stores user-defined and built-in prompt sections.
+	PromptSections []PromptSection `json:"prompt_sections,omitempty"`
+	// WorkModes stores user-defined work modes.
+	WorkModes []WorkMode `json:"work_modes,omitempty"`
 
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
@@ -646,7 +706,6 @@ func (c *Config) Show() string {
 	col3ResultMode := i18n.T(i18n.KeyCol3ResultMode)
 	col3Name := i18n.T(i18n.KeyCol3Name)
 	col3Desc := i18n.T(i18n.KeyCol3Desc)
-	col3Principles := i18n.T(i18n.KeyCol3Principles)
 	col3Vision := i18n.T(i18n.KeyCol3Vision)
 	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
@@ -700,13 +759,12 @@ func (c *Config) Show() string {
 	if agentName == "" {
 		agentName = "co-shell"
 	}
-	agentDesc := c.LLM.AgentDescription
-	if agentDesc == "" {
-		agentDesc = ""
-	}
-	agentPrinciples := c.LLM.AgentPrinciples
-	if agentPrinciples == "" {
-		agentPrinciples = ""
+	// Build description from Identity i18n content (with agent name populated)
+	identityContent := strings.ReplaceAll(i18n.T(i18n.KeySystemPromptIdentity), "{AGENT_NAME}", agentName)
+	// Truncate long description for display
+	agentDescDisplay := identityContent
+	if len(agentDescDisplay) > 120 {
+		agentDescDisplay = agentDescDisplay[:120] + "..."
 	}
 
 	return fmt.Sprintf(i18n.T(i18n.KeyConfigFormat),
@@ -728,8 +786,7 @@ func (c *Config) Show() string {
 		"llm-timeout:", llmTimeoutStr, col3LLMTimeout,
 		"log:", logStatus, col3Log,
 		"name:", agentName, col3Name,
-		"description:", agentDesc, col3Desc,
-		"principles:", agentPrinciples, col3Principles,
+		"description:", agentDescDisplay, col3Desc,
 		"vision:", visionStatus, col3Vision,
 		"context-limit:", contextLimitStr, col3ContextLimit,
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,

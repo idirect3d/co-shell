@@ -131,6 +131,8 @@ type REPL struct {
 	planHandler     *cmd.PlanHandler
 	sessionHandler  *cmd.SessionHandler
 	modelHandler    *cmd.ModelHandler
+	sectionHandler  *cmd.SectionHandler
+	modeHandler     *cmd.ModeHandler
 
 	history    []string
 	historyPos int
@@ -156,6 +158,8 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		planHandler:    cmd.NewPlanHandler(ag.TaskPlanManager()),
 		sessionHandler: cmd.NewSessionHandler(ag, cfg),
 		modelHandler:   cmd.NewModelHandler(cfg, ag),
+		sectionHandler: cmd.NewSectionHandler(cfg),
+		modeHandler:    cmd.NewModeHandler(cfg, ag),
 	}
 
 }
@@ -335,6 +339,10 @@ func (r *REPL) handleBuiltin(input string) {
 		return
 	case ".model":
 		result, err = r.modelHandler.Handle(args)
+	case ".section":
+		result, err = r.sectionHandler.Handle(args)
+	case ".mode":
+		result, err = r.modeHandler.Handle(args)
 	case ".db":
 		result, err = r.settingsHandler.HandleDB(args)
 	default:
@@ -619,6 +627,8 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpBodyDisplay))
 	fmt.Println(i18n.T(i18n.KeyHelpNew))
 	fmt.Println(i18n.T(i18n.KeyHelpModel))
+	fmt.Println(i18n.T(i18n.KeyHelpSection))
+	fmt.Println(i18n.T(i18n.KeyHelpMode))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
 
