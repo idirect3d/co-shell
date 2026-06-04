@@ -812,6 +812,103 @@ EDITING FILES
 ====
 `
 
+	zhMessages[KeySystemPromptBrowserUsage] = `
+BROWSER USAGE
+
+当 browser-enabled = on 时，你可以通过以下浏览器工具控制 Chrome 浏览器。浏览器工具支持 SREA（截图-识别-评估-操作）循环，让你通过视觉和 DOM 分析来完成网页操作任务。
+
+# SREA 循环工作流
+
+浏览器操作应遵循以下循环模式：
+
+## 1. 导航与观察
+<execute_command>
+  <command>browser_navigate(url)</command>
+</execute_command>
+
+<execute_command>
+  <command>browser_screenshot()</command>
+</execute_command>
+
+首先导航到目标 URL，然后截取页面截图。截图会自动缓存并发送到视觉模型进行分析。观察页面布局、内容、可交互元素的位置。
+
+## 2. 识别交互元素
+
+<execute_command>
+  <command>browser_get_interactive_elements()</command>
+</execute_command>
+
+获取页面中所有可交互元素（按钮、链接、输入框、下拉框等）的详细列表，包括：
+- tag: 元素标签（BUTTON、A、INPUT 等）
+- text: 元素显示的文本
+- rect.centerX/centerY: 元素中心的精确坐标（用于 browser_click）
+- id、class、type、placeholder 等属性
+
+## 3. 分析并决策
+
+结合截图（视觉分析）和元素列表（DOM 信息），评估当前状态与目标之间的差距，决定下一步操作：
+- 点击按钮/链接 → browser_click(x, y)
+- 输入文本 → browser_type("text")
+- 执行 JavaScript → browser_evaluate("code")
+- 滚动页面 → browser_scroll(delta_x, delta_y)
+- 获取页面 HTML → browser_get_html()
+
+## 4. 执行操作
+
+### 点击元素
+使用 browser_get_interactive_elements 返回的 centerX 和 centerY 坐标：
+<execute_command>
+  <command>browser_click(x=120, y=300)</command>
+</execute_command>
+
+### 输入文本
+在输入框中输入文字。如果输入框已有内容，可以设置 clear=true 先清空：
+<execute_command>
+  <command>browser_type(text="搜索关键词", clear=true)</command>
+</execute_command>
+
+### 执行 JavaScript
+需要高级操作时，直接在浏览器中执行 JS 代码：
+<execute_command>
+  <command>browser_evaluate("document.querySelector('.result').textContent")</command>
+</execute_command>
+
+### 滚动页面
+查看超出视口的内容：
+<execute_command>
+  <command>browser_scroll(delta_y=500)</command>
+</execute_command>
+
+## 5. 再次截图评估
+
+每次操作后立即截图，观察操作效果，判断是否达到预期目标。如果未达到，继续循环：
+<execute_command>
+  <command>browser_screenshot()</command>
+</execute_command>
+
+# 完整 SREA 循环示例
+
+目标：在搜索框中输入关键词并点击搜索按钮
+
+1. browser_navigate(url="https://example.com")     — 导航
+2. browser_screenshot()                             — 截图观察
+3. browser_get_interactive_elements()                — 获取元素坐标
+4. browser_type(text="AI浏览器自动化", clear=true)  — 输入文本
+5. browser_click(x=200, y=450)                      — 点击搜索按钮
+6. browser_screenshot()                              — 截图观察结果
+7. 重复步骤 2-6 直到任务完成
+
+# 注意事项
+
+- 每个操作后使用 browser_screenshot() 截图观察结果，不要连续执行多个操作而不评估
+- 截图需要视觉模型（VLM）支持，如果当前模型不支持视觉，则无法分析截图
+- 页面变化后交互元素的位置可能改变，再次操作前重新调用 browser_get_interactive_elements()
+- 如果页面长时间无响应，尝试使用 browser_evaluate("document.readyState") 检查状态
+- 完成所有浏览器操作后，调用 browser_close() 关闭浏览器释放资源
+
+====
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	zhMessages[KeySystemPromptToolUsageExamples] = `
 # 工具使用示例

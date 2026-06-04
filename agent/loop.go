@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idirect3d/co-shell/browser"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
@@ -160,6 +161,11 @@ type Agent struct {
 	shellSession     *shell.Session
 	shellEnabled     bool   // whether persistent shell tools are enabled
 	shellSessionMode string // "confirm" or "auto" - user confirmation mode
+
+	// Browser automation via CDP (FEATURE-200)
+	chromeMgr             *browser.ChromeManager
+	browserEnabled        bool   // whether browser tools are enabled
+	browserScreenshotData string // cached base64 screenshot data for multimodal context
 }
 
 // buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.

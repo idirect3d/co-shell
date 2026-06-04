@@ -349,6 +349,77 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Context start mode set to %s (%s)", args[1], modeDesc)
 		return fmt.Sprintf("✅ 上下文起始模式已设置为: %s (%s)", args[1], modeDesc), nil
 
+	case "browser-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOff)
+			if h.cfg.LLM.BrowserEnabled {
+				status = i18n.T(i18n.KeyOn)
+			}
+			return fmt.Sprintf("浏览器: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.BrowserEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.BrowserEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set browser-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetBrowserEnabled(h.cfg.LLM.BrowserEnabled)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.BrowserEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Browser enabled set to %s", status)
+		return fmt.Sprintf("✅ 浏览器已设置为: %s", status), nil
+
+	case "browser-port":
+		if len(args) < 2 {
+			return fmt.Sprintf("浏览器端口: %d", h.cfg.LLM.BrowserPort), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("无效的端口: %s", args[1])
+		}
+		if n < 1 || n > 65535 {
+			return "", fmt.Errorf("端口必须在 1 ~ 65535 之间")
+		}
+		h.cfg.LLM.BrowserPort = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Browser port set to %d", n)
+		return fmt.Sprintf("✅ 浏览器端口已设置为: %d", n), nil
+
+	case "browser-headless":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOff)
+			if h.cfg.LLM.BrowserHeadless {
+				status = i18n.T(i18n.KeyOn)
+			}
+			return fmt.Sprintf("无头模式: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.BrowserHeadless = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.BrowserHeadless = false
+		default:
+			return "", fmt.Errorf("usage: .set browser-headless on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.BrowserHeadless {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Browser headless set to %s", status)
+		return fmt.Sprintf("✅ 无头模式已设置为: %s", status), nil
+
 	case "input-mode":
 		if len(args) < 2 {
 			mode := h.cfg.LLM.InputMode

@@ -29,6 +29,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -158,7 +159,7 @@ func (h *ConfigHandler) configGroups() []ConfigGroup {
 		{
 			Name: i18n.T(i18n.KeySettingsGroupMemory),
 			Params: append(h.memoryParams(),
-				cmdEntry(".memory", "管理记忆和持久知识", "", h.memoryHandler.Handle, []ConfigSubCommand{
+				cmdEntry(".memory", i18n.T(i18n.KeyHelpMemory), "", h.memoryHandler.Handle, []ConfigSubCommand{
 					{Name: "save", Desc: "保存一条记忆", Args: "<key> <value>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"save"}, a...)) }},
 					{Name: "get", Desc: "获取一条记忆", Args: "<key>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"get"}, a...)) }},
 					{Name: "search", Desc: "按前缀搜索记忆", Args: "<prefix>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"search"}, a...)) }},
@@ -166,22 +167,27 @@ func (h *ConfigHandler) configGroups() []ConfigGroup {
 					{Name: "list", Desc: "列出所有记忆", Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"list"}) }},
 					{Name: "clear", Desc: "清空所有记忆", Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"clear"}) }},
 				}),
-				cmdEntry(".context", "管理对话上下文", "", h.contextHandler.Handle, []ConfigSubCommand{
+				cmdEntry(".context", i18n.T(i18n.KeyHelpContext), "", h.contextHandler.Handle, []ConfigSubCommand{
 					{Name: "show", Desc: "显示当前上下文", Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"show"}) }},
 					{Name: "reset", Desc: "重置上下文", Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"reset"}) }},
 				}),
-				cmdEntry(".session", "查看当前会话信息", "", h.sessionHandler.Handle, []ConfigSubCommand{
+				cmdEntry(".session", i18n.T(i18n.KeyHelpSession), "", h.sessionHandler.Handle, []ConfigSubCommand{
 					{Name: "info", Desc: "显示会话概要", Action: func(a []string) { runHandler(h.sessionHandler.Handle, []string{}) }},
 				}),
-				cmdEntry(".new", "清空当前会话，开始全新对话", "", func(args []string) (string, error) {
+				cmdEntry(".new", i18n.T(i18n.KeyHelpNew), "", func(args []string) (string, error) {
 					h.agent.Reset()
 					return "", nil
 				}, nil),
-			),
-		},
-		{
-			Name: i18n.T(i18n.KeySettingsGroupSearchDebug),
-			Params: append(h.searchParams(),
+				cmdEntry(".plan", i18n.T(i18n.KeyHelpPlan), "", h.planHandler.Handle, []ConfigSubCommand{
+					{Name: "list", Desc: "查看当前任务计划", Action: func(a []string) { runHandler(h.planHandler.Handle, []string{}) }},
+					{Name: "create", Desc: "创建新任务计划", Args: "<title>", Action: func(a []string) { runHandler(h.planHandler.Handle, append([]string{"create"}, a...)) }},
+				}),
+				cmdEntry(".db", i18n.T(i18n.KeyDBSubCmdDesc), "", h.settingsHandler.HandleDB, []ConfigSubCommand{
+					{Name: "info", Desc: "查看数据库配置", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{}) }},
+					{Name: "host", Desc: "设置数据库地址", Args: "<host>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"host"}, a...)) }},
+					{Name: "port", Desc: "设置数据库端口", Args: "<port>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"port"}, a...)) }},
+					{Name: "migrate", Desc: "从本地 bbolt 迁移到 PostgreSQL", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{"migrate"}) }},
+				}),
 				cmdEntry(".history", "查看用户输入命令历史", "", h.listHandler.HandleHistory, []ConfigSubCommand{
 					{Name: "last", Desc: "查看最近 N 条历史", Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"last"}, a...)) }},
 					{Name: "first", Desc: "查看最早 N 条历史", Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"first"}, a...)) }},
@@ -189,91 +195,20 @@ func (h *ConfigHandler) configGroups() []ConfigGroup {
 			),
 		},
 		{
-			Name: "[ 模型管理 ]",
-			Params: []ConfigParam{
-				cmdEntry(".model", "模型管理（add/list/remove/switch/info）", "", h.modelHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "列出所有已配置模型", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"list"}) }},
-					{Name: "add", Desc: "添加新模型（启动设置向导）", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"add"}) }},
-					{Name: "switch", Desc: "切换当前使用的模型", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"switch"}, a...)) }},
-					{Name: "remove", Desc: "删除一个模型配置", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"remove"}, a...)) }},
-					{Name: "info", Desc: "查看指定模型的详细配置", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"info"}, a...)) }},
-				}),
-			},
+			Name:   i18n.T(i18n.KeyWizardGroupDevTools),
+			Params: h.devToolParams(),
 		},
 		{
-			Name: "[ MCP 与规则 ]",
-			Params: []ConfigParam{
-				cmdEntry(".mcp", "管理 MCP 服务器连接", "", h.mcpHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "列出所有 MCP 服务器", Action: func(a []string) { runHandler(h.mcpHandler.Handle, []string{}) }},
-					{Name: "add", Desc: "添加 MCP 服务器", Args: "<name> <command> [args...]", Action: func(a []string) {
-						if len(a) < 2 {
-							fmt.Println("  用法: .mcp add <name> <command> [args...]")
-							return
-						}
-						runHandler(h.mcpHandler.Handle, append([]string{"add"}, a...))
-					}},
-					{Name: "remove", Desc: "移除 MCP 服务器", Args: "<name>", Action: func(a []string) { runHandler(h.mcpHandler.Handle, append([]string{"remove"}, a...)) }},
-				}),
-				cmdEntry(".rule", "管理 AI 全局规则", "", h.ruleHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "列出所有规则", Action: func(a []string) { runHandler(h.ruleHandler.Handle, []string{}) }},
-					{Name: "add", Desc: "添加新规则", Args: "<rule>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"add"}, a...)) }},
-					{Name: "remove", Desc: "删除规则", Args: "<index>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"remove"}, a...)) }},
-				}),
-			},
+			Name:   i18n.T(i18n.KeyWizardGroupModelMgr),
+			Params: h.modelMgrParams(),
 		},
 		{
-			Name: "[ 工作模式与节管理 ]",
-			Params: []ConfigParam{
-				cmdEntry(".mode", "管理工作模式", "", h.modeHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "列出所有工作模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{}) }},
-					{Name: "switch", Desc: "切换工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"switch"}, a...)) }},
-					{Name: "create", Desc: "创建工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"create"}, a...)) }},
-					{Name: "edit", Desc: "交互式编辑当前模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{"edit"}) }},
-				}),
-				cmdEntry(".section", "管理自定义提示词节", "", h.sectionHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "列出所有自定义节", Action: func(a []string) { runHandler(h.sectionHandler.Handle, []string{}) }},
-					{Name: "add", Desc: "添加节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"add"}, a...)) }},
-					{Name: "remove", Desc: "删除节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"remove"}, a...)) }},
-				}),
-			},
+			Name:   i18n.T(i18n.KeyWizardGroupWorkMode),
+			Params: h.workModeParams(),
 		},
 		{
-			Name: "[ 图片与任务计划 ]",
-			Params: []ConfigParam{
-				cmdEntry(".image", "管理多模态图片缓存", "", h.imageHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "列出缓存的图片", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{}) }},
-					{Name: "add", Desc: "添加图片到缓存", Args: "<path>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"add"}, a...)) }},
-					{Name: "remove", Desc: "从缓存移除图片", Args: "<index>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"remove"}, a...)) }},
-					{Name: "clear", Desc: "清空图片缓存", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{"clear"}) }},
-				}),
-				cmdEntry(".plan", "管理任务计划", "", h.planHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "查看当前任务计划", Action: func(a []string) { runHandler(h.planHandler.Handle, []string{}) }},
-					{Name: "create", Desc: "创建新任务计划", Args: "<title>", Action: func(a []string) { runHandler(h.planHandler.Handle, append([]string{"create"}, a...)) }},
-				}),
-				cmdEntry(".body-add", "向 LLM 请求体添加自定义 JSON 属性", "key=value", nil, nil),
-				cmdEntry(".body-remove", "从 LLM 请求体删除自定义 JSON 属性", "key", nil, nil),
-				cmdEntry(".body-display", "显示 LLM 请求体中的自定义 JSON 属性", "", func(args []string) (string, error) {
-					if len(h.cfg.LLM.BodyAdditions) == 0 {
-						return "  没有自定义属性", nil
-					}
-					var sb strings.Builder
-					for k, v := range h.cfg.LLM.BodyAdditions {
-						sb.WriteString(fmt.Sprintf("    %s = %s\n", k, v))
-					}
-					return sb.String(), nil
-				}, nil),
-			},
-		},
-		{
-			Name: "[ 数据库 ]",
-			Params: []ConfigParam{
-				cmdEntry(".db", "查看/配置 PostgreSQL 数据库连接", "", h.settingsHandler.HandleDB, []ConfigSubCommand{
-					{Name: "info", Desc: "查看数据库配置", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{}) }},
-					{Name: "host", Desc: "设置数据库地址", Args: "<host>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"host"}, a...)) }},
-					{Name: "port", Desc: "设置数据库端口", Args: "<port>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"port"}, a...)) }},
-					{Name: "migrate", Desc: "从本地 bbolt 迁移到 PostgreSQL", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{"migrate"}) }},
-				}),
-			},
+			Name:   i18n.T(i18n.KeyWizardGroupMultimodal),
+			Params: h.multimodalParams(),
 		},
 	}
 }
@@ -536,6 +471,51 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			h.cfg.LLM.InputMode = "enhanced"
 			return i18n.TF(i18n.KeySettingsUpdated, "input-mode", "enhanced")
 		}},
+		cmdEntry(".rule", "管理 AI 全局规则", "", h.ruleHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: "列出所有规则", Action: func(a []string) { runHandler(h.ruleHandler.Handle, []string{}) }},
+			{Name: "add", Desc: "添加新规则", Args: "<rule>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"add"}, a...)) }},
+			{Name: "remove", Desc: "删除规则", Args: "<index>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"remove"}, a...)) }},
+		}),
+		// Search settings
+		{Name: "search-max-line-length", CurrentValue: func() string {
+			return strconv.Itoa(h.cfg.LLM.SearchMaxLineLength)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return "", fmt.Errorf("请输入正整数")
+			}
+			h.cfg.LLM.SearchMaxLineLength = n
+			return i18n.TF(i18n.KeySettingsUpdated, "search-max-line-length", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.SearchMaxLineLength = 8192
+			return i18n.TF(i18n.KeySettingsUpdated, "search-max-line-length", "8192")
+		}},
+		{Name: "search-max-result-bytes", CurrentValue: func() string {
+			return strconv.Itoa(h.cfg.LLM.SearchMaxResultBytes)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return "", fmt.Errorf("请输入正整数")
+			}
+			h.cfg.LLM.SearchMaxResultBytes = n
+			return i18n.TF(i18n.KeySettingsUpdated, "search-max-result-bytes", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.SearchMaxResultBytes = 65536
+			return i18n.TF(i18n.KeySettingsUpdated, "search-max-result-bytes", "65536")
+		}},
+		{Name: "search-context-lines", CurrentValue: func() string {
+			return strconv.Itoa(h.cfg.LLM.SearchContextLines)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return "", fmt.Errorf("请输入正整数")
+			}
+			h.cfg.LLM.SearchContextLines = n
+			return i18n.TF(i18n.KeySettingsUpdated, "search-context-lines", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.SearchContextLines = 5
+			return i18n.TF(i18n.KeySettingsUpdated, "search-context-lines", "5")
+		}},
 	}
 }
 
@@ -556,35 +536,8 @@ func (h *ConfigHandler) displayParams() []ConfigParam {
 // safetyParams returns safety parameters.
 func (h *ConfigHandler) safetyParams() []ConfigParam {
 	return []ConfigParam{
-		{Name: "confirm-tool", Options: []string{"confirm", "auto"}, CurrentValue: func() string {
-			if v, ok := h.cfg.LLM.ToolModes["default"]; ok {
-				return v
-			}
-			return "confirm"
-		}, SetValue: func(v string) (string, error) {
-			switch strings.ToLower(v) {
-			case "on", "confirm":
-				if h.cfg.LLM.ToolModes == nil {
-					h.cfg.LLM.ToolModes = make(map[string]string)
-				}
-				h.cfg.LLM.ToolModes["default"] = "confirm"
-			case "off", "auto":
-				if h.cfg.LLM.ToolModes == nil {
-					h.cfg.LLM.ToolModes = make(map[string]string)
-				}
-				h.cfg.LLM.ToolModes["default"] = "auto"
-			default:
-				return "", fmt.Errorf("请输入 on/confirm 或 off/auto")
-			}
-			h.agent.SyncToolModes(h.cfg)
-			return i18n.TF(i18n.KeySettingsUpdated, "confirm-tool", v), nil
-		}, ResetValue: func() string {
-			if h.cfg.LLM.ToolModes == nil {
-				h.cfg.LLM.ToolModes = make(map[string]string)
-			}
-			h.cfg.LLM.ToolModes["default"] = "confirm"
-			h.agent.SyncToolModes(h.cfg)
-			return i18n.TF(i18n.KeySettingsUpdated, "confirm-tool", "confirm")
+		{Name: "confirm-tool", Action: func(args []string) {
+			h.confirmToolWizard()
 		}},
 		{Name: "tool-timeout", CurrentValue: func() string {
 			n := h.cfg.LLM.ToolTimeout
@@ -741,57 +694,96 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 	}
 }
 
-// searchParams returns search parameters.
+// searchParams returns search parameters (moved to agentParams by request).
 func (h *ConfigHandler) searchParams() []ConfigParam {
+	return []ConfigParam{}
+}
+
+// logParam returns the log parameter (used in dev tools).
+func (h *ConfigHandler) logParam() ConfigParam {
+	return ConfigParam{Name: "log", Options: []string{"debug", "info", "warn", "error", "off"}, CurrentValue: func() string {
+		return log.LogLevelString(log.GetLevel())
+	}, SetValue: func(v string) (string, error) {
+		if level, ok := log.ParseLogLevel(v); ok {
+			log.SetLevel(level)
+			return i18n.TF(i18n.KeySettingsUpdated, "log", v), nil
+		}
+		return "", fmt.Errorf(i18n.T(i18n.KeyConfigValDebugOff))
+	}, ResetValue: func() string { log.SetLevel(log.LogLevelInfo); return i18n.TF(i18n.KeySettingsUpdated, "log", "info") }}
+}
+
+// devToolParams returns developer tool parameters.
+func (h *ConfigHandler) devToolParams() []ConfigParam {
 	return []ConfigParam{
-		{Name: "search-max-line-length", CurrentValue: func() string {
-			return strconv.Itoa(h.cfg.LLM.SearchMaxLineLength)
-		}, SetValue: func(v string) (string, error) {
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+		h.logParam(),
+		cmdEntry(".body-add", "向 LLM 请求体添加自定义 JSON 属性", "key=value", nil, nil),
+		cmdEntry(".body-remove", "从 LLM 请求体删除自定义 JSON 属性", "key", nil, nil),
+		cmdEntry(".body-display", "显示 LLM 请求体中的自定义 JSON 属性", "", func(args []string) (string, error) {
+			if len(h.cfg.LLM.BodyAdditions) == 0 {
+				return "  没有自定义属性", nil
 			}
-			h.cfg.LLM.SearchMaxLineLength = n
-			return i18n.TF(i18n.KeySettingsUpdated, "search-max-line-length", v), nil
-		}, ResetValue: func() string {
-			h.cfg.LLM.SearchMaxLineLength = 8192
-			return i18n.TF(i18n.KeySettingsUpdated, "search-max-line-length", "8192")
-		}},
-		{Name: "search-max-result-bytes", CurrentValue: func() string {
-			return strconv.Itoa(h.cfg.LLM.SearchMaxResultBytes)
-		}, SetValue: func(v string) (string, error) {
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+			var sb strings.Builder
+			for k, v := range h.cfg.LLM.BodyAdditions {
+				sb.WriteString(fmt.Sprintf("    %s = %s\n", k, v))
 			}
-			h.cfg.LLM.SearchMaxResultBytes = n
-			return i18n.TF(i18n.KeySettingsUpdated, "search-max-result-bytes", v), nil
-		}, ResetValue: func() string {
-			h.cfg.LLM.SearchMaxResultBytes = 65536
-			return i18n.TF(i18n.KeySettingsUpdated, "search-max-result-bytes", "65536")
-		}},
-		{Name: "search-context-lines", CurrentValue: func() string {
-			return strconv.Itoa(h.cfg.LLM.SearchContextLines)
-		}, SetValue: func(v string) (string, error) {
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
-			}
-			h.cfg.LLM.SearchContextLines = n
-			return i18n.TF(i18n.KeySettingsUpdated, "search-context-lines", v), nil
-		}, ResetValue: func() string {
-			h.cfg.LLM.SearchContextLines = 5
-			return i18n.TF(i18n.KeySettingsUpdated, "search-context-lines", "5")
-		}},
-		{Name: "log", Options: []string{"debug", "info", "warn", "error", "off"}, CurrentValue: func() string {
-			return log.LogLevelString(log.GetLevel())
-		}, SetValue: func(v string) (string, error) {
-			if level, ok := log.ParseLogLevel(v); ok {
-				log.SetLevel(level)
-				return i18n.TF(i18n.KeySettingsUpdated, "log", v), nil
-			}
-			return "", fmt.Errorf(i18n.T(i18n.KeyConfigValDebugOff))
-		}, ResetValue: func() string { log.SetLevel(log.LogLevelInfo); return i18n.TF(i18n.KeySettingsUpdated, "log", "info") }},
+			return sb.String(), nil
+		}, nil),
+	}
+}
+
+// modelMgrParams returns model management parameters.
+func (h *ConfigHandler) modelMgrParams() []ConfigParam {
+	return []ConfigParam{
+		cmdEntry(".model", "模型管理（add/list/remove/switch/info）", "", h.modelHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: "列出所有已配置模型", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"list"}) }},
+			{Name: "add", Desc: "添加新模型（启动设置向导）", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"add"}) }},
+			{Name: "switch", Desc: "切换当前使用的模型", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"switch"}, a...)) }},
+			{Name: "remove", Desc: "删除一个模型配置", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"remove"}, a...)) }},
+			{Name: "info", Desc: "查看指定模型的详细配置", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"info"}, a...)) }},
+		}),
+	}
+}
+
+// mcpRuleParams is kept for backwards compatibility but no longer used as a group.
+func (h *ConfigHandler) mcpRuleParams() []ConfigParam { return []ConfigParam{} }
+
+// workModeParams returns work mode and section parameters.
+func (h *ConfigHandler) workModeParams() []ConfigParam {
+	return []ConfigParam{
+		cmdEntry(".mode", "管理工作模式", "", h.modeHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: "列出所有工作模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{}) }},
+			{Name: "switch", Desc: "切换工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"switch"}, a...)) }},
+			{Name: "create", Desc: "创建工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"create"}, a...)) }},
+			{Name: "edit", Desc: "交互式编辑当前模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{"edit"}) }},
+		}),
+		cmdEntry(".section", "管理自定义提示词节", "", h.sectionHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: "列出所有自定义节", Action: func(a []string) { runHandler(h.sectionHandler.Handle, []string{}) }},
+			{Name: "add", Desc: "添加节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"add"}, a...)) }},
+			{Name: "remove", Desc: "删除节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"remove"}, a...)) }},
+		}),
+	}
+}
+
+// multimodalParams returns multimodal and MCP parameters.
+func (h *ConfigHandler) multimodalParams() []ConfigParam {
+	return []ConfigParam{
+		cmdEntry(".image", "管理多模态图片缓存", "", h.imageHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: "列出缓存的图片", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{}) }},
+			{Name: "add", Desc: "添加图片到缓存", Args: "<path>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"add"}, a...)) }},
+			{Name: "remove", Desc: "从缓存移除图片", Args: "<index>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"remove"}, a...)) }},
+			{Name: "clear", Desc: "清空图片缓存", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{"clear"}) }},
+		}),
+		cmdEntry(".mcp", "管理 MCP 服务器连接", "", h.mcpHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: "列出所有 MCP 服务器", Action: func(a []string) { runHandler(h.mcpHandler.Handle, []string{}) }},
+			{Name: "add", Desc: "添加 MCP 服务器", Args: "<name> <command> [args...]", Action: func(a []string) {
+				if len(a) < 2 {
+					fmt.Println("  用法: .mcp add <name> <command> [args...]")
+					return
+				}
+				runHandler(h.mcpHandler.Handle, append([]string{"add"}, a...))
+			}},
+			{Name: "remove", Desc: "移除 MCP 服务器", Args: "<name>", Action: func(a []string) { runHandler(h.mcpHandler.Handle, append([]string{"remove"}, a...)) }},
+		}),
 	}
 }
 
@@ -836,6 +828,170 @@ func onOffParam(b *bool, name string) ConfigParam {
 	}
 }
 
+// confirmToolWizard provides an interactive wizard for confirm-tool settings.
+// Shows all tools with their current modes and global options.
+func (h *ConfigHandler) confirmToolWizard() {
+	for {
+		allTools := make([]string, 0, len(agent.DefaultToolModes()))
+		for name := range agent.DefaultToolModes() {
+			if name != "default" {
+				allTools = append(allTools, name)
+			}
+		}
+		sort.Strings(allTools)
+
+		// Build effective modes
+		effectiveModes := agent.DefaultToolModes()
+		globalDefault := ""
+		for k, v := range h.cfg.LLM.ToolModes {
+			if k == "default" {
+				globalDefault = v
+			} else {
+				effectiveModes[k] = v
+			}
+		}
+
+		// Calculate global default string
+		globalStr := "custom"
+		if globalDefault != "" && globalDefault != "custom" {
+			globalStr = globalDefault
+		}
+
+		// Fixed 2-digit width for numbering
+		numWidth := 2
+		// Format: "%s[%2d] ..." where mark is either "  " (2 spaces) or " >" (arrow+space)
+		// This ensures [ is always at column 3 for both tools and global options.
+		// Tools: mark="  " → "  [ 1] add_images..."     ([ at col 3)
+		// Global unselected: mark="  " → "  [41] 全局确认:..." ([ at col 3)
+		// Global selected:   mark=" >" → " >[41] 全局确认:..." ([ at col 3)
+		fmtStr := fmt.Sprintf("%%s[%%%dd] %%-35s %%s\n", numWidth)
+		globalFmt := fmt.Sprintf("%%s[%%%dd] %%-12s %%s\n", numWidth)
+
+		fmt.Println("── confirm-tool ──────────────────────────────")
+		fmt.Println()
+
+		// Subtitle for tools section
+		fmt.Println("  工具调用:")
+		fmt.Println()
+
+		// Show all tools with numbers
+		toolCount := len(allTools)
+		for i, name := range allTools {
+			mode := effectiveModes[name]
+			if globalDefault == "confirm" || globalDefault == "auto" || globalDefault == "disabled" {
+				if _, hasOwn := h.cfg.LLM.ToolModes[name]; !hasOwn {
+					mode = globalDefault
+				}
+			}
+			fmt.Printf(fmtStr, "  ", i+1, name, mode)
+		}
+
+		// Global options
+		globalStart := toolCount + 1
+		globalOptions := []string{"confirm", "auto", "disabled", "custom"}
+		modeDesc := map[string]string{
+			"confirm":  i18n.T(i18n.KeyModeConfirmDesc),
+			"auto":     i18n.T(i18n.KeyModeAutoDesc),
+			"disabled": i18n.T(i18n.KeyModeDisabledDesc),
+			"custom":   i18n.T(i18n.KeyModeCustomDesc),
+		}
+		fmt.Println()
+		fmt.Printf("  全局确认模式: %s          %s\n", globalStr, modeDesc[globalStr])
+		fmt.Println()
+		for i, opt := range globalOptions {
+			mark := "  "
+			if globalStr == opt {
+				mark = " >"
+			}
+			desc := modeDesc[opt]
+			fmt.Printf(globalFmt, mark, globalStart+i, opt, desc)
+		}
+
+		fmt.Println()
+		fmt.Printf("  [P] 返回  请选择 [1-%d/P]: ", globalStart+3)
+
+		input := h.readLine()
+		if strings.EqualFold(input, "P") || strings.EqualFold(input, "Q") {
+			fmt.Println()
+			return
+		}
+
+		idx, err := strconv.Atoi(input)
+		if err != nil || idx < 1 || idx > globalStart+3 {
+			fmt.Println(i18n.T(i18n.KeyConfigInvalidChoice))
+			fmt.Println()
+			continue
+		}
+
+		if idx >= globalStart {
+			// Global option selected
+			opt := globalOptions[idx-globalStart]
+			switch opt {
+			case "confirm", "auto", "disabled":
+				if h.cfg.LLM.ToolModes == nil {
+					h.cfg.LLM.ToolModes = make(map[string]string)
+				}
+				h.cfg.LLM.ToolModes["default"] = opt
+				h.agent.SetToolMode("", opt)
+			case "custom":
+				if h.cfg.LLM.ToolModes == nil {
+					h.cfg.LLM.ToolModes = make(map[string]string)
+				}
+				h.cfg.LLM.ToolModes["default"] = "custom"
+				h.agent.SyncToolModes(h.cfg)
+			}
+			if err := h.cfg.Save(); err != nil {
+				log.Warn("Failed to save config: %v", err)
+			}
+			fmt.Printf("  全局确认模式已设置为: %s\n", opt)
+			fmt.Println()
+			continue
+		}
+
+		// Specific tool selected - ask for mode
+		toolName := allTools[idx-1]
+		fmt.Printf("  设置工具 %s 的确认模式:\n", toolName)
+		fmt.Println()
+		modeOptions := []string{"confirm", "auto", "disabled"}
+		currentMode := effectiveModes[toolName]
+		for i, opt := range modeOptions {
+			mark := "  "
+			if opt == currentMode {
+				mark = "> "
+			}
+			desc := modeDesc[opt]
+			fmt.Printf("%s[%d] %-12s %s\n", mark, i+1, opt, desc)
+		}
+		fmt.Println()
+		fmt.Print("  选择 [1-3], [P] 返回: ")
+
+		modeInput := h.readLine()
+		if strings.EqualFold(modeInput, "P") {
+			fmt.Println()
+			continue
+		}
+
+		modeIdx, err := strconv.Atoi(modeInput)
+		if err != nil || modeIdx < 1 || modeIdx > 3 {
+			fmt.Println(i18n.T(i18n.KeyConfigInvalidChoice))
+			fmt.Println()
+			continue
+		}
+
+		mode := modeOptions[modeIdx-1]
+		if h.cfg.LLM.ToolModes == nil {
+			h.cfg.LLM.ToolModes = make(map[string]string)
+		}
+		h.cfg.LLM.ToolModes[toolName] = mode
+		h.agent.SetToolMode(toolName, mode)
+		if err := h.cfg.Save(); err != nil {
+			log.Warn("Failed to save config: %v", err)
+		}
+		fmt.Printf("  工具 %s 已设置为: %s\n", toolName, mode)
+		fmt.Println()
+	}
+}
+
 // runWizard runs the interactive configuration wizard.
 func (h *ConfigHandler) runWizard() {
 	groups := h.configGroups()
@@ -852,7 +1008,7 @@ func (h *ConfigHandler) showGroupMenu(groups []ConfigGroup) {
 	for {
 		fmt.Println(i18n.T(i18n.KeyConfigGroupTitle))
 		for i, g := range groups {
-			fmt.Printf("  [%d] %s\n", i+1, g.Name)
+			fmt.Printf("  [%2d] %s\n", i+1, g.Name)
 		}
 		fmt.Println()
 		fmt.Printf(i18n.T(i18n.KeyConfigGroupPrompt), len(groups))
