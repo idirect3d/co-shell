@@ -666,6 +666,12 @@ no liability whatsoever.`,
 	KeyDBBackupCancel:   "❌ Backup cancelled",
 	KeyDBRestoreCancel:  "❌ Restore cancelled",
 
+	// Confirm-tool mode descriptions (FEATURE-200)
+	KeyModeConfirmDesc:  "Requires human confirmation",
+	KeyModeAutoDesc:     "Auto-approve execution",
+	KeyModeDisabledDesc: "Disable this tool",
+	KeyModeCustomDesc:   "Per-tool custom settings",
+
 	// Tool call mode (FEATURE-182)
 	KeyToolCallMode:         "Tool Call Mode",
 	KeyToolCallModeUpdated:  "✅ Tool call mode set to: %s",

@@ -1144,10 +1144,14 @@ func (mgr *ToolCallModeMgr) ParseResponseToolCalls(content string) []llm.ToolCal
 // based on the current mode and tools.
 // For XML mode, returns detailed XML format instructions.
 // For OpenAI mode, returns brief instructions (tools are defined via JSON schema).
-func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string) string {
+func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string, workMode ...string) string {
 	switch mode {
 	case ToolCallModeXML:
-		return buildXMLToolPrompt(tools, lang)
+		wm := ""
+		if len(workMode) > 0 {
+			wm = workMode[0]
+		}
+		return buildXMLToolPrompt(tools, lang, wm)
 	default:
 		// For OpenAI mode, append examples, task progress, and editing files
 		// assembled from split components (separators are part of i18n/external content).
@@ -1165,7 +1169,7 @@ func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string) stri
 //	<execute_command>
 //	  <command>ls -la</command>
 //	</execute_command>
-func buildXMLToolPrompt(tools []llm.Tool, lang string) string {
+func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string) string {
 	if len(tools) == 0 {
 		return ""
 	}
@@ -1186,24 +1190,31 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string) string {
 	}
 
 	// Append the supplementary rules assembled from split components:
-	// Tool Use Examples + Task Progress + Editing Files, separated by ====
-	// Each section can be overridden by an external .md file in the workspace root.
+	// Tool Use Examples + Task Progress + Editing Files + Browser Usage, separated by ====
+	// Each section can be overridden by an external .md file with mode support:
+	// Priority: {cwd}/mode/{workMode}/{filename}.md -> {cwd}/{filename}.md -> i18n fallback.
 	cwd, _ := os.Getwd()
-	examplesText := loadExternalFile(cwd, "TOOL_EXAMPLES.md")
+
+	examplesText := loadExternalFileWithMode(cwd, workMode, "TOOL_EXAMPLES.md")
 	if examplesText == "" {
 		examplesText = i18n.T(i18n.KeySystemPromptXMLExamples)
 	}
-	taskProgressText := loadExternalFile(cwd, "TASK_PROGRESS.md")
+	taskProgressText := loadExternalFileWithMode(cwd, workMode, "TASK_PROGRESS.md")
 	if taskProgressText == "" {
 		taskProgressText = i18n.T(i18n.KeySystemPromptXMLTaskProgress)
 	}
-	editingFilesText := loadExternalFile(cwd, "EDITING_FILES.md")
+	editingFilesText := loadExternalFileWithMode(cwd, workMode, "EDITING_FILES.md")
 	if editingFilesText == "" {
 		editingFilesText = i18n.T(i18n.KeySystemPromptEditingFiles)
+	}
+	browserUsageText := loadExternalFileWithMode(cwd, workMode, "BROWSER_USAGE.md")
+	if browserUsageText == "" {
+		browserUsageText = i18n.T(i18n.KeySystemPromptBrowserUsage)
 	}
 	sb.WriteString(examplesText)
 	sb.WriteString(taskProgressText)
 	sb.WriteString(editingFilesText)
+	sb.WriteString(browserUsageText)
 
 	return sb.String()
 }

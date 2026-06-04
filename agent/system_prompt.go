@@ -50,6 +50,30 @@ func loadExternalFile(workspacePath, filename string) string {
 	return strings.TrimSpace(string(data))
 }
 
+// loadExternalFileWithMode attempts to load a text file with mode support.
+// Priority:
+// 1. {cwd}/mode/{modeName}/{filename} (if modeName is set and file exists)
+// 2. {cwd}/{filename} (root fallback)
+// 3. empty string (caller should use i18n fallback)
+func loadExternalFileWithMode(cwd, modeName, filename string) string {
+	if cwd == "" || filename == "" {
+		return ""
+	}
+	// Priority 1: mode-specific path
+	if modeName != "" {
+		modePath := filepath.Join(cwd, "mode", modeName, filename)
+		if data, err := os.ReadFile(modePath); err == nil {
+			return strings.TrimSpace(string(data))
+		}
+	}
+	// Priority 2: root path
+	rootPath := filepath.Join(cwd, filename)
+	if data, err := os.ReadFile(rootPath); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	return ""
+}
+
 // getWorkModeSectionNames returns the list of section names for the given work mode name.
 // Falls back to default sections if the mode doesn't exist in config.
 func getWorkModeSectionNames(cfg *config.Config, modeName string) []string {

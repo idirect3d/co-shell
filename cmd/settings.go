@@ -146,7 +146,9 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "subagent-enabled", subcommand == "context-limit",
 		subcommand == "context-start", subcommand == "result-mode",
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
-		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols":
+		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
+		subcommand == "browser-enabled", subcommand == "browser-port",
+		subcommand == "browser-headless":
 		return h.handleAgentSetting(subcommand, args)
 
 	// Safety settings
@@ -238,11 +240,10 @@ func showSettingsHelp(cfg *config.Config) string {
 		commandOutputStatus = i18n.T(i18n.KeyOn)
 	}
 
-	confirmDefault := "confirm"
-	if v, ok := cfg.LLM.ToolModes["default"]; ok {
-		confirmDefault = v
+	confirmStatus := "custom"
+	if v, ok := cfg.LLM.ToolModes["default"]; ok && v != "" {
+		confirmStatus = v
 	}
-	confirmStatus := confirmDefault
 	logStatus := log.LogLevelString(log.GetLevel())
 	visionStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.VisionSupport {
@@ -325,7 +326,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("mode", modeName, i18n.T(i18n.KeyCol3WorkMode)),
 	)
 
-	// Group 2: Agent Settings (智能体设置)
+	// Group 2: Agent Settings (18 lines = 15 + 3 browser)
 	// Use cfg.Models directly for smart model selection display
 	allModels := cfg.Models
 
@@ -398,6 +399,15 @@ func showSettingsHelp(cfg *config.Config) string {
 		shellVtCols = 80
 	}
 
+	browserEnabledStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.BrowserEnabled {
+		browserEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	browserHeadlessStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.BrowserHeadless {
+		browserHeadlessStatus = i18n.T(i18n.KeyOn)
+	}
+
 	allLines = append(allLines,
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
@@ -414,6 +424,9 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),
 		makeLine("shell-vt-rows", fmt.Sprintf("%d", shellVtRows), "虚拟终端行数(5-200)"),
 		makeLine("shell-vt-cols", fmt.Sprintf("%d", shellVtCols), "虚拟终端列数(20-500)"),
+		makeLine("browser-enabled", browserEnabledStatus, i18n.T(i18n.KeyCol3BrowserEnabled)),
+		makeLine("browser-port", fmt.Sprintf("%d", cfg.LLM.BrowserPort), i18n.T(i18n.KeyCol3BrowserPort)),
+		makeLine("browser-headless", browserHeadlessStatus, i18n.T(i18n.KeyCol3BrowserHeadless)),
 	)
 
 	// Group 3: Display & Output
@@ -522,7 +535,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(15)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(18)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)

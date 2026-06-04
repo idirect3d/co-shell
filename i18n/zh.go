@@ -486,7 +486,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Thinking:     "显示思考过程(on|off)",
 	KeyCol3Command:      "显示命令(on|off)",
 	KeyCol3Output:       "显示命令输出(on|off)",
-	KeyCol3Confirm:      "命令确认(on|off)",
+	KeyCol3Confirm:      "全局确认模式(confirm/auto/disabled/custom)",
 	KeyCol3ToolTimeout:  "工具调用超时(0 ~ N 秒)",
 	KeyCol3CmdTimeout:   "命令执行超时(0 ~ N 秒)",
 	KeyCol3LLMTimeout:   "LLM 请求超时(0 ~ N 秒)",
@@ -688,6 +688,20 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescShellSessionEnabled: "控制是否启用持续Shell会话（启用时替换 execute_command）",
 	KeySettingsDescShellSessionTimeout: "Shell 命令超时时间（秒，0 表示无限制）",
 
+	// Browser config (FEATURE-200)
+	KeyCol3BrowserEnabled:          "浏览器(on|off)",
+	KeyCol3BrowserPort:             "浏览器端口(默认9222)",
+	KeyCol3BrowserHeadless:         "无头模式(on|off)",
+	KeySettingsDescBrowserEnabled:  "启用浏览器自动化工具（通过CDP控制Chrome）",
+	KeySettingsDescBrowserPort:     "Chrome DevTools Protocol调试端口",
+	KeySettingsDescBrowserHeadless: "是否以无头模式运行Chrome（无窗口）",
+
+	// Confirm-tool mode descriptions (FEATURE-200)
+	KeyModeConfirmDesc:  "需要人工确认",
+	KeyModeAutoDesc:     "自动批准执行",
+	KeyModeDisabledDesc: "禁用此工具",
+	KeyModeCustomDesc:   "工具单独定制",
+
 	// Tool call mode (FEATURE-182)
 	KeyToolCallMode:         "工具调用模式",
 	KeyToolCallModeUpdated:  "✅ 工具调用模式已设置为: %s",
@@ -695,6 +709,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3ToolCallMode:     "工具调用模式(openai|xml)",
 	KeySettingsDescToolMode: "工具调用模式（openai: 标准API, xml: 内嵌XML标签）",
 	KeyCLIHelpToolCallMode:  "      --toolcall-mode   工具调用模式（openai/xml，覆盖配置文件）",
+
+	// Config wizard group titles (FEATURE-200)
+	KeyWizardGroupModelMgr:   "[ 模型管理 ]",
+	KeyWizardGroupWorkMode:   "[ 工作模式与提示词 ]",
+	KeyWizardGroupMultimodal: "[ 多模态与MCP ]",
+	KeyWizardGroupDevTools:   "[ 开发者工具 ]",
+	KeyWizardGroupMCPRule:    "[ MCP 与规则 ]",
 
 	// Config wizard (FEATURE-197)
 	KeyHelpConfig:             "    .config     - 配置向导（菜单式配置）",

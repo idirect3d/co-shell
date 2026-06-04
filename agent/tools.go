@@ -708,6 +708,169 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 		Callback: a.attemptCompletionTool,
 	})
 
+	// Add browser tools if browser is enabled
+	if a.browserEnabled {
+		browserTools := []llm.Tool{
+			{
+				Name:        "browser_navigate",
+				Description: "Navigate the Chrome browser to a specified URL. Use this to load a web page. After navigation, use browser_screenshot to view the page and browser_get_interactive_elements to see clickable elements.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"url": map[string]interface{}{
+							"type":        "string",
+							"description": "The URL to navigate to (must include protocol, e.g. https://example.com)",
+						},
+					},
+					"required": []string{"url"},
+				},
+				Callback: a.browserNavigateTool,
+			},
+			{
+				Name:        "browser_screenshot",
+				Description: "Capture a screenshot of the current browser page. The screenshot will be automatically sent to the LLM for visual analysis (vision models only). Use this to observe the page content, layout, and elements. Parameters: quality (optional, 1-100, default 80), full_page (optional, boolean, default false). For full-page screenshots, set full_page=true.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"quality": map[string]interface{}{
+							"type":        "number",
+							"description": "Screenshot quality (1-100, default 80). Higher quality gives better visual detail for analysis.",
+						},
+						"full_page": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Whether to capture the full page (true) or just the visible viewport (false, default). Full page captures all scrollable content.",
+						},
+					},
+					"required": []string{},
+				},
+				Callback: a.browserScreenshotTool,
+			},
+			{
+				Name:        "browser_click",
+				Description: "Click at the specified coordinates (x, y) on the browser page. Use coordinates from browser_get_interactive_elements results (centerX, centerY). After clicking, use browser_screenshot to observe the result.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"x": map[string]interface{}{
+							"type":        "number",
+							"description": "The x-coordinate to click at (in pixels from the left edge of the viewport)",
+						},
+						"y": map[string]interface{}{
+							"type":        "number",
+							"description": "The y-coordinate to click at (in pixels from the top edge of the viewport)",
+						},
+					},
+					"required": []string{"x", "y"},
+				},
+				Callback: a.browserClickTool,
+			},
+			{
+				Name:        "browser_type",
+				Description: "Type text into the currently focused element on the browser page. Use this to fill in form fields, search boxes, or text areas. Optionally clear existing content first by setting clear=true.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"text": map[string]interface{}{
+							"type":        "string",
+							"description": "The text to type into the focused element",
+						},
+						"clear": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Whether to clear existing content before typing (default: false)",
+						},
+					},
+					"required": []string{"text"},
+				},
+				Callback: a.browserTypeTool,
+			},
+			{
+				Name:        "browser_evaluate",
+				Description: "Execute JavaScript code in the browser page context and return the result. Use this for advanced operations like extracting data, modifying page content, or getting specific information from the page.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"expression": map[string]interface{}{
+							"type":        "string",
+							"description": "The JavaScript expression or code to execute in the browser",
+						},
+					},
+					"required": []string{"expression"},
+				},
+				Callback: a.browserEvaluateTool,
+			},
+			{
+				Name:        "browser_get_html",
+				Description: "Get the outer HTML of the current browser page. Use this to access the DOM structure, search for specific elements, or understand the page layout programmatically.",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+					"required":   []string{},
+				},
+				Callback: a.browserGetHTMLTool,
+			},
+			{
+				Name:        "browser_scroll",
+				Description: "Scroll the browser page by the specified delta. Use this to view content below or above the current viewport. Positive delta_y scrolls down, negative scrolls up. Default: scroll down 500 pixels.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"delta_x": map[string]interface{}{
+							"type":        "number",
+							"description": "Horizontal scroll delta in pixels (positive = right, negative = left, default: 0)",
+						},
+						"delta_y": map[string]interface{}{
+							"type":        "number",
+							"description": "Vertical scroll delta in pixels (positive = down, negative = up, default: 500)",
+						},
+					},
+					"required": []string{},
+				},
+				Callback: a.browserScrollTool,
+			},
+			{
+				Name:        "browser_get_interactive_elements",
+				Description: "Get a list of interactive elements (buttons, links, inputs, etc.) on the current page with their positions, text, and attributes. Use this to find clickable elements and their coordinates for use with browser_click.",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+					"required":   []string{},
+				},
+				Callback: a.browserGetInteractiveElementsTool,
+			},
+			{
+				Name:        "browser_go_back",
+				Description: "Navigate back to the previous page in browser history. After going back, use browser_screenshot to view the resulting page.",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+					"required":   []string{},
+				},
+				Callback: a.browserGoBackTool,
+			},
+			{
+				Name:        "browser_go_forward",
+				Description: "Navigate forward to the next page in browser history. After going forward, use browser_screenshot to view the resulting page.",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+					"required":   []string{},
+				},
+				Callback: a.browserGoForwardTool,
+			},
+			{
+				Name:        "browser_close",
+				Description: "Close the Chrome browser and clean up resources. Use this when you are done with browser automation tasks.",
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+					"required":   []string{},
+				},
+				Callback: a.browserCloseTool,
+			},
+		}
+		tools = append(tools, browserTools...)
+	}
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture

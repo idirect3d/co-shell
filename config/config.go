@@ -308,6 +308,13 @@ type LLMConfig struct {
 	// "enhanced" = raw terminal mode with history navigation and proper multi-byte backspace (default)
 	// "stdio" = standard line-buffered input via bufio.Scanner
 	InputMode string `json:"input_mode"`
+
+	// BrowserEnabled: whether browser automation tools are enabled.
+	BrowserEnabled bool `json:"browser_enabled"`
+	// BrowserPort: Chrome DevTools Protocol debug port.
+	BrowserPort int `json:"browser_port"`
+	// BrowserHeadless: whether to run Chrome in headless mode.
+	BrowserHeadless bool `json:"browser_headless"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -546,6 +553,9 @@ func DefaultConfig() *Config {
 			ToolCallMode:              "xml",
 			TokenUsage:                "on",
 			InputMode:                 "enhanced",
+			BrowserEnabled:            false,
+			BrowserPort:               9222,
+			BrowserHeadless:           false,
 		},
 
 		MCP: MCPConfig{
