@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/browser"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
@@ -113,7 +114,7 @@ func (a *Agent) SetToolMode(toolName string, mode string) {
 		a.toolModes = make(map[string]string)
 	}
 	if toolName == "" {
-		a.toolModes = map[string]string{"default": mode}
+		a.toolModes["default"] = mode
 	} else {
 		a.toolModes[toolName] = mode
 	}
@@ -150,14 +151,46 @@ func DefaultToolModes() map[string]string {
 		"shell_window_content":       "auto",
 		"shell_reset":                "auto",
 		"attempt_completion":         "auto",
+		// Browser tools (FEATURE-200) - all auto since screenshots are non-destructive
+		"browser_navigate":                 "auto",
+		"browser_screenshot":               "auto",
+		"browser_click":                    "auto",
+		"browser_type":                     "auto",
+		"browser_evaluate":                 "auto",
+		"browser_get_html":                 "auto",
+		"browser_scroll":                   "auto",
+		"browser_get_interactive_elements": "auto",
+		"browser_go_back":                  "auto",
+		"browser_go_forward":               "auto",
+		"browser_close":                    "auto",
 	}
 }
 
 func (a *Agent) SyncToolModes(cfg *config.Config) {
 	modes := DefaultToolModes()
+
+	// Step 1: Apply per-tool overrides from config (only for valid tool names)
 	for k, v := range cfg.LLM.ToolModes {
-		modes[k] = v
+		if k == "default" {
+			continue
+		}
+		if _, exists := modes[k]; exists {
+			modes[k] = v
+		}
 	}
+
+	// Step 2: Apply global default override if set to confirm/auto/disabled.
+	// When global default is active, all tools use the same mode regardless
+	// of their individual settings or code defaults.
+	if globalDefault, ok := cfg.LLM.ToolModes["default"]; ok && globalDefault != "" && globalDefault != "custom" {
+		modes["default"] = globalDefault
+		for k := range modes {
+			if k != "default" {
+				modes[k] = globalDefault
+			}
+		}
+	}
+
 	a.toolModes = modes
 }
 
@@ -346,7 +379,11 @@ func (a *Agent) rebuildSystemPrompt() {
 		if mode == ToolCallModeXML {
 			tools := a.buildToolsInternal()
 			lang := string(i18n.GetLang())
-			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang)
+			workMode := ""
+			if a.cfg != nil {
+				workMode = a.cfg.LLM.WorkMode
+			}
+			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, workMode)
 		}
 	}
 
@@ -526,7 +563,11 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 		if mode == ToolCallModeXML {
 			tools := a.buildToolsInternal()
 			lang := string(i18n.GetLang())
-			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang)
+			workMode := ""
+			if a.cfg != nil {
+				workMode = a.cfg.LLM.WorkMode
+			}
+			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, workMode)
 		}
 	}
 
@@ -587,6 +628,69 @@ func (a *Agent) GetMessages() []llm.Message {
 func (a *Agent) adjustMessagePointer() {
 	for a.messagePointer > 0 && a.messages[a.messagePointer].Role == "tool" {
 		a.messagePointer--
+	}
+}
+
+// SetBrowserEnabled enables or disables browser tools.
+func (a *Agent) SetBrowserEnabled(enabled bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.browserEnabled = enabled
+	if enabled && a.chromeMgr == nil {
+		// Browser manager will be initialized when first tool call is made
+		log.Info("Browser tools enabled (will auto-start Chrome on first use)")
+	} else if !enabled && a.chromeMgr != nil {
+		a.chromeMgr.Stop()
+		a.chromeMgr = nil
+		log.Info("Browser tools disabled, Chrome stopped")
+	}
+}
+
+// IsBrowserEnabled returns whether browser tools are enabled.
+func (a *Agent) IsBrowserEnabled() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.browserEnabled
+}
+
+// EnsureBrowserStarted starts a Chrome browser instance if not already running.
+// It returns the browser configuration for port and headless settings.
+func (a *Agent) EnsureBrowserStarted() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.chromeMgr != nil && a.chromeMgr.IsRunning() {
+		return nil
+	}
+
+	if a.cfg == nil {
+		return fmt.Errorf("config not set")
+	}
+
+	port := a.cfg.LLM.BrowserPort
+	if port <= 0 {
+		port = 9222
+	}
+
+	mgr := browser.NewChromeManager(port, a.cfg.LLM.BrowserHeadless)
+	if _, err := mgr.Start(); err != nil {
+		return fmt.Errorf("cannot start browser: %w", err)
+	}
+
+	a.chromeMgr = mgr
+	log.Info("Browser started (port=%d, headless=%v)", port, a.cfg.LLM.BrowserHeadless)
+	return nil
+}
+
+// CloseBrowser stops the Chrome browser if running.
+func (a *Agent) CloseBrowser() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.chromeMgr != nil {
+		a.chromeMgr.Stop()
+		a.chromeMgr = nil
+		a.browserScreenshotData = ""
+		log.Info("Browser closed")
 	}
 }
 

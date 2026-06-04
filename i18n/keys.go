@@ -534,7 +534,12 @@ const (
 	KeySettingsGroupMemory      = "settings_group_memory"
 	KeySettingsGroupTask        = "settings_group_task"
 	KeySettingsGroupSearchDebug = "settings_group_search_debug"
-
+	// Config wizard group titles (FEATURE-200)
+	KeyWizardGroupModelMgr   = "wizard_group_model_mgr"
+	KeyWizardGroupWorkMode   = "wizard_group_work_mode"
+	KeyWizardGroupMultimodal = "wizard_group_multimodal"
+	KeyWizardGroupDevTools   = "wizard_group_dev_tools"
+	KeyWizardGroupMCPRule    = "wizard_group_mcp_rule"
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount = "col3_error_max_single_count"
 	KeyCol3ErrorMaxTypeCount   = "col3_error_max_type_count"
@@ -758,6 +763,26 @@ const (
 	KeyHelpMode         = "help_mode"
 	KeyHelpSection      = "help_section"
 	KeyModeNoSects      = "mode_no_sections"
+
+	// Browser usage guidelines (FEATURE-200)
+	// Supplementary instructions appended after EDITING FILES section.
+	// Explains the SREA (Screenshot-Recognition-Evaluation-Action) cycle.
+	KeySystemPromptBrowserUsage = "system_prompt_browser_usage"
+
+	// Confirm-tool mode descriptions (FEATURE-200)
+	KeyModeConfirmDesc  = "mode_confirm_desc"
+	KeyModeAutoDesc     = "mode_auto_desc"
+	KeyModeDisabledDesc = "mode_disabled_desc"
+	KeyModeCustomDesc   = "mode_custom_desc"
+
+	// Browser config column labels (FEATURE-200)
+	KeyCol3BrowserEnabled  = "col3_browser_enabled"
+	KeyCol3BrowserPort     = "col3_browser_port"
+	KeyCol3BrowserHeadless = "col3_browser_headless"
+
+	KeySettingsDescBrowserEnabled  = "settings_desc_browser_enabled"
+	KeySettingsDescBrowserPort     = "settings_desc_browser_port"
+	KeySettingsDescBrowserHeadless = "settings_desc_browser_headless"
 
 	// Config wizard (FEATURE-197)
 	KeyHelpConfig             = "help_config"
