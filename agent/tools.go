@@ -27,11 +27,9 @@
 package agent
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -956,7 +954,7 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			if cmd, ok := args["command"].(string); ok {
 				displayStr = cmd
 			}
-			result, modifyInput := promptToolConfirmation(tc.Name, displayStr)
+			result, modifyInput := promptToolConfirmation(tc.Name, displayStr, a.defaultIO())
 			switch result {
 			case CmdConfirmCancel:
 				return i18n.T(i18n.KeyCmdConfirmCancelled), fmt.Errorf("CANCEL_AGENT")
@@ -965,7 +963,7 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				// fall through to execute
 			case CmdConfirmApproveG:
 				a.toolDisableConfirm[tc.Name] = true
-				fmt.Printf("\n%s\n", i18n.T(i18n.KeyCmdConfirmDisableTool))
+				a.defaultIO().Println(i18n.T(i18n.KeyCmdConfirmDisableTool))
 				// fall through to execute
 			case CmdConfirmApproveD:
 				// Permanently disable this tool
@@ -973,13 +971,13 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 					a.toolModes = make(map[string]string)
 				}
 				a.toolModes[tc.Name] = "disabled"
-				fmt.Printf("\n%s\n", i18n.T(i18n.KeyCmdConfirmDisableToolD))
+				a.defaultIO().Println(i18n.T(i18n.KeyCmdConfirmDisableToolD))
 				return "", fmt.Errorf("tool %q has been permanently disabled by user (D option)", tc.Name)
 			case CmdConfirmApproveCount:
 				// Parse the number of tool calls to auto-approve for this tool
 				if n, err := strconv.Atoi(modifyInput); err == nil && n > 0 {
 					a.toolApproveCounts[tc.Name] = n
-					fmt.Printf("\n%s%s %s\n", i18n.T(i18n.KeyCmdConfirmCountPrefix), modifyInput, tc.Name)
+					a.defaultIO().Println(fmt.Sprintf("%s%s %s", i18n.T(i18n.KeyCmdConfirmCountPrefix), modifyInput, tc.Name))
 				}
 				// fall through to execute
 			case CmdConfirmModify:
@@ -993,7 +991,7 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			// Decrement per-tool approve count and auto-approve
 			a.toolApproveCounts[tc.Name]--
 			remaining := a.toolApproveCounts[tc.Name]
-			fmt.Printf("\n✅ 已自动批准 %s（剩余 %d 次）\n", tc.Name, remaining)
+			a.defaultIO().Println(fmt.Sprintf("✅ 已自动批准 %s（剩余 %d 次）", tc.Name, remaining))
 		}
 	}
 
@@ -1061,31 +1059,35 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 		}
 	}
 
+	io := a.defaultIO()
+
 	// Display the question
-	fmt.Println()
-	fmt.Printf("❓ %s\n", question)
+	io.Println()
+	io.Printf("❓ %s\n", question)
 
 	if len(options) > 0 {
-		fmt.Println()
-		fmt.Println("  可选回复:")
+		io.Println()
+		io.Println("  可选回复:")
 		for i, opt := range options {
-			fmt.Printf("    [%d] %s\n", i+1, opt)
+			io.Printf("    [%d] %s\n", i+1, opt)
 		}
-		fmt.Println()
+		io.Println()
 	}
 
-	fmt.Print("  请输入回复: ")
+	io.Printf("  请输入回复: ")
 
-	// Read user input using bufio.Scanner on stdin
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	input := strings.TrimSpace(scanner.Text())
+	// Read user input via UserIO
+	input, err := io.ReadLine()
+	if err != nil {
+		return "", fmt.Errorf("failed to read user input: %w", err)
+	}
+	input = strings.TrimSpace(input)
 
 	// If options provided and user entered a number, return the selected option
 	if len(options) > 0 && input != "" {
 		if idx, err := strconv.Atoi(input); err == nil && idx >= 1 && idx <= len(options) {
 			selected := options[idx-1]
-			fmt.Printf("  ✅ 已选择: %s\n", selected)
+			io.Printf("  ✅ 已选择: %s\n", selected)
 			return selected, nil
 		}
 	}

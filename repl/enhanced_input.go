@@ -29,8 +29,6 @@ import (
 	"fmt"
 	"os"
 	"unicode/utf8"
-
-	"golang.org/x/sys/unix"
 )
 
 // EnhancedInput implements an interactive line editor with:
@@ -43,8 +41,8 @@ type EnhancedInput struct {
 	cursor  int // cursor position within buffer (in runes)
 	prompt  string
 	history []string
-	histIdx int // current history position (-1 = new input, 0..len-1 = history entry)
-	oldTerm *unix.Termios
+	histIdx int         // current history position (-1 = new input, 0..len-1 = history entry)
+	oldTerm interface{} // *unix.Termios on POSIX, nil on Windows
 	termFd  int
 	inRaw   bool
 }
@@ -61,34 +59,6 @@ func NewEnhancedInput(prompt string, history []string) *EnhancedInput {
 		inRaw:   false,
 	}
 	return e
-}
-
-// MakeRaw puts the terminal into raw mode and returns the original state.
-func MakeRaw(fd int) (*unix.Termios, error) {
-	old, err := unix.IoctlGetTermios(fd, unix.TIOCGETA)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get terminal attributes: %w", err)
-	}
-	raw := *old
-	raw.Iflag &^= unix.BRKINT | unix.ICRNL | unix.INPCK | unix.ISTRIP | unix.IXON
-	raw.Oflag &^= unix.OPOST
-	raw.Cflag &^= unix.CSIZE | unix.PARENB
-	raw.Cflag |= unix.CS8
-	raw.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
-	raw.Cc[unix.VMIN] = 1
-	raw.Cc[unix.VTIME] = 0
-	if err := unix.IoctlSetTermios(fd, unix.TIOCSETA, &raw); err != nil {
-		return nil, fmt.Errorf("failed to set raw terminal mode: %w", err)
-	}
-	return old, nil
-}
-
-// restoreTerm restores the terminal to its original state.
-func restoreTerm(fd int, old *unix.Termios) error {
-	if old == nil {
-		return nil
-	}
-	return unix.IoctlSetTermios(fd, unix.TIOCSETA, old)
 }
 
 // cursorLeftN moves cursor left by N display columns.
@@ -168,7 +138,7 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 	e.inRaw = true
 	defer func() {
 		if e.inRaw && e.oldTerm != nil {
-			restoreTerm(e.termFd, e.oldTerm)
+			RestoreTerm(e.termFd, e.oldTerm)
 			e.inRaw = false
 		}
 	}()
@@ -203,7 +173,7 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 		if b == '\r' || b == '\n' {
 			e.clearLine()
 			if e.oldTerm != nil {
-				restoreTerm(e.termFd, e.oldTerm)
+				RestoreTerm(e.termFd, e.oldTerm)
 				e.inRaw = false
 			}
 			result := string(e.buffer)
@@ -215,7 +185,7 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 		if b == 0x03 {
 			e.clearLine()
 			if e.oldTerm != nil {
-				restoreTerm(e.termFd, e.oldTerm)
+				RestoreTerm(e.termFd, e.oldTerm)
 				e.inRaw = false
 			}
 			e.resetState()
@@ -226,7 +196,7 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 			if len(e.buffer) == 0 {
 				e.clearLine()
 				if e.oldTerm != nil {
-					restoreTerm(e.termFd, e.oldTerm)
+					RestoreTerm(e.termFd, e.oldTerm)
 					e.inRaw = false
 				}
 				e.resetState()

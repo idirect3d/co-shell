@@ -31,7 +31,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -178,32 +177,23 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 // - g/G: approve and disable confirmation for this tool
 // - N (a positive integer): approve the next N calls of this tool
 // - Any other input: treated as supplementary instructions for the LLM to re-evaluate
-func promptToolConfirmation(toolName string, displayStr string) (CmdConfirmResult, string) {
-	fmt.Println()
-	fmt.Println(i18n.TF(i18n.KeyCmdConfirmTitle, displayStr))
-	fmt.Println(i18n.T(i18n.KeyCmdConfirmRiskWarning))
-	fmt.Println()
+//
+// io provides the UserIO interface for output and input operations.
+// In enhanced mode, EnhancedIO handles \r\n conversion and IsReading() flag.
+func promptToolConfirmation(toolName string, displayStr string, io UserIO) (CmdConfirmResult, string) {
+	io.Println()
+	io.Println(i18n.TF(i18n.KeyCmdConfirmTitle, displayStr))
+	io.Println(i18n.T(i18n.KeyCmdConfirmRiskWarning))
+	io.Println()
 
-	// Read a single line from stdin using os.Stdin.Read() which works
-	// even when go-prompt has set the terminal to raw mode.
-	// We read byte by byte until we get a newline.
 	for {
-		fmt.Print(i18n.T(i18n.KeyCmdConfirmPrompt))
+		io.Printf("%s", i18n.T(i18n.KeyCmdConfirmPrompt))
 
-		var lineBuf []byte
-		buf := make([]byte, 1)
-		for {
-			n, err := os.Stdin.Read(buf)
-			if err != nil || n == 0 {
-				break
-			}
-			if buf[0] == '\n' || buf[0] == '\r' {
-				break
-			}
-			lineBuf = append(lineBuf, buf[0])
+		response, err := io.ReadLine()
+		if err != nil {
+			return CmdConfirmCancel, ""
 		}
-
-		response := strings.TrimSpace(string(lineBuf))
+		response = strings.TrimSpace(response)
 
 		if response == "" {
 			return CmdConfirmApprove, ""
@@ -238,20 +228,11 @@ func promptToolConfirmation(toolName string, displayStr string) (CmdConfirmResul
 	}
 }
 
-// readLine reads a line of input from stdin using os.Stdin.Read() which works
-// even when go-prompt has set the terminal to raw mode.
-func readLine() string {
-	var lineBuf []byte
-	buf := make([]byte, 1)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			break
-		}
-		if buf[0] == '\n' || buf[0] == '\r' {
-			break
-		}
-		lineBuf = append(lineBuf, buf[0])
+// readLine reads a line of input using the provided UserIO.
+func readLine(io UserIO) string {
+	line, err := io.ReadLine()
+	if err != nil {
+		return ""
 	}
-	return strings.TrimSpace(string(lineBuf))
+	return strings.TrimSpace(line)
 }
