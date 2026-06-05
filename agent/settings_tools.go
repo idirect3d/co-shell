@@ -29,7 +29,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -116,21 +115,13 @@ func (a *Agent) updateSettingsTool(ctx context.Context, args map[string]interfac
 	fmt.Println(i18n.T(i18n.KeySettingsConfirmPrompt))
 	fmt.Println()
 
-	// Read user input
-	var lineBuf []byte
-	buf := make([]byte, 1)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			break
-		}
-		if buf[0] == '\n' || buf[0] == '\r' {
-			break
-		}
-		lineBuf = append(lineBuf, buf[0])
+	// Read user input via UserIO interface
+	io := a.defaultIO()
+	response, err := io.ReadLine()
+	if err != nil {
+		response = ""
 	}
-
-	response := strings.TrimSpace(string(lineBuf))
+	response = strings.TrimSpace(response)
 	lower := strings.ToLower(response)
 
 	if lower == "c" {
