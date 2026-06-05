@@ -69,6 +69,26 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string
 	}
 }
 
+// SetIO sets the UserIO implementation used by this agent for user interaction.
+// Must be called before RunStream if enhanced input is desired.
+func (a *Agent) SetIO(io UserIO) {
+	a.io = io
+}
+
+// IO returns the current UserIO implementation (may be nil).
+func (a *Agent) IO() UserIO {
+	return a.io
+}
+
+// defaultIO returns the UserIO for output operations that happen before SetIO is called.
+// When io is nil, falls back to direct fmt.Print.
+func (a *Agent) defaultIO() UserIO {
+	if a.io != nil {
+		return a.io
+	}
+	return defaultIO
+}
+
 func (a *Agent) Messages() []llm.Message {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -533,6 +553,29 @@ func (a *Agent) getTaskPlanPrompt() string {
 		return strings.ReplaceAll(template, "{TASK_PLAN}", planText)
 	}
 	return i18n.T(i18n.KeyToolResultNoPlan)
+}
+
+// Interrupt signals the agent to stop receiving LLM stream data.
+// Multiple calls are safe; subsequent signals are no-ops until ResetInterrupt.
+func (a *Agent) Interrupt() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	select {
+	case a.interruptCh <- struct{}{}:
+	default:
+	}
+}
+
+// InterruptChan returns the interrupt channel for select-based listening.
+func (a *Agent) InterruptChan() <-chan struct{} {
+	return a.interruptCh
+}
+
+// ResetInterrupt re-creates the interrupt channel for a new request.
+func (a *Agent) ResetInterrupt() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.interruptCh = make(chan struct{}, 1)
 }
 
 func (a *Agent) TaskPlanManager() *taskplan.Manager  { return a.taskPlanMgr }

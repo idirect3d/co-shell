@@ -30,7 +30,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -43,6 +42,9 @@ import (
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
+	// Reset interrupt channel for ESC key monitoring (FEATURE-201)
+	a.ResetInterrupt()
+
 	// Reset approveAll, per-tool counters, completion flag, and error tracking for each new request
 	a.approveAll = false
 	a.approveCount = 0
@@ -127,6 +129,61 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		var streamErr error
 
 		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+
+		// FEATURE-201: Handle user interrupt (ESC key)
+		if _, isInterrupted := streamErr.(*InterruptedError); isInterrupted {
+			// Reset interruptCh before the confirmation prompt so ESC works for the retry
+			a.ResetInterrupt()
+			// User pressed ESC during LLM output. Show confirmation prompt.
+			ep := config.GetEmojiPrefixes(a.emojiEnabled)
+			cb("info", fmt.Sprintf("\n%s 已暂停接收 LLM 返回的数据。\n", ep.Warning))
+			cb("info", "是否确认取消？[C]取消本次响应 [Enter]继续接收: ")
+
+			// Read user's choice via UserIO interface.
+			// In enhanced mode, EnhancedIO sets IsReading=true so ESC monitor skips stdin.
+			// In stdio mode, StdioIO.ReadLine works with bufio.Scanner.
+			io := a.defaultIO()
+			userChoice, _ := io.ReadLine()
+			userChoice = strings.TrimSpace(userChoice)
+			if userChoice == "C" || userChoice == "c" {
+				// User confirmed cancel: discard incomplete message and return to REPL
+				cb("info", fmt.Sprintf("\n%s 已取消本次响应，丢弃不完整内容。\n", ep.Error))
+
+				// Also remove any partial assistant message that may have been added
+				a.mu.Lock()
+				for i := len(a.messages) - 1; i >= 0; i-- {
+					if a.messages[i].Role == "assistant" {
+						a.messages = a.messages[:i]
+						break
+					}
+				}
+				a.mu.Unlock()
+
+				return "", nil
+			}
+
+			// User chose to continue: reset interrupt channel for next ESC detection,
+			// then retry the LLM call with same context
+			a.ResetInterrupt()
+			cb("info", fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
+			// Remove any partial assistant message that was added before retry
+			a.mu.Lock()
+			for i := len(a.messages) - 1; i >= 0; i-- {
+				if a.messages[i].Role == "assistant" {
+					a.messages = a.messages[:i]
+					break
+				}
+			}
+			a.mu.Unlock()
+
+			finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+			if streamErr != nil {
+				// Retry failed too - treat it like user cancelled
+				cb("info", fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
+				cb("info", fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
+				return "", nil
+			}
+		}
 
 		// Log the LLM response content and tool calls at DEBUG level for diagnostics.
 		// This helps identify issues like the LLM including historical message prefixes
@@ -216,33 +273,22 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Get emoji prefixes
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
 
-				// Prompt user for action
-				fmt.Printf("\n%s 错误反复出现: %s\n", ep.Warning, promptReason)
-				fmt.Printf("  最新错误: %v\n", streamErr)
-				fmt.Println()
-				fmt.Println(i18n.T(i18n.KeyErrorRiskWarning))
-				fmt.Println()
-				fmt.Println("  请选择操作:")
-				fmt.Println("  [Enter] 继续让 LLM 尝试处理")
-				fmt.Println("  [C] 取消，返回 REPL")
-				fmt.Println("  [A] 忽略限制，继续执行")
-				fmt.Println()
-				fmt.Print("  请选择 (Enter/C/A): ")
+				// Prompt user for action via UserIO interface
+				io := a.defaultIO()
+				io.Printf("\n%s 错误反复出现: %s\n", ep.Warning, promptReason)
+				io.Printf("  最新错误: %v\n", streamErr)
+				io.Println()
+				io.Println(i18n.T(i18n.KeyErrorRiskWarning))
+				io.Println()
+				io.Println("  请选择操作:")
+				io.Println("  [Enter] 继续让 LLM 尝试处理")
+				io.Println("  [C] 取消，返回 REPL")
+				io.Println("  [A] 忽略限制，继续执行")
+				io.Println()
+				io.Printf("  请选择 (Enter/C/A): ")
 
-				var lineBuf []byte
-				buf := make([]byte, 1)
-				for {
-					n, err := os.Stdin.Read(buf)
-					if err != nil || n == 0 {
-						break
-					}
-					if buf[0] == '\n' || buf[0] == '\r' {
-						break
-					}
-					lineBuf = append(lineBuf, buf[0])
-				}
-
-				userChoice := strings.TrimSpace(string(lineBuf))
+				response, _ := io.ReadLine()
+				userChoice := strings.TrimSpace(response)
 				lower := strings.ToLower(userChoice)
 
 				if lower == "c" {
@@ -252,10 +298,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				} else if lower == "a" {
 					// User chose to ignore all error limits
 					a.errorApproveAll = true
-					fmt.Printf("\n%s 已忽略错误限制，继续执行\n", ep.Success)
+					io.Printf("\n%s 已忽略错误限制，继续执行\n", ep.Success)
 				} else {
 					// Continue (Enter pressed)
-					fmt.Printf("\n%s 继续让 LLM 尝试处理\n", ep.Success)
+					io.Printf("\n%s 继续让 LLM 尝试处理\n", ep.Success)
 				}
 			}
 

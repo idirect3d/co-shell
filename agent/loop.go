@@ -166,6 +166,12 @@ type Agent struct {
 	chromeMgr             *browser.ChromeManager
 	browserEnabled        bool   // whether browser tools are enabled
 	browserScreenshotData string // cached base64 screenshot data for multimodal context
+
+	// Interrupt channel for ESC key (FEATURE-201)
+	interruptCh chan struct{} // signals LLM stream to stop
+
+	// UserIO for terminal interaction (FEATURE-201 fix)
+	io UserIO
 }
 
 // buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.
@@ -263,6 +269,20 @@ func (a *Agent) addIndexPrefixToMessages(msgs []llm.Message, startIdx int) []llm
 	}
 	return result
 }
+
+// defaultIO is a package-level fallback for output operations before SetIO is called.
+var defaultIO UserIO = &fmtIO{}
+
+// fmtIO is a minimal UserIO that delegates output to fmt package.
+// Used as the default before the REPL sets a proper UserIO.
+type fmtIO struct{}
+
+func (f *fmtIO) Print(args ...interface{})                 { fmt.Print(args...) }
+func (f *fmtIO) Printf(fmtStr string, args ...interface{}) { fmt.Printf(fmtStr, args...) }
+func (f *fmtIO) Println(args ...interface{})               { fmt.Println(args...) }
+func (f *fmtIO) ReadLine() (string, error)                 { return "", nil }
+func (f *fmtIO) ReadKey() (byte, error)                    { return 0, nil }
+func (f *fmtIO) IsReading() bool                           { return false }
 
 // nonStreamingFallback handles the case when streaming is not available.
 func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {

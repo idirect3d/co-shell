@@ -1,28 +1,3 @@
-// Author: L.Shuang
-// Created: 2026-04-25
-// Last Modified: 2026-04-26
-//
-// # MIT License
-//
-// # Copyright (c) 2026 L.Shuang
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
 package repl
 
 import (
@@ -37,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -51,13 +27,8 @@ import (
 //go:embed logo.md
 var logoData string
 
-// commandPattern matches inputs that look like system commands.
-
-// On Unix: starts with alphanumeric, dots, underscores, hyphens, slashes, tildes
-// On Windows: also allows backslashes, colons (drive letters)
 var commandPattern = regexp.MustCompile(commandPatternString())
 
-// commandPatternString returns the appropriate regex pattern for the current platform.
 func commandPatternString() string {
 	if runtime.GOOS == "windows" {
 		return `^[a-zA-Z0-9._~\\:/-]+(\s+.*)?$`
@@ -65,7 +36,6 @@ func commandPatternString() string {
 	return `^[a-zA-Z0-9._/~-]+(\s+.*)?$`
 }
 
-// windowsBuiltins is a set of cmd.exe built-in commands that are not found by exec.LookPath.
 var windowsBuiltins = map[string]bool{
 	"dir": true, "copy": true, "del": true, "erase": true, "move": true,
 	"ren": true, "rename": true, "type": true, "cd": true, "chdir": true,
@@ -79,43 +49,29 @@ var windowsBuiltins = map[string]bool{
 	"assoc": true, "ftype": true, "dpath": true, "subst": true,
 }
 
-// IsDirectCommand checks if the input looks like a system command that can be
-// executed directly. It extracts the first word and checks if it exists in PATH.
 func IsDirectCommand(input string) (string, bool) {
-
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
 		return "", false
 	}
-
-	// Must match the basic command pattern
 	if !commandPattern.MatchString(trimmed) {
 		return "", false
 	}
-
-	// Extract the first word as the command name
 	firstWord := strings.Fields(trimmed)[0]
-
-	// Check if the command exists in PATH
 	_, err := exec.LookPath(firstWord)
 	if err == nil {
 		return trimmed, true
 	}
-
-	// On Windows, also check for cmd.exe built-in commands
 	if runtime.GOOS == "windows" && windowsBuiltins[strings.ToLower(firstWord)] {
 		return trimmed, true
 	}
-
 	return "", false
 }
 
-// BuiltinHandler defines the interface for built-in command handlers.
 type BuiltinHandler interface {
 	Handle(args []string) (string, error)
 }
 
-// REPL represents the interactive shell loop.
 type REPL struct {
 	cfg             *config.Config
 	store           *store.Store
@@ -137,12 +93,15 @@ type REPL struct {
 
 	history    []string
 	historyPos int
-	version    string // co-shell version for welcome message
-	build      string // BUILD counter for welcome message
+	version    string
+	build      string
 	inputMode  string // "enhanced" or "stdio"
+
+	// FEATURE-201: ESC key monitoring during LLM output
+	escWg  sync.WaitGroup // tracks ESC monitor goroutine
+	userIO agent.UserIO   // current UserIO for interaction
 }
 
-// New creates a new REPL instance.
 func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agent) *REPL {
 	r := &REPL{
 		cfg:             cfg,
@@ -150,19 +109,18 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 		mcpMgr:          mcpMgr,
 		agent:           ag,
 		settingsHandler: cmd.NewSettingsHandler(cfg, ag, s),
-
-		mcpHandler:     cmd.NewMCPHandler(cfg, mcpMgr),
-		ruleHandler:    cmd.NewRuleHandler(cfg),
-		memoryHandler:  cmd.NewMemoryHandler(s),
-		contextHandler: cmd.NewContextHandler(s),
-		listHandler:    cmd.NewListHandler(s),
-		imageHandler:   cmd.NewImageHandler(ag),
-		planHandler:    cmd.NewPlanHandler(ag.TaskPlanManager()),
-		sessionHandler: cmd.NewSessionHandler(ag, cfg),
-		modelHandler:   cmd.NewModelHandler(cfg, ag),
-		sectionHandler: cmd.NewSectionHandler(cfg),
-		modeHandler:    cmd.NewModeHandler(cfg, ag),
-		configHandler:  cmd.NewConfigHandler(cfg, ag),
+		mcpHandler:      cmd.NewMCPHandler(cfg, mcpMgr),
+		ruleHandler:     cmd.NewRuleHandler(cfg),
+		memoryHandler:   cmd.NewMemoryHandler(s),
+		contextHandler:  cmd.NewContextHandler(s),
+		listHandler:     cmd.NewListHandler(s),
+		imageHandler:    cmd.NewImageHandler(ag),
+		planHandler:     cmd.NewPlanHandler(ag.TaskPlanManager()),
+		sessionHandler:  cmd.NewSessionHandler(ag, cfg),
+		modelHandler:    cmd.NewModelHandler(cfg, ag),
+		sectionHandler:  cmd.NewSectionHandler(cfg),
+		modeHandler:     cmd.NewModeHandler(cfg, ag),
+		configHandler:   cmd.NewConfigHandler(cfg, ag),
 	}
 	r.configHandler.SetScanner(bufio.NewScanner(os.Stdin))
 	r.configHandler.SetHandlers(r.mcpHandler, r.ruleHandler, r.memoryHandler,
@@ -172,23 +130,12 @@ func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agen
 	return r
 }
 
-// SetVersion sets the version and build number for the welcome message.
-func (r *REPL) SetVersion(ver, bld string) {
-	r.version = ver
-	r.build = bld
-}
+func (r *REPL) SetVersion(ver, bld string) { r.version = ver; r.build = bld }
+func (r *REPL) SetInputMode(mode string)   { r.inputMode = mode }
 
-// SetInputMode sets the REPL input mode ("enhanced" or "stdio").
-func (r *REPL) SetInputMode(mode string) {
-	r.inputMode = mode
-}
-
-// readLine reads one line of input using the configured input mode.
-// Returns the input string (trimmed) or an empty string on EOF, or an error.
 func (r *REPL) readLine(prompt string) (string, error) {
 	switch r.inputMode {
 	case "enhanced":
-		// Use enhanced input with raw terminal mode
 		ei := NewEnhancedInput(prompt, r.history)
 		input, err := ei.ReadLine()
 		if err != nil {
@@ -196,7 +143,6 @@ func (r *REPL) readLine(prompt string) (string, error) {
 		}
 		return strings.TrimSpace(input), nil
 	case "stdio":
-		// Standard mode: use bufio.Scanner
 		fmt.Print(prompt)
 		scanner := bufio.NewScanner(os.Stdin)
 		if !scanner.Scan() {
@@ -204,7 +150,6 @@ func (r *REPL) readLine(prompt string) (string, error) {
 		}
 		return strings.TrimSpace(scanner.Text()), nil
 	default:
-		// Default to enhanced
 		ei := NewEnhancedInput(prompt, r.history)
 		input, err := ei.ReadLine()
 		if err != nil {
@@ -214,23 +159,14 @@ func (r *REPL) readLine(prompt string) (string, error) {
 	}
 }
 
-// Run starts the REPL loop using standard library input/output.
-// No go-prompt, no raw terminal mode, no complex terminal control.
 func (r *REPL) Run() error {
-	// Print welcome message
 	r.printWelcome()
-
-	// Load persistent history from store
 	r.loadHistory()
 
-	// Set up signal handling for Ctrl+C
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	// Channel to signal main loop to exit
 	done := make(chan struct{})
 
-	// Handle signals in a goroutine
 	go func() {
 		select {
 		case <-sigCh:
@@ -243,7 +179,6 @@ func (r *REPL) Run() error {
 	}()
 
 	for {
-		// Get emoji prefixes based on config
 		ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 		prompt := ep.UserInput
 		if r.cfg.LLM.VisionSupport {
@@ -252,53 +187,37 @@ func (r *REPL) Run() error {
 
 		input, err := r.readLine(prompt)
 		if err != nil {
-			// Interrupt (Ctrl+C)
 			if err.Error() == "interrupt" {
 				fmt.Println("\n" + i18n.T(i18n.KeyGoodbye))
 				r.cleanup()
 				os.Exit(0)
 			}
-			// EOF (Ctrl+D)
 			break
 		}
-
 		if input == "" {
 			continue
 		}
 
-		// Save to persistent history
 		r.saveHistory(input)
-
-		// Handle exit commands
 		if input == "exit" || input == "quit" || input == ".exit" || input == ".quit" {
 			break
 		}
-
-		// Handle help
 		if input == "help" || input == ".help" || input == "?" {
 			r.printHelp()
 			continue
 		}
-
-		// Handle built-in commands (start with .)
 		if strings.HasPrefix(input, ".") {
 			r.handleBuiltin(input)
 			continue
 		}
-
-		// Handle numeric input: re-execute a history entry by number
 		if num, err := strconv.Atoi(input); err == nil && num > 0 {
 			r.handleHistoryReExecute(num)
 			continue
 		}
-
-		// Handle direct system commands (bypass LLM)
 		if cmd, ok := IsDirectCommand(input); ok {
 			r.handleSystemCommand(cmd)
 			continue
 		}
-
-		// Handle natural language input via agent
 		r.handleAgentInput(input)
 	}
 
@@ -308,7 +227,6 @@ func (r *REPL) Run() error {
 	return nil
 }
 
-// loadHistory loads persistent history from the store.
 func (r *REPL) loadHistory() {
 	entries, err := r.store.LoadHistory()
 	if err != nil {
@@ -316,34 +234,25 @@ func (r *REPL) loadHistory() {
 		r.history = []string{}
 		return
 	}
-
-	// Reverse to chronological order (oldest first)
 	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
 		entries[i], entries[j] = entries[j], entries[i]
 	}
-
 	r.history = entries
 	r.historyPos = len(r.history)
-	log.Debug("Loaded %d history entries", len(entries))
 }
 
-// saveHistory saves a single input to the persistent history store.
 func (r *REPL) saveHistory(input string) {
 	if err := r.store.SaveHistory(input); err != nil {
 		log.Warn("Cannot save history: %v", err)
 	}
 }
 
-// handleBuiltin processes built-in commands.
 func (r *REPL) handleBuiltin(input string) {
 	parts := strings.Fields(input)
 	if len(parts) == 0 {
 		return
 	}
-
-	// Get emoji prefixes based on config
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
-
 	command := parts[0]
 	args := parts[1:]
 
@@ -353,7 +262,6 @@ func (r *REPL) handleBuiltin(input string) {
 	switch command {
 	case ".settings", ".set":
 		result, err = r.settingsHandler.Handle(args)
-
 	case ".mcp":
 		result, err = r.mcpHandler.Handle(args)
 	case ".rule":
@@ -400,8 +308,6 @@ func (r *REPL) handleBuiltin(input string) {
 		return
 	}
 	fmt.Println(result)
-
-	// Update agent settings after handling settings command that may have changed them
 	if command == ".settings" || command == ".set" {
 		r.agent.SetShowLlmThinking(r.cfg.LLM.ShowLlmThinking)
 		r.agent.SetShowLlmContent(r.cfg.LLM.ShowLlmContent)
@@ -412,56 +318,39 @@ func (r *REPL) handleBuiltin(input string) {
 		r.agent.SetShowCommandOutput(r.cfg.LLM.ShowCommandOutput)
 		r.agent.SetToolCallEnabled(r.cfg.LLM.ToolCallEnabled)
 	}
-
 }
 
-// handleHistoryReExecute re-executes a history entry by its 1-based index.
 func (r *REPL) handleHistoryReExecute(num int) {
-	// Get emoji prefixes based on config
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
-
 	entries, err := r.store.ListHistory()
 	if err != nil {
 		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
 		return
 	}
-
 	if num < 1 || num > len(entries) {
 		fmt.Println(i18n.TF(i18n.KeyListInvalid, len(entries)))
 		return
 	}
-
 	input := entries[num-1].Input
 	fmt.Printf("%s%s\n", ep.Info, input)
-
-	// Check if it's a built-in command
 	if strings.HasPrefix(input, ".") {
 		r.handleBuiltin(input)
 		return
 	}
-
-	// Check if it's a direct system command
 	if cmd, ok := IsDirectCommand(input); ok {
 		r.handleSystemCommand(cmd)
 		return
 	}
-
-	// Otherwise, send to agent
 	r.handleAgentInput(input)
 }
 
-// handleBodyAdd adds a custom JSON property to the LLM request body.
-// Usage: .body-add key=value
-// The value is treated as a JSON string and will be parsed as JSON if valid.
 func (r *REPL) handleBodyAdd(args []string) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("用法: .body-add key=value")
 	}
-
 	if r.cfg.LLM.BodyAdditions == nil {
 		r.cfg.LLM.BodyAdditions = make(map[string]string)
 	}
-
 	for _, arg := range args {
 		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
@@ -474,29 +363,20 @@ func (r *REPL) handleBodyAdd(args []string) (string, error) {
 		}
 		r.cfg.LLM.BodyAdditions[key] = value
 	}
-
-	// Sync to LLM client
 	r.agent.GetLLMClient().SetBodyAdditions(r.cfg.LLM.BodyAdditions)
-
-	// Save config
 	if err := r.cfg.Save(); err != nil {
 		return "", fmt.Errorf("保存配置失败: %w", err)
 	}
-
 	return fmt.Sprintf("已添加 %d 个自定义属性到 LLM 请求体", len(args)), nil
 }
 
-// handleBodyRemove removes a custom JSON property from the LLM request body.
-// Usage: .body-remove key
 func (r *REPL) handleBodyRemove(args []string) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("用法: .body-remove key")
 	}
-
 	if r.cfg.LLM.BodyAdditions == nil {
 		return "", fmt.Errorf("没有自定义属性可删除")
 	}
-
 	removed := 0
 	for _, key := range args {
 		key = strings.TrimSpace(key)
@@ -505,29 +385,20 @@ func (r *REPL) handleBodyRemove(args []string) (string, error) {
 			removed++
 		}
 	}
-
 	if removed == 0 {
 		return "", fmt.Errorf("未找到指定的属性")
 	}
-
-	// Sync to LLM client
 	r.agent.GetLLMClient().SetBodyAdditions(r.cfg.LLM.BodyAdditions)
-
-	// Save config
 	if err := r.cfg.Save(); err != nil {
 		return "", fmt.Errorf("保存配置失败: %w", err)
 	}
-
 	return fmt.Sprintf("已删除 %d 个自定义属性", removed), nil
 }
 
-// handleBodyDisplay displays all custom JSON properties in the LLM request body.
-// Usage: .body-display
 func (r *REPL) handleBodyDisplay(args []string) (string, error) {
 	if len(r.cfg.LLM.BodyAdditions) == 0 {
 		return "没有自定义属性", nil
 	}
-
 	var sb strings.Builder
 	sb.WriteString("LLM 请求体自定义属性:\n")
 	for key, value := range r.cfg.LLM.BodyAdditions {
@@ -536,19 +407,11 @@ func (r *REPL) handleBodyDisplay(args []string) (string, error) {
 	return sb.String(), nil
 }
 
-// handleSystemCommand executes a system command directly and displays the output.
-// If shell-session-enabled is on, the command is sent to the persistent VT session
-// for execution, preserving shell state (cd, env vars, etc.).
 func (r *REPL) handleSystemCommand(command string) {
-	// Get emoji prefixes based on config
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
-
-	// Show command if enabled
 	if r.cfg.LLM.ShowCommand {
 		fmt.Printf("%s%s\n", ep.CommandInput, command)
 	}
-
-	// If shell session is enabled, use VT session for command execution
 	if r.cfg.LLM.ShellSessionEnabled {
 		output, err := r.agent.ExecuteViaShellSessionWithOutput(command)
 		if err != nil {
@@ -558,118 +421,160 @@ func (r *REPL) handleSystemCommand(command string) {
 			fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
 			return
 		}
-
 		if output != "" {
 			fmt.Printf("%s%s\n", ep.OutputTitle, output)
 		}
 		return
 	}
-
 	output, err := r.agent.ExecuteCommandDirectly(command)
 	if err != nil {
-		// output may contain partial stdout before the error occurred
 		if output != "" {
 			fmt.Print(output)
 		}
 		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
 		return
 	}
-
 	if output != "" {
 		fmt.Printf("%s%s\n", ep.OutputTitle, output)
 	}
 }
 
-// handleAgentInput sends natural language input to the agent with streaming output.
+// handleAgentInput sends natural language input to the agent.
+// In enhanced input mode, sets up ESC monitoring via a goroutine that polls stdin.
 func (r *REPL) handleAgentInput(input string) {
 	ctx := context.Background()
-
-	// Get emoji prefixes based on config
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 
-	// Print agent name with timestamp before streaming response
 	fmt.Println()
 	fmt.Printf("%s%s\n", ep.LlmOutput, r.agent.Said())
 
-	// Use streaming version
+	// FEATURE-201: In enhanced mode, create EnhancedIO, set it on the agent,
+	// and start ESC monitor goroutine.
+	var stopMonitor func()
+	if r.inputMode == "enhanced" {
+		log.Debug("REPL.handleAgentInput: setting up EnhancedIO and ESC monitor")
+		eio := NewEnhancedIO(r.history)
+		// Start raw mode
+		if err := eio.startRaw(); err != nil {
+			log.Warn("REPL.handleAgentInput: cannot set raw mode: %v", err)
+		} else {
+			r.agent.SetIO(eio)
+			r.userIO = eio
+			stopMonitor = r.startESCMonitor()
+		}
+	}
+
 	_, err := r.agent.RunStream(ctx, input, r.streamCallback)
+
+	// Stop ESC monitor and clean up raw mode
+	if stopMonitor != nil {
+		log.Debug("REPL.handleAgentInput: stopping ESC monitor")
+		stopMonitor()
+	}
+	if r.userIO != nil {
+		if eio, ok := r.userIO.(*EnhancedIO); ok {
+			eio.stopRaw()
+		}
+		r.userIO = nil
+		// Reset agent's UserIO so agent defaults back to fmtIO for any remaining output
+		r.agent.SetIO(nil)
+	}
+
 	if err != nil {
 		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyProcessFailed), err)
 		fmt.Println(i18n.T(i18n.KeyCheckConfig))
-		return
 	}
 }
 
 // streamCallback handles streaming events from the agent.
+// In enhanced mode (userIO != nil), delegates output to userIO.Print which
+// automatically handles \r\n conversion. In stdio mode, uses direct fmt.Print.
 func (r *REPL) streamCallback(eventType string, content string) {
-	// Get emoji prefixes based on config
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+
+	// out prints via UserIO when available (handles \r\n conversion),
+	// else falls back to direct fmt.Print.
+	out := func(args ...interface{}) {
+		if r.userIO != nil {
+			r.userIO.Print(args...)
+		} else {
+			fmt.Print(args...)
+		}
+	}
+	outF := func(format string, args ...interface{}) {
+		if r.userIO != nil {
+			r.userIO.Printf(format, args...)
+		} else {
+			fmt.Printf(format, args...)
+		}
+	}
 
 	switch eventType {
 	case "content_chunk":
-		fmt.Print(content)
-
+		out(content)
 	case "thinking_chunk":
-		fmt.Print(content)
-
+		out(content)
 	case "content":
-		fmt.Print(ep.LlmOutput)
-		fmt.Print(content)
-		fmt.Println()
-
+		out(ep.LlmOutput)
+		out(content)
+		out("\r")
 	case "thinking":
-		fmt.Print(ep.Thinking)
-		fmt.Print(content)
-		fmt.Println()
-
+		out(ep.Thinking)
+		out(content)
+		out("\r")
 	case "command":
-		// Ensure command indicator starts on a new line
-		fmt.Printf("\n%s%s\n", ep.CommandInput, content)
-
+		out("\r")
+		out(ep.CommandInput)
+		out(content)
+		out("\r")
 	case "output":
-		fmt.Println()
-		fmt.Println(ep.OutputTitle)
-		fmt.Println(ep.OutputSep)
-		fmt.Println(content)
-		fmt.Println(ep.OutputSep)
-		fmt.Println()
-
+		out("\r")
+		out(ep.OutputTitle)
+		out("\r")
+		out(ep.OutputSep)
+		out("\r")
+		out(content)
+		out("\r")
+		out(ep.OutputSep)
+		out("\r")
 	case "tool_call":
-		// Ensure tool call indicator starts on a new line
-		fmt.Printf("\n%s%s\n", ep.ToolCallInput, content)
-
+		out("\r")
+		out(ep.ToolCallInput)
+		out(content)
+		out("\r")
 	case "token_usage":
-		// Parse token usage: "prompt=%d, completion=%d, total=%d"
 		var prompt, completion, total int
 		if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
-			fmt.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
+			outF("%s Token 用量: 输入=%d, 输出=%d, 总计=%d", ep.Info, prompt, completion, total)
+			out("\r")
 		}
-
+	case "info":
+		out(content)
+	case "warning":
+		out(ep.Warning)
+		out(content)
+		out("\r")
 	case "error":
-		fmt.Printf("%s%s\n", ep.Error, content)
-
+		out(ep.Error)
+		out(content)
+		out("\r")
 	case "done":
-		fmt.Println()
+		out("\n")
 	}
 }
 
-// printWelcome displays the welcome message with optional ASCII art logo.
 func (r *REPL) printWelcome() {
 	visionIndicator := ""
 	if r.cfg.LLM.VisionSupport {
 		visionIndicator = " 👀"
 	}
 	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", r.version, r.build, visionIndicator)
-
 	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
-
-	// Show ASCII art logo if enabled (embedded via //go:embed)
 	if r.cfg.LLM.ShowLogo {
 		fmt.Println(logoData)
 	}
 }
 
-// printHelp displays the help information.
 func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpTitle))
 	fmt.Println()
@@ -696,7 +601,6 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpMode))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
-
 	fmt.Println()
 	fmt.Println(i18n.T(i18n.KeyHelpExampleTitle))
 	prefix := i18n.T(i18n.KeyEmojiPrefixUser)
@@ -707,7 +611,6 @@ func (r *REPL) printHelp() {
 	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample5))
 }
 
-// cleanup performs cleanup operations before exit.
 func (r *REPL) cleanup() {
 	fmt.Print(i18n.T(i18n.KeyCleaningUp))
 	if err := r.mcpMgr.Close(); err != nil {
