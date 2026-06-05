@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-22
-// Last Modified: 2026-05-22
+// Last Modified: 2026-06-04
 //
 // MIT License
 //
@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -39,6 +39,11 @@ import (
 	"github.com/idirect3d/co-shell/store"
 )
 
+// InterruptedError is returned when the user presses ESC to interrupt the LLM stream.
+type InterruptedError struct{}
+
+func (e *InterruptedError) Error() string { return "user interrupted the LLM output" }
+
 // lastNChars returns the last n characters of a string.
 // If the string is shorter than n, the entire string is returned.
 func lastNChars(s string, n int) string {
@@ -51,6 +56,7 @@ func lastNChars(s string, n int) string {
 // streamLLMResponse streams the LLM response and returns the complete content, reasoning, and tool calls.
 // If streaming fails, it falls back to non-streaming Chat.
 // Before each call, it dynamically selects the appropriate model based on current context.
+// It also listens on the interrupt channel for user ESC keypress (FEATURE-201).
 func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
 	log.Debug("Agent.streamLLMResponse: ENTER")
 
@@ -105,185 +111,200 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	}
 
 	eventCount := 0
-	for event := range eventCh {
-		eventCount++
+	done := false
+	for !done {
+		select {
+		case <-a.interruptCh:
+			log.Debug("Agent.streamLLMResponse: received interrupt signal, stopping stream")
+			// Drain any remaining content from the contentBuilder
+			_ = contentBuilder.String()
+			return "", "", nil, &InterruptedError{}
 
-		switch event.Type {
-		case llm.StreamEventContent:
-			// FIX-179: Check for loop patterns in LLM output
-			if a.loopDetectOn && a.loopDetector != nil {
-				if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
-					// Loop detected! Set flag and return error for intervention
-					a.loopDetectCrit = true
-					log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
-					return "", "", nil, err
+		case event, ok := <-eventCh:
+			if !ok {
+				// Channel closed
+				done = true
+				break
+			}
+			eventCount++
+
+			switch event.Type {
+			case llm.StreamEventContent:
+				// FIX-179: Check for loop patterns in LLM output
+				if a.loopDetectOn && a.loopDetector != nil {
+					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
+						// Loop detected! Set flag and return error for intervention
+						a.loopDetectCrit = true
+						log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
+						return "", "", nil, err
+					}
 				}
-			}
-			contentBuilder.WriteString(event.Content)
-			cb("content_chunk", event.Content)
+				contentBuilder.WriteString(event.Content)
+				cb("content_chunk", event.Content)
 
-		case llm.StreamEventReasoning:
-			reasoningBuilder.WriteString(event.Content)
-			if a.showLlmThinking {
-				cb("thinking_chunk", event.Content)
-			}
-
-		case llm.StreamEventToolCall:
-			// In XML mode, strictly ignore API-level tool_calls from the LLM response.
-			// Tool calls are only parsed from the content as XML tags.
-			if a.toolCallModeMgr != nil {
-				mode := a.toolCallModeMgr.Current()
-				if mode != nil && !mode.SendTools {
-					log.Debug("Agent.streamLLMResponse: ignoring StreamEventToolCall in XML mode")
-					continue
+			case llm.StreamEventReasoning:
+				reasoningBuilder.WriteString(event.Content)
+				if a.showLlmThinking {
+					cb("thinking_chunk", event.Content)
 				}
-			}
-			log.Debug("Agent.streamLLMResponse: processing StreamEventToolCall, toolCall=%v", event.ToolCall)
-			hasToolCallEvents = true
-			if event.ToolCall != nil {
-				log.Debug("Agent.streamLLMResponse: toolCall name=%q, id=%q, args=%q",
-					event.ToolCall.Name, event.ToolCall.ID, event.ToolCall.Arguments)
-				if isValidToolCall(*event.ToolCall) {
-					toolCalls = append(toolCalls, *event.ToolCall)
-					log.Debug("Agent.streamLLMResponse: valid tool call added, total toolCalls=%d", len(toolCalls))
-				} else {
-					// Collect details about why this tool call is invalid
-					info := invalidToolCallInfo{
-						Name: event.ToolCall.Name,
-						ID:   event.ToolCall.ID,
+
+			case llm.StreamEventToolCall:
+				// In XML mode, strictly ignore API-level tool_calls from the LLM response.
+				// Tool calls are only parsed from the content as XML tags.
+				if a.toolCallModeMgr != nil {
+					mode := a.toolCallModeMgr.Current()
+					if mode != nil && !mode.SendTools {
+						log.Debug("Agent.streamLLMResponse: ignoring StreamEventToolCall in XML mode")
+						continue
 					}
-					if event.ToolCall.Name == "" {
-						info.Issues = append(info.Issues, "name is empty")
-					}
-					if event.ToolCall.ID == "" {
-						info.Issues = append(info.Issues, "ID is empty")
-					}
-					if event.ToolCall.Arguments == "" {
-						info.Issues = append(info.Issues, "arguments is empty")
-					}
-					invalidCalls = append(invalidCalls, info)
-					log.Debug("Agent.streamLLMResponse: invalid tool call collected, issues=%v", info.Issues)
 				}
-			} else {
-				log.Debug("Agent.streamLLMResponse: tool call event with nil ToolCall")
-			}
-
-		case llm.StreamEventDone:
-			log.Debug("Agent.streamLLMResponse: processing StreamEventDone, contentBuilder=%d bytes, reasoningBuilder=%d bytes, toolCalls=%d",
-				contentBuilder.Len(), reasoningBuilder.Len(), len(toolCalls))
-			// Stream finished - tool calls are already accumulated from stream deltas.
-			// No need for an extra non-streaming API call.
-			finalContent := contentBuilder.String()
-			finalReasoning := reasoningBuilder.String()
-
-			// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
-			// We ALWAYS parse XML tool calls from content in XML mode, and IGNORE any
-			// API-level tool_calls. This prevents conflicts where the LLM returns both
-			// XML tool calls in content AND API-level tool_calls simultaneously.
-			//
-			// Before parsing, strip REPL input masking markers (|mask_start|...|mask_end|)
-			// that may have leaked into the LLM context via shell session scrollback output.
-			// These markers are injected by the external REPL (go-prompt) during input masking
-			// and are not crafted by the LLM, so they should never trigger XML parse errors.
-			if a.toolCallModeMgr != nil {
-				mode := a.toolCallModeMgr.Current()
-				if mode != nil && !mode.SendTools {
-					cleanContent := stripREPLMaskMarkers(finalContent)
-					// Pass tools list so ParseXMLToolCallsWithTools can skip unknown tags
-					// that are not recognized tool names, treating them as regular content.
-					xmlCalls := ParseXMLToolCallsWithTools(cleanContent, tools)
-					if len(xmlCalls) > 0 {
-						// Filter out _xml_parse_error calls - these are parse errors that
-						// should be returned directly to the LLM as feedback, not executed.
-						var validCalls []llm.ToolCall
-						var parseErrors []string
-						for _, c := range xmlCalls {
-							if c.Name == "_xml_parse_error" {
-								var args map[string]interface{}
-								if err := json.Unmarshal([]byte(c.Arguments), &args); err == nil {
-									if errMsg, ok := args["error"].(string); ok {
-										parseErrors = append(parseErrors, errMsg)
-									}
-								}
-							} else {
-								validCalls = append(validCalls, c)
-							}
-						}
-						if len(parseErrors) > 0 {
-							// Return parse errors directly to the LLM as assistant content,
-							// so it can see and fix the format issues immediately.
-							finalContent = strings.Join(parseErrors, "\n---\n")
-							toolCalls = nil
-							log.Debug("Agent.streamLLMResponse: returning %d XML parse errors to LLM as content (no tool calls)",
-								len(parseErrors))
-						} else {
-							toolCalls = validCalls
-							log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
-								len(validCalls), len(toolCalls))
-						}
+				log.Debug("Agent.streamLLMResponse: processing StreamEventToolCall, toolCall=%v", event.ToolCall)
+				hasToolCallEvents = true
+				if event.ToolCall != nil {
+					log.Debug("Agent.streamLLMResponse: toolCall name=%q, id=%q, args=%q",
+						event.ToolCall.Name, event.ToolCall.ID, event.ToolCall.Arguments)
+					if isValidToolCall(*event.ToolCall) {
+						toolCalls = append(toolCalls, *event.ToolCall)
+						log.Debug("Agent.streamLLMResponse: valid tool call added, total toolCalls=%d", len(toolCalls))
 					} else {
-						// No XML tool calls found; clear any API-level tool calls in XML mode
-						toolCalls = nil
+						// Collect details about why this tool call is invalid
+						info := invalidToolCallInfo{
+							Name: event.ToolCall.Name,
+							ID:   event.ToolCall.ID,
+						}
+						if event.ToolCall.Name == "" {
+							info.Issues = append(info.Issues, "name is empty")
+						}
+						if event.ToolCall.ID == "" {
+							info.Issues = append(info.Issues, "ID is empty")
+						}
+						if event.ToolCall.Arguments == "" {
+							info.Issues = append(info.Issues, "arguments is empty")
+						}
+						invalidCalls = append(invalidCalls, info)
+						log.Debug("Agent.streamLLMResponse: invalid tool call collected, issues=%v", info.Issues)
+					}
+				} else {
+					log.Debug("Agent.streamLLMResponse: tool call event with nil ToolCall")
+				}
+
+			case llm.StreamEventDone:
+				log.Debug("Agent.streamLLMResponse: processing StreamEventDone, contentBuilder=%d bytes, reasoningBuilder=%d bytes, toolCalls=%d",
+					contentBuilder.Len(), reasoningBuilder.Len(), len(toolCalls))
+				// Stream finished - tool calls are already accumulated from stream deltas.
+				// No need for an extra non-streaming API call.
+				finalContent := contentBuilder.String()
+				finalReasoning := reasoningBuilder.String()
+
+				// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
+				// We ALWAYS parse XML tool calls from content in XML mode, and IGNORE any
+				// API-level tool_calls. This prevents conflicts where the LLM returns both
+				// XML tool calls in content AND API-level tool_calls simultaneously.
+				//
+				// Before parsing, strip REPL input masking markers (|mask_start|...|mask_end|)
+				// that may have leaked into the LLM context via shell session scrollback output.
+				// These markers are injected by the external REPL (go-prompt) during input masking
+				// and are not crafted by the LLM, so they should never trigger XML parse errors.
+				if a.toolCallModeMgr != nil {
+					mode := a.toolCallModeMgr.Current()
+					if mode != nil && !mode.SendTools {
+						cleanContent := stripREPLMaskMarkers(finalContent)
+						// Pass tools list so ParseXMLToolCallsWithTools can skip unknown tags
+						// that are not recognized tool names, treating them as regular content.
+						xmlCalls := ParseXMLToolCallsWithTools(cleanContent, tools)
+						if len(xmlCalls) > 0 {
+							// Filter out _xml_parse_error calls - these are parse errors that
+							// should be returned directly to the LLM as feedback, not executed.
+							var validCalls []llm.ToolCall
+							var parseErrors []string
+							for _, c := range xmlCalls {
+								if c.Name == "_xml_parse_error" {
+									var args map[string]interface{}
+									if err := json.Unmarshal([]byte(c.Arguments), &args); err == nil {
+										if errMsg, ok := args["error"].(string); ok {
+											parseErrors = append(parseErrors, errMsg)
+										}
+									}
+								} else {
+									validCalls = append(validCalls, c)
+								}
+							}
+							if len(parseErrors) > 0 {
+								// Return parse errors directly to the LLM as assistant content,
+								// so it can see and fix the format issues immediately.
+								finalContent = strings.Join(parseErrors, "\n---\n")
+								toolCalls = nil
+								log.Debug("Agent.streamLLMResponse: returning %d XML parse errors to LLM as content (no tool calls)",
+									len(parseErrors))
+							} else {
+								toolCalls = validCalls
+								log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
+									len(validCalls), len(toolCalls))
+							}
+						} else {
+							// No XML tool calls found; clear any API-level tool calls in XML mode
+							toolCalls = nil
+						}
 					}
 				}
-			}
 
-			// Accumulate token usage from the stream response (if provided by the API).
-			if event.Usage != nil {
-				log.Debug("Agent.streamLLMResponse: token usage from stream: prompt=%d, completion=%d, total=%d",
-					event.Usage.PromptTokens, event.Usage.CompletionTokens, event.Usage.TotalTokens)
-				a.mu.Lock()
-				a.totalPromptTokens += event.Usage.PromptTokens
-				a.totalCompletionTokens += event.Usage.CompletionTokens
-				a.totalTokens += event.Usage.TotalTokens
-				// Persist token usage to database
-				if a.store != nil {
-					entry := &store.TokenUsageEntry{
-						ID:               fmt.Sprintf("%020d", time.Now().UnixNano()),
-						PromptTokens:     event.Usage.PromptTokens,
-						CompletionTokens: event.Usage.CompletionTokens,
-						TotalTokens:      event.Usage.TotalTokens,
-						Timestamp:        time.Now(),
+				// Accumulate token usage from the stream response (if provided by the API).
+				if event.Usage != nil {
+					log.Debug("Agent.streamLLMResponse: token usage from stream: prompt=%d, completion=%d, total=%d",
+						event.Usage.PromptTokens, event.Usage.CompletionTokens, event.Usage.TotalTokens)
+					a.mu.Lock()
+					a.totalPromptTokens += event.Usage.PromptTokens
+					a.totalCompletionTokens += event.Usage.CompletionTokens
+					a.totalTokens += event.Usage.TotalTokens
+					// Persist token usage to database
+					if a.store != nil {
+						entry := &store.TokenUsageEntry{
+							ID:               fmt.Sprintf("%020d", time.Now().UnixNano()),
+							PromptTokens:     event.Usage.PromptTokens,
+							CompletionTokens: event.Usage.CompletionTokens,
+							TotalTokens:      event.Usage.TotalTokens,
+							Timestamp:        time.Now(),
+						}
+						if err := a.store.SaveTokenUsage(entry); err != nil {
+							log.Warn("Failed to save token usage: %v", err)
+						}
 					}
-					if err := a.store.SaveTokenUsage(entry); err != nil {
-						log.Warn("Failed to save token usage: %v", err)
-					}
+					a.mu.Unlock()
+					log.Debug("Agent.streamLLMResponse: accumulated token usage from stream: prompt=%d, completion=%d, total=%d",
+						a.totalPromptTokens, a.totalCompletionTokens, a.totalTokens)
+				} else {
+					log.Debug("Agent.streamLLMResponse: no token usage in stream Done event")
 				}
-				a.mu.Unlock()
-				log.Debug("Agent.streamLLMResponse: accumulated token usage from stream: prompt=%d, completion=%d, total=%d",
-					a.totalPromptTokens, a.totalCompletionTokens, a.totalTokens)
-			} else {
-				log.Debug("Agent.streamLLMResponse: no token usage in stream Done event")
-			}
 
-			// If the LLM intended to call tools but all were invalid (e.g., empty arguments),
-			// treat this as an error so the agent can retry rather than returning empty content.
-			// Provide detailed feedback about which tool calls were invalid and why.
-			if hasToolCallEvents && len(toolCalls) == 0 {
-				log.Debug("Agent.streamLLMResponse: all tool calls were invalid, returning error")
-				var sb strings.Builder
-				sb.WriteString("LLM returned tool calls with invalid arguments (all filtered out). Details:\n")
-				for _, ic := range invalidCalls {
-					sb.WriteString(fmt.Sprintf("  - tool call"))
-					if ic.Name != "" {
-						sb.WriteString(fmt.Sprintf(" %q", ic.Name))
+				// If the LLM intended to call tools but all were invalid (e.g., empty arguments),
+				// treat this as an error so the agent can retry rather than returning empty content.
+				// Provide detailed feedback about which tool calls were invalid and why.
+				if hasToolCallEvents && len(toolCalls) == 0 {
+					log.Debug("Agent.streamLLMResponse: all tool calls were invalid, returning error")
+					var sb strings.Builder
+					sb.WriteString("LLM returned tool calls with invalid arguments (all filtered out). Details:\n")
+					for _, ic := range invalidCalls {
+						sb.WriteString(fmt.Sprintf("  - tool call"))
+						if ic.Name != "" {
+							sb.WriteString(fmt.Sprintf(" %q", ic.Name))
+						}
+						if ic.ID != "" {
+							sb.WriteString(fmt.Sprintf(" (ID: %s)", ic.ID))
+						}
+						sb.WriteString(fmt.Sprintf(": %s\n", strings.Join(ic.Issues, ", ")))
 					}
-					if ic.ID != "" {
-						sb.WriteString(fmt.Sprintf(" (ID: %s)", ic.ID))
-					}
-					sb.WriteString(fmt.Sprintf(": %s\n", strings.Join(ic.Issues, ", ")))
+					sb.WriteString("Please check the tool definitions and ensure all required parameters are provided correctly.")
+					return "", "", nil, errors.New(sb.String())
 				}
-				sb.WriteString("Please check the tool definitions and ensure all required parameters are provided correctly.")
-				return "", "", nil, errors.New(sb.String())
+
+				log.Debug("Agent.streamLLMResponse: returning finalContent=%q, finalReasoning_len=%d, toolCalls=%d",
+					finalContent, len(finalReasoning), len(toolCalls))
+				return finalContent, finalReasoning, toolCalls, nil
+
+			case llm.StreamEventError:
+				log.Debug("Agent.streamLLMResponse: StreamEventError: %v", event.Err)
+				return "", "", nil, event.Err
 			}
-
-			log.Debug("Agent.streamLLMResponse: returning finalContent=%q, finalReasoning_len=%d, toolCalls=%d",
-				finalContent, len(finalReasoning), len(toolCalls))
-			return finalContent, finalReasoning, toolCalls, nil
-
-		case llm.StreamEventError:
-			log.Debug("Agent.streamLLMResponse: StreamEventError: %v", event.Err)
-			return "", "", nil, event.Err
 		}
 	}
 

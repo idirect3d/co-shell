@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -51,7 +52,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "204"
+const build = "206"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1044,12 +1045,17 @@ func main() {
 	r := repl.New(cfg, s, mcpMgr, ag)
 	r.SetVersion(version, build)
 	// Apply input mode setting
-	inputMode := cfg.LLM.InputMode
-	if inputMode == "" {
-		inputMode = "enhanced"
-	}
-	if flags.inputMode != "" {
-		inputMode = flags.inputMode
+	// On Windows, always use stdio mode since raw terminal is not available.
+	inputMode := "enhanced"
+	if runtime.GOOS == "windows" {
+		inputMode = "stdio"
+	} else {
+		if cfg.LLM.InputMode != "" {
+			inputMode = cfg.LLM.InputMode
+		}
+		if flags.inputMode != "" {
+			inputMode = flags.inputMode
+		}
 	}
 	r.SetInputMode(inputMode)
 	log.Info("REPL started (input mode: %s)", inputMode)
