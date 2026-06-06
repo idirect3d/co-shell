@@ -59,6 +59,11 @@ func NewModelHandler(cfg *config.Config, ag *agent.Agent) *ModelHandler {
 	}
 }
 
+// io returns the UserIO from the agent, falling back to DefaultUserIO.
+func (h *ModelHandler) io() agent.UserIO {
+	return agent.GetIO(h.agent)
+}
+
 // syncModelsToManager synchronizes all models from h.cfg.Models to the singleton ModelManager.
 // This ensures that selectModelForCall() in the agent loop can find the latest models.
 // The ModelManager's internal list is fully replaced with the current cfg.Models.
@@ -347,9 +352,10 @@ func (h *ModelHandler) wizardSelectTemplate() (*config.ModelTemplate, error) {
 	manager := config.GetDefaultModelManager()
 	templates := manager.GetAllTemplates()
 
+	io := h.io()
 	for {
-		fmt.Print("\n请选择模板 (输入序号，0 返回):\n\n")
-		fmt.Printf("  [0] 返回上一步\n\n")
+		io.Print("\n请选择模板 (输入序号，0 返回):\n\n")
+		io.Printf("  [0] 返回上一步\n\n")
 
 		for i, t := range templates {
 			prefix := fmt.Sprintf("  [%d]", i+1)

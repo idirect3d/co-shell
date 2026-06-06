@@ -30,6 +30,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -249,9 +250,12 @@ type fmtIO struct{}
 func (f *fmtIO) Print(args ...interface{})                 { fmt.Print(args...) }
 func (f *fmtIO) Printf(fmtStr string, args ...interface{}) { fmt.Printf(fmtStr, args...) }
 func (f *fmtIO) Println(args ...interface{})               { fmt.Println(args...) }
-func (f *fmtIO) ReadLine() (string, error)                 { return "", nil }
-func (f *fmtIO) ReadKey() (byte, error)                    { return 0, nil }
-func (f *fmtIO) IsReading() bool                           { return false }
+func (f *fmtIO) ErrPrintf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+}
+func (f *fmtIO) ReadLine() (string, error) { return "", nil }
+func (f *fmtIO) ReadKey() (byte, error)    { return 0, nil }
+func (f *fmtIO) IsReading() bool           { return false }
 
 // nonStreamingFallback handles the case when streaming is not available.
 func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {

@@ -1,5 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-06-03
+// Last Modified: 2026-06-06
 //
 // MIT License
 //
@@ -16,7 +17,7 @@
 // copies or portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -26,7 +27,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strconv"
@@ -46,6 +46,11 @@ type ModeHandler struct {
 // NewModeHandler creates a new ModeHandler.
 func NewModeHandler(cfg *config.Config, ag *agent.Agent) *ModeHandler {
 	return &ModeHandler{cfg: cfg, ag: ag}
+}
+
+// io returns the UserIO from the agent, falling back to DefaultUserIO.
+func (h *ModeHandler) io() agent.UserIO {
+	return agent.GetIO(h.ag)
 }
 
 // Handle processes .mode commands.
@@ -80,6 +85,15 @@ func (h *ModeHandler) Handle(args []string) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown mode subcommand: %s", subcommand)
 	}
+}
+
+// readLine reads a line from UserIO.
+func (h *ModeHandler) readLine() string {
+	line, err := h.io().ReadLine()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(line)
 }
 
 func (h *ModeHandler) showCurrent() string {
@@ -148,24 +162,20 @@ func (h *ModeHandler) selectModeByNumber(prompt string) (*config.WorkMode, error
 		modes = config.DefaultWorkModes()
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
-
-	fmt.Println()
-	fmt.Println(prompt)
-	fmt.Println()
+	io := h.io()
+	io.Println()
+	io.Println(prompt)
+	io.Println()
 	for i, m := range modes {
-		fmt.Printf("  [%d] %s", i+1, m.Name)
+		io.Printf("  [%d] %s", i+1, m.Name)
 		if m.Description != "" {
-			fmt.Printf(" - %s", m.Description)
+			io.Printf(" - %s", m.Description)
 		}
-		fmt.Println()
+		io.Println()
 	}
-	fmt.Print("\n  请选择 (输入编号): ")
+	io.Print("\n  请选择 (输入编号): ")
 
-	if !scanner.Scan() {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyCancelled))
-	}
-	input := strings.TrimSpace(scanner.Text())
+	input := h.readLine()
 	if input == "" {
 		return nil, fmt.Errorf(i18n.T(i18n.KeyCancelled))
 	}
@@ -211,13 +221,10 @@ func (h *ModeHandler) interactiveSwitch(args []string) (string, error) {
 
 // interactiveCreate creates a new work mode interactively.
 func (h *ModeHandler) interactiveCreate() (string, error) {
-	scanner := bufio.NewScanner(os.Stdin)
+	io := h.io()
 
-	fmt.Print("\n  新建工作模式名称: ")
-	if !scanner.Scan() {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCancelled))
-	}
-	name := strings.TrimSpace(scanner.Text())
+	io.Print("\n  新建工作模式名称: ")
+	name := h.readLine()
 	if name == "" {
 		return "", fmt.Errorf("名称不能为空")
 	}
@@ -232,11 +239,8 @@ func (h *ModeHandler) interactiveCreate() (string, error) {
 		return "", fmt.Errorf("不能创建名为 'default' 的模式")
 	}
 
-	fmt.Print("  模式描述 (可选): ")
-	desc := ""
-	if scanner.Scan() {
-		desc = strings.TrimSpace(scanner.Text())
-	}
+	io.Print("  模式描述 (可选): ")
+	desc := h.readLine()
 
 	// Select sections
 	sections := h.interactiveSelectSections("选择此模式要包含的节 (输入编号切换，空行继续):")
@@ -268,31 +272,28 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		order = append(order, i)
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
+	io := h.io()
 
 	for {
-		fmt.Println()
-		fmt.Println(prompt)
-		fmt.Println()
+		io.Println()
+		io.Println(prompt)
+		io.Println()
 		for i, name := range allSections {
 			marker := " "
 			if selected[i] {
 				marker = "✓"
 			}
-			fmt.Printf("  [%d] [%s] %s\n", i+1, marker, name)
+			io.Printf("  [%d] [%s] %s\n", i+1, marker, name)
 		}
-		fmt.Println()
-		fmt.Println("  操作说明:")
-		fmt.Println("    [编号]   - 切换选择/取消该节")
-		fmt.Println("    +<编号>  - 将节上移一位 (如 +3)")
-		fmt.Println("    -<编号>  - 将节下移一位 (如 -3)")
-		fmt.Println("    <回车>   - 完成选择")
-		fmt.Print("\n  请输入: ")
+		io.Println()
+		io.Println("  操作说明:")
+		io.Println("    [编号]   - 切换选择/取消该节")
+		io.Println("    +<编号>  - 将节上移一位 (如 +3)")
+		io.Println("    -<编号>  - 将节下移一位 (如 -3)")
+		io.Println("    <回车>   - 完成选择")
+		io.Print("\n  请输入: ")
 
-		if !scanner.Scan() {
-			break
-		}
-		input := strings.TrimSpace(scanner.Text())
+		input := h.readLine()
 		if input == "" {
 			break
 		}
@@ -301,7 +302,7 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		if strings.HasPrefix(input, "+") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(allSections) {
-				fmt.Println("  无效编号")
+				io.Println("  无效编号")
 				continue
 			}
 			idx := num - 1
@@ -319,7 +320,7 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		if strings.HasPrefix(input, "-") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(allSections) {
-				fmt.Println("  无效编号")
+				io.Println("  无效编号")
 				continue
 			}
 			idx := num - 1
@@ -335,7 +336,7 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		// Handle toggle
 		num, err := strconv.Atoi(input)
 		if err != nil || num < 1 || num > len(allSections) {
-			fmt.Println("  无效输入")
+			io.Println("  无效输入")
 			continue
 		}
 		idx := num - 1
@@ -404,12 +405,12 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		}
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
+	io := h.io()
 	for {
-		fmt.Printf("\n  编辑模式: %s\n", mode.Name)
-		fmt.Println("  当前节顺序:")
+		io.Printf("\n  编辑模式: %s\n", mode.Name)
+		io.Println("  当前节顺序:")
 		for pos, idx := range currentIndices {
-			fmt.Printf("    [%d] %s\n", pos+1, allSections[idx])
+			io.Printf("    [%d] %s\n", pos+1, allSections[idx])
 		}
 		// Show available sections not yet in the list (independently numbered from 1)
 		inCurrent := make(map[int]bool)
@@ -427,26 +428,23 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 			}
 		}
 		if len(availList) > 0 {
-			fmt.Println("\n  备选节:")
+			io.Println("\n  备选节:")
 			for avNum, ae := range availList {
-				fmt.Printf("    [%d] %s\n", avNum+1, ae.name)
+				io.Printf("    [%d] %s\n", avNum+1, ae.name)
 			}
 		}
-		fmt.Println()
-		fmt.Println("  操作说明:")
-		fmt.Println("    +<序号>  - 上移 (如 +2)")
-		fmt.Println("    -<序号>  - 下移 (如 -3)")
-		fmt.Println("    a<编号>  - 添加未包含的节 (如 a5)")
-		fmt.Println("    d<序号>  - 移除此节 (如 d2)")
-		fmt.Println("    v<序号>  - 查看节内容 (如 v3)")
-		fmt.Println("    p        - 预览最终完整提示词")
-		fmt.Println("    完成    - 保存并退出")
-		fmt.Print("\n  请输入: ")
+		io.Println()
+		io.Println("  操作说明:")
+		io.Println("    +<序号>  - 上移 (如 +2)")
+		io.Println("    -<序号>  - 下移 (如 -3)")
+		io.Println("    a<编号>  - 添加未包含的节 (如 a5)")
+		io.Println("    d<序号>  - 移除此节 (如 d2)")
+		io.Println("    v<序号>  - 查看节内容 (如 v3)")
+		io.Println("    p        - 预览最终完整提示词")
+		io.Println("    完成    - 保存并退出")
+		io.Print("\n  请输入: ")
 
-		if !scanner.Scan() {
-			break
-		}
-		input := strings.TrimSpace(scanner.Text())
+		input := h.readLine()
 		if input == "" || input == "完成" {
 			break
 		}
@@ -454,7 +452,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "+") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				fmt.Println("  无效序号")
+				io.Println("  无效序号")
 				continue
 			}
 			pos := num - 1
@@ -467,7 +465,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "-") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				fmt.Println("  无效序号")
+				io.Println("  无效序号")
 				continue
 			}
 			pos := num - 1
@@ -480,7 +478,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "a") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(availList) {
-				fmt.Println("  无效编号")
+				io.Println("  无效编号")
 				continue
 			}
 			// Map to global index via availList
@@ -492,7 +490,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "d") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				fmt.Println("  无效序号")
+				io.Println("  无效序号")
 				continue
 			}
 			pos := num - 1
@@ -503,26 +501,26 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "v") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				fmt.Println("  无效序号")
+				io.Println("  无效序号")
 				continue
 			}
 			globalIdx := currentIndices[num-1]
 			secName := allSections[globalIdx]
 			// Build and show the section content using the same logic as buildNamedSection
-			fmt.Printf("\n  ==== [%s] ====\n", secName)
-			fmt.Println(h.previewSection(secName))
-			fmt.Println("  ================")
+			io.Printf("\n  ==== [%s] ====\n", secName)
+			io.Println(h.previewSection(secName))
+			io.Println("  ================")
 			continue
 		}
 
 		if input == "p" {
-			fmt.Println("\n  ==== 完整提示词预览 ====")
-			fmt.Print(h.previewFullPrompt(currentIndices, allSections))
-			fmt.Println("\n  =======================")
+			io.Println("\n  ==== 完整提示词预览 ====")
+			io.Print(h.previewFullPrompt(currentIndices, allSections))
+			io.Println("\n  =======================")
 			continue
 		}
 
-		fmt.Println("  无效输入")
+		io.Println("  无效输入")
 	}
 
 	// Build updated sections
@@ -555,12 +553,8 @@ func (h *ModeHandler) interactiveRemove(args []string) (string, error) {
 	}
 
 	// Confirm deletion
-	fmt.Printf("  确定要删除工作模式 '%s'? (y/N): ", name)
-	scanner := bufio.NewScanner(os.Stdin)
-	if !scanner.Scan() {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCancelled))
-	}
-	confirm := strings.TrimSpace(strings.ToLower(scanner.Text()))
+	h.io().Printf("  确定要删除工作模式 '%s'? (y/N): ", name)
+	confirm := strings.TrimSpace(strings.ToLower(h.readLine()))
 	if confirm != "y" && confirm != "yes" {
 		return "", fmt.Errorf(i18n.T(i18n.KeyCancelled))
 	}
