@@ -688,8 +688,13 @@ func (a *Agent) SetBrowserEnabled(enabled bool) {
 		a.chromeMgr = nil
 		log.Info("Browser tools disabled, Chrome stopped")
 	}
+	// Rebuild system prompt to include/exclude browser tool descriptions
+	// Run in goroutine to avoid deadlock with mu
+	go a.rebuildSystemPrompt()
 }
 
+// EnsureBrowser prepares Chrome for the agent if browser is enabled.
+// Called during initialization to pre-launch Chrome when configured.
 // IsBrowserEnabled returns whether browser tools are enabled.
 func (a *Agent) IsBrowserEnabled() bool {
 	a.mu.Lock()

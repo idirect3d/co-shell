@@ -603,6 +603,97 @@ Usage:
   <wait_ms>1000</wait_ms>
 </shell_get_output>`
 
+	zhMessages[KeyToolUsageBrowserNavigate] = `## browser_navigate
+Description: 导航浏览器到指定 URL。自动等待页面加载完成。
+Parameters:
+- url (必填) 要导航到的网页 URL
+Usage:
+<browser_navigate>
+  <url>https://example.com</url>
+</browser_navigate>`
+
+	zhMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
+Description: 截取当前页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。配合 browser_get_interactive_elements 可实现精确操作。
+Parameters:
+- quality (可选, 默认80) 截图质量 1-100
+- full_page (可选, 默认false) 是否截取完整页面
+Usage:
+<browser_screenshot>
+  <quality>90</quality>
+  <full_page>true</full_page>
+</browser_screenshot>`
+
+	zhMessages[KeyToolUsageBrowserClick] = `## browser_click
+Description: 在指定坐标处点击页面元素。建议先调用 browser_get_interactive_elements 获取元素坐标后再点击。
+Parameters:
+- x (必填) 点击位置的 X 坐标
+- y (必填) 点击位置的 Y 坐标
+Usage:
+<browser_click>
+  <x>200</x>
+  <y>450</y>
+</browser_click>`
+
+	zhMessages[KeyToolUsageBrowserType] = `## browser_type
+Description: 向当前聚焦的输入元素输入文本。如果输入框有旧内容，可设置 clear=true 先清空。
+Parameters:
+- text (必填) 要输入的文本
+- clear (可选, 默认false) 输入前是否先清空已有内容
+Usage:
+<browser_type>
+  <text>Hello World</text>
+  <clear>true</clear>
+</browser_type>`
+
+	zhMessages[KeyToolUsageBrowserEvaluate] = `## browser_evaluate
+Description: 在浏览器中执行 JavaScript 代码并返回结果。可用于提取页面数据、修改 DOM、触发事件等高级操作。
+Parameters:
+- expression (必填) 要执行的 JavaScript 表达式
+Usage:
+<browser_evaluate>
+  <expression>document.title</expression>
+</browser_evaluate>`
+
+	zhMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_html
+Description: 获取当前页面的完整 HTML 内容。适用于分析页面结构。
+Parameters: 无
+Usage:
+<browser_get_html />`
+
+	zhMessages[KeyToolUsageBrowserScroll] = `## browser_scroll
+Description: 按指定像素值滚动页面。正值向下滚动，负值向上滚动。
+Parameters:
+- delta_x (可选, 默认0) 水平滚动像素
+- delta_y (可选, 默认500) 垂直滚动像素（正值向下，负值向上）
+Usage:
+<browser_scroll>
+  <delta_y>500</delta_y>
+</browser_scroll>`
+
+	zhMessages[KeyToolUsageBrowserGetInteractiveElements] = `## browser_get_interactive_elements
+Description: 获取页面所有可交互元素（按钮、链接、输入框等）的列表，包含每个元素的中心坐标、标签名、类型等信息。用于精确定位元素后通过 browser_click 或 browser_type 操作。
+Parameters: 无
+Usage:
+<browser_get_interactive_elements />`
+
+	zhMessages[KeyToolUsageBrowserGoBack] = `## browser_go_back
+Description: 浏览器后退到上一个页面（等同于点击浏览器后退按钮）。
+Parameters: 无
+Usage:
+<browser_go_back />`
+
+	zhMessages[KeyToolUsageBrowserGoForward] = `## browser_go_forward
+Description: 浏览器前进到下一个页面（等同于点击浏览器前进按钮）。
+Parameters: 无
+Usage:
+<browser_go_forward />`
+
+	zhMessages[KeyToolUsageBrowserClose] = `## browser_close
+Description: 关闭浏览器并清理所有相关资源。
+Parameters: 无
+Usage:
+<browser_close />`
+
 	zhMessages[KeySystemPromptXMLExamples] = `
 # 工具使用示例
 

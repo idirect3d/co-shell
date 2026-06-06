@@ -359,11 +359,43 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		}
 
 		// Step 2: Handle responses with no tool calls.
-		// If attempt_completion was called (completed=true), this is the final answer.
-		// Otherwise, ask the LLM to continue if it seems like the task isn't done yet.
+		// Exit conditions:
+		//   1. attempt_completion IS available AND was called (completed=true) → exit
+		//   2. attempt_completion IS available AND NOT called → prompt LLM to continue or call attempt_completion
+		//   3. attempt_completion is NOT available → exit immediately (final content is the answer)
 		if len(toolCalls) == 0 {
-			// Check if attempt_completion was invoked during this iteration.
-			// If yes, this response IS the final answer — exit.
+			// Check if attempt_completion tool is available in the current tool set
+			attemptCompAvailable := false
+			for _, t := range tools {
+				if t.Name == "attempt_completion" {
+					attemptCompAvailable = true
+					break
+				}
+			}
+
+			// Rule 3: attempt_completion not available → exit immediately
+			if !attemptCompAvailable {
+				cb("done", "")
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:             "assistant",
+					Content:          finalContent,
+					ReasoningContent: finalReasoning,
+				})
+				if a.memoryEnabled {
+					if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+						log.Warn("Failed to save assistant message to memory: %v", err)
+					}
+				}
+				a.mu.Unlock()
+				if err := a.PersistSession(); err != nil {
+					log.Warn("Failed to persist session: %v", err)
+				}
+				log.Info("Agent.RunStream: exiting after %d iterations (0 tool calls, attempt_completion not available)", iteration+1)
+				return finalContent, nil
+			}
+
+			// Rule 1: attempt_completion was called — exit
 			if a.completed {
 				// Send token usage information before done
 				prompt, completion, total := a.TokenUsage()
@@ -391,8 +423,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				return finalContent, nil
 			}
 
-			// attempt_completion was NOT called — don't exit yet. Remind the LLM it needs
-			// to either call attempt_completion when done, or continue working.
+			// Rule 2: attempt_completion is available but was NOT called — prompt LLM to continue
 			continuePrompt := "现在应该继续思考并完成任务直到达成任务目标，你可以调用合适的工具，以表示任务还将继续。如果确实认为任务已经完成了，需要调用 attempt_completion 工具来提交最终答案。"
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{
@@ -570,6 +601,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				})
 				a.mu.Unlock()
 			}
+		}
+
+		// If attempt_completion was called during tool execution, finalize and exit
+		if a.completed {
+			cb("done", "")
+			log.Info("Agent.RunStream: completed after %d iterations (via attempt_completion in same iteration)", iteration+1)
+			return finalContent, nil
 		}
 
 		// If user cancelled, return to REPL
