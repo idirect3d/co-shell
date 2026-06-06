@@ -827,76 +827,45 @@ EDITING FILES
 	zhMessages[KeySystemPromptBrowserUsage] = `
 BROWSER USAGE
 
-当 browser-enabled = on 时，你可以通过以下浏览器工具控制 Chrome 浏览器。浏览器工具支持 SREA（截图-识别-评估-操作）循环，让你通过视觉和 DOM 分析来完成网页操作任务。
+当 browser-enabled = on 时，你可以通过浏览器工具控制 Chrome 浏览器。**注意：浏览器工具是 LLM 工具调用（tool call），不是系统命令，请直接作为工具调用使用，不要通过 execute_command 包裹。**
 
-# SREA 循环工作流
+浏览器操作遵循 SREA（截图-识别-评估-操作）循环模式：
 
-浏览器操作应遵循以下循环模式：
+# 工具清单
+
+| 工具 | 说明 | 关键参数 |
+|------|------|---------|
+| browser_navigate | 导航到 URL | url（必填） |
+| browser_screenshot | 截取当前页面截图 | quality（可选，默认80）、full_page（可选，默认false） |
+| browser_get_interactive_elements | 获取所有可交互元素列表 | 无 |
+| browser_click | 点击页面坐标 | x、y（必填） |
+| browser_type | 在聚焦元素中输入文本 | text（必填）、clear（可选，默认false） |
+| browser_evaluate | 执行 JavaScript 代码 | code（必填） |
+| browser_scroll | 滚动页面 | delta_x、delta_y（可选，默认0） |
+| browser_get_html | 获取页面 HTML | 无 |
+| browser_go_back | 后退 | 无 |
+| browser_go_forward | 前进 | 无 |
+| browser_close | 关闭浏览器释放资源 | 无 |
+
+# SREA 循环步骤
 
 ## 1. 导航与观察
-<execute_command>
-  <command>browser_navigate(url)</command>
-</execute_command>
-
-<execute_command>
-  <command>browser_screenshot()</command>
-</execute_command>
-
-首先导航到目标 URL，然后截取页面截图。截图会自动缓存并发送到视觉模型进行分析。观察页面布局、内容、可交互元素的位置。
+调用 browser_navigate 导航到目标 URL，然后调用 browser_screenshot 截图。截图自动缓存并发送到视觉模型分析。
 
 ## 2. 识别交互元素
-
-<execute_command>
-  <command>browser_get_interactive_elements()</command>
-</execute_command>
-
-获取页面中所有可交互元素（按钮、链接、输入框、下拉框等）的详细列表，包括：
-- tag: 元素标签（BUTTON、A、INPUT 等）
-- text: 元素显示的文本
-- rect.centerX/centerY: 元素中心的精确坐标（用于 browser_click）
-- id、class、type、placeholder 等属性
+调用 browser_get_interactive_elements 获取页面中所有可交互元素（按钮、链接、输入框等），包括 tag、text、rect.centerX/centerY（用于 browser_click 的坐标）、id、class 等属性。
 
 ## 3. 分析并决策
-
-结合截图（视觉分析）和元素列表（DOM 信息），评估当前状态与目标之间的差距，决定下一步操作：
-- 点击按钮/链接 → browser_click(x, y)
-- 输入文本 → browser_type("text")
-- 执行 JavaScript → browser_evaluate("code")
-- 滚动页面 → browser_scroll(delta_x, delta_y)
+结合截图（视觉）和元素列表（DOM），评估当前状态与目标的差距，选择操作：
+- 点击按钮/链接 → browser_click(x=元素centerX, y=元素centerY)
+- 输入文本 → browser_type(text="内容", clear=true)
+- 执行 JavaScript → browser_evaluate(code="代码")
+- 滚动页面 → browser_scroll(delta_y=滚动量)
 - 获取页面 HTML → browser_get_html()
+- 前进/后退 → browser_go_forward() / browser_go_back()
 
-## 4. 执行操作
-
-### 点击元素
-使用 browser_get_interactive_elements 返回的 centerX 和 centerY 坐标：
-<execute_command>
-  <command>browser_click(x=120, y=300)</command>
-</execute_command>
-
-### 输入文本
-在输入框中输入文字。如果输入框已有内容，可以设置 clear=true 先清空：
-<execute_command>
-  <command>browser_type(text="搜索关键词", clear=true)</command>
-</execute_command>
-
-### 执行 JavaScript
-需要高级操作时，直接在浏览器中执行 JS 代码：
-<execute_command>
-  <command>browser_evaluate("document.querySelector('.result').textContent")</command>
-</execute_command>
-
-### 滚动页面
-查看超出视口的内容：
-<execute_command>
-  <command>browser_scroll(delta_y=500)</command>
-</execute_command>
-
-## 5. 再次截图评估
-
-每次操作后立即截图，观察操作效果，判断是否达到预期目标。如果未达到，继续循环：
-<execute_command>
-  <command>browser_screenshot()</command>
-</execute_command>
+## 4. 执行操作后再次截图评估
+每次操作后立即调用 browser_screenshot，观察效果，判断是否达到预期。未达到则继续循环。
 
 # 完整 SREA 循环示例
 
@@ -912,12 +881,10 @@ BROWSER USAGE
 
 # 注意事项
 
-- 每个操作后使用 browser_screenshot() 截图观察结果，不要连续执行多个操作而不评估
-- 截图需要视觉模型（VLM）支持，如果当前模型不支持视觉，则无法分析截图
-- 页面变化后交互元素的位置可能改变，再次操作前重新调用 browser_get_interactive_elements()
-- 如果页面长时间无响应，尝试使用 browser_evaluate("document.readyState") 检查状态
-- 完成所有浏览器操作后，调用 browser_close() 关闭浏览器释放资源
-
+- 每个操作后使用 browser_screenshot 截图观察，不要连续执行多个操作而不评估
+- 截图需要视觉模型（VLM）支持，当前模型不支持视觉则无法分析截图
+- 页面变化后交互元素位置可能改变，再次操作前重新调用 browser_get_interactive_elements
+- 完成所有操作后调用 browser_close 关闭浏览器释放资源
 ====
 `
 

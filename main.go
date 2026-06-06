@@ -811,7 +811,7 @@ func main() {
 		log.Info("No models configured, running model setup wizard")
 		modelHandler := cmd.NewModelHandler(cfg, nil)
 		if _, err := modelHandler.AddModelWizard(); err != nil {
-			fmt.Println(i18n.T(i18n.KeySetupCancelled))
+			io.Println(i18n.T(i18n.KeySetupCancelled))
 			os.Exit(1)
 		}
 	}
@@ -1012,8 +1012,8 @@ func main() {
 		// Check if the current model supports vision
 		if !cfg.LLM.VisionSupport {
 			ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
-			fmt.Fprintf(os.Stderr, "%s 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n", ep.Error)
-			fmt.Fprintf(os.Stderr, "   请去掉-image参数或使用支持多模态的模型。\n")
+			io.ErrPrintf("%s 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n", ep.Error)
+			io.ErrPrintf("   请去掉-image参数或使用支持多模态的模型。\n")
 			os.Exit(1)
 		}
 		paths := strings.Split(flags.imagePaths, ",")
@@ -1053,7 +1053,7 @@ func main() {
 	log.Info("REPL started (input mode: %s)", inputMode)
 	if err := r.Run(); err != nil {
 		log.Error("REPL error: %v", err)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		io.ErrPrintf("Error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -1079,12 +1079,12 @@ func showDisclaimer(cfg *config.Config, ws *workspace.Workspace) {
 			if err := cfg.Save(); err != nil {
 				log.Warn("Cannot save disclaimer acceptance: %v", err)
 			}
-			fmt.Println()
+			io.Println()
 			return
 		}
 
 		if response == i18n.T(i18n.KeyDisclaimerNo) || response == "no" {
-			fmt.Println(i18n.T(i18n.KeyDisclaimerRefused))
+			io.Println(i18n.T(i18n.KeyDisclaimerRefused))
 			os.Exit(0)
 		}
 
@@ -1105,21 +1105,25 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 	log.Info("Single command mode: %s", input)
 
 	ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
+	io := ag.IO()
+	if io == nil {
+		io = agent.NewDefaultUserIO()
+	}
 
 	// Check if it's a direct system command
 	if isDirectCommand(input) {
 		// Direct system command
 		if cfg.LLM.ShowCommand {
-			fmt.Printf("$ %s\n", input)
+			io.Printf("$ %s\n", input)
 		}
 		output, err := ag.ExecuteCommandDirectly(input)
 		if err != nil {
-			fmt.Print(output)
-			fmt.Printf("%s Error: %v\n", ep.Error, err)
+			io.Print(output)
+			io.Printf("%s Error: %v\n", ep.Error, err)
 			os.Exit(1)
 		}
 		if output != "" {
-			fmt.Println(output)
+			io.Println(output)
 		}
 		return
 	}
@@ -1129,33 +1133,33 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 	_, err := ag.RunStream(ctx, input, func(eventType string, content string) {
 		switch eventType {
 		case "content_chunk":
-			fmt.Print(content)
+			io.Print(content)
 		case "thinking_chunk":
-			fmt.Print(content)
+			io.Print(content)
 		case "command":
-			fmt.Printf("%s%s\n", ep.CommandInput, content)
+			io.Printf("%s%s\n", ep.CommandInput, content)
 		case "output":
-			fmt.Println()
-			fmt.Println(ep.OutputTitle)
-			fmt.Println(ep.OutputSep)
-			fmt.Println(content)
-			fmt.Println(ep.OutputSep)
+			io.Println()
+			io.Println(ep.OutputTitle)
+			io.Println(ep.OutputSep)
+			io.Println(content)
+			io.Println(ep.OutputSep)
 		case "tool_call":
-			fmt.Printf("%s%s\n", ep.ToolCallInput, content)
+			io.Printf("%s%s\n", ep.ToolCallInput, content)
 		case "token_usage":
 			var prompt, completion, total int
 			if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
-				fmt.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
+				io.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
 			}
 		case "error":
-			fmt.Printf("%s%s\n", ep.Error, content)
+			io.Printf("%s%s\n", ep.Error, content)
 		case "done":
-			fmt.Println()
+			io.Println()
 		}
 	})
 
 	if err != nil {
-		fmt.Printf("%s Error: %v\n", ep.Error, err)
+		io.Printf("%s Error: %v\n", ep.Error, err)
 		os.Exit(1)
 	}
 }
