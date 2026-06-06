@@ -27,7 +27,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -283,7 +282,7 @@ func parseFlags() cliFlags {
 
 	// Custom usage message
 	flag.Usage = func() {
-		fmt.Fprint(os.Stderr, buildUsage(version))
+		agent.NewDefaultUserIO().ErrPrintf("%s", buildUsage(version))
 	}
 
 	flag.Parse()
@@ -298,6 +297,7 @@ func parseFlags() cliFlags {
 
 func main() {
 	flags := parseFlags()
+	io := agent.NewDefaultUserIO()
 
 	// Initialize i18n before any user-facing output
 	i18n.Init(flags.lang)
@@ -310,7 +310,6 @@ func main() {
 
 	// Handle --version
 	if flags.showVersion {
-		// Try to load config to check vision support (without creating workspace dirs)
 		visionIndicator := ""
 		configPath := flags.configPath
 		if configPath == "" {
@@ -333,55 +332,48 @@ func main() {
 				visionIndicator = " 👀"
 			}
 		}
-		fmt.Printf("co-shell v%s [BUILD-%s]%s\n", version, build, visionIndicator)
+		io.Printf("co-shell v%s [BUILD-%s]%s\n", version, build, visionIndicator)
 		os.Exit(0)
 	}
 
-	// Initialize workspace
 	ws, err := workspace.New(flags.workspacePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: cannot initialize workspace: %v\n", err)
+		io.ErrPrintf("Error: cannot initialize workspace: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Handle --init-capabilities: generate default CAPABILITIES.md in workspace root
 	if flags.initCapabilities {
-		ep := config.GetEmojiPrefixes(true) // default to enabled for CLI output
+		ep := config.GetEmojiPrefixes(true)
 		capPath := filepath.Join(ws.Root(), "CAPABILITIES.md")
 		if _, err := os.Stat(capPath); err == nil {
-			fmt.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, capPath)
+			io.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, capPath)
 			os.Exit(0)
 		}
 		content := i18n.T(i18n.KeySystemPromptCapabilities)
 		if err := os.WriteFile(capPath, []byte(content), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", capPath, err)
+			io.ErrPrintf("Error: cannot write %s: %v\n", capPath, err)
 			os.Exit(1)
 		}
-		fmt.Printf("%s 已生成默认 CAPABILITIES.md: %s\n", ep.Success, capPath)
+		io.Printf("%s 已生成默认 CAPABILITIES.md: %s\n", ep.Success, capPath)
 		os.Exit(0)
 	}
 
-	// Handle --init-rules: generate default RULES.md in workspace root
 	if flags.initRules {
-		ep := config.GetEmojiPrefixes(true) // default to enabled for CLI output
+		ep := config.GetEmojiPrefixes(true)
 		rulesPath := filepath.Join(ws.Root(), "RULES.md")
 		if _, err := os.Stat(rulesPath); err == nil {
-			fmt.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, rulesPath)
+			io.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, rulesPath)
 			os.Exit(0)
 		}
 		content := i18n.T(i18n.KeySystemPromptRules)
 		if err := os.WriteFile(rulesPath, []byte(content), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", rulesPath, err)
+			io.ErrPrintf("Error: cannot write %s: %v\n", rulesPath, err)
 			os.Exit(1)
 		}
-		fmt.Printf("%s 已生成默认 RULES.md: %s\n", ep.Success, rulesPath)
+		io.Printf("%s 已生成默认 RULES.md: %s\n", ep.Success, rulesPath)
 		os.Exit(0)
 	}
 
-	// Load configuration with priority:
-	// 1. -c/--config <path> (highest priority)
-	// 2. CO_SHELL_CONFIG_PATH environment variable (inherited from parent agent)
-	// 3. {workspace}/config.json (default)
 	var cfg *config.Config
 	var configPath string
 	if flags.configPath != "" {
@@ -392,7 +384,7 @@ func main() {
 		cfg, configPath, err = config.LoadWithPath(ws)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: cannot load config: %v\n", err)
+		io.ErrPrintf("Warning: cannot load config: %v\n", err)
 		cfg = config.DefaultConfig()
 	}
 	if configPath != "" {
@@ -412,7 +404,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LogEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --log value %q, use on|off\n", flags.log)
+			io.ErrPrintf("Warning: invalid --log value %q, use on|off\n", flags.log)
 		}
 	}
 
@@ -440,7 +432,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLlmThinking = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-llm-thinking value %q, use on|off\n", flags.showLlmThinking)
+			io.ErrPrintf("Warning: invalid --show-llm-thinking value %q, use on|off\n", flags.showLlmThinking)
 		}
 	}
 
@@ -451,7 +443,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowCommand = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-command value %q, use on|off\n", flags.showCommand)
+			io.ErrPrintf("Warning: invalid --show-command value %q, use on|off\n", flags.showCommand)
 		}
 	}
 	if flags.showLlmContent != "" {
@@ -461,7 +453,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLlmContent = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-llm-content value %q, use on|off\n", flags.showLlmContent)
+			io.ErrPrintf("Warning: invalid --show-llm-content value %q, use on|off\n", flags.showLlmContent)
 		}
 	}
 	if flags.showTool != "" {
@@ -471,7 +463,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowTool = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool value %q, use on|off\n", flags.showTool)
+			io.ErrPrintf("Warning: invalid --show-tool value %q, use on|off\n", flags.showTool)
 		}
 	}
 	if flags.showToolInput != "" {
@@ -481,7 +473,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowToolInput = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool-input value %q, use on|off\n", flags.showToolInput)
+			io.ErrPrintf("Warning: invalid --show-tool-input value %q, use on|off\n", flags.showToolInput)
 		}
 	}
 	if flags.showToolOutput != "" {
@@ -491,7 +483,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowToolOutput = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool-output value %q, use on|off\n", flags.showToolOutput)
+			io.ErrPrintf("Warning: invalid --show-tool-output value %q, use on|off\n", flags.showToolOutput)
 		}
 	}
 	if flags.showCommandOutput != "" {
@@ -501,7 +493,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowCommandOutput = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-command-output value %q, use on|off\n", flags.showCommandOutput)
+			io.ErrPrintf("Warning: invalid --show-command-output value %q, use on|off\n", flags.showCommandOutput)
 		}
 	}
 
@@ -515,14 +507,14 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ToolModes["default"] = "auto"
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --confirm-tool value %q, use on|off\n", flags.confirmTool)
+			io.ErrPrintf("Warning: invalid --confirm-tool value %q, use on|off\n", flags.confirmTool)
 		}
 	}
 	if flags.resultMode != "" {
 		if mode, ok := config.ParseResultMode(flags.resultMode); ok {
 			cfg.LLM.ResultMode = int(mode)
 		} else {
-			fmt.Fprintf(os.Stderr, "Warning: invalid --result-mode value %q, use minimal/explain/analyze/free\n", flags.resultMode)
+			io.ErrPrintf("Warning: invalid --result-mode value %q, use minimal/explain/analyze/free\n", flags.resultMode)
 		}
 	}
 
@@ -539,7 +531,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.VisionSupport = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --vision value %q, use on|off\n", flags.vision)
+			io.ErrPrintf("Warning: invalid --vision value %q, use on|off\n", flags.vision)
 		}
 	}
 
@@ -551,7 +543,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.MemoryEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --memory-enabled value %q, use on|off\n", flags.memoryEnabled)
+			io.ErrPrintf("Warning: invalid --memory-enabled value %q, use on|off\n", flags.memoryEnabled)
 		}
 	}
 
@@ -563,7 +555,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.PlanEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --plan-enabled value %q, use on|off\n", flags.planEnabled)
+			io.ErrPrintf("Warning: invalid --plan-enabled value %q, use on|off\n", flags.planEnabled)
 		}
 	}
 
@@ -575,7 +567,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.SubAgentEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --subagent-enabled value %q, use on|off\n", flags.subAgentEnabled)
+			io.ErrPrintf("Warning: invalid --subagent-enabled value %q, use on|off\n", flags.subAgentEnabled)
 		}
 	}
 
@@ -587,7 +579,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ToolCallEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --toolcall-enabled value %q, use on|off\n", flags.toolCallEnabled)
+			io.ErrPrintf("Warning: invalid --toolcall-enabled value %q, use on|off\n", flags.toolCallEnabled)
 		}
 	}
 
@@ -597,7 +589,7 @@ func main() {
 		case "openai", "xml":
 			cfg.LLM.ToolCallMode = flags.toolCallMode
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --toolcall-mode value %q, use openai|xml\n", flags.toolCallMode)
+			io.ErrPrintf("Warning: invalid --toolcall-mode value %q, use openai|xml\n", flags.toolCallMode)
 		}
 	}
 
@@ -629,7 +621,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.EmojiEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --emoji-enabled value %q, use on|off\n", flags.emojiEnabled)
+			io.ErrPrintf("Warning: invalid --emoji-enabled value %q, use on|off\n", flags.emojiEnabled)
 		}
 	}
 
@@ -639,7 +631,7 @@ func main() {
 		case "on", "off", "none":
 			cfg.LLM.TokenUsage = flags.tokenUsage
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --token-usage value %q, use on|off|none\n", flags.tokenUsage)
+			io.ErrPrintf("Warning: invalid --token-usage value %q, use on|off|none\n", flags.tokenUsage)
 		}
 	}
 
@@ -657,7 +649,7 @@ func main() {
 			}
 			parts := strings.SplitN(pair, "=", 2)
 			if len(parts) != 2 {
-				fmt.Fprintf(os.Stderr, "Warning: invalid --body-add format %q, use key=value\n", pair)
+				io.ErrPrintf("Warning: invalid --body-add format %q, use key=value\n", pair)
 				continue
 			}
 			key := strings.TrimSpace(parts[0])
@@ -677,7 +669,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLogo = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-logo value %q, use on|off\n", flags.showLogo)
+			io.ErrPrintf("Warning: invalid --show-logo value %q, use on|off\n", flags.showLogo)
 		}
 	} else if flags.command != "" {
 		// In single command mode, hide logo by default unless explicitly enabled
@@ -698,7 +690,7 @@ func main() {
 		case "window", "task", "smart":
 			cfg.LLM.ContextStartMode = flags.contextStart
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --context-start value %q, use window/task/smart\n", flags.contextStart)
+			io.ErrPrintf("Warning: invalid --context-start value %q, use window/task/smart\n", flags.contextStart)
 		}
 	}
 
@@ -710,7 +702,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.LoopDetectEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --loop-detect-enabled value %q, use on|off\n", flags.loopDetectEnabled)
+			io.ErrPrintf("Warning: invalid --loop-detect-enabled value %q, use on|off\n", flags.loopDetectEnabled)
 		}
 	}
 
@@ -722,7 +714,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.DedupEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --dedup-enabled value %q, use on|off\n", flags.dedupEnabled)
+			io.ErrPrintf("Warning: invalid --dedup-enabled value %q, use on|off\n", flags.dedupEnabled)
 		}
 	}
 	if flags.dedupFeatureRatio >= 0 {
@@ -743,7 +735,7 @@ func main() {
 
 	// Initialize logger with workspace
 	if err := log.Init(cfg.LogEnabled, ws); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: cannot initialize logger: %v\n", err)
+		io.ErrPrintf("Warning: cannot initialize logger: %v\n", err)
 	}
 	defer log.Close()
 
@@ -752,7 +744,7 @@ func main() {
 		if level, ok := log.ParseLogLevel(flags.logLevel); ok {
 			log.SetLevel(level)
 		} else {
-			fmt.Fprintf(os.Stderr, "Warning: invalid --log-level value %q, use debug/info/warn/error/off\n", flags.logLevel)
+			io.ErrPrintf("Warning: invalid --log-level value %q, use debug/info/warn/error/off\n", flags.logLevel)
 		}
 	} else if cfg.LogLevel != "" {
 		if level, ok := log.ParseLogLevel(cfg.LogLevel); ok {
@@ -775,7 +767,7 @@ func main() {
 	s, err := store.NewStore(ws)
 	if err != nil {
 		log.Error("Cannot initialize store: %v", err)
-		fmt.Fprintf(os.Stderr, "Error: cannot initialize store: %v\n", err)
+		io.ErrPrintf("Error: cannot initialize store: %v\n", err)
 		os.Exit(1)
 	}
 	defer s.Close()
@@ -806,7 +798,7 @@ func main() {
 		if serverCfg.Enabled {
 			if err := mcpMgr.AddServer(serverCfg.Name, serverCfg.Command, serverCfg.Args); err != nil {
 				log.Warn("Cannot connect to MCP server %q: %v", serverCfg.Name, err)
-				fmt.Fprintf(os.Stderr, "Warning: cannot connect to MCP server %q: %v\n", serverCfg.Name, err)
+				io.ErrPrintf("Warning: cannot connect to MCP server %q: %v\n", serverCfg.Name, err)
 			} else {
 				log.Info("Connected to MCP server: %s", serverCfg.Name)
 			}
@@ -819,7 +811,7 @@ func main() {
 		log.Info("No models configured, running model setup wizard")
 		modelHandler := cmd.NewModelHandler(cfg, nil)
 		if _, err := modelHandler.AddModelWizard(); err != nil {
-			fmt.Println(i18n.T(i18n.KeySetupCancelled))
+			io.Println(i18n.T(i18n.KeySetupCancelled))
 			os.Exit(1)
 		}
 	}
@@ -1020,8 +1012,8 @@ func main() {
 		// Check if the current model supports vision
 		if !cfg.LLM.VisionSupport {
 			ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
-			fmt.Fprintf(os.Stderr, "%s 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n", ep.Error)
-			fmt.Fprintf(os.Stderr, "   请去掉-image参数或使用支持多模态的模型。\n")
+			io.ErrPrintf("%s 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n", ep.Error)
+			io.ErrPrintf("   请去掉-image参数或使用支持多模态的模型。\n")
 			os.Exit(1)
 		}
 		paths := strings.Split(flags.imagePaths, ",")
@@ -1061,7 +1053,7 @@ func main() {
 	log.Info("REPL started (input mode: %s)", inputMode)
 	if err := r.Run(); err != nil {
 		log.Error("REPL error: %v", err)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		io.ErrPrintf("Error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -1070,16 +1062,16 @@ func main() {
 // If accepted, it saves the config with DisclaimerAccepted=true.
 // If declined, it exits the program.
 func showDisclaimer(cfg *config.Config, ws *workspace.Workspace) {
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyDisclaimerTitle))
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyDisclaimerBody))
-	fmt.Println()
+	io := agent.NewDefaultUserIO()
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerBody))
+	io.Println()
 
-	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print(i18n.T(i18n.KeyDisclaimerPrompt))
-		response, _ := reader.ReadString('\n')
+		io.Print(i18n.T(i18n.KeyDisclaimerPrompt))
+		response, _ := io.ReadLine()
 		response = strings.TrimSpace(strings.ToLower(response))
 
 		if response == "" || response == i18n.T(i18n.KeyDisclaimerYes) || response == "yes" {
@@ -1087,12 +1079,12 @@ func showDisclaimer(cfg *config.Config, ws *workspace.Workspace) {
 			if err := cfg.Save(); err != nil {
 				log.Warn("Cannot save disclaimer acceptance: %v", err)
 			}
-			fmt.Println()
+			io.Println()
 			return
 		}
 
 		if response == i18n.T(i18n.KeyDisclaimerNo) || response == "no" {
-			fmt.Println(i18n.T(i18n.KeyDisclaimerRefused))
+			io.Println(i18n.T(i18n.KeyDisclaimerRefused))
 			os.Exit(0)
 		}
 
@@ -1113,21 +1105,25 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 	log.Info("Single command mode: %s", input)
 
 	ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
+	io := ag.IO()
+	if io == nil {
+		io = agent.NewDefaultUserIO()
+	}
 
 	// Check if it's a direct system command
 	if isDirectCommand(input) {
 		// Direct system command
 		if cfg.LLM.ShowCommand {
-			fmt.Printf("$ %s\n", input)
+			io.Printf("$ %s\n", input)
 		}
 		output, err := ag.ExecuteCommandDirectly(input)
 		if err != nil {
-			fmt.Print(output)
-			fmt.Printf("%s Error: %v\n", ep.Error, err)
+			io.Print(output)
+			io.Printf("%s Error: %v\n", ep.Error, err)
 			os.Exit(1)
 		}
 		if output != "" {
-			fmt.Println(output)
+			io.Println(output)
 		}
 		return
 	}
@@ -1137,33 +1133,33 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 	_, err := ag.RunStream(ctx, input, func(eventType string, content string) {
 		switch eventType {
 		case "content_chunk":
-			fmt.Print(content)
+			io.Print(content)
 		case "thinking_chunk":
-			fmt.Print(content)
+			io.Print(content)
 		case "command":
-			fmt.Printf("%s%s\n", ep.CommandInput, content)
+			io.Printf("%s%s\n", ep.CommandInput, content)
 		case "output":
-			fmt.Println()
-			fmt.Println(ep.OutputTitle)
-			fmt.Println(ep.OutputSep)
-			fmt.Println(content)
-			fmt.Println(ep.OutputSep)
+			io.Println()
+			io.Println(ep.OutputTitle)
+			io.Println(ep.OutputSep)
+			io.Println(content)
+			io.Println(ep.OutputSep)
 		case "tool_call":
-			fmt.Printf("%s%s\n", ep.ToolCallInput, content)
+			io.Printf("%s%s\n", ep.ToolCallInput, content)
 		case "token_usage":
 			var prompt, completion, total int
 			if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
-				fmt.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
+				io.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
 			}
 		case "error":
-			fmt.Printf("%s%s\n", ep.Error, content)
+			io.Printf("%s%s\n", ep.Error, content)
 		case "done":
-			fmt.Println()
+			io.Println()
 		}
 	})
 
 	if err != nil {
-		fmt.Printf("%s Error: %v\n", ep.Error, err)
+		io.Printf("%s Error: %v\n", ep.Error, err)
 		os.Exit(1)
 	}
 }
