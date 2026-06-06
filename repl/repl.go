@@ -182,7 +182,7 @@ func (r *REPL) Run() error {
 		ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 		prompt := ep.UserInput
 		if r.cfg.LLM.VisionSupport {
-			prompt = "👀 " + prompt
+			prompt = ep.VisionUserInput
 		}
 
 		input, err := r.readLine(prompt)
