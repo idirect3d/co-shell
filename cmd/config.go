@@ -250,13 +250,14 @@ func cmdEntry(name, desc, usage string, handler func([]string) (string, error), 
 
 // runHandler runs a handler function and displays result/error.
 func runHandler(handler func([]string) (string, error), args []string) {
+	io := agent.DefaultIO()
 	result, err := handler(args)
 	if err != nil {
-		fmt.Printf("  ❌ %v\n", err)
+		io.Printf("  ❌ %v\n", err)
 		return
 	}
 	if result != "" {
-		fmt.Println(result)
+		io.Println(result)
 	}
 }
 
@@ -814,7 +815,7 @@ func (h *ConfigHandler) multimodalParams() []ConfigParam {
 			{Name: "list", Desc: "列出所有 MCP 服务器", Action: func(a []string) { runHandler(h.mcpHandler.Handle, []string{}) }},
 			{Name: "add", Desc: "添加 MCP 服务器", Args: "<name> <command> [args...]", Action: func(a []string) {
 				if len(a) < 2 {
-					fmt.Println("  用法: .mcp add <name> <command> [args...]")
+					agent.DefaultIO().Println("  用法: .mcp add <name> <command> [args...]")
 					return
 				}
 				runHandler(h.mcpHandler.Handle, append([]string{"add"}, a...))
@@ -1036,179 +1037,173 @@ func (h *ConfigHandler) confirmToolWizard() {
 
 // runWizard runs the interactive configuration wizard.
 func (h *ConfigHandler) runWizard() {
+	io := h.io()
 	groups := h.configGroups()
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyConfigWizardTitle))
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyConfigWizardIntro))
-	fmt.Println()
+	io.Println()
+	io.Println(i18n.T(i18n.KeyConfigWizardTitle))
+	io.Println()
+	io.Println(i18n.T(i18n.KeyConfigWizardIntro))
+	io.Println()
 	h.showGroupMenu(groups)
 }
 
 // showGroupMenu displays the top-level group selection menu.
 func (h *ConfigHandler) showGroupMenu(groups []ConfigGroup) {
+	io := h.io()
 	numWidth := len(strconv.Itoa(len(groups)))
 	fmtStr := fmt.Sprintf("  [%%%dd] %%s\n", numWidth)
 	for {
-		fmt.Println(i18n.T(i18n.KeyConfigGroupTitle))
+		io.Println(i18n.T(i18n.KeyConfigGroupTitle))
 		for i, g := range groups {
-			fmt.Printf(fmtStr, i+1, g.Name)
+			io.Printf(fmtStr, i+1, g.Name)
 		}
-		fmt.Println()
-		fmt.Printf("  选择分组 [1-%d]: [B] 返回上一步 [Q] 完全退出: ", len(groups))
+		io.Println()
+		io.Printf("  选择分组 [1-%d]: [B] 返回上一步 [Q] 完全退出: ", len(groups))
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
-			fmt.Println()
+			io.Println()
 			return
 		}
 		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
-			fmt.Println()
-			fmt.Println(i18n.T(i18n.KeyConfigExited))
+			io.Println()
+			io.Println(i18n.T(i18n.KeyConfigExited))
 			return
 		}
 		idx, err := strconv.Atoi(input)
 		if err != nil || idx < 1 || idx > len(groups) {
-			fmt.Println(i18n.T(i18n.KeyConfigInvalidChoice))
-			fmt.Println()
+			io.Println(i18n.T(i18n.KeyConfigInvalidChoice))
+			io.Println()
 			continue
 		}
-		fmt.Println()
+		io.Println()
 		h.showParamMenu(groups[idx-1])
-		fmt.Println()
+		io.Println()
 	}
 }
 
-// showParamMenu shows params in a group. If a command has SubCommands, shows them as numbered list.
+// showParamMenu shows params in a group.
 func (h *ConfigHandler) showParamMenu(group ConfigGroup) {
-	numWidth := len(strconv.Itoa(len(group.Params)))
-	paramFmt := fmt.Sprintf("  [%%%dd] %%s\n", numWidth)
-	descFmt := fmt.Sprintf("  [%%%dd] %%s  → %%s\n", numWidth)
-	cmdFmt := fmt.Sprintf("  [%%%dd] %%s...\n", numWidth)
+	io := h.io()
 	for {
-		fmt.Printf("── %s ────────────────────────────────\n", group.Name)
-		fmt.Println()
+		io.Printf("── %s ────────────────────────────────\n", group.Name)
+		io.Println()
 		for i, p := range group.Params {
 			if len(p.SubCommands) > 0 {
-				// .Xxxx command with sub-commands: show "name..." indicating next level
-				fmt.Printf(cmdFmt, i+1, p.Name)
+				io.Printf("  [%d] %s...\n", i+1, p.Name)
 			} else if p.Desc != "" {
-				// Action entry with description
-				fmt.Printf(descFmt, i+1, p.Name, p.Desc)
+				io.Printf("  [%d] %s  → %s\n", i+1, p.Name, p.Desc)
 			} else if p.CurrentValue != nil {
-				// Regular parameter: show description first, then value
 				val := p.CurrentValue()
-				fmt.Printf(paramFmt, i+1, p.Name)
-				fmt.Printf("         → 当前值: %s\n", val)
+				io.Printf("  [%d] %s\n", i+1, p.Name)
+				io.Printf("         → 当前值: %s\n", val)
 			} else {
-				fmt.Printf(paramFmt, i+1, p.Name)
+				io.Printf("  [%d] %s\n", i+1, p.Name)
 			}
 		}
-		fmt.Println()
-		fmt.Printf("  选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(group.Params))
+		io.Println()
+		io.Printf("  选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(group.Params))
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
-			fmt.Println()
+			io.Println()
 			return
 		}
 		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
-			fmt.Println()
-			fmt.Println(i18n.T(i18n.KeyConfigExited))
-			fmt.Println()
+			io.Println()
+			io.Println(i18n.T(i18n.KeyConfigExited))
+			io.Println()
 			return
 		}
 		idx, err := strconv.Atoi(input)
 		if err != nil || idx < 1 || idx > len(group.Params) {
-			fmt.Println(i18n.T(i18n.KeyConfigInvalidChoice))
-			fmt.Println()
+			io.Println(i18n.T(i18n.KeyConfigInvalidChoice))
+			io.Println()
 			continue
 		}
 
 		p := group.Params[idx-1]
 
-		// If it has sub-commands, show sub-command menu
 		if len(p.SubCommands) > 0 {
 			h.showSubCommandMenu(p)
-			fmt.Println()
+			io.Println()
 			continue
 		}
 
-		// If it's an action entry without sub-commands, run it
 		if p.Action != nil {
 			p.Action(nil)
-			fmt.Println()
+			io.Println()
 			continue
 		}
 
-		// Otherwise, show value input
 		h.showValueInput(p)
-		fmt.Println()
+		io.Println()
 	}
 }
 
 // showSubCommandMenu shows sub-commands as a numbered list.
 func (h *ConfigHandler) showSubCommandMenu(param ConfigParam) {
+	io := h.io()
 	numWidth := len(strconv.Itoa(len(param.SubCommands)))
 	cmdFmt := fmt.Sprintf("  [%%%dd] %%s  → %%s\n", numWidth)
 	cmdArgsFmt := fmt.Sprintf("  [%%%dd] %%s %%s  → %%s\n", numWidth)
 	for {
-		fmt.Printf("── %s ────────────────────────────────\n", param.Name)
-		fmt.Println()
+		io.Printf("── %s ────────────────────────────────\n", param.Name)
+		io.Println()
 		for i, sc := range param.SubCommands {
 			if sc.Args != "" {
-				fmt.Printf(cmdArgsFmt, i+1, sc.Name, sc.Args, sc.Desc)
+				io.Printf(cmdArgsFmt, i+1, sc.Name, sc.Args, sc.Desc)
 			} else {
-				fmt.Printf(cmdFmt, i+1, sc.Name, sc.Desc)
+				io.Printf(cmdFmt, i+1, sc.Name, sc.Desc)
 			}
 		}
-		fmt.Println()
-		fmt.Printf("  选择子命令 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(param.SubCommands))
+		io.Println()
+		io.Printf("  选择子命令 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(param.SubCommands))
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
-			fmt.Println()
+			io.Println()
 			return
 		}
 		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
-			fmt.Println()
-			fmt.Println(i18n.T(i18n.KeyConfigExited))
-			fmt.Println()
+			io.Println()
+			io.Println(i18n.T(i18n.KeyConfigExited))
+			io.Println()
 			return
 		}
 		idx, err := strconv.Atoi(input)
 		if err != nil || idx < 1 || idx > len(param.SubCommands) {
-			fmt.Println(i18n.T(i18n.KeyConfigInvalidChoice))
-			fmt.Println()
+			io.Println(i18n.T(i18n.KeyConfigInvalidChoice))
+			io.Println()
 			continue
 		}
 
 		sc := param.SubCommands[idx-1]
-		fmt.Println()
+		io.Println()
 
 		// If sub-command needs args and has Args field, prompt for input
 		if sc.Args != "" {
-			fmt.Printf("  用法: %s %s\n", sc.Name, sc.Args)
+			io.Printf("  用法: %s %s\n", sc.Name, sc.Args)
 			if !strings.HasPrefix(sc.Args, "[") {
 				// Required args: prompt for input
-				fmt.Print("  请输入参数: ")
+				io.Print("  请输入参数: ")
 				argInput := h.readLine()
 				if argInput != "" {
 					sc.Action(strings.Fields(argInput))
 				}
-				fmt.Println()
+				io.Println()
 				continue
 			}
 		}
 		// No args needed or optional args: just run
 		sc.Action(nil)
-		fmt.Println()
+		io.Println()
 	}
 }
 
 // showValueInput prompts the user to enter a value for a parameter.
 func (h *ConfigHandler) showValueInput(param ConfigParam) {
-	// Calculate the max width based on the number of options for alignment
+	io := h.io()
 	numWidth := 2
 	if len(param.Options) > 0 {
 		numWidth = len(strconv.Itoa(len(param.Options)))
@@ -1216,34 +1211,34 @@ func (h *ConfigHandler) showValueInput(param ConfigParam) {
 	optFmt := fmt.Sprintf("  %%s[%%%dd] %%s\n", numWidth)
 	for {
 		current := param.CurrentValue()
-		fmt.Printf(i18n.T(i18n.KeyConfigValueLabParam)+"\n", param.Name)
-		fmt.Printf(i18n.T(i18n.KeyConfigValueLabCurrent)+"\n", current)
+		io.Printf(i18n.T(i18n.KeyConfigValueLabParam)+"\n", param.Name)
+		io.Printf(i18n.T(i18n.KeyConfigValueLabCurrent)+"\n", current)
 
 		if len(param.Options) > 0 {
-			fmt.Println()
+			io.Println()
 			for i, opt := range param.Options {
 				mark := "  "
 				if opt == current {
 					mark = "> "
 				}
-				fmt.Printf(optFmt, mark, i+1, opt)
+				io.Printf(optFmt, mark, i+1, opt)
 			}
-			fmt.Println()
-			fmt.Print("  输入编号或直接输入值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
+			io.Println()
+			io.Print("  输入编号或直接输入值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
 		} else {
-			fmt.Print("  输入新值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
+			io.Print("  输入新值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
 		}
 
 		input := h.readLine()
 		if input == "" {
-			fmt.Println(i18n.T(i18n.KeyConfigValueUnchanged))
+			io.Println(i18n.T(i18n.KeyConfigValueUnchanged))
 			return
 		}
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
 			return
 		}
 		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
-			fmt.Println(i18n.T(i18n.KeyConfigExited))
+			io.Println(i18n.T(i18n.KeyConfigExited))
 			return
 		}
 		if strings.EqualFold(input, "D") && param.ResetValue != nil {
@@ -1251,7 +1246,7 @@ func (h *ConfigHandler) showValueInput(param ConfigParam) {
 			if saveErr := h.cfg.Save(); saveErr != nil {
 				log.Warn("Failed to save config: %v", saveErr)
 			}
-			fmt.Printf("  ✅ %s\n", msg)
+			io.Printf("  ✅ %s\n", msg)
 			return
 		}
 
@@ -1263,13 +1258,13 @@ func (h *ConfigHandler) showValueInput(param ConfigParam) {
 
 		msg, err := param.SetValue(input)
 		if err != nil {
-			fmt.Printf("  ❌ %v\n", err)
+			io.Printf("  ❌ %v\n", err)
 			continue
 		}
 		if saveErr := h.cfg.Save(); saveErr != nil {
 			log.Warn("Failed to save config: %v", saveErr)
 		}
-		fmt.Printf("  ✅ %s\n", msg)
+		io.Printf("  ✅ %s\n", msg)
 		return
 	}
 }

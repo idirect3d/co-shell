@@ -27,7 +27,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -283,7 +282,7 @@ func parseFlags() cliFlags {
 
 	// Custom usage message
 	flag.Usage = func() {
-		fmt.Fprint(os.Stderr, buildUsage(version))
+		agent.NewDefaultUserIO().ErrPrintf("%s", buildUsage(version))
 	}
 
 	flag.Parse()
@@ -298,6 +297,7 @@ func parseFlags() cliFlags {
 
 func main() {
 	flags := parseFlags()
+	io := agent.NewDefaultUserIO()
 
 	// Initialize i18n before any user-facing output
 	i18n.Init(flags.lang)
@@ -310,7 +310,6 @@ func main() {
 
 	// Handle --version
 	if flags.showVersion {
-		// Try to load config to check vision support (without creating workspace dirs)
 		visionIndicator := ""
 		configPath := flags.configPath
 		if configPath == "" {
@@ -333,55 +332,48 @@ func main() {
 				visionIndicator = " 👀"
 			}
 		}
-		fmt.Printf("co-shell v%s [BUILD-%s]%s\n", version, build, visionIndicator)
+		io.Printf("co-shell v%s [BUILD-%s]%s\n", version, build, visionIndicator)
 		os.Exit(0)
 	}
 
-	// Initialize workspace
 	ws, err := workspace.New(flags.workspacePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: cannot initialize workspace: %v\n", err)
+		io.ErrPrintf("Error: cannot initialize workspace: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Handle --init-capabilities: generate default CAPABILITIES.md in workspace root
 	if flags.initCapabilities {
-		ep := config.GetEmojiPrefixes(true) // default to enabled for CLI output
+		ep := config.GetEmojiPrefixes(true)
 		capPath := filepath.Join(ws.Root(), "CAPABILITIES.md")
 		if _, err := os.Stat(capPath); err == nil {
-			fmt.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, capPath)
+			io.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, capPath)
 			os.Exit(0)
 		}
 		content := i18n.T(i18n.KeySystemPromptCapabilities)
 		if err := os.WriteFile(capPath, []byte(content), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", capPath, err)
+			io.ErrPrintf("Error: cannot write %s: %v\n", capPath, err)
 			os.Exit(1)
 		}
-		fmt.Printf("%s 已生成默认 CAPABILITIES.md: %s\n", ep.Success, capPath)
+		io.Printf("%s 已生成默认 CAPABILITIES.md: %s\n", ep.Success, capPath)
 		os.Exit(0)
 	}
 
-	// Handle --init-rules: generate default RULES.md in workspace root
 	if flags.initRules {
-		ep := config.GetEmojiPrefixes(true) // default to enabled for CLI output
+		ep := config.GetEmojiPrefixes(true)
 		rulesPath := filepath.Join(ws.Root(), "RULES.md")
 		if _, err := os.Stat(rulesPath); err == nil {
-			fmt.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, rulesPath)
+			io.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, rulesPath)
 			os.Exit(0)
 		}
 		content := i18n.T(i18n.KeySystemPromptRules)
 		if err := os.WriteFile(rulesPath, []byte(content), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot write %s: %v\n", rulesPath, err)
+			io.ErrPrintf("Error: cannot write %s: %v\n", rulesPath, err)
 			os.Exit(1)
 		}
-		fmt.Printf("%s 已生成默认 RULES.md: %s\n", ep.Success, rulesPath)
+		io.Printf("%s 已生成默认 RULES.md: %s\n", ep.Success, rulesPath)
 		os.Exit(0)
 	}
 
-	// Load configuration with priority:
-	// 1. -c/--config <path> (highest priority)
-	// 2. CO_SHELL_CONFIG_PATH environment variable (inherited from parent agent)
-	// 3. {workspace}/config.json (default)
 	var cfg *config.Config
 	var configPath string
 	if flags.configPath != "" {
@@ -392,7 +384,7 @@ func main() {
 		cfg, configPath, err = config.LoadWithPath(ws)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: cannot load config: %v\n", err)
+		io.ErrPrintf("Warning: cannot load config: %v\n", err)
 		cfg = config.DefaultConfig()
 	}
 	if configPath != "" {
@@ -412,7 +404,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LogEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --log value %q, use on|off\n", flags.log)
+			io.ErrPrintf("Warning: invalid --log value %q, use on|off\n", flags.log)
 		}
 	}
 
@@ -440,7 +432,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLlmThinking = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-llm-thinking value %q, use on|off\n", flags.showLlmThinking)
+			io.ErrPrintf("Warning: invalid --show-llm-thinking value %q, use on|off\n", flags.showLlmThinking)
 		}
 	}
 
@@ -451,7 +443,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowCommand = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-command value %q, use on|off\n", flags.showCommand)
+			io.ErrPrintf("Warning: invalid --show-command value %q, use on|off\n", flags.showCommand)
 		}
 	}
 	if flags.showLlmContent != "" {
@@ -461,7 +453,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLlmContent = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-llm-content value %q, use on|off\n", flags.showLlmContent)
+			io.ErrPrintf("Warning: invalid --show-llm-content value %q, use on|off\n", flags.showLlmContent)
 		}
 	}
 	if flags.showTool != "" {
@@ -471,7 +463,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowTool = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool value %q, use on|off\n", flags.showTool)
+			io.ErrPrintf("Warning: invalid --show-tool value %q, use on|off\n", flags.showTool)
 		}
 	}
 	if flags.showToolInput != "" {
@@ -481,7 +473,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowToolInput = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool-input value %q, use on|off\n", flags.showToolInput)
+			io.ErrPrintf("Warning: invalid --show-tool-input value %q, use on|off\n", flags.showToolInput)
 		}
 	}
 	if flags.showToolOutput != "" {
@@ -1070,16 +1062,16 @@ func main() {
 // If accepted, it saves the config with DisclaimerAccepted=true.
 // If declined, it exits the program.
 func showDisclaimer(cfg *config.Config, ws *workspace.Workspace) {
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyDisclaimerTitle))
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyDisclaimerBody))
-	fmt.Println()
+	io := agent.NewDefaultUserIO()
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerBody))
+	io.Println()
 
-	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print(i18n.T(i18n.KeyDisclaimerPrompt))
-		response, _ := reader.ReadString('\n')
+		io.Print(i18n.T(i18n.KeyDisclaimerPrompt))
+		response, _ := io.ReadLine()
 		response = strings.TrimSpace(strings.ToLower(response))
 
 		if response == "" || response == i18n.T(i18n.KeyDisclaimerYes) || response == "yes" {
