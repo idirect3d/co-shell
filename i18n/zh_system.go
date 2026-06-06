@@ -240,7 +240,7 @@ Usage:
 </list_code_definition_names>`
 
 	zhMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
-Description: 使用 search/replace 块替换文件中的内容。接受 replacements 数组，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
+Description: 使用 search/replace 参数替换文件中的内容。接受 replacements 数组，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
 Parameters:
 - path (必需) 要修改的文件路径（绝对路径或相对于当前工作目录）
 - replacements (必需) 替换对象数组，每个对象包含 search 和 replace 字符串字段，以及可选的 start_line 数字。所有替换按顺序依次执行。
@@ -907,10 +907,11 @@ EDITING FILES
 # 工作流提示
 
 1. 编辑前，评估修改范围并决定使用哪个工具。
-2. 对于精确编辑，使用精心构造的 SEARCH/REPLACE 块应用 replace_in_file。如果需要多个修改，可以在单个 replace_in_file 调用中堆叠多个 SEARCH/REPLACE 块。
-3. 重要：当确定需要对同一文件进行多处修改时，优先使用单个 replace_in_file 调用包含多个 SEARCH/REPLACE 块。不要对同一文件进行多次连续的 replace_in_file 调用。
-4. 对于重大改写或初始文件创建，依赖 write_to_file。
-5. 使用 write_to_file 或 replace_in_file 编辑文件后，系统将提供修改后文件的最终状态。使用此更新后的内容作为后续 SEARCH/REPLACE 操作的参考点，因为它反映了任何自动格式化或用户应用的修改。
+2. 对于精确编辑，使用精心构造的 search/replace 参数应用 replace_in_file。如果需要多个修改，可以在单个 replace_in_file 调用中堆叠多个 search/replace 参数。
+3. 重要：当确定需要对同一文件进行多处修改时，优先使用单个 replace_in_file 调用包含多个 search/replace 参数。不要对同一文件进行多次连续的 replace_in_file 调用。
+4. **插入内容时应使用 start_line 精确定位**：如果需要在一段内容的开头前、末尾后或其他特定位置插入新内容，应使用 start_line 参数指定目标行号。例如，在函数定义的开始处插入新行时，将 start_line 设为该函数定义的首行行号。这样可以避免 search 文本因格式差异（如缩进、空格）匹配失败，或匹配到文件中其他相似位置。
+5. 对于必须重写或初始文件创建，应使用 write_to_file。
+6. 使用 write_to_file 或 replace_in_file 编辑文件后，系统将提供修改后文件的最终状态。使用此更新后的内容作为后续 search/replace 操作的参考点，因为它反映了任何自动格式化或用户应用的修改。
 通过深思熟虑地在 write_to_file 和 replace_in_file 之间进行选择，可以使文件编辑过程更顺畅、更安全、更高效。
 
 ====
