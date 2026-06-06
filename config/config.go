@@ -320,19 +320,20 @@ type LLMConfig struct {
 // EmojiPrefixes defines the emoji prefixes for different output roles.
 // When emoji is enabled, uses emoji symbols; when disabled, uses i18n text labels.
 type EmojiPrefixes struct {
-	UserInput      string // 👤 >  or i18n key "emoji_prefix_user"
-	LlmOutput      string // 🐚 >  or i18n key "emoji_prefix_assistant"
-	ToolCallInput  string // ⚙️ <  or i18n key "emoji_prefix_tool_input"
-	ToolCallOutput string // ⚙️ >  or i18n key "emoji_prefix_tool_output"
-	CommandInput   string // 🔴 <  or i18n key "emoji_prefix_cmd_input"
-	CommandOutput  string // 🔴 >  or i18n key "emoji_prefix_cmd_output"
-	Info           string // ℹ️   or i18n key "emoji_prefix_info"
-	Error          string // ❌   or i18n key "emoji_prefix_error"
-	Warning        string // ⚠️   or i18n key "emoji_prefix_warning"
-	Success        string // ✅   or i18n key "emoji_prefix_success"
-	Thinking       string // 💬   or i18n key "emoji_prefix_thinking"
-	OutputTitle    string // 📋   or i18n key "emoji_prefix_output_title"
-	OutputSep      string // ───  or i18n key "emoji_prefix_output_sep"
+	UserInput       string // 👤 >  or i18n key "emoji_prefix_user"
+	VisionUserInput string // 👀 >  or i18n key "emoji_prefix_vision_user" (replaces UserInput when vision is supported)
+	LlmOutput       string // 🐚 >  or i18n key "emoji_prefix_assistant"
+	ToolCallInput   string // ⚙️ <  or i18n key "emoji_prefix_tool_input"
+	ToolCallOutput  string // ⚙️ >  or i18n key "emoji_prefix_tool_output"
+	CommandInput    string // 🔴 <  or i18n key "emoji_prefix_cmd_input"
+	CommandOutput   string // 🔴 >  or i18n key "emoji_prefix_cmd_output"
+	Info            string // ℹ️   or i18n key "emoji_prefix_info"
+	Error           string // ❌   or i18n key "emoji_prefix_error"
+	Warning         string // ⚠️   or i18n key "emoji_prefix_warning"
+	Success         string // ✅   or i18n key "emoji_prefix_success"
+	Thinking        string // 💬   or i18n key "emoji_prefix_thinking"
+	OutputTitle     string // 📋   or i18n key "emoji_prefix_output_title"
+	OutputSep       string // ───  or i18n key "emoji_prefix_output_sep"
 }
 
 // GetEmojiPrefixes returns the emoji prefixes based on whether emoji is enabled.
@@ -341,35 +342,37 @@ type EmojiPrefixes struct {
 func GetEmojiPrefixes(enabled bool) EmojiPrefixes {
 	if !enabled {
 		return EmojiPrefixes{
-			UserInput:      "[user]> ",
-			LlmOutput:      "[assistant]> ",
-			ToolCallInput:  "[tool]< ",
-			ToolCallOutput: "[tool]> ",
-			CommandInput:   "[cmd]< ",
-			CommandOutput:  "[cmd]> ",
-			Info:           "[info] ",
-			Error:          "[error] ",
-			Warning:        "[warn] ",
-			Success:        "[ok] ",
-			Thinking:       "[think] ",
-			OutputTitle:    "[output] Command Output:",
-			OutputSep:      "────────────────────────────────────────────",
+			UserInput:       "[user]> ",
+			VisionUserInput: "[vision]> ",
+			LlmOutput:       "[assistant]> ",
+			ToolCallInput:   "[tool]< ",
+			ToolCallOutput:  "[tool]> ",
+			CommandInput:    "[cmd]< ",
+			CommandOutput:   "[cmd]> ",
+			Info:            "[info] ",
+			Error:           "[error] ",
+			Warning:         "[warn] ",
+			Success:         "[ok] ",
+			Thinking:        "[think] ",
+			OutputTitle:     "[output] Command Output:",
+			OutputSep:       "────────────────────────────────────────────",
 		}
 	}
 	return EmojiPrefixes{
-		UserInput:      "[👤]> ",
-		LlmOutput:      "[🐚]> ",
-		ToolCallInput:  "[⚙️]< ",
-		ToolCallOutput: "[⚙️]> ",
-		CommandInput:   "[🔴]< ",
-		CommandOutput:  "[🔴]> ",
-		Info:           "[ℹ️] ",
-		Error:          "[❌] ",
-		Warning:        "[⚠️] ",
-		Success:        "[✅] ",
-		Thinking:       "[💬] ",
-		OutputTitle:    "[📋] Command Output:",
-		OutputSep:      "────────────────────────────────────────────",
+		UserInput:       "[👤]> ",
+		VisionUserInput: "[👀]> ",
+		LlmOutput:       "[🐚]> ",
+		ToolCallInput:   "[⚙️]< ",
+		ToolCallOutput:  "[⚙️]> ",
+		CommandInput:    "[🔴]< ",
+		CommandOutput:   "[🔴]> ",
+		Info:            "[ℹ️] ",
+		Error:           "[❌] ",
+		Warning:         "[⚠️] ",
+		Success:         "[✅] ",
+		Thinking:        "[💬] ",
+		OutputTitle:     "[📋] Command Output:",
+		OutputSep:       "────────────────────────────────────────────",
 	}
 }
 
