@@ -483,7 +483,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowToolOutput = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-tool-output value %q, use on|off\n", flags.showToolOutput)
+			io.ErrPrintf("Warning: invalid --show-tool-output value %q, use on|off\n", flags.showToolOutput)
 		}
 	}
 	if flags.showCommandOutput != "" {
@@ -493,7 +493,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowCommandOutput = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-command-output value %q, use on|off\n", flags.showCommandOutput)
+			io.ErrPrintf("Warning: invalid --show-command-output value %q, use on|off\n", flags.showCommandOutput)
 		}
 	}
 
@@ -507,14 +507,14 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ToolModes["default"] = "auto"
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --confirm-tool value %q, use on|off\n", flags.confirmTool)
+			io.ErrPrintf("Warning: invalid --confirm-tool value %q, use on|off\n", flags.confirmTool)
 		}
 	}
 	if flags.resultMode != "" {
 		if mode, ok := config.ParseResultMode(flags.resultMode); ok {
 			cfg.LLM.ResultMode = int(mode)
 		} else {
-			fmt.Fprintf(os.Stderr, "Warning: invalid --result-mode value %q, use minimal/explain/analyze/free\n", flags.resultMode)
+			io.ErrPrintf("Warning: invalid --result-mode value %q, use minimal/explain/analyze/free\n", flags.resultMode)
 		}
 	}
 
@@ -531,7 +531,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.VisionSupport = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --vision value %q, use on|off\n", flags.vision)
+			io.ErrPrintf("Warning: invalid --vision value %q, use on|off\n", flags.vision)
 		}
 	}
 
@@ -543,7 +543,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.MemoryEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --memory-enabled value %q, use on|off\n", flags.memoryEnabled)
+			io.ErrPrintf("Warning: invalid --memory-enabled value %q, use on|off\n", flags.memoryEnabled)
 		}
 	}
 
@@ -555,7 +555,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.PlanEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --plan-enabled value %q, use on|off\n", flags.planEnabled)
+			io.ErrPrintf("Warning: invalid --plan-enabled value %q, use on|off\n", flags.planEnabled)
 		}
 	}
 
@@ -567,7 +567,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.SubAgentEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --subagent-enabled value %q, use on|off\n", flags.subAgentEnabled)
+			io.ErrPrintf("Warning: invalid --subagent-enabled value %q, use on|off\n", flags.subAgentEnabled)
 		}
 	}
 
@@ -579,7 +579,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ToolCallEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --toolcall-enabled value %q, use on|off\n", flags.toolCallEnabled)
+			io.ErrPrintf("Warning: invalid --toolcall-enabled value %q, use on|off\n", flags.toolCallEnabled)
 		}
 	}
 
@@ -589,7 +589,7 @@ func main() {
 		case "openai", "xml":
 			cfg.LLM.ToolCallMode = flags.toolCallMode
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --toolcall-mode value %q, use openai|xml\n", flags.toolCallMode)
+			io.ErrPrintf("Warning: invalid --toolcall-mode value %q, use openai|xml\n", flags.toolCallMode)
 		}
 	}
 
@@ -621,7 +621,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.EmojiEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --emoji-enabled value %q, use on|off\n", flags.emojiEnabled)
+			io.ErrPrintf("Warning: invalid --emoji-enabled value %q, use on|off\n", flags.emojiEnabled)
 		}
 	}
 
@@ -631,7 +631,7 @@ func main() {
 		case "on", "off", "none":
 			cfg.LLM.TokenUsage = flags.tokenUsage
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --token-usage value %q, use on|off|none\n", flags.tokenUsage)
+			io.ErrPrintf("Warning: invalid --token-usage value %q, use on|off|none\n", flags.tokenUsage)
 		}
 	}
 
@@ -649,7 +649,7 @@ func main() {
 			}
 			parts := strings.SplitN(pair, "=", 2)
 			if len(parts) != 2 {
-				fmt.Fprintf(os.Stderr, "Warning: invalid --body-add format %q, use key=value\n", pair)
+				io.ErrPrintf("Warning: invalid --body-add format %q, use key=value\n", pair)
 				continue
 			}
 			key := strings.TrimSpace(parts[0])
@@ -669,7 +669,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.ShowLogo = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --show-logo value %q, use on|off\n", flags.showLogo)
+			io.ErrPrintf("Warning: invalid --show-logo value %q, use on|off\n", flags.showLogo)
 		}
 	} else if flags.command != "" {
 		// In single command mode, hide logo by default unless explicitly enabled
@@ -690,7 +690,7 @@ func main() {
 		case "window", "task", "smart":
 			cfg.LLM.ContextStartMode = flags.contextStart
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --context-start value %q, use window/task/smart\n", flags.contextStart)
+			io.ErrPrintf("Warning: invalid --context-start value %q, use window/task/smart\n", flags.contextStart)
 		}
 	}
 
@@ -702,7 +702,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.LoopDetectEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --loop-detect-enabled value %q, use on|off\n", flags.loopDetectEnabled)
+			io.ErrPrintf("Warning: invalid --loop-detect-enabled value %q, use on|off\n", flags.loopDetectEnabled)
 		}
 	}
 
@@ -714,7 +714,7 @@ func main() {
 		case "off", "0", "false", "no":
 			cfg.LLM.DedupEnabled = false
 		default:
-			fmt.Fprintf(os.Stderr, "Warning: invalid --dedup-enabled value %q, use on|off\n", flags.dedupEnabled)
+			io.ErrPrintf("Warning: invalid --dedup-enabled value %q, use on|off\n", flags.dedupEnabled)
 		}
 	}
 	if flags.dedupFeatureRatio >= 0 {
@@ -735,7 +735,7 @@ func main() {
 
 	// Initialize logger with workspace
 	if err := log.Init(cfg.LogEnabled, ws); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: cannot initialize logger: %v\n", err)
+		io.ErrPrintf("Warning: cannot initialize logger: %v\n", err)
 	}
 	defer log.Close()
 
@@ -744,7 +744,7 @@ func main() {
 		if level, ok := log.ParseLogLevel(flags.logLevel); ok {
 			log.SetLevel(level)
 		} else {
-			fmt.Fprintf(os.Stderr, "Warning: invalid --log-level value %q, use debug/info/warn/error/off\n", flags.logLevel)
+			io.ErrPrintf("Warning: invalid --log-level value %q, use debug/info/warn/error/off\n", flags.logLevel)
 		}
 	} else if cfg.LogLevel != "" {
 		if level, ok := log.ParseLogLevel(cfg.LogLevel); ok {
@@ -767,7 +767,7 @@ func main() {
 	s, err := store.NewStore(ws)
 	if err != nil {
 		log.Error("Cannot initialize store: %v", err)
-		fmt.Fprintf(os.Stderr, "Error: cannot initialize store: %v\n", err)
+		io.ErrPrintf("Error: cannot initialize store: %v\n", err)
 		os.Exit(1)
 	}
 	defer s.Close()
@@ -798,7 +798,7 @@ func main() {
 		if serverCfg.Enabled {
 			if err := mcpMgr.AddServer(serverCfg.Name, serverCfg.Command, serverCfg.Args); err != nil {
 				log.Warn("Cannot connect to MCP server %q: %v", serverCfg.Name, err)
-				fmt.Fprintf(os.Stderr, "Warning: cannot connect to MCP server %q: %v\n", serverCfg.Name, err)
+				io.ErrPrintf("Warning: cannot connect to MCP server %q: %v\n", serverCfg.Name, err)
 			} else {
 				log.Info("Connected to MCP server: %s", serverCfg.Name)
 			}
