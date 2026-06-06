@@ -545,7 +545,8 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	// Test endpoint connectivity
-	fmt.Print("\n  🔍 正在测试端点连通性... ")
+	io := h.io()
+	io.Print("\n  🔍 正在测试端点连通性... ")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	client := llm.NewClient(endpoint, "", "test", 0, 0, 10)
 	models, err := client.ListModels(ctx)
@@ -553,18 +554,15 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	if err != nil {
 		// HTTP error means connectivity is OK, no need to prompt
 		if !strings.Contains(err.Error(), "status") && !strings.Contains(err.Error(), "HTTP") {
-			fmt.Printf("❌ 连接失败: %v\n", err)
-			fmt.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
-			if !h.scanner.Scan() {
-				return nil, fmt.Errorf("向导已取消")
-			}
-			retry := strings.TrimSpace(strings.ToLower(h.scanner.Text()))
+			io.Printf("❌ 连接失败: %v\n", err)
+			io.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
+			retry := strings.TrimSpace(strings.ToLower(h.readLine()))
 			if retry != "y" && retry != "yes" {
 				return nil, fmt.Errorf("端点连接测试未通过，请检查端点后重试")
 			}
 		}
 	} else {
-		fmt.Printf("✅ 连接成功 (发现 %d 个模型)\n", len(models))
+		io.Printf("✅ 连接成功 (发现 %d 个模型)\n", len(models))
 	}
 
 	// Step 2: Enter API key
@@ -1087,6 +1085,7 @@ func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 // Returns the selected model ID, or an error if cancelled.
 // If there are no models configured, returns an error.
 func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
+	io := h.io()
 	models := h.cfg.Models
 	if len(models) == 0 {
 		return "", fmt.Errorf("未配置任何模型")
@@ -1103,7 +1102,7 @@ func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
 		}
 	}
 
-	fmt.Printf("\n%s:\n\n", prompt)
+	io.Printf("\n%s:\n\n", prompt)
 	for i, m := range sorted {
 		status := "⬜"
 		if m.Enabled {
@@ -1120,20 +1119,16 @@ func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
 			capStr = append(capStr, "💭")
 		}
 		capsDisplay := strings.Join(capStr, "")
-		fmt.Printf("  [%d] %s %s [%s][%s:%s]",
+		io.Printf("  [%d] %s %s [%s][%s:%s]",
 			i+1, status, m.ID, m.Provider, m.Endpoint, m.Model)
 		if capsDisplay != "" {
-			fmt.Printf("[%s]", capsDisplay)
+			io.Printf("[%s]", capsDisplay)
 		}
-		fmt.Printf(" (优先级: %d)\n", m.Priority)
+		io.Printf(" (优先级: %d)\n", m.Priority)
 	}
-	fmt.Print("\n  请选择 (输入序号, 0 取消): ")
+	io.Print("\n  请选择 (输入序号, 0 取消): ")
 
-	if !h.scanner.Scan() {
-		return "", fmt.Errorf("已取消")
-	}
-	input := strings.TrimSpace(h.scanner.Text())
-
+	input := h.readLine()
 	if input == "" || input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" {
 		return "", fmt.Errorf("已取消")
 	}
@@ -1387,11 +1382,8 @@ func (h *ModelHandler) setPriority(args []string) (string, error) {
 			return "", err
 		}
 		// Prompt for priority value
-		fmt.Print("请输入优先级 (数字): ")
-		if !h.scanner.Scan() {
-			return "", fmt.Errorf("已取消")
-		}
-		priorityStr := strings.TrimSpace(h.scanner.Text())
+		h.io().Print("请输入优先级 (数字): ")
+		priorityStr := h.readLine()
 		if priorityStr == "" {
 			return "", fmt.Errorf("已取消")
 		}
