@@ -127,3 +127,9 @@ func GetIO(a *Agent) UserIO {
 	}
 	return NewDefaultUserIO()
 }
+
+// DefaultIO returns the default UserIO implementation (os.Stdout/os.Stdin).
+// Use this in static package-level functions that don't have access to an Agent.
+func DefaultIO() UserIO {
+	return NewDefaultUserIO()
+}
