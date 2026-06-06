@@ -683,6 +683,23 @@ Critical rules:
 		Callback: a.adjustContextStartTool,
 	})
 
+	// Add evaluate_expression tool (always available)
+	tools = append(tools, llm.Tool{
+		Name:        "evaluate_expression",
+		Description: "Evaluate a mathematical expression and return the exact result. Supports: basic arithmetic (+, -, *, /, %), exponentiation (^), parentheses for grouping, trigonometric functions (sin, cos, tan, asin, acos, atan), logarithms (log=base10, ln=natural), square root (sqrt), absolute value (abs), rounding (ceil, floor, round), and constants (pi, e). All trigonometric functions use radians. Use this for precise calculations instead of relying on Python or shell commands.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"expression": map[string]interface{}{
+					"type":        "string",
+					"description": "The mathematical expression to evaluate. Examples: '3 + 4 * 2', 'sin(pi/2)', '2 ^ 10', 'sqrt(144)', 'log(100) + ln(e)', '45 * (1 + 0.05) ^ 10', 'abs(-5) + round(3.7)'",
+				},
+			},
+			"required": []string{"expression"},
+		},
+		Callback: a.evaluateExpressionTool,
+	})
+
 	// Add attempt_completion tool (always available)
 	tools = append(tools, llm.Tool{
 		Name: "attempt_completion",

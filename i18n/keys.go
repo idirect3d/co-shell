@@ -715,6 +715,7 @@ const (
 	KeyToolUsageAskFollowupQuestion = "tool_usage_ask_followup_question"
 	KeyToolUsageAdjustContextStart  = "tool_usage_adjust_context_start"
 	KeyToolUsageAttemptCompletion   = "tool_usage_attempt_completion"
+	KeyToolUsageEvaluateExpression  = "tool_usage_evaluate_expression"
 
 	// Shell session tool usage examples (XML mode)
 	KeyToolUsageShellStart     = "tool_usage_shell_start"
