@@ -27,7 +27,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -1070,16 +1069,16 @@ func main() {
 // If accepted, it saves the config with DisclaimerAccepted=true.
 // If declined, it exits the program.
 func showDisclaimer(cfg *config.Config, ws *workspace.Workspace) {
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyDisclaimerTitle))
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyDisclaimerBody))
-	fmt.Println()
+	io := agent.NewDefaultUserIO()
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerBody))
+	io.Println()
 
-	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print(i18n.T(i18n.KeyDisclaimerPrompt))
-		response, _ := reader.ReadString('\n')
+		io.Print(i18n.T(i18n.KeyDisclaimerPrompt))
+		response, _ := io.ReadLine()
 		response = strings.TrimSpace(strings.ToLower(response))
 
 		if response == "" || response == i18n.T(i18n.KeyDisclaimerYes) || response == "yes" {
