@@ -230,17 +230,18 @@ func cmdEntry(name, desc, usage string, handler func([]string) (string, error), 
 	} else {
 		// Simple action: call handler directly or show usage
 		p.Action = func(args []string) {
+			io := agent.DefaultIO()
 			if handler != nil {
 				result, err := handler(args)
 				if err != nil {
-					fmt.Printf("  ❌ %v\n", err)
+					io.Printf("  ❌ %v\n", err)
 					return
 				}
 				if result != "" {
-					fmt.Println(result)
+					io.Println(result)
 				}
 			} else if usage != "" {
-				fmt.Printf("  用法: %s %s\n", name, usage)
+				io.Printf("  用法: %s %s\n", name, usage)
 			}
 		}
 	}
