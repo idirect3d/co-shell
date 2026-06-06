@@ -28,7 +28,11 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/idirect3d/co-shell/log"
 )
@@ -78,7 +82,8 @@ func (a *Agent) browserNavigateTool(ctx context.Context, args map[string]interfa
 	return fmt.Sprintf("已导航到页面:\nURL: %s\n标题: %s\n\n现在你可以使用 browser_screenshot 查看页面内容，或使用 browser_get_interactive_elements 查看可交互元素。", currentURL, title), nil
 }
 
-// browserScreenshotTool captures a screenshot and caches it for multimodal analysis.
+// browserScreenshotTool captures a screenshot, saves it to ./screenshot/,
+// and automatically loads it into image cache if the model supports vision.
 func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if err := a.ensureBrowserReady(ctx); err != nil {
 		return "", err
@@ -103,14 +108,46 @@ func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]inter
 	currentURL, _ := cdp.GetCurrentURL(ctx)
 	title, _ := cdp.GetPageTitle(ctx)
 
+	// Decode base64 and save to ./screenshot/
+	screenshotBytes, err := base64.StdEncoding.DecodeString(screenshotData)
+	if err != nil {
+		return "", fmt.Errorf("cannot decode screenshot data: %w", err)
+	}
+
+	ts := time.Now().Format("20060102_150405")
+	screenshotPath := filepath.Join(".", "screenshot", fmt.Sprintf("browser_screenshot_%s.jpg", ts))
+	if err := os.MkdirAll(filepath.Dir(screenshotPath), 0755); err != nil {
+		return "", fmt.Errorf("cannot create screenshot directory: %w", err)
+	}
+	if err := os.WriteFile(screenshotPath, screenshotBytes, 0644); err != nil {
+		return "", fmt.Errorf("cannot write screenshot file: %w", err)
+	}
+
+	// Cache in memory
 	a.mu.Lock()
 	a.browserScreenshotData = screenshotData
 	a.mu.Unlock()
 
-	log.Info("Browser screenshot captured (quality=%d, fullPage=%v, size=%d bytes)", quality, fullPage, len(screenshotData))
+	log.Info("Browser screenshot saved to %s (quality=%d, fullPage=%v, size=%d bytes)", screenshotPath, quality, fullPage, len(screenshotBytes))
 
-	return fmt.Sprintf("页面截图已捕获。\nURL: %s\n标题: %s\n截图质量: %d\n全页截图: %v\n\n截图数据已准备就绪，后续会将截图发送到视觉模型进行分析。你可以结合 browser_get_interactive_elements 获取页面可交互元素信息来进行精确操作。",
-		currentURL, title, quality, fullPage), nil
+	// Check vision support before auto-loading to image cache
+	visionSupported := false
+	if a.cfg != nil {
+		visionSupported = a.cfg.LLM.VisionSupport
+	}
+
+	baseMsg := fmt.Sprintf("页面截图已保存到: %s\nURL: %s\n标题: %s\n截图质量: %d\n全页截图: %v\n",
+		screenshotPath, currentURL, title, quality, fullPage)
+
+	if visionSupported {
+		addResult, _ := a.AddImages(screenshotPath)
+		baseMsg += "\n" + addResult
+		baseMsg += "\n\n截图已加载到图片缓存，后续请求将发送到视觉模型进行分析。你可以结合 browser_get_interactive_elements 获取页面可交互元素信息来进行精确操作。"
+	} else {
+		baseMsg += "\n\n⚠️ **当前模型不支持视觉识别**，无法对截图内容进行分析。\n截图已保存到文件系统中，你可以：\n1. 通过 `.set vision on` 启用多模态支持（需模型支持）\n2. 切换到支持视觉的多模态大模型后再试\n3. 手动使用 add_images 工具加载截图"
+	}
+
+	return baseMsg, nil
 }
 
 // browserClickTool clicks at the specified coordinates.

@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -159,21 +159,62 @@ func (m *ChromeManager) EnsurePageConnected(ctx context.Context) (*CDPClient, er
 		m.cdpClient = nil
 	}
 
-	// Create a new page/tab
 	debugURL := fmt.Sprintf("http://localhost:%d", m.port)
-	newPageURL := debugURL + "/json/new"
 
+	// Step 1: Try to get WebSocket URL from existing pages first
+	wsURL, err := getFirstPageWebSocketURL(debugURL)
+	if err == nil && wsURL != "" {
+		client, err := NewCDPClient(wsURL)
+		if err == nil {
+			m.cdpClient = client
+			return client, nil
+		}
+		log.Debug("Cannot connect to existing page: %v, trying new tab", err)
+	}
+
+	// Step 2: Try creating a new tab via /json/new
+	client, err := m.createNewPage(debugURL)
+	if err == nil {
+		return client, nil
+	}
+
+	// Step 3: Last fallback — try /json again (Chrome may have created a default page)
+	log.Debug("Cannot create new page: %v, retrying /json", err)
+	wsURL, err = getFirstPageWebSocketURL(debugURL)
+	if err != nil || wsURL == "" {
+		return nil, fmt.Errorf("cannot get any page from Chrome after all attempts")
+	}
+	client2, err := NewCDPClient(wsURL)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to CDP via WebSocket: %w", err)
+	}
+	m.cdpClient = client2
+	return client2, nil
+}
+
+// createNewPage creates a new page/tab via Chrome's /json/new HTTP API.
+func (m *ChromeManager) createNewPage(debugURL string) (*CDPClient, error) {
+	newPageURL := debugURL + "/json/new"
 	resp, err := http.Get(newPageURL)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create new page: %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read new page response: %w", err)
+	}
+
 	var pageInfo struct {
 		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&pageInfo); err != nil {
+	if err := json.Unmarshal(body, &pageInfo); err != nil {
 		return nil, fmt.Errorf("cannot decode new page info: %w", err)
+	}
+
+	if pageInfo.WebSocketDebuggerURL == "" {
+		return nil, fmt.Errorf("new page has no WebSocket debugger URL")
 	}
 
 	client, err := NewCDPClient(pageInfo.WebSocketDebuggerURL)
@@ -334,17 +375,15 @@ func getFirstPageWebSocketURL(debugURL string) (string, error) {
 
 	if len(pages) == 0 {
 		// No pages found, create one via /json/new
-		newResp, err := http.Get(debugURL + "/json/new")
+		body, err = createNewPageViaHTTP(debugURL)
 		if err != nil {
-			return "", fmt.Errorf("cannot create new page: %w", err)
+			return "", err
 		}
-		defer newResp.Body.Close()
-
 		var newPage struct {
 			WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 		}
-		if err := json.NewDecoder(newResp.Body).Decode(&newPage); err != nil {
-			return "", fmt.Errorf("cannot decode new page: %w", err)
+		if err := json.Unmarshal(body, &newPage); err != nil {
+			return "", fmt.Errorf("cannot decode new page info: %w", err)
 		}
 		return newPage.WebSocketDebuggerURL, nil
 	}
@@ -357,6 +396,21 @@ func getFirstPageWebSocketURL(debugURL string) (string, error) {
 	}
 
 	return pages[0].WebSocketDebuggerURL, nil
+}
+
+// createNewPageViaHTTP calls Chrome's /json/new API and returns the raw response body.
+func createNewPageViaHTTP(debugURL string) ([]byte, error) {
+	newResp, err := http.Get(debugURL + "/json/new")
+	if err != nil {
+		return nil, fmt.Errorf("cannot create new page: %w", err)
+	}
+	defer newResp.Body.Close()
+
+	body, err := io.ReadAll(newResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read new page response: %w", err)
+	}
+	return body, nil
 }
 
 // IsChromeAvailable checks if Chrome/Chromium is installed on the system.
