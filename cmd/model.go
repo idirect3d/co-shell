@@ -380,11 +380,8 @@ func (h *ModelHandler) wizardSelectTemplate() (*config.ModelTemplate, error) {
 			fmt.Println()
 		}
 
-		fmt.Print("  请选择: ")
-		if !h.scanner.Scan() {
-			return nil, fmt.Errorf("向导已取消")
-		}
-		input := strings.TrimSpace(h.scanner.Text())
+		io.Print("  请选择: ")
+		input := h.readLine()
 
 		if input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" || strings.ToUpper(input) == "BACK" || strings.ToUpper(input) == ".." {
 			fmt.Println("  返回上一步")
@@ -717,10 +714,20 @@ func (h *ModelHandler) modelIDExists(id string) bool {
 	return false
 }
 
+// readLine reads a line from UserIO.
+func (h *ModelHandler) readLine() string {
+	line, err := h.io().ReadLine()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(line)
+}
+
 // wizardPromptString prompts for a string value with template suggestions.
 // Supports both numeric selection and direct text input.
 // Default value: first suggestion if available, otherwise empty.
 func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, cancelKeys string) string {
+	io := h.io()
 	defaultVal := ""
 	if len(suggestions) > 0 {
 		defaultVal = suggestions[0]
@@ -728,36 +735,31 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 
 	for {
 		if len(suggestions) > 0 {
-			fmt.Printf("\n%s:\n", prompt)
+			io.Printf("\n%s:\n", prompt)
 			for i, s := range suggestions {
-				fmt.Printf("  [%d] %s\n", i+1, s)
+				io.Printf("  [%d] %s\n", i+1, s)
 			}
-			fmt.Printf("  请选择或输入 [默认: %s]: ", defaultVal)
+			io.Printf("  请选择或输入 [默认: %s]: ", defaultVal)
 		} else {
-			fmt.Printf("\n%s: ", prompt)
+			io.Printf("\n%s: ", prompt)
 		}
 
-		if !h.scanner.Scan() {
-			return ""
+		input := h.readLine()
+		if input == "" && defaultVal == "" {
+			io.Println("  输入不能为空，请重新输入")
+			continue
 		}
-		input := strings.TrimSpace(h.scanner.Text())
 
 		// Check cancel keys
-		if len(input) > 0 {
-			upper := strings.ToUpper(input)
-			if upper == "Q" || upper == "QUIT" {
-				return ""
-			}
+		upper := strings.ToUpper(input)
+		if input != "" && (upper == "Q" || upper == "QUIT") {
+			return ""
 		}
 
 		// Empty input: use default
-		if input == "" {
-			if defaultVal != "" {
-				fmt.Printf("  使用默认值: %s\n", defaultVal)
-				return defaultVal
-			}
-			fmt.Println("  输入不能为空，请重新输入")
-			continue
+		if input == "" && defaultVal != "" {
+			io.Printf("  使用默认值: %s\n", defaultVal)
+			return defaultVal
 		}
 
 		// Check if user selected a suggestion by number
@@ -774,16 +776,13 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 
 // wizardPromptStringWithDefault prompts for a string value with a default.
 func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue string, cancelKeys string) string {
+	io := h.io()
 	for {
-		fmt.Printf("\n%s [默认: %s]: ", prompt, defaultValue)
-
-		if !h.scanner.Scan() {
-			return ""
-		}
-		input := strings.TrimSpace(h.scanner.Text())
+		io.Printf("\n%s [默认: %s]: ", prompt, defaultValue)
+		input := h.readLine()
 
 		if input == "" {
-			fmt.Printf("  使用默认值: %s\n", defaultValue)
+			io.Printf("  使用默认值: %s\n", defaultValue)
 			return defaultValue
 		}
 
@@ -794,6 +793,7 @@ func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue
 // wizardPromptSecret prompts for a secret value (API key).
 // If defaultVal is provided, it will be shown as masked default.
 func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) string {
+	io := h.io()
 	for {
 		if defaultVal != "" {
 			// Mask the API key: show first 4 chars + **** + last 4 chars
@@ -804,22 +804,19 @@ func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) stri
 			} else {
 				masked = "****"
 			}
-			fmt.Printf("\n%s [默认: %s]: ", prompt, masked)
+			io.Printf("\n%s [默认: %s]: ", prompt, masked)
 		} else {
-			fmt.Printf("\n%s: ", prompt)
+			io.Printf("\n%s: ", prompt)
 		}
 
-		if !h.scanner.Scan() {
-			return ""
-		}
-		input := strings.TrimSpace(h.scanner.Text())
+		input := h.readLine()
 
 		if input == "" {
 			if defaultVal != "" {
-				fmt.Println("  使用默认 API Key")
+				io.Println("  使用默认 API Key")
 				return defaultVal
 			}
-			fmt.Println("  API Key 留空")
+			io.Println("  API Key 留空")
 			return ""
 		}
 
@@ -829,20 +826,18 @@ func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) stri
 
 // wizardPromptBool prompts for a yes/no answer.
 func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
+	io := h.io()
 	for {
 		defaultStr := "y"
 		if !defaultVal {
 			defaultStr = "n"
 		}
-		fmt.Printf("\n%s [默认: %s]: ", prompt, defaultStr)
+		io.Printf("\n%s [默认: %s]: ", prompt, defaultStr)
 
-		if !h.scanner.Scan() {
-			return defaultVal
-		}
-		input := strings.TrimSpace(strings.ToLower(h.scanner.Text()))
+		input := strings.TrimSpace(strings.ToLower(h.readLine()))
 
 		if input == "" {
-			fmt.Printf("  使用默认值: %s\n", defaultStr)
+			io.Printf("  使用默认值: %s\n", defaultStr)
 			return defaultVal
 		}
 
@@ -852,7 +847,7 @@ func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
 		case "n", "no", "否", "nope":
 			return false
 		default:
-			fmt.Println("  无效输入，请输入 y 或 n")
+			io.Println("  无效输入，请输入 y 或 n")
 		}
 	}
 }
@@ -937,10 +932,7 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 		fmt.Println()
 		fmt.Print("  请选择 (回车完成, 0 返回上一步): ")
 
-		if !h.scanner.Scan() {
-			return caps, false
-		}
-		input := strings.TrimSpace(h.scanner.Text())
+		input := h.readLine()
 
 		// Empty input: complete selection
 		if input == "" {
