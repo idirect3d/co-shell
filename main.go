@@ -954,6 +954,7 @@ func main() {
 	ag.SetShowToolOutput(cfg.LLM.ShowToolOutput)
 	ag.SetShowCommand(cfg.LLM.ShowCommand)
 	ag.SetShowCommandOutput(cfg.LLM.ShowCommandOutput)
+	ag.SetBrowserEnabled(cfg.LLM.BrowserEnabled)
 
 	// Apply max iterations: CLI flag overrides config, config overrides default
 	if flags.maxIterations >= 0 {
