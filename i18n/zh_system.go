@@ -578,6 +578,18 @@ ls -la\n</command>
     <wait_ms>1000</wait_ms>
   </shell_send>`
 
+	zhMessages[KeyToolUsageEvaluateExpression] = `## evaluate_expression
+Description: 计算一个数学表达式并返回精确结果。支持基础四则运算（+、-、*、/、%）、指数运算（^）、三角函数（sin、cos、tan、asin、acos、atan，弧度制）、对数（log=以10为底、ln=自然对数）、平方根（sqrt）、绝对值（abs）、取整（ceil、floor、round）以及常数（pi、e）。在进行精确计算时使用此工具，无需依赖 Python 或系统命令。
+
+Parameters:
+- expression (必填): 要计算的数学表达式
+
+Usage:
+<evaluate_expression>
+  <expression>45 * (1 + 0.05) ^ 10</expression>
+</evaluate_expression>
+`
+
 	zhMessages[KeyToolUsageShellGetOutput] = `## shell_get_output
 说明: 获取持久 Shell 会话的输出内容。自动增量模式（不提供 last_from/count）：仅返回上次 shell_send 或 shell_get_output 之后的新增内容，适用于检查长运行命令的进度。
 指定 last_from/count：返回指定范围的终端滚动历史。

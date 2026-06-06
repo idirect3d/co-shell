@@ -559,6 +559,18 @@ Usage pattern - interactive step-by-step (note the \n at end of each command):
     <wait_ms>1000</wait_ms>
   </shell_send>`
 
+	enMessages[KeyToolUsageEvaluateExpression] = `## evaluate_expression
+Description: Evaluate a mathematical expression and return the exact result. Supports basic arithmetic (+, -, *, /, %), exponentiation (^), trigonometric functions (sin, cos, tan, asin, acos, atan, radians), logarithms (log=base10, ln=natural), square root (sqrt), absolute value (abs), rounding (ceil, floor, round), and constants (pi, e). Use this for precise calculations instead of relying on Python or shell commands.
+
+Parameters:
+- expression (required): The mathematical expression to evaluate
+
+Usage:
+<evaluate_expression>
+  <expression>45 * (1 + 0.05) ^ 10</expression>
+</evaluate_expression>
+`
+
 	enMessages[KeyToolUsageShellGetOutput] = `## shell_get_output
 Description: Retrieve output from the persistent shell session. Auto-increment mode (no last_from/count): returns only new content since the last shell_send or shell_get_output call, useful for checking progress of long-running commands.
 With last_from/count: returns the specified range of terminal scrollback history.
