@@ -1008,7 +1008,7 @@ func (h *ConfigHandler) showGroupMenu(groups []ConfigGroup) {
 	for {
 		fmt.Println(i18n.T(i18n.KeyConfigGroupTitle))
 		for i, g := range groups {
-			fmt.Printf("  [%2d] %s\n", i+1, g.Name)
+			fmt.Printf("  [%d] %s\n", i+1, g.Name)
 		}
 		fmt.Println()
 		fmt.Printf(i18n.T(i18n.KeyConfigGroupPrompt), len(groups))
