@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "210"
+const build = "211"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -954,6 +954,7 @@ func main() {
 	ag.SetShowToolOutput(cfg.LLM.ShowToolOutput)
 	ag.SetShowCommand(cfg.LLM.ShowCommand)
 	ag.SetShowCommandOutput(cfg.LLM.ShowCommandOutput)
+	ag.SetBrowserEnabled(cfg.LLM.BrowserEnabled)
 
 	// Apply max iterations: CLI flag overrides config, config overrides default
 	if flags.maxIterations >= 0 {

@@ -420,6 +420,36 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Browser headless set to %s", status)
 		return fmt.Sprintf("✅ 无头模式已设置为: %s", status), nil
 
+	case "read-file-max-size":
+		if len(args) < 2 {
+			return fmt.Sprintf("当前文件读取大小限制: %d bytes (%d KB)", h.cfg.LLM.ReadFileMaxSize, h.cfg.LLM.ReadFileMaxSize/1024), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 1024 {
+			return "", fmt.Errorf("usage: .set read-file-max-size <字节数> (最小 1024，0=不限制)")
+		}
+		h.cfg.LLM.ReadFileMaxSize = n
+		if err := h.cfg.Save(); err != nil {
+			log.Warn("Failed to save config: %v", err)
+		}
+		log.Info("Read file max size set to %d", n)
+		return fmt.Sprintf("✅ 文件读取大小限制已设置为: %d bytes (%d KB)", n, n/1024), nil
+
+	case "browser-max-html-size":
+		if len(args) < 2 {
+			return fmt.Sprintf("当前 HTML 下载阈值: %d bytes (%d KB)", h.cfg.LLM.BrowserMaxHTMLSize, h.cfg.LLM.BrowserMaxHTMLSize/1024), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 1024 {
+			return "", fmt.Errorf("usage: .set browser-max-html-size <字节数> (最小 1024)")
+		}
+		h.cfg.LLM.BrowserMaxHTMLSize = n
+		if err := h.cfg.Save(); err != nil {
+			log.Warn("Failed to save config: %v", err)
+		}
+		log.Info("Browser max HTML size set to %d", n)
+		return fmt.Sprintf("✅ HTML 下载阈值已设置为: %d bytes (%d KB)", n, n/1024), nil
+
 	case "input-mode":
 		if len(args) < 2 {
 			mode := h.cfg.LLM.InputMode

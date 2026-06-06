@@ -584,6 +584,97 @@ Usage:
   <wait_ms>1000</wait_ms>
 </shell_get_output>`
 
+	enMessages[KeyToolUsageBrowserNavigate] = `## browser_navigate
+Description: Navigate the browser to the specified URL. Automatically waits for the page to load.
+Parameters:
+- url (required) The URL to navigate to
+Usage:
+<browser_navigate>
+  <url>https://example.com</url>
+</browser_navigate>`
+
+	enMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
+Description: Capture a screenshot of the current page and cache it for multimodal analysis. The screenshot is automatically injected into the multimodal context. Use with browser_get_interactive_elements for precise operations.
+Parameters:
+- quality (optional, default 80) Screenshot quality 1-100
+- full_page (optional, default false) Whether to capture the full page
+Usage:
+<browser_screenshot>
+  <quality>90</quality>
+  <full_page>true</full_page>
+</browser_screenshot>`
+
+	enMessages[KeyToolUsageBrowserClick] = `## browser_click
+Description: Click at the specified coordinates on the page. It is recommended to call browser_get_interactive_elements first to get element coordinates.
+Parameters:
+- x (required) X coordinate to click
+- y (required) Y coordinate to click
+Usage:
+<browser_click>
+  <x>200</x>
+  <y>450</y>
+</browser_click>`
+
+	enMessages[KeyToolUsageBrowserType] = `## browser_type
+Description: Type text into the currently focused input element. Set clear=true to clear existing content before typing.
+Parameters:
+- text (required) Text to type
+- clear (optional, default false) Whether to clear existing content first
+Usage:
+<browser_type>
+  <text>Hello World</text>
+  <clear>true</clear>
+</browser_type>`
+
+	enMessages[KeyToolUsageBrowserEvaluate] = `## browser_evaluate
+Description: Execute JavaScript code in the browser and return the result. Useful for extracting page data, modifying DOM, triggering events, and other advanced operations.
+Parameters:
+- expression (required) JavaScript expression to execute
+Usage:
+<browser_evaluate>
+  <expression>document.title</expression>
+</browser_evaluate>`
+
+	enMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_html
+Description: Get the complete HTML content of the current page. Useful for analyzing page structure.
+Parameters: None
+Usage:
+<browser_get_html />`
+
+	enMessages[KeyToolUsageBrowserScroll] = `## browser_scroll
+Description: Scroll the page by the specified pixel amount. Positive values scroll down, negative values scroll up.
+Parameters:
+- delta_x (optional, default 0) Horizontal scroll pixels
+- delta_y (optional, default 500) Vertical scroll pixels (positive = down, negative = up)
+Usage:
+<browser_scroll>
+  <delta_y>500</delta_y>
+</browser_scroll>`
+
+	enMessages[KeyToolUsageBrowserGetInteractiveElements] = `## browser_get_interactive_elements
+Description: Get a list of all interactive elements (buttons, links, input fields, etc.) on the page, including each element's center coordinates, tag name, type, and other attributes. Used to precisely locate elements for browser_click or browser_type operations.
+Parameters: None
+Usage:
+<browser_get_interactive_elements />`
+
+	enMessages[KeyToolUsageBrowserGoBack] = `## browser_go_back
+Description: Navigate back to the previous page (equivalent to clicking the browser back button).
+Parameters: None
+Usage:
+<browser_go_back />`
+
+	enMessages[KeyToolUsageBrowserGoForward] = `## browser_go_forward
+Description: Navigate forward to the next page (equivalent to clicking the browser forward button).
+Parameters: None
+Usage:
+<browser_go_forward />`
+
+	enMessages[KeyToolUsageBrowserClose] = `## browser_close
+Description: Close the browser and clean up all related resources.
+Parameters: None
+Usage:
+<browser_close />`
+
 	enMessages[KeySystemPromptXMLExamples] = `
 # Tool Use Examples
 

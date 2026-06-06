@@ -723,6 +723,19 @@ const (
 	KeyToolUsageShellGetOutput = "tool_usage_shell_get_output"
 	KeyToolUsageShellStop      = "tool_usage_shell_stop"
 
+	// Browser tool usage examples (XML mode)
+	KeyToolUsageBrowserNavigate               = "tool_usage_browser_navigate"
+	KeyToolUsageBrowserScreenshot             = "tool_usage_browser_screenshot"
+	KeyToolUsageBrowserClick                  = "tool_usage_browser_click"
+	KeyToolUsageBrowserType                   = "tool_usage_browser_type"
+	KeyToolUsageBrowserEvaluate               = "tool_usage_browser_evaluate"
+	KeyToolUsageBrowserGetHTML                = "tool_usage_browser_get_html"
+	KeyToolUsageBrowserScroll                 = "tool_usage_browser_scroll"
+	KeyToolUsageBrowserGetInteractiveElements = "tool_usage_browser_get_interactive_elements"
+	KeyToolUsageBrowserGoBack                 = "tool_usage_browser_go_back"
+	KeyToolUsageBrowserGoForward              = "tool_usage_browser_go_forward"
+	KeyToolUsageBrowserClose                  = "tool_usage_browser_close"
+
 	// Shell session (column labels)
 	KeyCol3ShellSessionEnabled = "col3_shell_session_enabled"
 	KeyCol3ShellSessionTimeout = "col3_shell_session_timeout"
