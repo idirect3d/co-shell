@@ -82,7 +82,7 @@ func (a *Agent) browserNavigateTool(ctx context.Context, args map[string]interfa
 	return fmt.Sprintf("已导航到页面:\nURL: %s\n标题: %s\n\n现在你可以使用 browser_screenshot 查看页面内容，或使用 browser_get_interactive_elements 查看可交互元素。", currentURL, title), nil
 }
 
-// browserScreenshotTool captures a screenshot, saves it to ./screenshot/,
+// browserScreenshotTool captures a screenshot, saves it to ./download/screenshot/,
 // and automatically loads it into image cache if the model supports vision.
 func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if err := a.ensureBrowserReady(ctx); err != nil {
@@ -108,14 +108,14 @@ func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]inter
 	currentURL, _ := cdp.GetCurrentURL(ctx)
 	title, _ := cdp.GetPageTitle(ctx)
 
-	// Decode base64 and save to ./screenshot/
+	// Decode base64 and save to ./download/screenshot/
 	screenshotBytes, err := base64.StdEncoding.DecodeString(screenshotData)
 	if err != nil {
 		return "", fmt.Errorf("cannot decode screenshot data: %w", err)
 	}
 
 	ts := time.Now().Format("20060102_150405")
-	screenshotPath := filepath.Join(".", "screenshot", fmt.Sprintf("browser_screenshot_%s.jpg", ts))
+	screenshotPath := filepath.Join(".", "download", "screenshot", fmt.Sprintf("browser_screenshot_%s.jpg", ts))
 	if err := os.MkdirAll(filepath.Dir(screenshotPath), 0755); err != nil {
 		return "", fmt.Errorf("cannot create screenshot directory: %w", err)
 	}
@@ -230,6 +230,8 @@ func (a *Agent) browserEvaluateTool(ctx context.Context, args map[string]interfa
 }
 
 // browserGetHTMLTool returns the page's HTML.
+// If the HTML exceeds the configured max size (default 10KB), it saves to
+// ./download/html/ and returns the file path instead of the full content.
 func (a *Agent) browserGetHTMLTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if err := a.ensureBrowserReady(ctx); err != nil {
 		return "", err
@@ -247,7 +249,31 @@ func (a *Agent) browserGetHTMLTool(ctx context.Context, args map[string]interfac
 	}
 
 	log.Info("Browser get HTML (%d bytes)", len(html))
-	return fmt.Sprintf("页面 HTML（%d 个字符）:\n%s", len(html), html), nil
+
+	// Determine max HTML size: config override or default 10KB
+	maxHTMLSize := 10240 // 10KB default
+	if a.cfg != nil && a.cfg.LLM.BrowserMaxHTMLSize > 0 {
+		maxHTMLSize = a.cfg.LLM.BrowserMaxHTMLSize
+	}
+
+	if len(html) <= maxHTMLSize {
+		return fmt.Sprintf("页面 HTML（%d 个字符）:\n%s", len(html), html), nil
+	}
+
+	// HTML too large — save to file
+	ts := time.Now().Format("20060102_150405")
+	htmlPath := filepath.Join(".", "download", "html", fmt.Sprintf("browser_html_%s.html", ts))
+	if err := os.MkdirAll(filepath.Dir(htmlPath), 0755); err != nil {
+		return "", fmt.Errorf("cannot create html download directory: %w", err)
+	}
+	if err := os.WriteFile(htmlPath, []byte(html), 0644); err != nil {
+		return "", fmt.Errorf("cannot write html file: %w", err)
+	}
+
+	log.Info("Browser HTML saved to %s (exceeded max %d bytes)", htmlPath, maxHTMLSize)
+
+	return fmt.Sprintf("页面 HTML 内容较大（%d 个字符），已保存到文件:\n  %s\n\n你可以使用 read_file 工具读取此文件内容进行分析。\n你可以通过 `.set browser-max-html-size` 调整大小限制（当前: %d 字节 ≈ %d KB）。",
+		len(html), htmlPath, maxHTMLSize, maxHTMLSize/1024), nil
 }
 
 // browserScrollTool scrolls the page by the specified delta.
