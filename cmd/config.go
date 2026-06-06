@@ -471,6 +471,39 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			h.cfg.LLM.InputMode = "enhanced"
 			return i18n.TF(i18n.KeySettingsUpdated, "input-mode", "enhanced")
 		}},
+		// Browser settings
+		{Name: "browser-enabled", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.BrowserEnabled), SetValue: func(v string) (string, error) {
+			if err := setBoolPtr(&h.cfg.LLM.BrowserEnabled, v); err != nil {
+				return "", err
+			}
+			return i18n.TF(i18n.KeySettingsUpdated, "browser-enabled", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.BrowserEnabled = false
+			return i18n.TF(i18n.KeySettingsUpdated, "browser-enabled", "off")
+		}},
+		{Name: "browser-port", CurrentValue: func() string {
+			return strconv.Itoa(h.cfg.LLM.BrowserPort)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 || n > 65535 {
+				return "", fmt.Errorf("请输入 1-65535 的整数")
+			}
+			h.cfg.LLM.BrowserPort = n
+			return i18n.TF(i18n.KeySettingsUpdated, "browser-port", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.BrowserPort = 9222
+			return i18n.TF(i18n.KeySettingsUpdated, "browser-port", "9222")
+		}},
+		{Name: "browser-headless", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.BrowserHeadless), SetValue: func(v string) (string, error) {
+			if err := setBoolPtr(&h.cfg.LLM.BrowserHeadless, v); err != nil {
+				return "", err
+			}
+			return i18n.TF(i18n.KeySettingsUpdated, "browser-headless", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.BrowserHeadless = false
+			return i18n.TF(i18n.KeySettingsUpdated, "browser-headless", "off")
+		}},
+		// Rule management
 		cmdEntry(".rule", "管理 AI 全局规则", "", h.ruleHandler.Handle, []ConfigSubCommand{
 			{Name: "list", Desc: "列出所有规则", Action: func(a []string) { runHandler(h.ruleHandler.Handle, []string{}) }},
 			{Name: "add", Desc: "添加新规则", Args: "<rule>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"add"}, a...)) }},
@@ -908,11 +941,16 @@ func (h *ConfigHandler) confirmToolWizard() {
 		}
 
 		fmt.Println()
-		fmt.Printf("  [P] 返回  请选择 [1-%d/P]: ", globalStart+3)
+		fmt.Printf("  请选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", globalStart+3)
 
 		input := h.readLine()
-		if strings.EqualFold(input, "P") || strings.EqualFold(input, "Q") {
+		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
 			fmt.Println()
+			return
+		}
+		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
+			fmt.Println()
+			fmt.Println(i18n.T(i18n.KeyConfigExited))
 			return
 		}
 
@@ -963,12 +1001,17 @@ func (h *ConfigHandler) confirmToolWizard() {
 			fmt.Printf("%s[%d] %-12s %s\n", mark, i+1, opt, desc)
 		}
 		fmt.Println()
-		fmt.Print("  选择 [1-3], [P] 返回: ")
+		fmt.Print("  选择 [1-3], [B] 返回上一步 [Q] 完全退出: ")
 
 		modeInput := h.readLine()
-		if strings.EqualFold(modeInput, "P") {
+		if strings.EqualFold(modeInput, "b") || strings.EqualFold(modeInput, "B") {
 			fmt.Println()
 			continue
+		}
+		if strings.EqualFold(modeInput, "q") || strings.EqualFold(modeInput, "Q") {
+			fmt.Println()
+			fmt.Println(i18n.T(i18n.KeyConfigExited))
+			return
 		}
 
 		modeIdx, err := strconv.Atoi(modeInput)
@@ -1005,16 +1048,22 @@ func (h *ConfigHandler) runWizard() {
 
 // showGroupMenu displays the top-level group selection menu.
 func (h *ConfigHandler) showGroupMenu(groups []ConfigGroup) {
+	numWidth := len(strconv.Itoa(len(groups)))
+	fmtStr := fmt.Sprintf("  [%%%dd] %%s\n", numWidth)
 	for {
 		fmt.Println(i18n.T(i18n.KeyConfigGroupTitle))
 		for i, g := range groups {
-			fmt.Printf("  [%d] %s\n", i+1, g.Name)
+			fmt.Printf(fmtStr, i+1, g.Name)
 		}
 		fmt.Println()
-		fmt.Printf(i18n.T(i18n.KeyConfigGroupPrompt), len(groups))
+		fmt.Printf("  选择分组 [1-%d]: [B] 返回上一步 [Q] 完全退出: ", len(groups))
 
 		input := h.readLine()
-		if strings.EqualFold(input, "P") || strings.EqualFold(input, "Q") {
+		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
+			fmt.Println()
+			return
+		}
+		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
 			fmt.Println()
 			fmt.Println(i18n.T(i18n.KeyConfigExited))
 			return
@@ -1033,27 +1082,38 @@ func (h *ConfigHandler) showGroupMenu(groups []ConfigGroup) {
 
 // showParamMenu shows params in a group. If a command has SubCommands, shows them as numbered list.
 func (h *ConfigHandler) showParamMenu(group ConfigGroup) {
+	numWidth := len(strconv.Itoa(len(group.Params)))
+	paramFmt := fmt.Sprintf("  [%%%dd] %%s\n", numWidth)
+	descFmt := fmt.Sprintf("  [%%%dd] %%s  → %%s\n", numWidth)
+	cmdFmt := fmt.Sprintf("  [%%%dd] %%s...\n", numWidth)
 	for {
 		fmt.Printf("── %s ────────────────────────────────\n", group.Name)
 		fmt.Println()
 		for i, p := range group.Params {
-			if p.CurrentValue != nil {
-				fmt.Printf("  [%d] %s = %s\n", i+1, p.Name, p.CurrentValue())
+			if len(p.SubCommands) > 0 {
+				// .Xxxx command with sub-commands: show "name..." indicating next level
+				fmt.Printf(cmdFmt, i+1, p.Name)
 			} else if p.Desc != "" {
-				fmt.Printf("  [%d] %s  → %s\n", i+1, p.Name, p.Desc)
+				// Action entry with description
+				fmt.Printf(descFmt, i+1, p.Name, p.Desc)
+			} else if p.CurrentValue != nil {
+				// Regular parameter: show description first, then value
+				val := p.CurrentValue()
+				fmt.Printf(paramFmt, i+1, p.Name)
+				fmt.Printf("         → 当前值: %s\n", val)
 			} else {
-				fmt.Printf("  [%d] %s\n", i+1, p.Name)
+				fmt.Printf(paramFmt, i+1, p.Name)
 			}
 		}
 		fmt.Println()
-		fmt.Printf(i18n.T(i18n.KeyConfigParamPrompt), len(group.Params))
+		fmt.Printf("  选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(group.Params))
 
 		input := h.readLine()
-		if strings.EqualFold(input, "P") {
+		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
 			fmt.Println()
 			return
 		}
-		if strings.EqualFold(input, "Q") {
+		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
 			fmt.Println()
 			fmt.Println(i18n.T(i18n.KeyConfigExited))
 			fmt.Println()
@@ -1090,25 +1150,28 @@ func (h *ConfigHandler) showParamMenu(group ConfigGroup) {
 
 // showSubCommandMenu shows sub-commands as a numbered list.
 func (h *ConfigHandler) showSubCommandMenu(param ConfigParam) {
+	numWidth := len(strconv.Itoa(len(param.SubCommands)))
+	cmdFmt := fmt.Sprintf("  [%%%dd] %%s  → %%s\n", numWidth)
+	cmdArgsFmt := fmt.Sprintf("  [%%%dd] %%s %%s  → %%s\n", numWidth)
 	for {
 		fmt.Printf("── %s ────────────────────────────────\n", param.Name)
 		fmt.Println()
 		for i, sc := range param.SubCommands {
 			if sc.Args != "" {
-				fmt.Printf("  [%d] %s %s  → %s\n", i+1, sc.Name, sc.Args, sc.Desc)
+				fmt.Printf(cmdArgsFmt, i+1, sc.Name, sc.Args, sc.Desc)
 			} else {
-				fmt.Printf("  [%d] %s  → %s\n", i+1, sc.Name, sc.Desc)
+				fmt.Printf(cmdFmt, i+1, sc.Name, sc.Desc)
 			}
 		}
 		fmt.Println()
-		fmt.Print("  选择子命令 [1-" + strconv.Itoa(len(param.SubCommands)) + "], [P] 返回, [Q] 退出: ")
+		fmt.Printf("  选择子命令 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(param.SubCommands))
 
 		input := h.readLine()
-		if strings.EqualFold(input, "P") {
+		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
 			fmt.Println()
 			return
 		}
-		if strings.EqualFold(input, "Q") {
+		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
 			fmt.Println()
 			fmt.Println(i18n.T(i18n.KeyConfigExited))
 			fmt.Println()
@@ -1146,6 +1209,12 @@ func (h *ConfigHandler) showSubCommandMenu(param ConfigParam) {
 
 // showValueInput prompts the user to enter a value for a parameter.
 func (h *ConfigHandler) showValueInput(param ConfigParam) {
+	// Calculate the max width based on the number of options for alignment
+	numWidth := 2
+	if len(param.Options) > 0 {
+		numWidth = len(strconv.Itoa(len(param.Options)))
+	}
+	optFmt := fmt.Sprintf("  %%s[%%%dd] %%s\n", numWidth)
 	for {
 		current := param.CurrentValue()
 		fmt.Printf(i18n.T(i18n.KeyConfigValueLabParam)+"\n", param.Name)
@@ -1158,12 +1227,12 @@ func (h *ConfigHandler) showValueInput(param ConfigParam) {
 				if opt == current {
 					mark = "> "
 				}
-				fmt.Printf("  %s[%d] %s\n", mark, i+1, opt)
+				fmt.Printf(optFmt, mark, i+1, opt)
 			}
 			fmt.Println()
-			fmt.Print("  输入编号或直接输入值（[D] 默认值，[P] 返回，[Q] 退出）: ")
+			fmt.Print("  输入编号或直接输入值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
 		} else {
-			fmt.Print("  输入新值（[D] 默认值，[P] 返回，[Q] 退出）: ")
+			fmt.Print("  输入新值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
 		}
 
 		input := h.readLine()
@@ -1171,10 +1240,10 @@ func (h *ConfigHandler) showValueInput(param ConfigParam) {
 			fmt.Println(i18n.T(i18n.KeyConfigValueUnchanged))
 			return
 		}
-		if strings.EqualFold(input, "P") {
+		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
 			return
 		}
-		if strings.EqualFold(input, "Q") {
+		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
 			fmt.Println(i18n.T(i18n.KeyConfigExited))
 			return
 		}
