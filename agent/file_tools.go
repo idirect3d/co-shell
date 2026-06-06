@@ -648,6 +648,21 @@ func (a *Agent) replaceInFileTool(ctx context.Context, args map[string]interface
 	// Positive means lines were added, negative means lines were removed.
 	lineOffset := 0
 
+	// Validate that blocks with start_line are provided in ascending order.
+	// Blocks without start_line are excluded from this check.
+	var lastStartLine int
+	hasStartLineBlock := false
+	for i, block := range blocks {
+		if block.startLine == 0 {
+			continue
+		}
+		if hasStartLineBlock && block.startLine < lastStartLine {
+			return "", fmt.Errorf("replacements[%d]: start_line %d is less than previous start_line %d. Blocks with start_line must be ordered by ascending line number.", i, block.startLine, lastStartLine)
+		}
+		lastStartLine = block.startLine
+		hasStartLineBlock = true
+	}
+
 	// Perform all replacements sequentially
 	for i := 0; i < len(blocks); i++ {
 		block := blocks[i]
