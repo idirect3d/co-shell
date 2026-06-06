@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-30
-// Last Modified: 2026-04-30
+// Last Modified: 2026-06-06
 //
 // MIT License
 //
@@ -31,6 +31,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -77,6 +78,8 @@ func decodeToUTF8(data []byte) string {
 // executeSystemCommand runs a system command with timeout.
 // The effective timeout is the maximum of the user-configured minimum timeout
 // and the LLM-suggested timeout_seconds parameter.
+// stdin is connected to os.Stdin so interactive commands (e.g. sudo) work.
+// stdout+stderr are both captured for LLM return AND displayed on the terminal.
 func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interface{}) (string, error) {
 	command, ok := args["command"].(string)
 	if !ok {
@@ -108,9 +111,17 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	log.Debug("Executing command: %s (effective timeout: %ds, user min: %ds, LLM suggested: %ds, shell: %s)",
 		command, effectiveTimeout, userMinSec, llmSuggested, shell)
 	cmd := exec.CommandContext(ctx, shell, shellArg, command)
-	output, err := cmd.CombinedOutput()
-	// Decode GBK to UTF-8 on Windows
-	decoded := decodeToUTF8(output)
+
+	// Connect stdin so interactive commands (sudo, passwd, etc.) can read user input.
+	cmd.Stdin = os.Stdin
+
+	// Capture stdout+stderr while also displaying it on the terminal.
+	var buf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+
+	err := cmd.Run()
+	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			log.Warn("Command timed out after %d seconds: %s", effectiveTimeout, command)
@@ -120,12 +131,14 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 	}
 
-	log.Debug("Command completed: %s (output length: %d)", command, len(output))
+	log.Debug("Command completed: %s (output length: %d)", command, buf.Len())
 	return strings.TrimSpace(decoded), nil
 }
 
 // ExecuteCommandDirectly runs a system command directly without LLM involvement.
 // This is used by the REPL when user input is detected as a direct system command.
+// stdin is connected to os.Stdin so interactive commands work.
+// stdout+stderr are both captured for return AND displayed on the terminal.
 func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	timeout := a.getCommandTimeout()
 	if timeout > 0 {
@@ -136,9 +149,17 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 		shell, shellArg := shellCmd()
 		log.Info("Direct command: %s (timeout: %ds, shell: %s)", command, int(timeout.Seconds()), shell)
 		cmd := exec.CommandContext(ctx, shell, shellArg, command)
-		output, err := cmd.CombinedOutput()
-		// Decode GBK to UTF-8 on Windows
-		decoded := decodeToUTF8(output)
+
+		// Connect stdin so interactive commands can read user input.
+		cmd.Stdin = os.Stdin
+
+		// Capture stdout+stderr while also displaying on terminal.
+		var buf bytes.Buffer
+		cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
+		cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+
+		err := cmd.Run()
+		decoded := decodeToUTF8(buf.Bytes())
 		if err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
 				log.Warn("Direct command timed out: %s", command)
@@ -148,7 +169,7 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 			return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 		}
 
-		log.Debug("Direct command completed: %s (output length: %d)", command, len(output))
+		log.Debug("Direct command completed: %s (output length: %d)", command, buf.Len())
 		return strings.TrimSpace(decoded), nil
 	}
 
@@ -157,15 +178,22 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	log.Info("Direct command: %s (no timeout, shell: %s)", command, shell)
 	cmd := exec.CommandContext(context.Background(), shell, shellArg, command)
 
-	output, err := cmd.CombinedOutput()
-	// Decode GBK to UTF-8 on Windows
-	decoded := decodeToUTF8(output)
+	// Connect stdin so interactive commands can read user input.
+	cmd.Stdin = os.Stdin
+
+	// Capture stdout+stderr while also displaying on terminal.
+	var buf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+
+	err := cmd.Run()
+	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
 		log.Error("Direct command failed: %s, error: %v", command, err)
 		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 	}
 
-	log.Debug("Direct command completed: %s (output length: %d)", command, len(output))
+	log.Debug("Direct command completed: %s (output length: %d)", command, buf.Len())
 	return strings.TrimSpace(decoded), nil
 }
 
