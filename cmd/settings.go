@@ -153,7 +153,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
 		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
 		subcommand == "browser-enabled", subcommand == "browser-port",
-		subcommand == "browser-headless":
+		subcommand == "browser-headless", subcommand == "browser-max-html-size":
 		return h.handleAgentSetting(subcommand, args)
 
 	// Safety settings
@@ -331,7 +331,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("mode", modeName, i18n.T(i18n.KeyCol3WorkMode)),
 	)
 
-	// Group 2: Agent Settings (18 lines = 15 + 3 browser)
+	// Group 2: Agent Settings (19 lines = 15 + 4 browser)
 	// Use cfg.Models directly for smart model selection display
 	allModels := cfg.Models
 
@@ -432,6 +432,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("browser-enabled", browserEnabledStatus, i18n.T(i18n.KeyCol3BrowserEnabled)),
 		makeLine("browser-port", fmt.Sprintf("%d", cfg.LLM.BrowserPort), i18n.T(i18n.KeyCol3BrowserPort)),
 		makeLine("browser-headless", browserHeadlessStatus, i18n.T(i18n.KeyCol3BrowserHeadless)),
+		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), "HTML下载阈值"),
 	)
 
 	// Group 3: Display & Output
@@ -540,7 +541,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(18)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(19)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)

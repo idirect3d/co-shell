@@ -315,6 +315,12 @@ type LLMConfig struct {
 	BrowserPort int `json:"browser_port"`
 	// BrowserHeadless: whether to run Chrome in headless mode.
 	BrowserHeadless bool `json:"browser_headless"`
+
+	// BrowserMaxHTMLSize: maximum HTML content size (in bytes) before saving to file.
+	// When browser_get_html returns HTML larger than this, the content is saved to
+	// ./download/html/ and the file path is returned instead.
+	// Default: 10240 (10KB)
+	BrowserMaxHTMLSize int `json:"browser_max_html_size"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
