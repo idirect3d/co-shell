@@ -109,14 +109,14 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 	}
 
 	// Check output size limit
-	maxSize := 81920 // 80KB default
+	maxSize := 16384 // 16KB default
 	if a.cfg != nil && a.cfg.LLM.ReadFileMaxSize > 0 {
 		maxSize = a.cfg.LLM.ReadFileMaxSize
 	}
 	output := result.String()
 	if len(output) > maxSize {
 		truncated := output[:maxSize]
-		notice := fmt.Sprintf("\n\n⚠️ 文件内容超长，当前仅返回前 %d 字节（总内容 %d 字节）。\n你可以使用 read_file 并指定 start_line/end_line 分段读取。\n也可以通过 `.set read-file-max-size` 调整大小限制。\n", maxSize, len(output))
+		notice := fmt.Sprintf("\n\n⚠️ 文件内容超长，当前仅返回前 %d 字节（总内容 %d 字节）。\n你可以使用 read_file 并指定 start_line/end_line 分段读取。\n", maxSize, len(output))
 		truncated += notice
 		return truncated, nil
 	}
