@@ -889,8 +889,9 @@ You have two tools for working with files: **write_to_file** and **replace_in_fi
 1. Before editing, assess the scope of changes and decide which tool to use.
 2. For precise edits, apply replace_in_file with carefully constructed <search>/<replace> parameters. If multiple modifications are needed, you can stack multiple <search>/<replace> parameters in a single replace_in_file call.
 3. Important: When you determine that multiple modifications to the same file are needed, prefer a single replace_in_file call with multiple <search>/<replace> parameters. Do not make multiple consecutive replace_in_file calls to the same file.
-4. For major rewrites or initial file creation, rely on write_to_file.
-5. After editing a file with write_to_file or replace_in_file, the system will provide the final state of the modified file. Use this updated content as the reference point for subsequent <search>/<replace> operations, as it reflects any auto-formatting or user-applied modifications.
+4. **Use start_line for precise positioning when inserting content**: When inserting new content before/after a specific section or at a particular location, use the start_line parameter to target the exact line number. For example, to insert a new line at the beginning of a function definition, set start_line to the function's first line number. This avoids search text matching failures due to formatting differences (indentation, whitespace) or matches at other similar locations in the file.
+5. For rewrites or initial file creation, rely on write_to_file.
+6. After editing a file with write_to_file or replace_in_file, the system will provide the final state of the modified file. Use this updated content as the reference point for subsequent <search>/<replace> operations, as it reflects any auto-formatting or user-applied modifications.
 By thoughtfully choosing between write_to_file and replace_in_file, you can make the file editing process smoother, safer, and more efficient.`
 
 	enMessages[KeySystemPromptBrowserUsage] = `
