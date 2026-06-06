@@ -153,7 +153,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
 		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
 		subcommand == "browser-enabled", subcommand == "browser-port",
-		subcommand == "browser-headless", subcommand == "browser-max-html-size":
+		subcommand == "browser-headless", subcommand == "browser-max-html-size",
+		subcommand == "read-file-max-size":
 		return h.handleAgentSetting(subcommand, args)
 
 	// Safety settings

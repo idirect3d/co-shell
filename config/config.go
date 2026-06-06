@@ -321,6 +321,12 @@ type LLMConfig struct {
 	// ./download/html/ and the file path is returned instead.
 	// Default: 10240 (10KB)
 	BrowserMaxHTMLSize int `json:"browser_max_html_size"`
+
+	// ReadFileMaxSize: maximum total bytes returned by read_file.
+	// When the output content exceeds this limit, it is truncated and a notice
+	// is prepended. 0 means no limit.
+	// Default: 81920 (80KB)
+	ReadFileMaxSize int `json:"read_file_max_size"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
