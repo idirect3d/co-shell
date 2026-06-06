@@ -61,6 +61,10 @@ func (s *StdioIO) Println(args ...interface{}) {
 	fmt.Println(args...)
 }
 
+func (s *StdioIO) ErrPrintf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+}
+
 func (s *StdioIO) ReadLine() (string, error) {
 	s.reader = bufio.NewScanner(os.Stdin)
 	if !s.reader.Scan() {
@@ -158,6 +162,10 @@ func (e *EnhancedIO) Println(args ...interface{}) {
 	} else {
 		fmt.Println(args...)
 	}
+}
+
+func (e *EnhancedIO) ErrPrintf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
 }
 
 func (e *EnhancedIO) ReadLine() (string, error) {

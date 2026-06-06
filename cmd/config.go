@@ -28,7 +28,6 @@ package cmd
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -121,7 +120,12 @@ func (h *ConfigHandler) Handle(args []string) (string, error) {
 	return "", nil
 }
 
-// readLine reads a line from stdin.
+// io returns the UserIO from the agent, falling back to DefaultUserIO.
+func (h *ConfigHandler) io() agent.UserIO {
+	return agent.GetIO(h.agent)
+}
+
+// readLine reads a line from stdin via UserIO or shared scanner.
 func (h *ConfigHandler) readLine() string {
 	if h.scanner != nil {
 		if h.scanner.Scan() {
@@ -129,8 +133,7 @@ func (h *ConfigHandler) readLine() string {
 		}
 		return ""
 	}
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
+	line, err := h.io().ReadLine()
 	if err != nil {
 		return ""
 	}
@@ -864,6 +867,7 @@ func onOffParam(b *bool, name string) ConfigParam {
 // confirmToolWizard provides an interactive wizard for confirm-tool settings.
 // Shows all tools with their current modes and global options.
 func (h *ConfigHandler) confirmToolWizard() {
+	io := h.io()
 	for {
 		allTools := make([]string, 0, len(agent.DefaultToolModes()))
 		for name := range agent.DefaultToolModes() {
@@ -893,19 +897,13 @@ func (h *ConfigHandler) confirmToolWizard() {
 		// Fixed 2-digit width for numbering
 		numWidth := 2
 		// Format: "%s[%2d] ..." where mark is either "  " (2 spaces) or " >" (arrow+space)
-		// This ensures [ is always at column 3 for both tools and global options.
-		// Tools: mark="  " → "  [ 1] add_images..."     ([ at col 3)
-		// Global unselected: mark="  " → "  [41] 全局确认:..." ([ at col 3)
-		// Global selected:   mark=" >" → " >[41] 全局确认:..." ([ at col 3)
 		fmtStr := fmt.Sprintf("%%s[%%%dd] %%-35s %%s\n", numWidth)
 		globalFmt := fmt.Sprintf("%%s[%%%dd] %%-12s %%s\n", numWidth)
 
-		fmt.Println("── confirm-tool ──────────────────────────────")
-		fmt.Println()
-
-		// Subtitle for tools section
-		fmt.Println("  工具调用:")
-		fmt.Println()
+		io.Println("── confirm-tool ──────────────────────────────")
+		io.Println()
+		io.Println("  工具调用:")
+		io.Println()
 
 		// Show all tools with numbers
 		toolCount := len(allTools)
@@ -916,7 +914,7 @@ func (h *ConfigHandler) confirmToolWizard() {
 					mode = globalDefault
 				}
 			}
-			fmt.Printf(fmtStr, "  ", i+1, name, mode)
+			io.Printf(fmtStr, "  ", i+1, name, mode)
 		}
 
 		// Global options
@@ -928,36 +926,36 @@ func (h *ConfigHandler) confirmToolWizard() {
 			"disabled": i18n.T(i18n.KeyModeDisabledDesc),
 			"custom":   i18n.T(i18n.KeyModeCustomDesc),
 		}
-		fmt.Println()
-		fmt.Printf("  全局确认模式: %s          %s\n", globalStr, modeDesc[globalStr])
-		fmt.Println()
+		io.Println()
+		io.Printf("  全局确认模式: %s          %s\n", globalStr, modeDesc[globalStr])
+		io.Println()
 		for i, opt := range globalOptions {
 			mark := "  "
 			if globalStr == opt {
 				mark = " >"
 			}
 			desc := modeDesc[opt]
-			fmt.Printf(globalFmt, mark, globalStart+i, opt, desc)
+			io.Printf(globalFmt, mark, globalStart+i, opt, desc)
 		}
 
-		fmt.Println()
-		fmt.Printf("  请选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", globalStart+3)
+		io.Println()
+		io.Printf("  请选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", globalStart+3)
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
-			fmt.Println()
+			io.Println()
 			return
 		}
 		if strings.EqualFold(input, "q") || strings.EqualFold(input, "Q") {
-			fmt.Println()
-			fmt.Println(i18n.T(i18n.KeyConfigExited))
+			io.Println()
+			io.Println(i18n.T(i18n.KeyConfigExited))
 			return
 		}
 
 		idx, err := strconv.Atoi(input)
 		if err != nil || idx < 1 || idx > globalStart+3 {
-			fmt.Println(i18n.T(i18n.KeyConfigInvalidChoice))
-			fmt.Println()
+			io.Println(i18n.T(i18n.KeyConfigInvalidChoice))
+			io.Println()
 			continue
 		}
 
@@ -981,15 +979,15 @@ func (h *ConfigHandler) confirmToolWizard() {
 			if err := h.cfg.Save(); err != nil {
 				log.Warn("Failed to save config: %v", err)
 			}
-			fmt.Printf("  全局确认模式已设置为: %s\n", opt)
-			fmt.Println()
+			io.Printf("  全局确认模式已设置为: %s\n", opt)
+			io.Println()
 			continue
 		}
 
 		// Specific tool selected - ask for mode
 		toolName := allTools[idx-1]
-		fmt.Printf("  设置工具 %s 的确认模式:\n", toolName)
-		fmt.Println()
+		io.Printf("  设置工具 %s 的确认模式:\n", toolName)
+		io.Println()
 		modeOptions := []string{"confirm", "auto", "disabled"}
 		currentMode := effectiveModes[toolName]
 		for i, opt := range modeOptions {
@@ -998,26 +996,26 @@ func (h *ConfigHandler) confirmToolWizard() {
 				mark = "> "
 			}
 			desc := modeDesc[opt]
-			fmt.Printf("%s[%d] %-12s %s\n", mark, i+1, opt, desc)
+			io.Printf("%s[%d] %-12s %s\n", mark, i+1, opt, desc)
 		}
-		fmt.Println()
-		fmt.Print("  选择 [1-3], [B] 返回上一步 [Q] 完全退出: ")
+		io.Println()
+		io.Print("  选择 [1-3], [B] 返回上一步 [Q] 完全退出: ")
 
 		modeInput := h.readLine()
 		if strings.EqualFold(modeInput, "b") || strings.EqualFold(modeInput, "B") {
-			fmt.Println()
+			io.Println()
 			continue
 		}
 		if strings.EqualFold(modeInput, "q") || strings.EqualFold(modeInput, "Q") {
-			fmt.Println()
-			fmt.Println(i18n.T(i18n.KeyConfigExited))
+			io.Println()
+			io.Println(i18n.T(i18n.KeyConfigExited))
 			return
 		}
 
 		modeIdx, err := strconv.Atoi(modeInput)
 		if err != nil || modeIdx < 1 || modeIdx > 3 {
-			fmt.Println(i18n.T(i18n.KeyConfigInvalidChoice))
-			fmt.Println()
+			io.Println(i18n.T(i18n.KeyConfigInvalidChoice))
+			io.Println()
 			continue
 		}
 
@@ -1030,8 +1028,8 @@ func (h *ConfigHandler) confirmToolWizard() {
 		if err := h.cfg.Save(); err != nil {
 			log.Warn("Failed to save config: %v", err)
 		}
-		fmt.Printf("  工具 %s 已设置为: %s\n", toolName, mode)
-		fmt.Println()
+		io.Printf("  工具 %s 已设置为: %s\n", toolName, mode)
+		io.Println()
 	}
 }
 

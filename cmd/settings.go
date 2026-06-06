@@ -49,6 +49,11 @@ func NewSettingsHandler(cfg *config.Config, ag *agent.Agent, s *store.Store) *Se
 	return &SettingsHandler{cfg: cfg, agent: ag, store: s}
 }
 
+// io returns the UserIO from the agent, falling back to DefaultUserIO.
+func (h *SettingsHandler) io() agent.UserIO {
+	return agent.GetIO(h.agent)
+}
+
 // rebuildLLMClient creates a new LLM client from current config and replaces it in the agent.
 // This is called when LLM-related settings (api-key, endpoint, model, temperature, max-tokens, vision,
 // top-p, top-k, repetition-penalty) are changed at runtime so the changes take effect immediately

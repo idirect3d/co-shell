@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-21
-// Last Modified: 2026-05-21
+// Last Modified: 2026-06-06
 //
 // # MIT License
 //
@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -26,7 +26,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,10 +34,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/store"
 )
+
+// readLineFromIO reads a line from UserIO.
+func readLineFromIO(io agent.UserIO) string {
+	line, err := io.ReadLine()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(line)
+}
 
 // HandleDB handles the .db built-in command.
 // Usage:
@@ -139,25 +148,21 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 
 		// When enabling DB, immediately test the connection with current parameters
 		log.Info("DB enabled set to %s", status)
-		fmt.Println("\n🔌 正在测试数据库连接...")
+		h.io().Println("\n🔌 正在测试数据库连接...")
 		pgStore, err := store.NewPGStore(h.cfg.DB)
 		if err != nil {
-			fmt.Printf("❌ 数据库连接失败: %v\n", err)
-			fmt.Print("是否启动数据库配置向导进行参数配置? (y/n, 默认: y): ")
-			scanner := bufio.NewScanner(os.Stdin)
-			if scanner.Scan() {
-				line := strings.TrimSpace(scanner.Text())
-				switch strings.ToLower(line) {
-				case "n", "no", "off", "0", "false":
-					return "✅ 数据库连接已启用，但连接测试未通过，请检查配置后重试", nil
-				default:
-					return h.dbConfigWizard()
-				}
+			h.io().Printf("❌ 数据库连接失败: %v\n", err)
+			h.io().Print("是否启动数据库配置向导进行参数配置? (y/n, 默认: y): ")
+			line := readLineFromIO(h.io())
+			switch strings.ToLower(line) {
+			case "n", "no", "off", "0", "false":
+				return "✅ 数据库连接已启用，但连接测试未通过，请检查配置后重试", nil
+			default:
+				return h.dbConfigWizard()
 			}
-			return "✅ 数据库连接已启用，但连接测试未通过", nil
 		}
 		pgStore.Close()
-		fmt.Println("✅ 数据库连接成功!")
+		h.io().Println("✅ 数据库连接成功!")
 		return fmt.Sprintf("✅ 数据库连接已设置为: %s", status), nil
 
 	case "host":
@@ -244,21 +249,16 @@ func (h *SettingsHandler) dbInit() (string, error) {
 		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
 	}
 
-	fmt.Print("⚠️  此操作将删除 PostgreSQL 数据库中所有现有数据并重建表结构。是否继续? (y/n, 默认: n): ")
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		switch strings.ToLower(line) {
-		case "y", "yes", "on", "1", "true":
-			// Continue
-		default:
-			return "❌ 已取消初始化", nil
-		}
-	} else {
+	h.io().Print("⚠️  此操作将删除 PostgreSQL 数据库中所有现有数据并重建表结构。是否继续? (y/n, 默认: n): ")
+	line := readLineFromIO(h.io())
+	switch strings.ToLower(line) {
+	case "y", "yes", "on", "1", "true":
+		// Continue
+	default:
 		return "❌ 已取消初始化", nil
 	}
 
-	fmt.Println("⏳ 正在初始化 PostgreSQL 数据库...")
+	h.io().Println("⏳ 正在初始化 PostgreSQL 数据库...")
 	pgStore, err := store.NewPGStore(h.cfg.DB)
 	if err != nil {
 		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
@@ -282,26 +282,21 @@ func (h *SettingsHandler) dbMigrate() (string, error) {
 		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
 	}
 
-	fmt.Println("⚠️  数据迁移说明:")
-	fmt.Println("  - schedules、taskplans、session、context 表将全量覆盖 PostgreSQL 中的现有数据")
-	fmt.Println("  - history、memory、token_usage 表仅迁移新增数据（增量迁移）")
-	fmt.Println("  - 迁移过程中不会删除本地 bbolt 数据")
-	fmt.Println("  - 迁移后若数据不一致可能导致记忆混乱，建议先备份本地数据库")
-	fmt.Print("\n是否继续执行数据迁移? (y/n, 默认: n): ")
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		switch strings.ToLower(line) {
-		case "y", "yes", "on", "1", "true":
-			// Continue
-		default:
-			return "❌ 已取消数据迁移", nil
-		}
-	} else {
+	h.io().Println("⚠️  数据迁移说明:")
+	h.io().Println("  - schedules、taskplans、session、context 表将全量覆盖 PostgreSQL 中的现有数据")
+	h.io().Println("  - history、memory、token_usage 表仅迁移新增数据（增量迁移）")
+	h.io().Println("  - 迁移过程中不会删除本地 bbolt 数据")
+	h.io().Println("  - 迁移后若数据不一致可能导致记忆混乱，建议先备份本地数据库")
+	h.io().Print("\n是否继续执行数据迁移? (y/n, 默认: n): ")
+	line := readLineFromIO(h.io())
+	switch strings.ToLower(line) {
+	case "y", "yes", "on", "1", "true":
+		// Continue
+	default:
 		return "❌ 已取消数据迁移", nil
 	}
 
-	fmt.Println("\n⏳ 正在从本地 bbolt 迁移数据到 PostgreSQL...")
+	h.io().Println("\n⏳ 正在从本地 bbolt 迁移数据到 PostgreSQL...")
 	pgStore, err := store.NewPGStore(h.cfg.DB)
 	if err != nil {
 		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
@@ -319,24 +314,22 @@ func (h *SettingsHandler) dbMigrate() (string, error) {
 // connection settings. It guides the user through each parameter step by step,
 // then offers to test the connection.
 func (h *SettingsHandler) dbConfigWizard() (string, error) {
-	scanner := bufio.NewScanner(os.Stdin)
+	io := h.io()
 
-	fmt.Println("\n📦 PostgreSQL 数据库配置向导")
-	fmt.Println("按 Enter 跳过使用默认值，输入 q 退出向导")
-	fmt.Println()
+	io.Println("\n📦 PostgreSQL 数据库配置向导")
+	io.Println("按 Enter 跳过使用默认值，输入 q 退出向导")
+	io.Println()
 
 	// Step 1: Enabled
-	fmt.Print("是否启用数据库连接? (y/n, 默认: y): ")
+	io.Print("是否启用数据库连接? (y/n, 默认: y): ")
 	enabled := true
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		switch strings.ToLower(line) {
-		case "n", "no", "off", "0", "false":
-			enabled = false
-		}
+	line := readLineFromIO(io)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	switch strings.ToLower(line) {
+	case "n", "no", "off", "0", "false":
+		enabled = false
 	}
 	h.cfg.DB.Enabled = enabled
 
@@ -352,17 +345,15 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultHost == "" {
 		defaultHost = "localhost"
 	}
-	fmt.Printf("数据库主机地址 (默认: %s): ", defaultHost)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		if line != "" {
-			h.cfg.DB.Host = line
-		} else {
-			h.cfg.DB.Host = defaultHost
-		}
+	io.Printf("数据库主机地址 (默认: %s): ", defaultHost)
+	line = readLineFromIO(io)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	if line != "" {
+		h.cfg.DB.Host = line
+	} else {
+		h.cfg.DB.Host = defaultHost
 	}
 
 	// Step 3: Port
@@ -370,23 +361,21 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultPort == 0 {
 		defaultPort = 5432
 	}
-	fmt.Printf("数据库端口 (默认: %d): ", defaultPort)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		if line != "" {
-			n, err := strconv.Atoi(line)
-			if err == nil && n >= 1 && n <= 65535 {
-				h.cfg.DB.Port = n
-			} else {
-				fmt.Printf("⚠️  无效端口号，使用默认值 %d\n", defaultPort)
-				h.cfg.DB.Port = defaultPort
-			}
+	io.Printf("数据库端口 (默认: %d): ", defaultPort)
+	line = readLineFromIO(io)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	if line != "" {
+		n, err := strconv.Atoi(line)
+		if err == nil && n >= 1 && n <= 65535 {
+			h.cfg.DB.Port = n
 		} else {
+			io.Printf("⚠️  无效端口号，使用默认值 %d\n", defaultPort)
 			h.cfg.DB.Port = defaultPort
 		}
+	} else {
+		h.cfg.DB.Port = defaultPort
 	}
 
 	// Step 4: DB Name
@@ -394,17 +383,15 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultDBName == "" {
 		defaultDBName = "postgres"
 	}
-	fmt.Printf("数据库名称 (默认: %s): ", defaultDBName)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		if line != "" {
-			h.cfg.DB.DBName = line
-		} else {
-			h.cfg.DB.DBName = defaultDBName
-		}
+	io.Printf("数据库名称 (默认: %s): ", defaultDBName)
+	line = readLineFromIO(io)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	if line != "" {
+		h.cfg.DB.DBName = line
+	} else {
+		h.cfg.DB.DBName = defaultDBName
 	}
 
 	// Step 5: Schema - use agent name as default
@@ -416,17 +403,15 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 			defaultSchema = "public"
 		}
 	}
-	fmt.Printf("数据库 Schema (默认: %s): ", defaultSchema)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		if line != "" {
-			h.cfg.DB.Schema = line
-		} else {
-			h.cfg.DB.Schema = defaultSchema
-		}
+	io.Printf("数据库 Schema (默认: %s): ", defaultSchema)
+	line = readLineFromIO(io)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	if line != "" {
+		h.cfg.DB.Schema = line
+	} else {
+		h.cfg.DB.Schema = defaultSchema
 	}
 
 	// Step 6: User
@@ -434,29 +419,26 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultUser == "" {
 		defaultUser = "postgres"
 	}
-	fmt.Printf("数据库用户 (默认: %s): ", defaultUser)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		if line != "" {
-			h.cfg.DB.User = line
-		} else {
-			h.cfg.DB.User = defaultUser
-		}
+	io.Printf("数据库用户 (默认: %s): ", defaultUser)
+	line = readLineFromIO(io)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	if line != "" {
+		h.cfg.DB.User = line
+	} else {
+		h.cfg.DB.User = defaultUser
 	}
 
 	// Step 7: Password
-	fmt.Print("数据库密码 (输入后回车，留空保留原值): ")
-	if scanner.Scan() {
-		line := scanner.Text()
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		if line != "" {
-			h.cfg.DB.Password = line
-		}
+	io.Print("数据库密码 (输入后回车，留空保留原值): ")
+	lineRaw, _ := io.ReadLine()
+	line = strings.TrimSpace(lineRaw)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	if line != "" {
+		h.cfg.DB.Password = line
 	}
 
 	// Save config first
@@ -464,46 +446,42 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 		return "", fmt.Errorf("保存配置失败: %w", err)
 	}
 
-	fmt.Println("\n📋 配置摘要:")
-	fmt.Printf("  enabled:  %v\n", h.cfg.DB.Enabled)
-	fmt.Printf("  host:     %s\n", h.cfg.DB.Host)
-	fmt.Printf("  port:     %d\n", h.cfg.DB.Port)
-	fmt.Printf("  name:     %s\n", h.cfg.DB.DBName)
-	fmt.Printf("  schema:   %s\n", h.cfg.DB.Schema)
-	fmt.Printf("  user:     %s\n", h.cfg.DB.User)
-	fmt.Printf("  password: ****\n")
+	io.Println("\n📋 配置摘要:")
+	io.Printf("  enabled:  %v\n", h.cfg.DB.Enabled)
+	io.Printf("  host:     %s\n", h.cfg.DB.Host)
+	io.Printf("  port:     %d\n", h.cfg.DB.Port)
+	io.Printf("  name:     %s\n", h.cfg.DB.DBName)
+	io.Printf("  schema:   %s\n", h.cfg.DB.Schema)
+	io.Printf("  user:     %s\n", h.cfg.DB.User)
+	io.Printf("  password: ****\n")
 
 	// Step 8: Test connection
-	fmt.Print("\n是否测试数据库连接? (y/n, 默认: y): ")
+	io.Print("\n是否测试数据库连接? (y/n, 默认: y): ")
 	testConn := true
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "q" || line == "quit" {
-			return "❌ 已退出数据库配置向导", nil
-		}
-		switch strings.ToLower(line) {
-		case "n", "no", "off", "0", "false":
-			testConn = false
-		}
+	line = readLineFromIO(io)
+	if line == "q" || line == "quit" {
+		return "❌ 已退出数据库配置向导", nil
+	}
+	switch strings.ToLower(line) {
+	case "n", "no", "off", "0", "false":
+		testConn = false
 	}
 
 	if testConn {
-		fmt.Println("\n🔌 正在测试数据库连接...")
+		io.Println("\n🔌 正在测试数据库连接...")
 		pgStore, err := store.NewPGStore(h.cfg.DB)
 		if err != nil {
-			fmt.Printf("❌ 连接失败: %v\n", err)
-			fmt.Print("是否忽略错误并保存配置? (y/n, 默认: n): ")
-			if scanner.Scan() {
-				line := strings.TrimSpace(scanner.Text())
-				switch strings.ToLower(line) {
-				case "y", "yes", "on", "1", "true":
-					// Keep config as-is
-				default:
-					return "❌ 配置未保存，请检查连接参数后重试", nil
-				}
+			io.Printf("❌ 连接失败: %v\n", err)
+			io.Print("是否忽略错误并保存配置? (y/n, 默认: n): ")
+			confirm := readLineFromIO(io)
+			switch strings.ToLower(confirm) {
+			case "y", "yes", "on", "1", "true":
+				// Keep config as-is
+			default:
+				return "❌ 配置未保存，请检查连接参数后重试", nil
 			}
 		} else {
-			fmt.Println("✅ 数据库连接成功!")
+			io.Println("✅ 数据库连接成功!")
 			pgStore.Close()
 		}
 	}
@@ -530,7 +508,7 @@ func (h *SettingsHandler) dbBackup() (string, error) {
 		return "", fmt.Errorf("无法创建备份目录 %s: %w", backupDir, err)
 	}
 
-	fmt.Printf("⏳ 正在备份数据库到 %s/ ...\n", backupDir)
+	h.io().Printf("⏳ 正在备份数据库到 %s/ ...\n", backupDir)
 	if err := pgStore.BackupToCSV(backupDir); err != nil {
 		return "", fmt.Errorf("备份失败: %w", err)
 	}
@@ -564,17 +542,13 @@ func (h *SettingsHandler) dbRestore() (string, error) {
 
 	sort.Sort(sort.Reverse(sort.StringSlice(backups)))
 
-	fmt.Println("可用的备份:")
+	h.io().Println("可用的备份:")
 	for i, b := range backups {
-		fmt.Printf("  %d. %s\n", i+1, b)
+		h.io().Printf("  %d. %s\n", i+1, b)
 	}
 
-	fmt.Print("\n请选择要恢复的备份编号 (输入 q 取消): ")
-	scanner := bufio.NewScanner(os.Stdin)
-	if !scanner.Scan() {
-		return "❌ 已取消恢复", nil
-	}
-	line := strings.TrimSpace(scanner.Text())
+	h.io().Print("\n请选择要恢复的备份编号 (输入 q 取消): ")
+	line := readLineFromIO(h.io())
 	if line == "q" || line == "quit" {
 		return "❌ 已取消恢复", nil
 	}
@@ -587,13 +561,10 @@ func (h *SettingsHandler) dbRestore() (string, error) {
 	selected := backups[idx-1]
 	backupDir := filepath.Join(backupBase, selected)
 
-	fmt.Printf("\n⚠️  恢复数据将覆盖 PostgreSQL 数据库中所有现有数据!\n")
-	fmt.Printf("   备份来源: %s/\n", backupDir)
-	fmt.Print("是否继续恢复? (y/n, 默认: n): ")
-	if !scanner.Scan() {
-		return "❌ 已取消恢复", nil
-	}
-	confirm := strings.TrimSpace(scanner.Text())
+	h.io().Printf("\n⚠️  恢复数据将覆盖 PostgreSQL 数据库中所有现有数据!\n")
+	h.io().Printf("   备份来源: %s/\n", backupDir)
+	h.io().Print("是否继续恢复? (y/n, 默认: n): ")
+	confirm := readLineFromIO(h.io())
 	switch strings.ToLower(confirm) {
 	case "y", "yes", "on", "1", "true":
 		// Continue
@@ -607,7 +578,7 @@ func (h *SettingsHandler) dbRestore() (string, error) {
 	}
 	defer pgStore.Close()
 
-	fmt.Println("⏳ 正在恢复数据...")
+	h.io().Println("⏳ 正在恢复数据...")
 	if err := pgStore.RestoreFromCSV(backupDir); err != nil {
 		return "", fmt.Errorf("恢复失败: %w", err)
 	}
