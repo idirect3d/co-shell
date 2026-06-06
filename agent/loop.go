@@ -183,8 +183,6 @@ type Agent struct {
 // If messagePointer > 0, messages before the pointer are ignored (the pointer message
 // and everything after it are kept). This is used when a checklist is created/updated
 // to focus the LLM on the current task plan.
-// Each message's content is prefixed with its original index in a.messages,
-// e.g. "123: 2026-05-01 12:09:24 - ...", to help the LLM understand the conversation order.
 func (a *Agent) buildContextMessages() []llm.Message {
 	if a.cfg == nil || a.cfg.LLM.ContextLimit == -1 {
 		return a.addIndexPrefixToMessages(a.messages, 0)
@@ -231,42 +229,13 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	return a.addIndexPrefixToMessages(result, startIdx)
 }
 
-// addIndexPrefixToMessages adds the original message index prefix to each message's content.
-// The format is: "index: content"
-// For example: "123: 2026-05-01 12:09:24 - 现在来更新主报告。"
-// The index is the position in a.messages (0-based), which helps the LLM
-// understand the conversation order even when context truncation is applied.
-// System messages are not prefixed (they are always at index 0 and have no timestamp).
-// startIdx is the index in a.messages where msgs[0] corresponds to.
-// If startIdx < 0, the function falls back to content-based matching (legacy behavior).
+// addIndexPrefixToMessages returns the messages as-is, without adding index prefixes.
+// Previously this function added "index: content" prefix to help LLM understand
+// conversation order, but this was removed because it interfered with message content.
+// The function is kept for backwards compatibility and may be removed in the future.
 func (a *Agent) addIndexPrefixToMessages(msgs []llm.Message, startIdx int) []llm.Message {
 	result := make([]llm.Message, len(msgs))
-	for i, msg := range msgs {
-		// Determine the original index
-		origIdx := -1
-		if startIdx >= 0 {
-			// Use sequential indexing starting from startIdx
-			origIdx = startIdx + i
-		} else {
-			// Fallback: find the original index in a.messages by matching content and role
-			a.mu.Lock()
-			for j := range a.messages {
-				if a.messages[j].Role == msg.Role && a.messages[j].Content == msg.Content {
-					origIdx = j
-					break
-				}
-			}
-			a.mu.Unlock()
-		}
-
-		if origIdx >= 0 && msg.Role != "system" && !(msg.Role == "assistant" && len(msg.ToolCalls) > 0) {
-			// Add index prefix before the content
-			result[i] = msg
-			result[i].Content = fmt.Sprintf("%d: %s", origIdx, msg.Content)
-		} else {
-			result[i] = msg
-		}
-	}
+	copy(result, msgs)
 	return result
 }
 
