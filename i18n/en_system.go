@@ -960,48 +960,46 @@ Goal: Enter a keyword in the search box and click the search button
 	enMessages[KeySystemPromptExternalTools] = `
 EXTERNAL TOOLS
 
-The bin/ directory contains Python utility scripts for document format conversion and multimodal content parsing. Use these tools when handling PDF, Word, and other document files according to the guide below.
-
-Invocation: Execute via execute_command, e.g.:
-  python3 bin/pdf2png.py input.pdf -o ./pages
+The bin/ directory provides Python tools for document format conversion and multimodal content parsing. **When processing Word or PDF documents, always prioritize multimodal analysis of their layout/content rather than plain text extraction (tables, charts, images, and non-text elements would be lost otherwise).**
 
 # Tool Inventory
+
+For detailed parameter descriptions, refer to the corresponding bin/{tool_name}.md file (the .md file is the authoritative source).
+
+## doc2png — Document to PNG Page Images
+Purpose: Convert .doc/.docx/.wps documents directly to page-by-page PNG images, preserving headings/tables/charts/images/layout.
+Usage: python3 bin/doc2png.py <input.doc/docx/wps> -o <output_dir>
+
+## doc2pdf — Document to PDF
+Purpose: Convert .doc/.docx/.wps documents to PDF.
+Usage: python3 bin/doc2pdf.py <input.doc/docx/wps> -o <output.pdf>
 
 ## pdf2png — PDF to PNG Image Converter
 Purpose: Split PDF pages into PNG images for multimodal PDF content analysis using vision-capable models.
 Usage: python3 bin/pdf2png.py <input.pdf> -o <output_dir> [--dpi 300]
-Reference: bin/pdf2png.md
-
-## docx2pdf — DOCX to PDF Converter
-Purpose: Convert .docx files to PDF for printing or further PNG conversion via pdf2png.
-Usage: python3 bin/docx2pdf.py <input.docx> -o <output.pdf>
-Reference: bin/docx2pdf.md
-Auto-detects: macOS textutil > LibreOffice > WPS Office.
-
-## doc2pdf — Legacy DOC to PDF Converter
-Purpose: Convert old-format .doc (Word 97-2003) files to PDF.
-Usage: python3 bin/doc2pdf.py <input.doc> -o <output.pdf>
-Reference: bin/doc2pdf.md
-Auto-detects installed office software (WPS Office recommended).
 
 ## md2docx — Markdown to Word Converter
-Purpose: Convert Markdown files to beautifully styled .docx documents with multiple style options (official, modern, classic, minimal).
+Purpose: Convert Markdown files to beautifully styled .docx documents with multiple style options (official/modern/classic/minimal).
 Usage: python3 bin/md2docx.py <input.md> -o <output.docx> [--style official]
-Reference: bin/md2docx.md
 
 ## md2wechat — Markdown to WeChat Official Account Formatter
 Purpose: Convert Markdown to HTML suitable for pasting into the WeChat Official Account editor.
 Usage: python3 bin/md2wechat.py <input.md> [output.html]
-Reference: bin/md2wechat.md
 
 # Typical Workflow
 
-When analyzing documents containing complex tables, charts, layouts, or other content that text-based models struggle to handle:
-1. Start with the source document (or convert from Markdown using md2docx)
-2. Convert to PDF using docx2pdf/doc2pdf
-3. Split PDF into PNG page images using pdf2png
-4. Load the images using the add_images tool into multimodal context
-5. Analyze the complex document structures and content with the vision model
+When analyzing Word/PDF documents containing complex tables, charts, or layouts, use the standard approach:
+
+1. **Word documents (doc/docx/wps)**: python3 bin/doc2png.py <document> -o ./pages
+2. **PDF documents**: python3 bin/pdf2png.py <document.pdf> -o ./pages
+3. Load the generated PNG images using the add_images tool into multimodal context
+4. Analyze complex document structures and content with the vision model
+
+If LibreOffice is not installed, doc2png/doc2pdf fall back to plain text extraction (formatting lost).
+Guide the user to install LibreOffice:
+  macOS: brew install --cask libreoffice
+  Windows: winget install TheDocumentFoundation.LibreOffice
+  Linux: sudo apt install libreoffice
 
 `
 
