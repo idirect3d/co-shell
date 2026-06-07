@@ -517,47 +517,47 @@ func (r *REPL) streamCallback(eventType string, content string) {
 	case "content":
 		out(ep.LlmOutput)
 		out(content)
-		out("\r")
+		out("\n")
 	case "thinking":
 		out(ep.Thinking)
 		out(content)
-		out("\r")
+		out("\n")
 	case "command":
-		out("\r")
+		out("\n")
 		out(ep.CommandInput)
 		out(content)
-		out("\r")
+		out("\n")
 	case "output":
-		out("\r")
+		out("\n")
 		out(ep.OutputTitle)
-		out("\r")
+		out("\n")
 		out(ep.OutputSep)
-		out("\r")
+		out("\n")
 		out(content)
-		out("\r")
+		out("\n")
 		out(ep.OutputSep)
-		out("\r")
+		out("\n")
 	case "tool_call":
-		out("\r")
+		out("\n")
 		out(ep.ToolCallInput)
 		out(content)
-		out("\r")
+		out("\n")
 	case "token_usage":
 		var prompt, completion, total int
 		if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
 			outF("%s Token 用量: 输入=%d, 输出=%d, 总计=%d", ep.Info, prompt, completion, total)
-			out("\r")
+			out("\n")
 		}
 	case "info":
 		out(content)
 	case "warning":
 		out(ep.Warning)
 		out(content)
-		out("\r")
+		out("\n")
 	case "error":
 		out(ep.Error)
 		out(content)
-		out("\r")
+		out("\n")
 	case "done":
 		out("\n")
 	}

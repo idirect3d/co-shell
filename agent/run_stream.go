@@ -569,11 +569,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				cb("tool_call", fmt.Sprintf("  Result:\n%s\n", result))
 			}
 
-			// Show command output if enabled (legacy, for execute_command specifically)
-			if a.showCommandOutput && tc.Name == "execute_command" && result != "" {
-				cb("output", result)
-			}
-
 			// If the result is empty, provide a clear message to the LLM
 
 			toolContent := result
