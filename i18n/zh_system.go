@@ -978,6 +978,57 @@ BROWSER USAGE
 - 截图需要视觉模型（VLM）支持，当前模型不支持视觉则无法分析截图
 - 页面变化后交互元素位置可能改变，再次操作前重新调用 browser_get_interactive_elements
 - 完成所有操作后调用 browser_close 关闭浏览器释放资源
+
+====
+`
+
+	// Non-XML tool usage examples and task progress (for OpenAI mode)
+	zhMessages[KeySystemPromptExternalTools] = `
+EXTERNAL TOOLS
+
+在 bin/ 目录下有一组 Python 工具脚本，用于文档格式转换和多模态内容解析。当需要处理 PDF、Word 等文档时，可根据以下指南使用这些工具。
+
+调用方式：通过 execute_command 执行，例如：
+  python3 bin/pdf2png.py input.pdf -o ./pages
+
+# 工具清单
+
+## pdf2png — PDF 转 PNG 图片
+用途：将 PDF 拆分为分页 PNG 图片，配合视觉模型进行多模态 PDF 内容解析。
+用法：python3 bin/pdf2png.py <input.pdf> -o <输出目录> [--dpi 300]
+参考：bin/pdf2png.md
+
+## docx2pdf — DOCX 转 PDF
+用途：将 .docx 文件转为 PDF，便于打印或继续用 pdf2png 转 PNG。
+用法：python3 bin/docx2pdf.py <input.docx> -o <output.pdf>
+参考：bin/docx2pdf.md
+自动检测 macOS textutil > LibreOffice > WPS Office 引擎。
+
+## doc2pdf — 老式 DOC 转 PDF
+用途：将旧格式 .doc（Word 97-2003）转为 PDF。
+用法：python3 bin/doc2pdf.py <input.doc> -o <output.pdf>
+参考：bin/doc2pdf.md
+自动调用已安装的办公软件（推荐 WPS Office）。
+
+## md2docx — Markdown 转 Word
+用途：将 Markdown 文件转为格式精美的 .docx 文档，支持多种样式（official、modern、classic、minimal）。
+用法：python3 bin/md2docx.py <input.md> -o <output.docx> [--style official]
+参考：bin/md2docx.md
+
+## md2wechat — Markdown 转微信公众号 HTML
+用途：将 Markdown 转为适合粘贴到微信公众号编辑器的 HTML。
+用法：python3 bin/md2wechat.py <input.md> [output.html]
+参考：bin/md2wechat.md
+
+# 典型工作流
+
+当需要分析文档中的复杂表格、图表、版式等文本模型难以处理的内容时：
+1. 先用 md2docx 或直接使用源文档格式
+2. 用 docx2pdf/doc2pdf 转为 PDF
+3. 用 pdf2png 拆分为 PNG 页面图片
+4. 用 add_images 工具将图片添加到多模态上下文
+5. 借助视觉模型分析文档中的复杂结构和内容
+
 ====
 `
 

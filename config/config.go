@@ -480,6 +480,7 @@ func DefaultBuiltInSections() []string {
 		"ResultMode",
 		"Capabilities",
 		"Rules",
+		"ExternalTools",
 		"Environment",
 		"Objective",
 	}

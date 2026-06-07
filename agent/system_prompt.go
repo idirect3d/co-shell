@@ -224,6 +224,12 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		})
 		return buildSectionWithPlaceholders(text, env)
 
+	case "ExternalTools":
+		text := loadSectionText(env.cwd, modeName, "EXTERNAL_TOOLS", func() string {
+			return i18n.T(i18n.KeySystemPromptExternalTools)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
 	case "Environment":
 		text := loadSectionText(env.cwd, modeName, "ENVIRONMENT", func() string {
 			return i18n.T(i18n.KeySystemPromptEnvironment)

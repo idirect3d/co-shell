@@ -783,6 +783,10 @@ const (
 	// Explains the SREA (Screenshot-Recognition-Evaluation-Action) cycle.
 	KeySystemPromptBrowserUsage = "system_prompt_browser_usage"
 
+	// ExternalTools section — describes how to use bin/ tools for document conversion
+	// and other utility tasks. Loaded lazily when building the system prompt.
+	KeySystemPromptExternalTools = "system_prompt_external_tools"
+
 	// Confirm-tool mode descriptions (FEATURE-200)
 	KeyModeConfirmDesc  = "mode_confirm_desc"
 	KeyModeAutoDesc     = "mode_auto_desc"

@@ -957,6 +957,54 @@ Goal: Enter a keyword in the search box and click the search button
 - Call browser_close to release resources when all operations are complete
 `
 
+	enMessages[KeySystemPromptExternalTools] = `
+EXTERNAL TOOLS
+
+The bin/ directory contains Python utility scripts for document format conversion and multimodal content parsing. Use these tools when handling PDF, Word, and other document files according to the guide below.
+
+Invocation: Execute via execute_command, e.g.:
+  python3 bin/pdf2png.py input.pdf -o ./pages
+
+# Tool Inventory
+
+## pdf2png — PDF to PNG Image Converter
+Purpose: Split PDF pages into PNG images for multimodal PDF content analysis using vision-capable models.
+Usage: python3 bin/pdf2png.py <input.pdf> -o <output_dir> [--dpi 300]
+Reference: bin/pdf2png.md
+
+## docx2pdf — DOCX to PDF Converter
+Purpose: Convert .docx files to PDF for printing or further PNG conversion via pdf2png.
+Usage: python3 bin/docx2pdf.py <input.docx> -o <output.pdf>
+Reference: bin/docx2pdf.md
+Auto-detects: macOS textutil > LibreOffice > WPS Office.
+
+## doc2pdf — Legacy DOC to PDF Converter
+Purpose: Convert old-format .doc (Word 97-2003) files to PDF.
+Usage: python3 bin/doc2pdf.py <input.doc> -o <output.pdf>
+Reference: bin/doc2pdf.md
+Auto-detects installed office software (WPS Office recommended).
+
+## md2docx — Markdown to Word Converter
+Purpose: Convert Markdown files to beautifully styled .docx documents with multiple style options (official, modern, classic, minimal).
+Usage: python3 bin/md2docx.py <input.md> -o <output.docx> [--style official]
+Reference: bin/md2docx.md
+
+## md2wechat — Markdown to WeChat Official Account Formatter
+Purpose: Convert Markdown to HTML suitable for pasting into the WeChat Official Account editor.
+Usage: python3 bin/md2wechat.py <input.md> [output.html]
+Reference: bin/md2wechat.md
+
+# Typical Workflow
+
+When analyzing documents containing complex tables, charts, layouts, or other content that text-based models struggle to handle:
+1. Start with the source document (or convert from Markdown using md2docx)
+2. Convert to PDF using docx2pdf/doc2pdf
+3. Split PDF into PNG page images using pdf2png
+4. Load the images using the add_images tool into multimodal context
+5. Analyze the complex document structures and content with the vision model
+
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	enMessages[KeySystemPromptToolUsageExamples] = `# Tool Use Examples
 
