@@ -349,14 +349,15 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 }
 
 // listFilesForPrompt lists files in a directory and returns the listing as a string.
-// If recursive is true, it walks subdirectories recursively. Returns at most maxEntries
-// items. If there are more, a truncation notice is appended. This is a package-level
+// depth controls recursion: 0 = top-level only, 1 = one level deep, etc.
+// -1 means unlimited recursion. Returns at most maxEntries items.
+// If there are more, a truncation notice is appended. This is a package-level
 // function used by both listFilesTool and buildSystemPromptWithMode.
-func listFilesForPrompt(dirPath string, recursive bool, maxEntries int) string {
+func listFilesForPrompt(dirPath string, depth int, maxEntries int) string {
 	var result strings.Builder
 	var count int
 
-	if recursive {
+	if depth < 0 || depth > 0 {
 		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
@@ -365,6 +366,19 @@ func listFilesForPrompt(dirPath string, recursive bool, maxEntries int) string {
 				return filepath.SkipDir
 			}
 			relPath, _ := filepath.Rel(dirPath, path)
+			if relPath == "." {
+				return nil
+			}
+			// Check depth: count path separators
+			if depth >= 0 {
+				d := strings.Count(relPath, string(filepath.Separator))
+				if d > depth {
+					if info.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+			}
 			if info.IsDir() {
 				result.WriteString(relPath + "/\n")
 			} else {
@@ -399,9 +413,9 @@ func listFilesForPrompt(dirPath string, recursive bool, maxEntries int) string {
 }
 
 // listFilesTool lists files and directories within the specified directory.
-// If recursive is true, it lists all files and directories recursively.
-// If recursive is false or not provided, it only lists the top-level contents.
-// Returns at most 100 entries. If there are more, a truncation notice is appended.
+// depth controls recursion: 0 = top-level only (default), 1 = one level deep, etc.
+// -1 means unlimited recursion. Returns at most maxItems items.
+// maxItems is configurable via config (default: 256).
 func (a *Agent) listFilesTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("listFilesTool called: args=%v", args)
 	dirPath, ok := args["path"].(string)
@@ -418,14 +432,17 @@ func (a *Agent) listFilesTool(ctx context.Context, args map[string]interface{}) 
 		dirPath = filepath.Join(cwd, dirPath)
 	}
 
-	// Check recursive flag
-	recursive := false
-	if r, ok := args["recursive"].(bool); ok {
-		recursive = r
+	// Check recursive flag: integer depth
+	depth := 0 // default: top-level only
+	if r, ok := args["recursive"].(float64); ok {
+		depth = int(r)
 	}
 
-	const maxEntries = 100
-	listing := listFilesForPrompt(dirPath, recursive, maxEntries)
+	maxEntries := 100
+	if a.cfg != nil && a.cfg.LLM.ListMaxItems > 0 {
+		maxEntries = a.cfg.LLM.ListMaxItems
+	}
+	listing := listFilesForPrompt(dirPath, depth, maxEntries)
 	if listing == "" {
 		return "", fmt.Errorf("cannot read directory %q", dirPath)
 	}

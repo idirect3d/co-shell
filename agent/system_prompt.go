@@ -301,7 +301,8 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	}
 	env.channelInfo = env.userName + " @ " + displayChannel
 	env.currentTime = time.Now().Format("2006-01-02 15:04:05 Monday")
-	env.currentFiles = strings.TrimRight(listFilesForPrompt(env.cwd, true, 100), "\n")
+	// depth=1: show top-level + one level deep (e.g. bin/ tool names visible)
+	env.currentFiles = strings.TrimRight(listFilesForPrompt(env.cwd, 1, 256), "\n")
 	env.taskDesc = taskDesc
 	env.taskPlanText = taskPlanText
 	env.customRules = rules

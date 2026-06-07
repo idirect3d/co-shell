@@ -210,14 +210,14 @@ Usage:
 </search_files>`
 
 	enMessages[KeyToolUsageListFiles] = `## list_files
-Description: List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Use this to explore directory structures and find files.
+Description: List files and directories within the specified directory. recursive controls recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc. Use this to explore directory structures and find files.
 Parameters:
 - path (required) The directory path to list contents for (absolute or relative to current working directory)
-- recursive (optional) Whether to list files recursively. true for recursive listing, false or omit for top-level only.
+- recursive (optional) Recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc.
 Usage:
 <list_files>
   <path>agent</path>
-  <recursive>true</recursive>
+  <recursive>1</recursive>
 </list_files>`
 
 	enMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names

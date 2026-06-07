@@ -220,14 +220,14 @@ Usage:
 </search_files>`
 
 	zhMessages[KeyToolUsageListFiles] = `## list_files
-Description: 列出指定目录中的文件和子目录。如果 recursive 为 true，则递归列出所有文件和目录。如果 recursive 为 false 或未提供，则只列出顶层内容。用于探索目录结构和查找文件。
+Description: 列出指定目录中的文件和子目录。recursive 控制递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。用于探索目录结构和查找文件。
 Parameters:
 - path (必需) 要列出内容的目录路径（绝对路径或相对于当前工作目录）
-- recursive (可选) 是否递归列出文件。true 表示递归列出，false 或省略表示只列出顶层内容。
+- recursive (可选) 递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。
 Usage:
 <list_files>
   <path>agent</path>
-  <recursive>true</recursive>
+  <recursive>1</recursive>
 </list_files>`
 
 	zhMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
