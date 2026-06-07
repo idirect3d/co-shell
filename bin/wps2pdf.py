@@ -96,85 +96,98 @@ def convert_with_libreoffice(input_path, output_path):
 def convert_with_python(input_path, output_path):
     """Pure Python conversion for .wps files: extract text via olefile -> PyMuPDF.
 
-    .wps files are OLE2 compound documents. We extract text content directly
-    from the WordDocument stream.
+    .wps files are OLE2 compound documents. We extract text from the
+    WordDocument binary stream via UTF-16LE decoding, then generate a PDF
+    with the PyMuPDF built-in CJK font (china-ss).
     """
     import fitz
 
     try:
         import olefile
-        ole = olefile.OleFileIO(input_path)
-        text_content = ""
-
-        if ole.exists('WordDocument'):
-            data = ole.openstream('WordDocument').read()
-
-            # UTF-16LE decode
-            try:
-                text = data.decode('utf-16-le', errors='ignore')
-                text = ''.join(c for c in text if c.isprintable() or c in '\n\r\t')
-                if len(text.strip()) > 50:
-                    text_content = text
-            except Exception:
-                pass
-
-            # UTF-8 fallback
-            if not text_content.strip():
-                try:
-                    text = data.decode('utf-8', errors='ignore')
-                    text = ''.join(c for c in text if c.isprintable() or c in '\n\r\t')
-                    if len(text.strip()) > 50:
-                        text_content = text
-                except Exception:
-                    pass
-
-            # All streams fallback
-            if not text_content.strip():
-                for stream_name in ole.listdir():
-                    try:
-                        stream_data = ole.openstream(stream_name).read()
-                        decoded = stream_data.decode('utf-16-le', errors='ignore')
-                        printable = ''.join(c for c in decoded if c.isprintable() or c in '\n\r\t')
-                        if len(printable.strip()) > 20:
-                            text_content += printable + '\n'
-                    except Exception:
-                        pass
-
-        ole.close()
-
-        if not text_content.strip():
-            raise RuntimeError("Could not extract text from .wps file")
-
     except ImportError:
         raise RuntimeError("olefile not found. Install: pip install olefile")
-    except Exception as e:
-        raise RuntimeError(f"Failed to extract text from .wps: {e}")
 
-    # Generate PDF from extracted text
+    try:
+        ole = olefile.OleFileIO(input_path)
+        data = ole.openstream('WordDocument').read()
+        ole.close()
+    except Exception as e:
+        raise RuntimeError(f"Failed to read .wps file: {e}")
+
+    # Decode as UTF-16LE, then keep only characters that china-ss can render
+    raw = data.decode('utf-16-le', errors='replace')
+
+    # Build clean text: keep only safe codepoints
+    safe_chars = []
+    for c in raw:
+        cp = ord(c)
+        if cp == 0:
+            continue
+        if cp in (10, 13):
+            safe_chars.append('\n')
+            continue
+        if cp < 32:
+            continue
+        if 0x20 <= cp <= 0x7E:
+            safe_chars.append(c)
+            continue
+        if 0x4E00 <= cp <= 0x9FFF:
+            safe_chars.append(c)
+            continue
+        if 0x3400 <= cp <= 0x4DBF:
+            safe_chars.append(c)
+            continue
+        if 0x3000 <= cp <= 0x303F:
+            safe_chars.append(c)
+            continue
+        if 0xFF00 <= cp <= 0xFFEF:
+            safe_chars.append(c)
+            continue
+        if cp in (0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2026):
+            safe_chars.append(c)
+            continue
+
+    clean_text = ''.join(safe_chars)
+
+    # Extract meaningful lines
+    lines = []
+    for line in clean_text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        cjk = sum(1 for c in line if 0x4E00 <= ord(c) <= 0x9FFF)
+        alpha = sum(1 for c in line if c.isascii() and c.isalpha())
+        if cjk == 0 and alpha < 3:
+            continue
+        lines.append(line)
+
+    if not lines:
+        raise RuntimeError("Could not extract readable text from .wps file")
+
+    # Generate PDF: render each line
     pdf = fitz.open()
     page = pdf.new_page()
     margin = 50
-    page_width = 595
-    page_height = 842
-
-    lines = text_content.split('\n')
     y = margin
     font_size = 11
 
     for line in lines:
-        line = line.strip()
-        if not line:
-            y += 12
-            continue
-
-        text_height = 14
-        if y + text_height > page_height - margin:
+        if y > 820:
             page = pdf.new_page()
             y = margin
 
-        rect = fitz.Rect(margin, y, page_width - margin, y + text_height)
-        page.insert_textbox(rect, line, fontsize=font_size, fontname="helv", color=(0, 0, 0))
-        y += text_height + 2
+        # Render line char by char - robustly handles all characters
+        x = margin
+        for ch in line:
+            cp = ord(ch)
+            if cp < 32 or 0xD800 <= cp <= 0xDFFF:
+                continue
+            try:
+                page.insert_text(fitz.Point(x, y), ch, fontsize=font_size, fontname="china-ss")
+                x += 8
+            except:
+                pass
+        y += 15
 
     pdf.save(output_path)
     pdf.close()

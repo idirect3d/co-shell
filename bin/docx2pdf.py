@@ -141,10 +141,14 @@ def convert_with_python(input_path, output_path):
         if y + text_height > page_height - margin:
             new_page()
 
-        # Draw text
-        font = "helv-Bold" if bold else "helv"
+        # Draw text (use china-ss for CJK support)
+        font = "china-ss" if not bold else "china-ss"
         rect = fitz.Rect(margin, y, page_width - margin, y + text_height)
-        page.insert_textbox(rect, text, fontsize=size, fontname=font, color=(0, 0, 0))
+        page.insert_textbox(rect, text, fontsize=size, fontname="china-ss", color=(0, 0, 0))
+        if bold:
+            # Simulate bold by drawing a second copy offset slightly
+            rect2 = fitz.Rect(margin + 0.5, y, page_width - margin + 0.5, y + text_height)
+            page.insert_textbox(rect2, text, fontsize=size, fontname="china-ss", color=(0, 0, 0))
         y += text_height + 4
 
     # Handle tables
@@ -160,7 +164,7 @@ def convert_with_python(input_path, output_path):
                 if cell_text:
                     cell_rect = fitz.Rect(x + ci * (page_width - 2 * margin) / cols, y,
                                           x + (ci + 1) * (page_width - 2 * margin) / cols, y + 18)
-                    page.insert_textbox(cell_rect, cell_text, fontsize=9, fontname="helv", color=(0, 0, 0))
+                    page.insert_textbox(cell_rect, cell_text, fontsize=9, fontname="china-ss", color=(0, 0, 0))
         y += table_height + 10
 
     pdf.save(output_path)
