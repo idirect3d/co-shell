@@ -220,14 +220,14 @@ Usage:
 </search_files>`
 
 	zhMessages[KeyToolUsageListFiles] = `## list_files
-Description: 列出指定目录中的文件和子目录。如果 recursive 为 true，则递归列出所有文件和目录。如果 recursive 为 false 或未提供，则只列出顶层内容。用于探索目录结构和查找文件。
+Description: 列出指定目录中的文件和子目录。recursive 控制递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。用于探索目录结构和查找文件。
 Parameters:
 - path (必需) 要列出内容的目录路径（绝对路径或相对于当前工作目录）
-- recursive (可选) 是否递归列出文件。true 表示递归列出，false 或省略表示只列出顶层内容。
+- recursive (可选) 递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。
 Usage:
 <list_files>
   <path>agent</path>
-  <recursive>true</recursive>
+  <recursive>1</recursive>
 </list_files>`
 
 	zhMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
@@ -978,6 +978,55 @@ BROWSER USAGE
 - 截图需要视觉模型（VLM）支持，当前模型不支持视觉则无法分析截图
 - 页面变化后交互元素位置可能改变，再次操作前重新调用 browser_get_interactive_elements
 - 完成所有操作后调用 browser_close 关闭浏览器释放资源
+
+====
+`
+
+	// Non-XML tool usage examples and task progress (for OpenAI mode)
+	zhMessages[KeySystemPromptExternalTools] = `
+EXTERNAL TOOLS
+
+bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容解析。**处理 Word 文档或 PDF 时应优先使用多模态能力分析其版式内容，而非纯文本提取（否则会丢失表格、图表、图片等非文本元素）。**
+
+# 工具清单
+
+每个工具的详细参数说明见对应 bin/{工具名}.md 文件，以 .md 文件为准。
+
+## doc2png — 文档转 PNG 分页图片
+用途：将 .doc/.docx/.wps 文档直接转为分页 PNG 图片，完美保留标题/表格/图表/图片/排版。
+用法：python3 bin/doc2png.py <input.doc/docx/wps> -o <输出目录>
+
+## doc2pdf — 文档转 PDF
+用途：将 .doc/.docx/.wps 文档转为 PDF。
+用法：python3 bin/doc2pdf.py <input.doc/docx/wps> -o <output.pdf>
+
+## pdf2png — PDF 转 PNG 分页图片
+用途：将 PDF 拆分为分页 PNG 图片，配合视觉模型进行多模态 PDF 内容解析。
+用法：python3 bin/pdf2png.py <input.pdf> -o <输出目录> [--dpi 300]
+
+## md2docx — Markdown 转 Word
+用途：将 Markdown 转为格式精美的 .docx 文档，支持多种样式（official/modern/classic/minimal）。
+用法：python3 bin/md2docx.py <input.md> -o <output.docx> [--style official]
+
+## md2wechat — Markdown 转微信公众号 HTML
+用途：将 Markdown 转为适合粘贴到微信公众号编辑器的 HTML。
+用法：python3 bin/md2wechat.py <input.md> [output.html]
+
+# 典型工作流
+
+当需要分析 Word/PDF 文档中的复杂表格、图表、版式等内容时，标准做法如下：
+
+1. **Word 文档（doc/docx/wps）**：python3 bin/doc2png.py <文档> -o ./pages
+2. **PDF 文档**：python3 bin/pdf2png.py <文档.pdf> -o ./pages
+3. 用 add_images 将生成的 PNG 图片加载到多模态上下文
+4. 借助视觉模型分析文档中的复杂结构和内容
+
+如果 LibreOffice 未安装，doc2png/doc2pdf 会降级到纯文本提取（丢失格式）。
+此时应引导用户安装 LibreOffice：
+  macOS: brew install --cask libreoffice
+  Windows: winget install TheDocumentFoundation.LibreOffice
+  Linux: sudo apt install libreoffice
+
 ====
 `
 
@@ -1186,6 +1235,7 @@ RULES
 - **修改程序文件时**：优先使用 replace_in_file 精确修改。如果需要修改的地方较多（如超过 10 处或需替换总量超过 50 行），可以分多次修改，每次改几处或若干行，逐步推进，尽量不要用 write_to_file 重写整个文件。
 - **调查研究时**：做研究时必须保存所有收集到的原始资料，以便审稿人员快速验证所引用数据、观点、结论等内容的真实来源。基础资料命名规则为："[序号] 文章标题-出处-作者【发表日期】"，在主报告中以 GB/T 7714 标注出处。每次全新任务在 ./research/ 下创建新的工作文件夹。最终报告先用 Markdown 整理，再转换为 Word 文档，并尽量打开呈现给用户。
 - **与其他 co-shell Agent 协作时**：通过子 agent 方式与对方平等地沟通和共享信息，分工明确、成果共享。
+- **每个专项任务应创建专属文件夹**：如果用户没有特别指定工作空间，那么每个独立任务都应在"./research/"下创建一个专用的子文件夹（如 "./research/任务名/"），所有该任务的输出文件（包括但不限于 md、程序脚本、word、pdf、excel 等）都应创建在该文件夹下，除非任务明确指定了其他位置。
 {CUSTOM_RULES}
 
 ====

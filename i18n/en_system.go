@@ -210,14 +210,14 @@ Usage:
 </search_files>`
 
 	enMessages[KeyToolUsageListFiles] = `## list_files
-Description: List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Use this to explore directory structures and find files.
+Description: List files and directories within the specified directory. recursive controls recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc. Use this to explore directory structures and find files.
 Parameters:
 - path (required) The directory path to list contents for (absolute or relative to current working directory)
-- recursive (optional) Whether to list files recursively. true for recursive listing, false or omit for top-level only.
+- recursive (optional) Recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc.
 Usage:
 <list_files>
   <path>agent</path>
-  <recursive>true</recursive>
+  <recursive>1</recursive>
 </list_files>`
 
 	enMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
@@ -955,6 +955,52 @@ Goal: Enter a keyword in the search box and click the search button
 - Screenshots require a vision model (VLM); if the current model does not support vision, screenshots cannot be analyzed
 - Interactive element positions may change after page updates; re-call browser_get_interactive_elements before operating again
 - Call browser_close to release resources when all operations are complete
+`
+
+	enMessages[KeySystemPromptExternalTools] = `
+EXTERNAL TOOLS
+
+The bin/ directory provides Python tools for document format conversion and multimodal content parsing. **When processing Word or PDF documents, always prioritize multimodal analysis of their layout/content rather than plain text extraction (tables, charts, images, and non-text elements would be lost otherwise).**
+
+# Tool Inventory
+
+For detailed parameter descriptions, refer to the corresponding bin/{tool_name}.md file (the .md file is the authoritative source).
+
+## doc2png — Document to PNG Page Images
+Purpose: Convert .doc/.docx/.wps documents directly to page-by-page PNG images, preserving headings/tables/charts/images/layout.
+Usage: python3 bin/doc2png.py <input.doc/docx/wps> -o <output_dir>
+
+## doc2pdf — Document to PDF
+Purpose: Convert .doc/.docx/.wps documents to PDF.
+Usage: python3 bin/doc2pdf.py <input.doc/docx/wps> -o <output.pdf>
+
+## pdf2png — PDF to PNG Image Converter
+Purpose: Split PDF pages into PNG images for multimodal PDF content analysis using vision-capable models.
+Usage: python3 bin/pdf2png.py <input.pdf> -o <output_dir> [--dpi 300]
+
+## md2docx — Markdown to Word Converter
+Purpose: Convert Markdown files to beautifully styled .docx documents with multiple style options (official/modern/classic/minimal).
+Usage: python3 bin/md2docx.py <input.md> -o <output.docx> [--style official]
+
+## md2wechat — Markdown to WeChat Official Account Formatter
+Purpose: Convert Markdown to HTML suitable for pasting into the WeChat Official Account editor.
+Usage: python3 bin/md2wechat.py <input.md> [output.html]
+
+# Typical Workflow
+
+When analyzing Word/PDF documents containing complex tables, charts, or layouts, use the standard approach:
+
+1. **Word documents (doc/docx/wps)**: python3 bin/doc2png.py <document> -o ./pages
+2. **PDF documents**: python3 bin/pdf2png.py <document.pdf> -o ./pages
+3. Load the generated PNG images using the add_images tool into multimodal context
+4. Analyze complex document structures and content with the vision model
+
+If LibreOffice is not installed, doc2png/doc2pdf fall back to plain text extraction (formatting lost).
+Guide the user to install LibreOffice:
+  macOS: brew install --cask libreoffice
+  Windows: winget install TheDocumentFoundation.LibreOffice
+  Linux: sudo apt install libreoffice
+
 `
 
 	// Non-XML tool usage examples and task progress (for OpenAI mode)

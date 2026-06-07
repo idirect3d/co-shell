@@ -224,6 +224,12 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		})
 		return buildSectionWithPlaceholders(text, env)
 
+	case "ExternalTools":
+		text := loadSectionText(env.cwd, modeName, "EXTERNAL_TOOLS", func() string {
+			return i18n.T(i18n.KeySystemPromptExternalTools)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
 	case "Environment":
 		text := loadSectionText(env.cwd, modeName, "ENVIRONMENT", func() string {
 			return i18n.T(i18n.KeySystemPromptEnvironment)
@@ -295,7 +301,8 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	}
 	env.channelInfo = env.userName + " @ " + displayChannel
 	env.currentTime = time.Now().Format("2006-01-02 15:04:05 Monday")
-	env.currentFiles = strings.TrimRight(listFilesForPrompt(env.cwd, true, 100), "\n")
+	// depth=1: show top-level + one level deep (e.g. bin/ tool names visible)
+	env.currentFiles = strings.TrimRight(listFilesForPrompt(env.cwd, 1, 256), "\n")
 	env.taskDesc = taskDesc
 	env.taskPlanText = taskPlanText
 	env.customRules = rules
