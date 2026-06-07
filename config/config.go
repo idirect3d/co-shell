@@ -158,6 +158,10 @@ type LLMConfig struct {
 	// ShellVTCols: virtual terminal window columns (character width). Default: 80
 	ShellVTCols int `json:"shell_vt_cols"`
 
+	// ListMaxItems: maximum number of items to return in list_files results.
+	// Default: 100
+	ListMaxItems int `json:"list_max_items"`
+
 	// SearchMaxLineLength: maximum character length for a single line in search results
 	// Lines longer than this will be truncated. Default: 8192
 	SearchMaxLineLength int `json:"search_max_line_length"`
@@ -542,6 +546,7 @@ func DefaultConfig() *Config {
 			ShellSessionTimeout:       0,
 			ShellVTRows:               24,
 			ShellVTCols:               80,
+			ListMaxItems:              256,
 			SearchMaxLineLength:       8192,
 			SearchMaxResultBytes:      65536,
 			SearchContextLines:        5,
