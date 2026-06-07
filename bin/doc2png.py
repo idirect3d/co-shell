@@ -4,15 +4,14 @@
 Converts Word documents (.doc/.docx/.wps) directly to page-by-page PNG images,
 preserving original formatting (headings, tables, charts, images, links, fonts).
 
-Process:
-1. Use WPS Office or LibreOffice to export to PDF (preserving full formatting)
-2. Split PDF pages into individual PNG images (using same engine as pdf2png)
+Process: LibreOffice → PDF → PyMuPDF → PNG pages
 
-If no office suite is available, falls back to text extraction + basic rendering.
+Priority: LibreOffice > Pure Python (always works, no external deps).
 
 Usage:
-    python3 bin/doc2png.py input.docx -o ./pages
-    python3 bin/doc2png.py input.doc -o ./pages --dpi 300
+    python3 bin/doc2png.py report.docx -o ./pages
+    python3 bin/doc2png.py report.doc -o ./pages --dpi 300
+    python3 bin/doc2png.py document.wps -o ./pages
 """
 
 import argparse
@@ -20,111 +19,15 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
+import time
 
 
 def check_command(cmd):
     return shutil.which(cmd) is not None
 
 
-def find_wps_macos():
-    """Find WPS Office executable on macOS by bundle path."""
-    candidates = [
-        "/Applications/wpsoffice.app/Contents/MacOS/wpsoffice",
-        "/Applications/WPS Office.app/Contents/MacOS/wps",
-        os.path.expanduser("~/Applications/WPS Office.app/Contents/MacOS/wps"),
-    ]
-    for p in candidates:
-        if os.path.isfile(p) and os.access(p, os.X_OK):
-            return p
-    # Try mdfind as fallback
-    try:
-        r = subprocess.run(["mdfind", "kMDItemCFBundleIdentifier == 'com.kingsoft.wpsoffice*'"],
-                           capture_output=True, text=True, timeout=5)
-        for line in r.stdout.split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            exe = os.path.join(line, "Contents", "MacOS", "wpsoffice")
-            if os.path.isfile(exe) and os.access(exe, os.X_OK):
-                return exe
-    except Exception:
-        pass
-    return None
-
-
-def find_wps_windows():
-    import glob
-    for pattern in [
-        r"C:\Program Files\WPS Office\*\wps.exe",
-        r"C:\Program Files (x86)\WPS Office\*\wps.exe",
-    ]:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    return None
-
-
-def export_pdf_with_wps(input_path, output_path):
-    """Export document to PDF using WPS Office (preserves full formatting)."""
-    if sys.platform == "darwin" and find_wps_macos():
-        # macOS: use AppleScript print-to-PDF via UI automation
-        abs_in = os.path.abspath(input_path)
-        abs_out = os.path.abspath(output_path)
-
-        # Close any existing doc first, then open new one and print to PDF
-        script = (
-            f'tell application "wpsoffice"\n'
-            f'    activate\n'
-            f'    open POSIX file "{abs_in}"\n'
-            f'    delay 5\n'
-            f'end tell\n'
-            f'delay 2\n'
-            f'tell application "System Events"\n'
-            f'    tell process "wpsoffice"\n'
-            f'        keystroke "p" using {{command down}}\n'
-            f'        delay 3\n'
-            f'        keystroke return\n'
-            f'        delay 1\n'
-            f'    end tell\n'
-            f'end tell\n'
-            f'tell application "wpsoffice" to quit'
-        )
-        subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=120)
-        # Check the default save location (usually ~/Desktop or ~/Documents)
-        home = os.path.expanduser("~")
-        for check_dir in [home + "/Desktop", home + "/Documents", "/tmp"]:
-            for f in os.listdir(check_dir):
-                if f.lower().endswith(".pdf") and not f.startswith("."):
-                    candidate = os.path.join(check_dir, f)
-                    mtime = os.path.getmtime(candidate)
-                    if time.time() - mtime < 30:  # just created
-                        os.replace(candidate, abs_out)
-                        return True
-        raise RuntimeError("WPS print-to-PDF failed: no PDF found")
-
-    elif sys.platform == "linux" and check_command("wps2pdf"):
-        subprocess.run(["wps2pdf", input_path, output_path], capture_output=True, timeout=120, check=True)
-        return True
-
-    elif sys.platform == "win32" and find_wps_windows():
-        try:
-            import win32com.client
-            wps_app = win32com.client.Dispatch("KWps.Application")
-            wps_app.Visible = False
-            doc = wps_app.Documents.Open(os.path.abspath(input_path))
-            doc.ExportAsFixedFormat(os.path.abspath(output_path), 17)
-            doc.Close()
-            wps_app.Quit()
-            return True
-        except ImportError:
-            raise RuntimeError("pywin32 not available for WPS COM automation")
-
-    raise RuntimeError("WPS Office not found or export failed")
-
-
 def export_pdf_with_libreoffice(input_path, output_path):
-    """Export document to PDF using LibreOffice headless."""
+    """Export document to PDF using LibreOffice headless (best formatting)."""
     output_dir = os.path.dirname(os.path.abspath(output_path))
     subprocess.run(["soffice", "--headless", "--convert-to", "pdf",
                     "--outdir", output_dir, input_path],
@@ -171,7 +74,7 @@ def pdf_to_png(pdf_path, output_dir, dpi=200):
 
 
 def export_pdf_fallback(input_path, output_path):
-    """Fallback: extract text and generate a simple PDF."""
+    """Fallback: extract text and generate a simple PDF (no formatting)."""
     import fitz
     ext = os.path.splitext(input_path)[1].lower()
 
@@ -206,7 +109,6 @@ def export_pdf_fallback(input_path, output_path):
     if not text.strip():
         raise RuntimeError("Could not extract text from document")
 
-    # Create simple PDF from text
     pdf = fitz.open()
     page = pdf.new_page()
     margin = 50
@@ -238,62 +140,32 @@ def convert(input_path, output_dir, dpi=200):
     os.makedirs(output_dir, exist_ok=True)
     tmp_pdf = os.path.join(output_dir, "__tmp_export.pdf")
 
-    # Strategy: WPS > LibreOffice > Fallback
-    success = False
-    errors = []
-
-    # 1. Try WPS
-    wps_path = None
-    if sys.platform == "darwin":
-        wps_path = find_wps_macos()
-    elif sys.platform == "linux":
-        wps_path = "wps2pdf" if check_command("wps2pdf") else None
-    elif sys.platform == "win32":
-        wps_path = find_wps_windows()
-
-    if wps_path:
-        try:
-            print("Exporting via WPS Office...")
-            export_pdf_with_wps(input_path, tmp_pdf)
-            success = True
-        except Exception as e:
-            errors.append(f"WPS: {e}")
-            print(f"  WPS failed: {e}", file=sys.stderr)
-
-    # 2. Try LibreOffice
-    if not success and (check_command("soffice") or check_command("libreoffice")):
+    # Strategy: LibreOffice > Fallback
+    if check_command("soffice") or check_command("libreoffice"):
         try:
             print("Exporting via LibreOffice...")
             export_pdf_with_libreoffice(input_path, tmp_pdf)
-            success = True
         except Exception as e:
-            errors.append(f"LibreOffice: {e}")
             print(f"  LibreOffice failed: {e}", file=sys.stderr)
-
-    # 3. Fallback: pure Python
-    if not success:
-        print("Using pure Python fallback (text-only, formatting lost)...")
-        try:
+            print("Using fallback (text-only, formatting lost)...")
             export_pdf_fallback(input_path, tmp_pdf)
-            success = True
-        except Exception as e:
-            errors.append(f"Fallback: {e}")
-            print(f"  Fallback failed: {e}", file=sys.stderr)
+    else:
+        print("Using pure Python fallback (text-only, formatting lost)...")
+        export_pdf_fallback(input_path, tmp_pdf)
 
-    if not success or not os.path.exists(tmp_pdf):
-        print("Error: All conversion methods failed.", file=sys.stderr)
-        for e in errors:
-            print(f"  {e}", file=sys.stderr)
-        print("\nPlease install WPS Office (recommended):", file=sys.stderr)
-        print("  macOS: brew install --cask wpsoffice", file=sys.stderr)
-        print("  Windows: winget install Kingsoft.WPSOffice", file=sys.stderr)
-        print("  Linux: wget https://wps.com/linux/wps.deb && sudo dpkg -i wps.deb", file=sys.stderr)
+    if not os.path.exists(tmp_pdf):
+        print("Error: Failed to produce PDF.", file=sys.stderr)
+        print("\nInstall LibreOffice for format-perfect conversion:", file=sys.stderr)
+        if sys.platform == "darwin":
+            print("  brew install --cask libreoffice", file=sys.stderr)
+        elif sys.platform == "win32":
+            print("  winget install TheDocumentFoundation.LibreOffice", file=sys.stderr)
+        else:
+            print("  sudo apt install libreoffice", file=sys.stderr)
         sys.exit(1)
 
-    # Split PDF to PNG
     result = pdf_to_png(tmp_pdf, output_dir, dpi)
 
-    # Clean up temp PDF
     try:
         os.remove(tmp_pdf)
     except Exception:
@@ -313,8 +185,8 @@ Examples:
   %(prog)s report.doc -o ./pages --dpi 300
   %(prog)s document.wps -o ./pages
 
-Formats are preserved when using WPS Office or LibreOffice.
-Fallback extracts text only (no formatting).
+Requires LibreOffice for format-perfect output (brew install --cask libreoffice).
+Falls back to text-only extraction if LibreOffice is not available.
         """)
     parser.add_argument("input", help="Input document file (.doc/.docx/.wps)")
     parser.add_argument("-o", "--output", default="pages", help="Output directory for PNG files")
