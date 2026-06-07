@@ -173,6 +173,30 @@ type Agent struct {
 
 	// UserIO for terminal interaction (FEATURE-201 fix)
 	io UserIO
+
+	// commandRunning is set to true while a system command is executing with
+	// stdin connected. The ESC monitor goroutine checks this flag to avoid
+	// competing with the sub-process for stdin reads (FIX-209).
+	commandRunning bool
+}
+
+// SetCommandRunning sets a flag indicating whether a system command is currently
+// being executed with stdin connected (e.g. sudo, passwd). When true, the ESC
+// monitor goroutine skips polling stdin to avoid stealing input bytes from
+// the sub-process (FIX-209).
+func (a *Agent) SetCommandRunning(running bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.commandRunning = running
+}
+
+// IsCommandRunning returns true if a system command is currently executing
+// with stdin connected. The ESC monitor should skip polling stdin when
+// this is true to avoid data races on stdin with the sub-process.
+func (a *Agent) IsCommandRunning() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.commandRunning
 }
 
 // buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.

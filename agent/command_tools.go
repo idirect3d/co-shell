@@ -38,11 +38,30 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
+
+// rawOutputWriter wraps an io.Writer to replace \n with \r\n.
+// In raw terminal mode, \n (LF) moves the cursor down but does NOT return to
+// column 0, so \r\n is required for proper newline behavior.
+type rawOutputWriter struct {
+	w io.Writer
+}
+
+func (r *rawOutputWriter) Write(p []byte) (n int, err error) {
+	// Replace each \n with \r\n
+	converted := bytes.ReplaceAll(p, []byte("\n"), []byte("\r\n"))
+	_, err = r.w.Write(converted)
+	// Return len(p), not len(converted), because io.MultiWriter checks
+	// that the returned n matches the original input length. If \n→\r\n
+	// conversion increases the byte count, MultiWriter would report a
+	// spurious "short write" error even though all data was written.
+	return len(p), err
+}
 
 // shellCmd returns the appropriate shell command and argument for the current platform.
 func shellCmd() (string, string) {
@@ -115,12 +134,25 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	// Connect stdin so interactive commands (sudo, passwd, etc.) can read user input.
 	cmd.Stdin = os.Stdin
 
-	// Capture stdout+stderr while also displaying it on the terminal.
+	// Capture stdout+stderr. Always capture in buf for LLM context.
+	// When showCommandOutput is true, print [🔴] prefix and tee output to
+	// terminal via rawOutputWriter that converts \n to \r\n for raw mode.
 	var buf bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	if a.showCommandOutput {
+		ep := config.GetEmojiPrefixes(a.emojiEnabled)
+		fmt.Print(ep.CommandOutput)
+		cmd.Stdout = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stdout})
+		cmd.Stderr = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stderr})
+	}
 
+	// FIX-209: Signal the ESC monitor goroutine to stop polling stdin while the
+	// sub-process is running, so the sub-process (e.g. sudo) can read from stdin
+	// without competition.
+	a.SetCommandRunning(true)
 	err := cmd.Run()
+	a.SetCommandRunning(false)
 	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
@@ -153,12 +185,25 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 		// Connect stdin so interactive commands can read user input.
 		cmd.Stdin = os.Stdin
 
-		// Capture stdout+stderr while also displaying on terminal.
+		// Capture stdout+stderr. Always capture in buf for return value.
+		// When showCommandOutput is true, also display output in real-time on the
+		// terminal via rawOutputWriter that converts \n to \r\n for raw mode.
 		var buf bytes.Buffer
-		cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
-		cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
+		if a.showCommandOutput {
+			ep := config.GetEmojiPrefixes(a.emojiEnabled)
+			fmt.Print(ep.CommandOutput)
+			cmd.Stdout = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stdout})
+			cmd.Stderr = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stderr})
+		}
 
+		// FIX-209: Signal the ESC monitor goroutine to stop polling stdin while the
+		// sub-process is running, so the sub-process (e.g. sudo) can read from stdin
+		// without competition.
+		a.SetCommandRunning(true)
 		err := cmd.Run()
+		a.SetCommandRunning(false)
 		decoded := decodeToUTF8(buf.Bytes())
 		if err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
@@ -181,12 +226,25 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	// Connect stdin so interactive commands can read user input.
 	cmd.Stdin = os.Stdin
 
-	// Capture stdout+stderr while also displaying on terminal.
+	// Capture stdout+stderr. Always capture in buf for return value.
+	// When showCommandOutput is true, also display output in real-time on the
+	// terminal via a rawOutputWriter that converts \n to \r\n for raw mode.
 	var buf bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	if a.showCommandOutput {
+		ep := config.GetEmojiPrefixes(a.emojiEnabled)
+		fmt.Print(ep.CommandOutput)
+		cmd.Stdout = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stdout})
+		cmd.Stderr = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stderr})
+	}
 
+	// FIX-209: Signal the ESC monitor goroutine to stop polling stdin while the
+	// sub-process is running, so the sub-process (e.g. sudo) can read from stdin
+	// without competition.
+	a.SetCommandRunning(true)
 	err := cmd.Run()
+	a.SetCommandRunning(false)
 	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
 		log.Error("Direct command failed: %s, error: %v", command, err)

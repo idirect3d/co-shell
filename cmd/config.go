@@ -338,15 +338,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			h.cfg.LLM.ThinkingEnabled = false
 			return i18n.TF(i18n.KeySettingsUpdated, "thinking-enabled", "off")
 		}},
-		{Name: "toolcall-enabled", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.ToolCallEnabled), SetValue: func(v string) (string, error) {
-			if err := setBoolPtr(&h.cfg.LLM.ToolCallEnabled, v); err != nil {
-				return "", err
-			}
-			return i18n.TF(i18n.KeySettingsUpdated, "toolcall-enabled", v), nil
-		}, ResetValue: func() string {
-			h.cfg.LLM.ToolCallEnabled = true
-			return i18n.TF(i18n.KeySettingsUpdated, "toolcall-enabled", "on")
-		}},
+		syncedOnOffParam(&h.cfg.LLM.ToolCallEnabled, "toolcall-enabled", func(v bool) { h.agent.SetToolCallEnabled(v) }),
 		{Name: "toolcall-mode", Options: []string{"openai", "xml"}, CurrentValue: func() string {
 			m := h.cfg.LLM.ToolCallMode
 			if m == "" {
@@ -357,42 +349,30 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			switch v {
 			case "openai", "xml":
 				h.cfg.LLM.ToolCallMode = v
+				h.agent.SetToolCallMode(v)
 			default:
 				return "", fmt.Errorf("请输入 openai 或 xml")
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "toolcall-mode", v), nil
 		}, ResetValue: func() string {
 			h.cfg.LLM.ToolCallMode = "openai"
+			h.agent.SetToolCallMode("openai")
 			return i18n.TF(i18n.KeySettingsUpdated, "toolcall-mode", "openai")
 		}},
-		{Name: "plan-enabled", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.PlanEnabled), SetValue: func(v string) (string, error) {
-			if err := setBoolPtr(&h.cfg.LLM.PlanEnabled, v); err != nil {
-				return "", err
-			}
-			return i18n.TF(i18n.KeySettingsUpdated, "plan-enabled", v), nil
-		}, ResetValue: func() string {
-			h.cfg.LLM.PlanEnabled = true
-			return i18n.TF(i18n.KeySettingsUpdated, "plan-enabled", "on")
-		}},
-		{Name: "subagent-enabled", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.SubAgentEnabled), SetValue: func(v string) (string, error) {
-			if err := setBoolPtr(&h.cfg.LLM.SubAgentEnabled, v); err != nil {
-				return "", err
-			}
-			return i18n.TF(i18n.KeySettingsUpdated, "subagent-enabled", v), nil
-		}, ResetValue: func() string {
-			h.cfg.LLM.SubAgentEnabled = true
-			return i18n.TF(i18n.KeySettingsUpdated, "subagent-enabled", "on")
-		}},
+		syncedOnOffParam(&h.cfg.LLM.PlanEnabled, "plan-enabled", func(v bool) { h.agent.SetPlanEnabled(v) }),
+		syncedOnOffParam(&h.cfg.LLM.SubAgentEnabled, "subagent-enabled", func(v bool) { h.agent.SetSubAgentEnabled(v) }),
 		{Name: "result-mode", Options: []string{"minimal", "explain", "analyze", "free"}, CurrentValue: func() string {
 			return config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))
 		}, SetValue: func(v string) (string, error) {
 			if mode, ok := config.ParseResultMode(v); ok {
 				h.cfg.LLM.ResultMode = int(mode)
+				h.agent.SetResultMode(mode)
 				return i18n.TF(i18n.KeySettingsUpdated, "result-mode", v), nil
 			}
 			return "", fmt.Errorf(i18n.T(i18n.KeyConfigValMinExplAnFree))
 		}, ResetValue: func() string {
 			h.cfg.LLM.ResultMode = int(config.ResultModeMinimal)
+			h.agent.SetResultMode(config.ResultModeMinimal)
 			return i18n.TF(i18n.KeySettingsUpdated, "result-mode", "minimal")
 		}},
 		{Name: "shell-session-enabled", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.ShellSessionEnabled), SetValue: func(v string) (string, error) {
@@ -477,15 +457,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			return i18n.TF(i18n.KeySettingsUpdated, "input-mode", "enhanced")
 		}},
 		// Browser settings
-		{Name: "browser-enabled", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.BrowserEnabled), SetValue: func(v string) (string, error) {
-			if err := setBoolPtr(&h.cfg.LLM.BrowserEnabled, v); err != nil {
-				return "", err
-			}
-			return i18n.TF(i18n.KeySettingsUpdated, "browser-enabled", v), nil
-		}, ResetValue: func() string {
-			h.cfg.LLM.BrowserEnabled = false
-			return i18n.TF(i18n.KeySettingsUpdated, "browser-enabled", "off")
-		}},
+		syncedOnOffParam(&h.cfg.LLM.BrowserEnabled, "browser-enabled", func(v bool) { h.agent.SetBrowserEnabled(v) }),
 		{Name: "browser-port", CurrentValue: func() string {
 			return strconv.Itoa(h.cfg.LLM.BrowserPort)
 		}, SetValue: func(v string) (string, error) {
@@ -558,16 +530,39 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 }
 
 // displayParams returns display parameters.
+// Each on/off parameter's SetValue also syncs to the agent for immediate effect.
 func (h *ConfigHandler) displayParams() []ConfigParam {
 	return []ConfigParam{
-		onOffParam(&h.cfg.LLM.EmojiEnabled, "emoji-enabled"),
-		onOffParam(&h.cfg.LLM.ShowLlmThinking, "show-llm-thinking"),
-		onOffParam(&h.cfg.LLM.ShowLlmContent, "show-llm-content"),
-		onOffParam(&h.cfg.LLM.ShowTool, "show-tool"),
-		onOffParam(&h.cfg.LLM.ShowToolInput, "show-tool-input"),
-		onOffParam(&h.cfg.LLM.ShowToolOutput, "show-tool-output"),
-		onOffParam(&h.cfg.LLM.ShowCommand, "show-command"),
-		onOffParam(&h.cfg.LLM.ShowCommandOutput, "show-command-output"),
+		syncedOnOffParam(&h.cfg.LLM.EmojiEnabled, "emoji-enabled", h.agent.SetEmojiEnabled),
+		syncedOnOffParam(&h.cfg.LLM.ShowLlmThinking, "show-llm-thinking", func(v bool) { h.agent.SetShowLlmThinking(v) }),
+		syncedOnOffParam(&h.cfg.LLM.ShowLlmContent, "show-llm-content", func(v bool) { h.agent.SetShowLlmContent(v) }),
+		syncedOnOffParam(&h.cfg.LLM.ShowTool, "show-tool", func(v bool) { h.agent.SetShowTool(v) }),
+		syncedOnOffParam(&h.cfg.LLM.ShowToolInput, "show-tool-input", func(v bool) { h.agent.SetShowToolInput(v) }),
+		syncedOnOffParam(&h.cfg.LLM.ShowToolOutput, "show-tool-output", func(v bool) { h.agent.SetShowToolOutput(v) }),
+		syncedOnOffParam(&h.cfg.LLM.ShowCommand, "show-command", func(v bool) { h.agent.SetShowCommand(v) }),
+		syncedOnOffParam(&h.cfg.LLM.ShowCommandOutput, "show-command-output", func(v bool) { h.agent.SetShowCommandOutput(v) }),
+	}
+}
+
+// syncedOnOffParam creates a ConfigParam for an on/off style parameter that
+// also propagates the change to the agent immediately via the syncFn callback.
+// This ensures .config changes take effect instantly, just like .set.
+func syncedOnOffParam(b *bool, name string, syncFn func(bool)) ConfigParam {
+	return ConfigParam{
+		Name: name, Options: []string{"on", "off"},
+		CurrentValue: onOffFunc(b),
+		SetValue: func(v string) (string, error) {
+			if err := setBoolPtr(b, v); err != nil {
+				return "", err
+			}
+			syncFn(*b)
+			return i18n.TF(i18n.KeySettingsUpdated, name, v), nil
+		},
+		ResetValue: func() string {
+			*b = true
+			syncFn(*b)
+			return i18n.TF(i18n.KeySettingsUpdated, name, "on")
+		},
 	}
 }
 
@@ -662,7 +657,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 // memoryParams returns memory parameters.
 func (h *ConfigHandler) memoryParams() []ConfigParam {
 	return []ConfigParam{
-		onOffParam(&h.cfg.LLM.MemoryEnabled, "memory-enabled"),
+		syncedOnOffParam(&h.cfg.LLM.MemoryEnabled, "memory-enabled", func(v bool) { h.agent.SetMemoryEnabled(v) }),
 		{Name: "context-limit", CurrentValue: func() string {
 			n := h.cfg.LLM.ContextLimit
 			if n == 0 {
