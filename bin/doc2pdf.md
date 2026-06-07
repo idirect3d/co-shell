@@ -1,37 +1,41 @@
-# doc2pdf — Old-Format DOC to PDF Converter
+# doc2pdf — Document to PDF Converter
 
 ## Description
-Converts old-format .doc (Word 97-2003) files to PDF. Used for printing, document
-archiving, and further conversion to PNG (via pdf2png) for multimodal LLM
-visual recognition of legacy document content.
+Converts Word documents (.doc/.docx/.wps) to PDF using LibreOffice (best formatting)
+or pure Python fallback (text extraction, no external dependencies).
 
 ## Usage
 ```
-python3 bin/doc2pdf.py input.doc -o output.pdf
+python3 bin/doc2pdf.py report.docx -o report.pdf
+python3 bin/doc2pdf.py report.doc -o report.pdf
+python3 bin/doc2pdf.py document.wps -o document.pdf
+python3 bin/doc2pdf.py input.docx -o output.pdf --engine python
 ```
 
 ## Arguments
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `input`  | Yes      | —       | Input .doc file path. |
-| `-o`/`--output` | Yes | — | Output PDF file path. |
+| `input`  | Yes      | —       | Input document file (.doc/.docx/.wps) |
+| `-o`/`--output` | Yes | — | Output PDF file path |
+| `--engine` | No | `auto` | Engine: `auto` (LibreOffice first), `libreoffice`, `python` |
 
-## Supported Engines (auto-detected in order)
-| Engine | Platform | Requirement |
-|--------|----------|-------------|
-| `textutil` | macOS | Built-in, no install needed |
-| `LibreOffice` | All | `soffice` on PATH |
-| `WPS Office` | All (Linux best) | `wps2pdf` or `wps` on PATH |
+## Engines
+| Engine | Description |
+|--------|-------------|
+| `libreoffice` | `soffice --headless` (recommended, perfect formatting) |
+| `python` | Pure Python text extraction (always works, no external deps) |
 
 ## Dependencies
-- Python 3 (no extra packages required)
-- One of: macOS textutil (built-in), LibreOffice, or WPS Office
-
-If none of the above is installed, the tool prints installation instructions
-(recommends WPS for best .doc compatibility).
+- Python 3
+- PyMuPDF (`pip install PyMuPDF`)
+- **LibreOffice** (recommended):
+  - macOS: `brew install --cask libreoffice`
+  - Windows: `winget install TheDocumentFoundation.LibreOffice`
+  - Linux: `sudo apt install libreoffice`
+- For Python engine: `python-docx` (for .docx), `olefile` (for .doc/.wps)
 
 ## Example Workflow (called by LLM)
-1. User has a legacy .doc file that needs content analysis.
-2. Convert to PDF: `python3 bin/doc2pdf.py old_report.doc -o report.pdf`
-3. Split PDF to PNG pages: `python3 bin/pdf2png.py report.pdf -o ./pages`
+1. User needs to convert a Word document for PDF viewing or PNG conversion.
+2. Convert: `python3 bin/doc2pdf.py report.docx -o report.pdf`
+3. If PNG pages needed: `python3 bin/pdf2png.py report.pdf -o ./pages`
 4. Use `add_images` to load page images and analyze with vision model.
