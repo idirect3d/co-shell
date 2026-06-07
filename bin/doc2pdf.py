@@ -96,93 +96,107 @@ def convert_with_libreoffice(input_path, output_path):
 def convert_with_python(input_path, output_path):
     """Pure Python conversion for .doc files: extract text via olefile -> PyMuPDF.
 
-    Old .doc files are OLE2 compound documents. We extract Unicode text stream
-    directly. This preserves text content but not formatting.
+    Old .doc files are OLE2 compound documents. We extract text from the
+    WordDocument binary stream via UTF-16LE decoding, then generate a PDF
+    with the PyMuPDF built-in CJK font (china-ss).
     """
     import fitz
 
     try:
         import olefile
-        ole = olefile.OleFileIO(input_path)
-        text_content = ""
-
-        # Try to read the WordDocument stream
-        if ole.exists('WordDocument'):
-            # Try Unicode text stream first
-            if ole.exists('1Table') or ole.exists('0Table'):
-                pass  # we'll use raw stream approach
-
-            # Read raw WordDocument stream and extract readable text
-            data = ole.openstream('WordDocument').read()
-
-            # Try different text extraction approaches
-            # Method 1: Look for UTF-16LE text in the stream
-            try:
-                text = data.decode('utf-16-le', errors='ignore')
-                # Filter to printable characters
-                text = ''.join(c for c in text if c.isprintable() or c in '\n\r\t')
-                if len(text.strip()) > 50:
-                    text_content = text
-            except Exception:
-                pass
-
-            # Method 2: Try UTF-8 on the raw data
-            if not text_content.strip():
-                try:
-                    text = data.decode('utf-8', errors='ignore')
-                    text = ''.join(c for c in text if c.isprintable() or c in '\n\r\t')
-                    if len(text.strip()) > 50:
-                        text_content = text
-                except Exception:
-                    pass
-
-            # Method 3: Extract from streams
-            if not text_content.strip():
-                for stream_name in ole.listdir():
-                    try:
-                        stream_data = ole.openstream(stream_name).read()
-                        decoded = stream_data.decode('utf-16-le', errors='ignore')
-                        printable = ''.join(c for c in decoded if c.isprintable() or c in '\n\r\t')
-                        if len(printable.strip()) > 20:
-                            text_content += printable + '\n'
-                    except Exception:
-                        pass
-
-        ole.close()
-
-        if not text_content.strip():
-            raise RuntimeError("Could not extract text from .doc file")
-
     except ImportError:
         raise RuntimeError("olefile not found. Install: pip install olefile")
-    except Exception as e:
-        raise RuntimeError(f"Failed to extract text from .doc: {e}")
 
-    # Generate PDF from extracted text
+    try:
+        ole = olefile.OleFileIO(input_path)
+        data = ole.openstream('WordDocument').read()
+        ole.close()
+    except Exception as e:
+        raise RuntimeError(f"Failed to read .doc file: {e}")
+
+    # Decode as UTF-16LE, then keep only characters that china-ss can render
+    raw = data.decode('utf-16-le', errors='replace')
+
+    # Build clean text: keep only safe codepoints
+    safe_chars = []
+    for c in raw:
+        cp = ord(c)
+        if cp == 0:
+            continue
+        # Keep newlines
+        if cp in (10, 13):
+            safe_chars.append('\n')
+            continue
+        # Skip all control chars except newline
+        if cp < 32:
+            continue
+        # ASCII printable
+        if 0x20 <= cp <= 0x7E:
+            safe_chars.append(c)
+            continue
+        # CJK Unified (the main Chinese character block)
+        if 0x4E00 <= cp <= 0x9FFF:
+            safe_chars.append(c)
+            continue
+        # CJK Extension A
+        if 0x3400 <= cp <= 0x4DBF:
+            safe_chars.append(c)
+            continue
+        # CJK Symbols and Punctuation
+        if 0x3000 <= cp <= 0x303F:
+            safe_chars.append(c)
+            continue
+        # Fullwidth forms
+        if 0xFF00 <= cp <= 0xFFEF:
+            safe_chars.append(c)
+            continue
+        # Common punctuation (em-dash, en-dash, ellipsis, smart quotes)
+        if cp in (0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2026):
+            safe_chars.append(c)
+            continue
+
+    clean_text = ''.join(safe_chars)
+
+    # Extract meaningful lines (must contain CJK or enough ASCII letters)
+    lines = []
+    for line in clean_text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        cjk = sum(1 for c in line if 0x4E00 <= ord(c) <= 0x9FFF)
+        alpha = sum(1 for c in line if c.isascii() and c.isalpha())
+        if cjk == 0 and alpha < 3:
+            continue
+        lines.append(line)
+
+    if not lines:
+        raise RuntimeError("Could not extract readable text from .doc file")
+
+    # Generate PDF: render each line
     pdf = fitz.open()
     page = pdf.new_page()
     margin = 50
-    page_width = 595
-    page_height = 842
-
-    lines = text_content.split('\n')
     y = margin
     font_size = 11
 
     for line in lines:
-        line = line.strip()
-        if not line:
-            y += 12
-            continue
-
-        text_height = 14
-        if y + text_height > page_height - margin:
+        if y > 820:
             page = pdf.new_page()
             y = margin
 
-        rect = fitz.Rect(margin, y, page_width - margin, y + text_height)
-        page.insert_textbox(rect, line, fontsize=font_size, fontname="helv", color=(0, 0, 0))
-        y += text_height + 2
+        # Render line char by char - robustly handles all characters
+        x = margin
+        for ch in line:
+            # Skip control chars and surrogates
+            cp = ord(ch)
+            if cp < 32 or 0xD800 <= cp <= 0xDFFF:
+                continue
+            try:
+                page.insert_text(fitz.Point(x, y), ch, fontsize=font_size, fontname="china-ss")
+                x += 8
+            except:
+                pass  # skip unrenderable chars silently
+        y += 15
 
     pdf.save(output_path)
     pdf.close()
