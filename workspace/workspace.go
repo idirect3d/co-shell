@@ -33,8 +33,10 @@
 //   - output/ : Formal output files
 //   - tmp/    : Temporary working files
 //
-// The workspace path defaults to the current working directory where co-shell
-// is launched, and can be overridden via the --workspace command-line flag.
+// The workspace path defaults to the current working directory when launched
+// from a terminal, or the executable's directory when launched via
+// double-click (GUI). It can be overridden via the --workspace command-line
+// flag.
 package workspace
 
 import (
@@ -59,14 +61,17 @@ type Workspace struct {
 }
 
 // New creates a Workspace with the given root path.
-// If root is empty, the current working directory is used.
+// If root is empty, DetectDefaultRoot is used to determine the best default:
+//   - When launched from a terminal, the current working directory is used.
+//   - When launched via double-click (GUI), the executable's directory is used.
+//
 // It automatically creates all required subdirectories.
 func New(root string) (*Workspace, error) {
 	if root == "" {
 		var err error
-		root, err = os.Getwd()
+		root, err = DetectDefaultRoot()
 		if err != nil {
-			return nil, fmt.Errorf("cannot get current working directory: %w", err)
+			return nil, fmt.Errorf("cannot detect default workspace root: %w", err)
 		}
 	}
 

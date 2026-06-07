@@ -342,6 +342,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Change working directory to the workspace root so that all relative
+	// path operations (command execution, file I/O, etc.) are scoped to the
+	// workspace regardless of how the application was launched.
+	if err := os.Chdir(ws.Root()); err != nil {
+		io.ErrPrintf("Warning: cannot change to workspace directory: %v\n", err)
+	}
+
 	if flags.initCapabilities {
 		ep := config.GetEmojiPrefixes(true)
 		capPath := filepath.Join(ws.Root(), "CAPABILITIES.md")
