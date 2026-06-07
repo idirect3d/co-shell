@@ -55,7 +55,12 @@ type rawOutputWriter struct {
 func (r *rawOutputWriter) Write(p []byte) (n int, err error) {
 	// Replace each \n with \r\n
 	converted := bytes.ReplaceAll(p, []byte("\n"), []byte("\r\n"))
-	return r.w.Write(converted)
+	_, err = r.w.Write(converted)
+	// Return len(p), not len(converted), because io.MultiWriter checks
+	// that the returned n matches the original input length. If \n→\r\n
+	// conversion increases the byte count, MultiWriter would report a
+	// spurious "short write" error even though all data was written.
+	return len(p), err
 }
 
 // shellCmd returns the appropriate shell command and argument for the current platform.
