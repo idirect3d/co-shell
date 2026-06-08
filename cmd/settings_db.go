@@ -55,7 +55,7 @@ func readLineFromIO(io agent.UserIO) string {
 //	.db              - Show current database configuration
 //	.db config       - Launch the database configuration wizard
 //	.db init         - Initialize PostgreSQL database (drop and recreate all tables)
-//	.db migrate      - Migrate data from local bbolt to PostgreSQL
+//	.db sync         - Sync memory and history from local bbolt to PostgreSQL
 //	.db backup       - Backup all PostgreSQL tables to CSV files
 //	.db restore      - Restore PostgreSQL data from a backup
 //	.db <subkey> <value> - Set a specific DB parameter (same as .set db <subkey> <value>)
@@ -71,9 +71,9 @@ func (h *SettingsHandler) HandleDB(args []string) (string, error) {
 	case "init":
 		// .db init -> initialize PostgreSQL database
 		return h.dbInit()
-	case "migrate":
-		// .db migrate -> migrate data from bbolt to PostgreSQL
-		return h.dbMigrate()
+	case "sync":
+		// .db sync -> sync data from bbolt to PostgreSQL
+		return h.dbSync()
 	case "backup":
 		// .db backup -> backup all tables to CSV
 		return h.dbBackup()
@@ -86,16 +86,28 @@ func (h *SettingsHandler) HandleDB(args []string) (string, error) {
 	}
 }
 
-// showDBConfig displays the current DB configuration and usage instructions.
-// Format follows the same pattern as showSettingsHelp: name: value col3
+// showDBConfig displays the current DB configuration, connection status, and usage instructions.
 func (h *SettingsHandler) showDBConfig() (string, error) {
 	enabledStatus := i18n.T(i18n.KeyOff)
 	if h.cfg.DB.Enabled {
 		enabledStatus = i18n.T(i18n.KeyOn)
 	}
+
+	// Determine connection status
+	connStatus := i18n.T(i18n.KeyDBStatusNone)
+	if h.cfg.DB.Enabled && h.cfg.DB.Host != "" && h.cfg.DB.Port > 0 && h.cfg.DB.DBName != "" {
+		pgStore, err := store.NewPGStore(h.cfg.DB)
+		if err != nil {
+			connStatus = i18n.T(i18n.KeyDBStatusFailed)
+		} else {
+			pgStore.Close()
+			connStatus = i18n.T(i18n.KeyDBStatusConnected)
+		}
+	}
+
 	var sb strings.Builder
 	sb.WriteString(i18n.T(i18n.KeyDBConfigLabel) + ":\n")
-	// Format: name: value col3 (name uses config key ID, col3 uses translated label)
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "status:", connStatus, i18n.T(i18n.KeyDBStatusLabel)))
 	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "enabled:", enabledStatus, i18n.T(i18n.KeyDBEnabledLabel)))
 	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "host:", h.cfg.DB.Host, i18n.T(i18n.KeyDBHostLabel)))
 	sb.WriteString(fmt.Sprintf("  %-20s %-20d %s\n", "port:", h.cfg.DB.Port, i18n.T(i18n.KeyDBPortLabel)))
@@ -103,10 +115,17 @@ func (h *SettingsHandler) showDBConfig() (string, error) {
 	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "schema:", h.cfg.DB.Schema, i18n.T(i18n.KeyDBSchemaLabel)))
 	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "user:", h.cfg.DB.User, i18n.T(i18n.KeyDBUserLabel)))
 	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "password:", "****", i18n.T(i18n.KeyDBPasswordLabel)))
+
+	autoSyncStatus := i18n.T(i18n.KeyOn)
+	if !h.cfg.DB.AutoSync {
+		autoSyncStatus = i18n.T(i18n.KeyOff)
+	}
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "auto-sync:", autoSyncStatus, "启动自动同步本地数据到远端"))
+
 	sb.WriteString("\n.set db <key> <value> - " + i18n.T(i18n.KeyDBSubCmdDesc) + "\n")
 	sb.WriteString(".db config - " + i18n.T(i18n.KeyDBConfigLabel) + "\n")
 	sb.WriteString(".db init - " + i18n.T(i18n.KeyDBInitDesc) + "\n")
-	sb.WriteString(".db migrate - " + i18n.T(i18n.KeyDBMigrateDesc) + "\n")
+	sb.WriteString(".db sync - " + i18n.T(i18n.KeyDBMigrateDescMemory) + "\n")
 	sb.WriteString(".db backup - " + i18n.T(i18n.KeyDBBackupTitle) + "\n")
 	sb.WriteString(".db restore - " + i18n.T(i18n.KeyDBRestoreTitle) + "\n")
 	return sb.String(), nil
@@ -238,8 +257,34 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 		log.Info("DB password updated")
 		return "✅ 数据库密码已更新", nil
 
+	case "auto-sync":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOff)
+			if h.cfg.DB.AutoSync {
+				status = i18n.T(i18n.KeyOn)
+			}
+			return fmt.Sprintf("自动同步: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.DB.AutoSync = true
+		case "off", "0", "false", "no":
+			h.cfg.DB.AutoSync = false
+		default:
+			return "", fmt.Errorf("usage: .set db auto-sync on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.DB.AutoSync {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("DB auto-sync set to %s", status)
+		return fmt.Sprintf("✅ 自动同步已设置为: %s", status), nil
+
 	default:
-		return "", fmt.Errorf("unknown db subkey: %s（可选值: enabled, host, port, name, schema, user, password）", subkey)
+		return "", fmt.Errorf("unknown db subkey: %s（可选值: enabled, host, port, name, schema, user, password, auto-sync）", subkey)
 	}
 }
 
@@ -276,38 +321,38 @@ func (h *SettingsHandler) dbInit() (string, error) {
 	return "✅ 数据库初始化完成，所有表已重建!", nil
 }
 
-// dbMigrate migrates data from local bbolt to PostgreSQL.
-func (h *SettingsHandler) dbMigrate() (string, error) {
+// dbSync syncs memory and history data from local bbolt to PostgreSQL.
+func (h *SettingsHandler) dbSync() (string, error) {
 	if !h.cfg.DB.Enabled {
 		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
 	}
 
-	h.io().Println("⚠️  数据迁移说明:")
-	h.io().Println("  - schedules、taskplans、session、context 表将全量覆盖 PostgreSQL 中的现有数据")
-	h.io().Println("  - history、memory、token_usage 表仅迁移新增数据（增量迁移）")
-	h.io().Println("  - 迁移过程中不会删除本地 bbolt 数据")
-	h.io().Println("  - 迁移后若数据不一致可能导致记忆混乱，建议先备份本地数据库")
-	h.io().Print("\n是否继续执行数据迁移? (y/n, 默认: n): ")
+	h.io().Println("⚠️  数据同步说明:")
+	h.io().Println("  - 仅同步 memory（对话记忆）和 history（历史命令）到 PostgreSQL")
+	h.io().Println("  - 增量同步：仅同步本地 bbolt 中尚未同步的记录")
+	h.io().Println("  - 同步过程中不会删除本地 bbolt 数据")
+	h.io().Println("  - 其他数据（context、schedules、taskplans、sessions 等）仅存储本地")
+	h.io().Print("\n是否继续执行数据同步? (y/n, 默认: n): ")
 	line := readLineFromIO(h.io())
 	switch strings.ToLower(line) {
 	case "y", "yes", "on", "1", "true":
 		// Continue
 	default:
-		return "❌ 已取消数据迁移", nil
+		return "❌ 已取消数据同步", nil
 	}
 
-	h.io().Println("\n⏳ 正在从本地 bbolt 迁移数据到 PostgreSQL...")
+	h.io().Println("\n⏳ 正在从本地 bbolt 同步数据到 PostgreSQL...")
 	pgStore, err := store.NewPGStore(h.cfg.DB)
 	if err != nil {
 		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
 	}
 	defer pgStore.Close()
 
-	if err := pgStore.MigrateFromBolt(h.store); err != nil {
-		return "", fmt.Errorf("迁移过程中出现错误: %w", err)
+	if err := pgStore.MigrateFromBolt(h.store.Bolt); err != nil {
+		return "", fmt.Errorf("同步过程中出现错误: %w", err)
 	}
 
-	return "✅ 数据迁移完成!", nil
+	return "✅ 数据同步完成!", nil
 }
 
 // dbConfigWizard launches an interactive wizard to configure PostgreSQL database

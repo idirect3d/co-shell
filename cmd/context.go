@@ -35,11 +35,11 @@ import (
 
 // ContextHandler handles the .context built-in command.
 type ContextHandler struct {
-	store *store.Store
+	store *store.DualStore
 }
 
 // NewContextHandler creates a new ContextHandler.
-func NewContextHandler(s *store.Store) *ContextHandler {
+func NewContextHandler(s *store.DualStore) *ContextHandler {
 	return &ContextHandler{store: s}
 }
 
