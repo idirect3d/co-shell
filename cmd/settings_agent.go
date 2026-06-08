@@ -58,13 +58,11 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 
 	case "description":
 		if len(args) < 2 {
-			agentName := h.cfg.LLM.AgentName
-			if agentName == "" {
-				agentName = "co-shell"
+			desc := h.cfg.LLM.AgentDescription
+			if desc == "" {
+				desc = i18n.T(i18n.KeyAgentDefaultDescription)
 			}
-			// Show the actual Identity content that is used in the system prompt
-			identityContent := strings.ReplaceAll(i18n.T(i18n.KeySystemPromptIdentity), "{AGENT_NAME}", agentName)
-			return fmt.Sprintf("Agent 描述: %s", identityContent), nil
+			return fmt.Sprintf("Agent 描述: %s", desc), nil
 		}
 		value := strings.Join(args[1:], " ")
 		h.cfg.LLM.AgentDescription = value

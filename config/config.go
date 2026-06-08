@@ -542,7 +542,7 @@ func DefaultConfig() *Config {
 			MemoryEnabled:             true,
 			PlanEnabled:               true,
 			SubAgentEnabled:           true,
-			ShellSessionEnabled:       true,
+			ShellSessionEnabled:       false,
 			ShellSessionTimeout:       0,
 			ShellVTRows:               24,
 			ShellVTCols:               80,

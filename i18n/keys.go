@@ -285,7 +285,8 @@ const (
 	KeyListUsage     = "list_usage"
 
 	// Agent output
-	KeyAgentSaid = "agent_said"
+	KeyAgentSaid               = "agent_said"
+	KeyAgentDefaultDescription = "agent_default_description"
 
 	// CLI Help - Name
 	KeyCLIHelpName = "cli_help_name"
