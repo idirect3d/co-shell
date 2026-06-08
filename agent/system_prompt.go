@@ -175,7 +175,7 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 	switch name {
 	case "Identity":
 		text := loadSectionText(env.cwd, modeName, "IDENTITY", func() string {
-			return i18n.TF(i18n.KeySystemPromptIdentity, env.agentName)
+			return i18n.T(i18n.KeySystemPromptIdentity)
 		})
 		return buildSectionWithPlaceholders(text, env)
 

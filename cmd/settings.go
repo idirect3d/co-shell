@@ -307,11 +307,9 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
 
-	// Build description from Identity i18n content
-	identityContent := strings.ReplaceAll(i18n.T(i18n.KeySystemPromptIdentity), "{AGENT_NAME}", agentName)
-	agentDescDisplay := identityContent
-	if len(agentDescDisplay) > 120 {
-		agentDescDisplay = agentDescDisplay[:120] + "..."
+	agentDescDisplay := cfg.LLM.AgentDescription
+	if agentDescDisplay == "" {
+		agentDescDisplay = i18n.T(i18n.KeyAgentDefaultDescription)
 	}
 
 	// Collect all lines
