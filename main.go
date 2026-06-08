@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "216"
+const build = "217"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -770,8 +770,8 @@ func main() {
 		showDisclaimer(cfg, ws)
 	}
 
-	// Initialize persistent store with workspace
-	s, err := store.NewStore(ws)
+	// Initialize persistent store (DualStore: bbolt + optional PG)
+	s, err := store.NewStoreFromConfig(cfg, ws)
 	if err != nil {
 		log.Error("Cannot initialize store: %v", err)
 		io.ErrPrintf("Error: cannot initialize store: %v\n", err)
@@ -1238,7 +1238,7 @@ func (c *noopClient) Close() error {
 }
 
 // loadSchedulerEntries loads persisted scheduler entries from the store.
-func loadSchedulerEntries(s *store.Store) ([]*scheduler.CronEntry, error) {
+func loadSchedulerEntries(s *store.DualStore) ([]*scheduler.CronEntry, error) {
 	entries, err := s.LoadSchedules()
 	if err != nil {
 		return nil, fmt.Errorf("cannot load schedules: %w", err)

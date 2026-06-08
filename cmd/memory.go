@@ -51,11 +51,11 @@ func formatMemoryValue(value string) string {
 
 // MemoryHandler handles the .memory built-in command.
 type MemoryHandler struct {
-	store *store.Store
+	store *store.DualStore
 }
 
 // NewMemoryHandler creates a new MemoryHandler.
-func NewMemoryHandler(s *store.Store) *MemoryHandler {
+func NewMemoryHandler(s *store.DualStore) *MemoryHandler {
 	return &MemoryHandler{store: s}
 }
 
