@@ -27,7 +27,7 @@
 package i18n
 
 func init() {
-	zhMessages[KeySystemPromptIdentity] = `你的名字是 {AGENT_NAME}。{AGENT_DESCRIPTION}
+	zhMessages[KeySystemPromptIdentity] = `你的名字是 {AGENT_NAME}，{AGENT_DESCRIPTION}
 `
 	zhMessages[KeyAnonymousUser] = `匿名`
 
