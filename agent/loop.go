@@ -69,7 +69,7 @@ type Agent struct {
 	mu            sync.Mutex
 	llmClient     llm.Client
 	mcpMgr        *mcp.Manager
-	store         *store.Store
+	store         *store.DualStore
 	memoryManager *memory.Manager
 	systemPrompt  string
 	messages      []llm.Message

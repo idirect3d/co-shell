@@ -41,11 +41,11 @@ func (e errUsage) Error() string { return string(e) }
 
 // ListHandler handles the .history (also .list), .last, and .first built-in commands.
 type ListHandler struct {
-	store *store.Store
+	store *store.DualStore
 }
 
 // NewListHandler creates a new ListHandler.
-func NewListHandler(s *store.Store) *ListHandler {
+func NewListHandler(s *store.DualStore) *ListHandler {
 	return &ListHandler{store: s}
 }
 

@@ -435,17 +435,22 @@ type DBConfig struct {
 
 	// Password is the PostgreSQL password for authentication.
 	Password string `json:"password"`
+
+	// AutoSync controls automatic incremental sync of memory and history
+	// from local bbolt to PostgreSQL at startup. Default: true.
+	AutoSync bool `json:"auto_sync"`
 }
 
 // DefaultDBConfig returns a DBConfig with sensible defaults.
 func DefaultDBConfig() DBConfig {
 	return DBConfig{
-		Enabled: false,
-		Host:    "localhost",
-		Port:    5432,
-		DBName:  "coshell_db",
-		Schema:  "public",
-		User:    "postgres",
+		Enabled:  false,
+		Host:     "localhost",
+		Port:     5432,
+		DBName:   "coshell_db",
+		Schema:   "public",
+		User:     "postgres",
+		AutoSync: true,
 	}
 }
 
@@ -578,6 +583,8 @@ func DefaultConfig() *Config {
 			BrowserPort:               9222,
 			BrowserHeadless:           false,
 		},
+
+		DB: DefaultDBConfig(),
 
 		MCP: MCPConfig{
 			Servers: []MCPServerConfig{},
