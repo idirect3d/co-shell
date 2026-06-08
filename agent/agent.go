@@ -389,6 +389,9 @@ func (a *Agent) rebuildSystemPrompt() {
 	if a.cfg != nil {
 		agentName = a.cfg.LLM.AgentName
 		agentDesc = a.cfg.LLM.AgentDescription
+		if agentDesc == "" {
+			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
+		}
 		agentPrinciples = a.cfg.LLM.AgentPrinciples
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
