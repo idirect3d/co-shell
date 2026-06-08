@@ -27,7 +27,7 @@
 package i18n
 
 func init() {
-	zhMessages[KeySystemPromptIdentity] = `你的名字是 {AGENT_NAME}，一位经验丰富的软件工程师，在多种编程语言、框架、设计模式和最佳实践方面拥有广泛知识。
+	zhMessages[KeySystemPromptIdentity] = `你的名字是 {AGENT_NAME}。{AGENT_DESCRIPTION}
 `
 	zhMessages[KeyAnonymousUser] = `匿名`
 
