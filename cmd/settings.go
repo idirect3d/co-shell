@@ -41,11 +41,11 @@ import (
 type SettingsHandler struct {
 	cfg   *config.Config
 	agent *agent.Agent
-	store *store.Store
+	store *store.DualStore
 }
 
 // NewSettingsHandler creates a new SettingsHandler.
-func NewSettingsHandler(cfg *config.Config, ag *agent.Agent, s *store.Store) *SettingsHandler {
+func NewSettingsHandler(cfg *config.Config, ag *agent.Agent, s *store.DualStore) *SettingsHandler {
 	return &SettingsHandler{cfg: cfg, agent: ag, store: s}
 }
 

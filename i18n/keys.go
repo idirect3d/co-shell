@@ -656,6 +656,15 @@ const (
 	KeyDBBackupCancel   = "db_backup_cancel"
 	KeyDBRestoreCancel  = "db_restore_cancel"
 
+	// DB connection status (FEATURE-215)
+	KeyDBStatusLabel     = "db_status_label"
+	KeyDBStatusConnected = "db_status_connected"
+	KeyDBStatusFailed    = "db_status_failed"
+	KeyDBStatusNone      = "db_status_none"
+
+	// DB migrate description (FEATURE-215)
+	KeyDBMigrateDescMemory = "db_migrate_desc_memory"
+
 	// Unknown (fallback display)
 	KeyUnknown = "unknown"
 

@@ -47,7 +47,7 @@ import (
 )
 
 // New creates a new Agent instance.
-func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.Store, rules string) *Agent {
+func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules string) *Agent {
 	systemPrompt := buildSystemPromptWithMode(nil, rules, config.ResultModeMinimal, false, "", "", "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
 
 	return &Agent{
@@ -239,7 +239,7 @@ func (a *Agent) ToolCallMode() string {
 	return string(mode.Type)
 }
 
-func (a *Agent) SetStore(s *store.Store) { a.store = s }
+func (a *Agent) SetStore(s *store.DualStore) { a.store = s }
 
 func (a *Agent) RestoreSession() bool {
 	if a.store == nil {

@@ -78,7 +78,7 @@ const currentPlanKey = "current"
 // Manager handles task plan CRUD operations.
 // Only one active plan exists at a time.
 type Manager struct {
-	store         *store.Store
+	store         *store.DualStore
 	memoryMgr     *memory.Manager
 	planCounter   int    // monotonically increasing counter for plan IDs
 	memoryEnabled bool   // whether memory archival is enabled
@@ -86,7 +86,7 @@ type Manager struct {
 }
 
 // NewManager creates a new TaskPlan manager.
-func NewManager(s *store.Store) *Manager {
+func NewManager(s *store.DualStore) *Manager {
 	mgr := &Manager{
 		store:         s,
 		memoryMgr:     memory.NewManager(s),

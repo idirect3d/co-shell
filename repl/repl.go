@@ -74,7 +74,7 @@ type BuiltinHandler interface {
 
 type REPL struct {
 	cfg             *config.Config
-	store           *store.Store
+	store           *store.DualStore
 	mcpMgr          *mcp.Manager
 	agent           *agent.Agent
 	settingsHandler *cmd.SettingsHandler
@@ -102,7 +102,7 @@ type REPL struct {
 	userIO agent.UserIO   // current UserIO for interaction
 }
 
-func New(cfg *config.Config, s *store.Store, mcpMgr *mcp.Manager, ag *agent.Agent) *REPL {
+func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.Agent) *REPL {
 	r := &REPL{
 		cfg:             cfg,
 		store:           s,
@@ -159,8 +159,30 @@ func (r *REPL) readLine(prompt string) (string, error) {
 	}
 }
 
+func (r *REPL) syncDB() {
+	if r.store.PG() == nil {
+		r.store.SetAutoSync(false)
+		return
+	}
+	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+	if r.cfg.DB.AutoSync {
+		r.store.SetAutoSync(true)
+		fmt.Printf("%s 检测到 PostgreSQL 连接，开始自动同步本地数据到远端...\n", ep.Info)
+		if err := r.store.PG().MigrateFromBolt(r.store.Bolt); err != nil {
+			log.Warn("Auto-migration failed (non-fatal): %v", err)
+			fmt.Printf("%s  数据同步部分失败: %v\n", ep.Warning, err)
+		} else {
+			fmt.Printf("%s 数据同步完成!\n", ep.Success)
+		}
+	} else {
+		r.store.SetAutoSync(false)
+		fmt.Printf("%s PostgreSQL 已连接（自动同步已关闭）\n", ep.Info)
+	}
+}
+
 func (r *REPL) Run() error {
 	r.printWelcome()
+	r.syncDB()
 	r.loadHistory()
 
 	sigCh := make(chan os.Signal, 1)
