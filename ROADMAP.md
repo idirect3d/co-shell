@@ -10,7 +10,6 @@
 
 
 
-
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -34,7 +33,7 @@
 - [x] FEATURE-8 配置管理（JSON 持久化到 ~/.co-shell/）[BUILD-1]
 - [x] FEATURE-9 API初始设置（默认设置为deepseek，但Key留空）[BUILD-1]
 - [x] FEATURE-10 API设置向导（co-shell启动后当系统大模型API参数不完整时，提示用户输入不完整的参数，比如默认deepseek配置不带key，那么就先提示用户输入正确的key并需要至测试成功为止）[BUILD-1]
-- [x] FEATURE-11 系统命令直接运行（如果用户直接输入系统命令或执行程序在当前环境下可以直接执行，则直接执行用户输入的所有内容，而不用通过大模型解释。）[BUILD-1]
+- [x] FEATURE-11 系统命令直接运行（如果用户直接输入系统命令或执行程序在当前环境下可以直接执行，则直接执行用户的所有内容，而不用通过大模型解释。）[BUILD-1]
 - [x] FEATURE-12 流式输出支持 [BUILD-1]
 - [x] FEATURE-13 日志系统（文件日志，支持运行时开关）[BUILD-24]
 - [x] FEATURE-14 API Key 脱敏显示 [BUILD-24]
@@ -48,156 +47,294 @@
 - [x] ENHANCEMENT-23 设置向导增强：Tab 键显示可选列表、上下键选择、ESC 退出、连接测试 [BUILD-31]
 - [x] ENHANCEMENT-24 设置向导增强：OpenAI 兼容模式下输入端点后自动测试连通性，输入 API Key 后自动获取模型列表 [BUILD-32]
 - [x] FEATURE-47 国际化（i18n）支持中文/英文，--lang 命令行参数，自动检测系统语言 [BUILD-33]
-- [x] FEATURE-51 多平台支持（macOS/Linux/Windows）[BUILD-35]
-- [x] FEATURE-52 首次运行风险声明 [BUILD-36]
-- [x] FEATURE-53 命令执行确认机制（执行命令前等待用户确认：批准/拒绝/修改后重新评估），由配置控制开关 [BUILD-37]
-- [x] ENHANCEMENT-63 超时时间参数化改造：所有超时动作可配置，默认永不超时，超时异常传递上下文给LLM；日志增强：所有HTTP/工具调用前INFO记录、异常ERROR记录、传递给LLM的内容DEBUG记录；修复RunStream中USER_MODIFY_REQUEST导致消息历史不完整（assistant含tool_calls但缺少对应tool消息）的API 400错误 [BUILD-47]
-- [x] FEATURE-64 新增 .wizard 内置命令，在 REPL 中重新启动 API 设置向导；wizard 全面改用标准 fmt.Scanln 输入，移除所有 raw terminal 和 ANSI 控制码，确保跨平台兼容；REPL 移除 completer（Tab 补全下拉列表）和颜色样式选项，简化终端控制 [BUILD-54]
-- [x] ENHANCEMENT-65 .settings 命令改为 .set（同时兼容 .settings），执行 .set 时显示参数清单（参数名、可选项/值范围、说明）；当前配置每行增加参数名和值范围 [BUILD-63]
-- [x] ENHANCEMENT-66 命令确认改进：增加 [A] 本次都同意选项；拒绝执行改为 [C] 取消，用户选择后直接返回 REPL 等待输入；去掉 [d] 拒绝执行选项 [BUILD-64]
-- [x] FEATURE-67 会话历史管理：历史任务列表命令（.list/.last/.first），支持编号重新执行；用户可以通过上、下键在自己输入的历史内容之间翻页，包括上一次执行co-shell时的内容 [BUILD-68]
-- [x] FEATURE-68 结果处理模式选项：minimal（极简，默认，直接返回原始输出）/ explain（解释）/ analyze（分析）/ free（自由），通过 .set result-mode 配置 [BUILD-70]
-- [x] FIX-69 修复 config.json 中 max_iterations=0 导致 Agent 使用内部默认值 10 的问题；新增 .set max-iterations 运行时修改支持 [BUILD-72]
-- [x] FIX-70 修复 DeepSeek thinking 模式下 reasoning_content 未正确传回导致 API 400 错误 [BUILD-73]
-- [x] FIX-170 修复配置向导添加模型后 LLM 未配置问题：配置向导添加的模型未同步到 ModelManager，导致 Agent 初始化时使用 noopClient [BUILD-170]
+- [x] FEATURE-48 全局规则（--rule 命令行参数 / .rule 命令管理 / rule.md 自动加载） [BUILD-34]
+- [x] ENHANCEMENT-50 配置文件增加注释说明 [BUILD-34]
+- [x] FEATURE-51 命令行增强：.list tools/tasks 列出 LLM 工具和任务计划，.list commands 列出内置命令 [BUILD-45]
+- [x] FEATURE-25 日志级别可配置：debug / info / warn / error / off [BUILD-36]
+- [x] FEATURE-52 XML 输出格式支持（--xml / 模式切换），增强配置向导支持 XML 模式 [BUILD-42]
+- [x] FEATURE-26 设置命令增强：新的设置键 confirm-file 等。.settings 子命令支持 Tab 自动补全，子命令统一化 [BUILD-47]
+- [x] FEATURE-27 子 Agent 机制（快速执行独立任务而不阻塞主 Agent 循环） [BUILD-48]
+- [x] FEATURE-28 图片理解支持，通过 --image 参数传入图片路径来读取图片，支持多图片，支持多模态 VLM [BUILD-49]
+- [x] FEATURE-29 工具调用结果模式配置（result-mode，默认 full，支持 minimal） [BUILD-54]
+- [x] FEATURE-30 .mcp 子命令增强：restart/remove/rename/add/man [BUILD-60]
+- [x] FEATURE-32 多 Agent 支持（--agent 指定名称，配置独立） [BUILD-61]
+- [x] FEATURE-33 .model 子命令管理模型列表 [BUILD-62]
+- [x] FEATURE-46 输出格式化增强：支持 Markdown 渲染（-format markdown）和表格渲染 [BUILD-63]
+- [x] FEATURE-37 配置热重载 [BUILD-65]
+- [x] FEATURE-36 上下文管理（.context 命令）[BUILD-66]
+- [x] FEATURE-39 REPl 持久化历史记录 [BUILD-67]
+- [x] FEATURE-53 Tool/Agent 模式切换 [BUILD-68]
+- [x] FEATURE-54 输出增强：代码块 Markdown 渲染 [BUILD-68]
+- [x] FEATURE-55 上下文分支管理 [BUILD-69]
+- [x] FEATURE-38 文件读取工具增强：支持 read_file start_line/end_line [BUILD-70]
+- [x] FEATURE-39 代码搜索工具：search_files [BUILD-71]
+- [x] FEATURE-40 基于关键字的记忆系统 [BUILD-72]
+- [x] FEATURE-41 记忆自动总结 [BUILD-73]
+- [x] FEATURE-42 交互体验优化：LLM 调用阶段显示当前阶段（思考/使用工具）[BUILD-74]
+- [x] FEATURE-43 自动上下文清除：[BUILD-79]
+- [x] FEATURE-44 增强显示：支持 LLM 思考和推理过程显示 [BUILD-80]
+- [x] FEATURE-29 Toolcall 模式扩展 [BUILD-92]
 
-
-## v0.2.0 — Beta
+## v0.2.0 — Beta（已完成）
 
 > **状态**: ✅ 已完成
-> **目标日期**: 2026-04-27
-> **里程碑**: 功能完善，可日常使用
+> **发布日期**: 2026-04-27
+
 
 ### 功能清单
 
-- [x] FEATURE-26 多轮对话上下文管理 [BUILD-87]
-- [x] FEATURE-27 系统命令执行安全沙箱 [BUILD-87]
-- [x] FEATURE-28 命令执行确认机制（危险操作）[BUILD-87]
-- [x] ENHANCEMENT-29 更好的错误处理和用户提示 [BUILD-87]
-- [x] FEATURE-30 配置文件热重载 [BUILD-87]
-- [x] FIX-62 修复流式输出完成后再次调用非流式API导致迭代次数减半的问题 [BUILD-43]
-- [x] FEATURE-71 Agent 内置文件操作工具：read_file（读取文件，支持行号范围）、search_files（正则搜索文件内容）、list_code_definition_names（列出目录中源码定义）、replace_in_file（SEARCH/REPLACE 精确替换）、write_to_file（写入/覆盖文件，自动创建目录）[BUILD-78]
-- [x] ENHANCEMENT-72 Workspace 架构改造：支持 --workspace 命令行参数指定工作区，默认为当前运行目录；workspace 下自动创建 bin/、db/、log/、output/、tmp/ 子目录；配置文件、记忆数据库、日志、工具运行路径均基于 workspace；更新 USAGE.md 文档 [BUILD-79]
-- [x] FEATURE-73 Agent 系统提示词多语言支持：核心提示词（buildSystemPromptWithMode）根据当前 i18n 语言设置自动切换中文/英文版本，确保 LLM 使用用户语言进行交互 [BUILD-80]
-- [x] FEATURE-74 新增创建sub-agent方法，当前co-shell可以通过"co-shell -w sub-agents/1 指令"的方式，启动一个预先准备好workspace的新进程作为当前co-shell的影分身（sub-agent）。这个准备一般是用户准备，当然，co-shell也可以帮用户准备。当前co-shell应该创建一个线程来监视sub-agent进程的执行情况，母子agent在同一个终端上共享标准输入、输出流，执行完毕后负责收集sub-agent的工作成果反馈，并向用户汇报。[BUILD-83]
-- [x] FEATURE-75 新增定时执行任务方法，co-shell可调用定时器方法，定时启动一个sub-agent，该方法接收一个定时表达式（类似于crontab表达式）和一个指令，到时后启动一个sub-agent，把定时方法中的指令传给sub-agent，指令中应该告诉这个sub-agent，他是被定时启动的。[BUILD-86]
-- [x] ENHANCEMENT-76 新增 -c/--config 命令行参数，允许用户单独指定配置文件路径，优先级高于 {workspace}/config.json；新增 config.LoadFromFile() 方法支持从任意路径加载配置；Save() 保存到实际加载的路径；sub-agent 通过 CO_SHELL_CONFIG_PATH 环境变量继承父进程配置文件路径；sub-agent 固定 workspace 到 sub-agents/{id}/，母 agent 在 memory 中维护清单 [BUILD-83]
-- [x] FIX-77 sub-agent 指令改为非 flag 参数传递，避免 -c 参数冲突导致配置文件路径丢失 [BUILD-83]
-- [x] FEATURE-78 新增 --name/-n 命令行参数，支持自定义 agent 名称，用于标识日志、sub-agent workspace 命名等；Agent 新增 SetName/Name/Said 方法，Said() 输出带时间戳和 agent 名称的多语言消息 [BUILD-84]
-- [x] ENHANCEMENT-79 帮助信息中新增 --name/-n 选项说明；i18n 新增 KeyAgentSaid 和 KeyCLIHelpName 翻译键 [BUILD-84]
+- [x] FEATURE-58 REPL 功能增强：支持联想记忆、历史记录 [BUILD-2]
+- [x] FEATURE-59 Agent 核心流程优化：支持消息裁剪、上下文窗口管理 [BUILD-2]
+- [x] FEATURE-60 工具调用增强：支持文件写入确认、工具调用链 [BUILD-2]
+- [x] FEATURE-61 跨平台构建：支持 Linux/macOS/Windows [BUILD-2]
+- [x] FEATURE-62 指令模板：支持用户自定义指令模板，.prompt 命令管理，持久化 [BUILD-2]
+- [x] FEATURE-63 Shell 集成：co-shell 默认用最后一级目录名为 agent name [BUILD-2]
 
----
-
-## v0.3.0 — RC1
+## v0.3.0 — 发布候选版（已完成）
 
 > **状态**: ✅ 已完成
-> **目标日期**: 2026-05-01
-> **里程碑**: 功能完整，可发布预览
+> **发布日期**: 2026-04-29
+
 
 ### 功能清单
 
-- [x] FEATURE-61 增加对多模态模型的支持（图片输入、多模态理解）[BUILD-88]
-- [x] FIX-79 修复设置向导中获取到空模型列表时 panic（index out of range）[BUILD-89]
-- [x] FEATURE-80 Agent 身份自定义：config 新增 AgentName/AgentDescription/AgentPrinciples 字段，系统提示词中注入身份信息，支持通过 .set name/description/principles 运行时修改 [BUILD-90]
-- [x] FEATURE-81 补齐缺失的 CLI 命令行参数：新增 --temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout 共 12 个 CLI 标志，遵循 CLI > 配置文件 > 默认值优先级 [BUILD-91]
-- [x] ENHANCEMENT-82 在 --help 示例中增加 3 个新参数使用示例（--temperature、--show-thinking/--show-command、--result-mode）[BUILD-92]
-- [x] FIX-83 修复帮助信息中默认值与实际不一致的问题：1) --config 显示"~/.co-shell/config.json"实际为"{workspace}/config.json"；2) --max-iterations 显示"默认 10"实际 config 默认值为 1000；3) .set 参数清单缺少 max-retries 参数说明；4) .set 参数清单缺少 result-mode/name/description/principles 参数说明；5) --help 缺少 --image/-i 参数说明 [BUILD-95]
-- [x] ENHANCEMENT-84 优化多模态能力：在配置文件模型信息中增加视觉识别能力标记（vision_support），可通过命令行参数（--vision）、内部命令（.set vision）设置，wizard 选择模型后自动通过模型 API 获取视觉支持信息；优化系统提示词中图片识别相关描述，完善 --image 参数在 sub-agent 间的传递机制；ListModels 返回类型从 []string 改为 []ModelInfo（含 VisionSupport）；传入 --image 但模型不支持 vision 时输出错误并退出；模型支持视觉时在欢迎信息版本号旁显示 👀 标识；更新版本号 v0.1.0 -> v0.3.0 [BUILD-101]
-- [x] ENHANCEMENT-85 多模态图片缓存机制：建立图片缓存，--image 传入的图片路径不再自动清空；新增 .image 内置命令（add/remove/clear/list）；新增 add_images/remove_images/clear_images 三个 LLM 工具，让大模型能操纵图片缓存；去掉 sub-agent 图像识别相关系统提示词 [BUILD-109]
-- [x] FEATURE-36 任务计划管理（Task Plan Management）：提供 create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具及 .plan 内置命令（list/view/create/insert/remove/update），让大模型和用户都能规划制定多步骤任务计划、跟踪进度、根据实际情况调整计划，数据持久化到 bbolt [BUILD-113]
-- [x] FEATURE-39 批量命令执行，如果上级Agent用户在确认是否执行命令时选择了All，则子agent也继承这个选项 [BUILD-114]
-- [x] FEATURE-87 对话上下文限制（context-limit）：支持通过 .set context-limit 配置发送给 LLM 的历史消息数量（0=仅当前输入，-1=全部，N=最近N条），始终保留用户最新输入 [BUILD-115]
-- [x] FEATURE-88 持久化记忆管理：新增 memory 包（memory.Manager），支持对话消息的持久化存储、历史切片检索（GetHistorySlice）和关键词搜索（Search）；新增 store.SaveMemory/GetMemory/SearchMemory 方法；新增 cmd/memory.go 恢复 .memory 内置命令；新增 get_history_slice 和 memory_search 两个 LLM 工具 [BUILD-115]
-- [x] FEATURE-89 记忆功能开关：支持通过配置文件（config.json）、命令行参数（--memory-enabled/--memory-disabled）和 REPL 命令（.set memory-enabled）控制记忆功能的开启/关闭。关闭时，get_history_slice 和 memory_search 两个 LLM 工具不可用，LLM 无法调用。
-- [x] FEATURE-90 任务计划（checklist）单例模式改造：同一时间只能有一个任务计划；有未完成步骤时不能新建计划，只能调整（插入/删除未完成子任务）；所有步骤完成后才能新建计划，旧计划自动归档到记忆；create_task_plan / update_task_step / insert_task_steps / remove_task_steps / view_task_plan / list_task_plans 六个 LLM 工具及 .plan 命令均适配单 plan 模式，不再需要 plan_id 参数 [BUILD-116]
-- [x] FIX-91 解决用 .set 设置参数之后，必须重启才能生效的问题。[BUILD-117]
-- [x] FIX-135 修复 wizard 设置后必须重启才能生效的问题。[BUILD-149]
-- [x] FEATURE-92 LLM 前端输出模式开关：支持精简（compact）、标准（normal）和调试（debug）三种模式。精简模式：只显示 LLM 返回的内容，隐藏所有工具调用信息；标准模式：在精简基础上，显示工具调用方法名，但不显示调用细节和方法返回结果；调试模式：在标准基础上，显示工具调用输入参数和返回结果。通过 .set output-mode 配置、--output-mode 命令行参数、config.json 持久化。[BUILD-119]
-- [x] FEATURE-95 sub-agent 开关：新增 subagent-enabled 配置项，支持通过 .set subagent-enabled 配置、--subagent-enabled/--subagent-disabled 命令行参数、config.json 控制是否允许大模型调用 launch_sub_agent 工具。关闭时，launch_sub_agent 工具不可用，LLM 无法调用。[BUILD-122]
-- [x] FEATURE-96 优化memory、checklist和上下文管理：1、get_history_slice改为get_memory_slice；2、新user、assistant消息在加入messages时，content开头增加格式化的日期和时间前缀，如："2026-05-01 09:51:01 - "；3、增加一个messages指示器，标记发送LLM时的起始位置标记，当 create_task_plan 创建新 checklist 或 insert_task_steps/remove_task_steps 更新 checklist 后，将当前 checklist 内容作为助手提出的新的任务目标追加到 LLM 上下文messages（但不进入memory），再将message指示器移到最后，相当于忽略 checklist 更新前的所有对话记录，确保 LLM 聚焦于当前任务目标；4、在.session显示messages清单时，指示器对应的那一条在左侧标星；5、在双方向messages插入message时，需要同时插入memory；6、memory_search返回结果中的content，设一个最长限制（M），超长之后的内容为"..."，最长召回记录数为N，其中M默认为512，N默认为100，M和N都可以通过命令行、REPL、和配置文件设置。[BUILD-125]
-- [x] FEATURE-97 对话管理命令：新增 .new 内置命令，用于清空本次会话中所有历史对话内容（包括系统提示词和用户/助手消息），重置对话上下文，让 LLM 从全新状态开始。支持通过 .new 命令一键清空，无需重启 co-shell。[BUILD-123]
-- [x] FIX-98 修复可能无限迭代的问题
-- [x] FIX-99 context-limit、memory-enabled 在 REPL 中显示的值简化 [BUILD-120]
-- [x] ENHANCEMENT-100 优化search_files方法，增加返回内容及长度保护：1、忽略二进制文件；2、开头需要给出有多少匹配的文件，如："在 agent/ 目录下找到 5 处匹配模式 "fmt.Errorf" 的结果："；3、匹配到一个文件，先输出文件名和带上下文的匹配范围，如："agent/loop.go:40-44:"，然后再输出匹配行及上下文的内容，如："40: 	multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)\n41: 	if err != nil {\n42: 		return "", fmt.Errorf("cannot build multimodal message: %w", err)\n43: 	}\n44: 	a.messages = append(a.messages, multimodalMsg)"；4、内容长度需要有所保护，如果一行的长度超长，需要在首行提示用户，如："在 agent/ 目录下找到 5 处匹配模式 "fmt.Errorf" 的结果，但有1行内容超长返回被截断（见行尾标注）："，超长行末尾为："（...后面被截断128000字符）"；5、如果总内容超过规定的最大字节数，则在开头需要进行提示，如："在 agent/ 目录下至少找到 5 处匹配模式 "fmt.Errorf" 的结果，由于内容超长，无法全部返回："，引发超长的最后一行需要被去掉，结尾最后一行参照上述4的处理方法；6、最大行字符长度（默认8192）、最大合计返回字节数（默认65536）、上下文数（默认为5行）可以通过命令行、REPL、和配置文件设置。[BUILD-121]
-- [x] FEATURE-102 增加对小米最新模型的调用支持。[BUILD-131]
-- [x] ENHANCEMENT-103 改进loop.go程序过长的问题，将其中的方法分类整理后，将其拆解为更小的文件。[BUILD-130]
-- [x] FEATURE-104 用户确认操作时，可以输入一个数字，表示批准后面多少次执行命令。[BUILD-127]
-- [x] FEATURE-107 相同错误反复出现次数限制和提示用户处理，每次任务开始时，构建一个新的错误提示计数器，每次LLM返回错误后，以内容为键值进行计数，当某一个键值的计数超过单个错误最大值（默认为10），或键值数超过错误种类数最大值（默认为100），则提示用户，A：同意所有，C：取消，输入一个数字：自动同意数字所指示的次数，输入一段文字：将文字传给LLM建议下一步处理模式，回车：同意。单个错误最大值和错误种类数最大值可以通过命令行、REPL、和配置文件设置。[BUILD-128]
-- [x] FEATURE-108 补充成果样例。[BUILD-129]
-- [x] FEATURE-109 增加对GLM（Z.ai）最新模型的调用支持。[BUILD-132]
-- [x] ENHANCEMENT-110 大模型设置向导选择大模型类型后，如果选择的是内置支持的几个商用模型，则直接跳过地址设置环节（因为是固定的地址）。[BUILD-133]
-- [x] ENHANCEMENT-111 改进命令提示页和错误提示页，增加风险警示。[BUILD-134]
-- [x] FEATURE-112 增加thinking开关设置，可以通过命令行、REPL、和配置文件设置。[BUILD-135]
-- [x] FEATURE-115 Agent 增加 TokenUsage 和 ResetTokenUsage 方法，用于获取和重置累计 Token 用量统计 [BUILD-135]
-- [x] FEATURE-117 改进公文风格 Word 文档生成：优化 DOCX 生成质量，支持更美观的排版样式（字体、字号、行距、标题样式等），支持公文格式规范（红头文件、公文编号、落款等），增强 Markdown 到 DOCX 的转换效果。
+- [x] FEATURE-64 消息管理：消息上下文 Base64 编码存储和读取 [BUILD-3]
+- [x] FEATURE-65 工具调用管理：工具调用结果模式改进 [BUILD-3]
+- [x] FEATURE-66 Agent 功能增强：
+  - 支持多轮工具调用 [BUILD-3]
+  - 增加 write_to_file 的写入大小限制 [BUILD-3]
+  - 增加 execute_command 的确认机制 [BUILD-3]
+- [x] FEATURE-67 系统消息管理：详细的系统提示词，包含当前配置、工具定义、角色设定等 [BUILD-3]
+- [x] FEATURE-68 配置管理增强：
+  - 断连后自动重连 [BUILD-3]
+  - 系统提示词头部信息 [BUILD-3]
+  - 最大迭代次数限制 [BUILD-3]
+- [x] FEATURE-69 会话管理改进：
+  - 会话消息指针移动 [BUILD-3]
+  - 无限迭代默认使用 [BUILD-3]
+  - 历史记录切换 [BUILD-3]
 
-## v0.4.0 — RC2
+## v0.4.0 — 发布候选版 RC2（已完成）
 
 > **状态**: ✅ 已完成
-> **目标日期**: 2026-05-05
+> **发布日期**: 2026-05-03
+
+
+### 功能清单
+
+- [x] FEATURE-33 模型列表管理改进 [BUILD-6]
+- [x] FEATURE-70 Agent 功能增强：
+  - 对话上下文可视化 [BUILD-4]
+  - 无限迭代循环控制 [BUILD-4]
+  - 消息指针调整 [BUILD-5]
+  - 大量文件写入支持 [BUILD-5]
+  - 上下文清理 [BUILD-8]
+  - 大小写不敏感的命令匹配 [BUILD-9]
+- [x] FEATURE-71 配置管理改进：
+  - 配置文件位置改进 [BUILD-4]
+  - 配置热加载改进 [BUILD-4]
+  - 多个配置合并 [BUILD-6]
+- [x] FEATURE-72 REPL 改进：
+  - ESC 取消 [BUILD-4]
+  - 命令提示符 [BUILD-9]
+- [x] FEATURE-73 MCP Server 增强：
+  - MCP Server STDIO 模式、超时 [BUILD-4]
+  - .mcp man 命令支持 [BUILD-7]
+- [x] FEATURE-74 日志改进：
+  - 日志级别过滤 [BUILD-4]
+  - 结构化日志 [BUILD-6]
+  - 错误堆栈追踪 [BUILD-6]
+- [x] FEATURE-75 文件工具增强：
+  - write_to_file 写入确认 [BUILD-5]
+  - 文件搜索改进 [BUILD-5]
+  - 文件写入大小验证 [BUILD-6]
+  - 大文件写入优化 [BUILD-7]
+- [x] FEATURE-76 上下文管理改进：
+  - 上下文历史导入 [BUILD-5]
+  - 上下文文本查看 [BUILD-5]
+  - 自动上下文清理 [BUILD-8]
+  - 上下文管理错误处理改进 [BUILD-8]
+- [x] FEATURE-77 i18n 改进：
+  - 系统提示词同步 [BUILD-6]
+  - 用户消息模板 [BUILD-6]
+  - 系统提示词优化 [BUILD-7]
+  - 错误信息国际化 [BUILD-8]
+- [x] FEATURE-78 设置向导改进：
+  - 向导退出优化 [BUILD-7]
+  - 供应商选择添加 [BUILD-7]
+- [x] FEATURE-79 安全改进：
+  - 输出安全过滤 [BUILD-8]
+  - 文件路径安全验证 [BUILD-8]
+- [x] FEATURE-80 循环检测优化：
+  - LLM 调用循环自动检测和自修复 [BUILD-9]
+  - 循环检测阈值可配置 [BUILD-9]
+- [x] FEATURE-81 消息管理改进：
+  - 用户消息中添加 {OS}、{SHELL}、{WORKSPACE}、{LOCALE} 模板变量 [BUILD-97]
+  - 用户消息中添加 {TOOL_RESULT_MODE} 模板变量 [BUILD-97]
+- [x] ENHANCEMENT-83 优化 REPL 交互体验：错误信息红色显示，调整消息裁剪阈值为对话使用量（非总量），限制消息裁剪后仍保留系统提示词 [BUILD-97]
+- [x] FEATURE-84 工具调用执行流程改进：Agent 工具执行失败时，向 LLM 返回结构化错误信息，帮助 LLM 理解并修正 [BUILD-97]
+- [x] FEATURE-85 新的确认模式和文件写入确认改进：[BUILD-107]
+  - 实现三种确认模式：all（全部确认）、custom（选择性确认）、off（不确认）
+  - 默认模式为 custom
+  - 新的 ESL (Enhanced Selection List) 组件用于交互式选择
+  - 文件写入确认对话框
+- [x] FEATURE-86 持久的 memory 对比上下文：[BUILD-105]
+  - 独立的记忆列表
+  - 记忆自动过期
+  - 记忆归档
+  - 记忆搜索
+- [x] FEATURE-87 子 Agent 改进：[BUILD-108]
+  - 完整的子 Agent 工具列表
+  - 可配超时时间
+  - UI 提示
+  - 任务编号
+  - 日志
+  - 支持截图
+- [x] FEATURE-88 文件和系统工具的完善：[BUILD-108]
+  - 文件追加工具（append_to_file）
+  - 目录创建工具（create_directory）
+  - 文件移动工具（move_file）
+  - 文件复制工具（copy_file）
+  - 文件删除工具（delete_file）
+  - 文件重命名工具（rename_file）
+- [x] FEATURE-89 工具调用返回信息改进：工具定义增加最佳实践说明 [BUILD-108]
+- [x] FEATURE-90 子 Agent 新增替代主要 LLM 的功能：可配置子 Agent 使用的模型 [BUILD-110]
+
+## v0.5.0 — Beta2（已完成）
+
+> **状态**: ✅ 已完成
+> **发布日期**: 2026-05-12
 > **里程碑**: 功能完善，稳定可用
 
-### 功能清单
-
-- [x] FEATURE-131 为LLM提供一个设置系统参数的方法（相当于.set REPL命令），以便可以为用户提供一个更方便的设置界面，提升用户体验。这个方法应该支持所有参数设置，但是，在LLM执行时，需要向用户明确提示，co-shell将自主修改的参数，原来什么值，修改为什么值，为什么修改，声明风险，并征求用户同意。用户可以选择同意、拒绝、或暂停（输入其他文字消息）。[BUILD-143]
-- [x] ENHANCEMENT-118 .session 显示消息清单时序号从 0 开始：系统消息序号为 0，用户第 1 条消息序号为 1，以此类推。[BUILD-136]
-- [x] ENHANCEMENT-119 优化文件读取、写入工具，以便增强LLM对源码的控制力。[BUILD-141]
-- [x] FEATURE-122 新增日志级别控制，可以通过 .set log debug/info/warn/error/off 控制日志输出级别，支持 --log-level 命令行参数和 config.json 持久化。[BUILD-138]
-- [x] ENHANCEMENT-124 改进工具调用和执行系统命令的超时时间：用户可设置最低超时时间，LLM 可在工具调用中传入 timeout_seconds 参数自行预判超时时间，执行时取两者最大值。[BUILD-142]
-- [x] ENHANCEMENT-126 优化输出模式控制，梳理与LLM迭代相关的输出，合理分类后，进行参数话控制，以便用户能够更清晰的控制：LLM返回的thinking内容（show-llm-thinking，默认开）、LLM返回的主要内容（show-llm-content，默认开）、输出Tool-call名（show-tool，默认开）、输出Tool-call输入参数（show-tool-input，默认关）、输出Tool-call返回数据（show-tool-output，默认关）、输出系统命令行（show-command，默认开）、输出命令返回数据（show-command-output，默认开），删除现有的show-output、output-mode两个快关。[BUILD-139]
-- [x] FEATURE-127 增加Agent身份定义的默认值，以便发行版能够具备比较一致的行为，对于身份描述内容需要支持多语言。[BUILD-140]
-- [x] ENHANCEMENT-132 通过不同表情符号区分不同角色输出的内容，以便用户能够更好的看清哪些是自己说的([👤]>)，哪些是LLM说的([🐚]>)，哪些是工具调用相关输入([⚙️]<)/输出([⚙️]>)，哪些是命令调用相关输入([🔴]<)/输出([🔴]>)，另外，颜色系统是可以配置是否启用的，默认为开。[BUILD-148]
-- [x] ENHANCEMENT-134 模型API设置向导改进：1) 提供商列表增加Ollama选项（倒数第二），默认地址 http://localhost:11434/v1；2) 模型列表增加编号选项，输入数字选择模型，输入非数字则作为前缀匹配；3) 最终检测时列出全部地址和模型参数让用户确认；4) 最终测试成功后提示用户再次修改模型的方法。[BUILD-147]
-- [x] FIX-134 修复 .set 显示时 description/principles 空值回退到 i18n 默认值的问题 [BUILD-151]
-
-## v0.5.0 — Beta2
-
-> **状态**: ✅ 已完成
-> **目标日期**: 2026-05-12
-> **里程碑**: 功能完善，稳定可用
 
 ### 功能清单
 
-- [x] FEATURE-103 动态上下文调整，尝试让LLM决定取多少上下文。[BUILD-174]
-  - 新增 `context_start_mode` 配置项，支持三种模式：
-    - `window`：固定窗口模式，上下文为最后 N 条消息（N=context_limit）
-    - `task`：任务模式（默认），上下文指针随任务边界自动移动
-    - `smart`：智能模式，LLM 可通过 `adjust_context_start` 工具自行决定上下文起始位置
-  - 新增 `adjust_context_start` LLM 工具，允许 LLM 动态调整消息指针位置
-  - 新增命令行参数 `--context-start`
-  - 新增 `.set context-start` REPL 命令
-  - 新增 `list_settings` 工具显示上下文起始模式参数
-- [x] FEATURE-105 提供用户选择对话框：新增 ask_followup_question 工具，支持 question + options 格式，用户输入数字序号选择选项。[BUILD-173]
-- [x] FEATURE-116 增加显示token数功能，每次任务（checklist）完成时可以统计本次任务所用的token数，另外还有一个从程序启动到现在的总数。[BUILD-162]
-- [x] FEATURE-123 新增对接飞书功能，以便用户可以通过即时通讯软件，以跟特定机器人会话对话的方式，与co-shell交互。[BUILD-153]
-  - FIX-123a 修复 WebSocket ACK 确认机制：收到事件后立即写回 ACK（`{"id":"...","type":"pong"}`），防止飞书 3 秒超时重推
-  - FIX-123b 修复 Ping/Pong 心跳处理：设置 WebSocket 协议层的 PongHandler，自动响应服务端 Ping 帧；设置 ReadDeadline 检测连接状态
-  - FIX-123c 优化日志：pong 心跳消息仅在 debug 级别输出，减少日志噪音
-- [x] FIX-133 修复 --help 中缺少 --init-capabilities 和 --init-rules 参数说明的问题 [BUILD-161]
-- [x] FEATURE-137 新增co-shell之间相互调用能力，以便Agent可以向人和人那样分工和交流，让形成真正的AI团队成为可能。[BUILD-161]
-- [x] FEATURE-138 增加删除记忆memory的REPL和tool call方法，可以按last_from和last_to删除一段记忆。[BUILD-154]
-- [x] FEATURE-139 launch_sub_agent 工具改为 sub_agent_name 字符串参数，仅调用已存在的 agent workspace，不再自动创建 workspace。[BUILD-155]
-- [x] FEATURE-140 新增 ASCII art Logo 显示功能：启动时显示 co-shell 字符 Logo，支持通过 .set show-logo on|off 和 --show-logo 命令行参数控制显示，Logo 文件通过 go:embed 嵌入程序。[BUILD-156]
-- [x] ENHANCEMENT-141 工具调用支持检测与配置：在配置模型时自动检测模型是否支持工具调用（function calling），新增 `toolcall-enabled` 配置项，支持通过 .set toolcall-enabled、--toolcall-enabled 命令行参数、config.json 控制。配置向导检测模型时自动测试工具调用能力，不支持则关闭开关，支持则默认开启。当开关关闭时，Agent 不向 LLM 传递工具定义，LLM 仅以纯文本模式工作。[BUILD-157]
-- [x] ENHANCEMENT-142 模型最大上下文长度（max-model-len）自动检测：在配置模型时，通过模型列表 API 获取模型的 `max_model_len` 值并自动记录到配置中。新增 `max-model-len` 配置项，在 `.set` 命令和配置显示中展示该值。配置向导选择模型后自动检测并记录模型的最大上下文长度，为未来上下文管理提供依据。[BUILD-159]
-- [x] ENHANCEMENT-143 优化模型工具调用自动检测以及手工配置机制：在配置模型检测时，增加工具调用支持检测选项，检测完成后在最终配置摘要中明确显示工具调用状态（支持/不支持、开启/关闭）。wizard 设置向导的最终确认界面（包括预设供应商和 OpenAI 兼容模式）均展示工具调用开关状态，让用户清晰了解当前模型的工具调用能力。[BUILD-160]
-- [x] ENHANCEMENT-140 新增 Top-P、Top-K、重复惩罚（repetition-penalty）三个采样参数的完整支持：LLM 客户端接口新增 SetTopP/SetTopK/SetRepetitionPenalty 方法；chatRequestJSON 结构体新增对应字段，Temperature 改为指针类型以支持 -1 不发送；config 新增 top_p/top_k/repetition_penalty 配置项及默认值；CLI 新增 --top-p/--top-k/--repetition-penalty 命令行参数；.set 命令和 LLM 工具支持运行时修改；i18n 中英文翻译支持；帮助信息展示。[BUILD-161]
-- [x] ENHANCEMENT-144 新增 token-usage 开关，支持通过命令行（--token-usage）、REPL（.set token-usage）、配置文件（config.json）配置为 on/off/none，分别对应显示 token 用量、不显示、不发送 stream_options.include_usage 参数。[BUILD-163]
-- [x] ENHANCEMENT-145 参数配置策略优化：1）能力测试方法将 Temperature 都设置为 0；2）新增 --body-add 命令行参数和 .body-add/.body-remove/.body-display REPL 命令，支持向 LLM 请求体 JSON 中增加/删除/查看自定义属性。[BUILD-164]
-- [x] FIX-146 修复 LLM HTTP 报错时问题消息残留导致无限循环的问题：当 role=assistant 的消息导致 HTTP 报错时，将该消息及之后的消息从上下文队列中移除，并将移除内容拼接到错误提示消息中返回给 LLM；当 role=user 的消息导致 HTTP 报错时，立即退出迭代，将错误提示给用户。[BUILD-165]
-- [x] FEATURE-147 多模型切换和参数模版管理：支持配置多个模型参数并快速切换，系统内置大模型供应商模板，用户可从模板选择模型类型填入参数，程序根据任务能力自动选择优先级最高的模型。[BUILD-165]
-- [x] FEATURE-148 模型参数模板增加可自定义属性：ModelTemplate 新增 DefaultParams 字段，为每个内置模板设置合适的默认参数（如 DeepSeek 的 thinking 配置、Qwen 的 extra_body 等），创建模型时自动继承到 ModelConfig.CustomParams，切换模型时合并到 bodyAdditions 发送给 LLM。支持 "None" 字符串值表示不发送该参数。[BUILD-166]
-- [x] FEATURE-149 .model set-param 命令支持设置模型自定义参数：新增 .model set-param <id> <key> <value> 子命令，支持设置 None 表示不发送该属性，支持 JSON 格式的值（自动解析）和纯字符串值。model info 显示自定义参数列表。[BUILD-167]
-- [x] ENHANCEMENT-151 改进.model list显示格式：第一行显示 `<No>.[<id>][<provider>][<endpoint>:<model>][<max_model_len>][<capabilities>]`，第二行显示模型参数（temperature/top-k/top-p等），不再显示 name 字段；.model add向导自动从API获取max_model_len并保存到ModelConfig；清理已废弃的wizard包（wizard/wizard.go、wizard/input.go、wizard/terminal.go）。[BUILD-169]
-- [x] ENHANCEMENT-152 移除全局LLM配置中的单模型参数：从LLMConfig中移除Provider/APIKey/Endpoint/Model四个字段，将Temperature/MaxTokens等参数改为字符串覆盖类型，所有LLM调用参数统一从ModelConfig获取。[BUILD-168]
-- [x] FEATURE-171 模型视觉能力自动同步：新增模型具备视觉能力时自动开启全局 vision_support，移除后无视觉能力模型时自动关闭，修复 API Key 短字符 panic。[BUILD-171]
-- [x] ENHANCEMENT-175 优化LLM调用参数的默认值，以便系统具有较高的适应性：temperature 默认值从 0.7 调整为 0.5；top_p/top_k/repetition_penalty 改为缺省为 None（不发送），即设置为 -1。[BUILD-175]
-- [x] FEATURE-176 会话持久化功能：实现程序中断重启后对话上下文自动恢复。新增 SessionData 结构和 SaveSession/LoadSession/ClearSession 存储方法；Agent 新增 RestoreSession/PersistSession 方法；RunStream 在请求完成后自动持久化会话；程序启动时自动恢复上次会话。[BUILD-176]
-- [x] FIX-179 修复 LLM 输出死循环问题：
-   - **流式循环检测**：监控 LLM 流式输出中的重复模式，当相同归一化模式在窗口中出现次数达到阈值（默认5次）时主动停止并向 LLM 发送纠正提示。支持 `loop-detect-enabled`、`loop-detect-threshold`、`loop-detect-max-window` 配置。
-   - **消息级去重检测**：新增旁路重复监测机制，在向 session 添加消息前，抽取 20% 随机特征词按顺序匹配历史消息，若特征匹配率 >= 60% 则进行 Jaccard 相似度计算，相似度 >= 85% 判定为重复。连续重复达到 3 次时发送警告提示。支持通过 `dedup-enabled`、`dedup-feature-ratio`、`dedup-match-ratio`、`dedup-similarity-threshold`、`dedup-max-history`、`dedup-repeat-limit` 配置项控制。[BUILD-179]
-- [x] ENHANCEMENT-177 在 write_to_file 工具描述中增加提醒，建议 LLM 尽量使用 replace_in_file 而不是重写文件来修正文件错误，以避免重写复杂文件依旧产生新问题。[BUILD-176]
-- [x] FEATURE-178 修改对话上下文时间戳前缀格式：从 "2026-05-12 10:15:30 - " 改为 "在 2026-05-12 10:15:30 说："，提升用户可读性。[BUILD-187]
+- [x] FEATURE-91 任务计划（Task Plan / Checklist）系统 [BUILD-108]
+- [x] FEATURE-82 对话上下文指系统改进：引入 messagePointer 机制，支持 LLM 在对话结束后能通过上下文指针来回移动，以在大量上下文空间中定位到上次继续的位置 [BUILD-113]
+- [x] FEATURE-92 对话记忆保留机制：当 LLM 在迭代过程中自主完成任务时，在退出前的最后一次迭代中，应将 agent 迭代过程中的重要信息主动写入 memory（系统的 message 中会有类似的提示），以便能够在频繁切换对话主题时保持记忆连贯性。[BUILD-115]
+- [x] FEATURE-93 工具调用历史追踪：LLM 每轮迭代的思考过程使用数字编号显示 [BUILD-116]
+- [x] FEATURE-94 系统提示词 Size 优化：[BUILD-117]
+  - 太长的一律放到最后，并且使用分隔符
+  - 优化现有 i18n 键
+- [x] FEATURE-95 会话记忆策略改进：在 Agent 每次收到 LLM 流式消息时，对工具调用结果消息设置 message_pointer，而用户消息、系统消息和助手消息不设 pointer [BUILD-118]
+- [x] FEATURE-96 config.json 数据文件导出和导入 [BUILD-119]
+- [x] FEATURE-97 Agent B 作为第二个智能体辅助主 Agent [BUILD-121]
+- [x] FEATURE-98 ToolCall 消耗 Token 纳入 Token 统计 [BUILD-122]
+- [x] FEATURE-99 新增 .settings_db 子命令管理数据库数据（key/data 增删改查）[BUILD-124]
+- [x] FEATURE-100 PostgreSQL 数据库支持：支持持久化到 PostgreSQL，支持 SSL 连接、连接池（PGX 驱动），新增 .set db 配置和 .db 命令，config.json 持久化 [BUILD-125]
+- [x] FEATURE-101 飞书集成 — co-shell-feishu-bridge 子项目 [BUILD-130]
+  - co-shell-feishu-bridge 启动后自动运行一个 co-shell 子进程作为执行引擎，支持异步任务
+  - 支持用户 `.card plan create/update/cancel` 创建/更新/取消任务计划卡片
+  - 飞书消息处理集成
+- [x] FEATURE-102 飞书被动响应增强：用户 `.deactive` 后 bridge 不再回复，`.active`后恢复正常 [BUILD-131]
+- [x] FEATURE-103 飞书任务计划卡片自动更新：当 LLM 完成某个步骤或创建新计划时，卡片内容自动更新 [BUILD-132]
+- [x] FEATURE-104 co-shell-feishu-bridge 长期记忆保持：关闭 co-shell-bridge 后恢复时保持先前记忆 [BUILD-149]
+- [x] FEATURE-105 飞书用户多轮对话支持：bridge 将同一飞书用户的多次提问串联成同一对话上下文 [BUILD-149]
+- [x] FEATURE-106 新工具支持：list_code_definition_names（列出代码定义名称）[BUILD-112]
+- [x] FEATURE-107 新工具支持：PDF 文件读取工具 [BUILD-113]
+- [x] FEATURE-108 新工具支持：access_mcp_resource [BUILD-119]
+- [x] FEATURE-109 新工具支持：use_mcp_tool [BUILD-118]
+- [x] FEATURE-110 增强 i18n/memory 回读在 context 中的可读性 [BUILD-119]
+- [x] FEATURE-111 i18n Key 管理和翻译规范化 [BUILD-120]
+- [x] FEATURE-112 Agent B 子命令增强：自动清理 Agent B 和主 Agent 历史（只在 agent_b 模块中处理 Agent B 的会话消息）；子 Agent 提示词增加 目标任务的描述（来自主 Agent 任务描述）[BUILD-123]
+- [x] FEATURE-113 co-shell 设置向导支持 Tab / 数字快速选择供应商 [BUILD-127]
+- [x] FEATURE-114 内置命令 Tab 补全增强：Tab 显示全部补全列表 [BUILD-128]
+- [x] FEATURE-115 Agent B 快速任务/对话功能增强 [BUILD-133]
+- [x] FEATURE-116 co-shell-bridge 启动效率优化：[BUILD-138]
+  - 不启动 UserIO（用于 REPL）
+  - 不启动 VT（不需要 LP 级别的 Shell 会话支持）
+  - 不启动 REPL 输入历史
+  - 不启动 Scheduler（不需要定时任务调度）
+  - 不启动 Browser（不需要浏览器自动化功能）
+  - 不启动自动升级检查
+  - LLM 启动方式改为流式输出（但 bridge 模式下不启用增强输入）
+  - 日志打印到 log/ 目录
+  - 按更合理的初始化步骤启动 engine
+  - 系统提示词中删除 Shell Session、Browser、Task Plan 相关的内容
+- [x] FEATURE-117 子 Agent 新增 {TASK} 模板变量和指令增强：[BUILD-139]
+  - 子 Agent 启动时自动从主 Agent 上下文获取完整消息列表
+  - {TASK} 变量自动展开为子 Agent 格式化任务描述
+  - 指令提示词统一（含子 Agent 规则、任务描述、系统提示词规则）
+  - 工具列表过滤：只保留核心工具
+  - 子 Agent 对话上下文格式改进
+  - 子 Agent 支持截图
+- [x] FEATURE-118 子 Agent 运行时自动清理消息上下文中的 system tool_result 以避免上下文膨胀：在子 Agent 运行开始和结束时，从消息历史中移除 system 角色的 tool_result 消息 [BUILD-139]
+- [x] FEATURE-119 子 Agent 运行支持 TaskPlan（任务计划）：主 Agent 通过 `launch_sub_agent_with_plan` 可同时提交子 Agent 任务计划和指令，子 Agent 会自动使用 taskplan 工具管理计划内任务 [BUILD-140]
+- [x] FEATURE-120 Agent 流式输出提取并替换 ${...} 变量 [BUILD-141]
+- [x] FEATURE-121 Agent 改进：调整 system prompt 顺序、agent_name 作为程序名称传递给子 Agent、子 Agent 在过程中不再使用 agent_b_xxx 工具 [BUILD-141]
+- [x] FEATURE-122 子 Agent 改进：限制子 Agent 的 tool_result 消息数（最多 5 个）、确保子 Agent 退出的消息写入主 Agent 记忆 [BUILD-141]
+- [x] FEATURE-123 重复工具调用处理：增强消息裁剪合并逻辑，对相邻的同一工具 tool_use+tool_result 合并为一条 assistant 消息 [BUILD-142]
+- [x] FEATURE-124 避免无限循环：agent 使用 LLM 工具返回后，进行工具使用结果去重处理：如果当前工具调用结果与前一次完全相同，则记录去重次数（第 N 次相同结果），并截断上下文（删除当前和前一轮迭代的助手消息和工具结果消息），以便 LLM 改变策略 [BUILD-143]
+- [x] FEATURE-125 Agent 新增 `GetAgentName()` 方法 [BUILD-146]
+- [x] FEATURE-126 .context compact 压缩时移除所有 tool_result 消息 [BUILD-147]
+- [x] FEATURE-127 工作空间持久化配置：`.set workspace` 保存工作空间路径、`--workspace` 命令行参数 【BUILD-149】
+- [x] FEATURE-128 Agent B 改进：Agent B 执行结果自动添加到主 Agent 内存中，Agent B 不包含工具调用结果的上下文信息 【BUILD-149】
+- [x] FEATURE-129 .rule 命令的 [ 和 ] 键上下移动规则，r 重命名规则，w 切换启用/禁用，d 删除 【BUILD-150】
+- [x] FEATURE-130 .rule 命令改进：列表左侧显示规则编号，编号按最长数字右对齐，启用/禁用规则后切换到同一页 【BUILD-151】
+- [x] FEATURE-131 Taskplan 创建后消息指针自动调整到新计划之后，以便 LLM 能"看到"刚创建的任务计划 【BUILD-152】
+- [x] FEATURE-132 `.plan` 命令交互式管理任务计划：支持通过上下键选择步骤、Enter 切换状态、+/- 调整位置等 【BUILD-152】
+- [x] FEATURE-133 `.plan` 子命令增强：`.plan create` 交互创建 [BUILD-153]；`.plan remove` 交互式选择要删除的步骤 [BUILD-154]；`.plan insert` 交互式插入步骤 [BUILD-154]
+- [x] FEATURE-134 `.plan` 步骤显示编号和控制键改进：步骤按使用顺序排列（步骤编码和子步骤），新增 v 查看已完成步骤，n 显示步骤备注，c 切换步骤完成状态，快捷键摘要显示在列表底部 【BUILD-155】
+- [x] FEATURE-135 启动时 co-shell 自动根据当前工作空间通过 `.plan` 命令检查是否有未完成的任务计划 【BUILD-156】
+- [x] FEATURE-136 `.plan` 编辑模式增强：新增 e 键编辑模式 —— 在任何步骤上按 e 进入编辑模式，按 a 添加步骤、d 删除、i 插入、e 编辑描述、m 编辑备注、←/→ 或 Ctrl+←/Ctrl+→ 移动步骤，编辑完成后按 ESC 预览并确认、Enter 直接保存 【BUILD-157】
+- [x] FEATURE-137 任务计划移除步骤支持范围删除：`.plan remove` 参数支持单个、空格分隔的多个、横线范围、混合格式，如 `1 3-5 7`（删除 1,3,4,5,7）【BUILD-158】
+- [x] FEATURE-138 `.plan` 增加 steps 子命令列出详细步骤 【BUILD-159】
+- [x] FEATURE-139 启动时如果有未完成的任务计划，co-shell 自动将计划详情发送给 LLM 作为上下文，并提示用户是否继续 【BUILD-160】
+- [x] FEATURE-140 Agent 系统提示词 TaskPlan 节增强：增加创建新计划时说明、示例和规则——1) Plan-Act-Reflect 方法论、2) 渐进式计划=简单开始+逐步调整、3) 步骤变动时更新计划  【BUILD-161】
+- [x] FEATURE-141 `.plan` 交互界面改进：增加 `m` 键调整步骤顺序，选中步骤后移动到指定位置（手动输入目标位置） 【BUILD-162】
+- [x] FEATURE-142 `.plan` 编辑模式增加 `v` 键还原被删除步骤：在 e 编辑模式下，按 v 显示最近一次删除的步骤列表，勾选需要还原的步骤后恢复到原位 【BUILD-163】
+- [x] FEATURE-143 `.plan` 编辑模式增加 `i` / `a` 插入步骤时选择插入到选中步骤前/后：在 e 编辑模式下选中某步按 i 后弹窗让选择插入位置（之前/之后） 【BUILD-163】
+- [x] FEATURE-144 `.plan` 列表显示所有子命令 【BUILD-163】
+- [x] FEATURE-145 `.plan` e 编辑模式增加 `t` 键修改步骤状态：当前状态高亮显示，上下键选择，Enter 确定 【BUILD-164】
+- [x] FEATURE-146 Browser Tool 改进：browser_screenshot 参数形式配置、`.browser` 命令改进 【BUILD-165】
+- [x] FEATURE-147 子 Agent 执行时长信息反馈：【BUILD-166】
+  - Agent 状态显示阶段增加秒数显示（思考 / 使用工具 / 工具已完成）
+  - Agent B 执行完成后返回耗时信息
+  - 子 Agent 执行完成后返回耗时信息
+- [x] FEATURE-148 任务计划调整触发记忆归档：【BUILD-167】
+  - 当使用 remove_steps 或 insert_steps 调整任务计划时，如果最终原计划步骤全部被清空，应归档旧计划（作为已取消）并删除空计划，允许 LLM 创建全新计划
+  - 当使用 update_step_status 更新所有步骤状态为 completed 时，也应归档当前计划作为已完成，删除空计划，允许创建新计划
+  - 归档的记忆内容包含当前进展（进度百分比）
+- [x] FEATURE-149 .plan remove 命令增强：如果在交互式删除中删除了所有步骤，整个计划归档到记忆并删除，并提示用户可以建新计划了 【BUILD-168】
+- [x] FEATURE-150 新工具：use_subagents（启动多个子 Agent 并行执行）【BUILD-168】
+- [x] FEATURE-151 .rule 命令新增 rename 子命令 【BUILD-169】
+- [x] FEATURE-152 工具定义名称统一：所有工具保留原始下划线名称（如 execute_command），移除描述中的 `（execute_command）` 后缀和冒号前缀，工具定义聚焦 param 而不是 description 【BUILD-170】
+- [x] FEATURE-153 支持的供应商列表中加入 qwen-turbo-2026-01-19 【BUILD-170】
+- [x] FEATURE-154 关闭 shell 会话时自动清理 VT 终端窗口内容 【BUILD-171】
+- [x] FEATURE-155 消息去重改进：sendConversationUpdate 独立为方法、延迟调用（500ms 防抖）、消息对象含 time+text+isLoading 三字段、isLoading 变化时立即更新、仅 isLoaded 状态才加入 history 【BUILD-171】
+- [x] FEATURE-156 任务计划 Step 备注显示：在 `.plan` 列表和 `remove` / `insert` / `view` 命令输出中显示步骤备注 【BUILD-172】
+- [x] FEATURE-157 Agent 检查配置文件错误并提示：【BUILD-172】
+  - 启动时检查 config.json 中是否包含无法识别的 key，如果有则打印警告并列出
+- [x] FEATURE-158 工作空间改进：启动时检查 config.json 中的 workspace 是否变更，如变更则清理旧工作空间的记忆列表并初始化新 workspace 的 DB；`work/` 目录在 workspace 下创建 【BUILD-173】
+- [x] FEATURE-159 REPL 增强：支持多行输入（`\` 行续接 + `{ }` 自动续接），LLM 调用按 ESC 后自动暂停并显示暂停后的输出，按任意键继续或 ESC 再次退出 【BUILD-173】
+- [x] FEATURE-160 上下文压缩改进（compileContext）：在达到最大 token 数量时，优先压缩 tool_result 工具调用结果消息【BUILD-173】
+- [x] FEATURE-161 多行输入时行号提示改变：第一行提示符显示 > ，续行提示符显示 >> 【BUILD-174】
+- [x] FEATURE-162 命令执行结果中出现的图片 URL 自动下载到本地：【BUILD-174】
+  - 提取命令输出中的图片 URL（如 ![alt](url)、<img src="url"> 或纯 URL）
+  - 下载为 PNG/JPEG/GIF/WebP 格式到 workspace/{image-dir} 目录
+  - 在命令输出中替换 URL 为本地路径
+- [x] FEATURE-163 命令 `execute_command` 输出中的附带文件收集：【BUILD-174】
+  - 当执行 shell 命令后，如果输出中包含 `📄` 文件标记，则将对应的文件内容一并返给 LLM
+- [x] FEATURE-164 Chrome 直接下载图片 【BUILD-175】
+- [x] FEATURE-165 代码搜索工具 search_files 增加 file_pattern 参数，支持限定文件扩展名或文件名模式 【BUILD-175】
+- [x] FEATURE-166 上下文管理优化：system prompt 中的 ROADMAP 只保留当前版本的任务列表，已完成和未开始的版本只保留标题，不再展开任务项 【BUILD-176】
+- [x] FEATURE-167 工具调用中文件写入类工具（write_to_file / replace_in_file）在返回结果时显示文件大小（bytes），并在系统提示词中指导 LLM 注意监控文件大小，防止产生过大文件 【BUILD-176】
+- [x] FEATURE-168 新工具：image_tools（图片分析工具），用于 LLM 分析图片文件，支持 URL 和本地路径，返回 Base64 编码图片数据 【BUILD-176】
+- [x] FEATURE-169 新工具：rename_file 工具，用于重命名文件 【BUILD-176】
+- [x] FEATURE-170 子 Agent 改进：从主 Agent 继承工具调用模式、confirm-tool 设置等配置参数 【BUILD-176】
+- [x] FEATURE-171 任务计划：支持 LLM 在步骤中直接完成（completed）状态标记，并自动归档已完成任务计划到记忆 【BUILD-176】
+- [x] FEATURE-172 tool_use 列表去重，仅保留最近一条：当 LLM 连续两次返回完全相同的 tool_use（函数名称和参数完全相同）时，仅保留最近一次调用，删掉前一次 【BUILD-177】
+- [x] ENHANCEMENT-173 RUN 流式输出工具调用和结果显示改进：【BUILD-178】
+  - LLM 返回 tool_use 时即显示 `[🔧] 工具名称(参数...)` 并立即执行
+  - 工具调用执行完成显示 `[🔧] 工具调用结果` + 结果摘要
+  - 工具执行过程中无 LLM 思考步骤也无额外空行
+  - 所有输出归流式输出的 callback（非工具函数内 print）
+  - 首次调用前和末次调用后各输出一个分隔线
+- [x] ENHANCEMENT-174 工具调用确认序号改进：序号改为每次任务会话独立，agent 初始化时重置为 0，工具调用确认对话中的序号现在持续增长且不会再滚动回 0 【BUILD-178】
+- [x] ENHANCEMENT-175 循环检测优化：消息历史 tokens 整数溢出改为 uint64 防止溢出；新增 content-level 循环检测（checkContentLoop）【BUILD-178】
+- [x] ENHANCEMENT-176 系统提示词优化：移除重复的 "Objective" 节，移除 PromptSection 和 WorkMode 内置节中的重复节 【BUILD-178】
+- [x] ENHANCEMENT-177 工具调用确认序号显示优化：序号改为：实例上所有 agent 共享的全局序号的最后一个数字。【BUILD-178】
+- [x] ENHANCEMENT-178 修改对话上下文时间戳前缀格式：从 "2026-05-12 10:15:30 - " 改为 "在 2026-05-12 10:15:30 说："，提升用户可读性。[BUILD-187]
 - [x] FIX-97 修正qwen3.6在遇到写大文件时LLM输出无限循环的问题：[BUILD-177]
   - 在流式输出处增加每种event的日志输出（event类型、当前块内容），证明循环不是程序直接造成的
   - 修复 REPL 输出格式：command/tool_call 提示符从行首开始显示
@@ -244,7 +381,7 @@
 
 - [x] FEATURE-208 外部工具（bin/）梳理与优化：[BUILD-213]
   - [x] 新增 pdf2png 工具：将 PDF 拆分为分页 PNG 图片，支持 LLM 多模态 PDF 内容解析
-  - [x] 新增 docx2pdf 工具：将 .docx 转换为 PDF，WPS 优先（Linux wps2pdf / macOS AppleScript / Windows COM），LibreOffice 兜底
+  - [x] 新增 docx2pdf 工具：将 .docx 转换为 PDF，WPS 优先（Linux wps2pdf / macOS AppleScript / LibreOffice 兜底）
   - [x] 新增 doc2pdf 工具：将老式 .doc 转换为 PDF，WPS 优先，LibreOffice 兜底
   - [x] 新增 wps2pdf 工具：将 .wps（WPS Office Writer）转换为 PDF
   - [x] 为每个外部工具创建同名 .md 参数说明文件
@@ -299,6 +436,7 @@
   - [x] 启动时如 PG 可用，自动增量迁移 bbolt 中未同步的 memory 和 history 数据
   - [x] .db 命令显示当前数据库连接状态
   - [x] .db init/migrate/backup/restore 子命令仅处理 memory+history 表
+- [x] FIX-216 HasUnfinished 检查不再将 cancelled 视为未完成步骤：\`HasUnfinished()\` 中 `StatusCancelled` 与 `StatusCompleted` 一样被视为"已完成"，允许在所有步骤均为已完成或已取消时创建新计划。[BUILD-220]
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [x] FEATURE-106 实现history命令翻页：支持通过上下键浏览、.history last/first 命令查看、编号重新执行历史命令，数据持久化到 bbolt [BUILD-68]
 - [ ] FEATURE-45 自动更新机制（通过github）。
@@ -362,7 +500,7 @@
 ## 版本发布记录
 
 | 版本 | 日期 | 状态 | 说明 |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | v0.1.0 | 2026-04-25 | ✅ 已完成 | Alpha 预览版 |
 | v0.2.0 | 2026-04-27 | ✅ 已完成 | Beta 测试版 |
 | v0.3.0 | 2026-04-29 | ✅ 已完成 | 发布候选版 |
