@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-06-04
-// Last Modified: 2026-06-04
+// Last Modified: 2026-06-09
 //
 // MIT License
 //
@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"runtime"
 	"syscall"
@@ -43,22 +44,29 @@ import (
 // ChromeManager manages a Chrome/Chromium browser process lifecycle
 // and provides CDP WebSocket connection endpoints.
 type ChromeManager struct {
-	cmd       *exec.Cmd
-	port      int
-	headless  bool
-	cdpClient *CDPClient
-	started   bool
+	cmd         *exec.Cmd
+	port        int
+	headless    bool
+	cdpClient   *CDPClient
+	started     bool
+	userDataDir string // persistent user data directory
 }
 
 // NewChromeManager creates a new ChromeManager.
-func NewChromeManager(port int, headless bool) *ChromeManager {
+// userDataDir is the directory for Chrome's user data storage.
+// If empty, a temporary directory under /tmp is used.
+func NewChromeManager(port int, headless bool, userDataDir ...string) *ChromeManager {
 	if port <= 0 {
 		port = 9222
 	}
-	return &ChromeManager{
+	cm := &ChromeManager{
 		port:     port,
 		headless: headless,
 	}
+	if len(userDataDir) > 0 && userDataDir[0] != "" {
+		cm.userDataDir = userDataDir[0]
+	}
+	return cm
 }
 
 // Start launches a Chrome/Chromium browser instance with remote debugging enabled.
@@ -92,8 +100,16 @@ func (m *ChromeManager) Start() (string, error) {
 		args = append(args, "--headless=new")
 	}
 
-	// Use a temporary user data directory to avoid polluting the user's profile
-	args = append(args, fmt.Sprintf("--user-data-dir=/tmp/co-shell-chrome-%d", time.Now().Unix()))
+	// Use a persistent user data directory in the workspace, so browser state
+	// (downloads, cookies, sessions) survives co-shell restarts. This also
+	// makes it possible to trace back issues from browser data.
+	// Falls back to /tmp if no user data directory is configured.
+	userDataDir := m.userDataDir
+	if userDataDir == "" {
+		userDataDir = fmt.Sprintf("/tmp/co-shell-chrome-%d", time.Now().Unix())
+	}
+	os.MkdirAll(userDataDir, 0755)
+	args = append(args, fmt.Sprintf("--user-data-dir=%s", userDataDir))
 
 	args = append(args, "about:blank")
 
@@ -201,6 +217,13 @@ func (m *ChromeManager) createNewPage(debugURL string) (*CDPClient, error) {
 	}
 	defer resp.Body.Close()
 
+	// Check HTTP status code — Chrome may return 500 or an HTML error page
+	// if the debugging endpoint is temporarily unavailable.
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("create new page returned HTTP %d: %s", resp.StatusCode, truncateString(string(body), 200))
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read new page response: %w", err)
@@ -210,7 +233,7 @@ func (m *ChromeManager) createNewPage(debugURL string) (*CDPClient, error) {
 		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 	}
 	if err := json.Unmarshal(body, &pageInfo); err != nil {
-		return nil, fmt.Errorf("cannot decode new page info: %w", err)
+		return nil, fmt.Errorf("cannot decode new page info (HTTP %d, body=%q): %w", resp.StatusCode, truncateString(string(body), 200), err)
 	}
 
 	if pageInfo.WebSocketDebuggerURL == "" {
@@ -351,6 +374,8 @@ func waitForEndpoint(url string, timeout time.Duration) error {
 }
 
 // getFirstPageWebSocketURL retrieves the WebSocket URL for the first available page tab.
+// It filters out Chrome extension background pages and prefers real tabs.
+// If no real tab exists, it creates a new one via /json/new.
 func getFirstPageWebSocketURL(debugURL string) (string, error) {
 	resp, err := http.Get(debugURL + "/json")
 	if err != nil {
@@ -367,6 +392,7 @@ func getFirstPageWebSocketURL(debugURL string) (string, error) {
 		ID                   string `json:"id"`
 		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 		URL                  string `json:"url"`
+		Type                 string `json:"type"`
 	}
 
 	if err := json.Unmarshal(body, &pages); err != nil {
@@ -388,14 +414,54 @@ func getFirstPageWebSocketURL(debugURL string) (string, error) {
 		return newPage.WebSocketDebuggerURL, nil
 	}
 
-	// Return the first page's WebSocket URL (prefer "about:blank" or first non-blank)
+	// Prefer a real page tab (not a Chrome extension background page).
+	// Extension background pages are not navigable — connecting to them
+	// causes all navigation/screenshot calls to operate on the extension
+	// rather than the user's intended page.
+	var fallback string
 	for _, p := range pages {
-		if p.WebSocketDebuggerURL != "" {
+		if p.WebSocketDebuggerURL == "" {
+			continue
+		}
+		// Skip extension background pages
+		if isExtensionURL(p.URL) {
+			continue
+		}
+		// Prefer "page" type over "background_page" or "other"
+		if p.Type == "page" {
 			return p.WebSocketDebuggerURL, nil
+		}
+		// Save as fallback
+		if fallback == "" {
+			fallback = p.WebSocketDebuggerURL
 		}
 	}
 
-	return pages[0].WebSocketDebuggerURL, nil
+	// Fallback: use the first non-extension WebSocket URL
+	if fallback != "" {
+		return fallback, nil
+	}
+
+	// All pages are extension pages — create a new real tab
+	body, err = createNewPageViaHTTP(debugURL)
+	if err != nil {
+		return "", err
+	}
+	var newPage struct {
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	if err := json.Unmarshal(body, &newPage); err != nil {
+		return "", fmt.Errorf("cannot decode new page info: %w", err)
+	}
+	if newPage.WebSocketDebuggerURL == "" {
+		return "", fmt.Errorf("new page has no WebSocket debugger URL")
+	}
+	return newPage.WebSocketDebuggerURL, nil
+}
+
+// isExtensionURL checks if a URL is a Chrome extension URL.
+func isExtensionURL(url string) bool {
+	return len(url) >= 22 && url[:22] == "chrome-extension://"
 }
 
 // createNewPageViaHTTP calls Chrome's /json/new API and returns the raw response body.
@@ -411,6 +477,35 @@ func createNewPageViaHTTP(debugURL string) ([]byte, error) {
 		return nil, fmt.Errorf("cannot read new page response: %w", err)
 	}
 	return body, nil
+}
+
+// truncateString truncates a string to the given maximum length,
+// appending "..." if it was truncated.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// SetStarted marks the ChromeManager as started without actually launching Chrome.
+// This is used when reusing an already-running Chrome instance detected on the
+// configured remote debugging port. After calling SetStarted(), subsequent
+// Start() calls will return immediately without spawning a new process.
+func (m *ChromeManager) SetStarted() {
+	m.started = true
+}
+
+// IsEndpointAvailable checks if a Chrome DevTools Protocol endpoint is already
+// responding on the given URL. This is used to detect an existing Chrome instance
+// before attempting to start a new one.
+func IsEndpointAvailable(debugURL string) bool {
+	resp, err := http.Get(debugURL + "/json/version")
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return true
 }
 
 // IsChromeAvailable checks if Chrome/Chromium is installed on the system.

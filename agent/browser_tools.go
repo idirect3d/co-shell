@@ -360,17 +360,27 @@ func (a *Agent) browserGoForwardTool(ctx context.Context, args map[string]interf
 }
 
 // browserCloseTool closes the browser and cleans up.
+// It disconnects the CDP WebSocket but keeps the Chrome process running.
+// Do NOT Stop() the Chrome process here — doing so would cause the next
+// browser tool call to start a completely new Chrome instance (producing
+// an unwanted new blank window). Instead, just close the WebSocket;
+// EnsurePageConnected will detect the dead connection, close it, and
+// create a new tab via /json/new to reconnect.
+// Also do NOT set browserEnabled=false — that removes all browser tools
+// from the tool list, making it impossible for the LLM to continue.
 func (a *Agent) browserCloseTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if a.chromeMgr == nil {
 		return "浏览器未启动", nil
 	}
 
-	a.chromeMgr.Stop()
-	a.chromeMgr = nil
-	a.browserEnabled = false
+	// Close the CDP WebSocket connection to disconnect from the current page.
+	// The Chrome process stays alive so the next tool call can reconnect.
+	if client := a.chromeMgr.Client(); client != nil {
+		client.Close()
+	}
 
-	log.Info("Browser closed by tool call")
-	return "浏览器已关闭。", nil
+	log.Info("Browser CDP connection closed by tool call (Chrome process kept alive)")
+	return "浏览器页面已关闭。下次使用浏览器工具时自动创建新页面。", nil
 }
 
 // getBrowserScreenshotData returns and clears the cached screenshot data.
