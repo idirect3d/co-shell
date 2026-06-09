@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-06-04
-// Last Modified: 2026-06-04
+// Last Modified: 2026-06-09
 //
 // MIT License
 //
@@ -66,6 +66,10 @@ type CDPClient struct {
 	pendingMu sync.Mutex
 }
 
+// defaultCDPTimeout is the maximum time to wait for a CDP response.
+// If the context passed to Call has no deadline, this timeout is used.
+const defaultCDPTimeout = 30 * time.Second
+
 // NewCDPClient connects to a Chrome DevTools Protocol WebSocket endpoint.
 // The wsURL is typically obtained from http://localhost:<port>/json
 // e.g., "ws://localhost:9222/devtools/page/<pageID>"
@@ -88,6 +92,17 @@ func NewCDPClient(wsURL string) (*CDPClient, error) {
 	go client.readLoop()
 
 	return client, nil
+}
+
+// ensureTimeoutContext returns a context with a default timeout if the
+// given context has no deadline. This prevents CDP calls from hanging
+// forever when the caller does not set a timeout.
+func ensureTimeoutContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		return context.WithTimeout(ctx, defaultCDPTimeout)
+	}
+	// Context already has a deadline — use it as-is (but still return a no-op cancel)
+	return ctx, func() {}
 }
 
 // readLoop continuously reads messages from the WebSocket connection
@@ -133,7 +148,13 @@ func (c *CDPClient) readLoop() {
 }
 
 // Call sends a CDP command and waits for the response.
+// If the provided context has no deadline, a default timeout of 30 seconds
+// is automatically applied to prevent hanging indefinitely.
 func (c *CDPClient) Call(ctx context.Context, method string, params map[string]interface{}) (map[string]interface{}, error) {
+	// Apply default timeout if context has no deadline
+	timeoutCtx, cancel := ensureTimeoutContext(ctx)
+	defer cancel()
+
 	c.mu.Lock()
 	id := c.nextID
 	c.nextID++
@@ -178,11 +199,11 @@ func (c *CDPClient) Call(ctx context.Context, method string, params map[string]i
 			return nil, fmt.Errorf("CDP error (code=%d): %s", resp.Error.Code, resp.Error.Message)
 		}
 		return resp.Result, nil
-	case <-ctx.Done():
+	case <-timeoutCtx.Done():
 		c.pendingMu.Lock()
 		delete(c.pending, id)
 		c.pendingMu.Unlock()
-		return nil, fmt.Errorf("CDP call timed out: %w", ctx.Err())
+		return nil, fmt.Errorf("CDP call timed out (%s): %w", method, timeoutCtx.Err())
 	}
 }
 
@@ -203,6 +224,9 @@ func (c *CDPClient) Close() error {
 }
 
 // Navigate navigates the page to the given URL.
+// After navigation, it waits for the page to load (up to 10 seconds)
+// so that subsequent calls like CaptureScreenshot or GetCurrentURL
+// can operate on a fully loaded page.
 func (c *CDPClient) Navigate(ctx context.Context, url string) (string, error) {
 	result, err := c.Call(ctx, "Page.navigate", map[string]interface{}{
 		"url": url,
@@ -211,7 +235,45 @@ func (c *CDPClient) Navigate(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 	frameID, _ := result["frameId"].(string)
+
+	// Wait for the page to finish loading
+	_ = c.WaitForPageLoad(ctx)
+
 	return frameID, nil
+}
+
+// WaitForPageLoad waits for the page to finish loading by polling
+// document.readyState until it reaches "complete". This ensures
+// subsequent calls like CaptureScreenshot or GetCurrentURL don't
+// operate on a partially loaded page.
+// Returns the total wait time, or an error if the page does not
+// load within the timeout.
+func (c *CDPClient) WaitForPageLoad(ctx context.Context) error {
+	timeoutCtx, cancel := ensureTimeoutContext(ctx)
+	defer cancel()
+
+	pollInterval := 200 * time.Millisecond
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return fmt.Errorf("page load wait timed out: %w", timeoutCtx.Err())
+		default:
+		}
+
+		readyState, err := c.Evaluate(timeoutCtx, "document.readyState")
+		if err != nil {
+			// If evaluate fails (e.g. page is still navigating), just retry
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		state, ok := readyState.(string)
+		if ok && state == "complete" {
+			return nil
+		}
+
+		time.Sleep(pollInterval)
+	}
 }
 
 // CaptureScreenshot captures a screenshot of the current page.
