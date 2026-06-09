@@ -579,7 +579,7 @@ func DefaultConfig() *Config {
 			ToolCallMode:              "xml",
 			TokenUsage:                "on",
 			InputMode:                 "enhanced",
-			BrowserEnabled:            false,
+			BrowserEnabled:            true,
 			BrowserPort:               9222,
 			BrowserHeadless:           false,
 		},
