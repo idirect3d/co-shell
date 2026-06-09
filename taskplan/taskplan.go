@@ -111,14 +111,15 @@ func (m *Manager) SetAgentName(name string) {
 }
 
 // HasUnfinished returns true if there is a current plan with unfinished steps.
-// Unfinished steps are those with status pending, in_progress, failed, or cancelled.
+// Unfinished steps are those with status pending, in_progress, or failed.
+// Steps with status completed or cancelled are considered finished.
 func (m *Manager) HasUnfinished() bool {
 	plan, err := m.loadCurrent()
 	if err != nil || plan == nil {
 		return false
 	}
 	for _, step := range plan.Steps {
-		if step.Status != StatusCompleted {
+		if step.Status != StatusCompleted && step.Status != StatusCancelled {
 			return true
 		}
 	}
