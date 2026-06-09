@@ -29,6 +29,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -705,8 +706,11 @@ func (a *Agent) IsBrowserEnabled() bool {
 	return a.browserEnabled
 }
 
-// EnsureBrowserStarted starts a Chrome browser instance if not already running.
-// It returns the browser configuration for port and headless settings.
+// EnsureBrowserStarted ensures a Chrome browser instance is available.
+// It first tries to connect to an already-running Chrome on the configured
+// remote debugging port. Only falls back to starting a new Chrome instance
+// if no existing instance is detected. This prevents creating duplicate
+// browser windows when co-shell restarts or when Chrome is already running.
 func (a *Agent) EnsureBrowserStarted() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -724,7 +728,26 @@ func (a *Agent) EnsureBrowserStarted() error {
 		port = 9222
 	}
 
-	mgr := browser.NewChromeManager(port, a.cfg.LLM.BrowserHeadless)
+	// Use a persistent browser data directory under the workspace, so
+	// Chrome state (cookies, sessions, downloads) survives co-shell restarts.
+	// This also makes it possible to trace back issues from browser data.
+	browserDataDir := filepath.Join(a.workspacePath, "browser-data")
+
+	// Step 1: Try to reuse an already-running Chrome instance on the same port.
+	// This avoids creating a new browser window when co-shell restarts or when
+	// Chrome was left running from a previous session.
+	debugURL := fmt.Sprintf("http://localhost:%d", port)
+	if browser.IsEndpointAvailable(debugURL) {
+		// Existing Chrome detected — create a ChromeManager without starting a new process.
+		log.Info("Browser detected on port %d, reusing existing instance", port)
+		mgr := browser.NewChromeManager(port, a.cfg.LLM.BrowserHeadless, browserDataDir)
+		mgr.SetStarted() // Mark as started so Start() won't launch a new process
+		a.chromeMgr = mgr
+		return nil
+	}
+
+	// Step 2: No existing Chrome — start a new one.
+	mgr := browser.NewChromeManager(port, a.cfg.LLM.BrowserHeadless, browserDataDir)
 	if _, err := mgr.Start(); err != nil {
 		return fmt.Errorf("cannot start browser: %w", err)
 	}
