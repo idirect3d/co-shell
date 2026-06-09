@@ -190,6 +190,52 @@ func ParseXMLToolCalls(content string) []llm.ToolCall {
 	return ParseXMLToolCallsWithTools(content, nil)
 }
 
+// checkSelfClosing checks if an opening tag is self-closing (e.g., <tag/> or <tag />).
+// It examines the content starting from tagEnd, scanning for optional whitespace
+// followed by "/>". This handles both <tag/> and <tag /> formats that LLMs may emit.
+func checkSelfClosing(remaining string, tagEnd int) bool {
+	if tagEnd >= len(remaining) {
+		return false
+	}
+	// <tag/> — immediate self-close
+	if remaining[tagEnd] == '/' {
+		return true
+	}
+	// <tag /> — whitespace before />
+	if remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t' {
+		for j := tagEnd; j < len(remaining); j++ {
+			ch := remaining[j]
+			if ch == '/' {
+				// Must be followed by '>'
+				if j+1 < len(remaining) && remaining[j+1] == '>' {
+					return true
+				}
+				return false
+			}
+			if ch == '>' {
+				// Reached '>' without finding '/' — not self-closing
+				return false
+			}
+		}
+	}
+	return false
+}
+
+// parseXMLIsKnownTool checks if a tag name matches any known tool in the tools list.
+// If tools is empty/nil, returns true (unknown tags are treated as potential tool calls).
+func parseXMLIsKnownTool(tagName string, tools []llm.Tool) bool {
+	if len(tools) == 0 {
+		// No tools list — treat as known (backward compatible)
+		return true
+	}
+	for _, t := range tools {
+		if t.Name == tagName {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseXMLToolCallsWithTools parses XML-formatted tool calls from LLM response content,
 // with optional tool definitions for parameter name validation.
 // If tools is non-nil, parameter names are validated against the tool definitions,
@@ -267,14 +313,32 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 			continue
 		}
 
-		// Skip self-closing tags like <br/>
-		if tagEnd < len(remaining) && remaining[tagEnd] == '/' {
-			// Find the '>'
+		// Self-closing tags (e.g., <br/>, <img/>, <tag /> with space before />)
+		// For depth==0, check if this is a known tool — if so, parse it
+		// as a tool call with empty params. Otherwise skip as non-tool.
+		if isSelfClosing := checkSelfClosing(remaining, tagEnd); isSelfClosing {
+			// Find the '>' that closes the self-closing tag
 			closeEnd := strings.IndexByte(remaining[tagEnd:], '>')
 			if closeEnd < 0 {
 				break
 			}
-			i = tagEnd + closeEnd + 1
+			closeTagEnd := tagEnd + closeEnd + 1
+
+			if depth == 0 {
+				// Check if this is a known tool
+				isKnown := parseXMLIsKnownTool(tagName, tools)
+				if isKnown {
+					log.Debug("ParseXMLToolCalls: parsing known tool self-closing tag <%s/>", tagName)
+					calls = append(calls, llm.ToolCall{
+						ID:        fmt.Sprintf("xml_call_%d", len(calls)),
+						Name:      tagName,
+						Arguments: "{}",
+					})
+				} else {
+					log.Debug("ParseXMLToolCalls: skipping self-closing tag <%s/> (not a known tool)", tagName)
+				}
+			}
+			i = closeTagEnd
 			continue
 		}
 
@@ -976,9 +1040,19 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 			// Nested elements - recursively parse
 			nestedJSON, nestedErrors := parseXMLChildrenToJSON(innerContent)
 			if len(nestedErrors) > 0 {
-				parseErrors = append(parseErrors, nestedErrors...)
+				// If recursive parsing produced errors (e.g., HTML tags inside content,
+				// malformed XML, etc.), fall back to treating this as plain text content.
+				// This is critical for tools like write_to_file where the content parameter
+				// may contain arbitrary HTML/CSS/JS that looks like XML tags but isn't.
+				log.Debug("parseXMLChildrenToJSON: fallback to plain text for <%s> due to %d parse errors", tagName, len(nestedErrors))
+				value := innerContent
+				if cdataContent := extractCDATA(value); cdataContent != "" {
+					value = cdataContent
+				}
+				children = append(children, childEntry{tagName: tagName, jsonVal: jsonValue(value)})
+			} else {
+				children = append(children, childEntry{tagName: tagName, jsonVal: nestedJSON})
 			}
-			children = append(children, childEntry{tagName: tagName, jsonVal: nestedJSON})
 		} else {
 			// Simple text content — preserve all whitespace, do NOT trim.
 			// The LLM controls every byte including leading/trailing spaces,
