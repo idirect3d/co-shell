@@ -743,4 +743,15 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyConfigValUnlimited:     "不限制",
 	KeyConfigValCtxLimit:      "请输入正整数、off 或 unlimited",
 	KeyConfigValCtxStart:      "请输入 window/task/smart",
+
+	// Simulate (FEATURE-218)
+	KeyHelpSimulate:          "    .simulate      - 模拟 LLM 方法调用，进行解析和执行测试",
+	KeySimulatePromptInput:   "请输入要模拟的 LLM 方法调用内容: ",
+	KeySimulateNoContent:     "内容为空，已取消",
+	KeySimulatePartial:       "部分执行完成（有错误发生）",
+	KeySimulateParsingResult: "解析到 %d 个方法调用",
+	KeySimulateLabelArgs:     "参数: ",
+	KeySimulateLabelError:    "错误",
+	KeySimulateLabelSuccess:  "✅ 执行成功",
+	KeySimulateLabelResult:   "结果: ",
 }

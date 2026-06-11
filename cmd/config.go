@@ -83,11 +83,16 @@ type ConfigHandler struct {
 	sectionHandler  *SectionHandler
 	modeHandler     *ModeHandler
 	settingsHandler *SettingsHandler
+	simulateHandler *SimulateHandler
 }
 
 // NewConfigHandler creates a new ConfigHandler.
 func NewConfigHandler(cfg *config.Config, ag *agent.Agent) *ConfigHandler {
-	return &ConfigHandler{cfg: cfg, agent: ag}
+	return &ConfigHandler{
+		cfg:             cfg,
+		agent:           ag,
+		simulateHandler: NewSimulateHandler(ag, cfg),
+	}
 }
 
 // SetHandlers sets all command handlers for action entries.
@@ -761,6 +766,28 @@ func (h *ConfigHandler) devToolParams() []ConfigParam {
 			}
 			return sb.String(), nil
 		}, nil),
+		ConfigParam{
+			Name: ".simulate",
+			Desc: "模拟 LLM 方法调用，进行解析和执行测试",
+			Action: func(args []string) {
+				io := agent.GetIO(h.agent)
+				io.Println()
+				io.Printf("  %s\n", i18n.T(i18n.KeySimulatePromptInput))
+				input := h.readLine()
+				if input == "" {
+					io.Printf("  ❌ %s\n", i18n.T(i18n.KeySimulateNoContent))
+					return
+				}
+				result, err := h.simulateHandler.Handle([]string{input})
+				if err != nil {
+					io.Printf("  ❌ %v\n", err)
+					return
+				}
+				if result != "" {
+					io.Println(result)
+				}
+			},
+		},
 	}
 }
 

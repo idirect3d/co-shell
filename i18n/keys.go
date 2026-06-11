@@ -812,6 +812,17 @@ const (
 	KeySettingsDescBrowserPort     = "settings_desc_browser_port"
 	KeySettingsDescBrowserHeadless = "settings_desc_browser_headless"
 
+	// Simulate (FEATURE-218)
+	KeyHelpSimulate          = "help_simulate"
+	KeySimulatePromptInput   = "simulate_prompt_input"
+	KeySimulateNoContent     = "simulate_no_content"
+	KeySimulatePartial       = "simulate_partial"
+	KeySimulateParsingResult = "simulate_parsing_result"
+	KeySimulateLabelArgs     = "simulate_label_args"
+	KeySimulateLabelError    = "simulate_label_error"
+	KeySimulateLabelSuccess  = "simulate_label_success"
+	KeySimulateLabelResult   = "simulate_label_result"
+
 	// Config wizard (FEATURE-197)
 	KeyHelpConfig             = "help_config"
 	KeyConfigWizardTitle      = "config_wizard_title"
