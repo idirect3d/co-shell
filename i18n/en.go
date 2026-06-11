@@ -712,4 +712,15 @@ no liability whatsoever.`,
 	KeyConfigValUnlimited:     "unlimited",
 	KeyConfigValCtxLimit:      "Enter positive integer, off or unlimited",
 	KeyConfigValCtxStart:      "Enter window/task/smart",
+
+	// Simulate (FEATURE-218)
+	KeyHelpSimulate:          "    .simulate      - Simulate LLM tool call, parse and execute for testing",
+	KeySimulatePromptInput:   "Enter the LLM tool call content to simulate: ",
+	KeySimulateNoContent:     "Empty input, cancelled",
+	KeySimulatePartial:       "Partial execution completed (with errors)",
+	KeySimulateParsingResult: "Parsed %d tool call(s)",
+	KeySimulateLabelArgs:     "Args: ",
+	KeySimulateLabelError:    "Error",
+	KeySimulateLabelSuccess:  "✅ Executed successfully",
+	KeySimulateLabelResult:   "Result: ",
 }
