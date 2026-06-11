@@ -90,6 +90,7 @@ type REPL struct {
 	sectionHandler  *cmd.SectionHandler
 	modeHandler     *cmd.ModeHandler
 	configHandler   *cmd.ConfigHandler
+	simulateHandler *cmd.SimulateHandler
 
 	history    []string
 	historyPos int
@@ -121,6 +122,7 @@ func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.
 		sectionHandler:  cmd.NewSectionHandler(cfg),
 		modeHandler:     cmd.NewModeHandler(cfg, ag),
 		configHandler:   cmd.NewConfigHandler(cfg, ag),
+		simulateHandler: cmd.NewSimulateHandler(ag, cfg),
 	}
 	r.configHandler.SetScanner(bufio.NewScanner(os.Stdin))
 	r.configHandler.SetHandlers(r.mcpHandler, r.ruleHandler, r.memoryHandler,
@@ -320,6 +322,8 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.configHandler.Handle(args)
 	case ".db":
 		result, err = r.settingsHandler.HandleDB(args)
+	case ".simulate":
+		result, err = r.simulateHandler.Handle(args)
 	default:
 		fmt.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return
@@ -621,6 +625,7 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpModel))
 	fmt.Println(i18n.T(i18n.KeyHelpSection))
 	fmt.Println(i18n.T(i18n.KeyHelpMode))
+	fmt.Println(i18n.T(i18n.KeyHelpSimulate))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
 	fmt.Println()
