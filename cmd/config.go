@@ -374,7 +374,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 				h.agent.SetResultMode(mode)
 				return i18n.TF(i18n.KeySettingsUpdated, "result-mode", v), nil
 			}
-			return "", fmt.Errorf(i18n.T(i18n.KeyConfigValMinExplAnFree))
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeyConfigValMinExplAnFree))
 		}, ResetValue: func() string {
 			h.cfg.LLM.ResultMode = int(config.ResultModeMinimal)
 			h.agent.SetResultMode(config.ResultModeMinimal)
@@ -681,7 +681,7 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 			}
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyConfigValCtxLimit))
+				return "", fmt.Errorf("%s", i18n.T(i18n.KeyConfigValCtxLimit))
 			}
 			h.cfg.LLM.ContextLimit = n
 			return i18n.TF(i18n.KeySettingsUpdated, "context-limit", v), nil
@@ -696,7 +696,7 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 			case "window", "task", "smart":
 				h.cfg.LLM.ContextStartMode = v
 			default:
-				return "", fmt.Errorf(i18n.T(i18n.KeyConfigValCtxStart))
+				return "", fmt.Errorf("%s", i18n.T(i18n.KeyConfigValCtxStart))
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "context-start", v), nil
 		}, ResetValue: func() string {
@@ -746,7 +746,7 @@ func (h *ConfigHandler) logParam() ConfigParam {
 			log.SetLevel(level)
 			return i18n.TF(i18n.KeySettingsUpdated, "log", v), nil
 		}
-		return "", fmt.Errorf(i18n.T(i18n.KeyConfigValDebugOff))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyConfigValDebugOff))
 	}, ResetValue: func() string { log.SetLevel(log.LogLevelInfo); return i18n.TF(i18n.KeySettingsUpdated, "log", "info") }}
 }
 
@@ -865,7 +865,7 @@ func setBoolPtr(b *bool, v string) error {
 	case "off", "0", "false", "no":
 		*b = false
 	default:
-		return fmt.Errorf(i18n.T(i18n.KeyConfigValOnOff))
+		return fmt.Errorf("%s", i18n.T(i18n.KeyConfigValOnOff))
 	}
 	return nil
 }
