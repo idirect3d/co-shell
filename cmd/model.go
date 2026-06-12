@@ -663,8 +663,9 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 
-	// Step 7: Set priority
-	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", template.Priority)+")", fmt.Sprintf("%d", template.Priority), "q")
+	// Step 7: Set priority - default to highest priority + 10
+	newPriority := (len(h.cfg.Models) + 1) * 10
+	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", newPriority)+")", fmt.Sprintf("%d", newPriority), "q")
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
 	}
