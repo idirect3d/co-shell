@@ -186,7 +186,7 @@ func (h *SectionHandler) removeSection(args []string) (string, error) {
 		}
 	}
 	if !found {
-		return "", fmt.Errorf(i18n.T(i18n.KeySectionInvalid))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySectionInvalid))
 	}
 
 	if err := h.cfg.Save(); err != nil {

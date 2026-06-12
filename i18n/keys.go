@@ -662,6 +662,12 @@ const (
 	KeyDBStatusFailed    = "db_status_failed"
 	KeyDBStatusNone      = "db_status_none"
 
+	// DB timeout (FEATURE-220)
+	KeyDBTimeoutLabel = "db_timeout_label"
+
+	// DB status re-check command (FEATURE-220)
+	KeyDBStatusCmd = "db_status_cmd"
+
 	// DB migrate description (FEATURE-215)
 	KeyDBMigrateDescMemory = "db_migrate_desc_memory"
 
