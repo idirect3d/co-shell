@@ -439,6 +439,12 @@ type DBConfig struct {
 	// AutoSync controls automatic incremental sync of memory and history
 	// from local bbolt to PostgreSQL at startup. Default: true.
 	AutoSync bool `json:"auto_sync"`
+
+	// Timeout is the database connection timeout in seconds.
+	// When > 0, sql.Open DSN includes connect_timeout and db.Ping uses
+	// PingContext with this timeout. 0 means no timeout (not recommended).
+	// Default: 3.
+	Timeout int `json:"timeout"`
 }
 
 // DefaultDBConfig returns a DBConfig with sensible defaults.
@@ -451,6 +457,7 @@ func DefaultDBConfig() DBConfig {
 		Schema:   "public",
 		User:     "postgres",
 		AutoSync: true,
+		Timeout:  3,
 	}
 }
 
@@ -620,6 +627,14 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, "", fmt.Errorf("cannot parse config %s: %w", path, err)
 	}
+
+	// Apply defaults for fields that may be missing from existing configs.
+	// json.Unmarshal zeros fields not present in JSON when the parent key exists,
+	// so we must ensure sensible defaults.
+	if cfg.DB.Timeout == 0 {
+		cfg.DB.Timeout = DefaultDBConfig().Timeout
+	}
+
 	cfg.configPath = path
 	return cfg, path, nil
 }

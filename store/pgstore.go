@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT INCLUDING NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -28,10 +28,13 @@ package store
 
 import (
 	"bufio"
+	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,17 +45,39 @@ import (
 // PGStore implements memory and history storage using PostgreSQL.
 // Only used for dual-write of memory and history data alongside bbolt.
 type PGStore struct {
-	db     *sql.DB
-	schema string
+	db      *sql.DB
+	schema  string
+	timeout int // connection timeout in seconds, reused for Close()
 }
 
 // NewPGStore creates a new PostgreSQL-backed store.
 // It connects to the database using the provided DBConfig and ensures all
 // required tables exist (memory and history only).
+// The connection uses configurable timeout from cfg.Timeout (default 3s).
 func NewPGStore(cfg config.DBConfig) (*PGStore, error) {
+	timeout := cfg.Timeout
+	if timeout <= 0 {
+		timeout = 3
+	}
+
+	// Pre-check TCP connectivity with a real timeout before touching lib/pq.
+	// lib/pq's sql.Open can block for 30+ seconds on DNS resolution regardless
+	// of connect_timeout. This upfront TCP dial gives us guaranteed timeout
+	// behavior for the DNS + TCP handshake phases.
+	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
+	dialCtx, dialCancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer dialCancel()
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(dialCtx, "tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to PostgreSQL %s: connection timed out after %ds: %w", addr, timeout, err)
+	}
+	conn.Close()
+
+	// Build DSN with connect_timeout
 	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName,
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable connect_timeout=%d",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, timeout,
 	)
 
 	schema := cfg.Schema
@@ -70,23 +95,37 @@ func NewPGStore(cfg config.DBConfig) (*PGStore, error) {
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	// Test the connection
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("cannot ping PostgreSQL: %w", err)
+	// Ping with timeout using goroutine+channel pattern
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer pingCancel()
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- db.Ping()
+	}()
+
+	select {
+	case err := <-errChan:
+		if err != nil {
+			safeCloseDB(db, timeout)
+			return nil, fmt.Errorf("cannot ping PostgreSQL within %ds: %w", timeout, err)
+		}
+	case <-pingCtx.Done():
+		safeCloseDB(db, timeout)
+		return nil, fmt.Errorf("cannot ping PostgreSQL: connection timed out after %ds", timeout)
 	}
 
-	store := &PGStore{db: db, schema: schema}
+	store := &PGStore{db: db, schema: schema, timeout: timeout}
 
 	// Ensure schema exists (create if not exists)
 	if err := store.ensureSchema(); err != nil {
-		db.Close()
+		safeCloseDB(db, timeout)
 		return nil, fmt.Errorf("cannot ensure PostgreSQL schema: %w", err)
 	}
 
 	// Create tables (memory and history only)
 	if err := store.ensureTables(); err != nil {
-		db.Close()
+		safeCloseDB(db, timeout)
 		return nil, fmt.Errorf("cannot create PostgreSQL tables: %w", err)
 	}
 
@@ -133,8 +172,46 @@ func (s *PGStore) ensureTables() error {
 	return nil
 }
 
-// Close closes the database connection.
+// safeCloseDB closes a database connection with a timeout.
+// Used when NewPGStore fails partway through and needs to clean up
+// without risking a hang on db.Close().
+func safeCloseDB(db *sql.DB, timeout int) {
+	if timeout > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		defer cancel()
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- db.Close()
+		}()
+		select {
+		case <-errChan:
+		case <-ctx.Done():
+		}
+	} else {
+		db.Close()
+	}
+}
+
+// Close closes the database connection with timeout protection.
+// Uses the same timeout as the connection (cfg.Timeout) to ensure close
+// operations don't hang indefinitely when the database is unreachable.
 func (s *PGStore) Close() error {
+	if s.timeout > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.timeout)*time.Second)
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- s.db.Close()
+		}()
+
+		select {
+		case err := <-errChan:
+			return err
+		case <-ctx.Done():
+			return fmt.Errorf("database close timed out after %ds", s.timeout)
+		}
+	}
 	return s.db.Close()
 }
 

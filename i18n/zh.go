@@ -660,6 +660,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDBStatusConnected:   "✅ 已连接",
 	KeyDBStatusFailed:      "❌ 连接失败",
 	KeyDBStatusNone:        "未连接",
+	KeyDBTimeoutLabel:      "连接超时（秒）",
+	KeyDBStatusCmd:         "重新检测数据库连接状态",
 	KeyDBMigrateDescMemory: "从本地 bbolt 增量同步 memory 和 history 到 PostgreSQL",
 	KeyDBUserLabel:         "数据库用户",
 	KeyDBPasswordLabel:     "数据库密码",
