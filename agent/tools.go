@@ -669,7 +669,7 @@ Critical rules:
 	// Add adjust_context_start tool (always available, but will check mode in callback)
 	tools = append(tools, llm.Tool{
 		Name:        "adjust_context_start",
-		Description: "Adjust the context start pointer position. Allows the LLM to dynamically decide how much conversation history to keep based on context content, ignoring irrelevant early messages. Only available when context_start_mode is set to 'smart'.",
+		Description: "Adjust the context start pointer position. Allows the LLM to dynamically decide how much conversation history to keep based on context content, ignoring irrelevant early messages. Only available when context_start_mode is set to 'smart'. The target_index should be taken from the 'Message No' (or '消息序号' in zh) value in each message's <environment_details>.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
