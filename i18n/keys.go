@@ -816,6 +816,7 @@ const (
 	KeyHelpSimulate          = "help_simulate"
 	KeySimulatePromptInput   = "simulate_prompt_input"
 	KeySimulateNoContent     = "simulate_no_content"
+	KeyContinuePrompt        = "continue_prompt"
 	KeySimulatePartial       = "simulate_partial"
 	KeySimulateParsingResult = "simulate_parsing_result"
 	KeySimulateLabelArgs     = "simulate_label_args"
