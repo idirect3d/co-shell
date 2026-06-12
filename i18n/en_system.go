@@ -473,7 +473,7 @@ Usage:
 	enMessages[KeyToolUsageAdjustContextStart] = `## adjust_context_start
 Description: Adjust the context start pointer position. Allows the LLM to dynamically decide how much conversation history to retain based on context content, ignoring irrelevant earlier messages. Only available when context_start_mode is set to 'smart'.
 Parameters:
-- target_index (required) The message index to set as the new context start. Messages before this index will be ignored when building the LLM context. The value must be >= current messagePointer.
+- target_index (required) The message index to set as the new context start. Messages before this index will be ignored when building the LLM context. The value must be >= current messagePointer. The "Message No" value in each message's <environment_details> can be used directly as target_index.
 Usage:
 <adjust_context_start>
   <target_index>42</target_index>
@@ -1212,7 +1212,8 @@ View the current task plan's progress summary at any time:
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 - **When using curl/wget to download pages or other file content**: Download the full content directly to the current task working folder (preferred) or ./download/, then use read_file to read as needed. Never read the raw output directly into context as it may blow up the buffer; the saved file also preserves the original material for reference.
-- **When a task phase is completed**: Use the adjust_context_start tool (in smart mode) to move the context pointer to the latest user message, so subsequent conversation focuses on the new task goal. If the system has already auto-adjusted the pointer (task mode), no manual action is needed.
+- **When a task phase is completed**: Use the adjust_context_start tool (in smart mode) to move the context pointer to the latest user message, so subsequent conversation focuses on the new task goal. The target_index can be taken directly from the "Message No" value in each message's <environment_details>. If the system has already auto-adjusted the pointer (task mode), no manual action is needed.
+- **When user instruction is unclear**: If the latest user instruction is unclear, lacks context, or needs to reference previous discussions, proactively use memory_search to search persistent memory for relevant information before starting work. Do not blindly guess or start working without understanding the full background.
 - **When modifying program files**: Prefer replace_in_file for precise edits. If many changes are needed (e.g., more than 10 locations or more than 50 lines total), apply changes in multiple rounds, a few at a time, rather than rewriting the entire file with write_to_file.
 - **When conducting research**: You must save all collected raw materials so that reviewers can quickly verify the true sources of cited data, opinions, conclusions, etc. Name raw materials as "[Serial Number] Article Title - Source - Author [Publication Date]". Cite all original sources using GB/T 7714 in the final report. Create a new working folder under ./research/ for each new task. Finalize the report in Markdown format first, then convert it to a Word document and open it for the user when possible.
 - **When collaborating with other co-shell Agents**: Communicate and share information equally through the sub-agent method, with clear division of labor and shared results.
@@ -1268,6 +1269,7 @@ Work Space: {WORKSPACE}
 {TASK_TRACKING}
 
 <environment_details>
+# Message No: {MESSAGE_NO}
 
 {CURRENT_TIME}
 
@@ -1303,6 +1305,7 @@ If all steps are completed, use **attempt_completion** to report the final resul
 {TASK_TRACKING}
 
 <environment_details>
+# Message No: {MESSAGE_NO}
 
 {CURRENT_TIME}
 
