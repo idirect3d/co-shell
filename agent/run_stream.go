@@ -364,12 +364,18 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		//   2. attempt_completion IS available AND NOT called → prompt LLM to continue or call attempt_completion
 		//   3. attempt_completion is NOT available → exit immediately (final content is the answer)
 		if len(toolCalls) == 0 {
-			// Check if attempt_completion tool is available in the current tool set
-			attemptCompAvailable := false
-			for _, t := range tools {
-				if t.Name == "attempt_completion" {
-					attemptCompAvailable = true
-					break
+			// Check if attempt_completion tool is available.
+			// Use buildToolsInternal() instead of the API-level tools list to handle
+			// XML mode where buildTools() returns empty (FIX-219).
+			attemptCompAvailable := a.toolCallEnabled
+			if attemptCompAvailable {
+				fullTools := a.buildToolsInternal()
+				attemptCompAvailable = false
+				for _, t := range fullTools {
+					if t.Name == "attempt_completion" {
+						attemptCompAvailable = true
+						break
+					}
 				}
 			}
 
@@ -424,7 +430,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 
 			// Rule 2: attempt_completion is available but was NOT called — prompt LLM to continue
-			continuePrompt := "现在应该继续思考并完成任务直到达成任务目标，你可以调用合适的工具，以表示任务还将继续。如果确实认为任务已经完成了，需要调用 attempt_completion 工具来提交最终答案。"
+			continuePrompt := i18n.T(i18n.KeyContinuePrompt)
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
