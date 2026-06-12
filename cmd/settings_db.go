@@ -80,6 +80,9 @@ func (h *SettingsHandler) HandleDB(args []string) (string, error) {
 	case "restore":
 		// .db restore -> restore from backup
 		return h.dbRestore()
+	case "status":
+		// .db status -> re-test connection and show status
+		return h.dbCheckStatus()
 	default:
 		// .db <subkey> <value> -> delegate to handleDBSubCommand
 		return h.handleDBSubCommand(args)
@@ -116,6 +119,13 @@ func (h *SettingsHandler) showDBConfig() (string, error) {
 	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "user:", h.cfg.DB.User, i18n.T(i18n.KeyDBUserLabel)))
 	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "password:", "****", i18n.T(i18n.KeyDBPasswordLabel)))
 
+	// Display timeout
+	timeoutStr := fmt.Sprintf("%ds", h.cfg.DB.Timeout)
+	if h.cfg.DB.Timeout <= 0 {
+		timeoutStr = i18n.T(i18n.KeyUnlimited)
+	}
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "timeout:", timeoutStr, i18n.T(i18n.KeyDBTimeoutLabel)))
+
 	autoSyncStatus := i18n.T(i18n.KeyOn)
 	if !h.cfg.DB.AutoSync {
 		autoSyncStatus = i18n.T(i18n.KeyOff)
@@ -124,6 +134,7 @@ func (h *SettingsHandler) showDBConfig() (string, error) {
 
 	sb.WriteString("\n.set db <key> <value> - " + i18n.T(i18n.KeyDBSubCmdDesc) + "\n")
 	sb.WriteString(".db config - " + i18n.T(i18n.KeyDBConfigLabel) + "\n")
+	sb.WriteString(".db status - " + i18n.T(i18n.KeyDBStatusCmd) + "\n")
 	sb.WriteString(".db init - " + i18n.T(i18n.KeyDBInitDesc) + "\n")
 	sb.WriteString(".db sync - " + i18n.T(i18n.KeyDBMigrateDescMemory) + "\n")
 	sb.WriteString(".db backup - " + i18n.T(i18n.KeyDBBackupTitle) + "\n")
@@ -257,6 +268,25 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 		log.Info("DB password updated")
 		return "✅ 数据库密码已更新", nil
 
+	case "timeout":
+		if len(args) < 2 {
+			timeoutStr := fmt.Sprintf("%ds", h.cfg.DB.Timeout)
+			if h.cfg.DB.Timeout <= 0 {
+				timeoutStr = "unlimited"
+			}
+			return fmt.Sprintf("连接超时: %s", timeoutStr), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", fmt.Errorf("usage: .set db timeout <seconds> (>= 0, 0 = no timeout)")
+		}
+		h.cfg.DB.Timeout = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("DB timeout set to %d", n)
+		return fmt.Sprintf("✅ 连接超时已设置为: %ds", n), nil
+
 	case "auto-sync":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOff)
@@ -284,7 +314,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 		return fmt.Sprintf("✅ 自动同步已设置为: %s", status), nil
 
 	default:
-		return "", fmt.Errorf("unknown db subkey: %s（可选值: enabled, host, port, name, schema, user, password, auto-sync）", subkey)
+		return "", fmt.Errorf("unknown db subkey: %s（可选值: enabled, host, port, name, schema, user, password, timeout, auto-sync）", subkey)
 	}
 }
 
@@ -532,6 +562,24 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	}
 
 	return "✅ 数据库配置完成!", nil
+}
+
+// dbCheckStatus re-tests the database connection and displays the current status.
+func (h *SettingsHandler) dbCheckStatus() (string, error) {
+	connStatus := i18n.T(i18n.KeyDBStatusNone)
+	if h.cfg.DB.Enabled && h.cfg.DB.Host != "" && h.cfg.DB.Port > 0 && h.cfg.DB.DBName != "" {
+		h.io().Println("\n🔌 正在测试数据库连接...")
+		pgStore, err := store.NewPGStore(h.cfg.DB)
+		if err != nil {
+			h.io().Printf("❌ %v\n", err)
+			connStatus = i18n.T(i18n.KeyDBStatusFailed)
+		} else {
+			pgStore.Close()
+			connStatus = i18n.T(i18n.KeyDBStatusConnected)
+			h.io().Println("✅ " + i18n.T(i18n.KeyDBStatusConnected))
+		}
+	}
+	return fmt.Sprintf("当前数据库连接状态: %s", connStatus), nil
 }
 
 // dbBackup exports all PostgreSQL tables to CSV files in backup/<timestamp>/.

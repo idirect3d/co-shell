@@ -177,11 +177,11 @@ func (h *ModeHandler) selectModeByNumber(prompt string) (*config.WorkMode, error
 
 	input := h.readLine()
 	if input == "" {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyCancelled))
+		return nil, fmt.Errorf("%s", i18n.T(i18n.KeyCancelled))
 	}
 	num, err := strconv.Atoi(input)
 	if err != nil || num < 1 || num > len(modes) {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyInvalidChoice))
+		return nil, fmt.Errorf("%s", i18n.T(i18n.KeyInvalidChoice))
 	}
 	return &modes[num-1], nil
 }
@@ -192,7 +192,7 @@ func (h *ModeHandler) interactiveSwitch(args []string) (string, error) {
 		// Direct name provided
 		name := args[0]
 		if !h.modeExists(name) && name != "default" {
-			return "", fmt.Errorf(i18n.T(i18n.KeyModeNotFound))
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
 		}
 		h.cfg.LLM.WorkMode = name
 		if err := h.cfg.Save(); err != nil {
@@ -232,7 +232,7 @@ func (h *ModeHandler) interactiveCreate() (string, error) {
 	// Check duplicates
 	for _, m := range h.cfg.WorkModes {
 		if m.Name == name {
-			return "", fmt.Errorf(i18n.T(i18n.KeyModeExists))
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeExists))
 		}
 	}
 	if name == "default" {
@@ -367,7 +367,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 			}
 		}
 		if mode == nil {
-			return "", fmt.Errorf(i18n.T(i18n.KeyModeNotFound))
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
 		}
 	} else {
 		selected, err := h.selectModeByNumber("选择要编辑的工作模式:")
@@ -556,7 +556,7 @@ func (h *ModeHandler) interactiveRemove(args []string) (string, error) {
 	h.io().Printf("  确定要删除工作模式 '%s'? (y/N): ", name)
 	confirm := strings.TrimSpace(strings.ToLower(h.readLine()))
 	if confirm != "y" && confirm != "yes" {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCancelled))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyCancelled))
 	}
 
 	idx := -1
@@ -567,7 +567,7 @@ func (h *ModeHandler) interactiveRemove(args []string) (string, error) {
 		}
 	}
 	if idx < 0 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyModeNotFound))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
 	}
 
 	if h.cfg.LLM.WorkMode == name {
