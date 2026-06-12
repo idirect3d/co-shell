@@ -483,7 +483,7 @@ Usage:
 	zhMessages[KeyToolUsageAdjustContextStart] = `## adjust_context_start
 Description: 调整上下文起点指针位置。允许 LLM 根据上下文内容动态决定保留多少对话历史，忽略不相关的早期消息。仅在 context_start_mode 设置为 'smart' 时可用。
 Parameters:
-- target_index (必需) 要设置为新上下文起点的消息索引。此索引之前的消息在构建 LLM 上下文时将被忽略。设置的值必须 >= 当前 messagePointer。
+- target_index (必需) 要设置为新上下文起点的消息索引。此索引之前的消息在构建 LLM 上下文时将被忽略。设置的值必须 >= 当前 messagePointer。每条消息的 <environment_details> 中的「消息序号」值可以直接作为 target_index 使用。
 Usage:
 <adjust_context_start>
   <target_index>42</target_index>
@@ -1236,7 +1236,8 @@ RULES
 - 每次工具使用后必须等待用户的响应，以确认工具使用成功。例如，如果要求制作一个待办事项应用，你会创建一个文件，等待用户确认创建成功，然后创建另一个文件（如果需要），等待用户确认成功，依此类推。
 - MCP 操作应一次使用一个，类似于其他工具的使用方式。在继续其他操作之前等待成功确认。
 - **使用 curl/wget 下载页面或其他文件内容时**：应直接下载全部内容到当前任务工作文件夹（优先）或 ./download/ 下，再用 read_file 按需读取，切勿直接读取返回的全部内容撑爆上下文，同时也保存了原始资料备查。
-- **阶段性任务完成时**：推荐使用 adjust_context_start 工具（在 smart 模式下）将上下文指针移动到最新的用户消息，使后续对话聚焦于新的任务目标。如果系统已自动调整了指针（task 模式），则无需手动操作。
+- **阶段性任务完成时**：推荐使用 adjust_context_start 工具（在 smart 模式下）将上下文指针移动到最新的用户消息，使后续对话聚焦于新的任务目标。target_index 的值可以直接取自每条消息 environment_details 中的「消息序号」。如果系统已自动调整了指针（task 模式），则无需手动操作。
+- **用户指令不明确时**：如果用户的最新指令不够明确、缺少上下文或需要回顾之前的讨论，应主动使用 memory_search 从持久记忆中搜索相关信息，再开始执行。不要在不了解完整背景的情况下盲目猜测或开始工作。
 - **修改程序文件时**：优先使用 replace_in_file 精确修改。如果需要修改的地方较多（如超过 10 处或需替换总量超过 50 行），可以分多次修改，每次改几处或若干行，逐步推进，尽量不要用 write_to_file 重写整个文件。
 - **调查研究时**：做研究时必须保存所有收集到的原始资料，以便审稿人员快速验证所引用数据、观点、结论等内容的真实来源。基础资料命名规则为："[序号] 文章标题-出处-作者【发表日期】"，在主报告中以 GB/T 7714 标注出处。每次全新任务在 ./research/ 下创建新的工作文件夹。最终报告先用 Markdown 整理，再转换为 Word 文档，并尽量打开呈现给用户。
 - **与其他 co-shell Agent 协作时**：通过子 agent 方式与对方平等地沟通和共享信息，分工明确、成果共享。
@@ -1345,6 +1346,7 @@ SYSTEM INFORMATION
 {TASK_TRACKING}
 
 <environment_details>
+# 消息序号: {MESSAGE_NO}
 
 {CURRENT_TIME}
 
@@ -1391,6 +1393,7 @@ SYSTEM INFORMATION
 {TASK_TRACKING}
 
 <environment_details>
+# 消息序号: {MESSAGE_NO}
 
 {CURRENT_TIME}
 
