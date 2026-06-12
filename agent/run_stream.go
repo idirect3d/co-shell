@@ -106,7 +106,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
 		// Add user message to history with template formatting
-		formattedInput := a.formatUserMessage(userInput)
+		formattedInput := a.formatUserMessage(userInput, len(a.messages))
 		a.messages = append(a.messages, llm.Message{Role: "user", Content: formattedInput})
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
@@ -586,7 +586,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// In XML mode, return tool results as user messages using the i18n template.
 				// This avoids the API-level tool message role which some LLMs don't support
 				// when tools are not sent via the API tools parameter.
-				userContent := a.formatXMLToolResult(tc.Name, tc.Arguments, toolContent)
+				userContent := a.formatXMLToolResult(tc.Name, tc.Arguments, toolContent, len(a.messages))
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
 					Role:    "user",

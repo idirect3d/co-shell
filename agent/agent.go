@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -526,20 +527,22 @@ func (a *Agent) getTaskPlanText() string {
 	return taskplan.FormatPlan(plan)
 }
 
-func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string) string {
+func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string, messageNo int) string {
 	template := i18n.T(i18n.KeyXMLToolResultTemplate)
 	result := strings.ReplaceAll(template, "{TOOL_CALL}", toolName)
 	result = strings.ReplaceAll(result, "{TOOL_CALL_PARAMETERS}", toolArgs)
 	result = strings.ReplaceAll(result, "{TOOL_RESULT}", toolResult)
 	result = strings.ReplaceAll(result, "{TASK_TRACKING}", a.getTaskPlanPrompt())
+	result = strings.ReplaceAll(result, "{MESSAGE_NO}", strconv.Itoa(messageNo))
 	result = strings.ReplaceAll(result, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
 	return result
 }
 
-func (a *Agent) formatUserMessage(instruction string) string {
+func (a *Agent) formatUserMessage(instruction string, messageNo int) string {
 	template := i18n.T(i18n.KeyUserMessageTemplate)
 	result := strings.ReplaceAll(template, "{INSTRUCTION}", instruction)
 	result = strings.ReplaceAll(result, "{TASK_TRACKING}", a.getTaskPlanPrompt())
+	result = strings.ReplaceAll(result, "{MESSAGE_NO}", strconv.Itoa(messageNo))
 	result = strings.ReplaceAll(result, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
 	return result
 }
