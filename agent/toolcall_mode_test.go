@@ -459,6 +459,73 @@ func TestParseXMLToolCalls_InvalidParamName(t *testing.T) {
 	t.Logf("Error message: %s", errStr)
 }
 
+func TestParseXMLToolCalls_MissingParentCloseTag(t *testing.T) {
+	// <execute_command> is opened but never closed — only its child <command> is closed.
+	// The parser should detect that </execute_command> is missing and return an _xml_parse_error
+	// with a clear message, not a confusing downstream error about parameter parsing.
+	xmlInput := `<execute_command><command></command>`
+
+	// Use ParseXMLToolCallsWithTools so that execute_command is recognized as a known tool.
+	tools := []llm.Tool{
+		{
+			Name: "execute_command",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{
+						"type":        "string",
+						"description": "The command to execute",
+					},
+				},
+			},
+		},
+	}
+
+	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 tool call (error), got %d", len(calls))
+	}
+
+	call := calls[0]
+	if call.Name != "_xml_parse_error" {
+		t.Fatalf("expected error tool name '_xml_parse_error', got %q", call.Name)
+	}
+
+	// Parse the error arguments
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+		t.Fatalf("failed to parse error arguments JSON: %v\nJSON: %s", err, call.Arguments)
+	}
+
+	errMsg, ok := args["error"]
+	if !ok {
+		t.Fatalf("missing 'error' field in error arguments, args: %v", args)
+	}
+	errStr, ok := errMsg.(string)
+	if !ok {
+		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
+	}
+
+	// The error message should clearly state that the closing tag is missing
+	if !strings.Contains(errStr, "闭合标签") && !strings.Contains(errStr, "execute_command") {
+		t.Errorf("error message should mention the missing close tag for execute_command, got: %s", errStr)
+	}
+	t.Logf("Error message: %s", errStr)
+
+	// Verify the tag name in the error
+	tag, ok := args["tag"]
+	if !ok {
+		t.Fatalf("missing 'tag' field in error arguments, args: %v", args)
+	}
+	tagStr, ok := tag.(string)
+	if !ok {
+		t.Fatalf("expected 'tag' to be a string, got %T: %v", tag, tag)
+	}
+	if tagStr != "execute_command" {
+		t.Errorf("expected tag 'execute_command', got %q", tagStr)
+	}
+}
+
 func TestParseXMLToolCalls_CDATAWithXMLContent(t *testing.T) {
 
 	// CDATA wrapping content that contains XML-like tags

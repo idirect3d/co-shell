@@ -464,15 +464,45 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 				// like <execute>...</execute_command> where tag names don't match).
 				fallbackIdx := findAnyCloseTag(remaining[openEnd:])
 				if fallbackIdx >= 0 {
-					// Use the fallback close tag
-					closeIdx = fallbackIdx
 					// Extract the actual close tag name from the content
 					closeContent := remaining[openEnd+fallbackIdx:]
 					closeEnd := strings.IndexByte(closeContent[2:], '>')
 					if closeEnd >= 0 {
 						actualCloseName := closeContent[2 : 2+closeEnd]
+						// Only use the fallback if the close tag name actually matches.
+						// If the names don't match, the found close tag belongs to a child
+						// element, not the parent — using it would corrupt parsing and
+						// produce confusing downstream errors.
+						if actualCloseName != tagName {
+							refFormat := buildReferenceFormat(tagName)
+							errMsg := fmt.Sprintf(
+								"XML解析错误：找不到 <%s> 的闭合标签 </%s>，但找到了不相关的 </%s>。\n\n"+
+									"请检查你的调用格式，确保每个标签正确闭合。\n"+
+									"参考格式：\n%s",
+								tagName, tagName, actualCloseName, refFormat)
+							log.Debug("ParseXMLToolCalls: %s", errMsg)
+							calls = append(calls, llm.ToolCall{
+								ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+								Name:      "_xml_parse_error",
+								Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+							})
+							i = openEnd
+							continue
+						}
 						closeTag = "</" + actualCloseName + ">"
 						log.Debug("ParseXMLToolCalls: using fallback close tag %s for <%s>", closeTag, tagName)
+					} else {
+						// Can't parse the found close tag name — report error
+						errMsg := fmt.Sprintf("XML解析错误：找不到 <%s> 的闭合标签 </%s>。位置：从第 %d 字符开始。",
+							tagName, tagName, ltIdx)
+						log.Debug("ParseXMLToolCalls: %s", errMsg)
+						calls = append(calls, llm.ToolCall{
+							ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+							Name:      "_xml_parse_error",
+							Arguments: fmt.Sprintf(`{"error": %q, "tag": %q, "position": %d}`, errMsg, tagName, ltIdx),
+						})
+						i = openEnd
+						continue
 					}
 				} else {
 					// No matching close tag found at all.
