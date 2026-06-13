@@ -269,6 +269,9 @@ func (r *REPL) saveHistory(input string) {
 	if err := r.store.SaveHistory(input); err != nil {
 		log.Warn("Cannot save history: %v", err)
 	}
+	// Update in-memory history so current session entries appear in Up/Down navigation.
+	r.history = append(r.history, input)
+	r.historyPos = len(r.history)
 }
 
 func (r *REPL) handleBuiltin(input string) {
