@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/log"
@@ -229,9 +230,16 @@ func (a *Agent) browserEvaluateTool(ctx context.Context, args map[string]interfa
 	return fmt.Sprintf("JavaScript 执行结果:\n%s", result), nil
 }
 
-// browserGetHTMLTool returns the page's HTML.
-// If the HTML exceeds the configured max size (default 10KB), it saves to
-// ./download/html/ and returns the file path instead of the full content.
+// browserGetHTMLTool returns the rendered DOM HTML of the current browser page.
+// The HTML is obtained from Chrome's live DOM tree via CDP (DOM.getDocument +
+// DOM.getOuterHTML), meaning it reflects the final state after all JavaScript
+// has executed — including SPA framework output, dynamic content, and all DOM
+// modifications. This is NOT the raw source HTML. There is no need to separately
+// download JS, JSON, or other resources referenced in the page source.
+// The HTML is always saved to ./download/html/ for data integrity, regardless
+// of size. If it exceeds the configured max size (default 10KB), the file
+// path is returned instead of the full content. If it fits within the limit,
+// the full HTML is returned along with the file path for later reference.
 func (a *Agent) browserGetHTMLTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if err := a.ensureBrowserReady(ctx); err != nil {
 		return "", err
@@ -250,17 +258,16 @@ func (a *Agent) browserGetHTMLTool(ctx context.Context, args map[string]interfac
 
 	log.Info("Browser get HTML (%d bytes)", len(html))
 
+	// Count lines for reference
+	lineCount := strings.Count(html, "\n") + 1
+
 	// Determine max HTML size: config override or default 10KB
 	maxHTMLSize := 10240 // 10KB default
 	if a.cfg != nil && a.cfg.LLM.BrowserMaxHTMLSize > 0 {
 		maxHTMLSize = a.cfg.LLM.BrowserMaxHTMLSize
 	}
 
-	if len(html) <= maxHTMLSize {
-		return fmt.Sprintf("页面 HTML（%d 个字符）:\n%s", len(html), html), nil
-	}
-
-	// HTML too large — save to file
+	// Always save to file for data integrity, regardless of size
 	ts := time.Now().Format("20060102_150405")
 	htmlPath := filepath.Join(".", "download", "html", fmt.Sprintf("browser_html_%s.html", ts))
 	if err := os.MkdirAll(filepath.Dir(htmlPath), 0755); err != nil {
@@ -270,10 +277,15 @@ func (a *Agent) browserGetHTMLTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("cannot write html file: %w", err)
 	}
 
-	log.Info("Browser HTML saved to %s (exceeded max %d bytes)", htmlPath, maxHTMLSize)
+	log.Info("Browser HTML saved to %s (%d bytes)", htmlPath, len(html))
 
-	return fmt.Sprintf("页面 HTML 内容较大（%d 个字符），已保存到文件:\n  %s\n\n你可以使用 read_file 工具读取此文件内容进行分析。\n你可以通过 `.set browser-max-html-size` 调整大小限制（当前: %d 字节 ≈ %d KB）。",
-		len(html), htmlPath, maxHTMLSize, maxHTMLSize/1024), nil
+	if len(html) <= maxHTMLSize {
+		return fmt.Sprintf("页面渲染后的 DOM HTML（%d 行, %d 字符）:\n%s\n\n⚠️ 已同时保存到文件 %s，之后可用 read_file 随时读取。",
+			lineCount, len(html), html, htmlPath), nil
+	}
+
+	return fmt.Sprintf("页面渲染后的 DOM HTML 内容较大（%d 行, %d 字符），已保存到文件:\n  %s\n\n这是经过所有 JavaScript 渲染后的最终 DOM HTML，无需再下载 JS、JSON 或其他资源。\n你可以使用 read_file 工具读取此文件内容进行分析。\n你可以通过 `.set browser-max-html-size` 调整大小限制（当前: %d 字节 ≈ %d KB）。",
+		lineCount, len(html), htmlPath, maxHTMLSize, maxHTMLSize/1024), nil
 }
 
 // browserScrollTool scrolls the page by the specified delta.
