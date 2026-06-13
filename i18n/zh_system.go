@@ -43,9 +43,9 @@ TOOL USE
 
 **工具优先级（从高到低）：**
 1. **内部工具**（read_file、search_files、replace_in_file 等）— 优先使用内部工具解决问题
-   - **获取 Web 页面内容时**：优先使用浏览器工具（browser_navigate + browser_screenshot/browser_get_html），确保获取到 JavaScript 渲染后的完整页面内容
-2. **MCP 工具** — 当内部工具无法满足需求时，使用 MCP 工具
-3. **execute_command** — 当以上工具都无法解决问题时，使用系统命令
+2. **获取 Web 页面内容时**：优先使用浏览器工具（browser_navigate + browser_screenshot/browser_get_rendered_html），确保获取到 JavaScript 渲染后的完整页面内容
+3. **MCP 工具** — 当内部工具无法满足需求时，使用 MCP 工具
+4. **execute_command** — 当以上工具都无法解决问题时，使用系统命令
    - 优先使用已有系统命令（ls、cat、dir、type、head、tail 等）
    - 其次通过 shell、Python 等方式编程实现
    - **使用 curl 下载页面或其他文件内容时**：应直接使用命令下载全部内容到当前任务工作文件夹（优先）或 ./download/ 下，再使用 read_file 按需读取，避免直接读取返回的全部内容撑爆上下文，同时也保存了原始资料备查
@@ -655,11 +655,11 @@ Usage:
   <expression>document.title</expression>
 </browser_evaluate>`
 
-	zhMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_html
-Description: 获取当前页面的完整 HTML 内容。适用于分析页面结构。
+	zhMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_rendered_html
+Description: 获取当前页面经过所有 JavaScript 渲染后的 DOM HTML。HTML 来自 Chrome 实时 DOM 树的序列化结果 — 反映的是最终渲染状态（SPA输出、动态内容、JS修改），而非原始源码。无需单独下载 JS/JSON 等资源。
 Parameters: 无
 Usage:
-<browser_get_html />`
+<browser_get_rendered_html />`
 
 	zhMessages[KeyToolUsageBrowserScroll] = `## browser_scroll
 Description: 按指定像素值滚动页面。正值向下滚动，负值向上滚动。
@@ -935,7 +935,7 @@ BROWSER USAGE
 | browser_type | 在聚焦元素中输入文本 | text（必填）、clear（可选，默认false） |
 | browser_evaluate | 执行 JavaScript 代码 | code（必填） |
 | browser_scroll | 滚动页面 | delta_x、delta_y（可选，默认0） |
-| browser_get_html | 获取页面 HTML | 无 |
+| browser_get_rendered_html | 获取渲染后的 DOM HTML（JS 执行后）— 非原始源码 | 无 |
 | browser_go_back | 后退 | 无 |
 | browser_go_forward | 前进 | 无 |
 | browser_close | 关闭浏览器释放资源 | 无 |
@@ -954,7 +954,7 @@ BROWSER USAGE
 - 输入文本 → browser_type(text="内容", clear=true)
 - 执行 JavaScript → browser_evaluate(code="代码")
 - 滚动页面 → browser_scroll(delta_y=滚动量)
-- 获取页面 HTML → browser_get_html()
+- 获取渲染后 DOM HTML → browser_get_rendered_html()
 - 前进/后退 → browser_go_forward() / browser_go_back()
 
 ## 4. 执行操作后再次截图评估
@@ -964,19 +964,41 @@ BROWSER USAGE
 
 目标：在搜索框中输入关键词并点击搜索按钮
 
-1. browser_navigate(url="https://example.com")     — 导航
-2. browser_screenshot()                             — 截图观察
-3. browser_get_interactive_elements()                — 获取元素坐标
-4. browser_type(text="AI浏览器自动化", clear=true)  — 输入文本
-5. browser_click(x=200, y=450)                      — 点击搜索按钮
-6. browser_screenshot()                              — 截图观察结果
+1. browser_navigate(url="https://example.com") — 导航
+2. browser_screenshot()/browser_get_rendered_html()/browser_get_interactive_elements — 截图或通过渲染后的元素观察
+3. browser_get_interactive_elements() — 获取元素坐标
+4. browser_type(text="AI浏览器自动化", clear=true) — 输入文本
+5. browser_click(x=200, y=450) — 点击搜索按钮
+6. browser_screenshot()/browser_get_rendered_html()/browser_get_interactive_elements — 截图观察结果
 7. 重复步骤 2-6 直到任务完成
 
-# 注意事项
+# 页面数据收集方式对比
+
+操作浏览器时，你有三种互补的方式获取页面信息，各有利弊：
+
+## 1. 截图识别 — browser_screenshot
+**优点**：利用视觉模型的图像理解能力，对页面整体布局、色彩、图片内容、样式效果进行精准判断，最接近人类"看"网页的方式。
+**缺点**：需要多模态视觉模型（VLM）支持；无法直接提取结构化文本数据（如表格行、列表项）；对长页面需多次滚动截图。
+**典型场景**：页面整体布局分析、视觉样式验证、图片内容识别、操作结果验证。
+
+## 2. 交互元素识别 — browser_get_interactive_elements
+**优点**：快速获取按钮、链接、输入框等所有可交互元素的位置坐标和属性，精确指导点击/输入操作。
+**缺点**：只返回交互元素信息，不包含页面非交互内容（如文本段落、表格数据、图片等）。
+**典型场景**：精确定位操作目标（点击、输入），配合截图完成 SREA 循环。
+
+## 3. 渲染后 DOM HTML — browser_get_rendered_html
+**优点**：获取完整的最终 DOM 结构，包含所有 JS 渲染后的数据（SPA 框架输出、动态内容、AJAX 加载结果等），适合批量提取结构化数据。HTML 已包含全部渲染结果，无需再单独下载 JS、JSON、XHR 资源。
+**缺点**：返回的是纯文本 HTML，需要解析才能理解布局和视觉信息；大型页面 HTML 可能超过默认大小限制（10KB），需要保存到文件后读取。
+**典型场景**：从搜索/列表页面提取全部结果、分析 SPA 渲染后的 DOM 结构、批量提取表格/列表数据、在操作后获取更新后的页面内容。
+
+**组合使用建议**：大多数场景下，先用 browser_screenshot 观察页面整体，用 browser_get_interactive_elements 获取操作坐标，需要提取结构化数据时用 browser_get_rendered_html 获取完整 DOM。三者互补而非替代。
+
+# 其他注意事项
 
 - 每个操作后使用 browser_screenshot 截图观察，不要连续执行多个操作而不评估
 - 截图需要视觉模型（VLM）支持，当前模型不支持视觉则无法分析截图
 - 页面变化后交互元素位置可能改变，再次操作前重新调用 browser_get_interactive_elements
+- browser_get_rendered_html 返回的 HTML 可能因默认大小限制（10KB）而被截断保存到文件，可通过 .set browser-max-html-size 调整限制
 - 完成所有操作后调用 browser_close 关闭浏览器释放资源
 
 ====

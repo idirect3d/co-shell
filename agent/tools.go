@@ -814,8 +814,8 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 				Callback: a.browserEvaluateTool,
 			},
 			{
-				Name:        "browser_get_html",
-				Description: "Get the outer HTML of the current browser page. Use this to access the DOM structure, search for specific elements, or understand the page layout programmatically.",
+				Name:        "browser_get_rendered_html",
+				Description: "Get the rendered DOM HTML of the current browser page after all JavaScript has executed. The HTML is serialized from the live DOM tree in Chrome's memory — it reflects the final rendered state including SPA framework output, dynamic content, and all JS modifications. This is NOT the raw source HTML; you get the page as the browser sees it after rendering, so there is NO need to separately download JS, JSON, or other resources. Use this to analyze the complete document structure, extract rendered data, or process interactive web applications.",
 				Parameters: map[string]interface{}{
 					"type":       "object",
 					"properties": map[string]interface{}{},
