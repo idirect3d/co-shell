@@ -39,7 +39,7 @@ You can use the following tools to interact with the system. When multiple opera
 
 **Tool Priority (highest to lowest):**
 1. **Internal tools** (read_file, search_files, replace_in_file, etc.) — Prefer internal tools first
-   - **For web page content**: Prefer browser tools (browser_navigate + browser_screenshot/browser_get_html) to ensure you get JavaScript-rendered page content
+   - **For web page content**: Prefer browser tools (browser_navigate + browser_screenshot/browser_get_rendered_html) to ensure you get JavaScript-rendered page content
 2. **MCP tools** — Use MCP tools when internal tools cannot fulfill the requirement
 3. **execute_command** — Use system commands when none of the above can solve the problem
    - Prefer existing system commands (ls, cat, dir, type, head, tail, etc.)
@@ -637,11 +637,11 @@ Usage:
   <expression>document.title</expression>
 </browser_evaluate>`
 
-	enMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_html
-Description: Get the complete HTML content of the current page. Useful for analyzing page structure.
+	enMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_rendered_html
+Description: Get the rendered DOM HTML of the current page after all JavaScript has executed. The HTML is serialized from Chrome's live DOM tree — it reflects the final rendered state (SPA output, dynamic content, JS modifications), NOT the raw source. No need to download JS/JSON resources separately.
 Parameters: None
 Usage:
-<browser_get_html />`
+<browser_get_rendered_html />`
 
 	enMessages[KeyToolUsageBrowserScroll] = `## browser_scroll
 Description: Scroll the page by the specified pixel amount. Positive values scroll down, negative values scroll up.
@@ -912,7 +912,7 @@ Browser operations follow the SREA (Screenshot-Recognition-Evaluation-Action) cy
 | browser_type | Type text into the focused element | text (required), clear (optional, default false) |
 | browser_evaluate | Execute JavaScript code | code (required) |
 | browser_scroll | Scroll the page | delta_x, delta_y (optional, default 0) |
-| browser_get_html | Get page HTML | None |
+| browser_get_rendered_html | Get the rendered DOM HTML (after JS execution) — not the raw source | None |
 | browser_go_back | Go back | None |
 | browser_go_forward | Go forward | None |
 | browser_close | Close the browser and free resources | None |
@@ -931,7 +931,7 @@ Combine the screenshot (visual) with the element list (DOM) to assess the curren
 - Type text → browser_type(text="content", clear=true)
 - Execute JavaScript → browser_evaluate(code="code")
 - Scroll page → browser_scroll(delta_y=scroll_amount)
-- Get page HTML → browser_get_html()
+- Get rendered DOM HTML → browser_get_rendered_html()
 - Go forward/back → browser_go_forward() / browser_go_back()
 
 ## 4. Re-screenshot After Each Action
@@ -941,19 +941,41 @@ Call browser_screenshot immediately after each operation to observe the effect a
 
 Goal: Enter a keyword in the search box and click the search button
 
-1. browser_navigate(url="https://example.com")     — Navigate
-2. browser_screenshot()                             — Screenshot to observe
-3. browser_get_interactive_elements()                — Get element coordinates
-4. browser_type(text="AI browser automation", clear=true)  — Type text
-5. browser_click(x=200, y=450)                      — Click search button
-6. browser_screenshot()                              — Screenshot to observe result
+1. browser_navigate(url="https://example.com") — Navigate
+2. browser_screenshot()/browser_get_rendered_html()/browser_get_interactive_elements — Screenshot or inspect via rendered elements
+3. browser_get_interactive_elements() — Get element coordinates
+4. browser_type(text="AI browser automation", clear=true) — Type text
+5. browser_click(x=200, y=450) — Click search button
+6. browser_screenshot()/browser_get_rendered_html()/browser_get_interactive_elements — Screenshot to observe result
 7. Repeat steps 2-6 until the task is complete
 
-# Notes
+# Page Data Collection Method Comparison
+
+When operating the browser, you have three complementary ways to gather page information, each with its own trade-offs:
+
+## 1. Screenshot Recognition — browser_screenshot
+**Pros**: Leverages the vision model's image understanding capabilities for accurate judgment of page layout, colors, image content, and visual styling — the closest approach to how a human "sees" a web page.
+**Cons**: Requires a multimodal vision model (VLM); cannot directly extract structured text data (e.g., table rows, list items); long pages require multiple scrolls and screenshots.
+**Typical Scenarios**: Overall page layout analysis, visual style verification, image content recognition, action result validation.
+
+## 2. Interactive Element Recognition — browser_get_interactive_elements
+**Pros**: Quickly retrieves position coordinates and attributes of all interactive elements (buttons, links, inputs, etc.), enabling precise click/type operations.
+**Cons**: Only returns interactive element information; does not include non-interactive content (text paragraphs, table data, images, etc.).
+**Typical Scenarios**: Pinpointing operation targets (click, type), used together with screenshots to complete the SREA cycle.
+
+## 3. Rendered DOM HTML — browser_get_rendered_html
+**Pros**: Returns the complete final DOM structure containing all JS-rendered data (SPA framework output, dynamic content, AJAX-loaded results, etc.), suitable for batch extraction of structured data. The HTML already contains all rendered results — no need to separately download JS, JSON, XHR resources.
+**Cons**: Returns plain text HTML that requires parsing to understand layout and visual information; large page HTML may exceed the default size limit (10KB) and must be saved to a file before reading.
+**Typical Scenarios**: Extracting all results from search/list pages, analyzing SPA-rendered DOM structure, batch-extracting table/list data, retrieving updated page content after operations.
+
+**Combined Usage Recommendation**: In most scenarios, use browser_screenshot first to observe the overall page, browser_get_interactive_elements to get operation coordinates, and browser_get_rendered_html when structured data extraction is needed. The three methods complement rather than replace each other.
+
+# Other Notes
 
 - Take a screenshot after each operation to observe; do not execute multiple operations without evaluation
 - Screenshots require a vision model (VLM); if the current model does not support vision, screenshots cannot be analyzed
 - Interactive element positions may change after page updates; re-call browser_get_interactive_elements before operating again
+- HTML returned by browser_get_rendered_html may be truncated and saved to a file when exceeding browser-max-html-size limit (10KB)
 - Call browser_close to release resources when all operations are complete
 `
 
