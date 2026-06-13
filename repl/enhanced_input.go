@@ -427,8 +427,8 @@ func (e *EnhancedInput) displayPrompt() {
 }
 
 func (e *EnhancedInput) clearLine() {
-	fmt.Print("\033[J")
 	fmt.Print("\r")
+	fmt.Print("\033[2K")
 }
 
 func (e *EnhancedInput) resetState() {
