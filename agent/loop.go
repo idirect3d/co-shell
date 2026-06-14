@@ -209,49 +209,42 @@ func (a *Agent) IsCommandRunning() bool {
 // and everything after it are kept). This is used when a checklist is created/updated
 // to focus the LLM on the current task plan.
 func (a *Agent) buildContextMessages() []llm.Message {
-	if a.cfg == nil || a.cfg.LLM.ContextLimit == -1 {
-		return a.addIndexPrefixToMessages(a.messages, 0)
+	var msgs []llm.Message
+
+	if a.cfg != nil && a.cfg.LLM.ContextLimit != -1 {
+		// Apply context limit: truncate history, keep system + history + current
+		if len(a.messages) <= 1 {
+			msgs = a.messages
+		} else {
+			systemMsg := a.messages[0]
+			currentMsg := a.messages[len(a.messages)-1]
+
+			startIdx := 1
+			if a.messagePointer > 0 && a.messagePointer < len(a.messages) {
+				startIdx = a.messagePointer
+			}
+
+			historyMsgs := a.messages[startIdx : len(a.messages)-1]
+
+			if a.cfg.LLM.ContextLimit > 0 && len(historyMsgs) > a.cfg.LLM.ContextLimit {
+				historyMsgs = historyMsgs[len(historyMsgs)-a.cfg.LLM.ContextLimit:]
+			}
+
+			msgs = make([]llm.Message, 0, 2+len(historyMsgs))
+			msgs = append(msgs, systemMsg)
+			msgs = append(msgs, historyMsgs...)
+			msgs = append(msgs, currentMsg)
+		}
+	} else {
+		// Unlimited: use all messages (copy to avoid modifying originals)
+		msgs = a.addIndexPrefixToMessages(a.messages, 0)
 	}
 
-	// Always keep system prompt (first message)
-	if len(a.messages) <= 1 {
-		return a.messages
-	}
-
-	systemMsg := a.messages[0]
-
-	// The last message is always the current user input, always keep it
-	currentMsg := a.messages[len(a.messages)-1]
-
-	// Determine the effective start index based on messagePointer
-	// If pointer > 0, start from pointer (ignore messages before it)
-	startIdx := 1
-	if a.messagePointer > 0 && a.messagePointer < len(a.messages) {
-		startIdx = a.messagePointer
-	}
-
-	// History messages are between startIdx and current user input
-	historyMsgs := a.messages[startIdx : len(a.messages)-1]
-
-	if a.cfg.LLM.ContextLimit == 0 {
-		// Only system prompt + current user input, no history
-		result := []llm.Message{systemMsg, currentMsg}
-		return a.addIndexPrefixToMessages(result, 0)
-	}
-
-	// Keep last N history messages
-	if len(historyMsgs) > a.cfg.LLM.ContextLimit {
-		// When truncating history, we need to adjust the startIdx for prefix calculation
-		truncatedCount := len(historyMsgs) - a.cfg.LLM.ContextLimit
-		historyMsgs = historyMsgs[truncatedCount:]
-		startIdx += truncatedCount
-	}
-
-	result := make([]llm.Message, 0, 2+len(historyMsgs))
-	result = append(result, systemMsg)
-	result = append(result, historyMsgs...)
-	result = append(result, currentMsg)
-	return a.addIndexPrefixToMessages(result, startIdx)
+	// Strip old <environment_details> blocks from all messages,
+	// then inject fresh envelope into the last user message.
+	msgs = a.stripEnvelopes(msgs)
+	msgs = a.injectEnvelopeToLastUser(msgs)
+	return msgs
 }
 
 // addIndexPrefixToMessages returns the messages as-is, without adding index prefixes.

@@ -31,7 +31,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
@@ -95,7 +94,7 @@ func getWorkModeSectionNames(cfg *config.Config, modeName string) []string {
 }
 
 // buildSectionWithPlaceholders returns a prompt section after applying all
-// named placeholders (e.g. {AGENT_NAME}, {CWD}, {OS}, etc.) to the given text.
+// named placeholders (e.g. {AGENT_NAME}, {OS}, etc.) to the given text.
 func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{AGENT_NAME}", env.agentName)
 	text = strings.ReplaceAll(text, "{AGENT_DESCRIPTION}", env.agentDescription)
@@ -107,13 +106,9 @@ func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{ARCH}", env.arch)
 	text = strings.ReplaceAll(text, "{SHELL}", env.shell)
 	text = strings.ReplaceAll(text, "{HOME}", env.homeDir)
-	text = strings.ReplaceAll(text, "{CWD}", env.cwd)
-	text = strings.ReplaceAll(text, "{WORKSPACE}", env.cwd)
 	text = strings.ReplaceAll(text, "{COMMAND}", env.execName)
-	text = strings.ReplaceAll(text, "{CURRENT_TIME}", env.currentTime)
-	text = strings.ReplaceAll(text, "{CURRENT_FILES}", env.currentFiles)
+	text = strings.ReplaceAll(text, "{WORKSPACE}", env.cwd)
 	text = strings.ReplaceAll(text, "{TASK}", env.taskDesc)
-	text = strings.ReplaceAll(text, "{TASK_TRACKING}", env.taskPlanText)
 	text = strings.ReplaceAll(text, "{CUSTOM_RULES}", env.customRules)
 	return text
 }
@@ -132,10 +127,7 @@ type promptEnv struct {
 	homeDir               string
 	cwd                   string
 	execName              string
-	currentTime           string
-	currentFiles          string
 	taskDesc              string
-	taskPlanText          string
 	customRules           string
 	shellEnabled          bool
 	mode                  config.ResultMode
@@ -300,11 +292,7 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 		displayChannel = "co-shell"
 	}
 	env.channelInfo = env.userName + " @ " + displayChannel
-	env.currentTime = time.Now().Format("2006-01-02 15:04:05 Monday")
-	// depth=1: show top-level + one level deep (e.g. bin/ tool names visible)
-	env.currentFiles = strings.TrimRight(listFilesForPrompt(env.cwd, 1, 256), "\n")
 	env.taskDesc = taskDesc
-	env.taskPlanText = taskPlanText
 	env.customRules = rules
 	env.resultModeInstruction = resultModeInstruction(mode)
 
