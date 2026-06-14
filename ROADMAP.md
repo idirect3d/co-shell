@@ -447,6 +447,7 @@
 - [x] FEATURE-221 消息序号 `{MESSAGE_NO}` 注入：在每条用户消息和 XML 工具结果消息的 `<environment_details>` 中注入消息在 `a.messages` 数组中的索引序号，LLM 可直接将该序号作为 `adjust_context_start` 的 `target_index` 参数使用。新增 `formatUserMessage`/`formatXMLToolResult` 的 `messageNo` 参数。中英文 i18n 模板同步更新，OpenAI 模式工具描述和 Rules 节补充使用时说明。新增 RULES 节「指令不明确时搜索记忆」规则。[BUILD-224]
 - [x] FIX-222 .model add 新增模型时默认使用最高优先级：`wizardEnterModelParams()` 中优先级默认值从 `template.Priority` 改为 `(len(h.cfg.Models) + 1) * 10`，确保新增模型默认排到最高优先级。[BUILD-225]
 - [x] **FEATURE-224 System prompt 静态化**：将 system prompt 中的动态内容（`{CURRENT_TIME}`, `{CURRENT_FILES}`, `{CWD}`, `{WORKSPACE}`, `{TASK_TRACKING}`）移至每条 user message 的 `<environment_details>` 信封中，system prompt 会话内永不重建，提升 LLM 前缀缓存命中率。`{TASK}` 保留在 system prompt 表示原始任务目标，使用任务计划标题或 messagePointer 后首条用户消息。旧消息中的动态信封在新 user message 前自动剥离。Capabilities/Rules 节中 `{CWD}` 改为通用描述。Environment 节使用 XML 标签。`listFilesForPrompt` 空目录返回 `(empty directory)` 而非报错。[BUILD-231]
+- [x] FIX-227 修复任务计划工具更新时 raw mode 下只有换行没有回车的问题：agent/taskplan_tools.go 中 4 处使用 `fmt.Println(formatted)` 在 enhanced mode raw terminal 下缺少 `\r` 导致输出错位，替换为 `a.defaultIO().Println(formatted)` 通过 UserIO 接口正确处理 `\r\n` 转换。[BUILD-235]
 - [x] **FEATURE-227 重写 loop_detector：改用按行计数法替换基于正则和内容块的复杂检测机制**：[BUILD-232]
   - 删除旧的四重模式识别（时间戳/计数器/重复前缀/单词重复）和 `checkContentLoop` 滑动窗口精确匹配
   - 新逻辑：每收到一个 chunk → 拆出完整行 → 跳过长度 < `loop_detect_min_line_len`（默认50）的短行 → `map[string]int` 行级计数 → 计数 ≥ `loop_detect_threshold`（默认5）触发
