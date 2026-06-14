@@ -625,10 +625,12 @@ func (a *Agent) SetScheduler(s *scheduler.Scheduler) { a.scheduler = s }
 func (a *Agent) Scheduler() *scheduler.Scheduler     { return a.scheduler }
 
 func (a *Agent) SetResultMode(mode config.ResultMode) {
+	// Build system prompt outside the lock to avoid deadlock:
+	// getCurrentTaskDescription() acquires a.mu internally.
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	a.resultMode = mode
+	a.mu.Unlock()
+
 	agentName := ""
 	agentDesc := ""
 	agentPrinciples := ""
@@ -661,9 +663,11 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 
 	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.rules, mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
+	a.mu.Lock()
 	a.messages = []llm.Message{
 		{Role: "system", Content: a.systemPrompt},
 	}
+	a.mu.Unlock()
 	log.Info("Result mode set to %s, system prompt rebuilt", config.ResultModeString(mode))
 }
 
