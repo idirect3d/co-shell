@@ -111,7 +111,7 @@ func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interfac
 	}
 
 	formatted := taskplan.FormatPlan(plan)
-	fmt.Println(formatted)
+	a.defaultIO().Println(formatted)
 
 	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
@@ -143,7 +143,7 @@ func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interfac
 	}
 
 	formatted := taskplan.FormatPlan(plan)
-	fmt.Println(formatted)
+	a.defaultIO().Println(formatted)
 	return formatted, nil
 }
 
@@ -175,7 +175,7 @@ func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interfa
 	}
 
 	formatted := taskplan.FormatPlan(plan)
-	fmt.Println(formatted)
+	a.defaultIO().Println(formatted)
 
 	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
@@ -204,7 +204,7 @@ func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interfa
 	}
 
 	formatted := taskplan.FormatPlan(plan)
-	fmt.Println(formatted)
+	a.defaultIO().Println(formatted)
 
 	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
