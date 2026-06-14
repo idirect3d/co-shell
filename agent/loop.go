@@ -148,9 +148,6 @@ type Agent struct {
 	loopDetectOn   bool          // whether loop detection is enabled for current request
 	loopDetectCrit bool          // set to true when loop intervention occurs
 
-	// Message deduplication (FIX-179 extension)
-	messageDedup *MessageDedup // monitors for duplicate assistant messages
-
 	// ToolCallModeMgr manages tool call mode (openai/xml/custom)
 	toolCallModeMgr *ToolCallModeMgr
 

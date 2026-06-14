@@ -655,7 +655,6 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 			return i18n.TF(i18n.KeySettingsUpdated, "error-max-type-count", "100")
 		}},
 		onOffParam(&h.cfg.LLM.LoopDetectEnabled, "loop-detect-enabled"),
-		onOffParam(&h.cfg.LLM.DedupEnabled, "dedup-enabled"),
 	}
 }
 
