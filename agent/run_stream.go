@@ -72,20 +72,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.loopDetector = nil
 	}
 
-	// Initialize message deduplication checker
-	if a.cfg != nil && a.cfg.LLM.DedupEnabled {
-		a.messageDedup = NewMessageDedup(
-			a.cfg.LLM.DedupEnabled,
-			a.cfg.LLM.DedupFeatureRatio,
-			a.cfg.LLM.DedupMatchRatio,
-			a.cfg.LLM.DedupSimilarityThreshold,
-			a.cfg.LLM.DedupMaxHistory,
-			a.cfg.LLM.DedupRepeatLimit,
-		)
-	} else {
-		a.messageDedup = nil
-	}
-
 	// Save raw user input for {TASK} in system prompt.
 	// The system prompt is built once at New() and not rebuilt per-round.
 	a.lastUserInput = userInput
@@ -449,23 +435,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			continue
 		}
 
-		// Step 3: Check for duplicate messages before adding to history
-		// FIX-179 extension: message deduplication monitoring
-		var dedupEvent *DuplicateEvent
-		if a.messageDedup != nil {
-			testMsg := llm.Message{
-				Role:             "assistant",
-				Content:          finalContent,
-				ToolCalls:        toolCalls,
-				ReasoningContent: finalReasoning,
-			}
-			dedupEvent = a.messageDedup.CheckAndRecord(a.messages, testMsg)
-			if dedupEvent != nil {
-				log.Warn("Agent.RunStream: message dedup duplicate detected (count=%d, similarity=%.0f%%)",
-					dedupEvent.Count, dedupEvent.Similarity*100)
-			}
-		}
-
 		// Determine if we're in XML mode (no API-level tool calls)
 		isXMLMode := false
 		if a.toolCallModeMgr != nil {
@@ -504,14 +473,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 		a.mu.Unlock()
-
-		// Handle dedup event if reached threshold
-		if dedupEvent != nil {
-			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb("warning", fmt.Sprintf("\n%s 检测到消息重复（第 %d 次，相似度 %.0f%%）\n",
-				ep.Warning, dedupEvent.Count, dedupEvent.Similarity*100))
-			cb("warning", fmt.Sprintf("  重复内容: %s\n", truncateString(dedupEvent.DuplicateWith, 200)))
-		}
 
 		// Step 4: Execute tool calls and add results
 		cancelled := false

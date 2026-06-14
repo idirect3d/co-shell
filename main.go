@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "232"
+const build = "234"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -143,14 +143,6 @@ type cliFlags struct {
 
 	// Loop detection (FIX-179)
 	loopDetectEnabled string // "on"/"off"
-
-	// Message deduplication (FIX-179)
-	dedupEnabled      string // "on"/"off"
-	dedupFeatureRatio float64
-	dedupMatchRatio   float64
-	dedupSimThresh    int
-	dedupMaxHistory   int
-	dedupRepeatLimit  int
 
 	// Body additions: custom JSON properties to add to the LLM request body
 	bodyAdd string // format: key=value, can be specified multiple times
@@ -265,14 +257,6 @@ func parseFlags() cliFlags {
 
 	// Loop detection (FIX-179)
 	flag.StringVar(&f.loopDetectEnabled, "loop-detect-enabled", "", "启用 LLM 输出循环检测（on/off，覆盖配置文件）")
-
-	// Message deduplication (FIX-179)
-	flag.StringVar(&f.dedupEnabled, "dedup-enabled", "", "启用消息去重检测（on/off，覆盖配置文件）")
-	flag.Float64Var(&f.dedupFeatureRatio, "dedup-feature-ratio", -1, "特征词抽取比例（0.0~1.0，覆盖配置文件）")
-	flag.Float64Var(&f.dedupMatchRatio, "dedup-match-ratio", -1, "特征匹配率阈值（0.0~1.0，覆盖配置文件）")
-	flag.IntVar(&f.dedupSimThresh, "dedup-sim-threshold", -1, "相似度阈值百分比（1~100，覆盖配置文件）")
-	flag.IntVar(&f.dedupMaxHistory, "dedup-max-history", -1, "去重检查历史消息数（覆盖配置文件）")
-	flag.IntVar(&f.dedupRepeatLimit, "dedup-repeat-limit", -1, "去重触发重复次数（覆盖配置文件）")
 
 	// Body additions: custom JSON properties to add to the LLM request body
 	flag.StringVar(&f.bodyAdd, "body-add", "", "向 LLM 请求体添加自定义 JSON 属性（格式：key=value，可多次指定，用逗号分隔）")
@@ -711,33 +695,6 @@ func main() {
 		default:
 			io.ErrPrintf("Warning: invalid --loop-detect-enabled value %q, use on|off\n", flags.loopDetectEnabled)
 		}
-	}
-
-	// Apply dedup CLI overrides (FIX-179)
-	if flags.dedupEnabled != "" {
-		switch flags.dedupEnabled {
-		case "on", "1", "true", "yes":
-			cfg.LLM.DedupEnabled = true
-		case "off", "0", "false", "no":
-			cfg.LLM.DedupEnabled = false
-		default:
-			io.ErrPrintf("Warning: invalid --dedup-enabled value %q, use on|off\n", flags.dedupEnabled)
-		}
-	}
-	if flags.dedupFeatureRatio >= 0 {
-		cfg.LLM.DedupFeatureRatio = flags.dedupFeatureRatio
-	}
-	if flags.dedupMatchRatio >= 0 {
-		cfg.LLM.DedupMatchRatio = flags.dedupMatchRatio
-	}
-	if flags.dedupSimThresh >= 0 {
-		cfg.LLM.DedupSimilarityThreshold = flags.dedupSimThresh
-	}
-	if flags.dedupMaxHistory >= 0 {
-		cfg.LLM.DedupMaxHistory = flags.dedupMaxHistory
-	}
-	if flags.dedupRepeatLimit >= 0 {
-		cfg.LLM.DedupRepeatLimit = flags.dedupRepeatLimit
 	}
 
 	// Initialize logger with workspace

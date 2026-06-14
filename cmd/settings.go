@@ -161,10 +161,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "confirm-tool", subcommand == "error-max-single-count",
 		subcommand == "error-max-type-count",
 		subcommand == "loop-detect-enabled", subcommand == "loop-detect-threshold",
-		subcommand == "loop-detect-max-window",
-		subcommand == "dedup-enabled", subcommand == "dedup-feature-ratio",
-		subcommand == "dedup-match-ratio", subcommand == "dedup-similarity-threshold",
-		subcommand == "dedup-max-history", subcommand == "dedup-repeat-limit":
+		subcommand == "loop-detect-min-line-len":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -456,12 +453,6 @@ func showSettingsHelp(cfg *config.Config) string {
 		loopDetectStatus = i18n.T(i18n.KeyOn)
 	}
 
-	// Message dedup (FIX-179)
-	dedupStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.DedupEnabled {
-		dedupStatus = i18n.T(i18n.KeyOn)
-	}
-
 	// Group 4: Safety & Confirmation
 	allLines = append(allLines,
 		makeLine("confirm-tool", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
@@ -470,17 +461,10 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("llm-timeout", llmTimeoutStr, i18n.T(i18n.KeyCol3LLMTimeout)),
 		makeLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.T(i18n.KeyCol3ErrorMaxSingleCount)),
 		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
-		// FIX-179: Loop detection
+		// Loop detection (FEATURE-227)
 		makeLine("loop-detect-enabled", loopDetectStatus, i18n.T(i18n.KeyCol3LoopDetectEnabled)),
 		makeLine("loop-detect-threshold", fmt.Sprintf("%d", cfg.LLM.LoopDetectThreshold), i18n.T(i18n.KeyCol3LoopDetectThreshold)),
-		makeLine("loop-detect-max-window", fmt.Sprintf("%d", cfg.LLM.LoopDetectMaxWindow), i18n.T(i18n.KeyCol3LoopDetectMaxWindow)),
-		// FIX-179: Message dedup
-		makeLine("dedup-enabled", dedupStatus, "消息去重(on|off)"),
-		makeLine("dedup-feature-ratio", fmt.Sprintf("%.1f", cfg.LLM.DedupFeatureRatio), "特征词比例(0.0~1.0)"),
-		makeLine("dedup-match-ratio", fmt.Sprintf("%.1f", cfg.LLM.DedupMatchRatio), "特征匹配率(0.0~1.0)"),
-		makeLine("dedup-similarity-threshold", fmt.Sprintf("%d%%", cfg.LLM.DedupSimilarityThreshold), "相似度阈值(1~100)"),
-		makeLine("dedup-max-history", fmt.Sprintf("%d", cfg.LLM.DedupMaxHistory), "历史消息数"),
-		makeLine("dedup-repeat-limit", fmt.Sprintf("%d", cfg.LLM.DedupRepeatLimit), "重复次数"),
+		makeLine("loop-detect-min-line-len", fmt.Sprintf("%d", cfg.LLM.LoopDetectMinLineLen), "最短行长度(>=5)"),
 	)
 
 	// Group 5: Memory & Context
@@ -545,8 +529,8 @@ func showSettingsHelp(cfg *config.Config) string {
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)
 
-	// Group 4: Safety & Confirmation (6 + 9 new = 15)
-	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(15)...)
+	// Group 4: Safety & Confirmation
+	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(9)...)
 
 	// Group 5: Memory & Context
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
