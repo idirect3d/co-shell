@@ -30,6 +30,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/idirect3d/co-shell/log"
 )
 
 // LoopDetector monitors LLM output for repeating lines that indicate
@@ -39,14 +41,12 @@ import (
 // Key design:
 //   - Lines shorter than minLineLen are ignored (filters XML tags, short prompts)
 //   - Each AddChunk call appends to accumulated content and extracts complete lines
-//   - cross-chunk line buffering via lineBuf ensures complete lines even when
-//     a line break spans two chunks
+//   - accumulated content tracks only one trailing incomplete line across chunks
 //   - Reset() must be called at the start of each LLM iteration to clear counts
 type LoopDetector struct {
 	threshold   int             // min line occurrences to trigger (default: 5)
 	minLineLen  int             // lines shorter than this are ignored (default: 50)
-	accumulated strings.Builder // accumulated content for line extraction
-	lineBuf     string          // buffer for incomplete line across chunks
+	accumulated strings.Builder // accumulates incomplete trailing line across chunks
 	lineCounts  map[string]int  // exact line content → occurrence count
 }
 
@@ -84,6 +84,7 @@ func NewLoopDetector(threshold int, minLineLen int) *LoopDetector {
 	if minLineLen <= 0 {
 		minLineLen = 50
 	}
+	log.Debug("LoopDetector: created with threshold=%d, minLineLen=%d", threshold, minLineLen)
 	return &LoopDetector{
 		threshold:  threshold,
 		minLineLen: minLineLen,
@@ -95,42 +96,38 @@ func NewLoopDetector(threshold int, minLineLen int) *LoopDetector {
 // Returns nil if no loop detected, or a *LoopDetectedError if a loop is found.
 //
 // Algorithm:
-//  1. Append chunk to accumulated content
-//  2. Split accumulated content into lines, using lineBuf to assemble
-//     incomplete lines that may span across chunks
-//  3. For each complete line:
-//     a. Skip if len(line) < minLineLen
-//     b. Increment lineCounts[line]
-//     c. If count >= threshold, return *LoopDetectedError
-//  4. If the accumulated content ends with an incomplete line, keep it
-//     in lineBuf for the next chunk
+//  1. Append chunk to accumulated (which holds optional trailing fragment).
+//  2. Split by \n. If content ends with \n, all elements are complete lines
+//     (last element is empty). If not, the last element is incomplete.
+//  3. Process complete lines: trim, skip if short, increment map count.
+//  4. Keep only the incomplete trailing line in accumulated for next call.
 func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
-	chunk = strings.TrimSpace(chunk)
+	// Skip only truly empty chunks. Do NOT use TrimSpace here: the LLM may
+	// send "\n" as a separate chunk token (independent SSE event), and
+	// TrimSpace("\n") returns "" which would discard the line delimiter.
 	if chunk == "" {
 		return nil
 	}
 
-	// Step 1: Append chunk to accumulated content (for line extraction).
-	// We prefix with the pending line buffer so the chunk is always complete.
-	combined := ld.lineBuf + chunk
-	ld.lineBuf = "" // consumed
+	// Step 1: Append chunk to accumulated and split by newlines.
+	ld.accumulated.WriteString(chunk)
+	content := ld.accumulated.String()
+	lines := strings.Split(content, "\n")
 
-	// Step 2: Split into lines. Since cross-chunk lines are already assembled
-	// via lineBuf, the combined string should be clean. However, the very last
-	// line may still be incomplete if no newline follows.
-	lines := strings.Split(combined, "\n")
+	// Step 2: Determine how many split elements are complete lines.
+	// - If content ends with \n, the last element is always empty, so all
+	//   non-empty elements are complete lines.
+	// - If content does NOT end with \n, the last element is an incomplete
+	//   fragment that must be preserved for the next chunk.
+	completeCount := len(lines)
+	endsWithNewline := strings.HasSuffix(content, "\n")
+	if !endsWithNewline && completeCount > 0 {
+		completeCount = len(lines) - 1
+	}
 
-	// Step 3: Process all complete lines (all but the last).
-	// Only the last line may be incomplete — it goes back into lineBuf.
-	for i, line := range lines {
-		if i == len(lines)-1 {
-			// Last fragment: may be incomplete if no trailing newline.
-			// Keep it in lineBuf for next chunk.
-			ld.lineBuf = line
-			continue
-		}
-
-		line = strings.TrimSpace(line)
+	// Step 3: Process complete lines.
+	for i := 0; i < completeCount; i++ {
+		line := strings.TrimSpace(lines[i])
 		if line == "" {
 			continue
 		}
@@ -142,11 +139,17 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 
 		// Increment line count
 		ld.lineCounts[line]++
-		if ld.lineCounts[line] >= ld.threshold {
-			// Capture first occurrence time approximately
+		count := ld.lineCounts[line]
+
+		log.Debug("LoopDetector: line detected (count=%d, threshold=%d): %.60s...",
+			count, ld.threshold, line)
+
+		if count >= ld.threshold {
+			log.Warn("LoopDetector: LOOP TRIGGERED: line repeated %d times (threshold=%d): %.60s...",
+				count, ld.threshold, line)
 			return &LoopDetectedError{
 				pattern:     line,
-				repeatCount: ld.lineCounts[line],
+				repeatCount: count,
 				threshold:   ld.threshold,
 				startTime:   timestamp,
 				endTime:     timestamp,
@@ -157,6 +160,13 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 		}
 	}
 
+	// Step 4: Reset accumulated and store only the incomplete trailing line.
+	ld.accumulated.Reset()
+	if !endsWithNewline && len(lines) > 0 {
+		// The last fragment is incomplete — keep it for the next chunk.
+		ld.accumulated.WriteString(lines[len(lines)-1])
+	}
+
 	return nil
 }
 
@@ -164,8 +174,8 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 // LLM iteration to avoid cross-iteration false positives.
 func (ld *LoopDetector) Reset() {
 	ld.accumulated.Reset()
-	ld.lineBuf = ""
 	ld.lineCounts = make(map[string]int)
+	log.Debug("LoopDetector: reset line counts")
 }
 
 // truncateString truncates a string to maxLen characters.
