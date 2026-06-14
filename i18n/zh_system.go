@@ -179,7 +179,8 @@ TOOL USE
       <replace>另一段新文本</replace>
     </item>
   </replacements>
-</replace_in_file>`
+</replace_in_file>
+`
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
 	zhMessages[KeyToolUsageExecuteCommand] = `## execute_command
@@ -1191,7 +1192,7 @@ CAPABILITIES
 # Capabilities
 
 - 你可以使用一组工具来执行 CLI 命令、列出文件、查看源代码定义、正则搜索、读写文件和提出追问。这些工具帮助你高效地完成广泛的任务，例如编写代码、对现有文件进行修改或改进、了解项目的当前状态、执行系统操作等。
-- 当用户最初给你一个任务时，environment_details 中包含当前工作目录（'{CWD}'）下所有文件路径的递归列表。这提供了项目文件结构的概览，从目录/文件名（开发者如何概念化和组织代码）和文件扩展名（使用的语言）中获取关键洞察。这也可以指导你决定进一步探索哪些文件。如果需要进一步探索当前工作目录以外的目录，可以使用 list_files 工具。如果向递归参数传入 'true'，它将递归列出文件。否则只列出顶层内容，这对于不需要嵌套结构的通用目录（如桌面）更合适。
+- 当用户最初给你一个任务时，environment_details 中包含工作空间下所有文件路径的列表。这提供了项目文件结构的概览，从目录/文件名（开发者如何概念化和组织代码）和文件扩展名（使用的语言）中获取关键洞察。这也可以指导你决定进一步探索哪些文件。如果需要进一步探索当前工作目录以外的目录，可以使用 list_files 工具。如果向递归参数传入 'true'，它将递归列出文件。否则只列出顶层内容，这对于不需要嵌套结构的通用目录（如桌面）更合适。
 - 你可以使用 search_files 在指定目录中执行正则搜索，输出包含上下文的丰富结果。这对于理解代码模式、查找特定实现或识别需要重构的区域特别有用。
 - 你可以使用 list_code_definition_names 工具获取指定目录顶层所有文件的源代码定义概览。当你需要理解代码库的 broader 上下文和某些部分之间的关系时特别有用。可能需要多次调用此工具以了解代码库中与任务相关的各个部分。
     - 例如，当需要做编辑或改进时，你可以先分析初始 environment_details 中的文件结构以了解项目概览，然后使用 list_code_definition_names 进一步了解相关目录中文件的源代码定义，接着使用 read_file 检查相关文件内容，分析代码并提出改进建议或进行必要的编辑，最后使用 replace_in_file 工具实现更改。如果你重构了可能影响代码库其他部分的代码，可以使用 search_files 确保同时更新其他文件。
@@ -1214,7 +1215,7 @@ CAPABILITIES
 # Capabilities
 
 - 你可以使用一组工具来执行 CLI 命令、列出文件、查看源代码定义、正则搜索、读写文件和提出追问。这些工具帮助你高效地完成广泛的任务，例如编写代码、对现有文件进行修改或改进、了解项目的当前状态、执行系统操作等。
-- 当用户最初给你一个任务时，environment_details 中包含当前工作目录（'{CWD}'）下所有文件路径的递归列表。这提供了项目文件结构的概览，从目录/文件名（开发者如何概念化和组织代码）和文件扩展名（使用的语言）中获取关键洞察。这也可以指导你决定进一步探索哪些文件。如果需要进一步探索当前工作目录以外的目录，可以使用 list_files 工具。如果向递归参数传入 'true'，它将递归列出文件。否则只列出顶层内容，这对于不需要嵌套结构的通用目录（如桌面）更合适。
+- 当用户最初给你一个任务时，environment_details 中包含工作空间下所有文件路径的列表。这提供了项目文件结构的概览，从目录/文件名（开发者如何概念化和组织代码）和文件扩展名（使用的语言）中获取关键洞察。这也可以指导你决定进一步探索哪些文件。如果需要进一步探索当前工作目录以外的目录，可以使用 list_files 工具。如果向递归参数传入 'true'，它将递归列出文件。否则只列出顶层内容，这对于不需要嵌套结构的通用目录（如桌面）更合适。
 - 你可以使用 search_files 在指定目录中执行正则搜索，输出包含上下文的丰富结果。这对于理解代码模式、查找特定实现或识别需要重构的区域特别有用。
 - 你可以使用 list_code_definition_names 工具获取指定目录顶层所有文件的源代码定义概览。当你需要理解代码库的 broader 上下文和某些部分之间的关系时特别有用。可能需要多次调用此工具以了解代码库中与任务相关的各个部分。
     - 例如，当需要做编辑或改进时，你可以先分析初始 environment_details 中的文件结构以了解项目概览，然后使用 list_code_definition_names 进一步了解相关目录中文件的源代码定义，接着使用 read_file 检查相关文件内容，分析代码并提出改进建议或进行必要的编辑，最后使用 replace_in_file 工具实现更改。如果你重构了可能影响代码库其他部分的代码，可以使用 search_files 确保同时更新其他文件。
@@ -1229,10 +1230,10 @@ CAPABILITIES
 	zhMessages[KeySystemPromptRules] = `
 RULES
 
-- 你的当前工作目录是：{CWD}
+- 你的当前工作目录见每条用户消息中的 <environment_details> 块。
 - 你不能通过 'cd' 切换到其他目录来完成任务。你只能在 '{CWD}' 目录下操作，因此在使用需要路径的工具时，请确保传入正确的 'path' 参数。
 - 不要使用 ~ 字符或 $HOME 来引用 home 目录。
-- 使用 execute_command 工具之前，必须先思考提供的 SYSTEM INFORMATION 上下文，了解用户的环境，并调整命令以确保与系统兼容。你还必须考虑要运行的命令是否应在当前工作目录 '{CWD}' 之外的特定目录中执行，如果是，则需要在命令前加上 'cd' 进入该目录 && 然后执行命令（因为你只能从 '{CWD}' 目录操作）。例如，如果需要在 '{CWD}' 之外的项目中运行 'npm install'，你需要用 'cd' 先进入该目录，伪代码为：'cd (项目路径) && (命令, 本例中为 npm install)'。
+- 使用 execute_command 工具之前，必须先思考提供的 SYSTEM INFORMATION 上下文，了解用户的环境，并调整命令以确保与系统兼容。你还必须考虑要运行的命令是否应在工作空间之外的特定目录中执行，如果是，则需要在命令前加上 'cd' 进入该目录 && 然后执行命令（因为你只能从工作空间目录操作）。例如，如果需要在工作空间之外的项目中运行 'npm install'，你需要用 'cd' 先进入该目录，伪代码为：'cd (项目路径) && (命令, 本例中为 npm install)'。
 - 使用 search_files 工具时，仔细构造正则表达式以平衡特异性和灵活性。根据用户的任务，你可能需要查找代码模式、TODO 注释、函数定义或任何基于文本的信息。结果包含上下文，因此分析周围代码以更好地理解匹配项。将 search_files 工具与其他工具结合使用以进行更全面的分析。例如，使用它查找特定的代码模式，然后使用 read_file 检查感兴趣匹配项的完整上下文，再使用 replace_in_file 进行修改。
 - 创建新项目（如应用程序、网站或任何软件项目）时，除非用户另有指定，否则将所有新文件组织在专用项目目录中。创建文件时使用合适的文件路径，write_to_file 工具会自动创建必要的目录。逻辑地构建项目，遵循所创建项目类型的最佳实践。除非另有说明，新项目应无需额外设置即可轻松运行，例如大多数项目可以用 HTML、CSS 和 JavaScript 构建——可以用浏览器打开。
 - 确定要包含的适当结构和文件时，务必考虑项目类型（如 Python、JavaScript、Web 应用程序）。还要考虑哪些文件与完成任务最相关，例如查看项目的清单文件有助于了解项目的依赖关系，这可以纳入到你编写的任何代码中。
@@ -1273,7 +1274,7 @@ RULES
 	zhMessages[KeySystemPromptRulesShell] = `
 RULES
 
-- 你的当前工作目录是：{CWD}
+- 你的当前工作目录见每条用户消息中的 <environment_details> 块。
 - 你工作在一个交互式shell环境中，能够通过 'cd' 切换到其他目录来完成任务。
 - 通过持久终端会话与系统交互。使用 shell_send 工具向终端发送命令。每次发送一个命令，应该观察shell_send返回的 VT 窗口，评估结果后再继续下一步。
   - Shell 命令：发送 "ls -la\n"，观察输出，再发送下一句。
@@ -1331,33 +1332,21 @@ OBJECTIVE
 {TASK}
 </task>
 
-{TASK_TRACKING}
-
 ====
 `
 
 	zhMessages[KeySystemPromptEnvironment] = `
 SYSTEM INFORMATION
 
-操作系统: {OS} / {ARCH}
-工具: {COMMAND}
-默认 Shell: {SHELL}
-主目录: {HOME}
-当前工作目录: {CWD}
-工作空间: {WORKSPACE}
-
-<environment_details>
-
-# 当前时间
-{CURRENT_TIME}
-
-# 当前工作目录 ({CWD}) 文件列表
-{CURRENT_FILES}
-
-# 当前渠道
-{CHANNEL}
-
-</environment_details>
+<system_info>
+<os>{OS}</os>
+<arch>{ARCH}</arch>
+<tool>{COMMAND}</tool>
+<shell>{SHELL}</shell>
+<home>{HOME}</home>
+<workspace>{WORKSPACE}</workspace>
+<channel>{CHANNEL}</channel>
+</system_info>
 
 ====
 `
@@ -1365,13 +1354,9 @@ SYSTEM INFORMATION
 	zhMessages[KeyXMLToolResultTemplate] = `
 [{TOOL_CALL}({TOOL_CALL_PARAMETERS})] 返回结果：{TOOL_RESULT}
 
-{TASK_TRACKING}
-
 <environment_details>
-# 消息序号: {MESSAGE_NO}
-
-{CURRENT_TIME}
-
+<message_no>{MESSAGE_NO}</message_no>
+<time>{CURRENT_TIME}</time>
 </environment_details>
 `
 
@@ -1410,14 +1395,5 @@ SYSTEM INFORMATION
 如果所有步骤已完成，使用 **attempt_completion** 工具向用户报告最终结果。
 `
 
-	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION} 
-  
-{TASK_TRACKING}
-
-<environment_details>
-# 消息序号: {MESSAGE_NO}
-
-{CURRENT_TIME}
-
-</environment_details>`
+	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }

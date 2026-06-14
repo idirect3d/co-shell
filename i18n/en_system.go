@@ -1168,8 +1168,8 @@ View the current task plan's progress summary at any time:
 
 	// Shell session rules (no execute_command references)
 	enMessages[KeySystemPromptRulesShell] = `
-- Your current working directory is: {CWD}
-- You cannot 'cd' into a different directory to complete a task. You are stuck operating from '{CWD}'.
+- Your current working directory can be found in the <environment_details> block of each user message.
+- You cannot 'cd' into a different directory to complete a task. You are stuck operating from the workspace directory.
 - Do not use the ~ character or $HOME to refer to the home directory.
 - Interact with the system through the persistent terminal session. Use the **shell_send** tool to send commands to the terminal. Send one logical unit at a time, observe the VT window response, then continue.
   - Shell commands: send "ls -la\n", observe the output, then send the next
@@ -1190,7 +1190,7 @@ View the current task plan's progress summary at any time:
 
 	enMessages[KeySystemPromptCapabilities] = `
 - You have access to tools that let you execute CLI commands on the user's computer, list files, view source code definitions, regex search, read and edit files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
-- When the user initially gives you a task, a recursive list of all filepaths in the current working directory ('{CWD}') will be included in environment_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
+- When the user initially gives you a task, a list of filepaths in the workspace will be included in environment_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
 - You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
     - For example, when asked to make edits or improvements you might analyze the file structure in the initial environment_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the replace_in_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.
@@ -1205,10 +1205,10 @@ View the current task plan's progress summary at any time:
 `
 
 	enMessages[KeySystemPromptRules] = `
-- Your current working directory is: {CWD}
-- You cannot 'cd' into a different directory to complete a task. You are stuck operating from '{CWD}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
+- Your current working directory can be found in the <environment_details> block of each user message.
+- You cannot 'cd' into a different directory to complete a task. You are stuck operating from the workspace directory, so be sure to pass in the correct 'path' parameter when using tools that require a path.
 - Do not use the ~ character or $HOME to refer to the home directory.
-- Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory outside of the current working directory '{CWD}', and if so prepend with 'cd''ing into that directory && then executing the command (as one command since you are stuck operating from '{CWD}'). For example, if you needed to run 'npm install' in a project outside of '{CWD}', you would need to prepend with a 'cd' i.e. pseudocode for this would be 'cd (path to project) && (command, in this case npm install)'.
+- Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory outside of the workspace, and if so prepend with 'cd''ing into that directory && then executing the command (as one command since you are stuck operating from the workspace). For example, if you needed to run 'npm install' in a project outside of the workspace, you would need to prepend with a 'cd' i.e. pseudocode for this would be 'cd (path to project) && (command, in this case npm install)'.
 - When using the search_files tool, craft your regex patterns carefully to balance specificity and flexibility. Based on the user's task you may use it to find code patterns, TODO comments, function definitions, or any text-based information across the project. The results include context, so analyze the surrounding code to better understand the matches. Leverage the search_files tool in combination with other tools for more comprehensive analysis. For example, use it to find specific code patterns, then use read_file to examine the full context of interesting matches before using replace_in_file to make informed changes.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when creating files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
@@ -1262,39 +1262,27 @@ At the end of each iteration, if you did not call any tools, the system checks w
 {TASK}
 </task>
 
-{TASK_TRACKING}
+
 `
 
 	enMessages[KeySystemPromptEnvironment] = `
-Operating System: {OS} / {ARCH}
-Tool: {COMMAND}
-Default Shell: {SHELL}
-Home Directory: {HOME}
-Current Working Directory: {CWD}
-Work Space: {WORKSPACE}
+SYSTEM INFORMATION
 
-<environment_details>
-
-# Current Time
-{CURRENT_TIME}
-
-# Current Working Directory ({CWD}) Files
-{CURRENT_FILES}
-
-# Current Channel
-{CHANNEL}
-
-</environment_details>`
+<system_info>
+<os>{OS}</os>
+<arch>{ARCH}</arch>
+<tool>{COMMAND}</tool>
+<shell>{SHELL}</shell>
+<home>{HOME}</home>
+<workspace>{WORKSPACE}</workspace>
+<channel>{CHANNEL}</channel>
+</system_info>`
 
 	enMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}({TOOL_CALL_PARAMETERS})] Result: {TOOL_RESULT}
 
-{TASK_TRACKING}
-
 <environment_details>
-# Message No: {MESSAGE_NO}
-
-{CURRENT_TIME}
-
+<message_no>{MESSAGE_NO}</message_no>
+<time>{CURRENT_TIME}</time>
 </environment_details>`
 
 	enMessages[KeyToolResultNoPlan] = `# Task Management (Strongly Recommended)
@@ -1322,14 +1310,5 @@ If you have completed the current step, use **update_task_step** to update the s
 If you need to adjust the plan, use **insert_task_steps** or **remove_task_steps** to modify steps.
 If all steps are completed, use **attempt_completion** to report the final result to the user.`
 
-	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION} 
-  
-{TASK_TRACKING}
-
-<environment_details>
-# Message No: {MESSAGE_NO}
-
-{CURRENT_TIME}
-
-</environment_details>`
+	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }
