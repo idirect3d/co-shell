@@ -210,6 +210,13 @@ type LLMConfig struct {
 	// Default: 20
 	LoopDetectMaxWindow int `json:"loop_detect_max_window"`
 
+	// LoopDetectMinLineLen: the minimum length of a line (in characters) to be
+	// considered for loop detection. Lines shorter than this are ignored.
+	// This filters out short repeating patterns like XML tags, "continue" prompts,
+	// or short thinking phrases that are not meaningful for loop detection.
+	// Default: 50
+	LoopDetectMinLineLen int `json:"loop_detect_min_line_len"`
+
 	// DedupEnabled: whether to enable message deduplication checking.
 	// When enabled, before adding a message to the session, the system
 	// extracts keywords and searches existing messages for duplicates.
@@ -569,6 +576,7 @@ func DefaultConfig() *Config {
 			LoopDetectEnabled:         true,
 			LoopDetectThreshold:       5,
 			LoopDetectMaxWindow:       256,
+			LoopDetectMinLineLen:      50,
 			DedupEnabled:              true,
 			DedupFeatureRatio:         0.2,
 			DedupMatchRatio:           0.6,

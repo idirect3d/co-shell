@@ -59,14 +59,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
 		a.loopDetectOn = true
 		threshold := a.cfg.LLM.LoopDetectThreshold
-		window := a.cfg.LLM.LoopDetectMaxWindow
+		minLineLen := a.cfg.LLM.LoopDetectMinLineLen
 		if threshold <= 0 {
 			threshold = 5
 		}
-		if window <= 0 {
-			window = 20
+		if minLineLen <= 0 {
+			minLineLen = 50
 		}
-		a.loopDetector = NewLoopDetector(threshold, window)
+		a.loopDetector = NewLoopDetector(threshold, minLineLen)
 	} else {
 		a.loopDetectOn = false
 		a.loopDetector = nil
