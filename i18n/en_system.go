@@ -27,7 +27,7 @@
 package i18n
 
 func init() {
-	enMessages[KeySystemPromptIdentity] = `Your name is {AGENT_NAME}, {AGENT_DESCRIPTION}`
+	enMessages[KeySystemPromptIdentity] = `Your name is {AGENT_NAME}, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices`
 
 	enMessages[KeyAnonymousUser] = `Anonymous`
 
