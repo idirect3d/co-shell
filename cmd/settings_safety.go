@@ -223,139 +223,23 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop detect threshold set to %d", n)
 		return fmt.Sprintf("✅ 循环检测阈值已设置为: %d", n), nil
 
-	case "loop-detect-max-window":
+	case "loop-detect-min-line-len":
 		if len(args) < 2 {
-			return fmt.Sprintf("循环检测滑动窗口大小: %d", h.cfg.LLM.LoopDetectMaxWindow), nil
+			return fmt.Sprintf("循环检测最短行长度: %d", h.cfg.LLM.LoopDetectMinLineLen), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
 			return "", fmt.Errorf("无效的数值: %s", args[1])
 		}
-		if n < 1 {
-			return "", fmt.Errorf("循环检测滑动窗口大小必须 >= 1")
+		if n < 5 {
+			return "", fmt.Errorf("最短行长度必须 >= 5")
 		}
-		h.cfg.LLM.LoopDetectMaxWindow = n
+		h.cfg.LLM.LoopDetectMinLineLen = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		log.Info("Loop detect max window set to %d", n)
-		return fmt.Sprintf("✅ 循环检测滑动窗口大小已设置为: %d", n), nil
-
-	case "dedup-enabled":
-		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.DedupEnabled {
-				status = i18n.T(i18n.KeyOff)
-			}
-			return fmt.Sprintf("消息去重检测: %s", status), nil
-		}
-		switch args[1] {
-		case "on", "1", "true", "yes":
-			h.cfg.LLM.DedupEnabled = true
-		case "off", "0", "false", "no":
-			h.cfg.LLM.DedupEnabled = false
-		default:
-			return "", fmt.Errorf("usage: .set dedup-enabled on|off")
-		}
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.DedupEnabled {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("Dedup enabled set to %s", status)
-		return fmt.Sprintf("✅ 消息去重检测已设置为: %s", status), nil
-
-	case "dedup-feature-ratio":
-		if len(args) < 2 {
-			return fmt.Sprintf("特征词抽取比例: %.1f", h.cfg.LLM.DedupFeatureRatio), nil
-		}
-		val, err := strconv.ParseFloat(args[1], 64)
-		if err != nil {
-			return "", fmt.Errorf("无效的小数值: %s", args[1])
-		}
-		if val < 0 || val > 1 {
-			return "", fmt.Errorf("特征词抽取比例必须在 0.0 ~ 1.0 之间")
-		}
-		h.cfg.LLM.DedupFeatureRatio = val
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("Dedup feature ratio set to %.1f", val)
-		return fmt.Sprintf("✅ 特征词抽取比例已设置为: %.1f", val), nil
-
-	case "dedup-match-ratio":
-		if len(args) < 2 {
-			return fmt.Sprintf("特征匹配率阈值: %.1f", h.cfg.LLM.DedupMatchRatio), nil
-		}
-		val, err := strconv.ParseFloat(args[1], 64)
-		if err != nil {
-			return "", fmt.Errorf("无效的小数值: %s", args[1])
-		}
-		if val < 0 || val > 1 {
-			return "", fmt.Errorf("特征匹配率阈值必须在 0.0 ~ 1.0 之间")
-		}
-		h.cfg.LLM.DedupMatchRatio = val
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("Dedup match ratio set to %.1f", val)
-		return fmt.Sprintf("✅ 特征匹配率阈值已设置为: %.1f", val), nil
-
-	case "dedup-similarity-threshold":
-		if len(args) < 2 {
-			return fmt.Sprintf("相似度阈值: %d%%", h.cfg.LLM.DedupSimilarityThreshold), nil
-		}
-		n, err := strconv.Atoi(args[1])
-		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
-		}
-		if n < 1 || n > 100 {
-			return "", fmt.Errorf("相似度阈值必须在 1 ~ 100 之间")
-		}
-		h.cfg.LLM.DedupSimilarityThreshold = n
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("Dedup similarity threshold set to %d", n)
-		return fmt.Sprintf("✅ 相似度阈值已设置为: %d%%", n), nil
-
-	case "dedup-max-history":
-		if len(args) < 2 {
-			return fmt.Sprintf("去重检查历史消息数: %d", h.cfg.LLM.DedupMaxHistory), nil
-		}
-		n, err := strconv.Atoi(args[1])
-		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
-		}
-		if n < 1 {
-			return "", fmt.Errorf("去重检查历史消息数必须 >= 1")
-		}
-		h.cfg.LLM.DedupMaxHistory = n
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("Dedup max history set to %d", n)
-		return fmt.Sprintf("✅ 去重检查历史消息数已设置为: %d", n), nil
-
-	case "dedup-repeat-limit":
-		if len(args) < 2 {
-			return fmt.Sprintf("去重触发重复次数: %d", h.cfg.LLM.DedupRepeatLimit), nil
-		}
-		n, err := strconv.Atoi(args[1])
-		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
-		}
-		if n < 1 {
-			return "", fmt.Errorf("去重触发重复次数必须 >= 1")
-		}
-		h.cfg.LLM.DedupRepeatLimit = n
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("Dedup repeat limit set to %d", n)
-		return fmt.Sprintf("✅ 去重触发重复次数已设置为: %d", n), nil
+		log.Info("Loop detect min line length set to %d", n)
+		return fmt.Sprintf("✅ 循环检测最短行长度已设置为: %d", n), nil
 
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)

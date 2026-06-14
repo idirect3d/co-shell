@@ -204,52 +204,12 @@ type LLMConfig struct {
 	// Default: 5
 	LoopDetectThreshold int `json:"loop_detect_threshold"`
 
-	// LoopDetectMaxWindow: the sliding window size (in content chunks) to check
-	// for repetition patterns. The detector looks at the last N chunks to find
-	// repeating patterns.
-	// Default: 20
-	LoopDetectMaxWindow int `json:"loop_detect_max_window"`
-
 	// LoopDetectMinLineLen: the minimum length of a line (in characters) to be
 	// considered for loop detection. Lines shorter than this are ignored.
 	// This filters out short repeating patterns like XML tags, "continue" prompts,
 	// or short thinking phrases that are not meaningful for loop detection.
 	// Default: 50
 	LoopDetectMinLineLen int `json:"loop_detect_min_line_len"`
-
-	// DedupEnabled: whether to enable message deduplication checking.
-	// When enabled, before adding a message to the session, the system
-	// extracts keywords and searches existing messages for duplicates.
-	// If a highly similar message is found, it counts as a duplicate.
-	// Default: true
-	DedupEnabled bool `json:"dedup_enabled"`
-
-	// DedupFeatureRatio: the ratio of words to extract as features from each message.
-	// For example, 0.2 means 20% of the words in the message will be used as features.
-	// Default: 0.2
-	DedupFeatureRatio float64 `json:"dedup_feature_ratio"`
-
-	// DedupMatchRatio: the minimum ratio of feature words that must match
-	// in order to proceed to full similarity calculation.
-	// Range: 0.0 ~ 1.0
-	// Default: 0.6
-	DedupMatchRatio float64 `json:"dedup_match_ratio"`
-
-	// DedupSimilarityThreshold: the minimum Jaccard similarity score (0-100)
-	// to consider two messages as duplicates.
-	// Default: 85
-	DedupSimilarityThreshold int `json:"dedup_similarity_threshold"`
-
-	// DedupMaxHistory: maximum number of recent messages to check against
-	// for deduplication. Limiting this prevents performance issues with
-	// very long conversations.
-	// Default: 50
-	DedupMaxHistory int `json:"dedup_max_history"`
-
-	// DedupRepeatLimit: the maximum number of duplicate messages allowed
-	// before triggering an intervention warning.
-	// Default: 3
-	DedupRepeatLimit int `json:"dedup_repeat_limit"`
 
 	// ThinkingEnabled: whether to enable LLM thinking/reasoning mode.
 	// When enabled, the LLM API request includes thinking configuration
@@ -575,14 +535,7 @@ func DefaultConfig() *Config {
 			ErrorMaxTypeCount:         100,
 			LoopDetectEnabled:         true,
 			LoopDetectThreshold:       5,
-			LoopDetectMaxWindow:       256,
 			LoopDetectMinLineLen:      50,
-			DedupEnabled:              true,
-			DedupFeatureRatio:         0.2,
-			DedupMatchRatio:           0.6,
-			DedupSimilarityThreshold:  85,
-			DedupMaxHistory:           50,
-			DedupRepeatLimit:          3,
 			TopP:                      -1,
 			TopK:                      -1,
 			RepetitionPenalty:         -1,

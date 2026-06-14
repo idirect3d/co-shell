@@ -84,6 +84,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	}
 	log.Debug("Agent.streamLLMResponse: ChatStream returned eventCh, waiting for events...")
 
+	// Log loop detector status at INFO level so it's always visible.
+	// This helps confirm whether the loop detection mechanism is active.
+	log.Info("Agent.streamLLMResponse: loopDetectOn=%v, loopDetector=%v",
+		a.loopDetectOn, a.loopDetector != nil)
+
 	var contentBuilder strings.Builder
 	var reasoningBuilder strings.Builder
 	var toolCalls []llm.ToolCall
@@ -143,6 +148,17 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				cb("content_chunk", event.Content)
 
 			case llm.StreamEventReasoning:
+				// FIX-179: Check for loop patterns in reasoning output too.
+				// Some LLMs (e.g., Qwen in thinking mode) deliver the main
+				// content through reasoning events, with StreamEventContent
+				// being empty or minimal. We must detect loops here as well.
+				if a.loopDetectOn && a.loopDetector != nil {
+					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
+						a.loopDetectCrit = true
+						log.Warn("Agent.streamLLMResponse: loop detected in reasoning: %v", err)
+						return "", "", nil, err
+					}
+				}
 				reasoningBuilder.WriteString(event.Content)
 				if a.showLlmThinking {
 					cb("thinking_chunk", event.Content)
