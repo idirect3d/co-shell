@@ -414,7 +414,7 @@ func (a *Agent) rebuildSystemPrompt() {
 	}
 
 	taskPlanText := a.getTaskPlanText()
-	taskDesc := a.lastUserInput
+	taskDesc := a.getCurrentTaskDescription()
 
 	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.rules, a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 	a.mu.Lock()
@@ -541,10 +541,44 @@ func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string, messa
 func (a *Agent) formatUserMessage(instruction string, messageNo int) string {
 	template := i18n.T(i18n.KeyUserMessageTemplate)
 	result := strings.ReplaceAll(template, "{INSTRUCTION}", instruction)
-	result = strings.ReplaceAll(result, "{TASK_TRACKING}", a.getTaskPlanPrompt())
-	result = strings.ReplaceAll(result, "{MESSAGE_NO}", strconv.Itoa(messageNo))
-	result = strings.ReplaceAll(result, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
 	return result
+}
+
+// getCurrentTaskDescription returns the current task description for {TASK} in the
+// system prompt. Priority:
+// 1. Active task plan title (if one exists with unfinished steps)
+// 2. The first user message at or after the messagePointer (context start)
+// Returns empty string if neither is available.
+func (a *Agent) getCurrentTaskDescription() string {
+	// Priority 1: task plan title
+	if a.taskPlanMgr != nil {
+		plan, err := a.taskPlanMgr.GetCurrent()
+		if err == nil && plan != nil && a.taskPlanMgr.HasUnfinished() && plan.Title != "" {
+			return plan.Title
+		}
+	}
+	// Priority 2: first user message at/after messagePointer
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	startIdx := 1 // skip system prompt (index 0)
+	if a.messagePointer > 0 && a.messagePointer < len(a.messages) {
+		startIdx = a.messagePointer
+	}
+	for i := startIdx; i < len(a.messages); i++ {
+		if a.messages[i].Role == "user" && a.messages[i].Content != "" {
+			content := a.messages[i].Content
+			// Strip <environment_details> if present for cleaner display
+			if envStart := strings.Index(content, "<environment_details>"); envStart > 0 {
+				content = strings.TrimSpace(content[:envStart])
+			}
+			// Truncate to reasonable length
+			if len(content) > 200 {
+				content = content[:200] + "..."
+			}
+			return content
+		}
+	}
+	return ""
 }
 
 func (a *Agent) getTaskPlanPrompt() string {
@@ -623,7 +657,7 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	}
 
 	taskPlanText := a.getTaskPlanText()
-	taskDesc := a.lastUserInput
+	taskDesc := a.getCurrentTaskDescription()
 
 	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.rules, mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 

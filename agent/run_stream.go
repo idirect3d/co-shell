@@ -86,13 +86,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.messageDedup = nil
 	}
 
-	// Save raw user input for {TASK} in system prompt Objective section
-	// Must be set before rebuildSystemPrompt (which reads lastUserInput)
+	// Save raw user input for {TASK} in system prompt.
+	// The system prompt is built once at New() and not rebuilt per-round.
 	a.lastUserInput = userInput
-	// Rebuild system prompt so {TASK} gets the actual user instruction
-	// Note: must be called outside a.mu lock because rebuildSystemPrompt
-	// also acquires the lock internally.
-	a.rebuildSystemPrompt()
 
 	a.mu.Lock()
 	// If there are image paths, create a multimodal message with cached images

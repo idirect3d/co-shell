@@ -404,10 +404,13 @@ func listFilesForPrompt(dirPath string, depth int, maxEntries int) string {
 			result.WriteString(name + "\n")
 			count++
 		}
+		if count == 0 {
+			result.WriteString("(empty directory)\n")
+		}
 	}
 
 	if count >= maxEntries {
-		result.WriteString(fmt.Sprintf("(File list truncated. Use list_files on specific subdirectories if you need to explore further.)\n"))
+		result.WriteString("(File list truncated. Use list_files on specific subdirectories if you need to explore further.)\n")
 	}
 	return result.String()
 }
