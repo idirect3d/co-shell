@@ -337,13 +337,15 @@ const (
 	KeyCustom = "custom"
 
 	// System Prompt
-	KeySystemPromptIdentity     = "system_prompt_identity"
-	KeyAnonymousUser            = "anonymous_user"
-	KeySystemPromptObjective    = "system_prompt_objective"
-	KeySystemPromptEnvironment  = "system_prompt_environment"
-	KeySystemPromptCapabilities = "system_prompt_capabilities"
-	KeySystemPromptRules        = "system_prompt_rules"
-	KeySystemPromptResultMode   = "system_prompt_result_mode"
+	KeySystemPromptIdentity      = "system_prompt_identity"
+	KeySystemPromptIdentityPlan  = "system_prompt_identity_plan"
+	KeySystemPromptObjectivePlan = "system_prompt_objective_plan"
+	KeyAnonymousUser             = "anonymous_user"
+	KeySystemPromptObjective     = "system_prompt_objective"
+	KeySystemPromptEnvironment   = "system_prompt_environment"
+	KeySystemPromptCapabilities  = "system_prompt_capabilities"
+	KeySystemPromptRules         = "system_prompt_rules"
+	KeySystemPromptResultMode    = "system_prompt_result_mode"
 
 	// System Prompt - legacy keys (not used in buildSystemPromptWithMode, kept for reference)
 	KeySystemPromptToolUsage    = "system_prompt_tool_usage"

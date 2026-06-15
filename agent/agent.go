@@ -142,6 +142,20 @@ func (a *Agent) SetToolMode(toolName string, mode string) {
 	}
 }
 
+// ToolModes returns the current tool mode settings (for display purposes only).
+func (a *Agent) ToolModes() map[string]string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.toolModes == nil {
+		return nil
+	}
+	result := make(map[string]string, len(a.toolModes))
+	for k, v := range a.toolModes {
+		result[k] = v
+	}
+	return result
+}
+
 func DefaultToolModes() map[string]string {
 	return map[string]string{
 		"execute_command":            "confirm",
@@ -189,22 +203,71 @@ func DefaultToolModes() map[string]string {
 	}
 }
 
+// SyncToolModes synchronizes tool mode settings from config to agent.
+// It applies per-tool overrides, global defaults, and mode-specific restrictions.
 func (a *Agent) SyncToolModes(cfg *config.Config) {
 	modes := DefaultToolModes()
 
-	// Step 1: Apply per-tool overrides from config (only for valid tool names)
-	for k, v := range cfg.LLM.ToolModes {
-		if k == "default" {
-			continue
+	// Check if the current WorkMode has its own ToolModes.
+	// If a WorkMode has explicit ToolModes, use them as the COMPLETE base —
+	// the work mode's ToolModes represent the full intention for that mode,
+	// and global cfg.LLM.ToolModes should NOT override mode-specific restrictions.
+	workModeName := cfg.LLM.WorkMode
+	if workModeName != "" {
+		hasModeToolModes := false
+		// Search user-defined modes first
+		for _, wm := range cfg.WorkModes {
+			if wm.Name == workModeName && wm.ToolModes != nil && len(wm.ToolModes) > 0 {
+				modes = cloneToolModes(wm.ToolModes)
+				hasModeToolModes = true
+				break
+			}
 		}
-		if _, exists := modes[k]; exists {
-			modes[k] = v
+		// Fall back to built-in modes (act, plan)
+		if !hasModeToolModes {
+			for _, wm := range config.DefaultWorkModes() {
+				if wm.Name == workModeName && wm.ToolModes != nil && len(wm.ToolModes) > 0 {
+					modes = cloneToolModes(wm.ToolModes)
+					hasModeToolModes = true
+					break
+				}
+			}
+		}
+
+		if hasModeToolModes {
+			// Mode has its own ToolModes — apply per-tool overrides from config,
+			// but ONLY for tools that already have an explicit setting in the mode.
+			// The mode's "default" setting is respected; global default does NOT override it.
+			if cfg.LLM.ToolModes != nil {
+				for k, v := range cfg.LLM.ToolModes {
+					if k == "default" {
+						continue
+					}
+					// Only override if there's an explicit setting in the mode
+					if _, hasExplicit := modes[k]; hasExplicit {
+						modes[k] = v
+					}
+				}
+			}
+			a.toolModes = modes
+			return
 		}
 	}
 
-	// Step 2: Apply global default override if set to confirm/auto/disabled.
-	// When global default is active, all tools use the same mode regardless
-	// of their individual settings or code defaults.
+	// No mode-specific ToolModes: use defaults with global overrides.
+	// Apply per-tool overrides from config.LLM.ToolModes (runtime overrides).
+	if cfg.LLM.ToolModes != nil {
+		for k, v := range cfg.LLM.ToolModes {
+			if k == "default" {
+				continue
+			}
+			if _, exists := modes[k]; exists {
+				modes[k] = v
+			}
+		}
+	}
+
+	// Apply global default override if set to confirm/auto/disabled.
 	if globalDefault, ok := cfg.LLM.ToolModes["default"]; ok && globalDefault != "" && globalDefault != "custom" {
 		modes["default"] = globalDefault
 		for k := range modes {
@@ -215,6 +278,15 @@ func (a *Agent) SyncToolModes(cfg *config.Config) {
 	}
 
 	a.toolModes = modes
+}
+
+// cloneToolModes returns a copy of a tool modes map.
+func cloneToolModes(src map[string]string) map[string]string {
+	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }
 
 func (a *Agent) SetMemoryEnabled(enabled bool)   { a.memoryEnabled = enabled }
