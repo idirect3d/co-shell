@@ -76,18 +76,21 @@ func loadExternalFileWithMode(cwd, modeName, filename string) string {
 // getWorkModeSectionNames returns the list of section names for the given work mode name.
 // Falls back to default sections if the mode doesn't exist in config.
 func getWorkModeSectionNames(cfg *config.Config, modeName string) []string {
-	if cfg == nil || len(cfg.WorkModes) == 0 {
-		return config.DefaultBuiltInSections()
-	}
-	if modeName == "" {
+	if modeName == "" && cfg != nil {
 		modeName = cfg.LLM.WorkMode
 	}
-	for _, wm := range cfg.WorkModes {
-		if wm.Name == modeName {
-			if len(wm.Sections) > 0 {
+	// Search user-defined modes first
+	if cfg != nil {
+		for _, wm := range cfg.WorkModes {
+			if wm.Name == modeName && len(wm.Sections) > 0 {
 				return wm.Sections
 			}
-			return config.DefaultBuiltInSections()
+		}
+	}
+	// Fall back to built-in modes (act, plan)
+	for _, wm := range config.DefaultWorkModes() {
+		if wm.Name == modeName && len(wm.Sections) > 0 {
+			return wm.Sections
 		}
 	}
 	return config.DefaultBuiltInSections()
@@ -167,6 +170,12 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 	switch name {
 	case "Identity":
 		text := loadSectionText(env.cwd, modeName, "IDENTITY", func() string {
+			// Plan mode has its own built-in Identity prompt
+			if modeName == "plan" {
+				if planIdentity := i18n.T(i18n.KeySystemPromptIdentityPlan); planIdentity != "" && planIdentity != i18n.KeySystemPromptIdentityPlan {
+					return planIdentity
+				}
+			}
 			return i18n.T(i18n.KeySystemPromptIdentity)
 		})
 		return buildSectionWithPlaceholders(text, env)
@@ -212,6 +221,11 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 
 	case "Objective":
 		text := loadSectionText(env.cwd, modeName, "OBJECTIVE", func() string {
+			if modeName == "plan" {
+				if planObj := i18n.T(i18n.KeySystemPromptObjectivePlan); planObj != "" && planObj != i18n.KeySystemPromptObjectivePlan {
+					return planObj
+				}
+			}
 			return i18n.T(i18n.KeySystemPromptObjective)
 		})
 		return buildSectionWithPlaceholders(text, env)
