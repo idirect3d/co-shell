@@ -492,9 +492,11 @@ Parameters:
 Usage:
 <ask_followup_question>
   <question>Which database would you like to use?</question>
-  <item>MySQL</item>
-  <item>PostgreSQL</item>
-  <item>SQLite</item>
+  <options>
+    <item>MySQL</item>
+    <item>PostgreSQL</item>
+    <item>SQLite</item>
+  </options>
 </ask_followup_question>`
 
 	enMessages[KeyToolUsageAdjustContextStart] = `## adjust_context_start
