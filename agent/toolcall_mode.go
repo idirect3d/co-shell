@@ -11,7 +11,6 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -1269,13 +1268,10 @@ func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string, work
 		}
 		return buildXMLToolPrompt(tools, lang, wm)
 	default:
-		// For OpenAI mode, append examples, task progress, and editing files
-		// assembled from split components (separators are part of i18n/external content).
-		var sb strings.Builder
-		sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageExamples))
-		sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageTaskProgress))
-		sb.WriteString(i18n.T(i18n.KeySystemPromptEditingFiles))
-		return sb.String()
+		// For OpenAI mode, just return the basic tool usage text.
+		// Examples, task progress, editing files, browser usage are now
+		// assembled by the section system (buildNamedSection) per work mode.
+		return ""
 	}
 }
 
@@ -1304,33 +1300,6 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string) string {
 		sb.WriteString(buildXMLToolDescription(tool, lang))
 		sb.WriteString("\n")
 	}
-
-	// Append the supplementary rules assembled from split components:
-	// Tool Use Examples + Task Progress + Editing Files + Browser Usage, separated by ====
-	// Each section can be overridden by an external .md file with mode support:
-	// Priority: {cwd}/mode/{workMode}/{filename}.md -> {cwd}/{filename}.md -> i18n fallback.
-	cwd, _ := os.Getwd()
-
-	examplesText := loadExternalFileWithMode(cwd, workMode, "TOOL_EXAMPLES.md")
-	if examplesText == "" {
-		examplesText = i18n.T(i18n.KeySystemPromptXMLExamples)
-	}
-	taskProgressText := loadExternalFileWithMode(cwd, workMode, "TASK_PROGRESS.md")
-	if taskProgressText == "" {
-		taskProgressText = i18n.T(i18n.KeySystemPromptXMLTaskProgress)
-	}
-	editingFilesText := loadExternalFileWithMode(cwd, workMode, "EDITING_FILES.md")
-	if editingFilesText == "" {
-		editingFilesText = i18n.T(i18n.KeySystemPromptEditingFiles)
-	}
-	browserUsageText := loadExternalFileWithMode(cwd, workMode, "BROWSER_USAGE.md")
-	if browserUsageText == "" {
-		browserUsageText = i18n.T(i18n.KeySystemPromptBrowserUsage)
-	}
-	sb.WriteString(examplesText)
-	sb.WriteString(taskProgressText)
-	sb.WriteString(editingFilesText)
-	sb.WriteString(browserUsageText)
 
 	return sb.String()
 }
