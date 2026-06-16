@@ -29,6 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -88,6 +89,8 @@ func (h *ModelHandler) Handle(args []string) (string, error) {
 		return h.listModels()
 	case "add":
 		return h.AddModelWizard()
+	case "edit":
+		return h.editModelWizard(args[1:])
 	case "remove", "rm":
 		return h.removeModel(args[1:])
 	case "switch", "use":
@@ -307,6 +310,18 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	return result.String(), nil
 }
 
+// modelWizardState accumulates state across wizard steps to support back navigation.
+type modelWizardState struct {
+	Template     *config.ModelTemplate
+	Endpoint     string
+	APIKey       string
+	ModelName    string
+	ModelID      string
+	Priority     int
+	Capabilities config.ModelCapability
+	Enabled      bool
+}
+
 // AddModelWizard starts the interactive wizard to add a new model.
 // This is a public method so it can be called from main.go for first-time setup.
 func (h *ModelHandler) AddModelWizard() (string, error) {
@@ -315,30 +330,191 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 	result.WriteString("  📋 添加模型向导 / Add Model Wizard\n")
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
+	state := modelWizardState{}
+
 	for {
-		// Step 1: Select template
-		template, err := h.wizardSelectTemplate()
-		if err != nil || template == nil {
-			return result.String(), err
+		// Step 1: Select template (or re-select after back navigation)
+		if state.Template == nil {
+			template, err := h.wizardSelectTemplate()
+			if err != nil || template == nil {
+				return result.String(), err
+			}
+			state.Template = template
+			// Reset all model-specific fields when template changes
+			state.Endpoint = ""
+			state.APIKey = ""
+			state.ModelName = ""
+			state.ModelID = ""
+			state.Priority = 0
+			state.Capabilities = config.ModelCapability{}
+			state.Enabled = true
 		}
 
-		// Step 2: Enter model parameters
-		modelConfig, err := h.wizardEnterModelParams(template)
-		if err != nil {
-			if err.Error() == "__BACK__" {
+		// Step 2: Enter endpoint
+		{
+			io := h.io()
+			// Use previously entered value as default if available, otherwise template default
+			defaultEndpoint := state.Template.Endpoint
+			if state.Endpoint != "" {
+				defaultEndpoint = state.Endpoint
+			}
+			io.Println("\n  步骤: API 端点")
+			endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", defaultEndpoint, "q")
+			if endpoint == "__BACK__" {
+				state.Template = nil
 				h.io().Println("\n  返回上一步")
 				continue
 			}
-			return result.String(), err
+			if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
+				return result.String(), fmt.Errorf("向导已取消")
+			}
+			// Auto-complete endpoint if needed
+			if endpoint != "" {
+				completedEndpoint, success := autoCompleteEndpoint(endpoint)
+				if success {
+					endpoint = completedEndpoint
+					if endpoint != defaultEndpoint {
+						h.io().Printf("\n  🔍 已自动补全端点: %s -> %s\n", defaultEndpoint, endpoint)
+					}
+				}
+			}
+			// Test endpoint connectivity
+			io.Print("\n  🔍 正在测试端点连通性... ")
+			h.testEndpointConnectivity(endpoint)
+			state.Endpoint = endpoint
 		}
 
-		// Step 3: Confirm and save
+		// Step 3: Enter API key
+		if state.APIKey == "" {
+			io := h.io()
+			defaultAPIKey := ""
+			for _, m := range h.cfg.Models {
+				if m.TemplateID == state.Template.ID && m.APIKey != "" {
+					defaultAPIKey = m.APIKey
+					break
+				}
+			}
+			io.Println("\n  步骤: API Key (输入 Q 取消，0 返回上一步)")
+			apiKey := h.wizardPromptSecret("请输入 API Key", defaultAPIKey)
+			if apiKey == "__BACK__" {
+				// Go back to endpoint step — keep the endpoint value as it is
+				h.io().Println("\n  返回上一步")
+				continue
+			}
+			if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
+				return result.String(), fmt.Errorf("向导已取消")
+			}
+			state.APIKey = apiKey
+		}
+
+		// Step 4: Select model name
+		if state.ModelName == "" {
+			io := h.io()
+			io.Println("\n  步骤: 模型名称")
+			modelSuggestions := h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
+			modelName := h.wizardPromptString("请选择或输入模型名称", modelSuggestions, "q")
+			if modelName == "__BACK__" {
+				// Go back to API key step — keep the API key value
+				h.io().Println("\n  返回上一步")
+				continue
+			}
+			if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
+				return result.String(), fmt.Errorf("向导已取消")
+			}
+			state.ModelName = modelName
+		}
+
+		// Step 5: Choose capabilities
+		if state.Capabilities == (config.ModelCapability{}) {
+			io := h.io()
+			io.Println("\n  步骤: 检测模型能力")
+			detectedCaps := h.detectModelCapabilities(state.Endpoint, state.APIKey, state.ModelName)
+			capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
+			if goBack {
+				state.ModelName = ""
+				h.io().Println("\n  返回上一步")
+				continue
+			}
+			state.Capabilities = capabilities
+		}
+
+		// Step 6: Enter model ID
+		if state.ModelID == "" {
+			io := h.io()
+			defaultModelID := fmt.Sprintf("%s-%s", state.Template.ID, strings.ReplaceAll(state.ModelName, "/", "-"))
+			if h.modelIDExists(defaultModelID) {
+				suffix := 2
+				for {
+					candidate := fmt.Sprintf("%s-%d", defaultModelID, suffix)
+					if !h.modelIDExists(candidate) {
+						defaultModelID = candidate
+						break
+					}
+					suffix++
+				}
+			}
+			io.Println("\n  步骤: 模型 ID")
+			modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+			if modelID == "__BACK__" {
+				state.Capabilities = config.ModelCapability{}
+				h.io().Println("\n  返回上一步")
+				continue
+			}
+			if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
+				return result.String(), fmt.Errorf("向导已取消")
+			}
+			state.ModelID = modelID
+		}
+
+		// Step 7: Set priority
+		if state.Priority == 0 {
+			io := h.io()
+			newPriority := (len(h.cfg.Models) + 1) * 10
+			io.Println("\n  步骤: 优先级")
+			priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", newPriority)+")", fmt.Sprintf("%d", newPriority), "q")
+			if priorityStr == "__BACK__" {
+				state.ModelID = ""
+				h.io().Println("\n  返回上一步")
+				continue
+			}
+			if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
+				return result.String(), fmt.Errorf("向导已取消")
+			}
+			priority, err := strconv.Atoi(priorityStr)
+			if err != nil {
+				priority = newPriority
+			}
+			state.Priority = priority
+		}
+
+		// Step 8: Enable model
+		io := h.io()
+		io.Println("\n  步骤: 启用状态")
+		enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", state.Enabled)
+		if !enabled {
+			enabled = false
+		}
+
+		// Build and save model config
+		modelConfig := &config.ModelConfig{
+			ID:           state.ModelID,
+			Name:         fmt.Sprintf("%s (%s)", state.Template.Name, state.ModelName),
+			Provider:     state.Template.Provider,
+			Endpoint:     state.Endpoint,
+			Model:        state.ModelName,
+			APIKey:       state.APIKey,
+			Priority:     state.Priority,
+			Enabled:      enabled,
+			TemplateID:   state.Template.ID,
+			Capabilities: state.Capabilities,
+		}
+
 		if err := h.saveModel(modelConfig); err != nil {
 			return result.String(), err
 		}
 
 		result.WriteString(fmt.Sprintf("\n✅ 已成功添加模型: %s (%s)\n", modelConfig.ID, modelConfig.Model))
-		log.Info("Added model via wizard: %s (template=%s, model=%s)", modelConfig.ID, template.ID, modelConfig.Model)
+		log.Info("Added model via wizard: %s (template=%s, model=%s)", modelConfig.ID, state.Template.ID, state.ModelName)
 		return result.String(), nil
 	}
 }
@@ -462,14 +638,16 @@ func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
 		baseStrategies = []string{""}
 	}
 
-	// FIX-189: If the endpoint already contains /v1 suffix, don't try to add /v1 again.
-	// This prevents generating invalid URLs like "https://api.openai.com/v1/v1".
+	// If the endpoint already contains an API version suffix (e.g., /v1, /v2, /v3),
+	// don't try to add /v1 again. This prevents generating invalid URLs like
+	// "https://api.openai.com/v1/v1" or "https://ark.cn-beijing.volces.com/api/coding/v3/v1".
 	cleanEndpoint := rawEndpoint
 	// Strip trailing slash for consistent checking
 	for len(cleanEndpoint) > 0 && cleanEndpoint[len(cleanEndpoint)-1] == '/' {
 		cleanEndpoint = cleanEndpoint[:len(cleanEndpoint)-1]
 	}
-	if strings.HasSuffix(cleanEndpoint, "/v1") {
+	versionSuffix := regexp.MustCompile(`/v\d+$`)
+	if versionSuffix.MatchString(cleanEndpoint) {
 		suffixStrategies = []string{""}
 	} else {
 		suffixStrategies = []string{"/v1", ""}
@@ -512,6 +690,59 @@ func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
 	return rawEndpoint, false
 }
 
+// testEndpointConnectivity tests an endpoint and prints the result.
+func (h *ModelHandler) testEndpointConnectivity(endpoint string) {
+	io := h.io()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	client := llm.NewClient(endpoint, "", "test", 0, 0, 10)
+	models, err := client.ListModels(ctx)
+	cancel()
+	if err != nil {
+		if !strings.Contains(err.Error(), "status") && !strings.Contains(err.Error(), "HTTP") {
+			io.Printf("❌ 连接失败: %v\n", err)
+			io.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
+			retry := strings.TrimSpace(strings.ToLower(h.readLine()))
+			if retry != "y" && retry != "yes" {
+				return
+			}
+		}
+	} else {
+		io.Printf("✅ 连接成功 (发现 %d 个模型)\n", len(models))
+	}
+}
+
+// fetchModelSuggestions fetches available models from the API and combines with template defaults.
+func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *config.ModelTemplate) []string {
+	io := h.io()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	client := llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
+	models, err := client.ListModels(ctx)
+	cancel()
+
+	suggestions := make([]string, 0)
+	seen := make(map[string]bool)
+
+	if err != nil {
+		io.Printf("⚠️ 获取模型列表失败: %v\n", err)
+		io.Println("  将使用模板默认模型列表")
+	} else {
+		io.Printf("✅ 获取到 %d 个模型\n", len(models))
+		for _, m := range models {
+			if !seen[m.ID] {
+				suggestions = append(suggestions, m.ID)
+				seen[m.ID] = true
+			}
+		}
+	}
+	for _, m := range template.Models {
+		if !seen[m] {
+			suggestions = append(suggestions, m)
+			seen[m] = true
+		}
+	}
+	return suggestions
+}
+
 // wizardEnterModelParams prompts user to enter model-specific parameters.
 func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*config.ModelConfig, error) {
 	var result strings.Builder
@@ -520,11 +751,11 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	// Step 1: Enter endpoint (optional, default from template)
 	defaultEndpoint := template.Endpoint
 	endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", defaultEndpoint, "q")
+	if endpoint == "__BACK__" {
+		return nil, fmt.Errorf("__BACK__")
+	}
 	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
-	}
-	if endpoint == "0" || strings.ToUpper(endpoint) == "BACK" || strings.ToUpper(endpoint) == ".." {
-		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// FEATURE-172: Auto-complete endpoint if needed
@@ -573,11 +804,11 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	// No fallback to global cfg.LLM.APIKey since it has been removed.
 	// If no existing model with the same template has an API key, defaultAPIKey stays empty.
 	apiKey := h.wizardPromptSecret("请输入 API Key", defaultAPIKey)
+	if apiKey == "__BACK__" {
+		return nil, fmt.Errorf("__BACK__")
+	}
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
-	}
-	if apiKey == "0" || strings.ToUpper(apiKey) == "BACK" || strings.ToUpper(apiKey) == ".." {
-		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Step 3: Fetch available models from API and let user select
@@ -613,11 +844,11 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	modelName := h.wizardPromptString("请选择或输入模型名称", modelSuggestions, "q")
+	if modelName == "__BACK__" {
+		return nil, fmt.Errorf("__BACK__")
+	}
 	if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
-	}
-	if modelName == "0" || strings.ToUpper(modelName) == "BACK" || strings.ToUpper(modelName) == ".." {
-		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Step 4: Look up max_model_len from the API model list
@@ -656,21 +887,21 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		}
 	}
 	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+	if modelID == "__BACK__" {
+		return nil, fmt.Errorf("__BACK__")
+	}
 	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
-	}
-	if modelID == "0" || strings.ToUpper(modelID) == "BACK" || strings.ToUpper(modelID) == ".." {
-		return nil, fmt.Errorf("__BACK__")
 	}
 
 	// Step 7: Set priority - default to highest priority + 10
 	newPriority := (len(h.cfg.Models) + 1) * 10
 	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", newPriority)+")", fmt.Sprintf("%d", newPriority), "q")
+	if priorityStr == "__BACK__" {
+		return nil, fmt.Errorf("__BACK__")
+	}
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
 		return nil, fmt.Errorf("向导已取消")
-	}
-	if priorityStr == "0" || strings.ToUpper(priorityStr) == "BACK" || strings.ToUpper(priorityStr) == ".." {
-		return nil, fmt.Errorf("__BACK__")
 	}
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil {
@@ -719,6 +950,7 @@ func (h *ModelHandler) readLine() string {
 
 // wizardPromptString prompts for a string value with template suggestions.
 // Supports both numeric selection and direct text input.
+// Supports back navigation: returns "__BACK__" when user enters 0/back/..
 // Default value: first suggestion if available, otherwise empty.
 func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, cancelKeys string) string {
 	io := h.io()
@@ -744,10 +976,13 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 			continue
 		}
 
-		// Check cancel keys
+		// Check back/cancel keys
 		upper := strings.ToUpper(input)
 		if input != "" && (upper == "Q" || upper == "QUIT") {
 			return ""
+		}
+		if input == "0" || upper == "BACK" || input == ".." {
+			return "__BACK__"
 		}
 
 		// Empty input: use default
@@ -769,11 +1004,21 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 }
 
 // wizardPromptStringWithDefault prompts for a string value with a default.
+// Supports back navigation: returns "__BACK__" when user enters 0/back/.., and "Q"/"QUIT" for cancel.
 func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue string, cancelKeys string) string {
 	io := h.io()
 	for {
 		io.Printf("\n%s [默认: %s]: ", prompt, defaultValue)
 		input := h.readLine()
+
+		// Check back/cancel keys
+		upper := strings.ToUpper(input)
+		if input != "" && (upper == "Q" || upper == "QUIT") {
+			return "Q"
+		}
+		if input == "0" || upper == "BACK" || input == ".." {
+			return "__BACK__"
+		}
 
 		if input == "" {
 			io.Printf("  使用默认值: %s\n", defaultValue)
@@ -786,6 +1031,7 @@ func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue
 
 // wizardPromptSecret prompts for a secret value (API key).
 // If defaultVal is provided, it will be shown as masked default.
+// Supports back navigation: returns "__BACK__" when user enters 0/back/..
 func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) string {
 	io := h.io()
 	for {
@@ -804,6 +1050,15 @@ func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) stri
 		}
 
 		input := h.readLine()
+
+		// Check back/cancel keys
+		upper := strings.ToUpper(input)
+		if input != "" && (upper == "Q" || upper == "QUIT") {
+			return "Q"
+		}
+		if input == "0" || upper == "BACK" || input == ".." {
+			return "__BACK__"
+		}
 
 		if input == "" {
 			if defaultVal != "" {
@@ -1016,6 +1271,107 @@ func (h *ModelHandler) reencodePriorities() {
 	for i := 0; i < n; i++ {
 		h.cfg.Models[n-1-i].Priority = (i + 1) * 10
 	}
+}
+
+// editModelWizard starts an interactive wizard to edit an existing model's basic parameters.
+// User selects a model, then goes through similar steps as adding (endpoint, api_key, model name, priority, capabilities)
+// but with existing values pre-filled as defaults.
+func (h *ModelHandler) editModelWizard(args []string) (string, error) {
+	var modelID string
+	if len(args) > 0 {
+		modelID = args[0]
+	} else {
+		var err error
+		modelID, err = h.selectModelByNumber("请选择要编辑的模型")
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Find existing model
+	var model *config.ModelConfig
+	for _, m := range h.cfg.Models {
+		if m.ID == modelID {
+			model = m
+			break
+		}
+	}
+	if model == nil {
+		return "", fmt.Errorf("模型 %s 不存在", modelID)
+	}
+
+	io := h.io()
+	var result strings.Builder
+	result.WriteString("═══════════════════════════════════════════════════════\n")
+	result.WriteString(fmt.Sprintf("  📋 编辑模型: %s\n", modelID))
+	result.WriteString("═══════════════════════════════════════════════════════\n\n")
+
+	// Step 1: Endpoint (default = current value)
+	io.Println("  [1/6] API 端点")
+	endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", model.Endpoint, "q")
+	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
+		return result.String(), fmt.Errorf("已取消")
+	}
+
+	// Step 2: API key (default = current, masked)
+	io.Println("\n  [2/6] API Key")
+	apiKey := h.wizardPromptSecret("请输入 API Key", model.APIKey)
+	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
+		return result.String(), fmt.Errorf("已取消")
+	}
+
+	// Step 3: Model name (default = current)
+	io.Println("\n  [3/6] 模型名称")
+	modelName := h.wizardPromptStringWithDefault("请输入模型名称", model.Model, "q")
+	if strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
+		return result.String(), fmt.Errorf("已取消")
+	}
+
+	// Step 4: Priority (default = current)
+	io.Println("\n  [4/6] 优先级")
+	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字)", fmt.Sprintf("%d", model.Priority), "q")
+	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
+		return result.String(), fmt.Errorf("已取消")
+	}
+	priority, err := strconv.Atoi(priorityStr)
+	if err != nil {
+		priority = model.Priority
+	}
+
+	// Step 5: Capabilities (default = current)
+	io.Println("\n  [5/6] 模型能力")
+	capabilities, goBack := h.wizardSelectCapabilities(model.Capabilities)
+	if goBack {
+		return result.String(), fmt.Errorf("已取消")
+	}
+
+	// Step 6: Enabled state (default = current)
+	io.Println("\n  [6/6] 启用状态")
+	enabled := h.wizardPromptBool("是否启用此模型？(y/n)", model.Enabled)
+
+	// Apply changes
+	model.Endpoint = endpoint
+	model.APIKey = apiKey
+	model.Model = modelName
+	model.Priority = priority
+	model.Capabilities = capabilities
+	model.Enabled = enabled
+
+	if err := h.cfg.Save(); err != nil {
+		return "", fmt.Errorf("保存配置失败: %w", err)
+	}
+
+	// Sync to ModelManager
+	h.syncModelsToManager()
+
+	// Rebuild LLM client if this is the active model
+	if h.agent != nil {
+		h.agent.ApplyWorkModeConfig()
+	}
+
+	log.Info("Edited model: %s (endpoint=%s, model=%s)", modelID, endpoint, modelName)
+	result.WriteString(fmt.Sprintf("\n✅ 已更新模型: %s\n", modelID))
+	return result.String(), nil
 }
 
 // addFromTemplate adds a model from a built-in template.
@@ -1234,65 +1590,17 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 		return "", fmt.Errorf("保存配置失败: %w", err)
 	}
 
-	// Rebuild LLM client to apply the new model immediately
-	activeModel := h.cfg.Models[0]
-	if h.agent != nil {
-		// Resolve parameters: model-level takes precedence, fall back to global cfg.LLM
-		temperature := h.cfg.LLM.Temperature
-		if activeModel.Temperature != nil {
-			temperature = *activeModel.Temperature
-		}
-		maxTokens := h.cfg.LLM.MaxTokens
-		if activeModel.MaxTokens != nil {
-			maxTokens = *activeModel.MaxTokens
-		}
-		thinkingEnabled := h.cfg.LLM.ThinkingEnabled
-		if activeModel.ThinkingEnabled != nil {
-			thinkingEnabled = *activeModel.ThinkingEnabled
-		}
-		reasoningEffort := h.cfg.LLM.ReasoningEffort
-		if activeModel.ReasoningEffort != nil {
-			reasoningEffort = *activeModel.ReasoningEffort
-		}
-		topP := h.cfg.LLM.TopP
-		if activeModel.TopP != nil {
-			topP = *activeModel.TopP
-		}
-		topK := h.cfg.LLM.TopK
-		if activeModel.TopK != nil {
-			topK = *activeModel.TopK
-		}
-		repetitionPenalty := h.cfg.LLM.RepetitionPenalty
-		if activeModel.RepetitionPenalty != nil {
-			repetitionPenalty = *activeModel.RepetitionPenalty
-		}
-
-		client := llm.NewClient(
-			activeModel.Endpoint,
-			activeModel.APIKey,
-			activeModel.Model,
-			temperature,
-			maxTokens,
-			h.cfg.LLM.LLMTimeout,
-		)
-		client.SetTopP(topP)
-		client.SetTopK(topK)
-		client.SetRepetitionPenalty(repetitionPenalty)
-		client.SetThinkingEnabled(thinkingEnabled)
-		client.SetReasoningEffort(reasoningEffort)
-		client.SetTokenUsage(h.cfg.LLM.TokenUsage)
-		if len(h.cfg.LLM.BodyAdditions) > 0 {
-			client.SetBodyAdditions(h.cfg.LLM.BodyAdditions)
-		}
-		h.agent.SetLLMClient(client)
-		log.Info("LLM client rebuilt after model switch: %s", activeModel.ID)
-	}
-
-	// FIX-183: Sync to ModelManager so selectModelForCall() uses the switched model
+	// Sync to ModelManager so applyWorkModeConfig() can find the switched model
 	h.syncModelsToManager()
 
-	log.Info("Switched to model: %s (priority=%d)", modelID, activeModel.Priority)
-	return fmt.Sprintf("✅ 已切换到模型: %s（优先级: %d）", modelID, activeModel.Priority), nil
+	// Rebuild LLM client using ApplyWorkModeConfig for consistent parameter resolution
+	// (mode overrides > model config > global defaults)
+	if h.agent != nil {
+		h.agent.ApplyWorkModeConfig()
+	}
+
+	log.Info("Switched to model: %s (priority=%d)", modelID, h.cfg.Models[0].Priority)
+	return fmt.Sprintf("✅ 已切换到模型: %s（优先级: %d）", modelID, h.cfg.Models[0].Priority), nil
 }
 
 // enableModel enables a specific model.

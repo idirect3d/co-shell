@@ -60,13 +60,8 @@ func lastNChars(s string, n int) string {
 func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
 	log.Debug("Agent.streamLLMResponse: ENTER")
 
-	// Dynamically select and switch to the appropriate model based on current context
-	if modelCfg := a.selectModelForCall(); modelCfg != nil {
-		log.Debug("Agent.streamLLMResponse: switching model to %s", modelCfg.Name)
-		a.switchToModel(modelCfg)
-	} else {
-		log.Debug("Agent.streamLLMResponse: no model switch needed")
-	}
+	// Dynamically select and switch to the appropriate model based on current mode
+	a.ApplyWorkModeConfig()
 
 	// Apply context limit to messages
 	log.Debug("Agent.streamLLMResponse: building context messages (total a.messages=%d)", len(a.messages))
