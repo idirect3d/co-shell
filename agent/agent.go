@@ -504,48 +504,192 @@ func (a *Agent) SetWorkspacePath(path string)            { a.workspacePath = pat
 func (a *Agent) SetImagePaths(paths []string)            { a.imagePaths = paths }
 func (a *Agent) SetModelManager(mm *config.ModelManager) { a.modelManager = mm }
 
+// selectModelForCall selects the appropriate model based on vision requirements
+// and the current work mode's model bindings.
 func (a *Agent) selectModelForCall() *config.ModelConfig {
 	if a.modelManager == nil {
 		return nil
 	}
+
+	// Determine which model ID to use based on current work mode
+	modelID := a.getModelIDForCall()
+	if modelID != "" {
+		// Look up the model by ID in cfg.Models
+		if a.cfg != nil {
+			for _, m := range a.cfg.Models {
+				if m.ID == modelID && m.Enabled {
+					return m
+				}
+			}
+		}
+		// Fallback: try ModelManager
+		if m := a.modelManager.GetModel(modelID); m != nil && m.Enabled {
+			return m
+		}
+	}
+
+	// No mode-specific model: use global priority
 	visionRequired := len(a.imagePaths) > 0
 	return a.modelManager.GetActiveModel(visionRequired)
 }
 
-func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
-	if modelCfg == nil || a.cfg == nil {
+// getModelIDForCall returns the model ID to use based on the current work mode.
+// Returns the VisionModelID if vision is needed and set, otherwise ModelID.
+// Returns empty string if neither is set (use global).
+func (a *Agent) getModelIDForCall() string {
+	if a.cfg == nil {
+		return ""
+	}
+	workModeName := a.cfg.LLM.WorkMode
+	if workModeName == "" {
+		workModeName = "act"
+	}
+
+	// Search user-defined modes first, then built-in defaults
+	var mode *config.WorkMode
+	for i := range a.cfg.WorkModes {
+		if a.cfg.WorkModes[i].Name == workModeName {
+			mode = &a.cfg.WorkModes[i]
+			break
+		}
+	}
+	if mode == nil {
+		for _, m := range config.DefaultWorkModes() {
+			if m.Name == workModeName {
+				mode = &m // note: this is a copy, but we only read ModelID/VisionModelID
+				break
+			}
+		}
+	}
+	if mode == nil {
+		return ""
+	}
+
+	visionRequired := len(a.imagePaths) > 0
+	if visionRequired && mode.VisionModelID != nil {
+		return *mode.VisionModelID
+	}
+	if mode.ModelID != nil {
+		return *mode.ModelID
+	}
+	return ""
+}
+
+// ApplyWorkModeConfig creates a new LLM client using the current work mode's
+// model binding and parameter overrides. Parameter priority:
+//  1. WorkMode overrides (highest)
+//  2. ModelConfig overrides (model-level)
+//  3. Global cfg.LLM defaults (lowest)
+//
+// Call this when switching modes or when RunStream needs to establish the client.
+func (a *Agent) ApplyWorkModeConfig() {
+	if a.cfg == nil {
 		return
 	}
 
+	// Step 1: Select the model
+	var mode *config.WorkMode
+	workModeName := a.cfg.LLM.WorkMode
+	if workModeName == "" {
+		workModeName = "act"
+	}
+	for i := range a.cfg.WorkModes {
+		if a.cfg.WorkModes[i].Name == workModeName {
+			mode = &a.cfg.WorkModes[i]
+			break
+		}
+	}
+	if mode == nil {
+		for i, m := range config.DefaultWorkModes() {
+			if m.Name == workModeName {
+				mode = &config.DefaultWorkModes()[i]
+				break
+			}
+		}
+	}
+
+	modelID := a.getModelIDForCall()
+	var modelCfg *config.ModelConfig
+	if modelID != "" {
+		for _, m := range a.cfg.Models {
+			if m.ID == modelID && m.Enabled {
+				modelCfg = m
+				break
+			}
+		}
+	}
+	if modelCfg == nil {
+		visionRequired := len(a.imagePaths) > 0
+		if a.modelManager != nil {
+			modelCfg = a.modelManager.GetActiveModel(visionRequired)
+		}
+		if modelCfg == nil {
+			modelCfg = config.GetActiveModelFromConfig(a.cfg)
+		}
+	}
+	if modelCfg == nil {
+		log.Warn("applyWorkModeConfig: no model config found, cannot switch")
+		return
+	}
+
+	// Step 2: Merge parameters (mode > model config > global)
 	temperature := a.cfg.LLM.Temperature
 	if modelCfg.Temperature != nil {
 		temperature = *modelCfg.Temperature
 	}
+	if mode != nil && mode.Temperature != nil {
+		temperature = *mode.Temperature
+	}
+
 	maxTokens := a.cfg.LLM.MaxTokens
 	if modelCfg.MaxTokens != nil {
 		maxTokens = *modelCfg.MaxTokens
 	}
+	if mode != nil && mode.MaxTokens != nil {
+		maxTokens = *mode.MaxTokens
+	}
+
 	thinkingEnabled := a.cfg.LLM.ThinkingEnabled
 	if modelCfg.ThinkingEnabled != nil {
 		thinkingEnabled = *modelCfg.ThinkingEnabled
 	}
+	if mode != nil && mode.ThinkingEnabled != nil {
+		thinkingEnabled = *mode.ThinkingEnabled
+	}
+
 	reasoningEffort := a.cfg.LLM.ReasoningEffort
 	if modelCfg.ReasoningEffort != nil {
 		reasoningEffort = *modelCfg.ReasoningEffort
 	}
+	if mode != nil && mode.ReasoningEffort != nil {
+		reasoningEffort = *mode.ReasoningEffort
+	}
+
 	topP := a.cfg.LLM.TopP
 	if modelCfg.TopP != nil {
 		topP = *modelCfg.TopP
 	}
+	if mode != nil && mode.TopP != nil {
+		topP = *mode.TopP
+	}
+
 	topK := a.cfg.LLM.TopK
 	if modelCfg.TopK != nil {
 		topK = *modelCfg.TopK
 	}
+	if mode != nil && mode.TopK != nil {
+		topK = *mode.TopK
+	}
+
 	repetitionPenalty := a.cfg.LLM.RepetitionPenalty
 	if modelCfg.RepetitionPenalty != nil {
 		repetitionPenalty = *modelCfg.RepetitionPenalty
 	}
+	if mode != nil && mode.RepetitionPenalty != nil {
+		repetitionPenalty = *mode.RepetitionPenalty
+	}
 
+	// Create the LLM client
 	newClient := llm.NewClient(
 		modelCfg.Endpoint, modelCfg.APIKey, modelCfg.Model,
 		temperature, maxTokens, a.cfg.LLM.LLMTimeout,
@@ -557,6 +701,7 @@ func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
 	newClient.SetRepetitionPenalty(repetitionPenalty)
 	newClient.SetTokenUsage(a.cfg.LLM.TokenUsage)
 
+	// Merge body additions: global + model custom params
 	mergedAdditions := make(map[string]string)
 	if len(a.cfg.LLM.BodyAdditions) > 0 {
 		for k, v := range a.cfg.LLM.BodyAdditions {
@@ -581,8 +726,22 @@ func (a *Agent) switchToModel(modelCfg *config.ModelConfig) {
 		newClient.SetBodyAdditions(mergedAdditions)
 	}
 
+	// Update mode-level config settings that affect agent behavior
+	if mode != nil && mode.MaxIterations != nil {
+		a.SetMaxIterations(*mode.MaxIterations)
+	}
+	if mode != nil && mode.ContextLimit != nil {
+		if a.cfg != nil {
+			a.cfg.LLM.ContextLimit = *mode.ContextLimit
+		}
+	}
+	if mode != nil && mode.ToolCallMode != nil {
+		a.SetToolCallMode(*mode.ToolCallMode)
+	}
+
 	a.SetLLMClient(newClient)
-	log.Info("Switched to model: %s (endpoint=%s, vision=%v)", modelCfg.Model, modelCfg.Endpoint, modelCfg.Capabilities.Vision)
+	log.Info("applyWorkModeConfig: switched to model=%s, temperature=%.2f, maxTokens=%d, vision=%v (mode=%s)",
+		modelCfg.Model, temperature, maxTokens, modelCfg.Capabilities.Vision, workModeName)
 }
 
 func (a *Agent) getTaskPlanText() string {

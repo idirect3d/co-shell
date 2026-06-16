@@ -465,6 +465,18 @@
 - [x] FIX-230 修复 .set 中 description 不跟随当前工作模式的问题 + 修复 memory_search Usage 与参数不一致的问题 [BUILD-239]
 - [x] FEATURE-230 循环检测温度自动调节：当检测到 LLM 输出循环时（threshold=3，原5），自动调整模型温度以打破死循环。使用振荡策略——温度按上升步长递增直到达到上限，然后按下降步长递减直到达到下限，循环往复。上升/下降步长可分别配置（默认 0.05/0.07），溢出部分自动累加到下一方向。新增 `.set loop-temp-*` 配置项（loop-temp-enabled/step-up/step-down/max=1.0/min=0.1）。[BUILD-240]
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
+- [x] FEATURE-231 模式专属模型配置与参数管理：每种工作模式可绑定独立模型（文本/视觉分开），并设置个性化的 LLM 参数覆盖（temperature/max_tokens/top_p/top_k/repetition_penalty/thinking/reasoning_effort/max_iterations/context_limit/tool_call_mode）。[BUILD-241]
+  - [x] 扩展 WorkMode 数据结构（ModelID/VisionModelID/参数覆盖字段）
+  - [x] 新增 Agent.ApplyWorkModeConfig() 方法统一模型选择和参数合并
+  - [x] 模式切换时自动应用绑定模型
+  - [x] 新增 `.mode` 向导式交互界面（一级菜单显示所有模式和模型、二级菜单编辑详情）
+  - [x] 新增 `.mode model` 子命令绑定/解绑模型（交互式编号选择模型）
+  - [x] 新增 `.mode param` 子命令管理参数覆盖
+  - [x] `.model edit` 子命令编辑现有模型参数
+  - [x] 修复端点版本号后缀检测（硬编码 /v1 改为正则 /v\d+$）
+  - [x] 修复向导回退导航（按 0 返回上一步时保留已填值）
+  - [x] 模型绑定向导显示实际模型列表供编号选择而非手动输入 ID
+  - [x] 内建模式默认温度（act=0.6, plan=0.5, research=0.7）
 - [x] FEATURE-106 实现history命令翻页：支持通过上下键浏览、.history last/first 命令查看、编号重新执行历史命令，数据持久化到 bbolt [BUILD-68]
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
