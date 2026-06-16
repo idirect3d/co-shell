@@ -484,6 +484,7 @@
   - [x] 修复向导回退导航（按 0 返回上一步时保留已填值）
   - [x] 模型绑定向导显示实际模型列表供编号选择而非手动输入 ID
   - [x] 内建模式默认温度（act=0.6, plan=0.5, research=0.7）
+- [x] FIX-234 修复 get_memory_slice / delete_memory / memory_search 工具在 raw terminal 下输出只有换行没有回车的问题：agent/memory_tools.go 中 3 处使用 `fmt.Println(...)` 在 enhanced mode raw terminal 下缺少 `\r` 导致输出错位，替换为 `a.defaultIO().Println(...)` 通过 UserIO 接口正确处理 `\r\n` 转换。[BUILD-244]
 - [x] FEATURE-106 实现history命令翻页：支持通过上下键浏览、.history last/first 命令查看、编号重新执行历史命令，数据持久化到 bbolt [BUILD-68]
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。

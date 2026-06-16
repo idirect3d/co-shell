@@ -53,7 +53,7 @@ func (a *Agent) getMemorySliceTool(ctx context.Context, args map[string]interfac
 	}
 
 	formatted := memory.FormatHistorySlice(entries)
-	fmt.Println(formatted)
+	a.defaultIO().Println(formatted)
 	return formatted, nil
 }
 
@@ -76,7 +76,7 @@ func (a *Agent) deleteMemoryTool(ctx context.Context, args map[string]interface{
 	}
 
 	result := fmt.Sprintf("✅ 已删除最近 %d 条记忆（从倒数第 %d 条到倒数第 %d 条）", int(lastFrom)-int(lastTo)+1, int(lastFrom), int(lastTo))
-	fmt.Println(result)
+	a.defaultIO().Println(result)
 	return result, nil
 }
 
@@ -125,6 +125,6 @@ func (a *Agent) memorySearchTool(ctx context.Context, args map[string]interface{
 		maxContentLen = a.cfg.LLM.MemorySearchMaxContentLen
 	}
 	formatted := memory.FormatSearchResults(results, maxContentLen)
-	fmt.Println(formatted)
+	a.defaultIO().Println(formatted)
 	return formatted, nil
 }
