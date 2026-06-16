@@ -1066,8 +1066,16 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 	}
 
 	// Get options (optional)
+	// Support both "options" (OpenAI mode / direct JSON) and "item" (XML mode,
+	// where parseXMLChildrenToJSON converts <item> elements to a "item"-keyed array).
 	var options []string
 	if opts, ok := args["options"].([]interface{}); ok {
+		for _, opt := range opts {
+			if optStr, ok := opt.(string); ok {
+				options = append(options, optStr)
+			}
+		}
+	} else if opts, ok := args["item"].([]interface{}); ok {
 		for _, opt := range opts {
 			if optStr, ok := opt.(string); ok {
 				options = append(options, optStr)
@@ -1076,40 +1084,76 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 	}
 
 	io := a.defaultIO()
+	cancelIdx := len(options) + 1 // cancel is always the last displayed option
 
-	// Display the question
-	io.Println()
-	io.Printf("❓ %s\n", question)
-
-	if len(options) > 0 {
+	for {
+		// Display the question
 		io.Println()
-		io.Println("  可选回复:")
-		for i, opt := range options {
-			io.Printf("    [%d] %s\n", i+1, opt)
+		io.Printf("❓ %s\n", question)
+
+		if len(options) > 0 {
+			io.Println()
+			io.Println("  可选回复:")
+			for i, opt := range options {
+				io.Printf("    [%d] %s\n", i+1, opt)
+			}
+			io.Printf("    [%d] 取消\n", cancelIdx)
+			io.Println()
 		}
-		io.Println()
-	}
 
-	io.Printf("  请输入回复: ")
+		io.Printf("  请输入回复: ")
 
-	// Read user input via UserIO
-	input, err := io.ReadLine()
-	if err != nil {
-		return "", fmt.Errorf("failed to read user input: %w", err)
-	}
-	input = strings.TrimSpace(input)
-
-	// If options provided and user entered a number, return the selected option
-	if len(options) > 0 && input != "" {
-		if idx, err := strconv.Atoi(input); err == nil && idx >= 1 && idx <= len(options) {
-			selected := options[idx-1]
-			io.Printf("  ✅ 已选择: %s\n", selected)
-			return selected, nil
+		// Read user input via UserIO
+		input, err := io.ReadLine()
+		if err != nil {
+			return "", fmt.Errorf("failed to read user input: %w", err)
 		}
-	}
+		input = strings.TrimSpace(input)
 
-	// Return the user's input as-is
-	return input, nil
+		// Empty input — if there are options with a cancel button, prompt to re-choose.
+		// If no options (just a question), accept empty input and send it to the LLM.
+		if input == "" {
+			if len(options) > 0 {
+				io.Println("  输入不能为空，请重新选择。")
+				continue
+			}
+			return "", nil
+		}
+
+		// Parse the first word/token as a potential option number
+		fields := strings.Fields(input)
+		firstToken := fields[0]
+
+		if idx, err := strconv.Atoi(firstToken); err == nil {
+			if len(options) > 0 {
+				if idx == cancelIdx {
+					// User chose cancel — exit current iteration without sending to LLM
+					io.Println("  已取消。")
+					return "", fmt.Errorf("CANCEL_AGENT")
+				}
+				if idx >= 1 && idx <= len(options) {
+					selected := options[idx-1]
+					// Check for additional user input after the option number
+					remaining := strings.TrimSpace(input[len(firstToken):])
+					if remaining != "" {
+						io.Printf("  ✅ 已选择: %s\n", selected)
+						io.Printf("  📝 补充说明: %s\n", remaining)
+						return fmt.Sprintf("%s（用户补充: %s）", selected, remaining), nil
+					}
+					io.Printf("  ✅ 已选择: %s\n", selected)
+					return selected, nil
+				}
+				// Valid number but out of range — prompt user to re-choose
+				io.Printf("  无效的选项编号 %d，请重新选择。\n", idx)
+				continue
+			}
+			// No options provided — send the number as raw input to LLM
+			return input, nil
+		}
+
+		// Input doesn't start with a valid number — send raw input to LLM
+		return input, nil
+	}
 }
 
 // attemptCompletionTool presents the final result to the user, optionally executing a demo command.

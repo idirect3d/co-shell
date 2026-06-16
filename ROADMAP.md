@@ -466,6 +466,12 @@
 - [x] FEATURE-230 循环检测温度自动调节：当检测到 LLM 输出循环时（threshold=3，原5），自动调整模型温度以打破死循环。使用振荡策略——温度按上升步长递增直到达到上限，然后按下降步长递减直到达到下限，循环往复。上升/下降步长可分别配置（默认 0.05/0.07），溢出部分自动累加到下一方向。新增 `.set loop-temp-*` 配置项（loop-temp-enabled/step-up/step-down/max=1.0/min=0.1）。[BUILD-240]
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [x] FIX-232 修复 autoCompleteEndpoint 在非404错误下错误追加 /v1 后缀的问题：autoCompleteEndpoint 以无 API Key 调用 ListModels 时，把 401/403（端点正确但需认证）也视为 "连通性OK" 从而错误地接受带 /v1 的 URL。修复为：先试裸URL，仅404时追加 /v1；同时在 fetchModelSuggestions 带 API Key 后若 ListModels 失败且未含 /vN 后缀时再试一次 +/v1，/vN 后缀的 URL 不再追加 /v。[BUILD-242]
+- [x] FIX-233 修复 ask_followup_question 工具在 XML 模式下选项不显示的问题：
+  - 选项在 XML 模式下因 parseXMLChildrenToJSON 将 `<item>` 解析为 `{"item": [...]}` 而非 `{"options": [...]}` 而被忽略
+  - 修复 askFollowupQuestionTool 增加对 `args["item"]` 的兼容检查
+  - 重写交互逻辑：增加取消选项、序号选择+补充说明、无效输入重试
+  - 修复中英文 Usage 示例用 `<options>` 包裹 `<item>`，引导 LLM 生成正确格式
+  - 验证中英文 66 个 i18n 系统提示 key 完全一致无缺失 [BUILD-243]
 - [x] FEATURE-231 模式专属模型配置与参数管理：每种工作模式可绑定独立模型（文本/视觉分开），并设置个性化的 LLM 参数覆盖（temperature/max_tokens/top_p/top_k/repetition_penalty/thinking/reasoning_effort/max_iterations/context_limit/tool_call_mode）。[BUILD-241]
   - [x] 扩展 WorkMode 数据结构（ModelID/VisionModelID/参数覆盖字段）
   - [x] 新增 Agent.ApplyWorkModeConfig() 方法统一模型选择和参数合并
