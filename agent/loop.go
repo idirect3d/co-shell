@@ -148,6 +148,11 @@ type Agent struct {
 	loopDetectOn   bool          // whether loop detection is enabled for current request
 	loopDetectCrit bool          // set to true when loop intervention occurs
 
+	// Loop temperature controller (FEATURE-230)
+	// Automatically adjusts LLM temperature when a loop is detected.
+	// Re-initialized at the start of each RunStream call.
+	loopTempCtrl *LoopTempController
+
 	// ToolCallModeMgr manages tool call mode (openai/xml/custom)
 	toolCallModeMgr *ToolCallModeMgr
 

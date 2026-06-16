@@ -655,6 +655,59 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 			return i18n.TF(i18n.KeySettingsUpdated, "error-max-type-count", "100")
 		}},
 		onOffParam(&h.cfg.LLM.LoopDetectEnabled, "loop-detect-enabled"),
+		onOffParam(&h.cfg.LLM.LoopTempEnabled, "loop-temp-enabled"),
+		{Name: "loop-temp-step-up", CurrentValue: func() string {
+			return strconv.FormatFloat(h.cfg.LLM.LoopTempStepUp, 'f', 2, 64)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.ParseFloat(v, 64)
+			if err != nil || n <= 0 || n > 1.0 {
+				return "", fmt.Errorf("请输入 0.01~1.0 之间的数值")
+			}
+			h.cfg.LLM.LoopTempStepUp = n
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-up", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.LoopTempStepUp = 0.05
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-up", "0.05")
+		}},
+		{Name: "loop-temp-step-down", CurrentValue: func() string {
+			return strconv.FormatFloat(h.cfg.LLM.LoopTempStepDown, 'f', 2, 64)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.ParseFloat(v, 64)
+			if err != nil || n <= 0 || n > 1.0 {
+				return "", fmt.Errorf("请输入 0.01~1.0 之间的数值")
+			}
+			h.cfg.LLM.LoopTempStepDown = n
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-down", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.LoopTempStepDown = 0.07
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-down", "0.07")
+		}},
+		{Name: "loop-temp-max", CurrentValue: func() string {
+			return strconv.FormatFloat(h.cfg.LLM.LoopTempMax, 'f', 2, 64)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.ParseFloat(v, 64)
+			if err != nil || n <= h.cfg.LLM.LoopTempMin || n > 2.0 {
+				return "", fmt.Errorf("请输入大于下限且 <= 2.0 的数值")
+			}
+			h.cfg.LLM.LoopTempMax = n
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-max", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.LoopTempMax = 1.0
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-max", "1.0")
+		}},
+		{Name: "loop-temp-min", CurrentValue: func() string {
+			return strconv.FormatFloat(h.cfg.LLM.LoopTempMin, 'f', 2, 64)
+		}, SetValue: func(v string) (string, error) {
+			n, err := strconv.ParseFloat(v, 64)
+			if err != nil || n >= h.cfg.LLM.LoopTempMax || n < 0 {
+				return "", fmt.Errorf("请输入小于上限且 >= 0 的数值")
+			}
+			h.cfg.LLM.LoopTempMin = n
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-min", v), nil
+		}, ResetValue: func() string {
+			h.cfg.LLM.LoopTempMin = 0.1
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-min", "0.1")
+		}},
 	}
 }
 

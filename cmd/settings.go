@@ -161,7 +161,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "confirm-tool", subcommand == "error-max-single-count",
 		subcommand == "error-max-type-count",
 		subcommand == "loop-detect-enabled", subcommand == "loop-detect-threshold",
-		subcommand == "loop-detect-min-line-len":
+		subcommand == "loop-detect-min-line-len",
+		subcommand == "loop-temp-enabled", subcommand == "loop-temp-step-up",
+		subcommand == "loop-temp-step-down", subcommand == "loop-temp-max",
+		subcommand == "loop-temp-min":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -452,6 +455,12 @@ func showSettingsHelp(cfg *config.Config) string {
 		loopDetectStatus = i18n.T(i18n.KeyOn)
 	}
 
+	// Loop temperature adjustment (FEATURE-230)
+	loopTempStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.LoopTempEnabled {
+		loopTempStatus = i18n.T(i18n.KeyOn)
+	}
+
 	// Group 4: Safety & Confirmation
 	allLines = append(allLines,
 		makeLine("confirm-tool", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
@@ -464,6 +473,12 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("loop-detect-enabled", loopDetectStatus, i18n.T(i18n.KeyCol3LoopDetectEnabled)),
 		makeLine("loop-detect-threshold", fmt.Sprintf("%d", cfg.LLM.LoopDetectThreshold), i18n.T(i18n.KeyCol3LoopDetectThreshold)),
 		makeLine("loop-detect-min-line-len", fmt.Sprintf("%d", cfg.LLM.LoopDetectMinLineLen), "最短行长度(>=5)"),
+		// Loop temperature (FEATURE-230)
+		makeLine("loop-temp-enabled", loopTempStatus, "循环温度自动调节"),
+		makeLine("loop-temp-step-up", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepUp), "循环温度上升步长"),
+		makeLine("loop-temp-step-down", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepDown), "循环温度下降步长"),
+		makeLine("loop-temp-max", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMax), "循环温度上限"),
+		makeLine("loop-temp-min", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMin), "循环温度下限"),
 	)
 
 	// Group 5: Memory & Context
@@ -529,7 +544,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)
 
 	// Group 4: Safety & Confirmation
-	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(9)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(14)...)
 
 	// Group 5: Memory & Context
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)

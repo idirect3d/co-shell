@@ -178,6 +178,99 @@ func (ld *LoopDetector) Reset() {
 	log.Debug("LoopDetector: reset line counts")
 }
 
+// LoopTempController manages automatic temperature adjustment when a loop is detected.
+// It uses an oscillating strategy: increase temperature by StepUp until reaching Max,
+// then decrease by StepDown until reaching Min, then repeat. Overflow carry-over ensures
+// no temperature value is wasted — when a step would exceed the boundary, the excess
+// amount is "bounced back" after flipping direction.
+//
+// Example (stepUp=0.05, stepDown=0.07, max=0.9, min=0.1):
+//
+//	0.50 → 0.55 → ... → 0.90 (hit max, flip ↓) → 0.85 → 0.78 → ... → 0.10 (hit min, flip ↑) → 0.17 → ...
+//	At max: 0.90 + 0.05 = 0.95, overflow=0.05, flip ↓, new temp = 0.90 - 0.05 = 0.85
+//	At min: 0.10 - 0.07 = 0.03, overflow=-0.07, flip ↑, new temp = 0.10 + 0.07 = 0.17
+type LoopTempController struct {
+	currentTemp float64 // current effective temperature
+	direction   int     // +1 = increasing, -1 = decreasing
+	stepUp      float64 // temperature increase step
+	stepDown    float64 // temperature decrease step
+	maxTemp     float64 // upper bound
+	minTemp     float64 // lower bound
+}
+
+// NewLoopTempController creates a new temperature controller with the given parameters.
+// initialTemp is the user-configured temperature value.
+func NewLoopTempController(initialTemp, stepUp, stepDown, maxTemp, minTemp float64) *LoopTempController {
+	if stepUp <= 0 {
+		stepUp = 0.05
+	}
+	if stepDown <= 0 {
+		stepDown = 0.07
+	}
+	if maxTemp <= minTemp {
+		maxTemp = 0.9
+		minTemp = 0.1
+	}
+	if initialTemp < minTemp {
+		initialTemp = minTemp
+	}
+	if initialTemp > maxTemp {
+		initialTemp = maxTemp
+	}
+
+	return &LoopTempController{
+		currentTemp: initialTemp,
+		direction:   1, // start by increasing
+		stepUp:      stepUp,
+		stepDown:    stepDown,
+		maxTemp:     maxTemp,
+		minTemp:     minTemp,
+	}
+}
+
+// Apply calculates the next temperature value using the oscillating strategy
+// with overflow carry-over. Returns the new temperature and whether it changed.
+func (ltc *LoopTempController) Apply() (newTemp float64, changed bool) {
+	step := ltc.stepUp
+	if ltc.direction < 0 {
+		step = ltc.stepDown
+	}
+
+	candidate := ltc.currentTemp + float64(ltc.direction)*step
+
+	// Check overflow beyond max
+	if ltc.direction > 0 && candidate > ltc.maxTemp {
+		overflow := candidate - ltc.maxTemp
+		ltc.direction = -1 // flip to decreasing
+		candidate = ltc.maxTemp - overflow
+		if candidate < ltc.minTemp {
+			candidate = ltc.minTemp
+		}
+	}
+
+	// Check overflow beyond min
+	if ltc.direction < 0 && candidate < ltc.minTemp {
+		overflow := ltc.minTemp - candidate
+		ltc.direction = 1 // flip to increasing
+		candidate = ltc.minTemp + overflow
+		if candidate > ltc.maxTemp {
+			candidate = ltc.maxTemp
+		}
+	}
+
+	if candidate == ltc.currentTemp {
+		return candidate, false
+	}
+
+	ltc.currentTemp = candidate
+	return candidate, true
+}
+
+// Temperature returns the current temperature value.
+func (ltc *LoopTempController) Temperature() float64 {
+	return ltc.currentTemp
+}
+
 // truncateString truncates a string to maxLen characters.
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {

@@ -241,6 +241,104 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop detect min line length set to %d", n)
 		return fmt.Sprintf("✅ 循环检测最短行长度已设置为: %d", n), nil
 
+	case "loop-temp-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.LoopTempEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("循环温度调节: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.LoopTempEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.LoopTempEnabled = false
+		default:
+			return "", fmt.Errorf("使用方法: .set loop-temp-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.LoopTempEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Loop temp enabled set to %s", status)
+		return fmt.Sprintf("✅ 循环温度调节已设置为: %s", status), nil
+
+	case "loop-temp-step-up":
+		if len(args) < 2 {
+			return fmt.Sprintf("循环温度上升步长: %.2f", h.cfg.LLM.LoopTempStepUp), nil
+		}
+		v, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if v <= 0 || v > 1.0 {
+			return "", fmt.Errorf("上升步长必须在 0.01 ~ 1.0 之间")
+		}
+		h.cfg.LLM.LoopTempStepUp = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop temp step up set to %.2f", v)
+		return fmt.Sprintf("✅ 循环温度上升步长已设置为: %.2f", v), nil
+
+	case "loop-temp-step-down":
+		if len(args) < 2 {
+			return fmt.Sprintf("循环温度下降步长: %.2f", h.cfg.LLM.LoopTempStepDown), nil
+		}
+		v, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if v <= 0 || v > 1.0 {
+			return "", fmt.Errorf("下降步长必须在 0.01 ~ 1.0 之间")
+		}
+		h.cfg.LLM.LoopTempStepDown = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop temp step down set to %.2f", v)
+		return fmt.Sprintf("✅ 循环温度下降步长已设置为: %.2f", v), nil
+
+	case "loop-temp-max":
+		if len(args) < 2 {
+			return fmt.Sprintf("循环温度上限: %.2f", h.cfg.LLM.LoopTempMax), nil
+		}
+		v, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if v <= h.cfg.LLM.LoopTempMin || v > 2.0 {
+			return "", fmt.Errorf("温度上限必须大于下限且 <= 2.0")
+		}
+		h.cfg.LLM.LoopTempMax = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop temp max set to %.2f", v)
+		return fmt.Sprintf("✅ 循环温度上限已设置为: %.2f", v), nil
+
+	case "loop-temp-min":
+		if len(args) < 2 {
+			return fmt.Sprintf("循环温度下限: %.2f", h.cfg.LLM.LoopTempMin), nil
+		}
+		v, err := strconv.ParseFloat(args[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		if v >= h.cfg.LLM.LoopTempMax || v < 0 {
+			return "", fmt.Errorf("温度下限必须小于上限且 >= 0")
+		}
+		h.cfg.LLM.LoopTempMin = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop temp min set to %.2f", v)
+		return fmt.Sprintf("✅ 循环温度下限已设置为: %.2f", v), nil
+
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)
 	}
