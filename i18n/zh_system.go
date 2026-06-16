@@ -501,9 +501,11 @@ Parameters:
 Usage:
 <ask_followup_question>
   <question>您希望使用哪种数据库？</question>
-  <item>MySQL</item>
-  <item>PostgreSQL</item>
-  <item>SQLite</item>
+  <options>
+    <item>MySQL</item>
+    <item>PostgreSQL</item>
+    <item>SQLite</item>
+  </options>
 </ask_followup_question>`
 
 	zhMessages[KeyToolUsageAdjustContextStart] = `## adjust_context_start
