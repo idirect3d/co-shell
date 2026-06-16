@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -170,10 +170,14 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 	switch name {
 	case "Identity":
 		text := loadSectionText(env.cwd, modeName, "IDENTITY", func() string {
-			// Plan mode has its own built-in Identity prompt
 			if modeName == "plan" {
 				if planIdentity := i18n.T(i18n.KeySystemPromptIdentityPlan); planIdentity != "" && planIdentity != i18n.KeySystemPromptIdentityPlan {
 					return planIdentity
+				}
+			}
+			if modeName == "research" {
+				if researchIdentity := i18n.T(i18n.KeySystemPromptIdentityResearch); researchIdentity != "" && researchIdentity != i18n.KeySystemPromptIdentityResearch {
+					return researchIdentity
 				}
 			}
 			return i18n.T(i18n.KeySystemPromptIdentity)
@@ -242,6 +246,30 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		})
 		return buildSectionWithPlaceholders(text, env)
 
+	case "ToolExamples":
+		text := loadSectionText(env.cwd, modeName, "TOOL_EXAMPLES", func() string {
+			return i18n.T(i18n.KeySystemPromptXMLExamples)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "TaskProgress":
+		text := loadSectionText(env.cwd, modeName, "TASK_PROGRESS", func() string {
+			return i18n.T(i18n.KeySystemPromptXMLTaskProgress)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "EditingFiles":
+		text := loadSectionText(env.cwd, modeName, "EDITING_FILES", func() string {
+			return i18n.T(i18n.KeySystemPromptEditingFiles)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
+	case "BrowserUsage":
+		text := loadSectionText(env.cwd, modeName, "BROWSER_USAGE", func() string {
+			return i18n.T(i18n.KeySystemPromptBrowserUsage)
+		})
+		return buildSectionWithPlaceholders(text, env)
+
 	default:
 		// Custom user-defined section: try mode/{modeName}/{name}.md, then {name}.md,
 		// then Content from PromptSection, then i18n fallback.
@@ -269,11 +297,11 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 // The cfg parameter provides work mode configuration (can be nil, uses default order).
 // shellEnabled: when true, uses Shell-session-specific prompts (no execute_command).
 //
-// The prompt is assembled from the sections defined by the current work mode (cfg.LLM.WorkMode),
-// or uses the default 7-section order if no work mode is configured.
-//
 // Named placeholders (e.g. {AGENT_NAME}, {CWD}, {TASK}) are resolved for all sections
 // regardless of source (external file or i18n).
+//
+// Each built-in section is separated by the section separator (i18n KeySectionSeparator),
+// but only between non-empty sections.
 func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
 	env := &promptEnv{}
 	env.cwd, _ = os.Getwd()
@@ -312,9 +340,16 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 
 	// Get section names from work mode config (or default order)
 	sectionNames := getWorkModeSectionNames(cfg, "")
+	separator := i18n.T(i18n.KeySectionSeparator)
 	var sections []string
 	for _, name := range sectionNames {
 		section := buildNamedSection(name, env, cfg, shellEnabled, toolUsageText)
+		if section == "" {
+			continue
+		}
+		if len(sections) > 0 {
+			sections = append(sections, separator)
+		}
 		sections = append(sections, section)
 	}
 	return strings.Join(sections, "")

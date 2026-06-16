@@ -465,6 +465,10 @@ func DefaultBuiltInSections() []string {
 	return []string{
 		"Identity",
 		"ToolUsage",
+		"ToolExamples",
+		"TaskProgress",
+		"EditingFiles",
+		"BrowserUsage",
 		"ResultMode",
 		"Capabilities",
 		"Rules",
@@ -488,6 +492,11 @@ func DefaultWorkModes() []WorkMode {
 			Sections:    DefaultPlanSections(),
 			ToolModes:   DefaultPlanToolModes(),
 		},
+		{
+			Name:        "research",
+			Description: "调研模式 - 搜索、查阅资料、收集信息、输出研究报告",
+			Sections:    DefaultBuiltInSections(),
+		},
 	}
 }
 
@@ -498,7 +507,7 @@ func DefaultPlanSections() []string {
 		"ToolUsage",
 		"Capabilities",
 		"Rules",
-		"EditingFiles",
+		"TaskProgress",
 		"Objective",
 	}
 }

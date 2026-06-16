@@ -389,37 +389,20 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 
 // interactiveEdit allows interactive reordering of sections for a mode.
 func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
-	var mode *config.WorkMode
+	var modeName string
 	if len(args) > 0 {
-		for i := range h.cfg.WorkModes {
-			if h.cfg.WorkModes[i].Name == args[0] {
-				mode = &h.cfg.WorkModes[i]
-				break
-			}
-		}
-		if mode == nil {
-			return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
-		}
+		modeName = args[0]
 	} else {
 		selected, err := h.selectModeByNumber("选择要编辑的工作模式:")
 		if err != nil {
 			return "", err
 		}
-		// Ensure default mode exists in config before looking it up
-		if len(h.cfg.WorkModes) == 0 {
-			// First edit of default mode: import it into config
-			h.cfg.WorkModes = config.DefaultWorkModes()
-		}
-		// Find the actual pointer
-		for i := range h.cfg.WorkModes {
-			if h.cfg.WorkModes[i].Name == selected.Name {
-				mode = &h.cfg.WorkModes[i]
-				break
-			}
-		}
-		if mode == nil {
-			return "", fmt.Errorf("cannot find mode")
-		}
+		modeName = selected.Name
+	}
+	// Use findOrCreateMode to ensure the mode exists in config
+	mode := h.findOrCreateMode(modeName)
+	if mode == nil {
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
 	}
 
 	// Show current sections and allow reordering
