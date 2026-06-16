@@ -77,11 +77,8 @@ func stripSingleEnvelope(content string) string {
 // called one of these, the task plan content is already in the tool result message
 // and should not be duplicated in <environment_details>.
 var taskPlanTools = map[string]bool{
-	"create_task_plan":  true,
-	"update_task_step":  true,
-	"insert_task_steps": true,
-	"remove_task_steps": true,
-	"view_task_plan":    true,
+	"track_task_progress": true,
+	"view_task_plan":      true,
 }
 
 // isLastToolTaskPlan checks whether the most recent tool call in a.messages is one
