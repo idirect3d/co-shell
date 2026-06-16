@@ -137,7 +137,14 @@ func (h *PlanHandler) handleView() (string, error) {
 }
 
 func (h *PlanHandler) handleCreate(title string, steps []string) (string, error) {
-	plan, err := h.planMgr.Create(title, "", steps)
+	stepInputs := make([]taskplan.StepInput, len(steps))
+	for i, s := range steps {
+		stepInputs[i] = taskplan.StepInput{
+			Description: s,
+			Status:      "[ ]",
+		}
+	}
+	plan, err := h.planMgr.UpdateSteps(title, "", stepInputs)
 	if err != nil {
 		return "", fmt.Errorf("无法创建任务计划: %w", err)
 	}
@@ -145,7 +152,46 @@ func (h *PlanHandler) handleCreate(title string, steps []string) (string, error)
 }
 
 func (h *PlanHandler) handleInsert(afterStepID int, steps []string) (string, error) {
-	plan, err := h.planMgr.InsertStepsAfter(afterStepID, steps)
+	// Get current plan, insert new steps after afterStepID, then push entire state back
+	plan, err := h.planMgr.GetCurrent()
+	if err != nil || plan == nil {
+		return "", fmt.Errorf("当前没有任务计划")
+	}
+
+	// Build new steps: keep steps up to afterStepID, add new ones, then the rest
+	stepInputs := make([]taskplan.StepInput, 0, len(plan.Steps)+len(steps))
+	for _, s := range plan.Steps {
+		stepInputs = append(stepInputs, taskplan.StepInput{
+			Description: s.Description,
+			Status:      string(s.Status),
+		})
+		if s.ID == afterStepID {
+			for _, newStep := range steps {
+				stepInputs = append(stepInputs, taskplan.StepInput{
+					Description: newStep,
+					Status:      "[ ]",
+				})
+			}
+		}
+	}
+	// If afterStepID is 0, insert at beginning
+	if afterStepID == 0 {
+		stepInputs = make([]taskplan.StepInput, 0, len(plan.Steps)+len(steps))
+		for _, newStep := range steps {
+			stepInputs = append(stepInputs, taskplan.StepInput{
+				Description: newStep,
+				Status:      "[ ]",
+			})
+		}
+		for _, s := range plan.Steps {
+			stepInputs = append(stepInputs, taskplan.StepInput{
+				Description: s.Description,
+				Status:      string(s.Status),
+			})
+		}
+	}
+
+	plan, err = h.planMgr.UpdateSteps("", "", stepInputs)
 	if err != nil {
 		return "", fmt.Errorf("无法插入步骤: %w", err)
 	}
@@ -153,7 +199,24 @@ func (h *PlanHandler) handleInsert(afterStepID int, steps []string) (string, err
 }
 
 func (h *PlanHandler) handleRemove(from, to int) (string, error) {
-	plan, err := h.planMgr.RemoveSteps(from, to)
+	plan, err := h.planMgr.GetCurrent()
+	if err != nil || plan == nil {
+		return "", fmt.Errorf("当前没有任务计划")
+	}
+
+	stepInputs := make([]taskplan.StepInput, 0)
+	for i, s := range plan.Steps {
+		idx := i + 1 // 1-based
+		if idx >= from && idx <= to {
+			continue // skip removed steps
+		}
+		stepInputs = append(stepInputs, taskplan.StepInput{
+			Description: s.Description,
+			Status:      string(s.Status),
+		})
+	}
+
+	plan, err = h.planMgr.UpdateSteps("", "", stepInputs)
 	if err != nil {
 		return "", fmt.Errorf("无法删除步骤: %w", err)
 	}
@@ -161,9 +224,36 @@ func (h *PlanHandler) handleRemove(from, to int) (string, error) {
 }
 
 func (h *PlanHandler) handleUpdate(stepID int, status taskplan.TaskStatus, note string) (string, error) {
-	plan, err := h.planMgr.UpdateStepStatus(stepID, status, note)
+	plan, err := h.planMgr.GetCurrent()
+	if err != nil || plan == nil {
+		return "", fmt.Errorf("当前没有任务计划")
+	}
+
+	stepInputs := make([]taskplan.StepInput, len(plan.Steps))
+	for i, s := range plan.Steps {
+		s := s // capture
+		newStatus := string(s.Status)
+		if s.ID == stepID {
+			newStatus = string(status)
+		}
+		stepInputs[i] = taskplan.StepInput{
+			Description: s.Description,
+			Status:      newStatus,
+		}
+	}
+
+	plan, err = h.planMgr.UpdateSteps("", "", stepInputs)
 	if err != nil {
 		return "", fmt.Errorf("无法更新步骤状态: %w", err)
+	}
+	// If note is provided, update the step note directly (UpdateSteps doesn't handle notes)
+	if note != "" {
+		for i := range plan.Steps {
+			if plan.Steps[i].ID == stepID {
+				plan.Steps[i].Note = note
+				break
+			}
+		}
 	}
 	return taskplan.FormatPlan(plan), nil
 }

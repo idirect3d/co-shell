@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-01
-// Last Modified: 2026-05-01
+// Last Modified: 2026-06-17
 //
 // MIT License
 //
@@ -81,126 +81,52 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 		id, name, cron, instruction, nextRun), nil
 }
 
-// createTaskPlanTool creates a new task plan with title, description, and steps.
-func (a *Agent) createTaskPlanTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("createTaskPlanTool called: args=%v", args)
-	title, ok := args["title"].(string)
-	if !ok {
-		return "", fmt.Errorf("title argument is required")
-	}
+// trackTaskProgressTool is the unified LLM tool for recording and tracking task progress.
+// It accepts a title, description, and complete steps array (each step has description + status).
+// If no plan exists, it creates one. If a plan exists, it replaces the steps entirely.
+// If steps is empty, the current plan is archived and deleted.
+func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("trackTaskProgressTool called: args=%v", args)
 
+	title, _ := args["title"].(string)
 	description, _ := args["description"].(string)
 
 	stepsRaw, ok := args["steps"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("steps argument is required and must be an array of strings")
+		return "", fmt.Errorf("steps argument is required and must be an array of objects")
 	}
 
-	steps := make([]string, 0, len(stepsRaw))
-	for _, s := range stepsRaw {
-		stepStr, ok := s.(string)
+	steps := make([]taskplan.StepInput, 0, len(stepsRaw))
+	for i, s := range stepsRaw {
+		stepMap, ok := s.(map[string]interface{})
 		if !ok {
-			return "", fmt.Errorf("each step must be a string")
+			return "", fmt.Errorf("步骤 #%d: 每个步骤必须是一个对象，包含 description 和 status 字段", i+1)
 		}
-		steps = append(steps, stepStr)
-	}
 
-	plan, err := a.taskPlanMgr.Create(title, description, steps)
-	if err != nil {
-		return "", fmt.Errorf("cannot create task plan: %w", err)
-	}
+		desc, _ := stepMap["description"].(string)
+		status, _ := stepMap["status"].(string)
 
-	formatted := taskplan.FormatPlan(plan)
-	a.defaultIO().Println(formatted)
-
-	// Set flag so agent loop adjusts messagePointer after tool messages are appended
-	a.mu.Lock()
-	a.needAdjustPointer = true
-	a.mu.Unlock()
-
-	return formatted, nil
-}
-
-// updateTaskStepTool updates the status of a specific step in the current task plan.
-func (a *Agent) updateTaskStepTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("updateTaskStepTool called: args=%v", args)
-	stepID, ok := args["step_id"].(float64)
-	if !ok {
-		return "", fmt.Errorf("step_id argument is required")
-	}
-
-	statusStr, ok := args["status"].(string)
-	if !ok {
-		return "", fmt.Errorf("status argument is required")
-	}
-
-	note, _ := args["note"].(string)
-
-	status := taskplan.TaskStatus(statusStr)
-	plan, err := a.taskPlanMgr.UpdateStepStatus(int(stepID), status, note)
-	if err != nil {
-		return "", fmt.Errorf("cannot update step status: %w", err)
-	}
-
-	formatted := taskplan.FormatPlan(plan)
-	a.defaultIO().Println(formatted)
-	return formatted, nil
-}
-
-// insertTaskStepsTool inserts new steps after a specified step in the current task plan.
-func (a *Agent) insertTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("insertTaskStepsTool called: args=%v", args)
-	afterStep, ok := args["after_step_id"].(float64)
-	if !ok {
-		return "", fmt.Errorf("after_step_id argument is required")
-	}
-
-	newStepsRaw, ok := args["steps"].([]interface{})
-	if !ok {
-		return "", fmt.Errorf("steps argument is required")
-	}
-
-	newSteps := make([]string, 0, len(newStepsRaw))
-	for _, s := range newStepsRaw {
-		stepStr, ok := s.(string)
-		if !ok {
-			return "", fmt.Errorf("each new step must be a string")
+		if desc == "" {
+			return "", fmt.Errorf("步骤 #%d: description 字段不能为空", i+1)
 		}
-		newSteps = append(newSteps, stepStr)
+		if status == "" {
+			status = "[ ]" // default to pending
+		}
+
+		steps = append(steps, taskplan.StepInput{
+			Description: desc,
+			Status:      status,
+		})
 	}
 
-	plan, err := a.taskPlanMgr.InsertStepsAfter(int(afterStep), newSteps)
+	plan, err := a.taskPlanMgr.UpdateSteps(title, description, steps)
 	if err != nil {
-		return "", fmt.Errorf("cannot insert task steps: %w", err)
+		return "", fmt.Errorf("cannot update task progress: %w", err)
 	}
 
-	formatted := taskplan.FormatPlan(plan)
-	a.defaultIO().Println(formatted)
-
-	// Set flag so agent loop adjusts messagePointer after tool messages are appended
-	a.mu.Lock()
-	a.needAdjustPointer = true
-	a.mu.Unlock()
-
-	return formatted, nil
-}
-
-// removeTaskStepsTool removes unfinished steps from the current task plan by range.
-func (a *Agent) removeTaskStepsTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("removeTaskStepsTool called: args=%v", args)
-	fromStep, ok := args["from"].(float64)
-	if !ok {
-		return "", fmt.Errorf("from argument is required")
-	}
-
-	toStep, ok := args["to"].(float64)
-	if !ok {
-		return "", fmt.Errorf("to argument is required")
-	}
-
-	plan, err := a.taskPlanMgr.RemoveSteps(int(fromStep), int(toStep))
-	if err != nil {
-		return "", fmt.Errorf("cannot remove task steps: %w", err)
+	if plan == nil {
+		// Empty steps resulted in plan being archived and deleted
+		return "✅ 当前任务计划已归档并删除。", nil
 	}
 
 	formatted := taskplan.FormatPlan(plan)
