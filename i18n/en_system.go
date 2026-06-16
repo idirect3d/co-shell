@@ -432,13 +432,17 @@ Usage:
 	enMessages[KeyToolUsageMemorySearch] = `## memory_search
 Description: Search persistent conversation memory for messages matching keywords or conditions. Used to find specific information from historical conversations. Supports keyword search (AND logic), time filtering (since), and speaker name filtering.
 Parameters:
-- keywords (optional) Array of keywords to search for (AND logic: all keywords must match). Empty array returns all messages matching other filter conditions.
-- since (optional) Only return messages after this time (ISO 8601 format, e.g., '2026-04-01T00:00:00Z'). Empty string means no time filter.
+- keywords (optional) Array of keywords to search for (AND logic: all keywords must match). Empty array returns all messages matching other filter criteria.
+- since (optional) Only return messages after this time (ISO 8601 format, e.g. '2026-04-01T00:00:00Z'). Empty string means no time filter.
 - name (optional) Filter by speaker name (case-insensitive). Empty string means no name filter.
 Usage:
 <memory_search>
-  <item>database</item>
-  <item>performance</item>
+  <keywords>
+    <item>database</item>
+    <item>performance</item>
+  </keywords>
+  <since>2026-04-01T00:00:00Z</since>
+  <name>L.Shuang</name>
 </memory_search>`
 
 	enMessages[KeyToolUsageDeleteMemory] = `## delete_memory

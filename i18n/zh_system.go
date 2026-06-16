@@ -446,8 +446,12 @@ Parameters:
 - name (可选) 按说话者名称过滤（不区分大小写）。空字符串表示无名称过滤。
 Usage:
 <memory_search>
-  <item>数据库</item>
-  <item>性能优化</item>
+  <keywords>
+    <item>数据库</item>
+    <item>性能优化</item>
+  </keywords>
+  <since>2026-04-01T00:00:00Z</since>
+  <name>L.Shuang</name>
 </memory_search>`
 
 	zhMessages[KeyToolUsageDeleteMemory] = `## delete_memory
