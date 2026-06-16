@@ -304,10 +304,9 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
 
-	agentDescDisplay := cfg.LLM.AgentDescription
-	if agentDescDisplay == "" {
-		agentDescDisplay = i18n.T(i18n.KeyAgentDefaultDescription)
-	}
+	// Look up the current work mode's description if available;
+	// otherwise fall back to global AgentDescription.
+	agentDescDisplay := lookupWorkModeDescription(cfg, cfg.LLM.WorkMode)
 
 	// Collect all lines
 	var allLines []settingLine
@@ -539,6 +538,44 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
 
 	return sb.String()
+}
+
+// lookupWorkModeDescription returns the Identity section content for the current work mode,
+// which is the same identity text sent to the LLM (with {AGENT_NAME} populated).
+// This follows the same logic as agent.buildNamedSection("Identity", ...).
+func lookupWorkModeDescription(cfg *config.Config, modeName string) string {
+	if modeName == "" || modeName == "default" {
+		modeName = "act"
+	}
+
+	// Select identity text based on mode (mirrors agent/buildNamedSection Identity logic)
+	identityText := i18n.T(i18n.KeySystemPromptIdentity)
+	switch modeName {
+	case "plan":
+		identityText = i18n.T(i18n.KeySystemPromptIdentityPlan)
+	case "research":
+		identityText = i18n.T(i18n.KeySystemPromptIdentityResearch)
+	}
+
+	// If the identity text resolved (is not empty and not the key itself), populate
+	// placeholders and return it
+	if identityText != "" && identityText != i18n.KeySystemPromptIdentity &&
+		identityText != i18n.KeySystemPromptIdentityPlan &&
+		identityText != i18n.KeySystemPromptIdentityResearch {
+		agentName := cfg.LLM.AgentName
+		if agentName == "" {
+			agentName = "co-shell"
+		}
+		identityText = strings.ReplaceAll(identityText, "{AGENT_NAME}", agentName)
+		return identityText
+	}
+
+	// Fallback: agent description
+	agentDesc := cfg.LLM.AgentDescription
+	if agentDesc == "" {
+		agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
+	}
+	return agentDesc
 }
 
 // formatSettings formats the settings for display.
