@@ -446,12 +446,17 @@ type PromptSection struct {
 // WorkMode defines a named work mode that specifies which prompt sections
 // to include and in what order.
 type WorkMode struct {
-	// Name is the unique identifier for this work mode (e.g., "default", "coding").
+	// Name is the unique identifier for this work mode (e.g., "act", "plan").
 	Name string `json:"name"`
 	// Description provides a human-readable summary of this mode.
 	Description string `json:"description,omitempty"`
 	// Sections lists the names of PromptSection entries to assemble, in order.
 	Sections []string `json:"sections"`
+	// ToolModes stores per-tool mode settings for this work mode.
+	// Key is the tool name, "default" is the default for all tools.
+	// Value is one of: "disabled", "confirm", "auto", "custom".
+	// If nil or empty, the global DefaultToolModes() is used.
+	ToolModes map[string]string `json:"tool_modes,omitempty"`
 }
 
 // DefaultBuiltInSections returns the default list of built-in prompt section names
@@ -460,6 +465,10 @@ func DefaultBuiltInSections() []string {
 	return []string{
 		"Identity",
 		"ToolUsage",
+		"ToolExamples",
+		"TaskProgress",
+		"EditingFiles",
+		"BrowserUsage",
 		"ResultMode",
 		"Capabilities",
 		"Rules",
@@ -469,14 +478,72 @@ func DefaultBuiltInSections() []string {
 	}
 }
 
-// DefaultWorkModes returns a map of default work modes with standard configuration.
+// DefaultWorkModes returns the list of default work modes.
 func DefaultWorkModes() []WorkMode {
 	return []WorkMode{
 		{
-			Name:        "default",
-			Description: "默认工作模式，包含所有标准提示词节",
+			Name:        "act",
+			Description: "行动模式 - 可执行系统命令、修改文件、操作浏览器等所有操作",
 			Sections:    DefaultBuiltInSections(),
 		},
+		{
+			Name:        "plan",
+			Description: "规划模式 - 仅分析和规划，不执行系统命令、不修改文件",
+			Sections:    DefaultPlanSections(),
+			ToolModes:   DefaultPlanToolModes(),
+		},
+		{
+			Name:        "research",
+			Description: "调研模式 - 搜索、查阅资料、收集信息、输出研究报告",
+			Sections:    DefaultBuiltInSections(),
+		},
+	}
+}
+
+// DefaultPlanSections returns the default list of prompt sections for Plan mode.
+func DefaultPlanSections() []string {
+	return []string{
+		"Identity",
+		"ToolUsage",
+		"Capabilities",
+		"Rules",
+		"TaskProgress",
+		"Objective",
+	}
+}
+
+// DefaultPlanToolModes returns the default tool mode settings for Plan mode.
+// In plan mode, tools that execute commands or modify files are disabled by default.
+func DefaultPlanToolModes() map[string]string {
+	return map[string]string{
+		// Read-only tools - confirm is fine
+		"read_file":                  "confirm",
+		"search_files":               "confirm",
+		"list_files":                 "auto",
+		"list_code_definition_names": "auto",
+		// Planning tools
+		"create_task_plan":  "auto",
+		"update_task_step":  "auto",
+		"insert_task_steps": "auto",
+		"remove_task_steps": "auto",
+		"view_task_plan":    "auto",
+		// Memory
+		"get_memory_slice": "auto",
+		"memory_search":    "auto",
+		// User interaction
+		"ask_followup_question": "auto",
+		"attempt_completion":    "auto",
+		"adjust_context_start":  "auto",
+		// Meta
+		"update_settings":     "confirm",
+		"list_settings":       "auto",
+		"evaluate_expression": "auto",
+		// Images (readonly)
+		"add_images":    "auto",
+		"remove_images": "auto",
+		"clear_images":  "auto",
+		// Default for all other tools: disabled
+		"default": "disabled",
 	}
 }
 

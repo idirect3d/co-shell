@@ -62,9 +62,9 @@ func (a *Agent) buildTools() []llm.Tool {
 	return a.buildToolsInternal()
 }
 
-// buildToolsInternal returns the full list of available tools regardless of mode.
-// This is used for generating the XML tool usage prompt in the system prompt,
-// where we need the complete tool list even in XML mode.
+// buildToolsInternal returns the list of tools, filtered by current tool modes.
+// This is used for generating the XML tool usage prompt in the system prompt.
+// Tools marked as "disabled" in a.toolModes are excluded.
 func (a *Agent) buildToolsInternal() []llm.Tool {
 	sh := shellName()
 	var tools []llm.Tool
@@ -902,38 +902,37 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 	// Filter out disabled tools.
 	// Each disabled entry in toolModes causes that tool to be skipped.
 	// If "default" is disabled, all tools are skipped unless they have
-	// their own non-disabled mode set.
+	// their own explicit non-disabled mode set.
+	disabledDefault := false
+	disabledExplicit := make(map[string]bool)
 	for k, v := range a.toolModes {
-		if v != "disabled" {
-			continue
-		}
-		if k == "default" {
-			// Default mode is disabled: only keep tools that have their own
-			// explicit non-disabled mode.
-			filtered := make([]llm.Tool, 0, len(tools))
-			for _, tool := range tools {
-				ownMode, hasOwn := a.toolModes[tool.Name]
-				if hasOwn && ownMode != "disabled" {
-					filtered = append(filtered, tool)
-				} else if !hasOwn {
-					// No own mode set — follows default which is disabled
-					log.Debug("Tool %s is disabled (default=disabled), skipping registration", tool.Name)
-				}
+		if v == "disabled" {
+			if k == "default" {
+				disabledDefault = true
+			} else {
+				disabledExplicit[k] = true
 			}
-			tools = filtered
-		} else {
-			// Specific tool disabled
-			filtered := make([]llm.Tool, 0, len(tools))
-			for _, tool := range tools {
-				if tool.Name == k {
-					log.Debug("Tool %s is disabled, skipping registration", tool.Name)
+		}
+	}
+	if disabledDefault || len(disabledExplicit) > 0 {
+		filtered := make([]llm.Tool, 0, len(tools))
+		for _, tool := range tools {
+			if disabledExplicit[tool.Name] {
+				log.Debug("Tool %s is disabled, skipping registration", tool.Name)
+				continue
+			}
+			if disabledDefault {
+				// Default is disabled: only keep tools with explicit non-disabled mode
+				ownMode, hasOwn := a.toolModes[tool.Name]
+				if !hasOwn || ownMode == "disabled" {
+					log.Debug("Tool %s is disabled (default=disabled), skipping registration", tool.Name)
 					continue
 				}
-				filtered = append(filtered, tool)
+				// hasOwn && ownMode != "disabled" → keep
 			}
-			tools = filtered
+			filtered = append(filtered, tool)
 		}
-		break
+		tools = filtered
 	}
 
 	return tools

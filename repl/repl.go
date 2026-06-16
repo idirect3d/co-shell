@@ -208,6 +208,12 @@ func (r *REPL) Run() error {
 		if r.cfg.LLM.VisionSupport {
 			prompt = ep.VisionUserInput
 		}
+		// Insert mode name into prompt before "]>"
+		modeName := r.cfg.LLM.WorkMode
+		if modeName == "" || modeName == "default" {
+			modeName = "act"
+		}
+		prompt = strings.Replace(prompt, "]> ", "]["+modeName+"]> ", 1)
 
 		input, err := r.readLine(prompt)
 		if err != nil {
