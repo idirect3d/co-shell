@@ -489,6 +489,27 @@ type WorkMode struct {
 	// Value is one of: "disabled", "confirm", "auto", "custom".
 	// If nil or empty, the global DefaultToolModes() is used.
 	ToolModes map[string]string `json:"tool_modes,omitempty"`
+
+	// ModelID specifies the text model to use for this work mode.
+	// If nil, the globally highest-priority enabled model is used.
+	ModelID *string `json:"model_id,omitempty"`
+
+	// VisionModelID specifies the vision model to use when image input is present.
+	// If nil, falls back to ModelID (if that model supports vision), then to global.
+	VisionModelID *string `json:"vision_model_id,omitempty"`
+
+	// Per-mode parameter overrides.
+	// nil means "use global cfg.LLM default".
+	Temperature       *float64 `json:"temperature,omitempty"`
+	MaxTokens         *int     `json:"max_tokens,omitempty"`
+	TopP              *float64 `json:"top_p,omitempty"`
+	TopK              *int     `json:"top_k,omitempty"`
+	RepetitionPenalty *float64 `json:"repetition_penalty,omitempty"`
+	ThinkingEnabled   *bool    `json:"thinking_enabled,omitempty"`
+	ReasoningEffort   *string  `json:"reasoning_effort,omitempty"`
+	MaxIterations     *int     `json:"max_iterations,omitempty"`
+	ContextLimit      *int     `json:"context_limit,omitempty"`
+	ToolCallMode      *string  `json:"tool_call_mode,omitempty"`
 }
 
 // DefaultBuiltInSections returns the default list of built-in prompt section names
@@ -510,6 +531,9 @@ func DefaultBuiltInSections() []string {
 	}
 }
 
+// Float64Ptr returns a pointer to a float64 value.
+func Float64Ptr(v float64) *float64 { return &v }
+
 // DefaultWorkModes returns the list of default work modes.
 func DefaultWorkModes() []WorkMode {
 	return []WorkMode{
@@ -517,17 +541,20 @@ func DefaultWorkModes() []WorkMode {
 			Name:        "act",
 			Description: "行动模式 - 可执行系统命令、修改文件、操作浏览器等所有操作",
 			Sections:    DefaultBuiltInSections(),
+			Temperature: Float64Ptr(0.6),
 		},
 		{
 			Name:        "plan",
 			Description: "规划模式 - 仅分析和规划，不执行系统命令、不修改文件",
 			Sections:    DefaultPlanSections(),
 			ToolModes:   DefaultPlanToolModes(),
+			Temperature: Float64Ptr(0.5),
 		},
 		{
 			Name:        "research",
 			Description: "调研模式 - 搜索、查阅资料、收集信息、输出研究报告",
 			Sections:    DefaultBuiltInSections(),
+			Temperature: Float64Ptr(0.7),
 		},
 	}
 }
