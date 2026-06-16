@@ -452,11 +452,16 @@
   - `SetResultMode()` 使用 `a.mu.Lock()` 后调用 `getCurrentTaskDescription()`，该方法在无活跃任务计划时再次尝试 `a.mu.Lock()` 导致死锁
   - 修复：缩窄锁范围，`a.resultMode = mode` 赋值加锁后立即释放，system prompt 构建全程在锁外，`a.messages` 写入单独加锁
 - [x] **FEATURE-227 重写 loop_detector：改用按行计数法替换基于正则和内容块的复杂检测机制**：[BUILD-232]
-  - 删除旧的四重模式识别（时间戳/计数器/重复前缀/单词重复）和 `checkContentLoop` 滑动窗口精确匹配
-  - 新逻辑：每收到一个 chunk → 拆出完整行 → 跳过长度 < `loop_detect_min_line_len`（默认50）的短行 → `map[string]int` 行级计数 → 计数 ≥ `loop_detect_threshold`（默认5）触发
-  - 每次 LLM 迭代开始时 `Reset()` 清空计数，避免跨迭代误判
-  - 新增 `LoopDetectMinLineLen` 配置项（默认50），可过滤 `<thinking>`、XML 标签等短重复行
-  - 保留 `LoopDetectedError` 类型和 `run_stream.go` 中的干预处理逻辑不变
+- [x] **FEATURE-229 工作模式增强：新增 Plan（规划）和 Research（调研）模式，default 改名 act，模式工具限制可配置，节分隔符程序化，提示符显示模式名**：[BUILD-238]
+  - [x] 新增 Plan 模式（Identity 专用提示词、6个节、默认禁用执行/写入类工具）
+  - [x] 新增 Research 模式（Identity 专用提示词、12个节、全功能工具）
+  - [x] default 改名 act（兼容旧 config.json）
+  - [x] 提示符显示模式名 `[👀][act]>`
+  - [x] 模式切换时同步工具限制（SyncToolModes 优先读取模式特有配置）
+  - [x] `.mode <名称> tools` 子命令管理模式工具开关
+  - [x] `.set confirm-tool` 显示当前模式的有效设置
+  - [x] 系统提示词 12 节可配置（ToolExamples/TaskProgress/EditingFiles/BrowserUsage 提升为独立节）
+  - [x] 节分隔符程序化（`KeySectionSeparator` 动态追加，资源文件移除分节符）
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [x] FEATURE-106 实现history命令翻页：支持通过上下键浏览、.history last/first 命令查看、编号重新执行历史命令，数据持久化到 bbolt [BUILD-68]
 - [ ] FEATURE-45 自动更新机制（通过github）。
