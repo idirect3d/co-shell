@@ -29,6 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -411,7 +412,8 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 		if state.ModelName == "" {
 			io := h.io()
 			io.Println("\n  步骤: 模型名称")
-			modelSuggestions := h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
+			var modelSuggestions []string
+			modelSuggestions, state.Endpoint = h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
 			modelName := h.wizardPromptString("请选择或输入模型名称", modelSuggestions, "q")
 			if modelName == "__BACK__" {
 				// Go back to API key step — keep the API key value
@@ -604,26 +606,45 @@ func isIPv4(s string) bool {
 	return true
 }
 
+// hasVNSuffix checks if the endpoint URL already contains a /vN suffix (e.g. /v1, /v2).
+func hasVNSuffix(s string) bool {
+	clean := strings.TrimRight(s, "/")
+	return regexp.MustCompile(`/v\d+$`).MatchString(clean)
+}
+
+// extractHTTPStatusCode extracts HTTP status code from ListModels error message.
+// The error format is "API returned status NNN: ..." or a network error.
+// Returns 0 if the error is not an HTTP error or if err is nil.
+func extractHTTPStatusCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	errStr := err.Error()
+	var status int
+	_, scanErr := fmt.Sscanf(errStr, "API returned status %d:", &status)
+	if scanErr != nil {
+		return 0
+	}
+	return status
+}
+
 // autoCompleteEndpoint tries to fix an endpoint URL based on user input.
-// It tries multiple combinations and returns the first working endpoint, or the
-// original endpoint if all attempts fail. The function tries:
+// It tries multiple prefix strategies and returns the first working endpoint, or the
+// original endpoint if all attempts fail.
 //
-// For domain names:
-//   - https://domain
-//   - https://domain/v1
-//   - http://domain
-//   - http://domain/v1
-//
-// For IP addresses (with optional port):
-//   - http://ip:port
-//   - http://ip:port/v1
-//   - https://ip:port
-//   - https://ip:port/v1
+// Strategy:
+//  1. For each prefix candidate (domain: https→http, IP: http→https):
+//     a. Try the base URL (no /vN suffix). If 200/401/403 → success, return it.
+//     b. If 404 and URL doesn't already have /vN → try +/v1.
+//     If +/v1 returns 200/401/403 → success, return it.
+//     c. If +/v1 is also 404 → skip, try next prefix.
+//     d. Network error or other non-404 → skip, try next prefix.
+//  2. All prefixes failed → return original input unchanged.
 //
 // Returns the tested endpoint and whether it succeeded.
 func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
-	// Determine the base prefix and suffix strategies based on input type
-	var baseStrategies, suffixStrategies []string
+	// Determine the base prefix strategies based on input type
+	var baseStrategies []string
 
 	if isIPv4(rawEndpoint) || (strings.Contains(rawEndpoint, ":") && !strings.Contains(rawEndpoint, ".") || (strings.Contains(rawEndpoint, ":") && isIPv4(strings.Split(rawEndpoint, ":")[0]))) {
 		// Looks like IP address or IP:port
@@ -638,52 +659,45 @@ func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
 		baseStrategies = []string{""}
 	}
 
-	// If the endpoint already contains an API version suffix (e.g., /v1, /v2, /v3),
-	// don't try to add /v1 again. This prevents generating invalid URLs like
-	// "https://api.openai.com/v1/v1" or "https://ark.cn-beijing.volces.com/api/coding/v3/v1".
-	cleanEndpoint := rawEndpoint
-	// Strip trailing slash for consistent checking
-	for len(cleanEndpoint) > 0 && cleanEndpoint[len(cleanEndpoint)-1] == '/' {
-		cleanEndpoint = cleanEndpoint[:len(cleanEndpoint)-1]
-	}
-	versionSuffix := regexp.MustCompile(`/v\d+$`)
-	if versionSuffix.MatchString(cleanEndpoint) {
-		suffixStrategies = []string{""}
-	} else {
-		suffixStrategies = []string{"/v1", ""}
-	}
+	// Check if the URL already has a /vN suffix — if so, never try to add /v1
+	alreadyHasVNSuffix := hasVNSuffix(rawEndpoint)
 
-	// Build all candidate endpoints
-	var candidates []string
+	// Try each prefix: test base URL first, then +/v1 only if base returns 404
 	for _, base := range baseStrategies {
-		for _, suffix := range suffixStrategies {
-			candidate := base + rawEndpoint + suffix
-			// Avoid duplicates
-			found := false
-			for _, c := range candidates {
-				if c == candidate {
-					found = true
-					break
-				}
-			}
-			if !found {
-				candidates = append(candidates, candidate)
-			}
-		}
-	}
+		baseURL := base + rawEndpoint
 
-	// Try each candidate in order
-	for _, candidate := range candidates {
+		// Step a: Try the base URL (no /vN suffix added)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		client := llm.NewClient(candidate, "", "test", 0, 0, 5)
+		client := llm.NewClient(baseURL, "", "test", 0, 0, 5)
 		_, err := client.ListModels(ctx)
 		cancel()
 
-		// Success if no error or HTTP error (means connectivity OK)
-		if err == nil || strings.Contains(err.Error(), "status") || strings.Contains(err.Error(), "HTTP") {
-			log.Info("Auto-completed endpoint: %s -> %s", rawEndpoint, candidate)
-			return candidate, true
+		status := extractHTTPStatusCode(err)
+
+		if err == nil || status == http.StatusUnauthorized || status == http.StatusForbidden {
+			// 200 = connected, 401/403 = endpoint exists but needs auth
+			log.Info("Auto-completed endpoint: %s -> %s", rawEndpoint, baseURL)
+			return baseURL, true
 		}
+
+		if status == http.StatusNotFound && !alreadyHasVNSuffix {
+			// Step b: 404 on base URL, try +/v1 as a fallback
+			v1URL := strings.TrimRight(baseURL, "/") + "/v1"
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+			client2 := llm.NewClient(v1URL, "", "test", 0, 0, 5)
+			_, err2 := client2.ListModels(ctx2)
+			cancel2()
+
+			v1Status := extractHTTPStatusCode(err2)
+
+			if err2 == nil || v1Status == http.StatusUnauthorized || v1Status == http.StatusForbidden {
+				// +/v1 worked (200) or endpoint exists (401/403)
+				log.Info("Auto-completed endpoint (with /v1 fallback): %s -> %s", rawEndpoint, v1URL)
+				return v1URL, true
+			}
+			// Step c: +/v1 also 404 or network error → continue to next prefix
+		}
+		// Step d: Network error or other non-404 → continue to next prefix
 	}
 
 	log.Warn("Auto-completion failed for endpoint: %s", rawEndpoint)
@@ -712,7 +726,10 @@ func (h *ModelHandler) testEndpointConnectivity(endpoint string) {
 }
 
 // fetchModelSuggestions fetches available models from the API and combines with template defaults.
-func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *config.ModelTemplate) []string {
+// Returns the model suggestions list and the (possibly updated) endpoint URL.
+// If the initial ListModels call fails and the endpoint doesn't have a /vN suffix,
+// retries with +/v1 suffix as a fallback and updates the endpoint on success.
+func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *config.ModelTemplate) ([]string, string) {
 	io := h.io()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	client := llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
@@ -722,7 +739,36 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 	suggestions := make([]string, 0)
 	seen := make(map[string]bool)
 
-	if err != nil {
+	if err != nil && !hasVNSuffix(endpoint) {
+		// Stage 2: ListModels failed with API key — try +/v1 as a fallback
+		retryEndpoint := strings.TrimRight(endpoint, "/") + "/v1"
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 15*time.Second)
+		client2 := llm.NewClient(retryEndpoint, apiKey, "test", 0, 0, 15)
+		models2, err2 := client2.ListModels(ctx2)
+		cancel2()
+
+		if err2 == nil {
+			// +/v1 worked! Update endpoint
+			io.Printf("✅ 获取到 %d 个模型 (端点已补全: %s)\n", len(models2), retryEndpoint)
+			for _, m := range models2 {
+				if !seen[m.ID] {
+					suggestions = append(suggestions, m.ID)
+					seen[m.ID] = true
+				}
+			}
+			// Add template defaults
+			for _, m := range template.Models {
+				if !seen[m] {
+					suggestions = append(suggestions, m)
+					seen[m] = true
+				}
+			}
+			return suggestions, retryEndpoint
+		}
+		// Both original and +/v1 failed, fall through to template defaults
+		io.Printf("⚠️ 获取模型列表失败: %v\n", err)
+		io.Println("  将使用模板默认模型列表")
+	} else if err != nil {
 		io.Printf("⚠️ 获取模型列表失败: %v\n", err)
 		io.Println("  将使用模板默认模型列表")
 	} else {
@@ -740,7 +786,7 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 			seen[m] = true
 		}
 	}
-	return suggestions
+	return suggestions, endpoint
 }
 
 // wizardEnterModelParams prompts user to enter model-specific parameters.
