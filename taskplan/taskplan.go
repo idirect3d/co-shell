@@ -52,6 +52,22 @@ const (
 	StatusCancelled  TaskStatus = "cancelled"
 )
 
+// StepInput represents a step input from the LLM via track_task_progress.
+// The Description field can contain multi-line text:
+//   - The first line is the step title/summary.
+//   - Subsequent lines provide detailed content for the step.
+//
+// The Status field accepts status icons or raw strings:
+//   - "[ ]" / "pending"      — todo
+//   - "[=]" / "in_progress"   — in progress
+//   - "[X]" / "completed"     — completed
+//   - "[C]" / "cancelled"     — cancelled
+//   - "[F]" / "failed"        — failed
+type StepInput struct {
+	Description string `json:"description"`
+	Status      string `json:"status"`
+}
+
 // TaskStep represents a single step in a task plan.
 type TaskStep struct {
 	ID          int        `json:"id"`
@@ -131,222 +147,108 @@ func (m *Manager) GetCurrent() (*TaskPlan, error) {
 	return m.loadCurrent()
 }
 
-// Create creates a new task plan. If there is an existing plan with unfinished steps,
-// it returns an error. If there is an existing plan (all completed), it is archived
-// to memory before creating the new one.
-func (m *Manager) Create(title, description string, steps []string) (*TaskPlan, error) {
-	// Check for unfinished plan
-	if m.HasUnfinished() {
-		return nil, fmt.Errorf("当前还有未完成的任务计划，请先完成所有步骤或调整现有计划后再创建新计划")
-	}
-
-	// Archive existing plan to memory if it exists
-	existing, err := m.loadCurrent()
-	if err == nil && existing != nil && len(existing.Steps) > 0 {
-		if err := m.archiveToMemory(existing, false); err != nil {
-			return nil, fmt.Errorf("无法归档旧任务计划: %w", err)
+// UpdateSteps is the unified method that:
+//   - If no plan exists, creates a new one with the given title/description/steps.
+//   - If a plan exists, replaces its steps entirely with the new steps array.
+//   - If steps is empty, archives the current plan (if any) and deletes it.
+//
+// The title and description parameters set the plan-level fields. For a detailed plan,
+// description should contain the full plan context, background, constraints, etc.
+//
+// Each StepInput.Description can contain multi-line text:
+//   - The first line is the step title/summary.
+//   - Subsequent lines provide detailed content for the step.
+//
+// Each StepInput.Status supports icons: "[ ]" / "[=]" / "[X]" / "[C]" / "[F]"
+// or raw strings: "pending" / "in_progress" / "completed" / "cancelled" / "failed".
+func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*TaskPlan, error) {
+	if len(steps) == 0 {
+		// Empty steps: archive and delete current plan
+		existing, err := m.loadCurrent()
+		if err != nil {
+			return nil, fmt.Errorf("无法加载当前任务计划: %w", err)
 		}
+		if existing != nil {
+			if err := m.archiveToMemory(existing, true); err != nil {
+				log.Warn("Failed to archive cancelled plan: %v", err)
+			}
+			if err := m.store.DeleteContext(currentPlanKey); err != nil {
+				return nil, fmt.Errorf("无法删除空任务计划: %w", err)
+			}
+		}
+		return nil, nil
 	}
 
 	now := time.Now().Format("2006-01-02 15:04:05")
-	m.planCounter++
 
-	plan := &TaskPlan{
-		ID:          m.planCounter,
-		Title:       title,
-		Description: description,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	// Load existing plan
+	existing, err := m.loadCurrent()
+	if err != nil {
+		return nil, fmt.Errorf("无法加载当前任务计划: %w", err)
 	}
 
-	for i, stepDesc := range steps {
-		plan.Steps = append(plan.Steps, TaskStep{
-			ID:          i + 1,
-			Description: stepDesc,
-			Status:      StatusPending,
+	if existing == nil {
+		// No existing plan — create new one
+		m.planCounter++
+		plan := &TaskPlan{
+			ID:          m.planCounter,
+			Title:       title,
+			Description: description,
 			CreatedAt:   now,
 			UpdatedAt:   now,
-		})
-	}
+		}
 
-	// Save to store
-	if err := m.saveCurrent(plan); err != nil {
-		return nil, fmt.Errorf("无法保存任务计划: %w", err)
-	}
-
-	return plan, nil
-}
-
-// UpdateStepStatus updates the status of a specific step in the current task plan.
-func (m *Manager) UpdateStepStatus(stepID int, status TaskStatus, note string) (*TaskPlan, error) {
-	plan, err := m.loadCurrent()
-	if err != nil {
-		return nil, err
-	}
-	if plan == nil {
-		return nil, fmt.Errorf("当前没有任务计划")
-	}
-
-	now := time.Now().Format("2006-01-02 15:04:05")
-	found := false
-	for i := range plan.Steps {
-		if plan.Steps[i].ID == stepID {
-			plan.Steps[i].Status = status
-			plan.Steps[i].UpdatedAt = now
-			if note != "" {
-				plan.Steps[i].Note = note
+		for i, s := range steps {
+			status, err := ParseStatus(s.Status)
+			if err != nil {
+				return nil, fmt.Errorf("步骤 #%d 状态无效: %w", i+1, err)
 			}
-			found = true
-			break
+			plan.Steps = append(plan.Steps, TaskStep{
+				ID:          i + 1,
+				Description: s.Description,
+				Status:      status,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			})
 		}
-	}
 
-	if !found {
-		return nil, fmt.Errorf("步骤 #%d 在当前任务计划中未找到", stepID)
-	}
-
-	plan.UpdatedAt = now
-
-	// Persist
-	if err := m.saveCurrent(plan); err != nil {
-		return nil, fmt.Errorf("无法保存任务计划: %w", err)
-	}
-
-	return plan, nil
-}
-
-// RemoveSteps removes steps from the current task plan by step ID range (from, to inclusive).
-// Steps before and including from-1 are preserved. Steps from `from` to `to` are removed.
-// Steps after `to` are renumbered.
-// IMPORTANT: no completed steps can be removed.
-// Returns an error if any step in the range is completed.
-// If all steps are removed, the plan is auto-archived to memory (if enabled) and deleted,
-// allowing the LLM to create a new plan.
-func (m *Manager) RemoveSteps(from, to int) (*TaskPlan, error) {
-	plan, err := m.loadCurrent()
-	if err != nil {
-		return nil, err
-	}
-	if plan == nil {
-		return nil, fmt.Errorf("当前没有任务计划")
-	}
-
-	now := time.Now().Format("2006-01-02 15:04:05")
-
-	// Validate range
-	if from < 1 || to < from || to > len(plan.Steps) {
-		return nil, fmt.Errorf("无效的步骤范围 [%d, %d]（总步骤数: %d）", from, to, len(plan.Steps))
-	}
-
-	// Validate that no completed steps are being removed
-	for i := from - 1; i < to; i++ {
-		if plan.Steps[i].Status == StatusCompleted {
-			return nil, fmt.Errorf("无法删除已完成的步骤 #%d (%q)：已完成步骤不可修改",
-				plan.Steps[i].ID, plan.Steps[i].Description)
+		if err := m.saveCurrent(plan); err != nil {
+			return nil, fmt.Errorf("无法保存任务计划: %w", err)
 		}
-	}
 
-	// Remove steps [from-1, to)
-	plan.Steps = append(plan.Steps[:from-1], plan.Steps[to:]...)
-
-	// If all steps were removed, archive as cancelled and delete the plan
-	if len(plan.Steps) == 0 {
-		if err := m.archiveToMemory(plan, true); err != nil {
-			log.Warn("Failed to archive cancelled plan: %v", err)
-		}
-		if err := m.store.DeleteContext(currentPlanKey); err != nil {
-			return nil, fmt.Errorf("无法删除空任务计划: %w", err)
-		}
 		return plan, nil
 	}
 
-	// Re-assign sequential IDs
-	for i := range plan.Steps {
-		plan.Steps[i].ID = i + 1
+	// Existing plan — replace entirely
+	if title != "" {
+		existing.Title = title
+	}
+	if description != "" {
+		existing.Description = description
 	}
 
-	plan.UpdatedAt = now
-
-	// Persist
-	if err := m.saveCurrent(plan); err != nil {
-		return nil, fmt.Errorf("无法保存任务计划: %w", err)
-	}
-
-	return plan, nil
-}
-
-// InsertStepsAfter inserts new steps after the specified step ID in the current task plan.
-// The step ID refers to the step after which new steps will be inserted.
-// If afterStepID is 0, new steps are inserted at the beginning.
-// IMPORTANT: there must be no completed steps after the insertion point.
-// Returns an error if any completed step exists after the insertion point.
-func (m *Manager) InsertStepsAfter(afterStepID int, newStepDescriptions []string) (*TaskPlan, error) {
-	plan, err := m.loadCurrent()
-	if err != nil {
-		return nil, err
-	}
-	if plan == nil {
-		return nil, fmt.Errorf("当前没有任务计划")
-	}
-
-	now := time.Now().Format("2006-01-02 15:04:05")
-
-	// Find the insertion index
-	insertIndex := 0 // default: insert at beginning
-	if afterStepID > 0 {
-		found := false
-		for i, s := range plan.Steps {
-			if s.ID == afterStepID {
-				insertIndex = i + 1 // insert after this step
-				found = true
-				break
-			}
+	newSteps := make([]TaskStep, 0, len(steps))
+	for i, s := range steps {
+		status, err := ParseStatus(s.Status)
+		if err != nil {
+			return nil, fmt.Errorf("步骤 #%d 状态无效: %w", i+1, err)
 		}
-		if !found {
-			return nil, fmt.Errorf("步骤 #%d 在当前任务计划中未找到", afterStepID)
-		}
-	}
-
-	// Validate that there are no completed steps after the insertion point
-	for i := insertIndex; i < len(plan.Steps); i++ {
-		if plan.Steps[i].Status == StatusCompleted {
-			return nil, fmt.Errorf("无法在步骤 #%d 后插入新步骤：插入点之后的步骤 #%d (%q) 已完成，已完成步骤不可重新排序",
-				afterStepID, plan.Steps[i].ID, plan.Steps[i].Description)
-		}
-	}
-
-	// Create new step entries
-	var newSteps []TaskStep
-	for _, desc := range newStepDescriptions {
 		newSteps = append(newSteps, TaskStep{
-			Description: desc,
-			Status:      StatusPending,
+			ID:          i + 1,
+			Description: s.Description,
+			Status:      status,
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		})
 	}
+	existing.Steps = newSteps
+	existing.UpdatedAt = now
 
-	// Insert new steps at the insertion point
-	before := make([]TaskStep, insertIndex)
-	copy(before, plan.Steps[:insertIndex])
-	after := make([]TaskStep, len(plan.Steps)-insertIndex)
-	copy(after, plan.Steps[insertIndex:])
-
-	plan.Steps = append(before, append(newSteps, after...)...)
-
-	// Re-assign sequential IDs
-	for i := range plan.Steps {
-		plan.Steps[i].ID = i + 1
-	}
-
-	plan.UpdatedAt = now
-
-	// Persist
-	if err := m.saveCurrent(plan); err != nil {
+	if err := m.saveCurrent(existing); err != nil {
 		return nil, fmt.Errorf("无法保存任务计划: %w", err)
 	}
 
-	return plan, nil
+	return existing, nil
 }
 
 // archiveToMemory archives the given task plan to conversation memory.
@@ -461,6 +363,30 @@ func FormatPlan(plan *TaskPlan) string {
 	}
 
 	return sb.String()
+}
+
+// ParseStatus maps a status string to TaskStatus.
+// Accepts both status icons and raw strings for user-friendliness.
+//   - "[ ]" / "pending"      → StatusPending
+//   - "[=]" / "in_progress"  → StatusInProgress
+//   - "[X]" / "completed"    → StatusCompleted
+//   - "[C]" / "cancelled"    → StatusCancelled
+//   - "[F]" / "failed"       → StatusFailed
+func ParseStatus(status string) (TaskStatus, error) {
+	switch status {
+	case "pending", "[ ]":
+		return StatusPending, nil
+	case "in_progress", "[=]":
+		return StatusInProgress, nil
+	case "completed", "[X]":
+		return StatusCompleted, nil
+	case "cancelled", "[C]":
+		return StatusCancelled, nil
+	case "failed", "[F]":
+		return StatusFailed, nil
+	default:
+		return "", fmt.Errorf("无效的状态 '%s'：可选状态为 pending/[ ]、in_progress/[=]、completed/[X]、failed/[F]、cancelled/[C]", status)
+	}
 }
 
 // statusIcon returns an icon for the given task status.

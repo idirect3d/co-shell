@@ -424,99 +424,46 @@ Critical rules:
 	if a.planEnabled {
 		planTools := []llm.Tool{
 			{
-				Name:        "create_task_plan",
-				Description: "Create a new task plan (checklist) with a title, description, and a list of steps. Each step represents a sub-task to be completed. Use this to break down complex tasks into a structured checklist of manageable steps that can be tracked individually. The checklist should have moderate granularity: not too fine-grained (e.g., 'which character was typed'), nor too coarse (e.g., 'complete the entire project'). Each step should be a verifiable, independent unit with clear completion criteria. IMPORTANT: Only one task plan can exist at a time. If there are unfinished steps in the current plan, you cannot create a new one — you must first complete all steps or adjust the existing plan. If the current plan is fully completed, it will be automatically archived to memory before creating the new one.",
+				Name:        "track_task_progress",
+				Description: "Record task content and track progress of each step execution. Pass the complete array of steps as the desired state — the system handles creation or replacement automatically. DESCRIPTION usage: for detailed plans, write the full plan context, background, constraints, and acceptance criteria. STEP.DESCRIPTION usage: the first line is the step title/summary; subsequent lines provide detailed content. STATUS values: \"[ ]\" (pending/todo), \"[=]\" (in_progress), \"[X]\" (completed), \"[C]\" (cancelled), \"[F]\" (failed). XML example:\n<track_task_progress>\n  <title>Implement user login</title>\n  <description>Full plan with background, constraints...\n  </description>\n  <steps>\n    <item>\n      <description>Design login API\nImplement POST /auth/login endpoint</description>\n      <status>[X]</status>\n    </item>\n    <item>\n      <description>Write login form component\nUse React Hook Form + Zod validation</description>\n      <status>[=]</status>\n    </item>\n    <item>\n      <description>Write and run tests\nTest login success, failure, rate limiting</description>\n      <status>[ ]</status>\n    </item>\n  </steps>\n</track_task_progress>",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"title": map[string]interface{}{
 							"type":        "string",
-							"description": "The title of the task plan",
+							"description": "The title of the task plan. Required when creating a new plan; optional when updating.",
 						},
 						"description": map[string]interface{}{
 							"type":        "string",
-							"description": "A brief description of the overall task plan",
+							"description": "A detailed description of the task plan. For detailed plans, include the full context, background, constraints, technical approach, and acceptance criteria.",
 						},
 						"steps": map[string]interface{}{
 							"type": "array",
 							"items": map[string]interface{}{
-								"type": "string",
+								"type": "object",
+								"properties": map[string]interface{}{
+									"description": map[string]interface{}{
+										"type":        "string",
+										"description": "Step description. The first line is the step title/summary; subsequent lines provide detailed content. Can contain multi-line text for complex steps.",
+									},
+									"status": map[string]interface{}{
+										"type":        "string",
+										"enum":        []string{"[ ]", "[=]", "[X]", "[C]", "[F]", "pending", "in_progress", "completed", "cancelled", "failed"},
+										"description": "Step status: \"[ ]\" or \"pending\" for todo, \"[=]\" or \"in_progress\" for in progress, \"[X]\" or \"completed\" for completed, \"[C]\" or \"cancelled\" for cancelled, \"[F]\" or \"failed\" for failed.",
+									},
+								},
+								"required": []string{"description", "status"},
 							},
-							"description": "An array of step descriptions, each representing a sub-task",
+							"description": "Array of step objects, each with description and status. Passing the complete array sets the desired state. Empty array archives and deletes the current plan.",
 						},
 					},
-					"required": []string{"title", "steps"},
+					"required": []string{"steps"},
 				},
-				Callback: a.createTaskPlanTool,
-			},
-			{
-				Name:        "update_task_step",
-				Description: "Update the status of a specific step (checklist item) in the current task plan (checklist). Use this to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note to provide context about the status change. After completing each step, immediately call this tool to update the checklist progress.",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"step_id": map[string]interface{}{
-							"type":        "number",
-							"description": "The ID of the step to update",
-						},
-						"status": map[string]interface{}{
-							"type":        "string",
-							"enum":        []string{"pending", "in_progress", "completed", "failed", "cancelled"},
-							"description": "The new status for the step",
-						},
-						"note": map[string]interface{}{
-							"type":        "string",
-							"description": "Optional note to add context about the status change",
-						},
-					},
-					"required": []string{"step_id", "status"},
-				},
-				Callback: a.updateTaskStepTool,
-			},
-			{
-				Name:        "insert_task_steps",
-				Description: "Insert one or more new steps (checklist items) after a specified step in the current task plan (checklist). The new steps are added as pending. IMPORTANT: there must be no completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Use this when the plan needs additional steps based on new information — the checklist is dynamic and can be adjusted as needed.",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"after_step_id": map[string]interface{}{
-							"type":        "number",
-							"description": "The ID of the step after which to insert new steps. Use 0 to insert at the beginning. Example: if plan has steps 1,2,3 and after_step_id=1, new steps are inserted between step 1 and step 2.",
-						},
-						"steps": map[string]interface{}{
-							"type": "array",
-							"items": map[string]interface{}{
-								"type": "string",
-							},
-							"description": "An array of step descriptions to insert after the specified step",
-						},
-					},
-					"required": []string{"after_step_id", "steps"},
-				},
-				Callback: a.insertTaskStepsTool,
-			},
-			{
-				Name:        "remove_task_steps",
-				Description: "Remove one or more steps (checklist items) from the current task plan (checklist) by specifying a step ID range (from, to inclusive). Steps before the range are preserved, steps in the range are removed, and steps after the range are renumbered. IMPORTANT: completed steps cannot be removed. Use this to delete unnecessary or obsolete steps from a plan — the checklist is dynamic and can be adjusted as needed.",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"from": map[string]interface{}{
-							"type":        "number",
-							"description": "The starting step ID of the range to remove (inclusive)",
-						},
-						"to": map[string]interface{}{
-							"type":        "number",
-							"description": "The ending step ID of the range to remove (inclusive)",
-						},
-					},
-					"required": []string{"from", "to"},
-				},
-				Callback: a.removeTaskStepsTool,
+				Callback: a.trackTaskProgressTool,
 			},
 			{
 				Name:        "view_task_plan",
-				Description: "View the current task plan (checklist) with its progress summary, including all steps with their statuses and notes. Use this to check the current progress of the active task plan.",
+				Description: "View the current task plan (checklist) with its progress summary, including all steps with their statuses. Use this to check the current progress of the active task plan.",
 				Parameters: map[string]interface{}{
 					"type":       "object",
 					"properties": map[string]interface{}{},

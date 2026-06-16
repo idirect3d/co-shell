@@ -174,10 +174,7 @@ func DefaultToolModes() map[string]string {
 		"adjust_context_start":       "auto",
 		"launch_sub_agent":           "confirm",
 		"schedule_task":              "confirm",
-		"create_task_plan":           "auto",
-		"update_task_step":           "auto",
-		"insert_task_steps":          "auto",
-		"remove_task_steps":          "auto",
+		"track_task_progress":        "auto",
 		"view_task_plan":             "auto",
 		"get_memory_slice":           "auto",
 		"memory_search":              "auto",
@@ -781,10 +778,10 @@ func (a *Agent) formatUserMessage(instruction string, messageNo int) string {
 // 2. The first user message at or after the messagePointer (context start)
 // Returns empty string if neither is available.
 func (a *Agent) getCurrentTaskDescription() string {
-	// Priority 1: task plan title
+	// Priority 1: task plan title (even if all steps completed)
 	if a.taskPlanMgr != nil {
 		plan, err := a.taskPlanMgr.GetCurrent()
-		if err == nil && plan != nil && a.taskPlanMgr.HasUnfinished() && plan.Title != "" {
+		if err == nil && plan != nil && plan.Title != "" {
 			return plan.Title
 		}
 	}

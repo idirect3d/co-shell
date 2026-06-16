@@ -99,15 +99,9 @@ The specific tool names, parameters, and usage are defined by the API's tools pa
 
 # Tool Use Formatting
 
-Tool use is formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
+Tool use is formatted using XML-style tags. The tool name is used directly as the XML tag name, and each parameter becomes a child tag.
 
-<tool_name>
-<parameter1_name>value1</parameter1_name>
-<parameter2_name>value2</parameter2_name>
-...
-</tool_name>
-
-For example:
+For example, calling read_file:
 
 <read_file>
 <path>src/main.js</path>
@@ -148,15 +142,9 @@ For array-type parameters, use <item> tags to represent each element in the arra
 
 # Tool Use Formatting
 
-Tool use is formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
+Tool use is formatted using XML-style tags. The tool name is used directly as the XML tag name, and each parameter becomes a child tag.
 
-<tool_name>
-<parameter1_name>value1</parameter1_name>
-<parameter2_name>value2</parameter2_name>
-...
-</tool_name>
-
-For example:
+For example, calling read_file:
 
 <read_file>
 <path>src/main.js</path>
@@ -350,65 +338,46 @@ Usage:
   <instruction>Run python report.py to generate weekly report</instruction>
 </schedule_task>`
 
-	enMessages[KeyToolUsageCreateTaskPlan] = `## create_task_plan
-Description: Create a new task plan (checklist) with a title, description, and list of steps. Each step represents a sub-task. Used to break down complex tasks into a structured checklist that can be tracked individually. Granularity should be moderate: not too fine (e.g., "which character was typed") and not too coarse (e.g., "complete the entire project"). Only one task plan can exist at a time. If the current plan has incomplete steps, you must complete or adjust the existing plan first.
+	enMessages[KeyToolUsageTrackTaskProgress] = `## track_task_progress
+Description: Record task content and track progress of each step execution. Pass the complete array of steps as the desired state — the system handles creation or replacement automatically. DESCRIPTION usage: for detailed plans, write the full plan context, background, constraints, technical approach, and acceptance criteria into the description field. STEP.DESCRIPTION usage: the first line is the step title/summary; subsequent lines provide detailed content. STATUS values: "[ ]" (pending/todo), "[=]" (in_progress), "[X]" (completed), "[C]" (cancelled), "[F]" (failed). Set steps to an empty array to archive and delete the current plan.
 Parameters:
-- title (required) The title of the task plan
-- description (optional) A brief description of the overall task plan
-- steps (required) Array of step descriptions, each element represents a sub-task
+- title (required for new plan) The title of the task plan.
+- description (optional) A detailed description of the overall task plan. For detailed plans, include the full context, background, constraints, technical approach, and acceptance criteria.
+- steps (required) Array of step objects, each with description and status. Passing the complete array sets the desired state. Empty array archives and deletes the current plan.
 
   <steps>
-    <item>Step description text (required)</item>
+    <item>
+      <description>Step description (required). The first line is the step title/summary; subsequent lines provide detailed content. Supports multi-line text for complex steps.</description>
+      <status>Step status (required). Values: "[ ]" or "pending" (todo), "[=]" or "in_progress" (in progress), "[X]" or "completed" (completed), "[C]" or "cancelled" (cancelled), "[F]" or "failed" (failed).</status>
+    </item>
   </steps>
-
 Usage:
-<create_task_plan>
+<track_task_progress>
   <title>Implement user login</title>
+  <description>Complete plan: implement user login with frontend, backend, API, session management. Support email/password login, JWT auth, rate limiting.
+  </description>
   <steps>
-    <item>Design database schema</item>
-    <item>Implement login API</item>
-    <item>Create frontend login page</item>
-    <item>Integration testing</item>
+    <item>
+      <description>Design login API
+POST /auth/login accepting email + password
+Return JWT access_token (15min) and refresh_token (7 days)
+Bcrypt password verification, rate limit after 3 failures</description>
+      <status>[X]</status>
+    </item>
+    <item>
+      <description>Write login form component
+React Hook Form + Zod validation
+Email format validation, password min 8 chars
+Display server error messages</description>
+      <status>[=]</status>
+    </item>
+    <item>
+      <description>Write and run tests
+Test login success, wrong password, account lockout, token refresh</description>
+      <status>[ ]</status>
+    </item>
   </steps>
-</create_task_plan>`
-
-	enMessages[KeyToolUsageUpdateTaskStep] = `## update_task_step
-Description: Update the status of a specific step (checklist item) in the current task plan. Used to mark steps as in_progress, completed, failed, or cancelled. Optionally add a note explaining the reason for the status change. Call this tool immediately after completing each step to update progress.
-Parameters:
-- step_id (required) The ID of the step to update
-- status (required) The new status of the step: pending, in_progress, completed, failed, cancelled
-- note (optional) A note explaining the reason for the status change
-Usage:
-<update_task_step>
-  <step_id>1</step_id>
-  <status>completed</status>
-  <note>Completed database schema design including users and orders tables</note>
-</update_task_step>`
-
-	enMessages[KeyToolUsageInsertTaskSteps] = `## insert_task_steps
-Description: Insert one or more new steps after a specified step in the current task plan (checklist). New steps are added with pending status. Note: There cannot be completed steps after the insertion point. Use after_step_id=0 to insert at the beginning. Used when the plan needs additional steps based on new information.
-Parameters:
-- after_step_id (required) The step ID after which to insert new steps. Use 0 to insert at the beginning. Example: if the plan has steps 1,2,3 and after_step_id=1, new steps are inserted between step 1 and step 2.
-- steps (required) Array of step descriptions to insert
-Usage:
-<insert_task_steps>
-  <after_step_id>2</after_step_id>
-  <steps>
-    <item>Write API documentation</item>
-    <item>Add parameter validation logic</item>
-  </steps>
-</insert_task_steps>`
-
-	enMessages[KeyToolUsageRemoveTaskSteps] = `## remove_task_steps
-Description: Remove one or more steps from the current task plan (checklist) by specifying a step ID range (from to to, inclusive). Steps before the range are kept, steps within the range are removed, and steps after the range are renumbered. Note: Completed steps cannot be removed.
-Parameters:
-- from (required) The starting step ID of the range to remove (inclusive)
-- to (required) The ending step ID of the range to remove (inclusive)
-Usage:
-<remove_task_steps>
-  <from>4</from>
-  <to>6</to>
-</remove_task_steps>`
+</track_task_progress>`
 
 	enMessages[KeyToolUsageViewTaskPlan] = `## view_task_plan
 Description: View the current task plan (checklist) with its progress summary, including all steps with their statuses and notes. Used to check the current progress of the active task plan.
@@ -782,55 +751,108 @@ UPDATING TASK PROGRESS
 
 You should use task management tools to track task progress. For tasks that require multiple steps, you must create a task plan, enter the decomposed steps one by one, and dynamically maintain them during execution.
 
+There is only one tool **track_task_progress** for managing task plans: pass the complete array of steps as the desired state — the system handles creation or replacement automatically. The first line of step.description is the step title; subsequent lines are detailed content. step.status values: "[ ]" (todo), "[=]" (in_progress), "[X]" (completed), "[C]" (cancelled), "[F]" (failed).
+
 # Creating a Task Plan
 
-After receiving a task, analyze the requirements and break the task down into executable sub-steps. **If there is more than 1 step, you MUST use create_task_plan to create a plan**:
+After receiving a task, analyze the requirements and break the task down into executable sub-steps. **If there is more than 1 step, you MUST use track_task_progress to create a plan**. For detailed plans, include the full context, constraints, technical approach, and acceptance criteria in the description:
 
-<create_task_plan>
+<track_task_progress>
   <title>Implement user login</title>
-  <description>Add email/password login functionality to the user system</description>
+  <description>Full plan: add email/password login to the user system with frontend, backend, API, session management. JWT auth, 3 failure lockout for 30min.</description>
   <steps>
-    <item>Design database user table schema</item>
-    <item>Implement login API endpoint</item>
-    <item>Create frontend login page</item>
-    <item>Integration testing</item>
+    <item>
+      <description>Design database user table schema
+Include id, email, password_hash, created_at fields</description>
+      <status>[ ]</status>
+    </item>
+    <item>
+      <description>Implement login API endpoint
+POST /auth/login verify password, return JWT token</description>
+      <status>[ ]</status>
+    </item>
+    <item>
+      <description>Create frontend login page
+React Hook Form + Zod validation, display server errors</description>
+      <status>[ ]</status>
+    </item>
+    <item>
+      <description>Integration testing
+Test login success, wrong password, account lockout, token refresh</description>
+      <status>[ ]</status>
+    </item>
   </steps>
-</create_task_plan>
+</track_task_progress>
 
 **Granularity Principle**: Each step should be a verifiable, independent unit. Not too fine (e.g., "which character was typed") and not too coarse (e.g., "complete the entire project").
 
 # Updating Step Status
 
-After completing each step, immediately use update_task_step to update the status:
+After completing each step, immediately call track_task_progress to update the status — just pass the complete new steps array with completed steps set to [X]:
 
-<update_task_step>
-  <step_id>1</step_id>
-  <status>completed</status>
-  <note>Completed database user table design with id, email, password_hash, created_at fields</note>
-</update_task_step>
-
-Supported statuses: pending, in_progress, completed, failed, cancelled
+<track_task_progress>
+  <title>Implement user login</title>
+  <steps>
+    <item>
+      <description>Design database user table schema
+Include id, email, password_hash, created_at fields</description>
+      <status>[X]</status>
+    </item>
+    <item>
+      <description>Implement login API endpoint
+POST /auth/login verify password, return JWT token</description>
+      <status>[=]</status>
+    </item>
+    <item>
+      <description>Create frontend login page
+React Hook Form + Zod validation, display server errors</description>
+      <status>[ ]</status>
+    </item>
+    <item>
+      <description>Integration testing
+Test login success, wrong password, account lockout, token refresh</description>
+      <status>[ ]</status>
+    </item>
+  </steps>
+</track_task_progress>
 
 # Dynamically Adjusting the Plan
 
-Adjust the plan flexibly based on actual execution. When additional steps are needed, use insert_task_steps:
+Adjust the plan flexibly based on actual execution. To add new steps, insert them in the complete steps array; to remove steps, delete them. Then pass the complete new steps array once:
 
-<insert_task_steps>
-  <after_step_id>2</after_step_id>
+<track_task_progress>
+  <title>Implement user login</title>
   <steps>
-    <item>Add parameter validation logic</item>
-    <item>Write API documentation</item>
+    <item>
+      <description>Design database user table schema</description>
+      <status>[X]</status>
+    </item>
+    <item>
+      <description>Implement login API endpoint</description>
+      <status>[X]</status>
+    </item>
+    <item>
+      <description>Add parameter validation logic
+This is a new step inserted because additional validation was needed</description>
+      <status>[ ]</status>
+    </item>
+    <item>
+      <description>Create frontend login page</description>
+      <status>[=]</status>
+    </item>
+    <item>
+      <description>Write API documentation
+This is a new step inserted for documenting the API</description>
+      <status>[ ]</status>
+    </item>
+    <item>
+      <description>Integration testing</description>
+      <status>[ ]</status>
+    </item>
   </steps>
-</insert_task_steps>
+</track_task_progress>
 
-When steps need to be reduced, use remove_task_steps:
-
-<remove_task_steps>
-  <from>4</from>
-  <to>6</to>
-</remove_task_steps>
-
-**Note**: Completed steps cannot be modified to maintain historical integrity. There cannot be completed steps after the insertion point.
+**Note**: Do not modify the description of completed steps (maintain historical integrity). To remove completed steps, mark all steps as completed first, then set steps to an empty array to archive the current plan.
 
 # Viewing Progress
 
@@ -839,13 +861,24 @@ View the current task plan's progress summary at any time:
 <view_task_plan>
 </view_task_plan>
 
+# Cancel/Archive Plan
+
+Set steps to an empty array to archive and delete the current plan:
+
+<track_task_progress>
+  <title>Implement user login</title>
+  <steps>
+  </steps>
+</track_task_progress>
+
 # Key Principles
 
 - **Must create**: If the task has more than 1 step, you MUST create a task plan
 - **Update promptly**: Update status immediately after completing each step, do not accumulate multiple steps before updating
-- **Adjust flexibly**: Plans are not set in stone — add or remove steps flexibly based on execution, regardless of the number of steps
-- **Execute sequentially**: Execute steps in order one by one, do NOT execute in parallel
-- **Failure handling**: When a step fails, analyze the cause and adjust the strategy to retry
+- **Adjust flexibly**: Plans are not set in stone — modify the steps array to add/remove/change steps
+- **Execute sequentially**: Execute steps in order one by one, do NOT skip ahead or execute in parallel
+- **Failure handling**: When a step fails, analyze the cause, adjust the strategy, and retry. Set status to [F]
+
 `
 
 	// Generic editing files instructions (shared by XML and non-XML modes)
@@ -1055,109 +1088,120 @@ Guide the user to install LibreOffice:
 `
 
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
-	enMessages[KeySystemPromptToolUsageExamples] = `# Tool Use Examples
+	enMessages[KeySystemPromptToolUsageExamples] = `# Tool Call Examples
+
+Tool calls are made through the API's tool_calls mechanism. The system handles JSON serialization and parsing automatically. Below are the parameter structures for each tool call.
 
 ## Example 1: Execute a command
 
-<execute_command>
-  <command>curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'</command>
-  <timeout_seconds>15</timeout_seconds>
-</execute_command>
-
-## Example 2: Create a new file
-
-<write_to_file>
-  <path>src/config.json</path>
-  <content>
+Call tool execute_command with parameters:
 {
-  "apiEndpoint": "https://api.example.com",
-  "theme": {
-    "primaryColor": "#007bff",
-    "fontFamily": "Arial, sans-serif"
-  },
-  "version": "1.0.0"
+  "command": "curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'",
+  "timeout_seconds": 15
 }
-  </content>
-</write_to_file>
 
-## Example 3: Search file contents
+## Example 2: Create a file
 
-<search_files>
-  <path>src</path>
-  <regex>function handleSubmit</regex>
-  <file_pattern>*.ts</file_pattern>
-</search_files>
+Call tool write_to_file with parameters:
+{
+  "path": "src/config.json",
+  "content": "{\n  \"apiEndpoint\": \"https://api.example.com\",\n  \"theme\": {\n    \"primaryColor\": \"#007bff\",\n    \"fontFamily\": \"Arial, sans-serif\"\n  },\n  \"version\": \"1.0.0\"\n}"
+}
 
-## Example 4: Make precise file modifications
+## Example 3: Search files
 
-<replace_in_file>
-  <path>src/config.ts</path>
-  <replacements>
-    <item>
-      <!-- start_line specifies the starting line number of the search content in the original file, preventing matching the wrong location when the same text appears multiple times -->
-      <search>apiEndpoint: "https://old-api.com"</search>
-      <replace>apiEndpoint: "https://new-api.com"</replace>
-      <start_line>15</start_line>
-    </item>
-  </replacements>
-</replace_in_file>
+Call tool search_files with parameters:
+{
+  "path": "src",
+  "regex": "function handleSubmit",
+  "file_pattern": "*.ts"
+}
+
+## Example 4: Precise file modification
+
+Call tool replace_in_file with parameters:
+{
+  "path": "src/config.ts",
+  "replacements": [
+    {
+      "search": "apiEndpoint: \"https://old-api.com\"",
+      "replace": "apiEndpoint: \"https://new-api.com\"",
+      "start_line": 15
+    }
+  ]
+}
+
+## Example 5: Track task progress
+
+Call tool track_task_progress with parameters:
+{
+  "title": "Implement user login",
+  "description": "Full plan: implement user login with frontend, backend, API, session management.",
+  "steps": [
+    { "description": "Design database user table schema", "status": "[X]" },
+    { "description": "Implement login API endpoint\nPOST /auth/login verify password, return JWT token", "status": "[=]" },
+    { "description": "Create frontend login page\nReact Hook Form + Zod validation", "status": "[ ]" },
+    { "description": "Integration testing\nTest login success, wrong password, account lockout", "status": "[ ]" }
+  ]
+}
 `
 
 	enMessages[KeySystemPromptToolUsageTaskProgress] = `
-
 UPDATING TASK PROGRESS
 
 You should use task management tools to track task progress. For tasks that require multiple steps, you must create a task plan, enter the decomposed steps one by one, and dynamically maintain them during execution.
 
+There is only one tool **track_task_progress** for managing task plans: it works like a whiteboard — pass the complete array of steps as the desired state, and the system replaces the old data entirely with the new array. The first line of step.description is the step title; subsequent lines are detailed content. step.status values: "[ ]" (todo), "[=]" (in_progress), "[X]" (completed), "[C]" (cancelled), "[F]" (failed). Set steps to an empty array to archive and delete the current plan.
+
 # Creating a Task Plan
 
-After receiving a task, analyze the requirements and break the task down into executable sub-steps. **If there is more than 1 step, you MUST use create_task_plan to create a plan**:
+After receiving a task, analyze the requirements and break the task down into executable sub-steps. **If there is more than 1 step, you MUST use track_task_progress to create a plan**. For detailed plans, include the full context, constraints, technical approach, and acceptance criteria in the description. For example:
 
-<create_task_plan>
-  <title>Implement user login</title>
-  <description>Add email/password login functionality to the user system</description>
-  <steps>
-    <item>Design database user table schema</item>
-    <item>Implement login API endpoint</item>
-    <item>Create frontend login page</item>
-    <item>Integration testing</item>
-  </steps>
-</create_task_plan>
+Parameters:
+- title: "Implement user login"
+- description: "Full plan: add email/password login to the user system with frontend, backend, API, session management. JWT auth, 3 failure lockout for 30min."
+- steps: [
+    { description: "Design database user table schema\\nInclude id, email, password_hash, created_at fields", status: "[ ]" },
+    { description: "Implement login API endpoint\\nPOST /auth/login verify password, return JWT token", status: "[ ]" },
+    { description: "Create frontend login page\\nReact Hook Form + Zod validation, display server errors", status: "[ ]" },
+    { description: "Integration testing\\nTest login success, wrong password, account lockout, token refresh", status: "[ ]" }
+  ]
 
 **Granularity Principle**: Each step should be a verifiable, independent unit. Not too fine (e.g., "which character was typed") and not too coarse (e.g., "complete the entire project").
 
 # Updating Step Status
 
-After completing each step, immediately use update_task_step to update the status:
+After completing each step, immediately call track_task_progress to update the status — pass the complete new steps array, changing completed steps to "[X]" and in-progress to "[=]". For example, after step 1 done and step 2 started:
 
-<update_task_step>
-  <step_id>1</step_id>
-  <status>completed</status>
-  <note>Completed database user table design with id, email, password_hash, created_at fields</note>
-</update_task_step>
-
-Supported statuses: pending, in_progress, completed, failed, cancelled
+Parameters:
+- title: "Implement user login"
+- steps: [
+    { description: "Design database user table schema\\nInclude id, email, password_hash, created_at fields", status: "[X]" },
+    { description: "Implement login API endpoint\\nPOST /auth/login verify password, return JWT token", status: "[=]" },
+    { description: "Create frontend login page\\nReact Hook Form + Zod validation, display server errors", status: "[ ]" },
+    { description: "Integration testing\\nTest login success, wrong password, account lockout, token refresh", status: "[ ]" }
+  ]
 
 # Dynamically Adjusting the Plan
 
-Adjust the plan flexibly based on actual execution. When additional steps are needed, use insert_task_steps:
+To add, remove, reorder, or modify steps, just pass the complete new steps array you want to see. For example, inserting new steps after step 2 and removing the original step 3:
 
-<insert_task_steps>
-  <after_step_id>2</after_step_id>
-  <steps>
-    <item>Add parameter validation logic</item>
-    <item>Write API documentation</item>
-  </steps>
-</insert_task_steps>
+Parameters:
+- title: "Implement user login"
+- steps: [
+    { description: "Design database user table schema", status: "[X]" },
+    { description: "Implement login API endpoint", status: "[X]" },
+    { description: "Add parameter validation logic\\nNew step inserted", status: "[ ]" },
+    { description: "Write API documentation\\nNew step inserted", status: "[ ]" },
+    { description: "Create frontend login page", status: "[=]" },
+    { description: "Integration testing", status: "[ ]" }
+  ]
 
-When steps need to be reduced, use remove_task_steps:
+# Cancel/Archive Plan
 
-<remove_task_steps>
-  <from>4</from>
-  <to>6</to>
-</remove_task_steps>
-
-**Note**: Completed steps cannot be modified to maintain historical integrity. There cannot be completed steps after the insertion point.
+Set steps to an empty array to archive and delete the current plan:
+- title: "Implement user login"
+- steps: []
 
 # Viewing Progress
 
@@ -1170,9 +1214,10 @@ View the current task plan's progress summary at any time:
 
 - **Must create**: If the task has more than 1 step, you MUST create a task plan
 - **Update promptly**: Update status immediately after completing each step, do not accumulate multiple steps before updating
-- **Adjust flexibly**: Plans are not set in stone — add or remove steps flexibly based on execution, regardless of the number of steps
-- **Execute sequentially**: Execute steps in order one by one, do NOT execute in parallel
-- **Failure handling**: When a step fails, analyze the cause and adjust the strategy to retry
+- **Adjust flexibly**: Whiteboard mode — pass the desired complete steps array, the system replaces everything automatically
+- **Execute sequentially**: Execute steps in order one by one, do NOT skip ahead or execute in parallel
+- **Failure handling**: When a step fails, analyze the cause, adjust the strategy, retry. Set status to [F]
+
 `
 
 	enMessages[KeySystemPromptResultMode] = `RESULT MODE
@@ -1319,10 +1364,7 @@ SYSTEM INFORMATION
 No pending task plan. It is recommended to create a task plan (checklist) for the current task, breaking down complex tasks into manageable steps for progress tracking.
 
 You can use the following tools to manage task plans:
-- **create_task_plan** — Create a new task plan (checklist) with title, description, and step list
-- **update_task_step** — Update step status (pending/in_progress/completed/failed/cancelled)
-- **insert_task_steps** — Insert new steps after a specified step
-- **remove_task_steps** — Remove a range of steps
+- **track_task_progress** — Record task content and track step execution progress (create/update/adjust/archive)
 - **view_task_plan** — View the current task plan progress
 
 After creating a task plan, update the step status immediately upon completion to track overall progress.`
@@ -1335,8 +1377,8 @@ There is a pending task plan. Please continue to follow the plan:
 
 ## Next Steps
 
-If you have completed the current step, use **update_task_step** to update the step status, then proceed to the next step.
-If you need to adjust the plan, use **insert_task_steps** or **remove_task_steps** to modify steps.
+If you have completed the current step, use **track_task_progress** to update the step status (change the step's status to [X]), then proceed to the next step.
+If you need to adjust the plan, just use **track_task_progress** with the new complete steps array.
 If all steps are completed, use **attempt_completion** to report the final result to the user.`
 
 	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
