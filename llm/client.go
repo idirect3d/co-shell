@@ -183,6 +183,12 @@ type Client interface {
 	// "on" = display and send include_usage, "off" = don't display but still send, "none" = don't display and don't send.
 	SetTokenUsage(mode string)
 
+	// SetTemperature updates the temperature parameter at runtime.
+	// Unlike NewClient which creates a new client, this method only changes
+	// the internal temperature field without recreating HTTP connections.
+	// Used for loop detection temperature adjustment (FEATURE-230).
+	SetTemperature(temp float64)
+
 	// SetBodyAdditions sets the custom JSON properties to add to the LLM request body.
 	// The additions map is key-value pairs where the key is the property name and
 	// the value is a JSON string that will be merged into the request body.
@@ -1302,6 +1308,10 @@ func (c *openAIClient) SetThinkingEnabled(enabled bool) {
 
 func (c *openAIClient) SetReasoningEffort(effort string) {
 	c.reasoningEffort = effort
+}
+
+func (c *openAIClient) SetTemperature(temp float64) {
+	c.temperature = temp
 }
 
 func (c *openAIClient) SetTopP(topP float64) {

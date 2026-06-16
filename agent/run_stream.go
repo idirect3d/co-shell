@@ -67,9 +67,34 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			minLineLen = 50
 		}
 		a.loopDetector = NewLoopDetector(threshold, minLineLen)
+
+		// FEATURE-230: Initialize loop temperature controller
+		if a.cfg.LLM.LoopTempEnabled {
+			// Resolve effective temperature: model-level takes precedence over global cfg.LLM.
+			// This must match the same priority used in switchToModel().
+			initialTemp := a.cfg.LLM.Temperature
+			if a.modelManager != nil {
+				if modelCfg := a.modelManager.GetActiveModel(len(a.imagePaths) > 0); modelCfg != nil && modelCfg.Temperature != nil {
+					initialTemp = *modelCfg.Temperature
+				}
+			}
+			a.loopTempCtrl = NewLoopTempController(
+				initialTemp,
+				a.cfg.LLM.LoopTempStepUp,
+				a.cfg.LLM.LoopTempStepDown,
+				a.cfg.LLM.LoopTempMax,
+				a.cfg.LLM.LoopTempMin,
+			)
+			log.Debug("Agent.RunStream: loop temperature controller initialized (initial=%.2f, up=%.2f, down=%.2f, max=%.2f, min=%.2f)",
+				initialTemp, a.cfg.LLM.LoopTempStepUp, a.cfg.LLM.LoopTempStepDown,
+				a.cfg.LLM.LoopTempMax, a.cfg.LLM.LoopTempMin)
+		} else {
+			a.loopTempCtrl = nil
+		}
 	} else {
 		a.loopDetectOn = false
 		a.loopDetector = nil
+		a.loopTempCtrl = nil
 	}
 
 	// Save raw user input for {TASK} in system prompt.
@@ -197,8 +222,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Build loop feedback message for the LLM
 				loopFeedback := fmt.Sprintf(
 					"⚠️ 检测到你的输出陷入了死循环模式（连续重复相似内容）。\n"+
-						"请立即停止重复当前模式，重新检视之前的步骤，评估是否需要改变方法。\n"+
-						"请向前看，继续执行后续任务步骤。\n\n"+
+						"请立即停止重复当前模式，重新检视之前的步骤，调整评估方法。\n"+
+						"请向前看，并根据任务目标继续执行后续任务步骤。\n\n"+
 						"错误信息：%s",
 					streamErr.Error(),
 				)
@@ -215,6 +240,18 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					a.loopDetector.Reset()
 				}
 				a.loopDetectCrit = false
+
+				// FEATURE-230: Adjust temperature to break the loop
+				if a.loopTempCtrl != nil {
+					oldTemp := a.loopTempCtrl.Temperature()
+					newTemp, changed := a.loopTempCtrl.Apply()
+					if changed {
+						a.llmClient.SetTemperature(newTemp)
+						log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after loop detection (direction=%d)",
+							oldTemp, newTemp, a.loopTempCtrl.direction)
+						cb("info", fmt.Sprintf("\n[温度已从 %.2f 调整为 %.2f，尝试打破循环]\n", oldTemp, newTemp))
+					}
+				}
 
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
 				cb("warning", fmt.Sprintf("\n%s 检测到循环输出，已发送纠正提示\n", ep.Warning))
