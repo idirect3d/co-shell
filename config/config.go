@@ -581,11 +581,8 @@ func DefaultPlanToolModes() map[string]string {
 		"list_files":                 "auto",
 		"list_code_definition_names": "auto",
 		// Planning tools
-		"create_task_plan":  "auto",
-		"update_task_step":  "auto",
-		"insert_task_steps": "auto",
-		"remove_task_steps": "auto",
-		"view_task_plan":    "auto",
+		"track_task_progress": "auto",
+		"view_task_plan":      "auto",
 		// Memory
 		"get_memory_slice": "auto",
 		"memory_search":    "auto",
