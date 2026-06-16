@@ -171,14 +171,13 @@ func (e *EnhancedInput) ReadLine() (string, error) {
 		}
 
 		if b == '\r' || b == '\n' {
-			e.clearLine()
 			if e.oldTerm != nil {
 				RestoreTerm(e.termFd, e.oldTerm)
 				e.inRaw = false
 			}
 			result := string(e.buffer)
 			e.resetState()
-			fmt.Println()
+			fmt.Print("\r\n")
 			return result, nil
 		}
 

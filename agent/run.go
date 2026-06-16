@@ -74,10 +74,8 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	tools := a.buildTools()
 
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
-		// Dynamically select and switch to the appropriate model based on current context
-		if modelCfg := a.selectModelForCall(); modelCfg != nil {
-			a.switchToModel(modelCfg)
-		}
+		// Dynamically select and switch to the appropriate model based on current mode
+		a.ApplyWorkModeConfig()
 
 		// Call LLM
 		resp, err := a.llmClient.Chat(ctx, a.messages, tools)
