@@ -28,18 +28,19 @@ package i18n
 
 var enMessages = map[string]string{
 	// General
-	KeyCancelled:      "Cancelled",
-	KeySetupCancelled: "❌ Setup incomplete, exiting.",
-	KeyYes:            "Yes",
-	KeyNo:             "No",
-	KeyOn:             "On",
-	KeyOff:            "Off",
-	KeyError:          "Error",
-	KeyWarning:        "Warning",
-	KeySuccess:        "Success",
-	KeyUnlimited:      "Unlimited",
-	KeyDefault:        "Default",
-	KeyUnknown:        "Unknown",
+	KeyCancelled:        "Cancelled",
+	KeySetupCancelled:   "❌ Setup incomplete, exiting.",
+	KeyYes:              "Yes",
+	KeyNo:               "No",
+	KeyOn:               "On",
+	KeyOff:              "Off",
+	KeyError:            "Error",
+	KeyWarning:          "Warning",
+	KeySuccess:          "Success",
+	KeyUnlimited:        "Unlimited",
+	KeyDefault:          "Default",
+	KeyUnknown:          "Unknown",
+	KeySectionSeparator: "\n====\n",
 
 	// Wizard
 	KeyWizardTitle:       "🔧 co-shell API Setup Wizard",

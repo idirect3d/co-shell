@@ -83,6 +83,10 @@ func (h *ModeHandler) Handle(args []string) (string, error) {
 	case "remove", "rm":
 		return h.interactiveRemove(args[1:])
 	default:
+		// Check for .mode <name> tools [<method> <value>]
+		if len(args) >= 2 && args[1] == "tools" {
+			return h.handleModeTools(subcommand, args[2:])
+		}
 		return "", fmt.Errorf("unknown mode subcommand: %s", subcommand)
 	}
 }
@@ -98,17 +102,19 @@ func (h *ModeHandler) readLine() string {
 
 func (h *ModeHandler) showCurrent() string {
 	modeName := h.cfg.LLM.WorkMode
-	if modeName == "" {
-		modeName = "default"
+	if modeName == "" || modeName == "default" {
+		modeName = "act"
 	}
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyModeCurrent), modeName))
 	sb.WriteString("\n\n可用操作:\n")
-	sb.WriteString("  list              - 显示所有工作模式\n")
-	sb.WriteString("  switch            - 交互式选择切换工作模式\n")
-	sb.WriteString("  create            - 创建工作模式\n")
-	sb.WriteString("  edit              - 编辑模式节顺序\n")
-	sb.WriteString("  remove            - 删除工作模式")
+	sb.WriteString("  list                    - 显示所有工作模式\n")
+	sb.WriteString("  switch [名称]           - 切换工作模式（空参时交互选择）\n")
+	sb.WriteString("  create                  - 创建工作模式\n")
+	sb.WriteString("  edit [名称]             - 编辑模式节顺序\n")
+	sb.WriteString("  remove [名称]           - 删除工作模式\n")
+	sb.WriteString("  <名称> tools             - 显示指定模式的工具方法开关\n")
+	sb.WriteString("  <名称> tools <方法> <值>  - 设置指定模式的工具方法开关 (auto/confirm/disabled)")
 	return sb.String()
 }
 
@@ -117,14 +123,10 @@ func (h *ModeHandler) listModes() string {
 	sb.WriteString(i18n.T(i18n.KeyModeList))
 	sb.WriteString("\n")
 
-	modes := h.cfg.WorkModes
-	if len(modes) == 0 {
-		modes = config.DefaultWorkModes()
-	}
-
+	modes := h.getAllModes()
 	current := h.cfg.LLM.WorkMode
-	if current == "" {
-		current = "default"
+	if current == "" || current == "default" {
+		current = "act"
 	}
 
 	for i, m := range modes {
@@ -155,12 +157,35 @@ func (h *ModeHandler) getAllAvailableSections() []string {
 	return sections
 }
 
+// getAllModes returns all available modes (config + built-in), ensuring no duplicates.
+// "default" in config is treated as equivalent to built-in "act" mode.
+func (h *ModeHandler) getAllModes() []config.WorkMode {
+	builtIn := config.DefaultWorkModes()
+	modeMap := make(map[string]bool)
+	modes := make([]config.WorkMode, 0, len(builtIn)+len(h.cfg.WorkModes))
+	for _, m := range h.cfg.WorkModes {
+		name := m.Name
+		if name == "default" {
+			name = "act"
+		}
+		if !modeMap[name] {
+			m.Name = name
+			modes = append(modes, m)
+			modeMap[name] = true
+		}
+	}
+	for _, m := range builtIn {
+		if !modeMap[m.Name] {
+			modes = append(modes, m)
+			modeMap[m.Name] = true
+		}
+	}
+	return modes
+}
+
 // selectModeByNumber interactively selects a mode by number.
 func (h *ModeHandler) selectModeByNumber(prompt string) (*config.WorkMode, error) {
-	modes := h.cfg.WorkModes
-	if len(modes) == 0 {
-		modes = config.DefaultWorkModes()
-	}
+	modes := h.getAllModes()
 
 	io := h.io()
 	io.Println()
@@ -191,7 +216,11 @@ func (h *ModeHandler) interactiveSwitch(args []string) (string, error) {
 	if len(args) > 0 {
 		// Direct name provided
 		name := args[0]
-		if !h.modeExists(name) && name != "default" {
+		// Backward compatibility: "default" maps to "act"
+		if name == "default" {
+			name = "act"
+		}
+		if !h.modeExists(name) && name != "act" {
 			return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
 		}
 		h.cfg.LLM.WorkMode = name
@@ -199,6 +228,7 @@ func (h *ModeHandler) interactiveSwitch(args []string) (string, error) {
 			return "", fmt.Errorf("cannot save config: %w", err)
 		}
 		if h.ag != nil {
+			h.ag.SyncToolModes(h.cfg) // must come BEFORE SetConfig/rebuildSystemPrompt
 			h.ag.SetConfig(h.cfg)
 		}
 		return fmt.Sprintf(i18n.T(i18n.KeyModeSwitched), name), nil
@@ -214,6 +244,7 @@ func (h *ModeHandler) interactiveSwitch(args []string) (string, error) {
 		return "", fmt.Errorf("cannot save config: %w", err)
 	}
 	if h.ag != nil {
+		h.ag.SyncToolModes(h.cfg) // must come BEFORE SetConfig/rebuildSystemPrompt
 		h.ag.SetConfig(h.cfg)
 	}
 	return fmt.Sprintf(i18n.T(i18n.KeyModeSwitched), selected.Name), nil
@@ -358,37 +389,20 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 
 // interactiveEdit allows interactive reordering of sections for a mode.
 func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
-	var mode *config.WorkMode
+	var modeName string
 	if len(args) > 0 {
-		for i := range h.cfg.WorkModes {
-			if h.cfg.WorkModes[i].Name == args[0] {
-				mode = &h.cfg.WorkModes[i]
-				break
-			}
-		}
-		if mode == nil {
-			return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
-		}
+		modeName = args[0]
 	} else {
 		selected, err := h.selectModeByNumber("选择要编辑的工作模式:")
 		if err != nil {
 			return "", err
 		}
-		// Ensure default mode exists in config before looking it up
-		if len(h.cfg.WorkModes) == 0 {
-			// First edit of default mode: import it into config
-			h.cfg.WorkModes = config.DefaultWorkModes()
-		}
-		// Find the actual pointer
-		for i := range h.cfg.WorkModes {
-			if h.cfg.WorkModes[i].Name == selected.Name {
-				mode = &h.cfg.WorkModes[i]
-				break
-			}
-		}
-		if mode == nil {
-			return "", fmt.Errorf("cannot find mode")
-		}
+		modeName = selected.Name
+	}
+	// Use findOrCreateMode to ensure the mode exists in config
+	mode := h.findOrCreateMode(modeName)
+	if mode == nil {
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyModeNotFound))
 	}
 
 	// Show current sections and allow reordering
@@ -571,7 +585,7 @@ func (h *ModeHandler) interactiveRemove(args []string) (string, error) {
 	}
 
 	if h.cfg.LLM.WorkMode == name {
-		h.cfg.LLM.WorkMode = "default"
+		h.cfg.LLM.WorkMode = "act"
 	}
 
 	h.cfg.WorkModes = append(h.cfg.WorkModes[:idx], h.cfg.WorkModes[idx+1:]...)
@@ -641,4 +655,108 @@ func (h *ModeHandler) modeExists(name string) bool {
 		}
 	}
 	return false
+}
+
+// handleModeTools manages per-tool modes for a named work mode.
+// Syntax: .mode <modeName> tools              — list tools
+//
+//	.mode <modeName> tools <method> <value> — set tool mode
+//	.mode <modeName> tools reset         — reset to default
+func (h *ModeHandler) handleModeTools(modeName string, args []string) (string, error) {
+	// Ensure the named mode exists in config (import from built-in if needed)
+	mode := h.findOrCreateMode(modeName)
+	if mode == nil {
+		return "", fmt.Errorf("未找到工作模式: %s", modeName)
+	}
+
+	// No args: list tools
+	if len(args) == 0 {
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("模式 %s 的工具限制:\n", modeName))
+		toolModes := mode.ToolModes
+		if toolModes == nil {
+			if modeName == "plan" {
+				toolModes = config.DefaultPlanToolModes()
+			} else {
+				toolModes = agent.DefaultToolModes()
+			}
+		}
+		defaultMode := toolModes["default"]
+		if defaultMode == "" {
+			defaultMode = "confirm"
+		}
+		sb.WriteString(fmt.Sprintf("  默认: %s\n\n", defaultMode))
+		for name := range agent.DefaultToolModes() {
+			if name == "default" {
+				continue
+			}
+			m := toolModes[name]
+			if m == "" {
+				m = defaultMode
+			}
+			sb.WriteString(fmt.Sprintf("  %-30s %s\n", name, m))
+		}
+		return sb.String(), nil
+	}
+
+	// reset: reset to mode-specific defaults
+	if args[0] == "reset" {
+		if modeName == "plan" {
+			mode.ToolModes = config.DefaultPlanToolModes()
+		} else {
+			mode.ToolModes = nil
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", fmt.Errorf("cannot save config: %w", err)
+		}
+		if modeName == h.cfg.LLM.WorkMode || (h.cfg.LLM.WorkMode == "" && modeName == "act") {
+			if h.ag != nil {
+				h.ag.SyncToolModes(h.cfg)
+			}
+		}
+		return fmt.Sprintf("已重置模式 %s 的工具设置为默认", modeName), nil
+	}
+
+	// Set specific tool mode: <method> <auto|confirm|disabled>
+	if len(args) >= 2 {
+		method := args[0]
+		value := args[1]
+		if value != "auto" && value != "confirm" && value != "disabled" {
+			return "", fmt.Errorf("无效的工具模式 %q，请使用 auto/confirm/disabled", value)
+		}
+		if mode.ToolModes == nil {
+			mode.ToolModes = make(map[string]string)
+		}
+		mode.ToolModes[method] = value
+		if err := h.cfg.Save(); err != nil {
+			return "", fmt.Errorf("cannot save config: %w", err)
+		}
+		if modeName == h.cfg.LLM.WorkMode || (h.cfg.LLM.WorkMode == "" && modeName == "act") {
+			if h.ag != nil {
+				h.ag.SyncToolModes(h.cfg)
+			}
+		}
+		return fmt.Sprintf("已设置模式 %s 的工具 %s → %s", modeName, method, value), nil
+	}
+
+	return "", fmt.Errorf("用法: .mode %s tools [<方法名> <auto|confirm|disabled>]", modeName)
+}
+
+// findOrCreateMode finds a mode by name in config, importing from built-in if needed.
+// Returns nil if the mode doesn't exist and has no built-in default.
+func (h *ModeHandler) findOrCreateMode(name string) *config.WorkMode {
+	// Check existing
+	for i := range h.cfg.WorkModes {
+		if h.cfg.WorkModes[i].Name == name {
+			return &h.cfg.WorkModes[i]
+		}
+	}
+	// Check built-in defaults
+	for _, m := range config.DefaultWorkModes() {
+		if m.Name == name {
+			h.cfg.WorkModes = append(h.cfg.WorkModes, m)
+			return &h.cfg.WorkModes[len(h.cfg.WorkModes)-1]
+		}
+	}
+	return nil
 }

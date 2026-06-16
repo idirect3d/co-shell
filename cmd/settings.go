@@ -320,8 +320,8 @@ func showSettingsHelp(cfg *config.Config) string {
 
 	// Show current work mode
 	modeName := cfg.LLM.WorkMode
-	if modeName == "" {
-		modeName = "default"
+	if modeName == "" || modeName == "default" {
+		modeName = "act"
 	}
 	allLines = append(allLines,
 		makeLine("mode", modeName, i18n.T(i18n.KeyCol3WorkMode)),

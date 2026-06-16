@@ -249,28 +249,33 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 // showToolModes displays the current tool mode configuration.
 func (h *SettingsHandler) showToolModes() string {
 	var sb strings.Builder
-	sb.WriteString("工具模式配置:\n")
 
-	// Start with DefaultToolModes, overlay per-tool config overrides.
-	effectiveModes := agent.DefaultToolModes()
+	modeName := h.cfg.LLM.WorkMode
+	if modeName == "" || modeName == "default" {
+		modeName = "act"
+	}
+	sb.WriteString(fmt.Sprintf("当前工作模式: %s\n\n", modeName))
+	sb.WriteString("工具模式配置 (有效值):\n")
 
-	// Determine global default mode
-	globalDefault := ""
-	for k, v := range h.cfg.LLM.ToolModes {
-		if k == "default" {
-			globalDefault = v
-		} else {
-			effectiveModes[k] = v
+	// Use agent's effective toolModes if available (already computed by SyncToolModes)
+	// Otherwise compute them the same way as SyncToolModes does.
+	var effectiveModes map[string]string
+	if h.agent != nil {
+		// Access internal toolModes safely - for display only
+		if tm := h.agent.ToolModes(); tm != nil {
+			effectiveModes = tm
 		}
 	}
-
-	if globalDefault == "" || globalDefault == "custom" {
-		sb.WriteString("  全局默认: custom（各方法按各自设置运行）\n\n")
-	} else {
-		sb.WriteString(fmt.Sprintf("  全局默认: %s（覆盖所有方法）\n\n", globalDefault))
+	if effectiveModes == nil {
+		effectiveModes = agent.DefaultToolModes()
 	}
 
-	// Build tool list dynamically from DefaultToolModes()
+	defaultMode := effectiveModes["default"]
+	if defaultMode == "" {
+		defaultMode = "confirm"
+	}
+	sb.WriteString(fmt.Sprintf("  默认: %s\n\n", defaultMode))
+
 	allTools := make([]string, 0, len(agent.DefaultToolModes()))
 	for name := range agent.DefaultToolModes() {
 		if name != "default" {
@@ -281,12 +286,8 @@ func (h *SettingsHandler) showToolModes() string {
 
 	for _, toolName := range allTools {
 		mode := effectiveModes[toolName]
-		// If global default is active (confirm/auto/disabled) and this tool
-		// has no per-tool override in config, show the global default as effective mode.
-		if globalDefault != "" && globalDefault != "custom" {
-			if _, hasOwn := h.cfg.LLM.ToolModes[toolName]; !hasOwn {
-				mode = globalDefault
-			}
+		if mode == "" {
+			mode = defaultMode
 		}
 		sb.WriteString(fmt.Sprintf("  %-35s %s\n", toolName, mode))
 	}
