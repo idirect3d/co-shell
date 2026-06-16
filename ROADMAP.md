@@ -463,6 +463,7 @@
   - [x] 系统提示词 12 节可配置（ToolExamples/TaskProgress/EditingFiles/BrowserUsage 提升为独立节）
   - [x] 节分隔符程序化（`KeySectionSeparator` 动态追加，资源文件移除分节符）
 - [x] FIX-230 修复 .set 中 description 不跟随当前工作模式的问题 + 修复 memory_search Usage 与参数不一致的问题 [BUILD-239]
+- [x] FEATURE-230 循环检测温度自动调节：当检测到 LLM 输出循环时（threshold=3，原5），自动调整模型温度以打破死循环。使用振荡策略——温度按上升步长递增直到达到上限，然后按下降步长递减直到达到下限，循环往复。上升/下降步长可分别配置（默认 0.05/0.07），溢出部分自动累加到下一方向。新增 `.set loop-temp-*` 配置项（loop-temp-enabled/step-up/step-down/max=1.0/min=0.1）。[BUILD-240]
 - [ ] FEATURE-94 命令执行审计功能：在执行 execute_command 工具调用时，先将命令发送给 LLM 进行安全风险分析，LLM 判断命令是否存在风险（如删除文件、修改系统配置、网络操作等）。如果存在风险，提示用户确认后才能执行。支持通过 .set audit-enabled 配置、--audit-enabled/--audit-disabled 命令行参数、config.json 控制审计功能的开启/关闭。
 - [x] FEATURE-106 实现history命令翻页：支持通过上下键浏览、.history last/first 命令查看、编号重新执行历史命令，数据持久化到 bbolt [BUILD-68]
 - [ ] FEATURE-45 自动更新机制（通过github）。

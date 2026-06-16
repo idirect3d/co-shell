@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "239"
+const build = "240"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -143,6 +143,13 @@ type cliFlags struct {
 
 	// Loop detection (FIX-179)
 	loopDetectEnabled string // "on"/"off"
+
+	// Loop temperature adjustment (FEATURE-230)
+	loopTempEnabled  string  // "on"/"off"
+	loopTempStepUp   float64 // temperature increase step (default: -1, use config)
+	loopTempStepDown float64 // temperature decrease step (default: -1, use config)
+	loopTempMax      float64 // temperature max bound (default: -1, use config)
+	loopTempMin      float64 // temperature min bound (default: -1, use config)
 
 	// Body additions: custom JSON properties to add to the LLM request body
 	bodyAdd string // format: key=value, can be specified multiple times
@@ -257,6 +264,13 @@ func parseFlags() cliFlags {
 
 	// Loop detection (FIX-179)
 	flag.StringVar(&f.loopDetectEnabled, "loop-detect-enabled", "", "启用 LLM 输出循环检测（on/off，覆盖配置文件）")
+
+	// Loop temperature adjustment CLI overrides (FEATURE-230)
+	flag.StringVar(&f.loopTempEnabled, "loop-temp-enabled", "", "启用循环温度自动调节（on/off，覆盖配置文件）")
+	flag.Float64Var(&f.loopTempStepUp, "loop-temp-step-up", -1, "循环温度上升步长（0.01~1.0，覆盖配置文件）")
+	flag.Float64Var(&f.loopTempStepDown, "loop-temp-step-down", -1, "循环温度下降步长（0.01~1.0，覆盖配置文件）")
+	flag.Float64Var(&f.loopTempMax, "loop-temp-max", -1, "循环温度上限（覆盖配置文件）")
+	flag.Float64Var(&f.loopTempMin, "loop-temp-min", -1, "循环温度下限（覆盖配置文件）")
 
 	// Body additions: custom JSON properties to add to the LLM request body
 	flag.StringVar(&f.bodyAdd, "body-add", "", "向 LLM 请求体添加自定义 JSON 属性（格式：key=value，可多次指定，用逗号分隔）")
@@ -695,6 +709,30 @@ func main() {
 		default:
 			io.ErrPrintf("Warning: invalid --loop-detect-enabled value %q, use on|off\n", flags.loopDetectEnabled)
 		}
+	}
+
+	// Apply loop temperature CLI overrides (FEATURE-230)
+	if flags.loopTempEnabled != "" {
+		switch flags.loopTempEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.LoopTempEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.LoopTempEnabled = false
+		default:
+			io.ErrPrintf("Warning: invalid --loop-temp-enabled value %q, use on|off\n", flags.loopTempEnabled)
+		}
+	}
+	if flags.loopTempStepUp >= 0 {
+		cfg.LLM.LoopTempStepUp = flags.loopTempStepUp
+	}
+	if flags.loopTempStepDown >= 0 {
+		cfg.LLM.LoopTempStepDown = flags.loopTempStepDown
+	}
+	if flags.loopTempMax >= 0 {
+		cfg.LLM.LoopTempMax = flags.loopTempMax
+	}
+	if flags.loopTempMin >= 0 {
+		cfg.LLM.LoopTempMin = flags.loopTempMin
 	}
 
 	// Initialize logger with workspace
@@ -1184,6 +1222,7 @@ func (c *noopClient) SetRepetitionPenalty(penalty float64) {}
 
 func (c *noopClient) SetTokenUsage(mode string) {}
 
+func (c *noopClient) SetTemperature(temp float64)                  {}
 func (c *noopClient) SetBodyAdditions(additions map[string]string) {}
 
 func (c *noopClient) RemoveBodyAddition(key string) {}

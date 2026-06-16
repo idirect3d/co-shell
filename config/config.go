@@ -201,7 +201,7 @@ type LLMConfig struct {
 	// can repeat before triggering loop detection intervention.
 	// When the same (or similar) content repeats this many times consecutively,
 	// the agent will pause and prompt for intervention.
-	// Default: 5
+	// Default: 3 (config.go DefaultConfig)
 	LoopDetectThreshold int `json:"loop_detect_threshold"`
 
 	// LoopDetectMinLineLen: the minimum length of a line (in characters) to be
@@ -210,6 +210,38 @@ type LLMConfig struct {
 	// or short thinking phrases that are not meaningful for loop detection.
 	// Default: 50
 	LoopDetectMinLineLen int `json:"loop_detect_min_line_len"`
+
+	// LoopTempEnabled: whether to enable automatic temperature adjustment
+	// when a loop is detected. When enabled, the agent will gradually adjust
+	// the LLM temperature to break out of output loops using an oscillating
+	// strategy: increase by LoopTempStepUp until reaching LoopTempMax, then
+	// decrease by LoopTempStepDown until reaching LoopTempMin, then repeat.
+	// Default: true
+	LoopTempEnabled bool `json:"loop_temp_enabled"`
+
+	// LoopTempStepUp: the amount to increase temperature by each step when
+	// the direction is upward. A larger value diverges more quickly from the
+	// downward path, helping to minimize temperature value reuse.
+	// Default: 0.05
+	LoopTempStepUp float64 `json:"loop_temp_step_up"`
+
+	// LoopTempStepDown: the amount to decrease temperature by each step when
+	// the direction is downward. Using a different value from LoopTempStepUp
+	// ensures the temperature traverses more distinct values across the range.
+	// Default: 0.07
+	LoopTempStepDown float64 `json:"loop_temp_step_down"`
+
+	// LoopTempMax: the maximum temperature value allowed during adjustment.
+	// When the adjusted temperature reaches this value, the direction flips
+	// from upward to downward. Must be greater than LoopTempMin.
+	// Default: 1.0
+	LoopTempMax float64 `json:"loop_temp_max"`
+
+	// LoopTempMin: the minimum temperature value allowed during adjustment.
+	// When the adjusted temperature reaches this value, the direction flips
+	// from downward to upward. Must be less than LoopTempMax.
+	// Default: 0.1
+	LoopTempMin float64 `json:"loop_temp_min"`
 
 	// ThinkingEnabled: whether to enable LLM thinking/reasoning mode.
 	// When enabled, the LLM API request includes thinking configuration
@@ -601,8 +633,13 @@ func DefaultConfig() *Config {
 			ErrorMaxSingleCount:       10,
 			ErrorMaxTypeCount:         100,
 			LoopDetectEnabled:         true,
-			LoopDetectThreshold:       5,
+			LoopDetectThreshold:       3,
 			LoopDetectMinLineLen:      50,
+			LoopTempEnabled:           true,
+			LoopTempStepUp:            0.05,
+			LoopTempStepDown:          0.07,
+			LoopTempMax:               1.0,
+			LoopTempMin:               0.1,
 			TopP:                      -1,
 			TopK:                      -1,
 			RepetitionPenalty:         -1,
