@@ -170,16 +170,6 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 	switch name {
 	case "Identity":
 		text := loadSectionText(env.cwd, modeName, "IDENTITY", func() string {
-			if modeName == "plan" {
-				if planIdentity := i18n.T(i18n.KeySystemPromptIdentityPlan); planIdentity != "" && planIdentity != i18n.KeySystemPromptIdentityPlan {
-					return planIdentity
-				}
-			}
-			if modeName == "research" {
-				if researchIdentity := i18n.T(i18n.KeySystemPromptIdentityResearch); researchIdentity != "" && researchIdentity != i18n.KeySystemPromptIdentityResearch {
-					return researchIdentity
-				}
-			}
 			return i18n.T(i18n.KeySystemPromptIdentity)
 		})
 		return buildSectionWithPlaceholders(text, env)
@@ -208,6 +198,10 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		if !shellEnabled {
 			key = i18n.KeySystemPromptCapabilities
 		}
+		// Plan mode: use read-only capabilities (no write/execute guidance)
+		if modeName == "plan" {
+			key = i18n.KeySystemPromptCapabilitiesReadOnly
+		}
 		text := loadSectionText(env.cwd, modeName, "CAPABILITIES", func() string {
 			return i18n.T(key)
 		})
@@ -217,6 +211,10 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		key := i18n.KeySystemPromptRulesShell
 		if !shellEnabled {
 			key = i18n.KeySystemPromptRules
+		}
+		// Plan mode: use read-only rules (no write/execute guidance)
+		if modeName == "plan" {
+			key = i18n.KeySystemPromptRulesReadOnly
 		}
 		text := loadSectionText(env.cwd, modeName, "RULES", func() string {
 			return i18n.T(key)

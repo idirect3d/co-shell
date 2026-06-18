@@ -162,7 +162,10 @@ const (
 	KeyContextSet   = "context_set"
 
 	// Agent
-	KeyNoopClientError = "noop_client_error"
+	KeyNoopClientError                 = "noop_client_error"
+	KeyAgentDefaultDescriptionAct      = "agent_default_description_act"
+	KeyAgentDefaultDescriptionPlan     = "agent_default_description_plan"
+	KeyAgentDefaultDescriptionResearch = "agent_default_description_research"
 
 	// Settings - Extended
 	KeySettingsLabelLog               = "settings_label_log"
@@ -553,6 +556,7 @@ const (
 
 	// Loop detection settings (FIX-179)
 	KeyCol3LoopDetectEnabled     = "col3_loop_detect_enabled"
+	KeyLoopDetectFeedback        = "loop_detect_feedback"
 	KeyCol3LoopDetectThreshold   = "col3_loop_detect_threshold"
 	KeyCol3LoopDetectMaxWindow   = "col3_loop_detect_max_window"
 	KeySettingsDescLoopDetect    = "settings_desc_loop_detect"
@@ -767,6 +771,12 @@ const (
 	KeySystemPromptToolUsageXMLShell = "system_prompt_tool_usage_xml_shell"
 	KeySystemPromptCapabilitiesShell = "system_prompt_capabilities_shell"
 	KeySystemPromptRulesShell        = "system_prompt_rules_shell"
+
+	// Read-only rules (no write/execute guidance, for plan mode)
+	KeySystemPromptRulesReadOnly = "system_prompt_rules_readonly"
+
+	// Read-only capabilities (no write/execute guidance, for plan mode)
+	KeySystemPromptCapabilitiesReadOnly = "system_prompt_capabilities_readonly"
 
 	// Shell session tool usage descriptions (XML mode, shell-enabled)
 	KeyToolUsageShellSendShell      = "tool_usage_shell_send_shell"
