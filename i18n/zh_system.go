@@ -97,9 +97,11 @@ TOOL USE
 
 如果需要在一次回复中调用多个工具，只需连续使用多个工具标签：
 
-<execute_command>
-  <command>ls -la</command>
-</execute_command>
+<search_files>
+  <path>agent</path>
+  <regex>func main</regex>
+  <file_pattern>*.go</file_pattern>
+</search_files>
 
 <read_file>
   <path>main.go</path>
@@ -107,21 +109,25 @@ TOOL USE
   <end_line>50</end_line>
 </read_file>
 
-对于数组类型的参数，使用 <item> 标签表示数组中的每个元素：
+对于包含数组类型的参数，使用 <item> 标签表示数组中的每个元素：
 
-<replace_in_file>
-  <path>/path/to/file</path>
-  <replacements>
+<track_task_progress>
+  <title>实现用户登录</title>
+  <steps>
     <item>
-      <search>旧文本</search>
-      <replace>新文本</replace>
+      <description>设计数据库用户表结构</description>
+      <status>[X]</status>
     </item>
     <item>
-      <search>另一段旧文本</search>
-      <replace>另一段新文本</replace>
+      <description>实现登录 API 接口</description>
+      <status>[=]</status>
     </item>
-  </replacements>
-</replace_in_file>`
+    <item>
+      <description>编写前端登录页面</description>
+      <status>[ ]</status>
+    </item>
+  </steps>
+</track_task_progress>`
 
 	zhMessages[KeySystemPromptToolUsageXMLShell] = `
 TOOL USE
@@ -151,21 +157,25 @@ TOOL USE
   <end_line>50</end_line>
 </read_file>
 
-对于数组类型的参数，使用 <item> 标签表示数组中的每个元素：
+对于包含数组类型的参数，使用 <item> 标签表示数组中的每个元素：
 
-<replace_in_file>
-  <path>/path/to/file</path>
-  <replacements>
+<track_task_progress>
+  <title>Implement user login</title>
+  <steps>
     <item>
-      <search>旧文本</search>
-      <replace>新文本</replace>
+      <description>Design database user table schema</description>
+      <status>[X]</status>
     </item>
     <item>
-      <search>另一段旧文本</search>
-      <replace>另一段新文本</replace>
+      <description>Implement login API endpoint</description>
+      <status>[=]</status>
     </item>
-  </replacements>
-</replace_in_file>
+    <item>
+      <description>Create frontend login page</description>
+      <status>[ ]</status>
+    </item>
+  </steps>
+</track_task_progress>
 `
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
@@ -1368,9 +1378,9 @@ RULES
 - **5.完成任务**：当完成方案和计划制订并输出计划后，必须通过 attempt_completion 提示用户切换到行动模式（act mode）执行。
 
 # 规划模式（Plan Mode）严格禁止
-- 不可执行任何系统命令（execute_command/shell_send）
-- 不可修改任何文件（write_to_file/replace_in_file）
-- 不可操作浏览器（browser_click/browser_type/browser_navigate 等交互类操作）
+- 不可执行任何系统命令（禁止调用：execute_command/shell_send）
+- 不可修改任何文件（禁止调用：write_to_file/replace_in_file）
+- 不可操作浏览器（禁止调用：browser_click/browser_type/browser_navigate 等交互类操作）
 
 # 基本规则
 - 你的当前工作目录见每条用户消息中的 <environment_details> 块。

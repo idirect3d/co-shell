@@ -487,6 +487,10 @@
 - [x] FIX-234 修复 get_memory_slice / delete_memory / memory_search 工具在 raw terminal 下输出只有换行没有回车的问题：agent/memory_tools.go 中 3 处使用 `fmt.Println(...)` 在 enhanced mode raw terminal 下缺少 `\r` 导致输出错位，替换为 `a.defaultIO().Println(...)` 通过 UserIO 接口正确处理 `\r\n` 转换。[BUILD-244]
 - [x] FEATURE-106 实现history命令翻页：支持通过上下键浏览、.history last/first 命令查看、编号重新执行历史命令，数据持久化到 bbolt [BUILD-68]
 - [x] FEATURE-237 简化任务计划（Task Plan）机制：将 create_task_plan/update_task_step/insert_task_steps/remove_task_steps 四个 LLM 工具合并为统一的 track_task_progress 工具。LLM 只需一次性传递完整的 steps 数组（含 description + status），Manager 自动处理创建/替换。支持 step.description 多行文本（首行标题，后续详细内容）。plan description 应包含详细方案。Plan Mode 结束时自动调用 track_task_progress 记录方案。[BUILD-245]
+- [x] **FEATURE-238 系统提示词示例优化：将 execute_command 示例改为 search_files，将 replace_in_file 数组示例改为 track_task_progress** [BUILD-247]
+  - 将多工具调用示例中的 `<execute_command><command>ls -la</command></execute_command>` 替换为 search_files 示例（zh + en）
+  - 将数组参数示例从 replace_in_file 改为 track_task_progress，展示 `<item>` 标签用于 steps 数组（zh + en）
+  - 同步更新英文版 Plan Mode Strict Prohibitions 添加 `(prohibited:)` 标注
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
 - [ ] FEATURE-50 完整文档站。
