@@ -89,9 +89,11 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 
 If you need to call multiple tools in a single response, simply use multiple tool tags consecutively:
 
-<execute_command>
-  <command>ls -la</command>
-</execute_command>
+<search_files>
+  <path>agent</path>
+  <regex>func main</regex>
+  <file_pattern>*.go</file_pattern>
+</search_files>
 
 <read_file>
   <path>main.go</path>
@@ -101,19 +103,23 @@ If you need to call multiple tools in a single response, simply use multiple too
 
 For array-type parameters, use <item> tags to represent each element in the array:
 
-<replace_in_file>
-  <path>/path/to/file</path>
-  <replacements>
+<track_task_progress>
+  <title>Implement user login</title>
+  <steps>
     <item>
-      <search>old text</search>
-      <replace>new text</replace>
+      <description>Design database user table schema</description>
+      <status>[X]</status>
     </item>
     <item>
-      <search>another old text</search>
-      <replace>another new text</replace>
+      <description>Implement login API endpoint</description>
+      <status>[=]</status>
     </item>
-  </replacements>
-</replace_in_file>
+    <item>
+      <description>Create frontend login page</description>
+      <status>[ ]</status>
+    </item>
+  </steps>
+</track_task_progress>
 `
 
 	enMessages[KeySystemPromptToolUsageXMLShell] = `You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -145,19 +151,23 @@ If you need to call multiple tools in a single response, simply use multiple too
 
 For array-type parameters, use <item> tags to represent each element in the array:
 
-<replace_in_file>
-  <path>/path/to/file</path>
-  <replacements>
+<track_task_progress>
+  <title>Implement user login</title>
+  <steps>
     <item>
-      <search>old text</search>
-      <replace>new text</replace>
+      <description>Design database user table schema</description>
+      <status>[X]</status>
     </item>
     <item>
-      <search>another old text</search>
-      <replace>another new text</replace>
+      <description>Implement login API endpoint</description>
+      <status>[=]</status>
     </item>
-  </replacements>
-</replace_in_file>
+    <item>
+      <description>Create frontend login page</description>
+      <status>[ ]</status>
+    </item>
+  </steps>
+</track_task_progress>
 `
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
@@ -1325,9 +1335,9 @@ In this mode, you **must complete the following 5 things**:
 - **5. Complete the task**: Once the solution and plan are finalized and the plan is output, use attempt_completion to prompt the user to switch to act mode for execution.
 
 # Plan Mode Strict Prohibitions
-- Cannot execute any system commands (execute_command/shell_send)
-- Cannot modify any files (write_to_file/replace_in_file)
-- Cannot operate the browser (browser_click/browser_type/browser_navigate, etc.)
+- Cannot execute any system commands (prohibited: execute_command/shell_send)
+- Cannot modify any files (prohibited: write_to_file/replace_in_file)
+- Cannot operate the browser (prohibited: browser_click/browser_type/browser_navigate and other interactive operations)
 
 # Basic Rules
 - Your current working directory can be found in the <environment_details> block of each user message.
