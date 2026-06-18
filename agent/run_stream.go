@@ -220,13 +220,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.mu.Unlock()
 
 				// Build loop feedback message for the LLM
-				loopFeedback := fmt.Sprintf(
-					"⚠️ 检测到你的输出陷入了死循环模式（连续重复相似内容）。\n"+
-						"请立即停止重复当前模式，重新检视之前的步骤，调整评估方法。\n"+
-						"请向前看，并根据任务目标继续执行后续任务步骤。\n\n"+
-						"错误信息：%s",
-					streamErr.Error(),
-				)
+				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), streamErr.Error())
 
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{

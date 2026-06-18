@@ -57,21 +57,38 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		return fmt.Sprintf("✅ Agent 名称已设置为: %s", value), nil
 
 	case "description":
+		workMode := h.cfg.LLM.WorkMode
+		if workMode == "" {
+			workMode = "act"
+		}
 		if len(args) < 2 {
-			desc := h.cfg.LLM.AgentDescription
+			// Display current description for this mode
+			desc := ""
+			if h.cfg.LLM.ModeDescriptions != nil {
+				if md, ok := h.cfg.LLM.ModeDescriptions[workMode]; ok && md != "" {
+					desc = md
+				}
+			}
+			if desc == "" {
+				desc = h.cfg.LLM.AgentDescription
+			}
 			if desc == "" {
 				desc = i18n.T(i18n.KeyAgentDefaultDescription)
 			}
-			return fmt.Sprintf("Agent 描述: %s", desc), nil
+			return fmt.Sprintf("Agent 描述(%s): %s", workMode, desc), nil
 		}
 		value := strings.Join(args[1:], " ")
-		h.cfg.LLM.AgentDescription = value
+		// Set mode-specific description
+		if h.cfg.LLM.ModeDescriptions == nil {
+			h.cfg.LLM.ModeDescriptions = make(map[string]string)
+		}
+		h.cfg.LLM.ModeDescriptions[workMode] = value
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		h.agent.SetConfig(h.cfg)
-		log.Info("Agent description set to %s", value)
-		return fmt.Sprintf("✅ Agent 描述已设置为: %s", value), nil
+		log.Info("Agent description set for mode %s: %s", workMode, value)
+		return fmt.Sprintf("✅ Agent 描述(%s)已设置为: %s", workMode, value), nil
 
 	case "principles":
 		if len(args) < 2 {
