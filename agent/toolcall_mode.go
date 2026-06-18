@@ -486,7 +486,8 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 							continue
 						}
 						closeTag = "</" + actualCloseName + ">"
-						log.Debug("ParseXMLToolCalls: using fallback close tag %s for <%s>", closeTag, tagName)
+						closeIdx = fallbackIdx
+						log.Debug("ParseXMLToolCalls: using fallback close tag %s for <%s> at idx %d", closeTag, tagName, fallbackIdx)
 					} else {
 						// Can't parse the found close tag name — report error
 						errMsg := fmt.Sprintf("XML解析错误：找不到 <%s> 的闭合标签 </%s>。位置：从第 %d 字符开始。",
@@ -923,6 +924,12 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 
 	xmlContent = strings.TrimSpace(xmlContent)
 	if xmlContent == "" {
+		// Empty XML content means no child elements → empty JSON object "{}".
+		// Tool arguments are always expected to be a JSON object (map),
+		// not an array. This handles:
+		// - <view_task_plan></view_task_plan> → {}
+		// - <param></param> when param is a top-level tool tag → {}
+		// - <param>\n  </param> (whitespace-only content → {})
 		return "{}", nil
 	}
 

@@ -459,7 +459,37 @@ func (a *Agent) rebuildSystemPrompt() {
 	channel := ""
 	if a.cfg != nil {
 		agentName = a.cfg.LLM.AgentName
-		agentDesc = a.cfg.LLM.AgentDescription
+		// Resolve description with priority:
+		// 1. Mode-specific description from ModeDescriptions
+		// 2. Global AgentDescription
+		// 3. Mode-specific i18n default (act/plan/research)
+		// 4. Global i18n default
+		workMode := a.cfg.LLM.WorkMode
+		if workMode == "" {
+			workMode = "act"
+		}
+		// Try mode-specific description first
+		if a.cfg.LLM.ModeDescriptions != nil {
+			if md, ok := a.cfg.LLM.ModeDescriptions[workMode]; ok && md != "" {
+				agentDesc = md
+			}
+		}
+		// Fall back to global description
+		if agentDesc == "" {
+			agentDesc = a.cfg.LLM.AgentDescription
+		}
+		// Fall back to mode-specific i18n default
+		if agentDesc == "" {
+			switch workMode {
+			case "plan":
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
+			case "research":
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
+			default:
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
+			}
+		}
+		// Fall back to global i18n default
 		if agentDesc == "" {
 			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 		}

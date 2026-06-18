@@ -29,6 +29,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -250,13 +251,13 @@ func (h *ModeHandler) runWizard() {
 			continue
 		}
 
-		// Try number: select mode for detail view
+		// Try number: switch to that mode directly
 		num, err := strconv.Atoi(input)
 		if err == nil && num >= 1 {
 			modes := h.getAllModes()
 			if num <= len(modes) {
-				h.showModeDetail(modes[num-1].Name)
-				continue
+				h.doSwitch(modes[num-1].Name)
+				return
 			}
 		}
 		io.Println("  无效输入")
@@ -320,9 +321,8 @@ func (h *ModeHandler) showModeOverview() {
 	}
 
 	io.Println("──────────────────────────────────────")
-	io.Println("  [S] 切换模式    [C] 创建模式")
-	io.Println("  [E] 编辑模式    [D] 删除模式")
-	io.Println("  [Q] 退出")
+	io.Println("  [C] 创建模式    [E] 编辑模式")
+	io.Println("  [D] 删除模式    [Q] 退出")
 	io.Println("──────────────────────────────────────")
 }
 
@@ -484,15 +484,115 @@ func (h *ModeHandler) doRemove(name string) {
 	io.Printf("  ✅ 已删除模式: %s\n", name)
 }
 
-// showToolModesWizard shows and manages tool modes for a mode.
+// showToolModesWizard interactively shows and manages tool modes for a mode.
+// Each tool is numbered; selecting a number cycles its mode:
+// auto → confirm → disabled → auto
 func (h *ModeHandler) showToolModesWizard(modeName string) {
-	// Reuse handleModeTools with empty args to display list
-	result, err := h.handleModeTools(modeName, nil)
-	if err == nil && result != "" {
-		h.io().Print(result)
+	io := h.io()
+	mode := h.findOrCreateMode(modeName)
+	if mode == nil {
+		return
 	}
-	h.io().Println("\n回车返回上级菜单")
-	h.readLine()
+
+	// Get sorted list of all known tools (excluding "default")
+	defaultModes := agent.DefaultToolModes()
+	toolNames := make([]string, 0, len(defaultModes))
+	for name := range defaultModes {
+		if name != "default" {
+			toolNames = append(toolNames, name)
+		}
+	}
+	sort.Strings(toolNames)
+
+	// Tool mode cycle order
+	cycleOrder := []string{"auto", "confirm", "disabled"}
+
+	for {
+		io.Println()
+		io.Printf("────────── 工具限制: %s ──────────\n", modeName)
+		io.Println()
+
+		// Determine current tool modes from mode config
+		toolModes := mode.ToolModes
+		if toolModes == nil {
+			if modeName == "plan" {
+				toolModes = config.DefaultPlanToolModes()
+			} else {
+				toolModes = defaultModes
+			}
+		}
+		defaultMode := toolModes["default"]
+		if defaultMode == "" {
+			defaultMode = "confirm"
+		}
+
+		io.Printf("  默认: %s\n\n", defaultMode)
+
+		for i, name := range toolNames {
+			m := toolModes[name]
+			if m == "" {
+				m = defaultMode
+			}
+			io.Printf("  [%d] %-30s %s\n", i+1, name, m)
+		}
+
+		io.Println()
+		io.Println("  [编号]  切换工具模式 (auto→confirm→disabled→auto)")
+		io.Println("  [回车]  返回上级菜单")
+		io.Print("\n请选择: ")
+
+		input := strings.TrimSpace(h.readLine())
+		if input == "" {
+			return
+		}
+
+		num, err := strconv.Atoi(input)
+		if err != nil || num < 1 || num > len(toolNames) {
+			io.Println("  无效输入")
+			continue
+		}
+
+		selectedTool := toolNames[num-1]
+
+		// Get current mode for this tool
+		currentMode := toolModes[selectedTool]
+		if currentMode == "" {
+			currentMode = defaultMode
+		}
+
+		// Cycle to next mode
+		nextMode := cycleOrder[0]
+		for j, cm := range cycleOrder {
+			if cm == currentMode {
+				nextIdx := (j + 1) % len(cycleOrder)
+				nextMode = cycleOrder[nextIdx]
+				break
+			}
+		}
+
+		// Ensure ToolModes map exists and is populated with all defaults
+		if mode.ToolModes == nil {
+			mode.ToolModes = make(map[string]string)
+			// Copy all default tool modes as base
+			for k, v := range defaultModes {
+				mode.ToolModes[k] = v
+			}
+		}
+		mode.ToolModes[selectedTool] = nextMode
+
+		if err := h.cfg.Save(); err != nil {
+			io.Printf("  ❌ 保存失败: %v\n", err)
+			continue
+		}
+
+		if modeName == h.cfg.LLM.WorkMode || (h.cfg.LLM.WorkMode == "" && modeName == "act") {
+			if h.ag != nil {
+				h.ag.SyncToolModes(h.cfg)
+			}
+		}
+
+		io.Printf("  ✅ 已切换: %s → %s\n", selectedTool, nextMode)
+	}
 }
 
 // showModelBindingsWizard shows and manages model bindings for a mode.
