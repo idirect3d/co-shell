@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/log"
@@ -93,7 +94,17 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 
 	stepsRaw, ok := args["steps"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("steps argument is required and must be an array of objects")
+		// When XML parsing produces empty content for <steps></steps> or
+		// <steps>\n  </steps>, the parser yields a whitespace string or
+		// empty map rather than an empty array. Treat these as zero steps.
+		if strVal, ok := args["steps"].(string); ok && strings.TrimSpace(strVal) == "" {
+			stepsRaw = []interface{}{}
+		} else if _, ok := args["steps"].(map[string]interface{}); ok {
+			// <steps></steps> produces "{}" from parseXMLChildrenToJSON
+			stepsRaw = []interface{}{}
+		} else {
+			return "", fmt.Errorf("steps argument is required and must be an array of objects")
+		}
 	}
 
 	steps := make([]taskplan.StepInput, 0, len(stepsRaw))

@@ -109,8 +109,14 @@ type LLMConfig struct {
 
 	// Agent identity
 	AgentName        string `json:"agent_name"`        // Agent name (default: co-shell)
-	AgentDescription string `json:"agent_description"` // Agent expertise description
+	AgentDescription string `json:"agent_description"` // Agent expertise description (global fallback)
 	AgentPrinciples  string `json:"agent_principles"`  // Agent core principles
+
+	// ModeDescriptions maps mode names to their specific descriptions.
+	// Key is the mode name (e.g., "act", "plan", "research" or custom names).
+	// Value is the description text (can contain {AGENT_NAME} placeholder).
+	// Priority: ModeDescriptions[mode] > AgentDescription > i18n mode-specific default > global i18n default
+	ModeDescriptions map[string]string `json:"mode_descriptions,omitempty"`
 
 	// User identity
 	UserName string `json:"user_name"` // User name for LLM to identify different users (default: OS username)

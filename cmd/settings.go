@@ -556,32 +556,49 @@ func showSettingsHelp(cfg *config.Config) string {
 }
 
 // lookupWorkModeDescription returns the Identity section content for the current work mode,
-// which is the same identity text sent to the LLM (with {AGENT_NAME} populated).
+// which is the same identity text sent to the LLM (with {AGENT_NAME} and {AGENT_DESCRIPTION} populated).
 // This follows the same logic as agent.buildNamedSection("Identity", ...).
 func lookupWorkModeDescription(cfg *config.Config, modeName string) string {
 	if modeName == "" || modeName == "default" {
 		modeName = "act"
 	}
 
-	// Select identity text based on mode (mirrors agent/buildNamedSection Identity logic)
+	// Select identity text (mirrors agent/buildNamedSection Identity logic)
 	identityText := i18n.T(i18n.KeySystemPromptIdentity)
-	switch modeName {
-	case "plan":
-		identityText = i18n.T(i18n.KeySystemPromptIdentityPlan)
-	case "research":
-		identityText = i18n.T(i18n.KeySystemPromptIdentityResearch)
-	}
 
 	// If the identity text resolved (is not empty and not the key itself), populate
 	// placeholders and return it
-	if identityText != "" && identityText != i18n.KeySystemPromptIdentity &&
-		identityText != i18n.KeySystemPromptIdentityPlan &&
-		identityText != i18n.KeySystemPromptIdentityResearch {
+	if identityText != "" && identityText != i18n.KeySystemPromptIdentity {
 		agentName := cfg.LLM.AgentName
 		if agentName == "" {
 			agentName = "co-shell"
 		}
 		identityText = strings.ReplaceAll(identityText, "{AGENT_NAME}", agentName)
+
+		// Resolve {AGENT_DESCRIPTION} with same priority as rebuildSystemPrompt
+		agentDesc := ""
+		if cfg.LLM.ModeDescriptions != nil {
+			if md, ok := cfg.LLM.ModeDescriptions[modeName]; ok && md != "" {
+				agentDesc = md
+			}
+		}
+		if agentDesc == "" {
+			agentDesc = cfg.LLM.AgentDescription
+		}
+		if agentDesc == "" {
+			switch modeName {
+			case "plan":
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
+			case "research":
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
+			default:
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
+			}
+		}
+		if agentDesc == "" {
+			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
+		}
+		identityText = strings.ReplaceAll(identityText, "{AGENT_DESCRIPTION}", agentDesc)
 		return identityText
 	}
 
