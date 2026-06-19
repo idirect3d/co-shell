@@ -81,6 +81,11 @@ func (r *REPL) startESCMonitor() func() {
 				// Do NOT return here. The goroutine must keep monitoring for
 				// subsequent ESC presses after a retry. The goroutine exits
 				// only when stopCh is closed (after RunStream returns).
+			} else if buf[0] == 0x03 {
+				log.Info("Ctrl+C detected! Cancelling task immediately.")
+				r.agent.Cancel()
+				// Do NOT return here. The goroutine keeps monitoring for
+				// subsequent Ctrl+C presses after a cancelled task.
 			}
 			// Ignore any other bytes received
 		}

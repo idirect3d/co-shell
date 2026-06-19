@@ -491,6 +491,7 @@
   - 将多工具调用示例中的 `<execute_command><command>ls -la</command></execute_command>` 替换为 search_files 示例（zh + en）
   - 将数组参数示例从 replace_in_file 改为 track_task_progress，展示 `<item>` 标签用于 steps 数组（zh + en）
   - 同步更新英文版 Plan Mode Strict Prohibitions 添加 `(prohibited:)` 标注
+- [ ] FEATURE-239 Ctrl+C 快速取消任务：当 LLM 输出或执行工具调用时，用户按 Ctrl+C 直接退出迭代到 co-shell 的命令提示符，跳过确认步骤。保留 ESC 先中断并提示用户是否取消的现有机制。两者行为分开：ESC = 暂停 + 确认，Ctrl+C = 立即取消。[BUILD-248]
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
 - [ ] FEATURE-50 完整文档站。
