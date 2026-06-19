@@ -173,6 +173,11 @@ type Agent struct {
 	// Interrupt channel for ESC key (FEATURE-201)
 	interruptCh chan struct{} // signals LLM stream to stop
 
+	// Cancel channel for Ctrl+C (FEATURE-239)
+	// When signaled, the agent immediately exits the current iteration
+	// and returns to the REPL prompt without confirmation.
+	cancelCh chan struct{} // signals immediate cancellation
+
 	// UserIO for terminal interaction (FEATURE-201 fix)
 	io UserIO
 

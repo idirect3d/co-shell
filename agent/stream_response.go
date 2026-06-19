@@ -44,6 +44,13 @@ type InterruptedError struct{}
 
 func (e *InterruptedError) Error() string { return "user interrupted the LLM output" }
 
+// CanceledError is returned when the user presses Ctrl+C to cancel the current task.
+// Unlike InterruptedError, this causes immediate exit to the REPL prompt without
+// any confirmation prompt (FEATURE-239).
+type CanceledError struct{}
+
+func (e *CanceledError) Error() string { return "user canceled the task via Ctrl+C" }
+
 // lastNChars returns the last n characters of a string.
 // If the string is shorter than n, the entire string is returned.
 func lastNChars(s string, n int) string {
@@ -114,6 +121,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	done := false
 	for !done {
 		select {
+		case <-a.cancelCh:
+			log.Debug("Agent.streamLLMResponse: received cancel signal (Ctrl+C), aborting stream")
+			_ = contentBuilder.String()
+			return "", "", nil, &CanceledError{}
+
 		case <-a.interruptCh:
 			log.Debug("Agent.streamLLMResponse: received interrupt signal, stopping stream")
 			// Drain any remaining content from the contentBuilder
