@@ -45,6 +45,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// Reset interrupt channel for ESC key monitoring (FEATURE-201)
 	a.ResetInterrupt()
 
+	// Reset cancel channel for Ctrl+C monitoring (FEATURE-239)
+	a.ResetCancel()
+
 	// Reset approveAll, per-tool counters, completion flag, and error tracking for each new request
 	a.approveAll = false
 	a.approveCount = 0
@@ -136,6 +139,22 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		var streamErr error
 
 		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+
+		// FEATURE-239: Handle user cancel (Ctrl+C) — immediate exit, no confirmation
+		if _, isCanceled := streamErr.(*CanceledError); isCanceled {
+			ep := config.GetEmojiPrefixes(a.emojiEnabled)
+			cb("info", fmt.Sprintf("\n%s 已取消本次操作。\n", ep.Error))
+			// Remove any partial assistant message that may have been added
+			a.mu.Lock()
+			for i := len(a.messages) - 1; i >= 0; i-- {
+				if a.messages[i].Role == "assistant" {
+					a.messages = a.messages[:i]
+					break
+				}
+			}
+			a.mu.Unlock()
+			return "", nil
+		}
 
 		// FEATURE-201: Handle user interrupt (ESC key)
 		if _, isInterrupted := streamErr.(*InterruptedError); isInterrupted {

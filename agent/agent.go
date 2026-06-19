@@ -855,7 +855,7 @@ func (a *Agent) getTaskPlanPrompt() string {
 	return i18n.T(i18n.KeyToolResultNoPlan)
 }
 
-// Interrupt signals the agent to stop receiving LLM stream data.
+// Interrupt signals the agent to stop receiving LLM stream data (ESC key).
 // Multiple calls are safe; subsequent signals are no-ops until ResetInterrupt.
 func (a *Agent) Interrupt() {
 	a.mu.Lock()
@@ -876,6 +876,31 @@ func (a *Agent) ResetInterrupt() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.interruptCh = make(chan struct{}, 1)
+}
+
+// Cancel signals the agent to immediately abort the current task (Ctrl+C).
+// Unlike Interrupt, this causes an immediate exit to the REPL prompt
+// without any confirmation prompt. Multiple calls are safe; subsequent
+// signals are no-ops until ResetCancel (FEATURE-239).
+func (a *Agent) Cancel() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	select {
+	case a.cancelCh <- struct{}{}:
+	default:
+	}
+}
+
+// CancelChan returns the cancel channel for select-based listening.
+func (a *Agent) CancelChan() <-chan struct{} {
+	return a.cancelCh
+}
+
+// ResetCancel re-creates the cancel channel for a new request.
+func (a *Agent) ResetCancel() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.cancelCh = make(chan struct{}, 1)
 }
 
 func (a *Agent) TaskPlanManager() *taskplan.Manager  { return a.taskPlanMgr }
