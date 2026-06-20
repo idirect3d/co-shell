@@ -557,6 +557,7 @@ const (
 	// Loop detection settings (FIX-179)
 	KeyCol3LoopDetectEnabled     = "col3_loop_detect_enabled"
 	KeyLoopDetectFeedback        = "loop_detect_feedback"
+	KeyToolCallLoopFeedback      = "tool_call_loop_feedback"
 	KeyCol3LoopDetectThreshold   = "col3_loop_detect_threshold"
 	KeyCol3LoopDetectMaxWindow   = "col3_loop_detect_max_window"
 	KeySettingsDescLoopDetect    = "settings_desc_loop_detect"

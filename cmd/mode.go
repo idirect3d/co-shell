@@ -1007,6 +1007,10 @@ func (h *ModeHandler) getAllModes() []config.WorkMode {
 			modeMap[m.Name] = true
 		}
 	}
+	// Sort by name for stable ordering across invocations.
+	sort.Slice(modes, func(i, j int) bool {
+		return modes[i].Name < modes[j].Name
+	})
 	return modes
 }
 
