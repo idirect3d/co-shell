@@ -143,10 +143,11 @@ type Agent struct {
 	// RunStream checks this before treating 0-tool-call as final answer.
 	completed bool
 
-	// Loop detection (FIX-179)
-	loopDetector   *LoopDetector // monitors LLM output for repeating patterns
-	loopDetectOn   bool          // whether loop detection is enabled for current request
-	loopDetectCrit bool          // set to true when loop intervention occurs
+	// Loop detection (FIX-179 / FIX-240)
+	loopDetector         *LoopDetector         // monitors LLM output for repeating patterns
+	loopDetectOn         bool                  // whether loop detection is enabled for current request
+	loopDetectCrit       bool                  // set to true when loop intervention occurs
+	toolCallLoopDetector *ToolCallLoopDetector // monitors repeated identical tool calls across iterations
 
 	// Loop temperature controller (FEATURE-230)
 	// Automatically adjusts LLM temperature when a loop is detected.
