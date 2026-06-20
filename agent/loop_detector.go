@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -277,4 +278,107 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// ToolCallLoopDetector detects when the LLM repeatedly calls the same tool
+// with the same arguments across iterations. Each unique (toolName + canonical args)
+// combination is tracked until it reaches the threshold, at which point intervention
+// is triggered.
+//
+// Key design:
+//   - Arguments are canonicalized (re-marshaled) so key ordering and whitespace
+//     differences don't produce false negatives.
+//   - Prune() must be called after each iteration to remove keys that were NOT
+//     present in the current iteration, breaking the consecutive count chain.
+//   - This ensures only truly repeated patterns are caught, not tools that were
+//     called legitimately in different contexts across iterations.
+type ToolCallLoopDetector struct {
+	threshold  int
+	callCounts map[string]int // key = toolName + "|" + canonicalArgs → consecutive count
+}
+
+// ToolCallLoopDetectedError is returned when a tool call loop is detected.
+type ToolCallLoopDetectedError struct {
+	toolName    string
+	args        string
+	repeatCount int
+	threshold   int
+}
+
+func (e *ToolCallLoopDetectedError) Error() string {
+	return fmt.Sprintf(
+		"tool call loop detected: tool %q called %d times with the same arguments (threshold: %d). "+
+			"Please stop repeating the same tool call and try a different approach "+
+			"such as using a different tool, breaking the problem into smaller steps, "+
+			"or asking the user for more information.",
+		e.toolName, e.repeatCount, e.threshold,
+	)
+}
+
+// NewToolCallLoopDetector creates a new tool call loop detector.
+// threshold: min consecutive occurrences to trigger (default: 5).
+func NewToolCallLoopDetector(threshold int) *ToolCallLoopDetector {
+	if threshold <= 0 {
+		threshold = 5
+	}
+	log.Debug("ToolCallLoopDetector: created with threshold=%d", threshold)
+	return &ToolCallLoopDetector{
+		threshold:  threshold,
+		callCounts: make(map[string]int),
+	}
+}
+
+// canonicalizeJSON normalizes a JSON string by unmarshaling and re-marshaling.
+// This eliminates differences in key ordering, whitespace, and indentation.
+func canonicalizeJSON(raw string) string {
+	var v interface{}
+	if err := json.Unmarshal([]byte(raw), &v); err != nil {
+		// If it's not valid JSON, return the raw string as-is.
+		return raw
+	}
+	canonical, err := json.Marshal(v)
+	if err != nil {
+		return raw
+	}
+	return string(canonical)
+}
+
+// AddCall records a tool call and returns the error if the same call has
+// been made >= threshold times consecutively.
+func (tld *ToolCallLoopDetector) AddCall(name, args string) error {
+	key := name + "|" + canonicalizeJSON(args)
+	tld.callCounts[key]++
+	count := tld.callCounts[key]
+
+	log.Debug("ToolCallLoopDetector: tool=%q, key=%q, count=%d, threshold=%d",
+		name, key, count, tld.threshold)
+
+	if count >= tld.threshold {
+		log.Warn("ToolCallLoopDetector: LOOP TRIGGERED: tool %q repeated %d times", name, count)
+		return &ToolCallLoopDetectedError{
+			toolName:    name,
+			args:        args,
+			repeatCount: count,
+			threshold:   tld.threshold,
+		}
+	}
+	return nil
+}
+
+// Prune removes keys that are NOT in the given set, breaking consecutive
+// count chains for tools that were not called in the current iteration.
+// Must be called after each iteration's tool calls have been processed.
+func (tld *ToolCallLoopDetector) Prune(activeKeys map[string]bool) {
+	for key := range tld.callCounts {
+		if !activeKeys[key] {
+			delete(tld.callCounts, key)
+			log.Debug("ToolCallLoopDetector: pruned inactive key: %s", key)
+		}
+	}
+}
+
+// Reset clears all counts. Called when a loop is detected and feedback is sent.
+func (tld *ToolCallLoopDetector) Reset() {
+	tld.callCounts = make(map[string]int)
+	log.Debug("ToolCallLoopDetector: reset all counts")
 }

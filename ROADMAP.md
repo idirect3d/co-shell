@@ -492,6 +492,11 @@
   - 将数组参数示例从 replace_in_file 改为 track_task_progress，展示 `<item>` 标签用于 steps 数组（zh + en）
   - 同步更新英文版 Plan Mode Strict Prohibitions 添加 `(prohibited:)` 标注
 - [x] FEATURE-239 Ctrl+C 快速取消任务：当 LLM 输出或执行工具调用时，用户按 Ctrl+C 直接退出迭代到 co-shell 的命令提示符，跳过确认步骤。保留 ESC 先中断并提示用户是否取消的现有机制。两者行为分开：ESC = 暂停 + 确认，Ctrl+C = 立即取消。[BUILD-248]
+- [x] FIX-240 循环检测机制优化：
+  - [x] 移除非预期的 removeLastAssistantWithToolCalls：循环检测在流式阶段触发，当前迭代的 assistant 尚未追加到 a.messages，但代码错误删除了前一次迭代的正常消息和工具结果。修复为仅注入反馈提示，不再删除已有上下文 [BUILD-249]
+  - [x] 内容循环检测改为每次迭代 reset（intra-iteration）：count 跨迭代累积会导致 LLM 复用常见短语时误触发 [BUILD-249]
+  - [x] 新增工具调用循环检测（inter-iteration）：检测同工具 + 同参数在连续迭代中的重复调用，达到阈值时注入独立反馈提示 [BUILD-249]
+  - [x] .mode 命令 mode 列表按名称排序，确保编号跨调用稳定 [BUILD-249]
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
 - [ ] FEATURE-50 完整文档站。

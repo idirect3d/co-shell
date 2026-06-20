@@ -595,6 +595,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3LoopDetectEnabled:     "循环检测(on|off)",
 	KeyCol3LoopDetectThreshold:   "循环检测阈值(重复次数)",
 	KeyLoopDetectFeedback:        "⚠️ 检测到你的输出陷入了死循环（连续重复相似内容，详见后面错误信息）。\n你需要先停下来，休息一下换换脑子。深呼吸，我来指导你脱离出去。首先，围绕用户任务的终极目标（即<task></task>中的内容）进行思考，评估一下距离目标偏离了多少，然后换个思路和方向解决问题。\n\n错误信息：%s",
+	KeyToolCallLoopFeedback:      "⚠️ 检测到工具调用陷入了循环: 工具「%s」在连续多轮迭代中使用了完全相同的参数。请立即停止当前做法，换用完全不同的工具或方法。如果：\n1. 需要读文件，试试 search_files 来找线索\n2. 需要修改代码，先完整理解上下文再动手\n3. 不确定怎么做，停下来问用户更多信息\n\n记住：保持冷静，换个思路，不要重复做同样的事。",
 	KeyCol3LoopDetectMaxWindow:   "循环检测滑动窗口大小",
 	KeySettingsDescLoopDetect:    "循环检测开关，检测LLM输出是否陷入死循环",
 	KeySettingsDescLoopThreshold: "循环检测阈值，连续重复内容触发干预的次数（默认 5）",
