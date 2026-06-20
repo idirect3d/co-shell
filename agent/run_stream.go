@@ -57,7 +57,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	a.errorCounter = make(map[string]int)
 	a.errorApproveAll = false
 
-	// FIX-179: Initialize loop detector and message dedup for this request
+	// FIX-179 / FIX-240: Initialize loop detectors and temperature controller for this request
 	a.loopDetectCrit = false
 	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
 		a.loopDetectOn = true
@@ -70,6 +70,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			minLineLen = 50
 		}
 		a.loopDetector = NewLoopDetector(threshold, minLineLen)
+		a.toolCallLoopDetector = NewToolCallLoopDetector(threshold)
 
 		// FEATURE-230: Initialize loop temperature controller
 		if a.cfg.LLM.LoopTempEnabled {
@@ -133,6 +134,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	tools := a.buildTools()
 
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
+		// FIX-240: Reset content loop detector per-iteration.
+		// Content loops are intra-iteration phenomena; counting across iterations
+		// can cause false positives when the LLM reuses common phrases.
+		if a.loopDetector != nil {
+			a.loopDetector.Reset()
+		}
+
 		// Step 1: Stream the LLM response
 		var finalContent, finalReasoning string
 		var toolCalls []llm.ToolCall
@@ -224,19 +232,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		}
 
 		if streamErr != nil {
-			// FIX-179: Handle loop detection error
+			// FIX-240: Handle loop detection error.
+			// Unlike FIX-179, we do NOT remove previous assistant+tool messages here.
+			// Loop detection occurs during streaming of the CURRENT iteration, before
+			// the assistant message has been appended to a.messages. The problematic content
+			// is already discarded by the LoopDetectedError in streamLLMResponse.
+			// Removing previous iteration's messages would lose valuable context.
 			if _, isLoopDetected := streamErr.(*LoopDetectedError); isLoopDetected && a.loopDetectCrit {
-				log.Warn("Agent.RunStream: loop detected at iteration %d, removing problematic messages and sending feedback", iteration)
-
-				// Find the last assistant message with tool_calls and remove it along with subsequent messages
-				a.mu.Lock()
-				for i := len(a.messages) - 1; i >= 0; i-- {
-					if a.messages[i].Role == "assistant" && len(a.messages[i].ToolCalls) > 0 {
-						a.messages = a.messages[:i]
-						break
-					}
-				}
-				a.mu.Unlock()
+				log.Warn("Agent.RunStream: loop detected at iteration %d, sending feedback (keeping existing context)", iteration)
 
 				// Build loop feedback message for the LLM
 				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), streamErr.Error())
@@ -491,6 +494,35 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			mode := a.toolCallModeMgr.Current()
 			if mode != nil && !mode.SendTools {
 				isXMLMode = true
+			}
+		}
+
+		// FIX-240: Check for tool call loop BEFORE appending assistant message.
+		// If the same tool+args combination has been called consecutively >= threshold
+		// times, inject feedback and continue to the next iteration (no message appended).
+		if a.loopDetectOn && a.toolCallLoopDetector != nil && len(toolCalls) > 0 {
+			loopDetected := false
+			for _, tc := range toolCalls {
+				if err := a.toolCallLoopDetector.AddCall(tc.Name, tc.Arguments); err != nil {
+					log.Warn("Agent.RunStream: tool call loop detected: %v", err)
+					loopDetected = true
+					break
+				}
+			}
+
+			if loopDetected {
+				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: loopFeedback,
+				})
+				a.mu.Unlock()
+
+				a.toolCallLoopDetector.Reset()
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb("warning", fmt.Sprintf("\n%s 检测到工具调用循环，已发送纠正提示\n", ep.Warning))
+				continue
 			}
 		}
 
