@@ -142,33 +142,57 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 
 			switch event.Type {
 			case llm.StreamEventContent:
-				// FIX-179: Check for loop patterns in LLM output
-				if a.loopDetectOn && a.loopDetector != nil {
-					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
-						// Loop detected! Set flag and return error for intervention
-						a.loopDetectCrit = true
-						log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
-						return "", "", nil, err
-					}
-				}
 				contentBuilder.WriteString(event.Content)
 				cb("content_chunk", event.Content)
 
-			case llm.StreamEventReasoning:
-				// FIX-179: Check for loop patterns in reasoning output too.
-				// Some LLMs (e.g., Qwen in thinking mode) deliver the main
-				// content through reasoning events, with StreamEventContent
-				// being empty or minimal. We must detect loops here as well.
+				// FIX-179: Check for loop patterns in LLM output.
 				if a.loopDetectOn && a.loopDetector != nil {
 					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
-						a.loopDetectCrit = true
-						log.Warn("Agent.streamLLMResponse: loop detected in reasoning: %v", err)
-						return "", "", nil, err
+						log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
+						a.handleLoopDetection(contentBuilder.String(), reasoningBuilder.String(), err)
 					}
 				}
+
+				// Check if sync mode detected a loop (non-judge path) and break immediately.
+				if a.loopDetectSyncErr != nil {
+					log.Warn("Agent.streamLLMResponse: sync loop detection triggered, aborting stream")
+					finalContent := contentBuilder.String()
+					finalReasoning := reasoningBuilder.String()
+					a.mu.Lock()
+					a.lastLlmOutput = finalContent
+					syncErr := a.loopDetectSyncErr
+					a.loopDetectSyncErr = nil
+					a.loopDetectCrit = true
+					a.mu.Unlock()
+					return finalContent, finalReasoning, nil, syncErr
+				}
+
+			case llm.StreamEventReasoning:
 				reasoningBuilder.WriteString(event.Content)
 				if a.showLlmThinking {
 					cb("thinking_chunk", event.Content)
+				}
+
+				// FIX-179: Check for loop patterns in reasoning output too.
+				if a.loopDetectOn && a.loopDetector != nil {
+					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
+						log.Warn("Agent.streamLLMResponse: loop detected in reasoning: %v", err)
+						a.handleLoopDetection(contentBuilder.String(), reasoningBuilder.String(), err)
+					}
+				}
+
+				// Check if sync mode detected a loop and break immediately.
+				if a.loopDetectSyncErr != nil {
+					log.Warn("Agent.streamLLMResponse: sync loop detection triggered (reasoning), aborting stream")
+					finalContent := contentBuilder.String()
+					finalReasoning := reasoningBuilder.String()
+					a.mu.Lock()
+					a.lastLlmOutput = finalReasoning
+					syncErr := a.loopDetectSyncErr
+					a.loopDetectSyncErr = nil
+					a.loopDetectCrit = true
+					a.mu.Unlock()
+					return finalContent, finalReasoning, nil, syncErr
 				}
 
 			case llm.StreamEventToolCall:
@@ -270,6 +294,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 						}
 					}
 				}
+
+				// Save the final content as the last LLM output for loop judgment (FEATURE-241).
+				a.mu.Lock()
+				a.lastLlmOutput = finalContent
+				a.mu.Unlock()
 
 				// Accumulate token usage from the stream response (if provided by the API).
 				if event.Usage != nil {

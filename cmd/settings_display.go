@@ -226,6 +226,32 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		log.Info("Show LLM content set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeyShowLlmContent), status), nil
 
+	case "show-loop-detection":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOff)
+			if h.cfg.LLM.ShowLoopDetection {
+				status = i18n.T(i18n.KeyOn)
+			}
+			return fmt.Sprintf("显示循环检测过程: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowLoopDetection = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowLoopDetection = false
+		default:
+			return "", fmt.Errorf("usage: .set show-loop-detection on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowLoopDetection {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show loop detection set to %s", status)
+		return fmt.Sprintf("✅ 显示循环检测过程已设置为: %s", status), nil
+
 	case "result-mode":
 		if len(args) < 2 {
 			currentMode := config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))

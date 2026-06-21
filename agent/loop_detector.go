@@ -272,6 +272,13 @@ func (ltc *LoopTempController) Temperature() float64 {
 	return ltc.currentTemp
 }
 
+// LoopJudgeResult holds the result of an LLM-based loop judgment call.
+type LoopJudgeResult struct {
+	IsLoop       bool   `json:"is_loop"`
+	Reason       string `json:"reason"`
+	ExitStrategy string `json:"exit_strategy"`
+}
+
 // truncateString truncates a string to maxLen characters.
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
