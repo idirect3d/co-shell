@@ -808,8 +808,8 @@ func (a *Agent) formatUserMessage(instruction string, messageNo int) string {
 // 2. The first user message at or after the messagePointer (context start)
 // Returns empty string if neither is available.
 func (a *Agent) getCurrentTaskDescription() string {
-	// Priority 1: task plan title (even if all steps completed)
-	if a.taskPlanMgr != nil {
+	// Priority 1: active task plan with unfinished steps
+	if a.taskPlanMgr != nil && a.taskPlanMgr.HasUnfinished() {
 		plan, err := a.taskPlanMgr.GetCurrent()
 		if err == nil && plan != nil && plan.Title != "" {
 			return plan.Title

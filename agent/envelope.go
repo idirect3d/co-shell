@@ -36,6 +36,28 @@ import (
 	"github.com/idirect3d/co-shell/llm"
 )
 
+// injectTimeAndMessageNo appends a minimal <environment_details> block with time and
+// message_no to all user and tool messages. This ensures every message carries
+// temporal and positional context for the LLM.
+func injectTimeAndMessageNo(msgs []llm.Message) []llm.Message {
+	now := time.Now().Format("2006-01-02 15:04:05 Monday")
+	for i := range msgs {
+		if msgs[i].Role == "user" || msgs[i].Role == "tool" {
+			var sb strings.Builder
+			sb.WriteString("\n\n<environment_details>\n")
+			sb.WriteString("<time>")
+			sb.WriteString(now)
+			sb.WriteString("</time>\n")
+			sb.WriteString("<message_no>")
+			sb.WriteString(strconv.Itoa(i))
+			sb.WriteString("</message_no>\n")
+			sb.WriteString("</environment_details>")
+			msgs[i].Content += sb.String()
+		}
+	}
+	return msgs
+}
+
 // stripEnvelopes removes all <environment_details>...</environment_details> blocks from
 // all user/tool/assistant message contents. This prevents stale data from being sent to the LLM.
 func (a *Agent) stripEnvelopes(msgs []llm.Message) []llm.Message {
