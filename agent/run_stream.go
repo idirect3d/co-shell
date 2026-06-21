@@ -231,6 +231,51 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
+		// FEATURE-241: After a successful stream completion, check for async
+		// loop judgment result. If the async judge confirms a loop, inject
+		// feedback and reset all loop detectors before continuing.
+		if streamErr == nil && a.loopJudgeTriggered {
+			if judgeResult := a.checkLoopJudgeResult(); judgeResult != nil {
+				log.Warn("Agent.RunStream: async loop judgment confirmed at iteration %d", iteration)
+
+				loopFeedback := ""
+				if judgeResult.ExitStrategy != "" {
+					loopFeedback = fmt.Sprintf(
+						"⚠️ 检测到你的输出陷入了死循环。\n\n问题分析：%s\n\n退出建议：%s\n\n请按照建议立即调整策略。",
+						judgeResult.Reason, judgeResult.ExitStrategy,
+					)
+				} else {
+					loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), "LLM-based loop judgment confirmed")
+				}
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
+				a.mu.Unlock()
+
+				if a.loopDetector != nil {
+					a.loopDetector.Reset()
+				}
+				if a.toolCallLoopDetector != nil {
+					a.toolCallLoopDetector.Reset()
+				}
+				a.loopDetectCrit = false
+
+				if a.loopTempCtrl != nil {
+					oldTemp := a.loopTempCtrl.Temperature()
+					newTemp, changed := a.loopTempCtrl.Apply()
+					if changed {
+						a.llmClient.SetTemperature(newTemp)
+						log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after async loop judgment (direction=%d)",
+							oldTemp, newTemp, a.loopTempCtrl.direction)
+					}
+				}
+
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb("warning", fmt.Sprintf("\n%s 检测到循环输出，已发送纠正提示\n", ep.Warning))
+				continue
+			}
+		}
+
 		if streamErr != nil {
 			// FIX-240: Handle loop detection error.
 			// Unlike FIX-179, we do NOT remove previous assistant+tool messages here.
@@ -238,26 +283,24 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			// the assistant message has been appended to a.messages. The problematic content
 			// is already discarded by the LoopDetectedError in streamLLMResponse.
 			// Removing previous iteration's messages would lose valuable context.
+			// FIX-240 / FEATURE-241: Handle sync mode loop detection.
+			// In sync mode (LoopJudgeEnabled=false), streamLLMResponse returns
+			// LoopDetectedError immediately. Adjust temperature and retry.
+			// In async mode (LoopJudgeEnabled=true), streamLLMResponse does NOT
+			// return error for content loops; checkLoopJudgeResult handles it.
 			if _, isLoopDetected := streamErr.(*LoopDetectedError); isLoopDetected && a.loopDetectCrit {
-				log.Warn("Agent.RunStream: loop detected at iteration %d, sending feedback (keeping existing context)", iteration)
+				log.Warn("Agent.RunStream: sync loop detected at iteration %d, adjusting temperature and retrying", iteration)
 
-				// Build loop feedback message for the LLM
 				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), streamErr.Error())
-
 				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{
-					Role:    "user",
-					Content: loopFeedback,
-				})
+				a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
 				a.mu.Unlock()
 
-				// Reset loop detector for next call
 				if a.loopDetector != nil {
 					a.loopDetector.Reset()
 				}
 				a.loopDetectCrit = false
 
-				// FEATURE-230: Adjust temperature to break the loop
 				if a.loopTempCtrl != nil {
 					oldTemp := a.loopTempCtrl.Temperature()
 					newTemp, changed := a.loopTempCtrl.Apply()
@@ -265,7 +308,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						a.llmClient.SetTemperature(newTemp)
 						log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after loop detection (direction=%d)",
 							oldTemp, newTemp, a.loopTempCtrl.direction)
-						cb("info", fmt.Sprintf("\n[温度已从 %.2f 调整为 %.2f，尝试打破循环]\n", oldTemp, newTemp))
 					}
 				}
 

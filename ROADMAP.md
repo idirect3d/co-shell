@@ -524,6 +524,17 @@
   - [ ] 支持功能：聊天界面、语音输入、图片选择、任务计划查看
 - [ ] FEATURE-129 增加语音识别模型，以便用户能够与co-shell通过语音进行沟通，计划支持GPU和CPU部署，可以通过co-shell自主安装所需要的模型和服务。
 - [ ] FEATURE-136 在Agent策略中，增加让LLM预测用户下一步操作的机制，提供几个选项给用户选择，以便提升人机协同效率和自动化程序
+- [x] FEATURE-241 死循环 LLM 二次判定机制
+   - [x] 异步模式：检测到循环时不中断流式，后台 goroutine 调用判定 LLM
+   - [x] 异步判定并发保护（loopJudgeInflight），判定期间忽略重复检测
+   - [x] 同步模式：未启用判定时保持原有立即中断+温度调整行为
+   - [x] 判定结果确认循环时清空所有检测计数器（content + toolCall）
+   - [x] 判定收发均写入日志（LoopJudge request/response/result）
+   - [x] 完整输出内容通过 lastLlmOutput 传给判定模型
+   - [x] 提示词标注内容因循环检测被中断的信息
+   - [x] 新增 loop_judge_enabled / show_loop_detection 配置项
+   - [x] 所有模式默认温度改为 0
+   - [x] BUILD-250
 
 
 ## v1.0.0 — 正式版

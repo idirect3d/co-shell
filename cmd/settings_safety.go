@@ -339,6 +339,32 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop temp min set to %.2f", v)
 		return fmt.Sprintf("✅ 循环温度下限已设置为: %.2f", v), nil
 
+	case "loop-judge-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.LoopJudgeEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("LLM循环二次判定: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.LoopJudgeEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.LoopJudgeEnabled = false
+		default:
+			return "", fmt.Errorf("使用方法: .set loop-judge-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.LoopJudgeEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Loop judge enabled set to %s", status)
+		return fmt.Sprintf("✅ LLM循环二次判定已设置为: %s", status), nil
+
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)
 	}

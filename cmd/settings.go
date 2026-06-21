@@ -141,7 +141,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "show-command", subcommand == "show-tool",
 		subcommand == "show-tool-input", subcommand == "show-tool-output",
 		subcommand == "show-command-output", subcommand == "emoji-enabled",
-		subcommand == "show-logo":
+		subcommand == "show-logo",
+		subcommand == "show-loop-detection":
 		return h.handleDisplaySetting(subcommand, args)
 
 	// Agent settings
@@ -164,7 +165,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-detect-min-line-len",
 		subcommand == "loop-temp-enabled", subcommand == "loop-temp-step-up",
 		subcommand == "loop-temp-step-down", subcommand == "loop-temp-max",
-		subcommand == "loop-temp-min":
+		subcommand == "loop-temp-min",
+		subcommand == "loop-judge-enabled":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -433,6 +435,12 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), "HTML下载阈值"),
 	)
 
+	// Show loop detection (FEATURE-241)
+	loopDetectionShowStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowLoopDetection {
+		loopDetectionShowStatus = i18n.T(i18n.KeyOn)
+	}
+
 	// Group 3: Display & Output
 	emojiStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.EmojiEnabled {
@@ -447,6 +455,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("show-tool-output", toolOutputStatus, i18n.T(i18n.KeyCol3ToolOutput)),
 		makeLine("show-command", commandStatus, i18n.T(i18n.KeyCol3Command)),
 		makeLine("show-command-output", commandOutputStatus, i18n.T(i18n.KeyCol3CommandOutput)),
+		makeLine("show-loop-detection", loopDetectionShowStatus, i18n.T(i18n.KeyCol3ShowLoopDetection)),
 	)
 
 	// Loop detection (FIX-179)
@@ -459,6 +468,12 @@ func showSettingsHelp(cfg *config.Config) string {
 	loopTempStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.LoopTempEnabled {
 		loopTempStatus = i18n.T(i18n.KeyOn)
+	}
+
+	// Loop judgment (FEATURE-241)
+	loopJudgeStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.LoopJudgeEnabled {
+		loopJudgeStatus = i18n.T(i18n.KeyOn)
 	}
 
 	// Group 4: Safety & Confirmation
@@ -479,6 +494,8 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("loop-temp-step-down", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepDown), "循环温度下降步长"),
 		makeLine("loop-temp-max", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMax), "循环温度上限"),
 		makeLine("loop-temp-min", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMin), "循环温度下限"),
+		// Loop judgment (FEATURE-241)
+		makeLine("loop-judge-enabled", loopJudgeStatus, i18n.T(i18n.KeyCol3LoopJudgeEnabled)),
 	)
 
 	// Group 5: Memory & Context
@@ -541,10 +558,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(19)...)
 
 	// Group 3: Display & Output
-	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(8)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
 
 	// Group 4: Safety & Confirmation
-	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(14)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(15)...)
 
 	// Group 5: Memory & Context
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
