@@ -569,6 +569,12 @@ no liability whatsoever.`,
 	KeyCol3ErrorMaxTypeCount:   "Max error type count",
 
 	// Loop detection settings (FIX-179)
+	KeyCol3LoopJudgeEnabled:      "LLM loop judgment",
+	KeyCol3LoopJudgeModel:        "Loop judge model ID",
+	KeyCol3ShowLoopDetection:     "show loop detection(on|off)",
+	KeyLoopJudgeSystemPrompt:     "You are co-shell's dead-loop detection analyzer. Your sole responsibility is to analyze agent behavior and determine if it is stuck in a dead loop.\n\n## Judgment Criteria\n- Content Repetition: The agent is repeatedly outputting the same content or making the same tool calls\n- Goal Deviation: Current behavior has deviated from the original task objective\n- Lack of Progress: Repeatedly attempting the same failed strategy\n\nReturn the result in JSON format (DO NOT include any other content):\n{\"is_loop\": true/false, \"reason\": \"judgment reason\", \"exit_strategy\": \"leave empty if not a loop; if it is a loop, provide exit suggestion\"}",
+	KeyLoopJudgeUserPrompt:       "## Original Task\n{TASK}\n\n## Current Task Plan\n{TASK_PLAN}\n\n## User's Last Instruction\n{LAST_INPUT}\n\n## Suspected Loop Content (interrupted due to loop detection, content may be incomplete)\n{SUSPECT_CONTENT}\n\n## General Problem-Solving Strategies (Priority from High to Low)\n1. Rethink the original task goal, reassess current progress\n2. Switch to a completely different tool or approach\n3. Break the problem into smaller sub-steps\n4. Check if you have enough information, or if you need to ask the user for more\n5. Summarize findings and try organizing your thoughts differently\n\nPlease analyze and return the judgment result.",
+	KeySettingsDescLoopJudge:     "When enabled, an independent model is used for secondary judgment when a suspected loop is detected (default: enabled)",
 	KeyCol3LoopDetectEnabled:     "Loop detect (on|off)",
 	KeyCol3LoopDetectThreshold:   "Loop detect threshold (repeats)",
 	KeyLoopDetectFeedback:        "⚠️ Your output appears to be stuck in a loop (repeating similar content consecutively, see error details below).\nFirst, pause and take a deep breath. I'll guide you out of this. Start by thinking about the ultimate goal of the user's task (the content inside <task></task>), assess how far you've deviated from the goal, then try a different approach and direction to solve the problem.\n\nError details: %s",
