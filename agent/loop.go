@@ -270,8 +270,10 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	}
 
 	// Strip old <environment_details> blocks from all messages,
-	// then inject fresh envelope into the last user message.
+	// then inject fresh envelope into all user/tool messages,
+	// then add a full envelope (with cwd/files/task_plan) to the last user message.
 	msgs = a.stripEnvelopes(msgs)
+	msgs = injectTimeAndMessageNo(msgs)
 	msgs = a.injectEnvelopeToLastUser(msgs)
 	return msgs
 }

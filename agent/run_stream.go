@@ -101,8 +101,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.loopTempCtrl = nil
 	}
 
-	// Save raw user input for {TASK} in system prompt.
-	// The system prompt is built once at New() and not rebuilt per-round.
+	// Save raw user input for potential use in system prompt.
 	a.lastUserInput = userInput
 
 	a.mu.Lock()
@@ -129,6 +128,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	a.mu.Unlock()
 
 	log.Info("Agent.RunStream: user input: %s", userInput)
+
+	// Rebuild system prompt to refresh {TASK} with current context
+	a.rebuildSystemPrompt()
 
 	// Build available tools
 	tools := a.buildTools()
