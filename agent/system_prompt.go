@@ -189,7 +189,29 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 
 	case "ResultMode":
 		text := loadSectionText(env.cwd, modeName, "RESULT_MODE", func() string {
-			return i18n.TF(i18n.KeySystemPromptResultMode, env.resultModeInstruction)
+			// Priority 1: root-level {cwd}/WORKMODE.md (multi-mode config file)
+			if env.cwd != "" {
+				rootPath := filepath.Join(env.cwd, "WORKMODE.md")
+				if data, err := os.ReadFile(rootPath); err == nil {
+					return strings.TrimSpace(string(data))
+				}
+			}
+			// Priority 2: get mode-specific description and wrap with WORK MODE template
+			var modeDescKey string
+			switch modeName {
+			case "act":
+				modeDescKey = i18n.KeyWorkModeAct
+			case "plan":
+				modeDescKey = i18n.KeyWorkModePlan
+			case "research":
+				modeDescKey = i18n.KeyWorkModeResearch
+			}
+			if modeDescKey != "" {
+				if desc := i18n.T(modeDescKey); desc != "" && desc != modeDescKey {
+					return i18n.TF(i18n.KeySystemPromptResultMode, desc)
+				}
+			}
+			return ""
 		})
 		return buildSectionWithPlaceholders(text, env)
 

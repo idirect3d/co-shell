@@ -240,13 +240,13 @@ type LLMConfig struct {
 	// LoopTempMax: the maximum temperature value allowed during adjustment.
 	// When the adjusted temperature reaches this value, the direction flips
 	// from upward to downward. Must be greater than LoopTempMin.
-	// Default: 1.0
+	// Default: 1.1
 	LoopTempMax float64 `json:"loop_temp_max"`
 
 	// LoopTempMin: the minimum temperature value allowed during adjustment.
 	// When the adjusted temperature reaches this value, the direction flips
 	// from downward to upward. Must be less than LoopTempMax.
-	// Default: 0.1
+	// Default: 0
 	LoopTempMin float64 `json:"loop_temp_min"`
 
 	// LoopJudgeEnabled: whether to enable LLM-based loop judgment.
@@ -681,8 +681,8 @@ func DefaultConfig() *Config {
 			LoopTempEnabled:           true,
 			LoopTempStepUp:            0.05,
 			LoopTempStepDown:          0.07,
-			LoopTempMax:               1.0,
-			LoopTempMin:               0.1,
+			LoopTempMax:               1.1,
+			LoopTempMin:               0,
 			LoopJudgeEnabled:          true,
 			ShowLoopDetection:         false,
 			TopP:                      -1,
