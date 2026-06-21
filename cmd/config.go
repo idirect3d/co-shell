@@ -692,8 +692,8 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 			h.cfg.LLM.LoopTempMax = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-max", v), nil
 		}, ResetValue: func() string {
-			h.cfg.LLM.LoopTempMax = 1.0
-			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-max", "1.0")
+			h.cfg.LLM.LoopTempMax = 1.1
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-max", "1.1")
 		}},
 		{Name: "loop-temp-min", CurrentValue: func() string {
 			return strconv.FormatFloat(h.cfg.LLM.LoopTempMin, 'f', 2, 64)
@@ -705,8 +705,8 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 			h.cfg.LLM.LoopTempMin = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-min", v), nil
 		}, ResetValue: func() string {
-			h.cfg.LLM.LoopTempMin = 0.1
-			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-min", "0.1")
+			h.cfg.LLM.LoopTempMin = 0
+			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-min", "0")
 		}},
 	}
 }

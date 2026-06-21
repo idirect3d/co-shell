@@ -41,8 +41,7 @@ import (
 // Run processes a user input through the agent loop without streaming.
 // It returns the final response content.
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
-	// Save raw user input for {TASK} in system prompt.
-	// The system prompt is built once at New() and not rebuilt per-round.
+	// Save raw user input for potential use in system prompt.
 	a.lastUserInput = userInput
 
 	a.mu.Lock()
@@ -69,6 +68,9 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	a.mu.Unlock()
 
 	log.Info("Agent.Run: user input: %s", userInput)
+
+	// Rebuild system prompt to refresh {TASK} with current context
+	a.rebuildSystemPrompt()
 
 	// Build available tools
 	tools := a.buildTools()

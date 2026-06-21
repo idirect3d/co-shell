@@ -497,6 +497,12 @@
   - [x] 内容循环检测改为每次迭代 reset（intra-iteration）：count 跨迭代累积会导致 LLM 复用常见短语时误触发 [BUILD-249]
   - [x] 新增工具调用循环检测（inter-iteration）：检测同工具 + 同参数在连续迭代中的重复调用，达到阈值时注入独立反馈提示 [BUILD-249]
   - [x] .mode 命令 mode 列表按名称排序，确保编号跨调用稳定 [BUILD-249]
+- [x] FEATURE-242 系统提示词 WORK MODE 模板、工具结果去重、{TASK} 刷新修复、每条消息追加环境信息 [BUILD-252]
+  - 将 RESULT MODE / Result Processing Mode 改为 WORK MODE / Work Mode Description 模板
+  - 从 KeyXMLToolResultTemplate 移除 {TOOL_CALL_PARAMETERS}，避免工具结果中重复输出参数
+  - 每轮用户输入后 rebuildSystemPrompt() 刷新 {TASK} 占位符内容
+  - getCurrentTaskDescription() Priority 1 增加 HasUnfinished() 守卫，计划已归档/完成后不再返回标题
+  - 新增 injectTimeAndMessageNo() 为所有 user/tool 消息追加 <time> 和 <message_no>
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
 - [ ] FEATURE-50 完整文档站。
@@ -617,3 +623,5 @@ v{major}.{minor}.{patch}
 |---|---|
 | FEATURE- | 新特性或改进（New Feature/Enhancement） |
 | FIX- | Bug 修复（Bug Fix） |
+## v0.6.0 — Beta3
+

@@ -352,6 +352,9 @@ const (
 	KeySystemPromptEnvironment      = "system_prompt_environment"
 	KeySystemPromptCapabilities     = "system_prompt_capabilities"
 	KeySystemPromptRules            = "system_prompt_rules"
+	KeyWorkModeAct                  = "work_mode_act"
+	KeyWorkModePlan                 = "work_mode_plan"
+	KeyWorkModeResearch             = "work_mode_research"
 	KeySystemPromptResultMode       = "system_prompt_result_mode"
 
 	// System Prompt - legacy keys (not used in buildSystemPromptWithMode, kept for reference)
