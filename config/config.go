@@ -249,6 +249,19 @@ type LLMConfig struct {
 	// Default: 0.1
 	LoopTempMin float64 `json:"loop_temp_min"`
 
+	// LoopJudgeEnabled: whether to enable LLM-based loop judgment.
+	// When enabled, after a loop is detected by the basic line-repetition check,
+	// a separate LLM call (using a clean context) is made to a judgment model
+	// to confirm whether it's a real loop and to get exit strategy suggestions.
+	// Default: true
+	LoopJudgeEnabled bool `json:"loop_judge_enabled"`
+
+	// ShowLoopDetection: whether to show loop detection info (feedback sent to LLM,
+	// judgment results, temperature adjustments) in the user-facing output.
+	// When disabled, loop detection runs silently in the background.
+	// Default: false
+	ShowLoopDetection bool `json:"show_loop_detection"`
+
 	// ThinkingEnabled: whether to enable LLM thinking/reasoning mode.
 	// When enabled, the LLM API request includes thinking configuration
 	// (e.g., DeepSeek thinking mode, OpenAI reasoning_effort).
@@ -547,20 +560,20 @@ func DefaultWorkModes() []WorkMode {
 			Name:        "act",
 			Description: "行动模式 - 可执行系统命令、修改文件、操作浏览器等所有操作",
 			Sections:    DefaultBuiltInSections(),
-			Temperature: Float64Ptr(0.6),
+			Temperature: Float64Ptr(0),
 		},
 		{
 			Name:        "plan",
 			Description: "规划模式 - 仅分析和规划，不执行系统命令、不修改文件",
 			Sections:    DefaultPlanSections(),
 			ToolModes:   DefaultPlanToolModes(),
-			Temperature: Float64Ptr(0.5),
+			Temperature: Float64Ptr(0),
 		},
 		{
 			Name:        "research",
 			Description: "调研模式 - 搜索、查阅资料、收集信息、输出研究报告",
 			Sections:    DefaultBuiltInSections(),
-			Temperature: Float64Ptr(0.7),
+			Temperature: Float64Ptr(0),
 		},
 	}
 }
@@ -634,7 +647,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Temperature:               0.5,
+			Temperature:               0,
 			MaxTokens:                 -1,
 			MaxIterations:             1000,
 			ShowLlmThinking:           true,
@@ -670,6 +683,8 @@ func DefaultConfig() *Config {
 			LoopTempStepDown:          0.07,
 			LoopTempMax:               1.0,
 			LoopTempMin:               0.1,
+			LoopJudgeEnabled:          true,
+			ShowLoopDetection:         false,
 			TopP:                      -1,
 			TopK:                      -1,
 			RepetitionPenalty:         -1,
