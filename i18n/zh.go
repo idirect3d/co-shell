@@ -307,7 +307,7 @@ var zhMessages = map[string]string{
 	KeyCLIHelpMaxTokens:    "      --max-tokens <n>   最大输出令牌数（覆盖配置文件）",
 	KeyCLIHelpShowThinking: "      --show-thinking    显示 AI 思考过程（on/off，覆盖配置文件）",
 	KeyCLIHelpShowCommand:  "      --show-command     显示执行的系统命令（on/off，覆盖配置文件）",
-	KeyCLIHelpConfirmTool:  "      --confirm-tool  工具调用前需确认（on/off，覆盖配置文件）。\n                          可控制工具: execute_command, read_file, write_to_file,\n                          replace_in_file, search_files, list_code_definition_names,\n                          add_images, remove_images, clear_images, update_settings,\n                          list_settings, ask_followup_question, adjust_context_start,\n                          launch_sub_agent, schedule_task, create_task_plan,\n                          update_task_step, insert_task_steps, remove_task_steps,\n                          view_task_plan, get_memory_slice,\n                          memory_search, delete_memory, shell_start, shell_exec,\n                          shell_get_output, shell_stop 及 MCP 工具",
+	KeyCLIHelpConfirmTool:  "      --confirm-tool  工具调用前需确认（on/off，覆盖配置文件）。\n                          可控制工具: execute_command, read_file, write_to_file,\n                          replace_in_file, search_files, list_code_definition_names,\n                          add_images, remove_images, clear_images, update_settings,\n                          list_settings, ask_followup_question,\n                          launch_sub_agent, schedule_task, create_task_plan,\n                          update_task_step, insert_task_steps, remove_task_steps,\n                          view_task_plan, get_memory_slice,\n                          memory_search, delete_memory, shell_start, shell_exec,\n                          shell_get_output, shell_stop 及 MCP 工具",
 	KeyCLIHelpResultMode:   "      --result-mode      结果处理模式（minimal/explain/analyze/free，覆盖配置文件）",
 
 	// CLI Help - New output control (ENHANCEMENT-126)
@@ -650,21 +650,16 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpInputMode: "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）",
 
 	// Context start mode (FEATURE-103)
-	KeyCol3ContextStartMode:       "上下文起始模式(window/task/smart)",
-	KeySettingsDescCtxStart:       "设置上下文起始模式（window=固定窗口, task=任务模式, smart=智能调整）",
-	KeyContextStartUpdated:        "✅ 上下文起始模式已设置为: %s",
-	KeyCLIHelpContextStart:        "      --context-start <mode>   上下文起始模式（window/task/smart，覆盖配置文件）",
-	KeyContextStartWindow:         "window",
-	KeyContextStartWindowDesc:     "固定窗口模式，上下文为最后 N 条消息",
-	KeyContextStartTask:           "task",
-	KeyContextStartTaskDesc:       "任务模式，上下文指针随任务边界自动移动",
-	KeyContextStartSmart:          "smart",
-	KeyContextStartSmartDesc:      "智能模式，LLM 可通过 adjust_context_start 工具自行决定上下文起始位置",
-	KeyAdjustContextStartDesc:     "调整上下文起始指针的位置。让 LLM 根据当前上下文内容动态决定保留多少历史对话，忽略不相关的早期对话。仅在 smart 模式下可用。",
-	KeyAdjustContextStartResult:   "✅ 上下文起始指针已从索引 %d 调整到索引 %d，新上下文包含 %d 条消息",
-	KeyAdjustContextStartNotSmart: "⚠️ adjust_context_start 工具仅在 smart 模式下可用，当前模式为: %s",
-	KeyAdjustContextStartPrompt:   "上下文起始索引",
-
+	KeyCol3ContextStartMode:   "上下文起始模式(window/task/smart)",
+	KeySettingsDescCtxStart:   "设置上下文起始模式（window=固定窗口, task=任务模式, smart=智能调整）",
+	KeyContextStartUpdated:    "✅ 上下文起始模式已设置为: %s",
+	KeyCLIHelpContextStart:    "      --context-start <mode>   上下文起始模式（window/task/smart，覆盖配置文件）",
+	KeyContextStartWindow:     "window",
+	KeyContextStartWindowDesc: "固定窗口模式，上下文为最后 N 条消息",
+	KeyContextStartTask:       "task",
+	KeyContextStartTaskDesc:   "任务模式，上下文指针随任务边界自动移动",
+	KeyContextStartSmart:      "smart",
+	KeyContextStartSmartDesc:  "智能模式，上下文指针仅通过 attempt_completion 的 task_message_no 参数控制调整",
 	// Database (PostgreSQL) related keys (FEATURE-86)
 	KeyDBConnecting:        "正在连接 PostgreSQL 数据库 %s:%d/%s...",
 	KeyDBConnected:         "✅ PostgreSQL 数据库连接成功 (%s:%d/%s)",
