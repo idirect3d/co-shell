@@ -307,8 +307,8 @@ type LLMConfig struct {
 	// ContextStartMode: controls how the context start position is managed.
 	// "window" = fixed window: context is the last N messages (N = context_limit)
 	// "task" = task mode: context start pointer follows task boundaries automatically
-	// "smart" = smart mode: allow LLM to adjust context start via adjust_context_start tool
-	// Default: "task" (backward compatible with current behavior)
+	// "smart" = smart mode: context start pointer is only adjusted via attempt_completion's task_message_no
+	// Default: "smart"
 	ContextStartMode string `json:"context_start_mode"`
 
 	// ToolCallMode: the tool call mode to use.
@@ -517,6 +517,10 @@ type WorkMode struct {
 	// If nil, falls back to ModelID (if that model supports vision), then to global.
 	VisionModelID *string `json:"vision_model_id,omitempty"`
 
+	// ProblemModelID specifies the model to use for loop judgment / problem solving.
+	// If nil, falls back to ModelID (the text model for this mode).
+	ProblemModelID *string `json:"problem_model_id,omitempty"`
+
 	// Per-mode parameter overrides.
 	// nil means "use global cfg.LLM default".
 	Temperature       *float64 `json:"temperature,omitempty"`
@@ -608,7 +612,6 @@ func DefaultPlanToolModes() map[string]string {
 		// User interaction
 		"ask_followup_question": "auto",
 		"attempt_completion":    "auto",
-		"adjust_context_start":  "auto",
 		// Meta
 		"update_settings":     "confirm",
 		"list_settings":       "auto",
@@ -694,6 +697,7 @@ func DefaultConfig() *Config {
 			ShowLogo:                  true,
 			ToolCallEnabled:           true,
 			ToolCallMode:              "xml",
+			ContextStartMode:          "smart",
 			TokenUsage:                "on",
 			InputMode:                 "enhanced",
 			BrowserEnabled:            true,

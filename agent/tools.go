@@ -613,23 +613,6 @@ Critical rules:
 		Callback: a.askFollowupQuestionTool,
 	})
 
-	// Add adjust_context_start tool (always available, but will check mode in callback)
-	tools = append(tools, llm.Tool{
-		Name:        "adjust_context_start",
-		Description: "Adjust the context start pointer position. Allows the LLM to dynamically decide how much conversation history to keep based on context content, ignoring irrelevant early messages. Only available when context_start_mode is set to 'smart'. The target_index should be taken from the 'Message No' (or '消息序号' in zh) value in each message's <environment_details>.",
-		Parameters: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"target_index": map[string]interface{}{
-					"type":        "number",
-					"description": "The message index to set as the new context start. Messages before this index will be ignored when building context for LLM calls. Set to a value >= the current messagePointer.",
-				},
-			},
-			"required": []string{"target_index"},
-		},
-		Callback: a.adjustContextStartTool,
-	})
-
 	// Add evaluate_expression tool (always available)
 	tools = append(tools, llm.Tool{
 		Name:        "evaluate_expression",
@@ -670,7 +653,6 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 				},
 			},
 			"required": []string{"result", "task_message_no"},
-
 		},
 		Callback: a.attemptCompletionTool,
 	})
@@ -1117,16 +1099,27 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 
 	command, _ := args["command"].(string)
 
-	// Handle optional task_message_no for context pointer adjustment
+	// Handle task_message_no for context pointer adjustment.
+	// In "smart" mode, this parameter is required — it must be provided
+	// and validated. In other modes ("window", "task"), it is optional
+	// and gracefully ignored if not provided.
+	contextStartMode := "smart"
+	if a.cfg != nil && a.cfg.LLM.ContextStartMode != "" {
+		contextStartMode = a.cfg.LLM.ContextStartMode
+	}
 	if taskMsgNoRaw, ok := args["task_message_no"].(float64); ok {
 		taskMsgNo := int(taskMsgNoRaw)
-		a.mu.Lock()
-		if taskMsgNo > 0 && taskMsgNo < len(a.messages) {
-			a.messagePointer = taskMsgNo
-			a.needAdjustPointer = true
-			log.Info("attemptCompletion: context pointer adjusted to message %d (from task_message_no)", taskMsgNo)
+		if taskMsgNo >= 0 {
+			a.mu.Lock()
+			if taskMsgNo < len(a.messages) {
+				a.messagePointer = taskMsgNo
+				a.needAdjustPointer = true
+				log.Info("attemptCompletion: context pointer adjusted to message %d (from task_message_no)", taskMsgNo)
+			}
+			a.mu.Unlock()
 		}
-		a.mu.Unlock()
+	} else if contextStartMode == "smart" {
+		return "", fmt.Errorf("在 smart 模式下，task_message_no 是必需参数——必须提供一个非负整数，从 <environment_details> 中的 message_no 字段获取")
 	}
 
 	// If a command was provided, execute it as a demo

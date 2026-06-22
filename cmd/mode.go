@@ -110,6 +110,9 @@ type modeModelInfo struct {
 	visionProvider string
 	visionCaps     string
 	sameAsText     bool // vision uses same model as text
+	problemID      string
+	sameAsTextPro  bool // problem uses same model as text
+	problemCaps    string
 }
 
 // resolveModeModel resolves the actual model(s) a mode would use at runtime.
@@ -208,6 +211,35 @@ func (h *ModeHandler) resolveModeModel(mode *config.WorkMode) modeModelInfo {
 	}
 	if info.visionID == "" {
 		info.visionID = "(无可用视觉模型)"
+	}
+
+	// Resolve problem-solving model
+	problemModelID := ""
+	if mode.ProblemModelID != nil {
+		problemModelID = *mode.ProblemModelID
+	}
+	if problemModelID != "" {
+		// Find by ID
+		for _, m := range h.cfg.Models {
+			if m.ID == problemModelID && m.Enabled {
+				info.problemID = m.ID
+				if m.Capabilities.Vision {
+					info.problemCaps += "👁"
+				}
+				if m.Capabilities.ToolCall {
+					info.problemCaps += "🔧"
+				}
+				if m.Capabilities.Thinking {
+					info.problemCaps += "💭"
+				}
+				break
+			}
+		}
+	}
+	if info.problemID == "" && problemModelID == "" {
+		info.sameAsTextPro = true
+		info.problemID = textCfg.ID
+		info.problemCaps = info.textCaps
 	}
 
 	return info
@@ -359,6 +391,11 @@ func (h *ModeHandler) showModeDetail(modeName string) {
 			visID = "(同文本模型)"
 		}
 		io.Printf("       视觉: %s\n", visID)
+		probID := modelInfo.problemID
+		if modelInfo.sameAsTextPro {
+			probID = "(同文本模型)"
+		}
+		io.Printf("       问题解决: %s\n", probID)
 
 		// Option 4: Parameter overrides
 		io.Println("  [4] 参数覆盖")
@@ -630,6 +667,10 @@ func (h *ModeHandler) showModelBindingsWizard(modeName string) {
 		if mode.VisionModelID != nil {
 			io.Println("  [4] 解除视觉模型绑定")
 		}
+		io.Println("  [5] 设置问题解决模型")
+		if mode.ProblemModelID != nil {
+			io.Println("  [6] 解除问题解决模型绑定")
+		}
 
 		io.Println()
 		io.Println("  [B] 返回  [Q] 退出")
@@ -655,6 +696,12 @@ func (h *ModeHandler) showModelBindingsWizard(modeName string) {
 		case "4":
 			if mode.VisionModelID != nil {
 				h.handleModeModel(modeName, []string{"vision", "none"})
+			}
+		case "5":
+			h.selectModelInteractive(modeName, "problem")
+		case "6":
+			if mode.ProblemModelID != nil {
+				h.handleModeModel(modeName, []string{"problem", "none"})
 			}
 		default:
 			io.Println("  无效输入")
@@ -1670,8 +1717,10 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 				mode.ModelID = nil
 			case "vision":
 				mode.VisionModelID = nil
+			case "problem":
+				mode.ProblemModelID = nil
 			default:
-				return "", fmt.Errorf("无效的绑定类型: %s (使用 text 或 vision)", target)
+				return "", fmt.Errorf("无效的绑定类型: %s (使用 text、vision 或 problem)", target)
 			}
 			if err := h.cfg.Save(); err != nil {
 				return "", fmt.Errorf("cannot save config: %w", err)
@@ -1699,8 +1748,10 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 			mode.ModelID = &value
 		case "vision":
 			mode.VisionModelID = &value
+		case "problem":
+			mode.ProblemModelID = &value
 		default:
-			return "", fmt.Errorf("无效的绑定类型: %s (使用 text 或 vision)", target)
+			return "", fmt.Errorf("无效的绑定类型: %s (使用 text、vision 或 problem)", target)
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf("cannot save config: %w", err)
