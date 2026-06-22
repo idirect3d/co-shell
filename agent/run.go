@@ -249,10 +249,17 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		// If a task plan was modified (created/inserted/removed), adjust messagePointer
 		// to skip past all tool messages, so the next LLM iteration starts fresh
 		// from the checklist context (the tool result containing the checklist).
+		// Only "task" mode auto-adjusts the pointer — "window" and "smart" modes do not.
 		a.mu.Lock()
 		if a.needAdjustPointer {
-			a.messagePointer = len(a.messages) - 1
-			a.adjustMessagePointer()
+			contextStartMode := "smart"
+			if a.cfg != nil && a.cfg.LLM.ContextStartMode != "" {
+				contextStartMode = a.cfg.LLM.ContextStartMode
+			}
+			if contextStartMode == "task" {
+				a.messagePointer = len(a.messages) - 1
+				a.adjustMessagePointer()
+			}
 			a.needAdjustPointer = false
 		}
 		a.mu.Unlock()

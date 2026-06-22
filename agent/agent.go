@@ -171,7 +171,6 @@ func DefaultToolModes() map[string]string {
 		"update_settings":            "confirm",
 		"list_settings":              "auto",
 		"ask_followup_question":      "auto",
-		"adjust_context_start":       "auto",
 		"launch_sub_agent":           "confirm",
 		"schedule_task":              "confirm",
 		"track_task_progress":        "auto",
@@ -807,6 +806,43 @@ func (a *Agent) formatUserMessage(instruction string, messageNo int) string {
 // 1. Active task plan title (if one exists with unfinished steps)
 // 2. The first user message at or after the messagePointer (context start)
 // Returns empty string if neither is available.
+// getProblemModelID returns the problem-solving model ID for the current work mode.
+// Priority: ProblemModelID > ModelID > "" (use global fallback).
+func (a *Agent) getProblemModelID() string {
+	if a.cfg == nil {
+		return ""
+	}
+	workModeName := a.cfg.LLM.WorkMode
+	if workModeName == "" {
+		workModeName = "act"
+	}
+	var mode *config.WorkMode
+	for i := range a.cfg.WorkModes {
+		if a.cfg.WorkModes[i].Name == workModeName {
+			mode = &a.cfg.WorkModes[i]
+			break
+		}
+	}
+	if mode == nil {
+		for _, m := range config.DefaultWorkModes() {
+			if m.Name == workModeName {
+				mode = &m
+				break
+			}
+		}
+	}
+	if mode == nil {
+		return ""
+	}
+	if mode.ProblemModelID != nil {
+		return *mode.ProblemModelID
+	}
+	if mode.ModelID != nil {
+		return *mode.ModelID
+	}
+	return ""
+}
+
 func (a *Agent) getCurrentTaskDescription() string {
 	// Priority 1: active task plan with unfinished steps
 	if a.taskPlanMgr != nil && a.taskPlanMgr.HasUnfinished() {
