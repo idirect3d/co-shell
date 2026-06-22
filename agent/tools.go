@@ -664,8 +664,13 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 					"type":        "string",
 					"description": "Optional: A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
 				},
+				"task_message_no": map[string]interface{}{
+					"type":        "integer",
+					"description": "The message number to set as the new context start pointer after task completion. This truncates older conversation history, keeping only recent context. The value should be taken from the message_no field in <environment_details>. Use this when the task involved many iterations and the conversation context has grown long. The previous context can still be retrieved via memory tools (memory_search, get_memory_slice) if needed.",
+				},
 			},
-			"required": []string{"result"},
+			"required": []string{"result", "task_message_no"},
+
 		},
 		Callback: a.attemptCompletionTool,
 	})
@@ -1111,6 +1116,18 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 	}
 
 	command, _ := args["command"].(string)
+
+	// Handle optional task_message_no for context pointer adjustment
+	if taskMsgNoRaw, ok := args["task_message_no"].(float64); ok {
+		taskMsgNo := int(taskMsgNoRaw)
+		a.mu.Lock()
+		if taskMsgNo > 0 && taskMsgNo < len(a.messages) {
+			a.messagePointer = taskMsgNo
+			a.needAdjustPointer = true
+			log.Info("attemptCompletion: context pointer adjusted to message %d (from task_message_no)", taskMsgNo)
+		}
+		a.mu.Unlock()
+	}
 
 	// If a command was provided, execute it as a demo
 	var cmdOutput string
