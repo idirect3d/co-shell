@@ -535,10 +535,12 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 Parameters:
 - result (required) The result of the tool use. This should be a clear, specific description of the result.
 - command (optional) A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions
+- task_message_no (required) Integer. The message number to set as the new context start pointer after task completion, taken from the message_no field in <environment_details>. Setting this moves the context start pointer to that message position; older messages before the pointer are ignored and no longer occupy the context window, but can still be retrieved from persistent memory via memory_search or get_memory_slice if needed.
 Usage:
 <attempt_completion>
-  <result>Your final result description here</result>
-  <command>Your command here (optional)</command>
+  <result>User login functionality created, including frontend pages, backend API, and database tables.</result>
+  <command>open localhost:3000</command>
+  <task_message_no>42</task_message_no>
 </attempt_completion>`
 
 	enMessages[KeyToolUsageShellReset] = `## shell_reset
@@ -1293,6 +1295,8 @@ View the current task plan's progress summary at any time:
 
 	// Shell session rules (no execute_command references)
 	enMessages[KeySystemPromptRulesShell] = `
+RULES
+
 - Your current working directory can be found in the <environment_details> block of each user message.
 - You cannot 'cd' into a different directory to complete a task. You are stuck operating from the workspace directory.
 - Do not use the ~ character or $HOME to refer to the home directory.
@@ -1332,6 +1336,10 @@ CAPABILITIES
 `
 
 	enMessages[KeySystemPromptCapabilities] = `
+CAPABILITIES
+
+# Capabilities
+
 - You have access to tools that let you execute CLI commands on the user's computer, list files, view source code definitions, regex search, read and edit files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
 - When the user initially gives you a task, a list of filepaths in the workspace will be included in environment_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
 - You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
@@ -1348,6 +1356,8 @@ CAPABILITIES
 `
 
 	enMessages[KeySystemPromptRules] = `
+RULES
+
 - Your current working directory can be found in the <environment_details> block of each user message.
 - You cannot 'cd' into a different directory to complete a task. You are stuck operating from the workspace directory, so be sure to pass in the correct 'path' parameter when using tools that require a path.
 - Do not use the ~ character or $HOME to refer to the home directory.
@@ -1377,7 +1387,6 @@ CAPABILITIES
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 - **When using curl/wget to download pages or other file content**: Download the full content directly to the current task working folder (preferred) or ./download/, then use read_file to read as needed. Never read the raw output directly into context as it may blow up the buffer; the saved file also preserves the original material for reference.
-- **When a task phase is completed**: Use the adjust_context_start tool (in smart mode) to move the context pointer to the latest user message, so subsequent conversation focuses on the new task goal. The target_index can be taken directly from the "Message No" value in each message's <environment_details>. If the system has already auto-adjusted the pointer (task mode), no manual action is needed.
 - **When user instruction is unclear**: If the latest user instruction is unclear, lacks context, or needs to reference previous discussions, proactively use memory_search to search persistent memory for relevant information before starting work. Do not blindly guess or start working without understanding the full background.
 - **When modifying program files**: Prefer replace_in_file for precise edits. If many changes are needed (e.g., more than 10 locations or more than 50 lines total), apply changes in multiple rounds, a few at a time, rather than rewriting the entire file with write_to_file.
 - **When conducting research**: You must save all collected raw materials so that reviewers can quickly verify the true sources of cited data, opinions, conclusions, etc. Name raw materials as "[Serial Number] Article Title - Source - Author [Publication Date]". Cite all original sources using GB/T 7714 in the final report. Create a new working folder under ./research/ for each new task. Finalize the report in Markdown format first, then convert it to a Word document and open it for the user when possible.
@@ -1389,20 +1398,6 @@ CAPABILITIES
 	enMessages[KeySystemPromptRulesReadOnly] = `
 RULES
 
-# Plan Mode (Plan Mode) Core Tasks
-In this mode, you **must complete the following 5 things**:
-- **1. Analyze the problem**: Carefully understand the user's latest requirements, read code, search files, understand project structure and existing implementations as needed.
-- **2. Formulate a solution**: Deep thinking analysis within <thinking></thinking> tags, with task goal as the guide to break down tasks, design architecture, and evaluate feasible approaches.
-- **3. Ask clarifying questions**: Proactively ask the user through ask_followup_question when requirements are unclear, then restart from **1. Analyze the problem** based on user feedback.
-- **4. Output the plan**: Create a detailed task plan through track_task_progress, with clear steps and verification criteria.
-- **5. Complete the task**: Once the solution and plan are finalized and the plan is output, use attempt_completion to prompt the user to switch to act mode for execution.
-
-# Plan Mode Strict Prohibitions
-- Cannot execute any system commands (prohibited: execute_command/shell_send)
-- Cannot modify any files (prohibited: write_to_file/replace_in_file)
-- Cannot operate the browser (prohibited: browser_click/browser_type/browser_navigate and other interactive operations)
-
-# Basic Rules
 - Your current working directory can be found in the <environment_details> block of each user message.
 - Do not use the ~ character or $HOME to refer to the home directory.
 - When using search_files tool, carefully construct regex patterns to balance specificity and flexibility. Results include context, so analyze surrounding code to better understand matches.
@@ -1418,6 +1413,8 @@ In this mode, you **must complete the following 5 things**:
 `
 
 	enMessages[KeySystemPromptObjective] = `
+OBJECTIVE
+
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
 
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order. If the new task proposed by the user conflicts with the current task list, use ask_followup_question to prompt the user to choose from [Execute old task], [Execute new task], or [Merge tasks first]. If the user chooses to execute the new task or merge tasks first, you need to reorganize the task plan and overwrite the old plan via track_task_progress.
@@ -1426,6 +1423,12 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Before using attempt_completion, verify the task requirements with available tools. Confirm required output files exist, required content/format constraints are satisfied, and no forbidden extra artifacts were introduced. If checks fail, continue working until the result is verifiably correct.
 5. Once you've completed the user's task and verified the result, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. 'open index.html' to show the website you've built.
 6. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
+
+**Managing the Context Window**
+During multi-turn conversations, the message history continuously grows. To keep the LLM's context window at a reasonable length, use the attempt_completion's task_message_no parameter to move the context start pointer to the first message of the current task range when a task is complete. After adjusting the pointer, the system builds context starting from that position — messages before the pointer are ignored (no longer occupying the context window). If there is no active task plan, the <task> content will automatically reference the first user message at the pointer position as the LLM's current task objective. However, the full historical context can still be retrieved from persistent memory using memory_search or get_memory_slice tools if needed. Specific adjustment scenarios:
+- **After completing an independent task**: Move the pointer to the status message before that task started, so subsequent dialogue focuses on the new task goal
+- **After completing several sub-tasks within a larger task**: Move the start point to near the last completed step, preventing tool call results from earlier steps from continuously occupying the context
+- **When the user provides a new instruction but the context is already very long**: Set the pointer at the new instruction position, allowing the LLM to focus on the new instruction and its subsequent execution. Intermediate results from the old task can be retrieved via memory tools
 
 **IMPORTANT: The only way to end the task**
 At the end of each iteration, if you did not call any tools, the system checks whether you have called attempt_completion. If you have not, the system will ask you to continue.
