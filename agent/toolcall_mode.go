@@ -116,7 +116,6 @@ var toolUsageKeyMap = map[string]string{
 	"update_settings":                  i18n.KeyToolUsageUpdateSettings,
 	"list_settings":                    i18n.KeyToolUsageListSettings,
 	"ask_followup_question":            i18n.KeyToolUsageAskFollowupQuestion,
-	"adjust_context_start":             i18n.KeyToolUsageAdjustContextStart,
 	"attempt_completion":               i18n.KeyToolUsageAttemptCompletion,
 	"evaluate_expression":              i18n.KeyToolUsageEvaluateExpression,
 	"shell_start":                      i18n.KeyToolUsageShellStart,

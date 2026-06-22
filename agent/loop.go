@@ -228,19 +228,35 @@ func (a *Agent) IsCommandRunning() bool {
 	return a.commandRunning
 }
 
-// buildContextMessages returns a truncated message list based on ContextLimit and messagePointer.
+// buildContextMessages returns a truncated message list based on ContextLimit, messagePointer,
+// and ContextStartMode.
 // Message layout: [0]=system, [1..n-2]=history, [n-1]=current user input
 // The current user input (last message) is ALWAYS kept.
-// ContextLimit == 0: only system prompt + current user input (no history)
-// ContextLimit == -1: all messages (unlimited)
-// ContextLimit > 0: system prompt + current user input + last N history messages
-// If messagePointer > 0, messages before the pointer are ignored (the pointer message
-// and everything after it are kept). This is used when a checklist is created/updated
-// to focus the LLM on the current task plan.
+//
+// Mode-specific behavior:
+//
+//	"window": fixed window — ContextLimit controls window size. Respects messagePointer
+//	          for the start position, then truncates to last N messages.
+//	"task":   full history — ContextLimit is ignored. messagePointer follows task plan
+//	          boundaries automatically.
+//	"smart":  full history — ContextLimit is ignored. messagePointer is only adjusted
+//	          via attempt_completion's task_message_no; task plan changes do NOT move it.
 func (a *Agent) buildContextMessages() []llm.Message {
 	var msgs []llm.Message
 
-	if a.cfg != nil && a.cfg.LLM.ContextLimit != -1 {
+	contextStartMode := "smart"
+	if a.cfg != nil && a.cfg.LLM.ContextStartMode != "" {
+		contextStartMode = a.cfg.LLM.ContextStartMode
+	}
+
+	// Only "window" mode uses ContextLimit for truncation.
+	// "task" and "smart" modes always use full history (unlimited).
+	effectiveContextLimit := a.cfg.LLM.ContextLimit
+	if a.cfg != nil && contextStartMode != "window" {
+		effectiveContextLimit = -1 // unlimited
+	}
+
+	if a.cfg != nil && effectiveContextLimit != -1 {
 		// Apply context limit: truncate history, keep system + history + current
 		if len(a.messages) <= 1 {
 			msgs = a.messages
@@ -255,8 +271,8 @@ func (a *Agent) buildContextMessages() []llm.Message {
 
 			historyMsgs := a.messages[startIdx : len(a.messages)-1]
 
-			if a.cfg.LLM.ContextLimit > 0 && len(historyMsgs) > a.cfg.LLM.ContextLimit {
-				historyMsgs = historyMsgs[len(historyMsgs)-a.cfg.LLM.ContextLimit:]
+			if effectiveContextLimit > 0 && len(historyMsgs) > effectiveContextLimit {
+				historyMsgs = historyMsgs[len(historyMsgs)-effectiveContextLimit:]
 			}
 
 			msgs = make([]llm.Message, 0, 2+len(historyMsgs))
@@ -391,36 +407,29 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 }
 
 // getLoopJudgeModel returns the model config to use for loop judgment.
-// It selects the problem-solving model: the second highest priority enabled model
-// with ToolCall capability. Falls back to the current active model if only one exists.
+// Priority:
+//  1. Current WorkMode's ProblemModelID (if set)
+//  2. Current WorkMode's ModelID (fallback, text model)
+//  3. Current active model (final fallback)
 func (a *Agent) getLoopJudgeModel() *config.ModelConfig {
-	// Priority 1: problem-solving model - the second highest priority enabled model with ToolCall
-	if a.modelManager != nil {
-		allModels := a.modelManager.GetModelsWithCapability(false, true, false)
-		if len(allModels) >= 2 {
-			// The second model in the sorted-by-priority list
-			problemModel := allModels[1]
-			log.Debug("getLoopJudgeModel: using problem-solving model %q (priority based)", problemModel.ID)
-			return problemModel
-		}
-		// If only one model available, use the first (current) model
-		if len(allModels) == 1 {
-			log.Debug("getLoopJudgeModel: only one model available, using %q", allModels[0].ID)
-			return allModels[0]
-		}
-	}
-
-	// Also check cfg.Models directly for problem-solving model
-	if a.cfg != nil {
-		var enabledModels []*config.ModelConfig
-		for _, m := range a.cfg.Models {
-			if m.Enabled {
-				enabledModels = append(enabledModels, m)
+	// Priority 1 & 2: mode-bound model (ProblemModelID or ModelID)
+	modelID := a.getProblemModelID()
+	if modelID != "" {
+		// Look up by ID in cfg.Models
+		if a.cfg != nil {
+			for _, m := range a.cfg.Models {
+				if m.ID == modelID && m.Enabled {
+					log.Debug("getLoopJudgeModel: using mode-bound model %q", modelID)
+					return m
+				}
 			}
 		}
-		if len(enabledModels) >= 2 {
-			log.Debug("getLoopJudgeModel: using second enabled model %q (from cfg.Models)", enabledModels[1].ID)
-			return enabledModels[1]
+		// Fallback: try ModelManager
+		if a.modelManager != nil {
+			if m := a.modelManager.GetModel(modelID); m != nil && m.Enabled {
+				log.Debug("getLoopJudgeModel: using mode-bound model %q (from ModelManager)", modelID)
+				return m
+			}
 		}
 	}
 
