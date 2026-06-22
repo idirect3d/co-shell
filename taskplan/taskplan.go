@@ -162,8 +162,8 @@ func (m *Manager) GetCurrent() (*TaskPlan, error) {
 // Each StepInput.Status supports icons: "[ ]" / "[=]" / "[X]" / "[C]" / "[F]"
 // or raw strings: "pending" / "in_progress" / "completed" / "cancelled" / "failed".
 func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*TaskPlan, error) {
-	if len(steps) == 0 {
-		// Empty steps: archive and delete current plan
+	if len(steps) == 0 || title == "" {
+		// Empty steps or empty title: archive and delete current plan
 		existing, err := m.loadCurrent()
 		if err != nil {
 			return nil, fmt.Errorf("无法加载当前任务计划: %w", err)
