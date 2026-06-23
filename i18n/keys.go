@@ -148,6 +148,11 @@ const (
 	KeyRuleInvalid = "rule_invalid"
 	KeyRuleNoRules = "rule_no_rules"
 
+	// LLM interaction log
+	KeyLLMInteractionLog        = "llm_interaction_log"
+	KeyCol3LLMInteractionLog    = "col3_llm_interaction_log"
+	KeyLLMInteractionLogUpdated = "llm_interaction_log_updated"
+
 	// Memory
 	KeyMemorySaved   = "memory_saved"
 	KeyMemoryDeleted = "memory_deleted"
