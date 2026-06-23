@@ -869,4 +869,11 @@ const (
 	KeyConfigValUnlimited     = "config_val_unlimited"
 	KeyConfigValCtxLimit      = "config_val_ctx_limit"
 	KeyConfigValCtxStart      = "config_val_ctx_start"
+
+	// CLI Help - Unload mode (FEATURE-245)
+	KeyCLIHelpUnloadMode = "cli_help_unload_mode"
+
+	// Unload mode messages (FEATURE-245)
+	KeyUnloadModeDone   = "unload_mode_done"
+	KeyUnloadModeFailed = "unload_mode_failed"
 )
