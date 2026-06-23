@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "254"
+const build = "255"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -156,6 +156,9 @@ type cliFlags struct {
 
 	// Input mode
 	inputMode string
+
+	// Unload mode (FEATURE-245)
+	unloadMode string // mode name to unload sections to disk
 }
 
 func parseFlags() cliFlags {
@@ -277,6 +280,9 @@ func parseFlags() cliFlags {
 
 	// Input mode (FEATURE-198)
 	flag.StringVar(&f.inputMode, "input-mode", "", "REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）")
+
+	// Unload mode (FEATURE-245)
+	flag.StringVar(&f.unloadMode, "unload-mode", "", "将当前模式各节配置卸载到 mode/<name>/ .md 文件")
 
 	// Custom usage message
 	flag.Usage = func() {
@@ -752,6 +758,35 @@ func main() {
 		if level, ok := log.ParseLogLevel(cfg.LogLevel); ok {
 			log.SetLevel(level)
 		}
+	}
+
+	// Handle unload mode (FEATURE-245): export mode sections to disk and exit
+	if flags.unloadMode != "" {
+		if err := agent.UnloadModeSections(cfg, flags.unloadMode); err != nil {
+			io.Print(i18n.TF(i18n.KeyUnloadModeFailed, err) + "\n")
+			os.Exit(1)
+		}
+		// Count written files
+		sectionNames := config.DefaultBuiltInSections()
+		if cfg != nil {
+			for _, wm := range cfg.WorkModes {
+				if wm.Name == flags.unloadMode && len(wm.Sections) > 0 {
+					sectionNames = wm.Sections
+					break
+				}
+			}
+		}
+		if len(sectionNames) == 0 {
+			// Check built-in modes
+			for _, wm := range config.DefaultWorkModes() {
+				if wm.Name == flags.unloadMode && len(wm.Sections) > 0 {
+					sectionNames = wm.Sections
+					break
+				}
+			}
+		}
+		io.Print(i18n.TF(i18n.KeyUnloadModeDone, flags.unloadMode, len(sectionNames)) + "\n")
+		os.Exit(0)
 	}
 
 	log.Info("co-shell v%s started (workspace: %s)", version, ws.Root())
