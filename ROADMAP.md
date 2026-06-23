@@ -544,12 +544,13 @@
    - [x] 新增 loop_judge_enabled / show_loop_detection 配置项
    - [x] 所有模式默认温度改为 0
     - [x] BUILD-250
-- [ ] FEATURE-246 增加 LLM 交互完整日志，独立文件记录请求/响应 JSON
+- [x] FEATURE-246 增加 LLM 交互完整日志，独立文件记录请求/响应 JSON [BUILD-256]
   - 新增 log/llm-interaction-YYYY-MM-DD.log 独立日志文件
   - 支持独立开关（.settings llm-log on/off），默认关闭
-  - 流式输出实时记录，首 chunk 带 [REQ]/[RESP] 头，后续 chunk 追加
-  - 流结束后写入分隔符方便查阅
-  - 格式化 JSON（json.MarshalIndent），内容可读
+  - 流式输出实时记录，首 chunk 带 [RESP][assistant] 头，后续直接追加
+  - 流结束时追加 usage JSON 并写入分隔符
+  - LoopDetectThreshold 默认值从 3 改为 5
+  - 循环二次判定（judgeLoop）自动写入同一日志文件
 
 
 ## v1.0.0 — 正式版
