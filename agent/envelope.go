@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -156,6 +157,24 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 	binFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "bin"), 0, 64), "\n")
 	researchFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "research"), 0, 64), "\n")
 
+	// Get per-iteration token usage for context_window (most recent LLM call only)
+	promptTokens, completionTokens, totalTokens := a.IterTokenDelta()
+
+	// Get max model length from the current active model
+	maxModelLen := 0
+	if a.modelManager != nil {
+		if modelCfg := a.modelManager.GetActiveModel(false); modelCfg != nil {
+			maxModelLen = modelCfg.MaxModelLen
+		}
+	}
+
+	// Calculate context usage percentage
+	contextPercentage := ""
+	if maxModelLen > 0 && totalTokens > 0 {
+		pct := float64(totalTokens) * 100.0 / float64(maxModelLen)
+		contextPercentage = fmt.Sprintf("%.1f", pct)
+	}
+
 	var sb strings.Builder
 	sb.WriteString("\n\n<environment_details>\n")
 	sb.WriteString("<time>")
@@ -164,6 +183,25 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 	sb.WriteString("<message_no>")
 	sb.WriteString(strconv.Itoa(messageNo))
 	sb.WriteString("</message_no>\n")
+	sb.WriteString("<context_window>\n")
+	sb.WriteString("<used_tokens>")
+	sb.WriteString(strconv.Itoa(totalTokens))
+	sb.WriteString("</used_tokens>\n")
+	sb.WriteString("<prompt_tokens>")
+	sb.WriteString(strconv.Itoa(promptTokens))
+	sb.WriteString("</prompt_tokens>\n")
+	sb.WriteString("<completion_tokens>")
+	sb.WriteString(strconv.Itoa(completionTokens))
+	sb.WriteString("</completion_tokens>\n")
+	sb.WriteString("<max_tokens>")
+	sb.WriteString(strconv.Itoa(maxModelLen))
+	sb.WriteString("</max_tokens>\n")
+	if contextPercentage != "" {
+		sb.WriteString("<percentage>")
+		sb.WriteString(contextPercentage)
+		sb.WriteString("%</percentage>\n")
+	}
+	sb.WriteString("</context_window>\n")
 	sb.WriteString("<cwd>")
 	sb.WriteString(cwd)
 	sb.WriteString("</cwd>\n")

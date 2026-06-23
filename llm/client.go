@@ -886,10 +886,20 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 							ToolCall: tc,
 						}
 					}
+					// Convert finalUsage to TokenUsage for the Done event
+					var doneUsage *TokenUsage
+					if finalUsage != nil {
+						doneUsage = &TokenUsage{
+							PromptTokens:     finalUsage.PromptTokens,
+							CompletionTokens: finalUsage.CompletionTokens,
+							TotalTokens:      finalUsage.TotalTokens,
+						}
+					}
 					eventCh <- StreamEvent{
 						Type:         StreamEventDone,
 						FinishReason: finishReason,
 						Done:         true,
+						Usage:        doneUsage,
 					}
 					return
 				}

@@ -57,6 +57,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	a.errorCounter = make(map[string]int)
 	a.errorApproveAll = false
 
+	// Reset task-level token tracking for this new request
+	a.ResetTaskTokenUsage()
+
 	// FIX-179 / FIX-240: Initialize loop detectors and temperature controller for this request
 	a.loopDetectCrit = false
 	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
@@ -481,12 +484,28 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 
 			// Rule 1: attempt_completion was called — exit
-			if a.completed {
-				// Send token usage information before done
-				prompt, completion, total := a.TokenUsage()
-				if total > 0 {
-					cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+			// Send per-iteration token usage before completing (skip if "off" mode)
+			iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
+			maxModelLen := a.GetMaxModelLen()
+			timing := a.GetLLMTiming()
+			if iterTotal > 0 {
+				tokenUsageMode := "on"
+				if a.cfg != nil {
+					tokenUsageMode = a.cfg.LLM.TokenUsage
 				}
+				if tokenUsageMode != "off" {
+					cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+						iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+				}
+			}
+
+			// Send task-level token usage before done
+			taskP, taskC, taskT := a.TaskTokenUsage()
+			if taskT > 0 {
+				cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+			}
+
+			if a.completed {
 				cb("done", "")
 
 				a.mu.Lock()
@@ -689,6 +708,25 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		// If attempt_completion was called during tool execution, finalize and exit
 		if a.completed {
+			// Send per-iteration token usage before done (skip if "off" mode)
+			iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
+			maxModelLen := a.GetMaxModelLen()
+			timing := a.GetLLMTiming()
+			if iterTotal > 0 {
+				tokenUsageMode := "on"
+				if a.cfg != nil {
+					tokenUsageMode = a.cfg.LLM.TokenUsage
+				}
+				if tokenUsageMode != "off" {
+					cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+						iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+				}
+			}
+			// Send task-level token usage before done
+			taskP, taskC, taskT := a.TaskTokenUsage()
+			if taskT > 0 {
+				cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+			}
 			cb("done", "")
 			log.Info("Agent.RunStream: completed after %d iterations (via attempt_completion in same iteration)", iteration+1)
 			return finalContent, nil
@@ -717,10 +755,19 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		}
 		a.mu.Unlock()
 
-		// Send token usage information at the end of each iteration
-		prompt, completion, total := a.TokenUsage()
-		if total > 0 {
-			cb("token_usage", fmt.Sprintf("prompt=%d, completion=%d, total=%d", prompt, completion, total))
+		// Send per-iteration token usage at the end of each iteration (skip if "off" mode)
+		iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
+		maxModelLen := a.GetMaxModelLen()
+		timing := a.GetLLMTiming()
+		if iterTotal > 0 {
+			tokenUsageMode := "on"
+			if a.cfg != nil {
+				tokenUsageMode = a.cfg.LLM.TokenUsage
+			}
+			if tokenUsageMode != "off" {
+				cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+					iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+			}
 		}
 
 	}
