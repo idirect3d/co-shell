@@ -775,4 +775,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySimulateLabelError:    "错误",
 	KeySimulateLabelSuccess:  "✅ 执行成功",
 	KeySimulateLabelResult:   "结果: ",
+
+	// Unload mode (FEATURE-245)
+	KeyCLIHelpUnloadMode: "      --unload-mode <name>  将当前模式各节配置卸载到 mode/<name>/ .md 文件",
+	KeyUnloadModeDone:    "✅ 模式配置已卸载到 mode/%s/ (%d 个文件)",
+	KeyUnloadModeFailed:  "❌ 卸载模式配置失败: %v",
 }

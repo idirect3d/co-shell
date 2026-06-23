@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -94,6 +95,156 @@ func getWorkModeSectionNames(cfg *config.Config, modeName string) []string {
 		}
 	}
 	return config.DefaultBuiltInSections()
+}
+
+// sectionFileName maps built-in section names (e.g. "Identity") to their
+// external filename convention (e.g. "IDENTITY") used by loadSectionText.
+// Custom sections return the name as-is.
+func sectionFileName(name string) string {
+	switch name {
+	case "Identity":
+		return "IDENTITY"
+	case "ToolUsage":
+		return "TOOL_USAGE"
+	case "ResultMode":
+		return "RESULT_MODE"
+	case "Capabilities":
+		return "CAPABILITIES"
+	case "Rules":
+		return "RULES"
+	case "Objective":
+		return "OBJECTIVE"
+	case "ExternalTools":
+		return "EXTERNAL_TOOLS"
+	case "Environment":
+		return "ENVIRONMENT"
+	case "ToolExamples":
+		return "TOOL_EXAMPLES"
+	case "TaskProgress":
+		return "TASK_PROGRESS"
+	case "EditingFiles":
+		return "EDITING_FILES"
+	case "BrowserUsage":
+		return "BROWSER_USAGE"
+	}
+	return name
+}
+
+// UnloadModeSections exports all section content for the given mode to
+// mode/{modeName}/ directory as .md files. Each file contains the raw
+// section text with placeholders intact, so users can edit them before
+// co-shell loads them at runtime.
+func UnloadModeSections(cfg *config.Config, modeName string) error {
+	if modeName == "" {
+		return fmt.Errorf("mode name is required")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot get working directory: %w", err)
+	}
+
+	// Get section names for this mode
+	sectionNames := getWorkModeSectionNames(cfg, modeName)
+
+	// Create mode directory
+	modeDir := filepath.Join(cwd, "mode", modeName)
+	if err := os.MkdirAll(modeDir, 0755); err != nil {
+		return fmt.Errorf("cannot create mode directory %s: %w", modeDir, err)
+	}
+
+	written := 0
+	for _, name := range sectionNames {
+		// Get raw text without placeholder substitution
+		text := getRawSectionText(name, modeName, cwd, cfg)
+		if text == "" {
+			continue
+		}
+
+		// Use the same filename convention as loadSectionText (UPPER_CASE for builtins)
+		fileName := sectionFileName(name) + ".md"
+		filePath := filepath.Join(modeDir, fileName)
+		if err := os.WriteFile(filePath, []byte(text), 0644); err != nil {
+			return fmt.Errorf("cannot write section %s: %w", name, err)
+		}
+		written++
+	}
+
+	if written == 0 {
+		return fmt.Errorf("no sections found for mode: %s", modeName)
+	}
+
+	return nil
+}
+
+// getRawSectionText returns the raw section text (with placeholders intact)
+// for the given section name. It mirrors the i18n fallback logic of
+// buildNamedSection but skips placeholder substitution.
+func getRawSectionText(name, modeName, cwd string, cfg *config.Config) string {
+	switch name {
+	case "Identity":
+		return i18n.T(i18n.KeySystemPromptIdentity)
+	case "ToolUsage":
+		return i18n.T(i18n.KeySystemPromptToolUsage)
+	case "ResultMode":
+		if cwd != "" {
+			rootPath := filepath.Join(cwd, "WORKMODE.md")
+			if data, err := os.ReadFile(rootPath); err == nil {
+				return strings.TrimSpace(string(data))
+			}
+		}
+		var modeDescKey string
+		switch modeName {
+		case "act":
+			modeDescKey = i18n.KeyWorkModeAct
+		case "plan":
+			modeDescKey = i18n.KeyWorkModePlan
+		case "research":
+			modeDescKey = i18n.KeyWorkModeResearch
+		}
+		if modeDescKey != "" {
+			if desc := i18n.T(modeDescKey); desc != "" && desc != modeDescKey {
+				return i18n.TF(i18n.KeySystemPromptResultMode, desc)
+			}
+		}
+		return ""
+	case "Capabilities":
+		return i18n.T(i18n.KeySystemPromptCapabilities)
+	case "Rules":
+		return i18n.T(i18n.KeySystemPromptRules)
+	case "Objective":
+		if modeName == "plan" {
+			if planObj := i18n.T(i18n.KeySystemPromptObjectivePlan); planObj != "" && planObj != i18n.KeySystemPromptObjectivePlan {
+				return planObj
+			}
+		}
+		return i18n.T(i18n.KeySystemPromptObjective)
+	case "ExternalTools":
+		return i18n.T(i18n.KeySystemPromptExternalTools)
+	case "Environment":
+		return i18n.T(i18n.KeySystemPromptEnvironment)
+	case "ToolExamples":
+		return i18n.T(i18n.KeySystemPromptXMLExamples)
+	case "TaskProgress":
+		return i18n.T(i18n.KeySystemPromptXMLTaskProgress)
+	case "EditingFiles":
+		return i18n.T(i18n.KeySystemPromptEditingFiles)
+	case "BrowserUsage":
+		return i18n.T(i18n.KeySystemPromptBrowserUsage)
+	default:
+		// Custom section
+		if cfg != nil {
+			for _, ps := range cfg.PromptSections {
+				if ps.Name == name && ps.Content != "" {
+					return ps.Content
+				}
+			}
+		}
+		i18nKey := "system_prompt_" + strings.ToLower(name)
+		if i18n.T(i18nKey) != "" {
+			return i18n.T(i18nKey)
+		}
+		return ""
+	}
 }
 
 // buildSectionWithPlaceholders returns a prompt section after applying all

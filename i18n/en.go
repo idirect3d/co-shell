@@ -738,4 +738,9 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 	KeySimulateLabelError:    "Error",
 	KeySimulateLabelSuccess:  "✅ Executed successfully",
 	KeySimulateLabelResult:   "Result: ",
+
+	// Unload mode (FEATURE-245)
+	KeyCLIHelpUnloadMode: "      --unload-mode <name>  Unload current mode sections to mode/<name>/ .md files",
+	KeyUnloadModeDone:    "✅ Unloaded mode sections to mode/%s/ (%d files)",
+	KeyUnloadModeFailed:  "❌ Failed to unload mode: %v",
 }
