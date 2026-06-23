@@ -101,7 +101,17 @@ type Logger struct {
 var (
 	defaultLogger *Logger
 	once          sync.Once
+
+	// llmInteractionWriter is a separate file writer for LLM interaction logs.
+	// It is independent of the main Logger and its level filtering.
+	llmInteractionWriter io.WriteCloser
+	llmInteractionMu     sync.Mutex
+	llmInteractionOn     bool
 )
+
+// llmInteractionSeparator is written at the end of each LLM interaction (stream completion)
+// to visually separate different requests in the log file.
+const llmInteractionSeparator = "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
 // Init initializes the global logger.
 // The log file is created in the workspace log/ directory with the name co-shell-YYYY-MM-DD.log.
@@ -291,6 +301,101 @@ func Raw(format string, args ...interface{}) {
 	}
 	msg := fmt.Sprintf(format, args...)
 	fmt.Fprint(defaultLogger.writer, msg)
+}
+
+// InitLLMInteractionLog initializes the LLM interaction log writer.
+// The log file is created at log/llm-interaction-YYYY-MM-DD.log.
+// The writer is created regardless of the enabled flag; actual writing is
+// controlled by SetLLMInteractionEnabled.
+func InitLLMInteractionLog(ws *workspace.Workspace) error {
+	date := time.Now().Format("2006-01-02")
+	path := ws.LLMInteractionLogFilePath(date)
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("cannot open LLM interaction log file %s: %w", path, err)
+	}
+
+	llmInteractionMu.Lock()
+	if llmInteractionWriter != nil {
+		llmInteractionWriter.Close()
+	}
+	llmInteractionWriter = f
+	llmInteractionMu.Unlock()
+
+	return nil
+}
+
+// SetLLMInteractionEnabled enables or disables LLM interaction logging at runtime.
+// When enabled, writes are active; when disabled, all WriteLLMInteraction calls are no-ops.
+func SetLLMInteractionEnabled(enabled bool) {
+	llmInteractionMu.Lock()
+	llmInteractionOn = enabled
+	llmInteractionMu.Unlock()
+}
+
+// IsLLMInteractionEnabled returns whether LLM interaction logging is currently enabled.
+func IsLLMInteractionEnabled() bool {
+	llmInteractionMu.Lock()
+	defer llmInteractionMu.Unlock()
+	return llmInteractionOn
+}
+
+// WriteLLMInteraction writes a line to the LLM interaction log file.
+// If dir is non-empty (e.g., "REQ" or "RESP"), it writes "[timestamp] [dir]\n" first.
+// Then it writes data as-is followed by a newline.
+// This function is independent of the main logger's level filtering.
+func WriteLLMInteraction(dir, data string) {
+	llmInteractionMu.Lock()
+	defer llmInteractionMu.Unlock()
+
+	if !llmInteractionOn || llmInteractionWriter == nil {
+		return
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05.000")
+	if dir != "" {
+		fmt.Fprintf(llmInteractionWriter, "[%s] [%s]\n", now, dir)
+	}
+	fmt.Fprintln(llmInteractionWriter, data)
+}
+
+// WriteLLMInteractionAppend appends data to the LLM interaction log file
+// without a timestamp header and without a trailing newline.
+// This is used for streaming RESP content where chunks are appended
+// in real-time to form a continuous output line.
+// This function is independent of the main logger's level filtering.
+func WriteLLMInteractionAppend(data string) {
+	llmInteractionMu.Lock()
+	defer llmInteractionMu.Unlock()
+
+	if !llmInteractionOn || llmInteractionWriter == nil {
+		return
+	}
+
+	fmt.Fprint(llmInteractionWriter, data)
+}
+
+// WriteLLMInteractionEnd writes a separator line to visually separate
+// different LLM interactions in the log file.
+func WriteLLMInteractionEnd() {
+	llmInteractionMu.Lock()
+	defer llmInteractionMu.Unlock()
+
+	if !llmInteractionOn || llmInteractionWriter == nil {
+		return
+	}
+	fmt.Fprint(llmInteractionWriter, llmInteractionSeparator)
+}
+
+// CloseLLMInteractionLog closes the LLM interaction log file.
+func CloseLLMInteractionLog() {
+	llmInteractionMu.Lock()
+	defer llmInteractionMu.Unlock()
+	if llmInteractionWriter != nil {
+		llmInteractionWriter.Close()
+		llmInteractionWriter = nil
+	}
 }
 
 // Close closes the log file.
