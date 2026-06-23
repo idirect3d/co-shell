@@ -783,4 +783,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpUnloadMode: "      --unload-mode <name>  将当前模式各节配置卸载到 mode/<name>/ .md 文件",
 	KeyUnloadModeDone:    "✅ 模式配置已卸载到 mode/%s/ (%d 个文件)",
 	KeyUnloadModeFailed:  "❌ 卸载模式配置失败: %v",
+
+	// Token usage display (FEATURE-247)
+	KeyTokenUsageDisplay: "Token 用量: 输入=%d, 输出=%d, 总计=%d, 上下文=%.1f%%",
+	KeyTokenUsageTiming:  "首字: %s | 输入: %s t/秒 | 输出: %s t/秒",
 }

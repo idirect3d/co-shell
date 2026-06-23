@@ -75,6 +75,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	contextMsgs := a.buildContextMessages()
 	log.Debug("Agent.streamLLMResponse: context messages built, count=%d", len(contextMsgs))
 
+	// Record call start time for performance timing
+	a.mu.Lock()
+	a.llmCallStartTime = time.Now()
+	a.mu.Unlock()
+
 	// Try streaming first
 	log.Debug("Agent.streamLLMResponse: calling ChatStream with %d context messages and %d tools",
 		len(contextMsgs), len(tools))
@@ -117,6 +122,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 		return valid
 	}
 
+	// Track whether first token has arrived for timing
+	firstTokenArrived := false
+
 	eventCount := 0
 	done := false
 	for !done {
@@ -139,6 +147,14 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				break
 			}
 			eventCount++
+
+			// Record first token arrival time for performance timing
+			if !firstTokenArrived && (event.Type == llm.StreamEventContent || event.Type == llm.StreamEventReasoning) {
+				firstTokenArrived = true
+				a.mu.Lock()
+				a.firstTokenTime = time.Now()
+				a.mu.Unlock()
+			}
 
 			switch event.Type {
 			case llm.StreamEventContent:
@@ -236,6 +252,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				}
 
 			case llm.StreamEventDone:
+				// Record stream end time for performance timing
+				a.mu.Lock()
+				a.llmStreamEndTime = time.Now()
+				a.mu.Unlock()
+
 				log.Debug("Agent.streamLLMResponse: processing StreamEventDone, contentBuilder=%d bytes, reasoningBuilder=%d bytes, toolCalls=%d",
 					contentBuilder.Len(), reasoningBuilder.Len(), len(toolCalls))
 				// Stream finished - tool calls are already accumulated from stream deltas.
@@ -308,6 +329,12 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					a.totalPromptTokens += event.Usage.PromptTokens
 					a.totalCompletionTokens += event.Usage.CompletionTokens
 					a.totalTokens += event.Usage.TotalTokens
+					a.taskPromptTokens += event.Usage.PromptTokens
+					a.taskCompletionTokens += event.Usage.CompletionTokens
+					a.taskTokens += event.Usage.TotalTokens
+					a.iterPromptTokens = event.Usage.PromptTokens
+					a.iterCompletionTokens = event.Usage.CompletionTokens
+					a.iterTokens = event.Usage.TotalTokens
 					// Persist token usage to database
 					if a.store != nil {
 						entry := &store.TokenUsageEntry{

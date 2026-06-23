@@ -122,14 +122,15 @@ func (h *ModelHandler) showHelp() (string, error) {
 	result.WriteString("  📋 多模型管理命令 / Multi-Model Management\n")
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 	result.WriteString("  .model list / ls              - 列出所有已配置模型\n")
-	result.WriteString("  .model info <id>              - 显示模型详细信息\n")
+	result.WriteString("  .model info [id]              - 显示模型详细信息（不指定模型时将列出供选择）\n")
 	result.WriteString("  .model add                    - 向导模式添加新模型\n")
+	result.WriteString("  .model edit [id]              - 编辑已存在模型的参数（端点/密钥/模型名/优先级/能力等）\n")
 	result.WriteString("  .model from-tpl <tpl> <mdl>   - 从模板添加模型 (--api-key)\n")
-	result.WriteString("  .model remove <id>            - 移除模型\n")
-	result.WriteString("  .model switch <id>            - 切换到指定模型\n")
-	result.WriteString("  .model enable <id>            - 启用模型\n")
-	result.WriteString("  .model disable <id>           - 禁用模型\n")
-	result.WriteString("  .model set-priority <id> <n>  - 设置优先级\n")
+	result.WriteString("  .model remove [id]            - 移除模型（不指定模型时将列出供选择）\n")
+	result.WriteString("  .model switch [id]            - 切换到指定模型（不指定模型时将列出供选择）\n")
+	result.WriteString("  .model enable [id]            - 启用模型（不指定模型时将列出供选择）\n")
+	result.WriteString("  .model disable [id]           - 禁用模型（不指定模型时将列出供选择）\n")
+	result.WriteString("  .model set-priority [id] <n>  - 设置优先级\n")
 	result.WriteString("  .model set-param <id> <k> <v> - 设置模型自定义参数 (None=不发送)\n")
 	result.WriteString("  .model templates              - 列出可用模板\n\n")
 	result.WriteString("  优先级越高越优先使用，switch 会启用目标并禁用其他模型\n")
@@ -283,6 +284,11 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	if model.TemplateID != "" {
 		result.WriteString(fmt.Sprintf("  模板: %s\n", model.TemplateID))
 	}
+	if model.MaxModelLen > 0 {
+		result.WriteString(fmt.Sprintf("  最大上下文长度: %d tokens\n", model.MaxModelLen))
+	} else {
+		result.WriteString(fmt.Sprintf("  最大上下文长度: 未知\n"))
+	}
 
 	capStr := []string{}
 	if model.Capabilities.Vision {
@@ -321,6 +327,8 @@ type modelWizardState struct {
 	Priority     int
 	Capabilities config.ModelCapability
 	Enabled      bool
+	MaxModelLen  int             // max context length from API model list
+	APIModels    []llm.ModelInfo // model info from API for max_model_len lookup
 }
 
 // AddModelWizard starts the interactive wizard to add a new model.
@@ -413,7 +421,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			io := h.io()
 			io.Println("\n  步骤: 模型名称")
 			var modelSuggestions []string
-			modelSuggestions, state.Endpoint = h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
+			modelSuggestions, state.Endpoint, state.APIModels = h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
 			modelName := h.wizardPromptString("请选择或输入模型名称", modelSuggestions, "q")
 			if modelName == "__BACK__" {
 				// Go back to API key step — keep the API key value
@@ -489,8 +497,50 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			state.Priority = priority
 		}
 
-		// Step 8: Enable model
+		// Step 8: Max model length — detect from API first
+		if state.MaxModelLen == 0 {
+			io := h.io()
+			io.Print("\n  📡 正在检测模型最大上下文长度... ")
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			detectClient := llm.NewClient(state.Endpoint, state.APIKey, state.ModelName, 0, 0, 10)
+			detectModels, err := detectClient.ListModels(ctx)
+			cancel()
+			if err != nil {
+				io.Printf("⚠️ 检测失败: %v\n", err)
+				io.Println("  稍后可手动输入。")
+			} else {
+				for _, m := range detectModels {
+					if m.ID == state.ModelName {
+						state.MaxModelLen = m.MaxModelLen
+						if state.MaxModelLen > 0 {
+							io.Printf("✅ 检测到 %d tokens\n", state.MaxModelLen)
+						} else {
+							io.Printf("⚠️ API 未返回最大长度\n")
+						}
+						break
+					}
+				}
+			}
+		}
+		// Fall back to built-in known model lengths if still 0
+		if state.MaxModelLen == 0 {
+			state.MaxModelLen = knownMaxModelLen(state.ModelName)
+		}
+		// Fall back to template default if still 0
+		if state.MaxModelLen == 0 && state.Template.DefaultMaxModelLen > 0 {
+			state.MaxModelLen = state.Template.DefaultMaxModelLen
+		}
 		io := h.io()
+		io.Println("\n  步骤: 模型最大上下文长度")
+		maxModelStr := h.wizardPromptStringWithDefault("请输入模型最大上下文长度（0=未知）", fmt.Sprintf("%d", state.MaxModelLen), "q")
+		if strings.ToUpper(maxModelStr) == "Q" || strings.ToUpper(maxModelStr) == "QUIT" {
+			return result.String(), fmt.Errorf("向导已取消")
+		}
+		if mm, err := parseTokenCount(maxModelStr); err == nil && mm >= 0 {
+			state.MaxModelLen = mm
+		}
+
+		// Step 9: Enable model
 		io.Println("\n  步骤: 启用状态")
 		enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", state.Enabled)
 		if !enabled {
@@ -509,6 +559,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			Enabled:      enabled,
 			TemplateID:   state.Template.ID,
 			Capabilities: state.Capabilities,
+			MaxModelLen:  state.MaxModelLen,
 		}
 
 		if err := h.saveModel(modelConfig); err != nil {
@@ -726,10 +777,11 @@ func (h *ModelHandler) testEndpointConnectivity(endpoint string) {
 }
 
 // fetchModelSuggestions fetches available models from the API and combines with template defaults.
-// Returns the model suggestions list and the (possibly updated) endpoint URL.
+// Returns the model suggestions list, the (possibly updated) endpoint URL, and the raw model info list
+// (for max_model_len lookup and other downstream use).
 // If the initial ListModels call fails and the endpoint doesn't have a /vN suffix,
 // retries with +/v1 suffix as a fallback and updates the endpoint on success.
-func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *config.ModelTemplate) ([]string, string) {
+func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *config.ModelTemplate) ([]string, string, []llm.ModelInfo) {
 	io := h.io()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	client := llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
@@ -763,7 +815,7 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 					seen[m] = true
 				}
 			}
-			return suggestions, retryEndpoint
+			return suggestions, retryEndpoint, models2
 		}
 		// Both original and +/v1 failed, fall through to template defaults
 		io.Printf("⚠️ 获取模型列表失败: %v\n", err)
@@ -786,7 +838,7 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 			seen[m] = true
 		}
 	}
-	return suggestions, endpoint
+	return suggestions, endpoint, nil
 }
 
 // wizardEnterModelParams prompts user to enter model-specific parameters.
@@ -1352,29 +1404,55 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	result.WriteString(fmt.Sprintf("  📋 编辑模型: %s\n", modelID))
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
+	// Step 0: Test API connectivity and detect max_model_len
+	io.Println("\n  📡 正在测试 API 连接并获取模型信息...")
+	detectedMaxModelLen := 0
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	client := llm.NewClient(model.Endpoint, model.APIKey, model.Model, 0, 0, 15)
+	models, err := client.ListModels(ctx)
+	cancel()
+	if err != nil {
+		io.Printf("  ⚠️ 获取模型列表失败: %v\n", err)
+		io.Println("  将使用当前配置值")
+	} else {
+		io.Printf("  ✅ 成功获取 %d 个模型\n", len(models))
+		for _, m := range models {
+			if m.ID == model.Model {
+				detectedMaxModelLen = m.MaxModelLen
+				if detectedMaxModelLen > 0 {
+					io.Printf("  检测到模型 %s 的最大上下文长度: %d tokens\n", m.ID, detectedMaxModelLen)
+				}
+				break
+			}
+		}
+		if detectedMaxModelLen == 0 {
+			io.Println("  当前模型的最大上下文长度未知（API 未返回）")
+		}
+	}
+
 	// Step 1: Endpoint (default = current value)
-	io.Println("  [1/6] API 端点")
+	io.Println("  [1/7] API 端点")
 	endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", model.Endpoint, "q")
 	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
 		return result.String(), fmt.Errorf("已取消")
 	}
 
 	// Step 2: API key (default = current, masked)
-	io.Println("\n  [2/6] API Key")
+	io.Println("\n  [2/7] API Key")
 	apiKey := h.wizardPromptSecret("请输入 API Key", model.APIKey)
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
 		return result.String(), fmt.Errorf("已取消")
 	}
 
 	// Step 3: Model name (default = current)
-	io.Println("\n  [3/6] 模型名称")
+	io.Println("\n  [3/7] 模型名称")
 	modelName := h.wizardPromptStringWithDefault("请输入模型名称", model.Model, "q")
 	if strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
 		return result.String(), fmt.Errorf("已取消")
 	}
 
 	// Step 4: Priority (default = current)
-	io.Println("\n  [4/6] 优先级")
+	io.Println("\n  [4/7] 优先级")
 	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字)", fmt.Sprintf("%d", model.Priority), "q")
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
 		return result.String(), fmt.Errorf("已取消")
@@ -1384,15 +1462,62 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 		priority = model.Priority
 	}
 
-	// Step 5: Capabilities (default = current)
-	io.Println("\n  [5/6] 模型能力")
+	// Step 5: Max model length — detect from API with current parameters
+	io.Println("\n  [5/7] 模型最大上下文长度")
+	io.Print("\n  📡 正在检测模型最大上下文长度... ")
+	detectCtx, detectCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	detectClient := llm.NewClient(endpoint, apiKey, modelName, 0, 0, 10)
+	detectModels, detectErr := detectClient.ListModels(detectCtx)
+	detectCancel()
+	newDetectedMax := 0
+	if detectErr != nil {
+		io.Printf("⚠️ 检测失败: %v\n", detectErr)
+		io.Println("  稍后可手动输入。")
+	} else {
+		for _, m := range detectModels {
+			if m.ID == modelName {
+				newDetectedMax = m.MaxModelLen
+				if newDetectedMax > 0 {
+					io.Printf("✅ 检测到 %d tokens\n", newDetectedMax)
+				} else {
+					io.Printf("⚠️ API 未返回最大长度\n")
+				}
+				break
+			}
+		}
+	}
+	maxModelLenDefault := model.MaxModelLen
+	if maxModelLenDefault == 0 && newDetectedMax > 0 {
+		maxModelLenDefault = newDetectedMax
+	}
+	if maxModelLenDefault == 0 {
+		// Try built-in known model lengths
+		maxModelLenDefault = knownMaxModelLen(modelName)
+	}
+	if maxModelLenDefault == 0 {
+		// Try template default
+		if tpl := config.GetDefaultModelManager().GetTemplate(model.TemplateID); tpl != nil && tpl.DefaultMaxModelLen > 0 {
+			maxModelLenDefault = tpl.DefaultMaxModelLen
+		}
+	}
+	maxModelLenStr := h.wizardPromptStringWithDefault("请输入模型最大上下文长度（0=未知）", fmt.Sprintf("%d", maxModelLenDefault), "q")
+	if strings.ToUpper(maxModelLenStr) == "Q" || strings.ToUpper(maxModelLenStr) == "QUIT" {
+		return result.String(), fmt.Errorf("已取消")
+	}
+	maxModelLen := 0
+	if mm, er := parseTokenCount(maxModelLenStr); er == nil && mm >= 0 {
+		maxModelLen = mm
+	}
+
+	// Step 6: Capabilities (default = current)
+	io.Println("\n  [6/7] 模型能力")
 	capabilities, goBack := h.wizardSelectCapabilities(model.Capabilities)
 	if goBack {
 		return result.String(), fmt.Errorf("已取消")
 	}
 
-	// Step 6: Enabled state (default = current)
-	io.Println("\n  [6/6] 启用状态")
+	// Step 7: Enabled state (default = current)
+	io.Println("\n  [7/7] 启用状态")
 	enabled := h.wizardPromptBool("是否启用此模型？(y/n)", model.Enabled)
 
 	// Apply changes
@@ -1400,6 +1525,7 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	model.APIKey = apiKey
 	model.Model = modelName
 	model.Priority = priority
+	model.MaxModelLen = maxModelLen
 	model.Capabilities = capabilities
 	model.Enabled = enabled
 
@@ -1820,6 +1946,70 @@ func (h *ModelHandler) listTemplates() (string, error) {
 	result.WriteString("  使用 .model add 向导模式添加模型\n")
 	result.WriteString("  或使用 .model from-tpl <模板ID> <模型ID> 命令行添加\n")
 	return result.String(), nil
+}
+
+// knownMaxModelLen returns a known default max context length for well-known model IDs.
+// Used as fallback when the API does not return max_model_len.
+func knownMaxModelLen(modelID string) int {
+	known := map[string]int{
+		"deepseek-v4-flash": 1048576,
+		"deepseek-v4-pro":   1048576,
+		"deepseek-v4":       1048576,
+		"deepseek":          262144,
+		"deepseek-chat":     262144,
+		"deepseek-r1":       65536,
+		"deepseek-v3":       65536,
+		"gpt-4o":            128000,
+		"gpt-4o-mini":       128000,
+		"gpt-4-turbo":       128000,
+		"gpt-3.5-turbo":     16385,
+		"qwen-plus":         131072,
+		"qwen-max":          131072,
+		"qwen-turbo":        1000000,
+		"qwen-vl-max":       131072,
+		"glm-4":             131072,
+		"mimo-v2":           65536,
+	}
+	lower := strings.ToLower(modelID)
+	if v, ok := known[lower]; ok {
+		return v
+	}
+	// Prefix match: longest prefix wins
+	matchLen := 0
+	matchVal := 0
+	for prefix, v := range known {
+		if strings.HasPrefix(lower, prefix) && len(prefix) > matchLen {
+			matchLen = len(prefix)
+			matchVal = v
+		}
+	}
+	return matchVal
+}
+
+// parseTokenCount parses a token count string that may include unit suffixes.
+// Supported formats: "65536", "64K", "1M", "128k", "1m"
+// Returns the integer count and nil error on success.
+func parseTokenCount(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("empty string")
+	}
+	lower := strings.ToLower(s)
+	multiplier := 1
+	if strings.HasSuffix(lower, "k") {
+		multiplier = 1000
+		s = strings.TrimSuffix(s, "k")
+		s = strings.TrimSuffix(s, "K")
+	} else if strings.HasSuffix(lower, "m") {
+		multiplier = 1000000
+		s = strings.TrimSuffix(s, "m")
+		s = strings.TrimSuffix(s, "M")
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	return n * multiplier, nil
 }
 
 // setParam sets a custom parameter for a model.

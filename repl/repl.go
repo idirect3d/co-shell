@@ -577,12 +577,33 @@ func (r *REPL) streamCallback(eventType string, content string) {
 		out(ep.ToolCallInput)
 		out(content)
 		out("\n")
-	case "token_usage":
-		var prompt, completion, total int
-		if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
-			outF("%s Token 用量: 输入=%d, 输出=%d, 总计=%d", ep.Info, prompt, completion, total)
+	case "token_iter":
+		outF("────────────────────────────────────────────────────────────────────────────────\n")
+		var prompt, completion, total, maxLen int
+		var ft, inTPS, outTPS string
+		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+			&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil {
+			pct := 0.0
+			if maxLen > 0 && total > 0 {
+				pct = float64(total) * 100.0 / float64(maxLen)
+			}
+			out(fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), prompt, completion, total, pct))
+			if maxLen == 0 {
+				out(" (模型最大长度未知)")
+			}
 			out("\n")
+			if ft != "" {
+				out(fmt.Sprintf("  %s\n", fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS)))
+			}
 		}
+		outF("────────────────────────────────────────────────────────────────────────────────\n")
+	case "token_task":
+		outF("────────────────────────────────────────────────────────────────────────────────\n")
+		var prompt, completion, total int
+		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d", &prompt, &completion, &total); err == nil {
+			out(fmt.Sprintf("本次任务 Token 总计: 输入=%d, 输出=%d, 总计=%d\n", prompt, completion, total))
+		}
+		outF("────────────────────────────────────────────────────────────────────────────────\n")
 	case "info":
 		out(content)
 	case "warning":
