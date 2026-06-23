@@ -136,9 +136,26 @@ type Agent struct {
 	errorApproveAll bool
 
 	// Token usage statistics
-	totalPromptTokens     int // accumulated prompt tokens across all LLM calls
+	totalPromptTokens     int // accumulated prompt tokens across all LLM calls (session level)
 	totalCompletionTokens int // accumulated completion tokens across all LLM calls
 	totalTokens           int // accumulated total tokens across all LLM calls
+
+	// Task-level token usage (reset per RunStream)
+	taskPromptTokens     int // prompt tokens for the current task
+	taskCompletionTokens int // completion tokens for the current task
+	taskTokens           int // total tokens for the current task
+
+	// Per-iteration token delta tracking
+	iterPromptTokens     int // prompt tokens for the current iteration (most recent LLM call)
+	iterCompletionTokens int // completion tokens for the current iteration
+	iterTokens           int // total tokens for the current iteration
+
+	// LLM performance timing (per-call, reset before each ChatStream)
+	llmCallStartTime time.Time // when ChatStream/Chat is initiated
+	firstTokenTime   time.Time // when first content/thinking token arrives
+	llmStreamEndTime time.Time // when stream completes
+	prevPromptTokens int       // prompt tokens from previous call for computing per-call delta
+	prevTotalTokens  int       // total tokens from previous call for computing per-call delta
 
 	// completed is set to true when attempt_completion is called.
 	// RunStream checks this before treating 0-tool-call as final answer.
@@ -669,4 +686,97 @@ func (a *Agent) ResetTokenUsage() {
 	a.totalPromptTokens = 0
 	a.totalCompletionTokens = 0
 	a.totalTokens = 0
+}
+
+// TaskTokenUsage returns the task-level accumulated token usage statistics.
+func (a *Agent) TaskTokenUsage() (prompt, completion, total int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.taskPromptTokens, a.taskCompletionTokens, a.taskTokens
+}
+
+// ResetTaskTokenUsage resets the task-level token usage statistics to zero.
+func (a *Agent) ResetTaskTokenUsage() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.taskPromptTokens = 0
+	a.taskCompletionTokens = 0
+	a.taskTokens = 0
+}
+
+// IterTokenDelta returns the token delta for the most recent LLM call (per-iteration).
+// These are the non-zero fresh values from iter* fields.
+func (a *Agent) IterTokenDelta() (prompt, completion, total int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.iterPromptTokens, a.iterCompletionTokens, a.iterTokens
+}
+
+// GetMaxModelLen returns the maximum context length (in tokens) of the current active model.
+// Returns 0 if no model manager or model is configured.
+func (a *Agent) GetMaxModelLen() int {
+	if a.modelManager != nil {
+		if modelCfg := a.modelManager.GetActiveModel(false); modelCfg != nil {
+			return modelCfg.MaxModelLen
+		}
+	}
+	return 0
+}
+
+// LLMTiming holds performance timing for the most recent LLM call.
+type LLMTiming struct {
+	FirstTokenLatency string // time to first token (e.g. "1.2s")
+	InputTPS          string // input tokens per second (prompt_tokens / time_to_first_token)
+	OutputTPS         string // output tokens per second (completion_tokens / generation_time)
+}
+
+// GetLLMTiming computes and returns the performance timing for the current LLM call.
+// Results are reset after reading so subsequent calls get fresh data.
+func (a *Agent) GetLLMTiming() LLMTiming {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Calculate per-call token deltas
+	promptDelta := a.totalPromptTokens - a.prevPromptTokens
+	totalDelta := a.totalTokens - a.prevTotalTokens
+	if totalDelta == 0 {
+		// No new data, return empty timing
+		return LLMTiming{}
+	}
+
+	firstLat := 0.0
+	if !a.firstTokenTime.IsZero() && !a.llmCallStartTime.IsZero() {
+		firstLat = a.firstTokenTime.Sub(a.llmCallStartTime).Seconds()
+	}
+	genDuration := 0.0
+	if !a.llmStreamEndTime.IsZero() && !a.firstTokenTime.IsZero() {
+		genDuration = a.llmStreamEndTime.Sub(a.firstTokenTime).Seconds()
+	}
+
+	var result LLMTiming
+	if firstLat > 0 {
+		result.FirstTokenLatency = fmt.Sprintf("%.1fs", firstLat)
+	} else {
+		result.FirstTokenLatency = "-"
+	}
+	if firstLat > 0 && promptDelta > 0 {
+		result.InputTPS = fmt.Sprintf("%.0f", float64(promptDelta)/firstLat)
+	} else {
+		result.InputTPS = "-"
+	}
+	compDelta := totalDelta - promptDelta
+	if genDuration > 0 && compDelta > 0 {
+		result.OutputTPS = fmt.Sprintf("%.0f", float64(compDelta)/genDuration)
+	} else {
+		result.OutputTPS = "-"
+	}
+
+	// Update previous counters
+	a.prevPromptTokens = a.totalPromptTokens
+	a.prevTotalTokens = a.totalTokens
+	a.llmCallStartTime = time.Time{}
+	a.firstTokenTime = time.Time{}
+	a.llmStreamEndTime = time.Time{}
+
+	return result
 }

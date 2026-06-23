@@ -881,4 +881,8 @@ const (
 	// Unload mode messages (FEATURE-245)
 	KeyUnloadModeDone   = "unload_mode_done"
 	KeyUnloadModeFailed = "unload_mode_failed"
+
+	// Token usage display (FEATURE-247)
+	KeyTokenUsageDisplay = "token_usage_display"
+	KeyTokenUsageTiming  = "token_usage_timing"
 )

@@ -746,4 +746,8 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 	KeyCLIHelpUnloadMode: "      --unload-mode <name>  Unload current mode sections to mode/<name>/ .md files",
 	KeyUnloadModeDone:    "✅ Unloaded mode sections to mode/%s/ (%d files)",
 	KeyUnloadModeFailed:  "❌ Failed to unload mode: %v",
+
+	// Token usage display (FEATURE-247)
+	KeyTokenUsageDisplay: "Token usage: prompt=%d, completion=%d, total=%d, context=%.1f%%",
+	KeyTokenUsageTiming:  "TTFT: %s | Input: %s t/s | Output: %s t/s",
 }
