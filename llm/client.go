@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/log"
@@ -643,6 +644,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 
 	// Log request body at DEBUG level (mask API key in messages)
 	log.Debug("LLM Chat request body: %s", maskAPIKeyInRequest(string(bodyBytes)))
+	// Write LLM interaction log (full request body as formatted JSON)
+	log.WriteLLMInteraction("REQ", prettyJSON(bodyBytes))
 
 	// Create HTTP request
 	apiURL := c.baseURL + "/chat/completions"
@@ -676,6 +679,9 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		log.Error("LLM Chat response read failed: POST %s, error: %v", apiURL, err)
 		return nil, fmt.Errorf("cannot read response: %w", err)
 	}
+
+	// Write LLM interaction log (full response body as formatted JSON)
+	log.WriteLLMInteraction("RESP", prettyJSON(respBytes))
 
 	// Parse response
 	var chatResp chatResponseJSON
@@ -803,6 +809,8 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 
 	// Log request body at DEBUG level (mask API key in messages)
 	log.Debug("LLM ChatStream request body: %s", maskAPIKeyInRequest(string(bodyBytes)))
+	// Write LLM interaction log (full request body as formatted JSON)
+	log.WriteLLMInteraction("REQ", prettyJSON(bodyBytes))
 
 	// Create HTTP request
 	apiURL := c.baseURL + "/chat/completions"
@@ -842,6 +850,7 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	go func() {
 		defer close(eventCh)
 		defer resp.Body.Close()
+		defer log.WriteLLMInteractionEnd()
 
 		reader := NewStreamReader(resp.Body)
 		// Accumulate tool calls from stream deltas.
@@ -849,11 +858,21 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		// subsequent chunks have arguments fragments for the same index.
 		accumulatedToolCalls := make(map[int]*ToolCall)
 		finishReason := ""
+		var finalUsage *usageJSON
+		respHeaderWritten := false
 
 		for {
 			line, err := reader.Read()
 			if err != nil {
 				if err == io.EOF {
+					// At stream end, write usage JSON if available, then close the RESP line.
+					if finalUsage != nil {
+						var sb strings.Builder
+						sb.WriteString("\n")
+						usageBytes, _ := json.Marshal(finalUsage)
+						sb.Write(usageBytes)
+						log.WriteLLMInteractionAppend(sb.String())
+					}
 					// Send accumulated tool calls before done.
 					// Filter out any tool calls with empty name or ID to avoid
 					// "missing field 'name'" API errors on subsequent requests.
@@ -886,6 +905,20 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 
 			if event == nil {
 				continue
+			}
+
+			// Real-time RESP content logging: first chunk gets [RESP][assistant] header,
+			// subsequent chunks directly append to the same line (no timestamp, no header).
+			if event.Content != "" {
+				if !respHeaderWritten {
+					log.WriteLLMInteraction("RESP][assistant", event.Content)
+					respHeaderWritten = true
+				} else {
+					log.WriteLLMInteractionAppend(event.Content)
+				}
+			}
+			if event.Usage != nil {
+				finalUsage = event.Usage
 			}
 
 			if event.ReasoningContent != "" {
@@ -1342,6 +1375,20 @@ func (c *openAIClient) RemoveBodyAddition(key string) {
 
 func (c *openAIClient) GetBodyAdditions() map[string]string {
 	return c.bodyAdditions
+}
+
+// prettyJSON formats raw JSON bytes as indented JSON for human-readable logging.
+// If the input is not valid JSON, it returns the original string unchanged.
+func prettyJSON(data []byte) string {
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return string(data)
+	}
+	pretty, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return string(data)
+	}
+	return string(pretty)
 }
 
 func (c *openAIClient) Close() error {

@@ -137,6 +137,12 @@ func (w *Workspace) LogFilePath(date string) string {
 	return filepath.Join(w.LogDir(), fmt.Sprintf("co-shell-%s.log", date))
 }
 
+// LLMInteractionLogFilePath returns the path to the LLM interaction log file
+// within the log/ directory. The filename includes the current date.
+func (w *Workspace) LLMInteractionLogFilePath(date string) string {
+	return filepath.Join(w.LogDir(), fmt.Sprintf("llm-interaction-%s.log", date))
+}
+
 // ensureDirs creates all required subdirectories if they don't exist.
 func (w *Workspace) ensureDirs() error {
 	dirs := []string{

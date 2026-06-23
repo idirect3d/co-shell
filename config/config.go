@@ -349,6 +349,11 @@ type LLMConfig struct {
 	// is prepended. 0 means no limit.
 	// Default: 81920 (80KB)
 	ReadFileMaxSize int `json:"read_file_max_size"`
+
+	// LLMInteractionLog: whether to enable LLM interaction full logging.
+	// When enabled, all LLM request and response payloads are written to
+	// log/llm-interaction-YYYY-MM-DD.log as formatted JSON.
+	LLMInteractionLog bool `json:"llm_interaction_log"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -679,7 +684,7 @@ func DefaultConfig() *Config {
 			ErrorMaxSingleCount:       10,
 			ErrorMaxTypeCount:         100,
 			LoopDetectEnabled:         true,
-			LoopDetectThreshold:       3,
+			LoopDetectThreshold:       5,
 			LoopDetectMinLineLen:      50,
 			LoopTempEnabled:           true,
 			LoopTempStepUp:            0.05,

@@ -28,6 +28,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -52,4 +53,33 @@ func (h *SettingsHandler) handleLogSetting(subcommand string, args []string) (st
 	}
 	log.Info("Log level set to %s", args[1])
 	return fmt.Sprintf("✅ 日志级别已设置为: %s", args[1]), nil
+}
+
+// handleLLMInteractionLogSetting handles the llm-log setting.
+func (h *SettingsHandler) handleLLMInteractionLogSetting(subcommand string, args []string) (string, error) {
+	if len(args) < 2 {
+		status := i18n.T(i18n.KeyOff)
+		if log.IsLLMInteractionEnabled() {
+			status = i18n.T(i18n.KeyOn)
+		}
+		return fmt.Sprintf("LLM 交互日志: %s", status), nil
+	}
+
+	var enabled bool
+	switch args[1] {
+	case "on", "1", "true", "yes":
+		enabled = true
+	case "off", "0", "false", "no":
+		enabled = false
+	default:
+		return "", fmt.Errorf("无效值: %s（可选值: on, off）", args[1])
+	}
+
+	h.cfg.LLM.LLMInteractionLog = enabled
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.SetLLMInteractionEnabled(enabled)
+	log.Info("LLM interaction log set to %v", enabled)
+	return fmt.Sprintf(i18n.T(i18n.KeyLLMInteractionLogUpdated), args[1]), nil
 }

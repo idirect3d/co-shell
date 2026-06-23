@@ -186,6 +186,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "log":
 		return h.handleLogSetting(subcommand, args)
 
+	// LLM interaction log setting
+	case subcommand == "llm-log":
+		return h.handleLLMInteractionLogSetting(subcommand, args)
+
 	// DB subcommand
 	case subcommand == "db":
 		return h.handleDBSubCommand(args[1:])
@@ -525,6 +529,13 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), i18n.T(i18n.KeyCol3SearchContextLines)),
 		makeLine("log", logStatus, i18n.T(i18n.KeyCol3Log)),
 	)
+	llmInteractionLogStatus := i18n.T(i18n.KeyOff)
+	if log.IsLLMInteractionEnabled() {
+		llmInteractionLogStatus = i18n.T(i18n.KeyOn)
+	}
+	allLines = append(allLines,
+		makeLine("llm-log", llmInteractionLogStatus, i18n.T(i18n.KeyCol3LLMInteractionLog)),
+	)
 
 	// Helper to format a setting line with fixed column widths
 	formatLine := func(name, value, col3 string) string {
@@ -567,7 +578,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
 
 	// Group 6: Search & Debug
-	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(5)...)
 
 	return sb.String()
 }

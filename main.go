@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "255"
+const build = "256"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -746,6 +746,13 @@ func main() {
 		io.ErrPrintf("Warning: cannot initialize logger: %v\n", err)
 	}
 	defer log.Close()
+
+	// Initialize LLM interaction log (always create file writer, enabled state from config)
+	if err := log.InitLLMInteractionLog(ws); err != nil {
+		io.ErrPrintf("Warning: cannot initialize LLM interaction log: %v\n", err)
+	}
+	log.SetLLMInteractionEnabled(cfg.LLM.LLMInteractionLog)
+	defer log.CloseLLMInteractionLog()
 
 	// Apply log level: CLI flag overrides config, config overrides default
 	if flags.logLevel != "" {
