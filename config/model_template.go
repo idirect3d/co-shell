@@ -58,6 +58,11 @@ type ModelTemplate struct {
 	CustomEndpoint       string   `json:"custom_endpoint,omitempty"`
 	CustomModels         []string `json:"custom_models,omitempty"`
 	OverrideCapabilities *bool    `json:"override_capabilities,omitempty"`
+	// DefaultMaxModelLen is the default maximum context length (in tokens) for models
+	// created from this template. Used as a fallback when the API doesn't return this value.
+	// 0 means unknown.
+	DefaultMaxModelLen int `json:"default_max_model_len,omitempty"`
+
 	// DefaultParams defines the default custom parameters for models created from this template.
 	// These are provider-specific parameters that get injected into the LLM request body.
 	// The value can be any JSON value. A string value of "None" (case-sensitive) means

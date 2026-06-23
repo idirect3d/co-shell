@@ -551,7 +551,21 @@
   - 流结束时追加 usage JSON 并写入分隔符
   - LoopDetectThreshold 默认值从 3 改为 5
   - 循环二次判定（judgeLoop）自动写入同一日志文件
-
+- [x] FEATURE-247 Token 计数机制完善与三层统计架构 [BUILD-258]
+  - 修复流式 SSE finalUsage 未传递到 StreamEvent.Done 的问题
+  - 修复 attempt_completion 路径未发送 token_usage 的问题
+  - 实现三层 token 统计：迭代级（IterTokenDelta）、任务级（TaskTokenUsage）、会话级（TokenUsage）
+  - 每次 LLM 迭代结束后显示本轮用量（prompt/completion/total）及性能指标（TTFT/输入速度/输出速度）
+  - 任务完成时显示该任务累计 token 用量
+  - `<environment_details>` 中的 `<context_window>` 改用单次迭代数据
+  - 新增 LLM 性能时序追踪：llmCallStartTime/firstTokenTime/llmStreamEndTime
+  - 重构 token 回调体系为 token_iter / token_task / .about（待完成）
+  - 新增 `.model info` 显示 MaxModelLen
+  - 新增 `knownMaxModelLen` 已知模型长度字典（DeepSeek v4 flash/pro = 1M）
+  - `.model add`/`.model edit` 一键式向导增加 API 检测 MaxModelLen 步骤
+  - `.model edit` 增加编辑模型最大上下文长度字段，支持 API 重新检测
+  - 支持 K/M 单位输入（如 "64K"/"1M"）
+  - 支持 `.set token-usage off` 模式跳过显示
 
 ## v1.0.0 — 正式版
 

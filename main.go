@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "256"
+const build = "258"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1191,11 +1191,22 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 			io.Println(ep.OutputSep)
 		case "tool_call":
 			io.Printf("%s%s\n", ep.ToolCallInput, content)
-		case "token_usage":
-			var prompt, completion, total int
-			if _, err := fmt.Sscanf(content, "prompt=%d, completion=%d, total=%d", &prompt, &completion, &total); err == nil {
-				io.Printf("\n%s Token 用量: 输入=%d, 输出=%d, 总计=%d\n", ep.Info, prompt, completion, total)
+		case "token_iter":
+			io.Printf("\n%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
+			var prompt, completion, total, maxLen int
+			var ft, inTPS, outTPS string
+			if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+				&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil {
+				pct := 0.0
+				if maxLen > 0 && total > 0 {
+					pct = float64(total) * 100.0 / float64(maxLen)
+				}
+				io.Printf("%s %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), prompt, completion, total, pct))
+				if ft != "" {
+					io.Printf("%s   %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS))
+				}
 			}
+			io.Printf("%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
 		case "error":
 			io.Printf("%s%s\n", ep.Error, content)
 		case "done":
