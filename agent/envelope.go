@@ -40,9 +40,26 @@ import (
 // injectTimeAndMessageNo appends a minimal <environment_details> block with time and
 // message_no to all user and tool messages. This ensures every message carries
 // temporal and positional context for the LLM.
+// When isXMLMode is true, the envelope is appended as a ContentPart instead of
+// concatenated to the Content string, keeping the envelope as a separate structured
+// segment in the message array.
 func injectTimeAndMessageNo(msgs []llm.Message) []llm.Message {
+	// Find the last user message index — it will later receive a full
+	// <environment_details> from injectEnvelopeToLastUser, so skip it here
+	// to avoid duplicate envelope parts (FEATURE-248).
+	lastUserIdx := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "user" {
+			lastUserIdx = i
+			break
+		}
+	}
+
 	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 	for i := range msgs {
+		if i == lastUserIdx {
+			continue // skip last user, injectEnvelopeToLastUser handles it with full content
+		}
 		if msgs[i].Role == "user" || msgs[i].Role == "tool" {
 			var sb strings.Builder
 			sb.WriteString("\n\n<environment_details>\n")
@@ -53,7 +70,12 @@ func injectTimeAndMessageNo(msgs []llm.Message) []llm.Message {
 			sb.WriteString(strconv.Itoa(i))
 			sb.WriteString("</message_no>\n")
 			sb.WriteString("</environment_details>")
-			msgs[i].Content += sb.String()
+			// Check if this message already uses ContentParts (XML mode structured messages)
+			if len(msgs[i].ContentParts) > 0 {
+				msgs[i].AppendTextPart(sb.String())
+			} else {
+				msgs[i].Content += sb.String()
+			}
 		}
 	}
 	return msgs
@@ -61,12 +83,33 @@ func injectTimeAndMessageNo(msgs []llm.Message) []llm.Message {
 
 // stripEnvelopes removes all <environment_details>...</environment_details> blocks from
 // all user/tool/assistant message contents. This prevents stale data from being sent to the LLM.
+// In XML mode when messages use ContentParts, stripping searches within text parts instead.
 func (a *Agent) stripEnvelopes(msgs []llm.Message) []llm.Message {
 	result := make([]llm.Message, len(msgs))
 	copy(result, msgs)
 	for i := range result {
-		if result[i].Role == "user" || result[i].Role == "tool" {
-			result[i].Content = stripSingleEnvelope(result[i].Content)
+		msg := &result[i]
+		if msg.Role == "user" || msg.Role == "tool" {
+			if len(msg.ContentParts) > 0 {
+				// XML mode: strip envelopes from ContentParts
+				var cleaned []llm.ContentPart
+				for _, cp := range msg.ContentParts {
+					if cp.Type == llm.ContentPartText {
+						cleanedText := stripSingleEnvelope(cp.Text)
+						if cleanedText != "" {
+							cleaned = append(cleaned, llm.ContentPart{
+								Type: llm.ContentPartText,
+								Text: cleanedText,
+							})
+						}
+					} else {
+						cleaned = append(cleaned, cp)
+					}
+				}
+				msg.ContentParts = cleaned
+			} else {
+				msg.Content = stripSingleEnvelope(msg.Content)
+			}
 		}
 	}
 	return result
@@ -225,9 +268,17 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 	}
 	sb.WriteString("</environment_details>")
 
-	result[lastUserIdx] = llm.Message{
-		Role:    result[lastUserIdx].Role,
-		Content: result[lastUserIdx].Content + sb.String(),
+	// FEATURE-248: If the last user message already uses ContentParts (XML mode),
+	// append the envelope as a new text part instead of concatenating to Content.
+	existing := result[lastUserIdx]
+	if len(existing.ContentParts) > 0 {
+		existing.AppendTextPart(sb.String())
+		result[lastUserIdx] = existing
+	} else {
+		result[lastUserIdx] = llm.Message{
+			Role:    existing.Role,
+			Content: existing.Content + sb.String(),
+		}
 	}
 	return result
 }

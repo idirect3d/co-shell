@@ -1329,6 +1329,7 @@ CAPABILITIES
 	zhMessages[KeySystemPromptRules] = `
 RULES
 
+- 先通过上下文回顾已经做过的事、总结进展、缜密思考、并确定目标，做完这些后再行动。如果发现上一步进展很少甚至原地踏步，那么必须换一种思路和方法.
 - 你的当前工作目录见每条用户消息中的 <environment_details> 块。
 - 你不能通过 'cd' 切换到其他目录来完成任务。你只能在 '{CWD}' 目录下操作，因此在使用需要路径的工具时，请确保传入正确的 'path' 参数。
 - 不要使用 ~ 字符或 $HOME 来引用 home 目录。
@@ -1370,6 +1371,7 @@ RULES
 	zhMessages[KeySystemPromptRulesShell] = `
 RULES
 
+- 先通过上下文回顾已经做过的事、总结进展、缜密思考、并确定目标，做完这些后再行动。如果发现上一步进展很少甚至原地踏步，那么必须换一种思路和方法.
 - 你的当前工作目录见每条用户消息中的 <environment_details> 块。
 - 你工作在一个交互式shell环境中，能够通过 'cd' 切换到其他目录来完成任务。
 - 通过持久终端会话与系统交互。使用 shell_send 工具向终端发送命令。每次发送一个命令，应该观察shell_send返回的 VT 窗口，评估结果后再继续下一步。
@@ -1408,6 +1410,7 @@ RULES
 	zhMessages[KeySystemPromptRulesReadOnly] = `
 RULES
 
+- 先通过上下文回顾已经做过的事、总结进展、缜密思考、并确定目标，做完这些后再行动。如果发现上一步进展很少甚至原地踏步，那么必须换一种思路和方法.
 - 你的当前工作目录见每条用户消息中的 <environment_details> 块。
 - 不要使用 ~ 字符或 $HOME 来引用 home 目录。
 - 使用 search_files 工具时，仔细构造正则表达式以平衡特异性和灵活性。结果包含上下文，因此分析周围代码以更好地理解匹配项。
@@ -1436,7 +1439,7 @@ OBJECTIVE
 6. 用户可能会提供反馈，你可以据此进行改进并重试。但不要陷入无意义的来回对话，即不要以问题或进一步帮助的提议结束回复。
 
 **管理上下文窗口**
-在多轮对话中，消息历史会不断增长。为了保持 LLM 的上下文窗口在一个合理的长度，每次任务完成时，应使用 attempt_completion 的 task_message_no 参数将上下文起点指针移动到当前任务范围内的首条消息。调整指针后，系统会从指针位置开始构建上下文，指针之前的历史消息将被忽略（不再占用上下文窗口）。同时，如果没有活跃的任务计划，<task> 中的内容将自动引用指针位置的第一条用户消息，作为 LLM 当前的任务目标。但如有需要仍可通过 memory_search 或 get_memory_slice 工具从永久记忆中检索完整的历史上下文。具体调整时机和示例：
+在多轮对话中，消息历史会不断增长。为了保持 LLM 的上下文窗口在一个合理的长度，每次任务完成时，如果上下文占用较多（如大于50%），则须使用 attempt_completion 的 task_message_no 参数将上下文起点指针移动到当前任务范围内的首条消息。调整指针后，系统会从指针位置开始构建上下文，指针之前的历史消息将被忽略（不再占用上下文窗口）。同时，如果没有活跃的任务计划，<task> 中的内容都是用户的原始指令，应作为 LLM 当前的任务目标。但如有需要仍可通过 memory_search 或 get_memory_slice 工具从永久记忆中检索完整的历史上下文。具体调整时机和示例：
 - **完成一个独立任务后**：将指针移动到该任务开始之前的状态消息上，使后续对话专注于新的任务目标
 - **完成大任务中的多个子任务后**：完成几个步骤后，将起点移到最后一个已完成步骤附近，避免之前步骤的工具调用结果持续占用上下文
 - **用户提供新指令但上下文已经很长时**：在新指令位置设置指针，使 LLM 只关注新指令及其后续执行，旧任务的中间结果可以通过 memory 工具检索
@@ -1446,10 +1449,6 @@ OBJECTIVE
 - **只有当你经过深思熟虑、确认所有任务步骤都已成功完成、结果已向用户呈现后，才能调用 attempt_completion**。
 - 一旦调用 attempt_completion，系统将结束当前任务，不会再有进一步的迭代机会。
 - 如果你只是暂时没有合适的工具可调用但任务尚未完成，请调用其他合适的工具继续推进，而非返回纯文本回答。
-
-<task>
-{TASK}
-</task>
 `
 
 	zhMessages[KeySystemPromptEnvironment] = `
@@ -1467,45 +1466,14 @@ SYSTEM INFORMATION
 
 `
 
-	zhMessages[KeyXMLToolResultTemplate] = `
-[{TOOL_CALL}] 返回结果：{TOOL_RESULT}
-
-<environment_details>
-<message_no>{MESSAGE_NO}</message_no>
-<time>{CURRENT_TIME}</time>
-</environment_details>
+	zhMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}] 返回结果：
+{TOOL_RESULT}
 `
 
 	zhMessages[KeyToolResultNoPlan] = `
-# 任务跟踪（强烈建议）
-
-当前没有待办任务计划。建议你为当前任务创建一个任务计划（checklist），将复杂任务分解为可管理的步骤，以便跟踪进度。
-
-你可以使用以下工具来管理任务计划：
-- **track_task_progress** — 记录任务内容并跟踪各步骤执行进度（支持创建/更新/调整/归档）
-- **view_task_plan** — 查看当前任务计划的进度
-
-创建任务计划后，每完成一个步骤请立即更新其状态，以便跟踪整体进度。
-
-关键原则：
-- **必须创建**：如果任务超过 1 个步骤，你必须创建任务计划
-- **及时更新**：每完成一个步骤立即更新状态
-- **灵活调整**：根据执行情况灵活增删步骤
-- **顺序执行**：按顺序逐一执行步骤，不要并行执行
-- **失败处理**：步骤失败时，分析原因并调整策略后重试`
+`
 
 	zhMessages[KeyToolResultWithPlan] = `
-# 下一步
-
-当前有待办任务计划，请继续按计划推进：
-
-{TASK_PLAN}
-
-## 下一步操作
-
-如果你已完成当前步骤，请使用 **track_task_progress** 更新步骤状态（将步骤的 status 改为 [X]），然后继续执行下一步。
-如果你需要调整计划，直接使用 **track_task_progress** 传入新的完整 steps 数组即可。
-如果所有步骤已完成，使用 **attempt_completion** 工具向用户报告最终结果。
 `
 
 	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`

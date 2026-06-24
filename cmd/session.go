@@ -121,6 +121,11 @@ func (h *SessionHandler) showSession() (string, error) {
 		for i := 0; i < total; i++ {
 			msg := messages[i]
 			content := msg.Content
+			// FEATURE-248: If the message uses ContentParts (XML mode structured messages),
+			// combine all text parts for display instead of showing empty Content.
+			if content == "" && len(msg.ContentParts) > 0 {
+				content = msg.CombineContentParts()
+			}
 			// Replace newlines with spaces for display
 			content = strings.ReplaceAll(content, "\n", " ")
 			// Mark the pointer message with a star
