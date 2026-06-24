@@ -338,6 +338,15 @@ func (f *fmtIO) ReadLine() (string, error) { return "", nil }
 func (f *fmtIO) ReadKey() (byte, error)    { return 0, nil }
 func (f *fmtIO) IsReading() bool           { return false }
 
+// isXMLMode returns true if the current tool call mode is XML (no API-level tool calls).
+func (a *Agent) isXMLMode() bool {
+	if a.toolCallModeMgr != nil {
+		mode := a.toolCallModeMgr.Current()
+		return mode != nil && !mode.SendTools
+	}
+	return false
+}
+
 // nonStreamingFallback handles the case when streaming is not available.
 func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
 	// Apply context limit to messages

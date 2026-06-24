@@ -56,8 +56,14 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
 		// Add user message to history with template formatting
-		formattedInput := a.formatUserMessage(userInput, len(a.messages))
-		a.messages = append(a.messages, llm.Message{Role: "user", Content: formattedInput})
+		// FEATURE-248: In XML mode, use ContentParts for structured user messages.
+		if a.isXMLMode() {
+			xmlUserMsg := a.buildXMLUserMessage(userInput, len(a.messages))
+			a.messages = append(a.messages, xmlUserMsg)
+		} else {
+			formattedInput := a.formatUserMessage(userInput, len(a.messages))
+			a.messages = append(a.messages, llm.Message{Role: "user", Content: formattedInput})
+		}
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
 			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
@@ -225,15 +231,11 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			}
 
 			if isXMLMode {
-				// In XML mode, return tool results as user messages using the i18n template.
-				// This avoids the API-level tool message role which some LLMs don't support
-				// when tools are not sent via the API tools parameter.
-				userContent := a.formatXMLToolResult(tc.Name, tc.Arguments, toolContent, len(a.messages))
+				// In XML mode, return tool results as user messages with ContentParts structure.
+				// The tool result becomes a separate text part in the ContentParts array.
+				toolResultMsg := a.buildXMLToolResultMessage(tc.Name, tc.Arguments, toolContent, len(a.messages))
 				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{
-					Role:    "user",
-					Content: userContent,
-				})
+				a.messages = append(a.messages, toolResultMsg)
 				a.mu.Unlock()
 			} else {
 				a.mu.Lock()
