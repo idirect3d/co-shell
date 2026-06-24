@@ -801,6 +801,34 @@ func (a *Agent) formatUserMessage(instruction string, messageNo int) string {
 	return result
 }
 
+// buildXMLUserMessage creates a structured user Message with ContentParts for XML mode.
+// Part 0: user instruction wrapped in <task> tags
+// Part N: environment_details will be appended by injectEnvelopeToLastUser as ContentPart
+func (a *Agent) buildXMLUserMessage(instruction string, messageNo int) llm.Message {
+	msg := llm.Message{Role: "user"}
+	msg.EnsureContentParts()
+	msg.ContentParts[0].Text = fmt.Sprintf("<task>\n%s\n</task>", instruction)
+	return msg
+}
+
+// buildXMLToolResultMessage creates a structured user Message with ContentParts for XML mode
+// tool results. Each tool result is a separate text part.
+// Part 0: tool result text
+// Part N: environment_details will be appended by injectTimeAndMessageNo as ContentPart
+func (a *Agent) buildXMLToolResultMessage(toolName, toolArgs, toolResult string, messageNo int) llm.Message {
+	msg := llm.Message{Role: "user"}
+	template := i18n.T(i18n.KeyXMLToolResultTemplate)
+	formatted := strings.ReplaceAll(template, "{TOOL_CALL}", toolName)
+	formatted = strings.ReplaceAll(formatted, "{TOOL_CALL_PARAMETERS}", toolArgs)
+	formatted = strings.ReplaceAll(formatted, "{TOOL_RESULT}", toolResult)
+	formatted = strings.ReplaceAll(formatted, "{TASK_TRACKING}", a.getTaskPlanPrompt())
+	formatted = strings.ReplaceAll(formatted, "{MESSAGE_NO}", strconv.Itoa(messageNo))
+	formatted = strings.ReplaceAll(formatted, "{CURRENT_TIME}", time.Now().Format("2006-01-02 15:04:05 Monday"))
+	msg.EnsureContentParts()
+	msg.ContentParts[0].Text = formatted
+	return msg
+}
+
 // getCurrentTaskDescription returns the current task description for {TASK} in the
 // system prompt. Priority:
 // 1. Active task plan title (if one exists with unfinished steps)

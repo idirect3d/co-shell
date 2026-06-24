@@ -1288,6 +1288,7 @@ View the current task plan's progress summary at any time:
 	enMessages[KeySystemPromptRulesShell] = `
 RULES
 
+- First review what has been done through the context, summarize progress, think carefully, and determine the goal before taking action. If you find that the previous step made little or no progress, you MUST switch to a different approach or method.
 - Your current working directory can be found in the <environment_details> block of each user message.
 - You cannot 'cd' into a different directory to complete a task. You are stuck operating from the workspace directory.
 - Do not use the ~ character or $HOME to refer to the home directory.
@@ -1341,6 +1342,7 @@ CAPABILITIES
 	enMessages[KeySystemPromptRules] = `
 RULES
 
+- First review what has been done through the context, summarize progress, think carefully, and determine the goal before taking action. If you find that the previous step made little or no progress, you MUST switch to a different approach or method.
 - Your current working directory can be found in the <environment_details> block of each user message.
 - You cannot 'cd' into a different directory to complete a task. You are stuck operating from the workspace directory, so be sure to pass in the correct 'path' parameter when using tools that require a path.
 - Do not use the ~ character or $HOME to refer to the home directory.
@@ -1383,6 +1385,7 @@ RULES
 	enMessages[KeySystemPromptRulesReadOnly] = `
 RULES
 
+- First review what has been done through the context, summarize progress, think carefully, and determine the goal before taking action. If you find that the previous step made little or no progress, you MUST switch to a different approach or method.
 - Your current working directory can be found in the <environment_details> block of each user message.
 - Do not use the ~ character or $HOME to refer to the home directory.
 - When using search_files tool, carefully construct regex patterns to balance specificity and flexibility. Results include context, so analyze surrounding code to better understand matches.
@@ -1411,7 +1414,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 6. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
 
 **Managing the Context Window**
-During multi-turn conversations, the message history continuously grows. To keep the LLM's context window at a reasonable length, use the attempt_completion's task_message_no parameter to move the context start pointer to the first message of the current task range when a task is complete. After adjusting the pointer, the system builds context starting from that position — messages before the pointer are ignored (no longer occupying the context window). If there is no active task plan, the <task> content will automatically reference the first user message at the pointer position as the LLM's current task objective. However, the full historical context can still be retrieved from persistent memory using memory_search or get_memory_slice tools if needed. Specific adjustment scenarios:
+During multi-turn conversations, the message history continuously grows. To keep the LLM's context window at a reasonable length, if context usage is high (e.g. over 50%), you must use the attempt_completion's task_message_no parameter to move the context start pointer to the first message of the current task range when a task is complete. After adjusting the pointer, the system builds context starting from that position — messages before the pointer are ignored (no longer occupying the context window). If there is no active task plan, the content of <task> in user messages contains the user's original instructions and should serve as the LLM's current task objective. However, the full historical context can still be retrieved from persistent memory using memory_search or get_memory_slice tools if needed. Specific adjustment scenarios:
 - **After completing an independent task**: Move the pointer to the status message before that task started, so subsequent dialogue focuses on the new task goal
 - **After completing several sub-tasks within a larger task**: Move the start point to near the last completed step, preventing tool call results from earlier steps from continuously occupying the context
 - **When the user provides a new instruction but the context is already very long**: Set the pointer at the new instruction position, allowing the LLM to focus on the new instruction and its subsequent execution. Intermediate results from the old task can be retrieved via memory tools
@@ -1421,10 +1424,6 @@ At the end of each iteration, if you did not call any tools, the system checks w
 - **Only call attempt_completion when you are absolutely sure, after careful consideration, that all task steps have been successfully completed and the results have been presented to the user.**
 - Once attempt_completion is called, the system will end the current task immediately — there will be no further iterations.
 - If you simply have no suitable tool to call at the moment but the task is not yet finished, call other appropriate tools to move forward instead of returning plain text.
-
-<task>
-{TASK}
-</task>
 
 
 `
@@ -1442,34 +1441,15 @@ SYSTEM INFORMATION
 <channel>{CHANNEL}</channel>
 </system_info>`
 
-	enMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}] Result: {TOOL_RESULT}
+	enMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}] Result: 
+{TOOL_RESULT}
+`
 
-<environment_details>
-<message_no>{MESSAGE_NO}</message_no>
-<time>{CURRENT_TIME}</time>
-</environment_details>`
+	enMessages[KeyToolResultNoPlan] = `
+`
 
-	enMessages[KeyToolResultNoPlan] = `# Task Management (Strongly Recommended)
-
-No pending task plan. It is recommended to create a task plan (checklist) for the current task, breaking down complex tasks into manageable steps for progress tracking.
-
-You can use the following tools to manage task plans:
-- **track_task_progress** — Record task content and track step execution progress (create/update/adjust/archive)
-- **view_task_plan** — View the current task plan progress
-
-After creating a task plan, update the step status immediately upon completion to track overall progress.`
-
-	enMessages[KeyToolResultWithPlan] = `# Next Steps
-
-There is a pending task plan. Please continue to follow the plan:
-
-{TASK_PLAN}
-
-## Next Steps
-
-If you have completed the current step, use **track_task_progress** to update the step status (change the step's status to [X]), then proceed to the next step.
-If you need to adjust the plan, just use **track_task_progress** with the new complete steps array.
-If all steps are completed, use **attempt_completion** to report the final result to the user.`
+	enMessages[KeyToolResultWithPlan] = `
+`
 
 	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }

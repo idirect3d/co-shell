@@ -74,6 +74,43 @@ func (m *Message) HasMultimodalContent() bool {
 	return len(m.ContentParts) > 0
 }
 
+// EnsureContentParts converts the string Content field to a ContentPart at index 0
+// if ContentParts is empty, enabling structured user messages where different
+// components (instruction, tool result, environment details) are separate parts.
+func (m *Message) EnsureContentParts() {
+	if len(m.ContentParts) == 0 {
+		m.ContentParts = []ContentPart{
+			{Type: ContentPartText, Text: m.Content},
+		}
+		m.Content = ""
+	}
+}
+
+// AppendTextPart adds a text-only content part to the message.
+// This is used to build structured user messages where each section
+// (instruction, tool result, environment_details) is an independent part.
+func (m *Message) AppendTextPart(text string) {
+	m.ContentParts = append(m.ContentParts, ContentPart{
+		Type: ContentPartText,
+		Text: text,
+	})
+}
+
+// CombineContentParts returns the concatenated text of all text content parts.
+// Non-text parts (e.g. images) are skipped.
+func (m *Message) CombineContentParts() string {
+	var sb strings.Builder
+	for _, cp := range m.ContentParts {
+		if cp.Type == ContentPartText && cp.Text != "" {
+			if sb.Len() > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(cp.Text)
+		}
+	}
+	return sb.String()
+}
+
 // ToolCall represents a function call requested by the LLM.
 type ToolCall struct {
 	ID        string `json:"id"`
