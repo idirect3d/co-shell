@@ -223,6 +223,10 @@ type Agent struct {
 	// and returns to the REPL prompt without confirmation.
 	cancelCh chan struct{} // signals immediate cancellation
 
+	// debugMode: when enabled, displays messages to be sent to LLM on the prompt
+	// line for review and editing before sending.
+	debugMode bool
+
 	// UserIO for terminal interaction (FEATURE-201 fix)
 	io UserIO
 

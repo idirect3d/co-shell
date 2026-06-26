@@ -507,6 +507,33 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Input mode set to %s", args[1])
 		return fmt.Sprintf("✅ REPL 输入模式已设置为: %s（重启后生效）", args[1]), nil
 
+	case "debug":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOff)
+			if h.cfg.LLM.DebugMode {
+				status = i18n.T(i18n.KeyOn)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeyDebugMode)+": %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.DebugMode = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.DebugMode = false
+		default:
+			return "", fmt.Errorf("usage: .set agent debug on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetDebugMode(h.cfg.LLM.DebugMode)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.DebugMode {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Debug mode set to %s", status)
+		return fmt.Sprintf("✅ 调试模式已设置为: %s", status), nil
+
 	default:
 		return "", fmt.Errorf("unknown agent setting: %s", subcommand)
 	}

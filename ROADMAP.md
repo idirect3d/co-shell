@@ -568,6 +568,7 @@
   - 支持 K/M 单位输入（如 "64K"/"1M"）
   - 支持 `.set token-usage off` 模式跳过显示
 - [x] FEATURE-249 上下文重新整理工具（reorganize_context）、LCS内容重复检测、自动上下文重整配置 [BUILD-262]
+- [x] FEATURE-250 调试模式（Debug Mode）：在提交内容给LLM之前显示预览，用户可修改内容后发送。支持 --debug CLI参数 和 .set debug REPL命令，默认为关。新增 `[ 开发者 ]` 设置分组。 [BUILD-263]
 
 ## v1.0.0 — 正式版
 

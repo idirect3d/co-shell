@@ -565,7 +565,7 @@ no liability whatsoever.`,
 	KeySettingsGroupSafety:      "[ Safety & Confirmation ]",
 	KeySettingsGroupMemory:      "[ Memory & Context ]",
 	KeySettingsGroupTask:        "[ Tasks & Sub-Agents ]",
-	KeySettingsGroupSearchDebug: "[ Search & Debug ]",
+	KeySettingsGroupSearchDebug: "[ Developer ]",
 
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "Max single error count",
@@ -763,4 +763,12 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 
 	// Duplicate assistant content detection (FEATURE-249)
 	KeyDuplicateContentFeedback: "⚠️ Your current response is identical to the previous one. You have already completed your analysis — do not repeat the same text. Review the full context and task list to clarify the task goal, then re-plan the task using track_task_progress and continue by calling appropriate tools. If the task goal is unclear, call ask_followup_question to request more information from the user.",
+
+	// Debug mode
+	KeyDebugMode:         "Debug Mode",
+	KeyDebugPromptHeader: "=== Message preview to be sent to LLM (Debug Mode) ===\nPress Enter to send, or modify the content then press Enter",
+	KeyDebugPromptFooter: "=== End of preview ===",
+	KeySettingsDescDebug: "Debug mode (display and edit messages before submitting to LLM)",
+	KeyCol3Debug:         "Debug Mode",
+	KeyCLIHelpDebug:      "Enable debug mode (display and edit messages before submitting to LLM)",
 }
