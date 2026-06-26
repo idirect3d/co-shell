@@ -567,6 +567,7 @@
   - `.model edit` 增加编辑模型最大上下文长度字段，支持 API 重新检测
   - 支持 K/M 单位输入（如 "64K"/"1M"）
   - 支持 `.set token-usage off` 模式跳过显示
+- [x] FEATURE-249 上下文重新整理工具（reorganize_context）、LCS内容重复检测、自动上下文重整配置 [BUILD-262]
 
 ## v1.0.0 — 正式版
 

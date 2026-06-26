@@ -184,6 +184,7 @@ func DefaultToolModes() map[string]string {
 		"shell_reset":                "auto",
 		"attempt_completion":         "auto",
 		"evaluate_expression":        "auto",
+		"reorganize_context":         "auto",
 		// Browser tools (FEATURE-200) - all auto since screenshots are non-destructive
 		"browser_navigate":                 "auto",
 		"browser_screenshot":               "auto",
