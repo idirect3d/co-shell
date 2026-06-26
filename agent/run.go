@@ -255,8 +255,8 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.mu.Lock()
 		if a.needAdjustPointer {
 			contextStartMode := "smart"
-			if a.cfg != nil && a.cfg.LLM.ContextStartMode != "" {
-				contextStartMode = a.cfg.LLM.ContextStartMode
+			if a.cfg != nil && a.cfg.LLM.ContextPolicy != "" {
+				contextStartMode = a.cfg.LLM.ContextPolicy
 			}
 			if contextStartMode == "task" {
 				a.messagePointer = len(a.messages) - 1

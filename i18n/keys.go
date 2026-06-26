@@ -629,16 +629,20 @@ const (
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
 
 	// Context start mode (FEATURE-103)
-	KeyCol3ContextStartMode   = "col3_context_start_mode"
-	KeySettingsDescCtxStart   = "settings_desc_ctx_start"
-	KeyContextStartUpdated    = "context_start_updated"
-	KeyCLIHelpContextStart    = "cli_help_context_start"
-	KeyContextStartWindow     = "context_start_window"
-	KeyContextStartWindowDesc = "context_start_window_desc"
-	KeyContextStartTask       = "context_start_task"
-	KeyContextStartTaskDesc   = "context_start_task_desc"
-	KeyContextStartSmart      = "context_start_smart"
-	KeyContextStartSmartDesc  = "context_start_smart_desc"
+	KeyCol3ContextStartMode    = "col3_context_start_mode"
+	KeySettingsDescCtxStart    = "settings_desc_ctx_start"
+	KeyContextStartUpdated     = "context_start_updated"
+	KeyCLIHelpContextStart     = "cli_help_context_start"
+	KeyContextStartWindow      = "context_start_window"
+	KeyContextStartWindowDesc  = "context_start_window_desc"
+	KeyContextStartTask        = "context_start_task"
+	KeyContextStartTaskDesc    = "context_start_task_desc"
+	KeyContextStartSmart       = "context_start_smart"
+	KeyContextStartSmartDesc   = "context_start_smart_desc"
+	KeyContextPolicyWindow     = "context_policy_window"
+	KeyContextPolicyTask       = "context_policy_task"
+	KeyContextPolicySmart      = "context_policy_smart"
+	KeyContextPolicyReorganize = "context_policy_reorganize"
 	// Database (PostgreSQL) related keys (FEATURE-86)
 	KeyDBConnecting        = "db_connecting"
 	KeyDBConnected         = "db_connected"
@@ -750,6 +754,7 @@ const (
 	KeyToolUsageAskFollowupQuestion = "tool_usage_ask_followup_question"
 	KeyToolUsageAttemptCompletion   = "tool_usage_attempt_completion"
 	KeyToolUsageEvaluateExpression  = "tool_usage_evaluate_expression"
+	KeyToolUsageReorganizeContext   = "tool_usage_reorganize_context"
 
 	// Shell session tool usage examples (XML mode)
 	KeyToolUsageShellStart     = "tool_usage_shell_start"
@@ -885,4 +890,13 @@ const (
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay = "token_usage_display"
 	KeyTokenUsageTiming  = "token_usage_timing"
+
+	// Context reorganization (FEATURE-249)
+	KeyReorganizeResult = "reorganize_result"
+
+	// Loop reorganize context (FEATURE-249)
+	KeyLoopReorganizeSuggestion = "loop_reorganize_suggestion"
+
+	// Duplicate assistant content detection (FEATURE-249)
+	KeyDuplicateContentFeedback = "duplicate_content_feedback"
 )

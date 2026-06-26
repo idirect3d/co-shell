@@ -118,6 +118,7 @@ var toolUsageKeyMap = map[string]string{
 	"ask_followup_question":            i18n.KeyToolUsageAskFollowupQuestion,
 	"attempt_completion":               i18n.KeyToolUsageAttemptCompletion,
 	"evaluate_expression":              i18n.KeyToolUsageEvaluateExpression,
+	"reorganize_context":               i18n.KeyToolUsageReorganizeContext,
 	"shell_start":                      i18n.KeyToolUsageShellStart,
 	"shell_send":                       i18n.KeyToolUsageShellSend,
 	"shell_get_output":                 i18n.KeyToolUsageShellGetOutput,

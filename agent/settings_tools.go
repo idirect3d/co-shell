@@ -302,7 +302,7 @@ func getSettingValue(cfg *config.Config, param string) string {
 	case "repetition-penalty":
 		return fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty)
 	case "context-start":
-		switch cfg.LLM.ContextStartMode {
+		switch cfg.LLM.ContextPolicy {
 		case "window":
 			return i18n.T(i18n.KeyContextStartWindow)
 		case "smart":
@@ -872,7 +872,7 @@ func applySetting(a *Agent, param, value string) error {
 	case "context-start":
 		switch value {
 		case "window", "task", "smart":
-			cfg.LLM.ContextStartMode = value
+			cfg.LLM.ContextPolicy = value
 		default:
 			return fmt.Errorf("invalid context-start mode: %s (valid: window, task, smart)", value)
 		}
@@ -1190,13 +1190,15 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 	sb.WriteString(formatLine("context-limit", contextLimitStr, "-1（无限制）/ 0（仅当前输入）/ N（最近N条）", "发送给 LLM 的历史消息数量限制"))
 	sb.WriteString(formatLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), ">= 0 的整数", "记忆搜索返回结果中每条内容的最大字符数"))
 	sb.WriteString(formatLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), ">= 0 的整数", "记忆搜索返回的最大结果数量"))
-	contextStartMode := i18n.T(i18n.KeyContextStartTask)
-	if cfg.LLM.ContextStartMode == "window" {
-		contextStartMode = i18n.T(i18n.KeyContextStartWindow)
-	} else if cfg.LLM.ContextStartMode == "smart" {
-		contextStartMode = i18n.T(i18n.KeyContextStartSmart)
+	contextPolicy := i18n.T(i18n.KeyContextPolicyTask)
+	if cfg.LLM.ContextPolicy == "window" {
+		contextPolicy = i18n.T(i18n.KeyContextPolicyWindow)
+	} else if cfg.LLM.ContextPolicy == "smart" {
+		contextPolicy = i18n.T(i18n.KeyContextPolicySmart)
+	} else if cfg.LLM.ContextPolicy == "reorganize" {
+		contextPolicy = i18n.T(i18n.KeyContextPolicyReorganize)
 	}
-	sb.WriteString(formatLine("context-start", contextStartMode, "window/task/smart", "上下文起始模式：window=固定窗口/task=任务模式/smart=智能调整"))
+	sb.WriteString(formatLine("context-policy", contextPolicy, "window/task/smart/reorganize", "上下文策略：window=固定窗口/task=任务模式/smart=智能调整/reorganize=重新整理模式"))
 
 	// Database config (part of Memory & Context)
 	dbEnabledStr := "关闭"

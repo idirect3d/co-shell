@@ -653,16 +653,20 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpInputMode: "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）",
 
 	// Context start mode (FEATURE-103)
-	KeyCol3ContextStartMode:   "上下文起始模式(window/task/smart)",
-	KeySettingsDescCtxStart:   "设置上下文起始模式（window=固定窗口, task=任务模式, smart=智能调整）",
-	KeyContextStartUpdated:    "✅ 上下文起始模式已设置为: %s",
-	KeyCLIHelpContextStart:    "      --context-start <mode>   上下文起始模式（window/task/smart，覆盖配置文件）",
-	KeyContextStartWindow:     "window",
-	KeyContextStartWindowDesc: "固定窗口模式，上下文为最后 N 条消息",
-	KeyContextStartTask:       "task",
-	KeyContextStartTaskDesc:   "任务模式，上下文指针随任务边界自动移动",
-	KeyContextStartSmart:      "smart",
-	KeyContextStartSmartDesc:  "智能模式，上下文指针仅通过 attempt_completion 的 task_message_no 参数控制调整",
+	KeyCol3ContextStartMode:    "上下文策略(window/task/smart/reorganize)",
+	KeySettingsDescCtxStart:    "设置上下文起始模式（window=固定窗口, task=任务模式, smart=智能调整）",
+	KeyContextStartUpdated:     "✅ 上下文起始模式已设置为: %s",
+	KeyCLIHelpContextStart:     "      --context-policy <mode>  上下文策略（window/task/smart/reorganize，覆盖配置文件）",
+	KeyContextStartWindow:      "window",
+	KeyContextStartWindowDesc:  "固定窗口模式，上下文为最后 N 条消息",
+	KeyContextStartTask:        "task",
+	KeyContextStartTaskDesc:    "任务模式，上下文指针随任务边界自动移动",
+	KeyContextStartSmart:       "smart",
+	KeyContextStartSmartDesc:   "智能模式，上下文指针仅通过 attempt_completion 的 task_message_no 参数控制调整",
+	KeyContextPolicyWindow:     "window",
+	KeyContextPolicyTask:       "task",
+	KeyContextPolicySmart:      "smart",
+	KeyContextPolicyReorganize: "reorganize",
 	// Database (PostgreSQL) related keys (FEATURE-86)
 	KeyDBConnecting:        "正在连接 PostgreSQL 数据库 %s:%d/%s...",
 	KeyDBConnected:         "✅ PostgreSQL 数据库连接成功 (%s:%d/%s)",
@@ -787,4 +791,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token 用量: 输入=%d, 输出=%d, 总计=%d, 上下文=%.1f%%",
 	KeyTokenUsageTiming:  "首字: %s | 输入: %s t/秒 | 输出: %s t/秒",
+
+	// Context reorganization (FEATURE-249)
+	KeyReorganizeResult: "✅ 上下文已重新整理：摘要 %d 字符，新消息序号 %d。",
+
+	// Loop reorganize context (FEATURE-249)
+	KeyLoopReorganizeSuggestion: "\n\n⚠️ 检测到循环后上下文已被重置。建议调用 reorganize_context 工具重新整理上下文，总结已做的工作和发现，并制定新的策略继续。",
+
+	// Duplicate assistant content detection (FEATURE-249)
+	KeyDuplicateContentFeedback: "⚠️ 检测到你本次回复的内容与上一次完全一致。你已经进行了完整的分析，不要再重复相同的文字，请梳理之前完整上下文和任务清单，在能够明确任务目标的基础上，重新对任务进行规划，并通过track_task_progress进行任务跟踪，通过调用合适的工具继续推进任务。如果任务目标不够明确，请调用 ask_followup_question 向用户说明情况，以便请用户提供更多的素材。",
 }

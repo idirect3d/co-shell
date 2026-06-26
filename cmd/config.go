@@ -742,17 +742,17 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 			return i18n.TF(i18n.KeySettingsUpdated, "context-limit", "0")
 		}},
 		{Name: "context-start", Options: []string{"window", "task", "smart"}, CurrentValue: func() string {
-			return h.cfg.LLM.ContextStartMode
+			return h.cfg.LLM.ContextPolicy
 		}, SetValue: func(v string) (string, error) {
 			switch v {
 			case "window", "task", "smart":
-				h.cfg.LLM.ContextStartMode = v
+				h.cfg.LLM.ContextPolicy = v
 			default:
 				return "", fmt.Errorf("%s", i18n.T(i18n.KeyConfigValCtxStart))
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "context-start", v), nil
 		}, ResetValue: func() string {
-			h.cfg.LLM.ContextStartMode = "task"
+			h.cfg.LLM.ContextPolicy = "task"
 			return i18n.TF(i18n.KeySettingsUpdated, "context-start", "task")
 		}},
 		{Name: "memory-search-max-content-len", CurrentValue: func() string {
