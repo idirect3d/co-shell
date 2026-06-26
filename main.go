@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "262"
+const build = "263"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -159,6 +159,9 @@ type cliFlags struct {
 
 	// Unload mode (FEATURE-245)
 	unloadMode string // mode name to unload sections to disk
+
+	// Debug mode
+	debugMode string // "on"/"off"
 }
 
 func parseFlags() cliFlags {
@@ -283,6 +286,9 @@ func parseFlags() cliFlags {
 
 	// Unload mode (FEATURE-245)
 	flag.StringVar(&f.unloadMode, "unload-mode", "", "将当前模式各节配置卸载到 mode/<name>/ .md 文件")
+
+	// Debug mode
+	flag.StringVar(&f.debugMode, "debug", "", "启用调试模式（提交给 LLM 前显示并可编辑消息内容）")
 
 	// Custom usage message
 	flag.Usage = func() {
@@ -1013,6 +1019,9 @@ func main() {
 
 	// Apply tool mode settings from config
 	ag.SyncToolModes(cfg)
+
+	// Apply debug mode setting
+	ag.SetDebugMode(cfg.LLM.DebugMode)
 
 	// Apply emoji enabled setting
 	ag.SetEmojiEnabled(cfg.LLM.EmojiEnabled)

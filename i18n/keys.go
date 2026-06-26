@@ -899,4 +899,12 @@ const (
 
 	// Duplicate assistant content detection (FEATURE-249)
 	KeyDuplicateContentFeedback = "duplicate_content_feedback"
+
+	// Debug mode (FEATURE-XXX)
+	KeyDebugMode         = "debug_mode"
+	KeyDebugPromptHeader = "debug_prompt_header"
+	KeyDebugPromptFooter = "debug_prompt_footer"
+	KeySettingsDescDebug = "settings_desc_debug"
+	KeyCol3Debug         = "col3_debug"
+	KeyCLIHelpDebug      = "cli_help_debug"
 )
