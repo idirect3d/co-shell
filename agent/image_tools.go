@@ -65,7 +65,25 @@ func (a *Agent) AddImages(paths string) (string, error) {
 		}
 	}
 
-	return fmt.Sprintf("✅ 已添加 %d 张图片到缓存（当前共 %d 张）", added, len(a.imagePaths)), nil
+	return fmt.Sprintf(
+		"✅ 已添加 %d 张图片到缓存（当前共 %d 张，总数不应超过5张）\n\n"+
+			"已加载图片:\n%s\n\n"+
+			"📌 处理步骤：\n"+
+			"1. 识别——仔细查看每张图片，识别其中与当前任务目标相关的内容\n"+
+			"2. 保存——将识别的关键内容（文字、数据、结论等）写到与图片同名的 .md 文件中（例如 screenshot.png → screenshot.md），以便后续直接读取\n"+
+			"3. 清空——清空图片缓存（调用 clear_images），继续加载下一批图片\n\n"+
+			"⚠️ 注意：一次性加载的图片不应超过5张。请逐批加载、识别、保存后再继续。",
+		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths)), nil
+}
+func listImagesForPrompt(paths []string) string {
+	if len(paths) == 0 {
+		return "（无）"
+	}
+	var sb strings.Builder
+	for i, p := range paths {
+		sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, p))
+	}
+	return sb.String()
 }
 
 // RemoveImages removes image file paths from the image cache.
@@ -220,7 +238,15 @@ func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) 
 		}
 	}
 
-	return fmt.Sprintf("✅ 已添加 %d 张图片到缓存（当前共 %d 张）", added, len(a.imagePaths)), nil
+	return fmt.Sprintf(
+		"✅ 已添加 %d 张图片到缓存（当前共 %d 张，总数不应超过5张）\n\n"+
+			"已加载图片:\n%s\n\n"+
+			"📌 处理步骤：\n"+
+			"1. 识别——仔细查看每张图片，识别其中与当前任务目标相关的内容\n"+
+			"2. 保存——将识别的关键内容（文字、数据、结论等）写到与图片同名的 .md 文件中（例如 screenshot.png → screenshot.md），以便后续直接读取\n"+
+			"3. 清空——清空图片缓存（调用 clear_images），继续加载下一批图片\n\n"+
+			"⚠️ 注意：一次性加载的图片不应超过5张。请逐批加载、识别、保存后再继续。",
+		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths)), nil
 }
 
 // removeImagesTool removes image file paths from the image cache.

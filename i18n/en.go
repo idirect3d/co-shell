@@ -630,16 +630,20 @@ no liability whatsoever.`,
 	KeyCLIHelpInputMode: "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
 
 	// Context start mode (FEATURE-103)
-	KeyCol3ContextStartMode:   "context start mode(window/task/smart)",
-	KeySettingsDescCtxStart:   "Set context start mode (window=fixed window, task=task mode, smart=smart adjustment)",
-	KeyContextStartUpdated:    "✅ Context start mode set to: %s",
-	KeyCLIHelpContextStart:    "      --context-start <mode>   Context start mode (window/task/smart, overrides config)",
-	KeyContextStartWindow:     "window",
-	KeyContextStartWindowDesc: "Fixed window mode, context is the last N messages",
-	KeyContextStartTask:       "task",
-	KeyContextStartTaskDesc:   "Task mode, context pointer follows task boundaries automatically",
-	KeyContextStartSmart:      "smart",
-	KeyContextStartSmartDesc:  "Smart mode, context start pointer is only adjusted via attempt_completion's task_message_no",
+	KeyCol3ContextStartMode:    "context policy(window/task/smart/reorganize)",
+	KeySettingsDescCtxStart:    "Set context start mode (window=fixed window, task=task mode, smart=smart adjustment)",
+	KeyContextStartUpdated:     "✅ Context start mode set to: %s",
+	KeyCLIHelpContextStart:     "      --context-policy <mode>   Context start mode (window/task/smart, overrides config)",
+	KeyContextStartWindow:      "window",
+	KeyContextStartWindowDesc:  "Fixed window mode, context is the last N messages",
+	KeyContextStartTask:        "task",
+	KeyContextStartTaskDesc:    "Task mode, context pointer follows task boundaries automatically",
+	KeyContextStartSmart:       "smart",
+	KeyContextStartSmartDesc:   "Smart mode, context start pointer is only adjusted via attempt_completion's task_message_no",
+	KeyContextPolicyWindow:     "window",
+	KeyContextPolicyTask:       "task",
+	KeyContextPolicySmart:      "smart",
+	KeyContextPolicyReorganize: "reorganize",
 	// Database (PostgreSQL) related keys (FEATURE-86)
 	KeyDBConnecting:        "Connecting to PostgreSQL database %s:%d/%s...",
 	KeyDBConnected:         "✅ PostgreSQL database connected (%s:%d/%s)",
@@ -750,4 +754,13 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token usage: prompt=%d, completion=%d, total=%d, context=%.1f%%",
 	KeyTokenUsageTiming:  "TTFT: %s | Input: %s t/s | Output: %s t/s",
+
+	// Context reorganization (FEATURE-249)
+	KeyReorganizeResult: "✅ Context reorganized: %d chars summary, new message index %d.",
+
+	// Loop reorganize context (FEATURE-249)
+	KeyLoopReorganizeSuggestion: "\n\n⚠️ Loop detected and context has been reset. It is recommended to call the reorganize_context tool to reorganize the context, summarize completed work and findings, and formulate a new strategy to continue.",
+
+	// Duplicate assistant content detection (FEATURE-249)
+	KeyDuplicateContentFeedback: "⚠️ Your current response is identical to the previous one. You have already completed your analysis — do not repeat the same text. Review the full context and task list to clarify the task goal, then re-plan the task using track_task_progress and continue by calling appropriate tools. If the task goal is unclear, call ask_followup_question to request more information from the user.",
 }

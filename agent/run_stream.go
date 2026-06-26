@@ -259,6 +259,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), "LLM-based loop judgment confirmed")
 				}
 
+				// FEATURE-249: Check if loop reorganize is enabled
+				if reorganizeSuggestion := a.reorganizeContextOnLoop(); reorganizeSuggestion != "" {
+					loopFeedback += reorganizeSuggestion
+				}
+
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
 				a.mu.Unlock()
@@ -303,6 +308,12 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				log.Warn("Agent.RunStream: sync loop detected at iteration %d, adjusting temperature and retrying", iteration)
 
 				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), streamErr.Error())
+
+				// FEATURE-249: Check if loop reorganize is enabled
+				if reorganizeSuggestion := a.reorganizeContextOnLoop(); reorganizeSuggestion != "" {
+					loopFeedback += reorganizeSuggestion
+				}
+
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
 				a.mu.Unlock()
@@ -534,8 +545,29 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 
 			// Rule 2: attempt_completion is available but was NOT called — prompt LLM to continue
+			// FEATURE-249: Check if this response is identical to the previous assistant message
+			// (exact content duplicate without any tool calls). If so, use a more specific prompt
+			// that tells the LLM to stop repeating itself and take action.
 			continuePrompt := i18n.T(i18n.KeyContinuePrompt)
+			isDuplicate := false
 			a.mu.Lock()
+			if a.lastAssistantContent != "" {
+				// Use LCS-based diff for content duplicate detection.
+				// Threshold from config (default 0.95 = 95% similarity)
+				threshold := 0.95
+				if a.cfg != nil && a.cfg.LLM.DuplicateContentThreshold > 0 {
+					threshold = a.cfg.LLM.DuplicateContentThreshold
+				}
+				dup, similarity := IsDuplicateContent(a.lastAssistantContent, finalContent, threshold)
+				if dup {
+					isDuplicate = true
+					log.Warn("Agent.RunStream: zero-tool-call content %.1f%% similar to previous, injecting duplicate content feedback", similarity*100)
+				}
+			}
+			a.lastAssistantContent = finalContent
+			if isDuplicate {
+				continuePrompt = i18n.T(i18n.KeyDuplicateContentFeedback)
+			}
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
 				Content:          finalContent,
@@ -746,8 +778,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		a.mu.Lock()
 		if a.needAdjustPointer {
 			contextStartMode := "smart"
-			if a.cfg != nil && a.cfg.LLM.ContextStartMode != "" {
-				contextStartMode = a.cfg.LLM.ContextStartMode
+			if a.cfg != nil && a.cfg.LLM.ContextPolicy != "" {
+				contextStartMode = a.cfg.LLM.ContextPolicy
 			}
 			if contextStartMode == "task" {
 				a.messagePointer = len(a.messages) - 1
@@ -769,6 +801,29 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			if tokenUsageMode != "off" {
 				cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
 					iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+			}
+		}
+
+		// FEATURE-249: Check reorganize context threshold and inject suggestion if exceeded.
+		// Only active when ContextPolicy is "reorganize" and ContextReorganizeThreshold > 0.
+		// Uses per-iteration total tokens (prompt + completion) to match the display
+		// shown in token_iter, ensuring the LLM sees consistent numbers.
+		if a.cfg != nil && a.cfg.LLM.ContextPolicy == "reorganize" && a.cfg.LLM.ContextReorganizeThreshold > 0 && maxModelLen > 0 {
+			_, _, iterTotal := a.IterTokenDelta()
+			usagePct := float64(iterTotal) * 100.0 / float64(maxModelLen)
+			threshold := float64(a.cfg.LLM.ContextReorganizeThreshold)
+
+			if usagePct >= threshold {
+				log.Info("Agent.RunStream: context usage %.1f%% (prompt) exceeds threshold %.0f%%, suggesting reorganize_context",
+					usagePct, threshold)
+
+				suggestion := fmt.Sprintf(
+					"⚠️ 上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。建议调用 reorganize_context 工具重新整理上下文，压缩消息历史以释放上下文窗口。",
+					usagePct, threshold)
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{Role: "user", Content: suggestion})
+				a.mu.Unlock()
 			}
 		}
 

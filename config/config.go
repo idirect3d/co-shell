@@ -256,6 +256,21 @@ type LLMConfig struct {
 	// Default: true
 	LoopJudgeEnabled bool `json:"loop_judge_enabled"`
 
+	// LoopReorganizeEnabled: whether to automatically trigger context reorganization
+	// when a loop is detected. When enabled, the agent will:
+	// - In "window" mode with context-limit=-1: set context-limit=0 and move messagePointer to end
+	// - In "smart"/"task"/"reorganize" mode: inject a suggestion to call reorganize_context
+	// Default: true
+	LoopReorganizeEnabled bool `json:"loop_reorganize_enabled"`
+
+	// DuplicateContentThreshold is the similarity threshold (0.0-1.0) for detecting
+	// duplicate assistant content. When the LLM returns a response with >= this
+	// similarity to the previous response (without calling any tools), it is
+	// considered a duplicate and triggers a different feedback prompt.
+	// Default: 0.95
+	DuplicateContentThreshold float64 `json:"duplicate_content_threshold"`
+	// DuplicateContentThreshold default value is set in DefaultConfig
+
 	// ShowLoopDetection: whether to show loop detection info (feedback sent to LLM,
 	// judgment results, temperature adjustments) in the user-facing output.
 	// When disabled, loop detection runs silently in the background.
@@ -304,12 +319,24 @@ type LLMConfig struct {
 	// the value is a JSON string that will be merged into the request body.
 	BodyAdditions map[string]string `json:"body_additions"`
 
-	// ContextStartMode: controls how the context start position is managed.
+	// ContextPolicy: controls how the context start position is managed.
 	// "window" = fixed window: context is the last N messages (N = context_limit)
 	// "task" = task mode: context start pointer follows task boundaries automatically
 	// "smart" = smart mode: context start pointer is only adjusted via attempt_completion's task_message_no
-	// Default: "smart"
-	ContextStartMode string `json:"context_start_mode"`
+	// "reorganize" = reorganize mode: context is managed via reorganize_context tool; attempt_completion's
+	//   task_message_no has no effect. reorganize_context is triggered when:
+	//   1. Token usage exceeds ContextReorganizeThreshold (percentage of max model length)
+	//   2. A loop is detected
+	//   3. The user explicitly requests context reorganization
+	// Default: "reorganize"
+	ContextPolicy string `json:"context_policy"`
+
+	// ContextReorganizeThreshold is the token usage percentage threshold (0-100) that triggers
+	// an automatic reorganize_context suggestion. When ContextPolicy is "reorganize" and
+	// current iteration token usage exceeds this percentage of the model's max context length,
+	// the agent will suggest the LLM to call reorganize_context.
+	// Default: 80
+	ContextReorganizeThreshold int `json:"context_reorganize_threshold"`
 
 	// ToolCallMode: the tool call mode to use.
 	// "openai" = standard OpenAI API tool call mechanism (send tools as JSON array)
@@ -655,59 +682,62 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LLM: LLMConfig{
-			Temperature:               0,
-			MaxTokens:                 -1,
-			MaxIterations:             1000,
-			ShowLlmThinking:           true,
-			ShowLlmContent:            true,
-			ShowTool:                  true,
-			ShowToolInput:             false,
-			ShowToolOutput:            false,
-			ShowCommand:               true,
-			ShowCommandOutput:         true,
-			ToolModes:                 nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
-			ResultMode:                int(ResultModeFree),
-			ContextLimit:              -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
-			MemoryEnabled:             true,
-			PlanEnabled:               true,
-			SubAgentEnabled:           true,
-			ShellSessionEnabled:       false,
-			ShellSessionTimeout:       0,
-			ShellVTRows:               24,
-			ShellVTCols:               80,
-			ListMaxItems:              256,
-			SearchMaxLineLength:       8192,
-			SearchMaxResultBytes:      65536,
-			SearchContextLines:        5,
-			MemorySearchMaxContentLen: 512,
-			MemorySearchMaxResults:    100,
-			ErrorMaxSingleCount:       10,
-			ErrorMaxTypeCount:         100,
-			LoopDetectEnabled:         true,
-			LoopDetectThreshold:       5,
-			LoopDetectMinLineLen:      50,
-			LoopTempEnabled:           true,
-			LoopTempStepUp:            0.05,
-			LoopTempStepDown:          0.07,
-			LoopTempMax:               1.1,
-			LoopTempMin:               0,
-			LoopJudgeEnabled:          true,
-			ShowLoopDetection:         false,
-			TopP:                      -1,
-			TopK:                      -1,
-			RepetitionPenalty:         -1,
-			ThinkingEnabled:           false,
-			ReasoningEffort:           "low",
-			EmojiEnabled:              true,
-			ShowLogo:                  true,
-			ToolCallEnabled:           true,
-			ToolCallMode:              "xml",
-			ContextStartMode:          "smart",
-			TokenUsage:                "on",
-			InputMode:                 "enhanced",
-			BrowserEnabled:            true,
-			BrowserPort:               9222,
-			BrowserHeadless:           false,
+			Temperature:                0,
+			MaxTokens:                  -1,
+			MaxIterations:              1000,
+			ShowLlmThinking:            true,
+			ShowLlmContent:             true,
+			ShowTool:                   true,
+			ShowToolInput:              false,
+			ShowToolOutput:             false,
+			ShowCommand:                true,
+			ShowCommandOutput:          true,
+			ToolModes:                  nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
+			ResultMode:                 int(ResultModeFree),
+			ContextLimit:               -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			MemoryEnabled:              true,
+			PlanEnabled:                true,
+			SubAgentEnabled:            true,
+			ShellSessionEnabled:        false,
+			ShellSessionTimeout:        0,
+			ShellVTRows:                24,
+			ShellVTCols:                80,
+			ListMaxItems:               256,
+			SearchMaxLineLength:        8192,
+			SearchMaxResultBytes:       65536,
+			SearchContextLines:         5,
+			MemorySearchMaxContentLen:  512,
+			MemorySearchMaxResults:     100,
+			ErrorMaxSingleCount:        10,
+			ErrorMaxTypeCount:          100,
+			LoopDetectEnabled:          true,
+			LoopDetectThreshold:        5,
+			LoopDetectMinLineLen:       50,
+			LoopTempEnabled:            true,
+			LoopTempStepUp:             0.05,
+			LoopTempStepDown:           0.07,
+			LoopTempMax:                1.1,
+			LoopTempMin:                0,
+			LoopJudgeEnabled:           true,
+			LoopReorganizeEnabled:      true,
+			DuplicateContentThreshold:  0.95,
+			ShowLoopDetection:          false,
+			TopP:                       -1,
+			TopK:                       -1,
+			RepetitionPenalty:          -1,
+			ThinkingEnabled:            false,
+			ReasoningEffort:            "low",
+			EmojiEnabled:               true,
+			ShowLogo:                   true,
+			ToolCallEnabled:            true,
+			ToolCallMode:               "xml",
+			ContextPolicy:              "reorganize",
+			ContextReorganizeThreshold: 80,
+			TokenUsage:                 "on",
+			InputMode:                  "enhanced",
+			BrowserEnabled:             true,
+			BrowserPort:                9222,
+			BrowserHeadless:            false,
 		},
 
 		DB: DefaultDBConfig(),

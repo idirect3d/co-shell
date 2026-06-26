@@ -365,6 +365,47 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop judge enabled set to %s", status)
 		return fmt.Sprintf("✅ LLM循环二次判定已设置为: %s", status), nil
 
+	case "duplicate-content-threshold":
+		if len(args) < 2 {
+			return fmt.Sprintf("内容重复判定阈值: %.2f（0.0-1.0，默认0.95）", h.cfg.LLM.DuplicateContentThreshold), nil
+		}
+		v, err := strconv.ParseFloat(args[1], 64)
+		if err != nil || v < 0 || v > 1.0 {
+			return "", fmt.Errorf("无效的阈值: %s（请输入 0.0-1.0 之间的小数）", args[1])
+		}
+		h.cfg.LLM.DuplicateContentThreshold = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Duplicate content threshold set to %.2f", v)
+		return fmt.Sprintf("✅ 内容重复判定阈值已设置为: %.2f", v), nil
+
+	case "loop-reorganize-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.LoopReorganizeEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("循环检测重整上下文: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.LoopReorganizeEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.LoopReorganizeEnabled = false
+		default:
+			return "", fmt.Errorf("使用方法: .set loop-reorganize-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.LoopReorganizeEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Loop reorganize enabled set to %s", status)
+		return fmt.Sprintf("✅ 循环检测重整上下文已设置为: %s", status), nil
+
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)
 	}

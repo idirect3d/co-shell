@@ -27,6 +27,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -150,7 +152,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "max-iterations", subcommand == "max-retries",
 		subcommand == "memory-enabled", subcommand == "plan-enabled",
 		subcommand == "subagent-enabled", subcommand == "context-limit",
-		subcommand == "context-start", subcommand == "result-mode",
+		subcommand == "context-start", subcommand == "context-policy",
+		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
 		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
 		subcommand == "browser-enabled", subcommand == "browser-port",
@@ -166,7 +169,9 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-temp-enabled", subcommand == "loop-temp-step-up",
 		subcommand == "loop-temp-step-down", subcommand == "loop-temp-max",
 		subcommand == "loop-temp-min",
-		subcommand == "loop-judge-enabled":
+		subcommand == "loop-judge-enabled",
+		subcommand == "loop-reorganize-enabled",
+		subcommand == "duplicate-content-threshold":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -501,22 +506,36 @@ func showSettingsHelp(cfg *config.Config) string {
 		// Loop judgment (FEATURE-241)
 		makeLine("loop-judge-enabled", loopJudgeStatus, i18n.T(i18n.KeyCol3LoopJudgeEnabled)),
 	)
+	loopReorganizeStatus := i18n.T(i18n.KeyOn)
+	if !cfg.LLM.LoopReorganizeEnabled {
+		loopReorganizeStatus = i18n.T(i18n.KeyOff)
+	}
+	allLines = append(allLines,
+		makeLine("loop-reorganize-enabled", loopReorganizeStatus, "循环检测重整上下文"),
+	)
 
 	// Group 5: Memory & Context
-	contextStartMode := i18n.T(i18n.KeyContextStartTask)
-	if cfg.LLM.ContextStartMode == "window" {
-		contextStartMode = i18n.T(i18n.KeyContextStartWindow)
-	} else if cfg.LLM.ContextStartMode == "smart" {
-		contextStartMode = i18n.T(i18n.KeyContextStartSmart)
+	contextStartMode := i18n.T(i18n.KeyContextPolicyReorganize)
+	if cfg.LLM.ContextPolicy == "window" {
+		contextStartMode = i18n.T(i18n.KeyContextPolicyWindow)
+	} else if cfg.LLM.ContextPolicy == "smart" {
+		contextStartMode = i18n.T(i18n.KeyContextPolicySmart)
+	} else if cfg.LLM.ContextPolicy == "task" {
+		contextStartMode = i18n.T(i18n.KeyContextPolicyTask)
 	}
 	dbEnabledStatus := i18n.T(i18n.KeyOff)
 	if cfg.DB.Enabled {
 		dbEnabledStatus = i18n.T(i18n.KeyOn)
 	}
+	reorganizeThresholdStr := fmt.Sprintf("%d%%", cfg.LLM.ContextReorganizeThreshold)
+	if cfg.LLM.ContextReorganizeThreshold == 0 {
+		reorganizeThresholdStr = "off"
+	}
 	allLines = append(allLines,
 		makeLine("memory-enabled", memoryEnabledStatus, i18n.T(i18n.KeyCol3MemoryEnabled)),
 		makeLine("context-limit", contextLimitStr, i18n.T(i18n.KeyCol3ContextLimit)),
-		makeLine("context-start", contextStartMode, i18n.T(i18n.KeyCol3ContextStartMode)),
+		makeLine("context-policy", contextStartMode, "window/task/smart/reorganize"),
+		makeLine("context-reorganize-threshold", reorganizeThresholdStr, "0-100%"),
 		makeLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)),
 		makeLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), i18n.T(i18n.KeyCol3MemorySearchMaxResults)),
 		makeLine("db", dbEnabledStatus, i18n.T(i18n.KeyDBSubCmdDesc)),
@@ -572,10 +591,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
 
 	// Group 4: Safety & Confirmation
-	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(15)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(16)...)
 
 	// Group 5: Memory & Context
-	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(7)...)
 
 	// Group 6: Search & Debug
 	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(5)...)
@@ -585,57 +604,76 @@ func showSettingsHelp(cfg *config.Config) string {
 
 // lookupWorkModeDescription returns the Identity section content for the current work mode,
 // which is the same identity text sent to the LLM (with {AGENT_NAME} and {AGENT_DESCRIPTION} populated).
-// This follows the same logic as agent.buildNamedSection("Identity", ...).
+// This follows the same logic as agent.buildNamedSection("Identity", ...):
+//  1. {cwd}/mode/{modeName}/IDENTITY.md (if modeName is set and file exists)
+//  2. i18n fallback (KeySystemPromptIdentity)
 func lookupWorkModeDescription(cfg *config.Config, modeName string) string {
 	if modeName == "" || modeName == "default" {
 		modeName = "act"
 	}
 
-	// Select identity text (mirrors agent/buildNamedSection Identity logic)
-	identityText := i18n.T(i18n.KeySystemPromptIdentity)
+	// Priority 1: load from mode-specific external file (matches agent.loadSectionText)
+	cwd, _ := os.Getwd()
+	identityText := loadModeIdentityFile(cwd, modeName)
 
-	// If the identity text resolved (is not empty and not the key itself), populate
-	// placeholders and return it
-	if identityText != "" && identityText != i18n.KeySystemPromptIdentity {
-		agentName := cfg.LLM.AgentName
-		if agentName == "" {
-			agentName = "co-shell"
-		}
-		identityText = strings.ReplaceAll(identityText, "{AGENT_NAME}", agentName)
+	// Priority 2: i18n fallback
+	if identityText == "" {
+		identityText = i18n.T(i18n.KeySystemPromptIdentity)
+	}
 
-		// Resolve {AGENT_DESCRIPTION} with same priority as rebuildSystemPrompt
-		agentDesc := ""
-		if cfg.LLM.ModeDescriptions != nil {
-			if md, ok := cfg.LLM.ModeDescriptions[modeName]; ok && md != "" {
-				agentDesc = md
-			}
-		}
-		if agentDesc == "" {
-			agentDesc = cfg.LLM.AgentDescription
-		}
-		if agentDesc == "" {
-			switch modeName {
-			case "plan":
-				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
-			case "research":
-				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
-			default:
-				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
-			}
-		}
+	// If no identity text resolved at all, fall back to agent description
+	if identityText == "" || identityText == i18n.KeySystemPromptIdentity {
+		agentDesc := cfg.LLM.AgentDescription
 		if agentDesc == "" {
 			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 		}
-		identityText = strings.ReplaceAll(identityText, "{AGENT_DESCRIPTION}", agentDesc)
-		return identityText
+		return agentDesc
 	}
 
-	// Fallback: agent description
-	agentDesc := cfg.LLM.AgentDescription
+	agentName := cfg.LLM.AgentName
+	if agentName == "" {
+		agentName = "co-shell"
+	}
+	identityText = strings.ReplaceAll(identityText, "{AGENT_NAME}", agentName)
+
+	// Resolve {AGENT_DESCRIPTION} with same priority as rebuildSystemPrompt
+	agentDesc := ""
+	if cfg.LLM.ModeDescriptions != nil {
+		if md, ok := cfg.LLM.ModeDescriptions[modeName]; ok && md != "" {
+			agentDesc = md
+		}
+	}
+	if agentDesc == "" {
+		agentDesc = cfg.LLM.AgentDescription
+	}
+	if agentDesc == "" {
+		switch modeName {
+		case "plan":
+			agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
+		case "research":
+			agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
+		default:
+			agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
+		}
+	}
 	if agentDesc == "" {
 		agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 	}
-	return agentDesc
+	identityText = strings.ReplaceAll(identityText, "{AGENT_DESCRIPTION}", agentDesc)
+	return identityText
+}
+
+// loadModeIdentityFile attempts to load the IDENTITY.md file for the given mode.
+func loadModeIdentityFile(cwd, modeName string) string {
+	if cwd == "" || modeName == "" {
+		return ""
+	}
+	path := filepath.Join(cwd, "mode", modeName, "IDENTITY.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // formatSettings formats the settings for display.

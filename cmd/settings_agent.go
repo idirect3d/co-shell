@@ -335,34 +335,56 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Shell VT cols set to %d", n)
 		return fmt.Sprintf("✅ 虚拟终端列数已设置为: %d", n), nil
 
-	case "context-start":
+	case "context-reorganize-threshold":
 		if len(args) < 2 {
-			mode := i18n.T(i18n.KeyContextStartTask)
-			if h.cfg.LLM.ContextStartMode == "window" {
-				mode = i18n.T(i18n.KeyContextStartWindow)
-			} else if h.cfg.LLM.ContextStartMode == "smart" {
-				mode = i18n.T(i18n.KeyContextStartSmart)
+			return fmt.Sprintf("上下文重新整理阈值: %d%%（0=关闭自动触发）", h.cfg.LLM.ContextReorganizeThreshold), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 || n > 100 {
+			return "", fmt.Errorf("无效的阈值: %s（请输入 0-100 的整数，0=关闭自动触发）", args[1])
+		}
+		h.cfg.LLM.ContextReorganizeThreshold = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Context reorganize threshold set to %d", n)
+		if n == 0 {
+			return "✅ 上下文自动重新整理已关闭", nil
+		}
+		return fmt.Sprintf("✅ 上下文重新整理阈值已设置为: %d%%", n), nil
+
+	case "context-policy":
+		if len(args) < 2 {
+			mode := i18n.T(i18n.KeyContextPolicyTask)
+			if h.cfg.LLM.ContextPolicy == "window" {
+				mode = i18n.T(i18n.KeyContextPolicyWindow)
+			} else if h.cfg.LLM.ContextPolicy == "smart" {
+				mode = i18n.T(i18n.KeyContextPolicySmart)
+			} else if h.cfg.LLM.ContextPolicy == "reorganize" {
+				mode = i18n.T(i18n.KeyContextPolicyReorganize)
 			}
-			return fmt.Sprintf("上下文起始模式: %s", mode), nil
+			return fmt.Sprintf("上下文策略: %s", mode), nil
 		}
 		switch args[1] {
-		case "window", "task", "smart":
-			h.cfg.LLM.ContextStartMode = args[1]
+		case "window", "task", "smart", "reorganize":
+			h.cfg.LLM.ContextPolicy = args[1]
 		default:
-			return "", fmt.Errorf("无效的上下文起始模式: %s（可选值: window, task, smart）", args[1])
+			return "", fmt.Errorf("无效的上下文策略: %s（可选值: window, task, smart, reorganize）", args[1])
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		modeDesc := i18n.T(i18n.KeyContextStartTask)
+		modeDesc := i18n.T(i18n.KeyContextPolicyTask)
 		switch args[1] {
 		case "window":
-			modeDesc = i18n.T(i18n.KeyContextStartWindow)
+			modeDesc = i18n.T(i18n.KeyContextPolicyWindow)
 		case "smart":
-			modeDesc = i18n.T(i18n.KeyContextStartSmart)
+			modeDesc = i18n.T(i18n.KeyContextPolicySmart)
+		case "reorganize":
+			modeDesc = i18n.T(i18n.KeyContextPolicyReorganize)
 		}
-		log.Info("Context start mode set to %s (%s)", args[1], modeDesc)
-		return fmt.Sprintf("✅ 上下文起始模式已设置为: %s (%s)", args[1], modeDesc), nil
+		log.Info("Context policy set to %s (%s)", args[1], modeDesc)
+		return fmt.Sprintf("✅ 上下文策略已设置为: %s (%s)", args[1], modeDesc), nil
 
 	case "browser-enabled":
 		if len(args) < 2 {
