@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "259"
+const build = "262"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -135,7 +135,7 @@ type cliFlags struct {
 	showLogo string // "on"/"off"
 
 	// Context start mode
-	contextStart string // "window"/"task"/"smart"
+	contextPolicy string // "window"/"task"/"smart"/"reorganize"
 
 	// External config file generation
 	initCapabilities bool
@@ -259,7 +259,7 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.showLogo, "show-logo", "", "显示启动 Logo（on/off，覆盖配置文件）")
 
 	// Context start mode
-	flag.StringVar(&f.contextStart, "context-start", "", "上下文起始模式（window/task/smart，覆盖配置文件）")
+	flag.StringVar(&f.contextPolicy, "context-policy", "", "上下文策略（window/task/smart/reorganize，覆盖配置文件）")
 
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
@@ -695,13 +695,13 @@ func main() {
 		cfg.LLM.ErrorMaxTypeCount = flags.errorMaxTypeCount
 	}
 
-	// Apply context-start CLI override
-	if flags.contextStart != "" {
-		switch flags.contextStart {
-		case "window", "task", "smart":
-			cfg.LLM.ContextStartMode = flags.contextStart
+	// Apply context-policy CLI override
+	if flags.contextPolicy != "" {
+		switch flags.contextPolicy {
+		case "window", "task", "smart", "reorganize":
+			cfg.LLM.ContextPolicy = flags.contextPolicy
 		default:
-			io.ErrPrintf("Warning: invalid --context-start value %q, use window/task/smart\n", flags.contextStart)
+			io.ErrPrintf("Warning: invalid --context-policy value %q, use window/task/smart/reorganize\n", flags.contextPolicy)
 		}
 	}
 

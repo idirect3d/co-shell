@@ -199,6 +199,12 @@ type Agent struct {
 	// (FEATURE-241)
 	lastLlmOutput string
 
+	// lastAssistantContent stores the complete assistant response content from the
+	// previous iteration. Used to detect exact content duplicates — when the LLM
+	// returns the exact same content without calling any tools, it indicates a
+	// "stuck" state that needs different feedback. (FEATURE-249)
+	lastAssistantContent string
+
 	// Persistent shell session for interactive command execution (FEATURE-192)
 	shellSession     *shell.Session
 	shellEnabled     bool   // whether persistent shell tools are enabled
@@ -262,8 +268,8 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	var msgs []llm.Message
 
 	contextStartMode := "smart"
-	if a.cfg != nil && a.cfg.LLM.ContextStartMode != "" {
-		contextStartMode = a.cfg.LLM.ContextStartMode
+	if a.cfg != nil && a.cfg.LLM.ContextPolicy != "" {
+		contextStartMode = a.cfg.LLM.ContextPolicy
 	}
 
 	// Only "window" mode uses ContextLimit for truncation.
@@ -298,15 +304,28 @@ func (a *Agent) buildContextMessages() []llm.Message {
 			msgs = append(msgs, currentMsg)
 		}
 	} else {
-		// Unlimited: use all messages (copy to avoid modifying originals)
-		msgs = a.addIndexPrefixToMessages(a.messages, 0)
+		// Unlimited: use messages from messagePointer onwards, respecting pointer position.
+		// When context-policy is "reorganize", the messagePointer is moved by reorganize_context
+		// to skip old history - this must be honored here.
+		if len(a.messages) <= 1 {
+			msgs = a.messages
+		} else {
+			startIdx := 1
+			if a.messagePointer > 1 && a.messagePointer < len(a.messages) {
+				startIdx = a.messagePointer
+			}
+			systemMsg := a.messages[0]
+			historyMsgs := a.messages[startIdx:]
+			msgs = make([]llm.Message, 0, 1+len(historyMsgs))
+			msgs = append(msgs, systemMsg)
+			msgs = append(msgs, historyMsgs...)
+		}
 	}
 
-	// Strip old <environment_details> blocks from all messages,
-	// then inject fresh envelope into all user/tool messages,
-	// then add a full envelope (with cwd/files/task_plan) to the last user message.
-	msgs = a.stripEnvelopes(msgs)
-	msgs = injectTimeAndMessageNo(msgs)
+	// Preserve historical <environment_details> by NOT stripping them.
+	// Only inject a fresh envelope into the LAST user message so the LLM
+	// always has current time/cwd/files/task_plan context.
+	// Historical messages keep their original time and environment state.
 	msgs = a.injectEnvelopeToLastUser(msgs)
 	return msgs
 }
