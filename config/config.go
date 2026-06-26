@@ -381,6 +381,10 @@ type LLMConfig struct {
 	// When enabled, all LLM request and response payloads are written to
 	// log/llm-interaction-YYYY-MM-DD.log as formatted JSON.
 	LLMInteractionLog bool `json:"llm_interaction_log"`
+
+	// DebugMode: when enabled, displays the pending LLM request content on the
+	// prompt line for review/modification before sending. Default: false.
+	DebugMode bool `json:"debug_mode"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.

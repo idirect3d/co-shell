@@ -152,7 +152,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.loopDetector.Reset()
 		}
 
-		// Step 1: Stream the LLM response
+		// Step 1: Debug mode - allow review/edit of user message before sending
+		a.debugIntercept()
+
+		// Step 2: Stream the LLM response
 		var finalContent, finalReasoning string
 		var toolCalls []llm.ToolCall
 		var streamErr error

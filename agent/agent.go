@@ -290,6 +290,74 @@ func (a *Agent) SetMemoryEnabled(enabled bool)   { a.memoryEnabled = enabled }
 func (a *Agent) SetEmojiEnabled(enabled bool)    { a.emojiEnabled = enabled }
 func (a *Agent) SetToolCallEnabled(enabled bool) { a.toolCallEnabled = enabled }
 
+func (a *Agent) SetDebugMode(enabled bool) { a.debugMode = enabled }
+func (a *Agent) IsDebugMode() bool         { return a.debugMode }
+
+// debugIntercept displays the next messages to be sent to the LLM and allows
+// the user to review/modify the last user message before sending.
+// Returns true if the messages were modified, false if sent as-is.
+func (a *Agent) debugIntercept() bool {
+	if !a.debugMode || a.io == nil {
+		return false
+	}
+
+	// Show the last user message for preview
+	a.mu.Lock()
+	userMsg := ""
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if a.messages[i].Role == "user" {
+			userMsg = a.messages[i].Content
+			break
+		}
+	}
+	a.mu.Unlock()
+
+	if userMsg == "" {
+		return false
+	}
+
+	a.io.Println()
+	a.io.Println(i18n.T(i18n.KeyDebugPromptHeader))
+	// Try to extract just the user's actual message (before environment_details)
+	cleanMsg := userMsg
+	if idx := strings.Index(cleanMsg, "<environment_details>"); idx > 0 {
+		cleanMsg = strings.TrimSpace(cleanMsg[:idx])
+	}
+	a.io.Println(cleanMsg)
+	a.io.Println()
+	a.io.Println(i18n.T(i18n.KeyDebugPromptFooter))
+	a.io.Printf("> ")
+
+	input, err := a.io.ReadLine()
+	if err != nil {
+		return false
+	}
+
+	if input == "" {
+		// No modification, send as-is
+		log.Debug("debugIntercept: user pressed Enter, sending unmodified")
+		return false
+	}
+
+	// User modified the content - replace the last user message
+	a.mu.Lock()
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if a.messages[i].Role == "user" {
+			// Preserve the envelope structure if present
+			if envIdx := strings.Index(a.messages[i].Content, "<environment_details>"); envIdx > 0 {
+				a.messages[i].Content = input + "\n" + a.messages[i].Content[envIdx:]
+			} else {
+				a.messages[i].Content = input
+			}
+			break
+		}
+	}
+	a.mu.Unlock()
+
+	log.Debug("debugIntercept: user modified the message")
+	return true
+}
+
 func (a *Agent) SetToolCallMode(mode string) {
 	if a.toolCallModeMgr == nil {
 		a.toolCallModeMgr = NewToolCallModeManager()
