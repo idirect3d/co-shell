@@ -180,11 +180,12 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "input-mode":
 		return h.handleAgentSetting(subcommand, args)
 
-	// Search settings
+	// Search & Debug settings
 	case subcommand == "search-max-line-length", subcommand == "search-max-result-bytes",
 		subcommand == "search-context-lines",
 		subcommand == "memory-search-max-content-len",
-		subcommand == "memory-search-max-results":
+		subcommand == "memory-search-max-results",
+		subcommand == "debug":
 		return h.handleSearchSetting(subcommand, args)
 
 	// Log setting
@@ -442,6 +443,10 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("browser-port", fmt.Sprintf("%d", cfg.LLM.BrowserPort), i18n.T(i18n.KeyCol3BrowserPort)),
 		makeLine("browser-headless", browserHeadlessStatus, i18n.T(i18n.KeyCol3BrowserHeadless)),
 		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), "HTML下载阈值"),
+		// Search settings
+		makeLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.T(i18n.KeyCol3SearchMaxLineLength)),
+		makeLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.T(i18n.KeyCol3SearchMaxResultBytes)),
+		makeLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), i18n.T(i18n.KeyCol3SearchContextLines)),
 	)
 
 	// Show loop detection (FEATURE-241)
@@ -541,11 +546,13 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("db", dbEnabledStatus, i18n.T(i18n.KeyDBSubCmdDesc)),
 	)
 
-	// Group 6: Search & Debug
+	// Group 6: Developer
+	debugStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.DebugMode {
+		debugStatus = i18n.T(i18n.KeyOn)
+	}
 	allLines = append(allLines,
-		makeLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.T(i18n.KeyCol3SearchMaxLineLength)),
-		makeLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.T(i18n.KeyCol3SearchMaxResultBytes)),
-		makeLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), i18n.T(i18n.KeyCol3SearchContextLines)),
+		makeLine("debug", debugStatus, i18n.T(i18n.KeyCol3Debug)),
 		makeLine("log", logStatus, i18n.T(i18n.KeyCol3Log)),
 	)
 	llmInteractionLogStatus := i18n.T(i18n.KeyOff)
@@ -585,7 +592,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(19)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(22)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
@@ -596,8 +603,8 @@ func showSettingsHelp(cfg *config.Config) string {
 	// Group 5: Memory & Context
 	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(7)...)
 
-	// Group 6: Search & Debug
-	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(5)...)
+	// Group 6: Developer
+	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(3)...)
 
 	return sb.String()
 }

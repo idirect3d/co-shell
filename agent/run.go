@@ -82,6 +82,8 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	tools := a.buildTools()
 
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
+		// Debug mode: allow review/edit of user message before sending
+		a.debugIntercept()
 		// Dynamically select and switch to the appropriate model based on current mode
 		a.ApplyWorkModeConfig()
 

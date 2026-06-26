@@ -588,7 +588,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsGroupSafety:      "[ 安全与确认 ]",
 	KeySettingsGroupMemory:      "[ 记忆与上下文 ]",
 	KeySettingsGroupTask:        "[ 任务与子代理 ]",
-	KeySettingsGroupSearchDebug: "[ 搜索与调试 ]",
+	KeySettingsGroupSearchDebug: "[ 开发者 ]",
 
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "相同错误最大出现次数",
@@ -800,4 +800,12 @@ AI 模型可能会生成并执行以下类型的危险命令：
 
 	// Duplicate assistant content detection (FEATURE-249)
 	KeyDuplicateContentFeedback: "⚠️ 检测到你本次回复的内容与上一次完全一致。你已经进行了完整的分析，不要再重复相同的文字，请梳理之前完整上下文和任务清单，在能够明确任务目标的基础上，重新对任务进行规划，并通过track_task_progress进行任务跟踪，通过调用合适的工具继续推进任务。如果任务目标不够明确，请调用 ask_followup_question 向用户说明情况，以便请用户提供更多的素材。",
+
+	// Debug mode
+	KeyDebugMode:         "调试模式",
+	KeyDebugPromptHeader: "=== 即将发送给 LLM 的消息预览（调试模式）===\n按 Enter 直接发送，或输入修改内容后按 Enter",
+	KeyDebugPromptFooter: "=== 预览结束 ===",
+	KeySettingsDescDebug: "调试模式（提交给 LLM 前显示并可编辑消息内容）",
+	KeyCol3Debug:         "调试模式",
+	KeyCLIHelpDebug:      "启用调试模式（提交给 LLM 前显示并可编辑消息内容）",
 }

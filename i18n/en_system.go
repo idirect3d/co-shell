@@ -1142,11 +1142,7 @@ The bin/ directory provides Python tools for document format conversion and mult
 
 For detailed parameter descriptions, refer to the corresponding bin/{tool_name}.md file (the .md file is the authoritative source).
 
-## doc2png — Document to PNG Page Images
-Purpose: Convert .doc/.docx/.wps documents directly to page-by-page PNG images, preserving headings/tables/charts/images/layout.
-Usage: python3 bin/doc2png.py <input.doc/docx/wps> -o <output_dir>
-
-## doc2pdf — Document to PDF
+	## doc2pdf — Document to PDF
 Purpose: Convert .doc/.docx/.wps documents to PDF.
 Usage: python3 bin/doc2pdf.py <input.doc/docx/wps> -o <output.pdf>
 
@@ -1166,12 +1162,11 @@ Usage: python3 bin/md2wechat.py <input.md> [output.html]
 
 When analyzing Word/PDF documents containing complex tables, charts, or layouts, use the standard approach:
 
-1. **Word documents (doc/docx/wps)**: python3 bin/doc2png.py <document> -o ./pages
-2. **PDF documents**: python3 bin/pdf2png.py <document.pdf> -o ./pages
-3. Load the generated PNG images using the add_images tool into multimodal context
-4. Analyze complex document structures and content with the vision model
+1. **PDF documents**: python3 bin/pdf2png.py <document.pdf> -o ./pages
+2. Load the generated PNG images using the add_images tool into multimodal context
+3. Analyze complex document structures and content with the vision model
 
-If LibreOffice is not installed, doc2png/doc2pdf fall back to plain text extraction (formatting lost).
+If LibreOffice is not installed, doc2pdf falls back to plain text extraction (formatting lost).
 Guide the user to install LibreOffice:
   macOS: brew install --cask libreoffice
   Windows: winget install TheDocumentFoundation.LibreOffice
