@@ -141,61 +141,15 @@ func stripSingleEnvelope(content string) string {
 	return result
 }
 
-// taskPlanTools lists the LLM tools that manage task plans. When the LLM has just
-// called one of these, the task plan content is already in the tool result message
-// and should not be duplicated in <environment_details>.
-var taskPlanTools = map[string]bool{
-	"track_task_progress": true,
-	"view_task_plan":      true,
-}
-
-// isLastToolTaskPlan checks whether the most recent tool call in a.messages is one
-// of the task plan tools. This is called per-iteration from injectEnvelopeToLastUser.
-func (a *Agent) isLastToolTaskPlan() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for i := len(a.messages) - 1; i >= 0; i-- {
-		msg := a.messages[i]
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			for _, tc := range msg.ToolCalls {
-				if taskPlanTools[tc.Name] {
-					return true
-				}
-			}
-			return false
-		}
-	}
-	return false
-}
-
-// injectEnvelopeToLastUser finds the last user message in msgs and appends a fresh
-// <environment_details> block with current time, working directory, file listing,
-// and optionally task plan progress (unless a task plan tool was just called).
-func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
-	result := make([]llm.Message, len(msgs))
-	copy(result, msgs)
-
-	lastUserIdx := -1
-	for i := len(result) - 1; i >= 0; i-- {
-		if result[i].Role == "user" {
-			lastUserIdx = i
-			break
-		}
-	}
-	if lastUserIdx < 0 {
-		return result
-	}
-
-	// Skip task plan in envelope if a task plan tool was just called.
-	// Check is done per-iteration against a.messages so it re-evaluates each time.
-	skipTaskPlan := a.isLastToolTaskPlan()
-
+// buildFullEnvironmentDetails constructs the complete <environment_details> block
+// with time, message_no, context_window, cwd, files, bin, research, and task_plan.
+// Used by both injectEnvelopeToLastUser (for user messages) and
+// injectTimeAndMessageNoToLast (for tool result messages).
+func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
 	cwd, _ := os.Getwd()
 	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 	taskPlan := a.getTaskPlanPrompt()
-
-	// Message number derived from current a.messages length (last index)
-	messageNo := len(a.messages) - 1
+	skipTaskPlan := a.isLastToolTaskPlan()
 
 	// Top-level files (depth=0) and two-level listing (depth=1) for bin and research
 	files := strings.TrimRight(listFilesForPrompt(cwd, 0, 128), "\n")
@@ -214,7 +168,7 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("\n\n<environment_details>\n")
+	sb.WriteString("<environment_details>\n")
 	sb.WriteString("<time>")
 	sb.WriteString(now)
 	sb.WriteString("</time>\n")
@@ -248,6 +202,82 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 		sb.WriteString("\n</task_plan>\n")
 	}
 	sb.WriteString("</environment_details>")
+	return sb.String()
+}
+
+// taskPlanTools lists the LLM tools that manage task plans. When the LLM has just
+// called one of these, the task plan content is already in the tool result message
+// and should not be duplicated in <environment_details>.
+var taskPlanTools = map[string]bool{
+	"track_task_progress": true,
+	"view_task_plan":      true,
+}
+
+// isLastToolTaskPlan checks whether the most recent tool call in a.messages is one
+// of the task plan tools. This is called per-iteration from injectEnvelopeToLastUser.
+func (a *Agent) isLastToolTaskPlan() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		msg := a.messages[i]
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			for _, tc := range msg.ToolCalls {
+				if taskPlanTools[tc.Name] {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// injectTimeAndMessageNoToLast appends a full <environment_details> block to the LAST
+// message in a.messages that is a user or tool message. Uses the shared
+// buildFullEnvironmentDetails method so all messages get consistent env context.
+// This is called after adding a tool result to freeze its environment context.
+func (a *Agent) injectTimeAndMessageNoToLast() {
+	if len(a.messages) == 0 {
+		return
+	}
+	lastIdx := len(a.messages) - 1
+	msg := &a.messages[lastIdx]
+	if msg.Role != "user" && msg.Role != "tool" {
+		return
+	}
+
+	envText := a.buildFullEnvironmentDetails(lastIdx)
+
+	// Convert to ContentParts if not already
+	if len(msg.ContentParts) == 0 {
+		msg.ContentParts = []llm.ContentPart{
+			{Type: llm.ContentPartText, Text: msg.Content},
+		}
+		msg.Content = ""
+	}
+	msg.AppendTextPart(envText)
+}
+
+// injectEnvelopeToLastUser finds the last user message in msgs and appends a fresh
+// <environment_details> block using the shared buildFullEnvironmentDetails method.
+// This ensures all messages (user + tool) use the same env format.
+func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
+	result := make([]llm.Message, len(msgs))
+	copy(result, msgs)
+
+	lastUserIdx := -1
+	for i := len(result) - 1; i >= 0; i-- {
+		if result[i].Role == "user" {
+			lastUserIdx = i
+			break
+		}
+	}
+	if lastUserIdx < 0 {
+		return result
+	}
+
+	messageNo := len(a.messages) - 1
+	envText := a.buildFullEnvironmentDetails(messageNo)
 
 	// Always use ContentParts format for the last user message so the envelope
 	// (current time, files, task plan) is a separate text part from the instruction.
@@ -264,7 +294,7 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 		}
 		existing.Content = ""
 	}
-	existing.AppendTextPart(sb.String())
+	existing.AppendTextPart(envText)
 	result[lastUserIdx] = existing
 	return result
 }

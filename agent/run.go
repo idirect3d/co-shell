@@ -57,7 +57,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	} else {
 		// Build user message with ContentParts for structured content.
 		// All user messages use the array format: [{"type":"text","text":"instruction"}]
-		// Environment_details will be appended by injectEnvelopeToLastUser as a ContentPart.
+		// Environment_details is attached at creation time and frozen — never re-injected.
 		userMsg := a.buildUserMessage(userInput)
 		a.messages = append(a.messages, userMsg)
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)

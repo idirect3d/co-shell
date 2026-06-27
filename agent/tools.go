@@ -257,6 +257,25 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Callback: a.listCodeDefinitionNamesTool,
 	})
 	tools = append(tools, llm.Tool{
+		Name:        "add_images",
+		Description: "Add image file paths to the image cache and specify what content to recognize from them. After adding, use the LLM's multimodal vision capability to analyze the images according to the specified intent. Multiple paths can be separated by commas. IMPORTANT: You MUST specify the 'intent' parameter to describe what specific information you need from the images, creating a complete recognition loop.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"paths": map[string]interface{}{
+					"type":        "string",
+					"description": "List of image file paths to add to the cache, separated by commas (e.g., 'image1.png,image2.jpg')",
+				},
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "Describe what specific information you need to recognize from the images. For example: '识别这张发票中的金额和日期', '提取表格中的数据列', '找出图中所有错误标注的位置'. This intent will be used to guide the vision analysis and produce structured output.",
+				},
+			},
+			"required": []string{"paths", "intent"},
+		},
+		Callback: a.addImagesTool,
+	})
+	tools = append(tools, llm.Tool{
 		Name:        "replace_in_file",
 		Description: "Replace sections of content in an existing file using 'search'/'replace' blocks. Accepts a 'replacements' array where each element is an object with 'search' (the exact content to find), 'replace' (the new content), and optional 'start_line' (the 1-based line number in the original file for precise positioning). Supports multiple replacements in a single call. The 'search' content must match the file exactly (including whitespace and indentation). When 'start_line' is provided, the search is anchored to that line (adjusted for previous replacements' line changes). A backup is automatically created before writing. Returns detailed diff information showing which lines were changed. Use this to make targeted changes to specific parts of a file.",
 		Parameters: map[string]interface{}{
@@ -321,21 +340,6 @@ Critical rules:
 			"required": []string{"path", "content"},
 		},
 		Callback: a.writeToFileTool,
-	})
-	tools = append(tools, llm.Tool{
-		Name:        "add_images",
-		Description: "Add image file paths to the image cache. These images will be included in all subsequent conversations with the LLM for multimodal (vision) understanding. Multiple paths can be separated by commas. Use this when you need the LLM to see additional images.",
-		Parameters: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"paths": map[string]interface{}{
-					"type":        "string",
-					"description": "Comma-separated list of image file paths to add to the cache",
-				},
-			},
-			"required": []string{"paths"},
-		},
-		Callback: a.addImagesTool,
 	})
 	tools = append(tools, llm.Tool{
 		Name:        "remove_images",

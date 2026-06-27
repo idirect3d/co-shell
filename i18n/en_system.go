@@ -339,12 +339,14 @@ This is the generated file.</content>
 </write_to_file>`
 
 	enMessages[KeyToolUsageAddImages] = `## add_images
-Description: Add image file paths to the image cache. These images will be included in subsequent multimodal conversations with the LLM. Multiple paths can be comma-separated.
+Description: Add image file paths to the image cache and specify what content to recognize from them. After adding, the LLM uses multimodal vision to analyze the images according to the specified intent. Multiple paths can be comma-separated. **You MUST specify the 'intent' parameter to describe what specific information you need from the images, forming a complete recognition loop.**
 Parameters:
-- paths (required) Comma-separated list of image file paths to add to the cache
+- paths (required) List of image file paths to add to the cache, separated by commas
+- intent (required) Describe what specific information you need to recognize from the images. For example: 'Extract the invoice amount and date', 'Extract data columns from the table', 'Find all incorrectly labeled positions in the image'
 Usage:
 <add_images>
   <paths>screenshot.png,chart.jpg</paths>
+  <intent>Extract the invoice amount and date from this image</intent>
 </add_images>`
 
 	enMessages[KeyToolUsageRemoveImages] = `## remove_images
