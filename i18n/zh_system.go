@@ -245,7 +245,7 @@ Usage:
 </execute_command>`
 
 	zhMessages[KeyToolUsageReadFile] = `## read_file
-Description: 读取指定路径的文件内容。返回带行号的文件内容。支持 start_line 和 end_line 读取大文件的指定段落。**重要：此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js、.html、.css、.json、.xml、.yaml、.csv、.log 等格式）。请勿使用此工具读取图片文件（如 .png、.jpg、.gif、.webp、.bmp）或其他二进制文件——如需分析图片请改用 add_images 将图片加载到多模态上下文中。**
+Description: 读取指定路径的文件内容。返回带行号的文件内容。支持 start_line 和 end_line 读取大文件的指定段落。**重要：此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js、.html、.css、.json、.xml、.yaml、.csv、.log 等格式）。请勿使用此工具读取图片文件（如 .png、.jpg、.gif、.webp、.bmp、.docx、.doc、.xls、.xlsx、.pdf、.wps 等格式）或其他二进制文件——如需分析图片请改用 add_images 将图片加载到多模态上下文中。**
 Parameters:
 - path (必需) 要读取的文件路径（绝对路径或相对于当前工作目录）
 - start_line (可选) 开始读取的行号（从1开始，包含）。默认：1
@@ -692,7 +692,7 @@ Usage:
 </browser_navigate>`
 
 	zhMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
-Description: 截取当前页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。配合 browser_get_interactive_elements 可实现精确操作。
+Description: 截取通过 browser_navigate 打开的当前浏览器页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。配合 browser_get_interactive_elements 可实现精确操作。
 Parameters:
 - quality (可选, 默认80) 截图质量 1-100
 - full_page (可选, 默认false) 是否截取完整页面
@@ -853,7 +853,7 @@ UPDATING TASK PROGRESS
 
 # 创建任务计划
 
-收到任务后，先分析需求，将任务拆解为可执行的子步骤。**只要超过1步，就必须使用 track_task_progress 创建计划**。对于详细计划，description 应包含完整的任务背景、约束条件、技术方案和验收标准：
+收到任务后，先根据用户意图将任务拆解为可执行的子步骤。**只要超过1步，就必须使用 track_task_progress 创建计划**。对于详细计划，description 应包含完整的任务背景、约束条件、技术方案和验收标准：
 
 <track_task_progress>
   <title>实现用户登录功能</title>
@@ -1251,7 +1251,7 @@ UPDATING TASK PROGRESS
 
 # 创建任务计划
 
-收到任务后，先分析需求，将任务拆解为可执行的子步骤。**只要超过1步，就必须使用 track_task_progress 创建计划**。对于详细计划，description 应包含完整的任务背景、约束条件、技术方案和验收标准。例如：
+收到任务后，先根据用户意图将任务拆解为可执行的子步骤。**只要超过1步，就必须使用 track_task_progress 创建计划**。对于详细计划，description 应包含完整的任务背景、约束条件、技术方案和验收标准。例如：
 
 参数：
 - title: "实现用户登录功能"
@@ -1515,9 +1515,14 @@ SYSTEM INFORMATION
 `
 
 	zhMessages[KeyToolResultNoPlan] = `
+当前还没有指定任务计划，应及时通过track_task_progress方法及时制定任务计划，并有效跟踪。
 `
 
 	zhMessages[KeyToolResultWithPlan] = `
+当前任务计划记录如下：
+{TASK_PLAN}
+
+注意：如果该计划与<task>中的用户主要任务不一致，必须通过ask_followup_question询问用户先执行哪个，或是否需要合并任务一起执行。
 `
 
 	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`

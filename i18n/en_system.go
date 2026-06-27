@@ -246,7 +246,7 @@ Usage:
 </execute_command>`
 
 	enMessages[KeyToolUsageReadFile] = `## read_file
-Description: Read the contents of a file at the specified path. Returns file content with line numbers. Supports start_line and end_line to read specific sections of large files. **IMPORTANT: This tool can ONLY read text files (e.g., .txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (.png, .jpg, .gif, .webp, .bmp) or other binary files — use add_images to load images for multimodal analysis instead.**
+Description: Read the contents of a file at the specified path. Returns file content with line numbers. Supports start_line and end_line to read specific sections of large files. **IMPORTANT: This tool can ONLY read text files (e.g., .txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (e.g., .png, .jpg, .gif, .webp, .bmp, .docx, .doc, .xls, .xlsx, .pdf, .wps, or other binary formats) or other binary files — use add_images to load images for multimodal analysis instead.**
 Parameters:
 - path (required) The file path to read (absolute or relative to current working directory)
 - start_line (optional) The line number to start reading from (1-based, inclusive). Default: 1
@@ -686,7 +686,7 @@ Usage:
 </browser_navigate>`
 
 	enMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
-Description: Capture a screenshot of the current page and cache it for multimodal analysis. The screenshot is automatically injected into the multimodal context. Use with browser_get_interactive_elements for precise operations.
+Description: Capture a screenshot of the browser page currently navigated to via browser_navigate, and cache it for multimodal analysis. The screenshot is automatically injected into the multimodal context. Use with browser_get_interactive_elements for precise operations.
 Parameters:
 - quality (optional, default 80) Screenshot quality 1-100
 - full_page (optional, default false) Whether to capture the full page
@@ -847,7 +847,7 @@ There is only one tool **track_task_progress** for managing task plans: pass the
 
 # Creating a Task Plan
 
-After receiving a task, analyze the requirements and break the task down into executable sub-steps. **If there is more than 1 step, you MUST use track_task_progress to create a plan**. For detailed plans, include the full context, constraints, technical approach, and acceptance criteria in the description:
+After receiving a task, first break the task down into executable sub-steps based on the user's intent. **If there is more than 1 step, you MUST use track_task_progress to create a plan**. For detailed plans, include the full context, constraints, technical approach, and acceptance criteria in the description:
 
 <track_task_progress>
   <title>Implement user login</title>
@@ -1242,7 +1242,7 @@ There is only one tool **track_task_progress** for managing task plans: it works
 
 # Creating a Task Plan
 
-After receiving a task, analyze the requirements and break the task down into executable sub-steps. **If there is more than 1 step, you MUST use track_task_progress to create a plan**. For detailed plans, include the full context, constraints, technical approach, and acceptance criteria in the description. For example:
+After receiving a task, first break the task down into executable sub-steps based on the user's intent. **If there is more than 1 step, you MUST use track_task_progress to create a plan**. For detailed plans, include the full context, constraints, technical approach, and acceptance criteria in the description. For example:
 
 Parameters:
 - title: "Implement user login"
@@ -1489,9 +1489,15 @@ SYSTEM INFORMATION
 `
 
 	enMessages[KeyToolResultNoPlan] = `
+No task plan has been specified yet. Use track_task_progress to create a task plan and track progress effectively.
 `
 
 	enMessages[KeyToolResultWithPlan] = `
+Current task plan:
+
+{TASK_PLAN}
+
+Note: If this plan does not align with the user's main task in <task>, use ask_followup_question to ask the user which to execute first, or whether the tasks should be merged.
 `
 
 	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
