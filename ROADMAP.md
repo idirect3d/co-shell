@@ -570,9 +570,11 @@
 - [x] FEATURE-249 上下文重新整理工具（reorganize_context）、LCS内容重复检测、自动上下文重整配置 [BUILD-262]
 - [x] FEATURE-250 调试模式（Debug Mode）：在提交内容给LLM之前显示预览，用户可修改内容后发送。支持 --debug CLI参数 和 .set debug REPL命令，默认为关。新增 `[ 开发者 ]` 设置分组。 [BUILD-263]
 
-- [ ] FIX-251 修复 injectTimeAndMessageNo 未被调用导致历史消息缺少 environment_details 的问题 [BUILD-264]
+- [x] FIX-251 修复 injectTimeAndMessageNo 未被调用导致历史消息缺少 environment_details 的问题 [BUILD-265]
   - injectTimeAndMessageNo 函数在 FEATURE-248 中定义但从未被调用，导致历史 tool/user 消息的 ContentParts 中没有独立的 `<environment_details>` 段
-  - 在 buildContextMessages() 中 injectEnvelopeToLastUser 前调用 injectTimeAndMessageNo(msgs)
+  - buildContextMessages() 不再重新注入 environment_details，改为在消息创建时立即冻结
+  - 提取 buildFullEnvironmentDetails 公共方法，所有消息（user + tool）获得完整版 env 信息
+  - 新增 add_images intent 必填参数，read_file 二进制检测，.session pop 子命令
 
 ## v1.0.0 — 正式版
 
