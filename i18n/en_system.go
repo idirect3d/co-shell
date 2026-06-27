@@ -237,22 +237,26 @@ For array-type parameters, use <item> tags to represent each element in the arra
 	enMessages[KeyToolUsageExecuteCommand] = `## execute_command
 Description: Execute a system command and return the output. Use this tool to run shell commands, scripts, or any CLI tool. You can specify timeout_seconds to limit execution time.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - command (required) The command to execute
 - timeout_seconds (optional) Timeout in seconds. Set based on task complexity. 0 or omitted means use the user-configured timeout only.
 Usage:
 <execute_command>
-  <command>Your command here</command>
+  <intent>Need to list files in the current directory</intent>
+  <command>ls -la</command>
   <timeout_seconds>30</timeout_seconds>
 </execute_command>`
 
 	enMessages[KeyToolUsageReadFile] = `## read_file
 Description: Read the contents of a file at the specified path. Returns file content with line numbers. Supports start_line and end_line to read specific sections of large files. **IMPORTANT: This tool can ONLY read text files (e.g., .txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (e.g., .png, .jpg, .gif, .webp, .bmp, .docx, .doc, .xls, .xlsx, .pdf, .wps, or other binary formats) or other binary files — use add_images to load images for multimodal analysis instead.**
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The file path to read (absolute or relative to current working directory)
 - start_line (optional) The line number to start reading from (1-based, inclusive). Default: 1
 - end_line (optional) The line number to stop reading at (1-based, inclusive). Default: start_line + 1000
 Usage:
 <read_file>
+  <intent>Need to examine the beginning of main.go to understand the program's entry point structure</intent>
   <path>main.go</path>
   <start_line>1</start_line>
   <end_line>50</end_line>
@@ -261,23 +265,27 @@ Usage:
 	enMessages[KeyToolUsageSearchFiles] = `## search_files
 Description: Search for a regex pattern in files within a specified directory. Returns matching lines with context. Used for finding code patterns, function definitions, or text across files.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The directory path to search in (absolute or relative to current working directory)
 - regex (required) The regex pattern to search for
 - file_pattern (optional) Glob pattern to filter files (e.g., '*.go'). If not provided, searches all files.
 Usage:
 <search_files>
+  <intent>Need to search for tool definition functions in the agent package</intent>
   <path>agent</path>
-  <regex>func main</regex>
+  <regex>func.*Tool</regex>
   <file_pattern>*.go</file_pattern>
 </search_files>`
 
 	enMessages[KeyToolUsageListFiles] = `## list_files
 Description: List files and directories within the specified directory. recursive controls recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc. Use this to explore directory structures and find files.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The directory path to list contents for (absolute or relative to current working directory)
 - recursive (optional) Recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc.
 Usage:
 <list_files>
+  <intent>Need to explore the agent directory structure</intent>
   <path>agent</path>
   <recursive>1</recursive>
 </list_files>`
@@ -285,15 +293,18 @@ Usage:
 	enMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
 Description: List definition names (functions, types, methods, etc.) in source code files at the top level of a specified directory. Used to quickly understand codebase structure and API.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The directory path to list definitions from (absolute or relative to current working directory)
 Usage:
 <list_code_definition_names>
+  <intent>Need to understand what core functions and types are defined in the agent package</intent>
   <path>agent</path>
 </list_code_definition_names>`
 
 	enMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
 Description: Replace content in a file using search/replace parameters. Accepts a replacements array, each element containing search (exact match content), replace (new content), and optional start_line (precise line number anchor). Supports multiple replacements in a single call. Automatically creates a backup before modification. Returns detailed diff information.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The file path to modify (absolute or relative to current working directory)
 - replacements (required) Array of replacement objects, each containing search and replace string fields, and optional start_line number. All replacements are applied sequentially.
 
@@ -328,10 +339,12 @@ Usage:
 	enMessages[KeyToolUsageWriteToFile] = `## write_to_file
 Description: Write content to a file at the specified path. Overwrites if the file exists, creates if it doesn't. Automatically creates necessary directories. **Important: This tool requires both path and content parameters. The content parameter is required and must contain the complete file content.** When fixing errors in existing files, prefer replace_in_file over write_to_file.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The absolute path to write the file to
 - content (required) The complete content to write to the file. This parameter must be provided in every call; omitting it will cause an error.
 Usage:
 <write_to_file>
+  <intent>Need to create a project configuration file with API endpoint information</intent>
   <path>output/result.md</path>
   <content># Result
 
@@ -352,28 +365,33 @@ Usage:
 	enMessages[KeyToolUsageRemoveImages] = `## remove_images
 Description: Remove image file paths from the image cache. Multiple paths can be comma-separated.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - paths (required) Comma-separated list of image file paths to remove from the cache
 Usage:
 <remove_images>
+  <intent>No longer need the previously added screenshots, removing them from cache</intent>
   <paths>screenshot.png</paths>
 </remove_images>`
 
 	enMessages[KeyToolUsageClearImages] = `## clear_images
 Description: Clear all cached image file paths. After calling, subsequent conversations will no longer include images.
 Parameters:
-- none
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 Usage:
 <clear_images>
+  <intent>No longer need to send images in the current conversation, clearing cache</intent>
 </clear_images>`
 
 	enMessages[KeyToolUsageLaunchSubAgent] = `## launch_sub_agent
 Description: Launch a sub-agent process to communicate with another co-shell agent for information sharing. The target agent's workspace is a sibling folder of the current agent's workspace, identified by sub_agent_name. The sub-agent shares the same terminal as the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. **This is equal information sharing, not task delegation.**
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - sub_agent_name (required) The name of the target co-shell agent. This name is used as the sibling workspace folder name.
 - instruction (required) The natural language instruction or system command for the sub-agent to execute.
 - timeout_seconds (optional) Maximum seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).
 Usage:
 <launch_sub_agent>
+  <intent>Need to get information about Go concurrency models from the researcher agent</intent>
   <sub_agent_name>researcher</sub_agent_name>
   <instruction>Please help me find information about Go concurrency models.</instruction>
 </launch_sub_agent>`
@@ -381,11 +399,13 @@ Usage:
 	enMessages[KeyToolUsageScheduleTask] = `## schedule_task
 Description: Schedule a recurring task using a cron expression. The task will launch a sub-agent at the scheduled time. The cron expression uses 5 fields: minute hour day month weekday. * means any value. Example: '0 9 * * *' means daily at 9:00 AM. If the previous execution is still running, the next scheduled execution will be skipped to avoid overlap.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - name (required) A human-readable name for this scheduled task (e.g., 'Daily Report', 'Health Check')
 - cron (required) A 5-field cron expression: minute hour day month weekday. Example: '0 9 * * *' means daily at 9:00 AM.
 - instruction (required) The instruction to pass to the sub-agent when the task triggers.
 Usage:
 <schedule_task>
+  <intent>Need to schedule automatic weekly report generation every Monday morning</intent>
   <name>Weekly Report</name>
   <cron>0 9 * * 1</cron>
   <instruction>Run python report.py to generate weekly report</instruction>
@@ -454,6 +474,7 @@ Usage:
 	enMessages[KeyToolUsageMemorySearch] = `## memory_search
 Description: Search persistent conversation memory for messages matching keywords or conditions. Used to find specific information from historical conversations. Supports keyword search (AND logic), time filtering (since), and speaker name filtering.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - keywords (optional) Array of keywords to search for (AND logic: all keywords must match). Empty array returns all messages matching other filter criteria.
 - since (optional) Only return messages after this time (ISO 8601 format, e.g. '2026-04-01T00:00:00Z'). Empty string means no time filter.
 - name (optional) Filter by speaker name (case-insensitive). Empty string means no name filter.
@@ -481,9 +502,11 @@ Usage:
 	enMessages[KeyToolUsageUpdateSettings] = `## update_settings
 Description: Update co-shell system configuration parameters. Used to modify model, temperature, display options, safety settings, etc. Each change must include a reason. The user will confirm all changes before they are applied. **Note: Only use when the user explicitly requests settings changes, or when changing settings is necessary to complete the task.**
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - settings (required) Array of setting changes to apply. Each change must include param, value, and reason.
 Usage:
 <update_settings>
+  <intent>User requested adjusting the temperature parameter for more creative responses</intent>
   <settings>
     <item>
       <param>temperature</param>
@@ -501,9 +524,10 @@ Usage:
 	enMessages[KeyToolUsageListSettings] = `## list_settings
 Description: List all available co-shell system configuration parameters with their current values, valid ranges, and descriptions. Used to understand what configuration options are available before modifying them via the update_settings tool.
 Parameters:
-- none
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 Usage:
 <list_settings>
+  <intent>Need to view the current available system configuration parameters and their values</intent>
 </list_settings>`
 
 	enMessages[KeyToolUsageAskFollowupQuestion] = `## ask_followup_question
