@@ -338,12 +338,14 @@ Usage:
 </write_to_file>`
 
 	zhMessages[KeyToolUsageAddImages] = `## add_images
-Description: 添加图片文件路径到图片缓存。这些图片将包含在后续与 LLM 的多模态对话中。多个路径可用逗号分隔。
+Description: 添加图片文件路径到图片缓存，并指定要从图片中识别什么内容。添加后 LLM 会利用多模态视觉能力根据指定的识别意图分析图片。多个路径可用逗号分隔。**必须指定 intent 参数说明需要从图片中识别什么信息，形成完整识别闭环。**
 Parameters:
 - paths (必需) 要添加到缓存的图片文件路径列表，用逗号分隔
+- intent (必需) 描述你需要从图片中识别什么具体信息。例如：'识别这张发票中的金额和日期'、'提取表格中的数据列'、'找出图中所有错误标注的位置'
 Usage:
 <add_images>
   <paths>screenshot.png,chart.jpg</paths>
+  <intent>识别这张发票中的金额和日期</intent>
 </add_images>`
 
 	zhMessages[KeyToolUsageRemoveImages] = `## remove_images
@@ -692,7 +694,7 @@ Usage:
 </browser_navigate>`
 
 	zhMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
-Description: 截取通过 browser_navigate 打开的当前浏览器页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。配合 browser_get_interactive_elements 可实现精确操作。
+Description: 对通过 browser_navigate 打开的当前浏览器页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。配合 browser_get_interactive_elements 可实现精确操作。
 Parameters:
 - quality (可选, 默认80) 截图质量 1-100
 - full_page (可选, 默认false) 是否截取完整页面

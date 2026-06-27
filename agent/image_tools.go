@@ -216,6 +216,12 @@ func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) 
 		return "", fmt.Errorf("paths argument is required")
 	}
 
+	// Extract intent parameter (required)
+	intent, _ := args["intent"].(string)
+	if intent == "" {
+		return "", fmt.Errorf("intent argument is required — you must specify what information you need to recognize from the images")
+	}
+
 	// Split by comma and trim spaces
 	newPaths := strings.Split(pathsStr, ",")
 	added := 0
@@ -241,12 +247,10 @@ func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) 
 	return fmt.Sprintf(
 		"✅ 已添加 %d 张图片到缓存（当前共 %d 张，总数不应超过5张）\n\n"+
 			"已加载图片:\n%s\n\n"+
-			"📌 处理步骤：\n"+
-			"1. 识别——仔细查看每张图片，识别其中与当前任务目标相关的内容\n"+
-			"2. 保存——将识别的关键内容（文字、数据、结论等）写到与图片同名的 .md 文件中（例如 screenshot.png → screenshot.md），以便后续直接读取\n"+
-			"3. 清空——清空图片缓存（调用 clear_images），继续加载下一批图片\n\n"+
-			"⚠️ 注意：一次性加载的图片不应超过5张。请逐批加载、识别、保存后再继续。",
-		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths)), nil
+			"🎯 识别意图：%s\n\n"+
+			"📌 图片已就绪，请立即利用多模态视觉能力，根据上述识别意图逐张分析图片内容，将识别结果以结构化方式呈现。\n"+
+			"   完成当前批次的识别后，如需继续处理更多图片，请先调用 clear_images 清空缓存，再添加下一批。",
+		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths), intent), nil
 }
 
 // removeImagesTool removes image file paths from the image cache.

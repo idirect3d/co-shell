@@ -73,6 +73,38 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 		return "", fmt.Errorf("cannot read file %q: %w", path, err)
 	}
 
+	// Binary file detection: check the first 512 bytes for NULL bytes
+	// or excessive non-text control characters.
+	// This catches common binary formats (images, PDFs, Office docs, executables, etc.)
+	// while allowing text files with normal formatting characters (tabs, newlines, carriage returns).
+	checkLen := len(data)
+	if checkLen > 512 {
+		checkLen = 512
+	}
+	for i := 0; i < checkLen; i++ {
+		b := data[i]
+		// NULL byte is a definitive indicator of binary content
+		if b == 0 {
+			return "", fmt.Errorf(
+				"文件 %q 似乎是二进制文件（包含 NULL 字节），无法读取。\n"+
+					"此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n"+
+					"如需分析图片文件，请使用 add_images 将图片加载到多模态上下文中。\n"+
+					"如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n"+
+					"如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
+				path)
+		}
+		// Check for non-text control characters (excluding common formatting: \t, \n, \r)
+		if b < 0x20 && b != 0x09 && b != 0x0A && b != 0x0D {
+			return "", fmt.Errorf(
+				"文件 %q 似乎是二进制文件（包含控制字符 0x%02X），无法读取。\n"+
+					"此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n"+
+					"如需分析图片文件，请使用 add_images 将图片加载到多模态上下文中。\n"+
+					"如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n"+
+					"如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
+				path, b)
+		}
+	}
+
 	lines := strings.Split(string(data), "\n")
 	totalLines := len(lines)
 
