@@ -342,6 +342,32 @@ func (r *REPL) handleBuiltin(input string) {
 		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
 		return
 	}
+	// Handle special POP: result from .session pop — allow user to edit and resubmit
+	if strings.HasPrefix(result, "POP:") {
+		poppedContent := result[4:]
+		fmt.Printf("%s 已弹出最后一条消息，内容如下：\n%s\n", ep.Info, poppedContent)
+		fmt.Println("请编辑后按 Enter 提交，或直接按 Enter 跳过：")
+		edited, err := r.readLine("✏️ ")
+		if err != nil {
+			return
+		}
+		edited = strings.TrimSpace(edited)
+		if edited == "" {
+			fmt.Println("已跳过，消息已移除。")
+			return
+		}
+		// Resubmit with modified content
+		if strings.HasPrefix(edited, ".") {
+			r.handleBuiltin(edited)
+			return
+		}
+		if cmd, ok := IsDirectCommand(edited); ok {
+			r.handleSystemCommand(cmd)
+			return
+		}
+		r.handleAgentInput(edited)
+		return
+	}
 	fmt.Println(result)
 	if command == ".settings" || command == ".set" {
 		r.agent.SetShowLlmThinking(r.cfg.LLM.ShowLlmThinking)

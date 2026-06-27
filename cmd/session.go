@@ -50,8 +50,47 @@ func NewSessionHandler(ag *agent.Agent, cfg *config.Config) *SessionHandler {
 
 // Handle processes the .session command.
 // It displays information about the current conversation session.
+// Subcommands:
+//
+//	pop — removes the last message from history and returns its content
 func (h *SessionHandler) Handle(args []string) (string, error) {
+	if len(args) > 0 && args[0] == "pop" {
+		return h.popLastMessage()
+	}
 	return h.showSession()
+}
+
+// popLastMessage removes the last non-system message from the agent's message
+// history and returns its content. The caller (REPL) can then present the
+// content to the user for editing and re-submission.
+func (h *SessionHandler) popLastMessage() (string, error) {
+	messages := h.agent.Messages()
+	if len(messages) <= 1 {
+		return "", fmt.Errorf("没有可删除的消息（仅剩系统提示词）")
+	}
+
+	// Find and remove the last non-system message
+	lastContent := ""
+	a := h.agent
+	aMsg := a.Messages()
+	for i := len(aMsg) - 1; i > 0; i-- {
+		if aMsg[i].Role != "system" {
+			lastContent = aMsg[i].Content
+			// For ContentParts messages, combine all text parts
+			if lastContent == "" && len(aMsg[i].ContentParts) > 0 {
+				lastContent = aMsg[i].CombineContentParts()
+			}
+			// Remove this message
+			a.SetHistory(aMsg[:i])
+			break
+		}
+	}
+
+	if lastContent == "" {
+		return "", fmt.Errorf("没有可删除的消息")
+	}
+
+	return fmt.Sprintf("POP:%s", lastContent), nil
 }
 
 func (h *SessionHandler) showSession() (string, error) {

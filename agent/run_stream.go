@@ -120,7 +120,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	} else {
 		// Build user message with ContentParts for structured content.
 		// All user messages use the array format: [{"type":"text","text":"instruction"}]
-		// Environment_details will be appended by injectEnvelopeToLastUser as a ContentPart.
+		// Environment_details is attached at creation time and frozen — never re-injected.
 		userMsg := a.buildUserMessage(userInput)
 		a.messages = append(a.messages, userMsg)
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
@@ -131,6 +131,16 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		}
 	}
 	a.mu.Unlock()
+
+	// Inject environment_details for the last user message at creation time.
+	// This is done WITHOUT holding a.mu because injectEnvelopeToLastUser may
+	// need to acquire a.mu internally (via isLastToolTaskPlan).
+	// The message will keep its envelope frozen for all subsequent iterations.
+	lastIdx := len(a.messages) - 1
+	if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
+		msgCopy := a.messages[lastIdx]
+		a.messages[lastIdx] = a.injectEnvelopeToLastUser([]llm.Message{msgCopy})[0]
+	}
 
 	log.Info("Agent.RunStream: user input: %s", userInput)
 
@@ -723,7 +733,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 			if isXMLMode {
 				// In XML mode, return tool results as user messages with ContentParts structure.
-				// The tool result becomes a separate text part in the ContentParts array.
 				toolResultMsg := a.buildXMLToolResultMessage(tc.Name, tc.Arguments, toolContent, len(a.messages))
 				a.mu.Lock()
 				a.messages = append(a.messages, toolResultMsg)
@@ -737,6 +746,12 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				})
 				a.mu.Unlock()
 			}
+			// Attach minimal environment_details to the just-added tool result message
+			// (time + message_no). This freezes the env at creation time so it doesn't
+			// change across LLM iterations, just like user messages.
+			// IMPORTANT: Must NOT hold a.mu here because injectTimeAndMessageNoToLast
+			// calls buildFullEnvironmentDetails -> isLastToolTaskPlan which acquires a.mu.
+			a.injectTimeAndMessageNoToLast()
 		}
 
 		// If attempt_completion was called during tool execution, finalize and exit
