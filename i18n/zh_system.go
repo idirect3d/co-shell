@@ -236,22 +236,26 @@ TOOL USE
 	zhMessages[KeyToolUsageExecuteCommand] = `## execute_command
 Description: 执行系统命令并返回输出。使用此工具运行 shell 命令、脚本或任何 CLI 工具。可以指定 timeout_seconds 来限制执行时间。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - command (必需) 要执行的命令
 - timeout_seconds (可选) 超时秒数。根据任务复杂度设置。0 或省略表示仅使用用户配置的超时时间。
 Usage:
 <execute_command>
-  <command>Your command here</command>
+  <intent>需要查看当前目录下的文件列表</intent>
+  <command>ls -la</command>
   <timeout_seconds>30</timeout_seconds>
 </execute_command>`
 
 	zhMessages[KeyToolUsageReadFile] = `## read_file
 Description: 读取指定路径的文件内容。返回带行号的文件内容。支持 start_line 和 end_line 读取大文件的指定段落。**重要：此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js、.html、.css、.json、.xml、.yaml、.csv、.log 等格式）。请勿使用此工具读取图片文件（如 .png、.jpg、.gif、.webp、.bmp、.docx、.doc、.xls、.xlsx、.pdf、.wps 等格式）或其他二进制文件——如需分析图片请改用 add_images 将图片加载到多模态上下文中。**
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要读取的文件路径（绝对路径或相对于当前工作目录）
 - start_line (可选) 开始读取的行号（从1开始，包含）。默认：1
 - end_line (可选) 结束读取的行号（从1开始，包含）。默认：start_line + 1000
 Usage:
 <read_file>
+  <intent>需要查看 main.go 文件的开头部分以了解程序入口结构</intent>
   <path>main.go</path>
   <start_line>1</start_line>
   <end_line>50</end_line>
@@ -260,23 +264,27 @@ Usage:
 	zhMessages[KeyToolUsageSearchFiles] = `## search_files
 Description: 在指定目录中搜索正则表达式模式。返回匹配行及其上下文。用于跨文件查找代码模式、函数定义或文本。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要搜索的目录路径（绝对路径或相对于当前工作目录）
 - regex (必需) 要搜索的正则表达式模式
 - file_pattern (可选) 文件过滤 glob 模式（如 '*.go'）。不提供则搜索所有文件。
 Usage:
 <search_files>
+  <intent>需要搜索 agent 包中的工具定义函数</intent>
   <path>agent</path>
-  <regex>func main</regex>
+  <regex>func.*Tool</regex>
   <file_pattern>*.go</file_pattern>
 </search_files>`
 
 	zhMessages[KeyToolUsageListFiles] = `## list_files
 Description: 列出指定目录中的文件和子目录。recursive 控制递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。用于探索目录结构和查找文件。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要列出内容的目录路径（绝对路径或相对于当前工作目录）
 - recursive (可选) 递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。
 Usage:
 <list_files>
+  <intent>需要查看 agent 目录结构的组织方式</intent>
   <path>agent</path>
   <recursive>1</recursive>
 </list_files>`
@@ -284,15 +292,18 @@ Usage:
 	zhMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
 Description: 列出指定目录顶层源代码文件中的定义名称（函数、类型、方法等）。用于快速了解代码库的结构和 API。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要列出定义的目录路径（绝对路径或相对于当前工作目录）
 Usage:
 <list_code_definition_names>
+  <intent>需要了解 agent 包中定义了哪些核心函数和类型</intent>
   <path>agent</path>
 </list_code_definition_names>`
 
 	zhMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
 Description: 使用 search/replace 参数替换文件中的内容。接受 replacements 数组，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要修改的文件路径（绝对路径或相对于当前工作目录）
 - replacements (必需) 替换对象数组，每个对象包含 search 和 replace 字符串字段，以及可选的 start_line 数字。所有替换按顺序依次执行。
 
@@ -327,10 +338,12 @@ Usage:
 	zhMessages[KeyToolUsageWriteToFile] = `## write_to_file
 Description: 将内容写入指定路径的文件。如果文件存在则覆盖，不存在则创建。自动创建必要的目录。**重要：此工具需要同时提供 path 和 content 参数。content 参数是必需的，必须包含完整的文件内容。** 修复现有文件错误时，优先使用 replace_in_file 而非 write_to_file。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要写入文件的绝对路径
 - content (必需) 要写入文件的完整内容。此参数必须在每次调用中提供，省略会导致错误。
 Usage:
 <write_to_file>
+  <intent>需要创建项目配置文件存储 API 端点信息</intent>
   <path>output/result.md</path>
   <content># 结果
 
@@ -351,28 +364,33 @@ Usage:
 	zhMessages[KeyToolUsageRemoveImages] = `## remove_images
 Description: 从图片缓存中移除图片文件路径。多个路径可用逗号分隔。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - paths (必需) 要从缓存中移除的图片文件路径列表，用逗号分隔
 Usage:
 <remove_images>
+  <intent>不再需要之前添加的截图了，将其从缓存中移除</intent>
   <paths>screenshot.png</paths>
 </remove_images>`
 
 	zhMessages[KeyToolUsageClearImages] = `## clear_images
 Description: 清空所有缓存的图片文件路径。调用后后续对话将不再包含图片。
 Parameters:
-- 无
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
 <clear_images>
+  <intent>当前对话中已不需要继续发送图片了，清空缓存</intent>
 </clear_images>`
 
 	zhMessages[KeyToolUsageLaunchSubAgent] = `## launch_sub_agent
 Description: 启动子 agent 进程与另一个 co-shell agent 通信以共享信息。目标 agent 的工作空间是当前 agent 工作空间的同级文件夹，由 sub_agent_name 标识。子 agent 与父 agent 共享同一终端。子 agent 完成后，收集并报告其结果（包括输出文件）。**这是平等的信息共享，不是任务委派。**
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - sub_agent_name (必需) 目标 co-shell agent 的名称。此名称用作同级工作空间文件夹名。
 - instruction (必需) 子 agent 要执行的自然语言指令或系统命令。
 - timeout_seconds (可选) 等待子 agent 完成的最大秒数。0 表示无超时（默认：0）。
 Usage:
 <launch_sub_agent>
+  <intent>需要从 researcher agent 获取关于 Go 并发模型的更多信息</intent>
   <sub_agent_name>researcher</sub_agent_name>
   <instruction>请帮我查找关于Go语言并发模型的相关资料。</instruction>
 </launch_sub_agent>`
@@ -380,11 +398,13 @@ Usage:
 	zhMessages[KeyToolUsageScheduleTask] = `## schedule_task
 Description: 使用 cron 表达式安排定时任务。任务将在指定时间启动子 agent。cron 表达式使用 5 个字段：分 时 日 月 周。* 表示任意值。示例：'0 9 * * *' 表示每天上午 9:00。如果前一次执行仍在运行，将跳过下一次计划执行以避免重叠。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - name (必需) 此定时任务的可读名称（如 '每日报告'、'健康检查'）
 - cron (必需) 5 字段 cron 表达式：分 时 日 月 周。示例：'0 9 * * *' 表示每天上午 9:00。
 - instruction (必需) 任务触发时传递给子 agent 的指令。
 Usage:
 <schedule_task>
+  <intent>需要安排每周一早上自动生成周报</intent>
   <name>周报生成</name>
   <cron>0 9 * * 1</cron>
   <instruction>运行 python report.py 生成周报</instruction>
@@ -453,6 +473,7 @@ Usage:
 	zhMessages[KeyToolUsageMemorySearch] = `## memory_search
 Description: 搜索持久化对话记忆中匹配关键词或条件的消息。用于从历史对话中查找特定信息。支持关键词搜索（AND 逻辑）、时间过滤（since）和说话者名称过滤。
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - keywords (可选) 要搜索的关键词数组（AND 逻辑：所有关键词必须匹配）。空数组返回匹配其他过滤条件的所有消息。
 - since (可选) 只返回此时间之后的消息（ISO 8601 格式，如 '2026-04-01T00:00:00Z'）。空字符串表示无时间过滤。
 - name (可选) 按说话者名称过滤（不区分大小写）。空字符串表示无名称过滤。
@@ -480,9 +501,11 @@ Usage:
 	zhMessages[KeyToolUsageUpdateSettings] = `## update_settings
 Description: 更新 co-shell 系统配置参数。用于修改模型、温度、显示选项、安全设置等。每次更改必须提供原因。用户将确认所有更改后才应用。**注意：仅在用户明确要求更改设置，或设置更改对完成任务必要时使用。**
 Parameters:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - settings (必需) 要应用的设置更改数组。每个更改必须包含 param、value 和 reason。
 Usage:
 <update_settings>
+  <intent>用户要求调整模型的温度参数以获得更有创造性的回答</intent>
   <settings>
     <item>
       <param>temperature</param>
@@ -500,9 +523,10 @@ Usage:
 	zhMessages[KeyToolUsageListSettings] = `## list_settings
 Description: 列出所有可用的 co-shell 系统配置参数及其当前值、有效范围和描述。用于了解在通过 update_settings 工具修改前有哪些可用配置选项。
 Parameters:
-- 无
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
 <list_settings>
+  <intent>需要查看当前可用的系统配置参数及其值</intent>
 </list_settings>`
 
 	zhMessages[KeyToolUsageAskFollowupQuestion] = `## ask_followup_question
