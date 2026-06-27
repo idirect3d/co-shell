@@ -85,6 +85,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					},
 					"command": map[string]interface{}{
 						"type":        "string",
 						"description": "The command to execute",
@@ -94,7 +98,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 						"description": "Optional timeout in seconds. Set this based on your estimate of how long the command will take. The actual timeout used will be the maximum of this value and the user-configured minimum timeout. 0 or omitted means use only the user-configured timeout.",
 					},
 				},
-				"required": []string{"command"},
+				"required": []string{"intent", "command"},
 			},
 			Callback: a.executeSystemCommand,
 		})
@@ -109,6 +113,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					},
 					"command": map[string]interface{}{
 						"type":        "string",
 						"description": "The content to send to the shell session — a single shell command, Python statement, or input line",
@@ -122,7 +130,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 						"description": "Optional total timeout in seconds. Set this based on your estimate of how long the entire operation will take. 0 or omitted means no total timeout (use the default shell-session-timeout).",
 					},
 				},
-				"required": []string{"command"},
+				"required": []string{"intent", "command"},
 			},
 			Callback: a.shellSendTool,
 		})
@@ -130,9 +138,14 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Name:        "shell_window_content",
 			Description: "Get the current virtual terminal window content as a text snapshot. This shows what is currently displayed on the terminal screen. Use this to check the state of a long-running process, review previous command output, or inspect the current terminal state without sending a new command. Returns the full window content as rows x cols text.",
 			Parameters: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-				"required":   []string{},
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					},
+				},
+				"required": []string{"intent"},
 			},
 			Callback: a.shellWindowContentTool,
 		})
@@ -142,6 +155,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					},
 					"wait_ms": map[string]interface{}{
 						"type":        "number",
 						"description": "Optional observation wait time in milliseconds (default: 200). Wait this long for new output before returning. Increase for checking progress of a running command.",
@@ -159,7 +176,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 						"description": "Optional total timeout in seconds. Set this to prevent infinite waiting. 0 or omitted means no total timeout (use the default shell-session-timeout).",
 					},
 				},
-				"required": []string{},
+				"required": []string{"intent"},
 			},
 			Callback: a.shellGetOutputTool,
 		})
@@ -167,9 +184,14 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Name:        "shell_reset",
 			Description: "Reset the persistent shell session to a clean state. This closes the current session and starts a new one with a fresh terminal. Use this when the shell is in an unexpected state (e.g., inside a REPL with errors, or stuck in a process). The shell session is normally managed automatically — use this only when a manual reset is needed.",
 			Parameters: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-				"required":   []string{},
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					},
+				},
+				"required": []string{"intent"},
 			},
 			Callback: a.shellResetTool,
 		})
@@ -182,6 +204,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The path of the file to read (absolute or relative to current working directory)",
@@ -195,7 +221,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"description": "The 1-based line number to stop reading at (inclusive). Default: start_line + 1000",
 				},
 			},
-			"required": []string{"path"},
+			"required": []string{"intent", "path"},
 		},
 		Callback: a.readFileTool,
 	})
@@ -205,6 +231,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The directory path to search in (absolute or relative to current working directory)",
@@ -218,7 +248,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"description": "Glob pattern to filter files (e.g., '*.go' for Go files). If not provided, searches all files.",
 				},
 			},
-			"required": []string{"path", "regex"},
+			"required": []string{"intent", "path", "regex"},
 		},
 		Callback: a.searchFilesTool,
 	})
@@ -228,6 +258,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The path of the directory to list contents for (absolute or relative to current working directory)",
@@ -237,7 +271,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"description": "Recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc.",
 				},
 			},
-			"required": []string{"path"},
+			"required": []string{"intent", "path"},
 		},
 		Callback: a.listFilesTool,
 	})
@@ -247,12 +281,16 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The directory path to list definitions for (absolute or relative to current working directory)",
 				},
 			},
-			"required": []string{"path"},
+			"required": []string{"intent", "path"},
 		},
 		Callback: a.listCodeDefinitionNamesTool,
 	})
@@ -281,6 +319,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The path to the file to modify (absolute or relative to current working directory)",
@@ -290,6 +332,10 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"items": map[string]interface{}{
 						"type": "object",
 						"properties": map[string]interface{}{
+							"intent": map[string]interface{}{
+								"type":        "string",
+								"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+							},
 							"search": map[string]interface{}{
 								"type":        "string",
 								"description": "The exact content to find in the file (must match character-for-character including whitespace and indentation)",
@@ -318,7 +364,7 @@ Critical rules:
 6. The optional 'start_line' is 1-based and refers to the line number in the ORIGINAL file (before any replacements). The system automatically adjusts for line count changes from previous replacements. Use 'start_line' for precise positioning and to avoid duplicate matches.`,
 				},
 			},
-			"required": []string{"path", "replacements"},
+			"required": []string{"intent", "path", "replacements"},
 		},
 		Callback: a.replaceInFileTool,
 	})
@@ -328,6 +374,10 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The absolute path to the file to write to",
@@ -337,7 +387,7 @@ Critical rules:
 					"description": "**REQUIRED/MANDATORY**: The full content to write to the file. This parameter MUST be provided in every call. The tool will fail if this parameter is omitted. Content should be the complete intended file content, not a partial update.",
 				},
 			},
-			"required": []string{"path", "content"},
+			"required": []string{"intent", "path", "content"},
 		},
 		Callback: a.writeToFileTool,
 	})
@@ -347,12 +397,16 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"paths": map[string]interface{}{
 					"type":        "string",
 					"description": "Comma-separated list of image file paths to remove from the cache",
 				},
 			},
-			"required": []string{"paths"},
+			"required": []string{"intent", "paths"},
 		},
 		Callback: a.removeImagesTool,
 	})
@@ -360,9 +414,14 @@ Critical rules:
 		Name:        "clear_images",
 		Description: "Clear all cached image file paths. After calling this, no images will be included in subsequent conversations. Use this when you want to stop sending images to the LLM.",
 		Parameters: map[string]interface{}{
-			"type":       "object",
-			"properties": map[string]interface{}{},
-			"required":   []string{},
+			"type": "object",
+			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
+			},
+			"required": []string{"intent"},
 		},
 		Callback: a.clearImagesTool,
 	})
@@ -376,6 +435,10 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"sub_agent_name": map[string]interface{}{
 							"type":        "string",
 							"description": "Required: the name of the target co-shell agent. This name is used as the sibling workspace folder name.",
@@ -389,7 +452,7 @@ Critical rules:
 							"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
 						},
 					},
-					"required": []string{"sub_agent_name", "instruction"},
+					"required": []string{"intent", "sub_agent_name", "instruction"},
 				},
 				Callback: a.launchSubAgentTool,
 			},
@@ -405,6 +468,10 @@ Critical rules:
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					},
 					"name": map[string]interface{}{
 						"type":        "string",
 						"description": "A human-readable name for this scheduled task (e.g., 'Daily Report', 'Health Check').",
@@ -418,7 +485,7 @@ Critical rules:
 						"description": "The instruction to pass to the sub-agent when the task is triggered.",
 					},
 				},
-				"required": []string{"name", "cron", "instruction"},
+				"required": []string{"intent", "name", "cron", "instruction"},
 			},
 			Callback: a.scheduleTaskTool,
 		})
@@ -469,9 +536,14 @@ Critical rules:
 				Name:        "view_task_plan",
 				Description: "View the current task plan (checklist) with its progress summary, including all steps with their statuses. Use this to check the current progress of the active task plan.",
 				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
+					},
+					"required": []string{"intent"},
 				},
 				Callback: a.viewTaskPlanTool,
 			},
@@ -488,6 +560,10 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"last_from": map[string]interface{}{
 							"type":        "number",
 							"description": "Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.",
@@ -497,7 +573,7 @@ Critical rules:
 							"description": "Ending position from the end (inclusive). 1 = most recent message.",
 						},
 					},
-					"required": []string{"last_from", "last_to"},
+					"required": []string{"intent", "last_from", "last_to"},
 				},
 				Callback: a.getMemorySliceTool,
 			},
@@ -507,6 +583,10 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"keywords": map[string]interface{}{
 							"type":        "array",
 							"items":       map[string]interface{}{"type": "string"},
@@ -521,7 +601,7 @@ Critical rules:
 							"description": "Filter by speaker name (case-insensitive). Empty string means no name filter.",
 						},
 					},
-					"required": []string{},
+					"required": []string{"intent"},
 				},
 				Callback: a.memorySearchTool,
 			},
@@ -531,6 +611,10 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"last_from": map[string]interface{}{
 							"type":        "number",
 							"description": "Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.",
@@ -540,7 +624,7 @@ Critical rules:
 							"description": "Ending position from the end (inclusive). 1 = most recent message.",
 						},
 					},
-					"required": []string{"last_from", "last_to"},
+					"required": []string{"intent", "last_from", "last_to"},
 				},
 				Callback: a.deleteMemoryTool,
 			},
@@ -555,11 +639,19 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"settings": map[string]interface{}{
 					"type": "array",
 					"items": map[string]interface{}{
 						"type": "object",
 						"properties": map[string]interface{}{
+							"intent": map[string]interface{}{
+								"type":        "string",
+								"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+							},
 							"param": map[string]interface{}{
 								"type":        "string",
 								"description": "The parameter name to change. See the .set command help for all available parameters (e.g., model, temperature, max-tokens, show-llm-thinking, confirm-tool, etc.)",
@@ -578,7 +670,7 @@ Critical rules:
 					"description": "An array of setting changes to apply. Each change must include param, value, and reason.",
 				},
 			},
-			"required": []string{"settings"},
+			"required": []string{"intent", "settings"},
 		},
 		Callback: a.updateSettingsTool,
 	})
@@ -588,9 +680,14 @@ Critical rules:
 		Name:        "list_settings",
 		Description: "List all available co-shell system configuration parameters with their current values, valid ranges, and descriptions. Use this to discover what settings can be modified via the update_settings tool. This is useful when you need to understand the available configuration options before making changes.",
 		Parameters: map[string]interface{}{
-			"type":       "object",
-			"properties": map[string]interface{}{},
-			"required":   []string{},
+			"type": "object",
+			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
+			},
+			"required": []string{"intent"},
 		},
 		Callback: a.listSettingsTool,
 	})
@@ -624,12 +721,16 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				},
 				"expression": map[string]interface{}{
 					"type":        "string",
 					"description": "The mathematical expression to evaluate. Examples: '3 + 4 * 2', 'sin(pi/2)', '2 ^ 10', 'sqrt(144)', 'log(100) + ln(e)', '45 * (1 + 0.05) ^ 10', 'abs(-5) + round(3.7)'",
 				},
 			},
-			"required": []string{"expression"},
+			"required": []string{"intent", "expression"},
 		},
 		Callback: a.evaluateExpressionTool,
 	})
@@ -706,12 +807,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"url": map[string]interface{}{
 							"type":        "string",
 							"description": "The URL to navigate to (must include protocol, e.g. https://example.com)",
 						},
 					},
-					"required": []string{"url"},
+					"required": []string{"intent", "url"},
 				},
 				Callback: a.browserNavigateTool,
 			},
@@ -721,6 +826,10 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"quality": map[string]interface{}{
 							"type":        "number",
 							"description": "Screenshot quality (1-100, default 80). Higher quality gives better visual detail for analysis.",
@@ -730,7 +839,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "Whether to capture the full page (true) or just the visible viewport (false, default). Full page captures all scrollable content.",
 						},
 					},
-					"required": []string{},
+					"required": []string{"intent"},
 				},
 				Callback: a.browserScreenshotTool,
 			},
@@ -740,6 +849,10 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"x": map[string]interface{}{
 							"type":        "number",
 							"description": "The x-coordinate to click at (in pixels from the left edge of the viewport)",
@@ -749,7 +862,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "The y-coordinate to click at (in pixels from the top edge of the viewport)",
 						},
 					},
-					"required": []string{"x", "y"},
+					"required": []string{"intent", "x", "y"},
 				},
 				Callback: a.browserClickTool,
 			},
@@ -759,6 +872,10 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"text": map[string]interface{}{
 							"type":        "string",
 							"description": "The text to type into the focused element",
@@ -768,7 +885,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "Whether to clear existing content before typing (default: false)",
 						},
 					},
-					"required": []string{"text"},
+					"required": []string{"intent", "text"},
 				},
 				Callback: a.browserTypeTool,
 			},
@@ -778,12 +895,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"expression": map[string]interface{}{
 							"type":        "string",
 							"description": "The JavaScript expression or code to execute in the browser",
 						},
 					},
-					"required": []string{"expression"},
+					"required": []string{"intent", "expression"},
 				},
 				Callback: a.browserEvaluateTool,
 			},
@@ -791,9 +912,14 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Name:        "browser_get_rendered_html",
 				Description: "Get the rendered DOM HTML of the current browser page after all JavaScript has executed. The HTML is serialized from the live DOM tree in Chrome's memory — it reflects the final rendered state including SPA framework output, dynamic content, and all JS modifications. This is NOT the raw source HTML; you get the page as the browser sees it after rendering, so there is NO need to separately download JS, JSON, or other resources. Use this to analyze the complete document structure, extract rendered data, or process interactive web applications.",
 				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
+					},
+					"required": []string{"intent"},
 				},
 				Callback: a.browserGetHTMLTool,
 			},
@@ -803,6 +929,10 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
 						"delta_x": map[string]interface{}{
 							"type":        "number",
 							"description": "Horizontal scroll delta in pixels (positive = right, negative = left, default: 0)",
@@ -812,7 +942,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "Vertical scroll delta in pixels (positive = down, negative = up, default: 500)",
 						},
 					},
-					"required": []string{},
+					"required": []string{"intent"},
 				},
 				Callback: a.browserScrollTool,
 			},
@@ -820,9 +950,14 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Name:        "browser_get_interactive_elements",
 				Description: "Get a list of interactive elements (buttons, links, inputs, etc.) on the current page with their positions, text, and attributes. Use this to find clickable elements and their coordinates for use with browser_click.",
 				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
+					},
+					"required": []string{"intent"},
 				},
 				Callback: a.browserGetInteractiveElementsTool,
 			},
@@ -830,9 +965,14 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Name:        "browser_go_back",
 				Description: "Navigate back to the previous page in browser history. After going back, use browser_screenshot to view the resulting page.",
 				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
+					},
+					"required": []string{"intent"},
 				},
 				Callback: a.browserGoBackTool,
 			},
@@ -840,9 +980,14 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Name:        "browser_go_forward",
 				Description: "Navigate forward to the next page in browser history. After going forward, use browser_screenshot to view the resulting page.",
 				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
+					},
+					"required": []string{"intent"},
 				},
 				Callback: a.browserGoForwardTool,
 			},
@@ -850,9 +995,14 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Name:        "browser_close",
 				Description: "Close the Chrome browser and clean up resources. Use this when you are done with browser automation tasks.",
 				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-					"required":   []string{},
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						},
+					},
+					"required": []string{"intent"},
 				},
 				Callback: a.browserCloseTool,
 			},
@@ -1023,6 +1173,14 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				return "", err
 			}
 			log.Debug("Tool call result: %s -> %s", tc.Name, result)
+
+			// If the tool was called with an intent parameter, append it to the
+			// result. This reminds the LLM of its original purpose for this call,
+			// helping it stay focused and avoid drifting from the stated goal.
+			if intent, ok := args["intent"].(string); ok && intent != "" {
+				result = fmt.Sprintf("%s\n\n[意图] %s", result, intent)
+			}
+
 			return result, nil
 		}
 	}

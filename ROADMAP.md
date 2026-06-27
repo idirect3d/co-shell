@@ -576,6 +576,12 @@
   - 提取 buildFullEnvironmentDetails 公共方法，所有消息（user + tool）获得完整版 env 信息
   - 新增 add_images intent 必填参数，read_file 二进制检测，.session pop 子命令
 
+- [x] FEATURE-252 为所有LLM工具添加意图(intent)参数，以便跟踪LLM调用意图 [BUILD-266]
+  - 为 buildToolsInternal() 中除 add_images 外的所有工具定义添加必填 intent 参数
+  - 补充说明：track_task_progress、attempt_completion、ask_followup_question、reorganize_context 四个工具不添加 intent 参数
+  - executeToolCall() 返回结果时自动追加 [意图] 提醒 LLM 回顾原始调用目标
+  - 同步更新中英文 XML 模式工具描述（zh_system.go / en_system.go）
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
