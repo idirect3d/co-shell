@@ -326,11 +326,11 @@ func (a *Agent) buildContextMessages() []llm.Message {
 		}
 	}
 
-	// Preserve historical <environment_details> by NOT stripping them.
-	// Only inject a fresh envelope into the LAST user message so the LLM
-	// always has current time/cwd/files/task_plan context.
-	// Historical messages keep their original time and environment state.
-	msgs = a.injectEnvelopeToLastUser(msgs)
+	// Note: <environment_details> is NOT injected here — it was already attached
+	// when each message was first created (see buildUserMessage, buildXMLToolResultMessage,
+	// and the tool result creation paths in run_stream.go/run.go).
+	// This ensures the envelope is frozen at message creation time and does not
+	// change or accumulate across LLM iterations.
 	return msgs
 }
 
