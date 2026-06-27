@@ -69,12 +69,15 @@ func injectTimeAndMessageNo(msgs []llm.Message) []llm.Message {
 			sb.WriteString(strconv.Itoa(i))
 			sb.WriteString("</message_no>\n")
 			sb.WriteString("</environment_details>")
-			// Check if this message already uses ContentParts (XML mode structured messages)
-			if len(msgs[i].ContentParts) > 0 {
-				msgs[i].AppendTextPart(sb.String())
-			} else {
-				msgs[i].Content += sb.String()
+			// Convert to ContentParts if not already, so environment_details is always
+			// a separate text part from the actual content.
+			if len(msgs[i].ContentParts) == 0 {
+				msgs[i].ContentParts = []llm.ContentPart{
+					{Type: llm.ContentPartText, Text: msgs[i].Content},
+				}
+				msgs[i].Content = ""
 			}
+			msgs[i].AppendTextPart(sb.String())
 		}
 	}
 	return msgs
@@ -246,17 +249,22 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 	}
 	sb.WriteString("</environment_details>")
 
-	// FEATURE-248: If the last user message already uses ContentParts (XML mode),
-	// append the envelope as a new text part instead of concatenating to Content.
+	// Always use ContentParts format for the last user message so the envelope
+	// (current time, files, task plan) is a separate text part from the instruction.
+	// This ensures the LLM request body uses the array format:
+	//   content: [{"type":"text","text":"instruction"}, {"type":"text","text":"<env>"}]
+	// If the message already uses ContentParts, just append a new one.
+	// If it uses plain Content, convert to ContentParts first, then append.
 	existing := result[lastUserIdx]
-	if len(existing.ContentParts) > 0 {
-		existing.AppendTextPart(sb.String())
-		result[lastUserIdx] = existing
-	} else {
-		result[lastUserIdx] = llm.Message{
-			Role:    existing.Role,
-			Content: existing.Content + sb.String(),
+	if len(existing.ContentParts) == 0 {
+		// Convert plain Content to ContentParts format so the envelope
+		// can be appended as a separate text part.
+		existing.ContentParts = []llm.ContentPart{
+			{Type: llm.ContentPartText, Text: existing.Content},
 		}
+		existing.Content = ""
 	}
+	existing.AppendTextPart(sb.String())
+	result[lastUserIdx] = existing
 	return result
 }

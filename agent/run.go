@@ -55,15 +55,11 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.messages = append(a.messages, multimodalMsg)
 		// Keep imagePaths for reuse in subsequent conversations
 	} else {
-		// Add user message to history with template formatting
-		// FEATURE-248: In XML mode, use ContentParts for structured user messages.
-		if a.isXMLMode() {
-			xmlUserMsg := a.buildXMLUserMessage(userInput, len(a.messages))
-			a.messages = append(a.messages, xmlUserMsg)
-		} else {
-			formattedInput := a.formatUserMessage(userInput, len(a.messages))
-			a.messages = append(a.messages, llm.Message{Role: "user", Content: formattedInput})
-		}
+		// Build user message with ContentParts for structured content.
+		// All user messages use the array format: [{"type":"text","text":"instruction"}]
+		// Environment_details will be appended by injectEnvelopeToLastUser as a ContentPart.
+		userMsg := a.buildUserMessage(userInput)
+		a.messages = append(a.messages, userMsg)
 		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
 		if a.memoryEnabled {
 			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {

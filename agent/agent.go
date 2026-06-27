@@ -301,12 +301,18 @@ func (a *Agent) debugIntercept() bool {
 		return false
 	}
 
-	// Show the last user message for preview
+	// Show the last user message for preview.
+	// User messages now use ContentParts (array format) with the instruction as the
+	// first text part. Use CombineContentParts() to get the full text representation.
 	a.mu.Lock()
 	userMsg := ""
 	for i := len(a.messages) - 1; i >= 0; i-- {
 		if a.messages[i].Role == "user" {
-			userMsg = a.messages[i].Content
+			if len(a.messages[i].ContentParts) > 0 {
+				userMsg = a.messages[i].CombineContentParts()
+			} else {
+				userMsg = a.messages[i].Content
+			}
 			break
 		}
 	}
@@ -339,13 +345,16 @@ func (a *Agent) debugIntercept() bool {
 		return false
 	}
 
-	// User modified the content - replace the last user message
+	// User modified the content - replace the last user message.
+	// Since user messages now use ContentParts, update the first text part.
 	a.mu.Lock()
 	for i := len(a.messages) - 1; i >= 0; i-- {
 		if a.messages[i].Role == "user" {
-			// Preserve the envelope structure if present
-			if envIdx := strings.Index(a.messages[i].Content, "<environment_details>"); envIdx > 0 {
-				a.messages[i].Content = input + "\n" + a.messages[i].Content[envIdx:]
+			if len(a.messages[i].ContentParts) > 0 {
+				// Update the first text part with the modified input.
+				// The first part is always the user instruction.
+				// Preserve the ContentParts structure for environment_details parts.
+				a.messages[i].ContentParts[0].Text = input
 			} else {
 				a.messages[i].Content = input
 			}
@@ -864,20 +873,35 @@ func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string, messa
 	return result
 }
 
+// buildUserMessage creates a structured user Message with ContentParts.
+// This ensures all user messages use the array format for content:
+//
+//	[{"type":"text","text":"instruction"}, {"type":"text","text":"<environment_details>..."}]
+//
+// Part 0: user instruction (wrapped in <task> tags for XML mode, raw text for OpenAI mode)
+// Part N: environment_details will be appended by injectEnvelopeToLastUser as ContentPart
+//
+// Regardless of tool call mode, using ContentParts separates the user's instruction
+// from environment context, making it clearer for the LLM.
+func (a *Agent) buildUserMessage(instruction string) llm.Message {
+	msg := llm.Message{Role: "user"}
+	text := instruction
+	if a.isXMLMode() {
+		text = fmt.Sprintf("<task>\n%s\n</task>", instruction)
+	}
+	msg.ContentParts = []llm.ContentPart{
+		{Type: llm.ContentPartText, Text: text},
+	}
+	return msg
+}
+
+// formatUserMessage is kept for backward compatibility but is no longer used
+// for building new messages. All user messages now use buildUserMessage which
+// produces structured ContentParts.
 func (a *Agent) formatUserMessage(instruction string, messageNo int) string {
 	template := i18n.T(i18n.KeyUserMessageTemplate)
 	result := strings.ReplaceAll(template, "{INSTRUCTION}", instruction)
 	return result
-}
-
-// buildXMLUserMessage creates a structured user Message with ContentParts for XML mode.
-// Part 0: user instruction wrapped in <task> tags
-// Part N: environment_details will be appended by injectEnvelopeToLastUser as ContentPart
-func (a *Agent) buildXMLUserMessage(instruction string, messageNo int) llm.Message {
-	msg := llm.Message{Role: "user"}
-	msg.EnsureContentParts()
-	msg.ContentParts[0].Text = fmt.Sprintf("<task>\n%s\n</task>", instruction)
-	return msg
 }
 
 // buildXMLToolResultMessage creates a structured user Message with ContentParts for XML mode
@@ -949,6 +973,8 @@ func (a *Agent) getCurrentTaskDescription() string {
 		}
 	}
 	// Priority 2: first user message at/after messagePointer
+	// User messages now use ContentParts (array format). Use CombineContentParts()
+	// to get the full text, and strip environment_details for a clean task description.
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	startIdx := 1 // skip system prompt (index 0)
@@ -956,18 +982,27 @@ func (a *Agent) getCurrentTaskDescription() string {
 		startIdx = a.messagePointer
 	}
 	for i := startIdx; i < len(a.messages); i++ {
-		if a.messages[i].Role == "user" && a.messages[i].Content != "" {
-			content := a.messages[i].Content
-			// Strip <environment_details> if present for cleaner display
-			if envStart := strings.Index(content, "<environment_details>"); envStart > 0 {
-				content = strings.TrimSpace(content[:envStart])
-			}
-			// Truncate to reasonable length
-			if len(content) > 200 {
-				content = content[:200] + "..."
-			}
-			return content
+		if a.messages[i].Role != "user" {
+			continue
 		}
+		var content string
+		if len(a.messages[i].ContentParts) > 0 {
+			content = a.messages[i].CombineContentParts()
+		} else {
+			content = a.messages[i].Content
+		}
+		if content == "" {
+			continue
+		}
+		// Strip <environment_details> if present for cleaner display
+		if envStart := strings.Index(content, "<environment_details>"); envStart > 0 {
+			content = strings.TrimSpace(content[:envStart])
+		}
+		// Truncate to reasonable length
+		if len(content) > 200 {
+			content = content[:200] + "..."
+		}
+		return content
 	}
 	return ""
 }
