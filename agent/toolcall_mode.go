@@ -1071,6 +1071,12 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 			// Nested elements - recursively parse
 			nestedJSON, nestedErrors := parseXMLChildrenToJSON(innerContent)
 			if len(nestedErrors) > 0 {
+				// Propagate nested errors to parent parseErrors so the top-level caller
+				// can report them to the LLM via _xml_parse_error instead of silently
+				// falling back to plain text. Previously this swallowed well-formedness
+				// errors (e.g., missing </item> closing tag) and produced confusing
+				// downstream errors like "missing 'search' and 'replace' fields".
+				parseErrors = append(parseErrors, nestedErrors...)
 				// If recursive parsing produced errors (e.g., HTML tags inside content,
 				// malformed XML, etc.), fall back to treating this as plain text content.
 				// This is critical for tools like write_to_file where the content parameter
