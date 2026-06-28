@@ -380,21 +380,27 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 	return result.String(), nil
 }
 
-// listFilesForPrompt lists files in a directory and returns the listing as a string.
+// listFilesForPromptResult holds the result of listFilesForPrompt.
+type listFilesForPromptResult struct {
+	listing   string // the file listing text
+	truncated bool   // true if the listing was truncated due to maxEntries
+}
+
+// listFilesForPrompt lists files in a directory and returns the listing.
 // depth controls recursion: 0 = top-level only, 1 = one level deep, etc.
-// -1 means unlimited recursion. Returns at most maxEntries items.
-// If there are more, a truncation notice is appended. This is a package-level
-// function used by both listFilesTool and buildSystemPromptWithMode.
-func listFilesForPrompt(dirPath string, depth int, maxEntries int) string {
+// -1 means unlimited recursion. maxEntries limits the number of items returned.
+// When maxEntries <= 0, no truncation is applied (returns all entries).
+func listFilesForPrompt(dirPath string, depth int, maxEntries int) listFilesForPromptResult {
 	var result strings.Builder
 	var count int
+	unlimited := maxEntries <= 0
 
 	if depth < 0 || depth > 0 {
 		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
-			if count >= maxEntries {
+			if !unlimited && count >= maxEntries {
 				return filepath.SkipDir
 			}
 			relPath, _ := filepath.Rel(dirPath, path)
@@ -422,10 +428,10 @@ func listFilesForPrompt(dirPath string, depth int, maxEntries int) string {
 	} else {
 		entries, err := os.ReadDir(dirPath)
 		if err != nil {
-			return ""
+			return listFilesForPromptResult{}
 		}
 		total := len(entries)
-		if total > maxEntries {
+		if !unlimited && total > maxEntries {
 			entries = entries[:maxEntries]
 		}
 		for _, e := range entries {
@@ -441,10 +447,14 @@ func listFilesForPrompt(dirPath string, depth int, maxEntries int) string {
 		}
 	}
 
-	if count >= maxEntries {
+	truncated := !unlimited && count >= maxEntries
+	if truncated {
 		result.WriteString("(File list truncated. Use list_files on specific subdirectories if you need to explore further.)\n")
 	}
-	return result.String()
+	return listFilesForPromptResult{
+		listing:   result.String(),
+		truncated: truncated,
+	}
 }
 
 // listFilesTool lists files and directories within the specified directory.
@@ -477,14 +487,41 @@ func (a *Agent) listFilesTool(ctx context.Context, args map[string]interface{}) 
 	if a.cfg != nil && a.cfg.LLM.ListMaxItems > 0 {
 		maxEntries = a.cfg.LLM.ListMaxItems
 	}
-	listing := listFilesForPrompt(dirPath, depth, maxEntries)
-	if listing == "" {
+
+	res := listFilesForPrompt(dirPath, depth, maxEntries)
+	if res.listing == "" {
 		return "", fmt.Errorf("cannot read directory %q", dirPath)
+	}
+
+	if res.truncated {
+		// Save the full listing to a .md file under workspace tmp/
+		fullRes := listFilesForPrompt(dirPath, depth, -1) // unlimited
+		dirName := filepath.Base(dirPath)
+		if dirName == "." || dirName == "" {
+			dirName = "root"
+		}
+		mdDir := filepath.Join("tmp", "file-list")
+		mdPath := filepath.Join(mdDir, dirName+".md")
+		if err := os.MkdirAll(mdDir, 0755); err != nil {
+			return "", fmt.Errorf("cannot create temp directory: %w", err)
+		}
+		mdContent := fmt.Sprintf("# 文件列表: %s\n\n", dirPath)
+		mdContent += fullRes.listing
+		if err := os.WriteFile(mdPath, []byte(mdContent), 0644); err != nil {
+			return "", fmt.Errorf("cannot write file list to %s: %w", mdPath, err)
+		}
+
+		totalItems := strings.Count(fullRes.listing, "\n")
+		var result strings.Builder
+		result.WriteString(fmt.Sprintf("Directory: %s\n\n", dirPath))
+		result.WriteString(res.listing)
+		result.WriteString(fmt.Sprintf("\n\n✅ 完整文件列表已保存到: %s（共 %d 条目，超过限制 %d）。可用 read_file 读取查看完整内容。\n", mdPath, totalItems, maxEntries))
+		return result.String(), nil
 	}
 
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("Directory: %s\n\n", dirPath))
-	result.WriteString(listing)
+	result.WriteString(res.listing)
 	return result.String(), nil
 }
 

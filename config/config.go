@@ -210,13 +210,6 @@ type LLMConfig struct {
 	// Default: 3 (config.go DefaultConfig)
 	LoopDetectThreshold int `json:"loop_detect_threshold"`
 
-	// LoopDetectMinLineLen: the minimum length of a line (in characters) to be
-	// considered for loop detection. Lines shorter than this are ignored.
-	// This filters out short repeating patterns like XML tags, "continue" prompts,
-	// or short thinking phrases that are not meaningful for loop detection.
-	// Default: 50
-	LoopDetectMinLineLen int `json:"loop_detect_min_line_len"`
-
 	// LoopTempEnabled: whether to enable automatic temperature adjustment
 	// when a loop is detected. When enabled, the agent will gradually adjust
 	// the LLM temperature to break out of output loops using an oscillating
@@ -714,7 +707,6 @@ func DefaultConfig() *Config {
 			ErrorMaxTypeCount:          100,
 			LoopDetectEnabled:          true,
 			LoopDetectThreshold:        5,
-			LoopDetectMinLineLen:       50,
 			LoopTempEnabled:            true,
 			LoopTempStepUp:             0.05,
 			LoopTempStepDown:           0.07,

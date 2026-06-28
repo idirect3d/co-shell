@@ -65,14 +65,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
 		a.loopDetectOn = true
 		threshold := a.cfg.LLM.LoopDetectThreshold
-		minLineLen := a.cfg.LLM.LoopDetectMinLineLen
 		if threshold <= 0 {
 			threshold = 5
 		}
-		if minLineLen <= 0 {
-			minLineLen = 50
-		}
-		a.loopDetector = NewLoopDetector(threshold, minLineLen)
+		a.loopDetector = NewLoopDetector(threshold)
 		a.toolCallLoopDetector = NewToolCallLoopDetector(threshold)
 
 		// FEATURE-230: Initialize loop temperature controller
@@ -832,11 +828,26 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					usagePct, threshold)
 
 				suggestion := fmt.Sprintf(
-					"⚠️ 上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。建议调用 reorganize_context 工具重新整理上下文，压缩消息历史以释放上下文窗口。",
+					"<warn>当前上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。应尽快通过调用 reorganize_context 工具重新整理上下文，压缩消息历史以释放上下文窗口。</warn>",
 					usagePct, threshold)
 
 				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{Role: "user", Content: suggestion})
+				// Merge the suggestion into the last user message's ContentParts instead
+				// of appending a separate user message, keeping the user's original
+				// instruction and the system hint in the same message.
+				lastIdx := len(a.messages) - 1
+				if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
+					msg := &a.messages[lastIdx]
+					if len(msg.ContentParts) == 0 {
+						msg.ContentParts = []llm.ContentPart{
+							{Type: llm.ContentPartText, Text: msg.Content},
+						}
+						msg.Content = ""
+					}
+					msg.AppendTextPart(suggestion)
+				} else {
+					a.messages = append(a.messages, llm.Message{Role: "user", Content: suggestion})
+				}
 				a.mu.Unlock()
 			}
 		}
