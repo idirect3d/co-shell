@@ -586,6 +586,8 @@
 - [x] FEATURE-253 内容循环检测改进：采用 M-max 三规则算法（diff==0递增/diff==1跟进/diff>1清空），移除 minLineLen 短行过滤，新增全局最大计数 M 机制，仅连续重复触发；visual_analysis 改为单文件接收（path 替代 paths）；<context_window> 输出格式化；reorganize 建议合并到上一条 user 消息 [BUILD-268]
 - [x] FEATURE-254 system prompt 每次从磁盘重新读取配置文件：`rebuildSystemPrompt()` 中从磁盘重新加载 config.json；read_file 输出格式简化、start_line/end_line 改为必填；同步更新中英文 XML 模式工具说明。[BUILD-269]
 
+- [x] FIX-255 XML 嵌套解析错误传播：`parseXMLChildrenToJSON` 递归解析 `<item>` 子元素时，如果子元素缺少闭合标签（如 `</item>`），`nestedErrors` 未被向上传播到父级 `parseErrors`，导致 XML 良构性错误被静默吞掉，最终被下游工具误报为 "missing 'search' and 'replace' fields"。修复为在 fallback 路径中将 `nestedErrors` 追加到 `parseErrors`。[BUILD-270]
+
 
 ## v1.0.0 — 正式版
 
