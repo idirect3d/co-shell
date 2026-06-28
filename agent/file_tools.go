@@ -88,7 +88,7 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 			return "", fmt.Errorf(
 				"文件 %q 似乎是二进制文件（包含 NULL 字节），无法读取。\n"+
 					"此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n"+
-					"如需分析图片文件，请使用 add_images 将图片加载到多模态上下文中。\n"+
+					"如需分析图片文件，请使用 visual_analysis 将图片加载到多模态上下文中。\n"+
 					"如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n"+
 					"如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
 				path)
@@ -98,7 +98,7 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 			return "", fmt.Errorf(
 				"文件 %q 似乎是二进制文件（包含控制字符 0x%02X），无法读取。\n"+
 					"此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n"+
-					"如需分析图片文件，请使用 add_images 将图片加载到多模态上下文中。\n"+
+					"如需分析图片文件，请使用 visual_analysis 将图片加载到多模态上下文中。\n"+
 					"如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n"+
 					"如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
 				path, b)

@@ -141,9 +141,11 @@ func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]inter
 		screenshotPath, currentURL, title, quality, fullPage)
 
 	if visionSupported {
-		addResult, _ := a.AddImages(screenshotPath)
-		baseMsg += "\n" + addResult
-		baseMsg += "\n\n截图已加载到图片缓存，后续请求将发送到视觉模型进行分析。你可以结合 browser_get_interactive_elements 获取页面可交互元素信息来进行精确操作。"
+		a.mu.Lock()
+		a.imagePaths = []string{screenshotPath}
+		a.mu.Unlock()
+		baseMsg += "\n✅ 截图已加载，将在下次 LLM 调用时发送到视觉模型进行分析。"
+		baseMsg += "\n你可以结合 browser_get_interactive_elements 获取页面可交互元素信息来进行精确操作。"
 	} else {
 		baseMsg += "\n\n⚠️ **当前模型不支持视觉识别**，无法对截图内容进行分析。\n截图已保存到文件系统中，你可以：\n1. 通过 `.set vision on` 启用多模态支持（需模型支持）\n2. 切换到支持视觉的多模态大模型后再试\n3. 手动使用 add_images 工具加载截图"
 	}
