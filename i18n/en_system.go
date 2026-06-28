@@ -248,12 +248,12 @@ Usage:
 </execute_command>`
 
 	enMessages[KeyToolUsageReadFile] = `## read_file
-Description: Read the contents of a file at the specified path. Returns file content with line numbers. Supports start_line and end_line to read specific sections of large files. **IMPORTANT: This tool can ONLY read text files (e.g., .txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (e.g., .png, .jpg, .gif, .webp, .bmp, .docx, .doc, .xls, .xlsx, .pdf, .wps, or other binary formats) or other binary files — use visual_analysis to load images for multimodal analysis instead.**
+Description: Read the contents of a file at the specified path. Returns file content with line numbers. Both start_line and end_line are **REQUIRED** — you must specify the line range to read. **IMPORTANT: This tool can ONLY read text files (e.g., .txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (e.g., .png, .jpg, .gif, .webp, .bmp, .docx, .doc, .xls, .xlsx, .pdf, .wps, or other binary formats) or other binary files — use visual_analysis to load images for multimodal analysis instead.**
 Parameters:
 - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The file path to read (absolute or relative to current working directory)
-- start_line (optional) The line number to start reading from (1-based, inclusive). Default: 1
-- end_line (optional) The line number to stop reading at (1-based, inclusive). Default: start_line + 1000
+- start_line (required) The line number to start reading from (1-based, inclusive)
+- end_line (required) The line number to stop reading at (1-based, inclusive)
 Usage:
 <read_file>
   <intent>Need to examine the beginning of main.go to understand the program's entry point structure</intent>
@@ -511,10 +511,10 @@ Usage:
 </list_settings>`
 
 	enMessages[KeyToolUsageAskFollowupQuestion] = `## ask_followup_question
-Description: Ask the user a question to gather additional information needed to complete the task. Use when there is ambiguity, need for clarification, or more details are required. Enables interactive problem-solving by allowing direct communication with the user. Use this tool judiciously, balancing between gathering necessary information and avoiding excessive back-and-forth.
+Description: Ask the user a question to gather additional information needed to complete the task. Use when there is ambiguity, need for clarification, or more details are required. Enables interactive problem-solving by allowing direct communication with the user. Only call this method when user confirmation is unclear or the user needs to provide additional clues.
 Parameters:
 - question (required) The question to ask the user. Should be a clear, specific question explaining what information you need.
-- options (optional) 2-5 options for the user to choose from. Each option is a string describing a possible answer. Not always necessary to provide options, but can be helpful in many cases.
+- options (optional) 2-5 options for the user to choose from. Each option is a string describing a possible answer. Try to provide options whenever possible to maximize ease of user operation.
 Usage:
 <ask_followup_question>
   <question>Which database would you like to use?</question>

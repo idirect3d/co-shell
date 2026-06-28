@@ -57,15 +57,18 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 		path = filepath.Join(cwd, path)
 	}
 
-	// Determine start and end lines
-	startLine := 1
-	endLine := 0 // 0 means read to end
-	if s, ok := args["start_line"].(float64); ok {
-		startLine = int(s)
+	// start_line and end_line are both required
+	startLineRaw, ok := args["start_line"].(float64)
+	if !ok {
+		return "", fmt.Errorf("start_line is required (1-based line number to start reading from)")
 	}
-	if e, ok := args["end_line"].(float64); ok {
-		endLine = int(e)
+	startLine := int(startLineRaw)
+
+	endLineRaw, ok := args["end_line"].(float64)
+	if !ok {
+		return "", fmt.Errorf("end_line is required (1-based line number to stop reading at, inclusive)")
 	}
+	endLine := int(endLineRaw)
 
 	// Read the file
 	data, err := os.ReadFile(path)
@@ -131,26 +134,40 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 
 	// Build output with line numbers
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("File: %s (%d lines total, showing %d-%d)\n\n", path, totalLines, startLine, endLine))
+	result.WriteString(fmt.Sprintf("File: %s (%d lines total)\n\n", path, totalLines))
 	for i := startLine - 1; i < endLine; i++ {
 		result.WriteString(fmt.Sprintf("%d | %s\n", i+1, lines[i]))
 	}
 
-	if endLine < totalLines {
-		result.WriteString(fmt.Sprintf("... (%d more lines)\n", totalLines-endLine))
-	}
+	lineTruncated := endLine < totalLines
 
-	// Check output size limit
+	// Check output size limit before appending truncation notices
 	maxSize := 16384 // 16KB default
 	if a.cfg != nil && a.cfg.LLM.ReadFileMaxSize > 0 {
 		maxSize = a.cfg.LLM.ReadFileMaxSize
 	}
 	output := result.String()
-	if len(output) > maxSize {
+	byteTruncated := len(output) > maxSize
+
+	if byteTruncated {
+		// Find the last complete line within the byte limit
 		truncated := output[:maxSize]
-		notice := fmt.Sprintf("\n\n⚠️ 文件内容超长，当前仅返回前 %d 字节（总内容 %d 字节）。\n你可以使用 read_file 并指定 start_line/end_line 分段读取。\n", maxSize, len(output))
+		// Remove the incomplete last line
+		lastNewline := strings.LastIndex(truncated, "\n")
+		if lastNewline >= 0 {
+			truncated = truncated[:lastNewline]
+		}
+		// Append truncation notice
+		displayedLines := strings.Count(truncated, "\n") - 1 // subtract the initial "\n" after header
+		notice := fmt.Sprintf(
+			"\n⚠️ 文件内容超长，当前仅返回前 %d 字节（总内容 %d 字节，显示 %d 行 / 共 %d 行）。\n你可以使用 read_file 并指定 start_line/end_line 分段读取。\n",
+			maxSize, len(output), displayedLines, totalLines)
 		truncated += notice
 		return truncated, nil
+	}
+
+	if lineTruncated {
+		result.WriteString(fmt.Sprintf("... (showing %d-%d of %d, %d more lines not shown)\n", startLine, endLine, totalLines, totalLines-endLine))
 	}
 
 	return output, nil
