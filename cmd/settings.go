@@ -501,7 +501,6 @@ func showSettingsHelp(cfg *config.Config) string {
 		// Loop detection (FEATURE-227)
 		makeLine("loop-detect-enabled", loopDetectStatus, i18n.T(i18n.KeyCol3LoopDetectEnabled)),
 		makeLine("loop-detect-threshold", fmt.Sprintf("%d", cfg.LLM.LoopDetectThreshold), i18n.T(i18n.KeyCol3LoopDetectThreshold)),
-		makeLine("loop-detect-min-line-len", fmt.Sprintf("%d", cfg.LLM.LoopDetectMinLineLen), "最短行长度(>=5)"),
 		// Loop temperature (FEATURE-230)
 		makeLine("loop-temp-enabled", loopTempStatus, "循环温度自动调节"),
 		makeLine("loop-temp-step-up", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepUp), "循环温度上升步长"),

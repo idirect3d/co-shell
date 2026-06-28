@@ -223,24 +223,6 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop detect threshold set to %d", n)
 		return fmt.Sprintf("✅ 循环检测阈值已设置为: %d", n), nil
 
-	case "loop-detect-min-line-len":
-		if len(args) < 2 {
-			return fmt.Sprintf("循环检测最短行长度: %d", h.cfg.LLM.LoopDetectMinLineLen), nil
-		}
-		n, err := strconv.Atoi(args[1])
-		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
-		}
-		if n < 5 {
-			return "", fmt.Errorf("最短行长度必须 >= 5")
-		}
-		h.cfg.LLM.LoopDetectMinLineLen = n
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		log.Info("Loop detect min line length set to %d", n)
-		return fmt.Sprintf("✅ 循环检测最短行长度已设置为: %d", n), nil
-
 	case "loop-temp-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

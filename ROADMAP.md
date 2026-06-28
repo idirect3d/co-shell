@@ -583,6 +583,7 @@
   - 同步更新中英文 XML 模式工具描述（zh_system.go / en_system.go）
 
 - [x] FIX-252 修复 add_images 图片数据未发往 LLM 的问题 [BUILD-267]
+- [x] FEATURE-253 内容循环检测改进：采用 M-max 三规则算法（diff==0递增/diff==1跟进/diff>1清空），移除 minLineLen 短行过滤，新增全局最大计数 M 机制，仅连续重复触发；visual_analysis 改为单文件接收（path 替代 paths）；<context_window> 输出格式化；reorganize 建议合并到上一条 user 消息 [BUILD-268]
 
 ## v1.0.0 — 正式版
 

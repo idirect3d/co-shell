@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-13
-// Last Modified: 2026-06-14
+// Last Modified: 2026-06-28
 //
 // MIT License
 //
@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -39,16 +39,22 @@ import (
 // the LLM is stuck in a loop. It counts exact line repetitions and
 // triggers intervention when the same line appears too many times.
 //
-// Key design:
-//   - Lines shorter than minLineLen are ignored (filters XML tags, short prompts)
-//   - Each AddChunk call appends to accumulated content and extracts complete lines
-//   - accumulated content tracks only one trailing incomplete line across chunks
-//   - Reset() must be called at the start of each LLM iteration to clear counts
+// Algorithm (M-max global counting):
+//   - lineCounts maps each unique line to its repetition count.
+//   - maxCount is the global maximum count across all lines (M).
+//   - For each incoming line, get its count N from the map (0 if unseen).
+//     Compute diff = maxCount - N:
+//   - diff == 0: N == M → increment both N and M (N++, M = N).
+//   - diff == 1: N is one behind M → increment N only (N++).
+//   - diff > 1:  gap is too wide → clear all counts, start fresh.
+//   - This ensures only truly consecutive repetition accumulates.
+//     Interleaved lines produce gaps (diff > 1) that clear the map,
+//     while true loops (ABCABC or AAAA) keep diff <= 1.
 type LoopDetector struct {
 	threshold   int             // min line occurrences to trigger (default: 5)
-	minLineLen  int             // lines shorter than this are ignored (default: 50)
 	accumulated strings.Builder // accumulates incomplete trailing line across chunks
 	lineCounts  map[string]int  // exact line content → occurrence count
+	maxCount    int             // global maximum count M across all lines
 }
 
 // LoopDetectedError is returned when a loop is detected.
@@ -77,35 +83,21 @@ func (e *LoopDetectedError) Error() string {
 
 // NewLoopDetector creates a new loop detector with the given configuration.
 // threshold: min occurrences of the same line to trigger (default: 5).
-// minLineLen: lines shorter than this are ignored (default: 50).
-func NewLoopDetector(threshold int, minLineLen int) *LoopDetector {
+func NewLoopDetector(threshold int) *LoopDetector {
 	if threshold <= 0 {
 		threshold = 5
 	}
-	if minLineLen <= 0 {
-		minLineLen = 50
-	}
-	log.Debug("LoopDetector: created with threshold=%d, minLineLen=%d", threshold, minLineLen)
+	log.Debug("LoopDetector: created with threshold=%d", threshold)
 	return &LoopDetector{
 		threshold:  threshold,
-		minLineLen: minLineLen,
 		lineCounts: make(map[string]int),
 	}
 }
 
 // AddChunk adds a new output chunk and checks for loop patterns.
 // Returns nil if no loop detected, or a *LoopDetectedError if a loop is found.
-//
-// Algorithm:
-//  1. Append chunk to accumulated (which holds optional trailing fragment).
-//  2. Split by \n. If content ends with \n, all elements are complete lines
-//     (last element is empty). If not, the last element is incomplete.
-//  3. Process complete lines: trim, skip if short, increment map count.
-//  4. Keep only the incomplete trailing line in accumulated for next call.
 func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
-	// Skip only truly empty chunks. Do NOT use TrimSpace here: the LLM may
-	// send "\n" as a separate chunk token (independent SSE event), and
-	// TrimSpace("\n") returns "" which would discard the line delimiter.
+	// Skip only truly empty chunks.
 	if chunk == "" {
 		return nil
 	}
@@ -116,41 +108,54 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 	lines := strings.Split(content, "\n")
 
 	// Step 2: Determine how many split elements are complete lines.
-	// - If content ends with \n, the last element is always empty, so all
-	//   non-empty elements are complete lines.
-	// - If content does NOT end with \n, the last element is an incomplete
-	//   fragment that must be preserved for the next chunk.
 	completeCount := len(lines)
 	endsWithNewline := strings.HasSuffix(content, "\n")
 	if !endsWithNewline && completeCount > 0 {
 		completeCount = len(lines) - 1
 	}
 
-	// Step 3: Process complete lines.
+	// Step 3: Process complete lines using M-max algorithm.
 	for i := 0; i < completeCount; i++ {
 		line := strings.TrimSpace(lines[i])
 		if line == "" {
 			continue
 		}
 
-		// Skip lines shorter than minLineLen
-		if len(line) < ld.minLineLen {
-			continue
+		// Get current count N for this line (0 if unseen).
+		N := ld.lineCounts[line]
+
+		// Compute diff = M - N.
+		diff := ld.maxCount - N
+
+		if diff == 0 {
+			// N equals M: increment both N and M.
+			N++
+			ld.maxCount = N
+		} else if diff == 1 {
+			// N is one behind M: increment N only.
+			N++
+		} else {
+			// diff > 1: gap too wide, continuity broken — clear all.
+			ld.lineCounts = make(map[string]int)
+			ld.maxCount = 0
+			N = 0
+			// This line starts fresh.
+			N++
+			ld.maxCount = N
 		}
 
-		// Increment line count
-		ld.lineCounts[line]++
-		count := ld.lineCounts[line]
+		// Store updated count.
+		ld.lineCounts[line] = N
 
-		log.Debug("LoopDetector: line detected (count=%d, threshold=%d): %.60s...",
-			count, ld.threshold, line)
+		log.Debug("LoopDetector: line detected (count=%d, max=%d, threshold=%d): %.60s...",
+			N, ld.maxCount, ld.threshold, line)
 
-		if count >= ld.threshold {
+		if N >= ld.threshold {
 			log.Warn("LoopDetector: LOOP TRIGGERED: line repeated %d times (threshold=%d): %.60s...",
-				count, ld.threshold, line)
+				N, ld.threshold, line)
 			return &LoopDetectedError{
 				pattern:     line,
-				repeatCount: count,
+				repeatCount: N,
 				threshold:   ld.threshold,
 				startTime:   timestamp,
 				endTime:     timestamp,
@@ -164,7 +169,6 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 	// Step 4: Reset accumulated and store only the incomplete trailing line.
 	ld.accumulated.Reset()
 	if !endsWithNewline && len(lines) > 0 {
-		// The last fragment is incomplete — keep it for the next chunk.
 		ld.accumulated.WriteString(lines[len(lines)-1])
 	}
 
@@ -176,6 +180,7 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 func (ld *LoopDetector) Reset() {
 	ld.accumulated.Reset()
 	ld.lineCounts = make(map[string]int)
+	ld.maxCount = 0
 	log.Debug("LoopDetector: reset line counts")
 }
 

@@ -296,20 +296,20 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 	})
 	tools = append(tools, llm.Tool{
 		Name:        "visual_analysis",
-		Description: "Load visual media files (images, screenshots, scanned documents) for comprehensive visual analysis by the LLM's multimodal vision capability. Provide file paths (comma-separated) and specify what to analyze. This tool supports:\n- OCR / text recognition: recognize and extract text from images, scanned documents, screenshots, signs, handwriting\n- Image understanding: describe scenes, objects, people, layouts, colors, and visual relationships\n- Table/data extraction: extract structured data from tables, charts, graphs, and infographics\n- Document analysis: extract content from report pages, forms, certificates, invoices\n- Video frame analysis: analyze screenshots or extracted frames from videos\n\nThe images are sent to the LLM exactly once — they are automatically removed from cache after delivery. Multiple paths can be separated by commas. IMPORTANT: You MUST specify the 'intent' parameter to describe what specific information you need from the visual input.",
+		Description: "Load one image/video file for multimodal visual analysis by the LLM's vision capability. Provide a single file path and specify what to analyze. This tool supports:\n- OCR / text recognition: recognize and extract text from images, scanned documents, screenshots, signs, handwriting\n- Image understanding: describe scenes, objects, people, layouts, colors, and visual relationships\n- Table/data extraction: extract structured data from tables, charts, graphs, and infographics\n- Document analysis: extract content from report pages, forms, certificates, invoices\n- Video frame analysis: analyze screenshots or extracted frames from videos\n\nThe file is sent to the LLM exactly once in the next iteration and automatically removed from cache after delivery. To analyze multiple files, call this tool once per file. IMPORTANT: You MUST specify the 'intent' parameter to describe what specific information you need from the visual input.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"paths": map[string]interface{}{
+				"path": map[string]interface{}{
 					"type":        "string",
-					"description": "List of image file paths to load for visual analysis, separated by commas (e.g., 'image1.png,image2.jpg')",
+					"description": "Single image/video file path to load for visual analysis (e.g., 'screenshot.png', 'diagram.jpg', 'video_frame.mp4')",
 				},
 				"intent": map[string]interface{}{
 					"type":        "string",
-					"description": "Describe what specific information you need to analyze from the images. Examples: '识别发票中的金额和日期', '提取表格中的所有数据列', '描述这张照片中的场景和人物', '分析截图中显示的代码错误'. This intent guides the vision analysis and produces structured output.",
+					"description": "Describe what specific information you need to analyze from the image/video. Examples: '识别这张发票中的金额和日期', '提取表格中的所有数据列', '描述这张照片中的场景和人物', '分析截图中显示的代码错误'. This intent guides the vision analysis and produces structured output.",
 				},
 			},
-			"required": []string{"paths", "intent"},
+			"required": []string{"path", "intent"},
 		},
 		Callback: a.visualAnalysisTool,
 	})

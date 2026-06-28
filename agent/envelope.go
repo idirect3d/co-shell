@@ -152,9 +152,9 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
 	skipTaskPlan := a.isLastToolTaskPlan()
 
 	// Top-level files (depth=0) and two-level listing (depth=1) for bin and research
-	files := strings.TrimRight(listFilesForPrompt(cwd, 0, 128), "\n")
-	binFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "bin"), 0, 64), "\n")
-	researchFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "research"), 0, 64), "\n")
+	files := strings.TrimRight(listFilesForPrompt(cwd, 0, 128).listing, "\n")
+	binFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "bin"), 0, 64).listing, "\n")
+	researchFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "research"), 0, 64).listing, "\n")
 
 	// Get per-iteration token usage for context_window (most recent LLM call only)
 	_, _, totalTokens := a.IterTokenDelta()
@@ -176,9 +176,17 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
 	sb.WriteString(strconv.Itoa(messageNo))
 	sb.WriteString("</message_no>\n")
 	sb.WriteString("<context_window>")
-	sb.WriteString(strconv.Itoa(totalTokens))
-	sb.WriteString("/")
-	sb.WriteString(strconv.Itoa(maxModelLen))
+	sb.WriteString(formatTokens(totalTokens))
+	sb.WriteString(" / ")
+	sb.WriteString(formatTokenSize(maxModelLen))
+	sb.WriteString(" tokens used (")
+	if maxModelLen > 0 {
+		pct := int(float64(totalTokens) * 100.0 / float64(maxModelLen))
+		sb.WriteString(strconv.Itoa(pct))
+		sb.WriteString("%)")
+	} else {
+		sb.WriteString("?%)")
+	}
 	sb.WriteString("</context_window>\n")
 	sb.WriteString("<cwd>")
 	sb.WriteString(cwd)
@@ -297,4 +305,38 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 	existing.AppendTextPart(envText)
 	result[lastUserIdx] = existing
 	return result
+}
+
+// formatTokens formats a number with thousand separators (e.g., 67812 → "67,812").
+func formatTokens(n int) string {
+	s := strconv.Itoa(n)
+	// Insert comma separators every 3 digits from the right
+	if len(s) <= 3 {
+		return s
+	}
+	var parts []string
+	for i := len(s); i > 0; i -= 3 {
+		start := i - 3
+		if start < 0 {
+			start = 0
+		}
+		parts = append([]string{s[start:i]}, parts...)
+	}
+	return strings.Join(parts, ",")
+}
+
+// formatTokenSize formats a maximum model length with K/M suffix (e.g., 262144 → "256K").
+func formatTokenSize(n int) string {
+	if n < 1000 {
+		return strconv.Itoa(n)
+	}
+	if n%1024 == 0 {
+		return strconv.Itoa(n/1024) + "K"
+	}
+	if n%1048576 == 0 {
+		return strconv.Itoa(n/1048576) + "M"
+	}
+	// Round to nearest K
+	k := (n + 512) / 1024
+	return strconv.Itoa(k) + "K"
 }
