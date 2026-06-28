@@ -352,13 +352,13 @@ This is the generated file.</content>
 </write_to_file>`
 
 	enMessages[KeyToolUsageVisualAnalysis] = `## visual_analysis
-Description: Load visual media files (images, screenshots, scanned documents, video frames, etc.) for multimodal vision analysis. Provide file paths (comma-separated) and specify what to analyze. Files are sent to the LLM exactly once and automatically removed from cache after delivery. Supports: OCR/text recognition, image understanding, table/data extraction, document analysis, video frame analysis, etc. **You MUST specify the 'intent' parameter to describe what specific information to analyze.**
+Description: Load one visual media file (image, screenshot, scanned document, video frame, etc.) for multimodal vision analysis. Provide a single file path and specify what to analyze. The file is sent to the LLM exactly once and automatically removed from cache after delivery. Supports: OCR/text recognition, image understanding, table/data extraction, document analysis, video frame analysis, etc. To analyze multiple files, call this tool once per file. **You MUST specify the 'intent' parameter to describe what specific information to analyze.**
 Parameters:
-- paths (required) Comma-separated image file paths to load for visual analysis (e.g., 'image1.png,image2.jpg')
-- intent (required) Describe what specific information to analyze from the images. Examples: 'Extract invoice amounts and dates', 'Extract all data columns from the table', 'Describe the scene and people in this photo', 'Analyze the code errors shown in the screenshot'
+- path (required) Single image/video file path to load for visual analysis (e.g., 'screenshot.png', 'diagram.jpg', 'video_frame.mp4')
+- intent (required) Describe what specific information to analyze from the image/video. Examples: 'Extract invoice amounts and dates', 'Extract all data columns from the table', 'Describe the scene and people in this photo', 'Analyze the code errors shown in the screenshot'
 Usage:
 <visual_analysis>
-  <paths>screenshot.png,chart.jpg</paths>
+  <path>screenshot.png</path>
   <intent>Extract the invoice amount and date from this image</intent>
 </visual_analysis>`
 

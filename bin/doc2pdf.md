@@ -38,4 +38,4 @@ python3 bin/doc2pdf.py input.docx -o output.pdf --engine python
 1. User needs to convert a Word document for PDF viewing or PNG conversion.
 2. Convert: `python3 bin/doc2pdf.py report.docx -o report.pdf`
 3. If PNG pages needed: `python3 bin/pdf2png.py report.pdf -o ./pages`
-4. Use `add_images` to load page images and analyze with vision model.
+4. Use `visual_analysis` to load page images and analyze with vision model.
