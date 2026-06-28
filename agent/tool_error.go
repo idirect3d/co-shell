@@ -106,9 +106,7 @@ func getRequiredParamsDescription(toolName string) string {
 		return "'path' (string: file path) AND 'replacements' (array: SEARCH/REPLACE blocks) - BOTH are required"
 	case "list_code_definition_names":
 		return "'path' (string: directory path) - required"
-	case "add_images":
-		return "'paths' (string: comma-separated image paths) - required"
-	case "remove_images":
+	case "visual_analysis":
 		return "'paths' (string: comma-separated image paths) - required"
 	case "ask_followup_question":
 		return "'question' (string: question text) - required; 'options' is optional"

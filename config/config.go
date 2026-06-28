@@ -653,9 +653,7 @@ func DefaultPlanToolModes() map[string]string {
 		"list_settings":       "auto",
 		"evaluate_expression": "auto",
 		// Images (readonly)
-		"add_images":    "auto",
-		"remove_images": "auto",
-		"clear_images":  "auto",
+		"visual_analysis": "auto",
 		// Default for all other tools: disabled
 		"default": "disabled",
 	}

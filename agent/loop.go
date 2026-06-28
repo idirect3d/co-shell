@@ -28,9 +28,11 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -105,7 +107,7 @@ type Agent struct {
 	taskPlanMgr     *taskplan.Manager
 	scheduler       *scheduler.Scheduler
 	name            string   // agent name for identification (default: "co-shell")
-	imagePaths      []string // paths to image files for multimodal input
+	imagePaths      []string // paths to image files for multimodal input (cleared after one-shot delivery)
 	workspacePath   string   // workspace root path for loading external config files
 	memoryEnabled   bool     // whether persistent memory tools are enabled
 	planEnabled     bool     // whether task plan tools are enabled
@@ -331,6 +333,74 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	// and the tool result creation paths in run_stream.go/run.go).
 	// This ensures the envelope is frozen at message creation time and does not
 	// change or accumulate across LLM iterations.
+
+	// Inject cached images into the last user message dynamically.
+	// When add_images has been called by the LLM, image paths are stored in
+	// a.imagePaths. We read and encode them here so that every LLM call sees
+	// the actual image data as ContentParts appended to the last user message.
+	// The images are injected only into the returned msgs slice — it does
+	// NOT pollute a.messages (the persistent history).
+	// No text is injected — the add_images tool result already carries the
+	// recognition intent as text.
+	if len(a.imagePaths) > 0 && len(msgs) > 0 {
+		lastIdx := len(msgs) - 1
+		lastMsg := msgs[lastIdx]
+		if lastMsg.Role == "user" {
+			// Read and encode each cached image, append as ContentPart
+			for _, imgPath := range a.imagePaths {
+				// Resolve relative paths
+				absPath := imgPath
+				if !filepath.IsAbs(imgPath) {
+					cwd, err := os.Getwd()
+					if err != nil {
+						log.Warn("buildContextMessages: cannot get cwd for image %q: %v", imgPath, err)
+						continue
+					}
+					absPath = filepath.Join(cwd, imgPath)
+				}
+
+				// Read image file
+				data, err := os.ReadFile(absPath)
+				if err != nil {
+					log.Warn("buildContextMessages: cannot read image %q: %v", imgPath, err)
+					continue
+				}
+
+				// Detect MIME type
+				ext := strings.ToLower(filepath.Ext(absPath))
+				mimeType := "image/png"
+				switch ext {
+				case ".png":
+					mimeType = "image/png"
+				case ".jpg", ".jpeg":
+					mimeType = "image/jpeg"
+				case ".gif":
+					mimeType = "image/gif"
+				case ".webp":
+					mimeType = "image/webp"
+				case ".bmp":
+					mimeType = "image/bmp"
+				}
+
+				// Encode as base64 data URI
+				base64Data := base64.StdEncoding.EncodeToString(data)
+				dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+
+				lastMsg.ContentParts = append(lastMsg.ContentParts, llm.ContentPart{
+					Type: llm.ContentPartImageURL,
+					ImageURL: &llm.ContentPartImage{
+						URL:    dataURI,
+						Detail: "auto",
+					},
+				})
+			}
+			msgs[lastIdx] = lastMsg
+		}
+
+		// One-shot: clear image paths after injection so they are not re-sent
+		a.imagePaths = nil
+	}
+
 	return msgs
 }
 

@@ -295,23 +295,23 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Callback: a.listCodeDefinitionNamesTool,
 	})
 	tools = append(tools, llm.Tool{
-		Name:        "add_images",
-		Description: "Add image file paths to the image cache and specify what content to recognize from them. After adding, use the LLM's multimodal vision capability to analyze the images according to the specified intent. Multiple paths can be separated by commas. IMPORTANT: You MUST specify the 'intent' parameter to describe what specific information you need from the images, creating a complete recognition loop.",
+		Name:        "visual_analysis",
+		Description: "Load visual media files (images, screenshots, scanned documents) for comprehensive visual analysis by the LLM's multimodal vision capability. Provide file paths (comma-separated) and specify what to analyze. This tool supports:\n- OCR / text recognition: recognize and extract text from images, scanned documents, screenshots, signs, handwriting\n- Image understanding: describe scenes, objects, people, layouts, colors, and visual relationships\n- Table/data extraction: extract structured data from tables, charts, graphs, and infographics\n- Document analysis: extract content from report pages, forms, certificates, invoices\n- Video frame analysis: analyze screenshots or extracted frames from videos\n\nThe images are sent to the LLM exactly once — they are automatically removed from cache after delivery. Multiple paths can be separated by commas. IMPORTANT: You MUST specify the 'intent' parameter to describe what specific information you need from the visual input.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"paths": map[string]interface{}{
 					"type":        "string",
-					"description": "List of image file paths to add to the cache, separated by commas (e.g., 'image1.png,image2.jpg')",
+					"description": "List of image file paths to load for visual analysis, separated by commas (e.g., 'image1.png,image2.jpg')",
 				},
 				"intent": map[string]interface{}{
 					"type":        "string",
-					"description": "Describe what specific information you need to recognize from the images. For example: '识别这张发票中的金额和日期', '提取表格中的数据列', '找出图中所有错误标注的位置'. This intent will be used to guide the vision analysis and produce structured output.",
+					"description": "Describe what specific information you need to analyze from the images. Examples: '识别发票中的金额和日期', '提取表格中的所有数据列', '描述这张照片中的场景和人物', '分析截图中显示的代码错误'. This intent guides the vision analysis and produces structured output.",
 				},
 			},
 			"required": []string{"paths", "intent"},
 		},
-		Callback: a.addImagesTool,
+		Callback: a.visualAnalysisTool,
 	})
 	tools = append(tools, llm.Tool{
 		Name:        "replace_in_file",
@@ -391,41 +391,6 @@ Critical rules:
 		},
 		Callback: a.writeToFileTool,
 	})
-	tools = append(tools, llm.Tool{
-		Name:        "remove_images",
-		Description: "Remove image file paths from the image cache. Multiple paths can be separated by commas. Use this when you no longer need certain images in the conversation.",
-		Parameters: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
-				},
-				"paths": map[string]interface{}{
-					"type":        "string",
-					"description": "Comma-separated list of image file paths to remove from the cache",
-				},
-			},
-			"required": []string{"intent", "paths"},
-		},
-		Callback: a.removeImagesTool,
-	})
-	tools = append(tools, llm.Tool{
-		Name:        "clear_images",
-		Description: "Clear all cached image file paths. After calling this, no images will be included in subsequent conversations. Use this when you want to stop sending images to the LLM.",
-		Parameters: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
-				},
-			},
-			"required": []string{"intent"},
-		},
-		Callback: a.clearImagesTool,
-	})
-
 	// Add sub-agent tools only if sub-agent enabled
 	if a.subAgentEnabled {
 		subAgentTools := []llm.Tool{
