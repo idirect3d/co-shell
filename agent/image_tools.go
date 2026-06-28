@@ -38,40 +38,41 @@ import (
 	"github.com/idirect3d/co-shell/log"
 )
 
-// VisualAnalysisTool adds image file paths to the cache and flags them for
-// one-shot delivery on the next LLM call. After the LLM processes the images,
-// the flag is cleared automatically so images are not sent again.
-func (a *Agent) VisualAnalysisTool(paths string) (string, error) {
+// VisualAnalysisTool adds an image file path to the cache and flags it for
+// one-shot delivery on the next LLM call. After the LLM processes the image,
+// the flag is cleared automatically so the image is not sent again.
+func (a *Agent) VisualAnalysisTool(path string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	newPaths := strings.Split(paths, ",")
-	added := 0
-	for _, p := range newPaths {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("path is required")
+	}
+
+	// Check if the file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// Try resolving relative to workspace
+		absPath := path
+		if !filepath.IsAbs(path) {
+			cwd, _ := os.Getwd()
+			absPath = filepath.Join(cwd, path)
 		}
-		// Check if already in cache
-		exists := false
-		for _, existing := range a.imagePaths {
-			if existing == p {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			a.imagePaths = append(a.imagePaths, p)
-			added++
+		if _, err2 := os.Stat(absPath); os.IsNotExist(err2) {
+			return "", fmt.Errorf("file not found: %s", path)
 		}
 	}
 
-	return fmt.Sprintf(
-		"✅ 已添加 %d 张图片到缓存（当前共 %d 张，总数不应超过5张）\n\n"+
-			"已加载图片:\n%s\n\n"+
-			"📌 请立即利用多模态视觉能力，根据识别意图逐张分析图片内容，将识别结果以结构化方式呈现。\n"+
-			"   注意：此工具调用是一次性的，图片仅发送一次，不会在后续对话中保留。如需再次分析其他图片，请重新调用此工具。",
-		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths)), nil
+	// Check if already in cache
+	for _, existing := range a.imagePaths {
+		if existing == path {
+			return fmt.Sprintf("✅ 图片已在缓存中: %s", path), nil
+		}
+	}
+
+	a.imagePaths = append(a.imagePaths, path)
+
+	return fmt.Sprintf("请根据以下意图分析已上传视觉文件（%s）的内容，并将分析结果描述出来，如果内容较多，建议及时将识别结果保存到同名 .md 文件中供后续使用（替换扩展名为 .md）。\n", path), nil
 }
 func listImagesForPrompt(paths []string) string {
 	if len(paths) == 0 {
@@ -153,13 +154,14 @@ func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Me
 	}, nil
 }
 
-// visualAnalysisTool adds image paths to cache for one-shot delivery.
+// visualAnalysisTool adds a single image path to cache for one-shot delivery.
 func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("visualAnalysisTool called: args=%v", args)
-	pathsStr, ok := args["paths"].(string)
-	if !ok {
-		return "", fmt.Errorf("paths argument is required")
+	path, ok := args["path"].(string)
+	if !ok || strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("path argument is required — provide a single image/video file path")
 	}
+	path = strings.TrimSpace(path)
 
 	// Extract intent parameter (required)
 	intent, _ := args["intent"].(string)
@@ -167,33 +169,19 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("intent argument is required — you must specify what information you need to analyze from the visual input")
 	}
 
-	// Split by comma and trim spaces
-	newPaths := strings.Split(pathsStr, ",")
-	added := 0
-	for _, p := range newPaths {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		// Check if already in cache
-		exists := false
-		for _, existing := range a.imagePaths {
-			if existing == p {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			a.imagePaths = append(a.imagePaths, p)
-			added++
+	// Check if already in cache
+	a.mu.Lock()
+	for _, existing := range a.imagePaths {
+		if existing == path {
+			a.mu.Unlock()
+			return fmt.Sprintf("✅ 图片已在缓存中: %s\n\n🎯 识别意图：%s\n\n📌 图片已在缓存中，将在下一次 LLM 调用时发送。", path, intent), nil
 		}
 	}
 
+	a.imagePaths = append(a.imagePaths, path)
+	a.mu.Unlock()
+
 	return fmt.Sprintf(
-		"✅ 已添加 %d 张图片到缓存（当前共 %d 张，总数不应超过5张）\n\n"+
-			"已加载图片:\n%s\n\n"+
-			"🎯 识别意图：%s\n\n"+
-			"📌 请立即利用多模态视觉能力，根据识别意图逐张分析图片内容，将识别结果以结构化方式呈现。\n"+
-			"   注意：此调用是一次性的，图片仅发送一次，发送后自动清理缓存，不会在后续对话中保留。",
-		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths), intent), nil
+		"请根据以下意图分析已上传视觉文件（%s）的内容，并将分析结果立即保存到 .md 文件中供后续使用，否则识别的信息将会丢失！",
+		path), nil
 }
