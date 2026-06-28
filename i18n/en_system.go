@@ -248,7 +248,7 @@ Usage:
 </execute_command>`
 
 	enMessages[KeyToolUsageReadFile] = `## read_file
-Description: Read the contents of a file at the specified path. Returns file content with line numbers. Supports start_line and end_line to read specific sections of large files. **IMPORTANT: This tool can ONLY read text files (e.g., .txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (e.g., .png, .jpg, .gif, .webp, .bmp, .docx, .doc, .xls, .xlsx, .pdf, .wps, or other binary formats) or other binary files — use add_images to load images for multimodal analysis instead.**
+Description: Read the contents of a file at the specified path. Returns file content with line numbers. Supports start_line and end_line to read specific sections of large files. **IMPORTANT: This tool can ONLY read text files (e.g., .txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (e.g., .png, .jpg, .gif, .webp, .bmp, .docx, .doc, .xls, .xlsx, .pdf, .wps, or other binary formats) or other binary files — use visual_analysis to load images for multimodal analysis instead.**
 Parameters:
 - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The file path to read (absolute or relative to current working directory)
@@ -351,36 +351,16 @@ Usage:
 This is the generated file.</content>
 </write_to_file>`
 
-	enMessages[KeyToolUsageAddImages] = `## add_images
-Description: Add image file paths to the image cache and specify what content to recognize from them. After adding, the LLM uses multimodal vision to analyze the images according to the specified intent. Multiple paths can be comma-separated. **You MUST specify the 'intent' parameter to describe what specific information you need from the images, forming a complete recognition loop.**
+	enMessages[KeyToolUsageVisualAnalysis] = `## visual_analysis
+Description: Load visual media files (images, screenshots, scanned documents, video frames, etc.) for multimodal vision analysis. Provide file paths (comma-separated) and specify what to analyze. Files are sent to the LLM exactly once and automatically removed from cache after delivery. Supports: OCR/text recognition, image understanding, table/data extraction, document analysis, video frame analysis, etc. **You MUST specify the 'intent' parameter to describe what specific information to analyze.**
 Parameters:
-- paths (required) List of image file paths to add to the cache, separated by commas
-- intent (required) Describe what specific information you need to recognize from the images. For example: 'Extract the invoice amount and date', 'Extract data columns from the table', 'Find all incorrectly labeled positions in the image'
+- paths (required) Comma-separated image file paths to load for visual analysis (e.g., 'image1.png,image2.jpg')
+- intent (required) Describe what specific information to analyze from the images. Examples: 'Extract invoice amounts and dates', 'Extract all data columns from the table', 'Describe the scene and people in this photo', 'Analyze the code errors shown in the screenshot'
 Usage:
-<add_images>
+<visual_analysis>
   <paths>screenshot.png,chart.jpg</paths>
   <intent>Extract the invoice amount and date from this image</intent>
-</add_images>`
-
-	enMessages[KeyToolUsageRemoveImages] = `## remove_images
-Description: Remove image file paths from the image cache. Multiple paths can be comma-separated.
-Parameters:
-- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-- paths (required) Comma-separated list of image file paths to remove from the cache
-Usage:
-<remove_images>
-  <intent>No longer need the previously added screenshots, removing them from cache</intent>
-  <paths>screenshot.png</paths>
-</remove_images>`
-
-	enMessages[KeyToolUsageClearImages] = `## clear_images
-Description: Clear all cached image file paths. After calling, subsequent conversations will no longer include images.
-Parameters:
-- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-Usage:
-<clear_images>
-  <intent>No longer need to send images in the current conversation, clearing cache</intent>
-</clear_images>`
+</visual_analysis>`
 
 	enMessages[KeyToolUsageLaunchSubAgent] = `## launch_sub_agent
 Description: Launch a sub-agent process to communicate with another co-shell agent for information sharing. The target agent's workspace is a sibling folder of the current agent's workspace, identified by sub_agent_name. The sub-agent shares the same terminal as the parent agent. After the sub-agent completes, its results (including output files) are collected and reported. **This is equal information sharing, not task delegation.**
@@ -1189,7 +1169,7 @@ Usage: python3 bin/md2wechat.py <input.md> [output.html]
 When analyzing Word/PDF documents containing complex tables, charts, or layouts, use the standard approach:
 
 1. **PDF documents**: python3 bin/pdf2png.py <document.pdf> -o ./pages
-2. Load the generated PNG images using the add_images tool into multimodal context
+2. Load the generated PNG images using the visual_analysis tool into multimodal context
 3. Analyze complex document structures and content with the vision model
 
 If LibreOffice is not installed, doc2pdf falls back to plain text extraction (formatting lost).

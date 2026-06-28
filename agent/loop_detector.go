@@ -288,19 +288,22 @@ func truncateString(s string, maxLen int) string {
 }
 
 // ToolCallLoopDetector detects when the LLM repeatedly calls the same tool
-// with the same arguments across iterations. Each unique (toolName + canonical args)
-// combination is tracked until it reaches the threshold, at which point intervention
-// is triggered.
+// with the same arguments across iterations. Only the most recent tool call
+// key is tracked — when a different tool or argument combination arrives,
+// the previous key's count is cleared. This ensures only truly consecutive
+// identical (tool + args) patterns are detected.
 //
 // Key design:
 //   - Arguments are canonicalized (re-marshaled) so key ordering and whitespace
 //     differences don't produce false negatives.
-//   - Prune() must be called after each iteration to remove keys that were NOT
-//     present in the current iteration, breaking the consecutive count chain.
-//   - This ensures only truly repeated patterns are caught, not tools that were
-//     called legitimately in different contexts across iterations.
+//   - lastKey tracks the most recent (tool + canonicalArgs) seen.
+//     If the incoming call has a different key, the previous key's count
+//     is wiped and the new key starts at 1.
+//   - This naturally handles multi-tool iterations: when iteration N calls
+//     tool A and iteration N+1 calls tool B, A's count is cleared.
 type ToolCallLoopDetector struct {
 	threshold  int
+	lastKey    string         // the most recent key seen
 	callCounts map[string]int // key = toolName + "|" + canonicalArgs → consecutive count
 }
 
@@ -352,8 +355,19 @@ func canonicalizeJSON(raw string) string {
 
 // AddCall records a tool call and returns the error if the same call has
 // been made >= threshold times consecutively.
+// When a different tool or argument combination arrives (key != lastKey),
+// the previous key's count is cleared, so only truly consecutive identical
+// (tool + args) patterns accumulate.
 func (tld *ToolCallLoopDetector) AddCall(name, args string) error {
 	key := name + "|" + canonicalizeJSON(args)
+
+	// If this is a different tool/args from the most recently tracked one,
+	// clear the previous key's count so it starts fresh if it reappears later.
+	if tld.lastKey != "" && key != tld.lastKey {
+		delete(tld.callCounts, tld.lastKey)
+	}
+
+	tld.lastKey = key
 	tld.callCounts[key]++
 	count := tld.callCounts[key]
 
