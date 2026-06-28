@@ -38,9 +38,10 @@ import (
 	"github.com/idirect3d/co-shell/log"
 )
 
-// AddImages adds image file paths to the image cache.
-// paths is a comma-separated list of image file paths.
-func (a *Agent) AddImages(paths string) (string, error) {
+// VisualAnalysisTool adds image file paths to the cache and flags them for
+// one-shot delivery on the next LLM call. After the LLM processes the images,
+// the flag is cleared automatically so images are not sent again.
+func (a *Agent) VisualAnalysisTool(paths string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -68,11 +69,8 @@ func (a *Agent) AddImages(paths string) (string, error) {
 	return fmt.Sprintf(
 		"✅ 已添加 %d 张图片到缓存（当前共 %d 张，总数不应超过5张）\n\n"+
 			"已加载图片:\n%s\n\n"+
-			"📌 处理步骤：\n"+
-			"1. 识别——仔细查看每张图片，识别其中与当前任务目标相关的内容\n"+
-			"2. 保存——将识别的关键内容（文字、数据、结论等）写到与图片同名的 .md 文件中（例如 screenshot.png → screenshot.md），以便后续直接读取\n"+
-			"3. 清空——清空图片缓存（调用 clear_images），继续加载下一批图片\n\n"+
-			"⚠️ 注意：一次性加载的图片不应超过5张。请逐批加载、识别、保存后再继续。",
+			"📌 请立即利用多模态视觉能力，根据识别意图逐张分析图片内容，将识别结果以结构化方式呈现。\n"+
+			"   注意：此工具调用是一次性的，图片仅发送一次，不会在后续对话中保留。如需再次分析其他图片，请重新调用此工具。",
 		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths)), nil
 }
 func listImagesForPrompt(paths []string) string {
@@ -86,71 +84,18 @@ func listImagesForPrompt(paths []string) string {
 	return sb.String()
 }
 
-// RemoveImages removes image file paths from the image cache.
-// paths is a comma-separated list of image file paths.
-func (a *Agent) RemoveImages(paths string) (string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	removePaths := strings.Split(paths, ",")
-	removed := 0
-	var remaining []string
-	for _, p := range a.imagePaths {
-		shouldRemove := false
-		for _, rp := range removePaths {
-			if p == strings.TrimSpace(rp) {
-				shouldRemove = true
-				break
-			}
-		}
-		if shouldRemove {
-			removed++
-		} else {
-			remaining = append(remaining, p)
-		}
-	}
-	a.imagePaths = remaining
-
-	return fmt.Sprintf("✅ 已从缓存中移除 %d 张图片（当前共 %d 张）", removed, len(a.imagePaths)), nil
-}
-
-// ClearImages clears all cached image file paths.
-func (a *Agent) ClearImages() (string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	count := len(a.imagePaths)
-	a.imagePaths = nil
-	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
-}
-
-// ListImages returns a formatted list of all cached image file paths.
-func (a *Agent) ListImages() (string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if len(a.imagePaths) == 0 {
-		return "📷 图片缓存为空", nil
-	}
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📷 图片缓存（共 %d 张）:\n", len(a.imagePaths)))
-	for i, p := range a.imagePaths {
-		sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, p))
-	}
-	return sb.String(), nil
-}
-
 // buildMultimodalMessage creates a Message with multimodal content from text and image paths.
 // Images are read from disk and encoded as base64 data URIs.
 func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Message, error) {
 	parts := make([]llm.ContentPart, 0, 1+len(imagePaths))
 
-	// Add text part
-	parts = append(parts, llm.ContentPart{
-		Type: llm.ContentPartText,
-		Text: text,
-	})
+	// Add text part (only if not empty)
+	if text != "" {
+		parts = append(parts, llm.ContentPart{
+			Type: llm.ContentPartText,
+			Text: text,
+		})
+	}
 
 	// Add image parts
 	for _, imgPath := range imagePaths {
@@ -208,9 +153,9 @@ func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Me
 	}, nil
 }
 
-// addImagesTool adds image file paths to the image cache.
-func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("addImagesTool called: args=%v", args)
+// visualAnalysisTool adds image paths to cache for one-shot delivery.
+func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	log.Debug("visualAnalysisTool called: args=%v", args)
 	pathsStr, ok := args["paths"].(string)
 	if !ok {
 		return "", fmt.Errorf("paths argument is required")
@@ -219,7 +164,7 @@ func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) 
 	// Extract intent parameter (required)
 	intent, _ := args["intent"].(string)
 	if intent == "" {
-		return "", fmt.Errorf("intent argument is required — you must specify what information you need to recognize from the images")
+		return "", fmt.Errorf("intent argument is required — you must specify what information you need to analyze from the visual input")
 	}
 
 	// Split by comma and trim spaces
@@ -248,46 +193,7 @@ func (a *Agent) addImagesTool(ctx context.Context, args map[string]interface{}) 
 		"✅ 已添加 %d 张图片到缓存（当前共 %d 张，总数不应超过5张）\n\n"+
 			"已加载图片:\n%s\n\n"+
 			"🎯 识别意图：%s\n\n"+
-			"📌 图片已就绪，请立即利用多模态视觉能力，根据上述识别意图逐张分析图片内容，将识别结果以结构化方式呈现。\n"+
-			"   完成当前批次的识别后，如需继续处理更多图片，请先调用 clear_images 清空缓存，再添加下一批。",
+			"📌 请立即利用多模态视觉能力，根据识别意图逐张分析图片内容，将识别结果以结构化方式呈现。\n"+
+			"   注意：此调用是一次性的，图片仅发送一次，发送后自动清理缓存，不会在后续对话中保留。",
 		added, len(a.imagePaths), listImagesForPrompt(a.imagePaths), intent), nil
-}
-
-// removeImagesTool removes image file paths from the image cache.
-func (a *Agent) removeImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("removeImagesTool called: args=%v", args)
-	pathsStr, ok := args["paths"].(string)
-	if !ok {
-		return "", fmt.Errorf("paths argument is required")
-	}
-
-	// Split by comma and trim spaces
-	removePaths := strings.Split(pathsStr, ",")
-	removed := 0
-	var remaining []string
-	for _, p := range a.imagePaths {
-		shouldRemove := false
-		for _, rp := range removePaths {
-			if p == strings.TrimSpace(rp) {
-				shouldRemove = true
-				break
-			}
-		}
-		if shouldRemove {
-			removed++
-		} else {
-			remaining = append(remaining, p)
-		}
-	}
-	a.imagePaths = remaining
-
-	return fmt.Sprintf("✅ 已从缓存中移除 %d 张图片（当前共 %d 张）", removed, len(a.imagePaths)), nil
-}
-
-// clearImagesTool clears all cached image file paths.
-func (a *Agent) clearImagesTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	log.Debug("clearImagesTool called: args=%v", args)
-	count := len(a.imagePaths)
-	a.imagePaths = nil
-	return fmt.Sprintf("✅ 已清空图片缓存（共移除 %d 张图片）", count), nil
 }

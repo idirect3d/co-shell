@@ -582,6 +582,8 @@
   - executeToolCall() 返回结果时自动追加 [意图] 提醒 LLM 回顾原始调用目标
   - 同步更新中英文 XML 模式工具描述（zh_system.go / en_system.go）
 
+- [x] FIX-252 修复 add_images 图片数据未发往 LLM 的问题 [BUILD-267]
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

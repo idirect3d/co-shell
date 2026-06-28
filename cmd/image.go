@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-28
-// Last Modified: 2026-04-28
+// Last Modified: 2026-06-28
 //
 // MIT License
 //
@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -35,12 +35,12 @@ import (
 
 // ImageHandler handles the .image built-in command.
 type ImageHandler struct {
-	agent *agent.Agent
+	ag *agent.Agent
 }
 
 // NewImageHandler creates a new ImageHandler.
 func NewImageHandler(ag *agent.Agent) *ImageHandler {
-	return &ImageHandler{agent: ag}
+	return &ImageHandler{ag: ag}
 }
 
 // Handle processes .image commands.
@@ -56,39 +56,20 @@ func (h *ImageHandler) Handle(args []string) (string, error) {
 			return "", fmt.Errorf("用法: .image add <path1,path2,...>")
 		}
 		paths := strings.Join(args[1:], " ")
-		return h.agent.AddImages(paths)
-
-	case "remove":
-		if len(args) < 2 {
-			return "", fmt.Errorf("用法: .image remove <path1,path2,...>")
-		}
-		paths := strings.Join(args[1:], " ")
-		return h.agent.RemoveImages(paths)
-
-	case "clear":
-		return h.agent.ClearImages()
-
-	case "list":
-		return h.agent.ListImages()
+		return h.ag.VisualAnalysisTool(paths)
 
 	default:
-		return "", fmt.Errorf("未知的 .image 子命令: %s（可用: add, remove, clear, list）", subcommand)
+		return "", fmt.Errorf("未知的 .image 子命令: %s（可用: add）", subcommand)
 	}
 }
 
 // showImageHelp displays the .image command usage.
 func showImageHelp() string {
-	return `📷 图片缓存管理 (.image)
+	return `📷 视觉分析 (.image)
 
-  .image add <path1,path2,...>    添加图片到缓存
-  .image remove <path1,path2,...> 从缓存中移除图片
-  .image clear                    清空图片缓存
-  .image list                     列出当前缓存的图片
+  .image add <path1,path2,...>    添加图片进行分析（一次性发送）
 
 示例:
   .image add screenshot.png
-  .image add photo1.jpg,photo2.png
-  .image remove photo1.jpg
-  .image clear
-  .image list`
+  .image add photo1.jpg,photo2.png`
 }
