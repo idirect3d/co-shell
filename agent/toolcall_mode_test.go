@@ -9,14 +9,7 @@ import (
 )
 
 func TestParseXMLToolCalls_CommandWithSpecialChars(t *testing.T) {
-	// Simulate the exact XML from the user's feedback
-	xmlInput := `<execute_command>
-<command>cd /Users/direct3d/agent/researcher/research/浏览器自动化与模拟人操作技术调研 && curl -s "https://html.duckduckgo.com/html/?q=browser+automation+framework+Selenium+Playwright+Puppeteer+comparison+2025" | grep -oP 'class="result__snippet"[^>]*>[^<]*' | head -20
-</command>
-<timeout_seconds>
-30
-</timeout_seconds>
-</execute_command>`
+	xmlInput := "<execute_command>\n<command>cd /Users/direct3d/agent/researcher/research/浏览器自动化与模拟人操作技术调研 && curl -s \"https://html.duckduckgo.com/html/?q=browser+automation+framework+Selenium+Playwright+Puppeteer+comparison+2025\" | grep -oP 'class=\"result__snippet\"[^>]*>[^<]*' | head -20\n</command>\n<timeout_seconds>\n30\n</timeout_seconds>\n</execute_command>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -28,13 +21,11 @@ func TestParseXMLToolCalls_CommandWithSpecialChars(t *testing.T) {
 		t.Errorf("expected tool name 'execute_command', got %q", call.Name)
 	}
 
-	// Parse the arguments JSON
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
 		t.Fatalf("failed to parse arguments JSON: %v\nJSON: %s", err, call.Arguments)
 	}
 
-	// Check command
 	cmd, ok := args["command"]
 	if !ok {
 		t.Fatalf("missing 'command' argument, args: %v", args)
@@ -48,12 +39,10 @@ func TestParseXMLToolCalls_CommandWithSpecialChars(t *testing.T) {
 	}
 	t.Logf("command: %s", cmdStr)
 
-	// Check timeout_seconds
 	ts, ok := args["timeout_seconds"]
 	if !ok {
 		t.Fatalf("missing 'timeout_seconds' argument, args: %v", args)
 	}
-	// timeout_seconds should be a number
 	tsFloat, ok := ts.(float64)
 	if !ok {
 		t.Fatalf("expected 'timeout_seconds' to be a number, got %T: %v", ts, ts)
@@ -64,10 +53,7 @@ func TestParseXMLToolCalls_CommandWithSpecialChars(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_CDATA(t *testing.T) {
-	xmlInput := `<execute_command>
-<command><![CDATA[cd /path && curl -s "https://example.com/?q=test&lang=go" | grep -oP 'pattern' | head -20]]></command>
-<timeout_seconds>30</timeout_seconds>
-</execute_command>`
+	xmlInput := "<execute_command>\n<command><![CDATA[cd /path && curl -s \"https://example.com/?q=test&lang=go\" | grep -oP 'pattern' | head -20]]></command>\n<timeout_seconds>30</timeout_seconds>\n</execute_command>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -95,12 +81,7 @@ func TestParseXMLToolCalls_CDATA(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_SpecialCharsWithoutCDATA(t *testing.T) {
-	// LLM puts special chars like '<', '>', '&' in content without CDATA wrapping.
-	// The parser should still be able to find the closing tag and extract content.
-	xmlInput := `<execute_command>
-<command>curl -s "https://example.com/?q=test&lang=go" | grep -oP 'class="result__snippet"[^>]*>[^<]*' | head -20</command>
-<timeout_seconds>30</timeout_seconds>
-</execute_command>`
+	xmlInput := "<execute_command>\n<command>curl -s \"https://example.com/?q=test&lang=go\" | grep -oP 'class=\"result__snippet\"[^>]*>[^<]*' | head -20</command>\n<timeout_seconds>30</timeout_seconds>\n</execute_command>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -130,7 +111,6 @@ func TestParseXMLToolCalls_SpecialCharsWithoutCDATA(t *testing.T) {
 	}
 	t.Logf("command: %s", cmdStr)
 
-	// Verify the command contains the special chars
 	if !strings.Contains(cmdStr, "&") {
 		t.Error("expected command to contain '&'")
 	}
@@ -143,14 +123,7 @@ func TestParseXMLToolCalls_SpecialCharsWithoutCDATA(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ParamNameTypo(t *testing.T) {
-	// LLM misspells parameter name "command" as "commmand" (note: 3 m's).
-	// The opening tag is <commmand> but the closing tag is </command> (correct spelling).
-	// This mismatch means the parser cannot find the matching close tag for <commmand>,
-	// and should return an _xml_parse_error instead of attempting to execute.
-	xmlInput := `<execute_command>
-<commmand>ls -la</command>
-<timeout_seconds>30</timeout_seconds>
-</execute_command>`
+	xmlInput := "<execute_command>\n<commmand>ls -la</command>\n<timeout_seconds>30</timeout_seconds>\n</execute_command>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -162,7 +135,6 @@ func TestParseXMLToolCalls_ParamNameTypo(t *testing.T) {
 		t.Fatalf("expected error tool name '_xml_parse_error', got %q", call.Name)
 	}
 
-	// Parse the error arguments
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
 		t.Fatalf("failed to parse error arguments JSON: %v\nJSON: %s", err, call.Arguments)
@@ -177,13 +149,11 @@ func TestParseXMLToolCalls_ParamNameTypo(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should mention the parameter parse issue
 	if !strings.Contains(errStr, "参数") && !strings.Contains(errStr, "commmand") {
 		t.Errorf("error message should mention the parameter issue, got: %s", errStr)
 	}
 	t.Logf("Error message: %s", errStr)
 
-	// Verify the tag name is correct
 	tag, ok := args["tag"]
 	if !ok {
 		t.Fatalf("missing 'tag' field in error arguments, args: %v", args)
@@ -198,12 +168,7 @@ func TestParseXMLToolCalls_ParamNameTypo(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ParamMissingCloseTag(t *testing.T) {
-	// LLM writes a parameter without a closing tag (e.g., <command>ls -la without </command>).
-	// The parser should detect the missing closing tag and return an _xml_parse_error.
-	xmlInput := `<execute_command>
-<command>ls -la
-<timeout_seconds>30</timeout_seconds>
-</execute_command>`
+	xmlInput := "<execute_command>\n<command>ls -la\n<timeout_seconds>30</timeout_seconds>\n</execute_command>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -215,7 +180,6 @@ func TestParseXMLToolCalls_ParamMissingCloseTag(t *testing.T) {
 		t.Fatalf("expected error tool name '_xml_parse_error', got %q", call.Name)
 	}
 
-	// Parse the error arguments
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
 		t.Fatalf("failed to parse error arguments JSON: %v\nJSON: %s", err, call.Arguments)
@@ -230,7 +194,6 @@ func TestParseXMLToolCalls_ParamMissingCloseTag(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should mention the parameter parse issue
 	if !strings.Contains(errStr, "参数") {
 		t.Errorf("error message should mention the parameter issue, got: %s", errStr)
 	}
@@ -238,13 +201,7 @@ func TestParseXMLToolCalls_ParamMissingCloseTag(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_InvalidTagNameWithEquals(t *testing.T) {
-	// LLM uses attribute-like syntax: <parameter=step_id> instead of <step_id>value</step_id>
-	// The parser should detect the '=' in the tag name and return an _xml_parse_error.
-	xmlInput := `<update_task_step>
-<step_id>1</step_id>
-<status>completed</status>
-<parameter=note>This is a note</parameter=note>
-</update_task_step>`
+	xmlInput := "<update_task_step>\n<step_id>1</step_id>\n<status>completed</status>\n<parameter=note>This is a note</parameter=note>\n</update_task_step>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -256,7 +213,6 @@ func TestParseXMLToolCalls_InvalidTagNameWithEquals(t *testing.T) {
 		t.Fatalf("expected error tool name '_xml_parse_error', got %q", call.Name)
 	}
 
-	// Parse the error arguments
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
 		t.Fatalf("failed to parse error arguments JSON: %v\nJSON: %s", err, call.Arguments)
@@ -271,7 +227,6 @@ func TestParseXMLToolCalls_InvalidTagNameWithEquals(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should mention the '=' character issue
 	if !strings.Contains(errStr, "=") {
 		t.Errorf("error message should mention the '=' character issue, got: %s", errStr)
 	}
@@ -279,13 +234,7 @@ func TestParseXMLToolCalls_InvalidTagNameWithEquals(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_InvalidTagNameWithSpace(t *testing.T) {
-	// LLM uses attribute-like syntax: <parameter name=step_id> instead of <step_id>value</step_id>
-	// The parser should detect the space in the tag name and return an _xml_parse_error.
-	xmlInput := `<update_task_step>
-<step_id>1</step_id>
-<status>completed</status>
-<parameter name=note>This is a note</parameter name=note>
-</update_task_step>`
+	xmlInput := "<update_task_step>\n<step_id>1</step_id>\n<status>completed</status>\n<parameter name=note>This is a note</parameter name=note>\n</update_task_step>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -297,7 +246,6 @@ func TestParseXMLToolCalls_InvalidTagNameWithSpace(t *testing.T) {
 		t.Fatalf("expected error tool name '_xml_parse_error', got %q", call.Name)
 	}
 
-	// Parse the error arguments
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
 		t.Fatalf("failed to parse error arguments JSON: %v\nJSON: %s", err, call.Arguments)
@@ -312,7 +260,6 @@ func TestParseXMLToolCalls_InvalidTagNameWithSpace(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should mention the space issue
 	if !strings.Contains(errStr, "空格") && !strings.Contains(errStr, "parameter") {
 		t.Errorf("error message should mention the space or attribute issue, got: %s", errStr)
 	}
@@ -320,11 +267,7 @@ func TestParseXMLToolCalls_InvalidTagNameWithSpace(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ToolTagWithSpace(t *testing.T) {
-	// LLM adds attribute to the tool tag: <execute_command timeout=30>
-	// The parser should detect the space in the tool tag and return an _xml_parse_error.
-	xmlInput := `<execute_command timeout=30>
-<command>ls -la</command>
-</execute_command>`
+	xmlInput := "<execute_command timeout=30>\n<command>ls -la</command>\n</execute_command>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -350,7 +293,6 @@ func TestParseXMLToolCalls_ToolTagWithSpace(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should mention the space/attribute issue
 	if !strings.Contains(errStr, "空格") && !strings.Contains(errStr, "属性") {
 		t.Errorf("error message should mention the space or attribute issue, got: %s", errStr)
 	}
@@ -358,11 +300,7 @@ func TestParseXMLToolCalls_ToolTagWithSpace(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ToolTagWithEquals(t *testing.T) {
-	// LLM uses attribute-like syntax on the tool tag: <execute_command=xxx>
-	// The parser should detect the '=' in the tag name and return an _xml_parse_error.
-	xmlInput := `<execute_command=xxx>
-<command>ls -la</command>
-</execute_command=xxx>`
+	xmlInput := "<execute_command=xxx>\n<command>ls -la</command>\n</execute_command=xxx>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -388,7 +326,6 @@ func TestParseXMLToolCalls_ToolTagWithEquals(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should mention the '=' character issue
 	if !strings.Contains(errStr, "=") {
 		t.Errorf("error message should mention the '=' character issue, got: %s", errStr)
 	}
@@ -396,8 +333,6 @@ func TestParseXMLToolCalls_ToolTagWithEquals(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_InvalidParamName(t *testing.T) {
-	// LLM uses a misspelled parameter name "commmand" (3 m's) instead of "command".
-	// With tools provided, ParseXMLToolCallsWithTools should detect this mismatch.
 	tools := []llm.Tool{
 		{
 			Name: "execute_command",
@@ -418,12 +353,7 @@ func TestParseXMLToolCalls_InvalidParamName(t *testing.T) {
 		},
 	}
 
-	// Note: <commmand> has 3 m's, but the closing tag is </commmand> (also 3 m's),
-	// so the XML structure is valid. The parameter name just doesn't match the tool definition.
-	xmlInput := `<execute_command>
-<commmand>ls -la</commmand>
-<timeout_seconds>30</timeout_seconds>
-</execute_command>`
+	xmlInput := "<execute_command>\n<commmand>ls -la</commmand>\n<timeout_seconds>30</timeout_seconds>\n</execute_command>"
 
 	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
 	if len(calls) != 1 {
@@ -449,7 +379,6 @@ func TestParseXMLToolCalls_InvalidParamName(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should mention the invalid parameter name
 	if !strings.Contains(errStr, "commmand") {
 		t.Errorf("error message should mention the invalid parameter name 'commmand', got: %s", errStr)
 	}
@@ -460,12 +389,8 @@ func TestParseXMLToolCalls_InvalidParamName(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_MissingParentCloseTag(t *testing.T) {
-	// <execute_command> is opened but never closed — only its child <command> is closed.
-	// The parser should detect that </execute_command> is missing and return an _xml_parse_error
-	// with a clear message, not a confusing downstream error about parameter parsing.
-	xmlInput := `<execute_command><command></command>`
+	xmlInput := "<execute_command><command></command>"
 
-	// Use ParseXMLToolCallsWithTools so that execute_command is recognized as a known tool.
 	tools := []llm.Tool{
 		{
 			Name: "execute_command",
@@ -491,7 +416,6 @@ func TestParseXMLToolCalls_MissingParentCloseTag(t *testing.T) {
 		t.Fatalf("expected error tool name '_xml_parse_error', got %q", call.Name)
 	}
 
-	// Parse the error arguments
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
 		t.Fatalf("failed to parse error arguments JSON: %v\nJSON: %s", err, call.Arguments)
@@ -506,13 +430,11 @@ func TestParseXMLToolCalls_MissingParentCloseTag(t *testing.T) {
 		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
 
-	// The error message should clearly state that the closing tag is missing
 	if !strings.Contains(errStr, "闭合标签") && !strings.Contains(errStr, "execute_command") {
 		t.Errorf("error message should mention the missing close tag for execute_command, got: %s", errStr)
 	}
 	t.Logf("Error message: %s", errStr)
 
-	// Verify the tag name in the error
 	tag, ok := args["tag"]
 	if !ok {
 		t.Fatalf("missing 'tag' field in error arguments, args: %v", args)
@@ -526,41 +448,87 @@ func TestParseXMLToolCalls_MissingParentCloseTag(t *testing.T) {
 	}
 }
 
-func TestParseXMLToolCalls_CDATAWithXMLContent(t *testing.T) {
+func TestParseXMLToolCalls_ItemMissingCloseTag(t *testing.T) {
+	// FIX-255: When <item> inside a <replacements> block is missing its </item>
+	// closing tag, the parser should propagate the nested parse error up to the
+	// caller, producing an _xml_parse_error that clearly states the error.
+	// Previously the nested error was silently swallowed and the tool received
+	// a plain string instead of an array, causing confusing "missing 'search'
+	// and 'replace' fields" errors.
+	xmlInput := "<replace_in_file>\n<intent>update report</intent>\n<path>test.md</path>\n<replacements>\n  <item>\n    <search>old content</search>\n    <replace>new content</replace>\n</replacements>\n</replace_in_file>"
 
-	// CDATA wrapping content that contains XML-like tags
-	xmlInput := `<write_to_file>
-<path>output/result.md</path>
-<content><![CDATA[# Result
+	tools := []llm.Tool{
+		{
+			Name: "replace_in_file",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "intent",
+					},
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "file path",
+					},
+					"replacements": map[string]interface{}{
+						"type":        "array",
+						"description": "replacements",
+					},
+				},
+			},
+		},
+	}
 
-This is an example of XML content:
-<note>
-  <to>User</to>
-  <message>Hello</message>
-</note>]]></content>
-</write_to_file>`
-
-	calls := ParseXMLToolCalls(xmlInput)
+	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
 	if len(calls) != 1 {
-		t.Fatalf("expected 1 tool call, got %d", len(calls))
+		t.Fatalf("expected 1 tool call (error), got %d", len(calls))
 	}
 
 	call := calls[0]
-	var args map[string]interface{}
-	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
-		t.Fatalf("failed to parse arguments JSON: %v\nJSON: %s", err, call.Arguments)
+	if call.Name != "_xml_parse_error" {
+		t.Fatalf("expected error tool name '_xml_parse_error', got %q\nArguments: %s", call.Name, call.Arguments)
 	}
 
-	content, ok := args["content"]
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+		t.Fatalf("failed to parse error arguments JSON: %v\nJSON: %s", err, call.Arguments)
+	}
+
+	errMsg, ok := args["error"]
 	if !ok {
-		t.Fatalf("missing 'content' argument, args: %v", args)
+		t.Fatalf("missing 'error' field in error arguments, args: %v", args)
 	}
-	contentStr, ok := content.(string)
+	errStr, ok := errMsg.(string)
 	if !ok {
-		t.Fatalf("expected 'content' to be a string, got %T: %v", content, content)
+		t.Fatalf("expected 'error' to be a string, got %T: %v", errMsg, errMsg)
 	}
-	if len(contentStr) == 0 {
-		t.Fatal("expected non-empty content string")
+
+	// The error message should mention the missing </item> closing tag
+	if !strings.Contains(errStr, "item") {
+		t.Errorf("error message should mention <item>, got: %s", errStr)
 	}
-	t.Logf("content: %s", contentStr)
+	if !strings.Contains(errStr, "闭合标签") {
+		t.Errorf("error message should mention '闭合标签' (missing closing tag), got: %s", errStr)
+	}
+
+	// The error should clearly state the root cause: <item> is missing its closing tag.
+	// It should NOT produce misleading downstream errors about parameter fields.
+	if !strings.Contains(errStr, "<item> 缺少闭合标签") {
+		t.Errorf("error should state root cause '<item> 缺少闭合标签', got: %s", errStr)
+	}
+
+	t.Logf("Error message: %s", errStr)
+
+	tag, ok := args["tag"]
+	if !ok {
+		t.Fatalf("missing 'tag' field in error arguments, args: %v", args)
+	}
+	tagStr, ok := tag.(string)
+	if !ok {
+		t.Fatalf("expected 'tag' to be a string, got %T: %v", tag, tag)
+	}
+	if tagStr != "replace_in_file" {
+		t.Errorf("expected tag 'replace_in_file', got %q", tagStr)
+	}
 }
