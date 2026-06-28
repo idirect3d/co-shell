@@ -200,7 +200,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 	// File operation tools (always available)
 	tools = append(tools, llm.Tool{
 		Name:        "read_file",
-		Description: "Read the contents of a file at the specified path. Use this to examine the contents of an existing file. Returns the file content with line numbers. Supports start_line and end_line to read specific sections of large files. IMPORTANT: This tool can ONLY read text files (.txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (.png, .jpg, .gif, .webp, .bmp) or other binary files — use add_images to load images for multimodal analysis instead.",
+		Description: "Read the contents of a file at the specified path. Use this to examine the contents of an existing file. Returns the file content with line numbers. Both start_line and end_line are REQUIRED — you must specify the line range to read. IMPORTANT: This tool can ONLY read text files (.txt, .md, .go, .py, .js, .html, .css, .json, .xml, .yaml, .csv, .log, etc.). Do NOT use this tool to read image files (.png, .jpg, .gif, .webp, .bmp) or other binary files — use add_images to load images for multimodal analysis instead.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -221,7 +221,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"description": "The 1-based line number to stop reading at (inclusive). Default: start_line + 1000",
 				},
 			},
-			"required": []string{"intent", "path"},
+			"required": []string{"intent", "path", "start_line", "end_line"},
 		},
 		Callback: a.readFileTool,
 	})
