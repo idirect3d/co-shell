@@ -788,9 +788,12 @@ func Load() (*Config, error) {
 	return DefaultConfig(), nil
 }
 
+// ConfigPath returns the file path this config was loaded from.
+func (c *Config) ConfigPath() string {
+	return c.configPath
+}
+
 // Save writes the config to disk.
-// If the config was loaded from a specific path (via -c/--config), it saves there.
-// Otherwise, it saves to the workspace config.json.
 func (c *Config) Save() error {
 	path := c.configPath
 	if path == "" {

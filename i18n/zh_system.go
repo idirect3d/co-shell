@@ -247,12 +247,12 @@ Usage:
 </execute_command>`
 
 	zhMessages[KeyToolUsageReadFile] = `## read_file
-Description: 读取指定路径的文件内容。返回带行号的文件内容。支持 start_line 和 end_line 读取大文件的指定段落。**重要：此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js、.html、.css、.json、.xml、.yaml、.csv、.log 等格式）。请勿使用此工具读取图片文件（如 .png、.jpg、.gif、.webp、.bmp、.docx、.doc、.xls、.xlsx、.pdf、.wps 等格式）或其他二进制文件——如需分析图片请改用 visual_analysis 将图片加载到多模态上下文中。**
+Description: 读取指定路径的文件内容。返回带行号的文件内容。start_line 和 end_line 都是**必填**参数——必须指定要读取的行范围。**重要：此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js、.html、.css、.json、.xml、.yaml、.csv、.log 等格式）。请勿使用此工具读取图片文件（如 .png、.jpg、.gif、.webp、.bmp、.docx、.doc、.xls、.xlsx、.pdf、.wps 等格式）或其他二进制文件——如需分析图片请改用 visual_analysis 将图片加载到多模态上下文中。**
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要读取的文件路径（绝对路径或相对于当前工作目录）
-- start_line (可选) 开始读取的行号（从1开始，包含）。默认：1
-- end_line (可选) 结束读取的行号（从1开始，包含）。默认：start_line + 1000
+- start_line (必需) 开始读取的行号（从1开始，包含）
+- end_line (必需) 结束读取的行号（从1开始，包含）
 Usage:
 <read_file>
   <intent>需要查看 main.go 文件的开头部分以了解程序入口结构</intent>
@@ -510,10 +510,10 @@ Usage:
 </list_settings>`
 
 	zhMessages[KeyToolUsageAskFollowupQuestion] = `## ask_followup_question
-Description: 向用户提问以收集完成任务所需的额外信息。当遇到歧义、需要澄清或需要更多细节时使用。通过允许与用户直接通信来实现交互式问题解决。谨慎使用此工具，在收集必要信息和避免过多来回之间保持平衡。
+Description: 向用户提问以收集完成任务所需的额外信息。当遇到歧义、需要澄清或需要更多细节时使用。通过允许与用户直接通信来实现交互式问题解决。仅在不明确获得用户确认或需要用户补充线索时才调用此方法。
 Parameters:
 - question (必需) 向用户提出的问题。应是一个清晰、具体的问题，说明你需要的信息。
-- options (可选) 2-5 个选项供用户选择。每个选项是一个描述可能答案的字符串。并非总是需要提供选项，但在许多情况下可以帮助用户快速回复。
+- options (可选) 2-5 个选项供用户选择。每个选项是一个描述可能答案的字符串。应尽量给用户提供选项给用户选择，以便最大程度方便用户操作。
 Usage:
 <ask_followup_question>
   <question>您希望使用哪种数据库？</question>

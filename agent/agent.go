@@ -527,6 +527,17 @@ func (a *Agent) GetLLMClient() llm.Client {
 }
 
 func (a *Agent) rebuildSystemPrompt() {
+	// Reload config from disk to ensure system prompt always uses the latest
+	// configuration (WorkModes, PromptSections, agent identity, etc.).
+	// mode/*.md files are already read from disk each time by loadSectionText.
+	if a.cfg != nil {
+		if cfgPath := a.cfg.ConfigPath(); cfgPath != "" {
+			if freshCfg, _, err := config.LoadFromFile(cfgPath, nil); err == nil {
+				a.cfg = freshCfg
+			}
+		}
+	}
+
 	agentName := ""
 	agentDesc := ""
 	agentPrinciples := ""
