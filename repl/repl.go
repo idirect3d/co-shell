@@ -333,6 +333,9 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.settingsHandler.HandleDB(args)
 	case ".simulate":
 		result, err = r.simulateHandler.Handle(args)
+	case ".continue":
+		r.handleAgentInput("")
+		return
 	default:
 		fmt.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return
@@ -681,6 +684,7 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpModel))
 	fmt.Println(i18n.T(i18n.KeyHelpSection))
 	fmt.Println(i18n.T(i18n.KeyHelpMode))
+	fmt.Println(i18n.T(i18n.KeyHelpContinue))
 	fmt.Println(i18n.T(i18n.KeyHelpSimulate))
 	fmt.Println(i18n.T(i18n.KeyHelpHelp))
 	fmt.Println(i18n.T(i18n.KeyHelpExit))
@@ -696,6 +700,10 @@ func (r *REPL) printHelp() {
 
 func (r *REPL) cleanup() {
 	fmt.Print(i18n.T(i18n.KeyCleaningUp))
+	// Persist non-system messages before closing resources
+	if err := r.agent.PersistSessionNonSystem(); err != nil {
+		log.Warn("Failed to persist non-system session on REPL exit: %v", err)
+	}
 	if err := r.mcpMgr.Close(); err != nil {
 		fmt.Printf(" MCP error: %v", err)
 	}

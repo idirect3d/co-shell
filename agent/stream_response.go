@@ -277,9 +277,17 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					mode := a.toolCallModeMgr.Current()
 					if mode != nil && !mode.SendTools {
 						cleanContent := stripREPLMaskMarkers(finalContent)
+						// Log the first 200 chars of cleaned content to help debug parsing issues
+						contentPreview := cleanContent
+						if len(contentPreview) > 200 {
+							contentPreview = contentPreview[:200] + "..."
+						}
+						log.Info("Agent.streamLLMResponse: XML mode parsing finalContent (%d bytes), preview: %s",
+							len(cleanContent), contentPreview)
 						// Pass tools list so ParseXMLToolCallsWithTools can skip unknown tags
 						// that are not recognized tool names, treating them as regular content.
 						xmlCalls := ParseXMLToolCallsWithTools(cleanContent, tools)
+						log.Info("Agent.streamLLMResponse: ParseXMLToolCallsWithTools returned %d call(s)", len(xmlCalls))
 						if len(xmlCalls) > 0 {
 							// Filter out _xml_parse_error calls - these are parse errors that
 							// should be returned directly to the LLM as feedback, not executed.
@@ -302,16 +310,22 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 								// so it can see and fix the format issues immediately.
 								finalContent = strings.Join(parseErrors, "\n---\n")
 								toolCalls = nil
-								log.Debug("Agent.streamLLMResponse: returning %d XML parse errors to LLM as content (no tool calls)",
+								log.Warn("Agent.streamLLMResponse: returning %d XML parse errors to LLM as content (no tool calls)",
 									len(parseErrors))
+								for _, pe := range parseErrors {
+									log.Warn("  Parse error: %s", pe)
+								}
 							} else {
 								toolCalls = validCalls
-								log.Debug("Agent.streamLLMResponse: parsed %d XML tool calls from content (ignored %d API-level tool calls)",
-									len(validCalls), len(toolCalls))
+								log.Info("Agent.streamLLMResponse: parsed %d valid XML tool calls from content", len(validCalls))
+								for _, c := range validCalls {
+									log.Info("  Tool call: %s (args: %d bytes)", c.Name, len(c.Arguments))
+								}
 							}
 						} else {
 							// No XML tool calls found; clear any API-level tool calls in XML mode
 							toolCalls = nil
+							log.Info("Agent.streamLLMResponse: 0 XML tool calls found in content (tools list len=%d)", len(tools))
 						}
 					}
 				}

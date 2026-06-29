@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -789,6 +790,12 @@ func hasChildElements(content string) bool {
 // - Booleans ("true", "false") → JSON boolean (no quotes)
 // - Everything else → JSON string (with quotes)
 func jsonValue(s string) string {
+	// Reject values with leading zeros as numbers — bare integers like "0067"
+	// are invalid JSON (JSON does not allow leading zeros). Treat them as strings.
+	// This also covers strings like "0" (single zero is fine as a number).
+	if len(s) > 1 && s[0] == '0' && s[1] >= '0' && s[1] <= '9' {
+		return strconv.Quote(s)
+	}
 	// Try integer
 	if _, err := fmt.Sscanf(s, "%d", new(int)); err == nil {
 		// Verify the entire string is the integer (no extra chars)
