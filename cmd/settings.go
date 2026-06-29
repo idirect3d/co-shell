@@ -423,7 +423,12 @@ func showSettingsHelp(cfg *config.Config) string {
 		browserHeadlessStatus = i18n.T(i18n.KeyOn)
 	}
 
+	temperatureStr := fmt.Sprintf("%.1f", cfg.LLM.Temperature)
+	maxTokensStr := fmt.Sprintf("%d", cfg.LLM.MaxTokens)
+
 	allLines = append(allLines,
+		makeLine("temperature", temperatureStr, "0.0 ~ 2.0（浮点数）"),
+		makeLine("max-tokens", maxTokensStr, "1 ~ 128000（整数）"),
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
 		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
@@ -453,6 +458,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	loopDetectionShowStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.ShowLoopDetection {
 		loopDetectionShowStatus = i18n.T(i18n.KeyOn)
+	}
+	debugStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.DebugMode {
+		debugStatus = i18n.T(i18n.KeyOn)
 	}
 
 	// Group 3: Display & Output
@@ -546,10 +555,6 @@ func showSettingsHelp(cfg *config.Config) string {
 	)
 
 	// Group 6: Developer
-	debugStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.DebugMode {
-		debugStatus = i18n.T(i18n.KeyOn)
-	}
 	allLines = append(allLines,
 		makeLine("debug", debugStatus, i18n.T(i18n.KeyCol3Debug)),
 		makeLine("log", logStatus, i18n.T(i18n.KeyCol3Log)),
@@ -591,7 +596,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
 
 	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(22)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(24)...)
 
 	// Group 3: Display & Output
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
@@ -600,10 +605,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(16)...)
 
 	// Group 5: Memory & Context
-	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(7)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
 
 	// Group 6: Developer
-	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(3)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
 
 	return sb.String()
 }

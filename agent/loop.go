@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -236,6 +237,12 @@ type Agent struct {
 	// stdin connected. The ESC monitor goroutine checks this flag to avoid
 	// competing with the sub-process for stdin reads (FIX-209).
 	commandRunning bool
+
+	// taskInstructionCache collects user supplementary instructions and other
+	// task-level hints (e.g., context overflow warnings) during tool execution.
+	// At the end of each iteration, all cached content is flushed as a single
+	// <task> ContentPart appended to the last user message. (FEATURE-255)
+	taskInstructionCache bytes.Buffer
 }
 
 // SetCommandRunning sets a flag indicating whether a system command is currently

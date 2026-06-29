@@ -60,6 +60,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// Reset task-level token tracking for this new request
 	a.ResetTaskTokenUsage()
 
+	// Reset task instruction cache for this new request (FEATURE-255)
+	a.taskInstructionCache.Reset()
+
 	// FIX-179 / FIX-240: Initialize loop detectors and temperature controller for this request
 	a.loopDetectCrit = false
 	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
@@ -814,6 +817,33 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
+		// FEATURE-255: Flush task instruction cache at the end of each iteration.
+		// This collects user supplementary inputs from CmdConfirmModify and other
+		// task-level hints (e.g., context overflow warnings) and appends them as
+		// a single <task> ContentPart to the last user message. This separates
+		// user instructions from tool results, keeping the structure clean.
+		if a.taskInstructionCache.Len() > 0 {
+			taskContent := fmt.Sprintf("<task>\n%s\n</task>", a.taskInstructionCache.String())
+			log.Debug("Agent.RunStream: flushing task instruction cache: %s", taskContent)
+
+			a.mu.Lock()
+			lastIdx := len(a.messages) - 1
+			if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
+				msg := &a.messages[lastIdx]
+				if len(msg.ContentParts) == 0 {
+					msg.ContentParts = []llm.ContentPart{
+						{Type: llm.ContentPartText, Text: msg.Content},
+					}
+					msg.Content = ""
+				}
+				msg.AppendTextPart(taskContent)
+			} else {
+				a.messages = append(a.messages, llm.Message{Role: "user", Content: taskContent})
+			}
+			a.mu.Unlock()
+			a.taskInstructionCache.Reset()
+		}
+
 		// FEATURE-249: Check reorganize context threshold and inject suggestion if exceeded.
 		// Only active when ContextPolicy is "reorganize" and ContextReorganizeThreshold > 0.
 		// Uses per-iteration total tokens (prompt + completion) to match the display
@@ -828,27 +858,19 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					usagePct, threshold)
 
 				suggestion := fmt.Sprintf(
-					"<warn>当前上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。应尽快通过调用 reorganize_context 工具重新整理上下文，压缩消息历史以释放上下文窗口。</warn>",
+					"当前上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。立即调用 reorganize_context 工具重新整理上下文后再继续。",
 					usagePct, threshold)
 
-				a.mu.Lock()
-				// Merge the suggestion into the last user message's ContentParts instead
-				// of appending a separate user message, keeping the user's original
-				// instruction and the system hint in the same message.
-				lastIdx := len(a.messages) - 1
-				if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
-					msg := &a.messages[lastIdx]
-					if len(msg.ContentParts) == 0 {
-						msg.ContentParts = []llm.ContentPart{
-							{Type: llm.ContentPartText, Text: msg.Content},
-						}
-						msg.Content = ""
-					}
-					msg.AppendTextPart(suggestion)
-				} else {
-					a.messages = append(a.messages, llm.Message{Role: "user", Content: suggestion})
+				// Store the context overflow hint in the task instruction cache,
+				// so it is flushed as part of the <task> block at the start of
+				// the next iteration. This keeps it together with any other
+				// pending task-level instructions (FEATURE-255).
+				// Note: The context overflow check runs AFTER the flush above,
+				// so this hint will be delivered in the NEXT iteration.
+				if a.taskInstructionCache.Len() > 0 {
+					a.taskInstructionCache.WriteString("\n\n")
 				}
-				a.mu.Unlock()
+				a.taskInstructionCache.WriteString(suggestion)
 			}
 		}
 
