@@ -550,6 +550,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySessionProvider:       "提供商",
 	KeySessionAgentName:      "Agent 名称",
 	KeySessionRecentMessages: "最近消息（最多显示 10 条）:",
+	KeySessionPopDropped:     "已弹出 %d 条消息（丢弃 %d 条，保留最后一条供编辑）",
 
 	// History command
 	KeyHelpHistory: "    .history            - 查看用户输入命令历史（.history last/first [N]）",
