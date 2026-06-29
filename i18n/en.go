@@ -527,6 +527,7 @@ no liability whatsoever.`,
 	KeySessionProvider:       "Provider",
 	KeySessionAgentName:      "Agent Name",
 	KeySessionRecentMessages: "Recent Messages (max 10 shown):",
+	KeySessionPopDropped:     "Popped %d messages (%d discarded, last one kept for editing)",
 
 	// History command
 	KeyHelpHistory: "    .history            - View history of user input commands (.history last/first [N])",

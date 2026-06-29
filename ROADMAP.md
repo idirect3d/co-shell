@@ -588,6 +588,7 @@
 
 - [x] FIX-255 XML 嵌套解析错误传播：`parseXMLChildrenToJSON` 递归解析 `<item>` 子元素时，如果子元素缺少闭合标签（如 `</item>`），`nestedErrors` 未被向上传播到父级 `parseErrors`，导致 XML 良构性错误被静默吞掉，最终被下游工具误报为 "missing 'search' and 'replace' fields"。修复为在 fallback 路径中将 `nestedErrors` 追加到 `parseErrors`。[BUILD-270]
 
+- [x] FEATURE-256 `.session pop` 支持数字参数 N（默认 1），一次弹出 N 条非 system 消息，保留最后 1 条供编辑，前面的直接丢弃。[BUILD-272]
 
 ## v1.0.0 — 正式版
 
