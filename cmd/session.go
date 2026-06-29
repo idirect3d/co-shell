@@ -27,6 +27,7 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -52,42 +53,64 @@ func NewSessionHandler(ag *agent.Agent, cfg *config.Config) *SessionHandler {
 // It displays information about the current conversation session.
 // Subcommands:
 //
-//	pop — removes the last message from history and returns its content
+//	pop [N] — removes N non-system messages from history, keeps last 1 for editing
 func (h *SessionHandler) Handle(args []string) (string, error) {
 	if len(args) > 0 && args[0] == "pop" {
-		return h.popLastMessage()
+		n := 1
+		if len(args) > 1 {
+			v, err := strconv.Atoi(args[1])
+			if err != nil || v <= 0 {
+				return "", fmt.Errorf("无效的参数 %q，请使用正整数", args[1])
+			}
+			n = v
+		}
+		return h.popMessages(n)
 	}
 	return h.showSession()
 }
 
-// popLastMessage removes the last non-system message from the agent's message
-// history and returns its content. The caller (REPL) can then present the
-// content to the user for editing and re-submission.
-func (h *SessionHandler) popLastMessage() (string, error) {
-	messages := h.agent.Messages()
-	if len(messages) <= 1 {
+// popMessages removes up to n non-system messages from the tail of the history.
+// The first (n-1) messages are discarded directly; the last (nth) message is
+// returned to the caller (REPL) for editing and re-submission.
+// If n == 1, behaves identically to the original single-message pop.
+func (h *SessionHandler) popMessages(n int) (string, error) {
+	a := h.agent
+	aMsg := a.Messages()
+	if len(aMsg) <= 1 {
 		return "", fmt.Errorf("没有可删除的消息（仅剩系统提示词）")
 	}
 
-	// Find and remove the last non-system message
-	lastContent := ""
-	a := h.agent
-	aMsg := a.Messages()
-	for i := len(aMsg) - 1; i > 0; i-- {
+	// Collect up to n non-system message indices from the tail
+	var popIdx []int
+	for i := len(aMsg) - 1; i > 0 && len(popIdx) < n; i-- {
 		if aMsg[i].Role != "system" {
-			lastContent = aMsg[i].Content
-			// For ContentParts messages, combine all text parts
-			if lastContent == "" && len(aMsg[i].ContentParts) > 0 {
-				lastContent = aMsg[i].CombineContentParts()
-			}
-			// Remove this message
-			a.SetHistory(aMsg[:i])
-			break
+			popIdx = append(popIdx, i)
 		}
+	}
+
+	if len(popIdx) == 0 {
+		return "", fmt.Errorf("没有可删除的消息")
+	}
+
+	// popIdx[0] is the most recent non-system message (kept for editing)
+	// popIdx[1:] are earlier messages (discarded directly)
+	lastContent := aMsg[popIdx[0]].Content
+	if lastContent == "" && len(aMsg[popIdx[0]].ContentParts) > 0 {
+		lastContent = aMsg[popIdx[0]].CombineContentParts()
 	}
 
 	if lastContent == "" {
 		return "", fmt.Errorf("没有可删除的消息")
+	}
+
+	// The cutting point: remove all messages from the earliest popped index onward
+	cutIdx := popIdx[len(popIdx)-1]
+	a.SetHistory(aMsg[:cutIdx])
+
+	// Report how many were popped
+	dropped := len(popIdx) - 1
+	if dropped > 0 {
+		fmt.Printf(i18n.T(i18n.KeySessionPopDropped)+"\n", len(popIdx), dropped)
 	}
 
 	return fmt.Sprintf("POP:%s", lastContent), nil
