@@ -1086,10 +1086,16 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				}
 				// fall through to execute
 			case CmdConfirmModify:
-				// Return the user's supplementary input as the tool result,
-				// telling the LLM that the user modified the command and
-				// the original tool call was not executed.
-				return fmt.Sprintf("用户暂时取消了工具调用，并补充说明如下: %s\n\n请根据用户补充内容重新评估后再继续下一步操作。", modifyInput), nil
+				// Store the user's supplementary input in the task instruction cache.
+				// At the end of the iteration, all cached instructions will be flushed
+				// as a single <task> ContentPart appended to the last user message.
+				// This separates user instructions from tool results, keeping the
+				// tool result clean and the instructions visible as a distinct task block.
+				if a.taskInstructionCache.Len() > 0 {
+					a.taskInstructionCache.WriteString("\n\n")
+				}
+				a.taskInstructionCache.WriteString(modifyInput)
+				return "用户取消了此工具调用，补充指令将以 <task> 形式在末尾提供。", nil
 			}
 			// CmdConfirmApprove: continue execution
 		} else if toolCount > 0 {
@@ -1235,21 +1241,39 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 					if remaining != "" {
 						io.Printf("  ✅ 已选择: %s\n", selected)
 						io.Printf("  📝 补充说明: %s\n", remaining)
-						return fmt.Sprintf("%s（用户补充: %s）", selected, remaining), nil
+						// Store raw user input in task instruction cache — no prefix needed
+						if a.taskInstructionCache.Len() > 0 {
+							a.taskInstructionCache.WriteString("\n\n")
+						}
+						a.taskInstructionCache.WriteString(fmt.Sprintf("%s\n%s", selected, remaining))
+						return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
 					}
 					io.Printf("  ✅ 已选择: %s\n", selected)
-					return selected, nil
+					// Store user choice in task instruction cache
+					if a.taskInstructionCache.Len() > 0 {
+						a.taskInstructionCache.WriteString("\n\n")
+					}
+					a.taskInstructionCache.WriteString(selected)
+					return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
 				}
 				// Valid number but out of range — prompt user to re-choose
 				io.Printf("  无效的选项编号 %d，请重新选择。\n", idx)
 				continue
 			}
-			// No options provided — send the number as raw input to LLM
-			return input, nil
+			// No options provided — store user's number input in task instruction cache
+			if a.taskInstructionCache.Len() > 0 {
+				a.taskInstructionCache.WriteString("\n\n")
+			}
+			a.taskInstructionCache.WriteString(input)
+			return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
 		}
 
-		// Input doesn't start with a valid number — send raw input to LLM
-		return input, nil
+		// Input doesn't start with a valid number — store in task instruction cache
+		if a.taskInstructionCache.Len() > 0 {
+			a.taskInstructionCache.WriteString("\n\n")
+		}
+		a.taskInstructionCache.WriteString(input)
+		return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
 	}
 }
 

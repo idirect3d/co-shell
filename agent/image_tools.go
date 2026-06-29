@@ -174,14 +174,23 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 	for _, existing := range a.imagePaths {
 		if existing == path {
 			a.mu.Unlock()
-			return fmt.Sprintf("✅ 图片已在缓存中: %s\n\n🎯 识别意图：%s\n\n📌 图片已在缓存中，将在下一次 LLM 调用时发送。", path, intent), nil
+			return fmt.Sprintf("✅ 图片已在缓存中: %s", path), nil
 		}
 	}
 
 	a.imagePaths = append(a.imagePaths, path)
 	a.mu.Unlock()
 
-	return fmt.Sprintf(
-		"请根据以下意图分析已上传视觉文件（%s）的内容，并将分析结果立即保存到 .md 文件中供后续使用，否则识别的信息将会丢失！",
-		path), nil
+	// Store the analysis instruction in the task instruction cache so it will be
+	// flushed as a <task> ContentPart at the end of the iteration. This keeps the
+	// instruction separate from the tool result and makes it visible as a user task.
+	taskContent := fmt.Sprintf(
+		"分析视觉文件: %s\n\n识别意图: %s\n\n请根据以上意图分析已上传视觉文件的内容，并通过调用 write_to_file（新建）/replace_in_file（追加） 将分析结果立即保存到 .md 文件中供后续使用，否则识别的信息将会丢失！",
+		path, intent)
+	if a.taskInstructionCache.Len() > 0 {
+		a.taskInstructionCache.WriteString("\n\n")
+	}
+	a.taskInstructionCache.WriteString(taskContent)
+
+	return "视觉文件已加载，识别指令将以 <task> 形式在末尾提供。", nil
 }
