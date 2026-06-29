@@ -731,6 +731,7 @@ no liability whatsoever.`,
 	KeyConfigValCtxStart:      "Enter window/task/smart",
 
 	// Simulate (FEATURE-218)
+	KeyHelpContinue:        "    .continue      - Send the current context to the LLM as-is, without adding any new content",
 	KeyHelpSimulate:        "    .simulate      - Simulate LLM tool call, parse and execute for testing",
 	KeySimulatePromptInput: "Enter the LLM tool call content to simulate: ",
 	KeySimulateNoContent:   "Empty input, cancelled",
@@ -757,7 +758,8 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 	KeyTokenUsageTiming:  "TTFT: %s | Input: %s t/s | Output: %s t/s",
 
 	// Context reorganization (FEATURE-249)
-	KeyReorganizeResult: "✅ Context reorganized: %d chars summary, new message index %d.",
+	// Note: <task> is embedded in the result string, so only char count remains as %d
+	KeyReorganizeResult: "✅ Context reorganized: %d chars summary.",
 
 	// Loop reorganize context (FEATURE-249)
 	KeyLoopReorganizeSuggestion: "\n\n⚠️ Loop detected and context has been reset. It is recommended to call the reorganize_context tool to reorganize the context, summarize completed work and findings, and formulate a new strategy to continue.",

@@ -590,6 +590,27 @@
 
 - [x] FEATURE-256 `.session pop` 支持数字参数 N（默认 1），一次弹出 N 条非 system 消息，保留最后 1 条供编辑，前面的直接丢弃。[BUILD-272]
 
+- [x] FIX-257 reorganize_context 消息结构规范：`<task>` 内容不再作为独立 user 消息，改为写入 taskInstructionCache，在迭代末尾 flush 到工具结果消息的 ContentParts 中（位于结果和 `<environment_details>` 之间），与 visual_analysis 行为一致。调整 taskInstructionCache flush 到 env injection 之前，确保 `<task>` 在 `<env>` 之前。[BUILD-273]
+
+- [x] FIX-258 会话上下文持久化修复：[BUILD-275]
+  - `store/bolt.go`: `SaveSession` 改为直接存裸 `[]byte`（不再内置 `SessionData` 包装序列化），`LoadSession` 在事务内复制数据避免 bbolt mmap 引用失效
+  - `agent/agent.go`: `PersistSession()` / `PersistSessionNonSystem()` 自行构建 `SessionData` 序列化再写入；`RestoreSession()` 正常解包 `json.RawMessage` 格式的 `Messages` 字段
+  - `RunStream` / `Run` 加 `defer PersistSessionNonSystem()` 覆盖 Ctrl+C、ESC 取消、错误退出、max iterations 所有路径
+  - REPL `cleanup()` 中调用 `PersistSessionNonSystem()` 确保正常退出也持久化
+
+- [x] FIX-259 reorganize_context 相关修复：[BUILD-276]
+  - `reorganizeContextOnLoop()` 默认分支不再清空 `a.messages`（原来只保留 system + last user），避免循环检测时丢失全部历史消息
+  - `reorganizeContextTool()` 写入 `taskInstructionCache` 时不再加 `<task>` 包装（由 flush 统一处理），修复 `<task>` 标签双重嵌套问题
+  - `jsonValue()` 检测到数字前导零（如 `0067`）时返回带引号字符串而非裸数字，修复 `{"search": 0067}` 非法 JSON 错误
+
+- [x] FIX-260 调试模式运行时切换（:debug on/off）：[BUILD-276]
+  - `debugIntercept()` 中 `> ` 提示符支持 `:debug on`/`:debug off` 即时切换，消息照常发送
+  - ESC 中断提示支持 `:debug on`/`:debug off` 即时切换后自动重试 LLM 调用
+
+- [x] FIX-261 `.continue` 命令：发送当前完整上下文给 LLM，不追加新消息 [BUILD-276]
+- [x] FIX-262 XML 解析调试日志增强：`stream_response.go` 在 XML 解析关键路径加 INFO 级别日志（原始内容预览、解析结果、报错详情）[BUILD-276]
+- [x] FIX-263 `main.go` 启动顺序修复：`SetResultMode()` 移到 `RestoreSession()` 之前，删除重复的 `SetResultMode()` 调用，解决 session 恢复后被清零的问题 [BUILD-276]
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

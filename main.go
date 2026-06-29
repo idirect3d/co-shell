@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "272"
+const build = "276"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -965,6 +965,10 @@ func main() {
 	ag.SetWorkspacePath(ws.Root())
 	ag.SetModelManager(modelMgr)
 
+	// Apply result mode BEFORE restoring session, because SetResultMode
+	// resets a.messages to [{system}] which would destroy restored messages.
+	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
+
 	// Restore previous session if available
 	if ag.RestoreSession() {
 		log.Info("Previous session restored from storage")
@@ -1056,9 +1060,6 @@ func main() {
 		toolCallMode = "openai"
 	}
 	ag.SetToolCallMode(toolCallMode)
-
-	// Apply result mode
-	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
 
 	// Set image paths for multimodal input if provided
 
