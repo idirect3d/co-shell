@@ -337,6 +337,20 @@ func (a *Agent) debugIntercept() bool {
 		return false
 	}
 
+	// Handle debug mode toggle without sending as modified content
+	if strings.HasPrefix(input, ":debug ") {
+		switch strings.TrimSpace(input[7:]) {
+		case "on":
+			a.SetDebugMode(true)
+			a.io.Println("调试模式已开启")
+		case "off":
+			a.SetDebugMode(false)
+			a.io.Println("调试模式已关闭")
+		}
+		// Send the message as-is regardless
+		return false
+	}
+
 	if input == "" {
 		// No modification, send as-is
 		log.Debug("debugIntercept: user pressed Enter, sending unmodified")
@@ -389,27 +403,43 @@ func (a *Agent) SetStore(s *store.DualStore) { a.store = s }
 
 func (a *Agent) RestoreSession() bool {
 	if a.store == nil {
+		log.Debug("RestoreSession: store is nil, skipping")
 		return false
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	data, found, err := a.store.LoadSession()
-	if err != nil || !found {
+	if err != nil {
+		log.Warn("RestoreSession: LoadSession error: %v", err)
 		return false
 	}
+	if !found {
+		log.Debug("RestoreSession: no session data found in store")
+		return false
+	}
+	log.Debug("RestoreSession: loaded %d bytes from store", len(data))
+
 	var session store.SessionData
 	if err := json.Unmarshal(data, &session); err != nil {
+		log.Warn("RestoreSession: failed to unmarshal SessionData: %v, raw data: %s", err, string(data[:min(len(data), 200)]))
 		return false
 	}
 	if len(session.Messages) == 0 {
+		log.Warn("RestoreSession: SessionData has empty Messages field")
 		return false
 	}
-	var messages []llm.Message
-	if err := json.Unmarshal(session.Messages, &messages); err != nil {
+	log.Debug("RestoreSession: Messages field length: %d bytes", len(session.Messages))
+
+	var nonSystemMessages []llm.Message
+	if err := json.Unmarshal(session.Messages, &nonSystemMessages); err != nil {
+		log.Warn("RestoreSession: failed to unmarshal messages array: %v, messages data: %s", err, string(session.Messages[:min(len(session.Messages), 200)]))
 		return false
 	}
-	a.messages = messages
+	log.Info("RestoreSession: successfully restored %d non-system messages from storage", len(nonSystemMessages))
+
+	// Prepend fresh system prompt to restored non-system messages
+	a.messages = append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, nonSystemMessages...)
 	return true
 }
 
@@ -420,11 +450,58 @@ func (a *Agent) PersistSession() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	data, err := json.Marshal(a.messages)
+	msgs, err := json.Marshal(a.messages)
 	if err != nil {
 		return fmt.Errorf("cannot serialize messages: %w", err)
 	}
-	return a.store.SaveSession(data)
+	entry, err := json.Marshal(store.SessionData{
+		Version:       1,
+		Messages:      msgs,
+		LastUpdatedAt: time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("cannot marshal session data: %w", err)
+	}
+	return a.store.SaveSession(entry)
+}
+
+// PersistSessionNonSystem persists all non-system messages to storage.
+// System message is excluded so the current system prompt is always fresh on restore.
+func (a *Agent) PersistSessionNonSystem() error {
+	if a.store == nil {
+		return nil
+	}
+	if len(a.messages) == 0 {
+		return nil
+	}
+	a.mu.Lock()
+	// Exclude the first message if it's the system prompt
+	msgs := a.messages
+	if msgs[0].Role == "system" {
+		msgs = msgs[1:]
+	}
+	if len(msgs) == 0 {
+		a.mu.Unlock()
+		log.Debug("PersistSessionNonSystem: only system message found, nothing to persist")
+		return nil
+	}
+	data, err := json.Marshal(msgs)
+	a.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot serialize non-system messages: %w", err)
+	}
+	log.Debug("PersistSessionNonSystem: serialized %d msgs (%d bytes)", len(msgs), len(data))
+	// Wrap in SessionData for consistent save/load format
+	entry, err := json.Marshal(store.SessionData{
+		Version:       1,
+		Messages:      data,
+		LastUpdatedAt: time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("cannot marshal session data: %w", err)
+	}
+	log.Info("PersistSessionNonSystem: saved %d non-system messages to storage (%d bytes)", len(msgs), len(entry))
+	return a.store.SaveSession(entry)
 }
 
 func (a *Agent) MessagePointer() int {

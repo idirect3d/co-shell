@@ -615,31 +615,29 @@ type SessionData struct {
 	// Version is the schema version of the session data (for future compatibility).
 	Version int `json:"version"`
 	// Messages is the list of conversation messages in order.
-	Messages []byte `json:"messages"` // JSON-encoded []llm.Message
+	// Uses json.RawMessage so the inner JSON array is stored as raw JSON, not base64-encoded.
+	Messages json.RawMessage `json:"messages"` // JSON-encoded []llm.Message
 	// LastUpdatedAt is the timestamp when this session was last persisted.
 	LastUpdatedAt time.Time `json:"last_updated_at"`
 }
 
 // SaveSession persists the current conversation session to the database.
 // It stores the session in the "sessions" bucket with key "current".
-func (s *Store) SaveSession(messages []byte) error {
+// Expects a complete, self-contained JSON blob (e.g., full SessionData serialization).
+func (s *Store) SaveSession(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte("sessions"))
-		entry := SessionData{
-			Version:       1,
-			Messages:      messages,
-			LastUpdatedAt: time.Now(),
-		}
-		data, err := json.Marshal(entry)
-		if err != nil {
-			return fmt.Errorf("cannot marshal session data: %w", err)
-		}
 		return bucket.Put([]byte("current"), data)
 	})
 }
 
 // LoadSession loads the last persisted conversation session from the database.
-// Returns the messages bytes, whether a session was found, and any error.
+// Returns the raw stored bytes, whether a session was found, and any error.
+// IMPORTANT: Copies the data inside the transaction since bbolt's Get returns
+// a reference to the mmap that may be invalidated after the transaction ends.
 func (s *Store) LoadSession() ([]byte, bool, error) {
 	var data []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
@@ -647,16 +645,17 @@ func (s *Store) LoadSession() ([]byte, bool, error) {
 		if bucket == nil {
 			return nil
 		}
-		data = bucket.Get([]byte("current"))
+		ref := bucket.Get([]byte("current"))
+		if ref != nil {
+			data = make([]byte, len(ref))
+			copy(data, ref)
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, false, err
 	}
-	if data == nil {
-		return nil, false, nil
-	}
-	return data, true, nil
+	return data, data != nil, nil
 }
 
 // ClearSession removes the persisted session from the database.

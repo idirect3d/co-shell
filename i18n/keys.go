@@ -847,6 +847,7 @@ const (
 	KeySettingsDescBrowserHeadless = "settings_desc_browser_headless"
 
 	// Simulate (FEATURE-218)
+	KeyHelpContinue          = "help_continue"
 	KeyHelpSimulate          = "help_simulate"
 	KeySimulatePromptInput   = "simulate_prompt_input"
 	KeySimulateNoContent     = "simulate_no_content"
@@ -891,6 +892,7 @@ const (
 	KeyTokenUsageTiming  = "token_usage_timing"
 
 	// Context reorganization (FEATURE-249)
+	// %d = summary_prompt character count (newIndex removed as <task> is now embedded in the result)
 	KeyReorganizeResult = "reorganize_result"
 
 	// Loop reorganize context (FEATURE-249)
