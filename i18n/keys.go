@@ -508,6 +508,7 @@ const (
 	KeySessionProvider       = "session_provider"
 	KeySessionAgentName      = "session_agent_name"
 	KeySessionRecentMessages = "session_recent_messages"
+	KeySessionPopDropped     = "session_pop_dropped"
 
 	// History command
 	KeyHelpHistory  = "help_history"
