@@ -42,6 +42,13 @@ import (
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
+	// Ensure non-system messages are persisted on any exit path
+	defer func() {
+		if err := a.PersistSessionNonSystem(); err != nil {
+			log.Warn("Failed to persist non-system session: %v", err)
+		}
+	}()
+
 	// Reset interrupt channel for ESC key monitoring (FEATURE-201)
 	a.ResetInterrupt()
 
@@ -106,39 +113,43 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// Save raw user input for potential use in system prompt.
 	a.lastUserInput = userInput
 
-	a.mu.Lock()
-	// If there are image paths, create a multimodal message with cached images
-	if len(a.imagePaths) > 0 {
-		multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
-		if err != nil {
-			a.mu.Unlock()
-			return "", fmt.Errorf("cannot build multimodal message: %w", err)
-		}
-		a.messages = append(a.messages, multimodalMsg)
-		// Keep imagePaths for reuse in subsequent conversations
-	} else {
-		// Build user message with ContentParts for structured content.
-		// All user messages use the array format: [{"type":"text","text":"instruction"}]
-		// Environment_details is attached at creation time and frozen — never re-injected.
-		userMsg := a.buildUserMessage(userInput)
-		a.messages = append(a.messages, userMsg)
-		// Sync to memory (content without timestamp prefix, Datetime field stores the time)
-		if a.memoryEnabled {
-			if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
-				log.Warn("Failed to save user message to memory: %v", err)
+	// When userInput is empty (for .continue command), do NOT append a new user message.
+	// The existing messages (including the last user message with environment_details)
+	// are sent directly to the LLM for continuation.
+	if userInput != "" {
+		a.mu.Lock()
+		// If there are image paths, create a multimodal message with cached images
+		if len(a.imagePaths) > 0 {
+			multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
+			if err != nil {
+				a.mu.Unlock()
+				return "", fmt.Errorf("cannot build multimodal message: %w", err)
+			}
+			a.messages = append(a.messages, multimodalMsg)
+			// Keep imagePaths for reuse in subsequent conversations
+		} else {
+			// Build user message with ContentParts for structured content.
+			// All user messages use the array format: [{"type":"text","text":"instruction"}]
+			// Environment_details is attached at creation time and frozen — never re-injected.
+			userMsg := a.buildUserMessage(userInput)
+			a.messages = append(a.messages, userMsg)
+			// Sync to memory (content without timestamp prefix, Datetime field stores the time)
+			if a.memoryEnabled {
+				if err := a.memoryManager.AddMessage("user", userInput, time.Now()); err != nil {
+					log.Warn("Failed to save user message to memory: %v", err)
+				}
 			}
 		}
-	}
-	a.mu.Unlock()
+		a.mu.Unlock()
 
-	// Inject environment_details for the last user message at creation time.
-	// This is done WITHOUT holding a.mu because injectEnvelopeToLastUser may
-	// need to acquire a.mu internally (via isLastToolTaskPlan).
-	// The message will keep its envelope frozen for all subsequent iterations.
-	lastIdx := len(a.messages) - 1
-	if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
-		msgCopy := a.messages[lastIdx]
-		a.messages[lastIdx] = a.injectEnvelopeToLastUser([]llm.Message{msgCopy})[0]
+		// Inject environment_details for the last user message at creation time.
+		lastIdx := len(a.messages) - 1
+		if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
+			msgCopy := a.messages[lastIdx]
+			a.messages[lastIdx] = a.injectEnvelopeToLastUser([]llm.Message{msgCopy})[0]
+		}
+	} else {
+		log.Info("Agent.RunStream: .continue mode — sending existing context without new user message")
 	}
 
 	log.Info("Agent.RunStream: user input: %s", userInput)
@@ -198,6 +209,29 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			io := a.defaultIO()
 			userChoice, _ := io.ReadLine()
 			userChoice = strings.TrimSpace(userChoice)
+
+			// Handle :debug on/off commands without cancel or retry
+			if strings.HasPrefix(userChoice, ":debug ") {
+				switch strings.TrimSpace(userChoice[7:]) {
+				case "on":
+					a.SetDebugMode(true)
+					cb("info", "调试模式已开启\n")
+				case "off":
+					a.SetDebugMode(false)
+					cb("info", "调试模式已关闭\n")
+				}
+				// Retry the LLM call with the same context after toggling debug
+				a.ResetInterrupt()
+				cb("info", fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
+				finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+				if streamErr != nil {
+					cb("info", fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
+					cb("info", fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
+					return "", nil
+				}
+				// Fall through to tool call handling below
+				goto afterESC
+			}
 			if userChoice == "C" || userChoice == "c" {
 				// User confirmed cancel: discard incomplete message and return to REPL
 				cb("info", fmt.Sprintf("\n%s 已取消本次响应，丢弃不完整内容。\n", ep.Error))
@@ -238,6 +272,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
+	afterESC:
 		// Log the LLM response content and tool calls at DEBUG level for diagnostics.
 		// This helps identify issues like the LLM including historical message prefixes
 		// in its response content when returning tool calls.
@@ -745,9 +780,37 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				})
 				a.mu.Unlock()
 			}
-			// Attach minimal environment_details to the just-added tool result message
-			// (time + message_no). This freezes the env at creation time so it doesn't
-			// change across LLM iterations, just like user messages.
+
+			// FEATURE-255 / FIX-257: Flush task instruction cache BEFORE injecting
+			// <environment_details>, so <task> appears between tool result and <env>.
+			// This collects reorganize_context summary, CmdConfirmModify supplemental
+			// instructions, and other task-level hints, appending them as a <task>
+			// ContentPart to the just-added tool result message.
+			if a.taskInstructionCache.Len() > 0 {
+				taskContent := fmt.Sprintf("<task>\n%s\n</task>", a.taskInstructionCache.String())
+				log.Debug("Agent.RunStream: flushing task instruction cache: %s", taskContent)
+
+				a.mu.Lock()
+				lastIdx := len(a.messages) - 1
+				if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
+					msg := &a.messages[lastIdx]
+					if len(msg.ContentParts) == 0 {
+						msg.ContentParts = []llm.ContentPart{
+							{Type: llm.ContentPartText, Text: msg.Content},
+						}
+						msg.Content = ""
+					}
+					msg.AppendTextPart(taskContent)
+				} else {
+					a.messages = append(a.messages, llm.Message{Role: "user", Content: taskContent})
+				}
+				a.mu.Unlock()
+				a.taskInstructionCache.Reset()
+			}
+
+			// Attach environment_details to the just-added tool result message.
+			// This must come AFTER the task instruction cache flush so that
+			// <environment_details> is the last ContentPart.
 			// IMPORTANT: Must NOT hold a.mu here because injectTimeAndMessageNoToLast
 			// calls buildFullEnvironmentDetails -> isLastToolTaskPlan which acquires a.mu.
 			a.injectTimeAndMessageNoToLast()
@@ -858,7 +921,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					usagePct, threshold)
 
 				suggestion := fmt.Sprintf(
-					"当前上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。立即调用 reorganize_context 工具重新整理上下文后再继续。",
+					"当前上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。你必须立即调用 reorganize_context 工具重新整理上下文后，再继续做现在中断的任务。",
 					usagePct, threshold)
 
 				// Store the context overflow hint in the task instruction cache,

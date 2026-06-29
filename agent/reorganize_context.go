@@ -56,24 +56,22 @@ func (a *Agent) reorganizeContextTool(ctx context.Context, args map[string]inter
 	summaryPrompt = strings.TrimSpace(summaryPrompt)
 
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Append the summary_prompt as a new user message, wrapped in <task> tags.
-	// This tells the LLM that this is the primary task objective for the fresh context.
-	wrappedContent := fmt.Sprintf("<task>\n%s\n</task>", summaryPrompt)
-	a.messages = append(a.messages, llm.Message{
-		Role:    "user",
-		Content: wrappedContent,
-	})
-
-	// Move messagePointer to the new message
-	newIndex := len(a.messages) - 1
-	a.messagePointer = newIndex
-	a.needAdjustPointer = true
 
 	// Log the operation
-	log.Info("reorganizeContextTool: context reorganized, messagePointer moved to %d (total messages: %d)", newIndex, len(a.messages))
-	log.Debug("reorganizeContextTool: summary_prompt (%d chars): %s", len(summaryPrompt), summaryPrompt)
+	log.Info("reorganizeContextTool: context reorganized, summary_prompt (%d chars)", len(summaryPrompt))
+	log.Debug("reorganizeContextTool: summary_prompt: %s", summaryPrompt)
+
+	// Clean up old context: keep only the system prompt.
+	// The tool result (containing the embedded <task>) will be appended by the
+	// caller (run_stream.go / run.go), then injected with <environment_details>
+	// by injectTimeAndMessageNoToLast. This gives the LLM a fresh start with
+	// a single message: result + <task> + <env>.
+	if len(a.messages) > 0 && a.messages[0].Role == "system" {
+		systemMsg := a.messages[0]
+		a.messages = []llm.Message{systemMsg}
+	}
+	a.messagePointer = 1
+	a.needAdjustPointer = true
 
 	// Reset loop detection state — the new context should not inherit old loop state
 	a.loopDetectCrit = false
@@ -87,9 +85,19 @@ func (a *Agent) reorganizeContextTool(ctx context.Context, args map[string]inter
 	// is not falsely flagged as a duplicate of pre-reorganize content.
 	a.lastAssistantContent = ""
 	a.lastLlmOutput = ""
+	a.mu.Unlock()
 
-	// Build the result message
-	result := fmt.Sprintf(i18n.T(i18n.KeyReorganizeResult), len(summaryPrompt), newIndex)
+	// Store the summary_prompt in the task instruction cache.
+	// The caller (run_stream.go) will wrap it with <task> tags when flushing,
+	// so we must NOT add <task> here to avoid double-wrapping.
+	if a.taskInstructionCache.Len() > 0 {
+		a.taskInstructionCache.WriteString("\n\n")
+	}
+	a.taskInstructionCache.WriteString(summaryPrompt)
+
+	// Build the result message (without embedded <task>).
+	// The <task> will be appended as a separate ContentPart by the flush mechanism.
+	result := fmt.Sprintf(i18n.T(i18n.KeyReorganizeResult), len(summaryPrompt))
 	log.Info("reorganizeContextTool: result=%s", result)
 	return result, nil
 }
@@ -127,21 +135,11 @@ func (a *Agent) reorganizeContextOnLoop() string {
 		}
 		return ""
 	default:
-		// smart/task/reorganize: automatically rebuild context into a minimal fresh window.
-		// Keep only system prompt + the last user message (the reorganize result or loop feedback).
-		// This immediately breaks the loop without waiting for the LLM to call reorganize_context.
-		a.mu.Lock()
-		if len(a.messages) > 1 {
-			systemMsg := a.messages[0]
-			lastUserIdx := len(a.messages) - 1
-			lastUserMsg := a.messages[lastUserIdx]
-			a.messages = []llm.Message{systemMsg, lastUserMsg}
-			a.messagePointer = 1
-			a.needAdjustPointer = true
-		}
-		a.mu.Unlock()
-		log.Info("reorganizeContextOnLoop: policy=%s, context auto-trimmed to system + last user message", policy)
-		// Return a brief suggestion that the LLM should call reorganize_context to better organize
+		// smart/task/reorganize: do NOT clear context here — only return a suggestion
+		// for the LLM to call reorganize_context if needed. This preserves all prior
+		// conversation history so the user does not lose context on Ctrl+C/ESC exit.
+		// The loop feedback message is appended by the caller (run_stream.go).
+		log.Info("reorganizeContextOnLoop: policy=%s, returning reorganize suggestion (context preserved)", policy)
 		suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
 		return suggestion
 	}

@@ -769,6 +769,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyConfigValCtxStart:      "请输入 window/task/smart",
 
 	// Simulate (FEATURE-218)
+	KeyHelpContinue:        "    .continue      - 不追加任何内容，直接将当前上下文发送给 LLM 继续",
 	KeyHelpSimulate:        "    .simulate      - 模拟 LLM 方法调用，进行解析和执行测试",
 	KeySimulatePromptInput: "请输入要模拟的 LLM 方法调用内容: ",
 	KeySimulateNoContent:   "内容为空，已取消",
@@ -795,7 +796,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyTokenUsageTiming:  "首字: %s | 输入: %s t/秒 | 输出: %s t/秒",
 
 	// Context reorganization (FEATURE-249)
-	KeyReorganizeResult: "✅ 上下文已重新整理：摘要 %d 字符，新消息序号 %d。",
+	// Note: <task> is embedded in the result string, so only char count remains as %d
+	KeyReorganizeResult: "✅ 上下文已重新整理：摘要 %d 字符。",
 
 	// Loop reorganize context (FEATURE-249)
 	KeyLoopReorganizeSuggestion: "\n\n⚠️ 检测到循环后上下文已被重置。建议调用 reorganize_context 工具重新整理上下文，总结已做的工作和发现，并制定新的策略继续。",

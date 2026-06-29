@@ -41,6 +41,13 @@ import (
 // Run processes a user input through the agent loop without streaming.
 // It returns the final response content.
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
+	// Ensure non-system messages are persisted on any exit path
+	defer func() {
+		if err := a.PersistSessionNonSystem(); err != nil {
+			log.Warn("Failed to persist non-system session: %v", err)
+		}
+	}()
+
 	// Save raw user input for potential use in system prompt.
 	a.lastUserInput = userInput
 
