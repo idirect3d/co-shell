@@ -318,7 +318,7 @@ Parameters:
 
 Critical rules:
 1. The <search> content must match the file EXACTLY (character-for-character including whitespace, indentation, line endings, comments, docstrings, etc.). The system first attempts exact match, then falls back to whitespace-tolerant fuzzy matching (trailing whitespace ignored) if exact match fails.
-2. Each <item> replaces only the FIRST match. For multiple matches, use multiple unique <search> values.
+2. Each <item> replaces only the FIRST match. For multiple matches, use multiple unique <search> values. Note: Do not use JSON expressions to represent array elements.
 3. Keep <item> concise: break large changes into smaller blocks. Include just enough context lines for uniqueness. Each line must be complete — never truncate.
 4. Special operations:
    - To move code: Use two <item> (one to delete from original, one to insert at new location)
@@ -337,14 +337,20 @@ Usage:
 </replace_in_file>`
 
 	enMessages[KeyToolUsageWriteToFile] = `## write_to_file
-Description: Write content to a file at the specified path. Overwrites if the file exists, creates if it doesn't. Automatically creates necessary directories. **Important: This tool requires both path and content parameters. The content parameter is required and must contain the complete file content.** When fixing errors in existing files, prefer replace_in_file over write_to_file.
+Description: Write content to a file at the specified path. The 'mode' parameter controls the operation:
+  - 'new': creates a NEW file. Fails if the file already exists.
+  - 'rewrite': overwrites an EXISTING file with new content. Fails if the file doesn't exist.
+  - 'append': appends content to an EXISTING file. Fails if the file doesn't exist.
+The three modes are mutually exclusive and non-interchangeable — use the correct mode for your operation. Parent directories are created automatically only in 'new' mode.
 Parameters:
 - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+- mode (required) The write mode: 'new' (create new file), 'rewrite' (overwrite existing file), 'append' (append to existing file). The three modes are mutually exclusive and non-interchangeable.
 - path (required) The absolute path to write the file to
-- content (required) The complete content to write to the file. This parameter must be provided in every call; omitting it will cause an error.
+- content (required) The content to write to the file. For 'append' mode, the content is appended to the end of the file.
 Usage:
 <write_to_file>
   <intent>Need to create a project configuration file with API endpoint information</intent>
+  <mode>new</mode>
   <path>output/result.md</path>
   <content># Result
 
@@ -786,6 +792,7 @@ Usage:
 ## Example 2: Create a new file
 
 <write_to_file>
+  <mode>new</mode>
   <path>src/config.json</path>
   <content>
 {
@@ -1197,6 +1204,7 @@ Call tool execute_command with parameters:
 
 Call tool write_to_file with parameters:
 {
+  "mode": "new",
   "path": "src/config.json",
   "content": "{\n  \"apiEndpoint\": \"https://api.example.com\",\n  \"theme\": {\n    \"primaryColor\": \"#007bff\",\n    \"fontFamily\": \"Arial, sans-serif\"\n  },\n  \"version\": \"1.0.0\"\n}"
 }
