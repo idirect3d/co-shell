@@ -54,8 +54,16 @@ func NewSessionHandler(ag *agent.Agent, cfg *config.Config) *SessionHandler {
 // Subcommands:
 //
 //	pop [N] — removes N non-system messages from history, keeps last 1 for editing
+//	pop to N — removes all messages after index N, keeps message N for editing
 func (h *SessionHandler) Handle(args []string) (string, error) {
 	if len(args) > 0 && args[0] == "pop" {
+		if len(args) > 2 && args[1] == "to" {
+			v, err := strconv.Atoi(args[2])
+			if err != nil || v < 0 {
+				return "", fmt.Errorf("无效的参数 %q，请使用非负整数", args[2])
+			}
+			return h.popTo(v)
+		}
 		n := 1
 		if len(args) > 1 {
 			v, err := strconv.Atoi(args[1])
@@ -73,6 +81,49 @@ func (h *SessionHandler) Handle(args []string) (string, error) {
 // The first (n-1) messages are discarded directly; the last (nth) message is
 // returned to the caller (REPL) for editing and re-submission.
 // If n == 1, behaves identically to the original single-message pop.
+// popTo removes all messages after index n (keeps [0..n]).
+// Returns the content at index n as "POP:..." for REPL editing.
+func (h *SessionHandler) popTo(n int) (string, error) {
+	a := h.agent
+	aMsg := a.Messages()
+	if len(aMsg) <= 1 {
+		return "", fmt.Errorf("没有可删除的消息（仅剩系统提示词）")
+	}
+
+	// n is the message index in the full a.messages array (system at index 0).
+	// Keep [0..n], discard everything after n.
+	if n >= len(aMsg)-1 {
+		return "", fmt.Errorf("编号 %d 已是最后一条消息，无需删除", n)
+	}
+	if n < 0 {
+		return "", fmt.Errorf("无效的编号 %d", n)
+	}
+
+	// Get the content at index n for editing (must be non-system)
+	if aMsg[n].Role == "system" {
+		return "", fmt.Errorf("不能删除系统提示词")
+	}
+
+	lastContent := aMsg[n].Content
+	if lastContent == "" && len(aMsg[n].ContentParts) > 0 {
+		lastContent = aMsg[n].CombineContentParts()
+	}
+	if lastContent == "" {
+		return "", fmt.Errorf("无法获取编号 %d 的消息内容", n)
+	}
+
+	// Remove all messages after index n
+	a.SetHistory(aMsg[:n+1])
+
+	// Report dropped count
+	dropped := len(aMsg) - (n + 1)
+	if dropped > 0 {
+		fmt.Printf(i18n.T(i18n.KeySessionPopDropped)+"\n", dropped, dropped)
+	}
+
+	return fmt.Sprintf("POP:%s", lastContent), nil
+}
+
 func (h *SessionHandler) popMessages(n int) (string, error) {
 	a := h.agent
 	aMsg := a.Messages()

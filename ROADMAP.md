@@ -621,7 +621,15 @@
 - [x] FEATURE-265 write_to_file 增加 mode 参数（new/rewrite/append）：[BUILD-277]
   - `agent/file_tools.go`：实现三种模式互斥验证（new 文件存在报错、rewrite/append 文件不存在报错、append 追加写入）
   - `agent/tools.go`：tool 定义增加必输 `mode` 参数
-  - `i18n/zh_system.go` / `i18n/en_system.go`：更新 XML/JSON 示例及工具说明
+   - `i18n/zh_system.go` / `i18n/en_system.go`：更新 XML/JSON 示例及工具说明
+
+- [x] FIX-264 修复 Ctrl+C 中断后上下文持久化丢失最后 2-3 条消息：[BUILD-278]
+  - CanceledError/InterruptedError 处理中，无条件删除最后一个 assistant 消息误伤前一个已完成迭代的消息
+  - 修复为：删除 3 处无保护的消息截断循环，CanceledError/InterruptedError 均在流式阶段立即返回，无需清理
+  - 新增 .session pop to N 子命令，保留 [0..N] 范围消息，删除 N 之后的消息并返回 N 的内容供编辑
+  - `agent/run_stream.go`：运行迭代循环、3 处消息删除保护
+  - `cmd/session.go`：新增 popTo() 方法
+  - `main.go`：BUILD 278
 
 ## v1.0.0 — 正式版
 
