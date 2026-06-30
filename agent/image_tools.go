@@ -185,7 +185,7 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 	// flushed as a <task> ContentPart at the end of the iteration. This keeps the
 	// instruction separate from the tool result and makes it visible as a user task.
 	taskContent := fmt.Sprintf(
-		"分析视觉文件: %s\n\n识别意图: %s\n\n请根据以上意图分析已上传视觉文件的内容，并通过调用 write_to_file（新建）/replace_in_file（追加） 将分析结果立即保存到 .md 文件中供后续使用，否则识别的信息将会丢失！",
+		"分析视觉文件: %s\n\n识别意图: %s\n\n请根据以上意图分析已上传视觉文件的内容，注意：必须通过调用 write_to_file（新建）/replace_in_file（追加） 将分析结果立即保存到 .md 文件中供后续使用，否则识别的信息将会丢失！",
 		path, intent)
 	if a.taskInstructionCache.Len() > 0 {
 		a.taskInstructionCache.WriteString("\n\n")
