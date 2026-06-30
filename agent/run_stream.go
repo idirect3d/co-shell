@@ -179,18 +179,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
 
 		// FEATURE-239: Handle user cancel (Ctrl+C) — immediate exit, no confirmation
+		// FIX-264: No need to clean up a.messages — CanceledError is returned before the current
+		// iteration's assistant message is added, so there is nothing to remove.
 		if _, isCanceled := streamErr.(*CanceledError); isCanceled {
 			ep := config.GetEmojiPrefixes(a.emojiEnabled)
 			cb("info", fmt.Sprintf("\n%s 已取消本次操作。\n", ep.Error))
-			// Remove any partial assistant message that may have been added
-			a.mu.Lock()
-			for i := len(a.messages) - 1; i >= 0; i-- {
-				if a.messages[i].Role == "assistant" {
-					a.messages = a.messages[:i]
-					break
-				}
-			}
-			a.mu.Unlock()
 			return "", nil
 		}
 
@@ -234,34 +227,18 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 			if userChoice == "C" || userChoice == "c" {
 				// User confirmed cancel: discard incomplete message and return to REPL
+				// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
+				// current iteration's assistant message is added, so there is nothing to remove.
 				cb("info", fmt.Sprintf("\n%s 已取消本次响应，丢弃不完整内容。\n", ep.Error))
-
-				// Also remove any partial assistant message that may have been added
-				a.mu.Lock()
-				for i := len(a.messages) - 1; i >= 0; i-- {
-					if a.messages[i].Role == "assistant" {
-						a.messages = a.messages[:i]
-						break
-					}
-				}
-				a.mu.Unlock()
-
 				return "", nil
 			}
 
 			// User chose to continue: reset interrupt channel for next ESC detection,
 			// then retry the LLM call with same context
+			// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
+			// current iteration's assistant message is added, so there is nothing to remove.
 			a.ResetInterrupt()
 			cb("info", fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
-			// Remove any partial assistant message that was added before retry
-			a.mu.Lock()
-			for i := len(a.messages) - 1; i >= 0; i-- {
-				if a.messages[i].Role == "assistant" {
-					a.messages = a.messages[:i]
-					break
-				}
-			}
-			a.mu.Unlock()
 
 			finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
 			if streamErr != nil {
