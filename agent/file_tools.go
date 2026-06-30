@@ -1123,9 +1123,11 @@ func findClosestMatch(content, search string) int {
 	return 0
 }
 
-// writeToFileTool creates a new file with optional content.
-// If the file already exists, it returns an error to prevent accidental overwrites.
-// The 'content' parameter is optional — if not provided, an empty file is created.
+// writeToFileTool creates, overwrites, or appends to a file with optional content.
+// The 'mode' parameter controls the file operation:
+//   - "new" (default): creates a new file. Fails if the file already exists.
+//   - "rewrite": overwrites an existing file with new content. Fails if the file doesn't exist.
+//   - "append": appends content to an existing file. Fails if the file doesn't exist.
 func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	log.Debug("writeToFileTool called: args=%v", args)
 	path, ok := args["path"].(string)
@@ -1133,26 +1135,64 @@ func (a *Agent) writeToFileTool(ctx context.Context, args map[string]interface{}
 		return "", fmt.Errorf("path argument is required")
 	}
 
-	// Check if file already exists — refuse to overwrite existing files
-	if _, err := os.Stat(path); err == nil {
-		return "", fmt.Errorf("file %q already exists. write_to_file can only create NEW files. To modify an existing file, use replace_in_file instead", path)
+	// Determine mode (required)
+	mode, ok := args["mode"].(string)
+	if !ok {
+		return "", fmt.Errorf("mode argument is required: one of: new, rewrite, append")
+	}
+
+	// Validate mode value
+	validModes := map[string]bool{"new": true, "rewrite": true, "append": true}
+	if !validModes[mode] {
+		return "", fmt.Errorf("invalid mode %q: must be one of: new, rewrite, append", mode)
+	}
+
+	// Check file existence
+	fileExists := true
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		fileExists = false
+	}
+
+	switch mode {
+	case "new":
+		if fileExists {
+			return "", fmt.Errorf("file %q already exists. mode 'new' can only create NEW files. Use mode 'rewrite' to overwrite existing files, or mode 'append' to append content to existing files", path)
+		}
+	case "rewrite", "append":
+		if !fileExists {
+			return "", fmt.Errorf("file %q does not exist. mode '%s' requires an existing file. Use mode 'new' to create a new file", path, mode)
+		}
 	}
 
 	content, _ := args["content"].(string)
 
-	// Create parent directories if they don't exist
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("cannot create directories for %q: %w", path, err)
+	// Create parent directories if they don't exist (only for 'new' mode)
+	if mode == "new" {
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("cannot create directories for %q: %w", path, err)
+		}
 	}
 
 	// Write the file
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		return "", fmt.Errorf("cannot write file %q: %w", path, err)
+	var writeErr error
+	if mode == "append" {
+		// Open existing file and append content
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return "", fmt.Errorf("cannot open file %q for append: %w", path, err)
+		}
+		defer f.Close()
+		_, writeErr = f.WriteString(content)
+	} else {
+		writeErr = os.WriteFile(path, []byte(content), 0644)
+	}
+	if writeErr != nil {
+		return "", fmt.Errorf("cannot write to file %q: %w", path, writeErr)
 	}
 
 	if content == "" {
-		return fmt.Sprintf("Created empty file: %s", path), nil
+		return fmt.Sprintf("(%s) %s", mode, path), nil
 	}
-	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), path), nil
+	return fmt.Sprintf("(%s) %d bytes written to %s", mode, len(content), path), nil
 }

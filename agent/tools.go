@@ -370,7 +370,7 @@ Critical rules:
 	})
 	tools = append(tools, llm.Tool{
 		Name:        "write_to_file",
-		Description: "Write content to a file at the specified path. If the file exists, it will be overwritten. If the file doesn't exist, it will be created. Any necessary directories will be created automatically. **CRITICAL: This tool REQUIRES BOTH 'path' AND 'content' parameters. The 'content' parameter is MANDATORY and must contain the complete file content. Omitting 'content' will cause an error.** IMPORTANT: When fixing errors in an existing file, prefer using replace_in_file instead of write_to_file. Using write_to_file to rewrite complex files often reintroduces the same issues. Use write_to_file primarily for creating new files or when a complete rewrite is truly necessary.",
+		Description: "Write content to a file at the specified path. The 'mode' parameter controls the operation:\n  - 'new': creates a NEW file. Fails if the file already exists.\n  - 'rewrite': overwrites an EXISTING file with new content. Fails if the file doesn't exist.\n  - 'append': appends content to an EXISTING file. Fails if the file doesn't exist.\n\nThe three modes are mutually exclusive and non-interchangeable — use the correct mode for your operation. Any necessary parent directories are created automatically only in 'new' mode.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -378,16 +378,20 @@ Critical rules:
 					"type":        "string",
 					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
 				},
+				"mode": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: The write mode. One of: 'new' (create new file), 'rewrite' (overwrite existing file), 'append' (append to existing file). The three modes are mutually exclusive and non-interchangeable.",
+				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The absolute path to the file to write to",
 				},
 				"content": map[string]interface{}{
 					"type":        "string",
-					"description": "**REQUIRED/MANDATORY**: The full content to write to the file. This parameter MUST be provided in every call. The tool will fail if this parameter is omitted. Content should be the complete intended file content, not a partial update.",
+					"description": "The content to write to the file. For 'append' mode, this content is appended to the end of the file.",
 				},
 			},
-			"required": []string{"intent", "path", "content"},
+			"required": []string{"intent", "mode", "path", "content"},
 		},
 		Callback: a.writeToFileTool,
 	})

@@ -611,6 +611,18 @@
 - [x] FIX-262 XML 解析调试日志增强：`stream_response.go` 在 XML 解析关键路径加 INFO 级别日志（原始内容预览、解析结果、报错详情）[BUILD-276]
 - [x] FIX-263 `main.go` 启动顺序修复：`SetResultMode()` 移到 `RestoreSession()` 之前，删除重复的 `SetResultMode()` 调用，解决 session 恢复后被清零的问题 [BUILD-276]
 
+- [x] FEATURE-264 上下文超限提前检测并跳过低质量工具执行：[BUILD-277]
+  - 将上下文超限检测从迭代末尾提前到 toolCalls 执行前
+  - 超限时通过 `reorganizePending` 标记跳过 assistant 消息添加和工具执行
+  - 迭代末尾 flush 后追加干净的用户消息（含 `<task>必须整理上下文</task>` + `<environment_details>`）
+  - LLM 已调用 `reorganize_context` 时不跳过执行也不追加重复提醒
+  - 删除了迭代末尾的旧 FEATURE-249 超限检测逻辑（已无效的重复代码）
+
+- [x] FEATURE-265 write_to_file 增加 mode 参数（new/rewrite/append）：[BUILD-277]
+  - `agent/file_tools.go`：实现三种模式互斥验证（new 文件存在报错、rewrite/append 文件不存在报错、append 追加写入）
+  - `agent/tools.go`：tool 定义增加必输 `mode` 参数
+  - `i18n/zh_system.go` / `i18n/en_system.go`：更新 XML/JSON 示例及工具说明
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

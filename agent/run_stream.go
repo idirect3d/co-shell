@@ -670,151 +670,188 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
-		// First add assistant message with tool_calls to history
-		// This must come BEFORE tool result messages to satisfy the API requirement
-		// that tool messages must follow a message with tool_calls.
-		// In XML mode, do NOT set ToolCalls on the assistant message — tool calls
-		// are embedded in the content as XML tags and the LLM expects results
-		// returned as user messages (not tool messages).
-		a.mu.Lock()
-		assistantMsgIdx := len(a.messages)
-		assistantMsg := llm.Message{
-			Role:             "assistant",
-			Content:          finalContent,
-			ReasoningContent: finalReasoning,
-		}
-		if !isXMLMode {
-			assistantMsg.ToolCalls = toolCalls
-		}
-		log.Debug("Agent.RunStream: preparing to add assistant message to a.messages at index %d: role=%s, content_len=%d, reasoning_len=%d, tool_calls=%d",
-			assistantMsgIdx, assistantMsg.Role, len(assistantMsg.Content), len(assistantMsg.ReasoningContent), len(assistantMsg.ToolCalls))
-		for i, tc := range toolCalls {
-			log.Debug("  tool_call[%d]: name=%s, id=%s, args_len=%d", i, tc.Name, tc.ID, len(tc.Arguments))
-		}
-		a.messages = append(a.messages, assistantMsg)
-		// Sync to memory (content without timestamp prefix)
-		if a.memoryEnabled {
-			if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
-				log.Warn("Failed to save assistant message to memory: %v", err)
+		// FEATURE-264: Check context usage threshold BEFORE executing tool calls.
+		// If the context is over the threshold, set reorganizePending to skip
+		// adding the assistant message and executing tools for this iteration.
+		// The reorganize instruction will be appended after the iteration's normal
+		// end-of-cycle processing (token_iter + flush + env injection).
+		var reorganizePending bool
+		maxModelLen := a.GetMaxModelLen()
+		if a.cfg != nil && a.cfg.LLM.ContextPolicy == "reorganize" && a.cfg.LLM.ContextReorganizeThreshold > 0 && maxModelLen > 0 {
+			_, _, iterTotal := a.IterTokenDelta()
+			usagePct := float64(iterTotal) * 100.0 / float64(maxModelLen)
+			threshold := float64(a.cfg.LLM.ContextReorganizeThreshold)
+
+			if usagePct >= threshold {
+				log.Info("Agent.RunStream: context usage %.1f%% exceeds threshold %.0f%%, skipping tool calls",
+					usagePct, threshold)
+				reorganizePending = true
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb("warning", fmt.Sprintf("\n%s 上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行\n", ep.Warning, usagePct, threshold))
 			}
 		}
-		a.mu.Unlock()
 
-		// Step 4: Execute tool calls and add results
-		cancelled := false
-		for _, tc := range toolCalls {
-			// Show command if enabled
-			if a.showCommand && tc.Name == "execute_command" {
-				var cmdArgs map[string]interface{}
-				if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
-					if cmd, ok := cmdArgs["command"].(string); ok {
-						cb("command", cmd)
-					}
-				}
-			}
+		// Move cancelled declaration outside the if block so both the assignment
+		// inside and the check below are in scope.
+		var cancelled bool
 
-			// Show tool call name (and input arguments if enabled)
-			if a.showTool {
-				msg := tc.Name
-				if a.showToolInput {
-					// Pretty-print the JSON arguments
-					var argsPretty string
-					var argsMap map[string]interface{}
-					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-						if pretty, err := json.MarshalIndent(argsMap, "", "  "); err == nil {
-							argsPretty = string(pretty)
-						}
-					}
-					if argsPretty == "" {
-						argsPretty = tc.Arguments
-					}
-					msg += "\n" + argsPretty
-				}
-				msg += "\n"
-				cb("tool_call", msg)
-			}
-
-			log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
-
-			result, execErr := a.executeToolCall(ctx, tc)
-			if execErr != nil {
-				errStr := execErr.Error()
-				// Check if user cancelled
-				if strings.HasPrefix(errStr, "CANCEL_AGENT") {
-					cancelled = true
-					// Remove the incomplete assistant message (with tool_calls) from history
-					a.mu.Lock()
-					a.messages = a.messages[:assistantMsgIdx]
-					a.mu.Unlock()
+		// If the LLM is already calling reorganize_context, do NOT skip it.
+		hasReorganizeCall := false
+		if reorganizePending && len(toolCalls) > 0 {
+			for _, tc := range toolCalls {
+				if tc.Name == "reorganize_context" {
+					hasReorganizeCall = true
 					break
 				}
-				// Format structured error feedback to help LLM understand and fix the issue
-				result = formatToolError(tc.Name, execErr)
-				log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 			}
-
-			// Show tool call output if enabled (for all tools)
-			if a.showToolOutput && result != "" {
-				cb("tool_call", fmt.Sprintf("  Result:\n%s\n", result))
-			}
-
-			// If the result is empty, provide a clear message to the LLM
-
-			toolContent := result
-			if toolContent == "" {
-				toolContent = "（工具调用无输出）"
-			}
-
-			if isXMLMode {
-				// In XML mode, return tool results as user messages with ContentParts structure.
-				toolResultMsg := a.buildXMLToolResultMessage(tc.Name, tc.Arguments, toolContent, len(a.messages))
-				a.mu.Lock()
-				a.messages = append(a.messages, toolResultMsg)
-				a.mu.Unlock()
-			} else {
-				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{
-					Role:       "tool",
-					Content:    toolContent,
-					ToolCallID: tc.ID,
-				})
-				a.mu.Unlock()
-			}
-
-			// FEATURE-255 / FIX-257: Flush task instruction cache BEFORE injecting
-			// <environment_details>, so <task> appears between tool result and <env>.
-			// This collects reorganize_context summary, CmdConfirmModify supplemental
-			// instructions, and other task-level hints, appending them as a <task>
-			// ContentPart to the just-added tool result message.
-			if a.taskInstructionCache.Len() > 0 {
-				taskContent := fmt.Sprintf("<task>\n%s\n</task>", a.taskInstructionCache.String())
-				log.Debug("Agent.RunStream: flushing task instruction cache: %s", taskContent)
-
-				a.mu.Lock()
-				lastIdx := len(a.messages) - 1
-				if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
-					msg := &a.messages[lastIdx]
-					if len(msg.ContentParts) == 0 {
-						msg.ContentParts = []llm.ContentPart{
-							{Type: llm.ContentPartText, Text: msg.Content},
-						}
-						msg.Content = ""
-					}
-					msg.AppendTextPart(taskContent)
-				} else {
-					a.messages = append(a.messages, llm.Message{Role: "user", Content: taskContent})
-				}
-				a.mu.Unlock()
-				a.taskInstructionCache.Reset()
-			}
-
-			// Attach environment_details to the just-added tool result message.
-			// This must come AFTER the task instruction cache flush so that
-			// <environment_details> is the last ContentPart.
-			// IMPORTANT: Must NOT hold a.mu here because injectTimeAndMessageNoToLast
-			// calls buildFullEnvironmentDetails -> isLastToolTaskPlan which acquires a.mu.
-			a.injectTimeAndMessageNoToLast()
 		}
+
+		if !reorganizePending || hasReorganizeCall {
+			// First add assistant message with tool_calls to history
+			// This must come BEFORE tool result messages to satisfy the API requirement
+			// that tool messages must follow a message with tool_calls.
+			// In XML mode, do NOT set ToolCalls on the assistant message — tool calls
+			// are embedded in the content as XML tags and the LLM expects results
+			// returned as user messages (not tool messages).
+			a.mu.Lock()
+			assistantMsgIdx := len(a.messages)
+			assistantMsg := llm.Message{
+				Role:             "assistant",
+				Content:          finalContent,
+				ReasoningContent: finalReasoning,
+			}
+			if !isXMLMode {
+				assistantMsg.ToolCalls = toolCalls
+			}
+			log.Debug("Agent.RunStream: preparing to add assistant message to a.messages at index %d: role=%s, content_len=%d, reasoning_len=%d, tool_calls=%d",
+				assistantMsgIdx, assistantMsg.Role, len(assistantMsg.Content), len(assistantMsg.ReasoningContent), len(assistantMsg.ToolCalls))
+			for i, tc := range toolCalls {
+				log.Debug("  tool_call[%d]: name=%s, id=%s, args_len=%d", i, tc.Name, tc.ID, len(tc.Arguments))
+			}
+			a.messages = append(a.messages, assistantMsg)
+			// Sync to memory (content without timestamp prefix)
+			if a.memoryEnabled {
+				if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+					log.Warn("Failed to save assistant message to memory: %v", err)
+				}
+			}
+			a.mu.Unlock()
+
+			// Step 4: Execute tool calls and add results
+			for _, tc := range toolCalls {
+				// Show command if enabled
+				if a.showCommand && tc.Name == "execute_command" {
+					var cmdArgs map[string]interface{}
+					if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
+						if cmd, ok := cmdArgs["command"].(string); ok {
+							cb("command", cmd)
+						}
+					}
+				}
+
+				// Show tool call name (and input arguments if enabled)
+				if a.showTool {
+					msg := tc.Name
+					if a.showToolInput {
+						// Pretty-print the JSON arguments
+						var argsPretty string
+						var argsMap map[string]interface{}
+						if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
+							if pretty, err := json.MarshalIndent(argsMap, "", "  "); err == nil {
+								argsPretty = string(pretty)
+							}
+						}
+						if argsPretty == "" {
+							argsPretty = tc.Arguments
+						}
+						msg += "\n" + argsPretty
+					}
+					msg += "\n"
+					cb("tool_call", msg)
+				}
+
+				log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
+
+				result, execErr := a.executeToolCall(ctx, tc)
+				if execErr != nil {
+					errStr := execErr.Error()
+					// Check if user cancelled
+					if strings.HasPrefix(errStr, "CANCEL_AGENT") {
+						cancelled = true
+						// Remove the incomplete assistant message (with tool_calls) from history
+						a.mu.Lock()
+						a.messages = a.messages[:assistantMsgIdx]
+						a.mu.Unlock()
+						break
+					}
+					// Format structured error feedback to help LLM understand and fix the issue
+					result = formatToolError(tc.Name, execErr)
+					log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
+				}
+
+				// Show tool call output if enabled (for all tools)
+				if a.showToolOutput && result != "" {
+					cb("tool_call", fmt.Sprintf("  Result:\n%s\n", result))
+				}
+
+				// If the result is empty, provide a clear message to the LLM
+
+				toolContent := result
+				if toolContent == "" {
+					toolContent = "（工具调用无输出）"
+				}
+
+				if isXMLMode {
+					// In XML mode, return tool results as user messages with ContentParts structure.
+					toolResultMsg := a.buildXMLToolResultMessage(tc.Name, tc.Arguments, toolContent, len(a.messages))
+					a.mu.Lock()
+					a.messages = append(a.messages, toolResultMsg)
+					a.mu.Unlock()
+				} else {
+					a.mu.Lock()
+					a.messages = append(a.messages, llm.Message{
+						Role:       "tool",
+						Content:    toolContent,
+						ToolCallID: tc.ID,
+					})
+					a.mu.Unlock()
+				}
+
+				// FEATURE-255 / FIX-257: Flush task instruction cache BEFORE injecting
+				// <environment_details>, so <task> appears between tool result and <env>.
+				// This collects reorganize_context summary, CmdConfirmModify supplemental
+				// instructions, and other task-level hints, appending them as a <task>
+				// ContentPart to the just-added tool result message.
+				if a.taskInstructionCache.Len() > 0 {
+					taskContent := fmt.Sprintf("<task>\n%s\n</task>", a.taskInstructionCache.String())
+					log.Debug("Agent.RunStream: flushing task instruction cache: %s", taskContent)
+
+					a.mu.Lock()
+					lastIdx := len(a.messages) - 1
+					if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
+						msg := &a.messages[lastIdx]
+						if len(msg.ContentParts) == 0 {
+							msg.ContentParts = []llm.ContentPart{
+								{Type: llm.ContentPartText, Text: msg.Content},
+							}
+							msg.Content = ""
+						}
+						msg.AppendTextPart(taskContent)
+					} else {
+						a.messages = append(a.messages, llm.Message{Role: "user", Content: taskContent})
+					}
+					a.mu.Unlock()
+					a.taskInstructionCache.Reset()
+				}
+
+				// Attach environment_details to the just-added tool result message.
+				// This must come AFTER the task instruction cache flush so that
+				// <environment_details> is the last ContentPart.
+				// IMPORTANT: Must NOT hold a.mu here because injectTimeAndMessageNoToLast
+				// calls buildFullEnvironmentDetails -> isLastToolTaskPlan which acquires a.mu.
+				a.injectTimeAndMessageNoToLast()
+			}
+		} // end if !reorganizePending
 
 		// If attempt_completion was called during tool execution, finalize and exit
 		if a.completed {
@@ -867,7 +904,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		// Send per-iteration token usage at the end of each iteration (skip if "off" mode)
 		iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
-		maxModelLen := a.GetMaxModelLen()
 		timing := a.GetLLMTiming()
 		if iterTotal > 0 {
 			tokenUsageMode := "on"
@@ -907,36 +943,26 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.taskInstructionCache.Reset()
 		}
 
-		// FEATURE-249: Check reorganize context threshold and inject suggestion if exceeded.
-		// Only active when ContextPolicy is "reorganize" and ContextReorganizeThreshold > 0.
-		// Uses per-iteration total tokens (prompt + completion) to match the display
-		// shown in token_iter, ensuring the LLM sees consistent numbers.
-		if a.cfg != nil && a.cfg.LLM.ContextPolicy == "reorganize" && a.cfg.LLM.ContextReorganizeThreshold > 0 && maxModelLen > 0 {
-			_, _, iterTotal := a.IterTokenDelta()
-			usagePct := float64(iterTotal) * 100.0 / float64(maxModelLen)
-			threshold := float64(a.cfg.LLM.ContextReorganizeThreshold)
-
-			if usagePct >= threshold {
-				log.Info("Agent.RunStream: context usage %.1f%% (prompt) exceeds threshold %.0f%%, suggesting reorganize_context",
-					usagePct, threshold)
-
-				suggestion := fmt.Sprintf(
-					"当前上下文用量已达到 %.1f%%，超过了阈值 %.0f%%。你必须立即调用 reorganize_context 工具重新整理上下文后，再继续做现在中断的任务。",
-					usagePct, threshold)
-
-				// Store the context overflow hint in the task instruction cache,
-				// so it is flushed as part of the <task> block at the start of
-				// the next iteration. This keeps it together with any other
-				// pending task-level instructions (FEATURE-255).
-				// Note: The context overflow check runs AFTER the flush above,
-				// so this hint will be delivered in the NEXT iteration.
-				if a.taskInstructionCache.Len() > 0 {
-					a.taskInstructionCache.WriteString("\n\n")
-				}
-				a.taskInstructionCache.WriteString(suggestion)
+		// FEATURE-264: If reorganize was pending (and the LLM did NOT already call
+		// reorganize_context this iteration), append a clean user message containing
+		// only the reorganize instruction. This is done AFTER the normal end-of-cycle
+		// processing (token_iter, flush, env injection), so the LLM sees a fresh,
+		// standalone instruction on the next iteration.
+		if reorganizePending && !hasReorganizeCall {
+			reorgMsg := "<task>\n你必须马上进行上下文整理。\n</task>\n\n当前上下文已经超限，立即调用 reorganize_context 工具。"
+			a.mu.Lock()
+			a.messages = append(a.messages, llm.Message{
+				Role:    "user",
+				Content: reorgMsg,
+			})
+			a.mu.Unlock()
+			// Inject environment_details for the new reorganize message
+			lastIdx := len(a.messages) - 1
+			if lastIdx >= 0 && a.messages[lastIdx].Role == "user" {
+				msgCopy := a.messages[lastIdx]
+				a.messages[lastIdx] = a.injectEnvelopeToLastUser([]llm.Message{msgCopy})[0]
 			}
 		}
-
 	}
 
 	log.Error("Agent.RunStream: reached maximum iterations (%d)", a.maxIterations)
