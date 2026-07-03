@@ -262,55 +262,12 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
-		// FEATURE-241: After a successful stream completion, check for async
-		// loop judgment result. If the async judge confirms a loop, inject
-		// feedback and reset all loop detectors before continuing.
-		if streamErr == nil && a.loopJudgeTriggered {
-			if judgeResult := a.checkLoopJudgeResult(); judgeResult != nil {
-				log.Warn("Agent.RunStream: async loop judgment confirmed at iteration %d", iteration)
-
-				loopFeedback := ""
-				if judgeResult.ExitStrategy != "" {
-					loopFeedback = fmt.Sprintf(
-						"⚠️ 检测到你的输出陷入了死循环。\n\n问题分析：%s\n\n退出建议：%s\n\n请按照建议立即调整策略。",
-						judgeResult.Reason, judgeResult.ExitStrategy,
-					)
-				} else {
-					loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), "LLM-based loop judgment confirmed")
-				}
-
-				// FEATURE-249: Check if loop reorganize is enabled
-				if reorganizeSuggestion := a.reorganizeContextOnLoop(); reorganizeSuggestion != "" {
-					loopFeedback += reorganizeSuggestion
-				}
-
-				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
-				a.mu.Unlock()
-
-				if a.loopDetector != nil {
-					a.loopDetector.Reset()
-				}
-				if a.toolCallLoopDetector != nil {
-					a.toolCallLoopDetector.Reset()
-				}
-				a.loopDetectCrit = false
-
-				if a.loopTempCtrl != nil {
-					oldTemp := a.loopTempCtrl.Temperature()
-					newTemp, changed := a.loopTempCtrl.Apply()
-					if changed {
-						a.llmClient.SetTemperature(newTemp)
-						log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after async loop judgment (direction=%d)",
-							oldTemp, newTemp, a.loopTempCtrl.direction)
-					}
-				}
-
-				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb("warning", fmt.Sprintf("\n%s 检测到循环输出，已发送纠正提示\n", ep.Warning))
-				continue
-			}
-		}
+		// NOTE: Loop judgment is now handled synchronously inside
+		// handleLoopDetection() in loop.go. When judge is enabled, the stream
+		// is paused during the judgment call. If the judge confirms a loop,
+		// streamLLMResponse returns the LoopDetectedError which is handled
+		// in the if streamErr != nil block below. If not confirmed, the
+		// detector is reset and the stream continues normally.
 
 		if streamErr != nil {
 			// FIX-240: Handle loop detection error.
@@ -324,14 +281,16 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			// LoopDetectedError immediately. Adjust temperature and retry.
 			// In async mode (LoopJudgeEnabled=true), streamLLMResponse does NOT
 			// return error for content loops; checkLoopJudgeResult handles it.
-			if _, isLoopDetected := streamErr.(*LoopDetectedError); isLoopDetected && a.loopDetectCrit {
+			if a.loopDetectCrit {
 				log.Warn("Agent.RunStream: sync loop detected at iteration %d, adjusting temperature and retrying", iteration)
 
 				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), streamErr.Error())
 
 				// FEATURE-249: Check if loop reorganize is enabled
+				hasReorg := false
 				if reorganizeSuggestion := a.reorganizeContextOnLoop(); reorganizeSuggestion != "" {
 					loopFeedback += reorganizeSuggestion
+					hasReorg = true
 				}
 
 				a.mu.Lock()
@@ -343,18 +302,28 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 				a.loopDetectCrit = false
 
+				// Collect strategy details for display
+				var strategyParts []string
+				if hasReorg {
+					strategyParts = append(strategyParts, "重整上下文")
+				}
 				if a.loopTempCtrl != nil {
 					oldTemp := a.loopTempCtrl.Temperature()
 					newTemp, changed := a.loopTempCtrl.Apply()
 					if changed {
 						a.llmClient.SetTemperature(newTemp)
+						strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
 						log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after loop detection (direction=%d)",
 							oldTemp, newTemp, a.loopTempCtrl.direction)
 					}
 				}
+				strategyParts = append(strategyParts, "发送纠错提示")
 
-				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb("warning", fmt.Sprintf("\n%s 检测到循环输出，已发送纠正提示\n", ep.Warning))
+				// Show summary at the end, after all handling
+				cb("info", "检测到循环输出\n")
+				cb("info", fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
+				cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+				cb("info", "────────────────────────────────────────────\n")
 				continue
 			}
 

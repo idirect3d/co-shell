@@ -32,6 +32,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -184,10 +185,21 @@ type Agent struct {
 	loopJudgeResultCh      chan struct{}    // closed when result is ready
 	loopJudgeTriggered     bool             // true if loop was detected during this stream call
 
+	// loopLongOutputTriggered is set to true when the streaming output exceeds
+	// LoopLongOutputThreshold during the current stream call. Prevents multiple
+	// judge triggers for the same long output chunk. Reset at the start of each
+	// streamLLMResponse call.
+	loopLongOutputTriggered bool
+
 	// loopDetectSyncErr stores the loop detection error for the sync (non-judge) path.
 	// When LoopJudgeEnabled is false, handleLoopDetection sets this and the stream
 	// event loop checks it to break out immediately.
 	loopDetectSyncErr error
+
+	// streamCb stores the active StreamCallback during streaming, so that
+	// handleLoopDetection() can display progress via the callback which
+	// properly handles raw terminal \r\n conversion.
+	streamCb StreamCallback
 
 	// ToolCallModeMgr manages tool call mode (openai/xml/custom)
 	toolCallModeMgr *ToolCallModeMgr
@@ -606,16 +618,47 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	log.Debug("judgeLoop: using model=%q, suspectContent=%d chars, loopType=%s",
 		modelCfg.ID, len(suspectContent), loopType)
 
-	// Create a temporary LLM client for the judgment model
-	// Use a short timeout for the judgment call (10 seconds)
+	// Display the full user prompt via streamCb before calling the judge API
+	if cb := a.streamCb; cb != nil {
+		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
+		if showDetail {
+			cb("info", "发送给判定模型的完整提示词:\n"+strings.TrimSpace(userText)+"\n")
+		}
+	}
+
+	// Resolve judge timeout: from config, default 60s, 0 = no timeout
+	judgeTimeout := 60
+	if a.cfg != nil && a.cfg.LLM.LoopJudgeTimeout > 0 {
+		judgeTimeout = a.cfg.LLM.LoopJudgeTimeout
+	} else if a.cfg != nil && a.cfg.LLM.LoopJudgeTimeout == 0 {
+		judgeTimeout = 0 // 0 = no timeout
+	}
+
+	// Create a temporary LLM client for the judgment model.
+	// Use 1024 max_tokens to leave room for the judge model to produce JSON output
+	// without needing to output thinking text first.
+	// Use an independent HTTP transport (DisableKeepAlives=true) so this request
+	// is NOT blocked by an active streaming connection in Go's default connection pool.
 	judgeClient := llm.NewClient(
 		modelCfg.Endpoint,
 		modelCfg.APIKey,
 		modelCfg.Model,
-		0.3, // low temperature for deterministic judgment
-		512, // max_tokens: short output
-		10,  // timeout: 10 seconds
+		0.0,  // low temperature for deterministic judgment
+		8192, // max_tokens: allow enough room for JSON output
+		judgeTimeout,
 	)
+	if oc, ok := judgeClient.(interface{ SetHTTPClient(*http.Client) }); ok {
+		oc.SetHTTPClient(&http.Client{
+			Transport: &http.Transport{
+				MaxConnsPerHost:     1,
+				MaxIdleConnsPerHost: 0,
+				IdleConnTimeout:     0,
+				DisableKeepAlives:   true,
+			},
+			Timeout: time.Duration(judgeTimeout) * time.Second,
+		})
+		log.Debug("judgeLoop: using independent HTTP transport for judge client")
+	}
 	if judgeClient != nil {
 		defer judgeClient.Close()
 	}
@@ -629,6 +672,9 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 		finalTemp = a.cfg.LLM.Temperature
 	}
 	judgeClient.SetTemperature(finalTemp)
+	// Disable thinking/reasoning for the judgment call so the model outputs
+	// pure JSON directly without a reasoning preamble.
+	judgeClient.SetThinkingEnabled(false)
 
 	// Build messages
 	messages := []llm.Message{
@@ -642,7 +688,17 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	log.Debug("LoopJudge request detail: system=%q, user=%q", systemText, userText)
 
 	// Make the judgment call (non-streaming, no tools)
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctxTimeout := judgeTimeout + 5 // ctx timeout slightly larger than client timeout
+	if judgeTimeout <= 0 {
+		ctxTimeout = 0 // no timeout
+	}
+	var ctxWithTimeout context.Context
+	var cancel context.CancelFunc
+	if ctxTimeout > 0 {
+		ctxWithTimeout, cancel = context.WithTimeout(ctx, time.Duration(ctxTimeout)*time.Second)
+	} else {
+		ctxWithTimeout, cancel = context.WithCancel(ctx)
+	}
 	defer cancel()
 
 	resp, err := judgeClient.Chat(ctxWithTimeout, messages, nil)
@@ -654,6 +710,14 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	// Log the judge model's raw response for debugging
 	log.Info("LoopJudge response: model=%q, resp_content=%d chars", modelCfg.ID, len(resp.Content))
 	log.Debug("LoopJudge response detail: raw=%q", resp.Content)
+
+	// Display the judge model's full response
+	if cb := a.streamCb; cb != nil {
+		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
+		if showDetail {
+			cb("info", "判定模型的完整返回:\n"+strings.TrimSpace(resp.Content)+"\n")
+		}
+	}
 
 	// Parse JSON response
 	result := &LoopJudgeResult{}
@@ -680,10 +744,15 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 }
 
 // handleLoopDetection is called when a loop pattern is detected during streaming.
-// It decides between sync (immediate interruption) and async (non-blocking judgment) modes.
+// It synchronously calls the judge model (if enabled) to confirm the loop,
+// then sets loopDetectSyncErr to interrupt the stream if confirmed.
+//
+// Judgment result handling:
+//   - Judge enabled AND confirmed loop → set syncErr (stream will break)
+//   - Judge enabled AND NOT confirmed → reset detectors (stream continues)
+//   - Judge disabled → always set syncErr (stream breaks immediately)
 func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	// Save the accumulated content for judgment
 	if reasoning != "" {
@@ -692,90 +761,118 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		a.lastLlmOutput = content
 	}
 
-	// Check if LLM-based loop judgment is enabled
 	useJudge := a.cfg != nil && a.cfg.LLM.LoopJudgeEnabled
 
 	if !useJudge {
-		// Sync mode: set sync error and mark critical. The event loop checks
-		// loopDetectSyncErr after each chunk to break out immediately.
+		// No judge: always interrupt immediately.
 		a.loopDetectSyncErr = detectErr
 		a.loopDetectCrit = true
+		a.mu.Unlock()
 		log.Debug("handleLoopDetection: sync mode, set loopDetectSyncErr")
 		return
 	}
 
-	// Async mode: only fire goroutine if no judgment is already in flight.
-	if a.loopJudgeInflight {
-		log.Debug("handleLoopDetection: async judge already in flight, ignoring duplicate detection")
-		return
+	// Show progress BEFORE the synchronous judge API call.
+	// Use direct stdout write with \r\n to bypass potential stream callback buffering
+	// in raw terminal mode.
+	io := a.defaultIO()
+	io.Println()
+	io.Println("────────────────────────────────────────────")
+	io.Println("检测到疑似循环内容...")
+
+	// Judge mode: synchronously call judgeLoop.
+	// (judgeLoop will display the full user prompt via streamCb)
+	// Release lock to avoid holding during the API call.
+	suspectContent := a.lastLlmOutput
+	a.mu.Unlock()
+
+	log.Debug("handleLoopDetection: judge mode, calling judgeLoop synchronously")
+	ctx := context.Background()
+	result := a.judgeLoop(ctx, detectErr, suspectContent)
+
+	// Show judge result after API completes
+	cb := a.streamCb
+	if cb != nil {
+		if result != nil && result.IsLoop {
+			cb("info", fmt.Sprintf("判定模型返回: is_loop=true, reason=%q, exit_strategy=%q\n", result.Reason, result.ExitStrategy))
+		} else if result != nil && !result.IsLoop {
+			cb("info", fmt.Sprintf("判定模型返回: is_loop=false, reason=%q\n", result.Reason))
+		} else {
+			cb("info", "判定模型返回: 失败/超时\n")
+		}
 	}
 
-	// Initialize result channel
-	a.loopJudgeInflight = true
-	a.loopJudgeTriggered = true
-	a.loopJudgeResultCh = make(chan struct{})
-	suspectContent := a.lastLlmOutput
-
-	// Fire judgment in background goroutine
-	ctx := context.Background()
-	go func() {
-		log.Debug("handleLoopDetection: async judge goroutine started")
-		result := a.judgeLoop(ctx, detectErr, suspectContent)
+	if result != nil && result.IsLoop {
+		// Judge confirmed loop: interrupt the stream.
 		a.mu.Lock()
-		a.loopJudgePendingResult = result
-		if a.loopJudgeResultCh != nil {
-			close(a.loopJudgeResultCh)
-		}
+		a.loopDetectSyncErr = detectErr
+		a.loopDetectCrit = true
 		a.mu.Unlock()
-		log.Debug("handleLoopDetection: async judge goroutine completed, is_loop=%v", result != nil && result.IsLoop)
-	}()
+		log.Debug("handleLoopDetection: judge confirmed loop, set loopDetectSyncErr")
+	} else if result != nil && !result.IsLoop {
+		// Judge explicitly NOT a loop: reset detectors, stream continues.
+		log.Debug("handleLoopDetection: judge says NOT a loop, resetting detectors and continuing stream")
+		if a.loopDetector != nil {
+			a.loopDetector.Reset()
+		}
+		if a.toolCallLoopDetector != nil {
+			a.toolCallLoopDetector.Reset()
+		}
+		a.loopLongOutputTriggered = false
+	} else {
+		// Judge returned nil (failed/disabled): fallback to direct feedback.
+		// Treat as loop confirmed to prevent the stream continuing in a loop.
+		log.Warn("handleLoopDetection: judge returned nil (judgment failed/disabled), falling back to direct loop feedback")
+		a.mu.Lock()
+		a.loopDetectSyncErr = detectErr
+		a.loopDetectCrit = true
+		a.mu.Unlock()
+	}
 }
 
-// checkLoopJudgeResult is called after streamLLMResponse returns, to check if
-// an async judgment result is available and whether intervention is needed.
-// Returns the result if confirmed, nil if not (not triggered, in flight, or not a loop).
-func (a *Agent) checkLoopJudgeResult() *LoopJudgeResult {
-	// Reset these flags regardless of outcome (they are per-stream-call)
-	defer func() {
-		a.loopJudgeInflight = false
-		a.loopJudgeTriggered = false
-	}()
-
-	if !a.loopJudgeTriggered {
-		return nil
-	}
-
-	// Wait for the async result with a generous timeout matching the judgment call timeout.
-	log.Info("checkLoopJudgeResult: waiting for async loop judgment result...")
-	if a.loopJudgeResultCh != nil {
-		select {
-		case <-a.loopJudgeResultCh:
-			log.Info("checkLoopJudgeResult: async judgment result received")
-		case <-time.After(20 * time.Second):
-			log.Warn("checkLoopJudgeResult: async judge timed out after 20s, proceeding without intervention")
-			return nil
+// getLastUserCommand returns the content of the last <task> tag found in user
+// messages, walking backwards through a.messages. Returns empty string if none
+// found. This provides the judge model with the most recent task instruction.
+func (a *Agent) getLastUserCommand() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		m := a.messages[i]
+		if m.Role == "user" {
+			content := strings.TrimSpace(m.CombineContentParts())
+			if content == "" {
+				content = strings.TrimSpace(m.Content)
+			}
+			if content != "" {
+				// Try to extract content from the last <task> tag
+				if taskStart := strings.LastIndex(content, "<task>"); taskStart >= 0 {
+					taskStart += len("<task>")
+					if taskEnd := strings.Index(content[taskStart:], "</task>"); taskEnd >= 0 {
+						taskContent := strings.TrimSpace(content[taskStart : taskStart+taskEnd])
+						if taskContent != "" {
+							return taskContent
+						}
+					}
+				}
+			}
 		}
 	}
-
-	// Clear channel to avoid reuse
-	a.loopJudgeResultCh = nil
-
-	if a.loopJudgePendingResult != nil && a.loopJudgePendingResult.IsLoop {
-		// Confirmed loop
-		a.loopDetectCrit = true
-		return a.loopJudgePendingResult
-	}
-
-	// Not confirmed as a loop (or result is nil = judgment failed)
-	return nil
+	return ""
 }
 
 // buildLoopJudgeUserPrompt constructs the user message for loop judgment.
 func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) string {
 	userTemplate := i18n.T(i18n.KeyLoopJudgeUserPrompt)
+
+	// Find the last non-. user command from message history
+	lastInput := a.getLastUserCommand()
+	if lastInput == "" {
+		lastInput = a.lastUserInput
+	}
+
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", a.lastUserInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
-	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", a.lastUserInput)
+	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{SUSPECT_CONTENT}", suspectContent)
 	return userTemplate
 }

@@ -623,6 +623,14 @@
   - `agent/tools.go`：tool 定义增加必输 `mode` 参数
    - `i18n/zh_system.go` / `i18n/en_system.go`：更新 XML/JSON 示例及工具说明
 
+- [x] **FEATURE-266 循环检测算法改进：用滑动窗口周期检测替代 M-max 行级计数** [BUILD-279]
+  - 新的周期检测算法维护 FNV-1a hash 行缓冲区，检测末尾行序列是否存在周期 p（1..8）且重复次数 ≥ threshold
+  - 正确识别所有周期模式：AAAA（p=1）、ABAB（p=2）、ABCABC（p=3）、ABACABAC（p=4）、ABCDABCD（p=4）等
+  - ABACABAC 等 M-max 无法检测的模式现在能正确检测
+  - 散乱分布/无规律行不会形成有效周期，保持正确的误报率控制
+  - hash 碰撞保护：hash 匹配后做实际字符串比较确认
+  - 所有旧测试保留，新增 ABACABAC 和 ABCDABCD 周期循环测试
+
 - [x] FIX-264 修复 Ctrl+C 中断后上下文持久化丢失最后 2-3 条消息：[BUILD-278]
   - CanceledError/InterruptedError 处理中，无条件删除最后一个 assistant 消息误伤前一个已完成迭代的消息
   - 修复为：删除 3 处无保护的消息截断循环，CanceledError/InterruptedError 均在流式阶段立即返回，无需清理

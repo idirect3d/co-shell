@@ -256,6 +256,11 @@ type LLMConfig struct {
 	// Default: true
 	LoopReorganizeEnabled bool `json:"loop_reorganize_enabled"`
 
+	// LoopLongOutputThreshold: when the LLM's single-stream output exceeds this
+	// many characters without calling any tools, trigger secondary judgment.
+	// 0 means disabled. Default: 32768
+	LoopLongOutputThreshold int `json:"loop_long_output_threshold"`
+
 	// DuplicateContentThreshold is the similarity threshold (0.0-1.0) for detecting
 	// duplicate assistant content. When the LLM returns a response with >= this
 	// similarity to the previous response (without calling any tools), it is
@@ -263,6 +268,11 @@ type LLMConfig struct {
 	// Default: 0.95
 	DuplicateContentThreshold float64 `json:"duplicate_content_threshold"`
 	// DuplicateContentThreshold default value is set in DefaultConfig
+
+	// LoopJudgeTimeout: timeout in seconds for the loop judgment API call.
+	// 0 means no timeout. Increase this value for local models with slow TTFT.
+	// Default: 60
+	LoopJudgeTimeout int `json:"loop_judge_timeout"`
 
 	// ShowLoopDetection: whether to show loop detection info (feedback sent to LLM,
 	// judgment results, temperature adjustments) in the user-facing output.
@@ -715,7 +725,8 @@ func DefaultConfig() *Config {
 			LoopJudgeEnabled:           true,
 			LoopReorganizeEnabled:      true,
 			DuplicateContentThreshold:  0.95,
-			ShowLoopDetection:          false,
+			LoopJudgeTimeout:           60,
+			ShowLoopDetection:          true,
 			TopP:                       -1,
 			TopK:                       -1,
 			RepetitionPenalty:          -1,
