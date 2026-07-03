@@ -170,7 +170,9 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-temp-step-down", subcommand == "loop-temp-max",
 		subcommand == "loop-temp-min",
 		subcommand == "loop-judge-enabled",
+		subcommand == "loop-judge-timeout",
 		subcommand == "loop-reorganize-enabled",
+		subcommand == "loop-long-output-threshold",
 		subcommand == "duplicate-content-threshold":
 		return h.handleSafetySetting(subcommand, args)
 
@@ -518,6 +520,10 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("loop-temp-min", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMin), "循环温度下限"),
 		// Loop judgment (FEATURE-241)
 		makeLine("loop-judge-enabled", loopJudgeStatus, i18n.T(i18n.KeyCol3LoopJudgeEnabled)),
+		// Loop judge timeout
+		makeLine("loop-judge-timeout", fmt.Sprintf("%ds", cfg.LLM.LoopJudgeTimeout), "LLM循环判定超时(秒,0=不限制)"),
+		// Long output threshold
+		makeLine("loop-long-output-threshold", fmt.Sprintf("%d", cfg.LLM.LoopLongOutputThreshold), "超长输出触发判定字符数(0=不检测)"),
 	)
 	loopReorganizeStatus := i18n.T(i18n.KeyOn)
 	if !cfg.LLM.LoopReorganizeEnabled {
@@ -602,10 +608,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
 
 	// Group 4: Safety & Confirmation
-	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(16)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(17)...)
 
 	// Group 5: Memory & Context
-	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(6)...)
+	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(7)...)
 
 	// Group 6: Developer
 	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
