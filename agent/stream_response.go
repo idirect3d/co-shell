@@ -67,6 +67,12 @@ func lastNChars(s string, n int) string {
 func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
 	log.Debug("Agent.streamLLMResponse: ENTER")
 
+	// Reset per-stream-call flags
+	a.mu.Lock()
+	a.loopLongOutputTriggered = false
+	a.streamCb = cb
+	a.mu.Unlock()
+
 	// Dynamically select and switch to the appropriate model based on current mode
 	a.ApplyWorkModeConfig()
 
@@ -166,6 +172,21 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
 						log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
 						a.handleLoopDetection(contentBuilder.String(), reasoningBuilder.String(), err)
+					}
+				}
+
+				// Check long output threshold: when accumulated output exceeds
+				// LoopLongOutputThreshold, trigger secondary judgment to check
+				// if the LLM is stuck or making no progress. 0 = disabled.
+				if a.loopDetectOn && a.cfg != nil && a.cfg.LLM.LoopLongOutputThreshold > 0 {
+					threshold := a.cfg.LLM.LoopLongOutputThreshold
+					totalLen := contentBuilder.Len() + reasoningBuilder.Len()
+					if totalLen >= threshold && !a.loopLongOutputTriggered {
+						a.loopLongOutputTriggered = true
+						log.Info("Agent.streamLLMResponse: long output threshold reached (%d >= %d chars), triggering loop judgment",
+							totalLen, threshold)
+						longErr := fmt.Errorf("LLM output exceeds %d characters without calling any tool, triggering loop judgment", threshold)
+						a.handleLoopDetection(contentBuilder.String(), reasoningBuilder.String(), longErr)
 					}
 				}
 

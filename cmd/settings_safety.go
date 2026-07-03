@@ -388,6 +388,36 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop reorganize enabled set to %s", status)
 		return fmt.Sprintf("✅ 循环检测重整上下文已设置为: %s", status), nil
 
+	case "loop-judge-timeout":
+		if len(args) < 2 {
+			return fmt.Sprintf("loop-judge-timeout: %ds (0=无限制)", h.cfg.LLM.LoopJudgeTimeout), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", fmt.Errorf("invalid timeout %q, must be a non-negative integer", args[1])
+		}
+		h.cfg.LLM.LoopJudgeTimeout = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop judge timeout set to %d seconds", n)
+		return fmt.Sprintf("✅ LLM循环判定超时已设置为: %d秒", n), nil
+
+	case "loop-long-output-threshold":
+		if len(args) < 2 {
+			return fmt.Sprintf("loop-long-output-threshold: %d (0=disabled)", h.cfg.LLM.LoopLongOutputThreshold), nil
+		}
+		threshold, err := strconv.Atoi(args[1])
+		if err != nil || threshold < 0 {
+			return "", fmt.Errorf("invalid threshold %q, must be a non-negative integer", args[1])
+		}
+		h.cfg.LLM.LoopLongOutputThreshold = threshold
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop long output threshold set to %d", threshold)
+		return fmt.Sprintf("✅ 超长输出触发判定阈值已设置为: %d", threshold), nil
+
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)
 	}

@@ -1390,6 +1390,13 @@ func (c *openAIClient) SetReasoningEffort(effort string) {
 	c.reasoningEffort = effort
 }
 
+// SetHTTPClient replaces the HTTP client used for API calls.
+// This is used by judgeLoop to set an independent transport that won't be
+// blocked by an active streaming connection sharing the default connection pool.
+func (c *openAIClient) SetHTTPClient(hc *http.Client) {
+	c.httpClient = hc
+}
+
 func (c *openAIClient) SetTemperature(temp float64) {
 	c.temperature = temp
 }
