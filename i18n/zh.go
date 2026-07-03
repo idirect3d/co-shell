@@ -600,7 +600,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3LoopJudgeEnabled:      "LLM循环二次判定",
 	KeyCol3ShowLoopDetection:     "显示循环检测过程(on|off)",
 	KeyCol3LoopJudgeModel:        "循环判定模型ID",
-	KeyLoopJudgeSystemPrompt:     "你是co-shell的死循环检测分析器。你的唯一职责是分析Agent行为并判断是否陷入死循环。\n\n## 判定标准\n- 内容重复：Agent在无意义地重复相同的输出或工具调用\n- 目标偏离：当前行为已偏离原始任务目标\n- 缺乏进展：反复尝试相同的失败方案\n\n请以JSON格式返回结果（不要包含其他内容）：\n{\"is_loop\": true/false, \"reason\": \"判定理由\", \"exit_strategy\": \"如果不是循环留空；如果是，给出退出建议\"}",
+	KeyLoopJudgeSystemPrompt:     "你是co-shell的死循环检测分析器。你的唯一职责是分析Agent行为并判断是否陷入死循环。\n\n## 判定标准\n- 内容重复：Agent在无意义地重复相同的输出或工具调用\n- 目标偏离：当前行为已偏离原始任务目标\n- 缺乏进展：反复尝试相同的失败方案\n\n请以JSON格式返回结果（不要包含其他内容）。\n- is_loop 必须是 true 或 false（布尔值），绝不能写 true/false 字样\n- 确保 JSON 格式正确，可以被标准 JSON 解析器解析\n\n示例（确认是循环时返回）：\n{\"is_loop\": true, \"reason\": \"连续5次输出相同内容，无任何进展\", \"exit_strategy\": \"立即停止当前操作，重新评估任务目标和当前进度\"}\n\n示例（确认不是循环时返回）：\n{\"is_loop\": false, \"reason\": \"虽然内容较长但每次输出都在分析不同维度\", \"exit_strategy\": \"\"}",
 	KeyLoopJudgeUserPrompt:       "## 原始任务\n{TASK}\n\n## 当前任务计划\n{TASK_PLAN}\n\n## 用户最后指令\n{LAST_INPUT}\n\n## 疑似循环内容（因检测到循环而被中断，内容可能不完整）\n{SUSPECT_CONTENT}\n\n## 解决问题的一般策略（优先级从高到低）\n1. 回归任务目标，重新评估当前进度\n2. 换一个完全不同的工具或方法\n3. 将问题拆解为更小的子步骤\n4. 检查已获取信息是否足够，是否需要向用户提问\n5. 总结已有发现，尝试用不同方式组织思路\n\n请分析并返回判定结果。",
 	KeySettingsDescLoopJudge:     "启用后，检测到疑似循环时使用独立模型进行二次判定（默认启用）",
 	KeyCol3LoopDetectThreshold:   "循环检测阈值(重复次数)",

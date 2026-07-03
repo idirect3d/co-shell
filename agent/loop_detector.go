@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-05-13
-// Last Modified: 2026-06-28
+// Last Modified: 2026-07-01
 //
 // MIT License
 //
@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT NOT INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -29,38 +29,49 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
 
 	"github.com/idirect3d/co-shell/log"
 )
 
-// LoopDetector monitors LLM output for repeating lines that indicate
-// the LLM is stuck in a loop. It counts exact line repetitions and
-// triggers intervention when the same line appears too many times.
+// LoopDetector monitors LLM output for repeating line patterns that indicate
+// the LLM is stuck in a loop. It uses a sliding-window period detection
+// algorithm on the stream of completed lines.
 //
-// Algorithm (M-max global counting):
-//   - lineCounts maps each unique line to its repetition count.
-//   - maxCount is the global maximum count across all lines (M).
-//   - For each incoming line, get its count N from the map (0 if unseen).
-//     Compute diff = maxCount - N:
-//   - diff == 0: N == M → increment both N and M (N++, M = N).
-//   - diff == 1: N is one behind M → increment N only (N++).
-//   - diff > 1:  gap is too wide → clear all counts, start fresh.
-//   - This ensures only truly consecutive repetition accumulates.
-//     Interleaved lines produce gaps (diff > 1) that clear the map,
-//     while true loops (ABCABC or AAAA) keep diff <= 1.
+// Algorithm (period detection):
+//   - Completed lines are hashed (FNV-1a 64-bit) and stored in a ring buffer.
+//   - For each new incoming line, the buffer tail is checked for periodic
+//     repetition: for each candidate period p (1..bufferSize/threshold),
+//     check whether the last (threshold * p) lines consist of the same
+//     p-line segment repeated threshold times.
+//   - Hash collisions are guarded by an actual string comparison when a
+//     hash match is found.
+//   - This correctly handles ALL periodic patterns: AAAA (p=1), ABAB (p=2),
+//     ABCABC (p=3), ABACABAC (p=4), ABCDABCD (p=4), etc.
+//   - Scattered or interleaved non-repeating lines do NOT form a valid period
+//     and will not trigger (e.g. A B B A — no clean period).
 type LoopDetector struct {
-	threshold   int             // min line occurrences to trigger (default: 5)
+	threshold   int             // min period repetitions to trigger (default: 5)
 	accumulated strings.Builder // accumulates incomplete trailing line across chunks
-	lineCounts  map[string]int  // exact line content → occurrence count
-	maxCount    int             // global maximum count M across all lines
+	lineHashes  []uint64        // ring buffer of completed line hashes
+	lineTexts   []string        // ring buffer of completed line texts (for collision guard)
+	writePos    int             // ring buffer write position (overwrite after full)
+	lineCount   int             // total completed lines seen so far (for indexing)
 }
+
+// MaxPeriod is the maximum period length the detector will examine.
+// Must be large enough to cover typical LLM output loop patterns,
+// where repeated paragraphs can be 10-15 lines long. Buffer capacity
+// is MaxPeriod * threshold (default: 20 * 5 = 100).
+const MaxPeriod = 20
 
 // LoopDetectedError is returned when a loop is detected.
 type LoopDetectedError struct {
-	pattern     string    // the repeated line content
-	repeatCount int       // how many times it repeated
+	pattern     string    // the repeated line content (from the first period segment)
+	period      int       // detected period length (in lines)
+	repeatCount int       // how many full periods were seen
 	threshold   int       // detection threshold
 	startTime   time.Time // first occurrence
 	endTime     time.Time // last occurrence
@@ -69,12 +80,12 @@ type LoopDetectedError struct {
 
 func (e *LoopDetectedError) Error() string {
 	msg := fmt.Sprintf(
-		"LLM output loop detected: line repeated %d times (threshold: %d). ",
-		e.repeatCount, e.threshold,
+		"LLM output loop detected: period=%d lines, repeated %d times (threshold: %d). ",
+		e.period, e.repeatCount, e.threshold,
 	)
 
 	if e.pattern != "" {
-		msg += fmt.Sprintf("Line content (first 200 chars): %s. ", truncateString(e.pattern, 200))
+		msg += fmt.Sprintf("Sample content (first 200 chars): %s. ", truncateString(e.pattern, 200))
 	}
 
 	msg += e.suggestion
@@ -82,15 +93,17 @@ func (e *LoopDetectedError) Error() string {
 }
 
 // NewLoopDetector creates a new loop detector with the given configuration.
-// threshold: min occurrences of the same line to trigger (default: 5).
+// threshold: min period repetitions to trigger (default: 5).
 func NewLoopDetector(threshold int) *LoopDetector {
 	if threshold <= 0 {
 		threshold = 5
 	}
-	log.Debug("LoopDetector: created with threshold=%d", threshold)
+	bufSize := threshold * MaxPeriod
+	log.Debug("LoopDetector: created with threshold=%d, bufferSize=%d", threshold, bufSize)
 	return &LoopDetector{
 		threshold:  threshold,
-		lineCounts: make(map[string]int),
+		lineHashes: make([]uint64, bufSize),
+		lineTexts:  make([]string, bufSize),
 	}
 }
 
@@ -114,55 +127,18 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 		completeCount = len(lines) - 1
 	}
 
-	// Step 3: Process complete lines using M-max algorithm.
+	// Step 3: Process complete lines using period detection.
 	for i := 0; i < completeCount; i++ {
 		line := strings.TrimSpace(lines[i])
 		if line == "" {
 			continue
 		}
 
-		// Get current count N for this line (0 if unseen).
-		N := ld.lineCounts[line]
+		hash := hashLine(line)
+		ld.pushLine(hash, line)
 
-		// Compute diff = M - N.
-		diff := ld.maxCount - N
-
-		if diff == 0 {
-			// N equals M: increment both N and M.
-			N++
-			ld.maxCount = N
-		} else if diff == 1 {
-			// N is one behind M: increment N only.
-			N++
-		} else {
-			// diff > 1: gap too wide, continuity broken — clear all.
-			ld.lineCounts = make(map[string]int)
-			ld.maxCount = 0
-			N = 0
-			// This line starts fresh.
-			N++
-			ld.maxCount = N
-		}
-
-		// Store updated count.
-		ld.lineCounts[line] = N
-
-		log.Debug("LoopDetector: line detected (count=%d, max=%d, threshold=%d): %.60s...",
-			N, ld.maxCount, ld.threshold, line)
-
-		if N >= ld.threshold {
-			log.Warn("LoopDetector: LOOP TRIGGERED: line repeated %d times (threshold=%d): %.60s...",
-				N, ld.threshold, line)
-			return &LoopDetectedError{
-				pattern:     line,
-				repeatCount: N,
-				threshold:   ld.threshold,
-				startTime:   timestamp,
-				endTime:     timestamp,
-				suggestion: "You appear to be repeating the same line of content. " +
-					"Please review your output and take a different approach. " +
-					"Consider summarizing your findings or moving to the next step.",
-			}
+		if err := ld.checkLoop(timestamp); err != nil {
+			return err
 		}
 	}
 
@@ -179,117 +155,127 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 // LLM iteration to avoid cross-iteration false positives.
 func (ld *LoopDetector) Reset() {
 	ld.accumulated.Reset()
-	ld.lineCounts = make(map[string]int)
-	ld.maxCount = 0
-	log.Debug("LoopDetector: reset line counts")
+	bufSize := len(ld.lineHashes)
+	ld.lineHashes = make([]uint64, bufSize)
+	ld.lineTexts = make([]string, bufSize)
+	ld.writePos = 0
+	ld.lineCount = 0
+	log.Debug("LoopDetector: reset")
 }
 
-// LoopTempController manages automatic temperature adjustment when a loop is detected.
-// It uses an oscillating strategy: increase temperature by StepUp until reaching Max,
-// then decrease by StepDown until reaching Min, then repeat. Overflow carry-over ensures
-// no temperature value is wasted — when a step would exceed the boundary, the excess
-// amount is "bounced back" after flipping direction.
+// pushLine pushes a (hash, text) pair onto the ring buffer at the current write position.
+func (ld *LoopDetector) pushLine(hash uint64, text string) {
+	bufSize := len(ld.lineHashes)
+	if bufSize == 0 {
+		return
+	}
+	ld.lineHashes[ld.writePos] = hash
+	ld.lineTexts[ld.writePos] = text
+	ld.writePos = (ld.writePos + 1) % bufSize
+	ld.lineCount++
+}
+
+// lineAt returns the (hash, text) at the given absolute index (0-based from first recorded line).
+// Returns hash=0, text="" if the index is out of range.
+func (ld *LoopDetector) lineAt(idx int) (uint64, string) {
+	bufSize := len(ld.lineHashes)
+	if bufSize == 0 || idx < 0 || idx >= ld.lineCount {
+		return 0, ""
+	}
+	// Ring buffer: oldest line starts at writePos, but only after buffer is full.
+	oldest := 0
+	if ld.lineCount > bufSize {
+		oldest = ld.writePos
+	}
+	pos := (oldest + idx) % bufSize
+	return ld.lineHashes[pos], ld.lineTexts[pos]
+}
+
+// countAtEnd checks whether the last N lines confirm a period p repeated k times
+// at the tail of the stream. Returns the number of complete periods found.
 //
-// Example (stepUp=0.05, stepDown=0.07, max=0.9, min=0.1):
-//
-//	0.50 → 0.55 → ... → 0.90 (hit max, flip ↓) → 0.85 → 0.78 → ... → 0.10 (hit min, flip ↑) → 0.17 → ...
-//	At max: 0.90 + 0.05 = 0.95, overflow=0.05, flip ↓, new temp = 0.90 - 0.05 = 0.85
-//	At min: 0.10 - 0.07 = 0.03, overflow=-0.07, flip ↑, new temp = 0.10 + 0.07 = 0.17
-type LoopTempController struct {
-	currentTemp float64 // current effective temperature
-	direction   int     // +1 = increasing, -1 = decreasing
-	stepUp      float64 // temperature increase step
-	stepDown    float64 // temperature decrease step
-	maxTemp     float64 // upper bound
-	minTemp     float64 // lower bound
-}
-
-// NewLoopTempController creates a new temperature controller with the given parameters.
-// initialTemp is the user-configured temperature value.
-func NewLoopTempController(initialTemp, stepUp, stepDown, maxTemp, minTemp float64) *LoopTempController {
-	if stepUp <= 0 {
-		stepUp = 0.05
-	}
-	if stepDown <= 0 {
-		stepDown = 0.07
-	}
-	if maxTemp <= minTemp {
-		maxTemp = 0.9
-		minTemp = 0.1
-	}
-	if initialTemp < minTemp {
-		initialTemp = minTemp
-	}
-	if initialTemp > maxTemp {
-		initialTemp = maxTemp
+// It takes the last (k*p) lines, divides into k segments of length p, and checks
+// that all segments are identical (hash match + string match collision guard).
+func (ld *LoopDetector) countAtEnd(p, k int) int {
+	needLines := k * p
+	if ld.lineCount < needLines {
+		return 0
 	}
 
-	return &LoopTempController{
-		currentTemp: initialTemp,
-		direction:   1, // start by increasing
-		stepUp:      stepUp,
-		stepDown:    stepDown,
-		maxTemp:     maxTemp,
-		minTemp:     minTemp,
-	}
-}
-
-// Apply calculates the next temperature value using the oscillating strategy
-// with overflow carry-over. Returns the new temperature and whether it changed.
-func (ltc *LoopTempController) Apply() (newTemp float64, changed bool) {
-	step := ltc.stepUp
-	if ltc.direction < 0 {
-		step = ltc.stepDown
+	// Reference segment: the last p lines of the stream.
+	refStart := ld.lineCount - p
+	refHashes := make([]uint64, p)
+	refTexts := make([]string, p)
+	for i := 0; i < p; i++ {
+		refHashes[i], refTexts[i] = ld.lineAt(refStart + i)
 	}
 
-	candidate := ltc.currentTemp + float64(ltc.direction)*step
-
-	// Check overflow beyond max
-	if ltc.direction > 0 && candidate > ltc.maxTemp {
-		overflow := candidate - ltc.maxTemp
-		ltc.direction = -1 // flip to decreasing
-		candidate = ltc.maxTemp - overflow
-		if candidate < ltc.minTemp {
-			candidate = ltc.minTemp
+	// Check (k-1) additional segments before the reference segment.
+	for seg := 1; seg < k; seg++ {
+		segStart := refStart - seg*p
+		for i := 0; i < p; i++ {
+			h, text := ld.lineAt(segStart + i)
+			if h != refHashes[i] {
+				return seg // this segment and all before it are incomplete
+			}
+			// Hash collision guard: confirm actual string equality
+			if text != refTexts[i] {
+				return seg // hash collision — treat as mismatch
+			}
 		}
 	}
+	return k // all k segments match
+}
 
-	// Check overflow beyond min
-	if ltc.direction < 0 && candidate < ltc.minTemp {
-		overflow := ltc.minTemp - candidate
-		ltc.direction = 1 // flip to increasing
-		candidate = ltc.minTemp + overflow
-		if candidate > ltc.maxTemp {
-			candidate = ltc.maxTemp
+// checkLoop examines the buffer tail for any periodic pattern repeating
+// >= threshold times.
+func (ld *LoopDetector) checkLoop(timestamp time.Time) error {
+	// If combined lines < threshold, impossible to detect a loop yet
+	if ld.lineCount < ld.threshold {
+		return nil
+	}
+	// Minimum period length is 1, maximum is up to lineCount/threshold or MaxPeriod
+	maxP := ld.lineCount / ld.threshold
+	if maxP > MaxPeriod {
+		maxP = MaxPeriod
+	}
+
+	bufSize := len(ld.lineHashes)
+	_ = bufSize
+
+	for p := 1; p <= maxP; p++ {
+		// How many full periods fit in the buffer tail? At least threshold.
+		maxK := ld.lineCount / p
+		if maxK > ld.threshold {
+			maxK = ld.threshold
+		}
+
+		k := ld.countAtEnd(p, maxK)
+		if k >= ld.threshold {
+			_, sampleText := ld.lineAt(ld.lineCount - p)
+			log.Warn("LoopDetector: LOOP TRIGGERED: period=%d, repeated %d times (threshold=%d): %.60s...",
+				p, k, ld.threshold, sampleText)
+			return &LoopDetectedError{
+				pattern:     sampleText,
+				period:      p,
+				repeatCount: k,
+				threshold:   ld.threshold,
+				startTime:   timestamp,
+				endTime:     timestamp,
+				suggestion: "You appear to be repeating the same content pattern. " +
+					"Please review your output and take a different approach. " +
+					"Consider summarizing your findings or moving to the next step.",
+			}
 		}
 	}
-
-	if candidate == ltc.currentTemp {
-		return candidate, false
-	}
-
-	ltc.currentTemp = candidate
-	return candidate, true
+	return nil
 }
 
-// Temperature returns the current temperature value.
-func (ltc *LoopTempController) Temperature() float64 {
-	return ltc.currentTemp
-}
-
-// LoopJudgeResult holds the result of an LLM-based loop judgment call.
-type LoopJudgeResult struct {
-	IsLoop       bool   `json:"is_loop"`
-	Reason       string `json:"reason"`
-	ExitStrategy string `json:"exit_strategy"`
-}
-
-// truncateString truncates a string to maxLen characters.
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
+// hashLine computes a FNV-1a 64-bit hash of the line content.
+func hashLine(line string) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(line))
+	return h.Sum64()
 }
 
 // ToolCallLoopDetector detects when the LLM repeatedly calls the same tool
@@ -407,4 +393,112 @@ func (tld *ToolCallLoopDetector) Prune(activeKeys map[string]bool) {
 func (tld *ToolCallLoopDetector) Reset() {
 	tld.callCounts = make(map[string]int)
 	log.Debug("ToolCallLoopDetector: reset all counts")
+}
+
+// truncateString truncates a string to maxLen characters.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// LoopJudgeResult holds the result of an LLM-based loop judgment call.
+type LoopJudgeResult struct {
+	IsLoop       bool   `json:"is_loop"`
+	Reason       string `json:"reason"`
+	ExitStrategy string `json:"exit_strategy"`
+}
+
+// LoopTempController manages automatic temperature adjustment when a loop is detected.
+// It uses an oscillating strategy: increase temperature by StepUp until reaching Max,
+// then decrease by StepDown until reaching Min, then repeat. Overflow carry-over ensures
+// no temperature value is wasted — when a step would exceed the boundary, the excess
+// amount is "bounced back" after flipping direction.
+//
+// Example (stepUp=0.05, stepDown=0.07, max=0.9, min=0.1):
+//
+//	0.50 → 0.55 → ... → 0.90 (hit max, flip ↓) → 0.85 → 0.78 → ... → 0.10 (hit min, flip ↑) → 0.17 → ...
+//	At max: 0.90 + 0.05 = 0.95, overflow=0.05, flip ↓, new temp = 0.90 - 0.05 = 0.85
+//	At min: 0.10 - 0.07 = 0.03, overflow=-0.07, flip ↑, new temp = 0.10 + 0.07 = 0.17
+type LoopTempController struct {
+	currentTemp float64 // current effective temperature
+	direction   int     // +1 = increasing, -1 = decreasing
+	stepUp      float64 // temperature increase step
+	stepDown    float64 // temperature decrease step
+	maxTemp     float64 // upper bound
+	minTemp     float64 // lower bound
+}
+
+// NewLoopTempController creates a new temperature controller with the given parameters.
+// initialTemp is the user-configured temperature value.
+func NewLoopTempController(initialTemp, stepUp, stepDown, maxTemp, minTemp float64) *LoopTempController {
+	if stepUp <= 0 {
+		stepUp = 0.05
+	}
+	if stepDown <= 0 {
+		stepDown = 0.07
+	}
+	if maxTemp <= minTemp {
+		maxTemp = 0.9
+		minTemp = 0.1
+	}
+	if initialTemp < minTemp {
+		initialTemp = minTemp
+	}
+	if initialTemp > maxTemp {
+		initialTemp = maxTemp
+	}
+
+	return &LoopTempController{
+		currentTemp: initialTemp,
+		direction:   1, // start by increasing
+		stepUp:      stepUp,
+		stepDown:    stepDown,
+		maxTemp:     maxTemp,
+		minTemp:     minTemp,
+	}
+}
+
+// Apply calculates the next temperature value using the oscillating strategy
+// with overflow carry-over. Returns the new temperature and whether it changed.
+func (ltc *LoopTempController) Apply() (newTemp float64, changed bool) {
+	step := ltc.stepUp
+	if ltc.direction < 0 {
+		step = ltc.stepDown
+	}
+
+	candidate := ltc.currentTemp + float64(ltc.direction)*step
+
+	// Check overflow beyond max
+	if ltc.direction > 0 && candidate > ltc.maxTemp {
+		overflow := candidate - ltc.maxTemp
+		ltc.direction = -1 // flip to decreasing
+		candidate = ltc.maxTemp - overflow
+		if candidate < ltc.minTemp {
+			candidate = ltc.minTemp
+		}
+	}
+
+	// Check overflow beyond min
+	if ltc.direction < 0 && candidate < ltc.minTemp {
+		overflow := ltc.minTemp - candidate
+		ltc.direction = 1 // flip to increasing
+		candidate = ltc.minTemp + overflow
+		if candidate > ltc.maxTemp {
+			candidate = ltc.maxTemp
+		}
+	}
+
+	if candidate == ltc.currentTemp {
+		return candidate, false
+	}
+
+	ltc.currentTemp = candidate
+	return candidate, true
+}
+
+// Temperature returns the current temperature value.
+func (ltc *LoopTempController) Temperature() float64 {
+	return ltc.currentTemp
 }
