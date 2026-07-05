@@ -403,11 +403,131 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
+// LoopEventType identifies which detector triggered a loop event.
+type LoopEventType int
+
+const (
+	LoopEventContentPeriodic  LoopEventType = iota // 多行周期重复（LoopDetector）
+	LoopEventContentDuplicate                      // 跨迭代内容重复（lastAssistantContent LCS）
+	LoopEventSingleLineRepeat                      // 流内单行重复（SingleLineLoopDetector）
+	LoopEventToolCallRepeat                        // 工具+参数重复（ToolCallLoopDetector）
+)
+
+// LoopEvent is the unified loop detection event from any detector.
+// All three detectors produce a LoopEvent which is then handled by
+// the single applyLoopIntervention() pipeline.
+type LoopEvent struct {
+	Type       LoopEventType // which detector triggered
+	Detector   string        // detector name (for logging)
+	Suggestion string        // feedback suggestion for the LLM
+	Content    string        // suspected loop content (for judge model)
+	ToolName   string        // tool name (only for ToolCallRepeat)
+	ToolArgs   string        // tool arguments (only for ToolCallRepeat)
+	Reason     string        // brief human-readable reason
+}
+
 // LoopJudgeResult holds the result of an LLM-based loop judgment call.
 type LoopJudgeResult struct {
 	IsLoop       bool   `json:"is_loop"`
 	Reason       string `json:"reason"`
 	ExitStrategy string `json:"exit_strategy"`
+}
+
+// SingleLineLoopDetector detects repeating patterns within the last N characters
+// of a single output line. It uses the same period-detection algorithm as
+// LoopDetector, but operates on characters instead of lines.
+//
+// Rules:
+//
+//	(a) Line length exceeds longLineThreshold (default 2048 chars) — immediate trigger
+//	(b) Within the last windowSize chars (default 128), a periodic pattern
+//	    repeats >= minRepeat times (fixed at 3). For example with windowSize=10:
+//	    "AAAAAAAAAA" → period=1, 10 repetitions → trigger
+//	    "ABCABCABCA" → period=3, 3 repetitions → trigger
+//	    "ABAABAABAA" → period=3, 3 repetitions → trigger
+//	    "ABCDEFGHIJ" → no period → no trigger
+type SingleLineLoopDetector struct {
+	longLineThreshold int // if a line exceeds this length, trigger (0 = disabled) (a)
+	windowSize        int // window for character-level period detection (0 = disabled) (b)
+	minRepeat         int // minimum period repetitions for rule (b), fixed at 3
+}
+
+// NewSingleLineLoopDetector creates a new SingleLineLoopDetector.
+func NewSingleLineLoopDetector(longLineThreshold, windowSize int) *SingleLineLoopDetector {
+	if longLineThreshold <= 0 {
+		longLineThreshold = 2048
+	}
+	if windowSize <= 0 {
+		windowSize = 128
+	}
+	log.Debug("SingleLineLoopDetector: created with longLineThreshold=%d, windowSize=%d, minRepeat=3",
+		longLineThreshold, windowSize)
+	return &SingleLineLoopDetector{
+		longLineThreshold: longLineThreshold,
+		windowSize:        windowSize,
+		minRepeat:         3,
+	}
+}
+
+// CheckLine checks if a single line triggers a loop detection event.
+// Returns nil if no loop detected, or a *LoopEvent if a loop is found.
+//
+// Rule (a): line length exceeds threshold.
+// Rule (b): last windowSize chars contain a period-p sequence repeated >= minRepeat times.
+func (sld *SingleLineLoopDetector) CheckLine(line string) *LoopEvent {
+	// Rule (a): line too long
+	if sld.longLineThreshold > 0 && len(line) > sld.longLineThreshold {
+		log.Warn("SingleLineLoopDetector: line length %d exceeds threshold %d",
+			len(line), sld.longLineThreshold)
+		return &LoopEvent{
+			Type:     LoopEventSingleLineRepeat,
+			Detector: "SingleLineLoopDetector (long line)",
+			Content:  truncateString(line, 200),
+			Reason:   fmt.Sprintf("single line length %d exceeds threshold %d", len(line), sld.longLineThreshold),
+			Suggestion: "Your output contains an extremely long line. " +
+				"Consider breaking it into shorter lines or summarizing.",
+		}
+	}
+
+	// Rule (b): character-level period detection in the last windowSize chars
+	if sld.windowSize > 0 && len(line) >= sld.windowSize {
+		tail := line[len(line)-sld.windowSize:]
+
+		// For each period p from 1 to windowSize / minRepeat:
+		// Check that the last (minRepeat * p) chars consist of a p-char
+		// segment repeated minRepeat times.
+		maxP := len(tail) / sld.minRepeat
+		for p := 1; p <= maxP; p++ {
+			// Reference segment: the last p chars of tail
+			ref := tail[len(tail)-p:]
+
+			// Check additional (minRepeat-1) segments before the reference
+			match := true
+			for seg := 1; seg < sld.minRepeat; seg++ {
+				segStart := len(tail) - (seg+1)*p
+				segEnd := segStart + p
+				if tail[segStart:segEnd] != ref {
+					match = false
+					break
+				}
+			}
+
+			if match {
+				log.Warn("SingleLineLoopDetector: character-level period %d repeated >= %d times at end of line",
+					p, sld.minRepeat)
+				return &LoopEvent{
+					Type:     LoopEventSingleLineRepeat,
+					Detector: "SingleLineLoopDetector (char period)",
+					Content:  truncateString(line, 200),
+					Reason:   fmt.Sprintf("char-level period %d repeated at end of line (window=%d)", p, sld.windowSize),
+					Suggestion: "Your output contains a repeating character pattern. " +
+						"Please vary your output.",
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // LoopTempController manages automatic temperature adjustment when a loop is detected.

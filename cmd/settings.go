@@ -200,6 +200,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-judge-timeout",
 		subcommand == "loop-reorganize-enabled",
 		subcommand == "loop-long-output-threshold",
+		subcommand == "loop-single-line-length",
+		subcommand == "loop-single-line-window",
 		subcommand == "duplicate-content-threshold":
 		return h.handleSafetySetting(subcommand, args)
 
@@ -547,6 +549,8 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("loop-judge-timeout", fmt.Sprintf("%ds", cfg.LLM.LoopJudgeTimeout), "LLM循环判定超时(秒,0=不限制)"),
 		// Long output threshold
 		makeLine("loop-long-output-threshold", fmt.Sprintf("%d", cfg.LLM.LoopLongOutputThreshold), "超长输出触发判定字符数(0=不检测)"),
+		makeLine("loop-single-line-length", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineLength), "单行超长阈值(0=不检测)"),
+		makeLine("loop-single-line-window", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineWindow), "单行窗口重复检测大小(0=不检测)"),
 	})
 	// loop-reorganize-enabled removed, controlled by loop-intervention
 

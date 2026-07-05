@@ -236,6 +236,36 @@ func (r *REPL) Run() error {
 			r.printHelp()
 			continue
 		}
+		// FEATURE-273: If input starts with ".", check if the first word is
+		// an executable in the current directory. If so, execute it directly.
+		// If not, warn the user that ":" should be used for builtin commands
+		// and ask if they want to send it to LLM anyway.
+		if strings.HasPrefix(input, ".") {
+			firstWord := strings.Fields(input)[0]
+			isLocalExec := false
+			if info, err := os.Stat(firstWord); err == nil && !info.IsDir() && info.Mode().Perm()&0111 != 0 {
+				isLocalExec = true
+			}
+			if isLocalExec {
+				r.handleSystemCommand(input)
+				continue
+			}
+			// Not a local executable: warn user about ":" prefix, then ask
+			ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+			fmt.Printf("\n%s 提示: 你输入的内容以 '.' 开头，这可能是想执行内置命令。\n", ep.Warning)
+			fmt.Printf("  内置命令应用 ':' 开头，例如 :settings、:model 等。\n")
+			fmt.Printf("  你想把这个内容发送给 LLM 处理吗？\n\n")
+			fmt.Printf("  请选择: [Enter] 发送给 LLM  [C] 取消: ")
+			// Use readLine which handles both enhanced and stdio modes
+			response, _ := r.readLine("")
+			response = strings.TrimSpace(strings.ToLower(response))
+			if response == "c" {
+				fmt.Printf("%s 已取消\n", ep.Warning)
+				continue
+			}
+			// Fall through to handleAgentInput
+		}
+
 		if strings.HasPrefix(input, ":") {
 			r.handleBuiltin(input)
 			continue
