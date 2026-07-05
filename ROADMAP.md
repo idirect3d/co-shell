@@ -379,6 +379,17 @@
 
 ### 功能清单
 
+- [x] **FEATURE-269 思考模式三态控制+Provider专用适配器+测试按Provider禁用思考** [BUILD-283]
+  - ThinkingEnabled 从 bool 改为 string 三态（on/off/default），支持模型级覆盖
+  - reasoning-effort 扩展 max/none/default 选项
+  - 7 个 Provider 思考适配器（DeepSeek/Qwen/OpenAI/Xiaomi/Zhipu/Mimo/fallback）
+  - 所有 LLM client 创建路径（main.go/startup、cmd/settings.go/rebuild、agent/agent.go/ApplyWorkModeConfig）均通过适配器注入 BodyAdditions
+  - 模型测试时按 Provider 正确禁用/启用思考格式（Qwen→extra_body, DeepSeek→thinking:{type})
+  - 模型向导修复 ID 重复导致失败的问题
+  - i18n 循环检测内容拆分到独立文件 zh_loop.go/en_loop.go，清理重复 key
+  - 交互日志修复：测试时强制开启、.set llm-log 同步到 log 模块
+  - `.set` 界面显示 thinking-enabled 和 reasoning-effort 及完整选项说明
+
 - [x] FEATURE-208 外部工具（bin/）梳理与优化：[BUILD-213]
   - [x] 新增 pdf2png 工具：将 PDF 拆分为分页 PNG 图片，支持 LLM 多模态 PDF 内容解析
   - [x] 新增 docx2pdf 工具：将 .docx 转换为 PDF，WPS 优先（Linux wps2pdf / macOS AppleScript / LibreOffice 兜底）

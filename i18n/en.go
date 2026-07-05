@@ -572,21 +572,6 @@ no liability whatsoever.`,
 	KeyCol3ErrorMaxSingleCount: "Max single error count",
 	KeyCol3ErrorMaxTypeCount:   "Max error type count",
 
-	KeyLoopJudgeSystemPrompt:     "You are co-shell's dead-loop detection analyzer. Your sole responsibility is to analyze agent behavior and determine if it is stuck in a dead loop.\n\n## Judgment Criteria\n- Content Repetition: The agent is repeatedly outputting the same content or making the same tool calls\n- Goal Deviation: Current behavior has deviated from the original task objective\n- Lack of Progress: Repeatedly attempting the same failed strategy\n\nReturn the result in JSON format (DO NOT include any other content).\n- is_loop must be true or false (boolean), never write the literal string \"true/false\"\n- Ensure the JSON is valid and parseable by a standard JSON parser\n\nExample (confirmed loop):\n{\"is_loop\": true, \"reason\": \"Same content output 5 times in a row with no progress\", \"exit_strategy\": \"Stop current approach, reassess task goals and progress\"}\n\nExample (not a loop):\n{\"is_loop\": false, \"reason\": \"Each output analyzes a different dimension\", \"exit_strategy\": \"\"}",
-	KeyLoopJudgeUserPrompt:       "## Original Task\n{TASK}\n\n## Current Task Plan\n{TASK_PLAN}\n\n## User's Last Instruction\n{LAST_INPUT}\n\n## Suspected Loop Content (interrupted due to loop detection, content may be incomplete)\n{SUSPECT_CONTENT}\n\n## General Problem-Solving Strategies (Priority from High to Low)\n1. Rethink the original task goal, reassess current progress\n2. Switch to a completely different tool or approach\n3. Break the problem into smaller sub-steps\n4. Check if you have enough information, or if you need to ask the user for more\n5. Summarize findings and try organizing your thoughts differently\n\nPlease analyze and return the judgment result.",
-	KeySettingsDescLoopJudge:     "When enabled, an independent model is used for secondary judgment when a suspected loop is detected (default: enabled)",
-	KeyCol3LoopDetectEnabled:     "Loop detect (on|off)",
-	KeyCol3LoopDetectThreshold:   "Loop detect threshold (repeats)",
-	KeyLoopDetectFeedback:        "⚠️ Your output appears to be stuck in a loop (repeating similar content consecutively, see error details below).\nFirst, pause and take a deep breath. I'll guide you out of this. Start by thinking about the ultimate goal of the user's task (the content inside <task></task>), assess how far you've deviated from the goal, then try a different approach and direction to solve the problem.\n\nError details: %s",
-	KeyToolCallLoopFeedback:      "⚠️ Tool call loop detected: tool \"%s\" has been called with the same arguments for consecutive iterations. Please stop immediately and switch to a completely different approach:\n1. Try a different tool or combination of tools\n2. If you need to read files, try search_files first\n3. If you need to modify code, understand the full context first\n4. If unsure, ask the user for more information\n\nRemember: stay calm, change your strategy, don't repeat the same thing.",
-	KeyCol3LoopDetectMaxWindow:   "Loop detect window size",
-	KeySettingsDescLoopDetect:    "Enable loop detection to detect if LLM output is stuck in a loop",
-	KeySettingsDescLoopThreshold: "Loop detection threshold, number of consecutive repeats to trigger intervention (default 5)",
-	KeySettingsDescLoopWindow:    "Loop detection sliding window size, history chunks to check for repeating patterns (default 20)",
-	KeyLoopDetectEnabledUpdated:  "✅ Loop detection set to: %s",
-	KeyCLIHelpLoopDetectEnabled:  "      --loop-detect-enabled   Enable loop detection (overrides config)",
-	KeyCLIHelpLoopDetectDisabled: "      --loop-detect-disabled  Disable loop detection (overrides config)",
-
 	// Settings confirmation (FEATURE-131)
 	KeySettingsConfirmTitle:          "⚠️ co-shell will modify system parameters",
 	KeySettingsConfirmRiskWarning:    "⚠️ Risk Warning: Modifying system parameters may affect co-shell's behavior and stability. Please proceed with caution.",
@@ -752,16 +737,6 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token usage: prompt=%d, completion=%d, total=%d, context=%.1f%%",
 	KeyTokenUsageTiming:  "TTFT: %s | Input: %s t/s | Output: %s t/s",
-
-	// Context reorganization (FEATURE-249)
-	// Note: <task> is embedded in the result string, so only char count remains as %d
-	KeyReorganizeResult: "✅ Context reorganized: %d chars summary.",
-
-	// Loop reorganize context (FEATURE-249)
-	KeyLoopReorganizeSuggestion: "\n\n⚠️ Loop detected and context has been reset. It is recommended to call the reorganize_context tool to reorganize the context, summarize completed work and findings, and formulate a new strategy to continue.",
-
-	// Duplicate assistant content detection (FEATURE-249)
-	KeyDuplicateContentFeedback: "⚠️ Your current response is identical to the previous one. You have already completed your analysis — do not repeat the same text. Review the full context and task list to clarify the task goal, then re-plan the task using track_task_progress and continue by calling appropriate tools. If the task goal is unclear, call ask_followup_question to request more information from the user.",
 
 	// Debug mode
 	KeyDebugMode:         "Debug Mode",
