@@ -81,7 +81,7 @@ var enMessages = map[string]string{
 	KeyCmdError:    "Command error",
 	KeyCmdExecFail: "Command execution failed",
 	KeyAgentFail:   "Agent error",
-	KeyAgentHint:   "Type help or .help to see available commands.",
+	KeyAgentHint:   "Type help or :help to see available commands.",
 	KeyOutputTitle: "=== Command Output ===",
 	KeyOutputSep:   "---",
 	KeyToolCall:    "Tool call",
@@ -240,12 +240,12 @@ var enMessages = map[string]string{
    %-20s %-30s %s`,
 
 	// REPL - Additional
-	KeyWelcomeTip: "💡 Type natural language commands or system commands directly.\n   Type .help for available commands.\n   Example: \"List files in current directory\"",
+	KeyWelcomeTip: "💡 Type natural language commands or system commands directly.\n   Type :help for available commands.\n   Example: \"List files in current directory\"",
 
 	KeyUnknownCommand: "❌ Unknown command: %s",
 	KeyCmdFailed:      "Command failed",
 	KeyProcessFailed:  "Processing failed",
-	KeyCheckConfig:    "💡 Check your API configuration with .settings",
+	KeyCheckConfig:    "💡 Check your API configuration with :settings",
 	KeyCleaningUp:     "Cleaning up...",
 	KeyDone:           " Done.",
 
@@ -254,29 +254,29 @@ var enMessages = map[string]string{
 	KeyHelpNLTitle:      "Natural Language Commands:",
 	KeyHelpNLDesc:       "    Just type what you want to do, and co-shell will figure it out.",
 	KeyHelpBuiltinTitle: "Built-in Commands:",
-	KeyHelpSettings:     "    .set                - View/change LLM API settings",
+	KeyHelpSettings:     "    :set                - View/change LLM API settings",
 
-	KeyHelpMCP:          "    .mcp                - Manage MCP server connections",
-	KeyHelpRule:         "    .rule               - Manage global rules",
-	KeyHelpMemory:       "    .memory             - Manage memory and knowledge",
-	KeyHelpContext:      "    .context            - Manage conversation context",
-	KeyHelpList:         "    .list               - View history task list (same as .history)",
-	KeyHelpLast:         "    .last               - View recent history tasks (use .history last)",
-	KeyHelpFirst:        "    .first              - View earliest history tasks (use .history first)",
-	KeyHelpImage:        "    .image              - Manage multimodal image cache (add/remove/clear/list)",
-	KeyHelpPlan:         "    .plan               - Manage task plans (list/view/create/insert/remove/update)",
-	KeyHelpBodyAdd:      "    .body-add           - Add custom JSON property to LLM request body",
-	KeyHelpBodyRemove:   "    .body-remove        - Remove custom JSON property from LLM request body",
-	KeyHelpBodyDisplay:  "    .body-display       - Display custom JSON properties in LLM request body",
-	KeyHelpNew:          "    .new                - Clear current session and start a new conversation",
-	KeyHelpHelp:         "    .help               - Show this help message",
-	KeyHelpExit:         "    .exit               - Exit co-shell",
+	KeyHelpMCP:          "    :mcp                - Manage MCP server connections",
+	KeyHelpRule:         "    :rule               - Manage global rules",
+	KeyHelpMemory:       "    :memory             - Manage memory and knowledge",
+	KeyHelpContext:      "    :context            - Manage conversation context",
+	KeyHelpList:         "    :list               - View history task list (same as :history)",
+	KeyHelpLast:         "    :last               - View recent history tasks (use :history last)",
+	KeyHelpFirst:        "    :first              - View earliest history tasks (use :history first)",
+	KeyHelpImage:        "    :image              - Manage multimodal image cache (add/remove/clear/list)",
+	KeyHelpPlan:         "    :plan               - Manage task plans (list/view/create/insert/remove/update)",
+	KeyHelpBodyAdd:      "    :body-add           - Add custom JSON property to LLM request body",
+	KeyHelpBodyRemove:   "    :body-remove        - Remove custom JSON property from LLM request body",
+	KeyHelpBodyDisplay:  "    :body-display       - Display custom JSON properties in LLM request body",
+	KeyHelpNew:          "    :new                - Clear current session and start a new conversation",
+	KeyHelpHelp:         "    :help               - Show this help message",
+	KeyHelpExit:         "    :exit               - Exit co-shell",
 	KeyHelpExampleTitle: "Examples:",
 	KeyHelpExample1:     "\"List files in current directory\"",
 	KeyHelpExample2:     "\"What is the weather today?\"",
 	KeyHelpExample3:     "ls -la",
-	KeyHelpExample4:     ".mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
-	KeyHelpExample5:     ".rule add \"Always confirm before deleting files\"",
+	KeyHelpExample4:     ":mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
+	KeyHelpExample5:     ":rule add \"Always confirm before deleting files\"",
 
 	// CLI Help
 	KeyCLIHelpTitle:                    "co-shell v%s - Intelligent Command-Line Shell",
@@ -409,10 +409,10 @@ no liability whatsoever.`,
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 Starting API setup wizard...\n",
 	KeyWizardCmdDone:    "✅ API setup wizard completed.\n",
-	KeyHelpModel:        "    .model         - Multi-model management (add/list/remove/switch/info)",
+	KeyHelpModel:        "    :model         - Multi-model management (add/list/remove/switch/info)",
 
 	// Settings help table
-	KeySettingsHelpTitle:             "📋 .set Parameter List",
+	KeySettingsHelpTitle:             "📋 :set Parameter List",
 	KeySettingsColParam:              "Parameter",
 	KeySettingsColValues:             "Values / Range",
 	KeySettingsColDesc:               "Description",
@@ -439,7 +439,7 @@ no liability whatsoever.`,
 	KeySettingsDescToolTimeout:       "Tool call timeout (0=unlimited)",
 	KeySettingsDescCmdTimeout:        "Command timeout (0=unlimited)",
 	KeySettingsDescLLMTimeout:        "LLM request timeout (0=unlimited)",
-	KeySettingsHelpFooter:            "💡 Use .set <parameter> <value> to modify, e.g.: .set model gpt-4o\n   .set db to view/configure database (first run starts the setup wizard)",
+	KeySettingsHelpFooter:            "💡 Use :set <parameter> <value> to modify, e.g.: :set model gpt-4o\n   :set db to view/configure database (first run starts the setup wizard)",
 	KeySettingsCurrentTitle:          "Current Configuration:",
 
 	// Memory enabled
@@ -507,9 +507,9 @@ no liability whatsoever.`,
 	KeyListEmpty:     "No history entries.",
 	KeyListReExecute: "Enter a number to re-execute, or type something else to continue.",
 	KeyListInvalid:   "Invalid number, please enter a number between 1-%d.",
-	KeyLastUsage:     "Usage: .last [N] — Show last N history entries (default 10)",
-	KeyFirstUsage:    "Usage: .first [N] — Show first N history entries (default 10)",
-	KeyListUsage:     "Usage: .list [start] [end] — Show history range (index starts from 1)",
+	KeyLastUsage:     "Usage: :last [N] — Show last N history entries (default 10)",
+	KeyFirstUsage:    "Usage: :first [N] — Show first N history entries (default 10)",
+	KeyListUsage:     "Usage: :list [start] [end] — Show history range (index starts from 1)",
 
 	// Custom
 	KeyCustom: "Custom",
@@ -530,12 +530,12 @@ no liability whatsoever.`,
 	KeySessionPopDropped:     "Popped %d messages (%d discarded, last one kept for editing)",
 
 	// History command
-	KeyHelpHistory: "    .history            - View history of user input commands (.history last/first [N])",
-	KeyHelpSession: "    .session            - View current session info (message count, role distribution, etc.)",
-	KeyHistoryUsage: `📋 .history subcommands:
-  .history [start] [end]    View history range
-  .history last [N]         View last N entries (default 10)
-  .history first [N]        View first N entries (default 10)
+	KeyHelpHistory: "    :history            - View history of user input commands (:history last/first [N])",
+	KeyHelpSession: "    :session            - View current session info (message count, role distribution, etc.)",
+	KeyHistoryUsage: `📋 :history subcommands:
+  :history [start] [end]    View history range
+  :history last [N]         View last N entries (default 10)
+  :history first [N]        View first N entries (default 10)
   Enter a number to re-execute a history command`,
 
 	// Memory search config
@@ -650,7 +650,7 @@ no liability whatsoever.`,
 	KeyDBMigrating:         "Migrating data to PostgreSQL...",
 	KeyDBMigrationComplete: "✅ Data migration complete",
 	KeyDBMigrationFailed:   "❌ Data migration failed: %v",
-	KeyDBSubCmdDesc:        "Database persistent storage (.set db for details)",
+	KeyDBSubCmdDesc:        "Database persistent storage (:set db for details)",
 	KeyDBInitDesc:          "Initialize PostgreSQL database (drop and recreate all tables)",
 	KeyDBMigrateDesc:       "Migrate data from local bbolt to PostgreSQL",
 
@@ -691,7 +691,7 @@ no liability whatsoever.`,
 	KeySettingsDescShellSessionTimeout: "Timeout for each command in the persistent shell session (0=no timeout)",
 
 	// Config wizard (FEATURE-197)
-	KeyHelpConfig:             "    .config     - Configuration wizard (menu-driven)",
+	KeyHelpConfig:             "    :config     - Configuration wizard (menu-driven)",
 	KeyConfigWizardTitle:      "╔══════════════════════════════════════════════╗\n║         co-shell Configuration Wizard        ║\n╚══════════════════════════════════════════════╝",
 	KeyConfigWizardIntro:      "Select a configuration category to navigate and set parameters.",
 	KeyConfigGroupTitle:       "── Configuration Categories ─────────────────",
@@ -712,8 +712,8 @@ no liability whatsoever.`,
 	KeyConfigValCtxStart:      "Enter window/task/smart",
 
 	// Simulate (FEATURE-218)
-	KeyHelpContinue:        "    .continue      - Send the current context to the LLM as-is, without adding any new content",
-	KeyHelpSimulate:        "    .simulate      - Simulate LLM tool call, parse and execute for testing",
+	KeyHelpContinue:        "    :continue      - Send the current context to the LLM as-is, without adding any new content",
+	KeyHelpSimulate:        "    :simulate      - Simulate LLM tool call, parse and execute for testing",
 	KeySimulatePromptInput: "Enter the LLM tool call content to simulate: ",
 	KeySimulateNoContent:   "Empty input, cancelled",
 	KeyContinuePrompt: `You returned plain text without calling any tool. This is not a valid way to complete the task. Please decide immediately:

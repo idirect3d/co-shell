@@ -643,13 +643,16 @@
   - 所有旧测试保留，新增 ABACABAC 和 ABCDABCD 周期循环测试
 
 - [x] FIX-264 修复 Ctrl+C 中断后上下文持久化丢失最后 2-3 条消息：[BUILD-278]
-- [x] FEATURE-270 系统提示词简化：去除 Shell/XML 模式分支。去掉 Capabilities/Rules/ToolUsage 的 shellEnabled/plan mode 分支逻辑；删除 keys.go/zh_system.go/en_system.go 中不再使用的 7 个 key 和对应的 Shell/XML/ReadOnly 翻译块；同步更新英文版各节与中文版结构一致 [BUILD-284]
-  - CanceledError/InterruptedError 处理中，无条件删除最后一个 assistant 消息误伤前一个已完成迭代的消息
-  - 修复为：删除 3 处无保护的消息截断循环，CanceledError/InterruptedError 均在流式阶段立即返回，无需清理
-  - 新增 .session pop to N 子命令，保留 [0..N] 范围消息，删除 N 之后的消息并返回 N 的内容供编辑
-  - `agent/run_stream.go`：运行迭代循环、3 处消息删除保护
-  - `cmd/session.go`：新增 popTo() 方法
-  - `main.go`：BUILD 278
+- [x] **FEATURE-270 系统提示词简化 + 命令前缀冒号化 + 调研步骤补充** [BUILD-284]
+  - 去掉 Capabilities/Rules/ToolUsage 的 shellEnabled/plan mode 分支逻辑，统一使用通用资源
+  - 删除 keys.go/zh_system.go/en_system.go 中不再使用的 Shell/XML/ReadOnly key 和翻译块
+  - 同步更新英文版各节与中文版结构一致
+  - LLM 交互日志（llm-interaction-YYYY-MM-DD.log）补充 judgeLoop 收发内容
+  - 新增 DefaultActSections() 供 act/research 模式使用（不含 ToolExamples），保留 DefaultBuiltInSections() 完整节列表
+  - KeyWorkModeResearch 补充调研工作的 7 个基本步骤
+  - **REPL 内置命令前缀从 `.` 改为 `:`**（如 :settings/:help/:plan 等），去掉了 `.` 兜底逻辑
+  - 同步更新 i18n/zh.go/i18n/en.go 中所有命令引用、帮助文本、提示信息
+  - 同步更新 cmd/config.go 配置向导中的命令名
 
 ## v1.0.0 — 正式版
 
