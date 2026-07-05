@@ -356,25 +356,24 @@ func showSettingsHelp(cfg *config.Config) string {
 	// otherwise fall back to global AgentDescription.
 	agentDescDisplay := lookupWorkModeDescription(cfg, cfg.LLM.WorkMode)
 
-	// Collect all lines
-	var allLines []settingLine
+	// Collect lines by group
+	var allGroups [][]settingLine
 
 	// Group 1: Identity & Personality
-	allLines = append(allLines,
+	allGroups = append(allGroups, []settingLine{
 		makeLine("name", agentName, i18n.T(i18n.KeyCol3Name)),
 		makeLine("description", agentDescDisplay, i18n.T(i18n.KeyCol3Desc)),
-	)
+	})
 
-	// Show current work mode
 	modeName := cfg.LLM.WorkMode
 	if modeName == "" || modeName == "default" {
 		modeName = "act"
 	}
-	allLines = append(allLines,
+	allGroups[0] = append(allGroups[0],
 		makeLine("mode", modeName, i18n.T(i18n.KeyCol3WorkMode)),
 	)
 
-	// Group 2: Agent Settings (19 lines = 15 + 4 browser)
+	// Group 2: Agent Settings
 	// Use cfg.Models directly for smart model selection display
 	allModels := cfg.Models
 
@@ -459,7 +458,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	temperatureStr := fmt.Sprintf("%.1f", cfg.LLM.Temperature)
 	maxTokensStr := fmt.Sprintf("%d", cfg.LLM.MaxTokens)
 
-	allLines = append(allLines,
+	allGroups = append(allGroups, []settingLine{
 		makeLine("temperature", temperatureStr, "0.0 ~ 2.0（浮点数）"),
 		makeLine("max-tokens", maxTokensStr, "1 ~ 128000（整数）"),
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
@@ -482,11 +481,10 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("browser-port", fmt.Sprintf("%d", cfg.LLM.BrowserPort), i18n.T(i18n.KeyCol3BrowserPort)),
 		makeLine("browser-headless", browserHeadlessStatus, i18n.T(i18n.KeyCol3BrowserHeadless)),
 		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), "HTML下载阈值"),
-		// Search settings
 		makeLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.T(i18n.KeyCol3SearchMaxLineLength)),
 		makeLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.T(i18n.KeyCol3SearchMaxResultBytes)),
 		makeLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), i18n.T(i18n.KeyCol3SearchContextLines)),
-	)
+	})
 
 	// Show loop detection (FEATURE-241)
 	loopDetectionShowStatus := i18n.T(i18n.KeyOff)
@@ -503,7 +501,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.EmojiEnabled {
 		emojiStatus = i18n.T(i18n.KeyOn)
 	}
-	allLines = append(allLines,
+	allGroups = append(allGroups, []settingLine{
 		makeLine("emoji-enabled", emojiStatus, i18n.T(i18n.KeyCol3EmojiEnabled)),
 		makeLine("show-llm-thinking", llmThinkingStatus, i18n.T(i18n.KeyCol3LlmThinking)),
 		makeLine("show-llm-content", llmContentStatus, i18n.T(i18n.KeyCol3LlmContent)),
@@ -513,18 +511,13 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("show-command", commandStatus, i18n.T(i18n.KeyCol3Command)),
 		makeLine("show-command-output", commandOutputStatus, i18n.T(i18n.KeyCol3CommandOutput)),
 		makeLine("show-loop-detection", loopDetectionShowStatus, i18n.T(i18n.KeyCol3ShowLoopDetection)),
-	)
+	})
 
 	// Loop detection (FIX-179)
-	loopDetectStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.LoopDetectEnabled {
-		loopDetectStatus = i18n.T(i18n.KeyOn)
-	}
-
-	// Loop temperature adjustment (FEATURE-230)
-	loopTempStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.LoopTempEnabled {
-		loopTempStatus = i18n.T(i18n.KeyOn)
+	// Loop intervention (FEATURE-267)
+	loopIntervention := cfg.LLM.LoopIntervention
+	if loopIntervention == "" {
+		loopIntervention = "retry"
 	}
 
 	// Loop judgment (FEATURE-241)
@@ -534,7 +527,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 
 	// Group 4: Safety & Confirmation
-	allLines = append(allLines,
+	allGroups = append(allGroups, []settingLine{
 		makeLine("confirm-tool", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
 		makeLine("tool-timeout", toolTimeoutStr, i18n.T(i18n.KeyCol3ToolTimeout)),
 		makeLine("cmd-timeout", cmdTimeoutStr, i18n.T(i18n.KeyCol3CmdTimeout)),
@@ -542,10 +535,8 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.T(i18n.KeyCol3ErrorMaxSingleCount)),
 		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
 		// Loop detection (FEATURE-227)
-		makeLine("loop-detect-enabled", loopDetectStatus, i18n.T(i18n.KeyCol3LoopDetectEnabled)),
+		makeLine("loop-intervention", loopIntervention, "循环介入策略(off/retry/prompt/reorganize/temperature/random)"),
 		makeLine("loop-detect-threshold", fmt.Sprintf("%d", cfg.LLM.LoopDetectThreshold), i18n.T(i18n.KeyCol3LoopDetectThreshold)),
-		// Loop temperature (FEATURE-230)
-		makeLine("loop-temp-enabled", loopTempStatus, "循环温度自动调节"),
 		makeLine("loop-temp-step-up", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepUp), "循环温度上升步长"),
 		makeLine("loop-temp-step-down", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepDown), "循环温度下降步长"),
 		makeLine("loop-temp-max", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMax), "循环温度上限"),
@@ -556,14 +547,8 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("loop-judge-timeout", fmt.Sprintf("%ds", cfg.LLM.LoopJudgeTimeout), "LLM循环判定超时(秒,0=不限制)"),
 		// Long output threshold
 		makeLine("loop-long-output-threshold", fmt.Sprintf("%d", cfg.LLM.LoopLongOutputThreshold), "超长输出触发判定字符数(0=不检测)"),
-	)
-	loopReorganizeStatus := i18n.T(i18n.KeyOn)
-	if !cfg.LLM.LoopReorganizeEnabled {
-		loopReorganizeStatus = i18n.T(i18n.KeyOff)
-	}
-	allLines = append(allLines,
-		makeLine("loop-reorganize-enabled", loopReorganizeStatus, "循环检测重整上下文"),
-	)
+	})
+	// loop-reorganize-enabled removed, controlled by loop-intervention
 
 	// Group 5: Memory & Context
 	contextStartMode := i18n.T(i18n.KeyContextPolicyReorganize)
@@ -582,7 +567,7 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.ContextReorganizeThreshold == 0 {
 		reorganizeThresholdStr = "off"
 	}
-	allLines = append(allLines,
+	allGroups = append(allGroups, []settingLine{
 		makeLine("memory-enabled", memoryEnabledStatus, i18n.T(i18n.KeyCol3MemoryEnabled)),
 		makeLine("context-limit", contextLimitStr, i18n.T(i18n.KeyCol3ContextLimit)),
 		makeLine("context-policy", contextStartMode, "window/task/smart/reorganize"),
@@ -590,20 +575,18 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), i18n.T(i18n.KeyCol3MemorySearchMaxContentLen)),
 		makeLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), i18n.T(i18n.KeyCol3MemorySearchMaxResults)),
 		makeLine("db", dbEnabledStatus, i18n.T(i18n.KeyDBSubCmdDesc)),
-	)
+	})
 
 	// Group 6: Developer
-	allLines = append(allLines,
-		makeLine("debug", debugStatus, i18n.T(i18n.KeyCol3Debug)),
-		makeLine("log", logStatus, i18n.T(i18n.KeyCol3Log)),
-	)
 	llmInteractionLogStatus := i18n.T(i18n.KeyOff)
 	if log.IsLLMInteractionEnabled() {
 		llmInteractionLogStatus = i18n.T(i18n.KeyOn)
 	}
-	allLines = append(allLines,
+	allGroups = append(allGroups, []settingLine{
+		makeLine("debug", debugStatus, i18n.T(i18n.KeyCol3Debug)),
+		makeLine("log", logStatus, i18n.T(i18n.KeyCol3Log)),
 		makeLine("llm-log", llmInteractionLogStatus, i18n.T(i18n.KeyCol3LLMInteractionLog)),
-	)
+	})
 
 	// Helper to format a setting line with fixed column widths
 	formatLine := func(name, value, col3 string) string {
@@ -618,35 +601,22 @@ func showSettingsHelp(cfg *config.Config) string {
 		}
 	}
 
-	// Track index for iterating through allLines
-	lineIdx := 0
-	nextLines := func(n int) []string {
-		result := make([]string, 0, n)
-		for i := 0; i < n && lineIdx < len(allLines); i++ {
-			l := allLines[lineIdx]
-			result = append(result, formatLine(l.name, l.value, l.col3))
-			lineIdx++
-		}
-		return result
+	// Group titles in the same order as allGroups
+	groupTitles := []string{
+		i18n.T(i18n.KeySettingsGroupIdentity),
+		i18n.T(i18n.KeySettingsGroupModel),
+		i18n.T(i18n.KeySettingsGroupDisplay),
+		i18n.T(i18n.KeySettingsGroupSafety),
+		i18n.T(i18n.KeySettingsGroupMemory),
+		i18n.T(i18n.KeySettingsGroupSearchDebug),
 	}
 
-	// Group 1: Identity & Personality
-	writeGroup(i18n.T(i18n.KeySettingsGroupIdentity), nextLines(3)...)
-
-	// Group 2: Agent Settings
-	writeGroup(i18n.T(i18n.KeySettingsGroupModel), nextLines(24)...)
-
-	// Group 3: Display & Output
-	writeGroup(i18n.T(i18n.KeySettingsGroupDisplay), nextLines(9)...)
-
-	// Group 4: Safety & Confirmation
-	writeGroup(i18n.T(i18n.KeySettingsGroupSafety), nextLines(17)...)
-
-	// Group 5: Memory & Context
-	writeGroup(i18n.T(i18n.KeySettingsGroupMemory), nextLines(7)...)
-
-	// Group 6: Developer
-	writeGroup(i18n.T(i18n.KeySettingsGroupSearchDebug), nextLines(4)...)
+	for gi, group := range allGroups {
+		writeGroup(groupTitles[gi])
+		for _, l := range group {
+			sb.WriteString(formatLine(l.name, l.value, l.col3))
+		}
+	}
 
 	return sb.String()
 }

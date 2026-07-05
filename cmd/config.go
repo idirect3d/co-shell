@@ -659,8 +659,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 			h.cfg.LLM.ErrorMaxTypeCount = 100
 			return i18n.TF(i18n.KeySettingsUpdated, "error-max-type-count", "100")
 		}},
-		onOffParam(&h.cfg.LLM.LoopDetectEnabled, "loop-detect-enabled"),
-		onOffParam(&h.cfg.LLM.LoopTempEnabled, "loop-temp-enabled"),
+		// loop-detect-enabled and loop-temp-enabled removed, use loop-intervention instead
 		{Name: "loop-temp-step-up", CurrentValue: func() string {
 			return strconv.FormatFloat(h.cfg.LLM.LoopTempStepUp, 'f', 2, 64)
 		}, SetValue: func(v string) (string, error) {
