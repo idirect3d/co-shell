@@ -771,6 +771,7 @@ func DefaultConfig() *Config {
 			LoopReorganizeEnabled:      true,
 			DuplicateContentThreshold:  0.95,
 			LoopJudgeTimeout:           60,
+			LoopLongOutputThreshold:    32768,
 			ShowLoopDetection:          true,
 			TopP:                       -1,
 			TopK:                       -1,
