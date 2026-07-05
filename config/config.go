@@ -395,6 +395,16 @@ type LLMConfig struct {
 	// If empty, uses the default i18n KeyLoopDetectFeedback.
 	LoopPromptTemplate string `json:"loop_prompt_template"`
 
+	// LoopSingleLineLength: when a single line in LLM output exceeds this many
+	// characters, it triggers single-line loop detection.
+	// 0 means disabled. Default: 2048
+	LoopSingleLineLength int `json:"loop_single_line_length"`
+
+	// LoopSingleLineWindow: window size (in characters) for detecting repeating
+	// patterns within a single line of LLM output.
+	// 0 means disabled. Default: 128
+	LoopSingleLineWindow int `json:"loop_single_line_window"`
+
 	// LLMInteractionLog: whether to enable LLM interaction full logging.
 	// When enabled, all LLM request and response payloads are written to
 	// log/llm-interaction-YYYY-MM-DD.log as formatted JSON.
@@ -750,6 +760,8 @@ func DefaultConfig() *Config {
 			ErrorMaxTypeCount:          100,
 			LoopDetectEnabled:          true,
 			LoopDetectThreshold:        5,
+			LoopSingleLineLength:       2048,
+			LoopSingleLineWindow:       128,
 			LoopTempEnabled:            true,
 			LoopTempStepUp:             0.05,
 			LoopTempStepDown:           0.07,

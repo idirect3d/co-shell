@@ -769,6 +769,130 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	return result
 }
 
+// applyLoopIntervention applies the configured loop intervention strategy
+// for a unified LoopEvent. It handles all types of loop events through the
+// same pipeline, sending feedback to the LLM, adjusting temperature, or
+// reorganizing context based on the cfg.LLM.LoopIntervention setting.
+//
+// The method returns a non-nil error to signal that the current iteration
+// should NOT continue (the feedback message has been appended), or nil
+// if the intervention should be skipped and the iteration can proceed.
+func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
+	loopAction := ""
+	if a.cfg != nil {
+		loopAction = a.cfg.LLM.LoopIntervention
+	}
+	if loopAction == "" {
+		loopAction = "prompt" // fallback default
+	}
+
+	log.Info("applyLoopIntervention: type=%d, detector=%q, action=%q", event.Type, event.Detector, loopAction)
+
+	cb := a.streamCb
+	if cb != nil {
+		cb("info", fmt.Sprintf("检测到循环 (%s)\n", event.Detector))
+	}
+
+	// Build the feedback message based on event type
+	var loopFeedback string
+	var strategyDesc string
+
+	switch loopAction {
+	case "off":
+		// No intervention
+		if cb != nil {
+			cb("info", "循环介入已禁用\n")
+		}
+		return nil
+
+	case "retry":
+		// Just resend without any feedback
+		loopFeedback = ""
+		strategyDesc = "重发上下文（无反馈）"
+
+	case "prompt":
+		// Use the event's suggestion or type-specific feedback
+		switch event.Type {
+		case LoopEventContentPeriodic:
+			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
+		case LoopEventContentDuplicate:
+			loopFeedback = i18n.T(i18n.KeyDuplicateContentFeedback)
+		case LoopEventSingleLineRepeat:
+			loopFeedback = event.Suggestion
+		case LoopEventToolCallRepeat:
+			loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), event.ToolName)
+		}
+		strategyDesc = "发送纠错提示"
+
+	case "temperature":
+		if a.loopTempCtrl != nil {
+			_, changed := a.loopTempCtrl.Apply()
+			if changed {
+				a.llmClient.SetTemperature(a.loopTempCtrl.Temperature())
+			}
+		}
+		switch event.Type {
+		case LoopEventToolCallRepeat:
+			loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), event.ToolName)
+		default:
+			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
+		}
+		strategyDesc = "温度调整+纠错提示"
+
+	case "reorganize":
+		loopFeedback = i18n.T(i18n.KeyLoopReorganizeSuggestion)
+		strategyDesc = "重整上下文"
+
+	case "random":
+		actions := []string{"retry", "prompt", "reorganize", "temperature"}
+		choice := actions[time.Now().UnixNano()%4]
+		switch choice {
+		case "retry":
+			loopFeedback = ""
+			strategyDesc = "随机选择: 重发上下文"
+		case "prompt":
+			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
+			strategyDesc = "随机选择: 发送纠错提示"
+		case "reorganize":
+			loopFeedback = i18n.T(i18n.KeyLoopReorganizeSuggestion)
+			strategyDesc = "随机选择: 重整上下文"
+		case "temperature":
+			if a.loopTempCtrl != nil {
+				_, changed := a.loopTempCtrl.Apply()
+				if changed {
+					a.llmClient.SetTemperature(a.loopTempCtrl.Temperature())
+				}
+			}
+			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
+			strategyDesc = "随机选择: 温度调整+纠错提示"
+		}
+
+	default:
+		loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
+		strategyDesc = "发送纠错提示"
+	}
+
+	// Append feedback to messages (if non-empty)
+	if loopFeedback != "" {
+		a.mu.Lock()
+		a.messages = append(a.messages, llm.Message{
+			Role:    "user",
+			Content: loopFeedback,
+		})
+		a.mu.Unlock()
+	}
+
+	if cb != nil {
+		cb("info", fmt.Sprintf("处理方式: %s\n", strategyDesc))
+		if loopFeedback != "" {
+			cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+		}
+		cb("info", "────────────────────────────────────────────\n")
+	}
+
+	return nil
+}
+
 // handleLoopDetection is called when a loop pattern is detected during streaming.
 // It synchronously calls the judge model (if enabled) to confirm the loop,
 // then sets loopDetectSyncErr to interrupt the stream if confirmed.
