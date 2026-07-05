@@ -473,6 +473,19 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
 				return result.String(), fmt.Errorf("向导已取消")
 			}
+			// Verify the model ID doesn't already exist — if it does, prompt again
+			for h.modelIDExists(modelID) {
+				h.io().Printf("  ❌ 模型 ID \"%s\" 已存在，请重新输入\n", modelID)
+				modelID = h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+				if modelID == "__BACK__" {
+					state.Capabilities = config.ModelCapability{}
+					h.io().Println("\n  返回上一步")
+					continue
+				}
+				if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
+					return result.String(), fmt.Errorf("向导已取消")
+				}
+			}
 			state.ModelID = modelID
 		}
 
