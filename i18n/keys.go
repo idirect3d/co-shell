@@ -710,10 +710,9 @@ const (
 	KeyCLIHelpToolCallMode  = "cli_help_tool_call_mode"
 
 	// XML mode supplementary rules
-	KeySystemPromptXMLRules        = "system_prompt_xml_rules"
-	KeySystemPromptXMLExamples     = "system_prompt_xml_examples"
-	KeySystemPromptXMLGuidelines   = "system_prompt_xml_guidelines"
-	KeySystemPromptXMLTaskProgress = "system_prompt_xml_task_progress"
+	KeySystemPromptXMLRules      = "system_prompt_xml_rules"
+	KeySystemPromptXMLExamples   = "system_prompt_xml_examples"
+	KeySystemPromptXMLGuidelines = "system_prompt_xml_guidelines"
 	// OpenAI/standard tool usage supplementary rules (non-XML versions)
 	KeySystemPromptToolUsageExamples     = "system_prompt_tool_usage_examples"
 	KeySystemPromptToolUsageTaskProgress = "system_prompt_tool_usage_task_progress"
@@ -780,18 +779,6 @@ const (
 
 	KeySettingsDescShellSessionEnabled = "settings_desc_shell_session_enabled"
 	KeySettingsDescShellSessionTimeout = "settings_desc_shell_session_timeout"
-
-	// Shell session alternative system prompts
-	KeySystemPromptToolUsageShell    = "system_prompt_tool_usage_shell"
-	KeySystemPromptToolUsageXMLShell = "system_prompt_tool_usage_xml_shell"
-	KeySystemPromptCapabilitiesShell = "system_prompt_capabilities_shell"
-	KeySystemPromptRulesShell        = "system_prompt_rules_shell"
-
-	// Read-only rules (no write/execute guidance, for plan mode)
-	KeySystemPromptRulesReadOnly = "system_prompt_rules_readonly"
-
-	// Read-only capabilities (no write/execute guidance, for plan mode)
-	KeySystemPromptCapabilitiesReadOnly = "system_prompt_capabilities_readonly"
 
 	// Shell session tool usage descriptions (XML mode, shell-enabled)
 	KeyToolUsageShellSendShell      = "tool_usage_shell_send_shell"
