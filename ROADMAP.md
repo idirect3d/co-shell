@@ -643,6 +643,7 @@
   - 所有旧测试保留，新增 ABACABAC 和 ABCDABCD 周期循环测试
 
 - [x] FIX-264 修复 Ctrl+C 中断后上下文持久化丢失最后 2-3 条消息：[BUILD-278]
+- [x] FEATURE-270 系统提示词简化：去除 Shell/XML 模式分支。去掉 Capabilities/Rules/ToolUsage 的 shellEnabled/plan mode 分支逻辑；删除 keys.go/zh_system.go/en_system.go 中不再使用的 7 个 key 和对应的 Shell/XML/ReadOnly 翻译块；同步更新英文版各节与中文版结构一致 [BUILD-284]
   - CanceledError/InterruptedError 处理中，无条件删除最后一个 assistant 消息误伤前一个已完成迭代的消息
   - 修复为：删除 3 处无保护的消息截断循环，CanceledError/InterruptedError 均在流式阶段立即返回，无需清理
   - 新增 .session pop to N 子命令，保留 [0..N] 范围消息，删除 N 之后的消息并返回 N 的内容供编辑
