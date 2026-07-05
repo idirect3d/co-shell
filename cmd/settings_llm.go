@@ -151,30 +151,25 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 
 	case "thinking-enabled":
 		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.ThinkingEnabled {
-				status = i18n.T(i18n.KeyOff)
-			}
-			return fmt.Sprintf("AI 思考模式: %s", status), nil
+			return fmt.Sprintf("AI 思考模式: %s（可选值: on, off, default）", h.cfg.LLM.ThinkingEnabled), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
-			h.cfg.LLM.ThinkingEnabled = true
+			h.cfg.LLM.ThinkingEnabled = "on"
 		case "off", "0", "false", "no":
-			h.cfg.LLM.ThinkingEnabled = false
+			h.cfg.LLM.ThinkingEnabled = "off"
+		case "default":
+			h.cfg.LLM.ThinkingEnabled = "default"
 		default:
-			return "", fmt.Errorf("usage: .set thinking-enabled on|off")
+			return "", fmt.Errorf("usage: .set thinking-enabled on|off|default")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		h.rebuildLLMClient()
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.ThinkingEnabled {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("Thinking enabled set to %s", status)
-		return fmt.Sprintf("✅ AI 思考模式已设置为: %s", status), nil
+		mode := h.cfg.LLM.ThinkingEnabled
+		log.Info("Thinking enabled set to %s", mode)
+		return fmt.Sprintf("✅ AI 思考模式已设置为: %s", mode), nil
 
 	case "reasoning-effort":
 		if len(args) < 2 {

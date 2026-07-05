@@ -839,9 +839,13 @@ func (a *Agent) ApplyWorkModeConfig() {
 		maxTokens = *mode.MaxTokens
 	}
 
-	thinkingEnabled := a.cfg.LLM.ThinkingEnabled
-	if modelCfg.ThinkingEnabled != nil {
-		thinkingEnabled = *modelCfg.ThinkingEnabled
+	thinkingEnabled := a.cfg.LLM.ThinkingEnabled == "on"
+	if a.cfg.LLM.ThinkingEnabled == "default" {
+		if modelCfg.ThinkingEnabled != nil {
+			thinkingEnabled = *modelCfg.ThinkingEnabled
+		} else {
+			thinkingEnabled = false
+		}
 	}
 	if mode != nil && mode.ThinkingEnabled != nil {
 		thinkingEnabled = *mode.ThinkingEnabled

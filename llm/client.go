@@ -659,14 +659,6 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		reqBody.Tools = buildTools(tools)
 	}
 
-	// Enable thinking mode for supported models when thinking is enabled
-	if c.thinkingEnabled && isThinkingModel(c.model) {
-		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
-		reqBody.ReasoningEffort = c.reasoningEffort
-		// Thinking mode doesn't support temperature, don't send it
-		reqBody.Temperature = nil
-	}
-
 	// Serialize request
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -822,14 +814,6 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 	// Add tools if present
 	if len(tools) > 0 {
 		reqBody.Tools = buildTools(tools)
-	}
-
-	// Enable thinking mode for supported models when thinking is enabled
-	if c.thinkingEnabled && isThinkingModel(c.model) {
-		reqBody.Thinking = &thinkingConfig{Type: "enabled"}
-		reqBody.ReasoningEffort = c.reasoningEffort
-		// Thinking mode doesn't support temperature, don't send it
-		reqBody.Temperature = nil
 	}
 
 	// Serialize request
@@ -1251,11 +1235,15 @@ func (c *openAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 // testChat sends a chat request with temperature=0 for deterministic testing.
 // This is used by TestVisionSupport, TestTextSupport, and TestToolCallSupport
 // to ensure consistent results during capability testing.
+// Thinking params are NOT injected here — the caller (detectModelCapabilities)
+// sets the correct provider-specific thinking-disabled params on the client
+// via SetBodyAdditions before calling these test methods.
 func (c *openAIClient) testChat(ctx context.Context, messages []Message, tools []Tool) (*LLMResponse, error) {
-	// Save original temperature and restore after test
 	origTemp := c.temperature
 	c.temperature = 0
 	defer func() { c.temperature = origTemp }()
+
+	defer log.WriteLLMInteractionEnd()
 
 	return c.Chat(ctx, messages, tools)
 }
@@ -1273,7 +1261,7 @@ func (c *openAIClient) TestVisionSupport(ctx context.Context) bool {
 		ContentParts: []ContentPart{
 			{
 				Type: ContentPartText,
-				Text: "直接说什么颜色?",
+				Text: "不要输出思考内容，直接说出这张小图片中的内容是什么颜色?",
 			},
 			{
 				Type: ContentPartImageURL,
@@ -1355,25 +1343,19 @@ func (c *openAIClient) TestToolCallSupport(ctx context.Context) bool {
 }
 
 // TestThinkingSupport tests whether the model supports thinking/reasoning mode
-// by sending a minimal request with reasoning_effort parameter.
-// Returns true if the model accepts the request without error.
+// by sending a minimal request with thinking enabled.
+// The caller (detectModelCapabilities) must provide the thinking-enabled params
+// via SetBodyAdditions before calling this method.
 func (c *openAIClient) TestThinkingSupport(ctx context.Context) bool {
-	// Save original settings and restore after test
-	origThinking := c.thinkingEnabled
-	origEffort := c.reasoningEffort
-	c.thinkingEnabled = true
-	c.reasoningEffort = "low"
-	defer func() {
-		c.thinkingEnabled = origThinking
-		c.reasoningEffort = origEffort
-	}()
+	origAdditions := c.bodyAdditions
+	defer func() { c.bodyAdditions = origAdditions }()
 
 	msg := Message{
 		Role:    "user",
 		Content: "Hi",
 	}
 
-	_, err := c.testChat(ctx, []Message{msg}, nil)
+	_, err := c.Chat(ctx, []Message{msg}, nil)
 	if err != nil {
 		log.Debug("TestThinkingSupport failed for model %s: %v", c.model, err)
 		return false

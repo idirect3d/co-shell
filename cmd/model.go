@@ -1210,6 +1210,29 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 	client := llm.NewClient(endpoint, testKey, modelName, 0, 0, 30)
 	defer client.Close()
 
+	// Force-enable LLM interaction logging for capability tests
+	wasOn := log.IsLLMInteractionEnabled()
+	log.SetLLMInteractionEnabled(true)
+	defer log.SetLLMInteractionEnabled(wasOn)
+
+	// Determine provider from existing model configs for provider-specific thinking params
+	testProvider := ""
+	for _, m := range h.cfg.Models {
+		if m.Model == modelName {
+			testProvider = m.Provider
+			break
+		}
+	}
+	testAdapter := llm.GetThinkingAdapter(testProvider)
+
+	// Test 1-3: disable thinking using provider-specific format
+	disableAdditions := testAdapter.BuildAdditions(llm.ThinkingConfig{
+		Mode: llm.ThinkingModeDisabled,
+	})
+	if len(disableAdditions) > 0 {
+		client.SetBodyAdditions(disableAdditions)
+	}
+
 	// Test vision support
 	io.Print("  👁 视觉识别... ")
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -1234,8 +1257,15 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 		io.Println("❌ 不支持")
 	}
 
-	// Test thinking support
+	// Test thinking support: switch to thinking-enabled params
 	io.Print("  💭 思考模式... ")
+	enableAdditions := testAdapter.BuildAdditions(llm.ThinkingConfig{
+		Mode:            llm.ThinkingModeEnabled,
+		ReasoningEffort: "low",
+	})
+	if len(enableAdditions) > 0 {
+		client.SetBodyAdditions(enableAdditions)
+	}
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	thinking := client.TestThinkingSupport(ctx)
 	cancel()

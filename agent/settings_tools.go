@@ -231,7 +231,7 @@ func getSettingValue(cfg *config.Config, param string) string {
 	case "vision":
 		return boolToString(cfg.LLM.VisionSupport)
 	case "thinking-enabled":
-		return boolToString(cfg.LLM.ThinkingEnabled)
+		return cfg.LLM.ThinkingEnabled
 	case "reasoning-effort":
 		return cfg.LLM.ReasoningEffort
 	case "memory-enabled":
@@ -607,7 +607,11 @@ func applySetting(a *Agent, param, value string) error {
 		if err != nil {
 			return err
 		}
-		cfg.LLM.ThinkingEnabled = b
+		if b {
+			cfg.LLM.ThinkingEnabled = "on"
+		} else {
+			cfg.LLM.ThinkingEnabled = "off"
+		}
 		if err := cfg.Save(); err != nil {
 			return err
 		}
@@ -973,8 +977,8 @@ func (a *Agent) rebuildLLMClient() {
 	if activeModel.MaxTokens != nil {
 		maxTokens = *activeModel.MaxTokens
 	}
-	thinkingEnabled := a.cfg.LLM.ThinkingEnabled
-	if activeModel.ThinkingEnabled != nil {
+	thinkingEnabled := a.cfg.LLM.ThinkingEnabled == "on"
+	if a.cfg.LLM.ThinkingEnabled == "default" && activeModel.ThinkingEnabled != nil {
 		thinkingEnabled = *activeModel.ThinkingEnabled
 	}
 	reasoningEffort := a.cfg.LLM.ReasoningEffort
@@ -1099,9 +1103,9 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 		visionStr = "开启"
 	}
 	sb.WriteString(formatLine("vision", visionStr, "on/off, 1/0, true/false, yes/no", "是否启用多模态视觉识别能力"))
-	thinkingStr := "关闭"
-	if cfg.LLM.ThinkingEnabled {
-		thinkingStr = "开启"
+	thinkingStr := cfg.LLM.ThinkingEnabled
+	if thinkingStr == "" {
+		thinkingStr = "default"
 	}
 	sb.WriteString(formatLine("thinking-enabled", thinkingStr, "on/off, 1/0, true/false, yes/no", "是否启用模型的思考（推理）能力"))
 	sb.WriteString(formatLine("reasoning-effort", cfg.LLM.ReasoningEffort, "low / medium / high", "模型推理的深度级别"))

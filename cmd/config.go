@@ -334,13 +334,18 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			h.cfg.LLM.VisionSupport = false
 			return i18n.TF(i18n.KeySettingsUpdated, "vision", "off")
 		}},
-		{Name: "thinking-enabled", Options: []string{"on", "off"}, CurrentValue: onOffFunc(&h.cfg.LLM.ThinkingEnabled), SetValue: func(v string) (string, error) {
-			if err := setBoolPtr(&h.cfg.LLM.ThinkingEnabled, v); err != nil {
-				return "", err
+		{Name: "thinking-enabled", Options: []string{"on", "off", "default"}, CurrentValue: func() string {
+			return h.cfg.LLM.ThinkingEnabled
+		}, SetValue: func(v string) (string, error) {
+			switch v {
+			case "on", "off", "default":
+				h.cfg.LLM.ThinkingEnabled = v
+			default:
+				h.cfg.LLM.ThinkingEnabled = "off"
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "thinking-enabled", v), nil
 		}, ResetValue: func() string {
-			h.cfg.LLM.ThinkingEnabled = false
+			h.cfg.LLM.ThinkingEnabled = "off"
 			return i18n.TF(i18n.KeySettingsUpdated, "thinking-enabled", "off")
 		}},
 		syncedOnOffParam(&h.cfg.LLM.ToolCallEnabled, "toolcall-enabled", func(v bool) { h.agent.SetToolCallEnabled(v) }),

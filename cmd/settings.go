@@ -77,8 +77,12 @@ func (h *SettingsHandler) rebuildLLMClient() {
 		maxTokens = *activeModel.MaxTokens
 	}
 	thinkingEnabled := h.cfg.LLM.ThinkingEnabled
-	if activeModel.ThinkingEnabled != nil {
-		thinkingEnabled = *activeModel.ThinkingEnabled
+	if thinkingEnabled == "default" && activeModel.ThinkingEnabled != nil {
+		if *activeModel.ThinkingEnabled {
+			thinkingEnabled = "on"
+		} else {
+			thinkingEnabled = "off"
+		}
 	}
 	reasoningEffort := h.cfg.LLM.ReasoningEffort
 	if activeModel.ReasoningEffort != nil {
@@ -108,7 +112,7 @@ func (h *SettingsHandler) rebuildLLMClient() {
 	client.SetTopP(topP)
 	client.SetTopK(topK)
 	client.SetRepetitionPenalty(repetitionPenalty)
-	client.SetThinkingEnabled(thinkingEnabled)
+	client.SetThinkingEnabled(thinkingEnabled == "on")
 	client.SetReasoningEffort(reasoningEffort)
 	client.SetTokenUsage(h.cfg.LLM.TokenUsage)
 	if len(h.cfg.LLM.BodyAdditions) > 0 {
@@ -269,9 +273,13 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.VisionSupport {
 		visionStatus = i18n.T(i18n.KeyOn)
 	}
-	thinkingEnabledStatus := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ThinkingEnabled {
-		thinkingEnabledStatus = i18n.T(i18n.KeyOn)
+	thinkingEnabledStatus := cfg.LLM.ThinkingEnabled
+	if thinkingEnabledStatus == "" {
+		thinkingEnabledStatus = "default"
+	}
+	reasoningEffortStr := cfg.LLM.ReasoningEffort
+	if reasoningEffortStr == "" {
+		reasoningEffortStr = "none"
 	}
 	toolCallEnabledStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.ToolCallEnabled {
@@ -434,6 +442,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
 		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
+		makeLine("reasoning-effort", reasoningEffortStr, i18n.T(i18n.KeyCol3ReasoningEffort)),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
 		makeLine("toolcall-mode", toolCallMode, i18n.T(i18n.KeyCol3ToolCallMode)),
 		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
