@@ -52,13 +52,27 @@ func init() {
 `
 
 	zhMessages[KeyWorkModeResearch] = `
-1. **创建任务计划**：收到调研任务后，**首先**通过 'track_task_progress' 将调查研究任务按科学规范的方式，拆解为多个可执行的步骤，并依此创建任务计划。
+# 调研工作的基本步骤
+
+1. **理解需求**：仔细理解用户的调研意图，明确调研范围、深度要求和交付标准。
+2. **规划信息源**：确定信息获取渠道（Web 搜索、文档查阅、代码分析、竞品分析等），评估各来源的可信度和时效性。
+3. **收集原始资料**：通过浏览器工具、curl 命令等方式广泛收集相关信息和素材。**必须保存所有原始资料到 ./research/\{任务名\}/ 下**，文件命名规则为："[序号] 标题-出处-作者【发表日期】"，便于审稿人员核查引用来源。
+4. **分析与交叉验证**：对收集到的信息进行交叉验证——同一结论应有多个独立来源支持，对存在分歧的信息应在报告中标注不同观点并分析可信度差异的原因。
+5. **整理与结构化**：将分析结果按逻辑结构整理（如背景→现状分析→问题发现→方案对比→建议），使用 Markdown 编写调研报告初稿。
+6. **引用标注**：在报告中以 GB/T 7714 格式标注所有引用来源，确保每个数据、观点和结论都可追溯。
+7. **生成报告**：将 Markdown 报告转换为 Word 文档（使用 md2docx.py），并尽量打开呈现给用户。
+
+> **调研核心原则**：交叉验证确保可信度，原始资料确保可追溯，结构化分析确保可理解。
+
+# 
+1. **创建任务计划**：收到调研任务后，**首先**通过 "track_task_progress" 将调查研究任务按科学规范的方式，拆解为多个可执行的步骤，并依此创建任务计划。
 2. **按步骤执行**：按计划逐一执行每一步，每完成一个步骤立即更新进度状态。
 3. **跟踪验证**：每一步完成后必须验证是否达到目标，只有确认目标达成后才能标记为完成。
-4. **动态调整**：执行过程中如有需要，可随时通过 'track_task_progress' 调整计划（增删步骤、修改顺序等）。
+4. **动态调整**：执行过程中如有需要，可随时通过 "track_task_progress" 调整计划（增删步骤、修改顺序等）。
 5. **归档完成**：所有步骤完成后，将计划归档到记忆并删除，允许创建新计划。
 
 > **重点**：先计划后执行。不要在没有任务计划的情况下开始工作。每一步必须是可验证的独立单元。
+
 `
 
 	// OpenAI mode tool usage (JSON format, used with API tools parameter)
@@ -703,14 +717,11 @@ Usage:
   <mode>new</mode>
   <path>src/config.json</path>
   <content>
-{
-  "apiEndpoint": "https://api.example.com",
-  "theme": {
-    "primaryColor": "#007bff",
-    "fontFamily": "Arial, sans-serif"
-  },
-  "version": "1.0.0"
-}
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
+	io.Println()
+	io.Println(i18n.T(i18n.KeyDisclaimerBody))
+	io.Println()
   </content>
 </write_to_file>
 
@@ -718,20 +729,22 @@ Usage:
 
 <search_files>
   <path>src</path>
-  <regex>function handleSubmit</regex>
-  <file_pattern>*.ts</file_pattern>
+  <regex>i18n.KeyDisclaimerTitle</regex>
+  <file_pattern>*.go</file_pattern>
 </search_files>
 
 ## 示例 4：对文件进行精确修改
 
 <replace_in_file>
-  <path>src/config.ts</path>
+  <path>src/main.go</path>
   <replacements>
     <item>
       <!-- start_line 指定搜索内容在原文件中的起始行号，可避免文件中有多处相同文本时匹配到错误位置 -->
-      <search>apiEndpoint: "https://old-api.com"</search>
-      <replace>apiEndpoint: "https://new-api.com"</replace>
-      <start_line>15</start_line>
+      <search>	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
+      </search>
+      <replace>	io.Print(i18n.T(i18n.KeyDisclaimerTitle))
+      </replace>
+      <start_line>2</start_line>
     </item>
   </replacements>
 </replace_in_file>

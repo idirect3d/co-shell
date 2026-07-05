@@ -593,6 +593,24 @@ func DefaultBuiltInSections() []string {
 	}
 }
 
+// DefaultActSections returns the default prompt section list for act mode.
+// Same as DefaultBuiltInSections but without ToolExamples.
+func DefaultActSections() []string {
+	return []string{
+		"Identity",
+		"ToolUsage",
+		"TaskProgress",
+		"EditingFiles",
+		"BrowserUsage",
+		"ResultMode",
+		"Capabilities",
+		"Rules",
+		"ExternalTools",
+		"Environment",
+		"Objective",
+	}
+}
+
 // Float64Ptr returns a pointer to a float64 value.
 func Float64Ptr(v float64) *float64 { return &v }
 
@@ -602,7 +620,7 @@ func DefaultWorkModes() []WorkMode {
 		{
 			Name:        "act",
 			Description: "行动模式 - 可执行系统命令、修改文件、操作浏览器等所有操作",
-			Sections:    DefaultBuiltInSections(),
+			Sections:    DefaultActSections(),
 			Temperature: Float64Ptr(0),
 		},
 		{
@@ -615,7 +633,7 @@ func DefaultWorkModes() []WorkMode {
 		{
 			Name:        "research",
 			Description: "调研模式 - 搜索、查阅资料、收集信息、输出研究报告",
-			Sections:    DefaultBuiltInSections(),
+			Sections:    DefaultActSections(),
 			Temperature: Float64Ptr(0),
 		},
 	}
