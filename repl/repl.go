@@ -616,14 +616,11 @@ func (r *REPL) streamCallback(eventType string, content string) {
 			if maxLen > 0 && total > 0 {
 				pct = float64(total) * 100.0 / float64(maxLen)
 			}
-			out(fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), prompt, completion, total, pct))
 			if maxLen == 0 {
-				out(" (模型最大长度未知)")
+				out(" (模型最大长度未知) ")
 			}
+			out(fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
 			out("\n")
-			if ft != "" {
-				out(fmt.Sprintf("  %s\n", fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS)))
-			}
 		}
 		outF("────────────────────────────────────────────────────────────────────────────────\n")
 	case "token_task":

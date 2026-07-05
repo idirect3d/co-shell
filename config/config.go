@@ -380,6 +380,21 @@ type LLMConfig struct {
 	// Default: 81920 (80KB)
 	ReadFileMaxSize int `json:"read_file_max_size"`
 
+	// LoopIntervention: strategy for handling loop detection.
+	// Supported values:
+	//   "retry" — just resend context without feedback
+	//   "prompt" — append corrective prompt
+	//   "reorganize" — suggest reorganize context
+	//   "temperature" — adjust temperature + send prompt
+	//   "random" — randomly pick one of the above
+	// Default: "prompt"
+	LoopIntervention string `json:"loop_intervention"`
+
+	// LoopPromptTemplate: custom template for loop detection feedback.
+	// Supports {ERROR} placeholder for the error message.
+	// If empty, uses the default i18n KeyLoopDetectFeedback.
+	LoopPromptTemplate string `json:"loop_prompt_template"`
+
 	// LLMInteractionLog: whether to enable LLM interaction full logging.
 	// When enabled, all LLM request and response payloads are written to
 	// log/llm-interaction-YYYY-MM-DD.log as formatted JSON.
