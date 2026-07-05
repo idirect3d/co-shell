@@ -660,6 +660,7 @@
   - `LoopLongOutputThreshold` 默认值设为 65536
 
 - [x] FIX-264 修复 Ctrl+C 中断后上下文持久化丢失最后 2-3 条消息：[BUILD-278]
+- [x] FIX-272 修复循环二次判定 JSON 解析未跳过 think 标签的问题：在 `judgeLoop()` 提取 JSON 前先通过 `</think>` 标签定位实际返回内容，避免 think 内容中的 `{` 干扰解析 [BUILD-286]
 - [x] **FEATURE-270 系统提示词简化 + 命令前缀冒号化 + 调研步骤补充** [BUILD-284]
   - 去掉 Capabilities/Rules/ToolUsage 的 shellEnabled/plan mode 分支逻辑，统一使用通用资源
   - 删除 keys.go/zh_system.go/en_system.go 中不再使用的 Shell/XML/ReadOnly key 和翻译块
