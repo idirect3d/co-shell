@@ -740,6 +740,15 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	result := &LoopJudgeResult{}
 	content := strings.TrimSpace(resp.Content)
 
+	// Skip any think/reasoning content before looking for JSON.
+	// The judge model may output ... even when thinking is disabled,
+	// and thinking content can contain "{" characters that would
+	// interfere with JSON extraction. Find the last </think> tag
+	// and start from there.
+	if thinkEnd := strings.LastIndex(content, "</think>"); thinkEnd >= 0 {
+		content = strings.TrimSpace(content[thinkEnd+len("</think>"):])
+	}
+
 	// Try to extract JSON from the response (may be wrapped in markdown code blocks)
 	if idx := strings.Index(content, "{"); idx >= 0 {
 		content = content[idx:]
