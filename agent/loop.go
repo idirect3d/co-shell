@@ -687,6 +687,17 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 		modelCfg.ID, len(systemText), len(userText), len(suspectContent))
 	log.Debug("LoopJudge request detail: system=%q, user=%q", systemText, userText)
 
+	// Write the judgment request to the LLM interaction log
+	if log.IsLLMInteractionEnabled() {
+		reqMap := map[string]interface{}{
+			"model":    modelCfg.Model,
+			"messages": messages,
+		}
+		if reqJSON, err := json.MarshalIndent(reqMap, "", "  "); err == nil {
+			log.WriteLLMInteraction("REQ][judgeLoop", string(reqJSON))
+		}
+	}
+
 	// Make the judgment call (non-streaming, no tools)
 	ctxTimeout := judgeTimeout + 5 // ctx timeout slightly larger than client timeout
 	if judgeTimeout <= 0 {
@@ -710,6 +721,12 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	// Log the judge model's raw response for debugging
 	log.Info("LoopJudge response: model=%q, resp_content=%d chars", modelCfg.ID, len(resp.Content))
 	log.Debug("LoopJudge response detail: raw=%q", resp.Content)
+
+	// Write the judgment response to the LLM interaction log
+	if log.IsLLMInteractionEnabled() {
+		log.WriteLLMInteraction("RESP][judgeLoop", resp.Content)
+		log.WriteLLMInteractionEnd()
+	}
 
 	// Display the judge model's full response
 	if cb := a.streamCb; cb != nil {
