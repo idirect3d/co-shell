@@ -79,7 +79,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			threshold = 5
 		}
 		a.loopDetector = NewLoopDetector(threshold)
-		a.toolCallLoopDetector = NewToolCallLoopDetector(threshold)
+		// FEATURE-273: ToolCallLoopDetector uses threshold=2 (trigger on first duplicate)
+		// instead of the content loop threshold, so a single repeated tool call is caught.
+		toolCallThreshold := 2
+		a.toolCallLoopDetector = NewToolCallLoopDetector(toolCallThreshold)
 
 		// FEATURE-230: Initialize loop temperature controller
 		if a.cfg.LLM.LoopTempEnabled {
@@ -593,40 +596,50 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 
 			// Rule 2: attempt_completion is available but was NOT called — prompt LLM to continue
-			// FEATURE-249: Check if this response is identical to the previous assistant message
-			// (exact content duplicate without any tool calls). If so, use a more specific prompt
-			// that tells the LLM to stop repeating itself and take action.
-			continuePrompt := i18n.T(i18n.KeyContinuePrompt)
-			isDuplicate := false
+			// FEATURE-273: Check if this response is a duplicate of the previous assistant response.
+			// If so, produce a LoopEvent and call applyLoopIntervention() instead of appending
+			// a generic continuePrompt.
+			var event *LoopEvent
 			a.mu.Lock()
 			if a.lastAssistantContent != "" {
-				// Use LCS-based diff for content duplicate detection.
-				// Threshold from config (default 0.95 = 95% similarity)
 				threshold := 0.95
 				if a.cfg != nil && a.cfg.LLM.DuplicateContentThreshold > 0 {
 					threshold = a.cfg.LLM.DuplicateContentThreshold
 				}
 				dup, similarity := IsDuplicateContent(a.lastAssistantContent, finalContent, threshold)
 				if dup {
-					isDuplicate = true
-					log.Warn("Agent.RunStream: zero-tool-call content %.1f%% similar to previous, injecting duplicate content feedback", similarity*100)
+					log.Warn("Agent.RunStream: zero-tool-call content %.1f%% similar to previous, triggering loop intervention", similarity*100)
+					event = &LoopEvent{
+						Type:     LoopEventContentDuplicate,
+						Detector: "cross-iteration content duplicate",
+						Content:  finalContent,
+						Reason:   fmt.Sprintf("content %.0f%% similar to previous iteration", similarity*100),
+						Suggestion: "Your response is very similar to your previous one. " +
+							"Please take a different approach. If your task is complete, " +
+							"call attempt_completion. Otherwise, try a different tool or strategy.",
+					}
 				}
 			}
 			a.lastAssistantContent = finalContent
-			if isDuplicate {
-				continuePrompt = i18n.T(i18n.KeyDuplicateContentFeedback)
-			}
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
 				Content:          finalContent,
 				ReasoningContent: finalReasoning,
 			})
-			// Sync to memory
 			if a.memoryEnabled {
 				if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
 					log.Warn("Failed to save assistant message to memory: %v", err)
 				}
 			}
+			if event != nil {
+				a.mu.Unlock()
+				log.Debug("Agent.RunStream: content duplicate detected, applying loop intervention")
+				a.applyLoopIntervention(event)
+				cb("info", "检测到内容重复循环\n")
+				continue
+			}
+			// No duplicate: append the standard continue prompt
+			continuePrompt := i18n.T(i18n.KeyContinuePrompt)
 			a.messages = append(a.messages, llm.Message{
 				Role:    "user",
 				Content: continuePrompt,
@@ -646,117 +659,31 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
-		// FIX-240: Check for tool call loop BEFORE appending assistant message.
-		// If the same tool+args combination has been called consecutively >= threshold
-		// times, inject feedback and continue to the next iteration (no message appended).
+		// FEATURE-273: Check for tool call loop using unified LoopEvent + applyLoopIntervention.
+		// The ToolCallLoopDetector now triggers on the FIRST duplicate (count >= 2).
 		if a.loopDetectOn && a.toolCallLoopDetector != nil && len(toolCalls) > 0 {
 			loopDetected := false
+			var firstToolName, firstToolArgs string
 			for _, tc := range toolCalls {
 				if err := a.toolCallLoopDetector.AddCall(tc.Name, tc.Arguments); err != nil {
 					log.Warn("Agent.RunStream: tool call loop detected: %v", err)
 					loopDetected = true
+					firstToolName = tc.Name
+					firstToolArgs = tc.Arguments
 					break
 				}
 			}
 
 			if loopDetected {
-				// Use the same loop intervention strategy as content loop detection
-				loopAction := ""
-				if a.cfg != nil {
-					loopAction = a.cfg.LLM.LoopIntervention
-				}
-				if loopAction == "" {
-					loopAction = "prompt" // fallback default
-				}
-
-				var loopFeedback string
-				var strategyDesc string
-
-				switch loopAction {
-				case "retry":
-					// Just resend context without any additional feedback
-					loopFeedback = ""
-					strategyDesc = "重发上下文"
-
-				case "prompt":
-					template := a.cfg.LLM.LoopPromptTemplate
-					if template != "" {
-						template = strings.ReplaceAll(template, "{ERROR}", fmt.Sprintf("tool %s repeatedly called", toolCalls[0].Name))
-						loopFeedback = template
-					} else {
-						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
-					}
-					strategyDesc = "发送纠错提示"
-
-				case "reorganize":
-					loopFeedback = ""
-					suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
-					if suggestion != "" {
-						loopFeedback = suggestion
-					}
-					strategyDesc = "重整上下文"
-
-				case "temperature":
-					// Adjust temperature and resend
-					if a.loopTempCtrl != nil {
-						oldTemp := a.loopTempCtrl.Temperature()
-						newTemp, changed := a.loopTempCtrl.Apply()
-						if changed {
-							a.llmClient.SetTemperature(newTemp)
-							log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f for tool call loop (direction=%d)",
-								oldTemp, newTemp, a.loopTempCtrl.direction)
-						}
-					}
-					loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
-					strategyDesc = "温度调整+纠错提示"
-
-				case "random":
-					actions := []string{"retry", "prompt", "reorganize", "temperature"}
-					choice := actions[time.Now().UnixNano()%4]
-					switch choice {
-					case "retry":
-						loopFeedback = ""
-						strategyDesc = "随机选择: 重发上下文"
-					case "prompt":
-						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
-						strategyDesc = "随机选择: 发送纠错提示"
-					case "reorganize":
-						suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
-						loopFeedback = suggestion
-						strategyDesc = "随机选择: 重整上下文"
-					case "temperature":
-						if a.loopTempCtrl != nil {
-							_, changed := a.loopTempCtrl.Apply()
-							if changed {
-								a.llmClient.SetTemperature(a.loopTempCtrl.Temperature())
-							}
-						}
-						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
-						strategyDesc = "随机选择: 温度调整+纠错提示"
-					}
-
-				default:
-					loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
-					strategyDesc = "发送纠错提示"
-				}
-
-				if loopFeedback != "" {
-					a.mu.Lock()
-					a.messages = append(a.messages, llm.Message{
-						Role:    "user",
-						Content: loopFeedback,
-					})
-					a.mu.Unlock()
-				}
-
 				a.toolCallLoopDetector.Reset()
-
-				cb("info", "检测到工具调用循环\n")
-				cb("info", fmt.Sprintf("处理方式: %s\n", strategyDesc))
-				if loopFeedback != "" {
-					cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+				event := &LoopEvent{
+					Type:     LoopEventToolCallRepeat,
+					Detector: "tool call loop detector",
+					ToolName: firstToolName,
+					ToolArgs: firstToolArgs,
+					Reason:   fmt.Sprintf("tool %q called with the same arguments twice consecutively", firstToolName),
 				}
-				cb("info", "────────────────────────────────────────────\n")
+				a.applyLoopIntervention(event)
 				continue
 			}
 		}
