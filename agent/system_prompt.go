@@ -225,7 +225,7 @@ func getRawSectionText(name, modeName, cwd string, cfg *config.Config) string {
 	case "ToolExamples":
 		return i18n.T(i18n.KeySystemPromptXMLExamples)
 	case "TaskProgress":
-		return i18n.T(i18n.KeySystemPromptXMLTaskProgress)
+		return i18n.T(i18n.KeySystemPromptToolUsageTaskProgress)
 	case "EditingFiles":
 		return i18n.T(i18n.KeySystemPromptEditingFiles)
 	case "BrowserUsage":
@@ -326,12 +326,8 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return buildSectionWithPlaceholders(text, env)
 
 	case "ToolUsage":
-		key := i18n.KeySystemPromptToolUsageShell
-		if !shellEnabled {
-			key = i18n.KeySystemPromptToolUsage
-		}
 		text := loadSectionText(env.cwd, modeName, "TOOL_USAGE", func() string {
-			return i18n.T(key)
+			return i18n.T(i18n.KeySystemPromptToolUsage)
 		})
 		if len(toolUsageText) > 0 && toolUsageText[0] != "" {
 			text = toolUsageText[0]
@@ -367,30 +363,14 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Capabilities":
-		key := i18n.KeySystemPromptCapabilitiesShell
-		if !shellEnabled {
-			key = i18n.KeySystemPromptCapabilities
-		}
-		// Plan mode: use read-only capabilities (no write/execute guidance)
-		if modeName == "plan" {
-			key = i18n.KeySystemPromptCapabilitiesReadOnly
-		}
 		text := loadSectionText(env.cwd, modeName, "CAPABILITIES", func() string {
-			return i18n.T(key)
+			return i18n.T(i18n.KeySystemPromptCapabilities)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Rules":
-		key := i18n.KeySystemPromptRulesShell
-		if !shellEnabled {
-			key = i18n.KeySystemPromptRules
-		}
-		// Plan mode: use read-only rules (no write/execute guidance)
-		if modeName == "plan" {
-			key = i18n.KeySystemPromptRulesReadOnly
-		}
 		text := loadSectionText(env.cwd, modeName, "RULES", func() string {
-			return i18n.T(key)
+			return i18n.T(i18n.KeySystemPromptRules)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
@@ -425,7 +405,7 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 
 	case "TaskProgress":
 		text := loadSectionText(env.cwd, modeName, "TASK_PROGRESS", func() string {
-			return i18n.T(i18n.KeySystemPromptXMLTaskProgress)
+			return i18n.T(i18n.KeySystemPromptToolUsageTaskProgress)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
