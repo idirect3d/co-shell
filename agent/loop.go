@@ -847,6 +847,52 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	}
 }
 
+// getFirstUserCommand returns the content of the first user message in a.messages
+// (excluding system prompts). Prefers content inside the first <task> tag.
+// This provides the judge model with the original task instruction.
+func (a *Agent) getFirstUserCommand() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := 0; i < len(a.messages); i++ {
+		m := a.messages[i]
+		if m.Role != "user" {
+			continue
+		}
+		content := strings.TrimSpace(m.CombineContentParts())
+		if content == "" {
+			content = strings.TrimSpace(m.Content)
+		}
+		if content == "" {
+			continue
+		}
+
+		// Strip environment_details envelope if present (everything after ---)
+		if envIdx := strings.Index(content, "\n---"); envIdx >= 0 {
+			content = strings.TrimSpace(content[:envIdx])
+		}
+
+		// Prefer content inside the first <task> tag
+		if taskStart := strings.Index(content, "<task>"); taskStart >= 0 {
+			taskStart += len("<task>")
+			if taskEnd := strings.Index(content[taskStart:], "</task>"); taskEnd >= 0 {
+				taskContent := strings.TrimSpace(content[taskStart : taskStart+taskEnd])
+				if taskContent != "" {
+					return taskContent
+				}
+			}
+		}
+
+		// Fallback: return the full content (without timestamp prefix)
+		if tIdx := strings.Index(content, ">"); tIdx >= 0 && tIdx < 10 {
+			content = strings.TrimSpace(content[tIdx+1:])
+		}
+		if content != "" {
+			return content
+		}
+	}
+	return ""
+}
+
 // getLastUserCommand returns the content of the last <task> tag found in user
 // messages, walking backwards through a.messages. Returns empty string if none
 // found. This provides the judge model with the most recent task instruction.
@@ -877,19 +923,52 @@ func (a *Agent) getLastUserCommand() string {
 	return ""
 }
 
+// getRecentIterations returns the last 2 assistant responses (without tool calls)
+// from a.messages, for the loop judge to analyze. Excludes the current iteration.
+func (a *Agent) getRecentIterations() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var sb strings.Builder
+	count := 0
+	for i := len(a.messages) - 1; i >= 0 && count < 2; i-- {
+		m := a.messages[i]
+		if m.Role == "assistant" && len(m.ToolCalls) == 0 && m.Content != "" {
+			if count > 0 {
+				sb.WriteString("\n---\n")
+			}
+			sb.WriteString(m.Content)
+			count++
+		}
+	}
+	return sb.String()
+}
+
 // buildLoopJudgeUserPrompt constructs the user message for loop judgment.
 func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) string {
 	userTemplate := i18n.T(i18n.KeyLoopJudgeUserPrompt)
 
-	// Find the last non-. user command from message history
+	// {TASK} = the first user message (original task)
+	firstInput := a.getFirstUserCommand()
+	if firstInput == "" {
+		firstInput = a.lastUserInput
+	}
+
+	// {LAST_INPUT} = the most recent user <task> instruction
 	lastInput := a.getLastUserCommand()
 	if lastInput == "" {
 		lastInput = a.lastUserInput
 	}
 
-	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", a.lastUserInput)
+	// {ITERATIONS} = last 2 assistant responses for context
+	iterations := a.getRecentIterations()
+	if iterations == "" {
+		iterations = "（无最近迭代内容 / No recent iterations）"
+	}
+
+	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
+	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATIONS}", iterations)
 	userTemplate = strings.ReplaceAll(userTemplate, "{SUSPECT_CONTENT}", suspectContent)
 	return userTemplate
 }

@@ -642,6 +642,16 @@
   - hash 碰撞保护：hash 匹配后做实际字符串比较确认
   - 所有旧测试保留，新增 ABACABAC 和 ABCDABCD 周期循环测试
 
+- [x] **FEATURE-267 循环介入策略统一及工具调用循环适配** [BUILD-280]
+  - 将 `LoopDetectEnabled`/`LoopTempEnabled`/`LoopReorganizeEnabled` 三个独立开关合并为 `LoopIntervention` 枚举值（off/retry/prompt/reorganize/temperature/random）
+  - 工具调用循环（ToolCallLoopDetector）使用与内容循环相同的 LoopIntervention 策略
+  - 所有循环检测 i18n 资源从 zh.go/en.go 迁移到独立的 zh_loop.go/en_loop.go
+  - 循环判定 prompt 增加 `{ITERATIONS}` 占位符（最近 2 次无工具调用回复），新增 reason/exit_strategy 语义说明
+  - 设置显示重构：`allLines` + `nextLines(N)` 计数模式改为 `allGroups [][]settingLine` 二维数组分组
+  - Token 用量合并为单行，组标题 "[ 安全与异常 ]"
+  - 默认工作模式改为 research，research 模式缺省去掉 ToolExamples 节
+  - `LoopLongOutputThreshold` 默认值设为 65536
+
 - [x] FIX-264 修复 Ctrl+C 中断后上下文持久化丢失最后 2-3 条消息：[BUILD-278]
 - [x] **FEATURE-270 系统提示词简化 + 命令前缀冒号化 + 调研步骤补充** [BUILD-284]
   - 去掉 Capabilities/Rules/ToolUsage 的 shellEnabled/plan mode 分支逻辑，统一使用通用资源

@@ -70,7 +70,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// Reset task instruction cache for this new request (FEATURE-255)
 	a.taskInstructionCache.Reset()
 
-	// FIX-179 / FIX-240: Initialize loop detectors and temperature controller for this request
+	// Initialize loop detectors and temperature controller for this request
 	a.loopDetectCrit = false
 	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
 		a.loopDetectOn = true
@@ -83,8 +83,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 		// FEATURE-230: Initialize loop temperature controller
 		if a.cfg.LLM.LoopTempEnabled {
-			// Resolve effective temperature: model-level takes precedence over global cfg.LLM.
-			// This must match the same priority used in switchToModel().
 			initialTemp := a.cfg.LLM.Temperature
 			if a.modelManager != nil {
 				if modelCfg := a.modelManager.GetActiveModel(len(a.imagePaths) > 0); modelCfg != nil && modelCfg.Temperature != nil {
@@ -284,40 +282,101 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			if a.loopDetectCrit {
 				log.Warn("Agent.RunStream: sync loop detected at iteration %d, adjusting temperature and retrying", iteration)
 
-				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), streamErr.Error())
-
-				// FEATURE-249: Check if loop reorganize is enabled
-				hasReorg := false
-				if reorganizeSuggestion := a.reorganizeContextOnLoop(); reorganizeSuggestion != "" {
-					loopFeedback += reorganizeSuggestion
-					hasReorg = true
+				loopAction := ""
+				if a.cfg != nil {
+					loopAction = a.cfg.LLM.LoopIntervention
+				}
+				if loopAction == "" {
+					loopAction = "prompt" // fallback default
 				}
 
-				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
-				a.mu.Unlock()
+				// Build feedback and actions based on loop intervention strategy
+				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), streamErr.Error())
+
+				var strategyParts []string
+				switch loopAction {
+				case "retry":
+					// Just resend context without any additional feedback
+					loopFeedback = ""
+					strategyParts = append(strategyParts, "重发上下文")
+
+				case "prompt":
+					// Append corrective prompt (same as default behavior)
+					template := a.cfg.LLM.LoopPromptTemplate
+					if template != "" {
+						template = strings.ReplaceAll(template, "{ERROR}", streamErr.Error())
+						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), template)
+					}
+					strategyParts = append(strategyParts, "发送纠错提示")
+
+				case "reorganize":
+					// Append reorganize context suggestion
+					suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
+					if suggestion != "" {
+						loopFeedback += "\n" + suggestion
+					}
+					strategyParts = append(strategyParts, "重整上下文")
+
+				case "temperature":
+					// Adjust temperature and resend
+					if a.loopTempCtrl != nil {
+						oldTemp := a.loopTempCtrl.Temperature()
+						newTemp, changed := a.loopTempCtrl.Apply()
+						if changed {
+							a.llmClient.SetTemperature(newTemp)
+							strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
+							log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after loop detection (direction=%d)",
+								oldTemp, newTemp, a.loopTempCtrl.direction)
+						}
+					} else {
+						strategyParts = append(strategyParts, "温度控制器未初始化")
+					}
+					strategyParts = append(strategyParts, "发送纠错提示")
+
+				case "random":
+					// Randomly pick one action
+					actions := []string{"retry", "prompt", "reorganize", "temperature"}
+					choice := actions[time.Now().UnixNano()%4]
+					switch choice {
+					case "retry":
+						loopFeedback = ""
+						strategyParts = append(strategyParts, "随机选择: 重发上下文")
+					case "prompt":
+						strategyParts = append(strategyParts, "随机选择: 发送纠错提示")
+					case "reorganize":
+						suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
+						if suggestion != "" {
+							loopFeedback += "\n" + suggestion
+						}
+						strategyParts = append(strategyParts, "随机选择: 重整上下文")
+					case "temperature":
+						if a.loopTempCtrl != nil {
+							oldTemp := a.loopTempCtrl.Temperature()
+							newTemp, changed := a.loopTempCtrl.Apply()
+							if changed {
+								a.llmClient.SetTemperature(newTemp)
+								strategyParts = append(strategyParts, fmt.Sprintf("随机选择: 温度调整(%.2f→%.2f)", oldTemp, newTemp))
+							}
+						}
+						strategyParts = append(strategyParts, "随机选择: 发送纠错提示")
+					}
+
+				default:
+					// Default: append corrective prompt
+					strategyParts = append(strategyParts, "发送纠错提示")
+				}
+
+				// Only append feedback message if there's content to send
+				if loopFeedback != "" {
+					a.mu.Lock()
+					a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
+					a.mu.Unlock()
+				}
 
 				if a.loopDetector != nil {
 					a.loopDetector.Reset()
 				}
 				a.loopDetectCrit = false
-
-				// Collect strategy details for display
-				var strategyParts []string
-				if hasReorg {
-					strategyParts = append(strategyParts, "重整上下文")
-				}
-				if a.loopTempCtrl != nil {
-					oldTemp := a.loopTempCtrl.Temperature()
-					newTemp, changed := a.loopTempCtrl.Apply()
-					if changed {
-						a.llmClient.SetTemperature(newTemp)
-						strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
-						log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after loop detection (direction=%d)",
-							oldTemp, newTemp, a.loopTempCtrl.direction)
-					}
-				}
-				strategyParts = append(strategyParts, "发送纠错提示")
 
 				// Show summary at the end, after all handling
 				cb("info", "检测到循环输出\n")
@@ -601,17 +660,103 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 
 			if loopDetected {
-				loopFeedback := fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
-				a.mu.Lock()
-				a.messages = append(a.messages, llm.Message{
-					Role:    "user",
-					Content: loopFeedback,
-				})
-				a.mu.Unlock()
+				// Use the same loop intervention strategy as content loop detection
+				loopAction := ""
+				if a.cfg != nil {
+					loopAction = a.cfg.LLM.LoopIntervention
+				}
+				if loopAction == "" {
+					loopAction = "prompt" // fallback default
+				}
+
+				var loopFeedback string
+				var strategyDesc string
+
+				switch loopAction {
+				case "retry":
+					// Just resend context without any additional feedback
+					loopFeedback = ""
+					strategyDesc = "重发上下文"
+
+				case "prompt":
+					template := a.cfg.LLM.LoopPromptTemplate
+					if template != "" {
+						template = strings.ReplaceAll(template, "{ERROR}", fmt.Sprintf("tool %s repeatedly called", toolCalls[0].Name))
+						loopFeedback = template
+					} else {
+						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
+					}
+					strategyDesc = "发送纠错提示"
+
+				case "reorganize":
+					loopFeedback = ""
+					suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
+					if suggestion != "" {
+						loopFeedback = suggestion
+					}
+					strategyDesc = "重整上下文"
+
+				case "temperature":
+					// Adjust temperature and resend
+					if a.loopTempCtrl != nil {
+						oldTemp := a.loopTempCtrl.Temperature()
+						newTemp, changed := a.loopTempCtrl.Apply()
+						if changed {
+							a.llmClient.SetTemperature(newTemp)
+							log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f for tool call loop (direction=%d)",
+								oldTemp, newTemp, a.loopTempCtrl.direction)
+						}
+					}
+					loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
+					strategyDesc = "温度调整+纠错提示"
+
+				case "random":
+					actions := []string{"retry", "prompt", "reorganize", "temperature"}
+					choice := actions[time.Now().UnixNano()%4]
+					switch choice {
+					case "retry":
+						loopFeedback = ""
+						strategyDesc = "随机选择: 重发上下文"
+					case "prompt":
+						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
+						strategyDesc = "随机选择: 发送纠错提示"
+					case "reorganize":
+						suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
+						loopFeedback = suggestion
+						strategyDesc = "随机选择: 重整上下文"
+					case "temperature":
+						if a.loopTempCtrl != nil {
+							_, changed := a.loopTempCtrl.Apply()
+							if changed {
+								a.llmClient.SetTemperature(a.loopTempCtrl.Temperature())
+							}
+						}
+						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
+						strategyDesc = "随机选择: 温度调整+纠错提示"
+					}
+
+				default:
+					loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), toolCalls[0].Name)
+					strategyDesc = "发送纠错提示"
+				}
+
+				if loopFeedback != "" {
+					a.mu.Lock()
+					a.messages = append(a.messages, llm.Message{
+						Role:    "user",
+						Content: loopFeedback,
+					})
+					a.mu.Unlock()
+				}
 
 				a.toolCallLoopDetector.Reset()
-				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb("warning", fmt.Sprintf("\n%s 检测到工具调用循环，已发送纠正提示\n", ep.Warning))
+
+				cb("info", "检测到工具调用循环\n")
+				cb("info", fmt.Sprintf("处理方式: %s\n", strategyDesc))
+				if loopFeedback != "" {
+					cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+				}
+				cb("info", "────────────────────────────────────────────\n")
 				continue
 			}
 		}
