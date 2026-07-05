@@ -390,6 +390,13 @@
   - 交互日志修复：测试时强制开启、.set llm-log 同步到 log 模块
   - `.set` 界面显示 thinking-enabled 和 reasoning-effort 及完整选项说明
 
+- [x] FIX-271 恢复被 FEATURE-270 覆盖的 FEATURE-267/268 修改 [BUILD-286]
+  - 恢复 agent/loop.go 中 getFirstUserCommand()/getRecentIterations() 等循环判定提示构建
+  - 恢复 agent/run_stream.go 中 LoopIntervention/LoopPromptTemplate 循环介入策略
+  - 恢复 config/config.go 中 LoopIntervention/LoopPromptTemplate 字段
+  - 恢复 cmd/settings.go 的二维数组分组显示（allGroups [][]settingLine）
+  - 修复 TokenUsageDisplay 模板被覆盖导致显示乱码的问题
+
 - [x] FEATURE-208 外部工具（bin/）梳理与优化：[BUILD-213]
   - [x] 新增 pdf2png 工具：将 PDF 拆分为分页 PNG 图片，支持 LLM 多模态 PDF 内容解析
   - [x] 新增 docx2pdf 工具：将 .docx 转换为 PDF，WPS 优先（Linux wps2pdf / macOS AppleScript / LibreOffice 兜底）
