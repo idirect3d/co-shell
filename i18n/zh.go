@@ -766,8 +766,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyUnloadModeFailed:  "❌ 卸载模式配置失败: %v",
 
 	// Token usage display (FEATURE-247)
-	KeyTokenUsageDisplay: "Token 用量: 输入=%d, 输出=%d, 总计=%d, 上下文=%.1f%%",
-	KeyTokenUsageTiming:  "首字: %s | 输入: %s t/秒 | 输出: %s t/秒",
+	KeyTokenUsageDisplay: "Token用量: 首字=%s | 输入=%d(%s t/s) | 输出=%d(%s t/s) | 总计=%d (%.1f%%)",
+	KeyTokenUsageTiming:  "", // unused, merged into KeyTokenUsageDisplay
 
 	// Debug mode
 	KeyDebugMode:         "调试模式",

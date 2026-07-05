@@ -735,8 +735,8 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 	KeyUnloadModeFailed:  "❌ Failed to unload mode: %v",
 
 	// Token usage display (FEATURE-247)
-	KeyTokenUsageDisplay: "Token usage: prompt=%d, completion=%d, total=%d, context=%.1f%%",
-	KeyTokenUsageTiming:  "TTFT: %s | Input: %s t/s | Output: %s t/s",
+	KeyTokenUsageDisplay: "Token usage: TTFT=%s | input=%d(%s t/s) | output=%d(%s t/s) | total=%d (%.1f%%)",
+	KeyTokenUsageTiming:  "", // unused, merged into KeyTokenUsageDisplay
 
 	// Debug mode
 	KeyDebugMode:         "Debug Mode",
