@@ -776,16 +776,6 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyTokenUsageDisplay: "Token 用量: 输入=%d, 输出=%d, 总计=%d, 上下文=%.1f%%",
 	KeyTokenUsageTiming:  "首字: %s | 输入: %s t/秒 | 输出: %s t/秒",
 
-	// Context reorganization (FEATURE-249)
-	// Note: <task> is embedded in the result string, so only char count remains as %d
-	KeyReorganizeResult: "✅ 上下文已重新整理：摘要 %d 字符。",
-
-	// Loop reorganize context (FEATURE-249)
-	KeyLoopReorganizeSuggestion: "\n\n⚠️ 检测到循环后上下文已被重置。建议调用 reorganize_context 工具重新整理上下文，总结已做的工作和发现，并制定新的策略继续。",
-
-	// Duplicate assistant content detection (FEATURE-249)
-	KeyDuplicateContentFeedback: "⚠️ 检测到你本次回复的内容与上一次完全一致。你已经进行了完整的分析，不要再重复相同的文字，请梳理之前完整上下文和任务清单，在能够明确任务目标的基础上，重新对任务进行规划，并通过track_task_progress进行任务跟踪，通过调用合适的工具继续推进任务。如果任务目标不够明确，请调用 ask_followup_question 向用户说明情况，以便请用户提供更多的素材。",
-
 	// Debug mode
 	KeyDebugMode:         "调试模式",
 	KeyDebugPromptHeader: "=== 即将发送给 LLM 的消息预览（调试模式）===\n按 Enter 直接发送，或输入修改内容后按 Enter",
