@@ -173,14 +173,18 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 
 	case "reasoning-effort":
 		if len(args) < 2 {
-			return fmt.Sprintf("推理努力程度: %s", h.cfg.LLM.ReasoningEffort), nil
+			effort := h.cfg.LLM.ReasoningEffort
+			if effort == "" {
+				effort = "default"
+			}
+			return fmt.Sprintf("推理努力程度: %s（可选值: low, medium, high, max, none, default）", effort), nil
 		}
 		effort := args[1]
 		switch effort {
-		case "low", "medium", "high":
+		case "low", "medium", "high", "max", "none", "default":
 			h.cfg.LLM.ReasoningEffort = effort
 		default:
-			return "", fmt.Errorf("无效的推理努力程度: %s（可选值: low, medium, high）", effort)
+			return "", fmt.Errorf("无效的推理努力程度: %s（可选值: low, medium, high, max, none, default）", effort)
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err

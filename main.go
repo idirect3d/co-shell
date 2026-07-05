@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "279"
+const build = "283"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -932,16 +932,36 @@ func main() {
 			maxTokens,
 			cfg.LLM.LLMTimeout,
 		)
-		llmClient.SetThinkingEnabled(thinkingEnabled)
-		llmClient.SetReasoningEffort(reasoningEffort)
 		llmClient.SetTopP(topP)
 		llmClient.SetTopK(topK)
 		llmClient.SetRepetitionPenalty(repetitionPenalty)
 		llmClient.SetTokenUsage(cfg.LLM.TokenUsage)
 
-		// Apply body additions from config
+		// Build body additions: cfg.BodyAdditions + thinking adapter + model custom params
+		additions := make(map[string]string)
 		if len(cfg.LLM.BodyAdditions) > 0 {
-			llmClient.SetBodyAdditions(cfg.LLM.BodyAdditions)
+			for k, v := range cfg.LLM.BodyAdditions {
+				additions[k] = v
+			}
+		}
+		adapter := llm.GetThinkingAdapter(activeModel.Provider)
+		thinkingAdditions := adapter.BuildAdditions(llm.ThinkingConfig{
+			Mode:            llm.ThinkingModeFromString(cfg.LLM.ThinkingEnabled),
+			ReasoningEffort: reasoningEffort,
+		})
+		for k, v := range thinkingAdditions {
+			additions[k] = v
+		}
+		if len(activeModel.CustomParams) > 0 {
+			for k, v := range activeModel.CustomParams {
+				jsonBytes, err := json.Marshal(v)
+				if err == nil {
+					additions[k] = string(jsonBytes)
+				}
+			}
+		}
+		if len(additions) > 0 {
+			llmClient.SetBodyAdditions(additions)
 		}
 		log.Info("LLM client initialized from model %s: endpoint=%s model=%s llm_timeout=%ds thinking=%v reasoning_effort=%s",
 			activeModel.ID, activeModel.Endpoint, activeModel.Model, cfg.LLM.LLMTimeout, thinkingEnabled, reasoningEffort)

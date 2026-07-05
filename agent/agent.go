@@ -888,19 +888,29 @@ func (a *Agent) ApplyWorkModeConfig() {
 		modelCfg.Endpoint, modelCfg.APIKey, modelCfg.Model,
 		temperature, maxTokens, a.cfg.LLM.LLMTimeout,
 	)
-	newClient.SetThinkingEnabled(thinkingEnabled)
-	newClient.SetReasoningEffort(reasoningEffort)
 	newClient.SetTopP(topP)
 	newClient.SetTopK(topK)
 	newClient.SetRepetitionPenalty(repetitionPenalty)
 	newClient.SetTokenUsage(a.cfg.LLM.TokenUsage)
 
-	// Merge body additions: global + model custom params
+	// Merge body additions: cfg body additions + thinking adapter + model custom params
 	mergedAdditions := make(map[string]string)
 	if len(a.cfg.LLM.BodyAdditions) > 0 {
 		for k, v := range a.cfg.LLM.BodyAdditions {
 			mergedAdditions[k] = v
 		}
+	}
+	adapter := llm.GetThinkingAdapter(modelCfg.Provider)
+	thinkingMode := llm.ThinkingModeDisabled
+	if thinkingEnabled {
+		thinkingMode = llm.ThinkingModeEnabled
+	}
+	thinkingAdditions := adapter.BuildAdditions(llm.ThinkingConfig{
+		Mode:            thinkingMode,
+		ReasoningEffort: reasoningEffort,
+	})
+	for k, v := range thinkingAdditions {
+		mergedAdditions[k] = v
 	}
 	if len(modelCfg.CustomParams) > 0 {
 		for k, v := range modelCfg.CustomParams {

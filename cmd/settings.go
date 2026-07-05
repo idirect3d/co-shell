@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -112,11 +113,33 @@ func (h *SettingsHandler) rebuildLLMClient() {
 	client.SetTopP(topP)
 	client.SetTopK(topK)
 	client.SetRepetitionPenalty(repetitionPenalty)
-	client.SetThinkingEnabled(thinkingEnabled == "on")
-	client.SetReasoningEffort(reasoningEffort)
 	client.SetTokenUsage(h.cfg.LLM.TokenUsage)
+
+	// Build body additions: cfg.BodyAdditions + thinking adapter + model custom params
+	additions := make(map[string]string)
 	if len(h.cfg.LLM.BodyAdditions) > 0 {
-		client.SetBodyAdditions(h.cfg.LLM.BodyAdditions)
+		for k, v := range h.cfg.LLM.BodyAdditions {
+			additions[k] = v
+		}
+	}
+	adapter := llm.GetThinkingAdapter(activeModel.Provider)
+	thinkingAdditions := adapter.BuildAdditions(llm.ThinkingConfig{
+		Mode:            llm.ThinkingModeFromString(thinkingEnabled),
+		ReasoningEffort: reasoningEffort,
+	})
+	for k, v := range thinkingAdditions {
+		additions[k] = v
+	}
+	if len(activeModel.CustomParams) > 0 {
+		for k, v := range activeModel.CustomParams {
+			jsonBytes, err := json.Marshal(v)
+			if err == nil {
+				additions[k] = string(jsonBytes)
+			}
+		}
+	}
+	if len(additions) > 0 {
+		client.SetBodyAdditions(additions)
 	}
 	h.agent.SetLLMClient(client)
 	log.Info("LLM client rebuilt from model %s: endpoint=%s model=%s",
@@ -441,8 +464,8 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("max-tokens", maxTokensStr, "1 ~ 128000（整数）"),
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
-		makeLine("thinking-enabled", thinkingEnabledStatus, i18n.T(i18n.KeyCol3ThinkingEnabled)),
-		makeLine("reasoning-effort", reasoningEffortStr, i18n.T(i18n.KeyCol3ReasoningEffort)),
+		makeLine("thinking-enabled", thinkingEnabledStatus, "on/off/default"),
+		makeLine("reasoning-effort", reasoningEffortStr, "low/medium/high/max/none/default"),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
 		makeLine("toolcall-mode", toolCallMode, i18n.T(i18n.KeyCol3ToolCallMode)),
 		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
