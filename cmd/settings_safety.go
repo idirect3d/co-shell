@@ -347,6 +347,36 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop judge timeout set to %d seconds", n)
 		return fmt.Sprintf("✅ LLM循环判定超时已设置为: %d秒", n), nil
 
+	case "loop-single-line-length":
+		if len(args) < 2 {
+			return fmt.Sprintf("单行超长阈值: %d（0=不检测，大于此长度的单行触发循环检测）", h.cfg.LLM.LoopSingleLineLength), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		h.cfg.LLM.LoopSingleLineLength = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop single line length set to %d", n)
+		return fmt.Sprintf("✅ 单行超长阈值已设置为: %d", n), nil
+
+	case "loop-single-line-window":
+		if len(args) < 2 {
+			return fmt.Sprintf("单行窗口重复检测大小: %d（0=不检测）", h.cfg.LLM.LoopSingleLineWindow), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		h.cfg.LLM.LoopSingleLineWindow = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop single line window set to %d", n)
+		return fmt.Sprintf("✅ 单行窗口重复检测大小已设置为: %d", n), nil
+
 	case "loop-long-output-threshold":
 		if len(args) < 2 {
 			return fmt.Sprintf("loop-long-output-threshold: %d (0=disabled)", h.cfg.LLM.LoopLongOutputThreshold), nil

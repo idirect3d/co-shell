@@ -661,6 +661,13 @@
 
 - [x] FIX-264 修复 Ctrl+C 中断后上下文持久化丢失最后 2-3 条消息：[BUILD-278]
 - [x] FIX-272 修复循环二次判定 JSON 解析未跳过 think 标签的问题：在 `judgeLoop()` 提取 JSON 前先通过 `</think>` 标签定位实际返回内容，避免 think 内容中的 `{` 干扰解析 [BUILD-286]
+- [x] **FEATURE-273 循环检测统合优化** [BUILD-287]：
+  - 新增 `LoopEvent` 统一事件结构体，三种检测器都产生 `LoopEvent` 走统一的 `applyLoopIntervention()` 路径
+  - 跨迭代内容重复：相似度阈值（`DuplicateContentThreshold`，默认 0.95），触发后走统一 LoopIntervention 而非 continuePrompt
+  - 工具调用重复：移除旧 threshold，连续两次相同工具+参数即触发（ToolCallLoopDetector threshold=2）
+  - 新增流内单行重复检测（`SingleLineLoopDetector`）：长行超限（默认 2048 字符）或窗口内周期重复（默认 128 字符窗口，minRepeat=3）
+  - 新增 `.set` 支持：`loop-single-line-length`、`loop-single-line-window`
+  - REPL：用户输入以 `.` 开头时，检查是否为本地可执行文件，如果不是则提示用 `:` 前缀并确认是否继续
 - [x] **FEATURE-270 系统提示词简化 + 命令前缀冒号化 + 调研步骤补充** [BUILD-284]
   - 去掉 Capabilities/Rules/ToolUsage 的 shellEnabled/plan mode 分支逻辑，统一使用通用资源
   - 删除 keys.go/zh_system.go/en_system.go 中不再使用的 Shell/XML/ReadOnly key 和翻译块
