@@ -167,7 +167,7 @@ func (h *ConfigHandler) configGroups() []ConfigGroup {
 		{
 			Name: i18n.T(i18n.KeySettingsGroupMemory),
 			Params: append(h.memoryParams(),
-				cmdEntry(".memory", i18n.T(i18n.KeyHelpMemory), "", h.memoryHandler.Handle, []ConfigSubCommand{
+				cmdEntry(":memory", i18n.T(i18n.KeyHelpMemory), "", h.memoryHandler.Handle, []ConfigSubCommand{
 					{Name: "save", Desc: "保存一条记忆", Args: "<key> <value>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"save"}, a...)) }},
 					{Name: "get", Desc: "获取一条记忆", Args: "<key>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"get"}, a...)) }},
 					{Name: "search", Desc: "按前缀搜索记忆", Args: "<prefix>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"search"}, a...)) }},
@@ -175,28 +175,28 @@ func (h *ConfigHandler) configGroups() []ConfigGroup {
 					{Name: "list", Desc: "列出所有记忆", Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"list"}) }},
 					{Name: "clear", Desc: "清空所有记忆", Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"clear"}) }},
 				}),
-				cmdEntry(".context", i18n.T(i18n.KeyHelpContext), "", h.contextHandler.Handle, []ConfigSubCommand{
+				cmdEntry(":context", i18n.T(i18n.KeyHelpContext), "", h.contextHandler.Handle, []ConfigSubCommand{
 					{Name: "show", Desc: "显示当前上下文", Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"show"}) }},
 					{Name: "reset", Desc: "重置上下文", Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"reset"}) }},
 				}),
-				cmdEntry(".session", i18n.T(i18n.KeyHelpSession), "", h.sessionHandler.Handle, []ConfigSubCommand{
+				cmdEntry(":session", i18n.T(i18n.KeyHelpSession), "", h.sessionHandler.Handle, []ConfigSubCommand{
 					{Name: "info", Desc: "显示会话概要", Action: func(a []string) { runHandler(h.sessionHandler.Handle, []string{}) }},
 				}),
-				cmdEntry(".new", i18n.T(i18n.KeyHelpNew), "", func(args []string) (string, error) {
+				cmdEntry(":new", i18n.T(i18n.KeyHelpNew), "", func(args []string) (string, error) {
 					h.agent.Reset()
 					return "", nil
 				}, nil),
-				cmdEntry(".plan", i18n.T(i18n.KeyHelpPlan), "", h.planHandler.Handle, []ConfigSubCommand{
+				cmdEntry(":plan", i18n.T(i18n.KeyHelpPlan), "", h.planHandler.Handle, []ConfigSubCommand{
 					{Name: "list", Desc: "查看当前任务计划", Action: func(a []string) { runHandler(h.planHandler.Handle, []string{}) }},
 					{Name: "create", Desc: "创建新任务计划", Args: "<title>", Action: func(a []string) { runHandler(h.planHandler.Handle, append([]string{"create"}, a...)) }},
 				}),
-				cmdEntry(".db", i18n.T(i18n.KeyDBSubCmdDesc), "", h.settingsHandler.HandleDB, []ConfigSubCommand{
+				cmdEntry(":db", i18n.T(i18n.KeyDBSubCmdDesc), "", h.settingsHandler.HandleDB, []ConfigSubCommand{
 					{Name: "info", Desc: "查看数据库配置", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{}) }},
 					{Name: "host", Desc: "设置数据库地址", Args: "<host>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"host"}, a...)) }},
 					{Name: "port", Desc: "设置数据库端口", Args: "<port>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"port"}, a...)) }},
 					{Name: "migrate", Desc: "从本地 bbolt 迁移到 PostgreSQL", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{"migrate"}) }},
 				}),
-				cmdEntry(".history", "查看用户输入命令历史", "", h.listHandler.HandleHistory, []ConfigSubCommand{
+				cmdEntry(":history", "查看用户输入命令历史", "", h.listHandler.HandleHistory, []ConfigSubCommand{
 					{Name: "last", Desc: "查看最近 N 条历史", Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"last"}, a...)) }},
 					{Name: "first", Desc: "查看最早 N 条历史", Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"first"}, a...)) }},
 				}),
@@ -491,7 +491,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			return i18n.TF(i18n.KeySettingsUpdated, "browser-headless", "off")
 		}},
 		// Rule management
-		cmdEntry(".rule", "管理 AI 全局规则", "", h.ruleHandler.Handle, []ConfigSubCommand{
+		cmdEntry(":rule", "管理 AI 全局规则", "", h.ruleHandler.Handle, []ConfigSubCommand{
 			{Name: "list", Desc: "列出所有规则", Action: func(a []string) { runHandler(h.ruleHandler.Handle, []string{}) }},
 			{Name: "add", Desc: "添加新规则", Args: "<rule>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"add"}, a...)) }},
 			{Name: "remove", Desc: "删除规则", Args: "<index>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"remove"}, a...)) }},
@@ -811,9 +811,9 @@ func (h *ConfigHandler) logParam() ConfigParam {
 func (h *ConfigHandler) devToolParams() []ConfigParam {
 	return []ConfigParam{
 		h.logParam(),
-		cmdEntry(".body-add", "向 LLM 请求体添加自定义 JSON 属性", "key=value", nil, nil),
-		cmdEntry(".body-remove", "从 LLM 请求体删除自定义 JSON 属性", "key", nil, nil),
-		cmdEntry(".body-display", "显示 LLM 请求体中的自定义 JSON 属性", "", func(args []string) (string, error) {
+		cmdEntry(":body-add", "向 LLM 请求体添加自定义 JSON 属性", "key=value", nil, nil),
+		cmdEntry(":body-remove", "从 LLM 请求体删除自定义 JSON 属性", "key", nil, nil),
+		cmdEntry(":body-display", "显示 LLM 请求体中的自定义 JSON 属性", "", func(args []string) (string, error) {
 			if len(h.cfg.LLM.BodyAdditions) == 0 {
 				return "  没有自定义属性", nil
 			}
@@ -824,7 +824,7 @@ func (h *ConfigHandler) devToolParams() []ConfigParam {
 			return sb.String(), nil
 		}, nil),
 		ConfigParam{
-			Name: ".simulate",
+			Name: ":simulate",
 			Desc: "模拟 LLM 方法调用，进行解析和执行测试",
 			Action: func(args []string) {
 				io := agent.GetIO(h.agent)
@@ -851,7 +851,7 @@ func (h *ConfigHandler) devToolParams() []ConfigParam {
 // modelMgrParams returns model management parameters.
 func (h *ConfigHandler) modelMgrParams() []ConfigParam {
 	return []ConfigParam{
-		cmdEntry(".model", "模型管理（add/list/remove/switch/info）", "", h.modelHandler.Handle, []ConfigSubCommand{
+		cmdEntry(":model", "模型管理（add/list/remove/switch/info）", "", h.modelHandler.Handle, []ConfigSubCommand{
 			{Name: "list", Desc: "列出所有已配置模型", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"list"}) }},
 			{Name: "add", Desc: "添加新模型（启动设置向导）", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"add"}) }},
 			{Name: "switch", Desc: "切换当前使用的模型", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"switch"}, a...)) }},
@@ -867,13 +867,13 @@ func (h *ConfigHandler) mcpRuleParams() []ConfigParam { return []ConfigParam{} }
 // workModeParams returns work mode and section parameters.
 func (h *ConfigHandler) workModeParams() []ConfigParam {
 	return []ConfigParam{
-		cmdEntry(".mode", "管理工作模式", "", h.modeHandler.Handle, []ConfigSubCommand{
+		cmdEntry(":mode", "管理工作模式", "", h.modeHandler.Handle, []ConfigSubCommand{
 			{Name: "list", Desc: "列出所有工作模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{}) }},
 			{Name: "switch", Desc: "切换工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"switch"}, a...)) }},
 			{Name: "create", Desc: "创建工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"create"}, a...)) }},
 			{Name: "edit", Desc: "交互式编辑当前模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{"edit"}) }},
 		}),
-		cmdEntry(".section", "管理自定义提示词节", "", h.sectionHandler.Handle, []ConfigSubCommand{
+		cmdEntry(":section", "管理自定义提示词节", "", h.sectionHandler.Handle, []ConfigSubCommand{
 			{Name: "list", Desc: "列出所有自定义节", Action: func(a []string) { runHandler(h.sectionHandler.Handle, []string{}) }},
 			{Name: "add", Desc: "添加节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"add"}, a...)) }},
 			{Name: "remove", Desc: "删除节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"remove"}, a...)) }},
@@ -884,13 +884,13 @@ func (h *ConfigHandler) workModeParams() []ConfigParam {
 // multimodalParams returns multimodal and MCP parameters.
 func (h *ConfigHandler) multimodalParams() []ConfigParam {
 	return []ConfigParam{
-		cmdEntry(".image", "管理多模态图片缓存", "", h.imageHandler.Handle, []ConfigSubCommand{
+		cmdEntry(":image", "管理多模态图片缓存", "", h.imageHandler.Handle, []ConfigSubCommand{
 			{Name: "list", Desc: "列出缓存的图片", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{}) }},
 			{Name: "add", Desc: "添加图片到缓存", Args: "<path>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"add"}, a...)) }},
 			{Name: "remove", Desc: "从缓存移除图片", Args: "<index>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"remove"}, a...)) }},
 			{Name: "clear", Desc: "清空图片缓存", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{"clear"}) }},
 		}),
-		cmdEntry(".mcp", "管理 MCP 服务器连接", "", h.mcpHandler.Handle, []ConfigSubCommand{
+		cmdEntry(":mcp", "管理 MCP 服务器连接", "", h.mcpHandler.Handle, []ConfigSubCommand{
 			{Name: "list", Desc: "列出所有 MCP 服务器", Action: func(a []string) { runHandler(h.mcpHandler.Handle, []string{}) }},
 			{Name: "add", Desc: "添加 MCP 服务器", Args: "<name> <command> [args...]", Action: func(a []string) {
 				if len(a) < 2 {

@@ -77,11 +77,11 @@ var zhMessages = map[string]string{
 	KeyExit:        "👋 再见！",
 	KeyCleanup:     "正在清理...",
 	KeyCleanupDone: " 完成。",
-	KeyUnknownCmd:  "❌ 未知命令: %s\n输入 .help 查看可用命令列表",
+	KeyUnknownCmd:  "❌ 未知命令: %s\n输入 :help 查看可用命令列表",
 	KeyCmdError:    "❌ 错误: %v",
 	KeyCmdExecFail: "❌ 命令执行失败: %v",
 	KeyAgentFail:   "❌ 处理失败: %v",
-	KeyAgentHint:   "💡 提示: 请检查 API 配置是否正确，输入 .settings 查看当前配置",
+	KeyAgentHint:   "💡 提示: 请检查 API 配置是否正确，输入 :settings 查看当前配置",
 	KeyOutputTitle: "📋 命令输出:",
 	KeyOutputSep:   "────────────────────────────────────────────",
 	KeyToolCall:    "🛠 调用工具: %s\n",
@@ -180,7 +180,7 @@ var zhMessages = map[string]string{
 	KeyContextSet:   "✅ %s 已设置为: %s",
 
 	// Agent
-	KeyNoopClientError: "LLM 未配置。请使用 .settings api-key <your-key> 设置 API 密钥",
+	KeyNoopClientError: "LLM 未配置。请使用 :settings api-key <your-key> 设置 API 密钥",
 
 	// Config format
 	KeyConfigFormat: `LLM 配置:
@@ -222,12 +222,12 @@ var zhMessages = map[string]string{
    %-20s %-30s %s`,
 
 	// REPL - Additional
-	KeyWelcomeTip: "输入 .help 查看可用命令，或直接输入自然语言！\n   例如：\"列出当前目录的文件\"",
+	KeyWelcomeTip: "输入 :help 查看可用命令，或直接输入自然语言！\n   例如：\"列出当前目录的文件\"",
 
-	KeyUnknownCommand: "❌ 未知命令: %s\n输入 .help 查看可用命令列表",
+	KeyUnknownCommand: "❌ 未知命令: %s\n输入 :help 查看可用命令列表",
 	KeyCmdFailed:      "命令执行失败",
 	KeyProcessFailed:  "处理失败",
-	KeyCheckConfig:    "💡 提示: 请检查 API 配置是否正确，输入 .settings 查看当前配置",
+	KeyCheckConfig:    "💡 提示: 请检查 API 配置是否正确，输入 :settings 查看当前配置",
 	KeyCleaningUp:     "正在清理...",
 	KeyDone:           " 完成。",
 
@@ -235,30 +235,30 @@ var zhMessages = map[string]string{
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",
 	KeyHelpNLDesc:       "    直接输入自然语言请求，我会帮你执行。",
-	KeyHelpBuiltinTitle: "  内置命令（以 . 开头）:",
-	KeyHelpSettings:     "    .set          - 管理 LLM API 设置（密钥、模型、端点等）",
+	KeyHelpBuiltinTitle: "  内置命令（以 : 开头）:",
+	KeyHelpSettings:     "    :set          - 管理 LLM API 设置（密钥、模型、端点等）",
 
-	KeyHelpMCP:          "    .mcp          - 管理 MCP 服务器连接",
-	KeyHelpRule:         "    .rule         - 管理 AI 全局规则",
-	KeyHelpMemory:       "    .memory       - 管理记忆和持久知识",
-	KeyHelpContext:      "    .context      - 管理对话上下文",
-	KeyHelpList:         "    .list         - 查看历史用户输入命令列表（同 .history）",
-	KeyHelpLast:         "    .last         - 查看最近的历史任务",
-	KeyHelpFirst:        "    .first        - 查看最早的历史任务",
-	KeyHelpImage:        "    .image        - 管理多模态图片缓存（add/remove/clear/list）",
-	KeyHelpPlan:         "    .plan         - 管理任务计划（list/view/create/insert/remove/update）",
-	KeyHelpBodyAdd:      "    .body-add     - 向 LLM 请求体添加自定义 JSON 属性",
-	KeyHelpBodyRemove:   "    .body-remove  - 从 LLM 请求体删除自定义 JSON 属性",
-	KeyHelpBodyDisplay:  "    .body-display - 显示 LLM 请求体中的自定义 JSON 属性",
-	KeyHelpNew:          "    .new          - 清空当前会话，开始全新对话",
-	KeyHelpHelp:         "    .help         - 显示此帮助信息",
-	KeyHelpExit:         "    .exit         - 退出 co-shell",
+	KeyHelpMCP:          "    :mcp          - 管理 MCP 服务器连接",
+	KeyHelpRule:         "    :rule         - 管理 AI 全局规则",
+	KeyHelpMemory:       "    :memory       - 管理记忆和持久知识",
+	KeyHelpContext:      "    :context      - 管理对话上下文",
+	KeyHelpList:         "    :list         - 查看历史用户输入命令列表（同 :history）",
+	KeyHelpLast:         "    :last         - 查看最近的历史任务",
+	KeyHelpFirst:        "    :first        - 查看最早的历史任务",
+	KeyHelpImage:        "    :image        - 管理多模态图片缓存（add/remove/clear/list）",
+	KeyHelpPlan:         "    :plan         - 管理任务计划（list/view/create/insert/remove/update）",
+	KeyHelpBodyAdd:      "    :body-add     - 向 LLM 请求体添加自定义 JSON 属性",
+	KeyHelpBodyRemove:   "    :body-remove  - 从 LLM 请求体删除自定义 JSON 属性",
+	KeyHelpBodyDisplay:  "    :body-display - 显示 LLM 请求体中的自定义 JSON 属性",
+	KeyHelpNew:          "    :new          - 清空当前会话，开始全新对话",
+	KeyHelpHelp:         "    :help         - 显示此帮助信息",
+	KeyHelpExit:         "    :exit         - 退出 co-shell",
 	KeyHelpExampleTitle: "  示例:",
 	KeyHelpExample1:     "列出当前目录的所有文件",
 	KeyHelpExample2:     "查找所有超过 100MB 的大文件",
-	KeyHelpExample3:     ".settings model gpt-4o",
-	KeyHelpExample4:     ".mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
-	KeyHelpExample5:     ".rule add \"删除文件前先确认\"",
+	KeyHelpExample3:     ":settings model gpt-4o",
+	KeyHelpExample4:     ":mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp",
+	KeyHelpExample5:     ":rule add \"删除文件前先确认\"",
 
 	// CLI Help
 	KeyCLIHelpTitle:                    "co-shell v%s - 智能命令行 Shell",
@@ -397,9 +397,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 正在启动 API 设置向导...\n",
 	KeyWizardCmdDone:    "✅ API 设置向导已完成。\n",
-	KeyHelpModel:        "    .model        - 多模型管理（add/list/remove/switch/info）",
-	KeyHelpSection:      "    .section      - 自定义提示词节管理（add/list/remove）",
-	KeyHelpMode:         "    .mode         - 工作模式管理（list/switch/create/edit）",
+	KeyHelpModel:        "    :model        - 多模型管理（add/list/remove/switch/info）",
+	KeyHelpSection:      "    :section      - 自定义提示词节管理（add/list/remove）",
+	KeyHelpMode:         "    :mode         - 工作模式管理（list/switch/create/edit）",
 	KeyModeCurrent:      "当前工作模式: %s",
 	KeyModeList:         "工作模式列表:",
 	KeyModeNotFound:     "工作模式未找到",
@@ -416,7 +416,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySectionInvalid:   "无效的节名称",
 
 	// Settings help table
-	KeySettingsHelpTitle:             "📋 .set 参数清单",
+	KeySettingsHelpTitle:             "📋 :set 参数清单",
 	KeySettingsColParam:              "参数名",
 	KeySettingsColValues:             "可选项 / 值范围",
 	KeySettingsColDesc:               "说明",
@@ -452,7 +452,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescToolOutput:    "显示工具调用返回数据",
 	KeySettingsDescCommandOutput: "显示命令执行返回数据",
 
-	KeySettingsHelpFooter:   "💡 使用 .set <参数名> <值> 修改参数，例如: .set model deepseek-chat\n   .set db 查看/配置数据库（首次运行自动启动配置向导）",
+	KeySettingsHelpFooter:   "💡 使用 :set <参数名> <值> 修改参数，例如: :set model deepseek-chat\n   :set db 查看/配置数据库（首次运行自动启动配置向导）",
 	KeySettingsCurrentTitle: "当前配置:",
 
 	// Memory enabled
@@ -526,9 +526,9 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyListEmpty:     "暂无历史记录。",
 	KeyListReExecute: "输入编号重新执行，或输入其他内容继续。",
 	KeyListInvalid:   "无效编号，请输入 1-%d 之间的数字。",
-	KeyLastUsage:     "用法: .last [N] — 显示最近 N 条历史记录（默认 10）",
-	KeyFirstUsage:    "用法: .first [N] — 显示最早 N 条历史记录（默认 10）",
-	KeyListUsage:     "用法: .list [start] [end] — 显示历史记录范围（序号从 1 开始）",
+	KeyLastUsage:     "用法: :last [N] — 显示最近 N 条历史记录（默认 10）",
+	KeyFirstUsage:    "用法: :first [N] — 显示最早 N 条历史记录（默认 10）",
+	KeyListUsage:     "用法: :list [start] [end] — 显示历史记录范围（序号从 1 开始）",
 
 	// Session
 	KeySessionTitle:          "📋 当前会话",
@@ -546,12 +546,12 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySessionPopDropped:     "已弹出 %d 条消息（丢弃 %d 条，保留最后一条供编辑）",
 
 	// History command
-	KeyHelpHistory: "    .history            - 查看用户输入命令历史（.history last/first [N]）",
-	KeyHelpSession: "    .session            - 查看当前会话信息（消息数、角色分布等）",
-	KeyHistoryUsage: `📋 .history 子命令:
-  .history [start] [end]    查看历史范围
-  .history last [N]         查看最近 N 条（默认 10）
-  .history first [N]        查看最早 N 条（默认 10）
+	KeyHelpHistory: "    :history            - 查看用户输入命令历史（:history last/first [N]）",
+	KeyHelpSession: "    :session            - 查看当前会话信息（消息数、角色分布等）",
+	KeyHistoryUsage: `📋 :history 子命令:
+  :history [start] [end]    查看历史范围
+  :history last [N]         查看最近 N 条（默认 10）
+  :history first [N]        查看最早 N 条（默认 10）
   输入编号可重新执行历史命令`,
 
 	// Memory search config
@@ -666,7 +666,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDBMigrating:         "正在迁移数据到 PostgreSQL...",
 	KeyDBMigrationComplete: "✅ 数据迁移完成",
 	KeyDBMigrationFailed:   "❌ 数据迁移失败: %v",
-	KeyDBSubCmdDesc:        "数据库持久化存储（.set db 查看详情）",
+	KeyDBSubCmdDesc:        "数据库持久化存储（:set db 查看详情）",
 	KeyDBInitDesc:          "初始化 PostgreSQL 数据库（删除所有表并重建）",
 	KeyDBMigrateDesc:       "从本地 bbolt 迁移数据到 PostgreSQL",
 
@@ -722,7 +722,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyWizardGroupMCPRule:    "[ MCP 与规则 ]",
 
 	// Config wizard (FEATURE-197)
-	KeyHelpConfig:             "    .config     - 配置向导（菜单式配置）",
+	KeyHelpConfig:             "    :config     - 配置向导（菜单式配置）",
 	KeyConfigWizardTitle:      "╔══════════════════════════════════════════════╗\n║         co-shell 配置向导                    ║\n╚══════════════════════════════════════════════╝",
 	KeyConfigWizardIntro:      "请选择配置分类，逐级进入设置参数。",
 	KeyConfigGroupTitle:       "── 配置分类 ──────────────────────────────",
@@ -743,8 +743,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyConfigValCtxStart:      "请输入 window/task/smart",
 
 	// Simulate (FEATURE-218)
-	KeyHelpContinue:        "    .continue      - 不追加任何内容，直接将当前上下文发送给 LLM 继续",
-	KeyHelpSimulate:        "    .simulate      - 模拟 LLM 方法调用，进行解析和执行测试",
+	KeyHelpContinue:        "    :continue      - 不追加任何内容，直接将当前上下文发送给 LLM 继续",
+	KeyHelpSimulate:        "    :simulate      - 模拟 LLM 方法调用，进行解析和执行测试",
 	KeySimulatePromptInput: "请输入要模拟的 LLM 方法调用内容: ",
 	KeySimulateNoContent:   "内容为空，已取消",
 	KeyContinuePrompt: `<task>

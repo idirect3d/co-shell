@@ -229,14 +229,14 @@ func (r *REPL) Run() error {
 		}
 
 		r.saveHistory(input)
-		if input == "exit" || input == "quit" || input == ".exit" || input == ".quit" {
+		if input == "exit" || input == "quit" || input == ":exit" {
 			break
 		}
-		if input == "help" || input == ".help" || input == "?" {
+		if input == "help" || input == ":help" || input == "?" {
 			r.printHelp()
 			continue
 		}
-		if strings.HasPrefix(input, ".") {
+		if strings.HasPrefix(input, ":") {
 			r.handleBuiltin(input)
 			continue
 		}
@@ -293,47 +293,47 @@ func (r *REPL) handleBuiltin(input string) {
 	var err error
 
 	switch command {
-	case ".settings", ".set":
+	case ":settings", ":set":
 		result, err = r.settingsHandler.Handle(args)
-	case ".mcp":
+	case ":mcp":
 		result, err = r.mcpHandler.Handle(args)
-	case ".rule":
+	case ":rule":
 		result, err = r.ruleHandler.Handle(args)
-	case ".memory":
+	case ":memory":
 		result, err = r.memoryHandler.Handle(args)
-	case ".context":
+	case ":context":
 		result, err = r.contextHandler.Handle(args)
-	case ".history":
+	case ":history":
 		result, err = r.listHandler.HandleHistory(args)
-	case ".session":
+	case ":session":
 		result, err = r.sessionHandler.Handle(args)
-	case ".image":
+	case ":image":
 		result, err = r.imageHandler.Handle(args)
-	case ".plan":
+	case ":plan":
 		result, err = r.planHandler.Handle(args)
-	case ".body-add":
+	case ":body-add":
 		result, err = r.handleBodyAdd(args)
-	case ".body-remove":
+	case ":body-remove":
 		result, err = r.handleBodyRemove(args)
-	case ".body-display":
+	case ":body-display":
 		result, err = r.handleBodyDisplay(args)
-	case ".new":
+	case ":new":
 		r.agent.Reset()
 		fmt.Printf("%s%s\n", ep.Success, i18n.T(i18n.KeyHelpNew))
 		return
-	case ".model":
+	case ":model":
 		result, err = r.modelHandler.Handle(args)
-	case ".section":
+	case ":section":
 		result, err = r.sectionHandler.Handle(args)
-	case ".mode":
+	case ":mode":
 		result, err = r.modeHandler.Handle(args)
-	case ".config":
+	case ":config":
 		result, err = r.configHandler.Handle(args)
-	case ".db":
+	case ":db":
 		result, err = r.settingsHandler.HandleDB(args)
-	case ".simulate":
+	case ":simulate":
 		result, err = r.simulateHandler.Handle(args)
-	case ".continue":
+	case ":continue":
 		r.handleAgentInput("")
 		return
 	default:
@@ -345,7 +345,7 @@ func (r *REPL) handleBuiltin(input string) {
 		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
 		return
 	}
-	// Handle special POP: result from .session pop — allow user to edit and resubmit
+	// Handle special POP: result from :session pop — allow user to edit and resubmit
 	if strings.HasPrefix(result, "POP:") {
 		poppedContent := result[4:]
 		fmt.Printf("%s 已弹出最后一条消息，内容如下：\n%s\n", ep.Info, poppedContent)
@@ -360,7 +360,7 @@ func (r *REPL) handleBuiltin(input string) {
 			return
 		}
 		// Resubmit with modified content
-		if strings.HasPrefix(edited, ".") {
+		if strings.HasPrefix(edited, ":") {
 			r.handleBuiltin(edited)
 			return
 		}
@@ -372,7 +372,7 @@ func (r *REPL) handleBuiltin(input string) {
 		return
 	}
 	fmt.Println(result)
-	if command == ".settings" || command == ".set" {
+	if command == ":settings" || command == ":set" {
 		r.agent.SetShowLlmThinking(r.cfg.LLM.ShowLlmThinking)
 		r.agent.SetShowLlmContent(r.cfg.LLM.ShowLlmContent)
 		r.agent.SetShowTool(r.cfg.LLM.ShowTool)
@@ -397,7 +397,7 @@ func (r *REPL) handleHistoryReExecute(num int) {
 	}
 	input := entries[num-1].Input
 	fmt.Printf("%s%s\n", ep.Info, input)
-	if strings.HasPrefix(input, ".") {
+	if strings.HasPrefix(input, ":") {
 		r.handleBuiltin(input)
 		return
 	}
@@ -654,7 +654,7 @@ func (r *REPL) printWelcome() {
 		visionIndicator = " 👀"
 	}
 	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", r.version, r.build, visionIndicator)
-	fmt.Println("Copyright (c) 2026 L.Shuang - Type '.help' for usage.")
+	fmt.Println("Copyright (c) 2026 L.Shuang - Type ':help' for usage.")
 	if r.cfg.LLM.ShowLogo {
 		fmt.Println(logoData)
 	}
