@@ -179,31 +179,21 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Error max type count set to %d", n)
 		return fmt.Sprintf("✅ 不同错误类型最大数量已设置为: %d", n), nil
 
-	case "loop-detect-enabled":
+	case "loop-intervention":
 		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.LoopDetectEnabled {
-				status = i18n.T(i18n.KeyOff)
-			}
-			return fmt.Sprintf(i18n.T(i18n.KeyCol3LoopDetectEnabled), status), nil
+			return fmt.Sprintf("循环介入策略: %s（可选值: off/retry/prompt/reorganize/temperature/random）", h.cfg.LLM.LoopIntervention), nil
 		}
 		switch args[1] {
-		case "on", "1", "true", "yes":
-			h.cfg.LLM.LoopDetectEnabled = true
-		case "off", "0", "false", "no":
-			h.cfg.LLM.LoopDetectEnabled = false
+		case "off", "retry", "prompt", "reorganize", "temperature", "random":
+			h.cfg.LLM.LoopIntervention = args[1]
 		default:
-			return "", fmt.Errorf("usage: .set loop-detect-enabled on|off")
+			return "", fmt.Errorf("使用方法: .set loop-intervention off|retry|prompt|reorganize|temperature|random")
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.LoopDetectEnabled {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("Loop detect enabled set to %s", status)
-		return fmt.Sprintf(i18n.T(i18n.KeyLoopDetectEnabledUpdated), status), nil
+		log.Info("Loop intervention set to %s", args[1])
+		return fmt.Sprintf("✅ 循环介入策略已设置为: %s", args[1]), nil
 
 	case "loop-detect-threshold":
 		if len(args) < 2 {
@@ -223,31 +213,8 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop detect threshold set to %d", n)
 		return fmt.Sprintf("✅ 循环检测阈值已设置为: %d", n), nil
 
-	case "loop-temp-enabled":
-		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.LoopTempEnabled {
-				status = i18n.T(i18n.KeyOff)
-			}
-			return fmt.Sprintf("循环温度调节: %s", status), nil
-		}
-		switch args[1] {
-		case "on", "1", "true", "yes":
-			h.cfg.LLM.LoopTempEnabled = true
-		case "off", "0", "false", "no":
-			h.cfg.LLM.LoopTempEnabled = false
-		default:
-			return "", fmt.Errorf("使用方法: .set loop-temp-enabled on|off")
-		}
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.LoopTempEnabled {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("Loop temp enabled set to %s", status)
-		return fmt.Sprintf("✅ 循环温度调节已设置为: %s", status), nil
+	// loop-temp-enabled is removed. Temperature adjustment is now controlled
+	// by loop-intervention.
 
 	case "loop-temp-step-up":
 		if len(args) < 2 {
@@ -362,31 +329,8 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Duplicate content threshold set to %.2f", v)
 		return fmt.Sprintf("✅ 内容重复判定阈值已设置为: %.2f", v), nil
 
-	case "loop-reorganize-enabled":
-		if len(args) < 2 {
-			status := i18n.T(i18n.KeyOn)
-			if !h.cfg.LLM.LoopReorganizeEnabled {
-				status = i18n.T(i18n.KeyOff)
-			}
-			return fmt.Sprintf("循环检测重整上下文: %s", status), nil
-		}
-		switch args[1] {
-		case "on", "1", "true", "yes":
-			h.cfg.LLM.LoopReorganizeEnabled = true
-		case "off", "0", "false", "no":
-			h.cfg.LLM.LoopReorganizeEnabled = false
-		default:
-			return "", fmt.Errorf("使用方法: .set loop-reorganize-enabled on|off")
-		}
-		if err := h.cfg.Save(); err != nil {
-			return "", err
-		}
-		status := i18n.T(i18n.KeyOn)
-		if !h.cfg.LLM.LoopReorganizeEnabled {
-			status = i18n.T(i18n.KeyOff)
-		}
-		log.Info("Loop reorganize enabled set to %s", status)
-		return fmt.Sprintf("✅ 循环检测重整上下文已设置为: %s", status), nil
+	// loop-reorganize-enabled is removed. Context reorganization is now controlled
+	// by loop-intervention.
 
 	case "loop-judge-timeout":
 		if len(args) < 2 {
