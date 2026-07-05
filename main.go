@@ -906,10 +906,7 @@ func main() {
 		if activeModel.MaxTokens != nil {
 			maxTokens = *activeModel.MaxTokens
 		}
-		thinkingEnabled := cfg.LLM.ThinkingEnabled
-		if activeModel.ThinkingEnabled != nil {
-			thinkingEnabled = *activeModel.ThinkingEnabled
-		}
+		thinkingEnabled := cfg.LLM.ThinkingEnabled == "on"
 		reasoningEffort := cfg.LLM.ReasoningEffort
 		if activeModel.ReasoningEffort != nil {
 			reasoningEffort = *activeModel.ReasoningEffort

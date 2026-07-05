@@ -282,9 +282,9 @@ type LLMConfig struct {
 
 	// ThinkingEnabled: whether to enable LLM thinking/reasoning mode.
 	// When enabled, the LLM API request includes thinking configuration
-	// (e.g., DeepSeek thinking mode, OpenAI reasoning_effort).
-	// Default: true
-	ThinkingEnabled bool `json:"thinking_enabled"`
+	// "on" = enable, "off" = disable, "default" = use model-level setting
+	// Default: "off"
+	ThinkingEnabled string `json:"thinking_enabled"`
 
 	// ReasoningEffort: the reasoning effort level for models that support it.
 	// Valid values: "low", "medium", "high" (model-dependent).
@@ -730,7 +730,7 @@ func DefaultConfig() *Config {
 			TopP:                       -1,
 			TopK:                       -1,
 			RepetitionPenalty:          -1,
-			ThinkingEnabled:            false,
+			ThinkingEnabled:            "off",
 			ReasoningEffort:            "low",
 			EmojiEnabled:               true,
 			ShowLogo:                   true,
@@ -856,9 +856,9 @@ func (c *Config) Show() string {
 	if !c.LLM.ShowCommandOutput {
 		commandOutputStatus = i18n.T(i18n.KeyOff)
 	}
-	thinkingEnabledStatus := i18n.T(i18n.KeyOn)
-	if !c.LLM.ThinkingEnabled {
-		thinkingEnabledStatus = i18n.T(i18n.KeyOff)
+	thinkingEnabledStatus := c.LLM.ThinkingEnabled
+	if thinkingEnabledStatus == "" {
+		thinkingEnabledStatus = "default"
 	}
 	toolCallEnabledStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.ToolCallEnabled {
