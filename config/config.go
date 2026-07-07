@@ -197,6 +197,20 @@ type LLMConfig struct {
 	// Default: 100
 	ErrorMaxTypeCount int `json:"error_max_type_count"`
 
+	// ExcelMaxCells: maximum number of cells to return in a single excel_read call.
+	// Default: 500.
+	ExcelMaxCells int `json:"excel_max_cells"`
+
+	// ExcelSessionTTL: idle timeout in seconds for Excel sessions.
+	// When a session has been idle for this duration, it is automatically saved and closed.
+	// Default: 600 (10 minutes). 0 means no auto-closing.
+	ExcelSessionTTL int `json:"excel_session_ttl"`
+
+	// ExcelMaxSessions: maximum number of concurrent open Excel sessions.
+	// When a new session is opened and this limit is reached, the oldest idle session is
+	// automatically closed (LRU eviction). Default: 5.
+	ExcelMaxSessions int `json:"excel_max_sessions"`
+
 	// LoopDetectEnabled: whether to enable LLM output loop detection.
 	// When enabled, the agent monitors LLM output for repeating patterns
 	// and intervenes if a loop is detected.
@@ -758,6 +772,9 @@ func DefaultConfig() *Config {
 			MemorySearchMaxResults:     100,
 			ErrorMaxSingleCount:        10,
 			ErrorMaxTypeCount:          100,
+			ExcelMaxCells:              1000,
+			ExcelSessionTTL:            600,
+			ExcelMaxSessions:           5,
 			LoopDetectEnabled:          true,
 			LoopDetectThreshold:        5,
 			LoopSingleLineLength:       2048,

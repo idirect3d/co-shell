@@ -906,4 +906,18 @@ const (
 	KeyToolUsageVaultList   = "tool_usage_vault_list"
 	KeyToolUsageVaultAdd    = "tool_usage_vault_add"
 	KeyToolUsageVaultRemove = "tool_usage_vault_remove"
+
+	// Excel tool usage examples (XML mode)
+	KeyToolUsageExcelOpen     = "tool_usage_excel_open"
+	KeyToolUsageExcelClose    = "tool_usage_excel_close"
+	KeyToolUsageExcelSave     = "tool_usage_excel_save"
+	KeyToolUsageExcelOverview = "tool_usage_excel_overview"
+	KeyToolUsageExcelRead     = "tool_usage_excel_read"
+	KeyToolUsageExcelEdit     = "tool_usage_excel_edit"
+	KeyToolUsageExcelCopy     = "tool_usage_excel_copy"
+	KeyToolUsageExcelPaste    = "tool_usage_excel_paste"
+	KeyToolUsageExcelInsert   = "tool_usage_excel_insert"
+	KeyToolUsageExcelDelete   = "tool_usage_excel_delete"
+	KeyToolUsageExcelSheet    = "tool_usage_excel_sheet"
+	KeyToolUsageExcelFormat   = "tool_usage_excel_format"
 )
