@@ -84,6 +84,19 @@ You can use the following tools to interact with the system. When multiple opera
    - Then use shell scripts, Python, or other programming approaches
    - **When using curl/wget to download pages or other file content**: Download the full content directly to the current task working folder (preferred) or ./download/, then use read_file to read as needed. This avoids blowing up the context with raw output while preserving the original material for reference.
 
+**Vault Placeholders**
+If the password vault is unlocked (via :vault unlock), you can use the following placeholders in ** ANY tool call's string parameters ** to reference encrypted credentials. Placeholders are replaced with real values at the very last moment before tool execution — sensitive information is **never** transmitted in context to the AI.
+- @pwd:entry_name → inserts the entry's password
+- @user:entry_name → inserts the entry's username
+- @key:entry_name → inserts the entry's API Key / Token (reads the password field)
+- @vault:entry_name → inserts username:password
+
+For example, injecting database credentials into a command:
+<execute_command>
+  <command>mysql -u @user:prod_db -p@pwd:prod_db -h 10.0.0.1</command>
+</execute_command>
+The system replaces placeholders with real credentials after you confirm execution. The AI only ever sees the placeholder strings, never the actual secrets.
+
 The specific tool names, parameters, and usage are defined by the API's tools parameter. Follow those definitions strictly when making calls.`
 
 	// XML mode tool usage (XML format, used without API tools parameter)
@@ -941,6 +954,57 @@ Current task plan:
 
 Note: If this plan does not align with the user's main task in <task>, use ask_followup_question to ask the user which to execute first, or whether the tasks should be merged.
 `
+
+	// Vault tool usage examples (XML mode)
+	enMessages[KeyToolUsageVaultList] = `## vault_list
+Description: List all vault entry names (does NOT expose passwords/usernames). Use @pwd:name, @user:name, @key:name, @vault:name in other tool calls to reference credentials.
+Parameters:
+- intent (required): Explain why you need to list vault entries
+
+Usage:
+<vault_list>
+  <intent>Need to check available database credentials</intent>
+</vault_list>
+
+**Vault Placeholders**
+If the password vault is unlocked (via :vault unlock), you can use the following placeholders in ** ANY tool call's string parameters ** to reference encrypted credentials. Placeholders are replaced with real values at the very last moment before tool execution — sensitive information is **never** transmitted in context to the AI.
+- @pwd:prod_db@ → inserts the pwd tag of entry prod_db (password)
+- @user:prod_db@ → inserts the user tag of entry prod_db (username)
+- @key:my_api@ → inserts the key tag of entry my_api (API Key/Token)
+- @ip_addr:server1@ → inserts the ip_addr tag of entry server1 (IP address)
+- @email:contact@ → inserts the email tag of entry contact (email address)
+Tags are customizable; each entry can hold any number of tags. If an entry doesn't exist, the system will prompt for input.
+
+For example, injecting database credentials into a command:
+<execute_command>
+  <command>mysql -u@user:prod_db@ -p@pwd:prod_db@ -h@ip_addr:prod_db@</command>
+</execute_command>
+The system replaces placeholders with real values after you confirm execution. The AI only ever sees the placeholder strings, never the actual secrets.`
+
+	enMessages[KeyToolUsageVaultAdd] = `## vault_add
+Description: Add a new entry to the password vault. LLM provides the entry name (e.g., prod_db, my_api), tag values are prompted interactively from the user — NOT passed through the LLM, ensuring credential security.
+Parameters:
+- intent (required): Explain why this entry is needed
+- name (required): Entry name for @Tag:name@ references
+- notes (optional): Optional notes
+
+Usage:
+<vault_add>
+  <intent>Save production database credentials</intent>
+  <name>prod_db</name>
+</vault_add>`
+
+	enMessages[KeyToolUsageVaultRemove] = `## vault_remove
+Description: Remove a vault entry by name. Permanently deletes the stored credentials. Use with caution.
+Parameters:
+- intent (required): Explain which entry to remove and why
+- name (required): The name of the vault entry to remove
+
+Usage:
+<vault_remove>
+  <intent>Clean up obsolete test database credentials</intent>
+  <name>test_db_old</name>
+</vault_remove>`
 
 	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }

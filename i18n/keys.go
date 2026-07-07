@@ -895,4 +895,15 @@ const (
 	KeySettingsDescDebug = "settings_desc_debug"
 	KeyCol3Debug         = "col3_debug"
 	KeyCLIHelpDebug      = "cli_help_debug"
+
+	// Vault (FEATURE-274)
+	KeyHelpVault            = "help_vault"
+	KeyVaultAddPrompt       = "vault_add_prompt"
+	KeyVaultAdded           = "vault_added"
+	KeyVaultInitPrompt      = "vault_init_prompt"
+	KeyVaultUnlockFail      = "vault_unlock_fail"
+	KeyVaultLocked          = "vault_locked"
+	KeyToolUsageVaultList   = "tool_usage_vault_list"
+	KeyToolUsageVaultAdd    = "tool_usage_vault_add"
+	KeyToolUsageVaultRemove = "tool_usage_vault_remove"
 )

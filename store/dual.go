@@ -284,6 +284,11 @@ func (d *DualStore) ClearSession() error {
 	return d.Bolt.ClearSession()
 }
 
+// Vault returns a VaultStore using the underlying bbolt database.
+func (d *DualStore) Vault() *VaultStore {
+	return d.Bolt.Vault()
+}
+
 // logWarn is a non-fatal warning logger.
 func logWarn(format string, args ...interface{}) {
 	_ = fmt.Sprintf(format, args...)

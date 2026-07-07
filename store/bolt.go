@@ -209,6 +209,11 @@ func (s *Store) ListHistoryWithKeys() ([]HistoryEntryWithKey, error) {
 	return entries, err
 }
 
+// Vault returns a VaultStore instance using this store's database.
+func (s *Store) Vault() *VaultStore {
+	return NewVaultStore(s.db)
+}
+
 // ClearHistory removes all history entries.
 func (s *Store) ClearHistory() error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
