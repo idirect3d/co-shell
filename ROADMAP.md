@@ -528,7 +528,7 @@
 - [ ] FEATURE-45 自动更新机制（通过github）。
 - [ ] ENHANCEMENT-49 性能基准测试。
 - [ ] FEATURE-50 完整文档站。
-- [ ] FEATURE-120 新增Excel文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Excel的能力。
+- [x] FEATURE-120 新增Excel文件编辑工具（纯标准库实现 XLSX），提供 12 个拟人化 LLM 工具（excel_open/close/save/overview/read/edit/copy/paste/insert/delete/sheet/format），支持会话管理（永不超时/超过max同时提示LLM关闭）、复制粘贴剪贴板（含剪切模式）、行列插入删除、公式读写、样式引擎（字体/填充/边框/对齐/合并/行高/列宽/数字格式/merge/unmerge）、上下文保护（excel-max-cells可配置/默认1000）、reset/merge 两种格式模式（merge为默认，保留已有样式不改写）、中英文XML方法说明、.set 可配置参数（excel-max-sessions、excel-max-cells）、buildCount=289 [BUILD-289]
 - [ ] FEATURE-121 新增Word文件编辑工具，以便为LLM增加直接（而不是现写程序）操控Word的能力。
 - [ ] FEATURE-125 建立备用异常处理机制，以便在主LLM报错时，有另外独立的诊断渠道，可以通过异常信息库协助处理问题。
 - [ ] FEATURE-128 增加移动端APP和co-shell-hub，以便用户能够在手机端安全的操控co-shell。
