@@ -3,6 +3,7 @@ module github.com/idirect3d/co-shell
 go 1.25.0
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/idirect3d/co-shell/hub v0.0.0
 	github.com/larksuite/oapi-sdk-go/v3 v3.6.1
 	github.com/lib/pq v1.10.9
@@ -12,9 +13,6 @@ require (
 	golang.org/x/text v0.36.0
 )
 
-require (
-	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
-)
+require github.com/gogo/protobuf v1.3.2 // indirect
 
 replace github.com/idirect3d/co-shell/hub => ./hub

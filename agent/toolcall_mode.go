@@ -133,6 +133,11 @@ var toolUsageKeyMap = map[string]string{
 	"browser_go_back":                  i18n.KeyToolUsageBrowserGoBack,
 	"browser_go_forward":               i18n.KeyToolUsageBrowserGoForward,
 	"browser_close":                    i18n.KeyToolUsageBrowserClose,
+
+	// Vault tools (FEATURE-274)
+	"vault_list":   i18n.KeyToolUsageVaultList,
+	"vault_add":    i18n.KeyToolUsageVaultAdd,
+	"vault_remove": i18n.KeyToolUsageVaultRemove,
 }
 
 // sortedParamNames returns the keys of a map in sorted order.

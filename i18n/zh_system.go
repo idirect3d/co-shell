@@ -85,6 +85,22 @@ TOOL USE
 
 你可以使用以下工具与系统交互。当多个操作相互独立时，可以在一次回复中调用多个工具。当操作存在依赖关系时，应顺序调用工具，等待每个结果后再进行下一步。
 
+**密码本占位符（Vault Placeholders）**
+如果密码本已解锁（通过 :vault unlock 命令），你可以在任何工具调用的字符串参数中，使用 @Tag:EntryName@ 格式引用加密存储的敏感信息。占位符会在工具执行前最后一刻被替换为真实值——敏感信息**不会**在上下文中传输给 AI。
+- @pwd:prod_db@ → 在参数中插入条目 prod_db 的 pwd 标签值（密码）
+- @user:prod_db@ → 在参数中插入条目 prod_db 的 user 标签值（用户名）
+- @key:my_api@ → 在参数中插入条目 my_api 的 key 标签值（API Key/Token）
+- @ip_addr:server1@ → 在参数中插入条目 server1 的 ip_addr 标签值（IP 地址）
+- @email:contact@ → 在参数中插入条目 contact 的 email 标签值（邮箱地址）
+
+标签名可自定义，每个条目下可保存任意数量的标签（如 user/pwd/token/key/email/ip_addr/host/url 等）。
+
+例如，将数据库凭据从密码本注入到命令行中：
+<execute_command>
+  <command>mysql -u@user:prod_db@ -p@pwd:prod_db@ -h@ip_addr:prod_db@</command>
+</execute_command>
+系统会在你确认执行后，用真实的标签值替换占位符。若条目不存在，系统也会提示你输入。
+
 **工具优先级（从高到低）：**
 1. **内部工具**（read_file、search_files、replace_in_file 等）— 优先使用内部工具解决问题
 2. **获取 Web 页面内容时**：优先使用浏览器工具（browser_navigate + browser_screenshot/browser_get_rendered_html），确保获取到 JavaScript 渲染后的完整页面内容
@@ -960,6 +976,56 @@ SYSTEM INFORMATION
 
 注意：如果该计划与<task>中的用户主要任务不一致，必须通过ask_followup_question询问用户先执行哪个，或是否需要合并任务一起执行。
 `
+
+	// Vault tool usage examples (XML mode)
+	zhMessages[KeyToolUsageVaultList] = `## vault_list
+Description: 列出密码本中所有条目的名称和标签（不暴露敏感值）。使用 @Tag:条目名@ 格式在其他方法调用中引用凭据，如 @pwd:prod_db@、@user:prod_db@、@key:my_api@。
+Parameters:
+- intent (必填): 说明为什么需要列出密码本条目
+
+Usage:
+<vault_list>
+  <intent>我需要查看可用的数据库凭据</intent>
+</vault_list>
+
+**密码本占位符（Vault Placeholders）**
+你应在 **任何工具调用** 的字符串参数中，使用 @Tag:EntryName@ 格式引用加密存储的敏感信息。占位符会在工具执行前最后一刻被替换为真实值——敏感信息**不会**在上下文中传输给 LLM。
+- @pwd:prod_db@ → 在参数中插入条目 prod_db 的 pwd 标签值
+- @user:prod_db@ → 在参数中插入条目 prod_db 的 user 标签值
+- @key:my_api@ → 在参数中插入条目 my_api 的 key 标签值（API Key/Token）
+- @ip_addr:server1@ → 在参数中插入条目 server1 的 ip_addr 标签值
+标签名可自定义，每个条目可包含任意数量的标签。若条目不存在，系统也会提示输入。
+
+例如，将数据库凭据从密码本注入到命令行中：
+<execute_command>
+  <command>mysql -u@user:prod_db@ -p@pwd:prod_db@ -h@ip_addr:prod_db@</command>
+</execute_command>
+系统会在你确认执行后，用真实的标签值替换占位符。`
+
+	zhMessages[KeyToolUsageVaultAdd] = `## vault_add
+Description: 添加新条目到密码本。LLM 提供条目名称（如 prod_db、my_api），标签值由系统提示用户直接输入 —— 不经过 LLM，确保敏感信息安全。
+Parameters:
+- intent (必填): 说明为什么需要添加此条目
+- name (必填): 条目名称，供 @Tag:name@ 引用
+- notes (可选): 备注信息
+
+Usage:
+<vault_add>
+  <intent>保存生产数据库的访问凭据</intent>
+  <name>prod_db</name>
+</vault_add>`
+
+	zhMessages[KeyToolUsageVaultRemove] = `## vault_remove
+Description: 按名称删除密码本条目。此操作会永久删除存储的凭据。请谨慎使用并在删除前与用户确认。
+Parameters:
+- intent (必填): 说明要删除哪个条目以及原因
+- name (必填): 要删除的条目名称
+
+Usage:
+<vault_remove>
+  <intent>清理不再使用的测试数据库凭据</intent>
+  <name>test_db_old</name>
+</vault_remove>`
 
 	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }

@@ -678,6 +678,18 @@
   - **REPL 内置命令前缀从 `.` 改为 `:`**（如 :settings/:help/:plan 等），去掉了 `.` 兜底逻辑
   - 同步更新 i18n/zh.go/i18n/en.go 中所有命令引用、帮助文本、提示信息
   - 同步更新 cmd/config.go 配置向导中的命令名
+- [ ] **FEATURE-274 密码本(Vault)功能：AES+SM4 双加密引擎**：
+  - 加密存储的账号/密码，支持 AES-256-GCM 和 SM4-GCM 国密算法
+  - `@pwd:` / `@user:` / `@vault:` 占位符语法，在工具执行最后一刻注入真实值
+  - LLM 不可见的敏感信息传递（占位符替换在工具回调前、用户确认后执行）
+  - 用户确认机制复用现有 confirm-tool 框架，包含敏感占位符的调用强制确认
+  - `store/vault.go` — 加密存储层（双引擎 + PBKDF2 密钥派生 + bbolt CRUD）
+  - `agent/vault.go` — LLM 工具（vault_list / vault_add / vault_remove）+ 占位符解析注入 + 脱敏
+  - `agent/tools.go` — `executeToolCall()` 集成占位符替换钩子
+  - `cmd/vault.go` — `:vault` 内置命令（含 re-encrypt 迁移）
+  - `config/config.go` — VaultConfig（enabled / timeout / algorithm）
+  - 系统提示词增加密码本使用说明（中英文）
+
 
 ## v1.0.0 — 正式版
 
