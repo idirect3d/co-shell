@@ -745,4 +745,12 @@ Note: Only call attempt_completion when you are confident that all task steps ha
 	KeySettingsDescDebug: "Debug mode (display and edit messages before submitting to LLM)",
 	KeyCol3Debug:         "Debug Mode",
 	KeyCLIHelpDebug:      "Enable debug mode (display and edit messages before submitting to LLM)",
+
+	// Vault
+	KeyHelpVault:       "    :vault        - Manage password vault (init/list/show/add/remove/lock/unlock)",
+	KeyVaultAddPrompt:  "Please enter credentials for vault entry %q:",
+	KeyVaultAdded:      "Vault entry %q has been added",
+	KeyVaultInitPrompt: "Initializing vault...",
+	KeyVaultUnlockFail: "Vault unlock failed",
+	KeyVaultLocked:     "Vault is locked",
 }

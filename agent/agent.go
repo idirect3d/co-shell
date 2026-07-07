@@ -183,6 +183,10 @@ func DefaultToolModes() map[string]string {
 		"attempt_completion":         "auto",
 		"evaluate_expression":        "auto",
 		"reorganize_context":         "auto",
+		// Vault tools (FEATURE-274) - list is auto, add/remove require confirmation
+		"vault_list":   "auto",
+		"vault_add":    "confirm",
+		"vault_remove": "confirm",
 		// Browser tools (FEATURE-200) - all auto since screenshots are non-destructive
 		"browser_navigate":                 "auto",
 		"browser_screenshot":               "auto",
@@ -595,6 +599,16 @@ func (a *Agent) SetLLMClient(client llm.Client) {
 	}
 	a.llmClient = client
 	log.Info("LLM client replaced at runtime")
+}
+
+// VaultStore returns the vault store instance (may be nil).
+func (a *Agent) VaultStore() *store.VaultStore {
+	return a.vaultStore
+}
+
+// SetVaultStore sets the vault store instance.
+func (a *Agent) SetVaultStore(vs *store.VaultStore) {
+	a.vaultStore = vs
 }
 
 func (a *Agent) GetLLMClient() llm.Client {

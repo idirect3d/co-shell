@@ -251,6 +251,7 @@ var zhMessages = map[string]string{
 	KeyHelpBodyRemove:   "    :body-remove  - 从 LLM 请求体删除自定义 JSON 属性",
 	KeyHelpBodyDisplay:  "    :body-display - 显示 LLM 请求体中的自定义 JSON 属性",
 	KeyHelpNew:          "    :new          - 清空当前会话，开始全新对话",
+	KeyHelpVault:        "    :vault        - 管理密码本（init/list/show/add/remove/lock/unlock）",
 	KeyHelpHelp:         "    :help         - 显示此帮助信息",
 	KeyHelpExit:         "    :exit         - 退出 co-shell",
 	KeyHelpExampleTitle: "  示例:",
@@ -776,4 +777,11 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescDebug: "调试模式（提交给 LLM 前显示并可编辑消息内容）",
 	KeyCol3Debug:         "调试模式",
 	KeyCLIHelpDebug:      "启用调试模式（提交给 LLM 前显示并可编辑消息内容）",
+
+	// Vault
+	KeyVaultAddPrompt:  "请输入密码本条目 %q 的凭证信息：",
+	KeyVaultAdded:      "密码本条目 %q 已添加",
+	KeyVaultInitPrompt: "正在初始化密码本……",
+	KeyVaultUnlockFail: "密码本解锁失败",
+	KeyVaultLocked:     "密码本已锁定",
 }

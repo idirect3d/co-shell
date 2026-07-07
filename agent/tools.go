@@ -38,6 +38,7 @@ import (
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
+	"github.com/idirect3d/co-shell/store"
 )
 
 // buildTools constructs the list of available tools for the LLM.
@@ -979,6 +980,74 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		tools = append(tools, browserTools...)
 	}
 
+	// Add vault tools if vault store is initialized
+	if a.vaultStore != nil {
+		vaultTools := []llm.Tool{
+			{
+				Name:        "vault_list",
+				Description: "List all vault entry names. Use this to discover available credential entries. The LLM can see entry names but NOT passwords/usernames. After listing, use @pwd:entry_name or @user:entry_name in other tool calls to reference the credentials.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "Explain why you are listing vault entries and what you intend to do",
+						},
+					},
+					"required": []string{"intent"},
+				},
+				Callback: a.vaultListTool,
+			},
+			{
+				Name:        "vault_add",
+				Description: "Add a new entry to the password vault. LLM provides the entry name (e.g., 'prod_db', 'email'), and an optional URL and notes. The username and password will be prompted interactively from the user for security - they are NOT passed through the LLM. Use this when the user asks to save credentials for an account or service.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "Explain why this entry is needed",
+						},
+						"name": map[string]interface{}{
+							"type":        "string",
+							"description": "The entry name for referencing via @pwd:name, @user:name, or @vault:name. Example: 'prod_db', 'email', 'aws_console'",
+						},
+						"url": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional URL associated with this account",
+						},
+						"notes": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional notes for this entry",
+						},
+					},
+					"required": []string{"intent", "name"},
+				},
+				Callback: a.vaultAddTool,
+			},
+			{
+				Name:        "vault_remove",
+				Description: "Remove a vault entry by name. This permanently deletes the stored credentials. Use with caution and confirm with the user before removing.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"intent": map[string]interface{}{
+							"type":        "string",
+							"description": "Explain which entry you are removing and why",
+						},
+						"name": map[string]interface{}{
+							"type":        "string",
+							"description": "The name of the vault entry to remove",
+						},
+					},
+					"required": []string{"intent", "name"},
+				},
+				Callback: a.vaultRemoveTool,
+			},
+		}
+		tools = append(tools, vaultTools...)
+	}
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture
@@ -1039,8 +1108,19 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 		return "", fmt.Errorf("cannot parse tool arguments: %w", err)
 	}
 
+	// Check for vault placeholders and optionally mask them for confirmation display.
+	// Placeholders like @pwd:entry_name, @user:entry_name need the vault to be unlocked.
+	hasPlaceholders := store.HasPlaceholders(args)
+	if hasPlaceholders && a.vaultStore != nil {
+		// Check if vault is unlocked, try to resolve for confirmation display
+		if !a.vaultStore.IsUnlocked() {
+			return "", fmt.Errorf("vault is locked - cannot resolve placeholders. Use :vault unlock first")
+		}
+	}
+
 	// Determine if confirmation is needed for this tool call.
 	// Check per-tool mode: first check specific tool, then "default", then default to "confirm".
+	// Tools with vault placeholders ALWAYS require confirmation.
 	mode := "confirm"
 	if a.toolModes != nil {
 		if v, ok := a.toolModes[tc.Name]; ok {
@@ -1116,6 +1196,59 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	// buildTools() may return an empty list in XML mode (where tools are described
 	// in the system prompt rather than sent as API parameters), but we still need
 	// the tool callbacks to execute the tool.
+	// Resolve vault placeholders before executing the tool.
+	// This decrypts @pwd:, @user:, @vault: placeholders and injects real values
+	// into the arguments. The placeholders are resolved after user confirmation
+	// but before the tool callback, ensuring credentials never reach the LLM.
+	if hasPlaceholders && a.vaultStore != nil {
+		result, _ := a.vaultStore.ResolveVaultPlaceholders(args)
+		if len(result.MissingEntries) > 0 {
+			io := a.defaultIO()
+			for entryName, missingTags := range result.MissingEntries {
+				missingTagStr := strings.Join(missingTags, ", ")
+				io.Printf("\n⚠️  LLM 请求使用密码本条目 %q 的标签 %s，但该条目不存在。\n\n", entryName, missingTagStr)
+				io.Println("  请选择操作:")
+				io.Printf("    [A] 立即创建条目 %q — 系统将提示输入标签值\n", entryName)
+				io.Println("    [C] 取消本次调用")
+				io.Printf("  请输入 [A/C]: ")
+
+				response, err := io.ReadLine()
+				if err != nil {
+					return "", fmt.Errorf("failed to read user input: %w", err)
+				}
+				response = strings.TrimSpace(strings.ToLower(response))
+
+				if response == "a" || response == "" {
+					tags := make(map[string]string)
+					for _, tag := range missingTags {
+						io.Printf("  请输入 %s@%s 的值: ", tag, entryName)
+						val, err := io.ReadLine()
+						if err != nil {
+							return "", fmt.Errorf("failed to read value for tag %q: %w", tag, err)
+						}
+						val = strings.TrimSpace(val)
+						if val == "" {
+							return "", fmt.Errorf("tag %q cannot be empty", tag)
+						}
+						tags[tag] = val
+					}
+
+					entry := &store.VaultEntry{
+						Name: entryName,
+						Tags: tags,
+					}
+					if err := a.vaultStore.Put(entry); err != nil {
+						return "", fmt.Errorf("cannot save vault entry %q: %w", entryName, err)
+					}
+					io.Printf("✅ 条目 %q 已创建\n", entryName)
+				} else {
+					return "", fmt.Errorf("user cancelled tool call because vault entry %q does not exist", entryName)
+				}
+			}
+			a.vaultStore.ResolveVaultPlaceholders(args)
+		}
+	}
+
 	tools := a.buildToolsInternal()
 	for _, tool := range tools {
 		if tool.Name == tc.Name {
