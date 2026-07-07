@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "287"
+const build = "288"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -980,6 +980,7 @@ func main() {
 	// Initialize agent
 	ag := agent.New(llmClient, mcpMgr, s, rules)
 	ag.SetWorkspacePath(ws.Root())
+	ag.SetVaultStore(s.Vault())
 	ag.SetModelManager(modelMgr)
 
 	// Apply result mode BEFORE restoring session, because SetResultMode

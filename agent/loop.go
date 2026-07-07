@@ -230,6 +230,12 @@ type Agent struct {
 	browserEnabled        bool   // whether browser tools are enabled
 	browserScreenshotData string // cached base64 screenshot data for multimodal context
 
+	// Vault (FEATURE-274)
+	vaultStore  *store.VaultStore
+	vaultUnlock func(password string) error
+	vaultLock   func()
+	vaultInit   func(password string, algorithm string) error
+
 	// Interrupt channel for ESC key (FEATURE-201)
 	interruptCh chan struct{} // signals LLM stream to stop
 

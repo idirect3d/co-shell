@@ -341,6 +341,12 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.imageHandler.Handle(args)
 	case ":plan":
 		result, err = r.planHandler.Handle(args)
+	case ":vault":
+		if r.agent != nil && r.agent.VaultStore() != nil {
+			result, err = r.handleVaultCommand(args)
+		} else {
+			err = fmt.Errorf("vault not available - vault store not initialized")
+		}
 	case ":body-add":
 		result, err = r.handleBodyAdd(args)
 	case ":body-remove":
@@ -704,6 +710,7 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpSession))
 	fmt.Println(i18n.T(i18n.KeyHelpImage))
 	fmt.Println(i18n.T(i18n.KeyHelpPlan))
+	fmt.Println(i18n.T(i18n.KeyHelpVault))
 	fmt.Println(i18n.T(i18n.KeyHelpBodyAdd))
 	fmt.Println(i18n.T(i18n.KeyHelpBodyRemove))
 	fmt.Println(i18n.T(i18n.KeyHelpBodyDisplay))
