@@ -230,6 +230,9 @@ type Agent struct {
 	browserEnabled        bool   // whether browser tools are enabled
 	browserScreenshotData string // cached base64 screenshot data for multimodal context
 
+	// Excel session manager (FEATURE-120)
+	excelSessionMgr *excelSessionManager
+
 	// Vault (FEATURE-274)
 	vaultStore  *store.VaultStore
 	vaultUnlock func(password string) error

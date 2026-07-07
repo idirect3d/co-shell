@@ -717,6 +717,217 @@ Parameters: 无
 Usage:
 <browser_close />`
 
+	// Excel tools (FEATURE-120)
+	zhMessages[KeyToolUsageExcelOpen] = `## excel_open
+Description: 打开一个 XLSX 文件并返回会话 ID。如果文件不存在，可设置 create=true 新建一个空白文件（自动创建默认 Sheet1）。必须先调用此工具，再使用其他 excel_* 工具。会话保持文件在内存中，可高效进行多步操作。
+Parameters:
+  - path: 要打开的 XLSX 文件路径（绝对路径或相对于当前工作目录）
+  - create: 可选，如果为 true 且文件不存在，自动新建一个空白 XLSX 文件（默认 false）
+Usage:
+<excel_open>
+  <path>report.xlsx</path>
+</excel_open>
+
+新建文件示例：
+<excel_open>
+  <path>new_report.xlsx</path>
+  <create>true</create>
+</excel_open>`
+
+	zhMessages[KeyToolUsageExcelClose] = `## excel_close
+Description: 关闭一个 Excel 会话。如有未保存修改，会自动保存到磁盘后释放内存。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+Usage:
+<excel_close>
+  <session_id>xl_1234567890</session_id>
+</excel_close>`
+
+	zhMessages[KeyToolUsageExcelSave] = `## excel_save
+Description: 保存修改到磁盘，但不关闭会话。编辑后可定期调用以持久化进度。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+Usage:
+<excel_save>
+  <session_id>xl_1234567890</session_id>
+</excel_save>`
+
+	zhMessages[KeyToolUsageExcelOverview] = `## excel_overview
+Description: 获取工作簿中所有 Sheet 页的概览。仅返回元数据（Sheet 名称、数据范围、行列数、列标题提示）—— 不返回任何单元格数据。打开文件后先调用此工具了解文件结构，再读取具体范围。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+Usage:
+<excel_overview>
+  <session_id>xl_1234567890</session_id>
+</excel_overview>`
+
+	zhMessages[KeyToolUsageExcelRead] = `## excel_read
+Description: 按范围读取单元格数据。必填参数：session_id、sheet、start_row、end_row、start_col、end_col。max_cells 默认为 500。数据以制表符分隔的紧凑格式返回，每单元格标注类型前缀：[N]数字 [S]字符串 [F]公式 [B]布尔值 [E]空。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - sheet: Sheet 名称（如 "Sheet1"）或基于 1 的索引
+  - start_row: 开始行（基于 1）
+  - end_row: 结束行（基于 1）
+  - start_col: 开始列（基于 1）
+  - end_col: 结束列（基于 1）
+  - max_cells: 可选，最大返回单元格数（默认 500），超限报错并要求缩小范围
+Usage:
+<excel_read>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <start_row>1</start_row>
+  <end_row>10</end_row>
+  <start_col>1</start_col>
+  <end_col>5</end_col>
+</excel_read>`
+
+	zhMessages[KeyToolUsageExcelEdit] = `## excel_edit
+Description: 从目标单元格开始写入数据。values 是一个二维字符串数组。如果值以 '=' 开头，则解释为公式。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - sheet: Sheet 名称（如 "Sheet1"）
+  - start_cell: 起始单元格引用（如 "A1"、"C5"）
+  - values: 二维数组，每个元素是一个字符串数组，代表一行数据
+Usage:
+<excel_edit>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <start_cell>C5</start_cell>
+  <values>
+    <item>["Q4 Total", "12500", "=SUM(C2:C4)"]</item>
+  </values>
+</excel_edit>`
+
+	zhMessages[KeyToolUsageExcelCopy] = `## excel_copy
+Description: 复制指定范围到会话剪贴板。支持剪切模式（cut=true），粘贴后自动清除源区域。剪贴板在下次 excel_read 时自动清空。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - sheet: Sheet 名称
+  - start_row: 开始行（基于 1）
+  - end_row: 结束行（基于 1）
+  - start_col: 开始列（基于 1）
+  - end_col: 结束列（基于 1）
+  - cut: 可选，是否为剪切操作（默认 false）
+Usage:
+<excel_copy>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <start_row>1</start_row>
+  <end_row>5</end_row>
+  <start_col>1</start_col>
+  <end_col>3</end_col>
+</excel_copy>`
+
+	zhMessages[KeyToolUsageExcelPaste] = `## excel_paste
+Description: 将剪贴板内容粘贴到目标单元格。如果是来自 excel_copy（剪切模式），粘贴后自动清除源区域。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - sheet: Sheet 名称
+  - target_cell: 目标单元格引用（如 "F2"）
+Usage:
+<excel_paste>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet2</sheet>
+  <target_cell>F2</target_cell>
+</excel_paste>`
+
+	zhMessages[KeyToolUsageExcelInsert] = `## excel_insert
+Description: 在指定位置插入行或列。what 必须为 'rows' 或 'cols'。position 基于 1。现有数据向下/向右移位。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - sheet: Sheet 名称
+  - what: 'rows' 或 'cols'
+  - position: 插入位置（基于 1）
+  - count: 可选，插入数量（默认 1）
+Usage:
+<excel_insert>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <what>rows</what>
+  <position>3</position>
+  <count>2</count>
+</excel_insert>`
+
+	zhMessages[KeyToolUsageExcelDelete] = `## excel_delete
+Description: 删除行、列或清空单元格。what='rows' 删除行范围；what='cols' 删除列范围；what='cells' 清空单元格内容不移位。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - sheet: Sheet 名称
+  - what: 'rows'、'cols' 或 'cells'
+  - position: 行/列删除的开始位置（基于 1，rows/cols 时必填）
+  - count: 删除数量（默认 1，rows/cols 时可选）
+  - start_row/end_row/start_col/end_col: 单元格清空范围（cells 时必填）
+Usage:
+<excel_delete>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <what>rows</what>
+  <position>5</position>
+  <count>3</count>
+</excel_delete>`
+
+	zhMessages[KeyToolUsageExcelSheet] = `## excel_sheet
+Description: 管理 Sheet 页。action='create' 创建新 Sheet；action='delete' 删除 Sheet；action='rename' 重命名；action='copy' 复制；action='list' 列出所有 Sheet。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - action: 'create'、'delete'、'rename'、'copy' 或 'list'
+  - name: Sheet 名称（create/delete/rename/copy 时需要）
+  - new_name: 新名称（rename/copy 时需要）
+Usage:
+<excel_sheet>
+  <session_id>xl_1234567890</session_id>
+  <action>list</action>
+</excel_sheet>`
+
+	zhMessages[KeyToolUsageExcelFormat] = `## excel_format
+Description: 批量设置单元格格式。通过 what 数组指定要执行的操作，支持：font（字体名称/大小/粗体/斜体/下划线/颜色）、fill（底色）、border（边框样式/颜色/各边控制）、alignment（水平对齐/垂直对齐/自动换行）、number_format（数字格式）、merge（合并）、unmerge（拆分）、row_height（行高）、col_width（列宽）。所有格式操作一次性应用于 start_row/end_row/start_col/end_col 指定的范围。
+Parameters:
+  - session_id: excel_open 返回的会话 ID
+  - sheet: Sheet 名称
+  - what: 必填，操作数组。可选值: "font"、"fill"、"border"、"alignment"、"number_format"、"merge"、"unmerge"、"row_height"、"col_width"
+  - mode: 可选，格式模式。"reset"（默认）完全重新设置所有样式属性；"merge"仅更新 what 中指定的属性，保留已有样式
+  - start_row/end_row/start_col/end_col: 范围（基于1）
+  - font_name/font_size/font_bold/font_italic/font_underline/font_color: 字体属性（what 含 font 时生效）
+  - fill_color: 底色 RGB（what 含 fill 时生效）
+  - border_style/border_color/border_top/border_bottom/border_left/border_right: 边框属性（what 含 border 时生效）
+  - h_align/v_align/wrap_text: 对齐属性（what 含 alignment 时生效）
+  - number_format: 数字格式（what 含 number_format 时生效）
+  - row_height: 行高（what 含 row_height 时生效）
+  - col_width: 列宽（what 含 col_width 时生效）
+Usage:
+<excel_format>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <what>
+    <item>font</item>
+    <item>fill</item>
+    <item>border</item>
+  </what>
+  <mode>reset</mode>
+  <start_row>1</start_row>
+  <end_row>1</end_row>
+  <start_col>1</start_col>
+  <end_col>5</end_col>
+  <font_bold>true</font_bold>
+  <fill_color>#4472C4</fill_color>
+  <border_style>thin</border_style>
+</excel_format>
+
+合并模式示例（只加边框，保留已有字体）：
+<excel_format>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <what>
+    <item>border</item>
+  </what>
+  <mode>merge</mode>
+  <start_row>1</start_row>
+  <end_row>5</end_row>
+  <start_col>1</start_col>
+  <end_col>5</end_col>
+  <border_style>thin</border_style>
+</excel_format>`
+
 	zhMessages[KeySystemPromptXMLExamples] = `
 # 工具使用示例
 

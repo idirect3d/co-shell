@@ -1048,6 +1048,489 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		tools = append(tools, vaultTools...)
 	}
 
+	// Add Excel tools (FEATURE-120) — always available
+	excelTools := []llm.Tool{
+		{
+			Name:        "excel_open",
+			Description: "Open an XLSX file and return a session ID for subsequent operations. Use this first before any other excel_* tools. The session keeps the file in memory for efficient multi-step operations. Set create=true to create a new empty XLSX file if the path doesn't exist yet (it will be created with a default 'Sheet1'). Example: excel_open(path=\"report.xlsx\") or excel_open(path=\"new.xlsx\", create=true)",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The path to the XLSX file to open (absolute or relative to current working directory)",
+					},
+					"create": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Optional: if true and the file does not exist, creates a new empty XLSX file (default: false). Example: excel_open(path=\"new.xlsx\", create=true)",
+					},
+				},
+				"required": []string{"intent", "path"},
+			},
+			Callback: a.excelOpenTool,
+		},
+		{
+			Name:        "excel_close",
+			Description: "Close an open Excel session. This saves changes to disk (if any) and releases memory. Always close sessions when you are done working with the file. Example: excel_close(session_id=\"xl_1234567890\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+				},
+				"required": []string{"intent", "session_id"},
+			},
+			Callback: a.excelCloseTool,
+		},
+		{
+			Name:        "excel_save",
+			Description: "Save changes to disk without closing the session. Use this periodically after making edits to persist progress. Example: excel_save(session_id=\"xl_1234567890\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+				},
+				"required": []string{"intent", "session_id"},
+			},
+			Callback: a.excelSaveTool,
+		},
+		{
+			Name:        "excel_overview",
+			Description: "Get an overview of all sheets in the opened workbook. Returns metadata only (sheet names, data ranges, row/column counts, header hints) — NO cell data is returned. Use this FIRST after opening a file to understand its structure before reading specific ranges. Example: excel_overview(session_id=\"xl_1234567890\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+				},
+				"required": []string{"intent", "session_id"},
+			},
+			Callback: a.excelOverviewTool,
+		},
+		{
+			Name:        "excel_read",
+			Description: "Read cell data from a specified range. REQUIRED: session_id, sheet name, start_row, end_row, start_col, end_col. max_cells defaults to 500. Returns data as tab-separated values with type prefixes: [N]=number, [S]=string, [F]=formula, [B]=boolean, [E]=empty. Example: excel_read(session_id=\"xl_1234567890\", sheet=\"Sheet1\", start_row=1, end_row=10, start_col=1, end_col=5)",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"sheet": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Sheet name (e.g. \"Sheet1\") or 1-based index",
+					},
+					"start_row": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based start row",
+					},
+					"end_row": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based end row",
+					},
+					"start_col": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based start column",
+					},
+					"end_col": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based end column",
+					},
+					"max_cells": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional: maximum cells to return (default 500). If the requested range exceeds this, the tool will return an error asking you to reduce the range.",
+					},
+				},
+				"required": []string{"intent", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col"},
+			},
+			Callback: a.excelReadTool,
+		},
+		{
+			Name:        "excel_edit",
+			Description: "Write values to cells starting from a target cell. Values is a 2D array of strings. If a value starts with '=', it is interpreted as a formula. Example: excel_edit(session_id=\"xl_1234567890\", sheet=\"Sheet1\", start_cell=\"C5\", values=[[\"Q4 Total\", 12500, \"=SUM(C2:C4)\"]])",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"sheet": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Sheet name (e.g. \"Sheet1\")",
+					},
+					"start_cell": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Starting cell reference (e.g. \"A1\", \"C5\")",
+					},
+					"values": map[string]interface{}{
+						"type": "array",
+						"items": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "string",
+							},
+							"description": "Row values",
+						},
+						"description": "**REQUIRED**: 2D array of values to write. Example: [[\"Name\", \"Age\"], [\"Alice\", \"30\"]]",
+					},
+				},
+				"required": []string{"intent", "session_id", "sheet", "start_cell", "values"},
+			},
+			Callback: a.excelEditTool,
+		},
+		{
+			Name:        "excel_copy",
+			Description: "Copy a range of cells to the session clipboard. Supports cut mode (cut=true) which marks the source area for deletion on paste. The clipboard is per-session and is automatically cleared on the next excel_read call. Example (copy): excel_copy(session_id=\"xl_1234567890\", sheet=\"Sheet1\", start_row=1, end_row=5, start_col=1, end_col=3) Example (cut): excel_copy(session_id=\"xl_1234567890\", sheet=\"Sheet1\", start_row=1, end_row=5, start_col=1, end_col=3, cut=true)",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"sheet": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Sheet name",
+					},
+					"start_row": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based start row",
+					},
+					"end_row": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based end row",
+					},
+					"start_col": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based start column",
+					},
+					"end_col": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based end column",
+					},
+					"cut": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Optional: if true, marks as cut (paste will clear source). Default false.",
+					},
+				},
+				"required": []string{"intent", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col"},
+			},
+			Callback: a.excelCopyTool,
+		},
+		{
+			Name:        "excel_paste",
+			Description: "Paste the clipboard content (from excel_copy or excel_cut) to a target cell. If the clipboard is from a cut operation, the source area is automatically cleared after paste. Example: excel_paste(session_id=\"xl_1234567890\", sheet=\"Sheet2\", target_cell=\"F2\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"sheet": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Sheet name",
+					},
+					"target_cell": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Target cell reference (e.g. \"F2\")",
+					},
+				},
+				"required": []string{"intent", "session_id", "sheet", "target_cell"},
+			},
+			Callback: a.excelPasteTool,
+		},
+		{
+			Name:        "excel_insert",
+			Description: "Insert rows or columns at a specified position. what must be 'rows' or 'cols'. position is 1-based. count defaults to 1. Existing data shifts down/right. Example: excel_insert(session_id=\"xl_1234567890\", sheet=\"Sheet1\", what=\"rows\", position=3, count=2)",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"sheet": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Sheet name",
+					},
+					"what": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: 'rows' or 'cols'",
+					},
+					"position": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based position to insert at",
+					},
+					"count": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional: number of rows/cols to insert (default 1)",
+					},
+				},
+				"required": []string{"intent", "session_id", "sheet", "what", "position"},
+			},
+			Callback: a.excelInsertTool,
+		},
+		{
+			Name:        "excel_delete",
+			Description: "Delete rows, columns, or cell content. what='rows': delete row range; what='cols': delete column range; what='cells': clear cell content without shifting. Example (rows): excel_delete(session_id=\"xl_1234567890\", sheet=\"Sheet1\", what=\"rows\", position=5, count=3) Example (cells): excel_delete(session_id=\"xl_1234567890\", sheet=\"Sheet1\", what=\"cells\", start_row=2, end_row=5, start_col=1, end_col=3)",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"sheet": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Sheet name",
+					},
+					"what": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: 'rows', 'cols', or 'cells'",
+					},
+					"position": map[string]interface{}{
+						"type":        "number",
+						"description": "For rows/cols: 1-based position to start deletion",
+					},
+					"count": map[string]interface{}{
+						"type":        "number",
+						"description": "For rows/cols: number to delete (default 1)",
+					},
+					"start_row": map[string]interface{}{
+						"type":        "number",
+						"description": "For cells: 1-based start row",
+					},
+					"end_row": map[string]interface{}{
+						"type":        "number",
+						"description": "For cells: 1-based end row",
+					},
+					"start_col": map[string]interface{}{
+						"type":        "number",
+						"description": "For cells: 1-based start column",
+					},
+					"end_col": map[string]interface{}{
+						"type":        "number",
+						"description": "For cells: 1-based end column",
+					},
+				},
+				"required": []string{"intent", "session_id", "sheet", "what"},
+			},
+			Callback: a.excelDeleteTool,
+		},
+		{
+			Name:        "excel_sheet",
+			Description: "Manage sheets (create, delete, rename, copy, list). action='create': creates a new sheet. action='delete': deletes a sheet. action='rename': renames a sheet. action='copy': copies a sheet. action='list': lists all sheets. Example: excel_sheet(session_id=\"xl_1234567890\", action=\"list\") Example: excel_sheet(session_id=\"xl_1234567890\", action=\"create\", name=\"Q4 Data\") Example: excel_sheet(session_id=\"xl_1234567890\", action=\"rename\", name=\"Sheet1\", new_name=\"Summary\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"action": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Action: 'create', 'delete', 'rename', 'copy', or 'list'",
+					},
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Sheet name (required for create, delete, rename, copy)",
+					},
+					"new_name": map[string]interface{}{
+						"type":        "string",
+						"description": "New sheet name (required for rename and copy)",
+					},
+				},
+				"required": []string{"intent", "session_id", "action"},
+			},
+			Callback: a.excelSheetTool,
+		},
+		{
+			Name:        "excel_format",
+			Description: "Apply formatting to a range of cells. Supports: font (name, size, bold, italic, underline, color), fill (background color), border (style, color, per-side control), alignment (horizontal, vertical, wrap text), number_format, merge/unmerge cells, row_height, col_width. Use the what parameter as an array to specify which operations to perform. Example: excel_format(session_id=\"xl_123\", sheet=\"Sheet1\", what=[\"font\",\"fill\",\"border\"], start_row=1, end_row=1, start_col=1, end_col=5, font_bold=true, fill_color=\"#4472C4\", border_style=\"thin\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by excel_open",
+					},
+					"sheet": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Sheet name",
+					},
+					"mode": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: 'reset' (default) replaces all style properties; 'merge' only updates the properties in what[] and preserves existing styles. Example: mode=\"merge\"",
+					},
+					"what": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "**REQUIRED**: Array of operations to perform. Options: 'font', 'fill', 'border', 'alignment', 'number_format', 'merge', 'unmerge', 'row_height', 'col_width'. Example: [\"font\", \"fill\", \"border\"]",
+					},
+					"start_row": map[string]interface{}{
+						"type":        "number",
+						"description": "1-based start row (default: 1)",
+					},
+					"end_row": map[string]interface{}{
+						"type":        "number",
+						"description": "1-based end row (default: start_row)",
+					},
+					"start_col": map[string]interface{}{
+						"type":        "number",
+						"description": "1-based start column (default: 1)",
+					},
+					"end_col": map[string]interface{}{
+						"type":        "number",
+						"description": "1-based end column (default: start_col)",
+					},
+					// Font
+					"font_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Font name (e.g. 'Arial', '微软雅黑')",
+					},
+					"font_size": map[string]interface{}{
+						"type":        "number",
+						"description": "Font size in points",
+					},
+					"font_bold": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Bold text",
+					},
+					"font_italic": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Italic text",
+					},
+					"font_underline": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Underline text",
+					},
+					"font_color": map[string]interface{}{
+						"type":        "string",
+						"description": "Font color as hex RGB (e.g. '#FF0000')",
+					},
+					// Fill
+					"fill_color": map[string]interface{}{
+						"type":        "string",
+						"description": "Background fill color as hex RGB (e.g. '#FFFFCC')",
+					},
+					// Border
+					"border_style": map[string]interface{}{
+						"type":        "string",
+						"description": "Border style: 'thin', 'medium', 'thick', 'dashed', 'dotted', 'double'",
+					},
+					"border_color": map[string]interface{}{
+						"type":        "string",
+						"description": "Border color as hex RGB",
+					},
+					"border_top": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Apply border to top (default: true when border is in what)",
+					},
+					"border_bottom": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Apply border to bottom (default: true)",
+					},
+					"border_left": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Apply border to left (default: true)",
+					},
+					"border_right": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Apply border to right (default: true)",
+					},
+					// Alignment
+					"h_align": map[string]interface{}{
+						"type":        "string",
+						"description": "Horizontal alignment: 'left', 'center', 'right', 'fill', 'justify'",
+					},
+					"v_align": map[string]interface{}{
+						"type":        "string",
+						"description": "Vertical alignment: 'top', 'center', 'bottom', 'justify'",
+					},
+					"wrap_text": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Wrap text in cell",
+					},
+					// Number format
+					"number_format": map[string]interface{}{
+						"type":        "string",
+						"description": "Number format string (e.g. '0.00', '#,##0', 'yyyy-mm-dd')",
+					},
+					// Row/Col
+					"row_height": map[string]interface{}{
+						"type":        "number",
+						"description": "Row height in points (for row_height operation)",
+					},
+					"col_width": map[string]interface{}{
+						"type":        "number",
+						"description": "Column width in character units (for col_width operation)",
+					},
+				},
+				"required": []string{"intent", "session_id", "sheet", "what"},
+			},
+			Callback: a.excelFormatTool,
+		},
+	}
+	tools = append(tools, excelTools...)
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture

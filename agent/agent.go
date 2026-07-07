@@ -65,6 +65,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 		name:            "co-shell",
 		modelManager:    config.GetDefaultModelManager(),
 		toolCallModeMgr: NewToolCallModeManager(),
+		excelSessionMgr: newExcelSessionManager(),
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
@@ -187,6 +188,18 @@ func DefaultToolModes() map[string]string {
 		"vault_list":   "auto",
 		"vault_add":    "confirm",
 		"vault_remove": "confirm",
+		// Excel tools (FEATURE-120) - edit/paste/insert/delete are confirm, rest are auto
+		"excel_open":     "auto",
+		"excel_close":    "auto",
+		"excel_save":     "auto",
+		"excel_overview": "auto",
+		"excel_read":     "auto",
+		"excel_edit":     "confirm",
+		"excel_copy":     "auto",
+		"excel_paste":    "confirm",
+		"excel_insert":   "confirm",
+		"excel_delete":   "confirm",
+		"excel_sheet":    "auto",
 		// Browser tools (FEATURE-200) - all auto since screenshots are non-destructive
 		"browser_navigate":                 "auto",
 		"browser_screenshot":               "auto",
@@ -589,6 +602,10 @@ func (a *Agent) EnsureShellSession() {
 func (a *Agent) SetConfig(cfg *config.Config) {
 	a.cfg = cfg
 	a.rebuildSystemPrompt()
+	// Configure Excel session manager with max sessions
+	if a.excelSessionMgr != nil {
+		a.excelSessionMgr.Configure(0, cfg.LLM.ExcelMaxSessions)
+	}
 }
 
 func (a *Agent) SetLLMClient(client llm.Client) {

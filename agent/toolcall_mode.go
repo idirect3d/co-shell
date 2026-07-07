@@ -138,6 +138,20 @@ var toolUsageKeyMap = map[string]string{
 	"vault_list":   i18n.KeyToolUsageVaultList,
 	"vault_add":    i18n.KeyToolUsageVaultAdd,
 	"vault_remove": i18n.KeyToolUsageVaultRemove,
+
+	// Excel tools (FEATURE-120)
+	"excel_open":     i18n.KeyToolUsageExcelOpen,
+	"excel_close":    i18n.KeyToolUsageExcelClose,
+	"excel_save":     i18n.KeyToolUsageExcelSave,
+	"excel_overview": i18n.KeyToolUsageExcelOverview,
+	"excel_read":     i18n.KeyToolUsageExcelRead,
+	"excel_edit":     i18n.KeyToolUsageExcelEdit,
+	"excel_copy":     i18n.KeyToolUsageExcelCopy,
+	"excel_paste":    i18n.KeyToolUsageExcelPaste,
+	"excel_insert":   i18n.KeyToolUsageExcelInsert,
+	"excel_delete":   i18n.KeyToolUsageExcelDelete,
+	"excel_sheet":    i18n.KeyToolUsageExcelSheet,
+	"excel_format":   i18n.KeyToolUsageExcelFormat,
 }
 
 // sortedParamNames returns the keys of a map in sorted order.
