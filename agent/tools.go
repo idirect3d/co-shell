@@ -1052,7 +1052,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 	excelTools := []llm.Tool{
 		{
 			Name:        "excel_open",
-			Description: "Open an XLSX file and return a session ID for subsequent operations. Use this first before any other excel_* tools. The session keeps the file in memory for efficient multi-step operations. Set create=true to create a new empty XLSX file if the path doesn't exist yet (it will be created with a default 'Sheet1'). Example: excel_open(path=\"report.xlsx\") or excel_open(path=\"new.xlsx\", create=true)",
+			Description: "Open an XLSX file and return a session ID for subsequent operations. Use this first before any other excel_* tools. The session keeps the file in memory for efficient multi-step operations. mode is REQUIRED: 'create' (create new file, must not exist), 'read' (open existing file, read-only, save will fail), 'copy' (copy file to new name with timestamp before opening). Example: excel_open(path=\"report.xlsx\", mode=\"read\") or excel_open(path=\"new.xlsx\", mode=\"create\") or excel_open(path=\"report.xlsx\", mode=\"copy\")",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1064,12 +1064,12 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 						"type":        "string",
 						"description": "**REQUIRED**: The path to the XLSX file to open (absolute or relative to current working directory)",
 					},
-					"create": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Optional: if true and the file does not exist, creates a new empty XLSX file (default: false). Example: excel_open(path=\"new.xlsx\", create=true)",
+					"mode": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Open mode: 'create' (new empty file), 'read' (read-only), 'copy' (copy with timestamp, then edit copy)",
 					},
 				},
-				"required": []string{"intent", "path"},
+				"required": []string{"intent", "path", "mode"},
 			},
 			Callback: a.excelOpenTool,
 		},
@@ -1132,7 +1132,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		},
 		{
 			Name:        "excel_read",
-			Description: "Read cell data from a specified range. REQUIRED: session_id, sheet name, start_row, end_row, start_col, end_col. max_cells defaults to 500. Returns data as tab-separated values with type prefixes: [N]=number, [S]=string, [F]=formula, [B]=boolean, [E]=empty. Example: excel_read(session_id=\"xl_1234567890\", sheet=\"Sheet1\", start_row=1, end_row=10, start_col=1, end_col=5)",
+			Description: "Read cell data from a specified range in multiple output formats. format='html' (default): HTML table with proper indentation. format='full': HTML table with cell formatting info. format='text': plain text with tab-separated values (each row prefixed with 'N: '). format='md': Markdown table format (each row prefixed with 'N: '). format='grid': original grid format with column letters and row numbers. REQUIRED: session_id, sheet, start_row, end_row, start_col, end_col. max_cells defaults to 1000. Example: excel_read(session_id=\"xl_123\", sheet=\"Sheet1\", start_row=1, end_row=10, start_col=1, end_col=5, format=\"html\")",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1164,12 +1164,17 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 						"type":        "number",
 						"description": "**REQUIRED**: 1-based end column",
 					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"html", "full", "text", "md", "grid"},
+						"description": "**REQUIRED**: output format. Choose from: 'html' (HTML table with indentation), 'full' (HTML with cell formatting), 'text' (TSV with row prefix), 'md' (Markdown table), 'grid' (column letters + row numbers with type prefixes)",
+					},
 					"max_cells": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional: maximum cells to return (default 500). If the requested range exceeds this, the tool will return an error asking you to reduce the range.",
+						"description": "Optional: maximum cells to return (default 1000). If the requested range exceeds this, the tool will return an error asking you to reduce the range.",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col"},
+				"required": []string{"intent", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col", "format"},
 			},
 			Callback: a.excelReadTool,
 		},
@@ -1530,6 +1535,267 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		},
 	}
 	tools = append(tools, excelTools...)
+
+	// Word tools (FEATURE-121)
+
+	wordTools := []llm.Tool{
+		{
+			Name:        "word_open",
+			Description: "Open a DOCX file and return a session ID for subsequent operations. mode is REQUIRED: 'create' (create new file, must not exist), 'read' (open existing file, read-only, save will fail), 'copy' (copy file to new name with timestamp before opening). Example: word_open(path=\"report.docx\", mode=\"read\") or word_open(path=\"new.docx\", mode=\"create\") or word_open(path=\"report.docx\", mode=\"copy\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The path to the DOCX file to open",
+					},
+					"mode": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Open mode: 'create' (new empty file), 'read' (read-only), 'copy' (copy with timestamp, then edit copy)",
+					},
+				},
+				"required": []string{"intent", "path", "mode"},
+			},
+			Callback: a.wordOpenTool,
+		},
+		{
+			Name:        "word_close",
+			Description: "Close a DOCX session (auto-saves if modified). Example: word_close(session_id=\"doc_1\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+				},
+				"required": []string{"intent", "session_id"},
+			},
+			Callback: a.wordCloseTool,
+		},
+		{
+			Name:        "word_save",
+			Description: "Save the DOCX file without closing the session. Example: word_save(session_id=\"doc_1\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+				},
+				"required": []string{"intent", "session_id"},
+			},
+			Callback: a.wordSaveTool,
+		},
+		{
+			Name:        "word_overview",
+			Description: "Get document structure overview: paragraph count, style usage (which styles used by how many paragraphs), and table count. Call this FIRST after opening to understand the document layout. Example: word_overview(session_id=\"doc_1\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+				},
+				"required": []string{"intent", "session_id"},
+			},
+			Callback: a.wordOverviewTool,
+		},
+		{
+			Name:        "word_read",
+			Description: "Read a range of paragraphs in multiple output formats. format='simple' (default): HTML structural tags (h1/h2/h3/p/li) with 'N| ' line prefixes. format='full': HTML with inline CSS style attributes. format='text': plain text with 'N| ' line prefixes. format='md': Markdown format with 'N| ' line prefixes. Example: word_read(session_id=\"doc_1\", from_para=1, to_para=20, format=\"simple\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+					"from_para": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based starting paragraph index",
+					},
+					"to_para": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based ending paragraph index",
+					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"simple", "full", "text", "md"},
+						"description": "**REQUIRED**: output format. Choose from: 'simple' (HTML with 'N| ' prefix), 'full' (HTML + CSS), 'text' (plain text with 'N| ' prefix), 'md' (Markdown with 'N| ' prefix)",
+					},
+				},
+				"required": []string{"intent", "session_id", "from_para", "to_para", "format"},
+			},
+			Callback: a.wordReadTool,
+		},
+		{
+			Name:        "word_table_read",
+			Description: "Read a table and return it as HTML. format='simple' (default): plain table with colspan/rowspan attributes. format='full': includes cell background colors. Example: word_table_read(session_id=\"doc_1\", table_index=0)",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+					"table_index": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 0-based table index (from word_overview)",
+					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: 'simple' (default) or 'full'",
+					},
+				},
+				"required": []string{"intent", "session_id", "table_index"},
+			},
+			Callback: a.wordTableReadTool,
+		},
+		{
+			Name:        "word_continue",
+			Description: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+					"content": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Content to insert. Supports Markdown: # Heading1, ## Heading2, ### Heading3, - list item. Use \\n for line breaks.",
+					},
+					"after_para": map[string]interface{}{
+						"type":        "number",
+						"description": "1-based paragraph number to insert content after. Use same_style_as to match paragraph numbering.",
+					},
+					"same_style_as": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional: inherit style from this paragraph number. Overridden by explicit style parameter.",
+					},
+					"style": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: explicit style name like 'Heading1', 'Heading2', 'Normal'. Use word_inspect_style to see available styles. Takes precedence over same_style_as.",
+					},
+				},
+				"required": []string{"intent", "session_id", "content"},
+			},
+			Callback: a.wordContinueTool,
+		},
+		{
+			Name:        "word_erase",
+			Description: "Delete a range of paragraphs. Example: word_erase(session_id=\"doc_1\", from_para=10, to_para=15)",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+					"from_para": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based starting paragraph index",
+					},
+					"to_para": map[string]interface{}{
+						"type":        "number",
+						"description": "**REQUIRED**: 1-based ending paragraph index",
+					},
+				},
+				"required": []string{"intent", "session_id", "from_para", "to_para"},
+			},
+			Callback: a.wordEraseTool,
+		},
+		{
+			Name:        "word_inspect_style",
+			Description: "Inspect a named style definition. Returns style properties like font name, size, bold/italic, color, spacing, alignment. Use word_overview first to see available styles. Example: word_inspect_style(session_id=\"doc_1\", name=\"Heading 2\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Style name to inspect (e.g. 'Heading 1', 'Normal')",
+					},
+				},
+				"required": []string{"intent", "session_id", "name"},
+			},
+			Callback: a.wordInspectStyleTool,
+		},
+		{
+			Name:        "word_format",
+			Description: "Change paragraph formatting. target='style:Heading1' affects all paragraphs with that style. target='para:3-5' affects paragraphs 3-5. what supports: 'style' (change style), 'font_name', 'font_size', 'bold', 'italic', 'color'. Example: word_format(session_id=\"doc_1\", target=\"style:Heading 2\", what=\"font_size\", value=\"14\")",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: The session ID returned by word_open",
+					},
+					"what": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Property to change: 'style', 'font_name', 'font_size', 'bold', 'italic', 'color'",
+					},
+					"value": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: New value for the property",
+					},
+					"target": map[string]interface{}{
+						"type":        "string",
+						"description": "**REQUIRED**: Target: 'style:StyleName' or 'para:start-end' (e.g., 'style:Heading 2', 'para:3-5')",
+					},
+				},
+				"required": []string{"intent", "session_id", "what", "value", "target"},
+			},
+			Callback: a.wordFormatTool,
+		},
+	}
+	tools = append(tools, wordTools...)
 
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {

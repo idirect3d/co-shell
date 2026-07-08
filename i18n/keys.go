@@ -907,6 +907,18 @@ const (
 	KeyToolUsageVaultAdd    = "tool_usage_vault_add"
 	KeyToolUsageVaultRemove = "tool_usage_vault_remove"
 
+	// Word tool usage examples (XML mode)
+	KeyToolUsageWordOpen         = "tool_usage_word_open"
+	KeyToolUsageWordClose        = "tool_usage_word_close"
+	KeyToolUsageWordSave         = "tool_usage_word_save"
+	KeyToolUsageWordOverview     = "tool_usage_word_overview"
+	KeyToolUsageWordRead         = "tool_usage_word_read"
+	KeyToolUsageWordTableRead    = "tool_usage_word_table_read"
+	KeyToolUsageWordContinue     = "tool_usage_word_continue"
+	KeyToolUsageWordErase        = "tool_usage_word_erase"
+	KeyToolUsageWordInspectStyle = "tool_usage_word_inspect_style"
+	KeyToolUsageWordFormat       = "tool_usage_word_format"
+
 	// Excel tool usage examples (XML mode)
 	KeyToolUsageExcelOpen     = "tool_usage_excel_open"
 	KeyToolUsageExcelClose    = "tool_usage_excel_close"
