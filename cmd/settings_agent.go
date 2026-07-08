@@ -538,6 +538,37 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Excel max cells set to %d", n)
 		return fmt.Sprintf("✅ Excel 单次读取最大单元格数已设置为: %d", n), nil
 
+	case "docx-max-sessions":
+		if len(args) < 2 {
+			return fmt.Sprintf("Word 最大并发会话数: %d", h.cfg.LLM.DocxMaxSessions), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 1 || n > 50 {
+			return "", fmt.Errorf("无效的并发会话数: %s（请输入 1-50 的整数）", args[1])
+		}
+		h.cfg.LLM.DocxMaxSessions = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetConfig(h.cfg)
+		log.Info("Docx max sessions set to %d", n)
+		return fmt.Sprintf("✅ Word 最大并发会话数已设置为: %d", n), nil
+
+	case "docx-max-read-paras":
+		if len(args) < 2 {
+			return fmt.Sprintf("Word 单次读取最大段落数: %d", h.cfg.LLM.DocxMaxReadParas), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 10 || n > 5000 {
+			return "", fmt.Errorf("无效的段落数: %s（请输入 10-5000 的整数）", args[1])
+		}
+		h.cfg.LLM.DocxMaxReadParas = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Docx max read paras set to %d", n)
+		return fmt.Sprintf("✅ Word 单次读取最大段落数已设置为: %d", n), nil
+
 	case "debug":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOff)

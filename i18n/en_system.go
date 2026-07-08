@@ -698,19 +698,20 @@ Usage:
 
 	// Excel tools (FEATURE-120)
 	enMessages[KeyToolUsageExcelOpen] = `## excel_open
-Description: Open an XLSX file and return a session ID for subsequent operations. If the file doesn't exist, set create=true to create a new empty file (with a default 'Sheet1'). Use this first before any other excel_* tools. The session keeps the file in memory for efficient multi-step operations.
+Description: Open an XLSX file and return a session ID for subsequent operations. Use this first before any other excel_* tools. The session keeps the file in memory for efficient multi-step operations. mode is REQUIRED: 'create' (create new file, must not exist), 'read' (open existing file, read-only, save will fail), 'copy' (copy file to new name with timestamp before opening).
 Parameters:
   - path: Path to the XLSX file (absolute or relative to current working directory)
-  - create: Optional, if true and the file doesn't exist, creates a new empty XLSX file (default: false)
+  - mode: 'create' (new file), 'read' (read-only), 'copy' (duplicate with timestamp)
 Usage:
 <excel_open>
   <path>report.xlsx</path>
+  <mode>read</mode>
 </excel_open>
 
 Create new file example:
 <excel_open>
   <path>new_report.xlsx</path>
-  <create>true</create>
+  <mode>create</mode>
 </excel_open>`
 
 	enMessages[KeyToolUsageExcelClose] = `## excel_close
@@ -741,7 +742,7 @@ Usage:
 </excel_overview>`
 
 	enMessages[KeyToolUsageExcelRead] = `## excel_read
-Description: Read cell data from a specified range. REQUIRED: session_id, sheet, start_row, end_row, start_col, end_col. max_cells defaults to 500. Returns data as tab-separated values with type prefixes: [N]=number, [S]=string, [F]=formula, [B]=boolean, [E]=empty.
+Description: Read cell data from a specified range. format is REQUIRED, supports 5 output modes. max_cells defaults to 1000.
 Parameters:
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name (e.g. "Sheet1") or 1-based index
@@ -749,7 +750,8 @@ Parameters:
   - end_row: 1-based end row
   - start_col: 1-based start column
   - end_col: 1-based end column
-  - max_cells: Optional max cells to return (default 500)
+  - format: REQUIRED. Output format: 'html' (HTML table with indentation), 'full' (HTML with formatting info), 'text' (TSV tab-separated, each row prefixed with "N: "), 'md' (Markdown table, each row prefixed with "N: "), 'grid' (grid with column letters + row numbers + type prefixes)
+  - max_cells: Optional max cells to return (default 1000)
 Usage:
 <excel_read>
   <session_id>xl_1234567890</session_id>
@@ -758,6 +760,18 @@ Usage:
   <end_row>10</end_row>
   <start_col>1</start_col>
   <end_col>5</end_col>
+  <format>html</format>
+</excel_read>
+
+text format example:
+<excel_read>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <start_row>1</start_row>
+  <end_row>10</end_row>
+  <start_col>1</start_col>
+  <end_col>5</end_col>
+  <format>text</format>
 </excel_read>`
 
 	enMessages[KeyToolUsageExcelEdit] = `## excel_edit
@@ -1218,6 +1232,166 @@ Usage:
   <intent>Clean up obsolete test database credentials</intent>
   <name>test_db_old</name>
 </vault_remove>`
+
+	// Word tool usage examples (XML mode)
+	enMessages[KeyToolUsageWordOpen] = `## word_open
+Description: Open a DOCX file and return a session ID. mode is REQUIRED: 'create' (create new file, must not exist), 'read' (open existing file, read-only, save will fail), 'copy' (copy file to new name with timestamp before opening).
+Parameters:
+- intent (required): Explain why you need to open this file
+- path (required): Path to the DOCX file
+- mode (required): 'create' (new file), 'read' (read-only), 'copy' (duplicate with timestamp)
+
+Usage:
+<word_open>
+  <intent>Open the report document</intent>
+  <path>report.docx</path>
+  <mode>read</mode>
+</word_open>`
+
+	enMessages[KeyToolUsageWordClose] = `## word_close
+Description: Close a DOCX session (auto-saves if modified).
+Parameters:
+- intent (required): Explain why you need to close the session
+- session_id (required): Session ID from word_open
+
+Usage:
+<word_close>
+  <intent>Close document after editing</intent>
+  <session_id>doc_1</session_id>
+</word_close>`
+
+	enMessages[KeyToolUsageWordSave] = `## word_save
+Description: Save the DOCX file without closing the session.
+Parameters:
+- intent (required): Explain why you need to save
+- session_id (required): Session ID from word_open
+
+Usage:
+<word_save>
+  <intent>Save editing progress</intent>
+  <session_id>doc_1</session_id>
+</word_save>`
+
+	enMessages[KeyToolUsageWordOverview] = `## word_overview
+Description: Get document structure overview: paragraph count, style usage, table count.
+Parameters:
+- intent (required): Explain why you need the overview
+- session_id (required): Session ID from word_open
+
+Usage:
+<word_overview>
+  <intent>Understand document structure</intent>
+  <session_id>doc_1</session_id>
+</word_overview>`
+
+	enMessages[KeyToolUsageWordRead] = `## word_read
+Description: Read paragraph range in multiple output formats. format is REQUIRED. 'simple': HTML with 'N| ' prefix. 'full': HTML + CSS. 'text': plain text with 'N| ' prefix. 'md': Markdown format with 'N| ' prefix.
+Parameters:
+- intent (required): Explain why you need to read paragraphs
+- session_id (required): Session ID from word_open
+- from_para (required): 1-based starting paragraph index
+- to_para (required): 1-based ending paragraph index
+- format (required): 'simple' (HTML with line prefix), 'full' (HTML + CSS), 'text' (plain text), 'md' (Markdown)
+
+Usage:
+<word_read>
+  <intent>Read the preface content</intent>
+  <session_id>doc_1</session_id>
+  <from_para>1</from_para>
+  <to_para>10</to_para>
+  <format>simple</format>
+</word_read>
+
+text format example:
+<word_read>
+  <intent>Read the preface content as plain text</intent>
+  <session_id>doc_1</session_id>
+  <from_para>1</from_para>
+  <to_para>10</to_para>
+  <format>text</format>
+</word_read>`
+
+	enMessages[KeyToolUsageWordTableRead] = `## word_table_read
+Description: Read a table and return as HTML. format can be "simple" or "full".
+Parameters:
+- intent (required): Explain why you need to read the table
+- session_id (required): Session ID from word_open
+- table_index (required): 0-based table index (from word_overview)
+- format (optional): "simple" (default) or "full"
+
+Usage:
+<word_table_read>
+  <intent>Read the first table</intent>
+  <session_id>doc_1</session_id>
+  <table_index>0</table_index>
+</word_table_read>`
+
+	enMessages[KeyToolUsageWordContinue] = `## word_continue
+Description: Insert new content after a paragraph, inheriting its format. Supports Markdown syntax: ## Heading2, - list item. Use same_style_as to inherit style from a reference paragraph.
+Parameters:
+- intent (required): Explain why you need to insert content
+- session_id (required): Session ID from word_open
+- content (required): Content to insert, supports Markdown syntax (## headings, - lists, etc.)
+- after_para (optional): Insert after this paragraph (1-based)
+- same_style_as (optional): Inherit style from this paragraph number
+- style (optional): Explicit style name, takes precedence over same_style_as
+
+Usage:
+<word_continue>
+  <intent>Add a new section after chapter 2</intent>
+  <session_id>doc_1</session_id>
+  <after_para>48</after_para>
+  <same_style_as>48</same_style_as>
+  <content>## 2.1 New Section&#10;&#10;This is the new content paragraph.</content>
+</word_continue>`
+
+	enMessages[KeyToolUsageWordErase] = `## word_erase
+Description: Delete a range of paragraphs.
+Parameters:
+- intent (required): Explain why you need to delete paragraphs
+- session_id (required): Session ID from word_open
+- from_para (required): 1-based starting paragraph index
+- to_para (required): 1-based ending paragraph index
+
+Usage:
+<word_erase>
+  <intent>Remove obsolete paragraphs 10-15</intent>
+  <session_id>doc_1</session_id>
+  <from_para>10</from_para>
+  <to_para>15</to_para>
+</word_erase>`
+
+	enMessages[KeyToolUsageWordInspectStyle] = `## word_inspect_style
+Description: Inspect a named style definition (font, size, bold, color, spacing, alignment).
+Parameters:
+- intent (required): Explain why you need to inspect the style
+- session_id (required): Session ID from word_open
+- name (required): Style name, e.g. "Heading 2"
+
+Usage:
+<word_inspect_style>
+  <intent>Check the format definition of Heading 2 style</intent>
+  <session_id>doc_1</session_id>
+  <name>Heading 2</name>
+</word_inspect_style>`
+
+	enMessages[KeyToolUsageWordFormat] = `## word_format
+Description: Modify paragraph formatting. target="style:Heading1" modifies all paragraphs with that style. target="para:3-5" modifies a paragraph range. what supports: style, font_name, font_size, bold, italic, color.
+Parameters:
+- intent (required): Explain why you need to modify formatting
+- session_id (required): Session ID from word_open
+- what (required): Property to change: style, font_name, font_size, bold, italic, color
+- value (required): New value for the property
+- target (required): Target range: "style:StyleName" or "para:start-end"
+
+Usage:
+<word_format>
+  <intent>Change Heading 2 font size to 14pt</intent>
+  <session_id>doc_1</session_id>
+  <what>font_size</what>
+  <value>14</value>
+  <target>style:Heading 2</target>
+</word_format>`
 
 	enMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }

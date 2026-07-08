@@ -233,6 +233,9 @@ type Agent struct {
 	// Excel session manager (FEATURE-120)
 	excelSessionMgr *excelSessionManager
 
+	// DOCX session manager (FEATURE-121)
+	docxSessionMgr *docxSessionManager
+
 	// Vault (FEATURE-274)
 	vaultStore  *store.VaultStore
 	vaultUnlock func(password string) error
