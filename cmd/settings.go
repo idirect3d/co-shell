@@ -186,7 +186,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "browser-enabled", subcommand == "browser-port",
 		subcommand == "browser-headless", subcommand == "browser-max-html-size",
 		subcommand == "read-file-max-size",
-		subcommand == "excel-max-cells", subcommand == "excel-max-sessions":
+		subcommand == "excel-max-cells", subcommand == "excel-max-sessions",
+		subcommand == "docx-max-sessions", subcommand == "docx-max-read-paras":
 		return h.handleAgentSetting(subcommand, args)
 
 	// Safety settings
@@ -486,6 +487,8 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), "HTML下载阈值"),
 		makeLine("excel-max-sessions", fmt.Sprintf("%d", cfg.LLM.ExcelMaxSessions), "Excel最大并发会话数(1-50)"),
 		makeLine("excel-max-cells", fmt.Sprintf("%d", cfg.LLM.ExcelMaxCells), "Excel单次读取最大单元格数(10-100000)"),
+		makeLine("docx-max-sessions", fmt.Sprintf("%d", cfg.LLM.DocxMaxSessions), "Word最大并发会话数(1-50)"),
+		makeLine("docx-max-read-paras", fmt.Sprintf("%d", cfg.LLM.DocxMaxReadParas), "Word单次读取最大段落数(10-5000)"),
 		makeLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.T(i18n.KeyCol3SearchMaxLineLength)),
 		makeLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.T(i18n.KeyCol3SearchMaxResultBytes)),
 		makeLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), i18n.T(i18n.KeyCol3SearchContextLines)),

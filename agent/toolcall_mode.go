@@ -139,6 +139,18 @@ var toolUsageKeyMap = map[string]string{
 	"vault_add":    i18n.KeyToolUsageVaultAdd,
 	"vault_remove": i18n.KeyToolUsageVaultRemove,
 
+	// Word tools (FEATURE-121)
+	"word_open":          i18n.KeyToolUsageWordOpen,
+	"word_close":         i18n.KeyToolUsageWordClose,
+	"word_save":          i18n.KeyToolUsageWordSave,
+	"word_overview":      i18n.KeyToolUsageWordOverview,
+	"word_read":          i18n.KeyToolUsageWordRead,
+	"word_table_read":    i18n.KeyToolUsageWordTableRead,
+	"word_continue":      i18n.KeyToolUsageWordContinue,
+	"word_erase":         i18n.KeyToolUsageWordErase,
+	"word_inspect_style": i18n.KeyToolUsageWordInspectStyle,
+	"word_format":        i18n.KeyToolUsageWordFormat,
+
 	// Excel tools (FEATURE-120)
 	"excel_open":     i18n.KeyToolUsageExcelOpen,
 	"excel_close":    i18n.KeyToolUsageExcelClose,

@@ -211,6 +211,14 @@ type LLMConfig struct {
 	// automatically closed (LRU eviction). Default: 5.
 	ExcelMaxSessions int `json:"excel_max_sessions"`
 
+	// DocxMaxSessions: maximum number of concurrent open DOCX sessions.
+	// Default: 5.
+	DocxMaxSessions int `json:"docx_max_sessions"`
+
+	// DocxMaxReadParas: maximum number of paragraphs to return in a single word_read call.
+	// Default: 200.
+	DocxMaxReadParas int `json:"docx_max_read_paras"`
+
 	// LoopDetectEnabled: whether to enable LLM output loop detection.
 	// When enabled, the agent monitors LLM output for repeating patterns
 	// and intervenes if a loop is detected.
@@ -775,6 +783,8 @@ func DefaultConfig() *Config {
 			ExcelMaxCells:              1000,
 			ExcelSessionTTL:            600,
 			ExcelMaxSessions:           5,
+			DocxMaxSessions:            5,
+			DocxMaxReadParas:           200,
 			LoopDetectEnabled:          true,
 			LoopDetectThreshold:        5,
 			LoopSingleLineLength:       2048,
