@@ -459,6 +459,12 @@ func writeSheetXML(zw *zip.Writer, sheetNum int, sheet *Sheet, wb *Workbook) err
 					s += fmt.Sprintf(` s="%d"`, cell.StyleID)
 				}
 				s += fmt.Sprintf("><v>%s</v></c>", xmlEscape(cell.Value))
+			} else if cell.Type == "s" {
+				s += fmt.Sprintf("\n      <c r=\"%s\" t=\"s\"", cRef)
+				if cell.StyleID > 0 {
+					s += fmt.Sprintf(` s="%d"`, cell.StyleID)
+				}
+				s += fmt.Sprintf("><v>%s</v></c>", xmlEscape(cell.Value))
 			} else {
 				s += fmt.Sprintf("\n      <c r=\"%s\"", cRef)
 				if cell.StyleID > 0 {
