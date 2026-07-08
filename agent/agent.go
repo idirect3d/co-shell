@@ -66,6 +66,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 		modelManager:    config.GetDefaultModelManager(),
 		toolCallModeMgr: NewToolCallModeManager(),
 		excelSessionMgr: newExcelSessionManager(),
+		docxSessionMgr:  newDocxSessionManager(),
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},
@@ -188,6 +189,17 @@ func DefaultToolModes() map[string]string {
 		"vault_list":   "auto",
 		"vault_add":    "confirm",
 		"vault_remove": "confirm",
+		// Word tools (FEATURE-121) - continue/write operations need confirm, read-only are auto
+		"word_open":          "auto",
+		"word_close":         "auto",
+		"word_save":          "auto",
+		"word_overview":      "auto",
+		"word_read":          "auto",
+		"word_table_read":    "auto",
+		"word_continue":      "confirm",
+		"word_erase":         "confirm",
+		"word_inspect_style": "auto",
+		"word_format":        "confirm",
 		// Excel tools (FEATURE-120) - edit/paste/insert/delete are confirm, rest are auto
 		"excel_open":     "auto",
 		"excel_close":    "auto",
@@ -605,6 +617,10 @@ func (a *Agent) SetConfig(cfg *config.Config) {
 	// Configure Excel session manager with max sessions
 	if a.excelSessionMgr != nil {
 		a.excelSessionMgr.Configure(0, cfg.LLM.ExcelMaxSessions)
+	}
+	// Configure DOCX session manager with max sessions
+	if a.docxSessionMgr != nil {
+		a.docxSessionMgr.Configure(cfg.LLM.DocxMaxSessions)
 	}
 }
 

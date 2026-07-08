@@ -39,14 +39,16 @@ import (
 )
 
 // excelOpenTool opens an XLSX file and returns a session ID.
-// If create=true and file doesn't exist, creates a new empty workbook.
 func (a *Agent) excelOpenTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	path, _ := args["path"].(string)
 	if path == "" {
 		return "", fmt.Errorf("path argument is required")
 	}
 
-	create, _ := args["create"].(bool)
+	mode, _ := args["mode"].(string)
+	if mode == "" {
+		return "", fmt.Errorf("mode argument is required (create/read/copy)")
+	}
 
 	// Resolve relative paths
 	if !filepath.IsAbs(path) {
@@ -57,41 +59,63 @@ func (a *Agent) excelOpenTool(ctx context.Context, args map[string]interface{}) 
 		path = filepath.Join(cwd, path)
 	}
 
-	// Check file exists
-	fileExists := true
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		fileExists = false
-	}
-
-	if !fileExists && !create {
-		return "", fmt.Errorf("file %q does not exist. If you intend to create a new file, set create=true", path)
-	}
-
-	if !fileExists && create {
-		// Create a new empty workbook
-		wb := &xlsx.Workbook{Path: path}
-		wb.CreateSheet("Sheet1")
-		if err := wb.Save(); err != nil {
-			return "", fmt.Errorf("cannot create new xlsx file %q: %w", path, err)
-		}
-	}
-
-	sessionID, err := a.excelSessionMgr.open(path)
+	sessionID, err := a.excelSessionMgr.openWithMode(path, mode)
 	if err != nil {
 		return "", err
 	}
 
-	fileInfo, _ := os.Stat(path)
+	s, err := a.excelSessionMgr.get(sessionID)
+	if err != nil {
+		return "", err
+	}
+
+	fileInfo, _ := os.Stat(s.Path)
+	fileSize := ""
+	if fileInfo != nil {
+		fileSize = fmt.Sprintf("%.1f KB", float64(fileInfo.Size())/1024.0)
+	}
+	if mode == "create" && fileSize == "0.0 KB" {
+		fileSize = "(新建)"
+	}
+
+	var resultMsg string
+	if mode == "copy" {
+		resultMsg = fmt.Sprintf("已创建副本: %s (%s)\n会话 ID: %s\n\n此文件为 %s 的副本，后续操作应直接在此副本上修改，严禁以此文件替换原始文件。\n\n请使用 excel_overview 获取文件概览。", s.Path, fileSize, sessionID, filepath.Base(path))
+	} else if mode == "read" {
+		resultMsg = fmt.Sprintf("已打开 Excel 文件: %s (%s) (只读)\n会话 ID: %s\n\n请使用 excel_overview 获取文件概览。", s.Path, fileSize, sessionID)
+	} else {
+		resultMsg = fmt.Sprintf("已打开 Excel 文件: %s (%s)\n会话 ID: %s\n\n请使用 excel_overview 获取文件概览。", s.Path, fileSize, sessionID)
+	}
+	return resultMsg, nil
+}
+
+// excelSaveTool saves an Excel session without closing.
+func (a *Agent) excelSaveTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	sessionID, _ := args["session_id"].(string)
+	if sessionID == "" {
+		return "", fmt.Errorf("session_id argument is required")
+	}
+
+	s, err := a.excelSessionMgr.get(sessionID)
+	if err != nil {
+		return "", err
+	}
+
+	if s.ReadOnly {
+		return "", fmt.Errorf("此文件以只读方式打开，无法保存")
+	}
+
+	if err := a.excelSessionMgr.save(sessionID); err != nil {
+		return "", err
+	}
+
+	fileInfo, _ := os.Stat(s.Path)
 	fileSize := ""
 	if fileInfo != nil {
 		fileSize = fmt.Sprintf("%.1f KB", float64(fileInfo.Size())/1024.0)
 	}
 
-	if create && fileSize == "0.0 KB" {
-		fileSize = "(新建)"
-	}
-
-	return fmt.Sprintf("已打开 Excel 文件: %s (%s)\n会话 ID: %s\n\n请使用 excel_overview 获取文件概览。", path, fileSize, sessionID), nil
+	return fmt.Sprintf("已保存: %s (%s)", s.Path, fileSize), nil
 }
 
 // excelCloseTool closes an Excel session.
@@ -112,31 +136,6 @@ func (a *Agent) excelCloseTool(ctx context.Context, args map[string]interface{})
 	}
 
 	return fmt.Sprintf("已关闭 Excel 文件: %s", path), nil
-}
-
-// excelSaveTool saves an Excel session without closing.
-func (a *Agent) excelSaveTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	sessionID, _ := args["session_id"].(string)
-	if sessionID == "" {
-		return "", fmt.Errorf("session_id argument is required")
-	}
-
-	s, err := a.excelSessionMgr.get(sessionID)
-	if err != nil {
-		return "", err
-	}
-
-	if err := a.excelSessionMgr.save(sessionID); err != nil {
-		return "", err
-	}
-
-	fileInfo, _ := os.Stat(s.Path)
-	fileSize := ""
-	if fileInfo != nil {
-		fileSize = fmt.Sprintf("%.1f KB", float64(fileInfo.Size())/1024.0)
-	}
-
-	return fmt.Sprintf("已保存: %s (%s)", s.Path, fileSize), nil
 }
 
 // excelOverviewTool returns metadata about all sheets without cell data.
@@ -195,7 +194,7 @@ func (a *Agent) excelOverviewTool(ctx context.Context, args map[string]interface
 	return sb.String(), nil
 }
 
-// excelReadTool reads cell data from a range.
+// excelReadTool reads cell data from a range with multiple output formats.
 func (a *Agent) excelReadTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	sessionID, _ := args["session_id"].(string)
 	if sessionID == "" {
@@ -211,7 +210,11 @@ func (a *Agent) excelReadTool(ctx context.Context, args map[string]interface{}) 
 	endRow := getIntArg(args, "end_row", 1) - 1
 	startCol := getIntArg(args, "start_col", 1) - 1
 	endCol := getIntArg(args, "end_col", 1) - 1
-	maxCells := getIntArg(args, "max_cells", 500)
+	maxCells := getIntArg(args, "max_cells", 2000)
+	format, _ := args["format"].(string)
+	if format == "" {
+		format = "html"
+	}
 
 	if endRow < startRow {
 		return "", fmt.Errorf("end_row (%d) must be >= start_row (%d)", endRow+1, startRow+1)
@@ -227,7 +230,6 @@ func (a *Agent) excelReadTool(ctx context.Context, args map[string]interface{}) 
 
 	sheetIndex := s.Workbook.GetSheetIndexByName(sheetName)
 	if sheetIndex < 0 {
-		// Try to parse as index
 		if idx, err := strconv.Atoi(sheetName); err == nil {
 			sheetIndex = idx - 1
 		}
@@ -252,45 +254,42 @@ func (a *Agent) excelReadTool(ctx context.Context, args map[string]interface{}) 
 		return "", fmt.Errorf("请求读取 %d 个单元格，超过了上限 %d 个。请缩小范围后重试", totalCells, maxCells)
 	}
 
-	cells, err := s.Workbook.ReadRange(sheetIndex, rng)
-	if err != nil {
-		return "", err
-	}
+	header := fmt.Sprintf("Sheet: %s, 范围 %s\n", sheetName, xlsx.FormatRange(rng))
 
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Sheet: %s, 范围 %s\n", sheetName, xlsx.FormatRange(rng)))
+	var result string
 
-	// Write header
-	sb.WriteString("row\t")
-	for c := startCol; c <= endCol; c++ {
-		sb.WriteString(fmt.Sprintf("col[%s]\t", xlsx.FormatCellRef(c, 0)))
-	}
-	sb.WriteString("\n")
-
-	for r := 0; r <= endRow-startRow; r++ {
-		rowNum := startRow + r + 1
-		sb.WriteString(fmt.Sprintf("%d\t", rowNum))
-		for c := 0; c <= endCol-startCol; c++ {
-			cv := cells[r][c]
-			if cv.Type == xlsx.CellTypeEmpty {
-				sb.WriteString("[E]\t")
-			} else if cv.Type == xlsx.CellTypeFormula {
-				sb.WriteString(fmt.Sprintf("[F]%s\t", cv.Value))
-			} else if cv.Type == xlsx.CellTypeNumber {
-				sb.WriteString(fmt.Sprintf("[N]%s\t", cv.Value))
-			} else if cv.Type == xlsx.CellTypeString {
-				sb.WriteString(fmt.Sprintf("[S]%s\t", cv.Value))
-			} else if cv.Type == xlsx.CellTypeBoolean {
-				sb.WriteString(fmt.Sprintf("[B]%s\t", cv.Value))
-			} else {
-				sb.WriteString(fmt.Sprintf("[%s]%s\t", string(cv.Type), cv.Value))
-			}
+	switch format {
+	case "html":
+		result, err = s.Workbook.ReadRangeAsHTML(sheetIndex, rng, "simple")
+		if err != nil {
+			return "", err
 		}
-		sb.WriteString("\n")
+	case "full":
+		result, err = s.Workbook.ReadRangeAsHTML(sheetIndex, rng, "full")
+		if err != nil {
+			return "", err
+		}
+	case "text":
+		result, err = s.Workbook.ReadRangeAsTSV(sheetIndex, rng)
+		if err != nil {
+			return "", err
+		}
+	case "md":
+		result, err = s.Workbook.ReadRangeAsMarkdown(sheetIndex, rng)
+		if err != nil {
+			return "", err
+		}
+	case "grid":
+		result, err = s.Workbook.ReadRangeAsGrid(sheetIndex, rng)
+		if err != nil {
+			return "", err
+		}
+	default:
+		return "", fmt.Errorf("unsupported format: %s (supported: html, full, text, md, grid)", format)
 	}
 
-	s.Clipboard = nil // clear clipboard on new read
-	return sb.String(), nil
+	s.Clipboard = nil
+	return header + result, nil
 }
 
 // excelEditTool writes values to cells.

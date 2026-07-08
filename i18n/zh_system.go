@@ -718,22 +718,6 @@ Usage:
 <browser_close />`
 
 	// Excel tools (FEATURE-120)
-	zhMessages[KeyToolUsageExcelOpen] = `## excel_open
-Description: 打开一个 XLSX 文件并返回会话 ID。如果文件不存在，可设置 create=true 新建一个空白文件（自动创建默认 Sheet1）。必须先调用此工具，再使用其他 excel_* 工具。会话保持文件在内存中，可高效进行多步操作。
-Parameters:
-  - path: 要打开的 XLSX 文件路径（绝对路径或相对于当前工作目录）
-  - create: 可选，如果为 true 且文件不存在，自动新建一个空白 XLSX 文件（默认 false）
-Usage:
-<excel_open>
-  <path>report.xlsx</path>
-</excel_open>
-
-新建文件示例：
-<excel_open>
-  <path>new_report.xlsx</path>
-  <create>true</create>
-</excel_open>`
-
 	zhMessages[KeyToolUsageExcelClose] = `## excel_close
 Description: 关闭一个 Excel 会话。如有未保存修改，会自动保存到磁盘后释放内存。
 Parameters:
@@ -762,7 +746,7 @@ Usage:
 </excel_overview>`
 
 	zhMessages[KeyToolUsageExcelRead] = `## excel_read
-Description: 按范围读取单元格数据。必填参数：session_id、sheet、start_row、end_row、start_col、end_col。max_cells 默认为 500。数据以制表符分隔的紧凑格式返回，每单元格标注类型前缀：[N]数字 [S]字符串 [F]公式 [B]布尔值 [E]空。
+Description: 按范围读取单元格数据。format 为必填参数，支持 5 种输出格式。max_cells 默认为 1000，超限时报错要求缩小范围。
 Parameters:
   - session_id: excel_open 返回的会话 ID
   - sheet: Sheet 名称（如 "Sheet1"）或基于 1 的索引
@@ -770,7 +754,8 @@ Parameters:
   - end_row: 结束行（基于 1）
   - start_col: 开始列（基于 1）
   - end_col: 结束列（基于 1）
-  - max_cells: 可选，最大返回单元格数（默认 500），超限报错并要求缩小范围
+  - format: 必填，输出格式：'html'（HTML 表格，带缩进）、'full'（HTML 带格式信息）、'text'（TSV 制表符分隔，每行加 "N: " 前缀）、'md'（Markdown 表格，每行加 "N: " 前缀）、'grid'（行列号网格，列字母+行数字+类型前缀）
+  - max_cells: 可选，最大返回单元格数（默认 1000），超限报错并要求缩小范围
 Usage:
 <excel_read>
   <session_id>xl_1234567890</session_id>
@@ -779,6 +764,18 @@ Usage:
   <end_row>10</end_row>
   <start_col>1</start_col>
   <end_col>5</end_col>
+  <format>html</format>
+</excel_read>
+
+text 格式示例：
+<excel_read>
+  <session_id>xl_1234567890</session_id>
+  <sheet>Sheet1</sheet>
+  <start_row>1</start_row>
+  <end_row>10</end_row>
+  <start_col>1</start_col>
+  <end_col>5</end_col>
+  <format>text</format>
 </excel_read>`
 
 	zhMessages[KeyToolUsageExcelEdit] = `## excel_edit
@@ -1237,6 +1234,174 @@ Usage:
   <intent>清理不再使用的测试数据库凭据</intent>
   <name>test_db_old</name>
 </vault_remove>`
+
+	// Word tool usage examples (XML mode)
+	zhMessages[KeyToolUsageWordOpen] = `## word_open
+Description: 打开一个 DOCX 文件，返回会话 ID。mode 为必填参数：'create'（新建，文件必须不存在）、'read'（只读打开，保存会失败）、'copy'（复制一份带时间戳的副本后打开副本）。
+Parameters:
+- intent (必填): 说明为什么需要打开此文件
+- path (必填): DOCX 文件路径
+- mode (必填): 打开模式：'create'（新建）、'read'（只读）、'copy'（复制）
+
+Usage:
+<word_open>
+  <intent>打开报告文档</intent>
+  <path>report.docx</path>
+  <mode>read</mode>
+</word_open>`
+	zhMessages[KeyToolUsageExcelOpen] = `## excel_open
+Description: 打开一个 XLSX 文件，返回会话 ID。mode 为必填参数：'create'（新建，文件必须不存在）、'read'（只读打开，保存会失败）、'copy'（复制一份带时间戳的副本后打开副本）。
+Parameters:
+  - path: XLSX 文件路径
+  - mode: 'create'（新建）、'read'（只读）、'copy'（复制）
+
+Usage:
+<excel_open>
+  <path>report.xlsx</path>
+  <mode>read</mode>
+</excel_open>
+
+新建文件示例：
+<excel_open>
+  <path>new_report.xlsx</path>
+  <mode>create</mode>
+</excel_open>`
+
+	zhMessages[KeyToolUsageWordClose] = `## word_close
+Description: 关闭 DOCX 会话（自动保存）。
+Parameters:
+- intent (必填): 说明为什么需要关闭会话
+- session_id (必填): word_open 返回的会话 ID
+
+Usage:
+<word_close>
+  <intent>完成编辑后关闭文档</intent>
+  <session_id>doc_1</session_id>
+</word_close>`
+
+	zhMessages[KeyToolUsageWordSave] = `## word_save
+Description: 保存 DOCX 文件但不关闭会话。
+Parameters:
+- intent (必填): 说明为什么需要保存
+- session_id (必填): word_open 返回的会话 ID
+
+Usage:
+<word_save>
+  <intent>保存编辑进度</intent>
+  <session_id>doc_1</session_id>
+</word_save>`
+
+	zhMessages[KeyToolUsageWordOverview] = `## word_overview
+Description: 获取文档结构概览：段落数、样式使用情况、表格数。
+Parameters:
+- intent (必填): 说明为什么需要查看概览
+- session_id (必填): word_open 返回的会话 ID
+
+Usage:
+<word_overview>
+  <intent>了解文档结构</intent>
+  <session_id>doc_1</session_id>
+</word_overview>`
+
+	zhMessages[KeyToolUsageWordRead] = `## word_read
+Description: 将段落范围读取为 HTML。format 可选 "simple"（仅结构标签）或 "full"（含 CSS 样式）。
+Parameters:
+- intent (必填): 说明为什么需要读取段落
+- session_id (必填): word_open 返回的会话 ID
+- from_para (必填): 起始段落编号（从 1 开始）
+- to_para (必填): 结束段落编号
+- format (可选): "simple"（默认）或 "full"
+
+Usage:
+<word_read>
+  <intent>读取前言内容</intent>
+  <session_id>doc_1</session_id>
+  <from_para>1</from_para>
+  <to_para>10</to_para>
+  <format>simple</format>
+</word_read>`
+
+	zhMessages[KeyToolUsageWordTableRead] = `## word_table_read
+Description: 读取表格并返回为 HTML。format 可选 "simple" 或 "full"。
+Parameters:
+- intent (必填): 说明为什么需要读取表格
+- session_id (必填): word_open 返回的会话 ID
+- table_index (必填): 表格索引（从 0 开始，来自 word_overview）
+- format (可选): "simple"（默认）或 "full"
+
+Usage:
+<word_table_read>
+  <intent>读取第一个表格</intent>
+  <session_id>doc_1</session_id>
+  <table_index>0</table_index>
+</word_table_read>`
+
+	zhMessages[KeyToolUsageWordContinue] = `## word_continue
+Description: 在指定段落后插入新内容，自动继承格式。支持 Markdown 语法：## 标题2、- 列表项。通过 same_style_as 参数继承参考段落的样式。
+Parameters:
+- intent (必填): 说明为什么需要插入内容
+- session_id (必填): word_open 返回的会话 ID
+- content (必填): 要插入的内容，支持 ## 标题、- 列表等 Markdown 语法
+- after_para (可选): 在此段落后插入（1-based）
+- same_style_as (可选): 继承此段落的样式
+- style (可选): 显式指定样式名，优先级高于 same_style_as
+
+Usage:
+<word_continue>
+  <intent>在第二章后面添加新章节</intent>
+  <session_id>doc_1</session_id>
+  <after_para>48</after_para>
+  <same_style_as>48</same_style_as>
+  <content>## 2.1 新增小节&#10;&#10;这是新的内容段落。</content>
+</word_continue>`
+
+	zhMessages[KeyToolUsageWordErase] = `## word_erase
+Description: 删除指定范围的段落。
+Parameters:
+- intent (必填): 说明为什么需要删除段落
+- session_id (必填): word_open 返回的会话 ID
+- from_para (必填): 起始段落编号（1-based）
+- to_para (必填): 结束段落编号
+
+Usage:
+<word_erase>
+  <intent>删除过时的第10-15段</intent>
+  <session_id>doc_1</session_id>
+  <from_para>10</from_para>
+  <to_para>15</to_para>
+</word_erase>`
+
+	zhMessages[KeyToolUsageWordInspectStyle] = `## word_inspect_style
+Description: 查看命名样式的定义（字体、字号、加粗、颜色、间距、对齐等）。
+Parameters:
+- intent (必填): 说明为什么需要查看样式
+- session_id (必填): word_open 返回的会话 ID
+- name (必填): 样式名称，如 "Heading 2"
+
+Usage:
+<word_inspect_style>
+  <intent>查看标题2样式的格式定义</intent>
+  <session_id>doc_1</session_id>
+  <name>Heading 2</name>
+</word_inspect_style>`
+
+	zhMessages[KeyToolUsageWordFormat] = `## word_format
+Description: 修改段落格式。target="style:Heading1" 修改所有该样式的段落。target="para:3-5" 修改指定段落范围。what 支持：style、font_name、font_size、bold、italic、color。
+Parameters:
+- intent (必填): 说明为什么需要修改格式
+- session_id (必填): word_open 返回的会话 ID
+- what (必填): 要修改的属性：style、font_name、font_size、bold、italic、color
+- value (必填): 属性的新值
+- target (必填): 目标范围："style:StyleName" 或 "para:start-end"
+
+Usage:
+<word_format>
+  <intent>将标题2的字号改为14磅</intent>
+  <session_id>doc_1</session_id>
+  <what>font_size</what>
+  <value>14</value>
+  <target>style:Heading 2</target>
+</word_format>`
 
 	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }
