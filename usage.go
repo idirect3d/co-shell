@@ -130,7 +130,7 @@ func buildUsage(version string) string {
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallEnabled)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallDisabled)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolCallMode)))
-	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLoopDetect)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLoopIntervention)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpDedup)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpToolTimeout)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpCmdTimeout)))

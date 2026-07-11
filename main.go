@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "291"
+const build = "296"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -141,8 +141,8 @@ type cliFlags struct {
 	initCapabilities bool
 	initRules        bool
 
-	// Loop detection (FIX-179)
-	loopDetectEnabled string // "on"/"off"
+	// Loop intervention (FEATURE-267)
+	loopIntervention string // off/retry/prompt/reorganize/temperature/random
 
 	// Loop temperature adjustment (FEATURE-230)
 	loopTempEnabled  string  // "on"/"off"
@@ -268,8 +268,8 @@ func parseFlags() cliFlags {
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
 	flag.BoolVar(&f.initRules, "init-rules", false, "在工作区生成默认 RULES.md 文件并退出")
 
-	// Loop detection (FIX-179)
-	flag.StringVar(&f.loopDetectEnabled, "loop-detect-enabled", "", "启用 LLM 输出循环检测（on/off，覆盖配置文件）")
+	// Loop intervention (FEATURE-267)
+	flag.StringVar(&f.loopIntervention, "loop-intervention", "", "循环介入策略（off/retry/prompt/reorganize/temperature/random，覆盖配置文件）")
 
 	// Loop temperature adjustment CLI overrides (FEATURE-230)
 	flag.StringVar(&f.loopTempEnabled, "loop-temp-enabled", "", "启用循环温度自动调节（on/off，覆盖配置文件）")
@@ -711,15 +711,13 @@ func main() {
 		}
 	}
 
-	// Apply loop-detect CLI override (FIX-179)
-	if flags.loopDetectEnabled != "" {
-		switch flags.loopDetectEnabled {
-		case "on", "1", "true", "yes":
-			cfg.LLM.LoopDetectEnabled = true
-		case "off", "0", "false", "no":
-			cfg.LLM.LoopDetectEnabled = false
+	// Apply loop-intervention CLI override
+	if flags.loopIntervention != "" {
+		switch flags.loopIntervention {
+		case "off", "retry", "prompt", "reorganize", "temperature", "random":
+			cfg.LLM.LoopIntervention = flags.loopIntervention
 		default:
-			io.ErrPrintf("Warning: invalid --loop-detect-enabled value %q, use on|off\n", flags.loopDetectEnabled)
+			io.ErrPrintf("Warning: invalid --loop-intervention value %q, use off|retry|prompt|reorganize|temperature|random\n", flags.loopIntervention)
 		}
 	}
 

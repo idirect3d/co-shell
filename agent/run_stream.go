@@ -72,7 +72,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 	// Initialize loop detectors and temperature controller for this request
 	a.loopDetectCrit = false
-	if a.cfg != nil && a.cfg.LLM.LoopDetectEnabled {
+	if a.cfg != nil && a.cfg.LLM.LoopIntervention != "off" {
 		a.loopDetectOn = true
 		threshold := a.cfg.LLM.LoopDetectThreshold
 		if threshold <= 0 {
@@ -283,11 +283,25 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			// In async mode (LoopJudgeEnabled=true), streamLLMResponse does NOT
 			// return error for content loops; checkLoopJudgeResult handles it.
 			if a.loopDetectCrit {
-				log.Warn("Agent.RunStream: sync loop detected at iteration %d, adjusting temperature and retrying", iteration)
+				// LOG: read actual LoopIntervention from a.cfg for diagnostics
+				var diagLoopAction string
+				if a.cfg != nil {
+					diagLoopAction = a.cfg.LLM.LoopIntervention
+				}
+				log.Warn("Agent.RunStream: sync loop detected at iteration %d, cfg=%p, loop_intervention=%q, adjusting...", iteration, a.cfg, diagLoopAction)
 
 				loopAction := ""
 				if a.cfg != nil {
-					loopAction = a.cfg.LLM.LoopIntervention
+					loopAction = strings.TrimSpace(a.cfg.LLM.LoopIntervention)
+				}
+				// Fallback: try loading from config file directly
+				if loopAction == "" && a.cfg != nil {
+					if cfgPath := a.cfg.ConfigPath(); cfgPath != "" {
+						if freshCfg, _, err := config.LoadFromFile(cfgPath, nil); err == nil {
+							loopAction = strings.TrimSpace(freshCfg.LLM.LoopIntervention)
+							a.cfg.LLM.LoopIntervention = freshCfg.LLM.LoopIntervention
+						}
+					}
 				}
 				if loopAction == "" {
 					loopAction = "prompt" // fallback default
@@ -365,8 +379,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					}
 
 				default:
-					// Default: append corrective prompt
-					strategyParts = append(strategyParts, "发送纠错提示")
+					// Unknown strategy: clear feedback to avoid sending prompt unexpectedly
+					loopFeedback = ""
+					strategyParts = append(strategyParts, fmt.Sprintf("未知策略(%s)，按retry处理", loopAction))
 				}
 
 				// Only append feedback message if there's content to send
@@ -382,9 +397,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.loopDetectCrit = false
 
 				// Show summary at the end, after all handling
-				cb("info", "检测到循环输出\n")
+				cb("info", fmt.Sprintf("检测到循环输出（策略: %s）\n", loopAction))
 				cb("info", fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
-				cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+				if loopFeedback != "" {
+					cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+				} else {
+					cb("info", "（无反馈，仅重发上下文）\n")
+				}
 				cb("info", "────────────────────────────────────────────\n")
 				continue
 			}
@@ -601,7 +620,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			// a generic continuePrompt.
 			var event *LoopEvent
 			a.mu.Lock()
-			if a.lastAssistantContent != "" {
+			// When loop intervention is "off", skip content duplicate detection entirely.
+			loopIntervention := ""
+			if a.cfg != nil {
+				loopIntervention = a.cfg.LLM.LoopIntervention
+			}
+			skipLoopDetect := loopIntervention == "off"
+			if a.lastAssistantContent != "" && !skipLoopDetect {
 				threshold := 0.95
 				if a.cfg != nil && a.cfg.LLM.DuplicateContentThreshold > 0 {
 					threshold = a.cfg.LLM.DuplicateContentThreshold
@@ -635,7 +660,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.mu.Unlock()
 				log.Debug("Agent.RunStream: content duplicate detected, applying loop intervention")
 				a.applyLoopIntervention(event)
-				cb("info", "检测到内容重复循环\n")
 				continue
 			}
 			// No duplicate: append the standard continue prompt

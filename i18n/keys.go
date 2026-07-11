@@ -574,16 +574,13 @@ const (
 	// Loop detection settings (FIX-179)
 	KeyCol3LoopDetectEnabled     = "col3_loop_detect_enabled"
 	KeyLoopDetectFeedback        = "loop_detect_feedback"
-	KeyToolCallLoopFeedback      = "tool_call_loop_feedback"
 	KeyCol3LoopDetectThreshold   = "col3_loop_detect_threshold"
 	KeyCol3LoopDetectMaxWindow   = "col3_loop_detect_max_window"
 	KeySettingsDescLoopDetect    = "settings_desc_loop_detect"
 	KeySettingsDescLoopThreshold = "settings_desc_loop_threshold"
 	KeySettingsDescLoopWindow    = "settings_desc_loop_window"
 	KeyLoopDetectEnabledUpdated  = "loop_detect_enabled_updated"
-	KeyCLIHelpLoopDetectEnabled  = "cli_help_loop_detect_enabled"
-	KeyCLIHelpLoopDetectDisabled = "cli_help_loop_detect_disabled"
-	KeyCLIHelpLoopDetect         = "cli_help_loop_detect"
+	KeyCLIHelpLoopIntervention   = "cli_help_loop_intervention"
 	KeyCLIHelpDedup              = "cli_help_dedup"
 
 	// Settings confirmation (FEATURE-131)
@@ -886,7 +883,6 @@ const (
 	KeyLoopReorganizeSuggestion = "loop_reorganize_suggestion"
 
 	// Duplicate assistant content detection (FEATURE-249)
-	KeyDuplicateContentFeedback = "duplicate_content_feedback"
 
 	// Debug mode (FEATURE-XXX)
 	KeyDebugMode         = "debug_mode"
