@@ -325,8 +325,8 @@ var zhMessages = map[string]string{
 	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  重复惩罚参数（0.0 ~ 2.0，-1 不发送，覆盖配置文件）\n",
 
 	// CLI Help - Loop Detection & Dedup (FIX-179)
-	KeyCLIHelpLoopDetect: "      --loop-detect-enabled  启用循环检测（on/off，覆盖配置文件）",
-	KeyCLIHelpDedup:      "      --dedup-enabled      启用消息去重检测（on/off，覆盖配置文件）",
+	KeyCLIHelpLoopIntervention: "      --loop-intervention    循环介入策略（off/retry/prompt/reorganize/temperature/random，覆盖配置文件）",
+	KeyCLIHelpDedup:            "      --dedup-enabled      启用消息去重检测（on/off，覆盖配置文件）",
 
 	"col3_search_max_line_length":           "搜索单行最大字符数",
 	"col3_search_max_result_bytes":          "搜索结果最大字节数",

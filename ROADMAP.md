@@ -690,6 +690,12 @@
   - `config/config.go` — VaultConfig（enabled / timeout / algorithm）
   - 系统提示词增加密码本使用说明（中英文）
 
+- [x] **FIX-275 修复 Excel 保存时共享字符串（type="s"）单元格丢失 t 属性导致第1行显示为 1,2,3...** [BUILD-292]
+  - 根因：`xlsx/writer.go` 的 `writeSheetXML` 函数缺少 `type="s"` 写入分支
+  - 模板文件第1行使用共享字符串（`type="s"`），但保存时 `t="s"` 属性丢失
+  - Excel 将 SST 索引值（0,1,2...）当作字面值显示，而非查表取字符串
+  - 修复：新增 `type="s"` 写入分支，正确输出 `t="s"` 属性
+
 
 ## v1.0.0 — 正式版
 

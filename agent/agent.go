@@ -654,10 +654,31 @@ func (a *Agent) rebuildSystemPrompt() {
 	// Reload config from disk to ensure system prompt always uses the latest
 	// configuration (WorkModes, PromptSections, agent identity, etc.).
 	// mode/*.md files are already read from disk each time by loadSectionText.
+	//
+	// NOTE: We do NOT replace a.cfg with freshCfg here because SettingsHandler
+	// and Agent share the same config pointer. Replacing it would break
+	// runtime config synchronization — settings changed via :set would not
+	// be visible to the Agent's loop detection and other runtime paths that
+	// read from a.cfg directly. Only the system prompt sections are rebuilt.
 	if a.cfg != nil {
 		if cfgPath := a.cfg.ConfigPath(); cfgPath != "" {
 			if freshCfg, _, err := config.LoadFromFile(cfgPath, nil); err == nil {
-				a.cfg = freshCfg
+				// Copy WorkModes from freshCfg to keep
+				// system prompt sections up to date without replacing the
+				// shared config pointer.
+				a.cfg.WorkModes = freshCfg.WorkModes
+				// Copy LoopIntervention from disk config only if the fresh
+				// config has a non-empty value. When a.cfg is initialized
+				// via SetConfig() with the correct value from memory, but
+				// disk config.json has no "loop_intervention" field (empty
+				// default), we must NOT overwrite the cached value with "".
+				// Otherwise rebuildSystemPrompt() called after SetConfig()
+				// and at the start of every RunStream iteration would erase
+				// the "retry" that was correctly set from the in-memory
+				// SettingsHandler config pointer.
+				if freshCfg.LLM.LoopIntervention != "" {
+					a.cfg.LLM.LoopIntervention = freshCfg.LLM.LoopIntervention
+				}
 			}
 		}
 	}

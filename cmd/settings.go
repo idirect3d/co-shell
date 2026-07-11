@@ -193,14 +193,13 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	// Safety settings
 	case subcommand == "confirm-tool", subcommand == "error-max-single-count",
 		subcommand == "error-max-type-count",
-		subcommand == "loop-detect-enabled", subcommand == "loop-detect-threshold",
-		subcommand == "loop-detect-min-line-len",
+		subcommand == "loop-intervention",
+		subcommand == "loop-detect-threshold",
 		subcommand == "loop-temp-enabled", subcommand == "loop-temp-step-up",
 		subcommand == "loop-temp-step-down", subcommand == "loop-temp-max",
 		subcommand == "loop-temp-min",
 		subcommand == "loop-judge-enabled",
 		subcommand == "loop-judge-timeout",
-		subcommand == "loop-reorganize-enabled",
 		subcommand == "loop-long-output-threshold",
 		subcommand == "loop-single-line-length",
 		subcommand == "loop-single-line-window",
@@ -523,10 +522,8 @@ func showSettingsHelp(cfg *config.Config) string {
 
 	// Loop detection (FIX-179)
 	// Loop intervention (FEATURE-267)
+	// Default is set in config.DefaultConfig() — empty means use default "retry"
 	loopIntervention := cfg.LLM.LoopIntervention
-	if loopIntervention == "" {
-		loopIntervention = "retry"
-	}
 
 	// Loop judgment (FEATURE-241)
 	loopJudgeStatus := i18n.T(i18n.KeyOff)

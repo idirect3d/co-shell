@@ -192,7 +192,11 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		log.Info("Loop intervention set to %s", args[1])
+		// Sync the Agent's config pointer to ensure runtime reads the same value.
+		// Agent's a.cfg may have been replaced by rebuildSystemPrompt() in earlier sessions,
+		// causing a.cfg.LLM.LoopIntervention to be empty even when h.cfg has the correct value.
+		h.agent.SetConfig(h.cfg)
+		log.Info("Loop intervention set to %s, agent config synced", args[1])
 		return fmt.Sprintf("✅ 循环介入策略已设置为: %s", args[1]), nil
 
 	case "loop-detect-threshold":
