@@ -78,27 +78,12 @@ func init() {
 
 ===
 
-# 解决问题的一般策略（优先级从高到低）
+# 输出格式
 
-1. 回归任务目标，重新评估当前进度
-2. 换一个完全不同的工具或方法
-3. 将问题拆解为更小的子步骤
-4. 检查已获取信息是否足够，是否需要向用户提问
-5. 总结已有发现，尝试用不同方式组织思路
-
-请严格按约定的JSON格式，直接返回判定结果。
+{"is_loop": false/true, "reason": "xxx", "exit_strategy": "xxx(is_loop 为 false 时可不填)"}
+** 请严格按约定的JSON格式，直接返回判定结果，而不要输出思考过程 **
 `
-	zhMessages[KeyLoopDetectFeedback] = `⚠️ 检测到你的输出陷入了死循环（连续重复相似内容，详见后面错误信息）。
-你需要先停下来，休息一下换换脑子。深呼吸，我来指导你脱离出去。首先，围绕用户任务的终极目标（即<task></task>中的内容）进行思考，评估一下距离目标偏离了多少，然后换个思路和方向解决问题。
-
-错误信息：%s`
-	zhMessages[KeyToolCallLoopFeedback] = `⚠️ 检测到工具调用陷入了循环: 工具「%s」在连续多轮迭代中使用了完全相同的参数。请立即停止当前做法，换用完全不同的工具或方法。如果：
-1. 需要读文件，试试 search_files 来找线索
-2. 需要修改代码，先完整理解上下文再动手
-3. 不确定怎么做，停下来问用户更多信息
-
-记住：保持冷静，换个思路，不要重复做同样的事。`
-
+	zhMessages[KeyLoopDetectFeedback] = `现在应该复盘一下任务进展，如果最近几次迭代进展不大，应该围绕用户任务的终极目标（即<task></task>中的内容）进行思考，评估一下现有解决是否偏离了任务目标，或者考虑换个思路和方向解决问题。`
 	// Display & description keys moved from zh.go
 	zhMessages[KeyCol3LoopDetectEnabled] = "循环检测(on|off)"
 	zhMessages[KeyCol3LoopJudgeEnabled] = "LLM循环二次判定"
@@ -111,10 +96,7 @@ func init() {
 	zhMessages[KeySettingsDescLoopThreshold] = "循环检测阈值，连续重复内容触发干预的次数（默认 5）"
 	zhMessages[KeySettingsDescLoopWindow] = "循环检测滑动窗口大小，用于检查重复模式的历史块数（默认 20）"
 	zhMessages[KeyLoopDetectEnabledUpdated] = "✅ 循环检测已设置为: %s"
-	zhMessages[KeyCLIHelpLoopDetect] = "      --loop-detect-enabled  启用循环检测（on/off，覆盖配置文件）"
-	zhMessages[KeyCLIHelpLoopDetectEnabled] = "      --loop-detect-enabled  启用循环检测功能（覆盖配置文件）"
-	zhMessages[KeyCLIHelpLoopDetectDisabled] = "      --loop-detect-disabled 禁用循环检测功能（覆盖配置文件）"
+	zhMessages[KeyCLIHelpLoopIntervention] = "      --loop-intervention    循环介入策略（off/retry/prompt/reorganize/temperature/random，覆盖配置文件）"
 	zhMessages[KeyReorganizeResult] = "✅ 上下文已重新整理：摘要 %d 字符。"
 	zhMessages[KeyLoopReorganizeSuggestion] = "\n\n⚠️ 检测到循环后上下文已被重置。建议调用 reorganize_context 工具重新整理上下文，总结已做的工作和发现，并制定新的策略继续。"
-	zhMessages[KeyDuplicateContentFeedback] = "⚠️ 检测到你本次回复的内容与上一次完全一致。你已经进行了完整的分析，不要再重复相同的文字，请梳理之前完整上下文和任务清单，在能够明确任务目标的基础上，重新对任务进行规划，并通过track_task_progress进行任务跟踪，通过调用合适的工具继续推进任务。如果任务目标不够明确，请调用 ask_followup_question 向用户说明情况，以便请用户提供更多的素材。"
 }

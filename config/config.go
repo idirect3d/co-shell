@@ -219,12 +219,6 @@ type LLMConfig struct {
 	// Default: 200.
 	DocxMaxReadParas int `json:"docx_max_read_paras"`
 
-	// LoopDetectEnabled: whether to enable LLM output loop detection.
-	// When enabled, the agent monitors LLM output for repeating patterns
-	// and intervenes if a loop is detected.
-	// Default: true
-	LoopDetectEnabled bool `json:"loop_detect_enabled"`
-
 	// LoopDetectThreshold: the maximum number of times a similar content block
 	// can repeat before triggering loop detection intervention.
 	// When the same (or similar) content repeats this many times consecutively,
@@ -785,7 +779,7 @@ func DefaultConfig() *Config {
 			ExcelMaxSessions:           5,
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
-			LoopDetectEnabled:          true,
+			LoopIntervention:           "retry",
 			LoopDetectThreshold:        5,
 			LoopSingleLineLength:       2048,
 			LoopSingleLineWindow:       128,
@@ -860,6 +854,9 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 	// so we must ensure sensible defaults.
 	if cfg.DB.Timeout == 0 {
 		cfg.DB.Timeout = DefaultDBConfig().Timeout
+	}
+	if cfg.LLM.LoopIntervention == "" {
+		cfg.LLM.LoopIntervention = "retry"
 	}
 
 	cfg.configPath = path
