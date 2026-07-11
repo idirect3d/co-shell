@@ -86,13 +86,6 @@ Please analyze and return the judgment result.
 First, pause and take a deep breath. I'll guide you out of this. Start by thinking about the ultimate goal of the user's task (the content inside <task></task>), assess how far you've deviated from the goal, then try a different approach and direction to solve the problem.
 
 Error details: %s`
-	enMessages[KeyToolCallLoopFeedback] = `⚠️ Tool call loop detected: tool "%s" has been called with the same arguments for consecutive iterations. Please stop immediately and switch to a completely different approach:
-1. Try a different tool or combination of tools
-2. If you need to read files, try search_files first
-3. If you need to modify code, understand the full context first
-4. If unsure, ask the user for more information
-
-Remember: stay calm, change your strategy, don't repeat the same thing.`
 	enMessages[KeyCol3LoopDetectEnabled] = "Loop detect (on|off)"
 	enMessages[KeyCol3LoopJudgeEnabled] = "LLM loop judgment"
 	enMessages[KeyCol3ShowLoopDetection] = "show loop detection(on|off)"
@@ -104,8 +97,5 @@ Remember: stay calm, change your strategy, don't repeat the same thing.`
 	enMessages[KeySettingsDescLoopThreshold] = "Loop detection threshold, number of consecutive repeats to trigger intervention (default 5)"
 	enMessages[KeySettingsDescLoopWindow] = "Loop detection sliding window size, history chunks to check for repeating patterns (default 20)"
 	enMessages[KeyLoopDetectEnabledUpdated] = "✅ Loop detection set to: %s"
-	enMessages[KeyCLIHelpLoopDetectEnabled] = "      --loop-detect-enabled   Enable loop detection (overrides config)"
-	enMessages[KeyCLIHelpLoopDetectDisabled] = "      --loop-detect-disabled  Disable loop detection (overrides config)"
 	enMessages[KeyLoopReorganizeSuggestion] = "\n\n⚠️ Loop detected and context has been reset. It is recommended to call the reorganize_context tool to reorganize the context, summarize completed work and findings, and formulate a new strategy to continue."
-	enMessages[KeyDuplicateContentFeedback] = "⚠️ Your current response is identical to the previous one. You have already completed your analysis — do not repeat the same text. Review the full context and task list to clarify the task goal, then re-plan the task using track_task_progress and continue by calling appropriate tools. If the task goal is unclear, call ask_followup_question to request more information from the user."
 }

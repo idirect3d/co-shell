@@ -334,8 +334,8 @@ var enMessages = map[string]string{
 	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  Repetition penalty (0.0 ~ 2.0, -1 = don't send, overrides config)\n",
 
 	// CLI Help - Loop Detection & Dedup (FIX-179)
-	KeyCLIHelpLoopDetect: "      --loop-detect-enabled  Enable loop detection (on/off, overrides config)",
-	KeyCLIHelpDedup:      "      --dedup-enabled      Enable message deduplication (on/off, overrides config)",
+	KeyCLIHelpLoopIntervention: "      --loop-intervention     Loop intervention strategy (off/retry/prompt/reorganize/temperature/random, overrides config)",
+	KeyCLIHelpDedup:            "      --dedup-enabled      Enable message deduplication (on/off, overrides config)",
 
 	// CLI Help - Output Mode
 

@@ -31,6 +31,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -790,19 +791,51 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 // should NOT continue (the feedback message has been appended), or nil
 // if the intervention should be skipped and the iteration can proceed.
 func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
-	loopAction := ""
-	if a.cfg != nil {
+	// Read loop intervention strategy directly from config.
+	// SettingsHandler and Agent share the same cfg pointer via SetConfig(),
+	// so :set at runtime is immediately visible via a.cfg.LLM.LoopIntervention.
+	loopAction := "retry" // DefaultConfig() default
+	if a.cfg != nil && a.cfg.LLM.LoopIntervention != "" {
 		loopAction = a.cfg.LLM.LoopIntervention
 	}
-	if loopAction == "" {
-		loopAction = "prompt" // fallback default
-	}
 
-	log.Info("applyLoopIntervention: type=%d, detector=%q, action=%q", event.Type, event.Detector, loopAction)
+	log.Info("applyLoopIntervention: type=%d, detector=%q, action=%q, cfg=%p",
+		event.Type, event.Detector, loopAction, a.cfg)
+	if a.cfg != nil {
+		log.Info("  cfg loop_intervention=%q", a.cfg.LLM.LoopIntervention)
+	}
 
 	cb := a.streamCb
 	if cb != nil {
 		cb("info", fmt.Sprintf("检测到循环 (%s)\n", event.Detector))
+	}
+
+	// Secondary judgment: when LoopJudgeEnabled, call judge model FIRST to
+	// confirm whether this is truly a loop, before applying any strategy.
+	// If the judge says NOT a loop, skip intervention entirely.
+	// This applies to cross-iteration content duplicate & tool call loop paths.
+	if a.cfg != nil && a.cfg.LLM.LoopJudgeEnabled {
+		suspectContent := event.Content
+		if suspectContent == "" {
+			suspectContent = event.Reason
+		}
+		judgeErr := errors.New(event.Reason)
+		result := a.judgeLoop(context.Background(), judgeErr, suspectContent)
+		if result != nil && !result.IsLoop {
+			// Judge says not a loop — do NOT intervene.
+			if cb != nil {
+				cb("info", "判定模型认为非循环，跳过干预\n")
+			}
+			return nil
+		}
+		if result != nil && result.IsLoop && result.ExitStrategy != "" {
+			// Store the judge's exit_strategy for the prompt strategy to use
+			// as feedback content (more targeted than the generic prompt).
+			event.Suggestion = result.ExitStrategy
+		}
+		// result == nil (judgment failed): continue with normal strategy
+		// If loopAction == "off" and judge confirmed, still treat as "off".
+		// The action check happens below in the switch.
 	}
 
 	// Build the feedback message based on event type
@@ -823,16 +856,11 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		strategyDesc = "重发上下文（无反馈）"
 
 	case "prompt":
-		// Use the event's suggestion or type-specific feedback
-		switch event.Type {
-		case LoopEventContentPeriodic:
-			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
-		case LoopEventContentDuplicate:
-			loopFeedback = i18n.T(i18n.KeyDuplicateContentFeedback)
-		case LoopEventSingleLineRepeat:
-			loopFeedback = event.Suggestion
-		case LoopEventToolCallRepeat:
-			loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), event.ToolName)
+		// Use judge's exit_strategy if available (set by secondary judgment above),
+		// otherwise fall back to the generic loop detection feedback.
+		loopFeedback = event.Suggestion
+		if loopFeedback == "" {
+			loopFeedback = i18n.T(i18n.KeyLoopDetectFeedback)
 		}
 		strategyDesc = "发送纠错提示"
 
@@ -843,13 +871,8 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 				a.llmClient.SetTemperature(a.loopTempCtrl.Temperature())
 			}
 		}
-		switch event.Type {
-		case LoopEventToolCallRepeat:
-			loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyToolCallLoopFeedback), event.ToolName)
-		default:
-			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
-		}
-		strategyDesc = "温度调整+纠错提示"
+		loopFeedback = ""
+		strategyDesc = "温度调整（无反馈）"
 
 	case "reorganize":
 		loopFeedback = i18n.T(i18n.KeyLoopReorganizeSuggestion)
@@ -863,7 +886,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 			loopFeedback = ""
 			strategyDesc = "随机选择: 重发上下文"
 		case "prompt":
-			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
+			loopFeedback = i18n.T(i18n.KeyLoopDetectFeedback)
 			strategyDesc = "随机选择: 发送纠错提示"
 		case "reorganize":
 			loopFeedback = i18n.T(i18n.KeyLoopReorganizeSuggestion)
@@ -875,21 +898,25 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 					a.llmClient.SetTemperature(a.loopTempCtrl.Temperature())
 				}
 			}
-			loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
-			strategyDesc = "随机选择: 温度调整+纠错提示"
+			loopFeedback = ""
+			strategyDesc = "随机选择: 温度调整（无反馈）"
 		}
 
 	default:
-		loopFeedback = i18n.TF(i18n.KeyLoopDetectFeedback, event.Reason)
-		strategyDesc = "发送纠错提示"
+		// Unknown strategy: clear feedback to avoid sending prompt unexpectedly
+		loopFeedback = ""
+		strategyDesc = fmt.Sprintf("未知策略(%s)，按retry处理", loopAction)
 	}
 
 	// Append feedback to messages (if non-empty)
 	if loopFeedback != "" {
+		// Wrap feedback in <task> tags so the LLM sees it as a structured
+		// task instruction, especially when using the judge model's exit_strategy.
+		wrappedFeedback := fmt.Sprintf("<task>\n%s\n</task>", loopFeedback)
 		a.mu.Lock()
 		a.messages = append(a.messages, llm.Message{
 			Role:    "user",
-			Content: loopFeedback,
+			Content: wrappedFeedback,
 		})
 		a.mu.Unlock()
 	}
@@ -898,6 +925,8 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		cb("info", fmt.Sprintf("处理方式: %s\n", strategyDesc))
 		if loopFeedback != "" {
 			cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+		} else {
+			cb("info", "（无反馈，仅重发上下文）\n")
 		}
 		cb("info", "────────────────────────────────────────────\n")
 	}
