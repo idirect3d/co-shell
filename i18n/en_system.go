@@ -456,11 +456,15 @@ Parameters:
 - result (required) The result of the tool use. This should be a clear, specific description of the result.
 - command (optional) A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions
 - task_message_no (required) Integer. The message number to set as the new context start pointer after task completion, taken from the message_no field in <environment_details>. Setting this moves the context start pointer to that message position; older messages before the pointer are ignored and no longer occupy the context window, but can still be retrieved from persistent memory via memory_search or get_memory_slice if needed.
+- session_title (required) String. A brief session title (max 30 characters) describing the completed task, for easy identification when reviewing session history.
+- session_keywords (required) String. Comma-separated keywords describing the core content of this session, for efficient session search and restoration.
 Usage:
 <attempt_completion>
   <result>User login functionality created, including frontend pages, backend API, and database tables.</result>
   <command>open localhost:3000</command>
   <task_message_no>42</task_message_no>
+  <session_title>User login feature</session_title>
+  <session_keywords>user login,frontend,backend,API,database</session_keywords>
 </attempt_completion>`
 
 	enMessages[KeyToolUsageShellReset] = `## shell_reset
