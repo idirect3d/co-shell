@@ -1,10 +1,10 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-07-11
 //
-// MIT License
+// # MIT License
 //
-// Copyright (c) 2026 L.Shuang
+// # Copyright (c) 2026 L.Shuang
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,23 +30,26 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/store"
 )
 
 // ContextHandler handles the .context built-in command.
+// Shows current conversation context (messages).
 type ContextHandler struct {
+	agent *agent.Agent
 	store *store.DualStore
 }
 
 // NewContextHandler creates a new ContextHandler.
-func NewContextHandler(s *store.DualStore) *ContextHandler {
-	return &ContextHandler{store: s}
+func NewContextHandler(ag *agent.Agent, s *store.DualStore) *ContextHandler {
+	return &ContextHandler{agent: ag, store: s}
 }
 
 // Handle processes .context commands.
 // Syntax:
 //
-//	.context                    - show current context summary
+//	.context                    - show current conversation context (messages)
 //	.context show               - show detailed context
 //	.context reset              - reset context (clear conversation history)
 //	.context set <key> <value>  - set a context variable
@@ -72,29 +75,34 @@ func (h *ContextHandler) Handle(args []string) (string, error) {
 }
 
 func (h *ContextHandler) showContext() (string, error) {
-	data, found, err := h.store.GetContext("current")
-	if err != nil {
-		return "", fmt.Errorf("failed to read context: %w", err)
-	}
-
-	if !found || len(data) == 0 {
+	messages := h.agent.Messages()
+	if len(messages) == 0 {
 		return "Context is empty.\n\nStart a conversation to build context.", nil
 	}
 
-	var ctx map[string]interface{}
-	if err := json.Unmarshal(data, &ctx); err != nil {
-		return "", fmt.Errorf("failed to parse context: %w", err)
+	var sb strings.Builder
+	sb.WriteString("📋 " + "当前上下文" + "\n")
+	sb.WriteString(fmt.Sprintf("  总消息数: %d\n", len(messages)))
+
+	pointerIdx := h.agent.MessagePointer()
+	for i, msg := range messages {
+		content := msg.Content
+		if content == "" && len(msg.ContentParts) > 0 {
+			content = msg.CombineContentParts()
+		}
+		content = strings.ReplaceAll(content, "\n", " ")
+		marker := " "
+		if i == pointerIdx {
+			marker = "*"
+		}
+		sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s\n", marker, i, msg.Role, content))
 	}
 
-	var sb strings.Builder
-	sb.WriteString("Current Context:\n")
-	for k, v := range ctx {
-		sb.WriteString(fmt.Sprintf("  %s: %v\n", k, v))
-	}
 	return sb.String(), nil
 }
 
 func (h *ContextHandler) resetContext() (string, error) {
+	h.agent.Reset()
 	if err := h.store.ClearContext(); err != nil {
 		return "", fmt.Errorf("failed to reset context: %w", err)
 	}
@@ -109,7 +117,6 @@ func (h *ContextHandler) setContext(args []string) (string, error) {
 	key := args[0]
 	value := strings.Join(args[1:], " ")
 
-	// Read existing context
 	data, found, err := h.store.GetContext("current")
 	if err != nil {
 		return "", fmt.Errorf("failed to read context: %w", err)
@@ -135,12 +142,20 @@ func (h *ContextHandler) setContext(args []string) (string, error) {
 	return fmt.Sprintf("✅ Context set: %s = %s", key, value), nil
 }
 
+func truncateStringForContext(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "..."
+}
+
 // Help returns the help text for the context command.
 func (h *ContextHandler) Help() string {
 	return `Context Management (.context)
 
 Usage:
-  .context                  Show current context summary
+  .context                  Show current conversation context
   .context show             Show detailed context
   .context reset            Reset context (clear conversation history)
   .context set <k> <v>      Set a context variable

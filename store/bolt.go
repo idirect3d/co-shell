@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/workspace"
 	"go.etcd.io/bbolt"
 )
@@ -56,13 +57,16 @@ func formatMemoryKey(key string) string {
 	return key[:loc[0]] + fmt.Sprintf("%08d", num)
 }
 
-// SessionEntry represents a conversation session entry.
+// SessionEntry represents a named conversation session entry stored in the sessions bucket.
 type SessionEntry struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Messages  []byte    `json:"messages"` // JSON-encoded messages
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           string    `json:"id"`            // sess-YYYYMMDDhhmmss-xxxxxxxx
+	Title        string    `json:"title"`         // Human-readable title
+	Keywords     string    `json:"keywords"`      // Comma-separated keywords
+	SystemPrompt string    `json:"system_prompt"` // System prompt at time of save (for reference)
+	Messages     []byte    `json:"messages"`      // JSON-encoded messages (without system prompt)
+	MessageCount int       `json:"message_count"` // Number of messages (for list display)
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // HistoryEntry represents a single history entry.
@@ -615,6 +619,18 @@ func (s *Store) ClearConversationMessages() error {
 
 // --- Session Persistence Operations ---
 
+// SessionExport represents a session exported to an external file.
+type SessionExport struct {
+	Version      int           `json:"version"`
+	ExportedAt   time.Time     `json:"exported_at"`
+	ID           string        `json:"id,omitempty"`
+	Title        string        `json:"title,omitempty"`
+	Keywords     string        `json:"keywords,omitempty"`
+	SystemPrompt string        `json:"system_prompt,omitempty"`
+	MessageCount int           `json:"message_count"`
+	Messages     []llm.Message `json:"messages"`
+}
+
 // SessionData represents a persistable conversation session.
 type SessionData struct {
 	// Version is the schema version of the session data (for future compatibility).
@@ -624,6 +640,36 @@ type SessionData struct {
 	Messages json.RawMessage `json:"messages"` // JSON-encoded []llm.Message
 	// LastUpdatedAt is the timestamp when this session was last persisted.
 	LastUpdatedAt time.Time `json:"last_updated_at"`
+}
+
+// SaveCurrentSessionID stores the current session's ID in the "current" key.
+func (s *Store) SaveCurrentSessionID(id string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		return bucket.Put([]byte("current"), []byte(id))
+	})
+}
+
+// LoadCurrentSessionID loads the current session's ID from the "current" key.
+// Returns the session ID, whether found, and any error.
+func (s *Store) LoadCurrentSessionID() (string, bool, error) {
+	var data []byte
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		if bucket == nil {
+			return nil
+		}
+		ref := bucket.Get([]byte("current"))
+		if ref != nil {
+			data = make([]byte, len(ref))
+			copy(data, ref)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", false, err
+	}
+	return string(data), data != nil, nil
 }
 
 // SaveSession persists the current conversation session to the database.
@@ -671,5 +717,92 @@ func (s *Store) ClearSession() error {
 			return nil
 		}
 		return bucket.Delete([]byte("current"))
+	})
+}
+
+// UpdateNamedSession updates an existing named session entry (or creates it if not found).
+func (s *Store) UpdateNamedSession(id string, entry *SessionEntry) error {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("cannot marshal session entry: %w", err)
+	}
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		return bucket.Put([]byte(id), data)
+	})
+}
+
+// SaveNamedSession saves a named session entry to the sessions bucket.
+// The entry must have a unique ID (e.g., "sess-20260711140000-12345678").
+func (s *Store) SaveNamedSession(entry *SessionEntry) error {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("cannot marshal session entry: %w", err)
+	}
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		return bucket.Put([]byte(entry.ID), data)
+	})
+}
+
+// ListNamedSessions returns all named session entries sorted by ID (oldest first).
+// The "current" entry is excluded.
+func (s *Store) ListNamedSessions() ([]SessionEntry, error) {
+	var entries []SessionEntry
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		if bucket == nil {
+			return nil
+		}
+		cursor := bucket.Cursor()
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			key := string(k)
+			if key == "current" {
+				continue
+			}
+			var entry SessionEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				continue
+			}
+			entries = append(entries, entry)
+		}
+		return nil
+	})
+	return entries, err
+}
+
+// LoadNamedSession loads a named session entry by ID.
+func (s *Store) LoadNamedSession(id string) (*SessionEntry, bool, error) {
+	var entry SessionEntry
+	found := false
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		if bucket == nil {
+			return nil
+		}
+		data := bucket.Get([]byte(id))
+		if data == nil {
+			return nil
+		}
+		if err := json.Unmarshal(data, &entry); err != nil {
+			return err
+		}
+		found = true
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return &entry, found, nil
+}
+
+// DeleteNamedSession removes a named session entry by ID.
+func (s *Store) DeleteNamedSession(id string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte("sessions"))
+		if bucket == nil {
+			return nil
+		}
+		return bucket.Delete([]byte(id))
 	})
 }

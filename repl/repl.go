@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
@@ -113,7 +114,7 @@ func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.
 		mcpHandler:      cmd.NewMCPHandler(cfg, mcpMgr),
 		ruleHandler:     cmd.NewRuleHandler(cfg),
 		memoryHandler:   cmd.NewMemoryHandler(s),
-		contextHandler:  cmd.NewContextHandler(s),
+		contextHandler:  cmd.NewContextHandler(ag, s),
 		listHandler:     cmd.NewListHandler(s),
 		imageHandler:    cmd.NewImageHandler(ag),
 		planHandler:     cmd.NewPlanHandler(ag.TaskPlanManager()),
@@ -354,8 +355,52 @@ func (r *REPL) handleBuiltin(input string) {
 	case ":body-display":
 		result, err = r.handleBodyDisplay(args)
 	case ":new":
+		// Flush current session messages to DB, then create a new empty session
+		if err := r.agent.FlushCurrentSession(); err != nil {
+			log.Warn("Failed to flush current session: %v", err)
+		}
+		// Find the next "新会话N" number
+		nextN := 1
+		if entries, err := r.agent.Store().ListNamedSessions(); err == nil {
+			maxN := 0
+			for _, e := range entries {
+				var suffix int
+				if _, err := fmt.Sscanf(e.Title, "新会话%d", &suffix); err == nil && suffix > maxN {
+					maxN = suffix
+				}
+			}
+			if maxN > 0 {
+				nextN = maxN + 1
+			}
+		}
 		r.agent.Reset()
-		fmt.Printf("%s%s\n", ep.Success, i18n.T(i18n.KeyHelpNew))
+		// Create session entry directly (force save even with empty messages)
+		now := time.Now()
+		randBytes := make([]byte, 4)
+		randBytes[0] = byte(now.Nanosecond() & 0xFF)
+		randBytes[1] = byte(now.Nanosecond() >> 8 & 0xFF)
+		randBytes[2] = byte(now.Second() & 0xFF)
+		randBytes[3] = byte(now.Minute() & 0xFF)
+		sessionID := fmt.Sprintf("sess-%s-%08x", now.Format("20060102150405"), randBytes)
+		title := fmt.Sprintf("新会话%d", nextN)
+		entry := &store.SessionEntry{
+			ID:           sessionID,
+			Title:        title,
+			Keywords:     "",
+			SystemPrompt: "",
+			Messages:     []byte("[]"), // empty messages array
+			MessageCount: 0,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if err := r.agent.Store().SaveNamedSession(entry); err != nil {
+			log.Warn("Failed to save new session: %v", err)
+		}
+		r.agent.SetCurrentSessionID(sessionID)
+		if err := r.agent.Store().SaveCurrentSessionID(sessionID); err != nil {
+			log.Warn("Failed to save current session ID: %v", err)
+		}
+		fmt.Printf("%s 已创建新会话: %s\n", ep.Success, title)
 		return
 	case ":model":
 		result, err = r.modelHandler.Handle(args)
@@ -372,6 +417,9 @@ func (r *REPL) handleBuiltin(input string) {
 	case ":continue":
 		r.handleAgentInput("")
 		return
+	case ":reset":
+		rh := cmd.NewResetHandler(r.agent)
+		result, err = rh.Handle(args)
 	default:
 		fmt.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return

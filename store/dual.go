@@ -284,6 +284,34 @@ func (d *DualStore) ClearSession() error {
 	return d.Bolt.ClearSession()
 }
 
+func (d *DualStore) SaveCurrentSessionID(id string) error {
+	return d.Bolt.SaveCurrentSessionID(id)
+}
+
+func (d *DualStore) LoadCurrentSessionID() (string, bool, error) {
+	return d.Bolt.LoadCurrentSessionID()
+}
+
+func (d *DualStore) UpdateNamedSession(id string, entry *SessionEntry) error {
+	return d.Bolt.UpdateNamedSession(id, entry)
+}
+
+func (d *DualStore) SaveNamedSession(entry *SessionEntry) error {
+	return d.Bolt.SaveNamedSession(entry)
+}
+
+func (d *DualStore) ListNamedSessions() ([]SessionEntry, error) {
+	return d.Bolt.ListNamedSessions()
+}
+
+func (d *DualStore) LoadNamedSession(id string) (*SessionEntry, bool, error) {
+	return d.Bolt.LoadNamedSession(id)
+}
+
+func (d *DualStore) DeleteNamedSession(id string) error {
+	return d.Bolt.DeleteNamedSession(id)
+}
+
 // Vault returns a VaultStore using the underlying bbolt database.
 func (d *DualStore) Vault() *VaultStore {
 	return d.Bolt.Vault()

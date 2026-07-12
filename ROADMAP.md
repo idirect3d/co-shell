@@ -696,7 +696,18 @@
   - Excel 将 SST 索引值（0,1,2...）当作字面值显示，而非查表取字符串
   - 修复：新增 `type="s"` 写入分支，正确输出 `t="s"` 属性
 
-
+- [x] **FEATURE-276 会话（Session）管理功能增强**：[BUILD-298]
+  - 导出当前会话上下文到外部 JSON 文件（:session export [path]）
+  - 从外部会话文件重新导入上下文（:session import <path>）
+  - 通过 attempt_completion 的 session_title / session_keywords 参数由 LLM 自动命名并保存会话
+  - 手动命名保存会话（:session save [title]）
+  - 列出已保存的会话（:session list）
+  - 会话切换（:session switch <id>），自动保存当前会话
+  - 删除已保存的会话（:session delete <id>）
+  - 会话帮助（:session ?）
+  - :new 保存当前会话后再新建空会话
+  - 新增 :reset 命令重置当前会话消息
+  - TODOs are stored in BoltDB sessions bucket with format sess-YYYYMMDDhhmmss-xxxxxxxx
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

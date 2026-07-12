@@ -724,10 +724,18 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 				},
 				"task_message_no": map[string]interface{}{
 					"type":        "integer",
-					"description": "The message number to set as the new context start pointer after task completion. This truncates older conversation history, keeping only recent context. The value should be taken from the message_no field in <environment_details>. Use this when the task involved many iterations and the conversation context has grown long. The previous context can still be retrieved via memory tools (memory_search, get_memory_slice) if needed.",
+					"description": "Optional: The message number to set as the new context start pointer after task completion. This truncates older conversation history, keeping only recent context. The value should be taken from the message_no field in <environment_details>. Use this when the task involved many iterations and the conversation context has grown long.",
+				},
+				"session_title": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: A brief title summarizing this session (≤30 characters). This will be used to name the saved session.",
+				},
+				"session_keywords": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Comma-separated keywords summarizing the task's technology, domain, and purpose for future classification and retrieval.",
 				},
 			},
-			"required": []string{"result", "task_message_no"},
+			"required": []string{"result", "session_title", "session_keywords"},
 		},
 		Callback: a.attemptCompletionTool,
 	})
@@ -2172,18 +2180,24 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 
 	command, _ := args["command"].(string)
 
+	// Validate session_title and session_keywords (FEATURE-276)
+	sessionTitle, _ := args["session_title"].(string)
+	sessionKeywords, _ := args["session_keywords"].(string)
+	if sessionTitle == "" {
+		return "", fmt.Errorf("session_title is required — provide a brief session title (≤30 chars)")
+	}
+	if sessionKeywords == "" {
+		return "", fmt.Errorf("session_keywords is required — provide comma-separated keywords for this session")
+	}
+
 	// Handle task_message_no for context pointer adjustment.
-	// In "reorganize" mode, task_message_no has no effect — context is
-	// managed via the reorganize_context tool instead.
-	// In "smart" mode, this parameter is required — it must be provided
-	// and validated. In other modes ("window", "task"), it is optional
-	// and gracefully ignored if not provided.
+	// In "reorganize" mode, task_message_no has no effect.
+	// In other modes, it is optional.
 	contextPolicy := "smart"
 	if a.cfg != nil && a.cfg.LLM.ContextPolicy != "" {
 		contextPolicy = a.cfg.LLM.ContextPolicy
 	}
 	if contextPolicy == "reorganize" {
-		// In reorganize mode, task_message_no is always ignored.
 		log.Info("attemptCompletion: reorganize mode active, ignoring task_message_no")
 	} else if taskMsgNoRaw, ok := args["task_message_no"].(float64); ok {
 		taskMsgNo := int(taskMsgNoRaw)
@@ -2196,8 +2210,13 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 			}
 			a.mu.Unlock()
 		}
-	} else if contextPolicy == "smart" {
-		return "", fmt.Errorf("在 smart 模式下，task_message_no 是必需参数——必须提供一个非负整数，从 <environment_details> 中的 message_no 字段获取")
+	}
+
+	// Update current session with LLM-provided title and keywords (not create new)
+	if err := a.UpdateCurrentSession(sessionTitle, sessionKeywords); err != nil {
+		log.Warn("attemptCompletion: failed to update session: %v", err)
+	} else {
+		log.Info("attemptCompletion: session updated with title=%q, keywords=%q", sessionTitle, sessionKeywords)
 	}
 
 	// If a command was provided, execute it as a demo
