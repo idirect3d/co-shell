@@ -470,11 +470,15 @@ Parameters:
 - result (必需) 工具调用的结果。应是对结果的清晰、具体描述。
 - command (可选) 可选的 CLI 命令，用于向用户演示结果。例如使用 'open index.html' 展示创建的 HTML 网站，或使用 'open localhost:3000' 展示本地开发服务器。不要使用 'echo' 或 'cat' 等仅输出文本的命令。命令必须对当前操作系统有效，确保格式正确且不包含有害指令。
 - task_message_no (必需) 整数。任务完成后的上下文起始消息序号，应取自 <environment_details> 中的 message_no 值。设置此参数可将上下文起点指针移动到该消息位置，旧的历史消息将被忽略不再占用上下文窗口，但可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
+- session_title (必需) 字符串。当前会话的简短标题（不超过 30 个字符），用于标识此任务完成的会话，方便后续回顾。
+- session_keywords (必需) 字符串。逗号分隔的关键词列表，描述当前会话的核心内容，便于后续会话检索和恢复。
 Usage:
 <attempt_completion>
   <result>已完成用户登录功能的创建，包括前端页面、后端API和数据库表。</result>
   <command>open localhost:3000</command>
   <task_message_no>42</task_message_no>
+  <session_title>用户登录功能</session_title>
+  <session_keywords>用户登录,前端,后端,API,数据库</session_keywords>
 </attempt_completion>`
 
 	zhMessages[KeyToolUsageReorganizeContext] = `## reorganize_context
