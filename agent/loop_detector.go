@@ -52,13 +52,24 @@ import (
 //     ABCABC (p=3), ABACABAC (p=4), ABCDABCD (p=4), etc.
 //   - Scattered or interleaved non-repeating lines do NOT form a valid period
 //     and will not trigger (e.g. A B B A — no clean period).
+//
+// Single-line detection is delegated to an optional SingleLineLoopDetector
+// sub-detector, checked in AddChunk after each completed line is pushed.
 type LoopDetector struct {
-	threshold   int             // min period repetitions to trigger (default: 5)
-	accumulated strings.Builder // accumulates incomplete trailing line across chunks
-	lineHashes  []uint64        // ring buffer of completed line hashes
-	lineTexts   []string        // ring buffer of completed line texts (for collision guard)
-	writePos    int             // ring buffer write position (overwrite after full)
-	lineCount   int             // total completed lines seen so far (for indexing)
+	threshold          int                     // min period repetitions to trigger (default: 5)
+	accumulated        strings.Builder         // accumulates incomplete trailing line across chunks
+	lineHashes         []uint64                // ring buffer of completed line hashes
+	lineTexts          []string                // ring buffer of completed line texts (for collision guard)
+	writePos           int                     // ring buffer write position (overwrite after full)
+	lineCount          int                     // total completed lines seen so far (for indexing)
+	singleLineDetector *SingleLineLoopDetector // optional sub-detector for single-line patterns
+}
+
+// SetSingleLineDetector attaches a SingleLineLoopDetector sub-detector.
+// When set, AddChunk checks each completed line against the sub-detector
+// in addition to the multi-line period detection.
+func (ld *LoopDetector) SetSingleLineDetector(sld *SingleLineLoopDetector) {
+	ld.singleLineDetector = sld
 }
 
 // MaxPeriod is the maximum period length the detector will examine.
@@ -137,12 +148,49 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 		hash := hashLine(line)
 		ld.pushLine(hash, line)
 
+		// Check single-line patterns (long line, character-level period).
+		if ld.singleLineDetector != nil {
+			if event := ld.singleLineDetector.CheckLine(line); event != nil {
+				return &LoopDetectedError{
+					pattern:     event.Content,
+					period:      0,
+					repeatCount: ld.singleLineDetector.minRepeat,
+					threshold:   ld.singleLineDetector.minRepeat,
+					startTime:   timestamp,
+					endTime:     timestamp,
+					suggestion:  event.Suggestion,
+				}
+			}
+		}
+
 		if err := ld.checkLoop(timestamp); err != nil {
 			return err
 		}
 	}
 
-	// Step 4: Reset accumulated and store only the incomplete trailing line.
+	// Step 4: Check the incomplete trailing line (no \n yet) for single-line
+	// loop patterns. Without this, a very long line without newlines (e.g.
+	// "ABCDEFGABCDEFG..." repeated 30K+ chars) would never be checked
+	// because completeCount stays 0, so the completed-line loop above
+	// never executes.
+	if !endsWithNewline && len(lines) > 0 && ld.singleLineDetector != nil {
+		partialLine := strings.TrimSpace(lines[len(lines)-1])
+		if partialLine != "" {
+			if event := ld.singleLineDetector.CheckLine(partialLine); event != nil {
+				return &LoopDetectedError{
+					pattern:     event.Content,
+					period:      0,
+					repeatCount: ld.singleLineDetector.minRepeat,
+					threshold:   ld.singleLineDetector.minRepeat,
+					startTime:   timestamp,
+					endTime:     timestamp,
+					suggestion:  event.Suggestion,
+				}
+			}
+		}
+	}
+
+	// Step 5: Reset accumulated and store only the incomplete trailing line.
 	ld.accumulated.Reset()
 	if !endsWithNewline && len(lines) > 0 {
 		ld.accumulated.WriteString(lines[len(lines)-1])

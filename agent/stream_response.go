@@ -70,6 +70,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	// Reset per-stream-call flags
 	a.mu.Lock()
 	a.loopLongOutputTriggered = false
+	a.loopJudgeSkipped = false
 	a.streamCb = cb
 	a.mu.Unlock()
 
@@ -168,7 +169,8 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				cb("content_chunk", event.Content)
 
 				// FIX-179: Check for loop patterns in LLM output.
-				if a.loopDetectOn && a.loopDetector != nil {
+				// Skip detection if judge already said "not a loop" in this stream call.
+				if a.loopDetectOn && a.loopDetector != nil && !a.loopJudgeSkipped {
 					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
 						log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
 						a.handleLoopDetection(contentBuilder.String(), reasoningBuilder.String(), err)

@@ -79,6 +79,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			threshold = 5
 		}
 		a.loopDetector = NewLoopDetector(threshold)
+
+		// Attach SingleLineLoopDetector sub-detector for long-line and
+		// character-level period detection (FEATURE-273).
+		singleLineDetector := NewSingleLineLoopDetector(
+			a.cfg.LLM.LoopSingleLineLength,
+			a.cfg.LLM.LoopSingleLineWindow,
+		)
+		a.loopDetector.SetSingleLineDetector(singleLineDetector)
 		// FEATURE-273: ToolCallLoopDetector uses threshold=2 (trigger on first duplicate)
 		// instead of the content loop threshold, so a single repeated tool call is caught.
 		toolCallThreshold := 2

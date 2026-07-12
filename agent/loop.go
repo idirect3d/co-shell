@@ -193,6 +193,12 @@ type Agent struct {
 	// streamLLMResponse call.
 	loopLongOutputTriggered bool
 
+	// loopJudgeSkipped is set to true when the judge model says "not a loop"
+	// during the current stream call. Prevents re-triggering loop detection
+	// for the remainder of the stream, avoiding infinite judge call loops.
+	// Reset at the start of each streamLLMResponse call.
+	loopJudgeSkipped bool
+
 	// loopDetectSyncErr stores the loop detection error for the sync (non-judge) path.
 	// When LoopJudgeEnabled is false, handleLoopDetection sets this and the stream
 	// event loop checks it to break out immediately.
@@ -1002,7 +1008,8 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		a.mu.Unlock()
 		log.Debug("handleLoopDetection: judge confirmed loop, set loopDetectSyncErr")
 	} else if result != nil && !result.IsLoop {
-		// Judge explicitly NOT a loop: reset detectors, stream continues.
+		// Judge explicitly NOT a loop: reset detectors, set loopJudgeSkipped
+		// to prevent re-triggering for the remainder of this stream call.
 		log.Debug("handleLoopDetection: judge says NOT a loop, resetting detectors and continuing stream")
 		if a.loopDetector != nil {
 			a.loopDetector.Reset()
@@ -1011,6 +1018,7 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 			a.toolCallLoopDetector.Reset()
 		}
 		a.loopLongOutputTriggered = false
+		a.loopJudgeSkipped = true
 	} else {
 		// Judge returned nil (failed/disabled): fallback to direct feedback.
 		// Treat as loop confirmed to prevent the stream continuing in a loop.
