@@ -713,6 +713,12 @@
   - 将 SingleLineLoopDetector 接入 LoopDetector.AddChunk，修复单行超长（2048 字符）和窗口周期检测（128 字符）完全不可用的问题
   - 在 RunStream 中初始化 SingleLineLoopDetector 并注册到 LoopDetector
   - handleLoopDetection 中判定非循环时已会自动 Reset() 清空检测器缓冲区
+  - 补充 attempt_completion 的 session_title/session_keywords 参数到 XML 多语言说明
+
+- [x] FIX-277 优化默认参数：loop-detect-threshold=2，word/excel 工具除 delete 外默认 auto [BUILD-300]
+  - config/config.go: LoopDetectThreshold 默认值从 5 改为 2
+  - agent/agent.go: word_continue/word_format/excel_edit/excel_paste/excel_insert 从 confirm 改为 auto
+  - agent/agent.go: word_erase/excel_delete 保持 confirm
 
 ## v1.0.0 — 正式版
 
