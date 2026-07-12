@@ -780,7 +780,7 @@ func DefaultConfig() *Config {
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
 			LoopIntervention:           "retry",
-			LoopDetectThreshold:        5,
+			LoopDetectThreshold:        2,
 			LoopSingleLineLength:       2048,
 			LoopSingleLineWindow:       128,
 			LoopTempEnabled:            true,
