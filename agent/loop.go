@@ -72,14 +72,15 @@ const (
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
 type Agent struct {
-	mu            sync.Mutex
-	llmClient     llm.Client
-	mcpMgr        *mcp.Manager
-	store         *store.DualStore
-	memoryManager *memory.Manager
-	systemPrompt  string
-	messages      []llm.Message
-	maxIterations int
+	mu               sync.Mutex
+	llmClient        llm.Client
+	mcpMgr           *mcp.Manager
+	store            *store.DualStore
+	memoryManager    *memory.Manager
+	systemPrompt     string
+	currentSessionID string // ID of the current named session entry
+	messages         []llm.Message
+	maxIterations    int
 	// toolModes stores per-tool mode settings.
 	// Key is the tool name, "default" is the default for all tools.
 	// Value is one of: "disabled" (not sent to LLM), "confirm" (enabled, requires user confirmation),

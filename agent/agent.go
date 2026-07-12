@@ -430,14 +430,198 @@ func (a *Agent) ToolCallMode() string {
 
 func (a *Agent) SetStore(s *store.DualStore) { a.store = s }
 
+// Store returns the agent's DualStore instance (may be nil).
+func (a *Agent) Store() *store.DualStore {
+	return a.store
+}
+
+// SetCurrentSessionID sets the current session's ID for tracking.
+func (a *Agent) SetCurrentSessionID(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.currentSessionID = id
+}
+
+// CurrentSessionID returns the current session's ID.
+func (a *Agent) CurrentSessionID() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.currentSessionID
+}
+
+// UpdateCurrentSession writes current messages back to the current session entry and
+// updates the title/keywords. Does NOT create a new entry.
+func (a *Agent) UpdateCurrentSession(title, keywords string) error {
+	if a.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	a.mu.Lock()
+	sessionID := a.currentSessionID
+	msgs := a.messages
+	systemPrompt := ""
+	if len(msgs) > 0 && msgs[0].Role == "system" {
+		msgs = msgs[1:]
+	}
+	if len(msgs) > 0 && a.messages[0].Role == "system" {
+		systemPrompt = a.messages[0].Content
+	}
+	msgData, err := json.Marshal(msgs)
+	a.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot marshal messages: %w", err)
+	}
+	if len(msgs) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	if sessionID == "" {
+		// No current session: create one
+		randBytes := make([]byte, 4)
+		randBytes[0] = byte(now.Nanosecond() & 0xFF)
+		randBytes[1] = byte(now.Nanosecond() >> 8 & 0xFF)
+		randBytes[2] = byte(now.Second() & 0xFF)
+		randBytes[3] = byte(now.Minute() & 0xFF)
+		sessionID = fmt.Sprintf("sess-%s-%08x", now.Format("20060102150405"), randBytes)
+		a.SetCurrentSessionID(sessionID)
+	}
+
+	// Try to load existing to preserve CreatedAt
+	existing, found, _ := a.store.LoadNamedSession(sessionID)
+	createdAt := now
+	if found && existing != nil {
+		createdAt = existing.CreatedAt
+	}
+
+	entry := &store.SessionEntry{
+		ID:           sessionID,
+		Title:        title,
+		Keywords:     keywords,
+		SystemPrompt: systemPrompt,
+		Messages:     msgData,
+		MessageCount: len(msgs),
+		CreatedAt:    createdAt,
+		UpdatedAt:    now,
+	}
+	return a.store.UpdateNamedSession(sessionID, entry)
+}
+
+// FlushCurrentSession writes the current agent messages to the current session entry
+// without changing title/keywords. Used when switching sessions.
+func (a *Agent) FlushCurrentSession() error {
+	a.mu.Lock()
+	sessionID := a.currentSessionID
+	msgs := a.messages
+	if len(msgs) > 0 && msgs[0].Role == "system" {
+		msgs = msgs[1:]
+	}
+	msgData, err := json.Marshal(msgs)
+	a.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot marshal messages: %w", err)
+	}
+	if sessionID == "" || len(msgs) == 0 {
+		return nil
+	}
+
+	existing, found, _ := a.store.LoadNamedSession(sessionID)
+	if !found || existing == nil {
+		return nil
+	}
+	entry := &store.SessionEntry{
+		ID:           existing.ID,
+		Title:        existing.Title,
+		Keywords:     existing.Keywords,
+		SystemPrompt: existing.SystemPrompt,
+		Messages:     msgData,
+		MessageCount: len(msgs),
+		CreatedAt:    existing.CreatedAt,
+		UpdatedAt:    time.Now(),
+	}
+	return a.store.UpdateNamedSession(sessionID, entry)
+}
+
+// SaveCurrentSession is kept for backward compatibility but should use UpdateCurrentSession instead.
+func (a *Agent) SaveCurrentSession(title, keywords string) error {
+	if a.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	a.mu.Lock()
+	msgs := a.messages
+	systemPrompt := ""
+	if len(msgs) > 0 && msgs[0].Role == "system" {
+		msgs = msgs[1:]
+	}
+	if len(msgs) > 0 && a.messages[0].Role == "system" {
+		systemPrompt = a.messages[0].Content
+	}
+	msgData, err := json.Marshal(msgs)
+	a.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot marshal messages: %w", err)
+	}
+	if len(msgs) == 0 {
+		return nil
+	}
+	now := time.Now()
+	randBytes := make([]byte, 4)
+	// crypto/rand is not imported, use time-based seed
+	randBytes[0] = byte(now.Nanosecond() & 0xFF)
+	randBytes[1] = byte(now.Nanosecond() >> 8 & 0xFF)
+	randBytes[2] = byte(now.Second() & 0xFF)
+	randBytes[3] = byte(now.Minute() & 0xFF)
+	id := fmt.Sprintf("sess-%s-%08x", now.Format("20060102150405"), randBytes)
+	entry := &store.SessionEntry{
+		ID:           id,
+		Title:        title,
+		Keywords:     keywords,
+		SystemPrompt: systemPrompt,
+		Messages:     msgData,
+		MessageCount: len(msgs),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	return a.store.SaveNamedSession(entry)
+}
+
 func (a *Agent) RestoreSession() bool {
 	if a.store == nil {
 		log.Debug("RestoreSession: store is nil, skipping")
 		return false
 	}
+
+	// First try to load the current session ID
+	sessionID, idFound, err := a.store.LoadCurrentSessionID()
+	if err != nil {
+		log.Warn("RestoreSession: LoadCurrentSessionID error: %v", err)
+	}
+	if idFound && sessionID != "" {
+		// Try to load the named session by ID
+		entry, entryFound, err := a.store.LoadNamedSession(sessionID)
+		if err != nil {
+			log.Warn("RestoreSession: LoadNamedSession(%q) error: %v", sessionID, err)
+		} else if entryFound && entry != nil && len(entry.Messages) > 0 {
+			var msgs []llm.Message
+			if err := json.Unmarshal(entry.Messages, &msgs); err == nil && len(msgs) > 0 {
+				a.mu.Lock()
+				a.messages = append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, msgs...)
+				a.currentSessionID = sessionID
+				a.mu.Unlock()
+				log.Info("RestoreSession: restored %d messages from session %q (%s)", len(msgs), sessionID, entry.Title)
+				return true
+			}
+		}
+		// Entry not found or empty: ID is registered but no content yet
+		a.mu.Lock()
+		a.currentSessionID = sessionID
+		a.mu.Unlock()
+		log.Info("RestoreSession: session ID %q registered, no stored messages", sessionID)
+		return true
+	}
+
+	// Legacy fallback: try old SaveSession format (SessionData as JSON in "current" key)
 	a.mu.Lock()
 	defer a.mu.Unlock()
-
 	data, found, err := a.store.LoadSession()
 	if err != nil {
 		log.Warn("RestoreSession: LoadSession error: %v", err)
@@ -458,16 +642,13 @@ func (a *Agent) RestoreSession() bool {
 		log.Warn("RestoreSession: SessionData has empty Messages field")
 		return false
 	}
-	log.Debug("RestoreSession: Messages field length: %d bytes", len(session.Messages))
 
 	var nonSystemMessages []llm.Message
 	if err := json.Unmarshal(session.Messages, &nonSystemMessages); err != nil {
-		log.Warn("RestoreSession: failed to unmarshal messages array: %v, messages data: %s", err, string(session.Messages[:min(len(session.Messages), 200)]))
+		log.Warn("RestoreSession: failed to unmarshal messages array: %v", err)
 		return false
 	}
-	log.Info("RestoreSession: successfully restored %d non-system messages from storage", len(nonSystemMessages))
-
-	// Prepend fresh system prompt to restored non-system messages
+	log.Info("RestoreSession: legacy restore of %d non-system messages", len(nonSystemMessages))
 	a.messages = append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, nonSystemMessages...)
 	return true
 }
@@ -515,22 +696,51 @@ func (a *Agent) PersistSessionNonSystem() error {
 		return nil
 	}
 	data, err := json.Marshal(msgs)
+	sessionID := a.currentSessionID
 	a.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot serialize non-system messages: %w", err)
 	}
-	log.Debug("PersistSessionNonSystem: serialized %d msgs (%d bytes)", len(msgs), len(data))
-	// Wrap in SessionData for consistent save/load format
-	entry, err := json.Marshal(store.SessionData{
-		Version:       1,
-		Messages:      data,
-		LastUpdatedAt: time.Now(),
-	})
-	if err != nil {
-		return fmt.Errorf("cannot marshal session data: %w", err)
+
+	// Write to current named session entry instead of "current" key
+	if sessionID == "" {
+		// No current session: create one
+		now := time.Now()
+		randBytes := make([]byte, 4)
+		randBytes[0] = byte(now.Nanosecond() & 0xFF)
+		randBytes[1] = byte(now.Nanosecond() >> 8 & 0xFF)
+		randBytes[2] = byte(now.Second() & 0xFF)
+		randBytes[3] = byte(now.Minute() & 0xFF)
+		sessionID = fmt.Sprintf("sess-%s-%08x", now.Format("20060102150405"), randBytes)
+		a.SetCurrentSessionID(sessionID)
 	}
-	log.Info("PersistSessionNonSystem: saved %d non-system messages to storage (%d bytes)", len(msgs), len(entry))
-	return a.store.SaveSession(entry)
+
+	// Preserve existing title/keywords/CreatedAt
+	existing, found, _ := a.store.LoadNamedSession(sessionID)
+	entry := &store.SessionEntry{
+		ID:           sessionID,
+		Title:        "",
+		Keywords:     "",
+		Messages:     data,
+		MessageCount: len(msgs),
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	if found && existing != nil {
+		entry.Title = existing.Title
+		entry.Keywords = existing.Keywords
+		entry.CreatedAt = existing.CreatedAt
+	}
+	if err := a.store.UpdateNamedSession(sessionID, entry); err != nil {
+		log.Warn("PersistSessionNonSystem: UpdateNamedSession failed: %v", err)
+	}
+	// Also update "current" pointer
+	if err := a.store.SaveCurrentSessionID(sessionID); err != nil {
+		log.Warn("PersistSessionNonSystem: SaveCurrentSessionID failed: %v", err)
+	}
+
+	log.Debug("PersistSessionNonSystem: saved %d msgs to session %q", len(msgs), sessionID)
+	return nil
 }
 
 func (a *Agent) MessagePointer() int {
