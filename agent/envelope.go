@@ -298,6 +298,10 @@ func (a *Agent) buildFreshEnvelope() string {
 // user message and appends a fresh one with updated time and opened resources.
 // This makes a retry look like a fresh send rather than a resend from history.
 func (a *Agent) refreshLastUserEnvelope() {
+	// Build the fresh envelope outside the lock since buildOpenedResources
+	// needs to acquire a.mu internally.
+	envText := a.buildFreshEnvelope()
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -325,7 +329,6 @@ func (a *Agent) refreshLastUserEnvelope() {
 	}
 
 	// Append fresh envelope
-	envText := a.buildFreshEnvelope()
 	msg.AppendTextPart(envText)
 }
 
