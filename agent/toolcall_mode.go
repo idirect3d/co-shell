@@ -390,7 +390,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					}
 				}
 				if !isKnown {
-					// Unknown tag - skip the entire block and treat as content
+					// Unknown tag - report error via _xml_parse_error
 					closeTag := "</" + tagName + ">"
 					closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
 					if closeIdx < 0 {
@@ -401,7 +401,13 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					} else {
 						i = openEnd
 					}
-					log.Debug("ParseXMLToolCalls: skipping unknown tag <%s> (not a known tool)", tagName)
+					errMsg := fmt.Sprintf("未知的方法调用标签 <%s>，请检查方法名是否正确。可用的方法名请参考系统提示词中的 Tools 列表。", tagName)
+					log.Debug("ParseXMLToolCalls: %s", errMsg)
+					calls = append(calls, llm.ToolCall{
+						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+						Name:      "_xml_parse_error",
+						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+					})
 					continue
 				}
 				// Known tool — now validate syntax. Skip space/attribute and
@@ -574,14 +580,16 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 			log.Debug("ParseXMLToolCalls: tag=<%s>, innerContent=%q, params=%q, hasChildElements=%v, parseErrors=%v",
 				tagName, innerContent, params, hasChildElements(innerContent), parseErrors)
 
-			// If tools are provided, validate parameter names against the tool definition.
-			// This catches parameter name typos (e.g., "commmand" instead of "command").
+			// If tools are provided, validate parameters against the tool definition.
+			// This catches parameter name typos (e.g., "commmand" instead of "command")
+			// AND missing required parameters.
 			if len(tools) > 0 {
 				validParams := getToolParamNames(tools, tagName)
 				if validParams != nil {
 					// Parse the params JSON to extract parameter names
 					var parsedArgs map[string]interface{}
 					if err := json.Unmarshal([]byte(params), &parsedArgs); err == nil {
+						// Check for unknown parameter names (typos)
 						for paramName := range parsedArgs {
 							if !validParams[paramName] {
 								errMsg := fmt.Sprintf("参数名 %q 不是工具 %q 的合法参数。%s 的合法参数有：%s",
@@ -589,6 +597,27 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 								parseErrors = append(parseErrors, errMsg)
 							}
 						}
+						// Check for missing required parameters
+						for _, tool := range tools {
+							if tool.Name == tagName {
+								if requiredRaw, ok := tool.Parameters["required"].([]interface{}); ok {
+									for _, r := range requiredRaw {
+										if reqName, ok := r.(string); ok {
+											// Skip "intent" - it's always the first required param
+											if _, found := parsedArgs[reqName]; !found {
+												errMsg := fmt.Sprintf("工具 %q 缺少必要参数 %q", tagName, reqName)
+												parseErrors = append(parseErrors, errMsg)
+											}
+										}
+									}
+								}
+								break
+							}
+						}
+					} else {
+						// JSON parse failed - params string may be malformed
+						errMsg := fmt.Sprintf("工具 %q 的参数解析失败: %v", tagName, err)
+						parseErrors = append(parseErrors, errMsg)
 					}
 				}
 			}

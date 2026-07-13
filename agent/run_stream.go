@@ -170,6 +170,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	tools := a.buildTools()
 
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
+		// Refresh the last user message's <environment_details> so retries and
+		// loop-back iterations always show current time and opened resources.
+		a.refreshLastUserEnvelope()
+
 		// FIX-240: Reset content loop detector per-iteration.
 		// Content loops are intra-iteration phenomena; counting across iterations
 		// can cause false positives when the LLM reuses common phrases.
@@ -535,7 +539,119 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
-		// Step 2: Handle responses with no tool calls.
+		// Step 2: Handle XML parse errors (stored in taskInstructionCache by streamLLMResponse
+		// or nonStreamingFallback). The malformed assistant message is NOT in a.messages yet,
+		// so we simply apply loop-intervention strategy and continue. loop-intervention=off
+		// falls back to retry (no feedback).
+		//
+		// The cache contains structured JSON lines: {"tool": "tool_name", "error": "..."}
+		// Extract the tool name and use buildReferenceFormat to provide a preventive format tip.
+		a.mu.Lock()
+		xmlParseData := a.taskInstructionCache.String()
+		a.mu.Unlock()
+		if xmlParseData != "" {
+			a.mu.Lock()
+			a.taskInstructionCache.Reset()
+			a.mu.Unlock()
+
+			// Parse the first error entry to get the tool name
+			lines := strings.SplitN(xmlParseData, "\n---\n", 2)
+			firstLine := strings.TrimSpace(lines[0])
+			toolName := ""
+			if strings.HasPrefix(firstLine, "{") {
+				var entry struct {
+					Tool  string `json:"tool"`
+					Error string `json:"error"`
+				}
+				if err := json.Unmarshal([]byte(firstLine), &entry); err == nil {
+					toolName = entry.Tool
+				}
+			}
+
+			// Get the format suggestion for the tool (XML mode)
+			formatSuggestion := buildReferenceFormat(toolName)
+
+			// Build preventive prompt using i18n template
+			preventiveTemplate := i18n.T(i18n.KeyXMLParseErrorSuggestion)
+			fullFeedback := strings.ReplaceAll(preventiveTemplate, "{TOOL_NAME}", toolName)
+			fullFeedback = strings.ReplaceAll(fullFeedback, "{FORMAT}", formatSuggestion)
+
+			loopAction := "retry"
+			if a.cfg != nil && a.cfg.LLM.LoopIntervention != "" {
+				loopAction = a.cfg.LLM.LoopIntervention
+			}
+			if loopAction == "off" {
+				loopAction = "retry"
+			}
+
+			loopFeedback := ""
+			var strategyParts []string
+			switch loopAction {
+			case "retry":
+				loopFeedback = ""
+				strategyParts = append(strategyParts, "重发上下文（无反馈）")
+			case "prompt":
+				loopFeedback = fullFeedback
+				strategyParts = append(strategyParts, "发送纠错提示")
+			case "temperature":
+				if a.loopTempCtrl != nil {
+					oldTemp := a.loopTempCtrl.Temperature()
+					newTemp, changed := a.loopTempCtrl.Apply()
+					if changed {
+						a.llmClient.SetTemperature(newTemp)
+						strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
+					}
+				}
+				strategyParts = append(strategyParts, "重发上下文")
+			case "reorganize":
+				suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
+				if suggestion != "" {
+					loopFeedback = suggestion
+				}
+				strategyParts = append(strategyParts, "重整上下文")
+			case "random":
+				actions := []string{"retry", "prompt", "reorganize", "temperature"}
+				choice := actions[time.Now().UnixNano()%4]
+				switch choice {
+				case "retry":
+					strategyParts = append(strategyParts, "随机选择: 重发上下文")
+				case "prompt":
+					loopFeedback = fullFeedback
+					strategyParts = append(strategyParts, "随机选择: 发送纠错提示")
+				case "reorganize":
+					if suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion); suggestion != "" {
+						loopFeedback = suggestion
+					}
+					strategyParts = append(strategyParts, "随机选择: 重整上下文")
+				case "temperature":
+					if a.loopTempCtrl != nil {
+						oldTemp := a.loopTempCtrl.Temperature()
+						newTemp, changed := a.loopTempCtrl.Apply()
+						if changed {
+							a.llmClient.SetTemperature(newTemp)
+							strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
+						}
+					}
+					strategyParts = append(strategyParts, "随机选择: 重发上下文")
+				}
+			}
+
+			if loopFeedback != "" {
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: fmt.Sprintf("<task>\n%s\n</task>", loopFeedback),
+				})
+				a.mu.Unlock()
+			}
+
+			cb("info", fmt.Sprintf("检测到XML解析错误\n"))
+			cb("info", fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
+			cb("info", "────────────────────────────────────────────\n")
+			continue
+		}
+
+		// Step 3: Handle responses with no tool calls.
 		// Exit conditions:
 		//   1. attempt_completion IS available AND was called (completed=true) → exit
 		//   2. attempt_completion IS available AND NOT called → prompt LLM to continue or call attempt_completion
@@ -654,6 +770,15 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 			}
 			a.lastAssistantContent = finalContent
+			if event != nil {
+				// Duplicate detected: do NOT append the assistant message.
+				// applyLoopIntervention will send feedback, then continue.
+				a.mu.Unlock()
+				log.Debug("Agent.RunStream: content duplicate detected, applying loop intervention (assistant discarded)")
+				a.applyLoopIntervention(event)
+				continue
+			}
+			// No duplicate: append the assistant message first, then the continue prompt
 			a.messages = append(a.messages, llm.Message{
 				Role:             "assistant",
 				Content:          finalContent,
@@ -664,13 +789,6 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					log.Warn("Failed to save assistant message to memory: %v", err)
 				}
 			}
-			if event != nil {
-				a.mu.Unlock()
-				log.Debug("Agent.RunStream: content duplicate detected, applying loop intervention")
-				a.applyLoopIntervention(event)
-				continue
-			}
-			// No duplicate: append the standard continue prompt
 			continuePrompt := i18n.T(i18n.KeyContinuePrompt)
 			a.messages = append(a.messages, llm.Message{
 				Role:    "user",

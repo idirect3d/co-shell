@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -99,4 +99,12 @@ func init() {
 	zhMessages[KeyCLIHelpLoopIntervention] = "      --loop-intervention    循环介入策略（off/retry/prompt/reorganize/temperature/random，覆盖配置文件）"
 	zhMessages[KeyReorganizeResult] = "✅ 上下文已重新整理：摘要 %d 字符。"
 	zhMessages[KeyLoopReorganizeSuggestion] = "\n\n⚠️ 检测到循环后上下文已被重置。建议调用 reorganize_context 工具重新整理上下文，总结已做的工作和发现，并制定新的策略继续。"
+
+	// Proactive/preventive intervention templates (discarded bad content, no post-mortem)
+	zhMessages[KeyXMLParseErrorSuggestion] = `接下来调用 {TOOL_NAME} 方法时，请特别注意调用格式的正确性：
+{FORMAT}
+确保每个标签正确闭合，参数值如果包含特殊字符（<、>、&），请用 <![CDATA[...]]> 包裹。`
+	zhMessages[KeyContentLoopSuggestion] = `当前问题可能遇到了瓶颈，继续同样的分析方式不太可能带来新的突破。换一种不同的思路来推进——使用不同的工具组合、换一个分析角度、或向用户提问澄清需求。如果任务目标已经达成，请调用 attempt_completion。`
+	zhMessages[KeyToolRepeatSuggestion] = `刚才使用的工具组合可能不是解决当前问题的最有效方式。接下来尝试使用不同的工具或不同的参数来推进任务。如果对需求有困惑，先向用户提问。`
+	zhMessages[KeyContentDupSuggestion] = `当前进展可能遇到了瓶颈，继续同样的分析方式不太可能带来新的突破。如果任务目标已经达成，请调用 attempt_completion 离开循环。否则请换一种不同的思路，或向用户提问以获得更多线索。`
 }

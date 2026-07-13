@@ -329,11 +329,30 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 								}
 							}
 							if len(parseErrors) > 0 {
-								// Return parse errors directly to the LLM as assistant content,
-								// so it can see and fix the format issues immediately.
-								finalContent = strings.Join(parseErrors, "\n---\n")
+								// Store parse errors as structured JSON in taskInstructionCache,
+								// including the tool name so RunStream can look up the correct format.
+								// Format: {"tool": "excel_edit", "error": "...details..."}
+								// When multiple errors belong to different tools, separate with \n---\n.
+								var cacheLines []string
+								for _, pe := range parseErrors {
+									// Extract tool name from the error message (format: "tag": "tool_name")
+									toolName := ""
+									if tagStart := strings.Index(pe, `"tag": "`); tagStart >= 0 {
+										tagStart += len(`"tag": "`)
+										if tagEnd := strings.Index(pe[tagStart:], `"`); tagEnd >= 0 {
+											toolName = pe[tagStart : tagStart+tagEnd]
+										}
+									}
+									if toolName == "" {
+										cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": "", "error": %q}`, pe))
+									} else {
+										cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": %q, "error": %q}`, toolName, pe))
+									}
+								}
+								a.taskInstructionCache.WriteString(strings.Join(cacheLines, "\n---\n"))
+								finalContent = ""
 								toolCalls = nil
-								log.Warn("Agent.streamLLMResponse: returning %d XML parse errors to LLM as content (no tool calls)",
+								log.Warn("Agent.streamLLMResponse: %d XML parse errors stored in taskInstructionCache (no tool calls)",
 									len(parseErrors))
 								for _, pe := range parseErrors {
 									log.Warn("  Parse error: %s", pe)

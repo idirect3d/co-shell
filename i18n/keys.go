@@ -884,6 +884,14 @@ const (
 
 	// Duplicate assistant content detection (FEATURE-249)
 
+	// Loop/error intervention suggestion templates (proactive/preventive)
+	// {TOOL_NAME} = name of the tool that had format issues
+	// {FORMAT} = correct usage example of the tool
+	KeyXMLParseErrorSuggestion = "xml_parse_error_suggestion"
+	KeyContentLoopSuggestion   = "content_loop_suggestion"
+	KeyToolRepeatSuggestion    = "tool_repeat_suggestion"
+	KeyContentDupSuggestion    = "content_dup_suggestion"
+
 	// Debug mode (FEATURE-XXX)
 	KeyDebugMode         = "debug_mode"
 	KeyDebugPromptHeader = "debug_prompt_header"
