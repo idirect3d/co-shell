@@ -293,12 +293,16 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			// the assistant message has been appended to a.messages. The problematic content
 			// is already discarded by the LoopDetectedError in streamLLMResponse.
 			// Removing previous iteration's messages would lose valuable context.
+			// However, before retrying we strip the stale assistant+continuePrompt pair
+			// from the PREVIOUS iteration so the LLM sees a clean slate.
 			// FIX-240 / FEATURE-241: Handle sync mode loop detection.
 			// In sync mode (LoopJudgeEnabled=false), streamLLMResponse returns
 			// LoopDetectedError immediately. Adjust temperature and retry.
 			// In async mode (LoopJudgeEnabled=true), streamLLMResponse does NOT
 			// return error for content loops; checkLoopJudgeResult handles it.
 			if a.loopDetectCrit {
+				// Strip stale assistant+continuePrompt pair from previous iteration.
+				a.stripLastAssistantAndContinue()
 				// LOG: read actual LoopIntervention from a.cfg for diagnostics
 				var diagLoopAction string
 				if a.cfg != nil {
