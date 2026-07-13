@@ -543,13 +543,27 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 					}
 				}
 				if len(parseErrors) > 0 {
-					// Return parse errors directly to the LLM as assistant content,
-					// so it can see and fix the format issues immediately.
-					content := strings.Join(parseErrors, "\n---\n")
+					// Store parse errors as structured JSON with tool name for format lookup.
+					var cacheLines []string
+					for _, pe := range parseErrors {
+						toolName := ""
+						if tagStart := strings.Index(pe, `"tag": "`); tagStart >= 0 {
+							tagStart += len(`"tag": "`)
+							if tagEnd := strings.Index(pe[tagStart:], `"`); tagEnd >= 0 {
+								toolName = pe[tagStart : tagStart+tagEnd]
+							}
+						}
+						if toolName == "" {
+							cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": "", "error": %q}`, pe))
+						} else {
+							cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": %q, "error": %q}`, toolName, pe))
+						}
+					}
+					a.taskInstructionCache.WriteString(strings.Join(cacheLines, "\n---\n"))
 					toolCalls = nil
-					log.Debug("Agent.nonStreamingFallback: returning %d XML parse errors to LLM as content (no tool calls)",
+					log.Debug("Agent.nonStreamingFallback: %d XML parse errors stored in taskInstructionCache (no tool calls)",
 						len(parseErrors))
-					return content, resp.ReasoningContent, nil, nil
+					return "", resp.ReasoningContent, nil, nil
 				}
 				toolCalls = validCalls
 				log.Debug("Agent.nonStreamingFallback: parsed %d XML tool calls from content (ignored %d API-level tool calls)",

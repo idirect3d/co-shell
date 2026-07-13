@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, BUT INCLUDING NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -275,6 +275,58 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
 	sb.WriteString("\n")
 	sb.WriteString("</environment_details>")
 	return sb.String()
+}
+
+// buildFreshEnvelope builds a minimal <environment_details> block with only
+// the live-updated fields: time and opened_resources. This is used when retrying
+// without a new LLM call, to refresh the last user message's env info.
+// Token usage is intentionally NOT updated (no new LLM call occurred).
+func (a *Agent) buildFreshEnvelope() string {
+	now := time.Now().Format("2006-01-02 15:04:05 Monday")
+	var sb strings.Builder
+	sb.WriteString("<environment_details>\n")
+	sb.WriteString("<time>")
+	sb.WriteString(now)
+	sb.WriteString("</time>\n")
+	sb.WriteString(a.buildOpenedResources())
+	sb.WriteString("\n")
+	sb.WriteString("</environment_details>")
+	return sb.String()
+}
+
+// refreshLastUserEnvelope strips the old <environment_details> from the last
+// user message and appends a fresh one with updated time and opened resources.
+// This makes a retry look like a fresh send rather than a resend from history.
+func (a *Agent) refreshLastUserEnvelope() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Find the last user message
+	lastUserIdx := -1
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if a.messages[i].Role == "user" {
+			lastUserIdx = i
+			break
+		}
+	}
+	if lastUserIdx < 0 {
+		return
+	}
+
+	msg := &a.messages[lastUserIdx]
+	if len(msg.ContentParts) == 0 {
+		return
+	}
+
+	// Strip the last ContentPart if it contains <environment_details>
+	lastIdx := len(msg.ContentParts) - 1
+	if strings.Contains(msg.ContentParts[lastIdx].Text, "<environment_details>") {
+		msg.ContentParts = msg.ContentParts[:lastIdx]
+	}
+
+	// Append fresh envelope
+	envText := a.buildFreshEnvelope()
+	msg.AppendTextPart(envText)
 }
 
 // taskPlanTools lists the LLM tools that manage task plans. When the LLM has just
