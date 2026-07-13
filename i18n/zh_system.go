@@ -788,14 +788,16 @@ Parameters:
   - session_id: excel_open 返回的会话 ID
   - sheet: Sheet 名称（如 "Sheet1"）
   - start_cell: 起始单元格引用（如 "A1"、"C5"）
-  - values: 二维数组，每个元素是一个字符串数组，代表一行数据
+  - values: 二维数组 — 每个 <item> 是一个 TSV（Tab 分隔）行，可直接从 Excel 复制粘贴
 Usage:
 <excel_edit>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
-  <start_cell>C5</start_cell>
+  <start_cell>A1</start_cell>
   <values>
-    <item>["Q4 Total", "12500", "=SUM(C2:C4)"]</item>
+    <item>姓名	年龄	城市</item>
+    <item>张三	30	北京</item>
+    <item>李四	25	上海</item>
   </values>
 </excel_edit>`
 

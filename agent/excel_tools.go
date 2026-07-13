@@ -28,7 +28,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -334,21 +333,38 @@ func (a *Agent) excelEditTool(ctx context.Context, args map[string]interface{}) 
 		return "", fmt.Errorf("invalid start_cell %q: %w", startCell, err)
 	}
 
-	// Parse rows: support both []interface{} (JSON mode) and []string (XML mode)
+	// Parse rows: support both []interface{} (OpenAI mode) and tab-separated string (XML mode)
 	parsedRows := make([][]string, 0)
-	for _, rowRaw := range valuesRaw {
+	var warnings []string
+	for ri, rowRaw := range valuesRaw {
 		rowArr, ok := rowRaw.([]interface{})
 		if !ok {
-			// XML mode: row values may be strings like "[\"a\",\"b\"]"
+			// XML mode: row values are tab-separated text (TSV format, like Excel copy)
 			rowStr, ok := rowRaw.(string)
 			if !ok {
 				continue
 			}
-			var jsonArr []interface{}
-			if err := json.Unmarshal([]byte(rowStr), &jsonArr); err != nil {
-				continue
+			// Split by tab (TSV — recommended, direct from Excel copy)
+			parts := strings.Split(rowStr, "\t")
+			if len(parts) >= 2 {
+				rowArr = make([]interface{}, len(parts))
+				for i, p := range parts {
+					rowArr[i] = p
+				}
+			} else {
+				// Fallback: try comma-separated
+				parts = strings.Split(rowStr, ",")
+				if len(parts) >= 2 {
+					warnings = append(warnings, fmt.Sprintf("Row %d: used comma as separator (TSV preferred)", ri+1))
+					rowArr = make([]interface{}, len(parts))
+					for i, p := range parts {
+						rowArr[i] = strings.TrimSpace(p)
+					}
+				} else {
+					warnings = append(warnings, fmt.Sprintf("Row %d skipped: single value, not a TSV row", ri+1))
+					continue
+				}
 			}
-			rowArr = jsonArr
 		}
 		rowVals := make([]string, 0, len(rowArr))
 		for _, valRaw := range rowArr {
@@ -380,7 +396,11 @@ func (a *Agent) excelEditTool(ctx context.Context, args map[string]interface{}) 
 	s.Dirty = true
 
 	endCell := xlsx.FormatCellRef(startCol+colCount-1, startRow+len(parsedRows)-1)
-	return fmt.Sprintf("已写入 %d 行 × %d 列到 %s!%s:%s\n(未保存，请调用 excel_save 持久化)", len(parsedRows), colCount, sheetName, startCell, endCell), nil
+	result := fmt.Sprintf("已写入 %d 行 × %d 列到 %s!%s:%s\n(未保存，请调用 excel_save 持久化)", len(parsedRows), colCount, sheetName, startCell, endCell)
+	if len(warnings) > 0 {
+		result += "\n⚠ " + strings.Join(warnings, "\n⚠ ")
+	}
+	return result, nil
 }
 
 // excelCopyTool copies a range to the clipboard.

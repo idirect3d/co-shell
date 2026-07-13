@@ -719,6 +719,11 @@
   - config/config.go: LoopDetectThreshold 默认值从 5 改为 2
   - agent/agent.go: word_continue/word_format/excel_edit/excel_paste/excel_insert 从 confirm 改为 auto
   - agent/agent.go: word_erase/excel_delete 保持 confirm
+- [x] FIX-278 excel_edit 增加 TSV fallback 解析和 i18n 用法示例补全 [BUILD-300]
+  - agent/excel_tools.go: excelEditTool 中去掉 JSON 解析，改为纯 TSV 模式，保留多行 CSV fallback
+  - i18n/zh_system.go / i18n/en_system.go: 补全 excel_edit XML 用法示例，改为 TSV 格式说明
+- [ ] FIX-279 循环检测计数器在干预后未重置问题
+  - agent/loop.go: applyLoopIntervention 中按事件类型精准重置触发检测器，避免同模式刚发完反馈就再次触发
 
 ## v1.0.0 — 正式版
 
