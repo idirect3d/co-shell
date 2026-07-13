@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, BUT INCLUDING NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -141,8 +142,68 @@ func stripSingleEnvelope(content string) string {
 	return result
 }
 
+// buildOpenedResources builds an <opened_resources> block listing all currently open
+// resources that can be persisted across iterations: browser tabs, Excel sessions,
+// Word sessions, and shell session.
+func (a *Agent) buildOpenedResources() string {
+	var sb strings.Builder
+	sb.WriteString("<opened_resources>\n")
+
+	// Browser — check if Chrome manager is running
+	a.mu.Lock()
+	chromeRunning := a.chromeMgr != nil && a.chromeMgr.IsRunning()
+	a.mu.Unlock()
+	if chromeRunning {
+		sb.WriteString("  <browser>running</browser>\n")
+	} else {
+		sb.WriteString("  <browser>none</browser>\n")
+	}
+
+	// Excel sessions
+	if a.excelSessionMgr != nil {
+		sessions := a.excelSessionMgr.listSessions()
+		if len(sessions) > 0 {
+			sb.WriteString("  <excel>\n")
+			for _, s := range sessions {
+				sb.WriteString(fmt.Sprintf("    <session>%s</session>\n", s))
+			}
+			sb.WriteString("  </excel>\n")
+		} else {
+			sb.WriteString("  <excel>none</excel>\n")
+		}
+	}
+
+	// Word/DOCX sessions
+	if a.docxSessionMgr != nil {
+		sessions := a.docxSessionMgr.listSessions()
+		if len(sessions) > 0 {
+			sb.WriteString("  <word>\n")
+			for _, s := range sessions {
+				sb.WriteString(fmt.Sprintf("    <session>%s</session>\n", s))
+			}
+			sb.WriteString("  </word>\n")
+		} else {
+			sb.WriteString("  <word>none</word>\n")
+		}
+	}
+
+	// Shell session
+	a.mu.Lock()
+	hasShell := a.shellSession != nil && a.shellSession.IsRunning()
+	a.mu.Unlock()
+	if hasShell {
+		sb.WriteString("  <shell>running</shell>\n")
+	} else {
+		sb.WriteString("  <shell>none</shell>\n")
+	}
+
+	sb.WriteString("</opened_resources>")
+	return sb.String()
+}
+
 // buildFullEnvironmentDetails constructs the complete <environment_details> block
-// with time, message_no, context_window, cwd, files, bin, research, and task_plan.
+// with time, message_no, context_window, cwd, files, bin, research, task_plan,
+// and opened_resources.
 // Used by both injectEnvelopeToLastUser (for user messages) and
 // injectTimeAndMessageNoToLast (for tool result messages).
 func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
@@ -209,6 +270,9 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
 		sb.WriteString(taskPlan)
 		sb.WriteString("\n</task_plan>\n")
 	}
+	// Append opened resources block
+	sb.WriteString(a.buildOpenedResources())
+	sb.WriteString("\n")
 	sb.WriteString("</environment_details>")
 	return sb.String()
 }

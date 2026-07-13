@@ -344,6 +344,9 @@ func (a *Agent) excelEditTool(ctx context.Context, args map[string]interface{}) 
 			if !ok {
 				continue
 			}
+			// Normalize escaped "\t" to real tab before splitting.
+			// Some LLMs may output literal "\t" (two chars) instead of a real tab byte.
+			rowStr = strings.ReplaceAll(rowStr, "\\t", "\t")
 			// Split by tab (TSV — recommended, direct from Excel copy)
 			parts := strings.Split(rowStr, "\t")
 			if len(parts) >= 2 {
