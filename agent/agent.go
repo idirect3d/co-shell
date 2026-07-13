@@ -1673,3 +1673,32 @@ func (a *Agent) removeLastAssistantWithToolCalls() string {
 	a.messages = a.messages[:lastAssistantIdx]
 	return sb.String()
 }
+
+// stripLastAssistantAndContinue removes the last assistant message (without
+// tool_calls) and the following user continue prompt from the end of a.messages.
+// This ensures retried iterations start from a clean slate — only the real
+// user input remains. Has no effect if there are fewer than 2 messages.
+func (a *Agent) stripLastAssistantAndContinue() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if len(a.messages) < 2 {
+		return
+	}
+
+	// Pattern: last message is user (continuePrompt?), second-to-last is
+	// assistant without tool_calls.
+	lastIdx := len(a.messages) - 1
+	secondLastIdx := lastIdx - 1
+
+	if a.messages[secondLastIdx].Role == "assistant" && len(a.messages[secondLastIdx].ToolCalls) == 0 &&
+		a.messages[lastIdx].Role == "user" {
+		// Strip both: stale assistant + continue prompt
+		a.messages = a.messages[:secondLastIdx]
+		log.Debug("stripLastAssistantAndContinue: stripped stale assistant+continue prompt pair")
+	} else if a.messages[lastIdx].Role == "assistant" && len(a.messages[lastIdx].ToolCalls) == 0 {
+		// Only a stale assistant at the end
+		a.messages = a.messages[:lastIdx]
+		log.Debug("stripLastAssistantAndContinue: stripped stale assistant (no continue prompt)")
+	}
+}
