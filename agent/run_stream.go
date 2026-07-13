@@ -181,8 +181,12 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.loopDetector.Reset()
 		}
 
-		// Step 1: Debug mode - allow review/edit of user message before sending
-		a.debugIntercept()
+		// Step 1: Debug mode - allow review/edit of user message before sending.
+		// Skip for .continue mode (first iteration with empty userInput) to avoid
+		// blocking on ReadLine when the user explicitly wants to send existing context.
+		if userInput != "" || iteration > 0 {
+			a.debugIntercept()
+		}
 
 		// Step 2: Stream the LLM response
 		var finalContent, finalReasoning string
