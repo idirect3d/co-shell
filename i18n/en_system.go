@@ -784,16 +784,16 @@ Parameters:
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name (e.g. "Sheet1")
   - start_cell: Starting cell reference (e.g. "A1", "C5")
-  - values: 2D array of string values to write
+  - values: 2D array — each <item> is a TSV (tab-separated) row, directly pasteable from Excel copy
 Usage:
 <excel_edit>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
-  <start_cell>C5</start_cell>
+  <start_cell>A1</start_cell>
   <values>
-    <item>Total</item>
-    <item>12500</item>
-    <item>=SUM(C2:C4)</item>
+    <item>Name	Age	City</item>
+    <item>Alice	30	Beijing</item>
+    <item>Bob	25	Shanghai</item>
   </values>
 </excel_edit>`
 

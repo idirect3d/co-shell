@@ -845,6 +845,20 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		// The action check happens below in the switch.
 	}
 
+	// Reset the triggering detector's counters so the same pattern does not
+	// re-trigger immediately in the next iteration after intervention.
+	// Each event type maps to its corresponding detector.
+	switch event.Type {
+	case LoopEventContentPeriodic, LoopEventContentDuplicate, LoopEventSingleLineRepeat:
+		if a.loopDetector != nil {
+			a.loopDetector.Reset()
+		}
+	case LoopEventToolCallRepeat:
+		if a.toolCallLoopDetector != nil {
+			a.toolCallLoopDetector.Reset()
+		}
+	}
+
 	// Build the feedback message based on event type
 	var loopFeedback string
 	var strategyDesc string
