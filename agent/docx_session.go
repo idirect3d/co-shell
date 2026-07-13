@@ -183,6 +183,17 @@ func (mgr *docxSessionManager) save(sessionID string) error {
 	return nil
 }
 
+func (mgr *docxSessionManager) listSessions() []string {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+
+	result := make([]string, 0, len(mgr.sessions))
+	for id, s := range mgr.sessions {
+		result = append(result, fmt.Sprintf("%s (%s)", id, s.Path))
+	}
+	return result
+}
+
 func (mgr *docxSessionManager) close(sessionID string) error {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
