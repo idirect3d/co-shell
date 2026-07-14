@@ -725,9 +725,11 @@ Usage:
 	zhMessages[KeyToolUsageExcelClose] = `## excel_close
 Description: 关闭一个 Excel 会话。如有未保存修改，会自动保存到磁盘后释放内存。
 Parameters:
+  - intent: 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
   - session_id: excel_open 返回的会话 ID
 Usage:
 <excel_close>
+  <intent>编辑完成后关闭报表电子表格</intent>
   <session_id>xl_1234567890</session_id>
 </excel_close>`
 
@@ -1260,17 +1262,20 @@ Usage:
 	zhMessages[KeyToolUsageExcelOpen] = `## excel_open
 Description: 打开一个 XLSX 文件，返回会话 ID。mode 为必填参数：'create'（新建，文件必须不存在）、'read'（只读打开，保存会失败）、'copy'（复制一份带时间戳的副本后打开副本）。
 Parameters:
+  - intent: 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
   - path: XLSX 文件路径
   - mode: 'create'（新建）、'read'（只读）、'copy'（复制）
 
 Usage:
 <excel_open>
+  <intent>打开报表电子表格</intent>
   <path>report.xlsx</path>
   <mode>read</mode>
 </excel_open>
 
 新建文件示例：
 <excel_open>
+  <intent>创建新的空白电子表格</intent>
   <path>new_report.xlsx</path>
   <mode>create</mode>
 </excel_open>`
