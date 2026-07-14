@@ -338,7 +338,7 @@ func buildStylesXML(sm *styleManager) string {
 	for _, xf := range sm.XFList {
 		numFmtID := 0
 		if xf.NumFmtID >= 0 {
-			numFmtID = xf.NumFmtID + 100
+			numFmtID = xf.NumFmtID
 		}
 		applyFmt := "0"
 		if xf.NumFmtID >= 0 {
