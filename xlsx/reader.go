@@ -119,6 +119,9 @@ func parseSST(files map[string]*zip.File, wb *Workbook) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
+			case "si":
+				inR = false
+				currentText.Reset()
 			case "r":
 				inR = true
 			case "t":
