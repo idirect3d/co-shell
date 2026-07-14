@@ -59,6 +59,13 @@ func OpenFile(path string) (*Workbook, error) {
 		return nil, fmt.Errorf("cannot parse shared strings: %w", err)
 	}
 
+	// Parse styles (fonts, fills, borders, cellXfs) so StyleID attributes
+	// on cells can be preserved through edit → save cycles without losing
+	// cell formatting (FEATURE-120 fix).
+	if err := parseStyles(files, wb); err != nil {
+		return nil, fmt.Errorf("cannot parse styles: %w", err)
+	}
+
 	if err := parseWb(files, wb); err != nil {
 		return nil, fmt.Errorf("cannot parse workbook: %w", err)
 	}
@@ -266,6 +273,21 @@ func parseRels(files map[string]*zip.File, sheetCount int) (map[int]string, erro
 	return sheetPaths, nil
 }
 
+// parseStyles opens xl/styles.xml and populates the workbook's style manager.
+func parseStyles(files map[string]*zip.File, wb *Workbook) error {
+	f, ok := files["xl/styles.xml"]
+	if !ok {
+		return nil // styles.xml is optional
+	}
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	sm := wb.StyleManager()
+	return sm.parseStylesReader(rc)
+}
+
 // parseSheet reads a worksheet using xml.Decoder token-by-token.
 func parseSheet(files map[string]*zip.File, path string, sheet *Sheet) error {
 	f, ok := files[path]
@@ -331,6 +353,9 @@ func parseSheet(files map[string]*zip.File, path string, sheet *Sheet) error {
 					}
 					if attr.Name.Local == "t" {
 						currentCell.Type = attr.Value
+					}
+					if attr.Name.Local == "s" {
+						fmt.Sscanf(attr.Value, "%d", &currentCell.StyleID)
 					}
 				}
 				inCell = true
