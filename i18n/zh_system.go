@@ -785,12 +785,14 @@ text 格式示例：
 	zhMessages[KeyToolUsageExcelEdit] = `## excel_edit
 Description: 从目标单元格开始写入数据。values 是一个二维字符串数组。如果值以 '=' 开头，则解释为公式。
 Parameters:
+  - intent: 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
   - session_id: excel_open 返回的会话 ID
   - sheet: Sheet 名称（如 "Sheet1"）
   - start_cell: 起始单元格引用（如 "A1"、"C5"）
   - values: 二维数组 — 每个 <item> 是一个 TSV（Tab 分隔）行，可直接从 Excel 复制粘贴
 Usage:
 <excel_edit>
+  <intent>从A1开始写入数据到电子表格</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_cell>A1</start_cell>
