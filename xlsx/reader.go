@@ -104,7 +104,9 @@ func parseSST(files map[string]*zip.File, wb *Workbook) error {
 	dec := xml.NewDecoder(rc)
 	var strs []string
 	var currentText strings.Builder
+	var currentSI strings.Builder
 	inT := false
+	inR := false
 
 	for {
 		tok, err := dec.Token()
@@ -116,14 +118,32 @@ func parseSST(files map[string]*zip.File, wb *Workbook) error {
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
-			if t.Name.Local == "t" {
+			switch t.Name.Local {
+			case "r":
+				inR = true
+			case "t":
 				inT = true
 				currentText.Reset()
 			}
 		case xml.EndElement:
-			if t.Name.Local == "t" {
-				strs = append(strs, currentText.String())
-				inT = false
+			switch t.Name.Local {
+			case "t":
+				if inT {
+					if inR {
+						currentSI.WriteString(currentText.String())
+					} else {
+						strs = append(strs, currentText.String())
+					}
+					inT = false
+				}
+			case "r":
+				inR = false
+			case "si":
+				// End of shared string item — flush accumulated rich text
+				if currentSI.Len() > 0 {
+					strs = append(strs, currentSI.String())
+					currentSI.Reset()
+				}
 			}
 		case xml.CharData:
 			if inT {
