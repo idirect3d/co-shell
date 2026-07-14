@@ -253,6 +253,17 @@ func buildStylesXML(sm *styleManager) string {
 	s := `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
 
+	// Number formats (numFmts)
+	if len(sm.NumFmts) > 0 {
+		s += fmt.Sprintf("\n  <numFmts count=\"%d\">", len(sm.NumFmts))
+		for i, nf := range sm.NumFmts {
+			// numFmtId starts at 164 for custom formats, or use 41+i for those read from file
+			fmtID := 41 + i
+			s += fmt.Sprintf(`<numFmt numFmtId="%d" formatCode="%s"/>`, fmtID, xmlEscape(nf))
+		}
+		s += "\n  </numFmts>"
+	}
+
 	// Fonts
 	s += fmt.Sprintf("\n  <fonts count=\"%d\">", len(sm.Fonts))
 	for _, f := range sm.Fonts {
