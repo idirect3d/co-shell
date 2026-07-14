@@ -17,16 +17,20 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
-// EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
-// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-// DEALINGS IN THE SOFTWARE.
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package xlsx
 
-import "fmt"
+import (
+	"encoding/xml"
+	"fmt"
+	"io"
+)
 
 // CellStyle brings together all style components for a cell.
 type CellStyle struct {
@@ -353,4 +357,207 @@ func (sm *styleManager) findOrAddNumFmt(f string) int {
 	idx := len(sm.NumFmts)
 	sm.NumFmts = append(sm.NumFmts, f)
 	return idx
+}
+
+// ----- XML parsing support for reading -----
+
+// parseStylesReader parses an xl/styles.xml reader into the styleManager.
+// It replaces the default entries with the parsed ones.
+func (sm *styleManager) parseStylesReader(r io.Reader) error {
+	dec := xml.NewDecoder(r)
+
+	// Clear defaults — they'll be replaced by what's in the file
+	sm.Fonts = nil
+	sm.Fills = nil
+	sm.Quads = nil
+	sm.Aligns = nil
+	sm.XFList = nil
+
+	inFonts := false
+	inFills := false
+	inBorders := false
+	inCellXfs := false
+
+	var currentFont xlFont
+	var currentFill xlFill
+	var currentBorder borderQuad
+	var currentXF xfEntry
+
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "fonts":
+				inFonts = true
+			case "fills":
+				inFills = true
+			case "borders":
+				inBorders = true
+			case "cellXfs":
+				inCellXfs = true
+			case "font":
+				if inFonts {
+					currentFont = xlFont{Name: "Calibri", Size: 11}
+				}
+			case "fill":
+				if inFills {
+					currentFill = xlFill{}
+				}
+			case "border":
+				if inBorders {
+					currentBorder = make(borderQuad, 4)
+				}
+			case "xf":
+				if inCellXfs {
+					currentXF = xfEntry{NumFmtID: -1, AlignID: -1, FontID: 0, FillID: 0, BorderID: 0}
+					for _, attr := range t.Attr {
+						switch attr.Name.Local {
+						case "numFmtId":
+							fmt.Sscanf(attr.Value, "%d", &currentXF.NumFmtID)
+						case "fontId":
+							fmt.Sscanf(attr.Value, "%d", &currentXF.FontID)
+						case "fillId":
+							fmt.Sscanf(attr.Value, "%d", &currentXF.FillID)
+						case "borderId":
+							fmt.Sscanf(attr.Value, "%d", &currentXF.BorderID)
+						}
+					}
+				}
+			case "sz":
+				if inFonts {
+					for _, attr := range t.Attr {
+						if attr.Name.Local == "val" {
+							fmt.Sscanf(attr.Value, "%d", &currentFont.Size)
+						}
+					}
+				}
+			case "name":
+				if inFonts {
+					for _, attr := range t.Attr {
+						if attr.Name.Local == "val" {
+							currentFont.Name = attr.Value
+						}
+					}
+				}
+			case "color":
+				// Handle color on font, border edges, or fill
+				col := ""
+				for _, attr := range t.Attr {
+					if attr.Name.Local == "rgb" {
+						col = attr.Value
+					} else if attr.Name.Local == "auto" {
+						col = ""
+					}
+				}
+				if inFonts {
+					currentFont.Color = col
+				}
+			case "b":
+				if inFonts {
+					currentFont.Bold = true
+				}
+			case "i":
+				if inFonts {
+					currentFont.Italic = true
+				}
+			case "u":
+				if inFonts {
+					currentFont.Underline = true
+				}
+			case "strike":
+				if inFonts {
+					currentFont.Strike = true
+				}
+			case "left", "right", "top", "bottom":
+				if inBorders {
+					// Parse border edge
+					edge := &xlBorderEdge{}
+					for _, attr := range t.Attr {
+						if attr.Name.Local == "style" {
+							edge.Style = attr.Value
+						}
+					}
+					// Process child elements for color
+					// (color is set in the CharData of child elements, handled below)
+					_ = edge
+				}
+			case "patternFill":
+				if inFills {
+					for _, attr := range t.Attr {
+						if attr.Name.Local == "patternType" {
+							currentFill.Pattern = attr.Value
+						}
+					}
+				}
+			case "fgColor":
+				if inFills {
+					for _, attr := range t.Attr {
+						if attr.Name.Local == "rgb" {
+							currentFill.Color = attr.Value
+						} else if attr.Name.Local == "auto" {
+							currentFill.Color = ""
+						}
+					}
+				}
+			}
+
+		case xml.EndElement:
+			switch t.Name.Local {
+			case "fonts":
+				inFonts = false
+			case "fills":
+				inFills = false
+			case "borders":
+				inBorders = false
+			case "cellXfs":
+				inCellXfs = false
+			case "font":
+				if inFonts {
+					sm.Fonts = append(sm.Fonts, currentFont)
+				}
+			case "fill":
+				if inFills {
+					sm.Fills = append(sm.Fills, currentFill)
+				}
+			case "border":
+				if inBorders {
+					sm.Quads = append(sm.Quads, currentBorder)
+				}
+			case "xf":
+				if inCellXfs {
+					sm.XFList = append(sm.XFList, currentXF)
+				}
+			}
+		}
+	}
+
+	// Ensure at least one of each exists
+	if len(sm.Fonts) == 0 {
+		sm.Fonts = append(sm.Fonts, xlFont{Name: "Calibri", Size: 11})
+	}
+	if len(sm.Fills) == 0 {
+		sm.Fills = append(sm.Fills, xlFill{Pattern: "none"})
+		sm.Fills = append(sm.Fills, xlFill{Pattern: "gray125"})
+	}
+	if len(sm.Quads) == 0 {
+		sm.Quads = append(sm.Quads, borderQuad{nil, nil, nil, nil})
+	}
+	if len(sm.Aligns) == 0 {
+		sm.Aligns = append(sm.Aligns, xlAlignment{})
+	}
+	if len(sm.XFList) == 0 {
+		sm.XFList = append(sm.XFList, xfEntry{
+			FontID: 0, FillID: 0, BorderID: 0, AlignID: 0, NumFmtID: -1,
+		})
+	}
+
+	return nil
 }

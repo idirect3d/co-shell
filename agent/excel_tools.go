@@ -335,8 +335,7 @@ func (a *Agent) excelEditTool(ctx context.Context, args map[string]interface{}) 
 
 	// Parse rows: support both []interface{} (OpenAI mode) and tab-separated string (XML mode)
 	parsedRows := make([][]string, 0)
-	var warnings []string
-	for ri, rowRaw := range valuesRaw {
+	for _, rowRaw := range valuesRaw {
 		rowArr, ok := rowRaw.([]interface{})
 		if !ok {
 			// XML mode: row values are tab-separated text (TSV format, like Excel copy)
@@ -345,28 +344,12 @@ func (a *Agent) excelEditTool(ctx context.Context, args map[string]interface{}) 
 				continue
 			}
 			// Normalize escaped "\t" to real tab before splitting.
-			// Some LLMs may output literal "\t" (two chars) instead of a real tab byte.
 			rowStr = strings.ReplaceAll(rowStr, "\\t", "\t")
-			// Split by tab (TSV — recommended, direct from Excel copy)
+			// Split by tab (TSV). Single-value and empty-string rows are valid.
 			parts := strings.Split(rowStr, "\t")
-			if len(parts) >= 2 {
-				rowArr = make([]interface{}, len(parts))
-				for i, p := range parts {
-					rowArr[i] = p
-				}
-			} else {
-				// Fallback: try comma-separated
-				parts = strings.Split(rowStr, ",")
-				if len(parts) >= 2 {
-					warnings = append(warnings, fmt.Sprintf("Row %d: used comma as separator (TSV preferred)", ri+1))
-					rowArr = make([]interface{}, len(parts))
-					for i, p := range parts {
-						rowArr[i] = strings.TrimSpace(p)
-					}
-				} else {
-					warnings = append(warnings, fmt.Sprintf("Row %d skipped: single value, not a TSV row", ri+1))
-					continue
-				}
+			rowArr = make([]interface{}, len(parts))
+			for i, p := range parts {
+				rowArr[i] = p
 			}
 		}
 		rowVals := make([]string, 0, len(rowArr))
@@ -400,9 +383,6 @@ func (a *Agent) excelEditTool(ctx context.Context, args map[string]interface{}) 
 
 	endCell := xlsx.FormatCellRef(startCol+colCount-1, startRow+len(parsedRows)-1)
 	result := fmt.Sprintf("已写入 %d 行 × %d 列到 %s!%s:%s\n(未保存，请调用 excel_save 持久化)", len(parsedRows), colCount, sheetName, startCell, endCell)
-	if len(warnings) > 0 {
-		result += "\n⚠ " + strings.Join(warnings, "\n⚠ ")
-	}
 	return result, nil
 }
 
