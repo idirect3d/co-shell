@@ -307,6 +307,8 @@ func parseSheet(files map[string]*zip.File, path string, sheet *Sheet) error {
 	inCell := false
 	inValue := false
 	inFormula := false
+	inCols := false
+	var currentColInfo ColInfo
 	var cellText strings.Builder
 
 	for {
@@ -321,16 +323,56 @@ func parseSheet(files map[string]*zip.File, path string, sheet *Sheet) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
+			case "cols":
+				inCols = true
+
+			case "col":
+				if inCols {
+					currentColInfo = ColInfo{Min: 1, Max: 1, Width: 9.0}
+					for _, attr := range t.Attr {
+						switch attr.Name.Local {
+						case "min":
+							fmt.Sscanf(attr.Value, "%d", &currentColInfo.Min)
+						case "max":
+							fmt.Sscanf(attr.Value, "%d", &currentColInfo.Max)
+						case "width":
+							fmt.Sscanf(attr.Value, "%f", &currentColInfo.Width)
+						}
+					}
+				}
+
+			case "mergeCell":
+				for _, attr := range t.Attr {
+					if attr.Name.Local == "ref" {
+						parts := strings.Split(attr.Value, ":")
+						if len(parts) == 2 {
+							sc, sr, _ := ParseCellRef(strings.TrimSpace(parts[0]))
+							ec, er, _ := ParseCellRef(strings.TrimSpace(parts[1]))
+							sheet.MergeCells = append(sheet.MergeCells, MergeCell{
+								StartCol: sc, StartRow: sr,
+								EndCol: ec, EndRow: er,
+							})
+						}
+					}
+				}
+
 			case "row":
 				currentRow = 0
+				rh := float64(0)
 				for _, attr := range t.Attr {
 					if attr.Name.Local == "r" {
 						fmt.Sscanf(attr.Value, "%d", &currentRow)
+					}
+					if attr.Name.Local == "ht" {
+						fmt.Sscanf(attr.Value, "%f", &rh)
 					}
 				}
 				currentRow-- // convert to 0-based
 				if currentRow < 0 {
 					currentRow = 0
+				}
+				if rh > 0 {
+					sheet.RowHeights = append(sheet.RowHeights, RowHeight{Row: currentRow, Height: rh})
 				}
 				inRow = true
 
@@ -378,8 +420,18 @@ func parseSheet(files map[string]*zip.File, path string, sheet *Sheet) error {
 
 		case xml.EndElement:
 			switch t.Name.Local {
+			case "cols":
+				inCols = false
+			case "col":
+				if inCols {
+					sheet.ColInfos = append(sheet.ColInfos, currentColInfo)
+				}
 			case "row":
 				inRow = false
+			case "mergeCell":
+				// Handled in StartElement, just pass through
+			case "mergeCells":
+				// End of merge cells section
 			case "c":
 				if inCell && currentCell != nil {
 					if sheet.Rows[currentRow] == nil {
