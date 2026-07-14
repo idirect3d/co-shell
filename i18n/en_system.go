@@ -704,16 +704,19 @@ Usage:
 	enMessages[KeyToolUsageExcelOpen] = `## excel_open
 Description: Open an XLSX file and return a session ID for subsequent operations. Use this first before any other excel_* tools. The session keeps the file in memory for efficient multi-step operations. mode is REQUIRED: 'create' (create new file, must not exist), 'read' (open existing file, read-only, save will fail), 'copy' (copy file to new name with timestamp before opening).
 Parameters:
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - path: Path to the XLSX file (absolute or relative to current working directory)
   - mode: 'create' (new file), 'read' (read-only), 'copy' (duplicate with timestamp)
 Usage:
 <excel_open>
+  <intent>Open the report spreadsheet</intent>
   <path>report.xlsx</path>
   <mode>read</mode>
 </excel_open>
 
 Create new file example:
 <excel_open>
+  <intent>Create a new blank spreadsheet</intent>
   <path>new_report.xlsx</path>
   <mode>create</mode>
 </excel_open>`
@@ -721,33 +724,40 @@ Create new file example:
 	enMessages[KeyToolUsageExcelClose] = `## excel_close
 Description: Close an Excel session. Saves changes to disk (if any) and releases memory.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
 Usage:
 <excel_close>
+  <intent>Close the report spreadsheet after editing</intent>
   <session_id>xl_1234567890</session_id>
 </excel_close>`
 
 	enMessages[KeyToolUsageExcelSave] = `## excel_save
 Description: Save changes to disk without closing the session. Use periodically after edits to persist progress.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
 Usage:
 <excel_save>
+  <intent>Save editing progress</intent>
   <session_id>xl_1234567890</session_id>
 </excel_save>`
 
 	enMessages[KeyToolUsageExcelOverview] = `## excel_overview
 Description: Get an overview of all sheets in the workbook. Returns metadata only (sheet names, data ranges, row/column counts, header hints) — NO cell data is returned. Call this first after opening a file to understand its structure.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
 Usage:
 <excel_overview>
+  <intent>Understand the spreadsheet structure</intent>
   <session_id>xl_1234567890</session_id>
 </excel_overview>`
 
 	enMessages[KeyToolUsageExcelRead] = `## excel_read
 Description: Read cell data from a specified range. format is REQUIRED, supports 5 output modes. max_cells defaults to 1000.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name (e.g. "Sheet1") or 1-based index
   - start_row: 1-based start row
@@ -758,6 +768,7 @@ Parameters:
   - max_cells: Optional max cells to return (default 1000)
 Usage:
 <excel_read>
+  <intent>Read the first 10 rows of data</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_row>1</start_row>
@@ -769,6 +780,7 @@ Usage:
 
 text format example:
 <excel_read>
+  <intent>Read data in TSV format</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_row>1</start_row>
@@ -781,12 +793,14 @@ text format example:
 	enMessages[KeyToolUsageExcelEdit] = `## excel_edit
 Description: Write values to cells starting from a target cell. Values is a 2D array of strings. If a value starts with '=', it is interpreted as a formula.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name (e.g. "Sheet1")
   - start_cell: Starting cell reference (e.g. "A1", "C5")
   - values: 2D array — each <item> is a TSV (tab-separated) row, directly pasteable from Excel copy
 Usage:
 <excel_edit>
+  <intent>Write data into the spreadsheet starting from A1</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_cell>A1</start_cell>
@@ -800,6 +814,7 @@ Usage:
 	enMessages[KeyToolUsageExcelCopy] = `## excel_copy
 Description: Copy a range of cells to the session clipboard. Supports cut mode (cut=true) which marks the source area for deletion on paste. Clipboard is per-session and cleared on next excel_read call.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name
   - start_row: 1-based start row
@@ -809,6 +824,7 @@ Parameters:
   - cut: Optional, if true marks as cut operation (default false)
 Usage:
 <excel_copy>
+  <intent>Copy the header row for pasting elsewhere</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_row>1</start_row>
@@ -820,11 +836,13 @@ Usage:
 	enMessages[KeyToolUsageExcelPaste] = `## excel_paste
 Description: Paste clipboard content (from excel_copy) to a target cell. If from a cut operation, the source area is automatically cleared after paste.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name
   - target_cell: Target cell reference (e.g. "F2")
 Usage:
 <excel_paste>
+  <intent>Paste the copied content to the target location</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet2</sheet>
   <target_cell>F2</target_cell>
@@ -833,6 +851,7 @@ Usage:
 	enMessages[KeyToolUsageExcelInsert] = `## excel_insert
 Description: Insert rows or columns at a specified position. what must be 'rows' or 'cols'. position is 1-based. count defaults to 1. Existing data shifts down/right.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name
   - what: 'rows' or 'cols'
@@ -840,6 +859,7 @@ Parameters:
   - count: Optional number to insert (default 1)
 Usage:
 <excel_insert>
+  <intent>Insert 2 empty rows before row 3</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>rows</what>
@@ -850,6 +870,7 @@ Usage:
 	enMessages[KeyToolUsageExcelDelete] = `## excel_delete
 Description: Delete rows, columns, or clear cell content. what='rows' deletes row range; what='cols' deletes column range; what='cells' clears cell content without shifting.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name
   - what: 'rows', 'cols', or 'cells'
@@ -858,6 +879,7 @@ Parameters:
   - start_row/end_row/start_col/end_col: Cell range (for cells)
 Usage:
 <excel_delete>
+  <intent>Delete rows 5-7 to remove obsolete data</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>rows</what>
@@ -868,12 +890,14 @@ Usage:
 	enMessages[KeyToolUsageExcelSheet] = `## excel_sheet
 Description: Manage sheets. action='create' creates a new sheet; action='delete' deletes a sheet; action='rename' renames; action='copy' copies; action='list' lists all sheets.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - action: 'create', 'delete', 'rename', 'copy', or 'list'
   - name: Sheet name (required for create/delete/rename/copy)
   - new_name: New name (required for rename/copy)
 Usage:
 <excel_sheet>
+  <intent>List all available sheets</intent>
   <session_id>xl_1234567890</session_id>
   <action>list</action>
 </excel_sheet>`
@@ -881,6 +905,7 @@ Usage:
 	enMessages[KeyToolUsageExcelFormat] = `## excel_format
 Description: Apply formatting to a range of cells. Use the what parameter (array) to specify operations: font (name/size/bold/italic/underline/color), fill (background color), border (style/color/per-side control), alignment (horizontal/vertical/wrap text), number_format, merge, unmerge, row_height, col_width. All format operations apply to the range specified by start_row/end_row/start_col/end_col.
 Parameters:
+  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
   - session_id: Session ID returned by excel_open
   - sheet: Sheet name
   - what: Required. Array of operations. Options: "font", "fill", "border", "alignment", "number_format", "merge", "unmerge", "row_height", "col_width"
@@ -895,6 +920,7 @@ Parameters:
   - col_width: Column width in chars (when what contains "col_width")
 Usage:
 <excel_format>
+  <intent>Format the header row with bold font and blue background</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>
@@ -914,6 +940,7 @@ Usage:
 
 Merge mode example (add border only, keep existing font):
 <excel_format>
+  <intent>Add borders to the data range</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>
