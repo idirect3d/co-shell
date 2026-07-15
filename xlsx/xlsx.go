@@ -217,6 +217,13 @@ func (wb *Workbook) InsertRows(sheetIndex, position, count int) error {
 
 	for _, r := range rowKeys {
 		sheet.Rows[r+count] = sheet.Rows[r]
+		// Update Row and ColRef on all cells in the shifted row
+		if cells, ok := sheet.Rows[r+count]; ok {
+			for _, cell := range cells {
+				cell.Row += count
+				cell.ColRef = FormatCellRef(cell.Col, cell.Row)
+			}
+		}
 		delete(sheet.Rows, r)
 	}
 

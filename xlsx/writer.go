@@ -28,6 +28,7 @@ package xlsx
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -65,12 +66,51 @@ func (wb *Workbook) saveTo(path string) error {
 
 	zw := zip.NewWriter(f)
 
-	writeContentTypes(zw, wb)
-	writeRels(zw)
-	writeWorkbook(zw, wb)
-	writeWorkbookRels(zw, wb)
-	writeSharedStrings(zw, wb)
-	writeStylesXML(zw, wb)
+	// Determine whether we have an original file to preserve.
+	hasOrig := false
+	if zx := wb.Path; zx != "" {
+		if fi, err := os.Stat(zx); err == nil && fi.Size() > 0 {
+			hasOrig = true
+		}
+	}
+
+	buildSheetName := func(i int) string {
+		return fmt.Sprintf("xl/worksheets/sheet%d.xml", i+1)
+	}
+	skip := make(map[string]bool)
+	for i := range wb.Sheets {
+		skip[buildSheetName(i)] = true
+	}
+
+	if hasOrig {
+		// Copy original files, EXCEPT sheet XML files (we'll regenerate them).
+		if zr, err := zip.OpenReader(wb.Path); err == nil {
+			for _, zf := range zr.File {
+				if skip[zf.Name] {
+					continue
+				}
+				if rc, err := zf.Open(); err == nil {
+					var buf bytes.Buffer
+					io.Copy(&buf, rc)
+					rc.Close()
+					if w, err := zw.Create(zf.Name); err == nil {
+						w.Write(buf.Bytes())
+					}
+				}
+			}
+			zr.Close()
+		}
+	} else {
+		// New workbook: write all regenerated files.
+		writeContentTypes(zw, wb)
+		writeRels(zw)
+		writeWorkbook(zw, wb)
+		writeWorkbookRels(zw, wb)
+		writeSharedStrings(zw, wb)
+		writeStylesXML(zw, wb)
+	}
+
+	// Write regenerated sheet XML files.
 	for i, sheet := range wb.Sheets {
 		writeSheetXML(zw, i+1, sheet, wb)
 	}
@@ -227,22 +267,17 @@ func writeStylesXML(zw *zip.Writer, wb *Workbook) error {
 	_ = numBorders
 	s += fmt.Sprintf("\n  </borders>")
 
-	// Simple borders for simplicity: use flat format
-	// Instead generate properly
 	return writeRawFile(zw, "xl/styles.xml", buildStylesXML(sm))
 }
 
 func xlColor(c string) string {
-	// XLSX requires FF prefix + RRGGBB (no #)
 	if c == "" {
 		return ""
 	}
 	result := c
-	// Remove leading #
 	if result[0] == '#' {
 		result = result[1:]
 	}
-	// Add FF alpha prefix if not present (e.g. "FF4472C4" is valid)
 	if len(result) == 6 {
 		result = "FF" + result
 	}
@@ -253,18 +288,15 @@ func buildStylesXML(sm *styleManager) string {
 	s := `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
 
-	// Number formats (numFmts)
 	if len(sm.NumFmts) > 0 {
 		s += fmt.Sprintf("\n  <numFmts count=\"%d\">", len(sm.NumFmts))
 		for i, nf := range sm.NumFmts {
-			// numFmtId starts at 164 for custom formats, or use 41+i for those read from file
 			fmtID := 41 + i
 			s += fmt.Sprintf(`<numFmt numFmtId="%d" formatCode="%s"/>`, fmtID, xmlEscape(nf))
 		}
 		s += "\n  </numFmts>"
 	}
 
-	// Fonts
 	s += fmt.Sprintf("\n  <fonts count=\"%d\">", len(sm.Fonts))
 	for _, f := range sm.Fonts {
 		s += "\n    <font>"
@@ -294,7 +326,6 @@ func buildStylesXML(sm *styleManager) string {
 	}
 	s += "\n  </fonts>"
 
-	// Fills
 	s += fmt.Sprintf("\n  <fills count=\"%d\">", len(sm.Fills))
 	for _, fl := range sm.Fills {
 		s += "\n    <fill>"
@@ -316,7 +347,6 @@ func buildStylesXML(sm *styleManager) string {
 	}
 	s += "\n  </fills>"
 
-	// Borders
 	s += fmt.Sprintf("\n  <borders count=\"%d\">", len(sm.Quads))
 	for _, q := range sm.Quads {
 		s += "\n    <border>"
@@ -324,8 +354,7 @@ func buildStylesXML(sm *styleManager) string {
 		for j, edge := range q {
 			s += fmt.Sprintf("\n      <%s", sides[j])
 			if edge != nil {
-				s += fmt.Sprintf(` style="%s"`, edge.Style)
-				s += ">"
+				s += fmt.Sprintf(` style="%s"`, edge.Style) + ">"
 				col := xlColor(edge.Color)
 				if col != "" {
 					s += fmt.Sprintf(`<color rgb="%s"/>`, col)
@@ -341,10 +370,7 @@ func buildStylesXML(sm *styleManager) string {
 	}
 	s += "\n  </borders>"
 
-	// Cell style formats
 	s += "\n  <cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
-
-	// Cell formats (xf)
 	s += fmt.Sprintf("\n  <cellXfs count=\"%d\">", len(sm.XFList))
 	for _, xf := range sm.XFList {
 		numFmtID := 0
@@ -372,14 +398,10 @@ func buildStylesXML(sm *styleManager) string {
 			applyAlign = "1"
 		}
 		s += fmt.Sprintf(`<xf numFmtId="%d" fontId="%d" fillId="%d" borderId="%d" xfId="0" applyNumberFormat="%s" applyFont="%s" applyFill="%s" applyBorder="%s" applyAlignment="%s"`,
-			numFmtID, xf.FontID, xf.FillID, xf.BorderID,
-			applyFmt, applyFont, applyFill, applyBorder, applyAlign)
-
-		// Write alignment data if present
+			numFmtID, xf.FontID, xf.FillID, xf.BorderID, applyFmt, applyFont, applyFill, applyBorder, applyAlign)
 		if xf.AlignID >= 0 && xf.AlignID < len(sm.Aligns) {
 			a := sm.Aligns[xf.AlignID]
-			s += ">"
-			s += `<alignment`
+			s += ">" + `<alignment`
 			if a.Horizontal != "" {
 				s += fmt.Sprintf(` horizontal="%s"`, a.Horizontal)
 			}
@@ -392,14 +414,12 @@ func buildStylesXML(sm *styleManager) string {
 			if a.Rotation > 0 {
 				s += fmt.Sprintf(` textRotation="%d"`, a.Rotation)
 			}
-			s += `/>`
-			s += `</xf>`
+			s += `/>` + `</xf>`
 		} else {
 			s += `/>`
 		}
 	}
 	s += "\n  </cellXfs>"
-
 	s += "\n  <cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
 	s += "\n</styleSheet>"
 	return s
@@ -409,7 +429,6 @@ func writeSheetXML(zw *zip.Writer, sheetNum int, sheet *Sheet, wb *Workbook) err
 	s := `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
 
-	// Column widths
 	if len(sheet.ColInfos) > 0 {
 		s += "\n  <cols>"
 		for _, ci := range sheet.ColInfos {
@@ -423,14 +442,12 @@ func writeSheetXML(zw *zip.Writer, sheetNum int, sheet *Sheet, wb *Workbook) err
 	}
 
 	s += "\n  <sheetData>"
-
 	rowKeys := make([]int, 0, len(sheet.Rows))
 	for r := range sheet.Rows {
 		rowKeys = append(rowKeys, r)
 	}
 	sort.Ints(rowKeys)
 
-	// Build row height map
 	rhMap := make(map[int]float64)
 	for _, rh := range sheet.RowHeights {
 		rhMap[rh.Row] = rh.Height
@@ -444,14 +461,13 @@ func writeSheetXML(zw *zip.Writer, sheetNum int, sheet *Sheet, wb *Workbook) err
 		}
 		sort.Ints(colKeys)
 
-		// Row open tag
 		rowTag := fmt.Sprintf("\n    <row r=\"%d\"", r+1)
 		if h, ok := rhMap[r]; ok {
 			rowTag += fmt.Sprintf(` ht="%.1f" customHeight="1"`, h)
 		}
 		rowTag += ">"
-
 		s += rowTag
+
 		for _, c := range colKeys {
 			cell := rowCells[c]
 			cRef := cell.ColRef
@@ -459,29 +475,19 @@ func writeSheetXML(zw *zip.Writer, sheetNum int, sheet *Sheet, wb *Workbook) err
 				cRef = FormatCellRef(c, r)
 			}
 			if cell.Formula != "" {
-				s += fmt.Sprintf("\n      <c r=\"%s\"", cRef)
-				s += fmt.Sprintf(` s="%d"`, cell.StyleID)
-				s += fmt.Sprintf("><f>%s</f><v>%s</v></c>", xmlEscape(cell.Formula), xmlEscape(cell.Value))
+				s += fmt.Sprintf("\n      <c r=\"%s\" s=\"%d\"><f>%s</f><v>%s</v></c>", cRef, cell.StyleID, xmlEscape(cell.Formula), xmlEscape(cell.Value))
 			} else if cell.Type == "str" {
-				s += fmt.Sprintf("\n      <c r=\"%s\" t=\"str\"", cRef)
-				s += fmt.Sprintf(` s="%d"`, cell.StyleID)
-				s += fmt.Sprintf("><v>%s</v></c>", xmlEscape(cell.Value))
+				s += fmt.Sprintf("\n      <c r=\"%s\" t=\"str\" s=\"%d\"><v>%s</v></c>", cRef, cell.StyleID, xmlEscape(cell.Value))
 			} else if cell.Type == "s" {
-				s += fmt.Sprintf("\n      <c r=\"%s\" t=\"s\"", cRef)
-				s += fmt.Sprintf(` s="%d"`, cell.StyleID)
-				s += fmt.Sprintf("><v>%s</v></c>", xmlEscape(cell.Value))
+				s += fmt.Sprintf("\n      <c r=\"%s\" t=\"s\" s=\"%d\"><v>%s</v></c>", cRef, cell.StyleID, xmlEscape(cell.Value))
 			} else {
-				s += fmt.Sprintf("\n      <c r=\"%s\"", cRef)
-				s += fmt.Sprintf(` s="%d"`, cell.StyleID)
-				s += fmt.Sprintf("><v>%s</v></c>", xmlEscape(cell.Value))
+				s += fmt.Sprintf("\n      <c r=\"%s\" s=\"%d\"><v>%s</v></c>", cRef, cell.StyleID, xmlEscape(cell.Value))
 			}
 		}
 		s += "\n    </row>"
 	}
-
 	s += "\n  </sheetData>"
 
-	// Merge cells
 	if len(sheet.MergeCells) > 0 {
 		s += fmt.Sprintf("\n  <mergeCells count=\"%d\">", len(sheet.MergeCells))
 		for _, mc := range sheet.MergeCells {
@@ -492,9 +498,7 @@ func writeSheetXML(zw *zip.Writer, sheetNum int, sheet *Sheet, wb *Workbook) err
 	}
 
 	s += "\n</worksheet>"
-
-	sheetPath := fmt.Sprintf("xl/worksheets/sheet%d.xml", sheetNum)
-	return writeRawFile(zw, sheetPath, s)
+	return writeRawFile(zw, fmt.Sprintf("xl/worksheets/sheet%d.xml", sheetNum), s)
 }
 
 func xmlEscape(s string) string {
