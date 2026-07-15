@@ -96,6 +96,12 @@ func (wb *Workbook) SetCellValue(sheetIndex int, col, row int, value string) err
 		sheet.Rows[row] = make(map[int]*Cell)
 	}
 
+	// Preserve existing StyleID if cell already has one
+	styleID := 0
+	if existing, ok := sheet.Rows[row][col]; ok {
+		styleID = existing.StyleID
+	}
+
 	sheet.Rows[row][col] = &Cell{
 		ColRef:  FormatCellRef(col, row),
 		Col:     col,
@@ -103,6 +109,7 @@ func (wb *Workbook) SetCellValue(sheetIndex int, col, row int, value string) err
 		Type:    cellType,
 		Value:   cellValue,
 		Formula: cellFormula,
+		StyleID: styleID,
 	}
 
 	if row > sheet.MaxRow {
