@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Deep-compare original xlsx with test output: check specific rows for cell data."""
+import zipfile, re, os, sys
+
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+orig_path = 'work/research/2026_calendar.xlsx'
+mod_path = 'work/research/2026_calendar_auto_test_output.xlsx'
+
+for p in [orig_path, mod_path]:
+    if not os.path.exists(p):
+        print(f"Error: {p} not found")
+        sys.exit(1)
+
+orig = zipfile.ZipFile(orig_path)
+mod = zipfile.ZipFile(mod_path)
+
+os_ = orig.read('xl/worksheets/sheet1.xml').decode()
+ms = mod.read('xl/worksheets/sheet1.xml').decode()
+
+def get_rows(xml):
+    """Return dict row_num -> list of (ref, style_id, value)"""
+    result = {}
+    rows = re.findall(r'<row[^>]*>.*?</row>', xml, re.DOTALL)
+    for rxml in rows:
+        rm = re.search(r'r="(\d+)"', rxml)
+        if not rm: continue
+        rn = int(rm.group(1))
+        cells = re.findall(r'<c[^>]*?r="([^"]+)"[^>]*>(.*?)</c>', rxml, re.DOTALL)
+        cell_list = []
+        for ref, body in cells:
+            sm = re.search(r's="(\d+)"', body)
+            vm = re.search(r'<v>([^<]*)</v>', body)
+            style_id = int(sm.group(1)) if sm else -1
+            val = vm.group(1) if vm else ''
+            cell_list.append((ref, style_id, val))
+        result[rn] = cell_list
+    return result
+
+orig_rows = get_rows(os_)
+mod_rows = get_rows(ms)
+
+# Check the specific rows
+check_rows = [3, 4, 12, 13, 21, 22, 30, 31]
+all_ok = True
+
+print(f"Original: {len(orig_rows)} rows, Modified: {len(mod_rows)} rows")
+print()
+
+for r in check_rows:
+    o = orig_rows.get(r, [])
+    m = mod_rows.get(r, [])
+    if not m:
+        print(f"❌ Row {r}: MISSING entirely in output!")
+        all_ok = False
+        continue
+    # Compare cell count
+    if len(o) != len(m):
+        print(f"❌ Row {r}: cell count {len(o)} -> {len(m)}")
+        all_ok = False
+    else:
+        # Check each cell
+        for i, (oref, ost, oval) in enumerate(o):
+            if i >= len(m):
+                print(f"❌ Row {r} cell {oref}: cell missing")
+                all_ok = False
+                continue
+            mref, mst, mval = m[i]
+            if oval != mval:
+                print(f"❌ Row {r} {oref}: value '{oval}' -> '{mval}'")
+                all_ok = False
+            if ost != mst:
+                print(f"⚠ Row {r} {oref}: style {ost} -> {mst}")
+
+if all_ok:
+    print("✅ All checked rows match perfectly!")
+else:
+    print("\n❌ Some issues found")
+    sys.exit(1)
+
+orig.close()
+mod.close()

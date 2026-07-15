@@ -654,6 +654,42 @@ func TestPreserveFormatOnEdit(t *testing.T) {
 	}
 	t.Logf("A1 after edit = %q", cvA1.Value)
 
+	// Verify: specific rows (3,4,12,13,21,22,30,31) are complete
+	type cellRefR struct{ row, col int }
+	// B5:E5 is a merged cell; C5,D5,E5 (cols 2,3,4 of row 4) are merged into B5
+	checkRefs := []cellRefR{
+		{3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {3, 5}, {3, 6},
+		{4, 0}, {4, 1}, // B5:E5 merged, so C5/D5/E5 don't have <c> elements
+		{12, 0}, {12, 1}, {12, 2}, {12, 3}, {12, 4}, {12, 5}, {12, 6},
+		{13, 0}, {13, 1}, {13, 2}, {13, 3}, {13, 4}, {13, 5}, {13, 6},
+		{21, 0}, {21, 1}, {21, 2}, {21, 3}, {21, 4}, {21, 5}, {21, 6},
+		{22, 0}, {22, 1}, {22, 2}, {22, 3}, {22, 4}, {22, 5}, {22, 6},
+		{30, 0}, {30, 1}, {30, 2}, {30, 3}, {30, 4}, {30, 5}, {30, 6},
+		{31, 0}, {31, 1}, {31, 2}, {31, 3}, {31, 4}, {31, 5}, {31, 6},
+	}
+	checkPass := true
+	cellCount := 0
+	for _, cr := range checkRefs {
+		cv, err := wb2.GetCellValue(0, cr.col, cr.row)
+		if err != nil {
+			t.Errorf("cannot read cell %s in check row: %v", FormatCellRef(cr.col, cr.row), err)
+			checkPass = false
+		} else if cv.Type == CellTypeEmpty {
+			// No cell data at this position — this IS a problem
+			t.Errorf("row %d col %d (%s) cell is missing (not even empty cell marker)",
+				cr.row, cr.col, FormatCellRef(cr.col, cr.row))
+			checkPass = false
+		} else {
+			cellCount++
+		}
+	}
+	if checkPass {
+		t.Logf("✅ All check-rows (3,4,12,13,21,22,30,31) present (%d cells verified)", cellCount)
+	}
+	if checkPass {
+		t.Logf("✅ All check-rows (3,4,12,13,21,22,30,31) have cells present")
+	}
+
 	// Verify: other cells unchanged
 	for _, ref := range keyCells {
 		if ref.col == 0 && ref.row == 0 {
