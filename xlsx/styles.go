@@ -373,6 +373,7 @@ func (sm *styleManager) parseStylesReader(r io.Reader) error {
 	sm.Aligns = nil
 	sm.XFList = nil
 
+	inNumFmts := false
 	inFonts := false
 	inFills := false
 	inBorders := false
@@ -395,6 +396,8 @@ func (sm *styleManager) parseStylesReader(r io.Reader) error {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
+			case "numFmts":
+				inNumFmts = true
 			case "fonts":
 				inFonts = true
 			case "fills":
@@ -447,6 +450,23 @@ func (sm *styleManager) parseStylesReader(r io.Reader) error {
 						}
 					}
 				}
+			case "numFmt":
+				if inNumFmts {
+					var fmtId int
+					var code string
+					for _, attr := range t.Attr {
+						switch attr.Name.Local {
+						case "numFmtId":
+							fmt.Sscanf(attr.Value, "%d", &fmtId)
+						case "formatCode":
+							code = attr.Value
+						}
+					}
+					if code != "" {
+						sm.NumFmts = append(sm.NumFmts, code)
+					}
+				}
+
 			case "color":
 				// Handle color on font, border edges, or fill
 				col := ""
@@ -511,6 +531,8 @@ func (sm *styleManager) parseStylesReader(r io.Reader) error {
 
 		case xml.EndElement:
 			switch t.Name.Local {
+			case "numFmts":
+				inNumFmts = false
 			case "fonts":
 				inFonts = false
 			case "fills":

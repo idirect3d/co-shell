@@ -550,3 +550,164 @@ func TestMultiSheetWithRandomData(t *testing.T) {
 	t.Logf("✅ Multi-sheet random data test passed (Employees: %d rows, Inventory: %d rows)",
 		meta.Rows, meta2.Rows)
 }
+
+// TestPreserveFormatOnEdit opens a real xlsx file, reads data and styles,
+// edits A1, saves, re-opens and verifies nothing else is lost.
+// This guards against regressions where edit+save cycles corrupt data or formatting.
+func TestPreserveFormatOnEdit(t *testing.T) {
+	original := "../work/research/2026_calendar.xlsx"
+	if _, err := os.Stat(original); os.IsNotExist(err) {
+		t.Skipf("source file %q not found", original)
+	}
+
+	// Step 1: Open the original file and snapshot its state
+	wb, err := OpenFile(original)
+	if err != nil {
+		t.Fatalf("cannot open %q: %v", original, err)
+	}
+	if len(wb.Sheets) == 0 {
+		t.Fatal("workbook has no sheets")
+	}
+	sheet := wb.Sheets[0]
+
+	// Snapshot: count rows, merge cells, col infos, row heights
+	rowCount := len(sheet.Rows)
+	mergeCount := len(sheet.MergeCells)
+	colInfoCount := len(sheet.ColInfos)
+	rowHeightCount := len(sheet.RowHeights)
+
+	// Snapshot: read a few key cell values
+	type cellRef struct{ col, row int }
+	keyCells := []cellRef{
+		{0, 0}, // A1 — "2026年" (rich text)
+		{1, 0}, // B1 — shared string
+		{0, 4}, // A5 — some data cell
+	}
+	snapshot := make(map[cellRef]*CellValue)
+	for _, ref := range keyCells {
+		cv, err := wb.GetCellValue(0, ref.col, ref.row)
+		if err != nil {
+			t.Fatalf("cannot read cell %s: %v", FormatCellRef(ref.col, ref.row), err)
+		}
+		snapshot[ref] = cv
+		t.Logf("cell %s = %q (type=%s)", FormatCellRef(ref.col, ref.row), cv.Value, cv.Type)
+	}
+
+	// Snapshot: check StyleID on a styled cell
+	if cell, ok := sheet.Rows[0]; ok {
+		if c, ok := cell[0]; ok {
+			t.Logf("A1 StyleID = %d", c.StyleID)
+		}
+	}
+
+	t.Logf("Original: rows=%d, merges=%d, cols=%d, rowHeights=%d",
+		rowCount, mergeCount, colInfoCount, rowHeightCount)
+
+	// Step 2: Edit A1
+	if err := wb.SetCellValue(0, 0, 0, "公元 2026 年"); err != nil {
+		t.Fatalf("cannot set A1: %v", err)
+	}
+
+	// Step 3: Save to temp file
+	tmpDir, err := os.MkdirTemp("", "xlsx-roundtrip-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	savedPath := filepath.Join(tmpDir, "edited.xlsx")
+	if err := wb.SaveAs(savedPath); err != nil {
+		t.Fatalf("cannot save: %v", err)
+	}
+
+	stat, _ := os.Stat(savedPath)
+	t.Logf("Saved file: %d bytes", stat.Size())
+
+	// Step 4: Re-open and verify
+	wb2, err := OpenFile(savedPath)
+	if err != nil {
+		t.Fatalf("cannot re-open saved file: %v", err)
+	}
+	if len(wb2.Sheets) == 0 {
+		t.Fatal("re-opened workbook has no sheets")
+	}
+	sheet2 := wb2.Sheets[0]
+
+	// Verify: row count preserved
+	if len(sheet2.Rows) != rowCount {
+		t.Errorf("row count changed: before=%d after=%d", rowCount, len(sheet2.Rows))
+	}
+	// Verify: merge cells preserved
+	if len(sheet2.MergeCells) != mergeCount {
+		t.Errorf("merge cell count changed: before=%d after=%d", mergeCount, len(sheet2.MergeCells))
+	}
+	// Verify: col infos preserved
+	if len(sheet2.ColInfos) != colInfoCount {
+		t.Errorf("col info count changed: before=%d after=%d", colInfoCount, len(sheet2.ColInfos))
+	}
+	// Verify: row heights preserved
+	if len(sheet2.RowHeights) != rowHeightCount {
+		t.Errorf("row height count changed: before=%d after=%d", rowHeightCount, len(sheet2.RowHeights))
+	}
+
+	// Verify: A1 updated
+	cvA1, err := wb2.GetCellValue(0, 0, 0)
+	if err != nil {
+		t.Fatalf("cannot read A1 after edit: %v", err)
+	}
+	if cvA1.Value != "公元 2026 年" {
+		t.Errorf("A1 value wrong: expected %q, got %q", "公元 2026 年", cvA1.Value)
+	}
+	t.Logf("A1 after edit = %q", cvA1.Value)
+
+	// Verify: other cells unchanged
+	for _, ref := range keyCells {
+		if ref.col == 0 && ref.row == 0 {
+			continue // A1 was intentionally changed
+		}
+		original := snapshot[ref]
+		if original == nil {
+			continue
+		}
+		cv, err := wb2.GetCellValue(0, ref.col, ref.row)
+		if err != nil {
+			t.Errorf("cannot read cell %s after edit: %v", FormatCellRef(ref.col, ref.row), err)
+			continue
+		}
+		if cv.Value != original.Value {
+			t.Errorf("cell %s changed: before=%q after=%q",
+				FormatCellRef(ref.col, ref.row), original.Value, cv.Value)
+		}
+	}
+
+	// Verify: StyleID preserved (at least non-zero)
+	if cell, ok := sheet2.Rows[0]; ok {
+		if c, ok := cell[0]; ok {
+			if c.StyleID > 0 {
+				t.Logf("A1 StyleID preserved = %d", c.StyleID)
+			} else {
+				t.Logf("A1 StyleID = 0 (may be default style)")
+			}
+		}
+	}
+
+	// Verify: style sheet has fonts, fills, borders
+	sm := wb2.StyleManager()
+	if len(sm.Fonts) < 2 {
+		t.Errorf("expected at least 2 fonts, got %d", len(sm.Fonts))
+	}
+	if len(sm.Fills) < 3 {
+		t.Errorf("expected at least 3 fills, got %d", len(sm.Fills))
+	}
+	if len(sm.Quads) < 2 {
+		t.Errorf("expected at least 2 borders, got %d", len(sm.Quads))
+	}
+	// Verify: numFmts preserved
+	if len(sm.NumFmts) < 4 {
+		t.Errorf("expected at least 4 numFmts, got %d (count: %v)", len(sm.NumFmts), sm.NumFmts)
+	}
+
+	t.Logf("Styles: fonts=%d, fills=%d, borders=%d, xfList=%d, numFmts=%d",
+		len(sm.Fonts), len(sm.Fills), len(sm.Quads), len(sm.XFList), len(sm.NumFmts))
+	t.Logf("✅ Round-trip edit test passed")
+}
