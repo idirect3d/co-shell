@@ -610,6 +610,7 @@ func TestPreserveFormatOnEdit(t *testing.T) {
 
 	// Step 3: Save to work/research/ for visual inspection
 	savedPath := "../work/research/2026_calendar_auto_test_output.xlsx"
+	os.Remove(savedPath) // ensure clean for inspection
 	if err := wb.SaveAs(savedPath); err != nil {
 		t.Fatalf("cannot save: %v", err)
 	}
@@ -653,6 +654,16 @@ func TestPreserveFormatOnEdit(t *testing.T) {
 		t.Errorf("A1 value wrong: expected %q, got %q", "公元 2026 年", cvA1.Value)
 	}
 	t.Logf("A1 after edit = %q", cvA1.Value)
+
+	// Verify row 4 data: should be 日一三四五六(week day headers)
+	row4Vals := make([]string, 0)
+	for c := 1; c <= 7; c++ {
+		cv, err := wb2.GetCellValue(0, c, 3)
+		if err == nil {
+			row4Vals = append(row4Vals, cv.Value)
+		}
+	}
+	t.Logf("Row 4 (B4:H4) = %v", row4Vals)
 
 	// Verify: specific rows (3,4,12,13,21,22,30,31) are complete
 	type cellRefR struct{ row, col int }
@@ -740,4 +751,158 @@ func TestPreserveFormatOnEdit(t *testing.T) {
 	t.Logf("Styles: fonts=%d, fills=%d, borders=%d, xfList=%d, numFmts=%d",
 		len(sm.Fonts), len(sm.Fills), len(sm.Quads), len(sm.XFList), len(sm.NumFmts))
 	t.Logf("✅ Round-trip edit test passed")
+}
+
+// TestInsertRowsOnExisting opens a real xlsx file, inserts rows with data,
+// saves, re-opens and verifies the inserted data survives the round-trip.
+func TestInsertRowsOnExisting(t *testing.T) {
+	orig := "../work/research/2026_calendar.xlsx"
+	if _, err := os.Stat(orig); os.IsNotExist(err) {
+		t.Skipf("source file %q not found", orig)
+	}
+
+	wb, err := OpenFile(orig)
+	if err != nil {
+		t.Fatalf("cannot open %q: %v", orig, err)
+	}
+
+	// Insert single row at position 2 (0-based: row 2, after header rows)
+	if err := wb.InsertRows(0, 2, 1); err != nil {
+		t.Fatalf("cannot insert 1 row: %v", err)
+	}
+	// Write data to the inserted row (row 2, 0-based)
+	if err := wb.SetCellValue(0, 0, 2, "插入一行"); err != nil {
+		t.Fatalf("cannot write to inserted row: %v", err)
+	}
+	if err := wb.SetCellValue(0, 1, 2, "A"); err != nil {
+		t.Fatalf("cannot write to inserted row col 1: %v", err)
+	}
+
+	// Insert 3 rows at position 10
+	if err := wb.InsertRows(0, 10, 3); err != nil {
+		t.Fatalf("cannot insert 3 rows: %v", err)
+	}
+	if err := wb.SetCellValue(0, 0, 10, "插入三行-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := wb.SetCellValue(0, 0, 11, "插入三行-2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := wb.SetCellValue(0, 0, 12, "插入三行-3"); err != nil {
+		t.Fatal(err)
+	}
+
+	savedPath := "../work/research/2026_calendar_insert_row_test.xlsx"
+	os.Remove(savedPath)
+	if err := wb.SaveAs(savedPath); err != nil {
+		t.Fatalf("cannot save: %v", err)
+	}
+
+	wb2, err := OpenFile(savedPath)
+	if err != nil {
+		t.Fatalf("cannot re-open: %v", err)
+	}
+
+	// Verify inserted single row data
+	cv, _ := wb2.GetCellValue(0, 0, 2)
+	if cv.Value != "插入一行" || cv.Type != CellTypeString {
+		t.Errorf("inserted single row cell A3: expected '插入一行'(S), got %q(%s)", cv.Value, cv.Type)
+	}
+	cv, _ = wb2.GetCellValue(0, 1, 2)
+	if cv.Value != "A" {
+		t.Errorf("inserted single row cell B3: expected 'A', got %q", cv.Value)
+	}
+
+	// Verify inserted multi-row data
+	cv, _ = wb2.GetCellValue(0, 0, 10)
+	if cv.Value != "插入三行-1" {
+		t.Errorf("inserted multi row cell A11: expected '插入三行-1', got %q", cv.Value)
+	}
+	cv, _ = wb2.GetCellValue(0, 0, 12)
+	if cv.Value != "插入三行-3" {
+		t.Errorf("inserted multi row cell A13: expected '插入三行-3', got %q", cv.Value)
+	}
+
+	// Verify original data was shifted correctly (row 3 original data moved to row 4 after 1-row insert)
+	cv, _ = wb2.GetCellValue(0, 0, 3)
+	t.Logf("Row 4 A4 after insert = %q (type=%s)", cv.Value, cv.Type)
+
+	t.Logf("✅ Insert rows test passed")
+}
+
+// TestInsertColsOnExisting opens a real xlsx file, inserts columns with data,
+// saves, re-opens and verifies the inserted data survives the round-trip.
+func TestInsertColsOnExisting(t *testing.T) {
+	orig := "../work/research/2026_calendar.xlsx"
+	if _, err := os.Stat(orig); os.IsNotExist(err) {
+		t.Skipf("source file %q not found", orig)
+	}
+
+	wb, err := OpenFile(orig)
+	if err != nil {
+		t.Fatalf("cannot open %q: %v", orig, err)
+	}
+
+	// Insert single column at position 1 (0-based: after column A)
+	if err := wb.InsertCols(0, 1, 1); err != nil {
+		t.Fatalf("cannot insert 1 col: %v", err)
+	}
+	// Write data to the inserted column
+	if err := wb.SetCellValue(0, 1, 0, "插入列"); err != nil {
+		t.Fatal(err)
+	}
+	if err := wb.SetCellValue(0, 1, 1, "X"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert 2 columns at position 5
+	if err := wb.InsertCols(0, 5, 2); err != nil {
+		t.Fatalf("cannot insert 2 cols: %v", err)
+	}
+	if err := wb.SetCellValue(0, 5, 0, "列1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := wb.SetCellValue(0, 6, 0, "列2"); err != nil {
+		t.Fatal(err)
+	}
+
+	savedPath := "../work/research/2026_calendar_insert_col_test.xlsx"
+	os.Remove(savedPath)
+	if err := wb.SaveAs(savedPath); err != nil {
+		t.Fatalf("cannot save: %v", err)
+	}
+
+	wb2, err := OpenFile(savedPath)
+	if err != nil {
+		t.Fatalf("cannot re-open: %v", err)
+	}
+
+	// Verify inserted single column data
+	cv, _ := wb2.GetCellValue(0, 1, 0)
+	if cv.Value != "插入列" || cv.Type != CellTypeString {
+		t.Errorf("inserted single col B1: expected '插入列'(S), got %q(%s)", cv.Value, cv.Type)
+	}
+	cv, _ = wb2.GetCellValue(0, 1, 1)
+	if cv.Value != "X" {
+		t.Errorf("inserted single col B2: expected 'X', got %q", cv.Value)
+	}
+
+	// Verify inserted multi-column data
+	cv, _ = wb2.GetCellValue(0, 5, 0)
+	if cv.Value != "列1" {
+		t.Errorf("inserted multi col F1: expected '列1', got %q", cv.Value)
+	}
+	cv, _ = wb2.GetCellValue(0, 6, 0)
+	if cv.Value != "列2" {
+		t.Errorf("inserted multi col G1: expected '列2', got %q", cv.Value)
+	}
+
+	// Verify original data shifted correctly
+	cv, _ = wb2.GetCellValue(0, 0, 0)
+	if cv.Value == "" {
+		t.Errorf("A1 should still contain data after col insert, got empty")
+	}
+	t.Logf("A1 after insert = %q", cv.Value)
+
+	t.Logf("✅ Insert columns test passed")
 }
