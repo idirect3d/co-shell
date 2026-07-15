@@ -608,14 +608,8 @@ func TestPreserveFormatOnEdit(t *testing.T) {
 		t.Fatalf("cannot set A1: %v", err)
 	}
 
-	// Step 3: Save to temp file
-	tmpDir, err := os.MkdirTemp("", "xlsx-roundtrip-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	savedPath := filepath.Join(tmpDir, "edited.xlsx")
+	// Step 3: Save to work/research/ for visual inspection
+	savedPath := "../work/research/2026_calendar_auto_test_output.xlsx"
 	if err := wb.SaveAs(savedPath); err != nil {
 		t.Fatalf("cannot save: %v", err)
 	}
