@@ -104,7 +104,6 @@ func parseSST(files map[string]*zip.File, wb *Workbook) error {
 	dec := xml.NewDecoder(rc)
 	var strs []string
 	var currentText strings.Builder
-	var currentSI strings.Builder
 	inT := false
 	inR := false
 
@@ -133,7 +132,8 @@ func parseSST(files map[string]*zip.File, wb *Workbook) error {
 			case "t":
 				if inT {
 					if inR {
-						currentSI.WriteString(currentText.String())
+						// Rich text: each <r> contains one <t>, flush as its own entry
+						strs = append(strs, currentText.String())
 					} else {
 						strs = append(strs, currentText.String())
 					}
@@ -142,11 +142,8 @@ func parseSST(files map[string]*zip.File, wb *Workbook) error {
 			case "r":
 				inR = false
 			case "si":
-				// End of shared string item — flush accumulated rich text
-				if currentSI.Len() > 0 {
-					strs = append(strs, currentSI.String())
-					currentSI.Reset()
-				}
+				// End of shared string item — nothing more to do for rich text
+				// Each <r><t> was already flushed as its own entry above
 			}
 		case xml.CharData:
 			if inT {
