@@ -726,11 +726,11 @@
    - agent/loop.go: applyLoopIntervention 中按事件类型精准重置触发检测器，避免同模式刚发完反馈就再次触发
 - [x] FEATURE-179 EML 文件解析工具：新增 bin/eml2json.py，解析 EML 文件（标题、收发件人、时间、正文、附件），以邮件时间命名文件夹输出 metadata.json 和附件文件 [BUILD-302]
 
-- [ ] **FEATURE-280 工具执行中支持 Ctrl+C 中断**：
+- [x] **FEATURE-280 工具执行中支持 Ctrl+C 中断**：[BUILD-303]
   - 将 cancelCh 与 context.Context 绑定，创建 cancelCtx
   - executeToolCall() 中增加 context cancel 检查
-  - executeSystemCommand() 已使用 exec.CommandContext，ctx cancel 时自动 SIGKILL 子进程
-  - run_stream.go 工具执行循环中检查 ctx cancel
+  - executeSystemCommand() 使用进程组 kill 可杀嵌套进程（python3 | head）
+  - run_stream.go 工具执行循环使用 cancelCtx 传递 Ctrl+C 信号
 
 ## v1.0.0 — 正式版
 

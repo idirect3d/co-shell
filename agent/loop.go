@@ -256,7 +256,9 @@ type Agent struct {
 	// Cancel channel for Ctrl+C (FEATURE-239)
 	// When signaled, the agent immediately exits the current iteration
 	// and returns to the REPL prompt without confirmation.
-	cancelCh chan struct{} // signals immediate cancellation
+	cancelCh   chan struct{}      // signals immediate cancellation
+	cancelCtx  context.Context    // parent context for tool execution (canceled on Ctrl+C)
+	cancelFunc context.CancelFunc // cancel function for cancelCtx
 
 	// debugMode: when enabled, displays messages to be sent to LLM on the prompt
 	// line for review and editing before sending.

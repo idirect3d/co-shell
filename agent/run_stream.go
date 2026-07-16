@@ -948,7 +948,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
 
-				result, execErr := a.executeToolCall(ctx, tc)
+				// FEATURE-280: Use cancelCtx as parent so Ctrl+C propagates to tool execution.
+				// If cancelCtx was already canceled (Ctrl+C pressed during confirmation),
+				// Derive from it so the timeout context is also canceled.
+				toolCtx := a.CancelContext()
+				if toolCtx == nil {
+					toolCtx = ctx // fallback if not set
+				}
+				result, execErr := a.executeToolCall(toolCtx, tc)
 				if execErr != nil {
 					errStr := execErr.Error()
 					// Check if user cancelled
