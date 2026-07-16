@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -1435,6 +1436,11 @@ func (a *Agent) Cancel() {
 	case a.cancelCh <- struct{}{}:
 	default:
 	}
+	// Also cancel the cancelCtx so blocked tool executions can detect the cancellation.
+	if a.cancelFunc != nil {
+		a.cancelFunc()
+		a.cancelFunc = nil
+	}
 }
 
 // CancelChan returns the cancel channel for select-based listening.
@@ -1442,11 +1448,24 @@ func (a *Agent) CancelChan() <-chan struct{} {
 	return a.cancelCh
 }
 
+// CancelContext returns a cancelable context for tool execution.
+// This context is canceled when the user presses Ctrl+C.
+// It should be passed as the parent context for tool callbacks so that
+// long-running tools (e.g. exec.CommandContext) can detect the cancellation.
+func (a *Agent) CancelContext() context.Context {
+	return a.cancelCtx
+}
+
 // ResetCancel re-creates the cancel channel for a new request.
 func (a *Agent) ResetCancel() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.cancelCh = make(chan struct{}, 1)
+	// Cancel the old cancelCtx if it exists, then create a fresh one
+	if a.cancelFunc != nil {
+		a.cancelFunc()
+	}
+	a.cancelCtx, a.cancelFunc = context.WithCancel(context.Background())
 }
 
 func (a *Agent) TaskPlanManager() *taskplan.Manager  { return a.taskPlanMgr }
