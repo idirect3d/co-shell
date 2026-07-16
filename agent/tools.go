@@ -2030,6 +2030,17 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				ctx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeout)*time.Second)
 				defer cancel()
 			}
+
+			// FEATURE-280: Check if the user pressed Ctrl+C before executing the tool.
+			// This catches cancellation between iterations when the tool is confirmed
+			// but Ctrl+C was pressed during the confirmation prompt.
+			select {
+			case <-ctx.Done():
+				log.Info("Tool call cancelled: %s (context canceled)", tc.Name)
+				return "", ctx.Err()
+			default:
+			}
+
 			log.Info("Tool call: %s, effective timeout=%s (user min: %ds, LLM suggested: %ds), args=%v",
 				tc.Name, timeoutStr, userMinSec, llmSuggested, args)
 			result, err := tool.Callback(ctx, args)
