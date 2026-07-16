@@ -36,6 +36,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/idirect3d/co-shell/config"
@@ -119,17 +120,15 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		effectiveTimeout = llmSuggested
 	}
 
-	// Only set timeout if a positive value is specified
-	if effectiveTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeout)*time.Second)
-		defer cancel()
-	}
-
 	shell, shellArg := shellCmd()
 	log.Debug("Executing command: %s (effective timeout: %ds, user min: %ds, LLM suggested: %ds, shell: %s)",
 		command, effectiveTimeout, userMinSec, llmSuggested, shell)
-	cmd := exec.CommandContext(ctx, shell, shellArg, command)
+
+	// Use exec.Command (NOT exec.CommandContext) — we manage kill ourselves.
+	// Setsid: true puts bash into its own session so piped children (python3 | head)
+	// are all in the same session. We kill the session (-pid) on timeout.
+	cmd := exec.Command(shell, shellArg, command)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	// Connect stdin so interactive commands (sudo, passwd, etc.) can read user input.
 	cmd.Stdin = os.Stdin
@@ -151,13 +150,42 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	// sub-process is running, so the sub-process (e.g. sudo) can read from stdin
 	// without competition.
 	a.SetCommandRunning(true)
-	err := cmd.Run()
+
+	// Start the command (non-blocking).
+	if err := cmd.Start(); err != nil {
+		a.SetCommandRunning(false)
+		return "", fmt.Errorf("cannot start command: %w", err)
+	}
+
+	// Timeout goroutine: wait for timeout, then kill the entire process group.
+	// Setpgid: true ensures bash + all pipe children share the same PGID.
+	// syscall.Kill(-pid, SIGKILL) kills the entire process group at once.
+	if effectiveTimeout > 0 {
+		pid := cmd.Process.Pid
+		go func() {
+			time.Sleep(time.Duration(effectiveTimeout) * time.Second)
+			log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
+				pid, effectiveTimeout, command)
+			// Kill the process group. Negative PID = send to PGID.
+			// With Setpgid: true, PGID == PID of the first child (bash).
+			// bash's piped children share the same PGID on non-interactive shells.
+			syscall.Kill(-pid, syscall.SIGKILL)
+		}()
+	}
+
+	err := cmd.Wait()
 	a.SetCommandRunning(false)
+
 	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Warn("Command timed out after %d seconds: %s", effectiveTimeout, command)
-			return "", fmt.Errorf("command timed out after %d seconds", effectiveTimeout)
+		// Check for timeout — signaled (killed)
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				if status.Signaled() {
+					log.Warn("Command timed out after %d seconds: %s", effectiveTimeout, command)
+					return "", fmt.Errorf("command timed out after %d seconds", effectiveTimeout)
+				}
+			}
 		}
 		log.Error("Command failed: %s, error: %v", command, err)
 		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
