@@ -716,12 +716,11 @@ no liability whatsoever.`,
 	KeyHelpSimulate:        "    :simulate      - Simulate LLM tool call, parse and execute for testing",
 	KeySimulatePromptInput: "Enter the LLM tool call content to simulate: ",
 	KeySimulateNoContent:   "Empty input, cancelled",
-	KeyContinuePrompt: `You returned plain text without calling any tool. This is not a valid way to complete the task. Please decide immediately:
+	KeyContinuePrompt: `Decide immediately on your next action:
 
-- If the task is truly fully completed (please think carefully), you MUST call attempt_completion to submit the final result.
-- If the task is not yet complete or you have any doubts, please call the appropriate tool to continue.
-
-Note: Only call attempt_completion when you are confident that all task steps have been successfully completed and the results have been presented to the user. Once called, the system will end the current task.`,
+- If the task is fully completed → call attempt_completion to submit the final result
+- If you have questions for the user → call ask_followup_question
+- If the task is not yet complete → call an appropriate tool to continue (do not just output text)`,
 	KeySimulatePartial:       "Partial execution completed (with errors)",
 	KeySimulateParsingResult: "Parsed %d tool call(s)",
 	KeySimulateLabelArgs:     "Args: ",

@@ -389,20 +389,22 @@ func ParseStatus(status string) (TaskStatus, error) {
 	}
 }
 
-// statusIcon returns an icon for the given task status.
+// statusIcon returns a text marker for the given task status.
+// Uses [ ]/[=]/[X]/[C]/[!] format that matches track_task_progress input,
+// avoiding emoji ambiguity across different LLMs.
 func statusIcon(status TaskStatus) string {
 	switch status {
 	case StatusPending:
-		return "⬜"
+		return "[ ]"
 	case StatusInProgress:
-		return "🔄"
+		return "[=]"
 	case StatusCompleted:
-		return "✅"
+		return "[X]"
 	case StatusFailed:
-		return "❌"
+		return "[!]"
 	case StatusCancelled:
-		return "🚫"
+		return "[C]"
 	default:
-		return "⬜"
+		return "[ ]"
 	}
 }
