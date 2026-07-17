@@ -786,12 +786,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.applyLoopIntervention(event)
 				continue
 			}
-			// No duplicate: append the assistant message first, then the continue prompt
-			a.messages = append(a.messages, llm.Message{
-				Role:             "assistant",
-				Content:          finalContent,
-				ReasoningContent: finalReasoning,
-			})
+			// No duplicate: DON'T append the assistant message to history.
+			// FEATURE-17 (方案C): 0-tool-call 时不保留 assistant 纯文本回复，
+			// 避免 LLM 在后续迭代中"维护"自己之前不调用工具的判断。
+			// 只追加强指令 user 消息，要求 LLM 下一步必须调用工具或 attempt_completion。
 			if a.memoryEnabled {
 				if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
 					log.Warn("Failed to save assistant message to memory: %v", err)
@@ -1031,7 +1029,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// This must come AFTER the task instruction cache flush so that
 				// <environment_details> is the last ContentPart.
 				// IMPORTANT: Must NOT hold a.mu here because injectTimeAndMessageNoToLast
-				// calls buildFullEnvironmentDetails -> isLastToolTaskPlan which acquires a.mu.
+				// calls buildFullEnvironmentDetails which may need to acquire a.mu
+				// for iterating a.messages to find tool call names.
 				a.injectTimeAndMessageNoToLast()
 			}
 		} // end if !reorganizePending

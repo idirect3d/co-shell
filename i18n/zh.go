@@ -748,12 +748,11 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyHelpSimulate:        "    :simulate      - 模拟 LLM 方法调用，进行解析和执行测试",
 	KeySimulatePromptInput: "请输入要模拟的 LLM 方法调用内容: ",
 	KeySimulateNoContent:   "内容为空，已取消",
-	KeyContinuePrompt: `<task>
-	请仔细确认用户任务的目标是否完全达成？
-	- 如果任务确实已经全部完成（请深思熟虑后确认），则必须通过调用 attempt_completion 工具提交最终结果。
-	- 如果你对任务还有任何疑问，请通过调用ask_followup_question向用户寻求帮助。
-	- 如果任务尚未完成，请继续调用合适的工具继续执行（而不要什么工具都不调用）。
-	</task>`,
+	KeyContinuePrompt: `请立即决定下一步行动：
+
+- 如果任务已全部完成 → 调用 attempt_completion 提交最终结果
+- 如果还有疑问需要向用户确认 → 调用 ask_followup_question
+- 如果任务尚未完成 → 调用合适的工具继续推进（不要只是输出文本）`,
 	KeySimulatePartial:       "部分执行完成（有错误发生）",
 	KeySimulateParsingResult: "解析到 %d 个方法调用",
 	KeySimulateLabelArgs:     "参数: ",

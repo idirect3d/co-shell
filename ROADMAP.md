@@ -727,10 +727,16 @@
 - [x] FEATURE-179 EML 文件解析工具：新增 bin/eml2json.py，解析 EML 文件（标题、收发件人、时间、正文、附件），以邮件时间命名文件夹输出 metadata.json 和附件文件 [BUILD-302]
 
 - [x] **FEATURE-280 工具执行中支持 Ctrl+C 中断**：[BUILD-303]
-  - 将 cancelCh 与 context.Context 绑定，创建 cancelCtx
-  - executeToolCall() 中增加 context cancel 检查
-  - executeSystemCommand() 使用进程组 kill 可杀嵌套进程（python3 | head）
-  - run_stream.go 工具执行循环使用 cancelCtx 传递 Ctrl+C 信号
+   - 将 cancelCh 与 context.Context 绑定，创建 cancelCtx
+   - executeToolCall() 中增加 context cancel 检查
+   - executeSystemCommand() 使用进程组 kill 可杀嵌套进程（python3 | head）
+   - run_stream.go 工具执行循环使用 cancelCtx 传递 Ctrl+C 信号
+
+- [ ] **FEATURE-17 0-tool-call 时不保留 assistant 文本消息**：[BUILD-304]
+   - 当 LLM 返回纯文本且未调用 attempt_completion 时，不将 assistant 消息加入对话历史
+   - 只追加一条强指令 user 消息，要求 LLM 要么调用 attempt_completion 要么调用工具
+   - 避免 LLM 在后续迭代中"维护"自己之前不调用工具的判断
+   - 同步更新 i18n 继续提示文案
 
 ## v1.0.0 — 正式版
 
