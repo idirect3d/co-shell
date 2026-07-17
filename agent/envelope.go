@@ -37,111 +37,6 @@ import (
 	"github.com/idirect3d/co-shell/llm"
 )
 
-// injectTimeAndMessageNo appends a minimal <environment_details> block with time and
-// message_no to all user and tool messages. This ensures every message carries
-// temporal and positional context for the LLM.
-// When isXMLMode is true, the envelope is appended as a ContentPart instead of
-// concatenated to the Content string, keeping the envelope as a separate structured
-// segment in the message array.
-func injectTimeAndMessageNo(msgs []llm.Message) []llm.Message {
-	// Find the last user message index — it will later receive a full
-	// <environment_details> from injectEnvelopeToLastUser, so skip it here
-	// to avoid duplicate envelope parts (FEATURE-248).
-	lastUserIdx := -1
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == "user" {
-			lastUserIdx = i
-			break
-		}
-	}
-
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
-	for i := range msgs {
-		if i == lastUserIdx {
-			continue // skip last user, injectEnvelopeToLastUser handles it with full content
-		}
-		if msgs[i].Role == "user" || msgs[i].Role == "tool" {
-			var sb strings.Builder
-			sb.WriteString("\n\n<environment_details>\n")
-			sb.WriteString("<time>")
-			sb.WriteString(now)
-			sb.WriteString("</time>\n")
-			sb.WriteString("<message_no>")
-			sb.WriteString(strconv.Itoa(i))
-			sb.WriteString("</message_no>\n")
-			sb.WriteString("</environment_details>")
-			// Convert to ContentParts if not already, so environment_details is always
-			// a separate text part from the actual content.
-			if len(msgs[i].ContentParts) == 0 {
-				msgs[i].ContentParts = []llm.ContentPart{
-					{Type: llm.ContentPartText, Text: msgs[i].Content},
-				}
-				msgs[i].Content = ""
-			}
-			msgs[i].AppendTextPart(sb.String())
-		}
-	}
-	return msgs
-}
-
-// stripEnvelopes removes all <environment_details>...</environment_details> blocks from
-// all user/tool/assistant message contents. This prevents stale data from being sent to the LLM.
-// In XML mode when messages use ContentParts, stripping searches within text parts instead.
-func (a *Agent) stripEnvelopes(msgs []llm.Message) []llm.Message {
-	result := make([]llm.Message, len(msgs))
-	copy(result, msgs)
-	for i := range result {
-		msg := &result[i]
-		if msg.Role == "user" || msg.Role == "tool" {
-			if len(msg.ContentParts) > 0 {
-				// XML mode: strip envelopes from ContentParts
-				var cleaned []llm.ContentPart
-				for _, cp := range msg.ContentParts {
-					if cp.Type == llm.ContentPartText {
-						cleanedText := stripSingleEnvelope(cp.Text)
-						if cleanedText != "" {
-							cleaned = append(cleaned, llm.ContentPart{
-								Type: llm.ContentPartText,
-								Text: cleanedText,
-							})
-						}
-					} else {
-						cleaned = append(cleaned, cp)
-					}
-				}
-				msg.ContentParts = cleaned
-			} else {
-				msg.Content = stripSingleEnvelope(msg.Content)
-			}
-		}
-	}
-	return result
-}
-
-// stripSingleEnvelope removes a single <environment_details>...</environment_details> block
-// from the given content string.
-func stripSingleEnvelope(content string) string {
-	start := strings.Index(content, "<environment_details>")
-	if start < 0 {
-		return content
-	}
-	end := strings.Index(content, "</environment_details>")
-	if end < 0 {
-		return strings.TrimSpace(content[:start])
-	}
-	end += len("</environment_details>")
-	before := strings.TrimSpace(content[:start])
-	after := strings.TrimSpace(content[end:])
-	result := before
-	if after != "" {
-		if result != "" {
-			result += "\n"
-		}
-		result += after
-	}
-	return result
-}
-
 // buildOpenedResources builds an <opened_resources> block listing all currently open
 // resources that can be persisted across iterations: browser tabs, Excel sessions,
 // Word sessions, and shell session.
@@ -206,11 +101,29 @@ func (a *Agent) buildOpenedResources() string {
 // and opened_resources.
 // Used by both injectEnvelopeToLastUser (for user messages) and
 // injectTimeAndMessageNoToLast (for tool result messages).
-func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
+//
+// toolCallNames: when non-empty, names of the tool calls that produced this result message.
+// The <task_plan> block is skipped only when the current result is produced by
+// track_task_progress, view_task_plan, or attempt_completion — because the plan
+// content is already captured in the tool result message.
+// For user messages (toolCallNames is nil/empty), <task_plan> is always included.
+func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []string) string {
 	cwd, _ := os.Getwd()
 	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 	taskPlan := a.getTaskPlanPrompt()
-	skipTaskPlan := a.isLastToolTaskPlan()
+
+	// Skip <task_plan> only when the current result message is a direct response
+	// to a task plan tool or attempt_completion (content already in the result).
+	// For user messages (toolCallNames is nil/empty), always include <task_plan>.
+	skipTaskPlan := false
+	if len(toolCallNames) > 0 {
+		for _, name := range toolCallNames {
+			if name == "track_task_progress" || name == "view_task_plan" || name == "attempt_completion" {
+				skipTaskPlan = true
+				break
+			}
+		}
+	}
 
 	// Top-level files (depth=0) and two-level listing (depth=1) for bin and research
 	files := strings.TrimRight(listFilesForPrompt(cwd, 0, 128).listing, "\n")
@@ -277,30 +190,11 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int) string {
 	return sb.String()
 }
 
-// buildFreshEnvelope builds a minimal <environment_details> block with only
-// the live-updated fields: time and opened_resources. This is used when retrying
-// without a new LLM call, to refresh the last user message's env info.
-// Token usage is intentionally NOT updated (no new LLM call occurred).
-func (a *Agent) buildFreshEnvelope() string {
-	now := time.Now().Format("2006-01-02 15:04:05 Monday")
-	var sb strings.Builder
-	sb.WriteString("<environment_details>\n")
-	sb.WriteString("<time>")
-	sb.WriteString(now)
-	sb.WriteString("</time>\n")
-	sb.WriteString(a.buildOpenedResources())
-	sb.WriteString("\n")
-	sb.WriteString("</environment_details>")
-	return sb.String()
-}
-
-// refreshLastUserEnvelope strips the old <environment_details> from the last
-// user message and appends a fresh one with updated time and opened resources.
-// This makes a retry look like a fresh send rather than a resend from history.
+// refreshLastUserEnvelope updates only the <time> tag in the last user message's
+// <environment_details>. All other content (task_plan, opened_resources, etc.)
+// is preserved as-is from when the message was first created.
 func (a *Agent) refreshLastUserEnvelope() {
-	// Build the fresh envelope outside the lock since buildOpenedResources
-	// needs to acquire a.mu internally.
-	envText := a.buildFreshEnvelope()
+	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -322,47 +216,37 @@ func (a *Agent) refreshLastUserEnvelope() {
 		return
 	}
 
-	// Strip the last ContentPart if it contains <environment_details>
-	lastIdx := len(msg.ContentParts) - 1
-	if strings.Contains(msg.ContentParts[lastIdx].Text, "<environment_details>") {
-		msg.ContentParts = msg.ContentParts[:lastIdx]
+	// Update only the <time> tag in the last ContentPart
+	lastPart := &msg.ContentParts[len(msg.ContentParts)-1]
+	if strings.Contains(lastPart.Text, "<environment_details>") {
+		lastPart.Text = replaceTimeTag(lastPart.Text, now)
 	}
-
-	// Append fresh envelope
-	msg.AppendTextPart(envText)
 }
 
-// taskPlanTools lists the LLM tools that manage task plans. When the LLM has just
-// called one of these, the task plan content is already in the tool result message
-// and should not be duplicated in <environment_details>.
-var taskPlanTools = map[string]bool{
-	"track_task_progress": true,
-	"view_task_plan":      true,
-}
-
-// isLastToolTaskPlan checks whether the most recent tool call in a.messages is one
-// of the task plan tools. This is called per-iteration from injectEnvelopeToLastUser.
-func (a *Agent) isLastToolTaskPlan() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for i := len(a.messages) - 1; i >= 0; i-- {
-		msg := a.messages[i]
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			for _, tc := range msg.ToolCalls {
-				if taskPlanTools[tc.Name] {
-					return true
-				}
-			}
-			return false
-		}
+// replaceTimeTag replaces the content of <time>...</time> in the given text.
+func replaceTimeTag(text, newTime string) string {
+	start := strings.Index(text, "<time>")
+	if start < 0 {
+		return text
 	}
-	return false
+	start += len("<time>")
+	end := strings.Index(text[start:], "</time>")
+	if end < 0 {
+		return text
+	}
+	return text[:start] + newTime + text[start+end:]
 }
 
 // injectTimeAndMessageNoToLast appends a full <environment_details> block to the LAST
 // message in a.messages that is a user or tool message. Uses the shared
 // buildFullEnvironmentDetails method so all messages get consistent env context.
 // This is called after adding a tool result to freeze its environment context.
+//
+// FEATURE-17: Instead of searching from the end of history for any task plan tool call,
+// we look backward for the immediately preceding assistant message with tool_calls
+// and extract those tool names. The <task_plan> block is skipped only when the
+// current result message is a direct response to track_task_progress, view_task_plan,
+// or attempt_completion — because the plan content is already in the result text.
 func (a *Agent) injectTimeAndMessageNoToLast() {
 	if len(a.messages) == 0 {
 		return
@@ -373,7 +257,21 @@ func (a *Agent) injectTimeAndMessageNoToLast() {
 		return
 	}
 
-	envText := a.buildFullEnvironmentDetails(lastIdx)
+	// Find tool call names from the preceding assistant message.
+	// This tells us which tool(s) produced this result message.
+	var toolCallNames []string
+	a.mu.Lock()
+	for i := lastIdx - 1; i >= 0; i-- {
+		if a.messages[i].Role == "assistant" && len(a.messages[i].ToolCalls) > 0 {
+			for _, tc := range a.messages[i].ToolCalls {
+				toolCallNames = append(toolCallNames, tc.Name)
+			}
+			break
+		}
+	}
+	a.mu.Unlock()
+
+	envText := a.buildFullEnvironmentDetails(lastIdx, toolCallNames)
 
 	// Convert to ContentParts if not already
 	if len(msg.ContentParts) == 0 {
@@ -404,7 +302,8 @@ func (a *Agent) injectEnvelopeToLastUser(msgs []llm.Message) []llm.Message {
 	}
 
 	messageNo := len(a.messages) - 1
-	envText := a.buildFullEnvironmentDetails(messageNo)
+	// User messages always include <task_plan> — pass nil for toolCallNames.
+	envText := a.buildFullEnvironmentDetails(messageNo, nil)
 
 	// Always use ContentParts format for the last user message so the envelope
 	// (current time, files, task plan) is a separate text part from the instruction.
