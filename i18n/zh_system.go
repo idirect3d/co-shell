@@ -289,14 +289,17 @@ Usage:
 </write_to_file>`
 
 	zhMessages[KeyToolUsageVisualAnalysis] = `## visual_analysis
-Description: 加载图片、截图、扫描件、视频帧等一个视觉文件进行多模态分析。提供单个文件路径和识别意图说明，文件自动发送一次后即清理。支持：OCR/文字识别、图像理解、表格/数据提取、文档分析、视频帧分析等。如需分析多个文件，请一次调用加载一个文件。**必须指定 intent 参数说明需要分析什么内容。**
+Description: 加载一个或多个图片、截图、扫描件、视频帧等视觉文件进行多模态分析。提供文件路径数组和识别意图说明，文件自动发送一次后即清理。支持：OCR/文字识别、图像理解、表格/数据提取、文档分析、视频帧分析等。单次调用可加载的文件总数上限由 visual-analysis-max-images 配置参数控制（默认5）。**必须指定 intent 参数说明需要分析什么内容。**
 Parameters:
-- path (必需) 要分析的图片/视频文件路径，一次仅一个文件
-- intent (必需) 描述你需要从图片中识别什么具体信息。例如：'识别这张发票中的金额和日期'、'提取表格中的数据列'、'找出图中所有错误标注的位置'
+- paths (必需) 图片/视频文件路径数组，一次可加载多个文件。例如：['page1.png', 'page2.png']
+- intent (必需) 描述你需要从图片中识别什么具体信息。例如：'识别这些发票中的金额和日期'、'提取表格中的所有数据列'、'找出图中所有错误标注的位置'
 Usage:
 <visual_analysis>
-  <path>screenshot.png</path>
-  <intent>识别这张发票中的金额和日期</intent>
+  <paths>
+    <item>screenshot1.png</item>
+    <item>screenshot2.png</item>
+  </paths>
+  <intent>识别这些截图中的关键信息</intent>
 </visual_analysis>`
 
 	zhMessages[KeyToolUsageLaunchSubAgent] = `## launch_sub_agent

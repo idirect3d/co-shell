@@ -219,6 +219,10 @@ type LLMConfig struct {
 	// Default: 200.
 	DocxMaxReadParas int `json:"docx_max_read_paras"`
 
+	// VisualAnalysisMaxImages: maximum number of image/video files that can be
+	// loaded in a single visual_analysis call. Default: 5.
+	VisualAnalysisMaxImages int `json:"visual_analysis_max_images"`
+
 	// LoopDetectThreshold: the maximum number of times a similar content block
 	// can repeat before triggering loop detection intervention.
 	// When the same (or similar) content repeats this many times consecutively,
@@ -779,6 +783,7 @@ func DefaultConfig() *Config {
 			ExcelMaxSessions:           5,
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
+			VisualAnalysisMaxImages:    5,
 			LoopIntervention:           "retry",
 			LoopDetectThreshold:        2,
 			LoopSingleLineLength:       2048,

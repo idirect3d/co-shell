@@ -738,6 +738,13 @@
    - 避免 LLM 在后续迭代中"维护"自己之前不调用工具的判断
    - 同步更新 i18n 继续提示文案
 
+- [ ] **FEATURE-213 visual_analysis 支持一次识别多个图片，总数上限由系统参数配置**：[BUILD-306]
+   - LLMConfig 新增 VisualAnalysisMaxImages 字段（默认 5）
+   - 工具参数从 `path`（string）改为 `paths`（string array）
+   - visualAnalysisTool 批量处理，超过上限时截断并提示
+   - i18n 中英文翻译 + .set 参数注册
+   - main.go build 计数 +1
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
