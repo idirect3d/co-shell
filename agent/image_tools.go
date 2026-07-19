@@ -85,10 +85,38 @@ func listImagesForPrompt(paths []string) string {
 	return sb.String()
 }
 
-// buildMultimodalMessage creates a Message with multimodal content from text and image paths.
-// Images are read from disk and encoded as base64 data URIs.
-func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Message, error) {
-	parts := make([]llm.ContentPart, 0, 1+len(imagePaths))
+// detectMediaType returns the MIME type and content part type for a given file extension.
+func detectMediaType(ext string) (mimeType string, partType llm.ContentPartType) {
+	switch ext {
+	case ".png":
+		return "image/png", llm.ContentPartImageURL
+	case ".jpg", ".jpeg":
+		return "image/jpeg", llm.ContentPartImageURL
+	case ".gif":
+		return "image/gif", llm.ContentPartImageURL
+	case ".webp":
+		return "image/webp", llm.ContentPartImageURL
+	case ".bmp":
+		return "image/bmp", llm.ContentPartImageURL
+	case ".mp4":
+		return "video/mp4", llm.ContentPartVideoURL
+	case ".mov":
+		return "video/quicktime", llm.ContentPartVideoURL
+	case ".avi":
+		return "video/x-msvideo", llm.ContentPartVideoURL
+	case ".mkv":
+		return "video/x-matroska", llm.ContentPartVideoURL
+	case ".webm":
+		return "video/webm", llm.ContentPartVideoURL
+	default:
+		return "image/png", llm.ContentPartImageURL // default fallback
+	}
+}
+
+// buildMultimodalMessage creates a Message with multimodal content from text and media file paths.
+// Images and videos are read from disk and encoded as base64 data URIs.
+func (a *Agent) buildMultimodalMessage(text string, mediaPaths []string) (llm.Message, error) {
+	parts := make([]llm.ContentPart, 0, 1+len(mediaPaths))
 
 	// Add text part (only if not empty)
 	if text != "" {
@@ -98,53 +126,48 @@ func (a *Agent) buildMultimodalMessage(text string, imagePaths []string) (llm.Me
 		})
 	}
 
-	// Add image parts
-	for _, imgPath := range imagePaths {
+	// Add media parts (images and videos)
+	for _, mediaPath := range mediaPaths {
 		// Resolve relative paths
-		absPath := imgPath
-		if !filepath.IsAbs(imgPath) {
+		absPath := mediaPath
+		if !filepath.IsAbs(mediaPath) {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return llm.Message{}, fmt.Errorf("cannot get current working directory: %w", err)
 			}
-			absPath = filepath.Join(cwd, imgPath)
+			absPath = filepath.Join(cwd, mediaPath)
 		}
 
-		// Read image file
+		// Read file
 		data, err := os.ReadFile(absPath)
 		if err != nil {
-			return llm.Message{}, fmt.Errorf("cannot read image %q: %w", imgPath, err)
+			return llm.Message{}, fmt.Errorf("cannot read file %q: %w", mediaPath, err)
 		}
 
-		// Detect MIME type from extension
+		// Detect MIME type and content part type from extension
 		ext := strings.ToLower(filepath.Ext(absPath))
-		mimeType := ""
-		switch ext {
-		case ".png":
-			mimeType = "image/png"
-		case ".jpg", ".jpeg":
-			mimeType = "image/jpeg"
-		case ".gif":
-			mimeType = "image/gif"
-		case ".webp":
-			mimeType = "image/webp"
-		case ".bmp":
-			mimeType = "image/bmp"
-		default:
-			mimeType = "image/png" // default fallback
-		}
+		mimeType, partType := detectMediaType(ext)
 
 		// Encode as base64 data URI
 		base64Data := base64.StdEncoding.EncodeToString(data)
 		dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
 
-		parts = append(parts, llm.ContentPart{
-			Type: llm.ContentPartImageURL,
-			ImageURL: &llm.ContentPartImage{
-				URL:    dataURI,
-				Detail: "auto",
-			},
-		})
+		if partType == llm.ContentPartVideoURL {
+			parts = append(parts, llm.ContentPart{
+				Type: llm.ContentPartVideoURL,
+				VideoURL: &llm.ContentPartVideo{
+					URL: dataURI,
+				},
+			})
+		} else {
+			parts = append(parts, llm.ContentPart{
+				Type: llm.ContentPartImageURL,
+				ImageURL: &llm.ContentPartImage{
+					URL:    dataURI,
+					Detail: "auto",
+				},
+			})
+		}
 	}
 
 	return llm.Message{

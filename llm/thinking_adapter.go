@@ -28,6 +28,7 @@ var thinkingAdapterRegistry = map[string]ThinkingAdapter{
 	"zhipu":             &zhipuThinkingAdapter{},
 	"minimax":           &minimaxThinkingAdapter{},
 	"moonshot":          &moonshotThinkingAdapter{},
+	"kimi":              &kimiThinkingAdapter{},
 	"openai":            &openaiThinkingAdapter{},
 	"openai-compatible": &fallbackThinkingAdapter{},
 }
@@ -138,13 +139,33 @@ func (a *minimaxThinkingAdapter) BuildAdditions(cfg ThinkingConfig) map[string]s
 type moonshotThinkingAdapter struct{}
 
 func (a *moonshotThinkingAdapter) BuildAdditions(cfg ThinkingConfig) map[string]string {
+	return kimiBuildAdditions(cfg)
+}
+
+type kimiThinkingAdapter struct{}
+
+func (a *kimiThinkingAdapter) BuildAdditions(cfg ThinkingConfig) map[string]string {
+	return kimiBuildAdditions(cfg)
+}
+
+// kimiBuildAdditions builds thinking additions for Kimi/Moonshot API.
+// Kimi K3 always uses reasoning, K2.x supports configurable thinking mode.
+func kimiBuildAdditions(cfg ThinkingConfig) map[string]string {
 	switch cfg.Mode {
 	case ThinkingModeDefault:
 		return nil
 	case ThinkingModeDisabled:
 		return map[string]string{"thinking": `{"type":"disabled"}`}
 	case ThinkingModeEnabled:
-		return map[string]string{"thinking": `{"type":"enabled","keep":"all"}`}
+		r := map[string]string{
+			"thinking": `{"type":"enabled","keep":"all"}`,
+		}
+		if cfg.ReasoningEffort != "" {
+			r["reasoning_effort"] = fmt.Sprintf(`"%s"`, cfg.ReasoningEffort)
+		} else {
+			r["reasoning_effort"] = `"max"`
+		}
+		return r
 	}
 	return nil
 }

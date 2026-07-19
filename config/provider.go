@@ -44,6 +44,14 @@ var ProviderPresets = []ProviderPreset{
 		APIKeyURL:    "https://platform.xiaomimimo.com/#/console/api-keys",
 	},
 	{
+		Name:         "kimi",
+		DisplayName:  "Kimi（月之暗面 Moonshot AI）",
+		Endpoint:     "https://api.moonshot.cn",
+		Models:       []string{"kimi-k3", "kimi-k2.7-code", "kimi-k2.7-code-highspeed", "kimi-k2.6", "kimi-k2.5"},
+		DefaultModel: "kimi-k3",
+		APIKeyURL:    "https://platform.kimi.com/console/api-keys",
+	},
+	{
 		Name:         "zhipu",
 		DisplayName:  "智谱 AI（GLM）",
 		Endpoint:     "https://open.bigmodel.cn/api/paas/v4/",
