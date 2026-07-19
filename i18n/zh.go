@@ -440,6 +440,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescTopP:              "Top-P 采样参数（0.0 ~ 1.0，-1 不发送）",
 	KeySettingsDescTopK:              "Top-K 采样参数（>= 1 的整数，-1 不发送）",
 	KeySettingsDescRepetitionPenalty: "重复惩罚参数（0.0 ~ 2.0，-1 不发送）",
+	KeySettingsDescVisualAnalysisMaxImages: "视觉分析单次调用可加载的最大图片数量(1-20)",
 	KeySettingsDescTokenUsage:        "Token 用量显示模式（on=显示并发送, off=不显示但发送, none=不显示也不发送）",
 	KeySettingsDescToolTimeout:       "工具调用超时（0=不限）",
 	KeySettingsDescCmdTimeout:        "命令执行超时（0=不限）",
@@ -569,6 +570,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3TopP:              "Top-P 采样参数",
 	KeyCol3TopK:              "Top-K 采样参数",
 	KeyCol3RepetitionPenalty: "重复惩罚参数",
+	KeyCol3VisualAnalysisMaxImages: "视觉分析最大图片数(1-20)",
 	KeyCol3TokenUsage:        "Token 用量显示模式(on/off/none)",
 
 	// Settings group titles

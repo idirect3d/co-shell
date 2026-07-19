@@ -297,20 +297,21 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 	})
 	tools = append(tools, llm.Tool{
 		Name:        "visual_analysis",
-		Description: "Load one image/video file for multimodal visual analysis by the LLM's vision capability. Provide a single file path and specify what to analyze. This tool supports:\n- OCR / text recognition: recognize and extract text from images, scanned documents, screenshots, signs, handwriting\n- Image understanding: describe scenes, objects, people, layouts, colors, and visual relationships\n- Table/data extraction: extract structured data from tables, charts, graphs, and infographics\n- Document analysis: extract content from report pages, forms, certificates, invoices\n- Video frame analysis: analyze screenshots or extracted frames from videos\n\nThe file is sent to the LLM exactly once in the next iteration and automatically removed from cache after delivery. To analyze multiple files, call this tool once per file. IMPORTANT: You MUST specify the 'intent' parameter to describe what specific information you need from the visual input.",
+		Description: "Load one or more image/video files for multimodal visual analysis by the LLM's vision capability. Provide an array of file paths and specify what to analyze. This tool supports:\n- OCR / text recognition: recognize and extract text from images, scanned documents, screenshots, signs, handwriting\n- Image understanding: describe scenes, objects, people, layouts, colors, and visual relationships\n- Table/data extraction: extract structured data from tables, charts, graphs, and infographics\n- Document analysis: extract content from report pages, forms, certificates, invoices\n- Video frame analysis: analyze screenshots or extracted frames from videos\n\nThe files are sent to the LLM exactly once in the next iteration and automatically removed from cache after delivery. To analyze more files, call this tool again. The maximum number of files per call is controlled by the 'visual-analysis-max-images' config setting (default: 5). IMPORTANT: You MUST specify the 'intent' parameter to describe what specific information you need from the visual input.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"path": map[string]interface{}{
-					"type":        "string",
-					"description": "Single image/video file path to load for visual analysis (e.g., 'screenshot.png', 'diagram.jpg', 'video_frame.mp4')",
+				"paths": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Array of image/video file paths to load for visual analysis (e.g., ['page1.png', 'page2.png', 'diagram.jpg']). Maximum controlled by visual-analysis-max-images config.",
 				},
 				"intent": map[string]interface{}{
 					"type":        "string",
 					"description": "Describe what specific information you need to analyze from the image/video. Examples: '识别这张发票中的金额和日期', '提取表格中的所有数据列', '描述这张照片中的场景和人物', '分析截图中显示的代码错误'. This intent guides the vision analysis and produces structured output.",
 				},
 			},
-			"required": []string{"path", "intent"},
+			"required": []string{"paths", "intent"},
 		},
 		Callback: a.visualAnalysisTool,
 	})

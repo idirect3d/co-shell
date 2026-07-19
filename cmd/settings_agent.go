@@ -569,6 +569,21 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Docx max read paras set to %d", n)
 		return fmt.Sprintf("✅ Word 单次读取最大段落数已设置为: %d", n), nil
 
+	case "visual-analysis-max-images":
+		if len(args) < 2 {
+			return fmt.Sprintf("视觉分析单次调用最大图片数: %d", h.cfg.LLM.VisualAnalysisMaxImages), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 1 || n > 20 {
+			return "", fmt.Errorf("无效的图片数量: %s（请输入 1-20 的整数）", args[1])
+		}
+		h.cfg.LLM.VisualAnalysisMaxImages = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Visual analysis max images set to %d", n)
+		return fmt.Sprintf("✅ 视觉分析单次调用最大图片数已设置为: %d", n), nil
+
 	case "debug":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOff)
