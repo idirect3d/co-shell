@@ -44,6 +44,7 @@ type ContentPartType string
 const (
 	ContentPartText     ContentPartType = "text"
 	ContentPartImageURL ContentPartType = "image_url"
+	ContentPartVideoURL ContentPartType = "video_url"
 )
 
 // ContentPart represents a single part of a multimodal message content.
@@ -51,12 +52,18 @@ type ContentPart struct {
 	Type     ContentPartType   `json:"type"`
 	Text     string            `json:"text,omitempty"`
 	ImageURL *ContentPartImage `json:"image_url,omitempty"`
+	VideoURL *ContentPartVideo `json:"video_url,omitempty"`
 }
 
 // ContentPartImage represents an image URL in a multimodal message.
 type ContentPartImage struct {
 	URL    string `json:"url"`
 	Detail string `json:"detail,omitempty"`
+}
+
+// ContentPartVideo represents a video URL in a multimodal message.
+type ContentPartVideo struct {
+	URL string `json:"url"`
 }
 
 // Message represents a chat message in the conversation.

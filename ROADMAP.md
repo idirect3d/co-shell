@@ -745,6 +745,13 @@
    - i18n 中英文翻译 + .set 参数注册
    - main.go build 计数 +1
 
+- [x] FEATURE-214 增加 Kimi API 供应商支持（含视频输入）[BUILD-307]
+   - config/provider.go - 新增 kimi ProviderPreset（endpoint: https://api.moonshot.cn，模型: kimi-k3/k2.7-code/k2.7-code-highspeed/k2.6/k2.5）
+   - config/model_template.go - 新增 kimi-official ModelTemplate（支持多模态、Thinking、ToolCall，默认 1M 上下文）
+   - llm/thinking_adapter.go - kimiThinkingAdapter 支持 thinking + reasoning_effort
+   - llm/client.go - 新增 ContentPartVideoURL 类型 + ContentPartVideo 结构体
+   - agent/image_tools.go - visual_analysis 扩展支持视频文件编码
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
