@@ -732,7 +732,7 @@
    - executeSystemCommand() 使用进程组 kill 可杀嵌套进程（python3 | head）
    - run_stream.go 工具执行循环使用 cancelCtx 传递 Ctrl+C 信号
 
-- [ ] **FEATURE-17 0-tool-call 时不保留 assistant 文本消息**：[BUILD-304]
+- [x] **FEATURE-17 0-tool-call 时不保留 assistant 文本消息**：[BUILD-304]
    - 当 LLM 返回纯文本且未调用 attempt_completion 时，不将 assistant 消息加入对话历史
    - 只追加一条强指令 user 消息，要求 LLM 要么调用 attempt_completion 要么调用工具
    - 避免 LLM 在后续迭代中"维护"自己之前不调用工具的判断
