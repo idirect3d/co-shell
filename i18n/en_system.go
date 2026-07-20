@@ -110,7 +110,10 @@ Tool calls use XML tag format. The tool name is used directly as the XML tag nam
 For example, calling read_file:
 
 <read_file>
-<path>src/main.js</path>
+  <intent>Need to examine the contents of src/main.js</intent>
+  <path>src/main.js</path>
+  <start_line>1</start_line>
+  <end_line>50</end_line>
 </read_file>
 
 Always adhere to this format for the tool use to ensure proper parsing and execution.
@@ -118,12 +121,14 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 If you need to call multiple tools in a single response, simply use multiple tool tags consecutively:
 
 <search_files>
+  <intent>Need to search for the main function definition in the agent package</intent>
   <path>agent</path>
   <regex>func main</regex>
   <file_pattern>*.go</file_pattern>
 </search_files>
 
 <read_file>
+  <intent>Need to examine the beginning of main.go</intent>
   <path>main.go</path>
   <start_line>1</start_line>
   <end_line>50</end_line>
@@ -133,6 +138,7 @@ For array-type parameters, use <item> tags to represent each element in the arra
 
 <track_task_progress>
   <title>Implement user login</title>
+  <description>Implement user login with frontend, backend, API, session management</description>
   <steps>
     <item>
       <description>Design database user table schema</description>
@@ -321,7 +327,7 @@ Usage:
 Description: Record task content and track progress of each step execution. Pass the complete array of steps as the desired state — the system handles creation or replacement automatically. DESCRIPTION usage: for detailed plans, write the full plan context, background, constraints, technical approach, and acceptance criteria into the description field. STEP.DESCRIPTION usage: the first line is the step title/summary; subsequent lines provide detailed content. STATUS values: "[ ]" (pending/todo), "[=]" (in_progress), "[X]" (completed), "[C]" (cancelled), "[F]" (failed). Set steps to an empty array to archive and delete the current plan.
 Parameters:
 - title (required for new plan) The title of the task plan.
-- description (optional) A detailed description of the overall task plan. For detailed plans, include the full context, background, constraints, technical approach, and acceptance criteria.
+- description (required) A detailed description of the overall task plan. For detailed plans, include the full context, background, constraints, technical approach, and acceptance criteria.
 - steps (required) Array of step objects, each with description and status. Passing the complete array sets the desired state. Empty array archives and deletes the current plan.
 
   <steps>
@@ -963,6 +969,7 @@ Merge mode example (add border only, keep existing font):
 ## Example 1: Execute a command
 
 <execute_command>
+  <intent>Need to check the latest release version of co-shell</intent>
   <command>curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'</command>
   <timeout_seconds>15</timeout_seconds>
 </execute_command>
@@ -970,6 +977,7 @@ Merge mode example (add border only, keep existing font):
 ## Example 2: Create a new file
 
 <write_to_file>
+  <intent>Need to create a configuration file with API endpoint settings</intent>
   <mode>new</mode>
   <path>src/config.json</path>
   <content>
@@ -987,6 +995,7 @@ Merge mode example (add border only, keep existing font):
 ## Example 3: Search file contents
 
 <search_files>
+  <intent>Need to find the handleSubmit function definition in the source code</intent>
   <path>src</path>
   <regex>function handleSubmit</regex>
   <file_pattern>*.ts</file_pattern>
@@ -995,6 +1004,7 @@ Merge mode example (add border only, keep existing font):
 ## Example 4: Make precise file modifications
 
 <replace_in_file>
+  <intent>Need to update the API endpoint URL from old to new</intent>
   <path>src/config.ts</path>
   <replacements>
     <item>

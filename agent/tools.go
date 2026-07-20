@@ -499,7 +499,7 @@ Critical rules:
 							"description": "Array of step objects, each with description and status. Passing the complete array sets the desired state. Empty array archives and deletes the current plan.",
 						},
 					},
-					"required": []string{"steps"},
+					"required": []string{"title", "description", "steps"},
 				},
 				Callback: a.trackTaskProgressTool,
 			},

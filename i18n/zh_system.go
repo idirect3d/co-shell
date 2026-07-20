@@ -124,7 +124,10 @@ TOOL USE
 例如，调用 read_file 工具：
 
 <read_file>
-<path>src/main.js</path>
+  <intent>需要查看 src/main.js 文件的内容</intent>
+  <path>src/main.js</path>
+  <start_line>1</start_line>
+  <end_line>50</end_line>
 </read_file>
 
 始终严格遵循此格式，以确保工具调用能被正确解析和执行。
@@ -132,12 +135,14 @@ TOOL USE
 如果需要在一次回复中调用多个工具，只需连续使用多个工具标签：
 
 <search_files>
+  <intent>需要搜索 agent 包中定义 main 函数的位置</intent>
   <path>agent</path>
   <regex>func main</regex>
   <file_pattern>*.go</file_pattern>
 </search_files>
 
 <read_file>
+  <intent>需要查看 main.go 文件的开头部分</intent>
   <path>main.go</path>
   <start_line>1</start_line>
   <end_line>50</end_line>
@@ -147,6 +152,7 @@ TOOL USE
 
 <track_task_progress>
   <title>实现用户登录</title>
+  <description>实现用户登录功能，包括前后端、API、会话管理</description>
   <steps>
     <item>
       <description>设计数据库用户表结构</description>
@@ -335,7 +341,7 @@ Usage:
 Description: 记录任务内容并跟踪各步骤执行进度。一次性传递完整的 steps 数组作为期望状态——系统自动处理创建或替换。DESCRIPTION 用法：对于详细计划，将完整的任务背景、约束条件、技术方案和验收标准写入 description。STEP.DESCRIPTION 用法：首行为步骤标题/摘要；后续行为步骤的具体详细内容。STATUS 取值："[ ]" (待办)、"[=]" (进行中)、"[X]" (已完成)、"[C]" (已取消)、"[F]" (已失败)。将 steps 设置为空数组可归档并删除当前计划。
 Parameters:
 - title (必需，新建时) 任务计划的标题
-- description (可选) 整体任务计划的详细描述。对于详细计划，应包含完整的任务背景、约束条件、技术方案和验收标准。
+- description (必需) 整体任务计划的详细描述。对于详细计划，应包含完整的任务背景、约束条件、技术方案和验收标准。
 - steps (必需) 步骤对象数组，每个对象包含 description 和 status。传递完整数组即设定期望状态。空数组归档并删除当前计划。
 
   <steps>
@@ -944,6 +950,7 @@ Usage:
 ## 示例 1：列出目录文件
 
 <list_files>
+  <intent>需要查看当前工作目录的顶层文件结构</intent>
   <path>.</path>
   <recursive>false</recursive>
 </list_files>
@@ -951,6 +958,7 @@ Usage:
 ## 示例 2：创建新文件
 
 <write_to_file>
+  <intent>需要在 src 目录下创建新的配置文件</intent>
   <mode>new</mode>
   <path>src/config.json</path>
   <content>
@@ -965,6 +973,7 @@ Usage:
 ## 示例 3：搜索文件内容
 
 <search_files>
+  <intent>需要搜索代码中引用了 KeyDisclaimerTitle 的位置</intent>
   <path>src</path>
   <regex>i18n.KeyDisclaimerTitle</regex>
   <file_pattern>*.go</file_pattern>
@@ -973,6 +982,7 @@ Usage:
 ## 示例 4：对文件进行精确修改
 
 <replace_in_file>
+  <intent>需要将 Println 改为 Print 调用</intent>
   <path>src/main.go</path>
   <replacements>
     <item>
