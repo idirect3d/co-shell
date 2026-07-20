@@ -375,10 +375,12 @@ Usage:
 	enMessages[KeyToolUsageGetMemorySlice] = `## get_memory_slice
 Description: Retrieve a recent segment of conversation history from persistent memory. Used to recall content from previous conversations. Parameters: last_from (position from the end, 1=latest), last_to (position to the end, 1=latest). Example: last_from=5, last_to=1 returns the last 5 messages in chronological order.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - last_from (required) Starting position from the end (inclusive). 1 = latest message. Must be >= last_to.
 - last_to (required) Ending position from the end (inclusive). 1 = latest message.
 Usage:
 <get_memory_slice>
+  <intent>Need to retrieve recent conversation history to restore context</intent>
   <last_from>10</last_from>
   <last_to>1</last_to>
 </get_memory_slice>`
@@ -401,12 +403,14 @@ Usage:
 </memory_search>`
 
 	enMessages[KeyToolUsageDeleteMemory] = `## delete_memory
-Description: Delete a segment of conversation history from persistent memory. Used to remove outdated or incorrect information. Parameters: last_from (position from the end, 1=latest), last_to (position to the end, 1=latest). Example: last_from=5, last_to=1 deletes the last 5 messages.
+Description: Delete a range of conversation history from persistent memory. Used to remove outdated or incorrect information from memory. Parameters: last_from (position from the end, 1=most recent), last_to (position to the end, 1=most recent). Example: last_from=5, last_to=1 deletes the 5 most recent messages.
 Parameters:
-- last_from (required) Starting position from the end (inclusive). 1 = latest message. Must be >= last_to.
-- last_to (required) Ending position from the end (inclusive). 1 = latest message.
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+- last_from (required) Starting position from the end (inclusive). 1 = most recent message. Must be >= last_to.
+- last_to (required) Ending position from the end (inclusive). 1 = most recent message.
 Usage:
 <delete_memory>
+  <intent>Need to delete outdated conversation history to clean up memory</intent>
   <last_from>5</last_from>
   <last_to>1</last_to>
 </delete_memory>`
@@ -464,7 +468,7 @@ If you were using create_task_plan/update_task_step/... to manage the task progr
 Parameters:
 - result (required) The result of the tool use. This should be a clear, specific description of the result.
 - command (optional) A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions
-- task_message_no (required) Integer. The message number to set as the new context start pointer after task completion, taken from the message_no field in <environment_details>. Setting this moves the context start pointer to that message position; older messages before the pointer are ignored and no longer occupy the context window, but can still be retrieved from persistent memory via memory_search or get_memory_slice if needed.
+- task_message_no (optional) Integer. The message number to set as the new context start pointer after task completion, taken from the message_no field in <environment_details>. Setting this moves the context start pointer to that message position; older messages before the pointer are ignored and no longer occupy the context window, but can still be retrieved from persistent memory via memory_search or get_memory_slice if needed.
 - session_title (required) String. A brief session title (max 30 characters) describing the completed task, for easy identification when reviewing session history.
 - session_keywords (required) String. Comma-separated keywords describing the core content of this session, for efficient session search and restoration.
 Usage:
@@ -488,6 +492,7 @@ Description: Send content (command, Python statement, or control character) to t
 The command is sent VERBATIM to stdin — no bytes (including \n) are added automatically. The LLM must include all necessary bytes in the command string.
 Send only one logical unit at a time. Observe the output before deciding what to send next.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - command (required) The content to send to the shell session — a single shell command, Python statement, input line, or control character
 - wait_ms (optional) Idle timeout in milliseconds (default: 500). Resets each time new output arrives. Returns accumulated output after idle timeout. Increase for long-running processes.
 - timeout_seconds (optional) Total timeout in seconds.
@@ -549,10 +554,12 @@ Usage pattern - interactive step-by-step (note the \n at end of each command):
 Description: Evaluate a mathematical expression and return the exact result. Supports basic arithmetic (+, -, *, /, %), exponentiation (^), trigonometric functions (sin, cos, tan, asin, acos, atan, radians), logarithms (log=base10, ln=natural), square root (sqrt), absolute value (abs), rounding (ceil, floor, round), and constants (pi, e). Use this for precise calculations instead of relying on Python or shell commands.
 
 Parameters:
-- expression (required): The mathematical expression to evaluate
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+- expression (required) The mathematical expression to evaluate
 
 Usage:
 <evaluate_expression>
+  <intent>Need to calculate compound interest result</intent>
   <expression>45 * (1 + 0.05) ^ 10</expression>
 </evaluate_expression>
 `
@@ -609,31 +616,37 @@ About 40% done: database table created, backend API /login route completed. Fron
 Description: Retrieve output from the persistent shell session. Auto-increment mode (no last_from/count): returns only new content since the last shell_send or shell_get_output call, useful for checking progress of long-running commands.
 With last_from/count: returns the specified range of terminal scrollback history.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - wait_ms (optional) Observation wait time in milliseconds (default: 200). Waits this long for new output before returning.
 - last_from (optional) Starting position from the end (1-based, 1=most recent line). If not provided, uses auto-increment mode.
 - count (optional) Number of lines to return. If not provided with last_from, uses auto-increment mode.
 - timeout_seconds (optional) Total timeout in seconds, prevents infinite waiting.
 Usage:
 <shell_get_output>
+  <intent>Need to check the output of a running command</intent>
   <wait_ms>1000</wait_ms>
 </shell_get_output>`
 
 	enMessages[KeyToolUsageBrowserNavigate] = `## browser_navigate
 Description: Navigate the browser to the specified URL. Automatically waits for the page to load.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - url (required) The URL to navigate to
 Usage:
 <browser_navigate>
+  <intent>Need to open an example website to view page content</intent>
   <url>https://example.com</url>
 </browser_navigate>`
 
 	enMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
 Description: Capture a screenshot of the browser page currently navigated to via browser_navigate, and cache it for multimodal analysis. The screenshot is automatically injected into the multimodal context. Use with browser_get_interactive_elements for precise operations.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - quality (optional, default 80) Screenshot quality 1-100
 - full_page (optional, default false) Whether to capture the full page
 Usage:
 <browser_screenshot>
+  <intent>Need to capture the current page to analyze the layout</intent>
   <quality>90</quality>
   <full_page>true</full_page>
 </browser_screenshot>`
@@ -641,10 +654,12 @@ Usage:
 	enMessages[KeyToolUsageBrowserClick] = `## browser_click
 Description: Click at the specified coordinates on the page. It is recommended to call browser_get_interactive_elements first to get element coordinates.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - x (required) X coordinate to click
 - y (required) Y coordinate to click
 Usage:
 <browser_click>
+  <intent>Need to click the login button to submit the form</intent>
   <x>200</x>
   <y>450</y>
 </browser_click>`
@@ -652,10 +667,12 @@ Usage:
 	enMessages[KeyToolUsageBrowserType] = `## browser_type
 Description: Type text into the currently focused input element. Set clear=true to clear existing content before typing.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - text (required) Text to type
 - clear (optional, default false) Whether to clear existing content first
 Usage:
 <browser_type>
+  <intent>Need to type keywords into the search box</intent>
   <text>Hello World</text>
   <clear>true</clear>
 </browser_type>`
@@ -663,51 +680,70 @@ Usage:
 	enMessages[KeyToolUsageBrowserEvaluate] = `## browser_evaluate
 Description: Execute JavaScript code in the browser and return the result. Useful for extracting page data, modifying DOM, triggering events, and other advanced operations.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - expression (required) JavaScript expression to execute
 Usage:
 <browser_evaluate>
+  <intent>Need to get the page title</intent>
   <expression>document.title</expression>
 </browser_evaluate>`
 
 	enMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_rendered_html
 Description: Get the rendered DOM HTML of the current page after all JavaScript has executed. The HTML is serialized from Chrome's live DOM tree — it reflects the final rendered state (SPA output, dynamic content, JS modifications), NOT the raw source. No need to download JS/JSON resources separately.
-Parameters: None
+Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 Usage:
-<browser_get_rendered_html />`
+<browser_get_rendered_html>
+  <intent>Need to get the rendered HTML to analyze the page structure</intent>
+</browser_get_rendered_html>`
 
 	enMessages[KeyToolUsageBrowserScroll] = `## browser_scroll
 Description: Scroll the page by the specified pixel amount. Positive values scroll down, negative values scroll up.
 Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - delta_x (optional, default 0) Horizontal scroll pixels
 - delta_y (optional, default 500) Vertical scroll pixels (positive = down, negative = up)
 Usage:
 <browser_scroll>
+  <intent>Need to scroll down the page to view lower content</intent>
   <delta_y>500</delta_y>
 </browser_scroll>`
 
 	enMessages[KeyToolUsageBrowserGetInteractiveElements] = `## browser_get_interactive_elements
 Description: Get a list of all interactive elements (buttons, links, input fields, etc.) on the page, including each element's center coordinates, tag name, type, and other attributes. Used to precisely locate elements for browser_click or browser_type operations.
-Parameters: None
+Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 Usage:
-<browser_get_interactive_elements />`
+<browser_get_interactive_elements>
+  <intent>Need to get interactive elements to click a button</intent>
+</browser_get_interactive_elements>`
 
 	enMessages[KeyToolUsageBrowserGoBack] = `## browser_go_back
 Description: Navigate back to the previous page (equivalent to clicking the browser back button).
-Parameters: None
+Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 Usage:
-<browser_go_back />`
+<browser_go_back>
+  <intent>Need to go back to the previous page to modify input</intent>
+</browser_go_back>`
 
 	enMessages[KeyToolUsageBrowserGoForward] = `## browser_go_forward
 Description: Navigate forward to the next page (equivalent to clicking the browser forward button).
-Parameters: None
+Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 Usage:
-<browser_go_forward />`
+<browser_go_forward>
+  <intent>Need to go forward to the next page</intent>
+</browser_go_forward>`
 
 	enMessages[KeyToolUsageBrowserClose] = `## browser_close
 Description: Close the browser and clean up all related resources.
-Parameters: None
+Parameters:
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 Usage:
-<browser_close />`
+<browser_close>
+  <intent>Finished browser operations, closing browser</intent>
+</browser_close>`
 
 	// Excel tools (FEATURE-120)
 	enMessages[KeyToolUsageExcelOpen] = `## excel_open
@@ -733,8 +769,8 @@ Create new file example:
 	enMessages[KeyToolUsageExcelClose] = `## excel_close
 Description: Close an Excel session. Saves changes to disk (if any) and releases memory.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
 Usage:
 <excel_close>
   <intent>Close the report spreadsheet after editing</intent>
@@ -744,8 +780,8 @@ Usage:
 	enMessages[KeyToolUsageExcelSave] = `## excel_save
 Description: Save changes to disk without closing the session. Use periodically after edits to persist progress.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
 Usage:
 <excel_save>
   <intent>Save editing progress</intent>
@@ -755,8 +791,8 @@ Usage:
 	enMessages[KeyToolUsageExcelOverview] = `## excel_overview
 Description: Get an overview of all sheets in the workbook. Returns metadata only (sheet names, data ranges, row/column counts, header hints) — NO cell data is returned. Call this first after opening a file to understand its structure.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
 Usage:
 <excel_overview>
   <intent>Understand the spreadsheet structure</intent>
@@ -766,15 +802,15 @@ Usage:
 	enMessages[KeyToolUsageExcelRead] = `## excel_read
 Description: Read cell data from a specified range. format is REQUIRED, supports 5 output modes. max_cells defaults to 1000.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - sheet: Sheet name (e.g. "Sheet1") or 1-based index
-  - start_row: 1-based start row
-  - end_row: 1-based end row
-  - start_col: 1-based start column
-  - end_col: 1-based end column
-  - format: REQUIRED. Output format: 'html' (HTML table with indentation), 'full' (HTML with formatting info), 'text' (TSV tab-separated, each row prefixed with "N: "), 'md' (Markdown table, each row prefixed with "N: "), 'grid' (grid with column letters + row numbers + type prefixes)
-  - max_cells: Optional max cells to return (default 1000)
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - sheet (required) Sheet name (e.g. "Sheet1") or 1-based index
+  - start_row (required) 1-based start row
+  - end_row (required) 1-based end row
+  - start_col (required) 1-based start column
+  - end_col (required) 1-based end column
+  - format (required) Output format: 'html', 'full', 'text', 'md', 'grid'
+  - max_cells (optional) Max cells to return (default 1000)
 Usage:
 <excel_read>
   <intent>Read the first 10 rows of data</intent>
@@ -802,11 +838,11 @@ text format example:
 	enMessages[KeyToolUsageExcelEdit] = `## excel_edit
 Description: Write values to cells starting from a target cell. Values is a 2D array of strings. If a value starts with '=', it is interpreted as a formula.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - sheet: Sheet name (e.g. "Sheet1")
-  - start_cell: Starting cell reference (e.g. "A1", "C5")
-  - values: 2D array — each <item> is a TSV (tab-separated) row, directly pasteable from Excel copy
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - sheet (required) Sheet name (e.g. "Sheet1")
+  - start_cell (required) Starting cell reference (e.g. "A1", "C5")
+  - values (required) 2D array — each <item> is a TSV (tab-separated) row, directly pasteable from Excel copy
 Usage:
 <excel_edit>
   <intent>Write data into the spreadsheet starting from A1</intent>
@@ -823,14 +859,14 @@ Usage:
 	enMessages[KeyToolUsageExcelCopy] = `## excel_copy
 Description: Copy a range of cells to the session clipboard. Supports cut mode (cut=true) which marks the source area for deletion on paste. Clipboard is per-session and cleared on next excel_read call.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - sheet: Sheet name
-  - start_row: 1-based start row
-  - end_row: 1-based end row
-  - start_col: 1-based start column
-  - end_col: 1-based end column
-  - cut: Optional, if true marks as cut operation (default false)
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - sheet (required) Sheet name
+  - start_row (required) 1-based start row
+  - end_row (required) 1-based end row
+  - start_col (required) 1-based start column
+  - end_col (required) 1-based end column
+  - cut (optional) If true marks as cut operation (default false)
 Usage:
 <excel_copy>
   <intent>Copy the header row for pasting elsewhere</intent>
@@ -845,10 +881,10 @@ Usage:
 	enMessages[KeyToolUsageExcelPaste] = `## excel_paste
 Description: Paste clipboard content (from excel_copy) to a target cell. If from a cut operation, the source area is automatically cleared after paste.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - sheet: Sheet name
-  - target_cell: Target cell reference (e.g. "F2")
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - sheet (required) Sheet name
+  - target_cell (required) Target cell reference (e.g. "F2")
 Usage:
 <excel_paste>
   <intent>Paste the copied content to the target location</intent>
@@ -860,12 +896,12 @@ Usage:
 	enMessages[KeyToolUsageExcelInsert] = `## excel_insert
 Description: Insert rows or columns at a specified position. what must be 'rows' or 'cols'. position is 1-based. count defaults to 1. Existing data shifts down/right.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - sheet: Sheet name
-  - what: 'rows' or 'cols'
-  - position: 1-based position to insert at
-  - count: Optional number to insert (default 1)
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - sheet (required) Sheet name
+  - what (required) 'rows' or 'cols'
+  - position (required) 1-based position to insert at
+  - count (optional) Number to insert (default 1)
 Usage:
 <excel_insert>
   <intent>Insert 2 empty rows before row 3</intent>
@@ -879,13 +915,13 @@ Usage:
 	enMessages[KeyToolUsageExcelDelete] = `## excel_delete
 Description: Delete rows, columns, or clear cell content. what='rows' deletes row range; what='cols' deletes column range; what='cells' clears cell content without shifting.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - sheet: Sheet name
-  - what: 'rows', 'cols', or 'cells'
-  - position: 1-based position (for rows/cols)
-  - count: Number to delete (default 1)
-  - start_row/end_row/start_col/end_col: Cell range (for cells)
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - sheet (required) Sheet name
+  - what (required) 'rows', 'cols', or 'cells'
+  - position (rows/cols required) 1-based position (for rows/cols)
+  - count (optional) Number to delete (default 1)
+  - start_row/end_row/start_col/end_col (cells required) Cell range (for cells)
 Usage:
 <excel_delete>
   <intent>Delete rows 5-7 to remove obsolete data</intent>
@@ -899,11 +935,11 @@ Usage:
 	enMessages[KeyToolUsageExcelSheet] = `## excel_sheet
 Description: Manage sheets. action='create' creates a new sheet; action='delete' deletes a sheet; action='rename' renames; action='copy' copies; action='list' lists all sheets.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - action: 'create', 'delete', 'rename', 'copy', or 'list'
-  - name: Sheet name (required for create/delete/rename/copy)
-  - new_name: New name (required for rename/copy)
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - action (required) 'create', 'delete', 'rename', 'copy', or 'list'
+  - name (create/delete/rename/copy required) Sheet name
+  - new_name (rename/copy required) New name
 Usage:
 <excel_sheet>
   <intent>List all available sheets</intent>
@@ -914,12 +950,12 @@ Usage:
 	enMessages[KeyToolUsageExcelFormat] = `## excel_format
 Description: Apply formatting to a range of cells. Use the what parameter (array) to specify operations: font (name/size/bold/italic/underline/color), fill (background color), border (style/color/per-side control), alignment (horizontal/vertical/wrap text), number_format, merge, unmerge, row_height, col_width. All format operations apply to the range specified by start_row/end_row/start_col/end_col.
 Parameters:
-  - intent: Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
-  - session_id: Session ID returned by excel_open
-  - sheet: Sheet name
-  - what: Required. Array of operations. Options: "font", "fill", "border", "alignment", "number_format", "merge", "unmerge", "row_height", "col_width"
-  - mode: Optional. Format mode. "reset" (default) replaces all style properties; "merge" only updates the properties specified in what[], preserving existing styles
-  - start_row/end_row/start_col/end_col: Range (1-based)
+  - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+  - session_id (required) Session ID returned by excel_open
+  - sheet (required) Sheet name
+  - what (required) Array of operations. Options: "font", "fill", "border", "alignment", "number_format", "merge", "unmerge", "row_height", "col_width"
+  - mode (optional) Format mode. "reset" (default) replaces all style properties; "merge" only updates the properties specified in what[], preserving existing styles
+  - start_row/end_row/start_col/end_col (required) Range (1-based)
   - font_name/font_size/font_bold/font_italic/font_underline/font_color: Font properties (when what contains "font")
   - fill_color: Fill RGB (when what contains "fill")
   - border_style/border_color/border_top/border_bottom/border_left/border_right: Border properties (when what contains "border")
