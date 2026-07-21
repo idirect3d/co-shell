@@ -722,8 +722,8 @@
 - [x] FIX-278 excel_edit 增加 TSV fallback 解析和 i18n 用法示例补全 [BUILD-300]
   - agent/excel_tools.go: excelEditTool 中去掉 JSON 解析，改为纯 TSV 模式，保留多行 CSV fallback
   - i18n/zh_system.go / i18n/en_system.go: 补全 excel_edit XML 用法示例，改为 TSV 格式说明
-- [ ] FIX-279 循环检测计数器在干预后未重置问题
-   - agent/loop.go: applyLoopIntervention 中按事件类型精准重置触发检测器，避免同模式刚发完反馈就再次触发
+- [x] FIX-279 循环检测计数器在干预后未重置问题
+    - agent/loop.go: applyLoopIntervention 中按事件类型精准重置触发检测器，避免同模式刚发完反馈就再次触发
 - [x] FEATURE-179 EML 文件解析工具：新增 bin/eml2json.py，解析 EML 文件（标题、收发件人、时间、正文、附件），以邮件时间命名文件夹输出 metadata.json 和附件文件 [BUILD-302]
 
 - [x] **FEATURE-280 工具执行中支持 Ctrl+C 中断**：[BUILD-303]
@@ -746,11 +746,18 @@
    - main.go build 计数 +1
 
 - [x] FEATURE-214 增加 Kimi API 供应商支持（含视频输入）[BUILD-307]
-   - config/provider.go - 新增 kimi ProviderPreset（endpoint: https://api.moonshot.cn，模型: kimi-k3/k2.7-code/k2.7-code-highspeed/k2.6/k2.5）
-   - config/model_template.go - 新增 kimi-official ModelTemplate（支持多模态、Thinking、ToolCall，默认 1M 上下文）
-   - llm/thinking_adapter.go - kimiThinkingAdapter 支持 thinking + reasoning_effort
-   - llm/client.go - 新增 ContentPartVideoURL 类型 + ContentPartVideo 结构体
-   - agent/image_tools.go - visual_analysis 扩展支持视频文件编码
+    - config/provider.go - 新增 kimi ProviderPreset（endpoint: https://api.moonshot.cn，模型: kimi-k3/k2.7-code/k2.7-code-highspeed/k2.6/k2.5）
+    - config/model_template.go - 新增 kimi-official ModelTemplate（支持多模态、Thinking、ToolCall，默认 1M 上下文）
+    - llm/thinking_adapter.go - kimiThinkingAdapter 支持 thinking + reasoning_effort
+    - llm/client.go - 新增 ContentPartVideoURL 类型 + ContentPartVideo 结构体
+    - agent/image_tools.go - visual_analysis 扩展支持视频文件编码
+
+- [x] FIX-283 修复 Windows 上 StdioIO.ReadKey() 和 ask_followup_question 工具无限循环、不等待用户输入的问题 [BUILD-312]
+    - 根因1：handleAgentInput 在 stdio 模式未设置 UserIO，agent 回退到 fmtIO.ReadKey() 永远返回 (0, nil)
+    - 根因2：StdioIO.ReadKey() 在 Windows 上未启用 raw console mode
+    - 修改 repl/repl.go：stdio 模式下创建 StdioIO 并设置给 agent
+    - 修改 repl/userio.go：StdioIO.ReadKey() 调用 MakeRaw() 启用 raw mode
+    - 修改 repl/raw_term_windows.go：实现真正的 Windows Console API raw mode
 
 ## v1.0.0 — 正式版
 

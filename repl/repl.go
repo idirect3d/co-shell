@@ -596,13 +596,16 @@ func (r *REPL) handleAgentInput(input string) {
 	fmt.Println()
 	fmt.Printf("%s%s\n", ep.LlmOutput, r.agent.Said())
 
-	// FEATURE-201: In enhanced mode, create EnhancedIO, set it on the agent,
-	// and start ESC monitor goroutine.
+	// FEATURE-201: Create a UserIO for the agent to use during RunStream.
+	// - Enhanced mode: EnhancedIO (raw terminal, ESC monitor)
+	// - Stdio mode: StdioIO (standard terminal, raw mode for ReadKey)
+	// Without a UserIO, the agent falls back to fmtIO which has a no-op ReadKey
+	// returning (0, nil) immediately — causing infinite loops on confirmation prompts.
 	var stopMonitor func()
-	if r.inputMode == "enhanced" {
+	switch r.inputMode {
+	case "enhanced":
 		log.Debug("REPL.handleAgentInput: setting up EnhancedIO and ESC monitor")
 		eio := NewEnhancedIO(r.history)
-		// Start raw mode
 		if err := eio.startRaw(); err != nil {
 			log.Warn("REPL.handleAgentInput: cannot set raw mode: %v", err)
 		} else {
@@ -610,6 +613,11 @@ func (r *REPL) handleAgentInput(input string) {
 			r.userIO = eio
 			stopMonitor = r.startESCMonitor()
 		}
+	default: // "stdio"
+		log.Debug("REPL.handleAgentInput: setting up StdioIO")
+		sio := NewStdioIO()
+		r.agent.SetIO(sio)
+		r.userIO = sio
 	}
 
 	_, err := r.agent.RunStream(ctx, input, r.streamCallback)

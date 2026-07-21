@@ -39,13 +39,16 @@ import (
 // StdioIO implements agent.UserIO for standard terminal I/O.
 // Used when input mode is "stdio".
 type StdioIO struct {
-	reader *bufio.Scanner
+	reader  *bufio.Scanner
+	fd      int
+	rawTerm bool
 }
 
 // NewStdioIO creates a new StdioIO instance.
 func NewStdioIO() *StdioIO {
 	return &StdioIO{
 		reader: bufio.NewScanner(os.Stdin),
+		fd:     int(os.Stdin.Fd()),
 	}
 }
 
@@ -74,6 +77,18 @@ func (s *StdioIO) ReadLine() (string, error) {
 }
 
 func (s *StdioIO) ReadKey() (byte, error) {
+	// Enable raw terminal mode so we get immediate single-byte reads
+	// instead of line-buffered input. This is essential on Windows where
+	// the console is line-buffered by default.
+	var oldState interface{}
+	oldState, err := MakeRaw(s.fd)
+	if err == nil {
+		s.rawTerm = true
+	}
+	if s.rawTerm && oldState != nil {
+		defer RestoreTerm(s.fd, oldState)
+	}
+
 	buf := make([]byte, 1)
 	n, err := os.Stdin.Read(buf)
 	if err != nil || n == 0 {
