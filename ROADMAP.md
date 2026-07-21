@@ -759,6 +759,12 @@
     - 修改 repl/userio.go：StdioIO.ReadKey() 调用 MakeRaw() 启用 raw mode
     - 修改 repl/raw_term_windows.go：实现真正的 Windows Console API raw mode
 
+- [x] **FEATURE-281 write_to_file 工具描述添加大文件分次写入建议** [BUILD-313]
+    - 在 agent/tools.go 中 write_to_file 的 Description 末尾追加 PERFORMANCE TIP（OpenAI 模式）
+    - 在 i18n/zh_system.go 和 i18n/en_system.go 的 XML 模式描述中追加中文/英文提示
+    - 建议 LLM 写入超过 ~100 行的大文件时，先 new 首段再多次 append
+    - 避免单次输出超长字符触发 LoopLongOutputThreshold（默认 32768 字符）误报
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

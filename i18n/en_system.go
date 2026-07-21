@@ -265,6 +265,9 @@ Description: Write content to a file at the specified path. The 'mode' parameter
   - "rewrite": overwrites an EXISTING file with new content. Fails if the file doesn't exist.
   - "append": appends content to an EXISTING file. Fails if the file doesn't exist.
 The three modes are mutually exclusive and non-interchangeable — use the correct mode for your operation. Parent directories are created automatically only in 'new' mode.
+
+💡 PERFORMANCE TIP: When writing large files (over ~100 lines), avoid putting all content in a single call — this may trigger long-output loop detection. Instead, use 'new' mode for the first ~100 lines, then follow up with multiple 'append' mode calls for the remaining content.
+
 Parameters:
 - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - mode (required) The write mode: 'new' (create new file), 'rewrite' (overwrite existing file), 'append' (append to existing file). The three modes are mutually exclusive and non-interchangeable.

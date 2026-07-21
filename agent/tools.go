@@ -372,7 +372,7 @@ Critical rules:
 	})
 	tools = append(tools, llm.Tool{
 		Name:        "write_to_file",
-		Description: "Write content to a file at the specified path. The 'mode' parameter controls the operation:\n  - 'new': creates a NEW file. Fails if the file already exists.\n  - 'rewrite': overwrites an EXISTING file with new content. Fails if the file doesn't exist.\n  - 'append': appends content to an EXISTING file. Fails if the file doesn't exist.\n\nThe three modes are mutually exclusive and non-interchangeable — use the correct mode for your operation. Any necessary parent directories are created automatically only in 'new' mode.",
+		Description: "Write content to a file at the specified path. The 'mode' parameter controls the operation:\n  - 'new': creates a NEW file. Fails if the file already exists.\n  - 'rewrite': overwrites an EXISTING file with new content. Fails if the file doesn't exist.\n  - 'append': appends content to an EXISTING file. Fails if the file doesn't exist.\n\nThe three modes are mutually exclusive and non-interchangeable — use the correct mode for your operation. Any necessary parent directories are created automatically only in 'new' mode.\n\nPERFORMANCE TIP: When writing large files (over ~100 lines), avoid putting all content in a single call — this may trigger long-output loop detection. Instead, use 'new' mode for the first ~100 lines, then follow up with multiple 'append' mode calls for the remaining content.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
