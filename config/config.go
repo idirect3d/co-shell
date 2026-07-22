@@ -415,6 +415,13 @@ type LLMConfig struct {
 	// If empty, uses the default i18n KeyLoopDetectFeedback.
 	LoopPromptTemplate string `json:"loop_prompt_template"`
 
+	// NoToolAction: strategy for handling iterations with 0 tool calls.
+	// "exit" — treat as final answer (append assistant msg, exit iteration loop)
+	// "retry" — discard assistant content, resend context without any feedback or memory
+	// "prompt" — discard assistant content, append corrective prompt, then resend
+	// Default: "retry"
+	NoToolAction string `json:"no_tool_action"`
+
 	// LoopSingleLineLength: when a single line in LLM output exceeds this many
 	// characters, it triggers single-line loop detection.
 	// 0 means disabled. Default: 2048
@@ -784,6 +791,7 @@ func DefaultConfig() *Config {
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
 			VisualAnalysisMaxImages:    5,
+			NoToolAction:               "retry",
 			LoopIntervention:           "prompt",
 			LoopDetectThreshold:        2,
 			LoopSingleLineLength:       2048,

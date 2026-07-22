@@ -561,15 +561,62 @@ func (sld *SingleLineLoopDetector) CheckLine(line string) *LoopEvent {
 			}
 
 			if match {
-				log.Warn("SingleLineLoopDetector: character-level period %d repeated >= %d times at end of line",
-					p, sld.minRepeat)
-				return &LoopEvent{
-					Type:     LoopEventSingleLineRepeat,
-					Detector: "SingleLineLoopDetector (char period)",
-					Content:  truncateString(line, 200),
-					Reason:   fmt.Sprintf("char-level period %d repeated at end of line (window=%d)", p, sld.windowSize),
-					Suggestion: "Your output contains a repeating character pattern. " +
-						"Please vary your output.",
+				// Count how many consecutive segments match the repeating period,
+				// starting from the tail and going backwards through the entire
+				// window. Only when ALL segments in the window match AND the
+				// pattern extends before the window (exceeding windowSize total)
+				// does this count as a genuine loop.
+				tailLen := len(tail)
+				totalSegs := tailLen / p
+				totalMatching := sld.minRepeat // already confirmed
+
+				// Scan the segments before the confirmed minRepeat windows,
+				// going backwards through the whole tail.
+				for s := totalSegs - 1 - sld.minRepeat; s >= 0; s-- {
+					segStart := s * p
+					if tail[segStart:segStart+p] == ref {
+						totalMatching++
+					} else {
+						break
+					}
+				}
+
+				// Only proceed if the pattern fills the ENTIRE window.
+				if totalMatching == totalSegs {
+					// Check if the pattern extends further back before the window.
+					beforeTailEnd := len(line) - sld.windowSize
+					if beforeTailEnd > 0 {
+						beforeTail := line[:beforeTailEnd]
+						totalBeforeSegs := len(beforeTail) / p
+						for s := totalBeforeSegs - 1; s >= 0; s-- {
+							segStart := s * p
+							if beforeTail[segStart:segStart+p] == ref {
+								totalMatching++
+							} else {
+								break
+							}
+						}
+					}
+
+					sustainedChars := totalMatching * p
+					// Pattern fills entire window AND extends beyond it.
+					if sustainedChars > sld.windowSize {
+						log.Warn("SingleLineLoopDetector: character-level period %d sustained %d chars (exceeds window=%d), triggering",
+							p, sustainedChars, sld.windowSize)
+						return &LoopEvent{
+							Type:     LoopEventSingleLineRepeat,
+							Detector: "SingleLineLoopDetector (char period)",
+							Content:  truncateString(line, 200),
+							Reason:   fmt.Sprintf("char-level period %d sustained %d chars (window=%d)", p, sustainedChars, sld.windowSize),
+							Suggestion: "Your output contains a repeating character pattern. " +
+								"Please vary your output.",
+						}
+					}
+					log.Debug("SingleLineLoopDetector: period %d fills window but only %d sustained chars (need > %d), skipping",
+						p, sustainedChars, sld.windowSize)
+				} else {
+					log.Debug("SingleLineLoopDetector: period %d at tail but only %d of %d segments match, skipping",
+						p, totalMatching, totalSegs)
 				}
 			}
 		}
