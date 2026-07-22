@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-30
-// Last Modified: 2026-06-06
+// Last Modified: 2026-07-22
 //
 // MIT License
 //
@@ -36,13 +36,12 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
-	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/transform"
 )
 
 // rawOutputWriter wraps an io.Writer to replace \n with \r\n.
@@ -79,19 +78,25 @@ func shellName() string {
 	return "bash/zsh"
 }
 
-// decodeToUTF8 converts GBK encoded bytes to UTF-8 string on Windows.
-// On non-Windows platforms, it returns the raw string as-is.
+// encodeForShell encodes the command string for the current platform's shell.
+// On Windows, UTF-8 command is encoded to the system's active code page (ACP)
+// using Win32 API so cmd.exe can correctly interpret non-ASCII characters.
+// On non-Windows platforms, the command is returned as-is.
+func encodeForShell(command string) string {
+	if runtime.GOOS != "windows" {
+		return command
+	}
+	return acpEncodeString(command)
+}
+
+// decodeToUTF8 converts the shell output bytes from the system's active code page
+// to UTF-8 string on Windows. On non-Windows platforms, it returns the raw
+// string as-is.
 func decodeToUTF8(data []byte) string {
 	if runtime.GOOS != "windows" {
 		return string(data)
 	}
-	// Try GBK decode first; if it fails, return raw string
-	reader := transform.NewReader(bytes.NewReader(data), simplifiedchinese.GBK.NewDecoder())
-	decoded, err := io.ReadAll(reader)
-	if err != nil {
-		return string(data)
-	}
-	return string(decoded)
+	return acpDecodeString(string(data))
 }
 
 // executeSystemCommand runs a system command with timeout.
@@ -119,6 +124,9 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		effectiveTimeout = llmSuggested
 	}
 
+	// Encode command to system code page on Windows before sending to shell
+	encodedCommand := encodeForShell(command)
+
 	shell, shellArg := shellCmd()
 	log.Debug("Executing command: %s (effective timeout: %ds, user min: %ds, LLM suggested: %ds, shell: %s)",
 		command, effectiveTimeout, userMinSec, llmSuggested, shell)
@@ -126,7 +134,7 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	// Use exec.Command (NOT exec.CommandContext) — we manage kill ourselves.
 	// setProcessGroupAttr puts bash into its own session so piped children (python3 | head)
 	// are all in the same session. We kill the session on timeout.
-	cmd := exec.Command(shell, shellArg, command)
+	cmd := exec.Command(shell, shellArg, encodedCommand)
 	setProcessGroupAttr(cmd)
 
 	// Connect stdin so interactive commands (sudo, passwd, etc.) can read user input.
@@ -156,6 +164,11 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		return "", fmt.Errorf("cannot start command: %w", err)
 	}
 
+	// timedOut flag indicates whether the timeout goroutine killed the process.
+	// This distinguishes a real timeout from a normal ExitError (e.g. exit code 1)
+	// so we don't misreport the latter as a timeout. FIX-284.
+	var timedOut atomic.Bool
+
 	// Timeout goroutine: wait for timeout, then kill the entire process group.
 	// setProcessGroupAttr ensures bash + all pipe children share the same PGID.
 	if effectiveTimeout > 0 {
@@ -164,6 +177,7 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 			time.Sleep(time.Duration(effectiveTimeout) * time.Second)
 			log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
 				pid, effectiveTimeout, command)
+			timedOut.Store(true)
 			killProcessGroup(cmd)
 		}()
 	}
@@ -173,8 +187,10 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 
 	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
-		// Check for timeout — signaled (killed)
-		if isSignaledExit(err) {
+		// Check for timeout — only report as timeout if the timeout goroutine
+		// killed the process. A normal ExitError (e.g. exit code 1) is not a
+		// timeout even if isSignaledExit returns true on Windows. FIX-284.
+		if timedOut.Load() && isSignaledExit(err) {
 			log.Warn("Command timed out after %d seconds: %s", effectiveTimeout, command)
 			return "", fmt.Errorf("command timed out after %d seconds", effectiveTimeout)
 		}
@@ -191,6 +207,9 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 // stdin is connected to os.Stdin so interactive commands work.
 // stdout+stderr are both captured for return AND displayed on the terminal.
 func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
+	// Encode command to system code page on Windows before sending to shell
+	encodedCommand := encodeForShell(command)
+
 	timeout := a.getCommandTimeout()
 	if timeout > 0 {
 		var cancel context.CancelFunc
@@ -199,7 +218,7 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 
 		shell, shellArg := shellCmd()
 		log.Info("Direct command: %s (timeout: %ds, shell: %s)", command, int(timeout.Seconds()), shell)
-		cmd := exec.CommandContext(ctx, shell, shellArg, command)
+		cmd := exec.CommandContext(ctx, shell, shellArg, encodedCommand)
 
 		// Connect stdin so interactive commands can read user input.
 		cmd.Stdin = os.Stdin
@@ -240,7 +259,7 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	// No timeout - use background context
 	shell, shellArg := shellCmd()
 	log.Info("Direct command: %s (no timeout, shell: %s)", command, shell)
-	cmd := exec.CommandContext(context.Background(), shell, shellArg, command)
+	cmd := exec.CommandContext(context.Background(), shell, shellArg, encodedCommand)
 
 	// Connect stdin so interactive commands can read user input.
 	cmd.Stdin = os.Stdin

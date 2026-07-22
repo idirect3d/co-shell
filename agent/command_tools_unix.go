@@ -33,6 +33,16 @@ import (
 	"syscall"
 )
 
+// acpEncodeString is a no-op on Unix platforms — the shell natively supports UTF-8.
+func acpEncodeString(command string) string {
+	return command
+}
+
+// acpDecodeString is a no-op on Unix platforms — the shell natively outputs UTF-8.
+func acpDecodeString(s string) string {
+	return s
+}
+
 // isSignaledExit returns true if the error indicates the process was killed by
 // a signal (e.g., timeout). On Unix, this is detected via WaitStatus.Signaled().
 func isSignaledExit(err error) bool {

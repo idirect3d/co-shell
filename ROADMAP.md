@@ -765,6 +765,12 @@
     - 建议 LLM 写入超过 ~100 行的大文件时，先 new 首段再多次 append
     - 避免单次输出超长字符触发 LoopLongOutputThreshold（默认 32768 字符）误报
 
+- [ ] **FIX-284 修复 Windows 中文命令乱码及超时误报** [BUILD-314]
+  - 问题1：Windows 上 execute_command 含中文字符时 UTF-8 编码在 cmd.exe 中变成乱码
+  - 问题2：乱码导致 exit code 1 退出被 Windows 版 isSignaledExit() 误判为"超时"
+  - 修复1：Win32 API GetACP() 动态获取系统活动代码页，UTF-8 ↔ ACP 双向转码，适配任何语言 Windows
+  - 修复2：executeSystemCommand 增加 atomic.Bool 超时标记，仅实际杀死进程才报告超时
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
