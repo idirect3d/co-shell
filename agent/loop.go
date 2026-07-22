@@ -199,6 +199,14 @@ type Agent struct {
 	// Reset at the start of each streamLLMResponse call.
 	loopJudgeSkipped bool
 
+	// loopJudgeExitStrategy stores the exit_strategy returned by the judge
+	// model in the sync loop detection path. When judge confirms a loop and
+	// loop-intervention=prompt, this value is used as the feedback content
+	// instead of the generic template. Reset at the start of each loop
+	// iteration in RunStream and cleared when judge says not-a-loop.
+	// (FIX-285)
+	loopJudgeExitStrategy string
+
 	// loopDetectSyncErr stores the loop detection error for the sync (non-judge) path.
 	// When LoopJudgeEnabled is false, handleLoopDetection sets this and the stream
 	// event loop checks it to break out immediately.
@@ -1031,16 +1039,21 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	}
 
 	if result != nil && result.IsLoop {
-		// Judge confirmed loop: interrupt the stream.
+		// Judge confirmed loop: save exit_strategy and interrupt the stream.
 		a.mu.Lock()
+		a.loopJudgeExitStrategy = result.ExitStrategy
 		a.loopDetectSyncErr = detectErr
 		a.loopDetectCrit = true
 		a.mu.Unlock()
-		log.Debug("handleLoopDetection: judge confirmed loop, set loopDetectSyncErr")
+		log.Debug("handleLoopDetection: judge confirmed loop, saved exit_strategy=%q, set loopDetectSyncErr", result.ExitStrategy)
 	} else if result != nil && !result.IsLoop {
-		// Judge explicitly NOT a loop: reset detectors, set loopJudgeSkipped
-		// to prevent re-triggering for the remainder of this stream call.
-		log.Debug("handleLoopDetection: judge says NOT a loop, resetting detectors and continuing stream")
+		// Judge explicitly NOT a loop: clear exit_strategy, reset detectors,
+		// set loopJudgeSkipped to prevent re-triggering for the remainder of
+		// this stream call.
+		log.Debug("handleLoopDetection: judge says NOT a loop, clearing exit_strategy, resetting detectors and continuing stream")
+		a.mu.Lock()
+		a.loopJudgeExitStrategy = ""
+		a.mu.Unlock()
 		if a.loopDetector != nil {
 			a.loopDetector.Reset()
 		}
@@ -1051,9 +1064,11 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		a.loopJudgeSkipped = true
 	} else {
 		// Judge returned nil (failed/disabled): fallback to direct feedback.
-		// Treat as loop confirmed to prevent the stream continuing in a loop.
+		// Clear exit_strategy and treat as loop confirmed to prevent the
+		// stream continuing in a loop.
 		log.Warn("handleLoopDetection: judge returned nil (judgment failed/disabled), falling back to direct loop feedback")
 		a.mu.Lock()
+		a.loopJudgeExitStrategy = ""
 		a.loopDetectSyncErr = detectErr
 		a.loopDetectCrit = true
 		a.mu.Unlock()

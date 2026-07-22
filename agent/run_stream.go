@@ -181,6 +181,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.loopDetector.Reset()
 		}
 
+		// FIX-285: Reset loopJudgeExitStrategy at the start of each iteration.
+		// This ensures stale exit_strategy from a previous loop detection is
+		// not carried over if no loop is detected in the current iteration.
+		a.loopJudgeExitStrategy = ""
+
 		// Step 1: Debug mode - allow review/edit of user message before sending.
 		// Skip for .continue mode (first iteration with empty userInput) to avoid
 		// blocking on ReadLine when the user explicitly wants to send existing context.
@@ -338,11 +343,17 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					strategyParts = append(strategyParts, "重发上下文")
 
 				case "prompt":
-					// Append corrective prompt (same as default behavior)
-					template := a.cfg.LLM.LoopPromptTemplate
-					if template != "" {
-						template = strings.ReplaceAll(template, "{ERROR}", streamErr.Error())
-						loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), template)
+					// FIX-285: Use judge model's exit_strategy if available,
+					// otherwise fall back to the configured LoopPromptTemplate
+					// or the generic loop detection feedback.
+					if a.loopJudgeExitStrategy != "" {
+						loopFeedback = a.loopJudgeExitStrategy
+					} else {
+						template := a.cfg.LLM.LoopPromptTemplate
+						if template != "" {
+							template = strings.ReplaceAll(template, "{ERROR}", streamErr.Error())
+							loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), template)
+						}
 					}
 					strategyParts = append(strategyParts, "发送纠错提示")
 
@@ -407,7 +418,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Only append feedback message if there's content to send
 				if loopFeedback != "" {
 					a.mu.Lock()
-					a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
+					wrappedFeedback := fmt.Sprintf("<task>\n%s\n</task>", loopFeedback)
+					a.messages = append(a.messages, llm.Message{Role: "user", Content: wrappedFeedback})
 					a.mu.Unlock()
 				}
 
