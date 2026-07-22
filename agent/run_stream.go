@@ -758,64 +758,78 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				return finalContent, nil
 			}
 
-			// Rule 2: attempt_completion is available but was NOT called — prompt LLM to continue
-			// FEATURE-273: Check if this response is a duplicate of the previous assistant response.
-			// If so, produce a LoopEvent and call applyLoopIntervention() instead of appending
-			// a generic continuePrompt.
-			var event *LoopEvent
-			a.mu.Lock()
-			// When loop intervention is "off", skip content duplicate detection entirely.
-			loopIntervention := ""
-			if a.cfg != nil {
-				loopIntervention = a.cfg.LLM.LoopIntervention
+			// Rule 2: attempt_completion is available but was NOT called.
+			// Apply NoToolAction strategy to decide behavior (FEATURE-286).
+			noToolAction := "retry" // default
+			if a.cfg != nil && a.cfg.LLM.NoToolAction != "" {
+				noToolAction = a.cfg.LLM.NoToolAction
 			}
-			skipLoopDetect := loopIntervention == "off"
-			if a.lastAssistantContent != "" && !skipLoopDetect {
-				threshold := 0.95
-				if a.cfg != nil && a.cfg.LLM.DuplicateContentThreshold > 0 {
-					threshold = a.cfg.LLM.DuplicateContentThreshold
-				}
-				dup, similarity := IsDuplicateContent(a.lastAssistantContent, finalContent, threshold)
-				if dup {
-					log.Warn("Agent.RunStream: zero-tool-call content %.1f%% similar to previous, triggering loop intervention", similarity*100)
-					event = &LoopEvent{
-						Type:     LoopEventContentDuplicate,
-						Detector: "cross-iteration content duplicate",
-						Content:  finalContent,
-						Reason:   fmt.Sprintf("content %.0f%% similar to previous iteration", similarity*100),
-						Suggestion: "Your response is very similar to your previous one. " +
-							"Please take a different approach. If your task is complete, " +
-							"call attempt_completion. Otherwise, try a different tool or strategy.",
+
+			switch noToolAction {
+			case "exit":
+				// Treat as final answer — append assistant, send done, return
+				iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
+				maxModelLen := a.GetMaxModelLen()
+				timing := a.GetLLMTiming()
+				if iterTotal > 0 {
+					tokenUsageMode := "on"
+					if a.cfg != nil {
+						tokenUsageMode = a.cfg.LLM.TokenUsage
+					}
+					if tokenUsageMode != "off" {
+						cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+							iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 					}
 				}
-			}
-			a.lastAssistantContent = finalContent
-			if event != nil {
-				// Duplicate detected: do NOT append the assistant message.
-				// applyLoopIntervention will send feedback, then continue.
+				taskP, taskC, taskT := a.TaskTokenUsage()
+				if taskT > 0 {
+					cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+				}
+				cb("done", "")
+
+				a.mu.Lock()
+				a.messages = append(a.messages, llm.Message{
+					Role:             "assistant",
+					Content:          finalContent,
+					ReasoningContent: finalReasoning,
+				})
+				if a.memoryEnabled {
+					if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+						log.Warn("Failed to save assistant message to memory: %v", err)
+					}
+				}
 				a.mu.Unlock()
-				log.Debug("Agent.RunStream: content duplicate detected, applying loop intervention (assistant discarded)")
-				a.applyLoopIntervention(event)
+				if err := a.PersistSession(); err != nil {
+					log.Warn("Failed to persist session: %v", err)
+				}
+				log.Info("Agent.RunStream: exiting after %d iterations (0 tool calls, no-tool-action=exit)", iteration+1)
+				return finalContent, nil
+
+			case "retry":
+				// Discard assistant content entirely — no messages, no memory.
+				// Just continue to the next iteration (FEATURE-286).
+				log.Debug("Agent.RunStream: 0 tool calls, no-tool-action=retry, discarding and resending")
+				continue
+
+			default: // "prompt" or unknown — backward compatible with FEATURE-17
+				// DON'T append the assistant message to history (FEATURE-17 方案C).
+				// Only append continuePrompt as a user message to force next action.
+				a.mu.Lock()
+				if a.memoryEnabled {
+					if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
+						log.Warn("Failed to save assistant message to memory: %v", err)
+					}
+				}
+				continuePrompt := i18n.T(i18n.KeyContinuePrompt)
+				a.messages = append(a.messages, llm.Message{
+					Role:    "user",
+					Content: continuePrompt,
+				})
+				a.mu.Unlock()
+
+				log.Debug("Agent.RunStream: 0 tool calls, no-tool-action=prompt, sending continue instruction")
 				continue
 			}
-			// No duplicate: DON'T append the assistant message to history.
-			// FEATURE-17 (方案C): 0-tool-call 时不保留 assistant 纯文本回复，
-			// 避免 LLM 在后续迭代中"维护"自己之前不调用工具的判断。
-			// 只追加强指令 user 消息，要求 LLM 下一步必须调用工具或 attempt_completion。
-			if a.memoryEnabled {
-				if err := a.memoryManager.AddMessage(a.name, finalContent, time.Now()); err != nil {
-					log.Warn("Failed to save assistant message to memory: %v", err)
-				}
-			}
-			continuePrompt := i18n.T(i18n.KeyContinuePrompt)
-			a.messages = append(a.messages, llm.Message{
-				Role:    "user",
-				Content: continuePrompt,
-			})
-			a.mu.Unlock()
-
-			log.Debug("Agent.RunStream: 0 tool calls but attempt_completion not called, prompting LLM to continue")
-			continue
 		}
 
 		// Determine if we're in XML mode (no API-level tool calls)
