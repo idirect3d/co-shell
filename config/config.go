@@ -784,7 +784,7 @@ func DefaultConfig() *Config {
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
 			VisualAnalysisMaxImages:    5,
-			LoopIntervention:           "retry",
+			LoopIntervention:           "prompt",
 			LoopDetectThreshold:        2,
 			LoopSingleLineLength:       2048,
 			LoopSingleLineWindow:       128,
@@ -861,7 +861,7 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 		cfg.DB.Timeout = DefaultDBConfig().Timeout
 	}
 	if cfg.LLM.LoopIntervention == "" {
-		cfg.LLM.LoopIntervention = "retry"
+		cfg.LLM.LoopIntervention = "prompt"
 	}
 
 	cfg.configPath = path

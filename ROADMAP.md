@@ -765,6 +765,13 @@
     - 建议 LLM 写入超过 ~100 行的大文件时，先 new 首段再多次 append
     - 避免单次输出超长字符触发 LoopLongOutputThreshold（默认 32768 字符）误报
 
+- [x] **FIX-285 修复同步路径循环检测未使用判模模型 exit_strategy 的问题** [BUILD-314]
+  - 当 loop-intervention=prompt 且 loop-judge-enabled=on 时，流式路径（同步模式）的循环检测虽然调用了判模模型，但其返回的 exit_strategy 被丢弃
+  - handleLoopDetection 仅用判模结果决定是否中断流，未保存 exit_strategy
+  - RunStream 中同步循环处理块的 prompt 分支始终使用通用模板，无视判模结果
+  - 修复：loopJudgeExitStrategy 字段暂存 exit_strategy，prompt 分支优先使用
+  - 修复：同步路径反馈消息也应用 <task> 标签包裹，与 applyLoopIntervention 路径一致
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
