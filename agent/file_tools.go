@@ -442,6 +442,9 @@ func listFilesForPrompt(dirPath string, depth int, maxEntries int) listFilesForP
 			count++
 			return nil
 		})
+		if count == 0 {
+			result.WriteString("(empty directory)\n")
+		}
 	} else {
 		entries, err := os.ReadDir(dirPath)
 		if err != nil {
