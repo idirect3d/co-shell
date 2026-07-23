@@ -386,6 +386,46 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Context policy set to %s (%s)", args[1], modeDesc)
 		return fmt.Sprintf("✅ 上下文策略已设置为: %s (%s)", args[1], modeDesc), nil
 
+	case "no-tool-action":
+		if len(args) < 2 {
+			val := h.cfg.LLM.NoToolAction
+			if val == "" {
+				val = "retry"
+			}
+			return fmt.Sprintf("0-tool-call 处理方式: %s (可选: exit, retry, prompt)", val), nil
+		}
+		validValues := map[string]bool{"exit": true, "retry": true, "prompt": true}
+		val := args[1]
+		if !validValues[val] {
+			return "", fmt.Errorf("无效值: %s。可选: exit, retry, prompt", val)
+		}
+		h.cfg.LLM.NoToolAction = val
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("No-tool-action set to %s", val)
+		return fmt.Sprintf("✅ 0-tool-call 处理方式已设置为: %s", val), nil
+
+	case "parse-error-action":
+		if len(args) < 2 {
+			val := h.cfg.LLM.ParseErrorAction
+			if val == "" {
+				val = "retry"
+			}
+			return fmt.Sprintf("方法调用解析错误处理方式: %s (可选: exit, retry, prompt)", val), nil
+		}
+		validValues := map[string]bool{"exit": true, "retry": true, "prompt": true}
+		val := args[1]
+		if !validValues[val] {
+			return "", fmt.Errorf("无效值: %s。可选: exit, retry, prompt", val)
+		}
+		h.cfg.LLM.ParseErrorAction = val
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Parse-error-action set to %s", val)
+		return fmt.Sprintf("✅ 方法调用解析错误处理方式已设置为: %s", val), nil
+
 	case "browser-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOff)

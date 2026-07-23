@@ -307,9 +307,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 						}
 						log.Info("Agent.streamLLMResponse: XML mode parsing finalContent (%d bytes), preview: %s",
 							len(cleanContent), contentPreview)
-						// Pass tools list so ParseXMLToolCallsWithTools can skip unknown tags
-						// that are not recognized tool names, treating them as regular content.
-						xmlCalls := ParseXMLToolCallsWithTools(cleanContent, tools)
+						// FEATURE-287: Use buildToolsInternal() instead of the empty tools parameter
+						// so ParseXMLToolCallsWithTools has the full known tool list and can
+						// skip unknown HTML tags (e.g., <div id="mainText">) in LLM explanatory text.
+						fullTools := a.buildToolsInternal()
+						xmlCalls := ParseXMLToolCallsWithTools(cleanContent, fullTools)
 						log.Info("Agent.streamLLMResponse: ParseXMLToolCallsWithTools returned %d call(s)", len(xmlCalls))
 						if len(xmlCalls) > 0 {
 							// Filter out _xml_parse_error calls - these are parse errors that
