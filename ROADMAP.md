@@ -772,7 +772,7 @@
   - 修复：loopJudgeExitStrategy 字段暂存 exit_strategy，prompt 分支优先使用
   - 修复：同步路径反馈消息也应用 <task> 标签包裹，与 applyLoopIntervention 路径一致
 
-- [ ] **FEATURE-286 0-tool-call 处理方式参数 no-tool-action + SingleLineLoopDetector www 误报修复** [BUILD-316]
+- [x] **FEATURE-286 0-tool-call 处理方式参数 no-tool-action + SingleLineLoopDetector www 误报修复** [BUILD-316]
   - 新增 `no-tool-action` 配置参数（exit/retry/prompt），默认 retry，控制 LLM 返回 0 个工具调用时的后续行为
   - exit：不调工具视为任务完成，追加 assistant 消息后退出迭代循环
   - retry：丢弃当前 LLM 回复，不追加消息也不记录 memory，直接循环顶部重试
