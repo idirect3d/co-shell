@@ -224,7 +224,19 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			log.Info("Agent.Run: executing tool %s (ID: %s)", tc.Name, tc.ID)
 			result, err := a.executeToolCall(ctx, tc)
 			if err != nil {
-				result = fmt.Sprintf("Error: %v", err)
+				// FEATURE-287: Apply parse-error-action strategy
+				parseAction := "retry"
+				if a.cfg != nil && a.cfg.LLM.ParseErrorAction != "" {
+					parseAction = a.cfg.LLM.ParseErrorAction
+				}
+				if parseAction == "exit" {
+					return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, err)
+				}
+				if parseAction == "retry" {
+					result = fmt.Sprintf("Error: %v", err)
+				} else {
+					result = formatToolError(tc.Name, err)
+				}
 				log.Error("Agent.Run: tool %s failed: %v", tc.Name, err)
 			}
 
