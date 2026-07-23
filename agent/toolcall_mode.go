@@ -390,24 +390,18 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					}
 				}
 				if !isKnown {
-					// Unknown tag - report error via _xml_parse_error
-					closeTag := "</" + tagName + ">"
+					// Unknown tag — skip silently instead of reporting error.
+					// LLM's explanatory text may include HTML tags (<div>, <p>, etc.)
+					// which are not tool calls and should be ignored.
 					closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
 					if closeIdx < 0 {
 						closeIdx = findCloseTagLenient(remaining[openEnd:], tagName)
 					}
 					if closeIdx >= 0 {
-						i = openEnd + closeIdx + len(closeTag)
+						i = openEnd + closeIdx + len("</"+tagName+">")
 					} else {
 						i = openEnd
 					}
-					errMsg := fmt.Sprintf("未知的方法调用标签 <%s>，请检查方法名是否正确。可用的方法名请参考系统提示词中的 Tools 列表。", tagName)
-					log.Debug("ParseXMLToolCalls: %s", errMsg)
-					calls = append(calls, llm.ToolCall{
-						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-						Name:      "_xml_parse_error",
-						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-					})
 					continue
 				}
 				// Known tool — now validate syntax. Skip space/attribute and
@@ -447,44 +441,21 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					continue
 				}
 			} else {
-				// No tools list — validate syntax for all tags
-				// Check if the tag name is followed by a space (attribute syntax like <execute_command param=value>)
-				if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
-					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
-					if openEnd2 < 0 {
-						break
-					}
-					openEnd2 += tagEnd + 1
-
-					errMsg := fmt.Sprintf("XML解析错误：方法标签 <%s 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>...</%s>，不要添加属性", tagName, tagName, tagName)
-					log.Debug("ParseXMLToolCalls: %s", errMsg)
-					calls = append(calls, llm.ToolCall{
-						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-						Name:      "_xml_parse_error",
-						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-					})
-					i = openEnd2
-					continue
+				// No tools list — this is the XML mode path where buildTools() returns empty.
+				// Since we don't have a known tool list, any tag with attribute syntax
+				// (e.g., <div id="mainText">) is likely HTML content in LLM's explanatory text,
+				// not a tool call. Skip it silently (FEATURE-287).
+				log.Debug("ParseXMLToolCalls: skipping tag <%s> (no tools list, treating as non-tool)", tagName)
+				closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
+				if closeIdx < 0 {
+					closeIdx = findCloseTagLenient(remaining[openEnd:], tagName)
 				}
-
-				// Validate tag name for illegal characters (e.g., <execute_command=xxx>)
-				if valid, reason := isValidTagName(tagName); !valid {
-					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
-					if openEnd2 < 0 {
-						break
-					}
-					openEnd2 += tagEnd + 1
-
-					errMsg := fmt.Sprintf("XML解析错误：方法标签 %s", reason)
-					log.Debug("ParseXMLToolCalls: %s", errMsg)
-					calls = append(calls, llm.ToolCall{
-						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-						Name:      "_xml_parse_error",
-						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-					})
-					i = openEnd2
-					continue
+				if closeIdx >= 0 {
+					i = openEnd + closeIdx + len("</"+tagName+">")
+				} else {
+					i = openEnd
 				}
+				continue
 			}
 
 			// Find the matching closing tag
