@@ -765,6 +765,12 @@
     - 建议 LLM 写入超过 ~100 行的大文件时，先 new 首段再多次 append
     - 避免单次输出超长字符触发 LoopLongOutputThreshold（默认 32768 字符）误报
 
+- [x] **FIX-284 修复 Windows 中文命令乱码及超时误报** [BUILD-314]
+  - 问题1：Windows 上 execute_command 含中文字符时 UTF-8 编码在 cmd.exe 中变成乱码
+  - 问题2：乱码导致 exit code 1 退出被 Windows 版 isSignaledExit() 误判为"超时"
+  - 修复1：Win32 API GetACP() 动态获取系统活动代码页，UTF-8 ↔ ACP 双向转码，适配任何语言 Windows
+  - 修复2：executeSystemCommand 增加 atomic.Bool 超时标记，仅实际杀死进程才报告超时
+
 - [x] **FIX-285 修复同步路径循环检测未使用判模模型 exit_strategy 的问题** [BUILD-314]
   - 当 loop-intervention=prompt 且 loop-judge-enabled=on 时，流式路径（同步模式）的循环检测虽然调用了判模模型，但其返回的 exit_strategy 被丢弃
   - handleLoopDetection 仅用判模结果决定是否中断流，未保存 exit_strategy
@@ -784,7 +790,7 @@
   - Rule (b) 中确认周期匹配后继续扫描整个 window，只有周期填满整个窗口且延伸到窗口之前的内容才触发
   - 短模式（如 `www` 仅 3 个字符重复）不再误报
 
-- [ ] **FEATURE-287 方法调用解析错误统一处理参数 parse-error-action** [BUILD-317]
+- [x] **FEATURE-287 方法调用解析错误统一处理参数 parse-error-action** [BUILD-317]
   - 新增 `parse-error-action` 配置参数（exit/retry/prompt），默认 retry，控制所有方法调用解析错误（XML 解析错误、流式 tool call 增量校验失败、工具执行失败）的后续处理策略
   - exit：退出迭代循环，向用户报告错误
   - retry：无反馈，直接重发上下文
