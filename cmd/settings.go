@@ -174,7 +174,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "show-loop-detection":
 		return h.handleDisplaySetting(subcommand, args)
 
-		// Agent settings
+	// Agent settings
 	case subcommand == "name", subcommand == "description", subcommand == "principles",
 		subcommand == "max-iterations", subcommand == "max-retries",
 		subcommand == "memory-enabled", subcommand == "plan-enabled",
@@ -182,6 +182,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "context-start", subcommand == "context-policy",
 		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
 		subcommand == "no-tool-action",
+		subcommand == "parse-error-action",
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
 		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
 		subcommand == "browser-enabled", subcommand == "browser-port",
@@ -501,6 +502,12 @@ func showSettingsHelp(cfg *config.Config) string {
 		noToolActionVal = "retry"
 	}
 	allGroups[1] = append(allGroups[1], makeLine("no-tool-action", noToolActionVal, "0-tool-call 处理方式(exit/retry/prompt)"))
+	// Add parse-error-action to Agent settings group
+	parseErrorActionVal := cfg.LLM.ParseErrorAction
+	if parseErrorActionVal == "" {
+		parseErrorActionVal = "retry"
+	}
+	allGroups[1] = append(allGroups[1], makeLine("parse-error-action", parseErrorActionVal, "方法调用解析错误处理方式(exit/retry/prompt)"))
 
 	// Show loop detection (FEATURE-241)
 	loopDetectionShowStatus := i18n.T(i18n.KeyOff)

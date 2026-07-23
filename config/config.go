@@ -415,6 +415,12 @@ type LLMConfig struct {
 	// If empty, uses the default i18n KeyLoopDetectFeedback.
 	LoopPromptTemplate string `json:"loop_prompt_template"`
 
+	// ParseErrorAction: strategy for handling tool call parse errors.
+	// "exit" — exit the iteration loop and report error to user
+	// "retry" — silently resend context without feedback (default)
+	// "prompt" — send structured error feedback (with reference format) to LLM
+	ParseErrorAction string `json:"parse_error_action"`
+
 	// NoToolAction: strategy for handling iterations with 0 tool calls.
 	// "exit" — treat as final answer (append assistant msg, exit iteration loop)
 	// "retry" — discard assistant content, resend context without any feedback or memory
@@ -791,6 +797,7 @@ func DefaultConfig() *Config {
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
 			VisualAnalysisMaxImages:    5,
+			ParseErrorAction:           "retry",
 			NoToolAction:               "retry",
 			LoopIntervention:           "prompt",
 			LoopDetectThreshold:        2,

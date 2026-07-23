@@ -528,7 +528,27 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				log.Warn("Agent.RunStream: stream error at iteration %d: %v, removed problematic assistant+tool messages (%d bytes)",
 					iteration, streamErr, len(removedContent))
 
-				// Build error feedback message that includes the removed content
+				// FEATURE-287: Apply parse-error-action strategy
+				parseAction := "retry"
+				if a.cfg != nil && a.cfg.LLM.ParseErrorAction != "" {
+					parseAction = a.cfg.LLM.ParseErrorAction
+				}
+
+				// exit: exit the loop and report error
+				if parseAction == "exit" {
+					cb("error", fmt.Sprintf("LLM 调用出错（parse-error-action=exit）: %v\n已移除有问题的上下文。\n", streamErr))
+					cb("done", "")
+					return "", fmt.Errorf("LLM call failed: %w", streamErr)
+				}
+
+				if parseAction == "retry" {
+					// No feedback, just resend context
+					ep := config.GetEmojiPrefixes(a.emojiEnabled)
+					cb("info", fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在重试...\n", ep.Warning, streamErr))
+					continue
+				}
+
+				// prompt (default): build error feedback and append
 				errorFeedback := fmt.Sprintf(
 					"注意：刚才的 LLM 调用返回了错误，请根据错误信息判断如何处理。\n"+
 						"如果错误是可恢复的（如参数格式问题、临时超时），请修正后重试。\n"+
@@ -559,13 +579,15 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
-		// Step 2: Handle XML parse errors (stored in taskInstructionCache by streamLLMResponse
-		// or nonStreamingFallback). The malformed assistant message is NOT in a.messages yet,
-		// so we simply apply loop-intervention strategy and continue. loop-intervention=off
-		// falls back to retry (no feedback).
+		// Step 2: Handle XML parse errors and invalid tool call errors
+		// (stored in taskInstructionCache by streamLLMResponse or nonStreamingFallback).
+		// The malformed assistant message is NOT in a.messages yet, so we simply apply
+		// parse-error-action strategy and continue.
 		//
 		// The cache contains structured JSON lines: {"tool": "tool_name", "error": "..."}
 		// Extract the tool name and use buildReferenceFormat to provide a preventive format tip.
+		// FEATURE-287: Replaced LoopIntervention with ParseErrorAction, simplified to
+		// only support exit/retry/prompt.
 		a.mu.Lock()
 		xmlParseData := a.taskInstructionCache.String()
 		a.mu.Unlock()
@@ -573,6 +595,31 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.mu.Lock()
 			a.taskInstructionCache.Reset()
 			a.mu.Unlock()
+
+			// Get the parse error action strategy
+			parseAction := "retry"
+			if a.cfg != nil && a.cfg.LLM.ParseErrorAction != "" {
+				parseAction = a.cfg.LLM.ParseErrorAction
+			}
+
+			// exit action: exit the loop and report error
+			if parseAction == "exit" {
+				lines := strings.SplitN(xmlParseData, "\n---\n", 2)
+				firstLine := strings.TrimSpace(lines[0])
+				errDetail := firstLine
+				if strings.HasPrefix(firstLine, "{") {
+					var entry struct {
+						Tool  string `json:"tool"`
+						Error string `json:"error"`
+					}
+					if err := json.Unmarshal([]byte(firstLine), &entry); err == nil {
+						errDetail = entry.Error
+					}
+				}
+				cb("error", fmt.Sprintf("方法调用解析错误（parse-error-action=exit）: %s\n", errDetail))
+				cb("done", "")
+				return "", fmt.Errorf("tool call parse error: %s", errDetail)
+			}
 
 			// Parse the first error entry to get the tool name
 			lines := strings.SplitN(xmlParseData, "\n---\n", 2)
@@ -596,64 +643,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			fullFeedback := strings.ReplaceAll(preventiveTemplate, "{TOOL_NAME}", toolName)
 			fullFeedback = strings.ReplaceAll(fullFeedback, "{FORMAT}", formatSuggestion)
 
-			loopAction := "retry"
-			if a.cfg != nil && a.cfg.LLM.LoopIntervention != "" {
-				loopAction = a.cfg.LLM.LoopIntervention
-			}
-			if loopAction == "off" {
-				loopAction = "retry"
-			}
-
 			loopFeedback := ""
 			var strategyParts []string
-			switch loopAction {
-			case "retry":
-				loopFeedback = ""
-				strategyParts = append(strategyParts, "重发上下文（无反馈）")
-			case "prompt":
+			if parseAction == "prompt" {
 				loopFeedback = fullFeedback
 				strategyParts = append(strategyParts, "发送纠错提示")
-			case "temperature":
-				if a.loopTempCtrl != nil {
-					oldTemp := a.loopTempCtrl.Temperature()
-					newTemp, changed := a.loopTempCtrl.Apply()
-					if changed {
-						a.llmClient.SetTemperature(newTemp)
-						strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
-					}
-				}
-				strategyParts = append(strategyParts, "重发上下文")
-			case "reorganize":
-				suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
-				if suggestion != "" {
-					loopFeedback = suggestion
-				}
-				strategyParts = append(strategyParts, "重整上下文")
-			case "random":
-				actions := []string{"retry", "prompt", "reorganize", "temperature"}
-				choice := actions[time.Now().UnixNano()%4]
-				switch choice {
-				case "retry":
-					strategyParts = append(strategyParts, "随机选择: 重发上下文")
-				case "prompt":
-					loopFeedback = fullFeedback
-					strategyParts = append(strategyParts, "随机选择: 发送纠错提示")
-				case "reorganize":
-					if suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion); suggestion != "" {
-						loopFeedback = suggestion
-					}
-					strategyParts = append(strategyParts, "随机选择: 重整上下文")
-				case "temperature":
-					if a.loopTempCtrl != nil {
-						oldTemp := a.loopTempCtrl.Temperature()
-						newTemp, changed := a.loopTempCtrl.Apply()
-						if changed {
-							a.llmClient.SetTemperature(newTemp)
-							strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
-						}
-					}
-					strategyParts = append(strategyParts, "随机选择: 重发上下文")
-				}
+			} else {
+				// retry: no feedback
+				strategyParts = append(strategyParts, "重发上下文（无反馈）")
 			}
 
 			if loopFeedback != "" {
@@ -991,8 +988,24 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						a.mu.Unlock()
 						break
 					}
-					// Format structured error feedback to help LLM understand and fix the issue
-					result = formatToolError(tc.Name, execErr)
+					// FEATURE-287: Apply parse-error-action strategy
+					parseAction := "retry"
+					if a.cfg != nil && a.cfg.LLM.ParseErrorAction != "" {
+						parseAction = a.cfg.LLM.ParseErrorAction
+					}
+					if parseAction == "exit" {
+						// Exit the loop and report error
+						cb("error", fmt.Sprintf("工具 %s 执行失败（parse-error-action=exit）: %v\n", tc.Name, execErr))
+						cb("done", "")
+						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
+					}
+					if parseAction == "retry" {
+						// Simple error message without structured feedback
+						result = fmt.Sprintf("Error: %v", execErr)
+					} else {
+						// prompt (default): Format structured error feedback
+						result = formatToolError(tc.Name, execErr)
+					}
 					log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 				}
 

@@ -784,6 +784,15 @@
   - Rule (b) 中确认周期匹配后继续扫描整个 window，只有周期填满整个窗口且延伸到窗口之前的内容才触发
   - 短模式（如 `www` 仅 3 个字符重复）不再误报
 
+- [ ] **FEATURE-287 方法调用解析错误统一处理参数 parse-error-action** [BUILD-317]
+  - 新增 `parse-error-action` 配置参数（exit/retry/prompt），默认 retry，控制所有方法调用解析错误（XML 解析错误、流式 tool call 增量校验失败、工具执行失败）的后续处理策略
+  - exit：退出迭代循环，向用户报告错误
+  - retry：无反馈，直接重发上下文
+  - prompt：发送结构化错误反馈（含参考格式）给 LLM，让 LLM 自行修正
+  - 统一四个错误路径的行为：XML 解析错误、流式错误+移除 assistant 消息后、工具执行失败、流式 tool call 全部无效
+  - 新增 `.set parse-error-action` 子命令支持
+  - `.config` 向导及 `.set` 显示同步支持
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
