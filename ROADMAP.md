@@ -799,6 +799,12 @@
   - 新增 `.set parse-error-action` 子命令支持
   - `.config` 向导及 `.set` 显示同步支持
 
+- [x] **FEATURE-288 命令行参数与 REPL 参数补齐** [BUILD-319]
+  - CLI 补充缺失参数：--mode、--thinking-enabled、--reasoning-effort、--max-retries、--context-limit、--shell-session-enabled、--browser-enabled
+  - `:set` 补充缺失参数：token-usage
+  - CLI help (usage.go) 补齐缺失行和 i18n 翻译：--output-mode、--token-usage、--debug、--body-add、--init-capabilities、--init-rules
+  - i18n/zh.go 补齐所有缺失 CLI help 项中文翻译
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "318"
+const build = "319"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -162,6 +162,27 @@ type cliFlags struct {
 
 	// Debug mode
 	debugMode string // "on"/"off"
+
+	// Work mode (FEATURE-288)
+	workMode string // act/plan/research
+
+	// Thinking enabled
+	thinkingEnabled string // "on"/"off"/"default"
+
+	// Reasoning effort
+	reasoningEffort string // "low"/"medium"/"high"/"max"/"none"/"default"
+
+	// Max retries
+	maxRetries int
+
+	// Context limit
+	contextLimit int
+
+	// Shell session enabled
+	shellSessionEnabled string // "on"/"off"
+
+	// Browser enabled
+	browserEnabled string // "on"/"off"
 }
 
 func parseFlags() cliFlags {
@@ -290,9 +311,30 @@ func parseFlags() cliFlags {
 	// Debug mode
 	flag.StringVar(&f.debugMode, "debug", "", "启用调试模式（提交给 LLM 前显示并可编辑消息内容）")
 
+	// Work mode (FEATURE-288)
+	flag.StringVar(&f.workMode, "mode", "", "指定启动工作模式（act/plan/research，覆盖配置文件）")
+
+	// Thinking enabled (FEATURE-288)
+	flag.StringVar(&f.thinkingEnabled, "thinking-enabled", "", "启用 AI 思考功能（on/off/default，覆盖配置文件）")
+
+	// Reasoning effort (FEATURE-288)
+	flag.StringVar(&f.reasoningEffort, "reasoning-effort", "", "推理努力程度（low/medium/high/max/none/default，覆盖配置文件）")
+
+	// Max retries (FEATURE-288)
+	flag.IntVar(&f.maxRetries, "max-retries", -1, "LLM 临时错误重试次数（默认 3，覆盖配置文件）")
+
+	// Context limit (FEATURE-288)
+	flag.IntVar(&f.contextLimit, "context-limit", -1, "对话上下文限制（-1=不限/0=不包含历史/N=最近N条，覆盖配置文件）")
+
+	// Shell session enabled (FEATURE-288)
+	flag.StringVar(&f.shellSessionEnabled, "shell-session-enabled", "", "启用持续 Shell 会话（on/off，覆盖配置文件）")
+
+	// Browser enabled (FEATURE-288)
+	flag.StringVar(&f.browserEnabled, "browser-enabled", "", "启用浏览器自动化（on/off，覆盖配置文件）")
+
 	// Custom usage message
 	flag.Usage = func() {
-		agent.NewDefaultUserIO().ErrPrintf("%s", buildUsage(version))
+		agent.NewDefaultUserIO().ErrPrintf("%s", buildUsage(version, build))
 	}
 
 	flag.Parse()
@@ -708,6 +750,70 @@ func main() {
 			cfg.LLM.ContextPolicy = flags.contextPolicy
 		default:
 			io.ErrPrintf("Warning: invalid --context-policy value %q, use window/task/smart/reorganize\n", flags.contextPolicy)
+		}
+	}
+
+	// Apply work-mode CLI override (FEATURE-288)
+	if flags.workMode != "" {
+		switch flags.workMode {
+		case "act", "plan", "research":
+			cfg.LLM.WorkMode = flags.workMode
+		default:
+			io.ErrPrintf("Warning: invalid --mode value %q, use act/plan/research\n", flags.workMode)
+		}
+	}
+
+	// Apply thinking-enabled CLI override (FEATURE-288)
+	if flags.thinkingEnabled != "" {
+		switch flags.thinkingEnabled {
+		case "on", "off", "default":
+			cfg.LLM.ThinkingEnabled = flags.thinkingEnabled
+		default:
+			io.ErrPrintf("Warning: invalid --thinking-enabled value %q, use on/off/default\n", flags.thinkingEnabled)
+		}
+	}
+
+	// Apply reasoning-effort CLI override (FEATURE-288)
+	if flags.reasoningEffort != "" {
+		switch flags.reasoningEffort {
+		case "low", "medium", "high", "max", "none", "default":
+			cfg.LLM.ReasoningEffort = flags.reasoningEffort
+		default:
+			io.ErrPrintf("Warning: invalid --reasoning-effort value %q, use low/medium/high/max/none/default\n", flags.reasoningEffort)
+		}
+	}
+
+	// Apply max-retries CLI override (FEATURE-288)
+	if flags.maxRetries >= 0 {
+		cfg.LLM.MaxRetries = flags.maxRetries
+	}
+
+	// Apply context-limit CLI override (FEATURE-288)
+	if flags.contextLimit >= -1 {
+		cfg.LLM.ContextLimit = flags.contextLimit
+	}
+
+	// Apply shell-session-enabled CLI override (FEATURE-288)
+	if flags.shellSessionEnabled != "" {
+		switch flags.shellSessionEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShellSessionEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShellSessionEnabled = false
+		default:
+			io.ErrPrintf("Warning: invalid --shell-session-enabled value %q, use on|off\n", flags.shellSessionEnabled)
+		}
+	}
+
+	// Apply browser-enabled CLI override (FEATURE-288)
+	if flags.browserEnabled != "" {
+		switch flags.browserEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.BrowserEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.BrowserEnabled = false
+		default:
+			io.ErrPrintf("Warning: invalid --browser-enabled value %q, use on|off\n", flags.browserEnabled)
 		}
 	}
 

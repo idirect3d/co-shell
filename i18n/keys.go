@@ -869,6 +869,15 @@ const (
 	// CLI Help - Unload mode (FEATURE-245)
 	KeyCLIHelpUnloadMode = "cli_help_unload_mode"
 
+	// CLI Help - Output mode (FEATURE-288)
+	KeyCLIHelpOutputMode = "cli_help_output_mode"
+
+	// CLI Help - Token usage display (FEATURE-288)
+	KeyCLIHelpTokenUsage = "cli_help_token_usage"
+
+	// CLI Help - Body add (FEATURE-288)
+	KeyCLIHelpBodyAdd = "cli_help_body_add"
+
 	// Unload mode messages (FEATURE-245)
 	KeyUnloadModeDone   = "unload_mode_done"
 	KeyUnloadModeFailed = "unload_mode_failed"
