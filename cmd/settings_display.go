@@ -295,6 +295,27 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		log.Info("Show logo set to %s", status)
 		return fmt.Sprintf("✅ 启动 Logo 显示已设置为: %s", status), nil
 
+	case "token-usage":
+		if len(args) < 2 {
+			current := h.cfg.LLM.TokenUsage
+			if current == "" {
+				current = "on"
+			}
+			return fmt.Sprintf("Token 用量显示模式: %s", current), nil
+		}
+		switch args[1] {
+		case "on", "off", "none":
+			h.cfg.LLM.TokenUsage = args[1]
+		default:
+			return "", fmt.Errorf("usage: :set token-usage on|off|none")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.GetLLMClient().SetTokenUsage(h.cfg.LLM.TokenUsage)
+		log.Info("Token usage set to %s", h.cfg.LLM.TokenUsage)
+		return fmt.Sprintf("✅ Token 用量显示模式已设置为: %s", h.cfg.LLM.TokenUsage), nil
+
 	case "emoji-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

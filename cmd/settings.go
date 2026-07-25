@@ -171,7 +171,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "show-tool-input", subcommand == "show-tool-output",
 		subcommand == "show-command-output", subcommand == "emoji-enabled",
 		subcommand == "show-logo",
-		subcommand == "show-loop-detection":
+		subcommand == "show-loop-detection",
+		subcommand == "token-usage":
 		return h.handleDisplaySetting(subcommand, args)
 
 	// Agent settings
@@ -524,6 +525,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.EmojiEnabled {
 		emojiStatus = i18n.T(i18n.KeyOn)
 	}
+	tokenUsageStatus := cfg.LLM.TokenUsage
+	if tokenUsageStatus == "" {
+		tokenUsageStatus = "on"
+	}
 	allGroups = append(allGroups, []settingLine{
 		makeLine("emoji-enabled", emojiStatus, i18n.T(i18n.KeyCol3EmojiEnabled)),
 		makeLine("show-llm-thinking", llmThinkingStatus, i18n.T(i18n.KeyCol3LlmThinking)),
@@ -534,6 +539,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("show-command", commandStatus, i18n.T(i18n.KeyCol3Command)),
 		makeLine("show-command-output", commandOutputStatus, i18n.T(i18n.KeyCol3CommandOutput)),
 		makeLine("show-loop-detection", loopDetectionShowStatus, i18n.T(i18n.KeyCol3ShowLoopDetection)),
+		makeLine("token-usage", tokenUsageStatus, i18n.T(i18n.KeyCol3TokenUsage)),
 	})
 
 	// Loop detection (FIX-179)

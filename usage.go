@@ -82,10 +82,10 @@ func formatHelpLine(text string) string {
 }
 
 // buildUsage builds the complete usage/help message by assembling sections.
-func buildUsage(version string) string {
+func buildUsage(version, build string) string {
 	var sb strings.Builder
 
-	sb.WriteString(i18n.TF(i18n.KeyCLIHelpTitle, version))
+	sb.WriteString(i18n.TF(i18n.KeyCLIHelpTitle, version+" [BUILD-"+build+"]"))
 	sb.WriteString("\n\n")
 	sb.WriteString(formatHelpLine("  " + i18n.T(i18n.KeyCLIHelpUsage)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpUsageREPL)))
@@ -136,6 +136,12 @@ func buildUsage(version string) string {
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpCmdTimeout)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLLMTimeout)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpUnloadMode)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpOutputMode)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpTokenUsage)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpBodyAdd)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpInitCapabilities)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpInitRules)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpDebug)))
 
 	sb.WriteString("\n")
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpVersion)))
