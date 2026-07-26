@@ -805,6 +805,10 @@
   - CLI help (usage.go) 补齐缺失行和 i18n 翻译：--output-mode、--token-usage、--debug、--body-add、--init-capabilities、--init-rules
   - i18n/zh.go 补齐所有缺失 CLI help 项中文翻译
 
+- [ ] **FIX-289 单命令行模式下 Token 用量显示参数顺序错误** [BUILD-320]
+  - 根因：executeSingleCommand() 的 token_iter 分支使用 i18n.T(i18n.KeyTokenUsageDisplay) 时只传了 4 个参数（prompt, completion, total, pct），但格式串期望 7 个参数（ft, prompt, inTPS, completion, outTPS, total, pct），导致 fmt.Sprintf 输出 `%!s(int=37066)` 等乱码
+  - 修复：main.go 中 executeSingleCommand 的 token_iter 分支改为与 REPL repl.go 一致的参数顺序
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

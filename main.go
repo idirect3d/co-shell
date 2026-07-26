@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "319"
+const build = "320"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1333,7 +1333,7 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 				if maxLen > 0 && total > 0 {
 					pct = float64(total) * 100.0 / float64(maxLen)
 				}
-				io.Printf("%s %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), prompt, completion, total, pct))
+				io.Printf("%s %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
 				if ft != "" {
 					io.Printf("%s   %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS))
 				}
