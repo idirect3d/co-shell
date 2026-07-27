@@ -83,7 +83,7 @@ func init() {
 {"is_loop": false/true, "reason": "xxx", "exit_strategy": "xxx(is_loop 为 false 时可不填)"}
 ** 请严格按约定的JSON格式，直接返回判定结果，而不要输出思考过程 **
 `
-	zhMessages[KeyLoopDetectFeedback] = `现在应该复盘一下任务进展，如果最近几次迭代进展不大，应该围绕用户任务的终极目标（即<task></task>中的内容）进行思考，评估一下现有解决是否偏离了任务目标，或者考虑换个思路和方向解决问题。`
+	zhMessages[KeyLoopDetectFeedback] = `现在应该复盘一下任务进展，如果最近几次迭代进展不大，应该围绕用户任务的终极目标进行思考，评估一下现有解决是否偏离了任务目标，或者考虑换个思路和方向解决问题。`
 	// Display & description keys moved from zh.go
 	zhMessages[KeyCol3LoopDetectEnabled] = "循环检测(on|off)"
 	zhMessages[KeyCol3LoopJudgeEnabled] = "LLM循环二次判定"

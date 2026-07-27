@@ -954,14 +954,13 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	}
 
 	// Append feedback to messages (if non-empty)
+	// The <task> wrapper was removed because it distorted LLM attention
+	// priority (FEATURE-292).
 	if loopFeedback != "" {
-		// Wrap feedback in <task> tags so the LLM sees it as a structured
-		// task instruction, especially when using the judge model's exit_strategy.
-		wrappedFeedback := fmt.Sprintf("<task>\n%s\n</task>", loopFeedback)
 		a.mu.Lock()
 		a.messages = append(a.messages, llm.Message{
 			Role:    "user",
-			Content: wrappedFeedback,
+			Content: loopFeedback,
 		})
 		a.mu.Unlock()
 	}
@@ -1076,7 +1075,8 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 }
 
 // getFirstUserCommand returns the content of the first user message in a.messages
-// (excluding system prompts). Prefers content inside the first <task> tag.
+// (excluding system prompts). The <task> wrapper extraction was removed
+// because it distorted LLM attention priority (FEATURE-292).
 // This provides the judge model with the original task instruction.
 func (a *Agent) getFirstUserCommand() string {
 	a.mu.Lock()
@@ -1099,21 +1099,11 @@ func (a *Agent) getFirstUserCommand() string {
 			content = strings.TrimSpace(content[:envIdx])
 		}
 
-		// Prefer content inside the first <task> tag
-		if taskStart := strings.Index(content, "<task>"); taskStart >= 0 {
-			taskStart += len("<task>")
-			if taskEnd := strings.Index(content[taskStart:], "</task>"); taskEnd >= 0 {
-				taskContent := strings.TrimSpace(content[taskStart : taskStart+taskEnd])
-				if taskContent != "" {
-					return taskContent
-				}
-			}
+		// Strip <environment_details> suffix
+		if envIdx := strings.Index(content, "<environment_details>"); envIdx > 0 {
+			content = strings.TrimSpace(content[:envIdx])
 		}
 
-		// Fallback: return the full content (without timestamp prefix)
-		if tIdx := strings.Index(content, ">"); tIdx >= 0 && tIdx < 10 {
-			content = strings.TrimSpace(content[tIdx+1:])
-		}
 		if content != "" {
 			return content
 		}
@@ -1121,9 +1111,10 @@ func (a *Agent) getFirstUserCommand() string {
 	return ""
 }
 
-// getLastUserCommand returns the content of the last <task> tag found in user
-// messages, walking backwards through a.messages. Returns empty string if none
-// found. This provides the judge model with the most recent task instruction.
+// getLastUserCommand returns the content of the last user message in a.messages,
+// walking backwards through a.messages (FEATURE-292). The <task> tag extraction
+// was removed because it distorted LLM attention priority.
+// Provides the judge model with the most recent task instruction.
 func (a *Agent) getLastUserCommand() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1135,15 +1126,12 @@ func (a *Agent) getLastUserCommand() string {
 				content = strings.TrimSpace(m.Content)
 			}
 			if content != "" {
-				// Try to extract content from the last <task> tag
-				if taskStart := strings.LastIndex(content, "<task>"); taskStart >= 0 {
-					taskStart += len("<task>")
-					if taskEnd := strings.Index(content[taskStart:], "</task>"); taskEnd >= 0 {
-						taskContent := strings.TrimSpace(content[taskStart : taskStart+taskEnd])
-						if taskContent != "" {
-							return taskContent
-						}
-					}
+				// Strip <environment_details> suffix
+				if envIdx := strings.Index(content, "<environment_details>"); envIdx > 0 {
+					content = strings.TrimSpace(content[:envIdx])
+				}
+				if content != "" {
+					return content
 				}
 			}
 		}

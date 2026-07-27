@@ -418,8 +418,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Only append feedback message if there's content to send
 				if loopFeedback != "" {
 					a.mu.Lock()
-					wrappedFeedback := fmt.Sprintf("<task>\n%s\n</task>", loopFeedback)
-					a.messages = append(a.messages, llm.Message{Role: "user", Content: wrappedFeedback})
+					a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
 					a.mu.Unlock()
 				}
 
@@ -657,7 +656,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
 					Role:    "user",
-					Content: fmt.Sprintf("<task>\n%s\n</task>", loopFeedback),
+					Content: loopFeedback,
 				})
 				a.mu.Unlock()
 			}
@@ -1037,13 +1036,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					a.mu.Unlock()
 				}
 
-				// FEATURE-255 / FIX-257: Flush task instruction cache BEFORE injecting
-				// <environment_details>, so <task> appears between tool result and <env>.
+				// FEATURE-292: Flush task instruction cache BEFORE injecting
+				// <environment_details>, so the content appears between tool result and <env>.
 				// This collects reorganize_context summary, CmdConfirmModify supplemental
-				// instructions, and other task-level hints, appending them as a <task>
-				// ContentPart to the just-added tool result message.
+				// instructions, and other task-level hints. The <task> wrapper was removed
+				// because it distorted LLM attention priority.
 				if a.taskInstructionCache.Len() > 0 {
-					taskContent := fmt.Sprintf("<task>\n%s\n</task>", a.taskInstructionCache.String())
+					taskContent := a.taskInstructionCache.String()
 					log.Debug("Agent.RunStream: flushing task instruction cache: %s", taskContent)
 
 					a.mu.Lock()
@@ -1137,13 +1136,12 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			}
 		}
 
-		// FEATURE-255: Flush task instruction cache at the end of each iteration.
+		// FEATURE-292: Flush task instruction cache at the end of each iteration.
 		// This collects user supplementary inputs from CmdConfirmModify and other
-		// task-level hints (e.g., context overflow warnings) and appends them as
-		// a single <task> ContentPart to the last user message. This separates
-		// user instructions from tool results, keeping the structure clean.
+		// task-level hints (e.g., context overflow warnings). The <task> wrapper
+		// was removed because it distorted LLM attention priority.
 		if a.taskInstructionCache.Len() > 0 {
-			taskContent := fmt.Sprintf("<task>\n%s\n</task>", a.taskInstructionCache.String())
+			taskContent := a.taskInstructionCache.String()
 			log.Debug("Agent.RunStream: flushing task instruction cache: %s", taskContent)
 
 			a.mu.Lock()
@@ -1170,7 +1168,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// processing (token_iter, flush, env injection), so the LLM sees a fresh,
 		// standalone instruction on the next iteration.
 		if reorganizePending && !hasReorganizeCall {
-			reorgMsg := "<task>\n你必须马上进行上下文整理。\n</task>\n\n当前上下文已经超限，立即调用 reorganize_context 工具。"
+			reorgMsg := "你必须马上进行上下文整理。\n\n当前上下文已经超限，立即调用 reorganize_context 工具。"
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{
 				Role:    "user",
