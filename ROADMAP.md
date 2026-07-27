@@ -820,6 +820,8 @@
 - [x] FIX-291 代码块中 XML 方法调用被误解析为正式工具调用：在 ParseXMLToolCallsWithTools 前增加 stripCodeBlockXML，移除 ```...``` 包裹的代码块内容，避免 LLM 讨论 XML 调用格式时被误执行 [BUILD-321]
   - 附带修复：toolUsageKeyMap 中 browser_get_html → browser_get_rendered_html 键名映射，修复 FEATURE-223 改名后 XML 用法说明缺失的问题
 
+- [x] FEATURE-292 移除 `<task>` 标签包裹策略：`<task>` 标签人为扭曲 LLM 注意力优先级，导致 LLM 只关注 `<task>` 中的内容而忽略同一 user message 中其他的进展展示。改为纯文本/无标签方式传递用户指令和补充输入。[BUILD-321]
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

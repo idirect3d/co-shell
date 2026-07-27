@@ -83,7 +83,7 @@ Example (not a loop):
 {"is_loop": false/true, "reason": "xxx", "exit_strategy": "xxx(optional if is_loop is false)"}
 ** Return ONLY the JSON, no thinking or reasoning output **
 `
-	enMessages[KeyLoopDetectFeedback] = `Please review your progress on the task. If recent iterations show little progress, refocus on the user's ultimate goal (the content inside <task></task>), assess whether your current approach has deviated from the goal, or consider a different direction and strategy to solve the problem.`
+	enMessages[KeyLoopDetectFeedback] = `Please review your progress on the task. If recent iterations show little progress, refocus on the user's ultimate goal, assess whether your current approach has deviated from the goal, or consider a different direction and strategy to solve the problem.`
 	// Display & description keys moved from en.go
 	enMessages[KeyCol3LoopDetectEnabled] = "Loop Detect(on|off)"
 	enMessages[KeyCol3LoopJudgeEnabled] = "LLM Loop Judgment"

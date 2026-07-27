@@ -1937,7 +1937,7 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 					a.taskInstructionCache.WriteString("\n\n")
 				}
 				a.taskInstructionCache.WriteString(modifyInput)
-				return "用户取消了此工具调用，补充指令将以 <task> 形式在末尾提供。", nil
+				return "用户取消了此工具调用。", nil
 			}
 			// CmdConfirmApprove: continue execution
 		} else if toolCount > 0 {
@@ -2152,7 +2152,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 							a.taskInstructionCache.WriteString("\n\n")
 						}
 						a.taskInstructionCache.WriteString(fmt.Sprintf("%s\n%s", selected, remaining))
-						return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
+						return "用户已回复，补充指令已暂存。", nil
 					}
 					io.Printf("  ✅ 已选择: %s\n", selected)
 					// Store user choice in task instruction cache
@@ -2160,7 +2160,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 						a.taskInstructionCache.WriteString("\n\n")
 					}
 					a.taskInstructionCache.WriteString(selected)
-					return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
+					return "用户已回复，补充指令已暂存。", nil
 				}
 				// Valid number but out of range — prompt user to re-choose
 				io.Printf("  无效的选项编号 %d，请重新选择。\n", idx)
@@ -2171,7 +2171,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 				a.taskInstructionCache.WriteString("\n\n")
 			}
 			a.taskInstructionCache.WriteString(input)
-			return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
+			return "用户已回复，补充指令已暂存。", nil
 		}
 
 		// Input doesn't start with a valid number — store in task instruction cache
@@ -2179,7 +2179,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 			a.taskInstructionCache.WriteString("\n\n")
 		}
 		a.taskInstructionCache.WriteString(input)
-		return "用户已回复，补充指令将以 <task> 形式在末尾提供。", nil
+		return "用户已回复，补充指令已暂存。", nil
 	}
 }
 

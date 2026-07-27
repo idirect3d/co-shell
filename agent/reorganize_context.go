@@ -62,10 +62,8 @@ func (a *Agent) reorganizeContextTool(ctx context.Context, args map[string]inter
 	log.Debug("reorganizeContextTool: summary_prompt: %s", summaryPrompt)
 
 	// Clean up old context: keep only the system prompt.
-	// The tool result (containing the embedded <task>) will be appended by the
-	// caller (run_stream.go / run.go), then injected with <environment_details>
-	// by injectTimeAndMessageNoToLast. This gives the LLM a fresh start with
-	// a single message: result + <task> + <env>.
+	// The tool result will be appended by the caller (run_stream.go / run.go),
+	// then injected with <environment_details> by injectTimeAndMessageNoToLast.
 	if len(a.messages) > 0 && a.messages[0].Role == "system" {
 		systemMsg := a.messages[0]
 		a.messages = []llm.Message{systemMsg}
@@ -88,15 +86,15 @@ func (a *Agent) reorganizeContextTool(ctx context.Context, args map[string]inter
 	a.mu.Unlock()
 
 	// Store the summary_prompt in the task instruction cache.
-	// The caller (run_stream.go) will wrap it with <task> tags when flushing,
-	// so we must NOT add <task> here to avoid double-wrapping.
+	// The caller (run_stream.go) flushes it as a ContentPart appended to the
+	// tool result message.
 	if a.taskInstructionCache.Len() > 0 {
 		a.taskInstructionCache.WriteString("\n\n")
 	}
 	a.taskInstructionCache.WriteString(summaryPrompt)
 
-	// Build the result message (without embedded <task>).
-	// The <task> will be appended as a separate ContentPart by the flush mechanism.
+	// Build the result message (the summary prompt will be flushed as a
+	// separate ContentPart by the caller).
 	result := fmt.Sprintf(i18n.T(i18n.KeyReorganizeResult), len(summaryPrompt))
 	log.Info("reorganizeContextTool: result=%s", result)
 	return result, nil

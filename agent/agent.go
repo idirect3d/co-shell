@@ -1257,19 +1257,15 @@ func (a *Agent) formatXMLToolResult(toolName, toolArgs, toolResult string, messa
 //
 //	[{"type":"text","text":"instruction"}, {"type":"text","text":"<environment_details>..."}]
 //
-// Part 0: user instruction (wrapped in <task> tags for XML mode, raw text for OpenAI mode)
+// Part 0: user instruction (plain text)
 // Part N: environment_details will be appended by injectEnvelopeToLastUser as ContentPart
 //
 // Regardless of tool call mode, using ContentParts separates the user's instruction
-// from environment context, making it clearer for the LLM.
+// from environment context, making it clearer for the LLM (FEATURE-292).
 func (a *Agent) buildUserMessage(instruction string) llm.Message {
 	msg := llm.Message{Role: "user"}
-	text := instruction
-	if a.isXMLMode() {
-		text = fmt.Sprintf("<task>\n%s\n</task>", instruction)
-	}
 	msg.ContentParts = []llm.ContentPart{
-		{Type: llm.ContentPartText, Text: text},
+		{Type: llm.ContentPartText, Text: instruction},
 	}
 	return msg
 }

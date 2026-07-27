@@ -275,6 +275,6 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 	if truncated > 0 {
 		result += fmt.Sprintf("（截断 %d 个，上限 %d）", truncated, maxImages)
 	}
-	result += "，识别指令将以 <task> 形式在末尾提供。"
+	result += "，识别指令已暂存。"
 	return result, nil
 }
