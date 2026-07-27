@@ -448,6 +448,166 @@ func TestParseXMLToolCalls_MissingParentCloseTag(t *testing.T) {
 	}
 }
 
+// TestStripCodeBlockXML_NoCodeBlock verifies that content without code blocks
+// passes through unchanged.
+func TestStripCodeBlockXML_NoCodeBlock(t *testing.T) {
+	input := "Hello world\n<read_file>\n  <path>test.txt</path>\n</read_file>"
+	result := stripCodeBlockXML(input)
+	if result != input {
+		t.Errorf("expected unchanged content, got:\n%s", result)
+	}
+}
+
+// TestStripCodeBlockXML_XmlCodeBlock verifies that content inside ```xml...```
+// code blocks is removed (FIX-291, Scenario 1).
+func TestStripCodeBlockXML_XmlCodeBlock(t *testing.T) {
+	input := "First, let me read:\n\n```xml\n<read_file>\n  <intent>Need to examine file</intent>\n  <path>src/main.go</path>\n  <start_line>1</start_line>\n  <end_line>50</end_line>\n</read_file>\n```\n\nThen execute:"
+	result := stripCodeBlockXML(input)
+	// The code block content should be removed, but surrounding text preserved
+	if strings.Contains(result, "read_file") {
+		t.Errorf("code block content should be removed, got:\n%s", result)
+	}
+	if !strings.Contains(result, "First, let me read") {
+		t.Errorf("text before code block should be preserved, got:\n%s", result)
+	}
+	if !strings.Contains(result, "Then execute") {
+		t.Errorf("text after code block should be preserved, got:\n%s", result)
+	}
+	t.Logf("Stripped result:\n%s", result)
+}
+
+// TestStripCodeBlockXML_PlainCodeBlock verifies that content inside ```...```
+// code blocks is removed (FIX-291, Scenario 2).
+func TestStripCodeBlockXML_PlainCodeBlock(t *testing.T) {
+	input := "Example:\n\n```\n<write_to_file>\n  <intent>test</intent>\n  <mode>new</mode>\n  <path>test.txt</path>\n  <content>Hello</content>\n</write_to_file>\n```"
+	result := stripCodeBlockXML(input)
+	if strings.Contains(result, "write_to_file") {
+		t.Errorf("code block content should be removed, got:\n%s", result)
+	}
+	if !strings.Contains(result, "Example") {
+		t.Errorf("text before code block should be preserved")
+	}
+	t.Logf("Stripped result:\n%s", result)
+}
+
+// TestStripCodeBlockXML_MultipleCodeBlocks verifies that multiple code blocks
+// are all removed.
+func TestStripCodeBlockXML_MultipleCodeBlocks(t *testing.T) {
+	input := "First:\n```xml\n<list_files>\n  <path>/tmp</path>\n</list_files>\n```\n\nSecond:\n```\n<execute_command>\n  <command>ls</command>\n</execute_command>\n```\n\nDone."
+	result := stripCodeBlockXML(input)
+	if strings.Contains(result, "list_files") {
+		t.Errorf("first code block content should be removed")
+	}
+	if strings.Contains(result, "execute_command") {
+		t.Errorf("second code block content should be removed")
+	}
+	if !strings.Contains(result, "Done.") {
+		t.Errorf("text after all code blocks should be preserved")
+	}
+	t.Logf("Stripped result:\n%s", result)
+}
+
+// TestParseXMLToolCallsWithTools_IgnoresCodeBlockXML verifies that when XML
+// tool calls are inside a code block, they are NOT parsed as real tool calls
+// (FIX-291, Scenario 3).
+func TestParseXMLToolCallsWithTools_IgnoresCodeBlockXML(t *testing.T) {
+	input := "Let me explore:\n\n```xml\n<list_files>\n  <intent>explore</intent>\n  <path>/home</path>\n</list_files>\n```\n\n```xml\n<execute_command>\n  <intent>list</intent>\n  <command>ls -la</command>\n</execute_command>\n```\n\nAll done."
+
+	calls := ParseXMLToolCallsWithTools(input, []llm.Tool{
+		{
+			Name: "list_files",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent": map[string]interface{}{"type": "string"},
+					"path":   map[string]interface{}{"type": "string"},
+				},
+			},
+		},
+		{
+			Name: "execute_command",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent":  map[string]interface{}{"type": "string"},
+					"command": map[string]interface{}{"type": "string"},
+				},
+			},
+		},
+	})
+	if len(calls) != 0 {
+		t.Errorf("expected 0 tool calls (all XML in code blocks), got %d", len(calls))
+		for _, c := range calls {
+			t.Logf("  call: %s", c.Name)
+		}
+	}
+}
+
+// TestParseXMLToolCallsWithTools_MixedCodeBlockAndReal verifies that code
+// block content is ignored while real XML tool calls outside code blocks
+// are still correctly parsed (FIX-291, Scenario 4).
+func TestParseXMLToolCallsWithTools_MixedCodeBlockAndReal(t *testing.T) {
+	input := "Example usage:\n\n```xml\n<search_files>\n  <intent>example</intent>\n  <path>src</path>\n  <regex>func main</regex>\n  <file_pattern>*.go</file_pattern>\n</search_files>\n```\n\nNow actually searching:\n<search_files>\n  <intent>search for main</intent>\n  <path>src</path>\n  <regex>func main</regex>\n  <file_pattern>*.go</file_pattern>\n</search_files>"
+
+	calls := ParseXMLToolCallsWithTools(input, []llm.Tool{
+		{
+			Name: "search_files",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent":       map[string]interface{}{"type": "string"},
+					"path":         map[string]interface{}{"type": "string"},
+					"regex":        map[string]interface{}{"type": "string"},
+					"file_pattern": map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"intent", "path", "regex"},
+			},
+		},
+	})
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 real tool call, got %d", len(calls))
+	}
+	if calls[0].Name != "search_files" {
+		t.Errorf("expected 'search_files', got %q", calls[0].Name)
+	}
+	// Verify it's the real one (with "search for main" intent)
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(calls[0].Arguments), &args); err != nil {
+		t.Fatalf("failed to parse args: %v", err)
+	}
+	if intent, ok := args["intent"].(string); !ok || intent != "search for main" {
+		t.Errorf("expected intent 'search for main', got %q", intent)
+	}
+}
+
+// TestStripCodeBlockXML_BacktickAtContentStart verifies that content starting
+// with a code block is handled correctly.
+func TestStripCodeBlockXML_BacktickAtContentStart(t *testing.T) {
+	input := "```\n<execute_command>\n  <command>ls</command>\n</execute_command>\n```\n\nDone."
+	result := stripCodeBlockXML(input)
+	if strings.Contains(result, "execute_command") {
+		t.Errorf("code block at start should be removed, got:\n%s", result)
+	}
+	if !strings.Contains(result, "Done.") {
+		t.Errorf("text after should be preserved")
+	}
+}
+
+// TestStripCodeBlockXML_IncompleteFence verifies that a code block without
+// a closing fence causes the rest of content to be treated as code block.
+func TestStripCodeBlockXML_IncompleteFence(t *testing.T) {
+	input := "Code:\n```\n<write_to_file>\n  <content>test</content>\n</write_to_file>"
+	result := stripCodeBlockXML(input)
+	// Without closing fence, everything after opening should be stripped
+	if !strings.Contains(result, "Code:") {
+		t.Errorf("text before code block should be preserved")
+	}
+	if strings.Contains(result, "write_to_file") {
+		t.Errorf("unclosed code block content should be stripped")
+	}
+	t.Logf("Result: %q", result)
+}
+
 func TestParseXMLToolCalls_ItemMissingCloseTag(t *testing.T) {
 	// FIX-255: When <item> inside a <replacements> block is missing its </item>
 	// closing tag, the parser should propagate the nested parse error up to the

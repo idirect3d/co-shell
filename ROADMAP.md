@@ -817,6 +817,9 @@
   - 同步更新：usage.go help、i18n 翻译、`--help` 示例 12
   - 外部调用方可通过此参数管理多组独立对话上下文
 
+- [x] FIX-291 代码块中 XML 方法调用被误解析为正式工具调用：在 ParseXMLToolCallsWithTools 前增加 stripCodeBlockXML，移除 ```...``` 包裹的代码块内容，避免 LLM 讨论 XML 调用格式时被误执行 [BUILD-321]
+  - 附带修复：toolUsageKeyMap 中 browser_get_html → browser_get_rendered_html 键名映射，修复 FEATURE-223 改名后 XML 用法说明缺失的问题
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
