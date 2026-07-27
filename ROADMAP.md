@@ -822,6 +822,8 @@
 
 - [x] FEATURE-292 移除 `<task>` 标签包裹策略：`<task>` 标签人为扭曲 LLM 注意力优先级，导致 LLM 只关注 `<task>` 中的内容而忽略同一 user message 中其他的进展展示。改为纯文本/无标签方式传递用户指令和补充输入。[BUILD-321]
 
+- [ ] FEATURE-293 no-tool-action 默认值改为 exit：将 NoToolAction 的默认值从 "retry" 改为 "exit"，使 LLM 在 0 个工具调用时默认退出迭代循环而非重试，减少无意义循环。
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

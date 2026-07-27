@@ -425,7 +425,7 @@ type LLMConfig struct {
 	// "exit" — treat as final answer (append assistant msg, exit iteration loop)
 	// "retry" — discard assistant content, resend context without any feedback or memory
 	// "prompt" — discard assistant content, append corrective prompt, then resend
-	// Default: "retry"
+	// Default: "exit"
 	NoToolAction string `json:"no_tool_action"`
 
 	// LoopSingleLineLength: when a single line in LLM output exceeds this many
@@ -798,7 +798,7 @@ func DefaultConfig() *Config {
 			DocxMaxReadParas:           200,
 			VisualAnalysisMaxImages:    5,
 			ParseErrorAction:           "retry",
-			NoToolAction:               "retry",
+			NoToolAction:               "exit",
 			LoopIntervention:           "prompt",
 			LoopDetectThreshold:        2,
 			LoopSingleLineLength:       2048,
