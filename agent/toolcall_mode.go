@@ -127,7 +127,7 @@ var toolUsageKeyMap = map[string]string{
 	"browser_click":                    i18n.KeyToolUsageBrowserClick,
 	"browser_type":                     i18n.KeyToolUsageBrowserType,
 	"browser_evaluate":                 i18n.KeyToolUsageBrowserEvaluate,
-	"browser_get_html":                 i18n.KeyToolUsageBrowserGetHTML,
+	"browser_get_rendered_html":        i18n.KeyToolUsageBrowserGetHTML,
 	"browser_scroll":                   i18n.KeyToolUsageBrowserScroll,
 	"browser_get_interactive_elements": i18n.KeyToolUsageBrowserGetInteractiveElements,
 	"browser_go_back":                  i18n.KeyToolUsageBrowserGoBack,
@@ -270,6 +270,11 @@ func parseXMLIsKnownTool(tagName string, tools []llm.Tool) bool {
 // See ParseXMLToolCalls for details on the XML format.
 func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall {
 	var calls []llm.ToolCall
+
+	// Strip Markdown fenced code blocks (```...```) from content before parsing.
+	// This prevents XML tool call examples inside code blocks from being parsed
+	// as real tool calls (FIX-291).
+	content = stripCodeBlockXML(content)
 
 	// Use a simple state machine to find top-level XML elements.
 	// A top-level element is one that is not nested inside another element.
@@ -863,6 +868,72 @@ func extractCDATA(content string) string {
 		}
 	}
 	return ""
+}
+
+// stripCodeBlockXML removes Markdown fenced code blocks (```...```) from content.
+// This prevents XML tool call examples inside code blocks from being parsed as
+// real tool calls. Handles:
+//   - ```xml ... ``` (with language specifier)
+//   - ``` ... ``` (plain code block)
+//   - ```````` (backtick sequences of length >=3)
+//
+// Returns the content with code block content removed.
+// Multiple code blocks are all removed. Non-code-block content is preserved
+// exactly as-is.
+func stripCodeBlockXML(content string) string {
+	var result strings.Builder
+	result.Grow(len(content))
+
+	i := 0
+	for i < len(content) {
+		// Look for the start of a fenced code block: ``` at line start or after newline
+		// Check for ``` at position i
+		if i+2 < len(content) && content[i] == '`' && content[i+1] == '`' && content[i+2] == '`' {
+			// Verify this is at the start of a line (or is the start of content)
+			if i == 0 || content[i-1] == '\n' {
+				// Find the extent of the opening backtick sequence
+				backtickCount := 3
+				for j := i + 3; j < len(content) && content[j] == '`'; j++ {
+					backtickCount++
+				}
+
+				// Consume the rest of the opening line (language specifier, etc.)
+				openEnd := strings.IndexByte(content[i+backtickCount:], '\n')
+				if openEnd < 0 {
+					// No newline after opening fence - likely malformed, skip
+					result.WriteByte(content[i])
+					i++
+					continue
+				}
+				openLineEnd := i + backtickCount + openEnd + 1 // include the \n
+
+				// Now find the closing fence (same number of backticks)
+				closePattern := strings.Repeat("`", backtickCount)
+				closeIdx := strings.Index(content[openLineEnd:], closePattern)
+				if closeIdx < 0 {
+					// No closing fence found - treat the rest of content as code block
+					// and return what we have so far
+					return result.String()
+				}
+
+				// Skip the closing fence line entirely (find the end of the closing line)
+				closeStart := openLineEnd + closeIdx
+				closeLineEnd := strings.IndexByte(content[closeStart+backtickCount:], '\n')
+				if closeLineEnd < 0 {
+					// Closing fence at end of content - done
+					return result.String()
+				}
+				// Advance past the closing fence line
+				i = closeStart + backtickCount + closeLineEnd + 1
+				continue
+			}
+		}
+
+		result.WriteByte(content[i])
+		i++
+	}
+
+	return result.String()
 }
 
 // stripREPLMaskMarkers removes REPL input masking markers from content.
