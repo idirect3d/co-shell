@@ -310,6 +310,9 @@ const (
 	KeyCLIHelpEx10 = "cli_help_ex10"
 	KeyCLIHelpEx11 = "cli_help_ex11"
 
+	// CLI Help - Example 12: agent manager invocation (FEATURE-290)
+	KeyCLIHelpEx12 = "cli_help_ex12"
+
 	// CLI Help - Image
 	KeyCLIHelpImage = "cli_help_image"
 
@@ -910,6 +913,9 @@ const (
 	KeySettingsDescDebug = "settings_desc_debug"
 	KeyCol3Debug         = "col3_debug"
 	KeyCLIHelpDebug      = "cli_help_debug"
+
+	// CLI Help - Session ID (FEATURE-290)
+	KeyCLIHelpSessionID = "cli_help_session_id"
 
 	// Vault (FEATURE-274)
 	KeyHelpVault            = "help_vault"

@@ -142,6 +142,7 @@ func buildUsage(version, build string) string {
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpInitCapabilities)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpInitRules)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpDebug)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpSessionID)))
 
 	sb.WriteString("\n")
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpVersion)))
@@ -161,6 +162,7 @@ func buildUsage(version, build string) string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx9) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx10) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx11) + "\n")
+	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx12) + "\n")
 
 	return sb.String()
 }

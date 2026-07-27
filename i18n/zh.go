@@ -295,6 +295,7 @@ var zhMessages = map[string]string{
 	KeyCLIHelpEx9:                      "  co-shell --temperature 0.8 写一首诗    指定温度参数并执行指令",
 	KeyCLIHelpEx10:                     "  co-shell --show-thinking on --show-command on 分析日志  显示思考过程和命令",
 	KeyCLIHelpEx11:                     "  co-shell --result-mode analyze \"查看系统状态\"  以分析模式处理结果",
+	KeyCLIHelpEx12:                     `  co-shell -w /path/to/workspace -s my-task-001 "生成周报"  指定工作区和会话 ID 执行指令`,
 
 	// CLI Help - LLM Behavior
 	KeyCLIHelpTemperature:  "      --temperature <n>   温度参数（0.0 ~ 2.0，覆盖配置文件）",
@@ -782,7 +783,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDebugPromptFooter: "=== 预览结束 ===",
 	KeySettingsDescDebug: "调试模式（提交给 LLM 前显示并可编辑消息内容）",
 	KeyCol3Debug:         "调试模式",
-	KeyCLIHelpDebug:      "      --debug         启用调试模式（提交给 LLM 前显示并可编辑消息内容）",
+	KeyCLIHelpDebug:      "      --debug             启用调试模式（提交给 LLM 前显示并可编辑消息内容）",
+	KeyCLIHelpSessionID:  "  -s, --session-id <id>  指定会话 ID，加载已有会话或创建新会话",
 
 	// Vault
 	KeyVaultAddPrompt:  "请输入密码本条目 %q 的凭证信息：",
