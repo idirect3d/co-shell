@@ -805,9 +805,17 @@
   - CLI help (usage.go) 补齐缺失行和 i18n 翻译：--output-mode、--token-usage、--debug、--body-add、--init-capabilities、--init-rules
   - i18n/zh.go 补齐所有缺失 CLI help 项中文翻译
 
-- [ ] **FIX-289 单命令行模式下 Token 用量显示参数顺序错误** [BUILD-320]
+- [x] **FIX-289 单命令行模式下 Token 用量显示参数顺序错误** [BUILD-320]
   - 根因：executeSingleCommand() 的 token_iter 分支使用 i18n.T(i18n.KeyTokenUsageDisplay) 时只传了 4 个参数（prompt, completion, total, pct），但格式串期望 7 个参数（ft, prompt, inTPS, completion, outTPS, total, pct），导致 fmt.Sprintf 输出 `%!s(int=37066)` 等乱码
   - 修复：main.go 中 executeSingleCommand 的 token_iter 分支改为与 REPL repl.go 一致的参数顺序
+
+- [x] **FEATURE-290 命令行 --session-id 参数：支持指定 session ID 追踪对话上下文** [BUILD-320]
+  - 新增 `--session-id`（`-s`）命令行参数
+  - 如果指定的 session ID 在 DB 中已存在，加载对应 session 的历史消息
+  - 如果不存在，创建新 session（以该 ID 命名）
+  - 执行后 PersistSessionNonSystem 写回该 session
+  - 同步更新：usage.go help、i18n 翻译、`--help` 示例 12
+  - 外部调用方可通过此参数管理多组独立对话上下文
 
 ## v1.0.0 — 正式版
 

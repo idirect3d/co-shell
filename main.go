@@ -51,7 +51,7 @@ import (
 
 const version = "0.6.0"
 
-const build = "319"
+const build = "320"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -133,6 +133,9 @@ type cliFlags struct {
 
 	// Show logo on startup
 	showLogo string // "on"/"off"
+
+	// Session ID
+	sessionID string
 
 	// Context start mode
 	contextPolicy string // "window"/"task"/"smart"/"reorganize"
@@ -281,6 +284,10 @@ func parseFlags() cliFlags {
 
 	// Show logo on startup
 	flag.StringVar(&f.showLogo, "show-logo", "", "显示启动 Logo（on/off，覆盖配置文件）")
+
+	// Session ID
+	flag.StringVar(&f.sessionID, "session-id", "", "指定会话 ID，加载已有会话或创建新会话（简写 -s）")
+	flag.StringVar(&f.sessionID, "s", "", "指定会话 ID（简写）")
 
 	// Context start mode
 	flag.StringVar(&f.contextPolicy, "context-policy", "", "上下文策略（window/task/smart/reorganize，覆盖配置文件）")
@@ -1094,6 +1101,35 @@ func main() {
 	// Restore previous session if available
 	if ag.RestoreSession() {
 		log.Info("Previous session restored from storage")
+	}
+
+	// Apply --session-id override: load existing named session or create a new one.
+	if flags.sessionID != "" {
+		entry, entryFound, err := s.LoadNamedSession(flags.sessionID)
+		if err != nil {
+			log.Warn("SessionID: LoadNamedSession(%q) error: %v", flags.sessionID, err)
+		} else if entryFound && entry != nil && len(entry.Messages) > 0 {
+			// Existing session found: load its messages
+			var msgs []llm.Message
+			if err := json.Unmarshal(entry.Messages, &msgs); err == nil && len(msgs) > 0 {
+				systemPrompt := ""
+				if len(msgs) > 0 && msgs[0].Role == "system" {
+					systemPrompt = msgs[0].Content
+				}
+				ag.SetHistory(append([]llm.Message{{Role: "system", Content: systemPrompt}}, msgs...))
+				log.Info("SessionID: loaded %d messages from session %q (%s)", len(msgs), flags.sessionID, entry.Title)
+			}
+		} else {
+			// Session ID not found: start fresh, will create on first Persist
+			ag.Reset()
+			log.Info("SessionID: session %q not found, starting fresh", flags.sessionID)
+		}
+		ag.SetCurrentSessionID(flags.sessionID)
+		if err := s.SaveCurrentSessionID(flags.sessionID); err != nil {
+			log.Warn("SessionID: SaveCurrentSessionID error: %v", err)
+		} else {
+			log.Info("SessionID: current session set to %q", flags.sessionID)
+		}
 	}
 
 	// Initialize scheduler
