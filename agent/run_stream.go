@@ -661,7 +661,28 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.mu.Unlock()
 			}
 
-			cb("info", fmt.Sprintf("检测到XML解析错误\n"))
+			// Display a concise error summary extracted from the parse error data.
+			errorSummary := ""
+			if strings.HasPrefix(firstLine, "{") {
+				var entry struct {
+					Tool  string `json:"tool"`
+					Error string `json:"error"`
+				}
+				if err := json.Unmarshal([]byte(firstLine), &entry); err == nil && entry.Error != "" {
+					errorSummary = entry.Error
+					// Truncate very long error messages for the one-line display
+					if len(errorSummary) > 120 {
+						errorSummary = errorSummary[:120] + "..."
+					}
+				}
+			}
+			if errorSummary == "" {
+				errorSummary = firstLine
+				if len(errorSummary) > 120 {
+					errorSummary = errorSummary[:120] + "..."
+				}
+			}
+			cb("info", fmt.Sprintf("检测到XML解析错误: %s\n", errorSummary))
 			cb("info", fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
 			cb("info", "────────────────────────────────────────────\n")
 			continue

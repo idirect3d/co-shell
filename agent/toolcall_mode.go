@@ -195,6 +195,146 @@ func getToolParamNames(tools []llm.Tool, toolName string) map[string]bool {
 	return nil
 }
 
+// findCloseTagByName searches for a closing tag matching the given openTagName
+// inside content starting from the given start index. It handles nested tags
+// correctly by tracking depth. Returns the position of the first character of
+// the closing tag </...>, or -1 if not found.
+func findCloseTagByName(content string, start int, openTagName string) int {
+	remaining := content[start:]
+	depth := 1
+	i := 0
+	for i < len(remaining) {
+		ltIdx := strings.IndexByte(remaining[i:], '<')
+		if ltIdx < 0 {
+			return -1
+		}
+		ltIdx += i
+
+		// Check for closing tag
+		if ltIdx+1 < len(remaining) && remaining[ltIdx+1] == '/' {
+			closeEnd := strings.IndexByte(remaining[ltIdx:], '>')
+			if closeEnd < 0 {
+				return -1
+			}
+			closeTagName := remaining[ltIdx+2 : ltIdx+closeEnd]
+			if strings.TrimSpace(closeTagName) == openTagName {
+				depth--
+				if depth == 0 {
+					return start + ltIdx
+				}
+			}
+			i = ltIdx + closeEnd + 1
+			continue
+		}
+
+		// It's an opening tag — increase depth
+		if ltIdx+1 < len(remaining) && remaining[ltIdx+1] != '/' && remaining[ltIdx+1] != '!' {
+			tagStart := ltIdx + 1
+			tagEnd := tagStart
+			for tagEnd < len(remaining) {
+				ch := remaining[tagEnd]
+				if ch == '>' || ch == ' ' || ch == '/' || ch == '\t' || ch == '\n' {
+					break
+				}
+				tagEnd++
+			}
+			childTagName := remaining[tagStart:tagEnd]
+			if childTagName != "" && childTagName == openTagName {
+				depth++
+			}
+			// Skip to end of this opening tag
+			closeEnd := strings.IndexByte(remaining[tagEnd:], '>')
+			if closeEnd < 0 {
+				return -1
+			}
+			i = tagEnd + closeEnd + 1
+			continue
+		}
+		i = ltIdx + 1
+	}
+	return -1
+}
+
+// buildKnownParamSet collects all parameter names from all tool definitions
+// into a single set. This is used for heuristic detection of tool calls
+// when the tool name tag is misspelled but inner parameter tags are recognizable.
+func buildKnownParamSet(tools []llm.Tool) map[string]bool {
+	paramSet := make(map[string]bool)
+	for _, tool := range tools {
+		props, ok := tool.Parameters["properties"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for name := range props {
+			paramSet[name] = true
+		}
+	}
+	return paramSet
+}
+
+// extractChildTagNames extracts top-level (depth-1) child tag names from inner XML content.
+// It only extracts tags at depth 1 (direct children of the parent), ignoring nested elements.
+func extractChildTagNames(innerContent string) []string {
+	var tagNames []string
+	seen := make(map[string]bool)
+	remaining := innerContent
+	i := 0
+	for i < len(remaining) {
+		ltIdx := strings.IndexByte(remaining[i:], '<')
+		if ltIdx < 0 {
+			break
+		}
+		ltIdx += i
+
+		// Skip comments, CDATA, closing tags
+		if ltIdx+1 < len(remaining) {
+			next := remaining[ltIdx+1]
+			if next == '/' || next == '!' || next == '?' {
+				closeEnd := strings.IndexByte(remaining[ltIdx:], '>')
+				if closeEnd < 0 {
+					break
+				}
+				i = ltIdx + closeEnd + 1
+				continue
+			}
+		}
+
+		// Extract tag name
+		tagStart := ltIdx + 1
+		tagEnd := tagStart
+		for tagEnd < len(remaining) {
+			ch := remaining[tagEnd]
+			if ch == '>' || ch == ' ' || ch == '/' || ch == '\t' || ch == '\n' {
+				break
+			}
+			tagEnd++
+		}
+		tagName := remaining[tagStart:tagEnd]
+		if tagName != "" && !seen[tagName] {
+			tagNames = append(tagNames, tagName)
+			seen[tagName] = true
+		}
+
+		// Skip to end of this tag
+		closeEnd := strings.IndexByte(remaining[tagEnd:], '>')
+		if closeEnd < 0 {
+			break
+		}
+		i = tagEnd + closeEnd + 1
+	}
+	return tagNames
+}
+
+// isKnownToolName checks whether tagName matches any tool name in the tools list.
+func isKnownToolName(tagName string, tools []llm.Tool) bool {
+	for _, t := range tools {
+		if t.Name == tagName {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseXMLToolCalls parses XML-formatted tool calls from LLM response content.
 // The new format uses the tool name directly as the XML tag, with parameters
 // as child elements:
@@ -395,18 +535,106 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					}
 				}
 				if !isKnown {
-					// Unknown tag — skip silently instead of reporting error.
-					// LLM's explanatory text may include HTML tags (<div>, <p>, etc.)
-					// which are not tool calls and should be ignored.
+					// FEATURE-293: Two-stage reverse identification for misspelled tool calls.
+					// Stage 1: Check if the closing tag matches a known tool name.
+					// Stage 2: Check if inner child tags match known parameter names (≥1 match).
+					// Build known param set for stage 2 (lazy, only when needed)
+					// Try to find a closing tag. First try exact match, then any match.
 					closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
 					if closeIdx < 0 {
 						closeIdx = findCloseTagLenient(remaining[openEnd:], tagName)
 					}
-					if closeIdx >= 0 {
-						i = openEnd + closeIdx + len("</"+tagName+">")
+
+					// If no exact match, try to find any known tool's closing tag.
+					// This handles mismatched name tags (e.g., <reed_file>...</read_file>).
+					var actualCloseName string
+					anyCloseUsed := false
+					if closeIdx < 0 {
+						// Scan for known tool close tags to handle head/tail name mismatch
+						for _, t := range tools {
+							if idx := findCloseTagLenient(remaining[openEnd:], t.Name); idx >= 0 {
+								actualCloseName = t.Name
+								closeIdx = idx
+								anyCloseUsed = true
+								break
+							}
+						}
 					} else {
-						i = openEnd
+						closeContent := remaining[openEnd+closeIdx:]
+						ce := strings.IndexByte(closeContent[2:], '>')
+						if ce >= 0 {
+							actualCloseName = strings.TrimSpace(closeContent[2 : 2+ce])
+						}
 					}
+
+					// Calculate block end position and extract inner content
+					var blockEnd int
+					var innerContent string
+					if closeIdx >= 0 {
+						if anyCloseUsed {
+							blockEnd = openEnd + closeIdx + len("</") + len(actualCloseName) + 1
+						} else {
+							blockEnd = openEnd + closeIdx + len("</"+tagName+">")
+						}
+						innerContent = remaining[openEnd : openEnd+closeIdx]
+					} else {
+						blockEnd = openEnd
+					}
+
+					log.Debug("ParseXMLToolCalls: stage1/2 check: tagName=%q, actualCloseName=%q, closeIdx=%d, anyCloseUsed=%v",
+						tagName, actualCloseName, closeIdx, anyCloseUsed)
+					// Stage 1: Tail tag reverse matching
+					if actualCloseName != "" && isKnownToolName(actualCloseName, tools) && !isKnownToolName(tagName, tools) {
+						errMsg := fmt.Sprintf(
+							"XML解析错误：你写了不识别的方法名 <%s>，但闭合标签是 </%s>。你是否想调用 <%s>？请修正方法名并确保开头和闭合标签一致。",
+							tagName, actualCloseName, actualCloseName)
+						log.Debug("ParseXMLToolCalls: stage1 detected: %s", errMsg)
+						calls = append(calls, llm.ToolCall{
+							ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+							Name:      "_xml_parse_error",
+							Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+						})
+						i = blockEnd
+						continue
+					}
+
+					// Stage 2: Parameter signature detection — head and tail both unknown
+					// Check if ≥1 child tag names match known parameter names
+					if innerContent != "" {
+						childTags := extractChildTagNames(innerContent)
+						if len(childTags) > 0 {
+							knownParams := buildKnownParamSet(tools)
+							knownCount := 0
+							for _, ct := range childTags {
+								if knownParams[ct] {
+									knownCount++
+								}
+							}
+							// Trigger if at least 1 known parameter tag found
+							if knownCount >= 1 {
+								knownList := make([]string, 0, len(childTags))
+								for _, ct := range childTags {
+									if knownParams[ct] {
+										knownList = append(knownList, ct)
+									}
+								}
+								errMsg := fmt.Sprintf(
+									"XML解析错误：未被识别的方法名 '%s'，但内部参数标签 [%s] 看起来像工具调用参数。请检查方法名拼写并使用正确的方法名。",
+									tagName, strings.Join(knownList, ", "))
+								log.Debug("ParseXMLToolCalls: stage2 detected: %s", errMsg)
+								calls = append(calls, llm.ToolCall{
+									ID:        fmt.Sprintf("xml_error_%d", len(calls)),
+									Name:      "_xml_parse_error",
+									Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+								})
+								i = blockEnd
+								continue
+							}
+						}
+					}
+
+					// Neither stage triggered — skip silently as before
+					i = blockEnd
 					continue
 				}
 				// Known tool — now validate syntax. Skip space/attribute and

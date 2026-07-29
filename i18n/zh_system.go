@@ -263,6 +263,7 @@ Parameters:
 5. 如果从 read_file 获取的上下文包含行号前缀（如 "42 | const x = 1"），<search> 中**不要包含**行号前缀，只匹配原始文件文本。
 Usage:
 <replace_in_file>
+  <intent>需要精确替换文件中的指定文本内容</intent>
   <path>main.go</path>
   <replacements>
     <item>
@@ -341,7 +342,7 @@ Usage:
 </schedule_task>`
 
 	zhMessages[KeyToolUsageTrackTaskProgress] = `## track_task_progress
-Description: 记录任务内容并跟踪各步骤执行进度。一次性传递完整的 steps 数组作为期望状态——系统自动处理创建或替换。DESCRIPTION 用法：对于详细计划，将完整的任务背景、约束条件、技术方案和验收标准写入 description。STEP.DESCRIPTION 用法：首行为步骤标题/摘要；后续行为步骤的具体详细内容。STATUS 取值："[ ]" (待办)、"[=]" (进行中)、"[X]" (已完成)、"[C]" (已取消)、"[F]" (已失败)。将 steps 设置为空数组可归档并删除当前计划。
+Description: 记录任务内容并跟踪各步骤执行进度。一次性传递完整的 steps 数组作为期望状态——系统自动处理创建或替换。description 参数用法：对于详细计划，将完整的任务背景、约束条件、技术方案和验收标准写入 description。step.description 参数用法：首行为步骤标题/摘要；后续行为步骤的具体详细内容。status 参数用法："[ ]" (待办)、"[=]" (进行中)、"[X]" (已完成)、"[C]" (已取消)、"[F]" (已失败)。将 steps 设置为空数组可归档并删除当前计划。
 Parameters:
 - title (必需，新建时) 任务计划的标题
 - description (必需) 整体任务计划的详细描述。对于详细计划，应包含完整的任务背景、约束条件、技术方案和验收标准。
@@ -816,6 +817,7 @@ Parameters:
   - max_cells (可选) 最大返回单元格数（默认 1000），超限报错并要求缩小范围
 Usage:
 <excel_read>
+  <intent>需要读取报表电子表格前10行A到E列的数据</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_row>1</start_row>
@@ -827,6 +829,7 @@ Usage:
 
 text 格式示例：
 <excel_read>
+  <intent>需要以纯文本格式读取前10行A到E列的数据</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_row>1</start_row>
@@ -837,13 +840,13 @@ text 格式示例：
 </excel_read>`
 
 	zhMessages[KeyToolUsageExcelEdit] = `## excel_edit
-Description: 从目标单元格开始写入数据。values 是一个二维字符串数组。如果值以 '=' 开头，则解释为公式。
+Description: 从目标单元格开始按表格方式写入1-N行数据。
 Parameters:
-  - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
+  - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策
   - session_id (必需) excel_open 返回的会话 ID
   - sheet (必需) Sheet 名称（如 "Sheet1"）
   - start_cell (必需) 起始单元格引用（如 "A1"、"C5"）
-  - values (必需) 二维数组 — 每个 <item> 是一个 TSV（Tab 分隔）行，可直接从 Excel 复制粘贴
+  - values (必需) 1维数组 — 每个 <item> 是一个 TSV（Tab 分隔）行，包含由Tab分隔的单元格的值，如果单元格的值以 '=' 开头，则解释为公式
 Usage:
 <excel_edit>
   <intent>从A1开始写入数据到电子表格</intent>
@@ -870,6 +873,7 @@ Parameters:
   - cut (可选) 是否为剪切操作（默认 false）
 Usage:
 <excel_copy>
+  <intent>需要复制表头行以便粘贴到其他位置</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <start_row>1</start_row>
@@ -887,6 +891,7 @@ Parameters:
   - target_cell (必需) 目标单元格引用（如 "F2"）
 Usage:
 <excel_paste>
+  <intent>需要将剪贴板中的内容粘贴到目标位置</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet2</sheet>
   <target_cell>F2</target_cell>
@@ -903,6 +908,7 @@ Parameters:
   - count (可选) 插入数量（默认 1）
 Usage:
 <excel_insert>
+  <intent>需要在第3行前面插入2个空行</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>rows</what>
@@ -922,6 +928,7 @@ Parameters:
   - start_row/end_row/start_col/end_col (cells 时必需) 单元格清空范围
 Usage:
 <excel_delete>
+  <intent>需要删除第5-7行以清除过期数据</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>rows</what>
@@ -939,6 +946,7 @@ Parameters:
   - new_name (rename/copy 时必需) 新名称
 Usage:
 <excel_sheet>
+  <intent>需要列出当前工作簿中所有可用的Sheet页</intent>
   <session_id>xl_1234567890</session_id>
   <action>list</action>
 </excel_sheet>`
@@ -961,6 +969,7 @@ Parameters:
   - col_width: 列宽（what 含 col_width 时生效）
 Usage:
 <excel_format>
+  <intent>需要为报表的表头行设置字体、底色和边框格式</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>
@@ -980,6 +989,7 @@ Usage:
 
 合并模式示例（只加边框，保留已有字体）：
 <excel_format>
+  <intent>需要为表格第1-5行添加细线边框，保留已有字体和底色</intent>
   <session_id>xl_1234567890</session_id>
   <sheet>Sheet1</sheet>
   <what>
@@ -1173,11 +1183,13 @@ EXECUTION WORKFLOW
 	zhMessages[KeySystemPromptCapabilities] = `
 CAPABILITIES
 
-1. 执行系统命令 (execute_command)。
-2. 调用 ./bin/ 下的工具（包括：pdf2png.py、md2docx.py、doc2pdf.py、docx2pdf.py、md2wechat.py、ngxlog_decode.py、wps2pdf.py 等，每个工具的使用说明在同名 md 文件中）。
-3. 搜索历史记忆 memory_search 和获取历史记忆片段 get_memory_slice。
-4. 通过 track_task_progress 进行任务管理和跟踪。
-5. 通过使用类似 "从已加载的图片中获取证件类型、证件号等，并将所有识别到的内容记录到xxx.md文件" 这样的意图指令调用 visual_analysis 来识别图片、视频等视觉文件，特别是要引导你自己通过 write_to_file 新建一个文件来记录识别好的数据，如果是多页，则需要通过不断调用 write_to_file 追加识别数据到这个文件，以便将识别好的数据保存下来。
+1. **编码能力**：能够通过 ` + "`" + `search_files` + "`" + ` / ` + "`" + `read_file` + "`" + ` / ` + "`" + `list_files` + "`" + ` / ` + "`" + `list_code_definition_names` + "`" + ` 充分理解现有代码结构和逻辑，通过 ` + "`" + `ask_followup_question` + "`" + ` 主动澄清歧义和不明确之处，通过 ` + "`" + `memory_search` + "`" + ` / ` + "`" + `get_memory_slice` + "`" + ` 检索历史上下文辅助决策。
+
+2. **简洁优先**：能够用最少的工具调用解决问题——能通过 ` + "`" + `read_file` + "`" + ` + ` + "`" + `replace_in_file` + "`" + ` 完成的小修改不调用额外工具，能通过 ` + "`" + `evaluate_expression` + "`" + ` 完成的简单计算不启动 Python 或 shell。
+
+3. **精准修改**：能够使用 ` + "`" + `replace_in_file` + "`" + ` 对文件做精确的 search/replace 修改而非整体重写，使用 ` + "`" + `read_file` + "`" + ` 精确读取特定行范围而非全量读取，使用 ` + "`" + `search_files` + "`" + ` 精准定位代码位置而非手动查找。
+
+4. **目标驱动**：能够通过 ` + "`" + `track_task_progress` + "`" + ` 创建可验证的任务计划和验收步骤，每一步完成后通过 ` + "`" + `execute_command` + "`" + ` 运行测试或验证命令来确认结果，确认全部达标后通过 ` + "`" + `attempt_completion` + "`" + ` 交付。
 `
 
 	// Shell session capabilities (no execute_command, focused on shell interaction)
@@ -1254,7 +1266,7 @@ SYSTEM INFORMATION
 	zhMessages[KeyToolUsageVaultList] = `## vault_list
 Description: 列出密码本中所有条目的名称和标签（不暴露敏感值）。使用 @Tag:条目名@ 格式在其他方法调用中引用凭据，如 @pwd:prod_db@、@user:prod_db@、@key:my_api@。
 Parameters:
-- intent (必填): 说明为什么需要列出密码本条目
+- intent (必需): 说明为什么需要列出密码本条目
 
 Usage:
 <vault_list>
@@ -1278,8 +1290,8 @@ Usage:
 	zhMessages[KeyToolUsageVaultAdd] = `## vault_add
 Description: 添加新条目到密码本。LLM 提供条目名称（如 prod_db、my_api），标签值由系统提示用户直接输入 —— 不经过 LLM，确保敏感信息安全。
 Parameters:
-- intent (必填): 说明为什么需要添加此条目
-- name (必填): 条目名称，供 @Tag:name@ 引用
+- intent (必需): 说明为什么需要添加此条目
+- name (必需): 条目名称，供 @Tag:name@ 引用
 - notes (可选): 备注信息
 
 Usage:
@@ -1291,8 +1303,8 @@ Usage:
 	zhMessages[KeyToolUsageVaultRemove] = `## vault_remove
 Description: 按名称删除密码本条目。此操作会永久删除存储的凭据。请谨慎使用并在删除前与用户确认。
 Parameters:
-- intent (必填): 说明要删除哪个条目以及原因
-- name (必填): 要删除的条目名称
+- intent (必需): 说明要删除哪个条目以及原因
+- name (必需): 要删除的条目名称
 
 Usage:
 <vault_remove>
@@ -1304,9 +1316,9 @@ Usage:
 	zhMessages[KeyToolUsageWordOpen] = `## word_open
 Description: 打开一个 DOCX 文件，返回会话 ID。mode 为必填参数：'create'（新建，文件必须不存在）、'read'（只读打开，保存会失败）、'copy'（复制一份带时间戳的副本后打开副本）。
 Parameters:
-- intent (必填): 说明为什么需要打开此文件
-- path (必填): DOCX 文件路径
-- mode (必填): 打开模式：'create'（新建）、'read'（只读）、'copy'（复制）
+- intent (必需): 说明为什么需要打开此文件
+- path (必需): DOCX 文件路径
+- mode (必需): 打开模式：'create'（新建）、'read'（只读）、'copy'（复制）
 
 Usage:
 <word_open>
@@ -1338,8 +1350,8 @@ Usage:
 	zhMessages[KeyToolUsageWordClose] = `## word_close
 Description: 关闭 DOCX 会话（自动保存）。
 Parameters:
-- intent (必填): 说明为什么需要关闭会话
-- session_id (必填): word_open 返回的会话 ID
+- intent (必需): 说明为什么需要关闭会话
+- session_id (必需): word_open 返回的会话 ID
 
 Usage:
 <word_close>
@@ -1350,8 +1362,8 @@ Usage:
 	zhMessages[KeyToolUsageWordSave] = `## word_save
 Description: 保存 DOCX 文件但不关闭会话。
 Parameters:
-- intent (必填): 说明为什么需要保存
-- session_id (必填): word_open 返回的会话 ID
+- intent (必需): 说明为什么需要保存
+- session_id (必需): word_open 返回的会话 ID
 
 Usage:
 <word_save>
@@ -1362,8 +1374,8 @@ Usage:
 	zhMessages[KeyToolUsageWordOverview] = `## word_overview
 Description: 获取文档结构概览：段落数、样式使用情况、表格数。
 Parameters:
-- intent (必填): 说明为什么需要查看概览
-- session_id (必填): word_open 返回的会话 ID
+- intent (必需): 说明为什么需要查看概览
+- session_id (必需): word_open 返回的会话 ID
 
 Usage:
 <word_overview>
@@ -1374,10 +1386,10 @@ Usage:
 	zhMessages[KeyToolUsageWordRead] = `## word_read
 Description: 将段落范围读取为 HTML。format 可选 "simple"（仅结构标签）或 "full"（含 CSS 样式）。
 Parameters:
-- intent (必填): 说明为什么需要读取段落
-- session_id (必填): word_open 返回的会话 ID
-- from_para (必填): 起始段落编号（从 1 开始）
-- to_para (必填): 结束段落编号
+- intent (必需): 说明为什么需要读取段落
+- session_id (必需): word_open 返回的会话 ID
+- from_para (必需): 起始段落编号（从 1 开始）
+- to_para (必需): 结束段落编号
 - format (可选): "simple"（默认）或 "full"
 
 Usage:
@@ -1392,9 +1404,9 @@ Usage:
 	zhMessages[KeyToolUsageWordTableRead] = `## word_table_read
 Description: 读取表格并返回为 HTML。format 可选 "simple" 或 "full"。
 Parameters:
-- intent (必填): 说明为什么需要读取表格
-- session_id (必填): word_open 返回的会话 ID
-- table_index (必填): 表格索引（从 0 开始，来自 word_overview）
+- intent (必需): 说明为什么需要读取表格
+- session_id (必需): word_open 返回的会话 ID
+- table_index (必需): 表格索引（从 0 开始，来自 word_overview）
 - format (可选): "simple"（默认）或 "full"
 
 Usage:
@@ -1407,9 +1419,9 @@ Usage:
 	zhMessages[KeyToolUsageWordContinue] = `## word_continue
 Description: 在指定段落后插入新内容，自动继承格式。支持 Markdown 语法：## 标题2、- 列表项。通过 same_style_as 参数继承参考段落的样式。
 Parameters:
-- intent (必填): 说明为什么需要插入内容
-- session_id (必填): word_open 返回的会话 ID
-- content (必填): 要插入的内容，支持 ## 标题、- 列表等 Markdown 语法
+- intent (必需): 说明为什么需要插入内容
+- session_id (必需): word_open 返回的会话 ID
+- content (必需): 要插入的内容，支持 ## 标题、- 列表等 Markdown 语法
 - after_para (可选): 在此段落后插入（1-based）
 - same_style_as (可选): 继承此段落的样式
 - style (可选): 显式指定样式名，优先级高于 same_style_as
@@ -1426,10 +1438,10 @@ Usage:
 	zhMessages[KeyToolUsageWordErase] = `## word_erase
 Description: 删除指定范围的段落。
 Parameters:
-- intent (必填): 说明为什么需要删除段落
-- session_id (必填): word_open 返回的会话 ID
-- from_para (必填): 起始段落编号（1-based）
-- to_para (必填): 结束段落编号
+- intent (必需): 说明为什么需要删除段落
+- session_id (必需): word_open 返回的会话 ID
+- from_para (必需): 起始段落编号（1-based）
+- to_para (必需): 结束段落编号
 
 Usage:
 <word_erase>
@@ -1442,9 +1454,9 @@ Usage:
 	zhMessages[KeyToolUsageWordInspectStyle] = `## word_inspect_style
 Description: 查看命名样式的定义（字体、字号、加粗、颜色、间距、对齐等）。
 Parameters:
-- intent (必填): 说明为什么需要查看样式
-- session_id (必填): word_open 返回的会话 ID
-- name (必填): 样式名称，如 "Heading 2"
+- intent (必需): 说明为什么需要查看样式
+- session_id (必需): word_open 返回的会话 ID
+- name (必需): 样式名称，如 "Heading 2"
 
 Usage:
 <word_inspect_style>
@@ -1456,11 +1468,11 @@ Usage:
 	zhMessages[KeyToolUsageWordFormat] = `## word_format
 Description: 修改段落格式。target="style:Heading1" 修改所有该样式的段落。target="para:3-5" 修改指定段落范围。what 支持：style、font_name、font_size、bold、italic、color。
 Parameters:
-- intent (必填): 说明为什么需要修改格式
-- session_id (必填): word_open 返回的会话 ID
-- what (必填): 要修改的属性：style、font_name、font_size、bold、italic、color
-- value (必填): 属性的新值
-- target (必填): 目标范围："style:StyleName" 或 "para:start-end"
+- intent (必需): 说明为什么需要修改格式
+- session_id (必需): word_open 返回的会话 ID
+- what (必需): 要修改的属性：style、font_name、font_size、bold、italic、color
+- value (必需): 属性的新值
+- target (必需): 目标范围："style:StyleName" 或 "para:start-end"
 
 Usage:
 <word_format>
