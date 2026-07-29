@@ -1701,6 +1701,60 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string) string {
 	return sb.String()
 }
 
+// hasIncompleteToolCall checks whether the LLM output contains an incomplete
+// XML tool call — content that starts with < and a known tool name but doesn't
+// form a complete XML block that ParseXMLToolCallsWithTools could parse.
+// This is used as a signal that the LLM intended to call a tool but the
+// format was too broken for any stage1/stage2 detection.
+//
+// The content should already have been cleaned of code blocks, quoted XML, and
+// think blocks before calling this function (matching the pre-processing done
+// by ParseXMLToolCallsWithTools).
+func hasIncompleteToolCall(content string, tools []llm.Tool) bool {
+	// Quick scan: find any '<' followed by a known tool name
+	for i := 0; i < len(content); i++ {
+		if content[i] != '<' {
+			continue
+		}
+		// Must have at least '<' + 1 char
+		if i+1 >= len(content) {
+			continue
+		}
+		// Skip closing tags (</...>) and comments (<!--...-->)
+		if content[i+1] == '/' || content[i+1] == '!' || content[i+1] == '?' {
+			continue
+		}
+
+		// Extract the potential tag name (characters after '<' until >, space, /, tab, newline)
+		tagStart := i + 1
+		tagEnd := tagStart
+		for tagEnd < len(content) {
+			ch := content[tagEnd]
+			if ch == '>' || ch == ' ' || ch == '/' || ch == '\t' || ch == '\n' {
+				break
+			}
+			tagEnd++
+		}
+		tagName := content[tagStart:tagEnd]
+		if tagName == "" {
+			continue
+		}
+
+		// Skip known non-tool tags (thinking, answer, etc.)
+		if knownNonToolTags[tagName] {
+			continue
+		}
+
+		// Check if this tag name matches any known tool
+		for _, t := range tools {
+			if t.Name == tagName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // buildReferenceFormat extracts the Usage section from the i18n tool description
 // for the given tool name. Returns the Usage XML block if found, or a generic
 // format string as fallback.

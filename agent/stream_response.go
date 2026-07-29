@@ -60,11 +60,13 @@ func lastNChars(s string, n int) string {
 	return s[len(s)-n:]
 }
 
-// streamLLMResponse streams the LLM response and returns the complete content, reasoning, and tool calls.
+// streamLLMResponse streams the LLM response and returns the complete content, reasoning, tool calls,
+// and a hasToolAttempt boolean indicating whether the LLM's output contains an incomplete tool call
+// (e.g., <known_tool_name without closing tag or proper structure).
 // If streaming fails, it falls back to non-streaming Chat.
 // Before each call, it dynamically selects the appropriate model based on current context.
 // It also listens on the interrupt channel for user ESC keypress (FEATURE-201).
-func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
+func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, bool, error) {
 	log.Debug("Agent.streamLLMResponse: ENTER")
 
 	// Reset per-stream-call flags
@@ -94,7 +96,14 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	if err != nil {
 		// Fall back to non-streaming
 		log.Debug("Agent.streamLLMResponse: ChatStream not available, falling back to non-streaming: %v", err)
-		return a.nonStreamingFallback(ctx, tools, cb)
+		content, reasoning, calls, fbErr := a.nonStreamingFallback(ctx, tools, cb)
+		// FEATURE-293 phase 3: compute hasToolAttempt from non-streaming fallback content
+		fallbackAttempt := false
+		if fbErr == nil && len(calls) == 0 {
+			fullTools := a.buildToolsInternal()
+			fallbackAttempt = hasIncompleteToolCall(content, fullTools)
+		}
+		return content, reasoning, calls, fallbackAttempt, fbErr
 	}
 	log.Debug("Agent.streamLLMResponse: ChatStream returned eventCh, waiting for events...")
 
@@ -139,13 +148,13 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 		case <-a.cancelCh:
 			log.Debug("Agent.streamLLMResponse: received cancel signal (Ctrl+C), aborting stream")
 			_ = contentBuilder.String()
-			return "", "", nil, &CanceledError{}
+			return "", "", nil, false, &CanceledError{}
 
 		case <-a.interruptCh:
 			log.Debug("Agent.streamLLMResponse: received interrupt signal, stopping stream")
 			// Drain any remaining content from the contentBuilder
 			_ = contentBuilder.String()
-			return "", "", nil, &InterruptedError{}
+			return "", "", nil, false, &InterruptedError{}
 
 		case event, ok := <-eventCh:
 			if !ok {
@@ -203,7 +212,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					a.loopDetectSyncErr = nil
 					a.loopDetectCrit = true
 					a.mu.Unlock()
-					return finalContent, finalReasoning, nil, syncErr
+					return finalContent, finalReasoning, nil, false, syncErr
 				}
 
 			case llm.StreamEventReasoning:
@@ -231,7 +240,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					a.loopDetectSyncErr = nil
 					a.loopDetectCrit = true
 					a.mu.Unlock()
-					return finalContent, finalReasoning, nil, syncErr
+					return finalContent, finalReasoning, nil, false, syncErr
 				}
 
 			case llm.StreamEventToolCall:
@@ -286,6 +295,11 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				// No need for an extra non-streaming API call.
 				finalContent := contentBuilder.String()
 				finalReasoning := reasoningBuilder.String()
+
+				// FEATURE-293 phase 3: Track whether the LLM content contains an incomplete
+				// tool call that wasn't parsed by stage1/stage2. This is used later to
+				// divert from no-tool-action to parse-error-action.
+				hasToolAttempt := false
 
 				// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
 				// We ALWAYS parse XML tool calls from content in XML mode, and IGNORE any
@@ -370,6 +384,16 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 							// No XML tool calls found; clear any API-level tool calls in XML mode
 							toolCalls = nil
 							log.Info("Agent.streamLLMResponse: 0 XML tool calls found in content (tools list len=%d)", len(tools))
+
+							// FEATURE-293 phase 3: Check for incomplete tool call attempt.
+							// When stage1/stage2 didn't detect anything (no _xml_parse_error)
+							// AND no valid XML tool calls were parsed, but the content STILL
+							// contains something that looks like an opening <known_tool_name> tag,
+							// set hasToolAttempt=true so RunStream can divert to parse-error-action.
+							hasToolAttempt = hasIncompleteToolCall(cleanContent, fullTools)
+							if hasToolAttempt {
+								log.Info("Agent.streamLLMResponse: hasToolAttempt=true — incomplete tool call detected in content")
+							}
 						}
 					}
 				}
@@ -431,16 +455,16 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 						sb.WriteString(fmt.Sprintf(": %s\n", strings.Join(ic.Issues, ", ")))
 					}
 					sb.WriteString("Please check the tool definitions and ensure all required parameters are provided correctly.")
-					return "", "", nil, errors.New(sb.String())
+					return "", "", nil, false, errors.New(sb.String())
 				}
 
-				log.Debug("Agent.streamLLMResponse: returning finalContent=%q, finalReasoning_len=%d, toolCalls=%d",
-					finalContent, len(finalReasoning), len(toolCalls))
-				return finalContent, finalReasoning, toolCalls, nil
+				log.Debug("Agent.streamLLMResponse: returning finalContent=%q, finalReasoning_len=%d, toolCalls=%d, hasToolAttempt=%v",
+					finalContent, len(finalReasoning), len(toolCalls), hasToolAttempt)
+				return finalContent, finalReasoning, toolCalls, hasToolAttempt, nil
 
 			case llm.StreamEventError:
 				log.Debug("Agent.streamLLMResponse: StreamEventError: %v", event.Err)
-				return "", "", nil, event.Err
+				return "", "", nil, false, event.Err
 			}
 		}
 	}
@@ -448,5 +472,12 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	// If we get here, the channel closed without a Done event
 	// Fall back to non-streaming
 	log.Debug("Agent.streamLLMResponse: eventCh closed after %d events without Done event, falling back to non-streaming", eventCount)
-	return a.nonStreamingFallback(ctx, tools, cb)
+	content, reasoning, calls, fbErr := a.nonStreamingFallback(ctx, tools, cb)
+	// FEATURE-293 phase 3: compute hasToolAttempt from non-streaming fallback content
+	fallbackAttempt := false
+	if fbErr == nil && len(calls) == 0 {
+		fullTools := a.buildToolsInternal()
+		fallbackAttempt = hasIncompleteToolCall(content, fullTools)
+	}
+	return content, reasoning, calls, fallbackAttempt, fbErr
 }

@@ -776,6 +776,65 @@ func TestParseXMLToolCallsWithTools_Stage2_ParamSignature(t *testing.T) {
 
 // TestParseXMLToolCallsWithTools_HTMLNotMisdetectedAsToolCall verifies that common HTML
 // tags (<div>, <p>) with no known parameter names do NOT trigger stage 2 detection.
+// TestHasIncompleteToolCall_DetectsKnownTool verifies that hasIncompleteToolCall
+// returns true when the content contains an opening <known_tool_name> tag
+// that didn't result in a valid XML parse (FEATURE-293 phase 3).
+func TestHasIncompleteToolCall_DetectsKnownTool(t *testing.T) {
+	tools := []llm.Tool{
+		{Name: "read_file"},
+		{Name: "execute_command"},
+		{Name: "write_to_file"},
+	}
+	// Content has <read_file appearing but broken XML
+	content := "Let me try:\n<read_file path=\"/tmp\">\nwait..."
+	got := hasIncompleteToolCall(content, tools)
+	if !got {
+		t.Errorf("expected hasIncompleteToolCall=true for <read_file in content")
+	}
+}
+
+// TestHasIncompleteToolCall_SkipsNonToolTags verifies that known non-tool tags
+// (thinking, answer, etc.) are not detected as incomplete tool calls.
+func TestHasIncompleteToolCall_SkipsNonToolTags(t *testing.T) {
+	tools := []llm.Tool{
+		{Name: "read_file"},
+		{Name: "execute_command"},
+	}
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"thinking tag", "<thinking>let me process...</thinking>", false},
+		{"answer tag", "<answer>42</answer>", false},
+		{"plain text", "The answer is 42", false},
+		{"known tool tag", "<read_file><path>/tmp</path></read_file>", true},
+		{"incomplete known tool", "<execute_command\nI need to", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasIncompleteToolCall(tt.content, tools)
+			if got != tt.want {
+				t.Errorf("hasIncompleteToolCall=%v, want=%v for content: %q", got, tt.want, tt.content)
+			}
+		})
+	}
+}
+
+// TestHasIncompleteToolCall_NoFalsePositivesForHTML verifies that common HTML
+// tags (div, p, span, etc.) do NOT trigger hasIncompleteToolCall.
+func TestHasIncompleteToolCall_NoFalsePositivesForHTML(t *testing.T) {
+	tools := []llm.Tool{
+		{Name: "read_file"},
+		{Name: "execute_command"},
+	}
+	htmlContent := "<div class=\"main\">\n  <p>hello</p>\n</div>"
+	got := hasIncompleteToolCall(htmlContent, tools)
+	if got {
+		t.Errorf("HTML content should not trigger hasIncompleteToolCall")
+	}
+}
+
 func TestParseXMLToolCallsWithTools_HTMLNotMisdetectedAsToolCall(t *testing.T) {
 	tools := []llm.Tool{
 		{

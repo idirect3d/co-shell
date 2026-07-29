@@ -197,8 +197,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		var finalContent, finalReasoning string
 		var toolCalls []llm.ToolCall
 		var streamErr error
+		var hasToolAttempt bool
 
-		finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+		finalContent, finalReasoning, toolCalls, hasToolAttempt, streamErr = a.streamLLMResponse(ctx, tools, cb)
 
 		// FEATURE-239: Handle user cancel (Ctrl+C) — immediate exit, no confirmation
 		// FIX-264: No need to clean up a.messages — CanceledError is returned before the current
@@ -238,7 +239,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Retry the LLM call with the same context after toggling debug
 				a.ResetInterrupt()
 				cb("info", fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
-				finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+				finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
+				// HACK: the `_` here is hasToolAttempt; we don't use it on retry paths
+				// because the content is discarded and the stream call will be re-issued.
 				if streamErr != nil {
 					cb("info", fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
 					cb("info", fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
@@ -262,7 +265,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.ResetInterrupt()
 			cb("info", fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
 
-			finalContent, finalReasoning, toolCalls, streamErr = a.streamLLMResponse(ctx, tools, cb)
+			finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 			if streamErr != nil {
 				// Retry failed too - treat it like user cancelled
 				cb("info", fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
@@ -773,6 +776,22 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				}
 				log.Info("Agent.RunStream: completed after %d iterations (via attempt_completion)", iteration+1)
 				return finalContent, nil
+			}
+
+			// FEATURE-293 phase 3: If the LLM attempted to call a tool but the XML
+			// was too broken for stage1/stage2 to catch, divert to parse-error-action
+			// instead of following no-tool-action.
+			if hasToolAttempt {
+				log.Info("Agent.RunStream: hasToolAttempt=true, diverting to parse-error-action instead of no-tool-action")
+
+				// Construct a parse error message and store in taskInstructionCache
+				// so the existing XML parse error handling branch processes it.
+				errMsg := fmt.Sprintf(
+					`{"tool": "", "error": "XML格式错误：LLM输出中包含已尝试调用工具的内容（< 工具标签名开头），但XML结构不完整，无法解析为有效的工具调用。请检查你的输出格式，确保使用正确的方法名和参数标签。"}`)
+				a.mu.Lock()
+				a.taskInstructionCache.WriteString(errMsg)
+				a.mu.Unlock()
+				continue
 			}
 
 			// Rule 2: attempt_completion is available but was NOT called.
