@@ -1366,8 +1366,26 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 		// Keep original prefixed name for close tag matching
 		originalTagName := tagName
 		// FEATURE-297: Strip the prefix from parameter tag names for JSON output
+		// If the tag does NOT have the expected prefix, skip it entirely —
+		// no syntax validation, no error reporting. Non-prefixed tags are treated
+		// as regular content (e.g., HTML inside tool parameters).
 		if stripped := stripXMLTagPrefix(tagName); stripped != "" {
 			tagName = stripped
+		} else {
+			// Tag without expected prefix — skip entire block silently
+			// Find the '>' to determine where the open tag ends
+			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
+			if openEnd < 0 {
+				break
+			}
+			openEnd += tagEnd + 1
+			closeIdx := findCloseTagLenient(remaining[openEnd:], tagName)
+			if closeIdx >= 0 {
+				remaining = remaining[openEnd+closeIdx+len("</"+tagName+">"):]
+			} else {
+				remaining = remaining[openEnd:]
+			}
+			continue
 		}
 		if tagName == "" {
 			break
