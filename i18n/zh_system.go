@@ -169,11 +169,11 @@ Parameters:
 - command (必需) 要执行的命令
 - timeout_seconds (可选) 超时秒数。根据任务复杂度设置。0 或省略表示仅使用用户配置的超时时间。
 Usage:
-<execute_command>
-  <intent>需要查看当前目录下的文件列表</intent>
-  <command>ls -la</command>
-  <timeout_seconds>30</timeout_seconds>
-</execute_command>`
+<{XML_TAG_PREFIX}execute_command>
+  <{XML_TAG_PREFIX}intent>需要查看当前目录下的文件列表</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}command>ls -la</{XML_TAG_PREFIX}command>
+  <{XML_TAG_PREFIX}timeout_seconds>30</{XML_TAG_PREFIX}timeout_seconds>
+</{XML_TAG_PREFIX}execute_command>`
 
 	zhMessages[KeyToolUsageReadFile] = `## read_file
 Description: 读取指定路径的文件内容。返回带行号的文件内容。start_line 和 end_line 都是**必填**参数——必须指定要读取的行范围。**重要：此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js、.html、.css、.json、.xml、.yaml、.csv、.log 等格式）。请勿使用此工具读取图片文件（如 .png、.jpg、.gif、.webp、.bmp、.docx、.doc、.xls、.xlsx、.pdf、.wps 等格式）或其他二进制文件——如需分析图片请改用 visual_analysis 将图片加载到多模态上下文中。**
@@ -183,12 +183,12 @@ Parameters:
 - start_line (必需) 开始读取的行号（从1开始，包含）
 - end_line (必需) 结束读取的行号（从1开始，包含）
 Usage:
-<read_file>
-  <intent>需要查看 main.go 文件的开头部分以了解程序入口结构</intent>
-  <path>main.go</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>`
+<{XML_TAG_PREFIX}read_file>
+  <{XML_TAG_PREFIX}intent>需要查看 main.go 文件的开头部分以了解程序入口结构</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>main.go</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}start_line>1</{XML_TAG_PREFIX}start_line>
+  <{XML_TAG_PREFIX}end_line>50</{XML_TAG_PREFIX}end_line>
+</{XML_TAG_PREFIX}read_file>`
 
 	zhMessages[KeyToolUsageSearchFiles] = `## search_files
 Description: 在指定目录中搜索正则表达式模式。返回匹配行及其上下文。用于跨文件查找代码模式、函数定义或文本。
@@ -198,12 +198,12 @@ Parameters:
 - regex (必需) 要搜索的正则表达式模式
 - file_pattern (可选) 文件过滤 glob 模式（如 '*.go'）。不提供则搜索所有文件。
 Usage:
-<search_files>
-  <intent>需要搜索 agent 包中的工具定义函数</intent>
-  <path>agent</path>
-  <regex>func.*Tool</regex>
-  <file_pattern>*.go</file_pattern>
-</search_files>`
+<{XML_TAG_PREFIX}search_files>
+  <{XML_TAG_PREFIX}intent>需要搜索 agent 包中的工具定义函数</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>agent</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}regex>func.*Tool</{XML_TAG_PREFIX}regex>
+  <{XML_TAG_PREFIX}file_pattern>*.go</{XML_TAG_PREFIX}file_pattern>
+</{XML_TAG_PREFIX}search_files>`
 
 	zhMessages[KeyToolUsageListFiles] = `## list_files
 Description: 列出指定目录中的文件和子目录。recursive 控制递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。用于探索目录结构和查找文件。
@@ -212,11 +212,11 @@ Parameters:
 - path (必需) 要列出内容的目录路径（绝对路径或相对于当前工作目录）
 - recursive (可选) 递归深度：0=仅顶层（默认），1=一层深度，2=两层，以此类推。
 Usage:
-<list_files>
-  <intent>需要查看 agent 目录结构的组织方式</intent>
-  <path>agent</path>
-  <recursive>1</recursive>
-</list_files>`
+<{XML_TAG_PREFIX}list_files>
+  <{XML_TAG_PREFIX}intent>需要查看 agent 目录结构的组织方式</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>agent</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}recursive>1</{XML_TAG_PREFIX}recursive>
+</{XML_TAG_PREFIX}list_files>`
 
 	zhMessages[KeyToolUsageListCodeDefNames] = `## list_code_definition_names
 Description: 列出指定目录顶层源代码文件中的定义名称（函数、类型、方法等）。用于快速了解代码库的结构和 API。
@@ -224,10 +224,10 @@ Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要列出定义的目录路径（绝对路径或相对于当前工作目录）
 Usage:
-<list_code_definition_names>
-  <intent>需要了解 agent 包中定义了哪些核心函数和类型</intent>
-  <path>agent</path>
-</list_code_definition_names>`
+<{XML_TAG_PREFIX}list_code_definition_names>
+  <{XML_TAG_PREFIX}intent>需要了解 agent 包中定义了哪些核心函数和类型</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>agent</{XML_TAG_PREFIX}path>
+</{XML_TAG_PREFIX}list_code_definition_names>`
 
 	zhMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
 Description: 使用 search/replace 参数替换文件中的内容。接受 replacements 数组可用于多处替换，<item>代表一个数组的元素，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
@@ -236,34 +236,34 @@ Parameters:
 - path (必需) 要修改的文件路径（绝对路径或相对于当前工作目录）
 - replacements (必需) 替换对象数组，<item>代表一个数组的元素，每个元素对象包含 search 和 replace 字符串字段，以及可选的 start_line 数字，例如：
 
-  <replacements>
-    <item>
-      <search>要查找的精确内容（必需），必须与文件完全匹配（包括空格和缩进）</search>
-      <replace>替换后的新内容（必需）</replace>
-      <start_line>搜索内容在原文件中的起始行号（可选，1-based）。系统会自动根据前面 replacement 的行数变化调整偏移量。使用 start_line 可以精确定位，避免重复匹配</start_line>
-    </item>
-  </replacements>
+  <{XML_TAG_PREFIX}replacements>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}search>要查找的精确内容（必需），必须与文件完全匹配（包括空格和缩进）</{XML_TAG_PREFIX}search>
+      <{XML_TAG_PREFIX}replace>替换后的新内容（必需）</{XML_TAG_PREFIX}replace>
+      <{XML_TAG_PREFIX}start_line>搜索内容在原文件中的起始行号（可选，1-based）。系统会自动根据前面 replacement 的行数变化调整偏移量。使用 start_line 可以精确定位，避免重复匹配</{XML_TAG_PREFIX}start_line>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}replacements>
 
 关键规则：
-1. <search> 内容必须与文件中要查找的部分**完全匹配**（包括空格、缩进、换行符、注释、文档字符串等）。系统优先尝试精确匹配，失败后会进行去尾空白模糊匹配（忽略末尾空格/Tab/回车）。
-2. 每个 <item> 只替换**第一个匹配**。如需多处替换，需提供多个包含不同 <search> 值的 <item>。注意：不能使用JSON表达式表示数组的元素。
-3. 保持 <item> 简洁：将大的替换拆分为多个小替换块，每个块只修改一小部分。<search> 只需包含足够唯一匹配的上下文行，不要包含大段未修改的内容。每行必须完整，不能截断。
+1. <{XML_TAG_PREFIX}search> 内容必须与文件中要查找的部分**完全匹配**（包括空格、缩进、换行符、注释、文档字符串等）。系统优先尝试精确匹配，失败后会进行去尾空白模糊匹配（忽略末尾空格/Tab/回车）。
+2. 每个 <{XML_TAG_PREFIX}item> 只替换**第一个匹配**。如需多处替换，需提供多个包含不同 <{XML_TAG_PREFIX}search> 值的 <{XML_TAG_PREFIX}item>。注意：不能使用JSON表达式表示数组的元素。
+3. 保持 <{XML_TAG_PREFIX}item> 简洁：将大的替换拆分为多个小替换块，每个块只修改一小部分。<{XML_TAG_PREFIX}search> 只需包含足够唯一匹配的上下文行，不要包含大段未修改的内容。每行必须完整，不能截断。
 4. 特殊操作：
-   - 移动代码：使用两个 <item>（一个从原位置删除，一个在新位置插入）
-   - 删除代码：将 <replace> 留空
-5. 如果从 read_file 获取的上下文包含行号前缀（如 "42 | const x = 1"），<search> 中**不要包含**行号前缀，只匹配原始文件文本。
+   - 移动代码：使用两个 <{XML_TAG_PREFIX}item>（一个从原位置删除，一个在新位置插入）
+   - 删除代码：将 <{XML_TAG_PREFIX}replace> 留空
+5. 如果从 read_file 获取的上下文包含行号前缀（如 "42 | const x = 1"），<{XML_TAG_PREFIX}search> 中**不要包含**行号前缀，只匹配原始文件文本。
 Usage:
-<replace_in_file>
-  <intent>需要精确替换文件中的指定文本内容</intent>
-  <path>main.go</path>
-  <replacements>
-    <item>
-      <search>旧文本</search>
-      <replace>新文本</replace>
-      <start_line>42</start_line>
-    </item>
-  </replacements>
-</replace_in_file>`
+<{XML_TAG_PREFIX}replace_in_file>
+  <{XML_TAG_PREFIX}intent>需要精确替换文件中的指定文本内容</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>main.go</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}replacements>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}search>旧文本</{XML_TAG_PREFIX}search>
+      <{XML_TAG_PREFIX}replace>新文本</{XML_TAG_PREFIX}replace>
+      <{XML_TAG_PREFIX}start_line>42</{XML_TAG_PREFIX}start_line>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}replacements>
+</{XML_TAG_PREFIX}replace_in_file>`
 
 	zhMessages[KeyToolUsageWriteToFile] = `## write_to_file
 Description: 将内容写入指定路径的文件。mode参数控制操作模式：
@@ -280,14 +280,14 @@ Parameters:
 - path (必需) 要写入文件的绝对路径
 - content (必需) 要写入文件的内容。对于 append 模式，此内容追加到文件末尾。
 Usage:
-<write_to_file>
-  <intent>需要创建项目配置文件存储 API 端点信息</intent>
-  <mode>new</mode>
-  <path>output/result.md</path>
-  <content># 结果
+<{XML_TAG_PREFIX}write_to_file>
+  <{XML_TAG_PREFIX}intent>需要创建项目配置文件存储 API 端点信息</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}mode>new</{XML_TAG_PREFIX}mode>
+  <{XML_TAG_PREFIX}path>output/result.md</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}content># 结果
 
-这是生成的文件。</content>
-</write_to_file>`
+这是生成的文件。</{XML_TAG_PREFIX}content>
+</{XML_TAG_PREFIX}write_to_file>`
 
 	zhMessages[KeyToolUsageVisualAnalysis] = `## visual_analysis
 Description: 加载一个或多个图片、截图、扫描件、视频帧等视觉文件进行多模态分析。提供文件路径数组和识别意图说明，文件自动发送一次后即清理。支持：OCR/文字识别、图像理解、表格/数据提取、文档分析、视频帧分析等。单次调用可加载的文件总数上限由 visual-analysis-max-images 配置参数控制（默认5）。**必须指定 intent 参数说明需要分析什么内容。**
@@ -295,13 +295,13 @@ Parameters:
 - paths (必需) 图片/视频文件路径数组，一次可加载多个文件。例如：['page1.png', 'page2.png']
 - intent (必需) 描述你需要从图片中识别什么具体信息。例如：'识别这些发票中的金额和日期'、'提取表格中的所有数据列'、'找出图中所有错误标注的位置'
 Usage:
-<visual_analysis>
-  <paths>
-    <item>screenshot1.png</item>
-    <item>screenshot2.png</item>
-  </paths>
-  <intent>识别这些截图中的关键信息</intent>
-</visual_analysis>`
+<{XML_TAG_PREFIX}visual_analysis>
+  <{XML_TAG_PREFIX}paths>
+    <{XML_TAG_PREFIX}item>screenshot1.png</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>screenshot2.png</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}paths>
+  <{XML_TAG_PREFIX}intent>识别这些截图中的关键信息</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}visual_analysis>`
 
 	zhMessages[KeyToolUsageLaunchSubAgent] = `## launch_sub_agent
 Description: 启动子 agent 进程与另一个 co-shell agent 通信以共享信息。目标 agent 的工作空间是当前 agent 工作空间的同级文件夹，由 sub_agent_name 标识。子 agent 与父 agent 共享同一终端。子 agent 完成后，收集并报告其结果（包括输出文件）。**这是平等的信息共享，不是任务委派。**
@@ -311,11 +311,11 @@ Parameters:
 - instruction (必需) 子 agent 要执行的自然语言指令或系统命令。
 - timeout_seconds (可选) 等待子 agent 完成的最大秒数。0 表示无超时（默认：0）。
 Usage:
-<launch_sub_agent>
-  <intent>需要从 researcher agent 获取关于 Go 并发模型的更多信息</intent>
-  <sub_agent_name>researcher</sub_agent_name>
-  <instruction>请帮我查找关于Go语言并发模型的相关资料。</instruction>
-</launch_sub_agent>`
+<{XML_TAG_PREFIX}launch_sub_agent>
+  <{XML_TAG_PREFIX}intent>需要从 researcher agent 获取关于 Go 并发模型的更多信息</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}sub_agent_name>researcher</{XML_TAG_PREFIX}sub_agent_name>
+  <{XML_TAG_PREFIX}instruction>请帮我查找关于Go语言并发模型的相关资料。</{XML_TAG_PREFIX}instruction>
+</{XML_TAG_PREFIX}launch_sub_agent>`
 
 	zhMessages[KeyToolUsageScheduleTask] = `## schedule_task
 Description: 使用 cron 表达式安排定时任务。任务将在指定时间启动子 agent。cron 表达式使用 5 个字段：分 时 日 月 周。* 表示任意值。示例：'0 9 * * *' 表示每天上午 9:00。如果前一次执行仍在运行，将跳过下一次计划执行以避免重叠。
@@ -325,12 +325,12 @@ Parameters:
 - cron (必需) 5 字段 cron 表达式：分 时 日 月 周。示例：'0 9 * * *' 表示每天上午 9:00。
 - instruction (必需) 任务触发时传递给子 agent 的指令。
 Usage:
-<schedule_task>
-  <intent>需要安排每周一早上自动生成周报</intent>
-  <name>周报生成</name>
-  <cron>0 9 * * 1</cron>
-  <instruction>运行 python report.py 生成周报</instruction>
-</schedule_task>`
+<{XML_TAG_PREFIX}schedule_task>
+  <{XML_TAG_PREFIX}intent>需要安排每周一早上自动生成周报</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}name>周报生成</{XML_TAG_PREFIX}name>
+  <{XML_TAG_PREFIX}cron>0 9 * * 1</{XML_TAG_PREFIX}cron>
+  <{XML_TAG_PREFIX}instruction>运行 python report.py 生成周报</{XML_TAG_PREFIX}instruction>
+</{XML_TAG_PREFIX}schedule_task>`
 
 	zhMessages[KeyToolUsageTrackTaskProgress] = `## track_task_progress
 Description: 记录任务内容并跟踪各步骤执行进度。一次性传递完整的 steps 数组作为期望状态——系统自动处理创建或替换。description 参数用法：对于详细计划，将完整的任务背景、约束条件、技术方案和验收标准写入 description。step.description 参数用法：首行为步骤标题/摘要；后续行为步骤的具体详细内容。status 参数用法："[ ]" (待办)、"[=]" (进行中)、"[X]" (已完成)、"[C]" (已取消)、"[F]" (已失败)。将 steps 设置为空数组可归档并删除当前计划。
@@ -378,8 +378,8 @@ Description: 查看当前任务计划（checklist）及其进度摘要，包括�
 Parameters:
 - 无
 Usage:
-<view_task_plan>
-</view_task_plan>`
+<{XML_TAG_PREFIX}view_task_plan>
+</{XML_TAG_PREFIX}view_task_plan>`
 
 	zhMessages[KeyToolUsageGetMemorySlice] = `## get_memory_slice
 Description: 从持久化记忆中检索最近的一段对话历史。用于回忆之前对话的内容。参数：last_from（从末尾开始的位置，1=最新），last_to（到末尾的位置，1=最新）。示例：last_from=5, last_to=1 按时间顺序返回最近 5 条消息。
@@ -388,11 +388,11 @@ Parameters:
 - last_from (必需) 从末尾开始的起始位置（包含）。1 = 最新消息。必须 >= last_to。
 - last_to (必需) 从末尾开始的结束位置（包含）。1 = 最新消息。
 Usage:
-<get_memory_slice>
-  <intent>需要查询最近的对话历史以恢复上下文</intent>
-  <last_from>10</last_from>
-  <last_to>1</last_to>
-</get_memory_slice>`
+<{XML_TAG_PREFIX}get_memory_slice>
+  <{XML_TAG_PREFIX}intent>需要查询最近的对话历史以恢复上下文</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}last_from>10</{XML_TAG_PREFIX}last_from>
+  <{XML_TAG_PREFIX}last_to>1</{XML_TAG_PREFIX}last_to>
+</{XML_TAG_PREFIX}get_memory_slice>`
 
 	zhMessages[KeyToolUsageMemorySearch] = `## memory_search
 Description: 搜索持久化对话记忆中匹配关键词或条件的消息。用于从历史对话中查找特定信息。支持关键词搜索（AND 逻辑）、时间过滤（since）和说话者名称过滤。
@@ -402,14 +402,14 @@ Parameters:
 - since (可选) 只返回此时间之后的消息（ISO 8601 格式，如 '2026-04-01T00:00:00Z'）。空字符串表示无时间过滤。
 - name (可选) 按说话者名称过滤（不区分大小写）。空字符串表示无名称过滤。
 Usage:
-<memory_search>
-  <keywords>
-    <item>数据库</item>
-    <item>性能优化</item>
-  </keywords>
-  <since>2026-04-01T00:00:00Z</since>
-  <name>L.Shuang</name>
-</memory_search>`
+<{XML_TAG_PREFIX}memory_search>
+  <{XML_TAG_PREFIX}keywords>
+    <{XML_TAG_PREFIX}item>数据库</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>性能优化</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}keywords>
+  <{XML_TAG_PREFIX}since>2026-04-01T00:00:00Z</{XML_TAG_PREFIX}since>
+  <{XML_TAG_PREFIX}name>L.Shuang</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}memory_search>`
 
 	zhMessages[KeyToolUsageDeleteMemory] = `## delete_memory
 Description: 从持久化记忆中删除一段对话历史。用于移除过时或错误的信息。参数：last_from（从末尾开始的位置，1=最新），last_to（到末尾的位置，1=最新）。示例：last_from=5, last_to=1 删除最近 5 条消息。
@@ -418,11 +418,11 @@ Parameters:
 - last_from (必需) 从末尾开始的起始位置（包含）。1 = 最新消息。必须 >= last_to。
 - last_to (必需) 从末尾开始的结束位置（包含）。1 = 最新消息。
 Usage:
-<delete_memory>
-  <intent>需要删除过时的对话历史以清理记忆</intent>
-  <last_from>5</last_from>
-  <last_to>1</last_to>
-</delete_memory>`
+<{XML_TAG_PREFIX}delete_memory>
+  <{XML_TAG_PREFIX}intent>需要删除过时的对话历史以清理记忆</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}last_from>5</{XML_TAG_PREFIX}last_from>
+  <{XML_TAG_PREFIX}last_to>1</{XML_TAG_PREFIX}last_to>
+</{XML_TAG_PREFIX}delete_memory>`
 
 	zhMessages[KeyToolUsageUpdateSettings] = `## update_settings
 Description: 更新 co-shell 系统配置参数。用于修改模型、温度、显示选项、安全设置等。每次更改必须提供原因。用户将确认所有更改后才应用。**注意：仅在用户明确要求更改设置，或设置更改对完成任务必要时使用。**
@@ -430,30 +430,30 @@ Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - settings (必需) 要应用的设置更改数组。每个更改必须包含 param、value 和 reason。
 Usage:
-<update_settings>
-  <intent>用户要求调整模型的温度参数以获得更有创造性的回答</intent>
-  <settings>
-    <item>
-      <param>temperature</param>
-      <value>0.7</value>
-      <reason>需要更有创造性的回答</reason>
-    </item>
-    <item>
-      <param>max-tokens</param>
-      <value>8192</value>
-      <reason>需要更长的输出</reason>
-    </item>
-  </settings>
-</update_settings>`
+<{XML_TAG_PREFIX}update_settings>
+  <{XML_TAG_PREFIX}intent>用户要求调整模型的温度参数以获得更有创造性的回答</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}settings>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}param>temperature</{XML_TAG_PREFIX}param>
+      <{XML_TAG_PREFIX}value>0.7</{XML_TAG_PREFIX}value>
+      <{XML_TAG_PREFIX}reason>需要更有创造性的回答</{XML_TAG_PREFIX}reason>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}param>max-tokens</{XML_TAG_PREFIX}param>
+      <{XML_TAG_PREFIX}value>8192</{XML_TAG_PREFIX}value>
+      <{XML_TAG_PREFIX}reason>需要更长的输出</{XML_TAG_PREFIX}reason>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}settings>
+</{XML_TAG_PREFIX}update_settings>`
 
 	zhMessages[KeyToolUsageListSettings] = `## list_settings
 Description: 列出所有可用的 co-shell 系统配置参数及其当前值、有效范围和描述。用于了解在通过 update_settings 工具修改前有哪些可用配置选项。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
-<list_settings>
-  <intent>需要查看当前可用的系统配置参数及其值</intent>
-</list_settings>`
+<{XML_TAG_PREFIX}list_settings>
+  <{XML_TAG_PREFIX}intent>需要查看当前可用的系统配置参数及其值</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}list_settings>`
 
 	zhMessages[KeyToolUsageAskFollowupQuestion] = `## ask_followup_question
 Description: 向用户提问以收集完成任务所需的额外信息。当遇到歧义、需要澄清或需要更多细节时使用。通过允许与用户直接通信来实现交互式问题解决。仅在不明确获得用户确认或需要用户补充线索时才调用此方法。
@@ -461,14 +461,14 @@ Parameters:
 - question (必需) 向用户提出的问题。应是一个清晰、具体的问题，说明你需要的信息。
 - options (可选) 2-5 个选项供用户选择。每个选项是一个描述可能答案的字符串。应尽量给用户提供选项给用户选择，以便最大程度方便用户操作。
 Usage:
-<ask_followup_question>
-  <question>您希望使用哪种数据库？</question>
-  <options>
-    <item>MySQL</item>
-    <item>PostgreSQL</item>
-    <item>SQLite</item>
-  </options>
-</ask_followup_question>`
+<{XML_TAG_PREFIX}ask_followup_question>
+  <{XML_TAG_PREFIX}question>您希望使用哪种数据库？</{XML_TAG_PREFIX}question>
+  <{XML_TAG_PREFIX}options>
+    <{XML_TAG_PREFIX}item>MySQL</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>PostgreSQL</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>SQLite</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}options>
+</{XML_TAG_PREFIX}ask_followup_question>`
 
 	zhMessages[KeyToolUsageAttemptCompletion] = `## attempt_completion
 Description: 每次工具调用后，用户会回应该工具调用的结果（成功或失败及原因）。当你已确认任务完成时，使用此工具向用户呈现你的工作成果。可选择提供一个 CLI 命令来展示运行结果。用户可能会对结果提供反馈，你可以据此进行改进并重试。
@@ -481,13 +481,13 @@ Parameters:
 - session_title (必需) 字符串。当前会话的简短标题（不超过 30 个字符），用于标识此任务完成的会话，方便后续回顾。
 - session_keywords (必需) 字符串。逗号分隔的关键词列表，描述当前会话的核心内容，便于后续会话检索和恢复。
 Usage:
-<attempt_completion>
-  <result>已完成用户登录功能的创建，包括前端页面、后端API和数据库表。</result>
-  <command>open localhost:3000</command>
-  <task_message_no>42</task_message_no>
-  <session_title>用户登录功能</session_title>
-  <session_keywords>用户登录,前端,后端,API,数据库</session_keywords>
-</attempt_completion>`
+<{XML_TAG_PREFIX}attempt_completion>
+  <{XML_TAG_PREFIX}result>已完成用户登录功能的创建，包括前端页面、后端API和数据库表。</{XML_TAG_PREFIX}result>
+  <{XML_TAG_PREFIX}command>open localhost:3000</{XML_TAG_PREFIX}command>
+  <{XML_TAG_PREFIX}task_message_no>42</{XML_TAG_PREFIX}task_message_no>
+  <{XML_TAG_PREFIX}session_title>用户登录功能</{XML_TAG_PREFIX}session_title>
+  <{XML_TAG_PREFIX}session_keywords>用户登录,前端,后端,API,数据库</{XML_TAG_PREFIX}session_keywords>
+</{XML_TAG_PREFIX}attempt_completion>`
 
 	zhMessages[KeyToolUsageReorganizeContext] = `## reorganize_context
 说明: 将当前对话历史重新整理为一段自包含的摘要接续提示词，并以此提示词替换全部历史上下文，移动到新消息位置。用于：
