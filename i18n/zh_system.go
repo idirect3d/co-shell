@@ -86,9 +86,10 @@ TOOL USE
 标签名可自定义，每个条目下可保存任意数量的标签（如 user/pwd/token/key/email/ip_addr/host/url 等）。
 
 例如，将数据库凭据从密码本注入到命令行中：
-<execute_command>
-  <command>mysql -u@user:prod_db@ -p@pwd:prod_db@ -h@ip_addr:prod_db@</command>
-</execute_command>
+<{XML_TAG_PREFIX}execute_command>
+  <{XML_TAG_PREFIX}intent>需要使用密码本中的凭据连接生产数据库</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}command>mysql -u@user:prod_db@ -p@pwd:prod_db@ -h@ip_addr:prod_db@</{XML_TAG_PREFIX}command>
+</{XML_TAG_PREFIX}execute_command>
 系统会在你确认执行后，用真实的标签值替换占位符。若条目不存在，系统也会提示你输入。
 
 **工具优先级（从高到低）：**
@@ -110,7 +111,7 @@ TOOL USE
 
 # Tool Use Formatting
 
-工具调用使用标签前缀格式。所有工具标签和参数标签必须带配置的前缀（默认 {XML_TAG_PREFIX}）。
+工具调用使用标签前缀格式。所有工具标签和参数标签必须带配置的前缀"{XML_TAG_PREFIX}"。
 
 例如，调用 read_file 工具：
 
@@ -230,11 +231,11 @@ Usage:
 </{XML_TAG_PREFIX}list_code_definition_names>`
 
 	zhMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
-Description: 使用 search/replace 参数替换文件中的内容。接受 replacements 数组可用于多处替换，<item>代表一个数组的元素，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
+Description: 使用 search/replace 参数替换文件中的内容。接受 replacements 数组可用于多处替换，<{XML_TAG_PREFIX}item>代表一个数组的元素，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要修改的文件路径（绝对路径或相对于当前工作目录）
-- replacements (必需) 替换对象数组，<item>代表一个数组的元素，每个元素对象包含 search 和 replace 字符串字段，以及可选的 start_line 数字，例如：
+- replacements (必需) 替换对象数组，<{XML_TAG_PREFIX}item>代表一个数组的元素，每个元素对象包含 search 和 replace 字符串字段，以及可选的 start_line 数字，例如：
 
   <{XML_TAG_PREFIX}replacements>
     <{XML_TAG_PREFIX}item>
@@ -339,39 +340,39 @@ Parameters:
 - description (必需) 整体任务计划的详细描述。对于详细计划，应包含完整的任务背景、约束条件、技术方案和验收标准。
 - steps (必需) 步骤对象数组，每个对象包含 description 和 status。传递完整数组即设定期望状态。空数组归档并删除当前计划。
 
-  <steps>
-    <item>
-      <description>步骤描述（必需）。首行为步骤标题/摘要；后续行提供步骤的详细内容。支持多行文本。</description>
-      <status>步骤状态（必需）。取值："[ ]" 或 "pending"（待办）、"[=]" 或 "in_progress"（进行中）、"[X]" 或 "completed"（已完成）、"[C]" 或 "cancelled"（已取消）、"[F]" 或 "failed"（已失败）。</status>
-    </item>
-  </steps>
+  <{XML_TAG_PREFIX}steps>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>步骤描述（必需）。首行为步骤标题/摘要；后续行提供步骤的详细内容。支持多行文本。</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>步骤状态（必需）。取值："[ ]" 或 "pending"（待办）、"[=]" 或 "in_progress"（进行中）、"[X]" 或 "completed"（已完成）、"[C]" 或 "cancelled"（已取消）、"[F]" 或 "failed"（已失败）。</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}steps>
 Usage:
-<track_task_progress>
-  <title>实现用户登录功能</title>
-  <description>完整计划：实现用户登录功能，包括前后端、API、会话管理。支持邮箱密码登录、JWT认证、失败锁定。
-  </description>
-  <steps>
-    <item>
-      <description>设计登录API接口
+<{XML_TAG_PREFIX}track_task_progress>
+  <{XML_TAG_PREFIX}title>实现用户登录功能</{XML_TAG_PREFIX}title>
+  <{XML_TAG_PREFIX}description>完整计划：实现用户登录功能，包括前后端、API、会话管理。支持邮箱密码登录、JWT认证、失败锁定。
+  </{XML_TAG_PREFIX}description>
+  <{XML_TAG_PREFIX}steps>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>设计登录API接口
 POST /auth/login 接受 email + password
 返回 JWT access_token（15分钟）和 refresh_token（7天）
-密码使用 bcrypt 验证，失败计数3次锁定30分钟</description>
-      <status>[X]</status>
-    </item>
-    <item>
-      <description>编写登录表单组件
+密码使用 bcrypt 验证，失败计数3次锁定30分钟</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[X]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>编写登录表单组件
 使用 React Hook Form + Zod 校验
 邮箱格式验证，密码至少8位
-显示服务端错误信息</description>
-      <status>[=]</status>
-    </item>
-    <item>
-      <description>编写并运行测试
-测试登录成功、密码错误、账户锁定、token刷新等场景</description>
-      <status>[ ]</status>
-    </item>
-  </steps>
-</track_task_progress>`
+显示服务端错误信息</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[=]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>编写并运行测试
+测试登录成功、密码错误、账户锁定、token刷新等场景</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[ ]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}steps>
+</{XML_TAG_PREFIX}track_task_progress>`
 
 	zhMessages[KeyToolUsageViewTaskPlan] = `## view_task_plan
 Description: 查看当前任务计划（checklist）及其进度摘要，包括所有步骤的状态和备注。用于检查当前活动计划的进度。
@@ -514,8 +515,8 @@ summary_prompt 是替代所有历史对话的接续提示词，必须自包含�
 参数:
 - summary_prompt (必需) 上下文重新整理摘要和任务接续提示词。由 LLM 生成，替代全部历史对话。
 用法:
-<reorganize_context>
-  <summary_prompt># 上下文重新整理：用户登录功能实现
+<{XML_TAG_PREFIX}reorganize_context>
+  <{XML_TAG_PREFIX}summary_prompt># 上下文重新整理：用户登录功能实现
 
 ## 原始目标
 为用户系统实现登录功能，包括前端页面、后端 API、数据库表。
@@ -540,79 +541,8 @@ summary_prompt 是替代所有历史对话的接续提示词，必须自包含�
 说明: 重置持久 Shell 会话到干净状态。关闭当前会话并启动一个新会话，终端完全重置。当 Shell 处于意外状态（如 REPL 错误、卡在进程中）时使用。正常情况下 Shell 会话由系统自动管理——仅在需要手动重置时使用。
 参数: 无
 用法:
-<shell_reset>
-</shell_reset>`
-
-	zhMessages[KeyToolUsageShellSend] = `## shell_send
-说明: 向持久 Shell 会话发送内容（命令、Python 语句或控制字符）并观察输出。内容在上一次 shell_send 调用的同一 Shell 环境中运行，保持所有状态（当前目录、环境变量、Python REPL 变量等）。用于与 Shell 或 REPL 会话交互。
-发送的内容会原样写入 stdin，不会自动添加任何字符（包括回车）。LLM 必须自行在 command 中包含回车 \n 来提交命令。
-**重要：每条命令末尾必须包含 \n（回车提交），否则命令不会执行，终端只是等待更多输入。**
-每次只发送一个逻辑单元。观察输出结果后再决定下一步发送什么。
-参数:
-- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
-- command (必需) 要发送到 Shell 会话的内容（一条命令、一条 Python 语句、一行输入）。**末尾必须有 \n**
-- wait_ms (可选) 空闲超时毫秒数（默认 500）。连续收到新输出后重置计时器，空闲超时后返回已观察到的结果。长运行进程应提高此值。
-- timeout_seconds (可选) 总超时秒数
-
-控制字符（以字节形式写入 command 参数）:
-  \n     = 回车（执行/提交输入）
-  \x03  = Ctrl+C（中断程序）
-  \x04  = Ctrl+D（EOF，退出 REPL）
-  \x0c  = Ctrl+L（清屏）
-  \x1b  = ESC
-  \x1b[A = ↑ 上方向键
-  \x1b[B = ↓ 下方向键
-  \x1b[D = ← 左方向键
-  \x1b[C = → 右方向键
-
-**XML 模式下的换行处理（重要）：**
-XML 标签内的换行符会被保留，因此以下两种写法效果相同：
-- 写法 A（显式 \n）：<command>ls -la\n</command>
-- 写法 B（利用 XML 换行）：<command>
-ls -la\n</command>
-无论哪种写法，\n 必须出现在命令参数末尾，否则 shell 不会执行。
-
-输出机制: 每个命令发送后进入空闲观察模式。连续收到新行时重置 500ms 空闲计时器。空闲超时后返回所有已收集的输出。可设置 timeout_seconds 作为总超时兜底。
-
-调用模式 - 逐行交互（每行末尾必须有 \n 提交回车）:
-  # 第1步: 进入目录
-  <shell_send>
-    <command>cd /var/www/project\n</command>
-    <wait_ms>500</wait_ms>
-  </shell_send>
-
-  # 第2步: 列出文件
-  <shell_send>
-    <command>ls -la\n</command>
-    <wait_ms>500</wait_ms>
-  </shell_send>
-
-  # 第3步: Python 交互式编程（逐行提交，每行末尾 \n）
-  <shell_send>
-    <command>python3\n</command>
-    <wait_ms>1000</wait_ms>
-  </shell_send>
-
-  <shell_send>
-    <command>x = 10\n</command>
-    <wait_ms>500</wait_ms>
-  </shell_send>
-
-  <shell_send>
-    <command>y = 20\n</command>
-    <wait_ms>500</wait_ms>
-  </shell_send>
-
-  <shell_send>
-    <command>print(x + y)\n</command>
-    <wait_ms>500</wait_ms>
-  </shell_send>
-
-  # 退出 Python REPL（Ctrl+D，不需要 \n）
-  <shell_send>
-    <command>\x04</command>
-    <wait_ms>1000</wait_ms>
-  </shell_send>`
+<{XML_TAG_PREFIX}shell_reset>
+</{XML_TAG_PREFIX}shell_reset>`
 
 	zhMessages[KeyToolUsageEvaluateExpression] = `## evaluate_expression
 Description: 计算一个数学表达式并返回精确结果。支持基础四则运算（+、-、*、/、%）、指数运算（^）、三角函数（sin、cos、tan、asin、acos、atan，弧度制）、对数（log=以10为底、ln=自然对数）、平方根（sqrt）、绝对值（abs）、取整（ceil、floor、round）以及常数（pi、e）。在进行精确计算时使用此工具，无需依赖 Python 或系统命令。
@@ -622,10 +552,10 @@ Parameters:
 - expression (必需) 要计算的数学表达式
 
 Usage:
-<evaluate_expression>
-  <intent>需要计算复利公式结果</intent>
-  <expression>45 * (1 + 0.05) ^ 10</expression>
-</evaluate_expression>
+<{XML_TAG_PREFIX}evaluate_expression>
+  <{XML_TAG_PREFIX}intent>需要计算复利公式结果</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}expression>45 * (1 + 0.05) ^ 10</{XML_TAG_PREFIX}expression>
+</{XML_TAG_PREFIX}evaluate_expression>
 `
 
 	zhMessages[KeyToolUsageShellGetOutput] = `## shell_get_output
@@ -638,9 +568,9 @@ Usage:
 - count (可选) 返回的行数。不提供则使用自动增量模式。
 - timeout_seconds (可选) 总超时秒数，防止无限等待。
 用法:
-<shell_get_output>
-  <wait_ms>1000</wait_ms>
-</shell_get_output>`
+<{XML_TAG_PREFIX}shell_get_output>
+  <{XML_TAG_PREFIX}wait_ms>1000</{XML_TAG_PREFIX}wait_ms>
+</{XML_TAG_PREFIX}shell_get_output>`
 
 	zhMessages[KeyToolUsageBrowserNavigate] = `## browser_navigate
 Description: 导航浏览器到指定 URL。自动等待页面加载完成。
@@ -648,10 +578,10 @@ Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - url (必需) 要导航到的网页 URL
 Usage:
-<browser_navigate>
-  <intent>需要打开示例网页查看页面内容</intent>
-  <url>https://example.com</url>
-</browser_navigate>`
+<{XML_TAG_PREFIX}browser_navigate>
+  <{XML_TAG_PREFIX}intent>需要打开示例网页查看页面内容</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}url>https://example.com</{XML_TAG_PREFIX}url>
+</{XML_TAG_PREFIX}browser_navigate>`
 
 	zhMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
 Description: 对通过 browser_navigate 打开的当前浏览器页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。配合 browser_get_interactive_elements 可实现精确操作。
@@ -660,11 +590,11 @@ Parameters:
 - quality (可选, 默认80) 截图质量 1-100
 - full_page (可选, 默认false) 是否截取完整页面
 Usage:
-<browser_screenshot>
-  <intent>需要截取当前页面以便分析页面布局</intent>
-  <quality>90</quality>
-  <full_page>true</full_page>
-</browser_screenshot>`
+<{XML_TAG_PREFIX}browser_screenshot>
+  <{XML_TAG_PREFIX}intent>需要截取当前页面以便分析页面布局</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}quality>90</{XML_TAG_PREFIX}quality>
+  <{XML_TAG_PREFIX}full_page>true</{XML_TAG_PREFIX}full_page>
+</{XML_TAG_PREFIX}browser_screenshot>`
 
 	zhMessages[KeyToolUsageBrowserClick] = `## browser_click
 Description: 在指定坐标处点击页面元素。建议先调用 browser_get_interactive_elements 获取元素坐标后再点击。
@@ -673,11 +603,11 @@ Parameters:
 - x (必需) 点击位置的 X 坐标
 - y (必需) 点击位置的 Y 坐标
 Usage:
-<browser_click>
-  <intent>需要点击登录按钮以提交表单</intent>
-  <x>200</x>
-  <y>450</y>
-</browser_click>`
+<{XML_TAG_PREFIX}browser_click>
+  <{XML_TAG_PREFIX}intent>需要点击登录按钮以提交表单</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}x>200</{XML_TAG_PREFIX}x>
+  <{XML_TAG_PREFIX}y>450</{XML_TAG_PREFIX}y>
+</{XML_TAG_PREFIX}browser_click>`
 
 	zhMessages[KeyToolUsageBrowserType] = `## browser_type
 Description: 向当前聚焦的输入元素输入文本。如果输入框有旧内容，可设置 clear=true 先清空。
@@ -686,11 +616,11 @@ Parameters:
 - text (必需) 要输入的文本
 - clear (可选, 默认false) 输入前是否先清空已有内容
 Usage:
-<browser_type>
-  <intent>需要在搜索框中输入关键字</intent>
-  <text>Hello World</text>
-  <clear>true</clear>
-</browser_type>`
+<{XML_TAG_PREFIX}browser_type>
+  <{XML_TAG_PREFIX}intent>需要在搜索框中输入关键字</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}text>Hello World</{XML_TAG_PREFIX}text>
+  <{XML_TAG_PREFIX}clear>true</{XML_TAG_PREFIX}clear>
+</{XML_TAG_PREFIX}browser_type>`
 
 	zhMessages[KeyToolUsageBrowserEvaluate] = `## browser_evaluate
 Description: 在浏览器中执行 JavaScript 代码并返回结果。可用于提取页面数据、修改 DOM、触发事件等高级操作。
@@ -698,19 +628,19 @@ Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - expression (必需) 要执行的 JavaScript 表达式
 Usage:
-<browser_evaluate>
-  <intent>需要获取当前页面的标题</intent>
-  <expression>document.title</expression>
-</browser_evaluate>`
+<{XML_TAG_PREFIX}browser_evaluate>
+  <{XML_TAG_PREFIX}intent>需要获取当前页面的标题</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}expression>document.title</{XML_TAG_PREFIX}expression>
+</{XML_TAG_PREFIX}browser_evaluate>`
 
 	zhMessages[KeyToolUsageBrowserGetHTML] = `## browser_get_rendered_html
 Description: 获取当前页面经过所有 JavaScript 渲染后的 DOM HTML。HTML 来自 Chrome 实时 DOM 树的序列化结果 — 反映的是最终渲染状态（SPA输出、动态内容、JS修改），而非原始源码。无需单独下载 JS/JSON 等资源。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
-<browser_get_rendered_html>
-  <intent>需要获取渲染后的页面 HTML 以分析结构</intent>
-</browser_get_rendered_html>`
+<{XML_TAG_PREFIX}browser_get_rendered_html>
+  <{XML_TAG_PREFIX}intent>需要获取渲染后的页面 HTML 以分析结构</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}browser_get_rendered_html>`
 
 	zhMessages[KeyToolUsageBrowserScroll] = `## browser_scroll
 Description: 按指定像素值滚动页面。正值向下滚动，负值向上滚动。
@@ -719,46 +649,46 @@ Parameters:
 - delta_x (可选, 默认0) 水平滚动像素
 - delta_y (可选, 默认500) 垂直滚动像素（正值向下，负值向上）
 Usage:
-<browser_scroll>
-  <intent>需要向下滚动页面以查看下方内容</intent>
-  <delta_y>500</delta_y>
-</browser_scroll>`
+<{XML_TAG_PREFIX}browser_scroll>
+  <{XML_TAG_PREFIX}intent>需要向下滚动页面以查看下方内容</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}delta_y>500</{XML_TAG_PREFIX}delta_y>
+</{XML_TAG_PREFIX}browser_scroll>`
 
 	zhMessages[KeyToolUsageBrowserGetInteractiveElements] = `## browser_get_interactive_elements
 Description: 获取页面所有可交互元素（按钮、链接、输入框等）的列表，包含每个元素的中心坐标、标签名、类型等信息。用于精确定位元素后通过 browser_click 或 browser_type 操作。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
-<browser_get_interactive_elements>
-  <intent>需要获取页面可交互元素以便点击按钮</intent>
-</browser_get_interactive_elements>`
+<{XML_TAG_PREFIX}browser_get_interactive_elements>
+  <{XML_TAG_PREFIX}intent>需要获取页面可交互元素以便点击按钮</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}browser_get_interactive_elements>`
 
 	zhMessages[KeyToolUsageBrowserGoBack] = `## browser_go_back
 Description: 浏览器后退到上一个页面（等同于点击浏览器后退按钮）。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
-<browser_go_back>
-  <intent>需要返回上一页以修改输入内容</intent>
-</browser_go_back>`
+<{XML_TAG_PREFIX}browser_go_back>
+  <{XML_TAG_PREFIX}intent>需要返回上一页以修改输入内容</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}browser_go_back>`
 
 	zhMessages[KeyToolUsageBrowserGoForward] = `## browser_go_forward
 Description: 浏览器前进到下一个页面（等同于点击浏览器前进按钮）。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
-<browser_go_forward>
-  <intent>需要前进到下一页</intent>
-</browser_go_forward>`
+<{XML_TAG_PREFIX}browser_go_forward>
+  <{XML_TAG_PREFIX}intent>需要前进到下一页</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}browser_go_forward>`
 
 	zhMessages[KeyToolUsageBrowserClose] = `## browser_close
 Description: 关闭浏览器并清理所有相关资源。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 Usage:
-<browser_close>
-  <intent>已完成浏览器操作，关闭浏览器</intent>
-</browser_close>`
+<{XML_TAG_PREFIX}browser_close>
+  <{XML_TAG_PREFIX}intent>已完成浏览器操作，关闭浏览器</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}browser_close>`
 
 	// Excel tools (FEATURE-120)
 	zhMessages[KeyToolUsageExcelClose] = `## excel_close
@@ -767,10 +697,10 @@ Parameters:
   - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
   - session_id (必需) excel_open 返回的会话 ID
 Usage:
-<excel_close>
-  <intent>编辑完成后关闭报表电子表格</intent>
-  <session_id>xl_1234567890</session_id>
-</excel_close>`
+<{XML_TAG_PREFIX}excel_close>
+  <{XML_TAG_PREFIX}intent>编辑完成后关闭报表电子表格</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+</{XML_TAG_PREFIX}excel_close>`
 
 	zhMessages[KeyToolUsageExcelSave] = `## excel_save
 Description: 保存修改到磁盘，但不关闭会话。编辑后可定期调用以持久化进度。
@@ -778,10 +708,10 @@ Parameters:
   - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
   - session_id (必需) excel_open 返回的会话 ID
 Usage:
-<excel_save>
-  <intent>保存编辑进度</intent>
-  <session_id>xl_1234567890</session_id>
-</excel_save>`
+<{XML_TAG_PREFIX}excel_save>
+  <{XML_TAG_PREFIX}intent>保存编辑进度</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+</{XML_TAG_PREFIX}excel_save>`
 
 	zhMessages[KeyToolUsageExcelOverview] = `## excel_overview
 Description: 获取工作簿中所有 Sheet 页的概览。仅返回元数据（Sheet 名称、数据范围、行列数、列标题提示）—— 不返回任何单元格数据。打开文件后先调用此工具了解文件结构，再读取具体范围。
@@ -789,10 +719,10 @@ Parameters:
   - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
   - session_id (必需) excel_open 返回的会话 ID
 Usage:
-<excel_overview>
-  <intent>了解电子表格结构</intent>
-  <session_id>xl_1234567890</session_id>
-</excel_overview>`
+<{XML_TAG_PREFIX}excel_overview>
+  <{XML_TAG_PREFIX}intent>了解电子表格结构</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+</{XML_TAG_PREFIX}excel_overview>`
 
 	zhMessages[KeyToolUsageExcelRead] = `## excel_read
 Description: 按范围读取单元格数据。format 为必填参数，支持 5 种输出格式。max_cells 默认为 1000，超限时报错要求缩小范围。
@@ -807,28 +737,28 @@ Parameters:
   - format (必需) 输出格式：'html'、'full'、'text'、'md'、'grid'
   - max_cells (可选) 最大返回单元格数（默认 1000），超限报错并要求缩小范围
 Usage:
-<excel_read>
-  <intent>需要读取报表电子表格前10行A到E列的数据</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <start_row>1</start_row>
-  <end_row>10</end_row>
-  <start_col>1</start_col>
-  <end_col>5</end_col>
-  <format>html</format>
-</excel_read>
+<{XML_TAG_PREFIX}excel_read>
+  <{XML_TAG_PREFIX}intent>需要读取报表电子表格前10行A到E列的数据</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}start_row>1</{XML_TAG_PREFIX}start_row>
+  <{XML_TAG_PREFIX}end_row>10</{XML_TAG_PREFIX}end_row>
+  <{XML_TAG_PREFIX}start_col>1</{XML_TAG_PREFIX}start_col>
+  <{XML_TAG_PREFIX}end_col>5</{XML_TAG_PREFIX}end_col>
+  <{XML_TAG_PREFIX}format>html</{XML_TAG_PREFIX}format>
+</{XML_TAG_PREFIX}excel_read>
 
 text 格式示例：
-<excel_read>
-  <intent>需要以纯文本格式读取前10行A到E列的数据</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <start_row>1</start_row>
-  <end_row>10</end_row>
-  <start_col>1</start_col>
-  <end_col>5</end_col>
-  <format>text</format>
-</excel_read>`
+<{XML_TAG_PREFIX}excel_read>
+  <{XML_TAG_PREFIX}intent>需要以纯文本格式读取前10行A到E列的数据</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}start_row>1</{XML_TAG_PREFIX}start_row>
+  <{XML_TAG_PREFIX}end_row>10</{XML_TAG_PREFIX}end_row>
+  <{XML_TAG_PREFIX}start_col>1</{XML_TAG_PREFIX}start_col>
+  <{XML_TAG_PREFIX}end_col>5</{XML_TAG_PREFIX}end_col>
+  <{XML_TAG_PREFIX}format>text</{XML_TAG_PREFIX}format>
+</{XML_TAG_PREFIX}excel_read>`
 
 	zhMessages[KeyToolUsageExcelEdit] = `## excel_edit
 Description: 从目标单元格开始按表格方式写入1-N行数据。
@@ -837,19 +767,19 @@ Parameters:
   - session_id (必需) excel_open 返回的会话 ID
   - sheet (必需) Sheet 名称（如 "Sheet1"）
   - start_cell (必需) 起始单元格引用（如 "A1"、"C5"）
-  - values (必需) 1维数组 — 每个 <item> 是一个 TSV（Tab 分隔）行，包含由Tab分隔的单元格的值，如果单元格的值以 '=' 开头，则解释为公式
+  - values (必需) 1维数组 — 每个 <{XML_TAG_PREFIX}item> 是一个 TSV（Tab 分隔）行，包含由Tab分隔的单元格的值，如果单元格的值以 '=' 开头，则解释为公式
 Usage:
-<excel_edit>
-  <intent>从A1开始写入数据到电子表格</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <start_cell>A1</start_cell>
-  <values>
-    <item>姓名	年龄	城市</item>
-    <item>张三	30	北京</item>
-    <item>李四	25	上海</item>
-  </values>
-</excel_edit>`
+<{XML_TAG_PREFIX}excel_edit>
+  <{XML_TAG_PREFIX}intent>从A1开始写入数据到电子表格</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}start_cell>A1</{XML_TAG_PREFIX}start_cell>
+  <{XML_TAG_PREFIX}values>
+    <{XML_TAG_PREFIX}item>姓名	年龄	城市</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>张三	30	北京</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>李四	25	上海</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}values>
+</{XML_TAG_PREFIX}excel_edit>`
 
 	zhMessages[KeyToolUsageExcelCopy] = `## excel_copy
 Description: 复制指定范围到会话剪贴板。支持剪切模式（cut=true），粘贴后自动清除源区域。剪贴板在下次 excel_read 时自动清空。
@@ -863,15 +793,15 @@ Parameters:
   - end_col (必需) 结束列（基于 1）
   - cut (可选) 是否为剪切操作（默认 false）
 Usage:
-<excel_copy>
-  <intent>需要复制表头行以便粘贴到其他位置</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <start_row>1</start_row>
-  <end_row>5</end_row>
-  <start_col>1</start_col>
-  <end_col>3</end_col>
-</excel_copy>`
+<{XML_TAG_PREFIX}excel_copy>
+  <{XML_TAG_PREFIX}intent>需要复制表头行以便粘贴到其他位置</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}start_row>1</{XML_TAG_PREFIX}start_row>
+  <{XML_TAG_PREFIX}end_row>5</{XML_TAG_PREFIX}end_row>
+  <{XML_TAG_PREFIX}start_col>1</{XML_TAG_PREFIX}start_col>
+  <{XML_TAG_PREFIX}end_col>3</{XML_TAG_PREFIX}end_col>
+</{XML_TAG_PREFIX}excel_copy>`
 
 	zhMessages[KeyToolUsageExcelPaste] = `## excel_paste
 Description: 将剪贴板内容粘贴到目标单元格。如果是来自 excel_copy（剪切模式），粘贴后自动清除源区域。
@@ -881,12 +811,12 @@ Parameters:
   - sheet (必需) Sheet 名称
   - target_cell (必需) 目标单元格引用（如 "F2"）
 Usage:
-<excel_paste>
-  <intent>需要将剪贴板中的内容粘贴到目标位置</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet2</sheet>
-  <target_cell>F2</target_cell>
-</excel_paste>`
+<{XML_TAG_PREFIX}excel_paste>
+  <{XML_TAG_PREFIX}intent>需要将剪贴板中的内容粘贴到目标位置</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet2</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}target_cell>F2</{XML_TAG_PREFIX}target_cell>
+</{XML_TAG_PREFIX}excel_paste>`
 
 	zhMessages[KeyToolUsageExcelInsert] = `## excel_insert
 Description: 在指定位置插入行或列。what 必须为 'rows' 或 'cols'。position 基于 1。现有数据向下/向右移位。
@@ -898,14 +828,14 @@ Parameters:
   - position (必需) 插入位置（基于 1）
   - count (可选) 插入数量（默认 1）
 Usage:
-<excel_insert>
-  <intent>需要在第3行前面插入2个空行</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <what>rows</what>
-  <position>3</position>
-  <count>2</count>
-</excel_insert>`
+<{XML_TAG_PREFIX}excel_insert>
+  <{XML_TAG_PREFIX}intent>需要在第3行前面插入2个空行</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}what>rows</{XML_TAG_PREFIX}what>
+  <{XML_TAG_PREFIX}position>3</{XML_TAG_PREFIX}position>
+  <{XML_TAG_PREFIX}count>2</{XML_TAG_PREFIX}count>
+</{XML_TAG_PREFIX}excel_insert>`
 
 	zhMessages[KeyToolUsageExcelDelete] = `## excel_delete
 Description: 删除行、列或清空单元格。what='rows' 删除行范围；what='cols' 删除列范围；what='cells' 清空单元格内容不移位。
@@ -918,14 +848,14 @@ Parameters:
   - count (可选) 删除数量（默认 1，rows/cols 时可选）
   - start_row/end_row/start_col/end_col (cells 时必需) 单元格清空范围
 Usage:
-<excel_delete>
-  <intent>需要删除第5-7行以清除过期数据</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <what>rows</what>
-  <position>5</position>
-  <count>3</count>
-</excel_delete>`
+<{XML_TAG_PREFIX}excel_delete>
+  <{XML_TAG_PREFIX}intent>需要删除第5-7行以清除过期数据</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}what>rows</{XML_TAG_PREFIX}what>
+  <{XML_TAG_PREFIX}position>5</{XML_TAG_PREFIX}position>
+  <{XML_TAG_PREFIX}count>3</{XML_TAG_PREFIX}count>
+</{XML_TAG_PREFIX}excel_delete>`
 
 	zhMessages[KeyToolUsageExcelSheet] = `## excel_sheet
 Description: 管理 Sheet 页。action='create' 创建新 Sheet；action='delete' 删除 Sheet；action='rename' 重命名；action='copy' 复制；action='list' 列出所有 Sheet。
@@ -936,11 +866,11 @@ Parameters:
   - name (create/delete/rename/copy 时必需) Sheet 名称
   - new_name (rename/copy 时必需) 新名称
 Usage:
-<excel_sheet>
-  <intent>需要列出当前工作簿中所有可用的Sheet页</intent>
-  <session_id>xl_1234567890</session_id>
-  <action>list</action>
-</excel_sheet>`
+<{XML_TAG_PREFIX}excel_sheet>
+  <{XML_TAG_PREFIX}intent>需要列出当前工作簿中所有可用的Sheet页</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}action>list</{XML_TAG_PREFIX}action>
+</{XML_TAG_PREFIX}excel_sheet>`
 
 	zhMessages[KeyToolUsageExcelFormat] = `## excel_format
 Description: 批量设置单元格格式。通过 what 数组指定要执行的操作，支持：font（字体名称/大小/粗体/斜体/下划线/颜色）、fill（底色）、border（边框样式/颜色/各边控制）、alignment（水平对齐/垂直对齐/自动换行）、number_format（数字格式）、merge（合并）、unmerge（拆分）、row_height（行高）、col_width（列宽）。所有格式操作一次性应用于 start_row/end_row/start_col/end_col 指定的范围。
@@ -959,92 +889,91 @@ Parameters:
   - row_height: 行高（what 含 row_height 时生效）
   - col_width: 列宽（what 含 col_width 时生效）
 Usage:
-<excel_format>
-  <intent>需要为报表的表头行设置字体、底色和边框格式</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <what>
-    <item>font</item>
-    <item>fill</item>
-    <item>border</item>
-  </what>
-  <mode>reset</mode>
-  <start_row>1</start_row>
-  <end_row>1</end_row>
-  <start_col>1</start_col>
-  <end_col>5</end_col>
-  <font_bold>true</font_bold>
-  <fill_color>#4472C4</fill_color>
-  <border_style>thin</border_style>
-</excel_format>
+<{XML_TAG_PREFIX}excel_format>
+  <{XML_TAG_PREFIX}intent>需要为报表的表头行设置字体、底色和边框格式</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}what>
+    <{XML_TAG_PREFIX}item>font</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>fill</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>border</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}what>
+  <{XML_TAG_PREFIX}mode>reset</{XML_TAG_PREFIX}mode>
+  <{XML_TAG_PREFIX}start_row>1</{XML_TAG_PREFIX}start_row>
+  <{XML_TAG_PREFIX}end_row>1</{XML_TAG_PREFIX}end_row>
+  <{XML_TAG_PREFIX}start_col>1</{XML_TAG_PREFIX}start_col>
+  <{XML_TAG_PREFIX}end_col>5</{XML_TAG_PREFIX}end_col>
+  <{XML_TAG_PREFIX}font_bold>true</{XML_TAG_PREFIX}font_bold>
+  <{XML_TAG_PREFIX}fill_color>#4472C4</{XML_TAG_PREFIX}fill_color>
+  <{XML_TAG_PREFIX}border_style>thin</{XML_TAG_PREFIX}border_style>
+</{XML_TAG_PREFIX}excel_format>
 
 合并模式示例（只加边框，保留已有字体）：
-<excel_format>
-  <intent>需要为表格第1-5行添加细线边框，保留已有字体和底色</intent>
-  <session_id>xl_1234567890</session_id>
-  <sheet>Sheet1</sheet>
-  <what>
-    <item>border</item>
-  </what>
-  <mode>merge</mode>
-  <start_row>1</start_row>
-  <end_row>5</end_row>
-  <start_col>1</start_col>
-  <end_col>5</end_col>
-  <border_style>thin</border_style>
-</excel_format>`
+<{XML_TAG_PREFIX}excel_format>
+  <{XML_TAG_PREFIX}intent>需要为表格第1-5行添加细线边框，保留已有字体和底色</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>xl_1234567890</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}sheet>Sheet1</{XML_TAG_PREFIX}sheet>
+  <{XML_TAG_PREFIX}what>
+    <{XML_TAG_PREFIX}item>border</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}what>
+  <{XML_TAG_PREFIX}mode>merge</{XML_TAG_PREFIX}mode>
+  <{XML_TAG_PREFIX}start_row>1</{XML_TAG_PREFIX}start_row>
+  <{XML_TAG_PREFIX}end_row>5</{XML_TAG_PREFIX}end_row>
+  <{XML_TAG_PREFIX}start_col>1</{XML_TAG_PREFIX}start_col>
+  <{XML_TAG_PREFIX}end_col>5</{XML_TAG_PREFIX}end_col>
+  <{XML_TAG_PREFIX}border_style>thin</{XML_TAG_PREFIX}border_style>
+</{XML_TAG_PREFIX}excel_format>`
 
 	zhMessages[KeySystemPromptXMLExamples] = `
 # 工具使用示例
 
 ## 示例 1：列出目录文件
 
-<list_files>
-  <intent>需要查看当前工作目录的顶层文件结构</intent>
-  <path>.</path>
-  <recursive>false</recursive>
-</list_files>
+<{XML_TAG_PREFIX}list_files>
+  <{XML_TAG_PREFIX}intent>需要查看当前工作目录的顶层文件结构</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>.</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}recursive>false</{XML_TAG_PREFIX}recursive>
+</{XML_TAG_PREFIX}list_files>
 
 ## 示例 2：创建新文件
 
-<write_to_file>
-  <intent>需要在 src 目录下创建新的配置文件</intent>
-  <mode>new</mode>
-  <path>src/config.json</path>
-  <content>
+<{XML_TAG_PREFIX}write_to_file>
+  <{XML_TAG_PREFIX}intent>需要在 src 目录下创建新的配置文件</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}mode>new</{XML_TAG_PREFIX}mode>
+  <{XML_TAG_PREFIX}path>src/config.json</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}content>
 	io.Println()
 	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
 	io.Println()
 	io.Println(i18n.T(i18n.KeyDisclaimerBody))
 	io.Println()
-  </content>
-</write_to_file>
+  </{XML_TAG_PREFIX}content>
+</{XML_TAG_PREFIX}write_to_file>
 
 ## 示例 3：搜索文件内容
 
-<search_files>
-  <intent>需要搜索代码中引用了 KeyDisclaimerTitle 的位置</intent>
-  <path>src</path>
-  <regex>i18n.KeyDisclaimerTitle</regex>
-  <file_pattern>*.go</file_pattern>
-</search_files>
+<{XML_TAG_PREFIX}search_files>
+  <{XML_TAG_PREFIX}intent>需要搜索代码中引用了 KeyDisclaimerTitle 的位置</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>src</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}regex>i18n.KeyDisclaimerTitle</{XML_TAG_PREFIX}regex>
+  <{XML_TAG_PREFIX}file_pattern>*.go</{XML_TAG_PREFIX}file_pattern>
+</{XML_TAG_PREFIX}search_files>
 
 ## 示例 4：对文件进行精确修改
 
-<replace_in_file>
-  <intent>需要将 Println 改为 Print 调用</intent>
-  <path>src/main.go</path>
-  <replacements>
-    <item>
-      <!-- start_line 指定搜索内容在原文件中的起始行号，可避免文件中有多处相同文本时匹配到错误位置 -->
-      <search>	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
-      </search>
-      <replace>	io.Print(i18n.T(i18n.KeyDisclaimerTitle))
-      </replace>
-      <start_line>2</start_line>
-    </item>
-  </replacements>
-</replace_in_file>
+<{XML_TAG_PREFIX}replace_in_file>
+  <{XML_TAG_PREFIX}intent>需要将 Println 改为 Print 调用</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>src/main.go</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}replacements>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}start_line>2</{XML_TAG_PREFIX}start_line>
+      <{XML_TAG_PREFIX}search>	io.Println(i18n.T(i18n.KeyDisclaimerTitle))
+      </{XML_TAG_PREFIX}search>
+      <{XML_TAG_PREFIX}replace>	io.Print(i18n.T(i18n.KeyDisclaimerTitle))
+      </{XML_TAG_PREFIX}replace>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}replacements>
+</{XML_TAG_PREFIX}replace_in_file>
 
 # 工具使用指南
 
@@ -1245,9 +1174,9 @@ Parameters:
 - intent (必需): 说明为什么需要列出密码本条目
 
 Usage:
-<vault_list>
-  <intent>我需要查看可用的数据库凭据</intent>
-</vault_list>
+<{XML_TAG_PREFIX}vault_list>
+  <{XML_TAG_PREFIX}intent>我需要查看可用的数据库凭据</{XML_TAG_PREFIX}intent>
+</{XML_TAG_PREFIX}vault_list>
 
 **密码本占位符（Vault Placeholders）**
 你应在 **任何工具调用** 的字符串参数中，使用 @Tag:EntryName@ 格式引用加密存储的敏感信息。占位符会在工具执行前最后一刻被替换为真实值——敏感信息**不会**在上下文中传输给 LLM。
@@ -1258,9 +1187,10 @@ Usage:
 标签名可自定义，每个条目可包含任意数量的标签。若条目不存在，系统也会提示输入。
 
 例如，将数据库凭据从密码本注入到命令行中：
-<execute_command>
-  <command>mysql -u@user:prod_db@ -p@pwd:prod_db@ -h@ip_addr:prod_db@</command>
-</execute_command>
+<{XML_TAG_PREFIX}execute_command>
+  <{XML_TAG_PREFIX}intent>需要使用密码本中的凭据连接生产数据库</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}command>mysql -u@user:prod_db@ -p@pwd:prod_db@ -h@ip_addr:prod_db@</{XML_TAG_PREFIX}command>
+</{XML_TAG_PREFIX}execute_command>
 系统会在你确认执行后，用真实的标签值替换占位符。`
 
 	zhMessages[KeyToolUsageVaultAdd] = `## vault_add
@@ -1271,10 +1201,10 @@ Parameters:
 - notes (可选): 备注信息
 
 Usage:
-<vault_add>
-  <intent>保存生产数据库的访问凭据</intent>
-  <name>prod_db</name>
-</vault_add>`
+<{XML_TAG_PREFIX}vault_add>
+  <{XML_TAG_PREFIX}intent>保存生产数据库的访问凭据</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}name>prod_db</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}vault_add>`
 
 	zhMessages[KeyToolUsageVaultRemove] = `## vault_remove
 Description: 按名称删除密码本条目。此操作会永久删除存储的凭据。请谨慎使用并在删除前与用户确认。
@@ -1283,10 +1213,10 @@ Parameters:
 - name (必需): 要删除的条目名称
 
 Usage:
-<vault_remove>
-  <intent>清理不再使用的测试数据库凭据</intent>
-  <name>test_db_old</name>
-</vault_remove>`
+<{XML_TAG_PREFIX}vault_remove>
+  <{XML_TAG_PREFIX}intent>清理不再使用的测试数据库凭据</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}name>test_db_old</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}vault_remove>`
 
 	// Word tool usage examples (XML mode)
 	zhMessages[KeyToolUsageWordOpen] = `## word_open
@@ -1297,11 +1227,11 @@ Parameters:
 - mode (必需): 打开模式：'create'（新建）、'read'（只读）、'copy'（复制）
 
 Usage:
-<word_open>
-  <intent>打开报告文档</intent>
-  <path>report.docx</path>
-  <mode>read</mode>
-</word_open>`
+<{XML_TAG_PREFIX}word_open>
+  <{XML_TAG_PREFIX}intent>打开报告文档</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>report.docx</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}mode>read</{XML_TAG_PREFIX}mode>
+</{XML_TAG_PREFIX}word_open>`
 	zhMessages[KeyToolUsageExcelOpen] = `## excel_open
 Description: 打开一个 XLSX 文件，返回会话 ID。mode 为必填参数：'create'（新建，文件必须不存在）、'read'（只读打开，保存会失败）、'copy'（复制一份带时间戳的副本后打开副本）。
 Parameters:
@@ -1310,18 +1240,18 @@ Parameters:
   - mode (必需) 'create'（新建）、'read'（只读）、'copy'（复制）
 
 Usage:
-<excel_open>
-  <intent>打开报表电子表格</intent>
-  <path>report.xlsx</path>
-  <mode>read</mode>
-</excel_open>
+<{XML_TAG_PREFIX}excel_open>
+  <{XML_TAG_PREFIX}intent>打开报表电子表格</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>report.xlsx</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}mode>read</{XML_TAG_PREFIX}mode>
+</{XML_TAG_PREFIX}excel_open>
 
 新建文件示例：
-<excel_open>
-  <intent>创建新的空白电子表格</intent>
-  <path>new_report.xlsx</path>
-  <mode>create</mode>
-</excel_open>`
+<{XML_TAG_PREFIX}excel_open>
+  <{XML_TAG_PREFIX}intent>创建新的空白电子表格</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>new_report.xlsx</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}mode>create</{XML_TAG_PREFIX}mode>
+</{XML_TAG_PREFIX}excel_open>`
 
 	zhMessages[KeyToolUsageWordClose] = `## word_close
 Description: 关闭 DOCX 会话（自动保存）。
@@ -1330,10 +1260,10 @@ Parameters:
 - session_id (必需): word_open 返回的会话 ID
 
 Usage:
-<word_close>
-  <intent>完成编辑后关闭文档</intent>
-  <session_id>doc_1</session_id>
-</word_close>`
+<{XML_TAG_PREFIX}word_close>
+  <{XML_TAG_PREFIX}intent>完成编辑后关闭文档</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+</{XML_TAG_PREFIX}word_close>`
 
 	zhMessages[KeyToolUsageWordSave] = `## word_save
 Description: 保存 DOCX 文件但不关闭会话。
@@ -1342,10 +1272,10 @@ Parameters:
 - session_id (必需): word_open 返回的会话 ID
 
 Usage:
-<word_save>
-  <intent>保存编辑进度</intent>
-  <session_id>doc_1</session_id>
-</word_save>`
+<{XML_TAG_PREFIX}word_save>
+  <{XML_TAG_PREFIX}intent>保存编辑进度</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+</{XML_TAG_PREFIX}word_save>`
 
 	zhMessages[KeyToolUsageWordOverview] = `## word_overview
 Description: 获取文档结构概览：段落数、样式使用情况、表格数。
@@ -1354,10 +1284,10 @@ Parameters:
 - session_id (必需): word_open 返回的会话 ID
 
 Usage:
-<word_overview>
-  <intent>了解文档结构</intent>
-  <session_id>doc_1</session_id>
-</word_overview>`
+<{XML_TAG_PREFIX}word_overview>
+  <{XML_TAG_PREFIX}intent>了解文档结构</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+</{XML_TAG_PREFIX}word_overview>`
 
 	zhMessages[KeyToolUsageWordRead] = `## word_read
 Description: 将段落范围读取为 HTML。format 可选 "simple"（仅结构标签）或 "full"（含 CSS 样式）。
@@ -1369,13 +1299,13 @@ Parameters:
 - format (可选): "simple"（默认）或 "full"
 
 Usage:
-<word_read>
-  <intent>读取前言内容</intent>
-  <session_id>doc_1</session_id>
-  <from_para>1</from_para>
-  <to_para>10</to_para>
-  <format>simple</format>
-</word_read>`
+<{XML_TAG_PREFIX}word_read>
+  <{XML_TAG_PREFIX}intent>读取前言内容</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}from_para>1</{XML_TAG_PREFIX}from_para>
+  <{XML_TAG_PREFIX}to_para>10</{XML_TAG_PREFIX}to_para>
+  <{XML_TAG_PREFIX}format>simple</{XML_TAG_PREFIX}format>
+</{XML_TAG_PREFIX}word_read>`
 
 	zhMessages[KeyToolUsageWordTableRead] = `## word_table_read
 Description: 读取表格并返回为 HTML。format 可选 "simple" 或 "full"。
@@ -1386,11 +1316,11 @@ Parameters:
 - format (可选): "simple"（默认）或 "full"
 
 Usage:
-<word_table_read>
-  <intent>读取第一个表格</intent>
-  <session_id>doc_1</session_id>
-  <table_index>0</table_index>
-</word_table_read>`
+<{XML_TAG_PREFIX}word_table_read>
+  <{XML_TAG_PREFIX}intent>读取第一个表格</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}table_index>0</{XML_TAG_PREFIX}table_index>
+</{XML_TAG_PREFIX}word_table_read>`
 
 	zhMessages[KeyToolUsageWordContinue] = `## word_continue
 Description: 在指定段落后插入新内容，自动继承格式。支持 Markdown 语法：## 标题2、- 列表项。通过 same_style_as 参数继承参考段落的样式。
@@ -1403,13 +1333,13 @@ Parameters:
 - style (可选): 显式指定样式名，优先级高于 same_style_as
 
 Usage:
-<word_continue>
-  <intent>在第二章后面添加新章节</intent>
-  <session_id>doc_1</session_id>
-  <after_para>48</after_para>
-  <same_style_as>48</same_style_as>
-  <content>## 2.1 新增小节&#10;&#10;这是新的内容段落。</content>
-</word_continue>`
+<{XML_TAG_PREFIX}word_continue>
+  <{XML_TAG_PREFIX}intent>在第二章后面添加新章节</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}after_para>48</{XML_TAG_PREFIX}after_para>
+  <{XML_TAG_PREFIX}same_style_as>48</{XML_TAG_PREFIX}same_style_as>
+  <{XML_TAG_PREFIX}content>## 2.1 新增小节&#10;&#10;这是新的内容段落。</{XML_TAG_PREFIX}content>
+</{XML_TAG_PREFIX}word_continue>`
 
 	zhMessages[KeyToolUsageWordErase] = `## word_erase
 Description: 删除指定范围的段落。
@@ -1420,12 +1350,12 @@ Parameters:
 - to_para (必需): 结束段落编号
 
 Usage:
-<word_erase>
-  <intent>删除过时的第10-15段</intent>
-  <session_id>doc_1</session_id>
-  <from_para>10</from_para>
-  <to_para>15</to_para>
-</word_erase>`
+<{XML_TAG_PREFIX}word_erase>
+  <{XML_TAG_PREFIX}intent>删除过时的第10-15段</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}from_para>10</{XML_TAG_PREFIX}from_para>
+  <{XML_TAG_PREFIX}to_para>15</{XML_TAG_PREFIX}to_para>
+</{XML_TAG_PREFIX}word_erase>`
 
 	zhMessages[KeyToolUsageWordInspectStyle] = `## word_inspect_style
 Description: 查看命名样式的定义（字体、字号、加粗、颜色、间距、对齐等）。
@@ -1435,11 +1365,11 @@ Parameters:
 - name (必需): 样式名称，如 "Heading 2"
 
 Usage:
-<word_inspect_style>
-  <intent>查看标题2样式的格式定义</intent>
-  <session_id>doc_1</session_id>
-  <name>Heading 2</name>
-</word_inspect_style>`
+<{XML_TAG_PREFIX}word_inspect_style>
+  <{XML_TAG_PREFIX}intent>查看标题2样式的格式定义</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}name>Heading 2</{XML_TAG_PREFIX}name>
+</{XML_TAG_PREFIX}word_inspect_style>`
 
 	zhMessages[KeyToolUsageWordFormat] = `## word_format
 Description: 修改段落格式。target="style:Heading1" 修改所有该样式的段落。target="para:3-5" 修改指定段落范围。what 支持：style、font_name、font_size、bold、italic、color。
@@ -1451,13 +1381,13 @@ Parameters:
 - target (必需): 目标范围："style:StyleName" 或 "para:start-end"
 
 Usage:
-<word_format>
-  <intent>将标题2的字号改为14磅</intent>
-  <session_id>doc_1</session_id>
-  <what>font_size</what>
-  <value>14</value>
-  <target>style:Heading 2</target>
-</word_format>`
+<{XML_TAG_PREFIX}word_format>
+  <{XML_TAG_PREFIX}intent>将标题2的字号改为14磅</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}session_id>doc_1</{XML_TAG_PREFIX}session_id>
+  <{XML_TAG_PREFIX}what>font_size</{XML_TAG_PREFIX}what>
+  <{XML_TAG_PREFIX}value>14</{XML_TAG_PREFIX}value>
+  <{XML_TAG_PREFIX}target>style:Heading 2</{XML_TAG_PREFIX}target>
+</{XML_TAG_PREFIX}word_format>`
 
 	zhMessages[KeyUserMessageTemplate] = `{INSTRUCTION}`
 }
