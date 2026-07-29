@@ -854,6 +854,15 @@
   - [x] ParseXMLToolCallsWithTools 先提取 wrapper 标签块再解析内部工具调用
   - [x] 更新 i18n 中英文系统提示词示例
   - [x] 更新测试
+
+- [ ] **FEATURE-297 XML 工具调用标签添加可配置前缀**：[BUILD-328]
+  - [ ] 去掉 `<cs_tool_calls>` 外框，工具标签和参数标签均使用可配置前缀（默认 `cs`）
+  - [ ] 新增 `xml-tag-prefix` 配置项（config.json + CLI + REPL）
+  - [ ] 更新 ParseXMLToolCallsWithTools 解析逻辑
+  - [ ] 更新 i18n 中英文系统提示词示例
+  - [ ] 更新测试
+
+  
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

@@ -335,89 +335,56 @@ func isKnownToolName(tagName string, tools []llm.Tool) bool {
 	return false
 }
 
-// DefaultXMLToolWrapperTag is the default XML tag name used to wrap tool calls.
-const DefaultXMLToolWrapperTag = "cs_tool_calls"
+// DefaultXMLTagPrefix is the default prefix applied to XML tool call tags (including ":").
+const DefaultXMLTagPrefix = "cs:"
+
+// currentXMLTagPrefix is the current XML tag prefix, settable via SetXMLTagPrefix.
+var currentXMLTagPrefix = DefaultXMLTagPrefix
+
+// SetXMLTagPrefix sets the XML tag prefix for tool call parsing.
+// The prefix should include any separator (e.g., "cs:" or "tool:").
+func SetXMLTagPrefix(prefix string) {
+	if prefix == "" {
+		prefix = DefaultXMLTagPrefix
+	}
+	currentXMLTagPrefix = prefix
+}
+
+// stripXMLTagPrefix checks if tagName starts with the current prefix.
+// If so, returns the unprefixed name. Returns empty string on mismatch.
+func stripXMLTagPrefix(tagName string) string {
+	p := xmlTagPrefix()
+	if strings.HasPrefix(tagName, p) {
+		return strings.TrimPrefix(tagName, p)
+	}
+	return ""
+}
+
+// xmlTagPrefix returns the current XML tag prefix.
+func xmlTagPrefix() string {
+	return currentXMLTagPrefix
+}
 
 // ParseXMLToolCalls parses XML-formatted tool calls from LLM response content.
-// The format uses the tool name directly as the XML tag, with parameters
-// as child elements, wrapped in a <cs_tool_calls> block:
+// The format uses the tool name with a configurable prefix, for example with prefix "cs:":
 //
-//	<cs_tool_calls>
-//	  <execute_command>
-//	    <command>ls -la</command>
-//	  </execute_command>
-//	</cs_tool_calls>
+//	<cs:execute_command>
+//	  <cs:command>ls -la</cs:command>
+//	</cs:execute_command>
 //
 // Returns a list of llm.ToolCall, one for each tool call block found.
 // If parsing fails for a particular tag, it returns an error tool call
 // with detailed diagnostics instead of attempting to execute the malformed call.
 //
-// Only tool calls inside a <cs_tool_calls> wrapper block are parsed.
-// Without wrapper, empty result is returned (backward compatibility removed).
+// Only top-level tags starting with the configured prefix are parsed as tool calls.
+// Tags without the expected prefix are treated as regular content.
 func ParseXMLToolCalls(content string) []llm.ToolCall {
 	return ParseXMLToolCallsWithTools(content, nil)
-}
-
-// extractWrapperBlocks extracts all content blocks inside the given wrapper tag name.
-// For content like:
-//
-//	text <cs_tool_calls><tool>...</tool></cs_tool_calls> text <cs_tool_calls>...</cs_tool_calls>
-//
-// Returns the concatenated inner content of all wrapper blocks.
-// If no wrapper tags are found, returns the original content as fallback.
-// This handles nested wrapper tags correctly and ignores code blocks.
-func extractWrapperBlocks(content, wrapperTag string) string {
-	// Remove code blocks first (same logic as stripCodeBlockXML but inline for efficiency)
-	content = stripCodeBlockXML(content)
-
-	var results []string
-	remaining := content
-
-	for {
-		openTag := "<" + wrapperTag + ">"
-		closeTag := "</" + wrapperTag + ">"
-
-		startIdx := strings.Index(remaining, openTag)
-		if startIdx < 0 {
-			break
-		}
-
-		// Find content after opening tag
-		innerStart := startIdx + len(openTag)
-
-		// Find matching closing tag (handle nesting)
-		closeIdx := findMatchingCloseTag(remaining[innerStart:], wrapperTag)
-		if closeIdx < 0 {
-			// Try lenient fallback
-			lenientIdx := findCloseTagLenient(remaining[innerStart:], wrapperTag)
-			if lenientIdx < 0 {
-				break
-			}
-			closeIdx = lenientIdx
-		}
-
-		innerContent := remaining[innerStart : innerStart+closeIdx]
-		results = append(results, innerContent)
-
-		// Move past this wrapper block
-		remaining = remaining[innerStart+closeIdx+len(closeTag):]
-	}
-
-	if len(results) == 0 {
-		// No wrapper tags found — return empty (old format is no longer supported)
-		return ""
-	}
-
-	return strings.Join(results, "\n")
 }
 
 // checkSelfClosing checks if an opening tag is self-closing (e.g., <tag/> or <tag />).
 // It examines the content starting from tagEnd, scanning for optional whitespace
 // followed by "/>". This handles both <tag/> and <tag /> formats that LLMs may emit.
-// isWrapperTag checks if a tag name matches the default wrapper tag.
-func isWrapperTag(tagName string, tools []llm.Tool) bool {
-	return tagName == DefaultXMLToolWrapperTag
-}
 
 func checkSelfClosing(remaining string, tagEnd int) bool {
 	if tagEnd >= len(remaining) {
@@ -465,34 +432,19 @@ func parseXMLIsKnownTool(tagName string, tools []llm.Tool) bool {
 // ParseXMLToolCallsWithTools parses XML-formatted tool calls from LLM response content,
 // with optional tool definitions for parameter name validation.
 // If tools is non-nil, parameter names are validated against the tool definitions,
-// AND only tags whose names match known tool names are parsed as tool calls.
-// Unknown tags are silently ignored (treated as regular content).
+// AND only tags whose names (after stripping prefix) match known tool names are
+// parsed as tool calls. Tags without the configured prefix are silently ignored.
 // See ParseXMLToolCalls for details on the XML format.
 func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall {
 	var calls []llm.ToolCall
 
-	// FEATURE-296: Extract content inside <cs_tool_calls> wrapper blocks.
-	// Only tool calls wrapped in the expected outer tag are valid.
-	// This eliminates the need for complex heuristic detection of what is
-	// a tool call vs. what is LLM explanatory text containing XML.
-	//
-	// If no wrapper blocks are found, fall back to the old behavior
-	// (parse content as-is) for backward compatibility with test cases.
-	wrapperContent := extractWrapperBlocks(content, DefaultXMLToolWrapperTag)
-	wrapperFound := wrapperContent != ""
-	if wrapperFound {
-		// Wrapper blocks found — parse only the wrapped content (already code-block stripped).
-		log.Debug("ParseXMLToolCallsWithTools: found <%s> wrapper blocks (%d chars), parsing wrapped content only",
-			DefaultXMLToolWrapperTag, len(wrapperContent))
-		content = wrapperContent
-	} else {
-		// Fallback: apply old pre-processing and parse full content as-is.
-		log.Debug("ParseXMLToolCallsWithTools: no <%s> wrapper blocks found, falling back to full content parse",
-			DefaultXMLToolWrapperTag)
-		content = stripCodeBlockXML(content)
-		content = stripQuotedXMLContent(content)
-		content = stripThinkBlock(content)
-	}
+	// FEATURE-297: Tool call tags use a configurable prefix. Only tags starting
+	// with the configured prefix (e.g., "cs:") are parsed as tool calls.
+	// Tags without the prefix are treated as regular content.
+	// Standard pre-processing: strip code blocks, quoted XML, and think blocks.
+	content = stripCodeBlockXML(content)
+	content = stripQuotedXMLContent(content)
+	content = stripThinkBlock(content)
 
 	// Use a simple state machine to find top-level XML elements.
 	// A top-level element is one that is not nested inside another element.
@@ -599,11 +551,32 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 		openEnd += tagEnd + 1
 
 		if depth == 0 {
-			// This is a top-level element - could be a tool call
-			// Check if this is a known tool BEFORE any attribute or validity checks.
-			// If tools list is provided and tag is NOT in the known tool list, skip
-			// the entire block silently — this prevents HTML/Python content with angle
-			// brackets (<div>, <for>) from generating spurious XML parse errors.
+			// FEATURE-297: Only tags with the configured prefix are parsed as tool calls.
+			// Strip the prefix to get the real tool/parameter name.
+			// Tags without prefix are silently skipped.
+			strippedName := stripXMLTagPrefix(tagName)
+			if strippedName == "" {
+				// Tag does not have the expected prefix — skip entire block silently
+				log.Debug("ParseXMLToolCalls: skipping tag <%s> (no prefix match)", tagName)
+				// Find matching close tag to properly skip the block
+				closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
+				if closeIdx < 0 {
+					closeIdx = findCloseTagLenient(remaining[openEnd:], tagName)
+				}
+				if closeIdx >= 0 {
+					i = openEnd + closeIdx + len("</"+tagName+">")
+				} else {
+					i = openEnd
+				}
+				continue
+			}
+
+			// Use stripped name for all subsequent checks
+			originalTagName := tagName
+			tagName = strippedName
+
+			// If tools list is provided and tag is NOT in the known tool list,
+			// skip the block silently (after reverse identification check).
 			if len(tools) > 0 {
 				isKnown := false
 				for _, t := range tools {
@@ -616,21 +589,17 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					// FEATURE-293: Two-stage reverse identification for misspelled tool calls.
 					// Stage 1: Check if the closing tag matches a known tool name.
 					// Stage 2: Check if inner child tags match known parameter names (≥1 match).
-					// Build known param set for stage 2 (lazy, only when needed)
-					// Try to find a closing tag. First try exact match, then any match.
-					closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
+					closeIdx := findMatchingCloseTag(remaining[openEnd:], originalTagName)
 					if closeIdx < 0 {
-						closeIdx = findCloseTagLenient(remaining[openEnd:], tagName)
+						closeIdx = findCloseTagLenient(remaining[openEnd:], originalTagName)
 					}
 
-					// If no exact match, try to find any known tool's closing tag.
-					// This handles mismatched name tags (e.g., <reed_file>...</read_file>).
 					var actualCloseName string
 					anyCloseUsed := false
 					if closeIdx < 0 {
-						// Scan for known tool close tags to handle head/tail name mismatch
 						for _, t := range tools {
-							if idx := findCloseTagLenient(remaining[openEnd:], t.Name); idx >= 0 {
+							prefixedClose := xmlTagPrefix() + t.Name
+							if idx := findCloseTagLenient(remaining[openEnd:], prefixedClose); idx >= 0 {
 								actualCloseName = t.Name
 								closeIdx = idx
 								anyCloseUsed = true
@@ -641,18 +610,21 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 						closeContent := remaining[openEnd+closeIdx:]
 						ce := strings.IndexByte(closeContent[2:], '>')
 						if ce >= 0 {
-							actualCloseName = strings.TrimSpace(closeContent[2 : 2+ce])
+							rawName := closeContent[2 : 2+ce]
+							actualCloseName = stripXMLTagPrefix(strings.TrimSpace(rawName))
+							if actualCloseName == "" {
+								actualCloseName = strings.TrimSpace(rawName)
+							}
 						}
 					}
 
-					// Calculate block end position and extract inner content
 					var blockEnd int
 					var innerContent string
 					if closeIdx >= 0 {
 						if anyCloseUsed {
-							blockEnd = openEnd + closeIdx + len("</") + len(actualCloseName) + 1
+							blockEnd = openEnd + closeIdx + len("</") + len(xmlTagPrefix()) + len(actualCloseName) + 1
 						} else {
-							blockEnd = openEnd + closeIdx + len("</"+tagName+">")
+							blockEnd = openEnd + closeIdx + len("</"+originalTagName+">")
 						}
 						innerContent = remaining[openEnd : openEnd+closeIdx]
 					} else {
@@ -661,49 +633,41 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 
 					log.Debug("ParseXMLToolCalls: stage1/2 check: tagName=%q, actualCloseName=%q, closeIdx=%d, anyCloseUsed=%v",
 						tagName, actualCloseName, closeIdx, anyCloseUsed)
-					// Stage 1: Tail tag reverse matching
 					if actualCloseName != "" && isKnownToolName(actualCloseName, tools) && !isKnownToolName(tagName, tools) {
 						errMsg := fmt.Sprintf(
 							"XML解析错误：你写了不识别的方法名 <%s>，但闭合标签是 </%s>。你是否想调用 <%s>？请修正方法名并确保开头和闭合标签一致。",
-							tagName, actualCloseName, actualCloseName)
+							originalTagName, xmlTagPrefix()+actualCloseName, actualCloseName)
 						log.Debug("ParseXMLToolCalls: stage1 detected: %s", errMsg)
 						calls = append(calls, llm.ToolCall{
 							ID:        fmt.Sprintf("xml_error_%d", len(calls)),
 							Name:      "_xml_parse_error",
-							Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+							Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, originalTagName),
 						})
 						i = blockEnd
 						continue
 					}
 
-					// Stage 2: Parameter signature detection — head and tail both unknown
-					// Check if ≥1 child tag names match known parameter names
 					if innerContent != "" {
 						childTags := extractChildTagNames(innerContent)
 						if len(childTags) > 0 {
 							knownParams := buildKnownParamSet(tools)
 							knownCount := 0
 							for _, ct := range childTags {
-								if knownParams[ct] {
+								// Strip prefix from child tag name for comparison
+								strippedChild := stripXMLTagPrefix(ct)
+								if strippedChild != "" && knownParams[strippedChild] {
 									knownCount++
 								}
 							}
-							// Trigger if at least 1 known parameter tag found
 							if knownCount >= 1 {
-								knownList := make([]string, 0, len(childTags))
-								for _, ct := range childTags {
-									if knownParams[ct] {
-										knownList = append(knownList, ct)
-									}
-								}
 								errMsg := fmt.Sprintf(
-									"XML解析错误：未被识别的方法名 '%s'，但内部参数标签 [%s] 看起来像工具调用参数。请检查方法名拼写并使用正确的方法名。",
-									tagName, strings.Join(knownList, ", "))
+									"XML解析错误：未被识别的方法名 '%s'，但内部参数标签看起来像工具调用参数。请检查方法名拼写并使用正确的方法名。",
+									originalTagName)
 								log.Debug("ParseXMLToolCalls: stage2 detected: %s", errMsg)
 								calls = append(calls, llm.ToolCall{
 									ID:        fmt.Sprintf("xml_error_%d", len(calls)),
 									Name:      "_xml_parse_error",
-									Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
+									Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, originalTagName),
 								})
 								i = blockEnd
 								continue
@@ -711,104 +675,14 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 						}
 					}
 
-					// Neither stage triggered — skip silently as before
 					i = blockEnd
 					continue
 				}
-				// Known tool — now validate syntax. Skip space/attribute and
-				// validity checks for non-tool tags.
-				if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
-					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
-					if openEnd2 < 0 {
-						break
-					}
-					openEnd2 += tagEnd + 1
-
-					errMsg := fmt.Sprintf("XML解析错误：方法标签 <%s 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>...</%s>，不要添加属性", tagName, tagName, tagName)
-					log.Debug("ParseXMLToolCalls: %s", errMsg)
-					calls = append(calls, llm.ToolCall{
-						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-						Name:      "_xml_parse_error",
-						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-					})
-					i = openEnd2
-					continue
-				}
-				if valid, reason := isValidTagName(tagName); !valid {
-					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
-					if openEnd2 < 0 {
-						break
-					}
-					openEnd2 += tagEnd + 1
-
-					errMsg := fmt.Sprintf("XML解析错误：方法标签 %s", reason)
-					log.Debug("ParseXMLToolCalls: %s", errMsg)
-					calls = append(calls, llm.ToolCall{
-						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-						Name:      "_xml_parse_error",
-						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-					})
-					i = openEnd2
-					continue
-				}
-			} else if wrapperFound {
-				// Wrapper found but no tools list — validate basic syntax
-				// (space/attribute, tag name validity) even without tool definitions.
-				log.Debug("ParseXMLToolCalls: wrapper found, no tools list, validating tag <%s> syntax", tagName)
-				if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
-					errMsg := fmt.Sprintf("XML解析错误：方法标签 <%s 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>...</%s>，不要添加属性", tagName, tagName, tagName)
-					log.Debug("ParseXMLToolCalls: %s", errMsg)
-					calls = append(calls, llm.ToolCall{
-						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-						Name:      "_xml_parse_error",
-						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-					})
-					// Skip this malformed tag block entirely
-					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
-					if openEnd2 < 0 {
-						break
-					}
-					skipStart := tagEnd + openEnd2 + 1
-					// Try to find the closing tag to skip the entire block
-					if closeIdx := findCloseTagLenient(remaining[skipStart:], tagName); closeIdx >= 0 {
-						i = skipStart + closeIdx + len("</"+tagName+">")
-					} else {
-						i = skipStart
-					}
-					continue
-				}
-				if valid, reason := isValidTagName(tagName); !valid {
-					errMsg := fmt.Sprintf("XML解析错误：方法标签 %s", reason)
-					log.Debug("ParseXMLToolCalls: %s", errMsg)
-					calls = append(calls, llm.ToolCall{
-						ID:        fmt.Sprintf("xml_error_%d", len(calls)),
-						Name:      "_xml_parse_error",
-						Arguments: fmt.Sprintf(`{"error": %q, "tag": %q}`, errMsg, tagName),
-					})
-					// Skip this malformed tag block entirely
-					openEnd2 := strings.IndexByte(remaining[tagEnd:], '>')
-					if openEnd2 < 0 {
-						break
-					}
-					skipStart := tagEnd + openEnd2 + 1
-					if closeIdx := findCloseTagLenient(remaining[skipStart:], tagName); closeIdx >= 0 {
-						i = skipStart + closeIdx + len("</"+tagName+">")
-					} else {
-						i = skipStart
-					}
-					continue
-				}
-				// Fall through to parsing — the close tag resolution happens below.
-			} else {
-				// No tools list, no wrapper — this is the test/fallback path.
-				// Treat all well-formed tags as potential tool calls.
-				log.Debug("ParseXMLToolCalls: no tools list, no wrapper, treating tag <%s> as potential tool call", tagName)
-				// Fall through to parsing — the close tag resolution happens below.
 			}
 
-			// Find the matching closing tag
-			closeTag := "</" + tagName + ">"
-			closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
+			// Find the matching closing tag — use original prefixed name for matching
+			closeTag := "</" + originalTagName + ">"
+			closeIdx := findMatchingCloseTag(remaining[openEnd:], originalTagName)
 			if closeIdx < 0 {
 				// No matching close tag found for the exact tag name.
 				// Try to find ANY closing tag as a fallback (handles LLM errors
@@ -1359,7 +1233,8 @@ func stripREPLMaskMarkers(content string) string {
 }
 
 // isValidTagName checks if a tag name contains only valid characters.
-// Valid tag names consist of letters, digits, underscores, and hyphens.
+// Valid tag names consist of letters, digits, underscores, hyphens, and colons
+// (colons are allowed for namespace prefixes like "cs:execute_command").
 // Returns true if the tag name is valid, false otherwise.
 // Also returns a descriptive error message if invalid.
 func isValidTagName(tagName string) (bool, string) {
@@ -1369,18 +1244,18 @@ func isValidTagName(tagName string) (bool, string) {
 
 	// Check for attribute-like syntax: <param=value>
 	if strings.Contains(tagName, "=") {
-		return false, fmt.Sprintf("标签名 %q 包含非法字符 '='，XML 标签中不允许包含属性。标签名只能包含字母、数字、下划线和连字符，不能包含 '='", tagName)
+		return false, fmt.Sprintf("标签名 %q 包含非法字符 '='，XML 标签中不允许包含属性。标签名只能包含字母、数字、下划线、连字符和冒号，不能包含 '='", tagName)
 	}
 
 	// Check each character
 	for i, ch := range tagName {
-		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' || ch == ':' {
 			continue
 		}
 		if ch == ' ' {
 			return false, fmt.Sprintf("标签名 %q 包含空格，XML 标签中不允许包含属性。正确的格式应为：<%s>值</%s>，不要添加属性", tagName, tagName, tagName)
 		}
-		return false, fmt.Sprintf("标签名 %q 在第 %d 个字符处包含非法字符 %q，标签名只能包含字母、数字、下划线和连字符", tagName, i+1, ch)
+		return false, fmt.Sprintf("标签名 %q 在第 %d 个字符处包含非法字符 %q，标签名只能包含字母、数字、下划线、连字符和冒号", tagName, i+1, ch)
 	}
 
 	return true, ""
@@ -1488,6 +1363,15 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 		if tagName == "" {
 			break
 		}
+		// Keep original prefixed name for close tag matching
+		originalTagName := tagName
+		// FEATURE-297: Strip the prefix from parameter tag names for JSON output
+		if stripped := stripXMLTagPrefix(tagName); stripped != "" {
+			tagName = stripped
+		}
+		if tagName == "" {
+			break
+		}
 
 		// Check if the tag name is followed by a space (attribute syntax like <param name=value>)
 		if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
@@ -1529,9 +1413,9 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 			continue
 		}
 
-		// Find matching closing tag
-		closeTag := "</" + tagName + ">"
-		closeIdx := findMatchingCloseTag(remaining[openEnd:], tagName)
+		// Find matching closing tag — use original prefixed name for matching raw XML
+		closeTag := "</" + originalTagName + ">"
+		closeIdx := findMatchingCloseTag(remaining[openEnd:], originalTagName)
 		if closeIdx < 0 {
 			// Try lenient fallback for content with special characters
 			lenientIdx := findCloseTagLenient(remaining[openEnd:], tagName)
