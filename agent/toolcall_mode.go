@@ -496,6 +496,16 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 			continue
 		}
 
+		// Skip DOCTYPE or other <!...> non-XML tags (e.g., <!DOCTYPE html>)
+		if ltIdx+1 < len(remaining) && remaining[ltIdx+1] == '!' {
+			closeEnd := strings.IndexByte(remaining[ltIdx:], '>')
+			if closeEnd < 0 {
+				break
+			}
+			i = ltIdx + closeEnd + 1
+			continue
+		}
+
 		// This is an opening tag
 		// Find the tag name (characters after '<' until space, '/', or '>')
 		tagStart := ltIdx + 1
@@ -1330,7 +1340,7 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 			continue
 		}
 
-		// Check for comment or CDATA
+		// Check for comment, CDATA, or DOCTYPE (any <!...> tag)
 		if len(remaining) >= 4 && remaining[:4] == "<!--" {
 			end := strings.Index(remaining, "-->")
 			if end < 0 {
@@ -1346,6 +1356,15 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 			}
 			// CDATA is content, not a child element - skip it
 			remaining = remaining[end+3:]
+			continue
+		}
+		// Skip DOCTYPE or other <!...> tags (e.g., <!DOCTYPE html>)
+		if len(remaining) >= 2 && remaining[:2] == "<!" {
+			end := strings.IndexByte(remaining, '>')
+			if end < 0 {
+				break
+			}
+			remaining = remaining[end+1:]
 			continue
 		}
 
@@ -1765,12 +1784,15 @@ func hasIncompleteToolCall(content string, tools []llm.Tool) bool {
 
 // buildReferenceFormat extracts the Usage section from the i18n tool description
 // for the given tool name. Returns the Usage XML block if found, or a generic
-// format string as fallback.
+// format string as fallback. Injects the current XML tag prefix for runtime
+// configurability.
 func buildReferenceFormat(toolName string) string {
 	// Try to get the tool's usage example from i18n
 	if key, ok := toolUsageKeyMap[toolName]; ok {
 		example := i18n.T(key)
 		if example != "" {
+			// Inject the current XML tag prefix
+			example = strings.ReplaceAll(example, "{XML_TAG_PREFIX}", xmlTagPrefix())
 			// Extract the Usage section (everything after "Usage:")
 			usageIdx := strings.Index(example, "Usage:")
 			if usageIdx >= 0 {
@@ -1783,8 +1805,8 @@ func buildReferenceFormat(toolName string) string {
 		}
 	}
 
-	// Fallback: generic format
-	return fmt.Sprintf("<%s>\n  <参数名1>参数值1</参数名1>\n  <参数名2>参数值2</参数名2>\n</%s>", toolName, toolName)
+	// Fallback: generic format with prefix
+	return fmt.Sprintf("<%s%s>\n  <参数名1>参数值1</参数名1>\n  <参数名2>参数值2</参数名2>\n</%s%s>", xmlTagPrefix(), toolName, xmlTagPrefix(), toolName)
 }
 
 // buildXMLToolDescription builds the usage description for a single tool in XML format.
