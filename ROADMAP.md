@@ -841,6 +841,13 @@
   - [x] 重构图 `zh_system.go`/`en_system.go` 头部：4 条原则嵌入 Identity，WorkMode 清空
   - [x] `exit_strategy` 提示要求改为纯前瞻性指导意见（不回溯、不评价、指明下一步）
 
+- [x] **FEATURE-295 优化系统提示词结构，三个内置模式默认只保留6个节（Identity/ToolUsage/Capabilities/Rules/ExternalTools/Environment）**：[BUILD-326]
+  - [x] 缩减 DefaultBuiltInSections() 为 Identity → ToolUsage → Capabilities → Rules → ExternalTools → Environment
+  - [x] 缩减 DefaultActSections() 为相同的6个节
+  - [x] 缩减 DefaultPlanSections() 为相同的6个节
+  - [x] 新增 DefaultResearchSections() 独立函数，research 模式不再共用 act 的节配置
+  - [x] 修复 OpenAI 模式 content_chunk 受 showLlmContent 控制，StreamEventToolCall 新增实时工具调用输出 `[🔧 tool_name]` 由 showTool 控制
+  - [x] 验证编译通过
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

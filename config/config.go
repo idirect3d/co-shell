@@ -657,15 +657,10 @@ func DefaultActSections() []string {
 	return []string{
 		"Identity",
 		"ToolUsage",
-		"TaskProgress",
-		"EditingFiles",
-		"BrowserUsage",
-		"ResultMode",
 		"Capabilities",
 		"Rules",
 		"ExternalTools",
 		"Environment",
-		"Objective",
 	}
 }
 
@@ -691,7 +686,7 @@ func DefaultWorkModes() []WorkMode {
 		{
 			Name:        "research",
 			Description: "调研模式 - 搜索、查阅资料、收集信息、输出研究报告",
-			Sections:    DefaultActSections(),
+			Sections:    DefaultResearchSections(),
 			Temperature: Float64Ptr(0),
 		},
 	}
@@ -704,8 +699,20 @@ func DefaultPlanSections() []string {
 		"ToolUsage",
 		"Capabilities",
 		"Rules",
-		"TaskProgress",
-		"Objective",
+		"ExternalTools",
+		"Environment",
+	}
+}
+
+// DefaultResearchSections returns the default list of prompt sections for Research mode.
+func DefaultResearchSections() []string {
+	return []string{
+		"Identity",
+		"ToolUsage",
+		"Capabilities",
+		"Rules",
+		"ExternalTools",
+		"Environment",
 	}
 }
 
