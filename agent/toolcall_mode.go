@@ -1661,11 +1661,11 @@ func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string, work
 }
 
 // buildXMLToolPrompt builds the XML tool usage instructions for the system prompt.
-// Uses the new format where the tool name is the XML tag directly:
+// Uses the prefix-aware format where tags include the configured prefix:
 //
-//	<execute_command>
-//	  <command>ls -la</command>
-//	</execute_command>
+//	<cs:execute_command>
+//	  <cs:command>ls -la</cs:command>
+//	</cs:execute_command>
 func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string) string {
 	if len(tools) == 0 {
 		return ""
@@ -1674,8 +1674,10 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string) string {
 	var sb strings.Builder
 
 	// The TOOL USE header and XML format examples are now in i18n KeySystemPromptToolUsageXML.
-	// Write the i18n content first (header + XML examples).
-	sb.WriteString(i18n.T(i18n.KeySystemPromptToolUsageXML))
+	// Write the i18n content first (header + XML examples), inject prefix.
+	headerContent := i18n.T(i18n.KeySystemPromptToolUsageXML)
+	headerContent = strings.ReplaceAll(headerContent, "{XML_TAG_PREFIX}", xmlTagPrefix())
+	sb.WriteString(headerContent)
 	sb.WriteString("\n")
 
 	// List available tools
@@ -1769,6 +1771,7 @@ func buildReferenceFormat(toolName string) string {
 
 // buildXMLToolDescription builds the usage description for a single tool in XML format.
 // Outputs the i18n usage example for the tool (Parameters and Usage sections).
+// Injects the current XML tag prefix for runtime configurability.
 func buildXMLToolDescription(tool llm.Tool, lang string) string {
 	var sb strings.Builder
 
@@ -1776,6 +1779,8 @@ func buildXMLToolDescription(tool llm.Tool, lang string) string {
 	if key, ok := toolUsageKeyMap[tool.Name]; ok {
 		example := i18n.T(key)
 		if example != "" {
+			// Inject current XML tag prefix into the example
+			example = strings.ReplaceAll(example, "{XML_TAG_PREFIX}", xmlTagPrefix())
 			sb.WriteString(example)
 			sb.WriteString("\n")
 		}
