@@ -109,20 +109,24 @@ TOOL USE
 TOOL USE
 
 # Tool Use Formatting
-工具调用使用 XML 标签格式。每次调用时，工具名称直接作为 XML 标签名，参数作为该标签的子标签。
+工具调用必须使用 <cs_tool_calls> XML 包裹标签格式。所有工具调用必须放在 <cs_tool_calls>...</cs_tool_calls> 标签块内，只有被这个外层标签包裹的内容才会被解析为工具调用。外层标签外的 XML 内容不会被当做工具调用。
+
+每次调用时，在 <cs_tool_calls> 块内，工具名称直接作为 XML 标签名，参数作为该标签的子标签。
 
 例如，调用 read_file 工具：
 
+<cs_tool_calls>
 <read_file>
   <intent>需要查看 src/main.js 文件的内容</intent>
   <path>src/main.js</path>
   <start_line>1</start_line>
   <end_line>50</end_line>
 </read_file>
+</cs_tool_calls>
 
 始终严格遵循此格式，以确保工具调用能被正确解析和执行。
 
-如果需要在一次回复中调用多个工具，只需连续使用多个工具标签：
+如果需要在一次回复中调用多个工具，将多个工具标签放在同一个 <cs_tool_calls> 块内：
 
 <search_files>
   <intent>需要搜索 agent 包中定义 main 函数的位置</intent>

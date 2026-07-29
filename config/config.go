@@ -342,6 +342,12 @@ type LLMConfig struct {
 	// the value is a JSON string that will be merged into the request body.
 	BodyAdditions map[string]string `json:"body_additions"`
 
+	// XMLToolWrapperTag: the XML tag used to wrap tool calls in XML mode.
+	// Only content inside <XMLToolWrapperTag>...</XMLToolWrapperTag> will be
+	// parsed as tool calls. All other XML content is treated as plain text.
+	// Default: "cs_tool_calls"
+	XMLToolWrapperTag string `json:"xml_tool_wrapper_tag"`
+
 	// ContextPolicy: controls how the context start position is managed.
 	// "window" = fixed window: context is the last N messages (N = context_limit)
 	// "task" = task mode: context start pointer follows task boundaries automatically
@@ -837,6 +843,7 @@ func DefaultConfig() *Config {
 			BrowserEnabled:             true,
 			BrowserPort:                9222,
 			BrowserHeadless:            false,
+			XMLToolWrapperTag:          "cs_tool_calls",
 		},
 
 		DB: DefaultDBConfig(),

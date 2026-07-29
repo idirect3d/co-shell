@@ -9,7 +9,7 @@ import (
 )
 
 func TestParseXMLToolCalls_CommandWithSpecialChars(t *testing.T) {
-	xmlInput := "<execute_command>\n<command>cd /Users/direct3d/agent/researcher/research/浏览器自动化与模拟人操作技术调研 && curl -s \"https://html.duckduckgo.com/html/?q=browser+automation+framework+Selenium+Playwright+Puppeteer+comparison+2025\" | grep -oP 'class=\"result__snippet\"[^>]*>[^<]*' | head -20\n</command>\n<timeout_seconds>\n30\n</timeout_seconds>\n</execute_command>"
+	xmlInput := "<cs_tool_calls>\n<execute_command>\n<command>cd /Users/direct3d/agent/researcher/research/浏览器自动化与模拟人操作技术调研 && curl -s \"https://html.duckduckgo.com/html/?q=browser+automation+framework+Selenium+Playwright+Puppeteer+comparison+2025\" | grep -oP 'class=\"result__snippet\"[^>]*>[^<]*' | head -20</command>\n<timeout_seconds>30</timeout_seconds>\n</execute_command>\n</cs_tool_calls>"
 
 	calls := ParseXMLToolCalls(xmlInput)
 	if len(calls) != 1 {
@@ -267,9 +267,20 @@ func TestParseXMLToolCalls_InvalidTagNameWithSpace(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ToolTagWithSpace(t *testing.T) {
+	tools := []llm.Tool{
+		{
+			Name: "execute_command",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{"type": "string"},
+				},
+			},
+		},
+	}
 	xmlInput := "<execute_command timeout=30>\n<command>ls -la</command>\n</execute_command>"
 
-	calls := ParseXMLToolCalls(xmlInput)
+	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
 	if len(calls) != 1 {
 		t.Fatalf("expected 1 tool call (error), got %d", len(calls))
 	}
@@ -300,9 +311,20 @@ func TestParseXMLToolCalls_ToolTagWithSpace(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ToolTagWithEquals(t *testing.T) {
+	tools := []llm.Tool{
+		{
+			Name: "execute_command",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{"type": "string"},
+				},
+			},
+		},
+	}
 	xmlInput := "<execute_command=xxx>\n<command>ls -la</command>\n</execute_command=xxx>"
 
-	calls := ParseXMLToolCalls(xmlInput)
+	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
 	if len(calls) != 1 {
 		t.Fatalf("expected 1 tool call (error), got %d", len(calls))
 	}
