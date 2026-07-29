@@ -86,63 +86,56 @@ The specific tool names, parameters, and usage are defined by the API's tools pa
 TOOL USE
 
 # Tool Use Formatting
-Tool calls must be wrapped in a <{XML_TAG_PREFIX}tool_calls> XML tag block. All tool calls must be placed inside <{XML_TAG_PREFIX}tool_calls>...</{XML_TAG_PREFIX}tool_calls> — only content wrapped in this outer tag will be parsed as tool calls. XML content outside the wrapper is not treated as tool calls.
 
-Inside the <{XML_TAG_PREFIX}tool_calls> block, the tool name is used directly as the XML tag name, and each parameter becomes a child tag.
+Tool calls use a tag prefix format. All tool tags and parameter tags must include the configured prefix (default {XML_TAG_PREFIX}).
 
 For example, calling read_file:
 
-<{XML_TAG_PREFIX}tool_calls>
-<read_file>
-  <intent>Need to examine the contents of src/main.js</intent>
-  <path>src/main.js</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
-</{XML_TAG_PREFIX}tool_calls>
+<{XML_TAG_PREFIX}read_file>
+  <{XML_TAG_PREFIX}intent>Need to examine the contents of src/main.js</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>src/main.js</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}start_line>1</{XML_TAG_PREFIX}start_line>
+  <{XML_TAG_PREFIX}end_line>50</{XML_TAG_PREFIX}end_line>
+</{XML_TAG_PREFIX}read_file>
 
-Always adhere to this format for tool use to ensure proper parsing and execution.
+Always adhere to this format — every tag must include the prefix — to ensure proper parsing and execution.
 
-If you need to call multiple tools in a single response, place multiple tool tags inside one <{XML_TAG_PREFIX}tool_calls> block:
+If you need to call multiple tools in a single response, simply list multiple prefixed tool tags:
 
-<{XML_TAG_PREFIX}tool_calls>
-<search_files>
-  <intent>Need to search for the main function definition in the agent package</intent>
-  <path>agent</path>
-  <regex>func main</regex>
-  <file_pattern>*.go</file_pattern>
-</search_files>
+<{XML_TAG_PREFIX}search_files>
+  <{XML_TAG_PREFIX}intent>Need to search for the main function definition in the agent package</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>agent</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}regex>func main</{XML_TAG_PREFIX}regex>
+  <{XML_TAG_PREFIX}file_pattern>*.go</{XML_TAG_PREFIX}file_pattern>
+</{XML_TAG_PREFIX}search_files>
 
-<read_file>
-  <intent>Need to examine the beginning of main.go</intent>
-  <path>main.go</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
-</{XML_TAG_PREFIX}tool_calls>
+<{XML_TAG_PREFIX}read_file>
+  <{XML_TAG_PREFIX}intent>Need to examine the beginning of main.go</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>main.go</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}start_line>1</{XML_TAG_PREFIX}start_line>
+  <{XML_TAG_PREFIX}end_line>50</{XML_TAG_PREFIX}end_line>
+</{XML_TAG_PREFIX}read_file>
 
-For array-type parameters, use <item> tags to represent each element in the array:
+For array-type parameters, use <{XML_TAG_PREFIX}item> tags to represent each element in the array:
 
-<{XML_TAG_PREFIX}tool_calls>
-<track_task_progress>
-  <title>Implement user login</title>
-  <description>Implement user login with frontend, backend, API, session management</description>
-  <steps>
-    <item>
-      <description>Design database user table schema</description>
-      <status>[X]</status>
-    </item>
-    <item>
-      <description>Implement login API endpoint</description>
-      <status>[=]</status>
-    </item>
-    <item>
-      <description>Create frontend login page</description>
-      <status>[ ]</status>
-    </item>
-  </steps>
-</track_task_progress>
-</{XML_TAG_PREFIX}tool_calls>
+<{XML_TAG_PREFIX}track_task_progress>
+  <{XML_TAG_PREFIX}title>Implement user login</{XML_TAG_PREFIX}title>
+  <{XML_TAG_PREFIX}description>Implement user login with frontend, backend, API, session management</{XML_TAG_PREFIX}description>
+  <{XML_TAG_PREFIX}steps>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>Design database user table schema</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[X]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>Implement login API endpoint</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[=]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>Create frontend login page</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[ ]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}steps>
+</{XML_TAG_PREFIX}track_task_progress>
 `
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.

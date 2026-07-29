@@ -824,6 +824,8 @@ func (a *Agent) EnsureShellSession() {
 
 func (a *Agent) SetConfig(cfg *config.Config) {
 	a.cfg = cfg
+	// FEATURE-297: Sync the XML tag prefix from config
+	SetXMLTagPrefix(cfg.LLM.XMLTagPrefix)
 	a.rebuildSystemPrompt()
 	// Configure Excel session manager with max sessions
 	if a.excelSessionMgr != nil {

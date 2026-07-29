@@ -109,63 +109,56 @@ TOOL USE
 TOOL USE
 
 # Tool Use Formatting
-工具调用必须使用 <{XML_TAG_PREFIX}tool_calls> XML 包裹标签格式。所有工具调用必须放在 <{XML_TAG_PREFIX}tool_calls>...</{XML_TAG_PREFIX}tool_calls> 标签块内，只有被这个外层标签包裹的内容才会被解析为工具调用。外层标签外的 XML 内容不会被当做工具调用。
 
-每次调用时，在 <{XML_TAG_PREFIX}tool_calls> 块内，工具名称直接作为 XML 标签名，参数作为该标签的子标签。
+工具调用使用标签前缀格式。所有工具标签和参数标签必须带配置的前缀（默认 {XML_TAG_PREFIX}）。
 
 例如，调用 read_file 工具：
 
-<{XML_TAG_PREFIX}tool_calls>
-  <read_file>
-    <intent>需要查看 src/main.js 文件的内容</intent>
-    <path>src/main.js</path>
-    <start_line>1</start_line>
-    <end_line>50</end_line>
-  </read_file>
-</{XML_TAG_PREFIX}tool_calls>
+<{XML_TAG_PREFIX}read_file>
+  <{XML_TAG_PREFIX}intent>需要查看 src/main.js 文件的内容</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>src/main.js</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}start_line>1</{XML_TAG_PREFIX}start_line>
+  <{XML_TAG_PREFIX}end_line>50</{XML_TAG_PREFIX}end_line>
+</{XML_TAG_PREFIX}read_file>
 
-始终严格遵循此格式，以确保工具调用能被正确解析和执行。
+始终严格遵循此格式，每个标签都必须包含前缀，以确保工具调用能被正确解析和执行。
 
-如果需要在一次回复中调用多个工具，将多个工具标签放在同一个 <{XML_TAG_PREFIX}tool_calls> 块内：
+如果需要在一次回复中调用多个工具，直接列出多个带前缀的工具标签：
 
-<{XML_TAG_PREFIX}tool_calls>
-  <search_files>
-    <intent>需要搜索 agent 包中定义 main 函数的位置</intent>
-    <path>agent</path>
-    <regex>func main</regex>
-    <file_pattern>*.go</file_pattern>
-  </search_files>
+<{XML_TAG_PREFIX}search_files>
+  <{XML_TAG_PREFIX}intent>需要搜索 agent 包中定义 main 函数的位置</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>agent</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}regex>func main</{XML_TAG_PREFIX}regex>
+  <{XML_TAG_PREFIX}file_pattern>*.go</{XML_TAG_PREFIX}file_pattern>
+</{XML_TAG_PREFIX}search_files>
 
-  <read_file>
-    <intent>需要查看 main.go 文件的开头部分</intent>
-    <path>main.go</path>
-    <start_line>1</start_line>
-    <end_line>50</end_line>
-  </read_file>
-</{XML_TAG_PREFIX}tool_calls>
+<{XML_TAG_PREFIX}read_file>
+  <{XML_TAG_PREFIX}intent>需要查看 main.go 文件的开头部分</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}path>main.go</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}start_line>1</{XML_TAG_PREFIX}start_line>
+  <{XML_TAG_PREFIX}end_line>50</{XML_TAG_PREFIX}end_line>
+</{XML_TAG_PREFIX}read_file>
 
-对于包含数组类型的参数，使用 <item> 标签表示数组中的每个元素：
+对于包含数组类型的参数，使用 <{XML_TAG_PREFIX}item> 标签表示数组中的每个元素：
 
-<{XML_TAG_PREFIX}tool_calls>
-  <track_task_progress>
-    <title>实现用户登录</title>
-    <description>实现用户登录功能，包括前后端、API、会话管理</description>
-    <steps>
-      <item>
-        <description>设计数据库用户表结构</description>
-        <status>[X]</status>
-      </item>
-      <item>
-        <description>实现登录 API 接口</description>
-        <status>[=]</status>
-      </item>
-      <item>
-        <description>编写前端登录页面</description>
-        <status>[ ]</status>
-      </item>
-    </steps>
-  </track_task_progress>
-</{XML_TAG_PREFIX}tool_calls>
+<{XML_TAG_PREFIX}track_task_progress>
+  <{XML_TAG_PREFIX}title>实现用户登录</{XML_TAG_PREFIX}title>
+  <{XML_TAG_PREFIX}description>实现用户登录功能，包括前后端、API、会话管理</{XML_TAG_PREFIX}description>
+  <{XML_TAG_PREFIX}steps>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>设计数据库用户表结构</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[X]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>实现登录 API 接口</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[=]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}description>编写前端登录页面</{XML_TAG_PREFIX}description>
+      <{XML_TAG_PREFIX}status>[ ]</{XML_TAG_PREFIX}status>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}steps>
+</{XML_TAG_PREFIX}track_task_progress>
 `
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
