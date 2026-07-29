@@ -699,11 +699,11 @@ func (r *REPL) streamCallback(eventType string, content string) {
 		out(content)
 		out("\n")
 	case "token_iter":
-		outF("\n────────────────────────────────────────────────────────────────────────────────\n")
 		var prompt, completion, total, maxLen int
 		var ft, inTPS, outTPS string
 		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-			&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil {
+			&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil && total > 0 {
+			outF("\n────────────────────────────────────────────────────────────────────────────────\n")
 			pct := 0.0
 			if maxLen > 0 && total > 0 {
 				pct = float64(total) * 100.0 / float64(maxLen)
@@ -713,15 +713,15 @@ func (r *REPL) streamCallback(eventType string, content string) {
 			}
 			out(fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
 			out("\n")
+			outF("────────────────────────────────────────────────────────────────────────────────\n")
 		}
-		outF("────────────────────────────────────────────────────────────────────────────────\n")
 	case "token_task":
-		outF("\n────────────────────────────────────────────────────────────────────────────────\n")
 		var prompt, completion, total int
-		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d", &prompt, &completion, &total); err == nil {
+		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d", &prompt, &completion, &total); err == nil && total > 0 {
+			outF("\n────────────────────────────────────────────────────────────────────────────────\n")
 			out(fmt.Sprintf("本次任务 Token 总计: 输入=%d, 输出=%d, 总计=%d\n", prompt, completion, total))
+			outF("────────────────────────────────────────────────────────────────────────────────\n")
 		}
-		outF("────────────────────────────────────────────────────────────────────────────────\n")
 	case "info":
 		out(content)
 	case "warning":

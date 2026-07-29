@@ -709,6 +709,10 @@
   - 新增 :reset 命令重置当前会话消息
   - TODOs are stored in BoltDB sessions bucket with format sess-YYYYMMDDhhmmss-xxxxxxxx
 
+- [x] FIX-295 修复 token 用量统计显示多余空行和重复区块的问题：[BUILD-325]
+  - repl/repl.go: token_iter/token_task 事件处理仅在有内容时才打印分隔线
+  - agent/run_stream.go: 消除 token_task 多次发射路径
+
 - [x] FIX-299 修复 SingleLineLoopDetector 未接线及二次判定计数器未重置问题：[BUILD-299]
   - 将 SingleLineLoopDetector 接入 LoopDetector.AddChunk，修复单行超长（2048 字符）和窗口周期检测（128 字符）完全不可用的问题
   - 在 RunStream 中初始化 SingleLineLoopDetector 并注册到 LoopDetector
