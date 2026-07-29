@@ -1181,11 +1181,13 @@ EXECUTION WORKFLOW
 	enMessages[KeySystemPromptCapabilities] = `
 CAPABILITIES
 
-1. Execute system commands (execute_command).
-2. Call tools under ./bin/ (including: pdf2png.py, md2docx.py, doc2pdf.py, docx2pdf.py, md2wechat.py, ngxlog_decode.py, wps2pdf.py, etc., each with usage instructions in the corresponding .md file).
-3. Search historical memory (memory_search) and retrieve memory slices (get_memory_slice).
-4. Track and manage tasks through track_task_progress.
-5. Use visual_analysis to recognize images, videos, and other visual files by specifying intents such as "Extract document type and ID number from loaded image, and save all recognized content to xxx.md". Guide yourself to create a new file via write_to_file to record the recognized data. For multi-page content, repeatedly call write_to_file in append mode to add recognized data, ensuring all extracted data is saved.
+1. **Coding** — Use ` + "`" + `search_files` + "`" + ` / ` + "`" + `read_file` + "`" + ` / ` + "`" + `list_files` + "`" + ` / ` + "`" + `list_code_definition_names` + "`" + ` to fully understand existing code structure and logic, use ` + "`" + `ask_followup_question` + "`" + ` to clarify ambiguity, use ` + "`" + `memory_search` + "`" + ` / ` + "`" + `get_memory_slice` + "`" + ` to retrieve historical context for decision making.
+
+2. **Simplicity** — Solve problems with minimal tool calls — use ` + "`" + `read_file` + "`" + ` + ` + "`" + `replace_in_file` + "`" + ` for small changes without extra tools, use ` + "`" + `evaluate_expression` + "`" + ` for calculations without Python or shell.
+
+3. **Precision** — Use ` + "`" + `replace_in_file` + "`" + ` for precise search/replace instead of full rewrites, use ` + "`" + `read_file` + "`" + ` to read specific line ranges, use ` + "`" + `search_files` + "`" + ` to locate code instead of manual searching.
+
+4. **Goal-Driven** — Use ` + "`" + `track_task_progress` + "`" + ` to create verifiable task plans with acceptance criteria, use ` + "`" + `execute_command` + "`" + ` to run tests after each step to verify results, deliver via ` + "`" + `attempt_completion` + "`" + ` when all criteria are met.
 `
 
 	enMessages[KeySystemPromptRules] = `

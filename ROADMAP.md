@@ -822,7 +822,11 @@
 
 - [x] FEATURE-292 移除 `<task>` 标签包裹策略：`<task>` 标签人为扭曲 LLM 注意力优先级，导致 LLM 只关注 `<task>` 中的内容而忽略同一 user message 中其他的进展展示。改为纯文本/无标签方式传递用户指令和补充输入。[BUILD-321]
 
-- [ ] FEATURE-293 no-tool-action 默认值改为 exit：将 NoToolAction 的默认值从 "retry" 改为 "exit"，使 LLM 在 0 个工具调用时默认退出迭代循环而非重试，减少无意义循环。
+- [ ] FEATURE-293 no-tool-action 增强：增强 XML 工具调用识别，在 LLM 意图调用工具但格式错误时不走 no-tool-action（exit），而是走 parse-error-action（retry/prompt）。
+  - [x] 将 NoToolAction 的默认值从 "retry" 改为 "exit"
+  - [ ] 阶段1：尾标签反向匹配 — 头标签不认识但尾标签是已知工具名时，产生 parse error
+  - [ ] 阶段2：参数签名检测 — 头尾都不认识但内部参数标签 ≥1 个匹配已知参数名时，产生 parse error
+  - [ ] hasToolAttempt 信号传递 — streamLLMResponse 返回额外布尔值，RunStream 根据该值分流到 parse-error-action
 
 ## v1.0.0 — 正式版
 

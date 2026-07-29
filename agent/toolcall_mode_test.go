@@ -692,3 +692,108 @@ func TestParseXMLToolCalls_ItemMissingCloseTag(t *testing.T) {
 		t.Errorf("expected tag 'replace_in_file', got %q", tagStr)
 	}
 }
+
+// TestParseXMLToolCallsWithTools_Stage1_TailTagReverseMatch verifies that when the opening
+// tag is misspelled but the closing tag matches a known tool name, an _xml_parse_error
+// is produced (FEATURE-293 stage 1).
+func TestParseXMLToolCallsWithTools_Stage1_TailTagReverseMatch(t *testing.T) {
+	tools := []llm.Tool{
+		{
+			Name: "read_file",
+			Parameters: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"path":   map[string]interface{}{"type": "string"},
+					"intent": map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"intent", "path"},
+			},
+		},
+	}
+	// Head tag "reed_file" is unknown, but tail tag "read_file" is known
+	xmlInput := "<reed_file>\n  <path>/tmp/test.txt</path>\n  <intent>read file</intent>\n</read_file>"
+
+	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 _xml_parse_error call (stage1), got %d", len(calls))
+	}
+	if calls[0].Name != "_xml_parse_error" {
+		t.Errorf("expected tool name '_xml_parse_error', got %q", calls[0].Name)
+	}
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(calls[0].Arguments), &args); err != nil {
+		t.Fatalf("failed to parse arguments JSON: %v", err)
+	}
+	errMsg, _ := args["error"].(string)
+	if !strings.Contains(errMsg, "read_file") {
+		t.Errorf("error message should mention 'read_file', got: %s", errMsg)
+	}
+	tag, _ := args["tag"].(string)
+	if tag != "reed_file" {
+		t.Errorf("expected tag 'reed_file', got %q", tag)
+	}
+}
+
+// TestParseXMLToolCallsWithTools_Stage2_ParamSignature verifies that when both head and tail
+// tags are unknown but inner parameter tags match known parameters, an _xml_parse_error
+// is produced (FEATURE-293 stage 2).
+func TestParseXMLToolCallsWithTools_Stage2_ParamSignature(t *testing.T) {
+	tools := []llm.Tool{
+		{
+			Name: "read_file",
+			Parameters: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"path":   map[string]interface{}{"type": "string"},
+					"intent": map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"intent", "path"},
+			},
+		},
+	}
+	// Neither head nor tail match any known tool name, but 'path' is a known parameter.
+	// Both open and close use the same unknown name 'reed_file'.
+	xmlInput := "<reed_file>\n  <path>/tmp/test.txt</path>\n</reed_file>"
+
+	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 _xml_parse_error call (stage2), got %d", len(calls))
+	}
+	if calls[0].Name != "_xml_parse_error" {
+		t.Errorf("expected tool name '_xml_parse_error', got %q", calls[0].Name)
+	}
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(calls[0].Arguments), &args); err != nil {
+		t.Fatalf("failed to parse arguments JSON: %v", err)
+	}
+	errMsg, _ := args["error"].(string)
+	if !strings.Contains(errMsg, "path") {
+		t.Errorf("error message should mention 'path', got: %s", errMsg)
+	}
+	tag, _ := args["tag"].(string)
+	if tag != "reed_file" {
+		t.Errorf("expected tag 'reed_file', got %q", tag)
+	}
+}
+
+// TestParseXMLToolCallsWithTools_HTMLNotMisdetectedAsToolCall verifies that common HTML
+// tags (<div>, <p>) with no known parameter names do NOT trigger stage 2 detection.
+func TestParseXMLToolCallsWithTools_HTMLNotMisdetectedAsToolCall(t *testing.T) {
+	tools := []llm.Tool{
+		{
+			Name: "read_file",
+			Parameters: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"path":   map[string]interface{}{"type": "string"},
+					"intent": map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"intent", "path"},
+			},
+		},
+	}
+	// <div> is not a known tool, <p> is not a known parameter — should produce 0 calls
+	xmlInput := "<div>\n  <p>hello world</p>\n</div>"
+
+	calls := ParseXMLToolCallsWithTools(xmlInput, tools)
+	if len(calls) != 0 {
+		t.Fatalf("expected 0 tool calls (HTML should not be detected), got %d", len(calls))
+	}
+}
