@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
@@ -316,6 +317,24 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		default:
 			return "", fmt.Errorf("无效的工具调用模式: %s（可选值: openai, xml）", mode)
 		}
+
+	case "xml-tag-prefix":
+		if len(args) < 2 {
+			prefix := h.cfg.LLM.XMLTagPrefix
+			if prefix == "" {
+				prefix = "cs:"
+			}
+			return fmt.Sprintf("XML 标签前缀: %s", prefix), nil
+		}
+		newPrefix := args[1]
+		h.cfg.LLM.XMLTagPrefix = newPrefix
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		agent.SetXMLTagPrefix(newPrefix)
+		h.agent.SetToolCallMode(h.cfg.LLM.ToolCallMode) // trigger rebuild with new prefix
+		log.Info("XML tag prefix set to %s", newPrefix)
+		return fmt.Sprintf("✅ XML 标签前缀已设置为: %s", newPrefix), nil
 
 	default:
 		return "", fmt.Errorf("unknown LLM setting: %s", subcommand)

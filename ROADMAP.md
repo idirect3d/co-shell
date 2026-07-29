@@ -856,11 +856,11 @@
   - [x] 更新测试
 
 - [x] **FEATURE-297 XML 工具调用标签添加可配置前缀**：[BUILD-332]
-  - [ ] 去掉 `<cs_tool_calls>` 外框，工具标签和参数标签均使用可配置前缀（默认 `cs`）
-  - [ ] 新增 `xml-tag-prefix` 配置项（config.json + CLI + REPL）
-  - [ ] 更新 ParseXMLToolCallsWithTools 解析逻辑
-  - [ ] 更新 i18n 中英文系统提示词示例
-  - [ ] 更新测试
+  - 去掉 `<cs_tool_calls>` 外框，工具标签和参数标签均使用可配置前缀（默认 `cs:`）
+  - 新增 `xml-tag-prefix` 配置项（config.json + CLI + REPL）
+  - 更新 ParseXMLToolCallsWithTools 解析逻辑 — 只识别带前缀标签，无前缀标签完全跳过
+  - 更新 i18n 中英文系统提示词示例 — 使用 `{XML_TAG_PREFIX}` 占位符
+  - 更新测试 + 新增 `bin/check_xml_prefix.py` 验证工具
 
   
 ## v1.0.0 — 正式版
