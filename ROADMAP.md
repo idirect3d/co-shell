@@ -828,6 +828,15 @@
   - [ ] 阶段2：参数签名检测 — 头尾都不认识但内部参数标签 ≥1 个匹配已知参数名时，产生 parse error
   - [ ] hasToolAttempt 信号传递 — streamLLMResponse 返回额外布尔值，RunStream 根据该值分流到 parse-error-action
 
+- [x] **FEATURE-294 系统提示词优化**：[BUILD-323]
+  - [x] attempt_completion OpenAI 模式 Description 补齐 `session_title`/`session_keywords` 说明
+  - [x] 解决 `.clinerules/问题解决策略.md` 中"外科手术式改动"与"简单优先"的逻辑矛盾（冲突时简单优先优先）
+  - [x] XML 解析新增 `stripQuotedXMLContent()` — 忽略引号包裹的 XML 标签
+  - [x] XML 解析新增 `stripThinkBlock()` — 剥离 `</think>` 前内容
+  - [x] 将 `KeyAgentDefaultDescription{Act,Plan,Research}` 从 `zh.go`/`en.go` 迁移到 `*_system.go`
+  - [x] 重构图 `zh_system.go`/`en_system.go` 头部：4 条原则嵌入 Identity，WorkMode 清空
+  - [x] `exit_strategy` 提示要求改为纯前瞻性指导意见（不回溯、不评价、指明下一步）
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

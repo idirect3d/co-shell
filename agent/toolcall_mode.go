@@ -416,6 +416,17 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 	// as real tool calls (FIX-291).
 	content = stripCodeBlockXML(content)
 
+	// Strip quoted XML content (single/double-quoted, backtick-quoted) before
+	// parsing. This prevents quoted XML examples from being parsed as real tool
+	// calls (FEATURE-294).
+	content = stripQuotedXMLContent(content)
+
+	// Strip think/reasoning blocks (content before </think>) before parsing.
+	// LLMs often output thinking content before tool calls, and this content
+	// may contain "<" characters that interfere with XML parsing or waste
+	// processing time. Same logic as judgeLoop in loop.go:792.
+	content = stripThinkBlock(content)
+
 	// Use a simple state machine to find top-level XML elements.
 	// A top-level element is one that is not nested inside another element.
 	remaining := content
@@ -1162,6 +1173,47 @@ func stripCodeBlockXML(content string) string {
 	}
 
 	return result.String()
+}
+
+// stripQuotedXMLContent removes content wrapped in single quotes, double quotes,
+// or backtick quotes that contains XML-like tags. This prevents quoted XML
+// examples from being parsed as real tool calls (FEATURE-294).
+func stripQuotedXMLContent(content string) string {
+	var result strings.Builder
+	result.Grow(len(content))
+
+	i := 0
+	for i < len(content) {
+		ch := content[i]
+		if (ch == '\'' || ch == '"' || ch == '`') && (i == 0 || content[i-1] == ' ' || content[i-1] == '\n' || content[i-1] == '\t' || content[i-1] == '(' || content[i-1] == '=') {
+			if i+1 < len(content) && content[i+1] == '<' {
+				closeIdx := -1
+				for j := i + 1; j < len(content); j++ {
+					if content[j] == ch {
+						if j+1 >= len(content) || content[j+1] == ' ' || content[j+1] == '\n' || content[j+1] == '\t' || content[j+1] == ')' || content[j+1] == ',' || content[j+1] == '.' || content[j+1] == '!' || content[j+1] == '?' || content[j+1] == ';' || content[j+1] == ':' {
+							closeIdx = j
+							break
+						}
+					}
+				}
+				if closeIdx > i {
+					i = closeIdx + 1
+					continue
+				}
+			}
+		}
+		result.WriteByte(content[i])
+		i++
+	}
+	return result.String()
+}
+
+// stripThinkBlock removes content before the last </think> tag from the content.
+func stripThinkBlock(content string) string {
+	if thinkEnd := strings.LastIndex(content, "</think>"); thinkEnd >= 0 {
+		return strings.TrimSpace(content[thinkEnd+len("</think>"):])
+	}
+	return content
 }
 
 // stripREPLMaskMarkers removes REPL input masking markers from content.
