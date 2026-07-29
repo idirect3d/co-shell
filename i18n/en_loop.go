@@ -36,7 +36,11 @@ func init() {
 Return the result in JSON format **directly** (do not include any other content). Ensure the JSON is valid:
 - is_loop must be true or false (boolean type, never the string "true"/"false")
 - reason is shown to the user to explain why a loop was determined (not passed to LLM)
-- exit_strategy provides actionable advice for the LLM, e.g.: "Don't use XXX method, try YYY instead." Note: this is given to the LLM **without** telling it about the loop. The response is discarded, so provide direct next-step instructions.
+- exit_strategy will be sent to the LLM as the next instruction **without** the detected problematic content. It MUST be purely **forward-looking guidance**. Key principles:
+  (1) **No backtracking**: Don't say "you just", "stop repeating", "avoid the loop" — the detected content is discarded, the LLM cannot see it
+  (2) **No status evaluation**: Don't write "current approach is failing", "lack of progress" etc.
+  (3) **Give concrete next steps**: Specify which tool to use, which file to operate on, what alternative to try, or to ask the user
+  (4) **If goal is achieved**: Write "call attempt_completion to finish"
 
 Example (loop confirmed):
 {"is_loop": true, "reason": "Output identical content 5 consecutive times, no progress", "exit_strategy": "Do not use sed/cat commands to modify scripts or rebuild files. Use replace_in_file for all file modifications."}
