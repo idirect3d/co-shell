@@ -116,52 +116,56 @@ TOOL USE
 例如，调用 read_file 工具：
 
 <cs_tool_calls>
-<read_file>
-  <intent>需要查看 src/main.js 文件的内容</intent>
-  <path>src/main.js</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
+  <read_file>
+    <intent>需要查看 src/main.js 文件的内容</intent>
+    <path>src/main.js</path>
+    <start_line>1</start_line>
+    <end_line>50</end_line>
+  </read_file>
 </cs_tool_calls>
 
 始终严格遵循此格式，以确保工具调用能被正确解析和执行。
 
 如果需要在一次回复中调用多个工具，将多个工具标签放在同一个 <cs_tool_calls> 块内：
 
-<search_files>
-  <intent>需要搜索 agent 包中定义 main 函数的位置</intent>
-  <path>agent</path>
-  <regex>func main</regex>
-  <file_pattern>*.go</file_pattern>
-</search_files>
+<cs_tool_calls>
+  <search_files>
+    <intent>需要搜索 agent 包中定义 main 函数的位置</intent>
+    <path>agent</path>
+    <regex>func main</regex>
+    <file_pattern>*.go</file_pattern>
+  </search_files>
 
-<read_file>
-  <intent>需要查看 main.go 文件的开头部分</intent>
-  <path>main.go</path>
-  <start_line>1</start_line>
-  <end_line>50</end_line>
-</read_file>
+  <read_file>
+    <intent>需要查看 main.go 文件的开头部分</intent>
+    <path>main.go</path>
+    <start_line>1</start_line>
+    <end_line>50</end_line>
+  </read_file>
+</cs_tool_calls>
 
 对于包含数组类型的参数，使用 <item> 标签表示数组中的每个元素：
 
-<track_task_progress>
-  <title>实现用户登录</title>
-  <description>实现用户登录功能，包括前后端、API、会话管理</description>
-  <steps>
-    <item>
-      <description>设计数据库用户表结构</description>
-      <status>[X]</status>
-    </item>
-    <item>
-      <description>实现登录 API 接口</description>
-      <status>[=]</status>
-    </item>
-    <item>
-      <description>编写前端登录页面</description>
-      <status>[ ]</status>
-    </item>
-  </steps>
-</track_task_progress>
+<cs_tool_calls>
+  <track_task_progress>
+    <title>实现用户登录</title>
+    <description>实现用户登录功能，包括前后端、API、会话管理</description>
+    <steps>
+      <item>
+        <description>设计数据库用户表结构</description>
+        <status>[X]</status>
+      </item>
+      <item>
+        <description>实现登录 API 接口</description>
+        <status>[=]</status>
+      </item>
+      <item>
+        <description>编写前端登录页面</description>
+        <status>[ ]</status>
+      </item>
+    </steps>
+  </track_task_progress>
+</cs_tool_calls>
 `
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
