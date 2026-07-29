@@ -175,7 +175,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			switch event.Type {
 			case llm.StreamEventContent:
 				contentBuilder.WriteString(event.Content)
-				cb("content_chunk", event.Content)
+				if a.showLlmContent {
+					cb("content_chunk", event.Content)
+				}
 
 				// FIX-179: Check for loop patterns in LLM output.
 				// Skip detection if judge already said "not a loop" in this stream call.
@@ -258,6 +260,18 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				if event.ToolCall != nil {
 					log.Debug("Agent.streamLLMResponse: toolCall name=%q, id=%q, args=%q",
 						event.ToolCall.Name, event.ToolCall.ID, event.ToolCall.Arguments)
+
+					// Stream tool call name and arguments in real-time when showTool is enabled
+					if a.showTool {
+						tcName := event.ToolCall.Name
+						tcArgs := event.ToolCall.Arguments
+						if a.showToolInput && tcArgs != "" {
+							cb("content_chunk", fmt.Sprintf("[🔧 %s(%s)]", tcName, tcArgs))
+						} else if tcName != "" {
+							cb("content_chunk", fmt.Sprintf("[🔧 %s]", tcName))
+						}
+					}
+
 					if isValidToolCall(*event.ToolCall) {
 						toolCalls = append(toolCalls, *event.ToolCall)
 						log.Debug("Agent.streamLLMResponse: valid tool call added, total toolCalls=%d", len(toolCalls))
