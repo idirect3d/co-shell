@@ -754,7 +754,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					} else {
 						// Truly cannot find any close tag. Return an error tool call
 						// with detailed position info so the LLM can fix it.
-						errMsg := fmt.Sprintf("XML解析错误：找不到 <%s> 的闭合标签 </%s>。位置：从第 %d 字符开始。可能原因：内容中包含未转义的特殊字符（如 <、>、&），请使用 <![CDATA[...]]> 包裹包含特殊字符的内容。",
+						errMsg := fmt.Sprintf("XML解析错误：找不到 <%s> 的闭合标签 </%s>。位置：从第 %d 字符开始。可能原因：内容中包含的特殊字符（如 <、>）干扰了标签匹配。由于使用了标签前缀，请直接写入原始内容，不要使用 < 或 > 等转义。",
 							tagName, tagName, ltIdx)
 						log.Debug("ParseXMLToolCalls: %s", errMsg)
 						calls = append(calls, llm.ToolCall{
@@ -836,7 +836,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 				errMsg := fmt.Sprintf(
 					"XML参数解析错误：调用 <%s> 时发现以下参数格式问题：\n%s\n\n"+
 						"请检查你的调用格式，确保每个参数标签名正确、闭合标签匹配。\n"+
-						"如果参数值包含特殊字符（如 <、>、&），请使用 <![CDATA[...]]> 包裹。\n"+
+						"由于使用了标签前缀，内容中的 <、> 等字符不会与工具标签冲突，请直接写入原始内容，不要使用 < 或 > 等转义。\n"+
 						"参考格式：\n%s",
 					tagName, errDetail, refFormat)
 				log.Debug("ParseXMLToolCalls: parameter parse errors for <%s>: %s", tagName, errDetail)
