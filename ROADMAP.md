@@ -849,12 +849,11 @@
   - [x] 修复 OpenAI 模式 content_chunk 受 showLlmContent 控制，StreamEventToolCall 新增实时工具调用输出 `[🔧 tool_name]` 由 showTool 控制
   - [x] 验证编译通过
 
-- [ ] **FEATURE-296 XML 工具调用外层包裹标签 `<cs_tool_calls>`**：[BUILD-327]
-  - [ ] 新增 XMLToolWrapperTag 配置字段（默认 cs_tool_calls），支持通过 config.json + CLI + REPL 配置
-  - [ ] ParseXMLToolCallsWithTools 先提取 wrapper 标签块再解析内部工具调用
-  - [ ] 移除不再需要的复杂判断逻辑（stripCodeBlockXML/stripQuotedXMLContent/stripThinkBlock/FEATURE-293 三级检测）
-  - [ ] 更新 i18n 中英文系统提示词示例
-  - [ ] 更新测试
+- [x] **FEATURE-296 XML 工具调用外层包裹标签 `<cs_tool_calls>`**：[BUILD-328]
+  - [x] 新增 XMLToolWrapperTag 配置字段（默认 cs_tool_calls），支持通过 config.json + CLI + REPL 配置
+  - [x] ParseXMLToolCallsWithTools 先提取 wrapper 标签块再解析内部工具调用
+  - [x] 更新 i18n 中英文系统提示词示例
+  - [x] 更新测试
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
