@@ -105,6 +105,7 @@ Always adhere to this format for tool use to ensure proper parsing and execution
 
 If you need to call multiple tools in a single response, place multiple tool tags inside one <cs_tool_calls> block:
 
+<cs_tool_calls>
 <search_files>
   <intent>Need to search for the main function definition in the agent package</intent>
   <path>agent</path>
@@ -118,9 +119,11 @@ If you need to call multiple tools in a single response, place multiple tool tag
   <start_line>1</start_line>
   <end_line>50</end_line>
 </read_file>
+</cs_tool_calls>
 
 For array-type parameters, use <item> tags to represent each element in the array:
 
+<cs_tool_calls>
 <track_task_progress>
   <title>Implement user login</title>
   <description>Implement user login with frontend, backend, API, session management</description>
@@ -139,6 +142,7 @@ For array-type parameters, use <item> tags to represent each element in the arra
     </item>
   </steps>
 </track_task_progress>
+</cs_tool_calls>
 `
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
