@@ -734,29 +734,29 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				return finalContent, nil
 			}
 
-			// Rule 1: attempt_completion was called — exit
-			// Send per-iteration token usage before completing (skip if "off" mode)
-			iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
-			maxModelLen := a.GetMaxModelLen()
-			timing := a.GetLLMTiming()
-			if iterTotal > 0 {
-				tokenUsageMode := "on"
-				if a.cfg != nil {
-					tokenUsageMode = a.cfg.LLM.TokenUsage
-				}
-				if tokenUsageMode != "off" {
-					cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-						iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
-				}
-			}
-
-			// Send task-level token usage before done
-			taskP, taskC, taskT := a.TaskTokenUsage()
-			if taskT > 0 {
-				cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
-			}
-
 			if a.completed {
+				// Rule 1: attempt_completion was called — exit
+				// Send per-iteration token usage before completing (skip if "off" mode)
+				iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
+				maxModelLen := a.GetMaxModelLen()
+				timing := a.GetLLMTiming()
+				if iterTotal > 0 {
+					tokenUsageMode := "on"
+					if a.cfg != nil {
+						tokenUsageMode = a.cfg.LLM.TokenUsage
+					}
+					if tokenUsageMode != "off" {
+						cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+							iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+					}
+				}
+
+				// Send task-level token usage before done
+				taskP, taskC, taskT := a.TaskTokenUsage()
+				if taskT > 0 {
+					cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+				}
+
 				cb("done", "")
 
 				a.mu.Lock()
