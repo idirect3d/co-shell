@@ -253,8 +253,6 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 // showSettingsHelp displays the current configuration grouped by category.
 func showSettingsHelp(cfg *config.Config) string {
 	var sb strings.Builder
-	sb.WriteString(i18n.T(i18n.KeySettingsHelpFooter) + "\n")
-	sb.WriteString("\n")
 	sb.WriteString(i18n.T(i18n.KeySettingsCurrentTitle) + "\n")
 
 	// Prepare all value strings first to calculate max width for alignment
@@ -660,7 +658,9 @@ func showSettingsHelp(cfg *config.Config) string {
 		}
 	}
 
-	// Append :set default hint
+	// Append footer and :set default hint
+	sb.WriteString("\n")
+	sb.WriteString(i18n.T(i18n.KeySettingsHelpFooter) + "\n")
 	sb.WriteString("\n")
 	sb.WriteString(i18n.T(i18n.KeySettingsSetDefaultHint) + "\n")
 
