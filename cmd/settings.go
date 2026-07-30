@@ -233,8 +233,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "llm-log":
 		return h.handleLLMInteractionLogSetting(subcommand, args)
 
-	// Default subcommand: reset to system defaults (preserving LLM, Memory, DB)
-	case subcommand == "default":
+	// Defaults subcommand: reset to system defaults (preserving LLM, Memory, DB)
+	case subcommand == "defaults":
 		return h.handleSetDefault()
 
 	// DB subcommand
@@ -362,9 +362,42 @@ func showSettingsHelp(cfg *config.Config) string {
 	}
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
 
-	// Look up the current work mode's description if available;
-	// otherwise fall back to global AgentDescription.
-	agentDescDisplay := lookupWorkModeDescription(cfg, cfg.LLM.WorkMode)
+	// Determine current mode name
+	modeName := cfg.LLM.WorkMode
+	if modeName == "" || modeName == "default" {
+		modeName = "act"
+	}
+
+	// Resolve mode-specific description (same priority as agent/agent.go)
+	modeDesc := ""
+	if cfg.LLM.ModeDescriptions != nil {
+		modeDesc = cfg.LLM.ModeDescriptions[modeName]
+	}
+	if modeDesc == "" {
+		modeDesc = cfg.LLM.AgentDescription
+	}
+	if modeDesc == "" {
+		switch modeName {
+		case "plan":
+			modeDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
+		case "research":
+			modeDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
+		default:
+			modeDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
+		}
+	}
+	if modeDesc == "" {
+		modeDesc = i18n.T(i18n.KeyAgentDefaultDescription)
+	}
+
+	// Resolve principles display (show full value)
+	principlesDisplay := cfg.LLM.AgentPrinciples
+	if principlesDisplay == "" {
+		principlesDisplay = i18n.T(i18n.KeyAgentDefaultPrinciples)
+	}
+	if principlesDisplay == "" {
+		principlesDisplay = "—"
+	}
 
 	// Collect lines by group
 	var allGroups [][]settingLine
@@ -372,16 +405,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	// Group 1: Identity & Personality
 	allGroups = append(allGroups, []settingLine{
 		makeLine("name", agentName, i18n.T(i18n.KeyCol3Name)),
-		makeLine("description", agentDescDisplay, i18n.T(i18n.KeyCol3Desc)),
-	})
-
-	modeName := cfg.LLM.WorkMode
-	if modeName == "" || modeName == "default" {
-		modeName = "act"
-	}
-	allGroups[0] = append(allGroups[0],
+		makeLine("description", modeDesc, i18n.T(i18n.KeyCol3Desc)),
+		makeLine("principles", principlesDisplay, i18n.T(i18n.KeyCol3Principles)),
 		makeLine("mode", modeName, i18n.T(i18n.KeyCol3WorkMode)),
-	)
+	})
 
 	// Group 2: Agent Settings
 	// Use cfg.Models directly for smart model selection display
@@ -763,6 +790,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.ToolCallEnabled = def.LLM.ToolCallEnabled
 	h.cfg.LLM.PlanEnabled = def.LLM.PlanEnabled
 	h.cfg.LLM.SubAgentEnabled = def.LLM.SubAgentEnabled
+	h.cfg.LLM.AgentPrinciples = ""
 
 	// Restore DB
 	h.cfg.DB = savedDB
@@ -780,6 +808,11 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	// Save config
 	if err := h.cfg.Save(); err != nil {
 		return "", fmt.Errorf("save config after reset: %w", err)
+	}
+
+	// Sync to agent so the reset takes effect immediately (rebuilds system prompt)
+	if h.agent != nil {
+		h.agent.SetConfig(h.cfg)
 	}
 
 	return i18n.T(i18n.KeySettingsResetSuccess), nil
