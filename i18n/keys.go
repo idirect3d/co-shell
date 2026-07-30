@@ -954,6 +954,9 @@ const (
 	KeyToolUsageExcelSheet    = "tool_usage_excel_sheet"
 	KeyToolUsageExcelFormat   = "tool_usage_excel_format"
 
+	// XML streaming validator (FEATURE-298)
+	KeyCol3XMLStreamValidate = "col3_xml_stream_validate"
+
 	// Session management (FEATURE-276)
 	KeySessionHelp              = "session_help"
 	KeySessionExport            = "session_export"

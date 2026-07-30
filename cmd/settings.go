@@ -161,7 +161,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "temperature", subcommand == "max-tokens", subcommand == "vision",
 		subcommand == "thinking-enabled", subcommand == "reasoning-effort",
 		subcommand == "toolcall-enabled", subcommand == "toolcall-mode",
-		subcommand == "xml-tag-prefix",
+		subcommand == "xml-tag-prefix", subcommand == "xml-stream-validate",
 		subcommand == "top-p", subcommand == "top-k",
 		subcommand == "repetition-penalty", subcommand == "max-model-len":
 		return h.handleLLMSetting(subcommand, args)
@@ -431,6 +431,12 @@ func showSettingsHelp(cfg *config.Config) string {
 		}
 	}
 
+	// XML stream validate status
+	xmlStreamValidateStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.XMLStreamValidate {
+		xmlStreamValidateStatus = i18n.T(i18n.KeyOn)
+	}
+
 	// Tool call mode
 	toolCallMode := cfg.LLM.ToolCallMode
 	if toolCallMode == "" {
@@ -476,6 +482,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
 		makeLine("toolcall-mode", toolCallMode, i18n.T(i18n.KeyCol3ToolCallMode)),
 		makeLine("xml-tag-prefix", cfg.LLM.XMLTagPrefix, "XML 标签前缀（如 cs:）"),
+		makeLine("xml-stream-validate", xmlStreamValidateStatus, "流式XML校验(开发者选项, 默认开启)"),
 		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
 		makeLine("default-vision-model", defaultVisionModelID, i18n.T(i18n.KeyCol3DefaultVisionModel)),
 		makeLine("default-problem-model", defaultProblemModelID, i18n.T(i18n.KeyCol3DefaultProblemModel)),

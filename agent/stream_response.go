@@ -92,7 +92,13 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	// Try streaming first
 	log.Debug("Agent.streamLLMResponse: calling ChatStream with %d context messages and %d tools",
 		len(contextMsgs), len(tools))
-	eventCh, err := a.llmClient.ChatStream(ctx, contextMsgs, tools)
+
+	// FEATURE-298: Create a cancellable context for streaming, so we can abort
+	// the LLM stream when the streaming XML validator detects a fatal error.
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	defer streamCancel()
+
+	eventCh, err := a.llmClient.ChatStream(streamCtx, contextMsgs, tools)
 	if err != nil {
 		// Fall back to non-streaming
 		log.Debug("Agent.streamLLMResponse: ChatStream not available, falling back to non-streaming: %v", err)
@@ -115,6 +121,19 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	var contentBuilder strings.Builder
 	var reasoningBuilder strings.Builder
 	var toolCalls []llm.ToolCall
+
+	// FEATURE-298: Initialize streaming XML validator for XML mode.
+	// When enabled, this validator checks for fatal XML errors (unknown tool/param names,
+	// tag mismatches, illegal characters) in real-time as chunks arrive.
+	// On fatal error, the LLM stream is cancelled immediately to save token/wait time.
+	var xmlValidator *StreamingXMLValidator
+	if a.toolCallModeMgr != nil {
+		mode := a.toolCallModeMgr.Current()
+		if mode != nil && !mode.SendTools {
+			xmlValidator = NewStreamingXMLValidator(a.buildToolsInternal())
+			log.Info("Agent.streamLLMResponse: streaming XML validator initialized (%d tools)", len(a.buildToolsInternal()))
+		}
+	}
 
 	// Track whether we saw any tool call events (even invalid ones) from the stream.
 	// This helps distinguish between "LLM returned no tool calls" (final answer)
@@ -177,6 +196,25 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				contentBuilder.WriteString(event.Content)
 				if a.showLlmContent {
 					cb("content_chunk", event.Content)
+				}
+
+				// FEATURE-298: Check for fatal XML errors in streaming content.
+				// When the validator detects an unknown tool/param name or tag mismatch,
+				// cancel the LLM stream immediately and store the error for RunStream to handle.
+				if xmlValidator != nil {
+					if xmlErr := xmlValidator.AddChunk(event.Content); xmlErr != nil {
+						log.Warn("Agent.streamLLMResponse: streaming XML validation failed: %v", xmlErr)
+						// Cancel the LLM stream to stop wasting tokens
+						streamCancel()
+						finalContent := contentBuilder.String()
+						// Store error in taskInstructionCache for RunStream to handle
+						a.mu.Lock()
+						a.taskInstructionCache.Reset()
+						errMsg := fmt.Sprintf(`{"tool": "", "error": %q}`, xmlErr.Error())
+						a.taskInstructionCache.WriteString(errMsg)
+						a.mu.Unlock()
+						return finalContent, "", nil, false, xmlErr
+					}
 				}
 
 				// FIX-179: Check for loop patterns in LLM output.

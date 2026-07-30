@@ -111,7 +111,7 @@ TOOL USE
 
 # Tool Use Formatting
 
-工具调用使用标签前缀格式。所有工具标签和参数标签必须带配置的前缀"{XML_TAG_PREFIX}"。
+工具调用使用标签前缀格式。所有工具标签和参数标签必须带配置的前缀"{XML_TAG_PREFIX}"。工具调用参数标签内的内容（如需要写入文件的内容），对于含有XML、HTML等标签的直接输出，不用对特殊符号（如："<"、">"、"&"等）进行转义。
 
 例如，调用 read_file 工具：
 
@@ -285,9 +285,12 @@ Usage:
   <{XML_TAG_PREFIX}intent>需要创建项目配置文件存储 API 端点信息</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}mode>new</{XML_TAG_PREFIX}mode>
   <{XML_TAG_PREFIX}path>output/result.md</{XML_TAG_PREFIX}path>
-  <{XML_TAG_PREFIX}content># 结果
-
-这是生成的文件。</{XML_TAG_PREFIX}content>
+  <{XML_TAG_PREFIX}content><!DOCTYPE html>
+<html lang="zh-CN">
+  <body>
+    <h1>Hello, World!</h1>
+  </body>
+</html><!-- 结果：这是生成的一个HTML5文件 --></{XML_TAG_PREFIX}content>
 </{XML_TAG_PREFIX}write_to_file>`
 
 	zhMessages[KeyToolUsageVisualAnalysis] = `## visual_analysis
