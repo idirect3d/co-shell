@@ -233,6 +233,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "llm-log":
 		return h.handleLLMInteractionLogSetting(subcommand, args)
 
+	// Default subcommand: reset to system defaults (preserving LLM, Memory, DB)
+	case subcommand == "default":
+		return h.handleSetDefault()
+
 	// DB subcommand
 	case subcommand == "db":
 		return h.handleDBSubCommand(args[1:])
@@ -656,7 +660,129 @@ func showSettingsHelp(cfg *config.Config) string {
 		}
 	}
 
+	// Append :set default hint
+	sb.WriteString("\n")
+	sb.WriteString(i18n.T(i18n.KeySettingsSetDefaultHint) + "\n")
+
 	return sb.String()
+}
+
+// handleSetDefault resets all non-critical settings to system defaults.
+// Preserves LLM, Memory & Context, and Database settings.
+func (h *SettingsHandler) handleSetDefault() (string, error) {
+	// Snapshot preserved values
+	savedLLM := h.cfg.LLM
+	savedMemory := h.cfg.LLM.MemoryEnabled
+	savedContextLimit := h.cfg.LLM.ContextLimit
+	savedContextPolicy := h.cfg.LLM.ContextPolicy
+	savedContextReorganizeThreshold := h.cfg.LLM.ContextReorganizeThreshold
+	savedMemorySearchMaxContentLen := h.cfg.LLM.MemorySearchMaxContentLen
+	savedMemorySearchMaxResults := h.cfg.LLM.MemorySearchMaxResults
+	savedDB := h.cfg.DB
+
+	// Reset LLMConfig to defaults
+	def := config.DefaultConfig()
+	h.cfg.LLM = def.LLM
+
+	// Restore LLM config snapshot
+	h.cfg.LLM = savedLLM
+
+	// Reset all non-preserved LLM fields to default, then restore preserved ones
+	h.cfg.LLM.ShowLlmThinking = def.LLM.ShowLlmThinking
+	h.cfg.LLM.ShowLlmContent = def.LLM.ShowLlmContent
+	h.cfg.LLM.ShowTool = def.LLM.ShowTool
+	h.cfg.LLM.ShowToolInput = def.LLM.ShowToolInput
+	h.cfg.LLM.ShowToolOutput = def.LLM.ShowToolOutput
+	h.cfg.LLM.ShowCommand = def.LLM.ShowCommand
+	h.cfg.LLM.ShowCommandOutput = def.LLM.ShowCommandOutput
+	h.cfg.LLM.EmojiEnabled = def.LLM.EmojiEnabled
+	h.cfg.LLM.ShowLoopDetection = def.LLM.ShowLoopDetection
+	h.cfg.LLM.ShowLogo = def.LLM.ShowLogo
+	h.cfg.LLM.ToolModes = def.LLM.ToolModes
+	h.cfg.LLM.ResultMode = def.LLM.ResultMode
+	h.cfg.LLM.MaxIterations = def.LLM.MaxIterations
+	h.cfg.LLM.MaxRetries = def.LLM.MaxRetries
+	h.cfg.LLM.MemoryEnabled = savedMemory
+	h.cfg.LLM.ContextLimit = savedContextLimit
+	h.cfg.LLM.ContextPolicy = savedContextPolicy
+	h.cfg.LLM.ContextReorganizeThreshold = savedContextReorganizeThreshold
+	h.cfg.LLM.MemorySearchMaxContentLen = savedMemorySearchMaxContentLen
+	h.cfg.LLM.MemorySearchMaxResults = savedMemorySearchMaxResults
+	h.cfg.LLM.ShellSessionEnabled = def.LLM.ShellSessionEnabled
+	h.cfg.LLM.ShellSessionTimeout = def.LLM.ShellSessionTimeout
+	h.cfg.LLM.ShellVTRows = def.LLM.ShellVTRows
+	h.cfg.LLM.ShellVTCols = def.LLM.ShellVTCols
+	h.cfg.LLM.BrowserEnabled = def.LLM.BrowserEnabled
+	h.cfg.LLM.BrowserPort = def.LLM.BrowserPort
+	h.cfg.LLM.BrowserHeadless = def.LLM.BrowserHeadless
+	h.cfg.LLM.BrowserMaxHTMLSize = def.LLM.BrowserMaxHTMLSize
+	h.cfg.LLM.ExcelMaxSessions = def.LLM.ExcelMaxSessions
+	h.cfg.LLM.ExcelMaxCells = def.LLM.ExcelMaxCells
+	h.cfg.LLM.DocxMaxSessions = def.LLM.DocxMaxSessions
+	h.cfg.LLM.DocxMaxReadParas = def.LLM.DocxMaxReadParas
+	h.cfg.LLM.VisualAnalysisMaxImages = def.LLM.VisualAnalysisMaxImages
+	h.cfg.LLM.SearchMaxLineLength = def.LLM.SearchMaxLineLength
+	h.cfg.LLM.SearchMaxResultBytes = def.LLM.SearchMaxResultBytes
+	h.cfg.LLM.SearchContextLines = def.LLM.SearchContextLines
+	h.cfg.LLM.ErrorMaxSingleCount = def.LLM.ErrorMaxSingleCount
+	h.cfg.LLM.ErrorMaxTypeCount = def.LLM.ErrorMaxTypeCount
+	h.cfg.LLM.ToolTimeout = def.LLM.ToolTimeout
+	h.cfg.LLM.CommandTimeout = def.LLM.CommandTimeout
+	h.cfg.LLM.LLMTimeout = def.LLM.LLMTimeout
+	h.cfg.LLM.LoopIntervention = def.LLM.LoopIntervention
+	h.cfg.LLM.LoopDetectThreshold = def.LLM.LoopDetectThreshold
+	h.cfg.LLM.LoopTempEnabled = def.LLM.LoopTempEnabled
+	h.cfg.LLM.LoopTempStepUp = def.LLM.LoopTempStepUp
+	h.cfg.LLM.LoopTempStepDown = def.LLM.LoopTempStepDown
+	h.cfg.LLM.LoopTempMax = def.LLM.LoopTempMax
+	h.cfg.LLM.LoopTempMin = def.LLM.LoopTempMin
+	h.cfg.LLM.LoopJudgeEnabled = def.LLM.LoopJudgeEnabled
+	h.cfg.LLM.LoopReorganizeEnabled = def.LLM.LoopReorganizeEnabled
+	h.cfg.LLM.LoopLongOutputThreshold = def.LLM.LoopLongOutputThreshold
+	h.cfg.LLM.DuplicateContentThreshold = def.LLM.DuplicateContentThreshold
+	h.cfg.LLM.LoopJudgeTimeout = def.LLM.LoopJudgeTimeout
+	h.cfg.LLM.LoopSingleLineLength = def.LLM.LoopSingleLineLength
+	h.cfg.LLM.LoopSingleLineWindow = def.LLM.LoopSingleLineWindow
+	h.cfg.LLM.NoToolAction = def.LLM.NoToolAction
+	h.cfg.LLM.ParseErrorAction = def.LLM.ParseErrorAction
+	h.cfg.LLM.DebugMode = def.LLM.DebugMode
+	h.cfg.LLM.TokenUsage = def.LLM.TokenUsage
+	h.cfg.LLM.InputMode = def.LLM.InputMode
+	h.cfg.LLM.XMLTagPrefix = def.LLM.XMLTagPrefix
+	h.cfg.LLM.XMLStreamValidate = def.LLM.XMLStreamValidate
+	h.cfg.LLM.ToolCallMode = def.LLM.ToolCallMode
+	h.cfg.LLM.MaxModelLen = def.LLM.MaxModelLen
+	h.cfg.LLM.LLMInteractionLog = def.LLM.LLMInteractionLog
+	h.cfg.LLM.BodyAdditions = def.LLM.BodyAdditions
+	h.cfg.LLM.ReadFileMaxSize = def.LLM.ReadFileMaxSize
+	h.cfg.LLM.ListMaxItems = def.LLM.ListMaxItems
+	h.cfg.LLM.ExcelSessionTTL = def.LLM.ExcelSessionTTL
+	h.cfg.LLM.LoopPromptTemplate = def.LLM.LoopPromptTemplate
+	h.cfg.LLM.ToolCallModeSystemPrompts = def.LLM.ToolCallModeSystemPrompts
+	h.cfg.LLM.ModeDescriptions = def.LLM.ModeDescriptions
+	h.cfg.LLM.ToolCallEnabled = def.LLM.ToolCallEnabled
+	h.cfg.LLM.PlanEnabled = def.LLM.PlanEnabled
+	h.cfg.LLM.SubAgentEnabled = def.LLM.SubAgentEnabled
+
+	// Restore DB
+	h.cfg.DB = savedDB
+
+	// Reset MCP
+	h.cfg.MCP = def.MCP
+
+	// Reset Log settings
+	h.cfg.LogEnabled = def.LogEnabled
+	h.cfg.LogLevel = def.LogLevel
+
+	// Reset Rules
+	h.cfg.Rules = def.Rules
+
+	// Save config
+	if err := h.cfg.Save(); err != nil {
+		return "", fmt.Errorf("save config after reset: %w", err)
+	}
+
+	return i18n.T(i18n.KeySettingsResetSuccess), nil
 }
 
 // lookupWorkModeDescription returns the Identity section content for the current work mode,
