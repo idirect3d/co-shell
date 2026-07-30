@@ -940,6 +940,10 @@ const (
 	KeyToolUsageWordInspectStyle = "tool_usage_word_inspect_style"
 	KeyToolUsageWordFormat       = "tool_usage_word_format"
 
+	// Settings - Set Default (FEATURE-299)
+	KeySettingsSetDefaultHint = "settings_set_default_hint"
+	KeySettingsResetSuccess   = "settings_reset_success"
+
 	// Excel tool usage examples (XML mode)
 	KeyToolUsageExcelOpen     = "tool_usage_excel_open"
 	KeyToolUsageExcelClose    = "tool_usage_excel_close"

@@ -863,15 +863,20 @@
   - 更新测试 + 新增 `bin/check_xml_prefix.py` 验证工具
 
 - [x] **FEATURE-298 流式 XML 工具调用增量校验 — 提前发现拼写错误**：[BUILD-333]
-  - 实现 StreamingXMLValidator 状态机，在 LLM 流式输出时逐 chunk 增量解析 XML 结构
-  - 分层验证：L1 语法（标签名合法性、闭合匹配）、L2 语义（工具名已知性、参数名已知性）
-  - 致命错误（拼写错误工具名、错误参数名、标签不匹配）立即终止 LLM 流，通过 cancel context 中断
-  - 可恢复错误（不完整标签、未闭合标签）继续等待后续 chunk，仅流结束后报告
-  - 集成到 streamLLMResponse 的 StreamEventContent 处理分支
-  - 新增 `xml-stream-validate` 配置项（默认 on），可通过 `:set` 开关
-  - 新增 i18n 错误消息键
-  - 创建 `agent/xml_stream_validator.go` + `agent/xml_stream_validator_test.go`
-  
+   - 实现 StreamingXMLValidator 状态机，在 LLM 流式输出时逐 chunk 增量解析 XML 结构
+   - 分层验证：L1 语法（标签名合法性、闭合匹配）、L2 语义（工具名已知性、参数名已知性）
+   - 致命错误（拼写错误工具名、错误参数名、标签不匹配）立即终止 LLM 流，通过 cancel context 中断
+   - 可恢复错误（不完整标签、未闭合标签）继续等待后续 chunk，仅流结束后报告
+   - 集成到 streamLLMResponse 的 StreamEventContent 处理分支
+   - 新增 `xml-stream-validate` 配置项（默认 on），可通过 `:set` 开关
+   - 新增 i18n 错误消息键
+   - 创建 `agent/xml_stream_validator.go` + `agent/xml_stream_validator_test.go`
+
+- [ ] **FEATURE-299 :set default 命令 — 重置非关键配置到系统默认值**：
+   - 在 `:set` 输出末尾显示提示信息 `:set default`
+   - 实现 `:set default` 子命令，将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值
+   - 同时清除 mode 相关配置中的所有非 LLM、非 Memory、非 DB 的覆盖项
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
