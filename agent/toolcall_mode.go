@@ -1028,6 +1028,23 @@ func findCloseTagLenient(content, tagName string) int {
 	return -1
 }
 
+// hasPrefixedChildTag checks if the given content contains any child tags that use
+// the configured XML tag prefix (e.g., "cs:"). This distinguishes between actual
+// XML tool parameter tags and HTML/JS/CSS content that happens to contain '<'.
+func hasPrefixedChildTag(content string) bool {
+	prefix := xmlTagPrefix()
+	if prefix == "" {
+		return false
+	}
+	// Scan for < followed immediately by the prefix string
+	for i := 0; i < len(content); i++ {
+		if content[i] == '<' && i+len(prefix) < len(content) && content[i+1:i+1+len(prefix)] == prefix {
+			return true
+		}
+	}
+	return false
+}
+
 // hasChildElements checks if the given XML content contains any child elements
 // (i.e., nested XML tags).
 func hasChildElements(content string) bool {
@@ -1482,6 +1499,18 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 
 		// Check if inner content has child elements (nested structure)
 		if hasChildElements(innerContent) {
+			// Only recurse if inner content actually contains prefixed tags (e.g. <cs:xxx>).
+			// If the '<' comes from HTML/JS/CSS (like <script>, <button>), treat as plain text.
+			if !hasPrefixedChildTag(innerContent) {
+				// HTML/JS/CSS content that happens to contain '<' — treat as plain text
+				value := innerContent
+				if cdataContent := extractCDATA(value); cdataContent != "" {
+					value = cdataContent
+				}
+				children = append(children, childEntry{tagName: tagName, jsonVal: jsonValue(value)})
+				remaining = remaining[openEnd+closeIdx+len(closeTag):]
+				continue
+			}
 			// Nested elements - recursively parse
 			nestedJSON, nestedErrors := parseXMLChildrenToJSON(innerContent)
 			if len(nestedErrors) > 0 {

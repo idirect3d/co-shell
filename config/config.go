@@ -348,6 +348,13 @@ type LLMConfig struct {
 	// Default: "cs:"
 	XMLTagPrefix string `json:"xml_tag_prefix"`
 
+	// XMLStreamValidate: whether to enable streaming XML validation.
+	// When enabled, the system checks for fatal XML errors (unknown tool/param names,
+	// tag mismatches) in real-time as chunks arrive from the LLM, and cancels the
+	// stream immediately on error to save tokens.
+	// Default: true
+	XMLStreamValidate bool `json:"xml_stream_validate"`
+
 	// ContextPolicy: controls how the context start position is managed.
 	// "window" = fixed window: context is the last N messages (N = context_limit)
 	// "task" = task mode: context start pointer follows task boundaries automatically
@@ -825,7 +832,7 @@ func DefaultConfig() *Config {
 			LoopReorganizeEnabled:      true,
 			DuplicateContentThreshold:  0.95,
 			LoopJudgeTimeout:           60,
-			LoopLongOutputThreshold:    32768,
+			LoopLongOutputThreshold:    131072,
 			ShowLoopDetection:          true,
 			TopP:                       -1,
 			TopK:                       -1,
@@ -844,6 +851,7 @@ func DefaultConfig() *Config {
 			BrowserPort:                9222,
 			BrowserHeadless:            false,
 			XMLTagPrefix:               "cs:",
+			XMLStreamValidate:          true,
 		},
 
 		DB: DefaultDBConfig(),

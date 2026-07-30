@@ -336,6 +336,32 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		log.Info("XML tag prefix set to %s", newPrefix)
 		return fmt.Sprintf("✅ XML 标签前缀已设置为: %s", newPrefix), nil
 
+	case "xml-stream-validate":
+		if len(args) < 2 {
+			status := "关闭"
+			if h.cfg.LLM.XMLStreamValidate {
+				status = "开启"
+			}
+			return fmt.Sprintf("流式 XML 校验: %s", status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.XMLStreamValidate = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.XMLStreamValidate = false
+		default:
+			return "", fmt.Errorf("usage: .set xml-stream-validate on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := "关闭"
+		if h.cfg.LLM.XMLStreamValidate {
+			status = "开启"
+		}
+		log.Info("XML stream validate set to %v", h.cfg.LLM.XMLStreamValidate)
+		return fmt.Sprintf("✅ 流式 XML 校验已设置为: %s", status), nil
+
 	default:
 		return "", fmt.Errorf("unknown LLM setting: %s", subcommand)
 	}
