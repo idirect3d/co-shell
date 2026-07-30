@@ -938,6 +938,14 @@ func (a *Agent) rebuildSystemPrompt() {
 			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 		}
 		agentPrinciples = a.cfg.LLM.AgentPrinciples
+		// Fall back to global i18n default principles
+		if agentPrinciples == "" {
+			agentPrinciples = i18n.T(i18n.KeyAgentDefaultPrinciples)
+		}
+		// Check if the returned value is the key itself (no translation found)
+		if agentPrinciples == string(i18n.KeyAgentDefaultPrinciples) {
+			agentPrinciples = ""
+		}
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
 	}
@@ -1477,6 +1485,7 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	a.resultMode = mode
 	a.mu.Unlock()
 
+	workMode := ""
 	agentName := ""
 	agentDesc := ""
 	agentPrinciples := ""
@@ -1484,10 +1493,34 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	channel := ""
 	if a.cfg != nil {
 		agentName = a.cfg.LLM.AgentName
+		workMode = a.cfg.LLM.WorkMode
 		agentDesc = a.cfg.LLM.AgentDescription
 		agentPrinciples = a.cfg.LLM.AgentPrinciples
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
+		// Fall back to mode-specific i18n description
+		if agentDesc == "" {
+			switch workMode {
+			case "plan":
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
+			case "research":
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
+			default:
+				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
+			}
+		}
+		// Fall back to global i18n description
+		if agentDesc == "" {
+			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
+		}
+		// Fall back to global i18n default principles
+		if agentPrinciples == "" {
+			agentPrinciples = i18n.T(i18n.KeyAgentDefaultPrinciples)
+		}
+		// Guard against key name leakage
+		if agentPrinciples == string(i18n.KeyAgentDefaultPrinciples) {
+			agentPrinciples = ""
+		}
 	}
 
 	toolUsageText := ""

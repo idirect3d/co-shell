@@ -171,6 +171,10 @@ const (
 	KeyAgentDefaultDescriptionAct      = "agent_default_description_act"
 	KeyAgentDefaultDescriptionPlan     = "agent_default_description_plan"
 	KeyAgentDefaultDescriptionResearch = "agent_default_description_research"
+	KeyAgentDefaultPrinciples          = "agent_default_principles"
+	KeyAgentDefaultPrinciplesAct       = "agent_default_principles_act"
+	KeyAgentDefaultPrinciplesPlan      = "agent_default_principles_plan"
+	KeyAgentDefaultPrinciplesResearch  = "agent_default_principles_research"
 
 	// Settings - Extended
 	KeySettingsLabelLog               = "settings_label_log"

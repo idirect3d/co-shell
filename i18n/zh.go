@@ -822,7 +822,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySessionCreatedAt:         "创建时间",
 	KeySessionCurrent:           "当前",
 	KeySessionNumber:            "编号",
-	KeySettingsSetDefaultHint:   "💡 提示：使用 :set default 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
+	KeySettingsSetDefaultHint:   "💡 提示：使用 :set defaults 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
 	KeySettingsResetSuccess:     "✅ 配置已成功重置为系统默认值（保留了 LLM、记忆与上下文和数据库配置）。",
 	KeySessionExportDefaultPath: "（默认路径: %s）",
 	KeySessionConfirmSwitch:     "确认切换到会话 %q？将自动保存当前会话 [y/N] ",
