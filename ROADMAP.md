@@ -872,13 +872,14 @@
    - 新增 i18n 错误消息键
    - 创建 `agent/xml_stream_validator.go` + `agent/xml_stream_validator_test.go`
 
-- [x] **FEATURE-299 :set defaults 命令 — 重置非关键配置到系统默认值**：[BUILD-335]
+- [x] **FEATURE-299 :set defaults 命令 — 重置非关键配置到系统默认值**：[BUILD-336]
    - 命令行改名 `:set defaults`，在 `:set` 输出末尾显示提示信息
    - 实现 `:set defaults` 子命令，将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值
    - 修复 `{AGENT_PRINCIPLES}` 默认 i18n 回退，新增 `KeyAgentDefaultPrinciples` 资源
    - `:set` 显示新增 principles 参数和当前 mode 的 description
    - 英文 i18n 资源与中文对齐（`en_system.go` 改用 `{AGENT_PRINCIPLES}` 占位符）
    - `:set defaults` 后立即同步 agent 生效（`h.agent.SetConfig()`）
+   - `rebuildSystemPrompt()` 中补充 `AgentPrinciples` 回退路径 debug 日志，便于排查 `:context` 中 principles 缺失问题
 
 ## v1.0.0 — 正式版
 

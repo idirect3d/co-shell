@@ -938,13 +938,16 @@ func (a *Agent) rebuildSystemPrompt() {
 			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 		}
 		agentPrinciples = a.cfg.LLM.AgentPrinciples
+		log.Debug("rebuildSystemPrompt: cfg.LLM.AgentPrinciples=%q", agentPrinciples)
 		// Fall back to global i18n default principles
 		if agentPrinciples == "" {
 			agentPrinciples = i18n.T(i18n.KeyAgentDefaultPrinciples)
+			log.Debug("rebuildSystemPrompt: fallback i18n KeyAgentDefaultPrinciples=%q", agentPrinciples)
 		}
 		// Check if the returned value is the key itself (no translation found)
 		if agentPrinciples == string(i18n.KeyAgentDefaultPrinciples) {
 			agentPrinciples = ""
+			log.Debug("rebuildSystemPrompt: i18n returned key itself, cleared")
 		}
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
