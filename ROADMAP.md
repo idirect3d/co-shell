@@ -6,7 +6,22 @@
 
 ## 当前版本
 
-> **版本**: v0.6.0
+> **版本**: v0.7.0
+
+> **状态**: 🚧 开发中（输出架构重构里程碑）
+> **里程碑**: 输出统一化（Out/RenderCommand 抽象 + InputSource 统一输入 + 100% i18n + stdio/tui/web 三态）
+> **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-301 | 0.7.0 | P1 | 输出/输入事件双枚举 + 回归基线 |
+| FEATURE-302 | 0.7.0 | P2 | Out + RenderCommand 抽象 + 渲染合并 |
+| FEATURE-303 | 0.7.0 | P3 | 向导迁移（B 类）+ i18n 归零第一步 |
+| FEATURE-304 | 0.7.0 | P4 | 外部入口迁移 + 分类开关 |
+| FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
+| FEATURE-306 | 0.7.1 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
+| FEATURE-307 | 0.7.2 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
+| FEATURE-308 | 0.7.3 | tui v2 | FullScreenRenderer（可选分支） |
 
 
 
@@ -890,6 +905,57 @@
   - 不影响 `agent/system_prompt.go` 构建逻辑，不误伤非 mode 名目录（如 act_old、claim）
   - 新增单元测试覆盖清单收集、冲突序号、自定义 mode、重命名成功/部分失败场景
 
+## v0.7.0 — 输出架构重构
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-08-01
+> **里程碑**: 输出统一化（Out/RenderCommand + InputSource + 100% i18n + stdio/tui/web）
+> **架构文档**: docs/output-architecture.md
+
+### 功能清单
+
+- [ ] **FEATURE-301 输出/输入事件双枚举重构（P1）**：
+  - 新增 agent/events.go（输出事件常量 + StreamEvent）；agent/input.go（InputKind + InputEvent）
+  - agent/loop.go / run_stream.go / stream_response.go 的 cb("xxx") 替换为常量；repl.go/main.go switch 同步
+  - 回归基线：事件渲染 golden-file 测试 + stdout 快照对比
+  - 验收：go build + go test 通过；行为无变化
+
+- [ ] **FEATURE-302 Out + RenderCommand 抽象 + 渲染合并（P2）**：
+  - 新增 agent/out.go（Out 接口 + TerminalOut）；agent/command.go（RenderCommand/RenderKind）
+  - repl.go streamCallback 与 main.go executeSingleCommand 合并为「事件→渲染器」单一入口
+  - --input-mode enhanced→tui 别名（parseInputMode）；config.json LLM.InputMode + :set input-mode
+  - 验收：:set 开关生效；渲染结果一致；stdio 无 ANSI 污染
+
+- [ ] **FEATURE-303 向导迁移（B 类）+ i18n 归零第一步（P3）**：
+  - UI 组件 Out.Box/Menu/Step/Sep（绑定规范快捷键 [B]/[C]/[E]/[D]/[Q]/[数字]）
+  - 迁移 cmd/model.go → mode.go → config.go → settings_db.go → session.go
+  - i18n：B 类硬编码中文迁移（约 1/3）
+  - 验收：向导回归；audit Hardcoded Chinese 降 1/3
+
+- [ ] **FEATURE-304 外部入口迁移 + 分类开关（P4）**：
+  - feishu/bridge/hub/subagent 迁移到 Out；新增分类开关 OutputCategories
+  - i18n：D 类 + A 类约 30 处 + C 类 main.go 约 40 处
+  - 验收：D 类可开关控制；audit 持续下降
+
+- [ ] **FEATURE-305 i18n 归零冲刺（P4.5）**：
+  - 按 inventory A-3 清单逐条迁移；补齐 keys.go + zh/en 翻译
+  - 修复审计发现的 KeyToolUsageShellSend 缺 zh 翻译 bug
+  - 验收：audit 第 3 项 Hardcoded Chinese = 0
+
+- [ ] **FEATURE-306 输入统一 InputSource（P2.5，v0.7.1）**：
+  - InputSource 接口 + StdioSource/RawKeySource；单一 Reader goroutine
+  - ESC 监控改事件流消费者；Windows 补齐（repl_esc_windows.go）
+  - 验收：方向键/ESC/Ctrl+C 双平台通过；stdio 管道行为不变
+
+- [ ] **FEATURE-307 渲染器三态 + web 原型（P5，v0.7.2）**：
+  - SessionIO 管道 + sessionFactories（stdio/tui/web）
+  - LineRenderer + StreamRenderer(JSON-Lines) + WebRenderer（HTTP+WebSocket，绑 127.0.0.1）
+  - 验收：三模式同指令结果一致；web 浏览器分区实况
+
+- [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.3 可选分支）**：
+  - FullScreenRenderer：原生 ANSI 缓冲，禁用 tview/tcell；SIGWINCH 重绘
+  - 验收：独立分支交付，不影响主线
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
@@ -929,7 +995,11 @@
 | v0.4.0 | 2026-05-03 | ✅ 已完成 | 发布候选版 RC2 |
 | v0.5.0 | 2026-05-12 | ✅ 已完成 | Beta2 测试版 |
 | v0.5.1 | 2026-05-28 | ✅ 已完成 | 补丁版 |
-| v0.6.0 | 2026-06-01 | 🚧 开发中 | Beta3 测试版 |
+| v0.6.0 | 2026-06-01 | ✅ 已完成 | Beta3 测试版 |
+| v0.7.0 | 2026-08-01 | 🚧 开发中 | 输出架构重构里程碑 |
+| v0.7.1 | 2026-08-01 | 📋 规划中 | 输入统一（InputSource） |
+| v0.7.2 | 2026-08-01 | 📋 规划中 | tui v1 + web 原型 |
+| v0.7.3 | 2026-08-01 | 💡 构想中 | 全屏 TUI（可选分支） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 
 
