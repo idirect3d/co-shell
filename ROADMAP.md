@@ -883,11 +883,12 @@
    - `:set defaults` 后立即同步 agent 生效（`h.agent.SetConfig()`）
    - `rebuildSystemPrompt()` 中补充 `AgentPrinciples` 回退路径 debug 日志，便于排查 `:context` 中 principles 缺失问题
 
-- [ ] **FIX-300 `:set defaults` 时自动重命名 mode 留存目录，恢复默认系统提示词**
+- [x] **FIX-300 `:set defaults` 时自动重命名 mode 留存目录，恢复默认系统提示词**：[BUILD-338]
   - 根因：`work/mode/{mode}/IDENTITY.md`（FEATURE-299 引入 `{AGENT_PRINCIPLES}` 占位符之前创建）缺少占位符，principles 被静默丢弃；用户对留存配置无感知
   - 影响：act mode 无自定义 IDENTITY.md → 回退 i18n 模板（含占位符）→ 正常；plan/research 等自定义 mode → principles 缺失
   - 修复：`handleSetDefault()` 在参数重置并保存 config.json 后，扫描运行目录 `{cwd}/mode/` 下与已知 mode 名（内置 act/plan/research + cfg.WorkModes 用户自定义）同名的目录，列出清单后经用户 y/n 确认，将目录重命名为 `原名.YYYYMMDD`（冲突追加序号），使系统提示词自然回退到 i18n 默认模板；重命名失败不阻断参数重置，仅汇总报告
   - 不影响 `agent/system_prompt.go` 构建逻辑，不误伤非 mode 名目录（如 act_old、claim）
+  - 新增单元测试覆盖清单收集、冲突序号、自定义 mode、重命名成功/部分失败场景
 
 ## v1.0.0 — 正式版
 
