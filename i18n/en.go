@@ -796,4 +796,13 @@ no liability whatsoever.`,
 	KeySessionConfirmSwitch:     "Switch to session %q? Current session will be auto-saved [y/N] ",
 	KeySessionNameByLLM:         "LLM named: %s",
 	KeySessionNameByLLMFailed:   "LLM naming failed, using default name",
+
+	// Settings - Mode retained dirs rename (FIX-300)
+	KeySettingsResetModeDirsFound:    "Mode retained config dirs found. They will be renamed with a .YYYYMMDD suffix to restore the default system prompt:\n%v\n",
+	KeySettingsResetModeDirsConfirm:  "Rename the above mode retained dirs? [y/N] ",
+	KeySettingsResetModeDirsRenamed:  "Mode retained dirs renamed (rename back manually to restore):",
+	KeySettingsResetModeDirsSkipped:  "Mode retained dirs rename cancelled by user",
+	KeySettingsResetModeDirsFailed:   "Following mode retained dirs failed to rename (config reset not affected):",
+	KeySettingsResetModeDirsRenamedB: "  · %s → %s",
+	KeySettingsResetModeDirsFailedB:  "  · %s: %v",
 }
