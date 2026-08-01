@@ -862,7 +862,7 @@
   - 更新 i18n 中英文系统提示词示例 — 使用 `{XML_TAG_PREFIX}` 占位符
   - 更新测试 + 新增 `bin/check_xml_prefix.py` 验证工具
 
-- [x] **FEATURE-298 流式 XML 工具调用增量校验 — 提前发现拼写错误**：[BUILD-333]
+- [x] **FEATURE-298 流式 XML 工具调用增量校验 — 提前发现拼写错误**：[BUILD-337]
    - 实现 StreamingXMLValidator 状态机，在 LLM 流式输出时逐 chunk 增量解析 XML 结构
    - 分层验证：L1 语法（标签名合法性、闭合匹配）、L2 语义（工具名已知性、参数名已知性）
    - 致命错误（拼写错误工具名、错误参数名、标签不匹配）立即终止 LLM 流，通过 cancel context 中断
@@ -871,6 +871,8 @@
    - 新增 `xml-stream-validate` 配置项（默认 on），可通过 `:set` 开关
    - 新增 i18n 错误消息键
    - 创建 `agent/xml_stream_validator.go` + `agent/xml_stream_validator_test.go`
+   - [BUILD-337] 补全 L2 语义验证：processOpenTag 增加未知工具名/未知参数名即时致命检测，processCloseTag 标签不匹配从警告改为致命（UC-0001/0002/0003/0010），修复跨 chunk 拆分时 `<cs:` 前缀丢失导致名称无法识别的问题，19 个验证器测试全部通过
+   - [BUILD-337] FEATURE-293 兜底增强：hasIncompleteToolCall 识别任何带 `cs:` 前缀的标签为工具调用意图（即使名字不精确匹配），避免结构损坏的调用走 no-tool-action 直接退出
 
 - [x] **FEATURE-299 :set defaults 命令 — 重置非关键配置到系统默认值**：[BUILD-336]
    - 命令行改名 `:set defaults`，在 `:set` 输出末尾显示提示信息

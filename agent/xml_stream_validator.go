@@ -162,10 +162,14 @@ func (v *StreamingXMLValidator) processContent(content string) string {
 				// Only <{prefix} opens a tool tag — everything else is plain text content
 				if i+1 < len(content) {
 					if strings.HasPrefix(content[i+1:], xmlTagPrefix()) {
-						// Opening tool tag — starts with configured prefix (e.g. "cs:")
+						// Opening tool tag — starts with configured prefix (e.g. "cs:").
+						// Write the prefix into tagBuf so tags split across chunks
+						// (e.g., "<cs:" then "read_file>") retain the full name.
 						v.state = stateInOpenTag
 						v.tagBuf.Reset()
-						break
+						v.tagBuf.WriteString(xmlTagPrefix())
+						i += 1 + len(xmlTagPrefix())
+						continue
 					}
 					// Check for closing tool tag: </{prefix} (e.g. </cs:content>)
 					if i+2 < len(content) && content[i+1] == '/' && strings.HasPrefix(content[i+2:], xmlTagPrefix()) {
@@ -284,10 +288,14 @@ func (v *StreamingXMLValidator) processContent(content string) string {
 			if ch == '<' {
 				if i+1 < len(content) {
 					if strings.HasPrefix(content[i+1:], xmlTagPrefix()) {
-						// Nested tool parameter tag — starts with configured prefix (e.g. "cs:")
+						// Nested tool parameter tag — starts with configured prefix (e.g. "cs:").
+						// Write the prefix into tagBuf so tags split across chunks
+						// (e.g., "<cs:" then "path>") retain the full name.
 						v.state = stateInOpenTag
 						v.tagBuf.Reset()
-						break
+						v.tagBuf.WriteString(xmlTagPrefix())
+						i += 1 + len(xmlTagPrefix())
+						continue
 					}
 					// Check for closing tool tag: </{prefix} (e.g. </cs:content>)
 					if i+2 < len(content) && content[i+1] == '/' && strings.HasPrefix(content[i+2:], xmlTagPrefix()) {
@@ -427,7 +435,9 @@ func (v *StreamingXMLValidator) processOpenTag(tagName string, selfClosing bool)
 		return
 	}
 
-	// Skip non-tool tags in knownNonToolTags
+	// Skip non-tool tags in knownNonToolTags.
+	// Check both the raw name and the stripped (prefixed) name so tags like
+	// <cs:thinking> are treated as non-tool tags rather than unknown tools.
 	if knownNonToolTags[tagName] {
 		return
 	}
@@ -438,12 +448,48 @@ func (v *StreamingXMLValidator) processOpenTag(tagName string, selfClosing bool)
 	if stripped == "" {
 		return
 	}
+	if knownNonToolTags[stripped] {
+		return
+	}
+
+	currentDepth := v.depth
+
+	// FEATURE-298: Validate tool/parameter names as they stream in so a misspelled
+	// tool name is reported immediately (and the LLM stream cancelled to save tokens)
+	// instead of waiting until the full response is parsed.
+	// - Tool-level tags (depth 0) must be known tool names.
+	// - Param-level tags (depth > 0) must be valid params of the enclosing tool,
+	//   unless the enclosing tool defines no parameters (e.g., view_task_plan which
+	//   conventionally accepts an <intent> param not listed in its schema).
+	if currentDepth == 0 {
+		if !v.toolNames[stripped] {
+			errMsg := fmt.Sprintf("XML流式验证错误：未知的工具名 <%s>。请检查方法名拼写并使用正确的工具名。",
+				tagName)
+			log.Debug("XMLStreamValidator: %s", errMsg)
+			v.fatalErr = &XMLStreamFatalError{Message: errMsg, Tag: tagName}
+			v.state = stateFatal
+			return
+		}
+	} else {
+		// Param-level: validate against the enclosing tool's parameter set.
+		if len(v.tagStack) > 0 {
+			top := v.tagStack[len(v.tagStack)-1]
+			if top.isTool {
+				if paramSet, ok := v.paramNames[top.name]; ok && len(paramSet) > 0 {
+					if !paramSet[stripped] {
+						errMsg := fmt.Sprintf("XML流式验证错误：工具 <%s> 没有参数 <%s>。合法参数有：%s",
+							top.name, stripped, strings.Join(sortedParamNames(paramSet), "、"))
+						log.Debug("XMLStreamValidator: %s", errMsg)
+						v.fatalErr = &XMLStreamFatalError{Message: errMsg, Tag: tagName}
+						v.state = stateFatal
+						return
+					}
+				}
+			}
+		}
+	}
 
 	// Track all cs:-prefixed tags on the stack so depth tracking works correctly.
-	// Unknown tool/param names are NOT fatal here — the final ParseXMLToolCallsWithTools
-	// will report them with full context. The validator only checks structural
-	// validity: tag pairing and nesting.
-	currentDepth := v.depth
 	v.tagStack = append(v.tagStack, oTag{
 		name:     stripped,
 		original: tagName,
@@ -482,15 +528,16 @@ func (v *StreamingXMLValidator) processCloseTag(closeName string) {
 	top := v.tagStack[len(v.tagStack)-1]
 
 	if top.name != stripped {
-		// Mismatch: e.g., opened <cs:browser_navigate> but closed </cs:_navigate>.
-		// This is a semantic error (typo), not a structural error. Don't kill the stream —
-		// just log a warning. The final ParseXMLToolCallsWithTools will detect and report
-		// this with proper stage1/stage2 reverse identification logic.
-		log.Debug("XMLStreamValidator: tag mismatch: <%s> opened but </%s> encountered (depth=%d)",
-			top.original, closeName, v.depth)
-		// Still pop the top tag to keep the stack balanced for remaining content
-		v.tagStack = v.tagStack[:len(v.tagStack)-1]
-		v.depth--
+		// Mismatch: e.g., opened <cs:read_file> but closed </cs:execute_command>.
+		// This also covers nested mismatch where an inner tag was not closed before
+		// the parent close tag (</cs:read_file> while <cs:path> is still open).
+		// Report as fatal so the stream is terminated immediately instead of
+		// wasting tokens (FEATURE-298 UC-0003 / UC-0010).
+		errMsg := fmt.Sprintf("XML流式验证错误：标签不匹配，<%s> 已打开但遇到 </%s>。请检查每个标签是否正确闭合，且开闭标签名称一致。",
+			top.original, closeName)
+		log.Debug("XMLStreamValidator: %s", errMsg)
+		v.fatalErr = &XMLStreamFatalError{Message: errMsg, Tag: closeName}
+		v.state = stateFatal
 		return
 	}
 

@@ -1801,7 +1801,27 @@ func hasIncompleteToolCall(content string, tools []llm.Tool) bool {
 			continue
 		}
 
-		// Check if this tag name matches any known tool
+		// Prefixed tags (e.g., <cs:browser>) are a strong tool-call intent signal:
+		// the system prompt instructs the LLM to use <cs:tool_name> ONLY for tool
+		// calls. When the XML structure is too broken for ParseXMLToolCallsWithTools
+		// (missing close tags, malformed param tags like <csdelta_y>), any remaining
+		// prefixed tag proves the LLM intended to call a tool — so we report it as
+		// an incomplete tool call instead of falling through to no-tool-action
+		// (which would exit the agent loop).
+		stripped := stripXMLTagPrefix(tagName)
+		if stripped != "" {
+			// Match the stripped name against known tools first.
+			for _, t := range tools {
+				if t.Name == stripped {
+					return true
+				}
+			}
+			// Unknown prefixed tag still signals tool-call intent (possible
+			// misspelled tool name wrapped in the tool tag prefix).
+			return true
+		}
+
+		// No prefix — check unprefixed known tool names (backward compatible).
 		for _, t := range tools {
 			if t.Name == tagName {
 				return true

@@ -840,6 +840,61 @@ func TestHasIncompleteToolCall_NoFalsePositivesForHTML(t *testing.T) {
 	}
 }
 
+// TestHasIncompleteToolCall_PrefixedTags verifies that tags carrying the XML
+// tool prefix (e.g., <cs:browser>) are recognized as tool-call intent even
+// when the surrounding XML structure is too broken to parse.
+func TestHasIncompleteToolCall_PrefixedTags(t *testing.T) {
+	tools := []llm.Tool{
+		{Name: "browser_scroll"},
+		{Name: "read_file"},
+		{Name: "execute_command"},
+	}
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{
+			"prefixed unknown tag signals intent",
+			"让我继续向下滚动页面，获取更多关于功能特性、技术、安装方式等详细信息。\n\n<cs:browser>\n  <csdelta_y>80</cs:delta_y\n  <cs:intent>继续向下滚动 Code GitHub 页面，关于功能特性、技术架构、安装方式等详细信息</cs:intent>\ncs:browser_scroll>",
+			true,
+		},
+		{
+			"prefixed known tool name",
+			"Let me try:\n<cs:read_file path=\"/tmp\">\nwait...",
+			true,
+		},
+		{
+			"prefixed misspelled tool name",
+			"<cs:reed_file>\n  <cs:path>/tmp</cs:path>\n</cs:reed_file>",
+			true,
+		},
+		{
+			"prefixed param-only content",
+			"<cs:path>/tmp/test.txt</cs:path>",
+			true,
+		},
+		{
+			"plain text no tags",
+			"The answer is 42",
+			false,
+		},
+		{
+			"thinking tag still skipped",
+			"<thinking>let me process...</thinking>",
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasIncompleteToolCall(tt.content, tools)
+			if got != tt.want {
+				t.Errorf("hasIncompleteToolCall=%v, want=%v for content: %q", got, tt.want, tt.content)
+			}
+		})
+	}
+}
+
 func TestParseXMLToolCallsWithTools_HTMLNotMisdetectedAsToolCall(t *testing.T) {
 	tools := []llm.Tool{
 		{
