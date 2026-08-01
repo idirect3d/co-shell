@@ -206,7 +206,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// iteration's assistant message is added, so there is nothing to remove.
 		if _, isCanceled := streamErr.(*CanceledError); isCanceled {
 			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb("info", fmt.Sprintf("\n%s 已取消本次操作。\n", ep.Error))
+			cb(EventInfo, fmt.Sprintf("\n%s 已取消本次操作。\n", ep.Error))
 			return "", nil
 		}
 
@@ -216,8 +216,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.ResetInterrupt()
 			// User pressed ESC during LLM output. Show confirmation prompt.
 			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb("info", fmt.Sprintf("\n%s 已暂停接收 LLM 返回的数据。\n", ep.Warning))
-			cb("info", "是否确认取消？[C]取消本次响应 [Enter]继续接收: ")
+			cb(EventInfo, fmt.Sprintf("\n%s 已暂停接收 LLM 返回的数据。\n", ep.Warning))
+			cb(EventInfo, "是否确认取消？[C]取消本次响应 [Enter]继续接收: ")
 
 			// Read user's choice via UserIO interface.
 			// In enhanced mode, EnhancedIO sets IsReading=true so ESC monitor skips stdin.
@@ -231,20 +231,20 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				switch strings.TrimSpace(userChoice[7:]) {
 				case "on":
 					a.SetDebugMode(true)
-					cb("info", "调试模式已开启\n")
+					cb(EventInfo, "调试模式已开启\n")
 				case "off":
 					a.SetDebugMode(false)
-					cb("info", "调试模式已关闭\n")
+					cb(EventInfo, "调试模式已关闭\n")
 				}
 				// Retry the LLM call with the same context after toggling debug
 				a.ResetInterrupt()
-				cb("info", fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
+				cb(EventInfo, fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
 				finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 				// HACK: the `_` here is hasToolAttempt; we don't use it on retry paths
 				// because the content is discarded and the stream call will be re-issued.
 				if streamErr != nil {
-					cb("info", fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
-					cb("info", fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
+					cb(EventInfo, fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
+					cb(EventInfo, fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
 					return "", nil
 				}
 				// Fall through to tool call handling below
@@ -254,7 +254,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// User confirmed cancel: discard incomplete message and return to REPL
 				// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 				// current iteration's assistant message is added, so there is nothing to remove.
-				cb("info", fmt.Sprintf("\n%s 已取消本次响应，丢弃不完整内容。\n", ep.Error))
+				cb(EventInfo, fmt.Sprintf("\n%s 已取消本次响应，丢弃不完整内容。\n", ep.Error))
 				return "", nil
 			}
 
@@ -263,13 +263,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 			// current iteration's assistant message is added, so there is nothing to remove.
 			a.ResetInterrupt()
-			cb("info", fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
+			cb(EventInfo, fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
 
 			finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 			if streamErr != nil {
 				// Retry failed too - treat it like user cancelled
-				cb("info", fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
-				cb("info", fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
+				cb(EventInfo, fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
+				cb(EventInfo, fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
 				return "", nil
 			}
 		}
@@ -431,14 +431,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.loopDetectCrit = false
 
 				// Show summary at the end, after all handling
-				cb("info", fmt.Sprintf("检测到循环输出（策略: %s）\n", loopAction))
-				cb("info", fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
+				cb(EventInfo, fmt.Sprintf("检测到循环输出（策略: %s）\n", loopAction))
+				cb(EventInfo, fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
 				if loopFeedback != "" {
-					cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+					cb(EventInfo, fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
 				} else {
-					cb("info", "（无反馈，仅重发上下文）\n")
+					cb(EventInfo, "（无反馈，仅重发上下文）\n")
 				}
-				cb("info", "────────────────────────────────────────────\n")
+				cb(EventInfo, "────────────────────────────────────────────\n")
 				continue
 			}
 
@@ -496,7 +496,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				if lower == "c" {
 					// User cancelled, return to REPL
-					cb("info", fmt.Sprintf("\n%s 用户取消了操作\n", ep.Error))
+					cb(EventInfo, fmt.Sprintf("\n%s 用户取消了操作\n", ep.Error))
 					return "", nil
 				} else if lower == "a" {
 					// User chose to ignore all error limits
@@ -538,15 +538,15 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				// exit: exit the loop and report error
 				if parseAction == "exit" {
-					cb("error", fmt.Sprintf("LLM 调用出错（parse-error-action=exit）: %v\n已移除有问题的上下文。\n", streamErr))
-					cb("done", "")
+					cb(EventError, fmt.Sprintf("LLM 调用出错（parse-error-action=exit）: %v\n已移除有问题的上下文。\n", streamErr))
+					cb(EventDone, "")
 					return "", fmt.Errorf("LLM call failed: %w", streamErr)
 				}
 
 				if parseAction == "retry" {
 					// No feedback, just resend context
 					ep := config.GetEmojiPrefixes(a.emojiEnabled)
-					cb("info", fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在重试...\n", ep.Warning, streamErr))
+					cb(EventInfo, fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在重试...\n", ep.Warning, streamErr))
 					continue
 				}
 
@@ -569,14 +569,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.mu.Unlock()
 
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb("info", fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在请求 LLM 修正后重试...\n", ep.Warning, streamErr))
+				cb(EventInfo, fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在请求 LLM 修正后重试...\n", ep.Warning, streamErr))
 				continue
 			} else {
 				// No recent assistant message with tool_calls found - the error is likely
 				// caused by invalid user input. Exit the iteration and report to the user.
 				log.Error("Agent.RunStream: stream error at iteration %d: %v, no assistant tool_calls found, exiting", iteration, streamErr)
-				cb("error", fmt.Sprintf("LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。", streamErr))
-				cb("done", "")
+				cb(EventError, fmt.Sprintf("LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。", streamErr))
+				cb(EventDone, "")
 				return "", fmt.Errorf("LLM call failed: %w", streamErr)
 			}
 		}
@@ -618,8 +618,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						errDetail = entry.Error
 					}
 				}
-				cb("error", fmt.Sprintf("方法调用解析错误（parse-error-action=exit）: %s\n", errDetail))
-				cb("done", "")
+				cb(EventError, fmt.Sprintf("方法调用解析错误（parse-error-action=exit）: %s\n", errDetail))
+				cb(EventDone, "")
 				return "", fmt.Errorf("tool call parse error: %s", errDetail)
 			}
 
@@ -685,9 +685,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					errorSummary = errorSummary[:120] + "..."
 				}
 			}
-			cb("info", fmt.Sprintf("检测到XML解析错误: %s\n", errorSummary))
-			cb("info", fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
-			cb("info", "────────────────────────────────────────────\n")
+			cb(EventInfo, fmt.Sprintf("检测到XML解析错误: %s\n", errorSummary))
+			cb(EventInfo, fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
+			cb(EventInfo, "────────────────────────────────────────────\n")
 			continue
 		}
 
@@ -714,7 +714,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 			// Rule 3: attempt_completion not available → exit immediately
 			if !attemptCompAvailable {
-				cb("done", "")
+				cb(EventDone, "")
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
 					Role:             "assistant",
@@ -746,7 +746,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						tokenUsageMode = a.cfg.LLM.TokenUsage
 					}
 					if tokenUsageMode != "off" {
-						cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+						cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
 							iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 					}
 				}
@@ -754,10 +754,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Send task-level token usage before done
 				taskP, taskC, taskT := a.TaskTokenUsage()
 				if taskT > 0 {
-					cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+					cb(EventTokenTask, fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
 				}
 
-				cb("done", "")
+				cb(EventDone, "")
 
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
@@ -813,15 +813,15 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						tokenUsageMode = a.cfg.LLM.TokenUsage
 					}
 					if tokenUsageMode != "off" {
-						cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+						cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
 							iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 					}
 				}
 				taskP, taskC, taskT := a.TaskTokenUsage()
 				if taskT > 0 {
-					cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+					cb(EventTokenTask, fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
 				}
-				cb("done", "")
+				cb(EventDone, "")
 
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
@@ -923,7 +923,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					usagePct, threshold)
 				reorganizePending = true
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb("warning", fmt.Sprintf("\n%s 上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行\n", ep.Warning, usagePct, threshold))
+				cb(EventWarning, fmt.Sprintf("\n%s 上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行\n", ep.Warning, usagePct, threshold))
 			}
 		}
 
@@ -980,7 +980,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					var cmdArgs map[string]interface{}
 					if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
 						if cmd, ok := cmdArgs["command"].(string); ok {
-							cb("command", cmd)
+							cb(EventCommand, cmd)
 						}
 					}
 				}
@@ -1003,7 +1003,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						msg += "\n" + argsPretty
 					}
 					msg += "\n"
-					cb("tool_call", msg)
+					cb(EventToolCall, msg)
 				}
 
 				log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
@@ -1034,8 +1034,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					}
 					if parseAction == "exit" {
 						// Exit the loop and report error
-						cb("error", fmt.Sprintf("工具 %s 执行失败（parse-error-action=exit）: %v\n", tc.Name, execErr))
-						cb("done", "")
+						cb(EventError, fmt.Sprintf("工具 %s 执行失败（parse-error-action=exit）: %v\n", tc.Name, execErr))
+						cb(EventDone, "")
 						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
 					}
 					if parseAction == "retry" {
@@ -1050,7 +1050,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				// Show tool call output if enabled (for all tools)
 				if a.showToolOutput && result != "" {
-					cb("tool_call", fmt.Sprintf("  Result:\n%s\n", result))
+					cb(EventToolCall, fmt.Sprintf("  Result:\n%s\n", result))
 				}
 
 				// If the result is empty, provide a clear message to the LLM
@@ -1125,16 +1125,16 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					tokenUsageMode = a.cfg.LLM.TokenUsage
 				}
 				if tokenUsageMode != "off" {
-					cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+					cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
 						iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 				}
 			}
 			// Send task-level token usage before done
 			taskP, taskC, taskT := a.TaskTokenUsage()
 			if taskT > 0 {
-				cb("token_task", fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+				cb(EventTokenTask, fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
 			}
-			cb("done", "")
+			cb(EventDone, "")
 			log.Info("Agent.RunStream: completed after %d iterations (via attempt_completion in same iteration)", iteration+1)
 			return finalContent, nil
 		}
@@ -1171,7 +1171,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				tokenUsageMode = a.cfg.LLM.TokenUsage
 			}
 			if tokenUsageMode != "off" {
-				cb("token_iter", fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+				cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
 					iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 			}
 		}

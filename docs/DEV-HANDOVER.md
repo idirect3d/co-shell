@@ -1,21 +1,27 @@
 # co-shell 开发交接文件（0.7.x 输出架构重构）
 
 > 用途：新会话在新上下文中继续开发。只需读本文 + docs/output-architecture.md 即可恢复全部上下文。
-> 创建：2026-08-01 16:30 | 当前分支：FEATURE-301 | 版本：v0.7.0（BUILD-339）
+> 创建：2026-08-01 17:00 | 当前分支：FEATURE-302 | 版本：v0.7.0（BUILD-340）
 
 ---
 
 ## 一、当前任务
 
-**FEATURE-301（P1）事件双枚举重构**：将事件魔法字符串 `cb("content_chunk")` 等 13 种输出事件 + 输入事件改为常量引用。纯重构、行为零变化。
-（完整设计见 docs/output-architecture.md 3.3/3.6；13 事件 = content_chunk/thinking_chunk/content/thinking/command/output/tool_call/token_iter/token_task/info/warning/error/done）
+**FEATURE-302（P2）Out + RenderCommand 抽象 + 渲染合并**：统一输出通道，引入 RenderCommand 渲染指令（架构文档 3.7），消除 REPL/main 双渲染。
+（完整设计见 docs/output-architecture.md 3.2/3.7/6.2；P1 已为 P2 铺好 13 事件常量 + 双 golden 基线）
 
-## 二、已就绪状态
+## 二、已完成状态（FEATURE-301 交付）
 
-- **git**：main 已提交调研文档（2eb4ecc）+ 版本计划（35fd19c）；FEATURE-301 分支已建
-- **测试用例**：use-case/FEATURE-301/FEATURE-301-UC-0001.md（12 用例，**待用户确认后开发**）
-- **验收基线**（bin/output_audit.sh）：fmt=206 / 魔法事件=**63** / 中文=1555 / 同步输入=19 / i18n=1
-- **验收标准**：仅魔法事件 63→0，其余 4 项不变；go build + go test 全绿；golden 渲染快照无差异
+- **git**：FEATURE-301 已完成并合并回 main（[BUILD-340]）；FEATURE-302 分支已建
+- **测试用例**：use-case/FEATURE-301/FEATURE-301-UC-0001.md（12 用例，全部通过）
+- **验收结果**（bin/output_audit.sh）：fmt=206 / 魔法事件=**63→0** / 中文=1555 / 同步输入=19 / i18n=1（仅第 2 项变化，行为零变化达成）
+- **新增回归资产**：
+  - agent/events.go（13 输出事件常量）+ agent/input.go（12 InputKind 常量）
+  - agent/events_test.go（UC-0003/0004 常量 table 测试）
+  - repl/render_test.go + repl/testdata/render_tui.golden（REPL 渲染 golden）
+  - render_test.go + testdata/render_single_cmd.golden（单命令渲染 golden）
+  - main.go renderSingleCmdEvent 已从 executeSingleCommand 闭包机械提取（P2 渲染合并的接入点）
+- **已知既有问题（非本任务引入）**：agent/file_tools_test.go 的 read_file/search_files/write_to_file 用例失败（参数校验变更未同步测试，与 FEATURE-265 相关），baseline 分支同样失败
 
 ## 三、版本计划（0.7.x 系列，ROADMAP 已登记）
 
@@ -64,15 +70,15 @@
 
 ## 七、下一步行动（新会话顺序）
 
-1. `git status` 确认在 FEATURE-301 分支
-2. 读 docs/output-architecture.md（架构细则）+ use-case/FEATURE-301 用例
+1. `git status` 确认在 FEATURE-302 分支
+2. 读 docs/output-architecture.md（3.2 Out 接口 / 3.7 RenderCommand / 6.2 input-mode 别名）+ use-case/FEATURE-302 用例（新建）
 3. **向用户确认测试用例**（门禁）
-4. 开发：先录 golden 基线（main 行为）→ 建 agent/events.go + input.go → 常量化 63 处 cb + switch → go build/test/audit（期望仅第 2 项 63→0）
-5. 验收通过后：ROADMAP 标记 FEATURE-301 [BUILD-34X] → 合并回 main → 建 FEATURE-302 分支
+4. 开发：新增 agent/out.go（Out + TerminalOut）→ agent/command.go（RenderCommand/RenderKind）→ repl.go streamCallback 与 main.go renderSingleCmdEvent 合并为「事件→渲染器」单一入口（LineRenderer 语义）→ --input-mode enhanced→tui 别名（parseInputMode）
+5. 验收：`bin/output_audit.sh` 全项不变；两份 golden 仍逐字节一致；`:set` 开关生效回归；`--input-mode stdio` 无 ANSI 污染；REPL 冒烟（需 API Key）
 
 ## 八、风险
 
-- P1 核心文件大 diff，golden + audit 兜底，禁夹带行为改动
-- P2 才做 `--input-mode enhanced` 别名，P1 不动配置
-- ROADMAP 末尾有孤立 `## v0.6.0 — Beta3` 标题残留（replace_in_file 解析失败导致），可顺手清理
+- P2 是渲染逻辑合并，golden 基线已就绪兜底，禁夹带行为改动（golden 有差异即为回归）
+- `--input-mode enhanced→tui` 别名需保留老配置兼容（config.json 旧值自动归一化，不回写）
+- P2 只做 Out/TerminalOut + RenderCommand 抽象，不迁移向导（P3 才做）
 - 新会话语境预算：先读本文 + 架构文档，避免重复摸底全库

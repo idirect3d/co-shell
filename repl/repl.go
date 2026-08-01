@@ -666,24 +666,24 @@ func (r *REPL) streamCallback(eventType string, content string) {
 	}
 
 	switch eventType {
-	case "content_chunk":
+	case agent.EventContentChunk:
 		out(content)
-	case "thinking_chunk":
+	case agent.EventThinkingChunk:
 		out(content)
-	case "content":
+	case agent.EventContent:
 		out(ep.LlmOutput)
 		out(content)
 		out("\n")
-	case "thinking":
+	case agent.EventThinking:
 		out(ep.Thinking)
 		out(content)
 		out("\n")
-	case "command":
+	case agent.EventCommand:
 		out("\n")
 		out(ep.CommandInput)
 		out(content)
 		out("\n")
-	case "output":
+	case agent.EventOutput:
 		out("\n")
 		out(ep.OutputTitle)
 		out("\n")
@@ -693,12 +693,12 @@ func (r *REPL) streamCallback(eventType string, content string) {
 		out("\n")
 		out(ep.OutputSep)
 		out("\n")
-	case "tool_call":
+	case agent.EventToolCall:
 		out("\n")
 		out(ep.ToolCallInput)
 		out(content)
 		out("\n")
-	case "token_iter":
+	case agent.EventTokenIter:
 		var prompt, completion, total, maxLen int
 		var ft, inTPS, outTPS string
 		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
@@ -715,24 +715,24 @@ func (r *REPL) streamCallback(eventType string, content string) {
 			out("\n")
 			outF("────────────────────────────────────────────────────────────────────────────────\n")
 		}
-	case "token_task":
+	case agent.EventTokenTask:
 		var prompt, completion, total int
 		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d", &prompt, &completion, &total); err == nil && total > 0 {
 			outF("\n────────────────────────────────────────────────────────────────────────────────\n")
 			out(fmt.Sprintf("本次任务 Token 总计: 输入=%d, 输出=%d, 总计=%d\n", prompt, completion, total))
 			outF("────────────────────────────────────────────────────────────────────────────────\n")
 		}
-	case "info":
+	case agent.EventInfo:
 		out(content)
-	case "warning":
+	case agent.EventWarning:
 		out(ep.Warning)
 		out(content)
 		out("\n")
-	case "error":
+	case agent.EventError:
 		out(ep.Error)
 		out(content)
 		out("\n")
-	case "done":
+	case agent.EventDone:
 		out("\n")
 	}
 }
