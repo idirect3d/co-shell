@@ -51,7 +51,7 @@ import (
 
 const version = "0.7.0"
 
-const build = "339"
+const build = "340"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1312,6 +1312,48 @@ func isDirectCommand(input string) bool {
 	return ok
 }
 
+// renderSingleCmdEvent renders a single stream event for single-command mode.
+// It is the exact body previously inlined in executeSingleCommand's callback,
+// extracted verbatim for testability (golden baseline, UC-0006).
+func renderSingleCmdEvent(io agent.UserIO, ep config.EmojiPrefixes, eventType string, content string) {
+	switch eventType {
+	case agent.EventContentChunk:
+		io.Print(content)
+	case agent.EventThinkingChunk:
+		io.Print(content)
+	case agent.EventCommand:
+		io.Printf("%s%s\n", ep.CommandInput, content)
+	case agent.EventOutput:
+		io.Println()
+		io.Println(ep.OutputTitle)
+		io.Println(ep.OutputSep)
+		io.Println(content)
+		io.Println(ep.OutputSep)
+	case agent.EventToolCall:
+		io.Printf("%s%s\n", ep.ToolCallInput, content)
+	case agent.EventTokenIter:
+		io.Printf("\n%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
+		var prompt, completion, total, maxLen int
+		var ft, inTPS, outTPS string
+		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
+			&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil {
+			pct := 0.0
+			if maxLen > 0 && total > 0 {
+				pct = float64(total) * 100.0 / float64(maxLen)
+			}
+			io.Printf("%s %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
+			if ft != "" {
+				io.Printf("%s   %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS))
+			}
+		}
+		io.Printf("%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
+	case agent.EventError:
+		io.Printf("%s%s\n", ep.Error, content)
+	case agent.EventDone:
+		io.Println()
+	}
+}
+
 // executeSingleCommand executes a single command (natural language or system command)
 // and prints the result, then exits.
 func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
@@ -1344,42 +1386,7 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 	// Natural language input - use agent with streaming output
 	ctx := context.Background()
 	_, err := ag.RunStream(ctx, input, func(eventType string, content string) {
-		switch eventType {
-		case "content_chunk":
-			io.Print(content)
-		case "thinking_chunk":
-			io.Print(content)
-		case "command":
-			io.Printf("%s%s\n", ep.CommandInput, content)
-		case "output":
-			io.Println()
-			io.Println(ep.OutputTitle)
-			io.Println(ep.OutputSep)
-			io.Println(content)
-			io.Println(ep.OutputSep)
-		case "tool_call":
-			io.Printf("%s%s\n", ep.ToolCallInput, content)
-		case "token_iter":
-			io.Printf("\n%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
-			var prompt, completion, total, maxLen int
-			var ft, inTPS, outTPS string
-			if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-				&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil {
-				pct := 0.0
-				if maxLen > 0 && total > 0 {
-					pct = float64(total) * 100.0 / float64(maxLen)
-				}
-				io.Printf("%s %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
-				if ft != "" {
-					io.Printf("%s   %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS))
-				}
-			}
-			io.Printf("%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
-		case "error":
-			io.Printf("%s%s\n", ep.Error, content)
-		case "done":
-			io.Println()
-		}
+		renderSingleCmdEvent(io, ep, eventType, content)
 	})
 
 	if err != nil {

@@ -523,7 +523,7 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 	}
 
 	if a.showLlmThinking && resp.ReasoningContent != "" {
-		cb("thinking", resp.ReasoningContent)
+		cb(EventThinking, resp.ReasoningContent)
 	}
 
 	// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
@@ -666,7 +666,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	if cb := a.streamCb; cb != nil {
 		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
 		if showDetail {
-			cb("info", "发送给判定模型的完整提示词:\n"+strings.TrimSpace(userText)+"\n")
+			cb(EventInfo, "发送给判定模型的完整提示词:\n"+strings.TrimSpace(userText)+"\n")
 		}
 	}
 
@@ -776,7 +776,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	if cb := a.streamCb; cb != nil {
 		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
 		if showDetail {
-			cb("info", "判定模型的完整返回:\n"+strings.TrimSpace(resp.Content)+"\n")
+			cb(EventInfo, "判定模型的完整返回:\n"+strings.TrimSpace(resp.Content)+"\n")
 		}
 	}
 
@@ -838,7 +838,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 
 	cb := a.streamCb
 	if cb != nil {
-		cb("info", fmt.Sprintf("检测到循环 (%s)\n", event.Detector))
+		cb(EventInfo, fmt.Sprintf("检测到循环 (%s)\n", event.Detector))
 	}
 
 	// Secondary judgment: when LoopJudgeEnabled, call judge model FIRST to
@@ -855,7 +855,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		if result != nil && !result.IsLoop {
 			// Judge says not a loop — do NOT intervene.
 			if cb != nil {
-				cb("info", "判定模型认为非循环，跳过干预\n")
+				cb(EventInfo, "判定模型认为非循环，跳过干预\n")
 			}
 			return nil
 		}
@@ -891,7 +891,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	case "off":
 		// No intervention
 		if cb != nil {
-			cb("info", "循环介入已禁用\n")
+			cb(EventInfo, "循环介入已禁用\n")
 		}
 		return nil
 
@@ -966,13 +966,13 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	}
 
 	if cb != nil {
-		cb("info", fmt.Sprintf("处理方式: %s\n", strategyDesc))
+		cb(EventInfo, fmt.Sprintf("处理方式: %s\n", strategyDesc))
 		if loopFeedback != "" {
-			cb("info", fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+			cb(EventInfo, fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
 		} else {
-			cb("info", "（无反馈，仅重发上下文）\n")
+			cb(EventInfo, "（无反馈，仅重发上下文）\n")
 		}
-		cb("info", "────────────────────────────────────────────\n")
+		cb(EventInfo, "────────────────────────────────────────────\n")
 	}
 
 	return nil
@@ -1029,11 +1029,11 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	cb := a.streamCb
 	if cb != nil {
 		if result != nil && result.IsLoop {
-			cb("info", fmt.Sprintf("判定模型返回: is_loop=true, reason=%q, exit_strategy=%q\n", result.Reason, result.ExitStrategy))
+			cb(EventInfo, fmt.Sprintf("判定模型返回: is_loop=true, reason=%q, exit_strategy=%q\n", result.Reason, result.ExitStrategy))
 		} else if result != nil && !result.IsLoop {
-			cb("info", fmt.Sprintf("判定模型返回: is_loop=false, reason=%q\n", result.Reason))
+			cb(EventInfo, fmt.Sprintf("判定模型返回: is_loop=false, reason=%q\n", result.Reason))
 		} else {
-			cb("info", "判定模型返回: 失败/超时\n")
+			cb(EventInfo, "判定模型返回: 失败/超时\n")
 		}
 	}
 

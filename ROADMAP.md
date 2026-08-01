@@ -14,7 +14,7 @@
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
-| FEATURE-301 | 0.7.0 | P1 | 输出/输入事件双枚举 + 回归基线 |
+| FEATURE-301 | 0.7.0 | P1 | ✅ 已完成（事件双枚举 + 回归基线 [BUILD-340]） |
 | FEATURE-302 | 0.7.0 | P2 | Out + RenderCommand 抽象 + 渲染合并 |
 | FEATURE-303 | 0.7.0 | P3 | 向导迁移（B 类）+ i18n 归零第一步 |
 | FEATURE-304 | 0.7.0 | P4 | 外部入口迁移 + 分类开关 |
@@ -914,11 +914,11 @@
 
 ### 功能清单
 
-- [ ] **FEATURE-301 输出/输入事件双枚举重构（P1）**：
-  - 新增 agent/events.go（输出事件常量 + StreamEvent）；agent/input.go（InputKind + InputEvent）
-  - agent/loop.go / run_stream.go / stream_response.go 的 cb("xxx") 替换为常量；repl.go/main.go switch 同步
-  - 回归基线：事件渲染 golden-file 测试 + stdout 快照对比
-  - 验收：go build + go test 通过；行为无变化
+- [x] **FEATURE-301 输出/输入事件双枚举重构（P1）**：[BUILD-340]
+  - 新增 agent/events.go（13 输出事件常量）+ agent/input.go（12 InputKind 常量）
+  - agent/loop.go / run_stream.go / stream_response.go 的 63 处 cb 魔法字符串替换为常量；repl.go/main.go switch 同步用 agent.Event 常量
+  - 回归基线：agent/events_test.go（UC-0003/0004）+ repl/render_test.go（render_tui.golden）+ render_test.go（render_single_cmd.golden）逐字节一致
+  - 验收：go build；audit 魔法事件 63→0（其余 4 项 206/1555/19/1 不变）；行为零变化
 
 - [ ] **FEATURE-302 Out + RenderCommand 抽象 + 渲染合并（P2）**：
   - 新增 agent/out.go（Out 接口 + TerminalOut）；agent/command.go（RenderCommand/RenderKind）
@@ -1040,5 +1040,4 @@ v{major}.{minor}.{patch}
 |---|---|
 | FEATURE- | 新特性或改进（New Feature/Enhancement） |
 | FIX- | Bug 修复（Bug Fix） |
-## v0.6.0 — Beta3
 

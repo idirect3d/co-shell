@@ -195,7 +195,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			case llm.StreamEventContent:
 				contentBuilder.WriteString(event.Content)
 				if a.showLlmContent {
-					cb("content_chunk", event.Content)
+					cb(EventContentChunk, event.Content)
 				}
 
 				// FEATURE-298: Check for fatal XML errors in streaming content.
@@ -258,7 +258,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			case llm.StreamEventReasoning:
 				reasoningBuilder.WriteString(event.Content)
 				if a.showLlmThinking {
-					cb("thinking_chunk", event.Content)
+					cb(EventThinkingChunk, event.Content)
 				}
 
 				// FIX-179: Check for loop patterns in reasoning output too.
@@ -304,9 +304,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 						tcName := event.ToolCall.Name
 						tcArgs := event.ToolCall.Arguments
 						if a.showToolInput && tcArgs != "" {
-							cb("content_chunk", fmt.Sprintf("[🔧 %s(%s)]", tcName, tcArgs))
+							cb(EventContentChunk, fmt.Sprintf("[🔧 %s(%s)]", tcName, tcArgs))
 						} else if tcName != "" {
-							cb("content_chunk", fmt.Sprintf("[🔧 %s]", tcName))
+							cb(EventContentChunk, fmt.Sprintf("[🔧 %s]", tcName))
 						}
 					}
 
