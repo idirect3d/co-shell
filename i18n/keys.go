@@ -948,6 +948,15 @@ const (
 	KeySettingsSetDefaultHint = "settings_set_default_hint"
 	KeySettingsResetSuccess   = "settings_reset_success"
 
+	// Settings - Mode retained dirs rename (FIX-300)
+	KeySettingsResetModeDirsFound    = "settings_reset_mode_dirs_found"
+	KeySettingsResetModeDirsConfirm  = "settings_reset_mode_dirs_confirm"
+	KeySettingsResetModeDirsRenamed  = "settings_reset_mode_dirs_renamed"
+	KeySettingsResetModeDirsSkipped  = "settings_reset_mode_dirs_skipped"
+	KeySettingsResetModeDirsFailed   = "settings_reset_mode_dirs_failed"
+	KeySettingsResetModeDirsRenamedB = "settings_reset_mode_dirs_renamed_b"
+	KeySettingsResetModeDirsFailedB  = "settings_reset_mode_dirs_failed_b"
+
 	// Excel tool usage examples (XML mode)
 	KeyToolUsageExcelOpen     = "tool_usage_excel_open"
 	KeyToolUsageExcelClose    = "tool_usage_excel_close"
