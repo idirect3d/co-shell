@@ -30,7 +30,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
@@ -810,12 +813,139 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 		return "", fmt.Errorf("save config after reset: %w", err)
 	}
 
+	// FIX-300: rename mode retained dirs so the default system prompt
+	// (including {AGENT_PRINCIPLES}) is used instead of stale mode files.
+	renameReport := h.renameModeRetainedDirs()
+
 	// Sync to agent so the reset takes effect immediately (rebuilds system prompt)
 	if h.agent != nil {
 		h.agent.SetConfig(h.cfg)
 	}
 
-	return i18n.T(i18n.KeySettingsResetSuccess), nil
+	msg := i18n.T(i18n.KeySettingsResetSuccess)
+	if renameReport != "" {
+		msg += "\n" + renameReport
+	}
+	return msg, nil
+}
+
+// modeDirRenameEntry represents a mode retained dir to be renamed.
+type modeDirRenameEntry struct {
+	oldPath string
+	newPath string
+	oldName string
+	newName string
+	err     error // set when rename fails
+}
+
+// knownModeNames returns the set of known work mode names:
+// built-in act/plan/research plus user-defined modes from cfg.WorkModes.
+func knownModeNames(cfg *config.Config) map[string]bool {
+	names := map[string]bool{"act": true, "plan": true, "research": true}
+	if cfg != nil {
+		for _, wm := range cfg.WorkModes {
+			names[wm.Name] = true
+		}
+	}
+	return names
+}
+
+// listModeDirsToRename scans {cwd}/mode/ for directories whose name matches a
+// known work mode name and returns rename entries with a .YYYYMMDD suffix
+// (append .1, .2 ... when the target already exists).
+func listModeDirsToRename(cwd string, cfg *config.Config, dateStr string) []modeDirRenameEntry {
+	known := knownModeNames(cfg)
+	modeRoot := filepath.Join(cwd, "mode")
+	entries, err := os.ReadDir(modeRoot)
+	if err != nil {
+		return nil
+	}
+	var result []modeDirRenameEntry
+	for _, e := range entries {
+		if !known[e.Name()] {
+			continue
+		}
+		oldPath := filepath.Join(modeRoot, e.Name())
+		newName := e.Name() + "." + dateStr
+		for suffix := 1; ; suffix++ {
+			if _, err := os.Stat(filepath.Join(modeRoot, newName)); os.IsNotExist(err) {
+				break
+			}
+			newName = e.Name() + "." + dateStr + "." + strconv.Itoa(suffix)
+		}
+		result = append(result, modeDirRenameEntry{
+			oldPath: oldPath,
+			newPath: filepath.Join(modeRoot, newName),
+			oldName: e.Name(),
+			newName: newName,
+		})
+	}
+	return result
+}
+
+// renameModeDirs renames the given entries. It returns (renamed, failed):
+// renamed lists succeeded entries, failed lists entries with their error.
+func renameModeDirs(entries []modeDirRenameEntry) (renamed, failed []modeDirRenameEntry) {
+	sorted := make([]modeDirRenameEntry, len(entries))
+	copy(sorted, entries)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].oldName < sorted[j].oldName })
+
+	for _, ent := range sorted {
+		if rerr := os.Rename(ent.oldPath, ent.newPath); rerr != nil {
+			ent.err = rerr
+			failed = append(failed, ent)
+			continue
+		}
+		renamed = append(renamed, ent)
+	}
+	return renamed, failed
+}
+
+// renameModeRetainedDirs handles FIX-300: after :set defaults resets internal
+// parameters, retained mode config dirs (created before the {AGENT_PRINCIPLES}
+// placeholder existed) would silently shadow the default system prompt. This
+// lists those dirs, asks for confirmation, and renames them with a .YYYYMMDD
+// suffix so the system prompt falls back to the default i18n template.
+// Returns a human-readable report ("" when there is nothing to do).
+func (h *SettingsHandler) renameModeRetainedDirs() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Warn("renameModeRetainedDirs: cannot get cwd: %v", err)
+		return ""
+	}
+	entries := listModeDirsToRename(cwd, h.cfg, time.Now().Format("20060102"))
+	if len(entries) == 0 {
+		return ""
+	}
+
+	var listSB strings.Builder
+	for _, e := range entries {
+		listSB.WriteString(fmt.Sprintf("  · %s → %s\n", e.oldName, e.newName))
+	}
+
+	io := h.io()
+	io.Print(fmt.Sprintf(i18n.T(i18n.KeySettingsResetModeDirsFound), listSB.String()))
+	io.Print(i18n.T(i18n.KeySettingsResetModeDirsConfirm))
+	answer, rerr := io.ReadLine()
+	if rerr != nil || !strings.EqualFold(strings.TrimSpace(answer), "y") {
+		return i18n.T(i18n.KeySettingsResetModeDirsSkipped)
+	}
+
+	renamed, failed := renameModeDirs(entries)
+	var report strings.Builder
+	if len(renamed) > 0 {
+		report.WriteString(i18n.T(i18n.KeySettingsResetModeDirsRenamed) + "\n")
+		for _, e := range renamed {
+			report.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingsResetModeDirsRenamedB), e.oldName, e.newName) + "\n")
+		}
+	}
+	if len(failed) > 0 {
+		report.WriteString(i18n.T(i18n.KeySettingsResetModeDirsFailed) + "\n")
+		for _, e := range failed {
+			report.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingsResetModeDirsFailedB), e.oldName, e.err) + "\n")
+		}
+	}
+	return strings.TrimRight(report.String(), "\n")
 }
 
 // lookupWorkModeDescription returns the Identity section content for the current work mode,

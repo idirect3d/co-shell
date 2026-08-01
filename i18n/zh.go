@@ -828,4 +828,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySessionConfirmSwitch:     "确认切换到会话 %q？将自动保存当前会话 [y/N] ",
 	KeySessionNameByLLM:         "LLM自动命名: %s",
 	KeySessionNameByLLMFailed:   "LLM命名失败，使用默认名称",
+
+	// Settings - Mode retained dirs rename (FIX-300)
+	KeySettingsResetModeDirsFound:    "发现 mode 留存配置目录，将重命名为 .YYYYMMDD 后缀以恢复系统默认提示词：\n%v\n",
+	KeySettingsResetModeDirsConfirm:  "是否重命名以上 mode 留存目录？[y/N] ",
+	KeySettingsResetModeDirsRenamed:  "已将 mode 留存目录重命名（如需恢复请手动改回）：",
+	KeySettingsResetModeDirsSkipped:  "用户取消重命名 mode 留存目录",
+	KeySettingsResetModeDirsFailed:   "以下 mode 保存目录重命名失败（不影响配置重置）：",
+	KeySettingsResetModeDirsRenamedB: "  · %s → %s",
+	KeySettingsResetModeDirsFailedB:  "  · %s: %v",
 }
