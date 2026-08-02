@@ -646,7 +646,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	// Build task plan text
 	taskPlanText := a.getTaskPlanPrompt()
 	if taskPlanText == "" {
-		taskPlanText = "（无活跃任务计划 / No active task plan）"
+		taskPlanText = i18n.T(i18n.KeyNoActiveTaskPlan)
 	}
 
 	// Determine the type of loop: content or tool call
@@ -666,7 +666,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	if cb := a.streamCb; cb != nil {
 		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
 		if showDetail {
-			cb(EventInfo, "发送给判定模型的完整提示词:\n"+strings.TrimSpace(userText)+"\n")
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgePrompt), strings.TrimSpace(userText)))
 		}
 	}
 
@@ -776,7 +776,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 	if cb := a.streamCb; cb != nil {
 		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
 		if showDetail {
-			cb(EventInfo, "判定模型的完整返回:\n"+strings.TrimSpace(resp.Content)+"\n")
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResponse), strings.TrimSpace(resp.Content)))
 		}
 	}
 
@@ -838,7 +838,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 
 	cb := a.streamCb
 	if cb != nil {
-		cb(EventInfo, fmt.Sprintf("检测到循环 (%s)\n", event.Detector))
+		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectEvent), event.Detector))
 	}
 
 	// Secondary judgment: when LoopJudgeEnabled, call judge model FIRST to
@@ -855,7 +855,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		if result != nil && !result.IsLoop {
 			// Judge says not a loop — do NOT intervene.
 			if cb != nil {
-				cb(EventInfo, "判定模型认为非循环，跳过干预\n")
+				cb(EventInfo, i18n.T(i18n.KeyLoopJudgeNotLoop))
 			}
 			return nil
 		}
@@ -891,14 +891,14 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	case "off":
 		// No intervention
 		if cb != nil {
-			cb(EventInfo, "循环介入已禁用\n")
+			cb(EventInfo, i18n.T(i18n.KeyLoopJudgeDisabled))
 		}
 		return nil
 
 	case "retry":
 		// Just resend without any feedback
 		loopFeedback = ""
-		strategyDesc = "重发上下文（无反馈）"
+		strategyDesc = i18n.T(i18n.KeyStrategyResend)
 
 	case "prompt":
 		// Use judge's exit_strategy if available (set by secondary judgment above),
@@ -907,7 +907,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		if loopFeedback == "" {
 			loopFeedback = i18n.T(i18n.KeyLoopDetectFeedback)
 		}
-		strategyDesc = "发送纠错提示"
+		strategyDesc = i18n.T(i18n.KeyStrategyPrompt)
 
 	case "temperature":
 		if a.loopTempCtrl != nil {
@@ -917,11 +917,11 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 			}
 		}
 		loopFeedback = ""
-		strategyDesc = "温度调整（无反馈）"
+		strategyDesc = i18n.T(i18n.KeyStrategyTempAdjust)
 
 	case "reorganize":
 		loopFeedback = i18n.T(i18n.KeyLoopReorganizeSuggestion)
-		strategyDesc = "重整上下文"
+		strategyDesc = i18n.T(i18n.KeyStrategyReorganize)
 
 	case "random":
 		actions := []string{"retry", "prompt", "reorganize", "temperature"}
@@ -929,13 +929,13 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		switch choice {
 		case "retry":
 			loopFeedback = ""
-			strategyDesc = "随机选择: 重发上下文"
+			strategyDesc = i18n.T(i18n.KeyStrategyRandomResend)
 		case "prompt":
 			loopFeedback = i18n.T(i18n.KeyLoopDetectFeedback)
-			strategyDesc = "随机选择: 发送纠错提示"
+			strategyDesc = i18n.T(i18n.KeyStrategyRandomPrompt)
 		case "reorganize":
 			loopFeedback = i18n.T(i18n.KeyLoopReorganizeSuggestion)
-			strategyDesc = "随机选择: 重整上下文"
+			strategyDesc = i18n.T(i18n.KeyStrategyRandomReorg)
 		case "temperature":
 			if a.loopTempCtrl != nil {
 				_, changed := a.loopTempCtrl.Apply()
@@ -944,13 +944,13 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 				}
 			}
 			loopFeedback = ""
-			strategyDesc = "随机选择: 温度调整（无反馈）"
+			strategyDesc = i18n.T(i18n.KeyStrategyRandomTemp)
 		}
 
 	default:
 		// Unknown strategy: clear feedback to avoid sending prompt unexpectedly
 		loopFeedback = ""
-		strategyDesc = fmt.Sprintf("未知策略(%s)，按retry处理", loopAction)
+		strategyDesc = fmt.Sprintf(i18n.TF(i18n.KeyStrategyUnknown), loopAction)
 	}
 
 	// Append feedback to messages (if non-empty)
@@ -966,11 +966,11 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	}
 
 	if cb != nil {
-		cb(EventInfo, fmt.Sprintf("处理方式: %s\n", strategyDesc))
+		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strategyDesc))
 		if loopFeedback != "" {
-			cb(EventInfo, fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopFeedbackSent), loopFeedback))
 		} else {
-			cb(EventInfo, "（无反馈，仅重发上下文）\n")
+			cb(EventInfo, i18n.T(i18n.KeyLoopNoFeedback))
 		}
 		cb(EventInfo, "────────────────────────────────────────────\n")
 	}
@@ -1013,7 +1013,7 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	io := a.defaultIO()
 	io.Println()
 	io.Println("────────────────────────────────────────────")
-	io.Println("检测到疑似循环内容...")
+	io.Println(i18n.T(i18n.KeyLoopSuspected))
 
 	// Judge mode: synchronously call judgeLoop.
 	// (judgeLoop will display the full user prompt via streamCb)
@@ -1029,11 +1029,11 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	cb := a.streamCb
 	if cb != nil {
 		if result != nil && result.IsLoop {
-			cb(EventInfo, fmt.Sprintf("判定模型返回: is_loop=true, reason=%q, exit_strategy=%q\n", result.Reason, result.ExitStrategy))
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResultLoop), result.Reason, result.ExitStrategy))
 		} else if result != nil && !result.IsLoop {
-			cb(EventInfo, fmt.Sprintf("判定模型返回: is_loop=false, reason=%q\n", result.Reason))
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResultNo), result.Reason))
 		} else {
-			cb(EventInfo, "判定模型返回: 失败/超时\n")
+			cb(EventInfo, i18n.T(i18n.KeyLoopJudgeResultFail))
 		}
 	}
 
@@ -1178,7 +1178,7 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	// {ITERATIONS} = last 2 assistant responses for context
 	iterations := a.getRecentIterations()
 	if iterations == "" {
-		iterations = "（无最近迭代内容 / No recent iterations）"
+		iterations = i18n.T(i18n.KeyNoRecentIterations)
 	}
 
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
