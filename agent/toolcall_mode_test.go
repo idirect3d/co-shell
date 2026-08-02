@@ -612,6 +612,82 @@ func TestStripCodeBlockXML_IncompleteFence(t *testing.T) {
 	t.Logf("Result: %q", result)
 }
 
+// TestStripCodeBlockXML_ClosingFenceWithCloseTagSameLine verifies that when the
+// closing fence ``` and an XML close tag (e.g. </cs:replace>) are on the SAME
+// line, the close tag is preserved while the code block body is stripped
+// (FIX-309). Previously the close tag was deleted together with the fence,
+// causing "参数 <replace> 缺少闭合标签 </replace>" parse errors.
+func TestStripCodeBlockXML_ClosingFenceWithCloseTagSameLine(t *testing.T) {
+	// Closing fence ``` appears on the same line as </cs:replace>
+	input := "```\n#!/bin/bash\necho hello\n```</cs:replace>"
+	result := stripCodeBlockXML(input)
+	if strings.Contains(result, "#!/bin/bash") {
+		t.Errorf("code block body should be stripped, got:\n%s", result)
+	}
+	if !strings.Contains(result, "</cs:replace>") {
+		t.Errorf("close tag </cs:replace> must be preserved when on the same line as the closing fence, got:\n%q", result)
+	}
+	t.Logf("Stripped result: %q", result)
+}
+
+// TestParseXMLToolCallsWithTools_CodeBlockCloseTagSameLine verifies end-to-end
+// that a tool call whose parameter content ends with a code block whose closing
+// fence ``` shares a line with the parameter close tag parses correctly
+// (FIX-309). Before the fix, stripCodeBlockXML deleted </cs:replace> and the
+// parser reported "参数 <replace> 缺少闭合标签 </replace>".
+func TestParseXMLToolCallsWithTools_CodeBlockCloseTagSameLine(t *testing.T) {
+	// Simulate LLM output: the <replace> parameter contains a bash script in a
+	// Markdown code block; LLM wrote the closing ``` on the same line as
+	// </cs:replace>.
+	input := "<cs:replace_in_file>\n" +
+		"  <cs:intent>append appendix A and B</cs:intent>\n" +
+		"  <cs:path>research/report.md</cs:path>\n" +
+		"  <cs:replace>## 附录A：完整启动脚本示例\n\n```bash\n#!/bin/bash\n# launch script\n```</cs:replace>\n" +
+		"</cs:replace_in_file>"
+
+	tools := []llm.Tool{
+		{
+			Name: "replace_in_file",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"intent":  map[string]interface{}{"type": "string"},
+					"path":    map[string]interface{}{"type": "string"},
+					"replace": map[string]interface{}{"type": "string"},
+				},
+				"required": []interface{}{"intent", "path", "replace"},
+			},
+		},
+	}
+
+	calls := ParseXMLToolCallsWithTools(input, tools)
+	if len(calls) != 1 {
+		t.Fatalf("expected exactly 1 tool call, got %d", len(calls))
+	}
+	if calls[0].Name != "replace_in_file" {
+		t.Fatalf("expected 'replace_in_file', got %q", calls[0].Name)
+	}
+	if calls[0].Name == "_xml_parse_error" {
+		t.Fatalf("expected a normal tool call, got parse error: %s", calls[0].Arguments)
+	}
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(calls[0].Arguments), &args); err != nil {
+		t.Fatalf("failed to parse arguments JSON %q: %v", calls[0].Arguments, err)
+	}
+	replaceVal, ok := args["replace"].(string)
+	if !ok {
+		t.Fatalf("expected 'replace' argument to be a string, got %T: %v", args["replace"], args["replace"])
+	}
+	// The replace content must be intact: include the bash script and the code block.
+	if !strings.Contains(replaceVal, "#!/bin/bash") {
+		t.Errorf("replace content should contain the code block body, got:\n%q", replaceVal)
+	}
+	if !strings.Contains(replaceVal, "```bash") {
+		t.Errorf("replace content should contain the opening fence, got:\n%q", replaceVal)
+	}
+	t.Logf("Parsed replace argument: %q", replaceVal)
+}
+
 func TestParseXMLToolCalls_ItemMissingCloseTag(t *testing.T) {
 	// FIX-255: When <item> inside a <replacements> block is missing its </item>
 	// closing tag, the parser should propagate the nested parse error up to the
