@@ -15,7 +15,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-301 | 0.7.0 | P1 | ✅ 已完成（事件双枚举 + 回归基线 [BUILD-340]） |
-| FEATURE-302 | 0.7.0 | P2 | Out + RenderCommand 抽象 + 渲染合并 |
+| FEATURE-302 | 0.7.0 | P2 | ✅ 已完成（Out/RenderCommand + 渲染合并 [BUILD-341]） |
 | FEATURE-303 | 0.7.0 | P3 | 向导迁移（B 类）+ i18n 归零第一步 |
 | FEATURE-304 | 0.7.0 | P4 | 外部入口迁移 + 分类开关 |
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
@@ -920,11 +920,12 @@
   - 回归基线：agent/events_test.go（UC-0003/0004）+ repl/render_test.go（render_tui.golden）+ render_test.go（render_single_cmd.golden）逐字节一致
   - 验收：go build；audit 魔法事件 63→0（其余 4 项 206/1555/19/1 不变）；行为零变化
 
-- [ ] **FEATURE-302 Out + RenderCommand 抽象 + 渲染合并（P2）**：
-  - 新增 agent/out.go（Out 接口 + TerminalOut）；agent/command.go（RenderCommand/RenderKind）
-  - repl.go streamCallback 与 main.go executeSingleCommand 合并为「事件→渲染器」单一入口
-  - --input-mode enhanced→tui 别名（parseInputMode）；config.json LLM.InputMode + :set input-mode
-  - 验收：:set 开关生效；渲染结果一致；stdio 无 ANSI 污染
+- [x] **FEATURE-302 Out + RenderCommand 抽象 + 渲染合并（P2）**：[BUILD-341]
+  - 新增 agent/out.go（Out 接口 + ChannelID/Level + TerminalOut）+ agent/command.go（RenderCommand/RenderKind）+ agent/stream_renderer.go（单一事件渲染管线）
+  - repl.go streamCallback 与 main.go renderSingleCmdEvent 均委托 StreamRenderer（StreamModeREPL/SingleCmd），消除双渲染实现
+  - config.NormalizeInputMode：--input-mode enhanced 兼容别名 → tui；config.json 旧值加载归一化为 tui 不回写；REPL readLine/handleAgentInput 支持 tui
+  - 回归验证：P1 两份 golden 逐字节一致（渲染零变化）；agent/out_test.go 新增 UC-0003/0004/0008/0009（ChannelID/Level/RenderKind/TerminalOut/parseInputMode table 测试）
+  - audit：fmt 206→204（渲染合并消除 2 处直接 fmt，合规改进），魔法事件=0 / 中文=1555 / 同步输入=19 / i18n=1 与 P1 一致
 
 - [ ] **FEATURE-303 向导迁移（B 类）+ i18n 归零第一步（P3）**：
   - UI 组件 Out.Box/Menu/Step/Sep（绑定规范快捷键 [B]/[C]/[E]/[D]/[Q]/[数字]）

@@ -901,8 +901,25 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 		cfg.LLM.LoopIntervention = "prompt"
 	}
 
+	// FEATURE-302: Normalize legacy input mode "enhanced" to "tui"
+	// (config.json old value loads as "tui" without rewriting the file).
+	cfg.LLM.InputMode = NormalizeInputMode(cfg.LLM.InputMode)
+
 	cfg.configPath = path
 	return cfg, path, nil
+}
+
+// NormalizeInputMode maps legacy "enhanced" to "tui" and validates the value.
+// Unknown values are returned unchanged (callers report the invalid value).
+func NormalizeInputMode(mode string) string {
+	switch mode {
+	case "enhanced", "tui":
+		return "tui"
+	case "stdio":
+		return "stdio"
+	default:
+		return mode
+	}
 }
 
 // Load reads the config from disk using default search paths.
