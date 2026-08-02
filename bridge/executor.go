@@ -34,6 +34,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // Executor manages co-shell subprocess execution.
@@ -135,7 +137,7 @@ func (e *Executor) ExecuteInteractive(ctx context.Context, instruction string, i
 	log.Printf("Executing interactive: %s %v (workspace=%s)", e.CoShellPath, args, e.Workspace)
 
 	// Show the co-shell command being executed
-	fmt.Printf("🔧 运行: %s %s\n", e.CoShellPath, strings.Join(args, " "))
+	fmt.Printf(i18n.TF(i18n.KeyBridgeRun), e.CoShellPath, strings.Join(args, " "))
 	fmt.Println()
 
 	// Interactive mode uses a much longer timeout (30 min) because the user

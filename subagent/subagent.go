@@ -40,6 +40,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // SubAgentInfo holds the metadata for a registered sub-agent.
@@ -248,16 +250,16 @@ func (m *Manager) Close() {
 func (r *SubAgentResult) ResultSummary() string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("⏱ 执行时长: %s\n", r.Duration))
+	sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySubAgentDuration), r.Duration))
 
 	if r.Err != nil {
-		sb.WriteString(fmt.Sprintf("❌ 错误: %v\n", r.Err))
+		sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySubAgentError), r.Err))
 	}
 
-	sb.WriteString(fmt.Sprintf("🔚 退出码: %d\n", r.ExitCode))
+	sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySubAgentExitCode), r.ExitCode))
 
 	if len(r.OutputFiles) > 0 {
-		sb.WriteString("📁 输出文件:\n")
+		sb.WriteString(i18n.T(i18n.KeySubAgentOutputFiles))
 		for _, f := range r.OutputFiles {
 			sb.WriteString(fmt.Sprintf("  - %s\n", f))
 		}

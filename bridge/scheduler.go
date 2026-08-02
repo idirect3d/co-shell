@@ -31,6 +31,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // Mode represents the execution mode.
@@ -149,7 +151,7 @@ func (s *Scheduler) processNext() {
 
 		// Show processing start
 		fmt.Println()
-		fmt.Printf("⚙️  co-shell 正在处理 \"%s\"\n", msg.Instruction)
+		fmt.Printf(i18n.TF(i18n.KeyBridgeProcessing), msg.Instruction)
 		fmt.Println(strings.Repeat("─", 50))
 
 		var output string
@@ -165,7 +167,7 @@ func (s *Scheduler) processNext() {
 
 		// Show completion
 		fmt.Println()
-		fmt.Println("✅ 处理已完成")
+		fmt.Println(i18n.T(i18n.KeyBridgeDone))
 		fmt.Println(strings.Repeat("─", 50))
 
 		msg.ReplyFunc(output, err)

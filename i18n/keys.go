@@ -122,6 +122,27 @@ const (
 	KeyOutputCategoriesUsage   = "output_categories_usage"
 	KeyOutputCategoriesUnknown = "output_categories_unknown"
 
+	// FEATURE-304: D 类外部入口 i18n 迁移 (subagent/bridge/feishu)
+	KeySubAgentDuration       = "subagent_duration"
+	KeySubAgentError          = "subagent_error"
+	KeySubAgentExitCode       = "subagent_exit_code"
+	KeySubAgentOutputFiles    = "subagent_output_files"
+	KeySubAgentCommunicate    = "subagent_communicate"
+	KeyBridgeRun              = "bridge_run"
+	KeyBridgeProcessing       = "bridge_processing"
+	KeyBridgeDone             = "bridge_done"
+	KeyFeishuReplyInput       = "feishu_reply_input"
+	KeyFeishuReplyMsg         = "feishu_reply_msg"
+	KeyFeishuReplyOutput      = "feishu_reply_output"
+	KeyFeishuExecError        = "feishu_exec_error"
+	KeyFeishuExecOutputPrefix = "feishu_exec_output_prefix"
+	KeyFeishuWaitInput        = "feishu_wait_input"
+	KeyFeishuRecvFile         = "feishu_recv_file"
+	KeyFeishuRecvImage        = "feishu_recv_image"
+	KeyFeishuTruncated        = "feishu_truncated"
+	KeyFeishuAskUser          = "feishu_ask_user"
+	KeyBridgeDocAborted       = "bridge_doc_aborted"
+
 	// Settings - Config Show
 	KeyConfigTitle         = "config_title"
 	KeyConfigProvider      = "config_provider"
