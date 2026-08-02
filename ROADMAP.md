@@ -933,10 +933,11 @@
   - i18n：B 类硬编码中文迁移（约 1/3）
   - 验收：向导回归；audit Hardcoded Chinese 降 1/3
 
-- [ ] **FEATURE-304 外部入口迁移 + 分类开关（P4）**：
-  - feishu/bridge/hub/subagent 迁移到 Out；新增分类开关 OutputCategories
-  - i18n：D 类 + A 类约 30 处 + C 类 main.go 约 40 处
-  - 验收：D 类可开关控制；audit 持续下降
+- [x] **FEATURE-304 外部入口迁移 + 分类开关（P4）** [BUILD-343]：
+  - 新增分类开关 OutputCategories（:set output-categories / --output-categories CLI / config.json 持久化）
+  - feishu/bridge/subagent/feishu-bridge 运行时输出迁移（D 类 i18n/英文化 + ChannelSubAgent 开关控制）
+  - i18n：A 类 47+16 key 迁移（run_stream ESC/循环策略/错误段 + loop.go 全部）zh/en 双存在
+  - 验收：audit 901→772（-129）；D 类可开关控制；go vet 0；build 绿
 
 - [ ] **FEATURE-305 i18n 归零冲刺（P4.5）**：
   - 按 inventory A-3 清单逐条迁移；补齐 keys.go + zh/en 翻译

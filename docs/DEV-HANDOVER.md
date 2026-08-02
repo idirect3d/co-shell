@@ -1,14 +1,14 @@
 # co-shell 开发交接文件（0.7.x 输出架构重构）
 
 > 用途：新会话在新上下文中继续开发。只需读本文 + docs/output-architecture.md 即可恢复全部上下文。
-> 创建：2026-08-02 11:00 | 当前分支：FEATURE-303 | 版本：v0.7.0（BUILD-341）
+> 创建：2026-08-02 11:00 | 更新：2026-08-02 15:26 | 当前分支：main（FEATURE-304 已合并） | 版本：v0.7.0（BUILD-343）
 
 ---
 
 ## 一、当前任务
 
-**FEATURE-303（P3）向导迁移（B 类）+ i18n 归零第一步**：cmd 5 大 handler（model/mode/config/settings_db/session）迁移到 Out，消除 fmt 直写与硬编码中文；同步迁移 B 类向导文案到 i18n（约占总硬编码 1/3）。
-（完整设计见 docs/output-architecture.md 3.2/6.9；P2 已交付 Out 接口 + TerminalOut + RenderCommand，P3 直接消费）
+**FEATURE-305（P4.5）i18n 归零冲刺**：清空剩余硬编码中文，达成 100% i18n 硬性目标；按 inventory A-3 清单逐条迁移（A 类残余 + C 类 main.go 警告），同步补齐 keys/zh/en 翻译；修复 KeyToolUsageShellSend 缺 zh 翻译 bug。
+（完整设计见 docs/output-architecture.md 4.5；P4 已完成 audit 901→772，剩余 B/C 类残余）
 
 ## 二、已完成状态（FEATURE-301 + FEATURE-302 交付）
 
