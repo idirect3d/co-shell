@@ -183,6 +183,7 @@ var zhMessages = map[string]string{
 	KeyNoopClientError: "LLM 未配置。请使用 :settings api-key <your-key> 设置 API 密钥",
 
 	// Config format
+	KeyStepHeader: `第 %d 步: %s`,
 	KeyConfigFormat: `LLM 配置:
    %-20s %-30s %s
    %-20s %-30s %s

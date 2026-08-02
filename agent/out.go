@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // ChannelID identifies the business category of an output, used for
@@ -126,4 +127,36 @@ func (o *TerminalOut) Error(ch ChannelID, format string, args ...interface{}) {
 // Debug renders with LevelDebug.
 func (o *TerminalOut) Debug(ch ChannelID, format string, args ...interface{}) {
 	o.Emit(ch, LevelDebug, format, args...)
+}
+
+// Box renders a titled box/panel (P3 UI component).
+func (o *TerminalOut) Box(title string, content []string) {
+	o.io.Print(title)
+	o.io.Print("\n")
+	for _, line := range content {
+		o.io.Print("  ")
+		o.io.Print(line)
+		o.io.Print("\n")
+	}
+	o.io.Print("\n")
+}
+
+// Menu renders a numbered menu with selectable items (P3 UI component).
+func (o *TerminalOut) Menu(items []string) {
+	for i, item := range items {
+		o.io.Printf("  [%d] %s\n", i+1, item)
+	}
+	o.io.Print("\n")
+}
+
+// Step renders a wizard step header (P3 UI component).
+func (o *TerminalOut) Step(n int, name string) {
+	o.io.Printf("--- %s ---\n", i18n.TF(i18n.KeyStepHeader, n, name))
+	o.io.Print("\n")
+}
+
+// Sep renders a separator line (P3 UI component).
+func (o *TerminalOut) Sep() {
+	o.io.Print("────────────────────────────────────────────\n")
+	o.io.Print("\n")
 }

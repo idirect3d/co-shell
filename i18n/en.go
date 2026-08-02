@@ -201,6 +201,7 @@ var enMessages = map[string]string{
 	KeyCLIHelpShowCommandOutput: "      --show-command-output Show command output (on/off, overrides config)",
 
 	// Config format
+	KeyStepHeader: `Step %d: %s`,
 	KeyConfigFormat: `LLM Configuration:
    %-20s %-30s %s
    %-20s %-30s %s

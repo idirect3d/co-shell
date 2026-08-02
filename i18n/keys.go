@@ -192,6 +192,8 @@ const (
 
 	// Config format
 	KeyConfigFormat = "config_format"
+	// KeyStepHeader is the wizard step header (P3 UI component Out.Step).
+	KeyStepHeader = "wizard_step_header"
 
 	// REPL - Additional
 	KeyWelcomeTip     = "repl_welcome_tip"
