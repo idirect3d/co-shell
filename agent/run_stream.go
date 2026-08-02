@@ -1031,12 +1031,14 @@ iterationLoop:
 						cb(EventDone, "")
 						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
 					}
-					if parseAction == "retry" && !isXMLMode {
-						// FIX-314: OpenAI mode — a JSON parse error or missing
-						// required parameter means the tool call is invalid.
-						// Remove the assistant message (with tool_calls) so the
-						// erroneous call and its error result do NOT enter the
-						// context. Resend cleanly on the next iteration.
+					if parseAction == "retry" && !isXMLMode && strings.Contains(errStr, "cannot parse tool arguments") {
+						// FIX-314 / FIX-317: OpenAI mode — a JSON parse error
+						// means the tool call itself is malformed and cannot be
+						// corrected from feedback alone. Remove the assistant
+						// message (with tool_calls) so the erroneous call and its
+						// error result do NOT enter the context; resend cleanly
+						// on the next iteration so the LLM can self-correct the
+						// JSON format.
 						// Memory keeps the assistant text (finalContent) which is
 						// a legitimate reply without tool results.
 						a.mu.Lock()
@@ -1050,8 +1052,15 @@ iterationLoop:
 						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), ep.Warning, tc.Name, execErr))
 						continue iterationLoop
 					}
-					if parseAction == "retry" {
-						// Simple error message without structured feedback
+					if parseAction == "retry" && !isXMLMode {
+						// FIX-317: OpenAI mode, non-JSON error (bad path, unmatched
+						// SEARCH block, missing parameter). Feed the structured
+						// error back to the LLM so it can correct the tool call;
+						// do NOT discard the assistant+tool messages because the
+						// LLM must see the error details to fix them.
+						result = formatToolError(tc.Name, execErr)
+					} else if parseAction == "retry" {
+						// XML mode: simple error message without structured feedback
 						result = fmt.Sprintf("Error: %v", execErr)
 					} else {
 						// prompt (default): Format structured error feedback
