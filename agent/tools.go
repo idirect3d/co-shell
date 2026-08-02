@@ -1897,11 +1897,9 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 		// - There are remaining auto-approve counts for this tool
 		toolCount := a.toolApproveCounts[tc.Name]
 		if !a.approveAll && !a.toolDisableConfirm[tc.Name] && toolCount <= 0 {
-			// Build a display string from the tool arguments
-			displayStr := tc.Name
-			if cmd, ok := args["command"].(string); ok {
-				displayStr = cmd
-			}
+			// Build a human-readable summary (friendly name + intent + key params)
+			// so the user can grasp the impact of the call before confirming (FEATURE-310).
+			displayStr := buildToolSummary(tc.Name, args)
 			result, modifyInput := promptToolConfirmation(tc.Name, displayStr, a.defaultIO())
 			switch result {
 			case CmdConfirmCancel:
