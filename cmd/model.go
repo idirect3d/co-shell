@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -288,7 +289,7 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	if model.MaxModelLen > 0 {
 		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_112), model.MaxModelLen))
 	} else {
-		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_113)))
+		result.WriteString(i18n.T(i18n.KeyCmdMig_113))
 	}
 
 	capStr := []string{}
@@ -376,7 +377,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				continue
 			}
 			if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
-				return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			// Auto-complete endpoint if needed
 			if endpoint != "" {
@@ -412,7 +413,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				continue
 			}
 			if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-				return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			state.APIKey = apiKey
 		}
@@ -430,7 +431,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				continue
 			}
 			if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
-				return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			state.ModelName = modelName
 		}
@@ -472,7 +473,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				continue
 			}
 			if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
-				return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			// Verify the model ID doesn't already exist — if it does, prompt again
 			for h.modelIDExists(modelID) {
@@ -484,7 +485,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 					continue
 				}
 				if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
-					return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+					return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 				}
 			}
 			state.ModelID = modelID
@@ -502,7 +503,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				continue
 			}
 			if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
-				return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			priority, err := strconv.Atoi(priorityStr)
 			if err != nil {
@@ -548,7 +549,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 		io.Println(i18n.T(i18n.KeyCmdMig_186))
 		maxModelStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_352), fmt.Sprintf("%d", state.MaxModelLen), "q")
 		if strings.ToUpper(maxModelStr) == "Q" || strings.ToUpper(maxModelStr) == "QUIT" {
-			return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+			return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 		}
 		if mm, err := parseTokenCount(maxModelStr); err == nil && mm >= 0 {
 			state.MaxModelLen = mm
@@ -627,7 +628,7 @@ func (h *ModelHandler) wizardSelectTemplate() (*config.ModelTemplate, error) {
 		}
 
 		if strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" {
-			return nil, fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+			return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 		}
 
 		idx, err := strconv.Atoi(input)
@@ -867,7 +868,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// FEATURE-172: Auto-complete endpoint if needed
@@ -896,7 +897,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 			io.Print(i18n.T(i18n.KeyCmdMig_111))
 			retry := strings.TrimSpace(strings.ToLower(h.readLine()))
 			if retry != "y" && retry != "yes" {
-				return nil, fmt.Errorf(i18n.T(i18n.KeyCmdMig_328))
+				return nil, errors.New(i18n.T(i18n.KeyCmdMig_328))
 			}
 		}
 	} else {
@@ -920,7 +921,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// Step 3: Fetch available models from API and let user select
@@ -960,7 +961,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// Step 4: Look up max_model_len from the API model list
@@ -1003,7 +1004,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// Step 7: Set priority - default to highest priority + 10
@@ -1013,7 +1014,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
-		return nil, fmt.Errorf(i18n.T(i18n.KeyCmdMig_256))
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil {
@@ -1478,28 +1479,28 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	io.Println(i18n.T(i18n.KeyCmdMig_043))
 	endpoint := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_344), model.Endpoint, "q")
 	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
-		return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 2: API key (default = current, masked)
 	io.Println("\n  [2/7] API Key")
 	apiKey := h.wizardPromptSecret(i18n.T(i18n.KeyCmdMig_343), model.APIKey)
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-		return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 3: Model name (default = current)
 	io.Println(i18n.T(i18n.KeyCmdMig_170))
 	modelName := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_351), model.Model, "q")
 	if strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
-		return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 4: Priority (default = current)
 	io.Println(i18n.T(i18n.KeyCmdMig_171))
 	priorityStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_337), fmt.Sprintf("%d", model.Priority), "q")
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
-		return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil {
@@ -1546,7 +1547,7 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	}
 	maxModelLenStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_352), fmt.Sprintf("%d", maxModelLenDefault), "q")
 	if strings.ToUpper(maxModelLenStr) == "Q" || strings.ToUpper(maxModelLenStr) == "QUIT" {
-		return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 	maxModelLen := 0
 	if mm, er := parseTokenCount(maxModelLenStr); er == nil && mm >= 0 {
@@ -1557,7 +1558,7 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	io.Println(i18n.T(i18n.KeyCmdMig_173))
 	capabilities, goBack := h.wizardSelectCapabilities(model.Capabilities)
 	if goBack {
-		return result.String(), fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 7: Enabled state (default = current)
@@ -1593,7 +1594,7 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 // addFromTemplate adds a model from a built-in template.
 func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 	if len(args) < 2 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_324))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_324))
 	}
 
 	templateID := args[0]
@@ -1654,7 +1655,7 @@ func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
 	io := h.io()
 	models := h.cfg.Models
 	if len(models) == 0 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_294))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_294))
 	}
 
 	// Sort by priority descending
@@ -1696,12 +1697,12 @@ func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
 
 	input := h.readLine()
 	if input == "" || input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	idx, err := strconv.Atoi(input)
 	if err != nil || idx < 1 || idx > len(sorted) {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_282))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_282))
 	}
 
 	return sorted[idx-1].ID, nil
@@ -1884,7 +1885,7 @@ func (h *ModelHandler) disableModel(args []string) (string, error) {
 // setPriority sets the priority of a model.
 func (h *ModelHandler) setPriority(args []string) (string, error) {
 	if len(args) < 1 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_326))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_326))
 	}
 
 	var modelID string
@@ -1903,7 +1904,7 @@ func (h *ModelHandler) setPriority(args []string) (string, error) {
 		h.io().Print(i18n.T(i18n.KeyCmdMig_347))
 		priorityStr := h.readLine()
 		if priorityStr == "" {
-			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_259))
+			return "", errors.New(i18n.T(i18n.KeyCmdMig_259))
 		}
 		priority, err := strconv.Atoi(priorityStr)
 		if err != nil {
@@ -2063,7 +2064,7 @@ func parseTokenCount(s string) (int, error) {
 // Otherwise, it is stored as a plain string.
 func (h *ModelHandler) setParam(args []string) (string, error) {
 	if len(args) < 3 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_325))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_325))
 	}
 
 	modelID := args[0]

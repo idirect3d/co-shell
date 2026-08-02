@@ -27,6 +27,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -1137,7 +1138,7 @@ func (h *ModeHandler) interactiveCreate() (string, error) {
 	io.Print(i18n.T(i18n.KeyCmdMig_178))
 	name := h.readLine()
 	if name == "" {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_254))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_254))
 	}
 
 	// Check duplicates
@@ -1147,7 +1148,7 @@ func (h *ModeHandler) interactiveCreate() (string, error) {
 		}
 	}
 	if name == "default" {
-		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_230))
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_230))
 	}
 
 	io.Print(i18n.T(i18n.KeyCmdMig_118))
