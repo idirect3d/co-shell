@@ -27,7 +27,8 @@
 | FIX-312 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式系统提示词出现 "==== system_prompt_tool_usage"：i18n.lookup() 改为返回 (string,bool) 区分「空值翻译」与「缺失 key」，T() 对空值返回 ""（合法「无内容」语义）；修正 zh/en_system.go 中 KeySystemPromptToolUsage 值从含换行 raw string 改为真正空字符串 ""；新增 i18n 单元测试 [BUILD-346]） |
 | FIX-313 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 ToolExamples 节误用 XML 格式示例：buildNamedSection/getRawSectionText 的 ToolExamples case 按 cfg.LLM.ToolCallMode 分支——OpenAI 用 KeySystemPromptToolUsageExamples（JSON 格式），其他用 XML 格式；补全 zh/en 示例 intent 必填字段；孤儿 key 恢复使用 [BUILD-347]） |
 | FIX-314 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 parse-error-action=retry 时方法调用及错误结果不应进入上下文：executeToolCall 失败（JSON 解析错误/缺参数）后回滚 assistant(tool_calls) 消息并 continue iterationLoop 干净重发；新增 KeyToolExecRetry i18n key（zh/en）向用户显示 UI 错误提示（不进 LLM 上下文）[BUILD-348]） |
-| FIX-315 | 0.7.0 | P1 | 🚧 开发中（:rule 添加的自定义规则未进入系统提示词：system_prompt.go 有 {CUSTOM_RULES}→customRules 替换逻辑，但 i18n KeySystemPromptRules 翻译内容缺少 {CUSTOM_RULES} 占位符，导致 :rule 规则断链） |
+| FIX-315 | 0.7.0 | P1 | ✅ 已完成（:rule 添加的自定义规则未进入系统提示词：KeySystemPromptRules 翻译补 {CUSTOM_RULES} 占位符（zh/en），使 :rule 规则经 buildSectionWithPlaceholders 注入；英文 Rules 对齐中文 4 条平铺规则（补 XML 转义规则，去 MUST/Recommendations 分层）[BUILD-349]） |
+| FIX-316 | 0.7.0 | P1 | 🚧 开发中（工具执行后必显输出：attempt_completion 显示 ✅ 任务完成+result 全量、track_task_progress 显示完整计划、read/write/replace/search/exec 显示动作概要；统一走 StreamRenderer EventToolCall 通道，受 showTool 控制，带工具图标引导） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
