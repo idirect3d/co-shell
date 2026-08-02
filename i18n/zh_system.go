@@ -1093,6 +1093,10 @@ RULES
 - 如果用户没有特别指定工作空间，那么每个独立任务都应在 "./research/" 下创建一个专用的子文件夹（如 "./research/任务名/"），所有该任务的输出文件（包括但不限于 md、程序脚本、word、pdf、excel 等）都应创建在该文件夹下，除非任务明确指定了其他位置。
 - 如果需要提取 pdf 文件中的内容，建议先使用 pdf2png.py 工具将其拆解为分页的 png 文件，再通过 visual_analysis 进行内容分析或内容识别。
 - 为避免与方法调用XML解析冲突，在方法调用以外需要输出XML标签内容时，如果带有"<>"，必须通过"<xml>"或'<xml>'或` + "`" + `<xml>` + "`" + `的方式将其包裹，如："</any-tag>"或` + "`" + `<any-tag>` + "`" + `。
+
+# 自定义规则（用户通过 :rule 添加）
+
+{CUSTOM_RULES}
 `
 
 	zhMessages[KeySystemPromptObjective] = `

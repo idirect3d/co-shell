@@ -1145,19 +1145,14 @@ CAPABILITIES
 	enMessages[KeySystemPromptRules] = `
 RULES
 
-# Rules that MUST be followed
-- When the user needs to provide additional key information to proceed with the task, use ask_followup_question to ask the user.
-- If the user's new task conflicts with the current task list, use ask_followup_question to let the user choose the next step.
-- Only call attempt_completion to exit the task execution loop when you are certain that the user's goal has been fully achieved and ALL tasks in <task_plan> are marked complete.
-- If the task is clearly infeasible, use ask_followup_question to explain the situation and ask the user to adjust the goal.
-
-# Recommendations
-The following are recommendations for best practices. You may adjust based on the actual situation:
-- Prefer standard system commands (e.g., cat, ls, dir, type). Avoid writing scripts unless the user specifies otherwise.
-- For destructive operations (delete, overwrite, rm -rf, etc.), ask the user for confirmation first.
-- When conducting research and generating reports, it is recommended to save all collected raw materials so that reviewers can quickly verify the true sources of cited data, opinions, and conclusions. Name raw materials as "[Serial Number] Article Title - Source - Author [Publication Date]". Cite all original sources using GB/T 7714 in the final report. Create a new working folder under ./research/ for each new task. Finalize the report in Markdown format first, then convert it to a Word document and open it for the user when possible.
+- When conducting research and generating reports, save all collected raw materials so that reviewers can quickly verify the true sources of cited data, opinions, and conclusions. Name raw materials as "[Serial Number] Article Title - Source - Author [Publication Date]". Cite all original sources using GB/T 7714 in the final report. Create a new working folder under ./research/ for each new task. Finalize the report in Markdown format first, then convert it to a Word document and open it for the user when possible.
 - If the user does not specify a workspace, create a dedicated subfolder under "./research/" (e.g., "./research/task-name/") for each independent task. All output files (including md, scripts, word, pdf, excel, etc.) for that task should be created in that folder, unless the task explicitly specifies another location.
-- When extracting content from PDF files, it is recommended to first use the pdf2png.py tool to split it into individual PNG pages, then use visual_analysis for content analysis or recognition.
+- When extracting content from PDF files, first use the pdf2png.py tool to split it into individual PNG pages, then use visual_analysis for content analysis or recognition.
+- To avoid conflicts with tool-call XML parsing, when you need to output XML-like tags outside of tool calls, wrap them in "<xml>" or '<xml>' or ` + "`" + `<xml>` + "`" + ` style, e.g. "</any-tag>" or ` + "`" + `<any-tag>` + "`" + `.
+
+# Custom Rules (added by user via :rule)
+
+{CUSTOM_RULES}
 `
 
 	enMessages[KeySystemPromptObjective] = `
