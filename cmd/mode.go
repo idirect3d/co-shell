@@ -155,7 +155,7 @@ func (h *ModeHandler) resolveModeModel(mode *config.WorkMode) modeModelInfo {
 			info.textCaps += "💭"
 		}
 	} else {
-		info.textID = "(无可用模型)"
+		info.textID = i18n.T(i18n.KeyCmdMig_166)
 		return info
 	}
 
@@ -210,7 +210,7 @@ func (h *ModeHandler) resolveModeModel(mode *config.WorkMode) modeModelInfo {
 		}
 	}
 	if info.visionID == "" {
-		info.visionID = "(无可用视觉模型)"
+		info.visionID = i18n.T(i18n.KeyCmdMig_167)
 	}
 
 	// Resolve problem-solving model
@@ -250,7 +250,7 @@ func (h *ModeHandler) runWizard() {
 	io := h.io()
 	for {
 		h.showModeOverview()
-		io.Print("请选择 (输入编号或命令): ")
+		io.Print(i18n.T(i18n.KeyCmdMig_356))
 		input := strings.ToUpper(strings.TrimSpace(h.readLine()))
 
 		if input == "Q" || input == "QUIT" || input == ".." {
@@ -265,7 +265,7 @@ func (h *ModeHandler) runWizard() {
 		}
 		if input == "S" || input == "SWITCH" {
 			// Interactive switch: select a mode by number
-			selected, err := h.selectModeByNumber("选择要切换到的模式:")
+			selected, err := h.selectModeByNumber(i18n.T(i18n.KeyCmdMig_369))
 			if err == nil {
 				h.doSwitch(selected.Name)
 			}
@@ -276,7 +276,7 @@ func (h *ModeHandler) runWizard() {
 			continue
 		}
 		if input == "E" || input == "EDIT" {
-			selected, err := h.selectModeByNumber("选择要编辑的模式:")
+			selected, err := h.selectModeByNumber(i18n.T(i18n.KeyCmdMig_374))
 			if err == nil {
 				h.showModeDetail(selected.Name)
 			}
@@ -292,7 +292,7 @@ func (h *ModeHandler) runWizard() {
 				return
 			}
 		}
-		io.Println("  无效输入")
+		io.Println(i18n.T(i18n.KeyCmdMig_107))
 	}
 }
 
@@ -300,7 +300,7 @@ func (h *ModeHandler) runWizard() {
 func (h *ModeHandler) showModeOverview() {
 	io := h.io()
 	io.Println()
-	io.Println("────────── 工作模式管理 ──────────")
+	io.Println(i18n.T(i18n.KeyCmdMig_208))
 	io.Println()
 
 	modes := h.getAllModes()
@@ -329,12 +329,12 @@ func (h *ModeHandler) showModeOverview() {
 			if modelInfo.textCaps != "" {
 				capTxt = " " + modelInfo.textCaps
 			}
-			io.Printf("     文本模型: %s [%s]%s\n", modelInfo.textID, modelInfo.textProvider, capTxt)
+			io.Printf(i18n.T(i18n.KeyCmdMig_009), modelInfo.textID, modelInfo.textProvider, capTxt)
 		}
 		// Vision model line
 		visTxt := modelInfo.visionID
 		if modelInfo.sameAsText {
-			visTxt = "(同文本模型)"
+			visTxt = i18n.T(i18n.KeyCmdMig_165)
 		}
 		if modelInfo.visionID != "" {
 			capTxt := ""
@@ -347,14 +347,14 @@ func (h *ModeHandler) showModeOverview() {
 			if !modelInfo.sameAsText && modelInfo.visionProvider != "" {
 				provTxt = " [" + modelInfo.visionProvider + "]"
 			}
-			io.Printf("     视觉模型: %s%s%s\n", visTxt, provTxt, capTxt)
+			io.Printf(i18n.T(i18n.KeyCmdMig_011), visTxt, provTxt, capTxt)
 		}
 		io.Println()
 	}
 
 	io.Println("──────────────────────────────────────")
-	io.Println("  [C] 创建模式    [E] 编辑模式")
-	io.Println("  [D] 删除模式    [Q] 退出")
+	io.Println(i18n.T(i18n.KeyCmdMig_059))
+	io.Println(i18n.T(i18n.KeyCmdMig_060))
 	io.Println("──────────────────────────────────────")
 }
 
@@ -368,37 +368,37 @@ func (h *ModeHandler) showModeDetail(modeName string) {
 	io := h.io()
 	for {
 		io.Println()
-		io.Printf("────────── 编辑模式: %s ──────────\n", modeName)
+		io.Printf(i18n.T(i18n.KeyCmdMig_211), modeName)
 		io.Println()
 
 		// Option 1: Prompt sections
-		io.Printf("  [1] 提示词节 (%d 节)\n", len(mode.Sections))
+		io.Printf(i18n.T(i18n.KeyCmdMig_044), len(mode.Sections))
 		// Option 2: Tool modes
 		toolModeCount := 0
 		if mode.ToolModes != nil {
 			toolModeCount = len(mode.ToolModes)
 		}
-		io.Printf("  [2] 工具限制 (%d 项设置)\n", toolModeCount)
+		io.Printf(i18n.T(i18n.KeyCmdMig_047), toolModeCount)
 
 		// Option 3: Model bindings
 		modelInfo := h.resolveModeModel(mode)
-		io.Println("  [3] 模型绑定")
+		io.Println(i18n.T(i18n.KeyCmdMig_050))
 		if modelInfo.textID != "" {
-			io.Printf("       文本: %s [%s]%s\n", modelInfo.textID, modelInfo.textProvider, modelInfo.textCaps)
+			io.Printf(i18n.T(i18n.KeyCmdMig_002), modelInfo.textID, modelInfo.textProvider, modelInfo.textCaps)
 		}
 		visID := modelInfo.visionID
 		if modelInfo.sameAsText {
-			visID = "(同文本模型)"
+			visID = i18n.T(i18n.KeyCmdMig_165)
 		}
-		io.Printf("       视觉: %s\n", visID)
+		io.Printf(i18n.T(i18n.KeyCmdMig_003), visID)
 		probID := modelInfo.problemID
 		if modelInfo.sameAsTextPro {
-			probID = "(同文本模型)"
+			probID = i18n.T(i18n.KeyCmdMig_165)
 		}
-		io.Printf("       问题解决: %s\n", probID)
+		io.Printf(i18n.T(i18n.KeyCmdMig_004), probID)
 
 		// Option 4: Parameter overrides
-		io.Println("  [4] 参数覆盖")
+		io.Println(i18n.T(i18n.KeyCmdMig_053))
 		paramCount := 0
 		if mode.Temperature != nil {
 			paramCount++
@@ -431,18 +431,18 @@ func (h *ModeHandler) showModeDetail(modeName string) {
 			paramCount++
 		}
 		if paramCount > 0 {
-			io.Printf("      (%d 项覆盖)\n", paramCount)
+			io.Printf(i18n.T(i18n.KeyCmdMig_005), paramCount)
 		} else {
-			io.Println("      (全部使用全局值)")
+			io.Println(i18n.T(i18n.KeyCmdMig_006))
 		}
 
 		io.Println()
 		io.Println("──────────────────────────────────────")
-		io.Printf("  [S] 切换到此模式\n")
-		io.Printf("  [D] 删除此模式\n")
-		io.Println("  [B] 返回上级  [Q] 退出")
+		io.Printf(i18n.T(i18n.KeyCmdMig_063))
+		io.Printf(i18n.T(i18n.KeyCmdMig_061))
+		io.Println(i18n.T(i18n.KeyCmdMig_058))
 		io.Println("──────────────────────────────────────")
-		io.Print("请选择: ")
+		io.Print(i18n.T(i18n.KeyCmdMig_357))
 
 		input := strings.ToUpper(strings.TrimSpace(h.readLine()))
 		if input == "Q" || input == "QUIT" || input == ".." {
@@ -470,7 +470,7 @@ func (h *ModeHandler) showModeDetail(modeName string) {
 		case "4":
 			h.showParamWizard(modeName)
 		default:
-			io.Println("  无效输入")
+			io.Println(i18n.T(i18n.KeyCmdMig_107))
 		}
 	}
 }
@@ -479,7 +479,7 @@ func (h *ModeHandler) showModeDetail(modeName string) {
 func (h *ModeHandler) doSwitch(name string) {
 	h.cfg.LLM.WorkMode = name
 	if err := h.cfg.Save(); err != nil {
-		h.io().Printf("  ❌ 保存配置失败: %v\n", err)
+		h.io().Printf(i18n.T(i18n.KeyCmdMig_077), err)
 		return
 	}
 	if h.ag != nil {
@@ -487,7 +487,7 @@ func (h *ModeHandler) doSwitch(name string) {
 		h.ag.SetConfig(h.cfg)
 		h.ag.ApplyWorkModeConfig()
 	}
-	h.io().Printf("  ✅ 已切换到模式: %s\n", name)
+	h.io().Printf(i18n.T(i18n.KeyCmdMig_071), name)
 }
 
 // doRemove removes a mode.
@@ -500,14 +500,14 @@ func (h *ModeHandler) doRemove(name string) {
 		}
 	}
 	if idx < 0 {
-		h.io().Printf("  ❌ 模式 %s 不存在\n", name)
+		h.io().Printf(i18n.T(i18n.KeyCmdMig_079), name)
 		return
 	}
 	io := h.io()
-	io.Printf("  确定要删除模式 '%s'? (y/N): ", name)
+	io.Printf(i18n.T(i18n.KeyCmdMig_127), name)
 	confirm := strings.TrimSpace(strings.ToLower(h.readLine()))
 	if confirm != "y" && confirm != "yes" {
-		io.Println("  已取消")
+		io.Println(i18n.T(i18n.KeyCmdMig_095))
 		return
 	}
 	if h.cfg.LLM.WorkMode == name {
@@ -515,10 +515,10 @@ func (h *ModeHandler) doRemove(name string) {
 	}
 	h.cfg.WorkModes = append(h.cfg.WorkModes[:idx], h.cfg.WorkModes[idx+1:]...)
 	if err := h.cfg.Save(); err != nil {
-		io.Printf("  ❌ 保存失败: %v\n", err)
+		io.Printf(i18n.T(i18n.KeyCmdMig_076), err)
 		return
 	}
-	io.Printf("  ✅ 已删除模式: %s\n", name)
+	io.Printf(i18n.T(i18n.KeyCmdMig_073), name)
 }
 
 // showToolModesWizard interactively shows and manages tool modes for a mode.
@@ -546,7 +546,7 @@ func (h *ModeHandler) showToolModesWizard(modeName string) {
 
 	for {
 		io.Println()
-		io.Printf("────────── 工具限制: %s ──────────\n", modeName)
+		io.Printf(i18n.T(i18n.KeyCmdMig_209), modeName)
 		io.Println()
 
 		// Determine current tool modes from mode config
@@ -563,7 +563,7 @@ func (h *ModeHandler) showToolModesWizard(modeName string) {
 			defaultMode = "confirm"
 		}
 
-		io.Printf("  默认: %s\n\n", defaultMode)
+		io.Printf(i18n.T(i18n.KeyCmdMig_153), defaultMode)
 
 		for i, name := range toolNames {
 			m := toolModes[name]
@@ -574,9 +574,9 @@ func (h *ModeHandler) showToolModesWizard(modeName string) {
 		}
 
 		io.Println()
-		io.Println("  [编号]  切换工具模式 (auto→confirm→disabled→auto)")
-		io.Println("  [回车]  返回上级菜单")
-		io.Print("\n请选择: ")
+		io.Println(i18n.T(i18n.KeyCmdMig_065))
+		io.Println(i18n.T(i18n.KeyCmdMig_064))
+		io.Print(i18n.T(i18n.KeyCmdMig_205))
 
 		input := strings.TrimSpace(h.readLine())
 		if input == "" {
@@ -585,7 +585,7 @@ func (h *ModeHandler) showToolModesWizard(modeName string) {
 
 		num, err := strconv.Atoi(input)
 		if err != nil || num < 1 || num > len(toolNames) {
-			io.Println("  无效输入")
+			io.Println(i18n.T(i18n.KeyCmdMig_107))
 			continue
 		}
 
@@ -618,7 +618,7 @@ func (h *ModeHandler) showToolModesWizard(modeName string) {
 		mode.ToolModes[selectedTool] = nextMode
 
 		if err := h.cfg.Save(); err != nil {
-			io.Printf("  ❌ 保存失败: %v\n", err)
+			io.Printf(i18n.T(i18n.KeyCmdMig_076), err)
 			continue
 		}
 
@@ -628,7 +628,7 @@ func (h *ModeHandler) showToolModesWizard(modeName string) {
 			}
 		}
 
-		io.Printf("  ✅ 已切换: %s → %s\n", selectedTool, nextMode)
+		io.Printf(i18n.T(i18n.KeyCmdMig_070), selectedTool, nextMode)
 	}
 }
 
@@ -642,39 +642,39 @@ func (h *ModeHandler) showModelBindingsWizard(modeName string) {
 
 	for {
 		io.Println()
-		io.Printf("────────── 模型绑定: %s ──────────\n", modeName)
+		io.Printf(i18n.T(i18n.KeyCmdMig_210), modeName)
 		io.Println()
 
 		// Resolve and display current model info
 		modelInfo := h.resolveModeModel(mode)
 		if mode.ModelID != nil {
-			io.Printf("  文本模型: %s [%s]%s\n", modelInfo.textID, modelInfo.textProvider, modelInfo.textCaps)
+			io.Printf(i18n.T(i18n.KeyCmdMig_102), modelInfo.textID, modelInfo.textProvider, modelInfo.textCaps)
 		} else {
-			io.Printf("  文本模型: %s [%s]%s (全局)\n", modelInfo.textID, modelInfo.textProvider, modelInfo.textCaps)
+			io.Printf(i18n.T(i18n.KeyCmdMig_101), modelInfo.textID, modelInfo.textProvider, modelInfo.textCaps)
 		}
 		visDesc := modelInfo.visionID
 		if modelInfo.sameAsText {
-			visDesc = "(同文本模型)"
+			visDesc = i18n.T(i18n.KeyCmdMig_165)
 		}
-		io.Printf("  视觉模型: %s\n", visDesc)
+		io.Printf(i18n.T(i18n.KeyCmdMig_134), visDesc)
 		io.Println()
 
-		io.Println("  [1] 设置文本模型")
+		io.Println(i18n.T(i18n.KeyCmdMig_045))
 		if mode.ModelID != nil {
-			io.Println("  [2] 解除文本模型绑定")
+			io.Println(i18n.T(i18n.KeyCmdMig_048))
 		}
-		io.Println("  [3] 设置视觉模型")
+		io.Println(i18n.T(i18n.KeyCmdMig_051))
 		if mode.VisionModelID != nil {
-			io.Println("  [4] 解除视觉模型绑定")
+			io.Println(i18n.T(i18n.KeyCmdMig_054))
 		}
-		io.Println("  [5] 设置问题解决模型")
+		io.Println(i18n.T(i18n.KeyCmdMig_055))
 		if mode.ProblemModelID != nil {
-			io.Println("  [6] 解除问题解决模型绑定")
+			io.Println(i18n.T(i18n.KeyCmdMig_056))
 		}
 
 		io.Println()
-		io.Println("  [B] 返回  [Q] 退出")
-		io.Print("请选择: ")
+		io.Println(i18n.T(i18n.KeyCmdMig_057))
+		io.Print(i18n.T(i18n.KeyCmdMig_357))
 
 		input := strings.ToUpper(strings.TrimSpace(h.readLine()))
 		if input == "Q" || input == "QUIT" || input == ".." {
@@ -704,7 +704,7 @@ func (h *ModeHandler) showModelBindingsWizard(modeName string) {
 				h.handleModeModel(modeName, []string{"problem", "none"})
 			}
 		default:
-			io.Println("  无效输入")
+			io.Println(i18n.T(i18n.KeyCmdMig_107))
 		}
 	}
 }
@@ -713,8 +713,8 @@ func (h *ModeHandler) showModelBindingsWizard(modeName string) {
 func (h *ModeHandler) selectModelInteractive(modeName, bindType string) {
 	io := h.io()
 	if len(h.cfg.Models) == 0 {
-		io.Println("  未配置任何模型。请先使用 .model add 添加模型。")
-		io.Print("\n按回车继续...")
+		io.Println(i18n.T(i18n.KeyCmdMig_114))
+		io.Print(i18n.T(i18n.KeyCmdMig_202))
 		h.readLine()
 		return
 	}
@@ -732,7 +732,7 @@ func (h *ModeHandler) selectModelInteractive(modeName, bindType string) {
 
 	// Show available models with sequential numbers
 	io.Println()
-	io.Printf("  选择 %s 模型 (输入编号):\n\n", bindType)
+	io.Printf(i18n.T(i18n.KeyCmdMig_148), bindType)
 	for idx, m := range sorted {
 		status := "⬜"
 		if m.Enabled {
@@ -755,7 +755,7 @@ func (h *ModeHandler) selectModelInteractive(modeName, bindType string) {
 		io.Printf("  [%d] %s %s [%s] %s%s\n", idx+1, status, m.ID, m.Provider, m.Model, capStr)
 	}
 	io.Println()
-	io.Print("  请输入编号 (0 取消): ")
+	io.Print(i18n.T(i18n.KeyCmdMig_139))
 
 	input := strings.TrimSpace(h.readLine())
 	if input == "" || input == "0" {
@@ -765,14 +765,14 @@ func (h *ModeHandler) selectModelInteractive(modeName, bindType string) {
 	// Try to interpret as priority-based number
 	num, err := strconv.Atoi(input)
 	if err != nil || num < 0 {
-		io.Println("  无效输入")
+		io.Println(i18n.T(i18n.KeyCmdMig_107))
 		return
 	}
 
 	// sorted is already sorted by priority from above
 	idx := num - 1
 	if idx < 0 || idx >= len(sorted) {
-		io.Println("  无效编号")
+		io.Println(i18n.T(i18n.KeyCmdMig_106))
 		return
 	}
 
@@ -795,26 +795,26 @@ func (h *ModeHandler) showParamWizard(modeName string) {
 
 	for {
 		io.Println()
-		io.Printf("────────── 参数覆盖: %s ──────────\n", modeName)
+		io.Printf(i18n.T(i18n.KeyCmdMig_207), modeName)
 		io.Println()
 
 		fmtT := func(name string, v *float64) string {
 			if v != nil {
 				return fmt.Sprintf("  %s: %.2f", name, *v)
 			}
-			return fmt.Sprintf("  %s: (未覆盖)", name)
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_026), name)
 		}
 		fmtI := func(name string, v *int) string {
 			if v != nil {
 				return fmt.Sprintf("  %s: %d", name, *v)
 			}
-			return fmt.Sprintf("  %s: (未覆盖)", name)
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_026), name)
 		}
 		fmtS := func(name string, v *string) string {
 			if v != nil {
 				return fmt.Sprintf("  %s: %s", name, *v)
 			}
-			return fmt.Sprintf("  %s: (未覆盖)", name)
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_026), name)
 		}
 		fmtB := func(name string, v *bool) string {
 			if v != nil {
@@ -824,7 +824,7 @@ func (h *ModeHandler) showParamWizard(modeName string) {
 				}
 				return fmt.Sprintf("  %s: %s", name, val)
 			}
-			return fmt.Sprintf("  %s: (未覆盖)", name)
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_026), name)
 		}
 
 		io.Println("  [1] " + fmtT("temperature", mode.Temperature))
@@ -839,8 +839,8 @@ func (h *ModeHandler) showParamWizard(modeName string) {
 		io.Println(" [10] " + fmtS("tool_call_mode", mode.ToolCallMode))
 
 		io.Println()
-		io.Println("  [R] 重置全部  [B] 返回  [Q] 退出")
-		io.Print("请选择编号设置参数 (或 R/B/Q): ")
+		io.Println(i18n.T(i18n.KeyCmdMig_062))
+		io.Print(i18n.T(i18n.KeyCmdMig_359))
 
 		input := strings.ToUpper(strings.TrimSpace(h.readLine()))
 		if input == "Q" || input == "QUIT" || input == ".." {
@@ -869,7 +869,7 @@ func (h *ModeHandler) showParamWizard(modeName string) {
 
 		key, ok := paramKeys[input]
 		if !ok {
-			io.Println("  无效输入")
+			io.Println(i18n.T(i18n.KeyCmdMig_107))
 			continue
 		}
 
@@ -899,7 +899,7 @@ func (h *ModeHandler) showParamWizard(modeName string) {
 		}
 
 		if isSet {
-			io.Printf("  当前已设置%s。输入 'r' 重置为全局默认，或输入新值: ", paramKeys[input])
+			io.Printf(i18n.T(i18n.KeyCmdMig_096), paramKeys[input])
 			val := strings.TrimSpace(h.readLine())
 			if strings.ToUpper(val) == "R" || strings.ToUpper(val) == "RESET" {
 				h.handleModeParam(modeName, []string{"reset", key})
@@ -910,7 +910,7 @@ func (h *ModeHandler) showParamWizard(modeName string) {
 			}
 			h.handleModeParam(modeName, []string{key, val})
 		} else {
-			io.Printf("  请输入%s的值: ", paramKeys[input])
+			io.Printf(i18n.T(i18n.KeyCmdMig_137), paramKeys[input])
 			val := strings.TrimSpace(h.readLine())
 			if val == "" {
 				continue
@@ -926,18 +926,18 @@ func (h *ModeHandler) interactiveCreateWizard() (string, error) {
 
 	// Prompt for name with cancel support
 	for {
-		io.Print("\n  新建工作模式名称 (输入 Q 取消): ")
+		io.Print(i18n.T(i18n.KeyCmdMig_177))
 		name := h.readLine()
 		if strings.ToUpper(name) == "Q" || strings.ToUpper(name) == "QUIT" || name == ".." {
-			io.Println("  已取消")
+			io.Println(i18n.T(i18n.KeyCmdMig_095))
 			return "", nil
 		}
 		if name == "" {
-			io.Println("  名称不能为空")
+			io.Println(i18n.T(i18n.KeyCmdMig_090))
 			continue
 		}
 		if name == "default" {
-			io.Println("  不能创建名为 'default' 的模式")
+			io.Println(i18n.T(i18n.KeyCmdMig_080))
 			continue
 		}
 		duplicate := false
@@ -948,18 +948,18 @@ func (h *ModeHandler) interactiveCreateWizard() (string, error) {
 			}
 		}
 		if duplicate {
-			io.Printf("  模式 '%s' 已存在\n", name)
+			io.Printf(i18n.T(i18n.KeyCmdMig_117), name)
 			continue
 		}
 		// Name is valid - proceed
-		io.Print("  模式描述 (可选，输入 Q 取消): ")
+		io.Print(i18n.T(i18n.KeyCmdMig_119))
 		desc := h.readLine()
 		if strings.ToUpper(desc) == "Q" || strings.ToUpper(desc) == "QUIT" || desc == ".." {
-			io.Println("  已取消")
+			io.Println(i18n.T(i18n.KeyCmdMig_095))
 			return "", nil
 		}
 
-		sections := h.interactiveSelectSections("选择此模式要包含的节 (输入编号切换，空行继续，输入 Q 取消):")
+		sections := h.interactiveSelectSections(i18n.T(i18n.KeyCmdMig_368))
 
 		newMode := config.WorkMode{
 			Name:        name,
@@ -968,14 +968,14 @@ func (h *ModeHandler) interactiveCreateWizard() (string, error) {
 		}
 		h.cfg.WorkModes = append(h.cfg.WorkModes, newMode)
 		if err := h.cfg.Save(); err != nil {
-			io.Printf("  ❌ 保存失败: %v\n", err)
+			io.Printf(i18n.T(i18n.KeyCmdMig_076), err)
 			return "", nil
 		}
 
-		io.Printf("  ✅ 已创建模式: %s\n", name)
+		io.Printf(i18n.T(i18n.KeyCmdMig_072), name)
 
 		// Ask if user wants to configure model/params now
-		io.Print("  是否现在配置模型和参数? (Y/n): ")
+		io.Print(i18n.T(i18n.KeyCmdMig_110))
 		confirm := strings.TrimSpace(strings.ToLower(h.readLine()))
 		if confirm != "n" && confirm != "no" {
 			h.showModeDetail(name)
@@ -986,7 +986,7 @@ func (h *ModeHandler) interactiveCreateWizard() (string, error) {
 
 // interactiveRemoveWizard interactively selects and removes a mode.
 func (h *ModeHandler) interactiveRemoveWizard() {
-	selected, err := h.selectModeByNumber("选择要删除的模式:")
+	selected, err := h.selectModeByNumber(i18n.T(i18n.KeyCmdMig_372))
 	if err != nil {
 		return
 	}
@@ -1015,7 +1015,7 @@ func (h *ModeHandler) listModes() string {
 		}
 		sb.WriteString(fmt.Sprintf("  %s [%d] %s: %s\n", marker, i+1, m.Name, desc))
 		if len(m.Sections) > 0 {
-			sb.WriteString(fmt.Sprintf("      节数: %d\n", len(m.Sections)))
+			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_008), len(m.Sections)))
 		}
 	}
 	return sb.String()
@@ -1076,7 +1076,7 @@ func (h *ModeHandler) selectModeByNumber(prompt string) (*config.WorkMode, error
 		}
 		io.Println()
 	}
-	io.Print("\n  请选择 (输入编号): ")
+	io.Print(i18n.T(i18n.KeyCmdMig_190))
 
 	input := h.readLine()
 	if input == "" {
@@ -1114,7 +1114,7 @@ func (h *ModeHandler) interactiveSwitch(args []string) (string, error) {
 	}
 
 	// Interactive selection
-	selected, err := h.selectModeByNumber("选择要切换的工作模式:")
+	selected, err := h.selectModeByNumber(i18n.T(i18n.KeyCmdMig_370))
 	if err != nil {
 		return "", err
 	}
@@ -1134,10 +1134,10 @@ func (h *ModeHandler) interactiveSwitch(args []string) (string, error) {
 func (h *ModeHandler) interactiveCreate() (string, error) {
 	io := h.io()
 
-	io.Print("\n  新建工作模式名称: ")
+	io.Print(i18n.T(i18n.KeyCmdMig_178))
 	name := h.readLine()
 	if name == "" {
-		return "", fmt.Errorf("名称不能为空")
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_254))
 	}
 
 	// Check duplicates
@@ -1147,14 +1147,14 @@ func (h *ModeHandler) interactiveCreate() (string, error) {
 		}
 	}
 	if name == "default" {
-		return "", fmt.Errorf("不能创建名为 'default' 的模式")
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_230))
 	}
 
-	io.Print("  模式描述 (可选): ")
+	io.Print(i18n.T(i18n.KeyCmdMig_118))
 	desc := h.readLine()
 
 	// Select sections
-	sections := h.interactiveSelectSections("选择此模式要包含的节 (输入编号切换，空行继续):")
+	sections := h.interactiveSelectSections(i18n.T(i18n.KeyCmdMig_367))
 
 	newMode := config.WorkMode{
 		Name:        name,
@@ -1197,12 +1197,12 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 			io.Printf("  [%d] [%s] %s\n", i+1, marker, name)
 		}
 		io.Println()
-		io.Println("  操作说明:")
-		io.Println("    [编号]   - 切换选择/取消该节")
-		io.Println("    +<编号>  - 将节上移一位 (如 +3)")
-		io.Println("    -<编号>  - 将节下移一位 (如 -3)")
-		io.Println("    <回车>   - 完成选择")
-		io.Print("\n  请输入: ")
+		io.Println(i18n.T(i18n.KeyCmdMig_100))
+		io.Println(i18n.T(i18n.KeyCmdMig_018))
+		io.Println(i18n.T(i18n.KeyCmdMig_014))
+		io.Println(i18n.T(i18n.KeyCmdMig_016))
+		io.Println(i18n.T(i18n.KeyCmdMig_017))
+		io.Print(i18n.T(i18n.KeyCmdMig_188))
 
 		input := h.readLine()
 		if input == "" {
@@ -1213,7 +1213,7 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		if strings.HasPrefix(input, "+") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(allSections) {
-				io.Println("  无效编号")
+				io.Println(i18n.T(i18n.KeyCmdMig_106))
 				continue
 			}
 			idx := num - 1
@@ -1231,7 +1231,7 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		if strings.HasPrefix(input, "-") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(allSections) {
-				io.Println("  无效编号")
+				io.Println(i18n.T(i18n.KeyCmdMig_106))
 				continue
 			}
 			idx := num - 1
@@ -1247,7 +1247,7 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		// Handle toggle
 		num, err := strconv.Atoi(input)
 		if err != nil || num < 1 || num > len(allSections) {
-			io.Println("  无效输入")
+			io.Println(i18n.T(i18n.KeyCmdMig_107))
 			continue
 		}
 		idx := num - 1
@@ -1273,7 +1273,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 	if len(args) > 0 {
 		modeName = args[0]
 	} else {
-		selected, err := h.selectModeByNumber("选择要编辑的工作模式:")
+		selected, err := h.selectModeByNumber(i18n.T(i18n.KeyCmdMig_373))
 		if err != nil {
 			return "", err
 		}
@@ -1301,8 +1301,8 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 
 	io := h.io()
 	for {
-		io.Printf("\n  编辑模式: %s\n", mode.Name)
-		io.Println("  当前节顺序:")
+		io.Printf(i18n.T(i18n.KeyCmdMig_187), mode.Name)
+		io.Println(i18n.T(i18n.KeyCmdMig_098))
 		for pos, idx := range currentIndices {
 			io.Printf("    [%d] %s\n", pos+1, allSections[idx])
 		}
@@ -1322,31 +1322,31 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 			}
 		}
 		if len(availList) > 0 {
-			io.Println("\n  备选节:")
+			io.Println(i18n.T(i18n.KeyCmdMig_175))
 			for avNum, ae := range availList {
 				io.Printf("    [%d] %s\n", avNum+1, ae.name)
 			}
 		}
 		io.Println()
-		io.Println("  操作说明:")
-		io.Println("    +<序号>  - 上移 (如 +2)")
-		io.Println("    -<序号>  - 下移 (如 -3)")
-		io.Println("    a<编号>  - 添加未包含的节 (如 a5)")
-		io.Println("    d<序号>  - 移除此节 (如 d2)")
-		io.Println("    v<序号>  - 查看节内容 (如 v3)")
-		io.Println("    p        - 预览最终完整提示词")
-		io.Println("    完成    - 保存并退出")
-		io.Print("\n  请输入: ")
+		io.Println(i18n.T(i18n.KeyCmdMig_100))
+		io.Println(i18n.T(i18n.KeyCmdMig_013))
+		io.Println(i18n.T(i18n.KeyCmdMig_015))
+		io.Println(i18n.T(i18n.KeyCmdMig_019))
+		io.Println(i18n.T(i18n.KeyCmdMig_020))
+		io.Println(i18n.T(i18n.KeyCmdMig_022))
+		io.Println(i18n.T(i18n.KeyCmdMig_021))
+		io.Println(i18n.T(i18n.KeyCmdMig_024))
+		io.Print(i18n.T(i18n.KeyCmdMig_188))
 
 		input := h.readLine()
-		if input == "" || input == "完成" {
+		if input == "" || input == i18n.T(i18n.KeyCmdMig_258) {
 			break
 		}
 
 		if strings.HasPrefix(input, "+") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				io.Println("  无效序号")
+				io.Println(i18n.T(i18n.KeyCmdMig_105))
 				continue
 			}
 			pos := num - 1
@@ -1359,7 +1359,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "-") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				io.Println("  无效序号")
+				io.Println(i18n.T(i18n.KeyCmdMig_105))
 				continue
 			}
 			pos := num - 1
@@ -1372,7 +1372,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "a") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(availList) {
-				io.Println("  无效编号")
+				io.Println(i18n.T(i18n.KeyCmdMig_106))
 				continue
 			}
 			// Map to global index via availList
@@ -1384,7 +1384,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "d") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				io.Println("  无效序号")
+				io.Println(i18n.T(i18n.KeyCmdMig_105))
 				continue
 			}
 			pos := num - 1
@@ -1395,7 +1395,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		if strings.HasPrefix(input, "v") {
 			num, err := strconv.Atoi(input[1:])
 			if err != nil || num < 1 || num > len(currentIndices) {
-				io.Println("  无效序号")
+				io.Println(i18n.T(i18n.KeyCmdMig_105))
 				continue
 			}
 			globalIdx := currentIndices[num-1]
@@ -1408,13 +1408,13 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		}
 
 		if input == "p" {
-			io.Println("\n  ==== 完整提示词预览 ====")
+			io.Println(i18n.T(i18n.KeyCmdMig_169))
 			io.Print(h.previewFullPrompt(currentIndices, allSections))
 			io.Println("\n  =======================")
 			continue
 		}
 
-		io.Println("  无效输入")
+		io.Println(i18n.T(i18n.KeyCmdMig_107))
 	}
 
 	// Build updated sections
@@ -1430,7 +1430,7 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		h.ag.SetConfig(h.cfg)
 	}
 
-	return fmt.Sprintf("已更新模式 %s 的节顺序 (%d 节)", mode.Name, len(mode.Sections)), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_260), mode.Name, len(mode.Sections)), nil
 }
 
 // interactiveRemove removes a mode interactively or by name.
@@ -1439,7 +1439,7 @@ func (h *ModeHandler) interactiveRemove(args []string) (string, error) {
 	if len(args) > 0 {
 		name = args[0]
 	} else {
-		selected, err := h.selectModeByNumber("选择要删除的工作模式:")
+		selected, err := h.selectModeByNumber(i18n.T(i18n.KeyCmdMig_371))
 		if err != nil {
 			return "", err
 		}
@@ -1447,7 +1447,7 @@ func (h *ModeHandler) interactiveRemove(args []string) (string, error) {
 	}
 
 	// Confirm deletion
-	h.io().Printf("  确定要删除工作模式 '%s'? (y/N): ", name)
+	h.io().Printf(i18n.T(i18n.KeyCmdMig_126), name)
 	confirm := strings.TrimSpace(strings.ToLower(h.readLine()))
 	if confirm != "y" && confirm != "yes" {
 		return "", fmt.Errorf("%s", i18n.T(i18n.KeyCancelled))
@@ -1499,7 +1499,7 @@ func (h *ModeHandler) previewSection(name string) string {
 		content = strings.ReplaceAll(content, "{CWD}", cwd)
 		content = strings.ReplaceAll(content, "{CUSTOM_RULES}", "")
 		if len(content) > 500 {
-			content = content[:500] + "...(截断)"
+			content = content[:500] + i18n.T(i18n.KeyCmdMig_168)
 		}
 		return content
 	}
@@ -1509,7 +1509,7 @@ func (h *ModeHandler) previewSection(name string) string {
 			return ps.Content
 		}
 	}
-	return "(内容来自 i18n 内置资源，共 0 字符)"
+	return i18n.T(i18n.KeyCmdMig_164)
 }
 
 // previewFullPrompt concatenates all current sections in order.
@@ -1520,7 +1520,7 @@ func (h *ModeHandler) previewFullPrompt(indices []int, allSections []string) str
 		sb.WriteString(fmt.Sprintf("\n==== [%d] %s ====\n", i+1, name))
 		content := h.previewSection(name)
 		if len(content) > 300 {
-			content = content[:300] + "...(截断)"
+			content = content[:300] + i18n.T(i18n.KeyCmdMig_168)
 		}
 		sb.WriteString(content)
 		sb.WriteString("\n")
@@ -1546,13 +1546,13 @@ func (h *ModeHandler) handleModeTools(modeName string, args []string) (string, e
 	// Ensure the named mode exists in config (import from built-in if needed)
 	mode := h.findOrCreateMode(modeName)
 	if mode == nil {
-		return "", fmt.Errorf("未找到工作模式: %s", modeName)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_290), modeName)
 	}
 
 	// No args: list tools
 	if len(args) == 0 {
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("模式 %s 的工具限制:\n", modeName))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_309), modeName))
 		toolModes := mode.ToolModes
 		if toolModes == nil {
 			if modeName == "plan" {
@@ -1565,7 +1565,7 @@ func (h *ModeHandler) handleModeTools(modeName string, args []string) (string, e
 		if defaultMode == "" {
 			defaultMode = "confirm"
 		}
-		sb.WriteString(fmt.Sprintf("  默认: %s\n\n", defaultMode))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_153), defaultMode))
 		for name := range agent.DefaultToolModes() {
 			if name == "default" {
 				continue
@@ -1594,7 +1594,7 @@ func (h *ModeHandler) handleModeTools(modeName string, args []string) (string, e
 				h.ag.SyncToolModes(h.cfg)
 			}
 		}
-		return fmt.Sprintf("已重置模式 %s 的工具设置为默认", modeName), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_266), modeName), nil
 	}
 
 	// Set specific tool mode: <method> <auto|confirm|disabled>
@@ -1602,7 +1602,7 @@ func (h *ModeHandler) handleModeTools(modeName string, args []string) (string, e
 		method := args[0]
 		value := args[1]
 		if value != "auto" && value != "confirm" && value != "disabled" {
-			return "", fmt.Errorf("无效的工具模式 %q，请使用 auto/confirm/disabled", value)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_280), value)
 		}
 		if mode.ToolModes == nil {
 			mode.ToolModes = make(map[string]string)
@@ -1616,10 +1616,10 @@ func (h *ModeHandler) handleModeTools(modeName string, args []string) (string, e
 				h.ag.SyncToolModes(h.cfg)
 			}
 		}
-		return fmt.Sprintf("已设置模式 %s 的工具 %s → %s", modeName, method, value), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_264), modeName, method, value), nil
 	}
 
-	return "", fmt.Errorf("用法: .mode %s tools [<方法名> <auto|confirm|disabled>]", modeName)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_323), modeName)
 }
 
 // findOrCreateMode finds a mode by name in config, importing from built-in if needed.
@@ -1654,22 +1654,22 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 	// Ensure the mode exists
 	mode := h.findOrCreateMode(modeName)
 	if mode == nil {
-		return "", fmt.Errorf("未找到模式: %s", modeName)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_291), modeName)
 	}
 
 	// No args: show current model bindings
 	if len(args) == 0 || args[0] == "show" {
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("模式 %s 的模型绑定:\n", modeName))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_310), modeName))
 		if mode.ModelID != nil {
-			sb.WriteString(fmt.Sprintf("  文本模型: %s\n", *mode.ModelID))
+			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_103), *mode.ModelID))
 		} else {
-			sb.WriteString("  文本模型: (使用全局最高优先级)\n")
+			sb.WriteString(i18n.T(i18n.KeyCmdMig_104))
 		}
 		if mode.VisionModelID != nil {
-			sb.WriteString(fmt.Sprintf("  视觉模型: %s\n", *mode.VisionModelID))
+			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_134), *mode.VisionModelID))
 		} else {
-			sb.WriteString("  视觉模型: (使用文本模型或全局)\n")
+			sb.WriteString(i18n.T(i18n.KeyCmdMig_135))
 		}
 		return sb.String(), nil
 	}
@@ -1677,10 +1677,10 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 	// list: show available models
 	if args[0] == "list" {
 		if len(h.cfg.Models) == 0 {
-			return "未配置任何模型。使用 .model add 添加模型。", nil
+			return i18n.T(i18n.KeyCmdMig_295), nil
 		}
 		var sb strings.Builder
-		sb.WriteString("可用的模型:\n\n")
+		sb.WriteString(i18n.T(i18n.KeyCmdMig_253))
 		for _, m := range h.cfg.Models {
 			status := "⬜"
 			if m.Enabled {
@@ -1695,13 +1695,13 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 			}
 			sb.WriteString(fmt.Sprintf("  %s %s [%s] %s\n", status, m.ID, m.Provider, m.Model))
 			if caps != "" {
-				sb.WriteString(fmt.Sprintf("    能力: %s | 优先级: %d\n", caps, m.Priority))
+				sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_025), caps, m.Priority))
 			} else {
-				sb.WriteString(fmt.Sprintf("    优先级: %d\n", m.Priority))
+				sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_023), m.Priority))
 			}
 		}
-		sb.WriteString("\n使用 .mode <名称> model text <模型ID> 绑定文本模型\n")
-		sb.WriteString("使用 .mode <名称> model vision <模型ID> 绑定视觉模型\n")
+		sb.WriteString(i18n.T(i18n.KeyCmdMig_201))
+		sb.WriteString(i18n.T(i18n.KeyCmdMig_235))
 		return sb.String(), nil
 	}
 
@@ -1720,7 +1720,7 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 			case "problem":
 				mode.ProblemModelID = nil
 			default:
-				return "", fmt.Errorf("无效的绑定类型: %s (使用 text、vision 或 problem)", target)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_281), target)
 			}
 			if err := h.cfg.Save(); err != nil {
 				return "", fmt.Errorf("cannot save config: %w", err)
@@ -1728,7 +1728,7 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 			if h.ag != nil {
 				h.ag.ApplyWorkModeConfig()
 			}
-			return fmt.Sprintf("已解除模式 %s 的 %s 模型绑定", modeName, target), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_261), modeName, target), nil
 		}
 
 		// Validate model ID exists
@@ -1740,7 +1740,7 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 			}
 		}
 		if !validID {
-			return "", fmt.Errorf("模型 %s 不存在。使用 .mode %s model list 查看可用模型", value, modeName)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_304), value, modeName)
 		}
 
 		switch target {
@@ -1751,7 +1751,7 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 		case "problem":
 			mode.ProblemModelID = &value
 		default:
-			return "", fmt.Errorf("无效的绑定类型: %s (使用 text、vision 或 problem)", target)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_281), target)
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf("cannot save config: %w", err)
@@ -1759,10 +1759,10 @@ func (h *ModeHandler) handleModeModel(modeName string, args []string) (string, e
 		if h.ag != nil {
 			h.ag.ApplyWorkModeConfig()
 		}
-		return fmt.Sprintf("已设置模式 %s 的 %s 模型为: %s", modeName, target, value), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_262), modeName, target, value), nil
 	}
 
-	return "", fmt.Errorf("用法: .mode %s model [text|vision <模型ID>|none|list]", modeName)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_320), modeName)
 }
 
 // handleModeParam manages parameter overrides for a named work mode.
@@ -1776,13 +1776,13 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 	// Ensure the mode exists
 	mode := h.findOrCreateMode(modeName)
 	if mode == nil {
-		return "", fmt.Errorf("未找到模式: %s", modeName)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_291), modeName)
 	}
 
 	// No args: show current parameter overrides
 	if len(args) == 0 || args[0] == "show" {
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("模式 %s 的参数覆盖:\n", modeName))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_308), modeName))
 		if mode.Temperature != nil {
 			sb.WriteString(fmt.Sprintf("  temperature:        %.2f\n", *mode.Temperature))
 		}
@@ -1817,10 +1817,10 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 		if mode.ToolCallMode != nil {
 			sb.WriteString(fmt.Sprintf("  tool_call_mode:     %s\n", *mode.ToolCallMode))
 		}
-		if sb.Len() == len(fmt.Sprintf("模式 %s 的参数覆盖:\n", modeName)) {
-			sb.WriteString("  (无覆盖，全部使用全局默认值)\n")
+		if sb.Len() == len(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_308), modeName)) {
+			sb.WriteString(i18n.T(i18n.KeyCmdMig_027))
 		}
-		sb.WriteString("\n支持设置的参数: temperature, max_tokens, top_p, top_k, repetition_penalty,\n")
+		sb.WriteString(i18n.T(i18n.KeyCmdMig_203))
 		sb.WriteString("  thinking, reasoning_effort, max_iterations, context_limit, tool_call_mode\n")
 		return sb.String(), nil
 	}
@@ -1843,13 +1843,13 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 		if h.ag != nil && modeName == h.cfg.LLM.WorkMode {
 			h.ag.ApplyWorkModeConfig()
 		}
-		return fmt.Sprintf("已重置模式 %s 的所有参数覆盖", modeName), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_267), modeName), nil
 	}
 
 	// reset <key>: reset one parameter
 	if args[0] == "reset" {
 		if len(args) < 2 {
-			return "", fmt.Errorf("用法: .mode %s param reset <key>", modeName)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_322), modeName)
 		}
 		key := args[1]
 		switch key {
@@ -1874,7 +1874,7 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 		case "tool_call_mode":
 			mode.ToolCallMode = nil
 		default:
-			return "", fmt.Errorf("未知参数: %s", key)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_292), key)
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf("cannot save config: %w", err)
@@ -1882,7 +1882,7 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 		if h.ag != nil && modeName == h.cfg.LLM.WorkMode {
 			h.ag.ApplyWorkModeConfig()
 		}
-		return fmt.Sprintf("已重置模式 %s 的参数 %s", modeName, key), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_265), modeName, key), nil
 	}
 
 	// Set parameter: <key> <value>
@@ -1895,35 +1895,35 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 		case "temperature":
 			v, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				return "", fmt.Errorf("无效的 temperature 值: %s", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_274), value)
 			}
 			mode.Temperature = &v
 			saved = true
 		case "max_tokens":
 			v, err := strconv.Atoi(value)
 			if err != nil {
-				return "", fmt.Errorf("无效的 max_tokens 值: %s", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_271), value)
 			}
 			mode.MaxTokens = &v
 			saved = true
 		case "top_p":
 			v, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				return "", fmt.Errorf("无效的 top_p 值: %s", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_278), value)
 			}
 			mode.TopP = &v
 			saved = true
 		case "top_k":
 			v, err := strconv.Atoi(value)
 			if err != nil {
-				return "", fmt.Errorf("无效的 top_k 值: %s", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_277), value)
 			}
 			mode.TopK = &v
 			saved = true
 		case "repetition_penalty":
 			v, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				return "", fmt.Errorf("无效的 repetition_penalty 值: %s", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_273), value)
 			}
 			mode.RepetitionPenalty = &v
 			saved = true
@@ -1936,41 +1936,41 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 				v := false
 				mode.ThinkingEnabled = &v
 			default:
-				return "", fmt.Errorf("无效的 thinking 值: %s (使用 on/off)", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_275), value)
 			}
 			saved = true
 		case "reasoning_effort":
 			if value != "low" && value != "medium" && value != "high" {
-				return "", fmt.Errorf("无效的 reasoning_effort 值: %s (使用 low/medium/high)", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_272), value)
 			}
 			mode.ReasoningEffort = &value
 			saved = true
 		case "max_iterations":
 			v, err := strconv.Atoi(value)
 			if err != nil {
-				return "", fmt.Errorf("无效的 max_iterations 值: %s", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_270), value)
 			}
 			mode.MaxIterations = &v
 			saved = true
 		case "context_limit":
 			v, err := strconv.Atoi(value)
 			if err != nil {
-				return "", fmt.Errorf("无效的 context_limit 值: %s", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_269), value)
 			}
 			mode.ContextLimit = &v
 			saved = true
 		case "tool_call_mode":
 			if value != "openai" && value != "xml" {
-				return "", fmt.Errorf("无效的 tool_call_mode 值: %s (使用 openai/xml)", value)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_276), value)
 			}
 			mode.ToolCallMode = &value
 			saved = true
 		default:
-			return "", fmt.Errorf("未知参数: %s (支持: temperature, max_tokens, top_p, top_k, repetition_penalty, thinking, reasoning_effort, max_iterations, context_limit, tool_call_mode)", key)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_293), key)
 		}
 
 		if !saved {
-			return "", fmt.Errorf("无法设置参数 %s", key)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_283), key)
 		}
 
 		if err := h.cfg.Save(); err != nil {
@@ -1980,8 +1980,8 @@ func (h *ModeHandler) handleModeParam(modeName string, args []string) (string, e
 			h.ag.ApplyWorkModeConfig()
 		}
 
-		return fmt.Sprintf("已设置模式 %s 的参数 %s = %s", modeName, key, value), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_263), modeName, key, value), nil
 	}
 
-	return "", fmt.Errorf("用法: .mode %s param <参数名> <参数值>", modeName)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_321), modeName)
 }
