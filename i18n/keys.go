@@ -122,6 +122,24 @@ const (
 	KeyOutputCategoriesUsage   = "output_categories_usage"
 	KeyOutputCategoriesUnknown = "output_categories_unknown"
 
+	// FEATURE-304: A 类 LLM 迭代输出 i18n 迁移 II (run_stream 错误/XML/工具)
+	KeyLLMErrorExit         = "llm_error_exit"
+	KeyLLMErrorRetry        = "llm_error_retry"
+	KeyLLMErrorFeedbackHead = "llm_error_feedback_head"
+	KeyLLMErrorFeedbackR1   = "llm_error_feedback_r1"
+	KeyLLMErrorFeedbackR2   = "llm_error_feedback_r2"
+	KeyLLMErrorFeedbackErr  = "llm_error_feedback_err"
+	KeyLLMErrorFeedbackRef  = "llm_error_feedback_ref"
+	KeyLLMErrorFixRetry     = "llm_error_fix_retry"
+	KeyLLMErrorCheckInput   = "llm_error_check_input"
+	KeyXMLParseErrorExit    = "xml_parse_error_exit"
+	KeyXMLParseErrorSummary = "xml_parse_error_summary"
+	KeyContextOverLimit     = "context_over_limit"
+	KeyToolExecFailed       = "tool_exec_failed"
+	KeyToolNoOutput         = "tool_no_output"
+	KeyReorganizeUrgent     = "reorganize_urgent"
+	KeyXMLFormatError       = "xml_format_error"
+
 	// FEATURE-304: A 类 LLM 迭代输出 i18n 迁移 (run_stream/loop)
 	KeyOutputCancelled        = "output_cancelled"
 	KeyOutputPaused           = "output_paused"

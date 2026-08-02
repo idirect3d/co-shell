@@ -538,7 +538,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				// exit: exit the loop and report error
 				if parseAction == "exit" {
-					cb(EventError, fmt.Sprintf("LLM 调用出错（parse-error-action=exit）: %v\n已移除有问题的上下文。\n", streamErr))
+					cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorExit), streamErr))
 					cb(EventDone, "")
 					return "", fmt.Errorf("LLM call failed: %w", streamErr)
 				}
@@ -546,17 +546,17 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				if parseAction == "retry" {
 					// No feedback, just resend context
 					ep := config.GetEmojiPrefixes(a.emojiEnabled)
-					cb(EventInfo, fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在重试...\n", ep.Warning, streamErr))
+					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorRetry), ep.Warning, streamErr))
 					continue
 				}
 
 				// prompt (default): build error feedback and append
 				errorFeedback := fmt.Sprintf(
-					"注意：刚才的 LLM 调用返回了错误，请根据错误信息判断如何处理。\n"+
-						"如果错误是可恢复的（如参数格式问题、临时超时），请修正后重试。\n"+
-						"如果错误是不可恢复的（如认证失败、模型不存在），请向用户报告错误并终止。\n\n"+
-						"错误信息：%s\n\n"+
-						"以下是你刚才返回的有问题的消息内容，已被从上下文中移除，请参考修正：\n%s",
+					i18n.T(i18n.KeyLLMErrorFeedbackHead)+
+						i18n.T(i18n.KeyLLMErrorFeedbackR1)+
+						i18n.T(i18n.KeyLLMErrorFeedbackR2)+
+						i18n.T(i18n.KeyLLMErrorFeedbackErr)+
+						i18n.T(i18n.KeyLLMErrorFeedbackRef),
 					streamErr.Error(),
 					removedContent,
 				)
@@ -569,13 +569,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.mu.Unlock()
 
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb(EventInfo, fmt.Sprintf("\n%s LLM 调用出错: %v\n已移除有问题的上下文，正在请求 LLM 修正后重试...\n", ep.Warning, streamErr))
+				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorFixRetry), ep.Warning, streamErr))
 				continue
 			} else {
 				// No recent assistant message with tool_calls found - the error is likely
 				// caused by invalid user input. Exit the iteration and report to the user.
 				log.Error("Agent.RunStream: stream error at iteration %d: %v, no assistant tool_calls found, exiting", iteration, streamErr)
-				cb(EventError, fmt.Sprintf("LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。", streamErr))
+				cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorCheckInput), streamErr))
 				cb(EventDone, "")
 				return "", fmt.Errorf("LLM call failed: %w", streamErr)
 			}
@@ -618,7 +618,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						errDetail = entry.Error
 					}
 				}
-				cb(EventError, fmt.Sprintf("方法调用解析错误（parse-error-action=exit）: %s\n", errDetail))
+				cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorExit), errDetail))
 				cb(EventDone, "")
 				return "", fmt.Errorf("tool call parse error: %s", errDetail)
 			}
@@ -649,10 +649,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			var strategyParts []string
 			if parseAction == "prompt" {
 				loopFeedback = fullFeedback
-				strategyParts = append(strategyParts, "发送纠错提示")
+				strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyPrompt))
 			} else {
 				// retry: no feedback
-				strategyParts = append(strategyParts, "重发上下文（无反馈）")
+				strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyResend))
 			}
 
 			if loopFeedback != "" {
@@ -685,8 +685,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					errorSummary = errorSummary[:120] + "..."
 				}
 			}
-			cb(EventInfo, fmt.Sprintf("检测到XML解析错误: %s\n", errorSummary))
-			cb(EventInfo, fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorSummary), errorSummary))
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → ")))
 			cb(EventInfo, "────────────────────────────────────────────\n")
 			continue
 		}
@@ -787,7 +787,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// Construct a parse error message and store in taskInstructionCache
 				// so the existing XML parse error handling branch processes it.
 				errMsg := fmt.Sprintf(
-					`{"tool": "", "error": "XML格式错误：LLM输出中包含已尝试调用工具的内容（< 工具标签名开头），但XML结构不完整，无法解析为有效的工具调用。请检查你的输出格式，确保使用正确的方法名和参数标签。"}`)
+					`{"tool": "", "error": %q}`, i18n.T(i18n.KeyXMLFormatError))
 				a.mu.Lock()
 				a.taskInstructionCache.WriteString(errMsg)
 				a.mu.Unlock()
@@ -923,7 +923,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					usagePct, threshold)
 				reorganizePending = true
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb(EventWarning, fmt.Sprintf("\n%s 上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行\n", ep.Warning, usagePct, threshold))
+				cb(EventWarning, fmt.Sprintf(i18n.TF(i18n.KeyContextOverLimit), ep.Warning, usagePct, threshold))
 			}
 		}
 
@@ -1034,7 +1034,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					}
 					if parseAction == "exit" {
 						// Exit the loop and report error
-						cb(EventError, fmt.Sprintf("工具 %s 执行失败（parse-error-action=exit）: %v\n", tc.Name, execErr))
+						cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyToolExecFailed), tc.Name, execErr))
 						cb(EventDone, "")
 						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
 					}
@@ -1057,7 +1057,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				toolContent := result
 				if toolContent == "" {
-					toolContent = "（工具调用无输出）"
+					toolContent = i18n.T(i18n.KeyToolNoOutput)
 				}
 
 				if isXMLMode {
@@ -1208,7 +1208,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// processing (token_iter, flush, env injection), so the LLM sees a fresh,
 		// standalone instruction on the next iteration.
 		if reorganizePending && !hasReorganizeCall {
-			reorgMsg := "你必须马上进行上下文整理。\n\n当前上下文已经超限，立即调用 reorganize_context 工具。"
+			reorgMsg := i18n.T(i18n.KeyReorganizeUrgent)
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{
 				Role:    "user",
