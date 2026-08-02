@@ -168,37 +168,37 @@ func (h *ConfigHandler) configGroups() []ConfigGroup {
 			Name: i18n.T(i18n.KeySettingsGroupMemory),
 			Params: append(h.memoryParams(),
 				cmdEntry(":memory", i18n.T(i18n.KeyHelpMemory), "", h.memoryHandler.Handle, []ConfigSubCommand{
-					{Name: "save", Desc: "保存一条记忆", Args: "<key> <value>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"save"}, a...)) }},
-					{Name: "get", Desc: "获取一条记忆", Args: "<key>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"get"}, a...)) }},
-					{Name: "search", Desc: "按前缀搜索记忆", Args: "<prefix>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"search"}, a...)) }},
-					{Name: "delete", Desc: "删除一条记忆", Args: "<key>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"delete"}, a...)) }},
-					{Name: "list", Desc: "列出所有记忆", Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"list"}) }},
-					{Name: "clear", Desc: "清空所有记忆", Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"clear"}) }},
+					{Name: "save", Desc: i18n.T(i18n.KeyCmdMig_236), Args: "<key> <value>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"save"}, a...)) }},
+					{Name: "get", Desc: i18n.T(i18n.KeyCmdMig_334), Args: "<key>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"get"}, a...)) }},
+					{Name: "search", Desc: i18n.T(i18n.KeyCmdMig_268), Args: "<prefix>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"search"}, a...)) }},
+					{Name: "delete", Desc: i18n.T(i18n.KeyCmdMig_250), Args: "<key>", Action: func(a []string) { runHandler(h.memoryHandler.Handle, append([]string{"delete"}, a...)) }},
+					{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_245), Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"list"}) }},
+					{Name: "clear", Desc: i18n.T(i18n.KeyCmdMig_319), Action: func(a []string) { runHandler(h.memoryHandler.Handle, []string{"clear"}) }},
 				}),
 				cmdEntry(":context", i18n.T(i18n.KeyHelpContext), "", h.contextHandler.Handle, []ConfigSubCommand{
-					{Name: "show", Desc: "显示当前上下文", Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"show"}) }},
-					{Name: "reset", Desc: "重置上下文", Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"reset"}) }},
+					{Name: "show", Desc: i18n.T(i18n.KeyCmdMig_289), Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"show"}) }},
+					{Name: "reset", Desc: i18n.T(i18n.KeyCmdMig_375), Action: func(a []string) { runHandler(h.contextHandler.Handle, []string{"reset"}) }},
 				}),
 				cmdEntry(":session", i18n.T(i18n.KeyHelpSession), "", h.sessionHandler.Handle, []ConfigSubCommand{
-					{Name: "info", Desc: "显示会话概要", Action: func(a []string) { runHandler(h.sessionHandler.Handle, []string{}) }},
+					{Name: "info", Desc: i18n.T(i18n.KeyCmdMig_288), Action: func(a []string) { runHandler(h.sessionHandler.Handle, []string{}) }},
 				}),
 				cmdEntry(":new", i18n.T(i18n.KeyHelpNew), "", func(args []string) (string, error) {
 					h.agent.Reset()
 					return "", nil
 				}, nil),
 				cmdEntry(":plan", i18n.T(i18n.KeyHelpPlan), "", h.planHandler.Handle, []ConfigSubCommand{
-					{Name: "list", Desc: "查看当前任务计划", Action: func(a []string) { runHandler(h.planHandler.Handle, []string{}) }},
-					{Name: "create", Desc: "创建新任务计划", Args: "<title>", Action: func(a []string) { runHandler(h.planHandler.Handle, append([]string{"create"}, a...)) }},
+					{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_297), Action: func(a []string) { runHandler(h.planHandler.Handle, []string{}) }},
+					{Name: "create", Desc: i18n.T(i18n.KeyCmdMig_248), Args: "<title>", Action: func(a []string) { runHandler(h.planHandler.Handle, append([]string{"create"}, a...)) }},
 				}),
 				cmdEntry(":db", i18n.T(i18n.KeyDBSubCmdDesc), "", h.settingsHandler.HandleDB, []ConfigSubCommand{
-					{Name: "info", Desc: "查看数据库配置", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{}) }},
-					{Name: "host", Desc: "设置数据库地址", Args: "<host>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"host"}, a...)) }},
-					{Name: "port", Desc: "设置数据库端口", Args: "<port>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"port"}, a...)) }},
-					{Name: "migrate", Desc: "从本地 bbolt 迁移到 PostgreSQL", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{"migrate"}) }},
+					{Name: "info", Desc: i18n.T(i18n.KeyCmdMig_299), Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{}) }},
+					{Name: "host", Desc: i18n.T(i18n.KeyCmdMig_335), Args: "<host>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"host"}, a...)) }},
+					{Name: "port", Desc: i18n.T(i18n.KeyCmdMig_336), Args: "<port>", Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, append([]string{"port"}, a...)) }},
+					{Name: "migrate", Desc: i18n.T(i18n.KeyCmdMig_233), Action: func(a []string) { runHandler(h.settingsHandler.HandleDB, []string{"migrate"}) }},
 				}),
-				cmdEntry(":history", "查看用户输入命令历史", "", h.listHandler.HandleHistory, []ConfigSubCommand{
-					{Name: "last", Desc: "查看最近 N 条历史", Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"last"}, a...)) }},
-					{Name: "first", Desc: "查看最早 N 条历史", Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"first"}, a...)) }},
+				cmdEntry(":history", i18n.T(i18n.KeyCmdMig_302), "", h.listHandler.HandleHistory, []ConfigSubCommand{
+					{Name: "last", Desc: i18n.T(i18n.KeyCmdMig_301), Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"last"}, a...)) }},
+					{Name: "first", Desc: i18n.T(i18n.KeyCmdMig_300), Args: "[N]", Action: func(a []string) { runHandler(h.listHandler.HandleHistory, append([]string{"first"}, a...)) }},
 				}),
 			),
 		},
@@ -246,7 +246,7 @@ func cmdEntry(name, desc, usage string, handler func([]string) (string, error), 
 					io.Println(result)
 				}
 			} else if usage != "" {
-				io.Printf("  用法: %s %s\n", name, usage)
+				io.Printf(i18n.T(i18n.KeyCmdMig_124), name, usage)
 			}
 		}
 	}
@@ -315,7 +315,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf("请输入非负整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_354))
 			}
 			h.cfg.LLM.MaxIterations = n
 			h.agent.SetMaxIterations(n)
@@ -361,7 +361,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 				h.cfg.LLM.ToolCallMode = v
 				h.agent.SetToolCallMode(v)
 			default:
-				return "", fmt.Errorf("请输入 openai 或 xml")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_346))
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "toolcall-mode", v), nil
 		}, ResetValue: func() string {
@@ -406,7 +406,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf("请输入非负整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_354))
 			}
 			h.cfg.LLM.ShellSessionTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-session-timeout", v), nil
@@ -423,7 +423,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 5 || n > 200 {
-				return "", fmt.Errorf("请输入 5-200 的整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_342))
 			}
 			h.cfg.LLM.ShellVTRows = n
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-vt-rows", v), nil
@@ -440,7 +440,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 20 || n > 500 {
-				return "", fmt.Errorf("请输入 20-500 的整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_341))
 			}
 			h.cfg.LLM.ShellVTCols = n
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-vt-cols", v), nil
@@ -459,7 +459,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			case "enhanced", "stdio":
 				h.cfg.LLM.InputMode = v
 			default:
-				return "", fmt.Errorf("请输入 enhanced 或 stdio")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_345))
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "input-mode", v), nil
 		}, ResetValue: func() string {
@@ -473,7 +473,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 || n > 65535 {
-				return "", fmt.Errorf("请输入 1-65535 的整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_340))
 			}
 			h.cfg.LLM.BrowserPort = n
 			return i18n.TF(i18n.KeySettingsUpdated, "browser-port", v), nil
@@ -491,10 +491,10 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			return i18n.TF(i18n.KeySettingsUpdated, "browser-headless", "off")
 		}},
 		// Rule management
-		cmdEntry(":rule", "管理 AI 全局规则", "", h.ruleHandler.Handle, []ConfigSubCommand{
-			{Name: "list", Desc: "列出所有规则", Action: func(a []string) { runHandler(h.ruleHandler.Handle, []string{}) }},
-			{Name: "add", Desc: "添加新规则", Args: "<rule>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"add"}, a...)) }},
-			{Name: "remove", Desc: "删除规则", Args: "<index>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"remove"}, a...)) }},
+		cmdEntry(":rule", i18n.T(i18n.KeyCmdMig_329), "", h.ruleHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_244), Action: func(a []string) { runHandler(h.ruleHandler.Handle, []string{}) }},
+			{Name: "add", Desc: i18n.T(i18n.KeyCmdMig_316), Args: "<rule>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"add"}, a...)) }},
+			{Name: "remove", Desc: i18n.T(i18n.KeyCmdMig_252), Args: "<index>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"remove"}, a...)) }},
 		}),
 		// Search settings
 		{Name: "search-max-line-length", CurrentValue: func() string {
@@ -502,7 +502,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.SearchMaxLineLength = n
 			return i18n.TF(i18n.KeySettingsUpdated, "search-max-line-length", v), nil
@@ -515,7 +515,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.SearchMaxResultBytes = n
 			return i18n.TF(i18n.KeySettingsUpdated, "search-max-result-bytes", v), nil
@@ -528,7 +528,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.SearchContextLines = n
 			return i18n.TF(i18n.KeySettingsUpdated, "search-context-lines", v), nil
@@ -591,7 +591,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf("请输入非负整数（秒数）")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_355))
 			}
 			h.cfg.LLM.ToolTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "tool-timeout", v), nil
@@ -608,7 +608,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf("请输入非负整数（秒数）")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_355))
 			}
 			h.cfg.LLM.CommandTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "cmd-timeout", v), nil
@@ -625,7 +625,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf("请输入非负整数（秒数）")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_355))
 			}
 			h.cfg.LLM.LLMTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "llm-timeout", v), nil
@@ -638,7 +638,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.ErrorMaxSingleCount = n
 			return i18n.TF(i18n.KeySettingsUpdated, "error-max-single-count", v), nil
@@ -651,7 +651,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.ErrorMaxTypeCount = n
 			return i18n.TF(i18n.KeySettingsUpdated, "error-max-type-count", v), nil
@@ -665,7 +665,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n <= 0 || n > 1.0 {
-				return "", fmt.Errorf("请输入 0.01~1.0 之间的数值")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_339))
 			}
 			h.cfg.LLM.LoopTempStepUp = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-up", v), nil
@@ -678,7 +678,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n <= 0 || n > 1.0 {
-				return "", fmt.Errorf("请输入 0.01~1.0 之间的数值")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_339))
 			}
 			h.cfg.LLM.LoopTempStepDown = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-down", v), nil
@@ -691,7 +691,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n <= h.cfg.LLM.LoopTempMin || n > 2.0 {
-				return "", fmt.Errorf("请输入大于下限且 <= 2.0 的数值")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_348))
 			}
 			h.cfg.LLM.LoopTempMax = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-max", v), nil
@@ -704,7 +704,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n >= h.cfg.LLM.LoopTempMax || n < 0 {
-				return "", fmt.Errorf("请输入小于上限且 >= 0 的数值")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_349))
 			}
 			h.cfg.LLM.LoopTempMin = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-min", v), nil
@@ -764,7 +764,7 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.MemorySearchMaxContentLen = n
 			return i18n.TF(i18n.KeySettingsUpdated, "memory-search-max-content-len", v), nil
@@ -777,7 +777,7 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf("请输入正整数")
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.MemorySearchMaxResults = n
 			return i18n.TF(i18n.KeySettingsUpdated, "memory-search-max-results", v), nil
@@ -810,11 +810,11 @@ func (h *ConfigHandler) logParam() ConfigParam {
 func (h *ConfigHandler) devToolParams() []ConfigParam {
 	return []ConfigParam{
 		h.logParam(),
-		cmdEntry(":body-add", "向 LLM 请求体添加自定义 JSON 属性", "key=value", nil, nil),
-		cmdEntry(":body-remove", "从 LLM 请求体删除自定义 JSON 属性", "key", nil, nil),
-		cmdEntry(":body-display", "显示 LLM 请求体中的自定义 JSON 属性", "", func(args []string) (string, error) {
+		cmdEntry(":body-add", i18n.T(i18n.KeyCmdMig_255), "key=value", nil, nil),
+		cmdEntry(":body-remove", i18n.T(i18n.KeyCmdMig_232), "key", nil, nil),
+		cmdEntry(":body-display", i18n.T(i18n.KeyCmdMig_287), "", func(args []string) (string, error) {
 			if len(h.cfg.LLM.BodyAdditions) == 0 {
-				return "  没有自定义属性", nil
+				return i18n.T(i18n.KeyCmdMig_121), nil
 			}
 			var sb strings.Builder
 			for k, v := range h.cfg.LLM.BodyAdditions {
@@ -824,7 +824,7 @@ func (h *ConfigHandler) devToolParams() []ConfigParam {
 		}, nil),
 		ConfigParam{
 			Name: ":simulate",
-			Desc: "模拟 LLM 方法调用，进行解析和执行测试",
+			Desc: i18n.T(i18n.KeyCmdMig_311),
 			Action: func(args []string) {
 				io := agent.GetIO(h.agent)
 				io.Println()
@@ -850,12 +850,12 @@ func (h *ConfigHandler) devToolParams() []ConfigParam {
 // modelMgrParams returns model management parameters.
 func (h *ConfigHandler) modelMgrParams() []ConfigParam {
 	return []ConfigParam{
-		cmdEntry(":model", "模型管理（add/list/remove/switch/info）", "", h.modelHandler.Handle, []ConfigSubCommand{
-			{Name: "list", Desc: "列出所有已配置模型", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"list"}) }},
-			{Name: "add", Desc: "添加新模型（启动设置向导）", Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"add"}) }},
-			{Name: "switch", Desc: "切换当前使用的模型", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"switch"}, a...)) }},
-			{Name: "remove", Desc: "删除一个模型配置", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"remove"}, a...)) }},
-			{Name: "info", Desc: "查看指定模型的详细配置", Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"info"}, a...)) }},
+		cmdEntry(":model", i18n.T(i18n.KeyCmdMig_307), "", h.modelHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_242), Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"list"}) }},
+			{Name: "add", Desc: i18n.T(i18n.KeyCmdMig_315), Action: func(a []string) { runHandler(h.modelHandler.Handle, []string{"add"}) }},
+			{Name: "switch", Desc: i18n.T(i18n.KeyCmdMig_239), Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"switch"}, a...)) }},
+			{Name: "remove", Desc: i18n.T(i18n.KeyCmdMig_249), Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"remove"}, a...)) }},
+			{Name: "info", Desc: i18n.T(i18n.KeyCmdMig_298), Args: "[id]", Action: func(a []string) { runHandler(h.modelHandler.Handle, append([]string{"info"}, a...)) }},
 		}),
 	}
 }
@@ -866,16 +866,16 @@ func (h *ConfigHandler) mcpRuleParams() []ConfigParam { return []ConfigParam{} }
 // workModeParams returns work mode and section parameters.
 func (h *ConfigHandler) workModeParams() []ConfigParam {
 	return []ConfigParam{
-		cmdEntry(":mode", "管理工作模式", "", h.modeHandler.Handle, []ConfigSubCommand{
-			{Name: "list", Desc: "列出所有工作模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{}) }},
-			{Name: "switch", Desc: "切换工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"switch"}, a...)) }},
-			{Name: "create", Desc: "创建工作模式", Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"create"}, a...)) }},
-			{Name: "edit", Desc: "交互式编辑当前模式", Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{"edit"}) }},
+		cmdEntry(":mode", i18n.T(i18n.KeyCmdMig_332), "", h.modeHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_241), Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{}) }},
+			{Name: "switch", Desc: i18n.T(i18n.KeyCmdMig_238), Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"switch"}, a...)) }},
+			{Name: "create", Desc: i18n.T(i18n.KeyCmdMig_247), Args: "<name>", Action: func(a []string) { runHandler(h.modeHandler.Handle, append([]string{"create"}, a...)) }},
+			{Name: "edit", Desc: i18n.T(i18n.KeyCmdMig_231), Action: func(a []string) { runHandler(h.modeHandler.Handle, []string{"edit"}) }},
 		}),
-		cmdEntry(":section", "管理自定义提示词节", "", h.sectionHandler.Handle, []ConfigSubCommand{
-			{Name: "list", Desc: "列出所有自定义节", Action: func(a []string) { runHandler(h.sectionHandler.Handle, []string{}) }},
-			{Name: "add", Desc: "添加节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"add"}, a...)) }},
-			{Name: "remove", Desc: "删除节", Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"remove"}, a...)) }},
+		cmdEntry(":section", i18n.T(i18n.KeyCmdMig_333), "", h.sectionHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_243), Action: func(a []string) { runHandler(h.sectionHandler.Handle, []string{}) }},
+			{Name: "add", Desc: i18n.T(i18n.KeyCmdMig_317), Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"add"}, a...)) }},
+			{Name: "remove", Desc: i18n.T(i18n.KeyCmdMig_251), Args: "<name>", Action: func(a []string) { runHandler(h.sectionHandler.Handle, append([]string{"remove"}, a...)) }},
 		}),
 	}
 }
@@ -883,22 +883,22 @@ func (h *ConfigHandler) workModeParams() []ConfigParam {
 // multimodalParams returns multimodal and MCP parameters.
 func (h *ConfigHandler) multimodalParams() []ConfigParam {
 	return []ConfigParam{
-		cmdEntry(":image", "管理多模态图片缓存", "", h.imageHandler.Handle, []ConfigSubCommand{
-			{Name: "list", Desc: "列出缓存的图片", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{}) }},
-			{Name: "add", Desc: "添加图片到缓存", Args: "<path>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"add"}, a...)) }},
-			{Name: "remove", Desc: "从缓存移除图片", Args: "<index>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"remove"}, a...)) }},
-			{Name: "clear", Desc: "清空图片缓存", Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{"clear"}) }},
+		cmdEntry(":image", i18n.T(i18n.KeyCmdMig_331), "", h.imageHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_246), Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{}) }},
+			{Name: "add", Desc: i18n.T(i18n.KeyCmdMig_314), Args: "<path>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"add"}, a...)) }},
+			{Name: "remove", Desc: i18n.T(i18n.KeyCmdMig_234), Args: "<index>", Action: func(a []string) { runHandler(h.imageHandler.Handle, append([]string{"remove"}, a...)) }},
+			{Name: "clear", Desc: i18n.T(i18n.KeyCmdMig_318), Action: func(a []string) { runHandler(h.imageHandler.Handle, []string{"clear"}) }},
 		}),
-		cmdEntry(":mcp", "管理 MCP 服务器连接", "", h.mcpHandler.Handle, []ConfigSubCommand{
-			{Name: "list", Desc: "列出所有 MCP 服务器", Action: func(a []string) { runHandler(h.mcpHandler.Handle, []string{}) }},
-			{Name: "add", Desc: "添加 MCP 服务器", Args: "<name> <command> [args...]", Action: func(a []string) {
+		cmdEntry(":mcp", i18n.T(i18n.KeyCmdMig_330), "", h.mcpHandler.Handle, []ConfigSubCommand{
+			{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_240), Action: func(a []string) { runHandler(h.mcpHandler.Handle, []string{}) }},
+			{Name: "add", Desc: i18n.T(i18n.KeyCmdMig_313), Args: "<name> <command> [args...]", Action: func(a []string) {
 				if len(a) < 2 {
-					agent.DefaultIO().Println("  用法: .mcp add <name> <command> [args...]")
+					agent.DefaultIO().Println(i18n.T(i18n.KeyCmdMig_125))
 					return
 				}
 				runHandler(h.mcpHandler.Handle, append([]string{"add"}, a...))
 			}},
-			{Name: "remove", Desc: "移除 MCP 服务器", Args: "<name>", Action: func(a []string) { runHandler(h.mcpHandler.Handle, append([]string{"remove"}, a...)) }},
+			{Name: "remove", Desc: i18n.T(i18n.KeyCmdMig_327), Args: "<name>", Action: func(a []string) { runHandler(h.mcpHandler.Handle, append([]string{"remove"}, a...)) }},
 		}),
 	}
 }
@@ -982,7 +982,7 @@ func (h *ConfigHandler) confirmToolWizard() {
 
 		io.Println("── confirm-tool ──────────────────────────────")
 		io.Println()
-		io.Println("  工具调用:")
+		io.Println(i18n.T(i18n.KeyCmdMig_094))
 		io.Println()
 
 		// Show all tools with numbers
@@ -1007,7 +1007,7 @@ func (h *ConfigHandler) confirmToolWizard() {
 			"custom":   i18n.T(i18n.KeyModeCustomDesc),
 		}
 		io.Println()
-		io.Printf("  全局确认模式: %s          %s\n", globalStr, modeDesc[globalStr])
+		io.Printf(i18n.T(i18n.KeyCmdMig_087), globalStr, modeDesc[globalStr])
 		io.Println()
 		for i, opt := range globalOptions {
 			mark := "  "
@@ -1019,7 +1019,7 @@ func (h *ConfigHandler) confirmToolWizard() {
 		}
 
 		io.Println()
-		io.Printf("  请选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", globalStart+3)
+		io.Printf(i18n.T(i18n.KeyCmdMig_141), globalStart+3)
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
@@ -1059,14 +1059,14 @@ func (h *ConfigHandler) confirmToolWizard() {
 			if err := h.cfg.Save(); err != nil {
 				log.Warn("Failed to save config: %v", err)
 			}
-			io.Printf("  全局确认模式已设置为: %s\n", opt)
+			io.Printf(i18n.T(i18n.KeyCmdMig_088), opt)
 			io.Println()
 			continue
 		}
 
 		// Specific tool selected - ask for mode
 		toolName := allTools[idx-1]
-		io.Printf("  设置工具 %s 的确认模式:\n", toolName)
+		io.Printf(i18n.T(i18n.KeyCmdMig_136), toolName)
 		io.Println()
 		modeOptions := []string{"confirm", "auto", "disabled"}
 		currentMode := effectiveModes[toolName]
@@ -1079,7 +1079,7 @@ func (h *ConfigHandler) confirmToolWizard() {
 			io.Printf("%s[%d] %-12s %s\n", mark, i+1, opt, desc)
 		}
 		io.Println()
-		io.Print("  选择 [1-3], [B] 返回上一步 [Q] 完全退出: ")
+		io.Print(i18n.T(i18n.KeyCmdMig_150))
 
 		modeInput := h.readLine()
 		if strings.EqualFold(modeInput, "b") || strings.EqualFold(modeInput, "B") {
@@ -1108,7 +1108,7 @@ func (h *ConfigHandler) confirmToolWizard() {
 		if err := h.cfg.Save(); err != nil {
 			log.Warn("Failed to save config: %v", err)
 		}
-		io.Printf("  工具 %s 已设置为: %s\n", toolName, mode)
+		io.Printf(i18n.T(i18n.KeyCmdMig_093), toolName, mode)
 		io.Println()
 	}
 }
@@ -1136,7 +1136,7 @@ func (h *ConfigHandler) showGroupMenu(groups []ConfigGroup) {
 			io.Printf(fmtStr, i+1, g.Name)
 		}
 		io.Println()
-		io.Printf("  选择分组 [1-%d]: [B] 返回上一步 [Q] 完全退出: ", len(groups))
+		io.Printf(i18n.T(i18n.KeyCmdMig_151), len(groups))
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
@@ -1174,13 +1174,13 @@ func (h *ConfigHandler) showParamMenu(group ConfigGroup) {
 			} else if p.CurrentValue != nil {
 				val := p.CurrentValue()
 				io.Printf("  [%d] %s\n", i+1, p.Name)
-				io.Printf("         → 当前值: %s\n", val)
+				io.Printf(i18n.T(i18n.KeyCmdMig_001), val)
 			} else {
 				io.Printf("  [%d] %s\n", i+1, p.Name)
 			}
 		}
 		io.Println()
-		io.Printf("  选择 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(group.Params))
+		io.Printf(i18n.T(i18n.KeyCmdMig_149), len(group.Params))
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
@@ -1236,7 +1236,7 @@ func (h *ConfigHandler) showSubCommandMenu(param ConfigParam) {
 			}
 		}
 		io.Println()
-		io.Printf("  选择子命令 [1-%d] [B] 返回上一步 [Q] 完全退出: ", len(param.SubCommands))
+		io.Printf(i18n.T(i18n.KeyCmdMig_152), len(param.SubCommands))
 
 		input := h.readLine()
 		if strings.EqualFold(input, "b") || strings.EqualFold(input, "B") {
@@ -1261,10 +1261,10 @@ func (h *ConfigHandler) showSubCommandMenu(param ConfigParam) {
 
 		// If sub-command needs args and has Args field, prompt for input
 		if sc.Args != "" {
-			io.Printf("  用法: %s %s\n", sc.Name, sc.Args)
+			io.Printf(i18n.T(i18n.KeyCmdMig_124), sc.Name, sc.Args)
 			if !strings.HasPrefix(sc.Args, "[") {
 				// Required args: prompt for input
-				io.Print("  请输入参数: ")
+				io.Print(i18n.T(i18n.KeyCmdMig_138))
 				argInput := h.readLine()
 				if argInput != "" {
 					sc.Action(strings.Fields(argInput))
@@ -1302,9 +1302,9 @@ func (h *ConfigHandler) showValueInput(param ConfigParam) {
 				io.Printf(optFmt, mark, i+1, opt)
 			}
 			io.Println()
-			io.Print("  输入编号或直接输入值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
+			io.Print(i18n.T(i18n.KeyCmdMig_146))
 		} else {
-			io.Print("  输入新值（[D] 默认值，[B] 返回上一步 [Q] 完全退出）: ")
+			io.Print(i18n.T(i18n.KeyCmdMig_145))
 		}
 
 		input := h.readLine()
