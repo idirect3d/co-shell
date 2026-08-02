@@ -729,10 +729,16 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	// Check for API error
 	if errObj := chatResp.parseError(); errObj != nil {
 		errMsg := fmt.Sprintf("API error: %s (type=%s, code=%s)", errObj.Message, errObj.Type, errObj.Code)
-		log.Error("LLM Chat API error: POST %s, status=%d, error=%s", apiURL, resp.StatusCode, errMsg)
+		// Write full diagnostic context (byte size + truncated body) to the log so
+		// 4xx errors are diagnosable without guessing which side corrupted the payload.
+		log.Error("LLM Chat API error: POST %s, status=%d, error=%s, request=%d bytes, body=%s",
+			apiURL, resp.StatusCode, errMsg, len(bodyBytes), truncateBody(bodyBytes))
+		// The returned error message is also fed back to the LLM agent loop, so it
+		// must carry only a compact summary of the request (never the full body).
+		summary := requestSummary(bodyBytes)
 		return nil, &OpenAIError{
 			StatusCode: resp.StatusCode,
-			Message:    errObj.Message,
+			Message:    fmt.Sprintf("%s (request=%d bytes, %s)", errObj.Message, len(bodyBytes), summary),
 		}
 	}
 
@@ -869,8 +875,11 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		respBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
-		log.Error("LLM ChatStream HTTP error: POST %s, status=%d, body=%s", c.baseURL+"/chat/completions", resp.StatusCode, string(respBytes))
-		return nil, fmt.Errorf("%s", errMsg)
+		// Write full diagnostic context (byte size + truncated body) to the log.
+		log.Error("LLM ChatStream HTTP error: POST %s, status=%d, body=%s, request=%d bytes, body=%s",
+			c.baseURL+"/chat/completions", resp.StatusCode, string(respBytes), len(bodyBytes), truncateBody(bodyBytes))
+		// The returned error message feeds back to the LLM agent loop; keep it compact.
+		return nil, fmt.Errorf("%s (request=%d bytes, %s)", errMsg, len(bodyBytes), requestSummary(bodyBytes))
 	}
 
 	eventCh := make(chan StreamEvent, 100)
@@ -1418,6 +1427,58 @@ func (c *openAIClient) RemoveBodyAddition(key string) {
 
 func (c *openAIClient) GetBodyAdditions() map[string]string {
 	return c.bodyAdditions
+}
+
+// truncateBody returns a truncated string representation of the request body
+// for diagnostic logging. The full body may contain large system prompts and
+// tool definitions, so only the first 1000 bytes are kept. If the body is
+// shorter, it is returned unchanged.
+func truncateBody(body []byte) string {
+	const maxBytes = 1000
+	if len(body) <= maxBytes {
+		return string(body)
+	}
+	return fmt.Sprintf("%s... [truncated %d bytes]", string(body[:maxBytes]), len(body)-maxBytes)
+}
+
+// requestSummary extracts a compact one-line summary of the request body for
+// error messages that are fed back to the LLM agent loop. It reports the
+// model, message count, tool count, and any top-level flags (stream, extra
+// fields) without echoing message contents.
+func requestSummary(body []byte) string {
+	var parsed map[string]json.RawMessage
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "unparseable body"
+	}
+	var parts []string
+	if v, ok := parsed["model"]; ok {
+		var s string
+		if err := json.Unmarshal(v, &s); err == nil {
+			parts = append(parts, "model="+s)
+		}
+	}
+	if v, ok := parsed["messages"]; ok {
+		var msgs []json.RawMessage
+		if err := json.Unmarshal(v, &msgs); err == nil {
+			parts = append(parts, fmt.Sprintf("messages=%d", len(msgs)))
+		}
+	}
+	if v, ok := parsed["tools"]; ok {
+		var tools []json.RawMessage
+		if err := json.Unmarshal(v, &tools); err == nil {
+			parts = append(parts, fmt.Sprintf("tools=%d", len(tools)))
+		}
+	}
+	if v, ok := parsed["stream"]; ok {
+		parts = append(parts, "stream="+string(v))
+	}
+	if _, ok := parsed["extra_body"]; ok {
+		parts = append(parts, "extra_body=present")
+	}
+	if len(parts) == 0 {
+		return "empty request"
+	}
+	return strings.Join(parts, ", ")
 }
 
 // prettyJSON formats raw JSON bytes as indented JSON for human-readable logging.
