@@ -138,7 +138,7 @@ func (r *REPL) SetInputMode(mode string)   { r.inputMode = mode }
 
 func (r *REPL) readLine(prompt string) (string, error) {
 	switch r.inputMode {
-	case "enhanced":
+	case "enhanced", "tui":
 		ei := NewEnhancedInput(prompt, r.history)
 		input, err := ei.ReadLine()
 		if err != nil {
@@ -603,8 +603,8 @@ func (r *REPL) handleAgentInput(input string) {
 	// returning (0, nil) immediately — causing infinite loops on confirmation prompts.
 	var stopMonitor func()
 	switch r.inputMode {
-	case "enhanced":
-		log.Debug("REPL.handleAgentInput: setting up EnhancedIO and ESC monitor")
+	case "enhanced", "tui":
+		log.Debug("REPL.handleAgentInput: setting up EnhancedIO and ESC monitor (mode=%s)", r.inputMode)
 		eio := NewEnhancedIO(r.history)
 		if err := eio.startRaw(); err != nil {
 			log.Warn("REPL.handleAgentInput: cannot set raw mode: %v", err)
@@ -648,93 +648,15 @@ func (r *REPL) handleAgentInput(input string) {
 func (r *REPL) streamCallback(eventType string, content string) {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 
-	// out prints via UserIO when available (handles \r\n conversion),
-	// else falls back to direct fmt.Print.
-	out := func(args ...interface{}) {
-		if r.userIO != nil {
-			r.userIO.Print(args...)
-		} else {
-			fmt.Print(args...)
-		}
+	// Render via the unified stream renderer (P2 merge). UserIO is always
+	// set during RunStream; the fmt fallback below only guards defensive
+	// paths (cleanup or direct callback reuse).
+	io := r.userIO
+	if io == nil {
+		io = agent.NewDefaultUserIO()
 	}
-	outF := func(format string, args ...interface{}) {
-		if r.userIO != nil {
-			r.userIO.Printf(format, args...)
-		} else {
-			fmt.Printf(format, args...)
-		}
-	}
-
-	switch eventType {
-	case agent.EventContentChunk:
-		out(content)
-	case agent.EventThinkingChunk:
-		out(content)
-	case agent.EventContent:
-		out(ep.LlmOutput)
-		out(content)
-		out("\n")
-	case agent.EventThinking:
-		out(ep.Thinking)
-		out(content)
-		out("\n")
-	case agent.EventCommand:
-		out("\n")
-		out(ep.CommandInput)
-		out(content)
-		out("\n")
-	case agent.EventOutput:
-		out("\n")
-		out(ep.OutputTitle)
-		out("\n")
-		out(ep.OutputSep)
-		out("\n")
-		out(content)
-		out("\n")
-		out(ep.OutputSep)
-		out("\n")
-	case agent.EventToolCall:
-		out("\n")
-		out(ep.ToolCallInput)
-		out(content)
-		out("\n")
-	case agent.EventTokenIter:
-		var prompt, completion, total, maxLen int
-		var ft, inTPS, outTPS string
-		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-			&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil && total > 0 {
-			outF("\n────────────────────────────────────────────────────────────────────────────────\n")
-			pct := 0.0
-			if maxLen > 0 && total > 0 {
-				pct = float64(total) * 100.0 / float64(maxLen)
-			}
-			if maxLen == 0 {
-				out(" (模型最大长度未知) ")
-			}
-			out(fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
-			out("\n")
-			outF("────────────────────────────────────────────────────────────────────────────────\n")
-		}
-	case agent.EventTokenTask:
-		var prompt, completion, total int
-		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d", &prompt, &completion, &total); err == nil && total > 0 {
-			outF("\n────────────────────────────────────────────────────────────────────────────────\n")
-			out(fmt.Sprintf("本次任务 Token 总计: 输入=%d, 输出=%d, 总计=%d\n", prompt, completion, total))
-			outF("────────────────────────────────────────────────────────────────────────────────\n")
-		}
-	case agent.EventInfo:
-		out(content)
-	case agent.EventWarning:
-		out(ep.Warning)
-		out(content)
-		out("\n")
-	case agent.EventError:
-		out(ep.Error)
-		out(content)
-		out("\n")
-	case agent.EventDone:
-		out("\n")
-	}
+	renderer := agent.NewStreamRenderer(io, ep, agent.StreamModeREPL)
+	renderer.Render(eventType, content)
 }
 
 func (r *REPL) printWelcome() {

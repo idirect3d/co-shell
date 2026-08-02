@@ -51,7 +51,7 @@ import (
 
 const version = "0.7.0"
 
-const build = "340"
+const build = "341"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1251,15 +1251,15 @@ func main() {
 	r.SetVersion(version, build)
 	// Apply input mode setting
 	// On Windows, always use stdio mode since raw terminal is not available.
-	inputMode := "enhanced"
+	inputMode := "tui" // default interactive mode (P2: "enhanced" → "tui")
 	if runtime.GOOS == "windows" {
 		inputMode = "stdio"
 	} else {
 		if cfg.LLM.InputMode != "" {
-			inputMode = cfg.LLM.InputMode
+			inputMode = config.NormalizeInputMode(cfg.LLM.InputMode)
 		}
 		if flags.inputMode != "" {
-			inputMode = flags.inputMode
+			inputMode = config.NormalizeInputMode(flags.inputMode)
 		}
 	}
 	r.SetInputMode(inputMode)
@@ -1316,42 +1316,10 @@ func isDirectCommand(input string) bool {
 // It is the exact body previously inlined in executeSingleCommand's callback,
 // extracted verbatim for testability (golden baseline, UC-0006).
 func renderSingleCmdEvent(io agent.UserIO, ep config.EmojiPrefixes, eventType string, content string) {
-	switch eventType {
-	case agent.EventContentChunk:
-		io.Print(content)
-	case agent.EventThinkingChunk:
-		io.Print(content)
-	case agent.EventCommand:
-		io.Printf("%s%s\n", ep.CommandInput, content)
-	case agent.EventOutput:
-		io.Println()
-		io.Println(ep.OutputTitle)
-		io.Println(ep.OutputSep)
-		io.Println(content)
-		io.Println(ep.OutputSep)
-	case agent.EventToolCall:
-		io.Printf("%s%s\n", ep.ToolCallInput, content)
-	case agent.EventTokenIter:
-		io.Printf("\n%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
-		var prompt, completion, total, maxLen int
-		var ft, inTPS, outTPS string
-		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-			&prompt, &completion, &total, &maxLen, &ft, &inTPS, &outTPS); err == nil {
-			pct := 0.0
-			if maxLen > 0 && total > 0 {
-				pct = float64(total) * 100.0 / float64(maxLen)
-			}
-			io.Printf("%s %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
-			if ft != "" {
-				io.Printf("%s   %s\n", ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS))
-			}
-		}
-		io.Printf("%s────────────────────────────────────────────────────────────────────────────────\n", ep.Info)
-	case agent.EventError:
-		io.Printf("%s%s\n", ep.Error, content)
-	case agent.EventDone:
-		io.Println()
-	}
+	// Delegate to the unified stream renderer (P2 merge). The signature is
+	// preserved for the golden test baseline (render_single_cmd.golden).
+	renderer := agent.NewStreamRenderer(io, ep, agent.StreamModeSingleCmd)
+	renderer.Render(eventType, content)
 }
 
 // executeSingleCommand executes a single command (natural language or system command)
