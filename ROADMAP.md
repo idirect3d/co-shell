@@ -28,7 +28,8 @@
 | FIX-313 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 ToolExamples 节误用 XML 格式示例：buildNamedSection/getRawSectionText 的 ToolExamples case 按 cfg.LLM.ToolCallMode 分支——OpenAI 用 KeySystemPromptToolUsageExamples（JSON 格式），其他用 XML 格式；补全 zh/en 示例 intent 必填字段；孤儿 key 恢复使用 [BUILD-347]） |
 | FIX-314 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 parse-error-action=retry 时方法调用及错误结果不应进入上下文：executeToolCall 失败（JSON 解析错误/缺参数）后回滚 assistant(tool_calls) 消息并 continue iterationLoop 干净重发；新增 KeyToolExecRetry i18n key（zh/en）向用户显示 UI 错误提示（不进 LLM 上下文）[BUILD-348]） |
 | FIX-315 | 0.7.0 | P1 | ✅ 已完成（:rule 添加的自定义规则未进入系统提示词：KeySystemPromptRules 翻译补 {CUSTOM_RULES} 占位符（zh/en），使 :rule 规则经 buildSectionWithPlaceholders 注入；英文 Rules 对齐中文 4 条平铺规则（补 XML 转义规则，去 MUST/Recommendations 分层）[BUILD-349]） |
-| FIX-316 | 0.7.0 | P1 | 🚧 开发中（工具执行后必显输出：attempt_completion 显示 ✅ 任务完成+result 全量、track_task_progress 显示完整计划、read/write/replace/search/exec 显示动作概要；统一走 StreamRenderer EventToolCall 通道，受 showTool 控制，带工具图标引导） |
+| FIX-316 | 0.7.0 | P1 | ✅ 已完成（工具执行后必显输出：attempt_completion 显示 ✅ 任务完成+result 全量、track_task_progress 显示完整计划、read/write/replace/search/exec 显示动作概要（含实际命令+intent/行数/替换数/匹配数）；统一走 StreamRenderer EventToolCall 通道，受 showTool 控制，带工具图标引导；trackTaskProgressTool 去裸 Println [BUILD-350]） |
+| FIX-317 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 replace_in_file 执行失败死循环：FIX-314 retry 静默丢弃错误使 LLM 无法修正。现按错误分流：`cannot parse tool arguments`（JSON 语法错）→保留静默重发自纠；path 不存在/SEARCH 不匹配/缺参等其他错误→回灌 formatToolError 结构化反馈（ERROR DETAILS+CORRECTION INSTRUCTIONS）让 LLM 修正 [BUILD-351]） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
