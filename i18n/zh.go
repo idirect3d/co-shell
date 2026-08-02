@@ -1384,6 +1384,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyXMLParseErrorSummary: "检测到XML解析错误: %s\n",
 	KeyContextOverLimit:     "%s 上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行\n",
 	KeyToolExecFailed:       "工具 %s 执行失败（parse-error-action=exit）: %v\n",
+	KeyToolExecRetry:        "%s 工具 %s 调用无效（parse-error-action=retry）: %v\n已丢弃无效调用并重新发送。\n",
 	KeyToolNoOutput:         "（工具调用无输出）",
 	KeyReorganizeUrgent:     "你必须马上进行上下文整理。\n\n当前上下文已经超限，立即调用 reorganize_context 工具。",
 	KeyXMLFormatError:       `XML格式错误：LLM输出中包含已尝试调用工具的内容（< 工具标签名开头），但XML结构不完整，无法解析为有效的工具调用。请检查你的输出格式，确保使用正确的方法名和参数标签。`,

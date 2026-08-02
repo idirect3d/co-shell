@@ -169,6 +169,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// Build available tools
 	tools := a.buildTools()
 
+iterationLoop:
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
 		// Refresh the last user message's <environment_details> so retries and
 		// loop-back iterations always show current time and opened resources.
@@ -1029,6 +1030,25 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyToolExecFailed), tc.Name, execErr))
 						cb(EventDone, "")
 						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
+					}
+					if parseAction == "retry" && !isXMLMode {
+						// FIX-314: OpenAI mode — a JSON parse error or missing
+						// required parameter means the tool call is invalid.
+						// Remove the assistant message (with tool_calls) so the
+						// erroneous call and its error result do NOT enter the
+						// context. Resend cleanly on the next iteration.
+						// Memory keeps the assistant text (finalContent) which is
+						// a legitimate reply without tool results.
+						a.mu.Lock()
+						a.messages = a.messages[:assistantMsgIdx]
+						a.mu.Unlock()
+						log.Error("Agent.RunStream: tool %s failed, OpenAI retry discarding assistant+tool result: %v", tc.Name, execErr)
+						// Show the user a concise error notice (UI only — does NOT
+						// enter the LLM context). The invalid call is discarded and
+						// the next iteration resends cleanly.
+						ep := config.GetEmojiPrefixes(a.emojiEnabled)
+						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), ep.Warning, tc.Name, execErr))
+						continue iterationLoop
 					}
 					if parseAction == "retry" {
 						// Simple error message without structured feedback
