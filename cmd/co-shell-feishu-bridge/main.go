@@ -77,48 +77,48 @@ type cliFlags struct {
 func parseFlags() cliFlags {
 	var f cliFlags
 
-	flag.StringVar(&f.appID, "app-id", "", "飞书应用 App ID（必填）")
-	flag.StringVar(&f.appSecret, "app-secret", "", "飞书应用 App Secret（必填）")
-	flag.StringVar(&f.coShellPath, "co-shell-path", "", "co-shell 可执行文件路径（默认：从 PATH 查找）")
-	flag.StringVar(&f.workspace, "workspace", "", "co-shell 工作空间路径（默认：当前目录）")
-	flag.StringVar(&f.workspace, "w", "", "co-shell 工作空间路径（简写）")
-	flag.StringVar(&f.configPath, "config", "", "co-shell 配置文件路径（默认：{workspace}/config.json）")
-	flag.StringVar(&f.configPath, "c", "", "co-shell 配置文件路径（简写）")
-	flag.StringVar(&f.mode, "mode", "sync", "工作模式：sync（同步）/ pool（队列）/ preempt（抢占）")
-	flag.StringVar(&f.logLevel, "log-level", "info", "日志级别：debug/info/warn/error/off")
-	flag.BoolVar(&f.showHelp, "help", false, "显示帮助信息")
-	flag.BoolVar(&f.showHelp, "h", false, "显示帮助信息（简写）")
-	flag.BoolVar(&f.showVersion, "version", false, "显示版本信息")
-	flag.BoolVar(&f.showVersion, "v", false, "显示版本信息（简写）")
+	flag.StringVar(&f.appID, "app-id", "", "Feishu App ID (required)")
+	flag.StringVar(&f.appSecret, "app-secret", "", "Feishu App Secret (required)")
+	flag.StringVar(&f.coShellPath, "co-shell-path", "", "Path to co-shell executable (default: search PATH)")
+	flag.StringVar(&f.workspace, "workspace", "", "co-shell workspace path (default: current directory)")
+	flag.StringVar(&f.workspace, "w", "", "co-shell workspace path (short)")
+	flag.StringVar(&f.configPath, "config", "", "co-shell config file path (default: {workspace}/config.json)")
+	flag.StringVar(&f.configPath, "c", "", "co-shell config file path (short)")
+	flag.StringVar(&f.mode, "mode", "sync", "Execution mode: sync / pool / preempt")
+	flag.StringVar(&f.logLevel, "log-level", "info", "Log level: debug/info/warn/error/off")
+	flag.BoolVar(&f.showHelp, "help", false, "Show help")
+	flag.BoolVar(&f.showHelp, "h", false, "Show help (short)")
+	flag.BoolVar(&f.showVersion, "version", false, "Show version")
+	flag.BoolVar(&f.showVersion, "v", false, "Show version (short)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, `co-shell-feishu-bridge v%s - 飞书桥接器
+		fmt.Fprintf(os.Stderr, `co-shell-feishu-bridge v%s - Feishu Bridge
 
-将飞书机器人连接到 co-shell，通过 WebSocket 长连接接收飞书消息，
-调用 co-shell 处理并回复。
+Connects a Feishu bot to co-shell via a WebSocket long connection,
+receives Feishu messages, calls co-shell to process and reply.
 
-使用方式:
+Usage:
   co-shell-feishu-bridge [flags]
 
-必需参数:
-  --app-id <ID>        飞书应用 App ID
-  --app-secret <KEY>   飞书应用 App Secret
+Required:
+  --app-id <ID>        Feishu App ID
+  --app-secret <KEY>   Feishu App Secret
 
-可选参数:
-  --co-shell-path <PATH>  co-shell 可执行文件路径（默认：从 PATH 查找）
-  --workspace, -w <PATH>  co-shell 工作空间路径（默认：当前目录）
-  --config, -c <PATH>     co-shell 配置文件路径（默认：{workspace}/config.json）
-  --mode <MODE>           工作模式：sync/pool/preempt（默认：sync）
-  --log-level <LEVEL>     日志级别：debug/info/warn/error/off（默认：info）
-  --help, -h              显示帮助信息
-  --version, -v           显示版本信息
+Options:
+  --co-shell-path <PATH>  Path to co-shell executable (default: search PATH)
+  --workspace, -w <PATH>  co-shell workspace path (default: current directory)
+  --config, -c <PATH>     co-shell config file path (default: {workspace}/config.json)
+  --mode <MODE>           Execution mode: sync/pool/preempt (default: sync)
+  --log-level <LEVEL>     Log level: debug/info/warn/error/off (default: info)
+  --help, -h              Show help
+  --version, -v           Show version
 
-工作模式说明:
-  sync     同步模式（默认）：逐条执行，前一条完成后才执行下一条
-  pool     队列模式：当前任务完成后，将队列中所有消息合并批量处理
-  preempt  抢占模式：新消息中断当前进程，立即执行新任务
+Execution modes:
+  sync     Sync mode (default): execute one by one, next starts after current finishes
+  pool     Pool mode: when current task finishes, merge all queued messages for batch processing
+  preempt  Preempt mode: new message interrupts current process, executes new task immediately
 
-示例:
+Examples:
   co-shell-feishu-bridge --app-id cli_xxx --app-secret xxx
   co-shell-feishu-bridge --app-id cli_xxx --app-secret xxx --mode pool
   co-shell-feishu-bridge --app-id cli_xxx --app-secret xxx -w ./my-workspace
