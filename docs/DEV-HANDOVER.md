@@ -23,7 +23,7 @@
   - agent/stream_renderer.go：StreamRenderer（REPL/main 渲染合并，StreamModeREPL/SingleCmd）
   - config.NormalizeInputMode：--input-mode/config enhanced→tui 别名，加载归一化不回写
 - **P3 目标**：audit 第 3 项 Hardcoded Chinese 1555 下降约 1/3（约 -500）；向导功能回归
-- **已知既有问题（非本任务引入）**：agent/file_tools_test.go 的 read_file/search_files/write_to_file 用例失败（与 FEATURE-265 相关），baseline 分支同样失败
+- **已知既有问题**：~~agent/file_tools_test.go 的 read_file/search_files/write_to_file 用例失败（与 FEATURE-265 相关）~~ 已由 **FIX-301** 修复（过时测试补 mode/start_line/end_line 必填参数 + No matches 断言改跨语言稳定），agent 全量测试绿
 
 ## 三、版本计划（0.7.x 系列，ROADMAP 已登记）
 
@@ -72,11 +72,11 @@
 
 ## 七、下一步行动（新会话顺序）
 
-1. `git status` 确认在 main 分支且干净；建 FEATURE-303 分支（`git checkout -b FEATURE-303`）
-2. 读 docs/output-architecture.md（P3 段 + 3.2 Out + 6.9 UI 快捷键）+ docs/output-inventory.md（B 类硬编码清单）
-3. 建 use-case/FEATURE-303/FEATURE-303-UC-0001.md（循环模式）→ **向用户确认测试用例**（门禁）
-4. 开发：定义 UI 组件 Out.Box/Menu/Step/Sep（绑定规范快捷键 [B]/[C]/[E]/[D]/[Q]/[数字]）→ 迁移 cmd/model.go（113 处）→ mode.go（161）→ config.go（104）→ settings_db.go（48）→ session.go（30）；B 类文案同步迁移 i18n
-5. 验收：各向导功能回归（cmd/settings_mode_dirs_test.go 等现有测试 + 手动走一遍向导）；audit 第 3 项 Hardcoded Chinese 较基线 1555 下降约 1/3
+1. `git status` 确认在 main 分支且干净；建 FEATURE-305 分支（`git checkout -b FEATURE-305`）
+2. 读 docs/output-architecture.md（P4.5 段）+ docs/output-inventory.md（A-3 硬编码残余清单）
+3. 建 use-case/FEATURE-305/FEATURE-305-UC-0001.md（循环模式）→ **向用户确认测试用例**（门禁）
+4. 开发：按 A-3/C 类清单逐条迁移剩余硬编码中文 + 修复 KeyToolUsageShellSend 缺 zh 翻译 bug
+5. 验收：audit 第 3 项 Hardcoded Chinese = 0（P4.5 硬目标）
 
 ## 八、风险
 
