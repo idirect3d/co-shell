@@ -1,27 +1,29 @@
 # co-shell 开发交接文件（0.7.x 输出架构重构）
 
 > 用途：新会话在新上下文中继续开发。只需读本文 + docs/output-architecture.md 即可恢复全部上下文。
-> 创建：2026-08-01 17:00 | 当前分支：FEATURE-302 | 版本：v0.7.0（BUILD-340）
+> 创建：2026-08-02 11:00 | 当前分支：FEATURE-303 | 版本：v0.7.0（BUILD-341）
 
 ---
 
 ## 一、当前任务
 
-**FEATURE-302（P2）Out + RenderCommand 抽象 + 渲染合并**：统一输出通道，引入 RenderCommand 渲染指令（架构文档 3.7），消除 REPL/main 双渲染。
-（完整设计见 docs/output-architecture.md 3.2/3.7/6.2；P1 已为 P2 铺好 13 事件常量 + 双 golden 基线）
+**FEATURE-303（P3）向导迁移（B 类）+ i18n 归零第一步**：cmd 5 大 handler（model/mode/config/settings_db/session）迁移到 Out，消除 fmt 直写与硬编码中文；同步迁移 B 类向导文案到 i18n（约占总硬编码 1/3）。
+（完整设计见 docs/output-architecture.md 3.2/6.9；P2 已交付 Out 接口 + TerminalOut + RenderCommand，P3 直接消费）
 
-## 二、已完成状态（FEATURE-301 交付）
+## 二、已完成状态（FEATURE-301 + FEATURE-302 交付）
 
-- **git**：FEATURE-301 已完成并合并回 main（[BUILD-340]）；FEATURE-302 分支已建
-- **测试用例**：use-case/FEATURE-301/FEATURE-301-UC-0001.md（12 用例，全部通过）
-- **验收结果**（bin/output_audit.sh）：fmt=206 / 魔法事件=**63→0** / 中文=1555 / 同步输入=19 / i18n=1（仅第 2 项变化，行为零变化达成）
-- **新增回归资产**：
-  - agent/events.go（13 输出事件常量）+ agent/input.go（12 InputKind 常量）
-  - agent/events_test.go（UC-0003/0004 常量 table 测试）
-  - repl/render_test.go + repl/testdata/render_tui.golden（REPL 渲染 golden）
-  - render_test.go + testdata/render_single_cmd.golden（单命令渲染 golden）
-  - main.go renderSingleCmdEvent 已从 executeSingleCommand 闭包机械提取（P2 渲染合并的接入点）
-- **已知既有问题（非本任务引入）**：agent/file_tools_test.go 的 read_file/search_files/write_to_file 用例失败（参数校验变更未同步测试，与 FEATURE-265 相关），baseline 分支同样失败
+- **git**：FEATURE-301 [BUILD-340] + FEATURE-302 [BUILD-341] 均已完成并合并回 main（cd57077）；FEATURE-303 分支待建
+- **测试用例**：FEATURE-301（12 用例）+ FEATURE-302（12 用例）全部通过
+- **验收结果**（bin/output_audit.sh，P2 后）：
+  - fmt=**206→204**（渲染合并消除 2 处直接 fmt，合规改进）
+  - 魔法事件=**63→0**（P1）/ 中文=1555 / 同步输入=19 / i18n=1（P1/P2 均不变）
+- **P2 新增资产**（P3 直接可复用）：
+  - agent/out.go：Out 接口（Emit + Info/Success/Warning/Error/Debug）+ ChannelID(12) + Level(5) + TerminalOut（基于 EmojiPrefixes + UserIO）
+  - agent/command.go：RenderCommand + RenderKind(8)
+  - agent/stream_renderer.go：StreamRenderer（REPL/main 渲染合并，StreamModeREPL/SingleCmd）
+  - config.NormalizeInputMode：--input-mode/config enhanced→tui 别名，加载归一化不回写
+- **P3 目标**：audit 第 3 项 Hardcoded Chinese 1555 下降约 1/3（约 -500）；向导功能回归
+- **已知既有问题（非本任务引入）**：agent/file_tools_test.go 的 read_file/search_files/write_to_file 用例失败（与 FEATURE-265 相关），baseline 分支同样失败
 
 ## 三、版本计划（0.7.x 系列，ROADMAP 已登记）
 
@@ -70,15 +72,15 @@
 
 ## 七、下一步行动（新会话顺序）
 
-1. `git status` 确认在 FEATURE-302 分支
-2. 读 docs/output-architecture.md（3.2 Out 接口 / 3.7 RenderCommand / 6.2 input-mode 别名）+ use-case/FEATURE-302 用例（新建）
-3. **向用户确认测试用例**（门禁）
-4. 开发：新增 agent/out.go（Out + TerminalOut）→ agent/command.go（RenderCommand/RenderKind）→ repl.go streamCallback 与 main.go renderSingleCmdEvent 合并为「事件→渲染器」单一入口（LineRenderer 语义）→ --input-mode enhanced→tui 别名（parseInputMode）
-5. 验收：`bin/output_audit.sh` 全项不变；两份 golden 仍逐字节一致；`:set` 开关生效回归；`--input-mode stdio` 无 ANSI 污染；REPL 冒烟（需 API Key）
+1. `git status` 确认在 main 分支且干净；建 FEATURE-303 分支（`git checkout -b FEATURE-303`）
+2. 读 docs/output-architecture.md（P3 段 + 3.2 Out + 6.9 UI 快捷键）+ docs/output-inventory.md（B 类硬编码清单）
+3. 建 use-case/FEATURE-303/FEATURE-303-UC-0001.md（循环模式）→ **向用户确认测试用例**（门禁）
+4. 开发：定义 UI 组件 Out.Box/Menu/Step/Sep（绑定规范快捷键 [B]/[C]/[E]/[D]/[Q]/[数字]）→ 迁移 cmd/model.go（113 处）→ mode.go（161）→ config.go（104）→ settings_db.go（48）→ session.go（30）；B 类文案同步迁移 i18n
+5. 验收：各向导功能回归（cmd/settings_mode_dirs_test.go 等现有测试 + 手动走一遍向导）；audit 第 3 项 Hardcoded Chinese 较基线 1555 下降约 1/3
 
 ## 八、风险
 
-- P2 是渲染逻辑合并，golden 基线已就绪兜底，禁夹带行为改动（golden 有差异即为回归）
-- `--input-mode enhanced→tui` 别名需保留老配置兼容（config.json 旧值自动归一化，不回写）
-- P2 只做 Out/TerminalOut + RenderCommand 抽象，不迁移向导（P3 才做）
-- 新会话语境预算：先读本文 + 架构文档，避免重复摸底全库
+- P3 迁移量大（5 handler，~450 处），逐 handler 迁移 + 每步 `go build ./...` + 现有 cmd 测试兜底，禁一次改完
+- UI 组件必须绑定规范快捷键，禁止各向导自定（架构 6.9）
+- i18n 新 key 必须同步 zh+en（audit 第 5 项跟踪）
+- 新会话语境预算：先读本文 + 架构文档 + inventory 清单，避免重复摸底全库
