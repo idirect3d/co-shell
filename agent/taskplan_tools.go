@@ -140,8 +140,10 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 		return "✅ 当前任务计划已归档并删除。", nil
 	}
 
+	// FIX-316: The formatted plan is returned to the caller and displayed via
+	// the unified EventToolCall stream channel (gated by showTool), instead of
+	// a bare Println here (which bypassed showTool control and duplicated output).
 	formatted := taskplan.FormatPlan(plan)
-	a.defaultIO().Println(formatted)
 
 	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
