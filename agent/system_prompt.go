@@ -223,6 +223,11 @@ func getRawSectionText(name, modeName, cwd string, cfg *config.Config) string {
 	case "Environment":
 		return i18n.T(i18n.KeySystemPromptEnvironment)
 	case "ToolExamples":
+		// OpenAI mode uses JSON-style tool call examples, XML mode uses
+		// XML-style examples with the configurable tag prefix.
+		if cfg != nil && cfg.LLM.ToolCallMode == "openai" {
+			return i18n.T(i18n.KeySystemPromptToolUsageExamples)
+		}
 		return i18n.T(i18n.KeySystemPromptXMLExamples)
 	case "TaskProgress":
 		return i18n.T(i18n.KeySystemPromptToolUsageTaskProgress)
@@ -399,6 +404,11 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 
 	case "ToolExamples":
 		text := loadSectionText(env.cwd, modeName, "TOOL_EXAMPLES", func() string {
+			// OpenAI mode uses JSON-style tool call examples, XML mode uses
+			// XML-style examples with the configurable tag prefix.
+			if cfg != nil && cfg.LLM.ToolCallMode == "openai" {
+				return i18n.T(i18n.KeySystemPromptToolUsageExamples)
+			}
 			return i18n.T(i18n.KeySystemPromptXMLExamples)
 		})
 		return buildSectionWithPlaceholders(text, env)

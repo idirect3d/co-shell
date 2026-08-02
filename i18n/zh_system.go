@@ -1016,6 +1016,7 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 
 调用工具 execute_command，参数：
 {
+  "intent": "查询 co-shell 最新发布版本",
   "command": "curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'",
   "timeout_seconds": 15
 }
@@ -1024,6 +1025,7 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 
 调用工具 write_to_file，参数：
 {
+  "intent": "创建项目配置文件，存储 API 端点信息",
   "mode": "new",
   "path": "src/config.json",
   "content": "{\n  \"apiEndpoint\": \"https://api.example.com\",\n  \"theme\": {\n    \"primaryColor\": \"#007bff\",\n    \"fontFamily\": \"Arial, sans-serif\"\n  },\n  \"version\": \"1.0.0\"\n}"
@@ -1033,6 +1035,7 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 
 调用工具 search_files，参数：
 {
+  "intent": "查找源码中 handleSubmit 函数的定义位置",
   "path": "src",
   "regex": "function handleSubmit",
   "file_pattern": "*.ts"
@@ -1042,6 +1045,7 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 
 调用工具 replace_in_file，参数：
 {
+  "intent": "将 API 端点 URL 从旧地址更新为新地址",
   "path": "src/config.ts",
   "replacements": [
     {

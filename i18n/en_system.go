@@ -1075,6 +1075,7 @@ Tool calls are made through the API's tool_calls mechanism. The system handles J
 
 Call tool execute_command with parameters:
 {
+  "intent": "Check the latest release version of co-shell from GitHub",
   "command": "curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'",
   "timeout_seconds": 15
 }
@@ -1083,6 +1084,7 @@ Call tool execute_command with parameters:
 
 Call tool write_to_file with parameters:
 {
+  "intent": "Create a project configuration file with API endpoint settings",
   "mode": "new",
   "path": "src/config.json",
   "content": "{\n  \"apiEndpoint\": \"https://api.example.com\",\n  \"theme\": {\n    \"primaryColor\": \"#007bff\",\n    \"fontFamily\": \"Arial, sans-serif\"\n  },\n  \"version\": \"1.0.0\"\n}"
@@ -1092,6 +1094,7 @@ Call tool write_to_file with parameters:
 
 Call tool search_files with parameters:
 {
+  "intent": "Find the handleSubmit function definition in the source code",
   "path": "src",
   "regex": "function handleSubmit",
   "file_pattern": "*.ts"
@@ -1101,6 +1104,7 @@ Call tool search_files with parameters:
 
 Call tool replace_in_file with parameters:
 {
+  "intent": "Update the API endpoint URL from old to new",
   "path": "src/config.ts",
   "replacements": [
     {
