@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/subagent"
 )
@@ -81,7 +82,11 @@ func (a *Agent) launchSubAgentTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("target agent %q workspace not found at %s. The target agent's workspace must exist before calling launch_sub_agent", agentName, targetWorkspace)
 	}
 
-	fmt.Printf("\n📡 [%s] Communicating with agent '%s' (workspace: %s)\n\n", a.name, agentName, targetWorkspace)
+	// FEATURE-304: sub-agent entry output is i18n-ized and can be hidden
+	// via OutputCategories["subagent"]=off.
+	if a.cfg == nil || a.cfg.OutputCategoryShown("subagent") {
+		a.defaultIO().Printf(i18n.TF(i18n.KeySubAgentCommunicate), a.name, agentName, targetWorkspace)
+	}
 
 	cfg := subagent.SubAgentConfig{
 		Workspace:      targetWorkspace,

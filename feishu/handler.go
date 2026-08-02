@@ -39,6 +39,7 @@ import (
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 
 	"github.com/idirect3d/co-shell/bridge"
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 const (
@@ -132,7 +133,7 @@ func (h *Handler) handleTextMessage(ctx context.Context, chatID, content, chatTy
 
 	if hasPending {
 		// This message is a reply to a pending input request
-		fmt.Printf("\n📩 [飞书输入回复] %s\n", instruction)
+		fmt.Printf(i18n.TF(i18n.KeyFeishuReplyInput), instruction)
 		fmt.Println(strings.Repeat("─", 50))
 
 		// Send the input to the waiting co-shell process
@@ -148,7 +149,7 @@ func (h *Handler) handleTextMessage(ctx context.Context, chatID, content, chatTy
 
 	if !hasPending {
 		// This is a new instruction
-		fmt.Printf("\n📩 [飞书消息] %s\n", instruction)
+		fmt.Printf(i18n.TF(i18n.KeyFeishuReplyMsg), instruction)
 		fmt.Println(strings.Repeat("─", 50))
 
 		// Submit to scheduler with InputRequestFunc for interactive support
@@ -160,18 +161,18 @@ func (h *Handler) handleTextMessage(ctx context.Context, chatID, content, chatTy
 			},
 			ReplyFunc: func(output string, err error) {
 				if err != nil {
-					reply := fmt.Sprintf("❌ 执行出错：%v", err)
+					reply := fmt.Sprintf(i18n.TF(i18n.KeyFeishuExecError), err)
 					if output != "" {
-						reply += "\n\n输出：\n" + output
+						reply += i18n.T(i18n.KeyFeishuExecOutputPrefix) + output
 					}
-					fmt.Printf("\n📤 [回复飞书] %s\n", reply)
+					fmt.Printf(i18n.TF(i18n.KeyFeishuReplyOutput), reply)
 					fmt.Println(strings.Repeat("─", 50))
 					if sendErr := h.sendTextMessage(ctx, chatID, reply); sendErr != nil {
 						log.Printf("Failed to send error reply: %v", sendErr)
 					}
 					return
 				}
-				fmt.Printf("\n📤 [回复飞书] %s\n", output)
+				fmt.Printf(i18n.TF(i18n.KeyFeishuReplyOutput), output)
 				fmt.Println(strings.Repeat("─", 50))
 				if sendErr := h.sendTextMessage(ctx, chatID, output); sendErr != nil {
 					log.Printf("Failed to send reply: %v", sendErr)
@@ -197,9 +198,9 @@ func (h *Handler) createInputRequest(ctx context.Context, chatID, currentOutput 
 	h.mu.Unlock()
 
 	// Send the current output to the user via Feishu, asking for input
-	message := currentOutput + "\n\n---\n⚠️ co-shell 需要您的输入才能继续。\n请直接回复此消息，输入您的内容。\n• 直接输入内容作为回复\n• 输入 /cancel 取消操作\n• 输入 /approve 确认执行"
+	message := currentOutput + i18n.T(i18n.KeyFeishuAskUser)
 
-	fmt.Printf("\n⏳ [等待飞书输入] %s\n", chatID)
+	fmt.Printf(i18n.TF(i18n.KeyFeishuWaitInput), chatID)
 	fmt.Println(strings.Repeat("─", 50))
 
 	if sendErr := h.sendTextMessage(ctx, chatID, message); sendErr != nil {
@@ -228,7 +229,7 @@ func (h *Handler) handleFileMessage(ctx context.Context, chatID, content string)
 	// Note: File download via SDK requires message_id which is not available
 	// in the current event structure. This is a placeholder for future implementation.
 	log.Printf("File message received, file_key: %s", fileContent.FileKey)
-	reply := "✅ 已收到文件，请发送指令让我处理。"
+	reply := i18n.T(i18n.KeyFeishuRecvFile)
 	if sendErr := h.sendTextMessage(ctx, chatID, reply); sendErr != nil {
 		log.Printf("Failed to send file reply: %v", sendErr)
 	}
@@ -247,7 +248,7 @@ func (h *Handler) handleImageMessage(ctx context.Context, chatID, content string
 	// Note: Image download via SDK requires message_id which is available
 	// in the event. This is a placeholder for future implementation.
 	log.Printf("Image message received, image_key: %s", imageContent.ImageKey)
-	reply := "✅ 已收到图片，请发送指令让我处理。"
+	reply := i18n.T(i18n.KeyFeishuRecvImage)
 	if sendErr := h.sendTextMessage(ctx, chatID, reply); sendErr != nil {
 		log.Printf("Failed to send image reply: %v", sendErr)
 	}
@@ -267,7 +268,7 @@ func truncateMessage(text string) string {
 			break
 		}
 	}
-	return truncated + "\n\n...（内容过长已截断，共 " + fmt.Sprintf("%d", len(text)) + " 字节）"
+	return truncated + fmt.Sprintf(i18n.TF(i18n.KeyFeishuTruncated), len(text))
 }
 
 // sendTextMessage sends a text message to a chat using the SDK.
