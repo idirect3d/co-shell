@@ -85,6 +85,7 @@ type cliFlags struct {
 	showCommandOutput string // "on"/"off"
 	confirmTool       string // "on"/"off" for default
 	resultMode        string // minimal/explain/analyze/free
+	outputCategories  string // "cat=on;cat2=off" CLI override for OutputCategories
 
 	// Agent identity parameters
 	description string
@@ -228,6 +229,7 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.showToolInput, "show-tool-input", "", "显示工具调用输入参数（on/off，覆盖配置文件）")
 	flag.StringVar(&f.showToolOutput, "show-tool-output", "", "显示工具调用返回数据（on/off，覆盖配置文件）")
 	flag.StringVar(&f.showCommandOutput, "show-command-output", "", "显示命令返回数据（on/off，覆盖配置文件）")
+	flag.StringVar(&f.outputCategories, "output-categories", "", "Output category switches (format: cat=on;cat2=off, e.g. bridge=off;subagent=off, overrides config)")
 
 	flag.StringVar(&f.confirmTool, "confirm-tool", "", "工具调用前需确认（on/off，覆盖配置文件）")
 	flag.StringVar(&f.resultMode, "result-mode", "", "结果处理模式（minimal/explain/analyze/free，覆盖配置文件）")
@@ -490,6 +492,12 @@ func main() {
 	}
 	if flags.repetitionPenalty >= 0 {
 		cfg.LLM.RepetitionPenalty = flags.repetitionPenalty
+	}
+	if flags.outputCategories != "" {
+		if err := applyOutputCategoriesCLI(cfg, flags.outputCategories, io); err != nil {
+			// Warning already printed; keep the rest of config as-is.
+			_ = err
+		}
 	}
 	if flags.showLlmThinking != "" {
 		switch flags.showLlmThinking {
@@ -1446,6 +1454,58 @@ func loadSchedulerEntries(s *store.DualStore) ([]*scheduler.CronEntry, error) {
 		result = append(result, &entry)
 	}
 	return result, nil
+}
+
+// applyOutputCategoriesCLI applies --output-categories CLI override.
+// Format: "cat=on;cat2=off" (e.g. "bridge=off;subagent=off").
+// Invalid categories/values print a warning to io and return an error.
+func applyOutputCategoriesCLI(cfg *config.Config, spec string, io agent.UserIO) error {
+	if cfg.LLM.OutputCategories == nil {
+		cfg.LLM.OutputCategories = map[string]bool{}
+		for _, c := range config.DefaultOutputCategories() {
+			cfg.LLM.OutputCategories[c] = true
+		}
+	}
+	valid := map[string]bool{}
+	for _, c := range config.DefaultOutputCategories() {
+		valid[c] = true
+	}
+	var firstErr error
+	for _, pair := range strings.Split(spec, ";") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) != 2 {
+			io.ErrPrintf("Warning: invalid --output-categories item %q, use cat=on|off\n", pair)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("invalid --output-categories item %q", pair)
+			}
+			continue
+		}
+		cat := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+		if !valid[cat] {
+			io.ErrPrintf("Warning: unknown output category %q in --output-categories\n", cat)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("unknown output category %q", cat)
+			}
+			continue
+		}
+		switch val {
+		case "on", "1", "true", "yes":
+			cfg.LLM.OutputCategories[cat] = true
+		case "off", "0", "false", "no":
+			cfg.LLM.OutputCategories[cat] = false
+		default:
+			io.ErrPrintf("Warning: invalid --output-categories value %q for %q, use on|off\n", val, cat)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("invalid --output-categories value %q for %q", val, cat)
+			}
+		}
+	}
+	return firstErr
 }
 
 // maskKey masks the API key for display.

@@ -64,9 +64,12 @@ type Out interface {
 // TerminalOut renders outputs to a UserIO sink with emoji prefixes
 // resolved from config. It preserves the exact current formatting:
 // the prefix order and separators are unchanged from repl.go streamCallback.
+// When set via SetFilter, the OutputCategories map controls which channels
+// are rendered (FEATURE-304 P4 category switch).
 type TerminalOut struct {
-	io UserIO
-	ep config.EmojiPrefixes
+	io  UserIO
+	ep  config.EmojiPrefixes
+	cfg *config.Config // optional category filter; nil = show all
 }
 
 // NewTerminalOut creates a TerminalOut writing to io with emoji prefixes
@@ -75,8 +78,17 @@ func NewTerminalOut(io UserIO, ep config.EmojiPrefixes) *TerminalOut {
 	return &TerminalOut{io: io, ep: ep}
 }
 
+// SetFilter attaches a config so Emit filters by OutputCategories.
+// A nil config disables filtering (show all).
+func (o *TerminalOut) SetFilter(cfg *config.Config) {
+	o.cfg = cfg
+}
+
 // Emit renders a formatted line with the level-matched emoji prefix.
 func (o *TerminalOut) Emit(ch ChannelID, lv Level, format string, args ...interface{}) {
+	if o.cfg != nil && !o.cfg.OutputCategoryShown(string(ch)) {
+		return
+	}
 	content := format
 	if len(args) > 0 {
 		content = fmt.Sprintf(format, args...)

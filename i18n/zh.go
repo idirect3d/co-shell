@@ -1348,4 +1348,10 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsResetModeDirsFailed:   "以下 mode 保存目录重命名失败（不影响配置重置）：",
 	KeySettingsResetModeDirsRenamedB: "  · %s → %s",
 	KeySettingsResetModeDirsFailedB:  "  · %s: %v",
+
+	// FEATURE-304: OutputCategories category switch (:set output-categories)
+	KeyOutputCategoriesTitle:   "输出分类开关（wizard/system/db/bridge/subagent 等）:",
+	KeyOutputCategoriesSet:     "输出分类 %s 已设置为: %s",
+	KeyOutputCategoriesUsage:   "用法: :set output-categories <分类> on|off",
+	KeyOutputCategoriesUnknown: "未知的输出分类: %s",
 }

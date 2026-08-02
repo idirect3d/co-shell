@@ -26,7 +26,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
@@ -316,6 +318,52 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		log.Info("Token usage set to %s", h.cfg.LLM.TokenUsage)
 		return fmt.Sprintf("✅ Token 用量显示模式已设置为: %s", h.cfg.LLM.TokenUsage), nil
 
+	case "output-categories":
+		if len(args) < 2 {
+			var sb strings.Builder
+			sb.WriteString(i18n.T(i18n.KeyOutputCategoriesTitle))
+			sb.WriteString("\n")
+			for _, cat := range config.DefaultOutputCategories() {
+				status := i18n.T(i18n.KeyOn)
+				if !h.cfg.OutputCategoryShown(cat) {
+					status = i18n.T(i18n.KeyOff)
+				}
+				sb.WriteString(fmt.Sprintf("  %-12s %s\n", cat, status))
+			}
+			return sb.String(), nil
+		}
+		if len(args) < 3 {
+			return "", errors.New(i18n.T(i18n.KeyOutputCategoriesUsage))
+		}
+		cat := args[1]
+		if !validOutputCategory(cat) {
+			return "", fmt.Errorf(i18n.TF(i18n.KeyOutputCategoriesUnknown), cat)
+		}
+		if h.cfg.LLM.OutputCategories == nil {
+			h.cfg.LLM.OutputCategories = map[string]bool{}
+			// New map: seed with all default categories on.
+			for _, c := range config.DefaultOutputCategories() {
+				h.cfg.LLM.OutputCategories[c] = true
+			}
+		}
+		switch args[2] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.OutputCategories[cat] = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.OutputCategories[cat] = false
+		default:
+			return "", errors.New(i18n.T(i18n.KeyOutputCategoriesUsage))
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.OutputCategoryShown(cat) {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Output category %s set to %s", cat, status)
+		return fmt.Sprintf(i18n.T(i18n.KeyOutputCategoriesSet), cat, status), nil
+
 	case "emoji-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
@@ -346,4 +394,14 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 	default:
 		return "", fmt.Errorf("unknown display setting: %s", subcommand)
 	}
+}
+
+// validOutputCategory reports whether cat is a known output channel category.
+func validOutputCategory(cat string) bool {
+	for _, c := range config.DefaultOutputCategories() {
+		if c == cat {
+			return true
+		}
+	}
+	return false
 }

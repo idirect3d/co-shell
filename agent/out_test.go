@@ -149,6 +149,79 @@ func TestTerminalOutSnapshot(t *testing.T) {
 	}
 }
 
+// TestOutputCategoryShown verifies OutputCategoryShown semantics:
+// nil/empty map = show all; explicit false hides; unknown category = shown (UC-0004).
+func TestOutputCategoryShown(t *testing.T) {
+	tests := []struct {
+		name     string
+		m        map[string]bool
+		channel  string
+		expected bool
+	}{
+		{"nil_map_shows_all", nil, "bridge", true},
+		{"empty_map_shows_all", map[string]bool{}, "bridge", true},
+		{"explicit_on", map[string]bool{"bridge": true}, "bridge", true},
+		{"explicit_off_hidden", map[string]bool{"bridge": false}, "bridge", false},
+		{"unknown_category_shown", map[string]bool{"bridge": false}, "llm", true},
+		{"empty_channel_shown", map[string]bool{"bridge": false}, "", true},
+	}
+	for _, tt := range tests {
+		cfg := config.DefaultConfig()
+		cfg.LLM.OutputCategories = tt.m
+		if got := cfg.OutputCategoryShown(tt.channel); got != tt.expected {
+			t.Errorf("%s: OutputCategoryShown(%q) = %v, want %v", tt.name, tt.channel, got, tt.expected)
+		}
+	}
+}
+
+// TestTerminalOutCategoryFilter verifies TerminalOut.SetFilter hides channels
+// whose category is disabled in OutputCategories while leaving others intact (UC-0005).
+func TestTerminalOutCategoryFilter(t *testing.T) {
+	ep := config.GetEmojiPrefixes(true)
+	io := &outTestIO{}
+	out := NewTerminalOut(io, ep)
+	cfg := config.DefaultConfig()
+	cfg.LLM.OutputCategories = map[string]bool{"bridge": false}
+	out.SetFilter(cfg)
+
+	tests := []struct {
+		name      string
+		ch        ChannelID
+		wantShown bool
+	}{
+		{"bridge_hidden", ChannelBridge, false},
+		{"subagent_shown", ChannelSubAgent, true},
+		{"wizard_shown", ChannelWizard, true},
+		{"llm_shown", ChannelLLM, true},
+		{"db_shown", ChannelDB, true},
+	}
+	for _, tt := range tests {
+		io.buf.Reset()
+		out.Info(tt.ch, "hello")
+		got := io.String()
+		if tt.wantShown && !strings.Contains(got, "hello") {
+			t.Errorf("%s: channel should be visible, output=%q", tt.name, got)
+		}
+		if !tt.wantShown && strings.Contains(got, "hello") {
+			t.Errorf("%s: channel should be hidden, output=%q", tt.name, got)
+		}
+	}
+}
+
+// TestTerminalOutNoFilterBackwardCompatible verifies that a TerminalOut without
+// SetFilter (or with nil filter) still renders all channels (UC-0005 backward compat).
+func TestTerminalOutNoFilterBackwardCompatible(t *testing.T) {
+	ep := config.GetEmojiPrefixes(true)
+	io := &outTestIO{}
+
+	outNoFilter := NewTerminalOut(io, ep)
+	io.buf.Reset()
+	outNoFilter.Info(ChannelBridge, "bridge-hidden-check")
+	if !strings.Contains(io.String(), "bridge-hidden-check") {
+		t.Errorf("TerminalOut without SetFilter must still render all channels")
+	}
+}
+
 // TestNormalizeInputMode verifies legacy "enhanced" maps to "tui" (UC-0009).
 func TestNormalizeInputMode(t *testing.T) {
 	tests := []struct {

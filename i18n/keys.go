@@ -116,6 +116,12 @@ const (
 	KeyMaxIterations     = "settings_max_iterations"
 	KeyProviderUpdated   = "settings_provider_updated"
 
+	// FEATURE-304: OutputCategories category switch (:set output-categories)
+	KeyOutputCategoriesTitle   = "output_categories_title"
+	KeyOutputCategoriesSet     = "output_categories_set"
+	KeyOutputCategoriesUsage   = "output_categories_usage"
+	KeyOutputCategoriesUnknown = "output_categories_unknown"
+
 	// Settings - Config Show
 	KeyConfigTitle         = "config_title"
 	KeyConfigProvider      = "config_provider"

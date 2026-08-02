@@ -81,6 +81,32 @@ func ParseResultMode(s string) (ResultMode, bool) {
 	}
 }
 
+// DefaultOutputCategories returns the set of known output channel categories.
+// Each category is a ChannelID string (agent.Channel*). config cannot import
+// agent (cycle), so the canonical list lives here as plain strings.
+// A nil/empty OutputCategories map means "show all" (backward compatible).
+func DefaultOutputCategories() []string {
+	return []string{"wizard", "system", "db", "bridge", "subagent", "mcp", "memory", "taskplan"}
+}
+
+// OutputCategoryShown reports whether the given channel category should be
+// rendered. A nil/empty OutputCategories map means all categories shown.
+func (c *Config) OutputCategoryShown(channel string) bool {
+	if channel == "" {
+		return true
+	}
+	m := c.LLM.OutputCategories
+	if len(m) == 0 {
+		return true
+	}
+	shown, ok := m[channel]
+	if !ok {
+		// Unknown categories default to shown.
+		return true
+	}
+	return shown
+}
+
 // LLMConfig holds all LLM-related configuration.
 // In the multi-model architecture, the actual model connection parameters
 // (endpoint, api_key, model name) are stored in ModelConfig entries.
@@ -106,6 +132,12 @@ type LLMConfig struct {
 	ShowToolOutput    bool `json:"show_tool_output"`    // Show tool call return data (default: false)
 	ShowCommand       bool `json:"show_command"`        // Show system command (default: true)
 	ShowCommandOutput bool `json:"show_command_output"` // Show command return data (default: true)
+
+	// OutputCategories controls which output channel categories are rendered.
+	// Key is a ChannelID (e.g. "wizard", "system", "db", "bridge", "subagent").
+	// Value true means the category is shown, false means hidden.
+	// If the map is nil/empty, all categories are shown (backward compatible).
+	OutputCategories map[string]bool `json:"output_categories,omitempty"`
 
 	// Agent identity
 	AgentName        string `json:"agent_name"`        // Agent name (default: co-shell)
