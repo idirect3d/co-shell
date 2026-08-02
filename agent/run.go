@@ -265,6 +265,11 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			}
 		}
 
+		// FIX-318: After ALL tool results have been appended, collapse the history
+		// if reorganize_context was called. The non-streaming path flushes the
+		// cached summary into a fresh [system, user(summary)] history.
+		a.collapseAfterReorganize()
+
 		// If a task plan was modified (created/inserted/removed), adjust messagePointer
 		// to skip past all tool messages, so the next LLM iteration starts fresh
 		// from the checklist context (the tool result containing the checklist).

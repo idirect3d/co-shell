@@ -1153,6 +1153,11 @@ iterationLoop:
 			}
 		} // end if !reorganizePending
 
+		// FIX-318: After ALL tool results have been appended (and the summary
+		// prompt + environment_details have been flushed into the final user
+		// message), collapse the history if reorganize_context was called.
+		a.collapseAfterReorganize()
+
 		// If attempt_completion was called during tool execution, finalize and exit
 		if a.completed {
 			// Send per-iteration token usage before done (skip if "off" mode)

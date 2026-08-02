@@ -61,15 +61,14 @@ func (a *Agent) reorganizeContextTool(ctx context.Context, args map[string]inter
 	log.Info("reorganizeContextTool: context reorganized, summary_prompt (%d chars)", len(summaryPrompt))
 	log.Debug("reorganizeContextTool: summary_prompt: %s", summaryPrompt)
 
-	// Clean up old context: keep only the system prompt.
-	// The tool result will be appended by the caller (run_stream.go / run.go),
-	// then injected with <environment_details> by injectTimeAndMessageNoToLast.
-	if len(a.messages) > 0 && a.messages[0].Role == "system" {
-		systemMsg := a.messages[0]
-		a.messages = []llm.Message{systemMsg}
-	}
-	a.messagePointer = 1
-	a.needAdjustPointer = true
+	// FIX-318: Do NOT clear a.messages here. The caller (run_stream.go / run.go)
+	// has already appended the assistant message with tool_calls, and will append
+	// the tool result message right after this callback returns. Clearing the
+	// history now would orphan that tool message (no preceding assistant with
+	// tool_calls), which OpenAI rejects with HTTP 400.
+	// Instead, mark the flag and let the caller collapse the history to
+	// [system, user(summary)] AFTER all tool results have been appended.
+	a.reorganizeContextUsed = true
 
 	// Reset loop detection state — the new context should not inherit old loop state
 	a.loopDetectCrit = false
@@ -98,6 +97,61 @@ func (a *Agent) reorganizeContextTool(ctx context.Context, args map[string]inter
 	result := fmt.Sprintf(i18n.T(i18n.KeyReorganizeResult), len(summaryPrompt))
 	log.Info("reorganizeContextTool: result=%s", result)
 	return result, nil
+}
+
+// collapseAfterReorganize collapses the message history after reorganize_context
+// was called. It MUST be invoked AFTER all tool results have been appended (and,
+// in the streaming path, after the summary prompt + environment_details have been
+// flushed into the final user message). It leaves only [system, user(summary)] so
+// that no orphaned tool message (without a preceding assistant tool_calls) is ever
+// sent to the API (FIX-318).
+//
+// Two call paths:
+//   - RunStream: the summary was already flushed into the last user message via
+//     taskInstructionCache; the cache is empty here, so the last user message is
+//     reused as-is.
+//   - Run (non-streaming): the cache is NOT flushed; the summary is still in
+//     taskInstructionCache, so a fresh user message is built from it.
+func (a *Agent) collapseAfterReorganize() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.reorganizeContextUsed {
+		return
+	}
+	a.reorganizeContextUsed = false
+
+	if len(a.messages) == 0 {
+		return
+	}
+	systemMsg := a.messages[0]
+
+	// Non-streaming path: summary still pending in cache → build user message.
+	summary := a.taskInstructionCache.String()
+	a.taskInstructionCache.Reset()
+	if summary != "" {
+		a.messages = []llm.Message{systemMsg, llm.Message{Role: "user", Content: summary}}
+		a.messagePointer = 1
+		a.needAdjustPointer = true
+		log.Info("Agent.collapseAfterReorganize: collapsed history to [system, user(summary)] using cache")
+		return
+	}
+
+	// Streaming path: summary already flushed into the last user message.
+	var lastUser llm.Message
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if a.messages[i].Role == "user" {
+			lastUser = a.messages[i]
+			break
+		}
+	}
+	if lastUser.Role == "user" {
+		a.messages = []llm.Message{systemMsg, lastUser}
+	} else {
+		a.messages = []llm.Message{systemMsg}
+	}
+	a.messagePointer = 1
+	a.needAdjustPointer = true
+	log.Info("Agent.collapseAfterReorganize: collapsed history to %d messages", len(a.messages))
 }
 
 // reorganizeContextOnLoop is called when a loop is confirmed and LoopReorganizeEnabled is true.
