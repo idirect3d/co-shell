@@ -403,6 +403,16 @@ const (
 	KeyToolCallSummaryCells          = "tool_call_summary_cells"
 	KeyToolCallSummaryTruncated      = "tool_call_summary_truncated"
 
+	// FIX-316: Tool execution outcome receipts (shown after execution, gated
+	// by showTool, distinct from showToolOutput full detail)
+	KeyToolOutcomeReadFile    = "tool_outcome_read_file"
+	KeyToolOutcomeWriteFile   = "tool_outcome_write_file"
+	KeyToolOutcomeReplaceFile = "tool_outcome_replace_file"
+	KeyToolOutcomeSearchFiles = "tool_outcome_search_files"
+	KeyToolOutcomeExecSuccess = "tool_outcome_exec_success"
+	KeyToolOutcomeExecCmd     = "tool_outcome_exec_cmd"
+	KeyToolOutcomeGeneric     = "tool_outcome_generic"
+
 	// History list
 	KeyListTitle     = "list_title"
 	KeyListEmpty     = "list_empty"
