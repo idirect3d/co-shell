@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -75,7 +76,7 @@ func (h *SessionHandler) Handle(args []string) (string, error) {
 		return h.handleExport(path)
 	case "import":
 		if len(args) < 2 {
-			return "", fmt.Errorf("用法: :session import <文件路径>")
+			return "", errors.New(i18n.T(i18n.KeySessionMigUseImport))
 		}
 		return h.handleImport(args[1])
 	case "save":
@@ -88,19 +89,19 @@ func (h *SessionHandler) Handle(args []string) (string, error) {
 		return h.handleList()
 	case "switch":
 		if len(args) < 2 {
-			return "", fmt.Errorf("用法: :session switch <ID|编号>")
+			return "", errors.New(i18n.T(i18n.KeySessionMigUseSwitch))
 		}
 		return h.handleSwitch(args[1])
 	case "delete":
 		if len(args) < 2 {
-			return "", fmt.Errorf("用法: :session delete <ID|编号>")
+			return "", errors.New(i18n.T(i18n.KeySessionMigUseDelete))
 		}
 		return h.handleDelete(args[1])
 	case "pop":
 		if len(args) > 2 && args[1] == "to" {
 			v, err := strconv.Atoi(args[2])
 			if err != nil || v < 0 {
-				return "", fmt.Errorf("无效的参数 %q，请使用非负整数", args[2])
+				return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNonNeg), args[2])
 			}
 			return h.popTo(v)
 		}
@@ -108,13 +109,13 @@ func (h *SessionHandler) Handle(args []string) (string, error) {
 		if len(args) > 1 {
 			v, err := strconv.Atoi(args[1])
 			if err != nil || v <= 0 {
-				return "", fmt.Errorf("无效的参数 %q，请使用正整数", args[1])
+				return "", fmt.Errorf(i18n.T(i18n.KeySessionMigPositive), args[1])
 			}
 			n = v
 		}
 		return h.popMessages(n)
 	default:
-		return "", fmt.Errorf("未知子命令: %s\n输入 :session ? 查看帮助", args[0])
+		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigUnknownSub), args[0])
 	}
 }
 
@@ -132,15 +133,15 @@ func (h *SessionHandler) showInteractive() (string, error) {
 		fmt.Println()
 
 		// Show wizard-style menu
-		fmt.Println("操作选项:")
-		fmt.Println("  [数字]  切换到对应编号的会话")
-		fmt.Println("  [E]     导出当前会话到文件")
-		fmt.Println("  [I]     从文件导入会话")
-		fmt.Println("  [D]     删除已保存的会话")
-		fmt.Println("  [P]     弹出最后 1 条消息")
-		fmt.Println("  [N]     新建空会话")
-		fmt.Println("  [Q]     返回命令提示符")
-		fmt.Print("请选择: ")
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsTitle))
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsNum))
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsExport))
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsImport))
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsDelete))
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsPop))
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsNew))
+		fmt.Println(i18n.T(i18n.KeySessionMigOpsQuit))
+		fmt.Print(i18n.T(i18n.KeySessionMigOpsChoose))
 
 		var input string
 		fmt.Scanln(&input)
@@ -156,12 +157,12 @@ func (h *SessionHandler) showInteractive() (string, error) {
 		case "e":
 			return h.handleExport("")
 		case "i":
-			fmt.Print("请输入文件路径: ")
+			fmt.Print(i18n.T(i18n.KeySessionMigFilePrompt))
 			var path string
 			fmt.Scanln(&path)
 			path = strings.TrimSpace(path)
 			if path == "" {
-				return "", fmt.Errorf("已取消")
+				return "", errors.New(i18n.T(i18n.KeySessionMigCancelled))
 			}
 			return h.handleImport(path)
 		case "d":
@@ -170,7 +171,7 @@ func (h *SessionHandler) showInteractive() (string, error) {
 			return h.popMessages(1)
 		case "n":
 			nextN := h.nextSessionNumber()
-			title := fmt.Sprintf("新会话%d", nextN)
+			title := fmt.Sprintf(i18n.T(i18n.KeySessionMigTitle), nextN)
 			h.agent.Reset()
 			now := time.Now()
 			randBytes := make([]byte, 4)
@@ -190,17 +191,17 @@ func (h *SessionHandler) showInteractive() (string, error) {
 				UpdatedAt:    now,
 			}
 			if err2 := h.agent.Store().SaveNamedSession(entry); err2 != nil {
-				return "", fmt.Errorf("保存新会话失败: %v", err2)
+				return "", fmt.Errorf(i18n.T(i18n.KeySessionMigSaveFail), err2)
 			}
 			h.agent.SetCurrentSessionID(sessionID)
 			h.agent.Store().SaveCurrentSessionID(sessionID)
-			return fmt.Sprintf("✅ 已创建新会话: %s", title), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySessionMigCreated), title), nil
 		default:
 			// Try as a number (switch)
 			if n, err := strconv.Atoi(input); err == nil && n > 0 {
 				return h.handleSwitch(strconv.Itoa(n))
 			}
-			fmt.Printf("❌ 未知操作: %s\n", input)
+			fmt.Printf(i18n.T(i18n.KeySessionMigUnknownOp), input)
 			continue
 		}
 	}
@@ -212,15 +213,15 @@ func (h *SessionHandler) handleDeleteWithList() (string, error) {
 		return "", err
 	}
 	if len(entries) == 0 {
-		return "没有可删除的会话", nil
+		return i18n.T(i18n.KeySessionMigNoneDelete), nil
 	}
 
-	fmt.Print("输入要删除的会话编号: ")
+	fmt.Print(i18n.T(i18n.KeySessionMigDelPrompt))
 	var input string
 	fmt.Scanln(&input)
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return "已取消", nil
+		return i18n.T(i18n.KeySessionMigCancelled), nil
 	}
 	return h.handleDelete(input)
 }
@@ -230,7 +231,7 @@ func (h *SessionHandler) nextSessionNumber() int {
 		maxN := 0
 		for _, e := range entries {
 			var suffix int
-			if _, err := fmt.Sscanf(e.Title, "新会话%d", &suffix); err == nil && suffix > maxN {
+			if _, err := fmt.Sscanf(e.Title, i18n.T(i18n.KeySessionMigTitle), &suffix); err == nil && suffix > maxN {
 				maxN = suffix
 			}
 		}
@@ -286,17 +287,17 @@ func (h *SessionHandler) showListInteractive() error {
 
 func (h *SessionHandler) showHelp() (string, error) {
 	var sb strings.Builder
-	sb.WriteString("📋 :session 子命令帮助\n")
-	sb.WriteString("  :session                  显示当前会话统计信息\n")
-	sb.WriteString("  :session pop [N]          弹出最后 N 条消息（默认 1）\n")
-	sb.WriteString("  :session pop to N         弹出到指定编号，保留该消息供编辑\n")
-	sb.WriteString("  :session export [path]    导出当前会话到 .cosh-session.json 文件\n")
-	sb.WriteString("  :session import <path>    从 .cosh-session.json 文件导入会话\n")
-	sb.WriteString("  :session save [title]     保存当前会话（LLM 自动命名时用 attempt_completion）\n")
-	sb.WriteString("  :session list             列出已保存的会话\n")
-	sb.WriteString("  :session switch <id|N>    切换到指定会话（自动保存当前会话）\n")
-	sb.WriteString("  :session delete <id|N>    删除指定会话\n")
-	sb.WriteString("  :session ?                显示此帮助\n")
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpTitle))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpInfo))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpPop))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpPopTo))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpExport))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpImport))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpSave))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpList))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpSwitch))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpDelete))
+	sb.WriteString(i18n.T(i18n.KeySessionMigHelpHelp))
 	return sb.String(), nil
 }
 
@@ -369,7 +370,7 @@ func (h *SessionHandler) handleImport(filePath string) (string, error) {
 	fmt.Printf("  %s: %d\n", i18n.T(i18n.KeySessionMessageCount), len(export.Messages))
 	fmt.Printf("  %s: %s\n", i18n.T(i18n.KeySessionCreatedAt), export.ExportedAt.Format("2006-01-02 15:04:05"))
 	fmt.Printf("\n%s / %s\n", i18n.T(i18n.KeySessionConfirmReplace), i18n.T(i18n.KeySessionConfirmAppend))
-	fmt.Printf("[Enter] 替换  [A] 追加: ")
+	fmt.Print(i18n.T(i18n.KeySessionMigReplaceAp))
 
 	response := ""
 	fmt.Scanln(&response)
@@ -397,7 +398,7 @@ func (h *SessionHandler) handleImport(filePath string) (string, error) {
 
 func (h *SessionHandler) handleSave(title string) (string, error) {
 	if title == "" {
-		title = fmt.Sprintf("会话-%s", time.Now().Format("2006-01-02 15:04:05"))
+		title = fmt.Sprintf(i18n.T(i18n.KeySessionMigIDFmt), time.Now().Format("2006-01-02 15:04:05"))
 	}
 
 	if err := h.agent.SaveCurrentSession(title, ""); err != nil {
@@ -410,7 +411,7 @@ func (h *SessionHandler) handleSave(title string) (string, error) {
 func (h *SessionHandler) handleList() (string, error) {
 	entries, err := h.agent.Store().ListNamedSessions()
 	if err != nil {
-		return "", fmt.Errorf("列出会话失败: %v", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigListFail), err)
 	}
 
 	if len(entries) == 0 {
@@ -450,8 +451,8 @@ func (h *SessionHandler) handleList() (string, error) {
 			entry.CreatedAt.Format("2006-01-02 15:04")))
 	}
 
-	sb.WriteString("\n使用 :session switch <编号|ID> 切换会话\n")
-	sb.WriteString("使用 :session delete <编号|ID> 删除会话\n")
+	sb.WriteString(i18n.T(i18n.KeySessionMigSwHint))
+	sb.WriteString(i18n.T(i18n.KeySessionMigDelHint))
 	return sb.String(), nil
 }
 
@@ -479,7 +480,7 @@ func (h *SessionHandler) handleSwitch(idStr string) (string, error) {
 	}
 
 	if target == nil {
-		return "", fmt.Errorf("未找到会话: %s", idStr)
+		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNotFound), idStr)
 	}
 
 	// Flush current session messages back to DB before switching
@@ -536,7 +537,7 @@ func (h *SessionHandler) handleDelete(idStr string) (string, error) {
 	}
 
 	if targetID == "" {
-		return "", fmt.Errorf("未找到会话: %s", idStr)
+		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNotFound), idStr)
 	}
 
 	// Confirm
@@ -560,7 +561,7 @@ func (h *SessionHandler) popMessages(n int) (string, error) {
 	a := h.agent
 	aMsg := a.Messages()
 	if len(aMsg) <= 1 {
-		return "", fmt.Errorf("没有可删除的消息（仅剩系统提示词）")
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelSys))
 	}
 
 	var popIdx []int
@@ -571,7 +572,7 @@ func (h *SessionHandler) popMessages(n int) (string, error) {
 	}
 
 	if len(popIdx) == 0 {
-		return "", fmt.Errorf("没有可删除的消息")
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelMsg))
 	}
 
 	lastContent := aMsg[popIdx[0]].Content
@@ -579,7 +580,7 @@ func (h *SessionHandler) popMessages(n int) (string, error) {
 		lastContent = aMsg[popIdx[0]].CombineContentParts()
 	}
 	if lastContent == "" {
-		return "", fmt.Errorf("没有可删除的消息")
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelMsg))
 	}
 
 	cutIdx := popIdx[len(popIdx)-1]
@@ -598,18 +599,18 @@ func (h *SessionHandler) popTo(n int) (string, error) {
 	a := h.agent
 	aMsg := a.Messages()
 	if len(aMsg) <= 1 {
-		return "", fmt.Errorf("没有可删除的消息（仅剩系统提示词）")
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelSys))
 	}
 
 	if n >= len(aMsg)-1 {
-		return "", fmt.Errorf("编号 %d 已是最后一条消息，无需删除", n)
+		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigLastNoDel), n)
 	}
 	if n < 0 {
-		return "", fmt.Errorf("无效的编号 %d", n)
+		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigInvalidNo), n)
 	}
 
 	if aMsg[n].Role == "system" {
-		return "", fmt.Errorf("不能删除系统提示词")
+		return "", errors.New(i18n.T(i18n.KeySessionMigCannotDelSys))
 	}
 
 	lastContent := aMsg[n].Content
@@ -617,7 +618,7 @@ func (h *SessionHandler) popTo(n int) (string, error) {
 		lastContent = aMsg[n].CombineContentParts()
 	}
 	if lastContent == "" {
-		return "", fmt.Errorf("无法获取编号 %d 的消息内容", n)
+		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigGetMsgFail), n)
 	}
 
 	a.SetHistory(aMsg[:n+1])

@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -130,7 +131,7 @@ func (h *SettingsHandler) showDBConfig() (string, error) {
 	if !h.cfg.DB.AutoSync {
 		autoSyncStatus = i18n.T(i18n.KeyOff)
 	}
-	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "auto-sync:", autoSyncStatus, "启动自动同步本地数据到远端"))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "auto-sync:", autoSyncStatus, i18n.T(i18n.KeyDBAutoSyncDesc)))
 
 	sb.WriteString("\n.set db <key> <value> - " + i18n.T(i18n.KeyDBSubCmdDesc) + "\n")
 	sb.WriteString(".db config - " + i18n.T(i18n.KeyDBConfigLabel) + "\n")
@@ -156,7 +157,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			if h.cfg.DB.Enabled {
 				status = i18n.T(i18n.KeyOn)
 			}
-			return fmt.Sprintf("数据库连接: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBEnabledVal), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -173,89 +174,89 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 		if !h.cfg.DB.Enabled {
 			status = i18n.T(i18n.KeyOff)
 			log.Info("DB enabled set to %s", status)
-			return fmt.Sprintf("✅ 数据库连接已设置为: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBEnabledSet), status), nil
 		}
 
 		// When enabling DB, immediately test the connection with current parameters
 		log.Info("DB enabled set to %s", status)
-		h.io().Println("\n🔌 正在测试数据库连接...")
+		h.io().Println(i18n.T(i18n.KeyDBTestingConn))
 		pgStore, err := store.NewPGStore(h.cfg.DB)
 		if err != nil {
-			h.io().Printf("❌ 数据库连接失败: %v\n", err)
-			h.io().Print("是否启动数据库配置向导进行参数配置? (y/n, 默认: y): ")
+			h.io().Printf(i18n.T(i18n.KeyDBConnFailed), err)
+			h.io().Print(i18n.T(i18n.KeyDBInitWizardPrompt))
 			line := readLineFromIO(h.io())
 			switch strings.ToLower(line) {
 			case "n", "no", "off", "0", "false":
-				return "✅ 数据库连接已启用，但连接测试未通过，请检查配置后重试", nil
+				return i18n.T(i18n.KeyDBEnabledNotTested), nil
 			default:
 				return h.dbConfigWizard()
 			}
 		}
 		pgStore.Close()
-		h.io().Println("✅ 数据库连接成功!")
-		return fmt.Sprintf("✅ 数据库连接已设置为: %s", status), nil
+		h.io().Println(i18n.T(i18n.KeyDBConnOK))
+		return fmt.Sprintf(i18n.T(i18n.KeyDBEnabledSet), status), nil
 
 	case "host":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库主机: %s", h.cfg.DB.Host), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBHostVal), h.cfg.DB.Host), nil
 		}
 		h.cfg.DB.Host = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB host set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库主机已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBHostSet), args[1]), nil
 
 	case "port":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库端口: %d", h.cfg.DB.Port), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBPortVal), h.cfg.DB.Port), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的端口号: %s", args[1])
+			return "", fmt.Errorf(i18n.T(i18n.KeyDBInvalidPort), args[1])
 		}
 		if n < 1 || n > 65535 {
-			return "", fmt.Errorf("端口号必须在 1 ~ 65535 之间")
+			return "", errors.New(i18n.T(i18n.KeyDBPortRange))
 		}
 		h.cfg.DB.Port = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB port set to %d", n)
-		return fmt.Sprintf("✅ 数据库端口已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBPortSet), n), nil
 
 	case "name":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库名称: %s", h.cfg.DB.DBName), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBNameVal), h.cfg.DB.DBName), nil
 		}
 		h.cfg.DB.DBName = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB name set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库名称已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBNameSet), args[1]), nil
 
 	case "schema":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库 Schema: %s", h.cfg.DB.Schema), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBSchemaVal), h.cfg.DB.Schema), nil
 		}
 		h.cfg.DB.Schema = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB schema set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库 Schema 已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBSchemaSet), args[1]), nil
 
 	case "user":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库用户: %s", h.cfg.DB.User), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBUserVal), h.cfg.DB.User), nil
 		}
 		h.cfg.DB.User = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB user set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库用户已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBUserSet), args[1]), nil
 
 	case "password":
 		if len(args) < 2 {
@@ -266,15 +267,15 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			return "", err
 		}
 		log.Info("DB password updated")
-		return "✅ 数据库密码已更新", nil
+		return i18n.T(i18n.KeyDBPasswordSet), nil
 
 	case "timeout":
 		if len(args) < 2 {
 			timeoutStr := fmt.Sprintf("%ds", h.cfg.DB.Timeout)
 			if h.cfg.DB.Timeout <= 0 {
-				timeoutStr = "unlimited"
+				timeoutStr = i18n.T(i18n.KeyUnlimitedLower)
 			}
-			return fmt.Sprintf("连接超时: %s", timeoutStr), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBTimeoutVal), timeoutStr), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 0 {
@@ -285,7 +286,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			return "", err
 		}
 		log.Info("DB timeout set to %d", n)
-		return fmt.Sprintf("✅ 连接超时已设置为: %ds", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBTimeoutSet), n), nil
 
 	case "auto-sync":
 		if len(args) < 2 {
@@ -293,7 +294,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			if h.cfg.DB.AutoSync {
 				status = i18n.T(i18n.KeyOn)
 			}
-			return fmt.Sprintf("自动同步: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBAutoSyncVal), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -311,78 +312,78 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("DB auto-sync set to %s", status)
-		return fmt.Sprintf("✅ 自动同步已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBAutoSyncSet), status), nil
 
 	default:
-		return "", fmt.Errorf("unknown db subkey: %s（可选值: enabled, host, port, name, schema, user, password, timeout, auto-sync）", subkey)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBUnknownSubkey), subkey)
 	}
 }
 
 // dbInit initializes the PostgreSQL database by dropping and recreating all tables.
 func (h *SettingsHandler) dbInit() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
-	h.io().Print("⚠️  此操作将删除 PostgreSQL 数据库中所有现有数据并重建表结构。是否继续? (y/n, 默认: n): ")
+	h.io().Print(i18n.T(i18n.KeyDBInitConfirm))
 	line := readLineFromIO(h.io())
 	switch strings.ToLower(line) {
 	case "y", "yes", "on", "1", "true":
 		// Continue
 	default:
-		return "❌ 已取消初始化", nil
+		return i18n.T(i18n.KeyDBCancelledInit), nil
 	}
 
-	h.io().Println("⏳ 正在初始化 PostgreSQL 数据库...")
+	h.io().Println(i18n.T(i18n.KeyDBInitProgress))
 	pgStore, err := store.NewPGStore(h.cfg.DB)
 	if err != nil {
-		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBCannotConnect), err)
 	}
 	defer pgStore.Close()
 
 	if err := pgStore.DropTables(); err != nil {
-		return "", fmt.Errorf("删除表失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBDropFailed), err)
 	}
 
 	if err := pgStore.RecreateTables(); err != nil {
-		return "", fmt.Errorf("重建表失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBRecreateFailed), err)
 	}
 
-	return "✅ 数据库初始化完成，所有表已重建!", nil
+	return i18n.T(i18n.KeyDBInitDone), nil
 }
 
 // dbSync syncs memory and history data from local bbolt to PostgreSQL.
 func (h *SettingsHandler) dbSync() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
-	h.io().Println("⚠️  数据同步说明:")
-	h.io().Println("  - 仅同步 memory（对话记忆）和 history（历史命令）到 PostgreSQL")
-	h.io().Println("  - 增量同步：仅同步本地 bbolt 中尚未同步的记录")
-	h.io().Println("  - 同步过程中不会删除本地 bbolt 数据")
-	h.io().Println("  - 其他数据（context、schedules、taskplans、sessions 等）仅存储本地")
-	h.io().Print("\n是否继续执行数据同步? (y/n, 默认: n): ")
+	h.io().Println(i18n.T(i18n.KeyDBSyncExplain))
+	h.io().Println(i18n.T(i18n.KeyDBSyncOnlyMem))
+	h.io().Println(i18n.T(i18n.KeyDBSyncIncremental))
+	h.io().Println(i18n.T(i18n.KeyDBSyncNoDelete))
+	h.io().Println(i18n.T(i18n.KeyDBSyncOnlyLocal))
+	h.io().Print(i18n.T(i18n.KeyDBSyncConfirm))
 	line := readLineFromIO(h.io())
 	switch strings.ToLower(line) {
 	case "y", "yes", "on", "1", "true":
 		// Continue
 	default:
-		return "❌ 已取消数据同步", nil
+		return i18n.T(i18n.KeyDBCancelledSync), nil
 	}
 
-	h.io().Println("\n⏳ 正在从本地 bbolt 同步数据到 PostgreSQL...")
+	h.io().Println(i18n.T(i18n.KeyDBSyncProgress))
 	pgStore, err := store.NewPGStore(h.cfg.DB)
 	if err != nil {
-		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBCannotConnect), err)
 	}
 	defer pgStore.Close()
 
 	if err := pgStore.MigrateFromBolt(h.store.Bolt); err != nil {
-		return "", fmt.Errorf("同步过程中出现错误: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBSyncError), err)
 	}
 
-	return "✅ 数据同步完成!", nil
+	return i18n.T(i18n.KeyDBSyncDone), nil
 }
 
 // dbConfigWizard launches an interactive wizard to configure PostgreSQL database
@@ -391,16 +392,16 @@ func (h *SettingsHandler) dbSync() (string, error) {
 func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	io := h.io()
 
-	io.Println("\n📦 PostgreSQL 数据库配置向导")
-	io.Println("按 Enter 跳过使用默认值，输入 q 退出向导")
+	io.Println(i18n.T(i18n.KeyDBWizardTitle))
+	io.Println(i18n.T(i18n.KeyDBWizardExitHint))
 	io.Println()
 
 	// Step 1: Enabled
-	io.Print("是否启用数据库连接? (y/n, 默认: y): ")
+	io.Print(i18n.T(i18n.KeyDBEnablePrompt))
 	enabled := true
 	line := readLineFromIO(io)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	switch strings.ToLower(line) {
 	case "n", "no", "off", "0", "false":
@@ -412,7 +413,7 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		return "✅ 数据库连接已关闭", nil
+		return i18n.T(i18n.KeyDBDisabled), nil
 	}
 
 	// Step 2: Host
@@ -420,10 +421,10 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultHost == "" {
 		defaultHost = "localhost"
 	}
-	io.Printf("数据库主机地址 (默认: %s): ", defaultHost)
+	io.Printf(i18n.T(i18n.KeyDBHostPrompt), defaultHost)
 	line = readLineFromIO(io)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	if line != "" {
 		h.cfg.DB.Host = line
@@ -436,17 +437,17 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultPort == 0 {
 		defaultPort = 5432
 	}
-	io.Printf("数据库端口 (默认: %d): ", defaultPort)
+	io.Printf(i18n.T(i18n.KeyDBPortPrompt), defaultPort)
 	line = readLineFromIO(io)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	if line != "" {
 		n, err := strconv.Atoi(line)
 		if err == nil && n >= 1 && n <= 65535 {
 			h.cfg.DB.Port = n
 		} else {
-			io.Printf("⚠️  无效端口号，使用默认值 %d\n", defaultPort)
+			io.Printf(i18n.T(i18n.KeyDBInvalidPortDef), defaultPort)
 			h.cfg.DB.Port = defaultPort
 		}
 	} else {
@@ -458,10 +459,10 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultDBName == "" {
 		defaultDBName = "postgres"
 	}
-	io.Printf("数据库名称 (默认: %s): ", defaultDBName)
+	io.Printf(i18n.T(i18n.KeyDBNamePrompt), defaultDBName)
 	line = readLineFromIO(io)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	if line != "" {
 		h.cfg.DB.DBName = line
@@ -478,10 +479,10 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 			defaultSchema = "public"
 		}
 	}
-	io.Printf("数据库 Schema (默认: %s): ", defaultSchema)
+	io.Printf(i18n.T(i18n.KeyDBSchemaPrompt), defaultSchema)
 	line = readLineFromIO(io)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	if line != "" {
 		h.cfg.DB.Schema = line
@@ -494,10 +495,10 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	if defaultUser == "" {
 		defaultUser = "postgres"
 	}
-	io.Printf("数据库用户 (默认: %s): ", defaultUser)
+	io.Printf(i18n.T(i18n.KeyDBUserPrompt), defaultUser)
 	line = readLineFromIO(io)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	if line != "" {
 		h.cfg.DB.User = line
@@ -506,11 +507,11 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	}
 
 	// Step 7: Password
-	io.Print("数据库密码 (输入后回车，留空保留原值): ")
+	io.Print(i18n.T(i18n.KeyDBPasswordPrompt))
 	lineRaw, _ := io.ReadLine()
 	line = strings.TrimSpace(lineRaw)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	if line != "" {
 		h.cfg.DB.Password = line
@@ -518,10 +519,10 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 
 	// Save config first
 	if err := h.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBConfigFailed), err)
 	}
 
-	io.Println("\n📋 配置摘要:")
+	io.Println(i18n.T(i18n.KeyDBSummary))
 	io.Printf("  enabled:  %v\n", h.cfg.DB.Enabled)
 	io.Printf("  host:     %s\n", h.cfg.DB.Host)
 	io.Printf("  port:     %d\n", h.cfg.DB.Port)
@@ -531,11 +532,11 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	io.Printf("  password: ****\n")
 
 	// Step 8: Test connection
-	io.Print("\n是否测试数据库连接? (y/n, 默认: y): ")
+	io.Print(i18n.T(i18n.KeyDBTestConnPrompt))
 	testConn := true
 	line = readLineFromIO(io)
 	if line == "q" || line == "quit" {
-		return "❌ 已退出数据库配置向导", nil
+		return i18n.T(i18n.KeyDBWizardExited), nil
 	}
 	switch strings.ToLower(line) {
 	case "n", "no", "off", "0", "false":
@@ -543,32 +544,32 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 	}
 
 	if testConn {
-		io.Println("\n🔌 正在测试数据库连接...")
+		io.Println(i18n.T(i18n.KeyDBTestingConn))
 		pgStore, err := store.NewPGStore(h.cfg.DB)
 		if err != nil {
-			io.Printf("❌ 连接失败: %v\n", err)
-			io.Print("是否忽略错误并保存配置? (y/n, 默认: n): ")
+			io.Printf(i18n.T(i18n.KeyDBConnFailMsg), err)
+			io.Print(i18n.T(i18n.KeyDBIgnoreSavePrompt))
 			confirm := readLineFromIO(io)
 			switch strings.ToLower(confirm) {
 			case "y", "yes", "on", "1", "true":
 				// Keep config as-is
 			default:
-				return "❌ 配置未保存，请检查连接参数后重试", nil
+				return i18n.T(i18n.KeyDBNotSaved), nil
 			}
 		} else {
-			io.Println("✅ 数据库连接成功!")
+			io.Println(i18n.T(i18n.KeyDBConnOK))
 			pgStore.Close()
 		}
 	}
 
-	return "✅ 数据库配置完成!", nil
+	return i18n.T(i18n.KeyDBConfigDone), nil
 }
 
 // dbCheckStatus re-tests the database connection and displays the current status.
 func (h *SettingsHandler) dbCheckStatus() (string, error) {
 	connStatus := i18n.T(i18n.KeyDBStatusNone)
 	if h.cfg.DB.Enabled && h.cfg.DB.Host != "" && h.cfg.DB.Port > 0 && h.cfg.DB.DBName != "" {
-		h.io().Println("\n🔌 正在测试数据库连接...")
+		h.io().Println(i18n.T(i18n.KeyDBTestingConn))
 		pgStore, err := store.NewPGStore(h.cfg.DB)
 		if err != nil {
 			h.io().Printf("❌ %v\n", err)
@@ -579,18 +580,18 @@ func (h *SettingsHandler) dbCheckStatus() (string, error) {
 			h.io().Println("✅ " + i18n.T(i18n.KeyDBStatusConnected))
 		}
 	}
-	return fmt.Sprintf("当前数据库连接状态: %s", connStatus), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyDBConnStatusTitle), connStatus), nil
 }
 
 // dbBackup exports all PostgreSQL tables to CSV files in backup/<timestamp>/.
 func (h *SettingsHandler) dbBackup() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
 	pgStore, err := store.NewPGStore(h.cfg.DB)
 	if err != nil {
-		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBCannotConnect), err)
 	}
 	defer pgStore.Close()
 
@@ -598,28 +599,28 @@ func (h *SettingsHandler) dbBackup() (string, error) {
 	timestamp := time.Now().Format("20060102150405")
 	backupDir := filepath.Join("backup", timestamp)
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		return "", fmt.Errorf("无法创建备份目录 %s: %w", backupDir, err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBBackupDirFailed), backupDir, err)
 	}
 
-	h.io().Printf("⏳ 正在备份数据库到 %s/ ...\n", backupDir)
+	h.io().Printf(i18n.T(i18n.KeyDBBackupProgress), backupDir)
 	if err := pgStore.BackupToCSV(backupDir); err != nil {
-		return "", fmt.Errorf("备份失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBBackupFailedMsg), err)
 	}
 
-	return fmt.Sprintf("✅ 数据库备份完成! 备份文件保存在 %s/", backupDir), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyDBBackupDone), backupDir), nil
 }
 
 // dbRestore lists available backups and restores data from a selected one.
 func (h *SettingsHandler) dbRestore() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf("数据库连接未启用，请先使用 .db config 配置并启用数据库连接")
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
 	// List available backups
 	backupBase := "backup"
 	entries, err := os.ReadDir(backupBase)
 	if err != nil {
-		return "", fmt.Errorf("无法读取备份目录 %s/: %w", backupBase, err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBBackupDirFailed), backupBase, err)
 	}
 
 	var backups []string
@@ -630,51 +631,51 @@ func (h *SettingsHandler) dbRestore() (string, error) {
 	}
 
 	if len(backups) == 0 {
-		return "❌ 未找到任何备份", nil
+		return i18n.T(i18n.KeyDBNoBackupFound), nil
 	}
 
 	sort.Sort(sort.Reverse(sort.StringSlice(backups)))
 
-	h.io().Println("可用的备份:")
+	h.io().Println(i18n.T(i18n.KeyDBRestoreList))
 	for i, b := range backups {
 		h.io().Printf("  %d. %s\n", i+1, b)
 	}
 
-	h.io().Print("\n请选择要恢复的备份编号 (输入 q 取消): ")
+	h.io().Print(i18n.T(i18n.KeyDBRestorePrompt))
 	line := readLineFromIO(h.io())
 	if line == "q" || line == "quit" {
-		return "❌ 已取消恢复", nil
+		return i18n.T(i18n.KeyDBCancelledRestore), nil
 	}
 
 	idx, err := strconv.Atoi(line)
 	if err != nil || idx < 1 || idx > len(backups) {
-		return "", fmt.Errorf("无效的编号，请输入 1 ~ %d 之间的数字", len(backups))
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBInvalidIndex), len(backups))
 	}
 
 	selected := backups[idx-1]
 	backupDir := filepath.Join(backupBase, selected)
 
-	h.io().Printf("\n⚠️  恢复数据将覆盖 PostgreSQL 数据库中所有现有数据!\n")
-	h.io().Printf("   备份来源: %s/\n", backupDir)
-	h.io().Print("是否继续恢复? (y/n, 默认: n): ")
+	h.io().Printf(i18n.T(i18n.KeyDBRestoreWarningB))
+	h.io().Printf(i18n.T(i18n.KeyDBRestoreSource), backupDir)
+	h.io().Print(i18n.T(i18n.KeyDBRestoreConfirmB))
 	confirm := readLineFromIO(h.io())
 	switch strings.ToLower(confirm) {
 	case "y", "yes", "on", "1", "true":
 		// Continue
 	default:
-		return "❌ 已取消恢复", nil
+		return i18n.T(i18n.KeyDBCancelledRestore), nil
 	}
 
 	pgStore, err := store.NewPGStore(h.cfg.DB)
 	if err != nil {
-		return "", fmt.Errorf("无法连接 PostgreSQL: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBCannotConnect), err)
 	}
 	defer pgStore.Close()
 
-	h.io().Println("⏳ 正在恢复数据...")
+	h.io().Println(i18n.T(i18n.KeyDBRestoreProgress))
 	if err := pgStore.RestoreFromCSV(backupDir); err != nil {
-		return "", fmt.Errorf("恢复失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBRestoreFailedMsg), err)
 	}
 
-	return fmt.Sprintf("✅ 数据恢复完成! 已从 %s/ 恢复数据", backupDir), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyDBRestoreDoneMsg), backupDir), nil
 }
