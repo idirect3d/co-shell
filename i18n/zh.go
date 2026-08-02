@@ -1349,6 +1349,24 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsResetModeDirsRenamedB: "  · %s → %s",
 	KeySettingsResetModeDirsFailedB:  "  · %s: %v",
 
+	// FEATURE-304: A 类 LLM 迭代输出 i18n 迁移 II
+	KeyLLMErrorExit:         "LLM 调用出错（parse-error-action=exit）: %v\n已移除有问题的上下文。\n",
+	KeyLLMErrorRetry:        "%s LLM 调用出错: %v\n已移除有问题的上下文，正在重试...\n",
+	KeyLLMErrorFeedbackHead: "注意：刚才的 LLM 调用返回了错误，请根据错误信息判断如何处理。\n",
+	KeyLLMErrorFeedbackR1:   "如果错误是可恢复的（如参数格式问题、临时超时），请修正后重试。\n",
+	KeyLLMErrorFeedbackR2:   "如果错误是不可恢复的（如认证失败、模型不存在），请向用户报告错误并终止。\n\n",
+	KeyLLMErrorFeedbackErr:  "错误信息：%s\n\n",
+	KeyLLMErrorFeedbackRef:  "以下是你刚才返回的有问题的消息内容，已被从上下文中移除，请参考修正：\n%s",
+	KeyLLMErrorFixRetry:     "%s LLM 调用出错: %v\n已移除有问题的上下文，正在请求 LLM 修正后重试...\n",
+	KeyLLMErrorCheckInput:   "LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。",
+	KeyXMLParseErrorExit:    "方法调用解析错误（parse-error-action=exit）: %s\n",
+	KeyXMLParseErrorSummary: "检测到XML解析错误: %s\n",
+	KeyContextOverLimit:     "%s 上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行\n",
+	KeyToolExecFailed:       "工具 %s 执行失败（parse-error-action=exit）: %v\n",
+	KeyToolNoOutput:         "（工具调用无输出）",
+	KeyReorganizeUrgent:     "你必须马上进行上下文整理。\n\n当前上下文已经超限，立即调用 reorganize_context 工具。",
+	KeyXMLFormatError:       `XML格式错误：LLM输出中包含已尝试调用工具的内容（< 工具标签名开头），但XML结构不完整，无法解析为有效的工具调用。请检查你的输出格式，确保使用正确的方法名和参数标签。`,
+
 	// FEATURE-304: OutputCategories category switch (:set output-categories)
 	KeyOutputCategoriesTitle:   "输出分类开关（wizard/system/db/bridge/subagent 等）:",
 	KeyOutputCategoriesSet:     "输出分类 %s 已设置为: %s",
