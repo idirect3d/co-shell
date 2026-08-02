@@ -130,7 +130,7 @@ func (h *SettingsHandler) showDBConfig() (string, error) {
 	if !h.cfg.DB.AutoSync {
 		autoSyncStatus = i18n.T(i18n.KeyOff)
 	}
-	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "auto-sync:", autoSyncStatus, "启动自动同步本地数据到远端"))
+	sb.WriteString(fmt.Sprintf("  %-20s %-20s %s\n", "auto-sync:", autoSyncStatus, i18n.T(i18n.KeyDBAutoSyncDesc)))
 
 	sb.WriteString("\n.set db <key> <value> - " + i18n.T(i18n.KeyDBSubCmdDesc) + "\n")
 	sb.WriteString(".db config - " + i18n.T(i18n.KeyDBConfigLabel) + "\n")
@@ -579,7 +579,7 @@ func (h *SettingsHandler) dbCheckStatus() (string, error) {
 			h.io().Println("✅ " + i18n.T(i18n.KeyDBStatusConnected))
 		}
 	}
-	return fmt.Sprintf("当前数据库连接状态: %s", connStatus), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyDBConnStatusTitle), connStatus), nil
 }
 
 // dbBackup exports all PostgreSQL tables to CSV files in backup/<timestamp>/.
@@ -619,7 +619,7 @@ func (h *SettingsHandler) dbRestore() (string, error) {
 	backupBase := "backup"
 	entries, err := os.ReadDir(backupBase)
 	if err != nil {
-		return "", fmt.Errorf("无法读取备份目录 %s/: %w", backupBase, err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBBackupDirFailed), backupBase, err)
 	}
 
 	var backups []string
