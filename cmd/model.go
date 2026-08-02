@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -37,6 +38,7 @@ import (
 
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -119,24 +121,24 @@ func (h *ModelHandler) Handle(args []string) (string, error) {
 func (h *ModelHandler) showHelp() (string, error) {
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
-	result.WriteString("  📋 多模型管理命令 / Multi-Model Management\n")
+	result.WriteString(i18n.T(i18n.KeyCmdMig_157))
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
-	result.WriteString("  .model list / ls              - 列出所有已配置模型\n")
-	result.WriteString("  .model info [id]              - 显示模型详细信息（不指定模型时将列出供选择）\n")
-	result.WriteString("  .model add                    - 向导模式添加新模型\n")
-	result.WriteString("  .model edit [id]              - 编辑已存在模型的参数（端点/密钥/模型名/优先级/能力等）\n")
-	result.WriteString("  .model from-tpl <tpl> <mdl>   - 从模板添加模型 (--api-key)\n")
-	result.WriteString("  .model remove [id]            - 移除模型（不指定模型时将列出供选择）\n")
-	result.WriteString("  .model switch [id]            - 切换到指定模型（不指定模型时将列出供选择）\n")
-	result.WriteString("  .model enable [id]            - 启用模型（不指定模型时将列出供选择）\n")
-	result.WriteString("  .model disable [id]           - 禁用模型（不指定模型时将列出供选择）\n")
-	result.WriteString("  .model set-priority [id] <n>  - 设置优先级\n")
-	result.WriteString("  .model set-param <id> <k> <v> - 设置模型自定义参数 (None=不发送)\n")
-	result.WriteString("  .model templates              - 列出可用模板\n\n")
-	result.WriteString("  优先级越高越优先使用，switch 会启用目标并禁用其他模型\n")
-	result.WriteString("  set-param 示例: .model set-param my-model thinking {\"type\":\"enabled\"}\n")
-	result.WriteString("  set-param 示例: .model set-param my-model reasoning_effort high\n")
-	result.WriteString("  set-param 示例: .model set-param my-model frequency_penalty None\n")
+	result.WriteString(i18n.T(i18n.KeyCmdMig_034))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_033))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_028))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_030))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_032))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_035))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_038))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_031))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_029))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_037))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_036))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_039))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_082))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_068))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_067))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_066))
 	return result.String(), nil
 }
 
@@ -146,7 +148,7 @@ func (h *ModelHandler) showHelp() (string, error) {
 func (h *ModelHandler) listModels() (string, error) {
 	models := h.cfg.Models
 	if len(models) == 0 {
-		return "未配置多模型。使用 .model add 或 .model from-tpl 添加模型。\n", nil
+		return i18n.T(i18n.KeyCmdMig_296), nil
 	}
 
 	sorted := make([]*config.ModelConfig, len(models))
@@ -161,7 +163,7 @@ func (h *ModelHandler) listModels() (string, error) {
 
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
-	result.WriteString("  📋 已配置模型 / Configured Models\n")
+	result.WriteString(i18n.T(i18n.KeyCmdMig_158))
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
 	activeCount := 0
@@ -234,11 +236,11 @@ func (h *ModelHandler) listModels() (string, error) {
 			result.WriteString(fmt.Sprintf("      %s\n", strings.Join(params, " | ")))
 		}
 
-		result.WriteString(fmt.Sprintf("      优先级: %d\n", m.Priority))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_007), m.Priority))
 		result.WriteString("\n")
 	}
 
-	result.WriteString(fmt.Sprintf("  统计: %d 个已启用 / %d 个总计\n", activeCount, len(sorted)))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_130), activeCount, len(sorted)))
 	return result.String(), nil
 }
 
@@ -247,7 +249,7 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	var modelID string
 	if len(args) == 0 {
 		var err error
-		modelID, err = h.selectModelByNumber("请选择要查看的模型")
+		modelID, err = h.selectModelByNumber(i18n.T(i18n.KeyCmdMig_362))
 		if err != nil {
 			return "", err
 		}
@@ -263,52 +265,52 @@ func (h *ModelHandler) modelInfo(args []string) (string, error) {
 	}
 
 	if model == nil {
-		return "", fmt.Errorf("模型 %s 不存在", modelID)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 	}
 
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
-	result.WriteString("  📋 模型详情 / Model Info\n")
+	result.WriteString(i18n.T(i18n.KeyCmdMig_159))
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 	result.WriteString(fmt.Sprintf("  ID: %s\n", model.ID))
-	result.WriteString(fmt.Sprintf("  名称: %s\n", model.Name))
-	result.WriteString(fmt.Sprintf("  供应商: %s\n", model.Provider))
-	result.WriteString(fmt.Sprintf("  端点: %s\n", model.Endpoint))
-	result.WriteString(fmt.Sprintf("  模型: %s\n", model.Model))
-	result.WriteString(fmt.Sprintf("  优先级: %d\n", model.Priority))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_089), model.Name))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_086), model.Provider))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_129), model.Endpoint))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_116), model.Model))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_081), model.Priority))
 	if model.Enabled {
-		result.WriteString("  状态: ✅ 已启用\n")
+		result.WriteString(i18n.T(i18n.KeyCmdMig_122))
 	} else {
-		result.WriteString("  状态: ⬜ 已禁用\n")
+		result.WriteString(i18n.T(i18n.KeyCmdMig_123))
 	}
 	if model.TemplateID != "" {
-		result.WriteString(fmt.Sprintf("  模板: %s\n", model.TemplateID))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_120), model.TemplateID))
 	}
 	if model.MaxModelLen > 0 {
-		result.WriteString(fmt.Sprintf("  最大上下文长度: %d tokens\n", model.MaxModelLen))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_112), model.MaxModelLen))
 	} else {
-		result.WriteString(fmt.Sprintf("  最大上下文长度: 未知\n"))
+		result.WriteString(i18n.T(i18n.KeyCmdMig_113))
 	}
 
 	capStr := []string{}
 	if model.Capabilities.Vision {
-		capStr = append(capStr, "👁 视觉识别")
+		capStr = append(capStr, i18n.T(i18n.KeyCmdMig_376))
 	}
 	if model.Capabilities.ToolCall {
-		capStr = append(capStr, "🔧 工具调用")
+		capStr = append(capStr, i18n.T(i18n.KeyCmdMig_380))
 	}
 	if model.Capabilities.Thinking {
-		capStr = append(capStr, "💭 思考模式")
+		capStr = append(capStr, i18n.T(i18n.KeyCmdMig_378))
 	}
 	if len(capStr) > 0 {
-		result.WriteString(fmt.Sprintf("  能力: %s\n", strings.Join(capStr, "、")))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_131), strings.Join(capStr, "、")))
 	} else {
-		result.WriteString("  能力: 未指定\n")
+		result.WriteString(i18n.T(i18n.KeyCmdMig_132))
 	}
 
 	// Show custom params
 	if len(model.CustomParams) > 0 {
-		result.WriteString("  自定义参数:\n")
+		result.WriteString(i18n.T(i18n.KeyCmdMig_133))
 		for k, v := range model.CustomParams {
 			result.WriteString(fmt.Sprintf("    %s: %v\n", k, v))
 		}
@@ -336,7 +338,7 @@ type modelWizardState struct {
 func (h *ModelHandler) AddModelWizard() (string, error) {
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
-	result.WriteString("  📋 添加模型向导 / Add Model Wizard\n")
+	result.WriteString(i18n.T(i18n.KeyCmdMig_160))
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
 	state := modelWizardState{}
@@ -367,15 +369,15 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			if state.Endpoint != "" {
 				defaultEndpoint = state.Endpoint
 			}
-			io.Println("\n  步骤: API 端点")
-			endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", defaultEndpoint, "q")
+			io.Println(i18n.T(i18n.KeyCmdMig_180))
+			endpoint := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_344), defaultEndpoint, "q")
 			if endpoint == "__BACK__" {
 				state.Template = nil
-				h.io().Println("\n  返回上一步")
+				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
 			if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
-				return result.String(), fmt.Errorf("向导已取消")
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			// Auto-complete endpoint if needed
 			if endpoint != "" {
@@ -383,12 +385,12 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				if success {
 					endpoint = completedEndpoint
 					if endpoint != defaultEndpoint {
-						h.io().Printf("\n  🔍 已自动补全端点: %s -> %s\n", defaultEndpoint, endpoint)
+						h.io().Printf(i18n.T(i18n.KeyCmdMig_194), defaultEndpoint, endpoint)
 					}
 				}
 			}
 			// Test endpoint connectivity
-			io.Print("\n  🔍 正在测试端点连通性... ")
+			io.Print(i18n.T(i18n.KeyCmdMig_196))
 			h.testEndpointConnectivity(endpoint)
 			state.Endpoint = endpoint
 		}
@@ -403,15 +405,15 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 					break
 				}
 			}
-			io.Println("\n  步骤: API Key (输入 Q 取消，0 返回上一步)")
-			apiKey := h.wizardPromptSecret("请输入 API Key", defaultAPIKey)
+			io.Println(i18n.T(i18n.KeyCmdMig_179))
+			apiKey := h.wizardPromptSecret(i18n.T(i18n.KeyCmdMig_343), defaultAPIKey)
 			if apiKey == "__BACK__" {
 				// Go back to endpoint step — keep the endpoint value as it is
-				h.io().Println("\n  返回上一步")
+				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
 			if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-				return result.String(), fmt.Errorf("向导已取消")
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			state.APIKey = apiKey
 		}
@@ -419,17 +421,17 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 		// Step 4: Select model name
 		if state.ModelName == "" {
 			io := h.io()
-			io.Println("\n  步骤: 模型名称")
+			io.Println(i18n.T(i18n.KeyCmdMig_185))
 			var modelSuggestions []string
 			modelSuggestions, state.Endpoint, state.APIModels = h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
-			modelName := h.wizardPromptString("请选择或输入模型名称", modelSuggestions, "q")
+			modelName := h.wizardPromptString(i18n.T(i18n.KeyCmdMig_358), modelSuggestions, "q")
 			if modelName == "__BACK__" {
 				// Go back to API key step — keep the API key value
-				h.io().Println("\n  返回上一步")
+				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
 			if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
-				return result.String(), fmt.Errorf("向导已取消")
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			state.ModelName = modelName
 		}
@@ -437,12 +439,12 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 		// Step 5: Choose capabilities
 		if state.Capabilities == (config.ModelCapability{}) {
 			io := h.io()
-			io.Println("\n  步骤: 检测模型能力")
+			io.Println(i18n.T(i18n.KeyCmdMig_183))
 			detectedCaps := h.detectModelCapabilities(state.Endpoint, state.APIKey, state.ModelName)
 			capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
 			if goBack {
 				state.ModelName = ""
-				h.io().Println("\n  返回上一步")
+				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
 			state.Capabilities = capabilities
@@ -463,27 +465,27 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 					suffix++
 				}
 			}
-			io.Println("\n  步骤: 模型 ID")
-			modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+			io.Println(i18n.T(i18n.KeyCmdMig_184))
+			modelID := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_350), defaultModelID, "q")
 			if modelID == "__BACK__" {
 				state.Capabilities = config.ModelCapability{}
-				h.io().Println("\n  返回上一步")
+				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
 			if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
-				return result.String(), fmt.Errorf("向导已取消")
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			// Verify the model ID doesn't already exist — if it does, prompt again
 			for h.modelIDExists(modelID) {
-				h.io().Printf("  ❌ 模型 ID \"%s\" 已存在，请重新输入\n", modelID)
-				modelID = h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+				h.io().Printf(i18n.T(i18n.KeyCmdMig_078), modelID)
+				modelID = h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_350), defaultModelID, "q")
 				if modelID == "__BACK__" {
 					state.Capabilities = config.ModelCapability{}
-					h.io().Println("\n  返回上一步")
+					h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 					continue
 				}
 				if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
-					return result.String(), fmt.Errorf("向导已取消")
+					return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 				}
 			}
 			state.ModelID = modelID
@@ -493,15 +495,15 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 		if state.Priority == 0 {
 			io := h.io()
 			newPriority := (len(h.cfg.Models) + 1) * 10
-			io.Println("\n  步骤: 优先级")
-			priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", newPriority)+")", fmt.Sprintf("%d", newPriority), "q")
+			io.Println(i18n.T(i18n.KeyCmdMig_181))
+			priorityStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_338)+fmt.Sprintf("%d", newPriority)+")", fmt.Sprintf("%d", newPriority), "q")
 			if priorityStr == "__BACK__" {
 				state.ModelID = ""
-				h.io().Println("\n  返回上一步")
+				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
 			if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
-				return result.String(), fmt.Errorf("向导已取消")
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			priority, err := strconv.Atoi(priorityStr)
 			if err != nil {
@@ -513,22 +515,22 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 		// Step 8: Max model length — detect from API first
 		if state.MaxModelLen == 0 {
 			io := h.io()
-			io.Print("\n  📡 正在检测模型最大上下文长度... ")
+			io.Print(i18n.T(i18n.KeyCmdMig_192))
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			detectClient := llm.NewClient(state.Endpoint, state.APIKey, state.ModelName, 0, 0, 10)
 			detectModels, err := detectClient.ListModels(ctx)
 			cancel()
 			if err != nil {
-				io.Printf("⚠️ 检测失败: %v\n", err)
-				io.Println("  稍后可手动输入。")
+				io.Printf(i18n.T(i18n.KeyCmdMig_213), err)
+				io.Println(i18n.T(i18n.KeyCmdMig_128))
 			} else {
 				for _, m := range detectModels {
 					if m.ID == state.ModelName {
 						state.MaxModelLen = m.MaxModelLen
 						if state.MaxModelLen > 0 {
-							io.Printf("✅ 检测到 %d tokens\n", state.MaxModelLen)
+							io.Printf(i18n.T(i18n.KeyCmdMig_224), state.MaxModelLen)
 						} else {
-							io.Printf("⚠️ API 未返回最大长度\n")
+							io.Printf(i18n.T(i18n.KeyCmdMig_212))
 						}
 						break
 					}
@@ -544,18 +546,18 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			state.MaxModelLen = state.Template.DefaultMaxModelLen
 		}
 		io := h.io()
-		io.Println("\n  步骤: 模型最大上下文长度")
-		maxModelStr := h.wizardPromptStringWithDefault("请输入模型最大上下文长度（0=未知）", fmt.Sprintf("%d", state.MaxModelLen), "q")
+		io.Println(i18n.T(i18n.KeyCmdMig_186))
+		maxModelStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_352), fmt.Sprintf("%d", state.MaxModelLen), "q")
 		if strings.ToUpper(maxModelStr) == "Q" || strings.ToUpper(maxModelStr) == "QUIT" {
-			return result.String(), fmt.Errorf("向导已取消")
+			return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 		}
 		if mm, err := parseTokenCount(maxModelStr); err == nil && mm >= 0 {
 			state.MaxModelLen = mm
 		}
 
 		// Step 9: Enable model
-		io.Println("\n  步骤: 启用状态")
-		enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", state.Enabled)
+		io.Println(i18n.T(i18n.KeyCmdMig_182))
+		enabled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_286), state.Enabled)
 		if !enabled {
 			enabled = false
 		}
@@ -579,7 +581,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			return result.String(), err
 		}
 
-		result.WriteString(fmt.Sprintf("\n✅ 已成功添加模型: %s (%s)\n", modelConfig.ID, modelConfig.Model))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_199), modelConfig.ID, modelConfig.Model))
 		log.Info("Added model via wizard: %s (template=%s, model=%s)", modelConfig.ID, state.Template.ID, state.ModelName)
 		return result.String(), nil
 	}
@@ -592,51 +594,51 @@ func (h *ModelHandler) wizardSelectTemplate() (*config.ModelTemplate, error) {
 
 	io := h.io()
 	for {
-		io.Print("\n请选择模板 (输入序号，0 返回):\n\n")
-		io.Printf("  [0] 返回上一步\n\n")
+		io.Print(i18n.T(i18n.KeyCmdMig_206))
+		io.Printf(i18n.T(i18n.KeyCmdMig_042))
 
 		for i, t := range templates {
 			io.Printf("  [%d] %-20s %s\n", i+1, t.ID, t.Name)
 			io.Printf("     %s\n", t.Description)
 			if len(t.Models) > 0 {
-				io.Printf("     默认模型: %s\n", strings.Join(t.Models, ", "))
+				io.Printf(i18n.T(i18n.KeyCmdMig_012), strings.Join(t.Models, ", "))
 			}
 			capStr := []string{}
 			if t.Capabilities.Vision {
-				capStr = append(capStr, "👁视觉")
+				capStr = append(capStr, i18n.T(i18n.KeyCmdMig_377))
 			}
 			if t.Capabilities.ToolCall {
-				capStr = append(capStr, "🔧工具")
+				capStr = append(capStr, i18n.T(i18n.KeyCmdMig_381))
 			}
 			if t.Capabilities.Thinking {
-				capStr = append(capStr, "💭思考")
+				capStr = append(capStr, i18n.T(i18n.KeyCmdMig_379))
 			}
 			if len(capStr) > 0 {
-				io.Printf("     能力: %s\n", strings.Join(capStr, " "))
+				io.Printf(i18n.T(i18n.KeyCmdMig_010), strings.Join(capStr, " "))
 			}
 			io.Println()
 		}
 
-		io.Print("  请选择: ")
+		io.Print(i18n.T(i18n.KeyCmdMig_142))
 		input := h.readLine()
 
 		if input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" || strings.ToUpper(input) == "BACK" || strings.ToUpper(input) == ".." {
-			io.Println("  返回上一步")
+			io.Println(i18n.T(i18n.KeyCmdMig_147))
 			return nil, nil
 		}
 
 		if strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" {
-			return nil, fmt.Errorf("向导已取消")
+			return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 		}
 
 		idx, err := strconv.Atoi(input)
 		if err != nil || idx < 1 || idx > len(templates) {
-			io.Println("  无效输入，请重新选择")
+			io.Println(i18n.T(i18n.KeyCmdMig_109))
 			continue
 		}
 
 		selected := templates[idx-1]
-		io.Printf("  ✅ 已选择模板: %s (%s)\n", selected.ID, selected.Name)
+		io.Printf(i18n.T(i18n.KeyCmdMig_074), selected.ID, selected.Name)
 		return selected, nil
 	}
 }
@@ -777,15 +779,15 @@ func (h *ModelHandler) testEndpointConnectivity(endpoint string) {
 	cancel()
 	if err != nil {
 		if !strings.Contains(err.Error(), "status") && !strings.Contains(err.Error(), "HTTP") {
-			io.Printf("❌ 连接失败: %v\n", err)
-			io.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
+			io.Printf(i18n.T(i18n.KeyCmdMig_229), err)
+			io.Print(i18n.T(i18n.KeyCmdMig_111))
 			retry := strings.TrimSpace(strings.ToLower(h.readLine()))
 			if retry != "y" && retry != "yes" {
 				return
 			}
 		}
 	} else {
-		io.Printf("✅ 连接成功 (发现 %d 个模型)\n", len(models))
+		io.Printf(i18n.T(i18n.KeyCmdMig_227), len(models))
 	}
 }
 
@@ -814,7 +816,7 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 
 		if err2 == nil {
 			// +/v1 worked! Update endpoint
-			io.Printf("✅ 获取到 %d 个模型 (端点已补全: %s)\n", len(models2), retryEndpoint)
+			io.Printf(i18n.T(i18n.KeyCmdMig_225), len(models2), retryEndpoint)
 			for _, m := range models2 {
 				if !seen[m.ID] {
 					suggestions = append(suggestions, m.ID)
@@ -831,13 +833,13 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 			return suggestions, retryEndpoint, models2
 		}
 		// Both original and +/v1 failed, fall through to template defaults
-		io.Printf("⚠️ 获取模型列表失败: %v\n", err)
-		io.Println("  将使用模板默认模型列表")
+		io.Printf(i18n.T(i18n.KeyCmdMig_214), err)
+		io.Println(i18n.T(i18n.KeyCmdMig_092))
 	} else if err != nil {
-		io.Printf("⚠️ 获取模型列表失败: %v\n", err)
-		io.Println("  将使用模板默认模型列表")
+		io.Printf(i18n.T(i18n.KeyCmdMig_214), err)
+		io.Println(i18n.T(i18n.KeyCmdMig_092))
 	} else {
-		io.Printf("✅ 获取到 %d 个模型\n", len(models))
+		io.Printf(i18n.T(i18n.KeyCmdMig_226), len(models))
 		for _, m := range models {
 			if !seen[m.ID] {
 				suggestions = append(suggestions, m.ID)
@@ -861,12 +863,12 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 
 	// Step 1: Enter endpoint (optional, default from template)
 	defaultEndpoint := template.Endpoint
-	endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", defaultEndpoint, "q")
+	endpoint := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_344), defaultEndpoint, "q")
 	if endpoint == "__BACK__" {
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// FEATURE-172: Auto-complete endpoint if needed
@@ -876,14 +878,14 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		if success {
 			endpoint = completedEndpoint
 			if endpoint != originalEndpoint {
-				h.io().Printf("\n  🔍 已自动补全端点: %s -> %s\n", originalEndpoint, endpoint)
+				h.io().Printf(i18n.T(i18n.KeyCmdMig_194), originalEndpoint, endpoint)
 			}
 		}
 	}
 
 	// Test endpoint connectivity
 	io := h.io()
-	io.Print("\n  🔍 正在测试端点连通性... ")
+	io.Print(i18n.T(i18n.KeyCmdMig_196))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	client := llm.NewClient(endpoint, "", "test", 0, 0, 10)
 	models, err := client.ListModels(ctx)
@@ -891,15 +893,15 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	if err != nil {
 		// HTTP error means connectivity is OK, no need to prompt
 		if !strings.Contains(err.Error(), "status") && !strings.Contains(err.Error(), "HTTP") {
-			io.Printf("❌ 连接失败: %v\n", err)
-			io.Print("  是否继续使用此端点？(y/n) [默认: n]: ")
+			io.Printf(i18n.T(i18n.KeyCmdMig_229), err)
+			io.Print(i18n.T(i18n.KeyCmdMig_111))
 			retry := strings.TrimSpace(strings.ToLower(h.readLine()))
 			if retry != "y" && retry != "yes" {
-				return nil, fmt.Errorf("端点连接测试未通过，请检查端点后重试")
+				return nil, errors.New(i18n.T(i18n.KeyCmdMig_328))
 			}
 		}
 	} else {
-		io.Printf("✅ 连接成功 (发现 %d 个模型)\n", len(models))
+		io.Printf(i18n.T(i18n.KeyCmdMig_227), len(models))
 	}
 
 	// Step 2: Enter API key
@@ -914,26 +916,26 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 	// No fallback to global cfg.LLM.APIKey since it has been removed.
 	// If no existing model with the same template has an API key, defaultAPIKey stays empty.
-	apiKey := h.wizardPromptSecret("请输入 API Key", defaultAPIKey)
+	apiKey := h.wizardPromptSecret(i18n.T(i18n.KeyCmdMig_343), defaultAPIKey)
 	if apiKey == "__BACK__" {
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// Step 3: Fetch available models from API and let user select
-	io.Print("\n  🔍 正在获取可用模型列表... ")
+	io.Print(i18n.T(i18n.KeyCmdMig_197))
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	client = llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
 	models, err = client.ListModels(ctx)
 	cancel()
 	if err != nil {
-		io.Printf("⚠️ 获取模型列表失败: %v\n", err)
-		io.Println("  将使用模板默认模型列表")
+		io.Printf(i18n.T(i18n.KeyCmdMig_214), err)
+		io.Println(i18n.T(i18n.KeyCmdMig_092))
 		models = nil
 	} else {
-		io.Printf("✅ 获取到 %d 个模型\n", len(models))
+		io.Printf(i18n.T(i18n.KeyCmdMig_226), len(models))
 	}
 
 	// Build model name suggestions: API models first, then template defaults
@@ -954,12 +956,12 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 		}
 	}
 
-	modelName := h.wizardPromptString("请选择或输入模型名称", modelSuggestions, "q")
+	modelName := h.wizardPromptString(i18n.T(i18n.KeyCmdMig_358), modelSuggestions, "q")
 	if modelName == "__BACK__" {
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// Step 4: Look up max_model_len from the API model list
@@ -974,7 +976,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	// Step 5: Auto-detect capabilities by sending test requests
-	io.Print("\n  🔍 正在检测模型能力...\n")
+	io.Print(i18n.T(i18n.KeyCmdMig_195))
 	detectedCaps := h.detectModelCapabilities(endpoint, apiKey, modelName)
 
 	// Step 6: Choose capabilities (pre-populated with detected results)
@@ -997,22 +999,22 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 			suffix++
 		}
 	}
-	modelID := h.wizardPromptStringWithDefault("请输入模型 ID", defaultModelID, "q")
+	modelID := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_350), defaultModelID, "q")
 	if modelID == "__BACK__" {
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 
 	// Step 7: Set priority - default to highest priority + 10
 	newPriority := (len(h.cfg.Models) + 1) * 10
-	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字，默认 "+fmt.Sprintf("%d", newPriority)+")", fmt.Sprintf("%d", newPriority), "q")
+	priorityStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_338)+fmt.Sprintf("%d", newPriority)+")", fmt.Sprintf("%d", newPriority), "q")
 	if priorityStr == "__BACK__" {
 		return nil, fmt.Errorf("__BACK__")
 	}
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
-		return nil, fmt.Errorf("向导已取消")
+		return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
 	}
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil {
@@ -1020,7 +1022,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	// Step 8: Enable model?
-	enabled := h.wizardPromptBool("是否立即启用此模型？(y/n)", true)
+	enabled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_286), true)
 	if !enabled {
 		enabled = false
 	}
@@ -1076,14 +1078,14 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 			for i, s := range suggestions {
 				io.Printf("  [%d] %s\n", i+1, s)
 			}
-			io.Printf("  请选择或输入 [默认: %s]: ", defaultVal)
+			io.Printf(i18n.T(i18n.KeyCmdMig_143), defaultVal)
 		} else {
 			io.Printf("\n%s: ", prompt)
 		}
 
 		input := h.readLine()
 		if input == "" && defaultVal == "" {
-			io.Println("  输入不能为空，请重新输入")
+			io.Println(i18n.T(i18n.KeyCmdMig_144))
 			continue
 		}
 
@@ -1098,7 +1100,7 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 
 		// Empty input: use default
 		if input == "" && defaultVal != "" {
-			io.Printf("  使用默认值: %s\n", defaultVal)
+			io.Printf(i18n.T(i18n.KeyCmdMig_085), defaultVal)
 			return defaultVal
 		}
 
@@ -1119,7 +1121,7 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue string, cancelKeys string) string {
 	io := h.io()
 	for {
-		io.Printf("\n%s [默认: %s]: ", prompt, defaultValue)
+		io.Printf(i18n.T(i18n.KeyCmdMig_198), prompt, defaultValue)
 		input := h.readLine()
 
 		// Check back/cancel keys
@@ -1132,7 +1134,7 @@ func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue
 		}
 
 		if input == "" {
-			io.Printf("  使用默认值: %s\n", defaultValue)
+			io.Printf(i18n.T(i18n.KeyCmdMig_085), defaultValue)
 			return defaultValue
 		}
 
@@ -1155,7 +1157,7 @@ func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) stri
 			} else {
 				masked = "****"
 			}
-			io.Printf("\n%s [默认: %s]: ", prompt, masked)
+			io.Printf(i18n.T(i18n.KeyCmdMig_198), prompt, masked)
 		} else {
 			io.Printf("\n%s: ", prompt)
 		}
@@ -1173,10 +1175,10 @@ func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) stri
 
 		if input == "" {
 			if defaultVal != "" {
-				io.Println("  使用默认 API Key")
+				io.Println(i18n.T(i18n.KeyCmdMig_084))
 				return defaultVal
 			}
-			io.Println("  API Key 留空")
+			io.Println(i18n.T(i18n.KeyCmdMig_040))
 			return ""
 		}
 
@@ -1192,22 +1194,22 @@ func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
 		if !defaultVal {
 			defaultStr = "n"
 		}
-		io.Printf("\n%s [默认: %s]: ", prompt, defaultStr)
+		io.Printf(i18n.T(i18n.KeyCmdMig_198), prompt, defaultStr)
 
 		input := strings.TrimSpace(strings.ToLower(h.readLine()))
 
 		if input == "" {
-			io.Printf("  使用默认值: %s\n", defaultStr)
+			io.Printf(i18n.T(i18n.KeyCmdMig_085), defaultStr)
 			return defaultVal
 		}
 
 		switch input {
-		case "y", "yes", "是", "yep", "yeah":
+		case "y", "yes", i18n.T(i18n.KeyCmdMig_284), "yep", "yeah":
 			return true
-		case "n", "no", "否", "nope":
+		case "n", "no", i18n.T(i18n.KeyCmdMig_257), "nope":
 			return false
 		default:
-			io.Println("  无效输入，请输入 y 或 n")
+			io.Println(i18n.T(i18n.KeyCmdMig_108))
 		}
 	}
 }
@@ -1247,31 +1249,31 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 	}
 
 	// Test vision support
-	io.Print("  👁 视觉识别... ")
+	io.Print(i18n.T(i18n.KeyCmdMig_154))
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	vision := client.TestVisionSupport(ctx)
 	cancel()
 	if vision {
-		io.Println("✅ 支持")
+		io.Println(i18n.T(i18n.KeyCmdMig_223))
 		caps.Vision = true
 	} else {
-		io.Println("❌ 不支持")
+		io.Println(i18n.T(i18n.KeyCmdMig_228))
 	}
 
 	// Test tool call support
-	io.Print("  🔧 工具调用... ")
+	io.Print(i18n.T(i18n.KeyCmdMig_162))
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	toolCall := client.TestToolCallSupport(ctx)
 	cancel()
 	if toolCall {
-		io.Println("✅ 支持")
+		io.Println(i18n.T(i18n.KeyCmdMig_223))
 		caps.ToolCall = true
 	} else {
-		io.Println("❌ 不支持")
+		io.Println(i18n.T(i18n.KeyCmdMig_228))
 	}
 
 	// Test thinking support: switch to thinking-enabled params
-	io.Print("  💭 思考模式... ")
+	io.Print(i18n.T(i18n.KeyCmdMig_155))
 	enableAdditions := testAdapter.BuildAdditions(llm.ThinkingConfig{
 		Mode:            llm.ThinkingModeEnabled,
 		ReasoningEffort: "low",
@@ -1283,10 +1285,10 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 	thinking := client.TestThinkingSupport(ctx)
 	cancel()
 	if thinking {
-		io.Println("✅ 支持")
+		io.Println(i18n.T(i18n.KeyCmdMig_223))
 		caps.Thinking = true
 	} else {
-		io.Println("❌ 不支持")
+		io.Println(i18n.T(i18n.KeyCmdMig_228))
 	}
 
 	return caps
@@ -1304,11 +1306,11 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 	}
 
 	for {
-		io.Println("\n请确认模型能力 (可切换开关):")
-		io.Println("  [1] 👁 视觉识别 (Vision)")
-		io.Println("  [2] 🔧 工具调用 (Tool Call)")
-		io.Println("  [3] 💭 思考模式 (Thinking)")
-		io.Printf("\n  当前选择: ")
+		io.Println(i18n.T(i18n.KeyCmdMig_204))
+		io.Println(i18n.T(i18n.KeyCmdMig_046))
+		io.Println(i18n.T(i18n.KeyCmdMig_049))
+		io.Println(i18n.T(i18n.KeyCmdMig_052))
+		io.Printf(i18n.T(i18n.KeyCmdMig_176))
 		if caps.Vision {
 			io.Print("👁 ")
 		}
@@ -1319,7 +1321,7 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 			io.Print("💭 ")
 		}
 		io.Println()
-		io.Print("  请选择 (回车完成, 0 返回上一步): ")
+		io.Print(i18n.T(i18n.KeyCmdMig_140))
 
 		input := h.readLine()
 
@@ -1339,7 +1341,7 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 		case "3":
 			caps.Thinking = !caps.Thinking
 		default:
-			io.Println("  无效输入")
+			io.Println(i18n.T(i18n.KeyCmdMig_107))
 		}
 	}
 }
@@ -1352,7 +1354,7 @@ func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
 	// Check for duplicate ID
 	for _, m := range h.cfg.Models {
 		if m.ID == model.ID {
-			return fmt.Errorf("模型 %s 已存在，请使用不同的模型名称", model.ID)
+			return fmt.Errorf(i18n.T(i18n.KeyCmdMig_306), model.ID)
 		}
 	}
 
@@ -1375,7 +1377,7 @@ func (h *ModelHandler) saveModel(model *config.ModelConfig) error {
 	h.reencodePriorities()
 
 	if err := h.cfg.Save(); err != nil {
-		return fmt.Errorf("保存配置失败: %w", err)
+		return fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 	}
 
 	// FEATURE-171: If the added model has vision capability, automatically enable
@@ -1423,7 +1425,7 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 		modelID = args[0]
 	} else {
 		var err error
-		modelID, err = h.selectModelByNumber("请选择要编辑的模型")
+		modelID, err = h.selectModelByNumber(i18n.T(i18n.KeyCmdMig_365))
 		if err != nil {
 			return "", err
 		}
@@ -1438,67 +1440,67 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 		}
 	}
 	if model == nil {
-		return "", fmt.Errorf("模型 %s 不存在", modelID)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 	}
 
 	io := h.io()
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
-	result.WriteString(fmt.Sprintf("  📋 编辑模型: %s\n", modelID))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_161), modelID))
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
 	// Step 0: Test API connectivity and detect max_model_len
-	io.Println("\n  📡 正在测试 API 连接并获取模型信息...")
+	io.Println(i18n.T(i18n.KeyCmdMig_193))
 	detectedMaxModelLen := 0
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	client := llm.NewClient(model.Endpoint, model.APIKey, model.Model, 0, 0, 15)
 	models, err := client.ListModels(ctx)
 	cancel()
 	if err != nil {
-		io.Printf("  ⚠️ 获取模型列表失败: %v\n", err)
-		io.Println("  将使用当前配置值")
+		io.Printf(i18n.T(i18n.KeyCmdMig_069), err)
+		io.Println(i18n.T(i18n.KeyCmdMig_091))
 	} else {
-		io.Printf("  ✅ 成功获取 %d 个模型\n", len(models))
+		io.Printf(i18n.T(i18n.KeyCmdMig_075), len(models))
 		for _, m := range models {
 			if m.ID == model.Model {
 				detectedMaxModelLen = m.MaxModelLen
 				if detectedMaxModelLen > 0 {
-					io.Printf("  检测到模型 %s 的最大上下文长度: %d tokens\n", m.ID, detectedMaxModelLen)
+					io.Printf(i18n.T(i18n.KeyCmdMig_115), m.ID, detectedMaxModelLen)
 				}
 				break
 			}
 		}
 		if detectedMaxModelLen == 0 {
-			io.Println("  当前模型的最大上下文长度未知（API 未返回）")
+			io.Println(i18n.T(i18n.KeyCmdMig_097))
 		}
 	}
 
 	// Step 1: Endpoint (default = current value)
-	io.Println("  [1/7] API 端点")
-	endpoint := h.wizardPromptStringWithDefault("请输入 API 端点", model.Endpoint, "q")
+	io.Println(i18n.T(i18n.KeyCmdMig_043))
+	endpoint := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_344), model.Endpoint, "q")
 	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
-		return result.String(), fmt.Errorf("已取消")
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 2: API key (default = current, masked)
 	io.Println("\n  [2/7] API Key")
-	apiKey := h.wizardPromptSecret("请输入 API Key", model.APIKey)
+	apiKey := h.wizardPromptSecret(i18n.T(i18n.KeyCmdMig_343), model.APIKey)
 	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
-		return result.String(), fmt.Errorf("已取消")
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 3: Model name (default = current)
-	io.Println("\n  [3/7] 模型名称")
-	modelName := h.wizardPromptStringWithDefault("请输入模型名称", model.Model, "q")
+	io.Println(i18n.T(i18n.KeyCmdMig_170))
+	modelName := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_351), model.Model, "q")
 	if strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
-		return result.String(), fmt.Errorf("已取消")
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 4: Priority (default = current)
-	io.Println("\n  [4/7] 优先级")
-	priorityStr := h.wizardPromptStringWithDefault("请设置优先级 (数字)", fmt.Sprintf("%d", model.Priority), "q")
+	io.Println(i18n.T(i18n.KeyCmdMig_171))
+	priorityStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_337), fmt.Sprintf("%d", model.Priority), "q")
 	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
-		return result.String(), fmt.Errorf("已取消")
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil {
@@ -1506,24 +1508,24 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	}
 
 	// Step 5: Max model length — detect from API with current parameters
-	io.Println("\n  [5/7] 模型最大上下文长度")
-	io.Print("\n  📡 正在检测模型最大上下文长度... ")
+	io.Println(i18n.T(i18n.KeyCmdMig_172))
+	io.Print(i18n.T(i18n.KeyCmdMig_192))
 	detectCtx, detectCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	detectClient := llm.NewClient(endpoint, apiKey, modelName, 0, 0, 10)
 	detectModels, detectErr := detectClient.ListModels(detectCtx)
 	detectCancel()
 	newDetectedMax := 0
 	if detectErr != nil {
-		io.Printf("⚠️ 检测失败: %v\n", detectErr)
-		io.Println("  稍后可手动输入。")
+		io.Printf(i18n.T(i18n.KeyCmdMig_213), detectErr)
+		io.Println(i18n.T(i18n.KeyCmdMig_128))
 	} else {
 		for _, m := range detectModels {
 			if m.ID == modelName {
 				newDetectedMax = m.MaxModelLen
 				if newDetectedMax > 0 {
-					io.Printf("✅ 检测到 %d tokens\n", newDetectedMax)
+					io.Printf(i18n.T(i18n.KeyCmdMig_224), newDetectedMax)
 				} else {
-					io.Printf("⚠️ API 未返回最大长度\n")
+					io.Printf(i18n.T(i18n.KeyCmdMig_212))
 				}
 				break
 			}
@@ -1543,9 +1545,9 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 			maxModelLenDefault = tpl.DefaultMaxModelLen
 		}
 	}
-	maxModelLenStr := h.wizardPromptStringWithDefault("请输入模型最大上下文长度（0=未知）", fmt.Sprintf("%d", maxModelLenDefault), "q")
+	maxModelLenStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_352), fmt.Sprintf("%d", maxModelLenDefault), "q")
 	if strings.ToUpper(maxModelLenStr) == "Q" || strings.ToUpper(maxModelLenStr) == "QUIT" {
-		return result.String(), fmt.Errorf("已取消")
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 	maxModelLen := 0
 	if mm, er := parseTokenCount(maxModelLenStr); er == nil && mm >= 0 {
@@ -1553,15 +1555,15 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	}
 
 	// Step 6: Capabilities (default = current)
-	io.Println("\n  [6/7] 模型能力")
+	io.Println(i18n.T(i18n.KeyCmdMig_173))
 	capabilities, goBack := h.wizardSelectCapabilities(model.Capabilities)
 	if goBack {
-		return result.String(), fmt.Errorf("已取消")
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 7: Enabled state (default = current)
-	io.Println("\n  [7/7] 启用状态")
-	enabled := h.wizardPromptBool("是否启用此模型？(y/n)", model.Enabled)
+	io.Println(i18n.T(i18n.KeyCmdMig_174))
+	enabled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_285), model.Enabled)
 
 	// Apply changes
 	model.Endpoint = endpoint
@@ -1573,7 +1575,7 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	model.Enabled = enabled
 
 	if err := h.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 	}
 
 	// Sync to ModelManager
@@ -1585,14 +1587,14 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	}
 
 	log.Info("Edited model: %s (endpoint=%s, model=%s)", modelID, endpoint, modelName)
-	result.WriteString(fmt.Sprintf("\n✅ 已更新模型: %s\n", modelID))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_200), modelID))
 	return result.String(), nil
 }
 
 // addFromTemplate adds a model from a built-in template.
 func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 	if len(args) < 2 {
-		return "", fmt.Errorf("用法: .model from-tpl <模板ID> <模型ID> [--api-key <密钥>]")
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_324))
 	}
 
 	templateID := args[0]
@@ -1609,14 +1611,14 @@ func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 	manager := config.GetDefaultModelManager()
 	template := manager.GetTemplate(templateID)
 	if template == nil {
-		return "", fmt.Errorf("模板 %s 不存在 (使用 .model templates 查看可用模板)", templateID)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_312), templateID)
 	}
 
 	modelID := fmt.Sprintf("%s-%s", templateID, strings.ReplaceAll(modelName, "/", "-"))
 
 	for _, m := range h.cfg.Models {
 		if m.ID == modelID {
-			return "", fmt.Errorf("模型 %s 已存在", modelID)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_305), modelID)
 		}
 	}
 
@@ -1636,14 +1638,14 @@ func (h *ModelHandler) addFromTemplate(args []string) (string, error) {
 	h.cfg.Models = append(h.cfg.Models, newModel)
 
 	if err := h.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 	}
 
 	// FIX-183: Sync to ModelManager so selectModelForCall() can find the new model
 	h.syncModelsToManager()
 
 	log.Info("Added model from template: %s (template=%s, model=%s)", modelID, templateID, modelName)
-	return fmt.Sprintf("✅ 已从模板 '%s' 添加模型: %s (%s)", template.Name, modelID, modelName), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_215), template.Name, modelID, modelName), nil
 }
 
 // selectModelByNumber displays a numbered list of models and prompts the user to select one.
@@ -1653,7 +1655,7 @@ func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
 	io := h.io()
 	models := h.cfg.Models
 	if len(models) == 0 {
-		return "", fmt.Errorf("未配置任何模型")
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_294))
 	}
 
 	// Sort by priority descending
@@ -1689,18 +1691,18 @@ func (h *ModelHandler) selectModelByNumber(prompt string) (string, error) {
 		if capsDisplay != "" {
 			io.Printf("[%s]", capsDisplay)
 		}
-		io.Printf(" (优先级: %d)\n", m.Priority)
+		io.Printf(i18n.T(i18n.KeyCmdMig_163), m.Priority)
 	}
-	io.Print("\n  请选择 (输入序号, 0 取消): ")
+	io.Print(i18n.T(i18n.KeyCmdMig_189))
 
 	input := h.readLine()
 	if input == "" || input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" {
-		return "", fmt.Errorf("已取消")
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	idx, err := strconv.Atoi(input)
 	if err != nil || idx < 1 || idx > len(sorted) {
-		return "", fmt.Errorf("无效选择")
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_282))
 	}
 
 	return sorted[idx-1].ID, nil
@@ -1713,7 +1715,7 @@ func (h *ModelHandler) removeModel(args []string) (string, error) {
 	var modelID string
 	if len(args) == 0 {
 		var err error
-		modelID, err = h.selectModelByNumber("请选择要移除的模型")
+		modelID, err = h.selectModelByNumber(i18n.T(i18n.KeyCmdMig_364))
 		if err != nil {
 			return "", err
 		}
@@ -1728,7 +1730,7 @@ func (h *ModelHandler) removeModel(args []string) (string, error) {
 
 			h.cfg.Models = append(h.cfg.Models[:i], h.cfg.Models[i+1:]...)
 			if err := h.cfg.Save(); err != nil {
-				return "", fmt.Errorf("保存配置失败: %w", err)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 			}
 
 			// FEATURE-171: If the removed model had vision capability, check if
@@ -1756,11 +1758,11 @@ func (h *ModelHandler) removeModel(args []string) (string, error) {
 			h.syncModelsToManager()
 
 			log.Info("Removed model: %s", modelID)
-			return fmt.Sprintf("✅ 已移除模型: %s", modelID), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_221), modelID), nil
 		}
 	}
 
-	return "", fmt.Errorf("模型 %s 不存在", modelID)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 }
 
 // switchModel switches to a specific model by moving it to the front of the queue
@@ -1769,7 +1771,7 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 	var modelID string
 	if len(args) == 0 {
 		var err error
-		modelID, err = h.selectModelByNumber("请选择要切换到的模型")
+		modelID, err = h.selectModelByNumber(i18n.T(i18n.KeyCmdMig_360))
 		if err != nil {
 			return "", err
 		}
@@ -1787,7 +1789,7 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 	}
 
 	if targetIdx == -1 {
-		return "", fmt.Errorf("模型 %s 不存在", modelID)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 	}
 
 	// Move the target model to the front of the slice
@@ -1802,7 +1804,7 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 	}
 
 	if err := h.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 	}
 
 	// Sync to ModelManager so applyWorkModeConfig() can find the switched model
@@ -1815,7 +1817,7 @@ func (h *ModelHandler) switchModel(args []string) (string, error) {
 	}
 
 	log.Info("Switched to model: %s (priority=%d)", modelID, h.cfg.Models[0].Priority)
-	return fmt.Sprintf("✅ 已切换到模型: %s（优先级: %d）", modelID, h.cfg.Models[0].Priority), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_216), modelID, h.cfg.Models[0].Priority), nil
 }
 
 // enableModel enables a specific model.
@@ -1823,7 +1825,7 @@ func (h *ModelHandler) enableModel(args []string) (string, error) {
 	var modelID string
 	if len(args) == 0 {
 		var err error
-		modelID, err = h.selectModelByNumber("请选择要启用的模型")
+		modelID, err = h.selectModelByNumber(i18n.T(i18n.KeyCmdMig_361))
 		if err != nil {
 			return "", err
 		}
@@ -1835,18 +1837,18 @@ func (h *ModelHandler) enableModel(args []string) (string, error) {
 		if m.ID == modelID {
 			m.Enabled = true
 			if err := h.cfg.Save(); err != nil {
-				return "", fmt.Errorf("保存配置失败: %w", err)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 			}
 
 			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the enabled state
 			h.syncModelsToManager()
 
 			log.Info("Enabled model: %s", modelID)
-			return fmt.Sprintf("✅ 已启用模型: %s", modelID), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_217), modelID), nil
 		}
 	}
 
-	return "", fmt.Errorf("模型 %s 不存在", modelID)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 }
 
 // disableModel disables a specific model.
@@ -1854,7 +1856,7 @@ func (h *ModelHandler) disableModel(args []string) (string, error) {
 	var modelID string
 	if len(args) == 0 {
 		var err error
-		modelID, err = h.selectModelByNumber("请选择要禁用的模型")
+		modelID, err = h.selectModelByNumber(i18n.T(i18n.KeyCmdMig_363))
 		if err != nil {
 			return "", err
 		}
@@ -1866,24 +1868,24 @@ func (h *ModelHandler) disableModel(args []string) (string, error) {
 		if m.ID == modelID {
 			m.Enabled = false
 			if err := h.cfg.Save(); err != nil {
-				return "", fmt.Errorf("保存配置失败: %w", err)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 			}
 
 			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the disabled state
 			h.syncModelsToManager()
 
 			log.Info("Disabled model: %s", modelID)
-			return fmt.Sprintf("✅ 已禁用模型: %s", modelID), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_219), modelID), nil
 		}
 	}
 
-	return "", fmt.Errorf("模型 %s 不存在", modelID)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 }
 
 // setPriority sets the priority of a model.
 func (h *ModelHandler) setPriority(args []string) (string, error) {
 	if len(args) < 1 {
-		return "", fmt.Errorf("用法: .model set-priority <模型ID> <优先级>")
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_326))
 	}
 
 	var modelID string
@@ -1894,43 +1896,43 @@ func (h *ModelHandler) setPriority(args []string) (string, error) {
 		// Only model ID provided, need priority value too
 		// Try interactive selection for model ID
 		var err error
-		modelID, err = h.selectModelByNumber("请选择要设置优先级的模型")
+		modelID, err = h.selectModelByNumber(i18n.T(i18n.KeyCmdMig_366))
 		if err != nil {
 			return "", err
 		}
 		// Prompt for priority value
-		h.io().Print("请输入优先级 (数字): ")
+		h.io().Print(i18n.T(i18n.KeyCmdMig_347))
 		priorityStr := h.readLine()
 		if priorityStr == "" {
-			return "", fmt.Errorf("已取消")
+			return "", errors.New(i18n.T(i18n.KeyCmdMig_259))
 		}
 		priority, err := strconv.Atoi(priorityStr)
 		if err != nil {
-			return "", fmt.Errorf("无效的优先级值: %s", priorityStr)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_279), priorityStr)
 		}
 		return h.setPriorityForModel(modelID, priority)
 	}
 	priority, err := strconv.Atoi(args[1])
 	if err != nil {
-		return "", fmt.Errorf("无效的优先级值: %s", args[1])
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_279), args[1])
 	}
 
 	for _, m := range h.cfg.Models {
 		if m.ID == modelID {
 			m.Priority = priority
 			if err := h.cfg.Save(); err != nil {
-				return "", fmt.Errorf("保存配置失败: %w", err)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 			}
 
 			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the new priority
 			h.syncModelsToManager()
 
 			log.Info("Set priority for model %s to %d", modelID, priority)
-			return fmt.Sprintf("✅ 已将模型 %s 的优先级设置为: %d", modelID, priority), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_218), modelID, priority), nil
 		}
 	}
 
-	return "", fmt.Errorf("模型 %s 不存在", modelID)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 }
 
 // setPriorityForModel sets the priority of a model and saves the configuration.
@@ -1939,18 +1941,18 @@ func (h *ModelHandler) setPriorityForModel(modelID string, priority int) (string
 		if m.ID == modelID {
 			m.Priority = priority
 			if err := h.cfg.Save(); err != nil {
-				return "", fmt.Errorf("保存配置失败: %w", err)
+				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 			}
 
 			// FIX-183: Sync to ModelManager so selectModelForCall() reflects the new priority
 			h.syncModelsToManager()
 
 			log.Info("Set priority for model %s to %d", modelID, priority)
-			return fmt.Sprintf("✅ 已将模型 %s 的优先级设置为: %d", modelID, priority), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_218), modelID, priority), nil
 		}
 	}
 
-	return "", fmt.Errorf("模型 %s 不存在", modelID)
+	return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 }
 
 // listTemplates lists all built-in templates.
@@ -1960,7 +1962,7 @@ func (h *ModelHandler) listTemplates() (string, error) {
 
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
-	result.WriteString("  📋 可用模板 / Available Templates\n")
+	result.WriteString(i18n.T(i18n.KeyCmdMig_156))
 	result.WriteString("═══════════════════════════════════════════════════════\n\n")
 
 	for _, t := range templates {
@@ -1975,19 +1977,19 @@ func (h *ModelHandler) listTemplates() (string, error) {
 			capStr = append(capStr, "💭")
 		}
 
-		result.WriteString(fmt.Sprintf("  [%s] %s (优先级: %d)\n", t.ID, t.Name, t.Priority))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_041), t.ID, t.Name, t.Priority))
 		result.WriteString(fmt.Sprintf("     %s\n", t.Description))
 		if len(t.Models) > 0 {
-			result.WriteString(fmt.Sprintf("     默认模型: %s\n", strings.Join(t.Models, ", ")))
+			result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_012), strings.Join(t.Models, ", ")))
 		}
 		if len(capStr) > 0 {
-			result.WriteString(fmt.Sprintf("     能力: %s\n", strings.Join(capStr, " ")))
+			result.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_010), strings.Join(capStr, " ")))
 		}
 		result.WriteString("\n")
 	}
 
-	result.WriteString("  使用 .model add 向导模式添加模型\n")
-	result.WriteString("  或使用 .model from-tpl <模板ID> <模型ID> 命令行添加\n")
+	result.WriteString(i18n.T(i18n.KeyCmdMig_083))
+	result.WriteString(i18n.T(i18n.KeyCmdMig_099))
 	return result.String(), nil
 }
 
@@ -2062,7 +2064,7 @@ func parseTokenCount(s string) (int, error) {
 // Otherwise, it is stored as a plain string.
 func (h *ModelHandler) setParam(args []string) (string, error) {
 	if len(args) < 3 {
-		return "", fmt.Errorf("用法: .model set-param <模型ID> <参数名> <参数值>\n  示例: .model set-param my-model thinking {\"type\":\"enabled\"}\n  示例: .model set-param my-model reasoning_effort high\n  示例: .model set-param my-model frequency_penalty None")
+		return "", errors.New(i18n.T(i18n.KeyCmdMig_325))
 	}
 
 	modelID := args[0]
@@ -2079,7 +2081,7 @@ func (h *ModelHandler) setParam(args []string) (string, error) {
 	}
 
 	if model == nil {
-		return "", fmt.Errorf("模型 %s 不存在", modelID)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_303), modelID)
 	}
 
 	// Initialize CustomParams map if nil
@@ -2094,10 +2096,10 @@ func (h *ModelHandler) setParam(args []string) (string, error) {
 			model.CustomParams = nil
 		}
 		if err := h.cfg.Save(); err != nil {
-			return "", fmt.Errorf("保存配置失败: %w", err)
+			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 		}
 		log.Info("Removed custom param %s from model %s", key, modelID)
-		return fmt.Sprintf("✅ 已移除模型 %s 的自定义参数: %s（将不发送此属性）", modelID, key), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_220), modelID, key), nil
 	}
 
 	// Try to parse as JSON first
@@ -2110,9 +2112,9 @@ func (h *ModelHandler) setParam(args []string) (string, error) {
 	}
 
 	if err := h.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
 	}
 
 	log.Info("Set custom param %s=%v for model %s", key, model.CustomParams[key], modelID)
-	return fmt.Sprintf("✅ 已设置模型 %s 的自定义参数: %s = %v", modelID, key, model.CustomParams[key]), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_222), modelID, key, model.CustomParams[key]), nil
 }
