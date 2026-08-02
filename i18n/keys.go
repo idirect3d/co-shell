@@ -381,6 +381,27 @@ const (
 	KeyCmdConfirmCountSuffix  = "cmd_confirm_count_suffix"
 	KeyErrorRiskWarning       = "error_risk_warning"
 
+	// FEATURE-310: Tool call summary (intent + key params display)
+	KeyToolCallSummaryGeneric        = "tool_call_summary_generic"
+	KeyToolCallSummaryExecCmd        = "tool_call_summary_exec_cmd"
+	KeyToolCallSummaryReadFile       = "tool_call_summary_read_file"
+	KeyToolCallSummaryWriteFile      = "tool_call_summary_write_file"
+	KeyToolCallSummaryReplaceInFile  = "tool_call_summary_replace_in_file"
+	KeyToolCallSummarySearchFiles    = "tool_call_summary_search_files"
+	KeyToolCallSummaryListFiles      = "tool_call_summary_list_files"
+	KeyToolCallSummaryListDefs       = "tool_call_summary_list_defs"
+	KeyToolCallSummaryShellSend      = "tool_call_summary_shell_send"
+	KeyToolCallSummaryVisualAnalysis = "tool_call_summary_visual_analysis"
+	KeyToolCallSummaryExcelOpen      = "tool_call_summary_excel_open"
+	KeyToolCallSummaryWordOpen       = "tool_call_summary_word_open"
+	KeyToolCallSummaryUpdateSettings = "tool_call_summary_update_settings"
+	KeyToolCallSummaryAskQuestion    = "tool_call_summary_ask_question"
+	KeyToolCallSummaryLaunchSubAgent = "tool_call_summary_launch_sub_agent"
+	KeyToolCallSummaryContentChars   = "tool_call_summary_content_chars"
+	KeyToolCallSummaryItems          = "tool_call_summary_items"
+	KeyToolCallSummaryCells          = "tool_call_summary_cells"
+	KeyToolCallSummaryTruncated      = "tool_call_summary_truncated"
+
 	// History list
 	KeyListTitle     = "list_title"
 	KeyListEmpty     = "list_empty"

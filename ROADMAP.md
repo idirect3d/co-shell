@@ -23,6 +23,7 @@
 | FEATURE-307 | 0.7.2 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.3 | tui v2 | FullScreenRenderer（可选分支） |
 | FIX-309 | 0.7.0 | P1 | ✅ 已完成（stripCodeBlockXML 闭合行处理缺陷 [BUILD-344]） |
+| FEATURE-310 | 0.7.0 | P6 | 工具调用意图+个性化摘要显示：每个工具调用显示 intent 与主要参数的中文/英文摘要，个性化话术通过 i18n 模板配置，与 show-tool 共享显示控制 |
 
 
 

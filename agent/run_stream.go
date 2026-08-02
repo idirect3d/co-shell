@@ -985,25 +985,17 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					}
 				}
 
-				// Show tool call name (and input arguments if enabled)
+				// Show tool call summary (friendly name + intent + key params).
+				// The summary is rendered from the parsed args so the user can
+				// grasp the impact intention of the call (FEATURE-310).
+				// It shares the same display control as show-tool.
 				if a.showTool {
-					msg := tc.Name
-					if a.showToolInput {
-						// Pretty-print the JSON arguments
-						var argsPretty string
-						var argsMap map[string]interface{}
-						if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-							if pretty, err := json.MarshalIndent(argsMap, "", "  "); err == nil {
-								argsPretty = string(pretty)
-							}
-						}
-						if argsPretty == "" {
-							argsPretty = tc.Arguments
-						}
-						msg += "\n" + argsPretty
+					var argsMap map[string]interface{}
+					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
+						cb(EventToolCall, buildToolSummary(tc.Name, argsMap)+"\n")
+					} else {
+						cb(EventToolCall, tc.Name+"\n")
 					}
-					msg += "\n"
-					cb(EventToolCall, msg)
 				}
 
 				log.Info("Agent.RunStream: executing tool %s (ID: %s)", tc.Name, tc.ID)
