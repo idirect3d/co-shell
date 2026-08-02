@@ -927,7 +927,7 @@
   - 回归验证：P1 两份 golden 逐字节一致（渲染零变化）；agent/out_test.go 新增 UC-0003/0004/0008/0009（ChannelID/Level/RenderKind/TerminalOut/parseInputMode table 测试）
   - audit：fmt 206→204（渲染合并消除 2 处直接 fmt，合规改进），魔法事件=0 / 中文=1555 / 同步输入=19 / i18n=1 与 P1 一致
 
-- [ ] **FEATURE-303 向导迁移（B 类）+ i18n 归零第一步（P3）**：
+- [x] **FEATURE-303 向导迁移（B 类）+ i18n 归零第一步（P3）** [BUILD-342]：
   - UI 组件 Out.Box/Menu/Step/Sep（绑定规范快捷键 [B]/[C]/[E]/[D]/[Q]/[数字]）
   - 迁移 cmd/model.go → mode.go → config.go → settings_db.go → session.go
   - i18n：B 类硬编码中文迁移（约 1/3）
