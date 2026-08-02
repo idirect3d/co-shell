@@ -55,7 +55,9 @@ func TestReadFileTool(t *testing.T) {
 		{
 			name: "read entire file",
 			args: map[string]interface{}{
-				"path": testFile,
+				"path":       testFile,
+				"start_line": float64(1),
+				"end_line":   float64(5),
 			},
 			want: []string{"File:", "6 lines total", "1 | line1", "5 | line5"},
 
@@ -66,9 +68,27 @@ func TestReadFileTool(t *testing.T) {
 			args: map[string]interface{}{
 				"path":       testFile,
 				"start_line": float64(2),
+				"end_line":   float64(5),
 			},
 			want:    []string{"2 | line2", "3 | line3", "5 | line5"},
 			wantErr: false,
+		},
+		{
+			name: "start_line exceeds file length",
+			args: map[string]interface{}{
+				"path":       testFile,
+				"start_line": float64(100),
+				"end_line":   float64(105),
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing path",
+			args: map[string]interface{}{
+				"start_line": float64(1),
+				"end_line":   float64(1),
+			},
+			wantErr: true,
 		},
 		{
 			name: "read with start_line and end_line",
@@ -92,24 +112,11 @@ func TestReadFileTool(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "start_line exceeds file length",
-			args: map[string]interface{}{
-				"path":       testFile,
-				"start_line": float64(100),
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing path",
-			args: map[string]interface{}{
-				"start_line": float64(1),
-			},
-			wantErr: true,
-		},
-		{
 			name: "file not found",
 			args: map[string]interface{}{
-				"path": filepath.Join(tmpDir, "nonexistent.txt"),
+				"path":       filepath.Join(tmpDir, "nonexistent.txt"),
+				"start_line": float64(1),
+				"end_line":   float64(5),
 			},
 			wantErr: true,
 		},
@@ -196,7 +203,9 @@ func TestSearchFilesTool(t *testing.T) {
 				"path":  tmpDir,
 				"regex": "zzz_nonexistent_zzz",
 			},
-			want:    []string{"No matches found"},
+			// The "no matches" message is i18n-translated (zh shows "未找到匹配模式").
+			// Assert on the regex value which appears in the output regardless of locale.
+			want:    []string{"zzz_nonexistent_zzz"},
 			wantErr: false,
 		},
 		{
@@ -498,6 +507,7 @@ func TestWriteToFileTool(t *testing.T) {
 			name: "write new file",
 			args: map[string]interface{}{
 				"path":    filepath.Join(tmpDir, "newfile.txt"),
+				"mode":    "new",
 				"content": "hello world",
 			},
 			want:    "hello world",
@@ -507,6 +517,7 @@ func TestWriteToFileTool(t *testing.T) {
 			name: "write to nested directory (auto-create)",
 			args: map[string]interface{}{
 				"path":    filepath.Join(tmpDir, "sub", "nested", "deep.txt"),
+				"mode":    "new",
 				"content": "nested content",
 			},
 			want:    "nested content",
@@ -516,6 +527,7 @@ func TestWriteToFileTool(t *testing.T) {
 			name: "overwrite existing file",
 			args: map[string]interface{}{
 				"path":    filepath.Join(tmpDir, "newfile.txt"),
+				"mode":    "rewrite",
 				"content": "overwritten content",
 			},
 			want:    "overwritten content",
@@ -525,6 +537,7 @@ func TestWriteToFileTool(t *testing.T) {
 			name: "write empty content",
 			args: map[string]interface{}{
 				"path":    filepath.Join(tmpDir, "empty.txt"),
+				"mode":    "new",
 				"content": "",
 			},
 			want:    "",
