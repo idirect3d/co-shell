@@ -136,6 +136,7 @@ const (
 	KeyXMLParseErrorSummary = "xml_parse_error_summary"
 	KeyContextOverLimit     = "context_over_limit"
 	KeyToolExecFailed       = "tool_exec_failed"
+	KeyToolExecRetry        = "tool_exec_retry"
 	KeyToolNoOutput         = "tool_no_output"
 	KeyReorganizeUrgent     = "reorganize_urgent"
 	KeyXMLFormatError       = "xml_format_error"
