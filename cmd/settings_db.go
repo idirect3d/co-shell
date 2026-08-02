@@ -193,7 +193,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 		}
 		pgStore.Close()
 		h.io().Println(i18n.T(i18n.KeyDBConnOK))
-		return fmt.Sprintf("✅ 数据库连接已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBEnabledSet), status), nil
 
 	case "host":
 		if len(args) < 2 {
@@ -568,7 +568,7 @@ func (h *SettingsHandler) dbConfigWizard() (string, error) {
 func (h *SettingsHandler) dbCheckStatus() (string, error) {
 	connStatus := i18n.T(i18n.KeyDBStatusNone)
 	if h.cfg.DB.Enabled && h.cfg.DB.Host != "" && h.cfg.DB.Port > 0 && h.cfg.DB.DBName != "" {
-		h.io().Println("\n🔌 正在测试数据库连接...")
+		h.io().Println(i18n.T(i18n.KeyDBTestingConn))
 		pgStore, err := store.NewPGStore(h.cfg.DB)
 		if err != nil {
 			h.io().Printf("❌ %v\n", err)
