@@ -111,17 +111,19 @@ func Init(langFlag string) {
 
 // T returns the translated string for the given key.
 // If the key is not found, returns the key itself as fallback.
+// If the key exists with an empty translation, returns "" (empty is a
+// legitimate "no content" value — e.g. OpenAI mode ToolUsage section).
 func T(key string) string {
 	mu.RLock()
 	lang := currentLang
 	mu.RUnlock()
 
-	if msg := lookup(lang, key); msg != "" {
+	if msg, ok := lookup(lang, key); ok {
 		return msg
 	}
 
 	// Fallback to Chinese
-	if msg := lookup(LangZH, key); msg != "" {
+	if msg, ok := lookup(LangZH, key); ok {
 		return msg
 	}
 
@@ -138,16 +140,19 @@ func TF(key string, args ...interface{}) string {
 }
 
 // lookup finds a translation for a given language and key.
-func lookup(lang Lang, key string) string {
+// Returns (msg, ok) where ok=true means the key exists in the message map
+// (even if the translation value is an empty string). This allows callers
+// to distinguish "key exists with empty translation" from "key not found".
+func lookup(lang Lang, key string) (string, bool) {
 	switch lang {
 	case LangZH:
 		if msg, ok := zhMessages[key]; ok {
-			return msg
+			return msg, true
 		}
 	case LangEN:
 		if msg, ok := enMessages[key]; ok {
-			return msg
+			return msg, true
 		}
 	}
-	return ""
+	return "", false
 }
