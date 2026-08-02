@@ -206,7 +206,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		// iteration's assistant message is added, so there is nothing to remove.
 		if _, isCanceled := streamErr.(*CanceledError); isCanceled {
 			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb(EventInfo, fmt.Sprintf("\n%s 已取消本次操作。\n", ep.Error))
+			cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
 			return "", nil
 		}
 
@@ -216,8 +216,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.ResetInterrupt()
 			// User pressed ESC during LLM output. Show confirmation prompt.
 			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb(EventInfo, fmt.Sprintf("\n%s 已暂停接收 LLM 返回的数据。\n", ep.Warning))
-			cb(EventInfo, "是否确认取消？[C]取消本次响应 [Enter]继续接收: ")
+			cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Warning, i18n.T(i18n.KeyOutputPaused)))
+			cb(EventInfo, i18n.T(i18n.KeyOutputCancelPrompt))
 
 			// Read user's choice via UserIO interface.
 			// In enhanced mode, EnhancedIO sets IsReading=true so ESC monitor skips stdin.
@@ -231,20 +231,20 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				switch strings.TrimSpace(userChoice[7:]) {
 				case "on":
 					a.SetDebugMode(true)
-					cb(EventInfo, "调试模式已开启\n")
+					cb(EventInfo, i18n.T(i18n.KeyDebugModeOn))
 				case "off":
 					a.SetDebugMode(false)
-					cb(EventInfo, "调试模式已关闭\n")
+					cb(EventInfo, i18n.T(i18n.KeyDebugModeOff))
 				}
 				// Retry the LLM call with the same context after toggling debug
 				a.ResetInterrupt()
-				cb(EventInfo, fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
+				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputResume), ep.Success))
 				finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 				// HACK: the `_` here is hasToolAttempt; we don't use it on retry paths
 				// because the content is discarded and the stream call will be re-issued.
 				if streamErr != nil {
-					cb(EventInfo, fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
-					cb(EventInfo, fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
+					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), ep.Error, streamErr))
+					cb(EventInfo, fmt.Sprintf("%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
 					return "", nil
 				}
 				// Fall through to tool call handling below
@@ -254,7 +254,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				// User confirmed cancel: discard incomplete message and return to REPL
 				// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 				// current iteration's assistant message is added, so there is nothing to remove.
-				cb(EventInfo, fmt.Sprintf("\n%s 已取消本次响应，丢弃不完整内容。\n", ep.Error))
+				cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelledDiscard)))
 				return "", nil
 			}
 
@@ -263,13 +263,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 			// current iteration's assistant message is added, so there is nothing to remove.
 			a.ResetInterrupt()
-			cb(EventInfo, fmt.Sprintf("%s 继续接收 LLM 返回数据...\n", ep.Success))
+			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputResume), ep.Success))
 
 			finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 			if streamErr != nil {
 				// Retry failed too - treat it like user cancelled
-				cb(EventInfo, fmt.Sprintf("\n%s 重新接收数据失败: %v\n", ep.Error, streamErr))
-				cb(EventInfo, fmt.Sprintf("%s 已取消本次响应。\n", ep.Error))
+				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), ep.Error, streamErr))
+				cb(EventInfo, fmt.Sprintf("%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
 				return "", nil
 			}
 		}
