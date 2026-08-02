@@ -1060,6 +1060,25 @@ iterationLoop:
 					log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 				}
 
+				// FIX-316: Must-show tool output gated by showTool (distinct from
+				// showToolOutput full-detail). attempt_completion / task-plan tools
+				// show their full result; other tools show a concise action receipt.
+				if a.showTool {
+					switch tc.Name {
+					case "attempt_completion", "track_task_progress", "view_task_plan":
+						if result != "" {
+							cb(EventToolCall, result+"\n")
+						}
+					default:
+						var argsMap map[string]interface{}
+						if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
+							cb(EventToolCall, buildToolOutcome(tc.Name, argsMap, result)+"\n")
+						} else {
+							cb(EventToolCall, buildToolOutcome(tc.Name, nil, result)+"\n")
+						}
+					}
+				}
+
 				// Show tool call output if enabled (for all tools)
 				if a.showToolOutput && result != "" {
 					cb(EventToolCall, fmt.Sprintf("  Result:\n%s\n", result))

@@ -28,6 +28,7 @@ package agent
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
 )
@@ -123,6 +124,101 @@ func genericToolSummary(toolName, intent string) string {
 		return toolName
 	}
 	return i18n.TF(i18n.KeyToolCallSummaryGeneric, toolName, intent)
+}
+
+// buildToolOutcome constructs a concise "action receipt" shown to the user
+// AFTER a tool executes successfully (FIX-316). It summarizes what happened
+// with the key result data (actual line counts / match counts / replace
+// counts), as opposed to buildToolSummary which describes the call intent
+// BEFORE execution. Rendered through the EventToolCall stream channel and
+// gated by the showTool switch — distinct from showToolOutput (full detail).
+func buildToolOutcome(toolName string, args map[string]interface{}, resultText string) string {
+	switch toolName {
+	case "read_file":
+		return i18n.TF(i18n.KeyToolOutcomeReadFile,
+			argString(args, "path"),
+			argNum(args, "start_line"),
+			argNum(args, "end_line"))
+	case "write_to_file":
+		lines := countTextLines(resultText)
+		return i18n.TF(i18n.KeyToolOutcomeWriteFile,
+			argString(args, "path"),
+			fmt.Sprintf("%d", lines))
+	case "replace_in_file":
+		n := argSliceLen(args, "replacements")
+		return i18n.TF(i18n.KeyToolOutcomeReplaceFile,
+			argString(args, "path"),
+			fmt.Sprintf("%d", n))
+	case "search_files":
+		n := countMatchesInResult(resultText)
+		return i18n.TF(i18n.KeyToolOutcomeSearchFiles,
+			argString(args, "path"),
+			fmt.Sprintf("%d", n))
+	case "execute_command":
+		// Show the actual command and its intent (execute_command requires intent).
+		return i18n.TF(i18n.KeyToolOutcomeExecCmd,
+			truncate(argString(args, "command")),
+			truncate(argString(args, "intent")))
+	}
+	// Generic success receipt for any other tool.
+	return i18n.TF(i18n.KeyToolOutcomeGeneric, toolName)
+}
+
+// countTextLines returns the number of lines in a text result. It is used to
+// report actual line count of a file write. A single-line result (or empty)
+// counts as 1 line.
+func countTextLines(s string) int {
+	if s == "" {
+		return 1
+	}
+	// Result typically starts with a header line (file info) — count non-empty
+	// body lines after the first header for a more meaningful "N lines" figure.
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return 1
+	}
+	lines := strings.Split(trimmed, "\n")
+	return len(lines)
+}
+
+// countMatchesInResult extracts the number of matches from a search_files
+// result text. The result usually contains a line like
+// "Found N matches for pattern ... in ...". Falls back to counting lines that
+// contain ".go:"-style file:line references, or 0.
+func countMatchesInResult(s string) int {
+	// Pattern: "found N matches" / "找到 N 处匹配" (case-insensitive).
+	lower := strings.ToLower(s)
+	idx := strings.Index(lower, "found ")
+	if idx >= 0 {
+		rest := lower[idx+len("found "):]
+		var n int
+		if _, err := fmt.Sscanf(rest, "%d", &n); err == nil {
+			return n
+		}
+	}
+	// Fallback: count lines containing "found N" (e.g. "found 5 matches").
+	lineCount := 0
+	for _, line := range trimmedLines(s) {
+		lower := strings.ToLower(line)
+		idx := strings.Index(lower, "found ")
+		if idx >= 0 {
+			var n int
+			if _, err := fmt.Sscanf(lower[idx+len("found "):], "%d", &n); err == nil {
+				lineCount += n
+			}
+		}
+	}
+	return lineCount
+}
+
+// trimmedLines splits s into lines and trims each line.
+func trimmedLines(s string) []string {
+	parts := strings.Split(s, "\n")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, strings.TrimSpace(p))
+	}
+	return out
 }
 
 // argString returns the string value of a named argument, or "" if absent.
