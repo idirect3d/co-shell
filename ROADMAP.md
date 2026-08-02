@@ -23,7 +23,7 @@
 | FEATURE-307 | 0.7.2 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.3 | tui v2 | FullScreenRenderer（可选分支） |
 | FIX-309 | 0.7.0 | P1 | ✅ 已完成（stripCodeBlockXML 闭合行处理缺陷 [BUILD-344]） |
-| FEATURE-310 | 0.7.0 | P6 | 工具调用意图+个性化摘要显示：每个工具调用显示 intent 与主要参数的中文/英文摘要，个性化话术通过 i18n 模板配置，与 show-tool 共享显示控制 |
+| FEATURE-310 | 0.7.0 | P6 | ✅ 已完成（工具调用意图+个性化摘要显示：buildToolSummary 统一构建摘要，i18n 模板个性化话术，与 show-tool 共享显示控制 [BUILD-345]） |
 
 
 
@@ -966,6 +966,14 @@
   - 修复：`stripCodeBlockXML()` 改为跟踪 `cs:` 前缀标签嵌套——标签外的示例代码块剥离（FIX-291 行为），标签内的真实参数代码块逐字保留（FIX-309）；闭合 ``` 只跳过反引号本身，保留同行后续内容
   - 新增回归测试：`TestStripCodeBlockXML_ClosingFenceWithCloseTagSameLine`（单元）+ `TestParseXMLToolCallsWithTools_CodeBlockCloseTagSameLine`（集成）
   - 验收：全部 stripCodeBlockXML 相关测试通过；`go test ./agent/`、`go vet ./agent/`、`go build ./...` 全绿；用例 FIX-309-UC-0001 通过
+
+- [x] **FEATURE-310 工具调用意图+个性化摘要显示**：[BUILD-345]
+  - 新增 `agent/tool_summary.go`：`buildToolSummary(toolName, args)` 统一构建工具调用摘要（友好工具名 + intent + 关键参数，长内容自动截断）
+  - i18n 新增 19 个 `KeyToolCallSummary*` key（zh/en 双存在），为 execute_command/read_file/write_to_file/replace_in_file/search_files/list_files/list_code_definition_names/shell_send/visual_analysis/excel_open/word_open/update_settings/ask_followup_question/launch_sub_agent 配置个性化话术
+  - `agent/run_stream.go`：showTool 开启时，工具执行前显示摘要替代原始工具名/JSON
+  - `agent/tools.go`：确认提示的 `displayStr` 改为摘要（含 intent），便于用户确认前掌握调用影响
+  - 新增 `agent/tool_summary_test.go`：7 个测试函数覆盖 fallback/文本工具/长内容截断/shell/文档/零参数/i18n key 双存在
+  - 验收：`go build ./...`、`go test ./...`（含渲染 golden 回归）、`go vet ./agent/...` 全绿；用例 FEATURE-310-UC-0001 通过
 
 ## v1.0.0 — 正式版
 
