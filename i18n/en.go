@@ -1316,4 +1316,10 @@ no liability whatsoever.`,
 	KeySettingsResetModeDirsFailed:   "Following mode retained dirs failed to rename (config reset not affected):",
 	KeySettingsResetModeDirsRenamedB: "  · %s → %s",
 	KeySettingsResetModeDirsFailedB:  "  · %s: %v",
+
+	// FEATURE-304: OutputCategories category switch (:set output-categories)
+	KeyOutputCategoriesTitle:   "Output category switches (wizard/system/db/bridge/subagent, etc.):",
+	KeyOutputCategoriesSet:     "Output category %s has been set to: %s",
+	KeyOutputCategoriesUsage:   "Usage: :set output-categories <category> on|off",
+	KeyOutputCategoriesUnknown: "Unknown output category: %s",
 }
