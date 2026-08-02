@@ -132,6 +132,13 @@ type Agent struct {
 	// the tool messages, so the next LLM iteration starts fresh from the checklist context.
 	needAdjustPointer bool
 
+	// reorganizeContextUsed is set by reorganizeContextTool (FIX-318).
+	// The caller (run_stream.go / run.go) checks it after all tool results have
+	// been appended, then collapses the message history to [system, user(summary)]
+	// so no orphaned tool message (without a preceding assistant tool_calls) is
+	// ever sent to the API.
+	reorganizeContextUsed bool
+
 	// errorCounter tracks the number of times each distinct error message has occurred
 	// during the current request. Key is the error message string, value is the count.
 	// Reset at the start of each RunStream call.
