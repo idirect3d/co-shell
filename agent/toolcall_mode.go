@@ -1114,27 +1114,70 @@ func extractCDATA(content string) string {
 	return ""
 }
 
-// stripCodeBlockXML removes Markdown fenced code blocks (```...```) from content.
+// stripCodeBlockXML removes Markdown fenced code blocks (```...```) from content
+// when they appear OUTSIDE cs:-prefixed XML tool tags (e.g. <cs:replace>).
 // This prevents XML tool call examples inside code blocks from being parsed as
-// real tool calls. Handles:
-//   - ```xml ... ``` (with language specifier)
-//   - ``` ... ``` (plain code block)
-//   - ```````` (backtick sequences of length >=3)
+// real tool calls (FIX-291), while preserving code blocks that are genuine
+// tool parameter content (FIX-309).
 //
-// Returns the content with code block content removed.
-// Multiple code blocks are all removed. Non-code-block content is preserved
-// exactly as-is.
+// FIX-309: The previous implementation stripped ALL code blocks globally, which
+// deleted real content when a code block was a tool parameter value (e.g. a
+// bash script inside <cs:replace>). Now we track cs:-prefixed tag nesting:
+//   - Outside any cs: tag: code blocks are stripped (FIX-291 behavior).
+//   - Inside a cs: tag: code blocks are preserved verbatim (real parameter content).
+//
+// Also fixed: when the closing fence ``` shares a line with an XML close tag
+// (e.g. ```</cs:replace>), only the backticks are skipped — the close tag on the
+// same line is preserved, preventing "参数缺少闭合标签" parse errors.
 func stripCodeBlockXML(content string) string {
 	var result strings.Builder
 	result.Grow(len(content))
 
+	prefix := xmlTagPrefix()
+	tagDepth := 0 // nesting depth of cs:-prefixed tags (0 = outside any tool tag)
+
 	i := 0
 	for i < len(content) {
+		// Track cs:-prefixed XML tags so we can tell example code blocks
+		// (outside tool tags) apart from real parameter content (inside).
+		// Opening tag: <cs:xxx>; closing tag: </cs:xxx>.
+		if content[i] == '<' && prefix != "" {
+			openingMatch := i+1+len(prefix) < len(content) && content[i+1:i+1+len(prefix)] == prefix
+			closingMatch := i+2+len(prefix) < len(content) && content[i+1] == '/' && content[i+2:i+2+len(prefix)] == prefix
+			if openingMatch {
+				tagDepth++
+			} else if closingMatch {
+				if tagDepth > 0 {
+					tagDepth--
+				}
+			} else {
+				result.WriteByte(content[i])
+				i++
+				continue
+			}
+			// Copy the whole tag (including attributes up to '>') verbatim.
+			tagEnd := strings.IndexByte(content[i:], '>')
+			if tagEnd < 0 {
+				break
+			}
+			result.WriteString(content[i : i+tagEnd+1])
+			i += tagEnd + 1
+			continue
+		}
+
 		// Look for the start of a fenced code block: ``` at line start or after newline
-		// Check for ``` at position i
 		if i+2 < len(content) && content[i] == '`' && content[i+1] == '`' && content[i+2] == '`' {
 			// Verify this is at the start of a line (or is the start of content)
 			if i == 0 || content[i-1] == '\n' {
+				if tagDepth > 0 {
+					// Inside a cs: tool tag — the code block is real parameter
+					// content (FIX-309). Preserve it verbatim.
+					result.WriteByte(content[i])
+					i++
+					continue
+				}
+
+				// Outside any tool tag — strip the code block (FIX-291).
 				// Find the extent of the opening backtick sequence
 				backtickCount := 3
 				for j := i + 3; j < len(content) && content[j] == '`'; j++ {
@@ -1160,15 +1203,13 @@ func stripCodeBlockXML(content string) string {
 					return result.String()
 				}
 
-				// Skip the closing fence line entirely (find the end of the closing line)
+				// Only skip the closing fence backticks themselves. Do NOT skip to
+				// the end of the line — the LLM may append an XML close tag
+				// (e.g. "</cs:replace>") right after the closing fence on the same
+				// line (```</cs:replace>). Previously the whole line was dropped,
+				// deleting the close tag and causing "参数缺少闭合标签" parse errors.
 				closeStart := openLineEnd + closeIdx
-				closeLineEnd := strings.IndexByte(content[closeStart+backtickCount:], '\n')
-				if closeLineEnd < 0 {
-					// Closing fence at end of content - done
-					return result.String()
-				}
-				// Advance past the closing fence line
-				i = closeStart + backtickCount + closeLineEnd + 1
+				i = closeStart + backtickCount
 				continue
 			}
 		}

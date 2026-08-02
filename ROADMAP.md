@@ -22,6 +22,7 @@
 | FEATURE-306 | 0.7.1 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
 | FEATURE-307 | 0.7.2 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.3 | tui v2 | FullScreenRenderer（可选分支） |
+| FIX-309 | 0.7.0 | P1 | ✅ 已完成（stripCodeBlockXML 闭合行处理缺陷 [BUILD-344]） |
 
 
 
@@ -957,6 +958,13 @@
 - [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.3 可选分支）**：
   - FullScreenRenderer：原生 ANSI 缓冲，禁用 tview/tcell；SIGWINCH 重绘
   - 验收：独立分支交付，不影响主线
+
+- [x] **FIX-309 修复 stripCodeBlockXML 闭合行处理缺陷**：[BUILD-344]
+  - 根因1：`stripCodeBlockXML()` 删除代码块闭合 ``` 时使用 `IndexByte('\n')` 定位行尾，当闭合 ``` 与 `</cs:参数>` 同一行时（如 `` ```</cs:replace>`` ），会连带删除 `</cs:replace>` 闭合标签，导致 `parseXMLChildrenToJSON` 报告"参数缺少闭合标签"
+  - 根因2：`stripCodeBlockXML()` 全局剥离所有代码块，当代码块是工具参数真实内容（如 `<cs:replace>` 中的 bash 脚本）时被误删
+  - 修复：`stripCodeBlockXML()` 改为跟踪 `cs:` 前缀标签嵌套——标签外的示例代码块剥离（FIX-291 行为），标签内的真实参数代码块逐字保留（FIX-309）；闭合 ``` 只跳过反引号本身，保留同行后续内容
+  - 新增回归测试：`TestStripCodeBlockXML_ClosingFenceWithCloseTagSameLine`（单元）+ `TestParseXMLToolCallsWithTools_CodeBlockCloseTagSameLine`（集成）
+  - 验收：全部 stripCodeBlockXML 相关测试通过；`go test ./agent/`、`go vet ./agent/`、`go build ./...` 全绿；用例 FIX-309-UC-0001 通过
 
 ## v1.0.0 — 正式版
 
