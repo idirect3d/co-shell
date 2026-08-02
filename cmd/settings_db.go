@@ -156,7 +156,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			if h.cfg.DB.Enabled {
 				status = i18n.T(i18n.KeyOn)
 			}
-			return fmt.Sprintf("数据库连接: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBEnabledVal), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -173,89 +173,89 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 		if !h.cfg.DB.Enabled {
 			status = i18n.T(i18n.KeyOff)
 			log.Info("DB enabled set to %s", status)
-			return fmt.Sprintf("✅ 数据库连接已设置为: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBEnabledSet), status), nil
 		}
 
 		// When enabling DB, immediately test the connection with current parameters
 		log.Info("DB enabled set to %s", status)
-		h.io().Println("\n🔌 正在测试数据库连接...")
+		h.io().Println(i18n.T(i18n.KeyDBTestingConn))
 		pgStore, err := store.NewPGStore(h.cfg.DB)
 		if err != nil {
-			h.io().Printf("❌ 数据库连接失败: %v\n", err)
-			h.io().Print("是否启动数据库配置向导进行参数配置? (y/n, 默认: y): ")
+			h.io().Printf(i18n.T(i18n.KeyDBConnFailed), err)
+			h.io().Print(i18n.T(i18n.KeyDBInitWizardPrompt))
 			line := readLineFromIO(h.io())
 			switch strings.ToLower(line) {
 			case "n", "no", "off", "0", "false":
-				return "✅ 数据库连接已启用，但连接测试未通过，请检查配置后重试", nil
+				return i18n.T(i18n.KeyDBEnabledNotTested), nil
 			default:
 				return h.dbConfigWizard()
 			}
 		}
 		pgStore.Close()
-		h.io().Println("✅ 数据库连接成功!")
+		h.io().Println(i18n.T(i18n.KeyDBConnOK))
 		return fmt.Sprintf("✅ 数据库连接已设置为: %s", status), nil
 
 	case "host":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库主机: %s", h.cfg.DB.Host), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBHostVal), h.cfg.DB.Host), nil
 		}
 		h.cfg.DB.Host = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB host set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库主机已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBHostSet), args[1]), nil
 
 	case "port":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库端口: %d", h.cfg.DB.Port), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBPortVal), h.cfg.DB.Port), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的端口号: %s", args[1])
+			return "", fmt.Errorf(i18n.T(i18n.KeyDBInvalidPort), args[1])
 		}
 		if n < 1 || n > 65535 {
-			return "", fmt.Errorf("端口号必须在 1 ~ 65535 之间")
+			return "", fmt.Errorf(i18n.T(i18n.KeyDBPortRange))
 		}
 		h.cfg.DB.Port = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB port set to %d", n)
-		return fmt.Sprintf("✅ 数据库端口已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBPortSet), n), nil
 
 	case "name":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库名称: %s", h.cfg.DB.DBName), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBNameVal), h.cfg.DB.DBName), nil
 		}
 		h.cfg.DB.DBName = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB name set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库名称已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBNameSet), args[1]), nil
 
 	case "schema":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库 Schema: %s", h.cfg.DB.Schema), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBSchemaVal), h.cfg.DB.Schema), nil
 		}
 		h.cfg.DB.Schema = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB schema set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库 Schema 已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBSchemaSet), args[1]), nil
 
 	case "user":
 		if len(args) < 2 {
-			return fmt.Sprintf("数据库用户: %s", h.cfg.DB.User), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBUserVal), h.cfg.DB.User), nil
 		}
 		h.cfg.DB.User = args[1]
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("DB user set to %s", args[1])
-		return fmt.Sprintf("✅ 数据库用户已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBUserSet), args[1]), nil
 
 	case "password":
 		if len(args) < 2 {
@@ -266,15 +266,15 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			return "", err
 		}
 		log.Info("DB password updated")
-		return "✅ 数据库密码已更新", nil
+		return i18n.T(i18n.KeyDBPasswordSet), nil
 
 	case "timeout":
 		if len(args) < 2 {
 			timeoutStr := fmt.Sprintf("%ds", h.cfg.DB.Timeout)
 			if h.cfg.DB.Timeout <= 0 {
-				timeoutStr = "unlimited"
+				timeoutStr = i18n.T(i18n.KeyUnlimitedLower)
 			}
-			return fmt.Sprintf("连接超时: %s", timeoutStr), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBTimeoutVal), timeoutStr), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 0 {
@@ -285,7 +285,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			return "", err
 		}
 		log.Info("DB timeout set to %d", n)
-		return fmt.Sprintf("✅ 连接超时已设置为: %ds", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBTimeoutSet), n), nil
 
 	case "auto-sync":
 		if len(args) < 2 {
@@ -293,7 +293,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			if h.cfg.DB.AutoSync {
 				status = i18n.T(i18n.KeyOn)
 			}
-			return fmt.Sprintf("自动同步: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDBAutoSyncVal), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -311,10 +311,10 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("DB auto-sync set to %s", status)
-		return fmt.Sprintf("✅ 自动同步已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDBAutoSyncSet), status), nil
 
 	default:
-		return "", fmt.Errorf("unknown db subkey: %s（可选值: enabled, host, port, name, schema, user, password, timeout, auto-sync）", subkey)
+		return "", fmt.Errorf(i18n.T(i18n.KeyDBUnknownSubkey), subkey)
 	}
 }
 
