@@ -343,7 +343,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				case "retry":
 					// Just resend context without any additional feedback
 					loopFeedback = ""
-					strategyParts = append(strategyParts, "重发上下文")
+					strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyResend))
 
 				case "prompt":
 					// FIX-285: Use judge model's exit_strategy if available,
@@ -358,7 +358,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 							loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), template)
 						}
 					}
-					strategyParts = append(strategyParts, "发送纠错提示")
+					strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyPrompt))
 
 				case "reorganize":
 					// Append reorganize context suggestion
@@ -366,7 +366,7 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					if suggestion != "" {
 						loopFeedback += "\n" + suggestion
 					}
-					strategyParts = append(strategyParts, "重整上下文")
+					strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyReorganize))
 
 				case "temperature":
 					// Adjust temperature and resend
@@ -375,14 +375,14 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 						newTemp, changed := a.loopTempCtrl.Apply()
 						if changed {
 							a.llmClient.SetTemperature(newTemp)
-							strategyParts = append(strategyParts, fmt.Sprintf("温度调整(%.2f→%.2f)", oldTemp, newTemp))
+							strategyParts = append(strategyParts, fmt.Sprintf(i18n.TF(i18n.KeyStrategyTempAdjust), oldTemp, newTemp))
 							log.Warn("Agent.RunStream: temperature adjusted from %.2f to %.2f after loop detection (direction=%d)",
 								oldTemp, newTemp, a.loopTempCtrl.direction)
 						}
 					} else {
-						strategyParts = append(strategyParts, "温度控制器未初始化")
+						strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyTempNoInit))
 					}
-					strategyParts = append(strategyParts, "发送纠错提示")
+					strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyPrompt))
 
 				case "random":
 					// Randomly pick one action
@@ -391,31 +391,31 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 					switch choice {
 					case "retry":
 						loopFeedback = ""
-						strategyParts = append(strategyParts, "随机选择: 重发上下文")
+						strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyRandomResend))
 					case "prompt":
-						strategyParts = append(strategyParts, "随机选择: 发送纠错提示")
+						strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyRandomPrompt))
 					case "reorganize":
 						suggestion := i18n.T(i18n.KeyLoopReorganizeSuggestion)
 						if suggestion != "" {
 							loopFeedback += "\n" + suggestion
 						}
-						strategyParts = append(strategyParts, "随机选择: 重整上下文")
+						strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyRandomReorg))
 					case "temperature":
 						if a.loopTempCtrl != nil {
 							oldTemp := a.loopTempCtrl.Temperature()
 							newTemp, changed := a.loopTempCtrl.Apply()
 							if changed {
 								a.llmClient.SetTemperature(newTemp)
-								strategyParts = append(strategyParts, fmt.Sprintf("随机选择: 温度调整(%.2f→%.2f)", oldTemp, newTemp))
+								strategyParts = append(strategyParts, fmt.Sprintf(i18n.TF(i18n.KeyStrategyRandomTemp), oldTemp, newTemp))
 							}
 						}
-						strategyParts = append(strategyParts, "随机选择: 发送纠错提示")
+						strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyRandomPrompt))
 					}
 
 				default:
 					// Unknown strategy: clear feedback to avoid sending prompt unexpectedly
 					loopFeedback = ""
-					strategyParts = append(strategyParts, fmt.Sprintf("未知策略(%s)，按retry处理", loopAction))
+					strategyParts = append(strategyParts, fmt.Sprintf(i18n.TF(i18n.KeyStrategyUnknown), loopAction))
 				}
 
 				// Only append feedback message if there's content to send
@@ -431,12 +431,12 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 				a.loopDetectCrit = false
 
 				// Show summary at the end, after all handling
-				cb(EventInfo, fmt.Sprintf("检测到循环输出（策略: %s）\n", loopAction))
-				cb(EventInfo, fmt.Sprintf("处理方式: %s\n", strings.Join(strategyParts, " → ")))
+				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectedSummary), loopAction))
+				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → ")))
 				if loopFeedback != "" {
-					cb(EventInfo, fmt.Sprintf("发送给 LLM 的提示:\n%s\n", loopFeedback))
+					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopFeedbackSent), loopFeedback))
 				} else {
-					cb(EventInfo, "（无反馈，仅重发上下文）\n")
+					cb(EventInfo, i18n.T(i18n.KeyLoopNoFeedback))
 				}
 				cb(EventInfo, "────────────────────────────────────────────\n")
 				continue
