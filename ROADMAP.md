@@ -25,6 +25,7 @@
 | FIX-309 | 0.7.0 | P1 | ✅ 已完成（stripCodeBlockXML 闭合行处理缺陷 [BUILD-344]） |
 | FEATURE-310 | 0.7.0 | P6 | ✅ 已完成（工具调用意图+个性化摘要显示：buildToolSummary 统一构建摘要，i18n 模板个性化话术，与 show-tool 共享显示控制 [BUILD-345]） |
 | FIX-312 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式系统提示词出现 "==== system_prompt_tool_usage"：i18n.lookup() 改为返回 (string,bool) 区分「空值翻译」与「缺失 key」，T() 对空值返回 ""（合法「无内容」语义）；修正 zh/en_system.go 中 KeySystemPromptToolUsage 值从含换行 raw string 改为真正空字符串 ""；新增 i18n 单元测试 [BUILD-346]） |
+| FIX-313 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 ToolExamples 节误用 XML 格式示例：buildNamedSection/getRawSectionText 的 ToolExamples case 按 cfg.LLM.ToolCallMode 分支——OpenAI 用 KeySystemPromptToolUsageExamples（JSON 格式），其他用 XML 格式；补全 zh/en 示例 intent 必填字段；孤儿 key 恢复使用 [BUILD-347]） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
