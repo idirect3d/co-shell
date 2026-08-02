@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -75,7 +76,7 @@ func (h *SessionHandler) Handle(args []string) (string, error) {
 		return h.handleExport(path)
 	case "import":
 		if len(args) < 2 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySessionMigUseImport))
+			return "", errors.New(i18n.T(i18n.KeySessionMigUseImport))
 		}
 		return h.handleImport(args[1])
 	case "save":
@@ -88,12 +89,12 @@ func (h *SessionHandler) Handle(args []string) (string, error) {
 		return h.handleList()
 	case "switch":
 		if len(args) < 2 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySessionMigUseSwitch))
+			return "", errors.New(i18n.T(i18n.KeySessionMigUseSwitch))
 		}
 		return h.handleSwitch(args[1])
 	case "delete":
 		if len(args) < 2 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySessionMigUseDelete))
+			return "", errors.New(i18n.T(i18n.KeySessionMigUseDelete))
 		}
 		return h.handleDelete(args[1])
 	case "pop":
@@ -161,7 +162,7 @@ func (h *SessionHandler) showInteractive() (string, error) {
 			fmt.Scanln(&path)
 			path = strings.TrimSpace(path)
 			if path == "" {
-				return "", fmt.Errorf(i18n.T(i18n.KeySessionMigCancelled))
+				return "", errors.New(i18n.T(i18n.KeySessionMigCancelled))
 			}
 			return h.handleImport(path)
 		case "d":
@@ -369,7 +370,7 @@ func (h *SessionHandler) handleImport(filePath string) (string, error) {
 	fmt.Printf("  %s: %d\n", i18n.T(i18n.KeySessionMessageCount), len(export.Messages))
 	fmt.Printf("  %s: %s\n", i18n.T(i18n.KeySessionCreatedAt), export.ExportedAt.Format("2006-01-02 15:04:05"))
 	fmt.Printf("\n%s / %s\n", i18n.T(i18n.KeySessionConfirmReplace), i18n.T(i18n.KeySessionConfirmAppend))
-	fmt.Printf(i18n.T(i18n.KeySessionMigReplaceAp))
+	fmt.Print(i18n.T(i18n.KeySessionMigReplaceAp))
 
 	response := ""
 	fmt.Scanln(&response)
@@ -560,7 +561,7 @@ func (h *SessionHandler) popMessages(n int) (string, error) {
 	a := h.agent
 	aMsg := a.Messages()
 	if len(aMsg) <= 1 {
-		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNoDelSys))
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelSys))
 	}
 
 	var popIdx []int
@@ -571,7 +572,7 @@ func (h *SessionHandler) popMessages(n int) (string, error) {
 	}
 
 	if len(popIdx) == 0 {
-		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNoDelMsg))
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelMsg))
 	}
 
 	lastContent := aMsg[popIdx[0]].Content
@@ -579,7 +580,7 @@ func (h *SessionHandler) popMessages(n int) (string, error) {
 		lastContent = aMsg[popIdx[0]].CombineContentParts()
 	}
 	if lastContent == "" {
-		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNoDelMsg))
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelMsg))
 	}
 
 	cutIdx := popIdx[len(popIdx)-1]
@@ -598,7 +599,7 @@ func (h *SessionHandler) popTo(n int) (string, error) {
 	a := h.agent
 	aMsg := a.Messages()
 	if len(aMsg) <= 1 {
-		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigNoDelSys))
+		return "", errors.New(i18n.T(i18n.KeySessionMigNoDelSys))
 	}
 
 	if n >= len(aMsg)-1 {
@@ -609,7 +610,7 @@ func (h *SessionHandler) popTo(n int) (string, error) {
 	}
 
 	if aMsg[n].Role == "system" {
-		return "", fmt.Errorf(i18n.T(i18n.KeySessionMigCannotDelSys))
+		return "", errors.New(i18n.T(i18n.KeySessionMigCannotDelSys))
 	}
 
 	lastContent := aMsg[n].Content

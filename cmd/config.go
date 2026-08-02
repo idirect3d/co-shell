@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"bufio"
 	"fmt"
 	"sort"
@@ -315,7 +316,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_354))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_354))
 			}
 			h.cfg.LLM.MaxIterations = n
 			h.agent.SetMaxIterations(n)
@@ -361,7 +362,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 				h.cfg.LLM.ToolCallMode = v
 				h.agent.SetToolCallMode(v)
 			default:
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_346))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_346))
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "toolcall-mode", v), nil
 		}, ResetValue: func() string {
@@ -406,7 +407,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_354))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_354))
 			}
 			h.cfg.LLM.ShellSessionTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-session-timeout", v), nil
@@ -423,7 +424,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 5 || n > 200 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_342))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_342))
 			}
 			h.cfg.LLM.ShellVTRows = n
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-vt-rows", v), nil
@@ -440,7 +441,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 20 || n > 500 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_341))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_341))
 			}
 			h.cfg.LLM.ShellVTCols = n
 			return i18n.TF(i18n.KeySettingsUpdated, "shell-vt-cols", v), nil
@@ -459,7 +460,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			case "enhanced", "stdio":
 				h.cfg.LLM.InputMode = v
 			default:
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_345))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_345))
 			}
 			return i18n.TF(i18n.KeySettingsUpdated, "input-mode", v), nil
 		}, ResetValue: func() string {
@@ -473,7 +474,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 || n > 65535 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_340))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_340))
 			}
 			h.cfg.LLM.BrowserPort = n
 			return i18n.TF(i18n.KeySettingsUpdated, "browser-port", v), nil
@@ -502,7 +503,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.SearchMaxLineLength = n
 			return i18n.TF(i18n.KeySettingsUpdated, "search-max-line-length", v), nil
@@ -515,7 +516,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.SearchMaxResultBytes = n
 			return i18n.TF(i18n.KeySettingsUpdated, "search-max-result-bytes", v), nil
@@ -528,7 +529,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.SearchContextLines = n
 			return i18n.TF(i18n.KeySettingsUpdated, "search-context-lines", v), nil
@@ -591,7 +592,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_355))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_355))
 			}
 			h.cfg.LLM.ToolTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "tool-timeout", v), nil
@@ -608,7 +609,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_355))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_355))
 			}
 			h.cfg.LLM.CommandTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "cmd-timeout", v), nil
@@ -625,7 +626,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_355))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_355))
 			}
 			h.cfg.LLM.LLMTimeout = n
 			return i18n.TF(i18n.KeySettingsUpdated, "llm-timeout", v), nil
@@ -638,7 +639,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.ErrorMaxSingleCount = n
 			return i18n.TF(i18n.KeySettingsUpdated, "error-max-single-count", v), nil
@@ -651,7 +652,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.ErrorMaxTypeCount = n
 			return i18n.TF(i18n.KeySettingsUpdated, "error-max-type-count", v), nil
@@ -665,7 +666,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n <= 0 || n > 1.0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_339))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_339))
 			}
 			h.cfg.LLM.LoopTempStepUp = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-up", v), nil
@@ -678,7 +679,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n <= 0 || n > 1.0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_339))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_339))
 			}
 			h.cfg.LLM.LoopTempStepDown = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-step-down", v), nil
@@ -691,7 +692,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n <= h.cfg.LLM.LoopTempMin || n > 2.0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_348))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_348))
 			}
 			h.cfg.LLM.LoopTempMax = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-max", v), nil
@@ -704,7 +705,7 @@ func (h *ConfigHandler) safetyParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.ParseFloat(v, 64)
 			if err != nil || n >= h.cfg.LLM.LoopTempMax || n < 0 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_349))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_349))
 			}
 			h.cfg.LLM.LoopTempMin = n
 			return i18n.TF(i18n.KeySettingsUpdated, "loop-temp-min", v), nil
@@ -764,7 +765,7 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.MemorySearchMaxContentLen = n
 			return i18n.TF(i18n.KeySettingsUpdated, "memory-search-max-content-len", v), nil
@@ -777,7 +778,7 @@ func (h *ConfigHandler) memoryParams() []ConfigParam {
 		}, SetValue: func(v string) (string, error) {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_353))
+				return "", errors.New(i18n.T(i18n.KeyCmdMig_353))
 			}
 			h.cfg.LLM.MemorySearchMaxResults = n
 			return i18n.TF(i18n.KeySettingsUpdated, "memory-search-max-results", v), nil

@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -215,7 +216,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 			return "", fmt.Errorf(i18n.T(i18n.KeyDBInvalidPort), args[1])
 		}
 		if n < 1 || n > 65535 {
-			return "", fmt.Errorf(i18n.T(i18n.KeyDBPortRange))
+			return "", errors.New(i18n.T(i18n.KeyDBPortRange))
 		}
 		h.cfg.DB.Port = n
 		if err := h.cfg.Save(); err != nil {
@@ -321,7 +322,7 @@ func (h *SettingsHandler) handleDBSubCommand(args []string) (string, error) {
 // dbInit initializes the PostgreSQL database by dropping and recreating all tables.
 func (h *SettingsHandler) dbInit() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf(i18n.T(i18n.KeyDBNotEnabled))
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
 	h.io().Print(i18n.T(i18n.KeyDBInitConfirm))
@@ -354,7 +355,7 @@ func (h *SettingsHandler) dbInit() (string, error) {
 // dbSync syncs memory and history data from local bbolt to PostgreSQL.
 func (h *SettingsHandler) dbSync() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf(i18n.T(i18n.KeyDBNotEnabled))
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
 	h.io().Println(i18n.T(i18n.KeyDBSyncExplain))
@@ -585,7 +586,7 @@ func (h *SettingsHandler) dbCheckStatus() (string, error) {
 // dbBackup exports all PostgreSQL tables to CSV files in backup/<timestamp>/.
 func (h *SettingsHandler) dbBackup() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf(i18n.T(i18n.KeyDBNotEnabled))
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
 	pgStore, err := store.NewPGStore(h.cfg.DB)
@@ -612,7 +613,7 @@ func (h *SettingsHandler) dbBackup() (string, error) {
 // dbRestore lists available backups and restores data from a selected one.
 func (h *SettingsHandler) dbRestore() (string, error) {
 	if !h.cfg.DB.Enabled {
-		return "", fmt.Errorf(i18n.T(i18n.KeyDBNotEnabled))
+		return "", errors.New(i18n.T(i18n.KeyDBNotEnabled))
 	}
 
 	// List available backups
