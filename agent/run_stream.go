@@ -466,10 +466,10 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 			if singleCount >= maxSingle && !a.errorApproveAll {
 				needUserPrompt = true
-				promptReason = fmt.Sprintf("相同错误已出现 %d 次（上限 %d 次）", singleCount, maxSingle)
+				promptReason = fmt.Sprintf(i18n.TF(i18n.KeyErrRepeatPrompt), singleCount, maxSingle)
 			} else if typeCount >= maxType && !a.errorApproveAll {
 				needUserPrompt = true
-				promptReason = fmt.Sprintf("不同错误类型已达 %d 种（上限 %d 种）", typeCount, maxType)
+				promptReason = fmt.Sprintf(i18n.TF(i18n.KeyErrTypePrompt), typeCount, maxType)
 			}
 
 			if needUserPrompt {
@@ -478,17 +478,17 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				// Prompt user for action via UserIO interface
 				io := a.defaultIO()
-				io.Printf("\n%s 错误反复出现: %s\n", ep.Warning, promptReason)
-				io.Printf("  最新错误: %v\n", streamErr)
+				io.Printf("\n%s %s: %s\n", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
+				io.Printf("  %s\n", fmt.Sprintf(i18n.TF(i18n.KeyErrLatest), streamErr))
 				io.Println()
 				io.Println(i18n.T(i18n.KeyErrorRiskWarning))
 				io.Println()
-				io.Println("  请选择操作:")
-				io.Println("  [Enter] 继续让 LLM 尝试处理")
-				io.Println("  [C] 取消，返回 REPL")
-				io.Println("  [A] 忽略限制，继续执行")
+				io.Println(i18n.T(i18n.KeyErrActionTitle))
+				io.Println(i18n.T(i18n.KeyErrActionEnter))
+				io.Println(i18n.T(i18n.KeyErrActionCancel))
+				io.Println(i18n.T(i18n.KeyErrActionIgnore))
 				io.Println()
-				io.Printf("  请选择 (Enter/C/A): ")
+				io.Print(i18n.T(i18n.KeyErrActionChoose))
 
 				response, _ := io.ReadLine()
 				userChoice := strings.TrimSpace(response)
@@ -496,15 +496,15 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 				if lower == "c" {
 					// User cancelled, return to REPL
-					cb(EventInfo, fmt.Sprintf("\n%s 用户取消了操作\n", ep.Error))
+					cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyUserCancelled)))
 					return "", nil
 				} else if lower == "a" {
 					// User chose to ignore all error limits
 					a.errorApproveAll = true
-					io.Printf("\n%s 已忽略错误限制，继续执行\n", ep.Success)
+					io.Printf("\n%s %s\n", ep.Success, i18n.T(i18n.KeyErrIgnoredContinue))
 				} else {
 					// Continue (Enter pressed)
-					io.Printf("\n%s 继续让 LLM 尝试处理\n", ep.Success)
+					io.Printf("\n%s %s\n", ep.Success, i18n.T(i18n.KeyErrRetryContinue))
 				}
 			}
 
