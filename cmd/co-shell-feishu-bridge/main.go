@@ -152,7 +152,7 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️  %v\n", err)
 		fmt.Println()
-		fmt.Println("请通过命令行参数提供，或手动编辑配置文件：")
+		fmt.Println("Provide via command-line flags, or edit the config file manually:")
 		fmt.Printf("  %s\n", cfg.BridgeConfigPath())
 		fmt.Println()
 		runSetupWizard(cfg)
@@ -162,14 +162,14 @@ func main() {
 	coShellPath, err := bridge.ResolveCoShellPath(cfg.CoShellPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
-		fmt.Println("请通过 --co-shell-path 参数指定 co-shell 路径。")
+		fmt.Println("Specify the co-shell path via the --co-shell-path flag.")
 		os.Exit(1)
 	}
 	log.Printf("Using co-shell: %s", coShellPath)
 
 	// Ensure workspace exists
 	if err := os.MkdirAll(cfg.Workspace, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 无法创建工作空间目录: %v\n", err)
+		fmt.Fprintf(os.Stderr, "❌ Failed to create workspace directory: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -184,7 +184,7 @@ func main() {
 	// Parse mode
 	mode, ok := bridge.ParseMode(cfg.Mode)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "⚠️  无效的工作模式: %s，使用默认模式 sync\n", cfg.Mode)
+		fmt.Fprintf(os.Stderr, "⚠️  Invalid execution mode: %s, falling back to sync\n", cfg.Mode)
 		mode = bridge.ModeSync
 	}
 
@@ -205,20 +205,20 @@ func main() {
 	feishuBridge := feishu.NewBridge(cfg, handler)
 
 	// Print startup info
-	fmt.Printf("🚀 co-shell-feishu-bridge v%s 启动中...\n", version)
-	fmt.Printf("   工作空间: %s\n", cfg.Workspace)
-	fmt.Printf("   工作模式: %s\n", mode)
+	fmt.Printf("🚀 co-shell-feishu-bridge v%s starting...\n", version)
+	fmt.Printf("   Workspace: %s\n", cfg.Workspace)
+	fmt.Printf("   Mode: %s\n", mode)
 	fmt.Printf("   co-shell: %s\n", coShellPath)
 	fmt.Println()
 
 	// Start the bridge
 	if err := feishuBridge.Start(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 启动失败: %v\n", err)
+		fmt.Fprintf(os.Stderr, "❌ Failed to start: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("✅ 已连接到飞书，等待消息...")
-	fmt.Println("   按 Ctrl+C 退出")
+	fmt.Println("✅ Connected to Feishu, waiting for messages...")
+	fmt.Println("   Press Ctrl+C to exit")
 	fmt.Println()
 
 	// Wait for shutdown signal
@@ -227,12 +227,12 @@ func main() {
 
 	<-sigCh
 	fmt.Println()
-	fmt.Println("正在关闭...")
+	fmt.Println("Shutting down...")
 
 	feishuBridge.Stop()
 	cancel()
 
-	fmt.Println("✅ 已安全退出")
+	fmt.Println("✅ Exited safely")
 }
 
 // loadConfig loads the configuration from file or command-line flags.
@@ -289,12 +289,12 @@ func loadConfig(flags cliFlags) *feishu.Config {
 
 // runSetupWizard prompts the user for missing configuration.
 func runSetupWizard(cfg *feishu.Config) {
-	fmt.Println("📌 请完成以下配置：")
+	fmt.Println("📌 Please complete the following configuration:")
 	fmt.Println()
 
 	// Prompt for App ID
 	if cfg.AppID == "" {
-		fmt.Print("请输入飞书 App ID: ")
+		fmt.Print("Enter Feishu App ID: ")
 		var input string
 		fmt.Scanln(&input)
 		cfg.AppID = strings.TrimSpace(input)
@@ -302,7 +302,7 @@ func runSetupWizard(cfg *feishu.Config) {
 
 	// Prompt for App Secret
 	if cfg.AppSecret == "" {
-		fmt.Print("请输入飞书 App Secret: ")
+		fmt.Print("Enter Feishu App Secret: ")
 		var input string
 		fmt.Scanln(&input)
 		cfg.AppSecret = strings.TrimSpace(input)
@@ -312,7 +312,7 @@ func runSetupWizard(cfg *feishu.Config) {
 	if err := cfg.Save(); err != nil {
 		log.Printf("Warning: cannot save config: %v", err)
 	} else {
-		fmt.Printf("✅ 配置已保存到: %s\n", cfg.BridgeConfigPath())
+		fmt.Printf("✅ Configuration saved to: %s\n", cfg.BridgeConfigPath())
 	}
 
 	fmt.Println()
