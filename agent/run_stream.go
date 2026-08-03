@@ -419,12 +419,12 @@ iterationLoop:
 					strategyParts = append(strategyParts, fmt.Sprintf(i18n.TF(i18n.KeyStrategyUnknown), loopAction))
 				}
 
-				// Only append feedback message if there's content to send
-				if loopFeedback != "" {
-					a.mu.Lock()
-					a.messages = append(a.messages, llm.Message{Role: "user", Content: loopFeedback})
-					a.mu.Unlock()
-				}
+				// FIX-321: Apply loop feedback via the unified helper. When
+				// loopFeedback is non-empty (prompt/reorganize) a loop feedback
+				// message with a full <environment_details> block is created or
+				// updated in place; when empty (retry/temperature) only the
+				// <retry_count> tag on the last user message is incremented.
+				a.applyLoopFeedback(loopFeedback)
 
 				if a.loopDetector != nil {
 					a.loopDetector.Reset()

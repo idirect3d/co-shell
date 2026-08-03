@@ -358,3 +358,227 @@ func formatTokenSize(n int) string {
 	k := (n + 512) / 1024
 	return strconv.Itoa(k) + "K"
 }
+
+// Loop feedback/retry tag helpers.
+// The <loop_feedback> and <retry_count> tags live INSIDE an <environment_details>
+// block so that loop feedback messages carry the same environment context as every
+// other user message, while keeping the retry counter on the message itself.
+const (
+	loopFeedbackTag = "loop_feedback"
+	retryCountTag   = "retry_count"
+)
+
+// lastEnvText returns the text of the last ContentPart of msg if it contains an
+// <environment_details> block, otherwise "".
+// Plain-Content messages (no ContentParts) always return "".
+func lastEnvText(msg *llm.Message) string {
+	if msg == nil || len(msg.ContentParts) == 0 {
+		return ""
+	}
+	last := msg.ContentParts[len(msg.ContentParts)-1]
+	if strings.Contains(last.Text, "<environment_details>") {
+		return last.Text
+	}
+	return ""
+}
+
+// setEnvText replaces the last ContentPart that contains an <environment_details>
+// block with envText. If no such part exists, a new text part is appended.
+// The first text part (instruction / feedback) is never touched.
+func setEnvText(msg *llm.Message, envText string) {
+	if msg == nil {
+		return
+	}
+	for i := len(msg.ContentParts) - 1; i >= 0; i-- {
+		if strings.Contains(msg.ContentParts[i].Text, "<environment_details>") {
+			msg.ContentParts[i].Text = envText
+			return
+		}
+	}
+	msg.AppendTextPart(envText)
+}
+
+// isLoopFeedbackText reports whether the env text carries the
+// <loop_feedback>true</loop_feedback> marker.
+func isLoopFeedbackText(envText string) bool {
+	return strings.Contains(envText, "<"+loopFeedbackTag+">true</"+loopFeedbackTag+">")
+}
+
+// isLoopFeedbackMessage reports whether the last user message is a loop feedback
+// message produced by the system (marked with <loop_feedback>true</loop_feedback>).
+func isLoopFeedbackMessage(msg *llm.Message) bool {
+	return isLoopFeedbackText(lastEnvText(msg))
+}
+
+// setLoopFeedbackInText sets (inserting or replacing) the <loop_feedback> tag
+// inside an <environment_details> block.
+func setLoopFeedbackInText(envText string, val bool) string {
+	tag := fmt.Sprintf("<%s>%v</%s>", loopFeedbackTag, val, loopFeedbackTag)
+	return setEnvTag(envText, tag)
+}
+
+// setRetryCountInText sets (inserting or replacing) the <retry_count> tag
+// inside an <environment_details> block.
+func setRetryCountInText(envText string, n int) string {
+	tag := fmt.Sprintf("<%s>%d</%s>", retryCountTag, n, retryCountTag)
+	return setEnvTag(envText, tag)
+}
+
+// getRetryCountFromText returns the numeric value of the <retry_count> tag
+// in the env text (0 when absent or unparsable).
+func getRetryCountFromText(envText string) int {
+	startTag := "<" + retryCountTag + ">"
+	endTag := "</" + retryCountTag + ">"
+	start := strings.Index(envText, startTag)
+	if start < 0 {
+		return 0
+	}
+	start += len(startTag)
+	end := strings.Index(envText[start:], endTag)
+	if end < 0 {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(envText[start : start+end]))
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// setEnvTag removes any existing tag with the same name from the block, then
+// inserts the given full tag (e.g. "<retry_count>2</retry_count>") right before
+// the closing </environment_details> tag. When the block has no closing tag,
+// the tag is appended to the text.
+func setEnvTag(envText, fullTag string) string {
+	// Remove existing tag with the same element name.
+	tagName := fullTag[1:strings.Index(fullTag, ">")]
+	openTag := "<" + tagName + ">"
+	closeTag := "</" + tagName + ">"
+	for {
+		s := strings.Index(envText, openTag)
+		if s < 0 {
+			break
+		}
+		e := strings.Index(envText[s:], closeTag)
+		if e < 0 {
+			break
+		}
+		envText = envText[:s] + envText[s+e+len(closeTag):]
+	}
+
+	closeIdx := strings.LastIndex(envText, "</environment_details>")
+	if closeIdx < 0 {
+		return envText + fullTag
+	}
+	return envText[:closeIdx] + fullTag + "\n" + envText[closeIdx:]
+}
+
+// applyLoopFeedback applies a loop intervention to the message history (FIX-321).
+//
+// Two behaviors:
+//
+//  1. feedback != "" (prompt / reorganize strategies): the intervention carries
+//     a user-facing prompt. A "loop feedback message" is a system-generated user
+//     message whose env carries <loop_feedback>true</loop_feedback>. If the last
+//     user message is already such a message, its feedback text is replaced and
+//     <retry_count> is incremented (no new message). Otherwise a NEW feedback
+//     message is appended — a real user/tool message is never overwritten.
+//
+//  2. feedback == "" (retry / temperature strategies): no new message is
+//     appended. The <retry_count> tag on the last user message's env is
+//     incremented (the tag is created first when absent, building a full env
+//     block when the message has none). The original instruction text is never
+//     modified.
+//
+// The retry count lives only on the message envelope; there is no agent-level
+// state and no reset logic — a fresh user request starts a new chain naturally.
+//
+// Returns the retry count recorded on the affected message (0 when no user
+// message exists).
+func (a *Agent) applyLoopFeedback(feedback string) int {
+	// Locate the last user message and snapshot it WITHOUT holding the lock,
+	// so env construction (which re-acquires a.mu via buildOpenedResources /
+	// IterTokenDelta) cannot deadlock.
+	a.mu.Lock()
+	if len(a.messages) == 0 {
+		a.mu.Unlock()
+		return 0
+	}
+	var lastUserIdx, messageTotal int
+	lastUserIdx = -1
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if a.messages[i].Role == "user" {
+			lastUserIdx = i
+			break
+		}
+	}
+	if lastUserIdx < 0 {
+		a.mu.Unlock()
+		return 0
+	}
+	messageTotal = len(a.messages)
+	lastMsg := a.messages[lastUserIdx]
+	a.mu.Unlock()
+
+	lastEnv := lastEnvText(&lastMsg)
+
+	if feedback == "" {
+		// retry / temperature: bump the counter on the last user message.
+		count := getRetryCountFromText(lastEnv) + 1
+		if lastEnv == "" {
+			// Message has no env block — build a complete one.
+			newEnv := a.buildFullEnvironmentDetails(messageTotal-1, nil)
+			newEnv = setRetryCountInText(newEnv, count)
+			a.mu.Lock()
+			msg := &a.messages[lastUserIdx]
+			if len(msg.ContentParts) == 0 {
+				msg.ContentParts = []llm.ContentPart{
+					{Type: llm.ContentPartText, Text: msg.Content},
+				}
+				msg.Content = ""
+			}
+			setEnvText(msg, newEnv)
+			a.mu.Unlock()
+			return count
+		}
+		newEnv := setRetryCountInText(lastEnv, count)
+		a.mu.Lock()
+		setEnvText(&a.messages[lastUserIdx], newEnv)
+		a.mu.Unlock()
+		return count
+	}
+
+	// prompt / reorganize: create or update a loop feedback message.
+	if isLoopFeedbackMessage(&lastMsg) {
+		// Update the existing feedback message in place — no new message.
+		count := getRetryCountFromText(lastEnv) + 1
+		newEnv := setRetryCountInText(lastEnv, count)
+		a.mu.Lock()
+		msg := &a.messages[lastUserIdx]
+		if len(msg.ContentParts) > 0 {
+			// First text part is the feedback prompt — replace it.
+			msg.ContentParts[0].Text = feedback
+		} else {
+			msg.Content = feedback
+		}
+		setEnvText(msg, newEnv)
+		a.mu.Unlock()
+		return count
+	}
+
+	// Otherwise append a NEW feedback message after the last user message.
+	count := 1
+	newEnv := a.buildFullEnvironmentDetails(messageTotal, nil)
+	newEnv = setLoopFeedbackInText(newEnv, true)
+	newEnv = setRetryCountInText(newEnv, count)
+	a.mu.Lock()
+	a.messages = append(a.messages, llm.Message{
+		Role: "user",
+		ContentParts: []llm.ContentPart{
+			{Type: llm.ContentPartText, Text: feedback},
+			{Type: llm.ContentPartText, Text: newEnv},
+		},
+	})
+	a.mu.Unlock()
+	return count
+}
