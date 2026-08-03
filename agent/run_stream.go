@@ -1071,7 +1071,10 @@ iterationLoop:
 
 				// FIX-316: Must-show tool output gated by showTool (distinct from
 				// showToolOutput full-detail). attempt_completion / task-plan tools
-				// show their full result; other tools show a concise action receipt.
+				// show their full result. For ordinary tools (FEATURE-323), the
+				// post-execution outcome receipt is redundant with the pre-execution
+				// summary (shown above) — only show it when the tool FAILED, and
+				// render it as an error so the user sees the failure reason.
 				if a.showTool {
 					switch tc.Name {
 					case "attempt_completion", "track_task_progress", "view_task_plan":
@@ -1079,12 +1082,13 @@ iterationLoop:
 							cb(EventToolCall, result+"\n")
 						}
 					default:
-						var argsMap map[string]interface{}
-						if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-							cb(EventToolCall, buildToolOutcome(tc.Name, argsMap, result)+"\n")
-						} else {
-							cb(EventToolCall, buildToolOutcome(tc.Name, nil, result)+"\n")
+						if execErr != nil {
+							// Tool failed: show the error reason (matches the
+							// structured result that was fed back to the LLM).
+							cb(EventError, fmt.Sprintf("%s: %s\n", tc.Name, result))
 						}
+						// Success: outcome receipt omitted to avoid duplicating
+						// the pre-execution summary.
 					}
 				}
 
