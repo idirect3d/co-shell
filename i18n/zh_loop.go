@@ -39,19 +39,47 @@ func init() {
 - exit_strategy 将直接作为下一条指令发送给LLM（不附带被检测到的问题内容），因此必须给出纯粹的**前瞻性指导意见**。关键原则：
   (1) **不回溯过去**：不提及"刚才""停止重复""避免循环"等——被检测的内容已被丢弃，LLM看不到
   (2) **不评估现状**：不写"当前方案无效""缺乏进展"等否定性评价
-  (3) **给出具体的下一步**：指明使用什么工具、操作什么文件、尝试什么替代方案，或向用户提问
+  (3) **聚焦下一步**：给出具体、可执行的下一步指令，禁止空泛话术
   (4) **如目标已达成**：直接写"应调用 attempt_completion 退出"
 
-示例（确认是循环时返回）：
-{"is_loop": true, "reason": "连续5次输出相同内容，无任何进展", "exit_strategy": "注意不要通过sed、cat等命令行方式修改或替换脚本程序，也不要轻易重建文件，应坚持使用replace_in_file在原文件上进行修改。"}
+# exit_strategy 的编写要求（重要性最高）
+exit_strategy 是给主 LLM 的唯一指令，**必须让主 LLM 能直接执行**。请按以下要求编写：
 
-示例（确认无实质进展时返回）：
-{"is_loop": true, "reason": "当前待处理的文件过多，LLM能力可能无法支撑读完全部文件内容后再统一处理", "exit_strategy": "由于文件数量比较多，每个文件较大，应先逐个文件分别处理，读取一个文件，就处理一个，记录一个，然后再处理下一个文件，不断迭代，化整为零"}
+1. **使用动作性动词开头**：如"调用""读取""修改""搜索""执行""询问"——避免"考虑""尝试""重新审视"等空泛动词
+2. **给出明确作用对象**：具体工具名（read_file / replace_in_file / search_files / execute_command / shell_send / ask_followup_question 等）、具体文件名、具体命令、或具体问题内容
+3. **指出可落地的下一步**：优先推荐一个比当前更小的具体行动（例如"用 search_files 搜索 'xxx' 定位配置项，再 read_file 读取第 20-40 行"，而不是"换个思路"）
+4. **信息不足时告知如何获取**：如果无法从已知上下文确定下一步，应明确指出应向用户询问什么（写"向用户询问：……"），把问题写具体
+5. **禁止空泛话术**：不得出现"换个思路""换个方向""尝试其他方法""继续努力""重新评估"等没有作用对象的表述
+6. **区分场景**：
+   - 反复搜索无果 → 改用不同关键词、扩大/缩小搜索范围、或换用其他检索工具
+   - 反复执行同一命令 → 先列出目录/文件再针对具体文件操作
+   - 反复输出分析 → 收敛为一次具体工具调用或直接给结论
+   - 找不到入口/方向 → 明确写出应向用户提出的具体问题
+   - 信息不完整 → 指定读取哪一个文件、哪一段内容
 
-示例（确认不是循环时返回）：
+# 判模输出格式要求
+- 必须严格输出 JSON，不要包含 JSON 之外的内容
+- is_loop 为 true 时 exit_strategy **必须非空**且为可执行指令，否则判定结果将被视为无效
+- is_loop 为 false 时 exit_strategy 可以为空字符串 ""
+
+## 样例
+以下样例展示**好的 exit_strategy**（可执行、有对象、有动作）：
+
+样例1（修改文件循环）：
+{"is_loop": true, "reason": "连续5次尝试以相同方式修改同一文件但未读取最新内容", "exit_strategy": "先用 read_file 读取 config/config.go 的当前内容（前 50 行），再基于读取结果用 replace_in_file 修改第 15 行左右的模型配置。"}
+
+样例2（搜索无果循环）：
+{"is_loop": true, "reason": "反复用相同关键词搜索但未找到目标", "exit_strategy": "改用 search_files 在 agent/ 目录下搜索 'applyLoopFeedback'，file_pattern 设为 *.go；若仍无结果，改用 grep -rn 'applyLoopFeedback' agent/。"}
+
+样例3（大任务拆解）：
+{"is_loop": true, "reason": "试图一次性读完全部文件再统一处理，超出能力范围", "exit_strategy": "立即对 use-case/FIX-322/ 下的文件逐个处理：先用 list_files 查看该目录内容，然后按 UC 编号顺序，每处理完一个文件就记录结果并继续下一个。"}
+
+样例4（需要向用户澄清）：
+{"is_loop": true, "reason": "任务方向不明确，无法确定下一步", "exit_strategy": "向用户询问：请明确本次优化希望优先覆盖的场景（文件修改/命令执行/搜索无果/需要澄清），以及是否允许我调整模板文件。"}
+
+样例5（确认不是循环）：
 {"is_loop": false, "reason": "虽然内容较长但每次输出都在分析不同维度", "exit_strategy": ""}
 
-===
 `
 	zhMessages[KeyLoopJudgeUserPrompt] = `# 原始任务
 {TASK}
@@ -76,6 +104,12 @@ func init() {
 
 ===
 
+# 工作区与可用工具上下文
+
+{CONTEXT}
+
+===
+
 # 疑似循环内容（因检测到循环而被中断，内容可能不完整）
 
 {SUSPECT_CONTENT}
@@ -87,6 +121,7 @@ func init() {
 {"is_loop": false/true, "reason": "xxx", "exit_strategy": "xxx(is_loop 为 false 时可不填)"}
 ** 请严格按约定的JSON格式，直接返回判定结果，而不要输出思考过程 **
 `
+	zhMessages[KeyLoopJudgeFallback] = `请围绕当前任务的下一步行动。如果仍有未完成的目标，请明确指示：就近选择一个具体文件/命令/搜索动作并立即执行；如果方向不明确，直接向用户提出具体问题。如果任务目标已达成，调用 attempt_completion 结束。`
 	zhMessages[KeyLoopDetectFeedback] = `现在应该复盘一下任务进展，如果最近几次迭代进展不大，应该围绕用户任务的终极目标进行思考，评估一下现有解决是否偏离了任务目标，或者考虑换个思路和方向解决问题。`
 	// Display & description keys moved from zh.go
 	zhMessages[KeyCol3LoopDetectEnabled] = "循环检测(on|off)"

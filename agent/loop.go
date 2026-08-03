@@ -845,6 +845,15 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 		return nil
 	}
 
+	// FIX-322: empty exit_strategy fallback. When the judge confirms a loop
+	// but does not provide an actionable next instruction (empty string),
+	// substitute a concrete fallback directive instead of degrading to the
+	// generic template downstream.
+	if result.IsLoop && strings.TrimSpace(result.ExitStrategy) == "" {
+		log.Warn("judgeLoop: judge confirmed loop with empty exit_strategy, applying fallback")
+		result.ExitStrategy = i18n.T(i18n.KeyLoopJudgeFallback)
+	}
+
 	log.Info("LoopJudge result: is_loop=%v, reason=%q, exit_strategy=%q",
 		result.IsLoop, result.Reason, result.ExitStrategy)
 
@@ -1214,12 +1223,104 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 		iterations = i18n.T(i18n.KeyNoRecentIterations)
 	}
 
+	// {CONTEXT} = workspace & available tools context, so the judge can write a
+	// concrete, executable exit_strategy instead of guessing (FIX-322).
+	contextText := a.buildJudgeContext()
+
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATIONS}", iterations)
+	userTemplate = strings.ReplaceAll(userTemplate, "{CONTEXT}", contextText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{SUSPECT_CONTENT}", suspectContent)
 	return userTemplate
+}
+
+// buildJudgeContext gathers the environment context passed to the judge model
+// so its exit_strategy can reference real files, directories and tools (FIX-322).
+// Content:
+//   - current working directory
+//   - workspace root (a.workspacePath when set)
+//   - recent file/directory paths referenced in the message history
+//   - the available tool list (when toolCallEnabled)
+func (a *Agent) buildJudgeContext() string {
+	var sb strings.Builder
+
+	cwd, _ := os.Getwd()
+	sb.WriteString("cwd: ")
+	sb.WriteString(cwd)
+	sb.WriteString("\n")
+
+	if a.workspacePath != "" {
+		sb.WriteString("workspace: ")
+		sb.WriteString(a.workspacePath)
+		sb.WriteString("\n")
+	}
+
+	// Recent file/dir paths seen in the last few user/assistant messages.
+	seen := make(map[string]bool)
+	var paths []string
+	a.mu.Lock()
+	start := len(a.messages) - 8
+	if start < 0 {
+		start = 0
+	}
+	for i := start; i < len(a.messages); i++ {
+		content := strings.TrimSpace(a.messages[i].CombineContentParts())
+		if content == "" {
+			content = strings.TrimSpace(a.messages[i].Content)
+		}
+		for _, tok := range strings.Fields(content) {
+			// Heuristic: token that looks like a file path (contains / or \, or
+			// has a common source extension).
+			if (strings.Contains(tok, "/") || strings.Contains(tok, "\\") ||
+				strings.HasSuffix(tok, ".go") || strings.HasSuffix(tok, ".md") ||
+				strings.HasSuffix(tok, ".json") || strings.HasSuffix(tok, ".py")) &&
+				!strings.HasPrefix(tok, "http://") && !strings.HasPrefix(tok, "https://") {
+				clean := strings.Trim(tok, `"'(),;:`)
+				if clean != "" && !seen[clean] {
+					seen[clean] = true
+					paths = append(paths, clean)
+					if len(paths) >= 12 {
+						break
+					}
+				}
+			}
+		}
+		if len(paths) >= 12 {
+			break
+		}
+	}
+	a.mu.Unlock()
+
+	if len(paths) > 0 {
+		sb.WriteString("recent_paths:\n")
+		for _, p := range paths {
+			sb.WriteString("  - ")
+			sb.WriteString(p)
+			sb.WriteString("\n")
+		}
+	}
+
+	// Available tools (OpenAI mode tools list; XML mode uses buildToolsInternal).
+	// Guard with a.mcpMgr nil check: buildToolsInternal panics if the MCP
+	// manager is absent (e.g. unit tests or judge path in a partially
+	// initialized agent).
+	if a.toolCallEnabled {
+		var toolNames []string
+		if a.mcpMgr != nil {
+			for _, t := range a.buildToolsInternal() {
+				toolNames = append(toolNames, t.Name)
+			}
+		}
+		if len(toolNames) > 0 {
+			sb.WriteString("available_tools: ")
+			sb.WriteString(strings.Join(toolNames, ", "))
+			sb.WriteString("\n")
+		}
+	}
+
+	return strings.TrimSpace(sb.String())
 }
 
 // TokenUsage returns the accumulated token usage statistics.

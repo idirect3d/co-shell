@@ -703,6 +703,7 @@ const (
 	KeyCol3LoopJudgeModel    = "col3_loop_judge_model"
 	KeyLoopJudgeSystemPrompt = "loop_judge_system_prompt"
 	KeyLoopJudgeUserPrompt   = "loop_judge_user_prompt"
+	KeyLoopJudgeFallback     = "loop_judge_fallback"
 	KeySettingsDescLoopJudge = "settings_desc_loop_judge"
 	KeyCol3ShowLoopDetection = "col3_show_loop_detection"
 

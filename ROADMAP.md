@@ -35,6 +35,8 @@
 | FIX-320 | 0.7.0 | P1 | ✅ 已完成（execute_command 超时 goroutine 误杀后台任务：executeSystemCommand 中命令提前结束时超时 goroutine 仍残留，到点无条件 kill(-pid)，可能误杀仍留在原进程组的后台子进程（如 `sleep 300 &`）；且 REPL 路径 ExecuteCommandDirectly 未设置进程组，管道孙进程超时后泄漏。修复：LLM 路径引入 done channel 在 Wait 返回后通知超时 goroutine 放弃 kill + Process.Release 释放 PID；REPL 路径弃用 CommandContext 统一为 exec.Command + setProcessGroupAttr + 手动超时 goroutine。新增 command_tools_test.go 5 个单元测试（后台任务不被误杀/超时正常触发/管道孙进程连锅端/无超时自然运行），use-case/FIX-320 6 个运行时用例；运行时验证 UC-0001（后台 sleep 300 超时窗口后仍存活）与 UC-0003（管道孙进程超时连锅端）通过 [BUILD-354]） |
 | FIX-321 | 0.7.0 | P1 | ✅ 已完成（循环反馈消息补全 environment_details + retry_count 重试计数机制：循环干预（sync 循环分支与 applyLoopIntervention）产生的 user 消息仅含纯文本 feedback，缺少其他 user 消息都具备的 `<environment_details>` 块。修复：envelope.go 新增 applyLoopFeedback 统一入口 + tag helpers（loop_feedback/retry_count 读写）；feedback 非空（prompt/reorganize）创建带完整 env 的 feedback 消息、已存在时原地替换文本递增计数；feedback 为空（retry/temperature）不新增消息，仅在最后一个 user 消息 env 递增 retry_count（无 env 先补完整 env）；计数只存在于消息上下文中，不设 Agent 状态字段、无归零。新增 loop_retry_test.go 11 个单测覆盖三种状态×两种处理方式判定矩阵、temperature 一致性、无 env 消息、完整 env 校验、多轮循环链 [BUILD-355]） |
 
+| FIX-322 | 0.7.0 | P1 | ✅ 已完成（循环二次判定 exit_strategy 质量升级：judgeLoop 仅凭 SUSPECT_CONTENT 判定，无法感知 cwd/可用工具/文件线索，导致给 LLM 的下一步指令空泛。修复：A) 系统提示词加入 exit_strategy 编写六要求——动作性动词开头/明确作用对象/可落地下一步/信息不足时指明提问/禁止空泛话术/场景分类指导，扩展 5 类样例、is_loop=true 必须非空约束；B) user 模板新增 {CONTEXT} 块，buildJudgeContext 填充 cwd/workspace/最近文件路径/可用工具列表（含 mcpMgr nil 保护）；D) 服务端空值兜底——is_loop=true 且 exit_strategy 为空时回退 KeyLoopJudgeFallback 可操作指令。新增 loop_judge_test.go 3 个单测（context 构建/user 模板填充/兜底 key），zh/en 双语同步 [BUILD-356]） |
+
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
