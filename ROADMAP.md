@@ -37,6 +37,8 @@
 
 | FIX-322 | 0.7.0 | P1 | ✅ 已完成（循环二次判定 exit_strategy 质量升级：judgeLoop 仅凭 SUSPECT_CONTENT 判定，无法感知 cwd/可用工具/文件线索，导致给 LLM 的下一步指令空泛。修复：A) 系统提示词加入 exit_strategy 编写六要求——动作性动词开头/明确作用对象/可落地下一步/信息不足时指明提问/禁止空泛话术/场景分类指导，扩展 5 类样例、is_loop=true 必须非空约束；B) user 模板新增 {CONTEXT} 块，buildJudgeContext 填充 cwd/workspace/最近文件路径/可用工具列表（含 mcpMgr nil 保护）；D) 服务端空值兜底——is_loop=true 且 exit_strategy 为空时回退 KeyLoopJudgeFallback 可操作指令。新增 loop_judge_test.go 3 个单测（context 构建/user 模板填充/兜底 key），zh/en 双语同步 [BUILD-356]） |
 
+| FEATURE-323 | 0.7.0 | P1 | ✅ 已完成（工具执行结果回显优化：普通工具执行成功后，事件流中连续输出"执行前摘要"与"执行后结果回执"两行（`[⚙️]< 读取文件...` 与 `[⚙️]< 读取 xx 文件...`），内容重复。修复：run_stream.go 工具执行循环中，普通工具执行成功时不再 emit FIX-316 的 buildToolOutcome 回执（与执行前摘要重复）；仅当 execErr != nil（执行失败）时 emit EventError 显示错误原因（与回灌 LLM 的结构化 result 一致）；attempt_completion/track_task_progress/view_task_plan 三类工具仍显示完整 result。go vet + agent 全量测试通过 [BUILD-357]） |
+
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
