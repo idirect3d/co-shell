@@ -1221,12 +1221,13 @@ no liability whatsoever.`,
 	KeyModeCustomDesc:   "Per-tool custom settings",
 
 	// Tool call mode (FEATURE-182)
-	KeyToolCallMode:         "Tool Call Mode",
-	KeyToolCallModeUpdated:  "✅ Tool call mode set to: %s",
-	KeyInvalidToolCallMode:  "Invalid tool call mode: %s (valid: openai, xml)",
-	KeyCol3ToolCallMode:     "Tool Call Mode(openai|xml)",
-	KeySettingsDescToolMode: "Tool call mode (openai: standard API, xml: embedded XML tags)",
-	KeyCLIHelpToolCallMode:  "Tool call mode (openai/xml, overrides config file)",
+	KeyToolCallMode:             "Tool Call Mode",
+	KeyToolCallModeUpdated:      "✅ Tool call mode set to: %s",
+	KeyInvalidToolCallMode:      "Invalid tool call mode: %s (valid: openai, xml)",
+	KeyCol3ToolCallMode:         "Tool Call Mode(openai|xml)",
+	KeySettingsDescToolMode:     "Tool call mode (openai: standard API, xml: embedded XML tags)",
+	KeyCLIHelpToolCallMode:      "Tool call mode (openai/xml, overrides config file)",
+	KeyCLIHelpVisionContextMode: "Vision model context mode (minimal/full, default minimal: send only system prompt + recognition instruction to avoid vision context overflow)",
 
 	// Shell session (column labels)
 	KeyCol3ShellSessionEnabled:         "Shell Session(on|off)",

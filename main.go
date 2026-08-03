@@ -51,7 +51,7 @@ import (
 
 const version = "0.7.0"
 
-const build = "352"
+const build = "353"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -91,6 +91,8 @@ type cliFlags struct {
 	description string
 	// Vision support
 	vision string // "on"/"off"
+	// VisionContextMode: how much context to send to the vision model (FEATURE-319)
+	visionContextMode string // "minimal"/"full"
 
 	// Memory enabled
 	memoryEnabled string // "on"/"off"
@@ -239,6 +241,7 @@ func parseFlags() cliFlags {
 
 	// Vision support
 	flag.StringVar(&f.vision, "vision", "", "视觉识别能力（on/off，覆盖配置文件）")
+	flag.StringVar(&f.visionContextMode, "vision-context-mode", "", "视觉模型上下文模式（minimal/full，默认 minimal；minimal 只发送系统提示词+识别指令，避免视觉模型上下文超限）")
 
 	// Memory enabled
 	flag.StringVar(&f.memoryEnabled, "memory-enabled", "", "启用持久化记忆功能（覆盖配置文件）")
@@ -606,6 +609,16 @@ func main() {
 			cfg.LLM.VisionSupport = false
 		default:
 			io.ErrPrintf("Warning: invalid --vision value %q, use on|off\n", flags.vision)
+		}
+	}
+
+	// Apply vision-context-mode CLI override (FEATURE-319)
+	if flags.visionContextMode != "" {
+		switch flags.visionContextMode {
+		case "minimal", "full":
+			cfg.LLM.VisionContextMode = flags.visionContextMode
+		default:
+			io.ErrPrintf("Warning: invalid --vision-context-mode value %q, use minimal|full\n", flags.visionContextMode)
 		}
 	}
 

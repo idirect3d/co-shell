@@ -36,8 +36,8 @@ import (
 )
 
 // handleLLMSetting handles LLM-related settings: api-key, endpoint, model, temperature,
-// max-tokens, vision, thinking-enabled, reasoning-effort, toolcall-enabled, top-p, top-k,
-// repetition-penalty, max-model-len.
+// max-tokens, vision, vision-context-mode, thinking-enabled, reasoning-effort,
+// toolcall-enabled, top-p, top-k, repetition-penalty, max-model-len.
 func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (string, error) {
 	switch subcommand {
 	case "api-key":
@@ -149,6 +149,26 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		}
 		log.Info("Vision support set to %s", status)
 		return fmt.Sprintf("✅ 视觉识别已设置为: %s", status), nil
+
+	case "vision-context-mode":
+		if len(args) < 2 {
+			mode := h.cfg.LLM.VisionContextMode
+			if mode == "" {
+				mode = "minimal"
+			}
+			return fmt.Sprintf("视觉模型上下文模式: %s（可选值: minimal, full）", mode), nil
+		}
+		switch args[1] {
+		case "minimal", "full":
+			h.cfg.LLM.VisionContextMode = args[1]
+		default:
+			return "", fmt.Errorf("usage: :set vision-context-mode minimal|full")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Vision context mode set to %s", args[1])
+		return fmt.Sprintf("✅ 视觉模型上下文模式已设置为: %s", args[1]), nil
 
 	case "thinking-enabled":
 		if len(args) < 2 {

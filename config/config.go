@@ -255,6 +255,15 @@ type LLMConfig struct {
 	// loaded in a single visual_analysis call. Default: 5.
 	VisualAnalysisMaxImages int `json:"visual_analysis_max_images"`
 
+	// VisionContextMode: how much context is sent to the vision model when the
+	// main model is temporarily swapped to a vision-capable model for image
+	// analysis (FEATURE-319).
+	//   "minimal" (default): send only [system, user(intent + images)] — discards
+	//     intermediate history to avoid overflowing the vision model's context
+	//     limit when it is smaller than the main model's.
+	//   "full": keep the existing behavior — send the full message history.
+	VisionContextMode string `json:"vision_context_mode"`
+
 	// LoopDetectThreshold: the maximum number of times a similar content block
 	// can repeat before triggering loop detection intervention.
 	// When the same (or similar) content repeats this many times consecutively,
@@ -849,6 +858,7 @@ func DefaultConfig() *Config {
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
 			VisualAnalysisMaxImages:    5,
+			VisionContextMode:          "minimal",
 			ParseErrorAction:           "retry",
 			NoToolAction:               "exit",
 			LoopIntervention:           "prompt",
