@@ -832,8 +832,8 @@ func DefaultConfig() *Config {
 			ShowTool:                   true,
 			ShowToolInput:              false,
 			ShowToolOutput:             false,
-			ShowCommand:                true,
-			ShowCommandOutput:          true,
+			ShowCommand:                false,
+			ShowCommandOutput:          false,
 			ToolModes:                  nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
 			ResultMode:                 int(ResultModeFree),
 			ContextLimit:               -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
@@ -884,7 +884,7 @@ func DefaultConfig() *Config {
 			EmojiEnabled:               true,
 			ShowLogo:                   true,
 			ToolCallEnabled:            true,
-			ToolCallMode:               "xml",
+			ToolCallMode:               "openai",
 			ContextPolicy:              "reorganize",
 			ContextReorganizeThreshold: 80,
 			TokenUsage:                 "on",
