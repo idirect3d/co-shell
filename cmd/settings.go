@@ -311,6 +311,10 @@ func showSettingsHelp(cfg *config.Config) string {
 	if cfg.LLM.VisionSupport {
 		visionStatus = i18n.T(i18n.KeyOn)
 	}
+	visionContextModeStatus := cfg.LLM.VisionContextMode
+	if visionContextModeStatus == "" {
+		visionContextModeStatus = "minimal"
+	}
 	thinkingEnabledStatus := cfg.LLM.ThinkingEnabled
 	if thinkingEnabledStatus == "" {
 		thinkingEnabledStatus = "default"
@@ -511,6 +515,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("max-tokens", maxTokensStr, "1 ~ 128000（整数）"),
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
+		makeLine("vision-context-mode", visionContextModeStatus, "minimal/full (default minimal: 只发送系统提示词+识别指令)"),
 		makeLine("thinking-enabled", thinkingEnabledStatus, "on/off/default"),
 		makeLine("reasoning-effort", reasoningEffortStr, "low/medium/high/max/none/default"),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
