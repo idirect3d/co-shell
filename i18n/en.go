@@ -1363,6 +1363,8 @@ no liability whatsoever.`,
 	KeyToolExecFailed:       "Tool %s execution failed (parse-error-action=exit): %v\n",
 	KeyToolExecRetry:        "%s Tool %s call invalid (parse-error-action=retry): %v\nDiscarded invalid call and resending.\n",
 	KeyToolNoOutput:         "（tool call returned no output）",
+	KeyToolResultLabel:      "[Result]",
+	KeyToolIntentLabel:      "[Intent]",
 	KeyReorganizeUrgent:     "You must reorganize context immediately.\n\nThe context is over the limit; call the reorganize_context tool now.",
 	KeyXMLFormatError:       `XML format error: the LLM output contains content attempting to call a tool (starting with < tool tag name), but the XML structure is incomplete and cannot be parsed into a valid tool call. Check your output format and ensure correct method name and parameter tags.`,
 
