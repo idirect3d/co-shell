@@ -41,6 +41,8 @@
 
 | FEATURE-324 | 0.7.0 | P1 | 🔄 实施中（工具返回结果标记优化：工具为空 result 时，返回消息中 `[意图] xxx` 成为唯一内容，易被 LLM 误认为结果是意图文本。修复：intent 拼接改为三段式——`[返回结果][实际结果或空]\n\n[意图] xxx`，明确区分"返回结果"与"意图"；[返回结果]/[意图] 标签 i18n key 化（zh/en 双语），OpenAI 与 XML 模式共用同一条 intent 拼接（均走 executeToolCall 返回）） |
 
+| FEATURE-325 | 0.7.0 | P1 | ✅ 已完成（工具显示去重：流式实时预览 `[🔧 工具名]`（stream_response.go，showTool 控制）与执行前摘要 `[⚙️]< 工具名摘要`（run_stream.go，showTool 控制）都由 showTool 控制且内容重复。修复：删除 stream_response.go 中 StreamEventToolCall 分支的实时预览块（`[🔧 工具名]`），仅保留执行前摘要，用户看到每个工具只显示一次 `[⚙️]< ...`。go vet + agent 全量测试通过 [BUILD-359]） |
+
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
