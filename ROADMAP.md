@@ -32,6 +32,7 @@
 | FIX-317 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 replace_in_file 执行失败死循环：FIX-314 retry 静默丢弃错误使 LLM 无法修正。现按错误分流：`cannot parse tool arguments`（JSON 语法错）→保留静默重发自纠；path 不存在/SEARCH 不匹配/缺参等其他错误→回灌 formatToolError 结构化反馈（ERROR DETAILS+CORRECTION INSTRUCTIONS）让 LLM 修正 [BUILD-351]） |
 | FIX-318 | 0.7.0 | P1 | ✅ 已完成（reorganize_context 触发 OpenAI 400：工具执行阶段清空 a.messages 导致 tool 结果消息成为孤儿，违反"tool 必须跟在带 tool_calls 的 assistant 之后"。修复：reorganizeContextTool 仅置 reorganizeContextUsed 标志不再清空历史；run_stream.go / run.go 在工具结果全部追加后调用 collapseAfterReorganize() 折叠为 [system, user(summary)]；新增单元测试覆盖 OpenAI/XML/非流式/无 user/标志未置五场景 [BUILD-352]） |
 | FEATURE-319 | 0.7.0 | P2 | ✅ 已完成（视觉模型上下文控制：主模型上下文限制大于视觉模型时，发送给视觉模型的内容可只含系统提示词+识别指令，避免上下文超限。新增 vision-context-mode 参数（minimal/full，默认 minimal），minimal 模式 buildContextMessages 折叠为 [system, user(intent 识别指令+图片)]；visual_analysis 的 intent 参数作为识别指令；支持 config.json/--vision-context-mode CLI/:set vision-context-mode 三通道，默认值重置、i18n 帮助 [BUILD-353]） |
+| FIX-320 | 0.7.0 | P1 | 🚧 开发中（execute_command 超时 goroutine 误杀后台任务：executeSystemCommand 中命令提前结束时超时 goroutine 仍残留，到点无条件 kill(-pid)，可能误杀仍留在原进程组的后台子进程（如 `sleep 300 &`）；且 REPL 路径 ExecuteCommandDirectly 未设置进程组，管道孙进程超时后泄漏） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。

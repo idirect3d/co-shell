@@ -169,21 +169,39 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	// so we don't misreport the latter as a timeout. FIX-284.
 	var timedOut atomic.Bool
 
+	// done is closed when cmd.Wait() returns, signalling the timeout goroutine
+	// to abort its pending kill. Without this, a command that finishes before
+	// the timeout would still killProcessGroup later, accidentally killing
+	// background children (e.g. `sleep 300 &`) that remain in the same
+	// process group. FIX-320.
+	done := make(chan struct{})
+
 	// Timeout goroutine: wait for timeout, then kill the entire process group.
 	// setProcessGroupAttr ensures bash + all pipe children share the same PGID.
 	if effectiveTimeout > 0 {
 		pid := cmd.Process.Pid
 		go func() {
-			time.Sleep(time.Duration(effectiveTimeout) * time.Second)
-			log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
-				pid, effectiveTimeout, command)
-			timedOut.Store(true)
-			killProcessGroup(cmd)
+			select {
+			case <-done:
+				// Command finished before the timeout — nothing to kill.
+				return
+			case <-time.After(time.Duration(effectiveTimeout) * time.Second):
+				log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
+					pid, effectiveTimeout, command)
+				timedOut.Store(true)
+				killProcessGroup(cmd)
+			}
 		}()
 	}
 
 	err := cmd.Wait()
+	close(done)
 	a.SetCommandRunning(false)
+	// Release the process resources now that the command has exited (FIX-320).
+	// This frees the PID so it can be reused, and is safe to call after Wait.
+	if cmd.Process != nil {
+		cmd.Process.Release()
+	}
 
 	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
@@ -206,67 +224,36 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 // This is used by the REPL when user input is detected as a direct system command.
 // stdin is connected to os.Stdin so interactive commands work.
 // stdout+stderr are both captured for return AND displayed on the terminal.
+// Timeout handling is identical to executeSystemCommand: we manage the kill
+// ourselves via a goroutine so the entire process group (bash + pipe children)
+// is killed on timeout, and a command that finishes early aborts the pending
+// kill instead of killing background children later. FIX-320.
 func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	// Encode command to system code page on Windows before sending to shell
 	encodedCommand := encodeForShell(command)
 
-	timeout := a.getCommandTimeout()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+	timeoutSec := int(a.getCommandTimeout().Seconds())
 
-		shell, shellArg := shellCmd()
-		log.Info("Direct command: %s (timeout: %ds, shell: %s)", command, int(timeout.Seconds()), shell)
-		cmd := exec.CommandContext(ctx, shell, shellArg, encodedCommand)
-
-		// Connect stdin so interactive commands can read user input.
-		cmd.Stdin = os.Stdin
-
-		// Capture stdout+stderr. Always capture in buf for return value.
-		// When showCommandOutput is true, also display output in real-time on the
-		// terminal via rawOutputWriter that converts \n to \r\n for raw mode.
-		var buf bytes.Buffer
-		cmd.Stdout = &buf
-		cmd.Stderr = &buf
-		if a.showCommandOutput {
-			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			fmt.Print(ep.CommandOutput)
-			cmd.Stdout = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stdout})
-			cmd.Stderr = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stderr})
-		}
-
-		// FIX-209: Signal the ESC monitor goroutine to stop polling stdin while the
-		// sub-process is running, so the sub-process (e.g. sudo) can read from stdin
-		// without competition.
-		a.SetCommandRunning(true)
-		err := cmd.Run()
-		a.SetCommandRunning(false)
-		decoded := decodeToUTF8(buf.Bytes())
-		if err != nil {
-			if ctx.Err() == context.DeadlineExceeded {
-				log.Warn("Direct command timed out: %s", command)
-				return "", fmt.Errorf("command timed out after %d seconds", int(timeout.Seconds()))
-			}
-			log.Error("Direct command failed: %s, error: %v", command, err)
-			return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
-		}
-
-		log.Debug("Direct command completed: %s (output length: %d)", command, buf.Len())
-		return strings.TrimSpace(decoded), nil
+	shell, shellArg := shellCmd()
+	if timeoutSec > 0 {
+		log.Info("Direct command: %s (timeout: %ds, shell: %s)", command, timeoutSec, shell)
+	} else {
+		log.Info("Direct command: %s (no timeout, shell: %s)", command, shell)
 	}
 
-	// No timeout - use background context
-	shell, shellArg := shellCmd()
-	log.Info("Direct command: %s (no timeout, shell: %s)", command, shell)
-	cmd := exec.CommandContext(context.Background(), shell, shellArg, encodedCommand)
+	// Use exec.Command (NOT exec.CommandContext) — we manage kill ourselves.
+	// setProcessGroupAttr puts bash into its own session so piped children
+	// (e.g. `sleep 60 | cat`) share the same PGID and are all killed on
+	// timeout. FIX-320.
+	cmd := exec.Command(shell, shellArg, encodedCommand)
+	setProcessGroupAttr(cmd)
 
 	// Connect stdin so interactive commands can read user input.
 	cmd.Stdin = os.Stdin
 
 	// Capture stdout+stderr. Always capture in buf for return value.
 	// When showCommandOutput is true, also display output in real-time on the
-	// terminal via a rawOutputWriter that converts \n to \r\n for raw mode.
+	// terminal via rawOutputWriter that converts \n to \r\n for raw mode.
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -281,10 +268,53 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	// sub-process is running, so the sub-process (e.g. sudo) can read from stdin
 	// without competition.
 	a.SetCommandRunning(true)
-	err := cmd.Run()
+
+	// Start the command (non-blocking).
+	if err := cmd.Start(); err != nil {
+		a.SetCommandRunning(false)
+		return "", fmt.Errorf("cannot start command: %w", err)
+	}
+
+	// timedOut flag distinguishes a real timeout from a normal ExitError,
+	// mirroring executeSystemCommand (FIX-284).
+	var timedOut atomic.Bool
+
+	// done is closed when cmd.Wait() returns, signalling the timeout goroutine
+	// to abort its pending kill so early-finishing commands do not kill
+	// background children afterwards (FIX-320).
+	done := make(chan struct{})
+
+	// Timeout goroutine: wait for timeout, then kill the entire process group.
+	if timeoutSec > 0 {
+		pid := cmd.Process.Pid
+		go func() {
+			select {
+			case <-done:
+				// Command finished before the timeout — nothing to kill.
+				return
+			case <-time.After(time.Duration(timeoutSec) * time.Second):
+				log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
+					pid, timeoutSec, command)
+				timedOut.Store(true)
+				killProcessGroup(cmd)
+			}
+		}()
+	}
+
+	err := cmd.Wait()
+	close(done)
 	a.SetCommandRunning(false)
+	// Release the process resources now that the command has exited (FIX-320).
+	if cmd.Process != nil {
+		cmd.Process.Release()
+	}
+
 	decoded := decodeToUTF8(buf.Bytes())
 	if err != nil {
+		if timedOut.Load() && isSignaledExit(err) {
+			log.Warn("Direct command timed out: %s", command)
+			return "", fmt.Errorf("command timed out after %d seconds", timeoutSec)
+		}
 		log.Error("Direct command failed: %s, error: %v", command, err)
 		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 	}
