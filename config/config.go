@@ -130,8 +130,8 @@ type LLMConfig struct {
 	ShowTool          bool `json:"show_tool"`           // Show tool call name (default: true)
 	ShowToolInput     bool `json:"show_tool_input"`     // Show tool call input parameters (default: false)
 	ShowToolOutput    bool `json:"show_tool_output"`    // Show tool call return data (default: false)
-	ShowCommand       bool `json:"show_command"`        // Show system command (default: true)
-	ShowCommandOutput bool `json:"show_command_output"` // Show command return data (default: true)
+	ShowCommand       bool `json:"show_command"`        // Show system command (default: false)
+	ShowCommandOutput bool `json:"show_command_output"` // Show command return data (default: false)
 
 	// OutputCategories controls which output channel categories are rendered.
 	// Key is a ChannelID (e.g. "wizard", "system", "db", "bridge", "subagent").
