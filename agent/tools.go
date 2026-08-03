@@ -2050,11 +2050,20 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			}
 			log.Debug("Tool call result: %s -> %s", tc.Name, result)
 
-			// If the tool was called with an intent parameter, append it to the
-			// result. This reminds the LLM of its original purpose for this call,
-			// helping it stay focused and avoid drifting from the stated goal.
+			// If the tool was called with an intent parameter, wrap the result
+			// with explicit labels (FIX-324). The result is clearly marked with
+			// [Result] so that an empty result cannot be confused with the
+			// [Intent] reminder text — the LLM sees exactly what the tool
+			// returned versus what the original purpose was. This applies to
+			// both OpenAI (tool message) and XML (tool result template) modes,
+			// which share this same return value.
 			if intent, ok := args["intent"].(string); ok && intent != "" {
-				result = fmt.Sprintf("%s\n\n[意图] %s", result, intent)
+				if result == "" {
+					result = i18n.T(i18n.KeyToolNoOutput)
+				}
+				result = fmt.Sprintf("%s%s\n\n%s %s",
+					i18n.T(i18n.KeyToolResultLabel), result,
+					i18n.T(i18n.KeyToolIntentLabel), intent)
 			}
 
 			return result, nil
