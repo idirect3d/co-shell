@@ -374,7 +374,7 @@ var enMessages = map[string]string{
 
 	// FEATURE-310: Tool call summary (intent + key params display)
 	KeyToolCallSummaryGeneric:        "[🔧 %s] Purpose: %s",
-	KeyToolCallSummaryExecCmd:        "Run command: %s\n  Purpose: %s",
+	KeyToolCallSummaryExecCmd:        "Run command: %s (timeout: %s)\n  Purpose: %s",
 	KeyToolCallSummaryReadFile:       "Read file: %s (lines %s-%s)\n  Purpose: %s",
 	KeyToolCallSummaryWriteFile:      "Write file: %s (mode: %s)\n  Purpose: %s",
 	KeyToolCallSummaryReplaceInFile:  "Edit file: %s (%s replacements)\n  Purpose: %s",
@@ -398,7 +398,7 @@ var enMessages = map[string]string{
 	KeyToolOutcomeReplaceFile: "Modified %s (%s replacements)",
 	KeyToolOutcomeSearchFiles: "Searched %s (found %s matches)",
 	KeyToolOutcomeExecSuccess: "Command executed successfully",
-	KeyToolOutcomeExecCmd:     "Executed: %s (intent: %s)",
+	KeyToolOutcomeExecCmd:     "Executed: %s (timeout: %s, intent: %s)",
 	KeyToolOutcomeGeneric:     "%s executed successfully",
 	KeyCmdConfirmApprove:      "a",
 	KeyCmdConfirmApproveAll:   "aa",

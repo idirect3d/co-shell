@@ -48,7 +48,10 @@ func buildToolSummary(toolName string, args map[string]interface{}) string {
 	// phrasing so the user can grasp the impact of the call at a glance.
 	switch toolName {
 	case "execute_command":
-		return i18n.TF(i18n.KeyToolCallSummaryExecCmd, argString(args, "command"), intent)
+		return i18n.TF(i18n.KeyToolCallSummaryExecCmd,
+			argString(args, "command"),
+			execTimeoutLabel(args),
+			intent)
 	case "read_file":
 		return i18n.TF(i18n.KeyToolCallSummaryReadFile,
 			argString(args, "path"),
@@ -155,9 +158,10 @@ func buildToolOutcome(toolName string, args map[string]interface{}, resultText s
 			argString(args, "path"),
 			fmt.Sprintf("%d", n))
 	case "execute_command":
-		// Show the actual command and its intent (execute_command requires intent).
+		// Show the actual command, its effective timeout, and its intent.
 		return i18n.TF(i18n.KeyToolOutcomeExecCmd,
 			truncate(argString(args, "command")),
+			execTimeoutLabel(args),
 			truncate(argString(args, "intent")))
 	}
 	// Generic success receipt for any other tool.
@@ -238,6 +242,28 @@ func argString(args map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// execTimeoutLabel returns the timeout display label for execute_command.
+// It reads the optional timeout_seconds argument; when absent (or zero),
+// it returns an i18n "default" label meaning the user-configured timeout
+// will be used.
+func execTimeoutLabel(args map[string]interface{}) string {
+	if v, ok := args["timeout_seconds"]; ok {
+		var n int
+		switch t := v.(type) {
+		case float64:
+			n = int(t)
+		case int:
+			n = t
+		case string:
+			fmt.Sscanf(t, "%d", &n)
+		}
+		if n > 0 {
+			return fmt.Sprintf("%ds", n)
+		}
+	}
+	return i18n.T(i18n.KeyDefault)
 }
 
 // argNum returns the numeric value of a named argument as string, or "" if absent.
