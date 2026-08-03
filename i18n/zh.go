@@ -1250,12 +1250,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyModeCustomDesc:   "工具单独定制",
 
 	// Tool call mode (FEATURE-182)
-	KeyToolCallMode:         "工具调用模式",
-	KeyToolCallModeUpdated:  "✅ 工具调用模式已设置为: %s",
-	KeyInvalidToolCallMode:  "无效的工具调用模式: %s（可选值: openai, xml）",
-	KeyCol3ToolCallMode:     "工具调用模式(openai|xml)",
-	KeySettingsDescToolMode: "工具调用模式（openai: 标准API, xml: 内嵌XML标签）",
-	KeyCLIHelpToolCallMode:  "      --toolcall-mode   工具调用模式（openai/xml，覆盖配置文件）",
+	KeyToolCallMode:             "工具调用模式",
+	KeyToolCallModeUpdated:      "✅ 工具调用模式已设置为: %s",
+	KeyInvalidToolCallMode:      "无效的工具调用模式: %s（可选值: openai, xml）",
+	KeyCol3ToolCallMode:         "工具调用模式(openai|xml)",
+	KeySettingsDescToolMode:     "工具调用模式（openai: 标准API, xml: 内嵌XML标签）",
+	KeyCLIHelpToolCallMode:      "      --toolcall-mode   工具调用模式（openai/xml，覆盖配置文件）",
+	KeyCLIHelpVisionContextMode: "      --vision-context-mode  视觉模型上下文模式（minimal/full，默认 minimal：只发送系统提示词+识别指令，避免视觉模型上下文超限）",
 
 	// Config wizard group titles (FEATURE-200)
 	KeyWizardGroupModelMgr:   "[ 模型管理 ]",

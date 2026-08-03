@@ -230,6 +230,12 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
 	case "vision":
 		return boolToString(cfg.LLM.VisionSupport)
+	case "vision-context-mode":
+		mode := cfg.LLM.VisionContextMode
+		if mode == "" {
+			mode = "minimal"
+		}
+		return mode
 	case "thinking-enabled":
 		return cfg.LLM.ThinkingEnabled
 	case "reasoning-effort":
@@ -601,6 +607,18 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		a.rebuildLLMClient()
 		log.Info("Vision support set via LLM tool: %v", b)
+
+	case "vision-context-mode":
+		switch value {
+		case "minimal", "full":
+			cfg.LLM.VisionContextMode = value
+		default:
+			return fmt.Errorf("invalid vision-context-mode value: %s (valid: minimal/full)", value)
+		}
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Vision context mode set via LLM tool: %s", value)
 
 	case "thinking-enabled":
 		b, err := parseBool(value)

@@ -162,6 +162,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	// LLM settings
 	case subcommand == "api-key", subcommand == "endpoint", subcommand == "model",
 		subcommand == "temperature", subcommand == "max-tokens", subcommand == "vision",
+		subcommand == "vision-context-mode",
 		subcommand == "thinking-enabled", subcommand == "reasoning-effort",
 		subcommand == "toolcall-enabled", subcommand == "toolcall-mode",
 		subcommand == "xml-tag-prefix", subcommand == "xml-stream-validate",
@@ -764,6 +765,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.DocxMaxSessions = def.LLM.DocxMaxSessions
 	h.cfg.LLM.DocxMaxReadParas = def.LLM.DocxMaxReadParas
 	h.cfg.LLM.VisualAnalysisMaxImages = def.LLM.VisualAnalysisMaxImages
+	h.cfg.LLM.VisionContextMode = def.LLM.VisionContextMode
 	h.cfg.LLM.SearchMaxLineLength = def.LLM.SearchMaxLineLength
 	h.cfg.LLM.SearchMaxResultBytes = def.LLM.SearchMaxResultBytes
 	h.cfg.LLM.SearchContextLines = def.LLM.SearchContextLines

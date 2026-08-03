@@ -219,7 +219,11 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 		paths = paths[:maxImages]
 	}
 
+	// FEATURE-319: Store the intent as the clean instruction for minimal
+	// vision-context mode (buildContextMessages sends [system, user(intent)]).
 	a.mu.Lock()
+	a.visionPendingIntent = intent
+
 	loadedFiles := make([]string, 0, len(paths))
 	for _, p := range paths {
 		// Check if already in cache

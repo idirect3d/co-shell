@@ -139,6 +139,12 @@ type Agent struct {
 	// ever sent to the API.
 	reorganizeContextUsed bool
 
+	// visionPendingIntent stores the intent parameter from the most recent
+	// visual_analysis call (FEATURE-319). When VisionContextMode == "minimal"
+	// and images are pending, buildContextMessages uses this as the clean user
+	// instruction sent to the vision model (discarding intermediate history).
+	visionPendingIntent string
+
 	// errorCounter tracks the number of times each distinct error message has occurred
 	// during the current request. Key is the error message string, value is the count.
 	// Reset at the start of each RunStream call.
@@ -455,6 +461,31 @@ func (a *Agent) buildContextMessages() []llm.Message {
 
 		// One-shot: clear image paths after injection so they are not re-sent
 		a.imagePaths = nil
+
+		// FEATURE-319: minimal vision-context mode — send only
+		// [system, user(intent + images)] to the vision model. This discards
+		// all intermediate history so a vision model with a smaller context
+		// limit than the main model does not overflow. The intent is taken
+		// from the most recent visual_analysis call. If no intent is pending,
+		// fall back to the existing behavior (do not collapse) to avoid losing
+		// the image-bearing message.
+		if a.cfg != nil && a.cfg.LLM.VisionContextMode == "minimal" &&
+			a.visionPendingIntent != "" && len(msgs) > 0 {
+			// Extract image/video parts from the last user message (injected above).
+			var mediaParts []llm.ContentPart
+			for _, cp := range lastMsg.ContentParts {
+				if cp.Type == llm.ContentPartImageURL || cp.Type == llm.ContentPartVideoURL {
+					mediaParts = append(mediaParts, cp)
+				}
+			}
+			cleanMsg := llm.Message{Role: "user"}
+			cleanMsg.ContentParts = []llm.ContentPart{
+				{Type: llm.ContentPartText, Text: a.visionPendingIntent},
+			}
+			cleanMsg.ContentParts = append(cleanMsg.ContentParts, mediaParts...)
+			msgs = []llm.Message{msgs[0], cleanMsg}
+			log.Info("Agent.buildContextMessages: minimal vision-context mode, collapsed to %d messages", len(msgs))
+		}
 	}
 
 	return msgs
