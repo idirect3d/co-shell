@@ -39,9 +39,10 @@
 
 | FEATURE-323 | 0.7.0 | P1 | ✅ 已完成（工具执行结果回显优化：普通工具执行成功后，事件流中连续输出"执行前摘要"与"执行后结果回执"两行（`[⚙️]< 读取文件...` 与 `[⚙️]< 读取 xx 文件...`），内容重复。修复：run_stream.go 工具执行循环中，普通工具执行成功时不再 emit FIX-316 的 buildToolOutcome 回执（与执行前摘要重复）；仅当 execErr != nil（执行失败）时 emit EventError 显示错误原因（与回灌 LLM 的结构化 result 一致）；attempt_completion/track_task_progress/view_task_plan 三类工具仍显示完整 result。go vet + agent 全量测试通过 [BUILD-357]） |
 
-| FEATURE-324 | 0.7.0 | P1 | 🔄 实施中（工具返回结果标记优化：工具为空 result 时，返回消息中 `[意图] xxx` 成为唯一内容，易被 LLM 误认为结果是意图文本。修复：intent 拼接改为三段式——`[返回结果][实际结果或空]\n\n[意图] xxx`，明确区分"返回结果"与"意图"；[返回结果]/[意图] 标签 i18n key 化（zh/en 双语），OpenAI 与 XML 模式共用同一条 intent 拼接（均走 executeToolCall 返回）） |
+| FEATURE-324 | 0.7.0 | P1 | ✅ 已完成（工具返回结果标记优化：工具为空 result 时，返回消息中 `[意图] xxx` 成为唯一内容，易被 LLM 误认为结果是意图文本。修复：intent 拼接改为三段式——`[返回结果][实际结果或空]\n\n[意图] xxx`，明确区分"返回结果"与"意图"；[返回结果]/[意图] 标签 i18n key 化（zh/en 双语），OpenAI 与 XML 模式共用同一条 intent 拼接（均走 executeToolCall 返回）。go vet + agent/i18n 测试通过 [BUILD-358]） |
 
 | FEATURE-325 | 0.7.0 | P1 | ✅ 已完成（工具显示去重：流式实时预览 `[🔧 工具名]`（stream_response.go，showTool 控制）与执行前摘要 `[⚙️]< 工具名摘要`（run_stream.go，showTool 控制）都由 showTool 控制且内容重复。修复：删除 stream_response.go 中 StreamEventToolCall 分支的实时预览块（`[🔧 工具名]`），仅保留执行前摘要，用户看到每个工具只显示一次 `[⚙️]< ...`。go vet + agent 全量测试通过 [BUILD-359]） |
+| FEATURE-326 | 0.7.0 | P1 | ✅ 已完成（默认参数调整：show-tool-input/show-tool-output/show-command/show-command-output 四项显示开关默认值统一改为 false（off）；toolcall-mode 默认值从 xml 改为 openai。修复位置 config/config.go DefaultConfig() [BUILD-360]） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
