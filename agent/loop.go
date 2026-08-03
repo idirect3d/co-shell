@@ -991,17 +991,12 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		strategyDesc = fmt.Sprintf(i18n.TF(i18n.KeyStrategyUnknown), loopAction)
 	}
 
-	// Append feedback to messages (if non-empty)
-	// The <task> wrapper was removed because it distorted LLM attention
-	// priority (FEATURE-292).
-	if loopFeedback != "" {
-		a.mu.Lock()
-		a.messages = append(a.messages, llm.Message{
-			Role:    "user",
-			Content: loopFeedback,
-		})
-		a.mu.Unlock()
-	}
+	// Apply loop feedback via the unified helper (FIX-321).
+	// When loopFeedback is non-empty (prompt/reorganize) a loop feedback
+	// message with a full <environment_details> block is created or updated
+	// in place; when empty (retry/temperature) only the <retry_count> tag
+	// on the last user message is incremented, no new message is appended.
+	a.applyLoopFeedback(loopFeedback)
 
 	if cb != nil {
 		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strategyDesc))
