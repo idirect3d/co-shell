@@ -360,7 +360,7 @@ var zhMessages = map[string]string{
 
 	// FEATURE-310: Tool call summary (intent + key params display)
 	KeyToolCallSummaryGeneric:        "[🔧 %s] 目的: %s",
-	KeyToolCallSummaryExecCmd:        "执行命令: %s\n  目的: %s",
+	KeyToolCallSummaryExecCmd:        "执行命令: %s（超时: %s）\n  目的: %s",
 	KeyToolCallSummaryReadFile:       "读取文件: %s（行 %s-%s）\n  目的: %s",
 	KeyToolCallSummaryWriteFile:      "写入文件: %s（模式: %s）\n  目的: %s",
 	KeyToolCallSummaryReplaceInFile:  "编辑文件: %s（共 %s 处修改）\n  目的: %s",
@@ -384,7 +384,7 @@ var zhMessages = map[string]string{
 	KeyToolOutcomeReplaceFile: "修改 %s 文件（%s 处替换）",
 	KeyToolOutcomeSearchFiles: "搜索 %s（找到 %s 处匹配）",
 	KeyToolOutcomeExecSuccess: "命令执行成功",
-	KeyToolOutcomeExecCmd:     "执行命令: %s（意图: %s）",
+	KeyToolOutcomeExecCmd:     "执行命令: %s（超时: %s，意图: %s）",
 	KeyToolOutcomeGeneric:     "%s 执行成功",
 	KeyCmdConfirmApprove:      "a",
 	KeyCmdConfirmApproveAll:   "aa",
