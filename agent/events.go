@@ -13,17 +13,18 @@ package agent
 // agent loop and consumed by REPL/main renderers.
 // See docs/output-architecture.md section 3.3.
 const (
-	EventContentChunk  = "content_chunk"  // LLM streaming content
-	EventThinkingChunk = "thinking_chunk" // LLM streaming thinking
-	EventContent       = "content"        // LLM non-streaming content
-	EventThinking      = "thinking"       // LLM non-streaming thinking
-	EventCommand       = "command"        // system command
-	EventOutput        = "output"         // command output
-	EventToolCall      = "tool_call"      // tool call (name/args/result)
-	EventTokenIter     = "token_iter"     // iteration token usage
-	EventTokenTask     = "token_task"     // task token usage
-	EventInfo          = "info"           // informational message
-	EventWarning       = "warning"        // warning message
-	EventError         = "error"          // error message
-	EventDone          = "done"           // done marker
+	EventContentChunk   = "content_chunk"    // LLM streaming content
+	EventThinkingChunk  = "thinking_chunk"   // LLM streaming thinking
+	EventContent        = "content"          // LLM non-streaming content
+	EventThinking       = "thinking"         // LLM non-streaming thinking
+	EventCommand        = "command"          // system command
+	EventOutput         = "output"           // command output
+	EventToolCall       = "tool_call"        // tool call (name/args/result)
+	EventTokenIter      = "token_iter"       // iteration token usage
+	EventTokenTask      = "token_task"       // task token usage
+	EventInfo           = "info"             // informational message
+	EventWarning        = "warning"          // warning message
+	EventError          = "error"            // error message
+	EventDone           = "done"             // done marker
+	EventToolCallStream = "tool_call_stream" // FEATURE-235: streaming tool-call render (show-tool / show-tool-input gated)
 )

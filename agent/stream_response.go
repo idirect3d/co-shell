@@ -135,6 +135,41 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 		}
 	}
 
+	// FEATURE-235: Initialize the unified tool-call streaming parser.
+	//
+	// Two channels are parsed independently of the configured tool-call mode,
+	// because providers/models do not always respect the requested mode:
+	//   - the LLM content stream is parsed by XMLToolCallParser, so any
+	//     "cs:"-prefixed tool call appearing in the content (XML-mode style)
+	//     is rendered incrementally instead of being echoed as raw text;
+	//   - the API-level tool-call delta stream is parsed by JSONToolCallParser,
+	//     which recognises incremental JSON arguments (OpenAI-mode style).
+	// Both produce RenderOps consumed by one renderer gated by show-tool and
+	// show-tool-input.
+	var xmlToolCallParser *XMLToolCallParser
+	var jsonToolCallParser *JSONToolCallParser
+	var toolCallRenderer *ToolCallRenderer
+	if a.showTool || a.showToolInput {
+		xmlToolCallParser = NewXMLToolCallParser(a.buildToolsInternal())
+		jsonToolCallParser = NewJSONToolCallParser()
+		toolCallRenderer = NewToolCallRenderer(a.showTool, a.showToolInput)
+		log.Info("Agent.streamLLMResponse: FEATURE-235 tool-call stream parsers initialized")
+	}
+	// emitToolCallStream is shared by both modes: it feeds RenderOps into the
+	// renderer and forwards the resulting incremental text via EventToolCallStream.
+	//
+	// FEATURE-235: The text is emitted verbatim, in the granularity the
+	// underlying LLM stream produced. Each real SSE chunk is parsed and
+	// forwarded immediately — nothing is buffered or artificially re-sliced.
+	// If a provider delivers a long parameter value over many small chunks,
+	// the screen grows incrementally chunk by chunk; if it delivers the whole
+	// value in a single chunk, that chunk appears as-is (the data's natural
+	// granularity).
+	emitToolCallStream := func(text string) {
+		if text != "" {
+			cb(EventToolCallStream, text)
+		}
+	}
 	// Track whether we saw any tool call events (even invalid ones) from the stream.
 	// This helps distinguish between "LLM returned no tool calls" (final answer)
 	// and "LLM returned tool calls but all were invalid" (should retry).
@@ -194,31 +229,12 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			switch event.Type {
 			case llm.StreamEventContent:
 				contentBuilder.WriteString(event.Content)
-				if a.showLlmContent {
-					cb(EventContentChunk, event.Content)
-				}
-
-				// FEATURE-298: Check for fatal XML errors in streaming content.
-				// When the validator detects an unknown tool/param name or tag mismatch,
-				// cancel the LLM stream immediately and store the error for RunStream to handle.
-				if xmlValidator != nil {
-					if xmlErr := xmlValidator.AddChunk(event.Content); xmlErr != nil {
-						log.Warn("Agent.streamLLMResponse: streaming XML validation failed: %v", xmlErr)
-						// Cancel the LLM stream to stop wasting tokens
-						streamCancel()
-						finalContent := contentBuilder.String()
-						// Store error in taskInstructionCache for RunStream to handle
-						a.mu.Lock()
-						a.taskInstructionCache.Reset()
-						errMsg := fmt.Sprintf(`{"tool": "", "error": %q}`, xmlErr.Error())
-						a.taskInstructionCache.WriteString(errMsg)
-						a.mu.Unlock()
-						return finalContent, "", nil, false, xmlErr
-					}
-				}
 
 				// FIX-179: Check for loop patterns in LLM output.
-				// Skip detection if judge already said "not a loop" in this stream call.
+				// This MUST run before the FEATURE-235 XML tool-call branch:
+				// chunks consumed by the tool-call renderer otherwise skip the
+				// detection via `continue`, letting the LLM loop indefinitely
+				// without intervention.
 				if a.loopDetectOn && a.loopDetector != nil && !a.loopJudgeSkipped {
 					if err := a.loopDetector.AddChunk(event.Content, time.Now()); err != nil {
 						log.Warn("Agent.streamLLMResponse: loop detected: %v", err)
@@ -255,6 +271,74 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					return finalContent, finalReasoning, nil, false, syncErr
 				}
 
+				// FEATURE-235: In XML mode, feed the content chunk into the
+				// streaming tool-call parser. While a tool call is being
+				// recognised, the raw chunk is diverted into the renderer
+				// (show-tool / show-tool-input gated EventToolCallStream) and
+				// NOT shown as raw content, even when show-llm-content is on.
+				// Outside a tool call the chunk is rendered normally.
+				if xmlToolCallParser != nil {
+					ops, perr := xmlToolCallParser.Feed(event.Content)
+					if perr != nil {
+						// Fatal structure error: abort the stream and route the
+						// error through the existing parse-error-action.
+						log.Warn("Agent.streamLLMResponse: FEATURE-235 XML tool-call parse error: %v", perr)
+						streamCancel()
+						finalContent := contentBuilder.String()
+						a.mu.Lock()
+						a.taskInstructionCache.Reset()
+						errMsg := fmt.Sprintf(`{"tool": %q, "error": %q}`, toolNameOf(perr), perr.Error())
+						a.taskInstructionCache.WriteString(errMsg)
+						a.mu.Unlock()
+						return finalContent, "", nil, false, perr
+					}
+					// FEATURE-235: The chunk is treated as tool-call content
+					// (and must NOT fall back to plain LLM content rendering)
+					// when the parser produced any tool render ops this chunk,
+					// or when a "cs:"-prefixed tag is still being composed or a
+					// tool call is open. The parser already emitted the
+					// renderable fragments verbatim at the chunk granularity.
+					w := xmlToolCallParser.PendingToolCall()
+					for _, op := range ops {
+						if op.Kind == OpPlainText {
+							// Ordinary LLM content that sits outside any tool
+							// call: hand it back to the plain content channel
+							// (still gated by show-llm-content).
+							if a.showLlmContent {
+								cb(EventContentChunk, op.Text)
+							}
+							continue
+						}
+						toolCallRenderer.Apply(op, emitToolCallStream)
+					}
+					if len(ops) > 0 || w {
+						continue
+					}
+				}
+
+				if a.showLlmContent {
+					cb(EventContentChunk, event.Content)
+				}
+
+				// FEATURE-298: Check for fatal XML errors in streaming content.
+				// When the validator detects an unknown tool/param name or tag mismatch,
+				// cancel the LLM stream immediately and store the error for RunStream to handle.
+				if xmlValidator != nil {
+					if xmlErr := xmlValidator.AddChunk(event.Content); xmlErr != nil {
+						log.Warn("Agent.streamLLMResponse: streaming XML validation failed: %v", xmlErr)
+						// Cancel the LLM stream to stop wasting tokens
+						streamCancel()
+						finalContent := contentBuilder.String()
+						// Store error in taskInstructionCache for RunStream to handle
+						a.mu.Lock()
+						a.taskInstructionCache.Reset()
+						errMsg := fmt.Sprintf(`{"tool": "", "error": %q}`, xmlErr.Error())
+						a.taskInstructionCache.WriteString(errMsg)
+						a.mu.Unlock()
+						return finalContent, "", nil, false, xmlErr
+					}
+				}
+
 			case llm.StreamEventReasoning:
 				reasoningBuilder.WriteString(event.Content)
 				if a.showLlmThinking {
@@ -281,6 +365,44 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					a.loopDetectCrit = true
 					a.mu.Unlock()
 					return finalContent, finalReasoning, nil, false, syncErr
+				}
+
+			case llm.StreamEventToolCallDelta:
+				// FEATURE-235: OpenAI mode streams tool-call arguments as
+				// incremental JSON fragments. Feed each fragment into the JSON
+				// incremental parser and render the recognised params/values
+				// in real time. Ignore deltas in XML mode (no delta channel
+				// exists there).
+				if jsonToolCallParser == nil || toolCallRenderer == nil {
+					continue
+				}
+				if event.ToolCallDelta == nil {
+					continue
+				}
+				d := event.ToolCallDelta
+				if d.Name != "" {
+					jsonToolCallParser.SetToolName(d.Name)
+					if jsonToolCallParser.InToolCall() {
+						// Tool name reached: emit the render header now.
+						toolCallRenderer.Apply(RenderOp{Kind: OpToolStart, Text: d.Name}, emitToolCallStream)
+					}
+				}
+				if d.Arguments != "" {
+					ops, jerr := jsonToolCallParser.Feed(d.Arguments)
+					if jerr != nil {
+						log.Warn("Agent.streamLLMResponse: FEATURE-235 JSON tool-call parse error: %v", jerr)
+						streamCancel()
+						finalContent := contentBuilder.String()
+						a.mu.Lock()
+						a.taskInstructionCache.Reset()
+						errMsg := fmt.Sprintf(`{"tool": %q, "error": %q}`, toolNameOf(jerr), jerr.Error())
+						a.taskInstructionCache.WriteString(errMsg)
+						a.mu.Unlock()
+						return finalContent, "", nil, false, jerr
+					}
+					for _, op := range ops {
+						toolCallRenderer.Apply(op, emitToolCallStream)
+					}
 				}
 
 			case llm.StreamEventToolCall:

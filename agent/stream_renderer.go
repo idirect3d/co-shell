@@ -87,6 +87,11 @@ func (r *StreamRenderer) Render(eventType string, content string) {
 		r.io.Print(r.ep.ToolCallInput)
 		r.io.Print(content)
 		r.io.Print("\n")
+	case EventToolCallStream:
+		// FEATURE-235: streaming tool-call render (show-tool / show-tool-input
+		// gated inside the agent). The text is already incremental and
+		// pre-formatted, so it is emitted verbatim without extra newlines.
+		r.io.Print(content)
 	case EventTokenIter:
 		r.renderTokenIter(content)
 	case EventTokenTask:

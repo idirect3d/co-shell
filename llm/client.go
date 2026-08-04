@@ -251,13 +251,25 @@ type Client interface {
 
 // StreamEvent represents an event in the streaming response.
 type StreamEvent struct {
-	Type         StreamEventType
-	Content      string
-	ToolCall     *ToolCall // accumulated tool call from stream deltas
-	FinishReason string    // finish_reason from the stream (e.g. "stop", "tool_calls")
-	Done         bool
-	Err          error
-	Usage        *TokenUsage // token usage from the final stream chunk, may be nil
+	Type          StreamEventType
+	Content       string
+	ToolCall      *ToolCall      // accumulated tool call from stream deltas
+	ToolCallDelta *ToolCallDelta // incremental tool call delta (FEATURE-235)
+	FinishReason  string         // finish_reason from the stream (e.g. "stop", "tool_calls")
+	Done          bool
+	Err           error
+	Usage         *TokenUsage // token usage from the final stream chunk, may be nil
+}
+
+// ToolCallDelta carries an incremental fragment of a streaming tool call
+// (FEATURE-235). OpenAI SSE streams tool_calls in chunks: the first delta
+// carries the index and (usually) the function name, subsequent deltas carry
+// fragments of the function arguments. Agent-side streaming tool-call parsing
+// consumes these deltas immediately instead of waiting for the stream to end.
+type ToolCallDelta struct {
+	Index     int    // index of the tool call within the request (0-based)
+	Name      string // function name (non-empty only in the first delta)
+	Arguments string // incremental arguments fragment appended by this delta
 }
 
 // StreamEventType indicates the type of stream event.
@@ -267,6 +279,11 @@ const (
 	StreamEventContent StreamEventType = iota
 	StreamEventReasoning
 	StreamEventToolCall
+	// StreamEventToolCallDelta carries an incremental fragment of a tool call
+	// argument (FEATURE-235). It is emitted as soon as a delta chunk arrives,
+	// so the agent parses tool-call arguments in real time instead of waiting
+	// for the stream to finish.
+	StreamEventToolCallDelta
 	StreamEventDone
 	StreamEventError
 )
@@ -897,6 +914,9 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		finishReason := ""
 		var finalUsage *usageJSON
 		respHeaderWritten := false
+		// FEATURE-235: track whether the [RESP][tool_calls header has been
+		// written for the current interaction's tool-call arguments stream.
+		toolCallHeaderWritten := false
 
 		for {
 			line, err := reader.Read()
@@ -1011,7 +1031,30 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 							}
 							if tc.Arguments != "" {
 								existing.Arguments += tc.Arguments
+								// FEATURE-235: record tool-call arguments as
+								// they arrive. First fragment writes a
+								// [RESP][tool_calls header; subsequent chunks
+								// append with no header — mirroring the content
+								// stream format. This exposes the provider's
+								// real SSE chunk granularity for diagnostics.
+								if !toolCallHeaderWritten {
+									log.WriteLLMInteraction("RESP][tool_calls", tc.Arguments)
+									toolCallHeaderWritten = true
+								} else {
+									log.WriteLLMInteractionAppend(tc.Arguments)
+								}
 							}
+						}
+						// FEATURE-235: emit an incremental delta event immediately
+						// so the agent can parse tool-call arguments in real time
+						// instead of waiting for the stream to finish.
+						eventCh <- StreamEvent{
+							Type: StreamEventToolCallDelta,
+							ToolCallDelta: &ToolCallDelta{
+								Index:     tc.Index,
+								Name:      tc.Name,
+								Arguments: tc.Arguments,
+							},
 						}
 					}
 				}
