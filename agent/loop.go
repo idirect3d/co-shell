@@ -885,7 +885,8 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 
 	cb := a.streamCb
 	if cb != nil {
-		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectEvent), event.Detector))
+		ep := config.GetEmojiPrefixes(a.emojiEnabled)
+		cb(EventInfo, ep.Loop+fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectEvent), event.Detector))
 	}
 
 	// Secondary judgment: when LoopJudgeEnabled, call judge model FIRST to
