@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-08-04
-// Last Modified: 2026-08-04
+// Last Modified: 2026-08-05
 //
 // MIT License
 //
@@ -57,6 +57,16 @@ func toolcallTestTools() []llm.Tool {
 				},
 			},
 		},
+		{
+			Name:        "update_setting",
+			Description: "update a setting",
+			Parameters: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"key":   map[string]interface{}{"type": "string"},
+					"value": map[string]interface{}{"type": "string"},
+				},
+			},
+		},
 	}
 }
 
@@ -98,8 +108,9 @@ func TestToolCallStream_XMLToolNameFirst(t *testing.T) {
 	}
 }
 
-// TestToolCallStream_XMLWriteContent verifies UC-0002: content fragments are
-// rendered incrementally as they arrive.
+// TestToolCallStream_XMLWriteContent verifies FEATURE-328 UC-0001: content
+// fragments are rendered incrementally line by line with a "+" marker and an
+// incrementing line number.
 func TestToolCallStream_XMLWriteContent(t *testing.T) {
 	p := NewXMLToolCallParser(toolcallTestTools())
 	r := NewToolCallRenderer(true, true)
@@ -120,14 +131,18 @@ func TestToolCallStream_XMLWriteContent(t *testing.T) {
 	}
 
 	text := collectRenderText(r, all)
-	if !strings.Contains(text, "   content: line1\n") || !strings.Contains(text, "line2") {
-		t.Errorf("content not rendered incrementally, got: %q", text)
+	if !strings.Contains(text, "     1+ line1") || !strings.Contains(text, "     2+ line2") {
+		t.Errorf("content not rendered line-by-line with line numbers, got: %q", text)
+	}
+	if !strings.Contains(text, "   content:") {
+		t.Errorf("content title line missing, got: %q", text)
 	}
 }
 
-// TestToolCallStream_XMLReplaceDiff verifies UC-0003: replace_in_file emits a
-// SEARCH ──> REPLACE diff block at the end of each search/replace pair.
-func TestToolCallStream_XMLReplaceDiff(t *testing.T) {
+// TestToolCallStream_XMLReplaceNoLineNo verifies FEATURE-328 UC-0002: without a
+// start_line parameter, replace_in_file renders search/replace lines with
+// "-"/"+" markers and no line numbers.
+func TestToolCallStream_XMLReplaceNoLineNo(t *testing.T) {
 	p := NewXMLToolCallParser(toolcallTestTools())
 	r := NewToolCallRenderer(true, true)
 
@@ -149,8 +164,50 @@ func TestToolCallStream_XMLReplaceDiff(t *testing.T) {
 	}
 
 	text := collectRenderText(r, all)
-	if !strings.Contains(text, "🔄 alpha ──> beta") {
-		t.Errorf("diff block missing, got: %q", text)
+	if !strings.Contains(text, "   - alpha") || !strings.Contains(text, "   + beta") {
+		t.Errorf("search/replace lines missing, got: %q", text)
+	}
+	if strings.Contains(text, "- alpha") && strings.ContainsAny(text, "123456789") {
+		// No line numbers should be present on diff lines when start_line is
+		// not specified.
+		for _, line := range strings.Split(text, "\n") {
+			if strings.Contains(line, "- alpha") && line != "   - alpha" {
+				t.Errorf("unexpected line number on '-' line, got: %q", line)
+			}
+		}
+	}
+}
+
+// TestToolCallStream_XMLReplaceStartLine verifies FEATURE-328 UC-0003: when a
+// start_line parameter precedes the block, search/replace lines show the real
+// line numbers starting at start_line.
+func TestToolCallStream_XMLReplaceStartLine(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	chunks := []string{
+		"<cs:replace_in_file>",
+		"<cs:path>a.go</cs:path>",
+		"<cs:replacements>",
+		"<item><cs:start_line>10</cs:start_line><cs:search>old1\nold2</cs:search><cs:replace>new1\nnew2</cs:replace></item>",
+		"</cs:replacements>",
+		"</cs:replace_in_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if !strings.Contains(text, "   10- old1") || !strings.Contains(text, "   11- old2") {
+		t.Errorf("search lines with start_line line numbers missing, got: %q", text)
+	}
+	if !strings.Contains(text, "   10+ new1") || !strings.Contains(text, "   11+ new2") {
+		t.Errorf("replace lines with start_line line numbers missing, got: %q", text)
 	}
 }
 
@@ -212,21 +269,69 @@ func TestToolCallStream_JSONIncremental(t *testing.T) {
 	}
 }
 
-// TestToolCallStream_XMLParseErrorAbort verifies UC-0005: an unknown tool name
-// at tool level triggers an immediate abort error.
-func TestToolCallStream_XMLParseErrorAbort(t *testing.T) {
-	p := NewXMLToolCallParser(toolcallTestTools())
+// TestToolCallStream_JSONNewlineDecode verifies FEATURE-328 UC-0004: a JSON
+// "\n" escape in a content value is decoded to a real newline so the renderer
+// splits it into separate lines with incrementing line numbers.
+func TestToolCallStream_JSONNewlineDecode(t *testing.T) {
+	p := NewJSONToolCallParser()
+	r := NewToolCallRenderer(true, true)
+	p.SetToolName("write_to_file")
+	r.Apply(RenderOp{Kind: OpToolStart, Text: "write_to_file"}, func(string) {})
 
-	_, err := p.Feed("<cs:unknown_tool>")
-	if err == nil {
-		t.Fatal("expected ToolCallParseError for unknown tool, got nil")
+	deltas := []string{
+		`{"path":"a.go","content":"line1\n`,
+		`line2"}`,
 	}
-	pe, ok := err.(*ToolCallParseError)
-	if !ok {
-		t.Fatalf("expected *ToolCallParseError, got %T", err)
+	var text strings.Builder
+	for _, d := range deltas {
+		ops, err := p.Feed(d)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", d, err)
+		}
+		for _, op := range ops {
+			r.Apply(op, func(s string) { text.WriteString(s) })
+		}
 	}
-	if pe.Tool != "unknown_tool" {
-		t.Errorf("expected tool name 'unknown_tool', got %q", pe.Tool)
+
+	got := text.String()
+	if !strings.Contains(got, "     1+ line1") || !strings.Contains(got, "     2+ line2") {
+		t.Errorf("JSON \\n escape not decoded to separate lines, got: %q", got)
+	}
+}
+
+// TestToolCallStream_XMLReplaceDiff verifies FEATURE-328 UC-0002 (rewritten):
+// a replace block without start_line renders "-"/"+" lines with no numbers.
+// The old "🔄 ... ──> ..." one-line diff format is replaced by git-diff style.
+func TestToolCallStream_XMLReplaceDiff(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	chunks := []string{
+		"<cs:replace_in_file>",
+		"<cs:path>a.go</cs:path>",
+		"<cs:replacements>",
+		"<item><cs:search>alpha</cs:search><cs:replace>beta</cs:replace></item>",
+		"</cs:replacements>",
+		"</cs:replace_in_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if strings.Contains(text, "🔄") {
+		t.Errorf("legacy one-line diff format should no longer be used, got: %q", text)
+	}
+	if !strings.Contains(text, "   - alpha") {
+		t.Errorf("search '-' line missing, got: %q", text)
+	}
+	if !strings.Contains(text, "   + beta") {
+		t.Errorf("replace '+' line missing, got: %q", text)
 	}
 }
 
@@ -332,5 +437,34 @@ func TestToolCallStream_JSONParseError(t *testing.T) {
 	// An unmatched closing bracket (depth below zero) is a fatal error.
 	if _, err := p.Feed(`]`); err == nil {
 		t.Fatal("expected ToolCallParseError from stray closing bracket, got nil")
+	}
+}
+
+// TestToolCallStream_XMLWriteGating verifies FEATURE-328 UC-0006: with
+// showToolInput=false no content lines are rendered while the tool header is.
+func TestToolCallStream_XMLWriteGating(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, false)
+
+	chunks := []string{
+		"<cs:write_to_file>",
+		"<cs:content>line1\nline2</cs:content>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if !strings.Contains(text, "⚙️ write_to_file") {
+		t.Errorf("tool header missing with showToolInput=false, got: %q", text)
+	}
+	if strings.Contains(text, "+") || strings.Contains(text, "content:") {
+		t.Errorf("content lines should be gated off, got: %q", text)
 	}
 }

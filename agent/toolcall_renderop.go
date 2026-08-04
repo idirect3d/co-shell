@@ -1,32 +1,15 @@
 // Author: L.Shuang
 // Created: 2026-08-04
-// Last Modified: 2026-08-04
-//
-// MIT License
-//
-// Copyright (c) 2026 L.Shuang
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
+// Last Modified: 2026-08-05
+// MIT License - Copyright (c) 2026 L.Shuang
 
 package agent
 
-import "strings"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // RenderOpKind identifies the kind of a unified tool-call render operation.
 // Both the XML and the OpenAI JSON streaming parsers emit the same RenderOp
@@ -35,9 +18,8 @@ type RenderOpKind int
 
 const (
 	// OpPlainText marks a fragment of ordinary LLM content that sits outside
-	// any tool call (prose, HTML-like text, etc.). The content router emits it
-	// via the normal EventContentChunk path so it is shown verbatim without
-	// the tool-render styling.
+	// any tool call. The content router emits it via the normal
+	// EventContentChunk path so it is shown verbatim without tool styling.
 	OpPlainText RenderOpKind = iota
 	// OpToolStart marks the beginning of a recognised tool call.
 	// Text holds the tool name (e.g. "write_to_file").
@@ -49,9 +31,7 @@ const (
 	// Text holds an arbitrary piece of the value string.
 	OpValueFragment
 	// OpParamEnd marks the end of the current parameter value.
-	// Text holds the parameter name. It lets the renderer finalise
-	// method-specific rendering (e.g. a replace_in_file diff block needs to
-	// know where the search value ends and the replace value begins).
+	// Text holds the parameter name.
 	OpParamEnd
 	// OpToolEnd marks the closing of the current tool call.
 	OpToolEnd
@@ -69,34 +49,37 @@ type RenderOp struct {
 // text. It is the single rendering entry point shared by XML and OpenAI modes.
 //
 // The renderer is display-gated:
-//   - OpToolStart is emitted only when showTool is enabled (the method name
-//     line is an Emoji-guided header controlled by show-tool).
+//   - OpToolStart is emitted only when showTool is enabled.
 //   - parameter keys / value fragments are emitted only when showToolInput is
-//     enabled (the dynamic call content is controlled by show-tool-input).
+//     enabled.
 //
-// The renderer accumulates state so that fragments of the same value are
-// printed continuously without repeating already-rendered parts.
-//
-// Method-specific rendering:
-//   - write_to_file: the "content" parameter value is appended verbatim as it
-//     streams (complete expansion of the file content being written).
-//   - replace_in_file: every search/replace value pair is finalised at
-//     OpParamEnd into a "SEARCH ──> REPLACE" diff block.
+// Method-specific rendering (FEATURE-328, git-diff style):
+//   - write_to_file: the "content" value is rendered line by line with an
+//     incrementing line number and a "+" marker (e.g. "     1+ foo"), so the
+//     file being written visibly grows line by line on screen.
+//   - replace_in_file: search value fragments are rendered line by line with a
+//     "-" marker; replace value fragments with a "+" marker. When a
+//     "start_line" parameter precedes the block inside the same replacement,
+//     both markers are prefixed with the real line numbers starting at
+//     start_line; otherwise no line numbers are shown.
 type ToolCallRenderer struct {
-	showTool      bool
-	showToolInput bool
-	// currentTool is the name of the tool currently being rendered.
-	currentTool string
-	// pendingParam is the name of the parameter whose value is being rendered.
-	pendingParam string
-	// haveToolHeader tracks whether the tool name line has been emitted.
+	showTool       bool
+	showToolInput  bool
+	currentTool    string
+	pendingParam   string
 	haveToolHeader bool
-	// replaceBookkeeping: for replace_in_file a diff block needs the finished
-	// search value (old) before the replace value (new) is finalised.
-	replaceSearchVal  strings.Builder
-	replacePendingVal strings.Builder // buffers the current replace value fragments
-	replaceHaveSearch bool            // true once a search value has been captured
-	replacePairClosed bool            // true after a search/replace pair is emitted
+
+	writeLineBuf strings.Builder // line-mode buffer for write_to_file content
+	writeLineNo  int
+
+	replaceStartLine     int // 0 = not specified (no line numbers)
+	startLineBuf         strings.Builder
+	replaceSearchBuf     strings.Builder
+	replaceSearchLineNo  int
+	replaceHaveSearch    bool
+	replaceReplaceBuf    strings.Builder
+	replaceReplaceLineNo int
+	replacePairClosed    bool
 }
 
 // NewToolCallRenderer constructs a renderer gated by showTool and showToolInput.
@@ -119,9 +102,15 @@ func (r *ToolCallRenderer) Reset() {
 	r.currentTool = ""
 	r.pendingParam = ""
 	r.haveToolHeader = false
-	r.replaceSearchVal.Reset()
-	r.replacePendingVal.Reset()
+	r.writeLineBuf.Reset()
+	r.writeLineNo = 0
+	r.replaceStartLine = 0
+	r.startLineBuf.Reset()
+	r.replaceSearchBuf.Reset()
+	r.replaceSearchLineNo = 0
 	r.replaceHaveSearch = false
+	r.replaceReplaceBuf.Reset()
+	r.replaceReplaceLineNo = 0
 	r.replacePairClosed = false
 }
 
@@ -148,8 +137,17 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 			return
 		}
 		// replace_in_file values are rendered inside diff blocks, not as
-		// "key: value" lines; the diff block is emitted at OpParamEnd.
+		// "key: value" lines; the diff lines are emitted at OpValueFragment.
 		if r.currentTool == "replace_in_file" {
+			switch r.pendingParam {
+			case "search", "replace", "start_line":
+				return
+			}
+		}
+		// write_to_file content is rendered as a line-numbered block headed
+		// by its own "content:" title line.
+		if r.currentTool == "write_to_file" && r.pendingParam == "content" {
+			emit("   content:\n")
 			return
 		}
 		emit("   " + op.Text + ": ")
@@ -160,19 +158,22 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 		if r.currentTool == "replace_in_file" {
 			switch r.pendingParam {
 			case "search":
-				// search fragments are appended directly to the search value
-				// builder so the diff block can render the old value.
-				r.replaceSearchVal.WriteString(op.Text)
+				feedLined(&r.replaceSearchBuf, r.replaceStartLine, &r.replaceSearchLineNo, "-", "   ", op.Text, emit)
+				return
 			case "replace":
-				// replace fragments are buffered until OpParamEnd.
-				r.replacePendingVal.WriteString(op.Text)
+				feedLined(&r.replaceReplaceBuf, r.replaceStartLine, &r.replaceReplaceLineNo, "+", "   ", op.Text, emit)
+				return
+			case "start_line":
+				r.startLineBuf.WriteString(op.Text)
+				return
 			}
+		}
+		if r.currentTool == "write_to_file" && r.pendingParam == "content" {
+			feedLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", op.Text, emit)
 			return
 		}
 		// FEATURE-235: Emit the value fragment verbatim in the granularity the
 		// underlying parser produced (which follows the LLM stream chunks).
-		// No artificial re-slicing: each real stream chunk's content reaches
-		// the user as-is, so the screen grows chunk by chunk.
 		emit(op.Text)
 	case OpParamEnd:
 		r.finaliseParameter(emit)
@@ -182,41 +183,48 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 }
 
 // finaliseParameter is called when a parameter value ends (OpParamEnd).
-// It emits method-specific finalisation: for replace_in_file the completed
-// search/replace pair is rendered as a diff block line.
+// It flushes trailing line-mode buffers and resets per-block state.
 func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
-	if !r.showToolInput {
-		r.pendingParam = ""
-		return
-	}
-	if r.currentTool != "replace_in_file" {
-		if r.showToolInput {
-			// Each parameter value ends on its own line.
-			emit("\n")
+	switch r.currentTool {
+	case "write_to_file":
+		if r.pendingParam == "content" {
+			flushLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", emit)
+			r.pendingParam = ""
+			return
 		}
-		r.pendingParam = ""
-		return
-	}
-	switch r.pendingParam {
-	case "search":
-		// The search value has finished streaming. It is already in
-		// replaceSearchVal (accumulated by OpValueFragment). Keep it buffered;
-		// the replace value (if any) will be paired into a diff block.
-		r.replaceHaveSearch = true
-		r.replacePendingVal.Reset()
-		r.replacePairClosed = false
-	case "replace":
-		oldVal := r.replaceSearchVal.String()
-		newVal := r.replacePendingVal.String()
-		if r.replaceHaveSearch && oldVal != "" {
-			emit("   🔄 " + oldVal + " ──> " + newVal + "\n")
-		} else if newVal != "" {
-			emit("   🔄 (new) " + newVal + "\n")
+	case "replace_in_file":
+		switch r.pendingParam {
+		case "search":
+			flushLined(&r.replaceSearchBuf, r.replaceStartLine, &r.replaceSearchLineNo, "-", "   ", emit)
+			r.replaceHaveSearch = true
+			r.replacePairClosed = false
+			r.pendingParam = ""
+			return
+		case "replace":
+			flushLined(&r.replaceReplaceBuf, r.replaceStartLine, &r.replaceReplaceLineNo, "+", "   ", emit)
+			// The block is finished: reset per-block state so the next
+			// replacement starts fresh with no residual line numbers.
+			r.replaceHaveSearch = false
+			r.replaceSearchBuf.Reset()
+			r.replaceSearchLineNo = 0
+			r.replaceReplaceBuf.Reset()
+			r.replaceReplaceLineNo = 0
+			r.replaceStartLine = 0
+			r.replacePairClosed = true
+			r.pendingParam = ""
+			return
+		case "start_line":
+			if val, err := strconv.Atoi(strings.TrimSpace(r.startLineBuf.String())); err == nil && val > 0 {
+				r.replaceStartLine = val
+			}
+			r.startLineBuf.Reset()
+			r.pendingParam = ""
+			return
 		}
-		r.replacePendingVal.Reset()
-		r.replaceHaveSearch = false
-		r.replaceSearchVal.Reset()
-		r.replacePairClosed = true
+	}
+	if r.showToolInput {
+		// Each regular parameter value ends on its own line.
+		emit("\n")
 	}
 	r.pendingParam = ""
 }
@@ -233,10 +241,58 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	r.currentTool = ""
 	r.pendingParam = ""
 	r.haveToolHeader = false
-	r.replaceSearchVal.Reset()
-	r.replacePendingVal.Reset()
+	r.writeLineBuf.Reset()
+	r.writeLineNo = 0
+	r.replaceStartLine = 0
+	r.startLineBuf.Reset()
+	r.replaceSearchBuf.Reset()
+	r.replaceSearchLineNo = 0
 	r.replaceHaveSearch = false
+	r.replaceReplaceBuf.Reset()
+	r.replaceReplaceLineNo = 0
 	r.replacePairClosed = false
+}
+
+// linePrefix builds the git-diff style prefix for a rendered line. When
+// baseLine > 0 the real line number (baseLine+no-1) is shown; otherwise only
+// the marker ("+"/"-") is shown. indent aligns the line under its block:
+// write_to_file content uses 5 spaces, replace_in_file diff lines use 3.
+func linePrefix(baseLine, no int, marker, indent string) string {
+	if baseLine > 0 {
+		return fmt.Sprintf("%s%d%s ", indent, baseLine+no-1, marker)
+	}
+	return fmt.Sprintf("%s%s ", indent, marker)
+}
+
+// feedLined appends text to buf and emits every completed line (split on '\n')
+// immediately. The line counter increments for each emitted line, so a long
+// parameter value visibly grows line by line on screen.
+func feedLined(buf *strings.Builder, baseLine int, lineNo *int, marker, indent, text string, emit func(string)) {
+	buf.WriteString(text)
+	for {
+		s := buf.String()
+		idx := strings.IndexByte(s, '\n')
+		if idx < 0 {
+			return
+		}
+		line := s[:idx]
+		*lineNo++
+		emit(linePrefix(baseLine, *lineNo, marker, indent) + line + "\n")
+		buf.Reset()
+		buf.WriteString(s[idx+1:])
+	}
+}
+
+// flushLined emits the remaining (newline-less) tail of a line buffer when a
+// parameter ends. Empty buffers emit nothing.
+func flushLined(buf *strings.Builder, baseLine int, lineNo *int, marker, indent string, emit func(string)) {
+	if buf.Len() == 0 {
+		return
+	}
+	line := buf.String()
+	*lineNo++
+	emit(linePrefix(baseLine, *lineNo, marker, indent) + line + "\n")
+	buf.Reset()
 }
 
 // trimToolCallContent is a small helper used by tests and future extensions.
