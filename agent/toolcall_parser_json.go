@@ -26,7 +26,10 @@
 
 package agent
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // JSONToolCallParser incrementally parses OpenAI-style tool-call argument
 // deltas into RenderOps.
@@ -129,14 +132,21 @@ func (p *JSONToolCallParser) Feed(fragment string) ([]RenderOp, error) {
 			}
 			ch := s[i]
 			if ch == '\\' && i+1 < len(s) {
-				// Escaped char — copy both bytes (e.g. \n, \").
-				pair := s[i : i+2]
-				if p.keyPhase {
-					p.buffer.WriteString(pair)
-				} else {
-					ops = append(ops, RenderOp{Kind: OpValueFragment, Text: pair})
+				// FEATURE-328: Decode JSON escapes (e.g. \n → newline, \t →
+				// tab) so that multi-line parameter values (write_to_file
+				// "content", replace "search"/"replace") render line by line
+				// exactly like XML mode. Keys keep the raw escaped pair.
+				val, consumed, ok := decodeJSONEscape(s[i:])
+				if !ok {
+					// Unknown escape: keep the backslash literally.
+					val, consumed = "\\", 1
 				}
-				i += 2
+				if p.keyPhase {
+					p.buffer.WriteString(val)
+				} else {
+					ops = append(ops, RenderOp{Kind: OpValueFragment, Text: val})
+				}
+				i += consumed
 				continue
 			}
 			if ch == '"' {
@@ -222,6 +232,45 @@ func (p *JSONToolCallParser) Feed(fragment string) ([]RenderOp, error) {
 		p.partialQuote = true
 	}
 	return ops, nil
+}
+
+// decodeJSONEscape decodes a JSON escape sequence starting at s[0] (which must
+// be '\\'). It returns the decoded string, the number of bytes consumed, and
+// whether the escape was recognised. FEATURE-328: decoding turns two-character
+// JSON escapes (e.g. "\n") into the real characters (newline) so multi-line
+// parameter values render line by line like XML mode. Unknown escapes return
+// ok=false and the caller keeps the backslash literally.
+func decodeJSONEscape(s string) (string, int, bool) {
+	if len(s) < 2 || s[0] != '\\' {
+		return "", 1, false
+	}
+	switch s[1] {
+	case 'n':
+		return "\n", 2, true
+	case 'r':
+		return "\r", 2, true
+	case 't':
+		return "\t", 2, true
+	case '\\':
+		return "\\", 2, true
+	case '"':
+		return "\"", 2, true
+	case '/':
+		return "/", 2, true
+	case 'b':
+		return "\b", 2, true
+	case 'f':
+		return "\f", 2, true
+	case 'u':
+		if len(s) < 6 {
+			return "", 1, false
+		}
+		if r, err := strconv.ParseUint(s[2:6], 16, 16); err == nil {
+			return string(rune(r)), 6, true
+		}
+		return "", 1, false
+	}
+	return "", 1, false
 }
 
 // breathe returns the fragment possibly prefixed with a trailing partial
