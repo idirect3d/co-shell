@@ -442,7 +442,8 @@ iterationLoop:
 				a.loopDetectCrit = false
 
 				// Show summary at the end, after all handling
-				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectedSummary), loopAction))
+				ep := config.GetEmojiPrefixes(a.emojiEnabled)
+				cb(EventInfo, ep.Loop+fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectedSummary), loopAction))
 				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → ")))
 				if loopFeedback != "" {
 					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopFeedbackSent), loopFeedback))
