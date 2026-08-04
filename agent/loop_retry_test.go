@@ -56,7 +56,7 @@ func (loopRetryTestMsg) buildPlainUser(instruction string) llm.Message {
 func (loopRetryTestMsg) buildFeedback(tip string, retry int) llm.Message {
 	env := sampleEnv("")
 	env = setLoopFeedbackInText(env, true)
-	env = setRetryCountInText(env, retry)
+	env = setRetriedCountInText(env, retry)
 	return llm.Message{
 		Role: "user",
 		ContentParts: []llm.ContentPart{
@@ -103,9 +103,9 @@ func msgFirstText(m *llm.Message) string {
 	return m.ContentParts[0].Text
 }
 
-// retryEnv returns the <retry_count> value in the env text.
+// retryEnv returns the <retried_count> value in the env text.
 func retryEnv(env string) int {
-	return getRetryCountFromText(env)
+	return getRetriedCountFromText(env)
 }
 
 // TestLoopRetry_PromptFirstTrigger verifies UC-0001:
@@ -124,7 +124,7 @@ func TestLoopRetry_PromptFirstTrigger(t *testing.T) {
 	count := a.applyLoopFeedback("请换个思路")
 
 	if count != 1 {
-		t.Fatalf("first prompt intervention should record retry_count=1, got %d", count)
+		t.Fatalf("first prompt intervention should record retried_count=1, got %d", count)
 	}
 	if len(a.messages) != before+1 {
 		t.Fatalf("expected 1 new message (%d -> %d), got %d -> %d", before, before+1, len(a.messages), len(a.messages))
@@ -145,7 +145,7 @@ func TestLoopRetry_PromptFirstTrigger(t *testing.T) {
 		t.Errorf("feedback env should carry <loop_feedback>true</loop_feedback>, got:\n%s", env)
 	}
 	if got := retryEnv(env); got != 1 {
-		t.Errorf("feedback env should carry <retry_count>1</retry_count>, got %d", got)
+		t.Errorf("feedback env should carry <retried_count>1</retried_count>, got %d", got)
 	}
 
 	// The original user message must be untouched.
@@ -153,7 +153,7 @@ func TestLoopRetry_PromptFirstTrigger(t *testing.T) {
 	if got := msgFirstText(&orig); got != "请帮我调研" {
 		t.Errorf("original user instruction was modified: %q", got)
 	}
-	if origEnv := msgEnv(&orig); strings.Contains(origEnv, "<loop_feedback>") || strings.Contains(origEnv, "<retry_count>") {
+	if origEnv := msgEnv(&orig); strings.Contains(origEnv, "<loop_feedback>") || strings.Contains(origEnv, "<retried_count>") {
 		t.Errorf("original user env was modified:\n%s", origEnv)
 	}
 }
@@ -175,7 +175,7 @@ func TestLoopRetry_PromptUpdateInPlace(t *testing.T) {
 	count := a.applyLoopFeedback("换一个更具体的思路")
 
 	if count != 2 {
-		t.Fatalf("second prompt intervention should record retry_count=2, got %d", count)
+		t.Fatalf("second prompt intervention should record retried_count=2, got %d", count)
 	}
 	if len(a.messages) != before {
 		t.Fatalf("no new message should be added on update (%d)", len(a.messages))
@@ -190,7 +190,7 @@ func TestLoopRetry_PromptUpdateInPlace(t *testing.T) {
 		t.Errorf("<loop_feedback>true</loop_feedback> should be preserved")
 	}
 	if got := retryEnv(env); got != 2 {
-		t.Errorf("retry_count should be 2, got %d", got)
+		t.Errorf("retried_count should be 2, got %d", got)
 	}
 }
 
@@ -199,9 +199,9 @@ func TestLoopRetry_PromptUpdateInPlace(t *testing.T) {
 // feedback message and never overwrites the user message.
 func TestLoopRetry_PromptCountOnUserMsg(t *testing.T) {
 	tb := loopRetryTestMsg{}
-	// The last user message carries retry_count=2 (added by a previous retry),
+	// The last user message carries retried_count=2 (added by a previous retry),
 	// but is NOT a loop feedback message.
-	userEnv := setRetryCountInText(sampleEnv(""), 2)
+	userEnv := setRetriedCountInText(sampleEnv(""), 2)
 	userMsg := llm.Message{
 		Role: "user",
 		ContentParts: []llm.ContentPart{
@@ -221,7 +221,7 @@ func TestLoopRetry_PromptCountOnUserMsg(t *testing.T) {
 	count := a.applyLoopFeedback("请换个思路")
 
 	if count != 1 {
-		t.Fatalf("new feedback chain should start at retry_count=1, got %d", count)
+		t.Fatalf("new feedback chain should start at retried_count=1, got %d", count)
 	}
 	if len(a.messages) != before+1 {
 		t.Fatalf("expected 1 new message, got %d -> %d", before, len(a.messages))
@@ -233,16 +233,16 @@ func TestLoopRetry_PromptCountOnUserMsg(t *testing.T) {
 		t.Errorf("new message should be a loop feedback message")
 	}
 	if got := retryEnv(env); got != 1 {
-		t.Errorf("new feedback retry_count should be 1, got %d", got)
+		t.Errorf("new feedback retried_count should be 1, got %d", got)
 	}
 
-	// The original user message and its retry_count=2 must be preserved.
+	// The original user message and its retried_count=2 must be preserved.
 	orig := a.messages[1]
 	if got := msgFirstText(&orig); got != "请帮我调研" {
 		t.Errorf("original user instruction was modified: %q", got)
 	}
 	if got := retryEnv(msgEnv(&orig)); got != 2 {
-		t.Errorf("original user retry_count should stay 2, got %d", got)
+		t.Errorf("original user retried_count should stay 2, got %d", got)
 	}
 	if isLoopFeedbackText(msgEnv(&orig)) {
 		t.Errorf("original user message should NOT gain loop_feedback marker")
@@ -265,7 +265,7 @@ func TestLoopRetry_RetryFirstTrigger(t *testing.T) {
 	count := a.applyLoopFeedback("")
 
 	if count != 1 {
-		t.Fatalf("retry first trigger should record retry_count=1, got %d", count)
+		t.Fatalf("retry first trigger should record retried_count=1, got %d", count)
 	}
 	if len(a.messages) != before {
 		t.Fatalf("retry should NOT append a message (%d -> %d)", before, len(a.messages))
@@ -280,7 +280,7 @@ func TestLoopRetry_RetryFirstTrigger(t *testing.T) {
 		t.Errorf("retry should NOT add loop_feedback marker")
 	}
 	if got := retryEnv(env); got != 1 {
-		t.Errorf("retry_count should be 1, got %d", got)
+		t.Errorf("retried_count should be 1, got %d", got)
 	}
 }
 
@@ -288,7 +288,7 @@ func TestLoopRetry_RetryFirstTrigger(t *testing.T) {
 // subsequent retries increment the counter on the user message.
 func TestLoopRetry_RetryIncrement(t *testing.T) {
 	tb := loopRetryTestMsg{}
-	userEnv := setRetryCountInText(sampleEnv(""), 1)
+	userEnv := setRetriedCountInText(sampleEnv(""), 1)
 	userMsg := llm.Message{
 		Role: "user",
 		ContentParts: []llm.ContentPart{
@@ -308,7 +308,7 @@ func TestLoopRetry_RetryIncrement(t *testing.T) {
 	count := a.applyLoopFeedback("")
 
 	if count != 2 {
-		t.Fatalf("second retry should record retry_count=2, got %d", count)
+		t.Fatalf("second retry should record retried_count=2, got %d", count)
 	}
 	if len(a.messages) != before {
 		t.Fatalf("retry should NOT append a message")
@@ -318,7 +318,7 @@ func TestLoopRetry_RetryIncrement(t *testing.T) {
 		t.Errorf("user instruction should be unchanged, got %q", got)
 	}
 	if got := retryEnv(msgEnv(&last)); got != 2 {
-		t.Errorf("retry_count should be 2, got %d", got)
+		t.Errorf("retried_count should be 2, got %d", got)
 	}
 }
 
@@ -339,7 +339,7 @@ func TestLoopRetry_RetryOnFeedback(t *testing.T) {
 	count := a.applyLoopFeedback("")
 
 	if count != 2 {
-		t.Fatalf("retry on feedback should record retry_count=2, got %d", count)
+		t.Fatalf("retry on feedback should record retried_count=2, got %d", count)
 	}
 	if len(a.messages) != before {
 		t.Fatalf("retry should NOT append a message")
@@ -353,7 +353,7 @@ func TestLoopRetry_RetryOnFeedback(t *testing.T) {
 		t.Errorf("loop_feedback marker should be preserved")
 	}
 	if got := retryEnv(env); got != 2 {
-		t.Errorf("retry_count should be 2, got %d", got)
+		t.Errorf("retried_count should be 2, got %d", got)
 	}
 }
 
@@ -375,14 +375,14 @@ func TestLoopRetry_TemperatureLikeRetry(t *testing.T) {
 	count := a.applyLoopFeedback("")
 
 	if count != 1 {
-		t.Fatalf("temperature-like feedback should record retry_count=1, got %d", count)
+		t.Fatalf("temperature-like feedback should record retried_count=1, got %d", count)
 	}
 	if len(a.messages) != before {
 		t.Fatalf("temperature-like feedback should NOT append a message")
 	}
 	last := lastUserMsg(a)
 	if got := retryEnv(msgEnv(&last)); got != 1 {
-		t.Errorf("retry_count should be 1, got %d", got)
+		t.Errorf("retried_count should be 1, got %d", got)
 	}
 	if isLoopFeedbackText(msgEnv(&last)) {
 		t.Errorf("temperature-like feedback should NOT add loop_feedback marker")
@@ -405,7 +405,7 @@ func TestLoopRetry_RetryOnPlainMessage(t *testing.T) {
 	count := a.applyLoopFeedback("")
 
 	if count != 1 {
-		t.Fatalf("retry on plain message should record retry_count=1, got %d", count)
+		t.Fatalf("retry on plain message should record retried_count=1, got %d", count)
 	}
 	if len(a.messages) != before {
 		t.Fatalf("retry should NOT append a message")
@@ -422,7 +422,7 @@ func TestLoopRetry_RetryOnPlainMessage(t *testing.T) {
 		t.Errorf("env block should be complete, got:\n%s", env)
 	}
 	if got := retryEnv(env); got != 1 {
-		t.Errorf("retry_count should be 1, got %d", got)
+		t.Errorf("retried_count should be 1, got %d", got)
 	}
 }
 
@@ -444,7 +444,7 @@ func TestLoopRetry_FeedbackEnvComplete(t *testing.T) {
 
 	for _, block := range []string{
 		"<time>", "<message_no>", "<context_window>", "<cwd>",
-		"<files>", "<opened_resources>", "<loop_feedback>", "<retry_count>",
+		"<files>", "<opened_resources>", "<loop_feedback>", "<retried_count>",
 	} {
 		if !strings.Contains(env, block) {
 			t.Errorf("feedback env should contain %q, got:\n%s", block, env)
@@ -480,7 +480,7 @@ func TestLoopRetry_MultiChain(t *testing.T) {
 			t.Fatalf("intervention %d should still be a feedback message (last user msg)", i)
 		}
 		if got := retryEnv(env); got != i {
-			t.Fatalf("intervention %d should record retry_count=%d, got %d", i, i, got)
+			t.Fatalf("intervention %d should record retried_count=%d, got %d", i, i, got)
 		}
 	}
 
@@ -501,10 +501,10 @@ func TestLoopRetry_MultiChain(t *testing.T) {
 	a.messages = append(a.messages, tb.buildAssistant("循环内容"))
 	a.applyLoopFeedback("新链反馈")
 
-	// The new feedback chain must be independent (retry_count=1).
+	// The new feedback chain must be independent (retried_count=1).
 	last := lastUserMsg(a)
 	if got := retryEnv(msgEnv(&last)); got != 1 {
-		t.Fatalf("new chain should start at retry_count=1, got %d", got)
+		t.Fatalf("new chain should start at retried_count=1, got %d", got)
 	}
 	if got := msgFirstText(&last); got != "新链反馈" {
 		t.Fatalf("new chain feedback text mismatch: %q", got)

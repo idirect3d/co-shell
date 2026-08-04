@@ -423,8 +423,18 @@ iterationLoop:
 				// loopFeedback is non-empty (prompt/reorganize) a loop feedback
 				// message with a full <environment_details> block is created or
 				// updated in place; when empty (retry/temperature) only the
-				// <retry_count> tag on the last user message is incremented.
+				// <retried_count> tag on the last user message is incremented.
 				a.applyLoopFeedback(loopFeedback)
+
+				// FEATURE-327: Check the retried_count limit. When the count
+				// reaches error-max-single-count, the user is prompted to
+				// decide (Enter/C/A). If the user cancels, terminate the task.
+				if ok, err := a.checkRetryCountLimit(); err != nil {
+					cb(EventInfo, fmt.Sprintf("\n%s %s\n", config.GetEmojiPrefixes(a.emojiEnabled).Error, i18n.T(i18n.KeyUserCancelled)))
+					return "", nil
+				} else if !ok {
+					return "", nil
+				}
 
 				if a.loopDetector != nil {
 					a.loopDetector.Reset()
@@ -902,7 +912,14 @@ iterationLoop:
 					ToolArgs: firstToolArgs,
 					Reason:   fmt.Sprintf("tool %q called with the same arguments twice consecutively", firstToolName),
 				}
-				a.applyLoopIntervention(event)
+				// FEATURE-327: applyLoopIntervention now checks the retried_count
+				// limit and may return an error when the user cancels (C option)
+				// after the count reaches error-max-single-count. Terminate the
+				// task in that case.
+				if err := a.applyLoopIntervention(event); err != nil {
+					log.Warn("Agent.RunStream: loop intervention cancelled: %v", err)
+					return "", nil
+				}
 				continue
 			}
 		}
