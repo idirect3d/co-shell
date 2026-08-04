@@ -34,6 +34,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 )
 
@@ -360,12 +362,12 @@ func formatTokenSize(n int) string {
 }
 
 // Loop feedback/retry tag helpers.
-// The <loop_feedback> and <retry_count> tags live INSIDE an <environment_details>
+// The <loop_feedback> and <retried_count> tags live INSIDE an <environment_details>
 // block so that loop feedback messages carry the same environment context as every
 // other user message, while keeping the retry counter on the message itself.
 const (
 	loopFeedbackTag = "loop_feedback"
-	retryCountTag   = "retry_count"
+	retriedCountTag = "retried_count"
 )
 
 // lastEnvText returns the text of the last ContentPart of msg if it contains an
@@ -417,18 +419,18 @@ func setLoopFeedbackInText(envText string, val bool) string {
 	return setEnvTag(envText, tag)
 }
 
-// setRetryCountInText sets (inserting or replacing) the <retry_count> tag
+// setRetriedCountInText sets (inserting or replacing) the <retried_count> tag
 // inside an <environment_details> block.
-func setRetryCountInText(envText string, n int) string {
-	tag := fmt.Sprintf("<%s>%d</%s>", retryCountTag, n, retryCountTag)
+func setRetriedCountInText(envText string, n int) string {
+	tag := fmt.Sprintf("<%s>%d</%s>", retriedCountTag, n, retriedCountTag)
 	return setEnvTag(envText, tag)
 }
 
-// getRetryCountFromText returns the numeric value of the <retry_count> tag
+// getRetriedCountFromText returns the numeric value of the <retried_count> tag
 // in the env text (0 when absent or unparsable).
-func getRetryCountFromText(envText string) int {
-	startTag := "<" + retryCountTag + ">"
-	endTag := "</" + retryCountTag + ">"
+func getRetriedCountFromText(envText string) int {
+	startTag := "<" + retriedCountTag + ">"
+	endTag := "</" + retriedCountTag + ">"
 	start := strings.Index(envText, startTag)
 	if start < 0 {
 		return 0
@@ -446,7 +448,7 @@ func getRetryCountFromText(envText string) int {
 }
 
 // setEnvTag removes any existing tag with the same name from the block, then
-// inserts the given full tag (e.g. "<retry_count>2</retry_count>") right before
+// inserts the given full tag (e.g. "<retried_count>2</retried_count>") right before
 // the closing </environment_details> tag. When the block has no closing tag,
 // the tag is appended to the text.
 func setEnvTag(envText, fullTag string) string {
@@ -473,6 +475,103 @@ func setEnvTag(envText, fullTag string) string {
 	return envText[:closeIdx] + fullTag + "\n" + envText[closeIdx:]
 }
 
+// retryCountCancelError is returned by checkRetryCountLimit when the user
+// chooses to cancel the current task (C option) after the retry count limit
+// has been reached.
+type retryCountCancelError struct{}
+
+func (e *retryCountCancelError) Error() string {
+	return "user canceled after retry count limit reached"
+}
+
+// checkRetryCountLimit inspects the <retried_count> tag on the last user/tool
+// message and compares it against ErrorMaxSingleCount (default 10). When the
+// count reaches the threshold and the user has not chosen "ignore all", the
+// user is prompted to decide:
+//
+//   - Enter: reset retried_count to 1 and continue normally
+//   - C:     cancel the current task (returns a retryCountCancelError)
+//   - A:     set errorApproveAll so this request never prompts again
+//
+// The existing errorCounter mechanism (error-max-single-count /
+// error-max-type-count in run_stream.go) is intentionally unchanged.
+//
+// Returns (true, nil) when the caller should continue normally, and
+// (false, err) when the caller should terminate the current task.
+func (a *Agent) checkRetryCountLimit() (bool, error) {
+	// Locate the last user/tool message and snapshot it WITHOUT holding the
+	// lock, so prompt I/O and env rewriting below cannot deadlock.
+	a.mu.Lock()
+	lastUserIdx := -1
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		role := a.messages[i].Role
+		if role == "user" || role == "tool" {
+			lastUserIdx = i
+			break
+		}
+	}
+	if lastUserIdx < 0 {
+		a.mu.Unlock()
+		return true, nil
+	}
+	lastMsg := a.messages[lastUserIdx]
+	a.mu.Unlock()
+
+	// Read the current retried count from the last user/tool message envelope.
+	count := getRetriedCountFromText(lastEnvText(&lastMsg))
+
+	// Get the configured limit (must be > 0 to take effect, like run_stream.go).
+	maxSingle := 10
+	if a.cfg != nil && a.cfg.LLM.ErrorMaxSingleCount > 0 {
+		maxSingle = a.cfg.LLM.ErrorMaxSingleCount
+	}
+
+	// Below threshold, or the user already chose "ignore all": no prompt.
+	if count < maxSingle || a.errorApproveAll {
+		return true, nil
+	}
+
+	// Prompt the user for action via UserIO interface.
+	ep := config.GetEmojiPrefixes(a.emojiEnabled)
+	io := a.defaultIO()
+	promptReason := fmt.Sprintf(i18n.TF(i18n.KeyErrRepeatPrompt), count, maxSingle)
+	io.Printf("\n%s %s: %s\n", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
+	io.Println()
+	io.Println(i18n.T(i18n.KeyErrorRiskWarning))
+	io.Println()
+	io.Println(i18n.T(i18n.KeyErrActionTitle))
+	io.Println(i18n.T(i18n.KeyErrActionEnter))
+	io.Println(i18n.T(i18n.KeyErrActionCancel))
+	io.Println(i18n.T(i18n.KeyErrActionIgnore))
+	io.Println()
+	io.Print(i18n.T(i18n.KeyErrActionChoose))
+
+	response, _ := io.ReadLine()
+	lower := strings.ToLower(strings.TrimSpace(response))
+
+	switch lower {
+	case "c":
+		// User cancelled — terminate the task.
+		io.Printf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyUserCancelled))
+		return false, &retryCountCancelError{}
+	case "a":
+		// User chose to ignore all error limits for this request.
+		a.errorApproveAll = true
+		io.Printf("\n%s %s\n", ep.Success, i18n.T(i18n.KeyErrIgnoredContinue))
+		return true, nil
+	default:
+		// Enter pressed — reset retried_count to 1 and continue.
+		newEnv := setRetriedCountInText(lastEnvText(&lastMsg), 1)
+		a.mu.Lock()
+		if lastUserIdx < len(a.messages) {
+			setEnvText(&a.messages[lastUserIdx], newEnv)
+		}
+		a.mu.Unlock()
+		io.Printf("\n%s %s\n", ep.Success, i18n.T(i18n.KeyErrRetryContinue))
+		return true, nil
+	}
+}
+
 // applyLoopFeedback applies a loop intervention to the message history (FIX-321).
 //
 // Two behaviors:
@@ -481,24 +580,24 @@ func setEnvTag(envText, fullTag string) string {
 //     a user-facing prompt. A "loop feedback message" is a system-generated user
 //     message whose env carries <loop_feedback>true</loop_feedback>. If the last
 //     user message is already such a message, its feedback text is replaced and
-//     <retry_count> is incremented (no new message). Otherwise a NEW feedback
+//     <retried_count> is incremented (no new message). Otherwise a NEW feedback
 //     message is appended — a real user/tool message is never overwritten.
 //
 //  2. feedback == "" (retry / temperature strategies): no new message is
-//     appended. The <retry_count> tag on the last user message's env is
+//     appended. The <retried_count> tag on the last user/tool message's env is
 //     incremented (the tag is created first when absent, building a full env
 //     block when the message has none). The original instruction text is never
 //     modified.
 //
-// The retry count lives only on the message envelope; there is no agent-level
+// The retried count lives only on the message envelope; there is no agent-level
 // state and no reset logic — a fresh user request starts a new chain naturally.
 //
-// Returns the retry count recorded on the affected message (0 when no user
-// message exists).
+// Returns the retried count recorded on the affected message (0 when no
+// user/tool message exists).
 func (a *Agent) applyLoopFeedback(feedback string) int {
-	// Locate the last user message and snapshot it WITHOUT holding the lock,
-	// so env construction (which re-acquires a.mu via buildOpenedResources /
-	// IterTokenDelta) cannot deadlock.
+	// Locate the last user/tool message and snapshot it WITHOUT holding the
+	// lock, so env construction (which re-acquires a.mu via
+	// buildOpenedResources / IterTokenDelta) cannot deadlock.
 	a.mu.Lock()
 	if len(a.messages) == 0 {
 		a.mu.Unlock()
@@ -507,7 +606,8 @@ func (a *Agent) applyLoopFeedback(feedback string) int {
 	var lastUserIdx, messageTotal int
 	lastUserIdx = -1
 	for i := len(a.messages) - 1; i >= 0; i-- {
-		if a.messages[i].Role == "user" {
+		role := a.messages[i].Role
+		if role == "user" || role == "tool" {
 			lastUserIdx = i
 			break
 		}
@@ -523,12 +623,12 @@ func (a *Agent) applyLoopFeedback(feedback string) int {
 	lastEnv := lastEnvText(&lastMsg)
 
 	if feedback == "" {
-		// retry / temperature: bump the counter on the last user message.
-		count := getRetryCountFromText(lastEnv) + 1
+		// retry / temperature: bump the counter on the last user/tool message.
+		count := getRetriedCountFromText(lastEnv) + 1
 		if lastEnv == "" {
 			// Message has no env block — build a complete one.
 			newEnv := a.buildFullEnvironmentDetails(messageTotal-1, nil)
-			newEnv = setRetryCountInText(newEnv, count)
+			newEnv = setRetriedCountInText(newEnv, count)
 			a.mu.Lock()
 			msg := &a.messages[lastUserIdx]
 			if len(msg.ContentParts) == 0 {
@@ -541,7 +641,7 @@ func (a *Agent) applyLoopFeedback(feedback string) int {
 			a.mu.Unlock()
 			return count
 		}
-		newEnv := setRetryCountInText(lastEnv, count)
+		newEnv := setRetriedCountInText(lastEnv, count)
 		a.mu.Lock()
 		setEnvText(&a.messages[lastUserIdx], newEnv)
 		a.mu.Unlock()
@@ -551,8 +651,8 @@ func (a *Agent) applyLoopFeedback(feedback string) int {
 	// prompt / reorganize: create or update a loop feedback message.
 	if isLoopFeedbackMessage(&lastMsg) {
 		// Update the existing feedback message in place — no new message.
-		count := getRetryCountFromText(lastEnv) + 1
-		newEnv := setRetryCountInText(lastEnv, count)
+		count := getRetriedCountFromText(lastEnv) + 1
+		newEnv := setRetriedCountInText(lastEnv, count)
 		a.mu.Lock()
 		msg := &a.messages[lastUserIdx]
 		if len(msg.ContentParts) > 0 {
@@ -570,7 +670,7 @@ func (a *Agent) applyLoopFeedback(feedback string) int {
 	count := 1
 	newEnv := a.buildFullEnvironmentDetails(messageTotal, nil)
 	newEnv = setLoopFeedbackInText(newEnv, true)
-	newEnv = setRetryCountInText(newEnv, count)
+	newEnv = setRetriedCountInText(newEnv, count)
 	a.mu.Lock()
 	a.messages = append(a.messages, llm.Message{
 		Role: "user",

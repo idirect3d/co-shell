@@ -1003,9 +1003,18 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	// Apply loop feedback via the unified helper (FIX-321).
 	// When loopFeedback is non-empty (prompt/reorganize) a loop feedback
 	// message with a full <environment_details> block is created or updated
-	// in place; when empty (retry/temperature) only the <retry_count> tag
+	// in place; when empty (retry/temperature) only the <retried_count> tag
 	// on the last user message is incremented, no new message is appended.
 	a.applyLoopFeedback(loopFeedback)
+
+	// FEATURE-327: Check the retried_count limit. When the count reaches
+	// error-max-single-count, the user is prompted to decide (Enter/C/A).
+	// If the user cancels, propagate the error to the caller.
+	if ok, err := a.checkRetryCountLimit(); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("retry count limit cancelled")
+	}
 
 	if cb != nil {
 		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strategyDesc))
