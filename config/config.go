@@ -519,6 +519,7 @@ type EmojiPrefixes struct {
 	Thinking        string // 💬   or i18n key "emoji_prefix_thinking"
 	OutputTitle     string // 📋   or i18n key "emoji_prefix_output_title"
 	OutputSep       string // ───  or i18n key "emoji_prefix_output_sep"
+	Loop            string // ♾️   or i18n key "emoji_prefix_loop" (loop detection indicator)
 }
 
 // GetEmojiPrefixes returns the emoji prefixes based on whether emoji is enabled.
@@ -541,6 +542,7 @@ func GetEmojiPrefixes(enabled bool) EmojiPrefixes {
 			Thinking:        "[think] ",
 			OutputTitle:     "[output] Command Output:",
 			OutputSep:       "────────────────────────────────────────────",
+			Loop:            "[loop] ",
 		}
 	}
 	return EmojiPrefixes{
@@ -558,6 +560,7 @@ func GetEmojiPrefixes(enabled bool) EmojiPrefixes {
 		Thinking:        "[💬] ",
 		OutputTitle:     "[📋] Command Output:",
 		OutputSep:       "────────────────────────────────────────────",
+		Loop:            "[♾️] ",
 	}
 }
 
@@ -875,7 +878,7 @@ func DefaultConfig() *Config {
 			DuplicateContentThreshold:  0.95,
 			LoopJudgeTimeout:           60,
 			LoopLongOutputThreshold:    131072,
-			ShowLoopDetection:          true,
+			ShowLoopDetection:          false,
 			TopP:                       -1,
 			TopK:                       -1,
 			RepetitionPenalty:          -1,

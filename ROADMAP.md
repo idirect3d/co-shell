@@ -44,6 +44,7 @@
 | FEATURE-325 | 0.7.0 | P1 | ✅ 已完成（工具显示去重：流式实时预览 `[🔧 工具名]`（stream_response.go，showTool 控制）与执行前摘要 `[⚙️]< 工具名摘要`（run_stream.go，showTool 控制）都由 showTool 控制且内容重复。修复：删除 stream_response.go 中 StreamEventToolCall 分支的实时预览块（`[🔧 工具名]`），仅保留执行前摘要，用户看到每个工具只显示一次 `[⚙️]< ...`。go vet + agent 全量测试通过 [BUILD-359]） |
 | FEATURE-326 | 0.7.0 | P1 | ✅ 已完成（默认参数调整：show-tool-input/show-tool-output/show-command/show-command-output 四项显示开关默认值统一改为 false（off）；toolcall-mode 默认值从 xml 改为 openai。修复位置 config/config.go DefaultConfig() [BUILD-360]） |
 | FEATURE-327 | 0.7.0 | P1 | ✅ 已完成（循环重试次数熔断提示：复用上下文中 `<retried_count>` 标签（原 retry_count，改名后语义为"已完成重试次数"）与 error-max-single-count 参数。envelope.go 新增 checkRetryCountLimit：循环介入递增 retried_count 后若达到阈值则提示用户处理（回车继续并重置 retried_count=1 / C 取消 / A 忽略全部抑制后续提示）；定位从"最后 user 消息"扩展为"最后 user 或 tool 消息"，OpenAI 模式下计数挂在被删消息前一条 tool 上体现重试起点；feedback 文本仍只追加为 user 消息不覆盖 tool 结果。三处接入：run_stream.go sync 循环分支、loop.go applyLoopIntervention、run_stream.go 工具调用循环（原忽略返回值改为检查）。不改变现有 errorCounter 机制。新增 loop_retry_limit_test.go 9 个单测 [BUILD-362]） |
+| FIX-311 | 0.7.0 | P1 | ✅ 已完成（show-loop-detection 默认值修正为 false：config.go DefaultConfig() 中 ShowLoopDetection 实际为 true 与字段注释 `Default: false` 矛盾。修复：将 DefaultConfig() 默认值改为 false，与字段注释及 FEATURE-241 设计意图（默认不显示完整判定详情，避免刷屏）一致。只改 config/config.go 一处，go build + go vet + agent 测试通过 [BUILD-364]） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。

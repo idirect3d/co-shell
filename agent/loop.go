@@ -1047,6 +1047,15 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		a.lastLlmOutput = content
 	}
 
+	// Always show the loop-detection banner (separator + infinite-loop icon +
+	// "suspected loop" message) regardless of LoopJudgeEnabled / ShowLoopDetection,
+	// so the user is always informed that the agent may be stuck in a loop.
+	io := a.defaultIO()
+	ep := config.GetEmojiPrefixes(a.emojiEnabled)
+	io.Println()
+	io.Println("────────────────────────────────────────────")
+	io.Println(ep.Loop + i18n.T(i18n.KeyLoopSuspected))
+
 	useJudge := a.cfg != nil && a.cfg.LLM.LoopJudgeEnabled
 
 	if !useJudge {
@@ -1057,14 +1066,6 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		log.Debug("handleLoopDetection: sync mode, set loopDetectSyncErr")
 		return
 	}
-
-	// Show progress BEFORE the synchronous judge API call.
-	// Use direct stdout write with \r\n to bypass potential stream callback buffering
-	// in raw terminal mode.
-	io := a.defaultIO()
-	io.Println()
-	io.Println("────────────────────────────────────────────")
-	io.Println(i18n.T(i18n.KeyLoopSuspected))
 
 	// Judge mode: synchronously call judgeLoop.
 	// (judgeLoop will display the full user prompt via streamCb)
