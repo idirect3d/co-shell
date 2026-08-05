@@ -679,6 +679,22 @@ var enMessages = map[string]string{
 	KeySettingCmd_670: "Filename: %s\n",
 	KeySettingCmd_671: "Sheet: %s, range %s\n",
 
+	// FEATURE-305 第 4 批: agent/docx_tools.go
+	KeySettingCmd_672: "Copy created: %s (%s)\nSession ID: %s\n\nThis file is a copy of %s. All subsequent operations should be done on this copy directly. It is strictly forbidden to replace the original file with this copy.\n\nUse word_overview to get the file overview.",
+	KeySettingCmd_673: "Word file opened: %s (%s) (read-only)\nSession ID: %s\n\nUse word_overview to get the file overview.",
+	KeySettingCmd_674: "Word file opened: %s (%s)\nSession ID: %s\n\nUse word_overview to get the file overview.",
+	KeySettingCmd_675: "This file was opened in read-only mode and cannot be saved",
+	KeySettingCmd_676: "Saved: %s (%s)",
+	KeySettingCmd_677: "Word file closed: %s",
+	KeySettingCmd_678: "Paragraphs %d-%d (total %d):\n%s",
+	KeySettingCmd_679: "Inserted %d paragraphs:\n%s\n(not saved, call word_save to persist)",
+	KeySettingCmd_680: "Deleted %d paragraphs (paragraphs #%d-#%d)\n(not saved, call word_save to persist)",
+	KeySettingCmd_681: "Style: %s (ID: %s)\n",
+	KeySettingCmd_682: "Next style: %s\n",
+	KeySettingCmd_683: "\nUsage: refer to the style usage in word_overview.",
+	KeySettingCmd_684: "Modified %s of %d paragraphs\n(not saved, call word_save to persist)",
+	KeySettingCmd_685: "Style %q created (ID: %s)\nCSS: %s\n(not saved, call word_save to persist)",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",

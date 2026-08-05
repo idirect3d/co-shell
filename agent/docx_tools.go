@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/docx"
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // wordOpenTool opens a DOCX file and returns a session ID.
@@ -54,16 +55,16 @@ func (a *Agent) wordOpenTool(ctx context.Context, args map[string]interface{}) (
 		fileSize = fmt.Sprintf("%.1f KB", float64(fileInfo.Size())/1024.0)
 	}
 	if mode == "create" && fileSize == "0.0 KB" {
-		fileSize = "(新建)"
+		fileSize = i18n.T(i18n.KeySettingCmd_669)
 	}
 
 	var resultMsg string
 	if mode == "copy" {
-		resultMsg = fmt.Sprintf("已创建副本: %s (%s)\n会话 ID: %s\n\n此文件为 %s 的副本，后续操作应直接在此副本上修改，严禁以此文件替换原始文件。\n\n请使用 word_overview 获取文件概览。", s.Path, fileSize, sessionID, filepath.Base(path))
+		resultMsg = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_672), s.Path, fileSize, sessionID, filepath.Base(path))
 	} else if mode == "read" {
-		resultMsg = fmt.Sprintf("已打开 Word 文件: %s (%s) (只读)\n会话 ID: %s\n\n请使用 word_overview 获取文件概览。", s.Path, fileSize, sessionID)
+		resultMsg = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_673), s.Path, fileSize, sessionID)
 	} else {
-		resultMsg = fmt.Sprintf("已打开 Word 文件: %s (%s)\n会话 ID: %s\n\n请使用 word_overview 获取文件概览。", s.Path, fileSize, sessionID)
+		resultMsg = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_674), s.Path, fileSize, sessionID)
 	}
 	return resultMsg, nil
 }
@@ -81,7 +82,7 @@ func (a *Agent) wordSaveTool(ctx context.Context, args map[string]interface{}) (
 	}
 
 	if s.ReadOnly {
-		return "", fmt.Errorf("此文件以只读方式打开，无法保存")
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_675))
 	}
 
 	if err := a.docxSessionMgr.save(sessionID); err != nil {
@@ -94,7 +95,7 @@ func (a *Agent) wordSaveTool(ctx context.Context, args map[string]interface{}) (
 		fileSize = fmt.Sprintf("%.1f KB", float64(fileInfo.Size())/1024.0)
 	}
 
-	return fmt.Sprintf("已保存: %s (%s)", s.Path, fileSize), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_676), s.Path, fileSize), nil
 }
 
 // wordCloseTool closes a DOCX session.
@@ -114,7 +115,7 @@ func (a *Agent) wordCloseTool(ctx context.Context, args map[string]interface{}) 
 		return "", err
 	}
 
-	return fmt.Sprintf("已关闭 Word 文件: %s", path), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_677), path), nil
 }
 
 // wordOverviewTool returns an overview of the document structure.
@@ -156,7 +157,7 @@ func (a *Agent) wordReadTool(ctx context.Context, args map[string]interface{}) (
 		return "", err
 	}
 
-	return fmt.Sprintf("段落 %d-%d (共 %d 段):\n%s", fromPara+1, toPara+1, count, content), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_678), fromPara+1, toPara+1, count, content), nil
 }
 
 // wordTableReadTool reads a table as HTML.
@@ -241,7 +242,7 @@ func (a *Agent) wordContinueTool(ctx context.Context, args map[string]interface{
 		paraInfo = append(paraInfo, fmt.Sprintf("#%d [%s] %s", p.Index+1, p.StyleName, truncateText(p.Text(), 60)))
 	}
 
-	return fmt.Sprintf("已插入 %d 个段落:\n%s\n(未保存，请调用 word_save 持久化)", len(insertedParas), strings.Join(paraInfo, "\n")), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_679), len(insertedParas), strings.Join(paraInfo, "\n")), nil
 }
 
 // parseContentAndInsert parses Markdown-like content and inserts paragraphs.
@@ -312,7 +313,7 @@ func (a *Agent) wordEraseTool(ctx context.Context, args map[string]interface{}) 
 	deleted := s.Doc.RemoveParagraphRange(fromPara, toPara)
 	s.Dirty = true
 
-	return fmt.Sprintf("已删除 %d 个段落 (段落 #%d-#%d)\n(未保存，请调用 word_save 持久化)", deleted, fromPara+1, toPara+1), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_680), deleted, fromPara+1, toPara+1), nil
 }
 
 // wordInspectStyleTool inspects a named style definition.
@@ -338,13 +339,13 @@ func (a *Agent) wordInspectStyleTool(ctx context.Context, args map[string]interf
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("样式: %s (ID: %s)\n", styleDef.Name, styleDef.ID))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_681), styleDef.Name, styleDef.ID))
 	sb.WriteString(fmt.Sprintf("CSS: %s\n", styleDef.StyleCSS()))
 	if styleDef.NextStyle != "" {
-		sb.WriteString(fmt.Sprintf("后续样式: %s\n", styleDef.NextStyle))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_682), styleDef.NextStyle))
 	}
 
-	sb.WriteString("\n用法: 请参考 word_overview 中的样式使用情况。")
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_683))
 
 	return sb.String(), nil
 }
@@ -407,7 +408,7 @@ func (a *Agent) wordFormatTool(ctx context.Context, args map[string]interface{})
 
 	s.Dirty = true
 
-	return fmt.Sprintf("已修改 %d 个段落的 %s\n(未保存，请调用 word_save 持久化)", affected, what), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_684), affected, what), nil
 }
 
 // applyFormatChange applies a single format change to a paragraph.
@@ -503,7 +504,7 @@ func (a *Agent) wordStyleCloneTool(ctx context.Context, args map[string]interfac
 	s.Doc.Styles[newStyle.ID] = newStyle
 	s.Dirty = true
 
-	return fmt.Sprintf("已创建样式 %q (ID: %s)\nCSS: %s\n(未保存，请调用 word_save 持久化)", newName, newStyle.ID, newStyle.StyleCSS()), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_685), newName, newStyle.ID, newStyle.StyleCSS()), nil
 }
 
 // truncateText truncates text to maxLen characters.
