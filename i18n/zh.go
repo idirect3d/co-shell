@@ -661,6 +661,22 @@ var zhMessages = map[string]string{
 	KeySettingCmd_670: "文件名: %s\n",
 	KeySettingCmd_671: "Sheet: %s, 范围 %s\n",
 
+	// FEATURE-305 第 4 批: agent/docx_tools.go
+	KeySettingCmd_672: "已创建副本: %s (%s)\n会话 ID: %s\n\n此文件为 %s 的副本，后续操作应直接在此副本上修改，严禁以此文件替换原始文件。\n\n请使用 word_overview 获取文件概览。",
+	KeySettingCmd_673: "已打开 Word 文件: %s (%s) (只读)\n会话 ID: %s\n\n请使用 word_overview 获取文件概览。",
+	KeySettingCmd_674: "已打开 Word 文件: %s (%s)\n会话 ID: %s\n\n请使用 word_overview 获取文件概览。",
+	KeySettingCmd_675: "此文件以只读方式打开，无法保存",
+	KeySettingCmd_676: "已保存: %s (%s)",
+	KeySettingCmd_677: "已关闭 Word 文件: %s",
+	KeySettingCmd_678: "段落 %d-%d (共 %d 段):\n%s",
+	KeySettingCmd_679: "已插入 %d 个段落:\n%s\n(未保存，请调用 word_save 持久化)",
+	KeySettingCmd_680: "已删除 %d 个段落 (段落 #%d-#%d)\n(未保存，请调用 word_save 持久化)",
+	KeySettingCmd_681: "样式: %s (ID: %s)\n",
+	KeySettingCmd_682: "后续样式: %s\n",
+	KeySettingCmd_683: "\n用法: 请参考 word_overview 中的样式使用情况。",
+	KeySettingCmd_684: "已修改 %d 个段落的 %s\n(未保存，请调用 word_save 持久化)",
+	KeySettingCmd_685: "已创建样式 %q (ID: %s)\nCSS: %s\n(未保存，请调用 word_save 持久化)",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",
