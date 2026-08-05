@@ -698,6 +698,14 @@ var zhMessages = map[string]string{
 	KeySettingCmd_703: "浏览器页面已关闭。下次使用浏览器工具时自动创建新页面。",
 	KeySettingCmd_704: "向上",
 
+	// FEATURE-305 第 5 批: agent/file_tools.go
+	KeySettingCmd_705: "此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n如需分析图片文件，请使用 visual_analysis 将图片加载到多模态上下文中。\n如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
+	KeySettingCmd_706: "文件 %q 似乎是二进制文件（包含控制字符 0x%02X），无法读取。\n此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n如需分析图片文件，请使用 visual_analysis 将图片加载到多模态上下文中。\n如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
+	KeySettingCmd_707: "\n⚠️ 文件内容超长，当前仅返回前 %d 字节（总内容 %d 字节，显示 %d 行 / 共 %d 行）。\n你可以使用 read_file 并指定 start_line/end_line 分段读取。\n",
+	KeySettingCmd_708: "# 文件列表: %s\n\n",
+	KeySettingCmd_709: "\n\n✅ 完整文件列表已保存到: %s（共 %d 条目，超过限制 %d）。可用 read_file 读取查看完整内容。\n",
+	KeySettingCmd_710: "文件 %q 似乎是二进制文件（包含 NULL 字节），无法读取。\n此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n如需分析图片文件，请使用 visual_analysis 将图片加载到多模态上下文中。\n如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",

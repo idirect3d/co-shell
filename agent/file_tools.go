@@ -88,23 +88,11 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 		b := data[i]
 		// NULL byte is a definitive indicator of binary content
 		if b == 0 {
-			return "", fmt.Errorf(
-				"文件 %q 似乎是二进制文件（包含 NULL 字节），无法读取。\n"+
-					"此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n"+
-					"如需分析图片文件，请使用 visual_analysis 将图片加载到多模态上下文中。\n"+
-					"如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n"+
-					"如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
-				path)
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_710, path))
 		}
 		// Check for non-text control characters (excluding common formatting: \t, \n, \r)
 		if b < 0x20 && b != 0x09 && b != 0x0A && b != 0x0D {
-			return "", fmt.Errorf(
-				"文件 %q 似乎是二进制文件（包含控制字符 0x%02X），无法读取。\n"+
-					"此工具只能读取纯文本文件（如 .txt、.md、.go、.py、.js 等）。\n"+
-					"如需分析图片文件，请使用 visual_analysis 将图片加载到多模态上下文中。\n"+
-					"如需分析 PDF 文档，请使用 bin/pdf2png.py 将 PDF 转为 PNG 图片后处理。\n"+
-					"如需读取 Word 文档中的文本内容，请使用 bin/doc2md.py 将文档转换为 Markdown 后再用 read_file 读取。",
-				path, b)
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_706, path, b))
 		}
 	}
 
@@ -160,7 +148,7 @@ func (a *Agent) readFileTool(ctx context.Context, args map[string]interface{}) (
 		// Append truncation notice
 		displayedLines := strings.Count(truncated, "\n") - 1 // subtract the initial "\n" after header
 		notice := fmt.Sprintf(
-			"\n⚠️ 文件内容超长，当前仅返回前 %d 字节（总内容 %d 字节，显示 %d 行 / 共 %d 行）。\n你可以使用 read_file 并指定 start_line/end_line 分段读取。\n",
+			i18n.T(i18n.KeySettingCmd_707),
 			maxSize, len(output), displayedLines, totalLines)
 		truncated += notice
 		return truncated, nil
@@ -525,7 +513,7 @@ func (a *Agent) listFilesTool(ctx context.Context, args map[string]interface{}) 
 		if err := os.MkdirAll(mdDir, 0755); err != nil {
 			return "", fmt.Errorf("cannot create temp directory: %w", err)
 		}
-		mdContent := fmt.Sprintf("# 文件列表: %s\n\n", dirPath)
+		mdContent := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_708), dirPath)
 		mdContent += fullRes.listing
 		if err := os.WriteFile(mdPath, []byte(mdContent), 0644); err != nil {
 			return "", fmt.Errorf("cannot write file list to %s: %w", mdPath, err)
@@ -535,7 +523,7 @@ func (a *Agent) listFilesTool(ctx context.Context, args map[string]interface{}) 
 		var result strings.Builder
 		result.WriteString(fmt.Sprintf("Directory: %s\n\n", dirPath))
 		result.WriteString(res.listing)
-		result.WriteString(fmt.Sprintf("\n\n✅ 完整文件列表已保存到: %s（共 %d 条目，超过限制 %d）。可用 read_file 读取查看完整内容。\n", mdPath, totalItems, maxEntries))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_709), mdPath, totalItems, maxEntries))
 		return result.String(), nil
 	}
 
