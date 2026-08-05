@@ -170,16 +170,16 @@ func (r *REPL) syncDB() {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 	if r.cfg.DB.AutoSync {
 		r.store.SetAutoSync(true)
-		fmt.Printf(i18n.TF(i18n.KeyDBSyncStart, ep.Info))
+		fmt.Print(i18n.TF(i18n.KeyDBSyncStart, ep.Info))
 		if err := r.store.PG().MigrateFromBolt(r.store.Bolt); err != nil {
 			log.Warn("Auto-migration failed (non-fatal): %v", err)
-			fmt.Printf(i18n.TF(i18n.KeyDBSyncPartial, ep.Warning, err))
+			fmt.Print(i18n.TF(i18n.KeyDBSyncPartial, ep.Warning, err))
 		} else {
-			fmt.Printf(i18n.TF(i18n.KeyDBSyncComplete, ep.Success))
+			fmt.Print(i18n.TF(i18n.KeyDBSyncComplete, ep.Success))
 		}
 	} else {
 		r.store.SetAutoSync(false)
-		fmt.Printf(i18n.TF(i18n.KeyDBConnectedNoSync, ep.Info))
+		fmt.Print(i18n.TF(i18n.KeyDBConnectedNoSync, ep.Info))
 	}
 }
 
@@ -253,15 +253,15 @@ func (r *REPL) Run() error {
 			}
 			// Not a local executable: warn user about ":" prefix, then ask
 			ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
-			fmt.Printf(i18n.TF(i18n.KeyDotPrefixHint1, ep.Warning))
-			fmt.Printf(i18n.T(i18n.KeyDotPrefixHint2))
-			fmt.Printf(i18n.T(i18n.KeyDotPrefixAskLLM))
-			fmt.Printf(i18n.T(i18n.KeyDotPrefixChoose))
+			fmt.Print(i18n.TF(i18n.KeyDotPrefixHint1, ep.Warning))
+			fmt.Print(i18n.T(i18n.KeyDotPrefixHint2))
+			fmt.Print(i18n.T(i18n.KeyDotPrefixAskLLM))
+			fmt.Print(i18n.T(i18n.KeyDotPrefixChoose))
 			// Use readLine which handles both enhanced and stdio modes
 			response, _ := r.readLine("")
 			response = strings.TrimSpace(strings.ToLower(response))
 			if response == "c" {
-				fmt.Printf(i18n.TF(i18n.KeyDotPrefixCancelled, ep.Warning))
+				fmt.Print(i18n.TF(i18n.KeyDotPrefixCancelled, ep.Warning))
 				continue
 			}
 			// Fall through to handleAgentInput
@@ -402,7 +402,7 @@ func (r *REPL) handleBuiltin(input string) {
 		if err := r.agent.Store().SaveCurrentSessionID(sessionID); err != nil {
 			log.Warn("Failed to save current session ID: %v", err)
 		}
-		fmt.Printf(i18n.TF(i18n.KeyNewSessionCreated, ep.Success, title))
+		fmt.Print(i18n.TF(i18n.KeyNewSessionCreated, ep.Success, title))
 		return
 	case ":model":
 		result, err = r.modelHandler.Handle(args)
@@ -434,7 +434,7 @@ func (r *REPL) handleBuiltin(input string) {
 	// Handle special POP: result from :session pop — allow user to edit and resubmit
 	if strings.HasPrefix(result, "POP:") {
 		poppedContent := result[4:]
-		fmt.Printf(i18n.TF(i18n.KeySessionPopEdit, ep.Info, poppedContent))
+		fmt.Print(i18n.TF(i18n.KeySessionPopEdit, ep.Info, poppedContent))
 		fmt.Println(i18n.T(i18n.KeySessionPopEditHint))
 		edited, err := r.readLine("✏️ ")
 		if err != nil {
@@ -496,7 +496,7 @@ func (r *REPL) handleHistoryReExecute(num int) {
 
 func (r *REPL) handleBodyAdd(args []string) (string, error) {
 	if len(args) == 0 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyBodyAddUsage))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyBodyAddUsage))
 	}
 	if r.cfg.LLM.BodyAdditions == nil {
 		r.cfg.LLM.BodyAdditions = make(map[string]string)
@@ -504,12 +504,12 @@ func (r *REPL) handleBodyAdd(args []string) (string, error) {
 	for _, arg := range args {
 		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
-			return "", fmt.Errorf(i18n.TF(i18n.KeyBodyAddInvalidFmt, arg))
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeyBodyAddInvalidFmt, arg))
 		}
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		if key == "" {
-			return "", fmt.Errorf(i18n.T(i18n.KeyBodyAddEmptyKey))
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeyBodyAddEmptyKey))
 		}
 		r.cfg.LLM.BodyAdditions[key] = value
 	}
@@ -522,10 +522,10 @@ func (r *REPL) handleBodyAdd(args []string) (string, error) {
 
 func (r *REPL) handleBodyRemove(args []string) (string, error) {
 	if len(args) == 0 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyBodyRemoveUsage))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyBodyRemoveUsage))
 	}
 	if r.cfg.LLM.BodyAdditions == nil {
-		return "", fmt.Errorf(i18n.T(i18n.KeyBodyRemoveNone))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyBodyRemoveNone))
 	}
 	removed := 0
 	for _, key := range args {
@@ -536,7 +536,7 @@ func (r *REPL) handleBodyRemove(args []string) (string, error) {
 		}
 	}
 	if removed == 0 {
-		return "", fmt.Errorf(i18n.T(i18n.KeyBodyRemoveNotFound))
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeyBodyRemoveNotFound))
 	}
 	r.agent.GetLLMClient().SetBodyAdditions(r.cfg.LLM.BodyAdditions)
 	if err := r.cfg.Save(); err != nil {
