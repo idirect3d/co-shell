@@ -1051,11 +1051,19 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	// Always show the loop-detection banner (separator + infinite-loop icon +
 	// "suspected loop" message) regardless of LoopJudgeEnabled / ShowLoopDetection,
 	// so the user is always informed that the agent may be stuck in a loop.
+	// FIX-329: classify the trigger scenario (single_repeat / multi_line /
+	// line_too_long / char_period / long_output / tool_call) so the user can
+	// tell what kind of repetition was detected.
 	io := a.defaultIO()
 	ep := config.GetEmojiPrefixes(a.emojiEnabled)
 	io.Println()
 	io.Println("────────────────────────────────────────────")
-	io.Println(ep.Loop + i18n.T(i18n.KeyLoopSuspected))
+	loopType := loopTypeFromError(detectErr)
+	if loopType != "" {
+		io.Println(ep.Loop + fmt.Sprintf(i18n.TF(i18n.KeyLoopSuspectedWithType), i18n.T(loopTypeKey(loopType))))
+	} else {
+		io.Println(ep.Loop + i18n.T(i18n.KeyLoopSuspected))
+	}
 
 	useJudge := a.cfg != nil && a.cfg.LLM.LoopJudgeEnabled
 
@@ -1125,6 +1133,64 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		a.loopDetectCrit = true
 		a.mu.Unlock()
 	}
+}
+
+// loopTypeFromError extracts the LoopType classification from a loop detection
+// error (FIX-329). It handles the detectors that produce typed errors:
+//   - *LoopDetectedError → its LoopType field ("single_repeat"/"multi_line"),
+//     or "line_too_long"/"char_period" when the single-line sub-detector fired
+//   - *ToolCallLoopDetectedError → "tool_call"
+//   - Long-output error (text match) → "long_output"
+//
+// Returns "" when the type cannot be determined (caller falls back to the
+// generic suspected-loop banner).
+func loopTypeFromError(detectErr error) string {
+	switch e := detectErr.(type) {
+	case *LoopDetectedError:
+		if e.LoopType != "" {
+			return e.LoopType
+		}
+		// Fall back: infer from the error message when the type was not set
+		// (defensive; all current construction paths set LoopType).
+		msg := e.Error()
+		switch {
+		case strings.Contains(msg, "exceeds threshold"):
+			return "line_too_long"
+		case strings.Contains(msg, "char-level period"):
+			return "char_period"
+		case e.period == 1:
+			return "single_repeat"
+		default:
+			return "multi_line"
+		}
+	case *ToolCallLoopDetectedError:
+		return "tool_call"
+	}
+	// Long-output trigger is a generic error; identify by its message prefix.
+	if detectErr != nil && strings.Contains(detectErr.Error(), "LLM output exceeds") {
+		return "long_output"
+	}
+	return ""
+}
+
+// loopTypeKey maps a LoopType identifier to its i18n key constant.
+// Unknown identifiers fall back to the generic banner (returning "").
+func loopTypeKey(loopType string) string {
+	switch loopType {
+	case "single_repeat":
+		return i18n.KeyLoopTypeSingleRepeat
+	case "multi_line":
+		return i18n.KeyLoopTypeMultiLine
+	case "line_too_long":
+		return i18n.KeyLoopTypeLineTooLong
+	case "char_period":
+		return i18n.KeyLoopTypeCharPeriod
+	case "long_output":
+		return i18n.KeyLoopTypeLongOutput
+	case "tool_call":
+		return i18n.KeyLoopTypeToolCall
+	}
+	return ""
 }
 
 // getFirstUserCommand returns the content of the first user message in a.messages
@@ -1212,6 +1278,112 @@ func (a *Agent) getRecentIterations() string {
 	return sb.String()
 }
 
+// getAllUserPrompts collects ALL genuine user instructions from a.messages in
+// chronological order (FIX-329). It filters out system-generated user messages:
+//   - XML tool results ("[tool] 返回结果：..." — KeyXMLToolResultTemplate)
+//   - continue prompts (KeyContinuePrompt)
+//   - loop feedback messages whose env carries <loop_feedback>true</loop_feedback>
+//
+// Each entry is numbered ("1. ...", "2. ...") and stripped of its trailing
+// <environment_details> block. The total output is capped at 4000 characters.
+func (a *Agent) getAllUserPrompts() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	xmlToolPrefix := i18n.T(i18n.KeyXMLToolResultTemplate)
+	continuePrompt := strings.TrimSpace(i18n.T(i18n.KeyContinuePrompt))
+
+	var prompts []string
+	for i := 0; i < len(a.messages); i++ {
+		m := a.messages[i]
+		if m.Role != "user" {
+			continue
+		}
+
+		content := strings.TrimSpace(m.CombineContentParts())
+		if content == "" {
+			content = strings.TrimSpace(m.Content)
+		}
+		if content == "" {
+			continue
+		}
+
+		// Skip loop feedback messages (system-generated).
+		if lastEnv := lastEnvText(&m); isLoopFeedbackText(lastEnv) {
+			continue
+		}
+
+		// Skip XML tool result messages ("[tool_name] 返回结果：" prefix).
+		// The template uses the literal "{TOOL_CALL}" placeholder which is
+		// replaced by the actual tool name at message creation time, so a
+		// HasPrefix comparison against the raw template would never match
+		// (FIX-329). Instead detect the resolved shape: starts with "[",
+		// contains "] 返回结果：" or "] Result:".
+		if xmlToolPrefix != "" {
+			trimmedPrefix := strings.TrimSpace(xmlToolPrefix)
+			containsPrefix := strings.Contains(trimmedPrefix, "返回结果")
+			if strings.HasPrefix(content, "[") &&
+				((containsPrefix && strings.Contains(content, "] 返回结果：")) ||
+					(!containsPrefix && strings.Contains(content, "] Result:"))) {
+				continue
+			}
+		}
+
+		// Skip continue prompts.
+		if continuePrompt != "" && strings.TrimSpace(strings.TrimPrefix(content, continuePrompt)) == "" {
+			continue
+		}
+
+		// Strip <environment_details> suffix.
+		if envIdx := strings.Index(content, "<environment_details>"); envIdx > 0 {
+			content = strings.TrimSpace(content[:envIdx])
+		}
+
+		if content != "" {
+			prompts = append(prompts, content)
+		}
+	}
+
+	var sb strings.Builder
+	total := 0
+	for i, p := range prompts {
+		line := fmt.Sprintf("%d. %s", i+1, p)
+		if total+len(line)+1 > 4000 {
+			sb.WriteString("\n...(truncated)")
+			break
+		}
+		sb.WriteString(line)
+		sb.WriteString("\n")
+		total += len(line) + 1
+	}
+	return strings.TrimSpace(sb.String())
+}
+
+// getIterationTools lists the tool names called per assistant iteration in
+// chronological order (FIX-329). This gives the judge model an objective
+// "did we make progress" signal — repeatedly calling the same tool suggests
+// a stalled approach even when the surrounding text differs.
+func (a *Agent) getIterationTools() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	var sb strings.Builder
+	iter := 0
+	for i := 0; i < len(a.messages); i++ {
+		m := a.messages[i]
+		if m.Role != "assistant" || len(m.ToolCalls) == 0 {
+			continue
+		}
+		iter++
+		names := make([]string, 0, len(m.ToolCalls))
+		for _, tc := range m.ToolCalls {
+			names = append(names, tc.Name)
+		}
+		sb.WriteString(fmt.Sprintf("iter%d: %s\n", iter, strings.Join(names, ", ")))
+	}
+	return strings.TrimSpace(sb.String())
+}
+
 // buildLoopJudgeUserPrompt constructs the user message for loop judgment.
 func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) string {
 	userTemplate := i18n.T(i18n.KeyLoopJudgeUserPrompt)
@@ -1222,7 +1394,7 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 		firstInput = a.lastUserInput
 	}
 
-	// {LAST_INPUT} = the most recent user <task> instruction
+	// {LAST_INPUT} = the most recent user instruction
 	lastInput := a.getLastUserCommand()
 	if lastInput == "" {
 		lastInput = a.lastUserInput
@@ -1238,10 +1410,21 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	// concrete, executable exit_strategy instead of guessing (FIX-322).
 	contextText := a.buildJudgeContext()
 
+	// FIX-329: {USER_PROMPTS} = all genuine user instructions (chronological).
+	userPrompts := a.getAllUserPrompts()
+	if userPrompts == "" {
+		userPrompts = a.lastUserInput
+	}
+
+	// FIX-329: {ITERATION_TOOLS} = tool call names per iteration.
+	iterTools := a.getIterationTools()
+
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATIONS}", iterations)
+	userTemplate = strings.ReplaceAll(userTemplate, "{USER_PROMPTS}", userPrompts)
+	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATION_TOOLS}", iterTools)
 	userTemplate = strings.ReplaceAll(userTemplate, "{CONTEXT}", contextText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{SUSPECT_CONTENT}", suspectContent)
 	return userTemplate

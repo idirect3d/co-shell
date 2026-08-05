@@ -381,6 +381,21 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop single line window set to %d", n)
 		return fmt.Sprintf("✅ 单行窗口重复检测大小已设置为: %d", n), nil
 
+	case "loop-single-line-block-limit":
+		if len(args) < 2 {
+			return fmt.Sprintf("单行重复数量块限制: %d（0=不检测，需 单行字符数×重复次数 > 该值 才触发循环）", h.cfg.LLM.LoopSingleLineBlockLimit), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", fmt.Errorf("无效的数值: %s", args[1])
+		}
+		h.cfg.LLM.LoopSingleLineBlockLimit = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop single line block limit set to %d", n)
+		return fmt.Sprintf("✅ 单行重复数量块限制已设置为: %d", n), nil
+
 	case "loop-long-output-threshold":
 		if len(args) < 2 {
 			return fmt.Sprintf("loop-long-output-threshold: %d (0=disabled)", h.cfg.LLM.LoopLongOutputThreshold), nil

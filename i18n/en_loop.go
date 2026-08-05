@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-07-04
-// Last Modified: 2026-07-04
+// Last Modified: 2026-08-05
 //
 // # MIT License
 //
@@ -56,6 +56,8 @@ exit_strategy is the only instruction given to the main LLM. **It must be direct
    - Repeatedly outputting analysis → converge into one concrete tool call or give the conclusion directly
    - No entry point / direction → clearly write the concrete question to ask the user
    - Incomplete information → specify which file and which range to read
+7. **Anchor the ultimate goal first**: before giving any next step, state the task's **ultimate goal** (the main goal / final deliverable, distilled from {TASK} and the user history prompts) as the execution anchor for every subsequent step, so the suggested next step never deviates from the main thread; if the ultimate goal is already achieved, write "call attempt_completion to finish"
+8. **Then state the current-stage goal and priority order**: after anchoring the ultimate goal, state which stage goal the current stage should focus on (determine the progress using the iteration tool sequence); if the current stage has multiple hierarchical goals (sub-goals, or goals that must be completed in order), list the suggested execution order by priority (e.g. "Step 1: …; Step 2: …") and mark the highest-priority item; every step should be traceable to the ultimate goal (phrase it as "this step serves the goal of …")
 
 # Output format requirements
 - Return strictly JSON, nothing outside it
@@ -80,6 +82,9 @@ Example 4 (needs user clarification):
 Example 5 (not a loop):
 {"is_loop": false, "reason": "Output is long but each iteration analyzes a different dimension", "exit_strategy": ""}
 
+Example 6 (multi-level goal priority, ultimate goal anchored first):
+{"is_loop": true, "reason": "Finished locating and reading the code, but still outputting analysis instead of entering the modification stage", "exit_strategy": "Ultimate goal: make the delete button on the template editor page work correctly (correct event delegation, re-numbering after delete). Current-stage goal: fix the delete event handling in web/static/js/app.js. Execute in priority order: Step 1 read_file web/static/js/app.js lines 130-160 to confirm the current implementation; Step 2 replace_in_file to correct the delete event delegation; Step 3 browser_navigate to open the template editor page and click the delete button to verify, ensuring the ultimate goal of a working delete feature is achieved."}
+
 ===
 `
 	enMessages[KeyLoopJudgeUserPrompt] = `# Original Task
@@ -93,15 +98,21 @@ Example 5 (not a loop):
 
 ===
 
-# Last User Instruction
+# User History Prompts (all genuine user instructions in chronological order)
 
-{LAST_INPUT}
+{USER_PROMPTS}
 
 ===
 
 # Recent Iterations (last 2 assistant responses without current suspect)
 
 {ITERATIONS}
+
+===
+
+# Iteration Tool Call Sequence (tool names called per iteration, to assess real progress)
+
+{ITERATION_TOOLS}
 
 ===
 
@@ -118,6 +129,8 @@ Example 5 (not a loop):
 ===
 
 # Output Format
+
+In exit_strategy, first state the **ultimate goal** as the execution anchor, then state the current-stage task goal; if the task has multiple hierarchical goals, list the suggested execution order by priority, ensuring every step serves the ultimate goal.
 
 {"is_loop": false/true, "reason": "xxx", "exit_strategy": "xxx(optional if is_loop is false)"}
 ** Return ONLY the JSON, no thinking or reasoning output **

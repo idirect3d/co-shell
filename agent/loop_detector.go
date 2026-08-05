@@ -56,13 +56,14 @@ import (
 // Single-line detection is delegated to an optional SingleLineLoopDetector
 // sub-detector, checked in AddChunk after each completed line is pushed.
 type LoopDetector struct {
-	threshold          int                     // min period repetitions to trigger (default: 5)
-	accumulated        strings.Builder         // accumulates incomplete trailing line across chunks
-	lineHashes         []uint64                // ring buffer of completed line hashes
-	lineTexts          []string                // ring buffer of completed line texts (for collision guard)
-	writePos           int                     // ring buffer write position (overwrite after full)
-	lineCount          int                     // total completed lines seen so far (for indexing)
-	singleLineDetector *SingleLineLoopDetector // optional sub-detector for single-line patterns
+	threshold            int                     // min period repetitions to trigger (default: 5)
+	singleLineBlockLimit int                     // p=1: min (line chars × repeats) to trigger (default: 200)
+	accumulated          strings.Builder         // accumulates incomplete trailing line across chunks
+	lineHashes           []uint64                // ring buffer of completed line hashes
+	lineTexts            []string                // ring buffer of completed line texts (for collision guard)
+	writePos             int                     // ring buffer write position (overwrite after full)
+	lineCount            int                     // total completed lines seen so far (for indexing)
+	singleLineDetector   *SingleLineLoopDetector // optional sub-detector for single-line patterns
 }
 
 // SetSingleLineDetector attaches a SingleLineLoopDetector sub-detector.
@@ -87,6 +88,12 @@ type LoopDetectedError struct {
 	startTime   time.Time // first occurrence
 	endTime     time.Time // last occurrence
 	suggestion  string    // suggestion for the agent to correct
+
+	// LoopType classifies the trigger scenario for user-facing diagnostics
+	// (FIX-329). Values:
+	//   "single_repeat" — p=1 single-line repetition
+	//   "multi_line"    — p>=2 multi-line period repetition
+	LoopType string
 }
 
 func (e *LoopDetectedError) Error() string {
@@ -105,16 +112,29 @@ func (e *LoopDetectedError) Error() string {
 
 // NewLoopDetector creates a new loop detector with the given configuration.
 // threshold: min period repetitions to trigger (default: 5).
+// singleLineBlockLimit defaults to 200 (FIX-329).
 func NewLoopDetector(threshold int) *LoopDetector {
+	return NewLoopDetectorWithBlockLimit(threshold, 200)
+}
+
+// NewLoopDetectorWithBlockLimit creates a new loop detector with an explicit
+// p=1 single-line block limit. The limit is the minimum value of
+// (repeated line length in chars × repeat count) required for a p=1
+// single-line repetition to trigger. Short lines (e.g. "}") repeated only
+// twice produce a tiny product and are suppressed, avoiding false positives
+// when a code block ends with two identical closing braces. A limit <= 0
+// disables the check (legacy behavior). (FIX-329)
+func NewLoopDetectorWithBlockLimit(threshold, singleLineBlockLimit int) *LoopDetector {
 	if threshold <= 0 {
 		threshold = 5
 	}
 	bufSize := threshold * MaxPeriod
-	log.Debug("LoopDetector: created with threshold=%d, bufferSize=%d", threshold, bufSize)
+	log.Debug("LoopDetector: created with threshold=%d, bufferSize=%d, singleLineBlockLimit=%d", threshold, bufSize, singleLineBlockLimit)
 	return &LoopDetector{
-		threshold:  threshold,
-		lineHashes: make([]uint64, bufSize),
-		lineTexts:  make([]string, bufSize),
+		threshold:            threshold,
+		singleLineBlockLimit: singleLineBlockLimit,
+		lineHashes:           make([]uint64, bufSize),
+		lineTexts:            make([]string, bufSize),
 	}
 }
 
@@ -140,8 +160,11 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 
 	// Step 3: Process complete lines using period detection.
 	for i := 0; i < completeCount; i++ {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
+		// FIX-329: Preserve the original line (indentation matters). Only strip
+		// the trailing \r so CRLF input behaves the same as LF input. StripSpace
+		// is no longer applied here — "  }" and "}" must hash differently.
+		line := strings.TrimSuffix(lines[i], "\r")
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
@@ -158,6 +181,7 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 					threshold:   ld.singleLineDetector.minRepeat,
 					startTime:   timestamp,
 					endTime:     timestamp,
+					LoopType:    event.LoopType,
 					suggestion:  event.Suggestion,
 				}
 			}
@@ -174,7 +198,7 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 	// because completeCount stays 0, so the completed-line loop above
 	// never executes.
 	if !endsWithNewline && len(lines) > 0 && ld.singleLineDetector != nil {
-		partialLine := strings.TrimSpace(lines[len(lines)-1])
+		partialLine := strings.TrimSuffix(lines[len(lines)-1], "\r")
 		if partialLine != "" {
 			if event := ld.singleLineDetector.CheckLine(partialLine); event != nil {
 				return &LoopDetectedError{
@@ -184,6 +208,7 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 					threshold:   ld.singleLineDetector.minRepeat,
 					startTime:   timestamp,
 					endTime:     timestamp,
+					LoopType:    event.LoopType,
 					suggestion:  event.Suggestion,
 				}
 			}
@@ -301,8 +326,27 @@ func (ld *LoopDetector) checkLoop(timestamp time.Time) error {
 		k := ld.countAtEnd(p, maxK)
 		if k >= ld.threshold {
 			_, sampleText := ld.lineAt(ld.lineCount - p)
-			log.Warn("LoopDetector: LOOP TRIGGERED: period=%d, repeated %d times (threshold=%d): %.60s...",
-				p, k, ld.threshold, sampleText)
+
+			// FIX-329: p=1 single-line repetition requires a minimum "quantity
+			// block" of (line length × repeat count). Short closing tags like
+			// "}" repeated twice produce 1×2=2 chars — far below the limit —
+			// and are the classic source of false positives when a code block
+			// ends with two identical closing braces. A limit <= 0 disables
+			// the check (legacy behavior).
+			if p == 1 && ld.singleLineBlockLimit > 0 {
+				if len(sampleText)*k <= ld.singleLineBlockLimit {
+					log.Debug("LoopDetector: p=1 repetition of %d-char line × %d = %d <= blockLimit %d, skipped",
+						len(sampleText), k, len(sampleText)*k, ld.singleLineBlockLimit)
+					continue
+				}
+			}
+
+			loopType := "multi_line"
+			if p == 1 {
+				loopType = "single_repeat"
+			}
+			log.Warn("LoopDetector: LOOP TRIGGERED: period=%d, repeated %d times (threshold=%d, type=%s): %.60s...",
+				p, k, ld.threshold, loopType, sampleText)
 			return &LoopDetectedError{
 				pattern:     sampleText,
 				period:      p,
@@ -310,6 +354,7 @@ func (ld *LoopDetector) checkLoop(timestamp time.Time) error {
 				threshold:   ld.threshold,
 				startTime:   timestamp,
 				endTime:     timestamp,
+				LoopType:    loopType,
 				suggestion: "You appear to be repeating the same content pattern. " +
 					"Please review your output and take a different approach. " +
 					"Consider summarizing your findings or moving to the next step.",
@@ -472,6 +517,11 @@ type LoopEvent struct {
 	ToolName   string        // tool name (only for ToolCallRepeat)
 	ToolArgs   string        // tool arguments (only for ToolCallRepeat)
 	Reason     string        // brief human-readable reason
+
+	// LoopType classifies the trigger scenario for user-facing diagnostics
+	// (FIX-329). Values: "single_repeat", "multi_line", "line_too_long",
+	// "char_period", "long_output", "tool_call".
+	LoopType string
 }
 
 // LoopJudgeResult holds the result of an LLM-based loop judgment call.
@@ -531,6 +581,7 @@ func (sld *SingleLineLoopDetector) CheckLine(line string) *LoopEvent {
 			Type:     LoopEventSingleLineRepeat,
 			Detector: "SingleLineLoopDetector (long line)",
 			Content:  truncateString(line, 200),
+			LoopType: "line_too_long",
 			Reason:   fmt.Sprintf("single line length %d exceeds threshold %d", len(line), sld.longLineThreshold),
 			Suggestion: "Your output contains an extremely long line. " +
 				"Consider breaking it into shorter lines or summarizing.",
@@ -607,6 +658,7 @@ func (sld *SingleLineLoopDetector) CheckLine(line string) *LoopEvent {
 							Type:     LoopEventSingleLineRepeat,
 							Detector: "SingleLineLoopDetector (char period)",
 							Content:  truncateString(line, 200),
+							LoopType: "char_period",
 							Reason:   fmt.Sprintf("char-level period %d sustained %d chars (window=%d)", p, sustainedChars, sld.windowSize),
 							Suggestion: "Your output contains a repeating character pattern. " +
 								"Please vary your output.",

@@ -492,6 +492,14 @@ type LLMConfig struct {
 	// 0 means disabled. Default: 128
 	LoopSingleLineWindow int `json:"loop_single_line_window"`
 
+	// LoopSingleLineBlockLimit: minimum "quantity block" for p=1 single-line
+	// repetition to trigger the loop detector. The value is computed as
+	// (repeated line length in chars × repeat count). Short lines (e.g. "}")
+	// repeated a few times produce a tiny product and are suppressed, avoiding
+	// false positives when a code block ends with two identical closing braces.
+	// 0 means disabled (legacy behavior). Default: 200
+	LoopSingleLineBlockLimit int `json:"loop_single_line_block_limit"`
+
 	// LLMInteractionLog: whether to enable LLM interaction full logging.
 	// When enabled, all LLM request and response payloads are written to
 	// log/llm-interaction-YYYY-MM-DD.log as formatted JSON.
@@ -868,6 +876,7 @@ func DefaultConfig() *Config {
 			LoopDetectThreshold:        2,
 			LoopSingleLineLength:       2048,
 			LoopSingleLineWindow:       128,
+			LoopSingleLineBlockLimit:   200,
 			LoopTempEnabled:            true,
 			LoopTempStepUp:             0.05,
 			LoopTempStepDown:           0.07,
