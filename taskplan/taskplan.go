@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/memory"
 	"github.com/idirect3d/co-shell/store"
@@ -166,14 +167,14 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 		// Empty steps or empty title: archive and delete current plan
 		existing, err := m.loadCurrent()
 		if err != nil {
-			return nil, fmt.Errorf("无法加载当前任务计划: %w", err)
+			return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_712, err))
 		}
 		if existing != nil {
 			if err := m.archiveToMemory(existing, true); err != nil {
 				log.Warn("Failed to archive cancelled plan: %v", err)
 			}
 			if err := m.store.DeleteContext(currentPlanKey); err != nil {
-				return nil, fmt.Errorf("无法删除空任务计划: %w", err)
+				return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_711, err))
 			}
 		}
 		return nil, nil
@@ -184,7 +185,7 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 	// Load existing plan
 	existing, err := m.loadCurrent()
 	if err != nil {
-		return nil, fmt.Errorf("无法加载当前任务计划: %w", err)
+		return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_712, err))
 	}
 
 	if existing == nil {
@@ -201,7 +202,7 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 		for i, s := range steps {
 			status, err := ParseStatus(s.Status)
 			if err != nil {
-				return nil, fmt.Errorf("步骤 #%d 状态无效: %w", i+1, err)
+				return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_713, i+1, err))
 			}
 			plan.Steps = append(plan.Steps, TaskStep{
 				ID:          i + 1,
@@ -213,7 +214,7 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 		}
 
 		if err := m.saveCurrent(plan); err != nil {
-			return nil, fmt.Errorf("无法保存任务计划: %w", err)
+			return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_714, err))
 		}
 
 		return plan, nil
@@ -231,7 +232,7 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 	for i, s := range steps {
 		status, err := ParseStatus(s.Status)
 		if err != nil {
-			return nil, fmt.Errorf("步骤 #%d 状态无效: %w", i+1, err)
+			return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_713, i+1, err))
 		}
 		newSteps = append(newSteps, TaskStep{
 			ID:          i + 1,
@@ -245,7 +246,7 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 	existing.UpdatedAt = now
 
 	if err := m.saveCurrent(existing); err != nil {
-		return nil, fmt.Errorf("无法保存任务计划: %w", err)
+		return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_714, err))
 	}
 
 	return existing, nil
@@ -260,16 +261,16 @@ func (m *Manager) archiveToMemory(plan *TaskPlan, cancelled bool) error {
 		return nil
 	}
 
-	statusLabel := "已完成"
+	statusLabel := i18n.T(i18n.KeySettingCmd_715)
 	if cancelled {
-		statusLabel = "已取消"
+		statusLabel = i18n.T(i18n.KeySettingCmd_716)
 	}
-	content := fmt.Sprintf("📋 %s任务计划 #%d: %s\n", statusLabel, plan.ID, plan.Title)
+	content := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_717), statusLabel, plan.ID, plan.Title)
 	if plan.Description != "" {
-		content += fmt.Sprintf("   描述: %s\n", plan.Description)
+		content += fmt.Sprintf(i18n.T(i18n.KeySettingCmd_718), plan.Description)
 	}
-	content += fmt.Sprintf("   创建时间: %s\n", plan.CreatedAt)
-	content += fmt.Sprintf("   %s时间: %s\n", statusLabel, time.Now().Format("2006-01-02 15:04:05"))
+	content += fmt.Sprintf(i18n.T(i18n.KeySettingCmd_719), plan.CreatedAt)
+	content += fmt.Sprintf(i18n.T(i18n.KeySettingCmd_720), statusLabel, time.Now().Format("2006-01-02 15:04:05"))
 
 	total := len(plan.Steps)
 	completed := 0
@@ -278,13 +279,13 @@ func (m *Manager) archiveToMemory(plan *TaskPlan, cancelled bool) error {
 			completed++
 		}
 	}
-	content += fmt.Sprintf("   进度: %d/%d\n\n", completed, total)
+	content += fmt.Sprintf(i18n.T(i18n.KeySettingCmd_721), completed, total)
 
 	for _, step := range plan.Steps {
 		statusIcon := statusIcon(step.Status)
-		content += fmt.Sprintf("  %s Step #%d: %s\n", statusIcon, step.ID, step.Description)
+		content += fmt.Sprintf(i18n.T(i18n.KeySettingCmd_730), statusIcon, step.ID, step.Description)
 		if step.Note != "" {
-			content += fmt.Sprintf("       Note: %s\n", step.Note)
+			content += fmt.Sprintf(i18n.T(i18n.KeySettingCmd_731), step.Note)
 		}
 	}
 
@@ -299,7 +300,7 @@ func (m *Manager) archiveToMemory(plan *TaskPlan, cancelled bool) error {
 func (m *Manager) loadCurrent() (*TaskPlan, error) {
 	data, found, err := m.store.GetContext(currentPlanKey)
 	if err != nil {
-		return nil, fmt.Errorf("无法加载任务计划: %w", err)
+		return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_722, err))
 	}
 	if !found {
 		return nil, nil
@@ -307,7 +308,7 @@ func (m *Manager) loadCurrent() (*TaskPlan, error) {
 
 	var plan TaskPlan
 	if err := json.Unmarshal(data, &plan); err != nil {
-		return nil, fmt.Errorf("无法解析任务计划: %w", err)
+		return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_723, err))
 	}
 	return &plan, nil
 }
@@ -316,7 +317,7 @@ func (m *Manager) loadCurrent() (*TaskPlan, error) {
 func (m *Manager) saveCurrent(plan *TaskPlan) error {
 	data, err := json.Marshal(plan)
 	if err != nil {
-		return fmt.Errorf("无法序列化任务计划: %w", err)
+		return fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_724, err))
 	}
 	return m.store.SaveContext(currentPlanKey, data)
 }
@@ -324,16 +325,16 @@ func (m *Manager) saveCurrent(plan *TaskPlan) error {
 // FormatPlan formats a task plan as a human-readable string.
 func FormatPlan(plan *TaskPlan) string {
 	if plan == nil {
-		return "📋 当前没有任务计划。"
+		return i18n.T(i18n.KeySettingCmd_725)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📋 任务计划 #%d: %s\n", plan.ID, plan.Title))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_726), plan.ID, plan.Title))
 	if plan.Description != "" {
-		sb.WriteString(fmt.Sprintf("   描述: %s\n", plan.Description))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_718), plan.Description))
 	}
-	sb.WriteString(fmt.Sprintf("   创建时间: %s\n", plan.CreatedAt))
-	sb.WriteString(fmt.Sprintf("   更新时间: %s\n", plan.UpdatedAt))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_719), plan.CreatedAt))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_727), plan.UpdatedAt))
 
 	// Calculate progress
 	total := len(plan.Steps)
@@ -347,18 +348,18 @@ func FormatPlan(plan *TaskPlan) string {
 	if total > 0 {
 		progress = completed * 100 / total
 	}
-	sb.WriteString(fmt.Sprintf("   进度: %d/%d (%d%%)\n\n", completed, total, progress))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_728), completed, total, progress))
 
 	if total == 0 {
-		sb.WriteString("   （无步骤）\n")
+		sb.WriteString(i18n.T(i18n.KeySettingCmd_729))
 		return sb.String()
 	}
 
 	for _, step := range plan.Steps {
 		statusIcon := statusIcon(step.Status)
-		sb.WriteString(fmt.Sprintf("  %s 步骤 #%d: %s\n", statusIcon, step.ID, step.Description))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_730), statusIcon, step.ID, step.Description))
 		if step.Note != "" {
-			sb.WriteString(fmt.Sprintf("       备注: %s\n", step.Note))
+			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_731), step.Note))
 		}
 	}
 
@@ -385,7 +386,7 @@ func ParseStatus(status string) (TaskStatus, error) {
 	case "failed", "[F]":
 		return StatusFailed, nil
 	default:
-		return "", fmt.Errorf("无效的状态 '%s'：可选状态为 pending/[ ]、in_progress/[=]、completed/[X]、failed/[F]、cancelled/[C]", status)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_732, status))
 	}
 }
 
