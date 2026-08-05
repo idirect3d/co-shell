@@ -657,6 +657,9 @@ var zhMessages = map[string]string{
 	KeySettingCmd_666: "包含公式: 是",
 	KeySettingCmd_667: "已打开 Excel 文件: %s (%s)\n会话 ID: %s\n\n请使用 excel_overview 获取文件概览。",
 	KeySettingCmd_668: "已替换 Sheet %q → %q",
+	KeySettingCmd_669: "(新建)",
+	KeySettingCmd_670: "文件名: %s\n",
+	KeySettingCmd_671: "Sheet: %s, 范围 %s\n",
 
 	// Help
 	KeyHelpTitle:        "可用命令:",
