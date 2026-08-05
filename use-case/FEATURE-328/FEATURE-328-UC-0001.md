@@ -23,16 +23,22 @@ FEATURE-235 已实现工具调用流式识别与实时渲染（XML/OpenAI 两模
 
 **replace_in_file（search 行 `-`、replace 行 `+`；带 `start_line` 显示行号）**：
 ```
-⚙️ replace_in_file
-   path: a.go
-   10- fmt.Println("old")
-   11+ fmt.Println("new")
+⚙️ replace_in_file a.go
+(替换第5行段落)
+5-: fmt.Println("old")
+6-: fmt.Println("more old")
+5-6 行:
+5+: fmt.Println("new")
+6+: fmt.Println("more new")
 ```
 未指定 `start_line` 时不显示行号：
 ```
-   - fmt.Println("old")
-   + fmt.Println("new")
+⚙️ replace_in_file a.go
+(替换段落)
+- fmt.Println("old")
++ fmt.Println("new")
 ```
+说明：定位行（`5-6 行:`）在 search 行之后输出——流式渲染需等 search 内容到达完毕才能确定结束行号，无法在 diff 块最前预知。
 
 ## 实现方案
 
@@ -54,12 +60,12 @@ FEATURE-235 已实现工具调用流式识别与实时渲染（XML/OpenAI 两模
 ### UC-0002 XML 模式 replace_in_file 未指定 start_line 无行号（单测）
 **前置条件**：同上。
 **步骤**：送入 `<cs:replace_in_file>`、`<cs:path>a.go</cs:path>`、`<cs:replacements>`、`<item><cs:search>alpha</cs:search><cs:replace>beta</cs:replace></item>`。
-**预期**：渲染文本含 `   - alpha` 与 `   + beta`，**无行号**。
+**预期**：工具头 `⚙️ replace_in_file a.go`（path 同行），渲染文本含 `- alpha` 与 `+ beta`，**无行号**。
 
 ### UC-0003 XML 模式 replace_in_file 指定 start_line 显示行号（单测）
 **前置条件**：同上。
 **步骤**：在 search 前送入 `<cs:start_line>10</cs:start_line>`，search 值为两行 `old1\nold2`，replace 值为 `new1\nnew2`。
-**预期**：渲染文本含 `   10- old1`、`   11- old2`、`   10+ new1`、`   11+ new2`，行号从 10 递增。
+**预期**：渲染文本含 `10-: old1`、`11-: old2`、`10+: new1`、`11+: new2`，行号从 10 递增；search 结束后显示定位行 `10-11 行:`。
 
 ### UC-0004 OpenAI 模式 JSON `\n` 转义后按行渲染（单测）
 **前置条件**：流式 JSON Tokenizer 初始化，SetToolName("write_to_file")。
