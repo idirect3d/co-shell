@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -250,7 +251,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_013), args[1])
 		}
 		if val < -1 || val > 1 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_014))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_014))
 		}
 		h.cfg.LLM.TopP = val
 		if err := h.cfg.Save(); err != nil {
@@ -269,7 +270,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_017), args[1])
 		}
 		if n < -1 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_018))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_018))
 		}
 		h.cfg.LLM.TopK = n
 		if err := h.cfg.Save(); err != nil {
@@ -288,7 +289,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_021), args[1])
 		}
 		if val < -1 || val > 2 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_022))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_022))
 		}
 		h.cfg.LLM.RepetitionPenalty = val
 		if err := h.cfg.Save(); err != nil {
@@ -307,7 +308,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_025), args[1])
 		}
 		if n < 0 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_026))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_026))
 		}
 		h.cfg.LLM.MaxModelLen = n
 		if err := h.cfg.Save(); err != nil {

@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -120,7 +121,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_109), args[1])
 		}
 		if n < -1 || n == 0 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_110))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_110))
 		}
 		h.cfg.LLM.MaxIterations = n
 		if err := h.cfg.Save(); err != nil {
@@ -143,7 +144,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_114), args[1])
 		}
 		if n < 0 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_115))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_115))
 		}
 		h.cfg.LLM.MaxRetries = n
 		if err := h.cfg.Save(); err != nil {
@@ -296,7 +297,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_130), args[1])
 		}
 		if n < -1 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_131))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_131))
 		}
 		h.cfg.LLM.ContextLimit = n
 		if err := h.cfg.Save(); err != nil {
@@ -462,7 +463,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_154), args[1])
 		}
 		if n < 1 || n > 65535 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_155))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_155))
 		}
 		h.cfg.LLM.BrowserPort = n
 		if err := h.cfg.Save(); err != nil {
@@ -503,7 +504,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 1024 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_160))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_160))
 		}
 		h.cfg.LLM.ReadFileMaxSize = n
 		if err := h.cfg.Save(); err != nil {
@@ -518,7 +519,7 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 1024 {
-			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_163))
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_163))
 		}
 		h.cfg.LLM.BrowserMaxHTMLSize = n
 		if err := h.cfg.Save(); err != nil {
