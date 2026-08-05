@@ -620,6 +620,13 @@ var enMessages = map[string]string{
 	KeySettingCmd_615: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
 	KeySettingCmd_616: "💡 Hint: Use :set defaults to reset all settings to system defaults (LLM, Memory/Context, and Database preserved).",
 
+	// FEATURE-305 第 3 批: agent/vault.go
+	KeySettingCmd_617: "  Enter tag-value pairs (format: tag=value), one per line, blank line to end",
+	KeySettingCmd_618: "  e.g. user=myuser, pwd=mypass, key=xxx, token=xxx, email=xxx, ip_addr=1.2.3.4",
+	KeySettingCmd_619: "  Invalid format, should be tag=value",
+	KeySettingCmd_620: "  Neither tag nor value can be empty",
+	KeySettingCmd_621: "\nTip: Reference vault entries in any tool call using @Tag:entry_name@ format. If the entry does not exist, the system will prompt for input after confirmation.",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",

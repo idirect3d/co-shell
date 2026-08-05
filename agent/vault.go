@@ -70,7 +70,7 @@ func (a *Agent) vaultListTool(ctx context.Context, args map[string]interface{}) 
 		b.WriteString(fmt.Sprintf("\ntotal: %d entries", len(names)))
 	}
 	// Hint about using placeholders even when entries don't exist yet
-	b.WriteString("\n提示：在任何工具调用中使用 @Tag:条目名@ 格式引用密码本。若条目不存在，系统也会在确认后提示输入。")
+	b.WriteString(i18n.T(i18n.KeySettingCmd_621))
 	return b.String(), nil
 }
 
