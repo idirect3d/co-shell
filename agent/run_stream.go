@@ -78,7 +78,13 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 		if threshold <= 0 {
 			threshold = 5
 		}
-		a.loopDetector = NewLoopDetector(threshold)
+		blockLimit := a.cfg.LLM.LoopSingleLineBlockLimit
+		if blockLimit <= 0 {
+			// FIX-329: legacy behavior — 0 disables the check. The default
+			// value is applied by DefaultConfig (200) unless explicitly set 0.
+			blockLimit = 0
+		}
+		a.loopDetector = NewLoopDetectorWithBlockLimit(threshold, blockLimit)
 
 		// Attach SingleLineLoopDetector sub-detector for long-line and
 		// character-level period detection (FEATURE-273).

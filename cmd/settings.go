@@ -213,6 +213,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-long-output-threshold",
 		subcommand == "loop-single-line-length",
 		subcommand == "loop-single-line-window",
+		subcommand == "loop-single-line-block-limit",
 		subcommand == "duplicate-content-threshold":
 		return h.handleSafetySetting(subcommand, args)
 
@@ -636,6 +637,7 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("loop-long-output-threshold", fmt.Sprintf("%d", cfg.LLM.LoopLongOutputThreshold), "超长输出触发判定字符数(0=不检测)"),
 		makeLine("loop-single-line-length", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineLength), "单行超长阈值(0=不检测)"),
 		makeLine("loop-single-line-window", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineWindow), "单行窗口重复检测大小(0=不检测)"),
+		makeLine("loop-single-line-block-limit", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineBlockLimit), "单行重复数量块限制(0=不检测, 字符数×次数)"),
 	})
 	// loop-reorganize-enabled removed, controlled by loop-intervention
 
@@ -793,6 +795,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.LoopJudgeTimeout = def.LLM.LoopJudgeTimeout
 	h.cfg.LLM.LoopSingleLineLength = def.LLM.LoopSingleLineLength
 	h.cfg.LLM.LoopSingleLineWindow = def.LLM.LoopSingleLineWindow
+	h.cfg.LLM.LoopSingleLineBlockLimit = def.LLM.LoopSingleLineBlockLimit
 	h.cfg.LLM.NoToolAction = def.LLM.NoToolAction
 	h.cfg.LLM.ParseErrorAction = def.LLM.ParseErrorAction
 	h.cfg.LLM.DebugMode = def.LLM.DebugMode

@@ -184,11 +184,21 @@ const (
 	KeyStrategyRandomTemp     = "strategy_random_temp"
 	KeyStrategyUnknown        = "strategy_unknown"
 	KeyLoopSuspected          = "loop_suspected"
-	KeyLoopJudgeResultLoop    = "loop_judge_result_loop"
-	KeyLoopJudgeResultNo      = "loop_judge_result_no"
-	KeyLoopJudgeResultFail    = "loop_judge_result_fail"
-	KeyNoActiveTaskPlan       = "no_active_task_plan"
-	KeyNoRecentIterations     = "no_recent_iterations"
+	// KeyLoopSuspectedWithType renders the suspected-loop banner with the
+	// specific trigger classification (FIX-329), e.g. single-line repetition.
+	KeyLoopSuspectedWithType = "loop_suspected_with_type"
+	// KeyLoopType* map LoopType identifiers to human-readable labels (FIX-329).
+	KeyLoopTypeSingleRepeat = "loop_type_single_repeat"
+	KeyLoopTypeMultiLine    = "loop_type_multi_line"
+	KeyLoopTypeLineTooLong  = "loop_type_line_too_long"
+	KeyLoopTypeCharPeriod   = "loop_type_char_period"
+	KeyLoopTypeLongOutput   = "loop_type_long_output"
+	KeyLoopTypeToolCall     = "loop_type_tool_call"
+	KeyLoopJudgeResultLoop  = "loop_judge_result_loop"
+	KeyLoopJudgeResultNo    = "loop_judge_result_no"
+	KeyLoopJudgeResultFail  = "loop_judge_result_fail"
+	KeyNoActiveTaskPlan     = "no_active_task_plan"
+	KeyNoRecentIterations   = "no_recent_iterations"
 
 	// FEATURE-304: D 类外部入口 i18n 迁移 (subagent/bridge/feishu)
 	KeySubAgentDuration       = "subagent_duration"

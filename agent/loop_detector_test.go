@@ -61,17 +61,40 @@ func TestLoopDetector_RepeatLines(t *testing.T) {
 }
 
 // TestLoopDetector_ShortLineFilter verifies that short lines participate
-// in detection like any other line (no minLineLen filter).
+// in detection like any other line (no minLineLen filter) when the p=1
+// quantity-block limit is disabled. With the default blockLimit (200),
+// short lines repeating only a few times are suppressed (FIX-329) — the
+// same guard that prevents a code block ending with two "}" lines from
+// being flagged as a loop.
 func TestLoopDetector_ShortLineFilter(t *testing.T) {
-	ld := NewLoopDetector(3)
+	// Block limit disabled → short lines participate fully.
+	ld := NewLoopDetectorWithBlockLimit(3, 0)
 
 	shortLine := "short"
 	content := strings.Repeat(shortLine+"\n", 5)
 	err := ld.AddChunk(content, time.Now())
 	if err == nil {
-		t.Fatal("short lines repeated 5 times consecutively should trigger threshold=3, but got nil")
+		t.Fatal("short lines repeated 5 times consecutively should trigger threshold=3 with blockLimit=0, but got nil")
 	}
-	t.Logf("short line loop detected as expected: %s", err.Error())
+	t.Logf("short line loop detected as expected (blockLimit disabled): %s", err.Error())
+
+	// Default blockLimit (200): "short" × 5 = 5 chars × 5 = 25 ≤ 200 → suppressed.
+	ld2 := NewLoopDetector(3)
+	content2 := strings.Repeat(shortLine+"\n", 5)
+	err = ld2.AddChunk(content2, time.Now())
+	if err != nil {
+		t.Fatalf("short lines repeated 5 times should NOT trigger with default blockLimit=200 (5×5=25 ≤ 200), got: %v", err)
+	}
+	t.Log("short line repetition correctly suppressed by default quantity-block limit")
+
+	// Default blockLimit (200): "short" × 41 = 5 × 41 = 205 > 200 → triggers again.
+	ld3 := NewLoopDetector(3)
+	content3 := strings.Repeat(shortLine+"\n", 41)
+	err = ld3.AddChunk(content3, time.Now())
+	if err == nil {
+		t.Fatal("short lines repeated 41 times (5×41=205 > 200) should trigger, but got nil")
+	}
+	t.Logf("short line loop detected as expected once quantity block exceeded: %s", err.Error())
 }
 
 // TestLoopDetector_CrossChunk verifies cross-chunk consecutive line handling.
