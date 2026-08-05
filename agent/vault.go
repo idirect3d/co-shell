@@ -101,8 +101,8 @@ func (a *Agent) vaultAddTool(ctx context.Context, args map[string]interface{}) (
 	io := a.defaultIO()
 	io.Println()
 	io.Println(i18n.TF(i18n.KeyVaultAddPrompt, name))
-	io.Println("  请输入标签值对（格式: tag=value），每行一个，空行结束")
-	io.Println("  例如: user=myuser, pwd=mypass, key=xxx, token=xxx, email=xxx, ip_addr=1.2.3.4")
+	io.Println(i18n.T(i18n.KeySettingCmd_617))
+	io.Println(i18n.T(i18n.KeySettingCmd_618))
 
 	tags := make(map[string]string)
 	for {
@@ -117,13 +117,13 @@ func (a *Agent) vaultAddTool(ctx context.Context, args map[string]interface{}) (
 		}
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
-			io.Println("  格式错误，应为 tag=value")
+			io.Println(i18n.T(i18n.KeySettingCmd_619))
 			continue
 		}
 		tagName := strings.TrimSpace(parts[0])
 		tagValue := strings.TrimSpace(parts[1])
 		if tagName == "" || tagValue == "" {
-			io.Println("  tag 和 value 都不能为空")
+			io.Println(i18n.T(i18n.KeySettingCmd_620))
 			continue
 		}
 		tags[tagName] = tagValue

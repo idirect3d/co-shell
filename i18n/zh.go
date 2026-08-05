@@ -602,6 +602,13 @@ var zhMessages = map[string]string{
 	KeySettingCmd_615: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
 	KeySettingCmd_616: "💡 提示：使用 :set defaults 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
 
+	// FEATURE-305 第 3 批: agent/vault.go
+	KeySettingCmd_617: "  请输入标签值对（格式: tag=value），每行一个，空行结束",
+	KeySettingCmd_618: "  例如: user=myuser, pwd=mypass, key=xxx, token=xxx, email=xxx, ip_addr=1.2.3.4",
+	KeySettingCmd_619: "  格式错误，应为 tag=value",
+	KeySettingCmd_620: "  tag 和 value 都不能为空",
+	KeySettingCmd_621: "\n提示：在任何工具调用中使用 @Tag:条目名@ 格式引用密码本。若条目不存在，系统也会在确认后提示输入。",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",

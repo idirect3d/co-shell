@@ -853,6 +853,13 @@ const (
 	KeySettingCmd_615 = "setting_cmd_615"
 	KeySettingCmd_616 = "setting_cmd_616"
 
+	// FEATURE-305 第 3 批: agent/vault.go
+	KeySettingCmd_617 = "setting_cmd_617"
+	KeySettingCmd_618 = "setting_cmd_618"
+	KeySettingCmd_619 = "setting_cmd_619"
+	KeySettingCmd_620 = "setting_cmd_620"
+	KeySettingCmd_621 = "setting_cmd_621"
+
 	// FEATURE-305: repl.go C 类基础设施 i18n 迁移
 	KeyDBSyncStart        = "db_sync_start"
 	KeyDBSyncPartial      = "db_sync_partial"
