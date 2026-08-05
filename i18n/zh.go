@@ -678,7 +678,7 @@ var zhMessages = map[string]string{
 	KeySettingCmd_685: "已创建样式 %q (ID: %s)\nCSS: %s\n(未保存，请调用 word_save 持久化)",
 
 	// FEATURE-305 第 5 批: agent/browser_tools.go
-	KeySettingCmd_686: ":\nURL: %s\n: %s\n\n请使用 browser_screenshot 或 browser_get_interactive_elements 查看页面内容。",
+	KeySettingCmd_686: "已导航到页面:\nURL: %s\n标题: %s\n\n现在你可以使用 browser_screenshot 查看页面内容，或使用 browser_get_interactive_elements 查看可交互元素。",
 	KeySettingCmd_687: "页面截图已保存到: %s\nURL: %s\n标题: %s\n截图质量: %d\n全页截图: %v\n",
 	KeySettingCmd_688: "\n✅ 截图已加载，将在下次 LLM 调用时发送到视觉模型进行分析。",
 	KeySettingCmd_689: "\n你可以结合 browser_get_interactive_elements 获取页面可交互元素信息来进行精确操作。",

@@ -696,7 +696,7 @@ var enMessages = map[string]string{
 	KeySettingCmd_685: "Style %q created (ID: %s)\nCSS: %s\n(not saved, call word_save to persist)",
 
 	// FEATURE-305 第 5 批: agent/browser_tools.go
-	KeySettingCmd_686: ":\nURL: %s\n: %s\n\nPlease use browser_screenshot or browser_get_interactive_elements to view the page content.",
+	KeySettingCmd_686: "Navigated to page:\nURL: %s\nTitle: %s\n\nNow you can use browser_screenshot to view the page content, or browser_get_interactive_elements to view interactive elements.",
 	KeySettingCmd_687: "Screenshot saved to: %s\nURL: %s\nTitle: %s\nQuality: %d\nFull page: %v\n",
 	KeySettingCmd_688: "\n✅ Screenshot loaded, will be sent to the vision model on the next LLM call for analysis.",
 	KeySettingCmd_689: "\nYou can combine browser_get_interactive_elements to get interactive element info for precise operations.",
