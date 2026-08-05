@@ -677,6 +677,27 @@ var zhMessages = map[string]string{
 	KeySettingCmd_684: "已修改 %d 个段落的 %s\n(未保存，请调用 word_save 持久化)",
 	KeySettingCmd_685: "已创建样式 %q (ID: %s)\nCSS: %s\n(未保存，请调用 word_save 持久化)",
 
+	// FEATURE-305 第 5 批: agent/browser_tools.go
+	KeySettingCmd_686: ":\nURL: %s\n: %s\n\n请使用 browser_screenshot 或 browser_get_interactive_elements 查看页面内容。",
+	KeySettingCmd_687: "页面截图已保存到: %s\nURL: %s\n标题: %s\n截图质量: %d\n全页截图: %v\n",
+	KeySettingCmd_688: "\n✅ 截图已加载，将在下次 LLM 调用时发送到视觉模型进行分析。",
+	KeySettingCmd_689: "\n你可以结合 browser_get_interactive_elements 获取页面可交互元素信息来进行精确操作。",
+	KeySettingCmd_690: "\n\n⚠️ **当前模型不支持视觉识别**，无法对截图内容进行分析。\n截图已保存到文件系统中，你可以：\n1. 通过 `.set vision on` 启用多模态支持（需模型支持）\n2. 切换到支持视觉的多模态大模型后再试\n3. 手动使用 visual_analysis 工具加载截图",
+	KeySettingCmd_691: "已在坐标 (%.0f, %.0f) 处执行点击。\n当前URL: %s\n\n请使用 browser_screenshot 查看点击后的页面变化。",
+	KeySettingCmd_692: "已输入文本: %s",
+	KeySettingCmd_693: "JavaScript 执行成功，无返回值",
+	KeySettingCmd_694: "JavaScript 执行结果:\n%s",
+	KeySettingCmd_695: "页面渲染后的 DOM HTML（%d 行, %d 字符）:\n%s\n\n⚠️ 已同时保存到文件 %s，之后可用 read_file 随时读取。",
+	KeySettingCmd_696: "页面渲染后的 DOM HTML 内容较大（%d 行, %d 字符），已保存到文件:\n  %s\n\n这是经过所有 JavaScript 渲染后的最终 DOM HTML，无需再下载 JS、JSON 或其他资源。\n你可以使用 read_file 工具读取此文件内容进行分析。\n你可以通过 `.set browser-max-html-size` 调整大小限制（当前: %d 字节 ≈ %d KB）。",
+	KeySettingCmd_697: "向下",
+	KeySettingCmd_698: "已%s滚动 %.0f 像素。请使用 browser_screenshot 查看滚动后的页面内容。",
+	KeySettingCmd_699: "页面可交互元素信息:\n%s\n\n你可以根据这些元素的位置坐标（centerX, centerY）使用 browser_click 工具进行点击，或使用 browser_type 工具输入文本。如果页面布局发生变化，可以重新调用此工具获取最新信息。",
+	KeySettingCmd_700: "已返回上一页。\n当前URL: %s\n标题: %s",
+	KeySettingCmd_701: "已前进到下一页。\n当前URL: %s\n标题: %s",
+	KeySettingCmd_702: "浏览器未启动",
+	KeySettingCmd_703: "浏览器页面已关闭。下次使用浏览器工具时自动创建新页面。",
+	KeySettingCmd_704: "向上",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",
