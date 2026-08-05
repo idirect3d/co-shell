@@ -321,13 +321,16 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
-				},
+				// FEATURE-328: primary display param (path) first, then
+				// intent — so streaming header "replace_in_file <path>"
+				// renders as early as possible.
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The path to the file to modify (absolute or relative to current working directory)",
+				},
+				"intent": map[string]interface{}{
+					"type":        "string",
+					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
 				},
 				"replacements": map[string]interface{}{
 					"type": "array",
@@ -376,6 +379,13 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				// FEATURE-328: primary display param (path) first, then
+				// intent — so streaming header "write_to_file <path>"
+				// renders as early as possible.
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The absolute path to the file to write to",
+				},
 				"intent": map[string]interface{}{
 					"type":        "string",
 					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
@@ -383,10 +393,6 @@ Critical rules:
 				"mode": map[string]interface{}{
 					"type":        "string",
 					"description": "**REQUIRED**: The write mode. One of: 'new' (create new file), 'rewrite' (overwrite existing file), 'append' (append to existing file). The three modes are mutually exclusive and non-interchangeable.",
-				},
-				"path": map[string]interface{}{
-					"type":        "string",
-					"description": "The absolute path to the file to write to",
 				},
 				"content": map[string]interface{}{
 					"type":        "string",
