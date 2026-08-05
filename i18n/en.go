@@ -496,6 +496,34 @@ var enMessages = map[string]string{
 	KeySettingCmd_416: "✅ Memory search max results set to: %d",
 	KeySettingCmd_417: "✅ Debug mode set to: %s",
 
+	// FEATURE-305 第 2 批: settings_display.go
+	KeySettingCmd_501: "Show tool call name: %s",
+	KeySettingCmd_502: "✅ Show tool call name set to: %s",
+	KeySettingCmd_503: "Show tool call input: %s",
+	KeySettingCmd_504: "✅ Show tool call input set to: %s",
+	KeySettingCmd_505: "Show tool call output: %s",
+	KeySettingCmd_506: "✅ Show tool call output set to: %s",
+	KeySettingCmd_507: "Show command output: %s",
+	KeySettingCmd_508: "✅ Show command output set to: %s",
+	KeySettingCmd_509: "Show loop detection: %s",
+	KeySettingCmd_510: "✅ Show loop detection set to: %s",
+	KeySettingCmd_511: "Result mode: %s",
+	KeySettingCmd_512: "Invalid result mode: %s (valid: minimal, explain, analyze, free)",
+	KeySettingCmd_513: "✅ Result mode set to: %s",
+	KeySettingCmd_514: "Startup logo: %s",
+	KeySettingCmd_515: "✅ Startup logo set to: %s",
+	KeySettingCmd_516: "Token usage display mode: %s",
+	KeySettingCmd_517: "✅ Token usage display mode set to: %s",
+	KeySettingCmd_518: "Emoji prefix: %s",
+	KeySettingCmd_519: "✅ Emoji prefix set to: %s",
+
+	// FEATURE-305 第 2 批: settings_log.go
+	KeySettingCmd_520: "Log level: %s (valid: debug, info, warn, error, off)",
+	KeySettingCmd_521: "Invalid log level: %s (valid: debug, info, warn, error, off)",
+	KeySettingCmd_522: "✅ Log level set to: %s",
+	KeySettingCmd_523: "LLM interaction log: %s",
+	KeySettingCmd_524: "Invalid value: %s (valid: on, off)",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",

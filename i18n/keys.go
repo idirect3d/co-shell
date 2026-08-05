@@ -729,6 +729,34 @@ const (
 	KeySettingCmd_416 = "setting_cmd_416"
 	KeySettingCmd_417 = "setting_cmd_417"
 
+	// FEATURE-305 第 2 批: settings_display.go
+	KeySettingCmd_501 = "setting_cmd_501"
+	KeySettingCmd_502 = "setting_cmd_502"
+	KeySettingCmd_503 = "setting_cmd_503"
+	KeySettingCmd_504 = "setting_cmd_504"
+	KeySettingCmd_505 = "setting_cmd_505"
+	KeySettingCmd_506 = "setting_cmd_506"
+	KeySettingCmd_507 = "setting_cmd_507"
+	KeySettingCmd_508 = "setting_cmd_508"
+	KeySettingCmd_509 = "setting_cmd_509"
+	KeySettingCmd_510 = "setting_cmd_510"
+	KeySettingCmd_511 = "setting_cmd_511"
+	KeySettingCmd_512 = "setting_cmd_512"
+	KeySettingCmd_513 = "setting_cmd_513"
+	KeySettingCmd_514 = "setting_cmd_514"
+	KeySettingCmd_515 = "setting_cmd_515"
+	KeySettingCmd_516 = "setting_cmd_516"
+	KeySettingCmd_517 = "setting_cmd_517"
+	KeySettingCmd_518 = "setting_cmd_518"
+	KeySettingCmd_519 = "setting_cmd_519"
+
+	// FEATURE-305 第 2 批: settings_log.go
+	KeySettingCmd_520 = "setting_cmd_520"
+	KeySettingCmd_521 = "setting_cmd_521"
+	KeySettingCmd_522 = "setting_cmd_522"
+	KeySettingCmd_523 = "setting_cmd_523"
+	KeySettingCmd_524 = "setting_cmd_524"
+
 	// FEATURE-305: repl.go C 类基础设施 i18n 迁移
 	KeyDBSyncStart        = "db_sync_start"
 	KeyDBSyncPartial      = "db_sync_partial"
