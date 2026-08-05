@@ -478,6 +478,34 @@ var zhMessages = map[string]string{
 	KeySettingCmd_416: "✅ 记忆搜索最大结果数已设置为: %d",
 	KeySettingCmd_417: "✅ 调试模式已设置为: %s",
 
+	// FEATURE-305 第 2 批: settings_display.go
+	KeySettingCmd_501: "显示工具调用名称: %s",
+	KeySettingCmd_502: "✅ 显示工具调用名称已设置为: %s",
+	KeySettingCmd_503: "显示工具调用输入参数: %s",
+	KeySettingCmd_504: "✅ 显示工具调用输入参数已设置为: %s",
+	KeySettingCmd_505: "显示工具调用返回数据: %s",
+	KeySettingCmd_506: "✅ 显示工具调用返回数据已设置为: %s",
+	KeySettingCmd_507: "显示命令返回数据: %s",
+	KeySettingCmd_508: "✅ 显示命令返回数据已设置为: %s",
+	KeySettingCmd_509: "显示循环检测过程: %s",
+	KeySettingCmd_510: "✅ 显示循环检测过程已设置为: %s",
+	KeySettingCmd_511: "结果处理模式: %s",
+	KeySettingCmd_512: "无效的结果处理模式: %s（可选值: minimal, explain, analyze, free）",
+	KeySettingCmd_513: "✅ 结果处理模式已设置为: %s",
+	KeySettingCmd_514: "启动 Logo 显示: %s",
+	KeySettingCmd_515: "✅ 启动 Logo 显示已设置为: %s",
+	KeySettingCmd_516: "Token 用量显示模式: %s",
+	KeySettingCmd_517: "✅ Token 用量显示模式已设置为: %s",
+	KeySettingCmd_518: "表情符号前缀: %s",
+	KeySettingCmd_519: "✅ 表情符号前缀已设置为: %s",
+
+	// FEATURE-305 第 2 批: settings_log.go
+	KeySettingCmd_520: "日志级别: %s（可选值: debug, info, warn, error, off）",
+	KeySettingCmd_521: "无效的日志级别: %s（可选值: debug, info, warn, error, off）",
+	KeySettingCmd_522: "✅ 日志级别已设置为: %s",
+	KeySettingCmd_523: "LLM 交互日志: %s",
+	KeySettingCmd_524: "无效值: %s（可选值: on, off）",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",

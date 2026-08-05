@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/idirect3d/co-shell/i18n"
@@ -36,11 +37,11 @@ import (
 func (h *SettingsHandler) handleLogSetting(subcommand string, args []string) (string, error) {
 	if len(args) < 2 {
 		currentLevel := log.LogLevelString(log.GetLevel())
-		return fmt.Sprintf("日志级别: %s（可选值: debug, info, warn, error, off）", currentLevel), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_520), currentLevel), nil
 	}
 	level, ok := log.ParseLogLevel(args[1])
 	if !ok {
-		return "", fmt.Errorf("无效的日志级别: %s（可选值: debug, info, warn, error, off）", args[1])
+		return "", errors.New(i18n.TF(i18n.KeySettingCmd_521, args[1]))
 	}
 	h.cfg.LogLevel = args[1]
 	h.cfg.LogEnabled = level != log.LogLevelOff
@@ -52,7 +53,7 @@ func (h *SettingsHandler) handleLogSetting(subcommand string, args []string) (st
 		return "", fmt.Errorf("failed to update logger: %w", err)
 	}
 	log.Info("Log level set to %s", args[1])
-	return fmt.Sprintf("✅ 日志级别已设置为: %s", args[1]), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_522), args[1]), nil
 }
 
 // handleLLMInteractionLogSetting handles the llm-log setting.
@@ -62,7 +63,7 @@ func (h *SettingsHandler) handleLLMInteractionLogSetting(subcommand string, args
 		if log.IsLLMInteractionEnabled() {
 			status = i18n.T(i18n.KeyOn)
 		}
-		return fmt.Sprintf("LLM 交互日志: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_523), status), nil
 	}
 
 	var enabled bool
@@ -72,7 +73,7 @@ func (h *SettingsHandler) handleLLMInteractionLogSetting(subcommand string, args
 	case "off", "0", "false", "no":
 		enabled = false
 	default:
-		return "", fmt.Errorf("无效值: %s（可选值: on, off）", args[1])
+		return "", errors.New(i18n.TF(i18n.KeySettingCmd_524, args[1]))
 	}
 
 	h.cfg.LLM.LLMInteractionLog = enabled
