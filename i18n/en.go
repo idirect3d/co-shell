@@ -477,6 +477,25 @@ var enMessages = map[string]string{
 	KeySettingCmd_323: "Single line window repeat detection size (0=disabled)",
 	KeySettingCmd_324: "Single line repeat block limit (0=disabled, chars×times)",
 
+	// FEATURE-305 第 2 批: settings_search.go
+	KeySettingCmd_401: "Search max line length: %d",
+	KeySettingCmd_402: "Invalid value: %s",
+	KeySettingCmd_403: "Search max line length must be >= 0",
+	KeySettingCmd_404: "✅ Search max line length set to: %d",
+	KeySettingCmd_405: "Search max result bytes: %d",
+	KeySettingCmd_406: "Search max result bytes must be >= 0",
+	KeySettingCmd_407: "✅ Search max result bytes set to: %d",
+	KeySettingCmd_408: "Search context lines: %d",
+	KeySettingCmd_409: "Search context lines must be >= 0",
+	KeySettingCmd_410: "✅ Search context lines set to: %d",
+	KeySettingCmd_411: "Memory search max content length: %d",
+	KeySettingCmd_412: "Memory search max content length must be >= 0",
+	KeySettingCmd_413: "✅ Memory search max content length set to: %d",
+	KeySettingCmd_414: "Memory search max results: %d",
+	KeySettingCmd_415: "Memory search max results must be >= 0",
+	KeySettingCmd_416: "✅ Memory search max results set to: %d",
+	KeySettingCmd_417: "✅ Debug mode set to: %s",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",
