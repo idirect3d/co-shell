@@ -32,6 +32,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // ModelCapability defines the capabilities a model supports.
@@ -134,14 +136,14 @@ func (m *ModelManager) initBuiltInTemplates() {
 	templates := []ModelTemplate{
 		{
 			ID:           "deepseek-official",
-			Name:         "DeepSeek 官方",
+			Name:         i18n.T(i18n.KeySettingCmd_755),
 			Provider:     "deepseek",
 			Endpoint:     "https://api.deepseek.com",
 			DefaultModel: "deepseek-v4-flash",
 			Models:       []string{"deepseek-v4-flash", "deepseek-v4-pro"},
 			APIKeyURL:    "https://platform.deepseek.com/api_keys",
 			Priority:     100,
-			Description:  "DeepSeek 官方 API，支持 thinking 模式",
+			Description:  i18n.T(i18n.KeySettingCmd_756),
 			Capabilities: ModelCapability{Vision: false, ToolCall: true, Thinking: true, Multimodal: false},
 			DefaultParams: map[string]interface{}{
 				"thinking":              map[string]interface{}{"type": "enabled"},
@@ -153,14 +155,14 @@ func (m *ModelManager) initBuiltInTemplates() {
 		},
 		{
 			ID:           "qwen-official",
-			Name:         "阿里千问（通义千问）",
+			Name:         i18n.T(i18n.KeySettingCmd_757),
 			Provider:     "qwen",
 			Endpoint:     "https://dashscope.aliyuncs.com/compatible-mode/v1",
 			DefaultModel: "qwen-plus",
 			Models:       []string{"qwen-plus", "qwen-max", "qwen-turbo", "qwen-vl-max"},
 			APIKeyURL:    "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
 			Priority:     90,
-			Description:  "阿里通义千问 API，支持多模态模型",
+			Description:  i18n.T(i18n.KeySettingCmd_758),
 			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: false, Multimodal: true},
 			DefaultParams: map[string]interface{}{
 				"extra_body": map[string]interface{}{
@@ -174,14 +176,14 @@ func (m *ModelManager) initBuiltInTemplates() {
 		},
 		{
 			ID:           "xiaomi-mimo",
-			Name:         "小米 MiMo 大模型",
+			Name:         i18n.T(i18n.KeySettingCmd_759),
 			Provider:     "xiaomi",
 			Endpoint:     "https://api.xiaomimimo.com/v1",
 			DefaultModel: "mimo-v2.5-pro",
 			Models:       []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash"},
 			APIKeyURL:    "https://platform.xiaomimimo.com/#/console/api-keys",
 			Priority:     80,
-			Description:  "小米 MiMo 大模型 API",
+			Description:  i18n.T(i18n.KeySettingCmd_760),
 			Capabilities: ModelCapability{Vision: false, ToolCall: true, Thinking: false, Multimodal: false},
 			DefaultParams: map[string]interface{}{
 				"frequency_penalty": float64(0),
@@ -190,14 +192,14 @@ func (m *ModelManager) initBuiltInTemplates() {
 		},
 		{
 			ID:                 "kimi-official",
-			Name:               "Kimi（月之暗面 Moonshot AI）",
+			Name:               i18n.T(i18n.KeySettingCmd_761),
 			Provider:           "kimi",
 			Endpoint:           "https://api.moonshot.cn",
 			DefaultModel:       "kimi-k3",
 			Models:             []string{"kimi-k3", "kimi-k2.7-code", "kimi-k2.7-code-highspeed", "kimi-k2.6", "kimi-k2.5"},
 			APIKeyURL:          "https://platform.kimi.com/console/api-keys",
 			Priority:           85,
-			Description:        "Kimi API，K3 旗舰模型 1M 上下文，支持多模态、深度思考",
+			Description:        i18n.T(i18n.KeySettingCmd_762),
 			Capabilities:       ModelCapability{Vision: true, ToolCall: true, Thinking: true, Multimodal: true},
 			DefaultMaxModelLen: 1048576,
 			DefaultParams: map[string]interface{}{
@@ -210,14 +212,14 @@ func (m *ModelManager) initBuiltInTemplates() {
 		},
 		{
 			ID:           "zhipu-glm",
-			Name:         "智谱 AI（GLM）",
+			Name:         i18n.T(i18n.KeySettingCmd_763),
 			Provider:     "zhipu",
 			Endpoint:     "https://open.bigmodel.cn/api/paas/v4/",
 			DefaultModel: "glm-4-plus",
 			Models:       []string{"glm-4-plus", "glm-4-0520", "glm-4-air", "glm-4-flash", "glm-4v-plus"},
 			APIKeyURL:    "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
 			Priority:     75,
-			Description:  "智谱 GLM 系列模型，支持视觉模型",
+			Description:  i18n.T(i18n.KeySettingCmd_764),
 			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: false, Multimodal: true},
 			DefaultParams: map[string]interface{}{
 				"frequency_penalty": float64(0),
@@ -226,14 +228,14 @@ func (m *ModelManager) initBuiltInTemplates() {
 		},
 		{
 			ID:           "openai-official",
-			Name:         "OpenAI 官方",
+			Name:         i18n.T(i18n.KeySettingCmd_765),
 			Provider:     "openai",
 			Endpoint:     "https://api.openai.com/v1",
 			DefaultModel: "gpt-4o",
 			Models:       []string{"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"},
 			APIKeyURL:    "https://platform.openai.com/api-keys",
 			Priority:     95,
-			Description:  "OpenAI 官方 API，GPT-4o 支持多模态",
+			Description:  i18n.T(i18n.KeySettingCmd_766),
 			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: false, Multimodal: true},
 			DefaultParams: map[string]interface{}{
 				"reasoning_effort":  "medium",
@@ -243,38 +245,38 @@ func (m *ModelManager) initBuiltInTemplates() {
 		},
 		{
 			ID:           "lmstudio-local",
-			Name:         "LM Studio 本地部署",
+			Name:         i18n.T(i18n.KeySettingCmd_767),
 			Provider:     "lmstudio",
 			Endpoint:     "http://localhost:1234/v1",
 			DefaultModel: "",
 			Models:       []string{},
 			APIKeyURL:    "",
 			Priority:     55,
-			Description:  "本地部署的 LM Studio 服务，模型需自行加载",
+			Description:  i18n.T(i18n.KeySettingCmd_768),
 			Capabilities: ModelCapability{Vision: false, ToolCall: false, Thinking: false, Multimodal: false},
 		},
 		{
 			ID:           "ollama-local",
-			Name:         "Ollama 本地部署",
+			Name:         i18n.T(i18n.KeySettingCmd_769),
 			Provider:     "ollama",
 			Endpoint:     "http://localhost:11434/v1",
 			DefaultModel: "",
 			Models:       []string{},
 			APIKeyURL:    "",
 			Priority:     50,
-			Description:  "本地部署的 Ollama 服务，模型需自行拉取",
+			Description:  i18n.T(i18n.KeySettingCmd_770),
 			Capabilities: ModelCapability{Vision: false, ToolCall: false, Thinking: false, Multimodal: false},
 		},
 		{
 			ID:           "custom-openai-compatible",
-			Name:         "OpenAI 兼容（自定义）",
+			Name:         i18n.T(i18n.KeySettingCmd_771),
 			Provider:     "openai-compatible",
 			Endpoint:     "",
 			DefaultModel: "",
 			Models:       []string{},
 			APIKeyURL:    "",
 			Priority:     60,
-			Description:  "任何兼容 OpenAI API 的服务",
+			Description:  i18n.T(i18n.KeySettingCmd_772),
 			Capabilities: ModelCapability{Vision: false, ToolCall: false, Thinking: false, Multimodal: false},
 		},
 	}

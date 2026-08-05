@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -40,93 +41,93 @@ func (h *SettingsHandler) handleSearchSetting(subcommand string, args []string) 
 	switch subcommand {
 	case "search-max-line-length":
 		if len(args) < 2 {
-			return fmt.Sprintf("搜索单行最大字符数: %d", h.cfg.LLM.SearchMaxLineLength), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_401), h.cfg.LLM.SearchMaxLineLength), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_402, args[1]))
 		}
 		if n < 0 {
-			return "", fmt.Errorf("搜索单行最大字符数必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_403))
 		}
 		h.cfg.LLM.SearchMaxLineLength = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Search max line length set to %d", n)
-		return fmt.Sprintf("✅ 搜索单行最大字符数已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_404), n), nil
 
 	case "search-max-result-bytes":
 		if len(args) < 2 {
-			return fmt.Sprintf("搜索结果最大字节数: %d", h.cfg.LLM.SearchMaxResultBytes), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_405), h.cfg.LLM.SearchMaxResultBytes), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_402, args[1]))
 		}
 		if n < 0 {
-			return "", fmt.Errorf("搜索结果最大字节数必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_406))
 		}
 		h.cfg.LLM.SearchMaxResultBytes = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Search max result bytes set to %d", n)
-		return fmt.Sprintf("✅ 搜索结果最大字节数已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_407), n), nil
 
 	case "search-context-lines":
 		if len(args) < 2 {
-			return fmt.Sprintf("搜索匹配上下文行数: %d", h.cfg.LLM.SearchContextLines), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_408), h.cfg.LLM.SearchContextLines), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_402, args[1]))
 		}
 		if n < 0 {
-			return "", fmt.Errorf("搜索匹配上下文行数必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_409))
 		}
 		h.cfg.LLM.SearchContextLines = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Search context lines set to %d", n)
-		return fmt.Sprintf("✅ 搜索匹配上下文行数已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_410), n), nil
 
 	case "memory-search-max-content-len":
 		if len(args) < 2 {
-			return fmt.Sprintf("记忆搜索内容最大长度: %d", h.cfg.LLM.MemorySearchMaxContentLen), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_411), h.cfg.LLM.MemorySearchMaxContentLen), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_402, args[1]))
 		}
 		if n < 0 {
-			return "", fmt.Errorf("记忆搜索内容最大长度必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_412))
 		}
 		h.cfg.LLM.MemorySearchMaxContentLen = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Memory search max content len set to %d", n)
-		return fmt.Sprintf("✅ 记忆搜索内容最大长度已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_413), n), nil
 
 	case "memory-search-max-results":
 		if len(args) < 2 {
-			return fmt.Sprintf("记忆搜索最大结果数: %d", h.cfg.LLM.MemorySearchMaxResults), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_414), h.cfg.LLM.MemorySearchMaxResults), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_402, args[1]))
 		}
 		if n < 0 {
-			return "", fmt.Errorf("记忆搜索最大结果数必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_415))
 		}
 		h.cfg.LLM.MemorySearchMaxResults = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Memory search max results set to %d", n)
-		return fmt.Sprintf("✅ 记忆搜索最大结果数已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_416), n), nil
 
 	case "debug":
 		if len(args) < 2 {
@@ -153,7 +154,7 @@ func (h *SettingsHandler) handleSearchSetting(subcommand string, args []string) 
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Debug mode set to %s", status)
-		return fmt.Sprintf("✅ 调试模式已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_417), status), nil
 
 	default:
 		return "", fmt.Errorf("unknown search setting: %s", subcommand)

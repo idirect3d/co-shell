@@ -512,6 +512,64 @@ summary_prompt 是替代所有历史对话的接续提示词，必须自包含�
 4. 经验教训：不要手动设置 CORS headers，使用库的默认配置</summary_prompt>
 </reorganize_context>`
 
+	zhMessages[KeyToolUsageShellSend] = `## shell_send
+Description: 向持久 Shell 会话发送内容（命令、Python 语句或控制字符）并观察输出。内容在与之前的 shell_send 调用相同的 Shell 环境中运行，保留所有状态（当前目录、环境变量、Python REPL 状态等）。使用此工具与正在运行的 Shell 或 REPL 会话交互。
+命令按原样发送到 stdin——不会自动添加任何字节（包括 \n）。LLM 必须在 command 字符串中包含所有必要的字节。
+一次只发送一个逻辑单元。观察输出后再决定下一步发送什么。
+参数:
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
+- command (必需) 要发送到 Shell 会话的内容——单条 Shell 命令、Python 语句、输入行或控制字符
+- wait_ms (可选) 空闲超时毫秒数（默认 500）。每收到新输出时重置。空闲超时后返回累积输出。长运行进程请调大。
+- timeout_seconds (可选) 总超时秒数。
+
+控制字符（以字面字节值写入 command）:
+  \n     = 回车（执行/提交输入）
+  \x03  = Ctrl+C（SIGINT）
+  \x04  = Ctrl+D（EOF，退出 REPL）
+  \x0c  = Ctrl+L（清屏）
+  \x1b  = ESC
+  \x1b[A = 上箭头
+  \x1b[B = 下箭头
+  \x1b[D = 左箭头
+  \x1b[C = 右箭头
+
+输出机制: 发送内容后进入空闲观察模式。每收到一行新输出就重置 500ms 空闲计时器。计时器到期（无新输出）时，返回所有累积输出。timeout_seconds 作为整体安全网。
+
+使用模式 - 交互式分步（注意每条命令末尾的 \n）:
+  # 步骤 1: 切换目录
+  <{XML_TAG_PREFIX}shell_send>
+    <{XML_TAG_PREFIX}command>cd /var/www/project\n</{XML_TAG_PREFIX}command>
+    <{XML_TAG_PREFIX}wait_ms>500</{XML_TAG_PREFIX}wait_ms>
+  </{XML_TAG_PREFIX}shell_send>
+
+  # 步骤 2: 列出文件
+  <{XML_TAG_PREFIX}shell_send>
+    <{XML_TAG_PREFIX}command>ls -la\n</{XML_TAG_PREFIX}command>
+    <{XML_TAG_PREFIX}wait_ms>500</{XML_TAG_PREFIX}wait_ms>
+  </{XML_TAG_PREFIX}shell_send>
+
+  # 步骤 3: 交互式 Python REPL（逐行）
+  <{XML_TAG_PREFIX}shell_send>
+    <{XML_TAG_PREFIX}command>python3\n</{XML_TAG_PREFIX}command>
+    <{XML_TAG_PREFIX}wait_ms>1000</{XML_TAG_PREFIX}wait_ms>
+  </{XML_TAG_PREFIX}shell_send>
+
+  <{XML_TAG_PREFIX}shell_send>
+    <{XML_TAG_PREFIX}command>x = 10\n</{XML_TAG_PREFIX}command>
+    <{XML_TAG_PREFIX}wait_ms>500</{XML_TAG_PREFIX}wait_ms>
+  </{XML_TAG_PREFIX}shell_send>
+
+  <{XML_TAG_PREFIX}shell_send>
+    <{XML_TAG_PREFIX}command>x + y\n</{XML_TAG_PREFIX}command>
+    <{XML_TAG_PREFIX}wait_ms>500</{XML_TAG_PREFIX}wait_ms>
+  </{XML_TAG_PREFIX}shell_send>
+
+  # 退出 Python REPL（Ctrl+D）
+  <{XML_TAG_PREFIX}shell_send>
+    <{XML_TAG_PREFIX}command>\x04</{XML_TAG_PREFIX}command>
+    <{XML_TAG_PREFIX}wait_ms>1000</{XML_TAG_PREFIX}wait_ms>
+  </{XML_TAG_PREFIX}shell_send>`
+
 	zhMessages[KeyToolUsageShellReset] = `## shell_reset
 说明: 重置持久 Shell 会话到干净状态。关闭当前会话并启动一个新会话，终端完全重置。当 Shell 处于意外状态（如 REPL 错误、卡在进程中）时使用。正常情况下 Shell 会话由系统自动管理——仅在需要手动重置时使用。
 参数: 无

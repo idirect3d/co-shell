@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -80,7 +81,7 @@ func (a *Agent) browserNavigateTool(ctx context.Context, args map[string]interfa
 
 	log.Info("Browser navigate: %s -> %s (title: %s)", url, currentURL, title)
 
-	return fmt.Sprintf("已导航到页面:\nURL: %s\n标题: %s\n\n现在你可以使用 browser_screenshot 查看页面内容，或使用 browser_get_interactive_elements 查看可交互元素。", currentURL, title), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_686), currentURL, title), nil
 }
 
 // browserScreenshotTool captures a screenshot, saves it to ./download/screenshot/,
@@ -137,17 +138,17 @@ func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]inter
 		visionSupported = a.cfg.LLM.VisionSupport
 	}
 
-	baseMsg := fmt.Sprintf("页面截图已保存到: %s\nURL: %s\n标题: %s\n截图质量: %d\n全页截图: %v\n",
+	baseMsg := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_687),
 		screenshotPath, currentURL, title, quality, fullPage)
 
 	if visionSupported {
 		a.mu.Lock()
 		a.imagePaths = []string{screenshotPath}
 		a.mu.Unlock()
-		baseMsg += "\n✅ 截图已加载，将在下次 LLM 调用时发送到视觉模型进行分析。"
-		baseMsg += "\n你可以结合 browser_get_interactive_elements 获取页面可交互元素信息来进行精确操作。"
+		baseMsg += i18n.T(i18n.KeySettingCmd_688)
+		baseMsg += i18n.T(i18n.KeySettingCmd_689)
 	} else {
-		baseMsg += "\n\n⚠️ **当前模型不支持视觉识别**，无法对截图内容进行分析。\n截图已保存到文件系统中，你可以：\n1. 通过 `.set vision on` 启用多模态支持（需模型支持）\n2. 切换到支持视觉的多模态大模型后再试\n3. 手动使用 visual_analysis 工具加载截图"
+		baseMsg += i18n.T(i18n.KeySettingCmd_690)
 	}
 
 	return baseMsg, nil
@@ -174,7 +175,7 @@ func (a *Agent) browserClickTool(ctx context.Context, args map[string]interface{
 	log.Info("Browser click at (%f, %f)", x, y)
 	currentURL, _ := cdp.GetCurrentURL(ctx)
 
-	return fmt.Sprintf("已在坐标 (%.0f, %.0f) 处执行点击。\n当前URL: %s\n\n请使用 browser_screenshot 查看点击后的页面变化。", x, y, currentURL), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_691), x, y, currentURL), nil
 }
 
 // browserTypeTool sends text input to the focused element.
@@ -204,7 +205,7 @@ func (a *Agent) browserTypeTool(ctx context.Context, args map[string]interface{}
 	}
 
 	log.Info("Browser type: %q (clear=%v)", text, clear)
-	return fmt.Sprintf("已输入文本: %s", text), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_692), text), nil
 }
 
 // browserEvaluateTool executes JavaScript in the browser.
@@ -227,9 +228,9 @@ func (a *Agent) browserEvaluateTool(ctx context.Context, args map[string]interfa
 
 	log.Info("Browser evaluate: %q", expression)
 	if result == nil {
-		return "JavaScript 执行成功，无返回值", nil
+		return i18n.T(i18n.KeySettingCmd_693), nil
 	}
-	return fmt.Sprintf("JavaScript 执行结果:\n%s", result), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_694), result), nil
 }
 
 // browserGetHTMLTool returns the rendered DOM HTML of the current browser page.
@@ -282,11 +283,11 @@ func (a *Agent) browserGetHTMLTool(ctx context.Context, args map[string]interfac
 	log.Info("Browser HTML saved to %s (%d bytes)", htmlPath, len(html))
 
 	if len(html) <= maxHTMLSize {
-		return fmt.Sprintf("页面渲染后的 DOM HTML（%d 行, %d 字符）:\n%s\n\n⚠️ 已同时保存到文件 %s，之后可用 read_file 随时读取。",
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_695),
 			lineCount, len(html), html, htmlPath), nil
 	}
 
-	return fmt.Sprintf("页面渲染后的 DOM HTML 内容较大（%d 行, %d 字符），已保存到文件:\n  %s\n\n这是经过所有 JavaScript 渲染后的最终 DOM HTML，无需再下载 JS、JSON 或其他资源。\n你可以使用 read_file 工具读取此文件内容进行分析。\n你可以通过 `.set browser-max-html-size` 调整大小限制（当前: %d 字节 ≈ %d KB）。",
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_696),
 		lineCount, len(html), htmlPath, maxHTMLSize, maxHTMLSize/1024), nil
 }
 
@@ -312,11 +313,11 @@ func (a *Agent) browserScrollTool(ctx context.Context, args map[string]interface
 	}
 
 	log.Info("Browser scroll (deltaX=%f, deltaY=%f)", deltaX, deltaY)
-	direction := "向下"
+	direction := i18n.T(i18n.KeySettingCmd_697)
 	if deltaY < 0 {
-		direction = "向上"
+		direction = i18n.T(i18n.KeySettingCmd_704)
 	}
-	return fmt.Sprintf("已%s滚动 %.0f 像素。请使用 browser_screenshot 查看滚动后的页面内容。", direction, deltaY), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_698), direction, deltaY), nil
 }
 
 // browserGetInteractiveElementsTool returns interactive elements info.
@@ -334,7 +335,7 @@ func (a *Agent) browserGetInteractiveElementsTool(ctx context.Context, args map[
 
 	log.Info("Browser get interactive elements (%d bytes)", len(elementsJSON))
 
-	return fmt.Sprintf("页面可交互元素信息:\n%s\n\n你可以根据这些元素的位置坐标（centerX, centerY）使用 browser_click 工具进行点击，或使用 browser_type 工具输入文本。如果页面布局发生变化，可以重新调用此工具获取最新信息。", elementsJSON), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_699), elementsJSON), nil
 }
 
 // browserGoBackTool navigates back in history.
@@ -352,7 +353,7 @@ func (a *Agent) browserGoBackTool(ctx context.Context, args map[string]interface
 	currentURL, _ := cdp.GetCurrentURL(ctx)
 	title, _ := cdp.GetPageTitle(ctx)
 
-	return fmt.Sprintf("已返回上一页。\n当前URL: %s\n标题: %s", currentURL, title), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_700), currentURL, title), nil
 }
 
 // browserGoForwardTool navigates forward in history.
@@ -370,7 +371,7 @@ func (a *Agent) browserGoForwardTool(ctx context.Context, args map[string]interf
 	currentURL, _ := cdp.GetCurrentURL(ctx)
 	title, _ := cdp.GetPageTitle(ctx)
 
-	return fmt.Sprintf("已前进到下一页。\n当前URL: %s\n标题: %s", currentURL, title), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_701), currentURL, title), nil
 }
 
 // browserCloseTool closes the browser and cleans up.
@@ -384,7 +385,7 @@ func (a *Agent) browserGoForwardTool(ctx context.Context, args map[string]interf
 // from the tool list, making it impossible for the LLM to continue.
 func (a *Agent) browserCloseTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	if a.chromeMgr == nil {
-		return "浏览器未启动", nil
+		return i18n.T(i18n.KeySettingCmd_702), nil
 	}
 
 	// Close the CDP WebSocket connection to disconnect from the current page.
@@ -394,7 +395,7 @@ func (a *Agent) browserCloseTool(ctx context.Context, args map[string]interface{
 	}
 
 	log.Info("Browser CDP connection closed by tool call (Chrome process kept alive)")
-	return "浏览器页面已关闭。下次使用浏览器工具时自动创建新页面。", nil
+	return i18n.T(i18n.KeySettingCmd_703), nil
 }
 
 // getBrowserScreenshotData returns and clears the cached screenshot data.

@@ -17,7 +17,7 @@
 // copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -76,7 +77,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			}
 			h.agent.SyncToolModes(h.cfg)
 			log.Info("Confirm tool modes reset to defaults")
-			return "所有工具确认模式已重置为默认值", nil
+			return i18n.T(i18n.KeySettingCmd_183), nil
 
 		case "confirm", "auto", "disabled":
 			// Global override: set "default" key. SyncToolModes will apply this
@@ -90,7 +91,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			}
 			h.agent.SetToolMode("", toolName)
 			log.Info("Confirm tool global default set to %s", toolName)
-			return fmt.Sprintf("全局工具确认模式已设置为: %s（覆盖所有方法）", toolName), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_184), toolName), nil
 		case "custom":
 			// "custom" means no global override — each tool uses its own setting.
 			// Save "default": "custom" to config so SyncToolModes knows not to apply
@@ -104,7 +105,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			}
 			h.agent.SyncToolModes(h.cfg)
 			log.Info("Confirm tool default cleared, per-tool mode restored")
-			return "全局工具确认模式已设置为: custom（各方法按各自设置运行）", nil
+			return i18n.T(i18n.KeySettingCmd_185), nil
 		}
 		if len(args) < 3 {
 			mode := "confirm"
@@ -114,7 +115,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 				// If global default is active, individual tool shows the global value
 				mode = v
 			}
-			return fmt.Sprintf("工具 %s 模式: %s", toolName, mode), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_186), toolName, mode), nil
 		}
 		switch args[2] {
 		case "on", "1", "true", "yes":
@@ -133,7 +134,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			}
 			h.cfg.LLM.ToolModes[toolName] = args[2]
 		default:
-			return "", fmt.Errorf("使用方法: .set confirm-tool [<工具名>] on|off|confirm|auto|disabled")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_187))
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -141,53 +142,53 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		h.agent.SetToolMode(toolName, h.cfg.LLM.ToolModes[toolName])
 		mode := h.cfg.LLM.ToolModes[toolName]
 		log.Info("Confirm tool %s set to %s", toolName, mode)
-		return fmt.Sprintf("工具 %s 模式已设置为: %s", toolName, mode), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_188), toolName, mode), nil
 
 	case "error-max-single-count":
 		if len(args) < 2 {
-			return fmt.Sprintf("相同错误最大出现次数: %d", h.cfg.LLM.ErrorMaxSingleCount), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_189), h.cfg.LLM.ErrorMaxSingleCount), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		if n < 0 {
-			return "", fmt.Errorf("相同错误最大出现次数必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_191))
 		}
 		h.cfg.LLM.ErrorMaxSingleCount = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Error max single count set to %d", n)
-		return fmt.Sprintf("✅ 相同错误最大出现次数已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_192), n), nil
 
 	case "error-max-type-count":
 		if len(args) < 2 {
-			return fmt.Sprintf("不同错误类型最大数量: %d", h.cfg.LLM.ErrorMaxTypeCount), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_193), h.cfg.LLM.ErrorMaxTypeCount), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		if n < 0 {
-			return "", fmt.Errorf("不同错误类型最大数量必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_194))
 		}
 		h.cfg.LLM.ErrorMaxTypeCount = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Error max type count set to %d", n)
-		return fmt.Sprintf("✅ 不同错误类型最大数量已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_195), n), nil
 
 	case "loop-intervention":
 		if len(args) < 2 {
-			return fmt.Sprintf("循环介入策略: %s（可选值: off/retry/prompt/reorganize/temperature/random）", h.cfg.LLM.LoopIntervention), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_196), h.cfg.LLM.LoopIntervention), nil
 		}
 		switch args[1] {
 		case "off", "retry", "prompt", "reorganize", "temperature", "random":
 			h.cfg.LLM.LoopIntervention = args[1]
 		default:
-			return "", fmt.Errorf("使用方法: .set loop-intervention off|retry|prompt|reorganize|temperature|random")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_197))
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -197,100 +198,100 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		// causing a.cfg.LLM.LoopIntervention to be empty even when h.cfg has the correct value.
 		h.agent.SetConfig(h.cfg)
 		log.Info("Loop intervention set to %s, agent config synced", args[1])
-		return fmt.Sprintf("✅ 循环介入策略已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_198), args[1]), nil
 
 	case "loop-detect-threshold":
 		if len(args) < 2 {
-			return fmt.Sprintf("循环检测阈值: %d", h.cfg.LLM.LoopDetectThreshold), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_199), h.cfg.LLM.LoopDetectThreshold), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		if n < 1 {
-			return "", fmt.Errorf("循环检测阈值必须 >= 1")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_200))
 		}
 		h.cfg.LLM.LoopDetectThreshold = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop detect threshold set to %d", n)
-		return fmt.Sprintf("✅ 循环检测阈值已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_201), n), nil
 
 	// loop-temp-enabled is removed. Temperature adjustment is now controlled
 	// by loop-intervention.
 
 	case "loop-temp-step-up":
 		if len(args) < 2 {
-			return fmt.Sprintf("循环温度上升步长: %.2f", h.cfg.LLM.LoopTempStepUp), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_202), h.cfg.LLM.LoopTempStepUp), nil
 		}
 		v, err := strconv.ParseFloat(args[1], 64)
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		if v <= 0 || v > 1.0 {
-			return "", fmt.Errorf("上升步长必须在 0.01 ~ 1.0 之间")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_203))
 		}
 		h.cfg.LLM.LoopTempStepUp = v
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop temp step up set to %.2f", v)
-		return fmt.Sprintf("✅ 循环温度上升步长已设置为: %.2f", v), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_204), v), nil
 
 	case "loop-temp-step-down":
 		if len(args) < 2 {
-			return fmt.Sprintf("循环温度下降步长: %.2f", h.cfg.LLM.LoopTempStepDown), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_205), h.cfg.LLM.LoopTempStepDown), nil
 		}
 		v, err := strconv.ParseFloat(args[1], 64)
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		if v <= 0 || v > 1.0 {
-			return "", fmt.Errorf("下降步长必须在 0.01 ~ 1.0 之间")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_206))
 		}
 		h.cfg.LLM.LoopTempStepDown = v
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop temp step down set to %.2f", v)
-		return fmt.Sprintf("✅ 循环温度下降步长已设置为: %.2f", v), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_207), v), nil
 
 	case "loop-temp-max":
 		if len(args) < 2 {
-			return fmt.Sprintf("循环温度上限: %.2f", h.cfg.LLM.LoopTempMax), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_208), h.cfg.LLM.LoopTempMax), nil
 		}
 		v, err := strconv.ParseFloat(args[1], 64)
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		if v <= h.cfg.LLM.LoopTempMin || v > 2.0 {
-			return "", fmt.Errorf("温度上限必须大于下限且 <= 2.0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_209))
 		}
 		h.cfg.LLM.LoopTempMax = v
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop temp max set to %.2f", v)
-		return fmt.Sprintf("✅ 循环温度上限已设置为: %.2f", v), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_210), v), nil
 
 	case "loop-temp-min":
 		if len(args) < 2 {
-			return fmt.Sprintf("循环温度下限: %.2f", h.cfg.LLM.LoopTempMin), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_211), h.cfg.LLM.LoopTempMin), nil
 		}
 		v, err := strconv.ParseFloat(args[1], 64)
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		if v >= h.cfg.LLM.LoopTempMax || v < 0 {
-			return "", fmt.Errorf("温度下限必须小于上限且 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_212))
 		}
 		h.cfg.LLM.LoopTempMin = v
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop temp min set to %.2f", v)
-		return fmt.Sprintf("✅ 循环温度下限已设置为: %.2f", v), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_213), v), nil
 
 	case "loop-judge-enabled":
 		if len(args) < 2 {
@@ -298,7 +299,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			if !h.cfg.LLM.LoopJudgeEnabled {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("LLM循环二次判定: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_214), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -306,7 +307,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		case "off", "0", "false", "no":
 			h.cfg.LLM.LoopJudgeEnabled = false
 		default:
-			return "", fmt.Errorf("使用方法: .set loop-judge-enabled on|off")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_215))
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -316,29 +317,29 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Loop judge enabled set to %s", status)
-		return fmt.Sprintf("✅ LLM循环二次判定已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_216), status), nil
 
 	case "duplicate-content-threshold":
 		if len(args) < 2 {
-			return fmt.Sprintf("内容重复判定阈值: %.2f（0.0-1.0，默认0.95）", h.cfg.LLM.DuplicateContentThreshold), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_217), h.cfg.LLM.DuplicateContentThreshold), nil
 		}
 		v, err := strconv.ParseFloat(args[1], 64)
 		if err != nil || v < 0 || v > 1.0 {
-			return "", fmt.Errorf("无效的阈值: %s（请输入 0.0-1.0 之间的小数）", args[1])
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_218, args[1]))
 		}
 		h.cfg.LLM.DuplicateContentThreshold = v
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Duplicate content threshold set to %.2f", v)
-		return fmt.Sprintf("✅ 内容重复判定阈值已设置为: %.2f", v), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_219), v), nil
 
 	// loop-reorganize-enabled is removed. Context reorganization is now controlled
 	// by loop-intervention.
 
 	case "loop-judge-timeout":
 		if len(args) < 2 {
-			return fmt.Sprintf("loop-judge-timeout: %ds (0=无限制)", h.cfg.LLM.LoopJudgeTimeout), nil
+			return i18n.TF(i18n.KeySettingCmd_220, h.cfg.LLM.LoopJudgeTimeout), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 0 {
@@ -349,56 +350,56 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return "", err
 		}
 		log.Info("Loop judge timeout set to %d seconds", n)
-		return fmt.Sprintf("✅ LLM循环判定超时已设置为: %d秒", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_221), n), nil
 
 	case "loop-single-line-length":
 		if len(args) < 2 {
-			return fmt.Sprintf("单行超长阈值: %d（0=不检测，大于此长度的单行触发循环检测）", h.cfg.LLM.LoopSingleLineLength), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_222), h.cfg.LLM.LoopSingleLineLength), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 0 {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		h.cfg.LLM.LoopSingleLineLength = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop single line length set to %d", n)
-		return fmt.Sprintf("✅ 单行超长阈值已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_223), n), nil
 
 	case "loop-single-line-window":
 		if len(args) < 2 {
-			return fmt.Sprintf("单行窗口重复检测大小: %d（0=不检测）", h.cfg.LLM.LoopSingleLineWindow), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_224), h.cfg.LLM.LoopSingleLineWindow), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 0 {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		h.cfg.LLM.LoopSingleLineWindow = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop single line window set to %d", n)
-		return fmt.Sprintf("✅ 单行窗口重复检测大小已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_225), n), nil
 
 	case "loop-single-line-block-limit":
 		if len(args) < 2 {
-			return fmt.Sprintf("单行重复数量块限制: %d（0=不检测，需 单行字符数×重复次数 > 该值 才触发循环）", h.cfg.LLM.LoopSingleLineBlockLimit), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_226), h.cfg.LLM.LoopSingleLineBlockLimit), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 0 {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
 		}
 		h.cfg.LLM.LoopSingleLineBlockLimit = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Loop single line block limit set to %d", n)
-		return fmt.Sprintf("✅ 单行重复数量块限制已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_227), n), nil
 
 	case "loop-long-output-threshold":
 		if len(args) < 2 {
-			return fmt.Sprintf("loop-long-output-threshold: %d (0=disabled)", h.cfg.LLM.LoopLongOutputThreshold), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_228), h.cfg.LLM.LoopLongOutputThreshold), nil
 		}
 		threshold, err := strconv.Atoi(args[1])
 		if err != nil || threshold < 0 {
@@ -409,7 +410,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return "", err
 		}
 		log.Info("Loop long output threshold set to %d", threshold)
-		return fmt.Sprintf("✅ 超长输出触发判定阈值已设置为: %d", threshold), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), threshold), nil
 
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)
@@ -424,8 +425,8 @@ func (h *SettingsHandler) showToolModes() string {
 	if modeName == "" || modeName == "default" {
 		modeName = "act"
 	}
-	sb.WriteString(fmt.Sprintf("当前工作模式: %s\n\n", modeName))
-	sb.WriteString("工具模式配置 (有效值):\n")
+	sb.WriteString(i18n.TF(i18n.KeySettingCmd_230, modeName))
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_231))
 
 	// Use agent's effective toolModes if available (already computed by SyncToolModes)
 	// Otherwise compute them the same way as SyncToolModes does.
@@ -444,7 +445,7 @@ func (h *SettingsHandler) showToolModes() string {
 	if defaultMode == "" {
 		defaultMode = "confirm"
 	}
-	sb.WriteString(fmt.Sprintf("  默认: %s\n\n", defaultMode))
+	sb.WriteString(i18n.TF(i18n.KeySettingCmd_232, defaultMode))
 
 	allTools := make([]string, 0, len(agent.DefaultToolModes()))
 	for name := range agent.DefaultToolModes() {

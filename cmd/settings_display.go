@@ -100,7 +100,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if !h.cfg.LLM.ShowTool {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("显示工具调用名称: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_501), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -119,7 +119,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Show tool set to %s", status)
-		return fmt.Sprintf("✅ 显示工具调用名称已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_502), status), nil
 
 	case "show-tool-input":
 		if len(args) < 2 {
@@ -127,7 +127,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if !h.cfg.LLM.ShowToolInput {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("显示工具调用输入参数: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_503), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -146,7 +146,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Show tool input set to %s", status)
-		return fmt.Sprintf("✅ 显示工具调用输入参数已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_504), status), nil
 
 	case "show-tool-output":
 		if len(args) < 2 {
@@ -154,7 +154,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if !h.cfg.LLM.ShowToolOutput {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("显示工具调用返回数据: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_505), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -173,7 +173,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Show tool output set to %s", status)
-		return fmt.Sprintf("✅ 显示工具调用返回数据已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_506), status), nil
 
 	case "show-command-output":
 		if len(args) < 2 {
@@ -181,7 +181,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if !h.cfg.LLM.ShowCommandOutput {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("显示命令返回数据: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_507), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -200,7 +200,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Show command output set to %s", status)
-		return fmt.Sprintf("✅ 显示命令返回数据已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_508), status), nil
 
 	case "show-llm-content":
 		if len(args) < 2 {
@@ -234,7 +234,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if h.cfg.LLM.ShowLoopDetection {
 				status = i18n.T(i18n.KeyOn)
 			}
-			return fmt.Sprintf("显示循环检测过程: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_509), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -252,16 +252,16 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Show loop detection set to %s", status)
-		return fmt.Sprintf("✅ 显示循环检测过程已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_510), status), nil
 
 	case "result-mode":
 		if len(args) < 2 {
 			currentMode := config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))
-			return fmt.Sprintf("结果处理模式: %s", currentMode), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_511), currentMode), nil
 		}
 		mode, ok := config.ParseResultMode(args[1])
 		if !ok {
-			return "", fmt.Errorf("无效的结果处理模式: %s（可选值: minimal, explain, analyze, free）", args[1])
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_512, args[1]))
 		}
 		h.cfg.LLM.ResultMode = int(mode)
 		if err := h.cfg.Save(); err != nil {
@@ -269,7 +269,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		}
 		h.agent.SetResultMode(config.ResultMode(mode))
 		log.Info("Result mode set to %s", args[1])
-		return fmt.Sprintf("✅ 结果处理模式已设置为: %s", config.ResultModeString(mode)), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_513), config.ResultModeString(mode)), nil
 
 	case "show-logo":
 		if len(args) < 2 {
@@ -277,7 +277,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if !h.cfg.LLM.ShowLogo {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("启动 Logo 显示: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_514), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -295,7 +295,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Show logo set to %s", status)
-		return fmt.Sprintf("✅ 启动 Logo 显示已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_515), status), nil
 
 	case "token-usage":
 		if len(args) < 2 {
@@ -303,7 +303,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if current == "" {
 				current = "on"
 			}
-			return fmt.Sprintf("Token 用量显示模式: %s", current), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_516), current), nil
 		}
 		switch args[1] {
 		case "on", "off", "none":
@@ -316,7 +316,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		}
 		h.agent.GetLLMClient().SetTokenUsage(h.cfg.LLM.TokenUsage)
 		log.Info("Token usage set to %s", h.cfg.LLM.TokenUsage)
-		return fmt.Sprintf("✅ Token 用量显示模式已设置为: %s", h.cfg.LLM.TokenUsage), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_517), h.cfg.LLM.TokenUsage), nil
 
 	case "output-categories":
 		if len(args) < 2 {
@@ -370,7 +370,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			if !h.cfg.LLM.EmojiEnabled {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("表情符号前缀: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_518), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -389,7 +389,7 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Emoji enabled set to %s", status)
-		return fmt.Sprintf("✅ 表情符号前缀已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_519), status), nil
 
 	default:
 		return "", fmt.Errorf("unknown display setting: %s", subcommand)

@@ -102,10 +102,10 @@ func (a *Agent) updateSettingsTool(ctx context.Context, args map[string]interfac
 
 	for _, c := range changes {
 		fmt.Printf("📌 %s\n", c.param)
-		fmt.Printf("   旧值: %s\n", c.oldValue)
-		fmt.Printf("   新值: %s\n", c.newValue)
+		fmt.Printf(i18n.T(i18n.KeySettingCmd_525), c.oldValue)
+		fmt.Printf(i18n.T(i18n.KeySettingCmd_526), c.newValue)
 		if c.reason != "" {
-			fmt.Printf("   原因: %s\n", c.reason)
+			fmt.Printf(i18n.T(i18n.KeySettingCmd_527), c.reason)
 		}
 		fmt.Println()
 	}
@@ -1069,33 +1069,33 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 	}
 
 	var sb strings.Builder
-	sb.WriteString("以下是 co-shell 所有可配置的系统参数清单：\n\n")
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_528))
 
-	// Helper to format a setting line
-	formatLine := func(name, current, validRange, desc string) string {
-		return fmt.Sprintf("  • %s\n    当前值: %s\n    取值范围: %s\n    说明: %s\n\n", name, current, validRange, desc)
+	// Helper to format a setting line: name + current value + keyed suffix
+	formatLine := func(name, current string, suffixKey string) string {
+		return fmt.Sprintf("  • %s\n"+i18n.T(i18n.KeySettingCmd_591)+i18n.T(suffixKey), name, current)
 	}
 
 	// Group 1: Identity & Personality
-	sb.WriteString("━━━ [ 身份与个性 ] ━━━\n\n")
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_529))
 	agentName := cfg.LLM.AgentName
 	if agentName == "" {
 		agentName = "co-shell"
 	}
 	agentDesc := cfg.LLM.AgentDescription
 	if agentDesc == "" {
-		agentDesc = "(未设置)"
+		agentDesc = i18n.T(i18n.KeySettingCmd_536)
 	}
 	agentPrinciples := cfg.LLM.AgentPrinciples
 	if agentPrinciples == "" {
-		agentPrinciples = "(未设置)"
+		agentPrinciples = i18n.T(i18n.KeySettingCmd_536)
 	}
-	sb.WriteString(formatLine("name", agentName, "任意字符串", "Agent 的名称，用于标识和日志"))
-	sb.WriteString(formatLine("description", agentDesc, "任意字符串", "Agent 的身份描述，告诉 LLM 它是什么"))
-	sb.WriteString(formatLine("principles", agentPrinciples, "任意字符串", "Agent 的行为准则和原则"))
+	sb.WriteString(formatLine("name", agentName, i18n.KeySettingCmd_542))
+	sb.WriteString(formatLine("description", agentDesc, i18n.KeySettingCmd_543))
+	sb.WriteString(formatLine("principles", agentPrinciples, i18n.KeySettingCmd_544))
 
 	// Group 2: Model Parameters
-	sb.WriteString("━━━ [ 模型参数 ] ━━━\n\n")
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_530))
 	activeModel := config.GetActiveModelFromConfig(cfg)
 	apiKey := "(not set)"
 	endpoint := "(not set)"
@@ -1105,113 +1105,113 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 		endpoint = activeModel.Endpoint
 		modelName = activeModel.Model
 	}
-	sb.WriteString(formatLine("api-key", apiKey, "任意 API Key 字符串", "大模型 API 的认证密钥"))
-	sb.WriteString(formatLine("endpoint", endpoint, "有效的 API 端点 URL", "大模型 API 的服务地址"))
-	sb.WriteString(formatLine("model", modelName, "模型名称（如 deepseek-chat, gpt-4 等）", "当前使用的大模型名称"))
-	sb.WriteString(formatLine("temperature", fmt.Sprintf("%.1f", cfg.LLM.Temperature), "0.0 ~ 2.0（浮点数）", "模型输出的随机性，值越高越有创造性"))
-	sb.WriteString(formatLine("max-tokens", fmt.Sprintf("%d", cfg.LLM.MaxTokens), "1 ~ 128000（整数）", "每次 LLM 调用返回的最大 token 数"))
+	sb.WriteString(formatLine("api-key", apiKey, i18n.KeySettingCmd_545))
+	sb.WriteString(formatLine("endpoint", endpoint, i18n.KeySettingCmd_546))
+	sb.WriteString(formatLine("model", modelName, i18n.KeySettingCmd_547))
+	sb.WriteString(formatLine("temperature", fmt.Sprintf("%.1f", cfg.LLM.Temperature), i18n.KeySettingCmd_548))
+	sb.WriteString(formatLine("max-tokens", fmt.Sprintf("%d", cfg.LLM.MaxTokens), i18n.KeySettingCmd_549))
 	maxIterStr := fmt.Sprintf("%d", cfg.LLM.MaxIterations)
 	if cfg.LLM.MaxIterations <= 0 {
-		maxIterStr = "无限制"
+		maxIterStr = i18n.T(i18n.KeySettingCmd_537)
 	}
-	sb.WriteString(formatLine("max-iterations", maxIterStr, ">= 1 的整数，或 -1（无限制）", "单次任务中 LLM 调用的最大迭代次数"))
-	sb.WriteString(formatLine("max-retries", fmt.Sprintf("%d", cfg.LLM.MaxRetries), ">= 0 的整数", "LLM 调用失败时的最大重试次数"))
-	visionStr := "关闭"
+	sb.WriteString(formatLine("max-iterations", maxIterStr, i18n.KeySettingCmd_550))
+	sb.WriteString(formatLine("max-retries", fmt.Sprintf("%d", cfg.LLM.MaxRetries), i18n.KeySettingCmd_551))
+	visionStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.VisionSupport {
-		visionStr = "开启"
+		visionStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("vision", visionStr, "on/off, 1/0, true/false, yes/no", "是否启用多模态视觉识别能力"))
+	sb.WriteString(formatLine("vision", visionStr, i18n.KeySettingCmd_552))
 	thinkingStr := cfg.LLM.ThinkingEnabled
 	if thinkingStr == "" {
 		thinkingStr = "default"
 	}
-	sb.WriteString(formatLine("thinking-enabled", thinkingStr, "on/off, 1/0, true/false, yes/no", "是否启用模型的思考（推理）能力"))
-	sb.WriteString(formatLine("reasoning-effort", cfg.LLM.ReasoningEffort, "low / medium / high", "模型推理的深度级别"))
-	sb.WriteString(formatLine("top-p", fmt.Sprintf("%.1f", cfg.LLM.TopP), "0.0 ~ 1.0（浮点数），-1 不发送", "Top-P 采样参数，控制采样范围"))
-	sb.WriteString(formatLine("top-k", fmt.Sprintf("%d", cfg.LLM.TopK), ">= 1 的整数，-1 不发送", "Top-K 采样参数，限制候选 token 数量"))
-	sb.WriteString(formatLine("repetition-penalty", fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty), "0.0 ~ 2.0（浮点数），-1 不发送", "重复惩罚参数，抑制重复内容生成"))
+	sb.WriteString(formatLine("thinking-enabled", thinkingStr, i18n.KeySettingCmd_553))
+	sb.WriteString(formatLine("reasoning-effort", cfg.LLM.ReasoningEffort, i18n.KeySettingCmd_554))
+	sb.WriteString(formatLine("top-p", fmt.Sprintf("%.1f", cfg.LLM.TopP), i18n.KeySettingCmd_555))
+	sb.WriteString(formatLine("top-k", fmt.Sprintf("%d", cfg.LLM.TopK), i18n.KeySettingCmd_556))
+	sb.WriteString(formatLine("repetition-penalty", fmt.Sprintf("%.1f", cfg.LLM.RepetitionPenalty), i18n.KeySettingCmd_557))
 
 	// Group 3: Display & Output
-	sb.WriteString("━━━ [ 显示与输出 ] ━━━\n\n")
-	llmThinkingStr := "关闭"
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_531))
+	llmThinkingStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.ShowLlmThinking {
-		llmThinkingStr = "开启"
+		llmThinkingStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("show-llm-thinking", llmThinkingStr, "on/off, 1/0, true/false, yes/no", "是否显示 LLM 的思考过程"))
-	llmContentStr := "关闭"
+	sb.WriteString(formatLine("show-llm-thinking", llmThinkingStr, i18n.KeySettingCmd_558))
+	llmContentStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.ShowLlmContent {
-		llmContentStr = "开启"
+		llmContentStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("show-llm-content", llmContentStr, "on/off, 1/0, true/false, yes/no", "是否显示 LLM 返回的主要内容"))
-	toolStr := "关闭"
+	sb.WriteString(formatLine("show-llm-content", llmContentStr, i18n.KeySettingCmd_559))
+	toolStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.ShowTool {
-		toolStr = "开启"
+		toolStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("show-tool", toolStr, "on/off, 1/0, true/false, yes/no", "是否显示工具调用名称"))
-	toolInputStr := "关闭"
+	sb.WriteString(formatLine("show-tool", toolStr, i18n.KeySettingCmd_560))
+	toolInputStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.ShowToolInput {
-		toolInputStr = "开启"
+		toolInputStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("show-tool-input", toolInputStr, "on/off, 1/0, true/false, yes/no", "是否显示工具调用的输入参数"))
-	toolOutputStr := "关闭"
+	sb.WriteString(formatLine("show-tool-input", toolInputStr, i18n.KeySettingCmd_561))
+	toolOutputStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.ShowToolOutput {
-		toolOutputStr = "开启"
+		toolOutputStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("show-tool-output", toolOutputStr, "on/off, 1/0, true/false, yes/no", "是否显示工具调用的返回数据"))
-	cmdStr := "关闭"
+	sb.WriteString(formatLine("show-tool-output", toolOutputStr, i18n.KeySettingCmd_562))
+	cmdStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.ShowCommand {
-		cmdStr = "开启"
+		cmdStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("show-command", cmdStr, "on/off, 1/0, true/false, yes/no", "是否显示要执行的系统命令"))
-	cmdOutputStr := "关闭"
+	sb.WriteString(formatLine("show-command", cmdStr, i18n.KeySettingCmd_563))
+	cmdOutputStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.ShowCommandOutput {
-		cmdOutputStr = "开启"
+		cmdOutputStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("show-command-output", cmdOutputStr, "on/off, 1/0, true/false, yes/no", "是否显示命令执行结果"))
+	sb.WriteString(formatLine("show-command-output", cmdOutputStr, i18n.KeySettingCmd_564))
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
-	sb.WriteString(formatLine("result-mode", resultModeStr, "minimal / explain / analyze / free", "结果处理模式：极简/解释/分析/自由"))
+	sb.WriteString(formatLine("result-mode", resultModeStr, i18n.KeySettingCmd_565))
 
 	// Group 4: Safety & Confirmation
-	sb.WriteString("━━━ [ 安全与确认 ] ━━━\n\n")
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_532))
 	confirmDefault := "confirm"
 	if v, ok := cfg.LLM.ToolModes["default"]; ok {
 		confirmDefault = v
 	}
-	sb.WriteString(formatLine("confirm-tool", confirmDefault, "confirm / auto / disabled", "工具调用模式：confirm=需确认, auto=自动批准, disabled=禁用"))
-	toolTimeoutStr := fmt.Sprintf("%d秒", cfg.LLM.ToolTimeout)
+	sb.WriteString(formatLine("confirm-tool", confirmDefault, i18n.KeySettingCmd_566))
+	toolTimeoutStr := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_541), cfg.LLM.ToolTimeout)
 	if cfg.LLM.ToolTimeout <= 0 {
-		toolTimeoutStr = "无限制"
+		toolTimeoutStr = i18n.T(i18n.KeySettingCmd_537)
 	}
-	sb.WriteString(formatLine("tool-timeout", toolTimeoutStr, ">= 0 的整数（秒），0=无限制", "工具调用的超时时间"))
-	cmdTimeoutStr := fmt.Sprintf("%d秒", cfg.LLM.CommandTimeout)
+	sb.WriteString(formatLine("tool-timeout", toolTimeoutStr, i18n.KeySettingCmd_567))
+	cmdTimeoutStr := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_541), cfg.LLM.CommandTimeout)
 	if cfg.LLM.CommandTimeout <= 0 {
-		cmdTimeoutStr = "无限制"
+		cmdTimeoutStr = i18n.T(i18n.KeySettingCmd_537)
 	}
-	sb.WriteString(formatLine("cmd-timeout", cmdTimeoutStr, ">= 0 的整数（秒），0=无限制", "系统命令执行的超时时间"))
-	llmTimeoutStr := fmt.Sprintf("%d秒", cfg.LLM.LLMTimeout)
+	sb.WriteString(formatLine("cmd-timeout", cmdTimeoutStr, i18n.KeySettingCmd_568))
+	llmTimeoutStr := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_541), cfg.LLM.LLMTimeout)
 	if cfg.LLM.LLMTimeout <= 0 {
-		llmTimeoutStr = "无限制"
+		llmTimeoutStr = i18n.T(i18n.KeySettingCmd_537)
 	}
-	sb.WriteString(formatLine("llm-timeout", llmTimeoutStr, ">= 0 的整数（秒），0=无限制", "LLM API 调用的超时时间"))
-	sb.WriteString(formatLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), ">= 0 的整数", "相同错误的最大出现次数，超过后提示用户"))
-	sb.WriteString(formatLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), ">= 0 的整数", "最大错误类型数，超过后提示用户"))
+	sb.WriteString(formatLine("llm-timeout", llmTimeoutStr, i18n.KeySettingCmd_569))
+	sb.WriteString(formatLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.KeySettingCmd_570))
+	sb.WriteString(formatLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.KeySettingCmd_571))
 
 	// Group 5: Memory & Context
-	sb.WriteString("━━━ [ 记忆与上下文 ] ━━━\n\n")
-	memStr := "关闭"
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_533))
+	memStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.MemoryEnabled {
-		memStr = "开启"
+		memStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("memory-enabled", memStr, "on/off, 1/0, true/false, yes/no", "是否启用持久化记忆功能"))
+	sb.WriteString(formatLine("memory-enabled", memStr, i18n.KeySettingCmd_572))
 	contextLimitStr := fmt.Sprintf("%d", cfg.LLM.ContextLimit)
 	if cfg.LLM.ContextLimit == 0 {
-		contextLimitStr = "关闭（仅当前输入）"
+		contextLimitStr = i18n.T(i18n.KeySettingCmd_540)
 	} else if cfg.LLM.ContextLimit == -1 {
-		contextLimitStr = "无限制"
+		contextLimitStr = i18n.T(i18n.KeySettingCmd_537)
 	}
-	sb.WriteString(formatLine("context-limit", contextLimitStr, "-1（无限制）/ 0（仅当前输入）/ N（最近N条）", "发送给 LLM 的历史消息数量限制"))
-	sb.WriteString(formatLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), ">= 0 的整数", "记忆搜索返回结果中每条内容的最大字符数"))
-	sb.WriteString(formatLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), ">= 0 的整数", "记忆搜索返回的最大结果数量"))
+	sb.WriteString(formatLine("context-limit", contextLimitStr, i18n.KeySettingCmd_573))
+	sb.WriteString(formatLine("memory-search-max-content-len", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxContentLen), i18n.KeySettingCmd_574))
+	sb.WriteString(formatLine("memory-search-max-results", fmt.Sprintf("%d", cfg.LLM.MemorySearchMaxResults), i18n.KeySettingCmd_575))
 	contextPolicy := i18n.T(i18n.KeyContextPolicyTask)
 	if cfg.LLM.ContextPolicy == "window" {
 		contextPolicy = i18n.T(i18n.KeyContextPolicyWindow)
@@ -1220,46 +1220,46 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 	} else if cfg.LLM.ContextPolicy == "reorganize" {
 		contextPolicy = i18n.T(i18n.KeyContextPolicyReorganize)
 	}
-	sb.WriteString(formatLine("context-policy", contextPolicy, "window/task/smart/reorganize", "上下文策略：window=固定窗口/task=任务模式/smart=智能调整/reorganize=重新整理模式"))
+	sb.WriteString(formatLine("context-policy", contextPolicy, i18n.KeySettingCmd_576))
 
 	// Database config (part of Memory & Context)
-	dbEnabledStr := "关闭"
+	dbEnabledStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.DB.Enabled {
-		dbEnabledStr = "开启"
+		dbEnabledStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("db-enabled", dbEnabledStr, "on/off, 1/0, true/false, yes/no", "是否启用 PostgreSQL 持久化存储"))
-	sb.WriteString(formatLine("db-host", cfg.DB.Host, "主机名或 IP 地址", "PostgreSQL 数据库主机地址"))
-	sb.WriteString(formatLine("db-port", fmt.Sprintf("%d", cfg.DB.Port), "1 ~ 65535", "PostgreSQL 数据库端口"))
-	sb.WriteString(formatLine("db-name", cfg.DB.DBName, "数据库名称", "PostgreSQL 数据库名称"))
-	sb.WriteString(formatLine("db-schema", cfg.DB.Schema, "Schema 名称", "PostgreSQL 数据库 Schema"))
-	sb.WriteString(formatLine("db-user", cfg.DB.User, "用户名", "PostgreSQL 数据库用户"))
-	sb.WriteString(formatLine("db-password", "****", "密码字符串", "PostgreSQL 数据库密码"))
+	sb.WriteString(formatLine("db-enabled", dbEnabledStr, i18n.KeySettingCmd_577))
+	sb.WriteString(formatLine("db-host", cfg.DB.Host, i18n.KeySettingCmd_578))
+	sb.WriteString(formatLine("db-port", fmt.Sprintf("%d", cfg.DB.Port), i18n.KeySettingCmd_579))
+	sb.WriteString(formatLine("db-name", cfg.DB.DBName, i18n.KeySettingCmd_580))
+	sb.WriteString(formatLine("db-schema", cfg.DB.Schema, i18n.KeySettingCmd_581))
+	sb.WriteString(formatLine("db-user", cfg.DB.User, i18n.KeySettingCmd_582))
+	sb.WriteString(formatLine("db-password", "****", i18n.KeySettingCmd_583))
 
 	// Group 6: Tasks & Sub-Agents
-	sb.WriteString("━━━ [ 任务与子代理 ] ━━━\n\n")
-	planStr := "关闭"
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_534))
+	planStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.PlanEnabled {
-		planStr = "开启"
+		planStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("plan-enabled", planStr, "on/off, 1/0, true/false, yes/no", "是否启用任务计划（checklist）功能"))
-	subStr := "关闭"
+	sb.WriteString(formatLine("plan-enabled", planStr, i18n.KeySettingCmd_584))
+	subStr := i18n.T(i18n.KeySettingCmd_538)
 	if cfg.LLM.SubAgentEnabled {
-		subStr = "开启"
+		subStr = i18n.T(i18n.KeySettingCmd_539)
 	}
-	sb.WriteString(formatLine("subagent-enabled", subStr, "on/off, 1/0, true/false, yes/no", "是否允许启动子代理（sub-agent）"))
+	sb.WriteString(formatLine("subagent-enabled", subStr, i18n.KeySettingCmd_585))
 
 	// Group 7: Search & Debug
-	sb.WriteString("━━━ [ 搜索与调试 ] ━━━\n\n")
-	sb.WriteString(formatLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), ">= 0 的整数", "文件搜索时单行最大字符数，超长截断"))
-	sb.WriteString(formatLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), ">= 0 的整数", "文件搜索返回结果的最大总字节数"))
-	sb.WriteString(formatLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), ">= 0 的整数", "文件搜索时匹配行上下文的行数"))
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_535))
+	sb.WriteString(formatLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.KeySettingCmd_586))
+	sb.WriteString(formatLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.KeySettingCmd_587))
+	sb.WriteString(formatLine("search-context-lines", fmt.Sprintf("%d", cfg.LLM.SearchContextLines), i18n.KeySettingCmd_588))
 	logLevel := cfg.LogLevel
 	if logLevel == "" {
 		logLevel = "info"
 	}
-	sb.WriteString(formatLine("log", logLevel, "debug / info / warn / error / off", "日志输出级别"))
+	sb.WriteString(formatLine("log", logLevel, i18n.KeySettingCmd_589))
 
-	sb.WriteString("\n使用 update_settings 工具可以修改以上参数。每次修改需要提供参数名、新值和修改原因，系统会提示用户确认。\n")
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_590))
 
 	return sb.String(), nil
 }

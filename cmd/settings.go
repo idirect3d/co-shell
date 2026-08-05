@@ -512,17 +512,17 @@ func showSettingsHelp(cfg *config.Config) string {
 	maxTokensStr := fmt.Sprintf("%d", cfg.LLM.MaxTokens)
 
 	allGroups = append(allGroups, []settingLine{
-		makeLine("temperature", temperatureStr, "0.0 ~ 2.0（浮点数）"),
-		makeLine("max-tokens", maxTokensStr, "1 ~ 128000（整数）"),
+		makeLine("temperature", temperatureStr, i18n.T(i18n.KeySettingCmd_301)),
+		makeLine("max-tokens", maxTokensStr, i18n.T(i18n.KeySettingCmd_302)),
 		makeLine("max-iterations", maxIterStr, i18n.T(i18n.KeyCol3MaxIter)),
 		makeLine("vision", visionStatus, i18n.T(i18n.KeyCol3Vision)),
-		makeLine("vision-context-mode", visionContextModeStatus, "minimal/full (default minimal: 只发送系统提示词+识别指令)"),
+		makeLine("vision-context-mode", visionContextModeStatus, i18n.T(i18n.KeySettingCmd_303)),
 		makeLine("thinking-enabled", thinkingEnabledStatus, "on/off/default"),
 		makeLine("reasoning-effort", reasoningEffortStr, "low/medium/high/max/none/default"),
 		makeLine("toolcall-enabled", toolCallEnabledStatus, i18n.T(i18n.KeyCol3ToolCallEnabled)),
 		makeLine("toolcall-mode", toolCallMode, i18n.T(i18n.KeyCol3ToolCallMode)),
-		makeLine("xml-tag-prefix", cfg.LLM.XMLTagPrefix, "XML 标签前缀（如 cs:）"),
-		makeLine("xml-stream-validate", xmlStreamValidateStatus, "流式XML校验(开发者选项, 默认开启)"),
+		makeLine("xml-tag-prefix", cfg.LLM.XMLTagPrefix, i18n.T(i18n.KeySettingCmd_304)),
+		makeLine("xml-stream-validate", xmlStreamValidateStatus, i18n.T(i18n.KeySettingCmd_305)),
 		makeLine("default-tool-model", defaultToolModelID, i18n.T(i18n.KeyCol3DefaultToolModel)),
 		makeLine("default-vision-model", defaultVisionModelID, i18n.T(i18n.KeyCol3DefaultVisionModel)),
 		makeLine("default-problem-model", defaultProblemModelID, i18n.T(i18n.KeyCol3DefaultProblemModel)),
@@ -531,16 +531,16 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
 		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),
 		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),
-		makeLine("shell-vt-rows", fmt.Sprintf("%d", shellVtRows), "虚拟终端行数(5-200)"),
-		makeLine("shell-vt-cols", fmt.Sprintf("%d", shellVtCols), "虚拟终端列数(20-500)"),
+		makeLine("shell-vt-rows", fmt.Sprintf("%d", shellVtRows), i18n.T(i18n.KeySettingCmd_306)),
+		makeLine("shell-vt-cols", fmt.Sprintf("%d", shellVtCols), i18n.T(i18n.KeySettingCmd_307)),
 		makeLine("browser-enabled", browserEnabledStatus, i18n.T(i18n.KeyCol3BrowserEnabled)),
 		makeLine("browser-port", fmt.Sprintf("%d", cfg.LLM.BrowserPort), i18n.T(i18n.KeyCol3BrowserPort)),
 		makeLine("browser-headless", browserHeadlessStatus, i18n.T(i18n.KeyCol3BrowserHeadless)),
-		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), "HTML下载阈值"),
-		makeLine("excel-max-sessions", fmt.Sprintf("%d", cfg.LLM.ExcelMaxSessions), "Excel最大并发会话数(1-50)"),
-		makeLine("excel-max-cells", fmt.Sprintf("%d", cfg.LLM.ExcelMaxCells), "Excel单次读取最大单元格数(10-100000)"),
-		makeLine("docx-max-sessions", fmt.Sprintf("%d", cfg.LLM.DocxMaxSessions), "Word最大并发会话数(1-50)"),
-		makeLine("docx-max-read-paras", fmt.Sprintf("%d", cfg.LLM.DocxMaxReadParas), "Word单次读取最大段落数(10-5000)"),
+		makeLine("browser-max-html-size", fmt.Sprintf("%d bytes (%d KB)", cfg.LLM.BrowserMaxHTMLSize, cfg.LLM.BrowserMaxHTMLSize/1024), i18n.T(i18n.KeySettingCmd_308)),
+		makeLine("excel-max-sessions", fmt.Sprintf("%d", cfg.LLM.ExcelMaxSessions), i18n.T(i18n.KeySettingCmd_309)),
+		makeLine("excel-max-cells", fmt.Sprintf("%d", cfg.LLM.ExcelMaxCells), i18n.T(i18n.KeySettingCmd_310)),
+		makeLine("docx-max-sessions", fmt.Sprintf("%d", cfg.LLM.DocxMaxSessions), i18n.T(i18n.KeySettingCmd_311)),
+		makeLine("docx-max-read-paras", fmt.Sprintf("%d", cfg.LLM.DocxMaxReadParas), i18n.T(i18n.KeySettingCmd_312)),
 		makeLine("visual-analysis-max-images", fmt.Sprintf("%d", cfg.LLM.VisualAnalysisMaxImages), i18n.T(i18n.KeyCol3VisualAnalysisMaxImages)),
 		makeLine("search-max-line-length", fmt.Sprintf("%d", cfg.LLM.SearchMaxLineLength), i18n.T(i18n.KeyCol3SearchMaxLineLength)),
 		makeLine("search-max-result-bytes", fmt.Sprintf("%d", cfg.LLM.SearchMaxResultBytes), i18n.T(i18n.KeyCol3SearchMaxResultBytes)),
@@ -551,13 +551,13 @@ func showSettingsHelp(cfg *config.Config) string {
 	if noToolActionVal == "" {
 		noToolActionVal = "retry"
 	}
-	allGroups[1] = append(allGroups[1], makeLine("no-tool-action", noToolActionVal, "0-tool-call 处理方式(exit/retry/prompt)"))
+	allGroups[1] = append(allGroups[1], makeLine("no-tool-action", noToolActionVal, i18n.T(i18n.KeySettingCmd_313)))
 	// Add parse-error-action to Agent settings group
 	parseErrorActionVal := cfg.LLM.ParseErrorAction
 	if parseErrorActionVal == "" {
 		parseErrorActionVal = "retry"
 	}
-	allGroups[1] = append(allGroups[1], makeLine("parse-error-action", parseErrorActionVal, "方法调用解析错误处理方式(exit/retry/prompt)"))
+	allGroups[1] = append(allGroups[1], makeLine("parse-error-action", parseErrorActionVal, i18n.T(i18n.KeySettingCmd_314)))
 
 	// Show loop detection (FEATURE-241)
 	loopDetectionShowStatus := i18n.T(i18n.KeyOff)
@@ -623,21 +623,21 @@ func showSettingsHelp(cfg *config.Config) string {
 		makeLine("error-max-single-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxSingleCount), i18n.T(i18n.KeyCol3ErrorMaxSingleCount)),
 		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
 		// Loop detection (FEATURE-227)
-		makeLine("loop-intervention", loopIntervention, "循环介入策略(off/retry/prompt/reorganize/temperature/random)"),
+		makeLine("loop-intervention", loopIntervention, i18n.T(i18n.KeySettingCmd_315)),
 		makeLine("loop-detect-threshold", fmt.Sprintf("%d", cfg.LLM.LoopDetectThreshold), i18n.T(i18n.KeyCol3LoopDetectThreshold)),
-		makeLine("loop-temp-step-up", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepUp), "循环温度上升步长"),
-		makeLine("loop-temp-step-down", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepDown), "循环温度下降步长"),
-		makeLine("loop-temp-max", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMax), "循环温度上限"),
-		makeLine("loop-temp-min", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMin), "循环温度下限"),
+		makeLine("loop-temp-step-up", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepUp), i18n.T(i18n.KeySettingCmd_316)),
+		makeLine("loop-temp-step-down", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepDown), i18n.T(i18n.KeySettingCmd_317)),
+		makeLine("loop-temp-max", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMax), i18n.T(i18n.KeySettingCmd_318)),
+		makeLine("loop-temp-min", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMin), i18n.T(i18n.KeySettingCmd_319)),
 		// Loop judgment (FEATURE-241)
 		makeLine("loop-judge-enabled", loopJudgeStatus, i18n.T(i18n.KeyCol3LoopJudgeEnabled)),
 		// Loop judge timeout
-		makeLine("loop-judge-timeout", fmt.Sprintf("%ds", cfg.LLM.LoopJudgeTimeout), "LLM循环判定超时(秒,0=不限制)"),
+		makeLine("loop-judge-timeout", fmt.Sprintf("%ds", cfg.LLM.LoopJudgeTimeout), i18n.T(i18n.KeySettingCmd_320)),
 		// Long output threshold
-		makeLine("loop-long-output-threshold", fmt.Sprintf("%d", cfg.LLM.LoopLongOutputThreshold), "超长输出触发判定字符数(0=不检测)"),
-		makeLine("loop-single-line-length", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineLength), "单行超长阈值(0=不检测)"),
-		makeLine("loop-single-line-window", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineWindow), "单行窗口重复检测大小(0=不检测)"),
-		makeLine("loop-single-line-block-limit", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineBlockLimit), "单行重复数量块限制(0=不检测, 字符数×次数)"),
+		makeLine("loop-long-output-threshold", fmt.Sprintf("%d", cfg.LLM.LoopLongOutputThreshold), i18n.T(i18n.KeySettingCmd_321)),
+		makeLine("loop-single-line-length", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineLength), i18n.T(i18n.KeySettingCmd_322)),
+		makeLine("loop-single-line-window", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineWindow), i18n.T(i18n.KeySettingCmd_323)),
+		makeLine("loop-single-line-block-limit", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineBlockLimit), i18n.T(i18n.KeySettingCmd_324)),
 	})
 	// loop-reorganize-enabled removed, controlled by loop-intervention
 

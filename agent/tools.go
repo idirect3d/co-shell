@@ -308,7 +308,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 				},
 				"intent": map[string]interface{}{
 					"type":        "string",
-					"description": "Describe what specific information you need to analyze from the image/video. Examples: '识别这张发票中的金额和日期', '提取表格中的所有数据列', '描述这张照片中的场景和人物', '分析截图中显示的代码错误'. This intent guides the vision analysis and produces structured output.",
+					"description": i18n.T(i18n.KeySettingCmd_613),
 				},
 			},
 			"required": []string{"paths", "intent"},
@@ -1465,7 +1465,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					// Font
 					"font_name": map[string]interface{}{
 						"type":        "string",
-						"description": "Font name (e.g. 'Arial', '微软雅黑')",
+						"description": i18n.T(i18n.KeySettingCmd_614),
 					},
 					"font_size": map[string]interface{}{
 						"type":        "number",
@@ -1696,7 +1696,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		},
 		{
 			Name:        "word_continue",
-			Description: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
+			Description: i18n.T(i18n.KeySettingCmd_615),
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1942,14 +1942,14 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 					a.taskInstructionCache.WriteString("\n\n")
 				}
 				a.taskInstructionCache.WriteString(modifyInput)
-				return "用户取消了此工具调用。", nil
+				return i18n.T(i18n.KeySettingCmd_592), nil
 			}
 			// CmdConfirmApprove: continue execution
 		} else if toolCount > 0 {
 			// Decrement per-tool approve count and auto-approve
 			a.toolApproveCounts[tc.Name]--
 			remaining := a.toolApproveCounts[tc.Name]
-			a.defaultIO().Println(fmt.Sprintf("✅ 已自动批准 %s（剩余 %d 次）", tc.Name, remaining))
+			a.defaultIO().Println(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_593), tc.Name, remaining))
 		}
 	}
 
@@ -1969,11 +1969,11 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			io := a.defaultIO()
 			for entryName, missingTags := range result.MissingEntries {
 				missingTagStr := strings.Join(missingTags, ", ")
-				io.Printf("\n⚠️  LLM 请求使用密码本条目 %q 的标签 %s，但该条目不存在。\n\n", entryName, missingTagStr)
-				io.Println("  请选择操作:")
-				io.Printf("    [A] 立即创建条目 %q — 系统将提示输入标签值\n", entryName)
-				io.Println("    [C] 取消本次调用")
-				io.Printf("  请输入 [A/C]: ")
+				io.Printf(i18n.T(i18n.KeySettingCmd_594), entryName, missingTagStr)
+				io.Println(i18n.T(i18n.KeySettingCmd_595))
+				io.Printf(i18n.T(i18n.KeySettingCmd_596), entryName)
+				io.Println(i18n.T(i18n.KeySettingCmd_597))
+				io.Printf(i18n.T(i18n.KeySettingCmd_598))
 
 				response, err := io.ReadLine()
 				if err != nil {
@@ -1984,7 +1984,7 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 				if response == "a" || response == "" {
 					tags := make(map[string]string)
 					for _, tag := range missingTags {
-						io.Printf("  请输入 %s@%s 的值: ", tag, entryName)
+						io.Printf(i18n.T(i18n.KeySettingCmd_599), tag, entryName)
 						val, err := io.ReadLine()
 						if err != nil {
 							return "", fmt.Errorf("failed to read value for tag %q: %w", tag, err)
@@ -2003,7 +2003,7 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 					if err := a.vaultStore.Put(entry); err != nil {
 						return "", fmt.Errorf("cannot save vault entry %q: %w", entryName, err)
 					}
-					io.Printf("✅ 条目 %q 已创建\n", entryName)
+					io.Printf(i18n.T(i18n.KeySettingCmd_600), entryName)
 				} else {
 					return "", fmt.Errorf("user cancelled tool call because vault entry %q does not exist", entryName)
 				}
@@ -2116,15 +2116,15 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 
 		if len(options) > 0 {
 			io.Println()
-			io.Println("  可选回复:")
+			io.Println(i18n.T(i18n.KeySettingCmd_601))
 			for i, opt := range options {
 				io.Printf("    [%d] %s\n", i+1, opt)
 			}
-			io.Printf("    [%d] 取消\n", cancelIdx)
+			io.Printf(i18n.T(i18n.KeySettingCmd_602), cancelIdx)
 			io.Println()
 		}
 
-		io.Printf("  请输入回复: ")
+		io.Printf(i18n.T(i18n.KeySettingCmd_603))
 
 		// Read user input via UserIO
 		input, err := io.ReadLine()
@@ -2137,7 +2137,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 		// If no options (just a question), accept empty input and send it to the LLM.
 		if input == "" {
 			if len(options) > 0 {
-				io.Println("  输入不能为空，请重新选择。")
+				io.Println(i18n.T(i18n.KeySettingCmd_604))
 				continue
 			}
 			return "", nil
@@ -2151,7 +2151,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 			if len(options) > 0 {
 				if idx == cancelIdx {
 					// User chose cancel — exit current iteration without sending to LLM
-					io.Println("  已取消。")
+					io.Println(i18n.T(i18n.KeySettingCmd_605))
 					return "", fmt.Errorf("CANCEL_AGENT")
 				}
 				if idx >= 1 && idx <= len(options) {
@@ -2159,25 +2159,25 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 					// Check for additional user input after the option number
 					remaining := strings.TrimSpace(input[len(firstToken):])
 					if remaining != "" {
-						io.Printf("  ✅ 已选择: %s\n", selected)
-						io.Printf("  📝 补充说明: %s\n", remaining)
+						io.Printf(i18n.T(i18n.KeySettingCmd_606), selected)
+						io.Printf(i18n.T(i18n.KeySettingCmd_607), remaining)
 						// Store raw user input in task instruction cache — no prefix needed
 						if a.taskInstructionCache.Len() > 0 {
 							a.taskInstructionCache.WriteString("\n\n")
 						}
 						a.taskInstructionCache.WriteString(fmt.Sprintf("%s\n%s", selected, remaining))
-						return "用户已回复，补充指令已暂存。", nil
+						return i18n.T(i18n.KeySettingCmd_609), nil
 					}
-					io.Printf("  ✅ 已选择: %s\n", selected)
+					io.Printf(i18n.T(i18n.KeySettingCmd_606), selected)
 					// Store user choice in task instruction cache
 					if a.taskInstructionCache.Len() > 0 {
 						a.taskInstructionCache.WriteString("\n\n")
 					}
 					a.taskInstructionCache.WriteString(selected)
-					return "用户已回复，补充指令已暂存。", nil
+					return i18n.T(i18n.KeySettingCmd_609), nil
 				}
 				// Valid number but out of range — prompt user to re-choose
-				io.Printf("  无效的选项编号 %d，请重新选择。\n", idx)
+				io.Printf(i18n.T(i18n.KeySettingCmd_608), idx)
 				continue
 			}
 			// No options provided — store user's number input in task instruction cache
@@ -2185,7 +2185,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 				a.taskInstructionCache.WriteString("\n\n")
 			}
 			a.taskInstructionCache.WriteString(input)
-			return "用户已回复，补充指令已暂存。", nil
+			return i18n.T(i18n.KeySettingCmd_609), nil
 		}
 
 		// Input doesn't start with a valid number — store in task instruction cache
@@ -2193,7 +2193,7 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 			a.taskInstructionCache.WriteString("\n\n")
 		}
 		a.taskInstructionCache.WriteString(input)
-		return "用户已回复，补充指令已暂存。", nil
+		return i18n.T(i18n.KeySettingCmd_609), nil
 	}
 }
 
@@ -2255,9 +2255,9 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		decoded := decodeToUTF8(output)
 		if err != nil {
 			log.Warn("attemptCompletion: demo command failed: %v\nOutput: %s", err, decoded)
-			cmdOutput = fmt.Sprintf("\n命令执行失败: %v\n输出: %s", err, decoded)
+			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_610), err, decoded)
 		} else {
-			cmdOutput = fmt.Sprintf("\n命令执行成功，输出:\n%s", strings.TrimSpace(decoded))
+			cmdOutput = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_611), strings.TrimSpace(decoded))
 		}
 	}
 
@@ -2265,7 +2265,7 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 	a.SetCompleted()
 
 	// Build the final completion message
-	message := fmt.Sprintf("✅ 任务完成\n\n%s", result)
+	message := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_612), result)
 	if cmdOutput != "" {
 		message += "\n" + cmdOutput
 	}
