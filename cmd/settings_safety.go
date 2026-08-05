@@ -325,7 +325,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		}
 		v, err := strconv.ParseFloat(args[1], 64)
 		if err != nil || v < 0 || v > 1.0 {
-			return "", fmt.Errorf(i18n.TF(i18n.KeySettingCmd_218, args[1]))
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_218, args[1]))
 		}
 		h.cfg.LLM.DuplicateContentThreshold = v
 		if err := h.cfg.Save(); err != nil {
@@ -339,7 +339,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 
 	case "loop-judge-timeout":
 		if len(args) < 2 {
-			return fmt.Sprintf(i18n.TF(i18n.KeySettingCmd_220, h.cfg.LLM.LoopJudgeTimeout)), nil
+			return i18n.TF(i18n.KeySettingCmd_220, h.cfg.LLM.LoopJudgeTimeout), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n < 0 {
@@ -425,7 +425,7 @@ func (h *SettingsHandler) showToolModes() string {
 	if modeName == "" || modeName == "default" {
 		modeName = "act"
 	}
-	sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySettingCmd_230, modeName)))
+	sb.WriteString(i18n.TF(i18n.KeySettingCmd_230, modeName))
 	sb.WriteString(i18n.T(i18n.KeySettingCmd_231))
 
 	// Use agent's effective toolModes if available (already computed by SyncToolModes)
@@ -445,7 +445,7 @@ func (h *SettingsHandler) showToolModes() string {
 	if defaultMode == "" {
 		defaultMode = "confirm"
 	}
-	sb.WriteString(fmt.Sprintf(i18n.TF(i18n.KeySettingCmd_232, defaultMode)))
+	sb.WriteString(i18n.TF(i18n.KeySettingCmd_232, defaultMode))
 
 	allTools := make([]string, 0, len(agent.DefaultToolModes()))
 	for name := range agent.DefaultToolModes() {
