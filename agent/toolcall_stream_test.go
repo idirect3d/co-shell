@@ -164,16 +164,15 @@ func TestToolCallStream_XMLReplaceNoLineNo(t *testing.T) {
 	}
 
 	text := collectRenderText(r, all)
-	if !strings.Contains(text, "   - alpha") || !strings.Contains(text, "   + beta") {
+	if !strings.Contains(text, "⚙️ replace_in_file a.go") {
+		t.Errorf("tool header should share the path line, got: %q", text)
+	}
+	if !strings.Contains(text, "- alpha") || !strings.Contains(text, "+ beta") {
 		t.Errorf("search/replace lines missing, got: %q", text)
 	}
-	if strings.Contains(text, "- alpha") && strings.ContainsAny(text, "123456789") {
-		// No line numbers should be present on diff lines when start_line is
-		// not specified.
-		for _, line := range strings.Split(text, "\n") {
-			if strings.Contains(line, "- alpha") && line != "   - alpha" {
-				t.Errorf("unexpected line number on '-' line, got: %q", line)
-			}
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, "- alpha") && line != "- alpha" {
+			t.Errorf("unexpected line number on '-' line, got: %q", line)
 		}
 	}
 }
@@ -203,11 +202,14 @@ func TestToolCallStream_XMLReplaceStartLine(t *testing.T) {
 	}
 
 	text := collectRenderText(r, all)
-	if !strings.Contains(text, "   10- old1") || !strings.Contains(text, "   11- old2") {
+	if !strings.Contains(text, "10-: old1") || !strings.Contains(text, "11-: old2") {
 		t.Errorf("search lines with start_line line numbers missing, got: %q", text)
 	}
-	if !strings.Contains(text, "   10+ new1") || !strings.Contains(text, "   11+ new2") {
+	if !strings.Contains(text, "10+: new1") || !strings.Contains(text, "11+: new2") {
 		t.Errorf("replace lines with start_line line numbers missing, got: %q", text)
+	}
+	if !strings.Contains(text, "10-11 行: ") {
+		t.Errorf("location header missing, got: %q", text)
 	}
 }
 
@@ -327,10 +329,10 @@ func TestToolCallStream_XMLReplaceDiff(t *testing.T) {
 	if strings.Contains(text, "🔄") {
 		t.Errorf("legacy one-line diff format should no longer be used, got: %q", text)
 	}
-	if !strings.Contains(text, "   - alpha") {
+	if !strings.Contains(text, "- alpha") {
 		t.Errorf("search '-' line missing, got: %q", text)
 	}
-	if !strings.Contains(text, "   + beta") {
+	if !strings.Contains(text, "+ beta") {
 		t.Errorf("replace '+' line missing, got: %q", text)
 	}
 }
