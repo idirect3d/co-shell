@@ -772,6 +772,26 @@ var enMessages = map[string]string{
 	KeySettingCmd_753: "Task plan steps updated",
 	KeySettingCmd_754: ".plan task plan management commands",
 
+	// FEATURE-305 第 6 批: config/model_template.go
+	KeySettingCmd_755: "DeepSeek Official",
+	KeySettingCmd_756: "DeepSeek official API, supports thinking mode",
+	KeySettingCmd_757: "Qwen (Tongyi Qianwen)",
+	KeySettingCmd_758: "Alibaba Tongyi Qianwen API, supports multimodal models",
+	KeySettingCmd_759: "Xiaomi MiMo LLM",
+	KeySettingCmd_760: "Xiaomi MiMo LLM API",
+	KeySettingCmd_761: "Kimi (Moonshot AI)",
+	KeySettingCmd_762: "Kimi API, K3 flagship model with 1M context, supports multimodal and deep thinking",
+	KeySettingCmd_763: "Zhipu AI (GLM)",
+	KeySettingCmd_764: "Zhipu GLM series models, supports vision models",
+	KeySettingCmd_765: "OpenAI Official",
+	KeySettingCmd_766: "OpenAI official API, GPT-4o supports multimodal",
+	KeySettingCmd_767: "LM Studio Local",
+	KeySettingCmd_768: "Locally deployed LM Studio service, models must be loaded manually",
+	KeySettingCmd_769: "Ollama Local",
+	KeySettingCmd_770: "Locally deployed Ollama service, models must be pulled manually",
+	KeySettingCmd_771: "OpenAI Compatible (Custom)",
+	KeySettingCmd_772: "Any service compatible with the OpenAI API",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",
