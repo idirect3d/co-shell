@@ -716,6 +716,14 @@ var enMessages = map[string]string{
 	KeySettingCmd_703: "Browser page closed. A new page will be created automatically the next time a browser tool is used.",
 	KeySettingCmd_704: "up",
 
+	// FEATURE-305 第 5 批: agent/file_tools.go
+	KeySettingCmd_705: "This tool can only read plain text files (e.g. .txt, .md, .go, .py, .js etc.).\nFor image analysis, use visual_analysis to load images into the multimodal context.\nFor PDF analysis, use bin/pdf2png.py to convert PDF to PNG images first.\nTo read text from Word documents, use bin/doc2md.py to convert to Markdown, then read with read_file.",
+	KeySettingCmd_706: "File %q appears to be a binary file (contains control character 0x%02X), cannot be read.\nThis tool can only read plain text files (e.g. .txt, .md, .go, .py, .js etc.).\nFor image analysis, use visual_analysis to load images into the multimodal context.\nFor PDF analysis, use bin/pdf2png.py to convert PDF to PNG images first.\nTo read text from Word documents, use bin/doc2md.py to convert to Markdown, then read with read_file.",
+	KeySettingCmd_707: "\n⚠️ File content too long, only showing the first %d bytes (total %d bytes, %d lines shown / %d total).\nYou can use read_file with start_line/end_line to read in segments.\n",
+	KeySettingCmd_708: "# File list: %s\n\n",
+	KeySettingCmd_709: "\n\n✅ Complete file list saved to: %s (%d entries, exceeds limit %d). Use read_file to view the full content.\n",
+	KeySettingCmd_710: "File %q appears to be a binary file (contains NULL byte), cannot be read.\nThis tool can only read plain text files (e.g. .txt, .md, .go, .py, .js etc.).\nFor image analysis, use visual_analysis to load images into the multimodal context.\nFor PDF analysis, use bin/pdf2png.py to convert PDF to PNG images first.\nTo read text from Word documents, use bin/doc2md.py to convert to Markdown, then read with read_file.",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",

@@ -901,6 +901,14 @@ const (
 	KeySettingCmd_702 = "setting_cmd_702"
 	KeySettingCmd_703 = "setting_cmd_703"
 	KeySettingCmd_704 = "setting_cmd_704"
+
+	// FEATURE-305 第 5 批: agent/file_tools.go
+	KeySettingCmd_705 = "setting_cmd_705"
+	KeySettingCmd_706 = "setting_cmd_706"
+	KeySettingCmd_707 = "setting_cmd_707"
+	KeySettingCmd_708 = "setting_cmd_708"
+	KeySettingCmd_709 = "setting_cmd_709"
+	KeySettingCmd_710 = "setting_cmd_710"
 	KeySettingCmd_622 = "setting_cmd_622"
 	KeySettingCmd_623 = "setting_cmd_623"
 	KeySettingCmd_624 = "setting_cmd_624"
