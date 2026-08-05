@@ -170,16 +170,16 @@ func (r *REPL) syncDB() {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 	if r.cfg.DB.AutoSync {
 		r.store.SetAutoSync(true)
-		fmt.Printf("%s 检测到 PostgreSQL 连接，开始自动同步本地数据到远端...\n", ep.Info)
+		fmt.Printf(i18n.TF(i18n.KeyDBSyncStart, ep.Info))
 		if err := r.store.PG().MigrateFromBolt(r.store.Bolt); err != nil {
 			log.Warn("Auto-migration failed (non-fatal): %v", err)
-			fmt.Printf("%s  数据同步部分失败: %v\n", ep.Warning, err)
+			fmt.Printf(i18n.TF(i18n.KeyDBSyncPartial, ep.Warning, err))
 		} else {
-			fmt.Printf("%s 数据同步完成!\n", ep.Success)
+			fmt.Printf(i18n.TF(i18n.KeyDBSyncComplete, ep.Success))
 		}
 	} else {
 		r.store.SetAutoSync(false)
-		fmt.Printf("%s PostgreSQL 已连接（自动同步已关闭）\n", ep.Info)
+		fmt.Printf(i18n.TF(i18n.KeyDBConnectedNoSync, ep.Info))
 	}
 }
 
@@ -253,15 +253,15 @@ func (r *REPL) Run() error {
 			}
 			// Not a local executable: warn user about ":" prefix, then ask
 			ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
-			fmt.Printf("\n%s 提示: 你输入的内容以 '.' 开头，这可能是想执行内置命令。\n", ep.Warning)
-			fmt.Printf("  内置命令应用 ':' 开头，例如 :settings、:model 等。\n")
-			fmt.Printf("  你想把这个内容发送给 LLM 处理吗？\n\n")
-			fmt.Printf("  请选择: [Enter] 发送给 LLM  [C] 取消: ")
+			fmt.Printf(i18n.TF(i18n.KeyDotPrefixHint1, ep.Warning))
+			fmt.Printf(i18n.T(i18n.KeyDotPrefixHint2))
+			fmt.Printf(i18n.T(i18n.KeyDotPrefixAskLLM))
+			fmt.Printf(i18n.T(i18n.KeyDotPrefixChoose))
 			// Use readLine which handles both enhanced and stdio modes
 			response, _ := r.readLine("")
 			response = strings.TrimSpace(strings.ToLower(response))
 			if response == "c" {
-				fmt.Printf("%s 已取消\n", ep.Warning)
+				fmt.Printf(i18n.TF(i18n.KeyDotPrefixCancelled, ep.Warning))
 				continue
 			}
 			// Fall through to handleAgentInput
@@ -359,14 +359,16 @@ func (r *REPL) handleBuiltin(input string) {
 		if err := r.agent.FlushCurrentSession(); err != nil {
 			log.Warn("Failed to flush current session: %v", err)
 		}
-		// Find the next "新会话N" number
+		// Find the next "New session N" number
 		nextN := 1
+		sessionNumRe := regexp.MustCompile(`(\d+)$`)
 		if entries, err := r.agent.Store().ListNamedSessions(); err == nil {
 			maxN := 0
 			for _, e := range entries {
-				var suffix int
-				if _, err := fmt.Sscanf(e.Title, "新会话%d", &suffix); err == nil && suffix > maxN {
-					maxN = suffix
+				if m := sessionNumRe.FindStringSubmatch(e.Title); m != nil {
+					if suffix, err := strconv.Atoi(m[1]); err == nil && suffix > maxN {
+						maxN = suffix
+					}
 				}
 			}
 			if maxN > 0 {
@@ -382,7 +384,7 @@ func (r *REPL) handleBuiltin(input string) {
 		randBytes[2] = byte(now.Second() & 0xFF)
 		randBytes[3] = byte(now.Minute() & 0xFF)
 		sessionID := fmt.Sprintf("sess-%s-%08x", now.Format("20060102150405"), randBytes)
-		title := fmt.Sprintf("新会话%d", nextN)
+		title := fmt.Sprintf(i18n.T(i18n.KeyNewSessionTitle), nextN)
 		entry := &store.SessionEntry{
 			ID:           sessionID,
 			Title:        title,
@@ -400,7 +402,7 @@ func (r *REPL) handleBuiltin(input string) {
 		if err := r.agent.Store().SaveCurrentSessionID(sessionID); err != nil {
 			log.Warn("Failed to save current session ID: %v", err)
 		}
-		fmt.Printf("%s 已创建新会话: %s\n", ep.Success, title)
+		fmt.Printf(i18n.TF(i18n.KeyNewSessionCreated, ep.Success, title))
 		return
 	case ":model":
 		result, err = r.modelHandler.Handle(args)
@@ -432,15 +434,15 @@ func (r *REPL) handleBuiltin(input string) {
 	// Handle special POP: result from :session pop — allow user to edit and resubmit
 	if strings.HasPrefix(result, "POP:") {
 		poppedContent := result[4:]
-		fmt.Printf("%s 已弹出最后一条消息，内容如下：\n%s\n", ep.Info, poppedContent)
-		fmt.Println("请编辑后按 Enter 提交，或直接按 Enter 跳过：")
+		fmt.Printf(i18n.TF(i18n.KeySessionPopEdit, ep.Info, poppedContent))
+		fmt.Println(i18n.T(i18n.KeySessionPopEditHint))
 		edited, err := r.readLine("✏️ ")
 		if err != nil {
 			return
 		}
 		edited = strings.TrimSpace(edited)
 		if edited == "" {
-			fmt.Println("已跳过，消息已移除。")
+			fmt.Println(i18n.T(i18n.KeySessionPopSkipped))
 			return
 		}
 		// Resubmit with modified content
@@ -494,7 +496,7 @@ func (r *REPL) handleHistoryReExecute(num int) {
 
 func (r *REPL) handleBodyAdd(args []string) (string, error) {
 	if len(args) == 0 {
-		return "", fmt.Errorf("用法: .body-add key=value")
+		return "", fmt.Errorf(i18n.T(i18n.KeyBodyAddUsage))
 	}
 	if r.cfg.LLM.BodyAdditions == nil {
 		r.cfg.LLM.BodyAdditions = make(map[string]string)
@@ -502,28 +504,28 @@ func (r *REPL) handleBodyAdd(args []string) (string, error) {
 	for _, arg := range args {
 		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
-			return "", fmt.Errorf("无效格式 %q，请使用 key=value 格式", arg)
+			return "", fmt.Errorf(i18n.TF(i18n.KeyBodyAddInvalidFmt, arg))
 		}
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		if key == "" {
-			return "", fmt.Errorf("属性名不能为空")
+			return "", fmt.Errorf(i18n.T(i18n.KeyBodyAddEmptyKey))
 		}
 		r.cfg.LLM.BodyAdditions[key] = value
 	}
 	r.agent.GetLLMClient().SetBodyAdditions(r.cfg.LLM.BodyAdditions)
 	if err := r.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyBodyAddSaveFail), err)
 	}
-	return fmt.Sprintf("已添加 %d 个自定义属性到 LLM 请求体", len(args)), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyBodyAddDone), len(args)), nil
 }
 
 func (r *REPL) handleBodyRemove(args []string) (string, error) {
 	if len(args) == 0 {
-		return "", fmt.Errorf("用法: .body-remove key")
+		return "", fmt.Errorf(i18n.T(i18n.KeyBodyRemoveUsage))
 	}
 	if r.cfg.LLM.BodyAdditions == nil {
-		return "", fmt.Errorf("没有自定义属性可删除")
+		return "", fmt.Errorf(i18n.T(i18n.KeyBodyRemoveNone))
 	}
 	removed := 0
 	for _, key := range args {
@@ -534,21 +536,21 @@ func (r *REPL) handleBodyRemove(args []string) (string, error) {
 		}
 	}
 	if removed == 0 {
-		return "", fmt.Errorf("未找到指定的属性")
+		return "", fmt.Errorf(i18n.T(i18n.KeyBodyRemoveNotFound))
 	}
 	r.agent.GetLLMClient().SetBodyAdditions(r.cfg.LLM.BodyAdditions)
 	if err := r.cfg.Save(); err != nil {
-		return "", fmt.Errorf("保存配置失败: %w", err)
+		return "", fmt.Errorf(i18n.T(i18n.KeyBodyAddSaveFail), err)
 	}
-	return fmt.Sprintf("已删除 %d 个自定义属性", removed), nil
+	return fmt.Sprintf(i18n.T(i18n.KeyBodyRemoveDone), removed), nil
 }
 
 func (r *REPL) handleBodyDisplay(args []string) (string, error) {
 	if len(r.cfg.LLM.BodyAdditions) == 0 {
-		return "没有自定义属性", nil
+		return i18n.T(i18n.KeyBodyDisplayEmpty), nil
 	}
 	var sb strings.Builder
-	sb.WriteString("LLM 请求体自定义属性:\n")
+	sb.WriteString(i18n.T(i18n.KeyBodyDisplayTitle))
 	for key, value := range r.cfg.LLM.BodyAdditions {
 		sb.WriteString(fmt.Sprintf("  %s = %s\n", key, value))
 	}

@@ -232,6 +232,33 @@ var zhMessages = map[string]string{
 	KeyCleaningUp:     "正在清理...",
 	KeyDone:           " 完成。",
 
+	// FEATURE-305: repl.go C 类基础设施
+	KeyDBSyncStart:        "%s 检测到 PostgreSQL 连接，开始自动同步本地数据到远端...\n",
+	KeyDBSyncPartial:      "%s  数据同步部分失败: %v\n",
+	KeyDBSyncComplete:     "%s 数据同步完成!\n",
+	KeyDBConnectedNoSync:  "%s PostgreSQL 已连接（自动同步已关闭）\n",
+	KeyDotPrefixHint1:     "\n%s 提示: 你输入的内容以 '.' 开头，这可能是想执行内置命令。\n",
+	KeyDotPrefixHint2:     "  内置命令应用 ':' 开头，例如 :settings、:model 等。\n",
+	KeyDotPrefixAskLLM:    "  你想把这个内容发送给 LLM 处理吗？\n\n",
+	KeyDotPrefixChoose:    "  请选择: [Enter] 发送给 LLM  [C] 取消: ",
+	KeyDotPrefixCancelled: "%s 已取消\n",
+	KeyNewSessionTitle:    "新会话%d",
+	KeyNewSessionCreated:  "%s 已创建新会话: %s\n",
+	KeySessionPopEdit:     "%s 已弹出最后一条消息，内容如下：\n%s\n",
+	KeySessionPopEditHint: "请编辑后按 Enter 提交，或直接按 Enter 跳过：",
+	KeySessionPopSkipped:  "已跳过，消息已移除。",
+	KeyBodyAddUsage:       "用法: .body-add key=value",
+	KeyBodyAddInvalidFmt:  "无效格式 %q，请使用 key=value 格式",
+	KeyBodyAddEmptyKey:    "属性名不能为空",
+	KeyBodyAddSaveFail:    "保存配置失败: %w",
+	KeyBodyAddDone:        "已添加 %d 个自定义属性到 LLM 请求体",
+	KeyBodyRemoveUsage:    "用法: .body-remove key",
+	KeyBodyRemoveNone:     "没有自定义属性可删除",
+	KeyBodyRemoveNotFound: "未找到指定的属性",
+	KeyBodyRemoveDone:     "已删除 %d 个自定义属性",
+	KeyBodyDisplayEmpty:   "没有自定义属性",
+	KeyBodyDisplayTitle:   "LLM 请求体自定义属性:\n",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",
@@ -422,6 +449,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDisclaimerYes:     "y",
 	KeyDisclaimerNo:      "n",
 	KeyDisclaimerRefused: "您已拒绝风险声明，程序退出。",
+
+	// FEATURE-305: CLI init-capabilities/init-rules and vision error messages
+	KeyFileExistsSkip:               "已存在，跳过生成。",
+	KeyGeneratedDefaultCAPABILITIES: "已生成默认 CAPABILITIES.md:",
+	KeyGeneratedDefaultRULES:        "已生成默认 RULES.md:",
+	KeyVisionNotSupported:           "错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。",
+	KeyVisionUseMultimodalModel:     "请去掉 -image 参数或使用支持多模态的模型。",
 
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 正在启动 API 设置向导...\n",

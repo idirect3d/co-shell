@@ -195,154 +195,154 @@ func parseFlags() cliFlags {
 	var f cliFlags
 
 	// Define flags
-	flag.StringVar(&f.workspacePath, "workspace", "", "指定工作区路径（默认：当前目录）")
-	flag.StringVar(&f.workspacePath, "w", "", "指定工作区路径（简写）")
-	flag.StringVar(&f.configPath, "config", "", "指定配置文件路径（默认：{workspace}/config.json）")
-	flag.StringVar(&f.configPath, "c", "", "指定配置文件路径（简写）")
-	flag.StringVar(&f.model, "model", "", "临时指定模型名称（覆盖配置文件）")
-	flag.StringVar(&f.model, "m", "", "临时指定模型名称（简写）")
-	flag.StringVar(&f.endpoint, "endpoint", "", "临时指定 API 端点（覆盖配置文件）")
-	flag.StringVar(&f.endpoint, "e", "", "临时指定 API 端点（简写）")
-	flag.StringVar(&f.apiKey, "api-key", "", "临时指定 API Key（覆盖配置文件）")
-	flag.StringVar(&f.apiKey, "k", "", "临时指定 API Key（简写）")
-	flag.StringVar(&f.log, "log", "", "临时指定日志开关（on/off，覆盖配置文件）")
-	flag.IntVar(&f.maxIterations, "max-iterations", -1, "最大迭代次数（-1 为不限制，默认 1000）")
-	flag.StringVar(&f.agentName, "name", "", "指定 agent 名称（默认：co-shell，用于标识日志、sub-agent workspace 等）")
-	flag.StringVar(&f.agentName, "n", "", "指定 agent 名称（简写）")
-	flag.StringVar(&f.lang, "lang", "", "设置语言（zh/en，默认自动检测）")
-	flag.StringVar(&f.imagePaths, "image", "", "图片文件路径（多张图片用逗号分隔），用于多模态输入")
-	flag.StringVar(&f.imagePaths, "i", "", "图片文件路径（简写）")
-	flag.BoolVar(&f.showHelp, "help", false, "显示帮助信息")
-	flag.BoolVar(&f.showHelp, "h", false, "显示帮助信息（简写）")
-	flag.BoolVar(&f.showVersion, "version", false, "显示版本信息")
-	flag.BoolVar(&f.showVersion, "v", false, "显示版本信息（简写）")
+	flag.StringVar(&f.workspacePath, "workspace", "", "Set workspace path (default: current directory)")
+	flag.StringVar(&f.workspacePath, "w", "", "Set workspace path (short)")
+	flag.StringVar(&f.configPath, "config", "", "Set config file path (default: {workspace}/config.json)")
+	flag.StringVar(&f.configPath, "c", "", "Set config file path (short)")
+	flag.StringVar(&f.model, "model", "", "Temporarily specify model name (overrides config file)")
+	flag.StringVar(&f.model, "m", "", "Temporarily specify model name (short)")
+	flag.StringVar(&f.endpoint, "endpoint", "", "Temporarily specify API endpoint (overrides config file)")
+	flag.StringVar(&f.endpoint, "e", "", "Temporarily specify API endpoint (short)")
+	flag.StringVar(&f.apiKey, "api-key", "", "Temporarily specify API Key (overrides config file)")
+	flag.StringVar(&f.apiKey, "k", "", "Temporarily specify API Key (short)")
+	flag.StringVar(&f.log, "log", "", "Temporarily set log switch (on/off, overrides config file)")
+	flag.IntVar(&f.maxIterations, "max-iterations", -1, "Max iterations (-1 unlimited, default 1000)")
+	flag.StringVar(&f.agentName, "name", "", "Set agent name (default: co-shell; used for logs, sub-agent workspace, etc.)")
+	flag.StringVar(&f.agentName, "n", "", "Set agent name (short)")
+	flag.StringVar(&f.lang, "lang", "", "Set language (zh/en, default auto-detect)")
+	flag.StringVar(&f.imagePaths, "image", "", "Image file paths (comma-separated), for multimodal input")
+	flag.StringVar(&f.imagePaths, "i", "", "Image file paths (short)")
+	flag.BoolVar(&f.showHelp, "help", false, "Show help")
+	flag.BoolVar(&f.showHelp, "h", false, "Show help (short)")
+	flag.BoolVar(&f.showVersion, "version", false, "Show version")
+	flag.BoolVar(&f.showVersion, "v", false, "Show version (short)")
 
 	// LLM behavior parameters
-	flag.Float64Var(&f.temperature, "temperature", -1, "温度参数（0.0 ~ 2.0，覆盖配置文件）")
-	flag.IntVar(&f.maxTokens, "max-tokens", -1, "最大输出令牌数（覆盖配置文件）")
-	flag.Float64Var(&f.topP, "top-p", -1, "Top-P 采样参数（0.0 ~ 1.0，-1 不发送，覆盖配置文件）")
-	flag.IntVar(&f.topK, "top-k", -1, "Top-K 采样参数（>= 1 的整数，-1 不发送，覆盖配置文件）")
-	flag.Float64Var(&f.repetitionPenalty, "repetition-penalty", -1, "重复惩罚参数（0.0 ~ 2.0，-1 不发送，覆盖配置文件）")
-	flag.StringVar(&f.showLlmThinking, "show-llm-thinking", "", "显示 LLM 返回的思考内容（on/off，覆盖配置文件）")
+	flag.Float64Var(&f.temperature, "temperature", -1, "Temperature parameter (0.0 ~ 2.0, overrides config file)")
+	flag.IntVar(&f.maxTokens, "max-tokens", -1, "Max output tokens (overrides config file)")
+	flag.Float64Var(&f.topP, "top-p", -1, "Top-P sampling parameter (0.0 ~ 1.0, -1 not sent, overrides config file)")
+	flag.IntVar(&f.topK, "top-k", -1, "Top-K sampling parameter (>= 1, -1 not sent, overrides config file)")
+	flag.Float64Var(&f.repetitionPenalty, "repetition-penalty", -1, "Repetition penalty (0.0 ~ 2.0, -1 not sent, overrides config file)")
+	flag.StringVar(&f.showLlmThinking, "show-llm-thinking", "", "Show LLM thinking content (on/off, overrides config file)")
 
-	flag.StringVar(&f.showCommand, "show-command", "", "显示执行的系统命令（on/off，覆盖配置文件）")
-	flag.StringVar(&f.showLlmContent, "show-llm-content", "", "显示 LLM 返回的主要内容（on/off，覆盖配置文件）")
-	flag.StringVar(&f.showTool, "show-tool", "", "显示工具调用名称（on/off，覆盖配置文件）")
-	flag.StringVar(&f.showToolInput, "show-tool-input", "", "显示工具调用输入参数（on/off，覆盖配置文件）")
-	flag.StringVar(&f.showToolOutput, "show-tool-output", "", "显示工具调用返回数据（on/off，覆盖配置文件）")
-	flag.StringVar(&f.showCommandOutput, "show-command-output", "", "显示命令返回数据（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showCommand, "show-command", "", "Show executed system command (on/off, overrides config file)")
+	flag.StringVar(&f.showLlmContent, "show-llm-content", "", "Show LLM main content (on/off, overrides config file)")
+	flag.StringVar(&f.showTool, "show-tool", "", "Show tool call names (on/off, overrides config file)")
+	flag.StringVar(&f.showToolInput, "show-tool-input", "", "Show tool call input parameters (on/off, overrides config file)")
+	flag.StringVar(&f.showToolOutput, "show-tool-output", "", "Show tool call return data (on/off, overrides config file)")
+	flag.StringVar(&f.showCommandOutput, "show-command-output", "", "Show command return data (on/off, overrides config file)")
 	flag.StringVar(&f.outputCategories, "output-categories", "", "Output category switches (format: cat=on;cat2=off, e.g. bridge=off;subagent=off, overrides config)")
 
-	flag.StringVar(&f.confirmTool, "confirm-tool", "", "工具调用前需确认（on/off，覆盖配置文件）")
-	flag.StringVar(&f.resultMode, "result-mode", "", "结果处理模式（minimal/explain/analyze/free，覆盖配置文件）")
+	flag.StringVar(&f.confirmTool, "confirm-tool", "", "Require confirmation before tool calls (on/off, overrides config file)")
+	flag.StringVar(&f.resultMode, "result-mode", "", "Result processing mode (minimal/explain/analyze/free, overrides config file)")
 
 	// Agent identity parameters
-	flag.StringVar(&f.description, "description", "", "指定 agent 描述/专长（覆盖配置文件）")
+	flag.StringVar(&f.description, "description", "", "Set agent description/expertise (overrides config file)")
 
 	// Vision support
-	flag.StringVar(&f.vision, "vision", "", "视觉识别能力（on/off，覆盖配置文件）")
-	flag.StringVar(&f.visionContextMode, "vision-context-mode", "", "视觉模型上下文模式（minimal/full，默认 minimal；minimal 只发送系统提示词+识别指令，避免视觉模型上下文超限）")
+	flag.StringVar(&f.vision, "vision", "", "Vision capability (on/off, overrides config file)")
+	flag.StringVar(&f.visionContextMode, "vision-context-mode", "", "Vision model context mode (minimal/full, default minimal; minimal sends only system prompt + recognition instruction to avoid vision model context overflow)")
 
 	// Memory enabled
-	flag.StringVar(&f.memoryEnabled, "memory-enabled", "", "启用持久化记忆功能（覆盖配置文件）")
-	flag.StringVar(&f.memoryEnabled, "memory-disabled", "", "禁用持久化记忆功能（覆盖配置文件）")
+	flag.StringVar(&f.memoryEnabled, "memory-enabled", "", "Enable persistent memory (overrides config file)")
+	flag.StringVar(&f.memoryEnabled, "memory-disabled", "", "Disable persistent memory (overrides config file)")
 
 	// Plan enabled
-	flag.StringVar(&f.planEnabled, "plan-enabled", "", "启用任务计划功能（覆盖配置文件）")
-	flag.StringVar(&f.planEnabled, "plan-disabled", "", "禁用任务计划功能（覆盖配置文件）")
+	flag.StringVar(&f.planEnabled, "plan-enabled", "", "Enable task plan (overrides config file)")
+	flag.StringVar(&f.planEnabled, "plan-disabled", "", "Disable task plan (overrides config file)")
 
 	// SubAgent enabled
-	flag.StringVar(&f.subAgentEnabled, "subagent-enabled", "", "启用子代理功能（覆盖配置文件）")
-	flag.StringVar(&f.subAgentEnabled, "subagent-disabled", "", "禁用子代理功能（覆盖配置文件）")
+	flag.StringVar(&f.subAgentEnabled, "subagent-enabled", "", "Enable sub-agent (overrides config file)")
+	flag.StringVar(&f.subAgentEnabled, "subagent-disabled", "", "Disable sub-agent (overrides config file)")
 
 	// ToolCall enabled
-	flag.StringVar(&f.toolCallEnabled, "toolcall-enabled", "", "启用工具调用功能（on/off，覆盖配置文件）")
-	flag.StringVar(&f.toolCallEnabled, "toolcall-disabled", "", "禁用工具调用功能（覆盖配置文件）")
+	flag.StringVar(&f.toolCallEnabled, "toolcall-enabled", "", "Enable tool calls (on/off, overrides config file)")
+	flag.StringVar(&f.toolCallEnabled, "toolcall-disabled", "", "Disable tool calls (overrides config file)")
 
 	// ToolCall mode (FEATURE-182)
-	flag.StringVar(&f.toolCallMode, "toolcall-mode", "", "工具调用模式（openai/xml，覆盖配置文件）")
+	flag.StringVar(&f.toolCallMode, "toolcall-mode", "", "Tool call mode (openai/xml, overrides config file)")
 
 	// Timeout parameters
-	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "工具调用超时秒数（0=不限，覆盖配置文件）")
-	flag.IntVar(&f.cmdTimeout, "cmd-timeout", -1, "系统命令执行超时秒数（0=不限，覆盖配置文件）")
-	flag.IntVar(&f.llmTimeout, "llm-timeout", -1, "LLM API 请求超时秒数（0=不限，覆盖配置文件）")
+	flag.IntVar(&f.toolTimeout, "tool-timeout", -1, "Tool call timeout seconds (0=unlimited, overrides config file)")
+	flag.IntVar(&f.cmdTimeout, "cmd-timeout", -1, "System command timeout seconds (0=unlimited, overrides config file)")
+	flag.IntVar(&f.llmTimeout, "llm-timeout", -1, "LLM API request timeout seconds (0=unlimited, overrides config file)")
 
 	// Output mode
-	flag.StringVar(&f.outputMode, "output-mode", "", "LLM 前端输出模式（compact/normal/debug，覆盖配置文件）")
+	flag.StringVar(&f.outputMode, "output-mode", "", "LLM frontend output mode (compact/normal/debug, overrides config file)")
 
 	// Memory search config
-	flag.IntVar(&f.memorySearchMaxContentLen, "memory-search-max-content-len", -1, "记忆搜索内容最大字符长度（默认 512，覆盖配置文件）")
-	flag.IntVar(&f.memorySearchMaxResults, "memory-search-max-results", -1, "记忆搜索最大结果数（默认 100，覆盖配置文件）")
+	flag.IntVar(&f.memorySearchMaxContentLen, "memory-search-max-content-len", -1, "Memory search max content length (default 512, overrides config file)")
+	flag.IntVar(&f.memorySearchMaxResults, "memory-search-max-results", -1, "Memory search max results (default 100, overrides config file)")
 
 	// Error tracking config
-	flag.IntVar(&f.errorMaxSingleCount, "error-max-single-count", -1, "相同错误最大出现次数（默认 10，覆盖配置文件）")
-	flag.IntVar(&f.errorMaxTypeCount, "error-max-type-count", -1, "不同错误类型最大数量（默认 100，覆盖配置文件）")
+	flag.IntVar(&f.errorMaxSingleCount, "error-max-single-count", -1, "Max occurrences of same error (default 10, overrides config file)")
+	flag.IntVar(&f.errorMaxTypeCount, "error-max-type-count", -1, "Max distinct error types (default 100, overrides config file)")
 
 	// Log level
-	flag.StringVar(&f.logLevel, "log-level", "", "日志输出级别（debug/info/warn/error/off，覆盖配置文件）")
+	flag.StringVar(&f.logLevel, "log-level", "", "Log level (debug/info/warn/error/off, overrides config file)")
 
 	// Emoji enabled
-	flag.StringVar(&f.emojiEnabled, "emoji-enabled", "", "启用表情符号前缀（on/off，覆盖配置文件）")
+	flag.StringVar(&f.emojiEnabled, "emoji-enabled", "", "Enable emoji prefixes (on/off, overrides config file)")
 
 	// Token usage display mode
-	flag.StringVar(&f.tokenUsage, "token-usage", "", "Token 用量显示模式（on/off/none，覆盖配置文件）")
+	flag.StringVar(&f.tokenUsage, "token-usage", "", "Token usage display mode (on/off/none, overrides config file)")
 
 	// Show logo on startup
-	flag.StringVar(&f.showLogo, "show-logo", "", "显示启动 Logo（on/off，覆盖配置文件）")
+	flag.StringVar(&f.showLogo, "show-logo", "", "Show startup logo (on/off, overrides config file)")
 
 	// Session ID
-	flag.StringVar(&f.sessionID, "session-id", "", "指定会话 ID，加载已有会话或创建新会话（简写 -s）")
-	flag.StringVar(&f.sessionID, "s", "", "指定会话 ID（简写）")
+	flag.StringVar(&f.sessionID, "session-id", "", "Set session ID, load existing session or create new (short -s)")
+	flag.StringVar(&f.sessionID, "s", "", "Set session ID (short)")
 
 	// Context start mode
-	flag.StringVar(&f.contextPolicy, "context-policy", "", "上下文策略（window/task/smart/reorganize，覆盖配置文件）")
+	flag.StringVar(&f.contextPolicy, "context-policy", "", "Context policy (window/task/smart/reorganize, overrides config file)")
 
 	// External config file generation
-	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "在工作区生成默认 CAPABILITIES.md 文件并退出")
-	flag.BoolVar(&f.initRules, "init-rules", false, "在工作区生成默认 RULES.md 文件并退出")
+	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "Generate default CAPABILITIES.md in workspace and exit")
+	flag.BoolVar(&f.initRules, "init-rules", false, "Generate default RULES.md in workspace and exit")
 
 	// Loop intervention (FEATURE-267)
-	flag.StringVar(&f.loopIntervention, "loop-intervention", "", "循环介入策略（off/retry/prompt/reorganize/temperature/random，覆盖配置文件）")
+	flag.StringVar(&f.loopIntervention, "loop-intervention", "", "Loop intervention strategy (off/retry/prompt/reorganize/temperature/random, overrides config file)")
 
 	// Loop temperature adjustment CLI overrides (FEATURE-230)
-	flag.StringVar(&f.loopTempEnabled, "loop-temp-enabled", "", "启用循环温度自动调节（on/off，覆盖配置文件）")
-	flag.Float64Var(&f.loopTempStepUp, "loop-temp-step-up", -1, "循环温度上升步长（0.01~1.0，覆盖配置文件）")
-	flag.Float64Var(&f.loopTempStepDown, "loop-temp-step-down", -1, "循环温度下降步长（0.01~1.0，覆盖配置文件）")
-	flag.Float64Var(&f.loopTempMax, "loop-temp-max", -1, "循环温度上限（覆盖配置文件）")
-	flag.Float64Var(&f.loopTempMin, "loop-temp-min", -1, "循环温度下限（覆盖配置文件）")
+	flag.StringVar(&f.loopTempEnabled, "loop-temp-enabled", "", "Enable loop temperature auto-adjustment (on/off, overrides config file)")
+	flag.Float64Var(&f.loopTempStepUp, "loop-temp-step-up", -1, "Loop temperature up step (0.01~1.0, overrides config file)")
+	flag.Float64Var(&f.loopTempStepDown, "loop-temp-step-down", -1, "Loop temperature down step (0.01~1.0, overrides config file)")
+	flag.Float64Var(&f.loopTempMax, "loop-temp-max", -1, "Loop temperature max (overrides config file)")
+	flag.Float64Var(&f.loopTempMin, "loop-temp-min", -1, "Loop temperature min (overrides config file)")
 
 	// Body additions: custom JSON properties to add to the LLM request body
-	flag.StringVar(&f.bodyAdd, "body-add", "", "向 LLM 请求体添加自定义 JSON 属性（格式：key=value，可多次指定，用逗号分隔）")
+	flag.StringVar(&f.bodyAdd, "body-add", "", "Add custom JSON property to LLM request body (format: key=value, repeatable, comma-separated)")
 
 	// Input mode (FEATURE-198)
-	flag.StringVar(&f.inputMode, "input-mode", "", "REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）")
+	flag.StringVar(&f.inputMode, "input-mode", "", "REPL input mode (enhanced=interactive/stdio=standard input, overrides config file)")
 
 	// Unload mode (FEATURE-245)
-	flag.StringVar(&f.unloadMode, "unload-mode", "", "将当前模式各节配置卸载到 mode/<name>/ .md 文件")
+	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
 
 	// Debug mode
-	flag.StringVar(&f.debugMode, "debug", "", "启用调试模式（提交给 LLM 前显示并可编辑消息内容）")
+	flag.StringVar(&f.debugMode, "debug", "", "Enable debug mode (preview and edit messages before sending to LLM)")
 
 	// Work mode (FEATURE-288)
-	flag.StringVar(&f.workMode, "mode", "", "指定启动工作模式（act/plan/research，覆盖配置文件）")
+	flag.StringVar(&f.workMode, "mode", "", "Startup work mode (act/plan/research, overrides config file)")
 
 	// Thinking enabled (FEATURE-288)
-	flag.StringVar(&f.thinkingEnabled, "thinking-enabled", "", "启用 AI 思考功能（on/off/default，覆盖配置文件）")
+	flag.StringVar(&f.thinkingEnabled, "thinking-enabled", "", "Enable AI thinking (on/off/default, overrides config file)")
 
 	// Reasoning effort (FEATURE-288)
-	flag.StringVar(&f.reasoningEffort, "reasoning-effort", "", "推理努力程度（low/medium/high/max/none/default，覆盖配置文件）")
+	flag.StringVar(&f.reasoningEffort, "reasoning-effort", "", "Reasoning effort (low/medium/high/max/none/default, overrides config file)")
 
 	// Max retries (FEATURE-288)
-	flag.IntVar(&f.maxRetries, "max-retries", -1, "LLM 临时错误重试次数（默认 3，覆盖配置文件）")
+	flag.IntVar(&f.maxRetries, "max-retries", -1, "LLM transient error retries (default 3, overrides config file)")
 
 	// Context limit (FEATURE-288)
-	flag.IntVar(&f.contextLimit, "context-limit", -1, "对话上下文限制（-1=不限/0=不包含历史/N=最近N条，覆盖配置文件）")
+	flag.IntVar(&f.contextLimit, "context-limit", -1, "Conversation context limit (-1=unlimited/0=no history/N=last N messages, overrides config file)")
 
 	// Shell session enabled (FEATURE-288)
-	flag.StringVar(&f.shellSessionEnabled, "shell-session-enabled", "", "启用持续 Shell 会话（on/off，覆盖配置文件）")
+	flag.StringVar(&f.shellSessionEnabled, "shell-session-enabled", "", "Enable persistent shell session (on/off, overrides config file)")
 
 	// Browser enabled (FEATURE-288)
-	flag.StringVar(&f.browserEnabled, "browser-enabled", "", "启用浏览器自动化（on/off，覆盖配置文件）")
+	flag.StringVar(&f.browserEnabled, "browser-enabled", "", "Enable browser automation (on/off, overrides config file)")
 
 	// Custom usage message
 	flag.Usage = func() {
@@ -417,7 +417,7 @@ func main() {
 		ep := config.GetEmojiPrefixes(true)
 		capPath := filepath.Join(ws.Root(), "CAPABILITIES.md")
 		if _, err := os.Stat(capPath); err == nil {
-			io.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, capPath)
+			io.Printf("%s %s %s\n", ep.Warning, capPath, i18n.T(i18n.KeyFileExistsSkip))
 			os.Exit(0)
 		}
 		content := i18n.T(i18n.KeySystemPromptCapabilities)
@@ -425,7 +425,7 @@ func main() {
 			io.ErrPrintf("Error: cannot write %s: %v\n", capPath, err)
 			os.Exit(1)
 		}
-		io.Printf("%s 已生成默认 CAPABILITIES.md: %s\n", ep.Success, capPath)
+		io.Printf("%s %s %s\n", ep.Success, i18n.T(i18n.KeyGeneratedDefaultCAPABILITIES), capPath)
 		os.Exit(0)
 	}
 
@@ -433,7 +433,7 @@ func main() {
 		ep := config.GetEmojiPrefixes(true)
 		rulesPath := filepath.Join(ws.Root(), "RULES.md")
 		if _, err := os.Stat(rulesPath); err == nil {
-			io.Printf("%s %s 已存在，跳过生成。\n", ep.Warning, rulesPath)
+			io.Printf("%s %s %s\n", ep.Warning, rulesPath, i18n.T(i18n.KeyFileExistsSkip))
 			os.Exit(0)
 		}
 		content := i18n.T(i18n.KeySystemPromptRules)
@@ -441,7 +441,7 @@ func main() {
 			io.ErrPrintf("Error: cannot write %s: %v\n", rulesPath, err)
 			os.Exit(1)
 		}
-		io.Printf("%s 已生成默认 RULES.md: %s\n", ep.Success, rulesPath)
+		io.Printf("%s %s %s\n", ep.Success, i18n.T(i18n.KeyGeneratedDefaultRULES), rulesPath)
 		os.Exit(0)
 	}
 
@@ -1246,8 +1246,8 @@ func main() {
 		// Check if the current model supports vision
 		if !cfg.LLM.VisionSupport {
 			ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
-			io.ErrPrintf("%s 错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。\n", ep.Error)
-			io.ErrPrintf("   请去掉-image参数或使用支持多模态的模型。\n")
+			io.ErrPrintf("%s %s\n", ep.Error, i18n.T(i18n.KeyVisionNotSupported))
+			io.ErrPrintf("   %s\n", i18n.T(i18n.KeyVisionUseMultimodalModel))
 			os.Exit(1)
 		}
 		paths := strings.Split(flags.imagePaths, ",")

@@ -250,6 +250,33 @@ var enMessages = map[string]string{
 	KeyCleaningUp:     "Cleaning up...",
 	KeyDone:           " Done.",
 
+	// FEATURE-305: repl.go C 类基础设施
+	KeyDBSyncStart:        "%s Detected PostgreSQL connection, starting auto-sync of local data...\n",
+	KeyDBSyncPartial:      "%s  Partial sync failed: %v\n",
+	KeyDBSyncComplete:     "%s Data sync complete!\n",
+	KeyDBConnectedNoSync:  "%s PostgreSQL connected (auto-sync disabled)\n",
+	KeyDotPrefixHint1:     "\n%s Hint: Your input starts with '.', which may be an attempted builtin command.\n",
+	KeyDotPrefixHint2:     "  Builtin commands start with ':', e.g. :settings, :model.\n",
+	KeyDotPrefixAskLLM:    "  Send this content to the LLM instead?\n\n",
+	KeyDotPrefixChoose:    "  Choose: [Enter] send to LLM  [C] cancel: ",
+	KeyDotPrefixCancelled: "%s Cancelled\n",
+	KeyNewSessionTitle:    "New session %d",
+	KeyNewSessionCreated:  "%s New session created: %s\n",
+	KeySessionPopEdit:     "%s Popped the last message:\n%s\n",
+	KeySessionPopEditHint: "Edit and press Enter to submit, or press Enter to skip:",
+	KeySessionPopSkipped:  "Skipped, message removed.",
+	KeyBodyAddUsage:       "Usage: .body-add key=value",
+	KeyBodyAddInvalidFmt:  "Invalid format %q, use key=value format",
+	KeyBodyAddEmptyKey:    "Key cannot be empty",
+	KeyBodyAddSaveFail:    "Failed to save config: %w",
+	KeyBodyAddDone:        "Added %d custom properties to LLM request body",
+	KeyBodyRemoveUsage:    "Usage: .body-remove key",
+	KeyBodyRemoveNone:     "No custom properties to remove",
+	KeyBodyRemoveNotFound: "Property not found",
+	KeyBodyRemoveDone:     "Removed %d custom properties",
+	KeyBodyDisplayEmpty:   "No custom properties",
+	KeyBodyDisplayTitle:   "LLM request body custom properties:\n",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",
@@ -437,6 +464,13 @@ no liability whatsoever.`,
 	KeyDisclaimerYes:     "y",
 	KeyDisclaimerNo:      "n",
 	KeyDisclaimerRefused: "You have declined the disclaimer. Exiting.",
+
+	// FEATURE-305: CLI init-capabilities/init-rules and vision error messages
+	KeyFileExistsSkip:               "already exists, skipping generation.",
+	KeyGeneratedDefaultCAPABILITIES: "Generated default CAPABILITIES.md:",
+	KeyGeneratedDefaultRULES:        "Generated default RULES.md:",
+	KeyVisionNotSupported:           "Error: the current model does not support vision (VisionSupport=off), cannot process image input.",
+	KeyVisionUseMultimodalModel:     "Please remove the -image parameter or use a multimodal-capable model.",
 
 	// Wizard command
 	KeyWizardCmdRunning: "🔄 Starting API setup wizard...\n",
