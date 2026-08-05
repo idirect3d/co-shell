@@ -16,38 +16,12 @@
 |------|------|------|------|
 | FEATURE-301 | 0.7.0 | P1 | ✅ 已完成（事件双枚举 + 回归基线 [BUILD-340]） |
 | FEATURE-302 | 0.7.0 | P2 | ✅ 已完成（Out/RenderCommand + 渲染合并 [BUILD-341]） |
-| FEATURE-303 | 0.7.0 | P3 | 向导迁移（B 类）+ i18n 归零第一步 |
-| FEATURE-304 | 0.7.0 | P4 | 外部入口迁移 + 分类开关 |
+| FEATURE-303 | 0.7.0 | P3 | ✅ 已完成（向导迁移（B 类）+ i18n 归零第一步 [BUILD-342]） |
+| FEATURE-304 | 0.7.0 | P4 | ✅ 已完成（外部入口迁移 + 分类开关 [BUILD-343]） |
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
 | FEATURE-306 | 0.7.1 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
 | FEATURE-307 | 0.7.2 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.3 | tui v2 | FullScreenRenderer（可选分支） |
-| FIX-309 | 0.7.0 | P1 | ✅ 已完成（stripCodeBlockXML 闭合行处理缺陷 [BUILD-344]） |
-| FEATURE-310 | 0.7.0 | P6 | ✅ 已完成（工具调用意图+个性化摘要显示：buildToolSummary 统一构建摘要，i18n 模板个性化话术，与 show-tool 共享显示控制 [BUILD-345]） |
-| FIX-312 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式系统提示词出现 "==== system_prompt_tool_usage"：i18n.lookup() 改为返回 (string,bool) 区分「空值翻译」与「缺失 key」，T() 对空值返回 ""（合法「无内容」语义）；修正 zh/en_system.go 中 KeySystemPromptToolUsage 值从含换行 raw string 改为真正空字符串 ""；新增 i18n 单元测试 [BUILD-346]） |
-| FIX-313 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 ToolExamples 节误用 XML 格式示例：buildNamedSection/getRawSectionText 的 ToolExamples case 按 cfg.LLM.ToolCallMode 分支——OpenAI 用 KeySystemPromptToolUsageExamples（JSON 格式），其他用 XML 格式；补全 zh/en 示例 intent 必填字段；孤儿 key 恢复使用 [BUILD-347]） |
-| FIX-314 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 parse-error-action=retry 时方法调用及错误结果不应进入上下文：executeToolCall 失败（JSON 解析错误/缺参数）后回滚 assistant(tool_calls) 消息并 continue iterationLoop 干净重发；新增 KeyToolExecRetry i18n key（zh/en）向用户显示 UI 错误提示（不进 LLM 上下文）[BUILD-348]） |
-| FIX-315 | 0.7.0 | P1 | ✅ 已完成（:rule 添加的自定义规则未进入系统提示词：KeySystemPromptRules 翻译补 {CUSTOM_RULES} 占位符（zh/en），使 :rule 规则经 buildSectionWithPlaceholders 注入；英文 Rules 对齐中文 4 条平铺规则（补 XML 转义规则，去 MUST/Recommendations 分层）[BUILD-349]） |
-| FIX-316 | 0.7.0 | P1 | ✅ 已完成（工具执行后必显输出：attempt_completion 显示 ✅ 任务完成+result 全量、track_task_progress 显示完整计划、read/write/replace/search/exec 显示动作概要（含实际命令+intent/行数/替换数/匹配数）；统一走 StreamRenderer EventToolCall 通道，受 showTool 控制，带工具图标引导；trackTaskProgressTool 去裸 Println [BUILD-350]） |
-| FIX-317 | 0.7.0 | P1 | ✅ 已完成（OpenAI 模式 replace_in_file 执行失败死循环：FIX-314 retry 静默丢弃错误使 LLM 无法修正。现按错误分流：`cannot parse tool arguments`（JSON 语法错）→保留静默重发自纠；path 不存在/SEARCH 不匹配/缺参等其他错误→回灌 formatToolError 结构化反馈（ERROR DETAILS+CORRECTION INSTRUCTIONS）让 LLM 修正 [BUILD-351]） |
-| FIX-318 | 0.7.0 | P1 | ✅ 已完成（reorganize_context 触发 OpenAI 400：工具执行阶段清空 a.messages 导致 tool 结果消息成为孤儿，违反"tool 必须跟在带 tool_calls 的 assistant 之后"。修复：reorganizeContextTool 仅置 reorganizeContextUsed 标志不再清空历史；run_stream.go / run.go 在工具结果全部追加后调用 collapseAfterReorganize() 折叠为 [system, user(summary)]；新增单元测试覆盖 OpenAI/XML/非流式/无 user/标志未置五场景 [BUILD-352]） |
-| FEATURE-319 | 0.7.0 | P2 | ✅ 已完成（视觉模型上下文控制：主模型上下文限制大于视觉模型时，发送给视觉模型的内容可只含系统提示词+识别指令，避免上下文超限。新增 vision-context-mode 参数（minimal/full，默认 minimal），minimal 模式 buildContextMessages 折叠为 [system, user(intent 识别指令+图片)]；visual_analysis 的 intent 参数作为识别指令；支持 config.json/--vision-context-mode CLI/:set vision-context-mode 三通道，默认值重置、i18n 帮助 [BUILD-353]） |
-| FIX-320 | 0.7.0 | P1 | ✅ 已完成（execute_command 超时 goroutine 误杀后台任务：executeSystemCommand 中命令提前结束时超时 goroutine 仍残留，到点无条件 kill(-pid)，可能误杀仍留在原进程组的后台子进程（如 `sleep 300 &`）；且 REPL 路径 ExecuteCommandDirectly 未设置进程组，管道孙进程超时后泄漏。修复：LLM 路径引入 done channel 在 Wait 返回后通知超时 goroutine 放弃 kill + Process.Release 释放 PID；REPL 路径弃用 CommandContext 统一为 exec.Command + setProcessGroupAttr + 手动超时 goroutine。新增 command_tools_test.go 5 个单元测试（后台任务不被误杀/超时正常触发/管道孙进程连锅端/无超时自然运行），use-case/FIX-320 6 个运行时用例；运行时验证 UC-0001（后台 sleep 300 超时窗口后仍存活）与 UC-0003（管道孙进程超时连锅端）通过 [BUILD-354]） |
-| FIX-321 | 0.7.0 | P1 | ✅ 已完成（循环反馈消息补全 environment_details + retry_count 重试计数机制：循环干预（sync 循环分支与 applyLoopIntervention）产生的 user 消息仅含纯文本 feedback，缺少其他 user 消息都具备的 `<environment_details>` 块。修复：envelope.go 新增 applyLoopFeedback 统一入口 + tag helpers（loop_feedback/retry_count 读写）；feedback 非空（prompt/reorganize）创建带完整 env 的 feedback 消息、已存在时原地替换文本递增计数；feedback 为空（retry/temperature）不新增消息，仅在最后一个 user 消息 env 递增 retry_count（无 env 先补完整 env）；计数只存在于消息上下文中，不设 Agent 状态字段、无归零。新增 loop_retry_test.go 11 个单测覆盖三种状态×两种处理方式判定矩阵、temperature 一致性、无 env 消息、完整 env 校验、多轮循环链 [BUILD-355]） |
-
-| FIX-322 | 0.7.0 | P1 | ✅ 已完成（循环二次判定 exit_strategy 质量升级：judgeLoop 仅凭 SUSPECT_CONTENT 判定，无法感知 cwd/可用工具/文件线索，导致给 LLM 的下一步指令空泛。修复：A) 系统提示词加入 exit_strategy 编写六要求——动作性动词开头/明确作用对象/可落地下一步/信息不足时指明提问/禁止空泛话术/场景分类指导，扩展 5 类样例、is_loop=true 必须非空约束；B) user 模板新增 {CONTEXT} 块，buildJudgeContext 填充 cwd/workspace/最近文件路径/可用工具列表（含 mcpMgr nil 保护）；D) 服务端空值兜底——is_loop=true 且 exit_strategy 为空时回退 KeyLoopJudgeFallback 可操作指令。新增 loop_judge_test.go 3 个单测（context 构建/user 模板填充/兜底 key），zh/en 双语同步 [BUILD-356]） |
-
-| FEATURE-323 | 0.7.0 | P1 | ✅ 已完成（工具执行结果回显优化：普通工具执行成功后，事件流中连续输出"执行前摘要"与"执行后结果回执"两行（`[⚙️]< 读取文件...` 与 `[⚙️]< 读取 xx 文件...`），内容重复。修复：run_stream.go 工具执行循环中，普通工具执行成功时不再 emit FIX-316 的 buildToolOutcome 回执（与执行前摘要重复）；仅当 execErr != nil（执行失败）时 emit EventError 显示错误原因（与回灌 LLM 的结构化 result 一致）；attempt_completion/track_task_progress/view_task_plan 三类工具仍显示完整 result。go vet + agent 全量测试通过 [BUILD-357]） |
-
-| FEATURE-324 | 0.7.0 | P1 | ✅ 已完成（工具返回结果标记优化：工具为空 result 时，返回消息中 `[意图] xxx` 成为唯一内容，易被 LLM 误认为结果是意图文本。修复：intent 拼接改为三段式——`[返回结果][实际结果或空]\n\n[意图] xxx`，明确区分"返回结果"与"意图"；[返回结果]/[意图] 标签 i18n key 化（zh/en 双语），OpenAI 与 XML 模式共用同一条 intent 拼接（均走 executeToolCall 返回）。go vet + agent/i18n 测试通过 [BUILD-358]） |
-
-| FEATURE-325 | 0.7.0 | P1 | ✅ 已完成（工具显示去重：流式实时预览 `[🔧 工具名]`（stream_response.go，showTool 控制）与执行前摘要 `[⚙️]< 工具名摘要`（run_stream.go，showTool 控制）都由 showTool 控制且内容重复。修复：删除 stream_response.go 中 StreamEventToolCall 分支的实时预览块（`[🔧 工具名]`），仅保留执行前摘要，用户看到每个工具只显示一次 `[⚙️]< ...`。go vet + agent 全量测试通过 [BUILD-359]） |
-| FEATURE-326 | 0.7.0 | P1 | ✅ 已完成（默认参数调整：show-tool-input/show-tool-output/show-command/show-command-output 四项显示开关默认值统一改为 false（off）；toolcall-mode 默认值从 xml 改为 openai。修复位置 config/config.go DefaultConfig() [BUILD-360]） |
-| FEATURE-327 | 0.7.0 | P1 | ✅ 已完成（循环重试次数熔断提示：复用上下文中 `<retried_count>` 标签（原 retry_count，改名后语义为"已完成重试次数"）与 error-max-single-count 参数。envelope.go 新增 checkRetryCountLimit：循环介入递增 retried_count 后若达到阈值则提示用户处理（回车继续并重置 retried_count=1 / C 取消 / A 忽略全部抑制后续提示）；定位从"最后 user 消息"扩展为"最后 user 或 tool 消息"，OpenAI 模式下计数挂在被删消息前一条 tool 上体现重试起点；feedback 文本仍只追加为 user 消息不覆盖 tool 结果。三处接入：run_stream.go sync 循环分支、loop.go applyLoopIntervention、run_stream.go 工具调用循环（原忽略返回值改为检查）。不改变现有 errorCounter 机制。新增 loop_retry_limit_test.go 9 个单测 [BUILD-362]） |
-| FEATURE-328 | 0.7.0 | P1 | ✅ 已完成（文件写入/修改流式渲染用户体验优化：write_to_file 内容按行号增量显示（git diff 风格 `N+ 内容`），replace_in_file search/replace 逐行实时显示（search 行 `-`、replace 行 `+`），replace 块指定 start_line 时显示真实行号、未指定则不显示；OpenAI 模式 JSON arguments 值片段增加转义解码（`\n`→换行等）使换行渲染与 XML 模式一致；ToolCallRenderer 重构为行式状态机，JSON 解析器仅影响渲染值不影响原始累积；新增 toolcall_stream_test.go 单测 11 个（含 FEATURE-328 UC-0001~0006）[BUILD-367]） |
-| FIX-311 | 0.7.0 | P1 | ✅ 已完成（show-loop-detection 默认值修正为 false：config.go DefaultConfig() 中 ShowLoopDetection 实际为 true 与字段注释 `Default: false` 矛盾。修复：将 DefaultConfig() 默认值改为 false，与字段注释及 FEATURE-241 设计意图（默认不显示完整判定详情，避免刷屏）一致。只改 config/config.go 一处，go build + go vet + agent 测试通过 [BUILD-363]） |
-| FEATURE-235 | 0.7.0 | P1 | ✅ 已完成（工具调用流式识别与实时渲染：LLM 流式输出过程中（XML 与 OpenAI 两种模式）实时解析工具调用串。XML 模式通过 FSA 逐字符解析 content 中的 `<cs:tool>` 标签；OpenAI 模式通过流式 JSON Tokenizer 逐字符解析 arguments 增量（llm/client.go 增加 StreamEventToolCallDelta 实时通道，并在 llm-interaction 日志记录 [RESP][tool_calls 逐 chunk 到达粒度）。两套解析器各自独立错误检测，输出同构 RenderOp 渲染事件流，由统一 ToolCallRenderer 渲染（新增 EventToolCallStream 事件）。渲染规则：方法名首行由 show-tool 门控，动态参数/内容/diff 由 show-tool-input 门控完整展开；content 通道常驻 XMLToolCallParser（不依赖 tool-call-mode，普通文本产出 OpPlainText 归还普通输出，`<cs:` 转入工具渲染并靠 PendingToolCall 防止整段工具调用回落原文）；解析错误立即 streamCancel 中止，走现有 parse-error-action。循环检测（FIX-179/LoopLongOutputThreshold/loopDetectSyncErr）上移到 StreamEventContent 分支最前，确保工具渲染 continue 不会绕过。新增 toolcall_renderop.go / toolcall_parser_xml.go / toolcall_parser_json.go / toolcall_stream_test.go（9 个单测），修改 llm/client.go / events.go / stream_response.go / stream_renderer.go / main.go（BUILD 364→365）[BUILD-365]） |
-| FEATURE-236 | 0.7.0 | P1 | ✅ 已完成（输出前导提示表情符号后统一加空格：`[⚙️]` → `[⚙️ ]`。调研发现运行时前缀实际硬编码于 config.GetEmojiPrefixes() 而非 i18n 资源，故同步修改：1) i18n/zh.go + i18n/en.go 的 KeyEmojiPrefix* 系列 12 项 zh/en 双语；2) config/config.go GetEmojiPrefixes() emoji enabled 分支全部 13 项（含 VisionUserInput/Loop，禁用分支纯文本标签未动）；3) 同步更新 repl/render_tui.golden 与 testdata/render_single_cmd.golden 前缀基线；4) 顺带修复 pre-existing TestRenderSingleCmdGolden 失配——单命令模式 token 渲染死代码引用已废弃空串 KeyTokenUsageTiming 产生 `%!(EXTRA...)` 乱码行，删除后重新生成 golden。go build/vet/test 全量通过（10 包全绿）[BUILD-368]） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
@@ -938,6 +912,10 @@
 
 ### 功能清单
 
+- [x] **FEATURE-235 工具调用流式识别与实时渲染（P1）**：LLM 流式输出过程中（XML 与 OpenAI 两种模式）实时解析工具调用串。XML 模式通过 FSA 逐字符解析 content 中的 `<cs:tool>` 标签；OpenAI 模式通过流式 JSON Tokenizer 逐字符解析 arguments 增量（llm/client.go 增加 StreamEventToolCallDelta 实时通道，并在 llm-interaction 日志记录 [RESP][tool_calls 逐 chunk 到达粒度）。两套解析器各自独立错误检测，输出同构 RenderOp 渲染事件流，由统一 ToolCallRenderer 渲染（新增 EventToolCallStream 事件）。渲染规则：方法名首行由 show-tool 门控，动态参数/内容/diff 由 show-tool-input 门控完整展开；content 通道常驻 XMLToolCallParser（不依赖 tool-call-mode，普通文本产出 OpPlainText 归还普通输出，`<cs:` 转入工具渲染并靠 PendingToolCall 防止整段工具调用回落原文）；解析错误立即 streamCancel 中止，走现有 parse-error-action。循环检测（FIX-179/LoopLongOutputThreshold/loopDetectSyncErr）上移到 StreamEventContent 分支最前，确保工具渲染 continue 不会绕过。新增 toolcall_renderop.go / toolcall_parser_xml.go / toolcall_parser_json.go / toolcall_stream_test.go（9 个单测），修改 llm/client.go / events.go / stream_response.go / stream_renderer.go / main.go（BUILD 364→365）[BUILD-365]
+
+- [x] **FEATURE-236 输出前导提示表情符号后统一加空格（P1）**：`[⚙️]` → `[⚙️ ]`。调研发现运行时前缀实际硬编码于 config.GetEmojiPrefixes() 而非 i18n 资源，故同步修改：1) i18n/zh.go + i18n/en.go 的 KeyEmojiPrefix* 系列 12 项 zh/en 双语；2) config/config.go GetEmojiPrefixes() emoji enabled 分支全部 13 项（含 VisionUserInput/Loop，禁用分支纯文本标签未动）；3) 同步更新 repl/render_tui.golden 与 testdata/render_single_cmd.golden 前缀基线；4) 顺带修复 pre-existing TestRenderSingleCmdGolden 失配——单命令模式 token 渲染死代码引用已废弃空串 KeyTokenUsageTiming 产生 `%!(EXTRA...)` 乱码行，删除后重新生成 golden。go build/vet/test 全量通过（10 包全绿）[BUILD-368]
+
 - [x] **FEATURE-301 输出/输入事件双枚举重构（P1）**：[BUILD-340]
   - 新增 agent/events.go（13 输出事件常量）+ agent/input.go（12 InputKind 常量）
   - agent/loop.go / run_stream.go / stream_response.go 的 63 处 cb 魔法字符串替换为常量；repl.go/main.go switch 同步用 agent.Event 常量
@@ -996,6 +974,42 @@
   - `agent/tools.go`：确认提示的 `displayStr` 改为摘要（含 intent），便于用户确认前掌握调用影响
   - 新增 `agent/tool_summary_test.go`：7 个测试函数覆盖 fallback/文本工具/长内容截断/shell/文档/零参数/i18n key 双存在
   - 验收：`go build ./...`、`go test ./...`（含渲染 golden 回归）、`go vet ./agent/...` 全绿；用例 FEATURE-310-UC-0001 通过
+
+- [x] **FIX-311 show-loop-detection 默认值修正为 false（P1）**：config.go DefaultConfig() 中 ShowLoopDetection 实际为 true 与字段注释 `Default: false` 矛盾。将 DefaultConfig() 默认值改为 false，与字段注释及 FEATURE-241 设计意图（默认不显示完整判定详情，避免刷屏）一致。只改 config/config.go 一处，go build + go vet + agent 测试通过 [BUILD-363]
+
+- [x] **FIX-312 OpenAI 模式系统提示词出现 "==== system_prompt_tool_usage"（P1）**：i18n.lookup() 改为返回 (string,bool) 区分「空值翻译」与「缺失 key」，T() 对空值返回 ""（合法「无内容」语义）；修正 zh/en_system.go 中 KeySystemPromptToolUsage 值从含换行 raw string 改为真正空字符串 ""；新增 i18n 单元测试 [BUILD-346]
+
+- [x] **FIX-313 OpenAI 模式 ToolExamples 节误用 XML 格式示例（P1）**：buildNamedSection/getRawSectionText 的 ToolExamples case 按 cfg.LLM.ToolCallMode 分支——OpenAI 用 KeySystemPromptToolUsageExamples（JSON 格式），其他用 XML 格式；补全 zh/en 示例 intent 必填字段；孤儿 key 恢复使用 [BUILD-347]
+
+- [x] **FIX-314 OpenAI 模式 parse-error-action=retry 时方法调用及错误结果不应进入上下文（P1）**：executeToolCall 失败（JSON 解析错误/缺参数）后回滚 assistant(tool_calls) 消息并 continue iterationLoop 干净重发；新增 KeyToolExecRetry i18n key（zh/en）向用户显示 UI 错误提示（不进 LLM 上下文）[BUILD-348]
+
+- [x] **FIX-315 :rule 添加的自定义规则未进入系统提示词（P1）**：KeySystemPromptRules 翻译补 {CUSTOM_RULES} 占位符（zh/en），使 :rule 规则经 buildSectionWithPlaceholders 注入；英文 Rules 对齐中文 4 条平铺规则（补 XML 转义规则，去 MUST/Recommendations 分层）[BUILD-349]
+
+- [x] **FIX-316 工具执行后必显输出（P1）**：attempt_completion 显示 ✅ 任务完成+result 全量、track_task_progress 显示完整计划、read/write/replace/search/exec 显示动作概要（含实际命令+intent/行数/替换数/匹配数）；统一走 StreamRenderer EventToolCall 通道，受 showTool 控制，带工具图标引导；trackTaskProgressTool 去裸 Println [BUILD-350]
+
+- [x] **FIX-317 OpenAI 模式 replace_in_file 执行失败死循环（P1）**：FIX-314 retry 静默丢弃错误使 LLM 无法修正。现按错误分流：`cannot parse tool arguments`（JSON 语法错）→保留静默重发自纠；path 不存在/SEARCH 不匹配/缺参等其他错误→回灌 formatToolError 结构化反馈（ERROR DETAILS+CORRECTION INSTRUCTIONS）让 LLM 修正 [BUILD-351]
+
+- [x] **FIX-318 reorganize_context 触发 OpenAI 400（P1）**：工具执行阶段清空 a.messages 导致 tool 结果消息成为孤儿，违反"tool 必须跟在带 tool_calls 的 assistant 之后"。修复：reorganizeContextTool 仅置 reorganizeContextUsed 标志不再清空历史；run_stream.go / run.go 在工具结果全部追加后调用 collapseAfterReorganize() 折叠为 [system, user(summary)]；新增单元测试覆盖 OpenAI/XML/非流式/无 user/标志未置五场景 [BUILD-352]
+
+- [x] **FEATURE-319 视觉模型上下文控制（P2）**：主模型上下文限制大于视觉模型时，发送给视觉模型的内容可只含系统提示词+识别指令，避免上下文超限。新增 vision-context-mode 参数（minimal/full，默认 minimal），minimal 模式 buildContextMessages 折叠为 [system, user(intent 识别指令+图片)]；visual_analysis 的 intent 参数作为识别指令；支持 config.json/--vision-context-mode CLI/:set vision-context-mode 三通道，默认值重置、i18n 帮助 [BUILD-353]
+
+- [x] **FIX-320 execute_command 超时 goroutine 误杀后台任务（P1）**：executeSystemCommand 中命令提前结束时超时 goroutine 仍残留，到点无条件 kill(-pid)，可能误杀仍留在原进程组的后台子进程（如 `sleep 300 &`）；且 REPL 路径 ExecuteCommandDirectly 未设置进程组，管道孙进程超时后泄漏。修复：LLM 路径引入 done channel 在 Wait 返回后通知超时 goroutine 放弃 kill + Process.Release 释放 PID；REPL 路径弃用 CommandContext 统一为 exec.Command + setProcessGroupAttr + 手动超时 goroutine。新增 command_tools_test.go 5 个单元测试（后台任务不被误杀/超时正常触发/管道孙进程连锅端/无超时自然运行），use-case/FIX-320 6 个运行时用例；运行时验证 UC-0001（后台 sleep 300 超时窗口后仍存活）与 UC-0003（管道孙进程超时连锅端）通过 [BUILD-354]
+
+- [x] **FIX-321 循环反馈消息补全 environment_details + retry_count 重试计数机制（P1）**：循环干预（sync 循环分支与 applyLoopIntervention）产生的 user 消息仅含纯文本 feedback，缺少其他 user 消息都具备的 `<environment_details>` 块。修复：envelope.go 新增 applyLoopFeedback 统一入口 + tag helpers（loop_feedback/retry_count 读写）；feedback 非空（prompt/reorganize）创建带完整 env 的 feedback 消息、已存在时原地替换文本递增计数；feedback 为空（retry/temperature）不新增消息，仅在最后一个 user 消息 env 递增 retry_count（无 env 先补完整 env）；计数只存在于消息上下文中，不设 Agent 状态字段、无归零。新增 loop_retry_test.go 11 个单测覆盖三种状态×两种处理方式判定矩阵、temperature 一致性、无 env 消息、完整 env 校验、多轮循环链 [BUILD-355]
+
+- [x] **FIX-322 循环二次判定 exit_strategy 质量升级（P1）**：judgeLoop 仅凭 SUSPECT_CONTENT 判定，无法感知 cwd/可用工具/文件线索，导致给 LLM 的下一步指令空泛。修复：A) 系统提示词加入 exit_strategy 编写六要求——动作性动词开头/明确作用对象/可落地下一步/信息不足时指明提问/禁止空泛话术/场景分类指导，扩展 5 类样例、is_loop=true 必须非空约束；B) user 模板新增 {CONTEXT} 块，buildJudgeContext 填充 cwd/workspace/最近文件路径/可用工具列表（含 mcpMgr nil 保护）；D) 服务端空值兜底——is_loop=true 且 exit_strategy 为空时回退 KeyLoopJudgeFallback 可操作指令。新增 loop_judge_test.go 3 个单测（context 构建/user 模板填充/兜底 key），zh/en 双语同步 [BUILD-356]
+
+- [x] **FEATURE-323 工具执行结果回显优化（P1）**：普通工具执行成功后，事件流中连续输出"执行前摘要"与"执行后结果回执"两行（`[⚙️]< 读取文件...` 与 `[⚙️]< 读取 xx 文件...`），内容重复。修复：run_stream.go 工具执行循环中，普通工具执行成功时不再 emit FIX-316 的 buildToolOutcome 回执（与执行前摘要重复）；仅当 execErr != nil（执行失败）时 emit EventError 显示错误原因（与回灌 LLM 的结构化 result 一致）；attempt_completion/track_task_progress/view_task_plan 三类工具仍显示完整 result。go vet + agent 全量测试通过 [BUILD-357]
+
+- [x] **FEATURE-324 工具返回结果标记优化（P1）**：工具为空 result 时，返回消息中 `[意图] xxx` 成为唯一内容，易被 LLM 误认为结果是意图文本。修复：intent 拼接改为三段式——`[返回结果][实际结果或空]\n\n[意图] xxx`，明确区分"返回结果"与"意图"；[返回结果]/[意图] 标签 i18n key 化（zh/en 双语），OpenAI 与 XML 模式共用同一条 intent 拼接（均走 executeToolCall 返回）。go vet + agent/i18n 测试通过 [BUILD-358]
+
+- [x] **FEATURE-325 工具显示去重（P1）**：流式实时预览 `[🔧 工具名]`（stream_response.go，showTool 控制）与执行前摘要 `[⚙️]< 工具名摘要`（run_stream.go，showTool 控制）都由 showTool 控制且内容重复。修复：删除 stream_response.go 中 StreamEventToolCall 分支的实时预览块（`[🔧 工具名]`），仅保留执行前摘要，用户看到每个工具只显示一次 `[⚙️]< ...`。go vet + agent 全量测试通过 [BUILD-359]
+
+- [x] **FEATURE-326 默认参数调整（P1）**：show-tool-input/show-tool-output/show-command/show-command-output 四项显示开关默认值统一改为 false（off）；toolcall-mode 默认值从 xml 改为 openai。修复位置 config/config.go DefaultConfig() [BUILD-360]
+
+- [x] **FEATURE-327 循环重试次数熔断提示（P1）**：复用上下文中 `<retried_count>` 标签（原 retry_count，改名后语义为"已完成重试次数"）与 error-max-single-count 参数。envelope.go 新增 checkRetryCountLimit：循环介入递增 retried_count 后若达到阈值则提示用户处理（回车继续并重置 retried_count=1 / C 取消 / A 忽略全部抑制后续提示）；定位从"最后 user 消息"扩展为"最后 user 或 tool 消息"，OpenAI 模式下计数挂在被删消息前一条 tool 上体现重试起点；feedback 文本仍只追加为 user 消息不覆盖 tool 结果。三处接入：run_stream.go sync 循环分支、loop.go applyLoopIntervention、run_stream.go 工具调用循环（原忽略返回值改为检查）。不改变现有 errorCounter 机制。新增 loop_retry_limit_test.go 9 个单测 [BUILD-362]
+
+- [x] **FEATURE-328 文件写入/修改流式渲染用户体验优化（P1）**：write_to_file 内容按行号增量显示（git diff 风格 `N+ 内容`），replace_in_file search/replace 逐行实时显示（search 行 `-`、replace 行 `+`），replace 块指定 start_line 时显示真实行号、未指定则不显示；OpenAI 模式 JSON arguments 值片段增加转义解码（`\n`→换行等）使换行渲染与 XML 模式一致；ToolCallRenderer 重构为行式状态机，JSON 解析器仅影响渲染值不影响原始累积；新增 toolcall_stream_test.go 单测 11 个（含 FEATURE-328 UC-0001~0006）[BUILD-367]
 
 ## v0.7.1 — 循环检测优化
 
