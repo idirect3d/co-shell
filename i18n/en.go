@@ -751,6 +751,27 @@ var enMessages = map[string]string{
 	KeySettingCmd_734: "cannot parse task plan status: %w",
 	KeySettingCmd_735: "Task Plan #%d: %s\n",
 
+	// FEATURE-305 第 6 批: cmd/plan.go
+	KeySettingCmd_736: "Usage: .plan create <title> <step1> | <step2> | ...",
+	KeySettingCmd_737: "Usage: .plan insert <after_step_id> <step1> | <step2> | ...",
+	KeySettingCmd_738: "Invalid after_step_id: %s",
+	KeySettingCmd_739: "Usage: .plan remove <from> <to>",
+	KeySettingCmd_740: "Invalid from: %s",
+	KeySettingCmd_741: "Invalid to: %s",
+	KeySettingCmd_742: "Usage: .plan update <step_id> <status> [note]",
+	KeySettingCmd_743: "Invalid step_id: %s",
+	KeySettingCmd_744: "Unknown .plan subcommand: %s (available: list, view, create, insert, remove, update)",
+	KeySettingCmd_745: "cannot get current task plan: %w",
+	KeySettingCmd_746: "cannot create task plan: %w",
+	KeySettingCmd_747: "No active task plan",
+	KeySettingCmd_748: "cannot insert steps: %w",
+	KeySettingCmd_749: "cannot remove steps: %w",
+	KeySettingCmd_750: "cannot update step status: %w",
+	KeySettingCmd_751: "Usage: .plan create",
+	KeySettingCmd_752: "Task plan created",
+	KeySettingCmd_753: "Task plan steps updated",
+	KeySettingCmd_754: ".plan task plan management commands",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",

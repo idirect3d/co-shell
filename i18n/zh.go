@@ -733,6 +733,27 @@ var zhMessages = map[string]string{
 	KeySettingCmd_734: "无法解析任务计划状态: %w",
 	KeySettingCmd_735: "任务计划 #%d: %s\n",
 
+	// FEATURE-305 第 6 批: cmd/plan.go
+	KeySettingCmd_736: "用法: .plan create <title> <step1> | <step2> | ...",
+	KeySettingCmd_737: "用法: .plan insert <after_step_id> <step1> | <step2> | ...",
+	KeySettingCmd_738: "无效的 after_step_id: %s",
+	KeySettingCmd_739: "用法: .plan remove <from> <to>",
+	KeySettingCmd_740: "无效的 from: %s",
+	KeySettingCmd_741: "无效的 to: %s",
+	KeySettingCmd_742: "用法: .plan update <step_id> <status> [note]",
+	KeySettingCmd_743: "无效的 step_id: %s",
+	KeySettingCmd_744: "未知的 .plan 子命令: %s（可用: list, view, create, insert, remove, update）",
+	KeySettingCmd_745: "无法获取当前任务计划: %w",
+	KeySettingCmd_746: "无法创建任务计划: %w",
+	KeySettingCmd_747: "当前没有任务计划",
+	KeySettingCmd_748: "无法插入步骤: %w",
+	KeySettingCmd_749: "无法删除步骤: %w",
+	KeySettingCmd_750: "无法更新步骤状态: %w",
+	KeySettingCmd_751: "用法: .plan create",
+	KeySettingCmd_752: "任务计划已创建",
+	KeySettingCmd_753: "任务计划步骤已更新",
+	KeySettingCmd_754: ".plan 任务计划管理命令",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",

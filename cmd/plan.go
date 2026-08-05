@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/taskplan"
 )
 
@@ -60,7 +61,7 @@ func (h *PlanHandler) Handle(args []string) (string, error) {
 
 	case "create":
 		if len(args) < 3 {
-			return "", fmt.Errorf("用法: .plan create <title> <step1> | <step2> | ...")
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_736))
 		}
 		title := args[1]
 		stepsStr := strings.Join(args[2:], " ")
@@ -73,11 +74,11 @@ func (h *PlanHandler) Handle(args []string) (string, error) {
 
 	case "insert":
 		if len(args) < 3 {
-			return "", fmt.Errorf("用法: .plan insert <after_step_id> <step1> | <step2> | ...")
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_737))
 		}
 		afterStepID, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的 after_step_id: %s", args[1])
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_738, args[1]))
 		}
 		stepsStr := strings.Join(args[2:], " ")
 		steps := strings.Split(stepsStr, "|")
@@ -88,25 +89,25 @@ func (h *PlanHandler) Handle(args []string) (string, error) {
 
 	case "remove":
 		if len(args) < 3 {
-			return "", fmt.Errorf("用法: .plan remove <from> <to>")
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_739))
 		}
 		from, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的 from: %s", args[1])
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_740, args[1]))
 		}
 		to, err := strconv.Atoi(args[2])
 		if err != nil {
-			return "", fmt.Errorf("无效的 to: %s", args[2])
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_741, args[2]))
 		}
 		return h.handleRemove(from, to)
 
 	case "update":
 		if len(args) < 3 {
-			return "", fmt.Errorf("用法: .plan update <step_id> <status> [note]")
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_742))
 		}
 		stepID, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的 step_id: %s", args[1])
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_743, args[1]))
 		}
 		status := taskplan.TaskStatus(args[2])
 		note := ""
@@ -116,14 +117,14 @@ func (h *PlanHandler) Handle(args []string) (string, error) {
 		return h.handleUpdate(stepID, status, note)
 
 	default:
-		return "", fmt.Errorf("未知的 .plan 子命令: %s（可用: list, view, create, insert, remove, update）", subcommand)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_744, subcommand))
 	}
 }
 
 func (h *PlanHandler) handleList() (string, error) {
 	plan, err := h.planMgr.GetCurrent()
 	if err != nil {
-		return "", fmt.Errorf("无法获取当前任务计划: %w", err)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_745, err))
 	}
 	return taskplan.FormatPlan(plan), nil
 }
@@ -131,7 +132,7 @@ func (h *PlanHandler) handleList() (string, error) {
 func (h *PlanHandler) handleView() (string, error) {
 	plan, err := h.planMgr.GetCurrent()
 	if err != nil {
-		return "", fmt.Errorf("无法获取当前任务计划: %w", err)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_745, err))
 	}
 	return taskplan.FormatPlan(plan), nil
 }
@@ -146,7 +147,7 @@ func (h *PlanHandler) handleCreate(title string, steps []string) (string, error)
 	}
 	plan, err := h.planMgr.UpdateSteps(title, "", stepInputs)
 	if err != nil {
-		return "", fmt.Errorf("无法创建任务计划: %w", err)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_746, err))
 	}
 	return taskplan.FormatPlan(plan), nil
 }
@@ -155,7 +156,7 @@ func (h *PlanHandler) handleInsert(afterStepID int, steps []string) (string, err
 	// Get current plan, insert new steps after afterStepID, then push entire state back
 	plan, err := h.planMgr.GetCurrent()
 	if err != nil || plan == nil {
-		return "", fmt.Errorf("当前没有任务计划")
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_747))
 	}
 
 	// Build new steps: keep steps up to afterStepID, add new ones, then the rest
@@ -193,7 +194,7 @@ func (h *PlanHandler) handleInsert(afterStepID int, steps []string) (string, err
 
 	plan, err = h.planMgr.UpdateSteps("", "", stepInputs)
 	if err != nil {
-		return "", fmt.Errorf("无法插入步骤: %w", err)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_748, err))
 	}
 	return taskplan.FormatPlan(plan), nil
 }
@@ -201,7 +202,7 @@ func (h *PlanHandler) handleInsert(afterStepID int, steps []string) (string, err
 func (h *PlanHandler) handleRemove(from, to int) (string, error) {
 	plan, err := h.planMgr.GetCurrent()
 	if err != nil || plan == nil {
-		return "", fmt.Errorf("当前没有任务计划")
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_747))
 	}
 
 	stepInputs := make([]taskplan.StepInput, 0)
@@ -218,7 +219,7 @@ func (h *PlanHandler) handleRemove(from, to int) (string, error) {
 
 	plan, err = h.planMgr.UpdateSteps("", "", stepInputs)
 	if err != nil {
-		return "", fmt.Errorf("无法删除步骤: %w", err)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_749, err))
 	}
 	return taskplan.FormatPlan(plan), nil
 }
@@ -226,7 +227,7 @@ func (h *PlanHandler) handleRemove(from, to int) (string, error) {
 func (h *PlanHandler) handleUpdate(stepID int, status taskplan.TaskStatus, note string) (string, error) {
 	plan, err := h.planMgr.GetCurrent()
 	if err != nil || plan == nil {
-		return "", fmt.Errorf("当前没有任务计划")
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_747))
 	}
 
 	stepInputs := make([]taskplan.StepInput, len(plan.Steps))
@@ -244,7 +245,7 @@ func (h *PlanHandler) handleUpdate(stepID int, status taskplan.TaskStatus, note 
 
 	plan, err = h.planMgr.UpdateSteps("", "", stepInputs)
 	if err != nil {
-		return "", fmt.Errorf("无法更新步骤状态: %w", err)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_750, err))
 	}
 	// If note is provided, update the step note directly (UpdateSteps doesn't handle notes)
 	if note != "" {
