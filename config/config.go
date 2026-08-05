@@ -546,21 +546,21 @@ func GetEmojiPrefixes(enabled bool) EmojiPrefixes {
 		}
 	}
 	return EmojiPrefixes{
-		UserInput:       "[👤]> ",
-		VisionUserInput: "[👀]> ",
-		LlmOutput:       "[🐚]> ",
-		ToolCallInput:   "[⚙️]< ",
-		ToolCallOutput:  "[⚙️]> ",
-		CommandInput:    "[🔴]< ",
-		CommandOutput:   "[🔴]> ",
-		Info:            "[ℹ️] ",
-		Error:           "[❌] ",
-		Warning:         "[⚠️] ",
-		Success:         "[✅] ",
-		Thinking:        "[💬] ",
-		OutputTitle:     "[📋] Command Output:",
+		UserInput:       "[👤 ]> ",
+		VisionUserInput: "[👀 ]> ",
+		LlmOutput:       "[🐚 ]> ",
+		ToolCallInput:   "[⚙️ ]< ",
+		ToolCallOutput:  "[⚙️ ]> ",
+		CommandInput:    "[🔴 ]< ",
+		CommandOutput:   "[🔴 ]> ",
+		Info:            "[ℹ️ ] ",
+		Error:           "[❌ ] ",
+		Warning:         "[⚠️ ] ",
+		Success:         "[✅ ] ",
+		Thinking:        "[💬 ] ",
+		OutputTitle:     "[📋 ] Command Output:",
 		OutputSep:       "────────────────────────────────────────────",
-		Loop:            "[♾️] ",
+		Loop:            "[♾️ ] ",
 	}
 }
 

@@ -20,8 +20,8 @@ import (
 //
 //   - REPL adds a leading "\n" before command/tool_call events (visual
 //     separation between consecutive stream events).
-//   - Single-command token_iter includes the [ℹ️] prefix and the LLM timing
-//     line (FIX-289 enhancement); REPL token_iter omits both.
+//   - Single-command token_iter includes the [ℹ️] prefix (FIX-289
+//     enhancement); REPL token_iter omits it.
 type StreamMode int
 
 const (
@@ -134,9 +134,6 @@ func (r *StreamRenderer) renderTokenIter(content string) {
 			pct = float64(total) * 100.0 / float64(maxLen)
 		}
 		r.io.Printf("%s %s\n", r.ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
-		if ft != "" {
-			r.io.Printf("%s   %s\n", r.ep.Info, fmt.Sprintf(i18n.T(i18n.KeyTokenUsageTiming), ft, inTPS, outTPS))
-		}
 		r.io.Printf("%s────────────────────────────────────────────────────────────────────────────────\n", r.ep.Info)
 		return
 	}
