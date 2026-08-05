@@ -459,6 +459,25 @@ var zhMessages = map[string]string{
 	KeySettingCmd_323: "单行窗口重复检测大小(0=不检测)",
 	KeySettingCmd_324: "单行重复数量块限制(0=不检测, 字符数×次数)",
 
+	// FEATURE-305 第 2 批: settings_search.go
+	KeySettingCmd_401: "搜索单行最大字符数: %d",
+	KeySettingCmd_402: "无效的数值: %s",
+	KeySettingCmd_403: "搜索单行最大字符数必须 >= 0",
+	KeySettingCmd_404: "✅ 搜索单行最大字符数已设置为: %d",
+	KeySettingCmd_405: "搜索结果最大字节数: %d",
+	KeySettingCmd_406: "搜索结果最大字节数必须 >= 0",
+	KeySettingCmd_407: "✅ 搜索结果最大字节数已设置为: %d",
+	KeySettingCmd_408: "搜索匹配上下文行数: %d",
+	KeySettingCmd_409: "搜索匹配上下文行数必须 >= 0",
+	KeySettingCmd_410: "✅ 搜索匹配上下文行数已设置为: %d",
+	KeySettingCmd_411: "记忆搜索内容最大长度: %d",
+	KeySettingCmd_412: "记忆搜索内容最大长度必须 >= 0",
+	KeySettingCmd_413: "✅ 记忆搜索内容最大长度已设置为: %d",
+	KeySettingCmd_414: "记忆搜索最大结果数: %d",
+	KeySettingCmd_415: "记忆搜索最大结果数必须 >= 0",
+	KeySettingCmd_416: "✅ 记忆搜索最大结果数已设置为: %d",
+	KeySettingCmd_417: "✅ 调试模式已设置为: %s",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",

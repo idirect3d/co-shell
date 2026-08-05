@@ -710,6 +710,25 @@ const (
 	KeySettingCmd_335 = "setting_cmd_335"
 	KeySettingCmd_336 = "setting_cmd_336"
 
+	// FEATURE-305 第 2 批: settings_search.go
+	KeySettingCmd_401 = "setting_cmd_401"
+	KeySettingCmd_402 = "setting_cmd_402"
+	KeySettingCmd_403 = "setting_cmd_403"
+	KeySettingCmd_404 = "setting_cmd_404"
+	KeySettingCmd_405 = "setting_cmd_405"
+	KeySettingCmd_406 = "setting_cmd_406"
+	KeySettingCmd_407 = "setting_cmd_407"
+	KeySettingCmd_408 = "setting_cmd_408"
+	KeySettingCmd_409 = "setting_cmd_409"
+	KeySettingCmd_410 = "setting_cmd_410"
+	KeySettingCmd_411 = "setting_cmd_411"
+	KeySettingCmd_412 = "setting_cmd_412"
+	KeySettingCmd_413 = "setting_cmd_413"
+	KeySettingCmd_414 = "setting_cmd_414"
+	KeySettingCmd_415 = "setting_cmd_415"
+	KeySettingCmd_416 = "setting_cmd_416"
+	KeySettingCmd_417 = "setting_cmd_417"
+
 	// FEATURE-305: repl.go C 类基础设施 i18n 迁移
 	KeyDBSyncStart        = "db_sync_start"
 	KeyDBSyncPartial      = "db_sync_partial"
