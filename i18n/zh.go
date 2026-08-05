@@ -754,6 +754,26 @@ var zhMessages = map[string]string{
 	KeySettingCmd_753: "任务计划步骤已更新",
 	KeySettingCmd_754: ".plan 任务计划管理命令",
 
+	// FEATURE-305 第 6 批: config/model_template.go
+	KeySettingCmd_755: "DeepSeek 官方",
+	KeySettingCmd_756: "DeepSeek 官方 API，支持 thinking 模式",
+	KeySettingCmd_757: "阿里千问（通义千问）",
+	KeySettingCmd_758: "阿里通义千问 API，支持多模态模型",
+	KeySettingCmd_759: "小米 MiMo 大模型",
+	KeySettingCmd_760: "小米 MiMo 大模型 API",
+	KeySettingCmd_761: "Kimi（月之暗面 Moonshot AI）",
+	KeySettingCmd_762: "Kimi API，K3 旗舰模型 1M 上下文，支持多模态、深度思考",
+	KeySettingCmd_763: "智谱 AI（GLM）",
+	KeySettingCmd_764: "智谱 GLM 系列模型，支持视觉模型",
+	KeySettingCmd_765: "OpenAI 官方",
+	KeySettingCmd_766: "OpenAI 官方 API，GPT-4o 支持多模态",
+	KeySettingCmd_767: "LM Studio 本地部署",
+	KeySettingCmd_768: "本地部署的 LM Studio 服务，模型需自行加载",
+	KeySettingCmd_769: "Ollama 本地部署",
+	KeySettingCmd_770: "本地部署的 Ollama 服务，模型需自行拉取",
+	KeySettingCmd_771: "OpenAI 兼容（自定义）",
+	KeySettingCmd_772: "任何兼容 OpenAI API 的服务",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",
