@@ -205,8 +205,8 @@ Usage:
 	zhMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
 Description: 使用 search/replace 参数替换文件中的内容。接受 replacements 数组可用于多处替换，<{XML_TAG_PREFIX}item>代表一个数组的元素，每个元素包含 search（精确匹配内容）、replace（新内容）和可选的 start_line（精确定位行号）。支持单次调用多处替换。修改前自动创建备份。返回详细的 diff 信息。
 Parameters:
-- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - path (必需) 要修改的文件路径（绝对路径或相对于当前工作目录）
+- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - replacements (必需) 替换对象数组，<{XML_TAG_PREFIX}item>代表一个数组的元素，每个元素对象包含 search 和 replace 字符串字段，以及可选的 start_line 数字，例如：
 
   <{XML_TAG_PREFIX}replacements>
@@ -227,8 +227,8 @@ Parameters:
 5. 如果从 read_file 获取的上下文包含行号前缀（如 "42 | const x = 1"），<{XML_TAG_PREFIX}search> 中**不要包含**行号前缀，只匹配原始文件文本。
 Usage:
 <{XML_TAG_PREFIX}replace_in_file>
-  <{XML_TAG_PREFIX}intent>需要精确替换文件中的指定文本内容</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}path>main.go</{XML_TAG_PREFIX}path>
+  <{XML_TAG_PREFIX}intent>需要精确替换文件中的指定文本内容</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}replacements>
     <{XML_TAG_PREFIX}item>
       <{XML_TAG_PREFIX}search>旧文本</{XML_TAG_PREFIX}search>
@@ -248,15 +248,15 @@ Description: 将内容写入指定路径的文件。mode参数控制操作模式
 💡 性能提示：当需要写入大文件（超过约100行）时，应避免将所有内容放在一次调用中——这可能会触发长输出循环检测。建议先使用 new 模式写入前约100行，然后分多次通过 append 模式追加剩余内容。
 
 Parameters:
+- path (必需) 要写入文件的绝对路径
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - mode (必需) 操作模式：new（新建）、rewrite（重写）、append（追加）。三种模式互斥。
-- path (必需) 要写入文件的绝对路径
 - content (必需) 要写入文件的内容。对于 append 模式，此内容追加到文件末尾。
 Usage:
 <{XML_TAG_PREFIX}write_to_file>
+  <{XML_TAG_PREFIX}path>output/result.md</{XML_TAG_PREFIX}path>
   <{XML_TAG_PREFIX}intent>需要创建项目配置文件存储 API 端点信息</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}mode>new</{XML_TAG_PREFIX}mode>
-  <{XML_TAG_PREFIX}path>output/result.md</{XML_TAG_PREFIX}path>
   <{XML_TAG_PREFIX}content><!DOCTYPE html>
 <html lang="zh-CN">
   <body>

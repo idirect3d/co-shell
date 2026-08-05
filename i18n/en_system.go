@@ -182,8 +182,8 @@ Usage:
 	enMessages[KeyToolUsageReplaceInFile] = `## replace_in_file
 Description: Replace content in a file using search/replace parameters. Accepts a replacements array, each element containing search (exact match content), replace (new content), and optional start_line (precise line number anchor). Supports multiple replacements in a single call. Automatically creates a backup before modification. Returns detailed diff information.
 Parameters:
-- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - path (required) The file path to modify (absolute or relative to current working directory)
+- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - replacements (required) Array of replacement objects, each containing search and replace string fields, and optional start_line number. All replacements are applied sequentially.
 
   <{XML_TAG_PREFIX}replacements>
@@ -224,15 +224,15 @@ The three modes are mutually exclusive and non-interchangeable — use the corre
 💡 PERFORMANCE TIP: When writing large files (over ~100 lines), avoid putting all content in a single call — this may trigger long-output loop detection. Instead, use 'new' mode for the first ~100 lines, then follow up with multiple 'append' mode calls for the remaining content.
 
 Parameters:
+- path (required) The absolute path to write the file to
 - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - mode (required) The write mode: 'new' (create new file), 'rewrite' (overwrite existing file), 'append' (append to existing file). The three modes are mutually exclusive and non-interchangeable.
-- path (required) The absolute path to write the file to
 - content (required) The content to write to the file. For 'append' mode, the content is appended to the end of the file.
 Usage:
 <{XML_TAG_PREFIX}write_to_file>
+  <{XML_TAG_PREFIX}path>output/result.md</{XML_TAG_PREFIX}path>
   <{XML_TAG_PREFIX}intent>Need to create a project configuration file with API endpoint information</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}mode>new</{XML_TAG_PREFIX}mode>
-  <{XML_TAG_PREFIX}path>output/result.md</{XML_TAG_PREFIX}path>
   <{XML_TAG_PREFIX}content># Result
 
 This is the generated file.</{XML_TAG_PREFIX}content>
