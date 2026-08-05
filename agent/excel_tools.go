@@ -34,6 +34,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/xlsx"
 )
 
@@ -74,16 +75,16 @@ func (a *Agent) excelOpenTool(ctx context.Context, args map[string]interface{}) 
 		fileSize = fmt.Sprintf("%.1f KB", float64(fileInfo.Size())/1024.0)
 	}
 	if mode == "create" && fileSize == "0.0 KB" {
-		fileSize = "(新建)"
+		fileSize = i18n.T(i18n.KeySettingCmd_669)
 	}
 
 	var resultMsg string
 	if mode == "copy" {
-		resultMsg = fmt.Sprintf("已创建副本: %s (%s)\n会话 ID: %s\n\n此文件为 %s 的副本，后续操作应直接在此副本上修改，严禁以此文件替换原始文件。\n\n请使用 excel_overview 获取文件概览。", s.Path, fileSize, sessionID, filepath.Base(path))
+		resultMsg = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_622), s.Path, fileSize, sessionID, filepath.Base(path))
 	} else if mode == "read" {
-		resultMsg = fmt.Sprintf("已打开 Excel 文件: %s (%s) (只读)\n会话 ID: %s\n\n请使用 excel_overview 获取文件概览。", s.Path, fileSize, sessionID)
+		resultMsg = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_623), s.Path, fileSize, sessionID)
 	} else {
-		resultMsg = fmt.Sprintf("已打开 Excel 文件: %s (%s)\n会话 ID: %s\n\n请使用 excel_overview 获取文件概览。", s.Path, fileSize, sessionID)
+		resultMsg = fmt.Sprintf(i18n.T(i18n.KeySettingCmd_624), s.Path, fileSize, sessionID)
 	}
 	return resultMsg, nil
 }
@@ -101,7 +102,7 @@ func (a *Agent) excelSaveTool(ctx context.Context, args map[string]interface{}) 
 	}
 
 	if s.ReadOnly {
-		return "", fmt.Errorf("此文件以只读方式打开，无法保存")
+		return "", fmt.Errorf("%s", i18n.T(i18n.KeySettingCmd_625))
 	}
 
 	if err := a.excelSessionMgr.save(sessionID); err != nil {
@@ -114,7 +115,7 @@ func (a *Agent) excelSaveTool(ctx context.Context, args map[string]interface{}) 
 		fileSize = fmt.Sprintf("%.1f KB", float64(fileInfo.Size())/1024.0)
 	}
 
-	return fmt.Sprintf("已保存: %s (%s)", s.Path, fileSize), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_626), s.Path, fileSize), nil
 }
 
 // excelCloseTool closes an Excel session.
@@ -134,7 +135,7 @@ func (a *Agent) excelCloseTool(ctx context.Context, args map[string]interface{})
 		return "", err
 	}
 
-	return fmt.Sprintf("已关闭 Excel 文件: %s", path), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_627), path), nil
 }
 
 // excelOverviewTool returns metadata about all sheets without cell data.
@@ -151,27 +152,27 @@ func (a *Agent) excelOverviewTool(ctx context.Context, args map[string]interface
 
 	wb := s.Workbook
 	if len(wb.Sheets) == 0 {
-		return "工作簿中没有 Sheet 页。", nil
+		return i18n.T(i18n.KeySettingCmd_628), nil
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("文件名: %s\n", filepath.Base(s.Path)))
+	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_670), filepath.Base(s.Path)))
 
 	if len(wb.Sheets) == 1 {
-		sb.WriteString("Sheet 页: 1 个\n\n")
+		sb.WriteString(i18n.T(i18n.KeySettingCmd_629))
 	} else {
-		sb.WriteString(fmt.Sprintf("Sheet 页: %d 个\n\n", len(wb.Sheets)))
+		sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_630), len(wb.Sheets)))
 	}
 
 	for i, sheet := range wb.Sheets {
 		meta, _ := wb.GetSheetMeta(i)
 		sb.WriteString(fmt.Sprintf("--- Sheet %d: %s ---\n", i+1, sheet.Name))
 		if meta != nil {
-			sb.WriteString(fmt.Sprintf("  数据范围: %s\n", meta.UsedRange))
-			sb.WriteString(fmt.Sprintf("  总行数: %d\n", meta.Rows))
-			sb.WriteString(fmt.Sprintf("  总列数: %d\n", meta.Cols))
+			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_631), meta.UsedRange))
+			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_632), meta.Rows))
+			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_633), meta.Cols))
 			if meta.HasFormulas {
-				sb.WriteString("  包含公式: 是\n")
+				sb.WriteString(i18n.T(i18n.KeySettingCmd_634))
 			}
 			if len(meta.Headers) > 0 {
 				nonEmpty := 0
@@ -181,14 +182,14 @@ func (a *Agent) excelOverviewTool(ctx context.Context, args map[string]interface
 					}
 				}
 				if nonEmpty > 0 {
-					sb.WriteString(fmt.Sprintf("  列标题 (第1行): %s\n", strings.Join(meta.Headers, " | ")))
+					sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_635), strings.Join(meta.Headers, " | ")))
 				}
 			}
 		}
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("提示: 使用 excel_read <session_id> <sheet名称> <start_row> <end_row> <start_col> <end_col> 读取具体数据。")
+	sb.WriteString(i18n.T(i18n.KeySettingCmd_636))
 
 	return sb.String(), nil
 }
@@ -250,10 +251,10 @@ func (a *Agent) excelReadTool(ctx context.Context, args map[string]interface{}) 
 
 	totalCells := (endRow - startRow + 1) * (endCol - startCol + 1)
 	if totalCells > maxCells {
-		return "", fmt.Errorf("请求读取 %d 个单元格，超过了上限 %d 个。请缩小范围后重试", totalCells, maxCells)
+		return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_637), totalCells, maxCells)
 	}
 
-	header := fmt.Sprintf("Sheet: %s, 范围 %s\n", sheetName, xlsx.FormatRange(rng))
+	header := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_671), sheetName, xlsx.FormatRange(rng))
 
 	var result string
 
@@ -382,7 +383,7 @@ func (a *Agent) excelEditTool(ctx context.Context, args map[string]interface{}) 
 	s.Dirty = true
 
 	endCell := xlsx.FormatCellRef(startCol+colCount-1, startRow+len(parsedRows)-1)
-	result := fmt.Sprintf("已写入 %d 行 × %d 列到 %s!%s:%s\n(未保存，请调用 excel_save 持久化)", len(parsedRows), colCount, sheetName, startCell, endCell)
+	result := fmt.Sprintf(i18n.T(i18n.KeySettingCmd_638), len(parsedRows), colCount, sheetName, startCell, endCell)
 	return result, nil
 }
 
@@ -436,12 +437,12 @@ func (a *Agent) excelCopyTool(ctx context.Context, args map[string]interface{}) 
 
 	var preview strings.Builder
 	if cutMode {
-		preview.WriteString(fmt.Sprintf("已剪切 %d 行 × %d 列 (从 %s!%s)\n", rows, cols, sheetName, xlsx.FormatRange(rng)))
-		preview.WriteString("剪切模式下，粘贴后将自动清除源区域。\n")
+		preview.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_639), rows, cols, sheetName, xlsx.FormatRange(rng)))
+		preview.WriteString(i18n.T(i18n.KeySettingCmd_640))
 	} else {
-		preview.WriteString(fmt.Sprintf("已复制 %d 行 × %d 列 (从 %s!%s)\n", rows, cols, sheetName, xlsx.FormatRange(rng)))
+		preview.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_641), rows, cols, sheetName, xlsx.FormatRange(rng)))
 	}
-	preview.WriteString("预览 (前3行):\n")
+	preview.WriteString(i18n.T(i18n.KeySettingCmd_642))
 	for r := 0; r < rows && r < 3; r++ {
 		vals := make([]string, 0)
 		for c := 0; c < cols; c++ {
@@ -515,7 +516,7 @@ func (a *Agent) excelPasteTool(ctx context.Context, args map[string]interface{})
 	}
 
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("已粘贴 %d 行 × %d 列到 %s!%s", clonedRows, clonedCols, sheetName, targetCell))
+	result.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_643), clonedRows, clonedCols, sheetName, targetCell))
 
 	// Handle cut mode: clear source area
 	if clipboard.CutMode && clipboard.CutSheet != "" && clipboard.CutRange != nil {
@@ -530,12 +531,12 @@ func (a *Agent) excelPasteTool(ctx context.Context, args map[string]interface{})
 				}
 			}
 		}
-		result.WriteString(fmt.Sprintf("\n已清除源区域: %s!%s", clipboard.CutSheet, xlsx.FormatRange(*clipboard.CutRange)))
+		result.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_644), clipboard.CutSheet, xlsx.FormatRange(*clipboard.CutRange)))
 	}
 
 	a.excelSessionMgr.setClipboard(sessionID, nil, false, "", nil) // clear clipboard
 
-	result.WriteString("\n(未保存，请调用 excel_save 持久化)")
+	result.WriteString(i18n.T(i18n.KeySettingCmd_645))
 	return result.String(), nil
 }
 
@@ -583,9 +584,9 @@ func (a *Agent) excelInsertTool(ctx context.Context, args map[string]interface{}
 
 	posLabel := position + 1
 	if what == "rows" {
-		return fmt.Sprintf("已在第 %d 行前插入 %d 行\n(未保存，请调用 excel_save 持久化)", posLabel, count), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_646), posLabel, count), nil
 	}
-	return fmt.Sprintf("已在第 %d 列前插入 %d 列\n(未保存，请调用 excel_save 持久化)", posLabel, count), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_647), posLabel, count), nil
 }
 
 // excelDeleteTool deletes rows, columns, or cell content.
@@ -622,7 +623,7 @@ func (a *Agent) excelDeleteTool(ctx context.Context, args map[string]interface{}
 			return "", err
 		}
 		s.Dirty = true
-		return fmt.Sprintf("已删除第 %d-%d 行\n(未保存，请调用 excel_save 持久化)", position+1, position+count), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_648), position+1, position+count), nil
 	} else if what == "cols" {
 		position := getIntArg(args, "position", 1) - 1
 		count := getIntArg(args, "count", 1)
@@ -630,7 +631,7 @@ func (a *Agent) excelDeleteTool(ctx context.Context, args map[string]interface{}
 			return "", err
 		}
 		s.Dirty = true
-		return fmt.Sprintf("已删除第 %d-%d 列\n(未保存，请调用 excel_save 持久化)", position+1, position+count), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_649), position+1, position+count), nil
 	} else {
 		// cells: clear content
 		startRow := getIntArg(args, "start_row", 1) - 1
@@ -646,7 +647,7 @@ func (a *Agent) excelDeleteTool(ctx context.Context, args map[string]interface{}
 			}
 		}
 		s.Dirty = true
-		return fmt.Sprintf("已清空 %s 的单元格范围 %s:%s\n(未保存，请调用 excel_save 持久化)", sheetName,
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_650), sheetName,
 			xlsx.FormatCellRef(startCol, startRow), xlsx.FormatCellRef(endCol, endRow)), nil
 	}
 }
@@ -678,7 +679,7 @@ func (a *Agent) excelSheetTool(ctx context.Context, args map[string]interface{})
 		}
 		idx := wb.CreateSheet(name)
 		s.Dirty = true
-		return fmt.Sprintf("已创建 Sheet %q (索引 %d)", name, idx+1), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_651), name, idx+1), nil
 
 	case "delete":
 		name, _ := args["name"].(string)
@@ -693,7 +694,7 @@ func (a *Agent) excelSheetTool(ctx context.Context, args map[string]interface{})
 			return "", err
 		}
 		s.Dirty = true
-		return fmt.Sprintf("已删除 Sheet %q", name), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_652), name), nil
 
 	case "rename":
 		name, _ := args["name"].(string)
@@ -709,7 +710,7 @@ func (a *Agent) excelSheetTool(ctx context.Context, args map[string]interface{})
 			return "", err
 		}
 		s.Dirty = true
-		return fmt.Sprintf("已重命名 Sheet %q → %q", name, newName), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_653), name, newName), nil
 
 	case "copy":
 		name, _ := args["name"].(string)
@@ -726,7 +727,7 @@ func (a *Agent) excelSheetTool(ctx context.Context, args map[string]interface{})
 			return "", err
 		}
 		s.Dirty = true
-		return fmt.Sprintf("已复制 Sheet %q → %q (新索引 %d)", name, newName, newIdx+1), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_654), name, newName, newIdx+1), nil
 
 	case "list":
 		var sb strings.Builder
@@ -797,24 +798,24 @@ func (a *Agent) excelFormatTool(ctx context.Context, args map[string]interface{}
 	// Merge/unmerge/row_height/col_width operations (no mode dependency)
 	if whatSet["merge"] {
 		sheet.AddMergeCell(rng)
-		results = append(results, fmt.Sprintf("合并 %s", xlsx.FormatRange(rng)))
+		results = append(results, fmt.Sprintf(i18n.T(i18n.KeySettingCmd_655), xlsx.FormatRange(rng)))
 	}
 	if whatSet["unmerge"] {
 		sheet.RemoveMergeCell(rng)
-		results = append(results, fmt.Sprintf("拆分 %s", xlsx.FormatRange(rng)))
+		results = append(results, fmt.Sprintf(i18n.T(i18n.KeySettingCmd_656), xlsx.FormatRange(rng)))
 	}
 	if whatSet["row_height"] {
 		h := getFloatArg(args, "row_height", 0)
 		if h > 0 {
 			sheet.SetRowHeight(startRow, h)
-			results = append(results, fmt.Sprintf("行高 %.1f", h))
+			results = append(results, fmt.Sprintf(i18n.T(i18n.KeySettingCmd_657), h))
 		}
 	}
 	if whatSet["col_width"] {
 		w := getFloatArg(args, "col_width", 0)
 		if w > 0 {
 			sheet.SetColWidth(startCol, w)
-			results = append(results, fmt.Sprintf("列宽 %.1f", w))
+			results = append(results, fmt.Sprintf(i18n.T(i18n.KeySettingCmd_658), w))
 		}
 	}
 
@@ -864,10 +865,10 @@ func (a *Agent) excelFormatTool(ctx context.Context, args map[string]interface{}
 	s.Dirty = true
 
 	if len(results) == 0 {
-		return "未执行任何格式操作", nil
+		return i18n.T(i18n.KeySettingCmd_659), nil
 	}
 
-	return fmt.Sprintf("格式已应用到 %s:\n  %s\n(未保存，请调用 excel_save 持久化)", xlsx.FormatRange(rng), strings.Join(results, "\n  ")), nil
+	return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_660), xlsx.FormatRange(rng), strings.Join(results, "\n  ")), nil
 }
 
 // buildCellStyleFromArgs constructs a CellStyle purely from tool arguments.
@@ -997,22 +998,22 @@ func mergeCellStyle(existing xlsx.CellStyle, args map[string]interface{}, whatSe
 func describeCellStyle(cs xlsx.CellStyle) string {
 	var parts []string
 	if cs.Font != nil {
-		parts = append(parts, "字体")
+		parts = append(parts, i18n.T(i18n.KeySettingCmd_661))
 	}
 	if cs.Fill != nil {
-		parts = append(parts, "底色")
+		parts = append(parts, i18n.T(i18n.KeySettingCmd_662))
 	}
 	if cs.Border != nil {
-		parts = append(parts, "边框")
+		parts = append(parts, i18n.T(i18n.KeySettingCmd_663))
 	}
 	if cs.Alignment != nil {
-		parts = append(parts, "对齐")
+		parts = append(parts, i18n.T(i18n.KeySettingCmd_664))
 	}
 	if cs.NumberFormat != "" {
-		parts = append(parts, "数字格式")
+		parts = append(parts, i18n.T(i18n.KeySettingCmd_665))
 	}
 	if len(parts) == 0 {
-		return "无"
+		return i18n.T(i18n.KeyUnknown)
 	}
 	return strings.Join(parts, "+")
 }

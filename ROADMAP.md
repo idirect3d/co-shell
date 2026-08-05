@@ -944,7 +944,9 @@
 - [ ] **FEATURE-305 i18n 归零冲刺（P4.5）**：
   - 按 inventory A-3 清单逐条迁移；补齐 keys.go + zh/en 翻译
   - 修复审计发现的 KeyToolUsageShellSend 缺 zh 翻译 bug
-  - 验收：audit 第 3 项 Hardcoded Chinese = 0
+  - 第 3~6 批完成：settings_tools/tools/vault/excel/docx/browser/file/taskplan/plan/model_template + repl vet
+  - audit 420→133（清零 287 处）；i18n keys missing 0；go test ./... 全绿
+  - 验收：audit 第 3 项 Hardcoded Chinese = 0 [BUILD-371]
 
 - [ ] **FEATURE-306 输入统一 InputSource（P2.5，v0.7.1）**：
   - InputSource 接口 + StdioSource/RawKeySource；单一 Reader goroutine

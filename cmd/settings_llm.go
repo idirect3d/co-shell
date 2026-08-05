@@ -26,6 +26,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -129,7 +130,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			if !h.cfg.LLM.VisionSupport {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("视觉识别: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_001), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -148,7 +149,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("Vision support set to %s", status)
-		return fmt.Sprintf("✅ 视觉识别已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_002), status), nil
 
 	case "vision-context-mode":
 		if len(args) < 2 {
@@ -156,7 +157,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			if mode == "" {
 				mode = "minimal"
 			}
-			return fmt.Sprintf("视觉模型上下文模式: %s（可选值: minimal, full）", mode), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_003), mode), nil
 		}
 		switch args[1] {
 		case "minimal", "full":
@@ -168,11 +169,11 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			return "", err
 		}
 		log.Info("Vision context mode set to %s", args[1])
-		return fmt.Sprintf("✅ 视觉模型上下文模式已设置为: %s", args[1]), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_004), args[1]), nil
 
 	case "thinking-enabled":
 		if len(args) < 2 {
-			return fmt.Sprintf("AI 思考模式: %s（可选值: on, off, default）", h.cfg.LLM.ThinkingEnabled), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_005), h.cfg.LLM.ThinkingEnabled), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -190,7 +191,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		h.rebuildLLMClient()
 		mode := h.cfg.LLM.ThinkingEnabled
 		log.Info("Thinking enabled set to %s", mode)
-		return fmt.Sprintf("✅ AI 思考模式已设置为: %s", mode), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_006), mode), nil
 
 	case "reasoning-effort":
 		if len(args) < 2 {
@@ -198,21 +199,21 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			if effort == "" {
 				effort = "default"
 			}
-			return fmt.Sprintf("推理努力程度: %s（可选值: low, medium, high, max, none, default）", effort), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_007), effort), nil
 		}
 		effort := args[1]
 		switch effort {
 		case "low", "medium", "high", "max", "none", "default":
 			h.cfg.LLM.ReasoningEffort = effort
 		default:
-			return "", fmt.Errorf("无效的推理努力程度: %s（可选值: low, medium, high, max, none, default）", effort)
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_008), effort)
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		h.rebuildLLMClient()
 		log.Info("Reasoning effort set to %s", effort)
-		return fmt.Sprintf("✅ 推理努力程度已设置为: %s", effort), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_009), effort), nil
 
 	case "toolcall-enabled":
 		if len(args) < 2 {
@@ -220,7 +221,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			if !h.cfg.LLM.ToolCallEnabled {
 				status = i18n.T(i18n.KeyOff)
 			}
-			return fmt.Sprintf("工具调用: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_010), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -239,18 +240,18 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			status = i18n.T(i18n.KeyOff)
 		}
 		log.Info("ToolCall enabled set to %s", status)
-		return fmt.Sprintf("✅ 工具调用已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_011), status), nil
 
 	case "top-p":
 		if len(args) < 2 {
-			return fmt.Sprintf("Top-P 采样参数: %.1f", h.cfg.LLM.TopP), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_012), h.cfg.LLM.TopP), nil
 		}
 		val, err := strconv.ParseFloat(args[1], 64)
 		if err != nil {
-			return "", fmt.Errorf("无效的 Top-P 值: %s", args[1])
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_013), args[1])
 		}
 		if val < -1 || val > 1 {
-			return "", fmt.Errorf("Top-P 必须在 -1.0 ~ 1.0 之间（-1 表示不发送）")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_014))
 		}
 		h.cfg.LLM.TopP = val
 		if err := h.cfg.Save(); err != nil {
@@ -258,18 +259,18 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		}
 		h.rebuildLLMClient()
 		log.Info("Top-P set to %.1f", val)
-		return fmt.Sprintf("✅ Top-P 采样参数已设置为: %.1f", val), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_015), val), nil
 
 	case "top-k":
 		if len(args) < 2 {
-			return fmt.Sprintf("Top-K 采样参数: %d", h.cfg.LLM.TopK), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_016), h.cfg.LLM.TopK), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的 Top-K 值: %s", args[1])
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_017), args[1])
 		}
 		if n < -1 {
-			return "", fmt.Errorf("Top-K 必须 >= -1（-1 表示不发送）")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_018))
 		}
 		h.cfg.LLM.TopK = n
 		if err := h.cfg.Save(); err != nil {
@@ -277,18 +278,18 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		}
 		h.rebuildLLMClient()
 		log.Info("Top-K set to %d", n)
-		return fmt.Sprintf("✅ Top-K 采样参数已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_019), n), nil
 
 	case "repetition-penalty":
 		if len(args) < 2 {
-			return fmt.Sprintf("重复惩罚参数: %.1f", h.cfg.LLM.RepetitionPenalty), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_020), h.cfg.LLM.RepetitionPenalty), nil
 		}
 		val, err := strconv.ParseFloat(args[1], 64)
 		if err != nil {
-			return "", fmt.Errorf("无效的重复惩罚值: %s", args[1])
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_021), args[1])
 		}
 		if val < -1 || val > 2 {
-			return "", fmt.Errorf("重复惩罚参数必须在 -1.0 ~ 2.0 之间（-1 表示不发送）")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_022))
 		}
 		h.cfg.LLM.RepetitionPenalty = val
 		if err := h.cfg.Save(); err != nil {
@@ -296,25 +297,25 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		}
 		h.rebuildLLMClient()
 		log.Info("Repetition penalty set to %.1f", val)
-		return fmt.Sprintf("✅ 重复惩罚参数已设置为: %.1f", val), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_023), val), nil
 
 	case "max-model-len":
 		if len(args) < 2 {
-			return fmt.Sprintf("模型最大上下文长度: %d", h.cfg.LLM.MaxModelLen), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_024), h.cfg.LLM.MaxModelLen), nil
 		}
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
-			return "", fmt.Errorf("无效的数值: %s", args[1])
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_025), args[1])
 		}
 		if n < 0 {
-			return "", fmt.Errorf("模型最大上下文长度必须 >= 0")
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_026))
 		}
 		h.cfg.LLM.MaxModelLen = n
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
 		log.Info("Max model len set to %d", n)
-		return fmt.Sprintf("✅ 模型最大上下文长度已设置为: %d", n), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_027), n), nil
 
 	case "toolcall-mode":
 		if len(args) < 2 {
@@ -322,7 +323,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			if mode == "" {
 				mode = "openai"
 			}
-			return fmt.Sprintf("工具调用模式: %s（可选值: openai, xml）", mode), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_028), mode), nil
 		}
 		mode := args[1]
 		switch mode {
@@ -333,9 +334,9 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			}
 			h.agent.SetToolCallMode(mode)
 			log.Info("Tool call mode set to %s", mode)
-			return fmt.Sprintf("✅ 工具调用模式已设置为: %s", mode), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_029), mode), nil
 		default:
-			return "", fmt.Errorf("无效的工具调用模式: %s（可选值: openai, xml）", mode)
+			return "", fmt.Errorf(i18n.T(i18n.KeySettingCmd_030), mode)
 		}
 
 	case "xml-tag-prefix":
@@ -344,7 +345,7 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 			if prefix == "" {
 				prefix = "cs:"
 			}
-			return fmt.Sprintf("XML 标签前缀: %s", prefix), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_031), prefix), nil
 		}
 		newPrefix := args[1]
 		h.cfg.LLM.XMLTagPrefix = newPrefix
@@ -354,15 +355,15 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		agent.SetXMLTagPrefix(newPrefix)
 		h.agent.SetToolCallMode(h.cfg.LLM.ToolCallMode) // trigger rebuild with new prefix
 		log.Info("XML tag prefix set to %s", newPrefix)
-		return fmt.Sprintf("✅ XML 标签前缀已设置为: %s", newPrefix), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_032), newPrefix), nil
 
 	case "xml-stream-validate":
 		if len(args) < 2 {
-			status := "关闭"
+			status := i18n.T(i18n.KeySettingCmd_033)
 			if h.cfg.LLM.XMLStreamValidate {
-				status = "开启"
+				status = i18n.T(i18n.KeySettingCmd_034)
 			}
-			return fmt.Sprintf("流式 XML 校验: %s", status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_035), status), nil
 		}
 		switch args[1] {
 		case "on", "1", "true", "yes":
@@ -375,12 +376,12 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		if err := h.cfg.Save(); err != nil {
 			return "", err
 		}
-		status := "关闭"
+		status := i18n.T(i18n.KeySettingCmd_033)
 		if h.cfg.LLM.XMLStreamValidate {
-			status = "开启"
+			status = i18n.T(i18n.KeySettingCmd_034)
 		}
 		log.Info("XML stream validate set to %v", h.cfg.LLM.XMLStreamValidate)
-		return fmt.Sprintf("✅ 流式 XML 校验已设置为: %s", status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_036), status), nil
 
 	default:
 		return "", fmt.Errorf("unknown LLM setting: %s", subcommand)
