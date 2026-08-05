@@ -695,6 +695,27 @@ var enMessages = map[string]string{
 	KeySettingCmd_684: "Modified %s of %d paragraphs\n(not saved, call word_save to persist)",
 	KeySettingCmd_685: "Style %q created (ID: %s)\nCSS: %s\n(not saved, call word_save to persist)",
 
+	// FEATURE-305 第 5 批: agent/browser_tools.go
+	KeySettingCmd_686: ":\nURL: %s\n: %s\n\nPlease use browser_screenshot or browser_get_interactive_elements to view the page content.",
+	KeySettingCmd_687: "Screenshot saved to: %s\nURL: %s\nTitle: %s\nQuality: %d\nFull page: %v\n",
+	KeySettingCmd_688: "\n✅ Screenshot loaded, will be sent to the vision model on the next LLM call for analysis.",
+	KeySettingCmd_689: "\nYou can combine browser_get_interactive_elements to get interactive element info for precise operations.",
+	KeySettingCmd_690: "\n\n⚠️ **The current model does not support vision recognition**, cannot analyze the screenshot content.\nThe screenshot has been saved to the file system. You can:\n1. Enable multimodal support via `.set vision on` (requires model support)\n2. Switch to a multimodal model that supports vision and retry\n3. Manually use the visual_analysis tool to load the screenshot",
+	KeySettingCmd_691: "Clicked at coordinates (%.0f, %.0f).\nCurrent URL: %s\n\nPlease use browser_screenshot to see the page changes after clicking.",
+	KeySettingCmd_692: "Text entered: %s",
+	KeySettingCmd_693: "JavaScript executed successfully, no return value",
+	KeySettingCmd_694: "JavaScript execution result:\n%s",
+	KeySettingCmd_695: "Rendered DOM HTML (%d lines, %d chars):\n%s\n\n⚠️ Also saved to file %s, you can read it anytime with read_file.",
+	KeySettingCmd_696: "The rendered DOM HTML content is large (%d lines, %d chars), saved to file:\n  %s\n\nThis is the final DOM HTML after all JavaScript rendering, no need to download JS, JSON or other resources.\nYou can use the read_file tool to read this file for analysis.\nYou can adjust the size limit via `.set browser-max-html-size` (current: %d bytes ≈ %d KB).",
+	KeySettingCmd_697: "down",
+	KeySettingCmd_698: "Scrolled %s %.0f pixels. Please use browser_screenshot to view the page content after scrolling.",
+	KeySettingCmd_699: "Interactive elements info:\n%s\n\nYou can click using the browser_click tool with these element position coordinates (centerX, centerY), or use the browser_type tool to enter text. If the page layout changes, call this tool again to get the latest info.",
+	KeySettingCmd_700: "Went back to previous page.\nCurrent URL: %s\nTitle: %s",
+	KeySettingCmd_701: "Went forward to next page.\nCurrent URL: %s\nTitle: %s",
+	KeySettingCmd_702: "Browser not started",
+	KeySettingCmd_703: "Browser page closed. A new page will be created automatically the next time a browser tool is used.",
+	KeySettingCmd_704: "up",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",
