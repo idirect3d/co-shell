@@ -675,6 +675,9 @@ var enMessages = map[string]string{
 	KeySettingCmd_666: "Contains formulas: yes",
 	KeySettingCmd_667: "Excel file opened: %s (%s)\nSession ID: %s\n\nUse excel_overview to get the file overview.",
 	KeySettingCmd_668: "Sheet %q replaced to %q",
+	KeySettingCmd_669: "(new)",
+	KeySettingCmd_670: "Filename: %s\n",
+	KeySettingCmd_671: "Sheet: %s, range %s\n",
 
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",

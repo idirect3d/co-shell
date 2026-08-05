@@ -861,6 +861,9 @@ const (
 	KeySettingCmd_621 = "setting_cmd_621"
 
 	// FEATURE-305 第 4 批: agent/excel_tools.go
+	KeySettingCmd_669 = "setting_cmd_669"
+	KeySettingCmd_670 = "setting_cmd_670"
+	KeySettingCmd_671 = "setting_cmd_671"
 	KeySettingCmd_622 = "setting_cmd_622"
 	KeySettingCmd_623 = "setting_cmd_623"
 	KeySettingCmd_624 = "setting_cmd_624"
