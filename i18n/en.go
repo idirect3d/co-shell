@@ -984,6 +984,7 @@ no liability whatsoever.`,
 	KeyFileExistsSkip:               "already exists, skipping generation.",
 	KeyGeneratedDefaultCAPABILITIES: "Generated default CAPABILITIES.md:",
 	KeyGeneratedDefaultRULES:        "Generated default RULES.md:",
+	KeyGeneratedDefaultPrinciples:   "✅ Exported system principles to:",
 	KeyVisionNotSupported:           "Error: the current model does not support vision (VisionSupport=off), cannot process image input.",
 	KeyVisionUseMultimodalModel:     "Please remove the -image parameter or use a multimodal-capable model.",
 
@@ -1823,9 +1824,10 @@ no liability whatsoever.`,
 	KeySimulateLabelResult:   "Result: ",
 
 	// Unload mode (FEATURE-245)
-	KeyCLIHelpUnloadMode: "      --unload-mode <name>  Unload current mode sections to mode/<name>/ .md files",
-	KeyUnloadModeDone:    "✅ Unloaded mode sections to mode/%s/ (%d files)",
-	KeyUnloadModeFailed:  "❌ Failed to unload mode: %v",
+	KeyCLIHelpUnloadMode:       "      --unload-mode <name>  Unload current mode sections to mode/<name>/ .md files",
+	KeyCLIHelpUnloadPrinciples: "      --unload-principles  Export current system principles to PRINCIPLES.md in the workspace root",
+	KeyUnloadModeDone:          "✅ Unloaded mode sections to mode/%s/ (%d files)",
+	KeyUnloadModeFailed:        "❌ Failed to unload mode: %v",
 
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token usage: TTFT=%s | input=%d(%s t/s) | output=%d(%s t/s) | total=%d (%.1f%%)",

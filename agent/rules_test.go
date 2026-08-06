@@ -228,6 +228,35 @@ func TestResolveAgentPrinciples_BlankFileFallsBackToConfig(t *testing.T) {
 	}
 }
 
+func TestResolveAgentPrinciplesPackageFunc(t *testing.T) {
+	i18n.Init("en")
+	// UC-0025: package-level ResolveAgentPrinciples used by --unload-principles
+	t.Run("workspace PRINCIPLES.md wins", func(t *testing.T) {
+		ws := t.TempDir()
+		if err := os.WriteFile(filepath.Join(ws, "PRINCIPLES.md"), []byte("pkg file principles"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		cfg := config.DefaultConfig()
+		cfg.LLM.AgentPrinciples = "pkg config principles"
+		if got := ResolveAgentPrinciples(cfg, ws); got != "pkg file principles" {
+			t.Errorf("expected pkg file principles, got %q", got)
+		}
+	})
+	t.Run("cfg fallback when no file", func(t *testing.T) {
+		ws := t.TempDir()
+		cfg := config.DefaultConfig()
+		cfg.LLM.AgentPrinciples = "pkg config principles"
+		if got := ResolveAgentPrinciples(cfg, ws); got != "pkg config principles" {
+			t.Errorf("expected pkg config principles, got %q", got)
+		}
+	})
+	t.Run("nil cfg returns empty", func(t *testing.T) {
+		if got := ResolveAgentPrinciples(nil, ""); got != "" {
+			t.Errorf("expected empty for nil cfg, got %q", got)
+		}
+	})
+}
+
 // --- resolveRules merge priority tests (UC-0014 ~ 0018) ---
 
 func TestResolveRules(t *testing.T) {

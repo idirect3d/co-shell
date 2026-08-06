@@ -1036,13 +1036,14 @@
 
 ### 功能清单
 
-- [x] FEATURE-330 工作区配置外部化：系统提示词支持 PRINCIPLES.md 与 .rules/ 目录 [BUILD-372]
+- [x] FEATURE-330 工作区配置外部化：系统提示词支持 PRINCIPLES.md 与 .rules/ 目录 [BUILD-373]
   - PRINCIPLES.md：存在时替代 config.json 的 `llm.agent_principles`（查找顺序 workspacePath → cwd），每次重建系统提示词时读取，修改后立即生效
   - `.rules/*.md`：按文件名排序合并到 RULES 节 `{CUSTOM_RULES}`，每个文件以 `# {文件名}` 开头标明规则领域，追加在 config rules 之后
   - 修复 `.rule` 命令修改不生效：`a.rules` 快照改为每次从 `cfg.Rules` 现场重建（`strings.Join`），使 `.rule add/remove/clear` 与 `.rules/` 目录修改均在下一次 RunStream 迭代生效
   - 新增 `resolveAgentPrinciples()` / `resolveRules()` 私有方法统一两处（rebuildSystemPrompt / SetResultMode）重复逻辑
-  - 新增 `agent/rules_test.go` 单元测试（排序/格式/空目录/合并优先级）
-  - 验收：`go build ./...`、`go test ./...`、`go vet ./...` 全绿；用例 FEATURE-330-UC-0001~0024 通过
+  - 新增 `--unload-principles` 命令行参数：将当前系统解析后的 principles 导出到工作区根目录 PRINCIPLES.md 并退出（文件已存在则跳过），复用 `agent.ResolveAgentPrinciples` 包级函数
+  - 新增 `agent/rules_test.go` 单元测试（排序/格式/空目录/合并优先级/包级函数）+ i18n KeyGeneratedDefaultPrinciples / KeyCLIHelpUnloadPrinciples（zh/en）
+  - 验收：`go build ./...`、`go test ./...`、`go vet ./...` 全绿；用例 FEATURE-330-UC-0001~0025 通过；运行时验证 `--unload-principles` 导出/跳过/--help 显示
 
 ## v1.0.0 — 正式版
 

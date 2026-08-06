@@ -864,6 +864,17 @@ func (a *Agent) GetLLMClient() llm.Client {
 	return a.llmClient
 }
 
+// ResolveAgentPrinciples resolves agent principles without an Agent instance.
+// Priority: PRINCIPLES.md (workspace root, then cwd) → cfg.LLM.AgentPrinciples → i18n default.
+// Used by CLI flags (e.g. --unload-principles) that run before the Agent is created.
+func ResolveAgentPrinciples(cfg *config.Config, workspacePath string) string {
+	if cfg == nil {
+		return ""
+	}
+	a := &Agent{cfg: cfg, workspacePath: workspacePath}
+	return a.resolveAgentPrinciples()
+}
+
 // resolveAgentPrinciples resolves agent principles with priority:
 //  1. PRINCIPLES.md in workspace root, then current working directory
 //  2. cfg.LLM.AgentPrinciples (config.json / :config modified)
