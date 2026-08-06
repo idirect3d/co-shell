@@ -610,6 +610,21 @@ func (r *REPL) handleAgentInput(input string) {
 			r.agent.SetIO(eio)
 			r.userIO = eio
 			stopMonitor = r.startESCMonitor()
+			// Register command hooks: while a system command runs, restore the
+			// terminal to cooked mode so interactive commands (sudo, passwd, etc.)
+			// can read stdin with echo and line buffering; re-enter raw mode
+			// once the command finishes. Without this, raw mode (no ECHO/ICRNL)
+			// makes interactive commands hang with no visible feedback.
+			r.agent.SetCommandHooks(agent.CommandHooks{
+				BeforeCommand: func() {
+					eio.stopRaw()
+				},
+				AfterCommand: func() {
+					if err := eio.startRaw(); err != nil {
+						log.Warn("REPL.handleAgentInput: cannot re-enter raw mode after command: %v", err)
+					}
+				},
+			})
 		}
 	default: // "stdio"
 		log.Debug("REPL.handleAgentInput: setting up StdioIO")
@@ -625,6 +640,8 @@ func (r *REPL) handleAgentInput(input string) {
 		log.Debug("REPL.handleAgentInput: stopping ESC monitor")
 		stopMonitor()
 	}
+	// Clear command hooks before restoring raw mode so no stray hook fires.
+	r.agent.SetCommandHooks(agent.CommandHooks{})
 	if r.userIO != nil {
 		if eio, ok := r.userIO.(*EnhancedIO); ok {
 			eio.stopRaw()

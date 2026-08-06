@@ -158,9 +158,17 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	// without competition.
 	a.SetCommandRunning(true)
 
+	// Restore the terminal to cooked mode (via the registered CommandHooks) so
+	// interactive commands (sudo, passwd, etc.) can read user input with echo,
+	// line buffering and Ctrl+C handling. Without this, raw mode disables echo
+	// and ICRNL, causing commands that prompt for input to hang with no visible
+	// feedback.
+	a.onCommandStart()
+
 	// Start the command (non-blocking).
 	if err := cmd.Start(); err != nil {
 		a.SetCommandRunning(false)
+		a.onCommandEnd()
 		return "", fmt.Errorf("cannot start command: %w", err)
 	}
 
@@ -197,6 +205,9 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	err := cmd.Wait()
 	close(done)
 	a.SetCommandRunning(false)
+	// Re-enter raw mode (via the registered CommandHooks) now that the command
+	// has finished reading from stdin.
+	a.onCommandEnd()
 	// Release the process resources now that the command has exited (FIX-320).
 	// This frees the PID so it can be reused, and is safe to call after Wait.
 	if cmd.Process != nil {
@@ -269,9 +280,17 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	// without competition.
 	a.SetCommandRunning(true)
 
+	// Restore the terminal to cooked mode (via the registered CommandHooks) so
+	// interactive commands (sudo, passwd, etc.) can read user input with echo,
+	// line buffering and Ctrl+C handling. Without this, raw mode disables echo
+	// and ICRNL, causing commands that prompt for input to hang with no visible
+	// feedback.
+	a.onCommandStart()
+
 	// Start the command (non-blocking).
 	if err := cmd.Start(); err != nil {
 		a.SetCommandRunning(false)
+		a.onCommandEnd()
 		return "", fmt.Errorf("cannot start command: %w", err)
 	}
 
@@ -304,6 +323,9 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	err := cmd.Wait()
 	close(done)
 	a.SetCommandRunning(false)
+	// Re-enter raw mode (via the registered CommandHooks) now that the command
+	// has finished reading from stdin.
+	a.onCommandEnd()
 	// Release the process resources now that the command has exited (FIX-320).
 	if cmd.Process != nil {
 		cmd.Process.Release()
