@@ -470,3 +470,74 @@ func TestToolCallStream_XMLWriteGating(t *testing.T) {
 		t.Errorf("content lines should be gated off, got: %q", text)
 	}
 }
+
+// TestToolCallStream_XMLChunkBoundaryLoneLessThan verifies FIX-331: when the
+// '<' opening a prefixed tool tag is the LAST character of a chunk, it must be
+// carried over to the next Feed (via partial) so the next chunk's "cs:write..."
+// is still recognised as a tag. Before the fix, '<' was emitted as ordinary
+// plain text and the subsequent "cs:write_to_file>" fragment was treated as
+// plain content because it no longer started with '<' — corrupting the whole
+// tool call structure (params merged, closing text leaked).
+func TestToolCallStream_XMLChunkBoundaryLoneLessThan(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	// Simulate the LLM stream splitting "<cs:write_to_file>" as "<" + "cs:write_to_file>".
+	chunks := []string{
+		"<",
+		"cs:write_to_file>",
+		"<cs:path>a.go</cs:path>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if !strings.Contains(text, "⚙️ write_to_file") {
+		t.Errorf("tool header missing when '<' spans chunk boundary, got: %q", text)
+	}
+	if !strings.Contains(text, "   path: a.go") {
+		t.Errorf("path param missing when '<' spans chunk boundary, got: %q", text)
+	}
+	// The bare '<' must NOT leak into ordinary content.
+	if strings.Contains(text, "<") && !strings.Contains(text, "a.go") {
+		t.Errorf("stray '<' leaked into content when '<' spans chunk boundary, got: %q", text)
+	}
+}
+
+// TestToolCallStream_XMLChunkBoundaryPartialPrefix verifies FIX-331: when the
+// tag prefix itself is split at the chunk boundary (e.g. "<c" then "s:write..."),
+// the parser must also carry the partial prefix to the next Feed.
+func TestToolCallStream_XMLChunkBoundaryPartialPrefix(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	chunks := []string{
+		"<c",
+		"s:write_to_file>",
+		"<cs:path>a.go</cs:path>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if !strings.Contains(text, "⚙️ write_to_file") {
+		t.Errorf("tool header missing when prefix spans chunk boundary, got: %q", text)
+	}
+	if !strings.Contains(text, "   path: a.go") {
+		t.Errorf("path param missing when prefix spans chunk boundary, got: %q", text)
+	}
+}
