@@ -137,6 +137,7 @@ func buildUsage(version, build string) string {
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpCmdTimeout)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpLLMTimeout)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpUnloadMode)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpUnloadPrinciples)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpOutputMode)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpTokenUsage)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpBodyAdd)))

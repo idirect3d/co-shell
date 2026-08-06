@@ -80,7 +80,6 @@ type REPL struct {
 	agent           *agent.Agent
 	settingsHandler *cmd.SettingsHandler
 	mcpHandler      *cmd.MCPHandler
-	ruleHandler     *cmd.RuleHandler
 	memoryHandler   *cmd.MemoryHandler
 	contextHandler  *cmd.ContextHandler
 	listHandler     *cmd.ListHandler
@@ -112,7 +111,6 @@ func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.
 		agent:           ag,
 		settingsHandler: cmd.NewSettingsHandler(cfg, ag, s),
 		mcpHandler:      cmd.NewMCPHandler(cfg, mcpMgr),
-		ruleHandler:     cmd.NewRuleHandler(cfg),
 		memoryHandler:   cmd.NewMemoryHandler(s),
 		contextHandler:  cmd.NewContextHandler(ag, s),
 		listHandler:     cmd.NewListHandler(s),
@@ -126,7 +124,7 @@ func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.
 		simulateHandler: cmd.NewSimulateHandler(ag, cfg),
 	}
 	r.configHandler.SetScanner(bufio.NewScanner(os.Stdin))
-	r.configHandler.SetHandlers(r.mcpHandler, r.ruleHandler, r.memoryHandler,
+	r.configHandler.SetHandlers(r.mcpHandler, r.memoryHandler,
 		r.contextHandler, r.listHandler, r.imageHandler, r.planHandler,
 		r.sessionHandler, r.modelHandler, r.sectionHandler, r.modeHandler,
 		r.settingsHandler)
@@ -328,8 +326,6 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.settingsHandler.Handle(args)
 	case ":mcp":
 		result, err = r.mcpHandler.Handle(args)
-	case ":rule":
-		result, err = r.ruleHandler.Handle(args)
 	case ":memory":
 		result, err = r.memoryHandler.Handle(args)
 	case ":context":
@@ -683,7 +679,6 @@ func (r *REPL) printHelp() {
 	fmt.Println(i18n.T(i18n.KeyHelpConfig))
 	fmt.Println(i18n.T(i18n.KeyHelpSettings))
 	fmt.Println(i18n.T(i18n.KeyHelpMCP))
-	fmt.Println(i18n.T(i18n.KeyHelpRule))
 	fmt.Println(i18n.T(i18n.KeyHelpMemory))
 	fmt.Println(i18n.T(i18n.KeyHelpContext))
 	fmt.Println(i18n.T(i18n.KeyHelpHistory))
@@ -709,7 +704,6 @@ func (r *REPL) printHelp() {
 	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample2))
 	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample3))
 	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample4))
-	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample5))
 }
 
 func (r *REPL) cleanup() {

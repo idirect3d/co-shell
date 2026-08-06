@@ -26,8 +26,8 @@
 package cmd
 
 import (
-	"errors"
 	"bufio"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -73,7 +73,6 @@ type ConfigHandler struct {
 	agent           *agent.Agent
 	scanner         *bufio.Scanner
 	mcpHandler      *MCPHandler
-	ruleHandler     *RuleHandler
 	memoryHandler   *MemoryHandler
 	contextHandler  *ContextHandler
 	listHandler     *ListHandler
@@ -97,12 +96,11 @@ func NewConfigHandler(cfg *config.Config, ag *agent.Agent) *ConfigHandler {
 }
 
 // SetHandlers sets all command handlers for action entries.
-func (h *ConfigHandler) SetHandlers(mcp *MCPHandler, rule *RuleHandler, mem *MemoryHandler,
+func (h *ConfigHandler) SetHandlers(mcp *MCPHandler, mem *MemoryHandler,
 	ctx *ContextHandler, lst *ListHandler, img *ImageHandler, plan *PlanHandler,
 	sess *SessionHandler, mdl *ModelHandler, sec *SectionHandler, mode *ModeHandler,
 	set *SettingsHandler) {
 	h.mcpHandler = mcp
-	h.ruleHandler = rule
 	h.memoryHandler = mem
 	h.contextHandler = ctx
 	h.listHandler = lst
@@ -491,12 +489,6 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			h.cfg.LLM.BrowserHeadless = false
 			return i18n.TF(i18n.KeySettingsUpdated, "browser-headless", "off")
 		}},
-		// Rule management
-		cmdEntry(":rule", i18n.T(i18n.KeyCmdMig_329), "", h.ruleHandler.Handle, []ConfigSubCommand{
-			{Name: "list", Desc: i18n.T(i18n.KeyCmdMig_244), Action: func(a []string) { runHandler(h.ruleHandler.Handle, []string{}) }},
-			{Name: "add", Desc: i18n.T(i18n.KeyCmdMig_316), Args: "<rule>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"add"}, a...)) }},
-			{Name: "remove", Desc: i18n.T(i18n.KeyCmdMig_252), Args: "<index>", Action: func(a []string) { runHandler(h.ruleHandler.Handle, append([]string{"remove"}, a...)) }},
-		}),
 		// Search settings
 		{Name: "search-max-line-length", CurrentValue: func() string {
 			return strconv.Itoa(h.cfg.LLM.SearchMaxLineLength)

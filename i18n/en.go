@@ -984,6 +984,7 @@ no liability whatsoever.`,
 	KeyFileExistsSkip:               "already exists, skipping generation.",
 	KeyGeneratedDefaultCAPABILITIES: "Generated default CAPABILITIES.md:",
 	KeyGeneratedDefaultRULES:        "Generated default RULES.md:",
+	KeyGeneratedDefaultPrinciples:   "✅ Exported system principles to:",
 	KeyVisionNotSupported:           "Error: the current model does not support vision (VisionSupport=off), cannot process image input.",
 	KeyVisionUseMultimodalModel:     "Please remove the -image parameter or use a multimodal-capable model.",
 
@@ -1192,7 +1193,9 @@ no liability whatsoever.`,
 	KeyCLIHelpShowLogo: "      --show-logo on|off    Show ASCII art logo (overrides config)",
 
 	// Init capabilities/rules
-	KeyCLIHelpInputMode: "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
+	KeyCLIHelpInputMode:        "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
+	KeyCLIHelpInitCapabilities: "      --unload-capabilities  Export current system capabilities to CAPABILITIES.md in the workspace root (--init-capabilities deprecated)",
+	KeyCLIHelpInitRules:        "      --unload-rules         Export current system rules to RULES.md in the workspace root (--init-rules deprecated)",
 
 	// Context start mode (FEATURE-103)
 	KeyCol3ContextStartMode:    "context policy(window/task/smart/reorganize)",
@@ -1823,9 +1826,10 @@ no liability whatsoever.`,
 	KeySimulateLabelResult:   "Result: ",
 
 	// Unload mode (FEATURE-245)
-	KeyCLIHelpUnloadMode: "      --unload-mode <name>  Unload current mode sections to mode/<name>/ .md files",
-	KeyUnloadModeDone:    "✅ Unloaded mode sections to mode/%s/ (%d files)",
-	KeyUnloadModeFailed:  "❌ Failed to unload mode: %v",
+	KeyCLIHelpUnloadMode:       "      --unload-mode <name>  Unload current mode sections to mode/<name>/ .md files",
+	KeyCLIHelpUnloadPrinciples: "      --unload-principles  Export current system principles to PRINCIPLES.md in the workspace root",
+	KeyUnloadModeDone:          "✅ Unloaded mode sections to mode/%s/ (%d files)",
+	KeyUnloadModeFailed:        "❌ Failed to unload mode: %v",
 
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token usage: TTFT=%s | input=%d(%s t/s) | output=%d(%s t/s) | total=%d (%.1f%%)",

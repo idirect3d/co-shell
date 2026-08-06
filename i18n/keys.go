@@ -1050,6 +1050,7 @@ const (
 	KeyFileExistsSkip               = "file_exists_skip"
 	KeyGeneratedDefaultCAPABILITIES = "generated_default_capabilities"
 	KeyGeneratedDefaultRULES        = "generated_default_rules"
+	KeyGeneratedDefaultPrinciples   = "generated_default_principles"
 	KeyVisionNotSupported           = "vision_not_supported"
 	KeyVisionUseMultimodalModel     = "vision_use_multimodal_model"
 
@@ -2214,7 +2215,8 @@ const (
 	KeyConfigValCtxStart      = "config_val_ctx_start"
 
 	// CLI Help - Unload mode (FEATURE-245)
-	KeyCLIHelpUnloadMode = "cli_help_unload_mode"
+	KeyCLIHelpUnloadMode       = "cli_help_unload_mode"
+	KeyCLIHelpUnloadPrinciples = "cli_help_unload_principles"
 
 	// CLI Help - Output mode (FEATURE-288)
 	KeyCLIHelpOutputMode = "cli_help_output_mode"
