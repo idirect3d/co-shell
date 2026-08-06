@@ -881,6 +881,13 @@ func (a *Agent) WorkspacePath() string {
 	return a.workspacePath
 }
 
+// RebuildSystemPrompt rebuilds the system prompt from the current config and
+// external files (PRINCIPLES.md / .rules/) on disk, then refreshes the system
+// message in the active conversation. Call this to reflect external file edits.
+func (a *Agent) RebuildSystemPrompt() {
+	a.rebuildSystemPrompt()
+}
+
 // ResolveAgentPrinciples returns the resolved agent principles using this agent's
 // current config and workspace (PRINCIPLES.md → cfg.LLM.AgentPrinciples → i18n).
 func (a *Agent) ResolveAgentPrinciples() string {
