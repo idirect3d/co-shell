@@ -1046,6 +1046,13 @@
   - 效果：en.go/zh.go `\uXXXX` 转义清零；运行时字符串值不变（Go 规范保证双引号内 `\uXXXX` 与直接 UTF-8 字节等价）
   - 用例：use-case/FIX-332/FIX-332-UC-0001.md（UC-0001~0004）
   - 验收：`go build ./...`、`go vet ./i18n/...`、`go test ./i18n/` 全绿；两文件 `\uXXXX` 数量为 0
+- [x] FIX-333 英文资源中文英文化
+  - 背景：i18n/en.go 英文资源大量条目误存中文（复制自 zh.go），KeyCmdMig_* 381 个 key 值在 en/zh 完全一致均为中文；另有 KeySettingCmd_613/614/615、KeyNoActiveTaskPlan、KeyNoRecentIterations 5 处含中文样例/全角符号
+  - 新增 bin/translate_en_cmdkeys.py：内置 381 条 KeyCmdMig_* 中→英映射，按行正则替换（保留 %s/%d/\n 等转义与前导缩进），执行 gofmt 规范缩进
+  - 手工修正 5 处：KeySettingCmd_613 图片识别示例英文化、614 '微软雅黑'→'Microsoft YaHei'、615 word_continue content 示例英文化、KeyNoActiveTaskPlan/KeyNoRecentIterations 去全角双语改纯英文
+  - 效果：en.go 资源值中 `[\u4e00-\u9fff]` 数量为 0；zh.go 未改动
+  - 用例：use-case/FIX-333/FIX-333-UC-0001.md（UC-0001~0004）
+  - 验收：`go build ./...`、`go vet ./i18n/...`、`go test ./i18n/` 全绿；en.go 无中文残留
 
 ## v0.7.2 — 工作区配置外部化
 
