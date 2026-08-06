@@ -1028,6 +1028,24 @@
   - judge 提示词终极目标锚定：系统提示词新增第 7 条"先锚定终极目标"（提炼主目标/最终交付物作为执行锚点，防止偏离主线）与第 8 条"再明确阶段目标与优先级顺序"（按优先级列执行步骤且每步可溯源到终极目标），输出格式要求同步；新增样例 6（多层级目标先锚定终极目标）
   - 循环报警类型区分：`LoopDetectedError` 增加类型标识，`handleLoopDetection` 提示区分 6 种触发场景——单行重复/多行周期/单行超长/字符周期/长输出/工具调用重复；zh/en 双语
 
+## v0.7.2 — 工作区配置外部化
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-08-06
+> **里程碑**: 系统提示词外部化（PRINCIPLES.md 覆盖 + .rules/ 目录规则 + .rule 生效修复）
+
+### 功能清单
+
+- [x] FEATURE-330 工作区配置外部化：系统提示词支持 PRINCIPLES.md 与 .rules/ 目录 [BUILD-375]
+  - PRINCIPLES.md：存在时替代 config.json 的 `llm.agent_principles`（查找顺序 workspacePath → cwd），每次重建系统提示词时读取，修改后立即生效
+  - `.rules/*.md`：按文件名排序合并到 RULES 节 `{CUSTOM_RULES}`，每个文件以 `====\n标题(去.md后缀)\n\n内容` 格式标明规则领域，追加在 config rules 之后；去掉 `{CUSTOM_RULES}` 前的 `# 自定义规则` 标题
+  - 修复 `.rule` 命令修改不生效：`a.rules` 快照改为每次从 `cfg.Rules` 现场重建（`strings.Join`）；随后按反馈移除 REPL `:rule` 命令及相关子命令（cmd/rule.go 删除），规则改由 `.rules/` 目录管理
+  - 新增 `--unload-principles` 命令行参数：将当前系统解析后的 principles 导出到工作区根目录 PRINCIPLES.md 并退出（文件已存在则跳过）；`--init-capabilities`/`--init-rules` 改名 `--unload-capabilities`/`--unload-rules`（旧名保留为弃用别名）
+  - `:set` 实时体现外部文件状态：新增 agent 公开方法 `ResolveAgentPrinciples`/`ResolveRules`/`ExternalFile`/`RulesDirFiles`，showSettingsHelp 方法化注入 capabilities/rules 状态行
+  - `:context` 实时反映 PRINCIPLES.md 修改：新增 `agent.RebuildSystemPrompt()` 公开方法，showContext 开头触发重建
+  - 新增 `agent/rules_test.go`、`cmd/settings_external_test.go`、`cmd/context_rebuild_test.go` 单元测试
+  - 验收：`go build ./...`、`go test ./...`、`go vet ./...` 全绿；用例 FEATURE-330-UC-0001~0025 通过；编译产物 [BUILD-375]（work/co-shell）
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
@@ -1070,7 +1088,7 @@
 | v0.6.0 | 2026-06-01 | ✅ 已完成 | Beta3 测试版 |
 | v0.7.0 | 2026-08-01 | 🚧 开发中 | 输出架构重构里程碑 |
 | v0.7.1 | 2026-08-05 | 🚧 开发中 | 循环检测优化（误判修复+judge 提示词+报警类型区分） |
-| v0.7.2 | 2026-08-01 | 📋 规划中 | tui v1 + web 原型 |
+| v0.7.2 | 2026-08-06 | 🚧 开发中 | 工作区配置外部化（PRINCIPLES.md + .rules/ + .rule 生效修复） |
 | v0.7.3 | 2026-08-01 | 💡 构想中 | 全屏 TUI（可选分支） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 

@@ -75,6 +75,9 @@ func (h *ContextHandler) Handle(args []string) (string, error) {
 }
 
 func (h *ContextHandler) showContext() (string, error) {
+	// Rebuild the system prompt first so external file edits (PRINCIPLES.md,
+	// .rules/, etc.) are reflected in the displayed context (message 0).
+	h.agent.RebuildSystemPrompt()
 	messages := h.agent.Messages()
 	if len(messages) == 0 {
 		return "Context is empty.\n\nStart a conversation to build context.", nil

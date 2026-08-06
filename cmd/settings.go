@@ -152,7 +152,7 @@ func (h *SettingsHandler) rebuildLLMClient() {
 // Handle processes .settings commands.
 func (h *SettingsHandler) Handle(args []string) (string, error) {
 	if len(args) == 0 {
-		return showSettingsHelp(h.cfg), nil
+		return h.showSettingsHelp(), nil
 	}
 
 	subcommand := args[0]
@@ -257,7 +257,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 }
 
 // showSettingsHelp displays the current configuration grouped by category.
-func showSettingsHelp(cfg *config.Config) string {
+// It reflects external files (PRINCIPLES.md / CAPABILITIES.md / .rules/) in real
+// time by delegating to the agent's resolvers.
+func (h *SettingsHandler) showSettingsHelp() string {
+	cfg := h.cfg
 	var sb strings.Builder
 	sb.WriteString(i18n.T(i18n.KeySettingsCurrentTitle) + "\n")
 
@@ -400,8 +403,14 @@ func showSettingsHelp(cfg *config.Config) string {
 		modeDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 	}
 
-	// Resolve principles display (show full value)
-	principlesDisplay := cfg.LLM.AgentPrinciples
+	// Resolve principles display: reflect PRINCIPLES.md external file when present.
+	principlesDisplay := ""
+	if h.agent != nil {
+		principlesDisplay = h.agent.ResolveAgentPrinciples()
+	}
+	if principlesDisplay == "" {
+		principlesDisplay = cfg.LLM.AgentPrinciples
+	}
 	if principlesDisplay == "" {
 		principlesDisplay = i18n.T(i18n.KeyAgentDefaultPrinciples)
 	}
@@ -413,12 +422,32 @@ func showSettingsHelp(cfg *config.Config) string {
 	var allGroups [][]settingLine
 
 	// Group 1: Identity & Personality
-	allGroups = append(allGroups, []settingLine{
+	idGroup := []settingLine{
 		makeLine("name", agentName, i18n.T(i18n.KeyCol3Name)),
 		makeLine("description", modeDesc, i18n.T(i18n.KeyCol3Desc)),
 		makeLine("principles", principlesDisplay, i18n.T(i18n.KeyCol3Principles)),
 		makeLine("mode", modeName, i18n.T(i18n.KeyCol3WorkMode)),
-	})
+	}
+	// External config file status: CAPABILITIES.md / PRINCIPLES.md / .rules/ dir
+	if h.agent != nil {
+		// Capabilities external file status
+		if capContent := h.agent.ExternalFile("CAPABILITIES.md"); capContent != "" {
+			idGroup = append(idGroup, makeLine("capabilities", "已加载 (CAPABILITIES.md, "+fmt.Sprintf("%d 字符", len(capContent))+")", "Capabilities"))
+		} else {
+			idGroup = append(idGroup, makeLine("capabilities", "内置默认", "Capabilities"))
+		}
+		// Principles external file status
+		if h.agent.ExternalFile("PRINCIPLES.md") != "" {
+			idGroup = append(idGroup, makeLine("principles-file", "已加载 (PRINCIPLES.md)", "Principles 外部文件"))
+		}
+		// Rules: config rules count + .rules/ dir files
+		if files := h.agent.RulesDirFiles(); len(files) > 0 {
+			idGroup = append(idGroup, makeLine("rules", fmt.Sprintf("%d 条 + .rules/(%s)", len(cfg.Rules), strings.Join(files, ", ")), i18n.T(i18n.KeyCol3Rules)))
+		} else {
+			idGroup = append(idGroup, makeLine("rules", fmt.Sprintf("%d 条", len(cfg.Rules)), i18n.T(i18n.KeyCol3Rules)))
+		}
+	}
+	allGroups = append(allGroups, idGroup)
 
 	// Group 2: Agent Settings
 	// Use cfg.Models directly for smart model selection display

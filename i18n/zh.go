@@ -969,6 +969,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyFileExistsSkip:               "已存在，跳过生成。",
 	KeyGeneratedDefaultCAPABILITIES: "已生成默认 CAPABILITIES.md:",
 	KeyGeneratedDefaultRULES:        "已生成默认 RULES.md:",
+	KeyGeneratedDefaultPrinciples:   "✅ 已导出系统 principles 到:",
 	KeyVisionNotSupported:           "错误: 当前模型不支持视觉识别能力（VisionSupport=off），无法处理图片输入。",
 	KeyVisionUseMultimodalModel:     "请去掉 -image 参数或使用支持多模态的模型。",
 
@@ -1206,8 +1207,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 
 	// Init capabilities/rules
 	KeyCLIHelpInputMode:        "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）",
-	KeyCLIHelpInitCapabilities: "      --init-capabilities  在工作区生成默认 CAPABILITIES.md 文件并退出",
-	KeyCLIHelpInitRules:        "      --init-rules         在工作区生成默认 RULES.md 文件并退出",
+	KeyCLIHelpInitCapabilities: "      --unload-capabilities  将当前系统 capabilities 导出到工作区根目录的 CAPABILITIES.md 文件（--init-capabilities 已弃用）",
+	KeyCLIHelpInitRules:        "      --unload-rules         将当前系统 rules 导出到工作区根目录的 RULES.md 文件（--init-rules 已弃用）",
 
 	// Context start mode (FEATURE-103)
 	KeyCol3ContextStartMode:    "上下文策略(window/task/smart/reorganize)",
@@ -1853,12 +1854,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySimulateLabelResult:   "结果: ",
 
 	// Unload mode (FEATURE-245)
-	KeyCLIHelpUnloadMode: "      --unload-mode <name>  将当前模式各节配置卸载到 mode/<name>/ .md 文件",
-	KeyCLIHelpOutputMode: "      --output-mode    LLM 前端输出模式（compact/normal/debug，覆盖配置文件）",
-	KeyCLIHelpTokenUsage: "      --token-usage    Token 用量显示模式（on/off/none，覆盖配置文件）",
-	KeyCLIHelpBodyAdd:    "      --body-add key=value  向 LLM 请求体添加自定义 JSON 属性（可多次指定，用逗号分隔）",
-	KeyUnloadModeDone:    "✅ 模式配置已卸载到 mode/%s/ (%d 个文件)",
-	KeyUnloadModeFailed:  "❌ 卸载模式配置失败: %v",
+	KeyCLIHelpUnloadMode:       "      --unload-mode <name>  将当前模式各节配置卸载到 mode/<name>/ .md 文件",
+	KeyCLIHelpUnloadPrinciples: "      --unload-principles  将当前系统 principles 导出到工作区根目录的 PRINCIPLES.md 文件",
+	KeyCLIHelpOutputMode:       "      --output-mode    LLM 前端输出模式（compact/normal/debug，覆盖配置文件）",
+	KeyCLIHelpTokenUsage:       "      --token-usage    Token 用量显示模式（on/off/none，覆盖配置文件）",
+	KeyCLIHelpBodyAdd:          "      --body-add key=value  向 LLM 请求体添加自定义 JSON 属性（可多次指定，用逗号分隔）",
+	KeyUnloadModeDone:          "✅ 模式配置已卸载到 mode/%s/ (%d 个文件)",
+	KeyUnloadModeFailed:        "❌ 卸载模式配置失败: %v",
 
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token用量: 首字=%s | 输入=%d(%s t/s) | 输出=%d(%s t/s) | 总计=%d (%.1f%%)",
