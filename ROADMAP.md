@@ -1035,6 +1035,11 @@
   - i18n：`KeySystemPromptToolUsageExamples` zh/en 均置空字符串（`i18n.T` 对"key 存在值为空"返回空串，合法"无内容"值），OpenAI 模式 ToolExamples 节输出为空，减少上下文占用
   - 用例：use-case/FIX-330/FIX-330-UC-0001.md（UC-0001~0006）
   - 验收：`go build ./...`、`go test ./agent/ ./repl/ ./i18n/` 全绿；编译三平台产物（cc 规则参数 `3`）
+- [x] FIX-331 XML 工具调用流式解析跨 chunk 边界前缀破坏修复
+  - 根因：`XMLToolCallParser.Feed` `xmlStateOutside` 分支处理 `<` 时，若该 `<` 是 chunk 末尾字符或标签前缀片段（`<`、`<c`、`<cs`、`<cs:`、`</`、`</c`…）落在 chunk 边界，前缀完整匹配检查失败，`<` 被当普通文本输出且不缓存到 partial；下一 chunk 的 `cs:read_file>` 因不以 `<` 开头而无法识别为标签，整个工具调用 XML 结构破坏——表现为工具名粘在普通文本末、参数键值交叉错乱（`end_line:`/`intent:` 无值、`,` `:` 残留、`start_line1` 粘连）、`[⚙️ ]< read_file` 残渣泄漏到普通内容
+  - 修复：`xmlStateOutside` 在 `<` 认定为字面文本前增加两个缓存判断——开标签前缀部分匹配 `strings.HasPrefix(p.prefix, content[i+1:])`（含空串）与闭标签 `content[i+1]=='/' && strings.HasPrefix(p.prefix, content[i+2:])`，匹配时整段缓存到 `p.partial` 待下一 chunk 续扫；普通非前缀 `<`（`a < b`、`</div>`）保持字面路径不受影响
+  - 用例：use-case/FIX-331/FIX-331-UC-0001.md（UC-0001~0003）；新增 TestToolCallStream_XMLChunkBoundaryLoneLessThan / _PartialPrefix 单测
+  - 验收：`go test ./agent/ -run TestToolCallStream` 13 用例全绿（含 2 新 + 11 既有）；`go build ./...`、`go vet ./agent/...`、`go test ./agent/ ./repl/ ./i18n/` 全绿
 
 ## v0.7.2 — 工作区配置外部化
 
