@@ -52,8 +52,10 @@ func loadExternalFile(workspacePath, filename string) string {
 }
 
 // loadRulesDir reads all *.md files from dir, sorted by filename (case-insensitive,
-// so .md and .MD are both accepted). Each file is formatted as "# {filename}\n\n{content}"
-// and joined by "\n\n". Empty or whitespace-only files are skipped. Returns "" when
+// so .md and .MD are both accepted). Each file is formatted as
+// "\n====\n{basename-without-.md}\n\n{content}" and joined by "\n\n".
+// The title is the filename with the ".md" suffix removed (no "# " prefix).
+// Empty or whitespace-only files are skipped. Returns "" when
 // the directory does not exist or contains no loadable .md files.
 func loadRulesDir(dir string) string {
 	if dir == "" {
@@ -90,7 +92,9 @@ func loadRulesDir(dir string) string {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
-		sb.WriteString("# " + name + "\n\n" + trimmed)
+		// Title: filename without ".md" suffix, preceded by a "====" separator line.
+		title := strings.TrimSuffix(name, filepath.Ext(name))
+		sb.WriteString("====\n" + title + "\n\n" + trimmed)
 	}
 	return strings.TrimSpace(sb.String())
 }

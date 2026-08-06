@@ -1150,8 +1150,6 @@ RULES
 - When extracting content from PDF files, first use the pdf2png.py tool to split it into individual PNG pages, then use visual_analysis for content analysis or recognition.
 - To avoid conflicts with tool-call XML parsing, when you need to output XML-like tags outside of tool calls, wrap them in "<xml>" or '<xml>' or ` + "`" + `<xml>` + "`" + ` style, e.g. "</any-tag>" or ` + "`" + `<any-tag>` + "`" + `.
 
-# Custom Rules (added by user via :rule)
-
 {CUSTOM_RULES}
 `
 

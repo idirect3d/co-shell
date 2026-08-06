@@ -55,12 +55,12 @@ func TestLoadRulesDir(t *testing.T) {
 		}
 	}
 	got := loadRulesDir(dir)
-	want := "# a.md\n\nrule a content\n\n# b.md\n\nrule b content\n\n# c.md\n\nrule c content"
+	want := "====\na\n\nrule a content\n\n====\nb\n\nrule b content\n\n====\nc\n\nrule c content"
 	if got != want {
 		t.Errorf("loadRulesDir sorting/format mismatch:\n got: %q\nwant: %q", got, want)
 	}
-	if !strings.Contains(got, "# a.md\n\nrule a content") {
-		t.Errorf("expected a.md with # header, got: %q", got)
+	if !strings.Contains(got, "====\na\n\nrule a content") {
+		t.Errorf("expected a title with ==== separator, got: %q", got)
 	}
 }
 
@@ -86,11 +86,11 @@ func TestLoadRulesDir_NonMDIgnored(t *testing.T) {
 	if strings.Contains(got, "notes.txt") {
 		t.Errorf("notes.txt should not appear, got: %q", got)
 	}
-	if !strings.Contains(got, "upper.MD") {
-		t.Errorf("uppercase .MD should be accepted, got: %q", got)
+	if !strings.Contains(got, "====\nupper\n\nupper rule") {
+		t.Errorf("uppercase .MD should be accepted (title without .MD), got: %q", got)
 	}
-	if !strings.Contains(got, "real.md") {
-		t.Errorf("real.md should be loaded, got: %q", got)
+	if !strings.Contains(got, "====\nreal\n\nmd rule") {
+		t.Errorf("real.md should be loaded (title without .md), got: %q", got)
 	}
 }
 
@@ -139,7 +139,7 @@ func TestLoadRulesDir_EmptyFileContent(t *testing.T) {
 	if strings.Contains(got, "blank.md") {
 		t.Errorf("blank file should not produce header, got: %q", got)
 	}
-	if !strings.Contains(got, "# good.md") {
+	if !strings.Contains(got, "====\ngood\n\ngood rule") {
 		t.Errorf("good.md should be loaded, got: %q", got)
 	}
 }
@@ -283,7 +283,7 @@ func TestResolveRules(t *testing.T) {
 		cfg := config.DefaultConfig()
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
-		if got := a.resolveRules(); got != "# team.md\n\nteam rule" {
+		if got := a.resolveRules(); got != "====\nteam\n\nteam rule" {
 			t.Errorf("expected rules dir output, got %q", got)
 		}
 	})
@@ -302,7 +302,7 @@ func TestResolveRules(t *testing.T) {
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
 		got := a.resolveRules()
-		if !strings.HasPrefix(got, "config rule\n\n# team.md") {
+		if !strings.HasPrefix(got, "config rule\n\n====\nteam") {
 			t.Errorf("expected config rule first then rules dir, got: %q", got)
 		}
 	})
@@ -398,7 +398,7 @@ func TestRebuildSystemPrompt_LiveRulesAndPrinciples(t *testing.T) {
 	}
 	a.rebuildSystemPrompt()
 	msg = a.Messages()
-	if !strings.Contains(msg[0].Content, "# a.md") || !strings.Contains(msg[0].Content, "external rule") {
+	if !strings.Contains(msg[0].Content, "====\na\n\nexternal rule") {
 		t.Errorf("expected .rules/a.md content in system prompt, got: %q", msg[0].Content)
 	}
 
