@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -873,6 +874,76 @@ func ResolveAgentPrinciples(cfg *config.Config, workspacePath string) string {
 	}
 	a := &Agent{cfg: cfg, workspacePath: workspacePath}
 	return a.resolveAgentPrinciples()
+}
+
+// WorkspacePath returns the workspace root path (may be empty if not set).
+func (a *Agent) WorkspacePath() string {
+	return a.workspacePath
+}
+
+// ResolveAgentPrinciples returns the resolved agent principles using this agent's
+// current config and workspace (PRINCIPLES.md → cfg.LLM.AgentPrinciples → i18n).
+func (a *Agent) ResolveAgentPrinciples() string {
+	return a.resolveAgentPrinciples()
+}
+
+// ResolveRules returns the resolved rules string (cfg.Rules + .rules/*.md) using
+// this agent's current config and workspace.
+func (a *Agent) ResolveRules() string {
+	return a.resolveRules()
+}
+
+// ExternalFile returns the content of an external config file in the workspace
+// root (e.g. PRINCIPLES.md, CAPABILITIES.md), or "" if it does not exist.
+// Search order: workspace root, then current working directory.
+func (a *Agent) ExternalFile(filename string) string {
+	if filename == "" {
+		return ""
+	}
+	if a.workspacePath != "" {
+		if p := loadExternalFile(a.workspacePath, filename); p != "" {
+			return p
+		}
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		if p := loadExternalFile(cwd, filename); p != "" {
+			return p
+		}
+	}
+	return ""
+}
+
+// RulesDirFiles returns the sorted list of *.md filenames under the workspace's
+// .rules/ directory (workspace root first, then current working directory).
+// Returns nil when the directory does not exist or contains no .md files.
+func (a *Agent) RulesDirFiles() []string {
+	var dir string
+	if a.workspacePath != "" {
+		dir = filepath.Join(a.workspacePath, ".rules")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if cwd, cwderr := os.Getwd(); cwderr == nil {
+			entries, err = os.ReadDir(filepath.Join(cwd, ".rules"))
+		}
+	}
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(e.Name()), ".md") {
+			names = append(names, e.Name())
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	return names
 }
 
 // resolveAgentPrinciples resolves agent principles with priority:
