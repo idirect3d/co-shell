@@ -1053,6 +1053,11 @@
   - 效果：en.go 资源值中 `[\u4e00-\u9fff]` 数量为 0；zh.go 未改动
   - 用例：use-case/FIX-333/FIX-333-UC-0001.md（UC-0001~0004）
   - 验收：`go build ./...`、`go vet ./i18n/...`、`go test ./i18n/` 全绿；en.go 无中文残留
+- [x] FIX-334 修复 KeyCmdMig_* 中文资源双重转义换行
+  - 根因：zh.go 的 `KeyCmdMig_*` 资源值使用 `\\n`（源码双反斜杠+n），Go 双引号解码后得到**字面 `\n` 两字符**而非换行；`:model switch` 等中文界面输出 `(优先级: 20)\n  [2]` 显示字面 `\n`。en.go 在 FIX-333 翻译时已是单转义（正确），中文界面暴露 zh.go 缺陷
+  - 修复：将 zh.go 中 `KeyCmdMig_*` 行的 `\\n` 还原为 `\n`（真实换行），共 143 行；`KeySettingCmd_615` 教学示例中的 `\\n` 是展示给 LLM 的字面 JSON 参数格式，有意保留
+  - 用例：use-case/FIX-334/FIX-334-UC-0001.md（UC-0001~0003）
+  - 验收：`go build ./...`、`go test ./i18n/` 全绿；zh.go `KeyCmdMig_*` 行无 `\\n` 残留
 
 ## v0.7.2 — 工作区配置外部化
 
