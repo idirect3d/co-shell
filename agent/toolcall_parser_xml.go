@@ -183,6 +183,32 @@ func (p *XMLToolCallParser) Feed(chunk string) ([]RenderOp, error) {
 				i += 2 + len(p.prefix)
 				continue
 			}
+			// FIX-331: when the '<' is followed by a (possibly empty) partial
+			// prefix of the tag prefix (e.g. "<", "<c", "<cs", "<cs:"), the
+			// '<' may be the start of a tool tag split at a chunk boundary.
+			// Carry the remainder to the next Feed via p.partial instead of
+			// emitting it as literal text — otherwise the next chunk's
+			// "cs:write_to_file>" is no longer recognised as a prefixed tag
+			// and the whole tool call structure corrupts (params merged,
+			// closing text leaked).
+			//
+			// Ordinary prose that merely starts with '<' and then diverges
+			// from the prefix (e.g. "a < b", "</div>") does NOT match a
+			// prefix of p.prefix and is emitted as literal text as before.
+			if strings.HasPrefix(p.prefix, content[i+1:]) {
+				p.partial = content[i:]
+				p.state = xmlStateOutside
+				i = len(content)
+				continue
+			}
+			if i+1 < len(content) && content[i+1] == '/' && strings.HasPrefix(p.prefix, content[i+2:]) {
+				// Closing tag "</" + partial prefix split at the boundary
+				// (e.g. "</", "</c", "</cs"). Carry it over too.
+				p.partial = content[i:]
+				p.state = xmlStateOutside
+				i = len(content)
+				continue
+			}
 			// Literal '<' (HTML inside content, prose, etc.).
 			if p.inTool != "" && p.inParam != "" {
 				ops = append(ops, RenderOp{Kind: OpValueFragment, Text: "<"})

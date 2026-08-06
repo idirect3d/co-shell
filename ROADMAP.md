@@ -1027,6 +1027,11 @@
   - judge 提示词升级：`KeyLoopJudgeUserPrompt` 新增 `{USER_PROMPTS}`（所有真实用户输入，过滤 XML 工具结果/continue prompt/循环反馈消息）与 `{ITERATION_TOOLS}`（迭代工具调用序列），使判模对"是否有进展"有更全面的判断
   - judge 提示词终极目标锚定：系统提示词新增第 7 条"先锚定终极目标"（提炼主目标/最终交付物作为执行锚点，防止偏离主线）与第 8 条"再明确阶段目标与优先级顺序"（按优先级列执行步骤且每步可溯源到终极目标），输出格式要求同步；新增样例 6（多层级目标先锚定终极目标）
   - 循环报警类型区分：`LoopDetectedError` 增加类型标识，`handleLoopDetection` 提示区分 6 种触发场景——单行重复/多行周期/单行超长/字符周期/长输出/工具调用重复；zh/en 双语
+- [x] FIX-331 XML 工具调用流式解析跨 chunk 边界前缀破坏修复
+  - 根因：`XMLToolCallParser.Feed` `xmlStateOutside` 分支处理 `<` 时，若该 `<` 是 chunk 末尾字符或标签前缀片段（`<`、`<c`、`<cs`、`<cs:`、`</`、`</c`…）落在 chunk 边界，前缀完整匹配检查失败，`<` 被当普通文本输出且不缓存到 partial；下一 chunk 的 `cs:read_file>` 因不以 `<` 开头而无法识别为标签，整个工具调用 XML 结构破坏——表现为工具名粘在普通文本末、参数键值交叉错乱（`end_line:`/`intent:` 无值、`,` `:` 残留、`start_line1` 粘连）、`[⚙️ ]< read_file` 残渣泄漏到普通内容
+  - 修复：`xmlStateOutside` 在 `<` 认定为字面文本前增加两个缓存判断——开标签前缀部分匹配 `strings.HasPrefix(p.prefix, content[i+1:])`（含空串）与闭标签 `content[i+1]=='/' && strings.HasPrefix(p.prefix, content[i+2:])`，匹配时整段缓存到 `p.partial` 待下一 chunk 续扫；普通非前缀 `<`（`a < b`、`</div>`）保持字面路径不受影响
+  - 用例：use-case/FIX-331/FIX-331-UC-0001.md（UC-0001~0003）；新增 TestToolCallStream_XMLChunkBoundaryLoneLessThan / _PartialPrefix 单测
+  - 验收：`go test ./agent/ -run TestToolCallStream` 13 用例全绿（含 2 新 + 11 既有）；`go build ./...`、`go vet ./agent/...`、`go test ./agent/ ./repl/ ./i18n/` 全绿
 
 ## v0.7.2 — 工作区配置外部化
 
