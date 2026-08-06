@@ -51,7 +51,7 @@ import (
 
 const version = "0.7.2"
 
-const build = "372"
+const build = "373"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -146,6 +146,7 @@ type cliFlags struct {
 	// External config file generation
 	initCapabilities bool
 	initRules        bool
+	unloadPrinciples bool
 
 	// Loop intervention (FEATURE-267)
 	loopIntervention string // off/retry/prompt/reorganize/temperature/random
@@ -300,6 +301,7 @@ func parseFlags() cliFlags {
 	// External config file generation
 	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "Generate default CAPABILITIES.md in workspace and exit")
 	flag.BoolVar(&f.initRules, "init-rules", false, "Generate default RULES.md in workspace and exit")
+	flag.BoolVar(&f.unloadPrinciples, "unload-principles", false, "Export current system principles to PRINCIPLES.md in workspace root and exit")
 
 	// Loop intervention (FEATURE-267)
 	flag.StringVar(&f.loopIntervention, "loop-intervention", "", "Loop intervention strategy (off/retry/prompt/reorganize/temperature/random, overrides config file)")
@@ -931,6 +933,24 @@ func main() {
 			}
 		}
 		io.Print(i18n.TF(i18n.KeyUnloadModeDone, flags.unloadMode, len(sectionNames)) + "\n")
+		os.Exit(0)
+	}
+
+	// Handle --unload-principles (FEATURE-330): export the resolved system
+	// principles to PRINCIPLES.md in the workspace root and exit.
+	if flags.unloadPrinciples {
+		ep := config.GetEmojiPrefixes(true)
+		principlesPath := filepath.Join(ws.Root(), "PRINCIPLES.md")
+		if _, err := os.Stat(principlesPath); err == nil {
+			io.Printf("%s %s %s\n", ep.Warning, principlesPath, i18n.T(i18n.KeyFileExistsSkip))
+			os.Exit(0)
+		}
+		content := agent.ResolveAgentPrinciples(cfg, ws.Root())
+		if err := os.WriteFile(principlesPath, []byte(content), 0644); err != nil {
+			io.ErrPrintf("Error: cannot write %s: %v\n", principlesPath, err)
+			os.Exit(1)
+		}
+		io.Printf("%s %s %s\n", ep.Success, i18n.T(i18n.KeyGeneratedDefaultPrinciples), principlesPath)
 		os.Exit(0)
 	}
 
