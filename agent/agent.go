@@ -30,6 +30,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -863,6 +864,66 @@ func (a *Agent) GetLLMClient() llm.Client {
 	return a.llmClient
 }
 
+// resolveAgentPrinciples resolves agent principles with priority:
+//  1. PRINCIPLES.md in workspace root, then current working directory
+//  2. cfg.LLM.AgentPrinciples (config.json / :config modified)
+//  3. i18n KeyAgentDefaultPrinciples fallback (with key-leakage guard)
+func (a *Agent) resolveAgentPrinciples() string {
+	if a.cfg == nil {
+		return ""
+	}
+	// Priority 1: PRINCIPLES.md external file (workspace root, then cwd)
+	if a.workspacePath != "" {
+		if p := loadExternalFile(a.workspacePath, "PRINCIPLES.md"); p != "" {
+			return p
+		}
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		if p := loadExternalFile(cwd, "PRINCIPLES.md"); p != "" {
+			return p
+		}
+	}
+	// Priority 2: config.json
+	if p := a.cfg.LLM.AgentPrinciples; p != "" {
+		return p
+	}
+	// Priority 3: i18n default (guard against key name leakage)
+	p := i18n.T(i18n.KeyAgentDefaultPrinciples)
+	if p == string(i18n.KeyAgentDefaultPrinciples) {
+		return ""
+	}
+	return p
+}
+
+// resolveRules builds the rules string for the system prompt RULES section:
+//  1. cfg.Rules joined by newline (live, so .rule add/remove/clear takes effect)
+//  2. .rules/*.md from workspace root, then current working directory (sorted, "# {filename}" header)
+//
+// Returns the merged text, or "" when both sources are empty.
+func (a *Agent) resolveRules() string {
+	var sb strings.Builder
+	if a.cfg != nil && len(a.cfg.Rules) > 0 {
+		sb.WriteString(strings.Join(a.cfg.Rules, "\n"))
+	}
+	// Priority: workspace root .rules/ first, then cwd .rules/
+	dirRules := ""
+	if a.workspacePath != "" {
+		dirRules = loadRulesDir(filepath.Join(a.workspacePath, ".rules"))
+	}
+	if dirRules == "" {
+		if cwd, err := os.Getwd(); err == nil {
+			dirRules = loadRulesDir(filepath.Join(cwd, ".rules"))
+		}
+	}
+	if dirRules != "" {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(dirRules)
+	}
+	return strings.TrimSpace(sb.String())
+}
+
 func (a *Agent) rebuildSystemPrompt() {
 	// Reload config from disk to ensure system prompt always uses the latest
 	// configuration (WorkModes, PromptSections, agent identity, etc.).
@@ -937,18 +998,7 @@ func (a *Agent) rebuildSystemPrompt() {
 		if agentDesc == "" {
 			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 		}
-		agentPrinciples = a.cfg.LLM.AgentPrinciples
-		log.Debug("rebuildSystemPrompt: cfg.LLM.AgentPrinciples=%q", agentPrinciples)
-		// Fall back to global i18n default principles
-		if agentPrinciples == "" {
-			agentPrinciples = i18n.T(i18n.KeyAgentDefaultPrinciples)
-			log.Debug("rebuildSystemPrompt: fallback i18n KeyAgentDefaultPrinciples=%q", agentPrinciples)
-		}
-		// Check if the returned value is the key itself (no translation found)
-		if agentPrinciples == string(i18n.KeyAgentDefaultPrinciples) {
-			agentPrinciples = ""
-			log.Debug("rebuildSystemPrompt: i18n returned key itself, cleared")
-		}
+		agentPrinciples = a.resolveAgentPrinciples()
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
 	}
@@ -970,7 +1020,7 @@ func (a *Agent) rebuildSystemPrompt() {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.getCurrentTaskDescription()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.rules, a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(a.messages) > 0 {
@@ -1498,7 +1548,7 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 		agentName = a.cfg.LLM.AgentName
 		workMode = a.cfg.LLM.WorkMode
 		agentDesc = a.cfg.LLM.AgentDescription
-		agentPrinciples = a.cfg.LLM.AgentPrinciples
+		agentPrinciples = a.resolveAgentPrinciples()
 		userName = a.cfg.LLM.UserName
 		channel = a.cfg.LLM.Channel
 		// Fall back to mode-specific i18n description
@@ -1515,14 +1565,6 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 		// Fall back to global i18n description
 		if agentDesc == "" {
 			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
-		}
-		// Fall back to global i18n default principles
-		if agentPrinciples == "" {
-			agentPrinciples = i18n.T(i18n.KeyAgentDefaultPrinciples)
-		}
-		// Guard against key name leakage
-		if agentPrinciples == string(i18n.KeyAgentDefaultPrinciples) {
-			agentPrinciples = ""
 		}
 	}
 
@@ -1543,7 +1585,7 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.getCurrentTaskDescription()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.rules, mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
 
 	a.mu.Lock()
 	a.messages = []llm.Message{
