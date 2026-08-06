@@ -147,6 +147,8 @@ type cliFlags struct {
 	initCapabilities bool
 	initRules        bool
 	unloadPrinciples bool
+	unloadCapsAlias  bool
+	unloadRulesAlias bool
 
 	// Loop intervention (FEATURE-267)
 	loopIntervention string // off/retry/prompt/reorganize/temperature/random
@@ -299,9 +301,12 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.contextPolicy, "context-policy", "", "Context policy (window/task/smart/reorganize, overrides config file)")
 
 	// External config file generation
-	flag.BoolVar(&f.initCapabilities, "init-capabilities", false, "Generate default CAPABILITIES.md in workspace and exit")
-	flag.BoolVar(&f.initRules, "init-rules", false, "Generate default RULES.md in workspace and exit")
+	flag.BoolVar(&f.initCapabilities, "unload-capabilities", false, "Export current system capabilities to CAPABILITIES.md in workspace root and exit")
+	flag.BoolVar(&f.initRules, "unload-rules", false, "Export current system rules to RULES.md in workspace root and exit")
 	flag.BoolVar(&f.unloadPrinciples, "unload-principles", false, "Export current system principles to PRINCIPLES.md in workspace root and exit")
+	// Backward-compatible aliases (deprecated)
+	flag.BoolVar(&f.unloadCapsAlias, "init-capabilities", false, "Deprecated, use --unload-capabilities")
+	flag.BoolVar(&f.unloadRulesAlias, "init-rules", false, "Deprecated, use --unload-rules")
 
 	// Loop intervention (FEATURE-267)
 	flag.StringVar(&f.loopIntervention, "loop-intervention", "", "Loop intervention strategy (off/retry/prompt/reorganize/temperature/random, overrides config file)")
@@ -352,6 +357,14 @@ func parseFlags() cliFlags {
 	}
 
 	flag.Parse()
+
+	// Merge deprecated alias flags into the canonical fields
+	if f.unloadCapsAlias {
+		f.initCapabilities = true
+	}
+	if f.unloadRulesAlias {
+		f.initRules = true
+	}
 
 	// If there are non-flag arguments and no explicit -c/--cmd, treat them as the command
 	if f.command == "" && flag.NArg() > 0 {

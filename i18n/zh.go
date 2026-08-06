@@ -1207,8 +1207,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 
 	// Init capabilities/rules
 	KeyCLIHelpInputMode:        "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）",
-	KeyCLIHelpInitCapabilities: "      --init-capabilities  在工作区生成默认 CAPABILITIES.md 文件并退出",
-	KeyCLIHelpInitRules:        "      --init-rules         在工作区生成默认 RULES.md 文件并退出",
+	KeyCLIHelpInitCapabilities: "      --unload-capabilities  将当前系统 capabilities 导出到工作区根目录的 CAPABILITIES.md 文件（--init-capabilities 已弃用）",
+	KeyCLIHelpInitRules:        "      --unload-rules         将当前系统 rules 导出到工作区根目录的 RULES.md 文件（--init-rules 已弃用）",
 
 	// Context start mode (FEATURE-103)
 	KeyCol3ContextStartMode:    "上下文策略(window/task/smart/reorganize)",

@@ -1193,7 +1193,9 @@ no liability whatsoever.`,
 	KeyCLIHelpShowLogo: "      --show-logo on|off    Show ASCII art logo (overrides config)",
 
 	// Init capabilities/rules
-	KeyCLIHelpInputMode: "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
+	KeyCLIHelpInputMode:        "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
+	KeyCLIHelpInitCapabilities: "      --unload-capabilities  Export current system capabilities to CAPABILITIES.md in the workspace root (--init-capabilities deprecated)",
+	KeyCLIHelpInitRules:        "      --unload-rules         Export current system rules to RULES.md in the workspace root (--init-rules deprecated)",
 
 	// Context start mode (FEATURE-103)
 	KeyCol3ContextStartMode:    "context policy(window/task/smart/reorganize)",
