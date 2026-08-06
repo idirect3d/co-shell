@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/idirect3d/co-shell/config"
@@ -48,6 +49,50 @@ func loadExternalFile(workspacePath, filename string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+// loadRulesDir reads all *.md files from dir, sorted by filename (case-insensitive,
+// so .md and .MD are both accepted). Each file is formatted as "# {filename}\n\n{content}"
+// and joined by "\n\n". Empty or whitespace-only files are skipped. Returns "" when
+// the directory does not exist or contains no loadable .md files.
+func loadRulesDir(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasSuffix(strings.ToLower(name), ".md") {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	sort.Strings(names)
+	var sb strings.Builder
+	for _, name := range names {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		trimmed := strings.TrimSpace(string(data))
+		if trimmed == "" {
+			continue
+		}
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString("# " + name + "\n\n" + trimmed)
+	}
+	return strings.TrimSpace(sb.String())
 }
 
 // loadExternalFileWithMode attempts to load a text file with mode support.
