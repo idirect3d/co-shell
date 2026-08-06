@@ -1040,6 +1040,12 @@
   - 修复：`xmlStateOutside` 在 `<` 认定为字面文本前增加两个缓存判断——开标签前缀部分匹配 `strings.HasPrefix(p.prefix, content[i+1:])`（含空串）与闭标签 `content[i+1]=='/' && strings.HasPrefix(p.prefix, content[i+2:])`，匹配时整段缓存到 `p.partial` 待下一 chunk 续扫；普通非前缀 `<`（`a < b`、`</div>`）保持字面路径不受影响
   - 用例：use-case/FIX-331/FIX-331-UC-0001.md（UC-0001~0003）；新增 TestToolCallStream_XMLChunkBoundaryLoneLessThan / _PartialPrefix 单测
   - 验收：`go test ./agent/ -run TestToolCallStream` 13 用例全绿（含 2 新 + 11 既有）；`go build ./...`、`go vet ./agent/...`、`go test ./agent/ ./repl/ ./i18n/` 全绿
+- [x] FIX-332 i18n 转义多字节字符改为直接书写
+  - 背景：i18n/en.go 与 i18n/zh.go 各 381 处（共 762）以 `\uXXXX` 转义书写中文/符号（如 `\u5f53\u524d\u503c` = "当前值"），可读性差
+  - 新增 bin/decode_u_escapes.py：按 Go 词法逐字符解析，仅转换双引号字符串内的单反斜杠 `\uXXXX` → UTF-8 字符；保护反引号 raw string、行/块注释、`\\u` 字面量、其他转义（\n\t\" 等）不受影响
+  - 效果：en.go/zh.go `\uXXXX` 转义清零；运行时字符串值不变（Go 规范保证双引号内 `\uXXXX` 与直接 UTF-8 字节等价）
+  - 用例：use-case/FIX-332/FIX-332-UC-0001.md（UC-0001~0004）
+  - 验收：`go build ./...`、`go vet ./i18n/...`、`go test ./i18n/` 全绿；两文件 `\uXXXX` 数量为 0
 
 ## v0.7.2 — 工作区配置外部化
 
