@@ -293,11 +293,32 @@ type Agent struct {
 	// competing with the sub-process for stdin reads (FIX-209).
 	commandRunning bool
 
+	// commandHooks stores optional callbacks invoked around system command
+	// execution. The REPL registers these to temporarily restore the terminal
+	// to cooked mode while an interactive command (e.g. sudo) reads from
+	// stdin, then re-enter raw mode afterwards. Without this, raw mode
+	// disables echo, line buffering (ICRNL) and Ctrl+C handling, so commands
+	// requiring user input hang with no visible feedback.
+	commandHooks CommandHooks
+
 	// taskInstructionCache collects user supplementary instructions and other
 	// task-level hints (e.g., context overflow warnings) during tool execution.
 	// At the end of each iteration, all cached content is flushed as a single
 	// <task> ContentPart appended to the last user message. (FEATURE-255)
 	taskInstructionCache bytes.Buffer
+}
+
+// CommandHooks defines optional callbacks invoked around system command
+// execution. The REPL registers these to coordinate terminal mode transitions:
+// cooked mode during command execution (so interactive commands can read user
+// input normally) and raw mode between commands.
+type CommandHooks struct {
+	// BeforeCommand is invoked before a system command starts executing.
+	// It should restore the terminal to cooked mode.
+	BeforeCommand func()
+	// AfterCommand is invoked after a system command finishes executing.
+	// It should re-enter raw mode.
+	AfterCommand func()
 }
 
 // SetCommandRunning sets a flag indicating whether a system command is currently
@@ -317,6 +338,38 @@ func (a *Agent) IsCommandRunning() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.commandRunning
+}
+
+// SetCommandHooks registers callbacks invoked before/after system command
+// execution. The REPL uses this to temporarily restore cooked terminal mode
+// while an interactive command reads from stdin, and re-enter raw mode after.
+// Pass an empty CommandHooks to clear the hooks.
+func (a *Agent) SetCommandHooks(hooks CommandHooks) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.commandHooks = hooks
+}
+
+// onCommandStart invokes the registered BeforeCommand hook, if any.
+// The hook is copied out of the lock before invocation so it can safely
+// call back into the agent (e.g. via GetIO).
+func (a *Agent) onCommandStart() {
+	a.mu.Lock()
+	h := a.commandHooks.BeforeCommand
+	a.mu.Unlock()
+	if h != nil {
+		h()
+	}
+}
+
+// onCommandEnd invokes the registered AfterCommand hook, if any.
+func (a *Agent) onCommandEnd() {
+	a.mu.Lock()
+	h := a.commandHooks.AfterCommand
+	a.mu.Unlock()
+	if h != nil {
+		h()
+	}
 }
 
 // buildContextMessages returns a truncated message list based on ContextLimit, messagePointer,
