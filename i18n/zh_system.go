@@ -1066,70 +1066,7 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 `
 
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
-	zhMessages[KeySystemPromptToolUsageExamples] = `# 工具调用示例
-
-工具调用通过 API 的 tool_calls 机制进行，系统会自动处理 JSON 格式的序列化和解析。以下示例展示各工具调用时的参数结构。
-
-## 示例 1: 执行命令
-
-调用工具 execute_command，参数：
-{
-  "intent": "查询 co-shell 最新发布版本",
-  "command": "curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'",
-  "timeout_seconds": 15
-}
-
-## 示例 2: 创建文件
-
-调用工具 write_to_file，参数：
-{
-  "intent": "创建项目配置文件，存储 API 端点信息",
-  "mode": "new",
-  "path": "src/config.json",
-  "content": "{\n  \"apiEndpoint\": \"https://api.example.com\",\n  \"theme\": {\n    \"primaryColor\": \"#007bff\",\n    \"fontFamily\": \"Arial, sans-serif\"\n  },\n  \"version\": \"1.0.0\"\n}"
-}
-
-## 示例 3: 搜索文件
-
-调用工具 search_files，参数：
-{
-  "intent": "查找源码中 handleSubmit 函数的定义位置",
-  "path": "src",
-  "regex": "function handleSubmit",
-  "file_pattern": "*.ts"
-}
-
-## 示例 4: 精确修改文件
-
-调用工具 replace_in_file，参数：
-{
-  "intent": "将 API 端点 URL 从旧地址更新为新地址",
-  "path": "src/config.ts",
-  "replacements": [
-    {
-      "search": "apiEndpoint: \"https://old-api.com\"",
-      "replace": "apiEndpoint: \"https://new-api.com\"",
-      "start_line": 15
-    }
-  ]
-}
-
-## 示例 5: 跟踪任务进度
-
-调用工具 track_task_progress（创建或更新任务），参数：
-{
-  "title": "实现用户登录功能",
-  "description": "完整计划：为用户系统添加邮箱/密码登录功能，包括前后端、API、会话管理。",
-  "steps": [
-    { "description": "设计数据库用户表结构", "status": "[X]" },
-    { "description": "实现登录 API 接口\nPOST /auth/login 验证密码，返回 JWT token", "status": "[=]" },
-    { "description": "编写前端登录页面\nReact Hook Form + Zod 校验", "status": "[ ]" },
-    { "description": "集成测试\n测试登录成功、密码错误、账户锁定等场景", "status": "[ ]" }
-  ]
-}
-
-之后可通过调用工具 view_task_plan 查看任务状态。
-`
+	zhMessages[KeySystemPromptToolUsageExamples] = ``
 
 	zhMessages[KeySystemPromptCapabilities] = `
 CAPABILITIES

@@ -1027,6 +1027,14 @@
   - judge 提示词升级：`KeyLoopJudgeUserPrompt` 新增 `{USER_PROMPTS}`（所有真实用户输入，过滤 XML 工具结果/continue prompt/循环反馈消息）与 `{ITERATION_TOOLS}`（迭代工具调用序列），使判模对"是否有进展"有更全面的判断
   - judge 提示词终极目标锚定：系统提示词新增第 7 条"先锚定终极目标"（提炼主目标/最终交付物作为执行锚点，防止偏离主线）与第 8 条"再明确阶段目标与优先级顺序"（按优先级列执行步骤且每步可溯源到终极目标），输出格式要求同步；新增样例 6（多层级目标先锚定终极目标）
   - 循环报警类型区分：`LoopDetectedError` 增加类型标识，`handleLoopDetection` 提示区分 6 种触发场景——单行重复/多行周期/单行超长/字符周期/长输出/工具调用重复；zh/en 双语
+- [x] FIX-330 系统命令交互卡死修复与 OpenAI 模式工具示例清理
+  - 根因：enhanced（raw terminal）模式下 `handleAgentInput` 启动时 `EnhancedIO.startRaw()` 将终端置于 raw mode（关闭 ECHO/ICRNL/ICANON/ISIG）且整个 RunStream 持续保持，需要用户输入的系统命令（sudo/passwd 等）通过 `cmd.Stdin=os.Stdin` 读输入时无回显、回车产生 `\r` 而非 `\n`、Ctrl+C 失效，表现为卡死；FIX-209 仅解决 ESC monitor 竞争未解决 raw mode 本身
+  - `agent/loop.go` 新增 `CommandHooks`（BeforeCommand/AfterCommand）+ `SetCommandHooks`/`onCommandStart`/`onCommandEnd`（锁内取函数指针、锁外调用，允许钩子内安全回调 agent）
+  - `agent/command_tools.go`：`executeSystemCommand` 与 `ExecuteCommandDirectly` 命令启动前 `onCommandStart()`（恢复 cooked mode）、`cmd.Wait()` 后 `onCommandEnd()`（重进 raw mode），含 `cmd.Start()` 失败分支对称释放
+  - `repl/repl.go`：enhanced 模式 `startRaw()` 成功后注册钩子（Before→`eio.stopRaw()`/After→`eio.startRaw()`），`RunStream` 返回后先清除钩子再 `stopRaw()`；stdio 模式不注册（终端本在 cooked mode）
+  - i18n：`KeySystemPromptToolUsageExamples` zh/en 均置空字符串（`i18n.T` 对"key 存在值为空"返回空串，合法"无内容"值），OpenAI 模式 ToolExamples 节输出为空，减少上下文占用
+  - 用例：use-case/FIX-330/FIX-330-UC-0001.md（UC-0001~0006）
+  - 验收：`go build ./...`、`go test ./agent/ ./repl/ ./i18n/` 全绿；编译三平台产物（cc 规则参数 `3`）
 
 ## v0.7.2 — 工作区配置外部化
 

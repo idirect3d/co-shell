@@ -1067,68 +1067,9 @@ The bin/ directory provides Python tools for document format conversion and mult
 `
 
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
-	enMessages[KeySystemPromptToolUsageExamples] = `# Tool Call Examples
-
-Tool calls are made through the API's tool_calls mechanism. The system handles JSON serialization and parsing automatically. Below are the parameter structures for each tool call.
-
-## Example 1: Execute a command
-
-Call tool execute_command with parameters:
-{
-  "intent": "Check the latest release version of co-shell from GitHub",
-  "command": "curl -s https://api.github.com/repos/idirect3d/co-shell/releases/latest | jq '.tag_name'",
-  "timeout_seconds": 15
-}
-
-## Example 2: Create a file
-
-Call tool write_to_file with parameters:
-{
-  "intent": "Create a project configuration file with API endpoint settings",
-  "mode": "new",
-  "path": "src/config.json",
-  "content": "{\n  \"apiEndpoint\": \"https://api.example.com\",\n  \"theme\": {\n    \"primaryColor\": \"#007bff\",\n    \"fontFamily\": \"Arial, sans-serif\"\n  },\n  \"version\": \"1.0.0\"\n}"
-}
-
-## Example 3: Search files
-
-Call tool search_files with parameters:
-{
-  "intent": "Find the handleSubmit function definition in the source code",
-  "path": "src",
-  "regex": "function handleSubmit",
-  "file_pattern": "*.ts"
-}
-
-## Example 4: Precise file modification
-
-Call tool replace_in_file with parameters:
-{
-  "intent": "Update the API endpoint URL from old to new",
-  "path": "src/config.ts",
-  "replacements": [
-    {
-      "search": "apiEndpoint: \"https://old-api.com\"",
-      "replace": "apiEndpoint: \"https://new-api.com\"",
-      "start_line": 15
-    }
-  ]
-}
-
-## Example 5: Track task progress
-
-Call tool track_task_progress with parameters:
-{
-  "title": "Implement user login",
-  "description": "Full plan: implement user login with frontend, backend, API, session management.",
-  "steps": [
-    { "description": "Design database user table schema", "status": "[X]" },
-    { "description": "Implement login API endpoint\nPOST /auth/login verify password, return JWT token", "status": "[=]" },
-    { "description": "Create frontend login page\nReact Hook Form + Zod validation", "status": "[ ]" },
-    { "description": "Integration testing\nTest login success, wrong password, account lockout", "status": "[ ]" }
-  ]
-}
-`
+	// OpenAI mode does not need examples — tool definitions are provided via
+	// the API tools parameter. Keep this empty to avoid unnecessary context.
+	enMessages[KeySystemPromptToolUsageExamples] = ``
 
 	enMessages[KeySystemPromptCapabilities] = `
 CAPABILITIES
