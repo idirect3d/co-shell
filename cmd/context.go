@@ -93,7 +93,7 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 
 	var sb strings.Builder
 	sb.WriteString("📋 " + "当前上下文" + "\n")
-	sb.WriteString(fmt.Sprintf("  总消息数: %d\n", len(messages)))
+	sb.WriteString(fmt.Sprintf("总消息数: %d\n", len(messages)))
 
 	pointerIdx := h.agent.MessagePointer()
 	for i, msg := range messages {
@@ -120,7 +120,7 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 		if retryN > 0 {
 			retrySuffix = fmt.Sprintf(" ♾️%d", retryN)
 		}
-		sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s%s\n", marker, i, msg.Role, headTime, retrySuffix))
+		sb.WriteString(fmt.Sprintf("%s%3d  [%-9s] %s%s\n", marker, i, msg.Role, headTime, retrySuffix))
 
 		// Message content block indented 6 spaces (content starts 2 spaces
 		// left of the role label '[' for a tighter look), control characters
