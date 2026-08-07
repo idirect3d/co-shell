@@ -269,9 +269,10 @@ func TestShowContext_ControlCharsPreserved(t *testing.T) {
 		}
 	}
 
-	// The multi-line user text must be indented by 4 spaces on continuation lines.
-	if !strings.Contains(out, "    缩进第二行") {
-		t.Fatalf("expected 4-space indented content line, got:\n%s", out)
+	// The multi-line user text must be indented to align with the role label
+	// '[' (8 spaces = 2 + marker + 3-digit index + 2) on continuation lines.
+	if !strings.Contains(out, "        缩进第二行") {
+		t.Fatalf("expected content indented to role-label column (8 spaces), got:\n%s", out)
 	}
 }
 
