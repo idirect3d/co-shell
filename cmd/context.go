@@ -122,9 +122,11 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 		}
 		sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s%s\n", marker, i, msg.Role, headTime, retrySuffix))
 
-		// Message content block indented by 4 spaces, control chars preserved.
+		// Message content block indented to align with the role label '[' above
+		// (2 spaces + marker + 3-digit index + 2 spaces = column 8), control
+		// characters preserved.
 		if cleanContent != "" {
-			sb.WriteString(indentText(cleanContent, "    "))
+			sb.WriteString(indentText(cleanContent, "        "))
 		}
 
 		// tool_calls sub-block shares the same message index (no new index),
@@ -142,9 +144,10 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 			}
 		}
 
-		// Full mode: append the complete <environment_details> block.
+		// Full mode: append the complete <environment_details> block, aligned
+		// with the role label so all content shares the same left margin.
 		if full && envText != "" {
-			sb.WriteString(indentText(envText, "    "))
+			sb.WriteString(indentText(envText, "        "))
 		}
 
 		sb.WriteString("\n")
