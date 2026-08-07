@@ -476,6 +476,9 @@ var enMessages = map[string]string{
 	KeySettingCmd_322: "Single line length threshold (0=disabled)",
 	KeySettingCmd_323: "Single line window repeat detection size (0=disabled)",
 	KeySettingCmd_324: "Single line repeat block limit (0=disabled, chars×times)",
+	// FEATURE-336: show-parse-error-raw
+	KeySettingCmd_337: "Show parse error raw message: %s (valid: on, off)",
+	KeySettingCmd_338: "✅ Show parse error raw message set to: %s",
 
 	// FEATURE-305 第 2 批: settings_search.go
 	KeySettingCmd_401: "Search max line length: %d",
@@ -1912,6 +1915,7 @@ no liability whatsoever.`,
 	KeyLLMErrorCheckInput:   "LLM call failed: %v\nPlease check your input or try again later.",
 	KeyXMLParseErrorExit:    "Tool call parse error (parse-error-action=exit): %s\n",
 	KeyXMLParseErrorSummary: "XML parse error detected: %s\n",
+	KeyXMLParseErrorRaw:     "Tool call parse error raw message:\n%s\n",
 	KeyContextOverLimit:     "%s Context over limit (%.1f%% > %.0f%%), skipped tool execution this round\n",
 	KeyToolExecFailed:       "Tool %s execution failed (parse-error-action=exit): %v\n",
 	KeyToolExecRetry:        "%s Tool %s call invalid (parse-error-action=retry): %v\nDiscarded invalid call and resending.\n",

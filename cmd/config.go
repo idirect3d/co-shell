@@ -544,6 +544,8 @@ func (h *ConfigHandler) displayParams() []ConfigParam {
 		syncedOnOffParam(&h.cfg.LLM.ShowToolOutput, "show-tool-output", func(v bool) { h.agent.SetShowToolOutput(v) }),
 		syncedOnOffParam(&h.cfg.LLM.ShowCommand, "show-command", func(v bool) { h.agent.SetShowCommand(v) }),
 		syncedOnOffParam(&h.cfg.LLM.ShowCommandOutput, "show-command-output", func(v bool) { h.agent.SetShowCommandOutput(v) }),
+		// FEATURE-336: show parse error raw message
+		syncedOnOffParam(&h.cfg.LLM.ShowParseErrorRaw, "show-parse-error-raw", func(v bool) {}),
 	}
 }
 

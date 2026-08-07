@@ -458,6 +458,9 @@ var zhMessages = map[string]string{
 	KeySettingCmd_322: "单行超长阈值(0=不检测)",
 	KeySettingCmd_323: "单行窗口重复检测大小(0=不检测)",
 	KeySettingCmd_324: "单行重复数量块限制(0=不检测, 字符数×次数)",
+	// FEATURE-336: show-parse-error-raw
+	KeySettingCmd_337: "解析错误显示原始报文: %s (可选: on, off)",
+	KeySettingCmd_338: "✅ 解析错误显示原始报文已设置为: %s",
 
 	// FEATURE-305 第 2 批: settings_search.go
 	KeySettingCmd_401: "搜索单行最大字符数: %d",
@@ -1942,6 +1945,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyLLMErrorCheckInput:   "LLM 调用出错: %v\n请检查您的输入是否有问题，或稍后重试。",
 	KeyXMLParseErrorExit:    "方法调用解析错误（parse-error-action=exit）: %s\n",
 	KeyXMLParseErrorSummary: "检测到XML解析错误: %s\n",
+	KeyXMLParseErrorRaw:     "解析错误原始报文:\n%s\n",
 	KeyContextOverLimit:     "%s 上下文超限 (%.1f%% > %.0f%%)，已跳过此轮工具执行\n",
 	KeyToolExecFailed:       "工具 %s 执行失败（parse-error-action=exit）: %v\n",
 	KeyToolExecRetry:        "%s 工具 %s 调用无效（parse-error-action=retry）: %v\n已丢弃无效调用并重新发送。\n",

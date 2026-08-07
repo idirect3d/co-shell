@@ -122,6 +122,12 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	var reasoningBuilder strings.Builder
 	var toolCalls []llm.ToolCall
 
+	// jsonArgsBuilder accumulates the raw JSON arguments deltas for OpenAI mode.
+	// It is used to provide the raw message (原始报文) when a streaming JSON
+	// tool-call parse error occurs, so the user can see exactly what the LLM
+	// produced (FEATURE-336).
+	var jsonArgsBuilder strings.Builder
+
 	// FEATURE-298: Initialize streaming XML validator for XML mode.
 	// When enabled, this validator checks for fatal XML errors (unknown tool/param names,
 	// tag mismatches, illegal characters) in real-time as chunks arrive.
@@ -287,7 +293,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 						finalContent := contentBuilder.String()
 						a.mu.Lock()
 						a.taskInstructionCache.Reset()
-						errMsg := fmt.Sprintf(`{"tool": %q, "error": %q}`, toolNameOf(perr), perr.Error())
+						// FEATURE-336: include the raw message so the user can
+						// inspect the exact malformed content.
+						errMsg := fmt.Sprintf(`{"tool": %q, "error": %q, "raw": %q}`, toolNameOf(perr), perr.Error(), finalContent)
 						a.taskInstructionCache.WriteString(errMsg)
 						a.mu.Unlock()
 						return finalContent, "", nil, false, perr
@@ -332,7 +340,8 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 						// Store error in taskInstructionCache for RunStream to handle
 						a.mu.Lock()
 						a.taskInstructionCache.Reset()
-						errMsg := fmt.Sprintf(`{"tool": "", "error": %q}`, xmlErr.Error())
+						// FEATURE-336: include the raw message for debugging.
+						errMsg := fmt.Sprintf(`{"tool": "", "error": %q, "raw": %q}`, xmlErr.Error(), finalContent)
 						a.taskInstructionCache.WriteString(errMsg)
 						a.mu.Unlock()
 						return finalContent, "", nil, false, xmlErr
@@ -388,14 +397,19 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					}
 				}
 				if d.Arguments != "" {
+					// FEATURE-336: accumulate the raw arguments delta so the
+					// offending JSON can be displayed on parse error.
+					jsonArgsBuilder.WriteString(d.Arguments)
 					ops, jerr := jsonToolCallParser.Feed(d.Arguments)
 					if jerr != nil {
 						log.Warn("Agent.streamLLMResponse: FEATURE-235 JSON tool-call parse error: %v", jerr)
 						streamCancel()
 						finalContent := contentBuilder.String()
+						rawArgs := jsonArgsBuilder.String()
 						a.mu.Lock()
 						a.taskInstructionCache.Reset()
-						errMsg := fmt.Sprintf(`{"tool": %q, "error": %q}`, toolNameOf(jerr), jerr.Error())
+						// FEATURE-336: include the raw accumulated arguments.
+						errMsg := fmt.Sprintf(`{"tool": %q, "error": %q, "raw": %q}`, toolNameOf(jerr), jerr.Error(), rawArgs)
 						a.taskInstructionCache.WriteString(errMsg)
 						a.mu.Unlock()
 						return finalContent, "", nil, false, jerr
@@ -523,9 +537,9 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 										}
 									}
 									if toolName == "" {
-										cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": "", "error": %q}`, pe))
+										cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": "", "error": %q, "raw": %q}`, pe, finalContent))
 									} else {
-										cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": %q, "error": %q}`, toolName, pe))
+										cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": %q, "error": %q, "raw": %q}`, toolName, pe, finalContent))
 									}
 								}
 								a.taskInstructionCache.WriteString(strings.Join(cacheLines, "\n---\n"))

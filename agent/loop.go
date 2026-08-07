@@ -654,10 +654,12 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 								toolName = pe[tagStart : tagStart+tagEnd]
 							}
 						}
+						// FEATURE-336: include the raw response so the user can
+						// inspect the exact malformed content on parse errors.
 						if toolName == "" {
-							cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": "", "error": %q}`, pe))
+							cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": "", "error": %q, "raw": %q}`, pe, resp.Content))
 						} else {
-							cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": %q, "error": %q}`, toolName, pe))
+							cacheLines = append(cacheLines, fmt.Sprintf(`{"tool": %q, "error": %q, "raw": %q}`, toolName, pe, resp.Content))
 						}
 					}
 					a.taskInstructionCache.WriteString(strings.Join(cacheLines, "\n---\n"))

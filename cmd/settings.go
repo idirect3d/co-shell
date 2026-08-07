@@ -190,6 +190,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
 		subcommand == "no-tool-action",
 		subcommand == "parse-error-action",
+		subcommand == "show-parse-error-raw",
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
 		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
 		subcommand == "browser-enabled", subcommand == "browser-port",
@@ -587,6 +588,12 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		parseErrorActionVal = "retry"
 	}
 	allGroups[1] = append(allGroups[1], makeLine("parse-error-action", parseErrorActionVal, i18n.T(i18n.KeySettingCmd_314)))
+	// Add show-parse-error-raw to Agent settings group (FEATURE-336)
+	showParseErrorRawVal := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowParseErrorRaw {
+		showParseErrorRawVal = i18n.T(i18n.KeyOn)
+	}
+	allGroups[1] = append(allGroups[1], makeLine("show-parse-error-raw", showParseErrorRawVal, i18n.T(i18n.KeySettingCmd_337)))
 
 	// Show loop detection (FEATURE-241)
 	loopDetectionShowStatus := i18n.T(i18n.KeyOff)
@@ -827,6 +834,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.LoopSingleLineBlockLimit = def.LLM.LoopSingleLineBlockLimit
 	h.cfg.LLM.NoToolAction = def.LLM.NoToolAction
 	h.cfg.LLM.ParseErrorAction = def.LLM.ParseErrorAction
+	h.cfg.LLM.ShowParseErrorRaw = def.LLM.ShowParseErrorRaw
 	h.cfg.LLM.DebugMode = def.LLM.DebugMode
 	h.cfg.LLM.TokenUsage = def.LLM.TokenUsage
 	h.cfg.LLM.InputMode = def.LLM.InputMode

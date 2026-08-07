@@ -77,10 +77,12 @@ type cliFlags struct {
 	repetitionPenalty float64
 	showLlmThinking   string // "on"/"off"
 
-	showLlmContent    string // "on"/"off"
-	showTool          string // "on"/"off"
-	showToolInput     string // "on"/"off"
-	showToolOutput    string // "on"/"off"
+	showLlmContent string // "on"/"off"
+	showTool       string // "on"/"off"
+	showToolInput  string // "on"/"off"
+	showToolOutput string // "on"/"off"
+	// showParseErrorRaw: "on"/"off" — display raw LLM message on tool call parse errors (FEATURE-336)
+	showParseErrorRaw string
 	showCommand       string // "on"/"off"
 	showCommandOutput string // "on"/"off"
 	confirmTool       string // "on"/"off" for default
@@ -233,6 +235,7 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.showTool, "show-tool", "", "Show tool call names (on/off, overrides config file)")
 	flag.StringVar(&f.showToolInput, "show-tool-input", "", "Show tool call input parameters (on/off, overrides config file)")
 	flag.StringVar(&f.showToolOutput, "show-tool-output", "", "Show tool call return data (on/off, overrides config file)")
+	flag.StringVar(&f.showParseErrorRaw, "show-parse-error-raw", "", "Show raw LLM message on tool call parse errors (on/off, overrides config file)")
 	flag.StringVar(&f.showCommandOutput, "show-command-output", "", "Show command return data (on/off, overrides config file)")
 	flag.StringVar(&f.outputCategories, "output-categories", "", "Output category switches (format: cat=on;cat2=off, e.g. bridge=off;subagent=off, overrides config)")
 
@@ -566,6 +569,16 @@ func main() {
 			cfg.LLM.ShowToolInput = false
 		default:
 			io.ErrPrintf("Warning: invalid --show-tool-input value %q, use on|off\n", flags.showToolInput)
+		}
+	}
+	if flags.showParseErrorRaw != "" {
+		switch flags.showParseErrorRaw {
+		case "on", "1", "true", "yes":
+			cfg.LLM.ShowParseErrorRaw = true
+		case "off", "0", "false", "no":
+			cfg.LLM.ShowParseErrorRaw = false
+		default:
+			io.ErrPrintf("Warning: invalid --show-parse-error-raw value %q, use on|off\n", flags.showParseErrorRaw)
 		}
 	}
 	if flags.showToolOutput != "" {
