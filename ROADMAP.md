@@ -6,10 +6,10 @@
 
 ## 当前版本
 
-> **版本**: v0.7.0
+> **版本**: v0.7.3
 
-> **状态**: 🚧 开发中（输出架构重构里程碑）
-> **里程碑**: 输出统一化（Out/RenderCommand 抽象 + InputSource 统一输入 + 100% i18n + stdio/tui/web 三态）
+> **状态**: 🚧 开发中（:context 显示增强）
+> **里程碑**: :context 显示增强（tool_calls 块 + 保留控制字符 + retried_count + full 模式）
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -21,7 +21,8 @@
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
 | FEATURE-306 | 0.7.1 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
 | FEATURE-307 | 0.7.2 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
-| FEATURE-308 | 0.7.3 | tui v2 | FullScreenRenderer（可选分支） |
+| FEATURE-308 | 0.7.4 | tui v2 | FullScreenRenderer（可选分支） |
+| FEATURE-335 | 0.7.3 | P6 | :context 显示增强（tool_calls 块 + 保留控制字符 + retried_count + full 模式） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
@@ -958,7 +959,7 @@
   - LineRenderer + StreamRenderer(JSON-Lines) + WebRenderer（HTTP+WebSocket，绑 127.0.0.1）
   - 验收：三模式同指令结果一致；web 浏览器分区实况
 
-- [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.3 可选分支）**：
+- [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.4 可选分支）**：
   - FullScreenRenderer：原生 ANSI 缓冲，禁用 tview/tcell；SIGWINCH 重绘
   - 验收：独立分支交付，不影响主线
 
@@ -1070,12 +1071,28 @@
 - [x] FEATURE-330 工作区配置外部化：系统提示词支持 PRINCIPLES.md 与 .rules/ 目录 [BUILD-375]
   - PRINCIPLES.md：存在时替代 config.json 的 `llm.agent_principles`（查找顺序 workspacePath → cwd），每次重建系统提示词时读取，修改后立即生效
   - `.rules/*.md`：按文件名排序合并到 RULES 节 `{CUSTOM_RULES}`，每个文件以 `====\n标题(去.md后缀)\n\n内容` 格式标明规则领域，追加在 config rules 之后；去掉 `{CUSTOM_RULES}` 前的 `# 自定义规则` 标题
-  - 修复 `.rule` 命令修改不生效：`a.rules` 快照改为每次从 `cfg.Rules` 现场重建（`strings.Join`）；随后按反馈移除 REPL `:rule` 命令及相关子命令（cmd/rule.go 删除），规则改由 `.rules/` 目录管理
-  - 新增 `--unload-principles` 命令行参数：将当前系统解析后的 principles 导出到工作区根目录 PRINCIPLES.md 并退出（文件已存在则跳过）；`--init-capabilities`/`--init-rules` 改名 `--unload-capabilities`/`--unload-rules`（旧名保留为弃用别名）
-  - `:set` 实时体现外部文件状态：新增 agent 公开方法 `ResolveAgentPrinciples`/`ResolveRules`/`ExternalFile`/`RulesDirFiles`，showSettingsHelp 方法化注入 capabilities/rules 状态行
-  - `:context` 实时反映 PRINCIPLES.md 修改：新增 `agent.RebuildSystemPrompt()` 公开方法，showContext 开头触发重建
-  - 新增 `agent/rules_test.go`、`cmd/settings_external_test.go`、`cmd/context_rebuild_test.go` 单元测试
-  - 验收：`go build ./...`、`go test ./...`、`go vet ./...` 全绿；用例 FEATURE-330-UC-0001~0025 通过；编译产物 [BUILD-375]（work/co-shell）
+   - 修复 `.rule` 命令修改不生效：`a.rules` 快照改为每次从 `cfg.Rules` 现场重建（`strings.Join`）；随后按反馈移除 REPL `:rule` 命令及相关子命令（cmd/rule.go 删除），规则改由 `.rules/` 目录管理
+   - 新增 `--unload-principles` 命令行参数：将当前系统解析后的 principles 导出到工作区根目录 PRINCIPLES.md 并退出（文件已存在则跳过）；`--init-capabilities`/`--init-rules` 改名 `--unload-capabilities`/`--unload-rules`（旧名保留为弃用别名）
+   - `:set` 实时体现外部文件状态：新增 agent 公开方法 `ResolveAgentPrinciples`/`ResolveRules`/`ExternalFile`/`RulesDirFiles`，showSettingsHelp 方法化注入 capabilities/rules 状态行
+   - `:context` 实时反映 PRINCIPLES.md 修改：新增 `agent.RebuildSystemPrompt()` 公开方法，showContext 开头触发重建
+   - 新增 `agent/rules_test.go`、`cmd/settings_external_test.go`、`cmd/context_rebuild_test.go` 单元测试
+   - 验收：`go build ./...`、`go test ./...`、`go vet ./...` 全绿；用例 FEATURE-330-UC-0001~0025 通过；编译产物 [BUILD-375]（work/co-shell）
+
+## v0.7.3 — :context 显示增强
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-08-07
+> **里程碑**: :context 命令显示增强（tool_calls 块 + 保留控制字符 + retried_count + full 模式）
+
+### 功能清单
+
+- [ ] FEATURE-335 :context 显示增强：[BUILD-TBD]
+  - 新增 tool_calls 块：assistant 消息含 `ToolCalls` 时，在同一消息下标下方输出 `[tool_calls]` 子块，每个 ToolCall 显示工具名 + 格式化缩进的参数 JSON（解析失败则原样输出）；与 `<message_no>` 下标严格对齐，tool_calls 不占独立序号
+  - 保留控制字符：移除 `showContext` 中 `strings.ReplaceAll(content, "\n", " ")` 拍平逻辑，各消息内容按原始格式多行输出、4 空格缩进、块间空行分隔
+  - retried_count 显示：消息头最右侧显示 `♾️N`（从消息最后一个 ContentPart 的 `<environment_details>` 中解析 `<retried_count>`，无则省略）；新增 agent 公开 helper（如 `RetriedCountOf`）供 cmd 包解析
+  - full 模式：`:context full` 显示所有消息的完整 `<environment_details>`；`:context`（默认）隐藏 env 块；两个命令独立实现，不新增全局配置参数
+  - 新增 `cmd/context_show_test.go` 单元测试（tool_calls 块 / 多行内容 / retried_count / full 开关 / 序号对齐）
+  - 验收：`go build ./...`、`go test ./cmd/`、`go vet ./cmd/ ./agent/` 全绿；用例 FEATURE-335-UC-0001 通过
 
 ## v1.0.0 — 正式版
 
@@ -1120,7 +1137,8 @@
 | v0.7.0 | 2026-08-01 | 🚧 开发中 | 输出架构重构里程碑 |
 | v0.7.1 | 2026-08-05 | 🚧 开发中 | 循环检测优化（误判修复+judge 提示词+报警类型区分） |
 | v0.7.2 | 2026-08-06 | 🚧 开发中 | 工作区配置外部化（PRINCIPLES.md + .rules/ + .rule 生效修复） |
-| v0.7.3 | 2026-08-01 | 💡 构想中 | 全屏 TUI（可选分支） |
+| v0.7.3 | 2026-08-07 | 🚧 开发中 | :context 显示增强（tool_calls 块 + 控制字符 + retried_count + full 模式） |
+| v0.7.4 | 2026-08-01 | 💡 构想中 | 全屏 TUI（可选分支） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 
 
