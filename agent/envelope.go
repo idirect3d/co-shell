@@ -447,6 +447,19 @@ func getRetriedCountFromText(envText string) int {
 	return n
 }
 
+// RetriedCountOf returns the <retried_count> value carried in the message's
+// <environment_details> block, or 0 when the message has no environment
+// details or the tag is absent/unparsable.
+func RetriedCountOf(msg *llm.Message) int {
+	return getRetriedCountFromText(lastEnvText(msg))
+}
+
+// MessageEnv returns the text of the last ContentPart containing an
+// <environment_details> block on the message, or "" when absent.
+func MessageEnv(msg *llm.Message) string {
+	return lastEnvText(msg)
+}
+
 // setEnvTag removes any existing tag with the same name from the block, then
 // inserts the given full tag (e.g. "<retried_count>2</retried_count>") right before
 // the closing </environment_details> tag. When the block has no closing tag,

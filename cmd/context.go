@@ -51,17 +51,21 @@ func NewContextHandler(ag *agent.Agent, s *store.DualStore) *ContextHandler {
 //
 //	.context                    - show current conversation context (messages)
 //	.context show               - show detailed context
+//	.context full               - show full context including <environment_details>
 //	.context reset              - reset context (clear conversation history)
 //	.context set <key> <value>  - set a context variable
 func (h *ContextHandler) Handle(args []string) (string, error) {
 	if len(args) == 0 {
-		return h.showContext()
+		return h.showContext(false)
 	}
 
 	subcommand := args[0]
 	switch subcommand {
 	case "show":
-		return h.showContext()
+		return h.showContext(false)
+
+	case "full":
+		return h.showContext(true)
 
 	case "reset":
 		return h.resetContext()
@@ -70,11 +74,11 @@ func (h *ContextHandler) Handle(args []string) (string, error) {
 		return h.setContext(args[1:])
 
 	default:
-		return "", fmt.Errorf("unknown subcommand: %s\n\nAvailable commands:\n  show              - Show current context\n  reset             - Reset context\n  set <key> <value> - Set a context variable", subcommand)
+		return "", fmt.Errorf("unknown subcommand: %s\n\nAvailable commands:\n  show              - Show current context\n  full              - Show current context with full <environment_details>\n  reset             - Reset context\n  set <key> <value> - Set a context variable", subcommand)
 	}
 }
 
-func (h *ContextHandler) showContext() (string, error) {
+func (h *ContextHandler) showContext(full bool) (string, error) {
 	// Rebuild the system prompt first so external file edits (PRINCIPLES.md,
 	// .rules/, etc.) are reflected in the displayed context (message 0).
 	h.agent.RebuildSystemPrompt()
@@ -93,12 +97,52 @@ func (h *ContextHandler) showContext() (string, error) {
 		if content == "" && len(msg.ContentParts) > 0 {
 			content = msg.CombineContentParts()
 		}
-		content = strings.ReplaceAll(content, "\n", " ")
+		// Keep whitespace/control characters as-is (no newline flattening) so
+		// multi-line content, indentation, tabs and blank lines are preserved
+		// for the user. <environment_details> envelopes are hidden unless full.
+		cleanContent := stripEnvBlocks(content)
+
+		envText := agent.MessageEnv(&msg)
+
 		marker := " "
 		if i == pointerIdx {
 			marker = "*"
 		}
-		sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s\n", marker, i, msg.Role, content))
+
+		// Header: [marker][index] [role] time ♾️retried_count
+		headTime := extractTimeTag(envText)
+		retryN := agent.RetriedCountOf(&msg)
+		var retrySuffix string
+		if retryN > 0 {
+			retrySuffix = fmt.Sprintf(" ♾️%d", retryN)
+		}
+		sb.WriteString(fmt.Sprintf("  %s%3d  [%-9s] %s%s\n", marker, i, msg.Role, headTime, retrySuffix))
+
+		// Message content block indented by 4 spaces, control chars preserved.
+		if cleanContent != "" {
+			sb.WriteString(indentText(cleanContent, "    "))
+		}
+
+		// tool_calls sub-block shares the same message index (no new index),
+		// so displayed sequence numbers always match the real message array
+		// index used by <message_no>.
+		if len(msg.ToolCalls) > 0 {
+			sb.WriteString("    tool_calls:\n")
+			for _, tc := range msg.ToolCalls {
+				sb.WriteString(fmt.Sprintf("    - %s\n", tc.Name))
+				argsText := formatToolArguments(tc.Arguments)
+				if argsText != "" {
+					sb.WriteString(indentText(argsText, "        "))
+				}
+			}
+		}
+
+		// Full mode: append the complete <environment_details> block.
+		if full && envText != "" {
+			sb.WriteString(indentText(envText, "    "))
+		}
+
+		sb.WriteString("\n")
 	}
 
 	return sb.String(), nil
@@ -153,6 +197,79 @@ func truncateStringForContext(s string, maxLen int) string {
 	return string(runes[:maxLen]) + "..."
 }
 
+// stripEnvBlocks removes all <environment_details>...</environment_details>
+// blocks from a message content so the default :context output stays readable.
+// The blocks are restored by :context full (shown separately below the header).
+func stripEnvBlocks(s string) string {
+	const openTag = "<environment_details>"
+	const closeTag = "</environment_details>"
+	for {
+		start := strings.Index(s, openTag)
+		if start < 0 {
+			break
+		}
+		end := strings.Index(s[start:], closeTag)
+		if end < 0 {
+			// Unterminated block: drop from start to end of string.
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+len(closeTag):]
+	}
+	return strings.TrimSpace(s)
+}
+
+// extractTimeTag returns the content of the <time>...</time> tag in the env
+// text, or "" when absent.
+func extractTimeTag(envText string) string {
+	const openTag = "<time>"
+	const closeTag = "</time>"
+	start := strings.Index(envText, openTag)
+	if start < 0 {
+		return ""
+	}
+	start += len(openTag)
+	end := strings.Index(envText[start:], closeTag)
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(envText[start : start+end])
+}
+
+// indentText prefixes every line of s with indent. Trailing newline is kept.
+func indentText(s, indent string) string {
+	if s == "" {
+		return ""
+	}
+	// Normalize \r\n to \n so each line is indented exactly once.
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	lines := strings.Split(s, "\n")
+	var sb strings.Builder
+	for _, line := range lines {
+		sb.WriteString(indent)
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+// formatToolArguments renders a ToolCall's Arguments JSON string in an
+// indented, human-readable form. Parses when possible; falls back to the raw
+// string when the JSON is invalid, and returns "" when empty.
+func formatToolArguments(args string) string {
+	trimmed := strings.TrimSpace(args)
+	if trimmed == "" {
+		return ""
+	}
+	var pretty interface{}
+	if err := json.Unmarshal([]byte(trimmed), &pretty); err == nil {
+		if b, err := json.MarshalIndent(pretty, "", "  "); err == nil {
+			return string(b)
+		}
+	}
+	return trimmed
+}
+
 // Help returns the help text for the context command.
 func (h *ContextHandler) Help() string {
 	return `Context Management (.context)
@@ -160,11 +277,13 @@ func (h *ContextHandler) Help() string {
 Usage:
   .context                  Show current conversation context
   .context show             Show detailed context
+  .context full             Show full context including <environment_details>
   .context reset            Reset context (clear conversation history)
   .context set <k> <v>      Set a context variable
 
 Examples:
   .context show
+  .context full
   .context set mode expert
   .context reset`
 }

@@ -68,7 +68,7 @@ func TestShowContext_ReflectsPRINCIPLESChanges(t *testing.T) {
 	h := NewContextHandler(ag, ds)
 
 	// First :context shows the initial PRINCIPLES.md content
-	out1, err := h.showContext()
+	out1, err := h.showContext(false)
 	if err != nil {
 		t.Fatalf("showContext error: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestShowContext_ReflectsPRINCIPLESChanges(t *testing.T) {
 	}
 
 	// Second :context reflects the modified PRINCIPLES.md
-	out2, err := h.showContext()
+	out2, err := h.showContext(false)
 	if err != nil {
 		t.Fatalf("showContext error: %v", err)
 	}
