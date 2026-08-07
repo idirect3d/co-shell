@@ -709,6 +709,11 @@ const (
 	KeySettingCmd_334 = "setting_cmd_334"
 	KeySettingCmd_335 = "setting_cmd_335"
 	KeySettingCmd_336 = "setting_cmd_336"
+	// 337-340: show-parse-error-raw (FEATURE-336)
+	KeySettingCmd_337 = "setting_cmd_337"
+	KeySettingCmd_338 = "setting_cmd_338"
+	KeySettingCmd_339 = "setting_cmd_339"
+	KeySettingCmd_340 = "setting_cmd_340"
 
 	// FEATURE-305 第 2 批: settings_search.go
 	KeySettingCmd_401 = "setting_cmd_401"
@@ -2248,9 +2253,11 @@ const (
 	// {TOOL_NAME} = name of the tool that had format issues
 	// {FORMAT} = correct usage example of the tool
 	KeyXMLParseErrorSuggestion = "xml_parse_error_suggestion"
-	KeyContentLoopSuggestion   = "content_loop_suggestion"
-	KeyToolRepeatSuggestion    = "tool_repeat_suggestion"
-	KeyContentDupSuggestion    = "content_dup_suggestion"
+	// {RAW} = the raw LLM message content that failed to parse
+	KeyXMLParseErrorRaw      = "xml_parse_error_raw"
+	KeyContentLoopSuggestion = "content_loop_suggestion"
+	KeyToolRepeatSuggestion  = "tool_repeat_suggestion"
+	KeyContentDupSuggestion  = "content_dup_suggestion"
 
 	// Debug mode (FEATURE-XXX)
 	KeyDebugMode         = "debug_mode"

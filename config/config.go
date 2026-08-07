@@ -508,6 +508,12 @@ type LLMConfig struct {
 	// DebugMode: when enabled, displays the pending LLM request content on the
 	// prompt line for review/modification before sending. Default: false.
 	DebugMode bool `json:"debug_mode"`
+
+	// ShowParseErrorRaw: whether to display the raw LLM message (原始报文) when
+	// a tool call parse error occurs. When enabled, the full offending content
+	// (XML/JSON) is printed to the console after the error summary, helping
+	// debug parser failures. Default: false.
+	ShowParseErrorRaw bool `json:"show_parse_error_raw"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.

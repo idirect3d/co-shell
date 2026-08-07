@@ -627,16 +627,23 @@ iterationLoop:
 				lines := strings.SplitN(xmlParseData, "\n---\n", 2)
 				firstLine := strings.TrimSpace(lines[0])
 				errDetail := firstLine
+				var rawDetail string
 				if strings.HasPrefix(firstLine, "{") {
 					var entry struct {
 						Tool  string `json:"tool"`
 						Error string `json:"error"`
+						Raw   string `json:"raw"`
 					}
 					if err := json.Unmarshal([]byte(firstLine), &entry); err == nil {
 						errDetail = entry.Error
+						rawDetail = entry.Raw
 					}
 				}
 				cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorExit), errDetail))
+				// FEATURE-336: show the raw offending content when the switch is on.
+				if a.cfg != nil && a.cfg.LLM.ShowParseErrorRaw && rawDetail != "" {
+					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail))
+				}
 				cb(EventDone, "")
 				return "", fmt.Errorf("tool call parse error: %s", errDetail)
 			}
@@ -645,13 +652,16 @@ iterationLoop:
 			lines := strings.SplitN(xmlParseData, "\n---\n", 2)
 			firstLine := strings.TrimSpace(lines[0])
 			toolName := ""
+			var rawDetail string
 			if strings.HasPrefix(firstLine, "{") {
 				var entry struct {
 					Tool  string `json:"tool"`
 					Error string `json:"error"`
+					Raw   string `json:"raw"`
 				}
 				if err := json.Unmarshal([]byte(firstLine), &entry); err == nil {
 					toolName = entry.Tool
+					rawDetail = entry.Raw
 				}
 			}
 
@@ -688,6 +698,7 @@ iterationLoop:
 				var entry struct {
 					Tool  string `json:"tool"`
 					Error string `json:"error"`
+					Raw   string `json:"raw"`
 				}
 				if err := json.Unmarshal([]byte(firstLine), &entry); err == nil && entry.Error != "" {
 					errorSummary = entry.Error
@@ -695,6 +706,7 @@ iterationLoop:
 					if len(errorSummary) > 120 {
 						errorSummary = errorSummary[:120] + "..."
 					}
+					rawDetail = entry.Raw
 				}
 			}
 			if errorSummary == "" {
@@ -704,6 +716,10 @@ iterationLoop:
 				}
 			}
 			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorSummary), errorSummary))
+			// FEATURE-336: show the raw offending content when the switch is on.
+			if a.cfg != nil && a.cfg.LLM.ShowParseErrorRaw && rawDetail != "" {
+				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail))
+			}
 			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → ")))
 			cb(EventInfo, "────────────────────────────────────────────\n")
 			continue
