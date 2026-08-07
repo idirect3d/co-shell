@@ -1087,8 +1087,8 @@
 ### 功能清单
 
 - [x] FEATURE-335 :context 显示增强：[BUILD-376]
-  - 新增 tool_calls 块：assistant 消息含 `ToolCalls` 时，在同一消息下标下方输出 `[tool_calls]` 子块（8 空格缩进，与 `[user     ]`/`[assistant]` 角色标签左对齐），每个 ToolCall 显示工具名 + 格式化缩进的参数 JSON（解析失败则原样输出）；与 `<message_no>` 下标严格对齐，tool_calls 不占独立序号
-  - 保留控制字符：移除 `showContext` 中 `strings.ReplaceAll(content, "\n", " ")` 拍平逻辑，各消息内容按原始格式多行输出、8 空格缩进（正文与 `[role]` 左括号对齐）、块间空行分隔
+  - 新增 tool_calls 块：assistant 消息含 `ToolCalls` 时，在同一消息下标下方输出 `[tool_calls]` 子块（6 空格缩进，与正文内容同列），每个 ToolCall 显示工具名 + 格式化缩进的参数 JSON（解析失败则原样输出）；与 `<message_no>` 下标严格对齐，tool_calls 不占独立序号
+  - 保留控制字符：移除 `showContext` 中 `strings.ReplaceAll(content, "\n", " ")` 拍平逻辑，各消息内容按原始格式多行输出、6 空格缩进（正文在 `[role]` 左括号左侧 2 格）、块间空行分隔
   - 消息间长分割线：每个 message 块之间输出 `──────────────────────────────` 长分割线，便于视觉分隔
   - retried_count 显示：消息头最右侧显示 `♾️N`（从消息最后一个 ContentPart 的 `<environment_details>` 中解析 `<retried_count>`，无则省略）；新增 agent 公开 helper `RetriedCountOf`/`MessageEnv` 供 cmd 包解析
   - full 模式：`:context full` 显示所有消息的完整 `<environment_details>`；`:context`（默认）隐藏 env 块；两个命令独立实现，不新增全局配置参数
