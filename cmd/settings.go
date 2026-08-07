@@ -178,7 +178,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "show-logo",
 		subcommand == "show-loop-detection",
 		subcommand == "token-usage",
-		subcommand == "output-categories":
+		subcommand == "output-categories",
+		subcommand == "show-parse-error-raw":
 		return h.handleDisplaySetting(subcommand, args)
 
 	// Agent settings
@@ -190,7 +191,6 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
 		subcommand == "no-tool-action",
 		subcommand == "parse-error-action",
-		subcommand == "show-parse-error-raw",
 		subcommand == "shell-session-enabled", subcommand == "shell-session-timeout",
 		subcommand == "shell-vt-rows", subcommand == "shell-vt-cols",
 		subcommand == "browser-enabled", subcommand == "browser-port",
@@ -588,12 +588,6 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		parseErrorActionVal = "retry"
 	}
 	allGroups[1] = append(allGroups[1], makeLine("parse-error-action", parseErrorActionVal, i18n.T(i18n.KeySettingCmd_314)))
-	// Add show-parse-error-raw to Agent settings group (FEATURE-336)
-	showParseErrorRawVal := i18n.T(i18n.KeyOff)
-	if cfg.LLM.ShowParseErrorRaw {
-		showParseErrorRawVal = i18n.T(i18n.KeyOn)
-	}
-	allGroups[1] = append(allGroups[1], makeLine("show-parse-error-raw", showParseErrorRawVal, i18n.T(i18n.KeySettingCmd_337)))
 
 	// Show loop detection (FEATURE-241)
 	loopDetectionShowStatus := i18n.T(i18n.KeyOff)
@@ -625,6 +619,11 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		}
 		outputCategoriesSummary += cat + "=" + catStatus
 	}
+	// FEATURE-336: show-parse-error-raw 显示原始报文开关
+	showParseErrorRawVal := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ShowParseErrorRaw {
+		showParseErrorRawVal = i18n.T(i18n.KeyOn)
+	}
 	allGroups = append(allGroups, []settingLine{
 		makeLine("emoji-enabled", emojiStatus, i18n.T(i18n.KeyCol3EmojiEnabled)),
 		makeLine("show-llm-thinking", llmThinkingStatus, i18n.T(i18n.KeyCol3LlmThinking)),
@@ -635,6 +634,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("show-command", commandStatus, i18n.T(i18n.KeyCol3Command)),
 		makeLine("show-command-output", commandOutputStatus, i18n.T(i18n.KeyCol3CommandOutput)),
 		makeLine("show-loop-detection", loopDetectionShowStatus, i18n.T(i18n.KeyCol3ShowLoopDetection)),
+		makeLine("show-parse-error-raw", showParseErrorRawVal, i18n.T(i18n.KeySettingCmd_337)),
 		makeLine("token-usage", tokenUsageStatus, i18n.T(i18n.KeyCol3TokenUsage)),
 		makeLine("output-categories", outputCategoriesSummary, "cat=on|off"),
 	})

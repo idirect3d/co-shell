@@ -364,6 +364,32 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		log.Info("Output category %s set to %s", cat, status)
 		return fmt.Sprintf(i18n.T(i18n.KeyOutputCategoriesSet), cat, status), nil
 
+	case "show-parse-error-raw":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOff)
+			if h.cfg.LLM.ShowParseErrorRaw {
+				status = i18n.T(i18n.KeyOn)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_337), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.ShowParseErrorRaw = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.ShowParseErrorRaw = false
+		default:
+			return "", fmt.Errorf("usage: .set show-parse-error-raw on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.ShowParseErrorRaw {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Show parse error raw set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_337), status), nil
+
 	case "emoji-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)
