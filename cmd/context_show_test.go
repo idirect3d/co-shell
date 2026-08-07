@@ -226,12 +226,10 @@ func TestShowContext_ToolCallsBlock(t *testing.T) {
 		}
 	}
 
-	// The [tool_calls] label must be left-aligned with the role labels:
-	// message header is "  X  [role      ]" (2 spaces + marker + index), so
-	// the role's '[' sits at column 7 (with marker ' ') or 8 (with marker '*').
-	// 8 spaces before "[tool_calls]" aligns it with the role labels.
-	if !strings.Contains(out, "        [tool_calls]") {
-		t.Fatalf("expected [tool_calls] aligned with role labels (8-space indent), got:\n%s", out)
+	// The [tool_calls] label shares the 6-space indent with message content,
+	// matching the user's requested tighter alignment.
+	if !strings.Contains(out, "      [tool_calls]") {
+		t.Fatalf("expected [tool_calls] at 6-space indent, got:\n%s", out)
 	}
 
 	// The tool_calls sub-block must appear within/after the assistant message (index 2).
@@ -269,10 +267,10 @@ func TestShowContext_ControlCharsPreserved(t *testing.T) {
 		}
 	}
 
-	// The multi-line user text must be indented to align with the role label
-	// '[' (8 spaces = 2 + marker + 3-digit index + 2) on continuation lines.
-	if !strings.Contains(out, "        缩进第二行") {
-		t.Fatalf("expected content indented to role-label column (8 spaces), got:\n%s", out)
+	// The multi-line user text must be indented 6 spaces on continuation lines
+	// (content starts 2 spaces left of the role label '[' for a tighter look).
+	if !strings.Contains(out, "      缩进第二行") {
+		t.Fatalf("expected content indented 6 spaces, got:\n%s", out)
 	}
 }
 
