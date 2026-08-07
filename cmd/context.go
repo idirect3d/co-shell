@@ -34,6 +34,10 @@ import (
 	"github.com/idirect3d/co-shell/store"
 )
 
+// contextSeparator is a long horizontal line placed between consecutive
+// messages so the reader can visually separate each message block.
+const contextSeparator = "──────────────────────────────────────────────"
+
 // ContextHandler handles the .context built-in command.
 // Shows current conversation context (messages).
 type ContextHandler struct {
@@ -125,14 +129,15 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 
 		// tool_calls sub-block shares the same message index (no new index),
 		// so displayed sequence numbers always match the real message array
-		// index used by <message_no>.
+		// index used by <message_no>. The label is left-aligned with the
+		// role labels ([user     ], [assistant], ...) above.
 		if len(msg.ToolCalls) > 0 {
-			sb.WriteString("    tool_calls:\n")
+			sb.WriteString("        [tool_calls]\n")
 			for _, tc := range msg.ToolCalls {
-				sb.WriteString(fmt.Sprintf("    - %s\n", tc.Name))
+				sb.WriteString(fmt.Sprintf("        - %s\n", tc.Name))
 				argsText := formatToolArguments(tc.Arguments)
 				if argsText != "" {
-					sb.WriteString(indentText(argsText, "        "))
+					sb.WriteString(indentText(argsText, "            "))
 				}
 			}
 		}
@@ -142,6 +147,8 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 			sb.WriteString(indentText(envText, "    "))
 		}
 
+		sb.WriteString("\n")
+		sb.WriteString(contextSeparator)
 		sb.WriteString("\n")
 	}
 
