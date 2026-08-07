@@ -1086,13 +1086,13 @@
 
 ### 功能清单
 
-- [ ] FEATURE-335 :context 显示增强：[BUILD-TBD]
+- [x] FEATURE-335 :context 显示增强：[BUILD-376]
   - 新增 tool_calls 块：assistant 消息含 `ToolCalls` 时，在同一消息下标下方输出 `[tool_calls]` 子块，每个 ToolCall 显示工具名 + 格式化缩进的参数 JSON（解析失败则原样输出）；与 `<message_no>` 下标严格对齐，tool_calls 不占独立序号
   - 保留控制字符：移除 `showContext` 中 `strings.ReplaceAll(content, "\n", " ")` 拍平逻辑，各消息内容按原始格式多行输出、4 空格缩进、块间空行分隔
-  - retried_count 显示：消息头最右侧显示 `♾️N`（从消息最后一个 ContentPart 的 `<environment_details>` 中解析 `<retried_count>`，无则省略）；新增 agent 公开 helper（如 `RetriedCountOf`）供 cmd 包解析
+  - retried_count 显示：消息头最右侧显示 `♾️N`（从消息最后一个 ContentPart 的 `<environment_details>` 中解析 `<retried_count>`，无则省略）；新增 agent 公开 helper `RetriedCountOf`/`MessageEnv` 供 cmd 包解析
   - full 模式：`:context full` 显示所有消息的完整 `<environment_details>`；`:context`（默认）隐藏 env 块；两个命令独立实现，不新增全局配置参数
-  - 新增 `cmd/context_show_test.go` 单元测试（tool_calls 块 / 多行内容 / retried_count / full 开关 / 序号对齐）
-  - 验收：`go build ./...`、`go test ./cmd/`、`go vet ./cmd/ ./agent/` 全绿；用例 FEATURE-335-UC-0001 通过
+  - 新增 `cmd/context_show_test.go` 单测 9 个 + `cmd/context_rebuild_test.go` 调用适配（showContext 增加 full 参数）
+  - 验收：`go build ./...`、`go test ./cmd/ ./agent/`、`go vet ./cmd/ ./agent/` 全绿；用例 FEATURE-335-UC-0001~0008 通过；编译产物 [BUILD-376]（work/co-shell）
 
 ## v1.0.0 — 正式版
 
