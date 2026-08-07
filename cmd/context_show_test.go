@@ -159,6 +159,22 @@ func TestShowContext_TotalCount(t *testing.T) {
 	}
 }
 
+// TestShowContext_MessageSeparator verifies a long separator line separates
+// consecutive message blocks.
+func TestShowContext_MessageSeparator(t *testing.T) {
+	h := newTestContextHandler(t, buildSampleMessages())
+	out, err := h.showContext(false)
+	if err != nil {
+		t.Fatalf("showContext error: %v", err)
+	}
+
+	// Separator count should equal the number of message blocks (5 in sample).
+	want := 5
+	if got := strings.Count(out, contextSeparator); got != want {
+		t.Fatalf("expected %d message separators, got %d:\n%s", want, got, out)
+	}
+}
+
 // TestShowContext_IndexesMatchMessageNo verifies every header index equals the
 // real message array index (and thus the <message_no> injected in each message).
 // tool_calls must NOT create a separate index.
@@ -204,15 +220,23 @@ func TestShowContext_ToolCallsBlock(t *testing.T) {
 		t.Fatalf("showContext error: %v", err)
 	}
 
-	for _, want := range []string{"tool_calls:", "- read_file", `"path": "cmd/context.go"`, `"intent": "查看"`} {
+	for _, want := range []string{"[tool_calls]", "- read_file", `"path": "cmd/context.go"`, `"intent": "查看"`} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in tool_calls block, got:\n%s", want, out)
 		}
 	}
 
+	// The [tool_calls] label must be left-aligned with the role labels:
+	// message header is "  X  [role      ]" (2 spaces + marker + index), so
+	// the role's '[' sits at column 7 (with marker ' ') or 8 (with marker '*').
+	// 8 spaces before "[tool_calls]" aligns it with the role labels.
+	if !strings.Contains(out, "        [tool_calls]") {
+		t.Fatalf("expected [tool_calls] aligned with role labels (8-space indent), got:\n%s", out)
+	}
+
 	// The tool_calls sub-block must appear within/after the assistant message (index 2).
 	idxAssistant := strings.Index(out, "  2  [assistant")
-	idxToolCalls := strings.Index(out, "tool_calls:")
+	idxToolCalls := strings.Index(out, "[tool_calls]")
 	if idxAssistant < 0 || idxToolCalls < 0 || idxToolCalls < idxAssistant {
 		t.Fatalf("tool_calls must follow assistant index 2, got:\n%s", out)
 	}
