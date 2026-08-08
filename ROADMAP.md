@@ -1104,7 +1104,7 @@
   - 修复：文件内容块（文件头 + 上下文行 + 分隔空行）统一暂存到 `filesOut` builder；walk 结束后 `matchCount` 为完整总数时才写 header（复用原 `writeHeader()` 延迟兜底），再追加 `filesOut` 内容到 result。同时顺带修复 `truncatedLineCount` 同类顺序问题（首个文件超长行也能计入 header 截断提示）
   - 测试：`TestSearchFilesTool` 开头固定 `i18n.SetLang("zh")`；既有用例 "search all files for hello" 增加断言 `找到 3 处`；新增 "search single file with multiple matches"（断言 `找到 2 处` + `file1.go:1-4:`）、"search single file with single match"（断言 `找到 1 处`）；"search with no matches" 增加断言 `未找到匹配`
   - 验收：红→绿确认（stash 实现后 3 个新断言全部复现 "找到 0 处" 失败，恢复后全部通过）；`go build ./...`、`go vet ./agent/`、`go test ./agent/` 全绿；用例 FIX-337-UC-0001~0006 通过；编译产物 [BUILD-379]（work/co-shell）
-- [x] FEATURE-338 write_to_file 流式渲染行号右对齐优化：[BUILD-380]
+- [x] FEATURE-338 write_to_file 流式渲染行号右对齐优化：[BUILD-381]（迭代改进：3 位 → 5 位固定右对齐）
   - write_to_file 内容流式渲染时，行号前缀以固定 5 位占位右对齐（`%5d`），保证各行 `+` 号在同一位置垂直对齐
   - 场景：1 位数行号前补 4 空格、2 位数补 3 空格、3 位数补 2 空格、4 位数补 1 空格、5 位数不补；同一次渲染内所有行号宽度统一
   - 影响函数：`agent/toolcall_renderop.go` 的 `linePrefix()`（write_to_file 分支 indent="     "、marker="+"、colon=false）
