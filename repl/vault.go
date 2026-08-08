@@ -161,8 +161,8 @@ func handleVaultAdd(vs *store.VaultStore, args []string) (string, error) {
 	}
 	name := args[0]
 
-	fmt.Println("  请输入标签值对（格式: tag=value），每行一个，空行结束")
-	fmt.Println("  例如: user=myuser, pwd=mypass, key=xxx, token=xxx, email=xxx, ip_addr=1.2.3.4")
+	fmt.Println(i18n.T(i18n.KeySettingCmd_617))
+	fmt.Println(i18n.T(i18n.KeySettingCmd_618))
 
 	tags := make(map[string]string)
 	for {
@@ -177,13 +177,13 @@ func handleVaultAdd(vs *store.VaultStore, args []string) (string, error) {
 		}
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
-			fmt.Println("  格式错误，应为 tag=value")
+			fmt.Println(i18n.T(i18n.KeySettingCmd_619))
 			continue
 		}
 		tagName := strings.TrimSpace(parts[0])
 		tagValue := strings.TrimSpace(parts[1])
 		if tagName == "" || tagValue == "" {
-			fmt.Println("  tag 和 value 都不能为空")
+			fmt.Println(i18n.T(i18n.KeySettingCmd_620))
 			continue
 		}
 		tags[tagName] = tagValue

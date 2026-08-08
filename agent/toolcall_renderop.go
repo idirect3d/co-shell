@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // RenderOpKind identifies the kind of a unified tool-call render operation.
@@ -226,7 +228,7 @@ func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
 			if r.replaceStartLine > 0 {
 				// Location header: "10-11 行: " (start-end of the search block).
 				endLine := r.replaceStartLine + r.replaceSearchLineNo - 1
-				emit(fmt.Sprintf("%d-%d 行: \n", r.replaceStartLine, endLine))
+				emit(i18n.TF(i18n.KeyXMLStreamLineRange, r.replaceStartLine, endLine))
 			}
 			r.replaceHaveSearch = true
 			r.replacePairClosed = false

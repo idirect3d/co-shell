@@ -66,7 +66,7 @@ func (h *ResetHandler) Handle(args []string) (string, error) {
 			existing.MessageCount = 0
 			existing.UpdatedAt = time.Now()
 			if err := h.agent.Store().UpdateNamedSession(sessionID, existing); err != nil {
-				return "", fmt.Errorf("重置会话失败: %v", err)
+				return "", fmt.Errorf("%s", i18n.TF(i18n.KeyResetFailed, err))
 			}
 		}
 	}

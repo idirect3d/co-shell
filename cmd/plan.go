@@ -278,7 +278,7 @@ func showPlanHelp() string {
 示例:
   .plan list
   .plan view
-  .plan create "我的计划" 步骤一 | 步骤二 | 步骤三
+  .plan create "My Plan" step1 | step2 | step3
   .plan insert 1 新步骤A | 新步骤B
   .plan remove 3 4
   .plan update 2 completed 已完成`

@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/subagent"
@@ -78,8 +79,7 @@ func (a *Agent) scheduleTaskTool(ctx context.Context, args map[string]interface{
 		nextRun = entry.NextRun.Format("2006-01-02 15:04:05")
 	}
 
-	return fmt.Sprintf("✅ 定时任务 #%d (%s) 已创建\n  Cron: %s\n  指令: %s\n  下次执行: %s",
-		id, name, cron, instruction, nextRun), nil
+	return i18n.TF(i18n.KeyTaskScheduledCreated, id, name, cron, instruction, nextRun), nil
 }
 
 // trackTaskProgressTool is the unified LLM tool for recording and tracking task progress.
@@ -111,14 +111,14 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 	for i, s := range stepsRaw {
 		stepMap, ok := s.(map[string]interface{})
 		if !ok {
-			return "", fmt.Errorf("步骤 #%d: 每个步骤必须是一个对象，包含 description 和 status 字段", i+1)
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeyTaskStepObjRequired, i+1))
 		}
 
 		desc, _ := stepMap["description"].(string)
 		status, _ := stepMap["status"].(string)
 
 		if desc == "" {
-			return "", fmt.Errorf("步骤 #%d: description 字段不能为空", i+1)
+			return "", fmt.Errorf("%s", i18n.TF(i18n.KeyTaskStepDescRequired, i+1))
 		}
 		if status == "" {
 			status = "[ ]" // default to pending
@@ -137,7 +137,7 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 
 	if plan == nil {
 		// Empty steps resulted in plan being archived and deleted
-		return "✅ 当前任务计划已归档并删除。", nil
+		return i18n.T(i18n.KeyTaskPlanArchived), nil
 	}
 
 	// FIX-316: The formatted plan is returned to the caller and displayed via
@@ -162,7 +162,7 @@ func (a *Agent) viewTaskPlanTool(ctx context.Context, args map[string]interface{
 	}
 
 	if plan == nil {
-		return "当前没有活跃的任务计划。", nil
+		return i18n.T(i18n.KeyTaskPlanNone), nil
 	}
 
 	return taskplan.FormatPlan(plan), nil

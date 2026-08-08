@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/store"
@@ -244,7 +245,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 			// If the result is empty, provide a clear message to the LLM
 			toolContent := result
 			if toolContent == "" {
-				toolContent = "（工具调用无输出）"
+				toolContent = i18n.T(i18n.KeyToolNoOutputBracket)
 			}
 
 			if isXMLMode {

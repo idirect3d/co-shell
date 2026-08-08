@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/memory"
 )
@@ -75,7 +76,7 @@ func (a *Agent) deleteMemoryTool(ctx context.Context, args map[string]interface{
 		return "", fmt.Errorf("cannot delete memory range: %w", err)
 	}
 
-	result := fmt.Sprintf("✅ 已删除最近 %d 条记忆（从倒数第 %d 条到倒数第 %d 条）", int(lastFrom)-int(lastTo)+1, int(lastFrom), int(lastTo))
+	result := i18n.TF(i18n.KeyMemoryDeletedRange, int(lastFrom)-int(lastTo)+1, int(lastFrom), int(lastTo))
 	a.defaultIO().Println(result)
 	return result, nil
 }

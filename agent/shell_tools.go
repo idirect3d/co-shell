@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/shell"
 )
@@ -136,7 +137,7 @@ func (a *Agent) shellSendTool(ctx context.Context, args map[string]interface{}) 
 	if err != nil {
 		log.Debug("Shell send error: %v (output: %s)", err, output)
 		if output != "" {
-			return fmt.Sprintf("%s\n\n⚠️ 命令执行出错：%v", output, err), nil
+			return i18n.TF(i18n.KeyShellCmdError, output, err), nil
 		}
 		return "", fmt.Errorf("shell command failed: %w", err)
 	}
@@ -209,18 +210,18 @@ func (a *Agent) shellGetOutputTool(ctx context.Context, args map[string]interfac
 	select {
 	case <-execCtx.Done():
 		output, totalLines := a.shellSession.GetOutput(lastFrom, count)
-		return fmt.Sprintf("终端输出（共%d行）：\n%s", totalLines, output), nil
+		return i18n.TF(i18n.KeyShellTerminalOutput, totalLines, output), nil
 	case <-time.After(time.Duration(waitMs) * time.Millisecond):
 	}
 
 	output, totalLines := a.shellSession.GetOutput(lastFrom, count)
-	return fmt.Sprintf("终端输出（共%d行）：\n%s", totalLines, output), nil
+	return i18n.TF(i18n.KeyShellTerminalOutput, totalLines, output), nil
 }
 
 // truncatedOutputSummary returns a summary of how many lines were truncated
 func truncatedOutputSummary(truncatedCount int) string {
 	if truncatedCount > 0 {
-		return fmt.Sprintf("⚠️ 有%d行超出每行最大字符数限制被截断", truncatedCount)
+		return i18n.TF(i18n.KeyShellTerminalTruncated, truncatedCount)
 	}
 	return ""
 }
@@ -273,7 +274,7 @@ func (a *Agent) shellWindowContentTool(ctx context.Context, args map[string]inte
 
 	rows, cols := a.shellSession.GetVTSize()
 
-	return fmt.Sprintf("终端窗口内容（%d行 x %d列）：\n%s", rows, cols, content), nil
+	return i18n.TF(i18n.KeyShellWindowContent, rows, cols, content), nil
 }
 
 // shellStopTool stops the persistent shell session.

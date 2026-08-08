@@ -568,7 +568,7 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 func resultModeInstruction(mode config.ResultMode) string {
 	switch mode {
 	case config.ResultModeMinimal:
-		return `When you execute a system command and receive its output, do NOT repeat the command output in your response. Instead, simply indicate whether the command succeeded or failed. If it succeeded, respond with a brief success confirmation (e.g., "✅ 命令执行成功" or "✅ Command executed successfully"). If it failed, respond with a brief error message. Do not add any additional explanation, analysis, or commentary.`
+		return i18n.T(i18n.KeyCmdExecOkNoRepeat)
 	case config.ResultModeExplain:
 		return `When you execute a system command and receive its output, provide a brief explanation of what the output means. Keep your explanation concise (2-3 sentences max). Focus on the key information the user would want to know.`
 	case config.ResultModeAnalyze:

@@ -56,13 +56,14 @@ cd "$ROOT" || exit 2
 # must include the leading ./ to match.
 EXCLUDE_PATTERNS=(
     '*_test.go'
-    './mobile/'
-    './hub/'
+    './mobile/*'
+    './hub/*'
     './agent/io.go'        # UserIO implementation - legal fmt usage
     './repl/userio.go'     # UserIO implementation - legal fmt usage
     './log/log.go'         # logger itself
     './repl/enhanced_input.go' # terminal control sequences - infra
-    './bin/'
+    './bin/*'
+    './work/*'       # local run/debug output (not product code)
 )
 
 build_file_list() {
@@ -145,24 +146,37 @@ check_event_magic() {
 # Check 3: hardcoded Chinese in Go strings outside i18n package.
 # ---------------------------------------------------------------------------
 check_hardcoded_chinese() {
+    local files
     local count=0
+    # Use build_file_list for consistent scope with checks 1/2/4
+    # (excludes tests, mobile/, hub/, work/, bin/ and UserIO infra).
+    files=$(build_file_list)
 
     while IFS= read -r f; do
         [[ -z "$f" ]] && continue
+        # Approved exemptions (documented in FEATURE-305-UC-0001):
+        #  - docx/html.go: Word export HTML static template ("data content")
+        #  - bridge/executor.go: child process output match patterns (no output)
+        #  - i18n/*: translation resources themselves (the audit target source)
+        case "$f" in
+            ./docx/html.go|./bridge/executor.go|./i18n/*) continue ;;
+        esac
         while IFS=: read -r lineno line; do
             [[ -z "$lineno" ]] && continue
             # Skip comment lines
             trimmed="$(echo "$line" | sed 's/^[[:space:]]*//')"
             [[ "$trimmed" == \//* ]] && continue
             [[ "$trimmed" == \* ]] && continue
+            # Strip trailing // comment so CJK inside comments is not flagged.
+            code="$(echo "$line" | sed 's|//.*$||')"
             # Only count lines containing CJK chars inside string literals.
             # Rough heuristic: a quote before and after the CJK run.
-            if echo "$line" | grep -qE '"[^"]*[一-鿿][^"]*"'; then
+            if echo "$code" | grep -qE '"[^"]*[一-鿿][^"]*"'; then
                 count=$((count + 1))
                 print_item "$f:$lineno: $line"
             fi
         done < <(grep -nE '[一-鿿]' "$f")
-    done <<< "$(find . -name '*.go' -not -path './i18n/*' -not -path './.git/*' | grep -v _test.go | sort)"
+    done <<< "$files"
 
     echo "$count"
 }

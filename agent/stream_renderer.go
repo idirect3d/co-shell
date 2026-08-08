@@ -98,7 +98,7 @@ func (r *StreamRenderer) Render(eventType string, content string) {
 		var prompt, completion, total int
 		if _, err := fmt.Sscanf(content, "prompt=%d completion=%d total=%d", &prompt, &completion, &total); err == nil && total > 0 {
 			r.io.Print("\n────────────────────────────────────────────────────────────────────────────────\n")
-			r.io.Print(fmt.Sprintf("本次任务 Token 总计: 输入=%d, 输出=%d, 总计=%d\n", prompt, completion, total))
+			r.io.Print(i18n.TF(i18n.KeyTotalTokensLine, prompt, completion, total))
 			r.io.Print("────────────────────────────────────────────────────────────────────────────────\n")
 		}
 	case EventInfo:
@@ -146,7 +146,7 @@ func (r *StreamRenderer) renderTokenIter(content string) {
 			pct = float64(total) * 100.0 / float64(maxLen)
 		}
 		if maxLen == 0 {
-			r.io.Print(" (模型最大长度未知) ")
+			r.io.Print(i18n.T(i18n.KeyModelMaxLenUnknown))
 		}
 		r.io.Print(fmt.Sprintf(i18n.T(i18n.KeyTokenUsageDisplay), ft, prompt, inTPS, completion, outTPS, total, pct))
 		r.io.Print("\n")

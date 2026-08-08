@@ -9,9 +9,9 @@
 package agent
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -268,9 +268,8 @@ func (v *StreamingXMLValidator) processContent(content string) string {
 					tagName := v.tagBuf.String()
 					reportedTag := tagName + content[i:i+closeEnd]
 					v.fatalErr = &XMLStreamFatalError{
-						Message: fmt.Sprintf("XML标签名 %q 包含非法字符 '='，XML 标签中不允许使用属性。正确的格式应为：<%s>值</%s>，请使用多标签传参数。",
-							reportedTag, reportedTag, reportedTag),
-						Tag: reportedTag,
+						Message: i18n.TF(i18n.KeyXMLStreamEquals, reportedTag, reportedTag, reportedTag),
+						Tag:     reportedTag,
 					}
 					v.state = stateFatal
 					v.tagBuf.Reset()
@@ -463,8 +462,7 @@ func (v *StreamingXMLValidator) processOpenTag(tagName string, selfClosing bool)
 	//   conventionally accepts an <intent> param not listed in its schema).
 	if currentDepth == 0 {
 		if !v.toolNames[stripped] {
-			errMsg := fmt.Sprintf("XML流式验证错误：未知的工具名 <%s>。请检查方法名拼写并使用正确的工具名。",
-				tagName)
+			errMsg := i18n.TF(i18n.KeyXMLStreamUnknownTool, tagName)
 			log.Debug("XMLStreamValidator: %s", errMsg)
 			v.fatalErr = &XMLStreamFatalError{Message: errMsg, Tag: tagName}
 			v.state = stateFatal
@@ -477,7 +475,7 @@ func (v *StreamingXMLValidator) processOpenTag(tagName string, selfClosing bool)
 			if top.isTool {
 				if paramSet, ok := v.paramNames[top.name]; ok && len(paramSet) > 0 {
 					if !paramSet[stripped] {
-						errMsg := fmt.Sprintf("XML流式验证错误：工具 <%s> 没有参数 <%s>。合法参数有：%s",
+						errMsg := i18n.TF(i18n.KeyXMLStreamUnknownParam,
 							top.name, stripped, strings.Join(sortedParamNames(paramSet), "、"))
 						log.Debug("XMLStreamValidator: %s", errMsg)
 						v.fatalErr = &XMLStreamFatalError{Message: errMsg, Tag: tagName}
@@ -533,8 +531,7 @@ func (v *StreamingXMLValidator) processCloseTag(closeName string) {
 		// the parent close tag (</cs:read_file> while <cs:path> is still open).
 		// Report as fatal so the stream is terminated immediately instead of
 		// wasting tokens (FEATURE-298 UC-0003 / UC-0010).
-		errMsg := fmt.Sprintf("XML流式验证错误：标签不匹配，<%s> 已打开但遇到 </%s>。请检查每个标签是否正确闭合，且开闭标签名称一致。",
-			top.original, closeName)
+		errMsg := i18n.TF(i18n.KeyXMLStreamTagMismatch, top.original, closeName)
 		log.Debug("XMLStreamValidator: %s", errMsg)
 		v.fatalErr = &XMLStreamFatalError{Message: errMsg, Tag: closeName}
 		v.state = stateFatal

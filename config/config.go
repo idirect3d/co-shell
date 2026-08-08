@@ -743,20 +743,20 @@ func DefaultWorkModes() []WorkMode {
 	return []WorkMode{
 		{
 			Name:        "act",
-			Description: "行动模式 - 可执行系统命令、修改文件、操作浏览器等所有操作",
+			Description: i18n.T(i18n.KeyWorkModeActDesc),
 			Sections:    DefaultActSections(),
 			Temperature: Float64Ptr(0),
 		},
 		{
 			Name:        "plan",
-			Description: "规划模式 - 仅分析和规划，不执行系统命令、不修改文件",
+			Description: i18n.T(i18n.KeyWorkModePlanDesc),
 			Sections:    DefaultPlanSections(),
 			ToolModes:   DefaultPlanToolModes(),
 			Temperature: Float64Ptr(0),
 		},
 		{
 			Name:        "research",
-			Description: "调研模式 - 搜索、查阅资料、收集信息、输出研究报告",
+			Description: i18n.T(i18n.KeyWorkModeResearchDesc),
 			Sections:    DefaultResearchSections(),
 			Temperature: Float64Ptr(0),
 		},

@@ -38,6 +38,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -444,13 +445,13 @@ func FormatNextRun(t time.Time) string {
 	now := time.Now()
 	diff := t.Sub(now)
 	if diff < 0 {
-		return "已过期"
+		return i18n.T(i18n.KeySchedulerExpiredS)
 	}
 	if diff < 1*time.Hour {
-		return fmt.Sprintf("%.0f 分钟后", diff.Minutes())
+		return i18n.TF(i18n.KeySchedulerMinutes, diff.Minutes())
 	}
 	if diff < 24*time.Hour {
-		return fmt.Sprintf("%.0f 小时后", diff.Hours())
+		return i18n.TF(i18n.KeySchedulerHours, diff.Hours())
 	}
 	return t.Format("01-02 15:04")
 }

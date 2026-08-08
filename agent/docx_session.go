@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/idirect3d/co-shell/docx"
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // docxSession holds an open DOCX document session.
@@ -67,7 +68,7 @@ func (mgr *docxSessionManager) open(path string) (string, error) {
 		for id, s := range mgr.sessions {
 			sessionList += fmt.Sprintf("\n  %s: %s", id, s.Path)
 		}
-		return "", fmt.Errorf("已达到最大并发 DOCX 会话数 (%d)。请先调用 word_close 关闭以下不再需要的会话：%s", mgr.maxSessions, sessionList)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyDocxSessionMax, mgr.maxSessions, sessionList))
 	}
 
 	return "", fmt.Errorf("docx file %q does not exist", path)
@@ -135,7 +136,7 @@ func (mgr *docxSessionManager) openWithMode(path, mode string) (string, error) {
 		for id, s := range mgr.sessions {
 			sessionList += fmt.Sprintf("\n  %s: %s", id, s.Path)
 		}
-		return "", fmt.Errorf("已达到最大并发 DOCX 会话数 (%d)。请先调用 word_close 关闭以下不再需要的会话：%s", mgr.maxSessions, sessionList)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyDocxSessionMax, mgr.maxSessions, sessionList))
 	}
 
 	doc, err := docx.OpenFile(finalPath)

@@ -644,8 +644,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					log.Debug("ParseXMLToolCalls: stage1/2 check: tagName=%q, actualCloseName=%q, closeIdx=%d, anyCloseUsed=%v",
 						tagName, actualCloseName, closeIdx, anyCloseUsed)
 					if actualCloseName != "" && isKnownToolName(actualCloseName, tools) && !isKnownToolName(tagName, tools) {
-						errMsg := fmt.Sprintf(
-							"XML解析错误：你写了不识别的方法名 <%s>，但闭合标签是 </%s>。你是否想调用 <%s>？请修正方法名并确保开头和闭合标签一致。",
+						errMsg := i18n.TF(i18n.KeyXMLErrStage1UnknownTool,
 							originalTagName, xmlTagPrefix()+actualCloseName, actualCloseName)
 						log.Debug("ParseXMLToolCalls: stage1 detected: %s", errMsg)
 						calls = append(calls, llm.ToolCall{
@@ -670,9 +669,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 								}
 							}
 							if knownCount >= 1 {
-								errMsg := fmt.Sprintf(
-									"XML解析错误：未被识别的方法名 '%s'，但内部参数标签看起来像工具调用参数。请检查方法名拼写并使用正确的方法名。",
-									originalTagName)
+								errMsg := i18n.TF(i18n.KeyXMLErrStage2UnknownTool, originalTagName)
 								log.Debug("ParseXMLToolCalls: stage2 detected: %s", errMsg)
 								calls = append(calls, llm.ToolCall{
 									ID:        fmt.Sprintf("xml_error_%d", len(calls)),
@@ -710,10 +707,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 						// produce confusing downstream errors.
 						if actualCloseName != tagName {
 							refFormat := buildReferenceFormat(tagName)
-							errMsg := fmt.Sprintf(
-								"XML解析错误：找不到 <%s> 的闭合标签 </%s>，但找到了不相关的 </%s>。\n\n"+
-									"请检查你的调用格式，确保每个标签正确闭合。\n"+
-									"参考格式：\n%s",
+							errMsg := i18n.TF(i18n.KeyXMLErrCloseTagMismatch,
 								tagName, tagName, actualCloseName, refFormat)
 							log.Debug("ParseXMLToolCalls: %s", errMsg)
 							calls = append(calls, llm.ToolCall{
@@ -729,8 +723,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 						log.Debug("ParseXMLToolCalls: using fallback close tag %s for <%s> at idx %d", closeTag, tagName, fallbackIdx)
 					} else {
 						// Can't parse the found close tag name — report error
-						errMsg := fmt.Sprintf("XML解析错误：找不到 <%s> 的闭合标签 </%s>。位置：从第 %d 字符开始。",
-							tagName, tagName, ltIdx)
+						errMsg := i18n.TF(i18n.KeyXMLErrNoClosePos, tagName, tagName, ltIdx)
 						log.Debug("ParseXMLToolCalls: %s", errMsg)
 						calls = append(calls, llm.ToolCall{
 							ID:        fmt.Sprintf("xml_error_%d", len(calls)),
@@ -754,8 +747,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 					} else {
 						// Truly cannot find any close tag. Return an error tool call
 						// with detailed position info so the LLM can fix it.
-						errMsg := fmt.Sprintf("XML解析错误：找不到 <%s> 的闭合标签 </%s>。位置：从第 %d 字符开始。可能原因：内容中包含的特殊字符（如 <、>）干扰了标签匹配。由于使用了标签前缀，请直接写入原始内容，不要使用 < 或 > 等转义。",
-							tagName, tagName, ltIdx)
+						errMsg := i18n.TF(i18n.KeyXMLErrNoCloseAggressive, tagName, tagName, ltIdx)
 						log.Debug("ParseXMLToolCalls: %s", errMsg)
 						calls = append(calls, llm.ToolCall{
 							ID:        fmt.Sprintf("xml_error_%d", len(calls)),
@@ -795,7 +787,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 						// Check for unknown parameter names (typos)
 						for paramName := range parsedArgs {
 							if !validParams[paramName] {
-								errMsg := fmt.Sprintf("参数名 %q 不是工具 %q 的合法参数。%s 的合法参数有：%s",
+								errMsg := i18n.TF(i18n.KeyXMLErrInvalidParam,
 									paramName, tagName, tagName, strings.Join(sortedParamNames(validParams), "、"))
 								parseErrors = append(parseErrors, errMsg)
 							}
@@ -808,7 +800,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 										if reqName, ok := r.(string); ok {
 											// Skip "intent" - it's always the first required param
 											if _, found := parsedArgs[reqName]; !found {
-												errMsg := fmt.Sprintf("工具 %q 缺少必要参数 %q", tagName, reqName)
+												errMsg := i18n.TF(i18n.KeyXMLErrMissingRequired, tagName, reqName)
 												parseErrors = append(parseErrors, errMsg)
 											}
 										}
@@ -819,7 +811,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 						}
 					} else {
 						// JSON parse failed - params string may be malformed
-						errMsg := fmt.Sprintf("工具 %q 的参数解析失败: %v", tagName, err)
+						errMsg := i18n.TF(i18n.KeyXMLErrParamParseFailed, tagName, err)
 						parseErrors = append(parseErrors, errMsg)
 					}
 				}
@@ -833,12 +825,7 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 
 				// Try to get the tool's usage example from i18n for the reference format
 				refFormat := buildReferenceFormat(tagName)
-				errMsg := fmt.Sprintf(
-					"XML参数解析错误：调用 <%s> 时发现以下参数格式问题：\n%s\n\n"+
-						"请检查你的调用格式，确保每个参数标签名正确、闭合标签匹配。\n"+
-						"由于使用了标签前缀，内容中的 <、> 等字符不会与工具标签冲突，请直接写入原始内容，不要使用 < 或 > 等转义。\n"+
-						"参考格式：\n%s",
-					tagName, errDetail, refFormat)
+				errMsg := i18n.TF(i18n.KeyXMLErrParamFormat, tagName, errDetail, refFormat)
 				log.Debug("ParseXMLToolCalls: parameter parse errors for <%s>: %s", tagName, errDetail)
 				calls = append(calls, llm.ToolCall{
 					ID:        fmt.Sprintf("xml_error_%d", len(calls)),
@@ -1307,12 +1294,12 @@ func stripREPLMaskMarkers(content string) string {
 // Also returns a descriptive error message if invalid.
 func isValidTagName(tagName string) (bool, string) {
 	if tagName == "" {
-		return false, "标签名为空"
+		return false, i18n.T(i18n.KeyXMLTagNameEmpty)
 	}
 
 	// Check for attribute-like syntax: <param=value>
 	if strings.Contains(tagName, "=") {
-		return false, fmt.Sprintf("标签名 %q 包含非法字符 '='，XML 标签中不允许包含属性。标签名只能包含字母、数字、下划线、连字符和冒号，不能包含 '='", tagName)
+		return false, i18n.TF(i18n.KeyXMLTagNameEquals, tagName)
 	}
 
 	// Check each character
@@ -1321,9 +1308,9 @@ func isValidTagName(tagName string) (bool, string) {
 			continue
 		}
 		if ch == ' ' {
-			return false, fmt.Sprintf("标签名 %q 包含空格，XML 标签中不允许包含属性。正确的格式应为：<%s>值</%s>，不要添加属性", tagName, tagName, tagName)
+			return false, i18n.TF(i18n.KeyXMLTagNameSpace, tagName, tagName, tagName)
 		}
-		return false, fmt.Sprintf("标签名 %q 在第 %d 个字符处包含非法字符 %q，标签名只能包含字母、数字、下划线、连字符和冒号", tagName, i+1, ch)
+		return false, i18n.TF(i18n.KeyXMLTagNameIllegalChar, tagName, i+1, ch)
 	}
 
 	return true, ""
@@ -1470,7 +1457,7 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 
 		// Check if the tag name is followed by a space (attribute syntax like <param name=value>)
 		if tagEnd < len(remaining) && (remaining[tagEnd] == ' ' || remaining[tagEnd] == '\t') {
-			errMsg := fmt.Sprintf("标签名 %q 后面跟有空格，XML 标签中不允许包含属性。正确的格式应为：<%s>值</%s>，不要添加属性", tagName, tagName, tagName)
+			errMsg := i18n.TF(i18n.KeyXMLTagNameTrailingSpace, tagName, tagName, tagName)
 			parseErrors = append(parseErrors, errMsg)
 			// Skip past this malformed tag by finding the '>'
 			openEnd := strings.IndexByte(remaining[tagEnd:], '>')
@@ -1519,7 +1506,7 @@ func parseXMLChildrenToJSON(xmlContent string) (string, []string) {
 				log.Debug("parseXMLChildrenToJSON: using lenient close tag for <%s> at idx %d", tagName, closeIdx)
 			} else {
 				// Cannot find closing tag for this parameter - record error
-				errMsg := fmt.Sprintf("参数 <%s> 缺少闭合标签 </%s>", tagName, tagName)
+				errMsg := i18n.TF(i18n.KeyXMLParamNoCloseTag, tagName, tagName)
 				parseErrors = append(parseErrors, errMsg)
 				log.Debug("parseXMLChildrenToJSON: %s", errMsg)
 				break
@@ -1896,7 +1883,7 @@ func buildReferenceFormat(toolName string) string {
 	}
 
 	// Fallback: generic format with prefix
-	return fmt.Sprintf("<%s%s>\n  <参数名1>参数值1</参数名1>\n  <参数名2>参数值2</参数名2>\n</%s%s>", xmlTagPrefix(), toolName, xmlTagPrefix(), toolName)
+	return i18n.TF(i18n.KeyXMLGenericFormat, xmlTagPrefix(), toolName, xmlTagPrefix(), toolName)
 }
 
 // buildXMLToolDescription builds the usage description for a single tool in XML format.

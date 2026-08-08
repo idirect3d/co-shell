@@ -44,7 +44,7 @@ func formatMemoryValue(value string) string {
 	var entry memory.MessageEntry
 	if err := json.Unmarshal([]byte(value), &entry); err == nil && entry.Name != "" {
 		timeStr := entry.Datetime.Format("2006-01-02 15:04:05")
-		return fmt.Sprintf("%s %s 说：%s", timeStr, entry.Name, entry.Content)
+		return i18n.TF(i18n.KeyMemorySaidFormat, timeStr, entry.Name, entry.Content)
 	}
 	return value
 }

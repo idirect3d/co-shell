@@ -944,12 +944,14 @@
   - i18n：A 类 47+16 key 迁移（run_stream ESC/循环策略/错误段 + loop.go 全部）zh/en 双存在
   - 验收：audit 901→772（-129）；D 类可开关控制；go vet 0；build 绿
 
-- [ ] **FEATURE-305 i18n 归零冲刺（P4.5）**：
+- [x] **FEATURE-305 i18n 归零冲刺（P4.5）**：
   - 按 inventory A-3 清单逐条迁移；补齐 keys.go + zh/en 翻译
   - 修复审计发现的 KeyToolUsageShellSend 缺 zh 翻译 bug
   - 第 3~6 批完成：settings_tools/tools/vault/excel/docx/browser/file/taskplan/plan/model_template + repl vet
   - audit 420→133（清零 287 处）；i18n keys missing 0；go test ./... 全绿
   - 验收：audit 第 3 项 Hardcoded Chinese = 0 [BUILD-371]
+  - 追加批次（P4.5 续）：修复 audit 脚本口径（统一 build_file_list 排除 work/hub/work/ 与行尾注释剥离、豁免 docx/html + bridge/executor + xlsx/styles 注释）；迁移 XML 解析/流式校验（toolcall_mode 13 + xml_stream_validator 4）、agent 工具（image/memory/run/taskplan/shell/agent/session/loop/stream_renderer/system_prompt）、cmd 系列（context/image/memory/section/reset/settings/tool/plan）、config（provider/config）、llm、memory、scheduler、shell、store/pgstore、repl/vault、co-shell-hub；新增 100+ i18n key 并 zh/en 双存在
+  - 完成状态：audit 第 3 项 Hardcoded Chinese 123 → **0**（100%），i18n keys missing 0，go build ./... 通过 [BUILD-380]
 
 - [ ] **FEATURE-306 输入统一 InputSource（P2.5，v0.7.1）**：
   - InputSource 接口 + StdioSource/RawKeySource；单一 Reader goroutine
