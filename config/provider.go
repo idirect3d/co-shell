@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // ProviderPreset defines a preset configuration for an LLM provider.
@@ -29,7 +31,7 @@ var ProviderPresets = []ProviderPreset{
 	},
 	{
 		Name:         "qwen",
-		DisplayName:  "阿里千问（通义千问）",
+		DisplayName:  i18n.T(i18n.KeyProviderDisplayQwen),
 		Endpoint:     "https://dashscope.aliyuncs.com/compatible-mode/v1",
 		Models:       []string{"qwen-plus", "qwen-max", "qwen-turbo"},
 		DefaultModel: "qwen-plus",
@@ -37,7 +39,7 @@ var ProviderPresets = []ProviderPreset{
 	},
 	{
 		Name:         "xiaomi",
-		DisplayName:  "小米 MiMo 大模型",
+		DisplayName:  i18n.T(i18n.KeyProviderDisplayXiaomi),
 		Endpoint:     "https://api.xiaomimimo.com/v1",
 		Models:       []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash"},
 		DefaultModel: "mimo-v2.5-pro",
@@ -45,7 +47,7 @@ var ProviderPresets = []ProviderPreset{
 	},
 	{
 		Name:         "kimi",
-		DisplayName:  "Kimi（月之暗面 Moonshot AI）",
+		DisplayName:  i18n.T(i18n.KeyProviderDisplayKimi),
 		Endpoint:     "https://api.moonshot.cn",
 		Models:       []string{"kimi-k3", "kimi-k2.7-code", "kimi-k2.7-code-highspeed", "kimi-k2.6", "kimi-k2.5"},
 		DefaultModel: "kimi-k3",
@@ -53,7 +55,7 @@ var ProviderPresets = []ProviderPreset{
 	},
 	{
 		Name:         "zhipu",
-		DisplayName:  "智谱 AI（GLM）",
+		DisplayName:  i18n.T(i18n.KeyProviderDisplayZhipu),
 		Endpoint:     "https://open.bigmodel.cn/api/paas/v4/",
 		Models:       []string{"glm-4-plus", "glm-4-0520", "glm-4-air", "glm-4-flash", "glm-4v-plus"},
 		DefaultModel: "glm-4-plus",
@@ -61,7 +63,7 @@ var ProviderPresets = []ProviderPreset{
 	},
 	{
 		Name:         "ollama",
-		DisplayName:  "Ollama（本地部署）",
+		DisplayName:  i18n.T(i18n.KeyProviderDisplayOllama),
 		Endpoint:     "http://localhost:11434/v1",
 		Models:       []string{},
 		DefaultModel: "",
@@ -69,7 +71,7 @@ var ProviderPresets = []ProviderPreset{
 	},
 	{
 		Name:         "openai-compatible",
-		DisplayName:  "OpenAI 兼容（自定义）",
+		DisplayName:  i18n.T(i18n.KeyProviderDisplayCompat),
 		Endpoint:     "",
 		Models:       []string{},
 		DefaultModel: "",

@@ -1376,9 +1376,9 @@ func (a *Agent) getAllUserPrompts() string {
 		// contains "] 返回结果：" or "] Result:".
 		if xmlToolPrefix != "" {
 			trimmedPrefix := strings.TrimSpace(xmlToolPrefix)
-			containsPrefix := strings.Contains(trimmedPrefix, "返回结果")
+			containsPrefix := strings.Contains(trimmedPrefix, i18n.T(i18n.KeyXMLToolResultMarker))
 			if strings.HasPrefix(content, "[") &&
-				((containsPrefix && strings.Contains(content, "] 返回结果：")) ||
+				((containsPrefix && strings.Contains(content, "] "+i18n.T(i18n.KeyXMLToolResultMarker))) ||
 					(!containsPrefix && strings.Contains(content, "] Result:"))) {
 				continue
 			}

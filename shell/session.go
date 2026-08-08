@@ -39,6 +39,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -329,7 +330,7 @@ func (s *Session) GetOutput(lastFrom int, count int) (string, int) {
 		var result strings.Builder
 		for _, line := range allLines {
 			if s.maxLineLen > 0 && len(line) > s.maxLineLen {
-				line = line[:s.maxLineLen] + fmt.Sprintf("...（被截断%d字符）", len(line)-s.maxLineLen)
+				line = line[:s.maxLineLen] + i18n.TF(i18n.KeyShellTruncatedChar, len(line)-s.maxLineLen)
 			}
 			result.WriteString(line)
 			result.WriteString("\n")
@@ -360,7 +361,7 @@ func (s *Session) GetOutput(lastFrom int, count int) (string, int) {
 	var result strings.Builder
 	for _, line := range selected {
 		if s.maxLineLen > 0 && len(line) > s.maxLineLen {
-			line = line[:s.maxLineLen] + fmt.Sprintf("...（被截断%d字符）", len(line)-s.maxLineLen)
+			line = line[:s.maxLineLen] + i18n.TF(i18n.KeyShellTruncatedChar, len(line)-s.maxLineLen)
 		}
 		result.WriteString(line)
 		result.WriteString("\n")

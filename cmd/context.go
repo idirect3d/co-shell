@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/store"
 )
 
@@ -92,8 +93,8 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📋 " + "当前上下文" + "\n")
-	sb.WriteString(fmt.Sprintf("总消息数: %d\n", len(messages)))
+	sb.WriteString("📋 " + i18n.T(i18n.KeyContextTitleLine) + "\n")
+	sb.WriteString(i18n.TF(i18n.KeyContextTotalCount, len(messages)))
 
 	pointerIdx := h.agent.MessagePointer()
 	for i, msg := range messages {

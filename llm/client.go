@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -1320,7 +1321,7 @@ func (c *openAIClient) TestVisionSupport(ctx context.Context) bool {
 		ContentParts: []ContentPart{
 			{
 				Type: ContentPartText,
-				Text: "不要输出思考内容，直接说出这张小图片中的内容是什么颜色?",
+				Text: i18n.T(i18n.KeyVisionTestPrompt),
 			},
 			{
 				Type: ContentPartImageURL,
@@ -1380,7 +1381,7 @@ func (c *openAIClient) TestToolCallSupport(ctx context.Context) bool {
 
 	msg := Message{
 		Role:    "user",
-		Content: "请调用 test_tool 工具，参数 message 为 'hello'。",
+		Content: i18n.T(i18n.KeyToolCallTestPrompt),
 	}
 
 	resp, err := c.testChat(ctx, []Message{msg}, []Tool{testTool})

@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/store"
 )
 
@@ -251,11 +252,11 @@ func (m *Manager) Search(params SearchParams) ([]SearchResult, error) {
 // FormatHistorySlice formats a slice of message entries as a human-readable string.
 func FormatHistorySlice(entries []MessageEntry) string {
 	if len(entries) == 0 {
-		return "（无历史对话记录）"
+		return i18n.T(i18n.KeyMemoryNoHistory)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📋 历史对话记录（共 %d 条）:\n\n", len(entries)))
+	sb.WriteString(i18n.TF(i18n.KeyMemoryHistoryTitle, len(entries)))
 	for i, entry := range entries {
 		timeStr := entry.Datetime.Format("2006-01-02 15:04:05")
 		sb.WriteString(fmt.Sprintf("[%d] %s | %s:\n", i+1, timeStr, entry.Name))
@@ -268,14 +269,14 @@ func FormatHistorySlice(entries []MessageEntry) string {
 // If maxContentLen > 0, content longer than this will be truncated with "...".
 func FormatSearchResults(results []SearchResult, maxContentLen int) string {
 	if len(results) == 0 {
-		return "（未找到匹配的记忆）"
+		return i18n.T(i18n.KeyMemoryNoMatch)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("🔍 记忆搜索结果（共 %d 条）:\n\n", len(results)))
+	sb.WriteString(i18n.TF(i18n.KeyMemorySearchTitle, len(results)))
 	for i, r := range results {
 		timeStr := r.Entry.Datetime.Format("2006-01-02 15:04:05")
-		sb.WriteString(fmt.Sprintf("[%d] %s | %s (匹配: %s):\n", i+1, timeStr, r.Entry.Name, r.MatchOn))
+		sb.WriteString(i18n.TF(i18n.KeyMemoryMatchSuffix, i+1, timeStr, r.Entry.Name, r.MatchOn))
 		content := r.Entry.Content
 		if maxContentLen > 0 && len(content) > maxContentLen {
 			content = content[:maxContentLen] + "..."

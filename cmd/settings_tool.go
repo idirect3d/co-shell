@@ -35,7 +35,8 @@ import (
 
 // handleToolSubCommand handles the ".set tool" subcommand tree.
 // Supported subcommands:
-//   mode openai|xml  — switch tool call mode
+//
+//	mode openai|xml  — switch tool call mode
 func (h *SettingsHandler) handleToolSubCommand(args []string) (string, error) {
 	if len(args) == 0 {
 		// Show current tool call mode
@@ -48,7 +49,7 @@ func (h *SettingsHandler) handleToolSubCommand(args []string) (string, error) {
 	case "mode":
 		return h.handleToolMode(args[1:])
 	default:
-		return "", fmt.Errorf("unknown tool subcommand: %s（可用: mode）", subcommand)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySettingsToolUnknownSub, subcommand))
 	}
 }
 
@@ -57,7 +58,7 @@ func (h *SettingsHandler) handleToolMode(args []string) (string, error) {
 	if len(args) == 0 {
 		// Show current mode
 		mode := h.agent.ToolCallMode()
-		return fmt.Sprintf("%s: %s（可选值: openai, xml）", i18n.T(i18n.KeyToolCallMode), mode), nil
+		return i18n.TF(i18n.KeySettingsToolValidValues, i18n.T(i18n.KeyToolCallMode), mode), nil
 	}
 
 	mode := args[0]

@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -66,17 +67,17 @@ func (a *Agent) VisualAnalysisTool(path string) (string, error) {
 	// Check if already in cache
 	for _, existing := range a.imagePaths {
 		if existing == path {
-			return fmt.Sprintf("✅ 图片已在缓存中: %s", path), nil
+			return i18n.TF(i18n.KeyImageAlreadyCached, path), nil
 		}
 	}
 
 	a.imagePaths = append(a.imagePaths, path)
 
-	return fmt.Sprintf("请根据以下意图分析已上传视觉文件（%s）的内容，并将分析结果描述出来，如果内容较多，建议及时将识别结果保存到同名 .md 文件中供后续使用（替换扩展名为 .md）。\n", path), nil
+	return i18n.TF(i18n.KeyImageAnalyzePrompt, path), nil
 }
 func listImagesForPrompt(paths []string) string {
 	if len(paths) == 0 {
-		return "（无）"
+		return i18n.T(i18n.KeyImageNone)
 	}
 	var sb strings.Builder
 	for i, p := range paths {
@@ -262,12 +263,10 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 		fileList.WriteString(fmt.Sprintf("  %d. %s", i+1, fp))
 	}
 
-	taskContent := fmt.Sprintf(
-		"分析以下视觉文件:\n%s\n\n识别意图: %s\n\n请根据以上意图分析已上传视觉文件的内容，注意：必须通过调用 write_to_file（新建）/replace_in_file（追加） 将分析结果立即保存到 .md 文件中供后续使用，否则识别的信息将会丢失！",
-		fileList.String(), intent)
+	taskContent := i18n.TF(i18n.KeyImageAnalyzePromptFull, fileList.String(), intent)
 
 	if truncated > 0 {
-		taskContent += fmt.Sprintf("\n\n⚠️ 已截断 %d 个文件（超过上限 %d 个），如需分析更多文件请再次调用 visual_analysis。", truncated, maxImages)
+		taskContent += i18n.TF(i18n.KeyImageTruncatedNotice, truncated, maxImages)
 	}
 
 	if a.taskInstructionCache.Len() > 0 {
@@ -275,10 +274,10 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 	}
 	a.taskInstructionCache.WriteString(taskContent)
 
-	result := fmt.Sprintf("✅ 已加载 %d 个视觉文件", len(loadedFiles))
+	result := i18n.TF(i18n.KeyImageLoaded, len(loadedFiles))
 	if truncated > 0 {
-		result += fmt.Sprintf("（截断 %d 个，上限 %d）", truncated, maxImages)
+		result += i18n.TF(i18n.KeyImageTruncatedSuffix, truncated, maxImages)
 	}
-	result += "，识别指令已暂存。"
+	result += i18n.T(i18n.KeyImageInstructionStored)
 	return result, nil
 }

@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/xlsx"
 )
 
@@ -115,7 +116,7 @@ func (mgr *excelSessionManager) open(path string) (string, error) {
 		for id, s := range mgr.sessions {
 			sessionList += fmt.Sprintf("\n  %s: %s", id, s.Path)
 		}
-		return "", fmt.Errorf("已达到最大并发 Excel 会话数 (%d)。请先调用 excel_close 关闭以下不再需要的会话：%s", mgr.maxSessions, sessionList)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyExcelSessionMax, mgr.maxSessions, sessionList))
 	}
 	return "", fmt.Errorf("xlsx file %q does not exist", path)
 }
@@ -174,7 +175,7 @@ func (mgr *excelSessionManager) openWithMode(path, mode string) (string, error) 
 		for id, s := range mgr.sessions {
 			sessionList += fmt.Sprintf("\n  %s: %s", id, s.Path)
 		}
-		return "", fmt.Errorf("已达到最大并发 Excel 会话数 (%d)。请先调用 excel_close 关闭以下不再需要的会话：%s", mgr.maxSessions, sessionList)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyExcelSessionMax, mgr.maxSessions, sessionList))
 	}
 
 	wb, err := xlsx.OpenFile(finalPath)

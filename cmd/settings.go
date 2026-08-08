@@ -433,19 +433,19 @@ func (h *SettingsHandler) showSettingsHelp() string {
 	if h.agent != nil {
 		// Capabilities external file status
 		if capContent := h.agent.ExternalFile("CAPABILITIES.md"); capContent != "" {
-			idGroup = append(idGroup, makeLine("capabilities", "已加载 (CAPABILITIES.md, "+fmt.Sprintf("%d 字符", len(capContent))+")", "Capabilities"))
+			idGroup = append(idGroup, makeLine("capabilities", i18n.TF(i18n.KeySettingsCapLoaded, len(capContent)), "Capabilities"))
 		} else {
-			idGroup = append(idGroup, makeLine("capabilities", "内置默认", "Capabilities"))
+			idGroup = append(idGroup, makeLine("capabilities", i18n.T(i18n.KeySettingsCapBuiltin), "Capabilities"))
 		}
 		// Principles external file status
 		if h.agent.ExternalFile("PRINCIPLES.md") != "" {
-			idGroup = append(idGroup, makeLine("principles-file", "已加载 (PRINCIPLES.md)", "Principles 外部文件"))
+			idGroup = append(idGroup, makeLine("principles-file", i18n.T(i18n.KeySettingsPrinciplesLoaded), i18n.T(i18n.KeyCol3Principles)))
 		}
 		// Rules: config rules count + .rules/ dir files
 		if files := h.agent.RulesDirFiles(); len(files) > 0 {
-			idGroup = append(idGroup, makeLine("rules", fmt.Sprintf("%d 条 + .rules/(%s)", len(cfg.Rules), strings.Join(files, ", ")), i18n.T(i18n.KeyCol3Rules)))
+			idGroup = append(idGroup, makeLine("rules", i18n.TF(i18n.KeySettingsRulesCount, len(cfg.Rules), strings.Join(files, ", ")), i18n.T(i18n.KeyCol3Rules)))
 		} else {
-			idGroup = append(idGroup, makeLine("rules", fmt.Sprintf("%d 条", len(cfg.Rules)), i18n.T(i18n.KeyCol3Rules)))
+			idGroup = append(idGroup, makeLine("rules", i18n.TF(i18n.KeySettingsRulesOnly, len(cfg.Rules)), i18n.T(i18n.KeyCol3Rules)))
 		}
 	}
 	allGroups = append(allGroups, idGroup)

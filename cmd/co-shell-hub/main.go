@@ -289,13 +289,13 @@ Config file (JSON):
     "auth": {
       "hub_private_key": "base64_encoded_private_key",
       "clients": [
-        {"nickname": "张三", "public_key": "base64_encoded_public_key"},
-        {"nickname": "李四", "public_key": "base64_encoded_public_key"}
+        {"nickname": "alice", "public_key": "base64_encoded_public_key"},
+        {"nickname": "bob", "public_key": "base64_encoded_public_key"}
       ]
     },
     "agents": [
-      {"id": "default", "name": "默认助手"},
-      {"id": "research", "name": "研究助手"}
+      {"id": "default", "name": "Default Assistant"},
+      {"id": "research", "name": "Research Assistant"}
     ]
   }`)
 }

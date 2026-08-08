@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/i18n"
 	_ "github.com/lib/pq"
 )
 
@@ -417,7 +418,7 @@ func (s *PGStore) migrateHistory(boltStore *Store) error {
 		return fmt.Errorf("cannot load history from bolt: %w", err)
 	}
 	if len(entries) == 0 {
-		fmt.Println("✅ history: 无数据")
+		fmt.Println(i18n.T(i18n.KeyPGNoData))
 		return nil
 	}
 
@@ -429,11 +430,11 @@ func (s *PGStore) migrateHistory(boltStore *Store) error {
 	}
 
 	if len(toMigrate) == 0 {
-		fmt.Println("✅ history: 无新增数据")
+		fmt.Println(i18n.T(i18n.KeyPGNoNewData))
 		return nil
 	}
 
-	fmt.Printf("✅ history: 迁移 %d 条记录\n", len(toMigrate))
+	fmt.Printf(i18n.T(i18n.KeyPGMigrated), len(toMigrate))
 
 	batchSize := 500
 	for i := 0; i < len(toMigrate); i += batchSize {
@@ -475,7 +476,7 @@ func (s *PGStore) migrateMemory(boltStore *Store) error {
 		return fmt.Errorf("cannot load memory from bolt: %w", err)
 	}
 	if len(memoryEntries) == 0 {
-		fmt.Println("✅ memory: 无数据")
+		fmt.Println(i18n.T(i18n.KeyPGNoData))
 		return nil
 	}
 
@@ -487,11 +488,11 @@ func (s *PGStore) migrateMemory(boltStore *Store) error {
 	}
 
 	if len(toMigrate) == 0 {
-		fmt.Println("✅ memory: 无新增数据")
+		fmt.Println(i18n.T(i18n.KeyPGNoNewData))
 		return nil
 	}
 
-	fmt.Printf("✅ memory: 迁移 %d 条记录\n", len(toMigrate))
+	fmt.Printf(i18n.T(i18n.KeyPGMigrated), len(toMigrate))
 
 	batchSize := 500
 	for i := 0; i < len(toMigrate); i += batchSize {

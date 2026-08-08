@@ -374,10 +374,10 @@ func (a *Agent) debugIntercept() bool {
 		switch strings.TrimSpace(input[7:]) {
 		case "on":
 			a.SetDebugMode(true)
-			a.io.Println("调试模式已开启")
+			a.io.Println(i18n.T(i18n.KeyDebugModeEnabled))
 		case "off":
 			a.SetDebugMode(false)
-			a.io.Println("调试模式已关闭")
+			a.io.Println(i18n.T(i18n.KeyDebugModeDisabled))
 		}
 		// Send the message as-is regardless
 		return false
@@ -1835,7 +1835,7 @@ func (a *Agent) removeLastAssistantWithToolCalls() string {
 		return ""
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("--- 已移除的消息 (从索引 %d 开始) ---\n", lastAssistantIdx))
+	sb.WriteString(i18n.TF(i18n.KeyRemovedMessages, lastAssistantIdx))
 	for i := lastAssistantIdx; i < len(a.messages); i++ {
 		msg := a.messages[i]
 		sb.WriteString(fmt.Sprintf("[%d] role=%s", i, msg.Role))
@@ -1853,7 +1853,7 @@ func (a *Agent) removeLastAssistantWithToolCalls() string {
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString("--- 结束 ---")
+	sb.WriteString(i18n.T(i18n.KeyEndMarker))
 	a.messages = a.messages[:lastAssistantIdx]
 	return sb.String()
 }

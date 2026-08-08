@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // ImageHandler handles the .image built-in command.
@@ -53,13 +54,13 @@ func (h *ImageHandler) Handle(args []string) (string, error) {
 	switch subcommand {
 	case "add":
 		if len(args) < 2 {
-			return "", fmt.Errorf("用法: .image add <path1,path2,...>")
+			return "", fmt.Errorf("%s", i18n.T(i18n.KeyImageUsageAdd))
 		}
 		paths := strings.Join(args[1:], " ")
 		return h.ag.VisualAnalysisTool(paths)
 
 	default:
-		return "", fmt.Errorf("未知的 .image 子命令: %s（可用: add）", subcommand)
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyImageUnknownSub, subcommand))
 	}
 }
 
