@@ -32,6 +32,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // TestReadFileTool tests the read_file tool.
@@ -170,6 +172,9 @@ func TestSearchFilesTool(t *testing.T) {
 	file3 := filepath.Join(tmpDir, "file3.txt")
 	os.WriteFile(file3, []byte("hello world\n"), 0644)
 
+	// Fix language so match-count header assertions are stable.
+	i18n.SetLang("zh")
+
 	agent := &Agent{}
 
 	tests := []struct {
@@ -184,7 +189,27 @@ func TestSearchFilesTool(t *testing.T) {
 				"path":  tmpDir,
 				"regex": "hello",
 			},
-			want:    []string{"file1.go", "file3.txt"},
+			want:    []string{"file1.go", "file3.txt", "找到 3 处"},
+			wantErr: false,
+		},
+		{
+			name: "search single file with multiple matches",
+			args: map[string]interface{}{
+				"path":         tmpDir,
+				"regex":        "fmt|package",
+				"file_pattern": "file1.go",
+			},
+			want:    []string{"找到 2 处", "file1.go:1-4:"},
+			wantErr: false,
+		},
+		{
+			name: "search single file with single match",
+			args: map[string]interface{}{
+				"path":         tmpDir,
+				"regex":        "hello",
+				"file_pattern": "file3.txt",
+			},
+			want:    []string{"找到 1 处", "file3.txt:1-1:"},
 			wantErr: false,
 		},
 		{
@@ -205,7 +230,7 @@ func TestSearchFilesTool(t *testing.T) {
 			},
 			// The "no matches" message is i18n-translated (zh shows "未找到匹配模式").
 			// Assert on the regex value which appears in the output regardless of locale.
-			want:    []string{"zzz_nonexistent_zzz"},
+			want:    []string{"zzz_nonexistent_zzz", "未找到匹配"},
 			wantErr: false,
 		},
 		{
