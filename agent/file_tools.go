@@ -219,6 +219,9 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 
 	// Walk the directory
 	var result strings.Builder
+	// File content blocks are buffered separately so the header (with the
+	// complete match count) can be written after the walk finishes.
+	var filesOut strings.Builder
 	var matchCount int
 	var truncatedLineCount int
 	var totalBytes int
@@ -247,7 +250,7 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 		if totalBytes+lineBytes > maxResultBytes {
 			return // skip this line, we've hit the limit
 		}
-		result.WriteString(line + "\n")
+		filesOut.WriteString(line + "\n")
 		totalBytes += lineBytes
 	}
 
@@ -311,12 +314,12 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 		// Estimate: header + file name + context lines
 		relPath, _ := filepath.Rel(dirPath, path)
 		estimatedBytes := len(relPath) + 20 + len(fileMatches)*80
-		if totalBytes+estimatedBytes > maxResultBytes && headerWritten {
+		if totalBytes+estimatedBytes > maxResultBytes {
 			return filepath.SkipDir
 		}
 
-		// Write file header with context range
-		writeHeader()
+		// Build the file block in filesOut; the header with the complete
+		// match count is written after the walk finishes.
 		firstLine := fileMatches[0].lineNum
 		lastLine := fileMatches[len(fileMatches)-1].lineNum
 		fileHeader := fmt.Sprintf("%s:%d-%d:", relPath, firstLine, lastLine)
@@ -360,10 +363,10 @@ func (a *Agent) searchFilesTool(ctx context.Context, args map[string]interface{}
 		return i18n.TF(i18n.KeySearchResultNone, pattern, dirPath), nil
 	}
 
-	// If we didn't write the header (shouldn't happen, but just in case)
-	if !headerWritten {
-		writeHeader()
-	}
+	// Write the header with the complete totals first, then append the
+	// buffered file blocks so the count in the header matches the content.
+	writeHeader()
+	result.WriteString(filesOut.String())
 
 	// Check if we hit the byte limit
 	if totalBytes >= maxResultBytes {

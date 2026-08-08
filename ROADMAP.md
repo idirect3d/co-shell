@@ -24,6 +24,7 @@
 | FEATURE-308 | 0.7.4 | tui v2 | FullScreenRenderer（可选分支） |
 | FEATURE-335 | 0.7.3 | P6 | :context 显示增强（tool_calls 块 + 保留控制字符 + retried_count + full 模式） |
 | FEATURE-336 | 0.7.3 | P6.5 | ✅ 已完成（工具调用解析错误显示原报文 + show-parse-error-raw 开关 [BUILD-378]） |
+| FIX-337 | 0.7.3 | P6.75 | ✅ 已完成（修复 search_files 结果匹配数错误显示 0 处 [BUILD-379]） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
@@ -1095,6 +1096,11 @@
   - full 模式：`:context full` 显示所有消息的完整 `<environment_details>`；`:context`（默认）隐藏 env 块；两个命令独立实现，不新增全局配置参数
   - 新增 `cmd/context_show_test.go` 单测 10 个（含消息分割线）+ `cmd/context_rebuild_test.go` 调用适配（showContext 增加 full 参数）
   - 验收：`go build ./...`、`go test ./cmd/ ./agent/`、`go vet ./cmd/ ./agent/` 全绿；用例 FEATURE-335-UC-0001~0008 通过；编译产物 [BUILD-377]（work/co-shell）
+- [x] FIX-337 修复 search_files 结果匹配数错误显示 0 处：[BUILD-379]
+  - 根因：`searchFilesTool` 在 walk 回调中边匹配边输出——`writeHeader()` 在文件内容前被调用，此时 `matchCount` 尚未累加本文件，首个（或唯一）匹配文件的 header 显示"找到 0 处匹配"但下方内容正常输出；且多文件场景下简单提前累加也只能显示首个文件计数，非总数
+  - 修复：文件内容块（文件头 + 上下文行 + 分隔空行）统一暂存到 `filesOut` builder；walk 结束后 `matchCount` 为完整总数时才写 header（复用原 `writeHeader()` 延迟兜底），再追加 `filesOut` 内容到 result。同时顺带修复 `truncatedLineCount` 同类顺序问题（首个文件超长行也能计入 header 截断提示）
+  - 测试：`TestSearchFilesTool` 开头固定 `i18n.SetLang("zh")`；既有用例 "search all files for hello" 增加断言 `找到 3 处`；新增 "search single file with multiple matches"（断言 `找到 2 处` + `file1.go:1-4:`）、"search single file with single match"（断言 `找到 1 处`）；"search with no matches" 增加断言 `未找到匹配`
+  - 验收：红→绿确认（stash 实现后 3 个新断言全部复现 "找到 0 处" 失败，恢复后全部通过）；`go build ./...`、`go vet ./agent/`、`go test ./agent/` 全绿；用例 FIX-337-UC-0001~0006 通过；编译产物 [BUILD-379]（work/co-shell）
 
 ## v1.0.0 — 正式版
 
