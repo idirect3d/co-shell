@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -131,7 +132,9 @@ func TestToolCallStream_XMLWriteContent(t *testing.T) {
 	}
 
 	text := collectRenderText(r, all)
-	if !strings.Contains(text, "     1+ line1") || !strings.Contains(text, "     2+ line2") {
+	// FEATURE-338: line numbers are right-aligned to 5 digits, so single-digit
+	// lines start with 9 spaces (5 indent + 4 pad) before "1+".
+	if !strings.Contains(text, "        1+ line1") || !strings.Contains(text, "        2+ line2") {
 		t.Errorf("content not rendered line-by-line with line numbers, got: %q", text)
 	}
 	if !strings.Contains(text, "   content:") {
@@ -208,7 +211,7 @@ func TestToolCallStream_XMLReplaceStartLine(t *testing.T) {
 	if !strings.Contains(text, "10+: new1") || !strings.Contains(text, "11+: new2") {
 		t.Errorf("replace lines with start_line line numbers missing, got: %q", text)
 	}
-	if !strings.Contains(text, "10-11 行: ") {
+	if !strings.Contains(text, "10-11") {
 		t.Errorf("location header missing, got: %q", text)
 	}
 }
@@ -296,7 +299,8 @@ func TestToolCallStream_JSONNewlineDecode(t *testing.T) {
 	}
 
 	got := text.String()
-	if !strings.Contains(got, "     1+ line1") || !strings.Contains(got, "     2+ line2") {
+	// FEATURE-338: single-digit lines use 9-space prefix (5 indent + 4 pad).
+	if !strings.Contains(got, "        1+ line1") || !strings.Contains(got, "        2+ line2") {
 		t.Errorf("JSON \\n escape not decoded to separate lines, got: %q", got)
 	}
 }
@@ -539,5 +543,236 @@ func TestToolCallStream_XMLChunkBoundaryPartialPrefix(t *testing.T) {
 	}
 	if !strings.Contains(text, "   path: a.go") {
 		t.Errorf("path param missing when prefix spans chunk boundary, got: %q", text)
+	}
+}
+
+// assertPlusAligned verifies FEATURE-338: every write_to_file content line in
+// text has its "+" marker at the same column. Lines follow "         N+ content"
+// with the line number right-aligned to 5 digits.
+func assertPlusAligned(t *testing.T, text string) {
+	t.Helper()
+	plusCol := -1
+	for _, line := range strings.Split(text, "\n") {
+		idx := strings.Index(line, "+")
+		if idx < 0 {
+			continue
+		}
+		// Only consider write_to_file content lines: prefix is 5 spaces +
+		// right-aligned 5-digit line number, so "+" sits at the same column.
+		if !strings.HasPrefix(line, "     ") {
+			continue
+		}
+		if plusCol < 0 {
+			plusCol = idx
+			continue
+		}
+		if idx != plusCol {
+			t.Errorf("'+' column drifted: line %q has + at col %d, want col %d", line, idx, plusCol)
+		}
+	}
+}
+
+// buildContentLines builds a multi-line content string with n lines.
+func buildContentLines(n int) string {
+	var sb strings.Builder
+	for i := 1; i <= n; i++ {
+		sb.WriteString("line" + strconv.Itoa(i))
+		if i < n {
+			sb.WriteString("\n")
+		}
+	}
+	return sb.String()
+}
+
+// TestToolCallStream_XMLWriteAlignSingleDigit verifies FEATURE-338 UC-0001:
+// 1~9 line content renders "+" under the same column for every line.
+func TestToolCallStream_XMLWriteAlignSingleDigit(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	chunks := []string{
+		"<cs:write_to_file>",
+		"<cs:content>" + buildContentLines(6) + "</cs:content>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	for i := 1; i <= 6; i++ {
+		want := "         " + strconv.Itoa(i) + "+ "
+		if !strings.Contains(text, want) {
+			t.Errorf("line %d prefix mismatch, want %q in %q", i, want, text)
+		}
+	}
+	assertPlusAligned(t, text)
+}
+
+// TestToolCallStream_XMLWriteAlignTwoDigit verifies FEATURE-338 UC-0002:
+// 10~99 line content right-aligns 1-digit line numbers with one pad space.
+func TestToolCallStream_XMLWriteAlignTwoDigit(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	chunks := []string{
+		"<cs:write_to_file>",
+		"<cs:content>" + buildContentLines(12) + "</cs:content>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	// 1..9 right-aligned to 5 digits: "         N+ " (9 spaces before 1-digit).
+	if !strings.Contains(text, "        1+ ") || !strings.Contains(text, "        9+ ") {
+		t.Errorf("single-digit lines not right-aligned, got: %q", text)
+	}
+	// 10..99: "        NN+ " (8 spaces before 2-digit).
+	if !strings.Contains(text, "       10+ ") || !strings.Contains(text, "       12+ ") {
+		t.Errorf("two-digit lines not right-aligned, got: %q", text)
+	}
+	assertPlusAligned(t, text)
+}
+
+// TestToolCallStream_XMLWriteAlignBoundary verifies FEATURE-338 UC-0003:
+// crossing the 9→10 boundary mid-stream keeps the "+" column stable.
+func TestToolCallStream_XMLWriteAlignBoundary(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	// Split the content so line 9 and line 10 arrive in different chunks.
+	content9 := buildContentLines(9)
+	line10 := "line10"
+	chunks := []string{
+		"<cs:write_to_file>",
+		"<cs:content>" + content9 + "\n",
+		line10 + "</cs:content>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if !strings.Contains(text, "        9+ line9") || !strings.Contains(text, "       10+ line10") {
+		t.Errorf("boundary lines missing or misaligned, got: %q", text)
+	}
+	assertPlusAligned(t, text)
+}
+
+// TestToolCallStream_XMLWriteAlignThreeDigit verifies FEATURE-338 UC-0004:
+// 100~999 line content right-aligns to 3-digit width without extra padding.
+func TestToolCallStream_XMLWriteAlignThreeDigit(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	// Use 101 lines so lines 100 and 101 cross into three digits.
+	chunks := []string{
+		"<cs:write_to_file>",
+		"<cs:content>" + buildContentLines(101) + "</cs:content>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	// 1..9: 9 spaces before; 10..99: 8 spaces before; 100..101: 7 spaces before.
+	if !strings.Contains(text, "        1+ ") {
+		t.Errorf("1-digit line not padded, got: %q", text)
+	}
+	if !strings.Contains(text, "       10+ ") {
+		t.Errorf("2-digit line not padded, got: %q", text)
+	}
+	if !strings.Contains(text, "      100+ ") || !strings.Contains(text, "      101+ ") {
+		t.Errorf("3-digit lines not aligned, got: %q", text)
+	}
+	assertPlusAligned(t, text)
+}
+
+// TestToolCallStream_XMLReplaceColonUnaffected verifies FEATURE-338 UC-0005:
+// replace_in_file with start_line keeps the legacy "N-:"/"N+:" format — the
+// 3-digit right-alignment applies ONLY to non-colon (write_to_file) lines.
+func TestToolCallStream_XMLReplaceColonUnaffected(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	chunks := []string{
+		"<cs:replace_in_file>",
+		"<cs:path>a.go</cs:path>",
+		"<cs:replacements>",
+		"<item><cs:start_line>10</cs:start_line><cs:search>old1\nold2</cs:search><cs:replace>new1\nnew2</cs:replace></item>",
+		"</cs:replacements>",
+		"</cs:replace_in_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if !strings.Contains(text, "10-: old1") || !strings.Contains(text, "11-: old2") {
+		t.Errorf("colon search lines changed, got: %q", text)
+	}
+	if !strings.Contains(text, "10+: new1") || !strings.Contains(text, "11+: new2") {
+		t.Errorf("colon replace lines changed, got: %q", text)
+	}
+	if !strings.Contains(text, "10-11") {
+		t.Errorf("location header missing, got: %q", text)
+	}
+}
+
+// TestToolCallStream_XMLWriteAlignGating verifies FEATURE-338 UC-0006:
+// with showToolInput=false no content lines render (gating unchanged).
+func TestToolCallStream_XMLWriteAlignGating(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, false)
+
+	chunks := []string{
+		"<cs:write_to_file>",
+		"<cs:content>" + buildContentLines(11) + "</cs:content>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	if !strings.Contains(text, "⚙️ write_to_file") {
+		t.Errorf("tool header missing with showToolInput=false, got: %q", text)
+	}
+	if strings.Contains(text, "+") || strings.Contains(text, "content:") {
+		t.Errorf("content lines should be gated off, got: %q", text)
 	}
 }

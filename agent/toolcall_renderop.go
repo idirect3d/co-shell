@@ -294,12 +294,18 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 // (write_to_file content uses 5 spaces; replace_in_file diff lines are flush
 // left). When colon is true the marker is glued to the line number followed
 // by a colon ("5-: "); otherwise a plain space follows ("   1+ ").
+//
+// For non-colon lines (write_to_file content, FEATURE-338) the line number is
+// right-aligned to a fixed 5-digit width so the "+" marker always stays in the
+// same column regardless of how many digits the line number has — including
+// mid-stream growth from 9 to 10 or 99 to 100 lines (the prefix width never
+// changes once a line of a new digit count is emitted).
 func linePrefix(baseLine, no int, marker, indent string, colon bool) string {
 	if baseLine > 0 {
 		if colon {
 			return fmt.Sprintf("%s%d%s: ", indent, baseLine+no-1, marker)
 		}
-		return fmt.Sprintf("%s%d%s ", indent, baseLine+no-1, marker)
+		return fmt.Sprintf("%s%5d%s ", indent, baseLine+no-1, marker)
 	}
 	return fmt.Sprintf("%s%s ", indent, marker)
 }

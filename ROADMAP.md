@@ -19,12 +19,9 @@
 | FEATURE-303 | 0.7.0 | P3 | ✅ 已完成（向导迁移（B 类）+ i18n 归零第一步 [BUILD-342]） |
 | FEATURE-304 | 0.7.0 | P4 | ✅ 已完成（外部入口迁移 + 分类开关 [BUILD-343]） |
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
-| FEATURE-306 | 0.7.1 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
-| FEATURE-307 | 0.7.2 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
-| FEATURE-308 | 0.7.4 | tui v2 | FullScreenRenderer（可选分支） |
-| FEATURE-335 | 0.7.3 | P6 | :context 显示增强（tool_calls 块 + 保留控制字符 + retried_count + full 模式） |
-| FEATURE-336 | 0.7.3 | P6.5 | ✅ 已完成（工具调用解析错误显示原报文 + show-parse-error-raw 开关 [BUILD-378]） |
-| FIX-337 | 0.7.3 | P6.75 | ✅ 已完成（修复 search_files 结果匹配数错误显示 0 处 [BUILD-379]） |
+| FEATURE-306 | 0.7.4 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
+| FEATURE-307 | 0.7.5 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
+| FEATURE-308 | 0.7.6 | tui v2 | FullScreenRenderer（可选分支） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
@@ -953,17 +950,17 @@
   - 追加批次（P4.5 续）：修复 audit 脚本口径（统一 build_file_list 排除 work/hub/work/ 与行尾注释剥离、豁免 docx/html + bridge/executor + xlsx/styles 注释）；迁移 XML 解析/流式校验（toolcall_mode 13 + xml_stream_validator 4）、agent 工具（image/memory/run/taskplan/shell/agent/session/loop/stream_renderer/system_prompt）、cmd 系列（context/image/memory/section/reset/settings/tool/plan）、config（provider/config）、llm、memory、scheduler、shell、store/pgstore、repl/vault、co-shell-hub；新增 100+ i18n key 并 zh/en 双存在
   - 完成状态：audit 第 3 项 Hardcoded Chinese 123 → **0**（100%），i18n keys missing 0，go build ./... 通过 [BUILD-380]
 
-- [ ] **FEATURE-306 输入统一 InputSource（P2.5，v0.7.1）**：
+- [ ] **FEATURE-306 输入统一 InputSource（P2.5，v0.7.4）**：
   - InputSource 接口 + StdioSource/RawKeySource；单一 Reader goroutine
   - ESC 监控改事件流消费者；Windows 补齐（repl_esc_windows.go）
   - 验收：方向键/ESC/Ctrl+C 双平台通过；stdio 管道行为不变
 
-- [ ] **FEATURE-307 渲染器三态 + web 原型（P5，v0.7.2）**：
+- [ ] **FEATURE-307 渲染器三态 + web 原型（P5，v0.7.5）**：
   - SessionIO 管道 + sessionFactories（stdio/tui/web）
   - LineRenderer + StreamRenderer(JSON-Lines) + WebRenderer（HTTP+WebSocket，绑 127.0.0.1）
   - 验收：三模式同指令结果一致；web 浏览器分区实况
 
-- [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.4 可选分支）**：
+- [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.6 可选分支）**：
   - FullScreenRenderer：原生 ANSI 缓冲，禁用 tview/tcell；SIGWINCH 重绘
   - 验收：独立分支交付，不影响主线
 
@@ -1098,11 +1095,23 @@
   - full 模式：`:context full` 显示所有消息的完整 `<environment_details>`；`:context`（默认）隐藏 env 块；两个命令独立实现，不新增全局配置参数
   - 新增 `cmd/context_show_test.go` 单测 10 个（含消息分割线）+ `cmd/context_rebuild_test.go` 调用适配（showContext 增加 full 参数）
   - 验收：`go build ./...`、`go test ./cmd/ ./agent/`、`go vet ./cmd/ ./agent/` 全绿；用例 FEATURE-335-UC-0001~0008 通过；编译产物 [BUILD-377]（work/co-shell）
+- [x] FEATURE-336 工具调用解析错误显示原报文：[BUILD-378]
+  - 新增 show-parse-error-raw 开关控制：开启后工具调用解析失败时在用户界面显示原始报文，便于诊断
+  - 按反馈将 show-parse-error-raw 移到显示与输出分组
+  - 验收：`go build ./...` 全绿；用例 FEATURE-336-UC-0001 通过；编译产物 [BUILD-378]（work/co-shell）
 - [x] FIX-337 修复 search_files 结果匹配数错误显示 0 处：[BUILD-379]
   - 根因：`searchFilesTool` 在 walk 回调中边匹配边输出——`writeHeader()` 在文件内容前被调用，此时 `matchCount` 尚未累加本文件，首个（或唯一）匹配文件的 header 显示"找到 0 处匹配"但下方内容正常输出；且多文件场景下简单提前累加也只能显示首个文件计数，非总数
   - 修复：文件内容块（文件头 + 上下文行 + 分隔空行）统一暂存到 `filesOut` builder；walk 结束后 `matchCount` 为完整总数时才写 header（复用原 `writeHeader()` 延迟兜底），再追加 `filesOut` 内容到 result。同时顺带修复 `truncatedLineCount` 同类顺序问题（首个文件超长行也能计入 header 截断提示）
   - 测试：`TestSearchFilesTool` 开头固定 `i18n.SetLang("zh")`；既有用例 "search all files for hello" 增加断言 `找到 3 处`；新增 "search single file with multiple matches"（断言 `找到 2 处` + `file1.go:1-4:`）、"search single file with single match"（断言 `找到 1 处`）；"search with no matches" 增加断言 `未找到匹配`
   - 验收：红→绿确认（stash 实现后 3 个新断言全部复现 "找到 0 处" 失败，恢复后全部通过）；`go build ./...`、`go vet ./agent/`、`go test ./agent/` 全绿；用例 FIX-337-UC-0001~0006 通过；编译产物 [BUILD-379]（work/co-shell）
+- [x] FEATURE-338 write_to_file 流式渲染行号右对齐优化：[BUILD-380]
+  - write_to_file 内容流式渲染时，行号前缀以固定 5 位占位右对齐（`%5d`），保证各行 `+` 号在同一位置垂直对齐
+  - 场景：1 位数行号前补 4 空格、2 位数补 3 空格、3 位数补 2 空格、4 位数补 1 空格、5 位数不补；同一次渲染内所有行号宽度统一
+  - 影响函数：`agent/toolcall_renderop.go` 的 `linePrefix()`（write_to_file 分支 indent="     "、marker="+"、colon=false）
+  - 不改变 replace_in_file 的 `5-: ` / `5+: ` 格式（冒号模式无对齐需求）
+  - 测试：新增 `agent/toolcall_stream_test.go` 6 个单测用例（覆盖 1~9 行 / 10~99 行 / 9→10 边界 / 100~999 行 / replace 冒号模式不受影响 / 门控回归）
+  - 顺带修复 3 个既有测试（TestParseXMLToolCalls_* 语言顺序依赖缺陷，main 分支同样失败）
+  - 验收：`go build ./...`、`go vet ./agent/`、`go test ./agent/ ./repl/ ./i18n/` 全绿；渲染 golden 回归不变；用例 FEATURE-338-UC-0001~0009 通过
 
 ## v1.0.0 — 正式版
 
@@ -1148,7 +1157,9 @@
 | v0.7.1 | 2026-08-05 | 🚧 开发中 | 循环检测优化（误判修复+judge 提示词+报警类型区分） |
 | v0.7.2 | 2026-08-06 | 🚧 开发中 | 工作区配置外部化（PRINCIPLES.md + .rules/ + .rule 生效修复） |
 | v0.7.3 | 2026-08-07 | 🚧 开发中 | :context 显示增强（tool_calls 块 + 控制字符 + retried_count + full 模式） |
-| v0.7.4 | 2026-08-01 | 💡 构想中 | 全屏 TUI（可选分支） |
+| v0.7.4 | 2026-08-08 | 💡 构想中 | 输入统一（InputSource）+ Windows 补齐 |
+| v0.7.5 | 2026-08-09 | 💡 构想中 | 渲染器三态 + WebRenderer 原型 |
+| v0.7.6 | 2026-08-10 | 💡 构想中 | 全屏 TUI v2（可选分支） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
 )
 
@@ -168,6 +169,7 @@ func TestParseXMLToolCalls_ParamNameTypo(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ParamMissingCloseTag(t *testing.T) {
+	i18n.SetLang("zh")
 	xmlInput := "<cs:execute_command>\n<cs:command>ls -la\n<cs:timeout_seconds>30</cs:timeout_seconds>\n</cs:execute_command>"
 
 	calls := ParseXMLToolCalls(xmlInput)
@@ -337,6 +339,7 @@ func TestParseXMLToolCalls_ToolTagWithEquals(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_InvalidParamName(t *testing.T) {
+	i18n.SetLang("zh")
 	tools := []llm.Tool{
 		{
 			Name: "execute_command",
@@ -689,6 +692,7 @@ func TestParseXMLToolCallsWithTools_CodeBlockCloseTagSameLine(t *testing.T) {
 }
 
 func TestParseXMLToolCalls_ItemMissingCloseTag(t *testing.T) {
+	i18n.SetLang("zh")
 	// FIX-255: When <item> inside a <replacements> block is missing its </item>
 	// closing tag, the parser should propagate the nested parse error up to the
 	// caller, producing an _xml_parse_error that clearly states the error.
