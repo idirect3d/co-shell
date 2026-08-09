@@ -154,7 +154,7 @@ func TestShowContext_TotalCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("showContext error: %v", err)
 	}
-	if !strings.Contains(out, "总消息数: 5") {
+	if !strings.Contains(out, "（总消息数: 5）") {
 		t.Fatalf("expected total message count 5, got:\n%s", out)
 	}
 }
@@ -357,7 +357,7 @@ func TestShowContext_HandleFullSubcommand(t *testing.T) {
 	if !strings.Contains(out, "<environment_details>") {
 		t.Fatalf("Handle(full) must show environment details, got:\n%s", out)
 	}
-	if !strings.Contains(out, "总消息数: 5") {
+	if !strings.Contains(out, "（总消息数: 5）") {
 		t.Fatalf("Handle(full) must show total message count, got:\n%s", out)
 	}
 }
