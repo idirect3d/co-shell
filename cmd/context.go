@@ -155,6 +155,31 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 		sb.WriteString("\n")
 	}
 
+	// Full mode + OpenAI tool call mode: append the tool declarations block
+	// (name, description, parameters JSON schema) sent via the API "tools"
+	// parameter, so the user can review what tools the LLM can call. XML mode
+	// describes tools in the system prompt instead, so nothing is appended.
+	if full && h.agent != nil && h.agent.ToolCallMode() == "openai" {
+		tools := h.agent.ToolDeclarations()
+		if len(tools) > 0 {
+			sb.WriteString("\n")
+			sb.WriteString(i18n.T(i18n.KeyContextToolDeclarations))
+			sb.WriteString("\n")
+			for _, tool := range tools {
+				sb.WriteString(fmt.Sprintf("      - %s\n", tool.Name))
+				if tool.Description != "" {
+					sb.WriteString(indentText(tool.Description, "          "))
+				}
+				if paramsText := formatToolParameters(tool.Parameters); paramsText != "" {
+					sb.WriteString("          [parameters]\n")
+					sb.WriteString(indentText(paramsText, "            "))
+				}
+			}
+			sb.WriteString(contextSeparator)
+			sb.WriteString("\n")
+		}
+	}
+
 	return sb.String(), nil
 }
 
@@ -278,6 +303,19 @@ func formatToolArguments(args string) string {
 		}
 	}
 	return trimmed
+}
+
+// formatToolParameters renders a Tool's Parameters map in an indented,
+// human-readable JSON form. Returns "" when the map is empty.
+func formatToolParameters(params map[string]interface{}) string {
+	if len(params) == 0 {
+		return ""
+	}
+	b, err := json.MarshalIndent(params, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // Help returns the help text for the context command.
