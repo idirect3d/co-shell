@@ -2099,6 +2099,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyTotalTokensLine:          "本次任务 Token 总计: 输入=%d, 输出=%d, 总计=%d\n",
 	KeyContextTitleLine:         "📋 当前上下文",
 	KeyContextTotalCount:        "（总消息数: %d）\n",
+	KeyContextToolDeclarations:  "[工具声明]",
 	KeyImageUsageAdd:            "用法: .image add <path1,path2,...>",
 	KeyImageUnknownSub:          "未知的 .image 子命令: %s（可用: add）",
 	KeyMemorySaidFormat:         "%s %s 说：%s",

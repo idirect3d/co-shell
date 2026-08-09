@@ -34,6 +34,7 @@ import (
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/llm"
+	"github.com/idirect3d/co-shell/mcp"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/workspace"
 )
@@ -382,4 +383,150 @@ func TestShowContext_ToolArgumentsInvalidJSON(t *testing.T) {
 	if !strings.Contains(out, "{bad json") {
 		t.Fatalf("expected raw invalid JSON rendered as-is, got:\n%s", out)
 	}
+}
+
+// newOpenAIToolHandler builds a ContextHandler with an openai-mode agent that
+// has tool calling enabled and a non-nil MCP manager (empty server list), so
+// the built-in tool declarations are populated via ToolDeclarations().
+func newOpenAIToolHandler(t *testing.T, messages []llm.Message) *ContextHandler {
+	t.Helper()
+	i18n.Init("zh")
+
+	ws := t.TempDir()
+	cfg := config.DefaultConfig()
+	wsObj, err := workspace.New(ws)
+	if err != nil {
+		t.Fatalf("cannot init workspace: %v", err)
+	}
+	boltStore, err := store.NewStore(wsObj)
+	if err != nil {
+		t.Fatalf("cannot init bbolt store: %v", err)
+	}
+	ds := store.NewDualStore(boltStore, nil)
+	ag := agent.New(nil, mcp.NewManager(), ds, "")
+	ag.SetWorkspacePath(ws)
+	ag.SetConfig(cfg)
+	ag.SetToolCallEnabled(true)
+	if len(messages) > 0 {
+		ag.SetHistory(messages)
+	}
+	return NewContextHandler(ag, ds)
+}
+
+// TestShowContext_FullOpenAIShowsToolDeclarations verifies :context full in
+// openai mode appends the tool declarations block (name, description,
+// parameters JSON) for the built-in tools.
+func TestShowContext_FullOpenAIShowsToolDeclarations(t *testing.T) {
+	h := newOpenAIToolHandler(t, buildSampleMessages())
+	out, err := h.showContext(true)
+	if err != nil {
+		t.Fatalf("showContext(true) error: %v", err)
+	}
+
+	// Title line rendered via i18n zh key.
+	if !strings.Contains(out, "[工具声明]") {
+		t.Fatalf("expected tool declarations title in full openai output, got:\n%s", out)
+	}
+	// read_file is a built-in tool always present.
+	if !strings.Contains(out, "- read_file") {
+		t.Fatalf("expected read_file tool name in declarations, got:\n%s", out)
+	}
+	// The tool description must be rendered.
+	if !strings.Contains(out, "Read the contents of a file at the specified path") {
+		t.Fatalf("expected read_file description in declarations, got:\n%s", out)
+	}
+	// Parameters JSON schema marker and content.
+	if !strings.Contains(out, "[parameters]") {
+		t.Fatalf("expected [parameters] marker in declarations, got:\n%s", out)
+	}
+	if !strings.Contains(out, `"properties"`) {
+		t.Fatalf("expected parameters JSON schema in declarations, got:\n%s", out)
+	}
+	// The block must appear after the last message block's separator.
+	idxDecl := strings.Index(out, "[工具声明]")
+	if idxDecl < 0 {
+		t.Fatalf("expected tool declarations title, got:\n%s", out)
+	}
+	idxMsgEnd := strings.LastIndex(out[:idxDecl], contextSeparator)
+	if idxMsgEnd < 0 {
+		t.Fatalf("tool declarations must appear after the last message separator, got:\n%s", out)
+	}
+	// The declarations block ends with its own trailing separator.
+	if !strings.Contains(out[idxDecl:], contextSeparator) {
+		t.Fatalf("tool declarations block must end with a separator, got:\n%s", out)
+	}
+}
+
+// TestShowContext_DefaultOpenAIHidesToolDeclarations verifies the default
+// (non-full) :context output in openai mode does NOT include declarations.
+func TestShowContext_DefaultOpenAIHidesToolDeclarations(t *testing.T) {
+	h := newOpenAIToolHandler(t, buildSampleMessages())
+	for name, out := range map[string]string{
+		"default": mustShowContext(t, h, false),
+		"show":    mustHandleContext(t, h, "show"),
+		"none":    mustHandleContext(t, h, ""),
+	} {
+		if strings.Contains(out, "[工具声明]") {
+			t.Fatalf("%s output must not include tool declarations, got:\n%s", name, out)
+		}
+	}
+}
+
+// TestShowContext_FullXMLHidesToolDeclarations verifies :context full in XML
+// mode does NOT include tool declarations (tools are described in the prompt).
+func TestShowContext_FullXMLHidesToolDeclarations(t *testing.T) {
+	h := newOpenAIToolHandler(t, buildSampleMessages())
+	h.agent.SetToolCallMode("xml")
+	out, err := h.showContext(true)
+	if err != nil {
+		t.Fatalf("showContext(true) error: %v", err)
+	}
+	if strings.Contains(out, "[工具声明]") {
+		t.Fatalf("xml mode must not include tool declarations, got:\n%s", out)
+	}
+	// Messages and environment details must still be present.
+	if !strings.Contains(out, "<environment_details>") {
+		t.Fatalf("xml full output must still include environment_details, got:\n%s", out)
+	}
+}
+
+// TestShowContext_FullMCPNilNoPanic verifies :context full with a nil MCP
+// manager (uninitialized agent) does not panic and simply omits declarations.
+func TestShowContext_FullMCPNilNoPanic(t *testing.T) {
+	h := newTestContextHandler(t, buildSampleMessages())
+	out, err := h.showContext(true)
+	if err != nil {
+		t.Fatalf("showContext(true) error: %v", err)
+	}
+	if strings.Contains(out, "[工具声明]") {
+		t.Fatalf("mcpMgr nil must omit tool declarations, got:\n%s", out)
+	}
+	// Normal message rendering must still work.
+	if !strings.Contains(out, "<environment_details>") {
+		t.Fatalf("mcpMgr nil full output must still include environment_details, got:\n%s", out)
+	}
+}
+
+// mustShowContext runs showContext and fails the test on error.
+func mustShowContext(t *testing.T, h *ContextHandler, full bool) string {
+	t.Helper()
+	out, err := h.showContext(full)
+	if err != nil {
+		t.Fatalf("showContext(%v) error: %v", full, err)
+	}
+	return out
+}
+
+// mustHandleContext runs Handle and fails the test on error.
+func mustHandleContext(t *testing.T, h *ContextHandler, sub string) string {
+	t.Helper()
+	var args []string
+	if sub != "" {
+		args = []string{sub}
+	}
+	out, err := h.Handle(args)
+	if err != nil {
+		t.Fatalf("Handle(%q) error: %v", sub, err)
+	}
+	return out
 }

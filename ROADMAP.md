@@ -1117,6 +1117,11 @@
   - 总消息数与标题合并到同一行，用括号分隔（如 `📋 当前上下文（总消息数: 28）`），不再独占一行
   - 影响：cmd/context.go、i18n/zh.go、i18n/en.go（KeyContextTotalCount 改为无换行的括号格式）、cmd/context_show_test.go 断言同步
   - 验收：`go build ./...`、`go test ./cmd/` 全绿；用例 FEATURE-339-UC-0001 通过
+- [x] FEATURE-340 :context full 在 openai 模式显示工具调用方法声明：[BUILD-383]
+  - 需求：`:context full` 在 openai 工具调用模式下，除消息记录和 `<environment_details>` 外，还需显示 LLM 请求中 `tools` 参数的工具函数声明（每个工具的 name、description、parameters JSON Schema）
+  - 方案：agent 包新增公开方法 `ToolDeclarations() []llm.Tool`（复用 `buildToolsInternal()`，带 `mcpMgr == nil` guard，仅 openai 模式返回非空）；cmd/context.go `showContext(full)` 在 full 且 openai 模式下于消息末尾追加 `[tool declarations]` 区块（工具名 + Description + parameters JSON，沿用现有 6 空格缩进风格）；i18n 三文件新增标题 key（KeyContextToolDeclarations zh/en 双语）
+  - 测试：cmd/context_show_test.go 新增 4 个测试 + 1 个 openai helper（openai full 显示 工具名/Description/parameters JSON、非 full 不显示、xml 不显示、mcpMgr nil 不 panic）
+  - 验收：`go build ./...`、`go vet ./cmd/ ./agent/`、`go test ./cmd/ ./agent/ ./i18n/` 全绿；audit Hardcoded Chinese=0 / i18n keys missing=0；用例 FEATURE-340-UC-0001~0005 通过；编译产物 [BUILD-383]（work/co-shell）
 
 ## v1.0.0 — 正式版
 

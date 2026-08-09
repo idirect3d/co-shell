@@ -2424,6 +2424,7 @@ const (
 	KeyTotalTokensLine          = "total_tokens_line"
 	KeyContextTitleLine         = "context_title_line"
 	KeyContextTotalCount        = "context_total_count"
+	KeyContextToolDeclarations  = "context_tool_declarations"
 	KeyImageUsageAdd            = "image_usage_add"
 	KeyImageUnknownSub          = "image_unknown_sub"
 	KeyMemorySaidFormat         = "memory_said_format"

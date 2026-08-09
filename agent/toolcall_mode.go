@@ -1905,3 +1905,13 @@ func buildXMLToolDescription(tool llm.Tool, lang string) string {
 
 	return sb.String()
 }
+
+// ToolDeclarations returns the tool declaration list used in OpenAI mode
+// (name, description, parameters JSON schema). Empty in XML mode, when tool
+// calling is disabled, or when the MCP manager is nil (partial init / tests).
+func (a *Agent) ToolDeclarations() []llm.Tool {
+	if a == nil || !a.toolCallEnabled || a.ToolCallMode() != string(ToolCallModeOpenAI) || a.mcpMgr == nil {
+		return nil
+	}
+	return a.buildToolsInternal()
+}
