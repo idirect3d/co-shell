@@ -39,6 +39,14 @@ import (
 	"github.com/idirect3d/co-shell/log"
 )
 
+// emitParseErrorRaw emits the raw offending content when the
+// show-parse-error-raw switch is enabled (FEATURE-336).
+func (a *Agent) emitParseErrorRaw(cb StreamCallback, rawDetail string) {
+	if a.cfg != nil && a.cfg.LLM.ShowParseErrorRaw && rawDetail != "" {
+		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail))
+	}
+}
+
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
@@ -641,9 +649,7 @@ iterationLoop:
 				}
 				cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorExit), errDetail))
 				// FEATURE-336: show the raw offending content when the switch is on.
-				if a.cfg != nil && a.cfg.LLM.ShowParseErrorRaw && rawDetail != "" {
-					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail))
-				}
+				a.emitParseErrorRaw(cb, rawDetail)
 				cb(EventDone, "")
 				return "", fmt.Errorf("tool call parse error: %s", errDetail)
 			}
@@ -717,9 +723,7 @@ iterationLoop:
 			}
 			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorSummary), errorSummary))
 			// FEATURE-336: show the raw offending content when the switch is on.
-			if a.cfg != nil && a.cfg.LLM.ShowParseErrorRaw && rawDetail != "" {
-				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail))
-			}
+			a.emitParseErrorRaw(cb, rawDetail)
 			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → ")))
 			cb(EventInfo, "────────────────────────────────────────────\n")
 			continue
@@ -1090,6 +1094,8 @@ iterationLoop:
 						// the next iteration resends cleanly.
 						ep := config.GetEmojiPrefixes(a.emojiEnabled)
 						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), ep.Warning, tc.Name, execErr))
+						// FEATURE-336: show the raw offending content when the switch is on.
+						a.emitParseErrorRaw(cb, tc.Arguments)
 						continue iterationLoop
 					}
 					if parseAction == "retry" && !isXMLMode {
