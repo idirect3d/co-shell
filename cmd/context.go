@@ -93,7 +93,7 @@ func (h *ContextHandler) showContext(full bool) (string, error) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📋 " + i18n.T(i18n.KeyContextTitleLine) + "\n")
+	sb.WriteString(i18n.T(i18n.KeyContextTitleLine))
 	sb.WriteString(i18n.TF(i18n.KeyContextTotalCount, len(messages)))
 
 	pointerIdx := h.agent.MessagePointer()

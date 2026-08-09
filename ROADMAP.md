@@ -1112,6 +1112,11 @@
   - 测试：新增 `agent/toolcall_stream_test.go` 6 个单测用例（覆盖 1~9 行 / 10~99 行 / 9→10 边界 / 100~999 行 / replace 冒号模式不受影响 / 门控回归）
   - 顺带修复 3 个既有测试（TestParseXMLToolCalls_* 语言顺序依赖缺陷，main 分支同样失败）
   - 验收：`go build ./...`、`go vet ./agent/`、`go test ./agent/ ./repl/ ./i18n/` 全绿；渲染 golden 回归不变；用例 FEATURE-338-UC-0001~0009 通过
+- [x] FEATURE-339 :context 标题行体验优化：[BUILD-382]
+  - 去掉标题行重复的 📋 表情符号（cmd/context.go:96 硬编码 "📋 " 前缀 + KeyContextTitleLine 值含 📋 → 输出 "📋 📋 当前上下文"）
+  - 总消息数与标题合并到同一行，用括号分隔（如 `📋 当前上下文（总消息数: 28）`），不再独占一行
+  - 影响：cmd/context.go、i18n/zh.go、i18n/en.go（KeyContextTotalCount 改为无换行的括号格式）、cmd/context_show_test.go 断言同步
+  - 验收：`go build ./...`、`go test ./cmd/` 全绿；用例 FEATURE-339-UC-0001 通过
 
 ## v1.0.0 — 正式版
 
