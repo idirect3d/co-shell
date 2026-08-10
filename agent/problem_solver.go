@@ -286,6 +286,19 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 	return nil, fmt.Errorf("problem solver returned no report_problem call")
 }
 
+// buildProblemSolverPrompt builds the user message sent to the problem solver
+// model. It reuses the loop-judge context (task, plan, iterations, user
+// prompts, iteration tools, workspace context) and appends the suspicious
+// content. The problem solver system prompt (KeyProblemSolverSystemPrompt)
+// instructs the model to call report_problem.
+func (a *Agent) buildProblemSolverPrompt(suspectContent string) string {
+	taskPlanText := a.getTaskPlanPrompt()
+	if taskPlanText == "" {
+		taskPlanText = i18n.T(i18n.KeyNoActiveTaskPlan)
+	}
+	return a.buildLoopJudgeUserPrompt(taskPlanText, suspectContent)
+}
+
 // parseProblemReport unmarshals report_problem arguments (JSON) into a
 // ProblemReport. It is lenient about extra fields and normalizes the action.
 func parseProblemReport(args string) (*ProblemReport, error) {
