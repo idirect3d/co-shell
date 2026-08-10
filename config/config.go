@@ -514,6 +514,26 @@ type LLMConfig struct {
 	// (XML/JSON) is printed to the console after the error summary, helping
 	// debug parser failures. Default: false.
 	ShowParseErrorRaw bool `json:"show_parse_error_raw"`
+
+	// ProblemSolverEnabled: master switch for the unified problem-solving
+	// mechanism (FEATURE-342). When enabled, suspicious signals (loop, tool
+	// format error, context overflow, ambiguous connection errors) are sent
+	// to the problem model via the report_problem tool for semantic judgment.
+	// Loop-triggered judgment additionally requires LoopJudgeEnabled.
+	// Default: true
+	ProblemSolverEnabled bool `json:"problem_solver_enabled"`
+
+	// DefaultProblemModelID: global default problem-solving model ID (FEATURE-342).
+	// When set, it is used as the second-priority candidate (after WorkMode's
+	// ProblemModelID). When empty, the auto-computed value (second-highest
+	// priority enabled ToolCall model) is used for display and resolution.
+	DefaultProblemModelID string `json:"default_problem_model_id,omitempty"`
+
+	// DefaultToolModelID: global default tool-call model ID (FEATURE-342).
+	// When set, it is used as the third-priority candidate (after
+	// DefaultProblemModelID). When empty, the auto-computed value (highest
+	// priority enabled ToolCall model) is used for display and resolution.
+	DefaultToolModelID string `json:"default_tool_model_id,omitempty"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -912,6 +932,7 @@ func DefaultConfig() *Config {
 			BrowserHeadless:            false,
 			XMLTagPrefix:               "cs:",
 			XMLStreamValidate:          true,
+			ProblemSolverEnabled:       true,
 		},
 
 		DB: DefaultDBConfig(),

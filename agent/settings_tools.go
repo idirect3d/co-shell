@@ -330,6 +330,18 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return cfg.DB.User
 	case "db-password":
 		return "****"
+	case "problem-solver-enabled":
+		return boolToString(cfg.LLM.ProblemSolverEnabled)
+	case "default-problem-model":
+		if cfg.LLM.DefaultProblemModelID == "" {
+			return "-"
+		}
+		return cfg.LLM.DefaultProblemModelID
+	case "default-tool-model":
+		if cfg.LLM.DefaultToolModelID == "" {
+			return "-"
+		}
+		return cfg.LLM.DefaultToolModelID
 	default:
 		return "(unknown)"
 	}
@@ -970,6 +982,57 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		log.Info("DB password updated via LLM tool")
 
+	case "problem-solver-enabled":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.ProblemSolverEnabled = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Problem solver enabled set via LLM tool: %v", b)
+
+	case "default-problem-model":
+		// "none" unbinds the global default problem model.
+		if value == "none" || value == "-" {
+			cfg.LLM.DefaultProblemModelID = ""
+			if err := cfg.Save(); err != nil {
+				return err
+			}
+			log.Info("Default problem model unbound via LLM tool")
+			return nil
+		}
+		// Validate: model ID must exist and be enabled in cfg.Models.
+		if !modelIDExists(cfg, value) {
+			return fmt.Errorf("invalid default-problem-model %q: no enabled model with this ID", value)
+		}
+		cfg.LLM.DefaultProblemModelID = value
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Default problem model set via LLM tool: %s", value)
+
+	case "default-tool-model":
+		// "none" unbinds the global default tool model.
+		if value == "none" || value == "-" {
+			cfg.LLM.DefaultToolModelID = ""
+			if err := cfg.Save(); err != nil {
+				return err
+			}
+			log.Info("Default tool model unbound via LLM tool")
+			return nil
+		}
+		// Validate: model ID must exist and be enabled in cfg.Models.
+		if !modelIDExists(cfg, value) {
+			return fmt.Errorf("invalid default-tool-model %q: no enabled model with this ID", value)
+		}
+		cfg.LLM.DefaultToolModelID = value
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Default tool model set via LLM tool: %s", value)
+
 	default:
 		return fmt.Errorf("unknown setting: %s", param)
 
@@ -1270,4 +1333,19 @@ func maskKey(key string) string {
 		return "****"
 	}
 	return key[:4] + "****" + key[len(key)-4:]
+}
+
+// modelIDExists checks whether the given model ID refers to an enabled model
+// in the config. Used to validate default-problem-model / default-tool-model
+// values set via :set / update_settings (FEATURE-342).
+func modelIDExists(cfg *config.Config, id string) bool {
+	if cfg == nil || id == "" {
+		return false
+	}
+	for _, m := range cfg.Models {
+		if m.ID == id && m.Enabled {
+			return true
+		}
+	}
+	return false
 }
