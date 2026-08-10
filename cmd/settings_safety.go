@@ -419,7 +419,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			if h.cfg.LLM.ProblemSolverEnabled {
 				status = i18n.T(i18n.KeyOn)
 			}
-			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), status), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelCurrent), status), nil
 		}
 		var enabled bool
 		switch args[1] {
@@ -435,18 +435,15 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return "", err
 		}
 		log.Info("Problem solver enabled set to %v", enabled)
-		status := i18n.T(i18n.KeyOff)
-		if enabled {
-			status = i18n.T(i18n.KeyOn)
-		}
-		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), status), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), i18n.T(i18n.KeyOn)), nil
 
 	case "default-problem-model":
 		if len(args) < 2 {
-			if h.cfg.LLM.DefaultProblemModelID == "" {
-				return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+			cur := h.cfg.LLM.DefaultProblemModelID
+			if cur == "" {
+				cur = "auto"
 			}
-			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), h.cfg.LLM.DefaultProblemModelID), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelCurrent), cur), nil
 		}
 		value := args[1]
 		if value == "none" || value == "-" {
@@ -455,7 +452,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 				return "", err
 			}
 			log.Info("Default problem model unbound")
-			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), "auto"), nil
 		}
 		if !modelIDExistsInCfg(h.cfg, value) {
 			return "", fmt.Errorf("invalid default-problem-model %q: no enabled model with this ID", value)
@@ -465,14 +462,15 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return "", err
 		}
 		log.Info("Default problem model set to %s", value)
-		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), value), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), value), nil
 
 	case "default-tool-model":
 		if len(args) < 2 {
-			if h.cfg.LLM.DefaultToolModelID == "" {
-				return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+			cur := h.cfg.LLM.DefaultToolModelID
+			if cur == "" {
+				cur = "auto"
 			}
-			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), h.cfg.LLM.DefaultToolModelID), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelCurrent), cur), nil
 		}
 		value := args[1]
 		if value == "none" || value == "-" {
@@ -481,7 +479,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 				return "", err
 			}
 			log.Info("Default tool model unbound")
-			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+			return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), "auto"), nil
 		}
 		if !modelIDExistsInCfg(h.cfg, value) {
 			return "", fmt.Errorf("invalid default-tool-model %q: no enabled model with this ID", value)
@@ -491,7 +489,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return "", err
 		}
 		log.Info("Default tool model set to %s", value)
-		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), value), nil
+		return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), value), nil
 
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)

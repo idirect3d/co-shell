@@ -1381,6 +1381,9 @@ const (
 	KeyCol3DefaultVisionModel   = "col3_default_vision_model"
 	KeyCol3DefaultProblemModel  = "col3_default_problem_model"
 	KeyCol3ProblemSolverEnabled = "col3_problem_solver_enabled"
+	// FIX-344: dedicated templates for default-problem-model / default-tool-model
+	KeyDefaultModelCurrent = "default_model_current"
+	KeyDefaultModelSet     = "default_model_set"
 
 	// Settings group titles
 	KeySettingsGroupIdentity    = "settings_group_identity"
