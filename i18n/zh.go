@@ -2017,6 +2017,10 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyLoopJudgeResultFail:    "判定模型返回: 失败/超时\n",
 	KeyNoActiveTaskPlan:       "（无活跃任务计划 / No active task plan）",
 	KeyNoRecentIterations:     "（无最近迭代内容 / No recent iterations）",
+	// FEATURE-345: unified problem solver (non-loop anomalies)
+	KeyProblemSolverClassified: "问题模型诊断: type=%s, reason=%q, suggested_action=%s\n",
+	KeyProblemSolverNotifyUser: "⚠️ 问题模型建议终止任务: %s\n%s\n",
+	KeyProblemSolverFailed:     "问题模型判定失败，回退到内置处理: %v\n",
 
 	// FEATURE-304: D 类外部入口 i18n 迁移
 	KeySubAgentDuration:       "⏱ 执行时长: %s\n",

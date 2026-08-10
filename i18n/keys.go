@@ -199,6 +199,10 @@ const (
 	KeyLoopJudgeResultFail  = "loop_judge_result_fail"
 	KeyNoActiveTaskPlan     = "no_active_task_plan"
 	KeyNoRecentIterations   = "no_recent_iterations"
+	// FEATURE-345: unified problem solver (non-loop anomalies)
+	KeyProblemSolverClassified = "problem_solver_classified"
+	KeyProblemSolverNotifyUser = "problem_solver_notify_user"
+	KeyProblemSolverFailed     = "problem_solver_failed"
 
 	// FEATURE-304: D 类外部入口 i18n 迁移 (subagent/bridge/feishu)
 	KeySubAgentDuration       = "subagent_duration"
@@ -1408,6 +1412,7 @@ const (
 	KeyCol3LoopJudgeModel        = "col3_loop_judge_model"
 	KeyLoopJudgeSystemPrompt     = "loop_judge_system_prompt"
 	KeyProblemSolverSystemPrompt = "problem_solver_system_prompt"
+	KeyProblemSolverUserPrompt   = "problem_solver_user_prompt"
 	KeyLoopJudgeUserPrompt       = "loop_judge_user_prompt"
 	KeyLoopJudgeFallback         = "loop_judge_fallback"
 	KeySettingsDescLoopJudge     = "settings_desc_loop_judge"

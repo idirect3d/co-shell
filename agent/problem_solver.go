@@ -299,6 +299,93 @@ func (a *Agent) buildProblemSolverPrompt(suspectContent string) string {
 	return a.buildLoopJudgeUserPrompt(taskPlanText, suspectContent)
 }
 
+// buildProblemSolverUserPrompt builds the user message for the unified problem
+// solver (FEATURE-345). Unlike buildProblemSolverPrompt (loop-oriented), it
+// uses a generic template with an explicit anomaly hint and error detail so
+// the same report_problem path can classify tool format errors, context
+// overflow and connection errors.
+func (a *Agent) buildProblemSolverUserPrompt(hint ProblemType, detail string) string {
+	userTemplate := i18n.T(i18n.KeyProblemSolverUserPrompt)
+
+	// {TASK} = the first user message (original task)
+	firstInput := a.getFirstUserCommand()
+	if firstInput == "" {
+		firstInput = a.lastUserInput
+	}
+
+	// {USER_PROMPTS} = all genuine user instructions (chronological).
+	userPrompts := a.getAllUserPrompts()
+	if userPrompts == "" {
+		userPrompts = a.lastUserInput
+	}
+
+	// {CONTEXT} = workspace & available tools context (FIX-322).
+	contextText := a.buildJudgeContext()
+
+	taskPlanText := a.getTaskPlanPrompt()
+	if taskPlanText == "" {
+		taskPlanText = i18n.T(i18n.KeyNoActiveTaskPlan)
+	}
+
+	// Truncate the error detail to keep the prompt small.
+	detail = strings.TrimSpace(detail)
+	if len(detail) > 4000 {
+		detail = detail[:4000] + "...(truncated)"
+	}
+
+	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
+	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
+	userTemplate = strings.ReplaceAll(userTemplate, "{USER_PROMPTS}", userPrompts)
+	userTemplate = strings.ReplaceAll(userTemplate, "{CONTEXT}", contextText)
+	userTemplate = strings.ReplaceAll(userTemplate, "{ANOMALY_HINT}", string(hint))
+	userTemplate = strings.ReplaceAll(userTemplate, "{ERROR_DETAIL}", detail)
+	return userTemplate
+}
+
+// solveProblem is the unified entry point that routes a non-loop anomaly
+// (tool format error, context overflow, connection error) to the problem
+// model via the report_problem tool (FEATURE-345).
+//
+// Returns (nil, nil) when the problem solver is disabled, and (nil, err)
+// when the model call failed — the caller MUST fall back to its existing
+// hard-coded handling in both cases (degradation protection).
+func (a *Agent) solveProblem(ctx context.Context, hint ProblemType, detail string) (*ProblemReport, error) {
+	if a.cfg == nil || !a.cfg.LLM.ProblemSolverEnabled {
+		return nil, nil
+	}
+	prompt := a.buildProblemSolverUserPrompt(hint, detail)
+	return a.callProblemSolver(ctx, prompt)
+}
+
+// applyProblemAction maps a problem report's suggested_action to a concrete
+// run-stream behavior (FEATURE-345). Returns (feedback, deleteLast, stop):
+//   - feedback: non-empty text to append as a user message (prompt_feedback /
+//     compact_context guidance); empty means no feedback.
+//   - deleteLast: true means remove the last assistant+tool-call messages and
+//     retry (delete_last_msg).
+//   - stop: true means surface the problem to the user and terminate the task
+//     (notify_user).
+//
+// continue / retry / unknown actions return ("", false, false) so the caller
+// keeps its existing behavior.
+func applyProblemAction(report *ProblemReport) (feedback string, deleteLast bool, stop bool) {
+	if report == nil {
+		return "", false, false
+	}
+	switch report.SuggestedAction {
+	case ActionPromptFeedback:
+		return report.Guidance, false, false
+	case ActionCompactContext:
+		return report.Guidance, false, false
+	case ActionDeleteLastMsg:
+		return "", true, false
+	case ActionNotifyUser:
+		return "", false, true
+	default: // ActionContinue, ActionRetry, unknown → keep existing behavior
+		return "", false, false
+	}
+}
+
 // parseProblemReport unmarshals report_problem arguments (JSON) into a
 // ProblemReport. It is lenient about extra fields and normalizes the action.
 func parseProblemReport(args string) (*ProblemReport, error) {

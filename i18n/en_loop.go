@@ -46,6 +46,43 @@ func init() {
 # Output requirements
 You MUST call the report_problem tool and fill its arguments with the diagnosis. Do not output anything else.
 `
+	enMessages[KeyProblemSolverUserPrompt] = `# Original Task
+{TASK}
+
+===
+
+# Current Task Plan
+
+{TASK_PLAN}
+
+===
+
+# User history prompts (all user instructions in chronological order)
+
+{USER_PROMPTS}
+
+===
+
+# Workspace & available tools context
+
+{CONTEXT}
+
+===
+
+# Anomaly signal type
+
+{ANOMALY_HINT}
+
+===
+
+# Anomaly detail (raw error text or suspicious content, truncated)
+
+{ERROR_DETAIL}
+
+===
+
+Based on the above information, call the report_problem tool and produce a structured diagnosis: first decide whether this is a real problem, then provide a self-contained guidance for the main model and a suggested_action.
+`
 	enMessages[KeyLoopJudgeSystemPrompt] = `You are co-shell's dead-loop detection analyzer. Your sole responsibility is to analyze agent behavior and determine whether it is stuck in a dead loop.
 
 # Judgment Criteria
