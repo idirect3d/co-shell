@@ -1146,6 +1146,8 @@ no liability whatsoever.`,
 	KeyCol3DefaultVisionModel:   "default vision model",
 	KeyCol3DefaultProblemModel:  "default problem-solving model",
 	KeyCol3ProblemSolverEnabled: "problem solver enabled",
+	KeyDefaultModelCurrent:      "Current: %s",
+	KeyDefaultModelSet:          "✅ Set to: %s",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",
