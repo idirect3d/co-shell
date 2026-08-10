@@ -1163,6 +1163,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3DefaultVisionModel:   "默认视觉模型",
 	KeyCol3DefaultProblemModel:  "默认问题解决模型",
 	KeyCol3ProblemSolverEnabled: "问题解决机制开关",
+	KeyDefaultModelCurrent:      "当前配置: %s",
+	KeyDefaultModelSet:          "✅ 已设置为: %s",
 	KeySettingsGroupDisplay:     "[ 显示与输出 ]",
 	KeySettingsGroupSafety:      "[ 安全与确认 ]",
 	KeySettingsGroupMemory:      "[ 记忆与上下文 ]",

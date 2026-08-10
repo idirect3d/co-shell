@@ -1171,6 +1171,11 @@
   - 涉及文件：agent/run_stream.go（识别轮检测/输出处理）、agent/image_tools.go（视觉分析工具分流）、agent/stream_response.go（识别轮 tools 清空）、agent/system_prompt.go（仅 Identity 辅助函数）
   - 测试：单元测试 + use-case/FEATURE-343/FEATURE-343-UC-*.md
   - 验收：`go build ./...`、`go vet ./agent/`、`go test ./agent/` 全绿
+- [x] FIX-344 智能体设置组模型摘要改名 + 修复 :set default-* 的 %!d 显示 bug：[BUILD-387]
+  - 背景：[智能体设置] 分组中 default-tool-model/default-problem-model/default-vision-model 是**只读显示项**（显示当前生效模型），与可配置项 default-tool-model 同名造成歧义；且 :set default-tool-model 查询时误用 KeySettingCmd_229（%d 模板）传入字符串 "auto"，输出 `%!d(string=auto)`
+  - 修改：cmd/settings.go 只读摘要改名 current-tool-model/current-problem-model/current-vision-model；cmd/settings_safety.go default-tool-model/default-problem-model 查询/设置/解绑改用专用 KeyDefaultModelCurrent/KeyDefaultModelSet 模板；problem-solver-enabled 同源 %!d bug 一并修复
+  - i18n：keys/zh/en 新增 KeyDefaultModelCurrent/KeyDefaultModelSet 双语
+  - 验收：`go build ./...`、`go vet ./cmd/ ./i18n/` 全绿；编译产物 [BUILD-387]（work/co-shell）
 
 ## v1.0.0 — 正式版
 
