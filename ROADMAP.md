@@ -6,10 +6,10 @@
 
 ## 当前版本
 
-> **版本**: v0.7.4
+> **版本**: v0.7.5
 
-> **状态**: 🚧 开发中（问题判定优化）
-> **里程碑**: 统一问题判定机制（report_problem 工具 + 问题模型优先级链 + 硬编码错误分类 + 降级保护）
+> **状态**: 🚧 开发中（视觉识别上下文隔离）
+> **里程碑**: 视觉识别 minimal/full 上下文模式改造（识别轮独立调用 + 结果回填工具返回 + 系统上下文隔离）
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -19,7 +19,8 @@
 | FEATURE-303 | 0.7.0 | P3 | ✅ 已完成（向导迁移（B 类）+ i18n 归零第一步 [BUILD-342]） |
 | FEATURE-304 | 0.7.0 | P4 | ✅ 已完成（外部入口迁移 + 分类开关 [BUILD-343]） |
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
-| FEATURE-342 | 0.7.4 | P1 | 问题判定优化（统一问题判定机制 + report_problem 工具） |
+| FEATURE-342 | 0.7.4 | P1 | ✅ 已完成（问题判定优化 + report_problem 工具 [BUILD-385]） |
+| FEATURE-343 | 0.7.5 | P1 | ✅ 已完成（视觉识别上下文隔离 [BUILD-386]） |
 | FEATURE-306 | 0.7.5 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
 | FEATURE-307 | 0.7.6 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.7 | tui v2 | FullScreenRenderer（可选分支） |
@@ -1148,7 +1149,28 @@
   - 硬编码错误分类：HTTP 401/403/404/429/5xx 充分条件直接提示用户，非充分条件才调用问题模型
   - 降级保护：问题模型调用失败依次降级，降级后仍失败则停止并报告用户
   - 动作执行层：continue / prompt_feedback / delete_last_msg / compact_context / notify_user / retry
-  - 单元测试 + i18n 中英文翻译
+   - 单元测试 + i18n 中英文翻译
+
+## v0.7.5 — 视觉识别上下文隔离
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-08-10
+> **里程碑**: 视觉识别 minimal/full 上下文模式改造（识别轮独立调用 + 结果回填工具返回 + 系统上下文隔离）
+
+### 功能清单
+
+- [x] FEATURE-343 视觉识别上下文隔离（minimal 识别轮独立调用 + 结果回填工具返回）：[BUILD-386]
+  - 背景：当前 minimal 模式仅折叠历史消息为 [system, user(intent+图片)]，但识别轮输出以独立 assistant 消息留在主上下文历史中（语义割裂）；"文件加载成功"占位结果混入历史；OpenAI 模式识别轮仍携带全部 tools 参数
+  - minimal 模式目标：
+    - visual_analysis 工具调用记录正常进历史（含输入参数）；不生成"文件加载成功"占位结果进历史（仅 UI 显示）
+    - 下一轮为独立识别轮：上下文折叠为 [system(仅 Identity 节), user(intent + 图片)]，不写主会话上下文
+    - 识别轮 tools 清空（OpenAI 模式传空 tools；XML 模式 system prompt 精简为仅 Identity）
+    - 识别结果回填为 visual_analysis 工具调用的返回（OpenAI: tool 消息 / XML: user 消息），不新增 assistant 消息
+    - 识别轮失败时返回错误标记到工具结果，上下文保持合法
+  - full 模式：保持现状（识别输入/输出正常进历史、带工具、visual_analysis 照旧写占位结果）
+  - 涉及文件：agent/run_stream.go（识别轮检测/输出处理）、agent/image_tools.go（视觉分析工具分流）、agent/stream_response.go（识别轮 tools 清空）、agent/system_prompt.go（仅 Identity 辅助函数）
+  - 测试：单元测试 + use-case/FEATURE-343/FEATURE-343-UC-*.md
+  - 验收：`go build ./...`、`go vet ./agent/`、`go test ./agent/` 全绿
 
 ## v1.0.0 — 正式版
 
@@ -1195,7 +1217,7 @@
 | v0.7.2 | 2026-08-06 | 🚧 开发中 | 工作区配置外部化（PRINCIPLES.md + .rules/ + .rule 生效修复） |
 | v0.7.3 | 2026-08-07 | ✅ 已完成 | :context 显示增强（tool_calls 块 + 控制字符 + retried_count + full 模式） |
 | v0.7.4 | 2026-08-08 | 🚧 开发中 | 问题判定优化（统一问题判定机制 + report_problem 工具） |
-| v0.7.5 | 2026-08-09 | 💡 构想中 | 渲染器三态 + WebRenderer 原型 |
+| v0.7.5 | 2026-08-10 | 🚧 开发中 | 视觉识别上下文隔离（minimal 识别轮独立 + 结果回填） |
 | v0.7.6 | 2026-08-10 | 💡 构想中 | 全屏 TUI v2（可选分支） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 

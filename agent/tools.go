@@ -2049,6 +2049,16 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 
 			log.Info("Tool call: %s, effective timeout=%s (user min: %ds, LLM suggested: %ds), args=%v",
 				tc.Name, timeoutStr, userMinSec, llmSuggested, args)
+
+			// FEATURE-343: record the ToolCall ID of the most recent visual_analysis
+			// call so the vision recognition round can backfill its result with
+			// the correct tool_call_id (OpenAI mode).
+			if tc.Name == "visual_analysis" && tc.ID != "" {
+				a.mu.Lock()
+				a.lastVisionToolCallID = tc.ID
+				a.mu.Unlock()
+			}
+
 			result, err := tool.Callback(ctx, args)
 			if err != nil {
 				log.Error("Tool call failed: %s, error: %v", tc.Name, err)

@@ -269,10 +269,18 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 		taskContent += i18n.TF(i18n.KeyImageTruncatedNotice, truncated, maxImages)
 	}
 
-	if a.taskInstructionCache.Len() > 0 {
-		a.taskInstructionCache.WriteString("\n\n")
+	// FEATURE-343: in minimal vision-context mode, the recognition instruction
+	// is carried ONLY via visionPendingIntent into the dedicated recognition
+	// round — it must NOT be flushed into the main conversation history as a
+	// taskInstructionCache ContentPart. The visual_analysis tool call record
+	// (with its original parameters) already enters a.messages as the assistant
+	// tool_calls message. In full mode the original behavior is preserved.
+	if a.cfg == nil || a.cfg.LLM.VisionContextMode != "minimal" {
+		if a.taskInstructionCache.Len() > 0 {
+			a.taskInstructionCache.WriteString("\n\n")
+		}
+		a.taskInstructionCache.WriteString(taskContent)
 	}
-	a.taskInstructionCache.WriteString(taskContent)
 
 	result := i18n.TF(i18n.KeyImageLoaded, len(loadedFiles))
 	if truncated > 0 {

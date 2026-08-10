@@ -89,9 +89,21 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	a.llmCallStartTime = time.Now()
 	a.mu.Unlock()
 
+	// FEATURE-343: vision recognition round — the visual model is a dedicated
+	// OCR/vision pass and must NOT receive any tool definitions (OpenAI mode).
+	// The system prompt was already collapsed to Identity-only by
+	// buildContextMessages. Clear the tools list for this call so the model
+	// cannot attempt further tool calls in the recognition round.
+	a.mu.Lock()
+	isRecognitionRound := a.visionRecognitionActive
+	if isRecognitionRound {
+		tools = []llm.Tool{}
+	}
+	a.mu.Unlock()
+
 	// Try streaming first
-	log.Debug("Agent.streamLLMResponse: calling ChatStream with %d context messages and %d tools",
-		len(contextMsgs), len(tools))
+	log.Debug("Agent.streamLLMResponse: calling ChatStream with %d context messages and %d tools (recognition_round=%v)",
+		len(contextMsgs), len(tools), isRecognitionRound)
 
 	// FEATURE-298: Create a cancellable context for streaming, so we can abort
 	// the LLM stream when the streaming XML validator detects a fatal error.
