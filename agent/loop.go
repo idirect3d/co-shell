@@ -145,6 +145,20 @@ type Agent struct {
 	// instruction sent to the vision model (discarding intermediate history).
 	visionPendingIntent string
 
+	// FEATURE-343: vision recognition round state.
+	// visionRecognitionActive is set by buildContextMessages when it collapses
+	// to [system(Identity-only), user(intent+images)] for the recognition round.
+	// streamLLMResponse consumes it to clear the tools list for that call.
+	visionRecognitionActive bool
+	// visionRecognitionExecuted is set after the recognition-round LLM call
+	// returns (success or failure). run_stream.go uses it to backfill the
+	// recognition result as the visual_analysis tool result and reset state.
+	visionRecognitionExecuted bool
+	// lastVisionToolCallID records the ToolCall ID of the most recent
+	// visual_analysis call (OpenAI mode) so the recognition result can be
+	// backfilled with the correct tool_call_id.
+	lastVisionToolCallID string
+
 	// errorCounter tracks the number of times each distinct error message has occurred
 	// during the current request. Key is the error message string, value is the count.
 	// Reset at the start of each RunStream call.
@@ -515,13 +529,15 @@ func (a *Agent) buildContextMessages() []llm.Message {
 		// One-shot: clear image paths after injection so they are not re-sent
 		a.imagePaths = nil
 
-		// FEATURE-319: minimal vision-context mode — send only
-		// [system, user(intent + images)] to the vision model. This discards
-		// all intermediate history so a vision model with a smaller context
-		// limit than the main model does not overflow. The intent is taken
-		// from the most recent visual_analysis call. If no intent is pending,
-		// fall back to the existing behavior (do not collapse) to avoid losing
-		// the image-bearing message.
+		// FEATURE-319 + FEATURE-343: minimal vision-context mode — send only
+		// [system(Identity-only), user(intent + images)] to the vision model.
+		// This discards all intermediate history AND replaces the system
+		// prompt with ONLY the Identity section (no tool-usage instructions,
+		// no capabilities/rules/environment) so the recognition round is a
+		// dedicated OCR/vision pass — the model should not attempt tool calls.
+		// The intent is taken from the most recent visual_analysis call. If no
+		// intent is pending, fall back to the existing behavior (do not
+		// collapse) to avoid losing the image-bearing message.
 		if a.cfg != nil && a.cfg.LLM.VisionContextMode == "minimal" &&
 			a.visionPendingIntent != "" && len(msgs) > 0 {
 			// Extract image/video parts from the last user message (injected above).
@@ -536,8 +552,19 @@ func (a *Agent) buildContextMessages() []llm.Message {
 				{Type: llm.ContentPartText, Text: a.visionPendingIntent},
 			}
 			cleanMsg.ContentParts = append(cleanMsg.ContentParts, mediaParts...)
-			msgs = []llm.Message{msgs[0], cleanMsg}
-			log.Info("Agent.buildContextMessages: minimal vision-context mode, collapsed to %d messages", len(msgs))
+
+			// FEATURE-343: replace msgs[0] (full system prompt) with a minimal
+			// Identity-only prompt so the visual model never sees tool usage
+			// instructions or agent context beyond its own identity.
+			identityPrompt := buildVisionIdentityPrompt(a.cfg)
+			sysMsg := llm.Message{Role: "system", Content: identityPrompt}
+
+			msgs = []llm.Message{sysMsg, cleanMsg}
+
+			// Mark this as the vision recognition round so streamLLMResponse
+			// clears the tools list for this call.
+			a.visionRecognitionActive = true
+			log.Info("Agent.buildContextMessages: minimal vision-context mode, collapsed to %d messages [FEATURE-343 recognition round]", len(msgs))
 		}
 	}
 

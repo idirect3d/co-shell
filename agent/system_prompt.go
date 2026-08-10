@@ -565,6 +565,52 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	return strings.Join(sections, "")
 }
 
+// buildVisionIdentityPrompt returns a minimal system prompt containing ONLY the
+// Identity section, used for the vision recognition round in minimal
+// vision-context mode (FEATURE-343). The visual model performing recognition
+// should not receive tool-usage instructions or other agent context — it is a
+// dedicated OCR/vision pass, not a tool-calling round.
+func buildVisionIdentityPrompt(cfg *config.Config) string {
+	if cfg == nil {
+		// Minimal fallback: plain Identity text without placeholders.
+		return i18n.T(i18n.KeySystemPromptIdentity)
+	}
+	env := &promptEnv{}
+	env.cwd, _ = os.Getwd()
+	env.shell = shellName()
+	env.os = runtime.GOOS
+	env.arch = runtime.GOARCH
+	env.execName = filepath.Base(os.Args[0])
+	env.homeDir, _ = os.UserHomeDir()
+	if env.homeDir == "" {
+		env.homeDir = os.Getenv("HOME")
+	}
+	if env.homeDir == "" {
+		env.homeDir = os.Getenv("USERPROFILE")
+	}
+	env.mode = config.ResultMode(cfg.LLM.ResultMode)
+	env.agentName = cfg.LLM.AgentName
+	if env.agentName == "" {
+		env.agentName = "co-shell"
+	}
+	env.agentDescription = cfg.LLM.AgentDescription
+	env.agentPrinciples = cfg.LLM.AgentPrinciples
+	env.userName = cfg.LLM.UserName
+	if env.userName == "" {
+		env.userName = i18n.T(i18n.KeyAnonymousUser)
+	}
+	env.channelInfo = env.userName + " @ " + cfg.LLM.Channel
+	env.customRules = ""
+
+	// Build only the Identity section with the mode's section order so that
+	// a mode-specific IDENTITY.md (or work mode identity) is respected.
+	modeName := cfg.LLM.WorkMode
+	if modeName == "" {
+		modeName = "act"
+	}
+	return buildNamedSection("Identity", env, cfg, false, nil)
+}
+
 func resultModeInstruction(mode config.ResultMode) string {
 	switch mode {
 	case config.ResultModeMinimal:
