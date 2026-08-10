@@ -1987,6 +1987,10 @@ no liability whatsoever.`,
 	KeyLoopJudgeResultFail:    "Judge model returned: failed/timeout\n",
 	KeyNoActiveTaskPlan:       "No active task plan",
 	KeyNoRecentIterations:     "No recent iterations",
+	// FEATURE-345: unified problem solver (non-loop anomalies)
+	KeyProblemSolverClassified: "Problem model diagnosis: type=%s, reason=%q, suggested_action=%s\n",
+	KeyProblemSolverNotifyUser: "⚠️ Problem model suggests stopping the task: %s\n%s\n",
+	KeyProblemSolverFailed:     "Problem model judgment failed, falling back to built-in handling: %v\n",
 
 	// FEATURE-304: D 类外部入口 i18n 迁移
 	KeySubAgentDuration:       "⏱ Duration: %s\n",
