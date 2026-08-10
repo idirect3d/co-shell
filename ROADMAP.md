@@ -21,6 +21,7 @@
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
 | FEATURE-342 | 0.7.4 | P1 | ✅ 已完成（问题判定优化 + report_problem 工具 [BUILD-385]） |
 | FEATURE-343 | 0.7.5 | P1 | ✅ 已完成（视觉识别上下文隔离 [BUILD-386]） |
+| FEATURE-345 | 0.7.5 | P1 | 异常场景接入问题判定（tool_format_error/context_overflow/llm_connection_error 走 report_problem） |
 | FEATURE-306 | 0.7.5 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
 | FEATURE-307 | 0.7.6 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.7 | tui v2 | FullScreenRenderer（可选分支） |
@@ -1176,6 +1177,13 @@
   - 修改：cmd/settings.go 只读摘要改名 current-tool-model/current-problem-model/current-vision-model；cmd/settings_safety.go default-tool-model/default-problem-model 查询/设置/解绑改用专用 KeyDefaultModelCurrent/KeyDefaultModelSet 模板；problem-solver-enabled 同源 %!d bug 一并修复
   - i18n：keys/zh/en 新增 KeyDefaultModelCurrent/KeyDefaultModelSet 双语
   - 验收：`go build ./...`、`go vet ./cmd/ ./i18n/` 全绿；编译产物 [BUILD-387]（work/co-shell）
+- [x] FEATURE-345 异常场景接入问题判定（tool_format_error / context_overflow / llm_connection_error 走 report_problem）：[BUILD-389]
+  - 背景：FEATURE-342 仅循环场景接入 report_problem（judgeLoop → callProblemSolver），三类异常仍走各自硬编码路径；config.go 承诺"疑似信号（工具格式错误/上下文溢出/连接异常）发送给问题模型"尚未兑现
+  - 方案：agent/problem_solver.go 新增 solveProblem(ctx, hint, detail) 通用入口（复用 callProblemSolver 强制 report_problem 单工具）+ applyProblemAction(report) 动作分发（prompt_feedback/delete_last_msg/compact_context/notify_user/retry/continue）；agent/run_stream.go 三处接入（streamErr 连接错误、XML 工具格式错误、context 超限）
+  - 降级保护：问题模型调用失败时回退到现有硬编码路径；HTTP 401/403/404/429/5xx 充分条件不调用问题模型；parse-error-action=exit 仍优先
+  - 补充修复：:set default-problem-model/default-tool-model 支持 auto 值清空恢复自动计算（原先仅 none/-）
+  - 测试：agent/problem_solver_test.go 新增 TestApplyProblemAction/TestSolveProblem_Gated/TestBuildProblemSolverUserPrompt；use-case/FEATURE-345/FEATURE-345-UC-0001.md（10 用例）
+  - 验收：`go build ./...`、`go vet ./agent/ ./cmd/ ./i18n/`、`go test ./agent/ ./i18n/ ./cmd/` 全绿；编译产物 [BUILD-389]（work/co-shell）
 
 ## v1.0.0 — 正式版
 

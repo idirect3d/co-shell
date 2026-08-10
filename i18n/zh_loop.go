@@ -46,6 +46,43 @@ func init() {
 # 输出要求
 你必须调用 report_problem 工具，把诊断结果填入其参数，不要输出其他内容。
 `
+	zhMessages[KeyProblemSolverUserPrompt] = `# 原始任务
+{TASK}
+
+===
+
+# 当前任务计划
+
+{TASK_PLAN}
+
+===
+
+# 用户历史提示词（按时间顺序列出所有用户指令）
+
+{USER_PROMPTS}
+
+===
+
+# 工作区与可用工具上下文
+
+{CONTEXT}
+
+===
+
+# 异常信号类型
+
+{ANOMALY_HINT}
+
+===
+
+# 异常详情（原始错误信息或可疑内容，已截断）
+
+{ERROR_DETAIL}
+
+===
+
+请根据以上信息调用 report_problem 工具，给出结构化诊断：先判断是否为真正的问题，再给出针对主模型的自包含 guidance 和 suggested_action。
+`
 	zhMessages[KeyLoopJudgeSystemPrompt] = `你是co-shell的死循环检测分析器。你的唯一职责是分析Agent行为并判断是否陷入死循环。
 
 # 判定标准
