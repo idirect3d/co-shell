@@ -6,10 +6,10 @@
 
 ## 当前版本
 
-> **版本**: v0.7.3
+> **版本**: v0.7.4
 
-> **状态**: 🚧 开发中（:context 显示增强）
-> **里程碑**: :context 显示增强（tool_calls 块 + 保留控制字符 + retried_count + full 模式）
+> **状态**: 🚧 开发中（问题判定优化）
+> **里程碑**: 统一问题判定机制（report_problem 工具 + 问题模型优先级链 + 硬编码错误分类 + 降级保护）
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -19,9 +19,10 @@
 | FEATURE-303 | 0.7.0 | P3 | ✅ 已完成（向导迁移（B 类）+ i18n 归零第一步 [BUILD-342]） |
 | FEATURE-304 | 0.7.0 | P4 | ✅ 已完成（外部入口迁移 + 分类开关 [BUILD-343]） |
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
-| FEATURE-306 | 0.7.4 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
-| FEATURE-307 | 0.7.5 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
-| FEATURE-308 | 0.7.6 | tui v2 | FullScreenRenderer（可选分支） |
+| FEATURE-342 | 0.7.4 | P1 | 问题判定优化（统一问题判定机制 + report_problem 工具） |
+| FEATURE-306 | 0.7.5 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
+| FEATURE-307 | 0.7.6 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
+| FEATURE-308 | 0.7.7 | tui v2 | FullScreenRenderer（可选分支） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
@@ -1128,6 +1129,25 @@
   - 新增 `agent/fix341_test.go` 单测 4 个（开关开启输出原始报文/开关关闭不输出/raw 空串不输出/nil cfg 不 panic）
   - 验收：`go build ./...`、`go vet ./agent/`、`go test ./agent/ ./repl/ ./i18n/` 全绿；用例 FIX-341-UC-0001~0006 通过；编译产物 [BUILD-384]（work/co-shell）
 
+## v0.7.4 — 问题判定优化
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-08-08
+> **里程碑**: 统一问题判定机制（report_problem 工具 + 问题模型优先级链 + 硬编码错误分类 + 降级保护）
+
+### 功能清单
+
+- [ ] FEATURE-342 问题判定优化（统一问题判定机制）：
+  - 问题模型优先级链：模式绑定的 ProblemModelID > 全局 default-problem-model > 全局 default-tool-model > 当前活跃模型
+  - 新增全局配置 default-problem-model / default-tool-model（可手动设置，未设置时自动计算：ToolCall 第二高/最高优先），:set 从只读变为可配置
+  - 新增 report_problem 工具（单工具强制 tool_choice）：类型枚举 [no_anomaly, loop, tool_format_error, context_overflow, llm_connection_error, unknown]，含 error_detail/reason/guidance/suggested_action
+  - 新增 problem-solver-enabled 开关（默认开启）；循环路径受 problem-solver-enabled AND loop-judge-enabled 双门控
+  - guidance 写作规范：自包含（不引用被删消息）、直接指示下一步、重申主目标、可执行性
+  - 硬编码错误分类：HTTP 401/403/404/429/5xx 充分条件直接提示用户，非充分条件才调用问题模型
+  - 降级保护：问题模型调用失败依次降级，降级后仍失败则停止并报告用户
+  - 动作执行层：continue / prompt_feedback / delete_last_msg / compact_context / notify_user / retry
+  - 单元测试 + i18n 中英文翻译
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
@@ -1171,8 +1191,8 @@
 | v0.7.0 | 2026-08-01 | 🚧 开发中 | 输出架构重构里程碑 |
 | v0.7.1 | 2026-08-05 | 🚧 开发中 | 循环检测优化（误判修复+judge 提示词+报警类型区分） |
 | v0.7.2 | 2026-08-06 | 🚧 开发中 | 工作区配置外部化（PRINCIPLES.md + .rules/ + .rule 生效修复） |
-| v0.7.3 | 2026-08-07 | 🚧 开发中 | :context 显示增强（tool_calls 块 + 控制字符 + retried_count + full 模式） |
-| v0.7.4 | 2026-08-08 | 💡 构想中 | 输入统一（InputSource）+ Windows 补齐 |
+| v0.7.3 | 2026-08-07 | ✅ 已完成 | :context 显示增强（tool_calls 块 + 控制字符 + retried_count + full 模式） |
+| v0.7.4 | 2026-08-08 | 🚧 开发中 | 问题判定优化（统一问题判定机制 + report_problem 工具） |
 | v0.7.5 | 2026-08-09 | 💡 构想中 | 渲染器三态 + WebRenderer 原型 |
 | v0.7.6 | 2026-08-10 | 💡 构想中 | 全屏 TUI v2（可选分支） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
