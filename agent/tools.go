@@ -808,13 +808,13 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			},
 			{
 				Name:        "browser_screenshot",
-				Description: "Capture a screenshot of the current browser page. The screenshot will be automatically sent to the LLM for visual analysis (vision models only). Use this to observe the page content, layout, and elements. Parameters: quality (optional, 1-100, default 80), full_page (optional, boolean, default false). For full-page screenshots, set full_page=true.",
+				Description: "Capture a screenshot of the current browser page. The screenshot is automatically sent to the vision model for analysis (vision models only). The `intent` parameter is used as the vision-recognition instruction for the screenshot, so state a specific analysis goal — what information to extract or verify from the page — rather than a vague request. Use this to observe the page content, layout, and elements. Parameters: intent (required), quality (optional, 1-100, default 80), full_page (optional, boolean, default false). For full-page screenshots, set full_page=true.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"intent": map[string]interface{}{
 							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+							"description": "**REQUIRED**: Serves as the vision-recognition instruction for the screenshot. Write a concrete analysis request describing what to extract or verify from the page (e.g. 'identify the page title, navigation menu items, and main content', 'verify the form fields and their visible labels'). Avoid vague instructions like 'view the page'.",
 						},
 						"quality": map[string]interface{}{
 							"type":        "number",
@@ -1865,6 +1865,21 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 	return tools
 }
 
+// recordVisionToolCall stores the ToolCall ID and tool name of the most
+// recent vision tool call (visual_analysis / browser_screenshot) so the
+// vision recognition round can backfill its result with the correct
+// tool_call_id (OpenAI mode) and tool name (XML mode). No-op for other tools
+// (FEATURE-343 + FEATURE-346).
+func (a *Agent) recordVisionToolCall(tc llm.ToolCall) {
+	if (tc.Name != "visual_analysis" && tc.Name != "browser_screenshot") || tc.ID == "" {
+		return
+	}
+	a.mu.Lock()
+	a.lastVisionToolCallID = tc.ID
+	a.lastVisionToolCallName = tc.Name
+	a.mu.Unlock()
+}
+
 // executeToolCall runs a single tool call and returns the result.
 func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, error) {
 	// Parse arguments
@@ -2050,14 +2065,12 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			log.Info("Tool call: %s, effective timeout=%s (user min: %ds, LLM suggested: %ds), args=%v",
 				tc.Name, timeoutStr, userMinSec, llmSuggested, args)
 
-			// FEATURE-343: record the ToolCall ID of the most recent visual_analysis
-			// call so the vision recognition round can backfill its result with
-			// the correct tool_call_id (OpenAI mode).
-			if tc.Name == "visual_analysis" && tc.ID != "" {
-				a.mu.Lock()
-				a.lastVisionToolCallID = tc.ID
-				a.mu.Unlock()
-			}
+			// FEATURE-343 + FEATURE-346: record the ToolCall ID and tool name of
+			// the most recent vision tool call (visual_analysis /
+			// browser_screenshot) so the vision recognition round can backfill
+			// its result with the correct tool_call_id (OpenAI mode) and tool
+			// name (XML mode).
+			a.recordVisionToolCall(tc)
 
 			result, err := tool.Callback(ctx, args)
 			if err != nil {

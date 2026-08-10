@@ -29,13 +29,11 @@ package agent
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -158,6 +156,11 @@ type Agent struct {
 	// visual_analysis call (OpenAI mode) so the recognition result can be
 	// backfilled with the correct tool_call_id.
 	lastVisionToolCallID string
+	// lastVisionToolCallName records the tool name of the most recent vision
+	// tool call (visual_analysis / browser_screenshot) so the recognition
+	// round backfills the result with the correct tool name in XML mode
+	// (FEATURE-346).
+	lastVisionToolCallName string
 
 	// errorCounter tracks the number of times each distinct error message has occurred
 	// during the current request. Key is the error message string, value is the count.
@@ -474,79 +477,44 @@ func (a *Agent) buildContextMessages() []llm.Message {
 	if len(a.imagePaths) > 0 && len(msgs) > 0 {
 		lastIdx := len(msgs) - 1
 		lastMsg := msgs[lastIdx]
-		if lastMsg.Role == "user" {
-			// Read and encode each cached image, append as ContentPart
-			for _, imgPath := range a.imagePaths {
-				// Resolve relative paths
-				absPath := imgPath
-				if !filepath.IsAbs(imgPath) {
-					cwd, err := os.Getwd()
-					if err != nil {
-						log.Warn("buildContextMessages: cannot get cwd for image %q: %v", imgPath, err)
-						continue
-					}
-					absPath = filepath.Join(cwd, imgPath)
-				}
 
-				// Read image file
-				data, err := os.ReadFile(absPath)
-				if err != nil {
-					log.Warn("buildContextMessages: cannot read image %q: %v", imgPath, err)
-					continue
-				}
-
-				// Detect MIME type
-				ext := strings.ToLower(filepath.Ext(absPath))
-				mimeType := "image/png"
-				switch ext {
-				case ".png":
-					mimeType = "image/png"
-				case ".jpg", ".jpeg":
-					mimeType = "image/jpeg"
-				case ".gif":
-					mimeType = "image/gif"
-				case ".webp":
-					mimeType = "image/webp"
-				case ".bmp":
-					mimeType = "image/bmp"
-				}
-
-				// Encode as base64 data URI
-				base64Data := base64.StdEncoding.EncodeToString(data)
-				dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
-
-				lastMsg.ContentParts = append(lastMsg.ContentParts, llm.ContentPart{
-					Type: llm.ContentPartImageURL,
-					ImageURL: &llm.ContentPartImage{
-						URL:    dataURI,
-						Detail: "auto",
-					},
-				})
+		// FEATURE-346: encode all cached media up-front. The parts are attached
+		// to the last user message (full mode / non-collapse path) AND carried
+		// into the minimal recognition-round clean message below. Encoding
+		// up-front decouples the recognition round from the last message role
+		// — OpenAI tool-call mode ends a round with a tool message, so the
+		// images must not depend on `lastMsg.Role == "user"` to reach the
+		// vision model.
+		var mediaParts []llm.ContentPart
+		for _, imgPath := range a.imagePaths {
+			part, ok := encodeMediaContentPart(imgPath)
+			if !ok {
+				continue
 			}
+			mediaParts = append(mediaParts, part)
+			if lastMsg.Role == "user" {
+				lastMsg.ContentParts = append(lastMsg.ContentParts, part)
+			}
+		}
+		if lastMsg.Role == "user" {
 			msgs[lastIdx] = lastMsg
 		}
 
 		// One-shot: clear image paths after injection so they are not re-sent
 		a.imagePaths = nil
 
-		// FEATURE-319 + FEATURE-343: minimal vision-context mode — send only
-		// [system(Identity-only), user(intent + images)] to the vision model.
-		// This discards all intermediate history AND replaces the system
-		// prompt with ONLY the Identity section (no tool-usage instructions,
-		// no capabilities/rules/environment) so the recognition round is a
-		// dedicated OCR/vision pass — the model should not attempt tool calls.
-		// The intent is taken from the most recent visual_analysis call. If no
-		// intent is pending, fall back to the existing behavior (do not
-		// collapse) to avoid losing the image-bearing message.
+		// FEATURE-319 + FEATURE-343 + FEATURE-346: minimal vision-context mode
+		// — send only [system(Identity-only), user(intent + images)] to the
+		// vision model. This discards all intermediate history AND replaces
+		// the system prompt with ONLY the Identity section (no tool-usage
+		// instructions, no capabilities/rules/environment) so the recognition
+		// round is a dedicated OCR/vision pass — the model should not attempt
+		// tool calls. The intent is taken from the most recent vision tool
+		// call (visual_analysis / browser_screenshot). If no intent is
+		// pending, fall back to the existing behavior (do not collapse) to
+		// avoid losing the image-bearing message.
 		if a.cfg != nil && a.cfg.LLM.VisionContextMode == "minimal" &&
 			a.visionPendingIntent != "" && len(msgs) > 0 {
-			// Extract image/video parts from the last user message (injected above).
-			var mediaParts []llm.ContentPart
-			for _, cp := range lastMsg.ContentParts {
-				if cp.Type == llm.ContentPartImageURL || cp.Type == llm.ContentPartVideoURL {
-					mediaParts = append(mediaParts, cp)
-				}
-			}
 			cleanMsg := llm.Message{Role: "user"}
 			cleanMsg.ContentParts = []llm.ContentPart{
 				{Type: llm.ContentPartText, Text: a.visionPendingIntent},

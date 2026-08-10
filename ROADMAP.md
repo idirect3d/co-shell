@@ -8,8 +8,8 @@
 
 > **版本**: v0.7.6
 
-> **状态**: 🚧 开发中（输入统一 InputSource + Windows 补齐）
-> **里程碑**: 输入统一（InputSource）+ Windows 补齐
+> **状态**: 🚧 开发中（输入统一 InputSource + Windows 补齐 + browser_screenshot 视觉识别一致化）
+> **里程碑**: 输入统一（InputSource）+ Windows 补齐 + browser_screenshot 视觉识别一致化
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -1196,6 +1196,18 @@
 - [ ] FEATURE-306 输入统一（InputSource）+ Windows 补齐
   - 背景：v0.7.5 完成（视觉隔离 + 问题判定异常场景接入），FEATURE-306 顺延至 v0.7.6
   - 目标：统一 REPL/单次执行/子命令的输入源抽象（InputSource），补齐 Windows 平台输入兼容
+- [x] FEATURE-346 browser_screenshot 视觉识别与 FEATURE-343 一致化（minimal 识别轮接入）：[BUILD-390]
+  - 背景：FEATURE-343 的 minimal 识别轮（上下文折叠 [Identity-only, intent+图片]、tools 清空、结果回填工具返回）仅 visual_analysis 走；browser_screenshot 截图后只注入 imagePaths、未设置 visionPendingIntent，识别在完整上下文内联进行（UC-0019 有意排除），与 visual_analysis 行为不一致
+  - 目标：browser_screenshot 视觉支持时也设置 visionPendingIntent（取 intent 参数，缺失用本地化默认指令兜底），记录 ToolCallID/工具名并回填识别结果，minimal 模式下与 FEATURE-343 完全一致；full 模式行为不变
+  - 实现：
+    - agent/browser_tools.go：视觉支持时设置 visionPendingIntent
+    - agent/tools.go：recordVisionToolCall 记录 visual_analysis/browser_screenshot 的 ToolCallID 与工具名
+    - agent/loop.go + agent/image_tools.go：重构图片注入（encodeMediaContentPart），修复 OpenAI 模式识别轮图片丢失（不依赖最后消息角色）
+    - agent/run_stream.go：识别轮结果回填使用记录的工具名（XML 模式）
+    - agent/system_prompt.go + agent.go：resolveAgentDescription 同源解析，识别轮 system prompt 含 agent 身份描述
+    - i18n keys/zh/en + zh_system/en_system：默认识别指令 + browser_screenshot intent 引导说明（指导性指令）
+  - 编号说明：FEATURE-23 与历史 ENHANCEMENT-23 冲突，改用未使用的最小编号 FEATURE-346
+  - 测试：agent/fix346_test.go 6 单测 + use-case/FEATURE-346/FEATURE-346-UC-0001.md（31 用例）；go build/vet/test 全绿；audit Hardcoded Chinese=0 / i18n keys missing=0；cc 编译 co-shell v0.7.6 [BUILD-390]
 
 ## v1.0.0 — 正式版
 
@@ -1243,7 +1255,7 @@
 | v0.7.3 | 2026-08-07 | ✅ 已完成 | :context 显示增强（tool_calls 块 + 控制字符 + retried_count + full 模式） |
 | v0.7.4 | 2026-08-08 | 🚧 开发中 | 问题判定优化（统一问题判定机制 + report_problem 工具） |
 | v0.7.5 | 2026-08-10 | 🚧 开发中 | 视觉识别上下文隔离（minimal 识别轮独立 + 结果回填） |
-| v0.7.6 | 2026-08-10 | 💡 构想中 | 全屏 TUI v2（可选分支） |
+| v0.7.6 | 2026-08-10 | 🚧 开发中 | 输入统一 + browser_screenshot 视觉识别一致化（FEATURE-306 + FEATURE-346） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 
 
