@@ -633,6 +633,34 @@ iterationLoop:
 					return "", fmt.Errorf("LLM call failed: %w", streamErr)
 				}
 
+				// FEATURE-345: consult the problem model for ambiguous
+				// connection errors before applying the default strategy.
+				// Hard-coded sufficient conditions (HTTP 401/403/404/429/5xx)
+				// are skipped — only ambiguous errors reach the model.
+				if a.cfg != nil && a.cfg.LLM.ProblemSolverEnabled {
+					if _, ok := classifyConnectionError(streamErr); !ok {
+						if report, perr := a.solveProblem(context.Background(), ProblemTypeLLMConnectionError, streamErr.Error()); perr == nil && report != nil {
+							cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction))
+							feedback, _, stop := applyProblemAction(report)
+							if stop {
+								cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance))
+								cb(EventDone, "")
+								return "", fmt.Errorf("problem model recommended stopping: %s", report.Reason)
+							}
+							if feedback != "" {
+								a.mu.Lock()
+								a.messages = append(a.messages, llm.Message{Role: "user", Content: feedback})
+								a.mu.Unlock()
+								cb(EventInfo, fmt.Sprintf("\n%s\n", feedback))
+								continue
+							}
+						} else if perr != nil {
+							log.Debug("RunStream: problem solver failed for connection error, falling back to built-in handling: %v", perr)
+							cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr))
+						}
+					}
+				}
+
 				if parseAction == "retry" {
 					// No feedback, just resend context
 					ep := config.GetEmojiPrefixes(a.emojiEnabled)
@@ -742,6 +770,50 @@ iterationLoop:
 			preventiveTemplate := i18n.T(i18n.KeyXMLParseErrorSuggestion)
 			fullFeedback := strings.ReplaceAll(preventiveTemplate, "{TOOL_NAME}", toolName)
 			fullFeedback = strings.ReplaceAll(fullFeedback, "{FORMAT}", formatSuggestion)
+
+			// FEATURE-345: consult the problem model for tool format errors
+			// when the unified solver is enabled. Its diagnosis may override
+			// the generic preventive template (prompt_feedback) or recommend
+			// removing the last assistant message (delete_last_msg) / stopping
+			// (notify_user). parse-error-action=exit keeps precedence.
+			if parseAction != "exit" && a.cfg != nil && a.cfg.LLM.ProblemSolverEnabled {
+				// Extract the error detail from the cached JSON entry.
+				errDetailForSolver := firstLine
+				if strings.HasPrefix(firstLine, "{") {
+					var entry struct {
+						Tool  string `json:"tool"`
+						Error string `json:"error"`
+						Raw   string `json:"raw"`
+					}
+					if err := json.Unmarshal([]byte(firstLine), &entry); err == nil && entry.Error != "" {
+						errDetailForSolver = entry.Error
+					}
+				}
+				if report, perr := a.solveProblem(context.Background(), ProblemTypeToolFormatError, errDetailForSolver); perr == nil && report != nil {
+					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction))
+					feedback, deleteLast, stop := applyProblemAction(report)
+					if stop {
+						cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance))
+						cb(EventDone, "")
+						return "", fmt.Errorf("problem model recommended stopping: %s", report.Reason)
+					}
+					if deleteLast {
+						a.mu.Lock()
+						removed := a.removeLastAssistantWithToolCalls()
+						a.mu.Unlock()
+						log.Warn("RunStream: problem model recommended delete_last_msg for tool format error, removed %d bytes", len(removed))
+						continue
+					}
+					if feedback != "" {
+						// Use the problem model's targeted guidance instead of
+						// the generic preventive template.
+						fullFeedback = feedback
+					}
+				} else if perr != nil {
+					log.Debug("RunStream: problem solver failed for tool format error, falling back to built-in handling: %v", perr)
+					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr))
+				}
+			}
 
 			loopFeedback := ""
 			var strategyParts []string
@@ -1033,6 +1105,36 @@ iterationLoop:
 				reorganizePending = true
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
 				cb(EventWarning, fmt.Sprintf(i18n.TF(i18n.KeyContextOverLimit), ep.Warning, usagePct, threshold))
+
+				// FEATURE-345: consult the problem model for context overflow.
+				// If it recommends stop (notify_user), surface the problem and
+				// terminate the task instead of blindly reorganizing.
+				if a.cfg != nil && a.cfg.LLM.ProblemSolverEnabled {
+					detail := fmt.Sprintf("context usage %.1f%% exceeded threshold %.0f%% (max model len %d)",
+						usagePct, threshold, maxModelLen)
+					if report, perr := a.solveProblem(context.Background(), ProblemTypeContextOverflow, detail); perr == nil && report != nil {
+						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction))
+						feedback, _, stop := applyProblemAction(report)
+						if stop {
+							cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance))
+							cb(EventDone, "")
+							return "", fmt.Errorf("problem model recommended stopping: %s", report.Reason)
+						}
+						if feedback != "" {
+							// Prepend the model's guidance so the reorganize
+							// message includes it on the next iteration.
+							a.mu.Lock()
+							a.messages = append(a.messages, llm.Message{Role: "user", Content: feedback})
+							a.mu.Unlock()
+							cb(EventInfo, fmt.Sprintf("\n%s\n", feedback))
+							// Keep reorganizePending true so the reorganize
+							// instruction still fires after end-of-cycle.
+						}
+					} else if perr != nil {
+						log.Debug("RunStream: problem solver failed for context overflow, falling back to built-in reorganize: %v", perr)
+						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr))
+					}
+				}
 			}
 		}
 

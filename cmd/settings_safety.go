@@ -446,7 +446,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelCurrent), cur), nil
 		}
 		value := args[1]
-		if value == "none" || value == "-" {
+		if value == "none" || value == "-" || value == "auto" {
 			h.cfg.LLM.DefaultProblemModelID = ""
 			if err := h.cfg.Save(); err != nil {
 				return "", err
@@ -473,7 +473,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelCurrent), cur), nil
 		}
 		value := args[1]
-		if value == "none" || value == "-" {
+		if value == "none" || value == "-" || value == "auto" {
 			h.cfg.LLM.DefaultToolModelID = ""
 			if err := h.cfg.Save(); err != nil {
 				return "", err

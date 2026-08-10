@@ -9,8 +9,11 @@
 package agent
 
 import (
+	"context"
+	"strings"
 	"testing"
 
+	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/llm"
 )
 
@@ -130,3 +133,82 @@ func TestReportProblemTool_Schema(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// FEATURE-345: applyProblemAction maps suggested_action to run-stream behavior.
+func TestApplyProblemAction(t *testing.T) {
+	cases := []struct {
+		name       string
+		action     SuggestedAction
+		guidance   string
+		wantFB     bool
+		wantDelete bool
+		wantStop   bool
+	}{
+		{name: "prompt_feedback returns guidance", action: ActionPromptFeedback, guidance: "call read_file next", wantFB: true},
+		{name: "compact_context returns guidance", action: ActionCompactContext, guidance: "reorganize now", wantFB: true},
+		{name: "delete_last_msg", action: ActionDeleteLastMsg, wantDelete: true},
+		{name: "notify_user stops", action: ActionNotifyUser, wantStop: true},
+		{name: "continue keeps existing", action: ActionContinue},
+		{name: "retry keeps existing", action: ActionRetry},
+		{name: "unknown keeps existing", action: "weird_action"},
+		{name: "nil report keeps existing"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var report *ProblemReport
+			if c.name != "nil report keeps existing" {
+				report = &ProblemReport{Type: ProblemTypeUnknown, Guidance: c.guidance, SuggestedAction: c.action}
+			}
+			fb, del, stop := applyProblemAction(report)
+			if (fb != "") != c.wantFB {
+				t.Fatalf("feedback got %q want empty=%v", fb, !c.wantFB)
+			}
+			if del != c.wantDelete {
+				t.Fatalf("deleteLast got %v want %v", del, c.wantDelete)
+			}
+			if stop != c.wantStop {
+				t.Fatalf("stop got %v want %v", stop, c.wantStop)
+			}
+		})
+	}
+}
+
+// FEATURE-345: solveProblem is gated by ProblemSolverEnabled.
+func TestSolveProblem_Gated(t *testing.T) {
+	a := &Agent{cfg: nil}
+	r, err := a.solveProblem(context.Background(), ProblemTypeToolFormatError, "bad xml")
+	if err != nil {
+		t.Fatalf("solveProblem with nil cfg should not error: %v", err)
+	}
+	if r != nil {
+		t.Fatalf("solveProblem with nil cfg should return nil report, got %+v", r)
+	}
+	cfg := &config.Config{}
+	cfg.LLM.ProblemSolverEnabled = false
+	a.cfg = cfg
+	r, err = a.solveProblem(context.Background(), ProblemTypeToolFormatError, "bad xml")
+	if err != nil {
+		t.Fatalf("solveProblem with disabled solver should not error: %v", err)
+	}
+	if r != nil {
+		t.Fatalf("solveProblem with disabled solver should return nil report, got %+v", r)
+	}
+}
+
+// FEATURE-345: buildProblemSolverUserPrompt fills all placeholders and truncates.
+func TestBuildProblemSolverUserPrompt(t *testing.T) {
+	a := &Agent{}
+	a.lastUserInput = "write a report"
+	longDetail := strings.Repeat("x", 5000)
+	prompt := a.buildProblemSolverUserPrompt(ProblemTypeContextOverflow, longDetail)
+	if strings.Contains(prompt, "{ANOMALY_HINT}") || strings.Contains(prompt, "{ERROR_DETAIL}") {
+		t.Fatal("unfilled placeholders remain")
+	}
+	if !strings.Contains(prompt, "context_overflow") {
+		t.Fatal("anomaly hint not embedded")
+	}
+	if len(prompt) > 4000+2000 {
+		t.Fatalf("prompt too large, detail not truncated: %d bytes", len(prompt))
+	}
+}
+
