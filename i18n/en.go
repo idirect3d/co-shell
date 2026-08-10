@@ -1142,9 +1142,10 @@ no liability whatsoever.`,
 	KeyCol3TokenUsage:              "Token usage display mode(on/off/none)",
 
 	// Model selection column 3 labels
-	KeyCol3DefaultToolModel:    "default tool model",
-	KeyCol3DefaultVisionModel:  "default vision model",
-	KeyCol3DefaultProblemModel: "default problem-solving model",
+	KeyCol3DefaultToolModel:     "default tool model",
+	KeyCol3DefaultVisionModel:   "default vision model",
+	KeyCol3DefaultProblemModel:  "default problem-solving model",
+	KeyCol3ProblemSolverEnabled: "problem solver enabled",
 
 	// Settings group titles
 	KeySettingsGroupIdentity:    "[ Identity & Personality ]",

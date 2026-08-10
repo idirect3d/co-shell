@@ -215,7 +215,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-single-line-length",
 		subcommand == "loop-single-line-window",
 		subcommand == "loop-single-line-block-limit",
-		subcommand == "duplicate-content-threshold":
+		subcommand == "duplicate-content-threshold",
+		subcommand == "problem-solver-enabled",
+		subcommand == "default-problem-model",
+		subcommand == "default-tool-model":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -487,15 +490,19 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		}
 	}
 
-	// Default problem-solving model: second highest priority enabled model with ToolCall capability
-	defaultProblemModelID := "-"
-	toolModelCount := 0
-	for _, m := range sortedModels {
-		if m.Enabled && m.Capabilities.ToolCall {
-			toolModelCount++
-			if toolModelCount == 2 {
-				defaultProblemModelID = m.ID
-				break
+	// Default problem-solving model: prefer explicit global config, otherwise
+	// auto-compute from the second highest priority enabled ToolCall model.
+	defaultProblemModelID := cfg.LLM.DefaultProblemModelID
+	if defaultProblemModelID == "" {
+		defaultProblemModelID = "-"
+		toolModelCount := 0
+		for _, m := range sortedModels {
+			if m.Enabled && m.Capabilities.ToolCall {
+				toolModelCount++
+				if toolModelCount == 2 {
+					defaultProblemModelID = m.ID
+					break
+				}
 			}
 		}
 	}
@@ -676,6 +683,27 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("loop-single-line-block-limit", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineBlockLimit), i18n.T(i18n.KeySettingCmd_324)),
 	})
 	// loop-reorganize-enabled removed, controlled by loop-intervention
+
+	// Problem solver (FEATURE-342) — append to the Safety group.
+	problemSolverStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.ProblemSolverEnabled {
+		problemSolverStatus = i18n.T(i18n.KeyOn)
+	}
+	defaultToolModelDisplay := cfg.LLM.DefaultToolModelID
+	if defaultToolModelDisplay == "" {
+		defaultToolModelDisplay = "auto"
+	}
+	defaultProblemModelDisplay := cfg.LLM.DefaultProblemModelID
+	if defaultProblemModelDisplay == "" {
+		defaultProblemModelDisplay = "auto"
+	}
+	safetyGroup := allGroups[len(allGroups)-1]
+	safetyGroup = append(safetyGroup,
+		makeLine("problem-solver-enabled", problemSolverStatus, i18n.T(i18n.KeyCol3ProblemSolverEnabled)),
+		makeLine("default-problem-model", defaultProblemModelDisplay, "auto/<model-id>"),
+		makeLine("default-tool-model", defaultToolModelDisplay, "auto/<model-id>"),
+	)
+	allGroups[len(allGroups)-1] = safetyGroup
 
 	// Group 5: Memory & Context
 	contextStartMode := i18n.T(i18n.KeyContextPolicyReorganize)

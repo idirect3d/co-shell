@@ -725,8 +725,14 @@ func (a *Agent) getLoopJudgeModel() *config.ModelConfig {
 // on suspected loop content. It builds a clean minimal context without
 // system prompt noise, and expects a JSON-formatted judgment result.
 func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string) *LoopJudgeResult {
-	if a.cfg == nil || !a.cfg.LLM.LoopJudgeEnabled {
-		log.Debug("judgeLoop: loop judgment disabled, returning nil")
+	if a.cfg == nil {
+		return nil
+	}
+	// FEATURE-342: loop judgment requires BOTH the unified problem-solver
+	// switch AND the loop-judge switch (dual gating).
+	if !a.cfg.LLM.ProblemSolverEnabled || !a.cfg.LLM.LoopJudgeEnabled {
+		log.Debug("judgeLoop: loop judgment disabled (problem_solver_enabled=%v, loop_judge_enabled=%v), returning nil",
+			a.cfg.LLM.ProblemSolverEnabled, a.cfg.LLM.LoopJudgeEnabled)
 		return nil
 	}
 

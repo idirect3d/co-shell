@@ -1455,7 +1455,12 @@ func (a *Agent) buildXMLToolResultMessage(toolName, toolArgs, toolResult string,
 // 2. The first user message at or after the messagePointer (context start)
 // Returns empty string if neither is available.
 // getProblemModelID returns the problem-solving model ID for the current work mode.
-// Priority: ProblemModelID > ModelID > "" (use global fallback).
+// Priority (FEATURE-342):
+//  1. WorkMode's ProblemModelID (mode-bound problem model)
+//  2. cfg.LLM.DefaultProblemModelID (global default problem model)
+//  3. cfg.LLM.DefaultToolModelID (global default tool-call model)
+//  4. WorkMode's ModelID (mode-bound text model, legacy fallback)
+//  5. "" (caller falls back to the current active model)
 func (a *Agent) getProblemModelID() string {
 	if a.cfg == nil {
 		return ""
@@ -1480,12 +1485,29 @@ func (a *Agent) getProblemModelID() string {
 		}
 	}
 	if mode == nil {
+		// Mode not found: fall back to global defaults.
+		if a.cfg.LLM.DefaultProblemModelID != "" {
+			return a.cfg.LLM.DefaultProblemModelID
+		}
+		if a.cfg.LLM.DefaultToolModelID != "" {
+			return a.cfg.LLM.DefaultToolModelID
+		}
 		return ""
 	}
-	if mode.ProblemModelID != nil {
+	// Priority 1: mode-bound problem model.
+	if mode.ProblemModelID != nil && *mode.ProblemModelID != "" {
 		return *mode.ProblemModelID
 	}
-	if mode.ModelID != nil {
+	// Priority 2: global default problem model.
+	if a.cfg.LLM.DefaultProblemModelID != "" {
+		return a.cfg.LLM.DefaultProblemModelID
+	}
+	// Priority 3: global default tool-call model.
+	if a.cfg.LLM.DefaultToolModelID != "" {
+		return a.cfg.LLM.DefaultToolModelID
+	}
+	// Priority 4: mode-bound text model (legacy fallback).
+	if mode.ModelID != nil && *mode.ModelID != "" {
 		return *mode.ModelID
 	}
 	return ""

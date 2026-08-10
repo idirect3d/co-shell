@@ -33,6 +33,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -412,9 +413,103 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop long output threshold set to %d", threshold)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), threshold), nil
 
+	case "problem-solver-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOff)
+			if h.cfg.LLM.ProblemSolverEnabled {
+				status = i18n.T(i18n.KeyOn)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), status), nil
+		}
+		var enabled bool
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			enabled = true
+		case "off", "0", "false", "no":
+			enabled = false
+		default:
+			return "", fmt.Errorf("invalid boolean value %q (valid: on/off)", args[1])
+		}
+		h.cfg.LLM.ProblemSolverEnabled = enabled
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Problem solver enabled set to %v", enabled)
+		status := i18n.T(i18n.KeyOff)
+		if enabled {
+			status = i18n.T(i18n.KeyOn)
+		}
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), status), nil
+
+	case "default-problem-model":
+		if len(args) < 2 {
+			if h.cfg.LLM.DefaultProblemModelID == "" {
+				return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), h.cfg.LLM.DefaultProblemModelID), nil
+		}
+		value := args[1]
+		if value == "none" || value == "-" {
+			h.cfg.LLM.DefaultProblemModelID = ""
+			if err := h.cfg.Save(); err != nil {
+				return "", err
+			}
+			log.Info("Default problem model unbound")
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+		}
+		if !modelIDExistsInCfg(h.cfg, value) {
+			return "", fmt.Errorf("invalid default-problem-model %q: no enabled model with this ID", value)
+		}
+		h.cfg.LLM.DefaultProblemModelID = value
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Default problem model set to %s", value)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), value), nil
+
+	case "default-tool-model":
+		if len(args) < 2 {
+			if h.cfg.LLM.DefaultToolModelID == "" {
+				return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), h.cfg.LLM.DefaultToolModelID), nil
+		}
+		value := args[1]
+		if value == "none" || value == "-" {
+			h.cfg.LLM.DefaultToolModelID = ""
+			if err := h.cfg.Save(); err != nil {
+				return "", err
+			}
+			log.Info("Default tool model unbound")
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), "auto"), nil
+		}
+		if !modelIDExistsInCfg(h.cfg, value) {
+			return "", fmt.Errorf("invalid default-tool-model %q: no enabled model with this ID", value)
+		}
+		h.cfg.LLM.DefaultToolModelID = value
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Default tool model set to %s", value)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_229), value), nil
+
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)
 	}
+}
+
+// modelIDExistsInCfg checks whether the given model ID refers to an enabled
+// model in the config. Used by :set default-problem-model / default-tool-model.
+func modelIDExistsInCfg(cfg *config.Config, id string) bool {
+	if cfg == nil || id == "" {
+		return false
+	}
+	for _, m := range cfg.Models {
+		if m.ID == id && m.Enabled {
+			return true
+		}
+	}
+	return false
 }
 
 // showToolModes displays the current tool mode configuration.
