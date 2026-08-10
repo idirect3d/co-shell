@@ -742,6 +742,27 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 		return nil
 	}
 
+	// FEATURE-342: Prefer the structured report_problem path. If the problem
+	// solver call succeeds, convert its ProblemReport to the classic
+	// LoopJudgeResult and return early (single model call). On failure
+	// (e.g. model does not support tools), fall back to the classic
+	// free-text JSON judgment below.
+	if report, perr := a.callProblemSolver(ctx, a.buildProblemSolverPrompt(suspectContent)); perr == nil && report != nil {
+		result := &LoopJudgeResult{
+			IsLoop:       report.IsLoop(),
+			Reason:       report.Reason,
+			ExitStrategy: report.Guidance,
+		}
+		if result.IsLoop && strings.TrimSpace(result.ExitStrategy) == "" {
+			log.Warn("judgeLoop: problem solver confirmed loop with empty guidance, applying fallback")
+			result.ExitStrategy = i18n.T(i18n.KeyLoopJudgeFallback)
+		}
+		log.Info("LoopJudge result (problem-solver): is_loop=%v, reason=%q, exit_strategy=%q",
+			result.IsLoop, result.Reason, result.ExitStrategy)
+		return result
+	}
+	log.Debug("judgeLoop: problem solver report unavailable, falling back to classic JSON judgment")
+
 	// Build task plan text
 	taskPlanText := a.getTaskPlanPrompt()
 	if taskPlanText == "" {
