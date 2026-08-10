@@ -71,31 +71,31 @@ co-shell 是一个由大语言模型（LLM）驱动的智能命令行工具。AI
 
 | 操作系统 | 架构 | 下载 |
 |---|---|---|
-| macOS | Intel | [co-shell-0.5.1-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-amd64.zip) |
-| macOS | Apple Silicon | [co-shell-0.5.1-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-arm64.zip) |
-| Linux | x86_64 | [co-shell-0.5.1-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-linux-amd64.zip) |
-| Linux | ARM64 | [co-shell-0.5.1-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-linux-arm64.zip) |
-| Windows | x86_64 | [co-shell-0.5.1-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-amd64.zip) |
-| Windows | ARM64 | [co-shell-0.5.1-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-arm64.zip) |
-| 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.5.0-Beta2/md2docx.py) — Markdown 转 Word 文档转换器 |
-| **Bridge** | macOS Intel | [co-shell-bridge-0.5.1-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-darwin-amd64.zip) |
-| **Bridge** | macOS Apple Silicon | [co-shell-bridge-0.5.1-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-darwin-arm64.zip) |
-| **Bridge** | Linux x86_64 | [co-shell-bridge-0.5.1-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-linux-amd64.zip) |
-| **Bridge** | Linux ARM64 | [co-shell-bridge-0.5.1-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-linux-arm64.zip) |
-| **Bridge** | Windows x86_64 | [co-shell-bridge-0.5.1-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-windows-amd64.zip) |
-| **Bridge** | Windows ARM64 | [co-shell-bridge-0.5.1-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-bridge-0.5.1-windows-arm64.zip) |
+| macOS | Intel | [co-shell-0.7.5-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-darwin-amd64.zip) |
+| macOS | Apple Silicon | [co-shell-0.7.5-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-darwin-arm64.zip) |
+| Linux | x86_64 | [co-shell-0.7.5-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-linux-amd64.zip) |
+| Linux | ARM64 | [co-shell-0.7.5-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-linux-arm64.zip) |
+| Windows | x86_64 | [co-shell-0.7.5-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-windows-amd64.zip) |
+| Windows | ARM64 | [co-shell-0.7.5-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-windows-arm64.zip) |
+| 工具 | 跨平台 | [md2docx.py](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/md2docx.py) — Markdown 转 Word 文档转换器 |
+| **Bridge** | macOS Intel | [co-shell-bridge-0.7.5-darwin-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-bridge-0.7.5-darwin-amd64.zip) |
+| **Bridge** | macOS Apple Silicon | [co-shell-bridge-0.7.5-darwin-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-bridge-0.7.5-darwin-arm64.zip) |
+| **Bridge** | Linux x86_64 | [co-shell-bridge-0.7.5-linux-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-bridge-0.7.5-linux-amd64.zip) |
+| **Bridge** | Linux ARM64 | [co-shell-bridge-0.7.5-linux-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-bridge-0.7.5-linux-arm64.zip) |
+| **Bridge** | Windows x86_64 | [co-shell-bridge-0.7.5-windows-amd64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-bridge-0.7.5-windows-amd64.zip) |
+| **Bridge** | Windows ARM64 | [co-shell-bridge-0.7.5-windows-arm64.zip](https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-bridge-0.7.5-windows-arm64.zip) |
 
 **macOS / Linux：**
 ```bash
 # curl
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-arm64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-darwin-arm64.zip
 unzip co-shell.zip && rm co-shell.zip
 chmod +x co-shell
 ./co-shell
 
 # 或 wget
-wget https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-darwin-arm64.zip
-unzip co-shell-0.5.1-darwin-arm64.zip && rm co-shell-0.5.1-darwin-arm64.zip
+wget https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-darwin-arm64.zip
+unzip co-shell-0.7.5-darwin-arm64.zip && rm co-shell-0.7.5-darwin-arm64.zip
 chmod +x co-shell
 ./co-shell
 ```
@@ -103,7 +103,7 @@ chmod +x co-shell
 **Windows（PowerShell）：**
 ```powershell
 # PowerShell
-Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-amd64.zip -OutFile co-shell.zip
+Invoke-WebRequest -Uri https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-windows-amd64.zip -OutFile co-shell.zip
 Expand-Archive -Path co-shell.zip -DestinationPath .
 .\co-shell.exe
 ```
@@ -111,7 +111,7 @@ Expand-Archive -Path co-shell.zip -DestinationPath .
 **Windows（CMD）：**
 ```cmd
 :: CMD
-curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.5.1/co-shell-0.5.1-windows-amd64.zip
+curl -L -o co-shell.zip https://github.com/idirect3d/co-shell/releases/download/v0.7.5/co-shell-0.7.5-windows-amd64.zip
 tar -xf co-shell.zip
 del co-shell.zip
 co-shell.exe
@@ -347,7 +347,21 @@ co-shell 可以自主进行深度调研，通过搜索网络、收集数据并�
 
 ## 版本历史
 
-### v0.5.1（当前版本）
+### v0.7.5（当前版本）
+
+> **BUILD**: 00389 | **发布日期**: 2026-08-10
+
+问题判定机制完整落地（统一问题求解器）+ 视觉识别上下文隔离。
+
+**版本亮点**: 视觉识别 minimal/full 上下文模式改造（识别轮独立调用、结果回填工具返回、系统上下文隔离）；问题判定机制从"仅循环"扩展为**四类异常统一接入**（循环 / 工具格式错误 / 上下文溢出 / 连接错误均走 `report_problem` 结构化判定，由独立问题模型诊断并给出可执行动作）；智能体设置组只读模型摘要改名 `current-*` 消除与可配置项歧义。
+
+**已实现功能：**
+
+- **问题判定统一路由（FEATURE-342 + FEATURE-345）** — `report_problem` 工具（强制单工具 `tool_choice`）；独立问题模型（解析链：模式绑定 → `default-problem-model` → `default-tool-model` → 模式文本模型 → 当前活跃模型）对疑似信号分类并返回结构化报告（`type / reason / guidance / suggested_action`）。现已接入**循环检测、工具格式（XML）错误、上下文溢出、模糊 LLM 连接错误**四类场景。动作支持：`prompt_feedback`（模型 guidance 替换通用模板）、`delete_last_msg`、`notify_user`（提示并停止）。HTTP 401/403/404/429/5xx 充分条件跳过模型；失败自动回退内置路径（`problem-solver-enabled` 开关，默认开启）
+- **视觉识别上下文隔离（FEATURE-343）** — minimal 模式将识别轮折叠为 `[system(仅Identity), user(intent+图片)]`，清空 tools，将视觉模型输出回填为 `visual_analysis` 工具结果，不污染主会话历史
+- **设置显示修复（FIX-344）** — 只读摘要行改名 `current-tool-model` / `current-problem-model` / `current-vision-model`；修复 `:set default-tool-model` 显示 `%!d(string=auto)`；`:set default-problem-model/default-tool-model auto` 恢复自动计算
+
+### v0.5.1
 
 > **BUILD**: 00193 | **发布日期**: 2026-05-28
 
