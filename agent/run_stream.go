@@ -1072,6 +1072,8 @@ iterationLoop:
 					if parseAction == "exit" {
 						// Exit the loop and report error
 						cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyToolExecFailed), tc.Name, execErr))
+						// FEATURE-336: show the raw offending content when the switch is on.
+						a.emitParseErrorRaw(cb, tc.Arguments)
 						cb(EventDone, "")
 						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
 					}
@@ -1111,6 +1113,13 @@ iterationLoop:
 					} else {
 						// prompt (default): Format structured error feedback
 						result = formatToolError(tc.Name, execErr)
+					}
+					// FEATURE-336: show the raw offending content when the switch is on.
+					// JSON-syntax errors are displayed above before continue;
+					// XML mode carries raw content via taskInstructionCache, so
+					// only OpenAI-mode non-syntax failures reach here.
+					if !isXMLMode {
+						a.emitParseErrorRaw(cb, tc.Arguments)
 					}
 					log.Error("Agent.RunStream: tool %s failed: %v", tc.Name, execErr)
 				}
