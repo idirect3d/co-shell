@@ -903,6 +903,9 @@ const (
 	KeySettingCmd_695 = "setting_cmd_695"
 	KeySettingCmd_696 = "setting_cmd_696"
 	KeySettingCmd_697 = "setting_cmd_697"
+	// FEATURE-346: default vision intent for browser_screenshot when the tool
+	// call does not carry an intent argument (minimal recognition round).
+	KeyBrowserScreenshotVisionIntentDefault = "browser_screenshot_vision_intent_default"
 	KeySettingCmd_698 = "setting_cmd_698"
 	KeySettingCmd_699 = "setting_cmd_699"
 	KeySettingCmd_700 = "setting_cmd_700"

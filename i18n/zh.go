@@ -693,6 +693,8 @@ var zhMessages = map[string]string{
 	KeySettingCmd_695: "页面渲染后的 DOM HTML（%d 行, %d 字符）:\n%s\n\n⚠️ 已同时保存到文件 %s，之后可用 read_file 随时读取。",
 	KeySettingCmd_696: "页面渲染后的 DOM HTML 内容较大（%d 行, %d 字符），已保存到文件:\n  %s\n\n这是经过所有 JavaScript 渲染后的最终 DOM HTML，无需再下载 JS、JSON 或其他资源。\n你可以使用 read_file 工具读取此文件内容进行分析。\n你可以通过 `.set browser-max-html-size` 调整大小限制（当前: %d 字节 ≈ %d KB）。",
 	KeySettingCmd_697: "向下",
+	// FEATURE-346: browser_screenshot 无 intent 参数时的默认识别指令
+	KeyBrowserScreenshotVisionIntentDefault: "分析这张浏览器截图，识别页面内容、布局和关键元素，并报告相关发现。",
 	KeySettingCmd_698: "已%s滚动 %.0f 像素。请使用 browser_screenshot 查看滚动后的页面内容。",
 	KeySettingCmd_699: "页面可交互元素信息:\n%s\n\n你可以根据这些元素的位置坐标（centerX, centerY）使用 browser_click 工具进行点击，或使用 browser_type 工具输入文本。如果页面布局发生变化，可以重新调用此工具获取最新信息。",
 	KeySettingCmd_700: "已返回上一页。\n当前URL: %s\n标题: %s",
