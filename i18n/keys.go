@@ -1401,13 +1401,14 @@ const (
 	KeyCol3ErrorMaxTypeCount   = "col3_error_max_type_count"
 
 	// Loop judgment settings (FEATURE-241)
-	KeyCol3LoopJudgeEnabled  = "col3_loop_judge_enabled"
-	KeyCol3LoopJudgeModel    = "col3_loop_judge_model"
-	KeyLoopJudgeSystemPrompt = "loop_judge_system_prompt"
-	KeyLoopJudgeUserPrompt   = "loop_judge_user_prompt"
-	KeyLoopJudgeFallback     = "loop_judge_fallback"
-	KeySettingsDescLoopJudge = "settings_desc_loop_judge"
-	KeyCol3ShowLoopDetection = "col3_show_loop_detection"
+	KeyCol3LoopJudgeEnabled      = "col3_loop_judge_enabled"
+	KeyCol3LoopJudgeModel        = "col3_loop_judge_model"
+	KeyLoopJudgeSystemPrompt     = "loop_judge_system_prompt"
+	KeyProblemSolverSystemPrompt = "problem_solver_system_prompt"
+	KeyLoopJudgeUserPrompt       = "loop_judge_user_prompt"
+	KeyLoopJudgeFallback         = "loop_judge_fallback"
+	KeySettingsDescLoopJudge     = "settings_desc_loop_judge"
+	KeyCol3ShowLoopDetection     = "col3_show_loop_detection"
 
 	// Loop detection settings (FIX-179)
 	KeyCol3LoopDetectEnabled     = "col3_loop_detect_enabled"
