@@ -1137,7 +1137,9 @@
 
 ### 功能清单
 
-- [ ] FEATURE-342 问题判定优化（统一问题判定机制）：
+- [x] FEATURE-342 问题判定优化（统一问题判定机制）：[BUILD-385]
+  - 验收：`go build ./...`、`go vet ./agent/ ./cmd/ ./i18n/`、`go test ./agent/ ./i18n/` 全绿；problem_solver_test.go 8 个单测通过；用例 FEATURE-342-UC-0001~0033 设计完成；编译产物 [BUILD-385]（work/co-shell）
+  - 遗留：动作执行层（suggested_action 分发到 run_stream/loop 的 delete/compact/notify 路径）与降级保护降级链在 M3 之后继续实施（当前 judgeLoop 已接入报告路径，纯文本回退保留）
   - 问题模型优先级链：模式绑定的 ProblemModelID > 全局 default-problem-model > 全局 default-tool-model > 当前活跃模型
   - 新增全局配置 default-problem-model / default-tool-model（可手动设置，未设置时自动计算：ToolCall 第二高/最高优先），:set 从只读变为可配置
   - 新增 report_problem 工具（单工具强制 tool_choice）：类型枚举 [no_anomaly, loop, tool_format_error, context_overflow, llm_connection_error, unknown]，含 error_detail/reason/guidance/suggested_action
