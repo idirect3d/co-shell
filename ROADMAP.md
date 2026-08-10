@@ -6,10 +6,10 @@
 
 ## 当前版本
 
-> **版本**: v0.7.5
+> **版本**: v0.7.6
 
-> **状态**: 🚧 开发中（视觉识别上下文隔离）
-> **里程碑**: 视觉识别 minimal/full 上下文模式改造（识别轮独立调用 + 结果回填工具返回 + 系统上下文隔离）
+> **状态**: 🚧 开发中（输入统一 InputSource + Windows 补齐）
+> **里程碑**: 输入统一（InputSource）+ Windows 补齐
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -21,8 +21,8 @@
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
 | FEATURE-342 | 0.7.4 | P1 | ✅ 已完成（问题判定优化 + report_problem 工具 [BUILD-385]） |
 | FEATURE-343 | 0.7.5 | P1 | ✅ 已完成（视觉识别上下文隔离 [BUILD-386]） |
-| FEATURE-345 | 0.7.5 | P1 | 异常场景接入问题判定（tool_format_error/context_overflow/llm_connection_error 走 report_problem） |
-| FEATURE-306 | 0.7.5 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
+| FEATURE-345 | 0.7.5 | P1 | ✅ 已完成（异常场景接入问题判定 [BUILD-389]） |
+| FEATURE-306 | 0.7.6 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
 | FEATURE-307 | 0.7.6 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.7 | tui v2 | FullScreenRenderer（可选分支） |
 
@@ -1154,9 +1154,9 @@
 
 ## v0.7.5 — 视觉识别上下文隔离
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（2026-08-10）
 > **目标日期**: 2026-08-10
-> **里程碑**: 视觉识别 minimal/full 上下文模式改造（识别轮独立调用 + 结果回填工具返回 + 系统上下文隔离）
+> **里程碑**: 视觉识别 minimal/full 上下文模式改造（识别轮独立调用 + 结果回填工具返回 + 系统上下文隔离）+ 问题判定异常场景接入
 
 ### 功能清单
 
@@ -1184,6 +1184,18 @@
   - 补充修复：:set default-problem-model/default-tool-model 支持 auto 值清空恢复自动计算（原先仅 none/-）
   - 测试：agent/problem_solver_test.go 新增 TestApplyProblemAction/TestSolveProblem_Gated/TestBuildProblemSolverUserPrompt；use-case/FEATURE-345/FEATURE-345-UC-0001.md（10 用例）
   - 验收：`go build ./...`、`go vet ./agent/ ./cmd/ ./i18n/`、`go test ./agent/ ./i18n/ ./cmd/` 全绿；编译产物 [BUILD-389]（work/co-shell）
+
+## v0.7.6 — 输入统一
+
+> **状态**: 🚧 开发中
+> **目标日期**: 2026-08-12
+> **里程碑**: 输入统一（InputSource）+ Windows 补齐
+
+### 功能清单
+
+- [ ] FEATURE-306 输入统一（InputSource）+ Windows 补齐
+  - 背景：v0.7.5 完成（视觉隔离 + 问题判定异常场景接入），FEATURE-306 顺延至 v0.7.6
+  - 目标：统一 REPL/单次执行/子命令的输入源抽象（InputSource），补齐 Windows 平台输入兼容
 
 ## v1.0.0 — 正式版
 
