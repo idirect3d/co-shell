@@ -565,6 +565,48 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	return strings.Join(sections, "")
 }
 
+// resolveAgentDescription returns the agent description for the current work
+// mode using the same priority chain as the main system prompt:
+//  1. ModeDescriptions[workMode]
+//  2. cfg.LLM.AgentDescription
+//  3. mode-specific i18n default (act/plan/research)
+//  4. global i18n default
+//
+// FEATURE-346: used by the minimal recognition round so the vision model also
+// receives the agent identity description.
+func resolveAgentDescription(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	workMode := cfg.LLM.WorkMode
+	if workMode == "" {
+		workMode = "act"
+	}
+	if cfg.LLM.ModeDescriptions != nil {
+		if md, ok := cfg.LLM.ModeDescriptions[workMode]; ok && md != "" {
+			return md
+		}
+	}
+	if cfg.LLM.AgentDescription != "" {
+		return cfg.LLM.AgentDescription
+	}
+	switch workMode {
+	case "plan":
+		if d := i18n.T(i18n.KeyAgentDefaultDescriptionPlan); d != "" && d != i18n.KeyAgentDefaultDescriptionPlan {
+			return d
+		}
+	case "research":
+		if d := i18n.T(i18n.KeyAgentDefaultDescriptionResearch); d != "" && d != i18n.KeyAgentDefaultDescriptionResearch {
+			return d
+		}
+	default:
+		if d := i18n.T(i18n.KeyAgentDefaultDescriptionAct); d != "" && d != i18n.KeyAgentDefaultDescriptionAct {
+			return d
+		}
+	}
+	return i18n.T(i18n.KeyAgentDefaultDescription)
+}
+
 // buildVisionIdentityPrompt returns a minimal system prompt containing ONLY the
 // Identity section, used for the vision recognition round in minimal
 // vision-context mode (FEATURE-343). The visual model performing recognition
@@ -593,7 +635,7 @@ func buildVisionIdentityPrompt(cfg *config.Config) string {
 	if env.agentName == "" {
 		env.agentName = "co-shell"
 	}
-	env.agentDescription = cfg.LLM.AgentDescription
+	env.agentDescription = resolveAgentDescription(cfg)
 	env.agentPrinciples = cfg.LLM.AgentPrinciples
 	env.userName = cfg.LLM.UserName
 	if env.userName == "" {

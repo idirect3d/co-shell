@@ -617,14 +617,14 @@ Usage:
 </{XML_TAG_PREFIX}browser_navigate>`
 
 	zhMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
-Description: 对通过 browser_navigate 打开的当前浏览器页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。配合 browser_get_interactive_elements 可实现精确操作。
+Description: 对通过 browser_navigate 打开的当前浏览器页面截图并缓存，供视觉模型分析。截图会自动注入到多模态上下文中。intent 参数将作为截图的视觉识别指令，请写出具体的分析目标（要提取/核对哪些信息），而不是模糊的请求。配合 browser_get_interactive_elements 可实现精确操作。
 Parameters:
-- intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
+- intent (必需) 作为截图的视觉识别指令，请写明具体分析要求，明确需要从页面中提取/核对哪些信息（例如："识别页面标题、导航菜单项和主要内容"、"核对表单字段及其可见标签"）。避免"查看页面"之类的模糊表述。
 - quality (可选, 默认80) 截图质量 1-100
 - full_page (可选, 默认false) 是否截取完整页面
 Usage:
 <{XML_TAG_PREFIX}browser_screenshot>
-  <{XML_TAG_PREFIX}intent>需要截取当前页面以便分析页面布局</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}intent>识别页面标题、导航菜单项和主内容区文字，并报告可交互元素</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}quality>90</{XML_TAG_PREFIX}quality>
   <{XML_TAG_PREFIX}full_page>true</{XML_TAG_PREFIX}full_page>
 </{XML_TAG_PREFIX}browser_screenshot>`
