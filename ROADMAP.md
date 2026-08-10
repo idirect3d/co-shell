@@ -1124,9 +1124,9 @@
   - 验收：`go build ./...`、`go vet ./cmd/ ./agent/`、`go test ./cmd/ ./agent/ ./i18n/` 全绿；audit Hardcoded Chinese=0 / i18n keys missing=0；用例 FEATURE-340-UC-0001~0005 通过；编译产物 [BUILD-383]（work/co-shell）
 - [x] FIX-341 show-parse-error-raw 未覆盖 OpenAI 模式 JSON 解析错误路径：[BUILD-384]
   - 根因：`show-parse-error-raw` 开关（FEATURE-336）的原始报文显示逻辑只加在 `run_stream.go` 的 XML 解析错误分支（taskInstructionCache 的 raw 字段，第 644/720 行），未覆盖 OpenAI（非 XML）模式下工具参数 JSON 解析失败分支——`executeToolCall` 返回 `cannot parse tool arguments: %w` 时走 `run_stream.go` 第 1074 行 FIX-314/317 分支，只输出 `KeyToolExecRetry` 摘要（`tc.Name` + `execErr`），未打印原始参数 `tc.Arguments`，导致开关开了也不显示原始报文
-  - 修复：提取 `emitParseErrorRaw(cb, rawDetail)` 辅助方法（`ShowParseErrorRaw && rawDetail != ""` 时输出 `KeyXMLParseErrorRaw`），三处调用点统一复用——XML 分支 exit action、XML 分支 retry/prompt、OpenAI JSON 解析错误分支（新增，`rawDetail = tc.Arguments`）
+  - 修复：提取 `emitParseErrorRaw(cb, rawDetail)` 辅助方法（`ShowParseErrorRaw && rawDetail != ""` 时输出 `KeyXMLParseErrorRaw`），五处调用点统一复用——XML 分支 exit action、XML 分支 retry/prompt、OpenAI JSON 解析错误分支（`cannot parse tool arguments`，`rawDetail = tc.Arguments`）、工具执行失败汇聚点（非 XML 模式，覆盖 missing required / 坏路径 / SEARCH 不匹配等非语法错误）、parse-error-action=exit 分支
   - 新增 `agent/fix341_test.go` 单测 4 个（开关开启输出原始报文/开关关闭不输出/raw 空串不输出/nil cfg 不 panic）
-  - 验收：`go build ./...`、`go vet ./agent/`、`go test ./agent/ ./repl/ ./i18n/` 全绿；用例 FIX-341-UC-0001~0004 通过；编译产物 [BUILD-384]（work/co-shell）
+  - 验收：`go build ./...`、`go vet ./agent/`、`go test ./agent/ ./repl/ ./i18n/` 全绿；用例 FIX-341-UC-0001~0006 通过；编译产物 [BUILD-384]（work/co-shell）
 
 ## v1.0.0 — 正式版
 
