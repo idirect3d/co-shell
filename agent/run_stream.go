@@ -290,24 +290,26 @@ iterationLoop:
 		}
 
 	afterESC:
-		// FEATURE-343: vision recognition round — the current LLM call was the
-		// dedicated OCR/vision pass (system=Identity-only, tools=[]). Backfill
-		// the visual model's output as the visual_analysis tool result and do
-		// NOT append an assistant message to the main conversation history.
-		// The recognition round's input (intent + images) is NOT persisted;
-		// only the tool result is, so the main model sees
-		//   assistant(tool_calls: visual_analysis) → tool(user)/user(识别结果)
+		// FEATURE-343 + FEATURE-346: vision recognition round — the current LLM
+		// call was the dedicated OCR/vision pass (system=Identity-only,
+		// tools=[]). Backfill the visual model's output as the vision tool's
+		// (visual_analysis / browser_screenshot) result and do NOT append an
+		// assistant message to the main conversation history. The recognition
+		// round's input (intent + images) is NOT persisted; only the tool
+		// result is, so the main model sees
+		//   assistant(tool_calls: <vision tool>) → tool(user)/user(识别结果)
 		// on the next iteration.
 		a.mu.Lock()
 		isRecognitionRound := a.visionRecognitionActive
-		var toolID string
+		var toolID, toolName string
 		if isRecognitionRound {
 			a.visionRecognitionActive = false
 			a.visionRecognitionExecuted = true
 			toolID = a.lastVisionToolCallID
+			toolName = a.lastVisionToolCallName
 			// FEATURE-343: clear the pending intent after the recognition round
-			// so a later browser_screenshot-only flow (no visual_analysis) does
-			// NOT accidentally trigger another minimal collapse.
+			// so a later text-only turn does NOT accidentally trigger another
+			// minimal collapse.
 			a.visionPendingIntent = ""
 		}
 		a.mu.Unlock()
@@ -318,6 +320,9 @@ iterationLoop:
 				recognitionContent = fmt.Sprintf(i18n.TF(i18n.KeyVisionRecognitionFailed), streamErr)
 			} else if strings.TrimSpace(recognitionContent) == "" {
 				recognitionContent = i18n.T(i18n.KeyVisionRecognitionEmpty)
+			}
+			if toolName == "" {
+				toolName = "visual_analysis"
 			}
 
 			isXML := false
@@ -330,12 +335,12 @@ iterationLoop:
 
 			if isXML {
 				// XML mode: recognition result as a user tool-result message.
-				toolResultMsg := a.buildXMLToolResultMessage("visual_analysis", "", recognitionContent, len(a.messages))
+				toolResultMsg := a.buildXMLToolResultMessage(toolName, "", recognitionContent, len(a.messages))
 				a.mu.Lock()
 				a.messages = append(a.messages, toolResultMsg)
 				a.mu.Unlock()
 			} else {
-				// OpenAI mode: backfill as the visual_analysis tool message.
+				// OpenAI mode: backfill as the vision tool's tool message.
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
 					Role:       "tool",
@@ -347,7 +352,7 @@ iterationLoop:
 			// Attach <environment_details> to the backfilled result.
 			a.injectTimeAndMessageNoToLast()
 
-			log.Info("Agent.RunStream: FEATURE-343 recognition round completed, backfilled visual_analysis result (%d bytes)", len(recognitionContent))
+			log.Info("Agent.RunStream: FEATURE-343 recognition round completed, backfilled %s result (%d bytes)", toolName, len(recognitionContent))
 			// Continue to the next iteration so the main model can see the
 			// recognition result and act on it; the loop will exit naturally
 			// when the main model reaches a final answer.

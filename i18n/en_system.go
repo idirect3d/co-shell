@@ -597,14 +597,14 @@ Usage:
 </{XML_TAG_PREFIX}browser_navigate>`
 
 	enMessages[KeyToolUsageBrowserScreenshot] = `## browser_screenshot
-Description: Capture a screenshot of the browser page currently navigated to via browser_navigate, and cache it for multimodal analysis. The screenshot is automatically injected into the multimodal context. Use with browser_get_interactive_elements for precise operations.
+Description: Capture a screenshot of the browser page currently navigated to via browser_navigate, and cache it for multimodal analysis. The screenshot is automatically injected into the multimodal context. The intent parameter serves as the vision-recognition instruction for the screenshot, so state a specific analysis goal (what to extract/verify) rather than a vague request. Use with browser_get_interactive_elements for precise operations.
 Parameters:
-- intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
+- intent (required) Serves as the vision-recognition instruction for the screenshot. Write a concrete analysis request describing what to extract or verify from the page (e.g., "identify the page title, navigation menu items, and main content"; "verify the form fields and their visible labels"). Avoid vague requests like "view the page".
 - quality (optional, default 80) Screenshot quality 1-100
 - full_page (optional, default false) Whether to capture the full page
 Usage:
 <{XML_TAG_PREFIX}browser_screenshot>
-  <{XML_TAG_PREFIX}intent>Need to capture the current page to analyze the layout</{XML_TAG_PREFIX}intent>
+  <{XML_TAG_PREFIX}intent>Identify the page title, navigation menu items, and main content text, and report interactive elements</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}quality>90</{XML_TAG_PREFIX}quality>
   <{XML_TAG_PREFIX}full_page>true</{XML_TAG_PREFIX}full_page>
 </{XML_TAG_PREFIX}browser_screenshot>`

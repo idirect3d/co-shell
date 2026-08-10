@@ -114,6 +114,44 @@ func detectMediaType(ext string) (mimeType string, partType llm.ContentPartType)
 	}
 }
 
+// encodeMediaContentPart resolves a media file path (relative to cwd when
+// needed), reads it, and returns a base64 data-URI ContentPart. It returns
+// ok=false when the file cannot be resolved or read so callers can skip it
+// with a warning (FEATURE-346).
+func encodeMediaContentPart(mediaPath string) (part llm.ContentPart, ok bool) {
+	absPath := mediaPath
+	if !filepath.IsAbs(mediaPath) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Warn("encodeMediaContentPart: cannot get cwd for %q: %v", mediaPath, err)
+			return part, false
+		}
+		absPath = filepath.Join(cwd, mediaPath)
+	}
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		log.Warn("encodeMediaContentPart: cannot read file %q: %v", mediaPath, err)
+		return part, false
+	}
+	ext := strings.ToLower(filepath.Ext(absPath))
+	mimeType, partType := detectMediaType(ext)
+	base64Data := base64.StdEncoding.EncodeToString(data)
+	dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+	if partType == llm.ContentPartVideoURL {
+		return llm.ContentPart{
+			Type:     llm.ContentPartVideoURL,
+			VideoURL: &llm.ContentPartVideo{URL: dataURI},
+		}, true
+	}
+	return llm.ContentPart{
+		Type: llm.ContentPartImageURL,
+		ImageURL: &llm.ContentPartImage{
+			URL:    dataURI,
+			Detail: "auto",
+		},
+	}, true
+}
+
 // buildMultimodalMessage creates a Message with multimodal content from text and media file paths.
 // Images and videos are read from disk and encoded as base64 data URIs.
 func (a *Agent) buildMultimodalMessage(text string, mediaPaths []string) (llm.Message, error) {

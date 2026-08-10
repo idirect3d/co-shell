@@ -711,6 +711,8 @@ var enMessages = map[string]string{
 	KeySettingCmd_695: "Rendered DOM HTML (%d lines, %d chars):\n%s\n\n⚠️ Also saved to file %s, you can read it anytime with read_file.",
 	KeySettingCmd_696: "The rendered DOM HTML content is large (%d lines, %d chars), saved to file:\n  %s\n\nThis is the final DOM HTML after all JavaScript rendering, no need to download JS, JSON or other resources.\nYou can use the read_file tool to read this file for analysis.\nYou can adjust the size limit via `.set browser-max-html-size` (current: %d bytes ≈ %d KB).",
 	KeySettingCmd_697: "down",
+	// FEATURE-346: default recognition intent when browser_screenshot is called without an intent argument
+	KeyBrowserScreenshotVisionIntentDefault: "Analyze this browser screenshot, identify the page content, layout, and key elements, and report relevant findings.",
 	KeySettingCmd_698: "Scrolled %s %.0f pixels. Please use browser_screenshot to view the page content after scrolling.",
 	KeySettingCmd_699: "Interactive elements info:\n%s\n\nYou can click using the browser_click tool with these element position coordinates (centerX, centerY), or use the browser_type tool to enter text. If the page layout changes, call this tool again to get the latest info.",
 	KeySettingCmd_700: "Went back to previous page.\nCurrent URL: %s\nTitle: %s",
