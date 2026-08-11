@@ -736,6 +736,8 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 
 	// Write LLM interaction log (full response body as formatted JSON)
 	log.WriteLLMInteraction("RESP", prettyJSON(respBytes))
+	// FEATURE-347: preserve the raw response body verbatim at DEBUG level.
+	log.Debug("LLM Chat raw response: %s", string(respBytes))
 
 	// Parse response
 	var chatResp chatResponseJSON
@@ -965,6 +967,15 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 				return
 			}
 
+			// FEATURE-347: preserve the raw SSE line verbatim at DEBUG level
+			// BEFORE any parsing, so the original LLM chunk is always available
+			// for troubleshooting (e.g. tool-call arguments truncated mid-JSON).
+			// Empty lines (SSE event separators) are skipped to avoid noise;
+			// parse-failing lines and [DONE] are logged like everything else.
+			if len(line) > 0 {
+				log.Debug("LLM ChatStream raw chunk: %s", string(line))
+			}
+
 			// Parse the SSE line
 			event, parseErr := parseSSELine(line)
 			if parseErr != nil {
@@ -997,7 +1008,10 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 			}
 
 			if event.Content != "" {
-				log.Raw("%s", event.Content)
+				// FEATURE-347: raw chunk logging (added above) already carries the
+				// complete original data line including this content, so the legacy
+				// log.Raw content echo is removed to avoid interleaving prefix-less
+				// text lines between raw-chunk lines in the log.
 				eventCh <- StreamEvent{
 					Type:    StreamEventContent,
 					Content: event.Content,
