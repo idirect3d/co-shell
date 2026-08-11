@@ -1208,6 +1208,15 @@
     - i18n keys/zh/en + zh_system/en_system：默认识别指令 + browser_screenshot intent 引导说明（指导性指令）
   - 编号说明：FEATURE-23 与历史 ENHANCEMENT-23 冲突，改用未使用的最小编号 FEATURE-346
   - 测试：agent/fix346_test.go 6 单测 + use-case/FEATURE-346/FEATURE-346-UC-0001.md（31 用例）；go build/vet/test 全绿；audit Hardcoded Chinese=0 / i18n keys missing=0；cc 编译 co-shell v0.7.6 [BUILD-390]
+- [x] FEATURE-347 log=debug 时第一时间输出原始 LLM chunk
+  - 背景：ChatStream 读循环（llm/client.go:922-976）中 reader.Read() 拿到的原始 SSE 行在 parseSSELine 之前无任何日志输出；解析失败的行、[DONE]、心跳/空行被静默丢弃（continue）。llm-interaction 日志的 RESP][assistant / RESP][tool_calls 是按解析后字段重组的内容流，不是绝对原始 chunk。排查"工具参数被截断"（如 deepseek-v4-flash 在高上下文下于 `"replacements":` 处停笔，co-flow 08-11 单日 132 次 unexpected end of JSON input）时无法在日志层直接确认原始帧
+  - 目标：log level=debug 时，在 ChatStream 读循环中、parseSSELine 之前逐行输出每条原始 SSE chunk（含 `data: ` 前缀与换行剥离后的完整行），覆盖正常 data 行 / [DONE] / 解析失败行；空行（SSE 事件分隔符）跳过避免刷屏。原则上输出所有 LLM 返回的原始内容
+  - 实现：
+    - llm/client.go：ChatStream 读循环在 parseSSELine(line) 之前加 `log.Debug("LLM ChatStream raw chunk: %s", string(line))`，空行跳过
+    - llm/client.go：非流式 Chat 加 `log.Debug("LLM Chat raw response: %s", string(respBytes))`
+    - llm/client.go：移除 legacy `log.Raw("%s", event.Content)` content 裸输出——raw chunk 已含完整 data 行（含 content），避免无前缀文本插入 raw chunk 行之间造成"凑在一起"观感（诊断：慢速 SSE 实测每帧到达 ~10ms 内逐行写入，co-shell 层实时；co-flow 真实日志粘连由 log.Raw 引起）
+  - 编号说明：FEATURE/FIX 系列最小编号 24 与历史 ENHANCEMENT-24 冲突；217/268/282 与本地历史分支同名冲突，故顺延使用 FEATURE-347（符合 FEATURE-346 先例）
+  - 测试：llm/feature347_test.go 12 用例（debug 逐字节输出/info 不输出/[DONE] 输出/空行跳过/解析失败行仍输出/混合帧保真/帧序/API key 不泄露/非流式响应/SetLevel 随动/无裸 content 粘连）+ use-case/FEATURE-347/FEATURE-347-UC-0001.md（13 用例）；go build/vet/test 全绿 [BUILD-393]
 
 ## v1.0.0 — 正式版
 
