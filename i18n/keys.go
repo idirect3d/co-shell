@@ -168,8 +168,6 @@ const (
 	KeyErrActionChoose        = "err_action_choose"
 	KeyErrIgnoredContinue     = "err_ignored_continue"
 	KeyErrRetryContinue       = "err_retry_continue"
-	KeyLoopJudgePrompt        = "loop_judge_prompt"
-	KeyLoopJudgeResponse      = "loop_judge_response"
 	KeyLoopDetectEvent        = "loop_detect_event"
 	KeyLoopJudgeNotLoop       = "loop_judge_not_loop"
 	KeyLoopJudgeDisabled      = "loop_judge_disabled"
@@ -1413,11 +1411,11 @@ const (
 	// Loop judgment settings (FEATURE-241)
 	KeyCol3LoopJudgeEnabled      = "col3_loop_judge_enabled"
 	KeyCol3LoopJudgeModel        = "col3_loop_judge_model"
-	KeyLoopJudgeSystemPrompt     = "loop_judge_system_prompt"
 	KeyProblemSolverSystemPrompt = "problem_solver_system_prompt"
 	KeyProblemSolverUserPrompt   = "problem_solver_user_prompt"
 	KeyLoopJudgeUserPrompt       = "loop_judge_user_prompt"
 	KeyLoopJudgeFallback         = "loop_judge_fallback"
+	KeyLoopFailedStrategiesNone  = "loop_failed_strategies_none" // FEATURE-349
 	KeySettingsDescLoopJudge     = "settings_desc_loop_judge"
 	KeyCol3ShowLoopDetection     = "col3_show_loop_detection"
 
