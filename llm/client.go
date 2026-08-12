@@ -902,14 +902,19 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		return nil, fmt.Errorf("%s (request=%d bytes, %s)", errMsg, len(bodyBytes), requestSummary(bodyBytes))
 	}
 
-	eventCh := make(chan StreamEvent, 100)
+	eventCh := make(chan StreamEvent, 1024)
 
 	go func() {
 		defer close(eventCh)
 		defer resp.Body.Close()
 		defer log.WriteLLMInteractionEnd()
 
-		reader := NewStreamReader(resp.Body)
+		// FIX-348 (diagnostics): wrap the response body so every raw socket
+		// read is logged at DEBUG level BEFORE StreamReader assembles lines.
+		// Unlike the "raw chunk" log (which only sees lines that survive
+		// StreamReader.Read), this records the SSE byte stream exactly as it
+		// arrives, including partial segments of frames larger than one read.
+		reader := NewStreamReader(&wireLogReader{r: resp.Body})
 		// Accumulate tool calls from stream deltas.
 		// SSE tool_calls are sent in chunks: first chunk has ID+Name,
 		// subsequent chunks have arguments fragments for the same index.
@@ -920,6 +925,130 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 		// FEATURE-235: track whether the [RESP][tool_calls header has been
 		// written for the current interaction's tool-call arguments stream.
 		toolCallHeaderWritten := false
+
+		// FIX-348: pendingEventBuf is a FIFO queue for events that cannot be
+		// delivered because the consumer is temporarily slow. Sending through
+		// sendEvent is non-blocking so the read loop (and thus the raw-chunk
+		// logging) is never stalled by a slow consumer; queued events are
+		// replayed in order once the channel has room again.
+		pendingEventBuf := make([]StreamEvent, 0, 64)
+		flushPendingEvents := func() {
+			for len(pendingEventBuf) > 0 {
+				select {
+				case eventCh <- pendingEventBuf[0]:
+					pendingEventBuf = pendingEventBuf[1:]
+				default:
+					return
+				}
+			}
+		}
+		sendEvent := func(ev StreamEvent) {
+			flushPendingEvents()
+			select {
+			case eventCh <- ev:
+			default:
+				pendingEventBuf = append(pendingEventBuf, ev)
+			}
+		}
+
+		// FIX-348: pendingData reassembles an SSE data frame that spans
+		// multiple physical lines (the upstream emitted real newlines inside
+		// a JSON string value, e.g. multi-line tool-call arguments). It holds
+		// the unfinished "data: " line and is extended with continuation lines
+		// until the JSON parses, an empty line (SSE event boundary) arrives,
+		// or a new "data: " frame begins.
+		pendingData := make([]byte, 0, 256)
+
+		// FIX-348 (plan B): track whether the stream is currently inside a
+		// tool-call arguments sequence. Once the first tool_calls delta is
+		// seen, every subsequent physical line (data frames, bare continuation
+		// lines, malformed or cross-line fragments) is appended to the
+		// [RESP][tool_calls interaction log in real time — decoupled from
+		// parsing success, so nothing the LLM returns is ever swallowed.
+		inToolCallStream := false
+
+		// handleEvent routes one fully-parsed SSE event into the interaction
+		// log and the event channel (FIX-348 refactor: shared by single-line
+		// frames and reassembled cross-line frames).
+		handleEvent := func(event *streamEventJSON) {
+			// Real-time RESP content logging: first chunk gets [RESP][assistant] header,
+			// subsequent chunks directly append to the same line.
+			if event.Content != "" {
+				if !respHeaderWritten {
+					log.WriteLLMInteraction("RESP][assistant", event.Content)
+					respHeaderWritten = true
+				} else {
+					log.WriteLLMInteractionAppend(event.Content)
+				}
+			}
+			if event.Usage != nil {
+				finalUsage = event.Usage
+			}
+
+			if event.ReasoningContent != "" {
+				sendEvent(StreamEvent{
+					Type:    StreamEventReasoning,
+					Content: event.ReasoningContent,
+				})
+			}
+
+			if event.Content != "" {
+				// FIX-348/FEATURE-347: raw chunk logging already carries the
+				// complete original data line including this content, so no
+				// prefix-less content echo is emitted here.
+				sendEvent(StreamEvent{
+					Type:    StreamEventContent,
+					Content: event.Content,
+				})
+			}
+
+			if len(event.ToolCalls) > 0 {
+				for _, tc := range event.ToolCalls {
+					// Use index to identify which tool call this delta belongs to.
+					if tc.Index < 0 {
+						// Complete tool call (non-streaming fallback).
+						tcCopy := tc
+						sendEvent(StreamEvent{
+							Type:     StreamEventToolCall,
+							ToolCall: &tcCopy,
+						})
+					} else {
+						// Delta chunk - accumulate.
+						existing, exists := accumulatedToolCalls[tc.Index]
+						if !exists {
+							accumulatedToolCalls[tc.Index] = &ToolCall{
+								ID:   tc.ID,
+								Name: tc.Name,
+							}
+						} else {
+							if tc.ID != "" {
+								existing.ID = tc.ID
+							}
+							if tc.Name != "" {
+								existing.Name = tc.Name
+							}
+							if tc.Arguments != "" {
+								existing.Arguments += tc.Arguments
+								if !toolCallHeaderWritten {
+									// FIX-348 (plan B): [RESP][tool_calls is now logged in real time by the read loop
+									toolCallHeaderWritten = true
+								} else {
+									// FIX-348 (plan B): duplicate log removed
+								}
+							}
+						}
+						sendEvent(StreamEvent{
+							Type: StreamEventToolCallDelta,
+							ToolCallDelta: &ToolCallDelta{
+								Index:     tc.Index,
+								Name:      tc.Name,
+								Arguments: tc.Arguments,
+							},
+						})
+					}
+				}
+			}
+		}
 
 		for {
 			line, err := reader.Read()
@@ -941,10 +1070,10 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 							log.Warn("ChatStream: skipping accumulated tool call with empty name or ID (name=%q, id=%q, args=%q)", tc.Name, tc.ID, tc.Arguments)
 							continue
 						}
-						eventCh <- StreamEvent{
+						sendEvent(StreamEvent{
 							Type:     StreamEventToolCall,
 							ToolCall: tc,
-						}
+						})
 					}
 					// Convert finalUsage to TokenUsage for the Done event
 					var doneUsage *TokenUsage
@@ -955,15 +1084,15 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 							TotalTokens:      finalUsage.TotalTokens,
 						}
 					}
-					eventCh <- StreamEvent{
+					sendEvent(StreamEvent{
 						Type:         StreamEventDone,
 						FinishReason: finishReason,
 						Done:         true,
 						Usage:        doneUsage,
-					}
+					})
 					return
 				}
-				eventCh <- StreamEvent{Type: StreamEventError, Err: err}
+				sendEvent(StreamEvent{Type: StreamEventError, Err: err})
 				return
 			}
 
@@ -974,106 +1103,103 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 			// parse-failing lines and [DONE] are logged like everything else.
 			if len(line) > 0 {
 				log.Debug("LLM ChatStream raw chunk: %s", string(line))
+				// FIX-348 (plan B): real-time full logging of the tool-call
+				// arguments stream — every physical line received while inside
+				// a tool-call sequence is appended to the interaction log
+				// BEFORE parsing, so malformed/cross-line/bare-line content is
+				// never swallowed.
+				if inToolCallStream {
+					logContent := string(line)
+					if len(line) >= 6 && string(line[:6]) == "data: " {
+						logContent = string(line[6:])
+					}
+					if !toolCallHeaderWritten {
+						log.WriteLLMInteraction("RESP][tool_calls", logContent)
+						toolCallHeaderWritten = true
+					} else {
+						log.WriteLLMInteractionAppend(logContent)
+					}
+				}
+			}
+
+			// FIX-348: SSE cross-line data frame reassembly. Some upstreams
+			// (e.g. vLLM) emit tool-call arguments whose JSON string values
+			// contain real newlines, which makes a single SSE data frame span
+			// multiple physical lines. StreamReader splits on '\n', so the
+			// first line fails JSON parsing and continuation lines (no "data: "
+			// prefix) would be silently dropped. Buffer the unfinished frame
+			// and rejoin continuation lines until the JSON completes.
+			if len(pendingData) > 0 {
+				if len(line) == 0 {
+					// SSE event boundary: drop the unfinished frame.
+					pendingData = pendingData[:0]
+					continue
+				}
+				if len(line) >= 6 && string(line[:6]) == "data: " {
+					// A new data frame begins; the old one was malformed.
+					pendingData = pendingData[:0]
+				} else {
+					// Continuation line: rejoin with the real newline.
+					pendingData = append(pendingData, '\n')
+					pendingData = append(pendingData, line...)
+					if ev, perr := parseSSELine(pendingData); perr == nil && ev != nil {
+						handleEvent(ev)
+						pendingData = pendingData[:0]
+					}
+					continue
+				}
+			}
+
+			if len(line) == 0 {
+				continue
+			}
+			if len(line) < 6 || string(line[:6]) != "data: " {
+				// Bare line (no "data: " prefix) with no unfinished frame
+				// pending. Since the StreamReader root fix, frames arrive
+				// whole, so a bare line here is noise (or the residue of an
+				// upstream protocol violation) — ignore it. Appending it to
+				// the accumulated tool-call arguments (the earlier FIX-348
+				// fallback) was removed: it only ever fired after frame data
+				// had already been lost, and it fed SSE frame trailers into
+				// the arguments, breaking the downstream streaming parser.
+				continue
 			}
 
 			// Parse the SSE line
 			event, parseErr := parseSSELine(line)
 			if parseErr != nil {
+				// Possibly the first line of a cross-line data frame whose
+				// JSON is incomplete. Buffer it and wait for continuation
+				// lines; malformed data is dropped at the next boundary.
+				pendingData = append(pendingData, line...)
 				continue
 			}
-
 			if event == nil {
 				continue
 			}
-
-			// Real-time RESP content logging: first chunk gets [RESP][assistant] header,
-			// subsequent chunks directly append to the same line (no timestamp, no header).
-			if event.Content != "" {
-				if !respHeaderWritten {
-					log.WriteLLMInteraction("RESP][assistant", event.Content)
-					respHeaderWritten = true
-				} else {
-					log.WriteLLMInteractionAppend(event.Content)
-				}
-			}
-			if event.Usage != nil {
-				finalUsage = event.Usage
-			}
-
-			if event.ReasoningContent != "" {
-				eventCh <- StreamEvent{
-					Type:    StreamEventReasoning,
-					Content: event.ReasoningContent,
-				}
-			}
-
-			if event.Content != "" {
-				// FEATURE-347: raw chunk logging (added above) already carries the
-				// complete original data line including this content, so the legacy
-				// log.Raw content echo is removed to avoid interleaving prefix-less
-				// text lines between raw-chunk lines in the log.
-				eventCh <- StreamEvent{
-					Type:    StreamEventContent,
-					Content: event.Content,
-				}
-			}
-
-			if len(event.ToolCalls) > 0 {
-				for _, tc := range event.ToolCalls {
-					// Use index to identify which tool call this delta belongs to
-					// If no index, treat as a complete tool call
-					if tc.Index < 0 {
-						// Complete tool call (non-streaming fallback)
-						tcCopy := tc
-						eventCh <- StreamEvent{
-							Type:     StreamEventToolCall,
-							ToolCall: &tcCopy,
-						}
+			// FIX-348 (plan B): track the tool-call arguments stream for the
+			// real-time interaction logging. The first tool_calls delta marks
+			// the stream start; its own line is backfilled here because the
+			// state is only known after parsing. finish_reason closes it.
+			if len(event.ToolCalls) > 0 && !inToolCallStream {
+				inToolCallStream = true
+				if len(line) > 0 {
+					logContent := string(line)
+					if len(line) >= 6 && string(line[:6]) == "data: " {
+						logContent = string(line[6:])
+					}
+					if !toolCallHeaderWritten {
+						log.WriteLLMInteraction("RESP][tool_calls", logContent)
+						toolCallHeaderWritten = true
 					} else {
-						// Delta chunk - accumulate
-						existing, exists := accumulatedToolCalls[tc.Index]
-						if !exists {
-							accumulatedToolCalls[tc.Index] = &ToolCall{
-								ID:   tc.ID,
-								Name: tc.Name,
-							}
-						} else {
-							if tc.ID != "" {
-								existing.ID = tc.ID
-							}
-							if tc.Name != "" {
-								existing.Name = tc.Name
-							}
-							if tc.Arguments != "" {
-								existing.Arguments += tc.Arguments
-								// FEATURE-235: record tool-call arguments as
-								// they arrive. First fragment writes a
-								// [RESP][tool_calls header; subsequent chunks
-								// append with no header — mirroring the content
-								// stream format. This exposes the provider's
-								// real SSE chunk granularity for diagnostics.
-								if !toolCallHeaderWritten {
-									log.WriteLLMInteraction("RESP][tool_calls", tc.Arguments)
-									toolCallHeaderWritten = true
-								} else {
-									log.WriteLLMInteractionAppend(tc.Arguments)
-								}
-							}
-						}
-						// FEATURE-235: emit an incremental delta event immediately
-						// so the agent can parse tool-call arguments in real time
-						// instead of waiting for the stream to finish.
-						eventCh <- StreamEvent{
-							Type: StreamEventToolCallDelta,
-							ToolCallDelta: &ToolCallDelta{
-								Index:     tc.Index,
-								Name:      tc.Name,
-								Arguments: tc.Arguments,
-							},
-						}
+						log.WriteLLMInteractionAppend(logContent)
 					}
 				}
 			}
+			if event.FinishReason != "" {
+				inToolCallStream = false
+			}
+			handleEvent(event)
 
 			// Track finish_reason from the stream
 			if event.FinishReason != "" {
@@ -1191,26 +1317,54 @@ func NewStreamReader(r io.Reader) *StreamReader {
 	}
 }
 
+// wireLogReader is an io.Reader wrapper that logs every raw read from the
+// underlying response body at DEBUG level (FIX-348 diagnostics). It answers
+// "what exactly arrived on the wire, and in what sizes" — in particular
+// whether the upstream emits SSE frames larger than StreamReader's 4096-byte
+// read buffer. %q escaping keeps newlines and partial UTF-8 segments visible
+// and unambiguous in the log.
+type wireLogReader struct {
+	r io.Reader
+}
+
+func (w *wireLogReader) Read(p []byte) (int, error) {
+	n, err := w.r.Read(p)
+	if n > 0 {
+		log.Debug("LLM ChatStream wire read: %d bytes: %q", n, string(p[:n]))
+	}
+	return n, err
+}
+
 // Read reads the next SSE line from the stream.
+//
+// FIX-348 root fix: a line is returned only after its terminating '\n' has
+// arrived; partial data stays in the buffer across socket reads and is never
+// discarded. The previous implementation called ReadBytes('\n') and dropped
+// the partial data it returned together with io.EOF, so any frame larger
+// than a single socket read (e.g. vLLM emitting a whole tool-call arguments
+// payload as one multi-KB frame) lost every segment but the last.
 func (sr *StreamReader) Read() ([]byte, error) {
 	for {
-		line, err := sr.reader.ReadBytes('\n')
-		if err == nil {
-			// Remove trailing \r if present
-			if len(line) > 1 && line[len(line)-2] == '\r' {
-				line = append(line[:len(line)-2], '\n')
+		if buf := sr.reader.Bytes(); len(buf) > 0 {
+			log.Debug("LLM ChatStream line buffer: %d bytes: %q", len(buf), string(buf))
+			if i := bytes.IndexByte(buf, '\n'); i >= 0 {
+				// Copy out: bytes.Buffer slices are invalidated by the
+				// next read/write on the buffer.
+				line := append([]byte(nil), buf[:i]...)
+				sr.reader.Next(i + 1)
+				// Remove trailing \r if present
+				if len(line) > 0 && line[len(line)-1] == '\r' {
+					line = line[:len(line)-1]
+				}
+				return line, nil
 			}
-			return line[:len(line)-1], nil
 		}
 
-		if err != io.EOF {
-			return nil, err
-		}
-
-		// Need to read more data
-		buf := make([]byte, 4096)
+		// Need more data
+		buf := make([]byte, 32*1024)
 		n, readErr := sr.rawReader.Read(buf)
 		if n > 0 {
+			log.Debug("LLM ChatStream socket read: %d bytes: %q", n, string(buf[:n]))
 			sr.reader.Write(buf[:n])
 			continue
 		}
@@ -1218,7 +1372,7 @@ func (sr *StreamReader) Read() ([]byte, error) {
 		if readErr != nil {
 			// Return any remaining data in buffer
 			if sr.reader.Len() > 0 {
-				line := sr.reader.Bytes()
+				line := append([]byte(nil), sr.reader.Bytes()...)
 				sr.reader.Reset()
 				return line, nil
 			}
