@@ -1217,6 +1217,17 @@
     - llm/client.go：移除 legacy `log.Raw("%s", event.Content)` content 裸输出——raw chunk 已含完整 data 行（含 content），避免无前缀文本插入 raw chunk 行之间造成"凑在一起"观感（诊断：慢速 SSE 实测每帧到达 ~10ms 内逐行写入，co-shell 层实时；co-flow 真实日志粘连由 log.Raw 引起）
   - 编号说明：FEATURE/FIX 系列最小编号 24 与历史 ENHANCEMENT-24 冲突；217/268/282 与本地历史分支同名冲突，故顺延使用 FEATURE-347（符合 FEATURE-346 先例）
   - 测试：llm/feature347_test.go 12 用例（debug 逐字节输出/info 不输出/[DONE] 输出/空行跳过/解析失败行仍输出/混合帧保真/帧序/API key 不泄露/非流式响应/SetLevel 随动/无裸 content 粘连）+ use-case/FEATURE-347/FEATURE-347-UC-0001.md（13 用例）；go build/vet/test 全绿 [BUILD-393]
+- [x] FIX-348 SSE 大帧被切分丢弃导致工具参数截断（unexpected end of JSON input / unbalanced closing brace）
+  - 背景：co-flow 08-11 单日 132 次 `cannot parse tool arguments: unexpected end of JSON input`，原始报文截断在 `"replacements": `；work 端 08-11 全部 write_to_file 大 content 调用失败。初判为"arguments 内含真实换行导致帧跨行"，08-11 晚 wire 级日志（wireLogReader，收到即记录原始字节）实测修正：**vLLM（deepseek-v4-flash-0731）把整个工具参数攒成单个 6.5~7.7KB 巨帧一次性发出**（工具名 chunk 后静默 ~38s，然后 3ms 内整帧到达），帧内**没有**真实换行；真正的数据丢失点是 `StreamReader.Read()`（BUILD-32 起从未改）——`bytes.Buffer.ReadBytes('\n')` 在缓冲区无换行时把已读出的部分行随 io.EOF 一起返回，而代码丢弃了它继续读，导致 >4096 字节的帧除最后一个分片外全部静默丢失（幸存者从 UTF-8 字符中间开始，即日志中的 `??` 前缀；帧尾 `"}}]},"logprobs":null,...` 结构完整证明帧在网络上是完整的）
+  - 目标：任意大小/任意分片的 SSE 帧完整重组，工具参数不截断；raw chunk 日志"收到即记录"不被 eventCh 发送阻塞拖累
+  - 实现：
+    - 方案A（根治数据丢失，已落地）：重写 `StreamReader.Read`——仅在缓冲区存在完整行（含 `\n`）时才返回，部分行保留在 buffer 中跨 read 累积，绝不丢弃；读缓冲 4096→32KB
+    - 方案A 配套（保留）：ChatStream 读循环 pendingData 跨行帧拼接——`data:` 行解析失败（不完整 JSON）时暂存，把后续无 `data:` 前缀的续行按真实换行拼回原帧，直到 JSON 完整或遇空行/新 data 帧（覆盖"帧内真实换行"场景）
+    - 方案A 扩展（裸行容错，已移除）：原先把裸行追加到当前工具调用 arguments 的兜底已删除——实测证明裸行并非上游行为，而是 StreamReader 丢帧头后的幸存尾巴；该兜底会把 SSE 帧尾垃圾喂给 FEATURE-235 流式解析器，报 `unbalanced closing brace/square bracket` 并中断流（work 端 20:08 后的报错形态）。裸行恢复为忽略
+    - 方案B（日志实时加固）：eventCh 发送改非阻塞 `sendEvent()`（先补发 FIFO pending 队列，select 非阻塞发送，满则入队）+ 缓冲 100→1024，保证读循环不被消费者慢拖住
+    - 方案B 扩展（interaction 日志与解析解耦）：读循环新增 `inToolCallStream` 状态（首个 tool_calls delta 置 true，finish_reason 置 false），在 tool_calls 流内**收到每个物理行**（data 帧/裸行/畸形/跨行片段）立即追加到 `RESP][tool_calls` interaction 日志（去 data 前缀），**与解析结果解耦**——不管 LLM 返回对错都实时记录；handleEvent 移除重复的 RESP][tool_calls 记录
+    - 诊断（保留）：wireLogReader 包装 resp.Body，每次底层 Read 返回即以 DEBUG 输出 `LLM ChatStream wire read: N bytes: %q`，记录真实到达字节流（%q 转义使换行/截断的 UTF-8 清晰可见）
+  - 测试：llm/fix348_test.go——跨行帧拼接、裸行忽略（原"裸行追加"用例改写）、单行回归、坏数据丢弃、慢消费者不丢事件/日志完整、裸行写 interaction 日志、**StreamReader 大帧分片重组（1/1000/4096/65536 字节分片各验证一遍，旧实现必挂）**、>4KB 单帧 arguments 端到端完整；go build/vet/test 全绿；use-case/FIX-348/FIX-348-UC-0001.md
 
 ## v1.0.0 — 正式版
 
