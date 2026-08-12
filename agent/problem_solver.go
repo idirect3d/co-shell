@@ -130,7 +130,7 @@ func reportProblemTool() llm.Tool {
 				},
 				"reason": map[string]interface{}{
 					"type":        "string",
-					"description": "Why you think this is (or is not) a problem.",
+					"description": "Why you think this is (or is not) a problem. For loop: also predict the exact content the main model is most likely to keep repeating next round (quote the repeated sample).",
 				},
 				"guidance": map[string]interface{}{
 					"type":        "string",
@@ -234,14 +234,26 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 		judgeClient.SetTemperature(*modelCfg.Temperature)
 	}
 
-	// Force the model to call report_problem via body additions
-	// (tool_choice={"type":"function","function":{"name":"report_problem"}}).
-	judgeClient.SetBodyAdditions(map[string]string{
-		"tool_choice": `{"type":"function","function":{"name":"report_problem"}}`,
-	})
+	// Select the tool-call transport by the configured tool-call mode
+	// (FEATURE-342/FEATURE-349): OpenAI mode sends the tool schema and
+	// forces the call via tool_choice; XML mode describes report_problem
+	// in the system prompt and the model emits XML tags in the content.
+	xmlMode := a.isXMLMode()
+	var tools []llm.Tool
+	systemPrompt := i18n.T(i18n.KeyProblemSolverSystemPrompt)
+	if xmlMode {
+		systemPrompt += "\n\n" + BuildToolUsagePrompt(ToolCallModeXML, []llm.Tool{reportProblemTool()}, string(i18n.GetLang()))
+	} else {
+		tools = []llm.Tool{reportProblemTool()}
+		// Force the model to call report_problem via body additions
+		// (tool_choice={"type":"function","function":{"name":"report_problem"}}).
+		judgeClient.SetBodyAdditions(map[string]string{
+			"tool_choice": `{"type":"function","function":{"name":"report_problem"}}`,
+		})
+	}
 
 	messages := []llm.Message{
-		{Role: "system", Content: i18n.T(i18n.KeyProblemSolverSystemPrompt)},
+		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: prompt},
 	}
 
@@ -258,7 +270,7 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 	}
 	defer cancel()
 
-	resp, err := judgeClient.Chat(cctx, messages, []llm.Tool{reportProblemTool()})
+	resp, err := judgeClient.Chat(cctx, messages, tools)
 	if err != nil {
 		return nil, fmt.Errorf("problem solver call failed: %w", err)
 	}
@@ -270,8 +282,8 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 		}
 	}
 
-	// XML mode fallback: the model emits XML tags in the content. Parse the
-	// first report_problem call from the content.
+	// XML mode: the model emits XML tags in the content. Parse the
+	// report_problem call from the content.
 	if resp.Content != "" {
 		calls := ParseXMLToolCalls(resp.Content)
 		for _, tc := range calls {
@@ -279,8 +291,6 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 				return parseProblemReport(tc.Arguments)
 			}
 		}
-		// Last resort: the model may have returned pure JSON (judgeLoop style).
-		return parseProblemReport(resp.Content)
 	}
 
 	return nil, fmt.Errorf("problem solver returned no report_problem call")

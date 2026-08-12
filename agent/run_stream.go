@@ -141,6 +141,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// are sent directly to the LLM for continuation.
 	if userInput != "" {
 		a.mu.Lock()
+		// FEATURE-349: a new genuine user instruction starts a fresh loop
+		// chain — forget strategies that failed for the previous task.
+		a.loopFailedStrategies = nil
 		// If there are image paths, create a multimodal message with cached images
 		if len(a.imagePaths) > 0 {
 			multimodalMsg, err := a.buildMultimodalMessage(userInput, a.imagePaths)
@@ -387,11 +390,9 @@ iterationLoop:
 			// Removing previous iteration's messages would lose valuable context.
 			// However, before retrying we strip the stale assistant+continuePrompt pair
 			// from the PREVIOUS iteration so the LLM sees a clean slate.
-			// FIX-240 / FEATURE-241: Handle sync mode loop detection.
-			// In sync mode (LoopJudgeEnabled=false), streamLLMResponse returns
-			// LoopDetectedError immediately. Adjust temperature and retry.
-			// In async mode (LoopJudgeEnabled=true), streamLLMResponse does NOT
-			// return error for content loops; checkLoopJudgeResult handles it.
+			// FIX-240 / FEATURE-241: loop judgment is synchronous inside
+			// handleLoopDetection(); on a confirmed loop streamLLMResponse
+			// returns LoopDetectedError and we end up here.
 			if a.loopDetectCrit {
 				// Strip stale assistant+continuePrompt pair from previous iteration.
 				a.stripLastAssistantAndContinue()

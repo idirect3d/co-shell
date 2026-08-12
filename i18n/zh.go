@@ -1991,8 +1991,6 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyErrActionChoose:        "请选择 (Enter/C/A): ",
 	KeyErrIgnoredContinue:     "已忽略错误限制，继续执行",
 	KeyErrRetryContinue:       "继续让 LLM 尝试处理",
-	KeyLoopJudgePrompt:        "发送给判定模型的完整提示词:\n%s\n",
-	KeyLoopJudgeResponse:      "判定模型的完整返回:\n%s\n",
 	KeyLoopDetectEvent:        "检测到循环 (%s)\n",
 	KeyLoopJudgeNotLoop:       "判定模型认为非循环，跳过干预\n",
 	KeyLoopJudgeDisabled:      "循环介入已禁用\n",

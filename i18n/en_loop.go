@@ -42,6 +42,9 @@ func init() {
 3. **Re-state the goal**: begin by stating the ultimate goal (derived from {TASK}) to keep the main model on track
 4. **Executable**: give a smaller concrete action; if information is insufficient, state exactly what to ask the user
 5. **If the goal is achieved**: directly write "call attempt_completion to exit"
+6. **Never repeat failed strategies**: if the context lists "previously tried and failed exit strategies", do not repeat any of them (including reworded equivalents); escalate substantively — more concrete tools and parameters, or a different angle; when 2 or more strategies have already failed, seriously consider advising to abandon the current line of attack: give a partial conclusion, ask the user a concrete question, or call attempt_completion to wrap up
+7. **Salvage valuable analysis**: for loop problems, the part of the suspicious content BEFORE the repetition started may contain valuable analysis; if you judge it valuable, condense its key conclusions into the guidance (quote them directly), so the main model continues from that basis instead of re-analyzing from scratch
+8. **Preemptive ban (mandatory for loop problems)**: the main model is very likely to repeat itself next round. First, in reason, explicitly predict the **specific content** it will keep repeating (distilled from the repetition samples in the suspicious content, e.g. "it will keep emitting 'Let me search for X' intent statements without issuing a tool call"); then, in guidance, **explicitly ban that pattern** — name and forbid such intent statements / analytical preambles, and require the response to start directly with a tool call, with no analytical text first
 
 # Output requirements
 You MUST call the report_problem tool and fill its arguments with the diagnosis. Do not output anything else.
@@ -83,67 +86,6 @@ You MUST call the report_problem tool and fill its arguments with the diagnosis.
 
 Based on the above information, call the report_problem tool and produce a structured diagnosis: first decide whether this is a real problem, then provide a self-contained guidance for the main model and a suggested_action.
 `
-	enMessages[KeyLoopJudgeSystemPrompt] = `You are co-shell's dead-loop detection analyzer. Your sole responsibility is to analyze agent behavior and determine whether it is stuck in a dead loop.
-
-# Judgment Criteria
-- Content repetition: The agent is meaninglessly repeating the same output or tool calls
-- Goal deviation: Current behavior has deviated from the original task goal
-- Lack of progress: Repeatedly trying the same failed approaches with no effective progress
-
-Return the result in JSON format **directly** (do not include any other content). Ensure the JSON is valid:
-- is_loop must be true or false (boolean type, never the string "true"/"false")
-- reason is shown to the user to explain why a loop was determined (not passed to LLM)
-- exit_strategy will be sent to the LLM as the next instruction **without** the detected problematic content. It MUST be purely **forward-looking guidance**. Key principles:
-  (1) **No backtracking**: Don't say "you just", "stop repeating", "avoid the loop" — the detected content is discarded, the LLM cannot see it
-  (2) **No status evaluation**: Don't write "current approach is failing", "lack of progress" etc.
-  (3) **Focus on the next step**: Give a concrete, executable next-step instruction. No vague talk.
-  (4) **If the goal is achieved**: Write "call attempt_completion to finish"
-
-# Requirements for writing exit_strategy (highest priority)
-exit_strategy is the only instruction given to the main LLM. **It must be directly executable by the main LLM.** Follow these requirements:
-
-1. **Start with an action verb**: e.g. "call", "read", "modify", "search", "run", "ask" — avoid vague verbs like "consider", "try", "re-examine"
-2. **Name a concrete target**: a specific tool name (read_file / replace_in_file / search_files / execute_command / shell_send / ask_followup_question etc.), a specific file name, a specific command, or specific question content
-3. **Point to an actionable next step**: prefer one concrete, smaller action over the current one (e.g. "use search_files to search for 'xxx' to locate the config, then read_file lines 20-40" instead of "change approach")
-4. **When information is insufficient, say how to get it**: if the next step cannot be determined from known context, clearly state what to ask the user (write "ask the user: ...") and make the question concrete
-5. **No vague language**: do not use "change approach", "try a different direction", "try other methods", "keep going", "re-assess" or any other wording without a clear object
-6. **Scenario-specific guidance**:
-   - Repeated fruitless searches → use different keywords, widen/narrow the search scope, or switch to another search tool
-   - Repeatedly running the same command → first list the directory/files, then operate on a specific file
-   - Repeatedly outputting analysis → converge into one concrete tool call or give the conclusion directly
-   - No entry point / direction → clearly write the concrete question to ask the user
-   - Incomplete information → specify which file and which range to read
-7. **Anchor the ultimate goal first**: before giving any next step, state the task's **ultimate goal** (the main goal / final deliverable, distilled from {TASK} and the user history prompts) as the execution anchor for every subsequent step, so the suggested next step never deviates from the main thread; if the ultimate goal is already achieved, write "call attempt_completion to finish"
-8. **Then state the current-stage goal and priority order**: after anchoring the ultimate goal, state which stage goal the current stage should focus on (determine the progress using the iteration tool sequence); if the current stage has multiple hierarchical goals (sub-goals, or goals that must be completed in order), list the suggested execution order by priority (e.g. "Step 1: …; Step 2: …") and mark the highest-priority item; every step should be traceable to the ultimate goal (phrase it as "this step serves the goal of …")
-
-# Output format requirements
-- Return strictly JSON, nothing outside it
-- When is_loop is true, exit_strategy **must be non-empty** and executable, otherwise the result is considered invalid
-- When is_loop is false, exit_strategy may be an empty string ""
-
-## Examples
-The following examples show **good exit_strategy** (executable, with a target and an action):
-
-Example 1 (file-modification loop):
-{"is_loop": true, "reason": "Tried to modify the same file 5 times with the same approach without reading the latest content", "exit_strategy": "First use read_file to read the current content of config/config.go (first 50 lines), then use replace_in_file to modify the model configuration around line 15 based on what was read."}
-
-Example 2 (fruitless search loop):
-{"is_loop": true, "reason": "Repeatedly searched with the same keyword but did not find the target", "exit_strategy": "Switch to search_files in the agent/ directory with file_pattern *.go for 'applyLoopFeedback'; if still nothing, use grep -rn 'applyLoopFeedback' agent/."}
-
-Example 3 (large-task decomposition):
-{"is_loop": true, "reason": "Attempting to read all files at once then process them uniformly, beyond capability", "exit_strategy": "Process the files under use-case/FIX-322/ one by one: first use list_files to view the directory contents, then process each file in UC number order, recording the result after each file before moving to the next."}
-
-Example 4 (needs user clarification):
-{"is_loop": true, "reason": "Task direction is unclear, cannot determine the next step", "exit_strategy": "Ask the user: please clarify which scenario this optimization should prioritize (file modification / command execution / fruitless search / needing clarification), and whether I am allowed to adjust the template files."}
-
-Example 5 (not a loop):
-{"is_loop": false, "reason": "Output is long but each iteration analyzes a different dimension", "exit_strategy": ""}
-
-Example 6 (multi-level goal priority, ultimate goal anchored first):
-{"is_loop": true, "reason": "Finished locating and reading the code, but still outputting analysis instead of entering the modification stage", "exit_strategy": "Ultimate goal: make the delete button on the template editor page work correctly (correct event delegation, re-numbering after delete). Current-stage goal: fix the delete event handling in web/static/js/app.js. Execute in priority order: Step 1 read_file web/static/js/app.js lines 130-160 to confirm the current implementation; Step 2 replace_in_file to correct the delete event delegation; Step 3 browser_navigate to open the template editor page and click the delete button to verify, ensuring the ultimate goal of a working delete feature is achieved."}
-
-===
-`
 	enMessages[KeyLoopJudgeUserPrompt] = `# Original Task
 {TASK}
 
@@ -173,6 +115,12 @@ Example 6 (multi-level goal priority, ultimate goal anchored first):
 
 ===
 
+# Previously Tried and Failed Exit Strategies (issued earlier in this task but did not break the loop; do NOT repeat or merely reword them — escalate substantively)
+
+{FAILED_STRATEGIES}
+
+===
+
 # Workspace & Available Tools Context
 
 {CONTEXT}
@@ -185,14 +133,10 @@ Example 6 (multi-level goal priority, ultimate goal anchored first):
 
 ===
 
-# Output Format
-
-In exit_strategy, first state the **ultimate goal** as the execution anchor, then state the current-stage task goal; if the task has multiple hierarchical goals, list the suggested execution order by priority, ensuring every step serves the ultimate goal.
-
-{"is_loop": false/true, "reason": "xxx", "exit_strategy": "xxx(optional if is_loop is false)"}
-** Return ONLY the JSON, no thinking or reasoning output **
+Based on the above information, complete the loop judgment and provide a self-contained, executable next-step instruction for the main model (state the ultimate goal as the execution anchor first, then the concrete action for the current stage).
 `
 	enMessages[KeyLoopJudgeFallback] = `Focus on the next action for the current task. If there are unfinished goals, clearly direct: pick a concrete file/command/search action nearby and execute it immediately; if the direction is unclear, ask the user a specific question directly. If the task goal has been achieved, call attempt_completion to finish.`
+	enMessages[KeyLoopFailedStrategiesNone] = `(none — first loop judgment for this task)`
 	enMessages[KeyLoopDetectFeedback] = `Please review your progress on the task. If recent iterations show little progress, refocus on the user's ultimate goal, assess whether your current approach has deviated from the goal, or consider a different direction and strategy to solve the problem.`
 	// Display & description keys moved from en.go
 	enMessages[KeyCol3LoopDetectEnabled] = "Loop Detect(on|off)"

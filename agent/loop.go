@@ -32,7 +32,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -208,15 +207,6 @@ type Agent struct {
 	// Re-initialized at the start of each RunStream call.
 	loopTempCtrl *LoopTempController
 
-	// Asynchronous loop judgment state (FEATURE-241)
-	// When LoopJudgeEnabled is on, the loop detection during streaming does NOT
-	// immediately interrupt. Instead, it fires a goroutine to call the judge model
-	// while the stream continues. The result is checked after the stream completes.
-	loopJudgeInflight      bool             // true while async judgment is in progress
-	loopJudgePendingResult *LoopJudgeResult // set by goroutine when judgment completes
-	loopJudgeResultCh      chan struct{}    // closed when result is ready
-	loopJudgeTriggered     bool             // true if loop was detected during this stream call
-
 	// loopLongOutputTriggered is set to true when the streaming output exceeds
 	// LoopLongOutputThreshold during the current stream call. Prevents multiple
 	// judge triggers for the same long output chunk. Reset at the start of each
@@ -236,6 +226,14 @@ type Agent struct {
 	// iteration in RunStream and cleared when judge says not-a-loop.
 	// (FIX-285)
 	loopJudgeExitStrategy string
+
+	// loopFailedStrategies records the exit strategies that were issued by
+	// the judge for THIS task but failed to break the loop (FEATURE-349).
+	// They are fed back into the judge prompt ({FAILED_STRATEGIES}) so the
+	// judge can escalate instead of repeating an equivalent strategy.
+	// Capped at loopFailedStrategiesMax (most recent kept). Reset when a
+	// new genuine user message starts a RunStream call.
+	loopFailedStrategies []string
 
 	// loopDetectSyncErr stores the loop detection error for the sync (non-judge) path.
 	// When LoopJudgeEnabled is false, handleLoopDetection sets this and the stream
@@ -717,8 +715,11 @@ func (a *Agent) getLoopJudgeModel() *config.ModelConfig {
 }
 
 // judgeLoop uses an independent LLM model to perform secondary judgment
-// on suspected loop content. It builds a clean minimal context without
-// system prompt noise, and expects a JSON-formatted judgment result.
+// on suspected loop content. The judgment always goes through the
+// report_problem tool call (FEATURE-342); the tool-call transport (OpenAI
+// tools vs XML tags) is selected by the configured tool-call mode inside
+// callProblemSolver. Returns nil when judgment is unavailable — the caller
+// falls back to direct loop feedback.
 func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string) *LoopJudgeResult {
 	if a.cfg == nil {
 		return nil
@@ -731,209 +732,24 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 		return nil
 	}
 
-	modelCfg := a.getLoopJudgeModel()
-	if modelCfg == nil {
-		log.Warn("judgeLoop: no model available for loop judgment, skipping")
+	// FEATURE-342: structured report_problem path (single model call).
+	// Convert the ProblemReport to the classic LoopJudgeResult.
+	report, perr := a.callProblemSolver(ctx, a.buildProblemSolverPrompt(suspectContent))
+	if perr != nil || report == nil {
+		log.Warn("judgeLoop: problem solver call failed: %v, judgment skipped", perr)
 		return nil
 	}
-
-	// FEATURE-342: Prefer the structured report_problem path. If the problem
-	// solver call succeeds, convert its ProblemReport to the classic
-	// LoopJudgeResult and return early (single model call). On failure
-	// (e.g. model does not support tools), fall back to the classic
-	// free-text JSON judgment below.
-	if report, perr := a.callProblemSolver(ctx, a.buildProblemSolverPrompt(suspectContent)); perr == nil && report != nil {
-		result := &LoopJudgeResult{
-			IsLoop:       report.IsLoop(),
-			Reason:       report.Reason,
-			ExitStrategy: report.Guidance,
-		}
-		if result.IsLoop && strings.TrimSpace(result.ExitStrategy) == "" {
-			log.Warn("judgeLoop: problem solver confirmed loop with empty guidance, applying fallback")
-			result.ExitStrategy = i18n.T(i18n.KeyLoopJudgeFallback)
-		}
-		log.Info("LoopJudge result (problem-solver): is_loop=%v, reason=%q, exit_strategy=%q",
-			result.IsLoop, result.Reason, result.ExitStrategy)
-		return result
+	result := &LoopJudgeResult{
+		IsLoop:       report.IsLoop(),
+		Reason:       report.Reason,
+		ExitStrategy: report.Guidance,
 	}
-	log.Debug("judgeLoop: problem solver report unavailable, falling back to classic JSON judgment")
-
-	// Build task plan text
-	taskPlanText := a.getTaskPlanPrompt()
-	if taskPlanText == "" {
-		taskPlanText = i18n.T(i18n.KeyNoActiveTaskPlan)
-	}
-
-	// Determine the type of loop: content or tool call
-	loopType := "content"
-	if _, isToolCallLoop := err.(*ToolCallLoopDetectedError); isToolCallLoop {
-		loopType = "tool_call"
-	}
-
-	// Build the clean judgment context (system prompt + user message)
-	systemText := i18n.T(i18n.KeyLoopJudgeSystemPrompt)
-	userText := a.buildLoopJudgeUserPrompt(taskPlanText, suspectContent)
-
-	log.Debug("judgeLoop: using model=%q, suspectContent=%d chars, loopType=%s",
-		modelCfg.ID, len(suspectContent), loopType)
-
-	// Display the full user prompt via streamCb before calling the judge API
-	if cb := a.streamCb; cb != nil {
-		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
-		if showDetail {
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgePrompt), strings.TrimSpace(userText)))
-		}
-	}
-
-	// Resolve judge timeout: from config, default 60s, 0 = no timeout
-	judgeTimeout := 60
-	if a.cfg != nil && a.cfg.LLM.LoopJudgeTimeout > 0 {
-		judgeTimeout = a.cfg.LLM.LoopJudgeTimeout
-	} else if a.cfg != nil && a.cfg.LLM.LoopJudgeTimeout == 0 {
-		judgeTimeout = 0 // 0 = no timeout
-	}
-
-	// Create a temporary LLM client for the judgment model.
-	// Use 1024 max_tokens to leave room for the judge model to produce JSON output
-	// without needing to output thinking text first.
-	// Use an independent HTTP transport (DisableKeepAlives=true) so this request
-	// is NOT blocked by an active streaming connection in Go's default connection pool.
-	judgeClient := llm.NewClient(
-		modelCfg.Endpoint,
-		modelCfg.APIKey,
-		modelCfg.Model,
-		0.0,  // low temperature for deterministic judgment
-		8192, // max_tokens: allow enough room for JSON output
-		judgeTimeout,
-	)
-	if oc, ok := judgeClient.(interface{ SetHTTPClient(*http.Client) }); ok {
-		oc.SetHTTPClient(&http.Client{
-			Transport: &http.Transport{
-				MaxConnsPerHost:     1,
-				MaxIdleConnsPerHost: 0,
-				IdleConnTimeout:     0,
-				DisableKeepAlives:   true,
-			},
-			Timeout: time.Duration(judgeTimeout) * time.Second,
-		})
-		log.Debug("judgeLoop: using independent HTTP transport for judge client")
-	}
-	if judgeClient != nil {
-		defer judgeClient.Close()
-	}
-
-	// Resolve temperature: model-level has priority
-	finalTemp := 0.3
-	if modelCfg.Temperature != nil {
-		finalTemp = *modelCfg.Temperature
-	}
-	if a.cfg.LLM.Temperature != 0 {
-		finalTemp = a.cfg.LLM.Temperature
-	}
-	judgeClient.SetTemperature(finalTemp)
-	// Disable thinking/reasoning for the judgment call so the model outputs
-	// pure JSON directly without a reasoning preamble.
-	judgeClient.SetThinkingEnabled(false)
-
-	// Build messages
-	messages := []llm.Message{
-		{Role: "system", Content: systemText},
-		{Role: "user", Content: userText},
-	}
-
-	// Log the judgment request for debugging
-	log.Info("LoopJudge request: model=%q, system=%d chars, user=%d chars, suspectContent=%d chars",
-		modelCfg.ID, len(systemText), len(userText), len(suspectContent))
-	log.Debug("LoopJudge request detail: system=%q, user=%q", systemText, userText)
-
-	// Write the judgment request to the LLM interaction log
-	if log.IsLLMInteractionEnabled() {
-		reqMap := map[string]interface{}{
-			"model":    modelCfg.Model,
-			"messages": messages,
-		}
-		if reqJSON, err := json.MarshalIndent(reqMap, "", "  "); err == nil {
-			log.WriteLLMInteraction("REQ][judgeLoop", string(reqJSON))
-		}
-	}
-
-	// Make the judgment call (non-streaming, no tools)
-	ctxTimeout := judgeTimeout + 5 // ctx timeout slightly larger than client timeout
-	if judgeTimeout <= 0 {
-		ctxTimeout = 0 // no timeout
-	}
-	var ctxWithTimeout context.Context
-	var cancel context.CancelFunc
-	if ctxTimeout > 0 {
-		ctxWithTimeout, cancel = context.WithTimeout(ctx, time.Duration(ctxTimeout)*time.Second)
-	} else {
-		ctxWithTimeout, cancel = context.WithCancel(ctx)
-	}
-	defer cancel()
-
-	resp, err := judgeClient.Chat(ctxWithTimeout, messages, nil)
-	if err != nil {
-		log.Warn("judgeLoop: judgment call failed: %v, falling back to direct feedback", err)
-		return nil
-	}
-
-	// Log the judge model's raw response for debugging
-	log.Info("LoopJudge response: model=%q, resp_content=%d chars", modelCfg.ID, len(resp.Content))
-	log.Debug("LoopJudge response detail: raw=%q", resp.Content)
-
-	// Write the judgment response to the LLM interaction log
-	if log.IsLLMInteractionEnabled() {
-		log.WriteLLMInteraction("RESP][judgeLoop", resp.Content)
-		log.WriteLLMInteractionEnd()
-	}
-
-	// Display the judge model's full response
-	if cb := a.streamCb; cb != nil {
-		showDetail := a.cfg == nil || a.cfg.LLM.ShowLoopDetection
-		if showDetail {
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResponse), strings.TrimSpace(resp.Content)))
-		}
-	}
-
-	// Parse JSON response
-	result := &LoopJudgeResult{}
-	content := strings.TrimSpace(resp.Content)
-
-	// Skip any think/reasoning content before looking for JSON.
-	// The judge model may output ... even when thinking is disabled,
-	// and thinking content can contain "{" characters that would
-	// interfere with JSON extraction. Find the last </think> tag
-	// and start from there.
-	if thinkEnd := strings.LastIndex(content, "</think>"); thinkEnd >= 0 {
-		content = strings.TrimSpace(content[thinkEnd+len("</think>"):])
-	}
-
-	// Try to extract JSON from the response (may be wrapped in markdown code blocks)
-	if idx := strings.Index(content, "{"); idx >= 0 {
-		content = content[idx:]
-	}
-	if idx := strings.LastIndex(content, "}"); idx >= 0 {
-		content = content[:idx+1]
-	}
-
-	if err := json.Unmarshal([]byte(content), result); err != nil {
-		log.Warn("judgeLoop: failed to parse JSON response: %v, content=%q", err, content)
-		log.Info("LoopJudge result: parse FAILED, falling back to direct feedback")
-		return nil
-	}
-
-	// FIX-322: empty exit_strategy fallback. When the judge confirms a loop
-	// but does not provide an actionable next instruction (empty string),
-	// substitute a concrete fallback directive instead of degrading to the
-	// generic template downstream.
 	if result.IsLoop && strings.TrimSpace(result.ExitStrategy) == "" {
-		log.Warn("judgeLoop: judge confirmed loop with empty exit_strategy, applying fallback")
+		log.Warn("judgeLoop: problem solver confirmed loop with empty guidance, applying fallback")
 		result.ExitStrategy = i18n.T(i18n.KeyLoopJudgeFallback)
 	}
-
-	log.Info("LoopJudge result: is_loop=%v, reason=%q, exit_strategy=%q",
+	log.Info("LoopJudge result (problem-solver): is_loop=%v, reason=%q, exit_strategy=%q",
 		result.IsLoop, result.Reason, result.ExitStrategy)
-
 	return result
 }
 
@@ -1115,6 +931,54 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 //   - Judge enabled AND confirmed loop → set syncErr (stream will break)
 //   - Judge enabled AND NOT confirmed → reset detectors (stream continues)
 //   - Judge disabled → always set syncErr (stream breaks immediately)
+// loopFailedStrategiesMax caps how many failed exit strategies are kept and
+// fed back to the judge (FEATURE-349). Only the most recent ones matter;
+// older failures belong to phases the task has already moved past.
+const loopFailedStrategiesMax = 3
+
+// recordFailedLoopStrategyLocked appends a judge-issued exit strategy that
+// failed to break the loop. Consecutive duplicates are collapsed (the same
+// strategy failing twice is one piece of information, not two). The caller
+// MUST hold a.mu.
+func (a *Agent) recordFailedLoopStrategyLocked(strategy string) {
+	strategy = strings.TrimSpace(strategy)
+	if strategy == "" {
+		return
+	}
+	if n := len(a.loopFailedStrategies); n > 0 && a.loopFailedStrategies[n-1] == strategy {
+		return
+	}
+	a.loopFailedStrategies = append(a.loopFailedStrategies, strategy)
+	if len(a.loopFailedStrategies) > loopFailedStrategiesMax {
+		a.loopFailedStrategies = a.loopFailedStrategies[len(a.loopFailedStrategies)-loopFailedStrategiesMax:]
+	}
+	log.Debug("recordFailedLoopStrategy: recorded failed strategy #%d: %.80s...", len(a.loopFailedStrategies), strategy)
+}
+
+// failedLoopStrategiesSnapshot returns a copy of the failed strategy list.
+func (a *Agent) failedLoopStrategiesSnapshot() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make([]string, len(a.loopFailedStrategies))
+	copy(out, a.loopFailedStrategies)
+	return out
+}
+
+// buildFailedStrategiesText renders the {FAILED_STRATEGIES} placeholder for
+// the judge prompt (FEATURE-349): a numbered list of previously issued but
+// ineffective strategies, or a "none yet" note on the first judgment.
+func (a *Agent) buildFailedStrategiesText() string {
+	failed := a.failedLoopStrategiesSnapshot()
+	if len(failed) == 0 {
+		return i18n.T(i18n.KeyLoopFailedStrategiesNone)
+	}
+	var sb strings.Builder
+	for i, s := range failed {
+		fmt.Fprintf(&sb, "%d. %s\n", i+1, s)
+	}
+	return strings.TrimSpace(sb.String())
+}
+
 func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) {
 	a.mu.Lock()
 
@@ -1179,6 +1043,9 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		// Judge confirmed loop: save exit_strategy and interrupt the stream.
 		a.mu.Lock()
 		a.loopJudgeExitStrategy = result.ExitStrategy
+		// FEATURE-349: remember this strategy so a later judgment on the same
+		// task can see that it failed to break the loop.
+		a.recordFailedLoopStrategyLocked(result.ExitStrategy)
 		a.loopDetectSyncErr = detectErr
 		a.loopDetectCrit = true
 		a.mu.Unlock()
@@ -1496,6 +1363,10 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	// FIX-329: {ITERATION_TOOLS} = tool call names per iteration.
 	iterTools := a.getIterationTools()
 
+	// FEATURE-349: {FAILED_STRATEGIES} = judge-issued strategies that failed
+	// to break the loop in this task (empty-marked on first judgment).
+	failedStrategies := a.buildFailedStrategiesText()
+
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
@@ -1504,6 +1375,7 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATION_TOOLS}", iterTools)
 	userTemplate = strings.ReplaceAll(userTemplate, "{CONTEXT}", contextText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{SUSPECT_CONTENT}", suspectContent)
+	userTemplate = strings.ReplaceAll(userTemplate, "{FAILED_STRATEGIES}", failedStrategies)
 	return userTemplate
 }
 

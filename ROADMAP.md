@@ -1228,6 +1228,16 @@
     - 方案B 扩展（interaction 日志与解析解耦）：读循环新增 `inToolCallStream` 状态（首个 tool_calls delta 置 true，finish_reason 置 false），在 tool_calls 流内**收到每个物理行**（data 帧/裸行/畸形/跨行片段）立即追加到 `RESP][tool_calls` interaction 日志（去 data 前缀），**与解析结果解耦**——不管 LLM 返回对错都实时记录；handleEvent 移除重复的 RESP][tool_calls 记录
     - 诊断（保留）：wireLogReader 包装 resp.Body，每次底层 Read 返回即以 DEBUG 输出 `LLM ChatStream wire read: N bytes: %q`，记录真实到达字节流（%q 转义使换行/截断的 UTF-8 清晰可见）
   - 测试：llm/fix348_test.go——跨行帧拼接、裸行忽略（原"裸行追加"用例改写）、单行回归、坏数据丢弃、慢消费者不丢事件/日志完整、裸行写 interaction 日志、**StreamReader 大帧分片重组（1/1000/4096/65536 字节分片各验证一遍，旧实现必挂）**、>4KB 单帧 arguments 端到端完整；go build/vet/test 全绿；use-case/FIX-348/FIX-348-UC-0001.md
+- [x] FEATURE-349 循环二次判定记忆化（judge 回喂已失败策略 + 系统提示升级/抢救有效分析引导）
+  - 背景：co-flow 08-12 全天 50 次 loop detected 全部干预无效——judge 判定**无记忆**，同输入必出同策略，第 1 次与第 50 次干预完全等价；且 temp 0 / 0.2 + repetition-penalty 1.05 均无法打破循环（实测），因为根因是"有效产出零沉淀（FEATURE-17 方案C 丢弃无工具调用轮次的 assistant 内容）+ 上下文恒定 → 确定性重演"，sampling 参数只扰动生成过程、不改变生成起点
+  - 目标：同一任务的多次循环判定形成记忆链，judge 知道"上次这么劝没用"，强制实质性升级；引导 judge 把中止点前的有效分析浓缩进 exit_strategy（不写死结构化字段，由 judge 判断是否有必要）
+  - 实现：
+    - Agent 新增 `loopFailedStrategies`（agent/loop.go）：judge 确认循环时记录其 exit_strategy（`recordFailedLoopStrategyLocked`，连续重复合并、上限 3 条）；新用户任务开始 RunStream 时清空（.continue 模式保留链）
+    - judge 用户提示新增 `{FAILED_STRATEGIES}` 占位符（buildLoopJudgeUserPrompt，经 buildProblemSolverPrompt 进入 problem-solver 判定）：编号列出已失败策略，首次判定显示"无"
+    - judge 系统提示新增规则（zh/en 同步，KeyProblemSolverSystemPrompt 第 6/7/8 条）：① 禁止重复/换措辞已失败策略，必须实质性升级；失败 ≥2 条时认真考虑建议放弃当前路线（给阶段结论/向用户提问/attempt_completion 收尾）；② 疑似循环内容中"重复开始前"的分析如有价值，浓缩进 guidance 让主模型在其基础上继续（替代原 P1 结构化 PRESERVE_ANALYSIS 方案——按用户决策不写死，由 judge 自行判断）；③ **预防性禁用**（对 loop 类必做）：reason 中明确预测主LLM下一轮将复读的具体内容（引用重复样本），guidance 中显式禁用该模式——点名禁止意图陈述/分析性前缀，要求响应直接以工具调用开始（report_problem schema 的 reason 描述同步要求预测复读内容）
+    - 判定结果收集统一为 report_problem 工具调用（用户决策，移除自由文本 JSON 路径）：judgeLoop 删除 classic JSON 兜底（judgeClient/JSON 截取解析/REQ-RESP][judgeLoop 段），problem solver 失败即返回 nil 走直接反馈兜底；callProblemSolver 按 tool-call mode 配置选择传输——OpenAI 模式 tools+tool_choice 强制调用，XML 模式系统提示内嵌 report_problem 用法（BuildToolUsagePrompt）并解析内容中的 XML 标签；删除 callProblemSolver 内"纯 JSON 内容"兜底解析；i18n 清理 KeyLoopJudgeSystemPrompt/KeyLoopJudgePrompt/KeyLoopJudgeResponse 及 judge 用户提示的"输出格式"段
+    - 删除 FEATURE-241 异步判定死代码（loopJudgeInflight/loopJudgePendingResult/loopJudgeResultCh/loopJudgeTriggered 仅声明从未使用）及 run_stream.go 中 checkLoopJudgeResult 死注释
+  - 测试：agent/feature349_test.go 9 用例（记录/空值跳过/连续重复合并/上限截断/none 文案/编号列表/提示词占位符替换/首次判定/双语模板占位符齐备）；go build/vet/test 全绿 [BUILD-396]
 
 ## v1.0.0 — 正式版
 
