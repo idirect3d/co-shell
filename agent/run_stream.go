@@ -47,6 +47,44 @@ func (a *Agent) emitParseErrorRaw(cb StreamCallback, rawDetail string) {
 	}
 }
 
+// abortVisionRecognitionRound finalizes an in-flight FEATURE-343 minimal
+// recognition round that was aborted (ESC cancel or a failed retry): since the
+// placeholder tool result was deferred, the pending vision tool call still
+// needs a tool result — otherwise the assistant tool_calls message would be
+// left without a response and strict providers would reject the next request.
+// Appends a cancelled marker and clears the recognition-round state. No-op in
+// full vision-context mode (visionRecognitionActive is never set there).
+func (a *Agent) abortVisionRecognitionRound() {
+	a.mu.Lock()
+	if !a.visionRecognitionActive {
+		a.mu.Unlock()
+		return
+	}
+	a.visionRecognitionActive = false
+	a.visionPendingIntent = ""
+	toolID := a.lastVisionToolCallID
+	toolName := a.lastVisionToolCallName
+	a.mu.Unlock()
+
+	content := i18n.T(i18n.KeyVisionRecognitionCancelled)
+	if a.isXMLMode() {
+		msg := a.buildXMLToolResultMessage(toolName, "", content, len(a.messages))
+		a.mu.Lock()
+		a.messages = append(a.messages, msg)
+		a.mu.Unlock()
+	} else {
+		a.mu.Lock()
+		a.messages = append(a.messages, llm.Message{
+			Role:       "tool",
+			Content:    content,
+			ToolCallID: toolID,
+		})
+		a.mu.Unlock()
+	}
+	a.injectTimeAndMessageNoToLast()
+	log.Info("Agent.RunStream: FEATURE-343 recognition round aborted, backfilled cancelled marker for %s (ID: %s)", toolName, toolID)
+}
+
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
@@ -263,6 +301,7 @@ iterationLoop:
 				if streamErr != nil {
 					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), ep.Error, streamErr))
 					cb(EventInfo, fmt.Sprintf("%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
+					a.abortVisionRecognitionRound()
 					return "", nil
 				}
 				// Fall through to tool call handling below
@@ -273,6 +312,7 @@ iterationLoop:
 				// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 				// current iteration's assistant message is added, so there is nothing to remove.
 				cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelledDiscard)))
+				a.abortVisionRecognitionRound()
 				return "", nil
 			}
 
@@ -288,6 +328,7 @@ iterationLoop:
 				// Retry failed too - treat it like user cancelled
 				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), ep.Error, streamErr))
 				cb(EventInfo, fmt.Sprintf("%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
+				a.abortVisionRecognitionRound()
 				return "", nil
 			}
 		}
@@ -1337,6 +1378,16 @@ iterationLoop:
 					a.mu.Lock()
 					a.messages = append(a.messages, toolResultMsg)
 					a.mu.Unlock()
+				} else if a.shouldDeferVisionToolResult(tc.Name) {
+					// FEATURE-343 minimal mode: skip the placeholder tool
+					// message — the recognition round backfills the recognition
+					// result as this tool call's ONLY tool message. Writing the
+					// placeholder too would duplicate the tool_call_id and get
+					// rejected by strict providers. The backfill attaches
+					// <environment_details> itself, so skip the post-append
+					// steps below as well.
+					log.Debug("Agent.RunStream: FEATURE-343 minimal mode, deferring %s placeholder (ID: %s); recognition round will backfill", tc.Name, tc.ID)
+					continue
 				} else {
 					a.mu.Lock()
 					a.messages = append(a.messages, llm.Message{

@@ -2408,6 +2408,8 @@ const (
 	// FEATURE-343: vision recognition round failure fallback (zh/en)
 	KeyVisionRecognitionFailed = "vision_recognition_failed"
 	KeyVisionRecognitionEmpty  = "vision_recognition_empty"
+	// Recognition round aborted (ESC cancel / failed retry) placeholder backfill
+	KeyVisionRecognitionCancelled = "vision_recognition_cancelled"
 	KeyMemoryDeletedRange      = "memory_deleted_range"
 	KeyToolNoOutputBracket     = "tool_no_output_bracket"
 	KeyShellCmdError           = "shell_cmd_error"
