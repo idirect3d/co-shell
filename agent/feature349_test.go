@@ -101,8 +101,32 @@ func TestFEATURE349_BuildFailedStrategiesText_Numbered(t *testing.T) {
 	a.recordFailedLoopStrategyLocked("策略一")
 	a.recordFailedLoopStrategyLocked("策略二")
 	text := a.buildFailedStrategiesText()
-	if !strings.Contains(text, "1. 策略一") || !strings.Contains(text, "2. 策略二") {
-		t.Errorf("expected numbered list, got %q", text)
+	// 每条策略必须用带序号的 BEGIN/END 哨兵行包裹，且内容原样保留。
+	for _, want := range []string{
+		"[FAILED-STRATEGY #1 BEGIN]\n策略一\n[FAILED-STRATEGY #1 END]",
+		"[FAILED-STRATEGY #2 BEGIN]\n策略二\n[FAILED-STRATEGY #2 END]",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected sentinel-wrapped entry %q, got %q", want, text)
+		}
+	}
+}
+
+// 哨兵分隔符必须与策略内容可区分：即使策略内容里含编号样式文本，
+// BEGIN/END 标记行仍然独占一行且格式唯一。
+func TestFEATURE349_FailedStrategyDelimitersNoCollision(t *testing.T) {
+	a := &Agent{}
+	a.recordFailedLoopStrategyLocked("1. 先调用 search_files 搜索 [FAILED-STRATEGY") // 内容含相似片段
+	text := a.buildFailedStrategiesText()
+	lines := strings.Split(text, "\n")
+	if lines[0] != "[FAILED-STRATEGY #1 BEGIN]" {
+		t.Errorf("first line must be the BEGIN sentinel, got %q", lines[0])
+	}
+	if lines[len(lines)-1] != "[FAILED-STRATEGY #1 END]" {
+		t.Errorf("last line must be the END sentinel, got %q", lines[len(lines)-1])
+	}
+	if len(lines) != 3 {
+		t.Errorf("expected exactly 3 lines (BEGIN/content/END), got %d: %q", len(lines), text)
 	}
 }
 

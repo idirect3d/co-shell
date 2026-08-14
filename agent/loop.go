@@ -964,9 +964,18 @@ func (a *Agent) failedLoopStrategiesSnapshot() []string {
 	return out
 }
 
+// failedStrategyBeginFmt / failedStrategyEndFmt wrap each failed exit
+// strategy fed back to the judge (FEATURE-349). The sentinel lines are
+// deliberately verbose ASCII markers that cannot plausibly appear inside a
+// guidance text, so the judge can unambiguously tell list structure apart
+// from strategy content (no delimiter collision).
+const failedStrategyBeginFmt = "[FAILED-STRATEGY #%d BEGIN]"
+const failedStrategyEndFmt = "[FAILED-STRATEGY #%d END]"
+
 // buildFailedStrategiesText renders the {FAILED_STRATEGIES} placeholder for
-// the judge prompt (FEATURE-349): a numbered list of previously issued but
-// ineffective strategies, or a "none yet" note on the first judgment.
+// the judge prompt (FEATURE-349): each previously issued but ineffective
+// strategy wrapped in numbered BEGIN/END sentinel lines, or a "none yet"
+// note on the first judgment.
 func (a *Agent) buildFailedStrategiesText() string {
 	failed := a.failedLoopStrategiesSnapshot()
 	if len(failed) == 0 {
@@ -974,7 +983,7 @@ func (a *Agent) buildFailedStrategiesText() string {
 	}
 	var sb strings.Builder
 	for i, s := range failed {
-		fmt.Fprintf(&sb, "%d. %s\n", i+1, s)
+		fmt.Fprintf(&sb, failedStrategyBeginFmt+"\n%s\n"+failedStrategyEndFmt+"\n", i+1, s, i+1)
 	}
 	return strings.TrimSpace(sb.String())
 }
