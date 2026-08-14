@@ -2049,6 +2049,7 @@ no liability whatsoever.`,
 	// FEATURE-343: vision recognition round failure fallback
 	KeyVisionRecognitionFailed: "Visual analysis failed: %v",
 	KeyVisionRecognitionEmpty:  "Visual analysis failed: recognition result is empty",
+	KeyVisionRecognitionCancelled: "Visual analysis cancelled",
 	KeyMemoryDeletedRange:      "✅ Deleted the most recent %d memories (from #%d to #%d from the end)",
 	KeyToolNoOutputBracket:     "(tool call returned no output)",
 	KeyShellCmdError:           "%s\n\n⚠️ Command execution error: %v",
