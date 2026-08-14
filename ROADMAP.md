@@ -1238,6 +1238,14 @@
     - 判定结果收集统一为 report_problem 工具调用（用户决策，移除自由文本 JSON 路径）：judgeLoop 删除 classic JSON 兜底（judgeClient/JSON 截取解析/REQ-RESP][judgeLoop 段），problem solver 失败即返回 nil 走直接反馈兜底；callProblemSolver 按 tool-call mode 配置选择传输——OpenAI 模式 tools+tool_choice 强制调用，XML 模式系统提示内嵌 report_problem 用法（BuildToolUsagePrompt）并解析内容中的 XML 标签；删除 callProblemSolver 内"纯 JSON 内容"兜底解析；i18n 清理 KeyLoopJudgeSystemPrompt/KeyLoopJudgePrompt/KeyLoopJudgeResponse 及 judge 用户提示的"输出格式"段
     - 删除 FEATURE-241 异步判定死代码（loopJudgeInflight/loopJudgePendingResult/loopJudgeResultCh/loopJudgeTriggered 仅声明从未使用）及 run_stream.go 中 checkLoopJudgeResult 死注释
   - 测试：agent/feature349_test.go 9 用例（记录/空值跳过/连续重复合并/上限截断/none 文案/编号列表/提示词占位符替换/首次判定/双语模板占位符齐备）；go build/vet/test 全绿 [BUILD-396]
+- [ ] FIX-350 judge 产出雷同 guidance 的对策（失败策略哨兵分隔格式 + 禁止字面雷同措辞强化）
+  - 背景：FEATURE-349 上线后实测，循环跑到一定程度后 judge 多轮返回的 guidance 趋于雷同甚至几乎完全一样——judge 与主 LLM 同源（deepseek-v4-flash），自身也陷入重复产出；原失败策略列表以 `1. ...` 纯编号行渲染，与 guidance 内容中的列表样式容易混淆，且"禁止重复"的措辞约束力不足
+  - 目标：让 judge 清晰区分"历史意见列表的结构"与"意见内容"，并以最硬措辞禁止新 guidance 与上一次雷同
+  - 实现：
+    - 失败策略列表改为带序号的哨兵包裹格式 `[FAILED-STRATEGY #N BEGIN]` / `[FAILED-STRATEGY #N END]`（agent/loop.go `buildFailedStrategiesText`）：verbose ASCII 哨兵独占一行，与 guidance 内容不可能冲突
+    - judge 用户提示段标题强化（zh/en）：新 guidance 绝对不得与列表中任何一条相同或近似雷同——尤其是最近一条；主LLM仍在同一处循环时必须彻底更换措辞与切入角度
+    - judge 系统提示第 6 条同步强化（zh/en）：新 guidance 与最近一条不得有任何字面级别的雷同；条目中说明哨兵格式便于 judge 解析
+  - 测试：agent/feature349_test.go 更新编号列表用例为哨兵格式断言 + 新增对抗性用例（策略内容含 `1. ` 与 `[FAILED-STRATEGY` 片段时结构仍清晰）；go build/vet/test 全绿 [BUILD-397]
 
 ## v1.0.0 — 正式版
 

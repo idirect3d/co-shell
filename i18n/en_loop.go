@@ -36,15 +36,20 @@ func init() {
 - llm_connection_error: connection/credential/model-not-found errors that cannot be fixed by better prompts
 - unknown: insufficient information - prefer a conservative notify_user
 
+# Diagnostic steps (think in this order)
+1. **Critically evaluate the historical instructions first**: if the context lists "previously tried and failed exit strategies", critique them one by one in reason — they are PROVEN ineffective at breaking the loop; identify exactly why: was the instruction too long and ignored, beyond the main model's current capability, did its fixed phrasing become material for parroting, or did the ban itself become a cue? Do NOT assume they were "right in direction, just poorly worded".
+2. **Then write the new guidance**: based on the critique above, avoid every element proven ineffective (including openings, structures, and ban styles). The single ultimate purpose: get the main model out of the loop with constructive progress — if previous instructions never got it moving, prefer a much simpler action (one small thing at a time), or advise asking the user for help.
+
 # Guidance writing requirements (most important; it becomes the next instruction sent directly to the main LLM)
 1. **Self-contained**: the main LLM may not see deleted messages; never write "as above" or "as mentioned earlier"
 2. **Directly instruct the next step**: start with action verbs (call/read/modify/search/execute/ask), naming concrete tools, files, commands
-3. **Re-state the goal**: begin by stating the ultimate goal (derived from {TASK}) to keep the main model on track
+3. **Anchor the goal (only when drifting)**: only when the suspicious content shows the main model has clearly drifted from the original task (doing unrelated work, chasing a wrong goal), re-anchor the ultimate goal in one or two sentences to correct course; otherwise do NOT restate the task background, ultimate goal, or current progress — the main model already has these in its context; re-injecting them only adds redundancy, and a repeated fixed paragraph feeds its tendency to parrot. When not drifting, the guidance starts directly with the operational instruction
 4. **Executable**: give a smaller concrete action; if information is insufficient, state exactly what to ask the user
 5. **If the goal is achieved**: directly write "call attempt_completion to exit"
-6. **Never repeat failed strategies**: if the context lists "previously tried and failed exit strategies", do not repeat any of them (including reworded equivalents); escalate substantively — more concrete tools and parameters, or a different angle; when 2 or more strategies have already failed, seriously consider advising to abandon the current line of attack: give a partial conclusion, ask the user a concrete question, or call attempt_completion to wrap up
+6. **Never repeat failed strategies**: if the context lists "previously tried and failed exit strategies" (each wrapped in [FAILED-STRATEGY #N BEGIN]/[FAILED-STRATEGY #N END] lines), your new guidance must be written in a completely different way — not just swapping a few words, but changing the overall organization and phrasing: a different paragraph structure, different headings (or no headings), different word order and verbs. Except for technical facts (file paths, tool names, commands), do not reuse any complete sentence or fixed template (such as an "Ultimate goal" / "Hard ban" boilerplate). Also escalate substantively — more concrete tools and parameters, or a different angle; when 2 or more strategies have already failed, seriously consider advising to abandon the current line of attack: give a partial conclusion, ask the user a concrete question, or call attempt_completion to wrap up
 7. **Salvage valuable analysis**: for loop problems, the part of the suspicious content BEFORE the repetition started may contain valuable analysis; if you judge it valuable, condense its key conclusions into the guidance (quote them directly), so the main model continues from that basis instead of re-analyzing from scratch
 8. **Preemptive ban (mandatory for loop problems)**: the main model is very likely to repeat itself next round. First, in reason, explicitly predict the **specific content** it will keep repeating (distilled from the repetition samples in the suspicious content, e.g. "it will keep emitting 'Let me search for X' intent statements without issuing a tool call"); then, in guidance, **explicitly ban that pattern** — name and forbid such intent statements / analytical preambles, and require the response to start directly with a tool call, with no analytical text first
+9. **Forward-looking instructions only, no retrospection**: the looping messages have been deleted from the main model's context — it cannot see them at all. Therefore guidance MUST NOT contain retrospective statements like "you have repeatedly output...", "previous attempts did not work...", "you keep repeating..." — the main model has no memory of that; such text is meaningless and wastes space. Phrase every constraint as a direct imperative ("Do not output...", "Call ... directly") and devote all the space to what to do next
 
 # Output requirements
 You MUST call the report_problem tool and fill its arguments with the diagnosis. Do not output anything else.
@@ -115,7 +120,7 @@ Based on the above information, call the report_problem tool and produce a struc
 
 ===
 
-# Previously Tried and Failed Exit Strategies (issued earlier in this task but did not break the loop; do NOT repeat or merely reword them — escalate substantively)
+# Previously Tried and Failed Exit Strategies (guidance issued earlier in this task that did not break the loop, numbered chronologically. Your new guidance MUST NOT be identical or near-identical to ANY of them — especially the most recent one; if the main model is still looping at the same spot, the old wording provably does not work, so completely change the paragraph structure, the phrasing AND the angle, and do not reuse any complete sentence or fixed template)
 
 {FAILED_STRATEGIES}
 
@@ -133,7 +138,7 @@ Based on the above information, call the report_problem tool and produce a struc
 
 ===
 
-Based on the above information, complete the loop judgment and provide a self-contained, executable next-step instruction for the main model (state the ultimate goal as the execution anchor first, then the concrete action for the current stage).
+Based on the above information, complete the loop judgment and provide a self-contained, executable next-step instruction for the main model: start directly with the operational instruction; unless you judge the main model has clearly drifted off the main line, do not restate the ultimate goal, task background, or current progress.
 `
 	enMessages[KeyLoopJudgeFallback] = `Focus on the next action for the current task. If there are unfinished goals, clearly direct: pick a concrete file/command/search action nearby and execute it immediately; if the direction is unclear, ask the user a specific question directly. If the task goal has been achieved, call attempt_completion to finish.`
 	enMessages[KeyLoopFailedStrategiesNone] = `(none — first loop judgment for this task)`
