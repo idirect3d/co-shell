@@ -2079,6 +2079,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// FEATURE-343: vision recognition round failure fallback
 	KeyVisionRecognitionFailed: "视觉分析失败: %v",
 	KeyVisionRecognitionEmpty:  "视觉分析失败: 识别结果为空",
+	KeyVisionRecognitionCancelled: "视觉分析已取消",
 	KeyMemoryDeletedRange:      "✅ 已删除最近 %d 条记忆（从倒数第 %d 条到倒数第 %d 条）",
 	KeyToolNoOutputBracket:     "（工具调用无输出）",
 	KeyShellCmdError:           "%s\n\n⚠️ 命令执行出错：%v",
