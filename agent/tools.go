@@ -1880,6 +1880,31 @@ func (a *Agent) recordVisionToolCall(tc llm.ToolCall) {
 	a.mu.Unlock()
 }
 
+// shouldDeferVisionToolResult reports whether the placeholder tool result of a
+// vision tool call should NOT be appended to a.messages: in FEATURE-343
+// minimal vision-context mode the recognition round that follows backfills the
+// recognition output as this tool call's ONLY tool message. Writing the
+// placeholder too would leave two tool messages sharing one tool_call_id,
+// which strict providers reject (400 "Messages with role 'tool' must be a
+// response to a preceding message with 'tool_calls'").
+// The conditions mirror the recognition-round trigger in buildContextMessages
+// exactly; if they diverge, the assistant tool_calls message would be left
+// without any tool response — an equally invalid history.
+// Note: with multiple vision tool calls in a single assistant turn only the
+// last one is backfilled (lastVisionToolCallID) — same limitation as the
+// backfill itself.
+func (a *Agent) shouldDeferVisionToolResult(toolName string) bool {
+	if toolName != "visual_analysis" && toolName != "browser_screenshot" {
+		return false
+	}
+	if a.cfg == nil || a.cfg.LLM.VisionContextMode != "minimal" {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.visionPendingIntent != "" && len(a.imagePaths) > 0
+}
+
 // executeToolCall runs a single tool call and returns the result.
 func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, error) {
 	// Parse arguments
