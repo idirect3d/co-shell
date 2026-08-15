@@ -25,6 +25,7 @@
 | FEATURE-306 | 0.7.6 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
 | FEATURE-307 | 0.7.6 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.7 | tui v2 | FullScreenRenderer（可选分支） |
+| FEATURE-352 | 0.7.6 | P1 | ✅ 已完成（循环介入 auto 策略：纠错提示自动升级强制重整 [BUILD-402]） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
@@ -1246,6 +1247,18 @@
     - judge 用户提示段标题强化（zh/en）：新 guidance 绝对不得与列表中任何一条相同或近似雷同——尤其是最近一条；主LLM仍在同一处循环时必须彻底更换措辞与切入角度
     - judge 系统提示第 6 条同步强化（zh/en）：新 guidance 与最近一条不得有任何字面级别的雷同；条目中说明哨兵格式便于 judge 解析
   - 测试：agent/feature349_test.go 更新编号列表用例为哨兵格式断言 + 新增对抗性用例（策略内容含 `1. ` 与 `[FAILED-STRATEGY` 片段时结构仍清晰）；go build/vet/test 全绿 [BUILD-397]
+
+- [x] FEATURE-352 循环介入新增 auto 策略（纠错提示 + 达到阈值自动升级强制重整上下文）：[BUILD-402]
+  - 背景：loop-intervention=prompt 的纠错提示在循环根因（上下文恒定 → 确定性重演，见 FEATURE-349）下多次无效；reorganize 策略又缺少"先尝试纠错、无效再重整"的渐进路径。auto 模式自动管理"纠错提示 → 强制重整"的升级链
+  - 目标：auto 模式在同一反馈链（<retried_count> 信封计数）上先按 prompt 方式发送纠错提示；当链上确认循环次数达到 loop-auto-reorganize-threshold（默认 5）后，自动升级为强制 reorganize_context 指令
+  - 实现：
+    - config/config.go：LLMConfig 新增 LoopAutoReorganizeThreshold 配置项（json: loop_auto_reorganize_threshold，默认 5，<=0 回退默认）；DefaultConfig() 与 LoadFromFile 兜底；LoopIntervention 默认值 prompt → auto
+    - agent/loop.go：applyLoopIntervention 新增 auto case（阈值前与 prompt 一致，阈值到达后反馈替换为 KeyLoopAutoReorganize 强制指令）；新增 loopAutoThreshold()（未设置/非法回退 5）与 autoEscalateToReorganize()（锁内从最后 user/tool 消息 env 读取 retried_count，count+1 >= 阈值即升级；重整后反馈链 collapse 自然重启计数）
+    - agent/run_stream.go：流式同步循环分支新增 auto case（优先 loopJudgeExitStrategy，否则 LoopPromptTemplate 模板反馈，阈值到达时升级）；fallback 默认 prompt → auto
+    - cmd/settings.go + cmd/settings_safety.go：:set loop-auto-reorganize-threshold 支持查询/设置（>=1 校验，同步 Agent 配置指针），:set 列表与 :set defaults 接入
+    - main.go：--loop-intervention 合法值新增 auto（CLI help 同步）
+    - i18n：keys/zh/en 新增 KeyStrategyAutoReorganize / KeyLoopAutoReorganize / KeyCol3LoopAutoReorgThresh / KeySettingCmd_773~775 双语；zh_loop.go / en_loop.go 同步
+  - 测试：agent/loop_auto_test.go 5 个单测（阈值回退默认/升级边界/阈值下与 prompt 一致且计数+1/阈值到达升级且反馈消息原地更新不追加/无 user/tool 消息不 panic）；go build/vet/test 全绿 [BUILD-402]
 
 ## v1.0.0 — 正式版
 

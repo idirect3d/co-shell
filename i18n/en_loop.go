@@ -155,9 +155,11 @@ Based on the above information, complete the loop judgment and provide a self-co
 	enMessages[KeySettingsDescLoopThreshold] = "Loop detection threshold, consecutive repeats triggering intervention (default 5)"
 	enMessages[KeySettingsDescLoopWindow] = "Loop detection sliding window size for checking repeat patterns (default 20)"
 	enMessages[KeyLoopDetectEnabledUpdated] = "✅ Loop detection set to: %s"
-	enMessages[KeyCLIHelpLoopIntervention] = "      --loop-intervention    Loop intervention strategy (off/retry/prompt/reorganize/temperature/random, overrides config)"
+	enMessages[KeyCLIHelpLoopIntervention] = "      --loop-intervention    Loop intervention strategy (off/retry/prompt/reorganize/temperature/random/auto, overrides config)"
 	enMessages[KeyReorganizeResult] = "✅ Context reorganized: %d chars summary."
 	enMessages[KeyLoopReorganizeSuggestion] = "\n\n⚠️ Loop detected and context has been reset. It is recommended to call the reorganize_context tool to reorganize the context, summarize completed work and findings, and formulate a new strategy to continue."
+	enMessages[KeyLoopAutoReorganize] = `A loop has been confirmed multiple times at this point and corrective prompts failed to break it. You MUST call the reorganize_context tool now: summarize the completed work and findings, preserve all critical data (file paths, error messages, code snippets), and formulate a new strategy to continue.`
+	enMessages[KeyCol3LoopAutoReorgThresh] = "Auto Reorganize Threshold(loop count)"
 
 	// Proactive/preventive intervention templates (discarded bad content, no post-mortem)
 	enMessages[KeyXMLParseErrorSuggestion] = `When calling {TOOL_NAME} next, pay special attention to the correct format:

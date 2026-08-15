@@ -186,7 +186,7 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_196), h.cfg.LLM.LoopIntervention), nil
 		}
 		switch args[1] {
-		case "off", "retry", "prompt", "reorganize", "temperature", "random":
+		case "off", "retry", "prompt", "reorganize", "temperature", "random", "auto":
 			h.cfg.LLM.LoopIntervention = args[1]
 		default:
 			return "", errors.New(i18n.T(i18n.KeySettingCmd_197))
@@ -218,6 +218,26 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		}
 		log.Info("Loop detect threshold set to %d", n)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_201), n), nil
+
+	case "loop-auto-reorganize-threshold":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_773), h.cfg.LLM.LoopAutoReorganizeThreshold), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
+		}
+		if n < 1 {
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_775))
+		}
+		h.cfg.LLM.LoopAutoReorganizeThreshold = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Sync the Agent's config pointer (same reason as loop-intervention above).
+		h.agent.SetConfig(h.cfg)
+		log.Info("Loop auto reorganize threshold set to %d", n)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_774), n), nil
 
 	// loop-temp-enabled is removed. Temperature adjustment is now controlled
 	// by loop-intervention.
