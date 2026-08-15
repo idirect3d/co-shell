@@ -765,7 +765,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	// Read loop intervention strategy directly from config.
 	// SettingsHandler and Agent share the same cfg pointer via SetConfig(),
 	// so :set at runtime is immediately visible via a.cfg.LLM.LoopIntervention.
-	loopAction := "retry" // DefaultConfig() default
+	loopAction := "auto" // fallback when config is unavailable (system default)
 	if a.cfg != nil && a.cfg.LLM.LoopIntervention != "" {
 		loopAction = a.cfg.LLM.LoopIntervention
 	}
@@ -850,6 +850,21 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		}
 		strategyDesc = i18n.T(i18n.KeyStrategyPrompt)
 
+	case "auto":
+		// prompt + reorganize: behave like "prompt", but when the current
+		// feedback chain has been confirmed as a loop LoopAutoReorganizeThreshold
+		// times (tracked via the <retried_count> envelope tag), escalate to a
+		// mandatory reorganize_context directive.
+		loopFeedback = event.Suggestion
+		if loopFeedback == "" {
+			loopFeedback = i18n.T(i18n.KeyLoopDetectFeedback)
+		}
+		strategyDesc = i18n.T(i18n.KeyStrategyPrompt)
+		if a.autoEscalateToReorganize() {
+			loopFeedback = i18n.T(i18n.KeyLoopAutoReorganize)
+			strategyDesc = i18n.T(i18n.KeyStrategyAutoReorganize)
+		}
+
 	case "temperature":
 		if a.loopTempCtrl != nil {
 			_, changed := a.loopTempCtrl.Apply()
@@ -921,6 +936,38 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	}
 
 	return nil
+}
+
+// loopAutoThreshold returns the configured auto-mode escalation threshold
+// (loop_auto_reorganize_threshold), defaulting to 5 when unset or invalid.
+func (a *Agent) loopAutoThreshold() int {
+	if a.cfg != nil && a.cfg.LLM.LoopAutoReorganizeThreshold > 0 {
+		return a.cfg.LLM.LoopAutoReorganizeThreshold
+	}
+	return 5
+}
+
+// autoEscalateToReorganize reports whether the next loop intervention on the
+// current feedback chain should escalate from a corrective prompt to a
+// mandatory reorganize_context directive (loop_intervention="auto").
+//
+// The "same position" identity is the feedback chain itself (FIX-321):
+// consecutive confirmed loops keep updating the same loop feedback message in
+// place, and its <retried_count> envelope tag is the consecutive-loop counter.
+// The next intervention will bump that counter by one (applyLoopFeedback), so
+// escalation triggers when count+1 reaches the threshold. After the LLM calls
+// reorganize_context, collapseAfterReorganize drops the chain and the counter
+// restarts naturally.
+func (a *Agent) autoEscalateToReorganize() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if role := a.messages[i].Role; role == "user" || role == "tool" {
+			count := getRetriedCountFromText(lastEnvText(&a.messages[i]))
+			return count+1 >= a.loopAutoThreshold()
+		}
+	}
+	return false
 }
 
 // handleLoopDetection is called when a loop pattern is detected during streaming.

@@ -174,6 +174,9 @@ const (
 	KeyStrategyResend         = "strategy_resend"
 	KeyStrategyPrompt         = "strategy_prompt"
 	KeyStrategyReorganize     = "strategy_reorganize"
+	// KeyStrategyAutoReorganize is the strategy label shown when
+	// loop_intervention="auto" escalates to the mandatory reorganize directive.
+	KeyStrategyAutoReorganize = "strategy_auto_reorganize"
 	KeyStrategyTempAdjust     = "strategy_temp_adjust"
 	KeyStrategyTempNoInit     = "strategy_temp_no_init"
 	KeyStrategyRandomResend   = "strategy_random_resend"
@@ -672,6 +675,9 @@ const (
 	KeySettingCmd_297 = "setting_cmd_297"
 	KeySettingCmd_298 = "setting_cmd_298"
 	KeySettingCmd_299 = "setting_cmd_299"
+	KeySettingCmd_773 = "setting_cmd_773"
+	KeySettingCmd_774 = "setting_cmd_774"
+	KeySettingCmd_775 = "setting_cmd_775"
 	KeySettingCmd_300 = "setting_cmd_300"
 
 	// FEATURE-305 第 2 批: settings.go makeLine desc
@@ -1420,8 +1426,14 @@ const (
 	KeyCol3ShowLoopDetection     = "col3_show_loop_detection"
 
 	// Loop detection settings (FIX-179)
-	KeyCol3LoopDetectEnabled     = "col3_loop_detect_enabled"
-	KeyLoopDetectFeedback        = "loop_detect_feedback"
+	KeyCol3LoopDetectEnabled = "col3_loop_detect_enabled"
+	KeyLoopDetectFeedback    = "loop_detect_feedback"
+	// KeyLoopAutoReorganize is the mandatory reorganize_context directive sent
+	// when loop_intervention="auto" reaches LoopAutoReorganizeThreshold.
+	KeyLoopAutoReorganize = "loop_auto_reorganize"
+	// KeyCol3LoopAutoReorgThresh is the settings-list label for the
+	// loop-auto-reorganize-threshold setting.
+	KeyCol3LoopAutoReorgThresh   = "col3_loop_auto_reorganize_threshold"
 	KeyCol3LoopDetectThreshold   = "col3_loop_detect_threshold"
 	KeyCol3LoopDetectMaxWindow   = "col3_loop_detect_max_window"
 	KeySettingsDescLoopDetect    = "settings_desc_loop_detect"
