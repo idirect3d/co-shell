@@ -155,9 +155,11 @@ func init() {
 	zhMessages[KeySettingsDescLoopThreshold] = "循环检测阈值，连续重复内容触发干预的次数（默认 5）"
 	zhMessages[KeySettingsDescLoopWindow] = "循环检测滑动窗口大小，用于检查重复模式的历史块数（默认 20）"
 	zhMessages[KeyLoopDetectEnabledUpdated] = "✅ 循环检测已设置为: %s"
-	zhMessages[KeyCLIHelpLoopIntervention] = "      --loop-intervention    循环介入策略（off/retry/prompt/reorganize/temperature/random，覆盖配置文件）"
+	zhMessages[KeyCLIHelpLoopIntervention] = "      --loop-intervention    循环介入策略（off/retry/prompt/reorganize/temperature/random/auto，覆盖配置文件）"
 	zhMessages[KeyReorganizeResult] = "✅ 上下文已重新整理：摘要 %d 字符。"
 	zhMessages[KeyLoopReorganizeSuggestion] = "\n\n⚠️ 检测到循环后上下文已被重置。建议调用 reorganize_context 工具重新整理上下文，总结已做的工作和发现，并制定新的策略继续。"
+	zhMessages[KeyLoopAutoReorganize] = `此处已多次确认循环且纠错提示未能打破循环。你必须立即调用 reorganize_context 工具重整上下文：总结已完成的工作和发现，保留关键数据（文件路径、错误信息、代码片段），并制定新的策略继续。`
+	zhMessages[KeyCol3LoopAutoReorgThresh] = "auto模式重整阈值(循环次数)"
 
 	// Proactive/preventive intervention templates (discarded bad content, no post-mortem)
 	zhMessages[KeyXMLParseErrorSuggestion] = `接下来调用 {TOOL_NAME} 方法时，请特别注意调用格式的正确性：

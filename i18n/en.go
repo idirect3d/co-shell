@@ -413,8 +413,8 @@ var enMessages = map[string]string{
 	KeySettingCmd_193: "Max distinct error types: %d",
 	KeySettingCmd_194: "Max distinct error types must be >= 0",
 	KeySettingCmd_195: "✅ Max distinct error types set to: %d",
-	KeySettingCmd_196: "Loop intervention strategy: %s (valid: off/retry/prompt/reorganize/temperature/random)",
-	KeySettingCmd_197: "Usage: .set loop-intervention off|retry|prompt|reorganize|temperature|random",
+	KeySettingCmd_196: "Loop intervention strategy: %s (valid: off/retry/prompt/reorganize/temperature/random/auto)",
+	KeySettingCmd_197: "Usage: .set loop-intervention off|retry|prompt|reorganize|temperature|random|auto",
 	KeySettingCmd_198: "✅ Loop intervention strategy set to: %s",
 	KeySettingCmd_199: "Loop detect threshold: %d",
 	KeySettingCmd_200: "Loop detect threshold must be >= 1",
@@ -466,7 +466,7 @@ var enMessages = map[string]string{
 	KeySettingCmd_312: "Word max paragraphs per read (10-5000)",
 	KeySettingCmd_313: "0-tool-call action (exit/retry/prompt)",
 	KeySettingCmd_314: "Parse error action (exit/retry/prompt)",
-	KeySettingCmd_315: "Loop intervention strategy (off/retry/prompt/reorganize/temperature/random)",
+	KeySettingCmd_315: "Loop intervention strategy (off/retry/prompt/reorganize/temperature/random/auto)",
 	KeySettingCmd_316: "Loop temp up step",
 	KeySettingCmd_317: "Loop temp down step",
 	KeySettingCmd_318: "Loop temp max",
@@ -796,6 +796,9 @@ var enMessages = map[string]string{
 	KeySettingCmd_770: "Locally deployed Ollama service, models must be pulled manually",
 	KeySettingCmd_771: "OpenAI Compatible (Custom)",
 	KeySettingCmd_772: "Any service compatible with the OpenAI API",
+	KeySettingCmd_773: "Auto mode reorganize threshold (loop count): %d",
+	KeySettingCmd_774: "✅ Auto mode reorganize threshold set to: %d",
+	KeySettingCmd_775: "Auto mode reorganize threshold must be >= 1",
 
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
@@ -884,7 +887,7 @@ var enMessages = map[string]string{
 	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  Repetition penalty (0.0 ~ 2.0, -1 = don't send, overrides config)\n",
 
 	// CLI Help - Loop Detection & Dedup (FIX-179)
-	KeyCLIHelpLoopIntervention: "      --loop-intervention     Loop intervention strategy (off/retry/prompt/reorganize/temperature/random, overrides config)",
+	KeyCLIHelpLoopIntervention: "      --loop-intervention     Loop intervention strategy (off/retry/prompt/reorganize/temperature/random/auto, overrides config)",
 	KeyCLIHelpDedup:            "      --dedup-enabled      Enable message deduplication (on/off, overrides config)",
 
 	// CLI Help - Output Mode
@@ -1967,6 +1970,7 @@ no liability whatsoever.`,
 	KeyStrategyResend:         "Resend context (no feedback)",
 	KeyStrategyPrompt:         "Send corrective prompt",
 	KeyStrategyReorganize:     "Reorganize context",
+	KeyStrategyAutoReorganize: "Auto: threshold reached, demand reorganize_context",
 	KeyStrategyTempAdjust:     "Temperature adjust (no feedback)",
 	KeyStrategyTempNoInit:     "Temperature controller not initialized",
 	KeyStrategyRandomResend:   "Random: resend context",

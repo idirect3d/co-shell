@@ -51,7 +51,7 @@ import (
 
 const version = "0.7.6"
 
-const build = "401"
+const build = "402"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -153,7 +153,7 @@ type cliFlags struct {
 	unloadRulesAlias bool
 
 	// Loop intervention (FEATURE-267)
-	loopIntervention string // off/retry/prompt/reorganize/temperature/random
+	loopIntervention string // off/retry/prompt/reorganize/temperature/random/auto
 
 	// Loop temperature adjustment (FEATURE-230)
 	loopTempEnabled  string  // "on"/"off"
@@ -312,7 +312,7 @@ func parseFlags() cliFlags {
 	flag.BoolVar(&f.unloadRulesAlias, "init-rules", false, "Deprecated, use --unload-rules")
 
 	// Loop intervention (FEATURE-267)
-	flag.StringVar(&f.loopIntervention, "loop-intervention", "", "Loop intervention strategy (off/retry/prompt/reorganize/temperature/random, overrides config file)")
+	flag.StringVar(&f.loopIntervention, "loop-intervention", "", "Loop intervention strategy (off/retry/prompt/reorganize/temperature/random/auto, overrides config file)")
 
 	// Loop temperature adjustment CLI overrides (FEATURE-230)
 	flag.StringVar(&f.loopTempEnabled, "loop-temp-enabled", "", "Enable loop temperature auto-adjustment (on/off, overrides config file)")
@@ -876,10 +876,10 @@ func main() {
 	// Apply loop-intervention CLI override
 	if flags.loopIntervention != "" {
 		switch flags.loopIntervention {
-		case "off", "retry", "prompt", "reorganize", "temperature", "random":
+		case "off", "retry", "prompt", "reorganize", "temperature", "random", "auto":
 			cfg.LLM.LoopIntervention = flags.loopIntervention
 		default:
-			io.ErrPrintf("Warning: invalid --loop-intervention value %q, use off|retry|prompt|reorganize|temperature|random\n", flags.loopIntervention)
+			io.ErrPrintf("Warning: invalid --loop-intervention value %q, use off|retry|prompt|reorganize|temperature|random|auto\n", flags.loopIntervention)
 		}
 	}
 

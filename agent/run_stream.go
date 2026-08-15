@@ -458,7 +458,7 @@ iterationLoop:
 					}
 				}
 				if loopAction == "" {
-					loopAction = "prompt" // fallback default
+					loopAction = "auto" // fallback default
 				}
 
 				// Build feedback and actions based on loop intervention strategy
@@ -485,6 +485,26 @@ iterationLoop:
 						}
 					}
 					strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyPrompt))
+
+				case "auto":
+					// prompt + reorganize: same feedback as "prompt", but when the
+					// current feedback chain's retried_count is about to reach
+					// LoopAutoReorganizeThreshold, escalate to a mandatory
+					// reorganize_context directive.
+					if a.loopJudgeExitStrategy != "" {
+						loopFeedback = a.loopJudgeExitStrategy
+					} else {
+						template := a.cfg.LLM.LoopPromptTemplate
+						if template != "" {
+							template = strings.ReplaceAll(template, "{ERROR}", streamErr.Error())
+							loopFeedback = fmt.Sprintf(i18n.T(i18n.KeyLoopDetectFeedback), template)
+						}
+					}
+					strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyPrompt))
+					if a.autoEscalateToReorganize() {
+						loopFeedback = i18n.T(i18n.KeyLoopAutoReorganize)
+						strategyParts = append(strategyParts, i18n.T(i18n.KeyStrategyAutoReorganize))
+					}
 
 				case "reorganize":
 					// Append reorganize context suggestion

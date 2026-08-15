@@ -206,6 +206,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "error-max-type-count",
 		subcommand == "loop-intervention",
 		subcommand == "loop-detect-threshold",
+		subcommand == "loop-auto-reorganize-threshold",
 		subcommand == "loop-temp-enabled", subcommand == "loop-temp-step-up",
 		subcommand == "loop-temp-step-down", subcommand == "loop-temp-max",
 		subcommand == "loop-temp-min",
@@ -667,6 +668,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("error-max-type-count", fmt.Sprintf("%d", cfg.LLM.ErrorMaxTypeCount), i18n.T(i18n.KeyCol3ErrorMaxTypeCount)),
 		// Loop detection (FEATURE-227)
 		makeLine("loop-intervention", loopIntervention, i18n.T(i18n.KeySettingCmd_315)),
+		makeLine("loop-auto-reorganize-threshold", fmt.Sprintf("%d", cfg.LLM.LoopAutoReorganizeThreshold), i18n.T(i18n.KeyCol3LoopAutoReorgThresh)),
 		makeLine("loop-detect-threshold", fmt.Sprintf("%d", cfg.LLM.LoopDetectThreshold), i18n.T(i18n.KeyCol3LoopDetectThreshold)),
 		makeLine("loop-temp-step-up", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepUp), i18n.T(i18n.KeySettingCmd_316)),
 		makeLine("loop-temp-step-down", fmt.Sprintf("%.2f", cfg.LLM.LoopTempStepDown), i18n.T(i18n.KeySettingCmd_317)),
@@ -846,6 +848,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.CommandTimeout = def.LLM.CommandTimeout
 	h.cfg.LLM.LLMTimeout = def.LLM.LLMTimeout
 	h.cfg.LLM.LoopIntervention = def.LLM.LoopIntervention
+	h.cfg.LLM.LoopAutoReorganizeThreshold = def.LLM.LoopAutoReorganizeThreshold
 	h.cfg.LLM.LoopDetectThreshold = def.LLM.LoopDetectThreshold
 	h.cfg.LLM.LoopTempEnabled = def.LLM.LoopTempEnabled
 	h.cfg.LLM.LoopTempStepUp = def.LLM.LoopTempStepUp
