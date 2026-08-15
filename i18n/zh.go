@@ -395,8 +395,8 @@ var zhMessages = map[string]string{
 	KeySettingCmd_193: "不同错误类型最大数量: %d",
 	KeySettingCmd_194: "不同错误类型最大数量必须 >= 0",
 	KeySettingCmd_195: "✅ 不同错误类型最大数量已设置为: %d",
-	KeySettingCmd_196: "循环介入策略: %s（可选值: off/retry/prompt/reorganize/temperature/random）",
-	KeySettingCmd_197: "使用方法: .set loop-intervention off|retry|prompt|reorganize|temperature|random",
+	KeySettingCmd_196: "循环介入策略: %s（可选值: off/retry/prompt/reorganize/temperature/random/auto）",
+	KeySettingCmd_197: "使用方法: .set loop-intervention off|retry|prompt|reorganize|temperature|random|auto",
 	KeySettingCmd_198: "✅ 循环介入策略已设置为: %s",
 	KeySettingCmd_199: "循环检测阈值: %d",
 	KeySettingCmd_200: "循环检测阈值必须 >= 1",
@@ -448,7 +448,7 @@ var zhMessages = map[string]string{
 	KeySettingCmd_312: "Word单次读取最大段落数(10-5000)",
 	KeySettingCmd_313: "0-tool-call 处理方式(exit/retry/prompt)",
 	KeySettingCmd_314: "方法调用解析错误处理方式(exit/retry/prompt)",
-	KeySettingCmd_315: "循环介入策略(off/retry/prompt/reorganize/temperature/random)",
+	KeySettingCmd_315: "循环介入策略(off/retry/prompt/reorganize/temperature/random/auto)",
 	KeySettingCmd_316: "循环温度上升步长",
 	KeySettingCmd_317: "循环温度下降步长",
 	KeySettingCmd_318: "循环温度上限",
@@ -778,6 +778,9 @@ var zhMessages = map[string]string{
 	KeySettingCmd_770: "本地部署的 Ollama 服务，模型需自行拉取",
 	KeySettingCmd_771: "OpenAI 兼容（自定义）",
 	KeySettingCmd_772: "任何兼容 OpenAI API 的服务",
+	KeySettingCmd_773: "auto 模式重整阈值(循环次数): %d",
+	KeySettingCmd_774: "✅ auto 模式重整阈值已设置为: %d",
+	KeySettingCmd_775: "auto 模式重整阈值必须 >= 1",
 
 	// Help
 	KeyHelpTitle:        "可用命令:",
@@ -871,7 +874,7 @@ var zhMessages = map[string]string{
 	KeyCLIHelpRepetitionPenalty: "  --repetition-penalty <value>  重复惩罚参数（0.0 ~ 2.0，-1 不发送，覆盖配置文件）\n",
 
 	// CLI Help - Loop Detection & Dedup (FIX-179)
-	KeyCLIHelpLoopIntervention: "      --loop-intervention    循环介入策略（off/retry/prompt/reorganize/temperature/random，覆盖配置文件）",
+	KeyCLIHelpLoopIntervention: "      --loop-intervention    循环介入策略（off/retry/prompt/reorganize/temperature/random/auto，覆盖配置文件）",
 	KeyCLIHelpDedup:            "      --dedup-enabled      启用消息去重检测（on/off，覆盖配置文件）",
 
 	"col3_search_max_line_length":           "搜索单行最大字符数",
@@ -1997,6 +2000,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyStrategyResend:         "重发上下文（无反馈）",
 	KeyStrategyPrompt:         "发送纠错提示",
 	KeyStrategyReorganize:     "重整上下文",
+	KeyStrategyAutoReorganize: "auto：达到阈值，强制要求重整上下文",
 	KeyStrategyTempAdjust:     "温度调整（无反馈）",
 	KeyStrategyTempNoInit:     "温度控制器未初始化",
 	KeyStrategyRandomResend:   "随机选择: 重发上下文",

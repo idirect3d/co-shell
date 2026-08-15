@@ -461,8 +461,19 @@ type LLMConfig struct {
 	//   "reorganize" — suggest reorganize context
 	//   "temperature" — adjust temperature + send prompt
 	//   "random" — randomly pick one of the above
-	// Default: "prompt"
+	//   "auto" — like "prompt", but when the same feedback chain's retried_count
+	//            reaches LoopAutoReorganizeThreshold, escalate to a mandatory
+	//            reorganize_context directive (prompt + reorganize)
+	// Default: "auto"
 	LoopIntervention string `json:"loop_intervention"`
+
+	// LoopAutoReorganizeThreshold: in "auto" loop-intervention mode, the number
+	// of consecutive confirmed loops on the same feedback chain (tracked via the
+	// <retried_count> envelope tag) after which the feedback escalates from a
+	// corrective prompt to a mandatory reorganize_context directive.
+	// <= 0 falls back to the default.
+	// Default: 5
+	LoopAutoReorganizeThreshold int `json:"loop_auto_reorganize_threshold"`
 
 	// LoopPromptTemplate: custom template for loop detection feedback.
 	// Supports {ERROR} placeholder for the error message.
@@ -898,7 +909,7 @@ func DefaultConfig() *Config {
 			VisionContextMode:          "minimal",
 			ParseErrorAction:           "retry",
 			NoToolAction:               "exit",
-			LoopIntervention:           "prompt",
+			LoopIntervention:           "auto",
 			LoopDetectThreshold:        2,
 			LoopSingleLineLength:       2048,
 			LoopSingleLineWindow:       128,
@@ -979,7 +990,10 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 		cfg.DB.Timeout = DefaultDBConfig().Timeout
 	}
 	if cfg.LLM.LoopIntervention == "" {
-		cfg.LLM.LoopIntervention = "prompt"
+		cfg.LLM.LoopIntervention = "auto"
+	}
+	if cfg.LLM.LoopAutoReorganizeThreshold <= 0 {
+		cfg.LLM.LoopAutoReorganizeThreshold = 5
 	}
 
 	// FEATURE-302: Normalize legacy input mode "enhanced" to "tui"
