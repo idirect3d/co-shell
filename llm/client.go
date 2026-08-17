@@ -1016,9 +1016,15 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 						// Delta chunk - accumulate.
 						existing, exists := accumulatedToolCalls[tc.Index]
 						if !exists {
+							// FIX-353: the first chunk of a tool call may already
+							// carry complete arguments (e.g. mlx-vlm emits the
+							// whole tool call in a single chunk instead of
+							// streaming id/name first and argument fragments
+							// later). Keep them instead of dropping.
 							accumulatedToolCalls[tc.Index] = &ToolCall{
-								ID:   tc.ID,
-								Name: tc.Name,
+								ID:        tc.ID,
+								Name:      tc.Name,
+								Arguments: tc.Arguments,
 							}
 						} else {
 							if tc.ID != "" {
