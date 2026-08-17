@@ -50,7 +50,7 @@ import (
 
 const version = "0.7.7"
 
-const build = "414"
+const build = "415"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -166,6 +166,10 @@ type cliFlags struct {
 
 	// Input mode
 	inputMode string
+
+	// Output format (FEATURE-307b): "text" (default) or "json" (JSON-Lines
+	// event stream, CLI-only, never persisted to config).
+	outputFormat string
 
 	// Unload mode (FEATURE-245)
 	unloadMode string // mode name to unload sections to disk
@@ -325,6 +329,9 @@ func parseFlags() cliFlags {
 
 	// Input mode (FEATURE-198)
 	flag.StringVar(&f.inputMode, "input-mode", "", "REPL input mode (enhanced=interactive/stdio=standard input, overrides config file)")
+
+	// Output format (FEATURE-307b)
+	flag.StringVar(&f.outputFormat, "output-format", "", "Output format (text/json; json implies stdio input mode, CLI-only)")
 
 	// Unload mode (FEATURE-245)
 	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
@@ -1306,9 +1313,26 @@ func main() {
 
 	log.Info("Agent initialized with %d rules", len(cfg.Rules))
 
+	// FEATURE-307b: resolve and validate the output format. It is CLI-only
+	// (never persisted); json is mutually exclusive with an explicitly
+	// requested tui input mode and implies stdio otherwise.
+	outputFormat := flags.outputFormat
+	if outputFormat == "" {
+		outputFormat = "text"
+	}
+	if outputFormat != "text" && outputFormat != "json" {
+		io.ErrPrintf("%s\n", i18n.TF(i18n.KeyOutputFormatInvalid, flags.outputFormat))
+		os.Exit(1)
+	}
+	if outputFormat == "json" && flags.inputMode != "" &&
+		config.NormalizeInputMode(flags.inputMode) == "tui" {
+		io.ErrPrintf("%s\n", i18n.TF(i18n.KeyOutputFormatInvalid, "json + --input-mode tui"))
+		os.Exit(1)
+	}
+
 	// If --command flag is provided, execute the single command and exit
 	if flags.command != "" {
-		executeSingleCommand(ag, cfg, flags.command)
+		executeSingleCommand(ag, cfg, flags.command, outputFormat)
 		return
 	}
 
@@ -1325,7 +1349,13 @@ func main() {
 	if flags.inputMode != "" {
 		inputMode = config.NormalizeInputMode(flags.inputMode)
 	}
+	if outputFormat == "json" {
+		// json implies stdio (FEATURE-307b); an explicit --input-mode tui was
+		// already rejected above.
+		inputMode = "stdio"
+	}
 	r.SetInputMode(inputMode)
+	r.SetOutputFormat(outputFormat)
 	log.Info("REPL started (input mode: %s)", inputMode)
 	if err := r.Run(); err != nil {
 		log.Error("REPL error: %v", err)
@@ -1386,8 +1416,9 @@ func renderSingleCmdEvent(io agent.UserIO, ep config.EmojiPrefixes, ev agent.Str
 }
 
 // executeSingleCommand executes a single command (natural language or system command)
-// and prints the result, then exits.
-func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
+// and prints the result, then exits. With outputFormat "json" the agent event
+// stream is rendered as JSON-Lines (FEATURE-307b).
+func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string, outputFormat string) {
 	log.Info("Single command mode: %s", input)
 
 	ep := config.GetEmojiPrefixes(cfg.LLM.EmojiEnabled)
@@ -1414,13 +1445,25 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 		return
 	}
 
-	// Natural language input - use agent with streaming output
+	// Natural language input - use agent with streaming output.
+	// FEATURE-307b: json renders the event stream as JSON-Lines on stdout;
+	// failures then go to stderr so stdout stays a pure JSON event stream.
 	ctx := context.Background()
-	_, err := ag.RunStream(ctx, input, func(ev agent.StreamEvent) {
-		renderSingleCmdEvent(io, ep, ev)
-	})
+	var cb agent.StreamCallback
+	if outputFormat == "json" {
+		cb = agent.NewStreamRenderer(os.Stdout).Render
+	} else {
+		cb = func(ev agent.StreamEvent) {
+			renderSingleCmdEvent(io, ep, ev)
+		}
+	}
+	_, err := ag.RunStream(ctx, input, cb)
 
 	if err != nil {
+		if outputFormat == "json" {
+			io.ErrPrintf("Error: %v\n", err)
+			os.Exit(1)
+		}
 		io.Printf("%s Error: %v\n", ep.Error, err)
 		os.Exit(1)
 	}

@@ -61,6 +61,13 @@ const (
 	MetaKeyOutTPS     = "out_tps"    // output tokens-per-second display string
 )
 
+// EventRenderer is the single sink interface for structured stream events
+// (FEATURE-307b). LineRenderer renders events as decorated terminal lines;
+// StreamRenderer renders them as JSON-Lines for machine consumption.
+type EventRenderer interface {
+	Render(ev StreamEvent)
+}
+
 // NewStreamEvent builds a StreamEvent with the given type, channel, level
 // and text. Meta is left nil.
 func NewStreamEvent(typ string, ch ChannelID, lv Level, text string) StreamEvent {

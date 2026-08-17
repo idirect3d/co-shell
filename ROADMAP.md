@@ -23,7 +23,7 @@
 | FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
-> 当前 BUILD: 414
+> 当前 BUILD: 415
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -967,6 +967,13 @@
     - 有意的呈现归一（仅 4 类）：ESC 重试失败的取消消息补齐前置换行；EventToolCall 载荷尾部 `\n` 与渲染器补 `\n` 的双空行归一为单空行（4 处）；上下文超限警告双 ⚠️ 修复为单 ⚠️（原 EventWarning 类型前缀与模板内嵌 emoji 叠加）；i18n 模板尾部 `\n` 移除改由渲染器统一补
     - 测试：新增 agent/line_renderer_test.go 锁定 Level 布局表 / 双 StreamMode 差异 / token Meta 渲染；两份 golden（render_tui / render_single_cmd）不带 -update 通过；audit 三项不退化（magic events=0、Hardcoded Chinese=2 持平、fmt=143 持平）；`cb(` 调用点 grep 无 `ep.` 参数；零依赖变更（go.mod/go.sum 无 diff）
     - 验收：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；编译产物 [BUILD-413]（仓库根 co-shell）
+  - [x] **307b SessionIO 管道 + REPL 解耦 + JSON-Lines**：[BUILD-415]
+    - 背景：REPL 主循环按 inputMode 分支读写（tui 建 InputReader / stdio 建 StdioSource），每次 Agent 运行的 IO 装配（UserIO 安装、ESC 消费者、CommandHooks、LineRenderer 构造）散落在 handleAgentInput 的模式 switch 里；事件流只能渲染为终端行，无法被脚本/CI 机器消费
+    - 目标：SessionIO 接口 + stdio/tui 两实现收编输入读取与每次运行的 IO/渲染器装配；REPL 主循环面向 SessionIO 编程；新增 `--output-format text|json`（CLI-only）使事件流可以 JSON-Lines 输出；tui 模式行为与 BUILD-414 逐字节一致（纯结构移动）
+    - 实现：agent 包新增 `EventRenderer` 接口（events.go）、`Level.String()`（out.go）与 `StreamRenderer` JSON-Lines 渲染器（stream_renderer.go，字段规则：type 必有、level 非 info 才出、chan/text/meta 非空才出，无 ts/ANSI/emoji）；新文件 `repl/session.go` 定义 `SessionIO`（ReadLine/Acquire/Interactive/Close）+ `sessionFactories{stdio,tui}`，ESC 消费者与 CommandHooks 逐字搬入 tuiSession.Acquire/release（repl_esc.go 改为 tuiSession 方法）；repl.go 的 reader/stdioSrc/userIO 字段收敛为 `session`+`renderer`，主循环改 `session.ReadLine`，handleAgentInput 改 `Acquire/release`；json 模式抑制 welcome/prompt/Said/syncDB 装饰（stdout 只承载 JSON 事件行，运行期错误走 stderr）；main.go 新增 `--output-format` flag 与互斥校验（json + 显式 `--input-mode tui` 报错退出，未指定 input-mode 时 json 隐含 stdio），单指令模式按 format 选择渲染器；i18n 新增 KeyCLIHelpOutputFormat/KeyOutputFormatInvalid（zh/en 双存在）
+    - 测试：agent/stream_renderer_test.go（14 类事件 JSON 行逐字段断言、meta 序列化、level/chan 省略规则、无装饰）；agent/out_test.go Level.String() 表测试；repl/session_test.go（工厂配对、tui 回退 stdio、Acquire/release 配对含 ESC 订阅计数）；output_format_e2e_test.go 用 fake llm.Client 端到端一致性（同一 agent 同一输入跑两遍，RunStream 结果一致、JSON 每行可解析且 type 序列与 text 模式一致、content_chunk 拼接一致）；两份既有 golden 不带 -update 通过；audit 143/0/2/18/0 持平（SessionIO 边界调用加入 check 4 豁免，注释注明理由）
+    - 验收：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；`bash bin/output_audit.sh --strict` 与基线持平；`git diff go.mod go.sum` 为空；`printf ':exit\n' | ./co-shell --input-mode stdio --output-format json` stdout 无装饰混入；编译产物 [BUILD-415]（仓库根 co-shell）
+    - 范围说明：`serve` 子命令（web 界面）整体移至 307c——用户决策以 `co-shell serve` 替代原计划的 `--input-mode web`；builtin 处理器、printHelp、cmd/config.go 旁路 scanner、bridge/feishu、UserIO 阻塞交互本阶段不动
 
 - [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.6 可选分支）**：
   - FullScreenRenderer：原生 ANSI 缓冲，禁用 tview/tcell；SIGWINCH 重绘

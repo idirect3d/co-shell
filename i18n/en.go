@@ -1205,6 +1205,8 @@ no liability whatsoever.`,
 
 	// Init capabilities/rules
 	KeyCLIHelpInputMode:        "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
+	KeyCLIHelpOutputFormat:     "      --output-format      Output format (text/json, CLI-only; json is a JSON-Lines event stream and implies stdio input mode)",
+	KeyOutputFormatInvalid:     "invalid --output-format value or input mode conflict: %s (must be text/json; json implies stdio input mode and conflicts with --input-mode tui)",
 	KeyCLIHelpInitCapabilities: "      --unload-capabilities  Export current system capabilities to CAPABILITIES.md in the workspace root (--init-capabilities deprecated)",
 	KeyCLIHelpInitRules:        "      --unload-rules         Export current system rules to RULES.md in the workspace root (--init-rules deprecated)",
 
