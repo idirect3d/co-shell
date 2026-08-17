@@ -23,7 +23,7 @@
 | FEATURE-307 | 0.7.7 | P5 | ✅ 已完成（LineRenderer + StreamRenderer + WebRenderer + `serve` Web 界面 [BUILD-413/415/417]） |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
-> 当前 BUILD: 417
+> 当前 BUILD: 418
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -1335,6 +1335,12 @@
   - 目标：非终端 stdin 下配置向导快速失败并给出可操作提示；EOF 在 IO 层可区分；消除 read-ahead 丢行隐患
   - 实现：agent/io.go DefaultUserIO.ReadLine 干净 EOF 返回 io.EOF + scanner 持久化（新建 scanner 每次丢预读字节）；cmd/model.go AddModelWizard 入口 tty 守卫（osStdinIsTerminal，可注入便于测试）+ 新增 i18n key KeySetupNonInteractive（zh/en）；main.go 向导失败时 stderr 输出错误明细
   - 测试：agent/io_test.go 3 用例（EOF 可区分且粘滞 / 两行一次到达不丢 / 空行≠EOF）；cmd/model_wizard_test.go 非终端守卫快速返回；复现场景回归（空 workspace 管道启动：无刷屏、stderr 明确报错、exit=1）；go test ./... 全绿；audit 与基线持平
+
+- [x] **FEATURE-359 web 界面布局重构 + 贝壳 logo 马赛克 + 拖放简化** ✅ 已完成 [BUILD-418]
+  - 背景：307c web 原型基础上的一轮 UI 打磨——底部通栏截断侧栏、logo 缺失、专用拖放区冗余
+  - 目标：左下角放入贝壳 logo 马赛克；工作区侧栏贯通到底；拖放直接落在目录树
+  - 实现（仅 web/static/ 三文件，Go 零改动）：① 布局改两行网格——侧栏 grid-row 1/-1 贯通到底，底部 ask+输入区 grid-column 2/-1 左缘紧贴侧栏右缘；② logo 马赛克按贝壳语义手工绘制（草帽形上壳 3 行 + 大眼睛 2 行 + 连续浅碗下壳 2 行，7×16 格子），CSS grid 色块按字符强度映射 accent 透明度、明暗双主题自适应，高度动态约束不超过输入框；③ 删除专用拖放区——文件夹节点 drop 上传到该目录（stopPropagation 防冒泡），面板空白/文件节点 drop 默认根目录，侧栏整体弱高亮 + 节点高亮反馈；附件按钮移至工作区标题栏（保留附件 chip 引用流）
+  - 测试：headless Chrome 截图明暗双主题验证布局/logo/贯通；upload API 根目录与子目录落盘 curl 验证；node --check 通过
 
 ## v1.0.0 — 正式版
 
