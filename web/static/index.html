@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>co-shell</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">
+    <span class="brand-mark">▸</span>
+    <span class="brand-name">co-shell</span>
+    <span class="brand-ver" id="ver"></span>
+  </div>
+  <div class="top-right">
+    <span class="conn" id="conn" title="WebSocket">
+      <span class="conn-dot" id="connDot"></span><span id="connText"></span>
+    </span>
+    <button class="icon-btn" id="themeToggle" title="theme">☾</button>
+  </div>
+</header>
+
+<main id="layout">
+  <aside id="sidebar">
+    <div class="panel-head">
+      <span data-i18n="workspace">工作区</span>
+      <button class="icon-btn sm" id="treeRefresh" title="refresh">⟳</button>
+    </div>
+    <div id="tree" class="tree"></div>
+    <div id="dropzone" class="dropzone">
+      <span data-i18n="dropHint">拖拽文件到此处上传</span>
+      <button class="btn ghost" id="attachBtn" data-i18n="attach">附件</button>
+      <input type="file" id="fileInput" multiple hidden>
+    </div>
+  </aside>
+
+  <section id="stream-wrap">
+    <div id="stream" class="stream"></div>
+  </section>
+
+  <aside id="plan-panel" class="hidden">
+    <div class="panel-head"><span data-i18n="taskPlan">任务进展</span></div>
+    <div id="planBody" class="plan-body"></div>
+  </aside>
+</main>
+
+<footer id="bottom">
+  <div id="askArea" class="ask-area hidden">
+    <div class="ask-hint" id="askHint"></div>
+    <div class="ask-keys" id="askKeys"></div>
+    <div class="ask-line hidden" id="askLineWrap">
+      <input type="text" id="askInput" autocomplete="off">
+      <button class="btn" id="askSend" data-i18n="reply">回复</button>
+    </div>
+  </div>
+  <div id="chips" class="chips"></div>
+  <div class="input-row">
+    <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
+    <button class="btn danger ghost" id="interruptBtn" data-i18n="interrupt" title="ESC">打断</button>
+    <button class="btn primary" id="sendBtn" data-i18n="send">发送</button>
+  </div>
+</footer>
+
+<div id="preview" class="preview hidden">
+  <div class="preview-box">
+    <button class="icon-btn preview-close" id="previewClose">✕</button>
+    <img id="previewImg" alt="">
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

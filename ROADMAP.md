@@ -20,10 +20,10 @@
 | FEATURE-304 | 0.7.0 | P4 | ✅ 已完成（外部入口迁移 + 分类开关 [BUILD-343]） |
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
 | FEATURE-306 | 0.7.7 | P2.5 | ✅ 已完成（输入统一 A1 全量事件流化 + Windows 补齐 + 系列回归修复 [BUILD-408]） |
-| FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
+| FEATURE-307 | 0.7.7 | P5 | ✅ 已完成（LineRenderer + StreamRenderer + WebRenderer + `serve` Web 界面 [BUILD-413/415/417]） |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
-> 当前 BUILD: 416
+> 当前 BUILD: 417
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -956,7 +956,7 @@
   - ESC 监控改事件流消费者；Windows 补齐（repl_esc_windows.go）
   - 验收：方向键/ESC/Ctrl+C 双平台通过；stdio 管道行为不变
 
-- [ ] **FEATURE-307 渲染器三态 + web 原型（P5，v0.7.5）**：
+- [x] **FEATURE-307 渲染器三态 + web 原型（P5，v0.7.5）**：
   - SessionIO 管道 + sessionFactories（stdio/tui/web）
   - LineRenderer + StreamRenderer(JSON-Lines) + WebRenderer（HTTP+WebSocket，绑 127.0.0.1）
   - 验收：三模式同指令结果一致；web 浏览器分区实况
@@ -974,6 +974,15 @@
     - 测试：agent/stream_renderer_test.go（14 类事件 JSON 行逐字段断言、meta 序列化、level/chan 省略规则、无装饰）；agent/out_test.go Level.String() 表测试；repl/session_test.go（工厂配对、tui 回退 stdio、Acquire/release 配对含 ESC 订阅计数）；output_format_e2e_test.go 用 fake llm.Client 端到端一致性（同一 agent 同一输入跑两遍，RunStream 结果一致、JSON 每行可解析且 type 序列与 text 模式一致、content_chunk 拼接一致）；两份既有 golden 不带 -update 通过；audit 143/0/2/18/0 持平（SessionIO 边界调用加入 check 4 豁免，注释注明理由）
     - 验收：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；`bash bin/output_audit.sh --strict` 与基线持平；`git diff go.mod go.sum` 为空；`printf ':exit\n' | ./co-shell --input-mode stdio --output-format json` stdout 无装饰混入；编译产物 [BUILD-415]（仓库根 co-shell）
     - 范围说明：`serve` 子命令（web 界面）整体移至 307c——用户决策以 `co-shell serve` 替代原计划的 `--input-mode web`；builtin 处理器、printHelp、cmd/config.go 旁路 scanner、bridge/feishu、UserIO 阻塞交互本阶段不动
+  - [x] **307c `co-shell serve` + Web 界面（P5 收官）**：[BUILD-417]
+    - 背景：307b 落地后 SessionIO 管道只剩 web 形态未接；事件流已结构化（307a）、REPL 主循环已面向 SessionIO（307b），web 模式只差「一个 SessionIO 实现 + 内嵌 HTTP/WS 服务 + 页面」。依赖政策禁止新增第三方库，gorilla/websocket 不可用
+    - 目标：`co-shell serve [--port 8399]` 启动单会话 web 服务（绑死 127.0.0.1、无认证、端口占用自动递增至多 10 个），自动打开默认浏览器；页面含事件流分区（LLM/工具/命令/系统）、任务进展区（track_task_progress 实时更新）、工作区目录树、拖拽上传、OS 打开/定位文件、ask 应答区、打断按钮；明/暗双主题（暗色默认跟随 prefers-color-scheme，localStorage 记忆）
+    - 实现：新包 `web/`——`ws.go` 标准库手写 WebSocket（SHA1+base64 握手、帧编解码、客户端掩码、continuation 重组、ping→pong、close、帧/消息 4MiB 上限）；`server.go` HTTP 路由（embed 静态页 + `/ws` + `/api/tree|upload|open|reveal|file|bootstrap`）与单客户端集线器（新连接顶替旧连接，断开时挂起 ask 全部失败返回）；`session.go` WebSession（repl.SessionIO 实现：input→ReadLine、interrupt→ag.Interrupt、attachments→ag.SetImagePaths）+ WebIO（agent.UserIO：Print*→ui_text 事件，ReadLine/ReadKey→ask/answer 阻塞闭环，无客户端即报错避免永久阻塞）+ WebRenderer（事件原样推送）；`open.go` OS 打开浏览器/文件/定位（runtime.GOOS 分发，launcher 可注入）。repl 包导出 `RegisterSessionFactory`（避免 repl↔web 循环依赖），SessionDeps 新增 `Ag *agent.Agent`（仅 web 使用）；agent 新增 `EventTaskPlan` 事件（Meta["plan"] 全量计划 JSON，归档清空推空串），发射点在 run_stream.go 工具回显分支后（track_task_progress 成功即推，不受 showTool 门控）；LineRenderer 外层 switch 无 case 自动静默，TUI 零影响。main.go 在 flag.Parse 前拦截 `os.Args[1]=="serve"`，新增 `--port`，serve 与 `--input-mode`/`--command`/位置参数/`--output-format` 互斥（报错 exit 1）；serve 路径复用 main 的 config/store/agent 初始化，仅末端注册 web 工厂 + `SetInputMode("web")` + `r.Run()`。前端三件套原生 JS 无构建（embed.FS 内嵌）：CSS 变量双主题、单强调色、细边框、等宽内容区；输入历史（内存数组+上下键）、连接指示灯、图片预览走 /api/file。所有文件路径 API 强制 workspace 内校验（filepath.Rel 防 ../ 穿越）；上传单文件上限 100MB；目录树排除 .git/node_modules/db/log/tmp、保留 output/
+    - 测试：`web/ws_test.go`（RFC 6455 握手已知向量、掩码/16 位/64 位长度帧往返、continuation 重组、ping→pong、close、超上限拒绝，stdlib 手写最小客户端）；`web/server_test.go`（tree 排除清单、upload 落盘+../ 拒绝、open/reveal 注入假 launcher 校验路径、file 读取边界）；`web/session_test.go`（内存 WS 对：input→ReadLine、Print→ui_text、ask/answer 闭环、ReadKey 单键、interrupt→InterruptChan、attachments→ImagePaths、WebRenderer 透传、非交互断言）；`agent/taskplan_event_test.go`（构造器形状、LineRenderer 双 StreamMode 零输出断言、track_task_progress 成功发射全量计划、归档推空快照、其他工具不发射、快照无装饰）；两份既有 golden 不带 -update 通过；audit 与基线 143/0/2/18/0 持平；`git diff go.mod go.sum` 为空
+    - i18n：新增 7 个 key（zh/en 双存在）——KeyCLIHelpPort/KeyServeStarted/KeyServeNoPort/KeyServeConflict/KeyServeBrowserFailed/KeyWebOpenFailed/KeyWebRevealFailed
+    - 冒烟：临时 workspace 预置 dummy config（disclaimer_accepted=true + 死地址模型），`./co-shell -w <tmp> serve --port 18399` 后台启动，curl 验证 `/` 返回 HTML、`/api/tree` 返回 JSON 且排除清单生效、`/api/file?path=../` 与 `/api/upload?dir=../` 返回 403；WS 握手由 web/ws_test.go 覆盖
+    - 验收：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；audit 持平；依赖零变更；浏览器人工验证（发指令→流式输出、ask 闭环、打断、任务面板实时更新）留给用户；编译产物 [BUILD-417]（仓库根 co-shell）
+    - 范围说明：builtin 命令结果文本仍走 fmt 到 serve 终端（REPL 层 rawPrint/fmt.Println 不在 UserIO 通路上），agent 交互与流式输出全部在浏览器可见；cmd/config.go 旁路 scanner 在 web 模式不可用（:config 请用 :set 替代）；open/reveal 依赖 127.0.0.1 回环 + workspace 路径白名单两道防线，远程访问前必须补认证（见 docs/output-architecture.md 6.6）
 
 - [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.6 可选分支）**：
   - FullScreenRenderer：原生 ANSI 缓冲，禁用 tview/tcell；SIGWINCH 重绘

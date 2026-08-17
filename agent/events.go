@@ -30,6 +30,7 @@ const (
 	EventError          = "error"            // error message
 	EventDone           = "done"             // done marker
 	EventToolCallStream = "tool_call_stream" // FEATURE-235: streaming tool-call render (show-tool / show-tool-input gated)
+	EventTaskPlan       = "task_plan"        // FEATURE-307c: full task plan snapshot (Meta[MetaKeyPlan] = plan JSON, "" when archived)
 )
 
 // StreamEvent is the structured stream event emitted by the agent loop and
@@ -60,6 +61,11 @@ const (
 	MetaKeyInTPS      = "in_tps"     // input tokens-per-second display string
 	MetaKeyOutTPS     = "out_tps"    // output tokens-per-second display string
 )
+
+// MetaKeyPlan is the Meta key of EventTaskPlan carrying the full task plan
+// as a JSON string ("" means the plan was archived/cleared — consumers hide
+// the plan panel).
+const MetaKeyPlan = "plan"
 
 // EventRenderer is the single sink interface for structured stream events
 // (FEATURE-307b). LineRenderer renders events as decorated terminal lines;
@@ -125,5 +131,19 @@ func TokenTaskEvent(prompt, completion, total int) StreamEvent {
 			MetaKeyCompletion: strconv.Itoa(completion),
 			MetaKeyTotal:      strconv.Itoa(total),
 		},
+	}
+}
+
+// TaskPlanEvent builds an EventTaskPlan event carrying the full task plan
+// snapshot as a JSON string in Meta[MetaKeyPlan] (FEATURE-307c). An empty
+// planJSON signals that the plan was archived/cleared so web consumers hide
+// the plan panel. The LineRenderer has no case for this type, so terminal
+// output is unaffected.
+func TaskPlanEvent(planJSON string) StreamEvent {
+	return StreamEvent{
+		Type:  EventTaskPlan,
+		Chan:  ChannelTaskPlan,
+		Level: LevelInfo,
+		Meta:  map[string]string{MetaKeyPlan: planJSON},
 	}
 }

@@ -45,12 +45,13 @@ import (
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/scheduler"
 	"github.com/idirect3d/co-shell/store"
+	"github.com/idirect3d/co-shell/web"
 	"github.com/idirect3d/co-shell/workspace"
 )
 
 const version = "0.7.7"
 
-const build = "416"
+const build = "417"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -197,10 +198,48 @@ type cliFlags struct {
 
 	// Browser enabled
 	browserEnabled string // "on"/"off"
+
+	// serve subcommand (FEATURE-307c): `co-shell serve` starts the embedded
+	// web UI (HTTP + WebSocket on 127.0.0.1, single browser client).
+	serve bool
+	port  int
 }
 
 func parseFlags() cliFlags {
 	var f cliFlags
+
+	// FEATURE-307c: intercept the "serve" subcommand before flag parsing —
+	// stdlib flag would otherwise treat it as a positional argument and merge
+	// it into the single-command string. The scan skips flag values so that
+	// e.g. `-w serve` (a workspace literally named "serve") is not hijacked,
+	// and stops at the first other positional (flag parsing stops there too).
+	if len(os.Args) > 1 {
+		boolFlags := map[string]bool{
+			"help": true, "h": true, "version": true, "v": true,
+			"unload-capabilities": true, "unload-rules": true, "unload-principles": true,
+			"init-capabilities": true, "init-rules": true,
+		}
+		args := os.Args[1:]
+		for i := 0; i < len(args); i++ {
+			a := args[i]
+			if a == "--" {
+				break
+			}
+			if strings.HasPrefix(a, "-") {
+				name := strings.TrimLeft(a, "-")
+				if !strings.Contains(name, "=") && !boolFlags[name] {
+					i++ // skip the flag's value
+				}
+				continue
+			}
+			if a == "serve" {
+				f.serve = true
+				rest := append(args[:i:i], args[i+1:]...)
+				os.Args = append(os.Args[:1:1], rest...)
+			}
+			break
+		}
+	}
 
 	// Define flags
 	flag.StringVar(&f.workspacePath, "workspace", "", "Set workspace path (default: current directory)")
@@ -333,6 +372,9 @@ func parseFlags() cliFlags {
 	// Output format (FEATURE-307b)
 	flag.StringVar(&f.outputFormat, "output-format", "", "Output format (text/json; json implies stdio input mode, CLI-only)")
 
+	// serve subcommand port (FEATURE-307c)
+	flag.IntVar(&f.port, "port", 8399, "Listen port for the serve subcommand (auto-increments when occupied, up to 10 tries)")
+
 	// Unload mode (FEATURE-245)
 	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
 
@@ -428,6 +470,26 @@ func main() {
 	if err != nil {
 		io.ErrPrintf("Error: cannot initialize workspace: %v\n", err)
 		os.Exit(1)
+	}
+
+	// FEATURE-307c: the serve subcommand is mutually exclusive with
+	// single-command mode and input/output channel overrides — it owns the
+	// whole I/O channel (positional args are merged into flags.command by
+	// parseFlags, so they are covered here too).
+	if flags.serve {
+		conflict := ""
+		switch {
+		case flags.command != "":
+			conflict = "--command / positional arguments"
+		case flags.inputMode != "":
+			conflict = "--input-mode"
+		case flags.outputFormat != "":
+			conflict = "--output-format"
+		}
+		if conflict != "" {
+			io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeConflict, conflict))
+			os.Exit(1)
+		}
 	}
 
 	// Change working directory to the workspace root so that all relative
@@ -1355,6 +1417,31 @@ func main() {
 		// already rejected above.
 		inputMode = "stdio"
 	}
+
+	// FEATURE-307c: serve subcommand — start the embedded web server
+	// (loopback only), register the web session factory and switch the REPL
+	// input mode to "web". The REPL main loop runs unchanged; browser input
+	// arrives over WebSocket.
+	if flags.serve {
+		srv := web.NewServer(ws.Root(), web.ServerOptions{
+			Lang:    string(i18n.GetLang()),
+			Version: version,
+			Build:   build,
+		})
+		repl.RegisterSessionFactory("web", srv.SessionFactory())
+		addr, listenErr := srv.Listen(flags.port)
+		if listenErr != nil {
+			io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeNoPort, flags.port, flags.port+9))
+			os.Exit(1)
+		}
+		defer srv.Close()
+		io.Printf("%s\n", i18n.TF(i18n.KeyServeStarted, addr))
+		if err := web.OpenBrowser("http://" + addr); err != nil {
+			io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeBrowserFailed, err, addr))
+		}
+		inputMode = "web"
+	}
+
 	r.SetInputMode(inputMode)
 	r.SetOutputFormat(outputFormat)
 	log.Info("REPL started (input mode: %s)", inputMode)
