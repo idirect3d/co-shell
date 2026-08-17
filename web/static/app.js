@@ -12,7 +12,7 @@
 
 const I18N = {
   zh: {
-    workspace: "工作区", dropHint: "拖拽文件到此处上传", attach: "附件",
+    workspace: "工作区", attach: "附件",
     taskPlan: "任务进展", reply: "回复", interrupt: "打断", send: "发送",
     inputHint: "输入指令，Enter 发送，Shift+Enter 换行，↑↓ 历史",
     connected: "已连接", disconnected: "已断开",
@@ -21,7 +21,7 @@ const I18N = {
     planEmpty: "（无步骤）",
   },
   en: {
-    workspace: "Workspace", dropHint: "Drop files here to upload", attach: "Attach",
+    workspace: "Workspace", attach: "Attach",
     taskPlan: "Task Plan", reply: "Reply", interrupt: "Interrupt", send: "Send",
     inputHint: "Type a command — Enter to send, Shift+Enter for newline, ↑↓ history",
     connected: "connected", disconnected: "disconnected",
@@ -42,6 +42,7 @@ function applyI18n() {
     if (T[k]) el.placeholder = T[k];
   });
   connText.textContent = wsReady ? T.connected : T.disconnected;
+  attachBtn.title = T.attach;
 }
 
 /* ---------- theme ---------- */
@@ -86,7 +87,7 @@ const sendBtn = document.getElementById("sendBtn");
 const interruptBtn = document.getElementById("interruptBtn");
 const chips = document.getElementById("chips");
 const tree = document.getElementById("tree");
-const dropzone = document.getElementById("dropzone");
+const sidebar = document.getElementById("sidebar");
 const attachBtn = document.getElementById("attachBtn");
 const fileInput = document.getElementById("fileInput");
 const preview = document.getElementById("preview");
@@ -415,6 +416,8 @@ function treeNode(node) {
     row.ondragleave = () => row.classList.remove("drop-target");
     row.ondrop = (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      clearDrag();
       row.classList.remove("drop-target");
       uploadFiles(e.dataTransfer.files, node.path);
     };
@@ -467,11 +470,21 @@ async function uploadFiles(files, dir) {
   } catch (err) { console.error(T.uploadFailed, err); return []; }
 }
 
-dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add("drag"); };
-dropzone.ondragleave = () => dropzone.classList.remove("drag");
-dropzone.ondrop = (e) => {
+// The whole sidebar is a drop target: dropping on a directory row uploads
+// into that directory (handled above); dropping anywhere else on the panel
+// (blank space or file rows) uploads into the workspace root.
+function clearDrag() {
+  sidebar.classList.remove("drag");
+  tree.querySelectorAll(".drop-target").forEach((el) => el.classList.remove("drop-target"));
+}
+
+sidebar.ondragover = (e) => { e.preventDefault(); sidebar.classList.add("drag"); };
+sidebar.ondragleave = (e) => {
+  if (!sidebar.contains(e.relatedTarget)) clearDrag();
+};
+sidebar.ondrop = (e) => {
   e.preventDefault();
-  dropzone.classList.remove("drag");
+  clearDrag();
   uploadFiles(e.dataTransfer.files, "");
 };
 
@@ -484,6 +497,48 @@ fileInput.onchange = async () => {
 };
 
 document.getElementById("treeRefresh").onclick = loadTree;
+
+/* ---------- logo mosaic ---------- */
+
+// Pixel mosaic of the co-shell mascot (a little clam: upper/lower shell
+// halves with two big eyes on the body between them), hand-drawn on an
+// 8 rows x 16 cols grid. Intensity chars map to accent-color opacity;
+// spaces stay transparent.
+const LOGO_ART = [
+  "      ####",
+  "    ##    ##",
+  " ###        ###",
+  "     %%  %%",
+  "     %%  %%",
+  " ###        ###",
+  "   ##########",
+];
+const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
+
+(function renderLogo() {
+  const logo = document.getElementById("logo");
+  const rows = LOGO_ART.length;
+  const cols = Math.max(...LOGO_ART.map((l) => l.length));
+  // Square cells (uniform scaling keeps the logo's aspect ratio), sized up
+  // to 3px but shrunk to fit the sidebar width and to keep the mosaic no
+  // taller than the user input box.
+  const maxW = sidebar.clientWidth ? sidebar.clientWidth - 36 : 204;
+  const maxH = (input.offsetHeight || 38) - 10;
+  const cell = Math.min(3, maxW / cols, maxH / rows);
+  logo.style.gridTemplateColumns = "repeat(" + cols + ", " + cell + "px)";
+  logo.style.gridAutoRows = cell + "px";
+  const frag = document.createDocumentFragment();
+  for (const line of LOGO_ART) {
+    for (let i = 0; i < cols; i++) {
+      const d = document.createElement("div");
+      const ch = line[i] || " ";
+      if (ch === " ") d.className = "sp";
+      else d.style.opacity = LOGO_OPACITY[ch] || 0.5;
+      frag.appendChild(d);
+    }
+  }
+  logo.appendChild(frag);
+})();
 
 /* ---------- bootstrap ---------- */
 

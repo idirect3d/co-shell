@@ -25,14 +25,14 @@
   <aside id="sidebar">
     <div class="panel-head">
       <span data-i18n="workspace">工作区</span>
-      <button class="icon-btn sm" id="treeRefresh" title="refresh">⟳</button>
+      <span class="panel-actions">
+        <button class="icon-btn sm" id="attachBtn" title="attach">📎</button>
+        <button class="icon-btn sm" id="treeRefresh" title="refresh">⟳</button>
+      </span>
     </div>
     <div id="tree" class="tree"></div>
-    <div id="dropzone" class="dropzone">
-      <span data-i18n="dropHint">拖拽文件到此处上传</span>
-      <button class="btn ghost" id="attachBtn" data-i18n="attach">附件</button>
-      <input type="file" id="fileInput" multiple hidden>
-    </div>
+    <div id="logo" class="logo" title="co-shell"></div>
+    <input type="file" id="fileInput" multiple hidden>
   </aside>
 
   <section id="stream-wrap">
@@ -43,24 +43,24 @@
     <div class="panel-head"><span data-i18n="taskPlan">任务进展</span></div>
     <div id="planBody" class="plan-body"></div>
   </aside>
-</main>
 
-<footer id="bottom">
-  <div id="askArea" class="ask-area hidden">
-    <div class="ask-hint" id="askHint"></div>
-    <div class="ask-keys" id="askKeys"></div>
-    <div class="ask-line hidden" id="askLineWrap">
-      <input type="text" id="askInput" autocomplete="off">
-      <button class="btn" id="askSend" data-i18n="reply">回复</button>
+  <footer id="bottom">
+    <div id="askArea" class="ask-area hidden">
+      <div class="ask-hint" id="askHint"></div>
+      <div class="ask-keys" id="askKeys"></div>
+      <div class="ask-line hidden" id="askLineWrap">
+        <input type="text" id="askInput" autocomplete="off">
+        <button class="btn" id="askSend" data-i18n="reply">回复</button>
+      </div>
     </div>
-  </div>
-  <div id="chips" class="chips"></div>
-  <div class="input-row">
-    <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
-    <button class="btn danger ghost" id="interruptBtn" data-i18n="interrupt" title="ESC">打断</button>
-    <button class="btn primary" id="sendBtn" data-i18n="send">发送</button>
-  </div>
-</footer>
+    <div id="chips" class="chips"></div>
+    <div class="input-row">
+      <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
+      <button class="btn danger ghost" id="interruptBtn" data-i18n="interrupt" title="ESC">打断</button>
+      <button class="btn primary" id="sendBtn" data-i18n="send">发送</button>
+    </div>
+  </footer>
+</main>
 
 <div id="preview" class="preview hidden">
   <div class="preview-box">
