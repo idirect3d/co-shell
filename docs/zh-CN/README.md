@@ -415,7 +415,7 @@ Beta2 版本——功能完整，稳定可用。
 - **表情符号角色标识** — 不同输出角色使用不同表情前缀：👤 用户输入、🐚 LLM 响应、⚙️ 工具调用/结果、🔴 命令执行。可通过 `.set emoji-enabled`、`--emoji-enabled` 和 `config.json` 配置
 - **日志级别控制** — `.set log debug/info/warn/error/off`、`--log-level` CLI 参数、config.json 持久化
 - **文件工具增强** — 改进的 read_file 和 write_file，更好的源代码操作体验
-- **智能超时** — LLM 可在工具调用中传递 `timeout_seconds`，系统取用户配置最小值和 LLM 预判超时值的较大值
+- **智能超时** — `execute_command` 必须传 `timeout_seconds`（0 表示无限等待）和 `on_timeout`（`kill` 超时杀进程组，`detach` 超时返回 PID 和日志文件路径、进程继续运行）；大于 0 时系统取用户配置最小值和 LLM 预判超时值的较大值
 - **Agent 身份默认值** — 多语言默认 Agent 描述，确保行为一致性
 - **输出模式重构** — 细粒度控制：show-llm-thinking、show-llm-content、show-tool、show-tool-input、show-tool-output、show-command、show-command-output
 - **会话显示改进** — 消息列表编号从 0 开始（系统消息 = 0，用户消息 1 = 1，以此类推）

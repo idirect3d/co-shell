@@ -396,7 +396,7 @@ Release Candidate 2 — feature complete, stable and usable.
 - **Emoji role indicators** — distinct emoji prefixes for different output roles: 👤 user input, 🐚 LLM response, ⚙️ tool calls/results, 🔴 command execution. Configurable via `.set emoji-enabled`, `--emoji-enabled`, and `config.json`
 - **Log level control** — `.set log debug/info/warn/error/off`, `--log-level` CLI flag, config.json persistence
 - **Enhanced file tools** — improved read_file and write_file for better source code manipulation
-- **Intelligent timeout** — LLM can pass `timeout_seconds` in tool calls, system takes max of user-configured minimum and LLM-predicted timeout
+- **Intelligent timeout** — `execute_command` requires `timeout_seconds` (0 = wait forever) and `on_timeout` (`kill` terminates the process group, `detach` returns the PID and a log file path while the process keeps running); for values > 0 the system takes max of user-configured minimum and LLM-predicted timeout
 - **Agent identity defaults** — multi-language default agent descriptions for consistent behavior
 - **Output mode refactoring** — fine-grained control: show-llm-thinking, show-llm-content, show-tool, show-tool-input, show-tool-output, show-command, show-command-output
 - **Session display improvement** — message list numbering starts from 0 (system message = 0, user message 1 = 1, etc.)
