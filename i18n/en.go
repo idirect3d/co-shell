@@ -1208,6 +1208,15 @@ no liability whatsoever.`,
 	KeyCLIHelpInputMode:        "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
 	KeyCLIHelpOutputFormat:     "      --output-format      Output format (text/json, CLI-only; json is a JSON-Lines event stream and implies stdio input mode)",
 	KeyOutputFormatInvalid:     "invalid --output-format value or input mode conflict: %s (must be text/json; json implies stdio input mode and conflicts with --input-mode tui)",
+
+	// serve subcommand (FEATURE-307c)
+	KeyCLIHelpPort:        "      --port <n>             Listen port for the serve subcommand (default 8399, auto-increments when occupied, up to 10 tries)",
+	KeyServeStarted:       "🌐 Web UI started: http://%s (press Ctrl+C to stop)",
+	KeyServeNoPort:        "ports %d-%d are all in use, cannot start the web server",
+	KeyServeConflict:      "the serve subcommand conflicts with %s (serve owns the whole I/O channel; remove that flag)",
+	KeyServeBrowserFailed: "cannot open the browser automatically (%v); please visit http://%s manually",
+	KeyWebOpenFailed:      "cannot open file: %v",
+	KeyWebRevealFailed:    "cannot reveal file in file manager: %v",
 	KeyCLIHelpInitCapabilities: "      --unload-capabilities  Export current system capabilities to CAPABILITIES.md in the workspace root (--init-capabilities deprecated)",
 	KeyCLIHelpInitRules:        "      --unload-rules         Export current system rules to RULES.md in the workspace root (--init-rules deprecated)",
 

@@ -1090,8 +1090,12 @@ func (a *Agent) rebuildSystemPrompt() {
 	}
 }
 
-func (a *Agent) SetWorkspacePath(path string)            { a.workspacePath = path }
-func (a *Agent) SetImagePaths(paths []string)            { a.imagePaths = paths }
+func (a *Agent) SetWorkspacePath(path string) { a.workspacePath = path }
+func (a *Agent) SetImagePaths(paths []string) { a.imagePaths = paths }
+
+// ImagePaths returns the currently installed multimodal image paths
+// (FEATURE-307c: test seam for the web session attachment wiring).
+func (a *Agent) ImagePaths() []string                    { return a.imagePaths }
 func (a *Agent) SetModelManager(mm *config.ModelManager) { a.modelManager = mm }
 
 // selectModelForCall selects the appropriate model based on vision requirements

@@ -49,12 +49,25 @@ type SessionDeps struct {
 	// OutputFormat is "text" (default, decorated terminal lines via
 	// LineRenderer) or "json" (JSON-Lines via StreamRenderer).
 	OutputFormat string
+	// Ag is the agent instance the REPL drives. Only the web session
+	// (FEATURE-307c) uses it — to install its UserIO for the whole session
+	// lifetime and to route interrupt/attachment messages; the stdio and
+	// tui sessions receive the agent per run via Acquire and ignore this.
+	Ag *agent.Agent
 }
 
 // sessionFactories maps the input mode name to its session constructor.
 var sessionFactories = map[string]func(deps SessionDeps) (SessionIO, error){
 	"stdio": newStdioSession,
 	"tui":   newTUISession,
+}
+
+// RegisterSessionFactory registers an additional session factory under the
+// given input mode name (FEATURE-307c: the web package registers "web" this
+// way, avoiding a repl <-> web import cycle — web imports repl, repl never
+// imports web).
+func RegisterSessionFactory(name string, fn func(deps SessionDeps) (SessionIO, error)) {
+	sessionFactories[name] = fn
 }
 
 // stdioSession is the standard-input session: a persistent StdioSource for
