@@ -113,16 +113,18 @@ For array-type parameters, use <{XML_TAG_PREFIX}item> tags to represent each ele
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
 	enMessages[KeyToolUsageExecuteCommand] = `## execute_command
-Description: Execute a system command and return the output. Use this tool to run shell commands, scripts, or any CLI tool. You can specify timeout_seconds to limit execution time.
+Description: Execute a system command and return the output. Use this tool to run shell commands, scripts, or any CLI tool. You MUST specify timeout_seconds (0 = wait forever) and on_timeout (what to do when the timeout fires).
 Parameters:
 - intent (required) Explain why you are calling this tool and what you expect to accomplish. Helps track and debug LLM decision-making.
 - command (required) The command to execute
-- timeout_seconds (optional) Timeout in seconds. Set based on task complexity. 0 or omitted means use the user-configured timeout only.
+- timeout_seconds (required) Timeout in seconds. 0 means wait forever (no timeout). Set based on task complexity. When greater than 0, the actual timeout is the maximum of this value and the user-configured minimum timeout.
+- on_timeout (required) Either "kill" or "detach". "kill": terminate the whole process group on timeout and return an error — use for ordinary foreground commands. "detach": stop waiting on timeout and return the PID, partial output and a log file path while the process keeps running in the background — use for servers, long builds and watchers; you can later inspect the log file or kill the PID with another execute_command call. Ignored when timeout_seconds is 0.
 Usage:
 <{XML_TAG_PREFIX}execute_command>
   <{XML_TAG_PREFIX}intent>Need to list files in the current directory</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}command>ls -la</{XML_TAG_PREFIX}command>
   <{XML_TAG_PREFIX}timeout_seconds>30</{XML_TAG_PREFIX}timeout_seconds>
+  <{XML_TAG_PREFIX}on_timeout>kill</{XML_TAG_PREFIX}on_timeout>
 </{XML_TAG_PREFIX}execute_command>`
 
 	enMessages[KeyToolUsageReadFile] = `## read_file
