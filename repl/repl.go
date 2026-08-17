@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,7 +13,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -96,11 +96,17 @@ type REPL struct {
 	historyPos int
 	version    string
 	build      string
-	inputMode  string // "enhanced" or "stdio"
+	inputMode  string // "tui" or "stdio"
 
-	// FEATURE-201: ESC key monitoring during LLM output
-	escWg  sync.WaitGroup // tracks ESC monitor goroutine
-	userIO agent.UserIO   // current UserIO for interaction
+	// P2.5: unified input event stream (tui mode only). Owns the single
+	// stdin reading goroutine and raw terminal mode.
+	reader *InputReader
+
+	// P2.5: persistent line source for stdio mode. Reusing one scanner avoids
+	// losing buffered piped lines between REPL iterations.
+	stdioSrc *StdioSource
+
+	userIO agent.UserIO // current UserIO for interaction
 }
 
 func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.Agent) *REPL {
@@ -134,25 +140,74 @@ func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.
 func (r *REPL) SetVersion(ver, bld string) { r.version = ver; r.build = bld }
 func (r *REPL) SetInputMode(mode string)   { r.inputMode = mode }
 
+// rawPrintf prints user-visible output, applying \r\n conversion while the
+// unified input reader holds the terminal in raw mode (tui). In cooked mode
+// (stdio / reader paused) it behaves exactly like fmt.Printf.
+func (r *REPL) rawPrintf(format string, args ...interface{}) {
+	s := fmt.Sprintf(format, args...)
+	if r.reader != nil && r.reader.RawActive() {
+		s = strings.ReplaceAll(s, "\n", "\r\n")
+	}
+	fmt.Print(s)
+}
+
+// rawPrint prints user-visible output with raw-mode \r\n conversion.
+func (r *REPL) rawPrint(args ...interface{}) {
+	s := fmt.Sprint(args...)
+	if r.reader != nil && r.reader.RawActive() {
+		s = strings.ReplaceAll(s, "\n", "\r\n")
+	}
+	fmt.Print(s)
+}
+
+// rawPrintln prints a line, returning the cursor to column 0 first and using
+// \r\n while the terminal is in raw mode.
+func (r *REPL) rawPrintln(args ...interface{}) {
+	s := fmt.Sprint(args...)
+	if r.reader != nil && r.reader.RawActive() {
+		s = strings.ReplaceAll(s, "\n", "\r\n")
+		fmt.Print("\r" + s + "\r\n")
+	} else {
+		fmt.Println(s)
+	}
+}
+
 func (r *REPL) readLine(prompt string) (string, error) {
+	// While the unified reader is paused (a builtin command wizard owns stdin
+	// in cooked mode), the event stream is suspended — read a plain line
+	// directly instead. Raw mode is already restored to cooked by Pause.
+	if r.reader != nil && r.reader.IsPaused() {
+		fmt.Print(prompt)
+		scanner := bufio.NewScanner(os.Stdin)
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				return "", err
+			}
+			return "", io.EOF
+		}
+		return strings.TrimSpace(scanner.Text()), nil
+	}
 	switch r.inputMode {
 	case "enhanced", "tui":
 		ei := NewEnhancedInput(prompt, r.history)
-		input, err := ei.ReadLine()
+		input, err := ei.ReadLineFrom(r.reader)
 		if err != nil {
 			return "", err
 		}
 		return strings.TrimSpace(input), nil
 	case "stdio":
 		fmt.Print(prompt)
-		scanner := bufio.NewScanner(os.Stdin)
-		if !scanner.Scan() {
-			return "", scanner.Err()
+		ev, err := r.stdioSrc.NextEvent(context.Background())
+		if err != nil {
+			return "", err
 		}
-		return strings.TrimSpace(scanner.Text()), nil
+		if ev.Kind == agent.InputEOF {
+			return "", io.EOF
+		}
+		return strings.TrimSpace(ev.Data), nil
 	default:
 		ei := NewEnhancedInput(prompt, r.history)
-		input, err := ei.ReadLine()
+		input, err := ei.ReadLineFrom(r.reader)
 		if err != nil {
 			return "", err
 		}
@@ -186,6 +241,23 @@ func (r *REPL) Run() error {
 	r.syncDB()
 	r.loadHistory()
 
+	// P2.5: start the unified input reader (tui mode only). It owns the single
+	// stdin reading goroutine and raw terminal mode. In stdio mode the REPL
+	// reads lines synchronously through a persistent StdioSource (no reader
+	// goroutine needed) so piped input survives across iterations.
+	if r.inputMode == "enhanced" || r.inputMode == "tui" {
+		r.reader = NewInputReader(NewRawKeySource())
+		if err := r.reader.Start(); err != nil {
+			log.Warn("REPL: raw mode unavailable (%v), falling back to stdio", err)
+			_ = r.reader.Close()
+			r.reader = nil
+			r.inputMode = "stdio"
+		}
+	}
+	if r.inputMode == "stdio" {
+		r.stdioSrc = NewStdioSource()
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	done := make(chan struct{})
@@ -193,7 +265,7 @@ func (r *REPL) Run() error {
 	go func() {
 		select {
 		case <-sigCh:
-			fmt.Println("\n" + i18n.T(i18n.KeyGoodbye))
+			r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
 			r.cleanup()
 			os.Exit(0)
 		case <-done:
@@ -217,7 +289,7 @@ func (r *REPL) Run() error {
 		input, err := r.readLine(prompt)
 		if err != nil {
 			if err.Error() == "interrupt" {
-				fmt.Println("\n" + i18n.T(i18n.KeyGoodbye))
+				r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
 				r.cleanup()
 				os.Exit(0)
 			}
@@ -251,15 +323,15 @@ func (r *REPL) Run() error {
 			}
 			// Not a local executable: warn user about ":" prefix, then ask
 			ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
-			fmt.Print(i18n.TF(i18n.KeyDotPrefixHint1, ep.Warning))
-			fmt.Print(i18n.T(i18n.KeyDotPrefixHint2))
-			fmt.Print(i18n.T(i18n.KeyDotPrefixAskLLM))
-			fmt.Print(i18n.T(i18n.KeyDotPrefixChoose))
+			r.rawPrint(i18n.TF(i18n.KeyDotPrefixHint1, ep.Warning))
+			r.rawPrint(i18n.T(i18n.KeyDotPrefixHint2))
+			r.rawPrint(i18n.T(i18n.KeyDotPrefixAskLLM))
+			r.rawPrint(i18n.T(i18n.KeyDotPrefixChoose))
 			// Use readLine which handles both enhanced and stdio modes
 			response, _ := r.readLine("")
 			response = strings.TrimSpace(strings.ToLower(response))
 			if response == "c" {
-				fmt.Print(i18n.TF(i18n.KeyDotPrefixCancelled, ep.Warning))
+				r.rawPrint(i18n.TF(i18n.KeyDotPrefixCancelled, ep.Warning))
 				continue
 			}
 			// Fall through to handleAgentInput
@@ -282,7 +354,7 @@ func (r *REPL) Run() error {
 
 	close(done)
 	r.cleanup()
-	fmt.Println(i18n.T(i18n.KeyGoodbye))
+	r.rawPrintln(i18n.T(i18n.KeyGoodbye))
 	return nil
 }
 
@@ -317,6 +389,20 @@ func (r *REPL) handleBuiltin(input string) {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 	command := parts[0]
 	args := parts[1:]
+
+	// P2.5: while a builtin command wizard owns stdin (it reads directly via
+	// DefaultUserIO in cooked mode), pause the unified input reader so its
+	// goroutine does not compete for input bytes and the terminal returns to
+	// cooked mode (proper \r\n line discipline + visible echo).
+	resumed := false
+	if r.reader != nil {
+		r.reader.Pause()
+		defer func() {
+			if !resumed {
+				r.reader.Resume()
+			}
+		}()
+	}
 
 	var result string
 	var err error
@@ -413,6 +499,12 @@ func (r *REPL) handleBuiltin(input string) {
 	case ":simulate":
 		result, err = r.simulateHandler.Handle(args)
 	case ":continue":
+		// Resume the reader before running the agent so ESC/Ctrl+C monitoring
+		// and EnhancedIO event consumption work normally.
+		resumed = true
+		if r.reader != nil {
+			r.reader.Resume()
+		}
 		r.handleAgentInput("")
 		return
 	case ":reset":
@@ -470,15 +562,15 @@ func (r *REPL) handleHistoryReExecute(num int) {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 	entries, err := r.store.ListHistory()
 	if err != nil {
-		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
+		r.rawPrintf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
 		return
 	}
 	if num < 1 || num > len(entries) {
-		fmt.Println(i18n.TF(i18n.KeyListInvalid, len(entries)))
+		r.rawPrintln(i18n.TF(i18n.KeyListInvalid, len(entries)))
 		return
 	}
 	input := entries[num-1].Input
-	fmt.Printf("%s%s\n", ep.Info, input)
+	r.rawPrintf("%s%s\n", ep.Info, input)
 	if strings.HasPrefix(input, ":") {
 		r.handleBuiltin(input)
 		return
@@ -556,32 +648,32 @@ func (r *REPL) handleBodyDisplay(args []string) (string, error) {
 func (r *REPL) handleSystemCommand(command string) {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 	if r.cfg.LLM.ShowCommand {
-		fmt.Printf("%s%s\n", ep.CommandInput, command)
+		r.rawPrintf("%s%s\n", ep.CommandInput, command)
 	}
 	if r.cfg.LLM.ShellSessionEnabled {
 		output, err := r.agent.ExecuteViaShellSessionWithOutput(command)
 		if err != nil {
 			if output != "" {
-				fmt.Print(output)
+				r.rawPrint(output)
 			}
-			fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
+			r.rawPrintf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
 			return
 		}
 		if output != "" {
-			fmt.Printf("%s%s\n", ep.OutputTitle, output)
+			r.rawPrintf("%s%s\n", ep.OutputTitle, output)
 		}
 		return
 	}
 	output, err := r.agent.ExecuteCommandDirectly(command)
 	if err != nil {
 		if output != "" {
-			fmt.Print(output)
+			r.rawPrint(output)
 		}
-		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
+		r.rawPrintf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyCmdFailed), err)
 		return
 	}
 	if output != "" {
-		fmt.Printf("%s%s\n", ep.OutputTitle, output)
+		r.rawPrintf("%s%s\n", ep.OutputTitle, output)
 	}
 }
 
@@ -591,41 +683,39 @@ func (r *REPL) handleAgentInput(input string) {
 	ctx := context.Background()
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 
-	fmt.Println()
-	fmt.Printf("%s%s\n", ep.LlmOutput, r.agent.Said())
+	r.rawPrintln()
+	r.rawPrintf("%s%s\n", ep.LlmOutput, r.agent.Said())
 
-	// FEATURE-201: Create a UserIO for the agent to use during RunStream.
-	// - Enhanced mode: EnhancedIO (raw terminal, ESC monitor)
-	// - Stdio mode: StdioIO (standard terminal, raw mode for ReadKey)
+	// P2.5: Create a UserIO for the agent to use during RunStream.
+	// - tui mode: EnhancedIO (consumes the unified input event stream)
+	// - stdio mode: StdioIO (standard terminal, raw mode for ReadKey)
 	// Without a UserIO, the agent falls back to fmtIO which has a no-op ReadKey
 	// returning (0, nil) immediately — causing infinite loops on confirmation prompts.
-	var stopMonitor func()
+	var stopConsumer func()
 	switch r.inputMode {
 	case "enhanced", "tui":
-		log.Debug("REPL.handleAgentInput: setting up EnhancedIO and ESC monitor (mode=%s)", r.inputMode)
-		eio := NewEnhancedIO(r.history)
-		if err := eio.startRaw(); err != nil {
-			log.Warn("REPL.handleAgentInput: cannot set raw mode: %v", err)
-		} else {
-			r.agent.SetIO(eio)
-			r.userIO = eio
-			stopMonitor = r.startESCMonitor()
-			// Register command hooks: while a system command runs, restore the
-			// terminal to cooked mode so interactive commands (sudo, passwd, etc.)
-			// can read stdin with echo and line buffering; re-enter raw mode
-			// once the command finishes. Without this, raw mode (no ECHO/ICRNL)
-			// makes interactive commands hang with no visible feedback.
-			r.agent.SetCommandHooks(agent.CommandHooks{
-				BeforeCommand: func() {
-					eio.stopRaw()
-				},
-				AfterCommand: func() {
-					if err := eio.startRaw(); err != nil {
-						log.Warn("REPL.handleAgentInput: cannot re-enter raw mode after command: %v", err)
-					}
-				},
-			})
-		}
+		log.Debug("REPL.handleAgentInput: setting up EnhancedIO and ESC consumer (mode=%s)", r.inputMode)
+		eio := NewEnhancedIO(r.history, r.reader)
+		r.agent.SetIO(eio)
+		r.userIO = eio
+		stopConsumer = r.startEscConsumer()
+		// Register command hooks: while a system command runs, pause the input
+		// reader (stop reading stdin + restore cooked mode) so interactive
+		// commands (sudo, passwd, etc.) can read stdin with echo and line
+		// buffering; resume afterwards. Without this, raw mode (no ECHO/ICRNL)
+		// makes interactive commands hang with no visible feedback.
+		r.agent.SetCommandHooks(agent.CommandHooks{
+			BeforeCommand: func() {
+				if r.reader != nil {
+					r.reader.Pause()
+				}
+			},
+			AfterCommand: func() {
+				if r.reader != nil {
+					r.reader.Resume()
+				}
+			},
+		})
 	default: // "stdio"
 		log.Debug("REPL.handleAgentInput: setting up StdioIO")
 		sio := NewStdioIO()
@@ -635,25 +725,21 @@ func (r *REPL) handleAgentInput(input string) {
 
 	_, err := r.agent.RunStream(ctx, input, r.streamCallback)
 
-	// Stop ESC monitor and clean up raw mode
-	if stopMonitor != nil {
-		log.Debug("REPL.handleAgentInput: stopping ESC monitor")
-		stopMonitor()
+	// Stop the ESC consumer and clear command hooks.
+	if stopConsumer != nil {
+		log.Debug("REPL.handleAgentInput: stopping ESC consumer")
+		stopConsumer()
 	}
-	// Clear command hooks before restoring raw mode so no stray hook fires.
 	r.agent.SetCommandHooks(agent.CommandHooks{})
 	if r.userIO != nil {
-		if eio, ok := r.userIO.(*EnhancedIO); ok {
-			eio.stopRaw()
-		}
 		r.userIO = nil
 		// Reset agent's UserIO so agent defaults back to fmtIO for any remaining output
 		r.agent.SetIO(nil)
 	}
 
 	if err != nil {
-		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyProcessFailed), err)
-		fmt.Println(i18n.T(i18n.KeyCheckConfig))
+		r.rawPrintf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyProcessFailed), err)
+		r.rawPrintln(i18n.T(i18n.KeyCheckConfig))
 	}
 }
 
@@ -679,61 +765,66 @@ func (r *REPL) printWelcome() {
 	if r.cfg.LLM.VisionSupport {
 		visionIndicator = " 👀"
 	}
-	fmt.Printf("co-shell v%s [BUILD-%s]%s\n", r.version, r.build, visionIndicator)
-	fmt.Println("Copyright (c) 2026 L.Shuang - Type ':help' for usage.")
+	r.rawPrintf("co-shell v%s [BUILD-%s]%s\n", r.version, r.build, visionIndicator)
+	r.rawPrintln("Copyright (c) 2026 L.Shuang - Type ':help' for usage.")
 	if r.cfg.LLM.ShowLogo {
-		fmt.Println(logoData)
+		r.rawPrintln(logoData)
 	}
 }
 
 func (r *REPL) printHelp() {
-	fmt.Println(i18n.T(i18n.KeyHelpTitle))
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyHelpNLTitle))
-	fmt.Println(i18n.T(i18n.KeyHelpNLDesc))
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyHelpBuiltinTitle))
-	fmt.Println(i18n.T(i18n.KeyHelpConfig))
-	fmt.Println(i18n.T(i18n.KeyHelpSettings))
-	fmt.Println(i18n.T(i18n.KeyHelpMCP))
-	fmt.Println(i18n.T(i18n.KeyHelpMemory))
-	fmt.Println(i18n.T(i18n.KeyHelpContext))
-	fmt.Println(i18n.T(i18n.KeyHelpHistory))
-	fmt.Println(i18n.T(i18n.KeyHelpSession))
-	fmt.Println(i18n.T(i18n.KeyHelpImage))
-	fmt.Println(i18n.T(i18n.KeyHelpPlan))
-	fmt.Println(i18n.T(i18n.KeyHelpVault))
-	fmt.Println(i18n.T(i18n.KeyHelpBodyAdd))
-	fmt.Println(i18n.T(i18n.KeyHelpBodyRemove))
-	fmt.Println(i18n.T(i18n.KeyHelpBodyDisplay))
-	fmt.Println(i18n.T(i18n.KeyHelpNew))
-	fmt.Println(i18n.T(i18n.KeyHelpModel))
-	fmt.Println(i18n.T(i18n.KeyHelpSection))
-	fmt.Println(i18n.T(i18n.KeyHelpMode))
-	fmt.Println(i18n.T(i18n.KeyHelpContinue))
-	fmt.Println(i18n.T(i18n.KeyHelpSimulate))
-	fmt.Println(i18n.T(i18n.KeyHelpHelp))
-	fmt.Println(i18n.T(i18n.KeyHelpExit))
-	fmt.Println()
-	fmt.Println(i18n.T(i18n.KeyHelpExampleTitle))
+	r.rawPrintln(i18n.T(i18n.KeyHelpTitle))
+	r.rawPrintln()
+	r.rawPrintln(i18n.T(i18n.KeyHelpNLTitle))
+	r.rawPrintln(i18n.T(i18n.KeyHelpNLDesc))
+	r.rawPrintln()
+	r.rawPrintln(i18n.T(i18n.KeyHelpBuiltinTitle))
+	r.rawPrintln(i18n.T(i18n.KeyHelpConfig))
+	r.rawPrintln(i18n.T(i18n.KeyHelpSettings))
+	r.rawPrintln(i18n.T(i18n.KeyHelpMCP))
+	r.rawPrintln(i18n.T(i18n.KeyHelpMemory))
+	r.rawPrintln(i18n.T(i18n.KeyHelpContext))
+	r.rawPrintln(i18n.T(i18n.KeyHelpHistory))
+	r.rawPrintln(i18n.T(i18n.KeyHelpSession))
+	r.rawPrintln(i18n.T(i18n.KeyHelpImage))
+	r.rawPrintln(i18n.T(i18n.KeyHelpPlan))
+	r.rawPrintln(i18n.T(i18n.KeyHelpVault))
+	r.rawPrintln(i18n.T(i18n.KeyHelpBodyAdd))
+	r.rawPrintln(i18n.T(i18n.KeyHelpBodyRemove))
+	r.rawPrintln(i18n.T(i18n.KeyHelpBodyDisplay))
+	r.rawPrintln(i18n.T(i18n.KeyHelpNew))
+	r.rawPrintln(i18n.T(i18n.KeyHelpModel))
+	r.rawPrintln(i18n.T(i18n.KeyHelpSection))
+	r.rawPrintln(i18n.T(i18n.KeyHelpMode))
+	r.rawPrintln(i18n.T(i18n.KeyHelpContinue))
+	r.rawPrintln(i18n.T(i18n.KeyHelpSimulate))
+	r.rawPrintln(i18n.T(i18n.KeyHelpHelp))
+	r.rawPrintln(i18n.T(i18n.KeyHelpExit))
+	r.rawPrintln()
+	r.rawPrintln(i18n.T(i18n.KeyHelpExampleTitle))
 	prefix := i18n.T(i18n.KeyEmojiPrefixUser)
-	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample1))
-	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample2))
-	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample3))
-	fmt.Println("    " + prefix + i18n.T(i18n.KeyHelpExample4))
+	r.rawPrintln("    " + prefix + i18n.T(i18n.KeyHelpExample1))
+	r.rawPrintln("    " + prefix + i18n.T(i18n.KeyHelpExample2))
+	r.rawPrintln("    " + prefix + i18n.T(i18n.KeyHelpExample3))
+	r.rawPrintln("    " + prefix + i18n.T(i18n.KeyHelpExample4))
 }
 
 func (r *REPL) cleanup() {
-	fmt.Print(i18n.T(i18n.KeyCleaningUp))
+	r.rawPrint(i18n.T(i18n.KeyCleaningUp))
+	// P2.5: stop the unified input reader and restore the terminal.
+	if r.reader != nil {
+		_ = r.reader.Close()
+		r.reader = nil
+	}
 	// Persist non-system messages before closing resources
 	if err := r.agent.PersistSessionNonSystem(); err != nil {
 		log.Warn("Failed to persist non-system session on REPL exit: %v", err)
 	}
 	if err := r.mcpMgr.Close(); err != nil {
-		fmt.Printf(" MCP error: %v", err)
+		r.rawPrintf(" MCP error: %v", err)
 	}
 	if err := r.store.Close(); err != nil {
-		fmt.Printf(" DB error: %v", err)
+		r.rawPrintf(" DB error: %v", err)
 	}
-	fmt.Println(i18n.T(i18n.KeyDone))
+	r.rawPrintln(i18n.T(i18n.KeyDone))
 }

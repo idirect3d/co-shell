@@ -26,9 +26,12 @@
 package repl
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"unicode/utf8"
+	"io"
+	"sync/atomic"
+
+	"github.com/idirect3d/co-shell/agent"
 )
 
 // EnhancedInput implements an interactive line editor with:
@@ -41,10 +44,7 @@ type EnhancedInput struct {
 	cursor  int // cursor position within buffer (in runes)
 	prompt  string
 	history []string
-	histIdx int         // current history position (-1 = new input, 0..len-1 = history entry)
-	oldTerm interface{} // *unix.Termios on POSIX, nil on Windows
-	termFd  int
-	inRaw   bool
+	histIdx int // current history position (-1 = new input, 0..len-1 = history entry)
 }
 
 // NewEnhancedInput creates a new EnhancedInput instance.
@@ -55,8 +55,6 @@ func NewEnhancedInput(prompt string, history []string) *EnhancedInput {
 		prompt:  prompt,
 		history: history,
 		histIdx: -1,
-		termFd:  int(os.Stdin.Fd()),
-		inRaw:   false,
 	}
 	return e
 }
@@ -128,267 +126,153 @@ func (e *EnhancedInput) cursorDisplayColumn() int {
 	return w
 }
 
-// ReadLine reads a line of input with full line editing support.
-func (e *EnhancedInput) ReadLine() (string, error) {
-	oldState, err := MakeRaw(e.termFd)
-	if err != nil {
-		return "", fmt.Errorf("failed to set raw terminal mode: %w", err)
-	}
-	e.oldTerm = oldState
-	e.inRaw = true
-	defer func() {
-		if e.inRaw && e.oldTerm != nil {
-			RestoreTerm(e.termFd, e.oldTerm)
-			e.inRaw = false
-		}
-	}()
+// inputEventSource is the minimal event-consumption surface ReadLineFrom needs
+// from the unified InputReader. The interface keeps the line editor testable
+// with a fake source.
+type inputEventSource interface {
+	// Subscribe registers a consumer callback; the returned func unsubscribes.
+	Subscribe(fn func(agent.InputEvent)) func()
+	// Done returns a channel closed when the source shuts down.
+	Done() <-chan struct{}
+}
 
+// ReadLineFrom reads a line of input from the unified event stream with full
+// line editing support (P2.5). Raw terminal mode is owned by the InputReader.
+func (e *EnhancedInput) ReadLineFrom(reader inputEventSource) (string, error) {
 	e.displayPrompt()
 
-	buf := make([]byte, 1)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			return "", err
+	type result struct {
+		line string
+		err  error
+	}
+	resCh := make(chan result, 1)
+	var done atomic.Bool
+
+	cancel := reader.Subscribe(func(ev agent.InputEvent) {
+		if done.Load() {
+			return
 		}
-
-		b := buf[0]
-
-		if b == '\x1b' {
-			seq, err := e.readEscapeSequence()
-			if err != nil {
-				if seq == "" {
-					e.clearLine()
-					e.buffer = e.buffer[:0]
-					e.cursor = 0
-					e.displayPrompt()
-					continue
-				}
-				return "", err
-			}
-			e.handleEscapeSequence(seq)
-			continue
-		}
-
-		if b == '\r' || b == '\n' {
-			if e.oldTerm != nil {
-				RestoreTerm(e.termFd, e.oldTerm)
-				e.inRaw = false
-			}
-			result := string(e.buffer)
+		switch ev.Kind {
+		case agent.InputEnter:
+			line := string(e.buffer)
 			e.resetState()
 			fmt.Print("\r\n")
-			return result, nil
-		}
-
-		if b == 0x03 {
+			done.Store(true)
+			resCh <- result{line: line}
+		case agent.InputCtrlC:
 			e.clearLine()
-			if e.oldTerm != nil {
-				RestoreTerm(e.termFd, e.oldTerm)
-				e.inRaw = false
-			}
 			e.resetState()
-			return "", fmt.Errorf("interrupt")
-		}
-
-		if b == 0x04 {
+			done.Store(true)
+			resCh <- result{err: errors.New("interrupt")}
+		case agent.InputEOF:
 			if len(e.buffer) == 0 {
 				e.clearLine()
-				if e.oldTerm != nil {
-					RestoreTerm(e.termFd, e.oldTerm)
-					e.inRaw = false
-				}
 				e.resetState()
-				return "", nil
+				done.Store(true)
+				resCh <- result{}
+			} else {
+				e.deleteForward()
 			}
-			e.deleteForward()
-			continue
-		}
-
-		if b == 0x01 {
-			e.moveCursorToStart()
-			continue
-		}
-
-		if b == 0x05 {
-			e.moveCursorToEnd()
-			continue
-		}
-
-		if b == 0x0b {
-			e.killToEnd()
-			continue
-		}
-
-		if b == 0x0c {
-			fmt.Print("\033[2J\033[H")
-			e.displayPrompt()
-			continue
-		}
-
-		if b == 0x15 {
+		case agent.InputEsc:
+			// A lone ESC clears the current input line (legacy behaviour).
 			e.clearLine()
 			e.buffer = e.buffer[:0]
 			e.cursor = 0
 			e.displayPrompt()
-			continue
-		}
-
-		if b == 0x17 {
-			e.deletePreviousWord()
-			continue
-		}
-
-		if b == '\t' {
-			e.insertRune('\t')
-			continue
-		}
-
-		if b == '\x7f' || b == '\b' {
-			e.backspace()
-			continue
-		}
-
-		if b >= 0x20 && b < 0x7f {
-			e.insertRune(rune(b))
-			continue
-		}
-
-		if b >= 0xc0 {
-			r, size := e.readRune(b)
-			if r != utf8.RuneError || size > 1 {
-				e.insertRune(r)
+		case agent.InputKey:
+			if ev.Data == "\x04" {
+				// Ctrl+D: empty buffer means EOF, otherwise delete forward.
+				if len(e.buffer) == 0 {
+					e.clearLine()
+					e.resetState()
+					done.Store(true)
+					resCh <- result{}
+				} else {
+					e.deleteForward()
+				}
+				return
 			}
+			e.handleKeyData(ev.Data)
+		default:
+			e.handleInputEvent(ev)
 		}
+	})
+	defer cancel()
+
+	select {
+	case res := <-resCh:
+		return res.line, res.err
+	case <-reader.Done():
+		return "", io.EOF
 	}
 }
 
-// readEscapeSequence reads a complete ANSI escape sequence.
-func (e *EnhancedInput) readEscapeSequence() (string, error) {
-	buf := make([]byte, 1)
-	_, err := os.Stdin.Read(buf)
-	if err != nil {
-		return "", err
+// handleKeyData applies a single character (or rune) to the line buffer.
+func (e *EnhancedInput) handleKeyData(data string) {
+	if data == "" {
+		return
 	}
-	if buf[0] == '[' {
-		return e.readCSI()
+	b := data[0]
+	if b < 0x20 {
+		e.handleControlByte(b)
+		return
 	}
-	if buf[0] == 'O' {
-		return e.readSS3()
+	if b == 0x7f {
+		e.backspace()
+		return
 	}
-	return "", nil
-}
-
-// readCSI reads a CSI sequence.
-func (e *EnhancedInput) readCSI() (string, error) {
-	var seq []byte
-	for {
-		buf := make([]byte, 1)
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			return "", err
-		}
-		b := buf[0]
-		seq = append(seq, b)
-		if (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || b == '~' {
-			break
-		}
-	}
-	s := string(seq)
-	switch s {
-	case "A":
-		return "up", nil
-	case "B":
-		return "down", nil
-	case "C":
-		return "right", nil
-	case "D":
-		return "left", nil
-	case "H":
-		return "home", nil
-	case "F":
-		return "end", nil
-	case "3~":
-		return "del", nil
-	case "1~":
-		return "home", nil
-	case "4~":
-		return "end", nil
-	default:
-		return "", nil
+	for _, r := range data {
+		e.insertRune(r)
 	}
 }
 
-// readSS3 reads a SS3 sequence.
-func (e *EnhancedInput) readSS3() (string, error) {
-	buf := make([]byte, 1)
-	_, err := os.Stdin.Read(buf)
-	if err != nil {
-		return "", err
-	}
-	switch buf[0] {
-	case 'H':
-		return "home", nil
-	case 'F':
-		return "end", nil
-	case 'A':
-		return "up", nil
-	case 'B':
-		return "down", nil
-	case 'C':
-		return "right", nil
-	case 'D':
-		return "left", nil
-	}
-	return "", nil
-}
-
-// readRune reads a multi-byte UTF-8 rune.
-func (e *EnhancedInput) readRune(first byte) (rune, int) {
-	var size int
-	switch {
-	case first >= 0xf0:
-		size = 4
-	case first >= 0xe0:
-		size = 3
-	case first >= 0xc0:
-		size = 2
-	default:
-		return rune(first), 1
-	}
-	raw := make([]byte, size)
-	raw[0] = first
-	for i := 1; i < size; i++ {
-		buf := make([]byte, 1)
-		_, err := os.Stdin.Read(buf)
-		if err != nil {
-			return utf8.RuneError, i
-		}
-		raw[i] = buf[0]
-	}
-	r, _ := utf8.DecodeRune(raw)
-	return r, size
-}
-
-func (e *EnhancedInput) handleEscapeSequence(seq string) {
-	switch seq {
-	case "up":
+// handleInputEvent applies a non-terminal input event to the line buffer.
+func (e *EnhancedInput) handleInputEvent(ev agent.InputEvent) {
+	switch ev.Kind {
+	case agent.InputBackspace:
+		e.backspace()
+	case agent.InputArrowUp:
 		e.navigateHistory(-1)
-	case "down":
+	case agent.InputArrowDn:
 		e.navigateHistory(1)
-	case "left":
+	case agent.InputArrowLt:
 		e.moveCursorLeft()
-	case "right":
+	case agent.InputArrowRt:
 		e.moveCursorRight()
-	case "home":
+	case agent.InputHome:
 		e.moveCursorToStart()
-	case "end":
+	case agent.InputEnd:
 		e.moveCursorToEnd()
-	case "del":
+	case agent.InputDelete:
 		e.deleteForward()
+	case agent.InputTab:
+		e.insertRune('\t')
 	}
 }
 
+// handleControlByte applies legacy Ctrl-combination editing shortcuts.
+func (e *EnhancedInput) handleControlByte(b byte) {
+	switch b {
+	case 0x01: // Ctrl+A — move to start of line
+		e.moveCursorToStart()
+	case 0x05: // Ctrl+E — move to end of line
+		e.moveCursorToEnd()
+	case 0x0b: // Ctrl+K — kill to end
+		e.killToEnd()
+	case 0x0c: // Ctrl+L — clear screen and redraw prompt
+		fmt.Print("\033[2J\033[H")
+		e.displayPrompt()
+	case 0x15: // Ctrl+U — clear line
+		e.clearLine()
+		e.buffer = e.buffer[:0]
+		e.cursor = 0
+		e.displayPrompt()
+	case 0x17: // Ctrl+W — delete previous word
+		e.deletePreviousWord()
+	}
+}
+
+// navigateHistory navigates the input history buffer.
 func (e *EnhancedInput) navigateHistory(dir int) {
 	if len(e.history) == 0 {
 		return

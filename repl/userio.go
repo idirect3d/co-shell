@@ -27,8 +27,9 @@
 package repl
 
 import (
-	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -39,7 +40,7 @@ import (
 // StdioIO implements agent.UserIO for standard terminal I/O.
 // Used when input mode is "stdio".
 type StdioIO struct {
-	reader  *bufio.Scanner
+	src     *StdioSource
 	fd      int
 	rawTerm bool
 }
@@ -47,8 +48,8 @@ type StdioIO struct {
 // NewStdioIO creates a new StdioIO instance.
 func NewStdioIO() *StdioIO {
 	return &StdioIO{
-		reader: bufio.NewScanner(os.Stdin),
-		fd:     int(os.Stdin.Fd()),
+		src: NewStdioSource(),
+		fd:  int(os.Stdin.Fd()),
 	}
 }
 
@@ -69,11 +70,14 @@ func (s *StdioIO) ErrPrintf(format string, args ...interface{}) {
 }
 
 func (s *StdioIO) ReadLine() (string, error) {
-	s.reader = bufio.NewScanner(os.Stdin)
-	if !s.reader.Scan() {
-		return "", s.reader.Err()
+	ev, err := s.src.NextEvent(context.Background())
+	if err != nil {
+		return "", err
 	}
-	return s.reader.Text(), nil
+	if ev.Kind == agent.InputEOF {
+		return "", io.EOF
+	}
+	return ev.Data, nil
 }
 
 func (s *StdioIO) ReadKey() (byte, error) {
@@ -105,51 +109,27 @@ func (s *StdioIO) IsReading() bool {
 // It uses raw terminal mode for full line editing support.
 type EnhancedIO struct {
 	// reading is an atomic flag set to true while waiting for user input.
-	// The ESC monitor goroutine checks this to avoid data races on stdin.
+	// The ESC monitor consumer checks this so it yields while an exclusive
+	// consumer (ReadLine/ReadKey) owns the input event.
 	reading atomic.Bool
-
-	// raw term state management
-	fd      int
-	oldTerm interface{} // *unix.Termios on POSIX, nil on Windows
-	inRaw   bool
 
 	// history shared with REPL
 	history []string
+
+	// reader is the unified input event source (tui mode, P2.5).
+	reader *InputReader
 }
 
-// NewEnhancedIO creates a new EnhancedIO instance.
-func NewEnhancedIO(history []string) *EnhancedIO {
+// NewEnhancedIO creates a new EnhancedIO instance bound to the unified reader.
+func NewEnhancedIO(history []string, reader *InputReader) *EnhancedIO {
 	return &EnhancedIO{
-		fd:      int(os.Stdin.Fd()),
 		history: history,
-	}
-}
-
-// startRaw puts the terminal into raw mode.
-func (e *EnhancedIO) startRaw() error {
-	if e.inRaw {
-		return nil
-	}
-	oldState, err := MakeRaw(e.fd)
-	if err != nil {
-		return fmt.Errorf("failed to set raw terminal mode: %w", err)
-	}
-	e.oldTerm = oldState
-	e.inRaw = true
-	return nil
-}
-
-// stopRaw restores the terminal from raw mode.
-func (e *EnhancedIO) stopRaw() {
-	if e.inRaw && e.oldTerm != nil {
-		_ = RestoreTerm(e.fd, e.oldTerm)
-		e.oldTerm = nil
-		e.inRaw = false
+		reader:  reader,
 	}
 }
 
 func (e *EnhancedIO) Print(args ...interface{}) {
-	if e.inRaw {
+	if e.reader != nil && e.reader.RawActive() {
 		// In raw mode, replace \n with \r\n so the cursor returns to column 0.
 		s := fmt.Sprint(args...)
 		s = strings.ReplaceAll(s, "\n", "\r\n")
@@ -160,7 +140,7 @@ func (e *EnhancedIO) Print(args ...interface{}) {
 }
 
 func (e *EnhancedIO) Printf(format string, args ...interface{}) {
-	if e.inRaw {
+	if e.reader != nil && e.reader.RawActive() {
 		s := fmt.Sprintf(format, args...)
 		s = strings.ReplaceAll(s, "\n", "\r\n")
 		fmt.Print(s)
@@ -170,7 +150,7 @@ func (e *EnhancedIO) Printf(format string, args ...interface{}) {
 }
 
 func (e *EnhancedIO) Println(args ...interface{}) {
-	if e.inRaw {
+	if e.reader != nil && e.reader.RawActive() {
 		s := fmt.Sprint(args...)
 		s = strings.ReplaceAll(s, "\n", "\r\n")
 		fmt.Print("\r" + s + "\r\n")
@@ -187,13 +167,8 @@ func (e *EnhancedIO) ReadLine() (string, error) {
 	e.reading.Store(true)
 	defer e.reading.Store(false)
 
-	// startRaw is a no-op if already in raw mode
-	if err := e.startRaw(); err != nil {
-		return "", err
-	}
-
 	ei := NewEnhancedInput("", e.history)
-	input, err := ei.ReadLine()
+	input, err := ei.ReadLineFrom(e.reader)
 	if err != nil {
 		return "", err
 	}
@@ -204,52 +179,58 @@ func (e *EnhancedIO) ReadKey() (byte, error) {
 	e.reading.Store(true)
 	defer e.reading.Store(false)
 
-	if err := e.startRaw(); err != nil {
-		return 0, err
-	}
-
-	buf := make([]byte, 1)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			return 0, err
+	resCh := make(chan byte, 1)
+	var done atomic.Bool
+	cancel := e.reader.Subscribe(func(ev agent.InputEvent) {
+		if done.Load() {
+			return
 		}
-		b := buf[0]
-
-		// Handle escape sequences (ESC + [ + ...)
-		if b == 0x1b {
-			// Check if it's a full escape sequence
-			seqBuf := make([]byte, 2)
-			n, err = os.Stdin.Read(seqBuf)
-			if err != nil || n == 0 {
-				// Just ESC alone
-				return b, nil
-			}
-			if seqBuf[0] == '[' || seqBuf[0] == 'O' {
-				// Consume rest of sequence
-				for {
-					ch := make([]byte, 1)
-					n, err = os.Stdin.Read(ch)
-					if err != nil || n == 0 {
-						break
-					}
-					if (ch[0] >= 'A' && ch[0] <= 'Z') || (ch[0] >= 'a' && ch[0] <= 'z') || ch[0] == '~' {
-						break
-					}
-				}
-				continue // skip escape sequences, wait for a real key
-			}
-			return b, nil
+		b, ok := keyEventToByte(ev)
+		if !ok {
+			return // arrow/home/end/delete are consumed
 		}
-
-		// Echo the key back to the user
+		// Echo the key back to the user (legacy behaviour).
 		if b >= 0x20 && b < 0x7f {
 			fmt.Print(string(b))
 		} else if b == '\r' || b == '\n' {
 			fmt.Print("\r\n")
 		}
+		done.Store(true)
+		resCh <- b
+	})
+	defer cancel()
 
+	select {
+	case b := <-resCh:
 		return b, nil
+	case <-e.reader.Done():
+		return 0, io.EOF
+	}
+}
+
+// keyEventToByte maps an input event to the legacy single-byte value used by
+// ReadKey callers (confirmation prompts etc.). Arrow/home/end/delete are not
+// "real" keys and are consumed, matching the legacy ReadKey that skipped
+// escape sequences.
+func keyEventToByte(ev agent.InputEvent) (byte, bool) {
+	switch ev.Kind {
+	case agent.InputKey:
+		if ev.Data == "" {
+			return 0, false
+		}
+		return ev.Data[0], true
+	case agent.InputEsc:
+		return 0x1b, true
+	case agent.InputCtrlC:
+		return 0x03, true
+	case agent.InputEnter:
+		return '\r', true
+	case agent.InputTab:
+		return '\t', true
+	case agent.InputBackspace:
+		return 0x7f, true
+	default:
+		return 0, false
 	}
 }
 
