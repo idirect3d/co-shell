@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/log"
 )
 
 // RenderOpKind identifies the kind of a unified tool-call render operation.
@@ -66,6 +67,11 @@ type ToolCallRenderer struct {
 	replaceReplaceBuf    strings.Builder
 	replaceReplaceLineNo int
 	replacePairClosed    bool
+
+	// leadingEmitted tracks whether a leading newline has been emitted for the
+	// current stream call, so the first tool header is visually separated from
+	// the preceding LLM content exactly once.
+	leadingEmitted bool
 }
 
 // NewToolCallRenderer constructs a renderer gated by showTool and showToolInput.
@@ -99,6 +105,7 @@ func (r *ToolCallRenderer) Reset() {
 	r.replaceReplaceBuf.Reset()
 	r.replaceReplaceLineNo = 0
 	r.replacePairClosed = false
+	r.leadingEmitted = false
 }
 
 // Apply consumes one RenderOp and emits the incremental display text through
@@ -119,7 +126,7 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 				// the line ("⚙️ replace_in_file 作文.md").
 				r.replaceHeaderPending = true
 			} else {
-				emit("⚙️ " + op.Text + "\n")
+				r.emitToolHeader(emit, "⚙️ "+op.Text+"\n")
 			}
 		}
 	case OpParamKey:
@@ -189,6 +196,18 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 	}
 }
 
+// emitToolHeader emits a tool-call header line, prefixing a leading newline
+// before the first header of a stream call so the tool call is visually
+// separated from the preceding LLM content.
+func (r *ToolCallRenderer) emitToolHeader(emit func(text string), text string) {
+	prefix := ""
+	if !r.leadingEmitted {
+		prefix = "\n"
+		r.leadingEmitted = true
+	}
+	emit(prefix + text)
+}
+
 // flushReplaceHeader emits the deferred replace_in_file tool header and the
 // intent line once the parameter stream reaches the diff section (or an
 // unknown parameter). The header consumes the path value
@@ -203,7 +222,7 @@ func (r *ToolCallRenderer) flushReplaceHeader(emit func(text string)) {
 	if r.replaceHeaderPath != "" {
 		h += " " + r.replaceHeaderPath
 	}
-	emit(h + "\n")
+	r.emitToolHeader(emit, h+"\n")
 	if r.replaceIntent != "" {
 		emit("(" + r.replaceIntent + ")\n")
 	}
@@ -313,6 +332,9 @@ func linePrefix(baseLine, no int, marker, indent string, colon bool) string {
 // feedLined appends text to buf and emits every completed line (split on '\n')
 // immediately. The line counter increments for each emitted line.
 func feedLined(buf *strings.Builder, baseLine int, lineNo *int, marker, indent string, colon bool, text string, emit func(string)) {
+	if strings.Contains(text, `\`) {
+		log.Debug("toolcall feedLined: marker=%s text=%q (contains backslash)", marker, text)
+	}
 	buf.WriteString(text)
 	for {
 		s := buf.String()

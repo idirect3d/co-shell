@@ -225,6 +225,7 @@ Parameters:
    - 移动代码：使用两个 <{XML_TAG_PREFIX}item>（一个从原位置删除，一个在新位置插入）
    - 删除代码：将 <{XML_TAG_PREFIX}replace> 留空
 5. 如果从 read_file 获取的上下文包含行号前缀（如 "42 | const x = 1"），<{XML_TAG_PREFIX}search> 中**不要包含**行号前缀，只匹配原始文件文本。
+6. **换行与转义**：<{XML_TAG_PREFIX}search> 和 <{XML_TAG_PREFIX}replace> 内容中的换行**必须使用真实换行字符**（直接在内容中按下回车换行），**不要**使用 \n 转义序列；缩进使用真实的 Tab/空格字符。如果内容中需要表示一个字面反斜杠，请写成 \\（两个反斜杠）。
 Usage:
 <{XML_TAG_PREFIX}replace_in_file>
   <{XML_TAG_PREFIX}path>main.go</{XML_TAG_PREFIX}path>

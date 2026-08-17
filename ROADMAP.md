@@ -6,10 +6,10 @@
 
 ## 当前版本
 
-> **版本**: v0.7.6
+> **版本**: v0.7.7
 
-> **状态**: 🚧 开发中（输入统一 InputSource + Windows 补齐 + browser_screenshot 视觉识别一致化）
-> **里程碑**: 输入统一（InputSource）+ Windows 补齐 + browser_screenshot 视觉识别一致化
+> **状态**: 🚧 开发中（输入统一 InputSource + Windows 补齐）
+> **里程碑**: 输入统一（InputSource）+ Windows 补齐
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -22,10 +22,11 @@
 | FEATURE-342 | 0.7.4 | P1 | ✅ 已完成（问题判定优化 + report_problem 工具 [BUILD-385]） |
 | FEATURE-343 | 0.7.5 | P1 | ✅ 已完成（视觉识别上下文隔离 [BUILD-386]） |
 | FEATURE-345 | 0.7.5 | P1 | ✅ 已完成（异常场景接入问题判定 [BUILD-389]） |
-| FEATURE-306 | 0.7.6 | P2.5 | 输入统一（InputSource）+ Windows 补齐 |
-| FEATURE-307 | 0.7.6 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
-| FEATURE-308 | 0.7.7 | tui v2 | FullScreenRenderer（可选分支） |
 | FEATURE-352 | 0.7.6 | P1 | ✅ 已完成（循环介入 auto 策略：纠错提示自动升级强制重整 [BUILD-402]） |
+| FEATURE-306 | 0.7.7 | P2.5 | ✅ 已完成（输入统一 A1 全量事件流化 + Windows 补齐 + 系列回归修复 [BUILD-408]） |
+| FIX-350 | 0.7.7 | - | judge 产出雷同 guidance 的对策（失败策略哨兵分隔格式 + 禁止字面雷同措辞强化） |
+| FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
+| FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
@@ -1186,17 +1187,14 @@
   - 测试：agent/problem_solver_test.go 新增 TestApplyProblemAction/TestSolveProblem_Gated/TestBuildProblemSolverUserPrompt；use-case/FEATURE-345/FEATURE-345-UC-0001.md（10 用例）
   - 验收：`go build ./...`、`go vet ./agent/ ./cmd/ ./i18n/`、`go test ./agent/ ./i18n/ ./cmd/` 全绿；编译产物 [BUILD-389]（work/co-shell）
 
-## v0.7.6 — 输入统一
+## v0.7.6 — 输入统一（已完成）
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成
 > **目标日期**: 2026-08-12
-> **里程碑**: 输入统一（InputSource）+ Windows 补齐
+> **里程碑**: browser_screenshot 视觉识别一致化 + 循环介入 auto 策略
 
 ### 功能清单
 
-- [ ] FEATURE-306 输入统一（InputSource）+ Windows 补齐
-  - 背景：v0.7.5 完成（视觉隔离 + 问题判定异常场景接入），FEATURE-306 顺延至 v0.7.6
-  - 目标：统一 REPL/单次执行/子命令的输入源抽象（InputSource），补齐 Windows 平台输入兼容
 - [x] FEATURE-346 browser_screenshot 视觉识别与 FEATURE-343 一致化（minimal 识别轮接入）：[BUILD-390]
   - 背景：FEATURE-343 的 minimal 识别轮（上下文折叠 [Identity-only, intent+图片]、tools 清空、结果回填工具返回）仅 visual_analysis 走；browser_screenshot 截图后只注入 imagePaths、未设置 visionPendingIntent，识别在完整上下文内联进行（UC-0019 有意排除），与 visual_analysis 行为不一致
   - 目标：browser_screenshot 视觉支持时也设置 visionPendingIntent（取 intent 参数，缺失用本地化默认指令兜底），记录 ToolCallID/工具名并回填识别结果，minimal 模式下与 FEATURE-343 完全一致；full 模式行为不变
@@ -1239,14 +1237,6 @@
     - 判定结果收集统一为 report_problem 工具调用（用户决策，移除自由文本 JSON 路径）：judgeLoop 删除 classic JSON 兜底（judgeClient/JSON 截取解析/REQ-RESP][judgeLoop 段），problem solver 失败即返回 nil 走直接反馈兜底；callProblemSolver 按 tool-call mode 配置选择传输——OpenAI 模式 tools+tool_choice 强制调用，XML 模式系统提示内嵌 report_problem 用法（BuildToolUsagePrompt）并解析内容中的 XML 标签；删除 callProblemSolver 内"纯 JSON 内容"兜底解析；i18n 清理 KeyLoopJudgeSystemPrompt/KeyLoopJudgePrompt/KeyLoopJudgeResponse 及 judge 用户提示的"输出格式"段
     - 删除 FEATURE-241 异步判定死代码（loopJudgeInflight/loopJudgePendingResult/loopJudgeResultCh/loopJudgeTriggered 仅声明从未使用）及 run_stream.go 中 checkLoopJudgeResult 死注释
   - 测试：agent/feature349_test.go 9 用例（记录/空值跳过/连续重复合并/上限截断/none 文案/编号列表/提示词占位符替换/首次判定/双语模板占位符齐备）；go build/vet/test 全绿 [BUILD-396]
-- [ ] FIX-350 judge 产出雷同 guidance 的对策（失败策略哨兵分隔格式 + 禁止字面雷同措辞强化）
-  - 背景：FEATURE-349 上线后实测，循环跑到一定程度后 judge 多轮返回的 guidance 趋于雷同甚至几乎完全一样——judge 与主 LLM 同源（deepseek-v4-flash），自身也陷入重复产出；原失败策略列表以 `1. ...` 纯编号行渲染，与 guidance 内容中的列表样式容易混淆，且"禁止重复"的措辞约束力不足
-  - 目标：让 judge 清晰区分"历史意见列表的结构"与"意见内容"，并以最硬措辞禁止新 guidance 与上一次雷同
-  - 实现：
-    - 失败策略列表改为带序号的哨兵包裹格式 `[FAILED-STRATEGY #N BEGIN]` / `[FAILED-STRATEGY #N END]`（agent/loop.go `buildFailedStrategiesText`）：verbose ASCII 哨兵独占一行，与 guidance 内容不可能冲突
-    - judge 用户提示段标题强化（zh/en）：新 guidance 绝对不得与列表中任何一条相同或近似雷同——尤其是最近一条；主LLM仍在同一处循环时必须彻底更换措辞与切入角度
-    - judge 系统提示第 6 条同步强化（zh/en）：新 guidance 与最近一条不得有任何字面级别的雷同；条目中说明哨兵格式便于 judge 解析
-  - 测试：agent/feature349_test.go 更新编号列表用例为哨兵格式断言 + 新增对抗性用例（策略内容含 `1. ` 与 `[FAILED-STRATEGY` 片段时结构仍清晰）；go build/vet/test 全绿 [BUILD-397]
 
 - [x] FEATURE-352 循环介入新增 auto 策略（纠错提示 + 达到阈值自动升级强制重整上下文）：[BUILD-402]
   - 背景：loop-intervention=prompt 的纠错提示在循环根因（上下文恒定 → 确定性重演，见 FEATURE-349）下多次无效；reorganize 策略又缺少"先尝试纠错、无效再重整"的渐进路径。auto 模式自动管理"纠错提示 → 强制重整"的升级链
@@ -1259,6 +1249,41 @@
     - main.go：--loop-intervention 合法值新增 auto（CLI help 同步）
     - i18n：keys/zh/en 新增 KeyStrategyAutoReorganize / KeyLoopAutoReorganize / KeyCol3LoopAutoReorgThresh / KeySettingCmd_773~775 双语；zh_loop.go / en_loop.go 同步
   - 测试：agent/loop_auto_test.go 5 个单测（阈值回退默认/升级边界/阈值下与 prompt 一致且计数+1/阈值到达升级且反馈消息原地更新不追加/无 user/tool 消息不 panic）；go build/vet/test 全绿 [BUILD-402]
+
+## v0.7.7 — 输入统一
+
+> **状态**: 🚧 开发中
+> **里程碑**: 输入统一（InputSource）+ Windows 补齐
+
+### 功能清单
+
+- [x] **FEATURE-306 输入统一（InputSource）+ Windows 补齐（P2.5）** ✅ 已完成 [BUILD-408]
+  - 背景：v0.7.5 完成（视觉隔离 + 问题判定异常场景接入），FEATURE-306 原顺延至 v0.7.6；v0.7.6 已收尾，按用户决策新建小版本 v0.7.7 承接
+  - 目标：统一 REPL/单次执行/子命令的输入源抽象（InputSource），补齐 Windows 平台输入兼容
+  - 方案（A1 全量事件流化，用户已确认）：
+    - InputSource 接口 + InputEvent 结构（agent/input.go 扩展，P1 已有 InputKind 枚举）
+    - RawKeySource（tui）：单一 Reader goroutine 唯一读 stdin，复用 readCSI/readSS3 解析 ESC 序列 → 语义化 InputEvent，事件广播给订阅消费者
+    - StdioSource（stdio）：同步行读 → InputLine/EOF，行为与现状 bufio.Scanner 完全一致
+    - ESC/Ctrl+C 监控从独立 unix.Poll 轮询 goroutine 改为事件流消费者（repl_esc_posix.go / repl_esc_windows.go 合并，Windows no-op 消除）
+    - EnhancedInput 全量事件流化：ReadLine 从事件流消费，buffer/cursor/history/渲染逻辑原样保留
+    - EnhancedIO.ReadLine/ReadKey 改为消费事件流；系统命令（sudo/passwd）执行期间 Reader 暂停让出 stdin
+    - cmd 内置命令向导回归修复：向导执行期间 Pause InputReader（停止抢读 + 恢复 cooked 模式），readLine 增加 paused 回退（bufio.Scanner 直接读行），:continue 先 Resume 再进 agent——解决向导显示乱码（无 \r）与输入无反应（Reader 抢读）
+    - raw 模式输出换行修复：A1 后 raw 模式常驻，REPL 主循环阶段的直接 fmt 输出（命令输出/LLM 回显/help/清理等）只有 \n 没有 \r → 光标不归位；新增 REPL rawPrint/rawPrintf/rawPrintln（raw 激活时 \n→\r\n 转换，含行首 \r），替换 repl.go 中所有用户可见输出（审计 Direct fmt 200→143）
+    - replace_in_file 字面转义修复：LLM 在 XML 模式把 search/replace 换行写成字面 \n/\t 转义导致显示与执行不一致——方案 A（zh/en 系统提示新增规则：search/replace 必须用真实换行、字面反斜杠用 \\）+ 方案 B（agent/toolcall_mode.go 新增 decodeXMLEscapes：jsonValue 字符串分支解码 \n/\t/\r/\\/\"，未知转义保留反斜杠，与 JSON 模式 decodeJSONEscape 对齐）；feedLined 加 debug 日志（内容含反斜杠时记录）供定位显示层反斜杠；测试 agent/xml_escape_test.go（decode 8 子用例 + 字面/真实换行集成）
+    - 工具调用前导换行修复：流式工具头（EventToolCallStream）此前直接 emit "⚙️ write_to_file"，与前面 LLM 内容粘连；ToolCallRenderer 新增 leadingEmitted 状态，首个工具头前加一次 \n（emitToolHeader），与 EventToolCall 的 REPL 前导换行一致，后续工具头不重复空行；测试 TestToolCallStream_LeadingNewlineBeforeHeader
+    - main.go 放开 Windows 强制 stdio，支持 --input-mode tui
+    - stdio 管道修复：REPL 主循环改用持久 StdioSource（原每次 new bufio.Scanner 会吞掉缓冲中的后续管道行）+ EOF 返回 io.EOF 正常退出（原无限循环打提示符）
+  - 验收：方向键/ESC/Ctrl+C 双平台通过（Windows 交叉编译 + pty 模拟 tui 真机验证）；--input-mode stdio 管道行为不变（`:help`+`exit` 管道正常退出）
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；Windows 交叉编译通过；`bin/output_audit.sh --strict`（Hardcoded Chinese=0 / i18n missing=0）；use-case/FEATURE-306/FEATURE-306-UC-0001.md 共 18 用例（UC-0001~0018，含 cmd 向导回归/raw 换行/字面转义/前导换行）
+
+- [ ] **FIX-350 judge 产出雷同 guidance 的对策（失败策略哨兵分隔格式 + 禁止字面雷同措辞强化）**
+  - 背景：FEATURE-349 上线后实测，循环跑到一定程度后 judge 多轮返回的 guidance 趋于雷同甚至几乎完全一样——judge 与主 LLM 同源（deepseek-v4-flash），自身也陷入重复产出；原失败策略列表以 `1. ...` 纯编号行渲染，与 guidance 内容中的列表样式容易混淆，且"禁止重复"的措辞约束力不足
+  - 目标：让 judge 清晰区分"历史意见列表的结构"与"意见内容"，并以最硬措辞禁止新 guidance 与上一次雷同
+  - 实现：
+    - 失败策略列表改为带序号的哨兵包裹格式 `[FAILED-STRATEGY #N BEGIN]` / `[FAILED-STRATEGY #N END]`（agent/loop.go `buildFailedStrategiesText`）：verbose ASCII 哨兵独占一行，与 guidance 内容不可能冲突
+    - judge 用户提示段标题强化（zh/en）：新 guidance 绝对不得与列表中任何一条相同或近似雷同——尤其是最近一条；主LLM仍在同一处循环时必须彻底更换措辞与切入角度
+    - judge 系统提示第 6 条同步强化（zh/en）：新 guidance 与最近一条不得有任何字面级别的雷同；条目中说明哨兵格式便于 judge 解析
+  - 测试：agent/feature349_test.go 更新编号列表用例为哨兵格式断言 + 新增对抗性用例（策略内容含 `1. ` 与 `[FAILED-STRATEGY` 片段时结构仍清晰）；go build/vet/test 全绿 [BUILD-397]
 
 ## v1.0.0 — 正式版
 
@@ -1306,7 +1331,8 @@
 | v0.7.3 | 2026-08-07 | ✅ 已完成 | :context 显示增强（tool_calls 块 + 控制字符 + retried_count + full 模式） |
 | v0.7.4 | 2026-08-08 | 🚧 开发中 | 问题判定优化（统一问题判定机制 + report_problem 工具） |
 | v0.7.5 | 2026-08-10 | 🚧 开发中 | 视觉识别上下文隔离（minimal 识别轮独立 + 结果回填） |
-| v0.7.6 | 2026-08-10 | 🚧 开发中 | 输入统一 + browser_screenshot 视觉识别一致化（FEATURE-306 + FEATURE-346） |
+| v0.7.6 | 2026-08-10 | ✅ 已完成 | browser_screenshot 视觉识别一致化 + 循环介入 auto 策略 |
+| v0.7.7 | 2026-08-16 | 🚧 开发中 | 输入统一（InputSource）+ Windows 补齐（FEATURE-306 + FIX-350） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 
 
