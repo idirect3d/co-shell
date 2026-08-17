@@ -198,6 +198,13 @@ check_sync_input() {
             if echo "$line" | grep -qE 'func \((s \*StdioIO|e \*EnhancedIO|d \*DefaultUserIO|f \*fmtIO)\) (ReadLine|ReadKey)'; then
                 continue
             fi
+            # Skip FEATURE-307b SessionIO boundary calls: the REPL reads input
+            # through the SessionIO abstraction, whose implementations consume
+            # InputSource events (StdioSource / unified InputReader) — these
+            # are the migration target, not legacy blocking call sites.
+            if echo "$line" | grep -qE '\.session\.ReadLine\('; then
+                continue
+            fi
             count=$((count + 1))
             print_item "$f:$lineno: $line"
         done < <(grep -nE '\.(ReadLine|ReadKey)\(' "$f")

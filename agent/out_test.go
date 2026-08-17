@@ -240,3 +240,24 @@ func TestNormalizeInputMode(t *testing.T) {
 		}
 	}
 }
+
+// TestLevelString verifies the lowercase names used by the JSON-Lines
+// StreamRenderer (FEATURE-307b).
+func TestLevelString(t *testing.T) {
+	tests := []struct {
+		level Level
+		want  string
+	}{
+		{LevelInfo, "info"},
+		{LevelSuccess, "success"},
+		{LevelWarning, "warning"},
+		{LevelError, "error"},
+		{LevelDebug, "debug"},
+		{Level(99), "info"}, // unknown values fall back to "info"
+	}
+	for _, tt := range tests {
+		if got := tt.level.String(); got != tt.want {
+			t.Errorf("Level(%d).String() = %q, want %q", int(tt.level), got, tt.want)
+		}
+	}
+}

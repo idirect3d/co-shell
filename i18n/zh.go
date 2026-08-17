@@ -1218,6 +1218,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 
 	// Init capabilities/rules
 	KeyCLIHelpInputMode:        "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）",
+	KeyCLIHelpOutputFormat:     "      --output-format      输出格式（text/json，仅命令行；json 为 JSON-Lines 事件流，隐含 stdio 输入模式）",
+	KeyOutputFormatInvalid:     "无效的 --output-format 取值或与输入模式冲突：%s（可选 text/json；json 隐含 stdio 输入模式，与 --input-mode tui 互斥）",
 	KeyCLIHelpInitCapabilities: "      --unload-capabilities  将当前系统 capabilities 导出到工作区根目录的 CAPABILITIES.md 文件（--init-capabilities 已弃用）",
 	KeyCLIHelpInitRules:        "      --unload-rules         将当前系统 rules 导出到工作区根目录的 RULES.md 文件（--init-rules 已弃用）",
 
