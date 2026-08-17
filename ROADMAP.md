@@ -23,7 +23,7 @@
 | FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
-> 当前 BUILD: 412
+> 当前 BUILD: 413
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -960,6 +960,13 @@
   - SessionIO 管道 + sessionFactories（stdio/tui/web）
   - LineRenderer + StreamRenderer(JSON-Lines) + WebRenderer（HTTP+WebSocket，绑 127.0.0.1）
   - 验收：三模式同指令结果一致；web 浏览器分区实况
+  - [x] **307a 事件语义化（StreamEvent + LineRenderer）**：[BUILD-413]
+    - 背景：agent 事件流是 `(eventType string, content string)` 半渲染文本——emoji 前缀、装饰换行、token 统计键值串全混在载荷里（81 处 `cb(...)` 调用点内嵌 `ep.` 装饰，token 事件靠 `fmt.Sscanf` 反解析），无法直接作为 JSON-Lines / WebRenderer 的事件协议
+    - 目标：迁移为结构化 `StreamEvent{Type, Level, Chan, Text, Meta}`（agent/events.go），Text 纯语义（无 emoji/分隔线/装饰换行），token 统计入 Meta；emoji 前缀与换行布局全部下沉到渲染器；`StreamRenderer` 更名 `LineRenderer`（stream_renderer.go → line_renderer.go），StreamRenderer 之名留给 307b 的 JSON-Lines 渲染器
+    - 实现：`StreamCallback` 签名改 `func(ev StreamEvent)`；81 处生产点按 8 类模式迁移（纯文本 Info / 内嵌错误/警告/成功装饰 → ErrEvent/WarnEvent/OKEvent / loop 前缀 → LevelDebug / 分隔线保留 / token → TokenIterEvent/TokenTaskEvent / 内容工具流带 Channel）；6 个 i18n key（KeyLLMErrorRetry/KeyLLMErrorFixRetry/KeyContextOverLimit/KeyToolExecRetry/KeyOutputResume/KeyOutputRetryFailed）去 emoji `%s` 槽位（zh/en 双语）；消费者 repl.streamCallback 与 main.renderSingleCmdEvent 改接 `LineRenderer.Render(ev)`
+    - 有意的呈现归一（仅 4 类）：ESC 重试失败的取消消息补齐前置换行；EventToolCall 载荷尾部 `\n` 与渲染器补 `\n` 的双空行归一为单空行（4 处）；上下文超限警告双 ⚠️ 修复为单 ⚠️（原 EventWarning 类型前缀与模板内嵌 emoji 叠加）；i18n 模板尾部 `\n` 移除改由渲染器统一补
+    - 测试：新增 agent/line_renderer_test.go 锁定 Level 布局表 / 双 StreamMode 差异 / token Meta 渲染；两份 golden（render_tui / render_single_cmd）不带 -update 通过；audit 三项不退化（magic events=0、Hardcoded Chinese=2 持平、fmt=143 持平）；`cb(` 调用点 grep 无 `ep.` 参数；零依赖变更（go.mod/go.sum 无 diff）
+    - 验收：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；编译产物 [BUILD-413]（仓库根 co-shell）
 
 - [ ] **FEATURE-308 全屏 TUI v2（tui v2，v0.7.6 可选分支）**：
   - FullScreenRenderer：原生 ANSI 缓冲，禁用 tview/tcell；SIGWINCH 重绘

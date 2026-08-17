@@ -57,27 +57,23 @@ func (b *bufferIO) String() string { return b.buf.String() }
 // renderTUIFixture returns a fixed event sequence covering all 13 event
 // types handled by REPL.streamCallback. This is the same sequence used
 // for the single-command golden test (UC-0009 consistency check).
-func renderTUIFixture() []struct {
-	event   string
-	content string
-} {
-	return []struct {
-		event   string
-		content string
-	}{
-		{agent.EventContentChunk, "你好"},
-		{agent.EventThinkingChunk, "让我思考"},
-		{agent.EventContent, "完整回答内容"},
-		{agent.EventThinking, "完整思考内容"},
-		{agent.EventCommand, "ls -la"},
-		{agent.EventOutput, "file1.txt\nfile2.txt"},
-		{agent.EventToolCall, "get_weather(北京)"},
-		{agent.EventTokenIter, "prompt=100 completion=50 total=150 max=200 ft=deepseek in_tps=10 out_tps=20"},
-		{agent.EventTokenTask, "prompt=100 completion=50 total=150"},
-		{agent.EventInfo, "调试信息"},
-		{agent.EventWarning, "警告信息"},
-		{agent.EventError, "错误信息"},
-		{agent.EventDone, ""},
+// Events carry pure semantic payloads (FEATURE-307a): no emoji prefixes or
+// decorative newlines; Level zero value is LevelInfo.
+func renderTUIFixture() []agent.StreamEvent {
+	return []agent.StreamEvent{
+		{Type: agent.EventContentChunk, Chan: agent.ChannelLLM, Text: "你好"},
+		{Type: agent.EventThinkingChunk, Chan: agent.ChannelLLM, Text: "让我思考"},
+		{Type: agent.EventContent, Chan: agent.ChannelLLM, Text: "完整回答内容"},
+		{Type: agent.EventThinking, Chan: agent.ChannelLLM, Text: "完整思考内容"},
+		{Type: agent.EventCommand, Chan: agent.ChannelCommand, Text: "ls -la"},
+		{Type: agent.EventOutput, Chan: agent.ChannelCommand, Text: "file1.txt\nfile2.txt"},
+		{Type: agent.EventToolCall, Chan: agent.ChannelTool, Text: "get_weather(北京)"},
+		agent.TokenIterEvent(100, 50, 150, 200, "deepseek", "10", "20"),
+		agent.TokenTaskEvent(100, 50, 150),
+		{Type: agent.EventInfo, Chan: agent.ChannelSystem, Text: "调试信息"},
+		{Type: agent.EventWarning, Chan: agent.ChannelSystem, Text: "警告信息"},
+		{Type: agent.EventError, Chan: agent.ChannelSystem, Text: "错误信息"},
+		{Type: agent.EventDone, Chan: agent.ChannelSystem},
 	}
 }
 
@@ -89,7 +85,7 @@ func TestRenderTUIGolden(t *testing.T) {
 	// Render the full fixture sequence through streamCallback.
 	io := r.userIO.(*bufferIO)
 	for _, ev := range renderTUIFixture() {
-		r.streamCallback(ev.event, ev.content)
+		r.streamCallback(ev)
 	}
 
 	goldenPath := filepath.Join("testdata", "render_tui.golden")

@@ -50,7 +50,7 @@ import (
 
 const version = "0.7.7"
 
-const build = "412"
+const build = "413"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1378,11 +1378,11 @@ func isDirectCommand(input string) bool {
 // renderSingleCmdEvent renders a single stream event for single-command mode.
 // It is the exact body previously inlined in executeSingleCommand's callback,
 // extracted verbatim for testability (golden baseline, UC-0006).
-func renderSingleCmdEvent(io agent.UserIO, ep config.EmojiPrefixes, eventType string, content string) {
-	// Delegate to the unified stream renderer (P2 merge). The signature is
+func renderSingleCmdEvent(io agent.UserIO, ep config.EmojiPrefixes, ev agent.StreamEvent) {
+	// Delegate to the unified line renderer (FEATURE-307a). The signature is
 	// preserved for the golden test baseline (render_single_cmd.golden).
-	renderer := agent.NewStreamRenderer(io, ep, agent.StreamModeSingleCmd)
-	renderer.Render(eventType, content)
+	renderer := agent.NewLineRenderer(io, ep, agent.StreamModeSingleCmd)
+	renderer.Render(ev)
 }
 
 // executeSingleCommand executes a single command (natural language or system command)
@@ -1416,8 +1416,8 @@ func executeSingleCommand(ag *agent.Agent, cfg *config.Config, input string) {
 
 	// Natural language input - use agent with streaming output
 	ctx := context.Background()
-	_, err := ag.RunStream(ctx, input, func(eventType string, content string) {
-		renderSingleCmdEvent(io, ep, eventType, content)
+	_, err := ag.RunStream(ctx, input, func(ev agent.StreamEvent) {
+		renderSingleCmdEvent(io, ep, ev)
 	})
 
 	if err != nil {

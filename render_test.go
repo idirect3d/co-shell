@@ -58,22 +58,18 @@ func (b *cmdBufferIO) String() string { return b.buf.String() }
 // event types handled by renderSingleCmdEvent in single-command mode.
 // Content values match repl's renderTUIFixture where the event is shared,
 // so that the P2 merge baseline (UC-0009) can compare both renderers.
-func renderSingleCmdFixture() []struct {
-	event   string
-	content string
-} {
-	return []struct {
-		event   string
-		content string
-	}{
-		{agent.EventContentChunk, "你好"},
-		{agent.EventThinkingChunk, "让我思考"},
-		{agent.EventCommand, "ls -la"},
-		{agent.EventOutput, "file1.txt\nfile2.txt"},
-		{agent.EventToolCall, "get_weather(北京)"},
-		{agent.EventTokenIter, "prompt=100 completion=50 total=150 max=200 ft=deepseek in_tps=10 out_tps=20"},
-		{agent.EventError, "错误信息"},
-		{agent.EventDone, ""},
+// Events carry pure semantic payloads (FEATURE-307a): no emoji prefixes or
+// decorative newlines; Level zero value is LevelInfo.
+func renderSingleCmdFixture() []agent.StreamEvent {
+	return []agent.StreamEvent{
+		{Type: agent.EventContentChunk, Chan: agent.ChannelLLM, Text: "你好"},
+		{Type: agent.EventThinkingChunk, Chan: agent.ChannelLLM, Text: "让我思考"},
+		{Type: agent.EventCommand, Chan: agent.ChannelCommand, Text: "ls -la"},
+		{Type: agent.EventOutput, Chan: agent.ChannelCommand, Text: "file1.txt\nfile2.txt"},
+		{Type: agent.EventToolCall, Chan: agent.ChannelTool, Text: "get_weather(北京)"},
+		agent.TokenIterEvent(100, 50, 150, 200, "deepseek", "10", "20"),
+		{Type: agent.EventError, Chan: agent.ChannelSystem, Text: "错误信息"},
+		{Type: agent.EventDone, Chan: agent.ChannelSystem},
 	}
 }
 
@@ -82,7 +78,7 @@ func TestRenderSingleCmdGolden(t *testing.T) {
 	io := &cmdBufferIO{}
 
 	for _, ev := range renderSingleCmdFixture() {
-		renderSingleCmdEvent(io, ep, ev.event, ev.content)
+		renderSingleCmdEvent(io, ep, ev)
 	}
 
 	goldenPath := filepath.Join("testdata", "render_single_cmd.golden")

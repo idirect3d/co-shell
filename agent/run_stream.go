@@ -43,7 +43,7 @@ import (
 // show-parse-error-raw switch is enabled (FEATURE-336).
 func (a *Agent) emitParseErrorRaw(cb StreamCallback, rawDetail string) {
 	if a.cfg != nil && a.cfg.LLM.ShowParseErrorRaw && rawDetail != "" {
-		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail))
+		cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail)))
 	}
 }
 
@@ -261,8 +261,7 @@ iterationLoop:
 		// FIX-264: No need to clean up a.messages — CanceledError is returned before the current
 		// iteration's assistant message is added, so there is nothing to remove.
 		if _, isCanceled := streamErr.(*CanceledError); isCanceled {
-			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
+			cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelled)))
 			return "", nil
 		}
 
@@ -271,9 +270,8 @@ iterationLoop:
 			// Reset interruptCh before the confirmation prompt so ESC works for the retry
 			a.ResetInterrupt()
 			// User pressed ESC during LLM output. Show confirmation prompt.
-			ep := config.GetEmojiPrefixes(a.emojiEnabled)
-			cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Warning, i18n.T(i18n.KeyOutputPaused)))
-			cb(EventInfo, i18n.T(i18n.KeyOutputCancelPrompt))
+			cb(WarnEvent(ChannelSystem, i18n.T(i18n.KeyOutputPaused)))
+			cb(InfoEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelPrompt)))
 
 			// Read user's choice via UserIO interface.
 			// In enhanced mode, EnhancedIO sets IsReading=true so ESC monitor skips stdin.
@@ -287,20 +285,20 @@ iterationLoop:
 				switch strings.TrimSpace(userChoice[7:]) {
 				case "on":
 					a.SetDebugMode(true)
-					cb(EventInfo, i18n.T(i18n.KeyDebugModeOn))
+					cb(InfoEvent(ChannelSystem, i18n.T(i18n.KeyDebugModeOn)))
 				case "off":
 					a.SetDebugMode(false)
-					cb(EventInfo, i18n.T(i18n.KeyDebugModeOff))
+					cb(InfoEvent(ChannelSystem, i18n.T(i18n.KeyDebugModeOff)))
 				}
 				// Retry the LLM call with the same context after toggling debug
 				a.ResetInterrupt()
-				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputResume), ep.Success))
+				cb(OKEvent(ChannelSystem, i18n.T(i18n.KeyOutputResume)))
 				finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 				// HACK: the `_` here is hasToolAttempt; we don't use it on retry paths
 				// because the content is discarded and the stream call will be re-issued.
 				if streamErr != nil {
-					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), ep.Error, streamErr))
-					cb(EventInfo, fmt.Sprintf("%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
+					cb(ErrEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), streamErr)))
+					cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelled)))
 					a.abortVisionRecognitionRound()
 					return "", nil
 				}
@@ -311,7 +309,7 @@ iterationLoop:
 				// User confirmed cancel: discard incomplete message and return to REPL
 				// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 				// current iteration's assistant message is added, so there is nothing to remove.
-				cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelledDiscard)))
+				cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelledDiscard)))
 				a.abortVisionRecognitionRound()
 				return "", nil
 			}
@@ -321,13 +319,13 @@ iterationLoop:
 			// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 			// current iteration's assistant message is added, so there is nothing to remove.
 			a.ResetInterrupt()
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputResume), ep.Success))
+			cb(OKEvent(ChannelSystem, i18n.T(i18n.KeyOutputResume)))
 
 			finalContent, finalReasoning, toolCalls, _, streamErr = a.streamLLMResponse(ctx, tools, cb)
 			if streamErr != nil {
 				// Retry failed too - treat it like user cancelled
-				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), ep.Error, streamErr))
-				cb(EventInfo, fmt.Sprintf("%s %s\n", ep.Error, i18n.T(i18n.KeyOutputCancelled)))
+				cb(ErrEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyOutputRetryFailed), streamErr)))
+				cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelled)))
 				a.abortVisionRecognitionRound()
 				return "", nil
 			}
@@ -575,7 +573,7 @@ iterationLoop:
 				// reaches error-max-single-count, the user is prompted to
 				// decide (Enter/C/A). If the user cancels, terminate the task.
 				if ok, err := a.checkRetryCountLimit(); err != nil {
-					cb(EventInfo, fmt.Sprintf("\n%s %s\n", config.GetEmojiPrefixes(a.emojiEnabled).Error, i18n.T(i18n.KeyUserCancelled)))
+					cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyUserCancelled)))
 					return "", nil
 				} else if !ok {
 					return "", nil
@@ -587,15 +585,14 @@ iterationLoop:
 				a.loopDetectCrit = false
 
 				// Show summary at the end, after all handling
-				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb(EventInfo, ep.Loop+fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectedSummary), loopAction))
-				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → ")))
+				cb(NewStreamEvent(EventInfo, ChannelDebug, LevelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectedSummary), loopAction)))
+				cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → "))))
 				if loopFeedback != "" {
-					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopFeedbackSent), loopFeedback))
+					cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopFeedbackSent), loopFeedback)))
 				} else {
-					cb(EventInfo, i18n.T(i18n.KeyLoopNoFeedback))
+					cb(InfoEvent(ChannelDebug, i18n.T(i18n.KeyLoopNoFeedback)))
 				}
-				cb(EventInfo, "────────────────────────────────────────────\n")
+				cb(InfoEvent(ChannelDebug, "────────────────────────────────────────────\n"))
 				continue
 			}
 
@@ -653,7 +650,7 @@ iterationLoop:
 
 				if lower == "c" {
 					// User cancelled, return to REPL
-					cb(EventInfo, fmt.Sprintf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyUserCancelled)))
+					cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyUserCancelled)))
 					return "", nil
 				} else if lower == "a" {
 					// User chose to ignore all error limits
@@ -695,8 +692,8 @@ iterationLoop:
 
 				// exit: exit the loop and report error
 				if parseAction == "exit" {
-					cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorExit), streamErr))
-					cb(EventDone, "")
+					cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorExit), streamErr)))
+					cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 					return "", fmt.Errorf("LLM call failed: %w", streamErr)
 				}
 
@@ -707,31 +704,30 @@ iterationLoop:
 				if a.cfg != nil && a.cfg.LLM.ProblemSolverEnabled {
 					if _, ok := classifyConnectionError(streamErr); !ok {
 						if report, perr := a.solveProblem(context.Background(), ProblemTypeLLMConnectionError, streamErr.Error()); perr == nil && report != nil {
-							cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction))
+							cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction)))
 							feedback, _, stop := applyProblemAction(report)
 							if stop {
-								cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance))
-								cb(EventDone, "")
+								cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance)))
+								cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 								return "", fmt.Errorf("problem model recommended stopping: %s", report.Reason)
 							}
 							if feedback != "" {
 								a.mu.Lock()
 								a.messages = append(a.messages, llm.Message{Role: "user", Content: feedback})
 								a.mu.Unlock()
-								cb(EventInfo, fmt.Sprintf("\n%s\n", feedback))
+								cb(InfoEvent(ChannelSystem, fmt.Sprintf("\n%s\n", feedback)))
 								continue
 							}
 						} else if perr != nil {
 							log.Debug("RunStream: problem solver failed for connection error, falling back to built-in handling: %v", perr)
-							cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr))
+							cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr)))
 						}
 					}
 				}
 
 				if parseAction == "retry" {
 					// No feedback, just resend context
-					ep := config.GetEmojiPrefixes(a.emojiEnabled)
-					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorRetry), ep.Warning, streamErr))
+					cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorRetry), streamErr)))
 					continue
 				}
 
@@ -753,15 +749,14 @@ iterationLoop:
 				})
 				a.mu.Unlock()
 
-				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorFixRetry), ep.Warning, streamErr))
+				cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorFixRetry), streamErr)))
 				continue
 			} else {
 				// No recent assistant message with tool_calls found - the error is likely
 				// caused by invalid user input. Exit the iteration and report to the user.
 				log.Error("Agent.RunStream: stream error at iteration %d: %v, no assistant tool_calls found, exiting", iteration, streamErr)
-				cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorCheckInput), streamErr))
-				cb(EventDone, "")
+				cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyLLMErrorCheckInput), streamErr)))
+				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 				return "", fmt.Errorf("LLM call failed: %w", streamErr)
 			}
 		}
@@ -806,10 +801,10 @@ iterationLoop:
 						rawDetail = entry.Raw
 					}
 				}
-				cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorExit), errDetail))
+				cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorExit), errDetail)))
 				// FEATURE-336: show the raw offending content when the switch is on.
 				a.emitParseErrorRaw(cb, rawDetail)
-				cb(EventDone, "")
+				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 				return "", fmt.Errorf("tool call parse error: %s", errDetail)
 			}
 
@@ -857,11 +852,11 @@ iterationLoop:
 					}
 				}
 				if report, perr := a.solveProblem(context.Background(), ProblemTypeToolFormatError, errDetailForSolver); perr == nil && report != nil {
-					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction))
+					cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction)))
 					feedback, deleteLast, stop := applyProblemAction(report)
 					if stop {
-						cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance))
-						cb(EventDone, "")
+						cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance)))
+						cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 						return "", fmt.Errorf("problem model recommended stopping: %s", report.Reason)
 					}
 					if deleteLast {
@@ -878,7 +873,7 @@ iterationLoop:
 					}
 				} else if perr != nil {
 					log.Debug("RunStream: problem solver failed for tool format error, falling back to built-in handling: %v", perr)
-					cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr))
+					cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr)))
 				}
 			}
 
@@ -924,11 +919,11 @@ iterationLoop:
 					errorSummary = errorSummary[:120] + "..."
 				}
 			}
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorSummary), errorSummary))
+			cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorSummary), errorSummary)))
 			// FEATURE-336: show the raw offending content when the switch is on.
 			a.emitParseErrorRaw(cb, rawDetail)
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → ")))
-			cb(EventInfo, "────────────────────────────────────────────\n")
+			cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strings.Join(strategyParts, " → "))))
+			cb(InfoEvent(ChannelDebug, "────────────────────────────────────────────\n"))
 			continue
 		}
 
@@ -955,7 +950,7 @@ iterationLoop:
 
 			// Rule 3: attempt_completion not available → exit immediately
 			if !attemptCompAvailable {
-				cb(EventDone, "")
+				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
 					Role:             "assistant",
@@ -987,18 +982,18 @@ iterationLoop:
 						tokenUsageMode = a.cfg.LLM.TokenUsage
 					}
 					if tokenUsageMode != "off" {
-						cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-							iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+						cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
+							timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 					}
 				}
 
 				// Send task-level token usage before done
 				taskP, taskC, taskT := a.TaskTokenUsage()
 				if taskT > 0 {
-					cb(EventTokenTask, fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+					cb(TokenTaskEvent(taskP, taskC, taskT))
 				}
 
-				cb(EventDone, "")
+				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
@@ -1054,15 +1049,15 @@ iterationLoop:
 						tokenUsageMode = a.cfg.LLM.TokenUsage
 					}
 					if tokenUsageMode != "off" {
-						cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-							iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+						cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
+							timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 					}
 				}
 				taskP, taskC, taskT := a.TaskTokenUsage()
 				if taskT > 0 {
-					cb(EventTokenTask, fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+					cb(TokenTaskEvent(taskP, taskC, taskT))
 				}
-				cb(EventDone, "")
+				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
@@ -1170,8 +1165,7 @@ iterationLoop:
 				log.Info("Agent.RunStream: context usage %.1f%% exceeds threshold %.0f%%, skipping tool calls",
 					usagePct, threshold)
 				reorganizePending = true
-				ep := config.GetEmojiPrefixes(a.emojiEnabled)
-				cb(EventWarning, fmt.Sprintf(i18n.TF(i18n.KeyContextOverLimit), ep.Warning, usagePct, threshold))
+				cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyContextOverLimit), usagePct, threshold)))
 
 				// FEATURE-345: consult the problem model for context overflow.
 				// If it recommends stop (notify_user), surface the problem and
@@ -1180,11 +1174,11 @@ iterationLoop:
 					detail := fmt.Sprintf("context usage %.1f%% exceeded threshold %.0f%% (max model len %d)",
 						usagePct, threshold, maxModelLen)
 					if report, perr := a.solveProblem(context.Background(), ProblemTypeContextOverflow, detail); perr == nil && report != nil {
-						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction))
+						cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverClassified), report.Type, report.Reason, report.SuggestedAction)))
 						feedback, _, stop := applyProblemAction(report)
 						if stop {
-							cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance))
-							cb(EventDone, "")
+							cb(NewStreamEvent(EventError, ChannelSystem, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverNotifyUser), report.Reason, report.Guidance)))
+							cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 							return "", fmt.Errorf("problem model recommended stopping: %s", report.Reason)
 						}
 						if feedback != "" {
@@ -1193,13 +1187,13 @@ iterationLoop:
 							a.mu.Lock()
 							a.messages = append(a.messages, llm.Message{Role: "user", Content: feedback})
 							a.mu.Unlock()
-							cb(EventInfo, fmt.Sprintf("\n%s\n", feedback))
+							cb(InfoEvent(ChannelSystem, fmt.Sprintf("\n%s\n", feedback)))
 							// Keep reorganizePending true so the reorganize
 							// instruction still fires after end-of-cycle.
 						}
 					} else if perr != nil {
 						log.Debug("RunStream: problem solver failed for context overflow, falling back to built-in reorganize: %v", perr)
-						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr))
+						cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyProblemSolverFailed), perr)))
 					}
 				}
 			}
@@ -1258,7 +1252,7 @@ iterationLoop:
 					var cmdArgs map[string]interface{}
 					if err := json.Unmarshal([]byte(tc.Arguments), &cmdArgs); err == nil {
 						if cmd, ok := cmdArgs["command"].(string); ok {
-							cb(EventCommand, cmd)
+							cb(NewStreamEvent(EventCommand, ChannelCommand, LevelInfo, cmd))
 						}
 					}
 				}
@@ -1270,9 +1264,9 @@ iterationLoop:
 				if a.showTool {
 					var argsMap map[string]interface{}
 					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-						cb(EventToolCall, buildToolSummary(tc.Name, argsMap)+"\n")
+						cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, buildToolSummary(tc.Name, argsMap)))
 					} else {
-						cb(EventToolCall, tc.Name+"\n")
+						cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, tc.Name))
 					}
 				}
 
@@ -1304,10 +1298,10 @@ iterationLoop:
 					}
 					if parseAction == "exit" {
 						// Exit the loop and report error
-						cb(EventError, fmt.Sprintf(i18n.TF(i18n.KeyToolExecFailed), tc.Name, execErr))
+						cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf(i18n.TF(i18n.KeyToolExecFailed), tc.Name, execErr)))
 						// FEATURE-336: show the raw offending content when the switch is on.
 						a.emitParseErrorRaw(cb, tc.Arguments)
-						cb(EventDone, "")
+						cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 						return "", fmt.Errorf("tool %s execution failed: %w", tc.Name, execErr)
 					}
 					if parseAction == "retry" && !isXMLMode && strings.Contains(errStr, "cannot parse tool arguments") {
@@ -1327,8 +1321,7 @@ iterationLoop:
 						// Show the user a concise error notice (UI only — does NOT
 						// enter the LLM context). The invalid call is discarded and
 						// the next iteration resends cleanly.
-						ep := config.GetEmojiPrefixes(a.emojiEnabled)
-						cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), ep.Warning, tc.Name, execErr))
+						cb(WarnEvent(ChannelTool, fmt.Sprintf(i18n.TF(i18n.KeyToolExecRetry), tc.Name, execErr)))
 						// FEATURE-336: show the raw offending content when the switch is on.
 						a.emitParseErrorRaw(cb, tc.Arguments)
 						continue iterationLoop
@@ -1367,13 +1360,13 @@ iterationLoop:
 					switch tc.Name {
 					case "attempt_completion", "track_task_progress", "view_task_plan":
 						if result != "" {
-							cb(EventToolCall, result+"\n")
+							cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, result))
 						}
 					default:
 						if execErr != nil {
 							// Tool failed: show the error reason (matches the
 							// structured result that was fed back to the LLM).
-							cb(EventError, fmt.Sprintf("%s: %s\n", tc.Name, result))
+							cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf("%s: %s\n", tc.Name, result)))
 						}
 						// Success: outcome receipt omitted to avoid duplicating
 						// the pre-execution summary.
@@ -1382,7 +1375,7 @@ iterationLoop:
 
 				// Show tool call output if enabled (for all tools)
 				if a.showToolOutput && result != "" {
-					cb(EventToolCall, fmt.Sprintf("  Result:\n%s\n", result))
+					cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, fmt.Sprintf("  Result:\n%s", result)))
 				}
 
 				// If the result is empty, provide a clear message to the LLM
@@ -1472,16 +1465,16 @@ iterationLoop:
 					tokenUsageMode = a.cfg.LLM.TokenUsage
 				}
 				if tokenUsageMode != "off" {
-					cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-						iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+					cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
+						timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 				}
 			}
 			// Send task-level token usage before done
 			taskP, taskC, taskT := a.TaskTokenUsage()
 			if taskT > 0 {
-				cb(EventTokenTask, fmt.Sprintf("prompt=%d completion=%d total=%d", taskP, taskC, taskT))
+				cb(TokenTaskEvent(taskP, taskC, taskT))
 			}
-			cb(EventDone, "")
+			cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 			log.Info("Agent.RunStream: completed after %d iterations (via attempt_completion in same iteration)", iteration+1)
 			return finalContent, nil
 		}
@@ -1518,8 +1511,8 @@ iterationLoop:
 				tokenUsageMode = a.cfg.LLM.TokenUsage
 			}
 			if tokenUsageMode != "off" {
-				cb(EventTokenIter, fmt.Sprintf("prompt=%d completion=%d total=%d max=%d ft=%s in_tps=%s out_tps=%s",
-					iterPrompt, iterComp, iterTotal, maxModelLen, timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+				cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
+					timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
 			}
 		}
 
