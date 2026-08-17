@@ -29,6 +29,7 @@ package agent
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -69,6 +70,8 @@ type UserIO interface {
 // This is the default UserIO for cmd handlers and main.go startup code.
 type DefaultUserIO struct {
 	reader *bufio.Scanner
+	// input overrides os.Stdin as the line source (tests only; nil = os.Stdin).
+	input io.Reader
 }
 
 // NewDefaultUserIO creates a new DefaultUserIO instance.
@@ -95,9 +98,22 @@ func (d *DefaultUserIO) ErrPrintf(format string, args ...interface{}) {
 }
 
 func (d *DefaultUserIO) ReadLine() (string, error) {
-	d.reader = bufio.NewScanner(os.Stdin)
+	// Keep one persistent scanner: re-creating it per call loses any bytes the
+	// previous scanner already read ahead from the fd (FIX-358), and discards
+	// the EOF state. A clean EOF is reported as io.EOF so callers can tell
+	// "input closed" apart from an empty line.
+	if d.reader == nil {
+		src := d.input
+		if src == nil {
+			src = os.Stdin
+		}
+		d.reader = bufio.NewScanner(src)
+	}
 	if !d.reader.Scan() {
-		return "", d.reader.Err()
+		if err := d.reader.Err(); err != nil {
+			return "", err
+		}
+		return "", io.EOF
 	}
 	return d.reader.Text(), nil
 }
