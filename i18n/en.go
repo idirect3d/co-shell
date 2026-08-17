@@ -30,6 +30,7 @@ var enMessages = map[string]string{
 	// General
 	KeyCancelled:        "Cancelled",
 	KeySetupCancelled:   "❌ Setup incomplete, exiting.",
+	KeySetupNonInteractive: "❌ No interactive terminal detected; cannot run the initial setup wizard.\nRun co-shell once in a terminal to complete setup, or edit config.json to add a model manually.",
 	KeyYes:              "Yes",
 	KeyNo:               "No",
 	KeyOn:               "On",
