@@ -746,18 +746,18 @@ func (r *REPL) handleAgentInput(input string) {
 // streamCallback handles streaming events from the agent.
 // In enhanced mode (userIO != nil), delegates output to userIO.Print which
 // automatically handles \r\n conversion. In stdio mode, uses direct fmt.Print.
-func (r *REPL) streamCallback(eventType string, content string) {
+func (r *REPL) streamCallback(ev agent.StreamEvent) {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 
-	// Render via the unified stream renderer (P2 merge). UserIO is always
-	// set during RunStream; the fmt fallback below only guards defensive
-	// paths (cleanup or direct callback reuse).
+	// Render via the unified line renderer. UserIO is always set during
+	// RunStream; the fmt fallback below only guards defensive paths
+	// (cleanup or direct callback reuse).
 	io := r.userIO
 	if io == nil {
 		io = agent.NewDefaultUserIO()
 	}
-	renderer := agent.NewStreamRenderer(io, ep, agent.StreamModeREPL)
-	renderer.Render(eventType, content)
+	renderer := agent.NewLineRenderer(io, ep, agent.StreamModeREPL)
+	renderer.Render(ev)
 }
 
 func (r *REPL) printWelcome() {

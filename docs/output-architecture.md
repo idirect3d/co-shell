@@ -140,41 +140,44 @@ type Out interface {
 
 ### 3.3 事件结构化（StreamEvent）
 
-现状 `StreamCallback` 是 `(eventType string, content string)`，事件类型是魔法字符串。阶段一将其升级为常量 + 结构体（**保持调用签名兼容**，先加常量，再逐步迁移结构体）：
+~~现状 `StreamCallback` 是 `(eventType string, content string)`，事件类型是魔法字符串。~~ **FEATURE-307a 已落地**：`StreamCallback` 签名为 `func(ev StreamEvent)`，载荷为纯语义结构化事件（agent/events.go），emoji 前缀/装饰换行全部下沉到渲染器：
 
 ```go
-// 事件类型常量（agent/events.go）
+// 事件类型常量（agent/events.go，14 个，307a 原样保留为 Type 值）
 const (
-    EventContentChunk  = "content_chunk"   // LLM 流式内容
-    EventThinkingChunk = "thinking_chunk"  // LLM 流式思考
-    EventContent       = "content"         // LLM 非流式内容
-    EventThinking      = "thinking"        // LLM 非流式思考
-    EventCommand       = "command"         // 系统命令
-    EventOutput        = "output"          // 命令输出
-    EventToolCall      = "tool_call"       // 工具调用（名/参数/返回）
-    EventTokenIter     = "token_iter"      // 迭代 token
-    EventTokenTask     = "token_task"      // 任务 token
-    EventInfo          = "info"            // 信息
-    EventWarning       = "warning"         // 警告
-    EventError         = "error"           // 错误
-    EventDone          = "done"            // 完成标记
+    EventContentChunk   = "content_chunk"    // LLM 流式内容
+    EventThinkingChunk  = "thinking_chunk"   // LLM 流式思考
+    EventContent        = "content"          // LLM 非流式内容
+    EventThinking       = "thinking"         // LLM 非流式思考
+    EventCommand        = "command"          // 系统命令
+    EventOutput         = "output"           // 命令输出
+    EventToolCall       = "tool_call"        // 工具调用（名/参数/返回）
+    EventTokenIter      = "token_iter"       // 迭代 token
+    EventTokenTask      = "token_task"       // 任务 token
+    EventInfo           = "info"             // 信息
+    EventWarning        = "warning"          // 警告
+    EventError          = "error"            // 错误
+    EventDone           = "done"             // 完成标记
+    EventToolCallStream = "tool_call_stream" // 流式工具调用渲染
 )
 
-// StreamEvent 结构化负载（阶段二/三使用）
+// StreamEvent 结构化负载（agent/events.go，FEATURE-307a）
 type StreamEvent struct {
-    Type    ChannelID // 事件类型
-    Channel ChannelID // 业务分类
-    Level   Level     // 级别
-    Content string
-    Meta    map[string]string // 预留：工具名、耗时、token 等
+    Type  string            // Event* 常量之一（未来 JSON 线协议直接复用）
+    Level Level             // 级别（驱动 emoji 前缀/换行布局）
+    Chan  ChannelID         // 业务分类
+    Text  string            // 纯语义内容：无 emoji、无分隔线、无装饰换行
+    Meta  map[string]string // 结构化数据（token 统计等，数字为十进制字符串）
 }
 ```
 
+token 事件（EventTokenIter/EventTokenTask）的统计数字经 `Meta` 传递（`TokenIterEvent/TokenTaskEvent` 构造器），渲染器不再做 `fmt.Sscanf` 反解析。
+
 ### 3.4 渲染器分离
 
-- **TerminalRenderer**：现有 emoji 前缀（`config.GetEmojiPrefixes`）+ 手动分隔线 + raw `\r\n` 转换。合并 `repl.go streamCallback` 与 `main.go executeSingleCommand` 的重复逻辑。
-- **JSONRenderer**（远期）：事件序列化为 JSON 行，供 web 前端/CI 消费。
-- **WebRenderer**（远期）：映射到 DOM 区域。
+- **LineRenderer**（FEATURE-307a 已落地，`agent/line_renderer.go`）：终端行式渲染器，消费结构化 `StreamEvent`，按 `Type`/`Level` 施加 emoji 前缀（`config.GetEmojiPrefixes`）与换行布局。已合并 `repl.go streamCallback` 与 `main.go renderSingleCmdEvent` 的重复逻辑（StreamModeREPL/SingleCmd 双模式）。前身为 StreamRenderer（stream_renderer.go），307a 更名后 **StreamRenderer 之名保留给 JSON-Lines 渲染器**。
+- **StreamRenderer**（307b，规划中）：事件序列化为 JSON 行，供 stdio/CI/web 前端消费。
+- **WebRenderer**（307c，远期）：映射到 DOM 区域；不得假设 gorilla/websocket 可用（见 3.8 依赖政策）。
 
 ### 3.5 区域（Region）模型（阶段三）
 
@@ -359,14 +362,14 @@ type Renderer interface {
 
 ### 3.8 零新增依赖约束（硬性规则）
 
-> 项目规范：尽力降低第三方依赖、严禁来源不明/过时库。本方案所有功能**必须坚持 Go 原生实现，零新增依赖**。
+> 项目规范（FEATURE-307a 起收紧）：**禁止新增第三方依赖**；现有第三方组件（gorilla/websocket、larksuite oapi-sdk、mcp-go、x/sys 等）**不得新增引用点**，择机全部移除，最终仅保留 `github.com/lib/pq`（数据库访问）与 `go.etcd.io/bbolt`（本地存储）。本方案所有功能**必须坚持 Go 原生实现**。
 
-| 能力 | 使用的现有组件 | 新增 |
-|------|---------------|:---:|
-| WebSocket（web 模式） | `github.com/gorilla/websocket`（已在 go.mod v1.5.3） | 无 |
+| 能力 | 使用的组件 | 新增 |
+|------|-----------|:---:|
+| WebSocket（web 模式） | 标准库 `net/http` + 手写 WebSocket 帧处理（**不得新增 gorilla/websocket 引用点**，该依赖择机移除） | 无 |
 | HTTP 服务（web 静态页） | 标准库 `net/http` | 无 |
 | JSON 事件/渲染 | 标准库 `encoding/json` | 无 |
-| 终端 raw 模式 / SIGWINCH | `golang.org/x/sys`（已在）POSIX；`syscall`（Windows） | 无 |
+| 终端 raw 模式 / SIGWINCH | `golang.org/x/sys`（现有引用点可沿用，不新增）POSIX；`syscall`（Windows） | 无 |
 | 单键 / ESC 序列解析 | 现有 `repl/enhanced_input.go` 逻辑 | 无 |
 | 全屏重绘（tui v2） | **原生字节缓冲 + ANSI 光标定位**（`\033[H`/`\033[{r}c`），**禁用 tview/tcell** | 无 |
 
