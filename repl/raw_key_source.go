@@ -10,10 +10,18 @@ package repl
 import (
 	"context"
 	"io"
+	"time"
 	"unicode/utf8"
 
 	"github.com/idirect3d/co-shell/agent"
 )
+
+// escSeqTimeout bounds the wait for trailing bytes after a leading ESC byte.
+// Real ANSI escape sequences (arrow keys, Home/End, ...) deliver their
+// trailing bytes immediately, so a short window reliably distinguishes them
+// from a standalone ESC keypress (FIX-357: without a timeout the sequence
+// read blocked forever and a lone ESC was never detected).
+const escSeqTimeout = 50 * time.Millisecond
 
 // byteReader abstracts a cancellable single-byte stdin reader so the
 // platform-specific implementation (unix.Poll on POSIX, goroutine + CancelIoEx
@@ -54,12 +62,19 @@ func (s *RawKeySource) NextEvent(ctx context.Context) (agent.InputEvent, error) 
 func (s *RawKeySource) parseByte(ctx context.Context, b byte) (agent.InputEvent, error) {
 	switch {
 	case b == 0x1b:
-		seq, err := s.readEscapeSequence(ctx)
+		// Bound the escape-sequence read with a short timeout: a standalone
+		// ESC keypress has no trailing bytes, and blocking here would swallow
+		// the interrupt until some unrelated key arrives (FIX-357).
+		seqCtx, cancel := context.WithTimeout(ctx, escSeqTimeout)
+		seq, err := s.readEscapeSequence(seqCtx)
+		cancel()
 		if err != nil {
-			// A lone ESC with no trailing sequence is the ESC key itself.
-			if err == io.EOF || err == context.Canceled {
-				return agent.InputEvent{Kind: agent.InputEsc}, nil
+			if ctx.Err() != nil {
+				// Pause/Close cancelled the parent context mid-sequence:
+				// propagate instead of reporting a phantom ESC keypress.
+				return agent.InputEvent{}, ctx.Err()
 			}
+			// Timeout or EOF with no trailing sequence: the ESC key itself.
 			return agent.InputEvent{Kind: agent.InputEsc}, nil
 		}
 		switch seq {

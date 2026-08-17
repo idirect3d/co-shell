@@ -23,7 +23,7 @@
 | FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
-> 当前 BUILD: 413
+> 当前 BUILD: 414
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -1307,6 +1307,12 @@
 - [x] **FIX-356 XML 工具说明补齐 execute_command 新必填参数** ✅ 已完成 [BUILD-412]
   - 背景：FEATURE-355 后 XML 调用方式的工具说明（i18n en/zh）仍将 timeout_seconds 描述为可选且无 on_timeout，XML 模式下 LLM 不知道新参数
   - 实现：i18n/en_system.go / zh_system.go 的 KeyToolUsageExecuteCommand 文案与示例同步；确认 XML 参数经 jsonValue 自动类型转换（数字→JSON number），解析链路无需改动
+
+- [x] **FIX-357 修复 LLM 输出期间按 ESC 无效** ✅ 已完成 [BUILD-414]
+  - 背景：FEATURE-306（BUILD-408）统一 InputSource 后，`RawKeySource.parseByte` 收到 0x1b 时为区分方向键等 ANSI 序列会调用 `readEscapeSequence` 无限期阻塞等待第二个字节；单独按 ESC 无后续字节，`InputEsc` 事件永远发不出，打断信号到不了 agent。日志佐证：work/log 中 `ESC detected` 8/14 还有 27 次，8/15 起归零。既有测试用立即 EOF 的假 reader 未覆盖真实终端的阻塞行为
+  - 目标：LLM 流式输出期间按 ESC 可打断（恢复 FEATURE-201 行为），方向键等转义序列不误判
+  - 实现：repl/raw_key_source.go ESC 序列读取加 50ms 超时窗口（escSeqTimeout，真实转义序列后续字节立即到达，超时即独立 ESC 键）；Pause/Close 引发的父 context 取消向上传播错误，不再误报幻键 ESC；Windows 侧复用既有 cancelIoEx 机制无需改平台代码
+  - 测试：repl/raw_key_source_test.go 新增 4 用例（阻塞式假 reader：独立 ESC 超时检出 / ESC 后迟到的普通键不丢失 / 方向键正确识别 / 父取消不误报 ESC）；已验证 2 个关键用例修复前 FAIL、修复后 PASS；go test ./... 全绿；audit 与基线持平（143/0/2/18/0）
 
 ## v1.0.0 — 正式版
 
