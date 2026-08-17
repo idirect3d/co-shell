@@ -25,6 +25,10 @@
 | FEATURE-352 | 0.7.6 | P1 | ✅ 已完成（循环介入 auto 策略：纠错提示自动升级强制重整 [BUILD-402]） |
 | FEATURE-306 | 0.7.7 | P2.5 | ✅ 已完成（输入统一 A1 全量事件流化 + Windows 补齐 + 系列回归修复 [BUILD-408]） |
 | FIX-350 | 0.7.7 | - | judge 产出雷同 guidance 的对策（失败策略哨兵分隔格式 + 禁止字面雷同措辞强化） |
+| FIX-353 | 0.7.7 | - | ✅ 已完成（兼容单 chunk 完整下发的工具调用 [BUILD-409]） |
+| FIX-354 | 0.7.7 | - | ✅ 已完成（跨 tool 消息不刷新 user 时间，前缀缓存修复 [BUILD-410]） |
+| FEATURE-355 | 0.7.7 | - | ✅ 已完成（execute_command 超时必填 + on_timeout kill/detach [BUILD-411]） |
+| FIX-356 | 0.7.7 | - | ✅ 已完成（XML 工具说明补齐新参数 [BUILD-412]） |
 | FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
@@ -1284,6 +1288,26 @@
     - judge 用户提示段标题强化（zh/en）：新 guidance 绝对不得与列表中任何一条相同或近似雷同——尤其是最近一条；主LLM仍在同一处循环时必须彻底更换措辞与切入角度
     - judge 系统提示第 6 条同步强化（zh/en）：新 guidance 与最近一条不得有任何字面级别的雷同；条目中说明哨兵格式便于 judge 解析
   - 测试：agent/feature349_test.go 更新编号列表用例为哨兵格式断言 + 新增对抗性用例（策略内容含 `1. ` 与 `[FAILED-STRATEGY` 片段时结构仍清晰）；go build/vet/test 全绿 [BUILD-397]
+
+- [x] **FIX-353 兼容单 chunk 完整下发的工具调用（首个 delta 不再丢 arguments）** ✅ 已完成 [BUILD-409]
+  - 背景：接入本地 mlx-vlm 服务（Qwen3.8-27B）后所有工具调用报"arguments is empty"。排查发现 mlx-vlm 把 id+name+完整 arguments 放在一个 chunk 一次性下发，而 llm/client.go 的累积逻辑只在条目已存在时追加 Arguments，首 chunk 携带的参数被丢弃；OpenAI/vLLM 风格（首 chunk 仅 id+name、参数分片随后）则一直正常
+  - 实现：llm/client.go 流式累积 `!exists` 分支初始化 ToolCall 时保留 `tc.Arguments`，两种下发风格均兼容
+  - 测试：llm/fix353_test.go（单 chunk 完整下发 + 分片追加回归，已验证修复前 FAIL/修复后 PASS）
+
+- [x] **FIX-354 跨 tool 消息不再刷新 user 消息时间（前缀缓存大面积失效修复）** ✅ 已完成 [BUILD-410]
+  - 背景：远程 deepseek 多轮工具调用后期 prefill 急剧变慢。日志分析发现 prompt_cache_hit 冻结在 65280、miss 每轮增长：refreshLastUserEnvelope 每个 iteration 无条件回扫改写最后一条 user 消息的 `<time>`，该消息位于历史中部时其后全部内容无法命中前缀缓存（实测每轮重算 55K+ token）。FEATURE-327 已将 retried_count 定位扩展为 user||tool，时间刷新未同步该原则
+  - 实现：agent/envelope.go 回扫时先遇到 tool 消息即放弃刷新——只在 user 消息仍处于历史尾部（其后最多 assistant 消息）时刷新时间
+  - 测试：agent/fix354_test.go（尾部刷新保留 + 跨 tool 不刷新，修复前 FAIL/修复后 PASS）
+
+- [x] **FEATURE-355 execute_command 超时参数必填化 + on_timeout kill/detach** ✅ 已完成 [BUILD-411]
+  - 背景：超时的"停止等待"与"终止进程"两个语义被混淆；起服务/长构建场景超时即杀全组且部分输出全丢。另外调查发现 `A && nohup B > log 2>&1 &` 写法（&& 列表整体后台）子 shell 持有输出管道导致 Wait 阻塞，是"后台服务总是被超时杀掉"的实际成因
+  - 目标：timeout_seconds 必填（0=无限等待）；新增必填 on_timeout：`kill` 维持原行为，`detach` 超时后停止等待、返回 PID+部分输出+日志文件路径，进程后台继续运行，后续可 tail 日志或 kill
+  - 实现：agent/tools.go schema 两参数必填；agent/command_tools.go detach 模式输出写临时日志文件（避免返回后内存 buffer 无限增长）且不连接 stdin（避免与 REPL 竞争），后台 reaper 协程完成 Wait/关文件/Release；tool_error.go 提示与三处 README 同步
+  - 测试：agent/feature355_test.go 7 用例（必填校验×3/0 超时无限等待/kill 超时杀进程组/detach 存活+部分输出+PID 与日志路径）；既有 FIX-320 测试按新接口适配
+
+- [x] **FIX-356 XML 工具说明补齐 execute_command 新必填参数** ✅ 已完成 [BUILD-412]
+  - 背景：FEATURE-355 后 XML 调用方式的工具说明（i18n en/zh）仍将 timeout_seconds 描述为可选且无 on_timeout，XML 模式下 LLM 不知道新参数
+  - 实现：i18n/en_system.go / zh_system.go 的 KeyToolUsageExecuteCommand 文案与示例同步；确认 XML 参数经 jsonValue 自动类型转换（数字→JSON number），解析链路无需改动
 
 ## v1.0.0 — 正式版
 
