@@ -195,16 +195,28 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 // refreshLastUserEnvelope updates only the <time> tag in the last user message's
 // <environment_details>. All other content (task_plan, opened_resources, etc.)
 // is preserved as-is from when the message was first created.
+//
+// FIX-354: only refresh when the last user message is still at the tail of the
+// history (no tool message after it). Once tool-call iterations have appended
+// tool results after that user message, rewriting its <time> would change a
+// mid-history message on every iteration, which breaks prefix caching for the
+// entire (potentially huge) suffix that follows it.
 func (a *Agent) refreshLastUserEnvelope() {
 	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// Find the last user message
+	// Find the last user message, but stop at tool messages: a tool result
+	// after the last user message means tool-call iterations are underway and
+	// the user message is already mid-history — leave it untouched.
 	lastUserIdx := -1
 	for i := len(a.messages) - 1; i >= 0; i-- {
-		if a.messages[i].Role == "user" {
+		role := a.messages[i].Role
+		if role == "tool" {
+			return
+		}
+		if role == "user" {
 			lastUserIdx = i
 			break
 		}
