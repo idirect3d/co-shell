@@ -136,16 +136,18 @@ TOOL USE
 
 	// Tool usage descriptions for XML mode — one per tool, dynamically included based on available tools.
 	zhMessages[KeyToolUsageExecuteCommand] = `## execute_command
-Description: 执行系统命令并返回输出。使用此工具运行 shell 命令、脚本或任何 CLI 工具。可以指定 timeout_seconds 来限制执行时间。
+Description: 执行系统命令并返回输出。使用此工具运行 shell 命令、脚本或任何 CLI 工具。必须指定 timeout_seconds（0 表示无限等待）和 on_timeout（超时后的处理方式）。
 Parameters:
 - intent (必需) 说明调用此工具的原因及预期目标。用于跟踪和调试 LLM 决策。
 - command (必需) 要执行的命令
-- timeout_seconds (可选) 超时秒数。根据任务复杂度设置。0 或省略表示仅使用用户配置的超时时间。
+- timeout_seconds (必需) 超时秒数。0 表示无限等待（不超时）。根据任务复杂度设置。大于 0 时，实际超时取该值与用户配置最小超时时间的较大者。
+- on_timeout (必需) 取值 "kill" 或 "detach"。"kill"：超时时终止整个进程组并返回错误——普通前台命令用此项。"detach"：超时后停止等待，返回 PID、部分输出和日志文件路径，进程在后台继续运行——服务、长构建、watch 任务用此项；之后可用 execute_command 查看日志文件或 kill 该 PID。timeout_seconds 为 0 时此项不生效。
 Usage:
 <{XML_TAG_PREFIX}execute_command>
   <{XML_TAG_PREFIX}intent>需要查看当前目录下的文件列表</{XML_TAG_PREFIX}intent>
   <{XML_TAG_PREFIX}command>ls -la</{XML_TAG_PREFIX}command>
   <{XML_TAG_PREFIX}timeout_seconds>30</{XML_TAG_PREFIX}timeout_seconds>
+  <{XML_TAG_PREFIX}on_timeout>kill</{XML_TAG_PREFIX}on_timeout>
 </{XML_TAG_PREFIX}execute_command>`
 
 	zhMessages[KeyToolUsageReadFile] = `## read_file
