@@ -52,7 +52,9 @@ import (
 )
 
 // StreamCallback is a function called for each streaming event from the LLM.
-type StreamCallback func(eventType string, content string)
+// Events are structured StreamEvent values (FEATURE-307a); presentation
+// decoration (emoji prefixes, newlines) is applied by the renderer.
+type StreamCallback func(ev StreamEvent)
 
 // CmdConfirmResult represents the result of a command confirmation prompt.
 type CmdConfirmResult int
@@ -607,7 +609,7 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 	}
 
 	if a.showLlmThinking && resp.ReasoningContent != "" {
-		cb(EventThinking, resp.ReasoningContent)
+		cb(NewStreamEvent(EventThinking, ChannelLLM, LevelInfo, resp.ReasoningContent))
 	}
 
 	// In XML mode, the LLM returns tool calls embedded in the content as XML tags.
@@ -778,8 +780,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 
 	cb := a.streamCb
 	if cb != nil {
-		ep := config.GetEmojiPrefixes(a.emojiEnabled)
-		cb(EventInfo, ep.Loop+fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectEvent), event.Detector))
+		cb(NewStreamEvent(EventInfo, ChannelDebug, LevelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopDetectEvent), event.Detector)))
 	}
 
 	// Secondary judgment: when LoopJudgeEnabled, call judge model FIRST to
@@ -796,7 +797,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 		if result != nil && !result.IsLoop {
 			// Judge says not a loop — do NOT intervene.
 			if cb != nil {
-				cb(EventInfo, i18n.T(i18n.KeyLoopJudgeNotLoop))
+				cb(InfoEvent(ChannelDebug, i18n.T(i18n.KeyLoopJudgeNotLoop)))
 			}
 			return nil
 		}
@@ -832,7 +833,7 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	case "off":
 		// No intervention
 		if cb != nil {
-			cb(EventInfo, i18n.T(i18n.KeyLoopJudgeDisabled))
+			cb(InfoEvent(ChannelDebug, i18n.T(i18n.KeyLoopJudgeDisabled)))
 		}
 		return nil
 
@@ -926,13 +927,13 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 	}
 
 	if cb != nil {
-		cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strategyDesc))
+		cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopHandling), strategyDesc)))
 		if loopFeedback != "" {
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopFeedbackSent), loopFeedback))
+			cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopFeedbackSent), loopFeedback)))
 		} else {
-			cb(EventInfo, i18n.T(i18n.KeyLoopNoFeedback))
+			cb(InfoEvent(ChannelDebug, i18n.T(i18n.KeyLoopNoFeedback)))
 		}
-		cb(EventInfo, "────────────────────────────────────────────\n")
+		cb(InfoEvent(ChannelDebug, "────────────────────────────────────────────\n"))
 	}
 
 	return nil
@@ -1087,11 +1088,11 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	cb := a.streamCb
 	if cb != nil {
 		if result != nil && result.IsLoop {
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResultLoop), result.Reason, result.ExitStrategy))
+			cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResultLoop), result.Reason, result.ExitStrategy)))
 		} else if result != nil && !result.IsLoop {
-			cb(EventInfo, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResultNo), result.Reason))
+			cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyLoopJudgeResultNo), result.Reason)))
 		} else {
-			cb(EventInfo, i18n.T(i18n.KeyLoopJudgeResultFail))
+			cb(InfoEvent(ChannelDebug, i18n.T(i18n.KeyLoopJudgeResultFail)))
 		}
 	}
 

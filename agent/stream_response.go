@@ -185,7 +185,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 	// granularity).
 	emitToolCallStream := func(text string) {
 		if text != "" {
-			cb(EventToolCallStream, text)
+			cb(NewStreamEvent(EventToolCallStream, ChannelTool, LevelInfo, text))
 		}
 	}
 	// Track whether we saw any tool call events (even invalid ones) from the stream.
@@ -325,7 +325,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 							// call: hand it back to the plain content channel
 							// (still gated by show-llm-content).
 							if a.showLlmContent {
-								cb(EventContentChunk, op.Text)
+								cb(NewStreamEvent(EventContentChunk, ChannelLLM, LevelInfo, op.Text))
 							}
 							continue
 						}
@@ -337,7 +337,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 				}
 
 				if a.showLlmContent {
-					cb(EventContentChunk, event.Content)
+					cb(NewStreamEvent(EventContentChunk, ChannelLLM, LevelInfo, event.Content))
 				}
 
 				// FEATURE-298: Check for fatal XML errors in streaming content.
@@ -363,7 +363,7 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			case llm.StreamEventReasoning:
 				reasoningBuilder.WriteString(event.Content)
 				if a.showLlmThinking {
-					cb(EventThinkingChunk, event.Content)
+					cb(NewStreamEvent(EventThinkingChunk, ChannelLLM, LevelInfo, event.Content))
 				}
 
 				// FIX-179: Check for loop patterns in reasoning output too.
