@@ -100,9 +100,15 @@ func decodeToUTF8(data []byte) string {
 }
 
 // executeSystemCommand runs a system command with timeout.
-// The effective timeout is the maximum of the user-configured minimum timeout
-// and the LLM-suggested timeout_seconds parameter.
-// stdin is connected to os.Stdin so interactive commands (e.g. sudo) work.
+// timeout_seconds is required: 0 means wait forever; when > 0 the effective
+// timeout is the maximum of the user-configured minimum timeout and the
+// LLM-suggested value.
+// on_timeout is required: "kill" terminates the whole process group on
+// timeout (legacy behavior); "detach" stops waiting and returns the PID,
+// partial output and a log file path while the process keeps running.
+// stdin is connected to os.Stdin so interactive commands (e.g. sudo) work
+// (except in detach mode, where the process must not compete for stdin
+// after the call returns).
 // stdout+stderr are both captured for LLM return AND displayed on the terminal.
 func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interface{}) (string, error) {
 	command, ok := args["command"].(string)
@@ -110,18 +116,33 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		return "", fmt.Errorf("command argument is required")
 	}
 
-	// Get LLM-suggested timeout from args (optional)
-	llmSuggested := 0
-	if t, ok := args["timeout_seconds"].(float64); ok {
-		llmSuggested = int(t)
+	// FEATURE-355: timeout_seconds is required; 0 means wait forever.
+	t, ok := args["timeout_seconds"].(float64)
+	if !ok {
+		return "", fmt.Errorf("timeout_seconds argument is required (0 = wait forever)")
 	}
+	llmSuggested := int(t)
 
-	// Effective timeout = max(user-configured minimum, LLM-suggested)
+	// FEATURE-355: on_timeout is required: "kill" or "detach".
+	onTimeout, ok := args["on_timeout"].(string)
+	if !ok {
+		return "", fmt.Errorf("on_timeout argument is required (\"kill\" or \"detach\")")
+	}
+	if onTimeout != "kill" && onTimeout != "detach" {
+		return "", fmt.Errorf("invalid on_timeout %q: must be \"kill\" or \"detach\"", onTimeout)
+	}
+	detachMode := onTimeout == "detach"
+
+	// Effective timeout = max(user-configured minimum, LLM-suggested);
+	// an explicit 0 means wait forever (no timeout at all).
 	userMin := a.getCommandTimeout()
 	userMinSec := int(userMin.Seconds())
-	effectiveTimeout := userMinSec
-	if llmSuggested > effectiveTimeout {
-		effectiveTimeout = llmSuggested
+	effectiveTimeout := 0
+	if llmSuggested > 0 {
+		effectiveTimeout = userMinSec
+		if llmSuggested > effectiveTimeout {
+			effectiveTimeout = llmSuggested
+		}
 	}
 
 	// Encode command to system code page on Windows before sending to shell
@@ -137,20 +158,43 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	cmd := exec.Command(shell, shellArg, encodedCommand)
 	setProcessGroupAttr(cmd)
 
-	// Connect stdin so interactive commands (sudo, passwd, etc.) can read user input.
-	cmd.Stdin = os.Stdin
+	// Connect stdin so interactive commands (sudo, passwd, etc.) can read user
+	// input. Detach mode is the exception: after the call returns the process
+	// keeps running and must not compete with the REPL for stdin.
+	if !detachMode {
+		cmd.Stdin = os.Stdin
+	}
 
-	// Capture stdout+stderr. Always capture in buf for LLM context.
+	// Capture stdout+stderr. Kill mode captures into an in-memory buffer.
+	// Detach mode writes to a log file instead: after a detach return the
+	// process keeps producing output, and an in-memory buffer would grow
+	// unbounded — the file also gives the LLM a path to poll later.
 	// When showCommandOutput is true, print [🔴] prefix and tee output to
 	// terminal via rawOutputWriter that converts \n to \r\n for raw mode.
 	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
+	var logFile *os.File
+	if detachMode {
+		f, err := os.CreateTemp("", "co-shell-detached-*.log")
+		if err != nil {
+			return "", fmt.Errorf("cannot create detach log file: %w", err)
+		}
+		logFile = f
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	} else {
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
+	}
 	if a.showCommandOutput {
 		ep := config.GetEmojiPrefixes(a.emojiEnabled)
 		fmt.Print(ep.CommandOutput)
-		cmd.Stdout = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stdout})
-		cmd.Stderr = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stderr})
+		if detachMode {
+			cmd.Stdout = io.MultiWriter(logFile, &rawOutputWriter{w: os.Stdout})
+			cmd.Stderr = io.MultiWriter(logFile, &rawOutputWriter{w: os.Stdout})
+		} else {
+			cmd.Stdout = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stdout})
+			cmd.Stderr = io.MultiWriter(&buf, &rawOutputWriter{w: os.Stdout})
+		}
 	}
 
 	// FIX-209: Signal the ESC monitor goroutine to stop polling stdin while the
@@ -169,10 +213,15 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	if err := cmd.Start(); err != nil {
 		a.SetCommandRunning(false)
 		a.onCommandEnd()
+		if logFile != nil {
+			logPath := logFile.Name()
+			logFile.Close()
+			os.Remove(logPath)
+		}
 		return "", fmt.Errorf("cannot start command: %w", err)
 	}
 
-	// timedOut flag indicates whether the timeout goroutine killed the process.
+	// timedOut flag indicates whether the timeout goroutine fired.
 	// This distinguishes a real timeout from a normal ExitError (e.g. exit code 1)
 	// so we don't misreport the latter as a timeout. FIX-284.
 	var timedOut atomic.Bool
@@ -184,26 +233,85 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	// process group. FIX-320.
 	done := make(chan struct{})
 
-	// Timeout goroutine: wait for timeout, then kill the entire process group.
+	// detachCh is closed by the timeout goroutine in detach mode instead of
+	// killing the process group (FEATURE-355).
+	detachCh := make(chan struct{})
+
+	// Timeout goroutine: wait for timeout, then either kill the entire process
+	// group (kill mode) or signal detachment (detach mode).
 	// setProcessGroupAttr ensures bash + all pipe children share the same PGID.
 	if effectiveTimeout > 0 {
 		pid := cmd.Process.Pid
 		go func() {
 			select {
 			case <-done:
-				// Command finished before the timeout — nothing to kill.
+				// Command finished before the timeout — nothing to do.
 				return
 			case <-time.After(time.Duration(effectiveTimeout) * time.Second):
-				log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
-					pid, effectiveTimeout, command)
 				timedOut.Store(true)
-				killProcessGroup(cmd)
+				if detachMode {
+					log.Warn("Timeout detach: leaving PID %d running after %ds timeout: %s",
+						pid, effectiveTimeout, command)
+					close(detachCh)
+				} else {
+					log.Warn("Timeout kill: killing process group of PID %d after %ds timeout: %s",
+						pid, effectiveTimeout, command)
+					killProcessGroup(cmd)
+				}
 			}
 		}()
 	}
 
-	err := cmd.Wait()
-	close(done)
+	// readOutput returns the captured output: the log file content in detach
+	// mode, the in-memory buffer otherwise.
+	readOutput := func() string {
+		if logFile != nil {
+			logFile.Sync()
+			data, rerr := os.ReadFile(logFile.Name())
+			if rerr != nil {
+				return ""
+			}
+			return decodeToUTF8(data)
+		}
+		return decodeToUTF8(buf.Bytes())
+	}
+
+	var err error
+	if detachMode && effectiveTimeout > 0 {
+		// Detach mode: race cmd.Wait() against the timeout signal.
+		waitCh := make(chan error, 1)
+		go func() { waitCh <- cmd.Wait() }()
+		select {
+		case err = <-waitCh:
+			close(done)
+		case <-detachCh:
+			// Timeout in detach mode: stop waiting, leave the process running.
+			// A reaper goroutine finishes Wait/close/release in the background.
+			go func() {
+				<-waitCh
+				close(done)
+				logFile.Close()
+				if cmd.Process != nil {
+					cmd.Process.Release()
+				}
+			}()
+			a.SetCommandRunning(false)
+			a.onCommandEnd()
+			pid := cmd.Process.Pid
+			logPath := logFile.Name()
+			out := readOutput()
+			const tailLimit = 4000
+			if len(out) > tailLimit {
+				out = "...(截断)\n" + out[len(out)-tailLimit:]
+			}
+			log.Warn("Command detached after %ds timeout: PID %d, log %s", effectiveTimeout, pid, logPath)
+			return fmt.Sprintf("命令超时（%ds）但未终止：进程仍在后台运行。\nPID: %d\n输出持续写入日志文件: %s\n后续可用 execute_command 执行 `tail -f %s` 查看进度，或 `kill %d` 终止。\n--- 已产生输出 ---\n%s",
+				effectiveTimeout, pid, logPath, logPath, pid, strings.TrimSpace(out)), nil
+		}
+	} else {
+		err = cmd.Wait()
+		close(done)
+	}
 	a.SetCommandRunning(false)
 	// Re-enter raw mode (via the registered CommandHooks) now that the command
 	// has finished reading from stdin.
@@ -213,8 +321,12 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 	if cmd.Process != nil {
 		cmd.Process.Release()
 	}
+	if logFile != nil {
+		logFile.Close()
+		defer os.Remove(logFile.Name())
+	}
 
-	decoded := decodeToUTF8(buf.Bytes())
+	decoded := readOutput()
 	if err != nil {
 		// Check for timeout — only report as timeout if the timeout goroutine
 		// killed the process. A normal ExitError (e.g. exit code 1) is not a
@@ -227,7 +339,7 @@ func (a *Agent) executeSystemCommand(ctx context.Context, args map[string]interf
 		return decoded, fmt.Errorf("command failed: %w\nOutput: %s", err, decoded)
 	}
 
-	log.Debug("Command completed: %s (output length: %d)", command, buf.Len())
+	log.Debug("Command completed: %s (output length: %d)", command, len(decoded))
 	return strings.TrimSpace(decoded), nil
 }
 

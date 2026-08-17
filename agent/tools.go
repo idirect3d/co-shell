@@ -82,7 +82,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		// Shell session disabled: use execute_command
 		tools = append(tools, llm.Tool{
 			Name:        "execute_command",
-			Description: fmt.Sprintf("Execute a system command (%s) and return its output. Use this to run shell commands, scripts, or any CLI tools. You can optionally specify a timeout_seconds to limit execution time based on the task complexity.", sh),
+			Description: fmt.Sprintf("Execute a system command (%s) and return its output. Use this to run shell commands, scripts, or any CLI tools. You MUST specify timeout_seconds (0 = wait forever) and on_timeout (what to do when the timeout fires).", sh),
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -96,10 +96,15 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					},
 					"timeout_seconds": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional timeout in seconds. Set this based on your estimate of how long the command will take. The actual timeout used will be the maximum of this value and the user-configured minimum timeout. 0 or omitted means use only the user-configured timeout.",
+						"description": "**REQUIRED**: Timeout in seconds. 0 means wait forever (no timeout). Set this based on your estimate of how long the command will take. When greater than 0, the actual timeout used will be the maximum of this value and the user-configured minimum timeout.",
+					},
+					"on_timeout": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"kill", "detach"},
+						"description": "**REQUIRED**: What to do when timeout_seconds fires. \"kill\": terminate the whole process group and return an error (use for ordinary foreground commands). \"detach\": stop waiting and return the PID, partial output and a log file path while the process keeps running in the background (use for servers, long builds, watchers); you can later inspect the log file or kill the PID with another execute_command call. Ignored when timeout_seconds is 0.",
 					},
 				},
-				"required": []string{"intent", "command"},
+				"required": []string{"intent", "command", "timeout_seconds", "on_timeout"},
 			},
 			Callback: a.executeSystemCommand,
 		})
