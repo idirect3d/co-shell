@@ -1373,6 +1373,23 @@ iterationLoop:
 					}
 				}
 
+				// FEATURE-307c: after a successful track_task_progress, push the
+				// full task plan as a structured task_plan event so web/JSON
+				// consumers can render a live plan panel. An archived/cleared
+				// plan emits an empty plan snapshot (panel hides). The
+				// LineRenderer has no case for this event type and ignores it,
+				// so terminal output is unaffected. Independent of showTool:
+				// the panel must track the plan even when tool echo is off.
+				if tc.Name == "track_task_progress" && execErr == nil {
+					planJSON := ""
+					if plan, planErr := a.taskPlanMgr.GetCurrent(); planErr == nil && plan != nil {
+						if data, jsonErr := json.Marshal(plan); jsonErr == nil {
+							planJSON = string(data)
+						}
+					}
+					cb(TaskPlanEvent(planJSON))
+				}
+
 				// Show tool call output if enabled (for all tools)
 				if a.showToolOutput && result != "" {
 					cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, fmt.Sprintf("  Result:\n%s", result)))
