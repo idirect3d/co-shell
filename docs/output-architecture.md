@@ -176,7 +176,7 @@ token 事件（EventTokenIter/EventTokenTask）的统计数字经 `Meta` 传递�
 ### 3.4 渲染器分离
 
 - **LineRenderer**（FEATURE-307a 已落地，`agent/line_renderer.go`）：终端行式渲染器，消费结构化 `StreamEvent`，按 `Type`/`Level` 施加 emoji 前缀（`config.GetEmojiPrefixes`）与换行布局。已合并 `repl.go streamCallback` 与 `main.go renderSingleCmdEvent` 的重复逻辑（StreamModeREPL/SingleCmd 双模式）。前身为 StreamRenderer（stream_renderer.go），307a 更名后 **StreamRenderer 之名保留给 JSON-Lines 渲染器**。
-- **StreamRenderer**（307b，规划中）：事件序列化为 JSON 行，供 stdio/CI/web 前端消费。
+- **StreamRenderer**（FEATURE-307b 已落地，`agent/stream_renderer.go`）：事件逐行序列化为 JSON（JSON-Lines），供 stdio/CI 管道消费（`--output-format json`）。字段规则：`type` 必有；`level` 非 info 才出；`chan`/`text`/`meta` 非空才出；无时间戳、无 ANSI、无 emoji。
 - **WebRenderer**（307c，远期）：映射到 DOM 区域；不得假设 gorilla/websocket 可用（见 3.8 依赖政策）。
 
 ### 3.5 区域（Region）模型（阶段三）
@@ -303,6 +303,12 @@ var sessionFactories = map[string]func(cfg *config.Config) (SessionIO, error){
 - **API 一致性**：三种模式均以「同一套结构化事件进出 Agent」为契约，仅外层 I/O 载体不同；
 - **web 模式实现低成本**：复用 `web` 管道 = 起一个内嵌 HTTP 服务 + WSSource/WSSink + WebRenderer，无需改动 Agent 核心；
 - **未来扩展**：新增模式只需在 `sessionFactories` 注册，`--input-mode` 自动支持。
+
+> **307b 落地实况（BUILD-415）**：`SessionIO` 管道与 `sessionFactories`（stdio/tui）已落地（`repl/session.go`），REPL 主循环面向 `SessionIO`（`ReadLine`/`Acquire`/`Interactive`/`Close`）编程；每次 Agent 运行的 I/O 装配（UserIO 安装、ESC 消费者、CommandHooks、事件渲染器）收进 `SessionIO.Acquire/release`。实际接口形态为「读行 + 每次运行的 IO/渲染器装配」，而非上表的 `Input()/Output()` Pairing——语义等价，粒度更贴合现有 REPL 流程。
+>
+> **输出格式**：`--output-format text|json`（CLI-only，不持久化）已落地。`json` 走 `StreamRenderer`（JSON-Lines），隐含 `--input-mode stdio`，与 `--input-mode tui` 互斥（报错退出）；welcome/prompt/Said 行等装饰输出在 json 模式全部抑制，stdout 只承载 JSON 事件行。
+>
+> **web 模式用户决策**：`--input-mode web` **取消**，改为 `co-shell serve` 子命令（内嵌 HTTP + WebSocket + 页面，307c 交付）；`sessionFactories["web"]`/`WSSource`/`WSSink`/`WebRenderer` 随之归入 307c。
 
 #### 3.6.6 分类开关（局部启停）与 `--input-mode`（全局模式）的关系
 

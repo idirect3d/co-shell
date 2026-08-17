@@ -1482,6 +1482,12 @@ const (
 	// Input mode (FEATURE-198)
 	KeyCLIHelpInputMode = "cli_help_input_mode"
 
+	// Output format (FEATURE-307b)
+	KeyCLIHelpOutputFormat = "cli_help_output_format"
+	// KeyOutputFormatInvalid reports an invalid --output-format value or its
+	// conflict with the tui input mode (FEATURE-307b).
+	KeyOutputFormatInvalid = "output_format_invalid"
+
 	// Init capabilities/rules (deprecated)
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"

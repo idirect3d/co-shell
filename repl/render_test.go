@@ -80,10 +80,13 @@ func renderTUIFixture() []agent.StreamEvent {
 func TestRenderTUIGolden(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.LLM.EmojiEnabled = true
-	r := &REPL{cfg: cfg, userIO: &bufferIO{}}
+	ep := config.GetEmojiPrefixes(true)
+	io := &bufferIO{}
+	// FEATURE-307b: the per-run renderer is installed by session.Acquire in
+	// production; the test installs the same LineRenderer directly.
+	r := &REPL{cfg: cfg, renderer: agent.NewLineRenderer(io, ep, agent.StreamModeREPL)}
 
 	// Render the full fixture sequence through streamCallback.
-	io := r.userIO.(*bufferIO)
 	for _, ev := range renderTUIFixture() {
 		r.streamCallback(ev)
 	}

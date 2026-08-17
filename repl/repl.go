@@ -5,7 +5,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -98,15 +97,18 @@ type REPL struct {
 	build      string
 	inputMode  string // "tui" or "stdio"
 
-	// P2.5: unified input event stream (tui mode only). Owns the single
-	// stdin reading goroutine and raw terminal mode.
-	reader *InputReader
+	// outputFormat is "text" (default) or "json" (FEATURE-307b, CLI-only).
+	// json forces the stdio session and suppresses decorative output.
+	outputFormat string
 
-	// P2.5: persistent line source for stdio mode. Reusing one scanner avoids
-	// losing buffered piped lines between REPL iterations.
-	stdioSrc *StdioSource
+	// FEATURE-307b: the session owns the input source (StdioSource /
+	// unified InputReader) and the per-run agent I/O assembly. Created in
+	// Run() via sessionFactories[inputMode].
+	session SessionIO
 
-	userIO agent.UserIO // current UserIO for interaction
+	// renderer is the per-run event renderer installed by
+	// session.Acquire during handleAgentInput; nil between runs.
+	renderer agent.EventRenderer
 }
 
 func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.Agent) *REPL {
@@ -137,15 +139,52 @@ func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.
 	return r
 }
 
-func (r *REPL) SetVersion(ver, bld string) { r.version = ver; r.build = bld }
-func (r *REPL) SetInputMode(mode string)   { r.inputMode = mode }
+func (r *REPL) SetVersion(ver, bld string)      { r.version = ver; r.build = bld }
+func (r *REPL) SetInputMode(mode string)        { r.inputMode = mode }
+func (r *REPL) SetOutputFormat(format string)   { r.outputFormat = format }
+
+// rawActive reports whether the terminal is currently held in raw mode by a
+// tui session (FEATURE-307b: the reader now lives inside the session).
+func (r *REPL) rawActive() bool {
+	if ts, ok := r.session.(*tuiSession); ok && ts.reader != nil {
+		return ts.reader.RawActive()
+	}
+	return false
+}
+
+// decorationsOn reports whether decorative (non-event) output such as the
+// welcome banner, the input prompt and the Said line is shown. Suppressed in
+// JSON output mode so stdout carries only JSON event lines. The outputFormat
+// check comes first because cleanup() clears the session.
+func (r *REPL) decorationsOn() bool {
+	if r.outputFormat == "json" {
+		return false
+	}
+	return r.session == nil || r.session.Interactive()
+}
+
+// pauseReader pauses the tui session's unified input reader (no-op for
+// stdio sessions). Used while a builtin command wizard owns stdin.
+func (r *REPL) pauseReader() {
+	if ts, ok := r.session.(*tuiSession); ok && ts.reader != nil {
+		ts.reader.Pause()
+	}
+}
+
+// resumeReader resumes the tui session's unified input reader (no-op for
+// stdio sessions).
+func (r *REPL) resumeReader() {
+	if ts, ok := r.session.(*tuiSession); ok && ts.reader != nil {
+		ts.reader.Resume()
+	}
+}
 
 // rawPrintf prints user-visible output, applying \r\n conversion while the
 // unified input reader holds the terminal in raw mode (tui). In cooked mode
 // (stdio / reader paused) it behaves exactly like fmt.Printf.
 func (r *REPL) rawPrintf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	if r.reader != nil && r.reader.RawActive() {
+	if r.rawActive() {
 		s = strings.ReplaceAll(s, "\n", "\r\n")
 	}
 	fmt.Print(s)
@@ -154,7 +193,7 @@ func (r *REPL) rawPrintf(format string, args ...interface{}) {
 // rawPrint prints user-visible output with raw-mode \r\n conversion.
 func (r *REPL) rawPrint(args ...interface{}) {
 	s := fmt.Sprint(args...)
-	if r.reader != nil && r.reader.RawActive() {
+	if r.rawActive() {
 		s = strings.ReplaceAll(s, "\n", "\r\n")
 	}
 	fmt.Print(s)
@@ -164,54 +203,11 @@ func (r *REPL) rawPrint(args ...interface{}) {
 // \r\n while the terminal is in raw mode.
 func (r *REPL) rawPrintln(args ...interface{}) {
 	s := fmt.Sprint(args...)
-	if r.reader != nil && r.reader.RawActive() {
+	if r.rawActive() {
 		s = strings.ReplaceAll(s, "\n", "\r\n")
 		fmt.Print("\r" + s + "\r\n")
 	} else {
 		fmt.Println(s)
-	}
-}
-
-func (r *REPL) readLine(prompt string) (string, error) {
-	// While the unified reader is paused (a builtin command wizard owns stdin
-	// in cooked mode), the event stream is suspended — read a plain line
-	// directly instead. Raw mode is already restored to cooked by Pause.
-	if r.reader != nil && r.reader.IsPaused() {
-		fmt.Print(prompt)
-		scanner := bufio.NewScanner(os.Stdin)
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
-				return "", err
-			}
-			return "", io.EOF
-		}
-		return strings.TrimSpace(scanner.Text()), nil
-	}
-	switch r.inputMode {
-	case "enhanced", "tui":
-		ei := NewEnhancedInput(prompt, r.history)
-		input, err := ei.ReadLineFrom(r.reader)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(input), nil
-	case "stdio":
-		fmt.Print(prompt)
-		ev, err := r.stdioSrc.NextEvent(context.Background())
-		if err != nil {
-			return "", err
-		}
-		if ev.Kind == agent.InputEOF {
-			return "", io.EOF
-		}
-		return strings.TrimSpace(ev.Data), nil
-	default:
-		ei := NewEnhancedInput(prompt, r.history)
-		input, err := ei.ReadLineFrom(r.reader)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(input), nil
 	}
 }
 
@@ -223,40 +219,59 @@ func (r *REPL) syncDB() {
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 	if r.cfg.DB.AutoSync {
 		r.store.SetAutoSync(true)
-		fmt.Print(i18n.TF(i18n.KeyDBSyncStart, ep.Info))
+		if r.decorationsOn() {
+			fmt.Print(i18n.TF(i18n.KeyDBSyncStart, ep.Info))
+		}
 		if err := r.store.PG().MigrateFromBolt(r.store.Bolt); err != nil {
 			log.Warn("Auto-migration failed (non-fatal): %v", err)
-			fmt.Print(i18n.TF(i18n.KeyDBSyncPartial, ep.Warning, err))
-		} else {
+			if r.decorationsOn() {
+				fmt.Print(i18n.TF(i18n.KeyDBSyncPartial, ep.Warning, err))
+			}
+		} else if r.decorationsOn() {
 			fmt.Print(i18n.TF(i18n.KeyDBSyncComplete, ep.Success))
 		}
 	} else {
 		r.store.SetAutoSync(false)
-		fmt.Print(i18n.TF(i18n.KeyDBConnectedNoSync, ep.Info))
+		if r.decorationsOn() {
+			fmt.Print(i18n.TF(i18n.KeyDBConnectedNoSync, ep.Info))
+		}
 	}
 }
 
 func (r *REPL) Run() error {
-	r.printWelcome()
+	// FEATURE-307b: in JSON output mode all decorations (welcome banner,
+	// prompt, Said line, DB sync notices) are suppressed so stdout carries
+	// only JSON event lines.
+	if r.outputFormat != "json" {
+		r.printWelcome()
+	}
 	r.syncDB()
 	r.loadHistory()
 
-	// P2.5: start the unified input reader (tui mode only). It owns the single
-	// stdin reading goroutine and raw terminal mode. In stdio mode the REPL
-	// reads lines synchronously through a persistent StdioSource (no reader
-	// goroutine needed) so piped input survives across iterations.
-	if r.inputMode == "enhanced" || r.inputMode == "tui" {
-		r.reader = NewInputReader(NewRawKeySource())
-		if err := r.reader.Start(); err != nil {
-			log.Warn("REPL: raw mode unavailable (%v), falling back to stdio", err)
-			_ = r.reader.Close()
-			r.reader = nil
-			r.inputMode = "stdio"
+	// FEATURE-307b: create the session for the configured input mode. The
+	// tui session owns the unified input reader (single stdin goroutine +
+	// raw terminal mode); the stdio session reads lines synchronously
+	// through a persistent StdioSource (no reader goroutine needed) so piped
+	// input survives across iterations. A tui start failure falls back to
+	// stdio, preserving the historical behavior.
+	deps := SessionDeps{
+		Cfg:          r.cfg,
+		HistoryFn:    func() []string { return r.history },
+		OutputFormat: r.outputFormat,
+	}
+	factory := sessionFactories[r.inputMode]
+	if factory == nil {
+		factory = sessionFactories["tui"]
+	}
+	session, err := factory(deps)
+	if err != nil {
+		log.Warn("REPL: raw mode unavailable (%v), falling back to stdio", err)
+		r.inputMode = "stdio"
+		if session, err = sessionFactories["stdio"](deps); err != nil {
+			return err
 		}
 	}
-	if r.inputMode == "stdio" {
-		r.stdioSrc = NewStdioSource()
-	}
+	r.session = session
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -265,7 +280,9 @@ func (r *REPL) Run() error {
 	go func() {
 		select {
 		case <-sigCh:
-			r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
+			if r.decorationsOn() {
+				r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
+			}
 			r.cleanup()
 			os.Exit(0)
 		case <-done:
@@ -286,10 +303,12 @@ func (r *REPL) Run() error {
 		}
 		prompt = strings.Replace(prompt, "]> ", "]["+modeName+"]> ", 1)
 
-		input, err := r.readLine(prompt)
+		input, err := r.session.ReadLine(prompt)
 		if err != nil {
 			if err.Error() == "interrupt" {
-				r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
+				if r.decorationsOn() {
+					r.rawPrintln("\n" + i18n.T(i18n.KeyGoodbye))
+				}
 				r.cleanup()
 				os.Exit(0)
 			}
@@ -327,8 +346,9 @@ func (r *REPL) Run() error {
 			r.rawPrint(i18n.T(i18n.KeyDotPrefixHint2))
 			r.rawPrint(i18n.T(i18n.KeyDotPrefixAskLLM))
 			r.rawPrint(i18n.T(i18n.KeyDotPrefixChoose))
-			// Use readLine which handles both enhanced and stdio modes
-			response, _ := r.readLine("")
+			// Read the user's choice through the session (handles both tui
+			// and stdio sessions).
+			response, _ := r.session.ReadLine("")
 			response = strings.TrimSpace(strings.ToLower(response))
 			if response == "c" {
 				r.rawPrint(i18n.TF(i18n.KeyDotPrefixCancelled, ep.Warning))
@@ -354,7 +374,9 @@ func (r *REPL) Run() error {
 
 	close(done)
 	r.cleanup()
-	r.rawPrintln(i18n.T(i18n.KeyGoodbye))
+	if r.decorationsOn() {
+		r.rawPrintln(i18n.T(i18n.KeyGoodbye))
+	}
 	return nil
 }
 
@@ -395,14 +417,12 @@ func (r *REPL) handleBuiltin(input string) {
 	// goroutine does not compete for input bytes and the terminal returns to
 	// cooked mode (proper \r\n line discipline + visible echo).
 	resumed := false
-	if r.reader != nil {
-		r.reader.Pause()
-		defer func() {
-			if !resumed {
-				r.reader.Resume()
-			}
-		}()
-	}
+	r.pauseReader()
+	defer func() {
+		if !resumed {
+			r.resumeReader()
+		}
+	}()
 
 	var result string
 	var err error
@@ -502,9 +522,7 @@ func (r *REPL) handleBuiltin(input string) {
 		// Resume the reader before running the agent so ESC/Ctrl+C monitoring
 		// and EnhancedIO event consumption work normally.
 		resumed = true
-		if r.reader != nil {
-			r.reader.Resume()
-		}
+		r.resumeReader()
 		r.handleAgentInput("")
 		return
 	case ":reset":
@@ -524,7 +542,7 @@ func (r *REPL) handleBuiltin(input string) {
 		poppedContent := result[4:]
 		fmt.Print(i18n.TF(i18n.KeySessionPopEdit, ep.Info, poppedContent))
 		fmt.Println(i18n.T(i18n.KeySessionPopEditHint))
-		edited, err := r.readLine("✏️ ")
+		edited, err := r.session.ReadLine("✏️ ")
 		if err != nil {
 			return
 		}
@@ -678,85 +696,54 @@ func (r *REPL) handleSystemCommand(command string) {
 }
 
 // handleAgentInput sends natural language input to the agent.
-// In enhanced input mode, sets up ESC monitoring via a goroutine that polls stdin.
+// The per-run I/O assembly (UserIO installation, ESC consumer, command
+// hooks, event renderer) is delegated to the session (FEATURE-307b).
 func (r *REPL) handleAgentInput(input string) {
 	ctx := context.Background()
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
 
-	r.rawPrintln()
-	r.rawPrintf("%s%s\n", ep.LlmOutput, r.agent.Said())
-
-	// P2.5: Create a UserIO for the agent to use during RunStream.
-	// - tui mode: EnhancedIO (consumes the unified input event stream)
-	// - stdio mode: StdioIO (standard terminal, raw mode for ReadKey)
-	// Without a UserIO, the agent falls back to fmtIO which has a no-op ReadKey
-	// returning (0, nil) immediately — causing infinite loops on confirmation prompts.
-	var stopConsumer func()
-	switch r.inputMode {
-	case "enhanced", "tui":
-		log.Debug("REPL.handleAgentInput: setting up EnhancedIO and ESC consumer (mode=%s)", r.inputMode)
-		eio := NewEnhancedIO(r.history, r.reader)
-		r.agent.SetIO(eio)
-		r.userIO = eio
-		stopConsumer = r.startEscConsumer()
-		// Register command hooks: while a system command runs, pause the input
-		// reader (stop reading stdin + restore cooked mode) so interactive
-		// commands (sudo, passwd, etc.) can read stdin with echo and line
-		// buffering; resume afterwards. Without this, raw mode (no ECHO/ICRNL)
-		// makes interactive commands hang with no visible feedback.
-		r.agent.SetCommandHooks(agent.CommandHooks{
-			BeforeCommand: func() {
-				if r.reader != nil {
-					r.reader.Pause()
-				}
-			},
-			AfterCommand: func() {
-				if r.reader != nil {
-					r.reader.Resume()
-				}
-			},
-		})
-	default: // "stdio"
-		log.Debug("REPL.handleAgentInput: setting up StdioIO")
-		sio := NewStdioIO()
-		r.agent.SetIO(sio)
-		r.userIO = sio
+	// The Said line is decoration, not an event: suppressed in JSON output
+	// mode so stdout carries only JSON event lines.
+	if r.decorationsOn() {
+		r.rawPrintln()
+		r.rawPrintf("%s%s\n", ep.LlmOutput, r.agent.Said())
 	}
+
+	// FEATURE-307b: the session installs the UserIO the agent uses during
+	// RunStream (tui: EnhancedIO + ESC consumer + command hooks; stdio:
+	// StdioIO) and returns the event renderer for this run. Without a
+	// UserIO, the agent falls back to fmtIO which has a no-op ReadKey
+	// returning (0, nil) immediately — causing infinite loops on
+	// confirmation prompts.
+	renderer, release := r.session.Acquire(r.agent)
+	r.renderer = renderer
 
 	_, err := r.agent.RunStream(ctx, input, r.streamCallback)
 
-	// Stop the ESC consumer and clear command hooks.
-	if stopConsumer != nil {
-		log.Debug("REPL.handleAgentInput: stopping ESC consumer")
-		stopConsumer()
-	}
-	r.agent.SetCommandHooks(agent.CommandHooks{})
-	if r.userIO != nil {
-		r.userIO = nil
-		// Reset agent's UserIO so agent defaults back to fmtIO for any remaining output
-		r.agent.SetIO(nil)
-	}
+	r.renderer = nil
+	release()
 
 	if err != nil {
+		if !r.decorationsOn() {
+			// JSON output mode: keep stdout a pure JSON event stream; report
+			// failures on stderr.
+			fmt.Fprintf(os.Stderr, "%s: %v\n%s\n", i18n.T(i18n.KeyProcessFailed), err, i18n.T(i18n.KeyCheckConfig))
+			return
+		}
 		r.rawPrintf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyProcessFailed), err)
 		r.rawPrintln(i18n.T(i18n.KeyCheckConfig))
 	}
 }
 
-// streamCallback handles streaming events from the agent.
-// In enhanced mode (userIO != nil), delegates output to userIO.Print which
-// automatically handles \r\n conversion. In stdio mode, uses direct fmt.Print.
+// streamCallback handles streaming events from the agent by delegating to
+// the per-run renderer installed by session.Acquire (FEATURE-307b). The fmt
+// fallback only guards defensive paths (cleanup or direct callback reuse).
 func (r *REPL) streamCallback(ev agent.StreamEvent) {
-	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
-
-	// Render via the unified line renderer. UserIO is always set during
-	// RunStream; the fmt fallback below only guards defensive paths
-	// (cleanup or direct callback reuse).
-	io := r.userIO
-	if io == nil {
-		io = agent.NewDefaultUserIO()
+	renderer := r.renderer
+	if renderer == nil {
+		ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+		renderer = agent.NewLineRenderer(agent.NewDefaultUserIO(), ep, agent.StreamModeREPL)
 	}
-	renderer := agent.NewLineRenderer(io, ep, agent.StreamModeREPL)
 	renderer.Render(ev)
 }
 
@@ -810,11 +797,15 @@ func (r *REPL) printHelp() {
 }
 
 func (r *REPL) cleanup() {
-	r.rawPrint(i18n.T(i18n.KeyCleaningUp))
-	// P2.5: stop the unified input reader and restore the terminal.
-	if r.reader != nil {
-		_ = r.reader.Close()
-		r.reader = nil
+	decorations := r.decorationsOn()
+	if decorations {
+		r.rawPrint(i18n.T(i18n.KeyCleaningUp))
+	}
+	// FEATURE-307b: the session owns the input source; closing it stops the
+	// unified input reader and restores the terminal (tui).
+	if r.session != nil {
+		_ = r.session.Close()
+		r.session = nil
 	}
 	// Persist non-system messages before closing resources
 	if err := r.agent.PersistSessionNonSystem(); err != nil {
@@ -826,5 +817,7 @@ func (r *REPL) cleanup() {
 	if err := r.store.Close(); err != nil {
 		r.rawPrintf(" DB error: %v", err)
 	}
-	r.rawPrintln(i18n.T(i18n.KeyDone))
+	if decorations {
+		r.rawPrintln(i18n.T(i18n.KeyDone))
+	}
 }

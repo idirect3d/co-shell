@@ -20,22 +20,25 @@ import (
 // Priority rule: an active exclusive consumer (ReadLine/ReadKey) owns the
 // event — the monitor yields while IsReading; it also yields while a system
 // command owns stdin (IsCommandRunning).
-func (r *REPL) startEscConsumer() func() {
-	return r.reader.Subscribe(func(ev agent.InputEvent) {
+//
+// FEATURE-307b: moved from REPL to tuiSession as part of the SessionIO
+// decoupling; behaviour is unchanged.
+func (s *tuiSession) startEscConsumer(ag *agent.Agent) func() {
+	return s.reader.Subscribe(func(ev agent.InputEvent) {
 		switch ev.Kind {
 		case agent.InputEsc, agent.InputCtrlC:
-			if io := r.agent.IO(); io != nil && io.IsReading() {
+			if io := ag.IO(); io != nil && io.IsReading() {
 				return
 			}
-			if r.agent.IsCommandRunning() {
+			if ag.IsCommandRunning() {
 				return
 			}
 			if ev.Kind == agent.InputEsc {
 				log.Info("ESC detected!")
-				r.agent.Interrupt()
+				ag.Interrupt()
 			} else {
 				log.Info("Ctrl+C detected! Cancelling task immediately.")
-				r.agent.Cancel()
+				ag.Cancel()
 			}
 		}
 	})

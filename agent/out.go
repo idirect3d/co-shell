@@ -45,6 +45,23 @@ const (
 	LevelDebug
 )
 
+// String returns the lowercase name of the level (FEATURE-307b), used by the
+// JSON-Lines StreamRenderer. Unknown values render as "info".
+func (l Level) String() string {
+	switch l {
+	case LevelSuccess:
+		return "success"
+	case LevelWarning:
+		return "warning"
+	case LevelError:
+		return "error"
+	case LevelDebug:
+		return "debug"
+	default:
+		return "info"
+	}
+}
+
 // Out is the unified entry point for all user-facing output.
 // Implementations route by ChannelID (for show-xx filters) and render
 // by Level (emoji prefix / color). This is the P2 base interface;
