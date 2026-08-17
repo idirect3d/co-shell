@@ -31,6 +31,7 @@ const (
 	// General
 	KeyCancelled      = "cancelled"
 	KeySetupCancelled = "setup_cancelled"
+	KeySetupNonInteractive = "setup_non_interactive"
 	KeyYes            = "yes"
 	KeyNo             = "no"
 	KeyOn             = "on"

@@ -50,7 +50,7 @@ import (
 
 const version = "0.7.7"
 
-const build = "415"
+const build = "416"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1046,6 +1046,7 @@ func main() {
 		modelHandler := cmd.NewModelHandler(cfg, nil)
 		if _, err := modelHandler.AddModelWizard(); err != nil {
 			io.Println(i18n.T(i18n.KeySetupCancelled))
+			io.ErrPrintf("%v\n", err)
 			os.Exit(1)
 		}
 	}

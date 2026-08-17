@@ -23,7 +23,7 @@
 | FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
-> 当前 BUILD: 415
+> 当前 BUILD: 416
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -1320,6 +1320,12 @@
   - 目标：LLM 流式输出期间按 ESC 可打断（恢复 FEATURE-201 行为），方向键等转义序列不误判
   - 实现：repl/raw_key_source.go ESC 序列读取加 50ms 超时窗口（escSeqTimeout，真实转义序列后续字节立即到达，超时即独立 ESC 键）；Pause/Close 引发的父 context 取消向上传播错误，不再误报幻键 ESC；Windows 侧复用既有 cancelIoEx 机制无需改平台代码
   - 测试：repl/raw_key_source_test.go 新增 4 用例（阻塞式假 reader：独立 ESC 超时检出 / ESC 后迟到的普通键不丢失 / 方向键正确识别 / 父取消不误报 ESC）；已验证 2 个关键用例修复前 FAIL、修复后 PASS；go test ./... 全绿；audit 与基线持平（143/0/2/18/0）
+
+- [x] **FIX-358 修复全新 workspace 首运行配置向导 EOF 空转刷爆 stdout** ✅ 已完成 [BUILD-416]
+  - 背景：全新 workspace 首次以管道/非终端方式启动时，无模型配置触发 AddModelWizard，向导循环 `readLine()` 吞掉 ReadLine 错误返回 ""；而 `DefaultUserIO.ReadLine` 在干净 EOF 时 `bufio.Scanner.Err()` 为 nil，EOF 与空行不可区分，于是向导无限重印提示——307b 冒烟实测几秒内灌出 1.75GB stdout
+  - 目标：非终端 stdin 下配置向导快速失败并给出可操作提示；EOF 在 IO 层可区分；消除 read-ahead 丢行隐患
+  - 实现：agent/io.go DefaultUserIO.ReadLine 干净 EOF 返回 io.EOF + scanner 持久化（新建 scanner 每次丢预读字节）；cmd/model.go AddModelWizard 入口 tty 守卫（osStdinIsTerminal，可注入便于测试）+ 新增 i18n key KeySetupNonInteractive（zh/en）；main.go 向导失败时 stderr 输出错误明细
+  - 测试：agent/io_test.go 3 用例（EOF 可区分且粘滞 / 两行一次到达不丢 / 空行≠EOF）；cmd/model_wizard_test.go 非终端守卫快速返回；复现场景回归（空 workspace 管道启动：无刷屏、stderr 明确报错、exit=1）；go test ./... 全绿；audit 与基线持平
 
 ## v1.0.0 — 正式版
 
