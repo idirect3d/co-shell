@@ -1489,6 +1489,15 @@ const (
 	// conflict with the tui input mode (FEATURE-307b).
 	KeyOutputFormatInvalid = "output_format_invalid"
 
+	// serve subcommand (FEATURE-307c)
+	KeyCLIHelpPort        = "cli_help_port"
+	KeyServeStarted       = "serve_started"
+	KeyServeNoPort        = "serve_no_port"
+	KeyServeConflict      = "serve_conflict"
+	KeyServeBrowserFailed = "serve_browser_failed"
+	KeyWebOpenFailed      = "web_open_failed"
+	KeyWebRevealFailed    = "web_reveal_failed"
+
 	// Init capabilities/rules (deprecated)
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"

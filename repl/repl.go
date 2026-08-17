@@ -258,6 +258,7 @@ func (r *REPL) Run() error {
 		Cfg:          r.cfg,
 		HistoryFn:    func() []string { return r.history },
 		OutputFormat: r.outputFormat,
+		Ag:           r.agent,
 	}
 	factory := sessionFactories[r.inputMode]
 	if factory == nil {

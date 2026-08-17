@@ -281,7 +281,7 @@ type InputSource interface {
 |----------------|-------------------|-----------------|--------|---------|
 | `stdio`（默认） | `StdinSource`（行/EOF，可 pipe） | `StdoutSink`（JSON-Lines / 纯净文本） | `StreamRenderer` | 脚本 / CI / 管道 / 标准终端 |
 | `tui` | `RawKeySource`（含方向键/ESC 等控制字符） | Terminal 分区域渲染 | `RegionRenderer` | 交互式终端（现有 Enhanced） |
-| `web` | `WSSource`（WebSocket 消息） | `WSSink`（分区推送 / JSON 事件） | `WebRenderer` | Web 服务界面（远期） |
+| `web` | `WSSource`（WebSocket 消息） | `WSSink`（分区推送 / JSON 事件） | `WebRenderer` | Web 服务界面（✅ 307c 已落地，`serve` 形态） |
 
 **单一事实来源**：InputSource 与 EventSink 通过**同一个 `SessionIO` 管道（Pairing）** 配对，Agent/SessionRunner 只面向该管道编程。切换 `--input-mode` 只替换管道两端实现：
 
@@ -309,6 +309,8 @@ var sessionFactories = map[string]func(cfg *config.Config) (SessionIO, error){
 > **输出格式**：`--output-format text|json`（CLI-only，不持久化）已落地。`json` 走 `StreamRenderer`（JSON-Lines），隐含 `--input-mode stdio`，与 `--input-mode tui` 互斥（报错退出）；welcome/prompt/Said 行等装饰输出在 json 模式全部抑制，stdout 只承载 JSON 事件行。
 >
 > **web 模式用户决策**：`--input-mode web` **取消**，改为 `co-shell serve` 子命令（内嵌 HTTP + WebSocket + 页面，307c 交付）；`sessionFactories["web"]`/`WSSource`/`WSSink`/`WebRenderer` 随之归入 307c。
+>
+> **307c 落地实况（BUILD-417）**：`co-shell serve [--port 8399]` 已交付。新包 `web/` 内：WebSocket 为标准库手写实现（`ws.go`，握手/帧编解码/掩码/continuation/ping-pong/close，零新增依赖）；`server.go` 提供 embed 静态页、`/ws` 与 `/api/tree|upload|open|reveal|file|bootstrap`，单客户端集线器（新连接顶替旧连接）；`session.go` 的 WebSession/WebIO/WebRenderer 即上表的 WSSource/WSSink/WebRenderer——输入消息即 WSSource，事件/ask 下行即 WSSink，WebRenderer 把 StreamEvent 原样推送、分区渲染由前端按 Type/Chan/Level 完成。`repl.RegisterSessionFactory("web", ...)` 注册工厂（web import repl，repl 不 import web，无循环依赖），REPL 主循环零改动复用。`task_plan` 事件（agent `EventTaskPlan`）在 track_task_progress 成功后推送全量计划快照（归档推空），LineRenderer 无 case 自动静默。前端为原生 JS 单页（embed.FS）：明/暗双主题 CSS 变量（暗色默认跟随 prefers-color-scheme，localStorage 记忆）、目录树/拖拽上传/任务进展区/ask 应答区/打断按钮。
 
 #### 3.6.6 分类开关（局部启停）与 `--input-mode`（全局模式）的关系
 
@@ -556,6 +558,7 @@ P1 修改 ~70 处 `cb("...")`，需可重复的基线对比：
 
 - 原型阶段默认**只绑定 `127.0.0.1`**，无认证；
 - 文档明确：生产化（远程访问）前必须补认证（token/回环校验），本次不做。
+- **307c 落地补充**：`serve` 监听地址硬编码 `127.0.0.1`（`web.Server.Listen`，端口占用自动递增至多 10 个）；所有文件类 API（`/api/tree|upload|open|reveal|file` 及附件路径）强制 workspace 内路径校验——`filepath.Rel(root, abs)` 结果以 `..` 开头即 403，杜绝 `../` 穿越；上传单文件上限 100MB；`open`/`reveal` 的 OS 启动器为可注入变量（测试不真起进程）；WebSocket 帧/消息上限 4MiB；单客户端集线器，新连接顶替旧连接，断开时挂起的 ask 立即失败返回（agent 不永久阻塞）。
 
 ### 6.7 日志边界（B4）
 
