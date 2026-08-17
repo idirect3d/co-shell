@@ -19,16 +19,7 @@
 | FEATURE-303 | 0.7.0 | P3 | ✅ 已完成（向导迁移（B 类）+ i18n 归零第一步 [BUILD-342]） |
 | FEATURE-304 | 0.7.0 | P4 | ✅ 已完成（外部入口迁移 + 分类开关 [BUILD-343]） |
 | FEATURE-305 | 0.7.0 | P4.5 | i18n 归零冲刺（100% 达成） |
-| FEATURE-342 | 0.7.4 | P1 | ✅ 已完成（问题判定优化 + report_problem 工具 [BUILD-385]） |
-| FEATURE-343 | 0.7.5 | P1 | ✅ 已完成（视觉识别上下文隔离 [BUILD-386]） |
-| FEATURE-345 | 0.7.5 | P1 | ✅ 已完成（异常场景接入问题判定 [BUILD-389]） |
-| FEATURE-352 | 0.7.6 | P1 | ✅ 已完成（循环介入 auto 策略：纠错提示自动升级强制重整 [BUILD-402]） |
 | FEATURE-306 | 0.7.7 | P2.5 | ✅ 已完成（输入统一 A1 全量事件流化 + Windows 补齐 + 系列回归修复 [BUILD-408]） |
-| FIX-350 | 0.7.7 | - | judge 产出雷同 guidance 的对策（失败策略哨兵分隔格式 + 禁止字面雷同措辞强化） |
-| FIX-353 | 0.7.7 | - | ✅ 已完成（兼容单 chunk 完整下发的工具调用 [BUILD-409]） |
-| FIX-354 | 0.7.7 | - | ✅ 已完成（跨 tool 消息不刷新 user 时间，前缀缓存修复 [BUILD-410]） |
-| FEATURE-355 | 0.7.7 | - | ✅ 已完成（execute_command 超时必填 + on_timeout kill/detach [BUILD-411]） |
-| FIX-356 | 0.7.7 | - | ✅ 已完成（XML 工具说明补齐新参数 [BUILD-412]） |
 | FEATURE-307 | 0.7.7 | P5 | LineRenderer + StreamRenderer + WebRenderer 原型 |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
