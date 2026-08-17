@@ -99,7 +99,7 @@ func getRequiredParamsDescription(toolName string) string {
 	case "read_file":
 		return "'path' (string: file path) - required; 'start_line' and 'end_line' are optional"
 	case "execute_command":
-		return "'command' (string: command to execute) - required; 'timeout_seconds' is optional"
+		return "'command' (string: command to execute), 'timeout_seconds' (number: 0 = wait forever) AND 'on_timeout' (string: \"kill\" or \"detach\") - ALL are required"
 	case "search_files":
 		return "'path' (string: directory path) AND 'regex' (string: search pattern) - BOTH are required; 'file_pattern' is optional"
 	case "replace_in_file":

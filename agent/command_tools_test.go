@@ -97,7 +97,9 @@ func TestExecuteSystemCommand_BackgroundSurvivesAfterEarlyExit(t *testing.T) {
 	// sleep keeps running on its own. This is the exact scenario FIX-320 fixes:
 	// the lingering timeout goroutine must NOT kill it.
 	out, err := a.executeSystemCommand(context.Background(), map[string]interface{}{
-		"command": "sleep 300 >/dev/null 2>&1 & echo $!",
+		"command":         "sleep 300 >/dev/null 2>&1 & echo $!",
+		"timeout_seconds": float64(2),
+		"on_timeout":      "kill",
 	})
 	elapsed := time.Since(start)
 
@@ -166,7 +168,9 @@ func TestExecuteSystemCommand_TimeoutKillsProcessGroup(t *testing.T) {
 
 	start := time.Now()
 	_, err := a.executeSystemCommand(context.Background(), map[string]interface{}{
-		"command": "sleep 60",
+		"command":         "sleep 60",
+		"timeout_seconds": float64(2),
+		"on_timeout":      "kill",
 	})
 	elapsed := time.Since(start)
 
