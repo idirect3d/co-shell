@@ -12,9 +12,9 @@ import (
 func collectInfoEvents(t *testing.T) (StreamCallback, *[]string) {
 	t.Helper()
 	var events []string
-	cb := func(evt string, msg string) {
-		if evt == EventInfo {
-			events = append(events, msg)
+	cb := func(ev StreamEvent) {
+		if ev.Type == EventInfo {
+			events = append(events, ev.Text)
 		}
 	}
 	return cb, &events

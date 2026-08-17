@@ -68,7 +68,7 @@
 5. 新文案走 i18n.T()/TF()，新增 key 同步 zh+en
 6. 每任务跑 `bin/output_audit.sh --strict`
 7. Go 1.22+、错误显式、GoDoc、单文件<500行、注释英文
-8. 零新增依赖
+8. 禁止新增第三方依赖；现有第三方组件（gorilla/websocket、larksuite oapi-sdk、mcp-go、x/sys 等）不得新增引用点，择机移除后仅保留 lib/pq 与 bbolt
 
 ## 七、下一步行动（新会话顺序）
 
