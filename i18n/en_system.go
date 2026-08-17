@@ -202,6 +202,7 @@ Critical rules:
    - To move code: Use two <{XML_TAG_PREFIX}item> (one to delete from original, one to insert at new location)
    - To delete code: Leave <{XML_TAG_PREFIX}replace> empty
 5. If source context came from read_file with line labels (e.g. "42 | const x = 1"), do NOT include the line label prefix in <{XML_TAG_PREFIX}search>. Match only the raw file text.
+6. **Line breaks & escaping**: Line breaks inside <{XML_TAG_PREFIX}search> and <{XML_TAG_PREFIX}replace> MUST use REAL newline characters (press Enter in the content) — do NOT write \n escape sequences. Use real Tab/space characters for indentation. If the content needs a literal backslash, write \\ (two backslashes).
 Usage:
 <{XML_TAG_PREFIX}replace_in_file>
   <{XML_TAG_PREFIX}path>main.go</{XML_TAG_PREFIX}path>

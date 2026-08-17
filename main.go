@@ -33,7 +33,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -49,9 +48,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.7.6"
+const version = "0.7.7"
 
-const build = "402"
+const build = "408"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1316,18 +1315,15 @@ func main() {
 	// Start REPL (interactive mode)
 	r := repl.New(cfg, s, mcpMgr, ag)
 	r.SetVersion(version, build)
-	// Apply input mode setting
-	// On Windows, always use stdio mode since raw terminal is not available.
+	// Apply input mode setting (P2.5: Windows is no longer forced to stdio —
+	// raw terminal support now exists via the unified input reader, which
+	// also enables ESC/Ctrl+C monitoring on Windows).
 	inputMode := "tui" // default interactive mode (P2: "enhanced" → "tui")
-	if runtime.GOOS == "windows" {
-		inputMode = "stdio"
-	} else {
-		if cfg.LLM.InputMode != "" {
-			inputMode = config.NormalizeInputMode(cfg.LLM.InputMode)
-		}
-		if flags.inputMode != "" {
-			inputMode = config.NormalizeInputMode(flags.inputMode)
-		}
+	if cfg.LLM.InputMode != "" {
+		inputMode = config.NormalizeInputMode(cfg.LLM.InputMode)
+	}
+	if flags.inputMode != "" {
+		inputMode = config.NormalizeInputMode(flags.inputMode)
 	}
 	r.SetInputMode(inputMode)
 	log.Info("REPL started (input mode: %s)", inputMode)

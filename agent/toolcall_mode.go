@@ -1051,6 +1051,48 @@ func hasChildElements(content string) bool {
 	return false
 }
 
+// decodeXMLEscapes decodes common two-character escape sequences that LLMs
+// sometimes write inside XML parameter values (e.g. `\n` for a newline) into
+// the real characters, so search/replace/content values match the file's real
+// line endings. Only well-known escapes are decoded: \n \t \r \\ \". Unknown
+// sequences (e.g. `\U` in a Windows path, `\u` unicode escapes in code) keep
+// the backslash literally, so real code content is not corrupted.
+func decodeXMLEscapes(s string) string {
+	if !strings.ContainsRune(s, '\\') {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case 'n':
+				b.WriteByte('\n')
+				i++
+				continue
+			case 't':
+				b.WriteByte('\t')
+				i++
+				continue
+			case 'r':
+				b.WriteByte('\r')
+				i++
+				continue
+			case '\\':
+				b.WriteByte('\\')
+				i++
+				continue
+			case '"':
+				b.WriteByte('"')
+				i++
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 // jsonValue converts a plain text string to a JSON value with automatic type detection.
 // - Integers (e.g., "5", "-3", "0") → JSON number (no quotes)
 // - Floats (e.g., "3.14", "-0.5") → JSON number (no quotes)
@@ -1061,7 +1103,7 @@ func jsonValue(s string) string {
 	// are invalid JSON (JSON does not allow leading zeros). Treat them as strings.
 	// This also covers strings like "0" (single zero is fine as a number).
 	if len(s) > 1 && s[0] == '0' && s[1] >= '0' && s[1] <= '9' {
-		return strconv.Quote(s)
+		return strconv.Quote(decodeXMLEscapes(s))
 	}
 	// Try integer
 	if _, err := fmt.Sscanf(s, "%d", new(int)); err == nil {
@@ -1085,7 +1127,7 @@ func jsonValue(s string) string {
 		return s
 	}
 	// Default: JSON string
-	return fmt.Sprintf("%q", s)
+	return fmt.Sprintf("%q", decodeXMLEscapes(s))
 }
 
 // extractCDATA extracts content from a CDATA section if present.
