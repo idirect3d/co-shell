@@ -30,6 +30,7 @@ var zhMessages = map[string]string{
 	// General
 	KeyCancelled:        "已取消",
 	KeySetupCancelled:   "❌ 设置未完成，退出。",
+	KeySetupNonInteractive: "❌ 未检测到交互式终端，无法运行初始配置向导。\n请先在终端中直接运行一次 co-shell 完成配置，或手动编辑 config.json 添加模型。",
 	KeyYes:              "是",
 	KeyNo:               "否",
 	KeyOn:               "开",

@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -48,6 +49,9 @@ type ModelHandler struct {
 	cfg         *config.Config
 	agent       *agent.Agent
 	wizardStack []string // stack of wizard steps to return to
+	// stdinIsTTY reports whether stdin is an interactive terminal; nil uses
+	// the real os.Stdin check. Overridable in tests (FIX-358).
+	stdinIsTTY func() bool
 }
 
 // NewModelHandler creates a new ModelHandler.
@@ -57,6 +61,27 @@ func NewModelHandler(cfg *config.Config, ag *agent.Agent) *ModelHandler {
 		agent:       ag,
 		wizardStack: make([]string, 0),
 	}
+}
+
+// osStdinIsTerminal reports whether os.Stdin is a character device (a real
+// terminal) rather than a pipe / closed fd.
+func osStdinIsTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
+}
+
+// interactiveStdin reports whether the interactive wizard can read answers
+// from stdin. A non-terminal stdin (pipe, redirect, closed fd) would EOF
+// immediately and the wizard loop would spin re-printing prompts forever
+// (FIX-358: observed flooding gigabytes of output on first piped run).
+func (h *ModelHandler) interactiveStdin() bool {
+	if h.stdinIsTTY != nil {
+		return h.stdinIsTTY()
+	}
+	return osStdinIsTerminal()
 }
 
 // io returns the UserIO from the agent, falling back to DefaultUserIO.
@@ -336,6 +361,13 @@ type modelWizardState struct {
 // AddModelWizard starts the interactive wizard to add a new model.
 // This is a public method so it can be called from main.go for first-time setup.
 func (h *ModelHandler) AddModelWizard() (string, error) {
+	// FIX-358: the wizard is interactive-only. On a non-terminal stdin every
+	// read hits EOF immediately and the prompt loop spins forever, flooding
+	// stdout — fail fast with an actionable message instead.
+	if !h.interactiveStdin() {
+		return "", errors.New(i18n.T(i18n.KeySetupNonInteractive))
+	}
+
 	var result strings.Builder
 	result.WriteString("═══════════════════════════════════════════════════════\n")
 	result.WriteString(i18n.T(i18n.KeyCmdMig_160))
