@@ -2,7 +2,7 @@
 
 > 读者对象：后续接手 web 界面（`co-shell serve`）新功能开发或功能改进的工程师。
 > 本文档自包含——不需要再查阅其他资料即可开展工作。文中所有 `文件:行号` 引用以
-> BUILD-422（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
+> BUILD-425（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
 
 ---
 
@@ -26,6 +26,8 @@ HTML/CSS/JS，无框架、无打包器）。
 | FIX-361 | 420 | 修复事件流被 flex 压缩成细条、无法滚动（`.ev` 加 `flex-shrink:0`） |
 | FEATURE-362 | 421 | 工具调用合并单块（`Meta["phase"]`）+ Markdown 实时渲染（`md.js`） |
 | FIX-363 | 422 | 主题兜底：无 `matchMedia` 时默认深色 |
+| FEATURE-364 | 424 | 本文档 |
+| FEATURE-365 | 425 | 底部通栏（logo 入底栏左端）、去附件按钮、右上角下拉菜单（面板开关+系统设置）、主题三态 auto |
 
 ---
 
@@ -253,6 +255,9 @@ inputMode = "web"
 {"type":"interrupt"}                        // 等价终端 ESC
 ```
 
+注：`attachments` 字段协议保留（服务端照常处理），但 FEATURE-365 起
+官方前端已移除附件入口，实际只发送 `text`。
+
 ### 5.3 StreamEvent 类型速查（agent/events.go）
 
 | type | 含义 | 前端处理（app.js renderEvent） |
@@ -289,20 +294,21 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 ┌──────────┬────────────────────┬──────────┐
 │ sidebar  │  #stream-wrap      │ plan-    │
 │ (工作区   │  (事件流，grid 主区) │ panel    │
-│  目录树   │                    │ (任务进展)│
-│  + logo) │                    │          │
-│          ├────────────────────┤          │
-│          │ #bottom            │          │
-│          │ (ask 区+chips+输入) │          │
-└──────────┴────────────────────┴──────────┘
+│  目录树)  │                    │ (任务进展)│
+├──────────┴────────────────────┴──────────┤
+│ #bottom（通栏）：logo + ask 区 + 输入行    │
+└──────────────────────────────────────────┘
 ```
 
-- 侧栏 `grid-row: 1/-1` 贯通到底；底部 `grid-column: 2/-1` 左缘紧贴
-  侧栏右缘（FEATURE-359）；
-- 无计划时 `#layout.no-plan` 把第三列归零；
-- logo 马赛克在侧栏底部（`#logo`），贝壳图案手工绘制于 7×16 网格
-  （`app.js` LOGO_ART），字符映射 accent 透明度，尺寸动态约束不超过
-  输入框高度。
+- 侧栏只占第一行（`grid-row: 1`）；底部 `#bottom` 通栏
+  （`grid-column: 1/-1`），其上边界即工作区清单的下边界（FEATURE-365）；
+- logo 马赛克在 `#bottom` 内最左端、与录入框同一外框（右缘细分隔线），
+  贝壳图案手工绘制于 7×16 网格（`app.js` LOGO_ART），字符映射 accent
+  透明度，高度动态约束不超过输入行；
+- 面板可见性 class 驱动：`#layout.no-plan` 第三列归零、
+  `#layout.no-ws` 第一列归零（两者可叠加，见 style.css 组合规则）；
+- 顶栏右侧：连接状态 → ☰ 下拉菜单（悬停展开：工作区/任务进展开关 +
+  系统设置）→ 明暗主题按钮。
 
 ### 6.2 style.css：双主题
 
@@ -315,23 +321,34 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 
 1. **i18n**：`I18N.zh/en` 字典 + `applyI18n()`（`data-i18n` /
    `data-i18n-ph` 属性驱动）；语言由 `/api/bootstrap` 下发。
-2. **主题**：`setTheme` + `initTheme`。优先级：localStorage 手动选择 →
-   `prefers-color-scheme` 跟随 OS → 兜底深色（FIX-363）。
+2. **主题**（FEATURE-365 三态）：localStorage `co-shell-theme` =
+   `auto`（默认，跟随 OS，`matchMedia change` 实时响应）/ `dark` /
+   `light`；无 `matchMedia` 时 auto 兜底深色（FIX-363）。`setTheme`
+   只应用不落盘，避免 resolved 值覆盖 `auto`；顶栏 ☾/☀ 按钮写入
+   手动值，系统设置弹层里的下拉可切回 auto。
 3. **WebSocket**：`wsConnect()` 自动重连（2s）；`onmessage` 按 kind
    分发 event/ask/state。
 4. **事件渲染**（核心，见 6.4）。
-5. **任务面板**：`renderPlan(plan)`，状态图标 ○◐●✕✗。
-6. **ask 区**：`showAsk/hideAsk/answerAsk`；key 模式渲染按键按钮组
+5. **任务面板**：`renderPlan(plan)` 缓存 `lastPlan` 并交给
+   `applyPanels()` 统一判定可见性，状态图标 ○◐●✕✗。
+6. **面板开关**（FEATURE-365）：`panelPrefs`（localStorage
+   `co-shell-panels` = `{ws, plan}`，缺省为显示）+ `applyPanels()`；
+   菜单项点击翻转偏好并持久化，勾选态（`.mi-check.on`）随动。
+7. **ask 区**：`showAsk/hideAsk/answerAsk`；key 模式渲染按键按钮组
    （Enter/c/a/g/d/n），line 模式渲染输入框。
-7. **输入行**：Enter 发送 / Shift+Enter 换行 / ↑↓ 历史 / 自动增高；
-   附件 chips（📎 按钮或拖放上传后挂载到下一次 input 消息）。
-8. **目录树**：`loadTree/treeNode`，目录点击展开/折叠；文件点击：
+8. **输入行**：Enter 发送 / Shift+Enter 换行 / ↑↓ 历史 / 自动增高。
+   FEATURE-365 起不再支持附件（📎 按钮与 chips 已移除），input 消息只
+   带 `text`。
+9. **目录树**：`loadTree/treeNode`，目录点击展开/折叠；文件点击：
    图片 → 浮层预览（`/api/file`），其他 → `/api/open`；悬停 ⌖ 按钮
    → `/api/reveal`。
-9. **上传/拖放**（FEATURE-359）：无独立拖放区——拖到目录行上传进该
-   目录（`stopPropagation` 防冒泡），拖到侧栏其他位置上传进根目录；
-   侧栏整体弱高亮 + 目标行高亮。
-10. **boot**：拉 `/api/bootstrap` → applyI18n → loadTree → wsConnect。
+10. **上传/拖放**（FEATURE-359）：唯一上传入口是拖放——拖到目录行
+    上传进该目录（`stopPropagation` 防冒泡），拖到侧栏其他位置上传进
+    根目录；侧栏整体弱高亮 + 目标行高亮。
+11. **系统设置弹层**（FEATURE-365）：`#settings` modal，目前含主题
+    三态下拉；新增客户端设置项往这里加。
+12. **boot**：拉 `/api/bootstrap` → applyI18n → applyPanels →
+    loadTree → wsConnect。
 
 ### 6.4 事件渲染机制（app.js renderEvent，FEATURE-362 重构）
 
@@ -521,4 +538,6 @@ tui（raw mode 失败再降 stdio，已有）。Listen/OpenBrowser 失败同样
    客户端，hub 要改成广播 + 每连接状态。
 4. **FEATURE-308**（全屏 TUI v2）是渲染器三态中唯一未做的可选分支，
    与 web 无关但共享同一事件协议。
-5. **图片附件**目前只在 input 消息携带路径，没有粘贴/截图直传。
+5. **图片附件**：协议字段 `attachments` 保留且服务端照常解析
+   （`WebSession.ReadLine`），但官方前端自 FEATURE-365 起移除了附件
+   入口（📎 按钮与 chips），没有粘贴/截图直传。
