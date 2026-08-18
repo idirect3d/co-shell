@@ -432,7 +432,7 @@ askInput.addEventListener("keydown", (e) => {
 /* ---------- input row / history ---------- */
 
 const history = [];
-let histPos = -1;
+let histPos = 0; // sentinel: histPos === history.length means "at the unsent draft"
 let histDraft = "";
 
 function sendInput() {
@@ -454,14 +454,32 @@ function autoGrow() {
 sendBtn.onclick = sendInput;
 interruptBtn.onclick = () => wsSend({ type: "interrupt" });
 
+// recallHistory swaps the textarea content with the history entry at
+// histPos (or the saved draft when histPos points past the newest entry)
+// and parks the cursor at the end.
+function recallHistory() {
+  input.value = histPos < history.length ? history[histPos] : histDraft;
+  autoGrow();
+  input.selectionStart = input.selectionEnd = input.value.length;
+}
+
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInput(); return; }
-  if (e.key === "ArrowUp" && input.selectionStart === 0) {
-    if (histPos === -1 || histPos === history.length) histDraft = input.value;
-    if (histPos > 0) { histPos--; input.value = history[histPos]; autoGrow(); e.preventDefault(); }
-  } else if (e.key === "ArrowDown") {
-    if (histPos >= 0 && histPos < history.length - 1) { histPos++; input.value = history[histPos]; autoGrow(); }
-    else if (histPos === history.length - 1) { histPos = history.length; input.value = histDraft; autoGrow(); }
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  if (history.length === 0) return; // nothing to navigate; never touch the draft (FIX-367)
+  // ↑ recalls only with the cursor on the first line, ↓ on the last line,
+  // so vertical cursor moves inside multi-line drafts keep working.
+  const onFirstLine = input.value.slice(0, input.selectionStart).indexOf("\n") === -1;
+  const onLastLine = input.value.slice(input.selectionEnd).indexOf("\n") === -1;
+  if (e.key === "ArrowUp" && onFirstLine && histPos > 0) {
+    if (histPos === history.length) histDraft = input.value;
+    histPos--;
+    recallHistory();
+    e.preventDefault();
+  } else if (e.key === "ArrowDown" && onLastLine && histPos < history.length) {
+    histPos++;
+    recallHistory();
+    e.preventDefault();
   }
 });
 input.addEventListener("input", autoGrow);
