@@ -54,3 +54,6 @@ work/co-shell.exe
 work/co-shell-test
 work/co-shell-feishu-bridge
 work/feishu-bridge.json
+
+# Mode files (not for public repo)
+mode/

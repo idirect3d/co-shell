@@ -146,6 +146,38 @@ aside {
   flex: none;
 }
 
+/* The git branch name keeps its original case (e.g. "main"), overriding
+   the panel-head uppercase transform. It sits at the right edge of the
+   panel head and truncates with an ellipsis when too long. */
+#wsBranch {
+  text-transform: none;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Left group: the workspace label with the refresh button right next to
+   it (no border, icon only, doubled size). */
+.ws-title { display: flex; align-items: center; gap: 2px; }
+#treeRefresh {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  font-size: 24px; /* doubled from the 12px .icon-btn.sm baseline */
+  line-height: 1;
+  padding: 0;
+  /* Override the .icon-btn.sm fixed 22x22 box so the button hugs its
+     glyph; a fixed box with a 24px font overflows and breaks centering. */
+  width: auto;
+  height: auto;
+  /* The ⟳ glyph's optical center sits above the workspace label's; nudge
+     it up so the two align on the same visual center line. */
+  transform: translateY(-2.5px);
+}
+#treeRefresh:hover { color: var(--accent); }
+
 /* ---------- tree ---------- */
 
 .tree {
