@@ -1405,6 +1405,11 @@
   - 实现：`LOGO_ART` 换 12×12 网格（含空行留白）；`favicon.png` 由 logo.txt 逐格光栅化（2×2px/字符、accent 青 RGBA、纯 Python 标准库手写 PNG 编码，130 字节）；index.html 图标链接 svg→png，`favicon.svg` 删除
   - 测试：favicon.png 原尺寸与放大目视逐格确认与 logo.txt 一致（透明留白正确）；headless 截图确认底栏 12×12 logo 新构图与等距；`node --check`、`go build` 通过
 
+- [x] **FIX-372 标签标题去掉 👀 前缀** ✅ 已完成 [BUILD-432]
+  - 背景：370 加的 👀 前缀经实际使用被认为多余，标题回归纯工作区路径
+  - 修复（仅 app.js 一行）：`document.title = b.workspace`
+  - 测试：harness 断言 `document.title === "/tmp/ws"`（裸路径、无前缀）通过
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
