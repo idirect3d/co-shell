@@ -107,6 +107,9 @@ body {
 }
 
 #layout.no-plan { grid-template-columns: 240px 1fr 0; }
+#layout.no-ws { grid-template-columns: 0 1fr 260px; }
+#layout.no-ws.no-plan { grid-template-columns: 0 1fr 0; }
+#layout.no-ws #sidebar { display: none; }
 
 aside {
   background: var(--bg-panel);
@@ -115,13 +118,18 @@ aside {
   flex-direction: column;
 }
 #sidebar {
-  grid-row: 1 / -1;
+  grid-column: 1;
+  grid-row: 1;
   border-right: 1px solid var(--border);
 }
 #sidebar.drag { background: var(--accent-dim); }
-#plan-panel { border-left: 1px solid var(--border); }
+#plan-panel { grid-column: 3; grid-row: 1; border-left: 1px solid var(--border); }
+#stream-wrap { grid-column: 2; grid-row: 1; }
 
-#bottom { grid-column: 2 / -1; }
+/* Bottom bar spans the full window width (FEATURE-365): the logo sits at
+   its left edge inside the same frame as the input box, and its top border
+   doubles as the workspace tree's bottom boundary. */
+#bottom { grid-column: 1 / -1; grid-row: 2; }
 
 .panel-actions { display: flex; gap: 6px; align-items: center; }
 
@@ -182,8 +190,9 @@ aside {
   flex: none;
   display: grid;
   justify-content: center;
-  padding: 4px 8px 6px;
-  border-top: 1px solid var(--border);
+  align-content: center;
+  padding: 4px 10px;
+  border-right: 1px solid var(--border);
   overflow: hidden;
 }
 .logo > div { background: var(--accent); }
@@ -357,6 +366,14 @@ aside {
   flex: none;
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.bottom-main {
+  flex: 1;
+  min-width: 0;
   padding: 8px 14px 10px;
   display: flex;
   flex-direction: column;
@@ -399,22 +416,6 @@ aside {
   font-size: 12.5px;
 }
 .key-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-.chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chips:empty { display: none; }
-.chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 2px 10px;
-  font-size: 12px;
-  color: var(--fg-dim);
-  font-family: ui-monospace, Menlo, monospace;
-}
-.chip button { background: none; border: none; color: var(--fg-faint); cursor: pointer; padding: 0; }
-.chip button:hover { color: var(--err); }
 
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
 
@@ -471,6 +472,90 @@ aside {
 }
 .preview-box img { max-width: 78vw; max-height: 74vh; display: block; }
 .preview-close { position: absolute; top: 6px; right: 6px; }
+
+/* ---------- dropdown menu (FEATURE-365) ---------- */
+
+/* Vertical padding on the wrapper bridges the visual gap between the
+   button and the menu so hover is never lost crossing between them. */
+.menu-wrap { position: relative; padding: 8px 0; }
+.menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 190px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 60;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.menu-wrap:hover .menu, .menu-wrap:focus-within .menu { display: block; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.menu-item:hover { background: var(--bg-elev); color: var(--accent); }
+.mi-ico { width: 18px; text-align: center; flex: none; }
+.mi-label { flex: 1; }
+.mi-check { width: 14px; flex: none; color: var(--accent); visibility: hidden; }
+.mi-check.on { visibility: visible; }
+.menu-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+
+/* ---------- settings modal (FEATURE-365) ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+}
+.modal-box {
+  min-width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+.modal-body { padding: 14px; }
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+.set-row select {
+  background: var(--mono-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  outline: none;
+}
+.set-row select:focus { border-color: var(--accent); }
 
 /* ---------- scrollbars ---------- */
 
