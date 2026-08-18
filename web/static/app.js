@@ -12,22 +12,26 @@
 
 const I18N = {
   zh: {
-    workspace: "工作区", attach: "附件",
+    workspace: "工作区",
     taskPlan: "任务进展", reply: "回复", interrupt: "打断", send: "发送",
     inputHint: "输入指令，Enter 发送，Shift+Enter 换行，↑↓ 历史",
     connected: "已连接", disconnected: "已断开",
     askLine: "代理请求一行输入：", askKey: "代理请求按键确认：",
     uploadFailed: "上传失败", actionFailed: "操作失败",
     planEmpty: "（无步骤）",
+    menu: "菜单", settings: "系统设置",
+    themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
   },
   en: {
-    workspace: "Workspace", attach: "Attach",
+    workspace: "Workspace",
     taskPlan: "Task Plan", reply: "Reply", interrupt: "Interrupt", send: "Send",
     inputHint: "Type a command — Enter to send, Shift+Enter for newline, ↑↓ history",
     connected: "connected", disconnected: "disconnected",
     askLine: "The agent asks for a line of input:", askKey: "The agent asks for a key:",
     uploadFailed: "Upload failed", actionFailed: "Action failed",
     planEmpty: "(no steps)",
+    menu: "Menu", settings: "Settings",
+    themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
   },
 };
 let T = I18N.zh;
@@ -42,31 +46,48 @@ function applyI18n() {
     if (T[k]) el.placeholder = T[k];
   });
   connText.textContent = wsReady ? T.connected : T.disconnected;
-  attachBtn.title = T.attach;
+  menuBtn.title = T.menu;
 }
 
 /* ---------- theme ---------- */
 
+// localStorage "co-shell-theme": "auto" (default, follow the OS) | "dark" |
+// "light". setTheme only applies; persistence is the caller's job so that
+// "auto" is never clobbered by a resolved value.
 const themeToggle = document.getElementById("themeToggle");
+const osThemeMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
 function setTheme(name) {
   document.documentElement.setAttribute("data-theme", name);
-  localStorage.setItem("co-shell-theme", name);
   themeToggle.textContent = name === "dark" ? "☾" : "☀";
 }
 
-(function initTheme() {
+function themeMode() {
   const saved = localStorage.getItem("co-shell-theme");
-  if (saved === "dark" || saved === "light") return setTheme(saved);
-  // No manual choice: follow the OS color scheme. When the browser cannot
-  // report one (no matchMedia), fall back to dark (FIX-363).
-  const dark = !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return saved === "dark" || saved === "light" ? saved : "auto";
+}
+
+function applyTheme() {
+  const mode = themeMode();
+  // No matchMedia (browser cannot report the OS scheme): fall back to dark
+  // (FIX-363).
+  const dark = mode === "dark" || (mode === "auto" && (!osThemeMQ || osThemeMQ.matches));
   setTheme(dark ? "dark" : "light");
-})();
+  const sel = document.getElementById("setThemeMode");
+  if (sel && sel.value !== mode) sel.value = mode;
+}
+
+if (osThemeMQ && osThemeMQ.addEventListener) {
+  osThemeMQ.addEventListener("change", () => {
+    if (themeMode() === "auto") applyTheme();
+  });
+}
+applyTheme();
 
 themeToggle.onclick = () => {
   const cur = document.documentElement.getAttribute("data-theme");
-  setTheme(cur === "dark" ? "light" : "dark");
+  localStorage.setItem("co-shell-theme", cur === "dark" ? "light" : "dark");
+  applyTheme();
 };
 
 /* ---------- DOM handles ---------- */
@@ -87,11 +108,17 @@ const askSend = document.getElementById("askSend");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 const interruptBtn = document.getElementById("interruptBtn");
-const chips = document.getElementById("chips");
 const tree = document.getElementById("tree");
 const sidebar = document.getElementById("sidebar");
-const attachBtn = document.getElementById("attachBtn");
-const fileInput = document.getElementById("fileInput");
+const menuBtn = document.getElementById("menuBtn");
+const miWs = document.getElementById("miWs");
+const miPlan = document.getElementById("miPlan");
+const miWsCheck = document.getElementById("miWsCheck");
+const miPlanCheck = document.getElementById("miPlanCheck");
+const miSettings = document.getElementById("miSettings");
+const settingsModal = document.getElementById("settings");
+const settingsClose = document.getElementById("settingsClose");
+const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
@@ -271,10 +298,45 @@ function renderEvent(ev) {
   }
 }
 
-function renderUserEcho(text, attachments) {
+function renderUserEcho(text) {
   const body = makeBlock("user-msg", "YOU");
-  body.textContent = text + (attachments && attachments.length ? "\n📎 " + attachments.join(", ") : "");
+  body.textContent = text;
 }
+
+/* ---------- panel visibility (workspace / plan) ---------- */
+
+// panelPrefs persists the user's panel toggles (localStorage
+// "co-shell-panels": {ws, plan}); absent or true means visible. The plan
+// panel additionally requires an active plan (lastPlan).
+const panelPrefs = (() => {
+  try { return JSON.parse(localStorage.getItem("co-shell-panels")) || {}; } catch { return {}; }
+})();
+let lastPlan = null;
+
+function savePanelPrefs() {
+  localStorage.setItem("co-shell-panels", JSON.stringify(panelPrefs));
+}
+
+function applyPanels() {
+  const showWs = panelPrefs.ws !== false;
+  layout.classList.toggle("no-ws", !showWs);
+  miWsCheck.classList.toggle("on", showWs);
+  const showPlan = panelPrefs.plan !== false && !!lastPlan;
+  planPanel.classList.toggle("hidden", !showPlan);
+  layout.classList.toggle("no-plan", !showPlan);
+  miPlanCheck.classList.toggle("on", panelPrefs.plan !== false);
+}
+
+miWs.onclick = () => {
+  panelPrefs.ws = panelPrefs.ws === false; // true/undefined -> false, false -> true
+  savePanelPrefs();
+  applyPanels();
+};
+miPlan.onclick = () => {
+  panelPrefs.plan = panelPrefs.plan === false;
+  savePanelPrefs();
+  applyPanels();
+};
 
 /* ---------- task plan panel ---------- */
 
@@ -291,13 +353,9 @@ function normStatus(s) {
 const STATUS_ICON = { pending: "○", in_progress: "◐", completed: "●", cancelled: "✕", failed: "✗" };
 
 function renderPlan(plan) {
-  if (!plan || !plan.steps || plan.steps.length === 0) {
-    planPanel.classList.add("hidden");
-    layout.classList.add("no-plan");
-    return;
-  }
-  planPanel.classList.remove("hidden");
-  layout.classList.remove("no-plan");
+  lastPlan = plan && plan.steps && plan.steps.length > 0 ? plan : null;
+  applyPanels();
+  if (!lastPlan) return;
   planBody.textContent = "";
 
   const title = document.createElement("div");
@@ -376,32 +434,14 @@ askInput.addEventListener("keydown", (e) => {
 const history = [];
 let histPos = -1;
 let histDraft = "";
-let attachments = [];
-
-function renderChips() {
-  chips.textContent = "";
-  for (const p of attachments) {
-    const chip = document.createElement("span");
-    chip.className = "chip";
-    const name = document.createElement("span");
-    name.textContent = p;
-    const x = document.createElement("button");
-    x.textContent = "✕";
-    x.onclick = () => { attachments = attachments.filter((a) => a !== p); renderChips(); };
-    chip.appendChild(name);
-    chip.appendChild(x);
-    chips.appendChild(chip);
-  }
-}
 
 function sendInput() {
   const text = input.value.trim();
-  if (!text && attachments.length === 0) return;
-  wsSend({ type: "input", text, attachments: attachments.slice() });
-  renderUserEcho(text, attachments);
-  if (text) { history.push(text); histPos = history.length; }
-  attachments = [];
-  renderChips();
+  if (!text) return;
+  wsSend({ type: "input", text });
+  renderUserEcho(text);
+  history.push(text);
+  histPos = history.length;
   input.value = "";
   autoGrow();
 }
@@ -551,21 +591,13 @@ sidebar.ondrop = (e) => {
   uploadFiles(e.dataTransfer.files, "");
 };
 
-attachBtn.onclick = () => fileInput.click();
-fileInput.onchange = async () => {
-  const paths = await uploadFiles(fileInput.files, "");
-  fileInput.value = "";
-  attachments = attachments.concat(paths);
-  renderChips();
-};
-
 document.getElementById("treeRefresh").onclick = loadTree;
 
 /* ---------- logo mosaic ---------- */
 
 // Pixel mosaic of the co-shell mascot (a little clam: upper/lower shell
-// halves with two big eyes on the body between them), hand-drawn on an
-// 8 rows x 16 cols grid. Intensity chars map to accent-color opacity;
+// halves with two big eyes on the body between them), hand-drawn on a
+// 7 rows x 16 cols grid. Intensity chars map to accent-color opacity;
 // spaces stay transparent.
 const LOGO_ART = [
   "     ######",
@@ -583,10 +615,10 @@ const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
   const rows = LOGO_ART.length;
   const cols = Math.max(...LOGO_ART.map((l) => l.length));
   // Square cells (uniform scaling keeps the logo's aspect ratio), sized up
-  // to 3px but shrunk to fit the sidebar width and to keep the mosaic no
-  // taller than the user input box.
-  const maxW = sidebar.clientWidth ? sidebar.clientWidth - 36 : 204;
-  const maxH = (input.offsetHeight || 38) - 10;
+  // to 3px. The logo lives in the bottom bar at the left of the input box
+  // (FEATURE-365), so its height must stay within the input row.
+  const maxW = 120;
+  const maxH = (input.offsetHeight || 38) - 4;
   const cell = Math.min(3, maxW / cols, maxH / rows);
   logo.style.gridTemplateColumns = "repeat(" + cols + ", " + cell + "px)";
   logo.style.gridAutoRows = cell + "px";
@@ -603,6 +635,16 @@ const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
   logo.appendChild(frag);
 })();
 
+/* ---------- settings modal ---------- */
+
+miSettings.onclick = () => settingsModal.classList.remove("hidden");
+settingsClose.onclick = () => settingsModal.classList.add("hidden");
+settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.add("hidden"); };
+setThemeMode.onchange = () => {
+  localStorage.setItem("co-shell-theme", setThemeMode.value);
+  applyTheme();
+};
+
 /* ---------- bootstrap ---------- */
 
 (async function boot() {
@@ -614,6 +656,7 @@ const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
     document.getElementById("ver").textContent = "v" + b.version + " [BUILD-" + b.build + "]";
   } catch { /* defaults stay zh */ }
   applyI18n();
+  applyPanels();
   loadTree();
   wsConnect();
 })();

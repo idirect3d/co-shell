@@ -1369,6 +1369,11 @@
   - 实现：新增 `docs/web-ui-design.md`——概述与 BUILD 演进索引、总体架构图、启动链路（serve 子命令解析/冲突检查/降级链）、web 包四文件逐一解剖（server/ws/session/open）、WS 通信协议全表（含 StreamEvent 类型速查与 phase 语义）、前端四文件模块地图（含流式累加器/rAF 节流/flex-shrink 教训/md.js 扩展边界）、事件流与 REPL 背景最小集、测试方法论（Go 单测/Node DOM shim/headless 截图/真机冒烟）、开发规范、扩展食谱（加 API/加消息/加事件渲染/加面板/auto-serve 决策链）、已知限制
   - 测试：纯文档；文中文件/符号/行号引用已对照 BUILD-423 代码逐一核实
 
+- [x] **FEATURE-365 web 界面三项改进：底部通栏 + 面板菜单 + 系统设置** ✅ 已完成 [BUILD-425]
+  - 背景：用户提出的三点 UI 改进——录入区延伸到页面最左端；去掉上传图标只留拖拽；右上角加下拉菜单控制面板可见性并提供系统设置入口
+  - 实现（仅 web/static 三文件，Go 零改动）：① 布局改为底部通栏——`#bottom` 跨满 `grid-column:1/-1`，logo 移入底栏最左端与录入框同一外框（右缘细分隔线），底栏上边界即工作区清单下边界；侧栏收缩为只占首行；② 删除 📎 附件按钮、fileInput 与附件 chips 全链路（input 消息只带 text；WS 协议 attachments 字段保留，服务端行为不变）；③ 顶栏新增 ☰ 悬停下拉菜单——🗂 工作区 / 📋 任务进展 开关（带 ✓ 状态，偏好持久化 localStorage `co-shell-panels`，`applyPanels()` 统一判定，`no-ws`/`no-plan` class 驱动 grid 列归零）+ ⚙️ 系统设置弹层（主题三态：跟随系统/深色/浅色——`co-shell-theme` 新增 auto 值，`matchMedia change` 实时跟随，`setTheme` 改为只应用不落盘避免覆盖 auto；顺带解决了此前"手动选择无法解除"的已知限制）；菜单 hover 桥接用 wrapper 纵向 padding 消除间隙
+  - 测试：Node DOM shim 断言 21 项全过（主题三态切换/OS 变更跟随/手动钉死、面板开关与持久化、无附件发送）；headless Chrome 截图三张（默认布局+菜单展开+计划面板、隐藏工作区、浅色主题+设置弹层）；`node --check` 通过；`go build` 通过
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
