@@ -58,7 +58,9 @@ function setTheme(name) {
 (function initTheme() {
   const saved = localStorage.getItem("co-shell-theme");
   if (saved === "dark" || saved === "light") return setTheme(saved);
-  const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  // No manual choice: follow the OS color scheme. When the browser cannot
+  // report one (no matchMedia), fall back to dark (FIX-363).
+  const dark = !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;
   setTheme(dark ? "dark" : "light");
 })();
 
