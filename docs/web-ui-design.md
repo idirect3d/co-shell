@@ -307,7 +307,7 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 - logo 马赛克在 `#bottom` 内最左端、与录入框同一外框（右缘细分隔线），
   贝壳图案手工绘制于 7×14 网格（`app.js` LOGO_ART，FEATURE-366 起换用
   穹顶+流苏中缝+下碗的新图样），`#` 格渲染 accent 色，高度动态约束
-  不超过输入行；同一图样的像素版即 `favicon.svg`（64 个 1×1 rect、
+  不超过输入行；同一图样的像素版即 `favicon.svg`（63 个 1×1 rect、
   `shape-rendering:crispEdges`、accent 青），改 LOGO_ART 时应同步重生成；
 - 面板可见性 class 驱动：`#layout.no-plan` 第三列归零、
   `#layout.no-ws` 第一列归零（两者可叠加，见 style.css 组合规则）；
