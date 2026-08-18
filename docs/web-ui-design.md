@@ -33,6 +33,7 @@ HTML/CSS/JS，无框架、无打包器）。
 | FEATURE-368 | 428 | logo 第二轮图样调整 + favicon 同步 |
 | FEATURE-369 | 429 | 计划面板白色高亮（条目仅首行）、logo 去分隔线等距、发送/打断合并为 ▶/⏸ 单按钮（`await_input`/`turn_start` 转向信号） |
 | FEATURE-370 | 430 | logo 第三版图样（logo.txt）+ favicon 同步、标签标题加 👀 前缀 |
+| FEATURE-371 | 431 | logo 换 12×12 近方形图样（logo.txt 第四版）；favicon 改 24×24 PNG（每字符 2×2 像素、空格透明），SVG 退役 |
 
 ---
 
@@ -66,7 +67,7 @@ HTML/CSS/JS，无框架、无打包器）。
 │   style.css   双主题 CSS 变量 + 全部样式                             │
 │   app.js      WS 客户端、事件渲染、目录树、上传、任务面板、ask、输入   │
 │   md.js       Markdown 子集渲染器（手写、DOM 构建、防 XSS）           │
-│   favicon.svg 像素风标签图标（FEATURE-366，与 logo 同一 7×14 图样）    │
+│   favicon.png 像素风标签图标（24×24，与 logo 同一图样，FEATURE-371）   │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -311,10 +312,10 @@ CSS Grid 双行三列（`style.css` `#layout`）：
   （`grid-column: 1/-1`），其上边界即工作区清单的下边界（FEATURE-365）；
 - logo 马赛克在 `#bottom` 内最左端、与录入框同一外框（无分隔线，
   图标两侧等距 16px——靠 `.logo` 对称 padding + `.bottom-main`
-  左 padding 归零实现，FEATURE-369），贝壳图案手工绘制于 7×14 网格（`app.js` LOGO_ART，FEATURE-366 起换用
-  穹顶+流苏中缝+下碗的新图样），`#` 格渲染 accent 色，高度动态约束
-  不超过输入行；同一图样的像素版即 `favicon.svg`（63 个 1×1 rect、
-  `shape-rendering:crispEdges`、accent 青），改 LOGO_ART 时应同步重生成；
+  左 padding 归零实现，FEATURE-369），贝壳图案手工绘制于 12×12 网格（`app.js` LOGO_ART，图样源头是仓库根的
+  logo.txt，FEATURE-371 起为上下留白的近方形构图），`#` 格渲染 accent 色，高度动态约束
+  不超过输入行；同一图样光栅化为 `favicon.png`（24×24，每字符 2×2 像素、
+  空格透明、accent 青，Python 标准库手写 PNG 编码生成），改 LOGO_ART/logo.txt 时应同步重生成；
 - 面板可见性 class 驱动：`#layout.no-plan` 第三列归零、
   `#layout.no-ws` 第一列归零（两者可叠加，见 style.css 组合规则）；
 - 顶栏右侧：连接状态 → 明暗主题按钮 → ☰ 下拉菜单（悬停展开：工作区/
