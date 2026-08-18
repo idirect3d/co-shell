@@ -1374,6 +1374,11 @@
   - 实现（仅 web/static 三文件，Go 零改动）：① 布局改为底部通栏——`#bottom` 跨满 `grid-column:1/-1`，logo 移入底栏最左端与录入框同一外框（右缘细分隔线），底栏上边界即工作区清单下边界；侧栏收缩为只占首行；② 删除 📎 附件按钮、fileInput 与附件 chips 全链路（input 消息只带 text；WS 协议 attachments 字段保留，服务端行为不变）；③ 顶栏新增 ☰ 悬停下拉菜单——🗂 工作区 / 📋 任务进展 开关（带 ✓ 状态，偏好持久化 localStorage `co-shell-panels`，`applyPanels()` 统一判定，`no-ws`/`no-plan` class 驱动 grid 列归零）+ ⚙️ 系统设置弹层（主题三态：跟随系统/深色/浅色——`co-shell-theme` 新增 auto 值，`matchMedia change` 实时跟随，`setTheme` 改为只应用不落盘避免覆盖 auto；顺带解决了此前"手动选择无法解除"的已知限制）；菜单 hover 桥接用 wrapper 纵向 padding 消除间隙
   - 测试：Node DOM shim 断言 21 项全过（主题三态切换/OS 变更跟随/手动钉死、面板开关与持久化、无附件发送）；headless Chrome 截图三张（默认布局+菜单展开+计划面板、隐藏工作区、浅色主题+设置弹层）；`node --check` 通过；`go build` 通过
 
+- [x] **FEATURE-366 web 界面四项改进：计划面板高亮 + 按钮对调 + 新 logo/favicon + 工作区路径标题** ✅ 已完成 [BUILD-426]
+  - 背景：365 之后的又一轮 UI 打磨——任务进展标题与条目需要更统一的视觉层级；菜单/主题按钮顺序不顺手；logo 换用用户新绘的 7×14 图样并需要浏览器标签图标；多标签页难以区分各自的工作区
+  - 实现：① 计划面板样式（style.css）——`.plan-title` 取消加粗、字号与条目一致（12.5px），仅靠 accent 高亮 + 加大下间距区分；`.plan-step .desc` 条目文字同步 accent 高亮；② index.html 顶栏 themeToggle 与 ☰ 菜单位置对调（菜单移到最右端）；③ `LOGO_ART` 整体替换为用户手绘的 7 行 × 14 列新图样（穹顶上壳 3 行 + 流苏中缝 1 行 + 下碗 3 行），并据此生成 `web/static/favicon.svg`（64 个 1×1 rect、`shape-rendering:crispEdges`、accent 青 #3fd6ef、随 embed.FS 内嵌），index.html 加 `<link rel="icon">`；④ `boot()` 用 `/api/bootstrap` 返回的 workspace 绝对路径设置 `document.title`——浏览器标签即"图标 + 工作区路径"，多实例一目了然（bootstrap 本已返回 workspace，Go 零改动）
+  - 测试：headless Chrome 截图验证（计划面板高亮与间距、按钮顺序、底栏新 logo）；favicon.svg 经 `<img>` 放大渲染目视确认轮廓与 7×14 图样逐格一致；harness 页将 `document.title` 写入 DOM 截图确认标题生效；`go vet`、`go test ./web/ ./agent/` 全绿
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
