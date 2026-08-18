@@ -202,6 +202,9 @@ aside {
 }
 
 .ev {
+  /* Never shrink: .stream is a flex column; without this, long sessions
+     compress every event into thin strips instead of scrolling. */
+  flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-panel);
