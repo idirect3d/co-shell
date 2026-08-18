@@ -595,18 +595,18 @@ document.getElementById("treeRefresh").onclick = loadTree;
 
 /* ---------- logo mosaic ---------- */
 
-// Pixel mosaic of the co-shell mascot (a little clam: upper/lower shell
-// halves with two big eyes on the body between them), hand-drawn on a
-// 7 rows x 16 cols grid. Intensity chars map to accent-color opacity;
-// spaces stay transparent.
+// Pixel mosaic of the co-shell mascot (a little clam: domed upper shell,
+// a fringed middle seam, and the lower bowl), hand-drawn on a 7 rows x
+// 14 cols grid (FEATURE-366). "#" cells render in accent color; spaces
+// stay transparent. The same grid is baked into favicon.svg.
 const LOGO_ART = [
-  "     ######",
-  "   ###    ###",
-  " ###        ###",
-  "     %%  %%",
-  "     %%  %%",
-  " ###        ###",
-  "   ##########",
+  "   #######",
+  " ###########",
+  " ### #### ###",
+  "# # # ## # # #",
+  "  # #### ###",
+  " ### #### ###",
+  "  ##########",
 ];
 const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
 
@@ -654,6 +654,9 @@ setThemeMode.onchange = () => {
     if (b.lang === "en") T = I18N.en;
     document.documentElement.lang = b.lang || "zh";
     document.getElementById("ver").textContent = "v" + b.version + " [BUILD-" + b.build + "]";
+    // Browser tab title = workspace path (FEATURE-366), so multiple
+    // co-shell tabs are distinguishable at a glance.
+    if (b.workspace) document.title = b.workspace;
   } catch { /* defaults stay zh */ }
   applyI18n();
   applyPanels();
