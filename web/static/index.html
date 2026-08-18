@@ -17,6 +17,21 @@
     <span class="conn" id="conn" title="WebSocket">
       <span class="conn-dot" id="connDot"></span><span id="connText"></span>
     </span>
+    <div class="menu-wrap" id="menuWrap">
+      <button class="icon-btn" id="menuBtn" title="menu">☰</button>
+      <div class="menu" id="menu">
+        <button class="menu-item" id="miWs">
+          <span class="mi-ico">🗂</span><span class="mi-label" data-i18n="workspace">工作区</span><span class="mi-check" id="miWsCheck">✓</span>
+        </button>
+        <button class="menu-item" id="miPlan">
+          <span class="mi-ico">📋</span><span class="mi-label" data-i18n="taskPlan">任务进展</span><span class="mi-check" id="miPlanCheck">✓</span>
+        </button>
+        <div class="menu-sep"></div>
+        <button class="menu-item" id="miSettings">
+          <span class="mi-ico">⚙️</span><span class="mi-label" data-i18n="settings">系统设置</span>
+        </button>
+      </div>
+    </div>
     <button class="icon-btn" id="themeToggle" title="theme">☾</button>
   </div>
 </header>
@@ -26,13 +41,10 @@
     <div class="panel-head">
       <span data-i18n="workspace">工作区</span>
       <span class="panel-actions">
-        <button class="icon-btn sm" id="attachBtn" title="attach">📎</button>
         <button class="icon-btn sm" id="treeRefresh" title="refresh">⟳</button>
       </span>
     </div>
     <div id="tree" class="tree"></div>
-    <div id="logo" class="logo" title="co-shell"></div>
-    <input type="file" id="fileInput" multiple hidden>
   </aside>
 
   <section id="stream-wrap">
@@ -45,19 +57,21 @@
   </aside>
 
   <footer id="bottom">
-    <div id="askArea" class="ask-area hidden">
-      <div class="ask-hint" id="askHint"></div>
-      <div class="ask-keys" id="askKeys"></div>
-      <div class="ask-line hidden" id="askLineWrap">
-        <input type="text" id="askInput" autocomplete="off">
-        <button class="btn" id="askSend" data-i18n="reply">回复</button>
+    <div id="logo" class="logo" title="co-shell"></div>
+    <div class="bottom-main">
+      <div id="askArea" class="ask-area hidden">
+        <div class="ask-hint" id="askHint"></div>
+        <div class="ask-keys" id="askKeys"></div>
+        <div class="ask-line hidden" id="askLineWrap">
+          <input type="text" id="askInput" autocomplete="off">
+          <button class="btn" id="askSend" data-i18n="reply">回复</button>
+        </div>
       </div>
-    </div>
-    <div id="chips" class="chips"></div>
-    <div class="input-row">
-      <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
-      <button class="btn danger ghost" id="interruptBtn" data-i18n="interrupt" title="ESC">打断</button>
-      <button class="btn primary" id="sendBtn" data-i18n="send">发送</button>
+      <div class="input-row">
+        <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
+        <button class="btn danger ghost" id="interruptBtn" data-i18n="interrupt" title="ESC">打断</button>
+        <button class="btn primary" id="sendBtn" data-i18n="send">发送</button>
+      </div>
     </div>
   </footer>
 </main>
@@ -66,6 +80,25 @@
   <div class="preview-box">
     <button class="icon-btn preview-close" id="previewClose">✕</button>
     <img id="previewImg" alt="">
+  </div>
+</div>
+
+<div id="settings" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span data-i18n="settings">系统设置</span>
+      <button class="icon-btn sm" id="settingsClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="set-row">
+        <span data-i18n="themeMode">主题</span>
+        <select id="setThemeMode">
+          <option value="auto" data-i18n="themeAuto">跟随系统</option>
+          <option value="dark" data-i18n="themeDark">深色</option>
+          <option value="light" data-i18n="themeLight">浅色</option>
+        </select>
+      </label>
+    </div>
   </div>
 </div>
 
