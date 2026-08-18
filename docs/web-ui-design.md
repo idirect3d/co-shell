@@ -32,6 +32,7 @@ HTML/CSS/JS，无框架、无打包器）。
 | FIX-367 | 427 | 修复输入框 ↑↓ 无法翻历史、↓ 误清草稿（首行/末行判定 + draft 哨兵） |
 | FEATURE-368 | 428 | logo 第二轮图样调整 + favicon 同步 |
 | FEATURE-369 | 429 | 计划面板白色高亮（条目仅首行）、logo 去分隔线等距、发送/打断合并为 ▶/⏸ 单按钮（`await_input`/`turn_start` 转向信号） |
+| FEATURE-370 | 430 | logo 第三版图样（logo.txt）+ favicon 同步、标签标题加 👀 前缀 |
 
 ---
 
@@ -366,8 +367,9 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 11. **系统设置弹层**（FEATURE-365）：`#settings` modal，目前含主题
     三态下拉；新增客户端设置项往这里加。
 12. **boot**：拉 `/api/bootstrap` → 用 workspace 设置
-    `document.title`（浏览器标签 = favicon + 工作区路径，FEATURE-366）
-    → applyI18n → applyPanels → loadTree → wsConnect。
+    `document.title` = `"👀 " + 路径`（浏览器标签 = favicon + 👀 +
+    工作区路径，FEATURE-366/370）→ applyI18n → applyPanels →
+    loadTree → wsConnect。
 
 ### 6.4 事件渲染机制（app.js renderEvent，FEATURE-362 重构）
 
