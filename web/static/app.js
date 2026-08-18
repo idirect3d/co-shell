@@ -705,9 +705,9 @@ setThemeMode.onchange = () => {
     if (b.lang === "en") T = I18N.en;
     document.documentElement.lang = b.lang || "zh";
     document.getElementById("ver").textContent = "v" + b.version + " [BUILD-" + b.build + "]";
-    // Browser tab title = 👀 + workspace path (FEATURE-366/370), so
-    // multiple co-shell tabs are distinguishable at a glance.
-    if (b.workspace) document.title = "👀 " + b.workspace;
+    // Browser tab title = workspace path (FEATURE-366), so multiple
+    // co-shell tabs are distinguishable at a glance.
+    if (b.workspace) document.title = b.workspace;
   } catch { /* defaults stay zh */ }
   applyI18n();
   setRunning(false); // apply localized button title
