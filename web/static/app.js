@@ -641,17 +641,23 @@ document.getElementById("treeRefresh").onclick = loadTree;
 /* ---------- logo mosaic ---------- */
 
 // Pixel mosaic of the co-shell mascot (a little clam: domed upper shell,
-// a fringed middle seam, and the lower bowl), hand-drawn on a 7 rows x
-// 14 cols grid (FEATURE-366). "#" cells render in accent color; spaces
-// stay transparent. The same grid is baked into favicon.svg.
+// a fringed middle seam, and the lower bowl), hand-drawn on a 12 rows x
+// 12 cols grid (logo.txt, FEATURE-371). "#" cells render in accent color;
+// spaces stay transparent. The same grid is rasterized into favicon.png
+// (2x2 px per cell = 24x24 icon).
 const LOGO_ART = [
-  "   #######",
-  "  ##########",
-  " ############",
-  "## # # # # ###",
-  "   # ### ###",
-  " ###  ##  ###",
-  "  ##########",
+  "",
+  "",
+  "",
+  "   #####",
+  "  #######",
+  " ##########",
+  "## ## ## ###",
+  "   ## ## #",
+  " ##########",
+  "  ########",
+  "",
+  "",
 ];
 const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
 
