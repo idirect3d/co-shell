@@ -1264,9 +1264,9 @@ iterationLoop:
 				if a.showTool {
 					var argsMap map[string]interface{}
 					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-						cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, buildToolSummary(tc.Name, argsMap)))
+						cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, buildToolSummary(tc.Name, argsMap)), PhaseInput))
 					} else {
-						cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, tc.Name))
+						cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, tc.Name), PhaseInput))
 					}
 				}
 
@@ -1360,7 +1360,7 @@ iterationLoop:
 					switch tc.Name {
 					case "attempt_completion", "track_task_progress", "view_task_plan":
 						if result != "" {
-							cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, result))
+							cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, result), PhaseResult))
 						}
 					default:
 						if execErr != nil {
@@ -1392,7 +1392,7 @@ iterationLoop:
 
 				// Show tool call output if enabled (for all tools)
 				if a.showToolOutput && result != "" {
-					cb(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, fmt.Sprintf("  Result:\n%s", result)))
+					cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, fmt.Sprintf("  Result:\n%s", result)), PhaseResult))
 				}
 
 				// If the result is empty, provide a clear message to the LLM

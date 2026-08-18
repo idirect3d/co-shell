@@ -67,6 +67,17 @@ const (
 // the plan panel).
 const MetaKeyPlan = "plan"
 
+// MetaKeyPhase marks the phase of an EventToolCall within one tool
+// invocation (FEATURE-362): PhaseInput carries the pre-execution summary,
+// PhaseResult carries the post-execution result. Web/JSON consumers use it
+// to merge input+result into a single block; the LineRenderer ignores Meta,
+// so terminal output is unaffected.
+const (
+	MetaKeyPhase = "phase"
+	PhaseInput   = "input"
+	PhaseResult  = "result"
+)
+
 // EventRenderer is the single sink interface for structured stream events
 // (FEATURE-307b). LineRenderer renders events as decorated terminal lines;
 // StreamRenderer renders them as JSON-Lines for machine consumption.
@@ -78,6 +89,17 @@ type EventRenderer interface {
 // and text. Meta is left nil.
 func NewStreamEvent(typ string, ch ChannelID, lv Level, text string) StreamEvent {
 	return StreamEvent{Type: typ, Chan: ch, Level: lv, Text: text}
+}
+
+// withPhase returns ev with Meta[MetaKeyPhase] set (FEATURE-362). It exists
+// so tool-call emitters can tag input/result without breaking the
+// NewStreamEvent nil-Meta shape that existing tests rely on.
+func withPhase(ev StreamEvent, phase string) StreamEvent {
+	if ev.Meta == nil {
+		ev.Meta = map[string]string{}
+	}
+	ev.Meta[MetaKeyPhase] = phase
+	return ev
 }
 
 // InfoEvent builds an EventInfo event at LevelInfo (rendered verbatim).
