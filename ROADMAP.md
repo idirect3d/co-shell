@@ -1347,6 +1347,12 @@
   - 实现（仅 web/static/app.js 的 LOGO_ART 两行）：第 1 行 `      ####` → `     ######`（加宽居中），第 2 行 `    ##    ##` → `   ###    ###`（两侧外鼓一格）
   - 测试：headless Chrome 截图放大验证轮廓（上壳饱满、眼睛与下壳不变）
 
+- [x] **FIX-361 web 事件流消息被压缩成细条、无法滚动** ✅ 已完成 [BUILD-420]
+  - 背景：307c web 界面长会话时，事件区每条消息被挤成一条细带、无滚动条、内容完全不可读（用户截图反馈）
+  - 根因：`.stream` 是 `display:flex; flex-direction:column` 容器，子元素 `.ev` 默认 `flex-shrink:1`——内容总高超过容器时，flex 布局优先等比压缩子元素去填满容器，溢出根本不发生，`overflow-y:auto` 永远不会出现滚动条
+  - 修复（仅 web/static/style.css 一处）：`.ev` 增加 `flex-shrink: 0`，子元素保持自然高度、容器正常溢出滚动
+  - 测试：headless Chrome 加载真实 style.css 的测试页（60 条事件、容器 300px 高）断言 `scrollHeight > clientHeight` 且首条事件保持自然高度、`scrollTop` 可滚到底
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
