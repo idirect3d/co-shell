@@ -2,7 +2,7 @@
 
 > 读者对象：后续接手 web 界面（`co-shell serve`）新功能开发或功能改进的工程师。
 > 本文档自包含——不需要再查阅其他资料即可开展工作。文中所有 `文件:行号` 引用以
-> BUILD-429（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
+> BUILD-432（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
 
 ---
 
@@ -34,6 +34,7 @@ HTML/CSS/JS，无框架、无打包器）。
 | FEATURE-369 | 429 | 计划面板白色高亮（条目仅首行）、logo 去分隔线等距、发送/打断合并为 ▶/⏸ 单按钮（`await_input`/`turn_start` 转向信号） |
 | FEATURE-370 | 430 | logo 第三版图样（logo.txt）+ favicon 同步、标签标题加 👀 前缀 |
 | FEATURE-371 | 431 | logo 换 12×12 近方形图样（logo.txt 第四版）；favicon 改 24×24 PNG（每字符 2×2 像素、空格透明），SVG 退役 |
+| FIX-372 | 432 | 标签标题去掉 👀 前缀，回归裸工作区路径 |
 
 ---
 
@@ -368,8 +369,8 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 11. **系统设置弹层**（FEATURE-365）：`#settings` modal，目前含主题
     三态下拉；新增客户端设置项往这里加。
 12. **boot**：拉 `/api/bootstrap` → 用 workspace 设置
-    `document.title` = `"👀 " + 路径`（浏览器标签 = favicon + 👀 +
-    工作区路径，FEATURE-366/370）→ applyI18n → applyPanels →
+    `document.title`（浏览器标签 = favicon + 工作区路径，FEATURE-366；
+    FIX-372 起为裸路径无表情前缀）→ applyI18n → applyPanels →
     loadTree → wsConnect。
 
 ### 6.4 事件渲染机制（app.js renderEvent，FEATURE-362 重构）
