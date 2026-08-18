@@ -343,7 +343,10 @@ CSS Grid 双行三列（`style.css` `#layout`）：
    （Enter/c/a/g/d/n），line 模式渲染输入框。
 8. **输入行**：Enter 发送 / Shift+Enter 换行 / ↑↓ 历史 / 自动增高。
    FEATURE-365 起不再支持附件（📎 按钮与 chips 已移除），input 消息只
-   带 `text`。
+   带 `text`。历史导航（FIX-367）：`histPos === history.length` 是
+   "未发送草稿"哨兵；↑ 仅在光标位于首行、↓ 仅在末行时才翻历史（多行
+   草稿内垂直移光标不受影响），唤回条目的光标停在末尾，翻到最新一条
+   后再按 ↓ 恢复草稿；历史为空时 ↑↓ 完全不碰输入内容。
 9. **目录树**：`loadTree/treeNode`，目录点击展开/折叠；文件点击：
    图片 → 浮层预览（`/api/file`），其他 → `/api/open`；悬停 ⌖ 按钮
    → `/api/reveal`。
