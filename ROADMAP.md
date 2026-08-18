@@ -1364,6 +1364,11 @@
   - 修复（仅 app.js initTheme 一行）：`window.matchMedia` 不存在（浏览器无法上报系统色彩方案）时兜底深色；index.html 的 `data-theme="dark"` 首屏防抖属性本就一致
   - 测试：Node DOM shim 模拟无 matchMedia 环境加载真实 app.js，断言初始化后 `data-theme="dark"`
 
+- [x] **FEATURE-364 Web UI 完整设计文档** ✅ 已完成 [BUILD-424]
+  - 背景：web 界面（307c 起，历经 FEATURE-359/360/362、FIX-361/363）已具规模，需要一份自包含文档让接手者不借助其他资料即可开发新功能或改进
+  - 实现：新增 `docs/web-ui-design.md`——概述与 BUILD 演进索引、总体架构图、启动链路（serve 子命令解析/冲突检查/降级链）、web 包四文件逐一解剖（server/ws/session/open）、WS 通信协议全表（含 StreamEvent 类型速查与 phase 语义）、前端四文件模块地图（含流式累加器/rAF 节流/flex-shrink 教训/md.js 扩展边界）、事件流与 REPL 背景最小集、测试方法论（Go 单测/Node DOM shim/headless 截图/真机冒烟）、开发规范、扩展食谱（加 API/加消息/加事件渲染/加面板/auto-serve 决策链）、已知限制
+  - 测试：纯文档；文中文件/符号/行号引用已对照 BUILD-423 代码逐一核实
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
