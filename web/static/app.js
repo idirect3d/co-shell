@@ -240,7 +240,13 @@ function renderEvent(ev) {
     scrollStream();
     return;
   }
-  if (ev.type === "done") { curLLM = curThinking = curTool = null; return; }
+  if (ev.type === "done") {
+    curLLM = curThinking = curTool = null;
+    // An LLM iteration finished — the agent may have switched git branches,
+    // so refresh the sidebar branch label without a manual reload.
+    refreshBranch();
+    return;
+  }
 
   const streaming = ev.type === "content_chunk" || ev.type === "thinking_chunk";
   if (streaming) {
@@ -650,7 +656,7 @@ const LOGO_ART = [
   "",
   "",
   "   #####",
-  "  #######",
+  "  ########",
   " ##########",
   "## ## ## ###",
   "   ## ## #",
@@ -698,6 +704,18 @@ setThemeMode.onchange = () => {
 
 /* ---------- bootstrap ---------- */
 
+// refreshBranch re-fetches /api/bootstrap and updates the sidebar title's
+// git branch (e.g. "工作区 · main"). Called on page load and after every
+// LLM iteration (done event) so a branch switch made by the agent is
+// reflected without a manual reload.
+async function refreshBranch() {
+  try {
+    const resp = await fetch("/api/bootstrap");
+    const b = await resp.json();
+    if (b.branch) document.getElementById("wsBranch").textContent = b.branch;
+  } catch { /* keep the current branch on failure */ }
+}
+
 (async function boot() {
   try {
     const resp = await fetch("/api/bootstrap");
@@ -708,6 +726,9 @@ setThemeMode.onchange = () => {
     // Browser tab title = workspace path (FEATURE-366), so multiple
     // co-shell tabs are distinguishable at a glance.
     if (b.workspace) document.title = b.workspace;
+    // Sidebar title shows the current git branch at the right edge of the
+    // panel head (e.g. "工作区 ⟳   main").
+    if (b.branch) document.getElementById("wsBranch").textContent = b.branch;
   } catch { /* defaults stay zh */ }
   applyI18n();
   setRunning(false); // apply localized button title

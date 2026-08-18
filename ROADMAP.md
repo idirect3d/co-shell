@@ -1410,6 +1410,11 @@
   - 修复（仅 app.js 一行）：`document.title = b.workspace`
   - 测试：harness 断言 `document.title === "/tmp/ws"`（裸路径、无前缀）通过
 
+- [x] **FEATURE-373 web 工作区标题栏显示分支名 + UI 改进** ✅ 已完成 [BUILD-434]
+  - 背景：工作区标题栏（侧栏 panel-head）需要显示当前 git 分支名，便于多分支开发时一眼识别；分支名应在 LLM 迭代完成时自动刷新；标题栏 UI 需优化（刷新按钮去边框放大紧贴工作区、分支名靠右截断）
+  - 实现：① 服务端 `web/server.go` 新增 `gitBranch(root)` 读取 `.git/HEAD` 解析分支名，`handleBootstrap` 返回 `branch` 字段；② 前端 `app.js` 新增 `refreshBranch()`，页面加载与 `done` 事件（LLM 迭代完成）时重新获取并更新 `#wsBranch`；③ `index.html` 调整标题栏结构（刷新按钮移入 `.ws-title` 组紧贴工作区、分支名单独靠右）；④ `style.css` 刷新按钮去边框放大一倍（24px）、分支名靠右 + 超长截断（`text-overflow: ellipsis`）、刷新按钮像素级垂直对齐（`translateY` 微调）
+  - 测试：`TestGitBranch`（分支 ref/无仓库/detached HEAD 三子测试）+ `TestBootstrap` 验证 branch 字段；headless 浏览器验证分支名显示、`done` 事件触发刷新、超长分支名截断、刷新按钮像素级对齐；`go vet/test ./web/`、`node --check` 全绿
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

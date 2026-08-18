@@ -211,12 +211,56 @@ func TestFileRead(t *testing.T) {
 	}
 }
 
-// TestBootstrap verifies the bootstrap payload carries the configured lang.
+// TestBootstrap verifies the bootstrap payload carries the configured lang
+// and the current git branch (from .git/HEAD in the workspace root).
 func TestBootstrap(t *testing.T) {
-	_, ts, _ := newTestServer(t)
+	_, ts, root := newTestServer(t)
+	// newTestServer already creates a .git dir; write a HEAD so the branch
+	// is resolvable.
+	if err := os.WriteFile(filepath.Join(root, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	var b map[string]string
 	getJSON(t, ts.URL+"/api/bootstrap", &b)
 	if b["lang"] != "zh" {
 		t.Errorf("bootstrap lang = %q, want zh", b["lang"])
 	}
+	if b["branch"] != "main" {
+		t.Errorf("bootstrap branch = %q, want main", b["branch"])
+	}
+}
+
+// TestGitBranch verifies branch detection from .git/HEAD: a normal branch
+// ref, a missing HEAD (no repo), and a detached HEAD (raw commit hash).
+func TestGitBranch(t *testing.T) {
+	t.Run("branch ref", func(t *testing.T) {
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".git"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if got := gitBranch(root); got != "main" {
+			t.Errorf("gitBranch = %q, want main", got)
+		}
+	})
+	t.Run("no repo", func(t *testing.T) {
+		root := t.TempDir()
+		if got := gitBranch(root); got != "" {
+			t.Errorf("gitBranch = %q, want empty", got)
+		}
+	})
+	t.Run("detached head", func(t *testing.T) {
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".git"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".git", "HEAD"), []byte("a1b2c3d4e5f6\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if got := gitBranch(root); got != "" {
+			t.Errorf("gitBranch = %q, want empty", got)
+		}
+	})
 }

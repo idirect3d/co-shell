@@ -333,7 +333,25 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		"version":   s.opts.Version,
 		"build":     s.opts.Build,
 		"workspace": s.root,
+		"branch":    gitBranch(s.root),
 	})
+}
+
+// gitBranch returns the current git branch of the workspace root, or "" when
+// the workspace is not inside a git repository. It reads .git/HEAD directly
+// (no git subprocess) and parses the "ref: refs/heads/<name>" form; detached
+// HEAD (a raw commit hash) yields "".
+func gitBranch(root string) string {
+	data, err := os.ReadFile(filepath.Join(root, ".git", "HEAD"))
+	if err != nil {
+		return ""
+	}
+	const prefix = "ref: refs/heads/"
+	s := strings.TrimSpace(string(data))
+	if !strings.HasPrefix(s, prefix) {
+		return ""
+	}
+	return strings.TrimPrefix(s, prefix)
 }
 
 // treeNode is one node of the workspace directory tree JSON.
