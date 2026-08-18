@@ -1359,6 +1359,11 @@
   - 实现：① Go 侧 `agent/events.go` 新增 `MetaKeyPhase`/`PhaseInput`/`PhaseResult` 与 `withPhase()`，`run_stream.go` 四处 `EventToolCall` 发射点打上 input/result 标记（Meta 被 LineRenderer 忽略，终端行为与 golden 测试零影响）；② 新增 `web/static/md.js`——手写 Markdown 子集渲染器（标题/粗斜体/删除线/行内代码/围栏代码块/管道表格/列表/引用/分隔线/链接），纯 DOM API 构建节点、不喂 innerHTML，天然防 XSS；`_emphasis_` 要求非单词字符相邻，snake_case 标识符不误伤；③ `app.js` 流式块改为 `{body, raw, raf}` 累加器，每片段整体重解析（rAF 节流），半截语法（未闭合围栏等）随下一片段自愈；`tool_call_stream` 片段累积进当前 TOOL 块，phase=input 替换为干净摘要，phase=result 追加并 MD 渲染，同块展示；command/output 终端回显保持等宽纯文本；④ `style.css` 补 `.ev-body.md` 下 MD 元素样式（双主题沿用 CSS 变量）
   - 测试：Node + 最小 DOM shim 加载真实 md.js/app.js、驱动假事件断言 17 项全过（块数、合并、MD 结构、snake_case 保护）；headless Chrome 截图目视确认（过程中借此发现并修复标题分支漏 `i++` 的死循环）；`go build/vet/test` 全绿；audit 持平基线；`git diff go.mod go.sum` 为空
 
+- [x] **FIX-363 web 主题兜底改为深色** ✅ 已完成 [BUILD-422]
+  - 背景：web 界面主题初始化优先级为 localStorage 手动选择 → 跟随 OS（prefers-color-scheme）→ 兜底；原兜底为浅色，与产品深色主基调不一致
+  - 修复（仅 app.js initTheme 一行）：`window.matchMedia` 不存在（浏览器无法上报系统色彩方案）时兜底深色；index.html 的 `data-theme="dark"` 首屏防抖属性本就一致
+  - 测试：Node DOM shim 模拟无 matchMedia 环境加载真实 app.js，断言初始化后 `data-theme="dark"`
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
