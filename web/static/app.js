@@ -619,11 +619,11 @@ document.getElementById("treeRefresh").onclick = loadTree;
 // stay transparent. The same grid is baked into favicon.svg.
 const LOGO_ART = [
   "   #######",
-  " ###########",
-  " ### #### ###",
-  "# # # ## # # #",
-  "  # #### ###",
-  " ### #### ###",
+  "  ##########",
+  " #### ### ###",
+  "## # # # # ###",
+  "   # ### ###",
+  " #### ### ###",
   "  ##########",
 ];
 const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
