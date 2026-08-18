@@ -1400,6 +1400,11 @@
   - 实现：`LOGO_ART` 七行按 logo.txt 整体替换；`favicon.svg` 同步重生成（63 格）；`boot()` 的 `document.title` 改为 `"👀 " + workspace`
   - 测试：favicon 放大渲染逐格比对一致；harness 断言 `document.title === "👀 /tmp/ws"` 通过；底栏 logo 截图目视确认新轮廓；`node --check`、`go build` 通过
 
+- [x] **FEATURE-371 logo 12×12 近方形版 + favicon 改 24×24 PNG** ✅ 已完成 [BUILD-431]
+  - 背景：用户更新 logo.txt 为 12×12 带上下留白的新图样；favicon 要求按字符版光栅化——一个字符占 4 像素正方形（2×2px）、空格透明、最终 24×24 单图标
+  - 实现：`LOGO_ART` 换 12×12 网格（含空行留白）；`favicon.png` 由 logo.txt 逐格光栅化（2×2px/字符、accent 青 RGBA、纯 Python 标准库手写 PNG 编码，130 字节）；index.html 图标链接 svg→png，`favicon.svg` 删除
+  - 测试：favicon.png 原尺寸与放大目视逐格确认与 logo.txt 一致（透明留白正确）；headless 截图确认底栏 12×12 logo 新构图与等距；`node --check`、`go build` 通过
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
