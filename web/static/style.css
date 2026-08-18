@@ -186,13 +186,15 @@ aside {
 
 /* ---------- logo mosaic ---------- */
 
+/* No divider between the logo and the input box; the logo keeps equal
+   breathing room on both sides (16px here + .bottom-main padding-left: 0,
+   so the right gap is the logo's own padding-right). */
 .logo {
   flex: none;
   display: grid;
   justify-content: center;
   align-content: center;
-  padding: 4px 10px;
-  border-right: 1px solid var(--border);
+  padding: 4px 16px;
   overflow: hidden;
 }
 .logo > div { background: var(--accent); }
@@ -336,9 +338,9 @@ aside {
 
 .plan-body { flex: 1; overflow: auto; padding: 10px 12px; }
 
-/* Plan title and step text share the body font size; they stand out only
-   through accent-color highlighting and extra spacing (FEATURE-366). */
-.plan-title { font-size: 12.5px; color: var(--accent); text-shadow: var(--glow); margin-bottom: 10px; }
+/* Plan title and step first lines stand out in plain foreground (white);
+   continuation lines of a step stay dim (FEATURE-369). */
+.plan-title { font-size: 12.5px; color: var(--fg); margin-bottom: 10px; }
 .plan-desc { color: var(--fg-dim); font-size: 12px; margin-bottom: 10px; white-space: pre-wrap; }
 
 .plan-step {
@@ -352,7 +354,8 @@ aside {
   align-items: flex-start;
 }
 .plan-step .st { flex: none; width: 16px; text-align: center; font-family: ui-monospace, Menlo, monospace; }
-.plan-step .desc { white-space: pre-wrap; word-break: break-word; color: var(--accent); }
+.plan-step .desc { white-space: pre-wrap; word-break: break-word; color: var(--fg-dim); }
+.plan-step .desc .hl { color: var(--fg); }
 .plan-step.pending .st { color: var(--fg-faint); }
 .plan-step.in_progress { border-color: var(--accent); }
 .plan-step.in_progress .st { color: var(--accent); text-shadow: var(--glow); }
@@ -376,7 +379,7 @@ aside {
 .bottom-main {
   flex: 1;
   min-width: 0;
-  padding: 8px 14px 10px;
+  padding: 8px 14px 10px 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -448,6 +451,11 @@ aside {
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .btn.primary:hover { background: var(--accent); color: var(--bg); }
+/* Merged send/interrupt button: while a turn runs it shows ⏸ in the error
+   color (click = interrupt), otherwise ▶ in accent (click = send). */
+#sendBtn { min-width: 52px; }
+#sendBtn.run { border-color: var(--err); color: var(--err); background: none; }
+#sendBtn.run:hover { background: var(--err); color: var(--bg); }
 .btn.danger.ghost:hover { border-color: var(--err); color: var(--err); }
 .btn.ghost { background: none; }
 .btn.sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
