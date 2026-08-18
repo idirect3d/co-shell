@@ -134,10 +134,29 @@ const CHAN_LABEL = {
   wizard: "WIZ", debug: "DBG", bridge: "BRG", subagent: "SUB",
 };
 
-let curLLM = null;      // current streaming llm block body
+// Streaming blocks: { body, raw, raf, hasResult? }. raw accumulates the
+// undecorated text; the body is re-rendered (markdown) via rAF throttle.
+let curLLM = null;      // current streaming llm block
 let curThinking = null; // current streaming thinking block
+let curTool = null;     // current tool block (one block per invocation)
 
 function scrollStream() { stream.scrollTop = stream.scrollHeight; }
+
+function newStreamBlock(cls, label) {
+  return { body: makeBlock(cls, label), raw: "", raf: 0, hasResult: false };
+}
+
+// scheduleMd re-renders a streaming block as markdown, throttled to one
+// render per animation frame no matter how fast chunks arrive.
+function scheduleMd(b) {
+  if (b.raf) return;
+  b.raf = requestAnimationFrame(() => {
+    b.raf = null;
+    b.body.classList.add("md");
+    mdRender(b.body, b.raw);
+    scrollStream();
+  });
+}
 
 function makeBlock(cls, label) {
   const box = document.createElement("div");
@@ -188,24 +207,66 @@ function renderEvent(ev) {
     scrollStream();
     return;
   }
-  if (ev.type === "done") { curLLM = curThinking = null; return; }
+  if (ev.type === "done") { curLLM = curThinking = curTool = null; return; }
 
   const streaming = ev.type === "content_chunk" || ev.type === "thinking_chunk";
   if (streaming) {
     if (ev.type === "content_chunk") {
-      if (!curLLM) { curLLM = makeBlock("llm", "LLM"); curThinking = null; }
-      curLLM.textContent += ev.text || "";
+      if (!curLLM) { curLLM = newStreamBlock("llm", "LLM"); curThinking = null; curTool = null; }
+      curLLM.raw += ev.text || "";
+      scheduleMd(curLLM);
     } else {
-      if (!curThinking) { curThinking = makeBlock("thinking", "THINK"); curLLM = null; }
-      curThinking.textContent += ev.text || "";
+      if (!curThinking) { curThinking = newStreamBlock("thinking", "THINK"); curLLM = null; curTool = null; }
+      curThinking.raw += ev.text || "";
+      scheduleMd(curThinking);
     }
     scrollStream();
     return;
   }
+
+  // FEATURE-362: one block per tool invocation. Streaming arg fragments
+  // accumulate; the input summary replaces them; the result appends.
+  if (ev.type === "tool_call_stream") {
+    if (!curTool) curTool = newStreamBlock("tool", "TOOL");
+    curTool.raw += ev.text || "";
+    curTool.body.classList.remove("md");
+    curTool.body.textContent = curTool.raw; // partial args stay plain while typing
+    scrollStream();
+    return;
+  }
+  if (ev.type === "tool_call" || (ev.type === "error" && ev.chan === "tool")) {
+    const phase = ev.meta && ev.meta.phase;
+    const fresh = !curTool || curTool.hasResult;
+    if (phase === "input" || (!phase && ev.type === "tool_call" && !fresh && !curTool.raw)) {
+      // pre-execution summary: replace the raw streamed fragments
+      if (fresh) curTool = newStreamBlock("tool", "TOOL");
+      curTool.raw = ev.text || "";
+      curTool.hasResult = false;
+      curTool.body.classList.remove("md");
+      curTool.body.textContent = curTool.raw;
+    } else {
+      // result / tool error: append into the same block
+      if (!curTool) curTool = newStreamBlock("tool", "TOOL");
+      if (ev.type === "error") curTool.body.parentElement.classList.add("level-error");
+      const t = (ev.text || "").replace(/^\s*Result:\n/, "");
+      curTool.raw += (curTool.raw ? "\n\n" : "") + t;
+      curTool.hasResult = true;
+      scheduleMd(curTool);
+    }
+    curLLM = curThinking = null;
+    scrollStream();
+    return;
+  }
+
   curLLM = curThinking = null;
   const label = CHAN_LABEL[ev.chan] || (ev.chan || "SYS").toUpperCase();
   const body = makeBlock(eventClass(ev), ev.type === "ui_text" ? "SYS" : label);
-  body.textContent = ev.text || "";
+  if (ev.type === "content" || ev.type === "thinking") {
+    body.classList.add("md");
+    mdRender(body, ev.text || "");
+  } else {
+    body.textContent = ev.text || "";
+  }
 }
 
 function renderUserEcho(text, attachments) {
