@@ -1390,6 +1390,11 @@
   - 实现：`app.js` LOGO_ART 七行整体替换；`favicon.svg` 按新网格重新生成（63 格）
   - 测试：favicon 经 `<img>` 放大渲染逐格目视比对与新图样一致；`node --check` 通过
 
+- [x] **FEATURE-369 web 界面三项基础改进：面板白色高亮 + logo 等距 + 播放/暂停合并按钮** ✅ 已完成 [BUILD-429]
+  - 背景：366 的 accent 青色高亮在任务面板上过于花哨；logo 与输入框之间的分隔线多余；发送/打断两个按钮占空间且语义互斥，可合并
+  - 实现：① 计划面板高亮改纯前景色（白）——`.plan-title` 去 glow 用 `--fg`；条目仅首行高亮（renderPlan 按首个 `\n` 拆分，首行包 `.hl` span），续行回退 `--fg-dim`；② `.logo` 去掉右缘分隔线，padding 对称 16px + `.bottom-main` 左 padding 归零，图标两侧等距；③ 发送/打断合并为单按钮 ▶/⏸——`running` 状态前端在 sendInput 立即置位，精确边界由 Go 侧 WebSession.ReadLine 在阻塞前/取到输入后直发 `await_input`/`turn_start` 事件（web 本地常量，不经 renderer，TUI/stdio 无感）；运行中点击发 interrupt、空闲点击发送；WS 断开复位；运行态按钮转 error 红色样式
+  - 测试：headless Chrome harness 驱动真实 app.js + 可捕获 WS stub，13 项断言全过（按钮状态机五态转换、interrupt 消息发出、空输入不发送、条目首行/续行配色、logo 无边线与底栏零左 padding）；`go vet/test ./web/` 全绿；`node --check` 通过
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

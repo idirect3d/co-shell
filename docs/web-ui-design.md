@@ -2,7 +2,7 @@
 
 > 读者对象：后续接手 web 界面（`co-shell serve`）新功能开发或功能改进的工程师。
 > 本文档自包含——不需要再查阅其他资料即可开展工作。文中所有 `文件:行号` 引用以
-> BUILD-426（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
+> BUILD-429（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
 
 ---
 
@@ -29,6 +29,9 @@ HTML/CSS/JS，无框架、无打包器）。
 | FEATURE-364 | 424 | 本文档 |
 | FEATURE-365 | 425 | 底部通栏（logo 入底栏左端）、去附件按钮、右上角下拉菜单（面板开关+系统设置）、主题三态 auto |
 | FEATURE-366 | 426 | 计划面板标题/条目 accent 高亮、菜单与主题按钮对调、logo 换 7×14 新图样 + favicon.svg、标签标题=工作区路径 |
+| FIX-367 | 427 | 修复输入框 ↑↓ 无法翻历史、↓ 误清草稿（首行/末行判定 + draft 哨兵） |
+| FEATURE-368 | 428 | logo 第二轮图样调整 + favicon 同步 |
+| FEATURE-369 | 429 | 计划面板白色高亮（条目仅首行）、logo 去分隔线等距、发送/打断合并为 ▶/⏸ 单按钮（`await_input`/`turn_start` 转向信号） |
 
 ---
 
@@ -274,6 +277,7 @@ inputMode = "web"
 | `info`/`warning`/`error` | 通知 | 普通块，level 驱动配色 |
 | `ui_text` | WebIO Print* 输出 | 普通 SYS 块 |
 | `done` | 一轮结束 | 复位所有流式累加器 |
+| `await_input` / `turn_start` | 转向边界（**由 WebSession 直接发出**，不经 agent 事件循环，FEATURE-369） | 翻转 ▶/⏸ 按钮状态，不进事件流 |
 
 **tool_call 的 phase 标记**（FEATURE-362）：一次工具调用按序发出
 `phase=input`（执行前摘要）→ `phase=result`（执行后结果）。前端规则：
@@ -304,8 +308,9 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 
 - 侧栏只占第一行（`grid-row: 1`）；底部 `#bottom` 通栏
   （`grid-column: 1/-1`），其上边界即工作区清单的下边界（FEATURE-365）；
-- logo 马赛克在 `#bottom` 内最左端、与录入框同一外框（右缘细分隔线），
-  贝壳图案手工绘制于 7×14 网格（`app.js` LOGO_ART，FEATURE-366 起换用
+- logo 马赛克在 `#bottom` 内最左端、与录入框同一外框（无分隔线，
+  图标两侧等距 16px——靠 `.logo` 对称 padding + `.bottom-main`
+  左 padding 归零实现，FEATURE-369），贝壳图案手工绘制于 7×14 网格（`app.js` LOGO_ART，FEATURE-366 起换用
   穹顶+流苏中缝+下碗的新图样），`#` 格渲染 accent 色，高度动态约束
   不超过输入行；同一图样的像素版即 `favicon.svg`（63 个 1×1 rect、
   `shape-rendering:crispEdges`、accent 青），改 LOGO_ART 时应同步重生成；
@@ -334,8 +339,9 @@ CSS Grid 双行三列（`style.css` `#layout`）：
    分发 event/ask/state。
 4. **事件渲染**（核心，见 6.4）。
 5. **任务面板**：`renderPlan(plan)` 缓存 `lastPlan` 并交给
-   `applyPanels()` 统一判定可见性，状态图标 ○◐●✕✗。FEATURE-366 起
-   计划标题与条目文字同字号、仅靠 accent 高亮 + 间距区分层级。
+   `applyPanels()` 统一判定可见性，状态图标 ○◐●✕✗。计划标题与条目
+   同字号、仅用前景色（白）高亮 + 间距区分层级；条目仅**首行**高亮
+   （`.hl` span），续行按 dim 普通内容渲染（FEATURE-369）。
 6. **面板开关**（FEATURE-365）：`panelPrefs`（localStorage
    `co-shell-panels` = `{ws, plan}`，缺省为显示）+ `applyPanels()`；
    菜单项点击翻转偏好并持久化，勾选态（`.mi-check.on`）随动。
@@ -347,6 +353,10 @@ CSS Grid 双行三列（`style.css` `#layout`）：
    "未发送草稿"哨兵；↑ 仅在光标位于首行、↓ 仅在末行时才翻历史（多行
    草稿内垂直移光标不受影响），唤回条目的光标停在末尾，翻到最新一条
    后再按 ↓ 恢复草稿；历史为空时 ↑↓ 完全不碰输入内容。
+   发送/打断合并为单个 ▶/⏸ 按钮（FEATURE-369）：`running` 状态由
+   `sendInput`（立即置位）与服务端 `turn_start`/`await_input` 事件
+   （精确边界）共同驱动；运行中点击 = 发送 `interrupt`，空闲点击 =
+   发送输入；WS 断开时复位为空闲。
 9. **目录树**：`loadTree/treeNode`，目录点击展开/折叠；文件点击：
    图片 → 浮层预览（`/api/file`），其他 → `/api/open`；悬停 ⌖ 按钮
    → `/api/reveal`。

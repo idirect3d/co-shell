@@ -28,6 +28,15 @@ import (
 // connected (an unanswered ask would otherwise block the agent forever).
 var errNoWebClient = errors.New("no web client connected")
 
+// Turn-boundary event types emitted by WebSession itself, straight to the
+// browser via sendEvent — they never pass through a renderer, so the TUI
+// and stdio modes never see them. The frontend uses them to flip its
+// merged send/interrupt button (FEATURE-369).
+const (
+	eventAwaitInput = "await_input" // REPL is about to block for the next input (turn ended)
+	eventTurnStart  = "turn_start"  // an input was consumed from the queue (turn begins)
+)
+
 // SessionFactory returns the repl session factory bound to this server.
 // main.go registers it via repl.RegisterSessionFactory("web", ...).
 func (s *Server) SessionFactory() func(repl.SessionDeps) (repl.SessionIO, error) {
@@ -97,10 +106,13 @@ func (s *WebSession) currentPlanJSON() string {
 
 // ReadLine waits for the next browser "input" message. Attachments (image
 // paths) are installed on the agent before returning, mirroring the CLI
-// --image flag path.
+// --image flag path. Turn boundaries are signalled to the browser around
+// the wait: await_input before blocking, turn_start once an input arrives.
 func (s *WebSession) ReadLine(prompt string) (string, error) {
+	s.srv.sendEvent(agent.NewStreamEvent(eventAwaitInput, agent.ChannelSystem, agent.LevelInfo, ""))
 	select {
 	case msg := <-s.inputCh:
+		s.srv.sendEvent(agent.NewStreamEvent(eventTurnStart, agent.ChannelSystem, agent.LevelInfo, ""))
 		if len(msg.Attachments) > 0 {
 			paths := make([]string, 0, len(msg.Attachments))
 			for _, rel := range msg.Attachments {
