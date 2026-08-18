@@ -505,8 +505,8 @@ document.getElementById("treeRefresh").onclick = loadTree;
 // 8 rows x 16 cols grid. Intensity chars map to accent-color opacity;
 // spaces stay transparent.
 const LOGO_ART = [
-  "      ####",
-  "    ##    ##",
+  "     ######",
+  "   ###    ###",
   " ###        ###",
   "     %%  %%",
   "     %%  %%",
