@@ -2,7 +2,7 @@
 
 > 读者对象：后续接手 web 界面（`co-shell serve`）新功能开发或功能改进的工程师。
 > 本文档自包含——不需要再查阅其他资料即可开展工作。文中所有 `文件:行号` 引用以
-> BUILD-425（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
+> BUILD-426（v0.7.7）为准；行号会随后续改动漂移，以符号名为准。
 
 ---
 
@@ -28,6 +28,7 @@ HTML/CSS/JS，无框架、无打包器）。
 | FIX-363 | 422 | 主题兜底：无 `matchMedia` 时默认深色 |
 | FEATURE-364 | 424 | 本文档 |
 | FEATURE-365 | 425 | 底部通栏（logo 入底栏左端）、去附件按钮、右上角下拉菜单（面板开关+系统设置）、主题三态 auto |
+| FEATURE-366 | 426 | 计划面板标题/条目 accent 高亮、菜单与主题按钮对调、logo 换 7×14 新图样 + favicon.svg、标签标题=工作区路径 |
 
 ---
 
@@ -61,6 +62,7 @@ HTML/CSS/JS，无框架、无打包器）。
 │   style.css   双主题 CSS 变量 + 全部样式                             │
 │   app.js      WS 客户端、事件渲染、目录树、上传、任务面板、ask、输入   │
 │   md.js       Markdown 子集渲染器（手写、DOM 构建、防 XSS）           │
+│   favicon.svg 像素风标签图标（FEATURE-366，与 logo 同一 7×14 图样）    │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -132,7 +134,7 @@ inputMode = "web"
 | `ws.go` | 手写 RFC 6455 WebSocket（握手/帧/分片/ping-pong/close） |
 | `session.go` | REPL 接入：WebSession / WebIO / WebRenderer |
 | `open.go` | 打开浏览器/文件/文件管理器（按 GOOS 分发，变量可注入以便测试） |
-| `static/` | 前端四件套（embed.FS 内嵌进二进制） |
+| `static/` | 前端五件套（embed.FS 内嵌进二进制） |
 | `*_test.go` | 单测（WS 握手与帧、API、session 行为） |
 
 ### 4.1 HTTP 路由（server.go:118-126）
@@ -283,7 +285,7 @@ TOOL 块并标红。
 
 ## 6. 前端
 
-四个文件，无构建步骤，直接以 ES5+ 原生语法书写（不依赖任何框架/库，
+五个文件，无构建步骤，直接以 ES5+ 原生语法书写（不依赖任何框架/库，
 不引入 CDN）。
 
 ### 6.1 index.html：布局骨架
@@ -303,12 +305,14 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 - 侧栏只占第一行（`grid-row: 1`）；底部 `#bottom` 通栏
   （`grid-column: 1/-1`），其上边界即工作区清单的下边界（FEATURE-365）；
 - logo 马赛克在 `#bottom` 内最左端、与录入框同一外框（右缘细分隔线），
-  贝壳图案手工绘制于 7×16 网格（`app.js` LOGO_ART），字符映射 accent
-  透明度，高度动态约束不超过输入行；
+  贝壳图案手工绘制于 7×14 网格（`app.js` LOGO_ART，FEATURE-366 起换用
+  穹顶+流苏中缝+下碗的新图样），`#` 格渲染 accent 色，高度动态约束
+  不超过输入行；同一图样的像素版即 `favicon.svg`（64 个 1×1 rect、
+  `shape-rendering:crispEdges`、accent 青），改 LOGO_ART 时应同步重生成；
 - 面板可见性 class 驱动：`#layout.no-plan` 第三列归零、
   `#layout.no-ws` 第一列归零（两者可叠加，见 style.css 组合规则）；
-- 顶栏右侧：连接状态 → ☰ 下拉菜单（悬停展开：工作区/任务进展开关 +
-  系统设置）→ 明暗主题按钮。
+- 顶栏右侧：连接状态 → 明暗主题按钮 → ☰ 下拉菜单（悬停展开：工作区/
+  任务进展开关 + 系统设置，FEATURE-366 起菜单在最右端）。
 
 ### 6.2 style.css：双主题
 
@@ -317,7 +321,7 @@ CSS Grid 双行三列（`style.css` `#layout`）：
 --border/--ok/--warn/--err/--glow`）。**新增样式一律用变量**，明暗主题
 自动适配。`.ev-body.md` 下有整套 Markdown 元素样式。
 
-### 6.3 app.js：模块地图（619 行，按注释分节）
+### 6.3 app.js：模块地图（按注释分节）
 
 1. **i18n**：`I18N.zh/en` 字典 + `applyI18n()`（`data-i18n` /
    `data-i18n-ph` 属性驱动）；语言由 `/api/bootstrap` 下发。
@@ -330,7 +334,8 @@ CSS Grid 双行三列（`style.css` `#layout`）：
    分发 event/ask/state。
 4. **事件渲染**（核心，见 6.4）。
 5. **任务面板**：`renderPlan(plan)` 缓存 `lastPlan` 并交给
-   `applyPanels()` 统一判定可见性，状态图标 ○◐●✕✗。
+   `applyPanels()` 统一判定可见性，状态图标 ○◐●✕✗。FEATURE-366 起
+   计划标题与条目文字同字号、仅靠 accent 高亮 + 间距区分层级。
 6. **面板开关**（FEATURE-365）：`panelPrefs`（localStorage
    `co-shell-panels` = `{ws, plan}`，缺省为显示）+ `applyPanels()`；
    菜单项点击翻转偏好并持久化，勾选态（`.mi-check.on`）随动。
@@ -347,8 +352,9 @@ CSS Grid 双行三列（`style.css` `#layout`）：
     根目录；侧栏整体弱高亮 + 目标行高亮。
 11. **系统设置弹层**（FEATURE-365）：`#settings` modal，目前含主题
     三态下拉；新增客户端设置项往这里加。
-12. **boot**：拉 `/api/bootstrap` → applyI18n → applyPanels →
-    loadTree → wsConnect。
+12. **boot**：拉 `/api/bootstrap` → 用 workspace 设置
+    `document.title`（浏览器标签 = favicon + 工作区路径，FEATURE-366）
+    → applyI18n → applyPanels → loadTree → wsConnect。
 
 ### 6.4 事件渲染机制（app.js renderEvent，FEATURE-362 重构）
 
