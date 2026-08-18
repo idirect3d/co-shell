@@ -1379,6 +1379,12 @@
   - 实现：① 计划面板样式（style.css）——`.plan-title` 取消加粗、字号与条目一致（12.5px），仅靠 accent 高亮 + 加大下间距区分；`.plan-step .desc` 条目文字同步 accent 高亮；② index.html 顶栏 themeToggle 与 ☰ 菜单位置对调（菜单移到最右端）；③ `LOGO_ART` 整体替换为用户手绘的 7 行 × 14 列新图样（穹顶上壳 3 行 + 流苏中缝 1 行 + 下碗 3 行），并据此生成 `web/static/favicon.svg`（64 个 1×1 rect、`shape-rendering:crispEdges`、accent 青 #3fd6ef、随 embed.FS 内嵌），index.html 加 `<link rel="icon">`；④ `boot()` 用 `/api/bootstrap` 返回的 workspace 绝对路径设置 `document.title`——浏览器标签即"图标 + 工作区路径"，多实例一目了然（bootstrap 本已返回 workspace，Go 零改动）
   - 测试：headless Chrome 截图验证（计划面板高亮与间距、按钮顺序、底栏新 logo）；favicon.svg 经 `<img>` 放大渲染目视确认轮廓与 7×14 图样逐格一致；harness 页将 `document.title` 写入 DOM 截图确认标题生效；`go vet`、`go test ./web/ ./agent/` 全绿
 
+- [x] **FIX-367 修复 web 输入框 ↑↓ 无法翻历史、↓ 误清草稿** ✅ 已完成 [BUILD-427]
+  - 背景：web 输入栏按 ↑↓ 不能翻历史消息，按 ↓ 反而清空当前输入（用户反馈）
+  - 根因（web/static/app.js 输入区三处叠加）：① `histPos` 初值 -1 与"历史为空"叠加时 `-1 === history.length - 1` 成立，↓ 直接把草稿替换成空 `histDraft`；② ↑ 要求 `selectionStart === 0`，而程序设值后光标停在条目末尾，第二次 ↑ 永远不触发；③ ↓ 无任何光标位置/状态守卫，随时可能动草稿
+  - 修复：`histPos` 改为 `history.length` 作为"未发送草稿"哨兵（初值 0）；↑ 仅在光标位于首行、↓ 仅在末行时才翻历史（多行草稿内正常移光标）；新增 `recallHistory()` 统一设值并把光标停到条目末尾；历史为空时 ↑↓ 直接返回不碰输入；仅在实际翻页时 preventDefault
+  - 测试：headless Chrome harness 驱动真实 app.js + 真实 KeyboardEvent，11 项断言全过（空历史 ↓ 不清草稿、连续 ↑ 翻旧、到顶停住、↓ 翻新、越过最新恢复草稿、多行首行/末行判定）；同一 harness 对旧代码复跑，1/3/4/5 项 FAIL 作回归对照；`node --check` 通过
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
