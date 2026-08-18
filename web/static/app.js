@@ -107,7 +107,6 @@ const askInput = document.getElementById("askInput");
 const askSend = document.getElementById("askSend");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
-const interruptBtn = document.getElementById("interruptBtn");
 const tree = document.getElementById("tree");
 const sidebar = document.getElementById("sidebar");
 const menuBtn = document.getElementById("menuBtn");
@@ -140,6 +139,7 @@ function wsConnect() {
     conn.classList.remove("on");
     connText.textContent = T.disconnected;
     hideAsk();
+    setRunning(false);
     setTimeout(wsConnect, 2000);
   };
   ws.onmessage = (m) => {
@@ -214,6 +214,10 @@ function eventClass(ev) {
 }
 
 function renderEvent(ev) {
+  // Turn-boundary signals from the web session (FEATURE-369): drive the
+  // merged send/interrupt button, never render as blocks.
+  if (ev.type === "await_input") { setRunning(false); return; }
+  if (ev.type === "turn_start") { setRunning(true); return; }
   if (ev.type === "task_plan") {
     let plan = null;
     try { if (ev.meta && ev.meta.plan) plan = JSON.parse(ev.meta.plan); } catch { /* keep null */ }
@@ -379,7 +383,15 @@ function renderPlan(plan) {
     icon.textContent = STATUS_ICON[status] || "○";
     const desc = document.createElement("span");
     desc.className = "desc";
-    desc.textContent = st.description || "";
+    // Only the first line of a step is the highlighted "title"; any
+    // continuation lines render as regular dim content (FEATURE-369).
+    const text = st.description || "";
+    const nl = text.indexOf("\n");
+    const hl = document.createElement("span");
+    hl.className = "hl";
+    hl.textContent = nl === -1 ? text : text.slice(0, nl);
+    desc.appendChild(hl);
+    if (nl !== -1) desc.appendChild(document.createTextNode(text.slice(nl)));
     row.appendChild(icon);
     row.appendChild(desc);
     planBody.appendChild(row);
@@ -444,6 +456,7 @@ function sendInput() {
   histPos = history.length;
   input.value = "";
   autoGrow();
+  if (wsReady) setRunning(true);
 }
 
 function autoGrow() {
@@ -451,8 +464,22 @@ function autoGrow() {
   input.style.height = Math.min(input.scrollHeight, 120) + "px";
 }
 
-sendBtn.onclick = sendInput;
-interruptBtn.onclick = () => wsSend({ type: "interrupt" });
+/* ---------- merged send / interrupt button (FEATURE-369) ---------- */
+
+let running = false;
+
+// setRunning flips the single button between ▶ send (idle) and ⏸
+// interrupt (agent turn in progress). Turn boundaries arrive as the web
+// session's turn_start / await_input events; sendInput flips to running
+// immediately for responsive feedback.
+function setRunning(v) {
+  running = v;
+  sendBtn.textContent = v ? "⏸" : "▶";
+  sendBtn.title = v ? T.interrupt : T.send;
+  sendBtn.classList.toggle("run", v);
+}
+
+sendBtn.onclick = () => { if (running) wsSend({ type: "interrupt" }); else sendInput(); };
 
 // recallHistory swaps the textarea content with the history entry at
 // histPos (or the saved draft when histPos points past the newest entry)
@@ -677,6 +704,7 @@ setThemeMode.onchange = () => {
     if (b.workspace) document.title = b.workspace;
   } catch { /* defaults stay zh */ }
   applyI18n();
+  setRunning(false); // apply localized button title
   applyPanels();
   loadTree();
   wsConnect();
