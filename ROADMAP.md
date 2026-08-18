@@ -23,7 +23,7 @@
 | FEATURE-307 | 0.7.7 | P5 | ✅ 已完成（LineRenderer + StreamRenderer + WebRenderer + `serve` Web 界面 [BUILD-413/415/417]） |
 | FEATURE-308 | 0.7.8 | tui v2 | FullScreenRenderer（可选分支） |
 
-> 当前 BUILD: 430
+> 当前 BUILD: 433
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
