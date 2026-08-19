@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -359,12 +360,15 @@ type treeNode struct {
 	Name     string      `json:"name"`
 	Path     string      `json:"path"` // workspace-relative
 	Dir      bool        `json:"dir"`
+	Status   string      `json:"status,omitempty"`   // file: git status code (M/A/D/R/U)
+	Changes  int         `json:"changes,omitempty"`  // dir: count of changed files below
 	Children []*treeNode `json:"children,omitempty"`
 }
 
 // buildTree walks the workspace recursively (depth-capped), skipping the
-// excluded noise directories. Directories sort before files.
-func (s *Server) buildTree(abs, rel string, depth int) *treeNode {
+// excluded noise directories. Directories sort before files. statusMap maps
+// workspace-relative file paths to git status codes (may be nil).
+func (s *Server) buildTree(abs, rel string, depth int, statusMap map[string]string) *treeNode {
 	n := &treeNode{Name: filepath.Base(abs), Path: rel, Dir: true}
 	if depth >= 8 {
 		return n
@@ -390,18 +394,71 @@ func (s *Server) buildTree(abs, rel string, depth int) *treeNode {
 			childRel = rel + "/" + e.Name()
 		}
 		if e.IsDir() {
-			n.Children = append(n.Children, s.buildTree(filepath.Join(abs, e.Name()), childRel, depth+1))
+			child := s.buildTree(filepath.Join(abs, e.Name()), childRel, depth+1, statusMap)
+			n.Children = append(n.Children, child)
+			n.Changes += child.Changes
 		} else {
-			n.Children = append(n.Children, &treeNode{Name: e.Name(), Path: childRel})
+			child := &treeNode{Name: e.Name(), Path: childRel}
+			if st, ok := statusMap[childRel]; ok {
+				child.Status = st
+				n.Changes++
+			}
+			n.Children = append(n.Children, child)
 		}
 	}
 	return n
 }
 
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
-	root := s.buildTree(s.root, "", 0)
+	root := s.buildTree(s.root, "", 0, gitStatusMap(s.root))
 	root.Name = filepath.Base(s.root)
 	writeJSON(w, http.StatusOK, root)
+}
+
+// gitStatusMap runs `git status --porcelain -z` in the workspace root and
+// returns a map of workspace-relative file path to a normalized status code
+// (M/A/D/R/U; "??" untracked becomes U). It returns an empty map when the
+// workspace is not a git repository or git is unavailable, so the tree is
+// unaffected. Argument-array exec (no shell) — no injection surface.
+func gitStatusMap(root string) map[string]string {
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		return nil
+	}
+	cmd := exec.Command("git", "status", "--porcelain", "-z")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	m := make(map[string]string)
+	for _, rec := range strings.Split(string(out), "\x00") {
+		if len(rec) < 4 {
+			continue
+		}
+		x, y := rec[0], rec[1]
+		code := ""
+		switch {
+		case x == 'A' || y == 'A':
+			code = "A"
+		case y == 'D' || x == 'D':
+			code = "D"
+		case x == 'R' || y == 'R':
+			code = "R"
+		case x == '?' && y == '?':
+			code = "U"
+		case x == 'M' || y == 'M':
+			code = "M"
+		}
+		if code == "" {
+			continue
+		}
+		path := rec[3:]
+		if len(path) >= 2 && path[0] == '"' && path[len(path)-1] == '"' {
+			path = path[1 : len(path)-1]
+		}
+		m[path] = code
+	}
+	return m
 }
 
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
