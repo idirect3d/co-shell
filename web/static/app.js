@@ -546,6 +546,11 @@ input.addEventListener("input", autoGrow);
 
 /* ---------- workspace tree ---------- */
 
+// Paths of directories the user has expanded. Kept across loadTree() calls
+// so a refresh (manual, after upload, or on done) preserves each folder's
+// open/collapsed state instead of collapsing everything.
+const expandedDirs = new Set();
+
 async function loadTree() {
   try {
     const resp = await fetch("/api/tree");
@@ -602,13 +607,17 @@ function treeNode(node) {
 
   if (node.dir) {
     const ul = document.createElement("ul");
-    ul.style.display = "none";
+    const open = expandedDirs.has(node.path);
+    ul.style.display = open ? "" : "none";
+    tw.textContent = open ? "▾" : "▸";
     for (const c of node.children || []) ul.appendChild(treeNode(c));
     li.appendChild(ul);
     row.onclick = () => {
-      const open = ul.style.display !== "none";
-      ul.style.display = open ? "none" : "";
-      tw.textContent = open ? "▸" : "▾";
+      const isOpen = ul.style.display !== "none";
+      ul.style.display = isOpen ? "none" : "";
+      tw.textContent = isOpen ? "▸" : "▾";
+      if (isOpen) expandedDirs.delete(node.path);
+      else expandedDirs.add(node.path);
     };
     // Drop files onto a directory row to upload into it.
     row.ondragover = (e) => { e.preventDefault(); row.classList.add("drop-target"); };
