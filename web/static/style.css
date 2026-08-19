@@ -441,6 +441,7 @@ aside {
   background: var(--bg-panel);
   padding: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
 }
 
@@ -533,8 +534,11 @@ aside {
 /* ---------- status bar (FEATURE-378) ---------- */
 
 /* The status bar sits at the very bottom of the window, below the input
-   row, spanning the full width. It shows the current context token stats. */
+   row, spanning the full window width (flex-basis:100% wraps it onto its
+   own line inside the wrapping #bottom). It shows the current context
+   token stats. */
 .statusbar {
+  flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 4px 18px;
