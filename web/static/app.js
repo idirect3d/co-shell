@@ -21,6 +21,9 @@ const I18N = {
     planEmpty: "（无步骤）",
     menu: "菜单", settings: "系统设置",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
+    statusBar: "状态条",
+    sbTotal: "会话总token", sbLastIn: "本次输入", sbFT: "首字延迟",
+    sbOut: "总输出", sbTime: "用时", sbToken: "token",
   },
   en: {
     workspace: "Workspace",
@@ -32,6 +35,9 @@ const I18N = {
     planEmpty: "(no steps)",
     menu: "Menu", settings: "Settings",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
+    statusBar: "Status bar",
+    sbTotal: "Session tokens", sbLastIn: "Last input", sbFT: "TTFT",
+    sbOut: "Total output", sbTime: "Time", sbToken: "token",
   },
 };
 let T = I18N.zh;
@@ -121,6 +127,15 @@ const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
+const miStatus = document.getElementById("miStatus");
+const miStatusCheck = document.getElementById("miStatusCheck");
+const statusbar = document.getElementById("statusbar");
+const sbTotal = document.getElementById("sbTotal");
+const sbLastIn = document.getElementById("sbLastIn");
+const sbFT = document.getElementById("sbFT");
+const sbOut = document.getElementById("sbOut");
+const sbTime = document.getElementById("sbTime");
+const sbToken = document.getElementById("sbToken");
 
 /* ---------- websocket ---------- */
 
@@ -218,8 +233,8 @@ function eventClass(ev) {
 function renderEvent(ev) {
   // Turn-boundary signals from the web session (FEATURE-369): drive the
   // merged send/interrupt button, never render as blocks.
-  if (ev.type === "await_input") { setRunning(false); return; }
-  if (ev.type === "turn_start") { setRunning(true); return; }
+  if (ev.type === "await_input") { setRunning(false); turnStartTime = 0; return; }
+  if (ev.type === "turn_start") { setRunning(true); turnStartTime = Date.now(); return; }
   if (ev.type === "task_plan") {
     let plan = null;
     try { if (ev.meta && ev.meta.plan) plan = JSON.parse(ev.meta.plan); } catch { /* keep null */ }
@@ -240,6 +255,23 @@ function renderEvent(ev) {
     stream.appendChild(line);
     curLLM = curThinking = null;
     scrollStream();
+    // FEATURE-378: accumulate token stats into the status bar.
+    if (ev.type === "token_iter") {
+      const p = parseInt(m.prompt, 10) || 0;
+      const c = parseInt(m.completion, 10) || 0;
+      const t = parseInt(m.total, 10) || 0;
+      tokenStats.sessionIn += p;
+      tokenStats.sessionOut += c;
+      tokenStats.lastIn = p;
+      tokenStats.lastOut = c;
+      tokenStats.lastTotal = t;
+      if (m.ft) tokenStats.lastFT = m.ft;
+      if (turnStartTime) {
+        const sec = (Date.now() - turnStartTime) / 1000;
+        tokenStats.lastTime = sec >= 60 ? (sec / 60).toFixed(1) + "m" : sec.toFixed(1) + "s";
+      }
+      updateStatus();
+    }
     return;
   }
   if (ev.type === "done") {
@@ -367,6 +399,40 @@ miPlan.onclick = () => {
   savePanelPrefs();
   applyPanels();
 };
+
+/* ---------- status bar (FEATURE-378) ---------- */
+
+// statusPref persists the status bar visibility (localStorage
+// "co-shell-status": true/false; absent means visible).
+let statusOn = localStorage.getItem("co-shell-status") !== "0";
+
+function applyStatus() {
+  statusbar.classList.toggle("hidden", !statusOn);
+  miStatusCheck.classList.toggle("on", statusOn);
+}
+
+miStatus.onclick = () => {
+  statusOn = !statusOn;
+  localStorage.setItem("co-shell-status", statusOn ? "1" : "0");
+  applyStatus();
+};
+
+// Token stats accumulated from token_iter events. sessionIn/sessionOut are
+// the running totals across all iterations; last* hold the most recent
+// iteration's values.
+const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastFT: "-", lastOut: 0, lastTime: "-", lastTotal: 0 };
+let turnStartTime = 0; // timestamp when the current turn began (for 用时)
+
+function fmtNum(n) { return n ? n.toLocaleString() : "0"; }
+
+function updateStatus() {
+  sbTotal.innerHTML = T.sbTotal + " <b>" + fmtNum(tokenStats.sessionIn + tokenStats.sessionOut) + "</b>";
+  sbLastIn.innerHTML = T.sbLastIn + " <b>" + fmtNum(tokenStats.lastIn) + "</b>";
+  sbFT.innerHTML = T.sbFT + " <b>" + tokenStats.lastFT + "</b>";
+  sbOut.innerHTML = T.sbOut + " <b>" + fmtNum(tokenStats.sessionOut) + "</b>";
+  sbTime.innerHTML = T.sbTime + " <b>" + tokenStats.lastTime + "</b>";
+  sbToken.innerHTML = T.sbToken + " <b>" + fmtNum(tokenStats.lastTotal) + "</b>";
+}
 
 /* ---------- task plan panel ---------- */
 
@@ -802,6 +868,8 @@ async function refreshBranch() {
   applyI18n();
   setRunning(false); // apply localized button title
   applyPanels();
+  applyStatus();
+  updateStatus();
   loadTree();
   wsConnect();
 })();

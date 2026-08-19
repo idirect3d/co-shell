@@ -530,6 +530,26 @@ aside {
 .btn.ghost { background: none; }
 .btn.sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 
+/* ---------- status bar (FEATURE-378) ---------- */
+
+/* The status bar sits at the very bottom of the window, below the input
+   row, spanning the full width. It shows the current context token stats. */
+.statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  align-items: center;
+  padding: 4px 14px 6px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font: 11.5px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--fg-dim);
+  user-select: none;
+}
+.statusbar.hidden { display: none; }
+.sb-item { white-space: nowrap; }
+.sb-item b { color: var(--fg); font-weight: 600; }
+
 /* ---------- image preview ---------- */
 
 .preview {
