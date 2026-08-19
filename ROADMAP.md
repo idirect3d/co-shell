@@ -1429,11 +1429,11 @@
   - 实现：① `web/server.go` 新增 `gitStatusMap(root)` 执行 `git status --porcelain -z`（参数数组、无 shell）解析为 路径→状态码 映射，非 git 仓库返回空；`treeNode` 增加 `status` 字段（文件状态码）与 `changes` 字段（目录内变更文件数汇总）；`buildTree` 构建时填充；② `app.js` `treeNode()` 渲染文件字母徽标（M 蓝/A 绿/D 红/U 绿/R 紫）与目录计数徽标；`done` 事件触发 `loadTree()` 自动刷新；③ `style.css` 徽标样式；④ 文件树每层缩进统一为 1 个字符宽度（tw 箭头绝对定位不占宽度）；⑤ 刷新文件列表时保持目录展开/折叠状态（expandedDirs 集合）
   - 测试：`TestGitStatusMap`（修改/新增/删除/未跟踪/重命名/非仓库 子测试）+ `TestTreeStatus`（/api/tree 节点 status/changes 字段）；headless 浏览器验证徽标渲染、done 刷新、缩进 1 字符、展开状态保持；`go vet/test ./web/`、`node --check` 全绿
 
-- [ ] **FIX-376 提问工具（ask_followup_question）问题内容被截断**
+- [x] **FIX-376 提问工具（ask_followup_question）问题内容被截断** ✅ 已完成 [BUILD-443]
   - 背景：LLM 调用 ask_followup_question 提问时，显示的问题被截断（如"询问用户: 模型文件正在后台传输中（deepseek模型156G，预计2-3小时），ds...（截断）"），用户看不到完整问题，失去提问意义
   - 根因：`agent/tool_summary.go` 中 `ask_followup_question` 的 question 参数被 `truncate()` 截断到 `maxSummaryParamLen=80` 字符
-  - 修复：`ask_followup_question` 的 question 是用户必须阅读并回答的核心内容，改为不截断、显示完整问题（showTool 显示与确认提示两个场景均受益）
-  - 测试：新增 `TestBuildToolSummaryAskQuestionFull` 验证长问题完整显示且无截断标记；`go test ./agent/` 全绿
+  - 修复：① `ask_followup_question` 的 question 是用户必须阅读并回答的核心内容，改为不截断、显示完整问题（showTool 显示与确认提示两个场景均受益）；② 确认/提问后用户输入（确认选择、选项、录入内容）回显为 web UI 的 YOU 消息块（`answerAsk` 调用 `renderUserEcho`）
+  - 测试：新增 `TestBuildToolSummaryAskQuestionFull` 验证长问题完整显示且无截断标记；headless 浏览器验证提问/确认提交答案后 YOU 消息块正确显示；`go test ./agent/`、`node --check` 全绿
 
 ## v1.0.0 — 正式版
 

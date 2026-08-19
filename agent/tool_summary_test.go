@@ -304,3 +304,19 @@ func TestToolSummaryI18nKeyPairs(t *testing.T) {
 	// Restore original language for other tests in the package.
 	i18n.SetLang(string(original))
 }
+
+// TestBuildToolSummaryAskQuestionFull verifies ask_followup_question shows the
+// complete question (no truncation) — the question is the very content the user
+// must read and answer, so truncating it would defeat the purpose of asking.
+func TestBuildToolSummaryAskQuestionFull(t *testing.T) {
+	longQuestion := "模型文件正在后台传输中（deepseek模型156G，预计2-3小时），下载完成后需要重启服务才能生效，请问是否现在重启？"
+	got := buildToolSummary("ask_followup_question", map[string]interface{}{
+		"question": longQuestion,
+	})
+	if !strings.Contains(got, longQuestion) {
+		t.Errorf("ask_followup_question question should be shown in full, got: %q", got)
+	}
+	if strings.Contains(got, i18n.T(i18n.KeyToolCallSummaryTruncated)) {
+		t.Errorf("ask_followup_question question should NOT be truncated, got: %q", got)
+	}
+}
