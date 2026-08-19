@@ -1435,6 +1435,11 @@
   - 修复：① `ask_followup_question` 的 question 是用户必须阅读并回答的核心内容，改为不截断、显示完整问题（showTool 显示与确认提示两个场景均受益）；② 确认/提问后用户输入（确认选择、选项、录入内容）回显为 web UI 的 YOU 消息块（`answerAsk` 调用 `renderUserEcho`）
   - 测试：新增 `TestBuildToolSummaryAskQuestionFull` 验证长问题完整显示且无截断标记；headless 浏览器验证提问/确认提交答案后 YOU 消息块正确显示；`go test ./agent/`、`node --check` 全绿
 
+- [ ] **FEATURE-377 文件列表每次方法调用返回后自动刷新**
+  - 背景：文件列表自动刷新策略当前只在 `done` 事件（LLM 迭代完成）时刷新，一次迭代内多次工具调用不会实时刷新；希望每次方法调用（工具调用）返回后自动刷新文件列表（含分支状态）
+  - 实现：`web/static/app.js` `renderEvent` 中 `tool_call` 事件 result 分支（工具执行完成）末尾调用 `refreshBranch()` + `loadTree()`，使每次工具调用返回后文件列表与分支状态实时刷新
+  - 测试：headless 浏览器验证工具调用返回（tool_call result 事件）后文件列表自动刷新包含新文件；`node --check` 全绿
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
