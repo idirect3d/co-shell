@@ -109,8 +109,11 @@ func buildToolSummary(toolName string, args map[string]interface{}) string {
 			fmt.Sprintf("%d", argSliceLen(args, "settings")),
 			intent)
 	case "ask_followup_question":
+		// The question is the very content the user must read and answer, so
+		// it is shown in full (no truncation) — truncating it would defeat the
+		// purpose of asking.
 		return i18n.TF(i18n.KeyToolCallSummaryAskQuestion,
-			truncate(argString(args, "question")))
+			argString(args, "question"))
 	case "launch_sub_agent":
 		return i18n.TF(i18n.KeyToolCallSummaryLaunchSubAgent,
 			argString(args, "sub_agent_name"),
