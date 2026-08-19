@@ -6,10 +6,10 @@
 
 ## 当前版本
 
-> **版本**: v0.7.7
+> **版本**: v0.7.8
 
-> **状态**: 🚧 开发中（输入统一 InputSource + Windows 补齐）
-> **里程碑**: 输入统一（InputSource）+ Windows 补齐
+> **状态**: 🚧 开发中（Web UI 文件列表 git 状态标注）
+> **里程碑**: Web UI 文件列表标注 git 修改状态
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -1419,6 +1419,15 @@
   - 背景：web UI 执行 `:set` 等 REPL 命令时，输出内容显示在终端窗口（服务端），没有传到浏览器；希望输出以 REPL 块（平行于 TOOL/LLM）显示在浏览器事件流，人工输入/选择内容传回后台
   - 实现：① `agent/out.go` 新增 `ChannelREPL` channel；② `web/session.go` `WebIO.pushText` 的 `ui_text` 事件 channel 改为 `ChannelREPL`；③ `repl/repl.go` `handleBuiltin` 中 `fmt.Print*`（7 处）改为通过 `agent.GetIO(r.agent)` 输出（web 模式走 WebIO → 浏览器，终端模式走 DefaultUserIO → 终端）；④ `app.js` `CHAN_LABEL` 添加 `repl: "REPL"`、`eventClass` 对 repl channel 的 `ui_text` 返回 `repl` class、`renderEvent` 显示 REPL 标签；⑤ `style.css` 为 `.ev.repl` 添加样式
   - 测试：headless 浏览器通过 WebSocket 发送 `:set` 命令，事件流出现 REPL 块（标签 REPL、内容为设置帮助）；`go vet/test ./repl/ ./web/ ./agent/`、`node --check` 全绿
+
+## v0.7.8 — Web UI 文件列表 git 状态标注
+
+> **状态**: 🚧 开发中
+
+- [ ] **FEATURE-375 web 文件列表标注 git 修改状态**
+  - 背景：Web UI 侧栏文件树需要直观显示每个文件在当前分支下的 git 修改状态（M/A/D/U/R），目录需汇总显示内部变更文件数；LLM 迭代完成后自动刷新
+  - 实现：① `web/server.go` 新增 `gitStatusMap(root)` 执行 `git status --porcelain -z`（参数数组、无 shell）解析为 路径→状态码 映射，非 git 仓库返回空；`treeNode` 增加 `status` 字段（文件状态码）与 `changes` 字段（目录内变更文件数汇总）；`buildTree` 构建时填充；② `app.js` `treeNode()` 渲染文件字母徽标（M 蓝/A 绿/D 红/U 绿/R 紫）与目录计数徽标；`done` 事件触发 `loadTree()` 自动刷新
+  - 测试：`TestGitStatusMap`（修改/新增/删除/未跟踪/重命名/非仓库 子测试）+ `TestTreeStatus`（/api/tree 节点 status/changes 字段）；headless 浏览器验证徽标渲染与 done 刷新；`go vet/test ./web/`、`node --check` 全绿
 
 ## v1.0.0 — 正式版
 
