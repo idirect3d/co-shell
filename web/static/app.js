@@ -295,6 +295,11 @@ function renderEvent(ev) {
       curTool.raw += (curTool.raw ? "\n\n" : "") + t;
       curTool.hasResult = true;
       scheduleMd(curTool);
+      // A tool call finished — the agent may have modified files or switched
+      // branches, so refresh the tree and branch label after each call (not
+      // only at the end of the whole LLM iteration).
+      refreshBranch();
+      loadTree();
     }
     curLLM = curThinking = null;
     scrollStream();
