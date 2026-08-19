@@ -244,9 +244,11 @@ function renderEvent(ev) {
   }
   if (ev.type === "done") {
     curLLM = curThinking = curTool = curREPL = null;
-    // An LLM iteration finished — the agent may have switched git branches,
-    // so refresh the sidebar branch label without a manual reload.
+    // An LLM iteration finished — the agent may have switched git branches
+    // or modified files, so refresh the branch label and the tree's git
+    // status badges without a manual reload.
     refreshBranch();
+    loadTree();
     return;
   }
 
@@ -572,6 +574,22 @@ function treeNode(node) {
   name.className = "name";
   name.textContent = node.name;
   row.appendChild(name);
+
+  // Git status badge: files show a letter (M/A/D/R/U), directories show a
+  // count of changed files below them (e.g. "●3").
+  if (node.status) {
+    const badge = document.createElement("span");
+    badge.className = "git-badge st-" + node.status.toLowerCase();
+    badge.textContent = node.status;
+    badge.title = node.status;
+    row.appendChild(badge);
+  } else if (node.dir && node.changes > 0) {
+    const badge = document.createElement("span");
+    badge.className = "git-badge dir-count";
+    badge.textContent = "●" + node.changes;
+    badge.title = node.changes + " changed";
+    row.appendChild(badge);
+  }
 
   const reveal = document.createElement("button");
   reveal.className = "reveal-btn";

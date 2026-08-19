@@ -220,6 +220,25 @@ aside {
 .tree-row .reveal-btn:hover { color: var(--accent); }
 .tree-row.drop-target { outline: 1px dashed var(--accent); background: var(--accent-dim); }
 
+/* Git status badges (FEATURE-375): a letter for files (M/A/D/R/U), a
+   change count for directories. The badge sits between the name and the
+   reveal button; the reveal button's margin-left:auto still pushes it right. */
+.tree-row .git-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 6px;
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 14px;
+}
+.tree-row .git-badge.st-m { color: #58a6ff; }
+.tree-row .git-badge.st-a,
+.tree-row .git-badge.st-u { color: #3fb950; }
+.tree-row .git-badge.st-d { color: #f85149; }
+.tree-row .git-badge.st-r { color: #bc8cff; }
+.tree-row .git-badge.dir-count { color: var(--fg-faint); font-weight: 400; }
+
 /* ---------- logo mosaic ---------- */
 
 /* No divider between the logo and the input box; the logo keeps equal

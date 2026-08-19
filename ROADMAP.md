@@ -1424,9 +1424,9 @@
 
 > **状态**: 🚧 开发中
 
-- [ ] **FEATURE-375 web 文件列表标注 git 修改状态**
+- [x] **FEATURE-375 web 文件列表标注 git 修改状态** ✅ 已完成 [BUILD-436]
   - 背景：Web UI 侧栏文件树需要直观显示每个文件在当前分支下的 git 修改状态（M/A/D/U/R），目录需汇总显示内部变更文件数；LLM 迭代完成后自动刷新
-  - 实现：① `web/server.go` 新增 `gitStatusMap(root)` 执行 `git status --porcelain -z`（参数数组、无 shell）解析为 路径→状态码 映射，非 git 仓库返回空；`treeNode` 增加 `status` 字段（文件状态码）与 `changes` 字段（目录内变更文件数汇总）；`buildTree` 构建时填充；② `app.js` `treeNode()` 渲染文件字母徽标（M 蓝/A 绿/D 红/U 绿/R 紫）与目录计数徽标；`done` 事件触发 `loadTree()` 自动刷新
+  - 实现：① `web/server.go` 新增 `gitStatusMap(root)` 执行 `git status --porcelain -z`（参数数组、无 shell）解析为 路径→状态码 映射，非 git 仓库返回空；`treeNode` 增加 `status` 字段（文件状态码）与 `changes` 字段（目录内变更文件数汇总）；`buildTree` 构建时填充；② `app.js` `treeNode()` 渲染文件字母徽标（M 蓝/A 绿/D 红/U 绿/R 紫）与目录计数徽标；`done` 事件触发 `loadTree()` 自动刷新；③ `style.css` 徽标样式
   - 测试：`TestGitStatusMap`（修改/新增/删除/未跟踪/重命名/非仓库 子测试）+ `TestTreeStatus`（/api/tree 节点 status/changes 字段）；headless 浏览器验证徽标渲染与 done 刷新；`go vet/test ./web/`、`node --check` 全绿
 
 ## v1.0.0 — 正式版
