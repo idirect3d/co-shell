@@ -181,11 +181,19 @@ func (r *REPL) resumeReader() {
 
 // rawPrintf prints user-visible output, applying \r\n conversion while the
 // unified input reader holds the terminal in raw mode (tui). In cooked mode
-// (stdio / reader paused) it behaves exactly like fmt.Printf.
+// (stdio / reader paused) it behaves exactly like fmt.Printf; when the agent
+// has a UserIO (web mode) the output is routed through it so it reaches the
+// browser instead of only the terminal.
 func (r *REPL) rawPrintf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
 	if r.rawActive() {
 		s = strings.ReplaceAll(s, "\n", "\r\n")
+		fmt.Print(s)
+		return
+	}
+	if io := agent.GetIO(r.agent); io != nil {
+		io.Print(s)
+		return
 	}
 	fmt.Print(s)
 }
@@ -195,6 +203,12 @@ func (r *REPL) rawPrint(args ...interface{}) {
 	s := fmt.Sprint(args...)
 	if r.rawActive() {
 		s = strings.ReplaceAll(s, "\n", "\r\n")
+		fmt.Print(s)
+		return
+	}
+	if io := agent.GetIO(r.agent); io != nil {
+		io.Print(s)
+		return
 	}
 	fmt.Print(s)
 }
@@ -206,9 +220,13 @@ func (r *REPL) rawPrintln(args ...interface{}) {
 	if r.rawActive() {
 		s = strings.ReplaceAll(s, "\n", "\r\n")
 		fmt.Print("\r" + s + "\r\n")
-	} else {
-		fmt.Println(s)
+		return
 	}
+	if io := agent.GetIO(r.agent); io != nil {
+		io.Println(s)
+		return
+	}
+	fmt.Println(s)
 }
 
 func (r *REPL) syncDB() {
@@ -410,6 +428,9 @@ func (r *REPL) handleBuiltin(input string) {
 		return
 	}
 	ep := config.GetEmojiPrefixes(r.cfg.LLM.EmojiEnabled)
+	// Route builtin command output through the agent's UserIO so it reaches
+	// the browser (WebIO) in web mode instead of only the terminal.
+	io := agent.GetIO(r.agent)
 	command := parts[0]
 	args := parts[1:]
 
@@ -505,7 +526,7 @@ func (r *REPL) handleBuiltin(input string) {
 		if err := r.agent.Store().SaveCurrentSessionID(sessionID); err != nil {
 			log.Warn("Failed to save current session ID: %v", err)
 		}
-		fmt.Print(i18n.TF(i18n.KeyNewSessionCreated, ep.Success, title))
+		io.Print(i18n.TF(i18n.KeyNewSessionCreated, ep.Success, title))
 		return
 	case ":model":
 		result, err = r.modelHandler.Handle(args)
@@ -530,26 +551,26 @@ func (r *REPL) handleBuiltin(input string) {
 		rh := cmd.NewResetHandler(r.agent)
 		result, err = rh.Handle(args)
 	default:
-		fmt.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
+		io.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return
 	}
 
 	if err != nil {
-		fmt.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
+		io.Printf("%s%s: %v\n", ep.Error, i18n.T(i18n.KeyError), err)
 		return
 	}
 	// Handle special POP: result from :session pop — allow user to edit and resubmit
 	if strings.HasPrefix(result, "POP:") {
 		poppedContent := result[4:]
-		fmt.Print(i18n.TF(i18n.KeySessionPopEdit, ep.Info, poppedContent))
-		fmt.Println(i18n.T(i18n.KeySessionPopEditHint))
+		io.Print(i18n.TF(i18n.KeySessionPopEdit, ep.Info, poppedContent))
+		io.Println(i18n.T(i18n.KeySessionPopEditHint))
 		edited, err := r.session.ReadLine("✏️ ")
 		if err != nil {
 			return
 		}
 		edited = strings.TrimSpace(edited)
 		if edited == "" {
-			fmt.Println(i18n.T(i18n.KeySessionPopSkipped))
+			io.Println(i18n.T(i18n.KeySessionPopSkipped))
 			return
 		}
 		// Resubmit with modified content
@@ -564,7 +585,7 @@ func (r *REPL) handleBuiltin(input string) {
 		r.handleAgentInput(edited)
 		return
 	}
-	fmt.Println(result)
+	io.Println(result)
 	if command == ":settings" || command == ":set" {
 		r.agent.SetShowLlmThinking(r.cfg.LLM.ShowLlmThinking)
 		r.agent.SetShowLlmContent(r.cfg.LLM.ShowLlmContent)

@@ -1415,6 +1415,11 @@
   - 实现：① 服务端 `web/server.go` 新增 `gitBranch(root)` 读取 `.git/HEAD` 解析分支名，`handleBootstrap` 返回 `branch` 字段；② 前端 `app.js` 新增 `refreshBranch()`，页面加载与 `done` 事件（LLM 迭代完成）时重新获取并更新 `#wsBranch`；③ `index.html` 调整标题栏结构（刷新按钮移入 `.ws-title` 组紧贴工作区、分支名单独靠右）；④ `style.css` 刷新按钮去边框放大一倍（24px）、分支名靠右 + 超长截断（`text-overflow: ellipsis`）、刷新按钮像素级垂直对齐（`translateY` 微调）
   - 测试：`TestGitBranch`（分支 ref/无仓库/detached HEAD 三子测试）+ `TestBootstrap` 验证 branch 字段；headless 浏览器验证分支名显示、`done` 事件触发刷新、超长分支名截断、刷新按钮像素级对齐；`go vet/test ./web/`、`node --check` 全绿
 
+- [x] **FEATURE-374 web UI 执行 REPL 命令输出传到浏览器** ✅ 已完成 [BUILD-435]
+  - 背景：web UI 执行 `:set` 等 REPL 命令时，输出内容显示在终端窗口（服务端），没有传到浏览器；希望输出以 REPL 块（平行于 TOOL/LLM）显示在浏览器事件流，人工输入/选择内容传回后台
+  - 实现：① `agent/out.go` 新增 `ChannelREPL` channel；② `web/session.go` `WebIO.pushText` 的 `ui_text` 事件 channel 改为 `ChannelREPL`；③ `repl/repl.go` `handleBuiltin` 中 `fmt.Print*`（7 处）改为通过 `agent.GetIO(r.agent)` 输出（web 模式走 WebIO → 浏览器，终端模式走 DefaultUserIO → 终端）；④ `app.js` `CHAN_LABEL` 添加 `repl: "REPL"`、`eventClass` 对 repl channel 的 `ui_text` 返回 `repl` class、`renderEvent` 显示 REPL 标签；⑤ `style.css` 为 `.ev.repl` 添加样式
+  - 测试：headless 浏览器通过 WebSocket 发送 `:set` 命令，事件流出现 REPL 块（标签 REPL、内容为设置帮助）；`go vet/test ./repl/ ./web/ ./agent/`、`node --check` 全绿
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

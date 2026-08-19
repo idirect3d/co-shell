@@ -174,10 +174,11 @@ type WebIO struct {
 	reading atomic.Bool
 }
 
-// pushText wraps user-interface text into a ui_text stream event (system
-// channel) and sends it to the browser.
+// pushText wraps user-interface text into a ui_text stream event (repl
+// channel) and sends it to the browser, so REPL builtin command output
+// (:set, :mcp, ...) renders as a REPL block in the event stream.
 func (w *WebIO) pushText(text string) {
-	w.srv.sendEvent(agent.NewStreamEvent("ui_text", agent.ChannelSystem, agent.LevelInfo, text))
+	w.srv.sendEvent(agent.NewStreamEvent("ui_text", agent.ChannelREPL, agent.LevelInfo, text))
 }
 
 func (w *WebIO) Print(args ...interface{})                 { w.pushText(fmt.Sprint(args...)) }

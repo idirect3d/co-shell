@@ -160,7 +160,7 @@ function wsSend(obj) {
 const CHAN_LABEL = {
   llm: "LLM", tool: "TOOL", command: "CMD", system: "SYS",
   taskplan: "PLAN", memory: "MEM", mcp: "MCP", db: "DB",
-  wizard: "WIZ", debug: "DBG", bridge: "BRG", subagent: "SUB",
+  wizard: "WIZ", debug: "DBG", bridge: "BRG", subagent: "SUB", repl: "REPL",
 };
 
 // Streaming blocks: { body, raw, raf, hasResult? }. raw accumulates the
@@ -168,6 +168,7 @@ const CHAN_LABEL = {
 let curLLM = null;      // current streaming llm block
 let curThinking = null; // current streaming thinking block
 let curTool = null;     // current tool block (one block per invocation)
+let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 
 function scrollStream() { stream.scrollTop = stream.scrollHeight; }
 
@@ -209,6 +210,7 @@ function eventClass(ev) {
     case "thinking_chunk": case "thinking": return "thinking" + lvl;
     case "tool_call": case "tool_call_stream": return "tool" + lvl;
     case "command": case "output": return "command" + lvl;
+    case "ui_text": return (ev.chan === "repl" ? "repl" : "system") + lvl;
     default: return "system" + lvl;
   }
 }
@@ -241,7 +243,7 @@ function renderEvent(ev) {
     return;
   }
   if (ev.type === "done") {
-    curLLM = curThinking = curTool = null;
+    curLLM = curThinking = curTool = curREPL = null;
     // An LLM iteration finished — the agent may have switched git branches,
     // so refresh the sidebar branch label without a manual reload.
     refreshBranch();
@@ -299,7 +301,18 @@ function renderEvent(ev) {
 
   curLLM = curThinking = null;
   const label = CHAN_LABEL[ev.chan] || (ev.chan || "SYS").toUpperCase();
-  const body = makeBlock(eventClass(ev), ev.type === "ui_text" ? "SYS" : label);
+  // ui_text from the repl channel renders as a REPL block (parallel to
+  // TOOL/LLM); consecutive lines merge into one block. Other ui_text stays SYS.
+  if (ev.type === "ui_text" && ev.chan === "repl") {
+    if (!curREPL) curREPL = newStreamBlock("repl", "REPL");
+    curREPL.raw += (curREPL.raw ? "\n" : "") + (ev.text || "");
+    curREPL.body.textContent = curREPL.raw;
+    scrollStream();
+    return;
+  }
+  curREPL = null;
+  const blockLabel = ev.type === "ui_text" ? "SYS" : label;
+  const body = makeBlock(eventClass(ev), blockLabel);
   if (ev.type === "content" || ev.type === "thinking") {
     body.classList.add("md");
     mdRender(body, ev.text || "");
@@ -515,6 +528,18 @@ input.addEventListener("keydown", (e) => {
     e.preventDefault();
   }
 });
+
+// When the user types (keyboard, not mouse) while focus is not on an input
+// element, bring focus back to the main input box so keystrokes land there.
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  if (typing) return; // already typing somewhere, don't steal focus
+  // Keep modifier/function keys working (shortcuts, arrows, F-keys, etc.).
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key.length > 1) return; // e.g. "F5", "ArrowUp", "Escape", "Shift"
+  input.focus();
+});
 input.addEventListener("input", autoGrow);
 
 /* ---------- workspace tree ---------- */
@@ -525,7 +550,9 @@ async function loadTree() {
     const root = await resp.json();
     tree.textContent = "";
     const ul = document.createElement("ul");
-    for (const c of root.children || []) ul.appendChild(treeNode(c));
+    // First level shows the workspace root folder itself, so the most
+    // salient feature (the workspace name) is visible at a glance.
+    ul.appendChild(treeNode(root));
     tree.appendChild(ul);
   } catch { /* keep old tree */ }
 }
@@ -723,9 +750,15 @@ async function refreshBranch() {
     if (b.lang === "en") T = I18N.en;
     document.documentElement.lang = b.lang || "zh";
     document.getElementById("ver").textContent = "v" + b.version + " [BUILD-" + b.build + "]";
-    // Browser tab title = workspace path (FEATURE-366), so multiple
-    // co-shell tabs are distinguishable at a glance.
-    if (b.workspace) document.title = b.workspace;
+    // Browser tab title = "{current folder name} - {full absolute path}"
+    // (FEATURE-366), so multiple co-shell tabs are distinguishable at a
+    // glance and the most salient feature (the folder name) shows first
+    // even when the tab is short.
+    if (b.workspace) {
+      const ws = b.workspace.replace(/\\+$/, "").replace(/\/+$/, "");
+      const name = ws.split(/[\\/]/).pop() || ws;
+      document.title = name + " - " + b.workspace;
+    }
     // Sidebar title shows the current git branch at the right edge of the
     // panel head (e.g. "工作区 ⟳   main").
     if (b.branch) document.getElementById("wsBranch").textContent = b.branch;

@@ -31,6 +31,7 @@ const (
 	ChannelDB       ChannelID = "db"       // database / sync / migration
 	ChannelBridge   ChannelID = "bridge"   // feishu / bridge / hub entry
 	ChannelSubAgent ChannelID = "subagent" // sub-agent
+	ChannelREPL     ChannelID = "repl"     // REPL builtin command output (:set, :mcp, ...)
 )
 
 // Level is the importance level of an output, used for styling
