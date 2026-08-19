@@ -541,6 +541,7 @@ aside {
   flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px 18px;
   align-items: center;
   padding: 4px 14px 6px;
