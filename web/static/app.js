@@ -449,6 +449,10 @@ function showAsk(msg) {
 function answerAsk(value) {
   if (!pendingAsk) return;
   wsSend({ type: "answer", id: pendingAsk, value });
+  // Echo the user's answer (confirmation choice, selected option, or typed
+  // content) as a YOU block so it appears in the output stream — these inputs
+  // are part of the conversation context and should be visible.
+  if (value) renderUserEcho(value);
   hideAsk();
 }
 
