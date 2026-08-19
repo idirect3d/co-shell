@@ -1,0 +1,120 @@
+
+co-shell 项目开发规范
+
+> 本文件是人与 AI 协作开发的统一约定，每次开发会话都应遵守。
+> 设计决策与需求演进见 `ROADMAP.md`（单一事实源）；架构与功能全景见 `docs/DESIGN.md`（阶段性设计文档）；本文件只定"怎么干活"。
+
+## 项目简介
+
+co-shell：AI 驱动的智能命令行 Shell（REPL），支持多模型、多模式、工具调用、Web 服务端渲染 UI、飞书/移动端桥接、任务计划、记忆、调度等能力。
+Go 1.25 + bbolt（本地存储，可选 PostgreSQL）+ 服务端渲染 Web UI，Agent 执行复用 kimi-cli / cline 等成熟 CLI 引擎。
+
+## 新会话接续指引（冷启动必读）
+
+上下文丢失或新 agent 实例接手时，按此顺序恢复认知：
+
+1. **本文件**（开发规范）
+2. **`docs/DESIGN.md`**——架构全景，重点 §9 接续指南（环境搭建、常见坑、当前队列）
+3. **`ROADMAP.md`** 任务登记表（找出"进行中/排队"任务）+ 第 4 节决策记录（理解"为什么"）
+4. `git log -5` 看最近进展；`go vet ./... && go test ./... && go build -o work/co-shell .` 确认基线全绿且可编译
+
+## 目录结构
+
+```
+main.go                # CLI 入口（package main，run / serve / hash 等子命令）
+cmd/                   # 子命令处理器（config / context / session / settings / model / mode 等）
+cmd/co-shell-feishu-bridge/  # 飞书桥接独立程序
+cmd/co-shell-hub/      # hub 独立程序
+agent/                 # Agent 核心（工具调用、命令解析、事件流、系统提示词）
+repl/                  # REPL 交互循环
+web/                   # Web UI：static（css/js）+ server.go（embed 单二进制）；serve --dev 从磁盘热加载
+config/                # 配置加载与校验
+i18n/                  # 多语言（zh/en）与系统提示词
+llm/                   # LLM 客户端（多模型、流式）
+log/                   # 日志
+store/                 # 存储（bbolt 本地 + 可选 PostgreSQL）
+mcp/                   # MCP 服务器管理
+scheduler/             # 定时任务
+workspace/             # 工作区管理
+hub/                   # WebSocket hub（本地模块，go.mod replace）
+browser/               # 浏览器自动化（CDP）
+docx/ xlsx/            # Word / Excel 文档处理
+subagent/              # 子 Agent 进程管理
+taskplan/              # 任务计划
+memory/                # 持久记忆
+mode/                  # 工作模式
+shell/                 # 持久 shell 会话
+feishu/ mobile/ bridge/ # 飞书 / 移动端 / 桥接
+testdata/              # 测试样本（引擎输出流、diff、golden 快照等）
+use-case/              # 验收测试用例文档（按分支组织）
+build-release.sh       # 全平台 Release 构建脚本
+ROADMAP.md             # 需求、设计决策、阶段规划（单一事实源）
+.clinerules/           # 参考规范（其他项目带来的，仅参考，不强制执行）
+```
+
+## 分支策略（trunk-based）
+
+- `main` 始终处于可发布状态，**禁止直接在 main 上提交**
+- 功能分支命名：`FEATURE-XXX`（新能力）/ `FIX-XXX`（修复），**两类共用同一编号序列**，编号接续 ROADMAP 任务记录中的最大编号
+- 分支短命（目标 <3 天），完成后 squash merge 回 `main` 并删除分支
+- 开工前确认当前在 `main` 且无未合并分支阻塞
+
+## 新建开发任务
+0. **前置检查**：当用户开始一个新任务时，你需要先确认当前是不是已经在 main 分支，且没有未合并的功能分支阻塞本次开发。如果不在main分支，需要先提交当前的修改、合并当前分支。
+
+1. **新建版本计划**：如果用户没有指定当前任务放在哪个版本下，则需要提示用户先制定版本计划，可选项为[新建小版本/新建中版本（小版本归零）/新建大版本（中小版本归零）/不新建版本]，之后根据用户的选择更新main.go中的version尾数（+1），并在ROADMAP 中新建一组该版本的版本计划作为**当前版本**，后续分支都加到该版本下。
+
+2. **建任务编号**：根据任务指令更新 ROADMAP 中的任务信息（需要新增或修改某一个特性或修复任务），获得本次任务编号（格式：`FEATURE-XXX` / `FIX-XXX`），编号应为 ROADMAP 中未被FEATURE和FIX使用的最小编号（与BUILD编号无关），任务记录需要追加到当前版本的最后一个任务。**注意：用户确认测试验证通过之前不要标记完成**。
+
+3. **新建分支**：任务编号建立新分支（如：`git checkout -b FEATURE-XXX`），禁止直接在main分支上提交任何修改。
+
+4. **构建测试用例（需求规格阶段同步生成）**：在确定开发需求规格阶段，应**同时**生成测试用例到固定位置 `use-case/{分支名}/`，命名 `{分支名}-UC-XXXX.md`（如：use-case/FEATURE-051/FEATURE-051-UC-0015.md）。应使用循环模式确保测试用例中有足够数量的运行时用例，以便能够通过对案例结果的确认就能达成应有的质量目标。用例生成后需要提示用户确认，确认后方能开始执行实施流程。
+
+5. **开发编码**：用户确认可以开始开发后开始执行实施流程：dev.md。
+
+**注意**：git操作不要用那种需要用户响应的命令，以免因此中断开发过程！
+
+## 开发流程
+1. **开始编码**：根据任务描述和测试用例进行开发编码（如果以上两项上不明确，应提示用户提供缺失的信息再继续）。**编码以测试用例为指引，明确每个环节的目标**。注意：在修改任何程序文件前，必须先说明：本次修改是解决什么问题、修改这个文件的原因是什么、准备怎么修改。
+
+2. **单元测试**：根据当前任务构建的测试用例，对程序进行循环测试验证，对发现的问题进行整改。**开发验证以测试用例结果为主要抓手，原则上所有测试用例通过才能进入下一个环节**，直到所有测试用例通过并达成任务目标。
+
+3. **更新构建信息**：更新 main.go 中的 build计数（+1），以便能够区分编译后可执行码的不同版本。根据任务实际情况，更新ROADMAP.md中的对应任务描述和执行状态，在任务描述结尾标注build计数 `[BUILD-YYYY]`（有效数字前不用补零）。
+
+4. **编译代码**：一次性完整运行 `go build ./... && go vet ./... && go build -o work/co-shell .`，同时执行（**禁止分开执行**）验证编译、检查代码质量并编译可执行程序到测试文件夹下。
+
+5. **提交代码**：提交代码到当前分支。
+
+6. **等待用户确认**：使用 `attempt_completion` 工具明确询问用户 "测试是否通过，是否可以继续'合并代码'（工作流: /merge）"。
+
+**注意**：不要通过写长shell命令，或者直接在命令行写python代码的方式做事！
+
+## 编译可执行码
+1. 没有参数：仅编译当前操作系统的版本到work/下，命名为co-shell。
+2. 参数为3时：编译MacOS Arm、Windows x86、Linux Arm几个版本到work/下。
+3. 参数为release时：编译MacOS、Windows、Linux三个操作系统的Arm版和X86版到dist/Release/下。
+
+## 代码提交及合并
+1. **更新构建信息**：如有未提交的更新，则更新 main.go 中的 build计数（+1），以便能够区分编译后可执行码的不同版本。根据任务实际情况，更新ROADMAP.md中的对应任务描述和执行状态，在任务描述结尾标注build计数 `[BUILD-YYYY]`（有效数字前不用补零）。
+
+2. **编译代码**：一次性完整运行 `go build ./... && go vet ./... && go build -o work/co-shell .`，同时执行（**禁止分开执行**）验证编译、检查代码质量并编译可执行程序到测试文件夹下。
+
+3. **提交合并代码**：提交最后更改的代码到当前分支，合并当前分支到main分支。
+
+4. **打版本标签**：以当前版本号打一个版本标签。
+
+## 依赖策略
+
+- **标准库优先**；仅当标准库无对应能力时，引入该领域事实标准的单一依赖
+- 当前允许的例外：`github.com/gorilla/websocket`（WebSocket）、`github.com/jackc/pgx/v5` / `github.com/lib/pq`（PG 驱动）、`go.etcd.io/bbolt`（本地 KV 存储）、`github.com/mark3labs/mcp-go`（MCP）、`github.com/larksuite/oapi-sdk-go/v3`（飞书）、`golang.org/x/crypto`（bcrypt 口令哈希）
+- 新增任何依赖前需在 ROADMAP 决策记录中登记理由
+
+## 常用命令
+
+```bash
+go test ./... -short                                      # 跳过集成/真实依赖测试
+go test ./<pkg>/ -v                                       # 单包测试
+go run . run --workdir <wt> --prompt "..." [--session <id>]   # 运行 Agent
+go run . serve --port <port>                              # 启动 Web UI（--dev 从磁盘热加载）
+./build-release.sh <版本号>                                # 全平台 Release 构建（dist/<版本号>/）
+```

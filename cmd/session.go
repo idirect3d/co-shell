@@ -49,6 +49,12 @@ type SessionHandler struct {
 	cfg   *config.Config
 }
 
+// io returns the UserIO from the agent, falling back to DefaultUserIO, so
+// interactive output/input reaches the browser (WebIO) in web mode.
+func (h *SessionHandler) io() agent.UserIO {
+	return agent.GetIO(h.agent)
+}
+
 // NewSessionHandler creates a new SessionHandler.
 func NewSessionHandler(ag *agent.Agent, cfg *config.Config) *SessionHandler {
 	return &SessionHandler{
@@ -120,31 +126,34 @@ func (h *SessionHandler) Handle(args []string) (string, error) {
 }
 
 func (h *SessionHandler) showInteractive() (string, error) {
+	io := h.io()
 	for {
 		// First show current session stats
 		currentInfo, _ := h.showSession()
-		fmt.Println(currentInfo)
+		io.Println(currentInfo)
 
 		// Then show session list (dynamic message count, marks current with *)
-		fmt.Println()
+		io.Println()
 		if err := h.showListInteractive(); err != nil {
 			return "", err
 		}
-		fmt.Println()
+		io.Println()
 
 		// Show wizard-style menu
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsTitle))
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsNum))
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsExport))
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsImport))
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsDelete))
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsPop))
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsNew))
-		fmt.Println(i18n.T(i18n.KeySessionMigOpsQuit))
-		fmt.Print(i18n.T(i18n.KeySessionMigOpsChoose))
+		io.Println(i18n.T(i18n.KeySessionMigOpsTitle))
+		io.Println(i18n.T(i18n.KeySessionMigOpsNum))
+		io.Println(i18n.T(i18n.KeySessionMigOpsExport))
+		io.Println(i18n.T(i18n.KeySessionMigOpsImport))
+		io.Println(i18n.T(i18n.KeySessionMigOpsDelete))
+		io.Println(i18n.T(i18n.KeySessionMigOpsPop))
+		io.Println(i18n.T(i18n.KeySessionMigOpsNew))
+		io.Println(i18n.T(i18n.KeySessionMigOpsQuit))
+		io.Print(i18n.T(i18n.KeySessionMigOpsChoose))
 
-		var input string
-		fmt.Scanln(&input)
+		input, err := io.ReadLine()
+		if err != nil {
+			return "", err
+		}
 		input = strings.TrimSpace(input)
 		if input == "" {
 			continue
@@ -157,9 +166,11 @@ func (h *SessionHandler) showInteractive() (string, error) {
 		case "e":
 			return h.handleExport("")
 		case "i":
-			fmt.Print(i18n.T(i18n.KeySessionMigFilePrompt))
-			var path string
-			fmt.Scanln(&path)
+			io.Print(i18n.T(i18n.KeySessionMigFilePrompt))
+			path, err := io.ReadLine()
+			if err != nil {
+				return "", err
+			}
 			path = strings.TrimSpace(path)
 			if path == "" {
 				return "", errors.New(i18n.T(i18n.KeySessionMigCancelled))
@@ -201,7 +212,7 @@ func (h *SessionHandler) showInteractive() (string, error) {
 			if n, err := strconv.Atoi(input); err == nil && n > 0 {
 				return h.handleSwitch(strconv.Itoa(n))
 			}
-			fmt.Printf(i18n.T(i18n.KeySessionMigUnknownOp), input)
+			io.Printf(i18n.T(i18n.KeySessionMigUnknownOp), input)
 			continue
 		}
 	}
@@ -216,9 +227,12 @@ func (h *SessionHandler) handleDeleteWithList() (string, error) {
 		return i18n.T(i18n.KeySessionMigNoneDelete), nil
 	}
 
-	fmt.Print(i18n.T(i18n.KeySessionMigDelPrompt))
-	var input string
-	fmt.Scanln(&input)
+	io := h.io()
+	io.Print(i18n.T(i18n.KeySessionMigDelPrompt))
+	input, err := io.ReadLine()
+	if err != nil {
+		return "", err
+	}
 	input = strings.TrimSpace(input)
 	if input == "" {
 		return i18n.T(i18n.KeySessionMigCancelled), nil
@@ -241,12 +255,13 @@ func (h *SessionHandler) nextSessionNumber() int {
 }
 
 func (h *SessionHandler) showListInteractive() error {
+	io := h.io()
 	entries, err := h.agent.Store().ListNamedSessions()
 	if err != nil {
 		return err
 	}
 	if len(entries) == 0 {
-		fmt.Println(i18n.T(i18n.KeySessionListEmpty))
+		io.Println(i18n.T(i18n.KeySessionListEmpty))
 		return nil
 	}
 
@@ -256,8 +271,8 @@ func (h *SessionHandler) showListInteractive() error {
 	})
 
 	currentID := h.agent.CurrentSessionID()
-	fmt.Println(i18n.T(i18n.KeySessionListTitle))
-	fmt.Printf("  %s  %-30s %-24s %5s  %s\n", i18n.T(i18n.KeySessionNumber), i18n.T(i18n.KeySessionTitleLabel), i18n.T(i18n.KeySessionKeywords), i18n.T(i18n.KeySessionMessageCount), i18n.T(i18n.KeySessionCreatedAt))
+	io.Println(i18n.T(i18n.KeySessionListTitle))
+	io.Printf("  %s  %-30s %-24s %5s  %s\n", i18n.T(i18n.KeySessionNumber), i18n.T(i18n.KeySessionTitleLabel), i18n.T(i18n.KeySessionKeywords), i18n.T(i18n.KeySessionMessageCount), i18n.T(i18n.KeySessionCreatedAt))
 
 	for i, entry := range entries {
 		// Dynamically compute message count
@@ -278,7 +293,7 @@ func (h *SessionHandler) showListInteractive() error {
 		if entry.ID == currentID {
 			marker = "*"
 		}
-		fmt.Printf("  %s%3d  %-30s %-24s %5d  %s\n",
+		io.Printf("  %s%3d  %-30s %-24s %5d  %s\n",
 			marker, i+1, title, keywords, msgCount,
 			entry.CreatedAt.Format("2006-01-02 15:04"))
 	}
@@ -304,7 +319,7 @@ func (h *SessionHandler) showHelp() (string, error) {
 func (h *SessionHandler) handleExport(filePath string) (string, error) {
 	if filePath == "" {
 		filePath = fmt.Sprintf("session-%s.cosh-session.json", time.Now().Format("20060102-150405"))
-		fmt.Println(i18n.TF(i18n.KeySessionExportDefaultPath, filePath))
+		h.io().Println(i18n.TF(i18n.KeySessionExportDefaultPath, filePath))
 	} else {
 		// If filePath doesn't end with .json, append the extension
 		if !strings.HasSuffix(strings.ToLower(filePath), ".cosh-session.json") {
@@ -360,20 +375,23 @@ func (h *SessionHandler) handleImport(filePath string) (string, error) {
 		return "", fmt.Errorf("%s", i18n.TF(i18n.KeySessionImportFailed, "empty messages"))
 	}
 
-	fmt.Printf("%s %s\n", i18n.T(i18n.KeySessionImport), filePath)
+	io := h.io()
+	io.Printf("%s %s\n", i18n.T(i18n.KeySessionImport), filePath)
 	if export.Title != "" {
-		fmt.Printf("  %s: %s\n", i18n.T(i18n.KeySessionTitleLabel), export.Title)
+		io.Printf("  %s: %s\n", i18n.T(i18n.KeySessionTitleLabel), export.Title)
 		if export.Keywords != "" {
-			fmt.Printf("  %s: %s\n", i18n.T(i18n.KeySessionKeywords), export.Keywords)
+			io.Printf("  %s: %s\n", i18n.T(i18n.KeySessionKeywords), export.Keywords)
 		}
 	}
-	fmt.Printf("  %s: %d\n", i18n.T(i18n.KeySessionMessageCount), len(export.Messages))
-	fmt.Printf("  %s: %s\n", i18n.T(i18n.KeySessionCreatedAt), export.ExportedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("\n%s / %s\n", i18n.T(i18n.KeySessionConfirmReplace), i18n.T(i18n.KeySessionConfirmAppend))
-	fmt.Print(i18n.T(i18n.KeySessionMigReplaceAp))
+	io.Printf("  %s: %d\n", i18n.T(i18n.KeySessionMessageCount), len(export.Messages))
+	io.Printf("  %s: %s\n", i18n.T(i18n.KeySessionCreatedAt), export.ExportedAt.Format("2006-01-02 15:04:05"))
+	io.Printf("\n%s / %s\n", i18n.T(i18n.KeySessionConfirmReplace), i18n.T(i18n.KeySessionConfirmAppend))
+	io.Print(i18n.T(i18n.KeySessionMigReplaceAp))
 
-	response := ""
-	fmt.Scanln(&response)
+	response, err := io.ReadLine()
+	if err != nil {
+		return "", err
+	}
 	response = strings.TrimSpace(strings.ToLower(response))
 
 	if response == "a" {
@@ -541,9 +559,11 @@ func (h *SessionHandler) handleDelete(idStr string) (string, error) {
 	}
 
 	// Confirm
-	fmt.Print(i18n.TF(i18n.KeySessionDeleteConfirm, idStr))
-	response := ""
-	fmt.Scanln(&response)
+	h.io().Print(i18n.TF(i18n.KeySessionDeleteConfirm, idStr))
+	response, err := h.io().ReadLine()
+	if err != nil {
+		return "", err
+	}
 	response = strings.TrimSpace(strings.ToLower(response))
 	if response != "y" && response != "yes" {
 		return "", fmt.Errorf("%s", i18n.T(i18n.KeyCancelled))
@@ -588,7 +608,7 @@ func (h *SessionHandler) popMessages(n int) (string, error) {
 
 	dropped := len(popIdx) - 1
 	if dropped > 0 {
-		fmt.Printf(i18n.T(i18n.KeySessionPopDropped)+"\n", len(popIdx), dropped)
+		h.io().Printf(i18n.T(i18n.KeySessionPopDropped)+"\n", len(popIdx), dropped)
 	}
 
 	return fmt.Sprintf("POP:%s", lastContent), nil
@@ -625,7 +645,7 @@ func (h *SessionHandler) popTo(n int) (string, error) {
 
 	dropped := len(aMsg) - (n + 1)
 	if dropped > 0 {
-		fmt.Printf(i18n.T(i18n.KeySessionPopDropped)+"\n", dropped, dropped)
+		h.io().Printf(i18n.T(i18n.KeySessionPopDropped)+"\n", dropped, dropped)
 	}
 
 	return fmt.Sprintf("POP:%s", lastContent), nil
