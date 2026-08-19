@@ -22,8 +22,7 @@ const I18N = {
     menu: "菜单", settings: "系统设置",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条",
-    sbTotal: "会话总token", sbLastIn: "本次输入", sbFT: "首字延迟",
-    sbOut: "总输出", sbTime: "用时", sbToken: "token",
+    sbSession: "会话", sbLast: "最后一轮",
   },
   en: {
     workspace: "Workspace",
@@ -36,8 +35,7 @@ const I18N = {
     menu: "Menu", settings: "Settings",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar",
-    sbTotal: "Session tokens", sbLastIn: "Last input", sbFT: "TTFT",
-    sbOut: "Total output", sbTime: "Time", sbToken: "token",
+    sbSession: "Session", sbLast: "Last turn",
   },
 };
 let T = I18N.zh;
@@ -130,12 +128,8 @@ const previewClose = document.getElementById("previewClose");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
-const sbTotal = document.getElementById("sbTotal");
-const sbLastIn = document.getElementById("sbLastIn");
-const sbFT = document.getElementById("sbFT");
-const sbOut = document.getElementById("sbOut");
-const sbTime = document.getElementById("sbTime");
-const sbToken = document.getElementById("sbToken");
+const sbSession = document.getElementById("sbSession");
+const sbLast = document.getElementById("sbLast");
 
 /* ---------- websocket ---------- */
 
@@ -233,8 +227,8 @@ function eventClass(ev) {
 function renderEvent(ev) {
   // Turn-boundary signals from the web session (FEATURE-369): drive the
   // merged send/interrupt button, never render as blocks.
-  if (ev.type === "await_input") { setRunning(false); turnStartTime = 0; return; }
-  if (ev.type === "turn_start") { setRunning(true); turnStartTime = Date.now(); return; }
+  if (ev.type === "await_input") { setRunning(false); return; }
+  if (ev.type === "turn_start") { setRunning(true); return; }
   if (ev.type === "task_plan") {
     let plan = null;
     try { if (ev.meta && ev.meta.plan) plan = JSON.parse(ev.meta.plan); } catch { /* keep null */ }
@@ -259,17 +253,12 @@ function renderEvent(ev) {
     if (ev.type === "token_iter") {
       const p = parseInt(m.prompt, 10) || 0;
       const c = parseInt(m.completion, 10) || 0;
-      const t = parseInt(m.total, 10) || 0;
       tokenStats.sessionIn += p;
       tokenStats.sessionOut += c;
       tokenStats.lastIn = p;
       tokenStats.lastOut = c;
-      tokenStats.lastTotal = t;
-      if (m.ft) tokenStats.lastFT = m.ft;
-      if (turnStartTime) {
-        const sec = (Date.now() - turnStartTime) / 1000;
-        tokenStats.lastTime = sec >= 60 ? (sec / 60).toFixed(1) + "m" : sec.toFixed(1) + "s";
-      }
+      tokenStats.lastInTPS = parseInt(m.in_tps, 10) || 0;
+      tokenStats.lastOutTPS = parseInt(m.out_tps, 10) || 0;
       updateStatus();
     }
     return;
@@ -419,19 +408,27 @@ miStatus.onclick = () => {
 
 // Token stats accumulated from token_iter events. sessionIn/sessionOut are
 // the running totals across all iterations; last* hold the most recent
-// iteration's values.
-const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastFT: "-", lastOut: 0, lastTime: "-", lastTotal: 0 };
-let turnStartTime = 0; // timestamp when the current turn began (for 用时)
+// iteration's values (including input/output tokens-per-second).
+const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0 };
 
 function fmtNum(n) { return n ? n.toLocaleString() : "0"; }
 
+// fmtDur formats a duration in seconds as e.g. "2s" or "1.5m".
+function fmtDur(sec) {
+  if (!(sec > 0)) return "-";
+  return sec >= 60 ? (sec / 60).toFixed(1) + "m" : sec.toFixed(1) + "s";
+}
+
 function updateStatus() {
-  sbTotal.innerHTML = T.sbTotal + " <b>" + fmtNum(tokenStats.sessionIn + tokenStats.sessionOut) + "</b>";
-  sbLastIn.innerHTML = T.sbLastIn + " <b>" + fmtNum(tokenStats.lastIn) + "</b>";
-  sbFT.innerHTML = T.sbFT + " <b>" + tokenStats.lastFT + "</b>";
-  sbOut.innerHTML = T.sbOut + " <b>" + fmtNum(tokenStats.sessionOut) + "</b>";
-  sbTime.innerHTML = T.sbTime + " <b>" + tokenStats.lastTime + "</b>";
-  sbToken.innerHTML = T.sbToken + " <b>" + fmtNum(tokenStats.lastTotal) + "</b>";
+  // Session: 会话 15000（↑14500 ↓500）
+  const sIn = tokenStats.sessionIn, sOut = tokenStats.sessionOut;
+  sbSession.innerHTML = T.sbSession + " <b>" + fmtNum(sIn + sOut) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
+  // Last turn: 最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)
+  const li = tokenStats.lastIn, lo = tokenStats.lastOut;
+  const liTPS = tokenStats.lastInTPS, loTPS = tokenStats.lastOutTPS;
+  const liDur = liTPS > 0 ? fmtDur(li / liTPS) : "-";
+  const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
+  sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? liTPS + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? loTPS + "t/s" : "-") + ", " + loDur + ")";
 }
 
 /* ---------- task plan panel ---------- */

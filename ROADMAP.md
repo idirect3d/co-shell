@@ -1440,11 +1440,11 @@
   - 实现：`web/static/app.js` `renderEvent` 中 `tool_call` 事件 result 分支（工具执行完成）末尾调用 `refreshBranch()` + `loadTree()`，使每次工具调用返回后文件列表与分支状态实时刷新
   - 测试：headless 浏览器验证工具调用返回（tool_call result 事件）后文件列表自动刷新包含新文件；`node --check` 全绿
 
-- [x] **FEATURE-378 web 底部状态条（上下文 token 统计）** ✅ 已完成 [BUILD-447]
+- [x] **FEATURE-378 web 底部状态条（上下文 token 统计）** ✅ 已完成 [BUILD-448]
   - 背景：用户消息框下方（窗口最底部）需要一条状态条，实时显示当前上下文长度统计；通过右上角下拉菜单新增开关控制是否显示
-  - 状态条显示：当前会话总输入+总输出 token 数、最后一次输入 token、首字延迟、总输出 token、用时、token
-  - 实现：纯前端——`index.html` 在 `#bottom` 内新增状态条 div（6 个 sb-item）+ 菜单新增 miStatus 开关；`app.js` 累积 `token_iter` 事件元数据（prompt/completion/total/ft）更新状态条，右上角下拉菜单新增开关（localStorage `co-shell-status` 持久化）控制显示/隐藏，`turn_start`/`await_input` 记录用时；`style.css` 状态条样式（`#bottom` 加 `flex-wrap:wrap` + `.statusbar` 加 `flex-basis:100%`，使状态条独占一行占满整个窗口宽度，位于输入栏下方）
-  - 测试：Node DOM shim 加载真实 app.js 驱动假事件，24 项断言全过（默认显示、token_iter 更新 6 字段、多次迭代累积、菜单开关切换与持久化、刷新后保持、用时计算）；`node --check`、`go build/vet/test ./web/` 全绿
+  - 状态条显示（两段，整体靠右）：`会话 15000（↑14500 ↓500）`（会话总 token + 会话总输入/输出）+ `最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)`（最后一轮输入/输出 + 速度 + 用时）
+  - 实现：纯前端——`index.html` 在 `#bottom` 内新增状态条 div（sbSession + sbLast 两段）+ 菜单新增 miStatus 开关；`app.js` 累积 `token_iter` 事件元数据（prompt/completion/in_tps/out_tps）更新状态条，右上角下拉菜单新增开关（localStorage `co-shell-status` 持久化）控制显示/隐藏，用时=token/速度；`style.css` 状态条样式（`#bottom` 加 `flex-wrap:wrap` + `.statusbar` 加 `flex-basis:100%` 独占一行占满全宽 + `justify-content:flex-end` 靠右）
+  - 测试：Node DOM shim 加载真实 app.js 驱动假事件，29 项断言全过（默认显示、token_iter 更新会话/最后一轮两段、速度/用时计算、多次迭代累积、菜单开关切换与持久化、刷新后保持）；`node --check`、`go build/vet/test ./web/` 全绿
 
 ## v1.0.0 — 正式版
 
