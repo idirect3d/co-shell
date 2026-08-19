@@ -9,6 +9,7 @@
   --fg: #d5dbe7;
   --fg-dim: #8b93a5;
   --fg-faint: #5b6373;
+  --placeholder: #464a52; /* dimmed placeholder so it never outshines input */
   --accent: #3fd6ef;
   --accent-dim: rgba(63, 214, 239, 0.14);
   --border: #232a3a;
@@ -27,6 +28,7 @@
   --fg: #1d2433;
   --fg-dim: #5b6474;
   --fg-faint: #9aa3b2;
+  --placeholder: #9aa3b2;
   --accent: #0878d1;
   --accent-dim: rgba(8, 120, 209, 0.10);
   --border: #d9dee8;
@@ -473,6 +475,8 @@ aside {
   max-height: 120px;
 }
 #input:focus { border-color: var(--accent); }
+/* Placeholder hint stays dim so it never outshines the real input text. */
+#input::placeholder { color: var(--placeholder); opacity: 1; }
 
 .btn {
   border: 1px solid var(--border);
