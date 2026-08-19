@@ -128,6 +128,7 @@ const previewClose = document.getElementById("previewClose");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
+const sbModel = document.getElementById("sbModel");
 const sbSession = document.getElementById("sbSession");
 const sbLast = document.getElementById("sbLast");
 
@@ -411,6 +412,10 @@ miStatus.onclick = () => {
 // iteration's values (including input/output tokens-per-second).
 const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0 };
 
+// modelInfo holds the active text/vision model context info from bootstrap
+// (FEATURE-378): { textModel, textMaxLen, visionModel, visionMaxLen }.
+let modelInfo = null;
+
 function fmtNum(n) { return n ? n.toLocaleString() : "0"; }
 
 // fmtDur formats a duration in seconds as e.g. "2s" or "1.5m".
@@ -419,10 +424,34 @@ function fmtDur(sec) {
   return sec >= 60 ? (sec / 60).toFixed(1) + "m" : sec.toFixed(1) + "s";
 }
 
+// fmtPct formats a context-usage percentage (0-100) as e.g. "89%".
+function fmtPct(used, max) {
+  if (!(max > 0)) return "-";
+  return Math.round(used * 100 / max) + "%";
+}
+
+// fmtLen formats a context length with K/M units (e.g. 1048576 -> "1M").
+function fmtLen(n) {
+  if (!(n > 0)) return "-";
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+
 function updateStatus() {
-  // Session: 会话 15000（↑14500 ↓500）
+  // Model context usage: 🧠{text}(89% of 1M)/👀{vision}(50% of 1M)
   const sIn = tokenStats.sessionIn, sOut = tokenStats.sessionOut;
-  sbSession.innerHTML = T.sbSession + " <b>" + fmtNum(sIn + sOut) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
+  const total = sIn + sOut;
+  let modelHtml = "";
+  if (modelInfo && modelInfo.textModel) {
+    modelHtml += "🧠" + modelInfo.textModel + "(" + fmtPct(total, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
+    if (modelInfo.visionModel) {
+      modelHtml += "/👀" + modelInfo.visionModel + "(" + fmtPct(total, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
+    }
+  }
+  sbModel.innerHTML = modelHtml;
+  // Session: 会话 15000（↑14500 ↓500）
+  sbSession.innerHTML = T.sbSession + " <b>" + fmtNum(total) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
   // Last turn: 最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)
   const li = tokenStats.lastIn, lo = tokenStats.lastOut;
   const liTPS = tokenStats.lastInTPS, loTPS = tokenStats.lastOutTPS;
@@ -861,6 +890,10 @@ async function refreshBranch() {
     // Sidebar title shows the current git branch at the right edge of the
     // panel head (e.g. "工作区 ⟳   main").
     if (b.branch) document.getElementById("wsBranch").textContent = b.branch;
+    // FEATURE-378: active text/vision model context info for the status bar.
+    if (b.textModel) {
+      modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0 };
+    }
   } catch { /* defaults stay zh */ }
   applyI18n();
   setRunning(false); // apply localized button title
