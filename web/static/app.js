@@ -23,6 +23,7 @@ const I18N = {
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条",
     sbSession: "会话", sbLast: "最后一轮",
+    revealDir: "定位到文件夹",
   },
   en: {
     workspace: "Workspace",
@@ -36,6 +37,7 @@ const I18N = {
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar",
     sbSession: "Session", sbLast: "Last turn",
+    revealDir: "Reveal in folder",
   },
 };
 let T = I18N.zh;
@@ -697,21 +699,31 @@ function treeNode(node) {
   name.textContent = node.name;
   row.appendChild(name);
 
-  // Directory change-count badge stays on the right (FEATURE-375).
+  // Right-aligned action group (FEATURE-383): directory change-count badge +
+  // reveal button. The group is pushed right with margin-left:auto so the
+  // badge hugs the reveal button.
+  const actions = document.createElement("span");
+  actions.className = "row-actions";
   if (node.dir && node.changes > 0) {
     const badge = document.createElement("span");
     badge.className = "git-badge dir-count";
     badge.textContent = "●" + node.changes;
     badge.title = node.changes + " changed";
-    row.appendChild(badge);
+    actions.appendChild(badge);
   }
-
   const reveal = document.createElement("button");
   reveal.className = "reveal-btn";
-  reveal.title = "reveal";
+  reveal.title = T.revealDir;
   reveal.textContent = "⌖";
   reveal.onclick = (e) => { e.stopPropagation(); postPath("/api/reveal", node.path); };
-  row.appendChild(reveal);
+  actions.appendChild(reveal);
+  row.appendChild(actions);
+
+  // FEATURE-383: hovering a long (truncated) file name auto-expands the
+  // sidebar to fit it; leaving the sidebar returns it to the fixed width.
+  row.addEventListener("mouseenter", () => {
+    if (name.scrollWidth > name.clientWidth) layout.classList.add("sidebar-auto");
+  });
 
   li.appendChild(row);
 
@@ -909,6 +921,13 @@ async function refreshBranch() {
   applyPanels();
   applyStatus();
   updateStatus();
+  // FEATURE-383: leaving the sidebar returns it to the fixed width after a
+  // short delay (the auto-expand is triggered per-row on hover).
+  let sidebarAutoTimer = 0;
+  sidebar.addEventListener("mouseleave", () => {
+    clearTimeout(sidebarAutoTimer);
+    sidebarAutoTimer = setTimeout(() => layout.classList.remove("sidebar-auto"), 2500);
+  });
   loadTree();
   wsConnect();
 })();
