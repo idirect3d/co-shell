@@ -25,6 +25,7 @@ const I18N = {
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "定位到文件夹",
     sessionDelete: "删除会话",
+    sessionActive: "当前会话",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
     cancel: "取消", confirm: "确认",
   },
@@ -42,6 +43,7 @@ const I18N = {
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "Reveal in folder",
     sessionDelete: "Delete session",
+    sessionActive: "Current session",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
     cancel: "Cancel", confirm: "Confirm",
   },
@@ -502,17 +504,22 @@ function renderSessionMenu(sessions) {
   for (const s of sessionList) {
     const row = document.createElement("div");
     row.className = "session-item" + (s.current ? " current" : "");
-    // Delete button on the left (left-aligned). Clicking it asks for
-    // confirmation before sending session_delete (FEATURE-387).
+    // Left-aligned leading icon: the current session cannot be deleted, so
+    // it shows an active indicator instead of a delete button (FEATURE-387).
     const del = document.createElement("span");
-    del.className = "session-del";
-    del.textContent = "✕";
-    del.title = T.sessionDelete;
-    del.onclick = (e) => {
-      e.stopPropagation();
-      if (s.current) return;
-      confirmDeleteSession(s);
-    };
+    if (s.current) {
+      del.className = "session-active";
+      del.textContent = "●";
+      del.title = T.sessionActive;
+    } else {
+      del.className = "session-del";
+      del.textContent = "✕";
+      del.title = T.sessionDelete;
+      del.onclick = (e) => {
+        e.stopPropagation();
+        confirmDeleteSession(s);
+      };
+    }
     row.appendChild(del);
     // Title (click to switch).
     const title = document.createElement("span");
