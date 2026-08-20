@@ -1456,6 +1456,11 @@
   - 实现：① `app.js` `treeNode()` 将文件夹 git 徽标与 reveal 按钮放入 `.row-actions` 容器，`style.css` `.row-actions` 加 `margin-left:auto` 靠右、`.git-badge` 改 `margin-right:6px` 紧贴 reveal；② `reveal.title` 改用 i18n `T.revealDir`（zh 定位到文件夹 / en Reveal in folder）；③ `treeNode()` 给 `.tree-row` 加 `mouseenter` 监听，超长文件名（`scrollWidth>clientWidth`）时给 `#layout` 加 `sidebar-auto` class，`style.css` 新增 `#layout.sidebar-auto` 变体（grid 第一列 `auto` 自适应），boot 中 `#sidebar` 加 `mouseleave` 监听 2.5 秒后移除 `sidebar-auto` 回归固定宽度
   - 测试：Node DOM shim 加载真实 app.js 驱动 treeNode，16 项断言全过（含 git-badge 在 row-actions 内且先于 reveal、reveal title 本地化）；`node --check`、`go build/vet/test ./web/` 全绿
 
+- [x] **FEATURE-384 状态栏三项 UI 优化** ✅ 已完成 [BUILD-458]
+  - 背景：① 去掉主模型和视觉模型之间的 `/` 改为一个空格的固定宽度；② `会话` 文字改为 Σ 汇总图标；③ `最后一轮` 文字改为 🔄 适配图标（用户确认组合 B）
+  - 实现：`app.js` i18n `sbSession` 值改为 `Σ`、`sbLast` 值改为 `🔄`（zh/en 通用图标）；`updateStatus()` 模型间分隔从 `/👀` 改为 ` 👀`（一个空格固定宽度）
+  - 测试：Node DOM shim 加载真实 app.js 驱动假事件，37 项断言全过（含 sbSession 用 Σ 图标、sbLast 用 🔄 图标、模型分隔为空格非 /）；`node --check`、`go build/vet/test ./web/` 全绿
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中

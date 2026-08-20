@@ -22,7 +22,7 @@ const I18N = {
     menu: "菜单", settings: "系统设置",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条",
-    sbSession: "会话", sbLast: "最后一轮",
+    sbSession: "Σ", sbLast: "🔄",
     revealDir: "定位到文件夹",
   },
   en: {
@@ -36,7 +36,7 @@ const I18N = {
     menu: "Menu", settings: "Settings",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar",
-    sbSession: "Session", sbLast: "Last turn",
+    sbSession: "Σ", sbLast: "🔄",
     revealDir: "Reveal in folder",
   },
 };
@@ -441,7 +441,7 @@ function fmtLen(n) {
 }
 
 function updateStatus() {
-  // Model context usage: 🧠{text}(89% of 1M)/👀{vision}(50% of 1M). The
+  // Model context usage: 🧠{text}(89% of 1M) 👀{vision}(50% of 1M). The
   // usage numerator is the last turn's input+output tokens (FEATURE-378).
   const sIn = tokenStats.sessionIn, sOut = tokenStats.sessionOut;
   const total = sIn + sOut;
@@ -450,7 +450,7 @@ function updateStatus() {
   if (modelInfo && modelInfo.textModel) {
     modelHtml += "🧠" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
     if (modelInfo.visionModel) {
-      modelHtml += "/👀" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
+      modelHtml += " 👀" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
     }
   }
   sbModel.innerHTML = modelHtml;
