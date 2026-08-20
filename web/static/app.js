@@ -25,6 +25,8 @@ const I18N = {
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "定位到文件夹",
     sessionDelete: "删除会话",
+    sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
+    cancel: "取消", confirm: "确认",
   },
   en: {
     workspace: "Workspace",
@@ -40,6 +42,8 @@ const I18N = {
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "Reveal in folder",
     sessionDelete: "Delete session",
+    sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
+    cancel: "Cancel", confirm: "Confirm",
   },
 };
 let T = I18N.zh;
@@ -138,6 +142,11 @@ const sbLast = document.getElementById("sbLast");
 const sbSessionsWrap = document.getElementById("sbSessionsWrap");
 const sbSessions = document.getElementById("sbSessions");
 const sessionMenu = document.getElementById("sessionMenu");
+const delSessionModal = document.getElementById("delSession");
+const delSessionMsg = document.getElementById("delSessionMsg");
+const delSessionClose = document.getElementById("delSessionClose");
+const delSessionCancel = document.getElementById("delSessionCancel");
+const delSessionConfirm = document.getElementById("delSessionConfirm");
 
 /* ---------- websocket ---------- */
 
@@ -493,7 +502,8 @@ function renderSessionMenu(sessions) {
   for (const s of sessionList) {
     const row = document.createElement("div");
     row.className = "session-item" + (s.current ? " current" : "");
-    // Delete button on the left (left-aligned).
+    // Delete button on the left (left-aligned). Clicking it asks for
+    // confirmation before sending session_delete (FEATURE-387).
     const del = document.createElement("span");
     del.className = "session-del";
     del.textContent = "✕";
@@ -501,7 +511,7 @@ function renderSessionMenu(sessions) {
     del.onclick = (e) => {
       e.stopPropagation();
       if (s.current) return;
-      wsSend({ type: "session_delete", value: s.id });
+      confirmDeleteSession(s);
     };
     row.appendChild(del);
     // Title (click to switch).
@@ -526,6 +536,27 @@ sbSessionsWrap.addEventListener("mouseenter", () => {
 sbSessionsWrap.addEventListener("mouseleave", () => {
   sessionMenu.classList.add("hidden");
 });
+
+// confirmDeleteSession opens the delete-confirmation modal for a session.
+// The actual session_delete message is only sent after the user confirms
+// (FEATURE-387).
+let pendingDeleteID = null;
+function confirmDeleteSession(s) {
+  pendingDeleteID = s.id;
+  delSessionMsg.textContent = T.sessionDeleteConfirm.replace("%s", s.title || "(unnamed)");
+  delSessionModal.classList.remove("hidden");
+}
+function closeDeleteModal() {
+  pendingDeleteID = null;
+  delSessionModal.classList.add("hidden");
+}
+delSessionClose.onclick = closeDeleteModal;
+delSessionCancel.onclick = closeDeleteModal;
+delSessionModal.onclick = (e) => { if (e.target === delSessionModal) closeDeleteModal(); };
+delSessionConfirm.onclick = () => {
+  if (pendingDeleteID) wsSend({ type: "session_delete", value: pendingDeleteID });
+  closeDeleteModal();
+};
 
 /* ---------- task plan panel ---------- */
 

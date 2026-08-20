@@ -153,6 +153,15 @@ type TaskPlanPusher interface {
 	PushTaskPlan(planJSON string)
 }
 
+// SessionListPusher is implemented by UserIO implementations that can push
+// the current session list to their consumer (e.g. WebIO pushes it to the
+// browser). The agent uses it to refresh the frontend session menu/count when
+// the current session changes (FEATURE-387), covering paths like :new that
+// switch the current session outside the web session handler.
+type SessionListPusher interface {
+	PushSessionList()
+}
+
 // DefaultIO returns the default UserIO implementation (os.Stdout/os.Stdin).
 // Use this in static package-level functions that don't have access to an Agent.
 func DefaultIO() UserIO {

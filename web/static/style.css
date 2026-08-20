@@ -743,6 +743,26 @@ aside {
 }
 .set-row select:focus { border-color: var(--accent); }
 
+/* ---------- delete-session confirm modal (FEATURE-387) ---------- */
+
+.del-session-msg {
+  font-size: 13px;
+  color: var(--fg);
+  margin-bottom: 14px;
+  word-break: break-all;
+}
+.del-session-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.btn.danger {
+  border-color: var(--err);
+  color: var(--err);
+  background: none;
+}
+.btn.danger:hover { background: var(--err); color: var(--bg); }
+
 /* ---------- scrollbars ---------- */
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
