@@ -150,6 +150,9 @@ function wsConnect() {
     wsReady = true;
     conn.classList.add("on");
     connText.textContent = T.connected;
+    // Fetch the session list on connect so the 💬 count is correct immediately
+    // (FEATURE-387), not only after hovering the status-bar item.
+    wsSend({ type: "session_list" });
   };
   ws.onclose = () => {
     wsReady = false;
