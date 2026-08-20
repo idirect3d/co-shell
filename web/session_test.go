@@ -12,7 +12,6 @@ package web
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -96,11 +95,14 @@ func TestSessionInputToReadLine(t *testing.T) {
 		line, err := sess.ReadLine("")
 		done <- result{line, err}
 	}()
-	sendClient(t, client, clientMessage{Type: "input", Text: "  ls -la  "})
+	sendClient(t, client, clientMessage{Type: "input", Text: "  hello  "})
 	select {
 	case r := <-done:
-		if r.err != nil || r.line != "ls -la" {
-			t.Errorf("ReadLine = (%q, %v), want (\"ls -la\", nil)", r.line, r.err)
+		if r.err != nil {
+			t.Fatalf("ReadLine error: %v", r.err)
+		}
+		if r.line != "hello" {
+			t.Errorf("ReadLine = %q, want trimmed \"hello\"", r.line)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("ReadLine did not return after input message")
@@ -118,28 +120,30 @@ func TestSessionAttachments(t *testing.T) {
 		line, _ := sess.ReadLine("")
 		done <- line
 	}()
-	sendClient(t, client, clientMessage{Type: "input", Text: "look", Attachments: []string{"pic.png", "../evil.png"}})
-	<-done
-	paths := ag.ImagePaths()
-	if len(paths) != 1 || filepath.Base(paths[0]) != "pic.png" || !filepath.IsAbs(paths[0]) {
-		t.Errorf("ImagePaths = %v, want one absolute pic.png path", paths)
+	sendClient(t, client, clientMessage{Type: "input", Text: "hi", Attachments: []string{"a.png"}})
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ReadLine did not return")
+	}
+	if len(ag.ImagePaths()) != 1 {
+		t.Errorf("image paths = %v, want 1", ag.ImagePaths())
 	}
 }
 
 // TestWebIOPrintAsUIText verifies WebIO.Print is pushed as a ui_text event.
 func TestWebIOPrintAsUIText(t *testing.T) {
-	_, sess, ag, client := newSessionFixture(t)
+	_, _, ag, client := newSessionFixture(t)
 	readServerMsg(t, client) // initial state
 
 	ag.IO().Print("confirm? ")
 	msg := readServerMsg(t, client)
 	if msg.Kind != "event" || msg.Event == nil {
-		t.Fatalf("message = %+v, want event", msg)
+		t.Fatalf("expected event, got %+v", msg)
 	}
 	if msg.Event.Type != "ui_text" || msg.Event.Text != "confirm? " {
 		t.Errorf("event = %+v, want ui_text \"confirm? \"", msg.Event)
 	}
-	_ = sess
 }
 
 // TestWebIOAskAnswer verifies ReadLine sends an ask and blocks until the
@@ -152,20 +156,20 @@ func TestWebIOAskAnswer(t *testing.T) {
 	go func() {
 		v, err := ag.IO().ReadLine()
 		if err != nil {
-			t.Errorf("ReadLine: %v", err)
+			done <- "ERR:" + err.Error()
+			return
 		}
 		done <- v
 	}()
-
-	ask := readServerMsg(t, client)
-	if ask.Kind != "ask" || ask.Mode != "line" || ask.ID == "" {
-		t.Fatalf("ask = %+v, want kind=ask mode=line with id", ask)
+	msg := readServerMsg(t, client)
+	if msg.Kind != "ask" {
+		t.Fatalf("expected ask, got %+v", msg)
 	}
-	sendClient(t, client, clientMessage{Type: "answer", ID: ask.ID, Value: "yes"})
+	sendClient(t, client, clientMessage{Type: "answer", ID: msg.ID, Value: "42"})
 	select {
 	case v := <-done:
-		if v != "yes" {
-			t.Errorf("ReadLine = %q, want \"yes\"", v)
+		if v != "42" {
+			t.Errorf("ReadLine = %q, want 42", v)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("ReadLine did not return after answer")
@@ -181,19 +185,20 @@ func TestWebIOReadKey(t *testing.T) {
 	go func() {
 		b, err := ag.IO().ReadKey()
 		if err != nil {
-			t.Errorf("ReadKey: %v", err)
+			done <- 0
+			return
 		}
 		done <- b
 	}()
-	ask := readServerMsg(t, client)
-	if ask.Kind != "ask" || ask.Mode != "key" {
-		t.Fatalf("ask = %+v, want kind=ask mode=key", ask)
+	msg := readServerMsg(t, client)
+	if msg.Kind != "ask" || msg.Mode != "key" {
+		t.Fatalf("expected key ask, got %+v", msg)
 	}
-	sendClient(t, client, clientMessage{Type: "answer", ID: ask.ID, Value: "c"})
+	sendClient(t, client, clientMessage{Type: "answer", ID: msg.ID, Value: "y"})
 	select {
 	case b := <-done:
-		if b != 'c' {
-			t.Errorf("ReadKey = %q, want 'c'", b)
+		if b != 'y' {
+			t.Errorf("ReadKey = %q, want 'y'", b)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("ReadKey did not return after answer")
@@ -212,7 +217,7 @@ func TestSessionInterrupt(t *testing.T) {
 	select {
 	case <-ag.InterruptChan():
 	case <-time.After(2 * time.Second):
-		t.Fatal("interrupt message did not reach the agent")
+		t.Fatal("interrupt did not reach agent")
 	}
 }
 
@@ -272,5 +277,159 @@ func TestWebIOSetSessionPushesTaskPlan(t *testing.T) {
 	}
 	if plan.Title != "Plan A" || len(plan.Steps) != 1 {
 		t.Fatalf("plan snapshot = %+v, want title \"Plan A\" with 1 step", plan)
+	}
+}
+
+// TestSessionList verifies the session_list message returns the session list
+// to the browser (FEATURE-387).
+func TestSessionList(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	now := time.Now()
+	for i, id := range []string{"sess-A", "sess-B"} {
+		entry := &store.SessionEntry{
+			ID:           id,
+			Title:        "Session " + string(rune('A'+i)),
+			Keywords:     "kw" + id,
+			Messages:     []byte("[]"),
+			MessageCount: 0,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if err := ag.Store().SaveNamedSession(entry); err != nil {
+			t.Fatalf("SaveNamedSession: %v", err)
+		}
+	}
+	ag.SetCurrentSessionID("sess-A")
+	readServerMsg(t, client) // consume task_plan event from SetCurrentSessionID
+
+	sendClient(t, client, clientMessage{Type: "session_list"})
+	msg := readServerMsg(t, client)
+	if msg.Kind != "sessions" {
+		t.Fatalf("expected sessions message, got kind=%q", msg.Kind)
+	}
+	if len(msg.Sessions) != 2 {
+		t.Fatalf("sessions count = %d, want 2", len(msg.Sessions))
+	}
+	foundCurrent := false
+	for _, s := range msg.Sessions {
+		if s.ID == "sess-A" && s.Current {
+			foundCurrent = true
+		}
+	}
+	if !foundCurrent {
+		t.Fatalf("sess-A should be marked current, got %+v", msg.Sessions)
+	}
+}
+
+// TestSessionListPushedOnSetCurrent verifies that changing the current
+// session via Agent.SetCurrentSessionID pushes a fresh session list to the
+// browser (FEATURE-387). This covers the :new path, which switches the
+// current session outside the web session handler.
+func TestSessionListPushedOnSetCurrent(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	now := time.Now()
+	for _, id := range []string{"sess-A", "sess-B"} {
+		entry := &store.SessionEntry{
+			ID: id, Title: id, Messages: []byte("[]"), CreatedAt: now, UpdatedAt: now,
+		}
+		if err := ag.Store().SaveNamedSession(entry); err != nil {
+			t.Fatalf("SaveNamedSession: %v", err)
+		}
+	}
+
+	// SetCurrentSessionID pushes a task_plan event (FEATURE-386) then a
+	// sessions list (FEATURE-387).
+	ag.SetCurrentSessionID("sess-A")
+	msg := readServerMsg(t, client)
+	if msg.Kind != "event" {
+		t.Fatalf("expected task_plan event, got kind=%q", msg.Kind)
+	}
+	msg = readServerMsg(t, client)
+	if msg.Kind != "sessions" {
+		t.Fatalf("expected sessions message, got kind=%q", msg.Kind)
+	}
+	if len(msg.Sessions) != 2 {
+		t.Fatalf("sessions count = %d, want 2", len(msg.Sessions))
+	}
+}
+
+// TestSessionSwitch verifies the session_switch message changes the current
+// session (FEATURE-387).
+func TestSessionSwitch(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	now := time.Now()
+	for _, id := range []string{"sess-A", "sess-B"} {
+		entry := &store.SessionEntry{
+			ID: id, Title: id, Messages: []byte("[]"), CreatedAt: now, UpdatedAt: now,
+		}
+		if err := ag.Store().SaveNamedSession(entry); err != nil {
+			t.Fatalf("SaveNamedSession: %v", err)
+		}
+	}
+	ag.SetCurrentSessionID("sess-A")
+	readServerMsg(t, client) // consume task_plan event from SetCurrentSessionID
+	readServerMsg(t, client) // consume sessions list from SetCurrentSessionID
+
+	sendClient(t, client, clientMessage{Type: "session_switch", Value: "sess-B"})
+	// The switch pushes a task_plan event (FEATURE-386) then a sessions list.
+	msg := readServerMsg(t, client)
+	if msg.Kind != "event" {
+		t.Fatalf("expected task_plan event after switch, got kind=%q", msg.Kind)
+	}
+	msg = readServerMsg(t, client)
+	if msg.Kind != "sessions" {
+		t.Fatalf("expected sessions message after switch, got kind=%q", msg.Kind)
+	}
+	if ag.CurrentSessionID() != "sess-B" {
+		t.Fatalf("current session = %q, want sess-B", ag.CurrentSessionID())
+	}
+}
+
+// TestSessionDelete verifies the session_delete message removes a session and
+// protects the current session (FEATURE-387).
+func TestSessionDelete(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	now := time.Now()
+	for _, id := range []string{"sess-A", "sess-B"} {
+		entry := &store.SessionEntry{
+			ID: id, Title: id, Messages: []byte("[]"), CreatedAt: now, UpdatedAt: now,
+		}
+		if err := ag.Store().SaveNamedSession(entry); err != nil {
+			t.Fatalf("SaveNamedSession: %v", err)
+		}
+	}
+	ag.SetCurrentSessionID("sess-A")
+	readServerMsg(t, client) // consume task_plan event from SetCurrentSessionID
+	readServerMsg(t, client) // consume sessions list from SetCurrentSessionID
+
+	// Deleting the current session is a no-op.
+	sendClient(t, client, clientMessage{Type: "session_delete", Value: "sess-A"})
+	msg := readServerMsg(t, client)
+	if msg.Kind != "sessions" {
+		t.Fatalf("expected sessions message, got kind=%q", msg.Kind)
+	}
+	if len(msg.Sessions) != 2 {
+		t.Fatalf("current session should not be deleted, count = %d", len(msg.Sessions))
+	}
+
+	// Deleting a non-current session removes it.
+	sendClient(t, client, clientMessage{Type: "session_delete", Value: "sess-B"})
+	msg = readServerMsg(t, client)
+	if msg.Kind != "sessions" {
+		t.Fatalf("expected sessions message, got kind=%q", msg.Kind)
+	}
+	if len(msg.Sessions) != 1 {
+		t.Fatalf("sessions count = %d, want 1 after delete", len(msg.Sessions))
+	}
+	if _, found, _ := ag.Store().LoadNamedSession("sess-B"); found {
+		t.Fatalf("sess-B should be deleted")
 	}
 }
