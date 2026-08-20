@@ -20,6 +20,7 @@ import (
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/store"
+	"github.com/idirect3d/co-shell/taskplan"
 	"github.com/idirect3d/co-shell/workspace"
 )
 
@@ -237,5 +238,39 @@ func TestWebSessionNonInteractive(t *testing.T) {
 	_, sess, _, _ := newSessionFixture(t)
 	if sess.Interactive() {
 		t.Errorf("web session must be non-interactive")
+	}
+}
+
+// TestWebIOSetSessionPushesTaskPlan verifies that switching the session via
+// Agent.SetCurrentSessionID pushes a task_plan event to the browser so the
+// frontend refreshes its plan panel (FEATURE-386).
+func TestWebIOSetSessionPushesTaskPlan(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	// Create a task plan bound to session A.
+	ag.TaskPlanManager().SetSessionID("sess-A")
+	if _, err := ag.TaskPlanManager().UpdateSteps("Plan A", "desc", []taskplan.StepInput{
+		{Description: "step one", Status: "[ ]"},
+	}); err != nil {
+		t.Fatalf("UpdateSteps: %v", err)
+	}
+
+	// Switch to session A: should push a task_plan event with the plan.
+	ag.SetCurrentSessionID("sess-A")
+	msg := readServerMsg(t, client)
+	if msg.Kind != "event" || msg.Event == nil || msg.Event.Type != agent.EventTaskPlan {
+		t.Fatalf("expected task_plan event, got kind=%q type=%q", msg.Kind, msg.Event.Type)
+	}
+	planJSON := msg.Event.Meta["plan"]
+	if planJSON == "" {
+		t.Fatalf("task_plan event carries empty plan snapshot")
+	}
+	var plan taskplan.TaskPlan
+	if err := json.Unmarshal([]byte(planJSON), &plan); err != nil {
+		t.Fatalf("plan snapshot not valid JSON: %v", err)
+	}
+	if plan.Title != "Plan A" || len(plan.Steps) != 1 {
+		t.Fatalf("plan snapshot = %+v, want title \"Plan A\" with 1 step", plan)
 	}
 }
