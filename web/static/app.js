@@ -24,6 +24,7 @@ const I18N = {
     statusBar: "状态条",
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "定位到文件夹",
+    sessionDelete: "删除会话",
   },
   en: {
     workspace: "Workspace",
@@ -38,6 +39,7 @@ const I18N = {
     statusBar: "Status bar",
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "Reveal in folder",
+    sessionDelete: "Delete session",
   },
 };
 let T = I18N.zh;
@@ -133,6 +135,9 @@ const statusbar = document.getElementById("statusbar");
 const sbModel = document.getElementById("sbModel");
 const sbSession = document.getElementById("sbSession");
 const sbLast = document.getElementById("sbLast");
+const sbSessionsWrap = document.getElementById("sbSessionsWrap");
+const sbSessions = document.getElementById("sbSessions");
+const sessionMenu = document.getElementById("sessionMenu");
 
 /* ---------- websocket ---------- */
 
@@ -160,6 +165,7 @@ function wsConnect() {
     if (msg.kind === "event" && msg.event) renderEvent(msg.event);
     else if (msg.kind === "ask") showAsk(msg);
     else if (msg.kind === "state") renderPlan(msg.plan || null);
+    else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
   };
 }
 
@@ -463,6 +469,60 @@ function updateStatus() {
   const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
   sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? liTPS + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? loTPS + "t/s" : "-") + ", " + loDur + ")";
 }
+
+/* ---------- session menu (FEATURE-387) ---------- */
+
+let sessionList = [];
+
+// renderSessionMenu renders the session list into the status-bar menu and
+// updates the 💬 count. Called when the server pushes a "sessions" message.
+function renderSessionMenu(sessions) {
+  sessionList = sessions || [];
+  sbSessions.textContent = "💬 " + sessionList.length;
+  sessionMenu.textContent = "";
+  if (sessionList.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "session-empty";
+    empty.textContent = T.planEmpty;
+    sessionMenu.appendChild(empty);
+    return;
+  }
+  for (const s of sessionList) {
+    const row = document.createElement("div");
+    row.className = "session-item" + (s.current ? " current" : "");
+    // Delete button on the left (left-aligned).
+    const del = document.createElement("span");
+    del.className = "session-del";
+    del.textContent = "✕";
+    del.title = T.sessionDelete;
+    del.onclick = (e) => {
+      e.stopPropagation();
+      if (s.current) return;
+      wsSend({ type: "session_delete", value: s.id });
+    };
+    row.appendChild(del);
+    // Title (click to switch).
+    const title = document.createElement("span");
+    title.className = "session-title";
+    title.textContent = s.title || "(unnamed)";
+    title.title = (s.keywords ? s.keywords + " · " : "") + s.created_at;
+    row.appendChild(title);
+    row.onclick = () => {
+      if (s.current) return;
+      wsSend({ type: "session_switch", value: s.id });
+    };
+    sessionMenu.appendChild(row);
+  }
+}
+
+// Request the session list on connect and whenever the menu is opened.
+sbSessionsWrap.addEventListener("mouseenter", () => {
+  wsSend({ type: "session_list" });
+  sessionMenu.classList.remove("hidden");
+});
+sbSessionsWrap.addEventListener("mouseleave", () => {
+  sessionMenu.classList.add("hidden");
+});
 
 /* ---------- task plan panel ---------- */
 
