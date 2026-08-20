@@ -51,7 +51,7 @@ import (
 
 const version = "0.7.8"
 
-const build = "457"
+const build = "458"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
