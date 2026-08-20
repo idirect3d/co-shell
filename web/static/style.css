@@ -203,10 +203,10 @@ aside {
   display: flex;
   align-items: center;
   gap: 0;
-  /* Left padding reserves the git-status letter column (FEATURE-380) so the
-     file name's horizontal position is unaffected by the absolutely
-     positioned status letter. */
-  padding: 2px 6px 2px 12px;
+  /* Small left padding keeps a 2px gap between the arrow and the file name
+     (the git-status letter is absolutely positioned against .tree, so it does
+     not consume flex space here). */
+  padding: 2px 6px 2px 2px;
   border-radius: 5px;
   cursor: pointer;
   color: var(--fg-dim);
