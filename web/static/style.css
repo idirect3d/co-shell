@@ -630,6 +630,12 @@ aside {
   text-align: center;
 }
 .session-del:hover { color: var(--danger, #e5484d); }
+.session-active {
+  color: var(--accent, #4c8bf5);
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
 .session-title {
   overflow: hidden;
   text-overflow: ellipsis;
