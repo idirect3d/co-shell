@@ -112,6 +112,12 @@ body {
 #layout.no-ws { grid-template-columns: 0 1fr 260px; }
 #layout.no-ws.no-plan { grid-template-columns: 0 1fr 0; }
 #layout.no-ws #sidebar { display: none; }
+/* FEATURE-383: when hovering a long file name, the sidebar auto-expands to
+   fit the longest name; leaving the sidebar returns it to the fixed width. */
+#layout.sidebar-auto { grid-template-columns: auto 1fr 260px; }
+#layout.sidebar-auto.no-plan { grid-template-columns: auto 1fr 0; }
+#layout.sidebar-auto.no-ws { grid-template-columns: 0 1fr 260px; }
+#layout.sidebar-auto.no-ws.no-plan { grid-template-columns: 0 1fr 0; }
 
 aside {
   background: var(--bg-panel);
@@ -243,8 +249,16 @@ aside {
 }
 .tree-row .name { padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
 .tree-row.dir > .name { color: var(--fg); }
-.tree-row .reveal-btn {
+/* Right-aligned action group (FEATURE-383): directory change-count badge +
+   reveal button. margin-left:auto pushes the whole group to the right edge,
+   so the badge hugs the reveal button. */
+.tree-row .row-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.tree-row .reveal-btn {
   opacity: 0;
   background: none; border: none; color: var(--fg-faint);
   cursor: pointer; font-size: 11px; padding: 0 2px;
@@ -254,13 +268,13 @@ aside {
 .tree-row.drop-target { outline: 1px dashed var(--accent); background: var(--accent-dim); }
 
 /* Git status badges (FEATURE-375): a letter for files (M/A/D/R/U), a
-   change count for directories. The badge sits between the name and the
-   reveal button; the reveal button's margin-left:auto still pushes it right. */
+   change count for directories. The badge sits inside .row-actions, right
+   before the reveal button, so it hugs the reveal button on the right. */
 .tree-row .git-badge {
   flex: none;
   font-size: 10px;
   font-weight: 700;
-  margin-left: 6px;
+  margin-right: 6px;
   border-radius: 3px;
   padding: 0 3px;
   line-height: 14px;
