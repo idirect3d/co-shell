@@ -626,16 +626,17 @@ func (a *Agent) RestoreSession() bool {
 			if err := json.Unmarshal(entry.Messages, &msgs); err == nil && len(msgs) > 0 {
 				a.mu.Lock()
 				a.messages = append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, msgs...)
-				a.currentSessionID = sessionID
 				a.mu.Unlock()
+				// Use SetCurrentSessionID so the task plan manager binds to the
+				// restored session (FEATURE-386); otherwise the plan panel shows
+				// nothing after restart.
+				a.SetCurrentSessionID(sessionID)
 				log.Info("RestoreSession: restored %d messages from session %q (%s)", len(msgs), sessionID, entry.Title)
 				return true
 			}
 		}
 		// Entry not found or empty: ID is registered but no content yet
-		a.mu.Lock()
-		a.currentSessionID = sessionID
-		a.mu.Unlock()
+		a.SetCurrentSessionID(sessionID)
 		log.Info("RestoreSession: session ID %q registered, no stored messages", sessionID)
 		return true
 	}
