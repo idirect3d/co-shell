@@ -182,6 +182,14 @@ func (w *WebIO) pushText(text string) {
 	w.srv.sendEvent(agent.NewStreamEvent("ui_text", agent.ChannelREPL, agent.LevelInfo, text))
 }
 
+// PushTaskPlan implements agent.TaskPlanPusher: it pushes a task_plan event
+// to the browser so the frontend refreshes its plan panel. Called by the
+// agent when the session changes (FEATURE-386). planJSON is the full task
+// plan snapshot as JSON ("" when archived/cleared).
+func (w *WebIO) PushTaskPlan(planJSON string) {
+	w.srv.sendEvent(agent.TaskPlanEvent(planJSON))
+}
+
 func (w *WebIO) Print(args ...interface{})                 { w.pushText(fmt.Sprint(args...)) }
 func (w *WebIO) Printf(format string, args ...interface{}) { w.pushText(fmt.Sprintf(format, args...)) }
 func (w *WebIO) Println(args ...interface{}) {

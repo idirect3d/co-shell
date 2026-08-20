@@ -144,6 +144,15 @@ func GetIO(a *Agent) UserIO {
 	return NewDefaultUserIO()
 }
 
+// TaskPlanPusher is implemented by UserIO implementations that can push a
+// task_plan event to their consumer (e.g. WebIO pushes it to the browser).
+// The agent uses it to refresh the frontend task-plan panel when the session
+// changes (FEATURE-386). planJSON is the full task plan snapshot as JSON
+// ("" when the plan was archived/cleared).
+type TaskPlanPusher interface {
+	PushTaskPlan(planJSON string)
+}
+
 // DefaultIO returns the default UserIO implementation (os.Stdout/os.Stdin).
 // Use this in static package-level functions that don't have access to an Agent.
 func DefaultIO() UserIO {

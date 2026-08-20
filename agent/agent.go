@@ -447,6 +447,19 @@ func (a *Agent) SetCurrentSessionID(id string) {
 	// bound to the target session (FEATURE-386).
 	if a.taskPlanMgr != nil {
 		a.taskPlanMgr.SetSessionID(id)
+		// Push the target session's task plan to the frontend (FEATURE-386):
+		// switching sessions changes the backend task plan, so the web UI must
+		// refresh its plan panel. Only UserIO implementations that implement
+		// TaskPlanPusher (e.g. WebIO) receive the push.
+		if pusher, ok := a.io.(TaskPlanPusher); ok {
+			planJSON := ""
+			if plan, err := a.taskPlanMgr.GetCurrent(); err == nil && plan != nil {
+				if data, jerr := json.Marshal(plan); jerr == nil {
+					planJSON = string(data)
+				}
+			}
+			pusher.PushTaskPlan(planJSON)
+		}
 	}
 }
 

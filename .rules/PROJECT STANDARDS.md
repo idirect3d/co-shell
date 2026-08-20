@@ -111,6 +111,16 @@ ROADMAP.md             # 需求、设计决策、阶段规划（单一事实源�
 - 当前允许的例外：`github.com/gorilla/websocket`（WebSocket）、`github.com/jackc/pgx/v5` / `github.com/lib/pq`（PG 驱动）、`go.etcd.io/bbolt`（本地 KV 存储）、`github.com/mark3labs/mcp-go`（MCP）、`github.com/larksuite/oapi-sdk-go/v3`（飞书）、`golang.org/x/crypto`（bcrypt 口令哈希）
 - 新增任何依赖前需在 ROADMAP 决策记录中登记理由
 
+## Web UI 前端信息刷新原则
+
+Web UI 前端展示的所有信息（文件状态、任务进展、状态栏等）必须保持与后端最新状态一致。刷新时机遵循以下原则：
+
+- **状态栏（token 统计等）**：在接收每个 LLM 内容块（token_iter 等）时刷新——实时、前端本地计算、无后端调用、开销小。
+- **文件状态、任务进展**：在**工具调用完成时**（TOOL result）刷新——只有工具调用才可能改变文件/任务状态，避免每个 LLM 块都触发后端 API 调用造成性能开销。
+- **切换会话（session）时**：必须主动推送一次任务进展刷新给前端——切换会话会改变后端任务计划，前端需同步刷新，否则显示旧会话的任务进展。
+
+**总则**：任何导致后端状态变化（文件、任务、会话、token 统计）的操作，都必须确保前端在合理时机刷新对应信息，不得出现前端显示与后端实际状态不一致的情况。
+
 ## 常用命令
 
 ```bash
