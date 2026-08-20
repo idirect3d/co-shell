@@ -51,11 +51,11 @@ var errPathOutside = errors.New("path escapes workspace")
 
 // clientMessage is a browser-to-server WebSocket message.
 type clientMessage struct {
-	Type        string   `json:"type"` // "input" | "answer" | "interrupt"
+	Type        string   `json:"type"` // "input" | "answer" | "interrupt" | "session_list" | "session_switch" | "session_delete"
 	Text        string   `json:"text,omitempty"`
 	Attachments []string `json:"attachments,omitempty"`
 	ID          string   `json:"id,omitempty"`    // answer: the ask id
-	Value       string   `json:"value,omitempty"` // answer: the reply
+	Value       string   `json:"value,omitempty"` // answer: the reply; session_switch/delete: the session id
 }
 
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as
@@ -70,11 +70,21 @@ type eventJSON struct {
 
 // serverMessage is a server-to-browser WebSocket message.
 type serverMessage struct {
-	Kind  string          `json:"kind"`            // "event" | "ask" | "state"
-	Event *eventJSON      `json:"event,omitempty"` // kind=event
-	ID    string          `json:"id,omitempty"`    // kind=ask
-	Mode  string          `json:"mode,omitempty"`  // kind=ask: "line" | "key"
-	Plan  json.RawMessage `json:"plan"`            // kind=state (null when no plan)
+	Kind     string          `json:"kind"`            // "event" | "ask" | "state" | "sessions"
+	Event    *eventJSON      `json:"event,omitempty"` // kind=event
+	ID       string          `json:"id,omitempty"`    // kind=ask
+	Mode     string          `json:"mode,omitempty"`  // kind=ask: "line" | "key"
+	Plan     json.RawMessage `json:"plan"`            // kind=state (null when no plan)
+	Sessions []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
+}
+
+// sessionInfo is one entry in the session list pushed to the browser.
+type sessionInfo struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Keywords  string `json:"keywords"`
+	CreatedAt string `json:"created_at"`
+	Current   bool   `json:"current"`
 }
 
 // ServerOptions carries the display parameters of a Server.

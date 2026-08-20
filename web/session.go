@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/repl"
 )
 
@@ -80,7 +81,8 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	return sess, nil
 }
 
-// handleMessage dispatches one browser message (input / answer / interrupt).
+// handleMessage dispatches one browser message (input / answer / interrupt /
+// session_list / session_switch / session_delete).
 func (s *WebSession) handleMessage(msg clientMessage) {
 	switch msg.Type {
 	case "input":
@@ -92,7 +94,65 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.wio.resolve(msg.ID, msg.Value)
 	case "interrupt":
 		s.ag.Interrupt()
+	case "session_list":
+		s.pushSessionList()
+	case "session_switch":
+		s.switchSession(msg.Value)
+	case "session_delete":
+		s.deleteSession(msg.Value)
 	}
+}
+
+// pushSessionList sends the current session list to the browser (FEATURE-387).
+func (s *WebSession) pushSessionList() {
+	entries, err := s.ag.Store().ListNamedSessions()
+	if err != nil {
+		return
+	}
+	currentID := s.ag.CurrentSessionID()
+	infos := make([]sessionInfo, 0, len(entries))
+	for _, e := range entries {
+		infos = append(infos, sessionInfo{
+			ID:        e.ID,
+			Title:     e.Title,
+			Keywords:  e.Keywords,
+			CreatedAt: e.CreatedAt.Format("2006-01-02 15:04"),
+			Current:   e.ID == currentID,
+		})
+	}
+	s.srv.sendJSON(serverMessage{Kind: "sessions", Sessions: infos})
+}
+
+// switchSession switches the current session to the target ID (FEATURE-387).
+func (s *WebSession) switchSession(id string) {
+	if id == "" {
+		return
+	}
+	s.ag.SetCurrentSessionID(id)
+	if err := s.ag.Store().SaveCurrentSessionID(id); err != nil {
+		log.Warn("switchSession SaveCurrentSessionID: %v", err)
+	}
+	// Push the updated session list so the frontend reflects the new current.
+	s.pushSessionList()
+}
+
+// deleteSession deletes a named session by ID (FEATURE-387). The current
+// session is protected from deletion.
+func (s *WebSession) deleteSession(id string) {
+	if id == "" {
+		return
+	}
+	// The current session is protected from deletion; still push the list so
+	// the frontend reflects that the delete was rejected.
+	if id == s.ag.CurrentSessionID() {
+		s.pushSessionList()
+		return
+	}
+	if err := s.ag.Store().DeleteNamedSession(id); err != nil {
+		log.Warn("deleteSession: %v", err)
+		return
+	}
+	s.pushSessionList()
 }
 
 // currentPlanJSON returns the current task plan as a JSON string ("" when

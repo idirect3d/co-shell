@@ -6,9 +6,27 @@
 
 ## 当前版本
 
+> **版本**: v0.8.0
+
+> **状态**: 🚧 开发中（web UI 状态栏会话菜单）
+> **里程碑**: web UI 状态栏会话菜单
+> **说明**: 0.8.0 系列专注 web UI 状态栏会话管理，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-387 | 0.8.0 | P1 | web UI 状态栏会话菜单（💬 图标 + 会话数 + 悬停展开会话列表 + 切换/删除会话） |
+
+> 当前 BUILD: 462
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+---
+
+## v0.7.9 — 开发中（已完成）
+
 > **版本**: v0.7.9
 
-> **状态**: 🚧 开发中（任务计划与会话绑定）
+> **状态**: ✅ 已完成
 > **里程碑**: 任务计划（taskplan）与会话（session）绑定
 > **说明**: 0.7.9 系列专注任务计划与会话绑定，细分任务：
 
@@ -1490,6 +1508,11 @@
   - 方案（已确认 1A 2A 3A）：① 存储 key 加 session 前缀（`current:{sessionID}`），每个会话一份独立计划；② 切换会话时自动加载目标会话绑定的任务计划（在 `Agent.SetCurrentSessionID` 中统一通知 `taskPlanMgr.SetSessionID`，覆盖所有切换路径）；③ 升级时把现有全局 `"current"` 计划迁移到当前会话名下
   - 实现：`taskplan/taskplan.go` 增加 `sessionID` 字段、`SetSessionID`、`planKey`、`migrateLegacyPlan`；`loadCurrent`/`saveCurrent`/`DeleteContext` 改用 `planKey`；`agent/agent.go` `SetCurrentSessionID` 中通知 `taskPlanMgr.SetSessionID`；planCounter 保持全局递增；sessionID 为空时回退全局 `"current"` key
   - 测试：`taskplan/taskplan_test.go` 新增 6 个单元测试（planKey 按 session 隔离、各会话计划隔离、会话内更新不影响其他会话、旧数据迁移、迁移保留已有会话计划、归档仅作用于当前会话）全过；`go build/vet/test ./...` 全绿
+
+- [ ] **FEATURE-387 web UI 状态栏会话菜单** 🚧 开发中
+  - 背景：web UI 状态栏需要增加会话管理入口，方便用户查看/切换/删除会话
+  - 需求：① 状态栏增加 💬 图标 + 会话数；② 鼠标移到该区域时向上展开会话菜单；③ 菜单列出所有会话标题；④ 鼠标悬停会话项时提示关键字 + 时间；⑤ 点击会话项切换到目标会话；⑥ 每个会话左侧（左对齐）设置删除符号，点击删除会话
+  - 测试：见 use-case/FEATURE-387/
 
 ## v1.0.0 — 正式版
 
