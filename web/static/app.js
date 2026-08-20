@@ -673,6 +673,19 @@ function treeNode(node) {
   const row = document.createElement("div");
   row.className = "tree-row" + (node.dir ? " dir" : "");
 
+  // FEATURE-380: git status letter column at the far left, flush against the
+  // tree's left edge. Files show their status letter (M/A/D/R/U); directories
+  // leave the column blank so every row (dir and file) keeps the same left
+  // gutter and horizontal alignment is unaffected.
+  const status = document.createElement("span");
+  status.className = "git-status";
+  if (node.status) {
+    status.textContent = node.status;
+    status.title = node.status;
+    status.classList.add("st-" + node.status.toLowerCase());
+  }
+  row.appendChild(status);
+
   const tw = document.createElement("span");
   tw.className = "tw";
   tw.textContent = node.dir ? "▸" : "";
@@ -683,15 +696,8 @@ function treeNode(node) {
   name.textContent = node.name;
   row.appendChild(name);
 
-  // Git status badge: files show a letter (M/A/D/R/U), directories show a
-  // count of changed files below them (e.g. "●3").
-  if (node.status) {
-    const badge = document.createElement("span");
-    badge.className = "git-badge st-" + node.status.toLowerCase();
-    badge.textContent = node.status;
-    badge.title = node.status;
-    row.appendChild(badge);
-  } else if (node.dir && node.changes > 0) {
+  // Directory change-count badge stays on the right (FEATURE-375).
+  if (node.dir && node.changes > 0) {
     const badge = document.createElement("span");
     badge.className = "git-badge dir-count";
     badge.textContent = "●" + node.changes;
