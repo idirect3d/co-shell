@@ -323,6 +323,40 @@ func TestSessionList(t *testing.T) {
 	}
 }
 
+// TestSessionListPushedOnSetCurrent verifies that changing the current
+// session via Agent.SetCurrentSessionID pushes a fresh session list to the
+// browser (FEATURE-387). This covers the :new path, which switches the
+// current session outside the web session handler.
+func TestSessionListPushedOnSetCurrent(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	now := time.Now()
+	for _, id := range []string{"sess-A", "sess-B"} {
+		entry := &store.SessionEntry{
+			ID: id, Title: id, Messages: []byte("[]"), CreatedAt: now, UpdatedAt: now,
+		}
+		if err := ag.Store().SaveNamedSession(entry); err != nil {
+			t.Fatalf("SaveNamedSession: %v", err)
+		}
+	}
+
+	// SetCurrentSessionID pushes a task_plan event (FEATURE-386) then a
+	// sessions list (FEATURE-387).
+	ag.SetCurrentSessionID("sess-A")
+	msg := readServerMsg(t, client)
+	if msg.Kind != "event" {
+		t.Fatalf("expected task_plan event, got kind=%q", msg.Kind)
+	}
+	msg = readServerMsg(t, client)
+	if msg.Kind != "sessions" {
+		t.Fatalf("expected sessions message, got kind=%q", msg.Kind)
+	}
+	if len(msg.Sessions) != 2 {
+		t.Fatalf("sessions count = %d, want 2", len(msg.Sessions))
+	}
+}
+
 // TestSessionSwitch verifies the session_switch message changes the current
 // session (FEATURE-387).
 func TestSessionSwitch(t *testing.T) {
@@ -340,6 +374,7 @@ func TestSessionSwitch(t *testing.T) {
 	}
 	ag.SetCurrentSessionID("sess-A")
 	readServerMsg(t, client) // consume task_plan event from SetCurrentSessionID
+	readServerMsg(t, client) // consume sessions list from SetCurrentSessionID
 
 	sendClient(t, client, clientMessage{Type: "session_switch", Value: "sess-B"})
 	// The switch pushes a task_plan event (FEATURE-386) then a sessions list.
@@ -373,6 +408,7 @@ func TestSessionDelete(t *testing.T) {
 	}
 	ag.SetCurrentSessionID("sess-A")
 	readServerMsg(t, client) // consume task_plan event from SetCurrentSessionID
+	readServerMsg(t, client) // consume sessions list from SetCurrentSessionID
 
 	// Deleting the current session is a no-op.
 	sendClient(t, client, clientMessage{Type: "session_delete", Value: "sess-A"})

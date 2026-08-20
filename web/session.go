@@ -72,6 +72,9 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		closed:  make(chan struct{}),
 	}
 	sess.wio = &WebIO{srv: srv, pending: map[string]chan askResult{}, sessionClosed: sess.closed}
+	// Wire the session-list push callback so WebIO can refresh the frontend
+	// session menu/count when the current session changes (FEATURE-387).
+	sess.wio.pushSessionList = sess.pushSessionList
 	deps.Ag.SetIO(sess.wio)
 
 	srv.SetMessageHandler(sess.handleMessage)
@@ -132,8 +135,8 @@ func (s *WebSession) switchSession(id string) {
 	if err := s.ag.Store().SaveCurrentSessionID(id); err != nil {
 		log.Warn("switchSession SaveCurrentSessionID: %v", err)
 	}
-	// Push the updated session list so the frontend reflects the new current.
-	s.pushSessionList()
+	// SetCurrentSessionID already pushes the updated session list (FEATURE-387),
+	// so the frontend reflects the new current without an extra push here.
 }
 
 // deleteSession deletes a named session by ID (FEATURE-387). The current
@@ -228,6 +231,10 @@ type WebIO struct {
 	srv           *Server
 	sessionClosed chan struct{}
 
+	// pushSessionList refreshes the frontend session menu/count. Set by
+	// newWebSession to WebSession.pushSessionList (FEATURE-387).
+	pushSessionList func()
+
 	mu      sync.Mutex
 	pending map[string]chan askResult
 
@@ -248,6 +255,16 @@ func (w *WebIO) pushText(text string) {
 // plan snapshot as JSON ("" when archived/cleared).
 func (w *WebIO) PushTaskPlan(planJSON string) {
 	w.srv.sendEvent(agent.TaskPlanEvent(planJSON))
+}
+
+// PushSessionList implements agent.SessionListPusher: it refreshes the
+// frontend session menu/count. Called by the agent when the current session
+// changes (FEATURE-387), covering paths like :new that switch the session
+// outside the web session handler.
+func (w *WebIO) PushSessionList() {
+	if w.pushSessionList != nil {
+		w.pushSessionList()
+	}
 }
 
 func (w *WebIO) Print(args ...interface{})                 { w.pushText(fmt.Sprint(args...)) }

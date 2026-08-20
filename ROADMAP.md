@@ -1512,6 +1512,8 @@
 - [ ] **FEATURE-387 web UI 状态栏会话菜单** 🚧 开发中
   - 背景：web UI 状态栏需要增加会话管理入口，方便用户查看/切换/删除会话
   - 需求：① 状态栏增加 💬 图标 + 会话数；② 鼠标移到该区域时向上展开会话菜单；③ 菜单列出所有会话标题；④ 鼠标悬停会话项时提示关键字 + 时间；⑤ 点击会话项切换到目标会话；⑥ 每个会话左侧（左对齐）设置删除符号，点击删除会话
+  - 实现：`agent/io.go` 新增 `SessionListPusher` 接口；`agent/agent.go` `SetCurrentSessionID` 在锁外推送会话列表（覆盖 `:new` 路径，修复新建会话后会话数不刷新）；`web/session.go` `WebIO` 实现 `PushSessionList`（回调到 `WebSession.pushSessionList`），移除 `switchSession` 冗余推送；前端 `index.html`/`app.js`/`style.css` 增加删除确认 modal（复用 `.modal` 样式），删除前弹确认框，确认后发送 `session_delete` 并刷新会话数
+  - 测试：`web/session_test.go` 新增 `TestSessionListPushedOnSetCurrent`，修正 `TestSessionSwitch`/`TestSessionDelete` 消费 `SetCurrentSessionID` 推送的额外 sessions 消息；`go build/vet/test ./...` 全绿；浏览器验证 `:new` 后会话数自动 +1、删除前弹确认框、取消不删、确认后会话数 -1 [BUILD-467]
   - 测试：见 use-case/FEATURE-387/
 
 ## v1.0.0 — 正式版

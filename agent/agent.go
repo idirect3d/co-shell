@@ -441,16 +441,20 @@ func (a *Agent) Store() *store.DualStore {
 // SetCurrentSessionID sets the current session's ID for tracking.
 func (a *Agent) SetCurrentSessionID(id string) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	a.currentSessionID = id
 	// Notify the task plan manager so the task plan switches to the plan
 	// bound to the target session (FEATURE-386).
 	if a.taskPlanMgr != nil {
 		a.taskPlanMgr.SetSessionID(id)
-		// Push the target session's task plan to the frontend (FEATURE-386):
-		// switching sessions changes the backend task plan, so the web UI must
-		// refresh its plan panel. Only UserIO implementations that implement
-		// TaskPlanPusher (e.g. WebIO) receive the push.
+	}
+	a.mu.Unlock()
+
+	// Push the target session's task plan to the frontend (FEATURE-386):
+	// switching sessions changes the backend task plan, so the web UI must
+	// refresh its plan panel. Only UserIO implementations that implement
+	// TaskPlanPusher (e.g. WebIO) receive the push. Done outside the lock
+	// because the pusher may re-enter the agent (e.g. CurrentSessionID).
+	if a.taskPlanMgr != nil {
 		if pusher, ok := a.io.(TaskPlanPusher); ok {
 			planJSON := ""
 			if plan, err := a.taskPlanMgr.GetCurrent(); err == nil && plan != nil {
@@ -460,6 +464,13 @@ func (a *Agent) SetCurrentSessionID(id string) {
 			}
 			pusher.PushTaskPlan(planJSON)
 		}
+	}
+	// Refresh the frontend session menu/count when the current session changes
+	// (FEATURE-387). This covers paths like :new that switch the current session
+	// outside the web session handler. Only UserIO implementations that
+	// implement SessionListPusher (e.g. WebIO) receive the push.
+	if pusher, ok := a.io.(SessionListPusher); ok {
+		pusher.PushSessionList()
 	}
 }
 
