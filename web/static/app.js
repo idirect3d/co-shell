@@ -545,6 +545,9 @@ function showAsk(msg) {
     askInput.value = "";
     askInput.focus();
   }
+  // The ask area expands the bottom bar, shrinking the stream; scroll to the
+  // bottom so the confirmation options (ui_text REPL block) stay visible.
+  scrollStream();
 }
 
 function answerAsk(value) {
