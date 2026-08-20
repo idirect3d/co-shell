@@ -78,6 +78,10 @@
       </div>
     </div>
     <div id="statusbar" class="statusbar hidden">
+      <div class="sb-sessions" id="sbSessionsWrap">
+        <span class="sb-item" id="sbSessions">💬 0</span>
+        <div class="session-menu hidden" id="sessionMenu"></div>
+      </div>
       <span class="sb-item" id="sbModel"></span>
       <span class="sb-item" id="sbSession"></span>
       <span class="sb-item" id="sbLast"></span>
@@ -107,6 +111,22 @@
           <option value="light" data-i18n="themeLight">浅色</option>
         </select>
       </label>
+    </div>
+  </div>
+</div>
+
+<div id="delSession" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span data-i18n="sessionDelete">删除会话</span>
+      <button class="icon-btn sm" id="delSessionClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="del-session-msg" id="delSessionMsg"></div>
+      <div class="del-session-actions">
+        <button class="btn" id="delSessionCancel" data-i18n="cancel">取消</button>
+        <button class="btn danger" id="delSessionConfirm" data-i18n="confirm">确认</button>
+      </div>
     </div>
   </div>
 </div>

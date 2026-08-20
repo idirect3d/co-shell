@@ -24,6 +24,10 @@ const I18N = {
     statusBar: "状态条",
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "定位到文件夹",
+    sessionDelete: "删除会话",
+    sessionActive: "当前会话",
+    sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
+    cancel: "取消", confirm: "确认",
   },
   en: {
     workspace: "Workspace",
@@ -38,6 +42,10 @@ const I18N = {
     statusBar: "Status bar",
     sbSession: "Σ", sbLast: "🔄",
     revealDir: "Reveal in folder",
+    sessionDelete: "Delete session",
+    sessionActive: "Current session",
+    sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
+    cancel: "Cancel", confirm: "Confirm",
   },
 };
 let T = I18N.zh;
@@ -133,6 +141,14 @@ const statusbar = document.getElementById("statusbar");
 const sbModel = document.getElementById("sbModel");
 const sbSession = document.getElementById("sbSession");
 const sbLast = document.getElementById("sbLast");
+const sbSessionsWrap = document.getElementById("sbSessionsWrap");
+const sbSessions = document.getElementById("sbSessions");
+const sessionMenu = document.getElementById("sessionMenu");
+const delSessionModal = document.getElementById("delSession");
+const delSessionMsg = document.getElementById("delSessionMsg");
+const delSessionClose = document.getElementById("delSessionClose");
+const delSessionCancel = document.getElementById("delSessionCancel");
+const delSessionConfirm = document.getElementById("delSessionConfirm");
 
 /* ---------- websocket ---------- */
 
@@ -145,6 +161,9 @@ function wsConnect() {
     wsReady = true;
     conn.classList.add("on");
     connText.textContent = T.connected;
+    // Fetch the session list on connect so the 💬 count is correct immediately
+    // (FEATURE-387), not only after hovering the status-bar item.
+    wsSend({ type: "session_list" });
   };
   ws.onclose = () => {
     wsReady = false;
@@ -160,6 +179,7 @@ function wsConnect() {
     if (msg.kind === "event" && msg.event) renderEvent(msg.event);
     else if (msg.kind === "ask") showAsk(msg);
     else if (msg.kind === "state") renderPlan(msg.plan || null);
+    else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
   };
 }
 
@@ -463,6 +483,87 @@ function updateStatus() {
   const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
   sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? liTPS + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? loTPS + "t/s" : "-") + ", " + loDur + ")";
 }
+
+/* ---------- session menu (FEATURE-387) ---------- */
+
+let sessionList = [];
+
+// renderSessionMenu renders the session list into the status-bar menu and
+// updates the 💬 count. Called when the server pushes a "sessions" message.
+function renderSessionMenu(sessions) {
+  sessionList = sessions || [];
+  sbSessions.textContent = "💬 " + sessionList.length;
+  sessionMenu.textContent = "";
+  if (sessionList.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "session-empty";
+    empty.textContent = T.planEmpty;
+    sessionMenu.appendChild(empty);
+    return;
+  }
+  for (const s of sessionList) {
+    const row = document.createElement("div");
+    row.className = "session-item" + (s.current ? " current" : "");
+    // Left-aligned leading icon: the current session cannot be deleted, so
+    // it shows an active indicator instead of a delete button (FEATURE-387).
+    const del = document.createElement("span");
+    if (s.current) {
+      del.className = "session-active";
+      del.textContent = "●";
+      del.title = T.sessionActive;
+    } else {
+      del.className = "session-del";
+      del.textContent = "✕";
+      del.title = T.sessionDelete;
+      del.onclick = (e) => {
+        e.stopPropagation();
+        confirmDeleteSession(s);
+      };
+    }
+    row.appendChild(del);
+    // Title (click to switch).
+    const title = document.createElement("span");
+    title.className = "session-title";
+    title.textContent = s.title || "(unnamed)";
+    title.title = (s.keywords ? s.keywords + " · " : "") + s.created_at;
+    row.appendChild(title);
+    row.onclick = () => {
+      if (s.current) return;
+      wsSend({ type: "session_switch", value: s.id });
+    };
+    sessionMenu.appendChild(row);
+  }
+}
+
+// Request the session list on connect and whenever the menu is opened.
+sbSessionsWrap.addEventListener("mouseenter", () => {
+  wsSend({ type: "session_list" });
+  sessionMenu.classList.remove("hidden");
+});
+sbSessionsWrap.addEventListener("mouseleave", () => {
+  sessionMenu.classList.add("hidden");
+});
+
+// confirmDeleteSession opens the delete-confirmation modal for a session.
+// The actual session_delete message is only sent after the user confirms
+// (FEATURE-387).
+let pendingDeleteID = null;
+function confirmDeleteSession(s) {
+  pendingDeleteID = s.id;
+  delSessionMsg.textContent = T.sessionDeleteConfirm.replace("%s", s.title || "(unnamed)");
+  delSessionModal.classList.remove("hidden");
+}
+function closeDeleteModal() {
+  pendingDeleteID = null;
+  delSessionModal.classList.add("hidden");
+}
+delSessionClose.onclick = closeDeleteModal;
+delSessionCancel.onclick = closeDeleteModal;
+delSessionModal.onclick = (e) => { if (e.target === delSessionModal) closeDeleteModal(); };
+delSessionConfirm.onclick = () => {
+  if (pendingDeleteID) wsSend({ type: "session_delete", value: pendingDeleteID });
+  closeDeleteModal();
+};
 
 /* ---------- task plan panel ---------- */
 

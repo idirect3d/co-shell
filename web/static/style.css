@@ -591,6 +591,57 @@ aside {
 .sb-item { white-space: nowrap; }
 .sb-item b { color: var(--fg); font-weight: 600; }
 
+/* Session menu (FEATURE-387): a popup that expands upward from the 💬
+   status-bar item, listing all sessions with switch/delete actions. */
+.sb-sessions { position: relative; }
+.sb-sessions .sb-item { cursor: pointer; }
+.session-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  z-index: 100;
+}
+.session-menu.hidden { display: none; }
+.session-empty { padding: 6px 8px; color: var(--fg-dim); }
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.session-item:hover { background: var(--bg-elev); }
+.session-item.current { color: var(--fg); font-weight: 600; }
+.session-del {
+  color: var(--fg-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+.session-del:hover { color: var(--danger, #e5484d); }
+.session-active {
+  color: var(--accent, #4c8bf5);
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+.session-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
 /* ---------- image preview ---------- */
 
 .preview {
@@ -697,6 +748,26 @@ aside {
   outline: none;
 }
 .set-row select:focus { border-color: var(--accent); }
+
+/* ---------- delete-session confirm modal (FEATURE-387) ---------- */
+
+.del-session-msg {
+  font-size: 13px;
+  color: var(--fg);
+  margin-bottom: 14px;
+  word-break: break-all;
+}
+.del-session-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.btn.danger {
+  border-color: var(--err);
+  color: var(--err);
+  background: none;
+}
+.btn.danger:hover { background: var(--err); color: var(--bg); }
 
 /* ---------- scrollbars ---------- */
 
