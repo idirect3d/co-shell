@@ -6,17 +6,48 @@
 
 ## 当前版本
 
+> **版本**: v0.9.0
+
+> **状态**: 🚧 开发中（工具调用交互标准化）
+> **里程碑**: 工具调用交互标准化
+> **说明**: 0.9.0 系列专注工具调用交互标准化（Interaction 模型 + 意图字段结构化 + TUI/Web 统一输出），细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-388 | 0.9.0 | P1 | 工具调用交互标准化（Interaction 模型 + 意图字段结构化 + TUI/Web 统一输出） |
+
+> 当前 BUILD: 468
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-388 工具调用交互标准化** 🚧 开发中
+  - 背景：当前三类交互（意图字段、提问/选择、确认放行）都是通过 `UserIO` 底层原语（`Print*` + `ReadLine/ReadKey`）拼装出来的，交互逻辑散落在各工具回调里。Web UI 只能看到 `ui_text` 文本 + 通用输入框，无法结构化渲染，前端还硬编码了确认键位。
+  - 方案（已确认）：引入统一 `Interaction` 交互模型，把交互从底层原语拼装提升为结构化声明。
+    - 决策 1：`InteractionManager` 采用独立接口（方案 B），组合复用 `UserIO` 底层能力，对现有 StdioIO/EnhancedIO/WebIO 零侵入
+    - 决策 2：确认放行键位保持固定（Enter/c/a/g/d/N），不支持用户自定义，但不同场景用不同键位集
+    - 决策 3：`ToolSummary` 结构化摘要覆盖所有工具（高频工具定制化参数展示，低频工具通用 fallback）
+    - 决策 4：Web 端"批准N次"提供预设按钮 3/10/50 + 自由数字输入
+    - 决策 5：i18n 模板分两步走（第一步 `ToolSummary` 同时保留 `Text` 和结构化字段，TUI 用 `Text`、Web 用结构化字段；第二步逐步迁移为字段标签）
+  - 需求：① 定义 `Interaction`/`InteractionResult`/`InteractionManager` 接口；② 实现 `TerminalInteractionManager`（TUI）；③ 迁移 `promptToolConfirmation` 和 `askFollowupQuestionTool` 到新模型；④ 实现 `WebInteractionManager` + WebSocket `interaction` 协议；⑤ 前端渲染交互组件（按钮组/选项列表/输入框），移除硬编码键位；⑥ `buildToolSummary` 返回 `ToolSummary` 结构体，`EventToolCall` 携带结构化摘要
+  - 测试：见 use-case/FEATURE-388/
+
+---
+
+## v0.8.0 — 开发中（已完成）
+
 > **版本**: v0.8.0
 
-> **状态**: 🚧 开发中（web UI 状态栏会话菜单）
+> **状态**: ✅ 已完成
 > **里程碑**: web UI 状态栏会话菜单
 > **说明**: 0.8.0 系列专注 web UI 状态栏会话管理，细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
-| FEATURE-387 | 0.8.0 | P1 | web UI 状态栏会话菜单（💬 图标 + 会话数 + 悬停展开会话列表 + 切换/删除会话） |
+| FEATURE-387 | 0.8.0 | P1 | ✅ 已完成 web UI 状态栏会话菜单（💬 图标 + 会话数 + 悬停展开会话列表 + 切换/删除会话） |
 
-> 当前 BUILD: 462
+> 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -1564,6 +1595,8 @@
 | v0.7.5 | 2026-08-10 | 🚧 开发中 | 视觉识别上下文隔离（minimal 识别轮独立 + 结果回填） |
 | v0.7.6 | 2026-08-10 | ✅ 已完成 | browser_screenshot 视觉识别一致化 + 循环介入 auto 策略 |
 | v0.7.7 | 2026-08-16 | 🚧 开发中 | 输入统一（InputSource）+ Windows 补齐（FEATURE-306 + FIX-350） |
+| v0.8.0 | 2026-08-21 | ✅ 已完成 | web UI 状态栏会话菜单（FEATURE-387） |
+| v0.9.0 | 2026-08-21 | 🚧 开发中 | 工具调用交互标准化（FEATURE-388） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 
 
