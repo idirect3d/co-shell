@@ -210,16 +210,32 @@ aside {
 .tree-row:hover { background: var(--bg-elev); color: var(--fg); }
 /* The expand/collapse arrow is absolutely positioned so it does not push
    the label right; each nesting level's indent is purely the ul padding
-   (1em = one monospace character). */
+   (1em = one monospace character). The git status letter column (FEATURE-380)
+   sits at the far left, flush against the tree edge; the arrow and name are
+   shifted right by its width so every row (dir and file) keeps the same left
+   gutter and horizontal alignment is unaffected. */
+.tree-row .git-status {
+  flex: none;
+  width: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 14px;
+}
+.tree-row .git-status.st-m { color: #58a6ff; }
+.tree-row .git-status.st-a,
+.tree-row .git-status.st-u { color: #3fb950; }
+.tree-row .git-status.st-d { color: #f85149; }
+.tree-row .git-status.st-r { color: #bc8cff; }
 .tree-row .tw {
   position: absolute;
-  left: 0;
+  left: 14px;
   width: 12px;
   flex: none;
   color: var(--fg-faint);
   font-size: 10px;
 }
-.tree-row .name { padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
+.tree-row .name { padding-left: 26px; overflow: hidden; text-overflow: ellipsis; }
 .tree-row.dir > .name { color: var(--fg); }
 .tree-row .reveal-btn {
   margin-left: auto;
