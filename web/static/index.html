@@ -28,6 +28,9 @@
         <button class="menu-item" id="miPlan">
           <span class="mi-ico">📋</span><span class="mi-label" data-i18n="taskPlan">任务进展</span><span class="mi-check" id="miPlanCheck">✓</span>
         </button>
+        <button class="menu-item" id="miStatus">
+          <span class="mi-ico">📊</span><span class="mi-label" data-i18n="statusBar">状态条</span><span class="mi-check" id="miStatusCheck">✓</span>
+        </button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miSettings">
           <span class="mi-ico">⚙️</span><span class="mi-label" data-i18n="settings">系统设置</span>
@@ -73,6 +76,11 @@
         <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
         <button class="btn primary" id="sendBtn" title="send">▶</button>
       </div>
+    </div>
+    <div id="statusbar" class="statusbar hidden">
+      <span class="sb-item" id="sbModel"></span>
+      <span class="sb-item" id="sbSession"></span>
+      <span class="sb-item" id="sbLast"></span>
     </div>
   </footer>
 </main>

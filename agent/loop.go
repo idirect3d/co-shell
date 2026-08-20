@@ -1575,6 +1575,33 @@ func (a *Agent) GetMaxModelLen() int {
 	return 0
 }
 
+// ModelInfo holds the active text and vision model context info for the web
+// status bar (FEATURE-378).
+type ModelInfo struct {
+	TextModelName  string // main text model name
+	TextMaxLen     int    // main text model max context length (0 = unknown)
+	VisionModelName string // vision model name (empty when none)
+	VisionMaxLen   int    // vision model max context length (0 = unknown)
+}
+
+// ModelInfo returns the active text and vision model names and their max
+// context lengths, for the web status bar's context-usage display.
+func (a *Agent) ModelInfo() ModelInfo {
+	var info ModelInfo
+	if a.modelManager == nil {
+		return info
+	}
+	if m := a.modelManager.GetActiveModel(false); m != nil {
+		info.TextModelName = m.Name
+		info.TextMaxLen = m.MaxModelLen
+	}
+	if v := a.modelManager.GetActiveModel(true); v != nil {
+		info.VisionModelName = v.Name
+		info.VisionMaxLen = v.MaxModelLen
+	}
+	return info
+}
+
 // LLMTiming holds performance timing for the most recent LLM call.
 type LLMTiming struct {
 	FirstTokenLatency string // time to first token (e.g. "1.2s")

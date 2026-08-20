@@ -1440,6 +1440,12 @@
   - 实现：`web/static/app.js` `renderEvent` 中 `tool_call` 事件 result 分支（工具执行完成）末尾调用 `refreshBranch()` + `loadTree()`，使每次工具调用返回后文件列表与分支状态实时刷新
   - 测试：headless 浏览器验证工具调用返回（tool_call result 事件）后文件列表自动刷新包含新文件；`node --check` 全绿
 
+- [x] **FEATURE-378 web 底部状态条（上下文 token 统计）** ✅ 已完成 [BUILD-450]
+  - 背景：用户消息框下方（窗口最底部）需要一条状态条，实时显示当前上下文长度统计；通过右上角下拉菜单新增开关控制是否显示
+  - 状态条显示（三段，整体靠右）：`🧠{主模型}(89% of 1M)/👀{视觉模型}(50% of 200K)`（模型上下文占用）+ `会话 15000（↑14500 ↓500）`（会话总 token + 会话总输入/输出）+ `最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)`（最后一轮输入/输出 + 速度 + 用时）
+  - 实现：`agent/loop.go` 新增 `ModelInfo()` 返回主/视觉模型名与 MaxModelLen；`web/server.go` 新增 `modelInfoFn` + `SetModelInfoProvider`，`handleBootstrap` 返回 textModel/textMaxLen/visionModel/visionMaxLen；`web/session.go` WebSession 注册 `sess.ag.ModelInfo`；`index.html` 状态条新增 sbModel 段；`app.js` bootstrap 读取模型信息，`updateStatus` 计算占用%（会话总 token/模型 MaxLen）并显示 🧠/👀；`style.css` 状态条样式（`#bottom` 加 `flex-wrap:wrap` + `.statusbar` 加 `flex-basis:100%` 独占一行占满全宽 + `justify-content:flex-end` 靠右）
+  - 测试：Node DOM shim 加载真实 app.js 驱动假事件，34 项断言全过（默认显示、token_iter 更新会话/最后一轮两段、速度/用时计算、模型上下文占用 🧠/👀、多次迭代累积、菜单开关切换与持久化、刷新后保持）；bootstrap API 实测返回 textModel/textMaxLen/visionModel/visionMaxLen；`node --check`、`go build/vet/test ./agent/ ./web/` 全绿
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
