@@ -1461,6 +1461,12 @@
   - 实现：`app.js` i18n `sbSession` 值改为 `Σ`、`sbLast` 值改为 `🔄`（zh/en 通用图标）；`updateStatus()` 模型间分隔从 `/👀` 改为 ` 👀`（一个空格固定宽度）
   - 测试：Node DOM shim 加载真实 app.js 驱动假事件，37 项断言全过（含 sbSession 用 Σ 图标、sbLast 用 🔄 图标、模型分隔为空格非 /）；`node --check`、`go build/vet/test ./web/` 全绿
 
+- [x] **FIX-385 web 人工确认选项不显示（约 50:50 无规律）** ✅ 已完成 [BUILD-459]
+  - 背景：有些方法调用需要人工确认时，输出区域可能没有显示具体选项（比例约 50:50，无规律），用户不知道该怎么确认
+  - 根因：确认选项文本通过 `io.Println`/`io.Printf`（WebIO.pushText → ui_text 事件）渲染到 `#stream` 事件流的 REPL 块；随后 `io.ReadLine`（WebIO.ask → ask 消息）触发前端 `showAsk` 显示底部 askArea 输入框。askArea 显示会撑高 `#bottom`、压缩 `#stream` 高度，但 `showAsk` 未重新滚动 `#stream`——当 `#stream` 内容较多已滚动时，选项文本被压缩出视野（50:50 取决于 `#stream` 是否已滚动）
+  - 修复：`app.js` `showAsk()` 末尾（`askInput.focus()` 之后）追加 `scrollStream()`，askArea 显示后重新滚动 `#stream` 到底部，确保确认选项文本可见
+  - 测试：`node --check`、`go build/vet/test ./web/` 全绿
+
 ## v1.0.0 — 正式版
 
 > **状态**: 💡 构想中
