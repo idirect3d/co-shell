@@ -6,9 +6,27 @@
 
 ## 当前版本
 
+> **版本**: v0.7.9
+
+> **状态**: 🚧 开发中（任务计划与会话绑定）
+> **里程碑**: 任务计划（taskplan）与会话（session）绑定
+> **说明**: 0.7.9 系列专注任务计划与会话绑定，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-386 | 0.7.9 | P1 | 任务计划与会话绑定（存储 key 加 session 前缀 + 切换会话加载目标会话计划 + 旧数据迁移） |
+
+> 当前 BUILD: 459
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+---
+
+## v0.7.8 — 开发中（已完成）
+
 > **版本**: v0.7.8
 
-> **状态**: 🚧 开发中（Web UI 文件列表 git 状态标注）
+> **状态**: ✅ 已完成
 > **里程碑**: Web UI 文件列表标注 git 修改状态
 > **说明**: 0.7.x 系列专注输出架构重构（见 docs/output-architecture.md），细分任务：
 
@@ -1466,6 +1484,12 @@
   - 根因：确认选项文本通过 `io.Println`/`io.Printf`（WebIO.pushText → ui_text 事件）渲染到 `#stream` 事件流的 REPL 块；随后 `io.ReadLine`（WebIO.ask → ask 消息）触发前端 `showAsk` 显示底部 askArea 输入框。askArea 显示会撑高 `#bottom`、压缩 `#stream` 高度，但 `showAsk` 未重新滚动 `#stream`——当 `#stream` 内容较多已滚动时，选项文本被压缩出视野（50:50 取决于 `#stream` 是否已滚动）
   - 修复：`app.js` `showAsk()` 末尾（`askInput.focus()` 之后）追加 `scrollStream()`，askArea 显示后重新滚动 `#stream` 到底部，确保确认选项文本可见
   - 测试：`node --check`、`go build/vet/test ./web/` 全绿
+
+- [x] **FEATURE-386 任务计划与会话绑定** ✅ 已完成 [BUILD-460]
+  - 背景：任务计划（taskplan，即 `track_task_progress` 维护的待办任务清单）当前是全局单例，用固定 key `"current"` 存储单个全局任务计划，无 session 维度。切换会话（`handleSwitch`）只切 `currentSessionID` 和消息历史，不触碰 taskplan，导致所有会话共享同一份任务计划，切换后任务清单互相污染、混乱
+  - 方案（已确认 1A 2A 3A）：① 存储 key 加 session 前缀（`current:{sessionID}`），每个会话一份独立计划；② 切换会话时自动加载目标会话绑定的任务计划（在 `Agent.SetCurrentSessionID` 中统一通知 `taskPlanMgr.SetSessionID`，覆盖所有切换路径）；③ 升级时把现有全局 `"current"` 计划迁移到当前会话名下
+  - 实现：`taskplan/taskplan.go` 增加 `sessionID` 字段、`SetSessionID`、`planKey`、`migrateLegacyPlan`；`loadCurrent`/`saveCurrent`/`DeleteContext` 改用 `planKey`；`agent/agent.go` `SetCurrentSessionID` 中通知 `taskPlanMgr.SetSessionID`；planCounter 保持全局递增；sessionID 为空时回退全局 `"current"` key
+  - 测试：`taskplan/taskplan_test.go` 新增 6 个单元测试（planKey 按 session 隔离、各会话计划隔离、会话内更新不影响其他会话、旧数据迁移、迁移保留已有会话计划、归档仅作用于当前会话）全过；`go build/vet/test ./...` 全绿
 
 ## v1.0.0 — 正式版
 

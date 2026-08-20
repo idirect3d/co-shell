@@ -90,16 +90,19 @@ type TaskPlan struct {
 }
 
 // currentPlanKey is the fixed key used to store the single current task plan.
+// When bound to a session, the key becomes "current:{sessionID}".
 const currentPlanKey = "current"
 
 // Manager handles task plan CRUD operations.
-// Only one active plan exists at a time.
+// Only one active plan exists at a time per session.
 type Manager struct {
 	store         *store.DualStore
 	memoryMgr     *memory.Manager
 	planCounter   int    // monotonically increasing counter for plan IDs
 	memoryEnabled bool   // whether memory archival is enabled
 	agentName     string // name of the agent for memory archival
+	sessionID     string // current bound session ID (empty = global fallback)
+	migrated      bool   // whether legacy global plan has been migrated
 }
 
 // NewManager creates a new TaskPlan manager.
@@ -115,6 +118,50 @@ func NewManager(s *store.DualStore) *Manager {
 		mgr.planCounter = plan.ID
 	}
 	return mgr
+}
+
+// SetSessionID sets the current bound session ID. When the session changes,
+// the task plan switches to the plan bound to the target session. The first
+// time a session is set, any legacy global plan (stored under the bare
+// "current" key) is migrated to that session.
+func (m *Manager) SetSessionID(id string) {
+	m.sessionID = id
+	if !m.migrated {
+		m.migrated = true
+		m.migrateLegacyPlan()
+	}
+}
+
+// planKey returns the storage key for the current session's task plan.
+// When no session is bound, it falls back to the global "current" key.
+func (m *Manager) planKey() string {
+	if m.sessionID == "" {
+		return currentPlanKey
+	}
+	return currentPlanKey + ":" + m.sessionID
+}
+
+// migrateLegacyPlan migrates a legacy global plan (stored under the bare
+// "current" key) to the current session. It is a no-op when no session is
+// bound or when the current session already has its own plan.
+func (m *Manager) migrateLegacyPlan() {
+	if m.sessionID == "" {
+		return
+	}
+	data, found, err := m.store.GetContext(currentPlanKey)
+	if err != nil || !found {
+		return
+	}
+	// If the current session already has a plan, keep it and drop the legacy one.
+	if _, found, _ := m.store.GetContext(m.planKey()); found {
+		_ = m.store.DeleteContext(currentPlanKey)
+		return
+	}
+	// Migrate: write legacy data to the session key, then remove the global key.
+	if err := m.store.SaveContext(m.planKey(), data); err == nil {
+		_ = m.store.DeleteContext(currentPlanKey)
+		log.Info("Migrated legacy task plan to session %q", m.sessionID)
+	}
 }
 
 // SetMemoryEnabled enables or disables memory archival for task plans.
@@ -173,7 +220,7 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 			if err := m.archiveToMemory(existing, true); err != nil {
 				log.Warn("Failed to archive cancelled plan: %v", err)
 			}
-			if err := m.store.DeleteContext(currentPlanKey); err != nil {
+			if err := m.store.DeleteContext(m.planKey()); err != nil {
 				return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_711, err))
 			}
 		}
@@ -298,7 +345,7 @@ func (m *Manager) archiveToMemory(plan *TaskPlan, cancelled bool) error {
 
 // loadCurrent loads the current task plan from the store.
 func (m *Manager) loadCurrent() (*TaskPlan, error) {
-	data, found, err := m.store.GetContext(currentPlanKey)
+	data, found, err := m.store.GetContext(m.planKey())
 	if err != nil {
 		return nil, fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_722, err))
 	}
@@ -319,7 +366,7 @@ func (m *Manager) saveCurrent(plan *TaskPlan) error {
 	if err != nil {
 		return fmt.Errorf("%s", i18n.TF(i18n.KeySettingCmd_724, err))
 	}
-	return m.store.SaveContext(currentPlanKey, data)
+	return m.store.SaveContext(m.planKey(), data)
 }
 
 // FormatPlan formats a task plan as a human-readable string.
