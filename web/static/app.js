@@ -439,14 +439,16 @@ function fmtLen(n) {
 }
 
 function updateStatus() {
-  // Model context usage: 🧠{text}(89% of 1M)/👀{vision}(50% of 1M)
+  // Model context usage: 🧠{text}(89% of 1M)/👀{vision}(50% of 1M). The
+  // usage numerator is the last turn's input+output tokens (FEATURE-378).
   const sIn = tokenStats.sessionIn, sOut = tokenStats.sessionOut;
   const total = sIn + sOut;
+  const lastTotal = tokenStats.lastIn + tokenStats.lastOut;
   let modelHtml = "";
   if (modelInfo && modelInfo.textModel) {
-    modelHtml += "🧠" + modelInfo.textModel + "(" + fmtPct(total, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
+    modelHtml += "🧠" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
     if (modelInfo.visionModel) {
-      modelHtml += "/👀" + modelInfo.visionModel + "(" + fmtPct(total, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
+      modelHtml += "/👀" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
     }
   }
   sbModel.innerHTML = modelHtml;
