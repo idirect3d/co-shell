@@ -1592,11 +1592,11 @@ func (a *Agent) ModelInfo() ModelInfo {
 		return info
 	}
 	if m := a.modelManager.GetActiveModel(false); m != nil {
-		info.TextModelName = m.Name
+		info.TextModelName = m.Model
 		info.TextMaxLen = m.MaxModelLen
 	}
 	if v := a.modelManager.GetActiveModel(true); v != nil {
-		info.VisionModelName = v.Name
+		info.VisionModelName = v.Model
 		info.VisionMaxLen = v.MaxModelLen
 	}
 	return info
