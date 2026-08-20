@@ -76,6 +76,7 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	srv.SetMessageHandler(sess.handleMessage)
 	srv.SetDisconnectHook(sess.wio.failAll)
 	srv.SetPlanProvider(sess.currentPlanJSON)
+	srv.SetModelInfoProvider(sess.ag.ModelInfo)
 	return sess, nil
 }
 

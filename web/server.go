@@ -106,6 +106,10 @@ type Server struct {
 	// planFn returns the current task plan as a JSON string ("" when none),
 	// pushed to the browser on connect as a state message.
 	planFn func() string
+
+	// modelInfoFn returns the active text/vision model context info for the
+	// status bar (FEATURE-378); nil when no provider is registered.
+	modelInfoFn func() agent.ModelInfo
 }
 
 // NewServer creates the server for the given workspace root and registers
@@ -148,6 +152,14 @@ func (s *Server) SetDisconnectHook(fn func()) {
 func (s *Server) SetPlanProvider(fn func() string) {
 	s.mu.Lock()
 	s.planFn = fn
+	s.mu.Unlock()
+}
+
+// SetModelInfoProvider installs the active model context-info provider
+// (FEATURE-378), used by the status bar to show context usage.
+func (s *Server) SetModelInfoProvider(fn func() agent.ModelInfo) {
+	s.mu.Lock()
+	s.modelInfoFn = fn
 	s.mu.Unlock()
 }
 
@@ -329,13 +341,26 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
+	payload := map[string]interface{}{
 		"lang":      s.opts.Lang,
 		"version":   s.opts.Version,
 		"build":     s.opts.Build,
 		"workspace": s.root,
 		"branch":    gitBranch(s.root),
-	})
+	}
+	// FEATURE-378: expose the active text/vision model context info for the
+	// status bar's context-usage display.
+	s.mu.Lock()
+	fn := s.modelInfoFn
+	s.mu.Unlock()
+	if fn != nil {
+		info := fn()
+		payload["textModel"] = info.TextModelName
+		payload["textMaxLen"] = info.TextMaxLen
+		payload["visionModel"] = info.VisionModelName
+		payload["visionMaxLen"] = info.VisionMaxLen
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 // gitBranch returns the current git branch of the workspace root, or "" when

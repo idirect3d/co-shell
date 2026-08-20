@@ -21,6 +21,8 @@ const I18N = {
     planEmpty: "（无步骤）",
     menu: "菜单", settings: "系统设置",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
+    statusBar: "状态条",
+    sbSession: "会话", sbLast: "最后一轮",
   },
   en: {
     workspace: "Workspace",
@@ -32,6 +34,8 @@ const I18N = {
     planEmpty: "(no steps)",
     menu: "Menu", settings: "Settings",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
+    statusBar: "Status bar",
+    sbSession: "Session", sbLast: "Last turn",
   },
 };
 let T = I18N.zh;
@@ -121,6 +125,12 @@ const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
+const miStatus = document.getElementById("miStatus");
+const miStatusCheck = document.getElementById("miStatusCheck");
+const statusbar = document.getElementById("statusbar");
+const sbModel = document.getElementById("sbModel");
+const sbSession = document.getElementById("sbSession");
+const sbLast = document.getElementById("sbLast");
 
 /* ---------- websocket ---------- */
 
@@ -240,6 +250,18 @@ function renderEvent(ev) {
     stream.appendChild(line);
     curLLM = curThinking = null;
     scrollStream();
+    // FEATURE-378: accumulate token stats into the status bar.
+    if (ev.type === "token_iter") {
+      const p = parseInt(m.prompt, 10) || 0;
+      const c = parseInt(m.completion, 10) || 0;
+      tokenStats.sessionIn += p;
+      tokenStats.sessionOut += c;
+      tokenStats.lastIn = p;
+      tokenStats.lastOut = c;
+      tokenStats.lastInTPS = parseInt(m.in_tps, 10) || 0;
+      tokenStats.lastOutTPS = parseInt(m.out_tps, 10) || 0;
+      updateStatus();
+    }
     return;
   }
   if (ev.type === "done") {
@@ -367,6 +389,76 @@ miPlan.onclick = () => {
   savePanelPrefs();
   applyPanels();
 };
+
+/* ---------- status bar (FEATURE-378) ---------- */
+
+// statusPref persists the status bar visibility (localStorage
+// "co-shell-status": true/false; absent means visible).
+let statusOn = localStorage.getItem("co-shell-status") !== "0";
+
+function applyStatus() {
+  statusbar.classList.toggle("hidden", !statusOn);
+  miStatusCheck.classList.toggle("on", statusOn);
+}
+
+miStatus.onclick = () => {
+  statusOn = !statusOn;
+  localStorage.setItem("co-shell-status", statusOn ? "1" : "0");
+  applyStatus();
+};
+
+// Token stats accumulated from token_iter events. sessionIn/sessionOut are
+// the running totals across all iterations; last* hold the most recent
+// iteration's values (including input/output tokens-per-second).
+const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0 };
+
+// modelInfo holds the active text/vision model context info from bootstrap
+// (FEATURE-378): { textModel, textMaxLen, visionModel, visionMaxLen }.
+let modelInfo = null;
+
+function fmtNum(n) { return n ? n.toLocaleString() : "0"; }
+
+// fmtDur formats a duration in seconds as e.g. "2s" or "1.5m".
+function fmtDur(sec) {
+  if (!(sec > 0)) return "-";
+  return sec >= 60 ? (sec / 60).toFixed(1) + "m" : sec.toFixed(1) + "s";
+}
+
+// fmtPct formats a context-usage percentage (0-100) as e.g. "89%".
+function fmtPct(used, max) {
+  if (!(max > 0)) return "-";
+  return Math.round(used * 100 / max) + "%";
+}
+
+// fmtLen formats a context length with K/M units (e.g. 1048576 -> "1M").
+function fmtLen(n) {
+  if (!(n > 0)) return "-";
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+
+function updateStatus() {
+  // Model context usage: 🧠{text}(89% of 1M)/👀{vision}(50% of 1M)
+  const sIn = tokenStats.sessionIn, sOut = tokenStats.sessionOut;
+  const total = sIn + sOut;
+  let modelHtml = "";
+  if (modelInfo && modelInfo.textModel) {
+    modelHtml += "🧠" + modelInfo.textModel + "(" + fmtPct(total, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
+    if (modelInfo.visionModel) {
+      modelHtml += "/👀" + modelInfo.visionModel + "(" + fmtPct(total, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
+    }
+  }
+  sbModel.innerHTML = modelHtml;
+  // Session: 会话 15000（↑14500 ↓500）
+  sbSession.innerHTML = T.sbSession + " <b>" + fmtNum(total) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
+  // Last turn: 最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)
+  const li = tokenStats.lastIn, lo = tokenStats.lastOut;
+  const liTPS = tokenStats.lastInTPS, loTPS = tokenStats.lastOutTPS;
+  const liDur = liTPS > 0 ? fmtDur(li / liTPS) : "-";
+  const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
+  sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? liTPS + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? loTPS + "t/s" : "-") + ", " + loDur + ")";
+}
 
 /* ---------- task plan panel ---------- */
 
@@ -798,10 +890,16 @@ async function refreshBranch() {
     // Sidebar title shows the current git branch at the right edge of the
     // panel head (e.g. "工作区 ⟳   main").
     if (b.branch) document.getElementById("wsBranch").textContent = b.branch;
+    // FEATURE-378: active text/vision model context info for the status bar.
+    if (b.textModel) {
+      modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0 };
+    }
   } catch { /* defaults stay zh */ }
   applyI18n();
   setRunning(false); // apply localized button title
   applyPanels();
+  applyStatus();
+  updateStatus();
   loadTree();
   wsConnect();
 })();
