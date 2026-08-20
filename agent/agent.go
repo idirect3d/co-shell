@@ -443,6 +443,11 @@ func (a *Agent) SetCurrentSessionID(id string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.currentSessionID = id
+	// Notify the task plan manager so the task plan switches to the plan
+	// bound to the target session (FEATURE-386).
+	if a.taskPlanMgr != nil {
+		a.taskPlanMgr.SetSessionID(id)
+	}
 }
 
 // CurrentSessionID returns the current session's ID.
