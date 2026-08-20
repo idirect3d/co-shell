@@ -185,6 +185,7 @@ aside {
 .tree {
   flex: 1;
   overflow: auto;
+  position: relative; /* anchor for the git-status letters (FEATURE-380) */
   padding: 6px 2px;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12.5px;
@@ -202,7 +203,10 @@ aside {
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 2px 6px 2px 0;
+  /* Left padding reserves the git-status letter column (FEATURE-380) so the
+     file name's horizontal position is unaffected by the absolutely
+     positioned status letter. */
+  padding: 2px 6px 2px 16px;
   border-radius: 5px;
   cursor: pointer;
   color: var(--fg-dim);
@@ -210,24 +214,25 @@ aside {
 .tree-row:hover { background: var(--bg-elev); color: var(--fg); }
 /* The expand/collapse arrow is absolutely positioned so it does not push
    the label right; each nesting level's indent is purely the ul padding
-   (1em = one monospace character). The git status letter (FEATURE-380) is
-   also absolutely positioned at the far left, flush against the tree edge,
-   so it does NOT take up flex space — the arrow and file name keep their
-   original positions and no horizontal room is consumed. */
-.tree-row .git-status {
+   (1em = one monospace character). The git status letter (FEATURE-380) is a
+   direct child of the li, absolutely positioned against the .tree container
+   so it hugs the file list's left edge (not the file name). The .tree-row
+   gets a left padding to compensate, so the file name's horizontal position
+   is unaffected and no extra room is consumed. */
+.tree-node > .git-status {
   position: absolute;
-  left: 0;
+  left: 2px;
   width: 14px;
   font-size: 10px;
   font-weight: 700;
   text-align: center;
   line-height: 14px;
 }
-.tree-row .git-status.st-m { color: #58a6ff; }
-.tree-row .git-status.st-a,
-.tree-row .git-status.st-u { color: #3fb950; }
-.tree-row .git-status.st-d { color: #f85149; }
-.tree-row .git-status.st-r { color: #bc8cff; }
+.tree-node > .git-status.st-m { color: #58a6ff; }
+.tree-node > .git-status.st-a,
+.tree-node > .git-status.st-u { color: #3fb950; }
+.tree-node > .git-status.st-d { color: #f85149; }
+.tree-node > .git-status.st-r { color: #bc8cff; }
 .tree-row .tw {
   position: absolute;
   left: 0;

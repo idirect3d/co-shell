@@ -1446,10 +1446,10 @@
   - 实现：`agent/loop.go` 新增 `ModelInfo()` 返回主/视觉模型原名（`ModelConfig.Model`）与 MaxModelLen；`web/server.go` 新增 `modelInfoFn` + `SetModelInfoProvider`，`handleBootstrap` 返回 textModel/textMaxLen/visionModel/visionMaxLen；`web/session.go` WebSession 注册 `sess.ag.ModelInfo`；`index.html` 状态条新增 sbModel 段；`app.js` bootstrap 读取模型信息，`updateStatus` 计算占用%（分子=最后一轮输入+输出 token/模型 MaxLen）并显示 🧠/👀；`style.css` 状态条样式（`#bottom` 加 `flex-wrap:wrap` + `.statusbar` 加 `flex-basis:100%` 独占一行占满全宽 + `justify-content:flex-end` 靠右）
   - 测试：Node DOM shim 加载真实 app.js 驱动假事件，34 项断言全过（默认显示、token_iter 更新会话/最后一轮两段、速度/用时计算、模型上下文占用 🧠/👀 用最后一轮分子、多次迭代累积、菜单开关切换与持久化、刷新后保持）；bootstrap API 实测返回模型原名 textModel/textMaxLen/visionModel/visionMaxLen；`node --check`、`go build/vet/test ./agent/ ./web/` 全绿
 
-- [x] **FEATURE-380 文件列表 git 状态字母移到最左列** ✅ 已完成 [BUILD-453]
+- [x] **FEATURE-380 文件列表 git 状态字母移到最左列** ✅ 已完成 [BUILD-454]
   - 背景：文件列表的 git 状态字母徽标（M/A/D/U/R）当前显示在文件名右侧，希望移到每个文件（不是文件夹）的最左边一列，紧靠文件夹列表左边框，跨过文件夹收起/打开箭头继续向左，且不能影响文件夹和文件的显示位置（不占用横向有效空间）；文件夹的修改文件数徽标（●N）保持现状
-  - 实现：`app.js` `treeNode()` 在 `row` 最前面新增 `.git-status` 状态字母元素——文件显示状态字母（M/A/D/R/U），文件夹留空；`style.css` 将 `.git-status` 设为**绝对定位**（`left:0`）紧贴左边框、不参与 flex 布局（不占横向空间），`.tw` 箭头与 `.name` 文件名保持原位（`left:0` / `padding-left:12px`），因此文件名位置不变、不占用横向有效空间；文件夹修改文件数徽标（●N）保留在右侧
-  - 测试：Node DOM shim 加载真实 app.js 驱动 treeNode，12 项断言全过（文件行状态字母在最左列且先于箭头、文件夹行状态列留空、文件夹修改文件数徽标在右侧、文件行无 git-badge）；`node --check`、`go build/vet/test ./web/` 全绿
+  - 实现：`app.js` `treeNode()` 将 `.git-status` 状态字母作为 `li`（.tree-node）的**直接子元素**（非 row 内），文件显示状态字母（M/A/D/R/U），文件夹留空；`style.css` 给 `.tree` 容器加 `position:relative`，`.git-status` 设为**绝对定位**（`left:2px`）**相对于 `.tree` 容器**，因此紧贴文件列表左边框（而非文件名）；`.tree-row` 增加 `padding-left:16px` 补偿状态字母列，使文件名横向位置不受影响、不占用额外有效空间；文件夹修改文件数徽标（●N）保留在右侧
+  - 测试：Node DOM shim 加载真实 app.js 驱动 treeNode，13 项断言全过（文件行状态字母是 li 直接子元素且先于 row、文件夹行状态列留空、文件夹修改文件数徽标在右侧、文件行无 git-badge）；`node --check`、`go build/vet/test ./web/` 全绿
 
 ## v1.0.0 — 正式版
 
