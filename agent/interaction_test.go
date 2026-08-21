@@ -264,6 +264,49 @@ func TestPromptToolConfirmationModifyValue(t *testing.T) {
 	}
 }
 
+// captureInteractionManager captures the Interaction passed to Ask so tests can
+// verify the structured fields (Keys/AllowFree/Presets) that drive the Web UI.
+type captureInteractionManager struct {
+	captured Interaction
+}
+
+func (m *captureInteractionManager) Ask(ctx context.Context, in Interaction) (InteractionResult, error) {
+	m.captured = in
+	return InteractionResult{Action: ActionApprove}, nil
+}
+
+// TestPromptToolConfirmationInteractionFields verifies promptToolConfirmation
+// builds a confirm Interaction with Keys, AllowFree and Presets so the Web UI
+// can render a button group (FEATURE-388 fix).
+func TestPromptToolConfirmationInteractionFields(t *testing.T) {
+	mgr := &captureInteractionManager{}
+	promptToolConfirmation("execute_command", "summary", mgr)
+
+	in := mgr.captured
+	if in.Kind != InteractionConfirm {
+		t.Errorf("Kind = %q, want confirm", in.Kind)
+	}
+	if len(in.Keys) == 0 {
+		t.Error("Keys should be non-empty so the Web UI renders a button group")
+	}
+	if !in.AllowFree {
+		t.Error("AllowFree should be true so the user can type supplementary instructions")
+	}
+	if len(in.Presets) == 0 {
+		t.Error("Presets should be non-empty for approve-N buttons")
+	}
+	// Verify the key values map to the expected actions.
+	foundApprove := false
+	for _, k := range in.Keys {
+		if k.Value == string(ActionApprove) {
+			foundApprove = true
+		}
+	}
+	if !foundApprove {
+		t.Errorf("Keys missing approve action: %+v", in.Keys)
+	}
+}
+
 // newAskFollowupAgent builds a minimal Agent for askFollowupQuestionTool tests.
 func newAskFollowupAgent(io UserIO) *Agent {
 	return &Agent{
