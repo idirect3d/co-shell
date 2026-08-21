@@ -19,7 +19,7 @@ const I18N = {
     askLine: "代理请求一行输入：", askKey: "代理请求按键确认：",
     uploadFailed: "上传失败", actionFailed: "操作失败",
     planEmpty: "（无步骤）",
-    menu: "菜单", settings: "系统设置", identity: "身份与个性",
+    menu: "菜单", settings: "系统设置", identity: "身份与个性", restart: "重启后台",
     appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条",
@@ -42,7 +42,7 @@ const I18N = {
     askLine: "The agent asks for a line of input:", askKey: "The agent asks for a key:",
     uploadFailed: "Upload failed", actionFailed: "Action failed",
     planEmpty: "(no steps)",
-    menu: "Menu", settings: "Settings", identity: "Identity & Personality",
+    menu: "Menu", settings: "Settings", identity: "Identity & Personality", restart: "Restart backend",
     appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar",
@@ -141,6 +141,7 @@ const miPlan = document.getElementById("miPlan");
 const miWsCheck = document.getElementById("miWsCheck");
 const miPlanCheck = document.getElementById("miPlanCheck");
 const miSettings = document.getElementById("miSettings");
+const miRestart = document.getElementById("miRestart");
 const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
@@ -1325,6 +1326,11 @@ const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
 miSettings.onclick = () => {
   settingsModal.classList.remove("hidden");
   wsSend({ type: "settings_get" });
+};
+// FEATURE-398: "重启后台" sends a restart signal to the backend, which
+// notifies the external supervisor to restart the process.
+miRestart.onclick = () => {
+  wsSend({ type: "restart" });
 };
 settingsClose.onclick = () => settingsModal.classList.add("hidden");
 settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.add("hidden"); };
