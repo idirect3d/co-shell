@@ -24,6 +24,7 @@
 | FEATURE-395 | 0.9.0 | P1 | 去掉右上角下拉菜单中工作区/任务进展/状态条三个菜单项的图标（保留文字和功能） |
 | FEATURE-396 | 0.9.0 | P1 | 去掉暂停终止（ESC 中断确认）时提示框内无用的 [1]-[9] 批准次数提示 |
 | FEATURE-397 | 0.9.0 | P1 | Web UI 拦截 ESC 按键触发暂停（等价于点击 ⏸ 按钮） |
+| FEATURE-398 | 0.9.0 | P1 | 右上角菜单增加"重启后台"菜单项（发送重启信号通知外部 supervisor 重启进程） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -115,6 +116,13 @@
   - 需求：`web/static/app.js` 全局 keydown 监听中，增加 ESC 键处理——当 `e.key === "Escape"` 且 `running` 为 true 且无 pendingInteraction 时，发送 interrupt 消息。
   - 实施：`web/static/app.js` 全局 keydown 监听（document.addEventListener）增加 ESC 分支——`e.key === "Escape"` 且 `running` 且 `!pendingInteraction` 时 `wsSend({ type: "interrupt" })` 并 `e.preventDefault()` [BUILD-500]
   - 测试：见 use-case/FEATURE-397/
+
+- [ ] **FEATURE-398 右上角菜单增加"重启后台"菜单项**
+  - 背景：Web UI 右上角菜单中，系统设置下面需要增加"重启后台"菜单项，与系统设置之间增加分隔线。功能：发送重启信号通知外部 supervisor 重启进程。
+  - 方案（已确认）：前端右上角菜单系统设置下面增加"重启后台"菜单项（与系统设置之间加分隔线），点击后发送 `{ type: "restart" }` WebSocket 消息；后端收到后向当前进程发送 SIGHUP 信号，由外部 supervisor（如 launchd/systemd）捕获后重启进程。
+  - 需求：① `web/static/index.html` 右上角菜单系统设置下面增加"重启后台"菜单项 + 分隔线；② `web/static/app.js` 增加菜单项点击处理（发送 restart 消息）+ i18n 键；③ `web/server.go` clientMessage 新增 restart 类型；④ `web/session.go` handleMessage 新增 restart 处理（发送 SIGHUP 信号给当前进程）。
+  - 实施：`web/static/index.html` 右上角菜单系统设置下面增加"重启后台"菜单项（`miRestart`）+ 分隔线；`web/static/app.js` 增加 `miRestart.onclick` 发送 `{ type: "restart" }` + i18n restart 键；`web/server.go` clientMessage 注释补充 restart 类型；`web/session.go` handleMessage 新增 `case "restart"` 调用 `syscall.Kill(os.Getpid(), syscall.SIGHUP)` 发送重启信号 [BUILD-501]
+  - 测试：见 use-case/FEATURE-398/
 
 ---
 

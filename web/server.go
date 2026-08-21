@@ -51,7 +51,7 @@ var errPathOutside = errors.New("path escapes workspace")
 
 // clientMessage is a browser-to-server WebSocket message.
 type clientMessage struct {
-	Type        string   `json:"type"` // "input" | "answer" | "interaction_answer" | "interrupt" | "session_list" | "session_switch" | "session_delete" | "settings_get" | "settings_set" | "identity_get" | "identity_set"
+	Type        string   `json:"type"` // "input" | "answer" | "interaction_answer" | "interrupt" | "session_list" | "session_switch" | "session_delete" | "settings_get" | "settings_set" | "identity_get" | "identity_set" | "restart"
 	Text        string   `json:"text,omitempty"`
 	Attachments []string `json:"attachments,omitempty"`
 	ID          string   `json:"id,omitempty"`    // answer: the ask id; interaction_answer: the interaction id

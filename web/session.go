@@ -113,6 +113,10 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		}
 	case "interrupt":
 		s.ag.Interrupt()
+	case "restart":
+		// FEATURE-398: send a restart signal to the current process so an
+		// external supervisor (launchd/systemd) restarts the service.
+		requestRestart()
 	case "session_list":
 		s.pushSessionList()
 	case "session_switch":
