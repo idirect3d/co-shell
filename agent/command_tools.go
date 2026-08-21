@@ -473,6 +473,17 @@ func promptToolConfirmation(toolName string, displayStr string, mgr InteractionM
 		Kind:  InteractionConfirm,
 		Title: i18n.TF(i18n.KeyCmdConfirmTitle, displayStr),
 		Body:  i18n.T(i18n.KeyCmdConfirmRiskWarning),
+		// Structured keys let the Web UI render a button group; AllowFree lets
+		// the user type supplementary instructions (FEATURE-388).
+		Keys: []KeyOption{
+			{Label: i18n.T(i18n.KeyCmdConfirmBtnApprove), Key: "", Value: string(ActionApprove)},
+			{Label: i18n.T(i18n.KeyCmdConfirmBtnApproveAll), Key: "a", Value: string(ActionApproveAll)},
+			{Label: i18n.T(i18n.KeyCmdConfirmBtnApproveG), Key: "g", Value: string(ActionApproveG)},
+			{Label: i18n.T(i18n.KeyCmdConfirmBtnApproveD), Key: "d", Value: string(ActionApproveD)},
+			{Label: i18n.T(i18n.KeyCmdConfirmBtnCancel), Key: "c", Value: string(ActionCancel)},
+		},
+		Presets:   []string{"3", "10", "50"},
+		AllowFree: true,
 	})
 	if err != nil {
 		return CmdConfirmCancel, ""

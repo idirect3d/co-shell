@@ -31,7 +31,7 @@
     - 决策 4：Web 端"批准N次"提供预设按钮 3/10/50 + 自由数字输入
     - 决策 5：i18n 模板分两步走（第一步 `ToolSummary` 同时保留 `Text` 和结构化字段，TUI 用 `Text`、Web 用结构化字段；第二步逐步迁移为字段标签）
   - 需求：① 定义 `Interaction`/`InteractionResult`/`InteractionManager` 接口；② 实现 `TerminalInteractionManager`（TUI）；③ 迁移 `promptToolConfirmation` 和 `askFollowupQuestionTool` 到新模型；④ 实现 `WebInteractionManager` + WebSocket `interaction` 协议；⑤ 前端渲染交互组件（按钮组/选项列表/输入框），移除硬编码键位；⑥ `buildToolSummary` 返回 `ToolSummary` 结构体，`EventToolCall` 携带结构化摘要
-  - 测试：`agent/interaction_test.go`（Interaction 模型 + TerminalInteractionManager + 迁移后行为不变）、`web/session_test.go`（WebIO.Ask 推送结构化 interaction + 接收 interaction_answer）、`tmp/feature388_interaction_test.js`（前端按钮组/选项列表渲染 + 移除硬编码键位）、`agent/tool_summary_test.go`（ToolSummary 结构化 + EventToolCall 携带摘要）；`go build/vet/test ./...` 全绿 [BUILD-469]
+  - 测试：`agent/interaction_test.go`（Interaction 模型 + TerminalInteractionManager + 迁移后行为不变 + promptToolConfirmation 构造的 Interaction 含 Keys/AllowFree/Presets）、`web/session_test.go`（WebIO.Ask 推送结构化 interaction + 接收 interaction_answer）、`tmp/feature388_interaction_test.js`（前端按钮组/选项列表渲染 + 移除硬编码键位）、`agent/tool_summary_test.go`（ToolSummary 结构化 + EventToolCall 携带摘要）；`go build/vet/test ./...` 全绿；浏览器验证确认放行界面显示按钮组（批准/全部批准/永久自动执行/永久禁用/取消 + 批准N次 3/10/50）+ 自由输入框，点击按钮正常执行 [BUILD-470]
   - 测试：见 use-case/FEATURE-388/
 
 ---
