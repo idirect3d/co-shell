@@ -1100,6 +1100,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Name:                 "Agent 名称",
 	KeyCol3Desc:                 "Agent 描述",
 	KeyCol3Principles:           "Agent 核心原则",
+	KeyCol3Capabilities:         "Agent 能力",
+	KeyIdentityRules:            "规则",
 	KeyCol3Vision:               "视觉识别(on|off)",
 	KeyCol3ContextLimit:         "对话上下文限制(0=不包含历史, N=最近N条, -1=不限制)",
 

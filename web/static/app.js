@@ -1409,17 +1409,9 @@ miIdentity.onclick = () => {
 identityClose.onclick = () => identityModal.classList.add("hidden");
 identityModal.onclick = (e) => { if (e.target === identityModal) identityModal.classList.add("hidden"); };
 
-// Field labels for the identity form.
-const IDENTITY_LABELS = {
-  name: "name",
-  description: "description",
-  principles: "principles",
-  capabilities: "capabilities",
-  rules: "rules",
-};
-
 // renderIdentity renders the identity & personality form. name is a single-line
 // input; the rest are multi-line textareas. Each field has its own save button.
+// Field labels come from the backend (localized), falling back to the key.
 function renderIdentity(fields) {
   identityBody.innerHTML = "";
   if (!fields || !fields.length) {
@@ -1432,7 +1424,7 @@ function renderIdentity(fields) {
 
     const label = document.createElement("label");
     label.className = "identity-label";
-    label.textContent = IDENTITY_LABELS[f.key] || f.key;
+    label.textContent = f.label || f.key;
     row.appendChild(label);
 
     let ctl;
