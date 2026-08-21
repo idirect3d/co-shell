@@ -573,77 +573,40 @@ aside {
 }
 .interaction-free input:focus { border-color: var(--accent); }
 
-/* QWERTY virtual keyboard (FEATURE-388) */
-.virtual-keyboard {
-  position: relative;
-  display: inline-block;
+/* Option buttons: one square button per available option, laid out in a row
+   (FEATURE-388). Each shows [key] label and is directly clickable. */
+.option-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   padding: 8px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.vk-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.vk-row {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
-}
-.vk-key {
-  min-width: 34px;
-  height: 34px;
-  padding: 0;
+.opt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--fg-dim, #888);
+  border-radius: 6px;
+  color: var(--fg);
   cursor: pointer;
   font-family: ui-monospace, Menlo, monospace;
   font-size: 12px;
-  text-align: center;
 }
-.vk-key.active {
-  color: var(--fg);
-  border-color: var(--accent);
-  background: var(--accent-dim);
+.opt-btn:hover { border-color: var(--accent); background: var(--accent-dim); }
+.opt-key {
+  color: var(--accent);
   font-weight: 600;
 }
-.vk-key.active:hover { background: var(--accent); color: #fff; }
-.vk-key.dim { opacity: 0.35; cursor: default; }
-.vk-enter { min-width: 120px; }
-.vk-space { min-width: 200px; }
-/* Key-side annotations: absolutely positioned in the blank space beside each
-   highlighted key, connected with a line. The key layout is unchanged. */
-.vk-annotations {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-}
-.vk-annotation {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 34px;
-  font-size: 11px;
-  color: var(--fg-dim, #888);
-  white-space: nowrap;
-  pointer-events: none;
-}
-.vk-annotation-line {
-  width: 10px;
-  height: 1px;
-  background: var(--accent);
-  flex-shrink: 0;
-}
-.vk-annotation-text {
+.opt-label {
   color: var(--fg);
+}
+.opt-space {
+  border-style: dashed;
 }
 
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
