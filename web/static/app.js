@@ -721,30 +721,19 @@ function showInteraction(msg) {
   askInteraction.classList.remove("hidden");
   askInteraction.textContent = "";
 
-  // Left-right layout: prompt info on the left, virtual keyboard on the right
-  // (FEATURE-388) to use horizontal space and reduce vertical footprint.
-  const layout = document.createElement("div");
-  layout.className = "interaction-layout";
-  const left = document.createElement("div");
-  left.className = "interaction-left";
-  const right = document.createElement("div");
-  right.className = "interaction-right";
-  layout.appendChild(left);
-  layout.appendChild(right);
-  askInteraction.appendChild(layout);
-
-  // Left column: title + body + options.
+  // Top-bottom layout: prompt info on top, option buttons below (FEATURE-388).
+  // Title + body.
   if (it.title) {
     const t = document.createElement("div");
     t.className = "interaction-title";
     t.textContent = it.title;
-    left.appendChild(t);
+    askInteraction.appendChild(t);
   }
   if (it.body) {
     const b = document.createElement("div");
     b.className = "interaction-body";
     b.textContent = it.body;
-    left.appendChild(b);
+    askInteraction.appendChild(b);
   }
 
   if (it.kind === "select" && it.options && it.options.length) {
@@ -763,12 +752,12 @@ function showInteraction(msg) {
     cancel.textContent = T.cancel;
     cancel.onclick = () => answerInteraction({ action: "cancel" });
     wrap.appendChild(cancel);
-    left.appendChild(wrap);
-    // Right column: virtual keyboard so number keys select options.
-    renderVirtualKeyboard(it, true, right);
+    askInteraction.appendChild(wrap);
+    // Option buttons below so number keys select options.
+    renderVirtualKeyboard(it, true);
   } else if (it.kind === "confirm") {
-    // Right column: QWERTY virtual keyboard, highlight available keys.
-    renderVirtualKeyboard(it, false, right);
+    // Option buttons below.
+    renderVirtualKeyboard(it, false);
   }
 
   // Free input for the pure-input kind (ask_followup_question without options).
