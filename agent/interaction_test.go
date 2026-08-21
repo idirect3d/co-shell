@@ -307,6 +307,30 @@ func TestPromptToolConfirmationInteractionFields(t *testing.T) {
 	}
 }
 
+// TestPromptErrorConfirmationInteractionFields verifies promptErrorConfirmation
+// builds a confirm Interaction with continue/cancel/ignore keys so the Web UI
+// can render the error-handling button group (FEATURE-388).
+func TestPromptErrorConfirmationInteractionFields(t *testing.T) {
+	mgr := &captureInteractionManager{}
+	promptErrorConfirmation(mgr, "title", "body")
+
+	in := mgr.captured
+	if in.Kind != InteractionConfirm {
+		t.Errorf("Kind = %q, want confirm", in.Kind)
+	}
+	if len(in.Keys) != 3 {
+		t.Errorf("Keys should have 3 options (continue/cancel/ignore), got %d", len(in.Keys))
+	}
+	// Verify the three actions are present.
+	actions := map[string]bool{}
+	for _, k := range in.Keys {
+		actions[k.Value] = true
+	}
+	if !actions[string(ActionApprove)] || !actions[string(ActionCancel)] || !actions[string(ActionApproveAll)] {
+		t.Errorf("Keys missing expected actions: %+v", in.Keys)
+	}
+}
+
 // newAskFollowupAgent builds a minimal Agent for askFollowupQuestionTool tests.
 func newAskFollowupAgent(io UserIO) *Agent {
 	return &Agent{

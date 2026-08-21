@@ -630,29 +630,22 @@ iterationLoop:
 				// Get emoji prefixes
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
 
-				// Prompt user for action via UserIO interface
+				// Prompt user for action via the unified Interaction model (FEATURE-388).
 				io := a.defaultIO()
-				io.Printf("\n%s %s: %s\n", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
-				io.Printf("  %s\n", fmt.Sprintf(i18n.TF(i18n.KeyErrLatest), streamErr))
-				io.Println()
-				io.Println(i18n.T(i18n.KeyErrorRiskWarning))
-				io.Println()
-				io.Println(i18n.T(i18n.KeyErrActionTitle))
-				io.Println(i18n.T(i18n.KeyErrActionEnter))
-				io.Println(i18n.T(i18n.KeyErrActionCancel))
-				io.Println(i18n.T(i18n.KeyErrActionIgnore))
-				io.Println()
-				io.Print(i18n.T(i18n.KeyErrActionChoose))
+				title := fmt.Sprintf("%s %s: %s", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
+				body := fmt.Sprintf("  %s\n\n%s", fmt.Sprintf(i18n.TF(i18n.KeyErrLatest), streamErr), i18n.T(i18n.KeyErrorRiskWarning))
 
-				response, _ := io.ReadLine()
-				userChoice := strings.TrimSpace(response)
-				lower := strings.ToLower(userChoice)
+				res, err := promptErrorConfirmation(a.interactionManager(), title, body)
+				if err != nil {
+					cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyUserCancelled)))
+					return "", nil
+				}
 
-				if lower == "c" {
+				if res.Action == ActionCancel {
 					// User cancelled, return to REPL
 					cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyUserCancelled)))
 					return "", nil
-				} else if lower == "a" {
+				} else if res.Action == ActionApproveAll {
 					// User chose to ignore all error limits
 					a.errorApproveAll = true
 					io.Printf("\n%s %s\n", ep.Success, i18n.T(i18n.KeyErrIgnoredContinue))
