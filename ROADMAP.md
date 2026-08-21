@@ -23,6 +23,7 @@
 | FEATURE-394 | 0.9.0 | P1 | Web UI 系统设置面板对齐优化（配置项名称右对齐、值左对齐，靠向中线显示） |
 | FEATURE-395 | 0.9.0 | P1 | 去掉右上角下拉菜单中工作区/任务进展/状态条三个菜单项的图标（保留文字和功能） |
 | FEATURE-396 | 0.9.0 | P1 | 去掉暂停终止（ESC 中断确认）时提示框内无用的 [1]-[9] 批准次数提示 |
+| FEATURE-397 | 0.9.0 | P1 | Web UI 拦截 ESC 按键触发暂停（等价于点击 ⏸ 按钮） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -107,6 +108,13 @@
   - 需求：`web/static/app.js` 的 `renderVirtualKeyboard` 中，数字键 approve-count 映射与 [1]-[9] 项渲染改为按需（仅当交互需要 approve_count 时），避免暂停终止等无 approve_count 场景出现无用提示。
   - 实施：`web/static/app.js` `renderVirtualKeyboard` 增加 approve-count 能力判断（仅当 `it.presets` 非空或 keys 含 approve_count 相关键时启用数字键映射与 [1]-[9] 项），ESC 暂停终止场景（无 presets）不再渲染 [1]-[9] 提示 [BUILD-499]
   - 测试：见 use-case/FEATURE-396/
+
+- [ ] **FEATURE-397 Web UI 拦截 ESC 按键触发暂停**
+  - 背景：Web UI 中暂停（interrupt）只能通过点击 ⏸ 按钮触发（发送 `{ type: "interrupt" }` 消息），ESC 键未被拦截。希望按 ESC 也能触发暂停，与终端行为一致。
+  - 方案（已确认）：在全局 keydown 监听中，当 `e.key === "Escape"` 且当前正在运行（running）时发送 `{ type: "interrupt" }` 消息，等价于点击 ⏸ 按钮。交互 pending 时不触发（避免与虚拟键盘冲突），输入框聚焦时也触发（全局 ESC 都暂停）。
+  - 需求：`web/static/app.js` 全局 keydown 监听中，增加 ESC 键处理——当 `e.key === "Escape"` 且 `running` 为 true 且无 pendingInteraction 时，发送 interrupt 消息。
+  - 实施：`web/static/app.js` 全局 keydown 监听（document.addEventListener）增加 ESC 分支——`e.key === "Escape"` 且 `running` 且 `!pendingInteraction` 时 `wsSend({ type: "interrupt" })` 并 `e.preventDefault()` [BUILD-500]
+  - 测试：见 use-case/FEATURE-397/
 
 ---
 
