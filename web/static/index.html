@@ -123,17 +123,19 @@
       <button class="icon-btn sm" id="settingsClose">✕</button>
     </div>
     <div class="modal-body">
-      <div class="set-group-title" data-i18n="appearance">外观</div>
-      <label class="set-row">
-        <span class="set-label" data-i18n="themeMode">主题</span>
-        <select id="setThemeMode">
-          <option value="auto" data-i18n="themeAuto">跟随系统</option>
-          <option value="dark" data-i18n="themeDark">深色</option>
-          <option value="light" data-i18n="themeLight">浅色</option>
-        </select>
-      </label>
-      <div class="set-sep"></div>
-      <div id="settingsBody" class="settings-body"></div>
+      <div id="settingsBody" class="settings-body">
+        <div class="set-group-title" data-i18n="appearance">[ 外观 ]</div>
+        <label class="set-row">
+          <span class="set-label" data-i18n="themeMode">主题</span>
+          <select id="setThemeMode">
+            <option value="auto" data-i18n="themeAuto">跟随系统</option>
+            <option value="dark" data-i18n="themeDark">深色</option>
+            <option value="light" data-i18n="themeLight">浅色</option>
+          </select>
+        </label>
+        <div class="set-sep"></div>
+        <div id="settingsDynamic"></div>
+      </div>
     </div>
   </div>
 </div>
