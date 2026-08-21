@@ -22,6 +22,7 @@
 | FEATURE-393 | 0.9.0 | P1 | Web UI 身份与个性设置菜单（logo 悬停弹出，name/description/principles/capabilities/rules 大表单） |
 | FEATURE-394 | 0.9.0 | P1 | Web UI 系统设置面板对齐优化（配置项名称右对齐、值左对齐，靠向中线显示） |
 | FEATURE-395 | 0.9.0 | P1 | 去掉右上角下拉菜单中工作区/任务进展/状态条三个菜单项的图标（保留文字和功能） |
+| FEATURE-396 | 0.9.0 | P1 | 去掉暂停终止（ESC 中断确认）时提示框内无用的 [1]-[9] 批准次数提示 |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -99,6 +100,13 @@
   - 需求：`web/static/index.html` 右上角菜单中，去掉 `miWs`/`miPlan`/`miStatus` 三个菜单项的 `<span class="mi-ico">` 图标元素，保留文字和功能。
   - 实施：`web/static/index.html` 去掉 `miWs`/`miPlan`/`miStatus` 三个菜单项的 `.mi-ico` 图标 span，保留 `.mi-label` 文字和原有功能 [BUILD-498]
   - 测试：见 use-case/FEATURE-395/
+
+- [ ] **FEATURE-396 去掉暂停终止时提示框内无用的 [1]-[9] 批准次数提示**
+  - 背景：Web UI 中，ESC 暂停终止（中断确认）时提示框内多了一个 [1]-[9] 批准次数提示，但该场景没有 approve_count（批准N次）功能，提示无用。根源：前端 `renderVirtualKeyboard` 对所有非 select 交互都无条件把数字键 0-9 映射为 approve-count 并渲染 [1]-[9] 项，而 ESC 中断确认（run_stream.go 的 InteractionConfirm）只包含 Enter 继续 / c 取消两个键，没有 approve_count 相关键。
+  - 方案（已确认）：仅当交互的 Keys 中包含 approve_count 相关键（或 Presets 非空）时才渲染 [1]-[9] 批准次数提示；ESC 暂停终止场景不渲染。
+  - 需求：`web/static/app.js` 的 `renderVirtualKeyboard` 中，数字键 approve-count 映射与 [1]-[9] 项渲染改为按需（仅当交互需要 approve_count 时），避免暂停终止等无 approve_count 场景出现无用提示。
+  - 实施：`web/static/app.js` `renderVirtualKeyboard` 增加 approve-count 能力判断（仅当 `it.presets` 非空或 keys 含 approve_count 相关键时启用数字键映射与 [1]-[9] 项），ESC 暂停终止场景（无 presets）不再渲染 [1]-[9] 提示 [BUILD-499]
+  - 测试：见 use-case/FEATURE-396/
 
 ---
 
