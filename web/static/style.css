@@ -575,13 +575,18 @@ aside {
 
 /* QWERTY virtual keyboard (FEATURE-388) */
 .virtual-keyboard {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   padding: 8px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+.vk-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .vk-row {
   display: flex;
@@ -611,19 +616,33 @@ aside {
 .vk-key.dim { opacity: 0.35; cursor: default; }
 .vk-enter { min-width: 120px; }
 .vk-space { min-width: 200px; }
-.vk-legend {
+/* Right-side annotations with connecting lines to the keys. */
+.vk-annotations {
+  position: relative;
+  flex: 1;
+  min-width: 90px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+.vk-annotation {
+  position: absolute;
+  left: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
+  align-items: center;
+  gap: 4px;
+  height: 34px;
   font-size: 11px;
   color: var(--fg-dim, #888);
+  white-space: nowrap;
 }
-.vk-legend-item b {
-  color: var(--accent);
-  font-family: ui-monospace, Menlo, monospace;
+.vk-annotation-line {
+  width: 10px;
+  height: 1px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.vk-annotation-text {
+  color: var(--fg);
 }
 
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
