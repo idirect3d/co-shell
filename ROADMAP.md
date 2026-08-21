@@ -15,6 +15,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-388 | 0.9.0 | P1 | 工具调用交互标准化（Interaction 模型 + 意图字段结构化 + TUI/Web 统一输出） |
+| FEATURE-389 | 0.9.0 | P1 | 优化分支规范：强制分支检查 + 小优化也必须建分支 + 禁止 main 提交提升为最高红线 |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -33,6 +34,17 @@
   - 需求：① 定义 `Interaction`/`InteractionResult`/`InteractionManager` 接口；② 实现 `TerminalInteractionManager`（TUI）；③ 迁移 `promptToolConfirmation` 和 `askFollowupQuestionTool` 到新模型；④ 实现 `WebInteractionManager` + WebSocket `interaction` 协议；⑤ 前端渲染交互组件（按钮组/选项列表/输入框），移除硬编码键位；⑥ `buildToolSummary` 返回 `ToolSummary` 结构体，`EventToolCall` 携带结构化摘要
   - 测试：`agent/interaction_test.go`（Interaction 模型 + TerminalInteractionManager + 迁移后行为不变 + promptToolConfirmation/promptErrorConfirmation 构造的 Interaction 含 Keys + ActionInput 映射为 CmdConfirmModify 不批准执行）、`web/session_test.go`（WebIO.Ask 推送结构化 interaction + 接收 interaction_answer）、`tmp/feature388_interaction_test.js`（前端选项项渲染 + 键按钮只显示字母/按键名 + 说明写在按钮旁边 + 数字键合并 1-9 + 空格补录模式 + 数字选择模式 + 快捷键暂停 + 上下结构 + TOOL 标题栏显示动作和意图，25 断言全过）、`agent/tool_summary_test.go`（ToolSummary 结构化 + EventToolCall 携带摘要）；`go build/vet/test ./...` 全绿；浏览器验证确认放行/错误处理/ESC中断/提问选择统一为选项项（每个选项一个虚拟键盘风格方形键按钮只显示字母/按键名如 A/Enter，说明文字写在按钮旁边如"全部批准"，横向排列，点击按钮直接响应）；上下结构（上面提示信息，下面一排键按钮+按键说明）；[空格]进入补充信息补录模式，主消息框录入且不再监听快捷键（避免被劫持），但仍可点击按钮；补充信息输入后取消执行工具调用（ActionInput 映射为 CmdConfirmModify，不批准执行）；TOOL 调用显示框标题栏显示"TOOL <动作> - <意图>"（工具名翻译成动作），消息框内部不再显示意图参数 [BUILD-481]
   - 测试：见 use-case/FEATURE-388/
+
+- [ ] **FEATURE-389 优化分支规范（防止 LLM 忘记建分支）**
+  - 背景：LLM 经常忘记按规范创建新分支，小优化（标题栏优化、颜色优化、冒号优化等）直接在 main 分支上提交，违反"禁止直接在 main 上提交"规范。根因：①规范是流程步骤而非强制约束，小优化时 LLM 跳过"新建分支"步骤；②缺少提交前的强制检查；③小优化没有任务编号，LLM 默认在 main 上继续。
+  - 方案（已确认）：采用方案 1+2+3。
+    - 方案 1：在"开发流程"第 1 步"开始编码"前、"代码提交及合并"第 3 步"提交合并代码"前，增加强制分支检查（`git branch --show-current` 确认在功能分支，若在 main 必须先建分支）
+    - 方案 2：明确任何代码修改（包括小优化）都必须先建任务编号并创建分支
+    - 方案 3：把"禁止直接在 main 提交"提升为最高优先级红线
+    - 方案 4（长期增强，本次不实施）：在 execute_command 执行 git 提交时检查当前分支，若在 main 则拒绝
+  - 需求：修改 `.rules/PROJECT STANDARDS.md`，落实方案 1+2+3
+  - 实施：①分支策略章节新增"🚨 最高优先级红线"，明确禁止直接在 main 提交任何代码修改（含小优化），违反视为严重违规；②新建开发任务第 2 步新增"任何代码修改（包括小优化）都必须建任务编号"；③开发流程新增第 0 步"强制分支检查（编码前必做）"，用 `git branch --show-current` 确认在功能分支；④代码提交及合并第 3 步新增"强制分支确认（提交前必做）" [BUILD-484]
+  - 测试：见 use-case/FEATURE-389/
 
 ---
 
