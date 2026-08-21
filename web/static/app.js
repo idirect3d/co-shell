@@ -821,23 +821,9 @@ function showInteraction(msg) {
   }
 
   if (it.kind === "select" && it.options && it.options.length) {
-    // Option list (radio-style buttons) + cancel.
-    const wrap = document.createElement("div");
-    wrap.className = "interaction-options";
-    it.options.forEach((opt, i) => {
-      const b = document.createElement("button");
-      b.className = "key-btn";
-      b.textContent = (i + 1) + ". " + opt;
-      b.onclick = () => answerInteraction({ action: "select", value: opt });
-      wrap.appendChild(b);
-    });
-    const cancel = document.createElement("button");
-    cancel.className = "key-btn";
-    cancel.textContent = T.cancel;
-    cancel.onclick = () => answerInteraction({ action: "cancel" });
-    wrap.appendChild(cancel);
-    askInteraction.appendChild(wrap);
-    // Option buttons below so number keys select options.
+    // FEATURE-399: render each option as a virtual-keyboard-style square key
+    // (number 1..N) with the option text beside it. Clicking a key or pressing
+    // the physical number key selects that option.
     renderVirtualKeyboard(it, true);
   } else if (it.kind === "confirm") {
     // Option buttons below.
@@ -944,20 +930,29 @@ function renderVirtualKeyboard(it, isSelect, container) {
     item.appendChild(label);
     wrap.appendChild(item);
   };
-  // Letter/action keys first (skip number keys and enter, handled separately).
-  Object.keys(keyMap).forEach((key) => {
-    if (/^[0-9]$/.test(key) || key === "enter") return;
-    const m = keyMap[key];
-    addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
-  });
-  // Number keys merged into one [1]-[9] approve-count item (only when the
-  // interaction enables approve-count via presets, FEATURE-396).
-  const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
-  if (hasNumbers) {
-    addItem("1-9", T.approveCount, () => enterNumberMode());
+  if (isSelect && it.options && it.options.length) {
+    // FEATURE-399: render each option as a number square key (1..N) with the
+    // option text beside it. Clicking a key or pressing the physical number
+    // key selects that option. No [1]-[9] approve-count or Enter approve items.
+    it.options.forEach((opt, i) => {
+      addItem(String(i + 1), opt, () => answerInteraction({ action: "select", value: opt }));
+    });
+  } else {
+    // Letter/action keys first (skip number keys and enter, handled separately).
+    Object.keys(keyMap).forEach((key) => {
+      if (/^[0-9]$/.test(key) || key === "enter") return;
+      const m = keyMap[key];
+      addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
+    });
+    // Number keys merged into one [1]-[9] approve-count item (only when the
+    // interaction enables approve-count via presets, FEATURE-396).
+    const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
+    if (hasNumbers) {
+      addItem("1-9", T.approveCount, () => enterNumberMode());
+    }
+    // Enter item.
+    addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
   }
-  // Enter item.
-  addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
   // Space item: enter supplement-input mode.
   addItem("Space", T.supplement, () => enterSupplementMode(), "opt-space");
   target.appendChild(wrap);
