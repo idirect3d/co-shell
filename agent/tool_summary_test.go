@@ -27,6 +27,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -40,25 +41,28 @@ func TestBuildToolSummaryFallback(t *testing.T) {
 		"intent":     "compute the final total",
 		"expression": "3 + 4 * 2",
 	})
-	if !strings.Contains(got, "compute the final total") {
-		t.Errorf("fallback summary missing intent: got %q", got)
+	if !strings.Contains(got.Text, "compute the final total") {
+		t.Errorf("fallback summary missing intent: got %q", got.Text)
 	}
-	if strings.Contains(got, "3 + 4 * 2") {
-		t.Errorf("fallback summary leaked raw args expression: got %q", got)
+	if strings.Contains(got.Text, "3 + 4 * 2") {
+		t.Errorf("fallback summary leaked raw args expression: got %q", got.Text)
+	}
+	if got.ToolName != "evaluate_expression" || got.Intent != "compute the final total" {
+		t.Errorf("structured fields wrong: %+v", got)
 	}
 
 	// Generic tool without intent
 	got = buildToolSummary("evaluate_expression", map[string]interface{}{
 		"expression": "1+1",
 	})
-	if got != "evaluate_expression" {
-		t.Errorf("fallback without intent should return tool name only, got %q", got)
+	if got.Text != "evaluate_expression" {
+		t.Errorf("fallback without intent should return tool name only, got %q", got.Text)
 	}
 
 	// Generic tool with empty args
 	got = buildToolSummary("list_settings", map[string]interface{}{})
-	if got != "list_settings" {
-		t.Errorf("fallback with empty args should return tool name only, got %q", got)
+	if got.Text != "list_settings" {
+		t.Errorf("fallback with empty args should return tool name only, got %q", got.Text)
 	}
 }
 
@@ -136,11 +140,52 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := buildToolSummary(tc.tool, tc.args)
 			for _, w := range tc.want {
-				if !strings.Contains(got, w) {
-					t.Errorf("summary missing %q, got: %q", w, got)
+				if !strings.Contains(got.Text, w) {
+					t.Errorf("summary missing %q, got: %q", w, got.Text)
 				}
 			}
 		})
+	}
+}
+
+// TestBuildToolSummaryStructured verifies the structured fields (ToolName,
+// Intent, Params) are populated for high-frequency tools (UC-0027).
+func TestBuildToolSummaryStructured(t *testing.T) {
+	got := buildToolSummary("execute_command", map[string]interface{}{
+		"intent":  "list files",
+		"command": "ls -la",
+	})
+	if got.ToolName != "execute_command" || got.Intent != "list files" {
+		t.Errorf("structured fields wrong: %+v", got)
+	}
+	if len(got.Params) == 0 {
+		t.Fatal("expected params for execute_command")
+	}
+	if got.Params[0].Name != "command" || got.Params[0].Value != "ls -la" {
+		t.Errorf("first param wrong: %+v", got.Params[0])
+	}
+}
+
+// TestBuildToolSummaryStructuredFallback verifies the generic fallback still
+// populates ToolName/Intent (UC-0028).
+func TestBuildToolSummaryStructuredFallback(t *testing.T) {
+	got := buildToolSummary("list_settings", map[string]interface{}{"intent": "查看配置"})
+	if got.ToolName != "list_settings" || got.Intent != "查看配置" {
+		t.Errorf("fallback structured fields wrong: %+v", got)
+	}
+	if got.Text == "" {
+		t.Error("fallback Text should be non-empty")
+	}
+}
+
+// TestBuildToolSummaryTextNonEmpty verifies ToolSummary.Text is always set
+// (UC-0029).
+func TestBuildToolSummaryTextNonEmpty(t *testing.T) {
+	for _, tool := range []string{"execute_command", "read_file", "list_settings", "ask_followup_question"} {
+		got := buildToolSummary(tool, map[string]interface{}{"intent": "x"})
+		if got.Text == "" {
+			t.Errorf("%s Text should be non-empty", tool)
+		}
 	}
 }
 
@@ -192,12 +237,12 @@ func TestBuildToolSummaryTruncation(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := buildToolSummary(tc.tool, tc.args)
-			if strings.Contains(got, longContent) {
-				t.Errorf("long content leaked into summary: %q", got)
+			if strings.Contains(got.Text, longContent) {
+				t.Errorf("long content leaked into summary: %q", got.Text)
 			}
 			for _, w := range tc.want {
-				if !strings.Contains(got, w) {
-					t.Errorf("summary missing %q, got: %q", w, got)
+				if !strings.Contains(got.Text, w) {
+					t.Errorf("summary missing %q, got: %q", w, got.Text)
 				}
 			}
 		})
@@ -220,15 +265,15 @@ func TestBuildToolSummaryShellTools(t *testing.T) {
 		"intent":  "run python",
 		"command": "python3 -c 'print(1)'",
 	})
-	if !strings.Contains(got, "python3 -c 'print(1)'") || !strings.Contains(got, "run python") {
-		t.Errorf("shell_send summary wrong: %q", got)
+	if !strings.Contains(got.Text, "python3 -c 'print(1)'") || !strings.Contains(got.Text, "run python") {
+		t.Errorf("shell_send summary wrong: %q", got.Text)
 	}
 
 	// Intent-only tools
 	for _, tool := range []string{"shell_window_content", "shell_reset"} {
 		got := buildToolSummary(tool, map[string]interface{}{"intent": "check state"})
-		if !strings.Contains(got, "check state") {
-			t.Errorf("%s summary missing intent: %q", tool, got)
+		if !strings.Contains(got.Text, "check state") {
+			t.Errorf("%s summary missing intent: %q", tool, got.Text)
 		}
 	}
 }
@@ -240,8 +285,8 @@ func TestBuildToolSummaryDocTools(t *testing.T) {
 		"path":   "data.xlsx",
 		"mode":   "read",
 	})
-	if !strings.Contains(got, "data.xlsx") || !strings.Contains(got, "read") || !strings.Contains(got, "analyze") {
-		t.Errorf("excel_open summary wrong: %q", got)
+	if !strings.Contains(got.Text, "data.xlsx") || !strings.Contains(got.Text, "read") || !strings.Contains(got.Text, "analyze") {
+		t.Errorf("excel_open summary wrong: %q", got.Text)
 	}
 
 	got = buildToolSummary("word_open", map[string]interface{}{
@@ -249,8 +294,8 @@ func TestBuildToolSummaryDocTools(t *testing.T) {
 		"path":   "doc.docx",
 		"mode":   "copy",
 	})
-	if !strings.Contains(got, "doc.docx") || !strings.Contains(got, "copy") || !strings.Contains(got, "edit doc") {
-		t.Errorf("word_open summary wrong: %q", got)
+	if !strings.Contains(got.Text, "doc.docx") || !strings.Contains(got.Text, "copy") || !strings.Contains(got.Text, "edit doc") {
+		t.Errorf("word_open summary wrong: %q", got.Text)
 	}
 }
 
@@ -258,8 +303,8 @@ func TestBuildToolSummaryDocTools(t *testing.T) {
 func TestBuildToolSummaryZeroParamTools(t *testing.T) {
 	for _, tool := range []string{"view_task_plan", "list_settings"} {
 		got := buildToolSummary(tool, map[string]interface{}{"intent": "check status"})
-		if !strings.Contains(got, "check status") {
-			t.Errorf("%s summary missing intent: %q", tool, got)
+		if !strings.Contains(got.Text, "check status") {
+			t.Errorf("%s summary missing intent: %q", tool, got.Text)
 		}
 	}
 }
@@ -313,10 +358,42 @@ func TestBuildToolSummaryAskQuestionFull(t *testing.T) {
 	got := buildToolSummary("ask_followup_question", map[string]interface{}{
 		"question": longQuestion,
 	})
-	if !strings.Contains(got, longQuestion) {
-		t.Errorf("ask_followup_question question should be shown in full, got: %q", got)
+	if !strings.Contains(got.Text, longQuestion) {
+		t.Errorf("ask_followup_question question should be shown in full, got: %q", got.Text)
 	}
-	if strings.Contains(got, i18n.T(i18n.KeyToolCallSummaryTruncated)) {
-		t.Errorf("ask_followup_question question should NOT be truncated, got: %q", got)
+	if strings.Contains(got.Text, i18n.T(i18n.KeyToolCallSummaryTruncated)) {
+		t.Errorf("ask_followup_question question should NOT be truncated, got: %q", got.Text)
+	}
+}
+
+// TestToolSummaryJSONSerialization verifies a ToolSummary can be marshaled to
+// JSON and carried in an EventToolCall Meta (UC-0030).
+func TestToolSummaryJSONSerialization(t *testing.T) {
+	summary := buildToolSummary("execute_command", map[string]interface{}{
+		"intent":  "list files",
+		"command": "ls -la",
+	})
+	data, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatalf("marshal ToolSummary: %v", err)
+	}
+
+	// Build an EventToolCall carrying the summary in Meta.
+	ev := NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, summary.Text)
+	ev.Meta = map[string]string{MetaKeyToolSummary: string(data)}
+	if ev.Meta[MetaKeyToolSummary] == "" {
+		t.Error("MetaKeyToolSummary missing from event")
+	}
+
+	// Unmarshal back and verify structured fields survive.
+	var back ToolSummary
+	if err := json.Unmarshal([]byte(ev.Meta[MetaKeyToolSummary]), &back); err != nil {
+		t.Fatalf("unmarshal ToolSummary: %v", err)
+	}
+	if back.ToolName != "execute_command" || back.Intent != "list files" {
+		t.Errorf("round-trip structured fields wrong: %+v", back)
+	}
+	if len(back.Params) == 0 || back.Params[0].Name != "command" {
+		t.Errorf("round-trip params wrong: %+v", back.Params)
 	}
 }

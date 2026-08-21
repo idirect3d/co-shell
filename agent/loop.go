@@ -323,6 +323,12 @@ type Agent struct {
 	// At the end of each iteration, all cached content is flushed as a single
 	// <task> ContentPart appended to the last user message. (FEATURE-255)
 	taskInstructionCache bytes.Buffer
+
+	// interactionMgr is the unified interaction manager (FEATURE-388). When the
+	// installed UserIO also implements InteractionManager (e.g. WebIO), it is
+	// used so the Web UI can render interactions structurally; otherwise a
+	// TerminalInteractionManager over the UserIO is used.
+	interactionMgr InteractionManager
 }
 
 // CommandHooks defines optional callbacks invoked around system command

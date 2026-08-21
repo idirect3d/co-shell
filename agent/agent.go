@@ -77,9 +77,25 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 }
 
 // SetIO sets the UserIO implementation used by this agent for user interaction.
-// Must be called before RunStream if enhanced input is desired.
+// Must be called before RunStream if enhanced input is desired. If the given
+// UserIO also implements InteractionManager (e.g. WebIO), it is adopted as the
+// unified interaction manager so the Web UI can render interactions
+// structurally (FEATURE-388).
 func (a *Agent) SetIO(io UserIO) {
 	a.io = io
+	if im, ok := io.(InteractionManager); ok {
+		a.interactionMgr = im
+	}
+}
+
+// interactionManager returns the unified interaction manager. When the
+// installed UserIO implements InteractionManager it is used directly;
+// otherwise a TerminalInteractionManager over the UserIO is used (FEATURE-388).
+func (a *Agent) interactionManager() InteractionManager {
+	if a.interactionMgr != nil {
+		return a.interactionMgr
+	}
+	return NewTerminalInteractionManager(a.defaultIO())
 }
 
 // IO returns the current UserIO implementation (may be nil).

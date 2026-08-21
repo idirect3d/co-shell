@@ -269,17 +269,26 @@ iterationLoop:
 		if _, isInterrupted := streamErr.(*InterruptedError); isInterrupted {
 			// Reset interruptCh before the confirmation prompt so ESC works for the retry
 			a.ResetInterrupt()
-			// User pressed ESC during LLM output. Show confirmation prompt.
+			// User pressed ESC during LLM output. Show confirmation prompt via the
+			// unified Interaction model (FEATURE-388) so the Web UI renders buttons.
 			cb(WarnEvent(ChannelSystem, i18n.T(i18n.KeyOutputPaused)))
-			cb(InfoEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelPrompt)))
 
-			// Read user's choice via UserIO interface.
-			// In enhanced mode, EnhancedIO sets IsReading=true so ESC monitor skips stdin.
-			// In stdio mode, StdioIO.ReadLine works with bufio.Scanner.
-			io := a.defaultIO()
-			userChoice, _ := io.ReadLine()
-			userChoice = strings.TrimSpace(userChoice)
+			res, err := a.interactionManager().Ask(context.Background(), Interaction{
+				Kind:  InteractionConfirm,
+				Title: i18n.T(i18n.KeyOutputCancelPrompt),
+				Keys: []KeyOption{
+					{Label: i18n.T(i18n.KeyOutputResume), Key: "", Value: string(ActionApprove)},
+					{Label: i18n.T(i18n.KeyOutputCancelledDiscard), Key: "c", Value: string(ActionCancel)},
+				},
+				AllowFree: true, // allow :debug on/off etc.
+			})
+			if err != nil {
+				cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelledDiscard)))
+				a.abortVisionRecognitionRound()
+				return "", nil
+			}
 
+			userChoice := res.Value
 			// Handle :debug on/off commands without cancel or retry
 			if strings.HasPrefix(userChoice, ":debug ") {
 				switch strings.TrimSpace(userChoice[7:]) {
@@ -305,7 +314,7 @@ iterationLoop:
 				// Fall through to tool call handling below
 				goto afterESC
 			}
-			if userChoice == "C" || userChoice == "c" {
+			if res.Action == ActionCancel {
 				// User confirmed cancel: discard incomplete message and return to REPL
 				// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 				// current iteration's assistant message is added, so there is nothing to remove.
@@ -630,29 +639,22 @@ iterationLoop:
 				// Get emoji prefixes
 				ep := config.GetEmojiPrefixes(a.emojiEnabled)
 
-				// Prompt user for action via UserIO interface
+				// Prompt user for action via the unified Interaction model (FEATURE-388).
 				io := a.defaultIO()
-				io.Printf("\n%s %s: %s\n", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
-				io.Printf("  %s\n", fmt.Sprintf(i18n.TF(i18n.KeyErrLatest), streamErr))
-				io.Println()
-				io.Println(i18n.T(i18n.KeyErrorRiskWarning))
-				io.Println()
-				io.Println(i18n.T(i18n.KeyErrActionTitle))
-				io.Println(i18n.T(i18n.KeyErrActionEnter))
-				io.Println(i18n.T(i18n.KeyErrActionCancel))
-				io.Println(i18n.T(i18n.KeyErrActionIgnore))
-				io.Println()
-				io.Print(i18n.T(i18n.KeyErrActionChoose))
+				title := fmt.Sprintf("%s %s: %s", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
+				body := fmt.Sprintf("  %s\n\n%s", fmt.Sprintf(i18n.TF(i18n.KeyErrLatest), streamErr), i18n.T(i18n.KeyErrorRiskWarning))
 
-				response, _ := io.ReadLine()
-				userChoice := strings.TrimSpace(response)
-				lower := strings.ToLower(userChoice)
+				res, err := promptErrorConfirmation(a.interactionManager(), title, body)
+				if err != nil {
+					cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyUserCancelled)))
+					return "", nil
+				}
 
-				if lower == "c" {
+				if res.Action == ActionCancel {
 					// User cancelled, return to REPL
 					cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyUserCancelled)))
 					return "", nil
-				} else if lower == "a" {
+				} else if res.Action == ActionApproveAll {
 					// User chose to ignore all error limits
 					a.errorApproveAll = true
 					io.Printf("\n%s %s\n", ep.Success, i18n.T(i18n.KeyErrIgnoredContinue))
@@ -1264,7 +1266,14 @@ iterationLoop:
 				if a.showTool {
 					var argsMap map[string]interface{}
 					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-						cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, buildToolSummary(tc.Name, argsMap)), PhaseInput))
+						summary := buildToolSummary(tc.Name, argsMap)
+						ev := NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, summary.Text)
+						// Carry the structured summary so Web/JSON consumers can render
+						// a tool card (FEATURE-388).
+						if sj, err := json.Marshal(summary); err == nil {
+							ev.Meta = map[string]string{MetaKeyToolSummary: string(sj)}
+						}
+						cb(withPhase(ev, PhaseInput))
 					} else {
 						cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, tc.Name), PhaseInput))
 					}
