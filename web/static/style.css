@@ -557,6 +557,44 @@ aside {
 }
 .interaction-free input:focus { border-color: var(--accent); }
 
+/* QWERTY virtual keyboard (FEATURE-388) */
+.virtual-keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.vk-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+.vk-key {
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--fg-dim, #888);
+  cursor: pointer;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  text-align: center;
+}
+.vk-key.active {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  font-weight: 600;
+}
+.vk-key.active:hover { background: var(--accent); color: #fff; }
+.vk-key.dim { opacity: 0.35; cursor: default; }
+.vk-enter { min-width: 120px; }
+
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
 
 #input {

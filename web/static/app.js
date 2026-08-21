@@ -667,9 +667,15 @@ function answerAsk(value) {
 
 function hideAsk() {
   pendingAsk = null;
+  pendingInteraction = null;
   askArea.classList.add("hidden");
   askInteraction.classList.add("hidden");
   askInteraction.textContent = "";
+  // Remove the virtual-keyboard physical-key listener.
+  if (window.__vkHandler) {
+    window.removeEventListener("keydown", window.__vkHandler);
+    window.__vkHandler = null;
+  }
 }
 
 /* ---------- structured interaction (FEATURE-388) ---------- */
@@ -706,10 +712,10 @@ function showInteraction(msg) {
     // Option list (radio-style buttons) + cancel.
     const wrap = document.createElement("div");
     wrap.className = "interaction-options";
-    it.options.forEach((opt) => {
+    it.options.forEach((opt, i) => {
       const b = document.createElement("button");
       b.className = "key-btn";
-      b.textContent = opt;
+      b.textContent = (i + 1) + ". " + opt;
       b.onclick = () => answerInteraction({ action: "select", value: opt });
       wrap.appendChild(b);
     });
@@ -719,38 +725,17 @@ function showInteraction(msg) {
     cancel.onclick = () => answerInteraction({ action: "cancel" });
     wrap.appendChild(cancel);
     askInteraction.appendChild(wrap);
-  } else if (it.kind === "confirm" && it.keys && it.keys.length) {
-    // Button group from keys.
-    const wrap = document.createElement("div");
-    wrap.className = "interaction-keys";
-    it.keys.forEach((k) => {
-      const b = document.createElement("button");
-      b.className = "key-btn";
-      b.textContent = k.label || k.value;
-      if (k.hint) b.title = k.hint;
-      b.onclick = () => answerInteraction({ action: k.value });
-      wrap.appendChild(b);
-    });
-    askInteraction.appendChild(wrap);
-
-    // Approve-N presets (3/10/50) + free input.
-    if (it.presets && it.presets.length) {
-      const p = document.createElement("div");
-      p.className = "interaction-presets";
-      p.textContent = T.approveCount + ": ";
-      it.presets.forEach((n) => {
-        const b = document.createElement("button");
-        b.className = "key-btn";
-        b.textContent = n;
-        b.onclick = () => answerInteraction({ action: "approve_count", value: n });
-        p.appendChild(b);
-      });
-      askInteraction.appendChild(p);
-    }
+    // Also render a virtual keyboard so number keys select options.
+    renderVirtualKeyboard(it, true);
+  } else if (it.kind === "confirm") {
+    // QWERTY virtual keyboard: highlight the available keys, single-key response.
+    renderVirtualKeyboard(it);
   }
 
-  // Free input (confirm supplementary / input kind).
-  if (it.kind === "input" || it.allow_free) {
+  // Free input for the pure-input kind (ask_followup_question without options).
+  // For confirm interactions, supplementary instructions are typed in the main
+  // input box (FEATURE-388).
+  if (it.kind === "input") {
     const row = document.createElement("div");
     row.className = "interaction-free";
     const inp = document.createElement("input");
@@ -771,6 +756,88 @@ function showInteraction(msg) {
   }
 
   scrollStream();
+}
+
+// QWERTY keyboard rows (top number row + three letter rows).
+const VK_ROWS = [
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
+  ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
+];
+
+// renderVirtualKeyboard renders a QWERTY keyboard, highlighting the keys that
+// map to the current interaction's actions. Clicking a highlighted key (or
+// pressing the corresponding physical key) responds immediately (FEATURE-388).
+// When isSelect is true, number keys map to the select options (1..N).
+function renderVirtualKeyboard(it, isSelect) {
+  // Build a map: key -> {action, value}.
+  const keyMap = {};
+  (it.keys || []).forEach((k) => {
+    const key = (k.key || "").toLowerCase();
+    if (key) keyMap[key] = { action: k.value };
+  });
+  if (isSelect && it.options && it.options.length) {
+    // Number keys select options (1..N).
+    it.options.forEach((opt, i) => {
+      keyMap[String(i + 1)] = { action: "select", value: opt };
+    });
+  } else {
+    // Number keys map to approve-count (0 = 10, 1-9 = the count).
+    for (let i = 0; i <= 9; i++) {
+      const n = i === 0 ? 10 : i;
+      keyMap[String(i)] = { action: "approve_count", value: String(n) };
+    }
+  }
+  // Enter maps to approve.
+  keyMap["enter"] = { action: "approve" };
+
+  const kb = document.createElement("div");
+  kb.className = "virtual-keyboard";
+  VK_ROWS.forEach((row) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "vk-row";
+    row.forEach((key) => {
+      const b = document.createElement("button");
+      b.className = "vk-key";
+      b.textContent = key.toUpperCase();
+      b.dataset.key = key;
+      const mapped = keyMap[key];
+      if (mapped) {
+        b.classList.add("active");
+        b.title = mapped.action + (mapped.value ? " " + mapped.value : "");
+        b.onclick = () => answerInteraction(mapped);
+      } else {
+        b.classList.add("dim");
+      }
+      rowEl.appendChild(b);
+    });
+    kb.appendChild(rowEl);
+  });
+  // Enter key row.
+  const enterRow = document.createElement("div");
+  enterRow.className = "vk-row";
+  const enter = document.createElement("button");
+  enter.className = "vk-key vk-enter active";
+  enter.textContent = "Enter";
+  enter.onclick = () => answerInteraction({ action: "approve" });
+  enterRow.appendChild(enter);
+  kb.appendChild(enterRow);
+  askInteraction.appendChild(kb);
+
+  // Listen for physical key presses while this interaction is pending.
+  window.__vkHandler = (e) => {
+    if (!pendingInteraction) return;
+    const key = e.key.toLowerCase();
+    if (key === "enter") {
+      e.preventDefault();
+      answerInteraction({ action: "approve" });
+    } else if (keyMap[key]) {
+      e.preventDefault();
+      answerInteraction(keyMap[key]);
+    }
+  };
+  window.addEventListener("keydown", window.__vkHandler);
 }
 
 // answerInteraction sends the structured result back to the server.
@@ -795,6 +862,14 @@ let histDraft = "";
 function sendInput() {
   const text = input.value.trim();
   if (!text) return;
+  // When an interaction is pending, the main input box sends supplementary
+  // instructions instead of a new message (FEATURE-388).
+  if (pendingInteraction) {
+    answerInteraction({ action: "input", value: text });
+    input.value = "";
+    autoGrow();
+    return;
+  }
   wsSend({ type: "input", text });
   renderUserEcho(text);
   history.push(text);
