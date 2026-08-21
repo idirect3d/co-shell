@@ -148,6 +148,7 @@ const settingsBody = document.getElementById("settingsBody");
 const settingsDynamic = document.getElementById("settingsDynamic");
 const logoWrap = document.getElementById("logoWrap");
 const logoMenu = document.getElementById("logoMenu");
+const newSessionBtn = document.getElementById("newSessionBtn");
 const miIdentity = document.getElementById("miIdentity");
 const identityModal = document.getElementById("identity");
 const identityClose = document.getElementById("identityClose");
@@ -1437,6 +1438,11 @@ function showSettingsResult(msg) {
 // Logo hover menu: show the menu when hovering the logo, hide on leave.
 logoWrap.addEventListener("mouseenter", () => logoMenu.classList.remove("hidden"));
 logoWrap.addEventListener("mouseleave", () => logoMenu.classList.add("hidden"));
+
+// FEATURE-401: the "+" button creates a new session.
+newSessionBtn.onclick = () => {
+  wsSend({ type: "session_new" });
+};
 
 // Open the identity form when clicking the [身份与个性] menu item.
 miIdentity.onclick = () => {
