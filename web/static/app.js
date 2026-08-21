@@ -910,8 +910,11 @@ function renderVirtualKeyboard(it, isSelect, container) {
     it.options.forEach((opt, i) => {
       keyMap[String(i + 1)] = { action: "select", value: opt };
     });
-  } else {
-    // Number keys map to approve-count (0 = 10, 1-9 = the count).
+  } else if (it.presets && it.presets.length) {
+    // Number keys map to approve-count (0 = 10, 1-9 = the count). Only
+    // enabled when the interaction carries presets (e.g. tool confirmation),
+    // so ESC pause/interrupt (no presets) does not show a useless [1]-[9]
+    // approve-count hint (FEATURE-396).
     for (let i = 0; i <= 9; i++) {
       const n = i === 0 ? 10 : i;
       keyMap[String(i)] = { action: "approve_count", value: String(n) };
@@ -946,7 +949,8 @@ function renderVirtualKeyboard(it, isSelect, container) {
     const m = keyMap[key];
     addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
   });
-  // Number keys merged into one [1]-[9] approve-count item.
+  // Number keys merged into one [1]-[9] approve-count item (only when the
+  // interaction enables approve-count via presets, FEATURE-396).
   const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
   if (hasNumbers) {
     addItem("1-9", T.approveCount, () => enterNumberMode());
