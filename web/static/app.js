@@ -827,12 +827,12 @@ function renderVirtualKeyboard(it, isSelect, container) {
   kb.className = "virtual-keyboard";
   const rowsWrap = document.createElement("div");
   rowsWrap.className = "vk-rows";
-  // Track the vertical position of each highlighted key for the annotations.
-  const keyPositions = {}; // key -> {rowIndex, keyIndex}
-  VK_ROWS.forEach((row, ri) => {
+  // Track each highlighted key element for the key-side annotations.
+  const keyEls = {}; // key -> button element
+  VK_ROWS.forEach((row) => {
     const rowEl = document.createElement("div");
     rowEl.className = "vk-row";
-    row.forEach((key, ki) => {
+    row.forEach((key) => {
       const b = document.createElement("button");
       b.className = "vk-key";
       b.textContent = key.toUpperCase();
@@ -842,7 +842,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
         b.classList.add("active");
         b.title = mapped.action + (mapped.value ? " " + mapped.value : "");
         b.onclick = () => answerInteraction(mapped);
-        keyPositions[key] = { row: ri, col: ki };
+        keyEls[key] = b;
       } else {
         b.classList.add("dim");
       }
@@ -863,11 +863,13 @@ function renderVirtualKeyboard(it, isSelect, container) {
   enter.textContent = "Enter";
   enter.onclick = () => answerInteraction({ action: "approve" });
   bottomRow.appendChild(enter);
+  keyEls["enter"] = enter;
   rowsWrap.appendChild(bottomRow);
   kb.appendChild(rowsWrap);
 
-  // Right-side annotations: each highlighted key's label is placed beside its
-  // row and connected with a line (FEATURE-388).
+  // Key-side annotations: each highlighted key's label is absolutely positioned
+  // in the blank space beside the key, connected with a line. The key layout,
+  // position and size are unchanged (FEATURE-388).
   const annot = document.createElement("div");
   annot.className = "vk-annotations";
   Object.keys(keyMap).forEach((key) => {
@@ -881,12 +883,14 @@ function renderVirtualKeyboard(it, isSelect, container) {
     text.textContent = legendLabel(m);
     item.appendChild(line);
     item.appendChild(text);
-    // Position the annotation beside the key's row.
-    const pos = keyPositions[key];
-    if (pos) {
-      item.style.top = (pos.row * 38) + "px";
-    } else if (key === "enter") {
-      item.style.top = (VK_ROWS.length * 38) + "px";
+    // Position the annotation beside the key using the key's offset.
+    const el = keyEls[key];
+    if (el) {
+      const kt = el.offsetTop || 0;
+      const kl = el.offsetLeft || 0;
+      const kw = el.offsetWidth || 34;
+      item.style.top = kt + "px";
+      item.style.left = (kl + kw + 6) + "px";
     }
     annot.appendChild(item);
   });
