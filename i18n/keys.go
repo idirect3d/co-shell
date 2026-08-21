@@ -1346,8 +1346,10 @@ const (
 	KeySettingsDescSearchContextLines   = "settings_desc_search_context_lines"
 
 	// MCP and Rules column 3 labels
-	KeyCol3MCP   = "col3_mcp"
-	KeyCol3Rules = "col3_rules"
+	KeyCol3MCP          = "col3_mcp"
+	KeyCol3Rules        = "col3_rules"
+	KeyCol3Capabilities = "col3_capabilities"
+	KeyIdentityRules    = "identity_rules"
 
 	// Session
 	KeySessionTitle          = "session_title"

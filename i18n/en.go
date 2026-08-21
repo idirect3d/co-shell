@@ -1090,6 +1090,8 @@ no liability whatsoever.`,
 	KeyCol3Name:                 "Agent name",
 	KeyCol3Desc:                 "Agent description",
 	KeyCol3Principles:           "Agent principles",
+	KeyCol3Capabilities:         "Agent capabilities",
+	KeyIdentityRules:            "Rules",
 	KeyCol3Vision:               "vision(on|off)",
 	KeyCol3ContextLimit:         "context limit(0=no history, N=last N, -1=unlimited)",
 

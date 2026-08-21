@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
 
@@ -23,7 +24,8 @@ import (
 type IdentityField struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
-	Type  string `json:"type"` // "text" (single-line) | "textarea" (multi-line)
+	Type  string `json:"type"`  // "text" (single-line) | "textarea" (multi-line)
+	Label string `json:"label"` // localized field label
 }
 
 // IdentityJSON returns the current identity & personality fields for the Web UI.
@@ -51,6 +53,9 @@ func (h *SettingsHandler) IdentityJSON() []IdentityField {
 	if desc == "" {
 		desc = cfg.LLM.AgentDescription
 	}
+	if desc == "" {
+		desc = i18n.T(i18n.KeyAgentDefaultDescription)
+	}
 
 	// principles (config value; PRINCIPLES.md external file takes priority)
 	principles := cfg.LLM.AgentPrinciples
@@ -59,22 +64,28 @@ func (h *SettingsHandler) IdentityJSON() []IdentityField {
 			principles = p
 		}
 	}
+	if principles == "" {
+		principles = i18n.T(i18n.KeyAgentDefaultPrinciples)
+	}
 
-	// capabilities (external CAPABILITIES.md file)
+	// capabilities (external CAPABILITIES.md file, fallback to built-in default)
 	capabilities := ""
 	if h.agent != nil {
 		capabilities = h.agent.ExternalFile("CAPABILITIES.md")
+	}
+	if capabilities == "" {
+		capabilities = i18n.T(i18n.KeySystemPromptCapabilities)
 	}
 
 	// rules (config rules joined by newline)
 	rules := strings.Join(cfg.Rules, "\n")
 
 	return []IdentityField{
-		{Key: "name", Value: name, Type: "text"},
-		{Key: "description", Value: desc, Type: "textarea"},
-		{Key: "principles", Value: principles, Type: "textarea"},
-		{Key: "capabilities", Value: capabilities, Type: "textarea"},
-		{Key: "rules", Value: rules, Type: "textarea"},
+		{Key: "name", Value: name, Type: "text", Label: i18n.T(i18n.KeyCol3Name)},
+		{Key: "description", Value: desc, Type: "textarea", Label: i18n.T(i18n.KeyCol3Desc)},
+		{Key: "principles", Value: principles, Type: "textarea", Label: i18n.T(i18n.KeyCol3Principles)},
+		{Key: "capabilities", Value: capabilities, Type: "textarea", Label: i18n.T(i18n.KeyCol3Capabilities)},
+		{Key: "rules", Value: rules, Type: "textarea", Label: i18n.T(i18n.KeyIdentityRules)},
 	}
 }
 
