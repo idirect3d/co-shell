@@ -848,71 +848,41 @@ function renderVirtualKeyboard(it, isSelect, container) {
   // Enter maps to approve.
   keyMap["enter"] = { action: "approve" };
 
-  // Option buttons: render one square button per available option, laid out in
-  // a single row. Each button shows [key] label and is directly clickable
-  // (FEATURE-388). Number keys are merged into one [1]-[9] button. A [Space]
-  // button enters supplement-input mode.
+  // Option items: each is a virtual-keyboard-style square key (showing only the
+  // letter / key name) with its label written beside it (FEATURE-388). Number
+  // keys are merged into one [1]-[9] item. A [Space] item enters supplement mode.
   const wrap = document.createElement("div");
   wrap.className = "option-buttons";
+  // Helper to build one option item: key button + label beside it.
+  const addItem = (keyText, labelText, onClick, extraCls) => {
+    const item = document.createElement("div");
+    item.className = "opt-item" + (extraCls ? " " + extraCls : "");
+    const b = document.createElement("button");
+    b.className = "opt-key-btn";
+    b.textContent = keyText;
+    b.onclick = onClick;
+    const label = document.createElement("span");
+    label.className = "opt-label";
+    label.textContent = labelText;
+    item.appendChild(b);
+    item.appendChild(label);
+    wrap.appendChild(item);
+  };
   // Letter/action keys first (skip number keys and enter, handled separately).
   Object.keys(keyMap).forEach((key) => {
     if (/^[0-9]$/.test(key) || key === "enter") return;
     const m = keyMap[key];
-    const b = document.createElement("button");
-    b.className = "opt-btn";
-    const k = document.createElement("span");
-    k.className = "opt-key";
-    k.textContent = "[" + key.toUpperCase() + "]";
-    const label = document.createElement("span");
-    label.className = "opt-label";
-    label.textContent = legendLabel(m);
-    b.appendChild(k);
-    b.appendChild(label);
-    b.onclick = () => answerInteraction(m);
-    wrap.appendChild(b);
+    addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
   });
-  // Number keys merged into one [1]-[9] approve-count button.
+  // Number keys merged into one [1]-[9] approve-count item.
   const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
   if (hasNumbers) {
-    const nb = document.createElement("button");
-    nb.className = "opt-btn";
-    const nk = document.createElement("span");
-    nk.className = "opt-key";
-    nk.textContent = "[1]-[9]";
-    const nl = document.createElement("span");
-    nl.className = "opt-label";
-    nl.textContent = T.approveCount;
-    nb.appendChild(nk);
-    nb.appendChild(nl);
-    nb.onclick = () => enterNumberMode();
-    wrap.appendChild(nb);
+    addItem("1-9", T.approveCount, () => enterNumberMode());
   }
-  // Enter button.
-  const eb = document.createElement("button");
-  eb.className = "opt-btn";
-  const ek = document.createElement("span");
-  ek.className = "opt-key";
-  ek.textContent = "[Enter]";
-  const el = document.createElement("span");
-  el.className = "opt-label";
-  el.textContent = T.approve;
-  eb.appendChild(ek);
-  eb.appendChild(el);
-  eb.onclick = () => answerInteraction({ action: "approve" });
-  wrap.appendChild(eb);
-  // [Space] button: enter supplement-input mode.
-  const spaceBtn = document.createElement("button");
-  spaceBtn.className = "opt-btn opt-space";
-  const sk = document.createElement("span");
-  sk.className = "opt-key";
-  sk.textContent = "[空格]";
-  const sl = document.createElement("span");
-  sl.className = "opt-label";
-  sl.textContent = T.supplement;
-  spaceBtn.appendChild(sk);
-  spaceBtn.appendChild(sl);
-  spaceBtn.onclick = () => enterSupplementMode();
-  wrap.appendChild(spaceBtn);
+  // Enter item.
+  addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
+  // Space item: enter supplement-input mode.
+  addItem("Space", T.supplement, () => enterSupplementMode(), "opt-space");
   target.appendChild(wrap);
 
   // Listen for physical key presses while this interaction is pending.
