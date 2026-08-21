@@ -963,6 +963,13 @@ var enMessages = map[string]string{
 	KeyCmdConfirmApproveGDesc: "Always auto-execute this tool",
 	KeyCmdConfirmApproveD:     "d",
 	KeyCmdConfirmApproveDDesc: "Permanently disable this tool",
+
+	// FEATURE-388: friendly button labels for the structured confirm interaction.
+	KeyCmdConfirmBtnApprove:    "Approve",
+	KeyCmdConfirmBtnApproveAll: "Approve all",
+	KeyCmdConfirmBtnApproveG:   "Always auto-execute",
+	KeyCmdConfirmBtnApproveD:   "Permanently disable",
+	KeyCmdConfirmBtnCancel:     "Cancel",
 	KeyCmdConfirmDisableToolD: "This tool has been permanently disabled (D option)",
 	KeyCmdConfirmCountPrefix:  "✅ Approved next ",
 	KeyCmdConfirmCountSuffix:  " calls of this tool",

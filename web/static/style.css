@@ -527,6 +527,76 @@ aside {
 }
 .key-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+/* Structured interaction components (FEATURE-388) */
+.ask-interaction {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Top-bottom layout: prompt info on top, option buttons below. */
+.interaction-title { font-size: 13px; color: var(--fg); font-weight: 600; }
+.interaction-body { font-size: 12px; color: var(--fg-dim, #888); white-space: pre-wrap; }
+.interaction-keys,
+.interaction-options,
+.interaction-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.interaction-presets { font-size: 12px; color: var(--fg-dim, #888); }
+.interaction-free { display: flex; gap: 8px; }
+.interaction-free input {
+  flex: 1;
+  background: var(--mono-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  padding: 6px 10px;
+  font-family: ui-monospace, Menlo, monospace;
+  outline: none;
+}
+.interaction-free input:focus { border-color: var(--accent); }
+
+/* Option items: a virtual-keyboard-style square key with its label written
+   beside it, laid out in a row (FEATURE-388). */
+.option-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.opt-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.opt-key-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  color: var(--fg);
+  cursor: pointer;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.opt-key-btn:hover { background: var(--accent); color: #fff; }
+.opt-label {
+  color: var(--fg);
+  font-size: 12px;
+}
+.opt-space .opt-key-btn {
+  border-style: dashed;
+}
+
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
 
 #input {

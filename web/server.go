@@ -51,11 +51,19 @@ var errPathOutside = errors.New("path escapes workspace")
 
 // clientMessage is a browser-to-server WebSocket message.
 type clientMessage struct {
-	Type        string   `json:"type"` // "input" | "answer" | "interrupt" | "session_list" | "session_switch" | "session_delete"
+	Type        string   `json:"type"` // "input" | "answer" | "interaction_answer" | "interrupt" | "session_list" | "session_switch" | "session_delete"
 	Text        string   `json:"text,omitempty"`
 	Attachments []string `json:"attachments,omitempty"`
-	ID          string   `json:"id,omitempty"`    // answer: the ask id
+	ID          string   `json:"id,omitempty"`    // answer: the ask id; interaction_answer: the interaction id
 	Value       string   `json:"value,omitempty"` // answer: the reply; session_switch/delete: the session id
+	Result      *interactionResultJSON `json:"result,omitempty"` // interaction_answer: the structured result
+}
+
+// interactionResultJSON is the wire form of an agent.InteractionResult.
+type interactionResultJSON struct {
+	Action string `json:"action"`
+	Value  string `json:"value,omitempty"`
+	Raw    string `json:"raw,omitempty"`
 }
 
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as
@@ -70,12 +78,13 @@ type eventJSON struct {
 
 // serverMessage is a server-to-browser WebSocket message.
 type serverMessage struct {
-	Kind     string          `json:"kind"`            // "event" | "ask" | "state" | "sessions"
-	Event    *eventJSON      `json:"event,omitempty"` // kind=event
-	ID       string          `json:"id,omitempty"`    // kind=ask
-	Mode     string          `json:"mode,omitempty"`  // kind=ask: "line" | "key"
-	Plan     json.RawMessage `json:"plan"`            // kind=state (null when no plan)
-	Sessions []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
+	Kind        string          `json:"kind"`            // "event" | "ask" | "interaction" | "state" | "sessions"
+	Event       *eventJSON      `json:"event,omitempty"` // kind=event
+	ID          string          `json:"id,omitempty"`    // kind=ask / kind=interaction
+	Mode        string          `json:"mode,omitempty"`  // kind=ask: "line" | "key"
+	Interaction json.RawMessage `json:"interaction,omitempty"` // kind=interaction: the Interaction JSON
+	Plan        json.RawMessage `json:"plan"`            // kind=state (null when no plan)
+	Sessions    []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
 }
 
 // sessionInfo is one entry in the session list pushed to the browser.
@@ -263,6 +272,12 @@ func (s *Server) sendEvent(ev agent.StreamEvent) bool {
 // sendAsk pushes an interactive question request to the browser.
 func (s *Server) sendAsk(id, mode string) bool {
 	return s.sendJSON(serverMessage{Kind: "ask", ID: id, Mode: mode})
+}
+
+// sendInteraction pushes a structured interaction request to the browser.
+// inJSON is the marshaled agent.Interaction payload (FEATURE-388).
+func (s *Server) sendInteraction(id string, inJSON json.RawMessage) bool {
+	return s.sendJSON(serverMessage{Kind: "interaction", ID: id, Interaction: inJSON})
 }
 
 // sendState pushes the current task plan snapshot (null when none) to one

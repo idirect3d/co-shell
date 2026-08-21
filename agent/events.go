@@ -67,6 +67,12 @@ const (
 // the plan panel).
 const MetaKeyPlan = "plan"
 
+// MetaKeyToolSummary is the Meta key of EventToolCall carrying the structured
+// ToolSummary JSON (FEATURE-388). Web/JSON consumers use it to render a
+// structured tool card; the LineRenderer ignores Meta, so terminal output is
+// unaffected.
+const MetaKeyToolSummary = "tool_summary"
+
 // MetaKeyPhase marks the phase of an EventToolCall within one tool
 // invocation (FEATURE-362): PhaseInput carries the pre-execution summary,
 // PhaseResult carries the post-execution result. Web/JSON consumers use it

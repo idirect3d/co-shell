@@ -949,6 +949,13 @@ var zhMessages = map[string]string{
 	KeyCmdConfirmApproveGDesc: "永久自动执行此工具",
 	KeyCmdConfirmApproveD:     "d",
 	KeyCmdConfirmApproveDDesc: "永久禁用此工具",
+
+	// FEATURE-388: friendly button labels for the structured confirm interaction.
+	KeyCmdConfirmBtnApprove:    "批准",
+	KeyCmdConfirmBtnApproveAll: "全部批准",
+	KeyCmdConfirmBtnApproveG:   "永久自动执行",
+	KeyCmdConfirmBtnApproveD:   "永久禁用",
+	KeyCmdConfirmBtnCancel:     "取消",
 	KeyCmdConfirmDisableToolD: "此工具已被永久禁用（D 选项）",
 	KeyCmdConfirmCountPrefix:  "✅ 已批准后续 ",
 	KeyCmdConfirmCountSuffix:  " 次此方法调用",

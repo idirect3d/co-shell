@@ -1091,6 +1091,13 @@ const (
 	KeyCmdConfirmApproveGDesc = "cmd_confirm_approve_g_desc"
 	KeyCmdConfirmApproveD     = "cmd_confirm_approve_d"
 	KeyCmdConfirmApproveDDesc = "cmd_confirm_approve_d_desc"
+
+	// FEATURE-388: friendly button labels for the structured confirm interaction.
+	KeyCmdConfirmBtnApprove    = "cmd_confirm_btn_approve"
+	KeyCmdConfirmBtnApproveAll = "cmd_confirm_btn_approve_all"
+	KeyCmdConfirmBtnApproveG   = "cmd_confirm_btn_approve_g"
+	KeyCmdConfirmBtnApproveD   = "cmd_confirm_btn_approve_d"
+	KeyCmdConfirmBtnCancel     = "cmd_confirm_btn_cancel"
 	KeyCmdConfirmCountPrefix  = "cmd_confirm_count_prefix"
 	KeyCmdConfirmCountSuffix  = "cmd_confirm_count_suffix"
 	KeyErrorRiskWarning       = "error_risk_warning"

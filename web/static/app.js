@@ -27,6 +27,10 @@ const I18N = {
     sessionDelete: "删除会话",
     sessionActive: "当前会话",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
+    approveCount: "批准N次",
+    approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
+    supplement: "补充信息", supplementHint: "输入补充信息，Enter 发送（仍可点击上方按钮）",
+    numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
   },
   en: {
@@ -45,6 +49,10 @@ const I18N = {
     sessionDelete: "Delete session",
     sessionActive: "Current session",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
+    approveCount: "Approve N times",
+    approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
+    supplement: "Supplement", supplementHint: "Type supplementary info, Enter to send (buttons still clickable)",
+    numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
   },
 };
@@ -119,6 +127,7 @@ const askKeys = document.getElementById("askKeys");
 const askLineWrap = document.getElementById("askLineWrap");
 const askInput = document.getElementById("askInput");
 const askSend = document.getElementById("askSend");
+const askInteraction = document.getElementById("askInteraction");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 const tree = document.getElementById("tree");
@@ -178,6 +187,7 @@ function wsConnect() {
     try { msg = JSON.parse(m.data); } catch { return; }
     if (msg.kind === "event" && msg.event) renderEvent(msg.event);
     else if (msg.kind === "ask") showAsk(msg);
+    else if (msg.kind === "interaction") showInteraction(msg);
     else if (msg.kind === "state") renderPlan(msg.plan || null);
     else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
   };
@@ -663,7 +673,242 @@ function answerAsk(value) {
 
 function hideAsk() {
   pendingAsk = null;
+  pendingInteraction = null;
+  supplementMode = false;
+  numberMode = false;
+  input.placeholder = T.inputHint;
   askArea.classList.add("hidden");
+  askInteraction.classList.add("hidden");
+  askInteraction.textContent = "";
+  // Remove the virtual-keyboard physical-key listener.
+  if (window.__vkHandler) {
+    window.removeEventListener("keydown", window.__vkHandler);
+    window.__vkHandler = null;
+  }
+}
+
+/* ---------- structured interaction (FEATURE-388) ---------- */
+
+let pendingInteraction = null;
+let supplementMode = false; // true while the user is typing supplementary info
+let numberMode = false;    // true while the user is choosing an approve-count
+
+// enterSupplementMode switches to supplement-input mode: the user types in the
+// main input box and the key handler stops hijacking keys (FEATURE-388).
+function enterSupplementMode() {
+  supplementMode = true;
+  input.focus();
+  input.placeholder = T.supplementHint;
+}
+
+// enterNumberMode switches to number-choice mode: the user presses a digit to
+// choose the approve-count (0 = 10, 1-9 = the count).
+function enterNumberMode() {
+  numberMode = true;
+  input.focus();
+  input.placeholder = T.numberHint;
+}
+
+// showInteraction renders a structured interaction (confirm/select/input/key)
+// from the interaction payload. Buttons are built dynamically from the keys
+// array, so the frontend no longer hardcodes confirmation keys.
+function showInteraction(msg) {
+  pendingInteraction = msg.id;
+  const it = msg.interaction || {};
+  askArea.classList.remove("hidden");
+  askKeys.textContent = "";
+  askLineWrap.classList.add("hidden");
+  askInteraction.classList.remove("hidden");
+  askInteraction.textContent = "";
+
+  // Top-bottom layout: prompt info on top, option buttons below (FEATURE-388).
+  // Title + body.
+  if (it.title) {
+    const t = document.createElement("div");
+    t.className = "interaction-title";
+    t.textContent = it.title;
+    askInteraction.appendChild(t);
+  }
+  if (it.body) {
+    const b = document.createElement("div");
+    b.className = "interaction-body";
+    b.textContent = it.body;
+    askInteraction.appendChild(b);
+  }
+
+  if (it.kind === "select" && it.options && it.options.length) {
+    // Option list (radio-style buttons) + cancel.
+    const wrap = document.createElement("div");
+    wrap.className = "interaction-options";
+    it.options.forEach((opt, i) => {
+      const b = document.createElement("button");
+      b.className = "key-btn";
+      b.textContent = (i + 1) + ". " + opt;
+      b.onclick = () => answerInteraction({ action: "select", value: opt });
+      wrap.appendChild(b);
+    });
+    const cancel = document.createElement("button");
+    cancel.className = "key-btn";
+    cancel.textContent = T.cancel;
+    cancel.onclick = () => answerInteraction({ action: "cancel" });
+    wrap.appendChild(cancel);
+    askInteraction.appendChild(wrap);
+    // Option buttons below so number keys select options.
+    renderVirtualKeyboard(it, true);
+  } else if (it.kind === "confirm") {
+    // Option buttons below.
+    renderVirtualKeyboard(it, false);
+  }
+
+  // Free input for the pure-input kind (ask_followup_question without options).
+  // For confirm interactions, supplementary instructions are typed in the main
+  // input box (FEATURE-388).
+  if (it.kind === "input") {
+    const row = document.createElement("div");
+    row.className = "interaction-free";
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.autocomplete = "off";
+    inp.placeholder = T.askLine;
+    const send = document.createElement("button");
+    send.className = "btn";
+    send.textContent = T.send;
+    send.onclick = () => answerInteraction({ action: "input", value: inp.value });
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); answerInteraction({ action: "input", value: inp.value }); }
+    });
+    row.appendChild(inp);
+    row.appendChild(send);
+    askInteraction.appendChild(row);
+    inp.focus();
+  }
+
+  scrollStream();
+}
+
+// legendLabel maps an interaction action to a friendly label for the key legend.
+function legendLabel(m) {
+  switch (m.action) {
+    case "approve": return T.approve;
+    case "approve_all": return T.approveAll;
+    case "approve_g": return T.approveG;
+    case "approve_d": return T.approveD;
+    case "cancel": return T.cancel;
+    case "approve_count": return T.approveCount + " " + m.value;
+    case "select": return m.value;
+    case "input": return T.askLine;
+    default: return m.action;
+  }
+}
+
+// QWERTY keyboard rows (top number row + three letter rows).
+const VK_ROWS = [
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
+  ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
+];
+
+// renderVirtualKeyboard renders a QWERTY keyboard, highlighting the keys that
+// map to the current interaction's actions. Clicking a highlighted key (or
+// pressing the corresponding physical key) responds immediately (FEATURE-388).
+// When isSelect is true, number keys map to the select options (1..N).
+// container (optional) is where the keyboard is appended; defaults to askInteraction.
+function renderVirtualKeyboard(it, isSelect, container) {
+  const target = container || askInteraction;
+  // Build a map: key -> {action, value}.
+  const keyMap = {};
+  (it.keys || []).forEach((k) => {
+    const key = (k.key || "").toLowerCase();
+    if (key) keyMap[key] = { action: k.value };
+  });
+  if (isSelect && it.options && it.options.length) {
+    // Number keys select options (1..N).
+    it.options.forEach((opt, i) => {
+      keyMap[String(i + 1)] = { action: "select", value: opt };
+    });
+  } else {
+    // Number keys map to approve-count (0 = 10, 1-9 = the count).
+    for (let i = 0; i <= 9; i++) {
+      const n = i === 0 ? 10 : i;
+      keyMap[String(i)] = { action: "approve_count", value: String(n) };
+    }
+  }
+  // Enter maps to approve.
+  keyMap["enter"] = { action: "approve" };
+
+  // Option items: each is a virtual-keyboard-style square key (showing only the
+  // letter / key name) with its label written beside it (FEATURE-388). Number
+  // keys are merged into one [1]-[9] item. A [Space] item enters supplement mode.
+  const wrap = document.createElement("div");
+  wrap.className = "option-buttons";
+  // Helper to build one option item: key button + label beside it.
+  const addItem = (keyText, labelText, onClick, extraCls) => {
+    const item = document.createElement("div");
+    item.className = "opt-item" + (extraCls ? " " + extraCls : "");
+    const b = document.createElement("button");
+    b.className = "opt-key-btn";
+    b.textContent = keyText;
+    b.onclick = onClick;
+    const label = document.createElement("span");
+    label.className = "opt-label";
+    label.textContent = labelText;
+    item.appendChild(b);
+    item.appendChild(label);
+    wrap.appendChild(item);
+  };
+  // Letter/action keys first (skip number keys and enter, handled separately).
+  Object.keys(keyMap).forEach((key) => {
+    if (/^[0-9]$/.test(key) || key === "enter") return;
+    const m = keyMap[key];
+    addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
+  });
+  // Number keys merged into one [1]-[9] approve-count item.
+  const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
+  if (hasNumbers) {
+    addItem("1-9", T.approveCount, () => enterNumberMode());
+  }
+  // Enter item.
+  addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
+  // Space item: enter supplement-input mode.
+  addItem("Space", T.supplement, () => enterSupplementMode(), "opt-space");
+  target.appendChild(wrap);
+
+  // Listen for physical key presses while this interaction is pending.
+  window.__vkHandler = (e) => {
+    if (!pendingInteraction) return;
+    // In supplement mode, stop hijacking keys so the user can type freely.
+    if (supplementMode) return;
+    const key = e.key.toLowerCase();
+    if (numberMode) {
+      // Number-choice mode: a digit picks the approve-count.
+      if (/^[0-9]$/.test(key)) {
+        e.preventDefault();
+        const n = key === "0" ? 10 : parseInt(key, 10);
+        answerInteraction({ action: "approve_count", value: String(n) });
+      }
+      return;
+    }
+    if (key === " ") {
+      e.preventDefault();
+      enterSupplementMode();
+    } else if (key === "enter") {
+      e.preventDefault();
+      answerInteraction({ action: "approve" });
+    } else if (keyMap[key]) {
+      e.preventDefault();
+      answerInteraction(keyMap[key]);
+    }
+  };
+  window.addEventListener("keydown", window.__vkHandler);
+}
+
+// answerInteraction sends the structured result back to the server.
+function answerInteraction(result) {
+  if (!pendingInteraction) return;
+  wsSend({ type: "interaction_answer", id: pendingInteraction, result });
+  if (result.value) renderUserEcho(result.value);
+  hideAsk();
 }
 
 askSend.onclick = () => answerAsk(askInput.value);
@@ -680,6 +925,14 @@ let histDraft = "";
 function sendInput() {
   const text = input.value.trim();
   if (!text) return;
+  // When an interaction is pending, the main input box sends supplementary
+  // instructions instead of a new message (FEATURE-388).
+  if (pendingInteraction) {
+    answerInteraction({ action: "input", value: text });
+    input.value = "";
+    autoGrow();
+    return;
+  }
   wsSend({ type: "input", text });
   renderUserEcho(text);
   history.push(text);

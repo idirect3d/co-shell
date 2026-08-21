@@ -22,7 +22,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-388 工具调用交互标准化** 🚧 开发中
+- [x] **FEATURE-388 工具调用交互标准化** ✅ 已完成
   - 背景：当前三类交互（意图字段、提问/选择、确认放行）都是通过 `UserIO` 底层原语（`Print*` + `ReadLine/ReadKey`）拼装出来的，交互逻辑散落在各工具回调里。Web UI 只能看到 `ui_text` 文本 + 通用输入框，无法结构化渲染，前端还硬编码了确认键位。
   - 方案（已确认）：引入统一 `Interaction` 交互模型，把交互从底层原语拼装提升为结构化声明。
     - 决策 1：`InteractionManager` 采用独立接口（方案 B），组合复用 `UserIO` 底层能力，对现有 StdioIO/EnhancedIO/WebIO 零侵入
@@ -31,6 +31,7 @@
     - 决策 4：Web 端"批准N次"提供预设按钮 3/10/50 + 自由数字输入
     - 决策 5：i18n 模板分两步走（第一步 `ToolSummary` 同时保留 `Text` 和结构化字段，TUI 用 `Text`、Web 用结构化字段；第二步逐步迁移为字段标签）
   - 需求：① 定义 `Interaction`/`InteractionResult`/`InteractionManager` 接口；② 实现 `TerminalInteractionManager`（TUI）；③ 迁移 `promptToolConfirmation` 和 `askFollowupQuestionTool` 到新模型；④ 实现 `WebInteractionManager` + WebSocket `interaction` 协议；⑤ 前端渲染交互组件（按钮组/选项列表/输入框），移除硬编码键位；⑥ `buildToolSummary` 返回 `ToolSummary` 结构体，`EventToolCall` 携带结构化摘要
+  - 测试：`agent/interaction_test.go`（Interaction 模型 + TerminalInteractionManager + 迁移后行为不变 + promptToolConfirmation/promptErrorConfirmation 构造的 Interaction 含 Keys + ActionInput 映射为 CmdConfirmModify 不批准执行）、`web/session_test.go`（WebIO.Ask 推送结构化 interaction + 接收 interaction_answer）、`tmp/feature388_interaction_test.js`（前端选项项渲染 + 键按钮只显示字母/按键名 + 说明写在按钮旁边 + 数字键合并 1-9 + 空格补录模式 + 数字选择模式 + 快捷键暂停 + 上下结构，21 断言全过）、`agent/tool_summary_test.go`（ToolSummary 结构化 + EventToolCall 携带摘要）；`go build/vet/test ./...` 全绿；浏览器验证确认放行/错误处理/ESC中断/提问选择统一为选项项（每个选项一个虚拟键盘风格方形键按钮只显示字母/按键名如 A/Enter，说明文字写在按钮旁边如"全部批准"，横向排列，点击按钮直接响应）；上下结构（上面提示信息，下面一排键按钮+按键说明）；[空格]进入补充信息补录模式，主消息框录入且不再监听快捷键（避免被劫持），但仍可点击按钮；补充信息输入后取消执行工具调用（ActionInput 映射为 CmdConfirmModify，不批准执行） [BUILD-480]
   - 测试：见 use-case/FEATURE-388/
 
 ---
