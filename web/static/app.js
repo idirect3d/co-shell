@@ -27,6 +27,7 @@ const I18N = {
     sessionDelete: "删除会话",
     sessionActive: "当前会话",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
+    approveCount: "批准N次",
     cancel: "取消", confirm: "确认",
   },
   en: {
@@ -45,6 +46,7 @@ const I18N = {
     sessionDelete: "Delete session",
     sessionActive: "Current session",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
+    approveCount: "Approve N times",
     cancel: "Cancel", confirm: "Confirm",
   },
 };
@@ -119,6 +121,7 @@ const askKeys = document.getElementById("askKeys");
 const askLineWrap = document.getElementById("askLineWrap");
 const askInput = document.getElementById("askInput");
 const askSend = document.getElementById("askSend");
+const askInteraction = document.getElementById("askInteraction");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 const tree = document.getElementById("tree");
@@ -178,6 +181,7 @@ function wsConnect() {
     try { msg = JSON.parse(m.data); } catch { return; }
     if (msg.kind === "event" && msg.event) renderEvent(msg.event);
     else if (msg.kind === "ask") showAsk(msg);
+    else if (msg.kind === "interaction") showInteraction(msg);
     else if (msg.kind === "state") renderPlan(msg.plan || null);
     else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
   };
@@ -664,6 +668,117 @@ function answerAsk(value) {
 function hideAsk() {
   pendingAsk = null;
   askArea.classList.add("hidden");
+  askInteraction.classList.add("hidden");
+  askInteraction.textContent = "";
+}
+
+/* ---------- structured interaction (FEATURE-388) ---------- */
+
+let pendingInteraction = null;
+
+// showInteraction renders a structured interaction (confirm/select/input/key)
+// from the interaction payload. Buttons are built dynamically from the keys
+// array, so the frontend no longer hardcodes confirmation keys.
+function showInteraction(msg) {
+  pendingInteraction = msg.id;
+  const it = msg.interaction || {};
+  askArea.classList.remove("hidden");
+  askKeys.textContent = "";
+  askLineWrap.classList.add("hidden");
+  askInteraction.classList.remove("hidden");
+  askInteraction.textContent = "";
+
+  // Title + body.
+  if (it.title) {
+    const t = document.createElement("div");
+    t.className = "interaction-title";
+    t.textContent = it.title;
+    askInteraction.appendChild(t);
+  }
+  if (it.body) {
+    const b = document.createElement("div");
+    b.className = "interaction-body";
+    b.textContent = it.body;
+    askInteraction.appendChild(b);
+  }
+
+  if (it.kind === "select" && it.options && it.options.length) {
+    // Option list (radio-style buttons) + cancel.
+    const wrap = document.createElement("div");
+    wrap.className = "interaction-options";
+    it.options.forEach((opt) => {
+      const b = document.createElement("button");
+      b.className = "key-btn";
+      b.textContent = opt;
+      b.onclick = () => answerInteraction({ action: "select", value: opt });
+      wrap.appendChild(b);
+    });
+    const cancel = document.createElement("button");
+    cancel.className = "key-btn";
+    cancel.textContent = T.cancel;
+    cancel.onclick = () => answerInteraction({ action: "cancel" });
+    wrap.appendChild(cancel);
+    askInteraction.appendChild(wrap);
+  } else if (it.kind === "confirm" && it.keys && it.keys.length) {
+    // Button group from keys.
+    const wrap = document.createElement("div");
+    wrap.className = "interaction-keys";
+    it.keys.forEach((k) => {
+      const b = document.createElement("button");
+      b.className = "key-btn";
+      b.textContent = k.label || k.value;
+      if (k.hint) b.title = k.hint;
+      b.onclick = () => answerInteraction({ action: k.value });
+      wrap.appendChild(b);
+    });
+    askInteraction.appendChild(wrap);
+
+    // Approve-N presets (3/10/50) + free input.
+    if (it.presets && it.presets.length) {
+      const p = document.createElement("div");
+      p.className = "interaction-presets";
+      p.textContent = T.approveCount + ": ";
+      it.presets.forEach((n) => {
+        const b = document.createElement("button");
+        b.className = "key-btn";
+        b.textContent = n;
+        b.onclick = () => answerInteraction({ action: "approve_count", value: n });
+        p.appendChild(b);
+      });
+      askInteraction.appendChild(p);
+    }
+  }
+
+  // Free input (confirm supplementary / input kind).
+  if (it.kind === "input" || it.allow_free) {
+    const row = document.createElement("div");
+    row.className = "interaction-free";
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.autocomplete = "off";
+    inp.placeholder = T.askLine;
+    const send = document.createElement("button");
+    send.className = "btn";
+    send.textContent = T.send;
+    send.onclick = () => answerInteraction({ action: "input", value: inp.value });
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); answerInteraction({ action: "input", value: inp.value }); }
+    });
+    row.appendChild(inp);
+    row.appendChild(send);
+    askInteraction.appendChild(row);
+    inp.focus();
+  }
+
+  scrollStream();
+}
+
+// answerInteraction sends the structured result back to the server.
+function answerInteraction(result) {
+  if (!pendingInteraction) return;
+  wsSend({ type: "interaction_answer", id: pendingInteraction, result });
+  if (result.value) renderUserEcho(result.value);
+  hideAsk();
 }
 
 askSend.onclick = () => answerAsk(askInput.value);

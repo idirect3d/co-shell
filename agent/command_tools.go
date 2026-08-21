@@ -34,7 +34,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -457,7 +456,11 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 	return strings.TrimSpace(decoded), nil
 }
 
-// promptToolConfirmation displays the tool call to the user and asks for confirmation.
+// promptToolConfirmation displays the tool call to the user and asks for
+// confirmation via the unified Interaction model (FEATURE-388). It builds a
+// confirm Interaction and delegates to the given InteractionManager, mapping
+// the structured result back to the legacy CmdConfirmResult for the caller.
+//
 // Returns the user's choice and any supplementary input.
 // - Enter: approve and execute
 // - c/C: cancel, return to REPL
@@ -465,54 +468,33 @@ func (a *Agent) ExecuteCommandDirectly(command string) (string, error) {
 // - g/G: approve and disable confirmation for this tool
 // - N (a positive integer): approve the next N calls of this tool
 // - Any other input: treated as supplementary instructions for the LLM to re-evaluate
-//
-// io provides the UserIO interface for output and input operations.
-// In enhanced mode, EnhancedIO handles \r\n conversion and IsReading() flag.
-func promptToolConfirmation(toolName string, displayStr string, io UserIO) (CmdConfirmResult, string) {
-	io.Println()
-	io.Println(i18n.TF(i18n.KeyCmdConfirmTitle, displayStr))
-	io.Println(i18n.T(i18n.KeyCmdConfirmRiskWarning))
-	io.Println()
+func promptToolConfirmation(toolName string, displayStr string, mgr InteractionManager) (CmdConfirmResult, string) {
+	res, err := mgr.Ask(context.Background(), Interaction{
+		Kind:  InteractionConfirm,
+		Title: i18n.TF(i18n.KeyCmdConfirmTitle, displayStr),
+		Body:  i18n.T(i18n.KeyCmdConfirmRiskWarning),
+	})
+	if err != nil {
+		return CmdConfirmCancel, ""
+	}
 
-	for {
-		io.Printf("%s", i18n.T(i18n.KeyCmdConfirmPrompt))
-
-		response, err := io.ReadLine()
-		if err != nil {
-			return CmdConfirmCancel, ""
-		}
-		response = strings.TrimSpace(response)
-
-		if response == "" {
-			return CmdConfirmApprove, ""
-		}
-
-		lower := strings.ToLower(response)
-		if lower == "c" {
-			return CmdConfirmCancel, ""
-		}
-
-		if lower == "a" {
-			return CmdConfirmApproveAll, ""
-		}
-
-		if lower == "g" {
-			return CmdConfirmApproveG, ""
-		}
-
-		if lower == "d" {
-			return CmdConfirmApproveD, ""
-		}
-
-		// Check if the user entered a positive integer (approve N calls of this tool)
-		if n, err := strconv.Atoi(response); err == nil && n > 0 {
-			return CmdConfirmApproveCount, strconv.Itoa(n)
-		}
-
-		// Any other input is treated as supplementary instructions
-		// for the LLM to re-evaluate the command
-		return CmdConfirmModify, response
-
+	switch res.Action {
+	case ActionApprove:
+		return CmdConfirmApprove, ""
+	case ActionCancel:
+		return CmdConfirmCancel, ""
+	case ActionApproveAll:
+		return CmdConfirmApproveAll, ""
+	case ActionApproveG:
+		return CmdConfirmApproveG, ""
+	case ActionApproveD:
+		return CmdConfirmApproveD, ""
+	case ActionApproveCount:
+		return CmdConfirmApproveCount, res.Value
+	case ActionModify:
+		return CmdConfirmModify, res.Value
+	default:
+		return CmdConfirmApprove, ""
 	}
 }
 
