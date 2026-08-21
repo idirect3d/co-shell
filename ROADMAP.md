@@ -18,6 +18,7 @@
 | FEATURE-389 | 0.9.0 | P1 | 优化分支规范：强制分支检查 + 小优化也必须建分支 + 禁止 main 提交提升为最高红线 |
 | FEATURE-390 | 0.9.0 | P1 | 规范增加版本号默认递增规则：FEATURE→minor递增，FIX→patch递增 |
 | FEATURE-391 | 0.9.0 | P1 | 将 :set 功能迁移到 Web UI（settings_get/settings_set 结构化消息） |
+| FEATURE-392 | 0.9.0 | P1 | 修正 Web UI 设置面板分类与顺序（与 TUI :set 一致，去掉身份与个性分组） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -67,6 +68,13 @@
   - 需求：① `repl/session.go` SessionDeps 新增 SettingsHandler 字段，`repl/repl.go` 传入；② `web/server.go` clientMessage/serverMessage 新增 settings 类型；③ `web/session.go` 新增 settings_get/settings_set 处理；④ 前端 app.js/index.html/style.css 设置弹窗动态渲染
   - 实施：① `repl/session.go` SessionDeps 新增 `SettingsHandler *cmd.SettingsHandler` 字段，`repl/repl.go` 传入 `r.settingsHandler`；② `cmd/settings_web.go` 新增 `SettingsJSON()` 返回按组组织的结构化设置项（6 组覆盖全部 :set 设置项，含 type/options）；③ `web/server.go` clientMessage 新增 `settings_get`/`settings_set` 类型（settings_set 携带 key/value），serverMessage 新增 `settings`/`settings_result` kind；④ `web/session.go` WebSession 新增 settings 字段，handleMessage 新增 settings_get/settings_set 处理（settings_get 返回 SettingsJSON，settings_set 调用 SettingsHandler.Handle）；⑤ 前端 index.html 设置弹窗新增 settingsBody 容器，app.js 打开弹窗发送 settings_get、按类型渲染设置项（bool→开关、number→数字输入、enum→下拉、string→文本）、修改后发送 settings_set（改哪个发哪个，文本框焦点移出/回车触发、开关/下拉立即触发）、显示设置结果，style.css 新增设置面板样式 [BUILD-487]
   - 测试：见 use-case/FEATURE-391/
+
+- [ ] **FEATURE-392 修正 Web UI 设置面板分类与顺序（与 TUI :set 一致）**
+  - 背景：FEATURE-391 的 Web UI 设置面板分类与 TUI `:set` 输出（`showSettingsHelp()`）不一致：当前把 temperature/max-tokens 等放"模型组"（用 KeySettingsGroupModel 标题），但 TUI 中这些属于 Group 2 [智能体设置]；当前把 name/memory-enabled 等放"Agent 组"（用 KeySettingsGroupIdentity 标题），但 TUI 中 name 属于 Group 1、memory-enabled 属于 Group 5；顺序也不同；还包含 top-p/top-k/repetition-penalty/max-model-len/max-retries/read-file-max-size/duplicate-content-threshold/loop-temp-enabled 等不在 TUI 输出中的多余项。
+  - 方案（已确认）：重写 `cmd/settings_web.go` 的 `SettingsJSON()`，使其分组和顺序与 `showSettingsHelp()` 完全一致，但去掉 Group 1 [身份与个性]（该分组未来放到其他位置）。输出 5 组：①[智能体设置]（KeySettingsGroupModel）temperature→parse-error-action；②[显示与输出]（KeySettingsGroupDisplay）emoji-enabled→token-usage；③[安全与确认]（KeySettingsGroupSafety）confirm-tool→default-tool-model；④[记忆与上下文]（KeySettingsGroupMemory）memory-enabled→memory-search-max-results；⑤[开发者]（KeySettingsGroupSearchDebug）debug、log。
+  - 需求：① 去掉 top-p/top-k/repetition-penalty/max-model-len/max-retries/read-file-max-size/duplicate-content-threshold/loop-temp-enabled（不在 TUI 输出中）；② current-tool-model/current-vision-model/current-problem-model 是只读展示项（Web 设置面板无意义，不包含）；③ output-categories/db/llm-log 是特殊项（复合项/子命令/开发者日志开关，不包含）；④ 删除不再使用的 agentNameValue 辅助函数（name 属于 Group 1 已去掉）；⑤ 保留 config 导入（result-mode 用到 config.ResultModeString）
+  - 实施：重写 `cmd/settings_web.go` 的 `SettingsJSON()` 为 5 组，分组和顺序与 `showSettingsHelp()` 完全一致（去掉 Group 1 身份与个性），删除 agentNameValue 辅助函数 [BUILD-488]
+  - 测试：见 use-case/FEATURE-392/
 
 ---
 
