@@ -694,18 +694,30 @@ function showInteraction(msg) {
   askInteraction.classList.remove("hidden");
   askInteraction.textContent = "";
 
-  // Title + body.
+  // Left-right layout: prompt info on the left, virtual keyboard on the right
+  // (FEATURE-388) to use horizontal space and reduce vertical footprint.
+  const layout = document.createElement("div");
+  layout.className = "interaction-layout";
+  const left = document.createElement("div");
+  left.className = "interaction-left";
+  const right = document.createElement("div");
+  right.className = "interaction-right";
+  layout.appendChild(left);
+  layout.appendChild(right);
+  askInteraction.appendChild(layout);
+
+  // Left column: title + body + options.
   if (it.title) {
     const t = document.createElement("div");
     t.className = "interaction-title";
     t.textContent = it.title;
-    askInteraction.appendChild(t);
+    left.appendChild(t);
   }
   if (it.body) {
     const b = document.createElement("div");
     b.className = "interaction-body";
     b.textContent = it.body;
-    askInteraction.appendChild(b);
+    left.appendChild(b);
   }
 
   if (it.kind === "select" && it.options && it.options.length) {
@@ -724,12 +736,12 @@ function showInteraction(msg) {
     cancel.textContent = T.cancel;
     cancel.onclick = () => answerInteraction({ action: "cancel" });
     wrap.appendChild(cancel);
-    askInteraction.appendChild(wrap);
-    // Also render a virtual keyboard so number keys select options.
-    renderVirtualKeyboard(it, true);
+    left.appendChild(wrap);
+    // Right column: virtual keyboard so number keys select options.
+    renderVirtualKeyboard(it, true, right);
   } else if (it.kind === "confirm") {
-    // QWERTY virtual keyboard: highlight the available keys, single-key response.
-    renderVirtualKeyboard(it);
+    // Right column: QWERTY virtual keyboard, highlight available keys.
+    renderVirtualKeyboard(it, false, right);
   }
 
   // Free input for the pure-input kind (ask_followup_question without options).
@@ -770,7 +782,9 @@ const VK_ROWS = [
 // map to the current interaction's actions. Clicking a highlighted key (or
 // pressing the corresponding physical key) responds immediately (FEATURE-388).
 // When isSelect is true, number keys map to the select options (1..N).
-function renderVirtualKeyboard(it, isSelect) {
+// container (optional) is where the keyboard is appended; defaults to askInteraction.
+function renderVirtualKeyboard(it, isSelect, container) {
+  const target = container || askInteraction;
   // Build a map: key -> {action, value}.
   const keyMap = {};
   (it.keys || []).forEach((k) => {
@@ -823,7 +837,7 @@ function renderVirtualKeyboard(it, isSelect) {
   enter.onclick = () => answerInteraction({ action: "approve" });
   enterRow.appendChild(enter);
   kb.appendChild(enterRow);
-  askInteraction.appendChild(kb);
+  target.appendChild(kb);
 
   // Listen for physical key presses while this interaction is pending.
   window.__vkHandler = (e) => {
