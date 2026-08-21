@@ -409,6 +409,7 @@ aside {
 .ev.thinking { opacity: 0.75; }
 .ev.thinking .ev-body { color: var(--fg-dim); font-style: italic; }
 
+.ev.tool .ev-head { color: #fbbf24; }
 .ev.tool .ev-head::before { background: var(--warn); }
 .ev.command .ev-head::before { background: var(--ok); }
 .ev.system .ev-head::before { background: var(--fg-faint); }
