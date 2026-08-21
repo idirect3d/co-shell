@@ -19,6 +19,7 @@
 | FEATURE-390 | 0.9.0 | P1 | 规范增加版本号默认递增规则：FEATURE→minor递增，FIX→patch递增 |
 | FEATURE-391 | 0.9.0 | P1 | 将 :set 功能迁移到 Web UI（settings_get/settings_set 结构化消息） |
 | FEATURE-392 | 0.9.0 | P1 | 修正 Web UI 设置面板分类与顺序（与 TUI :set 一致，去掉身份与个性分组） |
+| FEATURE-393 | 0.9.0 | P1 | Web UI 身份与个性设置菜单（logo 悬停弹出，name/description/principles/capabilities/rules 大表单） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -75,6 +76,13 @@
   - 需求：① 去掉 top-p/top-k/repetition-penalty/max-model-len/max-retries/read-file-max-size/duplicate-content-threshold/loop-temp-enabled（不在 TUI 输出中）；② current-tool-model/current-vision-model/current-problem-model 是只读展示项（Web 设置面板无意义，不包含）；③ output-categories/db/llm-log 是特殊项（复合项/子命令/开发者日志开关，不包含）；④ 删除不再使用的 agentNameValue 辅助函数（name 属于 Group 1 已去掉）；⑤ 保留 config 导入（result-mode 用到 config.ResultModeString）
   - 实施：重写 `cmd/settings_web.go` 的 `SettingsJSON()` 为 5 组，分组和顺序与 `showSettingsHelp()` 完全一致（去掉 Group 1 身份与个性），删除 agentNameValue 辅助函数 [BUILD-488]
   - 测试：见 use-case/FEATURE-392/
+
+- [ ] **FEATURE-393 Web UI 身份与个性设置菜单（logo 悬停弹出）**
+  - 背景：FEATURE-392 已把 [身份与个性] 分组从设置面板去掉（该分组未来放到其他位置）。现在需要把身份与个性设置放到 Web UI 左下角 co-shell logo 的悬停菜单中，在一个大表单中同时设置 name/description/principles/capabilities/rules。
+  - 方案（已确认）：鼠标移向左下角 co-shell logo 时向上弹出菜单，含 [身份与个性] 入口；点击后打开大表单弹窗，同时展示 name（单行）、description/principles/capabilities/rules（多行文本），每项（含名字）旁有独立保存按钮，点击后单独保存。
+  - 需求：① 后端新增身份与个性读写接口（name/description/principles 存 config.json，capabilities 存外部文件 CAPABILITIES.md，rules 存 cfg.Rules）；② WebSocket 新增 identity_get/identity_set 消息；③ 前端 logo 悬停弹出菜单 + 身份与个性大表单 + 每项独立保存按钮
+  - 实施：① `cmd/settings_identity.go` 新增 `IdentityJSON()`（返回 name/description/principles/capabilities/rules 当前值）和 `SaveIdentity(key,value)`（name/description/principles 写 config.json，capabilities 写 CAPABILITIES.md，rules 写 cfg.Rules）；② `web/server.go` clientMessage 新增 identity_get/identity_set 类型，serverMessage 新增 identity/identity_result kind；③ `web/session.go` 新增 identity_get/identity_set 处理；④ 前端 index.html 新增 logo 悬停菜单 + 身份弹窗，app.js 渲染大表单（name 单行 + 其余多行 textarea）+ 每项独立保存按钮，style.css 新增样式 [BUILD-489]
+  - 测试：见 use-case/FEATURE-393/
 
 ---
 
