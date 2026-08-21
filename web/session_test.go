@@ -433,3 +433,156 @@ func TestSessionDelete(t *testing.T) {
 		t.Fatalf("sess-B should be deleted")
 	}
 }
+
+// TestWebIOAskInteractionPushesStructured verifies WebIO.Ask pushes a
+// structured interaction message with the full Interaction payload (UC-0019).
+func TestWebIOAskInteractionPushesStructured(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	wio, ok := ag.IO().(*WebIO)
+	if !ok {
+		t.Fatalf("agent IO is not *WebIO")
+	}
+
+	done := make(chan agent.InteractionResult, 1)
+	go func() {
+		res, _ := wio.Ask(nil, agent.Interaction{
+			Kind:  agent.InteractionConfirm,
+			Title: "⚙️ execute_command: ls -la",
+			Body:  "⚠️ risk",
+			Keys:  []agent.KeyOption{{Label: "Approve", Key: "", Value: "approve"}},
+		})
+		done <- res
+	}()
+
+	msg := readServerMsg(t, client)
+	if msg.Kind != "interaction" {
+		t.Fatalf("expected interaction message, got kind=%q", msg.Kind)
+	}
+	if msg.ID == "" {
+		t.Error("interaction message missing id")
+	}
+	var in agent.Interaction
+	if err := json.Unmarshal(msg.Interaction, &in); err != nil {
+		t.Fatalf("unmarshal interaction: %v", err)
+	}
+	if in.Kind != agent.InteractionConfirm || in.Title != "⚙️ execute_command: ls -la" {
+		t.Errorf("interaction payload wrong: %+v", in)
+	}
+	if len(in.Keys) != 1 || in.Keys[0].Value != "approve" {
+		t.Errorf("interaction keys wrong: %+v", in.Keys)
+	}
+
+	// Resolve with an approve result.
+	sendClient(t, client, clientMessage{
+		Type: "interaction_answer",
+		ID:   msg.ID,
+		Result: &interactionResultJSON{Action: "approve"},
+	})
+	select {
+	case res := <-done:
+		if res.Action != agent.ActionApprove {
+			t.Errorf("Ask result action = %q, want approve", res.Action)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not return after interaction_answer")
+	}
+}
+
+// TestWebIOAskInteractionApproveCount verifies the approve-count preset values
+// are carried in the interaction payload (UC-0021).
+func TestWebIOAskInteractionApproveCount(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	wio, ok := ag.IO().(*WebIO)
+	if !ok {
+		t.Fatalf("agent IO is not *WebIO")
+	}
+
+	done := make(chan agent.InteractionResult, 1)
+	go func() {
+		res, _ := wio.Ask(nil, agent.Interaction{
+			Kind:    agent.InteractionConfirm,
+			Title:   "confirm",
+			Presets: []string{"3", "10", "50"},
+		})
+		done <- res
+	}()
+
+	msg := readServerMsg(t, client)
+	if msg.Kind != "interaction" {
+		t.Fatalf("expected interaction message, got kind=%q", msg.Kind)
+	}
+	var in agent.Interaction
+	if err := json.Unmarshal(msg.Interaction, &in); err != nil {
+		t.Fatalf("unmarshal interaction: %v", err)
+	}
+	if len(in.Presets) != 3 || in.Presets[0] != "3" || in.Presets[2] != "50" {
+		t.Errorf("presets wrong: %v", in.Presets)
+	}
+
+	// Resolve with approve_count = 10.
+	sendClient(t, client, clientMessage{
+		Type: "interaction_answer",
+		ID:   msg.ID,
+		Result: &interactionResultJSON{Action: "approve_count", Value: "10"},
+	})
+	select {
+	case res := <-done:
+		if res.Action != agent.ActionApproveCount || res.Value != "10" {
+			t.Errorf("Ask result = %+v, want approve_count/10", res)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not return after interaction_answer")
+	}
+}
+
+// TestWebIOAskInteractionSelect verifies a select interaction round-trip
+// (UC-0020).
+func TestWebIOAskInteractionSelect(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	wio, ok := ag.IO().(*WebIO)
+	if !ok {
+		t.Fatalf("agent IO is not *WebIO")
+	}
+
+	done := make(chan agent.InteractionResult, 1)
+	go func() {
+		res, _ := wio.Ask(nil, agent.Interaction{
+			Kind:    agent.InteractionSelect,
+			Title:   "请选择",
+			Options: []string{"立即执行", "稍后执行"},
+		})
+		done <- res
+	}()
+
+	msg := readServerMsg(t, client)
+	if msg.Kind != "interaction" {
+		t.Fatalf("expected interaction message, got kind=%q", msg.Kind)
+	}
+	var in agent.Interaction
+	if err := json.Unmarshal(msg.Interaction, &in); err != nil {
+		t.Fatalf("unmarshal interaction: %v", err)
+	}
+	if in.Kind != agent.InteractionSelect || len(in.Options) != 2 {
+		t.Errorf("interaction payload wrong: %+v", in)
+	}
+
+	sendClient(t, client, clientMessage{
+		Type: "interaction_answer",
+		ID:   msg.ID,
+		Result: &interactionResultJSON{Action: "select", Value: "立即执行"},
+	})
+	select {
+	case res := <-done:
+		if res.Action != agent.ActionSelect || res.Value != "立即执行" {
+			t.Errorf("Ask result = %+v, want select/立即执行", res)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not return after interaction_answer")
+	}
+}

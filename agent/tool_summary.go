@@ -37,91 +37,158 @@ import (
 // in a tool call summary. Longer values are truncated with a suffix marker.
 const maxSummaryParamLen = 80
 
-// buildToolSummary constructs a human-readable summary of a tool call:
-// friendly tool name + intent + key parameters (long content truncated).
-// The phrasing is personalized per tool via i18n templates (FEATURE-310).
-// It is used in the confirmation prompt and the showTool display path.
-func buildToolSummary(toolName string, args map[string]interface{}) string {
+// SummaryParam is one key parameter of a tool call summary (FEATURE-388).
+type SummaryParam struct {
+	Name  string `json:"name"`  // parameter name
+	Value string `json:"value"` // parameter value (truncated/masked)
+	Kind  string `json:"kind"`  // "path" | "count" | "text" | ...
+}
+
+// ToolSummary is the structured summary of a tool call (FEATURE-388). It
+// carries both the human-readable Text (existing i18n template phrasing, used
+// by TUI) and structured fields (ToolName/Intent/Params, used by Web UI to
+// render a structured card).
+type ToolSummary struct {
+	Text     string         `json:"text"`     // human-readable summary (TUI)
+	ToolName string         `json:"tool_name"` // tool name
+	Intent   string         `json:"intent"`   // intent
+	Params   []SummaryParam `json:"params"`   // key parameters
+}
+
+// buildToolSummary constructs a structured summary of a tool call: friendly
+// tool name + intent + key parameters (long content truncated). The Text field
+// carries the existing i18n-template phrasing (FEATURE-310) for TUI; the
+// structured fields let Web UI render a card (FEATURE-388).
+func buildToolSummary(toolName string, args map[string]interface{}) ToolSummary {
 	intent := argString(args, "intent")
+	s := ToolSummary{ToolName: toolName, Intent: intent}
 
 	// Tools with a dedicated i18n template are rendered with personalized
 	// phrasing so the user can grasp the impact of the call at a glance.
 	switch toolName {
 	case "execute_command":
-		return i18n.TF(i18n.KeyToolCallSummaryExecCmd,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryExecCmd,
 			argString(args, "command"),
 			execTimeoutLabel(args),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "command", Value: truncate(argString(args, "command")), Kind: "text"},
+			{Name: "timeout", Value: execTimeoutLabel(args), Kind: "text"},
+		}
 	case "read_file":
-		return i18n.TF(i18n.KeyToolCallSummaryReadFile,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryReadFile,
 			argString(args, "path"),
 			argNum(args, "start_line"),
 			argNum(args, "end_line"),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "path", Value: argString(args, "path"), Kind: "path"},
+			{Name: "start_line", Value: argNum(args, "start_line"), Kind: "count"},
+			{Name: "end_line", Value: argNum(args, "end_line"), Kind: "count"},
+		}
 	case "write_to_file":
-		return i18n.TF(i18n.KeyToolCallSummaryWriteFile,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryWriteFile,
 			argString(args, "path"),
 			argString(args, "mode"),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "path", Value: argString(args, "path"), Kind: "path"},
+			{Name: "mode", Value: argString(args, "mode"), Kind: "text"},
+		}
 	case "replace_in_file":
 		n := argSliceLen(args, "replacements")
-		return i18n.TF(i18n.KeyToolCallSummaryReplaceInFile,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryReplaceInFile,
 			argString(args, "path"),
 			fmt.Sprintf("%d", n),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "path", Value: argString(args, "path"), Kind: "path"},
+			{Name: "replacements", Value: fmt.Sprintf("%d", n), Kind: "count"},
+		}
 	case "search_files":
-		return i18n.TF(i18n.KeyToolCallSummarySearchFiles,
+		s.Text = i18n.TF(i18n.KeyToolCallSummarySearchFiles,
 			argString(args, "path"),
 			truncate(argString(args, "regex")),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "path", Value: argString(args, "path"), Kind: "path"},
+			{Name: "regex", Value: truncate(argString(args, "regex")), Kind: "text"},
+		}
 	case "list_files":
 		rec := argNum(args, "recursive")
 		if rec == "" {
 			rec = "0"
 		}
-		return i18n.TF(i18n.KeyToolCallSummaryListFiles,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryListFiles,
 			argString(args, "path"),
 			rec,
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "path", Value: argString(args, "path"), Kind: "path"},
+			{Name: "recursive", Value: rec, Kind: "count"},
+		}
 	case "list_code_definition_names":
-		return i18n.TF(i18n.KeyToolCallSummaryListDefs,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryListDefs,
 			argString(args, "path"),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "path", Value: argString(args, "path"), Kind: "path"},
+		}
 	case "shell_send":
-		return i18n.TF(i18n.KeyToolCallSummaryShellSend,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryShellSend,
 			truncate(argString(args, "command")),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "command", Value: truncate(argString(args, "command")), Kind: "text"},
+		}
 	case "visual_analysis":
-		return i18n.TF(i18n.KeyToolCallSummaryVisualAnalysis,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryVisualAnalysis,
 			fmt.Sprintf("%d", argSliceLen(args, "paths")),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "paths", Value: fmt.Sprintf("%d", argSliceLen(args, "paths")), Kind: "count"},
+		}
 	case "excel_open", "word_open":
 		key := i18n.KeyToolCallSummaryExcelOpen
 		if toolName == "word_open" {
 			key = i18n.KeyToolCallSummaryWordOpen
 		}
-		return i18n.TF(key,
+		s.Text = i18n.TF(key,
 			argString(args, "path"),
 			argString(args, "mode"),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "path", Value: argString(args, "path"), Kind: "path"},
+			{Name: "mode", Value: argString(args, "mode"), Kind: "text"},
+		}
 	case "update_settings":
-		return i18n.TF(i18n.KeyToolCallSummaryUpdateSettings,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryUpdateSettings,
 			fmt.Sprintf("%d", argSliceLen(args, "settings")),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "settings", Value: fmt.Sprintf("%d", argSliceLen(args, "settings")), Kind: "count"},
+		}
 	case "ask_followup_question":
 		// The question is the very content the user must read and answer, so
 		// it is shown in full (no truncation) — truncating it would defeat the
 		// purpose of asking.
-		return i18n.TF(i18n.KeyToolCallSummaryAskQuestion,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryAskQuestion,
 			argString(args, "question"))
+		s.Params = []SummaryParam{
+			{Name: "question", Value: argString(args, "question"), Kind: "text"},
+		}
 	case "launch_sub_agent":
-		return i18n.TF(i18n.KeyToolCallSummaryLaunchSubAgent,
+		s.Text = i18n.TF(i18n.KeyToolCallSummaryLaunchSubAgent,
 			argString(args, "sub_agent_name"),
 			intent)
+		s.Params = []SummaryParam{
+			{Name: "sub_agent_name", Value: argString(args, "sub_agent_name"), Kind: "text"},
+		}
+	default:
+		// Generic fallback for all other tools.
+		s.Text = genericToolSummary(toolName, intent)
 	}
-
-	// Generic fallback for all other tools.
-	return genericToolSummary(toolName, intent)
+	return s
 }
 
 // genericToolSummary renders the generic fallback summary: tool name + intent.

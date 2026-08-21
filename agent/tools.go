@@ -1950,8 +1950,8 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 		if !a.approveAll && !a.toolDisableConfirm[tc.Name] && toolCount <= 0 {
 			// Build a human-readable summary (friendly name + intent + key params)
 			// so the user can grasp the impact of the call before confirming (FEATURE-310).
-			displayStr := buildToolSummary(tc.Name, args)
-			result, modifyInput := promptToolConfirmation(tc.Name, displayStr, a.defaultIO())
+			displayStr := buildToolSummary(tc.Name, args).Text
+			result, modifyInput := promptToolConfirmation(tc.Name, displayStr, a.interactionManager())
 			switch result {
 			case CmdConfirmCancel:
 				return i18n.T(i18n.KeyCmdConfirmCancelled), fmt.Errorf("CANCEL_AGENT")
@@ -2134,7 +2134,9 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 
 // askFollowupQuestion presents a question with optional options to the user
 // and returns their selection. This tool allows interactive problem-solving
-// by enabling direct communication with the user.
+// by enabling direct communication with the user. It delegates to the unified
+// Interaction model (FEATURE-388): a select interaction when options are
+// provided, otherwise a free-form input interaction.
 func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	question, _ := args["question"].(string)
 	if question == "" {
@@ -2159,95 +2161,51 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 		}
 	}
 
-	io := a.defaultIO()
-	cancelIdx := len(options) + 1 // cancel is always the last displayed option
-
-	for {
-		// Display the question
-		io.Println()
-		io.Printf("❓ %s\n", question)
-
-		if len(options) > 0 {
-			io.Println()
-			io.Println(i18n.T(i18n.KeySettingCmd_601))
-			for i, opt := range options {
-				io.Printf("    [%d] %s\n", i+1, opt)
-			}
-			io.Printf(i18n.T(i18n.KeySettingCmd_602), cancelIdx)
-			io.Println()
-		}
-
-		io.Printf(i18n.T(i18n.KeySettingCmd_603))
-
-		// Read user input via UserIO
-		input, err := io.ReadLine()
-		if err != nil {
-			return "", fmt.Errorf("failed to read user input: %w", err)
-		}
-		input = strings.TrimSpace(input)
-
-		// Empty input — if there are options with a cancel button, prompt to re-choose.
-		// If no options (just a question), accept empty input and send it to the LLM.
-		if input == "" {
-			if len(options) > 0 {
-				io.Println(i18n.T(i18n.KeySettingCmd_604))
-				continue
-			}
-			return "", nil
-		}
-
-		// Parse the first word/token as a potential option number
-		fields := strings.Fields(input)
-		firstToken := fields[0]
-
-		if idx, err := strconv.Atoi(firstToken); err == nil {
-			if len(options) > 0 {
-				if idx == cancelIdx {
-					// User chose cancel — exit current iteration without sending to LLM
-					io.Println(i18n.T(i18n.KeySettingCmd_605))
-					return "", fmt.Errorf("CANCEL_AGENT")
-				}
-				if idx >= 1 && idx <= len(options) {
-					selected := options[idx-1]
-					// Check for additional user input after the option number
-					remaining := strings.TrimSpace(input[len(firstToken):])
-					if remaining != "" {
-						io.Printf(i18n.T(i18n.KeySettingCmd_606), selected)
-						io.Printf(i18n.T(i18n.KeySettingCmd_607), remaining)
-						// Store raw user input in task instruction cache — no prefix needed
-						if a.taskInstructionCache.Len() > 0 {
-							a.taskInstructionCache.WriteString("\n\n")
-						}
-						a.taskInstructionCache.WriteString(fmt.Sprintf("%s\n%s", selected, remaining))
-						return i18n.T(i18n.KeySettingCmd_609), nil
-					}
-					io.Printf(i18n.T(i18n.KeySettingCmd_606), selected)
-					// Store user choice in task instruction cache
-					if a.taskInstructionCache.Len() > 0 {
-						a.taskInstructionCache.WriteString("\n\n")
-					}
-					a.taskInstructionCache.WriteString(selected)
-					return i18n.T(i18n.KeySettingCmd_609), nil
-				}
-				// Valid number but out of range — prompt user to re-choose
-				io.Printf(i18n.T(i18n.KeySettingCmd_608), idx)
-				continue
-			}
-			// No options provided — store user's number input in task instruction cache
-			if a.taskInstructionCache.Len() > 0 {
-				a.taskInstructionCache.WriteString("\n\n")
-			}
-			a.taskInstructionCache.WriteString(input)
-			return i18n.T(i18n.KeySettingCmd_609), nil
-		}
-
-		// Input doesn't start with a valid number — store in task instruction cache
-		if a.taskInstructionCache.Len() > 0 {
-			a.taskInstructionCache.WriteString("\n\n")
-		}
-		a.taskInstructionCache.WriteString(input)
-		return i18n.T(i18n.KeySettingCmd_609), nil
+	// Build the interaction: select when options exist, otherwise free input.
+	in := Interaction{Kind: InteractionInput, Title: question}
+	if len(options) > 0 {
+		in.Kind = InteractionSelect
+		in.Options = options
 	}
+
+	res, err := a.interactionManager().Ask(ctx, in)
+	if err != nil {
+		return "", fmt.Errorf("failed to read user input: %w", err)
+	}
+
+	switch res.Action {
+	case ActionCancel:
+		return "", fmt.Errorf("CANCEL_AGENT")
+	case ActionSelect:
+		// res.Value is the selected option; res.Raw may carry a supplementary note.
+		content := res.Value
+		if res.Raw != "" && res.Raw != res.Value {
+			// Extract the note after the option number.
+			fields := strings.Fields(res.Raw)
+			if len(fields) > 1 {
+				note := strings.TrimSpace(res.Raw[len(fields[0]):])
+				if note != "" {
+					content = res.Value + "\n" + note
+				}
+			}
+		}
+		a.storeUserReply(content)
+		return i18n.T(i18n.KeySettingCmd_609), nil
+	case ActionInput:
+		a.storeUserReply(res.Value)
+		return i18n.T(i18n.KeySettingCmd_609), nil
+	default:
+		return "", nil
+	}
+}
+
+// storeUserReply writes a user reply into the task instruction cache, separated
+// from any prior content by a blank line.
+func (a *Agent) storeUserReply(content string) {
+	if a.taskInstructionCache.Len() > 0 {
+		a.taskInstructionCache.WriteString("\n\n")
+	}
+	a.taskInstructionCache.WriteString(content)
 }
 
 // attemptCompletionTool presents the final result to the user, optionally executing a demo command.

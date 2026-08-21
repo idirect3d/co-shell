@@ -12,6 +12,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,6 +96,14 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		}
 	case "answer":
 		s.wio.resolve(msg.ID, msg.Value)
+	case "interaction_answer":
+		if msg.Result != nil {
+			s.wio.resolveInteraction(msg.ID, agent.InteractionResult{
+				Action: agent.InteractionResultAction(msg.Result.Action),
+				Value:  msg.Result.Value,
+				Raw:    msg.Result.Raw,
+			})
+		}
 	case "interrupt":
 		s.ag.Interrupt()
 	case "session_list":
@@ -220,8 +229,9 @@ func (s *WebSession) Close() error {
 
 // askResult is the resolution of one pending ask request.
 type askResult struct {
-	value string
-	err   error
+	value  string
+	result agent.InteractionResult
+	err    error
 }
 
 // WebIO implements agent.UserIO for the browser session. Print* calls are
@@ -297,6 +307,39 @@ func (w *WebIO) ReadKey() (byte, error) {
 // IsReading reports whether an ask request is currently awaiting an answer.
 func (w *WebIO) IsReading() bool { return w.reading.Load() }
 
+// Ask implements agent.InteractionManager for the browser session. It pushes
+// a structured interaction request and blocks until the browser answers with
+// an interaction_answer (FEATURE-388).
+func (w *WebIO) Ask(ctx context.Context, in agent.Interaction) (agent.InteractionResult, error) {
+	id := fmt.Sprintf("ask-%d", w.seq.Add(1))
+	ch := make(chan askResult, 1)
+	w.mu.Lock()
+	w.pending[id] = ch
+	w.mu.Unlock()
+	defer func() {
+		w.mu.Lock()
+		delete(w.pending, id)
+		w.mu.Unlock()
+	}()
+
+	w.reading.Store(true)
+	defer w.reading.Store(false)
+
+	inJSON, err := json.Marshal(in)
+	if err != nil {
+		return agent.InteractionResult{}, err
+	}
+	if !w.srv.sendInteraction(id, inJSON) {
+		return agent.InteractionResult{}, errNoWebClient
+	}
+	select {
+	case res := <-ch:
+		return res.result, res.err
+	case <-w.sessionClosed:
+		return agent.InteractionResult{}, io.EOF
+	}
+}
+
 // ask sends one ask message and blocks for the matching answer.
 func (w *WebIO) ask(mode string) (string, error) {
 	id := fmt.Sprintf("ask-%d", w.seq.Add(1))
@@ -331,6 +374,16 @@ func (w *WebIO) resolve(id, value string) {
 	w.mu.Unlock()
 	if ok {
 		ch <- askResult{value: value}
+	}
+}
+
+// resolveInteraction delivers a browser interaction_answer to the waiting Ask.
+func (w *WebIO) resolveInteraction(id string, res agent.InteractionResult) {
+	w.mu.Lock()
+	ch, ok := w.pending[id]
+	w.mu.Unlock()
+	if ok {
+		ch <- askResult{result: res}
 	}
 }
 

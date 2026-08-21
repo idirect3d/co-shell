@@ -1264,7 +1264,14 @@ iterationLoop:
 				if a.showTool {
 					var argsMap map[string]interface{}
 					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-						cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, buildToolSummary(tc.Name, argsMap)), PhaseInput))
+						summary := buildToolSummary(tc.Name, argsMap)
+						ev := NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, summary.Text)
+						// Carry the structured summary so Web/JSON consumers can render
+						// a tool card (FEATURE-388).
+						if sj, err := json.Marshal(summary); err == nil {
+							ev.Meta = map[string]string{MetaKeyToolSummary: string(sj)}
+						}
+						cb(withPhase(ev, PhaseInput))
 					} else {
 						cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, tc.Name), PhaseInput))
 					}
