@@ -901,6 +901,7 @@ aside {
   font-weight: 700;
   color: var(--accent);
   margin: 10px 0 2px;
+  text-align: center;
 }
 .set-row {
 }
