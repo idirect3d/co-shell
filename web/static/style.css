@@ -576,8 +576,7 @@ aside {
 /* QWERTY virtual keyboard (FEATURE-388) */
 .virtual-keyboard {
   position: relative;
-  display: flex;
-  gap: 8px;
+  display: inline-block;
   padding: 8px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -616,17 +615,18 @@ aside {
 .vk-key.dim { opacity: 0.35; cursor: default; }
 .vk-enter { min-width: 120px; }
 .vk-space { min-width: 200px; }
-/* Right-side annotations with connecting lines to the keys. */
+/* Key-side annotations: absolutely positioned in the blank space beside each
+   highlighted key, connected with a line. The key layout is unchanged. */
 .vk-annotations {
-  position: relative;
-  flex: 1;
-  min-width: 90px;
-  padding-left: 12px;
-  border-left: 1px solid var(--border);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
 }
 .vk-annotation {
   position: absolute;
-  left: 0;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -634,6 +634,7 @@ aside {
   font-size: 11px;
   color: var(--fg-dim, #888);
   white-space: nowrap;
+  pointer-events: none;
 }
 .vk-annotation-line {
   width: 10px;
