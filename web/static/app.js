@@ -20,6 +20,7 @@ const I18N = {
     uploadFailed: "上传失败", actionFailed: "操作失败",
     planEmpty: "（无步骤）",
     menu: "菜单", settings: "系统设置", identity: "身份与个性",
+    appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条",
     sbSession: "Σ", sbLast: "🔄",
@@ -42,6 +43,7 @@ const I18N = {
     uploadFailed: "Upload failed", actionFailed: "Action failed",
     planEmpty: "(no steps)",
     menu: "Menu", settings: "Settings", identity: "Identity & Personality",
+    appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar",
     sbSession: "Σ", sbLast: "🔄",
@@ -142,6 +144,7 @@ const miSettings = document.getElementById("miSettings");
 const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
+const settingsDynamic = document.getElementById("settingsDynamic");
 const logoWrap = document.getElementById("logoWrap");
 const logoMenu = document.getElementById("logoMenu");
 const miIdentity = document.getElementById("miIdentity");
@@ -1322,9 +1325,9 @@ setThemeMode.onchange = () => {
 // (FEATURE-391). Each item is rendered as a form control based on its type:
 // bool -> toggle, number -> number input, enum -> select, string -> text input.
 function renderSettings(groups) {
-  settingsBody.innerHTML = "";
+  settingsDynamic.innerHTML = "";
   if (!groups || !groups.length) {
-    settingsBody.textContent = "(no settings)";
+    settingsDynamic.textContent = "(no settings)";
     return;
   }
   const frag = document.createDocumentFragment();
@@ -1337,7 +1340,7 @@ function renderSettings(groups) {
       frag.appendChild(renderSettingItem(it));
     }
   }
-  settingsBody.appendChild(frag);
+  settingsDynamic.appendChild(frag);
 }
 
 // renderSettingItem builds one setting row with its label and form control.
@@ -1390,7 +1393,7 @@ function showSettingsResult(msg) {
   const el = document.createElement("div");
   el.className = "set-result " + (msg.ok ? "ok" : "err");
   el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
-  settingsBody.prepend(el);
+  settingsDynamic.prepend(el);
   setTimeout(() => el.remove(), 3000);
 }
 

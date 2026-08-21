@@ -20,6 +20,7 @@
 | FEATURE-391 | 0.9.0 | P1 | 将 :set 功能迁移到 Web UI（settings_get/settings_set 结构化消息） |
 | FEATURE-392 | 0.9.0 | P1 | 修正 Web UI 设置面板分类与顺序（与 TUI :set 一致，去掉身份与个性分组） |
 | FEATURE-393 | 0.9.0 | P1 | Web UI 身份与个性设置菜单（logo 悬停弹出，name/description/principles/capabilities/rules 大表单） |
+| FEATURE-394 | 0.9.0 | P1 | Web UI 系统设置面板对齐优化（配置项名称右对齐、值左对齐，靠向中线显示） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -83,6 +84,13 @@
   - 需求：① 后端新增身份与个性读写接口（name/description/principles 存 config.json，capabilities 存外部文件 CAPABILITIES.md，rules 存 cfg.Rules）；② WebSocket 新增 identity_get/identity_set 消息；③ 前端 logo 悬停弹出菜单 + 身份与个性大表单 + 每项独立保存按钮
   - 实施：① `cmd/settings_identity.go` 新增 `IdentityJSON()`（返回 name/description/principles/capabilities/rules 当前值）和 `SaveIdentity(key,value)`（name/description/principles 写 config.json，capabilities 写 CAPABILITIES.md，rules 写 cfg.Rules）；② `web/server.go` clientMessage 新增 identity_get/identity_set 类型，serverMessage 新增 identity/identity_result kind；③ `web/session.go` 新增 identity_get/identity_set 处理；④ 前端 index.html 新增 logo 悬停菜单 + 身份弹窗，app.js 渲染大表单（name 单行 + 其余多行 textarea）+ 每项独立保存按钮，style.css 新增样式；修复：description/principles/capabilities 显示默认值、字段标签本地化（多语言）+ 首字母大写；去掉身份菜单人像图标 [BUILD-491]
   - 测试：见 use-case/FEATURE-393/
+
+- [ ] **FEATURE-394 Web UI 系统设置面板对齐优化**
+  - 背景：Web UI 系统设置面板中，配置项名称（.set-label）默认左对齐，值控件靠右，视觉上名称与值分离。希望名称右对齐、值左对齐，两者都靠向中线显示，更紧凑美观。
+  - 方案（已确认）：将每行名称-值显示区域分为左右两个等宽块（各 50%）占满整行，名称右对齐、值左对齐，两者靠向中线。
+  - 需求：① `.set-label` 改为 `flex: 0 0 50%` + `text-align: right` + 右 padding；② `.set-input`/`.set-row select` 改为 `flex: 1` + `width: auto` 占满右半块；③ `.set-toggle` 保持小尺寸靠右半块左对齐；④ 去掉 `.set-row` 的 `justify-content: space-between`（避免 checkbox 被推到最右）
+  - 实施：`web/static/style.css` 设置面板改为等宽双列布局（label 50% 右对齐，值控件 50% 左对齐）；`index.html` 主题上方加「外观」节标题 + 主题 label 加 set-label 类（主题行也等宽双列对齐）；`app.js` i18n 加 appearance 键；`style.css` `.set-group-title` 居中显示 [BUILD-495]；后续优化：外观节标题加方括号 `[ 外观 ]`（i18n appearance 键值同步）、新增 `settingsDynamic` 容器把动态设置项渲染到独立容器（与静态外观/主题节分离）、调整 `.set-row` gap 与 `.set-label` padding [BUILD-497]
+  - 测试：见 use-case/FEATURE-394/
 
 ---
 
