@@ -28,6 +28,7 @@ const I18N = {
     sessionActive: "当前会话",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
     approveCount: "批准N次",
+    approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
     cancel: "取消", confirm: "确认",
   },
   en: {
@@ -47,6 +48,7 @@ const I18N = {
     sessionActive: "Current session",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
     approveCount: "Approve N times",
+    approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
     cancel: "Cancel", confirm: "Confirm",
   },
 };
@@ -770,6 +772,21 @@ function showInteraction(msg) {
   scrollStream();
 }
 
+// legendLabel maps an interaction action to a friendly label for the key legend.
+function legendLabel(m) {
+  switch (m.action) {
+    case "approve": return T.approve;
+    case "approve_all": return T.approveAll;
+    case "approve_g": return T.approveG;
+    case "approve_d": return T.approveD;
+    case "cancel": return T.cancel;
+    case "approve_count": return T.approveCount + " " + m.value;
+    case "select": return m.value;
+    case "input": return T.askLine;
+    default: return m.action;
+  }
+}
+
 // QWERTY keyboard rows (top number row + three letter rows).
 const VK_ROWS = [
   ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
@@ -828,15 +845,35 @@ function renderVirtualKeyboard(it, isSelect, container) {
     });
     kb.appendChild(rowEl);
   });
-  // Enter key row.
-  const enterRow = document.createElement("div");
-  enterRow.className = "vk-row";
+  // Bottom row: space (reserved for future use) + Enter.
+  const bottomRow = document.createElement("div");
+  bottomRow.className = "vk-row";
+  const space = document.createElement("button");
+  space.className = "vk-key vk-space dim";
+  space.textContent = "Space";
+  space.title = "Reserved for future use";
+  bottomRow.appendChild(space);
   const enter = document.createElement("button");
   enter.className = "vk-key vk-enter active";
   enter.textContent = "Enter";
   enter.onclick = () => answerInteraction({ action: "approve" });
-  enterRow.appendChild(enter);
-  kb.appendChild(enterRow);
+  bottomRow.appendChild(enter);
+  kb.appendChild(bottomRow);
+
+  // Key legend: explain what each highlighted key does.
+  const legend = document.createElement("div");
+  legend.className = "vk-legend";
+  Object.keys(keyMap).forEach((key) => {
+    const m = keyMap[key];
+    const item = document.createElement("span");
+    item.className = "vk-legend-item";
+    const k = document.createElement("b");
+    k.textContent = key === "enter" ? "Enter" : key.toUpperCase();
+    item.appendChild(k);
+    item.appendChild(document.createTextNode(" = " + legendLabel(m)));
+    legend.appendChild(item);
+  });
+  kb.appendChild(legend);
   target.appendChild(kb);
 
   // Listen for physical key presses while this interaction is pending.
