@@ -26,6 +26,7 @@
 | FEATURE-397 | 0.9.0 | P1 | Web UI 拦截 ESC 按键触发暂停（等价于点击 ⏸ 按钮） |
 | FEATURE-398 | 0.9.0 | P1 | 右上角菜单增加"重启后台"菜单项（发送重启信号通知外部 supervisor 重启进程） |
 | FEATURE-399 | 0.9.0 | P1 | 优化询问用户（ask_followup_question）交互：选项用虚拟键盘风格快捷按钮 + 去掉无用 [1-9] + 空格补充说明 |
+| FEATURE-400 | 0.9.0 | P1 | TOOL 输入参数子块：动态输出参数放入可滚动子块（子标题栏"输入参数" + 展开/固定高度切换按钮） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -131,6 +132,13 @@
   - 需求：`web/static/app.js` 的 `showInteraction` 和 `renderVirtualKeyboard` 中，select 场景改为虚拟键盘风格渲染选项（每个选项一个数字方形键按钮 + 选项文字），去掉 [1]-[9] 批准次数按钮和 Enter 批准按钮，保留 Space 补充说明。
   - 实施：`web/static/app.js` `showInteraction` 的 select 分支去掉 radio-style 选项列表，改为直接调用 `renderVirtualKeyboard(it, true)`；`renderVirtualKeyboard` 的 select 分支渲染每个选项为数字方形键按钮（1..N）+ 选项文字，不渲染 [1]-[9] 批准次数按钮和 Enter 批准按钮，保留 Space 补充说明 [BUILD-502]
   - 测试：见 use-case/FEATURE-399/
+
+- [ ] **FEATURE-400 TOOL 输入参数子块**
+  - 背景：TOOL 调用时，动态输出的输入参数（tool_call_stream 流式片段）累积显示，之后被执行前摘要（phase=input 参数摘要）替换冲掉。希望将动态输出的输入参数内容输出到当前 TOOL 块中的一个子块：子块有滚动条、子标题栏（"输入参数"）、标题栏右上角有完全展开/固定高度切换按钮，固定高度时可滚动。
+  - 方案（已确认）：子块显示流式参数，执行前摘要不再替换（子块就是参数容器），执行结果追加到 TOOL 块。
+  - 需求：`web/static/app.js` 的 TOOL 块渲染中，流式参数（tool_call_stream）累积进一个子块（`tool-params`），子块有子标题栏（"输入参数"）+ 右上角展开/固定高度切换按钮 + 可滚动内容区；执行前摘要（phase=input）不再替换流式参数；执行结果（phase=result）追加到 TOOL 块 body。`web/static/style.css` 新增子块样式。
+  - 实施：`web/static/app.js` TOOL 块渲染增加输入参数子块（`tool-params`：子标题栏 + 展开/固定高度切换按钮 + 可滚动内容区），流式参数累积进子块，执行前摘要不再替换；`web/static/style.css` 新增子块样式（固定高度 + 滚动条 + 展开切换） [BUILD-503]
+  - 测试：见 use-case/FEATURE-400/
 
 ---
 

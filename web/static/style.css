@@ -470,6 +470,43 @@ aside {
 
 .ev.tool .ev-head { color: #fbbf24; }
 .ev.tool .ev-head::before { background: var(--warn); }
+
+/* TOOL input-parameter sub-block (FEATURE-400): a scrollable sub-block with a
+   title bar ("输入参数") and a collapse/expand toggle in the top-right. */
+.tool-params {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.tool-params-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 10px;
+  font-size: 11px;
+  color: var(--fg-faint);
+  border-bottom: 1px solid var(--border);
+}
+.tool-params-title { text-transform: uppercase; }
+.tool-params-toggle {
+  background: none;
+  border: none;
+  color: var(--fg-faint);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+}
+.tool-params-toggle:hover { color: var(--accent); }
+.tool-params-body {
+  max-height: 200px;   /* fixed height; scrolls when content overflows */
+  overflow-y: auto;
+  padding: 6px 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-params.expanded .tool-params-body { max-height: none; }
 .ev.command .ev-head::before { background: var(--ok); }
 .ev.system .ev-head::before { background: var(--fg-faint); }
 .ev.repl .ev-head::before { background: var(--debug); }
