@@ -19,7 +19,7 @@ const I18N = {
     askLine: "代理请求一行输入：", askKey: "代理请求按键确认：",
     uploadFailed: "上传失败", actionFailed: "操作失败",
     planEmpty: "（无步骤）",
-    menu: "菜单", settings: "系统设置",
+    menu: "菜单", settings: "系统设置", identity: "身份与个性",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条",
     sbSession: "Σ", sbLast: "🔄",
@@ -41,7 +41,7 @@ const I18N = {
     askLine: "The agent asks for a line of input:", askKey: "The agent asks for a key:",
     uploadFailed: "Upload failed", actionFailed: "Action failed",
     planEmpty: "(no steps)",
-    menu: "Menu", settings: "Settings",
+    menu: "Menu", settings: "Settings", identity: "Identity & Personality",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar",
     sbSession: "Σ", sbLast: "🔄",
@@ -142,6 +142,12 @@ const miSettings = document.getElementById("miSettings");
 const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
+const logoWrap = document.getElementById("logoWrap");
+const logoMenu = document.getElementById("logoMenu");
+const miIdentity = document.getElementById("miIdentity");
+const identityModal = document.getElementById("identity");
+const identityClose = document.getElementById("identityClose");
+const identityBody = document.getElementById("identityBody");
 const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
@@ -194,6 +200,8 @@ function wsConnect() {
     else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
     else if (msg.kind === "settings") renderSettings(msg.settings || []);
     else if (msg.kind === "settings_result") showSettingsResult(msg);
+    else if (msg.kind === "identity") renderIdentity(msg.identity || []);
+    else if (msg.kind === "identity_result") showIdentityResult(msg);
   };
 }
 
@@ -1383,6 +1391,74 @@ function showSettingsResult(msg) {
   el.className = "set-result " + (msg.ok ? "ok" : "err");
   el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
   settingsBody.prepend(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+/* ---------- identity & personality (FEATURE-393) ---------- */
+
+// Logo hover menu: show the menu when hovering the logo, hide on leave.
+logoWrap.addEventListener("mouseenter", () => logoMenu.classList.remove("hidden"));
+logoWrap.addEventListener("mouseleave", () => logoMenu.classList.add("hidden"));
+
+// Open the identity form when clicking the [身份与个性] menu item.
+miIdentity.onclick = () => {
+  logoMenu.classList.add("hidden");
+  identityModal.classList.remove("hidden");
+  wsSend({ type: "identity_get" });
+};
+identityClose.onclick = () => identityModal.classList.add("hidden");
+identityModal.onclick = (e) => { if (e.target === identityModal) identityModal.classList.add("hidden"); };
+
+// renderIdentity renders the identity & personality form. name is a single-line
+// input; the rest are multi-line textareas. Each field has its own save button.
+// Field labels come from the backend (localized), falling back to the key.
+function renderIdentity(fields) {
+  identityBody.innerHTML = "";
+  if (!fields || !fields.length) {
+    identityBody.textContent = "(empty)";
+    return;
+  }
+  for (const f of fields) {
+    const row = document.createElement("div");
+    row.className = "identity-row";
+
+    const label = document.createElement("label");
+    label.className = "identity-label";
+    label.textContent = f.label || f.key;
+    row.appendChild(label);
+
+    let ctl;
+    if (f.type === "text") {
+      ctl = document.createElement("input");
+      ctl.type = "text";
+      ctl.className = "identity-input";
+      ctl.value = f.value || "";
+    } else {
+      ctl = document.createElement("textarea");
+      ctl.className = "identity-textarea";
+      ctl.rows = 4;
+      ctl.value = f.value || "";
+    }
+    row.appendChild(ctl);
+
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "btn identity-save";
+    saveBtn.textContent = "保存";
+    saveBtn.onclick = () => {
+      wsSend({ type: "identity_set", key: f.key, value: ctl.value });
+    };
+    row.appendChild(saveBtn);
+
+    identityBody.appendChild(row);
+  }
+}
+
+// showIdentityResult displays the result of an identity_set change.
+function showIdentityResult(msg) {
+  const el = document.createElement("div");
+  el.className = "set-result " + (msg.ok ? "ok" : "err");
+  el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
+  identityBody.prepend(el);
   setTimeout(() => el.remove(), 3000);
 }
 
