@@ -17,14 +17,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
+	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/repl"
+	"github.com/idirect3d/co-shell/store"
 )
 
 // errNoWebClient is returned by WebIO input methods when no browser is
@@ -123,6 +128,8 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.switchSession(msg.Value)
 	case "session_delete":
 		s.deleteSession(msg.Value)
+	case "session_new":
+		s.newSession()
 	case "settings_get":
 		s.handleSettingsGet()
 	case "settings_set":
@@ -220,6 +227,56 @@ func (s *WebSession) switchSession(id string) {
 	}
 	// SetCurrentSessionID already pushes the updated session list (FEATURE-387),
 	// so the frontend reflects the new current without an extra push here.
+}
+
+// newSession creates a new empty session and switches to it (FEATURE-401),
+// mirroring the REPL :new command.
+func (s *WebSession) newSession() {
+	if err := s.ag.FlushCurrentSession(); err != nil {
+		log.Warn("newSession FlushCurrentSession: %v", err)
+	}
+	// Find the next "New session N" number.
+	nextN := 1
+	sessionNumRe := regexp.MustCompile(`(\d+)$`)
+	if entries, err := s.ag.Store().ListNamedSessions(); err == nil {
+		maxN := 0
+		for _, e := range entries {
+			if m := sessionNumRe.FindStringSubmatch(e.Title); m != nil {
+				if suffix, err := strconv.Atoi(m[1]); err == nil && suffix > maxN {
+					maxN = suffix
+				}
+			}
+		}
+		if maxN > 0 {
+			nextN = maxN + 1
+		}
+	}
+	s.ag.Reset()
+	now := time.Now()
+	randBytes := make([]byte, 4)
+	randBytes[0] = byte(now.Nanosecond() & 0xFF)
+	randBytes[1] = byte(now.Nanosecond() >> 8 & 0xFF)
+	randBytes[2] = byte(now.Second() & 0xFF)
+	randBytes[3] = byte(now.Minute() & 0xFF)
+	sessionID := fmt.Sprintf("sess-%s-%08x", now.Format("20060102150405"), randBytes)
+	title := fmt.Sprintf(i18n.T(i18n.KeyNewSessionTitle), nextN)
+	entry := &store.SessionEntry{
+		ID:           sessionID,
+		Title:        title,
+		Keywords:     "",
+		SystemPrompt: "",
+		Messages:     []byte("[]"),
+		MessageCount: 0,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := s.ag.Store().SaveNamedSession(entry); err != nil {
+		log.Warn("newSession SaveNamedSession: %v", err)
+	}
+	s.ag.SetCurrentSessionID(sessionID)
+	if err := s.ag.Store().SaveCurrentSessionID(sessionID); err != nil {
+		log.Warn("newSession SaveCurrentSessionID: %v", err)
+	}
 }
 
 // deleteSession deletes a named session by ID (FEATURE-387). The current

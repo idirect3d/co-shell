@@ -27,6 +27,7 @@
 | FEATURE-398 | 0.9.0 | P1 | 右上角菜单增加"重启后台"菜单项（发送重启信号通知外部 supervisor 重启进程） |
 | FEATURE-399 | 0.9.0 | P1 | 优化询问用户（ask_followup_question）交互：选项用虚拟键盘风格快捷按钮 + 去掉无用 [1-9] + 空格补充说明 |
 | FEATURE-400 | 0.9.0 | P1 | TOOL 输入参数子块：动态输出参数放入可滚动子块（子标题栏"输入参数" + 展开/固定高度切换按钮） |
+| FEATURE-401 | 0.9.0 | P1 | 左下角 logo 与消息框之间增加"+"号按钮（创建新会话） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -139,6 +140,13 @@
   - 需求：`web/static/app.js` 的 TOOL 块渲染中，流式参数（tool_call_stream）累积进一个子块（`tool-params`），子块有子标题栏（"输入参数"）+ 右上角展开/固定高度切换按钮 + 可滚动内容区；执行前摘要（phase=input）不再替换流式参数；执行结果（phase=result）追加到 TOOL 块 body。`web/static/style.css` 新增子块样式。
   - 实施：`web/static/app.js` TOOL 块渲染增加输入参数子块（`tool-params`：子标题栏 + 展开/固定高度切换按钮 + 可滚动内容区），流式参数累积进子块，执行前摘要不再替换；`web/static/style.css` 新增子块样式（固定高度 + 滚动条 + 展开切换） [BUILD-503]
   - 测试：见 use-case/FEATURE-400/
+
+- [ ] **FEATURE-401 左下角 logo 与消息框之间增加"+"号按钮（创建新会话）**
+  - 背景：Web UI 左下角 co-shell logo 和主消息框之间需要增加一个大一点的"+"号按钮（与 logo 和消息框都留 5-10 像素间距），点击创建新会话。
+  - 方案（已确认）：在 `#logoWrap` 和 `.bottom-main` 之间增加一个"+"号按钮（`#newSessionBtn`），点击发送 `{ type: "session_new" }` WebSocket 消息；后端收到后创建新会话（复用 `:new` 命令逻辑）。
+  - 需求：① `web/static/index.html` 在 `#logoWrap` 和 `.bottom-main` 之间增加"+"号按钮；② `web/static/app.js` 增加按钮点击处理（发送 session_new 消息）；③ `web/static/style.css` 按钮样式（大一点，与 logo 和消息框留 5-10 像素间距）；④ `web/server.go` clientMessage 新增 session_new 类型；⑤ `web/session.go` handleMessage 新增 session_new 处理（创建新会话）。
+  - 实施：`web/static/index.html` 在 `#logoWrap` 和 `.bottom-main` 之间增加"+"号按钮（`#newSessionBtn`）；`web/static/app.js` 增加 `newSessionBtn.onclick` 发送 `{ type: "session_new" }`；`web/static/style.css` 按钮样式（大号 + 与 logo/消息框 5-10px 间距）；`web/server.go` clientMessage 注释补充 session_new 类型；`web/session.go` handleMessage 新增 `case "session_new"` 创建新会话（复用 `:new` 逻辑：刷新当前会话 + 生成新 sessionID + 创建 SessionEntry + SetCurrentSessionID） [BUILD-504]
+  - 测试：见 use-case/FEATURE-401/
 
 ---
 
