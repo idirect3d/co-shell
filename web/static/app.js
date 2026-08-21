@@ -1083,6 +1083,14 @@ input.addEventListener("keydown", (e) => {
 // When the user types (keyboard, not mouse) while focus is not on an input
 // element, bring focus back to the main input box so keystrokes land there.
 document.addEventListener("keydown", (e) => {
+  // FEATURE-397: ESC triggers pause (interrupt) while a turn is running,
+  // equivalent to clicking the ⏸ button. Skip when an interaction is pending
+  // (the virtual keyboard handles ESC there) to avoid conflicts.
+  if (e.key === "Escape" && running && !pendingInteraction) {
+    e.preventDefault();
+    wsSend({ type: "interrupt" });
+    return;
+  }
   const t = e.target;
   const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
   if (typing) return; // already typing somewhere, don't steal focus
