@@ -302,6 +302,65 @@ aside {
 .logo > div { background: var(--accent); }
 .logo > div.sp { background: none; }
 
+/* Logo hover menu (FEATURE-393): a popup that expands upward from the logo,
+   listing identity & personality settings. */
+.logo-wrap { position: relative; flex: none; }
+.logo-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  min-width: 180px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  z-index: 100;
+}
+.logo-menu.hidden { display: none; }
+.logo-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.logo-menu-item:hover { background: var(--bg-elev); }
+
+/* Identity & personality form (FEATURE-393). */
+.identity-box { width: 560px; max-width: 92vw; }
+.identity-body { display: flex; flex-direction: column; gap: 12px; }
+.identity-row { display: flex; flex-direction: column; gap: 4px; }
+.identity-label { font-size: 12px; color: var(--fg-dim); }
+.identity-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.identity-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  resize: vertical;
+}
+.identity-save { align-self: flex-end; }
+
 /* ---------- event stream ---------- */
 
 #stream-wrap { min-width: 0; min-height: 0; display: flex; }

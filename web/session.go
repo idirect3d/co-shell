@@ -123,6 +123,10 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleSettingsGet()
 	case "settings_set":
 		s.handleSettingsSet(msg.Key, msg.Value)
+	case "identity_get":
+		s.handleIdentityGet()
+	case "identity_set":
+		s.handleIdentitySet(msg.Key, msg.Value)
 	}
 }
 
@@ -152,6 +156,33 @@ func (s *WebSession) handleSettingsSet(key, value string) {
 		return
 	}
 	s.srv.sendJSON(serverMessage{Kind: "settings_result", OK: true, Message: result})
+}
+
+// handleIdentityGet sends the current identity & personality fields to the
+// browser (FEATURE-393).
+func (s *WebSession) handleIdentityGet() {
+	if s.settings == nil {
+		return
+	}
+	fields := s.settings.IdentityJSON()
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "identity", Identity: raw})
+}
+
+// handleIdentitySet persists a single identity & personality field and reports
+// the result to the browser (FEATURE-393).
+func (s *WebSession) handleIdentitySet(key, value string) {
+	if s.settings == nil || key == "" {
+		return
+	}
+	if err := s.settings.SaveIdentity(key, value); err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "identity_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "identity_result", OK: true, Message: key})
 }
 
 // pushSessionList sends the current session list to the browser (FEATURE-387).

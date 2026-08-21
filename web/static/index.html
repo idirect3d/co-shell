@@ -62,7 +62,14 @@
   </aside>
 
   <footer id="bottom">
-    <div id="logo" class="logo" title="co-shell"></div>
+    <div id="logoWrap" class="logo-wrap">
+      <div id="logo" class="logo" title="co-shell"></div>
+      <div id="logoMenu" class="logo-menu hidden">
+        <button class="logo-menu-item" id="miIdentity">
+          <span class="mi-ico">🧑</span><span class="mi-label" data-i18n="identity">身份与个性</span>
+        </button>
+      </div>
+    </div>
     <div class="bottom-main">
       <div id="askArea" class="ask-area hidden">
         <div class="ask-hint" id="askHint"></div>
@@ -94,6 +101,18 @@
   <div class="preview-box">
     <button class="icon-btn preview-close" id="previewClose">✕</button>
     <img id="previewImg" alt="">
+  </div>
+</div>
+
+<div id="identity" class="modal hidden">
+  <div class="modal-box identity-box">
+    <div class="modal-head">
+      <span data-i18n="identity">身份与个性</span>
+      <button class="icon-btn sm" id="identityClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="identityBody" class="identity-body"></div>
+    </div>
   </div>
 </div>
 
