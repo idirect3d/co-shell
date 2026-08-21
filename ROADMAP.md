@@ -25,6 +25,7 @@
 | FEATURE-396 | 0.9.0 | P1 | 去掉暂停终止（ESC 中断确认）时提示框内无用的 [1]-[9] 批准次数提示 |
 | FEATURE-397 | 0.9.0 | P1 | Web UI 拦截 ESC 按键触发暂停（等价于点击 ⏸ 按钮） |
 | FEATURE-398 | 0.9.0 | P1 | 右上角菜单增加"重启后台"菜单项（发送重启信号通知外部 supervisor 重启进程） |
+| FEATURE-399 | 0.9.0 | P1 | 优化询问用户（ask_followup_question）交互：选项用虚拟键盘风格快捷按钮 + 去掉无用 [1-9] + 空格补充说明 |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -123,6 +124,13 @@
   - 需求：① `web/static/index.html` 右上角菜单系统设置下面增加"重启后台"菜单项 + 分隔线；② `web/static/app.js` 增加菜单项点击处理（发送 restart 消息）+ i18n 键；③ `web/server.go` clientMessage 新增 restart 类型；④ `web/session.go` handleMessage 新增 restart 处理（发送 SIGHUP 信号给当前进程）。
   - 实施：`web/static/index.html` 右上角菜单系统设置下面增加"重启后台"菜单项（`miRestart`）+ 分隔线；`web/static/app.js` 增加 `miRestart.onclick` 发送 `{ type: "restart" }` + i18n restart 键；`web/server.go` clientMessage 注释补充 restart 类型；`web/session.go` handleMessage 新增 `case "restart"` 调用 `syscall.Kill(os.Getpid(), syscall.SIGHUP)` 发送重启信号 [BUILD-501]
   - 测试：见 use-case/FEATURE-398/
+
+- [ ] **FEATURE-399 优化询问用户（ask_followup_question）交互**
+  - 背景：Web UI 中"询问用户"（select）场景渲染了无用的 [1]-[9] 批准次数按钮（标签"批准N次"，对 select 场景无用），且选项按钮是普通样式（`1. 选项`），没有快捷按钮。希望选项用虚拟键盘风格渲染——每个选项一个方形键按钮（数字 1..N）+ 选项文字，点击按钮或按物理数字键即选择对应选项；按空格可录入补充说明。
+  - 方案（已确认）：select 场景用虚拟键盘风格渲染每个选项（数字 1..N 方形键按钮 + 选项文字），去掉 [1]-[9] 批准次数按钮和 Enter 批准按钮，保留 Space 补充说明按钮。
+  - 需求：`web/static/app.js` 的 `showInteraction` 和 `renderVirtualKeyboard` 中，select 场景改为虚拟键盘风格渲染选项（每个选项一个数字方形键按钮 + 选项文字），去掉 [1]-[9] 批准次数按钮和 Enter 批准按钮，保留 Space 补充说明。
+  - 实施：`web/static/app.js` `showInteraction` 的 select 分支去掉 radio-style 选项列表，改为直接调用 `renderVirtualKeyboard(it, true)`；`renderVirtualKeyboard` 的 select 分支渲染每个选项为数字方形键按钮（1..N）+ 选项文字，不渲染 [1]-[9] 批准次数按钮和 Enter 批准按钮，保留 Space 补充说明 [BUILD-502]
+  - 测试：见 use-case/FEATURE-399/
 
 ---
 
