@@ -269,17 +269,26 @@ iterationLoop:
 		if _, isInterrupted := streamErr.(*InterruptedError); isInterrupted {
 			// Reset interruptCh before the confirmation prompt so ESC works for the retry
 			a.ResetInterrupt()
-			// User pressed ESC during LLM output. Show confirmation prompt.
+			// User pressed ESC during LLM output. Show confirmation prompt via the
+			// unified Interaction model (FEATURE-388) so the Web UI renders buttons.
 			cb(WarnEvent(ChannelSystem, i18n.T(i18n.KeyOutputPaused)))
-			cb(InfoEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelPrompt)))
 
-			// Read user's choice via UserIO interface.
-			// In enhanced mode, EnhancedIO sets IsReading=true so ESC monitor skips stdin.
-			// In stdio mode, StdioIO.ReadLine works with bufio.Scanner.
-			io := a.defaultIO()
-			userChoice, _ := io.ReadLine()
-			userChoice = strings.TrimSpace(userChoice)
+			res, err := a.interactionManager().Ask(context.Background(), Interaction{
+				Kind:  InteractionConfirm,
+				Title: i18n.T(i18n.KeyOutputCancelPrompt),
+				Keys: []KeyOption{
+					{Label: i18n.T(i18n.KeyOutputResume), Key: "", Value: string(ActionApprove)},
+					{Label: i18n.T(i18n.KeyOutputCancelledDiscard), Key: "c", Value: string(ActionCancel)},
+				},
+				AllowFree: true, // allow :debug on/off etc.
+			})
+			if err != nil {
+				cb(ErrEvent(ChannelSystem, i18n.T(i18n.KeyOutputCancelledDiscard)))
+				a.abortVisionRecognitionRound()
+				return "", nil
+			}
 
+			userChoice := res.Value
 			// Handle :debug on/off commands without cancel or retry
 			if strings.HasPrefix(userChoice, ":debug ") {
 				switch strings.TrimSpace(userChoice[7:]) {
@@ -305,7 +314,7 @@ iterationLoop:
 				// Fall through to tool call handling below
 				goto afterESC
 			}
-			if userChoice == "C" || userChoice == "c" {
+			if res.Action == ActionCancel {
 				// User confirmed cancel: discard incomplete message and return to REPL
 				// FIX-264: No need to clean up a.messages — InterruptedError is returned before the
 				// current iteration's assistant message is added, so there is nothing to remove.
