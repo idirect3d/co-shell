@@ -402,7 +402,7 @@ function renderEvent(ev) {
       if (summary) {
         const head = curTool.body.parentElement.children[0];
         const action = toolAction(summary.tool_name);
-        head.textContent = "TOOL " + action + (summary.intent ? " - " + summary.intent : "");
+        head.textContent = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
         curTool.raw = toolParamsText(summary);
       } else {
         curTool.raw = ev.text || "";
