@@ -21,6 +21,7 @@
 | FEATURE-392 | 0.9.0 | P1 | 修正 Web UI 设置面板分类与顺序（与 TUI :set 一致，去掉身份与个性分组） |
 | FEATURE-393 | 0.9.0 | P1 | Web UI 身份与个性设置菜单（logo 悬停弹出，name/description/principles/capabilities/rules 大表单） |
 | FEATURE-394 | 0.9.0 | P1 | Web UI 系统设置面板对齐优化（配置项名称右对齐、值左对齐，靠向中线显示） |
+| FEATURE-395 | 0.9.0 | P1 | 去掉右上角下拉菜单中工作区/任务进展/状态条三个菜单项的图标（保留文字和功能） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -91,6 +92,13 @@
   - 需求：① `.set-label` 改为 `flex: 0 0 50%` + `text-align: right` + 右 padding；② `.set-input`/`.set-row select` 改为 `flex: 1` + `width: auto` 占满右半块；③ `.set-toggle` 保持小尺寸靠右半块左对齐；④ 去掉 `.set-row` 的 `justify-content: space-between`（避免 checkbox 被推到最右）
   - 实施：`web/static/style.css` 设置面板改为等宽双列布局（label 50% 右对齐，值控件 50% 左对齐）；`index.html` 主题上方加「外观」节标题 + 主题 label 加 set-label 类（主题行也等宽双列对齐）；`app.js` i18n 加 appearance 键；`style.css` `.set-group-title` 居中显示 [BUILD-495]；后续优化：外观节标题加方括号 `[ 外观 ]`（i18n appearance 键值同步）、新增 `settingsDynamic` 容器把动态设置项渲染到独立容器（与静态外观/主题节分离）、调整 `.set-row` gap 与 `.set-label` padding [BUILD-497]
   - 测试：见 use-case/FEATURE-394/
+
+- [ ] **FEATURE-395 去掉右上角下拉菜单中三个菜单项的图标**
+  - 背景：Web UI 右上角下拉菜单中，工作区（🗂）、任务进展（📋）、状态条（📊）三个菜单项带有 emoji 图标，视觉上较杂乱。希望去掉这三个菜单项的图标，只保留文字，功能不变；系统设置（⚙️）图标保留。
+  - 方案（已确认）：仅去掉工作区/任务进展/状态条三个菜单项的图标（emoji），保留文字和功能；系统设置图标保留。
+  - 需求：`web/static/index.html` 右上角菜单中，去掉 `miWs`/`miPlan`/`miStatus` 三个菜单项的 `<span class="mi-ico">` 图标元素，保留文字和功能。
+  - 实施：`web/static/index.html` 去掉 `miWs`/`miPlan`/`miStatus` 三个菜单项的 `.mi-ico` 图标 span，保留 `.mi-label` 文字和原有功能 [BUILD-498]
+  - 测试：见 use-case/FEATURE-395/
 
 ---
 
