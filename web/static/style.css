@@ -870,6 +870,9 @@ aside {
   color: var(--fg-dim);
 }
 .set-row select {
+  flex: 1;
+  width: auto;
+  min-width: 0;
   background: var(--mono-bg);
   color: var(--fg);
   border: 1px solid var(--border);
@@ -900,18 +903,21 @@ aside {
   margin: 10px 0 2px;
 }
 .set-row {
-  justify-content: space-between;
 }
 .set-label {
-  flex: 1;
+  flex: 0 0 50%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: right;
+  padding-right: 12px;
+  box-sizing: border-box;
 }
 .set-input {
-  width: 140px;
+  flex: 1;
+  width: auto;
+  min-width: 0;
   background: var(--mono-bg);
   color: var(--fg);
   border: 1px solid var(--border);
@@ -921,6 +927,7 @@ aside {
 }
 .set-input:focus { border-color: var(--accent); }
 .set-toggle {
+  flex: 0 0 auto;
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
