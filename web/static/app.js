@@ -271,13 +271,6 @@ function parseToolSummary(ev) {
   try { return JSON.parse(ev.meta.tool_summary); } catch { return null; }
 }
 
-// toolParamsText renders the tool call's key parameters (without the intent,
-// which now lives in the block title) as a compact text body (FEATURE-388).
-function toolParamsText(summary) {
-  if (!summary || !summary.params || !summary.params.length) return "";
-  return summary.params.map((p) => p.name + ": " + p.value).join("\n");
-}
-
 // Streaming blocks: { body, raw, raf, hasResult? }. raw accumulates the
 // undecorated text; the body is re-rendered (markdown) via rAF throttle.
 let curLLM = null;      // current streaming llm block
@@ -289,6 +282,39 @@ function scrollStream() { stream.scrollTop = stream.scrollHeight; }
 
 function newStreamBlock(cls, label) {
   return { body: makeBlock(cls, label), raw: "", raf: 0, hasResult: false };
+}
+
+// ensureToolParams creates (or returns) the input-parameter sub-block inside a
+// TOOL block (FEATURE-400). The sub-block has a title bar ("输入参数"), a
+// collapse/expand toggle in the top-right, and a scrollable body at fixed height.
+function ensureToolParams(curTool) {
+  if (curTool.params) return curTool.params;
+  const box = curTool.body.parentElement; // .ev.tool
+  const params = document.createElement("div");
+  params.className = "tool-params";
+  const head = document.createElement("div");
+  head.className = "tool-params-head";
+  const title = document.createElement("span");
+  title.className = "tool-params-title";
+  title.textContent = "输入参数";
+  const toggle = document.createElement("button");
+  toggle.className = "tool-params-toggle";
+  toggle.textContent = "⤢";
+  toggle.title = "展开/固定高度";
+  toggle.onclick = () => {
+    params.classList.toggle("expanded");
+    toggle.textContent = params.classList.contains("expanded") ? "⤡" : "⤢";
+  };
+  head.appendChild(title);
+  head.appendChild(toggle);
+  const body = document.createElement("div");
+  body.className = "tool-params-body";
+  params.appendChild(head);
+  params.appendChild(body);
+  // Insert after the ev-head, before the ev-body.
+  box.insertBefore(params, curTool.body);
+  curTool.params = { body, raw: "" };
+  return curTool.params;
 }
 
 // scheduleMd re-renders a streaming block as markdown, throttled to one
@@ -395,12 +421,13 @@ function renderEvent(ev) {
   }
 
   // FEATURE-362: one block per tool invocation. Streaming arg fragments
-  // accumulate; the input summary replaces them; the result appends.
+  // accumulate into the input-parameter sub-block (FEATURE-400); the result
+  // appends to the ev-body.
   if (ev.type === "tool_call_stream") {
     if (!curTool) curTool = newStreamBlock("tool", "TOOL");
-    curTool.raw += ev.text || "";
-    curTool.body.classList.remove("md");
-    curTool.body.textContent = curTool.raw; // partial args stay plain while typing
+    const params = ensureToolParams(curTool);
+    params.raw += ev.text || "";
+    params.body.textContent = params.raw; // partial args stay plain while typing
     scrollStream();
     return;
   }
@@ -408,23 +435,18 @@ function renderEvent(ev) {
     const phase = ev.meta && ev.meta.phase;
     const fresh = !curTool || curTool.hasResult;
     if (phase === "input" || (!phase && ev.type === "tool_call" && !fresh && !curTool.raw)) {
-      // pre-execution summary: replace the raw streamed fragments
+      // FEATURE-400: the input-parameter sub-block is the params container;
+      // the pre-execution summary no longer replaces the streamed params.
       if (fresh) curTool = newStreamBlock("tool", "TOOL");
       // FEATURE-388: set the TOOL block title to "TOOL <action> - <intent>"
-      // from the structured ToolSummary, and show only the params (no intent)
-      // in the body.
+      // from the structured ToolSummary.
       const summary = parseToolSummary(ev);
       if (summary) {
         const head = curTool.body.parentElement.children[0];
         const action = toolAction(summary.tool_name);
         head.textContent = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
-        curTool.raw = toolParamsText(summary);
-      } else {
-        curTool.raw = ev.text || "";
       }
       curTool.hasResult = false;
-      curTool.body.classList.remove("md");
-      curTool.body.textContent = curTool.raw;
     } else {
       // result / tool error: append into the same block
       if (!curTool) curTool = newStreamBlock("tool", "TOOL");
