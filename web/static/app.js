@@ -825,10 +825,14 @@ function renderVirtualKeyboard(it, isSelect, container) {
 
   const kb = document.createElement("div");
   kb.className = "virtual-keyboard";
-  VK_ROWS.forEach((row) => {
+  const rowsWrap = document.createElement("div");
+  rowsWrap.className = "vk-rows";
+  // Track the vertical position of each highlighted key for the annotations.
+  const keyPositions = {}; // key -> {rowIndex, keyIndex}
+  VK_ROWS.forEach((row, ri) => {
     const rowEl = document.createElement("div");
     rowEl.className = "vk-row";
-    row.forEach((key) => {
+    row.forEach((key, ki) => {
       const b = document.createElement("button");
       b.className = "vk-key";
       b.textContent = key.toUpperCase();
@@ -838,12 +842,13 @@ function renderVirtualKeyboard(it, isSelect, container) {
         b.classList.add("active");
         b.title = mapped.action + (mapped.value ? " " + mapped.value : "");
         b.onclick = () => answerInteraction(mapped);
+        keyPositions[key] = { row: ri, col: ki };
       } else {
         b.classList.add("dim");
       }
       rowEl.appendChild(b);
     });
-    kb.appendChild(rowEl);
+    rowsWrap.appendChild(rowEl);
   });
   // Bottom row: space (reserved for future use) + Enter.
   const bottomRow = document.createElement("div");
@@ -858,22 +863,34 @@ function renderVirtualKeyboard(it, isSelect, container) {
   enter.textContent = "Enter";
   enter.onclick = () => answerInteraction({ action: "approve" });
   bottomRow.appendChild(enter);
-  kb.appendChild(bottomRow);
+  rowsWrap.appendChild(bottomRow);
+  kb.appendChild(rowsWrap);
 
-  // Key legend: explain what each highlighted key does.
-  const legend = document.createElement("div");
-  legend.className = "vk-legend";
+  // Right-side annotations: each highlighted key's label is placed beside its
+  // row and connected with a line (FEATURE-388).
+  const annot = document.createElement("div");
+  annot.className = "vk-annotations";
   Object.keys(keyMap).forEach((key) => {
     const m = keyMap[key];
-    const item = document.createElement("span");
-    item.className = "vk-legend-item";
-    const k = document.createElement("b");
-    k.textContent = key === "enter" ? "Enter" : key.toUpperCase();
-    item.appendChild(k);
-    item.appendChild(document.createTextNode(" = " + legendLabel(m)));
-    legend.appendChild(item);
+    const item = document.createElement("div");
+    item.className = "vk-annotation";
+    const line = document.createElement("span");
+    line.className = "vk-annotation-line";
+    const text = document.createElement("span");
+    text.className = "vk-annotation-text";
+    text.textContent = legendLabel(m);
+    item.appendChild(line);
+    item.appendChild(text);
+    // Position the annotation beside the key's row.
+    const pos = keyPositions[key];
+    if (pos) {
+      item.style.top = (pos.row * 38) + "px";
+    } else if (key === "enter") {
+      item.style.top = (VK_ROWS.length * 38) + "px";
+    }
+    annot.appendChild(item);
   });
-  kb.appendChild(legend);
+  kb.appendChild(annot);
   target.appendChild(kb);
 
   // Listen for physical key presses while this interaction is pending.
