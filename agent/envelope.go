@@ -556,30 +556,24 @@ func (a *Agent) checkRetryCountLimit() (bool, error) {
 		return true, nil
 	}
 
-	// Prompt the user for action via UserIO interface.
+	// Prompt the user for action via the unified Interaction model (FEATURE-388).
 	ep := config.GetEmojiPrefixes(a.emojiEnabled)
 	io := a.defaultIO()
 	promptReason := fmt.Sprintf(i18n.TF(i18n.KeyErrRepeatPrompt), count, maxSingle)
-	io.Printf("\n%s %s: %s\n", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
-	io.Println()
-	io.Println(i18n.T(i18n.KeyErrorRiskWarning))
-	io.Println()
-	io.Println(i18n.T(i18n.KeyErrActionTitle))
-	io.Println(i18n.T(i18n.KeyErrActionEnter))
-	io.Println(i18n.T(i18n.KeyErrActionCancel))
-	io.Println(i18n.T(i18n.KeyErrActionIgnore))
-	io.Println()
-	io.Print(i18n.T(i18n.KeyErrActionChoose))
+	title := fmt.Sprintf("%s %s: %s", ep.Warning, i18n.T(i18n.KeyErrRepeatWarn), promptReason)
+	body := i18n.T(i18n.KeyErrorRiskWarning)
 
-	response, _ := io.ReadLine()
-	lower := strings.ToLower(strings.TrimSpace(response))
+	res, err := promptErrorConfirmation(a.interactionManager(), title, body)
+	if err != nil {
+		return false, &retryCountCancelError{}
+	}
 
-	switch lower {
-	case "c":
+	switch res.Action {
+	case ActionCancel:
 		// User cancelled — terminate the task.
 		io.Printf("\n%s %s\n", ep.Error, i18n.T(i18n.KeyUserCancelled))
 		return false, &retryCountCancelError{}
-	case "a":
+	case ActionApproveAll:
 		// User chose to ignore all error limits for this request.
 		a.errorApproveAll = true
 		io.Printf("\n%s %s\n", ep.Success, i18n.T(i18n.KeyErrIgnoredContinue))

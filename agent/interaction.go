@@ -267,6 +267,22 @@ func (m *TerminalInteractionManager) askInput(in Interaction) (InteractionResult
 	return InteractionResult{Action: ActionInput, Value: input, Raw: input}, nil
 }
 
+// promptErrorConfirmation asks the user how to handle repeated errors via the
+// unified Interaction model (FEATURE-388). Options: Enter=continue, C=cancel,
+// A=ignore all. Returns the structured result so callers can branch.
+func promptErrorConfirmation(mgr InteractionManager, title, body string) (InteractionResult, error) {
+	return mgr.Ask(context.Background(), Interaction{
+		Kind:  InteractionConfirm,
+		Title: title,
+		Body:  body,
+		Keys: []KeyOption{
+			{Label: i18n.T(i18n.KeyErrActionEnter), Key: "", Value: string(ActionApprove)},
+			{Label: i18n.T(i18n.KeyErrActionCancel), Key: "c", Value: string(ActionCancel)},
+			{Label: i18n.T(i18n.KeyErrActionIgnore), Key: "a", Value: string(ActionApproveAll)},
+		},
+	})
+}
+
 // askKey renders a single-key confirmation and returns the pressed key.
 func (m *TerminalInteractionManager) askKey(in Interaction) (InteractionResult, error) {
 	m.io.Println()
