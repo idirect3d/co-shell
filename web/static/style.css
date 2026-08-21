@@ -820,6 +820,61 @@ aside {
 }
 .set-row select:focus { border-color: var(--accent); }
 
+/* ---------- settings panel (FEATURE-391) ---------- */
+
+.set-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
+.settings-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.set-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 10px 0 2px;
+}
+.set-row {
+  justify-content: space-between;
+}
+.set-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-input {
+  width: 140px;
+  background: var(--mono-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  outline: none;
+}
+.set-input:focus { border-color: var(--accent); }
+.set-toggle {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.set-result {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+.set-result.ok { color: var(--ok, #2ecc71); }
+.set-result.err { color: var(--err, #e74c3c); }
+
 /* ---------- delete-session confirm modal (FEATURE-387) ---------- */
 
 .del-session-msg {

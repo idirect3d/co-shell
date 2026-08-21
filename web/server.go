@@ -51,11 +51,12 @@ var errPathOutside = errors.New("path escapes workspace")
 
 // clientMessage is a browser-to-server WebSocket message.
 type clientMessage struct {
-	Type        string   `json:"type"` // "input" | "answer" | "interaction_answer" | "interrupt" | "session_list" | "session_switch" | "session_delete"
+	Type        string   `json:"type"` // "input" | "answer" | "interaction_answer" | "interrupt" | "session_list" | "session_switch" | "session_delete" | "settings_get" | "settings_set"
 	Text        string   `json:"text,omitempty"`
 	Attachments []string `json:"attachments,omitempty"`
 	ID          string   `json:"id,omitempty"`    // answer: the ask id; interaction_answer: the interaction id
-	Value       string   `json:"value,omitempty"` // answer: the reply; session_switch/delete: the session id
+	Value       string   `json:"value,omitempty"` // answer: the reply; session_switch/delete: the session id; settings_set: the new value
+	Key         string   `json:"key,omitempty"`   // settings_set: the setting key
 	Result      *interactionResultJSON `json:"result,omitempty"` // interaction_answer: the structured result
 }
 
@@ -78,13 +79,16 @@ type eventJSON struct {
 
 // serverMessage is a server-to-browser WebSocket message.
 type serverMessage struct {
-	Kind        string          `json:"kind"`            // "event" | "ask" | "interaction" | "state" | "sessions"
+	Kind        string          `json:"kind"`            // "event" | "ask" | "interaction" | "state" | "sessions" | "settings" | "settings_result"
 	Event       *eventJSON      `json:"event,omitempty"` // kind=event
 	ID          string          `json:"id,omitempty"`    // kind=ask / kind=interaction
 	Mode        string          `json:"mode,omitempty"`  // kind=ask: "line" | "key"
 	Interaction json.RawMessage `json:"interaction,omitempty"` // kind=interaction: the Interaction JSON
 	Plan        json.RawMessage `json:"plan"`            // kind=state (null when no plan)
 	Sessions    []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
+	Settings    json.RawMessage `json:"settings,omitempty"` // kind=settings: the grouped setting items
+	OK          bool            `json:"ok,omitempty"`    // kind=settings_result: success flag
+	Message     string          `json:"message,omitempty"` // kind=settings_result: result message
 }
 
 // sessionInfo is one entry in the session list pushed to the browser.

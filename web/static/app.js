@@ -141,6 +141,7 @@ const miPlanCheck = document.getElementById("miPlanCheck");
 const miSettings = document.getElementById("miSettings");
 const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
+const settingsBody = document.getElementById("settingsBody");
 const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
@@ -191,6 +192,8 @@ function wsConnect() {
     else if (msg.kind === "interaction") showInteraction(msg);
     else if (msg.kind === "state") renderPlan(msg.plan || null);
     else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
+    else if (msg.kind === "settings") renderSettings(msg.settings || []);
+    else if (msg.kind === "settings_result") showSettingsResult(msg);
   };
 }
 
@@ -1296,13 +1299,92 @@ const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
 
 /* ---------- settings modal ---------- */
 
-miSettings.onclick = () => settingsModal.classList.remove("hidden");
+miSettings.onclick = () => {
+  settingsModal.classList.remove("hidden");
+  wsSend({ type: "settings_get" });
+};
 settingsClose.onclick = () => settingsModal.classList.add("hidden");
 settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.add("hidden"); };
 setThemeMode.onchange = () => {
   localStorage.setItem("co-shell-theme", setThemeMode.value);
   applyTheme();
 };
+
+// renderSettings renders the grouped setting items returned by settings_get
+// (FEATURE-391). Each item is rendered as a form control based on its type:
+// bool -> toggle, number -> number input, enum -> select, string -> text input.
+function renderSettings(groups) {
+  settingsBody.innerHTML = "";
+  if (!groups || !groups.length) {
+    settingsBody.textContent = "(no settings)";
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const g of groups) {
+    const h = document.createElement("div");
+    h.className = "set-group-title";
+    h.textContent = g.title || "";
+    frag.appendChild(h);
+    for (const it of g.items || []) {
+      frag.appendChild(renderSettingItem(it));
+    }
+  }
+  settingsBody.appendChild(frag);
+}
+
+// renderSettingItem builds one setting row with its label and form control.
+function renderSettingItem(it) {
+  const row = document.createElement("label");
+  row.className = "set-row";
+  const label = document.createElement("span");
+  label.className = "set-label";
+  label.textContent = it.key;
+  label.title = it.desc || "";
+  row.appendChild(label);
+
+  let ctl;
+  if (it.type === "bool") {
+    ctl = document.createElement("input");
+    ctl.type = "checkbox";
+    ctl.className = "set-toggle";
+    ctl.checked = it.value === "on";
+    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.checked ? "on" : "off" });
+  } else if (it.type === "number") {
+    ctl = document.createElement("input");
+    ctl.type = "number";
+    ctl.className = "set-input";
+    ctl.value = it.value;
+    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+  } else if (it.type === "enum") {
+    ctl = document.createElement("select");
+    ctl.className = "set-select";
+    for (const opt of it.options || []) {
+      const o = document.createElement("option");
+      o.value = opt;
+      o.textContent = opt;
+      if (opt === it.value) o.selected = true;
+      ctl.appendChild(o);
+    }
+    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+  } else {
+    ctl = document.createElement("input");
+    ctl.type = "text";
+    ctl.className = "set-input";
+    ctl.value = it.value;
+    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+  }
+  row.appendChild(ctl);
+  return row;
+}
+
+// showSettingsResult displays the result of a settings_set change.
+function showSettingsResult(msg) {
+  const el = document.createElement("div");
+  el.className = "set-result " + (msg.ok ? "ok" : "err");
+  el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
+  settingsBody.prepend(el);
+  setTimeout(() => el.remove(), 3000);
+}
 
 /* ---------- bootstrap ---------- */
 

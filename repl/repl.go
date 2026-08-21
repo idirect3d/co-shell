@@ -273,10 +273,11 @@ func (r *REPL) Run() error {
 	// input survives across iterations. A tui start failure falls back to
 	// stdio, preserving the historical behavior.
 	deps := SessionDeps{
-		Cfg:          r.cfg,
-		HistoryFn:    func() []string { return r.history },
-		OutputFormat: r.outputFormat,
-		Ag:           r.agent,
+		Cfg:             r.cfg,
+		HistoryFn:       func() []string { return r.history },
+		OutputFormat:    r.outputFormat,
+		Ag:              r.agent,
+		SettingsHandler: r.settingsHandler,
 	}
 	factory := sessionFactories[r.inputMode]
 	if factory == nil {

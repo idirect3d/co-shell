@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/repl"
 )
@@ -55,6 +56,11 @@ type WebSession struct {
 	ag  *agent.Agent
 	wio *WebIO
 
+	// settings handles settings_get/settings_set messages (FEATURE-391).
+	// It is nil when the session was created without a SettingsHandler
+	// (e.g. in tests), in which case settings messages are ignored.
+	settings *cmd.SettingsHandler
+
 	inputCh chan clientMessage
 	closed  chan struct{}
 }
@@ -67,10 +73,11 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		return nil, errors.New("web session requires SessionDeps.Ag")
 	}
 	sess := &WebSession{
-		srv:     srv,
-		ag:      deps.Ag,
-		inputCh: make(chan clientMessage),
-		closed:  make(chan struct{}),
+		srv:      srv,
+		ag:       deps.Ag,
+		settings: deps.SettingsHandler,
+		inputCh:  make(chan clientMessage),
+		closed:   make(chan struct{}),
 	}
 	sess.wio = &WebIO{srv: srv, pending: map[string]chan askResult{}, sessionClosed: sess.closed}
 	// Wire the session-list push callback so WebIO can refresh the frontend
@@ -112,7 +119,39 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.switchSession(msg.Value)
 	case "session_delete":
 		s.deleteSession(msg.Value)
+	case "settings_get":
+		s.handleSettingsGet()
+	case "settings_set":
+		s.handleSettingsSet(msg.Key, msg.Value)
 	}
+}
+
+// handleSettingsGet sends the current settings (grouped setting items) to the
+// browser (FEATURE-391).
+func (s *WebSession) handleSettingsGet() {
+	if s.settings == nil {
+		return
+	}
+	groups := s.settings.SettingsJSON()
+	raw, err := json.Marshal(groups)
+	if err != nil {
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "settings", Settings: raw})
+}
+
+// handleSettingsSet applies a setting change by delegating to the SettingsHandler
+// and reports the result to the browser (FEATURE-391).
+func (s *WebSession) handleSettingsSet(key, value string) {
+	if s.settings == nil || key == "" {
+		return
+	}
+	result, err := s.settings.Handle([]string{key, value})
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "settings_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "settings_result", OK: true, Message: result})
 }
 
 // pushSessionList sends the current session list to the browser (FEATURE-387).

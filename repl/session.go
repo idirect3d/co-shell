@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -54,6 +55,10 @@ type SessionDeps struct {
 	// lifetime and to route interrupt/attachment messages; the stdio and
 	// tui sessions receive the agent per run via Acquire and ignore this.
 	Ag *agent.Agent
+	// SettingsHandler handles the :set built-in command. Only the web session
+	// (FEATURE-391) uses it — to serve settings_get/settings_set messages so
+	// the browser can read and modify settings graphically.
+	SettingsHandler *cmd.SettingsHandler
 }
 
 // sessionFactories maps the input mode name to its session constructor.
