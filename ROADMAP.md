@@ -89,7 +89,7 @@
   - 背景：Web UI 系统设置面板中，配置项名称（.set-label）默认左对齐，值控件靠右，视觉上名称与值分离。希望名称右对齐、值左对齐，两者都靠向中线显示，更紧凑美观。
   - 方案（已确认）：将每行名称-值显示区域分为左右两个等宽块（各 50%）占满整行，名称右对齐、值左对齐，两者靠向中线。
   - 需求：① `.set-label` 改为 `flex: 0 0 50%` + `text-align: right` + 右 padding；② `.set-input`/`.set-row select` 改为 `flex: 1` + `width: auto` 占满右半块；③ `.set-toggle` 保持小尺寸靠右半块左对齐；④ 去掉 `.set-row` 的 `justify-content: space-between`（避免 checkbox 被推到最右）
-  - 实施：`web/static/style.css` 设置面板改为等宽双列布局（label 50% 右对齐，值控件 50% 左对齐） [BUILD-494]
+  - 实施：`web/static/style.css` 设置面板改为等宽双列布局（label 50% 右对齐，值控件 50% 左对齐）；`index.html` 主题上方加「外观」节标题 + 主题 label 加 set-label 类（主题行也等宽双列对齐）；`app.js` i18n 加 appearance 键；`style.css` `.set-group-title` 居中显示 [BUILD-495]
   - 测试：见 use-case/FEATURE-394/
 
 ---
