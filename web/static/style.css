@@ -305,6 +305,30 @@ aside {
 /* Logo hover menu (FEATURE-393): a popup that expands upward from the logo,
    listing identity & personality settings. */
 .logo-wrap { position: relative; flex: none; }
+
+/* New-session "+" button (FEATURE-401): sits between the logo and the input
+   box, with 5-10px breathing room on both sides. */
+.new-session-btn {
+  flex: none;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: none;
+  color: var(--fg-dim);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.new-session-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 .logo-menu {
   position: absolute;
   bottom: 100%;
