@@ -502,7 +502,10 @@ func promptToolConfirmation(toolName string, displayStr string, mgr InteractionM
 		return CmdConfirmApproveD, ""
 	case ActionApproveCount:
 		return CmdConfirmApproveCount, res.Value
-	case ActionModify:
+	case ActionModify, ActionInput:
+		// Supplementary input (typed in the main input box) holds execution and
+		// sends the input to the LLM for re-evaluation — it must NOT approve the
+		// tool call (FEATURE-388).
 		return CmdConfirmModify, res.Value
 	default:
 		return CmdConfirmApprove, ""

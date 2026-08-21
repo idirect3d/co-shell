@@ -266,13 +266,30 @@ func TestPromptToolConfirmationModifyValue(t *testing.T) {
 
 // captureInteractionManager captures the Interaction passed to Ask so tests can
 // verify the structured fields (Keys/AllowFree/Presets) that drive the Web UI.
+// askResult (optional) overrides the default approve result.
 type captureInteractionManager struct {
-	captured Interaction
+	captured  Interaction
+	askResult InteractionResult
 }
 
 func (m *captureInteractionManager) Ask(ctx context.Context, in Interaction) (InteractionResult, error) {
 	m.captured = in
+	if m.askResult.Action != "" {
+		return m.askResult, nil
+	}
 	return InteractionResult{Action: ActionApprove}, nil
+}
+
+// TestPromptToolConfirmationInputHolds verifies that supplementary input
+// (ActionInput) holds execution and maps to CmdConfirmModify, NOT approve
+// (FEATURE-388 fix).
+func TestPromptToolConfirmationInputHolds(t *testing.T) {
+	mgr := &captureInteractionManager{}
+	mgr.askResult = InteractionResult{Action: ActionInput, Value: "请先检查文件"}
+	result, val := promptToolConfirmation("execute_command", "summary", mgr)
+	if result != CmdConfirmModify || val != "请先检查文件" {
+		t.Errorf("result/val = %v/%q, want CmdConfirmModify/请先检查文件", result, val)
+	}
 }
 
 // TestPromptToolConfirmationInteractionFields verifies promptToolConfirmation
