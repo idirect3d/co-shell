@@ -610,6 +610,21 @@ aside {
 .vk-key.active:hover { background: var(--accent); color: #fff; }
 .vk-key.dim { opacity: 0.35; cursor: default; }
 .vk-enter { min-width: 120px; }
+.vk-space { min-width: 200px; }
+.vk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-dim, #888);
+}
+.vk-legend-item b {
+  color: var(--accent);
+  font-family: ui-monospace, Menlo, monospace;
+}
 
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
 
