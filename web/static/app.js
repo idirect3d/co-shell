@@ -57,6 +57,7 @@ const I18N = {
   },
 };
 let T = I18N.zh;
+let currentLang = "zh";
 
 function applyI18n() {
   document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -205,6 +206,63 @@ const CHAN_LABEL = {
   wizard: "WIZ", debug: "DBG", bridge: "BRG", subagent: "SUB", repl: "REPL",
 };
 
+// TOOL_ACTIONS maps a tool name to a human-readable action phrase (zh/en) used
+// in the TOOL block title, e.g. "execute_command" -> "执行系统命令" (FEATURE-388).
+const TOOL_ACTIONS = {
+  execute_command: { zh: "执行系统命令", en: "Run system command" },
+  read_file: { zh: "读取文件", en: "Read file" },
+  write_to_file: { zh: "写入文件", en: "Write file" },
+  replace_in_file: { zh: "修改文件", en: "Edit file" },
+  search_files: { zh: "搜索文件", en: "Search files" },
+  list_files: { zh: "列出文件", en: "List files" },
+  list_code_definition_names: { zh: "列出代码定义", en: "List code definitions" },
+  visual_analysis: { zh: "分析图片", en: "Analyze image" },
+  browser_navigate: { zh: "打开网页", en: "Open page" },
+  browser_screenshot: { zh: "截取网页", en: "Screenshot page" },
+  browser_click: { zh: "点击页面", en: "Click page" },
+  browser_type: { zh: "输入文本", en: "Type text" },
+  browser_scroll: { zh: "滚动页面", en: "Scroll page" },
+  browser_evaluate: { zh: "执行脚本", en: "Run script" },
+  excel_open: { zh: "打开表格", en: "Open spreadsheet" },
+  word_open: { zh: "打开文档", en: "Open document" },
+  update_settings: { zh: "更新设置", en: "Update settings" },
+  ask_followup_question: { zh: "询问用户", en: "Ask user" },
+  launch_sub_agent: { zh: "启动子代理", en: "Launch sub-agent" },
+  schedule_task: { zh: "调度任务", en: "Schedule task" },
+  track_task_progress: { zh: "更新任务进展", en: "Update task progress" },
+  view_task_plan: { zh: "查看任务计划", en: "View task plan" },
+  get_memory_slice: { zh: "读取记忆", en: "Read memory" },
+  memory_search: { zh: "搜索记忆", en: "Search memory" },
+  delete_memory: { zh: "删除记忆", en: "Delete memory" },
+  evaluate_expression: { zh: "计算表达式", en: "Evaluate expression" },
+  attempt_completion: { zh: "完成任务", en: "Complete task" },
+  reorganize_context: { zh: "重组上下文", en: "Reorganize context" },
+  shell_send: { zh: "发送命令", en: "Send command" },
+  shell_start: { zh: "启动会话", en: "Start session" },
+  shell_stop: { zh: "停止会话", en: "Stop session" },
+};
+
+// toolAction returns the human-readable action phrase for a tool name.
+function toolAction(toolName) {
+  const a = TOOL_ACTIONS[toolName];
+  if (!a) return toolName;
+  return currentLang === "en" ? a.en : a.zh;
+}
+
+// parseToolSummary extracts the structured ToolSummary from a tool_call event's
+// Meta (FEATURE-388). Returns null when absent or unparseable.
+function parseToolSummary(ev) {
+  if (!ev.meta || !ev.meta.tool_summary) return null;
+  try { return JSON.parse(ev.meta.tool_summary); } catch { return null; }
+}
+
+// toolParamsText renders the tool call's key parameters (without the intent,
+// which now lives in the block title) as a compact text body (FEATURE-388).
+function toolParamsText(summary) {
+  if (!summary || !summary.params || !summary.params.length) return "";
+  return summary.params.map((p) => p.name + ": " + p.value).join("\n");
+}
+
 // Streaming blocks: { body, raw, raf, hasResult? }. raw accumulates the
 // undecorated text; the body is re-rendered (markdown) via rAF throttle.
 let curLLM = null;      // current streaming llm block
@@ -337,7 +395,18 @@ function renderEvent(ev) {
     if (phase === "input" || (!phase && ev.type === "tool_call" && !fresh && !curTool.raw)) {
       // pre-execution summary: replace the raw streamed fragments
       if (fresh) curTool = newStreamBlock("tool", "TOOL");
-      curTool.raw = ev.text || "";
+      // FEATURE-388: set the TOOL block title to "TOOL <action> - <intent>"
+      // from the structured ToolSummary, and show only the params (no intent)
+      // in the body.
+      const summary = parseToolSummary(ev);
+      if (summary) {
+        const head = curTool.body.parentElement.children[0];
+        const action = toolAction(summary.tool_name);
+        head.textContent = "TOOL " + action + (summary.intent ? " - " + summary.intent : "");
+        curTool.raw = toolParamsText(summary);
+      } else {
+        curTool.raw = ev.text || "";
+      }
       curTool.hasResult = false;
       curTool.body.classList.remove("md");
       curTool.body.textContent = curTool.raw;
@@ -1253,7 +1322,7 @@ async function refreshBranch() {
   try {
     const resp = await fetch("/api/bootstrap");
     const b = await resp.json();
-    if (b.lang === "en") T = I18N.en;
+    if (b.lang === "en") { T = I18N.en; currentLang = "en"; }
     document.documentElement.lang = b.lang || "zh";
     document.getElementById("ver").textContent = "v" + b.version + " [BUILD-" + b.build + "]";
     // Browser tab title = "{current folder name} - {full absolute path}"
