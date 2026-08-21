@@ -17,6 +17,7 @@
 | FEATURE-388 | 0.9.0 | P1 | 工具调用交互标准化（Interaction 模型 + 意图字段结构化 + TUI/Web 统一输出） |
 | FEATURE-389 | 0.9.0 | P1 | 优化分支规范：强制分支检查 + 小优化也必须建分支 + 禁止 main 提交提升为最高红线 |
 | FEATURE-390 | 0.9.0 | P1 | 规范增加版本号默认递增规则：FEATURE→minor递增，FIX→patch递增 |
+| FEATURE-391 | 0.9.0 | P1 | 将 :set 功能迁移到 Web UI（settings_get/settings_set 结构化消息） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -57,6 +58,15 @@
   - 需求：修改 `.rules/PROJECT STANDARDS.md` 新建开发任务第 1 步，补充版本号默认递增规则
   - 实施：新建开发任务第 1 步新增"版本号默认递增规则"——FEATURE 分支（新功能）→ 版本号第二位（minor）递增，FIX 分支（Bug 修复）→ 版本号第三位（patch）递增；作为默认值用户可覆盖，major（第一位）递增仍由用户手动决定 [BUILD-485]
   - 测试：见 use-case/FEATURE-390/
+
+- [ ] **FEATURE-391 将 :set 功能迁移到 Web UI**
+  - 背景：REPL 的 `:set` 命令功能强大（几十个设置项），但 Web UI 只能通过输入框输入 `:set` 命令，缺少图形化设置界面。前端已有"系统设置"弹窗，但只含主题设置（前端本地 localStorage）。
+  - 方案（已确认）：方案 B，新增 `settings_get`/`settings_set` WebSocket 消息。
+    - 后端：`SessionDeps` 新增 `SettingsHandler` 字段；新增 `settings_get`（读取当前设置，返回结构化 JSON 按组组织）；新增 `settings_set`（构造 `[key,value]` 调用 `SettingsHandler.Handle`）
+    - 前端：设置弹窗动态渲染设置项（bool→开关、number→数字输入、enum→下拉、string→文本），修改后发送 `settings_set`；保留现有主题设置
+  - 需求：① `repl/session.go` SessionDeps 新增 SettingsHandler 字段，`repl/repl.go` 传入；② `web/server.go` clientMessage/serverMessage 新增 settings 类型；③ `web/session.go` 新增 settings_get/settings_set 处理；④ 前端 app.js/index.html/style.css 设置弹窗动态渲染
+  - 实施：① `repl/session.go` SessionDeps 新增 `SettingsHandler *cmd.SettingsHandler` 字段，`repl/repl.go` 传入 `r.settingsHandler`；② `cmd/settings_web.go` 新增 `SettingsJSON()` 返回按组组织的结构化设置项（6 组覆盖全部 :set 设置项，含 type/options）；③ `web/server.go` clientMessage 新增 `settings_get`/`settings_set` 类型（settings_set 携带 key/value），serverMessage 新增 `settings`/`settings_result` kind；④ `web/session.go` WebSession 新增 settings 字段，handleMessage 新增 settings_get/settings_set 处理（settings_get 返回 SettingsJSON，settings_set 调用 SettingsHandler.Handle）；⑤ 前端 index.html 设置弹窗新增 settingsBody 容器，app.js 打开弹窗发送 settings_get、按类型渲染设置项（bool→开关、number→数字输入、enum→下拉、string→文本）、修改后发送 settings_set（改哪个发哪个，文本框焦点移出/回车触发、开关/下拉立即触发）、显示设置结果，style.css 新增设置面板样式 [BUILD-487]
+  - 测试：见 use-case/FEATURE-391/
 
 ---
 
