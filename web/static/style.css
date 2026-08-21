@@ -908,6 +908,7 @@ aside {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
 .set-input {
   width: 140px;
