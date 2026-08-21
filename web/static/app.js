@@ -29,6 +29,8 @@ const I18N = {
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
+    supplement: "补充信息", supplementHint: "输入补充信息，Enter 发送（仍可点击上方按钮）",
+    numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
   },
   en: {
@@ -49,6 +51,8 @@ const I18N = {
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
+    supplement: "Supplement", supplementHint: "Type supplementary info, Enter to send (buttons still clickable)",
+    numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
   },
 };
@@ -670,6 +674,9 @@ function answerAsk(value) {
 function hideAsk() {
   pendingAsk = null;
   pendingInteraction = null;
+  supplementMode = false;
+  numberMode = false;
+  input.placeholder = T.inputHint;
   askArea.classList.add("hidden");
   askInteraction.classList.add("hidden");
   askInteraction.textContent = "";
@@ -683,6 +690,24 @@ function hideAsk() {
 /* ---------- structured interaction (FEATURE-388) ---------- */
 
 let pendingInteraction = null;
+let supplementMode = false; // true while the user is typing supplementary info
+let numberMode = false;    // true while the user is choosing an approve-count
+
+// enterSupplementMode switches to supplement-input mode: the user types in the
+// main input box and the key handler stops hijacking keys (FEATURE-388).
+function enterSupplementMode() {
+  supplementMode = true;
+  input.focus();
+  input.placeholder = T.supplementHint;
+}
+
+// enterNumberMode switches to number-choice mode: the user presses a digit to
+// choose the approve-count (0 = 10, 1-9 = the count).
+function enterNumberMode() {
+  numberMode = true;
+  input.focus();
+  input.placeholder = T.numberHint;
+}
 
 // showInteraction renders a structured interaction (confirm/select/input/key)
 // from the interaction payload. Buttons are built dynamically from the keys
@@ -823,85 +848,92 @@ function renderVirtualKeyboard(it, isSelect, container) {
   // Enter maps to approve.
   keyMap["enter"] = { action: "approve" };
 
-  const kb = document.createElement("div");
-  kb.className = "virtual-keyboard";
-  const rowsWrap = document.createElement("div");
-  rowsWrap.className = "vk-rows";
-  // Track each highlighted key element for the key-side annotations.
-  const keyEls = {}; // key -> button element
-  VK_ROWS.forEach((row) => {
-    const rowEl = document.createElement("div");
-    rowEl.className = "vk-row";
-    row.forEach((key) => {
-      const b = document.createElement("button");
-      b.className = "vk-key";
-      b.textContent = key.toUpperCase();
-      b.dataset.key = key;
-      const mapped = keyMap[key];
-      if (mapped) {
-        b.classList.add("active");
-        b.title = mapped.action + (mapped.value ? " " + mapped.value : "");
-        b.onclick = () => answerInteraction(mapped);
-        keyEls[key] = b;
-      } else {
-        b.classList.add("dim");
-      }
-      rowEl.appendChild(b);
-    });
-    rowsWrap.appendChild(rowEl);
-  });
-  // Bottom row: space (reserved for future use) + Enter.
-  const bottomRow = document.createElement("div");
-  bottomRow.className = "vk-row";
-  const space = document.createElement("button");
-  space.className = "vk-key vk-space dim";
-  space.textContent = "Space";
-  space.title = "Reserved for future use";
-  bottomRow.appendChild(space);
-  const enter = document.createElement("button");
-  enter.className = "vk-key vk-enter active";
-  enter.textContent = "Enter";
-  enter.onclick = () => answerInteraction({ action: "approve" });
-  bottomRow.appendChild(enter);
-  keyEls["enter"] = enter;
-  rowsWrap.appendChild(bottomRow);
-  kb.appendChild(rowsWrap);
-
-  // Key-side annotations: each highlighted key's label is absolutely positioned
-  // in the blank space beside the key, connected with a line. The key layout,
-  // position and size are unchanged (FEATURE-388).
-  const annot = document.createElement("div");
-  annot.className = "vk-annotations";
+  // Option buttons: render one square button per available option, laid out in
+  // a single row. Each button shows [key] label and is directly clickable
+  // (FEATURE-388). Number keys are merged into one [1]-[9] button. A [Space]
+  // button enters supplement-input mode.
+  const wrap = document.createElement("div");
+  wrap.className = "option-buttons";
+  // Letter/action keys first (skip number keys and enter, handled separately).
   Object.keys(keyMap).forEach((key) => {
+    if (/^[0-9]$/.test(key) || key === "enter") return;
     const m = keyMap[key];
-    const item = document.createElement("div");
-    item.className = "vk-annotation";
-    const line = document.createElement("span");
-    line.className = "vk-annotation-line";
-    const text = document.createElement("span");
-    text.className = "vk-annotation-text";
-    text.textContent = legendLabel(m);
-    item.appendChild(line);
-    item.appendChild(text);
-    // Position the annotation beside the key using the key's offset.
-    const el = keyEls[key];
-    if (el) {
-      const kt = el.offsetTop || 0;
-      const kl = el.offsetLeft || 0;
-      const kw = el.offsetWidth || 34;
-      item.style.top = kt + "px";
-      item.style.left = (kl + kw + 6) + "px";
-    }
-    annot.appendChild(item);
+    const b = document.createElement("button");
+    b.className = "opt-btn";
+    const k = document.createElement("span");
+    k.className = "opt-key";
+    k.textContent = "[" + key.toUpperCase() + "]";
+    const label = document.createElement("span");
+    label.className = "opt-label";
+    label.textContent = legendLabel(m);
+    b.appendChild(k);
+    b.appendChild(label);
+    b.onclick = () => answerInteraction(m);
+    wrap.appendChild(b);
   });
-  kb.appendChild(annot);
-  target.appendChild(kb);
+  // Number keys merged into one [1]-[9] approve-count button.
+  const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
+  if (hasNumbers) {
+    const nb = document.createElement("button");
+    nb.className = "opt-btn";
+    const nk = document.createElement("span");
+    nk.className = "opt-key";
+    nk.textContent = "[1]-[9]";
+    const nl = document.createElement("span");
+    nl.className = "opt-label";
+    nl.textContent = T.approveCount;
+    nb.appendChild(nk);
+    nb.appendChild(nl);
+    nb.onclick = () => enterNumberMode();
+    wrap.appendChild(nb);
+  }
+  // Enter button.
+  const eb = document.createElement("button");
+  eb.className = "opt-btn";
+  const ek = document.createElement("span");
+  ek.className = "opt-key";
+  ek.textContent = "[Enter]";
+  const el = document.createElement("span");
+  el.className = "opt-label";
+  el.textContent = T.approve;
+  eb.appendChild(ek);
+  eb.appendChild(el);
+  eb.onclick = () => answerInteraction({ action: "approve" });
+  wrap.appendChild(eb);
+  // [Space] button: enter supplement-input mode.
+  const spaceBtn = document.createElement("button");
+  spaceBtn.className = "opt-btn opt-space";
+  const sk = document.createElement("span");
+  sk.className = "opt-key";
+  sk.textContent = "[空格]";
+  const sl = document.createElement("span");
+  sl.className = "opt-label";
+  sl.textContent = T.supplement;
+  spaceBtn.appendChild(sk);
+  spaceBtn.appendChild(sl);
+  spaceBtn.onclick = () => enterSupplementMode();
+  wrap.appendChild(spaceBtn);
+  target.appendChild(wrap);
 
   // Listen for physical key presses while this interaction is pending.
   window.__vkHandler = (e) => {
     if (!pendingInteraction) return;
+    // In supplement mode, stop hijacking keys so the user can type freely.
+    if (supplementMode) return;
     const key = e.key.toLowerCase();
-    if (key === "enter") {
+    if (numberMode) {
+      // Number-choice mode: a digit picks the approve-count.
+      if (/^[0-9]$/.test(key)) {
+        e.preventDefault();
+        const n = key === "0" ? 10 : parseInt(key, 10);
+        answerInteraction({ action: "approve_count", value: String(n) });
+      }
+      return;
+    }
+    if (key === " ") {
+      e.preventDefault();
+      enterSupplementMode();
+    } else if (key === "enter") {
       e.preventDefault();
       answerInteraction({ action: "approve" });
     } else if (keyMap[key]) {
