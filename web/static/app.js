@@ -367,9 +367,34 @@ function makeBlock(cls, label, msgIndex) {
 
 // addBlockActions appends the copy / collapse / retry icons to a block's title
 // bar (FEATURE-409).
+// isStreamingBody reports whether the given body belongs to the block that is
+// currently streaming output (FEATURE-409).
+function isStreamingBody(body) {
+  return (curLLM && curLLM.body === body) || (curThinking && curThinking.body === body) ||
+         (curTool && curTool.body === body) || (curREPL && curREPL.body === body);
+}
+
+// markStreaming flags a block as currently streaming: it shows the dynamic
+// "..." next to the title and forces the block expanded so the live content is
+// always visible (FEATURE-409).
+function markStreaming(body) {
+  const box = body.parentElement;
+  if (!box) return;
+  const s = box.querySelector(".ev-streaming");
+  if (s) s.classList.add("on");
+  box.classList.remove("collapsed");
+}
+
 function addBlockActions(head, box, body, cls) {
   const actions = document.createElement("span");
   actions.className = "ev-actions";
+
+  // FEATURE-409: a dynamic "..." shown next to the title while the block is
+  // streaming output, so the user can see it is still being produced.
+  const streaming = document.createElement("span");
+  streaming.className = "ev-streaming";
+  streaming.textContent = "...";
+  head.appendChild(streaming);
 
   // 1) Copy: copy the block's plain-text content to the clipboard.
   const copy = document.createElement("button");
@@ -391,7 +416,9 @@ function addBlockActions(head, box, body, cls) {
   collapse.title = T.collapseBlock;
   const storageKey = "co-shell-collapse-" + cls;
   const applyCollapse = () => {
-    const collapsed = localStorage.getItem(storageKey) === "1";
+    // FEATURE-409: a block that is currently streaming output is never
+    // collapsed, so the user always sees the live dynamic content.
+    const collapsed = !isStreamingBody(body) && localStorage.getItem(storageKey) === "1";
     box.classList.toggle("collapsed", collapsed);
     collapse.textContent = collapsed ? "▸" : "▾";
     collapse.title = collapsed ? T.expandBlock : T.collapseBlock;
@@ -401,6 +428,9 @@ function addBlockActions(head, box, body, cls) {
     const collapsed = localStorage.getItem(storageKey) !== "1";
     localStorage.setItem(storageKey, collapsed ? "1" : "0");
     document.querySelectorAll(".ev." + cls).forEach((b) => {
+      // Skip blocks that are currently streaming — they stay expanded.
+      const bBody = b.querySelector(".ev-body");
+      if (bBody && isStreamingBody(bBody)) return;
       b.classList.toggle("collapsed", collapsed);
     });
     applyCollapse();
@@ -478,6 +508,8 @@ function renderEvent(ev) {
   }
   if (ev.type === "done") {
     curLLM = curThinking = curTool = curREPL = null;
+    // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
+    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     // An LLM iteration finished — the agent may have switched git branches
     // or modified files, so refresh the branch label and the tree's git
     // status badges without a manual reload.
@@ -491,10 +523,12 @@ function renderEvent(ev) {
     if (ev.type === "content_chunk") {
       if (!curLLM) { curLLM = newStreamBlock("llm", "LLM", msgIndex); curThinking = null; curTool = null; }
       curLLM.raw += ev.text || "";
+      markStreaming(curLLM.body);
       scheduleMd(curLLM);
     } else {
       if (!curThinking) { curThinking = newStreamBlock("thinking", "THINK", msgIndex); curLLM = null; curTool = null; }
       curThinking.raw += ev.text || "";
+      markStreaming(curThinking.body);
       scheduleMd(curThinking);
     }
     scrollStream();
@@ -506,6 +540,7 @@ function renderEvent(ev) {
   // appends to the ev-body.
   if (ev.type === "tool_call_stream") {
     if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+    markStreaming(curTool.body);
     const params = ensureToolParams(curTool);
     params.raw += ev.text || "";
     // FEATURE-409: render the streaming args as markdown (lists, code, etc.)

@@ -411,7 +411,6 @@ aside {
 .ev-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 4px 10px;
   font-size: 11px;
@@ -428,6 +427,20 @@ aside {
   background: var(--fg-faint);
 }
 .ev-head-label { display: inline-flex; align-items: center; gap: 8px; }
+
+/* FEATURE-409: dynamic "..." shown next to the title while a block streams. */
+.ev-streaming {
+  display: none;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  animation: ev-blink 1s steps(2, start) infinite;
+}
+.ev-streaming.on { display: inline; }
+@keyframes ev-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
 
 /* FEATURE-409: title-bar action icons (copy / collapse / retry). */
 .ev-actions {
