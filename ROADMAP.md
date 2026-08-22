@@ -32,6 +32,7 @@
 | FEATURE-403 | 0.9.0 | P1 | "+"号按钮基准位置向右上方 x/y 都整体移动 3 像素 |
 | FEATURE-404 | 0.9.0 | P1 | 改进主消息录入框滚动条：缩小内容上下间距避免无内容/单行时出现滚动条 |
 | FEATURE-405 | 0.9.0 | P1 | 改进主消息录入框高度：autoGrow 增加上限 + scrollHeight 加增量 |
+| FEATURE-406 | 0.9.0 | P1 | 修复主消息录入框默认状态下光标垂直方向不居中（增加上下 padding） |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -179,6 +180,13 @@
   - 需求：`web/static/app.js` 的 `autoGrow` 增加上限 + 加增量；`web/static/style.css` 的 `#input` 增加 `max-height`。
   - 实施：`web/static/app.js` `autoGrow` 改为 `Math.min(input.scrollHeight + 4, 150)`；`web/static/style.css` `#input` 的 `max-height` 从 120px 改为 150px [BUILD-509]
   - 测试：见 use-case/FEATURE-405/
+
+- [ ] **FEATURE-406 修复主消息录入框默认状态下光标垂直方向不居中**
+  - 背景：FEATURE-405 后录入框高度正常，但默认状态下光标和文字内容偏靠上，垂直方向不居中，上下间距不一样。用户建议增加上下 padding（4px → 6px）纠正。
+  - 方案（已确认）：将 `#input` 的上下 padding 从 4px 增加到 6px，使光标和文字内容垂直居中。
+  - 需求：`web/static/style.css` 的 `#input` 上下 padding 从 4px 增加到 6px。
+  - 实施：`web/static/style.css` 的 `#input` 上下 padding 从 4px 改为 6px（`padding: 6px 12px`） [BUILD-512]
+  - 测试：见 use-case/FEATURE-406/
 
 ---
 
