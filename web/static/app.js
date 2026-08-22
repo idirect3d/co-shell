@@ -523,6 +523,9 @@ function renderEvent(ev) {
     line.textContent = parts.join("  ");
     stream.appendChild(line);
     curLLM = curThinking = null;
+    // FEATURE-409: the LLM iteration ended (token usage refreshed) — hide the
+    // streaming "..." on all blocks now, not only at the final done event.
+    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     scrollStream();
     // FEATURE-378: accumulate token stats into the status bar.
     if (ev.type === "token_iter") {
