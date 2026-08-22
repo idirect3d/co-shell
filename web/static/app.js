@@ -387,6 +387,16 @@ function markStreaming(body) {
   box.classList.remove("collapsed");
 }
 
+// unmarkStreaming hides the dynamic "..." of a block once it stops streaming
+// (FEATURE-409).
+function unmarkStreaming(body) {
+  if (!body) return;
+  const box = body.parentElement;
+  if (!box) return;
+  const s = box.querySelector(".ev-streaming");
+  if (s) s.classList.remove("on");
+}
+
 // maybeCollapseEnded re-collapses blocks of a class that just finished
 // streaming, but only when that class is collapsed in localStorage AND some
 // other block is still streaming (so the session is not fully done). This keeps
@@ -543,18 +553,34 @@ function renderEvent(ev) {
   const streaming = ev.type === "content_chunk" || ev.type === "thinking_chunk";
   if (streaming) {
     if (ev.type === "content_chunk") {
-      if (!curLLM) { curLLM = newStreamBlock("llm", "LLM", msgIndex); curThinking = null; curTool = null; }
-      // FEATURE-409: the previous thinking/tool blocks just ended; if their
-      // class is collapsed and other blocks are still streaming, re-collapse them.
+      if (!curLLM) {
+        // FEATURE-409: the previous thinking/tool blocks just ended — hide
+        // their "..." immediately, then start the new LLM block.
+        unmarkStreaming(curThinking && curThinking.body);
+        unmarkStreaming(curTool && curTool.body);
+        curLLM = newStreamBlock("llm", "LLM", msgIndex);
+        curThinking = null;
+        curTool = null;
+      }
+      // FEATURE-409: if their class is collapsed and other blocks are still
+      // streaming, re-collapse the just-ended blocks.
       maybeCollapseEnded("thinking");
       maybeCollapseEnded("tool");
       curLLM.raw += ev.text || "";
       markStreaming(curLLM.body);
       scheduleMd(curLLM);
     } else {
-      if (!curThinking) { curThinking = newStreamBlock("thinking", "THINK", msgIndex); curLLM = null; curTool = null; }
-      // FEATURE-409: the previous llm/tool blocks just ended; if their class is
-      // collapsed and other blocks are still streaming, re-collapse them.
+      if (!curThinking) {
+        // FEATURE-409: the previous llm/tool blocks just ended — hide their
+        // "..." immediately, then start the new THINK block.
+        unmarkStreaming(curLLM && curLLM.body);
+        unmarkStreaming(curTool && curTool.body);
+        curThinking = newStreamBlock("thinking", "THINK", msgIndex);
+        curLLM = null;
+        curTool = null;
+      }
+      // FEATURE-409: if their class is collapsed and other blocks are still
+      // streaming, re-collapse the just-ended blocks.
       maybeCollapseEnded("llm");
       maybeCollapseEnded("tool");
       curThinking.raw += ev.text || "";
@@ -611,6 +637,8 @@ function renderEvent(ev) {
       const t = (ev.text || "").replace(/^\s*Result:\n/, "");
       curTool.raw += (curTool.raw ? "\n\n" : "") + t;
       curTool.hasResult = true;
+      // FEATURE-409: the tool call finished — hide its streaming "...".
+      unmarkStreaming(curTool.body);
       scheduleMd(curTool);
       // A tool call finished — the agent may have modified files or switched
       // branches, so refresh the tree and branch label after each call (not
