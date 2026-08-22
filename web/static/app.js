@@ -289,6 +289,7 @@ let curLLM = null;      // current streaming llm block
 let curThinking = null; // current streaming thinking block
 let curTool = null;     // current tool block (one block per invocation)
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
+let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
 
 function scrollStream() { stream.scrollTop = stream.scrollHeight; }
 
@@ -356,9 +357,10 @@ function makeBlock(cls, label, msgIndex) {
   box.appendChild(head);
   box.appendChild(body);
   // FEATURE-409: add copy / collapse / retry icons to the title bar, except
-  // for the YOU block and the final "TOOL: 完成任务" completion block.
-  if (cls !== "user-msg" && !(cls === "tool" && /完成任务|Complete task/.test(label))) {
-    addBlockActions(head, box, body, cls);
+  // for the final "TOOL: 完成任务" completion block. The YOU block gets copy
+  // and retry but no collapse (there is usually only one YOU block).
+  if (!(cls === "tool" && /完成任务|Complete task/.test(label))) {
+    addBlockActions(head, box, body, cls, cls === "user-msg");
   }
   stream.appendChild(box);
   scrollStream();
@@ -385,7 +387,7 @@ function markStreaming(body) {
   box.classList.remove("collapsed");
 }
 
-function addBlockActions(head, box, body, cls) {
+function addBlockActions(head, box, body, cls, noCollapse) {
   const actions = document.createElement("span");
   actions.className = "ev-actions";
 
@@ -409,34 +411,37 @@ function addBlockActions(head, box, body, cls) {
   actions.appendChild(copy);
 
   // 2) Collapse/expand: collapse all blocks of the same class to just their
-  // title bar; the state is persisted in localStorage.
-  const collapse = document.createElement("button");
-  collapse.className = "ev-act";
-  collapse.textContent = "▾";
-  collapse.title = T.collapseBlock;
-  const storageKey = "co-shell-collapse-" + cls;
-  const applyCollapse = () => {
-    // FEATURE-409: a block that is currently streaming output is never
-    // collapsed, so the user always sees the live dynamic content.
-    const collapsed = !isStreamingBody(body) && localStorage.getItem(storageKey) === "1";
-    box.classList.toggle("collapsed", collapsed);
-    collapse.textContent = collapsed ? "▸" : "▾";
-    collapse.title = collapsed ? T.expandBlock : T.collapseBlock;
-  };
-  collapse.onclick = (e) => {
-    e.stopPropagation();
-    const collapsed = localStorage.getItem(storageKey) !== "1";
-    localStorage.setItem(storageKey, collapsed ? "1" : "0");
-    document.querySelectorAll(".ev." + cls).forEach((b) => {
-      // Skip blocks that are currently streaming — they stay expanded.
-      const bBody = b.querySelector(".ev-body");
-      if (bBody && isStreamingBody(bBody)) return;
-      b.classList.toggle("collapsed", collapsed);
-    });
+  // title bar; the state is persisted in localStorage. Skipped for the YOU
+  // block (noCollapse) since there is usually only one of it.
+  if (!noCollapse) {
+    const collapse = document.createElement("button");
+    collapse.className = "ev-act";
+    collapse.textContent = "▾";
+    collapse.title = T.collapseBlock;
+    const storageKey = "co-shell-collapse-" + cls;
+    const applyCollapse = () => {
+      // FEATURE-409: a block that is currently streaming output is never
+      // collapsed, so the user always sees the live dynamic content.
+      const collapsed = !isStreamingBody(body) && localStorage.getItem(storageKey) === "1";
+      box.classList.toggle("collapsed", collapsed);
+      collapse.textContent = collapsed ? "▸" : "▾";
+      collapse.title = collapsed ? T.expandBlock : T.collapseBlock;
+    };
+    collapse.onclick = (e) => {
+      e.stopPropagation();
+      const collapsed = localStorage.getItem(storageKey) !== "1";
+      localStorage.setItem(storageKey, collapsed ? "1" : "0");
+      document.querySelectorAll(".ev." + cls).forEach((b) => {
+        // Skip blocks that are currently streaming — they stay expanded.
+        const bBody = b.querySelector(".ev-body");
+        if (bBody && isStreamingBody(bBody)) return;
+        b.classList.toggle("collapsed", collapsed);
+      });
+      applyCollapse();
+    };
     applyCollapse();
-  };
-  applyCollapse();
-  actions.appendChild(collapse);
+    actions.appendChild(collapse);
+  }
 
   // 3) Retry-from: pop the session back to this block and re-run.
   const retry = document.createElement("button");
@@ -468,6 +473,7 @@ function renderEvent(ev) {
   // FEATURE-409: the message index attached by the backend lets the retry-from
   // action map this block back to a message for :session pop to.
   const msgIndex = ev.meta && ev.meta.msg_index;
+  if (msgIndex) lastMsgIndex = msgIndex;
   // Turn-boundary signals from the web session (FEATURE-369): drive the
   // merged send/interrupt button, never render as blocks.
   if (ev.type === "await_input") { setRunning(false); return; }
@@ -566,7 +572,12 @@ function renderEvent(ev) {
       if (summary) {
         const head = curTool.body.parentElement.children[0];
         const action = toolAction(summary.tool_name);
-        head.textContent = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
+        const text = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
+        // FEATURE-409: update only the title label, preserving the action icons
+        // (copy/collapse/retry) and the streaming "..." in the head.
+        const label = head.querySelector(".ev-head-label");
+        if (label) label.textContent = text;
+        else head.textContent = text;
       }
       curTool.hasResult = false;
     } else {
@@ -611,7 +622,7 @@ function renderEvent(ev) {
 }
 
 function renderUserEcho(text) {
-  const body = makeBlock("user-msg", "YOU");
+  const body = makeBlock("user-msg", "YOU", lastMsgIndex);
   body.textContent = text;
 }
 
