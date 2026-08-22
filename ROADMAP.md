@@ -30,6 +30,7 @@
 | FEATURE-401 | 0.9.0 | P1 | 左下角 logo 与消息框之间增加"+"号按钮（创建新会话） |
 | FEATURE-402 | 0.9.0 | P1 | 调整"+"号按钮位置到录入框左边 + 去掉对话条背景色 |
 | FEATURE-403 | 0.9.0 | P1 | "+"号按钮基准位置向右上方 x/y 都整体移动 3 像素 |
+| FEATURE-404 | 0.9.0 | P1 | 改进主消息录入框滚动条：缩小内容上下间距避免无内容/单行时出现滚动条 |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -163,6 +164,13 @@
   - 需求：`web/static/style.css` 的 `.new-session-btn` 增加 `transform: translate(3px, -3px)`。
   - 实施：`web/static/style.css` 的 `.new-session-btn` 增加 `transform: translate(3px, -3px)` [BUILD-506]
   - 测试：见 use-case/FEATURE-403/
+
+- [ ] **FEATURE-404 改进主消息录入框滚动条**
+  - 背景：主消息录入框（`#input` textarea）在没有内容、有单行内容或有多行内容但没有超过最大显示行数时，都会自动出现滚动条。怀疑是输入框默认高度、内容上下间距（padding）设置稍大导致。
+  - 方案（已确认）：缩小 `#input` 的内容上下间距（padding），使单行/多行但未超限时内容能完整容纳，不出现滚动条。
+  - 需求：`web/static/style.css` 的 `#input` 缩小上下 padding（当前 `padding: 8px 12px`，上下 8px 较大）。
+  - 实施：`web/static/style.css` 的 `#input` 上下 padding 从 8px 缩小到 4px（`padding: 4px 12px`），使单行/多行但未超限时不出现滚动条 [BUILD-508]
+  - 测试：见 use-case/FEATURE-404/
 
 ---
 
