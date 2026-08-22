@@ -387,6 +387,22 @@ function markStreaming(body) {
   box.classList.remove("collapsed");
 }
 
+// maybeCollapseEnded re-collapses blocks of a class that just finished
+// streaming, but only when that class is collapsed in localStorage AND some
+// other block is still streaming (so the session is not fully done). This keeps
+// the just-finished block out of the way while the live block stays expanded
+// (FEATURE-409).
+function maybeCollapseEnded(cls) {
+  if (localStorage.getItem("co-shell-collapse-" + cls) !== "1") return;
+  // Only re-collapse when some other block is still streaming.
+  const anyStreaming = Array.from(document.querySelectorAll(".ev .ev-body")).some(isStreamingBody);
+  if (!anyStreaming) return;
+  document.querySelectorAll(".ev." + cls).forEach((b) => {
+    const bBody = b.querySelector(".ev-body");
+    if (bBody && !isStreamingBody(bBody)) b.classList.add("collapsed");
+  });
+}
+
 function addBlockActions(head, box, body, cls, noCollapse) {
   const actions = document.createElement("span");
   actions.className = "ev-actions";
@@ -528,11 +544,19 @@ function renderEvent(ev) {
   if (streaming) {
     if (ev.type === "content_chunk") {
       if (!curLLM) { curLLM = newStreamBlock("llm", "LLM", msgIndex); curThinking = null; curTool = null; }
+      // FEATURE-409: the previous thinking/tool blocks just ended; if their
+      // class is collapsed and other blocks are still streaming, re-collapse them.
+      maybeCollapseEnded("thinking");
+      maybeCollapseEnded("tool");
       curLLM.raw += ev.text || "";
       markStreaming(curLLM.body);
       scheduleMd(curLLM);
     } else {
       if (!curThinking) { curThinking = newStreamBlock("thinking", "THINK", msgIndex); curLLM = null; curTool = null; }
+      // FEATURE-409: the previous llm/tool blocks just ended; if their class is
+      // collapsed and other blocks are still streaming, re-collapse them.
+      maybeCollapseEnded("llm");
+      maybeCollapseEnded("tool");
       curThinking.raw += ev.text || "";
       markStreaming(curThinking.body);
       scheduleMd(curThinking);
