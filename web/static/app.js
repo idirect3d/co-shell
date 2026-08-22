@@ -1545,6 +1545,7 @@ async function refreshBranch() {
     }
   } catch { /* defaults stay zh */ }
   applyI18n();
+  autoGrow(); // FEATURE-405: set the initial input height correctly on load
   setRunning(false); // apply localized button title
   applyPanels();
   applyStatus();
