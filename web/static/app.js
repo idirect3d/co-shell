@@ -839,8 +839,10 @@ function showInteraction(msg) {
   // Title + body.
   if (it.title) {
     const t = document.createElement("div");
-    t.className = "interaction-title";
-    t.textContent = it.title;
+    t.className = "interaction-title md";
+    // FEATURE-409: the question (ask_followup_question) lives in title and
+    // may carry markdown (lists, emphasis, code) — render it as md too.
+    mdRender(t, it.title);
     askInteraction.appendChild(t);
   }
   if (it.body) {
@@ -957,7 +959,9 @@ function renderVirtualKeyboard(it, isSelect, container) {
     b.onclick = onClick;
     const label = document.createElement("span");
     label.className = "opt-label";
-    label.textContent = labelText;
+    // FEATURE-409: option text may carry inline markdown (bold, code) —
+    // render it inline so emphasis shows instead of raw ** markers.
+    for (const n of mdInline(labelText)) label.appendChild(n);
     item.appendChild(b);
     item.appendChild(label);
     wrap.appendChild(item);
