@@ -173,7 +173,7 @@ aside {
   border: none;
   color: var(--fg-dim);
   cursor: pointer;
-  font-size: 24px; /* doubled from the 12px .icon-btn.sm baseline */
+  font-size: 16px; /* FEATURE-409: shrunk by 1/3 from the 24px baseline */
   line-height: 1;
   padding: 0;
   /* Override the .icon-btn.sm fixed 22x22 box so the button hugs its
@@ -261,7 +261,7 @@ aside {
 .tree-row .reveal-btn {
   opacity: 0;
   background: none; border: none; color: var(--fg-faint);
-  cursor: pointer; font-size: 11px; padding: 0 2px;
+  cursor: pointer; font-size: 22px; /* FEATURE-409: doubled from 11px */ padding: 0 2px;
 }
 .tree-row:hover .reveal-btn { opacity: 1; }
 .tree-row .reveal-btn:hover { color: var(--accent); }
@@ -315,7 +315,7 @@ aside {
   height: 28px;
   margin: 0 6px 0 0;
   transform: translate(3px, -3px); /* FEATURE-403: shift right-up by 3px */
-  border: 1px solid var(--border);
+  border: 1px solid transparent; /* FEATURE-409: border hidden by default, shown on hover */
   border-radius: 50%;
   background: none;
   color: var(--fg-dim);
