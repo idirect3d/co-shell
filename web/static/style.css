@@ -313,6 +313,7 @@ aside {
   width: 28px;
   height: 28px;
   margin: 0 6px 0 0;
+  transform: translate(3px, -3px); /* FEATURE-403: shift right-up by 3px */
   border: 1px solid var(--border);
   border-radius: 50%;
   background: none;
