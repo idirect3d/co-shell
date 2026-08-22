@@ -296,7 +296,8 @@ aside {
   display: grid;
   justify-content: center;
   align-content: center;
-  padding: 4px 16px;
+  padding: 4px 8px; /* FEATURE-403: right padding 16->8px to shrink gap to "+" by 8px */
+  transform: translateY(5px); /* FEATURE-403: shift baseline down by 5px */
   overflow: hidden;
 }
 .logo > div { background: var(--accent); }
