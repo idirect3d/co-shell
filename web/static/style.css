@@ -261,7 +261,7 @@ aside {
 .tree-row .reveal-btn {
   opacity: 0;
   background: none; border: none; color: var(--fg-faint);
-  cursor: pointer; font-size: 22px; /* FEATURE-409: doubled from 11px */ padding: 0 2px;
+  cursor: pointer; font-size: 16.5px; /* FEATURE-409: 22px shrunk by 1/4 */ padding: 0 2px;
 }
 .tree-row:hover .reveal-btn { opacity: 1; }
 .tree-row .reveal-btn:hover { color: var(--accent); }
@@ -657,6 +657,41 @@ aside {
 /* Top-bottom layout: prompt info on top, option buttons below. */
 .interaction-title { font-size: 13px; color: var(--fg); font-weight: 600; }
 .interaction-body { font-size: 12px; color: var(--fg-dim, #888); white-space: pre-wrap; }
+/* FEATURE-409: the interaction body is rendered as markdown, so switch off
+   pre-wrap (md blocks manage their own whitespace) and style the md nodes. */
+.interaction-body.md { white-space: normal; }
+.interaction-body.md > :first-child { margin-top: 0; }
+.interaction-body.md > :last-child { margin-bottom: 0; }
+.interaction-body.md p { margin: 4px 0; }
+.interaction-body.md h3, .interaction-body.md h4, .interaction-body.md h5, .interaction-body.md h6 {
+  margin: 8px 0 3px; font-family: inherit; line-height: 1.35; color: var(--fg);
+}
+.interaction-body.md h3 { font-size: 14px; }
+.interaction-body.md h4 { font-size: 13px; }
+.interaction-body.md h5, .interaction-body.md h6 { font-size: 12px; }
+.interaction-body.md pre {
+  margin: 4px 0; padding: 6px 8px; background: var(--mono-bg);
+  border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; white-space: pre;
+}
+.interaction-body.md pre code { background: none; padding: 0; border: none; }
+.interaction-body.md code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px; background: var(--mono-bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 4px;
+}
+.interaction-body.md ul, .interaction-body.md ol { margin: 4px 0; padding-left: 22px; }
+.interaction-body.md li { margin: 2px 0; }
+.interaction-body.md blockquote {
+  margin: 4px 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--border);
+}
+.interaction-body.md table { border-collapse: collapse; margin: 4px 0; }
+.interaction-body.md th, .interaction-body.md td {
+  border: 1px solid var(--border); padding: 3px 8px; text-align: left;
+}
+.interaction-body.md th { background: var(--bg-elev); }
+.interaction-body.md a { color: var(--accent); text-decoration: none; }
+.interaction-body.md a:hover { text-decoration: underline; }
+.interaction-body.md hr { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
 .interaction-keys,
 .interaction-options,
 .interaction-presets {
