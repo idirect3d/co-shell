@@ -727,7 +727,7 @@ aside {
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--fg);
-  padding: 6px 12px; /* FEATURE-406: raise vertical padding 4->6px so the caret centers vertically */
+  padding: 6px 12px 2px; /* FEATURE-406: top 6px / bottom 2px to center the caret vertically */
   font: 13.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   outline: none;
   max-height: 150px; /* FEATURE-405: raise cap 120->150px */
