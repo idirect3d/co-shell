@@ -12,7 +12,7 @@
 
 const I18N = {
   zh: {
-    workspace: "工作区",
+    workspace: "工作区", refresh: "刷新",
     taskPlan: "任务进展", reply: "回复", interrupt: "打断", send: "发送",
     inputHint: "输入指令，Enter 发送，Shift+Enter 换行，↑↓ 历史",
     connected: "已连接", disconnected: "已断开",
@@ -33,9 +33,10 @@ const I18N = {
     supplement: "补充信息", supplementHint: "输入补充信息，Enter 发送（仍可点击上方按钮）",
     numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
+    copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
   },
   en: {
-    workspace: "Workspace",
+    workspace: "Workspace", refresh: "Refresh",
     taskPlan: "Task Plan", reply: "Reply", interrupt: "Interrupt", send: "Send",
     inputHint: "Type a command — Enter to send, Shift+Enter for newline, ↑↓ history",
     connected: "connected", disconnected: "disconnected",
@@ -56,6 +57,7 @@ const I18N = {
     supplement: "Supplement", supplementHint: "Type supplementary info, Enter to send (buttons still clickable)",
     numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
+    copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
   },
 };
 let T = I18N.zh;
@@ -69,6 +71,10 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
     const k = el.getAttribute("data-i18n-ph");
     if (T[k]) el.placeholder = T[k];
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-title");
+    if (T[k]) el.title = T[k];
   });
   connText.textContent = wsReady ? T.connected : T.disconnected;
   menuBtn.title = T.menu;
@@ -207,6 +213,11 @@ function wsConnect() {
     else if (msg.kind === "settings_result") showSettingsResult(msg);
     else if (msg.kind === "identity") renderIdentity(msg.identity || []);
     else if (msg.kind === "identity_result") showIdentityResult(msg);
+    else if (msg.kind === "pop_result") {
+      // FEATURE-409: retry-from popped the session back; reload so the stream
+      // reflects the truncated history.
+      if (msg.ok) location.reload();
+    }
   };
 }
 
@@ -278,11 +289,12 @@ let curLLM = null;      // current streaming llm block
 let curThinking = null; // current streaming thinking block
 let curTool = null;     // current tool block (one block per invocation)
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
+let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
 
 function scrollStream() { stream.scrollTop = stream.scrollHeight; }
 
-function newStreamBlock(cls, label) {
-  return { body: makeBlock(cls, label), raw: "", raf: 0, hasResult: false };
+function newStreamBlock(cls, label, msgIndex) {
+  return { body: makeBlock(cls, label, msgIndex), raw: "", raf: 0, hasResult: false };
 }
 
 // ensureToolParams creates (or returns) the input-parameter sub-block inside a
@@ -330,19 +342,145 @@ function scheduleMd(b) {
   });
 }
 
-function makeBlock(cls, label) {
+function makeBlock(cls, label, msgIndex) {
   const box = document.createElement("div");
   box.className = "ev " + cls;
+  if (msgIndex !== undefined && msgIndex !== "") box.dataset.msgIndex = msgIndex;
   const head = document.createElement("div");
   head.className = "ev-head";
-  head.textContent = label;
+  const headLabel = document.createElement("span");
+  headLabel.className = "ev-head-label";
+  headLabel.textContent = label;
+  head.appendChild(headLabel);
   const body = document.createElement("div");
   body.className = "ev-body";
   box.appendChild(head);
   box.appendChild(body);
+  // FEATURE-409: add copy / collapse / retry icons to the title bar, except
+  // for the final "TOOL: 完成任务" completion block. The YOU block gets copy
+  // and retry but no collapse (there is usually only one YOU block).
+  if (!(cls === "tool" && /完成任务|Complete task/.test(label))) {
+    addBlockActions(head, box, body, cls, cls === "user-msg");
+  }
   stream.appendChild(box);
   scrollStream();
   return body;
+}
+
+// addBlockActions appends the copy / collapse / retry icons to a block's title
+// bar (FEATURE-409).
+// isStreamingBody reports whether the given body belongs to the block that is
+// currently streaming output (FEATURE-409).
+function isStreamingBody(body) {
+  return (curLLM && curLLM.body === body) || (curThinking && curThinking.body === body) ||
+         (curTool && curTool.body === body) || (curREPL && curREPL.body === body);
+}
+
+// markStreaming flags a block as currently streaming: it shows the dynamic
+// "..." next to the title and forces the block expanded so the live content is
+// always visible (FEATURE-409).
+function markStreaming(body) {
+  const box = body.parentElement;
+  if (!box) return;
+  const s = box.querySelector(".ev-streaming");
+  if (s) s.classList.add("on");
+  box.classList.remove("collapsed");
+}
+
+// unmarkStreaming hides the dynamic "..." of a block once it stops streaming
+// (FEATURE-409).
+function unmarkStreaming(body) {
+  if (!body) return;
+  const box = body.parentElement;
+  if (!box) return;
+  const s = box.querySelector(".ev-streaming");
+  if (s) s.classList.remove("on");
+}
+
+// maybeCollapseEnded re-collapses blocks of a class that just finished
+// streaming, but only when that class is collapsed in localStorage AND some
+// other block is still streaming (so the session is not fully done). This keeps
+// the just-finished block out of the way while the live block stays expanded
+// (FEATURE-409).
+function maybeCollapseEnded(cls) {
+  if (localStorage.getItem("co-shell-collapse-" + cls) !== "1") return;
+  // Only re-collapse when some other block is still streaming.
+  const anyStreaming = Array.from(document.querySelectorAll(".ev .ev-body")).some(isStreamingBody);
+  if (!anyStreaming) return;
+  document.querySelectorAll(".ev." + cls).forEach((b) => {
+    const bBody = b.querySelector(".ev-body");
+    if (bBody && !isStreamingBody(bBody)) b.classList.add("collapsed");
+  });
+}
+
+function addBlockActions(head, box, body, cls, noCollapse) {
+  const actions = document.createElement("span");
+  actions.className = "ev-actions";
+
+  // FEATURE-409: a dynamic "..." shown next to the title while the block is
+  // streaming output, so the user can see it is still being produced.
+  const streaming = document.createElement("span");
+  streaming.className = "ev-streaming";
+  streaming.textContent = "...";
+  head.appendChild(streaming);
+
+  // 1) Copy: copy the block's plain-text content to the clipboard.
+  const copy = document.createElement("button");
+  copy.className = "ev-act";
+  copy.textContent = "⧉";
+  copy.title = T.copyBlock;
+  copy.onclick = (e) => {
+    e.stopPropagation();
+    const text = body.innerText || body.textContent || "";
+    navigator.clipboard.writeText(text).catch(() => {});
+  };
+  actions.appendChild(copy);
+
+  // 2) Collapse/expand: collapse all blocks of the same class to just their
+  // title bar; the state is persisted in localStorage. Skipped for the YOU
+  // block (noCollapse) since there is usually only one of it.
+  if (!noCollapse) {
+    const collapse = document.createElement("button");
+    collapse.className = "ev-act";
+    collapse.textContent = "▾";
+    collapse.title = T.collapseBlock;
+    const storageKey = "co-shell-collapse-" + cls;
+    const applyCollapse = () => {
+      // FEATURE-409: a block that is currently streaming output is never
+      // collapsed, so the user always sees the live dynamic content.
+      const collapsed = !isStreamingBody(body) && localStorage.getItem(storageKey) === "1";
+      box.classList.toggle("collapsed", collapsed);
+      collapse.textContent = collapsed ? "▸" : "▾";
+      collapse.title = collapsed ? T.expandBlock : T.collapseBlock;
+    };
+    collapse.onclick = (e) => {
+      e.stopPropagation();
+      const collapsed = localStorage.getItem(storageKey) !== "1";
+      localStorage.setItem(storageKey, collapsed ? "1" : "0");
+      document.querySelectorAll(".ev." + cls).forEach((b) => {
+        // Skip blocks that are currently streaming — they stay expanded.
+        const bBody = b.querySelector(".ev-body");
+        if (bBody && isStreamingBody(bBody)) return;
+        b.classList.toggle("collapsed", collapsed);
+      });
+      applyCollapse();
+    };
+    applyCollapse();
+    actions.appendChild(collapse);
+  }
+
+  // 3) Retry-from: pop the session back to this block and re-run.
+  const retry = document.createElement("button");
+  retry.className = "ev-act";
+  retry.textContent = "↻";
+  retry.title = T.retryFrom;
+  retry.onclick = (e) => {
+    e.stopPropagation();
+    wsSend({ type: "session_pop", value: String(box.dataset.msgIndex || "") });
+  };
+  actions.appendChild(retry);
+
+  head.appendChild(actions);
 }
 
 function eventClass(ev) {
@@ -358,6 +496,10 @@ function eventClass(ev) {
 }
 
 function renderEvent(ev) {
+  // FEATURE-409: the message index attached by the backend lets the retry-from
+  // action map this block back to a message for :session pop to.
+  const msgIndex = ev.meta && ev.meta.msg_index;
+  if (msgIndex) lastMsgIndex = msgIndex;
   // Turn-boundary signals from the web session (FEATURE-369): drive the
   // merged send/interrupt button, never render as blocks.
   if (ev.type === "await_input") { setRunning(false); return; }
@@ -381,6 +523,9 @@ function renderEvent(ev) {
     line.textContent = parts.join("  ");
     stream.appendChild(line);
     curLLM = curThinking = null;
+    // FEATURE-409: the LLM iteration ended (token usage refreshed) — hide the
+    // streaming "..." on all blocks now, not only at the final done event.
+    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     scrollStream();
     // FEATURE-378: accumulate token stats into the status bar.
     if (ev.type === "token_iter") {
@@ -398,6 +543,8 @@ function renderEvent(ev) {
   }
   if (ev.type === "done") {
     curLLM = curThinking = curTool = curREPL = null;
+    // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
+    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     // An LLM iteration finished — the agent may have switched git branches
     // or modified files, so refresh the branch label and the tree's git
     // status badges without a manual reload.
@@ -409,12 +556,38 @@ function renderEvent(ev) {
   const streaming = ev.type === "content_chunk" || ev.type === "thinking_chunk";
   if (streaming) {
     if (ev.type === "content_chunk") {
-      if (!curLLM) { curLLM = newStreamBlock("llm", "LLM"); curThinking = null; curTool = null; }
+      if (!curLLM) {
+        // FEATURE-409: the previous thinking/tool blocks just ended — hide
+        // their "..." immediately, then start the new LLM block.
+        unmarkStreaming(curThinking && curThinking.body);
+        unmarkStreaming(curTool && curTool.body);
+        curLLM = newStreamBlock("llm", "LLM", msgIndex);
+        curThinking = null;
+        curTool = null;
+      }
+      // FEATURE-409: if their class is collapsed and other blocks are still
+      // streaming, re-collapse the just-ended blocks.
+      maybeCollapseEnded("thinking");
+      maybeCollapseEnded("tool");
       curLLM.raw += ev.text || "";
+      markStreaming(curLLM.body);
       scheduleMd(curLLM);
     } else {
-      if (!curThinking) { curThinking = newStreamBlock("thinking", "THINK"); curLLM = null; curTool = null; }
+      if (!curThinking) {
+        // FEATURE-409: the previous llm/tool blocks just ended — hide their
+        // "..." immediately, then start the new THINK block.
+        unmarkStreaming(curLLM && curLLM.body);
+        unmarkStreaming(curTool && curTool.body);
+        curThinking = newStreamBlock("thinking", "THINK", msgIndex);
+        curLLM = null;
+        curTool = null;
+      }
+      // FEATURE-409: if their class is collapsed and other blocks are still
+      // streaming, re-collapse the just-ended blocks.
+      maybeCollapseEnded("llm");
+      maybeCollapseEnded("tool");
       curThinking.raw += ev.text || "";
+      markStreaming(curThinking.body);
       scheduleMd(curThinking);
     }
     scrollStream();
@@ -425,10 +598,17 @@ function renderEvent(ev) {
   // accumulate into the input-parameter sub-block (FEATURE-400); the result
   // appends to the ev-body.
   if (ev.type === "tool_call_stream") {
-    if (!curTool) curTool = newStreamBlock("tool", "TOOL");
+    if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+    markStreaming(curTool.body);
     const params = ensureToolParams(curTool);
     params.raw += ev.text || "";
-    params.body.textContent = params.raw; // partial args stay plain while typing
+    // FEATURE-409: render the streaming args as markdown (lists, code, etc.)
+    // instead of a plain text blob; md.js is streaming-safe.
+    params.body.classList.add("md");
+    mdRender(params.body, params.raw);
+    // Keep the params sub-block scrolled to the last line as streaming args
+    // accumulate past its fixed height.
+    params.body.scrollTop = params.body.scrollHeight;
     scrollStream();
     return;
   }
@@ -438,23 +618,30 @@ function renderEvent(ev) {
     if (phase === "input" || (!phase && ev.type === "tool_call" && !fresh && !curTool.raw)) {
       // FEATURE-400: the input-parameter sub-block is the params container;
       // the pre-execution summary no longer replaces the streamed params.
-      if (fresh) curTool = newStreamBlock("tool", "TOOL");
+      if (fresh) curTool = newStreamBlock("tool", "TOOL", msgIndex);
       // FEATURE-388: set the TOOL block title to "TOOL <action> - <intent>"
       // from the structured ToolSummary.
       const summary = parseToolSummary(ev);
       if (summary) {
         const head = curTool.body.parentElement.children[0];
         const action = toolAction(summary.tool_name);
-        head.textContent = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
+        const text = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
+        // FEATURE-409: update only the title label, preserving the action icons
+        // (copy/collapse/retry) and the streaming "..." in the head.
+        const label = head.querySelector(".ev-head-label");
+        if (label) label.textContent = text;
+        else head.textContent = text;
       }
       curTool.hasResult = false;
     } else {
       // result / tool error: append into the same block
-      if (!curTool) curTool = newStreamBlock("tool", "TOOL");
+      if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
       if (ev.type === "error") curTool.body.parentElement.classList.add("level-error");
       const t = (ev.text || "").replace(/^\s*Result:\n/, "");
       curTool.raw += (curTool.raw ? "\n\n" : "") + t;
       curTool.hasResult = true;
+      // FEATURE-409: the tool call finished — hide its streaming "...".
+      unmarkStreaming(curTool.body);
       scheduleMd(curTool);
       // A tool call finished — the agent may have modified files or switched
       // branches, so refresh the tree and branch label after each call (not
@@ -472,7 +659,7 @@ function renderEvent(ev) {
   // ui_text from the repl channel renders as a REPL block (parallel to
   // TOOL/LLM); consecutive lines merge into one block. Other ui_text stays SYS.
   if (ev.type === "ui_text" && ev.chan === "repl") {
-    if (!curREPL) curREPL = newStreamBlock("repl", "REPL");
+    if (!curREPL) curREPL = newStreamBlock("repl", "REPL", msgIndex);
     curREPL.raw += (curREPL.raw ? "\n" : "") + (ev.text || "");
     curREPL.body.textContent = curREPL.raw;
     scrollStream();
@@ -480,7 +667,7 @@ function renderEvent(ev) {
   }
   curREPL = null;
   const blockLabel = ev.type === "ui_text" ? "SYS" : label;
-  const body = makeBlock(eventClass(ev), blockLabel);
+  const body = makeBlock(eventClass(ev), blockLabel, msgIndex);
   if (ev.type === "content" || ev.type === "thinking") {
     body.classList.add("md");
     mdRender(body, ev.text || "");
@@ -490,7 +677,7 @@ function renderEvent(ev) {
 }
 
 function renderUserEcho(text) {
-  const body = makeBlock("user-msg", "YOU");
+  const body = makeBlock("user-msg", "YOU", lastMsgIndex);
   body.textContent = text;
 }
 
@@ -832,14 +1019,18 @@ function showInteraction(msg) {
   // Title + body.
   if (it.title) {
     const t = document.createElement("div");
-    t.className = "interaction-title";
-    t.textContent = it.title;
+    t.className = "interaction-title md";
+    // FEATURE-409: the question (ask_followup_question) lives in title and
+    // may carry markdown (lists, emphasis, code) — render it as md too.
+    mdRender(t, it.title);
     askInteraction.appendChild(t);
   }
   if (it.body) {
     const b = document.createElement("div");
-    b.className = "interaction-body";
-    b.textContent = it.body;
+    b.className = "interaction-body md";
+    // FEATURE-409: render the prompt body as markdown so lists, code and
+    // emphasis are laid out instead of piling up as one text blob.
+    mdRender(b, it.body);
     askInteraction.appendChild(b);
   }
 
@@ -948,7 +1139,9 @@ function renderVirtualKeyboard(it, isSelect, container) {
     b.onclick = onClick;
     const label = document.createElement("span");
     label.className = "opt-label";
-    label.textContent = labelText;
+    // FEATURE-409: option text may carry inline markdown (bold, code) —
+    // render it inline so emphasis shows instead of raw ** markers.
+    for (const n of mdInline(labelText)) label.appendChild(n);
     item.appendChild(b);
     item.appendChild(label);
     wrap.appendChild(item);
@@ -1080,6 +1273,18 @@ function recallHistory() {
 }
 
 input.addEventListener("keydown", (e) => {
+  // FEATURE-409: while an interaction is pending (tool confirm / ask select /
+  // cancel), the virtual-keyboard handler on window already responds to the
+  // target keys. Swallow those keys here too so they don't leak into the input
+  // box as stray characters (the window handler runs in the bubble phase, after
+  // the textarea's own default insertion).
+  if (pendingInteraction && !supplementMode) {
+    const k = e.key.toLowerCase();
+    const isTarget = k === "enter" || k === " " || /^[0-9]$/.test(k) || /^[a-z]$/.test(k);
+    // Swallow the key so it doesn't leak into the input box, but let it keep
+    // bubbling so the window-level __vkHandler still responds to it.
+    if (isTarget) { e.preventDefault(); return; }
+  }
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInput(); return; }
   if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
   if (history.length === 0) return; // nothing to navigate; never touch the draft (FIX-367)
