@@ -432,9 +432,12 @@ function renderEvent(ev) {
     if (!curTool) curTool = newStreamBlock("tool", "TOOL");
     const params = ensureToolParams(curTool);
     params.raw += ev.text || "";
-    params.body.textContent = params.raw; // partial args stay plain while typing
-    // FEATURE-409: keep the params sub-block scrolled to the last line as
-    // streaming args accumulate past its fixed height.
+    // FEATURE-409: render the streaming args as markdown (lists, code, etc.)
+    // instead of a plain text blob; md.js is streaming-safe.
+    params.body.classList.add("md");
+    mdRender(params.body, params.raw);
+    // Keep the params sub-block scrolled to the last line as streaming args
+    // accumulate past its fixed height.
     params.body.scrollTop = params.body.scrollHeight;
     scrollStream();
     return;
