@@ -29,6 +29,7 @@
 | FEATURE-400 | 0.9.0 | P1 | TOOL 输入参数子块：动态输出参数放入可滚动子块（子标题栏"输入参数" + 展开/固定高度切换按钮） |
 | FEATURE-401 | 0.9.0 | P1 | 左下角 logo 与消息框之间增加"+"号按钮（创建新会话） |
 | FEATURE-402 | 0.9.0 | P1 | 调整"+"号按钮位置到录入框左边 + 去掉对话条背景色 |
+| FEATURE-403 | 0.9.0 | P1 | "+"号按钮基准位置向右上方 x/y 都整体移动 3 像素 |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -155,6 +156,13 @@
   - 需求：① `web/static/index.html` 将"+"号按钮从 `#logoWrap` 和 `.bottom-main` 之间移到 `.input-row` 的左边；② `web/static/style.css` 调整按钮样式（嵌入录入框左边，留好边距）+ 去掉 `#bottom` 背景色。
   - 实施：`web/static/index.html` 将 `#newSessionBtn` 从 `#logoWrap` 和 `.bottom-main` 之间移到 `.input-row` 内 `#input` 前面；`web/static/style.css` 调整 `.new-session-btn` 样式（嵌入录入框左边，留好和边框/录入区域边距）+ 去掉 `#bottom` 的 `background: var(--bg-panel)` [BUILD-505]
   - 测试：见 use-case/FEATURE-402/
+
+- [ ] **FEATURE-403 "+"号按钮基准位置向右上方 x/y 都整体移动 3 像素**
+  - 背景：FEATURE-402 将"+"号按钮嵌入到录入框左边，但用户希望"+"号按钮的基准位置再向右上方 x/y 都整体移动 3 像素。
+  - 方案（已确认）：给 `.new-session-btn` 加 `transform: translate(3px, -3px)`（向右 3px、向上 3px）。
+  - 需求：`web/static/style.css` 的 `.new-session-btn` 增加 `transform: translate(3px, -3px)`。
+  - 实施：`web/static/style.css` 的 `.new-session-btn` 增加 `transform: translate(3px, -3px)` [BUILD-506]
+  - 测试：见 use-case/FEATURE-403/
 
 ---
 
