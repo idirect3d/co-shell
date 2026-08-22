@@ -730,7 +730,7 @@ aside {
   padding: 4px 12px; /* FEATURE-404: shrink vertical padding 8->4px so single-line content fits without a scrollbar */
   font: 13.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   outline: none;
-  max-height: 120px;
+  max-height: 150px; /* FEATURE-405: raise cap 120->150px */
 }
 #input:focus { border-color: var(--accent); }
 /* Placeholder hint stays dim so it never outshines the real input text. */

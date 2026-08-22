@@ -31,6 +31,7 @@
 | FEATURE-402 | 0.9.0 | P1 | 调整"+"号按钮位置到录入框左边 + 去掉对话条背景色 |
 | FEATURE-403 | 0.9.0 | P1 | "+"号按钮基准位置向右上方 x/y 都整体移动 3 像素 |
 | FEATURE-404 | 0.9.0 | P1 | 改进主消息录入框滚动条：缩小内容上下间距避免无内容/单行时出现滚动条 |
+| FEATURE-405 | 0.9.0 | P1 | 改进主消息录入框高度：autoGrow 增加上限 + scrollHeight 加增量 |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -171,6 +172,13 @@
   - 需求：`web/static/style.css` 的 `#input` 缩小上下 padding（当前 `padding: 8px 12px`，上下 8px 较大）。
   - 实施：`web/static/style.css` 的 `#input` 上下 padding 从 8px 缩小到 4px（`padding: 4px 12px`），使单行/多行但未超限时不出现滚动条 [BUILD-508]
   - 测试：见 use-case/FEATURE-404/
+
+- [ ] **FEATURE-405 改进主消息录入框高度**
+  - 背景：FEATURE-404 缩小 padding 后滚动条仍出现。用户发现 autoGrow 自动增长高度（`input.style.height = Math.min(input.scrollHeight, 120)`），但文本框高度仍不足。建议适当增加累积单位高度/文本框高度。
+  - 方案（已确认）：两者都做——① `autoGrow` 高度上限从 120px 增加到 150px；② `autoGrow` 给 scrollHeight 加增量（+4px）；③ CSS `#input` 的 `max-height` 从 120px 增加到 150px。
+  - 需求：`web/static/app.js` 的 `autoGrow` 增加上限 + 加增量；`web/static/style.css` 的 `#input` 增加 `max-height`。
+  - 实施：`web/static/app.js` `autoGrow` 改为 `Math.min(input.scrollHeight + 4, 150)`；`web/static/style.css` `#input` 的 `max-height` 从 120px 改为 150px [BUILD-509]
+  - 测试：见 use-case/FEATURE-405/
 
 ---
 
