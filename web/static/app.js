@@ -33,6 +33,7 @@ const I18N = {
     supplement: "补充信息", supplementHint: "输入补充信息，Enter 发送（仍可点击上方按钮）",
     numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
+    copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -56,6 +57,7 @@ const I18N = {
     supplement: "Supplement", supplementHint: "Type supplementary info, Enter to send (buttons still clickable)",
     numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
+    copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
   },
 };
 let T = I18N.zh;
@@ -211,6 +213,11 @@ function wsConnect() {
     else if (msg.kind === "settings_result") showSettingsResult(msg);
     else if (msg.kind === "identity") renderIdentity(msg.identity || []);
     else if (msg.kind === "identity_result") showIdentityResult(msg);
+    else if (msg.kind === "pop_result") {
+      // FEATURE-409: retry-from popped the session back; reload so the stream
+      // reflects the truncated history.
+      if (msg.ok) location.reload();
+    }
   };
 }
 
@@ -285,8 +292,8 @@ let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 
 function scrollStream() { stream.scrollTop = stream.scrollHeight; }
 
-function newStreamBlock(cls, label) {
-  return { body: makeBlock(cls, label), raw: "", raf: 0, hasResult: false };
+function newStreamBlock(cls, label, msgIndex) {
+  return { body: makeBlock(cls, label, msgIndex), raw: "", raf: 0, hasResult: false };
 }
 
 // ensureToolParams creates (or returns) the input-parameter sub-block inside a
@@ -334,19 +341,85 @@ function scheduleMd(b) {
   });
 }
 
-function makeBlock(cls, label) {
+function makeBlock(cls, label, msgIndex) {
   const box = document.createElement("div");
   box.className = "ev " + cls;
+  if (msgIndex !== undefined && msgIndex !== "") box.dataset.msgIndex = msgIndex;
   const head = document.createElement("div");
   head.className = "ev-head";
-  head.textContent = label;
+  const headLabel = document.createElement("span");
+  headLabel.className = "ev-head-label";
+  headLabel.textContent = label;
+  head.appendChild(headLabel);
   const body = document.createElement("div");
   body.className = "ev-body";
   box.appendChild(head);
   box.appendChild(body);
+  // FEATURE-409: add copy / collapse / retry icons to the title bar, except
+  // for the YOU block and the final "TOOL: 完成任务" completion block.
+  if (cls !== "user-msg" && !(cls === "tool" && /完成任务|Complete task/.test(label))) {
+    addBlockActions(head, box, body, cls);
+  }
   stream.appendChild(box);
   scrollStream();
   return body;
+}
+
+// addBlockActions appends the copy / collapse / retry icons to a block's title
+// bar (FEATURE-409).
+function addBlockActions(head, box, body, cls) {
+  const actions = document.createElement("span");
+  actions.className = "ev-actions";
+
+  // 1) Copy: copy the block's plain-text content to the clipboard.
+  const copy = document.createElement("button");
+  copy.className = "ev-act";
+  copy.textContent = "⧉";
+  copy.title = T.copyBlock;
+  copy.onclick = (e) => {
+    e.stopPropagation();
+    const text = body.innerText || body.textContent || "";
+    navigator.clipboard.writeText(text).catch(() => {});
+  };
+  actions.appendChild(copy);
+
+  // 2) Collapse/expand: collapse all blocks of the same class to just their
+  // title bar; the state is persisted in localStorage.
+  const collapse = document.createElement("button");
+  collapse.className = "ev-act";
+  collapse.textContent = "▾";
+  collapse.title = T.collapseBlock;
+  const storageKey = "co-shell-collapse-" + cls;
+  const applyCollapse = () => {
+    const collapsed = localStorage.getItem(storageKey) === "1";
+    box.classList.toggle("collapsed", collapsed);
+    collapse.textContent = collapsed ? "▸" : "▾";
+    collapse.title = collapsed ? T.expandBlock : T.collapseBlock;
+  };
+  collapse.onclick = (e) => {
+    e.stopPropagation();
+    const collapsed = localStorage.getItem(storageKey) !== "1";
+    localStorage.setItem(storageKey, collapsed ? "1" : "0");
+    document.querySelectorAll(".ev." + cls).forEach((b) => {
+      b.classList.toggle("collapsed", collapsed);
+    });
+    applyCollapse();
+  };
+  applyCollapse();
+  actions.appendChild(collapse);
+
+  // 3) Retry-from: pop the session back to this block and re-run.
+  const retry = document.createElement("button");
+  retry.className = "ev-act";
+  retry.textContent = "↻";
+  retry.title = T.retryFrom;
+  retry.onclick = (e) => {
+    e.stopPropagation();
+    wsSend({ type: "session_pop", value: String(box.dataset.msgIndex || "") });
+  };
+  actions.appendChild(retry);
+
+  head.appendChild(actions);
 }
 
 function eventClass(ev) {
@@ -362,6 +435,9 @@ function eventClass(ev) {
 }
 
 function renderEvent(ev) {
+  // FEATURE-409: the message index attached by the backend lets the retry-from
+  // action map this block back to a message for :session pop to.
+  const msgIndex = ev.meta && ev.meta.msg_index;
   // Turn-boundary signals from the web session (FEATURE-369): drive the
   // merged send/interrupt button, never render as blocks.
   if (ev.type === "await_input") { setRunning(false); return; }
@@ -413,11 +489,11 @@ function renderEvent(ev) {
   const streaming = ev.type === "content_chunk" || ev.type === "thinking_chunk";
   if (streaming) {
     if (ev.type === "content_chunk") {
-      if (!curLLM) { curLLM = newStreamBlock("llm", "LLM"); curThinking = null; curTool = null; }
+      if (!curLLM) { curLLM = newStreamBlock("llm", "LLM", msgIndex); curThinking = null; curTool = null; }
       curLLM.raw += ev.text || "";
       scheduleMd(curLLM);
     } else {
-      if (!curThinking) { curThinking = newStreamBlock("thinking", "THINK"); curLLM = null; curTool = null; }
+      if (!curThinking) { curThinking = newStreamBlock("thinking", "THINK", msgIndex); curLLM = null; curTool = null; }
       curThinking.raw += ev.text || "";
       scheduleMd(curThinking);
     }
@@ -429,7 +505,7 @@ function renderEvent(ev) {
   // accumulate into the input-parameter sub-block (FEATURE-400); the result
   // appends to the ev-body.
   if (ev.type === "tool_call_stream") {
-    if (!curTool) curTool = newStreamBlock("tool", "TOOL");
+    if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
     const params = ensureToolParams(curTool);
     params.raw += ev.text || "";
     // FEATURE-409: render the streaming args as markdown (lists, code, etc.)
@@ -448,7 +524,7 @@ function renderEvent(ev) {
     if (phase === "input" || (!phase && ev.type === "tool_call" && !fresh && !curTool.raw)) {
       // FEATURE-400: the input-parameter sub-block is the params container;
       // the pre-execution summary no longer replaces the streamed params.
-      if (fresh) curTool = newStreamBlock("tool", "TOOL");
+      if (fresh) curTool = newStreamBlock("tool", "TOOL", msgIndex);
       // FEATURE-388: set the TOOL block title to "TOOL <action> - <intent>"
       // from the structured ToolSummary.
       const summary = parseToolSummary(ev);
@@ -460,7 +536,7 @@ function renderEvent(ev) {
       curTool.hasResult = false;
     } else {
       // result / tool error: append into the same block
-      if (!curTool) curTool = newStreamBlock("tool", "TOOL");
+      if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
       if (ev.type === "error") curTool.body.parentElement.classList.add("level-error");
       const t = (ev.text || "").replace(/^\s*Result:\n/, "");
       curTool.raw += (curTool.raw ? "\n\n" : "") + t;
@@ -482,7 +558,7 @@ function renderEvent(ev) {
   // ui_text from the repl channel renders as a REPL block (parallel to
   // TOOL/LLM); consecutive lines merge into one block. Other ui_text stays SYS.
   if (ev.type === "ui_text" && ev.chan === "repl") {
-    if (!curREPL) curREPL = newStreamBlock("repl", "REPL");
+    if (!curREPL) curREPL = newStreamBlock("repl", "REPL", msgIndex);
     curREPL.raw += (curREPL.raw ? "\n" : "") + (ev.text || "");
     curREPL.body.textContent = curREPL.raw;
     scrollStream();
@@ -490,7 +566,7 @@ function renderEvent(ev) {
   }
   curREPL = null;
   const blockLabel = ev.type === "ui_text" ? "SYS" : label;
-  const body = makeBlock(eventClass(ev), blockLabel);
+  const body = makeBlock(eventClass(ev), blockLabel, msgIndex);
   if (ev.type === "content" || ev.type === "thinking") {
     body.classList.add("md");
     mdRender(body, ev.text || "");
