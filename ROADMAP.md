@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FEATURE-409 | 0.10.0 | P1 | Web UI 四项优化：新建会话+号按钮边框默认透明、定位到文件夹图标放大一倍、工作区刷新图标缩小1/3且中文提示为"刷新"、TOOL块子块动态累积数据自动滚动到最后一行 |
 
-> 当前 BUILD: 520
+> 当前 BUILD: 521
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -25,7 +25,7 @@
 - [ ] **FEATURE-409 Web UI 四项优化**
   - 背景：Web UI 若干细节优化。
   - 方案（已确认）：① 新建会话+号按钮边框默认透明，hover 才显示；② 文件右侧定位到文件夹图标放大一倍；③ 工作区刷新图标缩小1/3，中文提示改为"刷新"；④ TOOL 块子块动态累积数据时自动滚动到最后一行。
-  - 实施：`web/static/style.css` + `web/static/app.js` + `web/static/index.html` [BUILD-516]；追加：定位图标缩小1/4（22px->16.5px）、提问确认栏 body 改为 md 解析 [BUILD-517]；修复：question（it.title）与选项（it.options）也做 md 解析 [BUILD-519]；追加：TOOL 输入参数子块 md 解析、问题提示窗口表格加边框 [BUILD-520]
+  - 实施：`web/static/style.css` + `web/static/app.js` + `web/static/index.html` [BUILD-516]；追加：定位图标缩小1/4（22px->16.5px）、提问确认栏 body 改为 md 解析 [BUILD-517]；修复：question（it.title）与选项（it.options）也做 md 解析 [BUILD-519]；追加：TOOL 输入参数子块 md 解析、问题提示窗口表格加边框 [BUILD-520]；追加：问题提示框内 ask_followup_question 内容边框颜色统一为 accent [BUILD-521]
   - 测试：见 use-case/FEATURE-409/
 
 ---
