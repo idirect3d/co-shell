@@ -1096,6 +1096,18 @@ function recallHistory() {
 }
 
 input.addEventListener("keydown", (e) => {
+  // FEATURE-409: while an interaction is pending (tool confirm / ask select /
+  // cancel), the virtual-keyboard handler on window already responds to the
+  // target keys. Swallow those keys here too so they don't leak into the input
+  // box as stray characters (the window handler runs in the bubble phase, after
+  // the textarea's own default insertion).
+  if (pendingInteraction && !supplementMode) {
+    const k = e.key.toLowerCase();
+    const isTarget = k === "enter" || k === " " || /^[0-9]$/.test(k) || /^[a-z]$/.test(k);
+    // Swallow the key so it doesn't leak into the input box, but let it keep
+    // bubbling so the window-level __vkHandler still responds to it.
+    if (isTarget) { e.preventDefault(); return; }
+  }
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInput(); return; }
   if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
   if (history.length === 0) return; // nothing to navigate; never touch the draft (FIX-367)
