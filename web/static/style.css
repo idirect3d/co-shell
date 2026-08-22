@@ -411,6 +411,7 @@ aside {
 .ev-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 4px 10px;
   font-size: 11px;
@@ -426,6 +427,29 @@ aside {
   border-radius: 50%;
   background: var(--fg-faint);
 }
+.ev-head-label { display: inline-flex; align-items: center; gap: 8px; }
+
+/* FEATURE-409: title-bar action icons (copy / collapse / retry). */
+.ev-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.ev-act {
+  background: none;
+  border: none;
+  color: var(--fg-faint);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.ev-act:hover { color: var(--accent); background: var(--bg-panel); }
+
+/* Collapsed: hide the body, keep only the title bar. */
+.ev.collapsed .ev-body { display: none; }
 
 .ev-body {
   padding: 8px 12px;
