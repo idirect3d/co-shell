@@ -27,6 +27,7 @@ import (
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/log"
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/store"
@@ -217,10 +218,43 @@ func (s *WebSession) pushSessionList() {
 }
 
 // switchSession switches the current session to the target ID (FEATURE-387).
+// It mirrors the REPL :session switch command (cmd/session.go handleSwitch):
+// the current session's messages are flushed to the DB and the target
+// session's messages are loaded into the agent's context, so :context reflects
+// the switched session (FIX-407).
 func (s *WebSession) switchSession(id string) {
 	if id == "" {
 		return
 	}
+	// Flush current session messages back to DB before switching.
+	if err := s.ag.FlushCurrentSession(); err != nil {
+		log.Warn("switchSession FlushCurrentSession: %v", err)
+	}
+	// Load the target session and swap its messages into the agent context.
+	target, found, err := s.ag.Store().LoadNamedSession(id)
+	if err != nil {
+		log.Warn("switchSession LoadNamedSession: %v", err)
+		return
+	}
+	if !found || target == nil {
+		log.Warn("switchSession: session %q not found", id)
+		return
+	}
+	var messages []llm.Message
+	if err := json.Unmarshal(target.Messages, &messages); err != nil {
+		log.Warn("switchSession unmarshal messages: %v", err)
+		return
+	}
+	// Build full history with the current system prompt.
+	current := s.ag.Messages()
+	systemPrompt := ""
+	if len(current) > 0 && current[0].Role == "system" {
+		systemPrompt = current[0].Content
+	}
+	newMsgs := []llm.Message{{Role: "system", Content: systemPrompt}}
+	newMsgs = append(newMsgs, messages...)
+	s.ag.SetHistory(newMsgs)
+
 	s.ag.SetCurrentSessionID(id)
 	if err := s.ag.Store().SaveCurrentSessionID(id); err != nil {
 		log.Warn("switchSession SaveCurrentSessionID: %v", err)

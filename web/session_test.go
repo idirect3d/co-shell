@@ -17,6 +17,7 @@ import (
 
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/llm"
 	"github.com/idirect3d/co-shell/repl"
 	"github.com/idirect3d/co-shell/store"
 	"github.com/idirect3d/co-shell/taskplan"
@@ -388,6 +389,74 @@ func TestSessionSwitch(t *testing.T) {
 	}
 	if ag.CurrentSessionID() != "sess-B" {
 		t.Fatalf("current session = %q, want sess-B", ag.CurrentSessionID())
+	}
+}
+
+// TestSessionSwitchSwitchesContext verifies that switching sessions via the
+// web UI actually swaps the agent's in-memory context (messages), not just the
+// current session ID / task plan (FIX-407).
+func TestSessionSwitchSwitchesContext(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	now := time.Now()
+	// sess-A holds message "会话A的消息", sess-B holds "会话B的消息".
+	msgA, _ := json.Marshal([]llm.Message{{Role: "user", Content: "会话A的消息"}})
+	msgB, _ := json.Marshal([]llm.Message{{Role: "user", Content: "会话B的消息"}})
+	for _, e := range []*store.SessionEntry{
+		{ID: "sess-A", Title: "sess-A", Messages: msgA, CreatedAt: now, UpdatedAt: now},
+		{ID: "sess-B", Title: "sess-B", Messages: msgB, CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := ag.Store().SaveNamedSession(e); err != nil {
+			t.Fatalf("SaveNamedSession: %v", err)
+		}
+	}
+
+	// Start in sess-A with an in-memory message that must be flushed on switch.
+	ag.SetCurrentSessionID("sess-A")
+	readServerMsg(t, client) // consume task_plan event from SetCurrentSessionID
+	readServerMsg(t, client) // consume sessions list from SetCurrentSessionID
+	ag.SetHistory([]llm.Message{
+		{Role: "system", Content: "sys"},
+		{Role: "user", Content: "会话A的消息"},
+	})
+
+	sendClient(t, client, clientMessage{Type: "session_switch", Value: "sess-B"})
+	readServerMsg(t, client) // consume task_plan event from switch
+	readServerMsg(t, client) // consume sessions list from switch
+
+	if ag.CurrentSessionID() != "sess-B" {
+		t.Fatalf("current session = %q, want sess-B", ag.CurrentSessionID())
+	}
+	// The agent context must now hold sess-B's message, not sess-A's.
+	msgs := ag.Messages()
+	foundB, foundA := false, false
+	for _, m := range msgs {
+		if m.Content == "会话B的消息" {
+			foundB = true
+		}
+		if m.Content == "会话A的消息" {
+			foundA = true
+		}
+	}
+	if !foundB {
+		t.Fatalf("agent context should contain sess-B message, got %+v", msgs)
+	}
+	if foundA {
+		t.Fatalf("agent context should NOT contain sess-A message, got %+v", msgs)
+	}
+
+	// The previous session's in-memory message must have been flushed to DB.
+	if entry, found, _ := ag.Store().LoadNamedSession("sess-A"); found && entry != nil {
+		var stored []llm.Message
+		if err := json.Unmarshal(entry.Messages, &stored); err == nil {
+			for _, m := range stored {
+				if m.Content == "会话A的消息" {
+					return // flushed correctly
+				}
+			}
+		}
+		t.Fatalf("sess-A should have been flushed with its message, got %s", string(entry.Messages))
 	}
 }
 
