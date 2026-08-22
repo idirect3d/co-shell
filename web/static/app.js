@@ -12,7 +12,7 @@
 
 const I18N = {
   zh: {
-    workspace: "工作区",
+    workspace: "工作区", refresh: "刷新",
     taskPlan: "任务进展", reply: "回复", interrupt: "打断", send: "发送",
     inputHint: "输入指令，Enter 发送，Shift+Enter 换行，↑↓ 历史",
     connected: "已连接", disconnected: "已断开",
@@ -35,7 +35,7 @@ const I18N = {
     cancel: "取消", confirm: "确认",
   },
   en: {
-    workspace: "Workspace",
+    workspace: "Workspace", refresh: "Refresh",
     taskPlan: "Task Plan", reply: "Reply", interrupt: "Interrupt", send: "Send",
     inputHint: "Type a command — Enter to send, Shift+Enter for newline, ↑↓ history",
     connected: "connected", disconnected: "disconnected",
@@ -69,6 +69,10 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
     const k = el.getAttribute("data-i18n-ph");
     if (T[k]) el.placeholder = T[k];
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-title");
+    if (T[k]) el.title = T[k];
   });
   connText.textContent = wsReady ? T.connected : T.disconnected;
   menuBtn.title = T.menu;
@@ -429,6 +433,9 @@ function renderEvent(ev) {
     const params = ensureToolParams(curTool);
     params.raw += ev.text || "";
     params.body.textContent = params.raw; // partial args stay plain while typing
+    // FEATURE-409: keep the params sub-block scrolled to the last line as
+    // streaming args accumulate past its fixed height.
+    params.body.scrollTop = params.body.scrollHeight;
     scrollStream();
     return;
   }
