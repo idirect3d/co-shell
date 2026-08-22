@@ -1050,7 +1050,7 @@ function sendInput() {
 
 function autoGrow() {
   input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight + 4, 150) + "px"; // FEATURE-405: +4px increment, 150px cap
+  input.style.height = Math.min(input.scrollHeight + 6, 150) + "px"; // FEATURE-405: +6px increment, 150px cap
 }
 
 /* ---------- merged send / interrupt button (FEATURE-369) ---------- */
