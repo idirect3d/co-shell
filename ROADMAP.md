@@ -6,9 +6,35 @@
 
 ## 当前版本
 
+> **版本**: v0.9.1
+
+> **状态**: 🚧 开发中（Web UI 会话切换上下文修复）
+> **里程碑**: Web UI 会话切换上下文修复
+> **说明**: 0.9.1 系列专注 Web UI 会话切换上下文修复，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-407 | 0.9.1 | P1 | 修复 Web UI 会话切换不切换上下文（switchSession 补充 FlushCurrentSession + 加载目标会话消息 + SetHistory） |
+
+> 当前 BUILD: 513
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-407 修复 Web UI 会话切换不切换上下文**
+  - 背景：通过 Web UI 状态栏会话图标弹出的会话列表进行会话切换时，只切换了任务进展中的任务计划，但 `:context` 显示的上下文没有切换。根因：`WebSession.switchSession` 只调用 `SetCurrentSessionID` + `SaveCurrentSessionID`，没有像 REPL `:session switch` 命令（`cmd/session.go handleSwitch`）那样执行 `FlushCurrentSession` + 加载目标会话消息 + `SetHistory`，导致 agent 内存中的 `a.messages`（真正的 LLM 上下文）从未被替换。
+  - 方案（已确认）：参照 `cmd/session.go handleSwitch` 的正确模式，在 `web/session.go switchSession` 中补充：① `FlushCurrentSession()` 将当前会话消息写回 DB；② `LoadNamedSession(id)` 加载目标会话；③ `json.Unmarshal` 目标会话 Messages；④ 用当前 system prompt + 目标消息构建新 history 并 `SetHistory`；⑤ `SetCurrentSessionID` + `SaveCurrentSessionID`
+  - 实施：`web/session.go` `switchSession` 补充 `FlushCurrentSession` + `LoadNamedSession` + `json.Unmarshal` + `SetHistory`（新增 `llm` 导入）；`web/session_test.go` 新增 `TestSessionSwitchSwitchesContext`（验证切换后 agent 上下文被替换 + 原会话消息被刷新到 DB）[BUILD-514]
+  - 测试：见 use-case/FIX-407/
+
+---
+
+## v0.9.0 — 开发中（已完成）
+
 > **版本**: v0.9.0
 
-> **状态**: 🚧 开发中（工具调用交互标准化）
+> **状态**: ✅ 已完成
 > **里程碑**: 工具调用交互标准化
 > **说明**: 0.9.0 系列专注工具调用交互标准化（Interaction 模型 + 意图字段结构化 + TUI/Web 统一输出），细分任务：
 
@@ -1751,7 +1777,8 @@
 | v0.7.6 | 2026-08-10 | ✅ 已完成 | browser_screenshot 视觉识别一致化 + 循环介入 auto 策略 |
 | v0.7.7 | 2026-08-16 | 🚧 开发中 | 输入统一（InputSource）+ Windows 补齐（FEATURE-306 + FIX-350） |
 | v0.8.0 | 2026-08-21 | ✅ 已完成 | web UI 状态栏会话菜单（FEATURE-387） |
-| v0.9.0 | 2026-08-21 | 🚧 开发中 | 工具调用交互标准化（FEATURE-388） |
+| v0.9.0 | 2026-08-21 | ✅ 已完成 | 工具调用交互标准化（FEATURE-388） |
+| v0.9.1 | 2026-08-22 | 🚧 开发中 | Web UI 会话切换上下文修复（FIX-407） |
 | v1.0.0 | 2026-07-01 | 💡 构想中 | 正式版 |
 
 
