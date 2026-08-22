@@ -66,6 +66,14 @@ type WebSession struct {
 	// It is nil when the session was created without a SettingsHandler
 	// (e.g. in tests), in which case settings messages are ignored.
 	settings *cmd.SettingsHandler
+	// session handles :session pop to for the retry-from block action
+	// (FEATURE-409).
+	session *cmd.SessionHandler
+
+	// msgIndex is the current message index, incremented on each user input.
+	// It is attached to stream events so the frontend can map a block back to
+	// the message index for the retry-from action (FEATURE-409).
+	msgIndex int
 
 	inputCh chan clientMessage
 	closed  chan struct{}
@@ -82,6 +90,7 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		srv:      srv,
 		ag:       deps.Ag,
 		settings: deps.SettingsHandler,
+		session:  cmd.NewSessionHandler(deps.Ag, deps.Cfg),
 		inputCh:  make(chan clientMessage),
 		closed:   make(chan struct{}),
 	}
@@ -131,6 +140,10 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.deleteSession(msg.Value)
 	case "session_new":
 		s.newSession()
+	case "session_pop":
+		// FEATURE-409: retry-from — pop the session back to the given message
+		// index (equivalent to :session pop to N).
+		s.popTo(msg.Value)
 	case "settings_get":
 		s.handleSettingsGet()
 	case "settings_set":
@@ -313,6 +326,26 @@ func (s *WebSession) newSession() {
 	}
 }
 
+// popTo implements the retry-from block action (FEATURE-409): it pops the
+// session back to the given message index (equivalent to :session pop to N)
+// and reports the result to the browser.
+func (s *WebSession) popTo(value string) {
+	if s.session == nil {
+		return
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil || n < 0 {
+		s.srv.sendJSON(serverMessage{Kind: "pop_result", OK: false, Message: "invalid message index"})
+		return
+	}
+	result, err := s.session.Handle([]string{"pop", "to", strconv.Itoa(n)})
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "pop_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "pop_result", OK: true, Message: result})
+}
+
 // deleteSession deletes a named session by ID (FEATURE-387). The current
 // session is protected from deletion.
 func (s *WebSession) deleteSession(id string) {
@@ -350,6 +383,9 @@ func (s *WebSession) ReadLine(prompt string) (string, error) {
 	s.srv.sendEvent(agent.NewStreamEvent(eventAwaitInput, agent.ChannelSystem, agent.LevelInfo, ""))
 	select {
 	case msg := <-s.inputCh:
+		// FEATURE-409: each user input starts a new message; bump the index so
+		// stream events can be mapped back to a message for retry-from.
+		s.msgIndex++
 		s.srv.sendEvent(agent.NewStreamEvent(eventTurnStart, agent.ChannelSystem, agent.LevelInfo, ""))
 		if len(msg.Attachments) > 0 {
 			paths := make([]string, 0, len(msg.Attachments))
@@ -371,7 +407,7 @@ func (s *WebSession) ReadLine(prompt string) (string, error) {
 // Acquire wires the per-run renderer. The WebIO stays installed for the
 // whole session (see newWebSession), so release is a no-op.
 func (s *WebSession) Acquire(ag *agent.Agent) (agent.EventRenderer, func()) {
-	return &WebRenderer{srv: s.srv}, func() {}
+	return &WebRenderer{s: s}, func() {}
 }
 
 // Interactive reports false: the page provides its own UI, so all terminal
@@ -571,13 +607,19 @@ func (w *WebIO) failAll() {
 // WebRenderer forwards every stream event to the browser; partitioning is
 // done by the frontend based on Type/Chan/Level.
 type WebRenderer struct {
-	srv *Server
+	s *WebSession
 }
 
 // Render pushes one event. task_plan and all other event types pass through
-// uniformly; the frontend decides how to display them.
+// uniformly; the frontend decides how to display them. The current message
+// index is attached so the frontend can map a block back to a message for
+// the retry-from action (FEATURE-409).
 func (r *WebRenderer) Render(ev agent.StreamEvent) {
-	r.srv.sendEvent(ev)
+	if ev.Meta == nil {
+		ev.Meta = map[string]string{}
+	}
+	ev.Meta["msg_index"] = strconv.Itoa(r.s.msgIndex)
+	r.s.srv.sendEvent(ev)
 }
 
 // taskPlanJSON marshals a task plan snapshot for the state message.
