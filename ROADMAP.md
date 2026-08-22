@@ -28,6 +28,7 @@
 | FEATURE-399 | 0.9.0 | P1 | 优化询问用户（ask_followup_question）交互：选项用虚拟键盘风格快捷按钮 + 去掉无用 [1-9] + 空格补充说明 |
 | FEATURE-400 | 0.9.0 | P1 | TOOL 输入参数子块：动态输出参数放入可滚动子块（子标题栏"输入参数" + 展开/固定高度切换按钮） |
 | FEATURE-401 | 0.9.0 | P1 | 左下角 logo 与消息框之间增加"+"号按钮（创建新会话） |
+| FEATURE-402 | 0.9.0 | P1 | 调整"+"号按钮位置到录入框左边 + 去掉对话条背景色 |
 
 > 当前 BUILD: 468
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -147,6 +148,13 @@
   - 需求：① `web/static/index.html` 在 `#logoWrap` 和 `.bottom-main` 之间增加"+"号按钮；② `web/static/app.js` 增加按钮点击处理（发送 session_new 消息）；③ `web/static/style.css` 按钮样式（大一点，与 logo 和消息框留 5-10 像素间距）；④ `web/server.go` clientMessage 新增 session_new 类型；⑤ `web/session.go` handleMessage 新增 session_new 处理（创建新会话）。
   - 实施：`web/static/index.html` 在 `#logoWrap` 和 `.bottom-main` 之间增加"+"号按钮（`#newSessionBtn`）；`web/static/app.js` 增加 `newSessionBtn.onclick` 发送 `{ type: "session_new" }`；`web/static/style.css` 按钮样式（大号 + 与 logo/消息框 5-10px 间距）；`web/server.go` clientMessage 注释补充 session_new 类型；`web/session.go` handleMessage 新增 `case "session_new"` 创建新会话（复用 `:new` 逻辑：刷新当前会话 + 生成新 sessionID + 创建 SessionEntry + SetCurrentSessionID） [BUILD-504]
   - 测试：见 use-case/FEATURE-401/
+
+- [ ] **FEATURE-402 调整"+"号按钮位置到录入框左边 + 去掉对话条背景色**
+  - 背景：FEATURE-401 将"+"号按钮放在 logo 和消息框之间，但用户希望调整："+"号嵌入到录入框（input-row）的左边，留好和边框和录入区域的边距；logo 位置、对齐方式保持现状；去掉对话条（#bottom）背景色。
+  - 方案（已确认）：将"+"号按钮从 `#logoWrap` 和 `.bottom-main` 之间移到 `.input-row` 的左边（`#input` 前面），嵌入到录入框内；logo 位置、对齐方式保持现状；去掉 `#bottom` 的背景色。
+  - 需求：① `web/static/index.html` 将"+"号按钮从 `#logoWrap` 和 `.bottom-main` 之间移到 `.input-row` 的左边；② `web/static/style.css` 调整按钮样式（嵌入录入框左边，留好边距）+ 去掉 `#bottom` 背景色。
+  - 实施：`web/static/index.html` 将 `#newSessionBtn` 从 `#logoWrap` 和 `.bottom-main` 之间移到 `.input-row` 内 `#input` 前面；`web/static/style.css` 调整 `.new-session-btn` 样式（嵌入录入框左边，留好和边框/录入区域边距）+ 去掉 `#bottom` 的 `background: var(--bg-panel)` [BUILD-505]
+  - 测试：见 use-case/FEATURE-402/
 
 ---
 
