@@ -845,8 +845,10 @@ function showInteraction(msg) {
   }
   if (it.body) {
     const b = document.createElement("div");
-    b.className = "interaction-body";
-    b.textContent = it.body;
+    b.className = "interaction-body md";
+    // FEATURE-409: render the prompt body as markdown so lists, code and
+    // emphasis are laid out instead of piling up as one text blob.
+    mdRender(b, it.body);
     askInteraction.appendChild(b);
   }
 
