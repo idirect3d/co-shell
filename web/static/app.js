@@ -419,11 +419,8 @@ function splitStream() {
     mergeBtn.title = "向下继续";
     const arrow = document.createElement("span");
     arrow.className = "merge-arrow";
-    arrow.textContent = "↓";
-    const line = document.createElement("span");
-    line.className = "merge-line";
+    arrow.textContent = "⎶";
     mergeBtn.appendChild(arrow);
-    mergeBtn.appendChild(line);
     mergeBtn.onclick = mergeStream;
     stream.insertBefore(mergeBtn, streamA);
   }
@@ -596,8 +593,14 @@ function applyBlockDisplayMode(box, cls) {
   if (displayMode === "silent") {
     const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
     box.style.display = show ? "" : "none";
+    // The final result block must be fully expanded so the user sees the
+    // completion report (FIX-426).
+    if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
   } else if (displayMode === "minimal") {
     box.style.display = "";
+    // User-msg blocks are always expanded so the user sees their original
+    // instruction (FIX-426).
+    if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
     const body = box.querySelector(".ev-body");
     const isStreaming = body && isStreamingBody(body);
     const isResult = box.classList.contains("ev-result");
@@ -620,27 +623,42 @@ function isStreamingBody(body) {
 
 // markStreaming flags a block as currently streaming: it shows the dynamic
 // "..." next to the title and forces the block expanded so the live content is
-// always visible (FEATURE-409).
+// always visible (FEATURE-409). In minimal display mode, when a block starts
+// streaming, all other non-user blocks collapse so only the current live block
+// stays expanded (FIX-426).
 function markStreaming(body) {
   const box = body.parentElement;
   if (!box) return;
   const s = box.querySelector(".ev-streaming");
   if (s) s.classList.add("on");
   box.classList.remove("collapsed");
+  if (displayMode === "minimal") {
+    document.querySelectorAll(".ev").forEach((b) => {
+      if (b === box) return;
+      // User blocks and the final result block stay expanded (FIX-426).
+      if (b.classList.contains("user-msg") || b.classList.contains("ev-result")) return;
+      b.classList.add("collapsed");
+    });
+  }
 }
 
 // unmarkStreaming hides the dynamic "..." of a block once it stops streaming
-// (FEATURE-409). In minimal display mode a finished non-result block collapses
-// to just its title (FEATURE-425).
+// (FEATURE-409). In minimal display mode a finished block collapses to just
+// its title, but only when another block is still streaming (so the last
+// finished block stays expanded); user-msg blocks are never collapsed so the
+// user always sees their original instruction (FIX-426).
 function unmarkStreaming(body) {
   if (!body) return;
   const box = body.parentElement;
   if (!box) return;
   const s = box.querySelector(".ev-streaming");
   if (s) s.classList.remove("on");
-  if (displayMode === "minimal" && !box.classList.contains("ev-result")) {
-    box.classList.add("collapsed");
-  }
+  if (displayMode !== "minimal") return;
+  if (box.classList.contains("user-msg") || box.classList.contains("ev-result")) return;
+  // Only collapse when some other block is still streaming (the last finished
+  // block stays expanded so the user sees its final content).
+  const anyStreaming = Array.from(document.querySelectorAll(".ev .ev-body")).some(isStreamingBody);
+  if (anyStreaming) box.classList.add("collapsed");
 }
 
 // maybeCollapseEnded re-collapses blocks of a class that just finished
@@ -828,6 +846,17 @@ function renderEvent(ev) {
     // last-block pointer so the next task starts with a fresh list.
     iterBlocks = [];
     lastBlock = null;
+    // FEATURE-427: mark the last content block as the result block so silent
+    // mode shows and expands it — the final completion block, whatever its type
+    // (TOOL: 完成任务, or a final LLM summary). Skip meta (token-stats) rows.
+    const allBlocks = document.querySelectorAll(".ev");
+    for (let i = allBlocks.length - 1; i >= 0; i--) {
+      const b = allBlocks[i];
+      if (b.classList.contains("meta")) continue;
+      b.classList.add("ev-result");
+      applyBlockDisplayMode(b, b.className.replace("ev ", "").split(" ")[0]);
+      break;
+    }
     // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
     document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     // An LLM iteration finished — the agent may have switched git branches
@@ -957,6 +986,20 @@ function renderEvent(ev) {
         const label = head.querySelector(".ev-head-label");
         if (label) label.textContent = text;
         else head.textContent = text;
+        // FIX-426: the completion block (TOOL: 完成任务) is marked as the
+        // result block so minimal/silent modes keep it expanded. The label at
+        // makeBlock time is just "TOOL", so mark it here once the real title
+        // is known, and un-collapse it (it may have been collapsed at creation
+        // before the ev-result class was known).
+        if (/完成任务|Complete task/.test(text)) {
+          const box = curTool.body.parentElement;
+          box.classList.add("ev-result");
+          box.classList.remove("collapsed");
+          // Re-apply the display mode so silent mode shows this block now that
+          // it is known to be the result block (it was hidden at makeBlock time
+          // because the label was still just "TOOL").
+          applyBlockDisplayMode(box, "tool");
+        }
       }
       curTool.hasResult = false;
     } else {
@@ -1283,8 +1326,12 @@ function applyDisplayMode() {
       // Show only user-msg, error, and the final result block.
       const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
       box.style.display = show ? "" : "none";
+      // The final result block must be fully expanded (FIX-426).
+      if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
     } else if (displayMode === "minimal") {
       box.style.display = "";
+      // User-msg blocks are always expanded (FIX-426).
+      if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
       // Collapse finished non-result blocks to just their title.
       const isResult = box.classList.contains("ev-result");
       if (!isStreaming && !isResult) box.classList.add("collapsed");
@@ -1439,7 +1486,6 @@ function hideAsk() {
   pendingAsk = null;
   pendingInteraction = null;
   supplementMode = false;
-  numberMode = false;
   input.placeholder = T.inputHint;
   askArea.classList.add("hidden");
   askInteraction.classList.add("hidden");
@@ -1455,7 +1501,6 @@ function hideAsk() {
 
 let pendingInteraction = null;
 let supplementMode = false; // true while the user is typing supplementary info
-let numberMode = false;    // true while the user is choosing an approve-count
 
 // enterSupplementMode switches to supplement-input mode: the user types in the
 // main input box and the key handler stops hijacking keys (FEATURE-388).
@@ -1465,13 +1510,6 @@ function enterSupplementMode() {
   input.placeholder = T.supplementHint;
 }
 
-// enterNumberMode switches to number-choice mode: the user presses a digit to
-// choose the approve-count (0 = 10, 1-9 = the count).
-function enterNumberMode() {
-  numberMode = true;
-  input.focus();
-  input.placeholder = T.numberHint;
-}
 
 // showInteraction renders a structured interaction (confirm/select/input/key)
 // from the interaction payload. Buttons are built dynamically from the keys
@@ -1576,26 +1614,29 @@ const VK_ROWS = [
 // container (optional) is where the keyboard is appended; defaults to askInteraction.
 function renderVirtualKeyboard(it, isSelect, container) {
   const target = container || askInteraction;
+  // A tool-confirmation interaction carries the full action set; a
+  // cancel/resume interaction (ESC pause) only has approve+cancel, so it
+  // shows just "-" (cancel) and Enter (resume) (FEATURE-427).
+  const isToolConfirm = (it.keys || []).some((k) =>
+    k.value === "approve_all" || k.value === "approve_g" || k.value === "approve_d");
   // Build a map: key -> {action, value}.
   const keyMap = {};
-  (it.keys || []).forEach((k) => {
-    const key = (k.key || "").toLowerCase();
-    if (key) keyMap[key] = { action: k.value };
-  });
   if (isSelect && it.options && it.options.length) {
     // Number keys select options (1..N).
     it.options.forEach((opt, i) => {
       keyMap[String(i + 1)] = { action: "select", value: opt };
     });
-  } else if (it.presets && it.presets.length) {
-    // Number keys map to approve-count (0 = 10, 1-9 = the count). Only
-    // enabled when the interaction carries presets (e.g. tool confirmation),
-    // so ESC pause/interrupt (no presets) does not show a useless [1]-[9]
-    // approve-count hint (FEATURE-396).
-    for (let i = 0; i <= 9; i++) {
-      const n = i === 0 ? 10 : i;
-      keyMap[String(i)] = { action: "approve_count", value: String(n) };
+  } else {
+    // FEATURE-427: symbol/numpad keys only (input-method independent). The
+    // backend's letter keys (a/g/d/c) are intentionally ignored so an active
+    // IME cannot swallow the shortcut.
+    if (isToolConfirm) {
+      keyMap["+"] = { action: "approve_all" };
+      keyMap["*"] = { action: "approve_g" };
+      keyMap["/"] = { action: "approve_d" };
+      keyMap["5"] = { action: "approve_count", value: "5" };
     }
+    keyMap["-"] = { action: "cancel" };
   }
   // Enter maps to approve.
   keyMap["enter"] = { action: "approve" };
@@ -1630,23 +1671,20 @@ function renderVirtualKeyboard(it, isSelect, container) {
       addItem(String(i + 1), opt, () => answerInteraction({ action: "select", value: opt }));
     });
   } else {
-    // Letter/action keys first (skip number keys and enter, handled separately).
+    // FEATURE-427: symbol/numpad action keys (skip enter, handled separately).
     Object.keys(keyMap).forEach((key) => {
-      if (/^[0-9]$/.test(key) || key === "enter") return;
+      if (key === "enter") return;
       const m = keyMap[key];
       addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
     });
-    // Number keys merged into one [1]-[9] approve-count item (only when the
-    // interaction enables approve-count via presets, FEATURE-396).
-    const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
-    if (hasNumbers) {
-      addItem("1-9", T.approveCount, () => enterNumberMode());
-    }
     // Enter item.
-    addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
+    addItem("回车", T.approve, () => answerInteraction({ action: "approve" }));
   }
-  // Space item: enter supplement-input mode.
-  addItem("Space", T.supplement, () => enterSupplementMode(), "opt-space");
+  // Space / Insert / 0 item: enter supplement-input mode (FEATURE-427).
+  // Only shown for tool confirmation; a cancel/resume prompt has no supplement.
+  if (isToolConfirm) {
+    addItem("空格/Ins/0", T.supplement, () => enterSupplementMode(), "opt-space");
+  }
   target.appendChild(wrap);
 
   // Listen for physical key presses while this interaction is pending.
@@ -1659,15 +1697,9 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // box (previously only digits/letters/space/enter were swallowed).
     e.preventDefault();
     const key = e.key.toLowerCase();
-    if (numberMode) {
-      // Number-choice mode: a digit picks the approve-count.
-      if (/^[0-9]$/.test(key)) {
-        const n = key === "0" ? 10 : parseInt(key, 10);
-        answerInteraction({ action: "approve_count", value: String(n) });
-      }
-      return;
-    }
-    if (key === " ") {
+    // FEATURE-427: supplement via Space / Insert / 0 (input-method independent),
+    // only for tool confirmation (a cancel/resume prompt has no supplement).
+    if (isToolConfirm && (key === " " || key === "insert" || key === "0")) {
       enterSupplementMode();
     } else if (key === "enter") {
       answerInteraction({ action: "approve" });
@@ -1735,6 +1767,13 @@ function setRunning(v) {
   sendBtn.textContent = v ? "⏸" : "▶";
   sendBtn.title = v ? T.interrupt : T.send;
   sendBtn.classList.toggle("run", v);
+  // FEATURE-425/FIX-426: while a task is running, the session-title highlight
+  // dot and the co-shell logo breathe (pulse) to signal activity; they stop
+  // when the task completes.
+  const active = document.getElementById("streamActive");
+  const logo = document.getElementById("logo");
+  if (active) active.classList.toggle("breathing", v);
+  if (logo) logo.classList.toggle("breathing", v);
   // FEATURE-416: when the turn ends, merge region A back into B so the stream
   // returns to a single whole output area.
   if (!v && splitActive) mergeStream();

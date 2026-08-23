@@ -488,12 +488,9 @@ aside {
   border-radius: 999px;
 }
 .stream-merge:hover { background: var(--accent-dim); }
-.stream-merge .merge-arrow { font-size: 14px; }
-.stream-merge .merge-line {
-  width: 24px;
-  height: 0;
-  border-top: 2px solid var(--accent);
-}
+/* FIX-426: the merge icon is a single ⎶ glyph, sized up to sit proportionally
+   inside the pill button. */
+.stream-merge .merge-arrow { font-size: 18px; line-height: 1; }
 
 .ev {
   /* Never shrink: .stream is a flex column; without this, long sessions
@@ -560,8 +557,10 @@ aside {
 }
 .ev-act:hover { color: var(--accent); background: var(--bg-panel); }
 
-/* Collapsed: hide the body, keep only the title bar. */
-.ev.collapsed .ev-body { display: none; }
+/* Collapsed: hide the body (and the TOOL input-params sub-block), keep only
+   the title bar (FIX-426). */
+.ev.collapsed .ev-body,
+.ev.collapsed .tool-params { display: none; }
 
 .ev-body {
   padding: 8px 12px;
@@ -1201,6 +1200,16 @@ aside {
   flex: none;
   font-size: 10px;
   line-height: 1;
+}
+/* FIX-426: while a task is running, the session-title dot and the co-shell
+   logo breathe (pulse) to signal activity. */
+.stream-active.breathing,
+#logo.breathing {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 .fv-body {
   flex: 1;

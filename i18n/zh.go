@@ -816,8 +816,8 @@ var zhMessages = map[string]string{
 	// CLI Help
 	KeyCLIHelpTitle:            "co-shell v%s - 智能命令行 Shell",
 	KeyCLIHelpUsage:            "用法:",
-	KeyCLIHelpUsageREPL:        "  co-shell [选项]                         启动交互式 REPL",
-	KeyCLIHelpUsageCmd:         "  co-shell [选项] <指令>                  执行单条指令后退出",
+	KeyCLIHelpUsageREPL:        "  co-shell [选项]                         启动 Web 界面（默认；自动打开浏览器，失败则降级增强 REPL）",
+	KeyCLIHelpUsageCmd:         "  co-shell [选项] <指令>                  以 stdio 模式执行单条指令后退出",
 	KeyCLIHelpOptions:          "选项:",
 	KeyCLIHelpConfig:           "  -c, --config <path>       指定配置文件路径（默认: {workspace}/config.json）",
 	KeyCLIHelpModel:            "  -m, --model <name>        临时指定模型名称（覆盖配置文件）",
@@ -1227,15 +1227,16 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpShowLogo: "      --show-logo on|off      显示 ASCII art Logo（覆盖配置文件）",
 
 	// Init capabilities/rules
-	KeyCLIHelpInputMode:        "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件）",
+	KeyCLIHelpInputMode:        "      --input-mode         REPL 输入模式（enhanced=增强交互/stdio=标准输入，覆盖配置文件；含指令时强制 stdio）",
 	KeyCLIHelpOutputFormat:     "      --output-format      输出格式（text/json，仅命令行；json 为 JSON-Lines 事件流，隐含 stdio 输入模式）",
 	KeyOutputFormatInvalid:     "无效的 --output-format 取值或与输入模式冲突：%s（可选 text/json；json 隐含 stdio 输入模式，与 --input-mode tui 互斥）",
 
 	// serve subcommand (FEATURE-307c)
-	KeyCLIHelpPort:        "      --port <n>             serve 子命令监听端口（默认 8399，占用时自动递增，最多尝试 10 个）",
+	KeyCLIHelpPort:        "      --port <n>             Web 界面监听端口（默认 8399，占用时自动递增，最多尝试 10 个）",
+	KeyCLIHelpServe:       "      --serve                启动 Web 界面但不自动打开浏览器（默认模式会打开浏览器）",
 	KeyServeStarted:       "🌐 Web 界面已启动: http://%s (按 Ctrl+C 停止)",
 	KeyServeNoPort:        "端口 %d-%d 均被占用，无法启动 Web 服务",
-	KeyServeConflict:      "serve 子命令与 %s 互斥（serve 独占输入/输出通道，请去掉该参数）",
+	KeyServeConflict:      "模式参数冲突：%s（含指令时强制 stdio 模式；--serve 和 --input-mode 与其互斥）",
 	KeyServeBrowserFailed: "无法自动打开浏览器 (%v)，请手动访问 http://%s",
 	KeyWebOpenFailed:      "无法打开文件: %v",
 	KeyWebRevealFailed:    "无法打开文件所在位置: %v",
