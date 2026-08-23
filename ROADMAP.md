@@ -226,7 +226,7 @@
   - 背景：FEATURE-416 实现了主消息区自动分割（用户上滚时 B 区静态、A 区动态）。当前分割后需手动点击浮动融合按钮才能合并。希望当用户下滚到 B 区底部、且 A 区内容未填满（上下内容刚好接上）时，自动触发融合，减少手动操作。
   - 方案（已确认）：在 `streamB` 的 scroll 事件中，当 `splitActive` 为 true 时，检测 B 区是否滚动到底部（`scrollTop + clientHeight >= scrollHeight - 4`），且 A 区内容未填满（`streamA.scrollHeight < streamA.clientHeight`，即 A 区无滚动条、内容刚好接上），满足则自动调用 `mergeStream()`。
   - 需求：修改 `web/static/app.js` `streamB` scroll 事件处理，增加自动融合逻辑。
-  - 实施：`web/static/app.js` `streamB` scroll 事件在 `splitActive` 时检测 B 区到底（`scrollTop + clientHeight >= scrollHeight - 4`）+ A 区未填满（`streamA.scrollHeight < streamA.clientHeight`），满足则自动调用 `mergeStream()` [BUILD-578]
+  - 实施：`web/static/app.js` `streamB` scroll 事件在 `splitActive` 时检测 B 区到底（`scrollTop + clientHeight >= scrollHeight - 4`）+ A 区未填满（`streamA.scrollHeight < streamA.clientHeight`），满足则自动调用 `mergeStream()` [BUILD-578]；状态栏 token 单次用量统计图标从循环符号 `🔄` 改为计时器符号 `⏱️`（`sbLast`，zh/en 两处）[BUILD-579]
   - 测试：见 use-case/FEATURE-423/
 
 ## v0.9.1 — 开发中（已完成）
