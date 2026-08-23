@@ -114,3 +114,43 @@ func TestToolCallDiff_EmitOnToolEnd(t *testing.T) {
 		t.Errorf("added line3 should be marked '+', got: %q", diff)
 	}
 }
+
+// TestToolCallDiff_WriteToFile verifies FEATURE-424: a write_to_file call also
+// emits a tool_call_diff event so its content lines are coloured (all added →
+// green) in the Web UI, matching the replace_in_file diff display.
+func TestToolCallDiff_WriteToFile(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+	var diff string
+	r.SetDiffEmit(func(d string) { diff = d })
+
+	chunks := []string{
+		"<cs:write_to_file>",
+		"<cs:path>a.go</cs:path>",
+		"<cs:content>line1\nline2</cs:content>",
+		"</cs:write_to_file>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+	for _, op := range all {
+		r.Apply(op, func(string) {})
+	}
+
+	if diff == "" {
+		t.Fatal("write_to_file should emit a diff via diffEmit")
+	}
+	// write_to_file content lines use the "{5 spaces}{5-digit line}+ {content}"
+	// format; the "+" marker sits at index 10.
+	if !strings.Contains(diff, "     1+ line1") {
+		t.Errorf("line1 should be marked '+', got: %q", diff)
+	}
+	if !strings.Contains(diff, "     2+ line2") {
+		t.Errorf("line2 should be marked '+', got: %q", diff)
+	}
+}

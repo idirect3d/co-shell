@@ -515,6 +515,12 @@ function renderParams(params) {
 // renderDiff renders a unified diff text (FEATURE-424) into body. Each line is
 // parsed for its status marker ("+" add / "-" delete / " " unchanged) and
 // wrapped in a coloured row. The content is set via textContent to avoid XSS.
+//
+// Two line formats are supported:
+//  - replace_in_file diff: "{1 space}{5-digit line}{status} {content}" — the
+//    status is the 7th character (index 6).
+//  - write_to_file content: "{5 spaces}{5-digit line}+ {content}" — the "+"
+//    marker sits at index 10 (5 indent + 5-digit line).
 function renderDiff(body, text) {
   body.textContent = "";
   const lines = String(text).split("\n");
@@ -522,9 +528,15 @@ function renderDiff(body, text) {
     if (line === "") continue;
     const row = document.createElement("div");
     row.className = "diff-row";
-    // Unified diff format: "{1 space}{5-digit line}{status} {content}".
-    // The status is the 7th character (index 6).
-    const status = line.length > 6 ? line.charAt(6) : " ";
+    let status = " ";
+    if (line.length > 6) {
+      const c6 = line.charAt(6);
+      if (c6 === "+" || c6 === "-") status = c6;
+    }
+    if (status === " " && line.length > 10) {
+      const c10 = line.charAt(10);
+      if (c10 === "+" || c10 === "-") status = c10;
+    }
     if (status === "+") row.classList.add("diff-add");
     else if (status === "-") row.classList.add("diff-del");
     else row.classList.add("diff-ctx");
