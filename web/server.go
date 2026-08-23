@@ -639,7 +639,7 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 	// files); start/end serve a line-range slice as text; otherwise keep the
 	// original whole-file ServeFile behaviour (used by the image previewer).
 	if r.URL.Query().Get("hex") == "1" {
-		s.serveFileHex(w, abs, r.URL.Query().Get("start"), r.URL.Query().Get("end"))
+		s.serveFileHex(w, r, abs, r.URL.Query().Get("start"), r.URL.Query().Get("end"))
 		return
 	}
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
@@ -657,11 +657,12 @@ type hexRow struct {
 	Ascii  string `json:"ascii"`
 }
 
-// serveFileHex reads a byte range [start, end] (1-based byte offsets, 16-byte
-// aligned) of a file and returns {total, rows} where each row is a 16-byte hex
-// dump line. It reads only the requested range via ReadAt so large files are
-// never fully loaded into memory (on-demand loading).
-func (s *Server) serveFileHex(w http.ResponseWriter, abs, startStr, endStr string) {
+// serveFileHex reads a byte range [start, end] (byte offsets, width-aligned)
+// of a file and returns {total, rows} where each row is a width-byte hex dump
+// line. width defaults to 16 and may be 8/16/32/64/128 (FEATURE-425). It reads
+// only the requested range via ReadAt so large files are never fully loaded
+// into memory (on-demand loading).
+func (s *Server) serveFileHex(w http.ResponseWriter, r *http.Request, abs, startStr, endStr string) {
 	info, err := os.Stat(abs)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -680,7 +681,15 @@ func (s *Server) serveFileHex(w http.ResponseWriter, abs, startStr, endStr strin
 	if endStr != "" {
 		end, err = strconv.Atoi(endStr)
 		if err != nil || end < start {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end"})
+			return
+		}
+	}
+	width := 16
+	if wStr := r.URL.Query().Get("width"); wStr != "" {
+		width, err = strconv.Atoi(wStr)
+		if err != nil || (width != 8 && width != 16 && width != 32 && width != 64 && width != 128) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid width"})
 			return
 		}
 	}
@@ -691,8 +700,8 @@ func (s *Server) serveFileHex(w http.ResponseWriter, abs, startStr, endStr strin
 	if end > total {
 		end = total
 	}
-	// Align start down to a 16-byte boundary so each row is a full 16-byte line.
-	alignedStart := start - (start % 16)
+	// Align start down to a width boundary so each row is a full width line.
+	alignedStart := start - (start % width)
 	buf := make([]byte, end-alignedStart)
 	f, err := os.Open(abs)
 	if err != nil {
@@ -705,8 +714,8 @@ func (s *Server) serveFileHex(w http.ResponseWriter, abs, startStr, endStr strin
 		return
 	}
 	var rows []hexRow
-	for i := 0; i < len(buf); i += 16 {
-		chunk := buf[i:min(i+16, len(buf))]
+	for i := 0; i < len(buf); i += width {
+		chunk := buf[i:min(i+width, len(buf))]
 		var hexParts, asciiParts []string
 		for _, b := range chunk {
 			hexParts = append(hexParts, fmt.Sprintf("%02x", b))

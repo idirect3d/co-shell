@@ -1898,6 +1898,7 @@ let fvRawMode = false; // md Raw toggle (off = auto-render md)
 let fvMdText = ""; // accumulated md content for auto-render
 let fvHexMode = false; // binary file shown as hex dump
 let fvHexNext = 0; // next byte offset to load in hex mode
+let fvHexWidth = 16; // bytes per hex row (8/16/32/64/128), auto-fit to width
 // FEATURE-425: persist the user's Raw choice across files (localStorage).
 let fvRawPref = localStorage.getItem("co-shell-fv-raw") === "1";
 
@@ -2003,6 +2004,7 @@ async function loadFileChunk(path, start, end) {
       fvBody.textContent = "";
       fvBody.classList.remove("md");
       fvHexNext = 0;
+      fvHexWidth = fitHexWidth();
       setTimeout(() => loadFileHex(path, 0, 4096), 0);
       return;
     }
@@ -2037,13 +2039,27 @@ function hasControlChars(text) {
   return false;
 }
 
+// fitHexWidth picks the largest of 8/16/32/64/128 bytes-per-row that fits the
+// current viewer width (FEATURE-425). Each byte renders as "xx " (3 chars);
+// the offset gutter is ~8em and the ascii column adds ~1.5em margin.
+function fitHexWidth() {
+  const avail = fvBody.clientWidth - 8 * 12 - 1.5 * 12 - 20; // offset + ascii + padding
+  const perByte = 3; // "xx "
+  const widths = [8, 16, 32, 64, 128];
+  let best = 8;
+  for (const w of widths) {
+    if (w * perByte <= avail) best = w;
+  }
+  return best;
+}
+
 // loadFileHex fetches a byte range [start, end] as hex rows and appends them
 // to the body (on-demand loading for binary files).
 async function loadFileHex(path, start, end) {
   if (fvLoading || fvPath !== path) return;
   fvLoading = true;
   try {
-    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&hex=1&start=" + start + "&end=" + end);
+    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&hex=1&start=" + start + "&end=" + end + "&width=" + fvHexWidth);
     if (!resp.ok) { console.error(T.fileViewerLoadFailed); return; }
     const body = await resp.json();
     if (fvPath !== path) return; // switched away while loading
@@ -2198,6 +2214,18 @@ fvSearch.addEventListener("input", () => {
     const hit = q !== "" && row.textContent.toLowerCase().includes(q);
     row.classList.toggle("fv-hit", hit);
   });
+});
+
+// FEATURE-425: when the window resizes while a hex dump is open, re-fit the
+// bytes-per-row and reload from the start.
+window.addEventListener("resize", () => {
+  if (!fvHexMode || fvPath === null) return;
+  const w = fitHexWidth();
+  if (w === fvHexWidth) return;
+  fvHexWidth = w;
+  fvBody.textContent = "";
+  fvHexNext = 0;
+  loadFileHex(fvPath, 0, 4096);
 });
 
 // On-demand loading: when the user scrolls near the bottom and more content
