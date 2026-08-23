@@ -122,11 +122,11 @@
 
 ---
 
-## v0.11.1 — 开发中
+## v0.11.1 — 已完成
 
 > **版本**: v0.11.1
 
-> **状态**: 🚧 开发中（系统提示词优化）
+> **状态**: ✅ 已完成（系统提示词优化）
 > **里程碑**: 系统提示词优化
 > **说明**: 0.11.1 系列专注系统提示词优化，细分任务：
 
@@ -135,7 +135,7 @@
 | FEATURE-417 | 0.11.1 | P1 | .rules/ 按需加载机制：子文件夹名+完整路径加载到系统提示词（作为可用规则类型提示），子文件夹内容不加载，LLM 需要时按路径主动读取 |
 | FEATURE-418 | 0.11.1 | P1 | .rules/ 按需加载层级显示：子文件夹及内部规则按 md 层级输出到系统提示词（子文件夹名→# 标题，内部 .md 文件→## 标题+路径），支持递归遍历子文件夹 |
 
-> 当前 BUILD: 548
+> 当前 BUILD: 552
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -154,6 +154,33 @@
   - 需求：修改 `agent/system_prompt.go` 的 `loadRulesDir`，将子文件夹遍历改为递归，按 md 层级输出子文件夹名（# 标题）和内部 .md 文件（## 文件名: 路径）。将 `前端控件使用规范.md` 拆分为多个文件（通用约定、基础按钮控件、容器及布局控件）放到子文件夹下。
   - 实施：`agent/system_prompt.go` `loadRulesDir` 子文件夹遍历改为递归（新增 `appendRulesTree` 辅助函数），按 md 层级输出子文件夹名（# 标题）和内部 .md 文件（## 文件名: 路径），支持递归多层；`前端控件使用规范.md` 拆分为 3 个文件（通用约定/基础按钮控件/容器及布局控件）放到子文件夹；`agent/rules_test.go` 更新 `TestLoadRulesDir_SubdirOnDemand` + 新增 `TestLoadRulesDir_SubdirRecursive` [BUILD-551]；合并 [BUILD-552]
   - 测试：见 use-case/FEATURE-418/
+
+---
+
+## v0.12.0 — 开发中
+
+> **版本**: v0.12.0
+
+> **状态**: 🚧 开发中（Web UI 优化）
+> **里程碑**: Web UI 优化
+> **说明**: 0.12.0 系列专注 Web UI 优化，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-419 | 0.12.0 | P1 | Web UI 三项优化：会话列表展开时默认滚动到当前会话、工作区状态每次迭代（显示块完成后去掉"..."时）刷新、快捷键收集阶段没收全部按键（不再漏给录入框） |
+
+> 当前 BUILD: 552
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-419 Web UI 三项优化**
+  - 背景：Web UI 存在三个体验问题：① 状态条会话列表展开时未滚动到当前会话，用户需手动查找；② 工作区文件/分支状态只在任务全部结束后刷新，未在每次迭代（显示块完成后去掉"..."时）更新；③ 快捷键收集阶段只没收了数字和字母，其他符号（如 !@#$%^&*() 等）会漏给录入框，用户需反复删除无用内容。
+  - 方案（已确认）：① `renderSessionMenu` 渲染会话列表后，菜单展开时滚动到当前会话项；② `token_iter`/`token_task` 事件（去掉"..."处）增加 `refreshBranch()` + `loadTree()` 刷新工作区状态；③ 快捷键收集阶段（interaction pending 且非 supplement 模式）没收全部按键，无论是否触发下一步操作都不再返还给页面。
+  - 需求：修改 `web/static/app.js`：① `renderSessionMenu` 增加滚动到当前会话逻辑；② `token_iter`/`token_task` 分支增加工作区刷新；③ `__vkHandler` 与 input keydown 处理改为没收全部按键。
+  - 实施：`web/static/app.js` ① `renderSessionMenu` 渲染后 `scrollIntoView` 滚动到当前会话项；② `token_iter`/`token_task` 分支（去掉"..."处）增加 `refreshBranch()` + `loadTree()`；③ `__vkHandler` 与 input keydown 在 interaction pending 且非 supplement 模式时对所有按键 `preventDefault()` 没收 [BUILD-553]
+  - 测试：见 use-case/FEATURE-419/
 
 ---
 

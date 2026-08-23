@@ -619,6 +619,11 @@ function renderEvent(ev) {
     // streaming "..." on all blocks now, not only at the final done event.
     document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     scrollStream();
+    // FEATURE-419: each display block just completed (the "..." was removed) —
+    // refresh the workspace file tree and branch label so the user sees file /
+    // branch changes after every iteration, not only when the whole task ends.
+    refreshBranch();
+    loadTree();
     // FEATURE-378: accumulate token stats into the status bar.
     if (ev.type === "token_iter") {
       const p = parseInt(m.prompt, 10) || 0;
@@ -932,6 +937,10 @@ function renderSessionMenu(sessions) {
     };
     sessionMenu.appendChild(row);
   }
+  // FEATURE-419: when the menu opens, scroll the current session into view so
+  // the user immediately sees where they are instead of hunting for it.
+  const cur = sessionMenu.querySelector(".session-item.current");
+  if (cur) cur.scrollIntoView({ block: "nearest" });
 }
 
 // Request the session list on connect and whenever the menu is opened.
@@ -1273,24 +1282,24 @@ function renderVirtualKeyboard(it, isSelect, container) {
     if (!pendingInteraction) return;
     // In supplement mode, stop hijacking keys so the user can type freely.
     if (supplementMode) return;
+    // FEATURE-419: swallow every key while collecting a shortcut, whether or
+    // not it triggers an action, so no stray character leaks into the input
+    // box (previously only digits/letters/space/enter were swallowed).
+    e.preventDefault();
     const key = e.key.toLowerCase();
     if (numberMode) {
       // Number-choice mode: a digit picks the approve-count.
       if (/^[0-9]$/.test(key)) {
-        e.preventDefault();
         const n = key === "0" ? 10 : parseInt(key, 10);
         answerInteraction({ action: "approve_count", value: String(n) });
       }
       return;
     }
     if (key === " ") {
-      e.preventDefault();
       enterSupplementMode();
     } else if (key === "enter") {
-      e.preventDefault();
       answerInteraction({ action: "approve" });
     } else if (keyMap[key]) {
-      e.preventDefault();
       answerInteraction(keyMap[key]);
     }
   };
@@ -1426,17 +1435,16 @@ function recallHistory() {
 }
 
 input.addEventListener("keydown", (e) => {
-  // FEATURE-409: while an interaction is pending (tool confirm / ask select /
-  // cancel), the virtual-keyboard handler on window already responds to the
-  // target keys. Swallow those keys here too so they don't leak into the input
-  // box as stray characters (the window handler runs in the bubble phase, after
-  // the textarea's own default insertion).
+  // FEATURE-409/419: while an interaction is pending (tool confirm / ask
+  // select / cancel), the virtual-keyboard handler on window already responds
+  // to the target keys. Swallow EVERY key here so no stray character leaks
+  // into the input box (previously only digits/letters/space/enter were
+  // swallowed; symbols like !@#$%^&*() leaked through). The window handler
+  // runs in the bubble phase, after the textarea's own default insertion, so
+  // we preventDefault here and let the event keep bubbling for __vkHandler.
   if (pendingInteraction && !supplementMode) {
-    const k = e.key.toLowerCase();
-    const isTarget = k === "enter" || k === " " || /^[0-9]$/.test(k) || /^[a-z]$/.test(k);
-    // Swallow the key so it doesn't leak into the input box, but let it keep
-    // bubbling so the window-level __vkHandler still responds to it.
-    if (isTarget) { e.preventDefault(); return; }
+    e.preventDefault();
+    return;
   }
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInput(); return; }
   if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
