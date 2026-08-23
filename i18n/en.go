@@ -833,8 +833,8 @@ var enMessages = map[string]string{
 	// CLI Help
 	KeyCLIHelpTitle:                   "co-shell v%s - Intelligent Command-Line Shell",
 	KeyCLIHelpUsage:                   "Usage:",
-	KeyCLIHelpUsageREPL:               "  co-shell [options]                    Start interactive REPL",
-	KeyCLIHelpUsageCmd:                "  co-shell [options] <command>          Execute a single command and exit",
+	KeyCLIHelpUsageREPL:               "  co-shell [options]                    Start web UI (default; opens browser, falls back to enhanced REPL)",
+	KeyCLIHelpUsageCmd:                "  co-shell [options] <command>          Execute a single command in stdio mode and exit",
 	KeyCLIHelpOptions:                 "Options:",
 	KeyCLIHelpConfig:                  "  -c, --config <path>    Config file path (default: {workspace}/config.json)",
 	KeyCLIHelpModel:                   "  -m, --model <name>     Temporarily override model (overrides config)",
@@ -1214,15 +1214,16 @@ no liability whatsoever.`,
 	KeyCLIHelpShowLogo: "      --show-logo on|off    Show ASCII art logo (overrides config)",
 
 	// Init capabilities/rules
-	KeyCLIHelpInputMode:        "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config)",
+	KeyCLIHelpInputMode:        "      --input-mode         REPL input mode (enhanced=interactive/stdio=standard, overrides config; a command forces stdio)",
 	KeyCLIHelpOutputFormat:     "      --output-format      Output format (text/json, CLI-only; json is a JSON-Lines event stream and implies stdio input mode)",
 	KeyOutputFormatInvalid:     "invalid --output-format value or input mode conflict: %s (must be text/json; json implies stdio input mode and conflicts with --input-mode tui)",
 
 	// serve subcommand (FEATURE-307c)
-	KeyCLIHelpPort:        "      --port <n>             Listen port for the serve subcommand (default 8399, auto-increments when occupied, up to 10 tries)",
+	KeyCLIHelpPort:        "      --port <n>             Listen port for the web UI (default 8399, auto-increments when occupied, up to 10 tries)",
+	KeyCLIHelpServe:       "      --serve                Start the web UI without opening a browser (default mode opens the browser)",
 	KeyServeStarted:       "🌐 Web UI started: http://%s (press Ctrl+C to stop)",
 	KeyServeNoPort:        "ports %d-%d are all in use, cannot start the web server",
-	KeyServeConflict:      "the serve subcommand conflicts with %s (serve owns the whole I/O channel; remove that flag)",
+	KeyServeConflict:      "conflicting mode flags: %s (a command forces stdio mode; --serve and --input-mode are mutually exclusive with it)",
 	KeyServeBrowserFailed: "cannot open the browser automatically (%v); please visit http://%s manually",
 	KeyWebOpenFailed:      "cannot open file: %v",
 	KeyWebRevealFailed:    "cannot reveal file in file manager: %v",
