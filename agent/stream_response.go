@@ -469,6 +469,14 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					if isValidToolCall(*event.ToolCall) {
 						toolCalls = append(toolCalls, *event.ToolCall)
 						log.Debug("Agent.streamLLMResponse: valid tool call added, total toolCalls=%d", len(toolCalls))
+						// FEATURE-424: in JSON (OpenAI) mode the JSON parser never emits
+						// OpToolEnd, so emitToolEnd is never reached and the
+						// tool_call_diff event (per-line add/delete/unchanged colours)
+						// is never sent. Finalise the renderer here so a completed
+						// write_to_file / replace_in_file call forwards its diff.
+						if toolCallRenderer != nil {
+							toolCallRenderer.Apply(RenderOp{Kind: OpToolEnd}, emitToolCallStream)
+						}
 					} else {
 						// Collect details about why this tool call is invalid
 						info := invalidToolCallInfo{
