@@ -61,6 +61,19 @@
   </aside>
 
   <section id="stream-wrap">
+    <!-- FEATURE-425: main message area title bar (height matches the workspace
+         / task-plan panel heads). Left: a three-segment display-mode pill
+         (silent/minimal/normal); centre: the current session title (editable). -->
+    <div class="stream-head">
+      <span class="stream-active" id="streamActive">●</span>
+      <input type="text" class="stream-title" id="streamTitle" placeholder="会话标题" title="点击修改会话标题">
+      <div class="mode-seg stream-mode" id="streamMode" title="显示模式">
+        <div class="mode-seg-slider" id="streamModeSlider"></div>
+        <button class="mode-seg-item" data-mode="silent">静默</button>
+        <button class="mode-seg-item" data-mode="minimal">极简</button>
+        <button class="mode-seg-item active" data-mode="normal">正常</button>
+      </div>
+    </div>
     <div id="stream" class="stream">
       <div id="streamB" class="stream-b"></div>
       <div id="streamA" class="stream-a hidden"></div>
@@ -68,6 +81,12 @@
     <!-- FEATURE-419: floating block-boundary navigation icons (top/bottom) -->
     <button id="blockNavTop" class="block-nav top" title="跳到当前块标题">↑</button>
     <button id="blockNavBottom" class="block-nav bottom" title="跳到当前块底部">↓</button>
+    <!-- FEATURE-425: read-only text file previewer. Absolutely positioned over
+         the main message area (#stream-wrap) so it never covers the workspace
+         tree, task plan or input row, and auto-scales with the window. -->
+    <div id="fileViewer" class="file-viewer hidden">
+      <div class="fv-body" id="fvBody"></div>
+    </div>
   </section>
 
   <aside id="plan-panel" class="hidden">

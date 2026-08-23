@@ -150,6 +150,8 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.switchSession(msg.Value)
 	case "session_delete":
 		s.deleteSession(msg.Value)
+	case "session_rename":
+		s.renameSession(msg.Value)
 	case "session_new":
 		s.newSession()
 	case "session_pop":
@@ -554,6 +556,32 @@ func (s *WebSession) deleteSession(id string) {
 	}
 	if err := s.ag.Store().DeleteNamedSession(id); err != nil {
 		log.Warn("deleteSession: %v", err)
+		return
+	}
+	s.pushSessionList()
+}
+
+// renameSession renames the current session (FEATURE-425). The new title is
+// persisted via UpdateNamedSession and the session list is refreshed so the
+// status-bar menu and the main message area title bar stay in sync.
+func (s *WebSession) renameSession(title string) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		s.pushSessionList()
+		return
+	}
+	id := s.ag.CurrentSessionID()
+	if id == "" {
+		return
+	}
+	entry, found, err := s.ag.Store().LoadNamedSession(id)
+	if err != nil || !found || entry == nil {
+		log.Warn("renameSession LoadNamedSession: %v", err)
+		return
+	}
+	entry.Title = title
+	if err := s.ag.Store().UpdateNamedSession(id, entry); err != nil {
+		log.Warn("renameSession UpdateNamedSession: %v", err)
 		return
 	}
 	s.pushSessionList()

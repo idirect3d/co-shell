@@ -12,6 +12,7 @@
 package web
 
 import (
+	"bufio"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -22,7 +23,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -165,6 +168,7 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("POST /api/open", s.handleOpen)
 	s.mux.HandleFunc("POST /api/reveal", s.handleReveal)
 	s.mux.HandleFunc("GET /api/file", s.handleFile)
+	s.mux.HandleFunc("GET /api/gitdiff", s.handleGitDiff)
 	s.httpSrv = &http.Server{Handler: s.mux}
 	return s
 }
@@ -631,5 +635,221 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not a file"})
 		return
 	}
+	// FEATURE-425: hex=1 serves a byte-range slice as hex rows (for binary
+	// files); start/end serve a line-range slice as text; otherwise keep the
+	// original whole-file ServeFile behaviour (used by the image previewer).
+	if r.URL.Query().Get("hex") == "1" {
+		s.serveFileHex(w, r, abs, r.URL.Query().Get("start"), r.URL.Query().Get("end"))
+		return
+	}
+	if startStr := r.URL.Query().Get("start"); startStr != "" {
+		s.serveFileLines(w, abs, startStr, r.URL.Query().Get("end"))
+		return
+	}
 	http.ServeFile(w, r, abs)
 }
+
+// hexRow is one 16-byte row of a hex dump: the byte offset, the hex bytes and
+// the printable ASCII column.
+type hexRow struct {
+	Offset int    `json:"offset"`
+	Hex    string `json:"hex"`
+	Ascii  string `json:"ascii"`
+}
+
+// serveFileHex reads a byte range [start, end] (byte offsets, width-aligned)
+// of a file and returns {total, rows} where each row is a width-byte hex dump
+// line. width defaults to 16 and may be 8/16/32/64/128 (FEATURE-425). It reads
+// only the requested range via ReadAt so large files are never fully loaded
+// into memory (on-demand loading).
+func (s *Server) serveFileHex(w http.ResponseWriter, r *http.Request, abs, startStr, endStr string) {
+	info, err := os.Stat(abs)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	total := int(info.Size())
+	start := 0
+	if startStr != "" {
+		start, err = strconv.Atoi(startStr)
+		if err != nil || start < 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid start"})
+			return
+		}
+	}
+	end := total
+	if endStr != "" {
+		end, err = strconv.Atoi(endStr)
+		if err != nil || end < start {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end"})
+			return
+		}
+	}
+	width := 16
+	if wStr := r.URL.Query().Get("width"); wStr != "" {
+		width, err = strconv.Atoi(wStr)
+		if err != nil || (width != 8 && width != 16 && width != 32 && width != 64 && width != 128) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid width"})
+			return
+		}
+	}
+	if start >= total {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"total": total, "rows": []hexRow{}})
+		return
+	}
+	if end > total {
+		end = total
+	}
+	// Align start down to a width boundary so each row is a full width line.
+	alignedStart := start - (start % width)
+	buf := make([]byte, end-alignedStart)
+	f, err := os.Open(abs)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	defer f.Close()
+	if _, err := f.ReadAt(buf, int64(alignedStart)); err != nil && err != io.EOF {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	var rows []hexRow
+	for i := 0; i < len(buf); i += width {
+		chunk := buf[i:min(i+width, len(buf))]
+		var hexParts, asciiParts []string
+		for _, b := range chunk {
+			hexParts = append(hexParts, fmt.Sprintf("%02x", b))
+			if b >= 0x20 && b <= 0x7e {
+				asciiParts = append(asciiParts, string(b))
+			} else {
+				asciiParts = append(asciiParts, ".")
+			}
+		}
+		rows = append(rows, hexRow{
+			Offset: alignedStart + i,
+			Hex:    strings.Join(hexParts, " "),
+			Ascii:  strings.Join(asciiParts, ""),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"total": total, "rows": rows})
+}
+
+// serveFileLines reads a 1-based inclusive line range [start, end] of a text
+// file and returns {total, lines} as JSON. It streams the file line by line
+// (bufio.Scanner) so large files are never fully loaded into memory. When end
+// is empty or beyond the file, it reads to EOF. total is the file's total line
+// count (computed by a full scan).
+func (s *Server) serveFileLines(w http.ResponseWriter, abs, startStr, endStr string) {
+	start, err := strconv.Atoi(startStr)
+	if err != nil || start < 1 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid start"})
+		return
+	}
+	end := 0
+	if endStr != "" {
+		end, err = strconv.Atoi(endStr)
+		if err != nil || end < start {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end"})
+			return
+		}
+	}
+	f, err := os.Open(abs)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	defer f.Close()
+
+	var lines []string
+	total := 0
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
+	for sc.Scan() {
+		total++
+		if total >= start && (end == 0 || total <= end) {
+			lines = append(lines, sc.Text())
+		}
+		if end != 0 && total > end {
+			// Keep scanning to count total lines.
+		}
+	}
+	if err := sc.Err(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"total": total, "lines": lines})
+}
+
+// gitDiffLine is one line of the git diff for a file, tagged with its status
+// relative to the working tree (FEATURE-425). line is the 1-based line number
+// in the current working-tree file; status is "add" (new), "del" (deleted) or
+// "ctx" (unchanged context).
+//
+// The diff is computed by running `git diff -- <path>` and parsing the unified
+// hunks. For a modified file, added lines map to their working-tree line
+// numbers; deleted lines carry the line number they occupied in the working
+// tree (the hunk's new-side start offset). Untracked files (no diff) yield an
+// empty list.
+type gitDiffLine struct {
+	Line   int    `json:"line"`
+	Status string `json:"status"`
+}
+
+// handleGitDiff returns the working-tree diff of one file as a list of
+// gitDiffLine (only the changed lines, not context). It returns an empty list
+// when the workspace is not a git repo, the file is untracked, or git is
+// unavailable.
+func (s *Server) handleGitDiff(w http.ResponseWriter, r *http.Request) {
+	abs, err := s.resolvePath(r.URL.Query().Get("path"))
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+	rel, err := filepath.Rel(s.root, abs)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string][]gitDiffLine{"lines": {}})
+		return
+	}
+	if _, err := os.Stat(filepath.Join(s.root, ".git")); err != nil {
+		writeJSON(w, http.StatusOK, map[string][]gitDiffLine{"lines": {}})
+		return
+	}
+	cmd := exec.Command("git", "diff", "--", filepath.ToSlash(rel))
+	cmd.Dir = s.root
+	out, err := cmd.Output()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string][]gitDiffLine{"lines": {}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]gitDiffLine{"lines": parseGitDiff(string(out))})
+}
+
+// parseGitDiff parses a unified `git diff` output and returns the changed
+// lines (add/del) with their working-tree line numbers. Context lines are
+// skipped. It tracks the new-side line counter across hunks so added lines get
+// correct working-tree numbers.
+func parseGitDiff(diff string) []gitDiffLine {
+	var out []gitDiffLine
+	newLine := 0 // current line number on the new (working-tree) side
+	for _, ln := range strings.Split(diff, "\n") {
+		switch {
+		case strings.HasPrefix(ln, "@@"):
+			// hunk header: @@ -a,b +c,d @@
+			if m := hunkNewRe.FindStringSubmatch(ln); m != nil {
+				newLine, _ = strconv.Atoi(m[1])
+			}
+		case strings.HasPrefix(ln, "+") && !strings.HasPrefix(ln, "+++"):
+			out = append(out, gitDiffLine{Line: newLine, Status: "add"})
+			newLine++
+		case strings.HasPrefix(ln, "-") && !strings.HasPrefix(ln, "---"):
+			out = append(out, gitDiffLine{Line: newLine, Status: "del"})
+		case strings.HasPrefix(ln, " ") || ln == "":
+			newLine++
+		}
+	}
+	return out
+}
+
+// hunkNewRe matches the new-side start line in a unified diff hunk header
+// `@@ -a,b +c,d @@` and captures c.
+var hunkNewRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)`)
