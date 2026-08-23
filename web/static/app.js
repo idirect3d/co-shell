@@ -1234,21 +1234,34 @@ function renderSessionMenu(sessions) {
 // Persisted in localStorage.
 let displayMode = localStorage.getItem("co-shell-display-mode") || "normal";
 
-// initStreamMode wires the three-segment display-mode pill and the editable
-// session title in the main message area title bar.
+// initStreamMode wires the three-segment display-mode pill (reusing the
+// .mode-seg control with its gliding slider) and the editable session title
+// in the main message area title bar.
 function initStreamMode() {
+  const slider = document.getElementById("streamModeSlider");
+  const moveSlider = () => {
+    const items = streamMode.querySelectorAll(".mode-seg-item");
+    let idx = 0;
+    items.forEach((b, i) => { if (b.dataset.mode === displayMode) idx = i; });
+    const seg = items[idx];
+    if (!seg || !slider) return;
+    slider.style.width = seg.offsetWidth + "px";
+    slider.style.transform = "translateX(" + seg.offsetLeft + "px)";
+  };
   // Display-mode pill.
-  streamMode.querySelectorAll(".stream-mode-item").forEach((btn) => {
+  streamMode.querySelectorAll(".mode-seg-item").forEach((btn) => {
     btn.textContent = T["streamMode" + btn.dataset.mode[0].toUpperCase() + btn.dataset.mode.slice(1)] || btn.dataset.mode;
     btn.classList.toggle("active", btn.dataset.mode === displayMode);
     btn.onclick = () => {
       if (btn.dataset.mode === displayMode) return;
       displayMode = btn.dataset.mode;
       localStorage.setItem("co-shell-display-mode", displayMode);
-      streamMode.querySelectorAll(".stream-mode-item").forEach((b) => b.classList.toggle("active", b.dataset.mode === displayMode));
+      streamMode.querySelectorAll(".mode-seg-item").forEach((b) => b.classList.toggle("active", b.dataset.mode === displayMode));
+      moveSlider();
       applyDisplayMode();
     };
   });
+  moveSlider();
   // Editable session title: commit on Enter or blur.
   streamTitle.placeholder = T.streamTitlePlaceholder;
   streamTitle.title = T.streamTitleHint;

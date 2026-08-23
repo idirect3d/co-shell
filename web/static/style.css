@@ -396,28 +396,10 @@ aside {
   flex: none;
   background: var(--bg-panel);
 }
-.stream-mode {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: none;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 2px;
-}
-.stream-mode-item {
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 10px;
-  cursor: pointer;
-  line-height: 1.4;
-}
-.stream-mode-item:hover { color: var(--fg); }
-.stream-mode-item.active { background: var(--accent-dim); color: var(--accent); }
+/* FEATURE-425: the display-mode pill reuses the .mode-seg control (same as
+   the act/plan/research switcher) so the two look identical. It sits at the
+   right of the stream title bar (override .mode-seg's margin-right:auto). */
+.stream-mode { margin-right: 0; margin-left: auto; }
 .stream-title {
   flex: 1;
   min-width: 0;
@@ -427,7 +409,7 @@ aside {
   font-size: 12px;
   font-weight: 600;
   outline: none;
-  text-align: center;
+  text-align: left;
   text-overflow: ellipsis;
 }
 .stream-title:focus { border-bottom: 1px solid var(--accent); }
