@@ -87,11 +87,11 @@
 
 ### 任务详情
 
-- [ ] **FIX-415 修复 Web UI TOOL 块输入参数子块 Raw 开关默认状态反了**
+- [x] **FIX-415 修复 Web UI TOOL 块输入参数子块 Raw 开关默认状态反了** ✅ 已完成
   - 背景：FEATURE-412 增加"Raw"小胶囊开关控制输入参数子块是否进行 md 渲染，默认关闭（rawMode=true 显示原始内容）。但开关的视觉状态与逻辑状态不一致：默认显示原始内容（rawMode=true）时，Raw 开关应显示为打开（高亮 .on），但当前显示为关闭状态。
   - 根因：`ensureToolParams` 创建 rawPill 时未默认添加 `.on` class，导致默认显示原始内容但开关视觉状态为关闭。
   - 方案（已确认）：在 `ensureToolParams` 创建 rawPill 时默认添加 `.on` class，使开关视觉状态与 rawMode=true（显示原始内容）的默认逻辑状态一致。
-  - 实施：`web/static/app.js` `ensureToolParams` 默认 `rawMode` 从 `true` 改为 `false`（默认进行 md 渲染），使 Raw 开关默认关闭（无 .on）与逻辑状态一致 [BUILD-545]
+  - 实施：`web/static/app.js` `ensureToolParams` 默认 `rawMode` 从 `true` 改为 `false`（默认进行 md 渲染），使 Raw 开关默认关闭（无 .on）与逻辑状态一致 [BUILD-545]；合并 [BUILD-546]
   - 测试：见 use-case/FIX-415/
 
 ---
