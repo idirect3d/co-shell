@@ -1614,6 +1614,11 @@ const VK_ROWS = [
 // container (optional) is where the keyboard is appended; defaults to askInteraction.
 function renderVirtualKeyboard(it, isSelect, container) {
   const target = container || askInteraction;
+  // A tool-confirmation interaction carries the full action set; a
+  // cancel/resume interaction (ESC pause) only has approve+cancel, so it
+  // shows just "-" (cancel) and Enter (resume) (FEATURE-427).
+  const isToolConfirm = (it.keys || []).some((k) =>
+    k.value === "approve_all" || k.value === "approve_g" || k.value === "approve_d");
   // Build a map: key -> {action, value}.
   const keyMap = {};
   if (isSelect && it.options && it.options.length) {
@@ -1625,11 +1630,13 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // FEATURE-427: symbol/numpad keys only (input-method independent). The
     // backend's letter keys (a/g/d/c) are intentionally ignored so an active
     // IME cannot swallow the shortcut.
-    keyMap["+"] = { action: "approve_all" };
+    if (isToolConfirm) {
+      keyMap["+"] = { action: "approve_all" };
+      keyMap["*"] = { action: "approve_g" };
+      keyMap["/"] = { action: "approve_d" };
+      keyMap["5"] = { action: "approve_count", value: "5" };
+    }
     keyMap["-"] = { action: "cancel" };
-    keyMap["*"] = { action: "approve_g" };
-    keyMap["/"] = { action: "approve_d" };
-    keyMap["5"] = { action: "approve_count", value: "5" };
   }
   // Enter maps to approve.
   keyMap["enter"] = { action: "approve" };
@@ -1674,7 +1681,10 @@ function renderVirtualKeyboard(it, isSelect, container) {
     addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
   }
   // Space / Insert / 0 item: enter supplement-input mode (FEATURE-427).
-  addItem("Space/Insert/0", T.supplement, () => enterSupplementMode(), "opt-space");
+  // Only shown for tool confirmation; a cancel/resume prompt has no supplement.
+  if (isToolConfirm) {
+    addItem("Space/Insert/0", T.supplement, () => enterSupplementMode(), "opt-space");
+  }
   target.appendChild(wrap);
 
   // Listen for physical key presses while this interaction is pending.
@@ -1687,8 +1697,9 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // box (previously only digits/letters/space/enter were swallowed).
     e.preventDefault();
     const key = e.key.toLowerCase();
-    // FEATURE-427: supplement via Space / Insert / 0 (input-method independent).
-    if (key === " " || key === "insert" || key === "0") {
+    // FEATURE-427: supplement via Space / Insert / 0 (input-method independent),
+    // only for tool confirmation (a cancel/resume prompt has no supplement).
+    if (isToolConfirm && (key === " " || key === "insert" || key === "0")) {
       enterSupplementMode();
     } else if (key === "enter") {
       answerInteraction({ action: "approve" });
