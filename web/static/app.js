@@ -604,16 +604,31 @@ function renderEvent(ev) {
   }
   if (ev.type === "token_iter" || ev.type === "token_task") {
     const m = ev.meta || {};
+    // FEATURE-419: append the token stats to the bottom of the current
+    // iteration's last block (LLM/THINK/TOOL/REPL) instead of a standalone
+    // block at the bottom of the stream.
+    const target = curTool || curREPL || curLLM || curThinking;
+    // FEATURE-419: build the token line with iteration number, timestamp and
+    // thousands separators, e.g. "58. 2026-08-23 12:30:58 ↑34,670 ↓154
+    // Σ34,824/1,048,576 1.8s 75".
     const parts = [];
-    if (m.prompt) parts.push("↑" + m.prompt);
-    if (m.completion) parts.push("↓" + m.completion);
-    if (m.total) parts.push("Σ" + m.total + (m.max && m.max !== "0" ? "/" + m.max : ""));
+    if (ev.type === "token_iter") {
+      iterCount++;
+      parts.push(iterCount + ". " + fmtTime(new Date()));
+    }
+    if (m.prompt) parts.push("↑" + fmtNum(parseInt(m.prompt, 10) || 0));
+    if (m.completion) parts.push("↓" + fmtNum(parseInt(m.completion, 10) || 0));
+    if (m.total) parts.push("Σ" + fmtNum(parseInt(m.total, 10) || 0) + (m.max && m.max !== "0" ? "/" + fmtNum(parseInt(m.max, 10) || 0) : ""));
     if (m.ft) parts.push(m.ft);
-    if (m.out_tps) parts.push(m.out_tps);
+    if (m.out_tps) parts.push(/^\d+$/.test(m.out_tps) ? fmtNum(parseInt(m.out_tps, 10)) : m.out_tps);
     const line = document.createElement("div");
     line.className = "ev meta";
     line.textContent = parts.join("  ");
-    stream.appendChild(line);
+    if (target) {
+      target.body.appendChild(line);
+    } else {
+      stream.appendChild(line);
+    }
     curLLM = curThinking = null;
     // FEATURE-409: the LLM iteration ended (token usage refreshed) — hide the
     // streaming "..." on all blocks now, not only at the final done event.
@@ -779,6 +794,12 @@ function renderUserEcho(text) {
   curREPL = null;
   const body = makeBlock("user-msg", "YOU", lastMsgIndex);
   body.textContent = text;
+  // FEATURE-419: after creating the YOU block, scroll to the bottom on the
+  // next frame (once the browser has rendered the new block and grown
+  // streamB.scrollHeight). Without this, a user's Enter on a long history can
+  // leave streamB not at the bottom, which the scroll listener misreads as an
+  // intentional scroll-up and spuriously triggers the auto-split (FEATURE-416).
+  requestAnimationFrame(scrollStream);
 }
 
 /* ---------- panel visibility (workspace / plan) ---------- */
@@ -837,6 +858,18 @@ miStatus.onclick = () => {
 // the running totals across all iterations; last* hold the most recent
 // iteration's values (including input/output tokens-per-second).
 const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0 };
+
+// FEATURE-419: per-iteration counter shown in the token-stats line (the same
+// sequence number :context displays for each message). Incremented on every
+// token_iter event.
+let iterCount = 0;
+
+// fmtTime formats a Date as "YYYY-MM-DD HH:mm:ss" for the token-stats line.
+function fmtTime(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " +
+    p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
 
 // modelInfo holds the active text/vision model context info from bootstrap
 // (FEATURE-378): { textModel, textMaxLen, visionModel, visionMaxLen }.
