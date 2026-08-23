@@ -638,7 +638,8 @@ function markStreaming(body) {
   if (displayMode === "minimal") {
     document.querySelectorAll(".ev").forEach((b) => {
       if (b === box) return;
-      if (b.classList.contains("user-msg")) return; // user blocks stay expanded
+      // User blocks and the final result block stay expanded (FIX-426).
+      if (b.classList.contains("user-msg") || b.classList.contains("ev-result")) return;
       b.classList.add("collapsed");
     });
   }
