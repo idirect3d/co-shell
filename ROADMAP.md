@@ -194,7 +194,7 @@
   - 背景：Web UI 信息块（LLM/THINK/TOOL/REPL 等）标题行 `.ev-head` 文字颜色为 `var(--fg-faint)`（较淡），部分字在某些场景下（如浅色背景、小字号）不够明显，影响可读性。
   - 方案（已确认）：给 `.ev-head` 增加约 2px 的 `text-shadow`，提升标题文字对比度与可读性，不影响布局。
   - 需求：修改 `web/static/style.css` `.ev-head` 增加 `text-shadow`（约 2px 阴影）。
-  - 实施：`web/static/style.css` `.ev-head` 增加 `text-shadow: 0 1px 2px rgba(0,0,0,0.35)`（约 2px 阴影）提升标题文字可读性 [BUILD-564]
+  - 实施：`web/static/style.css` `.ev-head` 增加 `text-shadow: 0 1px 2px rgba(0,0,0,0.35)`（约 2px 阴影）提升标题文字可读性 [BUILD-564]；合并 [BUILD-565]
   - 测试：见 use-case/FEATURE-421/
 ---
 
