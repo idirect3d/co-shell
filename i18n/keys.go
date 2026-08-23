@@ -1498,8 +1498,9 @@ const (
 	// conflict with the tui input mode (FEATURE-307b).
 	KeyOutputFormatInvalid = "output_format_invalid"
 
-	// serve subcommand (FEATURE-307c)
+	// serve flag (FEATURE-307c)
 	KeyCLIHelpPort        = "cli_help_port"
+	KeyCLIHelpServe       = "cli_help_serve"
 	KeyServeStarted       = "serve_started"
 	KeyServeNoPort        = "serve_no_port"
 	KeyServeConflict      = "serve_conflict"

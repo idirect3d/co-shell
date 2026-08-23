@@ -49,9 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.14.1"
+const version = "0.15.0"
 
-const build = "611"
+const build = "613"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -199,47 +199,15 @@ type cliFlags struct {
 	// Browser enabled
 	browserEnabled string // "on"/"off"
 
-	// serve subcommand (FEATURE-307c): `co-shell serve` starts the embedded
-	// web UI (HTTP + WebSocket on 127.0.0.1, single browser client).
+	// serve flag (FEATURE-307c): `--serve` starts the embedded web UI
+	// (HTTP + WebSocket on 127.0.0.1, single browser client) without opening
+	// a browser.
 	serve bool
 	port  int
 }
 
 func parseFlags() cliFlags {
 	var f cliFlags
-
-	// FEATURE-307c: intercept the "serve" subcommand before flag parsing —
-	// stdlib flag would otherwise treat it as a positional argument and merge
-	// it into the single-command string. The scan skips flag values so that
-	// e.g. `-w serve` (a workspace literally named "serve") is not hijacked,
-	// and stops at the first other positional (flag parsing stops there too).
-	if len(os.Args) > 1 {
-		boolFlags := map[string]bool{
-			"help": true, "h": true, "version": true, "v": true,
-			"unload-capabilities": true, "unload-rules": true, "unload-principles": true,
-			"init-capabilities": true, "init-rules": true,
-		}
-		args := os.Args[1:]
-		for i := 0; i < len(args); i++ {
-			a := args[i]
-			if a == "--" {
-				break
-			}
-			if strings.HasPrefix(a, "-") {
-				name := strings.TrimLeft(a, "-")
-				if !strings.Contains(name, "=") && !boolFlags[name] {
-					i++ // skip the flag's value
-				}
-				continue
-			}
-			if a == "serve" {
-				f.serve = true
-				rest := append(args[:i:i], args[i+1:]...)
-				os.Args = append(os.Args[:1:1], rest...)
-			}
-			break
-		}
-	}
 
 	// Define flags
 	flag.StringVar(&f.workspacePath, "workspace", "", "Set workspace path (default: current directory)")
@@ -372,8 +340,11 @@ func parseFlags() cliFlags {
 	// Output format (FEATURE-307b)
 	flag.StringVar(&f.outputFormat, "output-format", "", "Output format (text/json; json implies stdio input mode, CLI-only)")
 
-	// serve subcommand port (FEATURE-307c)
-	flag.IntVar(&f.port, "port", 8399, "Listen port for the serve subcommand (auto-increments when occupied, up to 10 tries)")
+	// serve flag (FEATURE-307c): start the embedded web UI without opening a browser
+	flag.BoolVar(&f.serve, "serve", false, "Start the web UI mode without opening a browser (default mode opens the browser)")
+
+	// serve port (FEATURE-307c)
+	flag.IntVar(&f.port, "port", 8399, "Listen port for the web UI (auto-increments when occupied, up to 10 tries)")
 
 	// Unload mode (FEATURE-245)
 	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
@@ -472,15 +443,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// FEATURE-307c: the serve subcommand is mutually exclusive with
-	// single-command mode and input/output channel overrides — it owns the
-	// whole I/O channel (positional args are merged into flags.command by
-	// parseFlags, so they are covered here too).
+	// FEATURE-427: the --serve flag is mutually exclusive with input/output
+	// channel overrides — it owns the whole I/O channel. A single command
+	// (flags.command) forces stdio mode and is rejected separately in the
+	// startup logic below.
 	if flags.serve {
 		conflict := ""
 		switch {
-		case flags.command != "":
-			conflict = "--command / positional arguments"
 		case flags.inputMode != "":
 			conflict = "--input-mode"
 		case flags.outputFormat != "":
@@ -1393,8 +1362,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// If --command flag is provided, execute the single command and exit
+	// FEATURE-427: startup mode resolution.
+	// Priority:
+	//   1. A single command (flags.command) forces stdio mode (mode B). If any
+	//      other mode flag is also given, that is an error.
+	//   2. --serve starts the web UI without opening a browser (mode C).
+	//   3. --input-mode explicitly selects enhanced (mode A) or stdio (mode B).
+	//   4. Default (no mode flags): web UI with auto-open browser; if the
+	//      browser cannot be opened, fall back to enhanced REPL (mode A), and
+	//      if the environment does not support enhanced, the REPL itself falls
+	//      back to stdio (mode B).
+
+	// 1. A single command forces stdio mode (mode B).
 	if flags.command != "" {
+		if flags.inputMode != "" || flags.serve {
+			io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeConflict, "--input-mode/--serve with a command"))
+			os.Exit(1)
+		}
 		executeSingleCommand(ag, cfg, flags.command, outputFormat)
 		return
 	}
@@ -1402,10 +1386,9 @@ func main() {
 	// Start REPL (interactive mode)
 	r := repl.New(cfg, s, mcpMgr, ag)
 	r.SetVersion(version, build)
-	// Apply input mode setting (P2.5: Windows is no longer forced to stdio —
-	// raw terminal support now exists via the unified input reader, which
-	// also enables ESC/Ctrl+C monitoring on Windows).
-	inputMode := "tui" // default interactive mode (P2: "enhanced" → "tui")
+
+	// Resolve the input mode (mode A enhanced / mode B stdio).
+	inputMode := "tui" // default enhanced (mode A)
 	if cfg.LLM.InputMode != "" {
 		inputMode = config.NormalizeInputMode(cfg.LLM.InputMode)
 	}
@@ -1418,11 +1401,11 @@ func main() {
 		inputMode = "stdio"
 	}
 
-	// FEATURE-307c: serve subcommand — start the embedded web server
-	// (loopback only), register the web session factory and switch the REPL
-	// input mode to "web". The REPL main loop runs unchanged; browser input
-	// arrives over WebSocket.
-	if flags.serve {
+	// startWebUI starts the embedded web server (loopback only), registers the
+	// web session factory and, when openBrowser is true, attempts to open the
+	// default browser. It returns the server, or nil when the browser could not
+	// be opened so the caller can fall back to the enhanced REPL.
+	startWebUI := func(openBrowser bool) *web.Server {
 		srv := web.NewServer(ws.Root(), web.ServerOptions{
 			Lang:    string(i18n.GetLang()),
 			Version: version,
@@ -1434,12 +1417,33 @@ func main() {
 			io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeNoPort, flags.port, flags.port+9))
 			os.Exit(1)
 		}
-		defer srv.Close()
 		io.Printf("%s\n", i18n.TF(i18n.KeyServeStarted, addr))
-		if err := web.OpenBrowser("http://" + addr); err != nil {
-			io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeBrowserFailed, err, addr))
+		if openBrowser {
+			if err := web.OpenBrowser("http://" + addr); err != nil {
+				io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeBrowserFailed, err, addr))
+				srv.Close()
+				return nil
+			}
 		}
-		inputMode = "web"
+		return srv
+	}
+
+	// 2. --serve: web UI without opening a browser (mode C).
+	if flags.serve {
+		if srv := startWebUI(false); srv != nil {
+			defer srv.Close()
+			inputMode = "web"
+		}
+	} else if flags.inputMode == "" && outputFormat != "json" {
+		// 4. Default: web UI with auto-open browser; fall back to enhanced on
+		// failure (nil server). The REPL itself falls back to stdio if the
+		// environment does not support enhanced. Note: cfg.LLM.InputMode is
+		// intentionally not consulted here — its default is "tui" (enhanced),
+		// so checking it would make the default web UI branch unreachable.
+		if srv := startWebUI(true); srv != nil {
+			defer srv.Close()
+			inputMode = "web"
+		}
 	}
 
 	r.SetInputMode(inputMode)

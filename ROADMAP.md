@@ -291,7 +291,7 @@
 |------|------|------|------|
 | FIX-426 | 0.14.1 | P1 | 修复极简模式收起逻辑：当有块开始动态输出时收起其他未收起的块（用户块除外），用户块总是展开显示原始指令 |
 
-> 当前 BUILD: 611
+> 当前 BUILD: 613
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -303,6 +303,30 @@
   - 需求：修改 `web/static/app.js` 的 `unmarkStreaming`/`applyBlockDisplayMode`，极简模式下收起非用户块、非当前输出块，用户块（user-msg）始终展开。
   - 实施：`web/static/app.js` ① `markStreaming` 极简模式下当有块开始流式输出时收起其他非用户块（用户块始终展开）；② `unmarkStreaming` 极简模式下仅当有其他块仍在流式输出时才收起当前块（最后一个块保持展开），用户块/结果块不收起；③ `applyBlockDisplayMode`/`applyDisplayMode` 极简模式下用户块始终展开 [BUILD-606]；④ 修复 TOOL 块不被自动收起：`.ev.collapsed` 原只隐藏 `.ev-body`，但 TOOL 块的输入参数子块 `.tool-params` 是 `.ev` 直接子元素不在 `.ev-body` 内，导致收起时输入参数仍显示。修改 `.ev.collapsed .tool-params` 也 `display:none`，使 TOOL 块被新输出块触发收起时输入参数和结果都隐藏只剩标题 [BUILD-607]；⑤ 修复静默模式最终结果块不显示：`applyBlockDisplayMode`/`applyDisplayMode` 静默模式下最终结果块（ev-result）不仅显示且移除 `collapsed` 展开，确保用户看到任务完成报告；⑥ 运行开始时会话标题栏高亮点和 co-shell logo 呼吸效果：`setRunning(true)` 给 `.stream-active` 和 `#logo` 添加 `breathing` class（CSS `breathe` 动画明暗交替），`setRunning(false)` 移除恢复正常 [BUILD-608]；⑦ 修复极简模式最终结果块被收起：`markStreaming` 极简模式下收起其他块时排除 `ev-result`，使最后一个 TOOL: 完成任务 块保持展开 [BUILD-609]；⑧ 主消息区滚动自动分区后的悬浮融合按钮图标改为 `⎶`（移除原 ↓+横线组合，图标放大到 18px 与按钮比例协调）[BUILD-610]；⑨ 修复"完成任务"TOOL 块 ev-result 标记：`tool_call` 事件处理中，当 TOOL 块标题更新为 "TOOL: 完成任务" 时标记 `ev-result` 并移除 `collapsed`（因 `makeBlock` 创建时 label="TOOL" 无法判断是否完成任务），确保静默模式下最终结果块显示且展开 [BUILD-611]
   - 测试：见 use-case/FIX-426/
+
+## v0.15.0 — 开发中
+
+> **版本**: v0.15.0
+
+> **状态**: 🚧 开发中（启动模式设计语言重构）
+> **里程碑**: 启动模式设计语言重构
+> **说明**: 0.15.0 系列重构启动模式设计语言，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-427 | 0.15.0 | P1 | 重构启动模式设计语言：默认 web UI 模式（自动弹浏览器，无浏览器降级 enhanced→stdio），--serve 启动 web UI 不弹浏览器，指令参数强制 stdio，移除 serve 子命令 |
+
+> 当前 BUILD: 611
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-427 启动模式设计语言重构** [BUILD-613]
+  - 背景：当前启动模式默认 enhanced REPL，serve 为子命令且自动弹浏览器，模式优先级与设计语言不一致。
+  - 方案（已确认）：重构为三种工作模式——模式 A（`--input-mode enhanced`，REPL 增强模式，终端最佳体验）、模式 B（`--input-mode stdio`，REPL 标准输入输出，最大兼容性，输入指令参数时自动使用）、模式 C（`--serve`，web UI 模式，不自动弹浏览器）。默认优先级调整为：默认 web UI 模式（不能录入指令）→ 自动弹浏览器 → 无浏览器降级 enhanced → 环境不支持 enhanced 降级 stdio。移除 `serve` 子命令。指令参数强制 stdio，若同时指定其他模式参数则报错。
+  - 需求：修改 `main.go` 启动逻辑与 `usage.go` --help 说明。
+  - 测试：见 use-case/FEATURE-427/
 
 ## v0.9.1 — 开发中（已完成）
 
