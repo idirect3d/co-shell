@@ -169,6 +169,7 @@
 |------|------|------|------|
 | FEATURE-419 | 0.12.0 | P1 | Web UI 三项优化：会话列表展开时默认滚动到当前会话、工作区状态每次迭代（显示块完成后去掉"..."时）刷新、快捷键收集阶段没收全部按键（不再漏给录入框） |
 | FIX-420 | 0.12.0 | P1 | 修复问题判定模型（problem solver）调用失败：thinking 模型（deepseek-v4-flash）在 thinking 模式下不支持 tool_choice，SetThinkingEnabled(false) 无效（Chat 不读取该字段），需通过 thinking adapter 注入 disabled 参数 |
+| FEATURE-421 | 0.12.0 | P1 | Web UI 信息块标题行文字增加约 2px 阴影，解决部分字在某些场景下不明显的问题 |
 
 > 当前 BUILD: 552
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -188,6 +189,13 @@
   - 方案（已确认）：`agent/problem_solver.go` `callProblemSolver` 移除无效的 `SetThinkingEnabled(false)`，改用 `llm.GetThinkingAdapter(modelCfg.Provider)` + `BuildAdditions(ThinkingModeDisabled)` 生成 thinking disabled 参数，与 `tool_choice` 合并到同一个 `SetBodyAdditions`。
   - 实施：`agent/problem_solver.go` `callProblemSolver` 用 thinking adapter 注入 `{"thinking":{"type":"disabled"}}` 与 `tool_choice` 合并 [BUILD-555]
   - 测试：见 use-case/FIX-420/
+
+- [ ] **FEATURE-421 Web UI 信息块标题行文字增加阴影**
+  - 背景：Web UI 信息块（LLM/THINK/TOOL/REPL 等）标题行 `.ev-head` 文字颜色为 `var(--fg-faint)`（较淡），部分字在某些场景下（如浅色背景、小字号）不够明显，影响可读性。
+  - 方案（已确认）：给 `.ev-head` 增加约 2px 的 `text-shadow`，提升标题文字对比度与可读性，不影响布局。
+  - 需求：修改 `web/static/style.css` `.ev-head` 增加 `text-shadow`（约 2px 阴影）。
+  - 实施：`web/static/style.css` `.ev-head` 增加 `text-shadow: 0 1px 2px rgba(0,0,0,0.35)`（约 2px 阴影）提升标题文字可读性 [BUILD-564]
+  - 测试：见 use-case/FEATURE-421/
 ---
 
 ## v0.9.1 — 开发中（已完成）
