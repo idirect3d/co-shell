@@ -357,8 +357,10 @@ function newStreamBlock(cls, label, msgIndex) {
   const body = makeBlock(cls, label, msgIndex);
   // FEATURE-419: track every block created during this iteration so token_iter
   // can append the token-stats line to the bottom of EACH block, not just the
-  // last one.
+  // last one. lastBlock always points to the most recent block so token_task
+  // (task summary) can append after the task's last block.
   iterBlocks.push(body);
+  lastBlock = body;
   return { body, raw: "", raf: 0, hasResult: false };
 }
 
@@ -609,33 +611,43 @@ function renderEvent(ev) {
   }
   if (ev.type === "token_iter" || ev.type === "token_task") {
     const m = ev.meta || {};
-    // FEATURE-419: build the token line with iteration number, timestamp and
-    // thousands separators, e.g. "58. 2026-08-23 12:30:58 ↑34,670 ↓154
-    // Σ34,824/1,048,576 1.8s 75".
-    const parts = [];
-    if (ev.type === "token_iter") {
-      iterCount++;
-      parts.push(iterCount + ". " + fmtTime(new Date()));
-    }
-    if (m.prompt) parts.push("↑" + fmtNum(parseInt(m.prompt, 10) || 0));
-    if (m.completion) parts.push("↓" + fmtNum(parseInt(m.completion, 10) || 0));
-    if (m.total) parts.push("Σ" + fmtNum(parseInt(m.total, 10) || 0) + (m.max && m.max !== "0" ? "/" + fmtNum(parseInt(m.max, 10) || 0) : ""));
-    if (m.ft) parts.push(m.ft);
-    if (m.out_tps) parts.push(/^\d+$/.test(m.out_tps) ? fmtNum(parseInt(m.out_tps, 10)) : m.out_tps);
     const line = document.createElement("div");
     line.className = "ev meta";
-    line.textContent = parts.join("  ");
-    // FEATURE-419: place the token line AFTER (outside) every block created
-    // during this iteration — each LLM/THINK/TOOL/REPL block is followed by its
-    // own token line as a sibling, not nested inside the block body. Fall back
-    // to the stream bottom when no block was tracked (e.g. token_task with no
-    // preceding blocks).
-    const blocks = iterBlocks.slice();
-    iterBlocks = [];
-    if (blocks.length) {
-      for (const b of blocks) b.parentElement.after(line.cloneNode(true));
+    if (ev.type === "token_iter") {
+      // FEATURE-419: per-iteration line with iteration number, timestamp and
+      // thousands separators, e.g. "58. 2026-08-23 12:30:58 ↑34,670 ↓154
+      // Σ34,824/1,048,576 1.8s 75".
+      iterCount++;
+      const parts = [iterCount + ". " + fmtTime(new Date())];
+      if (m.prompt) parts.push("↑" + fmtNum(parseInt(m.prompt, 10) || 0));
+      if (m.completion) parts.push("↓" + fmtNum(parseInt(m.completion, 10) || 0));
+      if (m.total) parts.push("Σ" + fmtNum(parseInt(m.total, 10) || 0) + (m.max && m.max !== "0" ? "/" + fmtNum(parseInt(m.max, 10) || 0) : ""));
+      if (m.ft) parts.push(m.ft);
+      if (m.out_tps) parts.push(/^\d+$/.test(m.out_tps) ? fmtNum(parseInt(m.out_tps, 10)) : m.out_tps);
+      line.textContent = parts.join("  ");
+      // FEATURE-419: place the token line AFTER (outside) every block created
+      // during this iteration — each LLM/THINK/TOOL/REPL block is followed by
+      // its own token line as a sibling, not nested inside the block body.
+      const blocks = iterBlocks.slice();
+      iterBlocks = [];
+      if (blocks.length) {
+        for (const b of blocks) b.parentElement.after(line.cloneNode(true));
+      } else {
+        stream.appendChild(line);
+      }
     } else {
-      stream.appendChild(line);
+      // FEATURE-419: task-level summary line, total first with prompt/completion
+      // in parentheses, e.g. "Σ2,087,596 (↑2,084,349 ↓3,247)". Appended after
+      // the LAST block of the task only (not the stream bottom).
+      const p = parseInt(m.prompt, 10) || 0;
+      const c = parseInt(m.completion, 10) || 0;
+      const t = parseInt(m.total, 10) || 0;
+      line.textContent = "Σ" + fmtNum(t) + " (↑" + fmtNum(p) + " ↓" + fmtNum(c) + ")";
+      if (lastBlock) {
+        lastBlock.parentElement.after(line);
+      } else {
+        stream.appendChild(line);
+      }
     }
     curLLM = curThinking = null;
     // FEATURE-409: the LLM iteration ended (token usage refreshed) — hide the
@@ -663,9 +675,10 @@ function renderEvent(ev) {
   }
   if (ev.type === "done") {
     curLLM = curThinking = curTool = curREPL = null;
-    // FEATURE-419: the task ended — clear any leftover iteration blocks so the
-    // next task starts with a fresh list.
+    // FEATURE-419: the task ended — clear any leftover iteration blocks and the
+    // last-block pointer so the next task starts with a fresh list.
     iterBlocks = [];
+    lastBlock = null;
     // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
     document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     // An LLM iteration finished — the agent may have switched git branches
@@ -880,6 +893,10 @@ let iterCount = 0;
 // of EACH block in this list (so every block shows its own token line), then
 // clears the list for the next iteration.
 let iterBlocks = [];
+
+// FEATURE-419: the .ev-body of the most recently created block. token_task
+// (task-level summary) appends its line after this LAST block of the task only.
+let lastBlock = null;
 
 // fmtTime formats a Date as "YYYY-MM-DD HH:mm:ss" for the token-stats line.
 function fmtTime(d) {
