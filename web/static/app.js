@@ -842,10 +842,28 @@ function renderEvent(ev) {
   // accumulate into the input-parameter sub-block (FEATURE-400); the result
   // appends to the ev-body.
   if (ev.type === "tool_call_stream") {
-    if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+    // FEATURE-XXX: the backend emits a "⚙️ <tool>\n" header at the start of
+    // each tool invocation. When one LLM iteration calls multiple tools, this
+    // marker lets us open a fresh TOOL block per tool instead of accumulating
+    // every tool's args into the first block (which let later calls overwrite
+    // earlier ones). The header itself is the tool title (shown in the block
+    // header by the tool_call input event), so it is stripped from the params.
+    const isNewTool = ev.text && ev.text.includes("⚙️");
+    if (!curTool || isNewTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
     markStreaming(curTool.body);
     const params = ensureToolParams(curTool);
-    params.raw += ev.text || "";
+    let text = ev.text || "";
+    // Strip the "⚙️ <tool>\n" header line from the params text. indexOf is
+    // used instead of a regex because the gear emoji (U+2699 + U+FE0F) is not
+    // reliably matched by a regex literal.
+    if (isNewTool) {
+      const gear = text.indexOf("⚙️");
+      if (gear >= 0) {
+        const nl = text.indexOf("\n", gear);
+        text = text.slice(nl >= 0 ? nl + 1 : text.length);
+      }
+    }
+    params.raw += text;
     // FEATURE-412: render the streaming args according to the "原始内容" pill
     // state — raw text by default, or markdown when the pill is toggled on.
     renderParams(params);
