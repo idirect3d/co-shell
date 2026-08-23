@@ -381,7 +381,57 @@ aside {
 
 /* ---------- event stream ---------- */
 
-#stream-wrap { min-width: 0; min-height: 0; display: flex; position: relative; }
+#stream-wrap { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+/* FEATURE-425: main message area title bar. Height matches the workspace /
+   task-plan panel heads (35px) so the three align. Left: three-segment
+   display-mode pill; centre: editable session title. */
+.stream-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  height: 35px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+  background: var(--bg-panel);
+}
+.stream-mode {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2px;
+}
+.stream-mode-item {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.stream-mode-item:hover { color: var(--fg); }
+.stream-mode-item.active { background: var(--accent-dim); color: var(--accent); }
+.stream-title {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+.stream-title:focus { border-bottom: 1px solid var(--accent); }
+.stream-title::placeholder { color: var(--placeholder); }
 /* FEATURE-419: floating block-boundary navigation icons. Shown when the current
    block is taller than the viewport and its title line / bottom is out of view;
    clicking jumps to that boundary. Positioned relative to the main data area. */
@@ -1150,7 +1200,11 @@ aside {
    parent. */
 .file-viewer {
   position: absolute;
-  inset: 0;
+  /* Start below the stream title bar (35px) so the previewer never covers it. */
+  top: 35px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 40;
   background: var(--bg-panel);
   display: flex;

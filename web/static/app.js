@@ -39,6 +39,8 @@ const I18N = {
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
     fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
+    streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
+    streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -68,6 +70,8 @@ const I18N = {
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
     fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
+    streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
+    streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
   },
 };
 let T = I18N.zh;
@@ -199,6 +203,9 @@ const fvBody = document.getElementById("fvBody");
 const fvClose = document.getElementById("fvClose");
 const fvSearch = document.getElementById("fvSearch");
 const fvRaw = document.getElementById("fvRaw");
+// FEATURE-425: main message area title bar (display-mode pill + session title).
+const streamMode = document.getElementById("streamMode");
+const streamTitle = document.getElementById("streamTitle");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
@@ -575,11 +582,35 @@ function makeBlock(cls, label, msgIndex) {
   if (!(cls === "tool" && /完成任务|Complete task/.test(label))) {
     addBlockActions(head, box, body, cls, cls === "user-msg");
   }
+  // FEATURE-425: mark the final completion block (TOOL: 完成任务) as the
+  // result block so silent mode keeps it visible.
+  if (cls === "tool" && /完成任务|Complete task/.test(label)) box.classList.add("ev-result");
+  // FEATURE-425: apply the current display mode to the new block.
+  applyBlockDisplayMode(box, cls);
   // FEATURE-416: append the block to region A when the stream is split,
   // otherwise to region B (the whole history).
   (splitActive ? streamA : streamB).appendChild(box);
   scrollStream();
   return body;
+}
+
+// applyBlockDisplayMode shows/hides or collapses a single block according to
+// the current display mode (FEATURE-425).
+function applyBlockDisplayMode(box, cls) {
+  if (displayMode === "silent") {
+    const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+    box.style.display = show ? "" : "none";
+  } else if (displayMode === "minimal") {
+    box.style.display = "";
+    const body = box.querySelector(".ev-body");
+    const isStreaming = body && isStreamingBody(body);
+    const isResult = box.classList.contains("ev-result");
+    if (!isStreaming && !isResult) box.classList.add("collapsed");
+    else box.classList.remove("collapsed");
+  } else {
+    box.style.display = "";
+    box.classList.remove("collapsed");
+  }
 }
 
 // addBlockActions appends the copy / collapse / retry icons to a block's title
@@ -603,13 +634,17 @@ function markStreaming(body) {
 }
 
 // unmarkStreaming hides the dynamic "..." of a block once it stops streaming
-// (FEATURE-409).
+// (FEATURE-409). In minimal display mode a finished non-result block collapses
+// to just its title (FEATURE-425).
 function unmarkStreaming(body) {
   if (!body) return;
   const box = body.parentElement;
   if (!box) return;
   const s = box.querySelector(".ev-streaming");
   if (s) s.classList.remove("on");
+  if (displayMode === "minimal" && !box.classList.contains("ev-result")) {
+    box.classList.add("collapsed");
+  }
 }
 
 // maybeCollapseEnded re-collapses blocks of a class that just finished
@@ -1174,10 +1209,82 @@ function renderSessionMenu(sessions) {
     };
     sessionMenu.appendChild(row);
   }
+  // FEATURE-425: update the main message area title bar with the current
+  // session title (matches the session list).
+  const curSess = sessionList.find((s) => s.current);
+  if (curSess) {
+    streamTitle.value = curSess.title || "";
+    streamTitle.placeholder = curSess.title || T.streamTitlePlaceholder;
+  }
   // FEATURE-419: when the menu opens, scroll the current session into view so
   // the user immediately sees where they are instead of hunting for it.
   const cur = sessionMenu.querySelector(".session-item.current");
   if (cur) cur.scrollIntoView({ block: "nearest" });
+}
+
+/* ---------- main message area display mode (FEATURE-425) ---------- */
+
+// displayMode controls how the main message area renders blocks:
+//   "normal"  — as today (all blocks fully expanded)
+//   "minimal" — output blocks show only their title + the current live block's
+//               dynamic content; a finished block collapses to just its title
+//               (except the last finished block)
+//   "silent"  — only user-command blocks, error blocks and the final result
+//               block are shown
+// Persisted in localStorage.
+let displayMode = localStorage.getItem("co-shell-display-mode") || "normal";
+
+// initStreamMode wires the three-segment display-mode pill and the editable
+// session title in the main message area title bar.
+function initStreamMode() {
+  // Display-mode pill.
+  streamMode.querySelectorAll(".stream-mode-item").forEach((btn) => {
+    btn.textContent = T["streamMode" + btn.dataset.mode[0].toUpperCase() + btn.dataset.mode.slice(1)] || btn.dataset.mode;
+    btn.classList.toggle("active", btn.dataset.mode === displayMode);
+    btn.onclick = () => {
+      if (btn.dataset.mode === displayMode) return;
+      displayMode = btn.dataset.mode;
+      localStorage.setItem("co-shell-display-mode", displayMode);
+      streamMode.querySelectorAll(".stream-mode-item").forEach((b) => b.classList.toggle("active", b.dataset.mode === displayMode));
+      applyDisplayMode();
+    };
+  });
+  // Editable session title: commit on Enter or blur.
+  streamTitle.placeholder = T.streamTitlePlaceholder;
+  streamTitle.title = T.streamTitleHint;
+  const commitTitle = () => {
+    const v = streamTitle.value.trim();
+    if (!v) { streamTitle.value = streamTitle.placeholder; return; }
+    const cur = sessionList.find((s) => s.current);
+    if (cur && v !== cur.title) wsSend({ type: "session_rename", value: v });
+  };
+  streamTitle.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); streamTitle.blur(); }
+  });
+  streamTitle.addEventListener("blur", commitTitle);
+}
+
+// applyDisplayMode re-applies the current display mode to all existing blocks.
+function applyDisplayMode() {
+  document.querySelectorAll(".ev").forEach((box) => {
+    const cls = box.className.replace("ev ", "").split(" ")[0];
+    const body = box.querySelector(".ev-body");
+    const isStreaming = body && isStreamingBody(body);
+    if (displayMode === "silent") {
+      // Show only user-msg, error, and the final result block.
+      const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+      box.style.display = show ? "" : "none";
+    } else if (displayMode === "minimal") {
+      box.style.display = "";
+      // Collapse finished non-result blocks to just their title.
+      const isResult = box.classList.contains("ev-result");
+      if (!isStreaming && !isResult) box.classList.add("collapsed");
+      else box.classList.remove("collapsed");
+    } else {
+      box.style.display = "";
+      box.classList.remove("collapsed");
+    }
+  });
 }
 
 // Request the session list on connect and whenever the menu is opened.
@@ -1909,7 +2016,11 @@ let fvRawPref = localStorage.getItem("co-shell-fv-raw") === "1";
 // are found. Image files keep the system open.
 function openFilePreview(node) {
   if (IMAGE_EXT.test(node.name)) return;
-  if (fvPath === node.path) return; // already showing this file
+  // FEATURE-425: clicking the already-open file closes the preview.
+  if (fvPath === node.path) {
+    closeFileViewer();
+    return;
+  }
   fvPath = node.path;
   fvNextLine = 1;
   fvTotal = 0;
@@ -2186,12 +2297,15 @@ function span(cls, text) {
   return s;
 }
 
-// Close the viewer.
-fvClose.onclick = () => {
+// closeFileViewer hides the previewer and clears its state (FEATURE-425).
+function closeFileViewer() {
   fileViewer.classList.add("hidden");
   fvPath = null;
   tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
-};
+}
+
+// Close the viewer.
+fvClose.onclick = closeFileViewer;
 
 // FEATURE-425: Raw pill toggles md auto-render (off) vs raw text (on). The
 // choice is persisted so the next file keeps the same state.
@@ -2919,6 +3033,7 @@ async function refreshBranch() {
     }
   } catch { /* defaults stay zh */ }
   applyI18n();
+  initStreamMode(); // FEATURE-425: wire the display-mode pill + session title
   autoGrow(); // FEATURE-405: set the initial input height correctly on load
   setRunning(false); // apply localized button title
   applyPanels();

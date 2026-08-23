@@ -61,6 +61,17 @@
   </aside>
 
   <section id="stream-wrap">
+    <!-- FEATURE-425: main message area title bar (height matches the workspace
+         / task-plan panel heads). Left: a three-segment display-mode pill
+         (silent/minimal/normal); centre: the current session title (editable). -->
+    <div class="stream-head">
+      <div class="stream-mode" id="streamMode" title="显示模式">
+        <button class="stream-mode-item" data-mode="silent">静默</button>
+        <button class="stream-mode-item" data-mode="minimal">极简</button>
+        <button class="stream-mode-item active" data-mode="normal">正常</button>
+      </div>
+      <input type="text" class="stream-title" id="streamTitle" placeholder="会话标题" title="点击修改会话标题">
+    </div>
     <div id="stream" class="stream">
       <div id="streamB" class="stream-b"></div>
       <div id="streamA" class="stream-a hidden"></div>
