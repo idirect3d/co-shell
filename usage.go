@@ -104,6 +104,7 @@ func buildUsage(version, build string) string {
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpInputMode)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpOutputFormat)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpPort)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpServe)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpTemperature)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpMaxTokens)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpTopP)))
