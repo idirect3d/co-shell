@@ -229,7 +229,6 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 	if judgeClient != nil {
 		defer judgeClient.Close()
 	}
-	judgeClient.SetThinkingEnabled(false)
 	if modelCfg.Temperature != nil {
 		judgeClient.SetTemperature(*modelCfg.Temperature)
 	}
@@ -247,9 +246,19 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 		tools = []llm.Tool{reportProblemTool()}
 		// Force the model to call report_problem via body additions
 		// (tool_choice={"type":"function","function":{"name":"report_problem"}}).
-		judgeClient.SetBodyAdditions(map[string]string{
+		// FEATURE-419: the problem model may be a thinking model (e.g.
+		// deepseek-v4-flash) whose API rejects tool_choice while thinking is
+		// on. SetThinkingEnabled(false) is a no-op (Chat never reads it), so
+		// inject the provider's thinking-disabled params via the adapter and
+		// merge them with tool_choice into the same body additions.
+		additions := map[string]string{
 			"tool_choice": `{"type":"function","function":{"name":"report_problem"}}`,
-		})
+		}
+		adapter := llm.GetThinkingAdapter(modelCfg.Provider)
+		for k, v := range adapter.BuildAdditions(llm.ThinkingConfig{Mode: llm.ThinkingModeDisabled}) {
+			additions[k] = v
+		}
+		judgeClient.SetBodyAdditions(additions)
 	}
 
 	messages := []llm.Message{

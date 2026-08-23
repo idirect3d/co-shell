@@ -157,6 +157,40 @@
 
 ---
 
+## v0.12.0 — 开发中
+
+> **版本**: v0.12.0
+
+> **状态**: 🚧 开发中（Web UI 优化）
+> **里程碑**: Web UI 优化
+> **说明**: 0.12.0 系列专注 Web UI 优化，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-419 | 0.12.0 | P1 | Web UI 三项优化：会话列表展开时默认滚动到当前会话、工作区状态每次迭代（显示块完成后去掉"..."时）刷新、快捷键收集阶段没收全部按键（不再漏给录入框） |
+| FIX-420 | 0.12.0 | P1 | 修复问题判定模型（problem solver）调用失败：thinking 模型（deepseek-v4-flash）在 thinking 模式下不支持 tool_choice，SetThinkingEnabled(false) 无效（Chat 不读取该字段），需通过 thinking adapter 注入 disabled 参数 |
+
+> 当前 BUILD: 552
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-419 Web UI 三项优化**
+  - 背景：Web UI 存在三个体验问题：① 状态条会话列表展开时未滚动到当前会话，用户需手动查找；② 工作区文件/分支状态只在任务全部结束后刷新，未在每次迭代（显示块完成后去掉"..."时）更新；③ 快捷键收集阶段只没收了数字和字母，其他符号（如 !@#$%^&*() 等）会漏给录入框，用户需反复删除无用内容。
+  - 方案（已确认）：① `renderSessionMenu` 渲染会话列表后，菜单展开时滚动到当前会话项；② `token_iter`/`token_task` 事件（去掉"..."处）增加 `refreshBranch()` + `loadTree()` 刷新工作区状态；③ 快捷键收集阶段（interaction pending 且非 supplement 模式）没收全部按键，无论是否触发下一步操作都不再返还给页面。
+  - 需求：修改 `web/static/app.js`：① `renderSessionMenu` 增加滚动到当前会话逻辑；② `token_iter`/`token_task` 分支增加工作区刷新；③ `__vkHandler` 与 input keydown 处理改为没收全部按键。
+  - 实施：`web/static/app.js` ① `renderSessionMenu` 渲染后 `scrollIntoView` 滚动到当前会话项；② `token_iter`/`token_task` 分支（去掉"..."处）增加 `refreshBranch()` + `loadTree()`；③ `__vkHandler` 与 input keydown 在 interaction pending 且非 supplement 模式时对所有按键 `preventDefault()` 没收 [BUILD-553]；④ token 统计信息追加到当前迭代最后一个块底部（含迭代序号、时间、千分位，新增 `iterCount`/`fmtTime`）；⑤ `renderUserEcho` 用 `requestAnimationFrame(scrollStream)` 确保滚动到底部，避免输入回车误触发自动分区 [BUILD-554]
+  - 测试：见 use-case/FEATURE-419/
+
+- [ ] **FIX-420 修复问题判定模型（problem solver）调用失败**
+  - 背景：日志显示 `judgeLoop: problem solver call failed: Thinking mode does not support this tool_choice`。问题判定模型 `deepseek-v4-flash` 是 thinking 模型（默认开启思考），DeepSeek API 在 thinking 模式下不支持 `tool_choice` 参数。`callProblemSolver` 中 `SetThinkingEnabled(false)` 无效（`Chat` 方法不读取 `thinkingEnabled` 字段），且 `SetBodyAdditions` 只注入了 `tool_choice`，未注入 `{"thinking":{"type":"disabled"}}`，导致请求体同时带 thinking 和 tool_choice → 400 错误 → judgeLoop 返回 nil → 回退到直接循环反馈。
+  - 方案（已确认）：`agent/problem_solver.go` `callProblemSolver` 移除无效的 `SetThinkingEnabled(false)`，改用 `llm.GetThinkingAdapter(modelCfg.Provider)` + `BuildAdditions(ThinkingModeDisabled)` 生成 thinking disabled 参数，与 `tool_choice` 合并到同一个 `SetBodyAdditions`。
+  - 实施：`agent/problem_solver.go` `callProblemSolver` 用 thinking adapter 注入 `{"thinking":{"type":"disabled"}}` 与 `tool_choice` 合并 [BUILD-555]
+  - 测试：见 use-case/FIX-420/
+
+---
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
