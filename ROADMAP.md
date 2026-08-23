@@ -216,7 +216,7 @@
 |------|------|------|------|
 | FEATURE-423 | 0.12.1 | P1 | Web UI 主消息区自动分割后自动融合：自动分割后，当滚动条下滚（页面上滚）B 区已显示到底、且 A 区高度未达最高限（上下内容刚好接上）时，触发自动融合（相当于自动点浮动融合按钮） |
 
-> 当前 BUILD: 584
+> 当前 BUILD: 585
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -251,7 +251,7 @@
   - 背景：当前前端显示的文件修改内容，哪些是增加、哪些是删除/覆盖看不清楚。需要统一所有工作模式（write_to_file 新建/覆盖/追加、replace_in_file 指定行号/不指定行号）的 diff 显示，带行号 + 状态标记，Web UI 用颜色区分新增/删除。
   - 方案（已确认）：① 后端统一所有工作模式的渲染格式：左对齐、开头空 1 格、5 位右对齐行号、`+`/`-`/` ` 三态（新增/删除/不变），后跟空格再跟内容；② `replace_in_file` 对 search/replace 做逐行 diff，相同行标 ` `（不变）；③ 前后端新增协议：每行新增一个状态字段（默认可为空，不特殊处理），后端输出时携带，前端据此渲染；④ Web UI 各信息块新增内容绿色、删除内容红色。
   - 需求：修改 `agent/toolcall_renderop.go`（统一渲染格式 + 逐行 diff + 状态字段）、`web/session.go`（协议携带状态字段）、`web/static/app.js`（解析状态字段渲染颜色）、`web/static/style.css`（新增/删除颜色样式）。
-  - 实施：① `agent/toolcall_renderop.go` 新增 `buildDiffText` 逐行 diff（LCS 对齐，相同行标 ` `、仅 search 标 `-`、仅 replace 标 `+`，统一格式 `{1空格}{5位右对齐行号}{状态}{空格}{内容}`），`replaceSearchAccum`/`replaceReplaceAccum` 累积完整 search/replace 内容，`finaliseParameter` 在 replace 结束时计算 diff 存入 `diffText`，`emitToolEnd` 通过 `diffEmit` 回调发送；② `agent/events.go` 新增 `EventToolCallDiff` 事件类型；③ `agent/stream_response.go` 创建渲染器时设置 `diffEmit` 回调发送 `tool_call_diff` 事件；④ `web/static/app.js` 新增 `tool_call_diff` 事件处理（用 diff 文本替换 `params.raw` 并设置 `params.diff`），`renderParams` 增加 diff 渲染分支，新增 `renderDiff` 逐行解析状态标记着色；⑤ `web/static/style.css` 新增 `.diff-row`/`.diff-add`（绿）/`.diff-del`（红）/`.diff-ctx` 样式；⑥ `agent/toolcall_diff_test.go` 新增 diff 单元测试 [BUILD-583]；⑦ write_to_file 意图渲染统一为 `(<intent>)` 格式（与 replace_in_file 一致），`writeIntent` 累积意图值，content 参数到达时在 content 前显示 `(<intent>)`，新增 `agent/toolcall_intent_test.go` 验证 write_to_file/replace_in_file 意图渲染 [BUILD-584]
+  - 实施：① `agent/toolcall_renderop.go` 新增 `buildDiffText` 逐行 diff（LCS 对齐，相同行标 ` `、仅 search 标 `-`、仅 replace 标 `+`，统一格式 `{1空格}{5位右对齐行号}{状态}{空格}{内容}`），`replaceSearchAccum`/`replaceReplaceAccum` 累积完整 search/replace 内容，`finaliseParameter` 在 replace 结束时计算 diff 存入 `diffText`，`emitToolEnd` 通过 `diffEmit` 回调发送；② `agent/events.go` 新增 `EventToolCallDiff` 事件类型；③ `agent/stream_response.go` 创建渲染器时设置 `diffEmit` 回调发送 `tool_call_diff` 事件；④ `web/static/app.js` 新增 `tool_call_diff` 事件处理（用 diff 文本替换 `params.raw` 并设置 `params.diff`），`renderParams` 增加 diff 渲染分支，新增 `renderDiff` 逐行解析状态标记着色；⑤ `web/static/style.css` 新增 `.diff-row`/`.diff-add`（绿）/`.diff-del`（红）/`.diff-ctx` 样式；⑥ `agent/toolcall_diff_test.go` 新增 diff 单元测试 [BUILD-583]；⑦ write_to_file 意图渲染统一为 `(<intent>)` 格式（与 replace_in_file 一致），`writeIntent` 累积意图值，content 参数到达时在 content 前显示 `(<intent>)`，新增 `agent/toolcall_intent_test.go` 验证 write_to_file/replace_in_file 意图渲染 [BUILD-584]；⑧ 意图渲染统一为通用方案：所有工具（read_file/write_to_file/execute_command 等）的 intent 参数统一显示为 `(<intent>)`，`intent` 字段累积意图值，`finaliseParameter` 在 intent 参数结束时显示 `(<intent>)`，不再显示为 `intent:` 参数行 [BUILD-585]
   - 测试：见 use-case/FEATURE-424/
 
 ## v0.9.1 — 开发中（已完成）

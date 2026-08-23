@@ -55,10 +55,9 @@ type ToolCallRenderer struct {
 	writeLineBuf strings.Builder
 	writeLineNo  int
 
-	// writeIntent accumulates the write_to_file intent value so it can be
-	// rendered as "(<intent>)" before the content block, matching
-	// replace_in_file (FEATURE-424).
-	writeIntent string
+	// intent accumulates the current tool's intent value so it can be rendered
+	// as "(<intent>)" uniformly across tools (FEATURE-424).
+	intent string
 
 	replaceHeaderPending bool
 	replaceHeaderPath    string
@@ -127,7 +126,7 @@ func (r *ToolCallRenderer) Reset() {
 	r.haveToolHeader = false
 	r.writeLineBuf.Reset()
 	r.writeLineNo = 0
-	r.writeIntent = ""
+	r.intent = ""
 	r.replaceHeaderPending = false
 	r.replaceHeaderPath = ""
 	r.replaceIntent = ""
@@ -186,19 +185,16 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 			r.flushReplaceHeader(emit)
 		}
 		// write_to_file content is rendered as a line-numbered block headed
-		// by its own "content:" title line. The intent (accumulated earlier)
-		// is shown as "(<intent>)" on its own line before content.
+		// by its own "content:" title line. The intent is rendered uniformly
+		// as "(<intent>)" when the intent parameter ends (finaliseParameter).
 		if r.currentTool == "write_to_file" && r.pendingParam == "content" {
-			if r.writeIntent != "" {
-				emit("(" + r.writeIntent + ")\n")
-			}
 			emit("   content:\n")
 			return
 		}
-		// FEATURE-424: write_to_file intent is rendered as "(<intent>)" on the
-		// header line (matching replace_in_file), so it is not shown as a
-		// separate "intent:" param line.
-		if r.currentTool == "write_to_file" && r.pendingParam == "intent" {
+		// FEATURE-424: intent is rendered uniformly as "(<intent>)" (matching
+		// replace_in_file), so it is not shown as a separate "intent:" param
+		// line for any tool.
+		if r.pendingParam == "intent" {
 			return
 		}
 		emit("   " + op.Text + ": ")
@@ -236,10 +232,10 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 			feedLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, op.Text, emit)
 			return
 		}
-		// FEATURE-424: accumulate the write_to_file intent so it can be shown
-		// as "(<intent>)" on the header line.
-		if r.currentTool == "write_to_file" && r.pendingParam == "intent" {
-			r.writeIntent += op.Text
+		// FEATURE-424: accumulate the intent so it can be shown as "(<intent>)"
+		// uniformly across tools.
+		if r.pendingParam == "intent" {
+			r.intent += op.Text
 			return
 		}
 		// Emit the value fragment verbatim in the granularity the underlying
@@ -286,6 +282,16 @@ func (r *ToolCallRenderer) flushReplaceHeader(emit func(text string)) {
 
 // finaliseParameter is called when a parameter value ends (OpParamEnd).
 func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
+	// FEATURE-424: when the intent parameter ends, render it uniformly as
+	// "(<intent>)" for every tool (matching replace_in_file).
+	if r.pendingParam == "intent" {
+		if r.intent != "" {
+			emit("(" + r.intent + ")\n")
+		}
+		r.intent = ""
+		r.pendingParam = ""
+		return
+	}
 	switch r.currentTool {
 	case "write_to_file":
 		if r.pendingParam == "content" {
@@ -363,7 +369,7 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	r.haveToolHeader = false
 	r.writeLineBuf.Reset()
 	r.writeLineNo = 0
-	r.writeIntent = ""
+	r.intent = ""
 	r.replaceHeaderPending = false
 	r.replaceHeaderPath = ""
 	r.replaceIntent = ""
