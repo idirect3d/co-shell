@@ -560,8 +560,10 @@ aside {
 }
 .ev-act:hover { color: var(--accent); background: var(--bg-panel); }
 
-/* Collapsed: hide the body, keep only the title bar. */
-.ev.collapsed .ev-body { display: none; }
+/* Collapsed: hide the body (and the TOOL input-params sub-block), keep only
+   the title bar (FIX-426). */
+.ev.collapsed .ev-body,
+.ev.collapsed .tool-params { display: none; }
 
 .ev-body {
   padding: 8px 12px;
