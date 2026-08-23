@@ -550,6 +550,30 @@ aside {
   border-bottom: 1px solid var(--border);
 }
 .tool-params-title { text-transform: uppercase; }
+.tool-params-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* FEATURE-412: "原始内容" pill toggle — controls whether the params body is
+   md-rendered. Default OFF (raw text); the .on state highlights it. */
+.tool-params-raw {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg-faint);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 8px;
+  margin-left: 8px;
+}
+.tool-params-raw:hover { color: var(--accent); border-color: var(--accent); }
+.tool-params-raw.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
 .tool-params-toggle {
   background: none;
   border: none;
