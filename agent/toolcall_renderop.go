@@ -227,7 +227,13 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 			}
 		}
 		if r.currentTool == "write_to_file" && r.pendingParam == "content" {
-			feedLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, op.Text, emit)
+			// FEATURE-424: the content lines are also accumulated into diffText
+			// so the frontend can colour them (all added → green) via the
+			// tool_call_diff event, matching the replace_in_file diff display.
+			feedLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, op.Text, func(t string) {
+				emit(t)
+				r.diffText.WriteString(t)
+			})
 			return
 		}
 		// FEATURE-424: accumulate the intent so it can be shown as "(<intent>)"
@@ -286,7 +292,11 @@ func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
 	switch r.currentTool {
 	case "write_to_file":
 		if r.pendingParam == "content" {
-			flushLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, emit)
+			// FEATURE-424: accumulate the flushed content lines into diffText too.
+			flushLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, func(t string) {
+				emit(t)
+				r.diffText.WriteString(t)
+			})
 			r.pendingParam = ""
 			return
 		}
@@ -353,11 +363,12 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	if r.currentTool == "" {
 		return
 	}
-	// FEATURE-424: for a completed replace_in_file call, hand the accumulated
-	// unified diff rendering (per-line add/delete/unchanged status) to the
-	// diffEmit callback so the frontend can re-render the params sub-block with
-	// green/red/default colours.
-	if r.currentTool == "replace_in_file" && r.diffEmit != nil && r.diffText.Len() > 0 {
+	// FEATURE-424: for a completed replace_in_file or write_to_file call, hand
+	// the accumulated unified diff rendering (per-line add/delete/unchanged
+	// status) to the diffEmit callback so the frontend can re-render the params
+	// sub-block with green/red/default colours. write_to_file content is all
+	// added (green); replace_in_file mixes added/deleted/unchanged.
+	if (r.currentTool == "replace_in_file" || r.currentTool == "write_to_file") && r.diffEmit != nil && r.diffText.Len() > 0 {
 		r.diffEmit(r.diffText.String())
 	}
 	if r.showTool {
