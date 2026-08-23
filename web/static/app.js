@@ -35,6 +35,8 @@ const I18N = {
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
     switchMode: "切换工作模式",
+    models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导",
+    modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -60,6 +62,8 @@ const I18N = {
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
     switchMode: "Switch work mode",
+    models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard",
+    modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
   },
 };
 let T = I18N.zh;
@@ -156,11 +160,23 @@ const miPlan = document.getElementById("miPlan");
 const miWsCheck = document.getElementById("miWsCheck");
 const miPlanCheck = document.getElementById("miPlanCheck");
 const miSettings = document.getElementById("miSettings");
+const miModels = document.getElementById("miModels");
 const miRestart = document.getElementById("miRestart");
 const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
 const settingsDynamic = document.getElementById("settingsDynamic");
+const modelsModal = document.getElementById("models");
+const modelsClose = document.getElementById("modelsClose");
+const modelsBody = document.getElementById("modelsBody");
+const modelAddBtn = document.getElementById("modelAddBtn");
+const modelWizardModal = document.getElementById("modelWizard");
+const modelWizardBody = document.getElementById("modelWizardBody");
+const modelWizardCancel = document.getElementById("modelWizardCancel");
+const sbModelTextWrap = document.getElementById("sbModelTextWrap");
+const sbModelVisionWrap = document.getElementById("sbModelVisionWrap");
+const modelMenu = document.getElementById("modelMenu");
+const modelVisionMenu = document.getElementById("modelVisionMenu");
 const logoWrap = document.getElementById("logoWrap");
 const logoMenu = document.getElementById("logoMenu");
 const newSessionBtn = document.getElementById("newSessionBtn");
@@ -175,7 +191,8 @@ const previewClose = document.getElementById("previewClose");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
-const sbModel = document.getElementById("sbModel");
+const sbModelText = document.getElementById("sbModelText");
+const sbModelVision = document.getElementById("sbModelVision");
 const sbSession = document.getElementById("sbSession");
 const sbLast = document.getElementById("sbLast");
 const sbSessionsWrap = document.getElementById("sbSessionsWrap");
@@ -225,6 +242,8 @@ function wsConnect() {
     else if (msg.kind === "identity_result") showIdentityResult(msg);
     else if (msg.kind === "mode") renderModeSeg(msg.modes || []);
     else if (msg.kind === "mode_result") showModeResult(msg);
+    else if (msg.kind === "models") renderModels(msg.models || [], msg.templates || []);
+    else if (msg.kind === "model_result") showModelResult(msg);
     else if (msg.kind === "pop_result") {
       // FEATURE-409: retry-from popped the session back; reload so the stream
       // reflects the truncated history.
@@ -852,6 +871,12 @@ function renderEvent(ev) {
 
   curLLM = curThinking = null;
   const label = CHAN_LABEL[ev.chan] || (ev.chan || "SYS").toUpperCase();
+  // While the model wizard is active, route its ui_text output to the wizard
+  // modal instead of the main event stream (FEATURE-422).
+  if (ev.type === "ui_text" && ev.chan === "repl" && wizardActive) {
+    appendWizardText(ev.text || "");
+    return;
+  }
   // ui_text from the repl channel renders as a REPL block (parallel to
   // TOOL/LLM); consecutive lines merge into one block. Other ui_text stays SYS.
   if (ev.type === "ui_text" && ev.chan === "repl") {
@@ -998,14 +1023,18 @@ function updateStatus() {
   const sIn = tokenStats.sessionIn, sOut = tokenStats.sessionOut;
   const total = sIn + sOut;
   const lastTotal = tokenStats.lastIn + tokenStats.lastOut;
-  let modelHtml = "";
+  // FEATURE-422: the main (text) model and the vision model are separate
+  // hover targets, each with its own selector menu.
   if (modelInfo && modelInfo.textModel) {
-    modelHtml += "🧠" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
-    if (modelInfo.visionModel) {
-      modelHtml += " 👀" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
-    }
+    sbModelText.innerHTML = "🧠" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
+  } else {
+    sbModelText.innerHTML = "🧠";
   }
-  sbModel.innerHTML = modelHtml;
+  if (modelInfo && modelInfo.visionModel) {
+    sbModelVision.innerHTML = "👀" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
+  } else {
+    sbModelVision.innerHTML = "👀";
+  }
   // Session: 会话 15000（↑14500 ↓500）
   sbSession.innerHTML = T.sbSession + " <b>" + fmtNum(total) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
   // Last turn: 最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)
@@ -1163,6 +1192,12 @@ let pendingAsk = null;
 
 function showAsk(msg) {
   pendingAsk = msg.id;
+  // While the model wizard is active, render the input request inside the
+  // wizard modal instead of the bottom ask area (FEATURE-422).
+  if (wizardActive) {
+    showWizardAsk(msg);
+    return;
+  }
   askArea.classList.remove("hidden");
   askKeys.textContent = "";
   if (msg.mode === "key") {
@@ -1190,6 +1225,13 @@ function showAsk(msg) {
 function answerAsk(value) {
   if (!pendingAsk) return;
   wsSend({ type: "answer", id: pendingAsk, value });
+  // While the model wizard is active, echo the answer into the wizard modal
+  // instead of the main event stream (FEATURE-422).
+  if (wizardActive) {
+    if (value) appendWizardText("→ " + value);
+    hideAsk();
+    return;
+  }
   // Echo the user's answer (confirmation choice, selected option, or typed
   // content) as a YOU block so it appears in the output stream — these inputs
   // are part of the conversation context and should be visible.
@@ -1241,6 +1283,12 @@ function enterNumberMode() {
 function showInteraction(msg) {
   pendingInteraction = msg.id;
   const it = msg.interaction || {};
+  // While the model wizard is active, route structured interactions to the
+  // wizard modal as a simple line input (FEATURE-422).
+  if (wizardActive) {
+    showWizardAsk({ id: msg.id, mode: "line" });
+    return;
+  }
   askArea.classList.remove("hidden");
   askKeys.textContent = "";
   askLineWrap.classList.add("hidden");
@@ -1553,6 +1601,9 @@ function showModeResult(msg) {
   if (msg.ok) {
     // Re-fetch the mode list so the segments and highlight stay in sync.
     wsSend({ type: "mode_get" });
+    // The new mode may bind different models; refresh the status-bar model
+    // info so it reflects the current mode's actual models (FEATURE-422).
+    refreshModelInfo();
   }
 }
 
@@ -1930,6 +1981,362 @@ function showSettingsResult(msg) {
   setTimeout(() => el.remove(), 3000);
 }
 
+/* ---------- model manager (FEATURE-422) ---------- */
+
+// modelList holds the latest model/template lists from the backend.
+let modelList = [];
+let templateList = [];
+// wizardActive is true while the model add/edit wizard is running; while it is
+// set, ui_text / ask / interaction messages are routed to the wizard modal
+// instead of the main event stream.
+let wizardActive = false;
+
+// Open the model manager modal and fetch the model list.
+miModels.onclick = () => {
+  modelsModal.classList.remove("hidden");
+  wsSend({ type: "model_get" });
+};
+modelsClose.onclick = () => modelsModal.classList.add("hidden");
+modelsModal.onclick = (e) => { if (e.target === modelsModal) modelsModal.classList.add("hidden"); };
+
+// "＋ 新增模型" opens the add-model wizard.
+modelAddBtn.onclick = () => {
+  modelsModal.classList.add("hidden");
+  openModelWizard("add", "");
+};
+
+// renderModels renders the model list into the manager modal and the status-bar
+// model selector menu.
+function renderModels(models, templates) {
+  modelList = models || [];
+  templateList = templates || [];
+  renderModelsBody();
+  renderModelMenu();
+  renderModelVisionMenu();
+}
+
+// renderModelsBody renders the model list into the manager modal.
+function renderModelsBody() {
+  modelsBody.textContent = "";
+  if (!modelList.length) {
+    const empty = document.createElement("div");
+    empty.className = "models-empty";
+    empty.textContent = T.modelEmpty || "暂无模型，点击上方「＋ 新增模型」添加";
+    modelsBody.appendChild(empty);
+    return;
+  }
+  for (const m of modelList) {
+    const row = document.createElement("div");
+    row.className = "model-row" + (m.enabled ? " enabled" : "");
+    // Left: status + identity.
+    const info = document.createElement("div");
+    info.className = "model-info";
+    const id = document.createElement("div");
+    id.className = "model-id";
+    id.textContent = (m.enabled ? "● " : "○ ") + m.id;
+    id.title = m.name || m.id;
+    info.appendChild(id);
+    const meta = document.createElement("div");
+    meta.className = "model-meta";
+    const caps = [];
+    if (m.vision) caps.push("👁");
+    if (m.tool_call) caps.push("🔧");
+    if (m.thinking) caps.push("💭");
+    meta.textContent = m.provider + " · " + m.model + (caps.length ? " · " + caps.join(" ") : "") + " · P" + m.priority;
+    info.appendChild(meta);
+    row.appendChild(info);
+    // Right: action buttons.
+    const actions = document.createElement("div");
+    actions.className = "model-actions";
+    const mkBtn = (label, title, fn) => {
+      const b = document.createElement("button");
+      b.className = "model-act";
+      b.textContent = label;
+      b.title = title;
+      b.onclick = fn;
+      actions.appendChild(b);
+    };
+    mkBtn("切换", "切换为当前模型", () => wsSend({ type: "model_switch", value: m.id }));
+    mkBtn(m.enabled ? "禁用" : "启用", m.enabled ? "禁用此模型" : "启用此模型", () => wsSend({ type: m.enabled ? "model_disable" : "model_enable", value: m.id }));
+    mkBtn("编辑", "编辑此模型", () => { modelsModal.classList.add("hidden"); openModelWizard("edit", m.id); });
+    mkBtn("删除", "删除此模型", () => { if (confirm("确认删除模型 " + m.id + "？")) wsSend({ type: "model_remove", value: m.id }); });
+    row.appendChild(actions);
+    modelsBody.appendChild(row);
+  }
+}
+
+// modelLogo maps a provider name to its logo file under /static/logos/.
+// Logos are 64x64 PNGs displayed at 32x32 (crisp on retina). Unknown providers
+// fall back to a generic chip.
+const MODEL_LOGOS = {
+  deepseek: "deepseek-icon.svg",
+  qwen: "qwen.png",
+  xiaomi: "xiaomi.svg",
+  kimi: "kimi.webp",
+  zhipu: "zhipu.svg",
+  openai: "openai.svg",
+  lmstudio: "lmstudio.png",
+  ollama: "ollama.png",
+  "openai-compatible": "openai.svg",
+};
+
+// fmtLenShort formats a context length in K units (1K = 1024), e.g.
+// 1048576 -> "1024K". Values below 1K are shown as-is.
+function fmtLenShort(n) {
+  if (!(n > 0)) return "";
+  if (n >= 1024) {
+    const k = n / 1024;
+    return (Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")) + "K";
+  }
+  return String(n);
+}
+
+// buildModelMenuItem builds one model row in a selector menu: a provider logo
+// on the left, the model ID, and the max context length right-aligned. The row
+// never wraps; the menu width adapts to its widest row. When activeID matches
+// the model ID, the row is highlighted as the currently active model
+// (FEATURE-422).
+function buildModelMenuItem(m, onClick, activeID) {
+  const item = document.createElement("div");
+  item.className = "model-menu-item" + (activeID && m.id === activeID ? " active" : "");
+  item.title = m.provider + " · " + m.model;
+  const logo = document.createElement("img");
+  logo.className = "model-logo";
+  logo.src = "/static/logos/" + (MODEL_LOGOS[m.provider] || "generic.png");
+  logo.alt = "";
+  logo.onerror = () => { logo.style.display = "none"; };
+  item.appendChild(logo);
+  const id = document.createElement("span");
+  id.className = "model-id";
+  id.textContent = m.id;
+  item.appendChild(id);
+  const ctx = document.createElement("span");
+  ctx.className = "model-ctx";
+  ctx.textContent = fmtLenShort(m.max_model_len);
+  item.appendChild(ctx);
+  item.onclick = onClick;
+  return item;
+}
+
+// buildModelMenuDefault builds the "默认" row that clears the current mode's
+// model binding for the given target ("text" or "vision"). It shows the
+// current default model's logo + name (semi-transparent), a "(默认)" hint,
+// and the default model's context length. When active is true (the mode has no
+// binding for this slot), the row is highlighted (FEATURE-422).
+function buildModelMenuDefault(target, menu, active) {
+  const item = document.createElement("div");
+  item.className = "model-menu-item default" + (active ? " active" : "");
+  item.title = T.modelDefaultHint || "使用全局默认模型";
+  // The current default model is the one shown in the status bar (modelInfo).
+  // modelInfo.textModel/visionModel hold the model NAME (m.model), not the
+  // model ID, so match against m.model (FEATURE-422).
+  const defaultName = target === "vision" ? (modelInfo && modelInfo.visionModel) : (modelInfo && modelInfo.textModel);
+  const def = modelList.find((m) => m.model === defaultName);
+  if (def) {
+    const logo = document.createElement("img");
+    logo.className = "model-logo";
+    logo.src = "/static/logos/" + (MODEL_LOGOS[def.provider] || "generic.png");
+    logo.alt = "";
+    logo.onerror = () => { logo.style.display = "none"; };
+    item.appendChild(logo);
+    const id = document.createElement("span");
+    id.className = "model-id";
+    id.textContent = def.id;
+    item.appendChild(id);
+    const hint = document.createElement("span");
+    hint.className = "model-default-hint";
+    hint.textContent = "(" + (T.modelRestoreDefault || "恢复默认") + ")";
+    item.appendChild(hint);
+    const ctx = document.createElement("span");
+    ctx.className = "model-ctx";
+    ctx.textContent = fmtLenShort(def.max_model_len);
+    item.appendChild(ctx);
+  } else {
+    item.textContent = T.modelDefault || "默认";
+  }
+  item.onclick = () => { wsSend({ type: "model_unbind", value: target }); menu.classList.add("hidden"); };
+  return item;
+}
+
+// renderModelMenu renders the status-bar main (text) model selector menu. It
+// lists all enabled models plus a "默认" option and a "＋ 新增模型" entry
+// (FEATURE-422).
+function renderModelMenu() {
+  modelMenu.textContent = "";
+  const title = document.createElement("div");
+  title.className = "model-menu-title";
+  title.textContent = T.modelMenuTitle || "选择主模型";
+  modelMenu.appendChild(title);
+  const enabled = modelList.filter((m) => m.enabled);
+  if (!enabled.length) {
+    const empty = document.createElement("div");
+    empty.className = "model-menu-empty";
+    empty.textContent = T.modelEmpty || "暂无模型";
+    modelMenu.appendChild(empty);
+  }
+  // Highlight the model bound to the current mode (empty = no binding, so
+  // nothing is highlighted and the "默认" option is highlighted instead).
+  const activeTextID = modelInfo && modelInfo.modeTextModelID;
+  for (const m of enabled) {
+    modelMenu.appendChild(buildModelMenuItem(m, () => { wsSend({ type: "model_bind", key: "text", value: m.id }); modelMenu.classList.add("hidden"); }, activeTextID));
+  }
+  const sep = document.createElement("div");
+  sep.className = "model-menu-sep";
+  modelMenu.appendChild(sep);
+  modelMenu.appendChild(buildModelMenuDefault("text", modelMenu, !(modelInfo && modelInfo.modeTextModelID)));
+  const add = document.createElement("div");
+  add.className = "model-menu-item add";
+  add.textContent = "＋ 新增模型";
+  add.onclick = () => { modelMenu.classList.add("hidden"); openModelWizard("add", ""); };
+  modelMenu.appendChild(add);
+}
+
+// renderModelVisionMenu renders the status-bar vision model selector menu. It
+// lists only enabled models with vision capability (a subset of the main
+// models) plus a "默认" option and a "＋ 新增模型" entry (FEATURE-422).
+function renderModelVisionMenu() {
+  modelVisionMenu.textContent = "";
+  const title = document.createElement("div");
+  title.className = "model-menu-title";
+  title.textContent = T.modelVisionMenuTitle || "选择视觉模型";
+  modelVisionMenu.appendChild(title);
+  const vision = modelList.filter((m) => m.enabled && m.vision);
+  if (!vision.length) {
+    const empty = document.createElement("div");
+    empty.className = "model-menu-empty";
+    empty.textContent = T.modelVisionEmpty || "暂无视觉模型";
+    modelVisionMenu.appendChild(empty);
+  }
+  const activeVisionID = modelInfo && modelInfo.modeVisionModelID;
+  for (const m of vision) {
+    modelVisionMenu.appendChild(buildModelMenuItem(m, () => { wsSend({ type: "model_bind", key: "vision", value: m.id }); modelVisionMenu.classList.add("hidden"); }, activeVisionID));
+  }
+  const sep = document.createElement("div");
+  sep.className = "model-menu-sep";
+  modelVisionMenu.appendChild(sep);
+  modelVisionMenu.appendChild(buildModelMenuDefault("vision", modelVisionMenu, !(modelInfo && modelInfo.modeVisionModelID)));
+  const add = document.createElement("div");
+  add.className = "model-menu-item add";
+  add.textContent = "＋ 新增模型";
+  add.onclick = () => { modelVisionMenu.classList.add("hidden"); openModelWizard("add", ""); };
+  modelVisionMenu.appendChild(add);
+}
+
+// Status-bar model selectors: hover to expand, leave to hide. The main (text)
+// model and the vision model each have their own menu (FEATURE-422).
+sbModelTextWrap.addEventListener("mouseenter", () => {
+  wsSend({ type: "model_get" });
+  modelMenu.classList.remove("hidden");
+});
+sbModelTextWrap.addEventListener("mouseleave", () => modelMenu.classList.add("hidden"));
+sbModelVisionWrap.addEventListener("mouseenter", () => {
+  wsSend({ type: "model_get" });
+  modelVisionMenu.classList.remove("hidden");
+});
+sbModelVisionWrap.addEventListener("mouseleave", () => modelVisionMenu.classList.add("hidden"));
+
+// refreshModelInfo re-fetches /api/bootstrap to update the status-bar model
+// info (modelInfo) after a model switch/unbind, then refreshes the status bar
+// (FEATURE-422).
+async function refreshModelInfo() {
+  try {
+    const resp = await fetch("/api/bootstrap");
+    const b = await resp.json();
+    if (b.textModel) {
+      modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
+    }
+    updateStatus();
+  } catch { /* keep the current modelInfo on failure */ }
+}
+
+// showModelResult reports the result of a model operation / wizard completion.
+function showModelResult(msg) {
+  if (wizardActive) {
+    // The wizard finished (success or cancel): close the wizard modal.
+    closeModelWizard();
+  }
+  if (!msg.ok) {
+    const el = document.createElement("div");
+    el.className = "set-result err";
+    el.textContent = msg.message || "error";
+    modelsBody.prepend(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+  // Refresh the model list so the frontend reflects the change.
+  wsSend({ type: "model_get" });
+  // Refresh the status-bar model info after a switch/unbind (FEATURE-422).
+  refreshModelInfo();
+}
+
+// openModelWizard opens the wizard modal and launches the add/edit wizard.
+function openModelWizard(mode, id) {
+  wizardActive = true;
+  modelWizardBody.textContent = "";
+  modelWizardModal.classList.remove("hidden");
+  if (mode === "edit") {
+    wsSend({ type: "model_edit", value: id });
+  } else {
+    wsSend({ type: "model_add" });
+  }
+}
+
+// closeModelWizard closes the wizard modal and clears the wizard-active flag.
+function closeModelWizard() {
+  wizardActive = false;
+  modelWizardModal.classList.add("hidden");
+  modelWizardBody.textContent = "";
+}
+
+// The wizard cancel button aborts the running wizard (backend fails all pending
+// asks so the wizard exits from any step).
+modelWizardCancel.onclick = () => {
+  wsSend({ type: "model_wizard_cancel" });
+  closeModelWizard();
+};
+
+// appendWizardText appends a line of wizard output to the wizard modal body.
+function appendWizardText(text) {
+  const line = document.createElement("div");
+  line.className = "wizard-line";
+  line.textContent = text;
+  modelWizardBody.appendChild(line);
+  modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
+}
+
+// showWizardAsk renders an ask input request inside the wizard modal. It builds
+// a single-line input (mode "line") or a set of key buttons (mode "key") and
+// sends the answer back via the standard answer message.
+function showWizardAsk(msg) {
+  const wrap = document.createElement("div");
+  wrap.className = "wizard-ask";
+  if (msg.mode === "key") {
+    const keys = [["Enter", ""], ["c", "c"], ["a", "a"], ["g", "g"], ["d", "d"], ["n", "n"]];
+    for (const [label, value] of keys) {
+      const b = document.createElement("button");
+      b.className = "key-btn";
+      b.textContent = label;
+      b.onclick = () => { wsSend({ type: "answer", id: msg.id, value }); wrap.remove(); };
+      wrap.appendChild(b);
+    }
+  } else {
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.autocomplete = "off";
+    inp.placeholder = T.askLine || "输入...";
+    const send = document.createElement("button");
+    send.className = "btn";
+    send.textContent = T.send || "发送";
+    const submit = () => { wsSend({ type: "answer", id: msg.id, value: inp.value }); wrap.remove(); };
+    send.onclick = submit;
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+    wrap.appendChild(inp);
+    wrap.appendChild(send);
+    setTimeout(() => inp.focus(), 0);
+  }
+  modelWizardBody.appendChild(wrap);
+  modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
+}
+
 /* ---------- identity & personality (FEATURE-393) ---------- */
 
 // Logo hover menu: show the menu when hovering the logo, hide on leave.
@@ -2038,7 +2445,7 @@ async function refreshBranch() {
     if (b.branch) document.getElementById("wsBranch").textContent = b.branch;
     // FEATURE-378: active text/vision model context info for the status bar.
     if (b.textModel) {
-      modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0 };
+      modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
     }
   } catch { /* defaults stay zh */ }
   applyI18n();

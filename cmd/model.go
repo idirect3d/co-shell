@@ -44,6 +44,13 @@ import (
 	"github.com/idirect3d/co-shell/log"
 )
 
+// wizardCancel is the sentinel value returned by wizard prompt helpers when the
+// underlying ReadLine fails (e.g. the Web client cancelled the wizard). It lets
+// the wizard exit from any step instead of spinning forever on a closed input
+// (FEATURE-422). It is only produced when ReadLine returns an error, so normal
+// REPL input never collides with it.
+const wizardCancel = "__CANCEL__"
+
 // ModelHandler handles the .model built-in command for multi-model management.
 type ModelHandler struct {
 	cfg         *config.Config
@@ -408,7 +415,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
-			if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
+			if endpoint == wizardCancel {
 				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			// Auto-complete endpoint if needed
@@ -444,7 +451,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
-			if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
+			if apiKey == wizardCancel {
 				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			state.APIKey = apiKey
@@ -462,7 +469,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
-			if modelName == "" || strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
+			if modelName == wizardCancel || modelName == "" {
 				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			state.ModelName = modelName
@@ -473,8 +480,11 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			io := h.io()
 			io.Println(i18n.T(i18n.KeyCmdMig_183))
 			detectedCaps := h.detectModelCapabilities(state.Endpoint, state.APIKey, state.ModelName)
-			capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
-			if goBack {
+			capabilities, nav := h.wizardSelectCapabilities(detectedCaps)
+			if nav == wizardCancel {
+				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
+			}
+			if nav == "__BACK__" {
 				state.ModelName = ""
 				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
@@ -504,7 +514,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
-			if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
+			if modelID == wizardCancel {
 				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			// Verify the model ID doesn't already exist — if it does, prompt again
@@ -516,7 +526,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 					h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 					continue
 				}
-				if strings.ToUpper(modelID) == "Q" || strings.ToUpper(modelID) == "QUIT" {
+				if modelID == wizardCancel {
 					return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 				}
 			}
@@ -534,7 +544,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 				h.io().Println(i18n.T(i18n.KeyCmdMig_191))
 				continue
 			}
-			if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
+			if priorityStr == wizardCancel {
 				return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 			}
 			priority, err := strconv.Atoi(priorityStr)
@@ -580,7 +590,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 		io := h.io()
 		io.Println(i18n.T(i18n.KeyCmdMig_186))
 		maxModelStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_352), fmt.Sprintf("%d", state.MaxModelLen), "q")
-		if strings.ToUpper(maxModelStr) == "Q" || strings.ToUpper(maxModelStr) == "QUIT" {
+		if maxModelStr == wizardCancel {
 			return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 		}
 		if mm, err := parseTokenCount(maxModelStr); err == nil && mm >= 0 {
@@ -589,9 +599,9 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 
 		// Step 9: Enable model
 		io.Println(i18n.T(i18n.KeyCmdMig_182))
-		enabled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_286), state.Enabled)
-		if !enabled {
-			enabled = false
+		enabled, cancelled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_286), state.Enabled)
+		if cancelled {
+			return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_256))
 		}
 
 		// Build and save model config
@@ -653,6 +663,9 @@ func (h *ModelHandler) wizardSelectTemplate() (*config.ModelTemplate, error) {
 
 		io.Print(i18n.T(i18n.KeyCmdMig_142))
 		input := h.readLine()
+		if input == wizardCancel {
+			return nil, errors.New(i18n.T(i18n.KeyCmdMig_256))
+		}
 
 		if input == "0" || strings.ToUpper(input) == "Q" || strings.ToUpper(input) == "QUIT" || strings.ToUpper(input) == "BACK" || strings.ToUpper(input) == ".." {
 			io.Println(i18n.T(i18n.KeyCmdMig_147))
@@ -1012,8 +1025,8 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	detectedCaps := h.detectModelCapabilities(endpoint, apiKey, modelName)
 
 	// Step 6: Choose capabilities (pre-populated with detected results)
-	capabilities, goBack := h.wizardSelectCapabilities(detectedCaps)
-	if goBack {
+	capabilities, nav := h.wizardSelectCapabilities(detectedCaps)
+	if nav == wizardCancel || nav == "__BACK__" {
 		return nil, fmt.Errorf("__BACK__")
 	}
 
@@ -1054,10 +1067,7 @@ func (h *ModelHandler) wizardEnterModelParams(template *config.ModelTemplate) (*
 	}
 
 	// Step 8: Enable model?
-	enabled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_286), true)
-	if !enabled {
-		enabled = false
-	}
+	enabled, _ := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_286), true)
 
 	return &config.ModelConfig{
 		ID:           modelID,
@@ -1084,11 +1094,13 @@ func (h *ModelHandler) modelIDExists(id string) bool {
 	return false
 }
 
-// readLine reads a line from UserIO.
+// readLine reads a line from UserIO. When ReadLine fails (e.g. the Web client
+// cancelled the wizard), it returns wizardCancel so the wizard can exit from any
+// step instead of spinning on a closed input (FEATURE-422).
 func (h *ModelHandler) readLine() string {
 	line, err := h.io().ReadLine()
 	if err != nil {
-		return ""
+		return wizardCancel
 	}
 	return strings.TrimSpace(line)
 }
@@ -1116,6 +1128,9 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 		}
 
 		input := h.readLine()
+		if input == wizardCancel {
+			return wizardCancel
+		}
 		if input == "" && defaultVal == "" {
 			io.Println(i18n.T(i18n.KeyCmdMig_144))
 			continue
@@ -1124,7 +1139,7 @@ func (h *ModelHandler) wizardPromptString(prompt string, suggestions []string, c
 		// Check back/cancel keys
 		upper := strings.ToUpper(input)
 		if input != "" && (upper == "Q" || upper == "QUIT") {
-			return ""
+			return wizardCancel
 		}
 		if input == "0" || upper == "BACK" || input == ".." {
 			return "__BACK__"
@@ -1155,11 +1170,14 @@ func (h *ModelHandler) wizardPromptStringWithDefault(prompt string, defaultValue
 	for {
 		io.Printf(i18n.T(i18n.KeyCmdMig_198), prompt, defaultValue)
 		input := h.readLine()
+		if input == wizardCancel {
+			return wizardCancel
+		}
 
 		// Check back/cancel keys
 		upper := strings.ToUpper(input)
 		if input != "" && (upper == "Q" || upper == "QUIT") {
-			return "Q"
+			return wizardCancel
 		}
 		if input == "0" || upper == "BACK" || input == ".." {
 			return "__BACK__"
@@ -1195,11 +1213,14 @@ func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) stri
 		}
 
 		input := h.readLine()
+		if input == wizardCancel {
+			return wizardCancel
+		}
 
 		// Check back/cancel keys
 		upper := strings.ToUpper(input)
 		if input != "" && (upper == "Q" || upper == "QUIT") {
-			return "Q"
+			return wizardCancel
 		}
 		if input == "0" || upper == "BACK" || input == ".." {
 			return "__BACK__"
@@ -1218,8 +1239,10 @@ func (h *ModelHandler) wizardPromptSecret(prompt string, defaultVal string) stri
 	}
 }
 
-// wizardPromptBool prompts for a yes/no answer.
-func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
+// wizardPromptBool prompts for a yes/no answer. It returns (value, cancelled);
+// cancelled is true when the user cancels (Q/QUIT) or the underlying ReadLine
+// fails (wizardCancel), so the wizard can exit from this step (FEATURE-422).
+func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) (bool, bool) {
 	io := h.io()
 	for {
 		defaultStr := "y"
@@ -1228,18 +1251,25 @@ func (h *ModelHandler) wizardPromptBool(prompt string, defaultVal bool) bool {
 		}
 		io.Printf(i18n.T(i18n.KeyCmdMig_198), prompt, defaultStr)
 
-		input := strings.TrimSpace(strings.ToLower(h.readLine()))
+		raw := strings.TrimSpace(h.readLine())
+		if raw == wizardCancel {
+			return false, true
+		}
+		input := strings.ToLower(raw)
+		if input == "q" || input == "quit" {
+			return false, true
+		}
 
 		if input == "" {
 			io.Printf(i18n.T(i18n.KeyCmdMig_085), defaultStr)
-			return defaultVal
+			return defaultVal, false
 		}
 
 		switch input {
 		case "y", "yes", i18n.T(i18n.KeyCmdMig_284), "yep", "yeah":
-			return true
+			return true, false
 		case "n", "no", i18n.T(i18n.KeyCmdMig_257), "nope":
-			return false
+			return false, false
 		default:
 			io.Println(i18n.T(i18n.KeyCmdMig_108))
 		}
@@ -1328,8 +1358,9 @@ func (h *ModelHandler) detectModelCapabilities(endpoint, apiKey, modelName strin
 
 // wizardSelectCapabilities lets user review and adjust model capabilities.
 // Shows detected capabilities and allows toggling.
-// Returns capabilities and whether user chose to go back.
-func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (config.ModelCapability, bool) {
+// Returns capabilities and a navigation marker: "" (done), "__BACK__" (go back)
+// or wizardCancel (cancel the whole wizard) (FEATURE-422).
+func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (config.ModelCapability, string) {
 	io := h.io()
 	caps := config.ModelCapability{
 		Vision:   base.Vision,
@@ -1356,13 +1387,20 @@ func (h *ModelHandler) wizardSelectCapabilities(base config.ModelCapability) (co
 		io.Print(i18n.T(i18n.KeyCmdMig_140))
 
 		input := h.readLine()
-
-		if input == "" {
-			return caps, false
+		if input == wizardCancel {
+			return caps, wizardCancel
 		}
 
-		if input == "0" || strings.ToUpper(input) == "BACK" || strings.ToUpper(input) == ".." {
-			return caps, true
+		if input == "" {
+			return caps, ""
+		}
+
+		upper := strings.ToUpper(input)
+		if upper == "Q" || upper == "QUIT" {
+			return caps, wizardCancel
+		}
+		if input == "0" || upper == "BACK" || input == ".." {
+			return caps, "__BACK__"
 		}
 
 		switch input {
@@ -1510,28 +1548,28 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 	// Step 1: Endpoint (default = current value)
 	io.Println(i18n.T(i18n.KeyCmdMig_043))
 	endpoint := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_344), model.Endpoint, "q")
-	if strings.ToUpper(endpoint) == "Q" || strings.ToUpper(endpoint) == "QUIT" {
+	if endpoint == wizardCancel {
 		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 2: API key (default = current, masked)
 	io.Println("\n  [2/7] API Key")
 	apiKey := h.wizardPromptSecret(i18n.T(i18n.KeyCmdMig_343), model.APIKey)
-	if strings.ToUpper(apiKey) == "Q" || strings.ToUpper(apiKey) == "QUIT" {
+	if apiKey == wizardCancel {
 		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 3: Model name (default = current)
 	io.Println(i18n.T(i18n.KeyCmdMig_170))
 	modelName := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_351), model.Model, "q")
-	if strings.ToUpper(modelName) == "Q" || strings.ToUpper(modelName) == "QUIT" {
+	if modelName == wizardCancel {
 		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 4: Priority (default = current)
 	io.Println(i18n.T(i18n.KeyCmdMig_171))
 	priorityStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_337), fmt.Sprintf("%d", model.Priority), "q")
-	if strings.ToUpper(priorityStr) == "Q" || strings.ToUpper(priorityStr) == "QUIT" {
+	if priorityStr == wizardCancel {
 		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 	priority, err := strconv.Atoi(priorityStr)
@@ -1578,7 +1616,7 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 		}
 	}
 	maxModelLenStr := h.wizardPromptStringWithDefault(i18n.T(i18n.KeyCmdMig_352), fmt.Sprintf("%d", maxModelLenDefault), "q")
-	if strings.ToUpper(maxModelLenStr) == "Q" || strings.ToUpper(maxModelLenStr) == "QUIT" {
+	if maxModelLenStr == wizardCancel {
 		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 	maxModelLen := 0
@@ -1588,14 +1626,17 @@ func (h *ModelHandler) editModelWizard(args []string) (string, error) {
 
 	// Step 6: Capabilities (default = current)
 	io.Println(i18n.T(i18n.KeyCmdMig_173))
-	capabilities, goBack := h.wizardSelectCapabilities(model.Capabilities)
-	if goBack {
+	capabilities, nav := h.wizardSelectCapabilities(model.Capabilities)
+	if nav == wizardCancel || nav == "__BACK__" {
 		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
 	}
 
 	// Step 7: Enabled state (default = current)
 	io.Println(i18n.T(i18n.KeyCmdMig_174))
-	enabled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_285), model.Enabled)
+	enabled, cancelled := h.wizardPromptBool(i18n.T(i18n.KeyCmdMig_285), model.Enabled)
+	if cancelled {
+		return result.String(), errors.New(i18n.T(i18n.KeyCmdMig_259))
+	}
 
 	// Apply changes
 	model.Endpoint = endpoint
