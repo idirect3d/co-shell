@@ -596,6 +596,9 @@ function applyBlockDisplayMode(box, cls) {
   if (displayMode === "silent") {
     const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
     box.style.display = show ? "" : "none";
+    // The final result block must be fully expanded so the user sees the
+    // completion report (FIX-426).
+    if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
   } else if (displayMode === "minimal") {
     box.style.display = "";
     // User-msg blocks are always expanded so the user sees their original
@@ -1300,6 +1303,8 @@ function applyDisplayMode() {
       // Show only user-msg, error, and the final result block.
       const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
       box.style.display = show ? "" : "none";
+      // The final result block must be fully expanded (FIX-426).
+      if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
     } else if (displayMode === "minimal") {
       box.style.display = "";
       // User-msg blocks are always expanded (FIX-426).
@@ -1754,6 +1759,13 @@ function setRunning(v) {
   sendBtn.textContent = v ? "⏸" : "▶";
   sendBtn.title = v ? T.interrupt : T.send;
   sendBtn.classList.toggle("run", v);
+  // FEATURE-425/FIX-426: while a task is running, the session-title highlight
+  // dot and the co-shell logo breathe (pulse) to signal activity; they stop
+  // when the task completes.
+  const active = document.getElementById("streamActive");
+  const logo = document.getElementById("logo");
+  if (active) active.classList.toggle("breathing", v);
+  if (logo) logo.classList.toggle("breathing", v);
   // FEATURE-416: when the turn ends, merge region A back into B so the stream
   // returns to a single whole output area.
   if (!v && splitActive) mergeStream();
