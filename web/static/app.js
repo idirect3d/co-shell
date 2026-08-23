@@ -975,6 +975,16 @@ function renderEvent(ev) {
         const label = head.querySelector(".ev-head-label");
         if (label) label.textContent = text;
         else head.textContent = text;
+        // FIX-426: the completion block (TOOL: 完成任务) is marked as the
+        // result block so minimal/silent modes keep it expanded. The label at
+        // makeBlock time is just "TOOL", so mark it here once the real title
+        // is known, and un-collapse it (it may have been collapsed at creation
+        // before the ev-result class was known).
+        if (/完成任务|Complete task/.test(text)) {
+          const box = curTool.body.parentElement;
+          box.classList.add("ev-result");
+          box.classList.remove("collapsed");
+        }
       }
       curTool.hasResult = false;
     } else {
