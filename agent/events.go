@@ -74,6 +74,11 @@ const MetaKeyPlan = "plan"
 // unaffected.
 const MetaKeyToolSummary = "tool_summary"
 
+// MetaKeyDiffLines is the Meta key of EventToolCallDiff carrying the
+// structured per-line diff data (JSON array of {line, status}) so the frontend
+// can colour each line directly without re-parsing text markers (FEATURE-424).
+const MetaKeyDiffLines = "diff_lines"
+
 // MetaKeyPhase marks the phase of an EventToolCall within one tool
 // invocation (FEATURE-362): PhaseInput carries the pre-execution summary,
 // PhaseResult carries the post-execution result. Web/JSON consumers use it

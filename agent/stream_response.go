@@ -171,14 +171,24 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 		xmlToolCallParser = NewXMLToolCallParser(a.buildToolsInternal())
 		jsonToolCallParser = NewJSONToolCallParser()
 		toolCallRenderer = NewToolCallRenderer(a.showTool, a.showToolInput)
-		// FEATURE-424: when a replace_in_file call completes, forward its
-		// unified diff rendering as a dedicated tool_call_diff event so the
-		// frontend can re-render the params sub-block with per-line
-		// add/delete/unchanged colours.
-		toolCallRenderer.SetDiffEmit(func(diff string) {
-			if diff != "" {
-				cb(NewStreamEvent(EventToolCallDiff, ChannelTool, LevelInfo, diff))
+		// FEATURE-424: when a replace_in_file / write_to_file call completes,
+		// forward its unified diff rendering as a dedicated tool_call_diff event
+		// so the frontend can re-render the params sub-block with per-line
+		// add/delete/unchanged colours. Each line carries its status as an
+		// explicit field (Meta[MetaKeyDiffLines]) so the frontend colours it
+		// directly instead of re-parsing text markers.
+		toolCallRenderer.SetDiffEmit(func(lines []ToolDiffLine) {
+			if len(lines) == 0 {
+				return
 			}
+			data, err := json.Marshal(lines)
+			if err != nil {
+				log.Warn("Agent.streamLLMResponse: marshal diff lines: %v", err)
+				return
+			}
+			ev := NewStreamEvent(EventToolCallDiff, ChannelTool, LevelInfo, diffLinesToText(lines))
+			ev.Meta = map[string]string{MetaKeyDiffLines: string(data)}
+			cb(ev)
 		})
 		log.Info("Agent.streamLLMResponse: FEATURE-235 tool-call stream parsers initialized")
 	}
