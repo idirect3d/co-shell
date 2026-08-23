@@ -1548,8 +1548,18 @@ sendBtn.onclick = () => { if (running) wsSend({ type: "interrupt" }); else sendI
 
 // FEATURE-416: when the user scrolls up in region B while the LLM is still
 // streaming, split the stream so B becomes static and new output goes to A.
+// FEATURE-423: while split, if the user scrolls down to the bottom of B and
+// region A is not yet full (its content fits without a scrollbar, so the two
+// regions just meet), auto-merge A back into B (same as clicking the merge
+// button) so the stream returns to a single whole output area.
 streamB.addEventListener("scroll", () => {
-  if (splitActive || !running) return;
+  if (!running) return;
+  if (splitActive) {
+    const bAtBottom = streamB.scrollTop + streamB.clientHeight >= streamB.scrollHeight - 4;
+    const aNotFull = streamA.scrollHeight < streamA.clientHeight;
+    if (bAtBottom && aNotFull) mergeStream();
+    return;
+  }
   const atBottom = streamB.scrollTop + streamB.clientHeight >= streamB.scrollHeight - 4;
   if (!atBottom) splitStream();
 });

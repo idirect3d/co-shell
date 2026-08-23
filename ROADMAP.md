@@ -204,6 +204,31 @@
   - 实施：① `cmd/model.go` readLine() 错误时返回 __CANCEL__，所有 wizardPrompt*/wizardSelectCapabilities/wizardSelectTemplate/testEndpointConnectivity 识别并传播 __CANCEL__，AddModelWizard/editModelWizard 主循环识别退出，给能力选择、启用等步骤增加 Q 退出；② `cmd/model_web.go` 新增 ModelWebJSON()（模型+模板列表）、ModelSwitch/Enable/Disable/Remove/SetPriority（复用现有逻辑）、StartAddWizard/StartEditWizard；③ `web/session.go` 注入 model *cmd.ModelHandler，新增 model_get/model_switch/model_enable/model_disable/model_remove/model_set_priority/model_add/model_edit/model_wizard_cancel 消息，model_wizard_cancel 调用 wio.failAll()；④ `web/static/index.html` 新增模型管理弹窗 + 向导弹窗 + 状态条模型选择器 DOM，菜单栏新增模型管理入口；⑤ `web/static/app.js` renderModels/renderModelMenu/renderModelsBody 渲染模型列表和状态条选择器，openModelWizard/closeModelWizard/showWizardAsk/appendWizardText 驱动向导，wizardActive 标志路由 ui_text/ask/interaction 到向导弹窗；⑥ `web/static/style.css` 模型管理弹窗、向导弹窗、状态条选择器样式；⑦ `cmd/model_wizard_cancel_test.go` 新增向导取消测试（Q 退出 + ReadLine 错误退出）[BUILD-567]；⑧ 状态条模型选择器拆分为主模型/视觉模型两个独立清单（hover 🧠/👀 各自展开），视觉模型仅列 vision:true 模型 [BUILD-568]；⑨ 清单增强："默认"选项（显示当前默认模型图标+ID+上下文+半透明）、上下文统一 K 单位（1K=1024）、内置模板官方 logo（DeepSeek/Qwen/Xiaomi/Kimi/Zhipu/OpenAI/LM Studio/Ollama，按 32x32 显示）、选择模型后状态栏刷新 [BUILD-569]；⑩ DeepSeek 图标上色（#4D6BFE）、选择模型改为设置当前 mode 模型绑定（model_bind 消息，而非全局优先级切换）、默认选项显示当前默认模型 [BUILD-571]；⑪ 默认选项透明度 50%、状态栏按 mode 绑定解析（resolveModelForInfo：当前 mode 绑定 > 全局默认）[BUILD-572]；⑫ 模式切换刷新状态栏、模型列表高亮当前在用模型 [BUILD-573]；⑬ 当前 mode 未绑定模型时高亮"默认"选项（ModelInfo 增加 ModeTextModelID/ModeVisionModelID，bootstrap 返回）[BUILD-574]；⑭ 模型高亮改为模式切换控件配色（--accent-dim 底色 + --accent 边框）[BUILD-575]；⑮ 会话切换清单高亮统一为模型列表配色 [BUILD-576]；⑯ 高亮方案融合进前端控件使用规范（.rules/前端控件使用规范/通用约定.md 新增"选中/高亮状态"章节）[BUILD-577]
   - 测试：见 use-case/FEATURE-422/
 
+## v0.12.1 — 开发中
+
+> **版本**: v0.12.1
+
+> **状态**: 🚧 开发中（Web UI 优化）
+> **里程碑**: Web UI 优化
+> **说明**: 0.12.1 系列专注 Web UI 优化，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-423 | 0.12.1 | P1 | Web UI 主消息区自动分割后自动融合：自动分割后，当滚动条下滚（页面上滚）B 区已显示到底、且 A 区高度未达最高限（上下内容刚好接上）时，触发自动融合（相当于自动点浮动融合按钮） |
+
+> 当前 BUILD: 578
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-423 Web UI 主消息区自动分割后自动融合**
+  - 背景：FEATURE-416 实现了主消息区自动分割（用户上滚时 B 区静态、A 区动态）。当前分割后需手动点击浮动融合按钮才能合并。希望当用户下滚到 B 区底部、且 A 区内容未填满（上下内容刚好接上）时，自动触发融合，减少手动操作。
+  - 方案（已确认）：在 `streamB` 的 scroll 事件中，当 `splitActive` 为 true 时，检测 B 区是否滚动到底部（`scrollTop + clientHeight >= scrollHeight - 4`），且 A 区内容未填满（`streamA.scrollHeight < streamA.clientHeight`，即 A 区无滚动条、内容刚好接上），满足则自动调用 `mergeStream()`。
+  - 需求：修改 `web/static/app.js` `streamB` scroll 事件处理，增加自动融合逻辑。
+  - 实施：`web/static/app.js` `streamB` scroll 事件在 `splitActive` 时检测 B 区到底（`scrollTop + clientHeight >= scrollHeight - 4`）+ A 区未填满（`streamA.scrollHeight < streamA.clientHeight`），满足则自动调用 `mergeStream()` [BUILD-578]
+  - 测试：见 use-case/FEATURE-423/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
