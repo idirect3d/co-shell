@@ -1588,24 +1588,120 @@ type ModelInfo struct {
 	TextMaxLen     int    // main text model max context length (0 = unknown)
 	VisionModelName string // vision model name (empty when none)
 	VisionMaxLen   int    // vision model max context length (0 = unknown)
+	// ModeTextModelID / ModeVisionModelID are the current work mode's bound
+	// model IDs (empty when the mode has no binding, i.e. uses the global
+	// default). Used by the web UI to highlight the "默认" option (FEATURE-422).
+	ModeTextModelID   string
+	ModeVisionModelID string
 }
 
 // ModelInfo returns the active text and vision model names and their max
-// context lengths, for the web status bar's context-usage display.
+// context lengths, for the web status bar's context-usage display. The active
+// model follows the selection priority: current mode's bound model > global
+// default (FEATURE-422).
 func (a *Agent) ModelInfo() ModelInfo {
 	var info ModelInfo
 	if a.modelManager == nil {
 		return info
 	}
-	if m := a.modelManager.GetActiveModel(false); m != nil {
+	if m := a.resolveModelForInfo(false); m != nil {
 		info.TextModelName = m.Model
 		info.TextMaxLen = m.MaxModelLen
 	}
-	if v := a.modelManager.GetActiveModel(true); v != nil {
+	if v := a.resolveModelForInfo(true); v != nil {
 		info.VisionModelName = v.Model
 		info.VisionMaxLen = v.MaxModelLen
 	}
+	// Expose the current mode's bound model IDs so the web UI can tell whether
+	// the mode has a custom binding or falls back to the global default
+	// (FEATURE-422).
+	info.ModeTextModelID, info.ModeVisionModelID = a.modeBoundModelIDs()
 	return info
+}
+
+// modeBoundModelIDs returns the current work mode's bound text and vision model
+// IDs (empty when the mode has no binding for that slot).
+func (a *Agent) modeBoundModelIDs() (textID, visionID string) {
+	if a.cfg == nil {
+		return "", ""
+	}
+	workModeName := a.cfg.LLM.WorkMode
+	if workModeName == "" {
+		workModeName = "act"
+	}
+	var mode *config.WorkMode
+	for i := range a.cfg.WorkModes {
+		if a.cfg.WorkModes[i].Name == workModeName {
+			mode = &a.cfg.WorkModes[i]
+			break
+		}
+	}
+	if mode == nil {
+		for _, m := range config.DefaultWorkModes() {
+			if m.Name == workModeName {
+				mode = &m
+				break
+			}
+		}
+	}
+	if mode == nil {
+		return "", ""
+	}
+	if mode.ModelID != nil {
+		textID = *mode.ModelID
+	}
+	if mode.VisionModelID != nil {
+		visionID = *mode.VisionModelID
+	}
+	return textID, visionID
+}
+
+// resolveModelForInfo resolves the active model for the status bar, following
+// the selection priority: current mode's bound model (ModelID for text,
+// VisionModelID for vision) first, then the global default (FEATURE-422).
+func (a *Agent) resolveModelForInfo(vision bool) *config.ModelConfig {
+	// 1. Current mode's bound model.
+	if a.cfg != nil {
+		workModeName := a.cfg.LLM.WorkMode
+		if workModeName == "" {
+			workModeName = "act"
+		}
+		var mode *config.WorkMode
+		for i := range a.cfg.WorkModes {
+			if a.cfg.WorkModes[i].Name == workModeName {
+				mode = &a.cfg.WorkModes[i]
+				break
+			}
+		}
+		if mode == nil {
+			for _, m := range config.DefaultWorkModes() {
+				if m.Name == workModeName {
+					mode = &m
+					break
+				}
+			}
+		}
+		if mode != nil {
+			var boundID *string
+			if vision {
+				boundID = mode.VisionModelID
+			} else {
+				boundID = mode.ModelID
+			}
+			if boundID != nil && *boundID != "" {
+				for _, m := range a.cfg.Models {
+					if m.ID == *boundID && m.Enabled {
+						return m
+					}
+				}
+				if m := a.modelManager.GetModel(*boundID); m != nil && m.Enabled {
+					return m
+				}
+			}
+		}
+	}
+	// 2. Global default.
+	return a.modelManager.GetActiveModel(vision)
 }
 
 // LLMTiming holds performance timing for the most recent LLM call.
