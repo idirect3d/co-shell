@@ -114,10 +114,10 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-416 LLM 输出时主内容区滚动锁定优化**
+- [x] **FEATURE-416 LLM 输出时主内容区滚动锁定优化** ✅ 已完成
   - 背景：LLM 输出内容时，主内容区的滚动条几乎被锁定在最新一行内容处，用户无法专注查看历史信息。需要设计一种机制提升用户查看历史内容的体验。
   - 方案（已确认）：LLM 正在输出时（运行按钮为红色"暂停"状态），若用户向上翻页（滚动条/滚轮/PgUp/PgDn），立即在主输出框下方生成高度自适应、最大高度为主输出区 1/4 的动态输出区域 A，将最后一个输出块挪到 A 区继续动态输出，后续输出块也在 A 区累积；原输出区变为静态区域 B，用户可持久专注查看历史内容。只要区域 A 存在，就在 B 区下方总是显示一个悬浮的向下箭头图标（指向横线，表示可与下方内容对接），用户点击后将 A 区最新内容合并到 B 区下面，删除 A 区，恢复为整体输出区。
-  - 实施：`web/static/index.html` `#stream` 内增加区域 B（`#streamB` 静态区）+ 区域 A（`#streamA` 动态区）；`web/static/style.css` `.stream` 改 flex 列布局 + `.stream-b`/`.stream-a`/`.stream-merge` 样式；`web/static/app.js` 新增 `splitActive` 状态 + `splitStream`/`mergeStream` 函数 + `#streamB` 滚动监听（用户向上翻页且运行时拆分）+ `setRunning` 停止时自动合并 + `scrollStream`/`makeBlock` 按拆分状态归属输出块 [BUILD-547]
+  - 实施：`web/static/index.html` `#stream` 内增加区域 B（`#streamB` 静态区）+ 区域 A（`#streamA` 动态区）；`web/static/style.css` `.stream` 改 flex 列布局 + `.stream-b`/`.stream-a`/`.stream-merge` 样式；`web/static/app.js` 新增 `splitActive` 状态 + `splitStream`/`mergeStream` 函数 + `#streamB` 滚动监听（用户向上翻页且运行时拆分）+ `setRunning` 停止时自动合并 + `scrollStream`/`makeBlock` 按拆分状态归属输出块 [BUILD-547]；合并 [BUILD-548]
   - 测试：见 use-case/FEATURE-416/
 
 ---
