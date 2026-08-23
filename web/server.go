@@ -57,6 +57,7 @@ type clientMessage struct {
 	ID          string   `json:"id,omitempty"`    // answer: the ask id; interaction_answer: the interaction id
 	Value       string   `json:"value,omitempty"` // answer: the reply; session_switch/delete: the session id; settings_set: the new value
 	Key         string   `json:"key,omitempty"`   // settings_set: the setting key
+	Priority    int      `json:"priority,omitempty"` // model_set_priority: the new priority
 	Result      *interactionResultJSON `json:"result,omitempty"` // interaction_answer: the structured result
 }
 
@@ -91,6 +92,8 @@ type serverMessage struct {
 	OK          bool            `json:"ok,omitempty"`    // kind=settings_result: success flag
 	Message     string          `json:"message,omitempty"` // kind=settings_result: result message
 	Modes       []modeInfo      `json:"modes,omitempty"` // kind=mode: the work mode list
+	Models      json.RawMessage `json:"models,omitempty"` // kind=models: the model list JSON
+	Templates   json.RawMessage `json:"templates,omitempty"` // kind=models: the template list JSON
 }
 
 // modeInfo is one work mode entry pushed to the browser for the mode
@@ -398,6 +401,10 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		payload["textMaxLen"] = info.TextMaxLen
 		payload["visionModel"] = info.VisionModelName
 		payload["visionMaxLen"] = info.VisionMaxLen
+		// Current mode's bound model IDs (empty = no binding, uses global
+		// default). Lets the web UI highlight the "默认" option (FEATURE-422).
+		payload["modeTextModelID"] = info.ModeTextModelID
+		payload["modeVisionModelID"] = info.ModeVisionModelID
 	}
 	writeJSON(w, http.StatusOK, payload)
 }
