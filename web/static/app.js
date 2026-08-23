@@ -598,6 +598,9 @@ function applyBlockDisplayMode(box, cls) {
     box.style.display = show ? "" : "none";
   } else if (displayMode === "minimal") {
     box.style.display = "";
+    // User-msg blocks are always expanded so the user sees their original
+    // instruction (FIX-426).
+    if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
     const body = box.querySelector(".ev-body");
     const isStreaming = body && isStreamingBody(body);
     const isResult = box.classList.contains("ev-result");
@@ -620,27 +623,41 @@ function isStreamingBody(body) {
 
 // markStreaming flags a block as currently streaming: it shows the dynamic
 // "..." next to the title and forces the block expanded so the live content is
-// always visible (FEATURE-409).
+// always visible (FEATURE-409). In minimal display mode, when a block starts
+// streaming, all other non-user blocks collapse so only the current live block
+// stays expanded (FIX-426).
 function markStreaming(body) {
   const box = body.parentElement;
   if (!box) return;
   const s = box.querySelector(".ev-streaming");
   if (s) s.classList.add("on");
   box.classList.remove("collapsed");
+  if (displayMode === "minimal") {
+    document.querySelectorAll(".ev").forEach((b) => {
+      if (b === box) return;
+      if (b.classList.contains("user-msg")) return; // user blocks stay expanded
+      b.classList.add("collapsed");
+    });
+  }
 }
 
 // unmarkStreaming hides the dynamic "..." of a block once it stops streaming
-// (FEATURE-409). In minimal display mode a finished non-result block collapses
-// to just its title (FEATURE-425).
+// (FEATURE-409). In minimal display mode a finished block collapses to just
+// its title, but only when another block is still streaming (so the last
+// finished block stays expanded); user-msg blocks are never collapsed so the
+// user always sees their original instruction (FIX-426).
 function unmarkStreaming(body) {
   if (!body) return;
   const box = body.parentElement;
   if (!box) return;
   const s = box.querySelector(".ev-streaming");
   if (s) s.classList.remove("on");
-  if (displayMode === "minimal" && !box.classList.contains("ev-result")) {
-    box.classList.add("collapsed");
-  }
+  if (displayMode !== "minimal") return;
+  if (box.classList.contains("user-msg") || box.classList.contains("ev-result")) return;
+  // Only collapse when some other block is still streaming (the last finished
+  // block stays expanded so the user sees its final content).
+  const anyStreaming = Array.from(document.querySelectorAll(".ev .ev-body")).some(isStreamingBody);
+  if (anyStreaming) box.classList.add("collapsed");
 }
 
 // maybeCollapseEnded re-collapses blocks of a class that just finished
@@ -1285,6 +1302,8 @@ function applyDisplayMode() {
       box.style.display = show ? "" : "none";
     } else if (displayMode === "minimal") {
       box.style.display = "";
+      // User-msg blocks are always expanded (FIX-426).
+      if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
       // Collapse finished non-result blocks to just their title.
       const isResult = box.classList.contains("ev-result");
       if (!isStreaming && !isResult) box.classList.add("collapsed");
