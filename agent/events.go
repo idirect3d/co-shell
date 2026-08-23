@@ -30,6 +30,7 @@ const (
 	EventError          = "error"            // error message
 	EventDone           = "done"             // done marker
 	EventToolCallStream = "tool_call_stream" // FEATURE-235: streaming tool-call render (show-tool / show-tool-input gated)
+	EventToolCallDiff   = "tool_call_diff"   // FEATURE-424: unified diff rendering for a completed replace_in_file call
 	EventTaskPlan       = "task_plan"        // FEATURE-307c: full task plan snapshot (Meta[MetaKeyPlan] = plan JSON, "" when archived)
 )
 
@@ -72,6 +73,11 @@ const MetaKeyPlan = "plan"
 // structured tool card; the LineRenderer ignores Meta, so terminal output is
 // unaffected.
 const MetaKeyToolSummary = "tool_summary"
+
+// MetaKeyDiffLines is the Meta key of EventToolCallDiff carrying the
+// structured per-line diff data (JSON array of {line, status}) so the frontend
+// can colour each line directly without re-parsing text markers (FEATURE-424).
+const MetaKeyDiffLines = "diff_lines"
 
 // MetaKeyPhase marks the phase of an EventToolCall within one tool
 // invocation (FEATURE-362): PhaseInput carries the pre-execution summary,

@@ -33,6 +33,17 @@ type RenderOp struct {
 	Text string
 }
 
+// ToolDiffLine is one structured line of the FEATURE-424 unified diff
+// rendering handed to the frontend via the tool_call_diff event. Unlike the
+// plain-text rendering (which encodes the status as a leading "+"/"-"/" "
+// marker at a fixed character position), each line carries its status as an
+// explicit field so the frontend can colour it directly without re-parsing
+// text markers.
+type ToolDiffLine struct {
+	Line   string `json:"line"`   // rendered line text (with line-number prefix)
+	Status string `json:"status"` // "add" | "del" | "ctx"
+}
+
 // ToolCallRenderer renders a stream of RenderOp into user-facing incremental
 // text. Display-gated by showTool/showToolInput.
 //
@@ -55,9 +66,11 @@ type ToolCallRenderer struct {
 	writeLineBuf strings.Builder
 	writeLineNo  int
 
-	replaceHeaderPending bool
-	replaceHeaderPath    string
-	replaceIntent        string
+	// intent accumulates the current tool's intent value so it can be rendered
+	// as "(<intent>)" uniformly across tools (FEATURE-424).
+	intent string
+
+	replaceIntent string
 
 	replaceStartLine     int
 	startLineBuf         strings.Builder
@@ -68,10 +81,36 @@ type ToolCallRenderer struct {
 	replaceReplaceLineNo int
 	replacePairClosed    bool
 
+	// replaceSearchAccum / replaceReplaceAccum accumulate the full search and
+	// replace text across streaming fragments (feedLined resets the render
+	// buffers line by line, so a separate accumulator is needed for the diff,
+	// FEATURE-424).
+	replaceSearchAccum  strings.Builder
+	replaceReplaceAccum strings.Builder
+
+	// replaceSearchContent is retained for the diff computation when the
+	// replace parameter ends (FEATURE-424).
+	replaceSearchContent string
+
 	// leadingEmitted tracks whether a leading newline has been emitted for the
 	// current stream call, so the first tool header is visually separated from
 	// the preceding LLM content exactly once.
 	leadingEmitted bool
+
+	// diffEmit, when set, receives the FEATURE-424 unified diff rendering as
+	// structured per-line data (each line carries its add/delete/unchanged
+	// status) for a replace_in_file / write_to_file call once its blocks are
+	// complete. The frontend reads the status field directly to colour each
+	// line (green/red/default) instead of re-parsing text markers.
+	diffEmit func([]ToolDiffLine)
+
+	// diffText accumulates the unified diff rendering text for the current
+	// replace_in_file / write_to_file call (computed at emitToolEnd).
+	diffText strings.Builder
+
+	// diffLines accumulates the structured per-line diff data (line text +
+	// status) for the current call, handed to diffEmit at emitToolEnd.
+	diffLines []ToolDiffLine
 }
 
 // NewToolCallRenderer constructs a renderer gated by showTool and showToolInput.
@@ -80,6 +119,14 @@ func NewToolCallRenderer(showTool, showToolInput bool) *ToolCallRenderer {
 		showTool:      showTool,
 		showToolInput: showToolInput,
 	}
+}
+
+// SetDiffEmit installs a callback that receives the unified diff rendering as
+// structured per-line data (each line carries its add/delete/unchanged status)
+// for a replace_in_file / write_to_file call once its blocks complete
+// (FEATURE-424).
+func (r *ToolCallRenderer) SetDiffEmit(fn func([]ToolDiffLine)) {
+	r.diffEmit = fn
 }
 
 // InToolCall reports whether the renderer is currently inside a tool call.
@@ -94,8 +141,7 @@ func (r *ToolCallRenderer) Reset() {
 	r.haveToolHeader = false
 	r.writeLineBuf.Reset()
 	r.writeLineNo = 0
-	r.replaceHeaderPending = false
-	r.replaceHeaderPath = ""
+	r.intent = ""
 	r.replaceIntent = ""
 	r.replaceStartLine = 0
 	r.startLineBuf.Reset()
@@ -105,7 +151,11 @@ func (r *ToolCallRenderer) Reset() {
 	r.replaceReplaceBuf.Reset()
 	r.replaceReplaceLineNo = 0
 	r.replacePairClosed = false
+	r.replaceSearchContent = ""
+	r.replaceSearchAccum.Reset()
+	r.replaceReplaceAccum.Reset()
 	r.leadingEmitted = false
+	r.diffText.Reset()
 }
 
 // Apply consumes one RenderOp and emits the incremental display text through
@@ -121,13 +171,13 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 		r.pendingParam = ""
 		if r.showTool {
 			r.haveToolHeader = true
-			if r.currentTool == "replace_in_file" && r.showToolInput {
-				// Defer the header until the path is known so it can share
-				// the line ("⚙️ replace_in_file 作文.md").
-				r.replaceHeaderPending = true
-			} else {
-				r.emitToolHeader(emit, "⚙️ "+op.Text+"\n")
-			}
+			// FEATURE-XXX: emit the "⚙️ <tool>\n" header immediately for every
+			// tool (including replace_in_file). The frontend uses this marker to
+			// open a fresh TOOL block per tool when one iteration calls several
+			// tools; deferring it (as before) let the path/intent params arrive
+			// before the marker and mis-split the blocks. The path is now shown
+			// as a normal param line instead of sharing the header line.
+			r.emitToolHeader(emit, "⚙️ "+op.Text+"\n")
 		}
 	case OpParamKey:
 		r.pendingParam = op.Text
@@ -137,20 +187,27 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 		if r.currentTool == "replace_in_file" {
 			if r.pendingParam == "replacements" {
 				// The array wrapper produces no rendered line; flush the
-				// deferred header before the diff lines begin.
+				// deferred intent line before the diff lines begin.
 				r.flushReplaceHeader(emit)
 				return
 			}
 			switch r.pendingParam {
-			case "path", "intent", "search", "replace", "start_line":
+			case "intent", "search", "replace", "start_line":
 				return
 			}
 			r.flushReplaceHeader(emit)
 		}
 		// write_to_file content is rendered as a line-numbered block headed
-		// by its own "content:" title line.
+		// by its own "content:" title line. The intent is rendered uniformly
+		// as "(<intent>)" when the intent parameter ends (finaliseParameter).
 		if r.currentTool == "write_to_file" && r.pendingParam == "content" {
 			emit("   content:\n")
+			return
+		}
+		// FEATURE-424: intent is rendered uniformly as "(<intent>)" (matching
+		// replace_in_file), so it is not shown as a separate "intent:" param
+		// line for any tool.
+		if r.pendingParam == "intent" {
 			return
 		}
 		emit("   " + op.Text + ": ")
@@ -164,17 +221,21 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 				// Array wrapper noise (<item>...</item> text) is not rendered.
 				return
 			case "path":
-				r.replaceHeaderPath += op.Text
+				// The path is now a normal param line (the header no longer
+				// consumes it), so emit the value verbatim.
+				emit(op.Text)
 				return
 			case "intent":
 				r.replaceIntent += op.Text
 				return
 			case "search":
 				r.flushReplaceHeader(emit)
+				r.replaceSearchAccum.WriteString(op.Text)
 				feedLined(&r.replaceSearchBuf, r.replaceStartLine, &r.replaceSearchLineNo, "-", "", true, op.Text, emit)
 				return
 			case "replace":
 				r.flushReplaceHeader(emit)
+				r.replaceReplaceAccum.WriteString(op.Text)
 				feedLined(&r.replaceReplaceBuf, r.replaceStartLine, &r.replaceReplaceLineNo, "+", "", true, op.Text, emit)
 				return
 			case "start_line":
@@ -183,7 +244,21 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 			}
 		}
 		if r.currentTool == "write_to_file" && r.pendingParam == "content" {
-			feedLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, op.Text, emit)
+			// FEATURE-424: the content lines are also accumulated into diffText
+			// and diffLines so the frontend can colour them (all added → green)
+			// via the tool_call_diff event, matching the replace_in_file diff
+			// display.
+			feedLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, op.Text, func(t string) {
+				emit(t)
+				r.diffText.WriteString(t)
+				r.diffLines = append(r.diffLines, ToolDiffLine{Line: t, Status: "add"})
+			})
+			return
+		}
+		// FEATURE-424: accumulate the intent so it can be shown as "(<intent>)"
+		// uniformly across tools.
+		if r.pendingParam == "intent" {
+			r.intent += op.Text
 			return
 		}
 		// Emit the value fragment verbatim in the granularity the underlying
@@ -208,38 +283,55 @@ func (r *ToolCallRenderer) emitToolHeader(emit func(text string), text string) {
 	emit(prefix + text)
 }
 
-// flushReplaceHeader emits the deferred replace_in_file tool header and the
-// intent line once the parameter stream reaches the diff section (or an
-// unknown parameter). The header consumes the path value
-// ("⚙️ replace_in_file 作文.md") and the intent is rendered on the second line
-// in parentheses.
+// flushReplaceHeader emits the deferred replace_in_file intent line once the
+// parameter stream reaches the diff section (or an unknown parameter). The
+// "⚙️ replace_in_file" header is now emitted immediately at OpToolStart
+// (FEATURE-XXX) so the frontend can split multi-tool blocks; the path is shown
+// as a normal param line. Only the intent line remains deferred here, and it
+// is emitted at most once (the accumulated value is cleared after emitting).
 func (r *ToolCallRenderer) flushReplaceHeader(emit func(text string)) {
-	if !r.replaceHeaderPending {
-		return
-	}
-	r.replaceHeaderPending = false
-	h := "⚙️ replace_in_file"
-	if r.replaceHeaderPath != "" {
-		h += " " + r.replaceHeaderPath
-	}
-	r.emitToolHeader(emit, h+"\n")
 	if r.replaceIntent != "" {
 		emit("(" + r.replaceIntent + ")\n")
+		r.replaceIntent = ""
 	}
 }
 
 // finaliseParameter is called when a parameter value ends (OpParamEnd).
 func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
+	// FEATURE-424: when the intent parameter ends, render it uniformly as
+	// "(<intent>)" for every tool (matching replace_in_file).
+	if r.pendingParam == "intent" {
+		if r.intent != "" {
+			emit("(" + r.intent + ")\n")
+		}
+		r.intent = ""
+		r.pendingParam = ""
+		return
+	}
 	switch r.currentTool {
 	case "write_to_file":
 		if r.pendingParam == "content" {
-			flushLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, emit)
+			// FEATURE-424: accumulate the flushed content lines into diffText and
+			// diffLines too (all added → green).
+			flushLined(&r.writeLineBuf, 1, &r.writeLineNo, "+", "     ", false, func(t string) {
+				emit(t)
+				r.diffText.WriteString(t)
+				r.diffLines = append(r.diffLines, ToolDiffLine{Line: t, Status: "add"})
+			})
 			r.pendingParam = ""
 			return
 		}
 	case "replace_in_file":
 		switch r.pendingParam {
-		case "replacements", "path", "intent":
+		case "replacements", "intent":
+			r.pendingParam = ""
+			return
+		case "path":
+			// The path is a normal param line now (the header no longer
+			// consumes it), so end the line after its value.
+			if r.showToolInput {
+				emit("\n")
+			}
 			r.pendingParam = ""
 			return
 		case "search":
@@ -254,15 +346,22 @@ func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
 			r.pendingParam = ""
 			return
 		case "replace":
+			// FEATURE-424: the unified diff is computed at emitToolEnd (not here)
+			// so that a trailing start_line parameter (which arrives after
+			// replace in JSON mode) is already parsed and the line numbers are
+			// correct. The render buffers are reset line by line by feedLined, so
+			// the accumulators hold the complete search/replace text.
 			flushLined(&r.replaceReplaceBuf, r.replaceStartLine, &r.replaceReplaceLineNo, "+", "", true, emit)
 			// The block is finished: reset per-block state so the next
-			// replacement starts fresh with no residual line numbers.
+			// replacement starts fresh with no residual line numbers. The
+			// replaceStartLine is kept so emitToolEnd can compute the diff with
+			// the correct line numbers (a trailing start_line arrives after
+			// replace in JSON mode).
 			r.replaceHaveSearch = false
 			r.replaceSearchBuf.Reset()
 			r.replaceSearchLineNo = 0
 			r.replaceReplaceBuf.Reset()
 			r.replaceReplaceLineNo = 0
-			r.replaceStartLine = 0
 			r.replacePairClosed = true
 			r.pendingParam = ""
 			return
@@ -286,6 +385,23 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	if r.currentTool == "" {
 		return
 	}
+	// FEATURE-424: for a completed replace_in_file or write_to_file call, hand
+	// the accumulated structured per-line diff data (line + status) to the
+	// diffEmit callback so the frontend can re-render the params sub-block with
+	// green/red/default colours. write_to_file content is all added (green);
+	// replace_in_file mixes added/deleted/unchanged.
+	if r.currentTool == "replace_in_file" && r.diffEmit != nil {
+		// The diff is computed here (not at the replace param end) so a trailing
+		// start_line parameter (which arrives after replace in JSON mode) is
+		// already parsed and the line numbers are correct.
+		if d := buildDiffText(r.replaceSearchAccum.String(), r.replaceReplaceAccum.String(), r.replaceStartLine); len(d) > 0 {
+			r.diffLines = append(r.diffLines, d...)
+			r.diffText.WriteString(diffLinesToText(d))
+		}
+	}
+	if (r.currentTool == "replace_in_file" || r.currentTool == "write_to_file") && r.diffEmit != nil && len(r.diffLines) > 0 {
+		r.diffEmit(r.diffLines)
+	}
 	if r.showTool {
 		emit("\n")
 	}
@@ -294,8 +410,7 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	r.haveToolHeader = false
 	r.writeLineBuf.Reset()
 	r.writeLineNo = 0
-	r.replaceHeaderPending = false
-	r.replaceHeaderPath = ""
+	r.intent = ""
 	r.replaceIntent = ""
 	r.replaceStartLine = 0
 	r.startLineBuf.Reset()
@@ -305,6 +420,10 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	r.replaceReplaceBuf.Reset()
 	r.replaceReplaceLineNo = 0
 	r.replacePairClosed = false
+	r.replaceSearchAccum.Reset()
+	r.replaceReplaceAccum.Reset()
+	r.diffText.Reset()
+	r.diffLines = nil
 }
 
 // linePrefix builds the git-diff style prefix for a rendered line. When
@@ -360,6 +479,92 @@ func flushLined(buf *strings.Builder, baseLine int, lineNo *int, marker, indent 
 	*lineNo++
 	emit(linePrefix(baseLine, *lineNo, marker, indent, colon) + line + "\n")
 	buf.Reset()
+}
+
+// buildReplaceDiff computes the unified diff rendering for a completed
+// replace_in_file call (FEATURE-424). It diffs the search and replace blocks
+// line by line: lines present in both are marked unchanged (" "), lines only
+// in search are marked deleted ("-"), and lines only in replace are marked
+// added ("+"). Each line is rendered as "{1 space}{5-digit right-aligned line
+// number}{status} {content}". Line numbers start at replaceStartLine (or 1
+// when no start_line was given). Returns nil when there is nothing to diff.
+func (r *ToolCallRenderer) buildReplaceDiff() []ToolDiffLine {
+	return buildDiffText(r.replaceSearchBuf.String(), r.replaceReplaceBuf.String(), r.replaceStartLine)
+}
+
+// buildDiffText computes the unified diff rendering for a search/replace pair
+// (FEATURE-424). It diffs the two blocks line by line: lines present in both
+// are marked unchanged (" "), lines only in search are marked deleted ("-"),
+// and lines only in replace are marked added ("+"). Each line is rendered as
+// "{1 space}{5-digit right-aligned line number}{status} {content}". Line
+// numbers start at startLine (or 1 when startLine <= 0). Returns nil when there
+// is nothing to diff.
+func buildDiffText(search, replace string, startLine int) []ToolDiffLine {
+	search = strings.TrimSuffix(search, "\n")
+	replace = strings.TrimSuffix(replace, "\n")
+	if search == "" && replace == "" {
+		return nil
+	}
+	searchLines := splitLines(search)
+	replaceLines := splitLines(replace)
+
+	// LCS table to align unchanged lines between search and replace.
+	n, m := len(searchLines), len(replaceLines)
+	lcs := make([][]int, n+1)
+	for i := range lcs {
+		lcs[i] = make([]int, m+1)
+	}
+	for i := n - 1; i >= 0; i-- {
+		for j := m - 1; j >= 0; j-- {
+			if searchLines[i] == replaceLines[j] {
+				lcs[i][j] = lcs[i+1][j+1] + 1
+			} else if lcs[i+1][j] >= lcs[i][j+1] {
+				lcs[i][j] = lcs[i+1][j]
+			} else {
+				lcs[i][j] = lcs[i][j+1]
+			}
+		}
+	}
+
+	base := startLine
+	if base <= 0 {
+		base = 1
+	}
+	var lines []ToolDiffLine
+	i, j := 0, 0
+	for i < n || j < m {
+		if i < n && j < m && searchLines[i] == replaceLines[j] {
+			// Unchanged line: present in both search and replace.
+			lines = append(lines, ToolDiffLine{Line: diffLine(base+i, " ", searchLines[i]), Status: "ctx"})
+			i++
+			j++
+		} else if j < m && (i >= n || lcs[i][j+1] >= lcs[i+1][j]) {
+			// Added line: only in replace.
+			lines = append(lines, ToolDiffLine{Line: diffLine(base+i, "+", replaceLines[j]), Status: "add"})
+			j++
+		} else {
+			// Deleted line: only in search.
+			lines = append(lines, ToolDiffLine{Line: diffLine(base+i, "-", searchLines[i]), Status: "del"})
+			i++
+		}
+	}
+	return lines
+}
+
+// diffLine renders one unified-diff line: "{1 space}{5-digit right-aligned
+// line number}{status} {content}" (FEATURE-424).
+func diffLine(lineNo int, status, content string) string {
+	return fmt.Sprintf(" %5d%s %s\n", lineNo, status, content)
+}
+
+// diffLinesToText joins structured diff lines into the plain-text rendering
+// (used for the tool_call_stream display).
+func diffLinesToText(lines []ToolDiffLine) string {
+	var sb strings.Builder
+	for _, l := range lines {
+		sb.WriteString(l.Line)
+	}
+	return sb.String()
 }
 
 // trimToolCallContent is a small helper used by tests and future extensions.

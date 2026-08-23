@@ -171,6 +171,25 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 		xmlToolCallParser = NewXMLToolCallParser(a.buildToolsInternal())
 		jsonToolCallParser = NewJSONToolCallParser()
 		toolCallRenderer = NewToolCallRenderer(a.showTool, a.showToolInput)
+		// FEATURE-424: when a replace_in_file / write_to_file call completes,
+		// forward its unified diff rendering as a dedicated tool_call_diff event
+		// so the frontend can re-render the params sub-block with per-line
+		// add/delete/unchanged colours. Each line carries its status as an
+		// explicit field (Meta[MetaKeyDiffLines]) so the frontend colours it
+		// directly instead of re-parsing text markers.
+		toolCallRenderer.SetDiffEmit(func(lines []ToolDiffLine) {
+			if len(lines) == 0 {
+				return
+			}
+			data, err := json.Marshal(lines)
+			if err != nil {
+				log.Warn("Agent.streamLLMResponse: marshal diff lines: %v", err)
+				return
+			}
+			ev := NewStreamEvent(EventToolCallDiff, ChannelTool, LevelInfo, diffLinesToText(lines))
+			ev.Meta = map[string]string{MetaKeyDiffLines: string(data)}
+			cb(ev)
+		})
 		log.Info("Agent.streamLLMResponse: FEATURE-235 tool-call stream parsers initialized")
 	}
 	// emitToolCallStream is shared by both modes: it feeds RenderOps into the
@@ -450,6 +469,14 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					if isValidToolCall(*event.ToolCall) {
 						toolCalls = append(toolCalls, *event.ToolCall)
 						log.Debug("Agent.streamLLMResponse: valid tool call added, total toolCalls=%d", len(toolCalls))
+						// FEATURE-424: in JSON (OpenAI) mode the JSON parser never emits
+						// OpToolEnd, so emitToolEnd is never reached and the
+						// tool_call_diff event (per-line add/delete/unchanged colours)
+						// is never sent. Finalise the renderer here so a completed
+						// write_to_file / replace_in_file call forwards its diff.
+						if toolCallRenderer != nil {
+							toolCallRenderer.Apply(RenderOp{Kind: OpToolEnd}, emitToolCallStream)
+						}
 					} else {
 						// Collect details about why this tool call is invalid
 						info := invalidToolCallInfo{
