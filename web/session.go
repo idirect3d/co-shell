@@ -74,6 +74,12 @@ type WebSession struct {
 	// the current mode + all available modes, mode_switch switches mode.
 	mode *cmd.ModeHandler
 
+	// model handles the model manager (FEATURE-422): model_get returns the
+	// model/template lists, model_switch/enable/disable/remove/set_priority
+	// mutate models, model_add/model_edit launch the wizards, and
+	// model_wizard_cancel aborts a running wizard.
+	model *cmd.ModelHandler
+
 	// msgIndex is the current message index, incremented on each user input.
 	// It is attached to stream events so the frontend can map a block back to
 	// the message index for the retry-from action (FEATURE-409).
@@ -96,6 +102,7 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		settings: deps.SettingsHandler,
 		session:  cmd.NewSessionHandler(deps.Ag, deps.Cfg),
 		mode:     cmd.NewModeHandler(deps.Cfg, deps.Ag),
+		model:    cmd.NewModelHandler(deps.Cfg, deps.Ag),
 		inputCh:  make(chan clientMessage),
 		closed:   make(chan struct{}),
 	}
@@ -161,6 +168,28 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleModeGet()
 	case "mode_switch":
 		s.handleModeSwitch(msg.Value)
+	case "model_get":
+		s.handleModelGet()
+	case "model_switch":
+		s.handleModelAction("switch", msg.Value)
+	case "model_enable":
+		s.handleModelAction("enable", msg.Value)
+	case "model_disable":
+		s.handleModelAction("disable", msg.Value)
+	case "model_remove":
+		s.handleModelAction("remove", msg.Value)
+	case "model_set_priority":
+		s.handleModelSetPriority(msg.Value, msg.Priority)
+	case "model_unbind":
+		s.handleModelUnbind(msg.Value)
+	case "model_bind":
+		s.handleModelBind(msg.Key, msg.Value)
+	case "model_add":
+		s.handleModelWizard("add", "")
+	case "model_edit":
+		s.handleModelWizard("edit", msg.Value)
+	case "model_wizard_cancel":
+		s.handleModelWizardCancel()
 	}
 }
 
@@ -250,6 +279,129 @@ func (s *WebSession) handleModeSwitch(name string) {
 		return
 	}
 	s.srv.sendJSON(serverMessage{Kind: "mode_result", OK: true, Message: result})
+}
+
+// handleModelGet sends the configured models and built-in templates to the
+// browser for the model manager (FEATURE-422).
+func (s *WebSession) handleModelGet() {
+	if s.model == nil {
+		return
+	}
+	models, templates := s.model.ModelWebJSON()
+	mRaw, err := json.Marshal(models)
+	if err != nil {
+		return
+	}
+	tRaw, err := json.Marshal(templates)
+	if err != nil {
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "models", Models: mRaw, Templates: tRaw})
+}
+
+// handleModelAction applies a non-interactive model operation (switch / enable
+// / disable / remove) and reports the result to the browser (FEATURE-422).
+func (s *WebSession) handleModelAction(action, id string) {
+	if s.model == nil || id == "" {
+		return
+	}
+	var result string
+	var err error
+	switch action {
+	case "switch":
+		result, err = s.model.ModelSwitch(id)
+	case "enable":
+		result, err = s.model.ModelEnable(id)
+	case "disable":
+		result, err = s.model.ModelDisable(id)
+	case "remove":
+		result, err = s.model.ModelRemove(id)
+	default:
+		return
+	}
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "model_result", OK: true, Message: result})
+	// Refresh the model list so the frontend reflects the change.
+	s.handleModelGet()
+}
+
+// handleModelSetPriority sets a model's priority and reports the result
+// (FEATURE-422).
+func (s *WebSession) handleModelSetPriority(id string, priority int) {
+	if s.model == nil || id == "" {
+		return
+	}
+	result, err := s.model.ModelSetPriority(id, priority)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "model_result", OK: true, Message: result})
+	s.handleModelGet()
+}
+
+// handleModelWizard launches the add/edit model wizard. The wizard runs through
+// the agent's WebIO, so its prompts and input requests flow to the browser as
+// ui_text / ask / interaction messages (FEATURE-422).
+func (s *WebSession) handleModelWizard(mode, id string) {
+	if s.model == nil {
+		return
+	}
+	var result string
+	var err error
+	if mode == "edit" {
+		result, err = s.model.StartEditWizard(id)
+	} else {
+		result, err = s.model.StartAddWizard()
+	}
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "model_result", OK: true, Message: result})
+	s.handleModelGet()
+}
+
+// handleModelWizardCancel aborts a running model wizard by failing all pending
+// ask/interaction requests. The wizard's ReadLine then returns an error, which
+// readLine() maps to wizardCancel so the wizard exits from any step (FEATURE-422).
+func (s *WebSession) handleModelWizardCancel() {
+	s.wio.failAll()
+}
+
+// handleModelUnbind clears the current work mode's model binding for the given
+// target ("text" or "vision"), restoring the global default model. It delegates
+// to the mode handler's .mode <name> model <target> none command (FEATURE-422).
+func (s *WebSession) handleModelUnbind(target string) {
+	if s.mode == nil || (target != "text" && target != "vision") {
+		return
+	}
+	result, err := s.mode.Handle([]string{s.mode.CurrentMode(), "model", target, "none"})
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "model_result", OK: true, Message: result})
+	s.handleModelGet()
+}
+
+// handleModelBind binds the given model to the current work mode for the given
+// target ("text" or "vision"), overriding the global default. It delegates to
+// the mode handler's .mode <name> model <target> <id> command (FEATURE-422).
+func (s *WebSession) handleModelBind(target, id string) {
+	if s.mode == nil || (target != "text" && target != "vision") || id == "" {
+		return
+	}
+	result, err := s.mode.Handle([]string{s.mode.CurrentMode(), "model", target, id})
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "model_result", OK: true, Message: result})
+	s.handleModelGet()
 }
 
 // pushSessionList sends the current session list to the browser (FEATURE-387).
