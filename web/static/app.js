@@ -489,18 +489,19 @@ function ensureToolParams(curTool) {
   params.appendChild(body);
   // Insert after the ev-head, before the ev-body.
   box.insertBefore(params, curTool.body);
-  curTool.params = { body, raw: "", rawMode: false, diff: false };
+  curTool.params = { body, raw: "", rawMode: false, diff: false, diffLines: [] };
   return curTool.params;
 }
 
 // renderParams renders the params sub-block body according to the "原始内容"
 // pill state (FEATURE-412): rawMode ON shows the raw text, OFF md-renders it.
-// When params.diff is set (FEATURE-424), the body holds a unified diff text
-// and is rendered line by line with add/delete/unchanged colours.
+// When params.diff is set (FEATURE-424), the body holds the structured diff
+// lines (each with its own status) and is rendered with add/delete/unchanged
+// colours.
 function renderParams(params) {
   if (params.diff) {
     params.body.classList.remove("md");
-    renderDiff(params.body, params.raw);
+    renderDiff(params.body, params.diffLines);
     return;
   }
   if (params.rawMode) {
@@ -512,35 +513,21 @@ function renderParams(params) {
   }
 }
 
-// renderDiff renders a unified diff text (FEATURE-424) into body. Each line is
-// parsed for its status marker ("+" add / "-" delete / " " unchanged) and
-// wrapped in a coloured row. The content is set via textContent to avoid XSS.
-//
-// Two line formats are supported:
-//  - replace_in_file diff: "{1 space}{5-digit line}{status} {content}" — the
-//    status is the 7th character (index 6).
-//  - write_to_file content: "{5 spaces}{5-digit line}+ {content}" — the "+"
-//    marker sits at index 10 (5 indent + 5-digit line).
-function renderDiff(body, text) {
+// renderDiff renders the FEATURE-424 unified diff into body. It consumes the
+// structured per-line data (each item carries its own status field) so the
+// colour is applied directly from the status instead of re-parsing text
+// markers. Each item is { line: string, status: "add"|"del"|"ctx" }. The
+// content is set via textContent to avoid XSS.
+function renderDiff(body, diffLines) {
   body.textContent = "";
-  const lines = String(text).split("\n");
-  for (const line of lines) {
-    if (line === "") continue;
+  const items = Array.isArray(diffLines) ? diffLines : [];
+  for (const item of items) {
     const row = document.createElement("div");
     row.className = "diff-row";
-    let status = " ";
-    if (line.length > 6) {
-      const c6 = line.charAt(6);
-      if (c6 === "+" || c6 === "-") status = c6;
-    }
-    if (status === " " && line.length > 10) {
-      const c10 = line.charAt(10);
-      if (c10 === "+" || c10 === "-") status = c10;
-    }
-    if (status === "+") row.classList.add("diff-add");
-    else if (status === "-") row.classList.add("diff-del");
+    if (item.status === "add") row.classList.add("diff-add");
+    else if (item.status === "del") row.classList.add("diff-del");
     else row.classList.add("diff-ctx");
-    row.textContent = line;
+    row.textContent = item.line || "";
     body.appendChild(row);
   }
 }
@@ -885,14 +872,25 @@ function renderEvent(ev) {
     scrollStream();
     return;
   }
-  // FEATURE-424: a replace_in_file call completed — the backend sends its
-  // unified diff rendering. Replace the streamed params with the diff text and
-  // re-render with per-line add/delete/unchanged colours.
+  // FEATURE-424: a replace_in_file / write_to_file call completed — the
+  // backend sends its unified diff rendering as structured per-line data
+  // (each line carries its own status). Replace the streamed params and
+  // re-render with add/delete/unchanged colours read directly from the status
+  // field.
   if (ev.type === "tool_call_diff") {
     if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
     const params = ensureToolParams(curTool);
     params.diff = true;
     params.raw = ev.text || "";
+    params.diffLines = [];
+    if (ev.meta && ev.meta.diff_lines) {
+      try {
+        const parsed = JSON.parse(ev.meta.diff_lines);
+        if (Array.isArray(parsed)) params.diffLines = parsed;
+      } catch (e) {
+        params.diffLines = [];
+      }
+    }
     renderParams(params);
     params.body.scrollTop = params.body.scrollHeight;
     scrollStream();
