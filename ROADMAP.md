@@ -301,7 +301,7 @@
   - 背景：极简模式下，`unmarkStreaming` 在块停止流式输出时无条件收起该块（含用户块），且未考虑"当前最后一块"——当块 A 停止输出且无后续块时，块 A 被收起导致主消息区无展开块；用户块也被收起，用户看不到原始指令。
   - 方案（已确认）：极简模式下，当有块开始动态输出内容时，把其他未收起的块收起（用户块除外）；用户块总是展开显示原始指令。
   - 需求：修改 `web/static/app.js` 的 `unmarkStreaming`/`applyBlockDisplayMode`，极简模式下收起非用户块、非当前输出块，用户块（user-msg）始终展开。
-  - 实施：`web/static/app.js` ① `markStreaming` 极简模式下当有块开始流式输出时收起其他非用户块（用户块始终展开）；② `unmarkStreaming` 极简模式下仅当有其他块仍在流式输出时才收起当前块（最后一个块保持展开），用户块/结果块不收起；③ `applyBlockDisplayMode`/`applyDisplayMode` 极简模式下用户块始终展开 [BUILD-606]
+  - 实施：`web/static/app.js` ① `markStreaming` 极简模式下当有块开始流式输出时收起其他非用户块（用户块始终展开）；② `unmarkStreaming` 极简模式下仅当有其他块仍在流式输出时才收起当前块（最后一个块保持展开），用户块/结果块不收起；③ `applyBlockDisplayMode`/`applyDisplayMode` 极简模式下用户块始终展开 [BUILD-606]；④ 修复 TOOL 块不被自动收起：`.ev.collapsed` 原只隐藏 `.ev-body`，但 TOOL 块的输入参数子块 `.tool-params` 是 `.ev` 直接子元素不在 `.ev-body` 内，导致收起时输入参数仍显示。修改 `.ev.collapsed .tool-params` 也 `display:none`，使 TOOL 块被新输出块触发收起时输入参数和结果都隐藏只剩标题 [BUILD-607]
   - 测试：见 use-case/FIX-426/
 
 ## v0.9.1 — 开发中（已完成）
