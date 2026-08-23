@@ -1678,12 +1678,12 @@ function renderVirtualKeyboard(it, isSelect, container) {
       addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
     });
     // Enter item.
-    addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
+    addItem("回车", T.approve, () => answerInteraction({ action: "approve" }));
   }
   // Space / Insert / 0 item: enter supplement-input mode (FEATURE-427).
   // Only shown for tool confirmation; a cancel/resume prompt has no supplement.
   if (isToolConfirm) {
-    addItem("Space/Insert/0", T.supplement, () => enterSupplementMode(), "opt-space");
+    addItem("空格/Ins/0", T.supplement, () => enterSupplementMode(), "opt-space");
   }
   target.appendChild(wrap);
 
