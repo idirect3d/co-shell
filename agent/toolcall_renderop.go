@@ -68,10 +68,31 @@ type ToolCallRenderer struct {
 	replaceReplaceLineNo int
 	replacePairClosed    bool
 
+	// replaceSearchAccum / replaceReplaceAccum accumulate the full search and
+	// replace text across streaming fragments (feedLined resets the render
+	// buffers line by line, so a separate accumulator is needed for the diff,
+	// FEATURE-424).
+	replaceSearchAccum  strings.Builder
+	replaceReplaceAccum strings.Builder
+
+	// replaceSearchContent is retained for the diff computation when the
+	// replace parameter ends (FEATURE-424).
+	replaceSearchContent string
+
 	// leadingEmitted tracks whether a leading newline has been emitted for the
 	// current stream call, so the first tool header is visually separated from
 	// the preceding LLM content exactly once.
 	leadingEmitted bool
+
+	// diffEmit, when set, receives the FEATURE-424 unified diff rendering text
+	// for a replace_in_file call once its search/replace blocks are complete.
+	// The frontend uses it to re-render the params sub-block with per-line
+	// add/delete/unchanged status (green/red/default).
+	diffEmit func(string)
+
+	// diffText accumulates the unified diff rendering for the current
+	// replace_in_file call (computed at emitToolEnd).
+	diffText strings.Builder
 }
 
 // NewToolCallRenderer constructs a renderer gated by showTool and showToolInput.
@@ -80,6 +101,13 @@ func NewToolCallRenderer(showTool, showToolInput bool) *ToolCallRenderer {
 		showTool:      showTool,
 		showToolInput: showToolInput,
 	}
+}
+
+// SetDiffEmit installs a callback that receives the unified diff rendering
+// text for a replace_in_file call once its search/replace blocks complete
+// (FEATURE-424).
+func (r *ToolCallRenderer) SetDiffEmit(fn func(string)) {
+	r.diffEmit = fn
 }
 
 // InToolCall reports whether the renderer is currently inside a tool call.
@@ -105,7 +133,11 @@ func (r *ToolCallRenderer) Reset() {
 	r.replaceReplaceBuf.Reset()
 	r.replaceReplaceLineNo = 0
 	r.replacePairClosed = false
+	r.replaceSearchContent = ""
+	r.replaceSearchAccum.Reset()
+	r.replaceReplaceAccum.Reset()
 	r.leadingEmitted = false
+	r.diffText.Reset()
 }
 
 // Apply consumes one RenderOp and emits the incremental display text through
@@ -171,10 +203,12 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 				return
 			case "search":
 				r.flushReplaceHeader(emit)
+				r.replaceSearchAccum.WriteString(op.Text)
 				feedLined(&r.replaceSearchBuf, r.replaceStartLine, &r.replaceSearchLineNo, "-", "", true, op.Text, emit)
 				return
 			case "replace":
 				r.flushReplaceHeader(emit)
+				r.replaceReplaceAccum.WriteString(op.Text)
 				feedLined(&r.replaceReplaceBuf, r.replaceStartLine, &r.replaceReplaceLineNo, "+", "", true, op.Text, emit)
 				return
 			case "start_line":
@@ -254,7 +288,13 @@ func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
 			r.pendingParam = ""
 			return
 		case "replace":
+			// FEATURE-424: compute the unified diff from the accumulated full
+			// search/replace content (the render buffers are reset line by line
+			// by feedLined, so the accumulators hold the complete text).
 			flushLined(&r.replaceReplaceBuf, r.replaceStartLine, &r.replaceReplaceLineNo, "+", "", true, emit)
+			if d := buildDiffText(r.replaceSearchAccum.String(), r.replaceReplaceAccum.String(), r.replaceStartLine); d != "" {
+				r.diffText.WriteString(d)
+			}
 			// The block is finished: reset per-block state so the next
 			// replacement starts fresh with no residual line numbers.
 			r.replaceHaveSearch = false
@@ -286,6 +326,13 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	if r.currentTool == "" {
 		return
 	}
+	// FEATURE-424: for a completed replace_in_file call, hand the accumulated
+	// unified diff rendering (per-line add/delete/unchanged status) to the
+	// diffEmit callback so the frontend can re-render the params sub-block with
+	// green/red/default colours.
+	if r.currentTool == "replace_in_file" && r.diffEmit != nil && r.diffText.Len() > 0 {
+		r.diffEmit(r.diffText.String())
+	}
 	if r.showTool {
 		emit("\n")
 	}
@@ -305,6 +352,9 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	r.replaceReplaceBuf.Reset()
 	r.replaceReplaceLineNo = 0
 	r.replacePairClosed = false
+	r.replaceSearchAccum.Reset()
+	r.replaceReplaceAccum.Reset()
+	r.diffText.Reset()
 }
 
 // linePrefix builds the git-diff style prefix for a rendered line. When
@@ -360,6 +410,82 @@ func flushLined(buf *strings.Builder, baseLine int, lineNo *int, marker, indent 
 	*lineNo++
 	emit(linePrefix(baseLine, *lineNo, marker, indent, colon) + line + "\n")
 	buf.Reset()
+}
+
+// buildReplaceDiff computes the unified diff rendering for a completed
+// replace_in_file call (FEATURE-424). It diffs the search and replace blocks
+// line by line: lines present in both are marked unchanged (" "), lines only
+// in search are marked deleted ("-"), and lines only in replace are marked
+// added ("+"). Each line is rendered as "{1 space}{5-digit right-aligned line
+// number}{status} {content}". Line numbers start at replaceStartLine (or 1
+// when no start_line was given). Returns "" when there is nothing to diff.
+func (r *ToolCallRenderer) buildReplaceDiff() string {
+	return buildDiffText(r.replaceSearchBuf.String(), r.replaceReplaceBuf.String(), r.replaceStartLine)
+}
+
+// buildDiffText computes the unified diff rendering for a search/replace pair
+// (FEATURE-424). It diffs the two blocks line by line: lines present in both
+// are marked unchanged (" "), lines only in search are marked deleted ("-"),
+// and lines only in replace are marked added ("+"). Each line is rendered as
+// "{1 space}{5-digit right-aligned line number}{status} {content}". Line
+// numbers start at startLine (or 1 when startLine <= 0). Returns "" when there
+// is nothing to diff.
+func buildDiffText(search, replace string, startLine int) string {
+	search = strings.TrimSuffix(search, "\n")
+	replace = strings.TrimSuffix(replace, "\n")
+	if search == "" && replace == "" {
+		return ""
+	}
+	searchLines := splitLines(search)
+	replaceLines := splitLines(replace)
+
+	// LCS table to align unchanged lines between search and replace.
+	n, m := len(searchLines), len(replaceLines)
+	lcs := make([][]int, n+1)
+	for i := range lcs {
+		lcs[i] = make([]int, m+1)
+	}
+	for i := n - 1; i >= 0; i-- {
+		for j := m - 1; j >= 0; j-- {
+			if searchLines[i] == replaceLines[j] {
+				lcs[i][j] = lcs[i+1][j+1] + 1
+			} else if lcs[i+1][j] >= lcs[i][j+1] {
+				lcs[i][j] = lcs[i+1][j]
+			} else {
+				lcs[i][j] = lcs[i][j+1]
+			}
+		}
+	}
+
+	base := startLine
+	if base <= 0 {
+		base = 1
+	}
+	var sb strings.Builder
+	i, j := 0, 0
+	for i < n || j < m {
+		if i < n && j < m && searchLines[i] == replaceLines[j] {
+			// Unchanged line: present in both search and replace.
+			sb.WriteString(diffLine(base+i, " ", searchLines[i]))
+			i++
+			j++
+		} else if j < m && (i >= n || lcs[i][j+1] >= lcs[i+1][j]) {
+			// Added line: only in replace.
+			sb.WriteString(diffLine(base+i, "+", replaceLines[j]))
+			j++
+		} else {
+			// Deleted line: only in search.
+			sb.WriteString(diffLine(base+i, "-", searchLines[i]))
+			i++
+		}
+	}
+	return sb.String()
+}
+
+// diffLine renders one unified-diff line: "{1 space}{5-digit right-aligned
+// line number}{status} {content}" (FEATURE-424).
+func diffLine(lineNo int, status, content string) string {
+	return fmt.Sprintf(" %5d%s %s\n", lineNo, status, content)
 }
 
 // trimToolCallContent is a small helper used by tests and future extensions.

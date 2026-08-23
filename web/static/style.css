@@ -695,6 +695,17 @@ aside {
 .tool-params-body.md th { background: var(--bg-elev); }
 .tool-params-body.md a { color: var(--accent); text-decoration: none; }
 .tool-params-body.md a:hover { text-decoration: underline; }
+/* FEATURE-424: unified diff rows in the params sub-block — added lines green,
+   deleted lines red, unchanged lines default. */
+.tool-params-body .diff-row {
+  white-space: pre;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tool-params-body .diff-add { color: #4ade80; }
+.tool-params-body .diff-del { color: #f87171; }
+.tool-params-body .diff-ctx { color: var(--fg); }
 .ev.command .ev-head::before { background: var(--ok); }
 .ev.system .ev-head::before { background: var(--fg-faint); }
 .ev.repl .ev-head::before { background: var(--debug); }

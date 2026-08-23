@@ -216,7 +216,7 @@
 |------|------|------|------|
 | FEATURE-423 | 0.12.1 | P1 | Web UI 主消息区自动分割后自动融合：自动分割后，当滚动条下滚（页面上滚）B 区已显示到底、且 A 区高度未达最高限（上下内容刚好接上）时，触发自动融合（相当于自动点浮动融合按钮） |
 
-> 当前 BUILD: 582
+> 当前 BUILD: 583
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -228,6 +228,31 @@
   - 需求：修改 `web/static/app.js` `streamB` scroll 事件处理，增加自动融合逻辑。
   - 实施：`web/static/app.js` `streamB` scroll 事件在 `splitActive` 时检测 B 区到底（`scrollTop + clientHeight >= scrollHeight - 4`），满足则自动调用 `mergeStream()` [BUILD-578]；状态栏 token 单次用量统计图标从循环符号 `🔄` 改为计时器符号 `⏱️`（`sbLast`，zh/en 两处）[BUILD-579]；自动融合机制简化为只判断 B 区到底（去掉 A 区未填满条件），保证效果可靠一致 [BUILD-580]；模型选择清单标题右边增加当前模式胶囊（`buildModelMenuTitle` 辅助函数，标题行 flex 布局 + `.model-menu-mode` 胶囊高亮样式，主模型/视觉模型两个菜单均显示）[BUILD-581]
   - 测试：见 use-case/FEATURE-423/
+
+## v0.13.0 — 开发中
+
+> **版本**: v0.13.0
+
+> **状态**: 🚧 开发中（文件 diff 显示）
+> **里程碑**: 文件 diff 显示
+> **说明**: 0.13.0 系列专注文件 diff 显示优化，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-424 | 0.13.0 | P1 | 文件写入/覆盖 diff 显示：所有工作模式（write_to_file 新建/覆盖/追加、replace_in_file 指定行号/不指定行号）统一带行号 + 状态标记（+/-/空格），前后端新增协议区分新增/删除内容，Web UI 新增内容绿色、删除内容红色 |
+
+> 当前 BUILD: 582
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-424 文件写入/覆盖 diff 显示**
+  - 背景：当前前端显示的文件修改内容，哪些是增加、哪些是删除/覆盖看不清楚。需要统一所有工作模式（write_to_file 新建/覆盖/追加、replace_in_file 指定行号/不指定行号）的 diff 显示，带行号 + 状态标记，Web UI 用颜色区分新增/删除。
+  - 方案（已确认）：① 后端统一所有工作模式的渲染格式：左对齐、开头空 1 格、5 位右对齐行号、`+`/`-`/` ` 三态（新增/删除/不变），后跟空格再跟内容；② `replace_in_file` 对 search/replace 做逐行 diff，相同行标 ` `（不变）；③ 前后端新增协议：每行新增一个状态字段（默认可为空，不特殊处理），后端输出时携带，前端据此渲染；④ Web UI 各信息块新增内容绿色、删除内容红色。
+  - 需求：修改 `agent/toolcall_renderop.go`（统一渲染格式 + 逐行 diff + 状态字段）、`web/session.go`（协议携带状态字段）、`web/static/app.js`（解析状态字段渲染颜色）、`web/static/style.css`（新增/删除颜色样式）。
+  - 实施：① `agent/toolcall_renderop.go` 新增 `buildDiffText` 逐行 diff（LCS 对齐，相同行标 ` `、仅 search 标 `-`、仅 replace 标 `+`，统一格式 `{1空格}{5位右对齐行号}{状态}{空格}{内容}`），`replaceSearchAccum`/`replaceReplaceAccum` 累积完整 search/replace 内容，`finaliseParameter` 在 replace 结束时计算 diff 存入 `diffText`，`emitToolEnd` 通过 `diffEmit` 回调发送；② `agent/events.go` 新增 `EventToolCallDiff` 事件类型；③ `agent/stream_response.go` 创建渲染器时设置 `diffEmit` 回调发送 `tool_call_diff` 事件；④ `web/static/app.js` 新增 `tool_call_diff` 事件处理（用 diff 文本替换 `params.raw` 并设置 `params.diff`），`renderParams` 增加 diff 渲染分支，新增 `renderDiff` 逐行解析状态标记着色；⑤ `web/static/style.css` 新增 `.diff-row`/`.diff-add`（绿）/`.diff-del`（红）/`.diff-ctx` 样式；⑥ `agent/toolcall_diff_test.go` 新增 diff 单元测试 [BUILD-583]
+  - 测试：见 use-case/FEATURE-424/
 
 ## v0.9.1 — 开发中（已完成）
 
