@@ -1486,7 +1486,6 @@ function hideAsk() {
   pendingAsk = null;
   pendingInteraction = null;
   supplementMode = false;
-  numberMode = false;
   input.placeholder = T.inputHint;
   askArea.classList.add("hidden");
   askInteraction.classList.add("hidden");
@@ -1502,7 +1501,6 @@ function hideAsk() {
 
 let pendingInteraction = null;
 let supplementMode = false; // true while the user is typing supplementary info
-let numberMode = false;    // true while the user is choosing an approve-count
 
 // enterSupplementMode switches to supplement-input mode: the user types in the
 // main input box and the key handler stops hijacking keys (FEATURE-388).
@@ -1512,13 +1510,6 @@ function enterSupplementMode() {
   input.placeholder = T.supplementHint;
 }
 
-// enterNumberMode switches to number-choice mode: the user presses a digit to
-// choose the approve-count (0 = 10, 1-9 = the count).
-function enterNumberMode() {
-  numberMode = true;
-  input.focus();
-  input.placeholder = T.numberHint;
-}
 
 // showInteraction renders a structured interaction (confirm/select/input/key)
 // from the interaction payload. Buttons are built dynamically from the keys
@@ -1625,24 +1616,20 @@ function renderVirtualKeyboard(it, isSelect, container) {
   const target = container || askInteraction;
   // Build a map: key -> {action, value}.
   const keyMap = {};
-  (it.keys || []).forEach((k) => {
-    const key = (k.key || "").toLowerCase();
-    if (key) keyMap[key] = { action: k.value };
-  });
   if (isSelect && it.options && it.options.length) {
     // Number keys select options (1..N).
     it.options.forEach((opt, i) => {
       keyMap[String(i + 1)] = { action: "select", value: opt };
     });
-  } else if (it.presets && it.presets.length) {
-    // Number keys map to approve-count (0 = 10, 1-9 = the count). Only
-    // enabled when the interaction carries presets (e.g. tool confirmation),
-    // so ESC pause/interrupt (no presets) does not show a useless [1]-[9]
-    // approve-count hint (FEATURE-396).
-    for (let i = 0; i <= 9; i++) {
-      const n = i === 0 ? 10 : i;
-      keyMap[String(i)] = { action: "approve_count", value: String(n) };
-    }
+  } else {
+    // FEATURE-427: symbol/numpad keys only (input-method independent). The
+    // backend's letter keys (a/g/d/c) are intentionally ignored so an active
+    // IME cannot swallow the shortcut.
+    keyMap["+"] = { action: "approve_all" };
+    keyMap["-"] = { action: "cancel" };
+    keyMap["*"] = { action: "approve_g" };
+    keyMap["/"] = { action: "approve_d" };
+    keyMap["5"] = { action: "approve_count", value: "5" };
   }
   // Enter maps to approve.
   keyMap["enter"] = { action: "approve" };
@@ -1677,23 +1664,17 @@ function renderVirtualKeyboard(it, isSelect, container) {
       addItem(String(i + 1), opt, () => answerInteraction({ action: "select", value: opt }));
     });
   } else {
-    // Letter/action keys first (skip number keys and enter, handled separately).
+    // FEATURE-427: symbol/numpad action keys (skip enter, handled separately).
     Object.keys(keyMap).forEach((key) => {
-      if (/^[0-9]$/.test(key) || key === "enter") return;
+      if (key === "enter") return;
       const m = keyMap[key];
       addItem(key.toUpperCase(), legendLabel(m), () => answerInteraction(m));
     });
-    // Number keys merged into one [1]-[9] approve-count item (only when the
-    // interaction enables approve-count via presets, FEATURE-396).
-    const hasNumbers = Object.keys(keyMap).some((k) => /^[0-9]$/.test(k));
-    if (hasNumbers) {
-      addItem("1-9", T.approveCount, () => enterNumberMode());
-    }
     // Enter item.
     addItem("Enter", T.approve, () => answerInteraction({ action: "approve" }));
   }
-  // Space item: enter supplement-input mode.
-  addItem("Space", T.supplement, () => enterSupplementMode(), "opt-space");
+  // Space / Insert / 0 item: enter supplement-input mode (FEATURE-427).
+  addItem("Space/Insert/0", T.supplement, () => enterSupplementMode(), "opt-space");
   target.appendChild(wrap);
 
   // Listen for physical key presses while this interaction is pending.
@@ -1706,15 +1687,8 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // box (previously only digits/letters/space/enter were swallowed).
     e.preventDefault();
     const key = e.key.toLowerCase();
-    if (numberMode) {
-      // Number-choice mode: a digit picks the approve-count.
-      if (/^[0-9]$/.test(key)) {
-        const n = key === "0" ? 10 : parseInt(key, 10);
-        answerInteraction({ action: "approve_count", value: String(n) });
-      }
-      return;
-    }
-    if (key === " ") {
+    // FEATURE-427: supplement via Space / Insert / 0 (input-method independent).
+    if (key === " " || key === "insert" || key === "0") {
       enterSupplementMode();
     } else if (key === "enter") {
       answerInteraction({ action: "approve" });
