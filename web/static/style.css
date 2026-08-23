@@ -1147,6 +1147,84 @@ aside {
 .preview-box img { max-width: 78vw; max-height: 74vh; display: block; }
 .preview-close { position: absolute; top: 6px; right: 6px; }
 
+/* ---------- text file previewer (FEATURE-425) ---------- */
+
+/* The viewer is absolutely positioned inside #stream-wrap (which is the grid
+   cell for the main message area), so it covers ~90%+ of the message area but
+   never the workspace tree, task plan or input row. inset:0 makes it fill the
+   whole stream cell; a small inset margin keeps a visible border so the user
+   sees it is an overlay. It auto-scales with the window because it is sized
+   relative to its positioned parent. */
+.file-viewer {
+  position: absolute;
+  inset: 6px;
+  z-index: 40;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+.fv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  flex: none;
+  background: var(--bg-elev);
+}
+.fv-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--fg);
+}
+.fv-body {
+  flex: 1;
+  overflow: auto;
+  font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  padding: 8px 0;
+  background: var(--mono-bg);
+}
+/* Each rendered line: a fixed-width line-number gutter + the code content. */
+.fv-line {
+  display: flex;
+  white-space: pre;
+  min-height: 1.6em;
+}
+.fv-line .fv-no {
+  flex: none;
+  width: 4.5em;
+  padding-right: 1em;
+  text-align: right;
+  color: var(--fg-faint);
+  user-select: none;
+  border-right: 1px solid var(--border);
+  margin-right: 1em;
+}
+.fv-line .fv-code { flex: 1; }
+/* git diff highlight (FEATURE-425): added lines green, deleted lines red. */
+.fv-line.fv-add { background: rgba(74, 222, 128, 0.12); }
+.fv-line.fv-add .fv-no { color: var(--ok); }
+.fv-line.fv-del { background: rgba(248, 113, 113, 0.12); }
+.fv-line.fv-del .fv-no { color: var(--err); }
+
+/* Go syntax highlighting (FEATURE-425), vscode-inspired dark palette. */
+.fv-code .tok-kw { color: #c586c0; }        /* keywords */
+.fv-code .tok-str { color: #ce9178; }        /* strings */
+.fv-code .tok-num { color: #b5cea8; }        /* numbers */
+.fv-code .tok-com { color: #6a9955; }        /* comments */
+.fv-code .tok-fn { color: #dcdcaa; }         /* function/method names */
+.fv-code .tok-type { color: #4ec9b0; }       /* builtin types */
+.fv-code .tok-var { color: #9cdcfe; }        /* variables */
+.fv-code .tok-pkg { color: #dcdcaa; }        /* package names */
+
 /* ---------- dropdown menu (FEATURE-365) ---------- */
 
 /* Vertical padding on the wrapper bridges the visual gap between the
