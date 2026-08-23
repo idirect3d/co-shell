@@ -1383,7 +1383,28 @@ aside {
   z-index: 100;
 }
 .model-menu.hidden { display: none; }
-.model-menu-title { padding: 4px 8px; color: var(--fg-dim); font-size: 11px; }
+.model-menu-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+/* FEATURE-423: a capsule on the right of the model-menu title showing the
+   current work mode, highlighted like the mode-seg active segment. */
+.model-menu-mode {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
 .model-menu-empty { padding: 6px 8px; color: var(--fg-dim); }
 .model-menu-item {
   display: flex;

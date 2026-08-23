@@ -2167,15 +2167,29 @@ function buildModelMenuDefault(target, menu, active) {
   return item;
 }
 
+// buildModelMenuTitle builds the model-menu title row: the title text on the
+// left and a capsule showing the current work mode on the right (FEATURE-423).
+function buildModelMenuTitle(text) {
+  const title = document.createElement("div");
+  title.className = "model-menu-title";
+  const label = document.createElement("span");
+  label.className = "model-menu-title-label";
+  label.textContent = text;
+  title.appendChild(label);
+  const mode = document.createElement("span");
+  mode.className = "model-menu-mode";
+  mode.textContent = currentMode;
+  mode.title = "当前模式";
+  title.appendChild(mode);
+  return title;
+}
+
 // renderModelMenu renders the status-bar main (text) model selector menu. It
 // lists all enabled models plus a "默认" option and a "＋ 新增模型" entry
 // (FEATURE-422).
 function renderModelMenu() {
   modelMenu.textContent = "";
-  const title = document.createElement("div");
-  title.className = "model-menu-title";
-  title.textContent = T.modelMenuTitle || "选择主模型";
-  modelMenu.appendChild(title);
+  modelMenu.appendChild(buildModelMenuTitle(T.modelMenuTitle || "选择主模型"));
   const enabled = modelList.filter((m) => m.enabled);
   if (!enabled.length) {
     const empty = document.createElement("div");
@@ -2205,10 +2219,7 @@ function renderModelMenu() {
 // models) plus a "默认" option and a "＋ 新增模型" entry (FEATURE-422).
 function renderModelVisionMenu() {
   modelVisionMenu.textContent = "";
-  const title = document.createElement("div");
-  title.className = "model-menu-title";
-  title.textContent = T.modelVisionMenuTitle || "选择视觉模型";
-  modelVisionMenu.appendChild(title);
+  modelVisionMenu.appendChild(buildModelMenuTitle(T.modelVisionMenuTitle || "选择视觉模型"));
   const vision = modelList.filter((m) => m.enabled && m.vision);
   if (!vision.length) {
     const empty = document.createElement("div");
