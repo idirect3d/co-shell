@@ -68,6 +68,16 @@
     <!-- FEATURE-419: floating block-boundary navigation icons (top/bottom) -->
     <button id="blockNavTop" class="block-nav top" title="跳到当前块标题">↑</button>
     <button id="blockNavBottom" class="block-nav bottom" title="跳到当前块底部">↓</button>
+    <!-- FEATURE-425: read-only text file previewer. Absolutely positioned over
+         the main message area (#stream-wrap) so it never covers the workspace
+         tree, task plan or input row, and auto-scales with the window. -->
+    <div id="fileViewer" class="file-viewer hidden">
+      <div class="fv-head">
+        <span class="fv-title" id="fvTitle"></span>
+        <button class="icon-btn sm" id="fvClose" title="关闭">✕</button>
+      </div>
+      <div class="fv-body" id="fvBody"></div>
+    </div>
   </section>
 
   <aside id="plan-panel" class="hidden">

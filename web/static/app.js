@@ -37,6 +37,7 @@ const I18N = {
     switchMode: "切换工作模式",
     models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
+    fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -64,6 +65,7 @@ const I18N = {
     switchMode: "Switch work mode",
     models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
+    fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
   },
 };
 let T = I18N.zh;
@@ -188,6 +190,11 @@ const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
+// FEATURE-425: read-only text file previewer.
+const fileViewer = document.getElementById("fileViewer");
+const fvTitle = document.getElementById("fvTitle");
+const fvBody = document.getElementById("fvBody");
+const fvClose = document.getElementById("fvClose");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
@@ -1849,14 +1856,20 @@ function treeNode(node) {
       uploadFiles(e.dataTransfer.files, node.path);
     };
   } else {
-    // Open a file on double-click (not single-click) to avoid accidentally
-    // launching the system handler when the user only meant to select it.
+    // FEATURE-425: single-click previews a text file in the in-page viewer;
+    // double-click still opens it with the system handler (openFile). The two
+    // are distinguished so previewing never accidentally launches the OS app.
+    row.onclick = () => openFilePreview(node);
     row.ondblclick = () => openFile(node);
   }
   return li;
 }
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+
+// FEATURE-425: text file extensions that can be previewed in-page (source
+// code, docs, config, data, shell scripts, etc.).
+const TEXT_EXT = /\.(go|txt|md|markdown|csv|tsv|sh|bash|zsh|conf|cfg|ini|json|ya?ml|xml|py|js|mjs|cjs|ts|jsx|tsx|html?|css|scss|less|sql|java|c|h|cpp|hpp|rs|rb|php|vue|svelte|toml|env|gitignore|dockerfile|makefile|log|properties|gradle|lock|sum|mod)$/i;
 
 function openFile(node) {
   if (IMAGE_EXT.test(node.name)) {
@@ -1866,6 +1879,147 @@ function openFile(node) {
     postPath("/api/open", node.path);
   }
 }
+
+/* ---------- text file previewer (FEATURE-425) ---------- */
+
+// Current preview state: the open file path (workspace-relative) and the next
+// line to load. Re-clicking the same file is a no-op (UC-004).
+let fvPath = null;
+let fvNextLine = 1;
+let fvTotal = 0;
+let fvLoading = false;
+let fvDiff = new Map(); // lineNo -> "add" | "del"
+
+// openFilePreview opens a text file in the in-page viewer. Clicking a new file
+// immediately discards the current one (UC-003); clicking the current file is
+// a no-op (UC-004). Non-text files fall back to the system open.
+function openFilePreview(node) {
+  if (!TEXT_EXT.test(node.name)) return;
+  if (fvPath === node.path) return; // already showing this file
+  fvPath = node.path;
+  fvNextLine = 1;
+  fvTotal = 0;
+  fvDiff = new Map();
+  fvTitle.textContent = node.path;
+  fvBody.textContent = "";
+  fileViewer.classList.remove("hidden");
+  loadFileDiff(node.path);
+  loadFileChunk(node.path, 1, 200);
+}
+
+// loadFileDiff fetches the git working-tree diff for the file and stores a
+// lineNo -> status map for diff highlighting (UC-008). Only "add" lines are
+// kept: the previewer shows the current working-tree content, so deleted lines
+// (old content) have no corresponding row to highlight — a modified line is
+// shown as its new (added) content and highlighted green.
+async function loadFileDiff(path) {
+  try {
+    const resp = await fetch("/api/gitdiff?path=" + encodeURIComponent(path));
+    const body = await resp.json();
+    const map = new Map();
+    for (const it of (body.lines || [])) {
+      if (it.status === "add") map.set(it.line, "add");
+    }
+    fvDiff = map;
+    // Re-render already-loaded lines so diff colours appear.
+    fvBody.querySelectorAll(".fv-line").forEach((row) => {
+      const no = parseInt(row.dataset.no, 10);
+      row.classList.toggle("fv-add", map.has(no));
+      row.classList.toggle("fv-del", false);
+    });
+  } catch { /* no diff available */ }
+}
+
+// loadFileChunk fetches a line range [start, end] and appends it to the body.
+// It is called on open and on scroll near the bottom (on-demand loading for
+// large files, UC-006).
+async function loadFileChunk(path, start, end) {
+  if (fvLoading || fvPath !== path) return;
+  fvLoading = true;
+  try {
+    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&start=" + start + "&end=" + end);
+    if (!resp.ok) { console.error(T.fileViewerLoadFailed); return; }
+    const body = await resp.json();
+    if (fvPath !== path) return; // switched away while loading
+    fvTotal = body.total || 0;
+    const lines = body.lines || [];
+    for (let i = 0; i < lines.length; i++) {
+      const no = start + i;
+      fvBody.appendChild(renderFileLine(no, lines[i]));
+    }
+    fvNextLine = start + lines.length;
+  } catch (err) { console.error(T.fileViewerLoadFailed, err); }
+  finally { fvLoading = false; }
+}
+
+// renderFileLine builds one line row: a line-number gutter + highlighted code.
+function renderFileLine(no, text) {
+  const row = document.createElement("div");
+  row.className = "fv-line";
+  row.dataset.no = no;
+  const noEl = document.createElement("span");
+  noEl.className = "fv-no";
+  noEl.textContent = no;
+  const code = document.createElement("span");
+  code.className = "fv-code";
+  code.appendChild(highlightCode(text));
+  row.appendChild(noEl);
+  row.appendChild(code);
+  if (fvDiff.has(no)) row.classList.add("fv-add");
+  return row;
+}
+
+// highlightCode tokenizes a line and returns a DocumentFragment with syntax
+// highlighting spans. It uses a single combined regex to walk the line and
+// classify each token (Go keywords/types/strings/numbers/comments/functions).
+// Content is set via textContent (never innerHTML) to avoid XSS.
+const GO_KEYWORDS = new Set(["break","case","chan","const","continue","default","defer","else","fallthrough","for","func","go","goto","if","import","interface","map","package","range","return","select","struct","switch","type","var"]);
+const GO_TYPES = new Set(["bool","byte","complex64","complex128","error","float32","float64","int","int8","int16","int32","int64","rune","string","uint","uint8","uint16","uint32","uint64","uintptr","any","comparable"]);
+const GO_TOKEN_RE = /(\/\/.*$)|("(?:\\.|[^"\\])*"|`(?:[^`]|\\.)*`|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|(.)/g;
+
+function highlightCode(line) {
+  const frag = document.createDocumentFragment();
+  let m;
+  GO_TOKEN_RE.lastIndex = 0;
+  while ((m = GO_TOKEN_RE.exec(line)) !== null) {
+    if (m[1] !== undefined) { // comment
+      frag.appendChild(span("tok-com", m[1]));
+    } else if (m[2] !== undefined) { // string
+      frag.appendChild(span("tok-str", m[2]));
+    } else if (m[3] !== undefined) { // number
+      frag.appendChild(span("tok-num", m[3]));
+    } else if (m[4] !== undefined) { // identifier
+      const w = m[4];
+      if (GO_KEYWORDS.has(w)) frag.appendChild(span("tok-kw", w));
+      else if (GO_TYPES.has(w)) frag.appendChild(span("tok-type", w));
+      else frag.appendChild(span("tok-var", w));
+    } else if (m[5] !== undefined) { // whitespace
+      frag.appendChild(document.createTextNode(m[5]));
+    } else if (m[6] !== undefined) { // other char
+      frag.appendChild(document.createTextNode(m[6]));
+    }
+  }
+  return frag;
+}
+
+function span(cls, text) {
+  const s = document.createElement("span");
+  s.className = cls;
+  s.textContent = text;
+  return s;
+}
+
+// Close the viewer.
+fvClose.onclick = () => { fileViewer.classList.add("hidden"); fvPath = null; };
+
+// On-demand loading: when the user scrolls near the bottom and more lines
+// remain, fetch the next chunk (UC-006).
+fvBody.addEventListener("scroll", () => {
+  if (fvPath === null || fvLoading) return;
+  if (fvTotal > 0 && fvNextLine > fvTotal) return; // all loaded
+  const nearBottom = fvBody.scrollTop + fvBody.clientHeight >= fvBody.scrollHeight - 80;
+  if (nearBottom) loadFileChunk(fvPath, fvNextLine, fvNextLine + 200);
+});
 
 async function postPath(api, path) {
   try {

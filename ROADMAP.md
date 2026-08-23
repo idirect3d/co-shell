@@ -254,6 +254,31 @@
   - 实施：① `agent/toolcall_renderop.go` 新增 `buildDiffText` 逐行 diff（LCS 对齐，相同行标 ` `、仅 search 标 `-`、仅 replace 标 `+`，统一格式 `{1空格}{5位右对齐行号}{状态}{空格}{内容}`），`replaceSearchAccum`/`replaceReplaceAccum` 累积完整 search/replace 内容，`finaliseParameter` 在 replace 结束时计算 diff 存入 `diffText`，`emitToolEnd` 通过 `diffEmit` 回调发送；② `agent/events.go` 新增 `EventToolCallDiff` 事件类型；③ `agent/stream_response.go` 创建渲染器时设置 `diffEmit` 回调发送 `tool_call_diff` 事件；④ `web/static/app.js` 新增 `tool_call_diff` 事件处理（用 diff 文本替换 `params.raw` 并设置 `params.diff`），`renderParams` 增加 diff 渲染分支，新增 `renderDiff` 逐行解析状态标记着色；⑤ `web/static/style.css` 新增 `.diff-row`/`.diff-add`（绿）/`.diff-del`（红）/`.diff-ctx` 样式；⑥ `agent/toolcall_diff_test.go` 新增 diff 单元测试 [BUILD-583]；⑦ write_to_file 意图渲染统一为 `(<intent>)` 格式（与 replace_in_file 一致），`writeIntent` 累积意图值，content 参数到达时在 content 前显示 `(<intent>)`，新增 `agent/toolcall_intent_test.go` 验证 write_to_file/replace_in_file 意图渲染 [BUILD-584]；⑧ 意图渲染统一为通用方案：所有工具（read_file/write_to_file/execute_command 等）的 intent 参数统一显示为 `(<intent>)`，`intent` 字段累积意图值，`finaliseParameter` 在 intent 参数结束时显示 `(<intent>)`，不再显示为 `intent:` 参数行 [BUILD-585]；⑨ 验证前端生效：重新编译（BUILD-586）并重启 serve 服务，确认前端 JS/CSS 正确加载（`renderDiff`/`renderParams` 函数已定义、`.diff-add`/`.diff-del`/`.diff-ctx` 样式存在），TOOL 块标题显示 `TOOL: <action> - <intent>`，RAW 模式显示输入参数，diff 新增绿色/删除红色计算样式正确 [BUILD-586]；⑩ 多工具调用分块：一次迭代 LLM 调用多个工具时，后端 `tool_call_stream` 事件流中每个工具以 `⚙️ <tool>\n` 标记开头，前端 `tool_call_stream` 处理检测该标记，遇到就新建 TOOL 块（避免多个工具参数累积到第一个块导致覆盖），并用 `indexOf` 剥离 `⚙️` 标题行（正则对 emoji U+2699+U+FE0F 不生效，改用 indexOf），Node.js 模拟验证 2 工具调用正确分块且无 `⚙️` 泄漏 [BUILD-588]；⑪ 修复 replace_in_file 分块：replace_in_file 的 `⚙️` 标记原延迟到 replacements 参数才发送（path/intent 先到导致前端误分块），改为 `OpToolStart` 时立即发送 `⚙️ replace_in_file\n`（不含 path），path 作为普通参数行显示，`flushReplaceHeader` 只发送一次 intent 行（emit 后清空 `replaceIntent`），更新 `TestToolCallStream_XMLReplaceNoLineNo` 测试，完整 agent 测试套件通过 [BUILD-589]；⑫ write_to_file 内容颜色区分：write_to_file 的 content 行累积到 `diffText`，`emitToolEnd` 时也发送 `tool_call_diff` 事件（内容全为新增→绿色），前端 `renderDiff` 兼容两种格式（replace_in_file 的 `{1空格}{5位行号}{状态} {内容}` 状态在 index 6，write_to_file 的 `{5空格}{5位行号}+ {内容}` 状态在 index 10），新增 `TestToolCallDiff_WriteToFile` 测试，Node.js 模拟验证 write_to_file 全绿、replace_in_file 三态正确 [BUILD-590]；⑬ 按原方案重构为结构化状态字段：原方案要求"每行新增一个状态字段"，但 BUILD-590 实际实现是"发送带状态标记的纯文本，前端解析字符位置"（依赖 `charAt(6)`/`charAt(10)`，脆弱且未按方案）。重构为：`agent/toolcall_renderop.go` 新增 `ToolDiffLine{Line, Status}` 结构，`diffEmit` 类型改为 `func([]ToolDiffLine)`，`buildDiffText` 返回 `[]ToolDiffLine`（每行携带 `add`/`del`/`ctx` 状态），`diffLines` 累积结构化数据，`emitToolEnd` 传 `[]ToolDiffLine`；`agent/events.go` 新增 `MetaKeyDiffLines` 常量；`agent/stream_response.go` 的 `diffEmit` 回调把 `[]ToolDiffLine` 序列化为 JSON 放入 `tool_call_diff` 事件的 `Meta[MetaKeyDiffLines]`；`web/static/app.js` 的 `renderDiff` 改为直接读取每行 `status` 字段着色（不再解析字符位置），`tool_call_diff` 事件处理解析 `ev.meta.diff_lines` 存入 `params.diffLines`；更新 `toolcall_diff_test.go` 适配新类型（用查找方式检查每行状态，不依赖 LCS 对齐顺序）。完整测试套件通过 [BUILD-591]；⑭ 修复 ToolDiffLine 缺少 json tag：`ToolDiffLine{Line, Status}` 无 json tag，`json.Marshal` 输出大写字段名 `{Line, Status}`，而前端 `renderDiff` 读取小写 `item.line`/`item.status`，导致 status 读取失败（全变默认色）且行文本为空。给 `ToolDiffLine` 添加 `json:"line"`/`json:"status"` tag，浏览器实测 diff 行正确着色 [BUILD-592]；⑮ 修复 JSON 模式 tool_call_diff 事件不发送：JSON parser 不产生 `OpToolEnd`，`emitToolEnd` 不被调用，`tool_call_diff` 事件不发送。在 `stream_response.go` 的 `StreamEventToolCall` 事件处理中触发 `emitToolEnd` [BUILD-593]；⑯ 修复 JSON 模式 start_line 数字值没被解析：JSON parser 对数字值（如 `start_line: 5`）走 `default` 分支累积到 buffer 但不产生 `OpValueFragment`，导致 `replaceStartLine` 为 0 行号总是 1。在 `,` 分隔符时处理 buffer 产生 `OpValueFragment` 和 `OpParamEnd`；同时将 `buildDiffText` 调用延迟到 `emitToolEnd`（`replace` 参数结束时 `start_line` 还没解析），确保行号正确。新增 `TestToolCallDiff_JSONReplace` 测试验证删除行/新增行/行号 [BUILD-594]；⑰ 工作区文件打开改为双击：`web/static/app.js` 的 `treeNode` 文件行 `row.onclick` 改为 `row.ondblclick`，避免单击误触打开系统程序，目录行单击展开/折叠保持不变 [BUILD-595]
   - 测试：见 use-case/FEATURE-424/
 
+## v0.14.0 — 开发中
+
+> **版本**: v0.14.0
+
+> **状态**: 🚧 开发中（文本文件只读预览）
+> **里程碑**: 文本文件只读预览
+> **说明**: 0.14.0 系列专注 Web UI 文本文件只读预览，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-425 | 0.14.0 | P1 | 文本文件只读预览：工作区单击受支持文本文件（源代码/txt/md/csv/shell脚本/配置文件等）在弹窗中显示（双击仍用系统打开），单文件快速切换，弹窗覆盖主消息区90%以上且不覆盖工作区/任务进展/录入框并自动缩放，>100K 文件按需预读，Go 语法高亮，git 未提交修改按 diff 高亮 |
+
+> 当前 BUILD: 595
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-425 文本文件只读预览**
+  - 背景：Web UI 工作区文件目前只能双击用系统程序打开，无法在界面内直接查看文本文件内容。需要支持在弹窗中只读预览文本文件，带语法高亮和 git diff 高亮。
+  - 方案（已确认）：① 工作区文件行单击预览文本文件（双击仍用系统打开）；② 单文件显示，点击新文件立即替换，重复点选当前文件无反应；③ 弹窗绝对定位覆盖主消息区（#stream-wrap）内部，不覆盖工作区/任务进展/录入框，窗口变化自动缩放；④ >100K 文件后端按行范围读取、前端滚动按需预读；⑤ 前端 JS 正则实现 Go 语法高亮（关键字/方法/字符串/变量），参考 vscode 配色；⑥ git 版本控制下后端返回未提交修改行级数据，前端按 diff 高亮。
+  - 需求：修改 `web/server.go`（新增按行范围读取 + git diff 行级数据 API）、`web/static/index.html`（文本查看器弹窗 DOM）、`web/static/app.js`（单击预览、单文件切换、滚动加载、语法高亮、diff 高亮）、`web/static/style.css`（弹窗布局 + 高亮配色）。
+  - 实施：① `web/server.go` 新增 `serveFileLines`（按行范围读取，bufio.Scanner 流式读不整载入内存，返回 `{total, lines}`）、`handleGitDiff`（`git diff -- <path>` 解析未提交修改行级数据）、`parseGitDiff`（解析 unified diff hunk，返回 add/del 行号）、`gitDiffLine` 结构，注册 `/api/gitdiff` 路由，`handleFile` 支持 start/end 参数；② `web/static/index.html` 在 `#stream-wrap` 内部新增 `#fileViewer` 文本查看器弹窗（绝对定位覆盖主消息区，不覆盖工作区/任务进展/录入框）；③ `web/static/app.js` 新增 `openFilePreview`（单击预览，单文件切换，重复点选无反应）、`loadFileChunk`（按行范围滚动加载）、`loadFileDiff`（git diff 高亮，只保留 add 状态）、`highlightCode`（Go 语法高亮正则分词）、`renderFileLine`（行号 + 高亮 + diff 着色），文件行单击预览、双击系统打开；④ `web/static/style.css` 新增 `.file-viewer`（inset:6px 绝对定位自动缩放）、`.fv-line`/`.fv-no`/`.fv-code`、`.fv-add`（绿）/`.fv-del`（红）、Go 语法高亮配色（tok-kw/tok-str/tok-num/tok-com/tok-fn/tok-type/tok-var/tok-pkg）；⑤ `web/filepreview_test.go` 新增按行读取 + git diff 解析单元测试 [BUILD-596]
+  - 测试：见 use-case/FEATURE-425/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
