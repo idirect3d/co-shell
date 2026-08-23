@@ -489,19 +489,46 @@ function ensureToolParams(curTool) {
   params.appendChild(body);
   // Insert after the ev-head, before the ev-body.
   box.insertBefore(params, curTool.body);
-  curTool.params = { body, raw: "", rawMode: false };
+  curTool.params = { body, raw: "", rawMode: false, diff: false, diffLines: [] };
   return curTool.params;
 }
 
 // renderParams renders the params sub-block body according to the "原始内容"
 // pill state (FEATURE-412): rawMode ON shows the raw text, OFF md-renders it.
+// When params.diff is set (FEATURE-424), the body holds the structured diff
+// lines (each with its own status) and is rendered with add/delete/unchanged
+// colours.
 function renderParams(params) {
+  if (params.diff) {
+    params.body.classList.remove("md");
+    renderDiff(params.body, params.diffLines);
+    return;
+  }
   if (params.rawMode) {
     params.body.classList.remove("md");
     params.body.textContent = params.raw;
   } else {
     params.body.classList.add("md");
     mdRender(params.body, params.raw);
+  }
+}
+
+// renderDiff renders the FEATURE-424 unified diff into body. It consumes the
+// structured per-line data (each item carries its own status field) so the
+// colour is applied directly from the status instead of re-parsing text
+// markers. Each item is { line: string, status: "add"|"del"|"ctx" }. The
+// content is set via textContent to avoid XSS.
+function renderDiff(body, diffLines) {
+  body.textContent = "";
+  const items = Array.isArray(diffLines) ? diffLines : [];
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "diff-row";
+    if (item.status === "add") row.classList.add("diff-add");
+    else if (item.status === "del") row.classList.add("diff-del");
+    else row.classList.add("diff-ctx");
+    row.textContent = item.line || "";
+    body.appendChild(row);
   }
 }
 
@@ -814,15 +841,57 @@ function renderEvent(ev) {
   // accumulate into the input-parameter sub-block (FEATURE-400); the result
   // appends to the ev-body.
   if (ev.type === "tool_call_stream") {
-    if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+    // FEATURE-XXX: the backend emits a "⚙️ <tool>\n" header at the start of
+    // each tool invocation. When one LLM iteration calls multiple tools, this
+    // marker lets us open a fresh TOOL block per tool instead of accumulating
+    // every tool's args into the first block (which let later calls overwrite
+    // earlier ones). The header itself is the tool title (shown in the block
+    // header by the tool_call input event), so it is stripped from the params.
+    const isNewTool = ev.text && ev.text.includes("⚙️");
+    if (!curTool || isNewTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
     markStreaming(curTool.body);
     const params = ensureToolParams(curTool);
-    params.raw += ev.text || "";
+    let text = ev.text || "";
+    // Strip the "⚙️ <tool>\n" header line from the params text. indexOf is
+    // used instead of a regex because the gear emoji (U+2699 + U+FE0F) is not
+    // reliably matched by a regex literal.
+    if (isNewTool) {
+      const gear = text.indexOf("⚙️");
+      if (gear >= 0) {
+        const nl = text.indexOf("\n", gear);
+        text = text.slice(nl >= 0 ? nl + 1 : text.length);
+      }
+    }
+    params.raw += text;
     // FEATURE-412: render the streaming args according to the "原始内容" pill
     // state — raw text by default, or markdown when the pill is toggled on.
     renderParams(params);
     // Keep the params sub-block scrolled to the last line as streaming args
     // accumulate past its fixed height.
+    params.body.scrollTop = params.body.scrollHeight;
+    scrollStream();
+    return;
+  }
+  // FEATURE-424: a replace_in_file / write_to_file call completed — the
+  // backend sends its unified diff rendering as structured per-line data
+  // (each line carries its own status). Replace the streamed params and
+  // re-render with add/delete/unchanged colours read directly from the status
+  // field.
+  if (ev.type === "tool_call_diff") {
+    if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+    const params = ensureToolParams(curTool);
+    params.diff = true;
+    params.raw = ev.text || "";
+    params.diffLines = [];
+    if (ev.meta && ev.meta.diff_lines) {
+      try {
+        const parsed = JSON.parse(ev.meta.diff_lines);
+        if (Array.isArray(parsed)) params.diffLines = parsed;
+      } catch (e) {
+        params.diffLines = [];
+      }
+    }
+    renderParams(params);
     params.body.scrollTop = params.body.scrollHeight;
     scrollStream();
     return;
@@ -1780,7 +1849,9 @@ function treeNode(node) {
       uploadFiles(e.dataTransfer.files, node.path);
     };
   } else {
-    row.onclick = () => openFile(node);
+    // Open a file on double-click (not single-click) to avoid accidentally
+    // launching the system handler when the user only meant to select it.
+    row.ondblclick = () => openFile(node);
   }
   return li;
 }
