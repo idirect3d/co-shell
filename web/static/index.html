@@ -74,7 +74,11 @@
     <div id="fileViewer" class="file-viewer hidden">
       <div class="fv-head">
         <span class="fv-title" id="fvTitle"></span>
-        <button class="icon-btn sm" id="fvClose" title="关闭">✕</button>
+        <input type="text" class="fv-search" id="fvSearch" placeholder="搜索文件内容…">
+        <div class="fv-head-actions">
+          <span class="fv-raw hidden" id="fvRaw" title="Raw 模式">Raw</span>
+          <button class="icon-btn sm" id="fvClose" title="关闭">✕</button>
+        </div>
       </div>
       <div class="fv-body" id="fvBody"></div>
     </div>

@@ -38,6 +38,7 @@ const I18N = {
     models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
     fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
+    fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -66,6 +67,7 @@ const I18N = {
     models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
     fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
+    fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
   },
 };
 let T = I18N.zh;
@@ -195,6 +197,8 @@ const fileViewer = document.getElementById("fileViewer");
 const fvTitle = document.getElementById("fvTitle");
 const fvBody = document.getElementById("fvBody");
 const fvClose = document.getElementById("fvClose");
+const fvSearch = document.getElementById("fvSearch");
+const fvRaw = document.getElementById("fvRaw");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
@@ -1859,6 +1863,7 @@ function treeNode(node) {
     // FEATURE-425: single-click previews a text file in the in-page viewer;
     // double-click still opens it with the system handler (openFile). The two
     // are distinguished so previewing never accidentally launches the OS app.
+    row.dataset.path = node.path; // for highlighting the selected file
     row.onclick = () => openFilePreview(node);
     row.ondblclick = () => openFile(node);
   }
@@ -1889,6 +1894,8 @@ let fvNextLine = 1;
 let fvTotal = 0;
 let fvLoading = false;
 let fvDiff = new Map(); // lineNo -> "add" | "del"
+let fvRawMode = false; // md Raw toggle (off = auto-render md)
+let fvMdText = ""; // accumulated md content for auto-render
 
 // openFilePreview opens a text file in the in-page viewer. Clicking a new file
 // immediately discards the current one (UC-003); clicking the current file is
@@ -1902,9 +1909,30 @@ function openFilePreview(node) {
   fvDiff = new Map();
   fvTitle.textContent = node.path;
   fvBody.textContent = "";
+  fvSearch.value = "";
+  fvSearch.placeholder = T.fileViewerSearch;
+  // FEATURE-425: md files get a Raw pill (default off = auto-render md).
+  const isMd = /\.(md|markdown)$/i.test(node.name);
+  fvRaw.classList.toggle("hidden", !isMd);
+  fvRaw.classList.remove("on");
+  fvRawMode = false;
+  fvMdText = "";
+  fvBody.classList.remove("md");
   fileViewer.classList.remove("hidden");
+  // FEATURE-425: highlight the currently selected file in the workspace tree.
+  highlightTreeFile(node.path);
   loadFileDiff(node.path);
   loadFileChunk(node.path, 1, 200);
+}
+
+// highlightTreeFile marks the workspace tree row for the given path as the
+// currently previewed file (and clears any previous selection).
+function highlightTreeFile(path) {
+  tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
+  tree.querySelectorAll(".tree-row").forEach((r) => {
+    const nameEl = r.querySelector(".name");
+    if (nameEl && r.dataset.path === path) r.classList.add("fv-selected");
+  });
 }
 
 // loadFileDiff fetches the git working-tree diff for the file and stores a
@@ -1932,7 +1960,8 @@ async function loadFileDiff(path) {
 
 // loadFileChunk fetches a line range [start, end] and appends it to the body.
 // It is called on open and on scroll near the bottom (on-demand loading for
-// large files, UC-006).
+// large files, UC-006). For md files in auto-render mode (Raw off) the whole
+// file is rendered as markdown instead of per-line rows.
 async function loadFileChunk(path, start, end) {
   if (fvLoading || fvPath !== path) return;
   fvLoading = true;
@@ -1943,6 +1972,14 @@ async function loadFileChunk(path, start, end) {
     if (fvPath !== path) return; // switched away while loading
     fvTotal = body.total || 0;
     const lines = body.lines || [];
+    const isMdAuto = isMdFile(path) && !fvRawMode;
+    if (isMdAuto) {
+      // Accumulate the whole file then render as markdown.
+      fvMdText += lines.join("\n") + (fvNextLine + lines.length <= fvTotal ? "\n" : "");
+      fvNextLine = start + lines.length;
+      if (fvNextLine > fvTotal) renderFileBody();
+      return;
+    }
     for (let i = 0; i < lines.length; i++) {
       const no = start + i;
       fvBody.appendChild(renderFileLine(no, lines[i]));
@@ -1952,7 +1989,21 @@ async function loadFileChunk(path, start, end) {
   finally { fvLoading = false; }
 }
 
+// isMdFile reports whether the current path is a markdown file.
+function isMdFile(path) {
+  return /\.(md|markdown)$/i.test(path || "");
+}
+
+// renderFileBody renders the accumulated md text as markdown (Raw off).
+function renderFileBody() {
+  fvBody.textContent = "";
+  fvBody.classList.add("md");
+  mdRender(fvBody, fvMdText);
+}
+
 // renderFileLine builds one line row: a line-number gutter + highlighted code.
+// For md files in auto-render mode (Raw off), the whole body is re-rendered as
+// markdown instead of per-line rows (handled by renderFileBody).
 function renderFileLine(no, text) {
   const row = document.createElement("div");
   row.className = "fv-line";
@@ -1970,33 +2021,68 @@ function renderFileLine(no, text) {
 }
 
 // highlightCode tokenizes a line and returns a DocumentFragment with syntax
-// highlighting spans. It uses a single combined regex to walk the line and
-// classify each token (Go keywords/types/strings/numbers/comments/functions).
-// Content is set via textContent (never innerHTML) to avoid XSS.
+// highlighting spans. It picks a rule set by the current file extension: JSON
+// gets property/brace highlighting, everything else uses the generic code
+// rules (Go keywords/types/strings/numbers/comments). Comments are a single
+// unified green across languages. Content is set via textContent (never
+// innerHTML) to avoid XSS.
 const GO_KEYWORDS = new Set(["break","case","chan","const","continue","default","defer","else","fallthrough","for","func","go","goto","if","import","interface","map","package","range","return","select","struct","switch","type","var"]);
 const GO_TYPES = new Set(["bool","byte","complex64","complex128","error","float32","float64","int","int8","int16","int32","int64","rune","string","uint","uint8","uint16","uint32","uint64","uintptr","any","comparable"]);
-const GO_TOKEN_RE = /(\/\/.*$)|("(?:\\.|[^"\\])*"|`(?:[^`]|\\.)*`|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|(.)/g;
+const GO_TOKEN_RE = /(\/\/.*$)|(\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|`(?:[^`]|\\.)*`|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|(.)/g;
+// JSON: property key ("key":), string value, number, true/false/null, braces.
+const JSON_TOKEN_RE = /("[^"]*"\s*:)|("(?:\\.|[^"\\])*")|(\b\d+(?:\.\d+)?\b)|(\b(?:true|false|null)\b)|([{}\[\]])|(\s+)|(.)/g;
 
 function highlightCode(line) {
+  if (fvPath && /\.json$/i.test(fvPath)) return highlightJson(line);
+  return highlightGeneric(line);
+}
+
+function highlightGeneric(line) {
   const frag = document.createDocumentFragment();
   let m;
   GO_TOKEN_RE.lastIndex = 0;
   while ((m = GO_TOKEN_RE.exec(line)) !== null) {
-    if (m[1] !== undefined) { // comment
+    if (m[1] !== undefined) { // line comment
       frag.appendChild(span("tok-com", m[1]));
-    } else if (m[2] !== undefined) { // string
-      frag.appendChild(span("tok-str", m[2]));
-    } else if (m[3] !== undefined) { // number
-      frag.appendChild(span("tok-num", m[3]));
-    } else if (m[4] !== undefined) { // identifier
-      const w = m[4];
+    } else if (m[2] !== undefined) { // block comment
+      frag.appendChild(span("tok-com", m[2]));
+    } else if (m[3] !== undefined) { // string
+      frag.appendChild(span("tok-str", m[3]));
+    } else if (m[4] !== undefined) { // number
+      frag.appendChild(span("tok-num", m[4]));
+    } else if (m[5] !== undefined) { // identifier
+      const w = m[5];
       if (GO_KEYWORDS.has(w)) frag.appendChild(span("tok-kw", w));
       else if (GO_TYPES.has(w)) frag.appendChild(span("tok-type", w));
       else frag.appendChild(span("tok-var", w));
-    } else if (m[5] !== undefined) { // whitespace
-      frag.appendChild(document.createTextNode(m[5]));
-    } else if (m[6] !== undefined) { // other char
+    } else if (m[6] !== undefined) { // whitespace
       frag.appendChild(document.createTextNode(m[6]));
+    } else if (m[7] !== undefined) { // other char
+      frag.appendChild(document.createTextNode(m[7]));
+    }
+  }
+  return frag;
+}
+
+function highlightJson(line) {
+  const frag = document.createDocumentFragment();
+  let m;
+  JSON_TOKEN_RE.lastIndex = 0;
+  while ((m = JSON_TOKEN_RE.exec(line)) !== null) {
+    if (m[1] !== undefined) { // property key
+      frag.appendChild(span("tok-prop", m[1]));
+    } else if (m[2] !== undefined) { // string value
+      frag.appendChild(span("tok-str", m[2]));
+    } else if (m[3] !== undefined) { // number
+      frag.appendChild(span("tok-num", m[3]));
+    } else if (m[4] !== undefined) { // true/false/null
+      frag.appendChild(span("tok-kw", m[4]));
+    } else if (m[5] !== undefined) { // braces
+      frag.appendChild(span("tok-brace", m[5]));
+    } else if (m[6] !== undefined) { // whitespace
+      frag.appendChild(document.createTextNode(m[6]));
+    } else if (m[7] !== undefined) { // other char
+      frag.appendChild(document.createTextNode(m[7]));
     }
   }
   return frag;
@@ -2010,7 +2096,34 @@ function span(cls, text) {
 }
 
 // Close the viewer.
-fvClose.onclick = () => { fileViewer.classList.add("hidden"); fvPath = null; };
+fvClose.onclick = () => {
+  fileViewer.classList.add("hidden");
+  fvPath = null;
+  tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
+};
+
+// FEATURE-425: Raw pill toggles md auto-render (off) vs raw text (on).
+fvRaw.onclick = () => {
+  if (!fvPath || !isMdFile(fvPath)) return;
+  fvRawMode = !fvRawMode;
+  fvRaw.classList.toggle("on", fvRawMode);
+  // Re-render: raw mode shows per-line rows, auto mode renders markdown.
+  fvBody.textContent = "";
+  fvBody.classList.remove("md");
+  fvNextLine = 1;
+  fvMdText = "";
+  loadFileChunk(fvPath, 1, 200);
+};
+
+// FEATURE-425: in-file search. Highlights matching lines among the loaded
+// rows (searching the already-loaded portion of large files).
+fvSearch.addEventListener("input", () => {
+  const q = fvSearch.value.trim().toLowerCase();
+  fvBody.querySelectorAll(".fv-line").forEach((row) => {
+    const hit = q !== "" && row.textContent.toLowerCase().includes(q);
+    row.classList.toggle("fv-hit", hit);
+  });
+});
 
 // On-demand loading: when the user scrolls near the bottom and more lines
 // remain, fetch the next chunk (UC-006).

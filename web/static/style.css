@@ -1149,34 +1149,36 @@ aside {
 
 /* ---------- text file previewer (FEATURE-425) ---------- */
 
-/* The viewer is absolutely positioned inside #stream-wrap (which is the grid
-   cell for the main message area), so it covers ~90%+ of the message area but
-   never the workspace tree, task plan or input row. inset:0 makes it fill the
-   whole stream cell; a small inset margin keeps a visible border so the user
-   sees it is an overlay. It auto-scales with the window because it is sized
-   relative to its positioned parent. */
+/* The viewer is absolutely positioned inside #stream-wrap (the grid cell for
+   the main message area), so it covers the whole message area but never the
+   workspace tree, task plan or input row. inset:0 fills the entire stream
+   cell with no own border/radius — it borrows the surrounding borders — and
+   auto-scales with the window because it is sized relative to its positioned
+   parent. */
 .file-viewer {
   position: absolute;
-  inset: 6px;
+  inset: 0;
   z-index: 40;
   background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
 }
+/* The head matches the workspace/task-plan panel heads (same padding, font
+   size, uppercase transform and bottom border) so the three align perfectly. */
 .fv-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
+  gap: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
   flex: none;
-  background: var(--bg-elev);
+  background: var(--bg-panel);
 }
 .fv-title {
   overflow: hidden;
@@ -1184,7 +1186,43 @@ aside {
   white-space: nowrap;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color: var(--fg);
+  text-transform: none;
+  letter-spacing: 0;
 }
+/* FEATURE-425: in-file search box in the head. */
+.fv-search {
+  flex: 1;
+  max-width: 320px;
+  min-width: 120px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 12px;
+  padding: 3px 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  outline: none;
+}
+.fv-search:focus { border-color: var(--accent); }
+.fv-search::placeholder { color: var(--placeholder); }
+.fv-head-actions { display: flex; align-items: center; gap: 6px; }
+/* FEATURE-425: Raw pill toggle for md files (default off = auto-render md). */
+.fv-raw {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+  user-select: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.fv-raw.on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .fv-body {
   flex: 1;
   overflow: auto;
@@ -1214,16 +1252,37 @@ aside {
 .fv-line.fv-add .fv-no { color: var(--ok); }
 .fv-line.fv-del { background: rgba(248, 113, 113, 0.12); }
 .fv-line.fv-del .fv-no { color: var(--err); }
+/* FEATURE-425: search match highlight. */
+.fv-line.fv-hit { background: rgba(250, 204, 21, 0.18); }
+/* FEATURE-425: the currently previewed file in the workspace tree. */
+.tree-row.fv-selected { background: var(--accent-dim); }
+.tree-row.fv-selected .name { color: var(--accent); }
 
-/* Go syntax highlighting (FEATURE-425), vscode-inspired dark palette. */
+/* Syntax highlighting (FEATURE-425), vscode-inspired palette. Comments are a
+   single unified green across languages (go/java/python). */
 .fv-code .tok-kw { color: #c586c0; }        /* keywords */
 .fv-code .tok-str { color: #ce9178; }        /* strings */
 .fv-code .tok-num { color: #b5cea8; }        /* numbers */
-.fv-code .tok-com { color: #6a9955; }        /* comments */
+.fv-code .tok-com { color: #6a9955; }        /* comments (unified green) */
 .fv-code .tok-fn { color: #dcdcaa; }         /* function/method names */
 .fv-code .tok-type { color: #4ec9b0; }       /* builtin types */
 .fv-code .tok-var { color: #9cdcfe; }        /* variables */
 .fv-code .tok-pkg { color: #dcdcaa; }        /* package names */
+.fv-code .tok-prop { color: #9cdcfe; }       /* json property keys */
+.fv-code .tok-brace { color: #d4d4d4; }      /* json {} [] braces */
+
+/* FEATURE-425: in light theme the pale tokens (variables, numbers) must be
+   darkened so they stay readable on the light background. */
+[data-theme="light"] .fv-code .tok-var { color: #0451a5; }
+[data-theme="light"] .fv-code .tok-num { color: #098658; }
+[data-theme="light"] .fv-code .tok-prop { color: #0451a5; }
+[data-theme="light"] .fv-code .tok-brace { color: #1d2433; }
+[data-theme="light"] .fv-code .tok-kw { color: #af00db; }
+[data-theme="light"] .fv-code .tok-str { color: #a31515; }
+[data-theme="light"] .fv-code .tok-com { color: #008000; }
+[data-theme="light"] .fv-code .tok-fn { color: #795e26; }
+[data-theme="light"] .fv-code .tok-type { color: #267f99; }
+[data-theme="light"] .fv-code .tok-pkg { color: #795e26; }
 
 /* ---------- dropdown menu (FEATURE-365) ---------- */
 
