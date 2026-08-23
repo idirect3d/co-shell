@@ -322,8 +322,8 @@ function ensureToolParams(curTool) {
   // md-rendered. Default OFF (raw text), so the pill is not active initially.
   const rawPill = document.createElement("button");
   rawPill.className = "tool-params-raw";
-  rawPill.textContent = "原始内容";
-  rawPill.title = "原始内容 / md 渲染";
+  rawPill.textContent = "Raw";
+  rawPill.title = "Raw / md 渲染";
   rawPill.onclick = () => {
     rawPill.classList.toggle("on");
     curTool.params.rawMode = !curTool.params.rawMode;
