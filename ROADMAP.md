@@ -133,6 +133,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-417 | 0.11.1 | P1 | .rules/ 按需加载机制：子文件夹名+完整路径加载到系统提示词（作为可用规则类型提示），子文件夹内容不加载，LLM 需要时按路径主动读取 |
+| FEATURE-418 | 0.11.1 | P1 | .rules/ 按需加载层级显示：子文件夹及内部规则按 md 层级输出到系统提示词（子文件夹名→# 标题，内部 .md 文件→## 标题+路径），支持递归遍历子文件夹 |
 
 > 当前 BUILD: 548
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -146,6 +147,13 @@
   - 需求：修改 `agent/system_prompt.go` 的 `loadRulesDir` 函数，在加载根目录 `.md` 文件后，扫描子文件夹，将子文件夹名 + 完整路径格式化为"可用规则类型（按需加载，需要时用 read_file 读取）"提示追加到结果末尾。将 `前端控件使用规范.md` 移到 `.rules/前端控件使用规范/` 子文件夹。
   - 实施：`agent/system_prompt.go` `loadRulesDir` 在加载根目录 .md 文件后扫描子文件夹，将子文件夹名 + 完整路径格式化为"可用规则类型（按需加载，需要时用 read_file 读取对应路径）"提示追加到结果末尾；`前端控件使用规范.md` 移到 `.rules/前端控件使用规范/` 子文件夹；`.rules/PROJECT STANDARDS.md` 补充按需加载机制说明；`agent/rules_test.go` 新增 `TestLoadRulesDir_SubdirOnDemand` 测试 [BUILD-549]；合并 [BUILD-550]
   - 测试：见 use-case/FEATURE-417/
+
+- [x] **FEATURE-418 .rules/ 按需加载层级显示** ✅ 已完成
+  - 背景：FEATURE-417 实现了 .rules/ 按需加载，但子文件夹只显示文件夹名 + 路径，未展示子文件夹内部的规则文件。希望按 md 层级显示：子文件夹名→# 标题，内部 .md 文件→## 标题+路径，支持递归遍历子文件夹。
+  - 方案（已确认）：修改 `loadRulesDir`，递归遍历子文件夹，按 md 层级输出：子文件夹名作为 `# 标题`，子文件夹内的 .md 文件作为 `## 文件名: 路径`，如果还有子文件夹继续递归（层级加深）。
+  - 需求：修改 `agent/system_prompt.go` 的 `loadRulesDir`，将子文件夹遍历改为递归，按 md 层级输出子文件夹名（# 标题）和内部 .md 文件（## 文件名: 路径）。将 `前端控件使用规范.md` 拆分为多个文件（通用约定、基础按钮控件、容器及布局控件）放到子文件夹下。
+  - 实施：`agent/system_prompt.go` `loadRulesDir` 子文件夹遍历改为递归（新增 `appendRulesTree` 辅助函数），按 md 层级输出子文件夹名（# 标题）和内部 .md 文件（## 文件名: 路径），支持递归多层；`前端控件使用规范.md` 拆分为 3 个文件（通用约定/基础按钮控件/容器及布局控件）放到子文件夹；`agent/rules_test.go` 更新 `TestLoadRulesDir_SubdirOnDemand` + 新增 `TestLoadRulesDir_SubdirRecursive` [BUILD-551]；合并 [BUILD-552]
+  - 测试：见 use-case/FEATURE-418/
 
 ---
 
