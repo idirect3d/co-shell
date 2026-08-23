@@ -614,11 +614,12 @@ function renderEvent(ev) {
     const line = document.createElement("div");
     line.className = "ev meta";
     if (ev.type === "token_iter") {
-      // FEATURE-419: per-iteration line with iteration number, timestamp and
+      // FEATURE-419: per-iteration line with the context message index (msgIndex
+      // attached by the backend, same sequence :context displays), timestamp and
       // thousands separators, e.g. "58. 2026-08-23 12:30:58 ↑34,670 ↓154
       // Σ34,824/1,048,576 1.8s 75".
-      iterCount++;
-      const parts = [iterCount + ". " + fmtTime(new Date())];
+      const seq = msgIndex || (++iterCount);
+      const parts = [seq + ". " + fmtTime(new Date())];
       if (m.prompt) parts.push("↑" + fmtNum(parseInt(m.prompt, 10) || 0));
       if (m.completion) parts.push("↓" + fmtNum(parseInt(m.completion, 10) || 0));
       if (m.total) parts.push("Σ" + fmtNum(parseInt(m.total, 10) || 0) + (m.max && m.max !== "0" ? "/" + fmtNum(parseInt(m.max, 10) || 0) : ""));
