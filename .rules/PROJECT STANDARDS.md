@@ -159,6 +159,9 @@ Web UI 前端展示的所有信息（文件状态、任务进展、状态栏等�
 go test ./... -short                                      # 跳过集成/真实依赖测试
 go test ./<pkg>/ -v                                       # 单包测试
 go run . run --workdir <wt> --prompt "..." [--session <id>]   # 运行 Agent
-go run . serve --port <port>                              # 启动 Web UI（--dev 从磁盘热加载）
+go run . --serve --port <port>                            # 启动 Web UI（--dev 从磁盘热加载）
 ./build-release.sh <版本号>                                # 全平台 Release 构建（dist/<版本号>/）
 ```
+
+> **Web UI 测试规范**：需要测试 Web UI 时，**必须使用 `--serve` 参数**启动（不自动打开浏览器）。若不带 `--serve` 直接运行，默认模式会自动打开系统浏览器，该浏览器会占用 WebSocket 单客户端连接，影响你使用调试浏览器（browser_* 工具）进行调试。
+
