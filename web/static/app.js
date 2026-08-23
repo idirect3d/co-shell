@@ -37,6 +37,10 @@ const I18N = {
     switchMode: "切换工作模式",
     models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
+    fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
+    fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
+    streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
+    streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -64,6 +68,10 @@ const I18N = {
     switchMode: "Switch work mode",
     models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
+    fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
+    fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
+    streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
+    streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
   },
 };
 let T = I18N.zh;
@@ -188,6 +196,12 @@ const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
+// FEATURE-425: read-only text file previewer.
+const fileViewer = document.getElementById("fileViewer");
+const fvBody = document.getElementById("fvBody");
+// FEATURE-425: main message area title bar (display-mode pill + session title).
+const streamMode = document.getElementById("streamMode");
+const streamTitle = document.getElementById("streamTitle");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
@@ -564,11 +578,35 @@ function makeBlock(cls, label, msgIndex) {
   if (!(cls === "tool" && /完成任务|Complete task/.test(label))) {
     addBlockActions(head, box, body, cls, cls === "user-msg");
   }
+  // FEATURE-425: mark the final completion block (TOOL: 完成任务) as the
+  // result block so silent mode keeps it visible.
+  if (cls === "tool" && /完成任务|Complete task/.test(label)) box.classList.add("ev-result");
+  // FEATURE-425: apply the current display mode to the new block.
+  applyBlockDisplayMode(box, cls);
   // FEATURE-416: append the block to region A when the stream is split,
   // otherwise to region B (the whole history).
   (splitActive ? streamA : streamB).appendChild(box);
   scrollStream();
   return body;
+}
+
+// applyBlockDisplayMode shows/hides or collapses a single block according to
+// the current display mode (FEATURE-425).
+function applyBlockDisplayMode(box, cls) {
+  if (displayMode === "silent") {
+    const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+    box.style.display = show ? "" : "none";
+  } else if (displayMode === "minimal") {
+    box.style.display = "";
+    const body = box.querySelector(".ev-body");
+    const isStreaming = body && isStreamingBody(body);
+    const isResult = box.classList.contains("ev-result");
+    if (!isStreaming && !isResult) box.classList.add("collapsed");
+    else box.classList.remove("collapsed");
+  } else {
+    box.style.display = "";
+    box.classList.remove("collapsed");
+  }
 }
 
 // addBlockActions appends the copy / collapse / retry icons to a block's title
@@ -592,13 +630,17 @@ function markStreaming(body) {
 }
 
 // unmarkStreaming hides the dynamic "..." of a block once it stops streaming
-// (FEATURE-409).
+// (FEATURE-409). In minimal display mode a finished non-result block collapses
+// to just its title (FEATURE-425).
 function unmarkStreaming(body) {
   if (!body) return;
   const box = body.parentElement;
   if (!box) return;
   const s = box.querySelector(".ev-streaming");
   if (s) s.classList.remove("on");
+  if (displayMode === "minimal" && !box.classList.contains("ev-result")) {
+    box.classList.add("collapsed");
+  }
 }
 
 // maybeCollapseEnded re-collapses blocks of a class that just finished
@@ -1163,10 +1205,95 @@ function renderSessionMenu(sessions) {
     };
     sessionMenu.appendChild(row);
   }
+  // FEATURE-425: update the main message area title bar with the current
+  // session title (matches the session list).
+  const curSess = sessionList.find((s) => s.current);
+  if (curSess) {
+    streamTitle.value = curSess.title || "";
+    streamTitle.placeholder = curSess.title || T.streamTitlePlaceholder;
+  }
   // FEATURE-419: when the menu opens, scroll the current session into view so
   // the user immediately sees where they are instead of hunting for it.
   const cur = sessionMenu.querySelector(".session-item.current");
   if (cur) cur.scrollIntoView({ block: "nearest" });
+}
+
+/* ---------- main message area display mode (FEATURE-425) ---------- */
+
+// displayMode controls how the main message area renders blocks:
+//   "normal"  — as today (all blocks fully expanded)
+//   "minimal" — output blocks show only their title + the current live block's
+//               dynamic content; a finished block collapses to just its title
+//               (except the last finished block)
+//   "silent"  — only user-command blocks, error blocks and the final result
+//               block are shown
+// Persisted in localStorage.
+let displayMode = localStorage.getItem("co-shell-display-mode") || "normal";
+
+// initStreamMode wires the three-segment display-mode pill (reusing the
+// .mode-seg control with its gliding slider) and the editable session title
+// in the main message area title bar.
+function initStreamMode() {
+  const slider = document.getElementById("streamModeSlider");
+  const moveSlider = () => {
+    const items = streamMode.querySelectorAll(".mode-seg-item");
+    let idx = 0;
+    items.forEach((b, i) => { if (b.dataset.mode === displayMode) idx = i; });
+    const seg = items[idx];
+    if (!seg || !slider) return;
+    slider.style.width = seg.offsetWidth + "px";
+    slider.style.transform = "translateX(" + seg.offsetLeft + "px)";
+  };
+  // Display-mode pill.
+  streamMode.querySelectorAll(".mode-seg-item").forEach((btn) => {
+    btn.textContent = T["streamMode" + btn.dataset.mode[0].toUpperCase() + btn.dataset.mode.slice(1)] || btn.dataset.mode;
+    btn.classList.toggle("active", btn.dataset.mode === displayMode);
+    btn.onclick = () => {
+      if (btn.dataset.mode === displayMode) return;
+      displayMode = btn.dataset.mode;
+      localStorage.setItem("co-shell-display-mode", displayMode);
+      streamMode.querySelectorAll(".mode-seg-item").forEach((b) => b.classList.toggle("active", b.dataset.mode === displayMode));
+      moveSlider();
+      applyDisplayMode();
+    };
+  });
+  moveSlider();
+  // Editable session title: commit on Enter or blur.
+  streamTitle.placeholder = T.streamTitlePlaceholder;
+  streamTitle.title = T.streamTitleHint;
+  const commitTitle = () => {
+    const v = streamTitle.value.trim();
+    if (!v) { streamTitle.value = streamTitle.placeholder; return; }
+    const cur = sessionList.find((s) => s.current);
+    if (cur && v !== cur.title) wsSend({ type: "session_rename", value: v });
+  };
+  streamTitle.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); streamTitle.blur(); }
+  });
+  streamTitle.addEventListener("blur", commitTitle);
+}
+
+// applyDisplayMode re-applies the current display mode to all existing blocks.
+function applyDisplayMode() {
+  document.querySelectorAll(".ev").forEach((box) => {
+    const cls = box.className.replace("ev ", "").split(" ")[0];
+    const body = box.querySelector(".ev-body");
+    const isStreaming = body && isStreamingBody(body);
+    if (displayMode === "silent") {
+      // Show only user-msg, error, and the final result block.
+      const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+      box.style.display = show ? "" : "none";
+    } else if (displayMode === "minimal") {
+      box.style.display = "";
+      // Collapse finished non-result blocks to just their title.
+      const isResult = box.classList.contains("ev-result");
+      if (!isStreaming && !isResult) box.classList.add("collapsed");
+      else box.classList.remove("collapsed");
+    } else {
+      box.style.display = "";
+      box.classList.remove("collapsed");
+    }
+  });
 }
 
 // Request the session list on connect and whenever the menu is opened.
@@ -1772,11 +1899,11 @@ function treeNode(node) {
   const row = document.createElement("div");
   row.className = "tree-row" + (node.dir ? " dir" : "");
 
-  // FEATURE-380: git status letter is a direct child of the li (.tree-node),
-  // absolutely positioned against the .tree container so it hugs the file
-  // list's left edge (not the file name). Files show their status letter
-  // (M/A/D/R/U); directories leave it blank so every row keeps the same left
-  // gutter and horizontal alignment is unaffected.
+  // FEATURE-380: git status letter. It is a flex child of the .tree-row so it
+  // sits exactly on the file name's horizontal line (align-items:center), and
+  // hugs the file list's left edge (FEATURE-425). Files show their status
+  // letter (M/A/D/R/U); directories leave it blank so every row keeps the
+  // same left gutter and horizontal alignment is unaffected.
   const status = document.createElement("span");
   status.className = "git-status";
   if (node.status) {
@@ -1784,7 +1911,7 @@ function treeNode(node) {
     status.title = node.status;
     status.classList.add("st-" + node.status.toLowerCase());
   }
-  li.appendChild(status);
+  row.appendChild(status);
 
   const tw = document.createElement("span");
   tw.className = "tw";
@@ -1849,14 +1976,21 @@ function treeNode(node) {
       uploadFiles(e.dataTransfer.files, node.path);
     };
   } else {
-    // Open a file on double-click (not single-click) to avoid accidentally
-    // launching the system handler when the user only meant to select it.
+    // FEATURE-425: single-click previews a text file in the in-page viewer;
+    // double-click still opens it with the system handler (openFile). The two
+    // are distinguished so previewing never accidentally launches the OS app.
+    row.dataset.path = node.path; // for highlighting the selected file
+    row.onclick = () => openFilePreview(node);
     row.ondblclick = () => openFile(node);
   }
   return li;
 }
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+
+// FEATURE-425: text file extensions that can be previewed in-page (source
+// code, docs, config, data, shell scripts, etc.).
+const TEXT_EXT = /\.(go|txt|md|markdown|csv|tsv|sh|bash|zsh|conf|cfg|ini|json|ya?ml|xml|py|js|mjs|cjs|ts|jsx|tsx|html?|css|scss|less|sql|java|c|h|cpp|hpp|rs|rb|php|vue|svelte|toml|env|gitignore|dockerfile|makefile|log|properties|gradle|lock|sum|mod)$/i;
 
 function openFile(node) {
   if (IMAGE_EXT.test(node.name)) {
@@ -1866,6 +2000,334 @@ function openFile(node) {
     postPath("/api/open", node.path);
   }
 }
+
+/* ---------- text file previewer (FEATURE-425) ---------- */
+
+// Current preview state: the open file path (workspace-relative) and the next
+// line to load. Re-clicking the same file is a no-op (UC-004).
+let fvPath = null;
+let fvNextLine = 1;
+let fvTotal = 0;
+let fvLoading = false;
+let fvDiff = new Map(); // lineNo -> "add" | "del"
+let fvMdText = ""; // accumulated md content for auto-render
+let fvHexMode = false; // binary file shown as hex dump
+let fvHexNext = 0; // next byte offset to load in hex mode
+let fvHexWidth = 16; // bytes per hex row (8/16/32/64/128), auto-fit to width
+
+// openFilePreview opens a file in the in-page viewer. Clicking a new file
+// immediately discards the current one (UC-003); clicking the current file is
+// a no-op (UC-004). Known text extensions preview directly; unknown extensions
+// are also attempted as text and fall back to HEX view if control characters
+// are found. Image files keep the system open.
+function openFilePreview(node) {
+  if (IMAGE_EXT.test(node.name)) return;
+  // FEATURE-425: clicking the already-open file closes the preview.
+  if (fvPath === node.path) {
+    closeFileViewer();
+    return;
+  }
+  fvPath = node.path;
+  fvNextLine = 1;
+  fvTotal = 0;
+  fvDiff = new Map();
+  fvHexMode = false;
+  fvBody.textContent = "";
+  fvMdText = "";
+  fvBody.classList.remove("md");
+  fileViewer.classList.remove("hidden");
+  // FEATURE-425: highlight the currently selected file in the workspace tree.
+  highlightTreeFile(node.path);
+  loadFileDiff(node.path);
+  // md files in auto-render mode still load on demand (200-line chunks); each
+  // chunk is accumulated and the whole accumulated text re-rendered, so the
+  // current viewport stays complete while large files are never fully loaded.
+  loadFileChunk(node.path, 1, 200);
+}
+
+// highlightTreeFile marks the workspace tree row for the given path as the
+// currently previewed file (and clears any previous selection).
+function highlightTreeFile(path) {
+  tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
+  tree.querySelectorAll(".tree-row").forEach((r) => {
+    const nameEl = r.querySelector(".name");
+    if (nameEl && r.dataset.path === path) r.classList.add("fv-selected");
+  });
+}
+
+// loadFileDiff fetches the git working-tree diff for the file and stores a
+// lineNo -> status map for diff highlighting (UC-008). Only "add" lines are
+// kept: the previewer shows the current working-tree content, so deleted lines
+// (old content) have no corresponding row to highlight — a modified line is
+// shown as its new (added) content and highlighted green.
+async function loadFileDiff(path) {
+  try {
+    const resp = await fetch("/api/gitdiff?path=" + encodeURIComponent(path));
+    const body = await resp.json();
+    const map = new Map();
+    for (const it of (body.lines || [])) {
+      if (it.status === "add") map.set(it.line, "add");
+    }
+    fvDiff = map;
+    // Re-render already-loaded lines so diff colours appear.
+    fvBody.querySelectorAll(".fv-line").forEach((row) => {
+      const no = parseInt(row.dataset.no, 10);
+      row.classList.toggle("fv-add", map.has(no));
+      row.classList.toggle("fv-del", false);
+    });
+  } catch { /* no diff available */ }
+}
+
+// loadFileChunk fetches a line range [start, end] and appends it to the body.
+// It is called on open and on scroll near the bottom (on-demand loading for
+// large files, UC-006). For md files in auto-render mode (Raw off) the whole
+// file is rendered as markdown instead of per-line rows.
+async function loadFileChunk(path, start, end) {
+  if (fvLoading || fvPath !== path) return;
+  fvLoading = true;
+  try {
+    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&start=" + start + "&end=" + end);
+    if (!resp.ok) { console.error(T.fileViewerLoadFailed); return; }
+    const body = await resp.json();
+    if (fvPath !== path) return; // switched away while loading
+    fvTotal = body.total || 0;
+    const lines = body.lines || [];
+    const isMdAuto = isMdFile(path);
+    if (isMdAuto) {
+      // Accumulate the chunk and re-render the whole accumulated text. md.js
+      // re-parses the full text each call, so unterminated constructs (open
+      // code fence, dangling **) render as their incomplete form and fix
+      // themselves once the closing token arrives — the current viewport stays
+      // complete while large files are never fully loaded into memory.
+      fvMdText += lines.join("\n") + (start + lines.length <= fvTotal ? "\n" : "");
+      fvNextLine = start + lines.length;
+      renderFileBody();
+      return;
+    }
+    // FEATURE-425: unknown-extension files are tried as text first; if the
+    // loaded chunk contains control characters it is a binary file, so switch
+    // to hex view (on-demand byte loading). Defer via setTimeout so the
+    // current loadFileChunk's finally (fvLoading=false) runs first.
+    if (!fvHexMode && hasControlChars(lines.join("\n"))) {
+      fvHexMode = true;
+      fvBody.textContent = "";
+      fvBody.classList.remove("md");
+      fvHexNext = 0;
+      fvHexWidth = fitHexWidth();
+      setTimeout(() => loadFileHex(path, 0, 4096), 0);
+      return;
+    }
+    for (let i = 0; i < lines.length; i++) {
+      const no = start + i;
+      fvBody.appendChild(renderFileLine(no, lines[i]));
+    }
+    fvNextLine = start + lines.length;
+  } catch (err) { console.error(T.fileViewerLoadFailed, err); }
+  finally { fvLoading = false; }
+}
+
+// isMdFile reports whether the current path is a markdown file.
+function isMdFile(path) {
+  return /\.(md|markdown)$/i.test(path || "");
+}
+
+// renderFileBody renders the accumulated md text as markdown (Raw off).
+function renderFileBody() {
+  fvBody.textContent = "";
+  fvBody.classList.add("md");
+  mdRender(fvBody, fvMdText);
+}
+
+// hasControlChars reports whether the text contains binary control characters
+// (NUL, BEL, etc.) that indicate a non-text file.
+function hasControlChars(text) {
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c < 0x09 || (c > 0x0d && c < 0x20)) return true;
+  }
+  return false;
+}
+
+// fitHexWidth picks the largest of 8/16/32/64/128 bytes-per-row whose full
+// row (offset gutter + hex bytes + ascii column) fits the current viewer width
+// (FEATURE-425). Monospace char width ~0.6em; font-size 12.5px => ~7.5px/char.
+function fitHexWidth() {
+  const cw = 7.5; // px per monospace char
+  const offsetW = 8 * cw; // 8-char offset gutter
+  const asciiW = 1.5 * 12 + 8 * cw; // ascii margin + 8-char ascii column
+  const avail = fvBody.clientWidth - offsetW - asciiW - 20; // padding
+  const widths = [8, 16, 32, 64, 128];
+  let best = 8;
+  for (const w of widths) {
+    // hex = w*3 chars ("xx "), ascii = w chars
+    if (w * 3 * cw + w * cw <= avail) best = w;
+  }
+  return best;
+}
+
+// loadFileHex fetches a byte range [start, end] as hex rows and appends them
+// to the body (on-demand loading for binary files).
+async function loadFileHex(path, start, end) {
+  if (fvLoading || fvPath !== path) return;
+  fvLoading = true;
+  try {
+    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&hex=1&start=" + start + "&end=" + end + "&width=" + fvHexWidth);
+    if (!resp.ok) { console.error(T.fileViewerLoadFailed); return; }
+    const body = await resp.json();
+    if (fvPath !== path) return; // switched away while loading
+    fvTotal = body.total || 0;
+    for (const row of (body.rows || [])) fvBody.appendChild(renderHexRow(row));
+    fvHexNext = end;
+  } catch (err) { console.error(T.fileViewerLoadFailed, err); }
+  finally { fvLoading = false; }
+}
+
+// renderHexRow builds one hex-dump row: offset | hex bytes | ascii.
+function renderHexRow(row) {
+  const el = document.createElement("div");
+  el.className = "fv-line fv-hex";
+  const off = document.createElement("span");
+  off.className = "fv-no";
+  off.textContent = row.offset.toString(16).padStart(8, "0");
+  const hex = document.createElement("span");
+  hex.className = "fv-code fv-hex-bytes";
+  hex.textContent = row.hex;
+  const ascii = document.createElement("span");
+  ascii.className = "fv-code fv-hex-ascii";
+  ascii.textContent = row.ascii;
+  el.appendChild(off);
+  el.appendChild(hex);
+  el.appendChild(ascii);
+  return el;
+}
+
+// renderFileLine builds one line row: a line-number gutter + highlighted code.
+// For md files in auto-render mode (Raw off), the whole body is re-rendered as
+// markdown instead of per-line rows (handled by renderFileBody).
+function renderFileLine(no, text) {
+  const row = document.createElement("div");
+  row.className = "fv-line";
+  row.dataset.no = no;
+  const noEl = document.createElement("span");
+  noEl.className = "fv-no";
+  noEl.textContent = no;
+  const code = document.createElement("span");
+  code.className = "fv-code";
+  code.appendChild(highlightCode(text));
+  row.appendChild(noEl);
+  row.appendChild(code);
+  if (fvDiff.has(no)) row.classList.add("fv-add");
+  return row;
+}
+
+// highlightCode tokenizes a line and returns a DocumentFragment with syntax
+// highlighting spans. It picks a rule set by the current file extension: JSON
+// gets property/brace highlighting, everything else uses the generic code
+// rules (Go keywords/types/strings/numbers/comments). Comments are a single
+// unified green across languages. Content is set via textContent (never
+// innerHTML) to avoid XSS.
+const GO_KEYWORDS = new Set(["break","case","chan","const","continue","default","defer","else","fallthrough","for","func","go","goto","if","import","interface","map","package","range","return","select","struct","switch","type","var"]);
+const GO_TYPES = new Set(["bool","byte","complex64","complex128","error","float32","float64","int","int8","int16","int32","int64","rune","string","uint","uint8","uint16","uint32","uint64","uintptr","any","comparable"]);
+const GO_TOKEN_RE = /(\/\/.*$)|(\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|`(?:[^`]|\\.)*`|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|(.)/g;
+// JSON: property key ("key":), string value, number, true/false/null, braces.
+const JSON_TOKEN_RE = /("[^"]*"\s*:)|("(?:\\.|[^"\\])*")|(\b\d+(?:\.\d+)?\b)|(\b(?:true|false|null)\b)|([{}\[\]])|(\s+)|(.)/g;
+
+function highlightCode(line) {
+  if (fvPath && /\.json$/i.test(fvPath)) return highlightJson(line);
+  return highlightGeneric(line);
+}
+
+function highlightGeneric(line) {
+  const frag = document.createDocumentFragment();
+  let m;
+  GO_TOKEN_RE.lastIndex = 0;
+  while ((m = GO_TOKEN_RE.exec(line)) !== null) {
+    if (m[1] !== undefined) { // line comment
+      frag.appendChild(span("tok-com", m[1]));
+    } else if (m[2] !== undefined) { // block comment
+      frag.appendChild(span("tok-com", m[2]));
+    } else if (m[3] !== undefined) { // string
+      frag.appendChild(span("tok-str", m[3]));
+    } else if (m[4] !== undefined) { // number
+      frag.appendChild(span("tok-num", m[4]));
+    } else if (m[5] !== undefined) { // identifier
+      const w = m[5];
+      if (GO_KEYWORDS.has(w)) frag.appendChild(span("tok-kw", w));
+      else if (GO_TYPES.has(w)) frag.appendChild(span("tok-type", w));
+      else frag.appendChild(span("tok-var", w));
+    } else if (m[6] !== undefined) { // whitespace
+      frag.appendChild(document.createTextNode(m[6]));
+    } else if (m[7] !== undefined) { // other char
+      frag.appendChild(document.createTextNode(m[7]));
+    }
+  }
+  return frag;
+}
+
+function highlightJson(line) {
+  const frag = document.createDocumentFragment();
+  let m;
+  JSON_TOKEN_RE.lastIndex = 0;
+  while ((m = JSON_TOKEN_RE.exec(line)) !== null) {
+    if (m[1] !== undefined) { // property key
+      frag.appendChild(span("tok-prop", m[1]));
+    } else if (m[2] !== undefined) { // string value
+      frag.appendChild(span("tok-str", m[2]));
+    } else if (m[3] !== undefined) { // number
+      frag.appendChild(span("tok-num", m[3]));
+    } else if (m[4] !== undefined) { // true/false/null
+      frag.appendChild(span("tok-kw", m[4]));
+    } else if (m[5] !== undefined) { // braces
+      frag.appendChild(span("tok-brace", m[5]));
+    } else if (m[6] !== undefined) { // whitespace
+      frag.appendChild(document.createTextNode(m[6]));
+    } else if (m[7] !== undefined) { // other char
+      frag.appendChild(document.createTextNode(m[7]));
+    }
+  }
+  return frag;
+}
+
+function span(cls, text) {
+  const s = document.createElement("span");
+  s.className = cls;
+  s.textContent = text;
+  return s;
+}
+
+// closeFileViewer hides the previewer and clears its state (FEATURE-425).
+function closeFileViewer() {
+  fileViewer.classList.add("hidden");
+  fvPath = null;
+  tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
+}
+
+// FEATURE-425: when the window resizes while a hex dump is open, re-fit the
+// bytes-per-row and reload from the start.
+window.addEventListener("resize", () => {
+  if (!fvHexMode || fvPath === null) return;
+  const w = fitHexWidth();
+  if (w === fvHexWidth) return;
+  fvHexWidth = w;
+  fvBody.textContent = "";
+  fvHexNext = 0;
+  loadFileHex(fvPath, 0, 4096);
+});
+
+// On-demand loading: when the user scrolls near the bottom and more content
+// remains, fetch the next chunk (UC-006). Hex mode loads byte ranges; text
+// mode loads line ranges.
+fvBody.addEventListener("scroll", () => {
+  if (fvPath === null || fvLoading) return;
+  const nearBottom = fvBody.scrollTop + fvBody.clientHeight >= fvBody.scrollHeight - 80;
+  if (fvHexMode) {
+    if (fvTotal > 0 && fvHexNext >= fvTotal) return; // all loaded
+    if (nearBottom) loadFileHex(fvPath, fvHexNext, fvHexNext + 4096);
+    return;
+  }
+  if (fvTotal > 0 && fvNextLine > fvTotal) return; // all loaded
+  if (nearBottom) loadFileChunk(fvPath, fvNextLine, fvNextLine + 200);
+});
 
 async function postPath(api, path) {
   try {
@@ -2540,6 +3002,7 @@ async function refreshBranch() {
     }
   } catch { /* defaults stay zh */ }
   applyI18n();
+  initStreamMode(); // FEATURE-425: wire the display-mode pill + session title
   autoGrow(); // FEATURE-405: set the initial input height correctly on load
   setRunning(false); // apply localized button title
   applyPanels();

@@ -209,45 +209,38 @@ aside {
   display: flex;
   align-items: center;
   gap: 0;
-  /* Small left padding keeps a 2px gap between the arrow and the file name
-     (the git-status letter is absolutely positioned against .tree, so it does
-     not consume flex space here). */
-  padding: 2px 6px 2px 2px;
+  /* The git-status letter is a flex child (12px) at the left, so no extra
+     left padding is needed. */
+  padding: 2px 6px 2px 0;
   border-radius: 5px;
   cursor: pointer;
   color: var(--fg-dim);
 }
 .tree-row:hover { background: var(--bg-elev); color: var(--fg); }
-/* The expand/collapse arrow is absolutely positioned so it does not push
-   the label right; each nesting level's indent is purely the ul padding
-   (1em = one monospace character). The git status letter (FEATURE-380) is a
-   direct child of the li, absolutely positioned against the .tree container
-   so it hugs the file list's left edge (not the file name). The .tree-row
-   gets a left padding to compensate, so the file name's horizontal position
-   is unaffected and no extra room is consumed. */
-.tree-node > .git-status {
-  position: absolute;
-  left: 2px;
+/* FEATURE-425: the git status letter is a flex child of the .tree-row, so
+   align-items:center puts it exactly on the file name's horizontal line. */
+.tree-row .git-status {
+  flex: none;
   width: 12px;
   font-size: 10px;
   font-weight: 700;
   text-align: center;
-  line-height: 14px;
+  line-height: 1;
+  /* Nudge up 1px so the letter sits optically centred on the file name. */
+  transform: translateY(-1px);
 }
-.tree-node > .git-status.st-m { color: #58a6ff; }
-.tree-node > .git-status.st-a,
-.tree-node > .git-status.st-u { color: #3fb950; }
-.tree-node > .git-status.st-d { color: #f85149; }
-.tree-node > .git-status.st-r { color: #bc8cff; }
+.tree-row .git-status.st-m { color: #58a6ff; }
+.tree-row .git-status.st-a,
+.tree-row .git-status.st-u { color: #3fb950; }
+.tree-row .git-status.st-d { color: #f85149; }
+.tree-row .git-status.st-r { color: #bc8cff; }
 .tree-row .tw {
-  position: absolute;
-  left: 0;
-  width: 12px;
   flex: none;
+  width: 12px;
   color: var(--fg-faint);
   font-size: 10px;
 }
-.tree-row .name { padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
+.tree-row .name { overflow: hidden; text-overflow: ellipsis; }
 .tree-row.dir > .name { color: var(--fg); }
 /* Right-aligned action group (FEATURE-383): directory change-count badge +
    reveal button. margin-left:auto pushes the whole group to the right edge,
@@ -388,7 +381,39 @@ aside {
 
 /* ---------- event stream ---------- */
 
-#stream-wrap { min-width: 0; min-height: 0; display: flex; position: relative; }
+#stream-wrap { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+/* FEATURE-425: main message area title bar. Height matches the workspace /
+   task-plan panel heads (35px) so the three align. Left: three-segment
+   display-mode pill; centre: editable session title. */
+.stream-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  height: 35px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+  background: var(--bg-panel);
+}
+/* FEATURE-425: the display-mode pill reuses the .mode-seg control (same as
+   the act/plan/research switcher) so the two look identical. It sits at the
+   right of the stream title bar (override .mode-seg's margin-right:auto). */
+.stream-mode { margin-right: 0; margin-left: auto; }
+.stream-title {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+.stream-title:focus { border-bottom: 1px solid var(--accent); }
+.stream-title::placeholder { color: var(--placeholder); }
 /* FEATURE-419: floating block-boundary navigation icons. Shown when the current
    block is taller than the viewport and its title line / bottom is out of view;
    clicking jumps to that boundary. Positioned relative to the main data area. */
@@ -1146,6 +1171,110 @@ aside {
 }
 .preview-box img { max-width: 78vw; max-height: 74vh; display: block; }
 .preview-close { position: absolute; top: 6px; right: 6px; }
+
+/* ---------- text file previewer (FEATURE-425) ---------- */
+
+/* The viewer is absolutely positioned inside #stream-wrap (the grid cell for
+   the main message area), so it covers the whole message area but never the
+   workspace tree, task plan or input row. inset:0 fills the entire stream
+   cell with no own border/radius — it borrows the surrounding borders — and
+   auto-scales with the window because it is sized relative to its positioned
+   parent. */
+.file-viewer {
+  position: absolute;
+  /* Start below the stream title bar (35px) so the previewer never covers it. */
+  top: 35px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* FEATURE-425: the highlighted dot before the session title in the main
+   message area title bar (same as the current-session dot in the session
+   list). */
+.stream-active {
+  color: var(--accent);
+  flex: none;
+  font-size: 10px;
+  line-height: 1;
+}
+.fv-body {
+  flex: 1;
+  overflow: auto;
+  font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  padding: 8px 0;
+  background: var(--mono-bg);
+}
+/* Each rendered line: a fixed-width line-number gutter + the code content. */
+.fv-line {
+  display: flex;
+  white-space: pre;
+  min-height: 1.6em;
+}
+.fv-line .fv-no {
+  flex: none;
+  width: 4.5em;
+  padding-right: 1em;
+  text-align: right;
+  color: var(--fg-faint);
+  user-select: none;
+  border-right: 1px solid var(--border);
+  margin-right: 1em;
+}
+.fv-line .fv-code { flex: 1; }
+/* git diff highlight (FEATURE-425): added lines green, deleted lines red. */
+.fv-line.fv-add { background: rgba(74, 222, 128, 0.12); }
+.fv-line.fv-add .fv-no { color: var(--ok); }
+.fv-line.fv-del { background: rgba(248, 113, 113, 0.12); }
+.fv-line.fv-del .fv-no { color: var(--err); }
+/* FEATURE-425: search match highlight. */
+.fv-line.fv-hit { background: rgba(250, 204, 21, 0.18); }
+/* FEATURE-425: md tables rendered in the file viewer get borders so the
+   table structure is visible. */
+.fv-body.md table { border-collapse: collapse; margin: 4px 0; }
+.fv-body.md th, .fv-body.md td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; }
+.fv-body.md th { background: var(--bg-elev); }
+.fv-body.md a { color: var(--accent); text-decoration: none; }
+.fv-body.md a:hover { text-decoration: underline; }
+
+/* FEATURE-425: hex dump rows for binary files. */
+.fv-line.fv-hex { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.fv-line.fv-hex .fv-no { width: 8em; }
+.fv-line.fv-hex .fv-hex-bytes { color: var(--fg); }
+.fv-line.fv-hex .fv-hex-ascii { color: var(--fg-dim); margin-left: 1.5em; }
+/* FEATURE-425: the currently previewed file in the workspace tree. */
+.tree-row.fv-selected { background: var(--accent-dim); }
+.tree-row.fv-selected .name { color: var(--accent); }
+
+/* Syntax highlighting (FEATURE-425), vscode-inspired palette. Comments are a
+   single unified green across languages (go/java/python). */
+.fv-code .tok-kw { color: #c586c0; }        /* keywords */
+.fv-code .tok-str { color: #ce9178; }        /* strings */
+.fv-code .tok-num { color: #b5cea8; }        /* numbers */
+.fv-code .tok-com { color: #6a9955; }        /* comments (unified green) */
+.fv-code .tok-fn { color: #dcdcaa; }         /* function/method names */
+.fv-code .tok-type { color: #4ec9b0; }       /* builtin types */
+.fv-code .tok-var { color: #9cdcfe; }        /* variables */
+.fv-code .tok-pkg { color: #dcdcaa; }        /* package names */
+.fv-code .tok-prop { color: #9cdcfe; }       /* json property keys */
+.fv-code .tok-brace { color: #d4d4d4; }      /* json {} [] braces */
+
+/* FEATURE-425: in light theme the pale tokens (variables, numbers) must be
+   darkened so they stay readable on the light background. */
+[data-theme="light"] .fv-code .tok-var { color: #0451a5; }
+[data-theme="light"] .fv-code .tok-num { color: #098658; }
+[data-theme="light"] .fv-code .tok-prop { color: #0451a5; }
+[data-theme="light"] .fv-code .tok-brace { color: #1d2433; }
+[data-theme="light"] .fv-code .tok-kw { color: #af00db; }
+[data-theme="light"] .fv-code .tok-str { color: #a31515; }
+[data-theme="light"] .fv-code .tok-com { color: #008000; }
+[data-theme="light"] .fv-code .tok-fn { color: #795e26; }
+[data-theme="light"] .fv-code .tok-type { color: #267f99; }
+[data-theme="light"] .fv-code .tok-pkg { color: #795e26; }
 
 /* ---------- dropdown menu (FEATURE-365) ---------- */
 
