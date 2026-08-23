@@ -279,6 +279,31 @@
   - 实施：① `web/server.go` 新增 `serveFileLines`（按行范围读取，bufio.Scanner 流式读不整载入内存，返回 `{total, lines}`）、`handleGitDiff`（`git diff -- <path>` 解析未提交修改行级数据）、`parseGitDiff`（解析 unified diff hunk，返回 add/del 行号）、`gitDiffLine` 结构，注册 `/api/gitdiff` 路由，`handleFile` 支持 start/end 参数；② `web/static/index.html` 在 `#stream-wrap` 内部新增 `#fileViewer` 文本查看器弹窗（绝对定位覆盖主消息区，不覆盖工作区/任务进展/录入框）；③ `web/static/app.js` 新增 `openFilePreview`（单击预览，单文件切换，重复点选无反应）、`loadFileChunk`（按行范围滚动加载）、`loadFileDiff`（git diff 高亮，只保留 add 状态）、`highlightCode`（Go 语法高亮正则分词）、`renderFileLine`（行号 + 高亮 + diff 着色），文件行单击预览、双击系统打开；④ `web/static/style.css` 新增 `.file-viewer`（inset:6px 绝对定位自动缩放）、`.fv-line`/`.fv-no`/`.fv-code`、`.fv-add`（绿）/`.fv-del`（红）、Go 语法高亮配色（tok-kw/tok-str/tok-num/tok-com/tok-fn/tok-type/tok-var/tok-pkg）；⑤ `web/filepreview_test.go` 新增按行读取 + git diff 解析单元测试 [BUILD-596]；⑥ 6 点改进：预览窗口完全覆盖主消息区（inset:0 无边框圆角，标题栏与工作区/任务进展栏同高度对齐）、标题栏增加文件内搜索框（fvSearch 高亮匹配行）、高亮工作区当前选择的文件（fv-selected）、md 文件增加 Raw 胶囊开关（默认关自动渲染 md）、JSON 属性/值/{}[] 两种颜色（tok-prop/tok-brace）+ java/python/go 注释统一绿色、浅色主题下变量名和数字改深色 [BUILD-597]；⑦ 3 点新改进：修复大 md 文件（如 ROADMAP.md）无法渲染（md 渲染改为按需加载 + 累积重渲染，md.js 每次重新解析累积文本保证当前视口完整）、Raw 模式持久化（localStorage 记住选择，打开下一个文件保持状态）、不认识后缀名的文件先按文本打开出现控制字符则按 HEX 显示（后端新增 `serveFileHex` 按字节范围读取返回 hex 行，前端 `loadFileHex`/`renderHexRow` 按需加载）[BUILD-598]；⑧ 3 点新改进：md 表格渲染后加边框（`.fv-body.md table` 边框样式）、工作区 git 修改状态字母与文件名水平对齐（`.git-status` line-height 调整为 19px）、HEX 方式根据窗口宽度自适应显示 8/16/32/64/128 字符一行（后端 `serveFileHex` 支持 width 参数，前端 `fitHexWidth` 计算 + resize 监听重新加载）[BUILD-599]；⑨ 2 点新改进：git 状态字母与文件名分毫不差对齐（git-status 从 li 绝对定位改为 tree-row flex 子元素，align-items:center 精确对齐，centerDiff=0）、文件预览标题行高度与工作区/任务进展栏一致（`.fv-head` 固定 height:36px + box-sizing:border-box，搜索框 height:22px 不撑高标题行）[BUILD-600]；⑩ 3 点新改进：文件预览标题栏再缩小 1 像素（`.fv-head` height 36→35px）、git 状态字位置再向上调 1 像素（`.git-status` transform:translateY(-1px)）、HEX 自适应宽度修正（`fitHexWidth` 准确计算每行总宽度=偏移+hex+ascii，以内容不超出显示区域且单行字节数最大的方式显示，960px→16字节/行、300px→8字节/行）[BUILD-601]；⑪ 4 点新改进：再次点选同一文件自动关闭预览（`openFilePreview` 检测 fvPath===node.path 时调用 `closeFileViewer`）、主消息区增加标题栏（`.stream-head` 高度 35px 与工作区/任务进展栏对齐，`.file-viewer` 从标题栏下方开始）、主消息区标题为当前会话标题可直接修改（后端新增 `session_rename` 消息 + `renameSession` 方法调用 `UpdateNamedSession`，前端 `streamTitle` 输入框 Enter/blur 提交）、三段模式选择胶囊（静默/极简/正常，`displayMode` localStorage 持久化，静默只显示用户指令/错误/结果块，极简块完成后自动收起只剩标题，正常与现在一样）[BUILD-602]；⑫ 2 点新改进：主消息区标题栏模式选择放到右侧并改用与 act/plan/research 切换一样的 `.mode-seg` 胶囊控件（带滑动高亮滑块，`.stream-mode` 设 `margin-left:auto` 靠右，`initStreamMode` 适配滑块移动）、会话标题靠左放置（`.stream-title` text-align:left），前端控件使用规范补充 `.mode-seg` 复用场景说明 [BUILD-603]；⑬ 2 点新改进：去掉文件预览的标题行（移除 `.fv-head` 及 fvTitle/fvSearch/fvRaw/fvClose 控件和相关 JS/CSS，md 文件始终自动渲染）、主消息区标题栏标题前加高亮的点（`.stream-active` ● 用 accent 色，同会话列表当前会话点图标）[BUILD-604]；合并到 main 并打版本标签 v0.14.0 [BUILD-605]
   - 测试：见 use-case/FEATURE-425/
 
+## v0.14.1 — 开发中
+
+> **版本**: v0.14.1
+
+> **状态**: 🚧 开发中（极简模式收起逻辑修复）
+> **里程碑**: 极简模式收起逻辑修复
+> **说明**: 0.14.1 系列专注极简模式收起逻辑修复，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-426 | 0.14.1 | P1 | 修复极简模式收起逻辑：当有块开始动态输出时收起其他未收起的块（用户块除外），用户块总是展开显示原始指令 |
+
+> 当前 BUILD: 605
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-426 极简模式收起逻辑修复**
+  - 背景：极简模式下，`unmarkStreaming` 在块停止流式输出时无条件收起该块（含用户块），且未考虑"当前最后一块"——当块 A 停止输出且无后续块时，块 A 被收起导致主消息区无展开块；用户块也被收起，用户看不到原始指令。
+  - 方案（已确认）：极简模式下，当有块开始动态输出内容时，把其他未收起的块收起（用户块除外）；用户块总是展开显示原始指令。
+  - 需求：修改 `web/static/app.js` 的 `unmarkStreaming`/`applyBlockDisplayMode`，极简模式下收起非用户块、非当前输出块，用户块（user-msg）始终展开。
+  - 实施：`web/static/app.js` ① `markStreaming` 极简模式下当有块开始流式输出时收起其他非用户块（用户块始终展开）；② `unmarkStreaming` 极简模式下仅当有其他块仍在流式输出时才收起当前块（最后一个块保持展开），用户块/结果块不收起；③ `applyBlockDisplayMode`/`applyDisplayMode` 极简模式下用户块始终展开 [BUILD-606]
+  - 测试：见 use-case/FIX-426/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
