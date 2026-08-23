@@ -40,8 +40,8 @@ type RenderOp struct {
 // explicit field so the frontend can colour it directly without re-parsing
 // text markers.
 type ToolDiffLine struct {
-	Line   string // rendered line text (with line-number prefix)
-	Status string // "add" | "del" | "ctx"
+	Line   string `json:"line"`   // rendered line text (with line-number prefix)
+	Status string `json:"status"` // "add" | "del" | "ctx"
 }
 
 // ToolCallRenderer renders a stream of RenderOp into user-facing incremental
