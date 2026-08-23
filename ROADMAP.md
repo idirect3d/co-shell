@@ -216,7 +216,7 @@
 |------|------|------|------|
 | FEATURE-423 | 0.12.1 | P1 | Web UI 主消息区自动分割后自动融合：自动分割后，当滚动条下滚（页面上滚）B 区已显示到底、且 A 区高度未达最高限（上下内容刚好接上）时，触发自动融合（相当于自动点浮动融合按钮） |
 
-> 当前 BUILD: 578
+> 当前 BUILD: 580
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -224,9 +224,9 @@
 
 - [ ] **FEATURE-423 Web UI 主消息区自动分割后自动融合**
   - 背景：FEATURE-416 实现了主消息区自动分割（用户上滚时 B 区静态、A 区动态）。当前分割后需手动点击浮动融合按钮才能合并。希望当用户下滚到 B 区底部、且 A 区内容未填满（上下内容刚好接上）时，自动触发融合，减少手动操作。
-  - 方案（已确认）：在 `streamB` 的 scroll 事件中，当 `splitActive` 为 true 时，检测 B 区是否滚动到底部（`scrollTop + clientHeight >= scrollHeight - 4`），且 A 区内容未填满（`streamA.scrollHeight < streamA.clientHeight`，即 A 区无滚动条、内容刚好接上），满足则自动调用 `mergeStream()`。
+  - 方案（已确认）：在 `streamB` 的 scroll 事件中，当 `splitActive` 为 true 时，检测 B 区是否滚动到底部（`scrollTop + clientHeight >= scrollHeight - 4`），满足则自动调用 `mergeStream()`。只判断上半区（B 区）是否到底，不关心下半区（A 区）状态，以保证实际效果可靠且一致。
   - 需求：修改 `web/static/app.js` `streamB` scroll 事件处理，增加自动融合逻辑。
-  - 实施：`web/static/app.js` `streamB` scroll 事件在 `splitActive` 时检测 B 区到底（`scrollTop + clientHeight >= scrollHeight - 4`）+ A 区未填满（`streamA.scrollHeight < streamA.clientHeight`），满足则自动调用 `mergeStream()` [BUILD-578]；状态栏 token 单次用量统计图标从循环符号 `🔄` 改为计时器符号 `⏱️`（`sbLast`，zh/en 两处）[BUILD-579]
+  - 实施：`web/static/app.js` `streamB` scroll 事件在 `splitActive` 时检测 B 区到底（`scrollTop + clientHeight >= scrollHeight - 4`），满足则自动调用 `mergeStream()` [BUILD-578]；状态栏 token 单次用量统计图标从循环符号 `🔄` 改为计时器符号 `⏱️`（`sbLast`，zh/en 两处）[BUILD-579]；自动融合机制简化为只判断 B 区到底（去掉 A 区未填满条件），保证效果可靠一致 [BUILD-580]
   - 测试：见 use-case/FEATURE-423/
 
 ## v0.9.1 — 开发中（已完成）
