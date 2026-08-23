@@ -70,6 +70,10 @@ type WebSession struct {
 	// (FEATURE-409).
 	session *cmd.SessionHandler
 
+	// mode handles the work-mode switcher (FEATURE-410): mode_get returns
+	// the current mode + all available modes, mode_switch switches mode.
+	mode *cmd.ModeHandler
+
 	// msgIndex is the current message index, incremented on each user input.
 	// It is attached to stream events so the frontend can map a block back to
 	// the message index for the retry-from action (FEATURE-409).
@@ -91,6 +95,7 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		ag:       deps.Ag,
 		settings: deps.SettingsHandler,
 		session:  cmd.NewSessionHandler(deps.Ag, deps.Cfg),
+		mode:     cmd.NewModeHandler(deps.Cfg, deps.Ag),
 		inputCh:  make(chan clientMessage),
 		closed:   make(chan struct{}),
 	}
@@ -152,6 +157,10 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleIdentityGet()
 	case "identity_set":
 		s.handleIdentitySet(msg.Key, msg.Value)
+	case "mode_get":
+		s.handleModeGet()
+	case "mode_switch":
+		s.handleModeSwitch(msg.Value)
 	}
 }
 
@@ -208,6 +217,39 @@ func (s *WebSession) handleIdentitySet(key, value string) {
 		return
 	}
 	s.srv.sendJSON(serverMessage{Kind: "identity_result", OK: true, Message: key})
+}
+
+// handleModeGet sends the current work mode and all available modes to the
+// browser for the mode switcher (FEATURE-410).
+func (s *WebSession) handleModeGet() {
+	if s.mode == nil {
+		return
+	}
+	current := s.mode.CurrentMode()
+	modes := s.mode.ListModes()
+	infos := make([]modeInfo, 0, len(modes))
+	for _, m := range modes {
+		infos = append(infos, modeInfo{
+			Name:        m.Name,
+			Description: m.Description,
+			Current:     m.Name == current,
+		})
+	}
+	s.srv.sendJSON(serverMessage{Kind: "mode", Modes: infos})
+}
+
+// handleModeSwitch switches the active work mode and reports the result to
+// the browser (FEATURE-410).
+func (s *WebSession) handleModeSwitch(name string) {
+	if s.mode == nil || name == "" {
+		return
+	}
+	result, err := s.mode.Handle([]string{"switch", name})
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "mode_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "mode_result", OK: true, Message: result})
 }
 
 // pushSessionList sends the current session list to the browser (FEATURE-387).

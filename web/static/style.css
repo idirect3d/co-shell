@@ -892,6 +892,49 @@ aside {
 .btn.ghost { background: none; }
 .btn.sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 
+/* ---------- work-mode switcher (FEATURE-410) ---------- */
+
+/* Horizontal segmented control: a long capsule split into N segments, one
+   per work mode. The selected segment is highlighted by a slider that
+   glides to it. Sits at the left of the status bar. */
+.mode-seg {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elev);
+  flex: none;
+  align-self: center;
+  margin-right: auto; /* push to the left of the status bar */
+}
+.mode-seg-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  height: calc(100% - 4px);
+  border-radius: 999px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  transition: transform 0.25s ease, width 0.25s ease;
+  z-index: 0;
+}
+.mode-seg-item {
+  position: relative;
+  z-index: 1;
+  border: none;
+  background: none;
+  color: var(--fg-dim);
+  padding: 2px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+.mode-seg-item:hover { color: var(--accent); }
+.mode-seg-item.active { color: var(--accent); }
+
 /* ---------- status bar (FEATURE-378) ---------- */
 
 /* The status bar sits at the very bottom of the window, below the input

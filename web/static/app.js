@@ -34,6 +34,7 @@ const I18N = {
     numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
+    switchMode: "切换工作模式",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -58,6 +59,7 @@ const I18N = {
     numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
+    switchMode: "Switch work mode",
   },
 };
 let T = I18N.zh;
@@ -139,6 +141,8 @@ const askSend = document.getElementById("askSend");
 const askInteraction = document.getElementById("askInteraction");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
+const modeSeg = document.getElementById("modeSeg");
+const modeSegSlider = document.getElementById("modeSegSlider");
 const tree = document.getElementById("tree");
 const sidebar = document.getElementById("sidebar");
 const menuBtn = document.getElementById("menuBtn");
@@ -189,6 +193,7 @@ function wsConnect() {
     wsReady = true;
     conn.classList.add("on");
     connText.textContent = T.connected;
+    wsSend({ type: "mode_get" }); // FEATURE-410: load the work-mode list
     // Fetch the session list on connect so the 💬 count is correct immediately
     // (FEATURE-387), not only after hovering the status-bar item.
     wsSend({ type: "session_list" });
@@ -213,6 +218,8 @@ function wsConnect() {
     else if (msg.kind === "settings_result") showSettingsResult(msg);
     else if (msg.kind === "identity") renderIdentity(msg.identity || []);
     else if (msg.kind === "identity_result") showIdentityResult(msg);
+    else if (msg.kind === "mode") renderModeSeg(msg.modes || []);
+    else if (msg.kind === "mode_result") showModeResult(msg);
     else if (msg.kind === "pop_result") {
       // FEATURE-409: retry-from popped the session back; reload so the stream
       // reflects the truncated history.
@@ -1262,6 +1269,53 @@ function setRunning(v) {
 }
 
 sendBtn.onclick = () => { if (running) wsSend({ type: "interrupt" }); else sendInput(); };
+
+/* ---------- work-mode switcher (FEATURE-410) ---------- */
+
+// currentMode is the active work mode name (e.g. "act").
+let currentMode = "act";
+
+// renderModeSeg renders the horizontal segmented control from the mode list
+// pushed by the backend (kind=mode). Each mode is one segment; the selected
+// segment is highlighted and the highlight slider glides to it.
+function renderModeSeg(modes) {
+  if (!modes || modes.length === 0) return;
+  const cur = modes.find((m) => m.current);
+  if (cur) currentMode = cur.name;
+  modeSeg.querySelectorAll(".mode-seg-item").forEach((el) => el.remove());
+  let idx = 0;
+  modes.forEach((m, i) => {
+    const seg = document.createElement("button");
+    seg.className = "mode-seg-item" + (m.current ? " active" : "");
+    seg.textContent = m.name;
+    seg.title = m.description || m.name;
+    seg.onclick = () => {
+      if (m.current) return;
+      wsSend({ type: "mode_switch", value: m.name });
+    };
+    modeSeg.appendChild(seg);
+    if (m.current) idx = i;
+  });
+  moveModeSlider(idx);
+}
+
+// moveModeSlider glides the highlight slider to the segment at the given index.
+function moveModeSlider(idx) {
+  const items = modeSeg.querySelectorAll(".mode-seg-item");
+  if (!items.length) return;
+  const seg = items[idx];
+  if (!seg) return;
+  modeSegSlider.style.width = seg.offsetWidth + "px";
+  modeSegSlider.style.transform = "translateX(" + seg.offsetLeft + "px)";
+}
+
+// showModeResult reports the outcome of a mode switch (kind=mode_result).
+function showModeResult(msg) {
+  if (msg.ok) {
+    // Re-fetch the mode list so the segments and highlight stay in sync.
+    wsSend({ type: "mode_get" });
+  }
+}
 
 // recallHistory swaps the textarea content with the history entry at
 // histPos (or the saved draft when histPos points past the newest entry)

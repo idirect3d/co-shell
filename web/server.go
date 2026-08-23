@@ -90,6 +90,15 @@ type serverMessage struct {
 	Identity    json.RawMessage `json:"identity,omitempty"` // kind=identity: the identity fields
 	OK          bool            `json:"ok,omitempty"`    // kind=settings_result: success flag
 	Message     string          `json:"message,omitempty"` // kind=settings_result: result message
+	Modes       []modeInfo      `json:"modes,omitempty"` // kind=mode: the work mode list
+}
+
+// modeInfo is one work mode entry pushed to the browser for the mode
+// switcher (FEATURE-410).
+type modeInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Current     bool   `json:"current"`
 }
 
 // sessionInfo is one entry in the session list pushed to the browser.
