@@ -62,3 +62,36 @@ func TestToolCallStream_ReplaceIntent(t *testing.T) {
 		t.Errorf("replace_in_file intent not rendered, got: %q", text)
 	}
 }
+
+// TestToolCallStream_GenericIntent verifies a generic tool (read_file-style,
+// no special content block) renders its intent uniformly as "(<intent>)"
+// (FEATURE-424), not as a separate "intent:" param line.
+func TestToolCallStream_GenericIntent(t *testing.T) {
+	p := NewXMLToolCallParser(toolcallTestTools())
+	r := NewToolCallRenderer(true, true)
+
+	chunks := []string{
+		"<cs:update_setting>",
+		"<cs:key>theme</cs:key>",
+		"<cs:intent>change theme</cs:intent>",
+		"<cs:value>dark</cs:value>",
+		"</cs:update_setting>",
+	}
+	var all []RenderOp
+	for _, c := range chunks {
+		ops, err := p.Feed(c)
+		if err != nil {
+			t.Fatalf("Feed(%q) unexpected error: %v", c, err)
+		}
+		all = append(all, ops...)
+	}
+
+	text := collectRenderText(r, all)
+	t.Logf("generic render: %q", text)
+	if !strings.Contains(text, "(change theme)") {
+		t.Errorf("generic tool intent not rendered as (<intent>), got: %q", text)
+	}
+	if strings.Contains(text, "intent:") {
+		t.Errorf("generic tool intent should not render as 'intent:' param, got: %q", text)
+	}
+}
