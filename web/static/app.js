@@ -131,6 +131,9 @@ const connText = document.getElementById("connText");
 const stream = document.getElementById("stream");
 const streamB = document.getElementById("streamB");
 const streamA = document.getElementById("streamA");
+// FEATURE-419: floating block-boundary navigation icons (top/bottom).
+const blockNavTop = document.getElementById("blockNavTop");
+const blockNavBottom = document.getElementById("blockNavBottom");
 const planPanel = document.getElementById("plan-panel");
 const planBody = document.getElementById("planBody");
 const layout = document.getElementById("layout");
@@ -309,6 +312,60 @@ function scrollStream() {
   else streamB.scrollTop = streamB.scrollHeight;
 }
 
+// FEATURE-419: floating block-boundary navigation. When the current block is
+// taller than the viewport and its title line / bottom is out of view, show a
+// floating ↑ / ↓ icon at the top / bottom of the main data area so the user can
+// jump to that boundary. The "current block" is the .ev block with the largest
+// visible area inside the viewport.
+let blockNavCurrent = null; // the .ev box the icons currently target
+
+function updateBlockNav() {
+  if (!blockNavTop || !blockNavBottom) return;
+  const scroller = splitActive ? streamA : streamB;
+  const viewTop = scroller.scrollTop;
+  const viewBottom = viewTop + scroller.clientHeight;
+  // Find the .ev block with the largest visible area in the viewport.
+  let best = null, bestArea = 0;
+  for (const box of scroller.querySelectorAll(".ev")) {
+    const top = box.offsetTop;
+    const bottom = top + box.offsetHeight;
+    const interTop = Math.max(top, viewTop);
+    const interBottom = Math.min(bottom, viewBottom);
+    if (interBottom > interTop) {
+      const area = interBottom - interTop;
+      if (area > bestArea) { bestArea = area; best = box; }
+    }
+  }
+  blockNavCurrent = best;
+  if (!best) {
+    blockNavTop.classList.remove("on");
+    blockNavBottom.classList.remove("on");
+    return;
+  }
+  const tallerThanView = best.offsetHeight > scroller.clientHeight;
+  const titleHidden = best.offsetTop < viewTop; // title line scrolled above
+  const bottomHidden = best.offsetTop + best.offsetHeight > viewBottom; // bottom below
+  blockNavTop.classList.toggle("on", tallerThanView && titleHidden);
+  blockNavBottom.classList.toggle("on", tallerThanView && bottomHidden);
+}
+
+// Clicking ↑ jumps to the current block's title line; ↓ jumps to its bottom.
+function bindBlockNav() {
+  if (!blockNavTop || !blockNavBottom) return;
+  blockNavTop.addEventListener("click", () => {
+    if (!blockNavCurrent) return;
+    const scroller = splitActive ? streamA : streamB;
+    scroller.scrollTop = blockNavCurrent.offsetTop;
+  });
+  blockNavBottom.addEventListener("click", () => {
+    if (!blockNavCurrent) return;
+    const scroller = splitActive ? streamA : streamB;
+    scroller.scrollTop = blockNavCurrent.offsetTop + blockNavCurrent.offsetHeight - scroller.clientHeight;
+  });
+  streamB.addEventListener("scroll", updateBlockNav);
+  streamA.addEventListener("scroll", updateBlockNav);
+}
+
 // splitStream splits the stream into a static region B (history) and a dynamic
 // region A (new output). It moves the currently-streaming block(s) into A so
 // the user can keep reading B without it jumping to the newest line.
@@ -338,6 +395,7 @@ function splitStream() {
     stream.insertBefore(mergeBtn, streamA);
   }
   scrollStream();
+  updateBlockNav();
 }
 
 // mergeStream merges region A back into region B, restoring a single stream.
@@ -349,6 +407,7 @@ function mergeStream() {
   streamA.classList.add("hidden");
   if (mergeBtn) { mergeBtn.remove(); mergeBtn = null; }
   streamB.scrollTop = streamB.scrollHeight;
+  updateBlockNav();
 }
 
 let mergeBtn = null; // the floating "merge down" button between B and A
@@ -1446,6 +1505,9 @@ streamB.addEventListener("scroll", () => {
   const atBottom = streamB.scrollTop + streamB.clientHeight >= streamB.scrollHeight - 4;
   if (!atBottom) splitStream();
 });
+
+// FEATURE-419: bind the floating block-boundary navigation icons.
+bindBlockNav();
 
 /* ---------- work-mode switcher (FEATURE-410) ---------- */
 
