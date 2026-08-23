@@ -168,6 +168,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-419 | 0.12.0 | P1 | Web UI 三项优化：会话列表展开时默认滚动到当前会话、工作区状态每次迭代（显示块完成后去掉"..."时）刷新、快捷键收集阶段没收全部按键（不再漏给录入框） |
+| FIX-420 | 0.12.0 | P1 | 修复问题判定模型（problem solver）调用失败：thinking 模型（deepseek-v4-flash）在 thinking 模式下不支持 tool_choice，SetThinkingEnabled(false) 无效（Chat 不读取该字段），需通过 thinking adapter 注入 disabled 参数 |
 
 > 当前 BUILD: 552
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -182,6 +183,11 @@
   - 实施：`web/static/app.js` ① `renderSessionMenu` 渲染后 `scrollIntoView` 滚动到当前会话项；② `token_iter`/`token_task` 分支（去掉"..."处）增加 `refreshBranch()` + `loadTree()`；③ `__vkHandler` 与 input keydown 在 interaction pending 且非 supplement 模式时对所有按键 `preventDefault()` 没收 [BUILD-553]；④ token 统计信息追加到当前迭代最后一个块底部（含迭代序号、时间、千分位，新增 `iterCount`/`fmtTime`）；⑤ `renderUserEcho` 用 `requestAnimationFrame(scrollStream)` 确保滚动到底部，避免输入回车误触发自动分区 [BUILD-554]；⑥ token 统计信息改为追加到本次迭代产生的每个块（LLM/THINK/TOOL/REPL）底部，新增 `iterBlocks` 列表追踪本次迭代所有块，`token_iter` 遍历列表把 token 行追加到每个块底部（而非仅最后一个块）[BUILD-556]；⑦ token 行改为放到消息块外面（`.ev` box 之后作为兄弟节点，`b.parentElement.after(line)`），而非块内部 [BUILD-557]；⑧ token_task（任务汇总）改为追加到任务最后一个信息块后面（新增 `lastBlock` 追踪任务最后一个块），格式改为 `Σtotal (↑prompt ↓completion)` [BUILD-558]；⑨ token_task 汇总行改为追加到 stream 容器末尾（`lastBlock.parentElement.parentElement.appendChild`），确保顺序为 块→迭代token行→汇总行（先迭代再汇总）[BUILD-559]；⑩ token_iter 迭代序号改用 context 消息序号（`msgIndex`，后端附加），而非前端自增 `iterCount`（`msgIndex` 不存在时回退 `iterCount`）[BUILD-560]；⑪ token_iter 迭代序号改用 `:context` 命令的消息序号（`messages` 数组索引），后端新增 `emitTokenIter` 辅助方法在事件中附加 `ctx_index`（`len(a.messages)-1`），前端使用 `ctx_index` 作为序号 [BUILD-561]；⑫ 块边界悬浮导航图标：当一个块高度大于屏幕高度时，块标题行不可见则在主数据区顶部显示悬浮向上图标（点击直达块标题行），块底部不可见则在主数据区底部显示悬浮向下图标（点击直达块底部），新增 `updateBlockNav`/`bindBlockNav` 监听 `streamB`/`streamA` 滚动确定当前块 [BUILD-562]；合并 [BUILD-563]
   - 测试：见 use-case/FEATURE-419/
 
+- [ ] **FIX-420 修复问题判定模型（problem solver）调用失败**
+  - 背景：日志显示 `judgeLoop: problem solver call failed: Thinking mode does not support this tool_choice`。问题判定模型 `deepseek-v4-flash` 是 thinking 模型（默认开启思考），DeepSeek API 在 thinking 模式下不支持 `tool_choice` 参数。`callProblemSolver` 中 `SetThinkingEnabled(false)` 无效（`Chat` 方法不读取 `thinkingEnabled` 字段），且 `SetBodyAdditions` 只注入了 `tool_choice`，未注入 `{"thinking":{"type":"disabled"}}`，导致请求体同时带 thinking 和 tool_choice → 400 错误 → judgeLoop 返回 nil → 回退到直接循环反馈。
+  - 方案（已确认）：`agent/problem_solver.go` `callProblemSolver` 移除无效的 `SetThinkingEnabled(false)`，改用 `llm.GetThinkingAdapter(modelCfg.Provider)` + `BuildAdditions(ThinkingModeDisabled)` 生成 thinking disabled 参数，与 `tool_choice` 合并到同一个 `SetBodyAdditions`。
+  - 实施：`agent/problem_solver.go` `callProblemSolver` 用 thinking adapter 注入 `{"thinking":{"type":"disabled"}}` 与 `tool_choice` 合并 [BUILD-555]
+  - 测试：见 use-case/FIX-420/
 ---
 
 ## v0.9.1 — 开发中（已完成）
