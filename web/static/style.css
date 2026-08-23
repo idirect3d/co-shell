@@ -1254,6 +1254,11 @@ aside {
 .fv-line.fv-del .fv-no { color: var(--err); }
 /* FEATURE-425: search match highlight. */
 .fv-line.fv-hit { background: rgba(250, 204, 21, 0.18); }
+/* FEATURE-425: hex dump rows for binary files. */
+.fv-line.fv-hex { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.fv-line.fv-hex .fv-no { width: 8em; }
+.fv-line.fv-hex .fv-hex-bytes { color: var(--fg); }
+.fv-line.fv-hex .fv-hex-ascii { color: var(--fg-dim); margin-left: 1.5em; }
 /* FEATURE-425: the currently previewed file in the workspace tree. */
 .tree-row.fv-selected { background: var(--accent-dim); }
 .tree-row.fv-selected .name { color: var(--accent); }

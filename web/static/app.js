@@ -1896,17 +1896,24 @@ let fvLoading = false;
 let fvDiff = new Map(); // lineNo -> "add" | "del"
 let fvRawMode = false; // md Raw toggle (off = auto-render md)
 let fvMdText = ""; // accumulated md content for auto-render
+let fvHexMode = false; // binary file shown as hex dump
+let fvHexNext = 0; // next byte offset to load in hex mode
+// FEATURE-425: persist the user's Raw choice across files (localStorage).
+let fvRawPref = localStorage.getItem("co-shell-fv-raw") === "1";
 
-// openFilePreview opens a text file in the in-page viewer. Clicking a new file
+// openFilePreview opens a file in the in-page viewer. Clicking a new file
 // immediately discards the current one (UC-003); clicking the current file is
-// a no-op (UC-004). Non-text files fall back to the system open.
+// a no-op (UC-004). Known text extensions preview directly; unknown extensions
+// are also attempted as text and fall back to HEX view if control characters
+// are found. Image files keep the system open.
 function openFilePreview(node) {
-  if (!TEXT_EXT.test(node.name)) return;
+  if (IMAGE_EXT.test(node.name)) return;
   if (fvPath === node.path) return; // already showing this file
   fvPath = node.path;
   fvNextLine = 1;
   fvTotal = 0;
   fvDiff = new Map();
+  fvHexMode = false;
   fvTitle.textContent = node.path;
   fvBody.textContent = "";
   fvSearch.value = "";
@@ -1914,14 +1921,17 @@ function openFilePreview(node) {
   // FEATURE-425: md files get a Raw pill (default off = auto-render md).
   const isMd = /\.(md|markdown)$/i.test(node.name);
   fvRaw.classList.toggle("hidden", !isMd);
-  fvRaw.classList.remove("on");
-  fvRawMode = false;
+  fvRawMode = fvRawPref; // persist the user's Raw choice across files
+  fvRaw.classList.toggle("on", fvRawMode);
   fvMdText = "";
   fvBody.classList.remove("md");
   fileViewer.classList.remove("hidden");
   // FEATURE-425: highlight the currently selected file in the workspace tree.
   highlightTreeFile(node.path);
   loadFileDiff(node.path);
+  // md files in auto-render mode still load on demand (200-line chunks); each
+  // chunk is accumulated and the whole accumulated text re-rendered, so the
+  // current viewport stays complete while large files are never fully loaded.
   loadFileChunk(node.path, 1, 200);
 }
 
@@ -1974,10 +1984,26 @@ async function loadFileChunk(path, start, end) {
     const lines = body.lines || [];
     const isMdAuto = isMdFile(path) && !fvRawMode;
     if (isMdAuto) {
-      // Accumulate the whole file then render as markdown.
-      fvMdText += lines.join("\n") + (fvNextLine + lines.length <= fvTotal ? "\n" : "");
+      // Accumulate the chunk and re-render the whole accumulated text. md.js
+      // re-parses the full text each call, so unterminated constructs (open
+      // code fence, dangling **) render as their incomplete form and fix
+      // themselves once the closing token arrives — the current viewport stays
+      // complete while large files are never fully loaded into memory.
+      fvMdText += lines.join("\n") + (start + lines.length <= fvTotal ? "\n" : "");
       fvNextLine = start + lines.length;
-      if (fvNextLine > fvTotal) renderFileBody();
+      renderFileBody();
+      return;
+    }
+    // FEATURE-425: unknown-extension files are tried as text first; if the
+    // loaded chunk contains control characters it is a binary file, so switch
+    // to hex view (on-demand byte loading). Defer via setTimeout so the
+    // current loadFileChunk's finally (fvLoading=false) runs first.
+    if (!fvHexMode && hasControlChars(lines.join("\n"))) {
+      fvHexMode = true;
+      fvBody.textContent = "";
+      fvBody.classList.remove("md");
+      fvHexNext = 0;
+      setTimeout(() => loadFileHex(path, 0, 4096), 0);
       return;
     }
     for (let i = 0; i < lines.length; i++) {
@@ -1999,6 +2025,52 @@ function renderFileBody() {
   fvBody.textContent = "";
   fvBody.classList.add("md");
   mdRender(fvBody, fvMdText);
+}
+
+// hasControlChars reports whether the text contains binary control characters
+// (NUL, BEL, etc.) that indicate a non-text file.
+function hasControlChars(text) {
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c < 0x09 || (c > 0x0d && c < 0x20)) return true;
+  }
+  return false;
+}
+
+// loadFileHex fetches a byte range [start, end] as hex rows and appends them
+// to the body (on-demand loading for binary files).
+async function loadFileHex(path, start, end) {
+  if (fvLoading || fvPath !== path) return;
+  fvLoading = true;
+  try {
+    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&hex=1&start=" + start + "&end=" + end);
+    if (!resp.ok) { console.error(T.fileViewerLoadFailed); return; }
+    const body = await resp.json();
+    if (fvPath !== path) return; // switched away while loading
+    fvTotal = body.total || 0;
+    for (const row of (body.rows || [])) fvBody.appendChild(renderHexRow(row));
+    fvHexNext = end;
+  } catch (err) { console.error(T.fileViewerLoadFailed, err); }
+  finally { fvLoading = false; }
+}
+
+// renderHexRow builds one hex-dump row: offset | hex bytes | ascii.
+function renderHexRow(row) {
+  const el = document.createElement("div");
+  el.className = "fv-line fv-hex";
+  const off = document.createElement("span");
+  off.className = "fv-no";
+  off.textContent = row.offset.toString(16).padStart(8, "0");
+  const hex = document.createElement("span");
+  hex.className = "fv-code fv-hex-bytes";
+  hex.textContent = row.hex;
+  const ascii = document.createElement("span");
+  ascii.className = "fv-code fv-hex-ascii";
+  ascii.textContent = row.ascii;
+  el.appendChild(off);
+  el.appendChild(hex);
+  el.appendChild(ascii);
+  return el;
 }
 
 // renderFileLine builds one line row: a line-number gutter + highlighted code.
@@ -2102,10 +2174,13 @@ fvClose.onclick = () => {
   tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
 };
 
-// FEATURE-425: Raw pill toggles md auto-render (off) vs raw text (on).
+// FEATURE-425: Raw pill toggles md auto-render (off) vs raw text (on). The
+// choice is persisted so the next file keeps the same state.
 fvRaw.onclick = () => {
   if (!fvPath || !isMdFile(fvPath)) return;
   fvRawMode = !fvRawMode;
+  fvRawPref = fvRawMode;
+  localStorage.setItem("co-shell-fv-raw", fvRawMode ? "1" : "0");
   fvRaw.classList.toggle("on", fvRawMode);
   // Re-render: raw mode shows per-line rows, auto mode renders markdown.
   fvBody.textContent = "";
@@ -2125,12 +2200,18 @@ fvSearch.addEventListener("input", () => {
   });
 });
 
-// On-demand loading: when the user scrolls near the bottom and more lines
-// remain, fetch the next chunk (UC-006).
+// On-demand loading: when the user scrolls near the bottom and more content
+// remains, fetch the next chunk (UC-006). Hex mode loads byte ranges; text
+// mode loads line ranges.
 fvBody.addEventListener("scroll", () => {
   if (fvPath === null || fvLoading) return;
-  if (fvTotal > 0 && fvNextLine > fvTotal) return; // all loaded
   const nearBottom = fvBody.scrollTop + fvBody.clientHeight >= fvBody.scrollHeight - 80;
+  if (fvHexMode) {
+    if (fvTotal > 0 && fvHexNext >= fvTotal) return; // all loaded
+    if (nearBottom) loadFileHex(fvPath, fvHexNext, fvHexNext + 4096);
+    return;
+  }
+  if (fvTotal > 0 && fvNextLine > fvTotal) return; // all loaded
   if (nearBottom) loadFileChunk(fvPath, fvNextLine, fvNextLine + 200);
 });
 
