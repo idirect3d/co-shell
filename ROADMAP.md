@@ -17,6 +17,7 @@
 | FEATURE-409 | 0.10.0 | P1 | Web UI 四项优化：新建会话+号按钮边框默认透明、定位到文件夹图标放大一倍、工作区刷新图标缩小1/3且中文提示为"刷新"、TOOL块子块动态累积数据自动滚动到最后一行 |
 | FEATURE-410 | 0.10.0 | P1 | Web UI 增加模式切换按钮：在运行/在听按钮左边增加相同样式的模式切换按钮，显示当前模式名，悬停向上弹出其他模式供选择 |
 | FIX-411 | 0.10.0 | P1 | 修复 Web UI REPL 输出块不新建：新 REPL 命令输出仍追加到前一个 REPL 块，导致多个用户消息堆叠、输出在最前面 |
+| FEATURE-412 | 0.10.0 | P1 | Web UI TOOL 块输入参数子块增加"原始内容"小胶囊开关：在收起展开图标左边，控制是否进行 md 内容解析和渲染，默认关闭 |
 
 > 当前 BUILD: 529
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -42,6 +43,13 @@
   - 方案（已确认）：在 `renderUserEcho` 开头重置 `curREPL = null`，使每次用户输入（新命令/确认/选择）开启新的 REPL 输出块。
   - 实施：`web/static/app.js` `renderUserEcho` 重置 `curREPL` [BUILD-535]；合并 [BUILD-536]
   - 测试：见 use-case/FIX-411/
+
+- [x] **FEATURE-412 Web UI TOOL 块输入参数子块增加"原始内容"小胶囊开关** ✅ 已完成
+  - 背景：TOOL 块输入参数子块（FEATURE-400）当前始终进行 md 内容解析和渲染（FEATURE-409），但部分参数内容（如 JSON、XML 等结构化数据）经 md 渲染后可能丢失原始格式，用户希望可切换查看原始内容。
+  - 方案（已确认）：在输入参数子块标题栏、收起展开图标的左边，增加一个名为"原始内容"的小胶囊开关，控制是否进行 md 内容解析和渲染，默认关闭（即默认显示原始内容，不做 md 渲染）。
+  - 需求：`web/static/app.js` 的 `ensureToolParams` 在标题栏收起展开图标左边增加"原始内容"小胶囊开关（默认关闭）；开关关闭时参数子块以原始文本（textContent）显示，开关打开时以 md 渲染（mdRender）。`web/static/style.css` 新增小胶囊开关样式。
+  - 实施：`web/static/app.js` `ensureToolParams` 标题栏增加"原始内容"小胶囊开关（默认关闭，rawMode=true）+ 新增 `renderParams` 按开关状态渲染（rawMode 时 textContent 显示原始文本，否则 mdRender）；`tool_call_stream` 改用 `renderParams`；`web/static/style.css` 新增 `.tool-params-raw` 小胶囊开关样式 + `.tool-params-right` 右侧容器 [BUILD-537]；修复：rawPill onclick 未切换 rawMode 导致开关无效 [BUILD-538]；追加：开关文字"原始内容"改为"Raw" [BUILD-539]；合并 [BUILD-540]
+  - 测试：见 use-case/FEATURE-412/
 
 ---
 

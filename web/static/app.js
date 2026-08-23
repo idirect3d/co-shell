@@ -306,7 +306,8 @@ function newStreamBlock(cls, label, msgIndex) {
 
 // ensureToolParams creates (or returns) the input-parameter sub-block inside a
 // TOOL block (FEATURE-400). The sub-block has a title bar ("输入参数"), a
-// collapse/expand toggle in the top-right, and a scrollable body at fixed height.
+// "原始内容" pill toggle (FEATURE-412) to the left of the collapse/expand
+// toggle, and a scrollable body at fixed height.
 function ensureToolParams(curTool) {
   if (curTool.params) return curTool.params;
   const box = curTool.body.parentElement; // .ev.tool
@@ -317,6 +318,17 @@ function ensureToolParams(curTool) {
   const title = document.createElement("span");
   title.className = "tool-params-title";
   title.textContent = "输入参数";
+  // FEATURE-412: a small pill toggle controlling whether the params body is
+  // md-rendered. Default OFF (raw text), so the pill is not active initially.
+  const rawPill = document.createElement("button");
+  rawPill.className = "tool-params-raw";
+  rawPill.textContent = "Raw";
+  rawPill.title = "Raw / md 渲染";
+  rawPill.onclick = () => {
+    rawPill.classList.toggle("on");
+    curTool.params.rawMode = !curTool.params.rawMode;
+    renderParams(curTool.params);
+  };
   const toggle = document.createElement("button");
   toggle.className = "tool-params-toggle";
   toggle.textContent = "⤢";
@@ -326,15 +338,33 @@ function ensureToolParams(curTool) {
     toggle.textContent = params.classList.contains("expanded") ? "⤡" : "⤢";
   };
   head.appendChild(title);
-  head.appendChild(toggle);
+  // Group the pill and the collapse/expand toggle on the right so the pill
+  // sits immediately to the left of the toggle (FEATURE-412).
+  const right = document.createElement("span");
+  right.className = "tool-params-right";
+  right.appendChild(rawPill);
+  right.appendChild(toggle);
+  head.appendChild(right);
   const body = document.createElement("div");
   body.className = "tool-params-body";
   params.appendChild(head);
   params.appendChild(body);
   // Insert after the ev-head, before the ev-body.
   box.insertBefore(params, curTool.body);
-  curTool.params = { body, raw: "" };
+  curTool.params = { body, raw: "", rawMode: true };
   return curTool.params;
+}
+
+// renderParams renders the params sub-block body according to the "原始内容"
+// pill state (FEATURE-412): rawMode ON shows the raw text, OFF md-renders it.
+function renderParams(params) {
+  if (params.rawMode) {
+    params.body.classList.remove("md");
+    params.body.textContent = params.raw;
+  } else {
+    params.body.classList.add("md");
+    mdRender(params.body, params.raw);
+  }
 }
 
 // scheduleMd re-renders a streaming block as markdown, throttled to one
@@ -609,10 +639,9 @@ function renderEvent(ev) {
     markStreaming(curTool.body);
     const params = ensureToolParams(curTool);
     params.raw += ev.text || "";
-    // FEATURE-409: render the streaming args as markdown (lists, code, etc.)
-    // instead of a plain text blob; md.js is streaming-safe.
-    params.body.classList.add("md");
-    mdRender(params.body, params.raw);
+    // FEATURE-412: render the streaming args according to the "原始内容" pill
+    // state — raw text by default, or markdown when the pill is toggled on.
+    renderParams(params);
     // Keep the params sub-block scrolled to the last line as streaming args
     // accumulate past its fixed height.
     params.body.scrollTop = params.body.scrollHeight;
