@@ -144,6 +144,40 @@ func TestLoadRulesDir_EmptyFileContent(t *testing.T) {
 	}
 }
 
+func TestLoadRulesDir_SubdirOnDemand(t *testing.T) {
+	// FEATURE-417: subdirectories are NOT loaded (content stays out of the
+	// system prompt); instead their name + full path appear as an on-demand
+	// rule-type hint.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "前端控件使用规范"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Root .md file (always loaded).
+	if err := os.WriteFile(filepath.Join(dir, "core.md"), []byte("core rule"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Subdirectory content (must NOT be loaded).
+	if err := os.WriteFile(filepath.Join(dir, "前端控件使用规范", "前端控件使用规范.md"), []byte("CSS 类名细节"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got := loadRulesDir(dir)
+	// Root .md content is loaded.
+	if !strings.Contains(got, "====\ncore\n\ncore rule") {
+		t.Errorf("root .md should be loaded, got: %q", got)
+	}
+	// Subdirectory name + path appear as an on-demand hint.
+	if !strings.Contains(got, "可用规则类型") {
+		t.Errorf("expected on-demand rule types hint, got: %q", got)
+	}
+	if !strings.Contains(got, "前端控件使用规范: "+filepath.Join(dir, "前端控件使用规范")) {
+		t.Errorf("expected subdir name + path hint, got: %q", got)
+	}
+	// Subdirectory content is NOT loaded.
+	if strings.Contains(got, "CSS 类名细节") {
+		t.Errorf("subdirectory content should NOT be loaded, got: %q", got)
+	}
+}
+
 // --- resolveAgentPrinciples priority chain tests (UC-0008 ~ 0013) ---
 
 func newTestAgentWithCfg(cfg *config.Config) *Agent {
