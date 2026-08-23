@@ -984,6 +984,10 @@ function renderEvent(ev) {
           const box = curTool.body.parentElement;
           box.classList.add("ev-result");
           box.classList.remove("collapsed");
+          // Re-apply the display mode so silent mode shows this block now that
+          // it is known to be the result block (it was hidden at makeBlock time
+          // because the label was still just "TOOL").
+          applyBlockDisplayMode(box, "tool");
         }
       }
       curTool.hasResult = false;
