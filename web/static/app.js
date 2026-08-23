@@ -2039,16 +2039,19 @@ function hasControlChars(text) {
   return false;
 }
 
-// fitHexWidth picks the largest of 8/16/32/64/128 bytes-per-row that fits the
-// current viewer width (FEATURE-425). Each byte renders as "xx " (3 chars);
-// the offset gutter is ~8em and the ascii column adds ~1.5em margin.
+// fitHexWidth picks the largest of 8/16/32/64/128 bytes-per-row whose full
+// row (offset gutter + hex bytes + ascii column) fits the current viewer width
+// (FEATURE-425). Monospace char width ~0.6em; font-size 12.5px => ~7.5px/char.
 function fitHexWidth() {
-  const avail = fvBody.clientWidth - 8 * 12 - 1.5 * 12 - 20; // offset + ascii + padding
-  const perByte = 3; // "xx "
+  const cw = 7.5; // px per monospace char
+  const offsetW = 8 * cw; // 8-char offset gutter
+  const asciiW = 1.5 * 12 + 8 * cw; // ascii margin + 8-char ascii column
+  const avail = fvBody.clientWidth - offsetW - asciiW - 20; // padding
   const widths = [8, 16, 32, 64, 128];
   let best = 8;
   for (const w of widths) {
-    if (w * perByte <= avail) best = w;
+    // hex = w*3 chars ("xx "), ascii = w chars
+    if (w * 3 * cw + w * cw <= avail) best = w;
   }
   return best;
 }

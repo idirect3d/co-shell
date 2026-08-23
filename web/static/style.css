@@ -226,6 +226,8 @@ aside {
   font-weight: 700;
   text-align: center;
   line-height: 1;
+  /* Nudge up 1px so the letter sits optically centred on the file name. */
+  transform: translateY(-1px);
 }
 .tree-row .git-status.st-m { color: #58a6ff; }
 .tree-row .git-status.st-a,
@@ -1172,7 +1174,7 @@ aside {
   letter-spacing: 0.8px;
   flex: none;
   background: var(--bg-panel);
-  height: 36px;
+  height: 35px;
   box-sizing: border-box;
   overflow: hidden;
 }
