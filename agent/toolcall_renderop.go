@@ -59,9 +59,7 @@ type ToolCallRenderer struct {
 	// as "(<intent>)" uniformly across tools (FEATURE-424).
 	intent string
 
-	replaceHeaderPending bool
-	replaceHeaderPath    string
-	replaceIntent        string
+	replaceIntent string
 
 	replaceStartLine     int
 	startLineBuf         strings.Builder
@@ -127,8 +125,6 @@ func (r *ToolCallRenderer) Reset() {
 	r.writeLineBuf.Reset()
 	r.writeLineNo = 0
 	r.intent = ""
-	r.replaceHeaderPending = false
-	r.replaceHeaderPath = ""
 	r.replaceIntent = ""
 	r.replaceStartLine = 0
 	r.startLineBuf.Reset()
@@ -158,13 +154,13 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 		r.pendingParam = ""
 		if r.showTool {
 			r.haveToolHeader = true
-			if r.currentTool == "replace_in_file" && r.showToolInput {
-				// Defer the header until the path is known so it can share
-				// the line ("⚙️ replace_in_file 作文.md").
-				r.replaceHeaderPending = true
-			} else {
-				r.emitToolHeader(emit, "⚙️ "+op.Text+"\n")
-			}
+			// FEATURE-XXX: emit the "⚙️ <tool>\n" header immediately for every
+			// tool (including replace_in_file). The frontend uses this marker to
+			// open a fresh TOOL block per tool when one iteration calls several
+			// tools; deferring it (as before) let the path/intent params arrive
+			// before the marker and mis-split the blocks. The path is now shown
+			// as a normal param line instead of sharing the header line.
+			r.emitToolHeader(emit, "⚙️ "+op.Text+"\n")
 		}
 	case OpParamKey:
 		r.pendingParam = op.Text
@@ -174,12 +170,12 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 		if r.currentTool == "replace_in_file" {
 			if r.pendingParam == "replacements" {
 				// The array wrapper produces no rendered line; flush the
-				// deferred header before the diff lines begin.
+				// deferred intent line before the diff lines begin.
 				r.flushReplaceHeader(emit)
 				return
 			}
 			switch r.pendingParam {
-			case "path", "intent", "search", "replace", "start_line":
+			case "intent", "search", "replace", "start_line":
 				return
 			}
 			r.flushReplaceHeader(emit)
@@ -208,7 +204,9 @@ func (r *ToolCallRenderer) Apply(op RenderOp, emit func(text string)) {
 				// Array wrapper noise (<item>...</item> text) is not rendered.
 				return
 			case "path":
-				r.replaceHeaderPath += op.Text
+				// The path is now a normal param line (the header no longer
+				// consumes it), so emit the value verbatim.
+				emit(op.Text)
 				return
 			case "intent":
 				r.replaceIntent += op.Text
@@ -260,23 +258,16 @@ func (r *ToolCallRenderer) emitToolHeader(emit func(text string), text string) {
 	emit(prefix + text)
 }
 
-// flushReplaceHeader emits the deferred replace_in_file tool header and the
-// intent line once the parameter stream reaches the diff section (or an
-// unknown parameter). The header consumes the path value
-// ("⚙️ replace_in_file 作文.md") and the intent is rendered on the second line
-// in parentheses.
+// flushReplaceHeader emits the deferred replace_in_file intent line once the
+// parameter stream reaches the diff section (or an unknown parameter). The
+// "⚙️ replace_in_file" header is now emitted immediately at OpToolStart
+// (FEATURE-XXX) so the frontend can split multi-tool blocks; the path is shown
+// as a normal param line. Only the intent line remains deferred here, and it
+// is emitted at most once (the accumulated value is cleared after emitting).
 func (r *ToolCallRenderer) flushReplaceHeader(emit func(text string)) {
-	if !r.replaceHeaderPending {
-		return
-	}
-	r.replaceHeaderPending = false
-	h := "⚙️ replace_in_file"
-	if r.replaceHeaderPath != "" {
-		h += " " + r.replaceHeaderPath
-	}
-	r.emitToolHeader(emit, h+"\n")
 	if r.replaceIntent != "" {
 		emit("(" + r.replaceIntent + ")\n")
+		r.replaceIntent = ""
 	}
 }
 
@@ -301,7 +292,15 @@ func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
 		}
 	case "replace_in_file":
 		switch r.pendingParam {
-		case "replacements", "path", "intent":
+		case "replacements", "intent":
+			r.pendingParam = ""
+			return
+		case "path":
+			// The path is a normal param line now (the header no longer
+			// consumes it), so end the line after its value.
+			if r.showToolInput {
+				emit("\n")
+			}
 			r.pendingParam = ""
 			return
 		case "search":
@@ -370,8 +369,6 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	r.writeLineBuf.Reset()
 	r.writeLineNo = 0
 	r.intent = ""
-	r.replaceHeaderPending = false
-	r.replaceHeaderPath = ""
 	r.replaceIntent = ""
 	r.replaceStartLine = 0
 	r.startLineBuf.Reset()
