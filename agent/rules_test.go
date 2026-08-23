@@ -145,9 +145,9 @@ func TestLoadRulesDir_EmptyFileContent(t *testing.T) {
 }
 
 func TestLoadRulesDir_SubdirOnDemand(t *testing.T) {
-	// FEATURE-417: subdirectories are NOT loaded (content stays out of the
-	// system prompt); instead their name + full path appear as an on-demand
-	// rule-type hint.
+	// FEATURE-417/418: subdirectories are NOT loaded (content stays out of the
+	// system prompt); instead their name + .md files appear as an on-demand
+	// rule tree with markdown headings.
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "前端控件使用规范"), 0755); err != nil {
 		t.Fatal(err)
@@ -156,8 +156,11 @@ func TestLoadRulesDir_SubdirOnDemand(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "core.md"), []byte("core rule"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	// Subdirectory content (must NOT be loaded).
-	if err := os.WriteFile(filepath.Join(dir, "前端控件使用规范", "前端控件使用规范.md"), []byte("CSS 类名细节"), 0644); err != nil {
+	// Subdirectory .md files (must be listed as paths, NOT loaded as content).
+	if err := os.WriteFile(filepath.Join(dir, "前端控件使用规范", "1.通用约定.md"), []byte("CSS 类名细节"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "前端控件使用规范", "2.基础按钮.md"), []byte("按钮样式"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	got := loadRulesDir(dir)
@@ -165,15 +168,58 @@ func TestLoadRulesDir_SubdirOnDemand(t *testing.T) {
 	if !strings.Contains(got, "====\ncore\n\ncore rule") {
 		t.Errorf("root .md should be loaded, got: %q", got)
 	}
-	// Subdirectory name + path appear as an on-demand hint.
+	// On-demand rule types hint present.
 	if !strings.Contains(got, "可用规则类型") {
 		t.Errorf("expected on-demand rule types hint, got: %q", got)
 	}
-	if !strings.Contains(got, "前端控件使用规范: "+filepath.Join(dir, "前端控件使用规范")) {
-		t.Errorf("expected subdir name + path hint, got: %q", got)
+	// Subdirectory name appears as a level-1 heading.
+	if !strings.Contains(got, "# 前端控件使用规范") {
+		t.Errorf("expected subdir as level-1 heading, got: %q", got)
+	}
+	// Each .md file appears as a level-2 heading with its path.
+	if !strings.Contains(got, "## 1.通用约定: "+filepath.Join(dir, "前端控件使用规范", "1.通用约定.md")) {
+		t.Errorf("expected file as level-2 heading with path, got: %q", got)
+	}
+	if !strings.Contains(got, "## 2.基础按钮: "+filepath.Join(dir, "前端控件使用规范", "2.基础按钮.md")) {
+		t.Errorf("expected second file as level-2 heading with path, got: %q", got)
 	}
 	// Subdirectory content is NOT loaded.
-	if strings.Contains(got, "CSS 类名细节") {
+	if strings.Contains(got, "CSS 类名细节") || strings.Contains(got, "按钮样式") {
+		t.Errorf("subdirectory content should NOT be loaded, got: %q", got)
+	}
+}
+
+func TestLoadRulesDir_SubdirRecursive(t *testing.T) {
+	// FEATURE-418: nested subdirectories are traversed recursively, with deeper
+	// nesting shown at a deeper heading level.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "前端控件使用规范", "子目录"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "前端控件使用规范", "1.通用约定.md"), []byte("约定内容"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "前端控件使用规范", "子目录", "2.嵌套.md"), []byte("嵌套内容"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got := loadRulesDir(dir)
+	// Level-1 subdir heading.
+	if !strings.Contains(got, "# 前端控件使用规范") {
+		t.Errorf("expected level-1 subdir heading, got: %q", got)
+	}
+	// Level-2 file under the subdir.
+	if !strings.Contains(got, "## 1.通用约定: "+filepath.Join(dir, "前端控件使用规范", "1.通用约定.md")) {
+		t.Errorf("expected level-2 file heading, got: %q", got)
+	}
+	// Nested subdir at level-2, its file at level-3.
+	if !strings.Contains(got, "## 子目录") {
+		t.Errorf("expected nested subdir at level-2, got: %q", got)
+	}
+	if !strings.Contains(got, "### 2.嵌套: "+filepath.Join(dir, "前端控件使用规范", "子目录", "2.嵌套.md")) {
+		t.Errorf("expected nested file at level-3, got: %q", got)
+	}
+	// Nested content not loaded.
+	if strings.Contains(got, "嵌套内容") || strings.Contains(got, "约定内容") {
 		t.Errorf("subdirectory content should NOT be loaded, got: %q", got)
 	}
 }

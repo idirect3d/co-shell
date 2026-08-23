@@ -57,10 +57,12 @@ func loadExternalFile(workspacePath, filename string) string {
 // The title is the filename with the ".md" suffix removed (no "# " prefix).
 // Empty or whitespace-only files are skipped.
 //
-// FEATURE-417: subdirectories under dir are NOT loaded (their content stays out
-// of the system prompt to avoid bloat). Instead, each subdirectory name plus its
-// full path is appended as an "available rule types" hint so the LLM knows what
-// on-demand rules exist and can read them with read_file when needed.
+// FEATURE-417/418: subdirectories under dir are NOT loaded (their content stays
+// out of the system prompt to avoid bloat). Instead, each subdirectory and its
+// .md files are listed as an on-demand rule tree, formatted with markdown
+// headings so the LLM knows what on-demand rules exist and can read them with
+// read_file when needed. Subdirectories are traversed recursively (deeper
+// nesting = deeper heading level).
 // Returns "" when the directory does not exist and there is nothing to show.
 func loadRulesDir(dir string) string {
 	if dir == "" {
@@ -101,20 +103,51 @@ func loadRulesDir(dir string) string {
 		title := strings.TrimSuffix(name, filepath.Ext(name))
 		sb.WriteString("====\n" + title + "\n\n" + trimmed)
 	}
-	// FEATURE-417: append the on-demand rule types (subdirectory name + path).
+	// FEATURE-417/418: append the on-demand rule tree (subdirectories + their
+	// .md files), formatted with markdown headings and recursive nesting.
 	if len(subdirs) > 0 {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
-		sb.WriteString("====\n可用规则类型（按需加载，需要时用 read_file 读取对应路径）\n\n")
-		for i, sd := range subdirs {
-			if i > 0 {
-				sb.WriteString("\n")
-			}
-			sb.WriteString(sd + ": " + filepath.Join(dir, sd))
+		sb.WriteString("====\n可用规则类型（按需加载，需要时直接用 read_file 读取对应路径）\n\n")
+		for _, sd := range subdirs {
+			appendRulesTree(&sb, filepath.Join(dir, sd), sd, 1)
 		}
 	}
 	return strings.TrimSpace(sb.String())
+}
+
+// appendRulesTree recursively lists a subdirectory's .md files (and nested
+// subdirectories) as a markdown heading tree. level is the current heading depth
+// (1 = "#", 2 = "##", ...). Only file paths are listed, never file contents.
+func appendRulesTree(sb *strings.Builder, dir, name string, level int) {
+	if sb.Len() > 0 {
+		sb.WriteString("\n")
+	}
+	sb.WriteString(strings.Repeat("#", level) + " " + name + "\n")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	var files []string
+	var subdirs []string
+	for _, e := range entries {
+		if e.IsDir() {
+			subdirs = append(subdirs, e.Name())
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(e.Name()), ".md") {
+			files = append(files, e.Name())
+		}
+	}
+	sort.Strings(files)
+	sort.Strings(subdirs)
+	for _, f := range files {
+		sb.WriteString(strings.Repeat("#", level+1) + " " + strings.TrimSuffix(f, filepath.Ext(f)) + ": " + filepath.Join(dir, f) + "\n")
+	}
+	for _, sd := range subdirs {
+		appendRulesTree(sb, filepath.Join(dir, sd), sd, level+1)
+	}
 }
 
 // loadExternalFileWithMode attempts to load a text file with mode support.
