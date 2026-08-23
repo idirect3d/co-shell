@@ -316,13 +316,13 @@
 |------|------|------|------|
 | FEATURE-427 | 0.15.0 | P1 | 重构启动模式设计语言：默认 web UI 模式（自动弹浏览器，无浏览器降级 enhanced→stdio），--serve 启动 web UI 不弹浏览器，指令参数强制 stdio，移除 serve 子命令 |
 
-> 当前 BUILD: 619
+> 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-427 启动模式设计语言重构** [BUILD-619]
+- [ ] **FEATURE-427 启动模式设计语言重构** [BUILD-620]
   - 背景：当前启动模式默认 enhanced REPL，serve 为子命令且自动弹浏览器，模式优先级与设计语言不一致。
   - 方案（已确认）：重构为三种工作模式——模式 A（`--input-mode enhanced`，REPL 增强模式，终端最佳体验）、模式 B（`--input-mode stdio`，REPL 标准输入输出，最大兼容性，输入指令参数时自动使用）、模式 C（`--serve`，web UI 模式，不自动弹浏览器）。默认优先级调整为：默认 web UI 模式（不能录入指令）→ 自动弹浏览器 → 无浏览器降级 enhanced → 环境不支持 enhanced 降级 stdio。移除 `serve` 子命令。指令参数强制 stdio，若同时指定其他模式参数则报错。
   - 需求：修改 `main.go` 启动逻辑与 `usage.go` --help 说明。
