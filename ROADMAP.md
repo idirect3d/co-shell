@@ -16,6 +16,7 @@
 |------|------|------|------|
 | FEATURE-409 | 0.10.0 | P1 | Web UI 四项优化：新建会话+号按钮边框默认透明、定位到文件夹图标放大一倍、工作区刷新图标缩小1/3且中文提示为"刷新"、TOOL块子块动态累积数据自动滚动到最后一行 |
 | FEATURE-410 | 0.10.0 | P1 | Web UI 增加模式切换按钮：在运行/在听按钮左边增加相同样式的模式切换按钮，显示当前模式名，悬停向上弹出其他模式供选择 |
+| FIX-411 | 0.10.0 | P1 | 修复 Web UI REPL 输出块不新建：新 REPL 命令输出仍追加到前一个 REPL 块，导致多个用户消息堆叠、输出在最前面 |
 
 > 当前 BUILD: 529
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -34,6 +35,13 @@
   - 方案（已确认）：在状态条左边（左下角 logo 下面，左对齐）增加一个横向长胶囊分段控件，分为 1-N 段对应 1-N 个模式选项，每段有文字，高亮段代表选中，用户直接选择一段，高亮效果滑动到用户选择的段上。
   - 实施：`web/static/index.html` + `web/static/app.js` + `web/static/style.css` + `web/session.go` + `web/server.go` + `cmd/mode.go` [BUILD-532]；追加：胶囊控件移到状态条靠左并降低高度 [BUILD-533]；合并 [BUILD-534]
   - 测试：见 use-case/FEATURE-410/
+
+- [x] **FIX-411 修复 Web UI REPL 输出块不新建** ✅ 已完成
+  - 背景：在 Web UI 执行 REPL 命令时，系统输出内容都追加到同一个 REPL 输出块，即使有新的 REPL 命令并显示了新的 YOU 模块，REPL 内容仍加到前一个 REPL 块而不新建。导致多个用户消息堆叠，输出在最前面，用户消息多时看不到 REPL 输出。
+  - 根因：`renderUserEcho`（创建 YOU 块）没有重置 `curREPL`，导致新 REPL 命令的 ui_text repl 事件继续追加到前一个 REPL 块。
+  - 方案（已确认）：在 `renderUserEcho` 开头重置 `curREPL = null`，使每次用户输入（新命令/确认/选择）开启新的 REPL 输出块。
+  - 实施：`web/static/app.js` `renderUserEcho` 重置 `curREPL` [BUILD-535]；合并 [BUILD-536]
+  - 测试：见 use-case/FIX-411/
 
 ---
 

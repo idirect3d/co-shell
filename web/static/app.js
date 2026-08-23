@@ -684,6 +684,10 @@ function renderEvent(ev) {
 }
 
 function renderUserEcho(text) {
+  // A new user input (command / confirmation / selection) starts a fresh
+  // REPL output block: reset curREPL so the next ui_text repl event opens a
+  // new block instead of appending to the previous one (FIX-411).
+  curREPL = null;
   const body = makeBlock("user-msg", "YOU", lastMsgIndex);
   body.textContent = text;
 }
