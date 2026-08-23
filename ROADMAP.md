@@ -44,11 +44,11 @@
   - 实施：`web/static/app.js` `renderUserEcho` 重置 `curREPL` [BUILD-535]；合并 [BUILD-536]
   - 测试：见 use-case/FIX-411/
 
-- [ ] **FEATURE-412 Web UI TOOL 块输入参数子块增加"原始内容"小胶囊开关**
+- [x] **FEATURE-412 Web UI TOOL 块输入参数子块增加"原始内容"小胶囊开关** ✅ 已完成
   - 背景：TOOL 块输入参数子块（FEATURE-400）当前始终进行 md 内容解析和渲染（FEATURE-409），但部分参数内容（如 JSON、XML 等结构化数据）经 md 渲染后可能丢失原始格式，用户希望可切换查看原始内容。
   - 方案（已确认）：在输入参数子块标题栏、收起展开图标的左边，增加一个名为"原始内容"的小胶囊开关，控制是否进行 md 内容解析和渲染，默认关闭（即默认显示原始内容，不做 md 渲染）。
   - 需求：`web/static/app.js` 的 `ensureToolParams` 在标题栏收起展开图标左边增加"原始内容"小胶囊开关（默认关闭）；开关关闭时参数子块以原始文本（textContent）显示，开关打开时以 md 渲染（mdRender）。`web/static/style.css` 新增小胶囊开关样式。
-  - 实施：`web/static/app.js` `ensureToolParams` 标题栏增加"原始内容"小胶囊开关（默认关闭，rawMode=true）+ 新增 `renderParams` 按开关状态渲染（rawMode 时 textContent 显示原始文本，否则 mdRender）；`tool_call_stream` 改用 `renderParams`；`web/static/style.css` 新增 `.tool-params-raw` 小胶囊开关样式 + `.tool-params-right` 右侧容器 [BUILD-537]；修复：rawPill onclick 未切换 rawMode 导致开关无效 [BUILD-538]；追加：开关文字"原始内容"改为"Raw" [BUILD-539]
+  - 实施：`web/static/app.js` `ensureToolParams` 标题栏增加"原始内容"小胶囊开关（默认关闭，rawMode=true）+ 新增 `renderParams` 按开关状态渲染（rawMode 时 textContent 显示原始文本，否则 mdRender）；`tool_call_stream` 改用 `renderParams`；`web/static/style.css` 新增 `.tool-params-raw` 小胶囊开关样式 + `.tool-params-right` 右侧容器 [BUILD-537]；修复：rawPill onclick 未切换 rawMode 导致开关无效 [BUILD-538]；追加：开关文字"原始内容"改为"Raw" [BUILD-539]；合并 [BUILD-540]
   - 测试：见 use-case/FEATURE-412/
 
 ---
