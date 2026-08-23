@@ -1849,7 +1849,9 @@ function treeNode(node) {
       uploadFiles(e.dataTransfer.files, node.path);
     };
   } else {
-    row.onclick = () => openFile(node);
+    // Open a file on double-click (not single-click) to avoid accidentally
+    // launching the system handler when the user only meant to select it.
+    row.ondblclick = () => openFile(node);
   }
   return li;
 }
