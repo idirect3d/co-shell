@@ -319,7 +319,7 @@ function ensureToolParams(curTool) {
   title.className = "tool-params-title";
   title.textContent = "输入参数";
   // FEATURE-412: a small pill toggle controlling whether the params body is
-  // md-rendered. Default OFF (raw text), so the pill is not active initially.
+  // md-rendered. Default OFF (md-rendered), so the pill is not active initially.
   const rawPill = document.createElement("button");
   rawPill.className = "tool-params-raw";
   rawPill.textContent = "Raw";
@@ -351,7 +351,7 @@ function ensureToolParams(curTool) {
   params.appendChild(body);
   // Insert after the ev-head, before the ev-body.
   box.insertBefore(params, curTool.body);
-  curTool.params = { body, raw: "", rawMode: true };
+  curTool.params = { body, raw: "", rawMode: false };
   return curTool.params;
 }
 
