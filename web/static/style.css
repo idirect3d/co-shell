@@ -1193,73 +1193,15 @@ aside {
   flex-direction: column;
   overflow: hidden;
 }
-/* The head matches the workspace/task-plan panel heads (same height, font
-   size, uppercase transform and bottom border) so the three align perfectly.
-   The search box is height-capped so it never stretches the head taller than
-   the panel heads (FEATURE-425). */
-.fv-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--fg-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+/* FEATURE-425: the highlighted dot before the session title in the main
+   message area title bar (same as the current-session dot in the session
+   list). */
+.stream-active {
+  color: var(--accent);
   flex: none;
-  background: var(--bg-panel);
-  height: 35px;
-  box-sizing: border-box;
-  overflow: hidden;
+  font-size: 10px;
+  line-height: 1;
 }
-.fv-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  color: var(--fg);
-  text-transform: none;
-  letter-spacing: 0;
-}
-/* FEATURE-425: in-file search box in the head. Height-capped so it fits the
-   36px head without stretching it. */
-.fv-search {
-  flex: 1;
-  max-width: 320px;
-  min-width: 120px;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--fg);
-  font-size: 12px;
-  padding: 2px 8px;
-  height: 22px;
-  box-sizing: border-box;
-  text-transform: none;
-  letter-spacing: 0;
-  outline: none;
-}
-.fv-search:focus { border-color: var(--accent); }
-.fv-search::placeholder { color: var(--placeholder); }
-.fv-head-actions { display: flex; align-items: center; gap: 6px; }
-/* FEATURE-425: Raw pill toggle for md files (default off = auto-render md). */
-.fv-raw {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--fg-dim);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1px 8px;
-  cursor: pointer;
-  user-select: none;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.fv-raw.on { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .fv-body {
   flex: 1;
   overflow: auto;
