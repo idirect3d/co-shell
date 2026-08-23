@@ -167,8 +167,14 @@ func TestToolCallStream_XMLReplaceNoLineNo(t *testing.T) {
 	}
 
 	text := collectRenderText(r, all)
-	if !strings.Contains(text, "⚙️ replace_in_file a.go") {
-		t.Errorf("tool header should share the path line, got: %q", text)
+	// FEATURE-XXX: the header is emitted immediately at OpToolStart without
+	// the path (so the frontend can split multi-tool blocks); the path is now
+	// a normal param line.
+	if !strings.Contains(text, "⚙️ replace_in_file") {
+		t.Errorf("tool header missing, got: %q", text)
+	}
+	if !strings.Contains(text, "   path: a.go") {
+		t.Errorf("path should render as a param line, got: %q", text)
 	}
 	if !strings.Contains(text, "- alpha") || !strings.Contains(text, "+ beta") {
 		t.Errorf("search/replace lines missing, got: %q", text)
