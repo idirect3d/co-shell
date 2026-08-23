@@ -488,12 +488,9 @@ aside {
   border-radius: 999px;
 }
 .stream-merge:hover { background: var(--accent-dim); }
-.stream-merge .merge-arrow { font-size: 14px; }
-.stream-merge .merge-line {
-  width: 24px;
-  height: 0;
-  border-top: 2px solid var(--accent);
-}
+/* FIX-426: the merge icon is a single ⎶ glyph, sized up to sit proportionally
+   inside the pill button. */
+.stream-merge .merge-arrow { font-size: 18px; line-height: 1; }
 
 .ev {
   /* Never shrink: .stream is a flex column; without this, long sessions

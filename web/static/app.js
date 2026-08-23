@@ -419,11 +419,8 @@ function splitStream() {
     mergeBtn.title = "向下继续";
     const arrow = document.createElement("span");
     arrow.className = "merge-arrow";
-    arrow.textContent = "↓";
-    const line = document.createElement("span");
-    line.className = "merge-line";
+    arrow.textContent = "⎶";
     mergeBtn.appendChild(arrow);
-    mergeBtn.appendChild(line);
     mergeBtn.onclick = mergeStream;
     stream.insertBefore(mergeBtn, streamA);
   }
