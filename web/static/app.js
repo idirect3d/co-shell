@@ -625,14 +625,15 @@ function renderEvent(ev) {
     const line = document.createElement("div");
     line.className = "ev meta";
     line.textContent = parts.join("  ");
-    // FEATURE-419: append the token line to the bottom of EVERY block created
-    // during this iteration (each LLM/THINK/TOOL/REPL block gets its own line),
-    // not just the last block. Fall back to the stream bottom when no block was
-    // tracked (e.g. token_task with no preceding blocks).
+    // FEATURE-419: place the token line AFTER (outside) every block created
+    // during this iteration — each LLM/THINK/TOOL/REPL block is followed by its
+    // own token line as a sibling, not nested inside the block body. Fall back
+    // to the stream bottom when no block was tracked (e.g. token_task with no
+    // preceding blocks).
     const blocks = iterBlocks.slice();
     iterBlocks = [];
     if (blocks.length) {
-      for (const b of blocks) b.appendChild(line.cloneNode(true));
+      for (const b of blocks) b.parentElement.after(line.cloneNode(true));
     } else {
       stream.appendChild(line);
     }
