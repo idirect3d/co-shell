@@ -232,7 +232,9 @@ aside {
   font-size: 10px;
   font-weight: 700;
   text-align: center;
-  line-height: 14px;
+  /* Match the file-name row height so the status letter sits on the same
+     horizontal line as the file name (FEATURE-425). */
+  line-height: 19px;
 }
 .tree-node > .git-status.st-m { color: #58a6ff; }
 .tree-node > .git-status.st-a,
@@ -1254,6 +1256,14 @@ aside {
 .fv-line.fv-del .fv-no { color: var(--err); }
 /* FEATURE-425: search match highlight. */
 .fv-line.fv-hit { background: rgba(250, 204, 21, 0.18); }
+/* FEATURE-425: md tables rendered in the file viewer get borders so the
+   table structure is visible. */
+.fv-body.md table { border-collapse: collapse; margin: 4px 0; }
+.fv-body.md th, .fv-body.md td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; }
+.fv-body.md th { background: var(--bg-elev); }
+.fv-body.md a { color: var(--accent); text-decoration: none; }
+.fv-body.md a:hover { text-decoration: underline; }
+
 /* FEATURE-425: hex dump rows for binary files. */
 .fv-line.fv-hex { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 .fv-line.fv-hex .fv-no { width: 8em; }
