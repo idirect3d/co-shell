@@ -354,7 +354,12 @@ function mergeStream() {
 let mergeBtn = null; // the floating "merge down" button between B and A
 
 function newStreamBlock(cls, label, msgIndex) {
-  return { body: makeBlock(cls, label, msgIndex), raw: "", raf: 0, hasResult: false };
+  const body = makeBlock(cls, label, msgIndex);
+  // FEATURE-419: track every block created during this iteration so token_iter
+  // can append the token-stats line to the bottom of EACH block, not just the
+  // last one.
+  iterBlocks.push(body);
+  return { body, raw: "", raf: 0, hasResult: false };
 }
 
 // ensureToolParams creates (or returns) the input-parameter sub-block inside a
@@ -604,10 +609,6 @@ function renderEvent(ev) {
   }
   if (ev.type === "token_iter" || ev.type === "token_task") {
     const m = ev.meta || {};
-    // FEATURE-419: append the token stats to the bottom of the current
-    // iteration's last block (LLM/THINK/TOOL/REPL) instead of a standalone
-    // block at the bottom of the stream.
-    const target = curTool || curREPL || curLLM || curThinking;
     // FEATURE-419: build the token line with iteration number, timestamp and
     // thousands separators, e.g. "58. 2026-08-23 12:30:58 ↑34,670 ↓154
     // Σ34,824/1,048,576 1.8s 75".
@@ -624,8 +625,14 @@ function renderEvent(ev) {
     const line = document.createElement("div");
     line.className = "ev meta";
     line.textContent = parts.join("  ");
-    if (target) {
-      target.body.appendChild(line);
+    // FEATURE-419: append the token line to the bottom of EVERY block created
+    // during this iteration (each LLM/THINK/TOOL/REPL block gets its own line),
+    // not just the last block. Fall back to the stream bottom when no block was
+    // tracked (e.g. token_task with no preceding blocks).
+    const blocks = iterBlocks.slice();
+    iterBlocks = [];
+    if (blocks.length) {
+      for (const b of blocks) b.appendChild(line.cloneNode(true));
     } else {
       stream.appendChild(line);
     }
@@ -655,6 +662,9 @@ function renderEvent(ev) {
   }
   if (ev.type === "done") {
     curLLM = curThinking = curTool = curREPL = null;
+    // FEATURE-419: the task ended — clear any leftover iteration blocks so the
+    // next task starts with a fresh list.
+    iterBlocks = [];
     // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
     document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     // An LLM iteration finished — the agent may have switched git branches
@@ -863,6 +873,12 @@ const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInT
 // sequence number :context displays for each message). Incremented on every
 // token_iter event.
 let iterCount = 0;
+
+// FEATURE-419: the .ev-body of every block (LLM/THINK/TOOL/REPL) created during
+// the current iteration. token_iter appends the token-stats line to the bottom
+// of EACH block in this list (so every block shows its own token line), then
+// clears the list for the next iteration.
+let iterBlocks = [];
 
 // fmtTime formats a Date as "YYYY-MM-DD HH:mm:ss" for the token-stats line.
 function fmtTime(d) {
