@@ -140,11 +140,11 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-417 .rules/ 按需加载机制**
+- [x] **FEATURE-417 .rules/ 按需加载机制** ✅ 已完成
   - 背景：`.rules/` 目录下所有 `.md` 文件被无条件加载到系统提示词 RULES 节。加入前端控件使用规范（594 行）后，RULES 节膨胀约 3.5 倍，大量与当前任务无关的领域特定规范稀释了注意力，可能导致核心执行纪律要求（如使用 track_task_progress）被忽略。
   - 方案（已确认）：`.rules/` 下可以建子文件夹，子文件夹名 + 完整路径会被加载到系统提示词（作为"可用规则类型"提示），但子文件夹里的文件内容不会加载。LLM 看到路径后可直接用 read_file 读取，无需探索。
   - 需求：修改 `agent/system_prompt.go` 的 `loadRulesDir` 函数，在加载根目录 `.md` 文件后，扫描子文件夹，将子文件夹名 + 完整路径格式化为"可用规则类型（按需加载，需要时用 read_file 读取）"提示追加到结果末尾。将 `前端控件使用规范.md` 移到 `.rules/前端控件使用规范/` 子文件夹。
-  - 实施：`agent/system_prompt.go` `loadRulesDir` 在加载根目录 .md 文件后扫描子文件夹，将子文件夹名 + 完整路径格式化为"可用规则类型（按需加载，需要时用 read_file 读取对应路径）"提示追加到结果末尾；`前端控件使用规范.md` 移到 `.rules/前端控件使用规范/` 子文件夹；`.rules/PROJECT STANDARDS.md` 补充按需加载机制说明；`agent/rules_test.go` 新增 `TestLoadRulesDir_SubdirOnDemand` 测试 [BUILD-549]
+  - 实施：`agent/system_prompt.go` `loadRulesDir` 在加载根目录 .md 文件后扫描子文件夹，将子文件夹名 + 完整路径格式化为"可用规则类型（按需加载，需要时用 read_file 读取对应路径）"提示追加到结果末尾；`前端控件使用规范.md` 移到 `.rules/前端控件使用规范/` 子文件夹；`.rules/PROJECT STANDARDS.md` 补充按需加载机制说明；`agent/rules_test.go` 新增 `TestLoadRulesDir_SubdirOnDemand` 测试 [BUILD-549]；合并 [BUILD-550]
   - 测试：见 use-case/FEATURE-417/
 
 ---
