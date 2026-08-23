@@ -391,11 +391,56 @@ aside {
 #stream-wrap { min-width: 0; min-height: 0; display: flex; }
 .stream {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 14px 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* FEATURE-416: the stream splits into a static region B (scrollable history)
+   and a dynamic region A (fixed bottom, max 1/4 height) when the user scrolls
+   up while the LLM is streaming. */
+.stream-b {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stream-a {
+  flex: none;
+  max-height: 25%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.stream-a.hidden { display: none; }
+/* FEATURE-416: a floating "merge down" button shown between region B and
+   region A while the stream is split. Clicking it merges A back into B. */
+.stream-merge {
+  flex: none;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.stream-merge:hover { background: var(--accent-dim); }
+.stream-merge .merge-arrow { font-size: 14px; }
+.stream-merge .merge-line {
+  width: 24px;
+  height: 0;
+  border-top: 2px solid var(--accent);
 }
 
 .ev {

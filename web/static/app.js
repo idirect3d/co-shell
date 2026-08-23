@@ -129,6 +129,8 @@ const conn = document.getElementById("conn");
 const connDot = document.getElementById("connDot");
 const connText = document.getElementById("connText");
 const stream = document.getElementById("stream");
+const streamB = document.getElementById("streamB");
+const streamA = document.getElementById("streamA");
 const planPanel = document.getElementById("plan-panel");
 const planBody = document.getElementById("planBody");
 const layout = document.getElementById("layout");
@@ -298,7 +300,58 @@ let curTool = null;     // current tool block (one block per invocation)
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
 
-function scrollStream() { stream.scrollTop = stream.scrollHeight; }
+// FEATURE-416: when the stream is split (region A active), scroll region A to
+// its bottom; otherwise scroll region B (the whole history).
+let splitActive = false; // true while the stream is split into B (static) + A (dynamic)
+
+function scrollStream() {
+  if (splitActive) streamA.scrollTop = streamA.scrollHeight;
+  else streamB.scrollTop = streamB.scrollHeight;
+}
+
+// splitStream splits the stream into a static region B (history) and a dynamic
+// region A (new output). It moves the currently-streaming block(s) into A so
+// the user can keep reading B without it jumping to the newest line.
+function splitStream() {
+  if (splitActive || !running) return;
+  splitActive = true;
+  // Move the currently-streaming blocks (LLM/THINK/TOOL/REPL) into region A.
+  const moving = [curLLM, curThinking, curTool, curREPL].filter(Boolean);
+  for (const b of moving) {
+    const box = b.body.parentElement;
+    if (box && box.parentElement === streamB) streamA.appendChild(box);
+  }
+  // Show region A and the merge-down button.
+  streamA.classList.remove("hidden");
+  if (!mergeBtn) {
+    mergeBtn = document.createElement("button");
+    mergeBtn.className = "stream-merge";
+    mergeBtn.title = "向下继续";
+    const arrow = document.createElement("span");
+    arrow.className = "merge-arrow";
+    arrow.textContent = "↓";
+    const line = document.createElement("span");
+    line.className = "merge-line";
+    mergeBtn.appendChild(arrow);
+    mergeBtn.appendChild(line);
+    mergeBtn.onclick = mergeStream;
+    stream.insertBefore(mergeBtn, streamA);
+  }
+  scrollStream();
+}
+
+// mergeStream merges region A back into region B, restoring a single stream.
+function mergeStream() {
+  if (!splitActive) return;
+  splitActive = false;
+  // Move all blocks from A back into B.
+  while (streamA.firstChild) streamB.appendChild(streamA.firstChild);
+  streamA.classList.add("hidden");
+  if (mergeBtn) { mergeBtn.remove(); mergeBtn = null; }
+  streamB.scrollTop = streamB.scrollHeight;
+}
+
+let mergeBtn = null; // the floating "merge down" button between B and A
 
 function newStreamBlock(cls, label, msgIndex) {
   return { body: makeBlock(cls, label, msgIndex), raw: "", raf: 0, hasResult: false };
@@ -399,7 +452,9 @@ function makeBlock(cls, label, msgIndex) {
   if (!(cls === "tool" && /完成任务|Complete task/.test(label))) {
     addBlockActions(head, box, body, cls, cls === "user-msg");
   }
-  stream.appendChild(box);
+  // FEATURE-416: append the block to region A when the stream is split,
+  // otherwise to region B (the whole history).
+  (splitActive ? streamA : streamB).appendChild(box);
   scrollStream();
   return body;
 }
@@ -1299,9 +1354,20 @@ function setRunning(v) {
   sendBtn.textContent = v ? "⏸" : "▶";
   sendBtn.title = v ? T.interrupt : T.send;
   sendBtn.classList.toggle("run", v);
+  // FEATURE-416: when the turn ends, merge region A back into B so the stream
+  // returns to a single whole output area.
+  if (!v && splitActive) mergeStream();
 }
 
 sendBtn.onclick = () => { if (running) wsSend({ type: "interrupt" }); else sendInput(); };
+
+// FEATURE-416: when the user scrolls up in region B while the LLM is still
+// streaming, split the stream so B becomes static and new output goes to A.
+streamB.addEventListener("scroll", () => {
+  if (splitActive || !running) return;
+  const atBottom = streamB.scrollTop + streamB.clientHeight >= streamB.scrollHeight - 4;
+  if (!atBottom) splitStream();
+});
 
 /* ---------- work-mode switcher (FEATURE-410) ---------- */
 
