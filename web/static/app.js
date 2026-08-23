@@ -846,6 +846,17 @@ function renderEvent(ev) {
     // last-block pointer so the next task starts with a fresh list.
     iterBlocks = [];
     lastBlock = null;
+    // FEATURE-427: mark the last content block as the result block so silent
+    // mode shows and expands it — the final completion block, whatever its type
+    // (TOOL: 完成任务, or a final LLM summary). Skip meta (token-stats) rows.
+    const allBlocks = document.querySelectorAll(".ev");
+    for (let i = allBlocks.length - 1; i >= 0; i--) {
+      const b = allBlocks[i];
+      if (b.classList.contains("meta")) continue;
+      b.classList.add("ev-result");
+      applyBlockDisplayMode(b, b.className.replace("ev ", "").split(" ")[0]);
+      break;
+    }
     // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
     document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
     // An LLM iteration finished — the agent may have switched git branches
