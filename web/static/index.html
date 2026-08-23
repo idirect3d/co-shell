@@ -66,12 +66,14 @@
   </aside>
 
   <footer id="bottom">
-    <div id="logoWrap" class="logo-wrap">
-      <div id="logo" class="logo" title="co-shell"></div>
-      <div id="logoMenu" class="logo-menu hidden">
-        <button class="logo-menu-item" id="miIdentity">
-          <span class="mi-label" data-i18n="identity">身份与个性</span>
-        </button>
+    <div class="bottom-left">
+      <div id="logoWrap" class="logo-wrap">
+        <div id="logo" class="logo" title="co-shell"></div>
+        <div id="logoMenu" class="logo-menu hidden">
+          <button class="logo-menu-item" id="miIdentity">
+            <span class="mi-label" data-i18n="identity">身份与个性</span>
+          </button>
+        </div>
       </div>
     </div>
     <div class="bottom-main">
@@ -91,6 +93,9 @@
       </div>
     </div>
     <div id="statusbar" class="statusbar hidden">
+      <div class="mode-seg" id="modeSeg" title="切换工作模式" data-i18n-title="switchMode">
+        <div class="mode-seg-slider" id="modeSegSlider"></div>
+      </div>
       <div class="sb-sessions" id="sbSessionsWrap">
         <span class="sb-item" id="sbSessions">💬 0</span>
         <div class="session-menu hidden" id="sessionMenu"></div>

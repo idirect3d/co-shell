@@ -1062,6 +1062,22 @@ func (h *ModeHandler) getAllModes() []config.WorkMode {
 	return modes
 }
 
+// ListModes returns all available work modes (built-in + user-defined),
+// for the Web UI mode switcher (FEATURE-410).
+func (h *ModeHandler) ListModes() []config.WorkMode {
+	return h.getAllModes()
+}
+
+// CurrentMode returns the active work mode name, defaulting to "act" when
+// unset or "default" (FEATURE-410).
+func (h *ModeHandler) CurrentMode() string {
+	current := h.cfg.LLM.WorkMode
+	if current == "" || current == "default" {
+		return "act"
+	}
+	return current
+}
+
 // selectModeByNumber interactively selects a mode by number.
 func (h *ModeHandler) selectModeByNumber(prompt string) (*config.WorkMode, error) {
 	modes := h.getAllModes()
@@ -1531,6 +1547,11 @@ func (h *ModeHandler) previewFullPrompt(indices []int, allSections []string) str
 
 func (h *ModeHandler) modeExists(name string) bool {
 	for _, m := range h.cfg.WorkModes {
+		if m.Name == name {
+			return true
+		}
+	}
+	for _, m := range config.DefaultWorkModes() {
 		if m.Name == name {
 			return true
 		}
