@@ -55,8 +55,13 @@ func loadExternalFile(workspacePath, filename string) string {
 // so .md and .MD are both accepted). Each file is formatted as
 // "\n====\n{basename-without-.md}\n\n{content}" and joined by "\n\n".
 // The title is the filename with the ".md" suffix removed (no "# " prefix).
-// Empty or whitespace-only files are skipped. Returns "" when
-// the directory does not exist or contains no loadable .md files.
+// Empty or whitespace-only files are skipped.
+//
+// FEATURE-417: subdirectories under dir are NOT loaded (their content stays out
+// of the system prompt to avoid bloat). Instead, each subdirectory name plus its
+// full path is appended as an "available rule types" hint so the LLM knows what
+// on-demand rules exist and can read them with read_file when needed.
+// Returns "" when the directory does not exist and there is nothing to show.
 func loadRulesDir(dir string) string {
 	if dir == "" {
 		return ""
@@ -66,8 +71,10 @@ func loadRulesDir(dir string) string {
 		return ""
 	}
 	var names []string
+	var subdirs []string
 	for _, e := range entries {
 		if e.IsDir() {
+			subdirs = append(subdirs, e.Name())
 			continue
 		}
 		name := e.Name()
@@ -75,10 +82,8 @@ func loadRulesDir(dir string) string {
 			names = append(names, name)
 		}
 	}
-	if len(names) == 0 {
-		return ""
-	}
 	sort.Strings(names)
+	sort.Strings(subdirs)
 	var sb strings.Builder
 	for _, name := range names {
 		data, err := os.ReadFile(filepath.Join(dir, name))
@@ -95,6 +100,19 @@ func loadRulesDir(dir string) string {
 		// Title: filename without ".md" suffix, preceded by a "====" separator line.
 		title := strings.TrimSuffix(name, filepath.Ext(name))
 		sb.WriteString("====\n" + title + "\n\n" + trimmed)
+	}
+	// FEATURE-417: append the on-demand rule types (subdirectory name + path).
+	if len(subdirs) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString("====\n可用规则类型（按需加载，需要时用 read_file 读取对应路径）\n\n")
+		for i, sd := range subdirs {
+			if i > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(sd + ": " + filepath.Join(dir, sd))
+		}
 	}
 	return strings.TrimSpace(sb.String())
 }
