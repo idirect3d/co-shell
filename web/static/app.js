@@ -637,14 +637,15 @@ function renderEvent(ev) {
       }
     } else {
       // FEATURE-419: task-level summary line, total first with prompt/completion
-      // in parentheses, e.g. "Σ2,087,596 (↑2,084,349 ↓3,247)". Appended after
-      // the LAST block of the task only (not the stream bottom).
+      // in parentheses, e.g. "Σ2,087,596 (↑2,084,349 ↓3,247)". Appended at the
+      // end of the stream container (after the last block AND its per-iteration
+      // token line), so the order is: block → iteration token line → summary.
       const p = parseInt(m.prompt, 10) || 0;
       const c = parseInt(m.completion, 10) || 0;
       const t = parseInt(m.total, 10) || 0;
       line.textContent = "Σ" + fmtNum(t) + " (↑" + fmtNum(p) + " ↓" + fmtNum(c) + ")";
       if (lastBlock) {
-        lastBlock.parentElement.after(line);
+        lastBlock.parentElement.parentElement.appendChild(line);
       } else {
         stream.appendChild(line);
       }
