@@ -489,19 +489,47 @@ function ensureToolParams(curTool) {
   params.appendChild(body);
   // Insert after the ev-head, before the ev-body.
   box.insertBefore(params, curTool.body);
-  curTool.params = { body, raw: "", rawMode: false };
+  curTool.params = { body, raw: "", rawMode: false, diff: false };
   return curTool.params;
 }
 
 // renderParams renders the params sub-block body according to the "原始内容"
 // pill state (FEATURE-412): rawMode ON shows the raw text, OFF md-renders it.
+// When params.diff is set (FEATURE-424), the body holds a unified diff text
+// and is rendered line by line with add/delete/unchanged colours.
 function renderParams(params) {
+  if (params.diff) {
+    params.body.classList.remove("md");
+    renderDiff(params.body, params.raw);
+    return;
+  }
   if (params.rawMode) {
     params.body.classList.remove("md");
     params.body.textContent = params.raw;
   } else {
     params.body.classList.add("md");
     mdRender(params.body, params.raw);
+  }
+}
+
+// renderDiff renders a unified diff text (FEATURE-424) into body. Each line is
+// parsed for its status marker ("+" add / "-" delete / " " unchanged) and
+// wrapped in a coloured row. The content is set via textContent to avoid XSS.
+function renderDiff(body, text) {
+  body.textContent = "";
+  const lines = String(text).split("\n");
+  for (const line of lines) {
+    if (line === "") continue;
+    const row = document.createElement("div");
+    row.className = "diff-row";
+    // Unified diff format: "{1 space}{5-digit line}{status} {content}".
+    // The status is the 7th character (index 6).
+    const status = line.length > 6 ? line.charAt(6) : " ";
+    if (status === "+") row.classList.add("diff-add");
+    else if (status === "-") row.classList.add("diff-del");
+    else row.classList.add("diff-ctx");
+    row.textContent = line;
+    body.appendChild(row);
   }
 }
 
@@ -823,6 +851,19 @@ function renderEvent(ev) {
     renderParams(params);
     // Keep the params sub-block scrolled to the last line as streaming args
     // accumulate past its fixed height.
+    params.body.scrollTop = params.body.scrollHeight;
+    scrollStream();
+    return;
+  }
+  // FEATURE-424: a replace_in_file call completed — the backend sends its
+  // unified diff rendering. Replace the streamed params with the diff text and
+  // re-render with per-line add/delete/unchanged colours.
+  if (ev.type === "tool_call_diff") {
+    if (!curTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+    const params = ensureToolParams(curTool);
+    params.diff = true;
+    params.raw = ev.text || "";
+    renderParams(params);
     params.body.scrollTop = params.body.scrollHeight;
     scrollStream();
     return;
