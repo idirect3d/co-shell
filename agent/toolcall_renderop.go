@@ -346,25 +346,22 @@ func (r *ToolCallRenderer) finaliseParameter(emit func(text string)) {
 			r.pendingParam = ""
 			return
 		case "replace":
-			// FEATURE-424: compute the unified diff from the accumulated full
-			// search/replace content (the render buffers are reset line by line
-			// by feedLined, so the accumulators hold the complete text). The
-			// structured per-line data (line + status) is accumulated for the
-			// tool_call_diff event; the plain text is kept for the streamed
-			// display.
+			// FEATURE-424: the unified diff is computed at emitToolEnd (not here)
+			// so that a trailing start_line parameter (which arrives after
+			// replace in JSON mode) is already parsed and the line numbers are
+			// correct. The render buffers are reset line by line by feedLined, so
+			// the accumulators hold the complete search/replace text.
 			flushLined(&r.replaceReplaceBuf, r.replaceStartLine, &r.replaceReplaceLineNo, "+", "", true, emit)
-			if d := buildDiffText(r.replaceSearchAccum.String(), r.replaceReplaceAccum.String(), r.replaceStartLine); len(d) > 0 {
-				r.diffLines = append(r.diffLines, d...)
-				r.diffText.WriteString(diffLinesToText(d))
-			}
 			// The block is finished: reset per-block state so the next
-			// replacement starts fresh with no residual line numbers.
+			// replacement starts fresh with no residual line numbers. The
+			// replaceStartLine is kept so emitToolEnd can compute the diff with
+			// the correct line numbers (a trailing start_line arrives after
+			// replace in JSON mode).
 			r.replaceHaveSearch = false
 			r.replaceSearchBuf.Reset()
 			r.replaceSearchLineNo = 0
 			r.replaceReplaceBuf.Reset()
 			r.replaceReplaceLineNo = 0
-			r.replaceStartLine = 0
 			r.replacePairClosed = true
 			r.pendingParam = ""
 			return
@@ -393,6 +390,15 @@ func (r *ToolCallRenderer) emitToolEnd(emit func(text string)) {
 	// diffEmit callback so the frontend can re-render the params sub-block with
 	// green/red/default colours. write_to_file content is all added (green);
 	// replace_in_file mixes added/deleted/unchanged.
+	if r.currentTool == "replace_in_file" && r.diffEmit != nil {
+		// The diff is computed here (not at the replace param end) so a trailing
+		// start_line parameter (which arrives after replace in JSON mode) is
+		// already parsed and the line numbers are correct.
+		if d := buildDiffText(r.replaceSearchAccum.String(), r.replaceReplaceAccum.String(), r.replaceStartLine); len(d) > 0 {
+			r.diffLines = append(r.diffLines, d...)
+			r.diffText.WriteString(diffLinesToText(d))
+		}
+	}
 	if (r.currentTool == "replace_in_file" || r.currentTool == "write_to_file") && r.diffEmit != nil && len(r.diffLines) > 0 {
 		r.diffEmit(r.diffLines)
 	}

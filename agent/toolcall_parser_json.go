@@ -212,7 +212,17 @@ func (p *JSONToolCallParser) Feed(fragment string) ([]RenderOp, error) {
 			p.expectValue = true
 			i++
 		case ch == ',':
-			// Separator — a new key follows.
+			// Separator — a new key follows. If a raw (non-string) value such as
+			// a number (e.g. replace_in_file "start_line": 5) was buffered, close
+			// the pending parameter now so the renderer receives its value
+			// (FEATURE-424).
+			if p.pendingKey != "" && p.buffer.Len() > 0 {
+				val := p.buffer.String()
+				p.buffer.Reset()
+				ops = append(ops, RenderOp{Kind: OpValueFragment, Text: val})
+				ops = append(ops, RenderOp{Kind: OpParamEnd, Text: p.pendingKey})
+				p.pendingKey = ""
+			}
 			p.expectValue = false
 			i++
 		case ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r':
