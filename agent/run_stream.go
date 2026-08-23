@@ -30,6 +30,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,22 @@ func (a *Agent) emitParseErrorRaw(cb StreamCallback, rawDetail string) {
 	if a.cfg != nil && a.cfg.LLM.ShowParseErrorRaw && rawDetail != "" {
 		cb(InfoEvent(ChannelDebug, fmt.Sprintf(i18n.TF(i18n.KeyXMLParseErrorRaw), rawDetail)))
 	}
+}
+
+// emitTokenIter sends a token_iter event carrying the current context message
+// index (the index of the last message in a.messages, matching the sequence
+// number :context displays). The frontend uses this as the iteration number on
+// the token-stats line (FEATURE-419).
+func (a *Agent) emitTokenIter(cb StreamCallback, iterPrompt, iterComp, iterTotal, maxModelLen int, ft, inTPS, outTPS string) {
+	ev := TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen, ft, inTPS, outTPS)
+	a.mu.Lock()
+	ctxIdx := len(a.messages) - 1
+	a.mu.Unlock()
+	if ev.Meta == nil {
+		ev.Meta = map[string]string{}
+	}
+	ev.Meta["ctx_index"] = strconv.Itoa(ctxIdx)
+	cb(ev)
 }
 
 // abortVisionRecognitionRound finalizes an in-flight FEATURE-343 minimal
@@ -984,8 +1001,8 @@ iterationLoop:
 						tokenUsageMode = a.cfg.LLM.TokenUsage
 					}
 					if tokenUsageMode != "off" {
-						cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
-							timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+						a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen,
+							timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS)
 					}
 				}
 
@@ -1051,8 +1068,8 @@ iterationLoop:
 						tokenUsageMode = a.cfg.LLM.TokenUsage
 					}
 					if tokenUsageMode != "off" {
-						cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
-							timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+						a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen,
+							timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS)
 					}
 				}
 				taskP, taskC, taskT := a.TaskTokenUsage()
@@ -1491,8 +1508,8 @@ iterationLoop:
 					tokenUsageMode = a.cfg.LLM.TokenUsage
 				}
 				if tokenUsageMode != "off" {
-					cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
-						timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+					a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen,
+						timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS)
 				}
 			}
 			// Send task-level token usage before done
@@ -1537,8 +1554,8 @@ iterationLoop:
 				tokenUsageMode = a.cfg.LLM.TokenUsage
 			}
 			if tokenUsageMode != "off" {
-				cb(TokenIterEvent(iterPrompt, iterComp, iterTotal, maxModelLen,
-					timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS))
+				a.emitTokenIter(cb, iterPrompt, iterComp, iterTotal, maxModelLen,
+					timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS)
 			}
 		}
 
