@@ -209,47 +209,36 @@ aside {
   display: flex;
   align-items: center;
   gap: 0;
-  /* Small left padding keeps a 2px gap between the arrow and the file name
-     (the git-status letter is absolutely positioned against .tree, so it does
-     not consume flex space here). */
-  padding: 2px 6px 2px 2px;
+  /* The git-status letter is a flex child (12px) at the left, so no extra
+     left padding is needed. */
+  padding: 2px 6px 2px 0;
   border-radius: 5px;
   cursor: pointer;
   color: var(--fg-dim);
 }
 .tree-row:hover { background: var(--bg-elev); color: var(--fg); }
-/* The expand/collapse arrow is absolutely positioned so it does not push
-   the label right; each nesting level's indent is purely the ul padding
-   (1em = one monospace character). The git status letter (FEATURE-380) is a
-   direct child of the li, absolutely positioned against the .tree container
-   so it hugs the file list's left edge (not the file name). The .tree-row
-   gets a left padding to compensate, so the file name's horizontal position
-   is unaffected and no extra room is consumed. */
-.tree-node > .git-status {
-  position: absolute;
-  left: 2px;
+/* FEATURE-425: the git status letter is a flex child of the .tree-row, so
+   align-items:center puts it exactly on the file name's horizontal line. */
+.tree-row .git-status {
+  flex: none;
   width: 12px;
   font-size: 10px;
   font-weight: 700;
   text-align: center;
-  /* Match the file-name row height so the status letter sits on the same
-     horizontal line as the file name (FEATURE-425). */
-  line-height: 19px;
+  line-height: 1;
 }
-.tree-node > .git-status.st-m { color: #58a6ff; }
-.tree-node > .git-status.st-a,
-.tree-node > .git-status.st-u { color: #3fb950; }
-.tree-node > .git-status.st-d { color: #f85149; }
-.tree-node > .git-status.st-r { color: #bc8cff; }
+.tree-row .git-status.st-m { color: #58a6ff; }
+.tree-row .git-status.st-a,
+.tree-row .git-status.st-u { color: #3fb950; }
+.tree-row .git-status.st-d { color: #f85149; }
+.tree-row .git-status.st-r { color: #bc8cff; }
 .tree-row .tw {
-  position: absolute;
-  left: 0;
-  width: 12px;
   flex: none;
+  width: 12px;
   color: var(--fg-faint);
   font-size: 10px;
 }
-.tree-row .name { padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
+.tree-row .name { overflow: hidden; text-overflow: ellipsis; }
 .tree-row.dir > .name { color: var(--fg); }
 /* Right-aligned action group (FEATURE-383): directory change-count badge +
    reveal button. margin-left:auto pushes the whole group to the right edge,
@@ -1166,8 +1155,10 @@ aside {
   flex-direction: column;
   overflow: hidden;
 }
-/* The head matches the workspace/task-plan panel heads (same padding, font
-   size, uppercase transform and bottom border) so the three align perfectly. */
+/* The head matches the workspace/task-plan panel heads (same height, font
+   size, uppercase transform and bottom border) so the three align perfectly.
+   The search box is height-capped so it never stretches the head taller than
+   the panel heads (FEATURE-425). */
 .fv-head {
   display: flex;
   align-items: center;
@@ -1181,6 +1172,9 @@ aside {
   letter-spacing: 0.8px;
   flex: none;
   background: var(--bg-panel);
+  height: 36px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .fv-title {
   overflow: hidden;
@@ -1191,7 +1185,8 @@ aside {
   text-transform: none;
   letter-spacing: 0;
 }
-/* FEATURE-425: in-file search box in the head. */
+/* FEATURE-425: in-file search box in the head. Height-capped so it fits the
+   36px head without stretching it. */
 .fv-search {
   flex: 1;
   max-width: 320px;
@@ -1201,7 +1196,9 @@ aside {
   border-radius: 6px;
   color: var(--fg);
   font-size: 12px;
-  padding: 3px 8px;
+  padding: 2px 8px;
+  height: 22px;
+  box-sizing: border-box;
   text-transform: none;
   letter-spacing: 0;
   outline: none;

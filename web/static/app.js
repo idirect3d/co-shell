@@ -1783,11 +1783,11 @@ function treeNode(node) {
   const row = document.createElement("div");
   row.className = "tree-row" + (node.dir ? " dir" : "");
 
-  // FEATURE-380: git status letter is a direct child of the li (.tree-node),
-  // absolutely positioned against the .tree container so it hugs the file
-  // list's left edge (not the file name). Files show their status letter
-  // (M/A/D/R/U); directories leave it blank so every row keeps the same left
-  // gutter and horizontal alignment is unaffected.
+  // FEATURE-380: git status letter. It is a flex child of the .tree-row so it
+  // sits exactly on the file name's horizontal line (align-items:center), and
+  // hugs the file list's left edge (FEATURE-425). Files show their status
+  // letter (M/A/D/R/U); directories leave it blank so every row keeps the
+  // same left gutter and horizontal alignment is unaffected.
   const status = document.createElement("span");
   status.className = "git-status";
   if (node.status) {
@@ -1795,7 +1795,7 @@ function treeNode(node) {
     status.title = node.status;
     status.classList.add("st-" + node.status.toLowerCase());
   }
-  li.appendChild(status);
+  row.appendChild(status);
 
   const tw = document.createElement("span");
   tw.className = "tw";
