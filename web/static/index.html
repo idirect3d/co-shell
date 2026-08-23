@@ -65,6 +65,7 @@
          / task-plan panel heads). Left: a three-segment display-mode pill
          (silent/minimal/normal); centre: the current session title (editable). -->
     <div class="stream-head">
+      <span class="stream-active" id="streamActive">●</span>
       <input type="text" class="stream-title" id="streamTitle" placeholder="会话标题" title="点击修改会话标题">
       <div class="mode-seg stream-mode" id="streamMode" title="显示模式">
         <div class="mode-seg-slider" id="streamModeSlider"></div>
@@ -84,14 +85,6 @@
          the main message area (#stream-wrap) so it never covers the workspace
          tree, task plan or input row, and auto-scales with the window. -->
     <div id="fileViewer" class="file-viewer hidden">
-      <div class="fv-head">
-        <span class="fv-title" id="fvTitle"></span>
-        <input type="text" class="fv-search" id="fvSearch" placeholder="搜索文件内容…">
-        <div class="fv-head-actions">
-          <span class="fv-raw hidden" id="fvRaw" title="Raw 模式">Raw</span>
-          <button class="icon-btn sm" id="fvClose" title="关闭">✕</button>
-        </div>
-      </div>
       <div class="fv-body" id="fvBody"></div>
     </div>
   </section>

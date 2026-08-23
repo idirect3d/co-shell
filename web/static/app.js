@@ -198,11 +198,7 @@ const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
 // FEATURE-425: read-only text file previewer.
 const fileViewer = document.getElementById("fileViewer");
-const fvTitle = document.getElementById("fvTitle");
 const fvBody = document.getElementById("fvBody");
-const fvClose = document.getElementById("fvClose");
-const fvSearch = document.getElementById("fvSearch");
-const fvRaw = document.getElementById("fvRaw");
 // FEATURE-425: main message area title bar (display-mode pill + session title).
 const streamMode = document.getElementById("streamMode");
 const streamTitle = document.getElementById("streamTitle");
@@ -2014,13 +2010,10 @@ let fvNextLine = 1;
 let fvTotal = 0;
 let fvLoading = false;
 let fvDiff = new Map(); // lineNo -> "add" | "del"
-let fvRawMode = false; // md Raw toggle (off = auto-render md)
 let fvMdText = ""; // accumulated md content for auto-render
 let fvHexMode = false; // binary file shown as hex dump
 let fvHexNext = 0; // next byte offset to load in hex mode
 let fvHexWidth = 16; // bytes per hex row (8/16/32/64/128), auto-fit to width
-// FEATURE-425: persist the user's Raw choice across files (localStorage).
-let fvRawPref = localStorage.getItem("co-shell-fv-raw") === "1";
 
 // openFilePreview opens a file in the in-page viewer. Clicking a new file
 // immediately discards the current one (UC-003); clicking the current file is
@@ -2039,15 +2032,7 @@ function openFilePreview(node) {
   fvTotal = 0;
   fvDiff = new Map();
   fvHexMode = false;
-  fvTitle.textContent = node.path;
   fvBody.textContent = "";
-  fvSearch.value = "";
-  fvSearch.placeholder = T.fileViewerSearch;
-  // FEATURE-425: md files get a Raw pill (default off = auto-render md).
-  const isMd = /\.(md|markdown)$/i.test(node.name);
-  fvRaw.classList.toggle("hidden", !isMd);
-  fvRawMode = fvRawPref; // persist the user's Raw choice across files
-  fvRaw.classList.toggle("on", fvRawMode);
   fvMdText = "";
   fvBody.classList.remove("md");
   fileViewer.classList.remove("hidden");
@@ -2107,7 +2092,7 @@ async function loadFileChunk(path, start, end) {
     if (fvPath !== path) return; // switched away while loading
     fvTotal = body.total || 0;
     const lines = body.lines || [];
-    const isMdAuto = isMdFile(path) && !fvRawMode;
+    const isMdAuto = isMdFile(path);
     if (isMdAuto) {
       // Accumulate the chunk and re-render the whole accumulated text. md.js
       // re-parses the full text each call, so unterminated constructs (open
@@ -2316,35 +2301,6 @@ function closeFileViewer() {
   fvPath = null;
   tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
 }
-
-// Close the viewer.
-fvClose.onclick = closeFileViewer;
-
-// FEATURE-425: Raw pill toggles md auto-render (off) vs raw text (on). The
-// choice is persisted so the next file keeps the same state.
-fvRaw.onclick = () => {
-  if (!fvPath || !isMdFile(fvPath)) return;
-  fvRawMode = !fvRawMode;
-  fvRawPref = fvRawMode;
-  localStorage.setItem("co-shell-fv-raw", fvRawMode ? "1" : "0");
-  fvRaw.classList.toggle("on", fvRawMode);
-  // Re-render: raw mode shows per-line rows, auto mode renders markdown.
-  fvBody.textContent = "";
-  fvBody.classList.remove("md");
-  fvNextLine = 1;
-  fvMdText = "";
-  loadFileChunk(fvPath, 1, 200);
-};
-
-// FEATURE-425: in-file search. Highlights matching lines among the loaded
-// rows (searching the already-loaded portion of large files).
-fvSearch.addEventListener("input", () => {
-  const q = fvSearch.value.trim().toLowerCase();
-  fvBody.querySelectorAll(".fv-line").forEach((row) => {
-    const hit = q !== "" && row.textContent.toLowerCase().includes(q);
-    row.classList.toggle("fv-hit", hit);
-  });
-});
 
 // FEATURE-425: when the window resizes while a hex dump is open, re-fit the
 // bytes-per-row and reload from the start.
