@@ -2649,6 +2649,13 @@ function renderModelsBody() {
   for (const m of modelList) {
     const row = document.createElement("div");
     row.className = "model-row" + (m.enabled ? " enabled" : "");
+    // Left: provider logo (FEATURE-429).
+    const logo = document.createElement("img");
+    logo.className = "model-logo";
+    logo.src = "/static/logos/" + (MODEL_LOGOS[m.provider] || "generic.png");
+    logo.alt = "";
+    logo.onerror = () => { logo.style.display = "none"; };
+    row.appendChild(logo);
     // Left: status + identity.
     const info = document.createElement("div");
     info.className = "model-info";
