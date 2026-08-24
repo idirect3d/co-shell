@@ -2661,7 +2661,7 @@ function renderModelsBody() {
     info.className = "model-info";
     const id = document.createElement("div");
     id.className = "model-id";
-    id.textContent = (m.enabled ? "● " : "○ ") + m.id;
+    id.textContent = m.id;
     id.title = m.name || m.id;
     info.appendChild(id);
     const meta = document.createElement("div");
