@@ -524,16 +524,11 @@ aside {
 }
 .ev-head-label { display: inline-flex; align-items: center; gap: 8px; }
 
-/* FEATURE-429: a breathing dot at the start of the title bar while a block
-   streams (replaces the old "..." dynamic effect). */
-.ev-streaming {
-  display: none;
-  font-size: 10px;
-  line-height: 1;
-  color: var(--accent);
+/* FEATURE-429: while a block streams, its own title-bar dot (.ev-head::before)
+   breathes to signal activity — reuses the existing dot, no extra element. */
+.ev-head.streaming::before {
   animation: breathe 1.6s ease-in-out infinite;
 }
-.ev-streaming.on { display: inline-block; }
 
 /* FEATURE-409: title-bar action icons (copy / collapse / retry). */
 .ev-actions {
