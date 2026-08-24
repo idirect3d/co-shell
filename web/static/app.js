@@ -29,6 +29,7 @@ const I18N = {
     sessionActive: "当前会话",
     sessionCount: "消息计数",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
+    modelDeleteConfirm: "确定要删除模型「%s」吗？此操作不可撤销。",
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
     supplement: "补充信息", supplementHint: "输入补充信息，Enter 发送（仍可点击上方按钮）",
@@ -61,6 +62,7 @@ const I18N = {
     sessionActive: "Current session",
     sessionCount: "Message count",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
+    modelDeleteConfirm: "Delete model \"%s\"? This cannot be undone.",
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
     supplement: "Supplement", supplementHint: "Type supplementary info, Enter to send (buttons still clickable)",
@@ -223,6 +225,11 @@ const delSessionMsg = document.getElementById("delSessionMsg");
 const delSessionClose = document.getElementById("delSessionClose");
 const delSessionCancel = document.getElementById("delSessionCancel");
 const delSessionConfirm = document.getElementById("delSessionConfirm");
+const delModelModal = document.getElementById("delModel");
+const delModelMsg = document.getElementById("delModelMsg");
+const delModelClose = document.getElementById("delModelClose");
+const delModelCancel = document.getElementById("delModelCancel");
+const delModelConfirm = document.getElementById("delModelConfirm");
 
 /* ---------- websocket ---------- */
 
@@ -1384,6 +1391,26 @@ delSessionModal.onclick = (e) => { if (e.target === delSessionModal) closeDelete
 delSessionConfirm.onclick = () => {
   if (pendingDeleteID) wsSend({ type: "session_delete", value: pendingDeleteID });
   closeDeleteModal();
+};
+
+// FEATURE-429: model delete confirmation modal (mirrors the session delete
+// interaction). The model_remove message is only sent after the user confirms.
+let pendingModelDeleteID = null;
+function confirmDeleteModel(m) {
+  pendingModelDeleteID = m.id;
+  delModelMsg.textContent = (T.modelDeleteConfirm || "确认删除模型「%s」吗？此操作不可撤销。").replace("%s", m.id);
+  delModelModal.classList.remove("hidden");
+}
+function closeModelDeleteModal() {
+  pendingModelDeleteID = null;
+  delModelModal.classList.add("hidden");
+}
+delModelClose.onclick = closeModelDeleteModal;
+delModelCancel.onclick = closeModelDeleteModal;
+delModelModal.onclick = (e) => { if (e.target === delModelModal) closeModelDeleteModal(); };
+delModelConfirm.onclick = () => {
+  if (pendingModelDeleteID) wsSend({ type: "model_remove", value: pendingModelDeleteID });
+  closeModelDeleteModal();
 };
 
 /* ---------- task plan panel ---------- */
@@ -2653,7 +2680,7 @@ function renderModelsBody() {
     mkBtn("切换", "切换为当前模型", () => wsSend({ type: "model_switch", value: m.id }));
     mkBtn(m.enabled ? "禁用" : "启用", m.enabled ? "禁用此模型" : "启用此模型", () => wsSend({ type: m.enabled ? "model_disable" : "model_enable", value: m.id }));
     mkBtn("编辑", "编辑此模型", () => { modelsModal.classList.add("hidden"); openModelWizard("edit", m.id); });
-    mkBtn("删除", "删除此模型", () => { if (confirm("确认删除模型 " + m.id + "？")) wsSend({ type: "model_remove", value: m.id }); });
+    mkBtn("删除", "删除此模型", () => confirmDeleteModel(m));
     row.appendChild(actions);
     modelsBody.appendChild(row);
   }
