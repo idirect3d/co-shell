@@ -643,8 +643,10 @@ function isStreamingBody(body) {
 function markStreaming(body) {
   const box = body.parentElement;
   if (!box) return;
-  const s = box.querySelector(".ev-streaming");
-  if (s) s.classList.add("on");
+  // FEATURE-429: reuse the block's own title-bar dot (.ev-head::before) as the
+  // breathing indicator while streaming.
+  const head = box.querySelector(".ev-head");
+  if (head) head.classList.add("streaming");
   box.classList.remove("collapsed");
   if (displayMode === "minimal") {
     document.querySelectorAll(".ev").forEach((b) => {
@@ -665,8 +667,8 @@ function unmarkStreaming(body) {
   if (!body) return;
   const box = body.parentElement;
   if (!box) return;
-  const s = box.querySelector(".ev-streaming");
-  if (s) s.classList.remove("on");
+  const head = box.querySelector(".ev-head");
+  if (head) head.classList.remove("streaming");
   if (displayMode !== "minimal") return;
   if (box.classList.contains("user-msg") || box.classList.contains("ev-result")) return;
   // Only collapse when some other block is still streaming (the last finished
@@ -695,12 +697,6 @@ function addBlockActions(head, box, body, cls, noCollapse) {
   const actions = document.createElement("span");
   actions.className = "ev-actions";
 
-  // FEATURE-429: a breathing dot at the start of the title bar while the block
-  // is streaming output (replaces the old "..." dynamic effect).
-  const streaming = document.createElement("span");
-  streaming.className = "ev-streaming";
-  streaming.textContent = "●";
-  head.prepend(streaming);
 
   // 1) Copy: copy the block's plain-text content to the clipboard.
   const copy = document.createElement("button");
@@ -831,9 +827,9 @@ function renderEvent(ev) {
       }
     }
     curLLM = curThinking = null;
-    // FEATURE-409: the LLM iteration ended (token usage refreshed) — hide the
-    // streaming "..." on all blocks now, not only at the final done event.
-    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
+    // FEATURE-409: the LLM iteration ended (token usage refreshed) — stop the
+    // breathing dot on all blocks now, not only at the final done event.
+    document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
     scrollStream();
     // FEATURE-419: each display block just completed (the "..." was removed) —
     // refresh the workspace file tree and branch label so the user sees file /
@@ -871,8 +867,8 @@ function renderEvent(ev) {
       applyBlockDisplayMode(b, b.className.replace("ev ", "").split(" ")[0]);
       break;
     }
-    // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
-    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
+    // FEATURE-409: stop the breathing dot on all blocks once streaming ends.
+    document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
     // An LLM iteration finished — the agent may have switched git branches
     // or modified files, so refresh the branch label and the tree's git
     // status badges without a manual reload.
