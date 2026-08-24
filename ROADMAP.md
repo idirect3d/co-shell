@@ -339,6 +339,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-428 | 0.16.0 | P1 | 会话清单显示消息数：状态条会话清单每项增加消息数显示，消息数靠右右对齐，鼠标滑过提示"消息计数" |
+| FEATURE-429 | 0.16.0 | P1 | 新增模型向导 Web UI 分步表单化：后端新增结构化向导接口（不再走文本流），前端渲染真正的分步表单（模板下拉/endpoint输入/API key密码框/模型名下拉/能力勾选/ID/优先级/启用开关），底部上一步/下一步/完成按钮，保留 TUI 向导不变 |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -351,6 +352,13 @@
   - 方案（已确认）：后端 `sessionInfo` 增加 `message_count` 字段（复用 `SessionEntry.MessageCount`），前端会话清单每项在标题右侧靠右显示消息数，鼠标滑过提示"消息计数"。
   - 需求：`web/server.go` `sessionInfo` 增加 `MessageCount` 字段；`web/session.go` `pushSessionList` 填充 `MessageCount`；`web/static/app.js` `renderSessionMenu` 渲染消息数（右对齐）+ title 提示；`web/static/style.css` 新增消息数样式；`web/static/app.js` i18n 增加"消息计数"文案。
   - 实施：`web/server.go` `sessionInfo` 增加 `MessageCount` 字段；`web/session.go` `pushSessionList` 填充 `MessageCount`；`web/static/app.js` `renderSessionMenu` 在标题后添加右对齐消息数 span（`session-count`）+ title 提示（`T.sessionCount`），i18n zh/en 增加 `sessionCount` 文案；`web/static/style.css` 新增 `.session-count` 样式（`margin-left:auto` 靠右 + `flex-shrink:0`）[BUILD-621]
+  - 测试：见 use-case/FEATURE-428/
+
+- [ ] **FEATURE-429 新增模型向导 Web UI 分步表单化** [BUILD-622]
+  - 背景：FEATURE-422 的 Web 模型向导本质是"把 TUI 文本向导翻译成 Web 弹窗里的文本流 + 通用输入框"，不是真正的分步表单，用户体验差。
+  - 方案（已确认）：新增一套独立的 Web 专用结构化向导接口（与现有 TUI 向导并行共存，不破坏 REPL 体验），后端复用现有逻辑（saveModel/fetchModelSuggestions/detectModelCapabilities/autoCompleteEndpoint 等），前端渲染真正的分步表单。
+  - 需求：① 后端 `cmd/model_web_wizard.go` 新增结构化向导状态机（WebWizardStep 枚举 + WebWizardState + WebWizardStepData 表单描述 + WebWizardStart/Next/Prev/Submit 方法），复用现有底层逻辑；② `web/session.go` 新增 model_wizard_start/next/prev 消息；③ 前端向导弹窗改为分步表单（左侧步骤导航 + 右侧表单控件 + 底部上一步/下一步/完成按钮）；④ 保留 TUI 向导不变。
+  - 实施：① `cmd/model_web_wizard.go` 新增结构化向导（WebWizardStep 枚举 + WebWizardData 前端持有 + WebWizardStepData 表单描述 + WebWizardStart/Next/Prev/Submit 方法，复用 saveModel/fetchModelSuggestions/detectModelCapabilities/autoCompleteEndpoint/modelIDExists/knownMaxModelLen，edit 分支不依赖模板存在）；② `web/server.go` clientMessage 增加 Step/WizardData 字段、serverMessage 增加 WizardStep/WizardData 字段；③ `web/session.go` 新增 model_wizard_start/next/prev/submit 消息处理（handleModelWizardStart/Next/Prev/Submit + sendWizardStep + decodeWizardData）；④ `web/static/index.html` 向导弹窗改为分步表单结构（左侧导航 + 右侧表单 + 底部按钮）；⑤ `web/static/app.js` 重写向导逻辑（wizardData/wizardStep 状态 + renderWizardStep/renderWizardField/collectWizardFields + 上一步/下一步/完成按钮 + 兼容占位函数）；⑥ `web/static/style.css` 新增分步表单样式（wizard-layout/nav/field/actions 等）；⑦ `cmd/model_web_wizard_test.go` 新增 8 个单元测试（启动/推进/回退/提交/模型拉取/能力检测）[BUILD-622]
   - 测试：见 use-case/FEATURE-428/
 
 ## v0.9.1 — 开发中（已完成）

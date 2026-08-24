@@ -183,6 +183,10 @@ const modelAddBtn = document.getElementById("modelAddBtn");
 const modelWizardModal = document.getElementById("modelWizard");
 const modelWizardBody = document.getElementById("modelWizardBody");
 const modelWizardCancel = document.getElementById("modelWizardCancel");
+const modelWizardNav = document.getElementById("modelWizardNav");
+const modelWizardPrev = document.getElementById("modelWizardPrev");
+const modelWizardNext = document.getElementById("modelWizardNext");
+const modelWizardSubmit = document.getElementById("modelWizardSubmit");
 const sbModelTextWrap = document.getElementById("sbModelTextWrap");
 const sbModelVisionWrap = document.getElementById("sbModelVisionWrap");
 const modelMenu = document.getElementById("modelMenu");
@@ -260,6 +264,7 @@ function wsConnect() {
     else if (msg.kind === "mode_result") showModeResult(msg);
     else if (msg.kind === "models") renderModels(msg.models || [], msg.templates || []);
     else if (msg.kind === "model_result") showModelResult(msg);
+    else if (msg.kind === "model_wizard") showModelWizardStep(msg);
     else if (msg.kind === "pop_result") {
       // FEATURE-409: retry-from popped the session back; reload so the stream
       // reflects the truncated history.
@@ -2868,16 +2873,28 @@ function showModelResult(msg) {
   refreshModelInfo();
 }
 
-// openModelWizard opens the wizard modal and launches the add/edit wizard.
+// FEATURE-429: structured step-by-step wizard. The browser owns the
+// accumulated field data (wizardData) and the current step (wizardStep); the
+// backend returns the form of each step as structured JSON.
+let wizardData = {};
+let wizardStep = "";
+
+// wizardStepTitles maps a step key to its navigation label.
+const wizardStepTitles = {
+  template: "模板", endpoint: "接口地址", api_key: "API Key",
+  model_name: "模型名", capabilities: "能力", model_id: "模型 ID",
+  priority: "优先级", max_model_len: "上下文长度", enabled: "启用"
+};
+
+// openModelWizard opens the wizard modal and starts the structured wizard.
 function openModelWizard(mode, id) {
   wizardActive = true;
+  wizardData = {};
+  wizardStep = "";
   modelWizardBody.textContent = "";
+  modelWizardNav.textContent = "";
   modelWizardModal.classList.remove("hidden");
-  if (mode === "edit") {
-    wsSend({ type: "model_edit", value: id });
-  } else {
-    wsSend({ type: "model_add" });
-  }
+  wsSend({ type: "model_wizard_start", value: id || "" });
 }
 
 // closeModelWizard closes the wizard modal and clears the wizard-active flag.
@@ -2885,16 +2902,146 @@ function closeModelWizard() {
   wizardActive = false;
   modelWizardModal.classList.add("hidden");
   modelWizardBody.textContent = "";
+  modelWizardNav.textContent = "";
 }
 
-// The wizard cancel button aborts the running wizard (backend fails all pending
-// asks so the wizard exits from any step).
-modelWizardCancel.onclick = () => {
-  wsSend({ type: "model_wizard_cancel" });
-  closeModelWizard();
+// The wizard cancel button closes the modal (the structured wizard is stateless,
+// so no backend cancel is needed).
+modelWizardCancel.onclick = () => { closeModelWizard(); };
+
+// showModelWizardStep handles a model_wizard message: renders the step form or
+// reports completion/error.
+function showModelWizardStep(msg) {
+  if (!msg.ok) {
+    closeModelWizard();
+    if (msg.message) alert(msg.message);
+    return;
+  }
+  if (msg.wizard_step) {
+    wizardData = msg.wizard_data || wizardData;
+    renderWizardStep(msg.wizard_step);
+  } else {
+    // Completed: close and refresh the model list.
+    closeModelWizard();
+    wsSend({ type: "model_get" });
+    refreshModelInfo();
+  }
+}
+
+// renderWizardStep renders the left nav + right form + bottom buttons for a step.
+function renderWizardStep(step) {
+  wizardStep = step.step;
+  // Left navigation.
+  modelWizardNav.textContent = "";
+  const order = ["template", "endpoint", "api_key", "model_name", "capabilities", "model_id", "priority", "max_model_len", "enabled"];
+  const curIdx = order.indexOf(step.step);
+  for (let i = 0; i < order.length; i++) {
+    const item = document.createElement("div");
+    item.className = "wizard-nav-item" + (i === curIdx ? " current" : "") + (i < curIdx ? " done" : "");
+    item.textContent = (i + 1) + ". " + (wizardStepTitles[order[i]] || order[i]);
+    if (i < curIdx) {
+      item.onclick = () => { wizardStep = order[i]; wsSend({ type: "model_wizard_prev", step: order[i], wizard_data: wizardData }); };
+    }
+    modelWizardNav.appendChild(item);
+  }
+  // Right form.
+  modelWizardBody.textContent = "";
+  const title = document.createElement("div");
+  title.className = "wizard-step-title";
+  title.textContent = step.title || (wizardStepTitles[step.step] || step.step);
+  modelWizardBody.appendChild(title);
+  for (const f of (step.fields || [])) {
+    modelWizardBody.appendChild(renderWizardField(f));
+  }
+  // Bottom buttons.
+  modelWizardPrev.style.display = step.is_first ? "none" : "";
+  modelWizardNext.style.display = step.is_last ? "none" : "";
+  modelWizardSubmit.style.display = step.is_last ? "" : "none";
+}
+
+// renderWizardField builds a form control for one field.
+function renderWizardField(f) {
+  const wrap = document.createElement("div");
+  wrap.className = "wizard-field";
+  const label = document.createElement("label");
+  label.className = "wizard-field-label";
+  label.textContent = f.label || f.key;
+  wrap.appendChild(label);
+  let ctl;
+  if (f.type === "select") {
+    ctl = document.createElement("select");
+    ctl.className = "wizard-input";
+    ctl.dataset.key = f.key;
+    for (const opt of (f.options || [])) {
+      const o = document.createElement("option");
+      o.value = opt;
+      o.textContent = opt;
+      ctl.appendChild(o);
+    }
+    if (f.value) ctl.value = f.value;
+  } else if (f.type === "checkbox") {
+    ctl = document.createElement("input");
+    ctl.type = "checkbox";
+    ctl.className = "wizard-check";
+    ctl.dataset.key = f.key;
+    ctl.checked = f.value === "true";
+  } else if (f.type === "switch") {
+    ctl = document.createElement("input");
+    ctl.type = "checkbox";
+    ctl.className = "wizard-switch";
+    ctl.dataset.key = f.key;
+    ctl.checked = f.value === "true";
+  } else {
+    ctl = document.createElement("input");
+    ctl.type = f.type === "password" ? "password" : (f.type === "number" ? "number" : "text");
+    ctl.className = "wizard-input";
+    ctl.dataset.key = f.key;
+    ctl.value = f.value || "";
+  }
+  wrap.appendChild(ctl);
+  if (f.hint) {
+    const hint = document.createElement("div");
+    hint.className = "wizard-field-hint";
+    hint.textContent = f.hint;
+    wrap.appendChild(hint);
+  }
+  return wrap;
+}
+
+// collectWizardFields reads the current form's values into wizardData.
+function collectWizardFields() {
+  modelWizardBody.querySelectorAll("[data-key]").forEach((el) => {
+    const key = el.dataset.key;
+    if (el.type === "checkbox") {
+      wizardData[key] = el.checked;
+    } else if (el.type === "number") {
+      wizardData[key] = parseInt(el.value, 10) || 0;
+    } else {
+      wizardData[key] = el.value;
+    }
+  });
+}
+
+// Next: collect the current step's values and advance.
+modelWizardNext.onclick = () => {
+  collectWizardFields();
+  wsSend({ type: "model_wizard_next", step: wizardStep, wizard_data: wizardData });
 };
 
-// appendWizardText appends a line of wizard output to the wizard modal body.
+// Prev: go back one step.
+modelWizardPrev.onclick = () => {
+  wsSend({ type: "model_wizard_prev", step: wizardStep, wizard_data: wizardData });
+};
+
+// Submit: collect the last step's values and finish.
+modelWizardSubmit.onclick = () => {
+  collectWizardFields();
+  wsSend({ type: "model_wizard_submit", wizard_data: wizardData });
+};
+
+// Compatibility stubs for the legacy text-flow wizard routing (FEATURE-422).
+// The structured wizard (FEATURE-429) no longer emits ui_text/ask/interaction,
+// but these keep the wizardActive routing branches safe if they ever fire.
 function appendWizardText(text) {
   const line = document.createElement("div");
   line.className = "wizard-line";
@@ -2902,37 +3049,20 @@ function appendWizardText(text) {
   modelWizardBody.appendChild(line);
   modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
 }
-
-// showWizardAsk renders an ask input request inside the wizard modal. It builds
-// a single-line input (mode "line") or a set of key buttons (mode "key") and
-// sends the answer back via the standard answer message.
 function showWizardAsk(msg) {
   const wrap = document.createElement("div");
   wrap.className = "wizard-ask";
-  if (msg.mode === "key") {
-    const keys = [["Enter", ""], ["c", "c"], ["a", "a"], ["g", "g"], ["d", "d"], ["n", "n"]];
-    for (const [label, value] of keys) {
-      const b = document.createElement("button");
-      b.className = "key-btn";
-      b.textContent = label;
-      b.onclick = () => { wsSend({ type: "answer", id: msg.id, value }); wrap.remove(); };
-      wrap.appendChild(b);
-    }
-  } else {
-    const inp = document.createElement("input");
-    inp.type = "text";
-    inp.autocomplete = "off";
-    inp.placeholder = T.askLine || "输入...";
-    const send = document.createElement("button");
-    send.className = "btn";
-    send.textContent = T.send || "发送";
-    const submit = () => { wsSend({ type: "answer", id: msg.id, value: inp.value }); wrap.remove(); };
-    send.onclick = submit;
-    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
-    wrap.appendChild(inp);
-    wrap.appendChild(send);
-    setTimeout(() => inp.focus(), 0);
-  }
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.autocomplete = "off";
+  const send = document.createElement("button");
+  send.className = "btn";
+  send.textContent = T.send || "发送";
+  const submit = () => { wsSend({ type: "answer", id: msg.id, value: inp.value }); wrap.remove(); };
+  send.onclick = submit;
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+  wrap.appendChild(inp);
+  wrap.appendChild(send);
   modelWizardBody.appendChild(wrap);
   modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
 }
