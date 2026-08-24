@@ -524,19 +524,16 @@ aside {
 }
 .ev-head-label { display: inline-flex; align-items: center; gap: 8px; }
 
-/* FEATURE-409: dynamic "..." shown next to the title while a block streams. */
+/* FEATURE-429: a breathing dot at the start of the title bar while a block
+   streams (replaces the old "..." dynamic effect). */
 .ev-streaming {
   display: none;
-  font-size: 12px;
-  letter-spacing: 1px;
+  font-size: 10px;
+  line-height: 1;
   color: var(--accent);
-  animation: ev-blink 1s steps(2, start) infinite;
+  animation: breathe 1.6s ease-in-out infinite;
 }
-.ev-streaming.on { display: inline; }
-@keyframes ev-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
-}
+.ev-streaming.on { display: inline-block; }
 
 /* FEATURE-409: title-bar action icons (copy / collapse / retry). */
 .ev-actions {

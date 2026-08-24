@@ -695,12 +695,12 @@ function addBlockActions(head, box, body, cls, noCollapse) {
   const actions = document.createElement("span");
   actions.className = "ev-actions";
 
-  // FEATURE-409: a dynamic "..." shown next to the title while the block is
-  // streaming output, so the user can see it is still being produced.
+  // FEATURE-429: a breathing dot at the start of the title bar while the block
+  // is streaming output (replaces the old "..." dynamic effect).
   const streaming = document.createElement("span");
   streaming.className = "ev-streaming";
-  streaming.textContent = "...";
-  head.appendChild(streaming);
+  streaming.textContent = "●";
+  head.prepend(streaming);
 
   // 1) Copy: copy the block's plain-text content to the clipboard.
   const copy = document.createElement("button");
