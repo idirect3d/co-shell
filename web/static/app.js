@@ -27,6 +27,7 @@ const I18N = {
     revealDir: "定位到文件夹",
     sessionDelete: "删除会话",
     sessionActive: "当前会话",
+    sessionCount: "消息计数",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
@@ -58,6 +59,7 @@ const I18N = {
     revealDir: "Reveal in folder",
     sessionDelete: "Delete session",
     sessionActive: "Current session",
+    sessionCount: "Message count",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
@@ -1242,6 +1244,12 @@ function renderSessionMenu(sessions) {
     title.textContent = s.title || "(unnamed)";
     title.title = (s.keywords ? s.keywords + " · " : "") + s.created_at;
     row.appendChild(title);
+    // Message count, right-aligned (FEATURE-428).
+    const count = document.createElement("span");
+    count.className = "session-count";
+    count.textContent = s.message_count != null ? s.message_count : 0;
+    count.title = T.sessionCount;
+    row.appendChild(count);
     row.onclick = () => {
       if (s.current) return;
       wsSend({ type: "session_switch", value: s.id });

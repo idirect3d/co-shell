@@ -1147,6 +1147,13 @@ aside {
   text-overflow: ellipsis;
   max-width: 180px;
 }
+.session-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--fg-dim);
+  font-size: 11px;
+  padding-left: 8px;
+}
 
 /* ---------- image preview ---------- */
 
