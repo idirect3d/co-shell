@@ -2962,7 +2962,7 @@ function renderWizardStep(step) {
 // renderWizardField builds a form control for one field.
 function renderWizardField(f) {
   const wrap = document.createElement("div");
-  wrap.className = "wizard-field";
+  wrap.className = "wizard-field" + ((f.type === "checkbox" || f.type === "switch") ? " toggle" : "");
   const label = document.createElement("label");
   label.className = "wizard-field-label";
   label.textContent = f.label || f.key;
@@ -2980,13 +2980,18 @@ function renderWizardField(f) {
     }
     if (f.value) ctl.value = f.value;
   } else if (f.type === "checkbox" || f.type === "switch") {
-    // Capsule toggle (reuses the .tool-params-raw pill style).
-    ctl = document.createElement("button");
-    ctl.type = "button";
-    ctl.className = "tool-params-raw" + (f.value === "true" ? " on" : "");
-    ctl.dataset.key = f.key;
-    ctl.textContent = f.label || f.key;
-    ctl.onclick = () => ctl.classList.toggle("on");
+    // Slider toggle switch: label on the left, switch on the right.
+    const tgl = document.createElement("label");
+    tgl.className = "wizard-toggle";
+    const inp = document.createElement("input");
+    inp.type = "checkbox";
+    inp.dataset.key = f.key;
+    inp.checked = f.value === "true";
+    const slider = document.createElement("span");
+    slider.className = "wizard-toggle-slider";
+    tgl.appendChild(inp);
+    tgl.appendChild(slider);
+    ctl = tgl;
   } else {
     ctl = document.createElement("input");
     ctl.type = f.type === "password" ? "password" : (f.type === "number" ? "number" : "text");
@@ -3008,10 +3013,8 @@ function renderWizardField(f) {
 function collectWizardFields() {
   modelWizardBody.querySelectorAll("[data-key]").forEach((el) => {
     const key = el.dataset.key;
-    if (el.classList && el.classList.contains("tool-params-raw")) {
-      // Capsule toggle: on = true.
-      wizardData[key] = el.classList.contains("on");
-    } else if (el.type === "checkbox") {
+    if (el.type === "checkbox") {
+      // Toggle switch / checkbox: checked = true.
       wizardData[key] = el.checked;
     } else if (el.type === "number") {
       wizardData[key] = parseInt(el.value, 10) || 0;

@@ -1574,12 +1574,59 @@ aside {
   color: var(--fg-faint);
   margin-top: 3px;
 }
-/* Capsule toggles inside the wizard (capabilities / enabled) reuse the
-   .tool-params-raw pill style, adjusted for the vertical form layout. */
-.wizard-field .tool-params-raw {
-  margin-left: 0;
-  font-size: 12px;
-  padding: 4px 14px;
+/* Toggle-switch fields inside the wizard (capabilities / enabled): the label
+   sits on the left and the switch on the right, laid out horizontally. */
+.wizard-field.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wizard-field.toggle .wizard-field-label {
+  margin-bottom: 0;
+}
+/* Slider toggle switch (iOS-style): a rounded track with a circular knob that
+   slides right when checked. */
+.wizard-toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.wizard-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.wizard-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--border);
+  border-radius: 999px;
+  transition: 0.2s;
+}
+.wizard-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--fg);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.wizard-toggle input:checked + .wizard-toggle-slider {
+  background: var(--accent);
+}
+.wizard-toggle input:checked + .wizard-toggle-slider::before {
+  transform: translateX(16px);
+  background: var(--bg);
 }
 .wizard-actions {
   display: flex;
