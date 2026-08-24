@@ -1574,6 +1574,13 @@ aside {
   color: var(--fg-faint);
   margin-top: 3px;
 }
+/* Capsule toggles inside the wizard (capabilities / enabled) reuse the
+   .tool-params-raw pill style, adjusted for the vertical form layout. */
+.wizard-field .tool-params-raw {
+  margin-left: 0;
+  font-size: 12px;
+  padding: 4px 14px;
+}
 .wizard-actions {
   display: flex;
   justify-content: flex-end;

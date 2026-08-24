@@ -2979,18 +2979,14 @@ function renderWizardField(f) {
       ctl.appendChild(o);
     }
     if (f.value) ctl.value = f.value;
-  } else if (f.type === "checkbox") {
-    ctl = document.createElement("input");
-    ctl.type = "checkbox";
-    ctl.className = "wizard-check";
+  } else if (f.type === "checkbox" || f.type === "switch") {
+    // Capsule toggle (reuses the .tool-params-raw pill style).
+    ctl = document.createElement("button");
+    ctl.type = "button";
+    ctl.className = "tool-params-raw" + (f.value === "true" ? " on" : "");
     ctl.dataset.key = f.key;
-    ctl.checked = f.value === "true";
-  } else if (f.type === "switch") {
-    ctl = document.createElement("input");
-    ctl.type = "checkbox";
-    ctl.className = "wizard-switch";
-    ctl.dataset.key = f.key;
-    ctl.checked = f.value === "true";
+    ctl.textContent = f.label || f.key;
+    ctl.onclick = () => ctl.classList.toggle("on");
   } else {
     ctl = document.createElement("input");
     ctl.type = f.type === "password" ? "password" : (f.type === "number" ? "number" : "text");
@@ -3012,7 +3008,10 @@ function renderWizardField(f) {
 function collectWizardFields() {
   modelWizardBody.querySelectorAll("[data-key]").forEach((el) => {
     const key = el.dataset.key;
-    if (el.type === "checkbox") {
+    if (el.classList && el.classList.contains("tool-params-raw")) {
+      // Capsule toggle: on = true.
+      wizardData[key] = el.classList.contains("on");
+    } else if (el.type === "checkbox") {
       wizardData[key] = el.checked;
     } else if (el.type === "number") {
       wizardData[key] = parseInt(el.value, 10) || 0;
@@ -3022,9 +3021,19 @@ function collectWizardFields() {
   });
 }
 
-// Next: collect the current step's values and advance.
+// Next: collect the current step's values and advance. When moving into the
+// capabilities step, show a "detecting" placeholder while the backend runs the
+// capability detection (FEATURE-429).
 modelWizardNext.onclick = () => {
   collectWizardFields();
+  if (wizardStep === "model_name") {
+    // Next step is capabilities: show a detecting placeholder.
+    modelWizardBody.textContent = "";
+    const det = document.createElement("div");
+    det.className = "wizard-step-title";
+    det.textContent = "正在检测模型能力...";
+    modelWizardBody.appendChild(det);
+  }
   wsSend({ type: "model_wizard_next", step: wizardStep, wizard_data: wizardData });
 };
 
