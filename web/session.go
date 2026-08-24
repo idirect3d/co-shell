@@ -192,6 +192,14 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleModelWizard("edit", msg.Value)
 	case "model_wizard_cancel":
 		s.handleModelWizardCancel()
+	case "model_wizard_start":
+		s.handleModelWizardStart(msg.Value)
+	case "model_wizard_next":
+		s.handleModelWizardNext(msg.Step, msg.WizardData)
+	case "model_wizard_prev":
+		s.handleModelWizardPrev(msg.Step, msg.WizardData)
+	case "model_wizard_submit":
+		s.handleModelWizardSubmit(msg.WizardData)
 	}
 }
 
@@ -372,6 +380,99 @@ func (s *WebSession) handleModelWizard(mode, id string) {
 // readLine() maps to wizardCancel so the wizard exits from any step (FEATURE-422).
 func (s *WebSession) handleModelWizardCancel() {
 	s.wio.failAll()
+}
+
+// handleModelWizardStart begins the structured add/edit wizard (FEATURE-429)
+// and pushes the first step's form to the browser.
+func (s *WebSession) handleModelWizardStart(id string) {
+	if s.model == nil {
+		return
+	}
+	mode := "add"
+	if id != "" {
+		mode = "edit"
+	}
+	step, data, err := s.model.WebWizardStart(mode, id)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	s.sendWizardStep(step, data)
+}
+
+// handleModelWizardNext advances the structured wizard to the next step.
+func (s *WebSession) handleModelWizardNext(step string, raw json.RawMessage) {
+	if s.model == nil {
+		return
+	}
+	data, err := decodeWizardData(raw)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	next, err := s.model.WebWizardNext(data, cmd.WebWizardStep(step))
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	s.sendWizardStep(next, data)
+}
+
+// handleModelWizardPrev goes back to the previous step of the structured wizard.
+func (s *WebSession) handleModelWizardPrev(step string, raw json.RawMessage) {
+	if s.model == nil {
+		return
+	}
+	data, err := decodeWizardData(raw)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	prev, err := s.model.WebWizardPrev(data, cmd.WebWizardStep(step))
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	s.sendWizardStep(prev, data)
+}
+
+// handleModelWizardSubmit submits the structured wizard and saves the model.
+func (s *WebSession) handleModelWizardSubmit(raw json.RawMessage) {
+	if s.model == nil {
+		return
+	}
+	data, err := decodeWizardData(raw)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	result, err := s.model.WebWizardSubmit(data)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: true, Message: result})
+	s.handleModelGet()
+}
+
+// sendWizardStep pushes a wizard step form and the accumulated data to the
+// browser (FEATURE-429).
+func (s *WebSession) sendWizardStep(step *cmd.WebWizardStepData, data *cmd.WebWizardData) {
+	stepRaw, _ := json.Marshal(step)
+	dataRaw, _ := json.Marshal(data)
+	s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: true, WizardStep: stepRaw, WizardData: dataRaw})
+}
+
+// decodeWizardData unmarshals the accumulated wizard data from the browser.
+func decodeWizardData(raw json.RawMessage) (*cmd.WebWizardData, error) {
+	if len(raw) == 0 {
+		return &cmd.WebWizardData{}, nil
+	}
+	var data cmd.WebWizardData
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, err
+	}
+	return &data, nil
 }
 
 // handleModelUnbind clears the current work mode's model binding for the given
