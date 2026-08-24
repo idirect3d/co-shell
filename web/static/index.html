@@ -202,6 +202,23 @@
   </div>
 </div>
 
+<!-- FEATURE-429: model delete confirmation modal (mirrors the session delete modal) -->
+<div id="delModel" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span data-i18n="modelDelete">删除模型</span>
+      <button class="icon-btn sm" id="delModelClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="del-session-msg" id="delModelMsg"></div>
+      <div class="del-session-actions">
+        <button class="btn" id="delModelCancel" data-i18n="cancel">取消</button>
+        <button class="btn danger" id="delModelConfirm" data-i18n="confirm">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- FEATURE-422: model manager modal -->
 <div id="models" class="modal hidden">
   <div class="modal-box models-box">
