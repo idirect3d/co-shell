@@ -328,6 +328,31 @@
   - 需求：修改 `main.go` 启动逻辑与 `usage.go` --help 说明。
   - 测试：见 use-case/FEATURE-427/
 
+## v0.16.0 — 开发中
+
+> **版本**: v0.16.0
+
+> **状态**: 🚧 开发中（Web UI 优化）
+> **里程碑**: Web UI 优化
+> **说明**: 0.16.0 系列专注 Web UI 优化，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-428 | 0.16.0 | P1 | 会话清单显示消息数：状态条会话清单每项增加消息数显示，消息数靠右右对齐，鼠标滑过提示"消息计数" |
+
+> 当前 BUILD: 620
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-428 会话清单显示消息数** [BUILD-621]
+  - 背景：状态条会话清单每项只显示标题，用户无法直观看到每个会话的消息数量。
+  - 方案（已确认）：后端 `sessionInfo` 增加 `message_count` 字段（复用 `SessionEntry.MessageCount`），前端会话清单每项在标题右侧靠右显示消息数，鼠标滑过提示"消息计数"。
+  - 需求：`web/server.go` `sessionInfo` 增加 `MessageCount` 字段；`web/session.go` `pushSessionList` 填充 `MessageCount`；`web/static/app.js` `renderSessionMenu` 渲染消息数（右对齐）+ title 提示；`web/static/style.css` 新增消息数样式；`web/static/app.js` i18n 增加"消息计数"文案。
+  - 实施：`web/server.go` `sessionInfo` 增加 `MessageCount` 字段；`web/session.go` `pushSessionList` 填充 `MessageCount`；`web/static/app.js` `renderSessionMenu` 在标题后添加右对齐消息数 span（`session-count`）+ title 提示（`T.sessionCount`），i18n zh/en 增加 `sessionCount` 文案；`web/static/style.css` 新增 `.session-count` 样式（`margin-left:auto` 靠右 + `flex-shrink:0`）[BUILD-621]
+  - 测试：见 use-case/FEATURE-428/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

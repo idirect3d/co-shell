@@ -109,11 +109,12 @@ type modeInfo struct {
 
 // sessionInfo is one entry in the session list pushed to the browser.
 type sessionInfo struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Keywords  string `json:"keywords"`
-	CreatedAt string `json:"created_at"`
-	Current   bool   `json:"current"`
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Keywords     string `json:"keywords"`
+	CreatedAt    string `json:"created_at"`
+	Current      bool   `json:"current"`
+	MessageCount int    `json:"message_count"` // number of messages (FEATURE-428)
 }
 
 // ServerOptions carries the display parameters of a Server.

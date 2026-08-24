@@ -416,11 +416,12 @@ func (s *WebSession) pushSessionList() {
 	infos := make([]sessionInfo, 0, len(entries))
 	for _, e := range entries {
 		infos = append(infos, sessionInfo{
-			ID:        e.ID,
-			Title:     e.Title,
-			Keywords:  e.Keywords,
-			CreatedAt: e.CreatedAt.Format("2006-01-02 15:04"),
-			Current:   e.ID == currentID,
+			ID:           e.ID,
+			Title:        e.Title,
+			Keywords:     e.Keywords,
+			CreatedAt:    e.CreatedAt.Format("2006-01-02 15:04"),
+			Current:      e.ID == currentID,
+			MessageCount: e.MessageCount,
 		})
 	}
 	s.srv.sendJSON(serverMessage{Kind: "sessions", Sessions: infos})
