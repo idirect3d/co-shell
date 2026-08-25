@@ -382,7 +382,7 @@
   - 背景：文件预览（FEATURE-425）没有标题栏，用户无法直观看到当前查看的文件名和最后修改时间，也无法快速关闭。
   - 方案（已确认）：文件预览启动后，在文件内容顶部显示悬浮半透明标题栏，显示文件名（全路径）、最后修改时间、关闭图标。平时透明度 25%，鼠标放上后变清晰。点击路径自动定位到工作区文件所在位置（自动展开路径中的文件夹）。
   - 需求：后端 `treeNode` 增加 `Mtime` 字段；前端 `fileViewer` 内增加悬浮标题栏；`openFilePreview` 填充标题栏；点击路径展开工作区树到该文件。
-  - 实施：`web/server.go` `treeNode` 增加 `Mtime` 字段，`buildTree` 为文件节点获取 `ModTime`；`web/static/index.html` `fileViewer` 内增加悬浮标题栏（`fv-titlebar`/`fvPath`/`fvMtime`/`fvClose`）；`web/static/app.js` `openFilePreview` 填充标题栏（路径/mtime），新增 `formatMtime` 辅助函数和 `revealInTree` 函数（点击路径展开工作区树到该文件），绑定关闭按钮；`web/static/style.css` 新增 `.fv-titlebar` 半透明悬浮样式（默认 25% 透明度，hover 变清晰）[BUILD-642]
+  - 实施：`web/server.go` `treeNode` 增加 `Mtime` 字段，`buildTree` 为文件节点获取 `ModTime`；`web/static/index.html` `fileViewer` 内增加悬浮标题栏（`fv-titlebar`/`fvPath`/`fvMtime`/`fvClose`）；`web/static/app.js` `openFilePreview` 填充标题栏（路径/mtime），新增 `formatMtime` 辅助函数和 `revealInTree` 函数（点击路径展开工作区树到该文件），绑定关闭按钮；`web/static/style.css` 新增 `.fv-titlebar` 半透明悬浮样式（默认 25% 透明度，hover 变清晰）[BUILD-642]；⑳ 优化：标题栏改为灵动岛形式（.fv-titlebar 两端圆形胶囊形，position:absolute 悬浮在正文上部，平时背景透明+边框文字 50% 透明，hover 背景变 50% 半透明+字体边框完全清晰，最大程度节约空间不干扰浏览）[BUILD-643]
   - 测试：见 use-case/FEATURE-432/
 
 ## v0.9.1 — 开发中（已完成）

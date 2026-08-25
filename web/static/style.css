@@ -1191,22 +1191,34 @@ aside {
   flex-direction: column;
   overflow: hidden;
 }
-/* FEATURE-432: floating title bar over the file preview. Semi-transparent by
-   default (25% opacity); hovering makes it fully opaque so it is readable. */
+/* FEATURE-432: floating title bar over the file preview, styled as a
+   Dynamic-Island-like capsule. Default: transparent background with 50%
+   translucent border/text; hovering fills the background (50% panel) and
+   makes the border/text fully opaque. It floats over the top of the body so
+   it never takes layout space or distracts from reading. */
 .fv-titlebar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-  opacity: 0.25;
-  transition: opacity 0.2s ease;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  opacity: 0.5;
+  transition: opacity 0.2s ease, background 0.2s ease;
   cursor: default;
-  flex: none;
+  z-index: 5;
+  max-width: 90%;
 }
-.fv-titlebar:hover { opacity: 1; }
+.fv-titlebar:hover {
+  background: var(--bg-panel);
+  opacity: 1;
+}
 .fv-titlebar .fv-path {
   flex: 1;
   color: var(--accent);
