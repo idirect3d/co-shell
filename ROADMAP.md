@@ -409,11 +409,11 @@
   - 实施：`web/static/index.html` `fileViewer` 内标题栏移到 `fv-body` 之后（底部）+ 增加 Raw 按钮；`web/static/style.css` `.fv-titlebar` 改为 `bottom:12px`（与底边留空间）、`.fv-close` 改高亮色 `var(--accent)`、新增 `.fv-titlebar.active` 高亮状态 + `.fv-raw` Raw 按钮样式；`web/static/app.js` 新增 `fvRaw` 状态（默认 false）、`loadFileChunk` md 判断改为 `isMdFile(path) && !fvRaw`、`openFilePreview` 按是否 md 文件显示/隐藏 Raw 按钮、`fvRawEl.onclick` 切换 Raw 并重载文件、`fileViewer` mousemove 监听底部 100px 区域控制标题栏 `.active` 高亮、`closeFileViewer` 重置 fvRaw [BUILD-650]
   - 测试：见 use-case/FEATURE-435/
 
-- [ ] **FEATURE-436 四项 UI 改进**
+- [x] **FEATURE-436 四项 UI 改进**
   - 背景：① Raw 按钮按下后切换其他文件时状态被重置（FEATURE-435 每次打开文件都重置 fvRaw=false）；② MD 文件解析后的内容显示时没有行号列；③ 自动分屏融合按钮高亮背景形状与图标不对称；④ 底部状态栏右侧预装/输出速度（XXXt/s）未用千分位格式。
   - 方案（已确认）：① Raw 状态用 localStorage 持久化，切换文件时保持；② MD 解析渲染时也显示行号列；③ 融合按钮高亮背景形状改为横向胶囊，图标横向纵向居中；④ 状态栏速度以千分位格式显示。
   - 需求：`web/static/app.js` Raw 状态持久化 + md 行号 + 状态栏千分位；`web/static/style.css` 融合按钮胶囊形状 + md 行号样式。
-  - 实施：`web/static/app.js` Raw 状态用 localStorage 持久化（`openFilePreview` 读取 `localStorage.getItem("fvRaw")`、`fvRawEl.onclick` 保存）、`renderFileBody` 每个 md 块包裹 flex 行 + 行号列（`fv-md-row`/`fv-md-no`）、状态栏速度 `fmtNum(liTPS)`/`fmtNum(loTPS)` 千分位；`web/static/md.js` `mdBlocks` 每个块设置 `data-line` 起始行号；`web/static/style.css` `.stream-merge` 高亮背景改横向胶囊（`justify-content:center` + `padding:2px 14px`）、新增 `.fv-md-row`/`.fv-md-no` md 行号样式 [BUILD-652]；⑳ 优化：md 行号列仿照 RAW 模式，`.fv-md-no` 添加 `border-right` 分割线 + `margin-right` 间隙 + `padding-right`（宽度 3em→4.5em、颜色 `--fg-dim`→`--fg-faint`）[BUILD-653]；㉑ 规范修订：`.rules/PROJECT STANDARDS.md` 编译可执行码章节——无参数编译命名不变（co-shell）且需递增 build no；带参数编译生成文件命名规范 `co-shell-{version}-{os}-{arch}[.exe]` 且不用递增 build no
+  - 实施：`web/static/app.js` Raw 状态用 localStorage 持久化（`openFilePreview` 读取 `localStorage.getItem("fvRaw")`、`fvRawEl.onclick` 保存）、`renderFileBody` 每个 md 块包裹 flex 行 + 行号列（`fv-md-row`/`fv-md-no`）、状态栏速度 `fmtNum(liTPS)`/`fmtNum(loTPS)` 千分位；`web/static/md.js` `mdBlocks` 每个块设置 `data-line` 起始行号；`web/static/style.css` `.stream-merge` 高亮背景改横向胶囊（`justify-content:center` + `padding:2px 14px`）、新增 `.fv-md-row`/`.fv-md-no` md 行号样式 [BUILD-652]；⑳ 优化：md 行号列仿照 RAW 模式，`.fv-md-no` 添加 `border-right` 分割线 + `margin-right` 间隙 + `padding-right`（宽度 3em→4.5em、颜色 `--fg-dim`→`--fg-faint`）[BUILD-653]；㉑ 规范修订：`.rules/PROJECT STANDARDS.md` 编译可执行码章节——无参数编译命名不变（co-shell）且需递增 build no；带参数编译生成文件命名规范 `co-shell-{version}-{os}-{arch}[.exe]` 且不用递增 build no [BUILD-654]
   - 测试：见 use-case/FEATURE-436/
 
 ## v0.9.1 — 开发中（已完成）
