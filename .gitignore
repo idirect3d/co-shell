@@ -46,6 +46,9 @@ change/
 .roorules
 .clinerules/
 
+# Project rules (not for public repo)
+.rules/
+
 # Work research & tools (not for public repo)
 work/research/
 work/
