@@ -1906,6 +1906,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsDescDebug: "调试模式（提交给 LLM 前显示并可编辑消息内容）",
 	KeyCol3Debug:         "调试模式",
 	KeyCLIHelpDebug:      "      --debug             启用调试模式（提交给 LLM 前显示并可编辑消息内容）",
+	KeyCol3WebWhitelist:  "Web 服务访问白名单（逗号分隔 IP/网段，空=仅本机访问）",
 	KeyCLIHelpSessionID:  "  -s, --session-id <id>  指定会话 ID，加载已有会话或创建新会话",
 
 	// Vault
