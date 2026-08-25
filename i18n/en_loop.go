@@ -114,6 +114,12 @@ Based on the above information, call the report_problem tool and produce a struc
 
 ===
 
+# Recent Assistant Messages (with message index; [index] is the real position in the conversation history, usable as history_fixes.message_index for locating a message)
+
+{HISTORY}
+
+===
+
 # Iteration Tool Call Sequence (tool names called per iteration, to assess real progress)
 
 {ITERATION_TOOLS}
@@ -139,6 +145,8 @@ Based on the above information, call the report_problem tool and produce a struc
 ===
 
 Based on the above information, complete the loop judgment and provide a self-contained, executable next-step instruction for the main model: start directly with the operational instruction; unless you judge the main model has clearly drifted off the main line, do not restate the ultimate goal, task background, or current progress.
+
+If you judge this is a loop (type=loop) and you find loop-causing wording in the "Recent Assistant Messages" above (e.g. the same sentence repeated, idle phrases like "let me look"/"let me execute", or two nearly identical consecutive messages), provide corrections in the report_problem history_fixes array, one per fix: message_index is the [index] shown for that message in "Recent Assistant Messages" (the real history index), search is the exact suspicious original fragment to replace (must match the message verbatim), replace is the corrected new text, and reason explains why it is suspicious. Only correct genuinely suspicious assistant messages; do not modify user messages or tool results.
 `
 	enMessages[KeyLoopJudgeFallback] = `Focus on the next action for the current task. If there are unfinished goals, clearly direct: pick a concrete file/command/search action nearby and execute it immediately; if the direction is unclear, ask the user a specific question directly. If the task goal has been achieved, call attempt_completion to finish.`
 	enMessages[KeyLoopFailedStrategiesNone] = `(none — first loop judgment for this task)`

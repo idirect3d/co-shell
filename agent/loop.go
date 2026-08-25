@@ -1436,6 +1436,39 @@ func (a *Agent) getRecentIterations() string {
 	return sb.String()
 }
 
+// getRecentAssistantHistory returns the most recent assistant messages (up to
+// loopHistoryFixMaxMessages) with their REAL index in a.messages, formatted as
+// "[index] content" lines (FEATURE-438). The index is the actual position in
+// a.messages, so the judge model can return it as history_fixes.message_index
+// and applyHistoryFixes can locate the exact message. Only assistant messages
+// with text content (no tool_calls) are included, matching the messages that
+// may carry loop-causing wording.
+func (a *Agent) getRecentAssistantHistory() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var sb strings.Builder
+	count := 0
+	for i := len(a.messages) - 1; i >= 0 && count < loopHistoryFixMaxMessages; i-- {
+		m := a.messages[i]
+		if m.Role != "assistant" || len(m.ToolCalls) > 0 {
+			continue
+		}
+		content := strings.TrimSpace(m.CombineContentParts())
+		if content == "" {
+			content = strings.TrimSpace(m.Content)
+		}
+		if content == "" {
+			continue
+		}
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(fmt.Sprintf("[%d] %s", i, content))
+		count++
+	}
+	return sb.String()
+}
+
 // getAllUserPrompts collects ALL genuine user instructions from a.messages in
 // chronological order (FIX-329). It filters out system-generated user messages:
 //   - XML tool results ("[tool] 返回结果：..." — KeyXMLToolResultTemplate)
@@ -1581,6 +1614,14 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	// to break the loop in this task (empty-marked on first judgment).
 	failedStrategies := a.buildFailedStrategiesText()
 
+	// FEATURE-438: {HISTORY} = recent assistant messages with their real index
+	// in a.messages, so the judge can locate loop-causing wording and return it
+	// as history_fixes.message_index.
+	history := a.getRecentAssistantHistory()
+	if history == "" {
+		history = i18n.T(i18n.KeyNoRecentIterations)
+	}
+
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
@@ -1590,6 +1631,7 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	userTemplate = strings.ReplaceAll(userTemplate, "{CONTEXT}", contextText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{SUSPECT_CONTENT}", suspectContent)
 	userTemplate = strings.ReplaceAll(userTemplate, "{FAILED_STRATEGIES}", failedStrategies)
+	userTemplate = strings.ReplaceAll(userTemplate, "{HISTORY}", history)
 	return userTemplate
 }
 

@@ -233,3 +233,67 @@ func TestApplyHistoryFixes_EmptyList(t *testing.T) {
 		t.Fatalf("expected 0 fixes applied (empty list), got %d", got)
 	}
 }
+
+// TestGetRecentAssistantHistory verifies the judge prompt history is formatted
+// as "[index] content" lines using the REAL index in a.messages, so the judge
+// can return it as history_fixes.message_index.
+func TestGetRecentAssistantHistory(t *testing.T) {
+	a := &Agent{
+		messages: []llm.Message{
+			{Role: "system", Content: "system"},
+			{Role: "user", Content: "task"},
+			{Role: "assistant", Content: "让我看看这个文件"}, // index 2
+			{Role: "assistant", Content: "让我执行这个命令"}, // index 3
+			{Role: "assistant", Content: "让我看看这个文件"}, // index 4 (most recent)
+		},
+	}
+	got := a.getRecentAssistantHistory()
+	// Most recent 3 assistant messages: indices 2,3,4 (chronological order).
+	if !strings.Contains(got, "[2] 让我看看这个文件") {
+		t.Errorf("history missing [2]: %q", got)
+	}
+	if !strings.Contains(got, "[3] 让我执行这个命令") {
+		t.Errorf("history missing [3]: %q", got)
+	}
+	if !strings.Contains(got, "[4] 让我看看这个文件") {
+		t.Errorf("history missing [4]: %q", got)
+	}
+}
+
+// TestGetRecentAssistantHistory_SkipsToolCalls verifies assistant messages with
+// tool_calls are excluded from the judge history (they carry no loop wording).
+func TestGetRecentAssistantHistory_SkipsToolCalls(t *testing.T) {
+	a := &Agent{
+		messages: []llm.Message{
+			{Role: "system", Content: "system"},
+			{Role: "assistant", Content: "", ToolCalls: []llm.ToolCall{{Name: "read_file"}}}, // index 1, tool call
+			{Role: "assistant", Content: "让我看看这个文件"}, // index 2
+		},
+	}
+	got := a.getRecentAssistantHistory()
+	if strings.Contains(got, "[1]") {
+		t.Errorf("tool-call assistant message should be excluded: %q", got)
+	}
+	if !strings.Contains(got, "[2] 让我看看这个文件") {
+		t.Errorf("history missing [2]: %q", got)
+	}
+}
+
+// TestBuildLoopJudgeUserPrompt_IncludesHistory verifies the built judge prompt
+// contains the {HISTORY} section with indexed assistant messages.
+func TestBuildLoopJudgeUserPrompt_IncludesHistory(t *testing.T) {
+	a := &Agent{
+		messages: []llm.Message{
+			{Role: "system", Content: "system"},
+			{Role: "user", Content: "task"},
+			{Role: "assistant", Content: "让我看看这个文件"}, // index 2
+		},
+	}
+	prompt := a.buildLoopJudgeUserPrompt("plan", "suspect")
+	if !strings.Contains(prompt, "[2] 让我看看这个文件") {
+		t.Errorf("judge prompt missing indexed history: %q", prompt)
+	}
+	if strings.Contains(prompt, "{HISTORY}") {
+		t.Errorf("judge prompt left {HISTORY} placeholder unfilled: %q", prompt)
+	}
+}
