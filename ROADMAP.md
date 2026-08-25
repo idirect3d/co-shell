@@ -341,6 +341,7 @@
 | FEATURE-428 | 0.16.0 | P1 | 会话清单显示消息数：状态条会话清单每项增加消息数显示，消息数靠右右对齐，鼠标滑过提示"消息计数" |
 | FEATURE-429 | 0.16.0 | P1 | 新增模型向导 Web UI 分步表单化：后端新增结构化向导接口（不再走文本流），前端渲染真正的分步表单（模板下拉/endpoint输入/API key密码框/模型名下拉/能力勾选/ID/优先级/启用开关），底部上一步/下一步/完成按钮，保留 TUI 向导不变 |
 | FEATURE-430 | 0.16.0 | P1 | Web UI 绑定地址可配置：新增 --bind 命令行参数设定 Web UI 监听地址（默认 127.0.0.1），支持局域网访问 |
+| FEATURE-431 | 0.16.0 | P1 | Web 服务访问白名单：新增 --whitelist 命令行参数或系统设置指定白名单（支持 IP/网段），无白名单时强制本机访问 |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -368,6 +369,13 @@
   - 需求：`main.go` 新增 `--bind` 参数（默认 `127.0.0.1`）；`web.Server.Listen` 接受绑定地址参数（或通过 `ServerOptions` 传入）；`main.go` `startWebUI` 调用 `srv.Listen` 时传入绑定地址。
   - 实施：`main.go` 新增 `--bind` 参数（默认 `127.0.0.1`）；`web/server.go` `Listen` 方法改为接受绑定地址（`net.Listen("tcp", bind+":"+port)`）；`main.go` `startWebUI` 传入 `flags.bind`；`web/server_test.go` 新增 `TestListenBind` 单元测试（验证 127.0.0.1/0.0.0.0/默认三种绑定地址）[BUILD-638]
   - 测试：见 use-case/FEATURE-430/
+
+- [ ] **FEATURE-431 Web 服务访问白名单**
+  - 背景：Web UI 绑定地址可配置（FEATURE-430）后，若绑定 `0.0.0.0` 则局域网内任何设备都能访问，缺乏访问控制。
+  - 方案（已确认）：新增 Web 服务访问白名单，支持 IP/网段（如 `192.168.1.0/24`），可通过 `--whitelist` 命令行临时指定或系统设置永久指定（config.json）。无白名单时强制本机访问（忽略 `--bind`）。
+  - 需求：`config` 新增 `web_whitelist` 配置项；`main.go` 新增 `--whitelist` 参数并合并配置；无白名单时强制 `bind=127.0.0.1`；`web.Server` 增加白名单校验（支持网段）。
+  - 实施：`config/config.go` `Config` 新增 `WebWhitelist []string`（`web_whitelist`）；`main.go` 新增 `--whitelist` 参数（逗号分隔 IP/网段），`startWebUI` 合并命令行与配置白名单，无白名单时强制 `bind=127.0.0.1`；`web/server.go` `ServerOptions` 新增 `Whitelist`，`NewServer` 用 `whitelistMiddleware` 包装 mux（`parseWhitelist`/`ipAllowed` 支持精确 IP 与 CIDR 网段）；`cmd/settings_web.go` `SettingsJSON` 新增 `web-whitelist` 设置项，`cmd/settings.go` `Handle` 分发 `web-whitelist` 到新增 `handleWebSetting`；i18n 新增 `KeyCol3WebWhitelist`；`web/server_test.go` 新增 `TestIPAllowed` 单元测试 [BUILD-640]；⑳ 优化：`--help` 补充 `--bind`/`--whitelist` 参数说明（`usage.go` `buildUsage` 添加 `KeyCLIHelpBind`/`KeyCLIHelpWhitelist` 行，i18n 新增对应文案）[BUILD-641]
+  - 测试：见 use-case/FEATURE-431/
 
 ## v0.9.1 — 开发中（已完成）
 

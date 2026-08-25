@@ -256,9 +256,37 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "tool":
 		return h.handleToolSubCommand(args[1:])
 
+	// Web service setting (FEATURE-431)
+	case subcommand == "web-whitelist":
+		return h.handleWebSetting(subcommand, args)
+
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
 	}
+}
+
+// handleWebSetting handles the web-whitelist setting (FEATURE-431): the
+// comma-separated IPs/CIDR networks allowed to access the web UI. Empty means
+// loopback only.
+func (h *SettingsHandler) handleWebSetting(subcommand string, args []string) (string, error) {
+	if len(args) < 2 {
+		if len(h.cfg.WebWhitelist) == 0 {
+			return i18n.T(i18n.KeyCol3WebWhitelist) + ": (empty, loopback only)", nil
+		}
+		return i18n.T(i18n.KeyCol3WebWhitelist) + ": " + strings.Join(h.cfg.WebWhitelist, ","), nil
+	}
+	var list []string
+	for _, e := range strings.Split(args[1], ",") {
+		if e = strings.TrimSpace(e); e != "" {
+			list = append(list, e)
+		}
+	}
+	h.cfg.WebWhitelist = list
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.Info("Web whitelist set to %v", list)
+	return i18n.T(i18n.KeyCol3WebWhitelist) + ": " + strings.Join(list, ","), nil
 }
 
 // showSettingsHelp displays the current configuration grouped by category.

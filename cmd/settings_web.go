@@ -11,6 +11,7 @@ package cmd
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
@@ -139,6 +140,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 	developerGroup := []WebSettingItem{
 		{Key: "debug", Value: boolStr(llm.DebugMode), Desc: i18n.T(i18n.KeyCol3Debug), Type: "bool"},
 		{Key: "log", Value: log.LogLevelString(log.GetLevel()), Desc: i18n.T(i18n.KeyCol3Log), Type: "enum", Options: []string{"debug", "info", "warn", "error", "off"}},
+		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string"},
 	}
 
 	return []WebSettingGroup{
