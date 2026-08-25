@@ -207,6 +207,11 @@ const previewClose = document.getElementById("previewClose");
 // FEATURE-425: read-only text file previewer.
 const fileViewer = document.getElementById("fileViewer");
 const fvBody = document.getElementById("fvBody");
+// FEATURE-432: floating title bar (path / mtime / close).
+const fvTitlebar = document.getElementById("fvTitlebar");
+const fvPathEl = document.getElementById("fvPath");
+const fvMtimeEl = document.getElementById("fvMtime");
+const fvClose = document.getElementById("fvClose");
 // FEATURE-425: main message area title bar (display-mode pill + session title).
 const streamMode = document.getElementById("streamMode");
 const streamTitle = document.getElementById("streamTitle");
@@ -2095,6 +2100,16 @@ let fvHexWidth = 16; // bytes per hex row (8/16/32/64/128), auto-fit to width
 // a no-op (UC-004). Known text extensions preview directly; unknown extensions
 // are also attempted as text and fall back to HEX view if control characters
 // are found. Image files keep the system open.
+
+// formatMtime formats a unix-seconds timestamp as a readable local time.
+function formatMtime(sec) {
+  if (!sec) return "";
+  const d = new Date(sec * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+    " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+}
+
 function openFilePreview(node) {
   if (IMAGE_EXT.test(node.name)) return;
   // FEATURE-425: clicking the already-open file closes the preview.
@@ -2111,6 +2126,9 @@ function openFilePreview(node) {
   fvMdText = "";
   fvBody.classList.remove("md");
   fileViewer.classList.remove("hidden");
+  // FEATURE-432: fill the floating title bar with the full path and mtime.
+  fvPathEl.textContent = node.path;
+  fvMtimeEl.textContent = formatMtime(node.mtime);
   // FEATURE-425: highlight the currently selected file in the workspace tree.
   highlightTreeFile(node.path);
   loadFileDiff(node.path);
@@ -2420,6 +2438,21 @@ async function postPath(api, path) {
 
 previewClose.onclick = () => preview.classList.add("hidden");
 preview.onclick = (e) => { if (e.target === preview) preview.classList.add("hidden"); };
+
+// FEATURE-432: floating title bar — close button and path reveal.
+fvClose.onclick = () => closeFileViewer();
+// revealInTree expands the workspace tree to reveal the given file path.
+async function revealInTree(path) {
+  const parts = path.split("/");
+  let acc = "";
+  for (let i = 0; i < parts.length - 1; i++) {
+    acc = acc ? acc + "/" + parts[i] : parts[i];
+    expandedDirs.add(acc);
+  }
+  await loadTree();
+  highlightTreeFile(path);
+}
+fvPathEl.onclick = () => { if (fvPath) revealInTree(fvPath); };
 
 /* ---------- upload ---------- */
 
