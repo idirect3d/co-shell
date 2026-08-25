@@ -161,15 +161,6 @@ func buildUsage(version, build string) string {
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx1) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx2) + "\n")
 	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx3) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx4) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx5) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx6) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx7) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx8) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx9) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx10) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx11) + "\n")
-	sb.WriteString("  " + i18n.T(i18n.KeyCLIHelpEx12) + "\n")
 
 	return sb.String()
 }
