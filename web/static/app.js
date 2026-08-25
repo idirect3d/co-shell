@@ -1713,6 +1713,10 @@ function renderVirtualKeyboard(it, isSelect, container) {
     it.options.forEach((opt, i) => {
       addItem(String(i + 1), opt, () => answerInteraction({ action: "select", value: opt }));
     });
+    // FEATURE-438: a fixed supplementary-info option for select interactions
+    // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
+    // supplement-input mode so the user can type extra info in the main box.
+    addItem("空格/Ins/0", T.supplement, () => enterSupplementMode(), "opt-space");
   } else {
     // FEATURE-427: symbol/numpad action keys (skip enter, handled separately).
     Object.keys(keyMap).forEach((key) => {
@@ -1724,7 +1728,8 @@ function renderVirtualKeyboard(it, isSelect, container) {
     addItem("回车", T.approve, () => answerInteraction({ action: "approve" }));
   }
   // Space / Insert / 0 item: enter supplement-input mode (FEATURE-427).
-  // Only shown for tool confirmation; a cancel/resume prompt has no supplement.
+  // Shown for tool confirmation and select interactions (FEATURE-438); a
+  // cancel/resume prompt has no supplement.
   if (isToolConfirm) {
     addItem("空格/Ins/0", T.supplement, () => enterSupplementMode(), "opt-space");
   }
@@ -1741,8 +1746,9 @@ function renderVirtualKeyboard(it, isSelect, container) {
     e.preventDefault();
     const key = e.key.toLowerCase();
     // FEATURE-427: supplement via Space / Insert / 0 (input-method independent),
-    // only for tool confirmation (a cancel/resume prompt has no supplement).
-    if (isToolConfirm && (key === " " || key === "insert" || key === "0")) {
+    // for tool confirmation and select interactions (FEATURE-438); a
+    // cancel/resume prompt has no supplement.
+    if ((isToolConfirm || isSelect) && (key === " " || key === "insert" || key === "0")) {
       enterSupplementMode();
     } else if (key === "enter") {
       answerInteraction({ action: "approve" });
