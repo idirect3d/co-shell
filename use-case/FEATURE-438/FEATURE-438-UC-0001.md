@@ -67,6 +67,16 @@
 | UC-0021 | 用户可见提示 | 执行历史修正 | 终端/Web UI 提示"已修正第 N 条消息中的可疑话术" |
 | UC-0022 | 无修正时无提示 | 判定返回空 history_fixes | 不显示修正提示 |
 
+### M5 判定模型提示词 + 消息序号标定
+
+| 编号 | 场景 | 操作 | 预期结果 |
+|------|------|------|---------|
+| UC-0023 | 提示词含 HISTORY 段 | 检查 KeyLoopJudgeUserPrompt | 含 {HISTORY} 占位符，说明 message_index 语义 |
+| UC-0024 | HISTORY 填充带真实索引 | 历史有 3 条 assistant 消息（索引 2/3/4） | buildLoopJudgeUserPrompt 填充为 "[2] 内容"、"[3] 内容"、"[4] 内容" |
+| UC-0025 | 工具调用消息排除 | 历史含带 tool_calls 的 assistant 消息 | getRecentAssistantHistory 排除该消息 |
+| UC-0026 | 提示词说明 history_fixes 用法 | 检查提示词末尾 | 说明 type=loop 时可返回 history_fixes，message_index 用 [序号]，search 逐字匹配，仅修正 assistant 消息 |
+| UC-0027 | 无 assistant 消息时 HISTORY 兜底 | 历史无 assistant 消息 | HISTORY 填充"无最近迭代内容"占位 |
+
 ## 验收标准
 
 1. report_problem schema 支持 history_fixes 数组，解析正确
