@@ -1319,18 +1319,22 @@ aside {
 .fv-body.md a { color: var(--accent); text-decoration: none; }
 .fv-body.md a:hover { text-decoration: underline; }
 /* FEATURE-436: each md block is wrapped in a flex row with a line-number
-   gutter on the left showing the block's starting source line. */
+   gutter on the left showing the block's starting source line. The gutter
+   mirrors the RAW-mode line numbers: a right border separator and a gap
+   before the content. */
 .fv-body.md .fv-md-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
 }
 .fv-body.md .fv-md-no {
   flex: none;
-  width: 3em;
+  width: 4.5em;
+  padding-right: 1em;
   text-align: right;
-  color: var(--fg-dim);
+  color: var(--fg-faint);
   user-select: none;
+  border-right: 1px solid var(--border);
+  margin-right: 1em;
   font: 12px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
