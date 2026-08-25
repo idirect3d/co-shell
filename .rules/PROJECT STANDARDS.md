@@ -119,9 +119,9 @@ ROADMAP.md             # 需求、设计决策、阶段规划（单一事实源�
 **注意**：不要通过写长shell命令，或者直接在命令行写python代码的方式做事！
 
 ## 编译可执行码
-1. 没有参数：仅编译当前操作系统的版本到work/下，命名为co-shell。
-2. 参数为3时：编译MacOS Arm、Windows x86、Linux Arm几个版本到work/下。
-3. 参数为release时：编译MacOS、Windows、Linux三个操作系统的Arm版和X86版到dist/Release/下。
+1. 没有参数：仅编译当前操作系统的版本到work/下，命名为co-shell，**需递增 build no**。
+2. 参数为3时：编译MacOS Arm、Windows x86、Linux Arm几个版本到work/下，生成文件命名规范 `co-shell-{version}-{os}-{arch}[.exe]`，**不用递增 build no**。
+3. 参数为release时：编译MacOS、Windows、Linux三个操作系统的Arm版和X86版到dist/Release/下，生成文件命名规范 `co-shell-{version}-{os}-{arch}[.exe]`，**不用递增 build no**。
 
 ## 代码提交及合并
 
