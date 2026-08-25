@@ -1604,14 +1604,15 @@ aside {
   margin-top: 6px;
 }
 .wizard-test-btn {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
   padding: 4px 10px;
   font-size: 12px;
   cursor: pointer;
 }
+.wizard-test-btn:hover { background: var(--accent); color: var(--bg); }
 .wizard-test-btn:disabled { opacity: 0.6; cursor: default; }
 .wizard-test-result { font-size: 12px; color: var(--fg-dim); }
 .wizard-test-result.ok { color: var(--ok); }
