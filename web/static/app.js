@@ -207,10 +207,11 @@ const previewClose = document.getElementById("previewClose");
 // FEATURE-425: read-only text file previewer.
 const fileViewer = document.getElementById("fileViewer");
 const fvBody = document.getElementById("fvBody");
-// FEATURE-432: floating title bar (path / mtime / close).
+// FEATURE-432/435: floating title bar (path / mtime / Raw / close).
 const fvTitlebar = document.getElementById("fvTitlebar");
 const fvPathEl = document.getElementById("fvPath");
 const fvMtimeEl = document.getElementById("fvMtime");
+const fvRawEl = document.getElementById("fvRaw");
 const fvClose = document.getElementById("fvClose");
 // FEATURE-425: main message area title bar (display-mode pill + session title).
 const streamMode = document.getElementById("streamMode");
@@ -2094,6 +2095,7 @@ let fvMdText = ""; // accumulated md content for auto-render
 let fvHexMode = false; // binary file shown as hex dump
 let fvHexNext = 0; // next byte offset to load in hex mode
 let fvHexWidth = 16; // bytes per hex row (8/16/32/64/128), auto-fit to width
+let fvRaw = false; // FEATURE-435: md files show raw text when true (default off = auto-render)
 
 // openFilePreview opens a file in the in-page viewer. Clicking a new file
 // immediately discards the current one (UC-003); clicking the current file is
@@ -2122,6 +2124,7 @@ function openFilePreview(node) {
   fvTotal = 0;
   fvDiff = new Map();
   fvHexMode = false;
+  fvRaw = false;
   fvBody.textContent = "";
   fvMdText = "";
   fvBody.classList.remove("md");
@@ -2129,6 +2132,9 @@ function openFilePreview(node) {
   // FEATURE-432: fill the floating title bar with the full path and mtime.
   fvPathEl.textContent = node.path;
   fvMtimeEl.textContent = formatMtime(node.mtime);
+  // FEATURE-435: show the Raw toggle only for md files (default off).
+  fvRawEl.classList.toggle("hidden", !isMdFile(node.path));
+  fvRawEl.classList.remove("on");
   // FEATURE-425: highlight the currently selected file in the workspace tree.
   highlightTreeFile(node.path);
   loadFileDiff(node.path);
@@ -2185,7 +2191,8 @@ async function loadFileChunk(path, start, end) {
     if (fvPath !== path) return; // switched away while loading
     fvTotal = body.total || 0;
     const lines = body.lines || [];
-    const isMdAuto = isMdFile(path);
+    // FEATURE-435: md files auto-render only when Raw is off.
+    const isMdAuto = isMdFile(path) && !fvRaw;
     if (isMdAuto) {
       // Accumulate the chunk and re-render the whole accumulated text. md.js
       // re-parses the full text each call, so unterminated constructs (open
@@ -2392,6 +2399,9 @@ function span(cls, text) {
 function closeFileViewer() {
   fileViewer.classList.add("hidden");
   fvPath = null;
+  fvRaw = false;
+  fvRawEl.classList.remove("on");
+  fvTitlebar.classList.remove("active");
   tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
 }
 
@@ -2453,6 +2463,32 @@ async function revealInTree(path) {
   highlightTreeFile(path);
 }
 fvPathEl.onclick = () => { if (fvPath) revealInTree(fvPath); };
+
+// FEATURE-435: Raw toggle switches md files between raw text and parsed
+// rendering. Toggling reloads the file from the start in the new mode.
+fvRawEl.onclick = () => {
+  if (!fvPath || !isMdFile(fvPath)) return;
+  fvRaw = !fvRaw;
+  fvRawEl.classList.toggle("on", fvRaw);
+  // Reload the file from the start in the new mode.
+  fvNextLine = 1;
+  fvTotal = 0;
+  fvMdText = "";
+  fvBody.textContent = "";
+  fvBody.classList.remove("md");
+  loadFileChunk(fvPath, 1, 200);
+};
+
+// FEATURE-435: hovering the bottom 100px of the file display area highlights
+// the floating title bar (so users don't have to aim precisely at the small
+// bar). The bar itself also highlights via :hover.
+fileViewer.addEventListener("mousemove", (e) => {
+  if (fvPath === null) return;
+  const rect = fileViewer.getBoundingClientRect();
+  const fromBottom = rect.bottom - e.clientY;
+  fvTitlebar.classList.toggle("active", fromBottom <= 100);
+});
+fileViewer.addEventListener("mouseleave", () => fvTitlebar.classList.remove("active"));
 
 /* ---------- upload ---------- */
 

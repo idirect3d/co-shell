@@ -85,12 +85,13 @@
          the main message area (#stream-wrap) so it never covers the workspace
          tree, task plan or input row, and auto-scales with the window. -->
     <div id="fileViewer" class="file-viewer hidden">
+      <div class="fv-body" id="fvBody"></div>
       <div class="fv-titlebar" id="fvTitlebar">
         <span class="fv-path" id="fvPath" title="点击定位到工作区文件位置"></span>
         <span class="fv-mtime" id="fvMtime"></span>
+        <button class="fv-raw" id="fvRaw" title="切换原始文本/解析渲染">Raw</button>
         <button class="fv-close" id="fvClose" title="关闭预览">✕</button>
       </div>
-      <div class="fv-body" id="fvBody"></div>
     </div>
   </section>
 
