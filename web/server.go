@@ -30,6 +30,7 @@ import (
 	"sync"
 
 	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/i18n"
 )
 
@@ -178,6 +179,7 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("POST /api/reveal", s.handleReveal)
 	s.mux.HandleFunc("GET /api/file", s.handleFile)
 	s.mux.HandleFunc("GET /api/gitdiff", s.handleGitDiff)
+	s.mux.HandleFunc("POST /api/test-endpoint", s.handleTestEndpoint)
 	handler := http.Handler(s.mux)
 	if len(opts.Whitelist) > 0 {
 		handler = s.whitelistMiddleware(handler, opts.Whitelist)
@@ -902,6 +904,29 @@ func (s *Server) handleGitDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string][]gitDiffLine{"lines": parseGitDiff(string(out))})
+}
+
+// handleTestEndpoint tests whether the given endpoint is reachable by calling
+// ListModels (GET /models), reusing the autoCompleteEndpoint fallback logic
+// (FEATURE-433). Returns ok + the tested endpoint.
+func (s *Server) handleTestEndpoint(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.Endpoint == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "endpoint is required"})
+		return
+	}
+	tested, ok := cmd.TestEndpointConnectivity(req.Endpoint)
+	msg := "connected"
+	if !ok {
+		msg = "cannot connect"
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": ok, "message": msg, "endpoint": tested})
 }
 
 // parseGitDiff parses a unified `git diff` output and returns the changed
