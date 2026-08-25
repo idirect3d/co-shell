@@ -2996,9 +2996,14 @@ let wizardStep = "";
 // wizardStepTitles maps a step key to its navigation label.
 const wizardStepTitles = {
   template: "模板", endpoint: "接口地址", api_key: "API Key",
-  model_name: "模型名", capabilities: "能力", model_id: "模型 ID",
+  model_name: "选择模型", capabilities: "能力", model_id: "模型 ID",
   priority: "优先级", max_model_len: "上下文长度", enabled: "启用"
 };
+
+// wizardModelMaxLens maps a model ID to its max context length (in tokens) as
+// reported by the API. Populated from the model_name step so the selected
+// model's max length can be recorded for the max_model_len step.
+let wizardModelMaxLens = {};
 
 // openModelWizard opens the wizard modal and starts the structured wizard.
 function openModelWizard(mode, id) {
@@ -3045,6 +3050,9 @@ function showModelWizardStep(msg) {
 // renderWizardStep renders the left nav + right form + bottom buttons for a step.
 function renderWizardStep(step) {
   wizardStep = step.step;
+  // Remember each model's max context length (reported by the API) so the
+  // selected model's max length can be recorded for the max_model_len step.
+  wizardModelMaxLens = step.model_max_lens || {};
   // Left navigation.
   modelWizardNav.textContent = "";
   const order = ["template", "endpoint", "api_key", "model_name", "capabilities", "model_id", "priority", "max_model_len", "enabled"];
@@ -3064,6 +3072,13 @@ function renderWizardStep(step) {
   title.className = "wizard-step-title";
   title.textContent = step.title || (wizardStepTitles[step.step] || step.step);
   modelWizardBody.appendChild(title);
+  // Show an informational/error message (e.g. why the model list refresh failed).
+  if (step.message) {
+    const msg = document.createElement("div");
+    msg.className = "wizard-step-message";
+    msg.textContent = step.message;
+    modelWizardBody.appendChild(msg);
+  }
   for (const f of (step.fields || [])) {
     modelWizardBody.appendChild(renderWizardField(f));
   }
@@ -3093,6 +3108,16 @@ function renderWizardField(f) {
       ctl.appendChild(o);
     }
     if (f.value) ctl.value = f.value;
+    // Record the selected model's max context length (reported by the API) so
+    // the max_model_len step can pre-fill / hint it (FEATURE-429). Sync it
+    // immediately (covers re-render after a model-list refresh, where the
+    // change event does not fire) and on every user change.
+    if (f.key === "model_name") {
+      if (ctl.value) wizardData.model_max_len = wizardModelMaxLens[ctl.value] || 0;
+      ctl.addEventListener("change", () => {
+        wizardData.model_max_len = wizardModelMaxLens[ctl.value] || 0;
+      });
+    }
   } else if (f.type === "checkbox" || f.type === "switch") {
     // Slider toggle switch: label on the left, switch on the right.
     const tgl = document.createElement("label");
@@ -3142,6 +3167,120 @@ function renderWizardField(f) {
           res.className = "wizard-test-result ok";
         } else {
           res.textContent = "❌ 失败: " + (body.message || "无法连接");
+          res.className = "wizard-test-result err";
+        }
+      } catch (e) {
+        res.textContent = "❌ 失败: " + e.message;
+        res.className = "wizard-test-result err";
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    row.appendChild(btn);
+    row.appendChild(res);
+    wrap.appendChild(row);
+  }
+  // API key test button: verifies the key against the endpoint by calling
+  // ListModels (GET /models).
+  if (f.key === "api_key") {
+    const row = document.createElement("div");
+    row.className = "wizard-endpoint-test";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "wizard-test-btn";
+    btn.textContent = "测试 API Key";
+    const res = document.createElement("span");
+    res.className = "wizard-test-result";
+    btn.onclick = async () => {
+      const key = ctl.value.trim();
+      const ep = (wizardData.endpoint || "").trim();
+      if (!key) { res.textContent = "请输入 API Key"; res.className = "wizard-test-result err"; return; }
+      if (!ep) { res.textContent = "请先填写接口地址"; res.className = "wizard-test-result err"; return; }
+      btn.disabled = true;
+      res.textContent = "测试中...";
+      res.className = "wizard-test-result";
+      try {
+        const resp = await fetch("/api/test-api-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: ep, api_key: key }),
+        });
+        const body = await resp.json();
+        if (body.ok) {
+          res.textContent = "✅ " + (body.message || "API Key 有效");
+          res.className = "wizard-test-result ok";
+        } else {
+          res.textContent = "❌ " + (body.message || "API Key 无效");
+          res.className = "wizard-test-result err";
+        }
+      } catch (e) {
+        res.textContent = "❌ 失败: " + e.message;
+        res.className = "wizard-test-result err";
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    row.appendChild(btn);
+    row.appendChild(res);
+    wrap.appendChild(row);
+  }
+  // Refresh model list button: re-fetches the model suggestions on the
+  // model_name step without advancing.
+  if (f.key === "model_name") {
+    const row = document.createElement("div");
+    row.className = "wizard-endpoint-test";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "wizard-test-btn";
+    btn.textContent = "刷新模型列表";
+    const res = document.createElement("span");
+    res.className = "wizard-test-result";
+    btn.onclick = async () => {
+      collectWizardFields();
+      btn.disabled = true;
+      res.textContent = "刷新中...";
+      res.className = "wizard-test-result";
+      wsSend({ type: "model_wizard_refresh", step: wizardStep, wizard_data: wizardData });
+      // Re-enable after a short delay; the re-render replaces this button.
+      setTimeout(() => { btn.disabled = false; }, 1500);
+    };
+    row.appendChild(btn);
+    row.appendChild(res);
+    wrap.appendChild(row);
+  }
+  // Fetch max context length button: queries the API for the selected model's
+  // max context length and fills it into the input. On failure, shows the reason.
+  if (f.key === "max_model_len") {
+    const row = document.createElement("div");
+    row.className = "wizard-endpoint-test";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "wizard-test-btn";
+    btn.textContent = "获得模型最大上下文长度";
+    const res = document.createElement("span");
+    res.className = "wizard-test-result";
+    btn.onclick = async () => {
+      const model = (wizardData.model_name || "").trim();
+      const ep = (wizardData.endpoint || "").trim();
+      if (!model) { res.textContent = "请先在「选择模型」步骤选择模型"; res.className = "wizard-test-result err"; return; }
+      if (!ep) { res.textContent = "请先填写接口地址"; res.className = "wizard-test-result err"; return; }
+      btn.disabled = true;
+      res.textContent = "获取中...";
+      res.className = "wizard-test-result";
+      try {
+        const resp = await fetch("/api/get-model-max-len", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: ep, api_key: wizardData.api_key || "", model_name: model }),
+        });
+        const body = await resp.json();
+        if (body.ok && body.max_model_len > 0) {
+          ctl.value = body.max_model_len;
+          wizardData.max_model_len = body.max_model_len;
+          res.textContent = "✅ 已填入 " + body.max_model_len;
+          res.className = "wizard-test-result ok";
+        } else {
+          res.textContent = "❌ " + (body.message || "未获取到该模型的最大上下文长度");
           res.className = "wizard-test-result err";
         }
       } catch (e) {

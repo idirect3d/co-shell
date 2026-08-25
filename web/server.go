@@ -180,6 +180,8 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("GET /api/file", s.handleFile)
 	s.mux.HandleFunc("GET /api/gitdiff", s.handleGitDiff)
 	s.mux.HandleFunc("POST /api/test-endpoint", s.handleTestEndpoint)
+	s.mux.HandleFunc("POST /api/test-api-key", s.handleTestAPIKey)
+	s.mux.HandleFunc("POST /api/get-model-max-len", s.handleGetModelMaxLen)
 	handler := http.Handler(s.mux)
 	if len(opts.Whitelist) > 0 {
 		handler = s.whitelistMiddleware(handler, opts.Whitelist)
@@ -927,6 +929,54 @@ func (s *Server) handleTestEndpoint(w http.ResponseWriter, r *http.Request) {
 		msg = "cannot connect"
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": ok, "message": msg, "endpoint": tested})
+}
+
+// handleTestAPIKey verifies that the given API key is valid against the
+// endpoint by calling ListModels (GET /models). Returns ok + a message.
+func (s *Server) handleTestAPIKey(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Endpoint string `json:"endpoint"`
+		APIKey   string `json:"api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.Endpoint == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "endpoint is required"})
+		return
+	}
+	ok, msg := cmd.TestAPIKey(req.Endpoint, req.APIKey)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": ok, "message": msg})
+}
+
+// handleGetModelMaxLen fetches the max context length for the given model by
+// calling ListModels (GET /models). Returns ok + the max length, or an error
+// message explaining why it could not be obtained.
+func (s *Server) handleGetModelMaxLen(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Endpoint  string `json:"endpoint"`
+		APIKey    string `json:"api_key"`
+		ModelName string `json:"model_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.Endpoint == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "endpoint is required"})
+		return
+	}
+	if req.ModelName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "model_name is required"})
+		return
+	}
+	maxLen, err := cmd.GetModelMaxLen(req.Endpoint, req.APIKey, req.ModelName)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "message": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "max_model_len": maxLen})
 }
 
 // parseGitDiff parses a unified `git diff` output and returns the changed

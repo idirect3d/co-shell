@@ -69,6 +69,13 @@ type WebWizardStepData struct {
 	Fields  []WebWizardField `json:"fields"`
 	IsFirst bool             `json:"is_first"`
 	IsLast  bool             `json:"is_last"`
+	// ModelMaxLens maps a model ID to its max context length (in tokens) as
+	// reported by the API. Populated on the model_name step so the frontend can
+	// record the selected model's max length for later steps (FEATURE-429).
+	ModelMaxLens map[string]int `json:"model_max_lens,omitempty"`
+	// Message carries an informational/error message to show the user (e.g. why
+	// the model list refresh failed). Empty when there is nothing to report.
+	Message string `json:"message,omitempty"`
 }
 
 // WebWizardData holds all filled fields across steps. It is owned by the
@@ -87,7 +94,11 @@ type WebWizardData struct {
 	ModelID     string `json:"model_id,omitempty"`
 	Priority    int    `json:"priority"`
 	MaxModelLen int    `json:"max_model_len"`
-	Enabled     bool   `json:"enabled"`
+	// ModelMaxLen is the max context length (in tokens) reported by the API for
+	// the currently selected model. Recorded on the model_name step and used to
+	// pre-fill / hint the max_model_len step (FEATURE-429).
+	ModelMaxLen int  `json:"model_max_len,omitempty"`
+	Enabled     bool `json:"enabled"`
 }
 
 // WebWizardStart begins a new add/edit wizard and returns the first step's
@@ -135,6 +146,13 @@ func (h *ModelHandler) WebWizardPrev(data *WebWizardData, step WebWizardStep) (*
 	}
 	prev := webWizardSteps[idx-1]
 	return h.webWizardStepData(data, prev)
+}
+
+// WebWizardRefresh re-renders the current step's form. It is used by the
+// "refresh model list" button on the model_name step to re-fetch the model
+// suggestions without advancing to the next step (FEATURE-429).
+func (h *ModelHandler) WebWizardRefresh(data *WebWizardData, step WebWizardStep) (*WebWizardStepData, error) {
+	return h.webWizardStepData(data, step)
 }
 
 // WebWizardSubmit builds a ModelConfig from the accumulated data and saves it.
@@ -247,12 +265,25 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 		}}
 
 	case WebWizardModelName:
-		sd.Title = i18n.T(i18n.KeyCmdMig_185)
+		sd.Title = i18n.T(i18n.KeyCmdMig_382)
 		field := WebWizardField{Key: "model_name", Type: "select", Label: i18n.T(i18n.KeyCmdMig_358), Required: true}
-		suggestions, _, _ := h.fetchModelSuggestions(data.Endpoint, data.APIKey, h.template(data.TemplateID))
+		suggestions, _, modelInfos, fetchErr := h.fetchModelSuggestions(data.Endpoint, data.APIKey, h.template(data.TemplateID))
 		field.Options = suggestions
 		field.Value = data.ModelName
 		sd.Fields = []WebWizardField{field}
+		// Record each model's max context length (as reported by the API) so the
+		// frontend can remember the selected model's max length for later steps.
+		sd.ModelMaxLens = make(map[string]int, len(modelInfos))
+		for _, mi := range modelInfos {
+			if mi.MaxModelLen > 0 {
+				sd.ModelMaxLens[mi.ID] = mi.MaxModelLen
+			}
+		}
+		// Surface the fetch error (if any) so the user knows the model list may
+		// be incomplete (only template defaults shown).
+		if fetchErr != nil {
+			sd.Message = fmt.Sprintf("获取模型列表失败：%v（已显示模板默认模型）", fetchErr)
+		}
 
 	case WebWizardCapabilities:
 		sd.Title = i18n.T(i18n.KeyCmdMig_183)
@@ -303,6 +334,11 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 		sd.Title = i18n.T(i18n.KeyCmdMig_186)
 		maxLen := data.MaxModelLen
 		if maxLen == 0 {
+			// Prefer the model's max context length reported by the API (recorded
+			// on the model_name step), then fall back to known/template defaults.
+			maxLen = data.ModelMaxLen
+		}
+		if maxLen == 0 {
 			maxLen = knownMaxModelLen(data.ModelName)
 		}
 		if maxLen == 0 {
@@ -310,10 +346,16 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 				maxLen = t.DefaultMaxModelLen
 			}
 		}
-		sd.Fields = []WebWizardField{{
+		field := WebWizardField{
 			Key: "max_model_len", Type: "number", Label: i18n.T(i18n.KeyCmdMig_352),
 			Value: strconv.Itoa(maxLen), Required: false,
-		}}
+		}
+		// Hint the user with the selected model's max context length as reported
+		// by the API (recorded on the model_name step).
+		if data.ModelMaxLen > 0 {
+			field.Hint = fmt.Sprintf("当前模型 %s 的最大上下文长度为 %d tokens", data.ModelName, data.ModelMaxLen)
+		}
+		sd.Fields = []WebWizardField{field}
 
 	case WebWizardEnabled:
 		sd.Title = i18n.T(i18n.KeyCmdMig_182)

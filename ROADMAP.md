@@ -347,6 +347,7 @@
 | FEATURE-434 | 0.16.0 | P1 | 重新设计 --help 示例：从 12 个精简为 3 个突出重点（直接执行指令 / 绑定IP+白名单的 web ui 服务模式 / 工作空间+会话ID+指令的纯 agent 调用） |
 | FEATURE-435 | 0.16.0 | P1 | 文件预览标题栏改进：标题栏移到文件显示区域下方（与底边留空间）、关闭图标用高亮颜色、鼠标滑过文件显示区域下方100px区域标题栏即高亮、md 文件时在标题栏同水平位置增加 Raw 按钮开关（切换原始文本/解析渲染，默认为关） |
 | FEATURE-436 | 0.16.0 | P1 | 四项 UI 改进：Raw 按钮按下后切换其他文件时保持状态、MD 文件解析后内容显示时增加行号列、自动分屏融合按钮高亮背景形状改为横向胶囊（图标横向纵向居中）、底部状态栏右侧预装/输出速度（XXXt/s）以千分位格式显示 |
+| FEATURE-437 | 0.16.0 | P1 | Web UI 模型配置向导改进：① API Key 步骤增加测试按钮；② 模型名步骤改为"选择模型"并增加刷新模型列表按钮、记录模型最大长度；③ 最大上下文长度步骤提示当前模型最大长度；④ 上下文长度步骤增加"获得模型最大上下文长度"按钮（获取失败提示原因） |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -415,6 +416,13 @@
   - 需求：`web/static/app.js` Raw 状态持久化 + md 行号 + 状态栏千分位；`web/static/style.css` 融合按钮胶囊形状 + md 行号样式。
   - 实施：`web/static/app.js` Raw 状态用 localStorage 持久化（`openFilePreview` 读取 `localStorage.getItem("fvRaw")`、`fvRawEl.onclick` 保存）、`renderFileBody` 每个 md 块包裹 flex 行 + 行号列（`fv-md-row`/`fv-md-no`）、状态栏速度 `fmtNum(liTPS)`/`fmtNum(loTPS)` 千分位；`web/static/md.js` `mdBlocks` 每个块设置 `data-line` 起始行号；`web/static/style.css` `.stream-merge` 高亮背景改横向胶囊（`justify-content:center` + `padding:2px 14px`）、新增 `.fv-md-row`/`.fv-md-no` md 行号样式 [BUILD-652]；⑳ 优化：md 行号列仿照 RAW 模式，`.fv-md-no` 添加 `border-right` 分割线 + `margin-right` 间隙 + `padding-right`（宽度 3em→4.5em、颜色 `--fg-dim`→`--fg-faint`）[BUILD-653]；㉑ 规范修订：`.rules/PROJECT STANDARDS.md` 编译可执行码章节——无参数编译命名不变（co-shell）且需递增 build no；带参数编译生成文件命名规范 `co-shell-{version}-{os}-{arch}[.exe]` 且不用递增 build no [BUILD-654]
   - 测试：见 use-case/FEATURE-436/
+
+- [x] **FEATURE-437 Web UI 模型配置向导改进** ✅ 已完成
+  - 背景：模型配置向导（FEATURE-429）需要更便捷的配置体验：① API Key 步骤无法手动验证 key 有效性；② 模型名步骤无法刷新模型列表，且选择模型后无法记录其最大上下文长度；③ 最大上下文长度步骤未提示当前模型的最大长度；④ 上下文长度步骤无法一键获取模型最大长度。
+  - 方案（已确认）：① API Key 步骤增加"测试 API Key"按钮（后端 `TestAPIKey` + `/api/test-api-key`）；② 模型名步骤改为"选择模型"并增加"刷新模型列表"按钮（新增 `model_wizard_refresh` 消息 + `WebWizardRefresh`），`WebWizardStepData.ModelMaxLens` 记录各模型最大长度，前端选择模型时记入 `wizardData.model_max_len`；③ max_model_len 步骤用 `data.ModelMaxLen` 作为默认值并显示 hint；④ 上下文长度步骤增加"获得模型最大上下文长度"按钮（后端 `GetModelMaxLen` + `/api/get-model-max-len`，获取失败提示原因）。
+  - 需求：`cmd/model.go` `TestAPIKey`/`GetModelMaxLen`；`cmd/model_web_wizard.go` `WebWizardRefresh`/`ModelMaxLens`/`ModelMaxLen`/`Message`；`web/server.go` `/api/test-api-key`/`/api/get-model-max-len`；`web/session.go` `model_wizard_refresh`；`web/static/app.js` 按钮与渲染；`web/static/style.css` 样式；`i18n` 新增 `KeyCmdMig_382`。
+  - 实施：`cmd/model.go` 新增 `TestAPIKey`/`GetModelMaxLen`、`fetchModelSuggestions` 增加 error 返回值；`cmd/model_web_wizard.go` 新增 `WebWizardRefresh`、`WebWizardStepData.ModelMaxLens`/`Message`、`WebWizardData.ModelMaxLen`、max_model_len 默认值优先用 `ModelMaxLen` 并显示 hint；`web/server.go` 新增 `/api/test-api-key`/`/api/get-model-max-len`；`web/session.go` 新增 `model_wizard_refresh` 处理；`web/static/app.js` 步骤标题改"选择模型"、API Key 测试按钮、刷新模型列表按钮、记录模型 max len、max_model_len 获取按钮与错误提示；`web/static/style.css` `.wizard-step-message` 样式；`i18n` 新增 `KeyCmdMig_382`（选择模型）[BUILD-658]
+  - 测试：见 use-case/FEATURE-437/
 
 ## v0.9.1 — 开发中（已完成）
 
