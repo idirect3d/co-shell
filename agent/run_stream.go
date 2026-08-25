@@ -258,6 +258,9 @@ iterationLoop:
 		// This ensures stale exit_strategy from a previous loop detection is
 		// not carried over if no loop is detected in the current iteration.
 		a.loopJudgeExitStrategy = ""
+		// FEATURE-438: reset history fixes at the start of each iteration so
+		// stale corrections from a previous loop detection are not reapplied.
+		a.loopHistoryFixes = nil
 
 		// Step 1: Debug mode - allow review/edit of user message before sending.
 		// Skip for .continue mode (first iteration with empty userInput) to avoid
@@ -459,6 +462,16 @@ iterationLoop:
 			// handleLoopDetection(); on a confirmed loop streamLLMResponse
 			// returns LoopDetectedError and we end up here.
 			if a.loopDetectCrit {
+				// FEATURE-438: apply history corrections BEFORE the loop feedback is
+				// appended and BEFORE stripping the stale assistant pair, so the
+				// loop-causing wording is cleaned up at its source using the message
+				// indices the judge model saw. Gated by loop-history-fix-enabled
+				// (default on).
+				if a.cfg == nil || a.cfg.LLM.LoopHistoryFixEnabled {
+					if n := a.applyHistoryFixes(); n > 0 {
+						cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLoopHistoryFixApplied), n)))
+					}
+				}
 				// Strip stale assistant+continuePrompt pair from previous iteration.
 				a.stripLastAssistantAndContinue()
 				// LOG: read actual LoopIntervention from a.cfg for diagnostics

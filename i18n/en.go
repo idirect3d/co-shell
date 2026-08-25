@@ -2015,6 +2015,7 @@ no liability whatsoever.`,
 	KeyLoopJudgeResultLoop:    "Judge model returned: is_loop=true, reason=%q, exit_strategy=%q\n",
 	KeyLoopJudgeResultNo:      "Judge model returned: is_loop=false, reason=%q\n",
 	KeyLoopJudgeResultFail:    "Judge model returned: failed/timeout\n",
+	KeyLoopHistoryFixApplied:  "Corrected %d suspicious phrase(s) in the conversation history that may have caused the loop\n",
 	KeyNoActiveTaskPlan:       "No active task plan",
 	KeyNoRecentIterations:     "No recent iterations",
 	// FEATURE-345: unified problem solver (non-loop anomalies)

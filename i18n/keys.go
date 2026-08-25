@@ -199,6 +199,8 @@ const (
 	KeyLoopJudgeResultLoop  = "loop_judge_result_loop"
 	KeyLoopJudgeResultNo    = "loop_judge_result_no"
 	KeyLoopJudgeResultFail  = "loop_judge_result_fail"
+	// FEATURE-438: history pollution fix
+	KeyLoopHistoryFixApplied = "loop_history_fix_applied"
 	KeyNoActiveTaskPlan     = "no_active_task_plan"
 	KeyNoRecentIterations   = "no_recent_iterations"
 	// FEATURE-345: unified problem solver (non-loop anomalies)
@@ -1426,6 +1428,7 @@ const (
 
 	// Loop judgment settings (FEATURE-241)
 	KeyCol3LoopJudgeEnabled      = "col3_loop_judge_enabled"
+	KeyCol3LoopHistoryFixEnabled = "col3_loop_history_fix_enabled"
 	KeyCol3LoopJudgeModel        = "col3_loop_judge_model"
 	KeyProblemSolverSystemPrompt = "problem_solver_system_prompt"
 	KeyProblemSolverUserPrompt   = "problem_solver_user_prompt"

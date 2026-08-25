@@ -310,6 +310,13 @@ type LLMConfig struct {
 	// Default: true
 	LoopJudgeEnabled bool `json:"loop_judge_enabled"`
 
+	// LoopHistoryFixEnabled: whether to apply the history corrections returned
+	// by the judge model when a loop is confirmed (FEATURE-438). When enabled,
+	// the loop-causing wording in the recent assistant messages is replaced at
+	// its source before the loop feedback is appended, instead of only appending
+	// corrective feedback. Default: true
+	LoopHistoryFixEnabled bool `json:"loop_history_fix_enabled"`
+
 	// LoopReorganizeEnabled: whether to automatically trigger context reorganization
 	// when a loop is detected. When enabled, the agent will:
 	// - In "window" mode with context-limit=-1: set context-limit=0 and move messagePointer to end
@@ -924,6 +931,7 @@ func DefaultConfig() *Config {
 			LoopTempMax:                1.1,
 			LoopTempMin:                0,
 			LoopJudgeEnabled:           true,
+			LoopHistoryFixEnabled:      true,
 			LoopReorganizeEnabled:      true,
 			DuplicateContentThreshold:  0.95,
 			LoopJudgeTimeout:           60,

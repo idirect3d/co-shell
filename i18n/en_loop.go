@@ -146,6 +146,7 @@ Based on the above information, complete the loop judgment and provide a self-co
 	// Display & description keys moved from en.go
 	enMessages[KeyCol3LoopDetectEnabled] = "Loop Detect(on|off)"
 	enMessages[KeyCol3LoopJudgeEnabled] = "LLM Loop Judgment"
+	enMessages[KeyCol3LoopHistoryFixEnabled] = "Loop History Fix(on|off)"
 	enMessages[KeyCol3ShowLoopDetection] = "Show Loop Detection(on|off)"
 	enMessages[KeyCol3LoopJudgeModel] = "Loop Judge Model ID"
 	enMessages[KeyCol3LoopDetectThreshold] = "Loop Detect Threshold(repeat count)"
