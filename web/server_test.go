@@ -292,3 +292,28 @@ func TestListenBind(t *testing.T) {
 		})
 	}
 }
+
+// TestIPAllowed verifies the whitelist IP/CIDR matching logic (FEATURE-431).
+func TestIPAllowed(t *testing.T) {
+	cases := []struct {
+		name   string
+		remote string
+		list   []string
+		want   bool
+	}{
+		{"exact IP match", "192.168.1.100:1234", []string{"192.168.1.100"}, true},
+		{"exact IP no match", "192.168.1.101:1234", []string{"192.168.1.100"}, false},
+		{"CIDR subnet match", "192.168.1.50:1234", []string{"192.168.1.0/24"}, true},
+		{"CIDR subnet no match", "192.168.2.50:1234", []string{"192.168.1.0/24"}, false},
+		{"empty list denies", "127.0.0.1:1234", nil, false},
+		{"invalid remote denied", "not-an-addr", []string{"192.168.1.0/24"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			nets := parseWhitelist(tc.list)
+			if got := ipAllowed(tc.remote, nets); got != tc.want {
+				t.Errorf("ipAllowed(%q, %v) = %v, want %v", tc.remote, tc.list, got, tc.want)
+			}
+		})
+	}
+}

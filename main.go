@@ -51,7 +51,7 @@ import (
 
 const version = "0.16.0"
 
-const build = "639"
+const build = "641"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -205,6 +205,9 @@ type cliFlags struct {
 	serve bool
 	port  int
 	bind  string // listen address for the web UI (default "127.0.0.1")
+	// whitelist restricts web UI access to the given IPs/CIDR networks
+	// (comma-separated, e.g. "192.168.1.100,192.168.1.0/24").
+	whitelist string
 }
 
 func parseFlags() cliFlags {
@@ -349,6 +352,10 @@ func parseFlags() cliFlags {
 
 	// serve bind address (FEATURE-430): listen address for the web UI
 	flag.StringVar(&f.bind, "bind", "127.0.0.1", "Listen address for the web UI (default 127.0.0.1; use 0.0.0.0 for LAN access)")
+
+	// serve whitelist (FEATURE-431): restrict web UI access to the given
+	// IPs/CIDR networks (comma-separated). Empty means loopback only.
+	flag.StringVar(&f.whitelist, "whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, e.g. 192.168.1.100,192.168.1.0/24)")
 
 	// Unload mode (FEATURE-245)
 	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
@@ -1410,11 +1417,27 @@ func main() {
 	// default browser. It returns the server, or nil when the browser could not
 	// be opened so the caller can fall back to the enhanced REPL.
 	startWebUI := func(openBrowser bool) *web.Server {
+		// Merge CLI whitelist (comma-separated) with the persistent config
+		// whitelist. Without any whitelist, force loopback-only binding so the
+		// web UI is never exposed to the network unintentionally (FEATURE-431).
+		whitelist := append([]string{}, cfg.WebWhitelist...)
+		if flags.whitelist != "" {
+			for _, e := range strings.Split(flags.whitelist, ",") {
+				if e = strings.TrimSpace(e); e != "" {
+					whitelist = append(whitelist, e)
+				}
+			}
+		}
+		bind := flags.bind
+		if len(whitelist) == 0 {
+			bind = "127.0.0.1"
+		}
 		srv := web.NewServer(ws.Root(), web.ServerOptions{
-			Lang:    string(i18n.GetLang()),
-			Version: version,
-			Build:   build,
-			Bind:    flags.bind,
+			Lang:      string(i18n.GetLang()),
+			Version:   version,
+			Build:     build,
+			Bind:      bind,
+			Whitelist: whitelist,
 		})
 		repl.RegisterSessionFactory("web", srv.SessionFactory())
 		addr, listenErr := srv.Listen(flags.port)

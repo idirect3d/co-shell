@@ -1506,6 +1506,10 @@ const (
 	KeyServeConflict      = "serve_conflict"
 	KeyServeBrowserFailed = "serve_browser_failed"
 	KeyWebOpenFailed      = "web_open_failed"
+
+	// serve bind/whitelist (FEATURE-430/431)
+	KeyCLIHelpBind      = "cli_help_bind"
+	KeyCLIHelpWhitelist = "cli_help_whitelist"
 	KeyWebRevealFailed    = "web_reveal_failed"
 
 	// Init capabilities/rules (deprecated)
@@ -2315,6 +2319,7 @@ const (
 	KeySettingsDescDebug = "settings_desc_debug"
 	KeyCol3Debug         = "col3_debug"
 	KeyCLIHelpDebug      = "cli_help_debug"
+	KeyCol3WebWhitelist  = "col3_web_whitelist"
 
 	// CLI Help - Session ID (FEATURE-290)
 	KeyCLIHelpSessionID = "cli_help_session_id"

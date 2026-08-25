@@ -864,6 +864,10 @@ type Config struct {
 	// WorkModes stores user-defined work modes.
 	WorkModes []WorkMode `json:"work_modes,omitempty"`
 
+	// WebWhitelist restricts web UI access to the given IPs/CIDR networks
+	// (e.g. "192.168.1.100" or "192.168.1.0/24"). Empty means loopback only.
+	WebWhitelist []string `json:"web_whitelist,omitempty"`
+
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }
