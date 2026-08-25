@@ -814,6 +814,14 @@ func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
 	return rawEndpoint, false
 }
 
+// TestEndpointConnectivity tests whether the given endpoint is reachable by
+// calling ListModels (GET /models). It reuses the autoCompleteEndpoint logic
+// to try http/https and /v1 prefix/suffix fallbacks. Returns the tested
+// endpoint and whether it succeeded.
+func TestEndpointConnectivity(endpoint string) (string, bool) {
+	return autoCompleteEndpoint(endpoint)
+}
+
 // testEndpointConnectivity tests an endpoint and prints the result.
 func (h *ModelHandler) testEndpointConnectivity(endpoint string) {
 	io := h.io()

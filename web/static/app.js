@@ -3063,6 +3063,47 @@ function renderWizardField(f) {
     ctl.value = f.value || "";
   }
   wrap.appendChild(ctl);
+  // FEATURE-433: connectivity test button for the endpoint field.
+  if (f.key === "endpoint") {
+    const row = document.createElement("div");
+    row.className = "wizard-endpoint-test";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "wizard-test-btn";
+    btn.textContent = "测试连通性";
+    const res = document.createElement("span");
+    res.className = "wizard-test-result";
+    btn.onclick = async () => {
+      const ep = ctl.value.trim();
+      if (!ep) { res.textContent = "请输入接口地址"; res.className = "wizard-test-result err"; return; }
+      btn.disabled = true;
+      res.textContent = "测试中...";
+      res.className = "wizard-test-result";
+      try {
+        const resp = await fetch("/api/test-endpoint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: ep }),
+        });
+        const body = await resp.json();
+        if (body.ok) {
+          res.textContent = "✅ 连通 (" + (body.endpoint || ep) + ")";
+          res.className = "wizard-test-result ok";
+        } else {
+          res.textContent = "❌ 失败: " + (body.message || "无法连接");
+          res.className = "wizard-test-result err";
+        }
+      } catch (e) {
+        res.textContent = "❌ 失败: " + e.message;
+        res.className = "wizard-test-result err";
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    row.appendChild(btn);
+    row.appendChild(res);
+    wrap.appendChild(row);
+  }
   if (f.hint) {
     const hint = document.createElement("div");
     hint.className = "wizard-field-hint";

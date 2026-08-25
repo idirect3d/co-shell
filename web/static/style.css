@@ -1597,6 +1597,26 @@ aside {
 .wizard-field {
   margin-bottom: 12px;
 }
+.wizard-endpoint-test {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.wizard-test-btn {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.wizard-test-btn:hover { background: var(--accent); color: var(--bg); }
+.wizard-test-btn:disabled { opacity: 0.6; cursor: default; }
+.wizard-test-result { font-size: 12px; color: var(--fg-dim); }
+.wizard-test-result.ok { color: var(--ok); }
+.wizard-test-result.err { color: var(--err); }
 .wizard-field-label {
   display: block;
   font-size: 12px;
