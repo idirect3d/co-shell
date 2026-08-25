@@ -202,6 +202,23 @@
   </div>
 </div>
 
+<!-- FEATURE-429: model delete confirmation modal (mirrors the session delete modal) -->
+<div id="delModel" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span data-i18n="modelDelete">删除模型</span>
+      <button class="icon-btn sm" id="delModelClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="del-session-msg" id="delModelMsg"></div>
+      <div class="del-session-actions">
+        <button class="btn" id="delModelCancel" data-i18n="cancel">取消</button>
+        <button class="btn danger" id="delModelConfirm" data-i18n="confirm">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- FEATURE-422: model manager modal -->
 <div id="models" class="modal hidden">
   <div class="modal-box models-box">
@@ -218,15 +235,23 @@
   </div>
 </div>
 
-<!-- FEATURE-422: model wizard modal (drives the REPL add/edit wizard) -->
+<!-- FEATURE-429: model wizard modal (structured step-by-step form) -->
 <div id="modelWizard" class="modal hidden">
   <div class="modal-box wizard-box">
     <div class="modal-head">
       <span data-i18n="modelWizard">模型配置向导</span>
       <button class="icon-btn sm" id="modelWizardCancel" title="取消">✕</button>
     </div>
-    <div class="modal-body">
-      <div id="modelWizardBody" class="wizard-body"></div>
+    <div class="modal-body wizard-layout">
+      <div id="modelWizardNav" class="wizard-nav"></div>
+      <div class="wizard-main">
+        <div id="modelWizardBody" class="wizard-body"></div>
+        <div class="wizard-actions">
+          <button class="btn" id="modelWizardPrev">上一步</button>
+          <button class="btn primary" id="modelWizardNext">下一步</button>
+          <button class="btn primary" id="modelWizardSubmit" style="display:none">完成</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

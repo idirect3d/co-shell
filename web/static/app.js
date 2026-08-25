@@ -27,7 +27,9 @@ const I18N = {
     revealDir: "定位到文件夹",
     sessionDelete: "删除会话",
     sessionActive: "当前会话",
+    sessionCount: "消息计数",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
+    modelDeleteConfirm: "确定要删除模型「%s」吗？此操作不可撤销。",
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
     supplement: "补充信息", supplementHint: "输入补充信息，Enter 发送（仍可点击上方按钮）",
@@ -58,7 +60,9 @@ const I18N = {
     revealDir: "Reveal in folder",
     sessionDelete: "Delete session",
     sessionActive: "Current session",
+    sessionCount: "Message count",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
+    modelDeleteConfirm: "Delete model \"%s\"? This cannot be undone.",
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
     supplement: "Supplement", supplementHint: "Type supplementary info, Enter to send (buttons still clickable)",
@@ -181,6 +185,10 @@ const modelAddBtn = document.getElementById("modelAddBtn");
 const modelWizardModal = document.getElementById("modelWizard");
 const modelWizardBody = document.getElementById("modelWizardBody");
 const modelWizardCancel = document.getElementById("modelWizardCancel");
+const modelWizardNav = document.getElementById("modelWizardNav");
+const modelWizardPrev = document.getElementById("modelWizardPrev");
+const modelWizardNext = document.getElementById("modelWizardNext");
+const modelWizardSubmit = document.getElementById("modelWizardSubmit");
 const sbModelTextWrap = document.getElementById("sbModelTextWrap");
 const sbModelVisionWrap = document.getElementById("sbModelVisionWrap");
 const modelMenu = document.getElementById("modelMenu");
@@ -217,6 +225,11 @@ const delSessionMsg = document.getElementById("delSessionMsg");
 const delSessionClose = document.getElementById("delSessionClose");
 const delSessionCancel = document.getElementById("delSessionCancel");
 const delSessionConfirm = document.getElementById("delSessionConfirm");
+const delModelModal = document.getElementById("delModel");
+const delModelMsg = document.getElementById("delModelMsg");
+const delModelClose = document.getElementById("delModelClose");
+const delModelCancel = document.getElementById("delModelCancel");
+const delModelConfirm = document.getElementById("delModelConfirm");
 
 /* ---------- websocket ---------- */
 
@@ -258,6 +271,7 @@ function wsConnect() {
     else if (msg.kind === "mode_result") showModeResult(msg);
     else if (msg.kind === "models") renderModels(msg.models || [], msg.templates || []);
     else if (msg.kind === "model_result") showModelResult(msg);
+    else if (msg.kind === "model_wizard") showModelWizardStep(msg);
     else if (msg.kind === "pop_result") {
       // FEATURE-409: retry-from popped the session back; reload so the stream
       // reflects the truncated history.
@@ -629,8 +643,10 @@ function isStreamingBody(body) {
 function markStreaming(body) {
   const box = body.parentElement;
   if (!box) return;
-  const s = box.querySelector(".ev-streaming");
-  if (s) s.classList.add("on");
+  // FEATURE-429: reuse the block's own title-bar dot (.ev-head::before) as the
+  // breathing indicator while streaming.
+  const head = box.querySelector(".ev-head");
+  if (head) head.classList.add("streaming");
   box.classList.remove("collapsed");
   if (displayMode === "minimal") {
     document.querySelectorAll(".ev").forEach((b) => {
@@ -651,8 +667,8 @@ function unmarkStreaming(body) {
   if (!body) return;
   const box = body.parentElement;
   if (!box) return;
-  const s = box.querySelector(".ev-streaming");
-  if (s) s.classList.remove("on");
+  const head = box.querySelector(".ev-head");
+  if (head) head.classList.remove("streaming");
   if (displayMode !== "minimal") return;
   if (box.classList.contains("user-msg") || box.classList.contains("ev-result")) return;
   // Only collapse when some other block is still streaming (the last finished
@@ -681,12 +697,6 @@ function addBlockActions(head, box, body, cls, noCollapse) {
   const actions = document.createElement("span");
   actions.className = "ev-actions";
 
-  // FEATURE-409: a dynamic "..." shown next to the title while the block is
-  // streaming output, so the user can see it is still being produced.
-  const streaming = document.createElement("span");
-  streaming.className = "ev-streaming";
-  streaming.textContent = "...";
-  head.appendChild(streaming);
 
   // 1) Copy: copy the block's plain-text content to the clipboard.
   const copy = document.createElement("button");
@@ -817,9 +827,9 @@ function renderEvent(ev) {
       }
     }
     curLLM = curThinking = null;
-    // FEATURE-409: the LLM iteration ended (token usage refreshed) — hide the
-    // streaming "..." on all blocks now, not only at the final done event.
-    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
+    // FEATURE-409: the LLM iteration ended (token usage refreshed) — stop the
+    // breathing dot on all blocks now, not only at the final done event.
+    document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
     scrollStream();
     // FEATURE-419: each display block just completed (the "..." was removed) —
     // refresh the workspace file tree and branch label so the user sees file /
@@ -857,8 +867,8 @@ function renderEvent(ev) {
       applyBlockDisplayMode(b, b.className.replace("ev ", "").split(" ")[0]);
       break;
     }
-    // FEATURE-409: hide the dynamic "..." on all blocks once streaming ends.
-    document.querySelectorAll(".ev-streaming").forEach((s) => s.classList.remove("on"));
+    // FEATURE-409: stop the breathing dot on all blocks once streaming ends.
+    document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
     // An LLM iteration finished — the agent may have switched git branches
     // or modified files, so refresh the branch label and the tree's git
     // status badges without a manual reload.
@@ -1242,6 +1252,12 @@ function renderSessionMenu(sessions) {
     title.textContent = s.title || "(unnamed)";
     title.title = (s.keywords ? s.keywords + " · " : "") + s.created_at;
     row.appendChild(title);
+    // Message count, right-aligned (FEATURE-428).
+    const count = document.createElement("span");
+    count.className = "session-count";
+    count.textContent = s.message_count != null ? s.message_count : 0;
+    count.title = T.sessionCount;
+    row.appendChild(count);
     row.onclick = () => {
       if (s.current) return;
       wsSend({ type: "session_switch", value: s.id });
@@ -1371,6 +1387,26 @@ delSessionModal.onclick = (e) => { if (e.target === delSessionModal) closeDelete
 delSessionConfirm.onclick = () => {
   if (pendingDeleteID) wsSend({ type: "session_delete", value: pendingDeleteID });
   closeDeleteModal();
+};
+
+// FEATURE-429: model delete confirmation modal (mirrors the session delete
+// interaction). The model_remove message is only sent after the user confirms.
+let pendingModelDeleteID = null;
+function confirmDeleteModel(m) {
+  pendingModelDeleteID = m.id;
+  delModelMsg.textContent = (T.modelDeleteConfirm || "确认删除模型「%s」吗？此操作不可撤销。").replace("%s", m.id);
+  delModelModal.classList.remove("hidden");
+}
+function closeModelDeleteModal() {
+  pendingModelDeleteID = null;
+  delModelModal.classList.add("hidden");
+}
+delModelClose.onclick = closeModelDeleteModal;
+delModelCancel.onclick = closeModelDeleteModal;
+delModelModal.onclick = (e) => { if (e.target === delModelModal) closeModelDeleteModal(); };
+delModelConfirm.onclick = () => {
+  if (pendingModelDeleteID) wsSend({ type: "model_remove", value: pendingModelDeleteID });
+  closeModelDeleteModal();
 };
 
 /* ---------- task plan panel ---------- */
@@ -2609,12 +2645,19 @@ function renderModelsBody() {
   for (const m of modelList) {
     const row = document.createElement("div");
     row.className = "model-row" + (m.enabled ? " enabled" : "");
+    // Left: provider logo (FEATURE-429).
+    const logo = document.createElement("img");
+    logo.className = "model-logo";
+    logo.src = "/static/logos/" + (MODEL_LOGOS[m.provider] || "generic.png");
+    logo.alt = "";
+    logo.onerror = () => { logo.style.display = "none"; };
+    row.appendChild(logo);
     // Left: status + identity.
     const info = document.createElement("div");
     info.className = "model-info";
     const id = document.createElement("div");
     id.className = "model-id";
-    id.textContent = (m.enabled ? "● " : "○ ") + m.id;
+    id.textContent = m.id;
     id.title = m.name || m.id;
     info.appendChild(id);
     const meta = document.createElement("div");
@@ -2640,7 +2683,7 @@ function renderModelsBody() {
     mkBtn("切换", "切换为当前模型", () => wsSend({ type: "model_switch", value: m.id }));
     mkBtn(m.enabled ? "禁用" : "启用", m.enabled ? "禁用此模型" : "启用此模型", () => wsSend({ type: m.enabled ? "model_disable" : "model_enable", value: m.id }));
     mkBtn("编辑", "编辑此模型", () => { modelsModal.classList.add("hidden"); openModelWizard("edit", m.id); });
-    mkBtn("删除", "删除此模型", () => { if (confirm("确认删除模型 " + m.id + "？")) wsSend({ type: "model_remove", value: m.id }); });
+    mkBtn("删除", "删除此模型", () => confirmDeleteModel(m));
     row.appendChild(actions);
     modelsBody.appendChild(row);
   }
@@ -2860,16 +2903,28 @@ function showModelResult(msg) {
   refreshModelInfo();
 }
 
-// openModelWizard opens the wizard modal and launches the add/edit wizard.
+// FEATURE-429: structured step-by-step wizard. The browser owns the
+// accumulated field data (wizardData) and the current step (wizardStep); the
+// backend returns the form of each step as structured JSON.
+let wizardData = {};
+let wizardStep = "";
+
+// wizardStepTitles maps a step key to its navigation label.
+const wizardStepTitles = {
+  template: "模板", endpoint: "接口地址", api_key: "API Key",
+  model_name: "模型名", capabilities: "能力", model_id: "模型 ID",
+  priority: "优先级", max_model_len: "上下文长度", enabled: "启用"
+};
+
+// openModelWizard opens the wizard modal and starts the structured wizard.
 function openModelWizard(mode, id) {
   wizardActive = true;
+  wizardData = {};
+  wizardStep = "";
   modelWizardBody.textContent = "";
+  modelWizardNav.textContent = "";
   modelWizardModal.classList.remove("hidden");
-  if (mode === "edit") {
-    wsSend({ type: "model_edit", value: id });
-  } else {
-    wsSend({ type: "model_add" });
-  }
+  wsSend({ type: "model_wizard_start", value: id || "" });
 }
 
 // closeModelWizard closes the wizard modal and clears the wizard-active flag.
@@ -2877,16 +2932,158 @@ function closeModelWizard() {
   wizardActive = false;
   modelWizardModal.classList.add("hidden");
   modelWizardBody.textContent = "";
+  modelWizardNav.textContent = "";
 }
 
-// The wizard cancel button aborts the running wizard (backend fails all pending
-// asks so the wizard exits from any step).
-modelWizardCancel.onclick = () => {
-  wsSend({ type: "model_wizard_cancel" });
-  closeModelWizard();
+// The wizard cancel button closes the modal (the structured wizard is stateless,
+// so no backend cancel is needed).
+modelWizardCancel.onclick = () => { closeModelWizard(); };
+
+// showModelWizardStep handles a model_wizard message: renders the step form or
+// reports completion/error.
+function showModelWizardStep(msg) {
+  if (!msg.ok) {
+    closeModelWizard();
+    if (msg.message) alert(msg.message);
+    return;
+  }
+  if (msg.wizard_step) {
+    wizardData = msg.wizard_data || wizardData;
+    renderWizardStep(msg.wizard_step);
+  } else {
+    // Completed: close and refresh the model list.
+    closeModelWizard();
+    wsSend({ type: "model_get" });
+    refreshModelInfo();
+  }
+}
+
+// renderWizardStep renders the left nav + right form + bottom buttons for a step.
+function renderWizardStep(step) {
+  wizardStep = step.step;
+  // Left navigation.
+  modelWizardNav.textContent = "";
+  const order = ["template", "endpoint", "api_key", "model_name", "capabilities", "model_id", "priority", "max_model_len", "enabled"];
+  const curIdx = order.indexOf(step.step);
+  for (let i = 0; i < order.length; i++) {
+    const item = document.createElement("div");
+    item.className = "wizard-nav-item" + (i === curIdx ? " current" : "") + (i < curIdx ? " done" : "");
+    item.textContent = (i + 1) + ". " + (wizardStepTitles[order[i]] || order[i]);
+    if (i < curIdx) {
+      item.onclick = () => { wizardStep = order[i]; wsSend({ type: "model_wizard_prev", step: order[i], wizard_data: wizardData }); };
+    }
+    modelWizardNav.appendChild(item);
+  }
+  // Right form.
+  modelWizardBody.textContent = "";
+  const title = document.createElement("div");
+  title.className = "wizard-step-title";
+  title.textContent = step.title || (wizardStepTitles[step.step] || step.step);
+  modelWizardBody.appendChild(title);
+  for (const f of (step.fields || [])) {
+    modelWizardBody.appendChild(renderWizardField(f));
+  }
+  // Bottom buttons.
+  modelWizardPrev.style.display = step.is_first ? "none" : "";
+  modelWizardNext.style.display = step.is_last ? "none" : "";
+  modelWizardSubmit.style.display = step.is_last ? "" : "none";
+}
+
+// renderWizardField builds a form control for one field.
+function renderWizardField(f) {
+  const wrap = document.createElement("div");
+  wrap.className = "wizard-field" + ((f.type === "checkbox" || f.type === "switch") ? " toggle" : "");
+  const label = document.createElement("label");
+  label.className = "wizard-field-label";
+  label.textContent = f.label || f.key;
+  wrap.appendChild(label);
+  let ctl;
+  if (f.type === "select") {
+    ctl = document.createElement("select");
+    ctl.className = "wizard-input";
+    ctl.dataset.key = f.key;
+    for (const opt of (f.options || [])) {
+      const o = document.createElement("option");
+      o.value = opt;
+      o.textContent = opt;
+      ctl.appendChild(o);
+    }
+    if (f.value) ctl.value = f.value;
+  } else if (f.type === "checkbox" || f.type === "switch") {
+    // Slider toggle switch: label on the left, switch on the right.
+    const tgl = document.createElement("label");
+    tgl.className = "wizard-toggle";
+    const inp = document.createElement("input");
+    inp.type = "checkbox";
+    inp.dataset.key = f.key;
+    inp.checked = f.value === "true";
+    const slider = document.createElement("span");
+    slider.className = "wizard-toggle-slider";
+    tgl.appendChild(inp);
+    tgl.appendChild(slider);
+    ctl = tgl;
+  } else {
+    ctl = document.createElement("input");
+    ctl.type = f.type === "password" ? "password" : (f.type === "number" ? "number" : "text");
+    ctl.className = "wizard-input";
+    ctl.dataset.key = f.key;
+    ctl.value = f.value || "";
+  }
+  wrap.appendChild(ctl);
+  if (f.hint) {
+    const hint = document.createElement("div");
+    hint.className = "wizard-field-hint";
+    hint.textContent = f.hint;
+    wrap.appendChild(hint);
+  }
+  return wrap;
+}
+
+// collectWizardFields reads the current form's values into wizardData.
+function collectWizardFields() {
+  modelWizardBody.querySelectorAll("[data-key]").forEach((el) => {
+    const key = el.dataset.key;
+    if (el.type === "checkbox") {
+      // Toggle switch / checkbox: checked = true.
+      wizardData[key] = el.checked;
+    } else if (el.type === "number") {
+      wizardData[key] = parseInt(el.value, 10) || 0;
+    } else {
+      wizardData[key] = el.value;
+    }
+  });
+}
+
+// Next: collect the current step's values and advance. When moving into the
+// capabilities step, show a "detecting" placeholder while the backend runs the
+// capability detection (FEATURE-429).
+modelWizardNext.onclick = () => {
+  collectWizardFields();
+  if (wizardStep === "model_name") {
+    // Next step is capabilities: show a detecting placeholder.
+    modelWizardBody.textContent = "";
+    const det = document.createElement("div");
+    det.className = "wizard-step-title";
+    det.textContent = "正在检测模型能力...";
+    modelWizardBody.appendChild(det);
+  }
+  wsSend({ type: "model_wizard_next", step: wizardStep, wizard_data: wizardData });
 };
 
-// appendWizardText appends a line of wizard output to the wizard modal body.
+// Prev: go back one step.
+modelWizardPrev.onclick = () => {
+  wsSend({ type: "model_wizard_prev", step: wizardStep, wizard_data: wizardData });
+};
+
+// Submit: collect the last step's values and finish.
+modelWizardSubmit.onclick = () => {
+  collectWizardFields();
+  wsSend({ type: "model_wizard_submit", wizard_data: wizardData });
+};
+
+// Compatibility stubs for the legacy text-flow wizard routing (FEATURE-422).
+// The structured wizard (FEATURE-429) no longer emits ui_text/ask/interaction,
+// but these keep the wizardActive routing branches safe if they ever fire.
 function appendWizardText(text) {
   const line = document.createElement("div");
   line.className = "wizard-line";
@@ -2894,37 +3091,20 @@ function appendWizardText(text) {
   modelWizardBody.appendChild(line);
   modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
 }
-
-// showWizardAsk renders an ask input request inside the wizard modal. It builds
-// a single-line input (mode "line") or a set of key buttons (mode "key") and
-// sends the answer back via the standard answer message.
 function showWizardAsk(msg) {
   const wrap = document.createElement("div");
   wrap.className = "wizard-ask";
-  if (msg.mode === "key") {
-    const keys = [["Enter", ""], ["c", "c"], ["a", "a"], ["g", "g"], ["d", "d"], ["n", "n"]];
-    for (const [label, value] of keys) {
-      const b = document.createElement("button");
-      b.className = "key-btn";
-      b.textContent = label;
-      b.onclick = () => { wsSend({ type: "answer", id: msg.id, value }); wrap.remove(); };
-      wrap.appendChild(b);
-    }
-  } else {
-    const inp = document.createElement("input");
-    inp.type = "text";
-    inp.autocomplete = "off";
-    inp.placeholder = T.askLine || "输入...";
-    const send = document.createElement("button");
-    send.className = "btn";
-    send.textContent = T.send || "发送";
-    const submit = () => { wsSend({ type: "answer", id: msg.id, value: inp.value }); wrap.remove(); };
-    send.onclick = submit;
-    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
-    wrap.appendChild(inp);
-    wrap.appendChild(send);
-    setTimeout(() => inp.focus(), 0);
-  }
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.autocomplete = "off";
+  const send = document.createElement("button");
+  send.className = "btn";
+  send.textContent = T.send || "发送";
+  const submit = () => { wsSend({ type: "answer", id: msg.id, value: inp.value }); wrap.remove(); };
+  send.onclick = submit;
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+  wrap.appendChild(inp);
+  wrap.appendChild(send);
   modelWizardBody.appendChild(wrap);
   modelWizardBody.scrollTop = modelWizardBody.scrollHeight;
 }

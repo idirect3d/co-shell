@@ -746,10 +746,9 @@ func extractHTTPStatusCode(err error) int {
 // Strategy:
 //  1. For each prefix candidate (domain: https→http, IP: http→https):
 //     a. Try the base URL (no /vN suffix). If 200/401/403 → success, return it.
-//     b. If 404 and URL doesn't already have /vN → try +/v1.
-//     If +/v1 returns 200/401/403 → success, return it.
-//     c. If +/v1 is also 404 → skip, try next prefix.
-//     d. Network error or other non-404 → skip, try next prefix.
+//     b. If the base URL fails (404 or network error) and the URL doesn't already
+//     have a /vN suffix → try +/v1. If +/v1 returns 200/401/403 → success, return it.
+//     c. If +/v1 also fails → skip, try next prefix.
 //  2. All prefixes failed → return original input unchanged.
 //
 // Returns the tested endpoint and whether it succeeded.
@@ -791,8 +790,8 @@ func autoCompleteEndpoint(rawEndpoint string) (string, bool) {
 			return baseURL, true
 		}
 
-		if status == http.StatusNotFound && !alreadyHasVNSuffix {
-			// Step b: 404 on base URL, try +/v1 as a fallback
+		if !alreadyHasVNSuffix {
+			// Step b: base URL failed (404 or network error), try +/v1 as a fallback
 			v1URL := strings.TrimRight(baseURL, "/") + "/v1"
 			ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 			client2 := llm.NewClient(v1URL, "", "test", 0, 0, 5)
