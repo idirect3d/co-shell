@@ -108,12 +108,6 @@ func init() {
 
 ===
 
-# 最近迭代内容（最近两次迭代的返回，不含当前疑似循环的内容）
-
-{ITERATIONS}
-
-===
-
 # 最近助手消息（带消息序号，[序号] 即该消息在对话历史中的真实索引，可用于 history_fixes.message_index 定位）
 
 {HISTORY}
@@ -155,6 +149,7 @@ func init() {
 	zhMessages[KeyCol3LoopDetectEnabled] = "循环检测(on|off)"
 	zhMessages[KeyCol3LoopJudgeEnabled] = "LLM循环二次判定"
 	zhMessages[KeyCol3LoopHistoryFixEnabled] = "循环历史修正(on|off)"
+	zhMessages[KeyCol3LoopHistoryFixMaxMsgs] = "循环历史修正最大消息数"
 	zhMessages[KeyCol3ShowLoopDetection] = "显示循环检测过程(on|off)"
 	zhMessages[KeyCol3LoopJudgeModel] = "循环判定模型ID"
 	zhMessages[KeyCol3LoopDetectThreshold] = "循环检测阈值(重复次数)"
