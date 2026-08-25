@@ -344,6 +344,7 @@
 | FEATURE-431 | 0.16.0 | P1 | Web 服务访问白名单：新增 --whitelist 命令行参数或系统设置指定白名单（支持 IP/网段），无白名单时强制本机访问 |
 | FEATURE-432 | 0.16.0 | P1 | Web UI 文件预览悬浮标题栏：文件预览顶部显示半透明悬浮标题栏（文件名全路径/最后修改时间/关闭图标），平时 25% 透明度，鼠标放上变清晰，点击路径自动定位展开工作区文件夹 |
 | FEATURE-433 | 0.16.0 | P1 | Web UI 模型管理向导"2. 接口地址"步骤增加连通性测试按钮：点击测试 /models 端点连通性，按钮旁显示结果，复用 URL 自动补全 |
+| FEATURE-434 | 0.16.0 | P1 | 重新设计 --help 示例：从 12 个精简为 3 个突出重点（直接执行指令 / 绑定IP+白名单的 web ui 服务模式 / 工作空间+会话ID+指令的纯 agent 调用） |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -391,6 +392,13 @@
   - 需求：后端新增测试 API；前端 endpoint 步骤增加按钮和结果展示。
   - 实施：`cmd/model.go` 新增导出函数 `TestEndpointConnectivity`（复用 `autoCompleteEndpoint` 自动补全）；`web/server.go` 新增 `POST /api/test-endpoint` 路由和 `handleTestEndpoint` handler；`web/static/app.js` `renderWizardField` 在 endpoint 字段旁增加"测试连通性"按钮（点击调用 API 显示结果）；`web/static/style.css` 新增 `.wizard-endpoint-test`/`.wizard-test-btn`/`.wizard-test-result` 样式 [BUILD-645]；⑳ 优化：测试按钮配色与其他按钮一致（`.wizard-test-btn` 改为 accent-dim 背景 + accent 文字 + accent 边框，hover 变 accent 背景，深色风格适配）[BUILD-646]
   - 测试：见 use-case/FEATURE-433/
+
+- [ ] **FEATURE-434 重新设计 --help 示例**
+  - 背景：`--help` 下示例过多（12 个），信息冗余，重点不突出，用户难以快速找到常用用法。
+  - 方案（已确认）：精简为 3 个重点示例：① 直接执行指令；② 启动配置绑定 IP 和网络白名单的对其他主机提供 web ui 的服务模式；③ 同时指定工作空间、会话 ID、指令（用于其他程序调用 co-shell 的纯 agent 应用）。
+  - 需求：`usage.go` `buildUsage` 示例部分从 12 个精简为 3 个；`i18n`（zh/en）更新 `KeyCLIHelpEx1`/`Ex2`/`Ex3` 文案，移除 `Ex4`-`Ex12` 引用。
+  - 实施：`usage.go` `buildUsage` 示例部分改为只输出 3 个示例（`KeyCLIHelpEx1`/`Ex2`/`Ex3`）；`i18n/zh.go`/`en.go` 更新 `KeyCLIHelpEx1`（直接执行指令）、`KeyCLIHelpEx2`（--serve --bind --whitelist web ui 服务模式）、`KeyCLIHelpEx3`（-w -s 指令纯 agent 调用）文案 [BUILD-648]
+  - 测试：见 use-case/FEATURE-434/
 
 ## v0.9.1 — 开发中（已完成）
 
