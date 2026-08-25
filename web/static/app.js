@@ -2442,14 +2442,14 @@ preview.onclick = (e) => { if (e.target === preview) preview.classList.add("hidd
 // FEATURE-432: floating title bar — close button and path reveal.
 fvClose.onclick = () => closeFileViewer();
 // revealInTree expands the workspace tree to reveal the given file path.
-function revealInTree(path) {
+async function revealInTree(path) {
   const parts = path.split("/");
   let acc = "";
   for (let i = 0; i < parts.length - 1; i++) {
     acc = acc ? acc + "/" + parts[i] : parts[i];
     expandedDirs.add(acc);
   }
-  loadTree();
+  await loadTree();
   highlightTreeFile(path);
 }
 fvPathEl.onclick = () => { if (fvPath) revealInTree(fvPath); };
