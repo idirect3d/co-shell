@@ -180,9 +180,13 @@ func (m *TerminalInteractionManager) askConfirm(in Interaction) (InteractionResu
 }
 
 // askSelect renders a question with options and parses the user's choice.
-// The cancel option is always the last displayed option (len(options)+1).
+// The option list always ends with a fixed "supplementary info" option
+// (len(options)+1) and a cancel option (len(options)+2). Selecting the
+// supplementary option, typing a leading space, or typing any non-option text
+// enters free-form input that is sent directly to the LLM.
 func (m *TerminalInteractionManager) askSelect(in Interaction) (InteractionResult, error) {
-	cancelIdx := len(in.Options) + 1
+	suppIdx := len(in.Options) + 1
+	cancelIdx := len(in.Options) + 2
 
 	for {
 		m.io.Println()
@@ -196,6 +200,8 @@ func (m *TerminalInteractionManager) askSelect(in Interaction) (InteractionResul
 			for i, opt := range in.Options {
 				m.io.Printf("    [%d] %s\n", i+1, opt)
 			}
+			// Fixed supplementary-info option (FEATURE-438).
+			m.io.Printf(i18n.T(i18n.KeySettingCmd_776), suppIdx)
 			m.io.Printf(i18n.T(i18n.KeySettingCmd_602), cancelIdx)
 			m.io.Println()
 		}
@@ -206,6 +212,18 @@ func (m *TerminalInteractionManager) askSelect(in Interaction) (InteractionResul
 		if err != nil {
 			return InteractionResult{}, err
 		}
+
+		// A leading space means the user pressed space to enter supplementary
+		// info directly (FEATURE-438).
+		if strings.HasPrefix(input, " ") {
+			note := strings.TrimSpace(input)
+			if note == "" {
+				m.io.Println(i18n.T(i18n.KeySettingCmd_604))
+				continue
+			}
+			return InteractionResult{Action: ActionInput, Value: note, Raw: note}, nil
+		}
+
 		input = strings.TrimSpace(input)
 
 		// Empty input: if there are options, prompt to re-choose; otherwise
@@ -227,6 +245,20 @@ func (m *TerminalInteractionManager) askSelect(in Interaction) (InteractionResul
 				if idx == cancelIdx {
 					m.io.Println(i18n.T(i18n.KeySettingCmd_605))
 					return InteractionResult{Action: ActionCancel}, nil
+				}
+				if idx == suppIdx {
+					// Enter supplementary-info input mode.
+					m.io.Printf(i18n.T(i18n.KeySettingCmd_777))
+					supp, err := m.io.ReadLine()
+					if err != nil {
+						return InteractionResult{}, err
+					}
+					supp = strings.TrimSpace(supp)
+					if supp == "" {
+						m.io.Println(i18n.T(i18n.KeySettingCmd_604))
+						continue
+					}
+					return InteractionResult{Action: ActionInput, Value: supp, Raw: supp}, nil
 				}
 				if idx >= 1 && idx <= len(in.Options) {
 					selected := in.Options[idx-1]
