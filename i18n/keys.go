@@ -1506,6 +1506,10 @@ const (
 	KeyServeConflict      = "serve_conflict"
 	KeyServeBrowserFailed = "serve_browser_failed"
 	KeyWebOpenFailed      = "web_open_failed"
+
+	// serve bind/whitelist (FEATURE-430/431)
+	KeyCLIHelpBind      = "cli_help_bind"
+	KeyCLIHelpWhitelist = "cli_help_whitelist"
 	KeyWebRevealFailed    = "web_reveal_failed"
 
 	// Init capabilities/rules (deprecated)
