@@ -343,6 +343,7 @@
 | FEATURE-430 | 0.16.0 | P1 | Web UI 绑定地址可配置：新增 --bind 命令行参数设定 Web UI 监听地址（默认 127.0.0.1），支持局域网访问 |
 | FEATURE-431 | 0.16.0 | P1 | Web 服务访问白名单：新增 --whitelist 命令行参数或系统设置指定白名单（支持 IP/网段），无白名单时强制本机访问 |
 | FEATURE-432 | 0.16.0 | P1 | Web UI 文件预览悬浮标题栏：文件预览顶部显示半透明悬浮标题栏（文件名全路径/最后修改时间/关闭图标），平时 25% 透明度，鼠标放上变清晰，点击路径自动定位展开工作区文件夹 |
+| FEATURE-433 | 0.16.0 | P1 | Web UI 模型管理向导"2. 接口地址"步骤增加连通性测试按钮：点击测试 /models 端点连通性，按钮旁显示结果，复用 URL 自动补全 |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -384,6 +385,12 @@
   - 需求：后端 `treeNode` 增加 `Mtime` 字段；前端 `fileViewer` 内增加悬浮标题栏；`openFilePreview` 填充标题栏；点击路径展开工作区树到该文件。
   - 实施：`web/server.go` `treeNode` 增加 `Mtime` 字段，`buildTree` 为文件节点获取 `ModTime`；`web/static/index.html` `fileViewer` 内增加悬浮标题栏（`fv-titlebar`/`fvPath`/`fvMtime`/`fvClose`）；`web/static/app.js` `openFilePreview` 填充标题栏（路径/mtime），新增 `formatMtime` 辅助函数和 `revealInTree` 函数（点击路径展开工作区树到该文件），绑定关闭按钮；`web/static/style.css` 新增 `.fv-titlebar` 半透明悬浮样式（默认 25% 透明度，hover 变清晰）[BUILD-642]；⑳ 优化：标题栏改为灵动岛形式（.fv-titlebar 两端圆形胶囊形，position:absolute 悬浮在正文上部，平时背景透明+边框文字 50% 透明，hover 背景变 50% 半透明+字体边框完全清晰，最大程度节约空间不干扰浏览）[BUILD-643]；修复点击文件标题定位工作区时丢失高亮（revealInTree 改为 async，await loadTree() 后再 highlightTreeFile，确保树渲染完成后高亮）[BUILD-644]
   - 测试：见 use-case/FEATURE-432/
+- [ ] **FEATURE-433 Web UI 模型管理向导 endpoint 连通性测试按钮**
+  - 背景：模型管理向导"2. 接口地址"步骤只能手动输入 endpoint，无法快速验证其连通性。
+  - 方案（已确认）：在 endpoint 步骤增加"测试连通性"按钮，点击后测试 /models 端点连通性，按钮旁显示结果，复用 URL 自动补全（autoCompleteEndpoint）。
+  - 需求：后端新增测试 API；前端 endpoint 步骤增加按钮和结果展示。
+  - 实施：见 FEATURE-433 分支提交记录。
+  - 测试：见 use-case/FEATURE-433/
 
 ## v0.9.1 — 开发中（已完成）
 
