@@ -47,6 +47,7 @@ function mdBlocks(text) {
       if (lang) code.className = "lang-" + lang;
       code.textContent = buf.join("\n");
       pre.appendChild(code);
+      pre.dataset.line = i + 1;
       out.push(pre);
       continue;
     }
@@ -56,6 +57,7 @@ function mdBlocks(text) {
     if (m) {
       const h = document.createElement("h" + Math.min(m[1].length + 2, 6)); // h1 renders as h3: keep in-stream scale
       h.dataset.level = m[1].length;
+      h.dataset.line = i + 1;
       for (const n of mdInline(m[2])) h.appendChild(n);
       out.push(h);
       i++;
@@ -64,7 +66,9 @@ function mdBlocks(text) {
 
     // horizontal rule
     if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) {
-      out.push(document.createElement("hr"));
+      const hr = document.createElement("hr");
+      hr.dataset.line = i + 1;
+      out.push(hr);
       i++;
       continue;
     }
@@ -102,6 +106,7 @@ function mdBlocks(text) {
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
+      table.dataset.line = i + 1;
       out.push(table);
       continue;
     }
@@ -113,6 +118,7 @@ function mdBlocks(text) {
         buf.push(lines[i].replace(/^\s{0,3}>\s?/, "")); i++;
       }
       const bq = document.createElement("blockquote");
+      bq.dataset.line = i + 1;
       for (const n of mdBlocks(buf.join("\n"))) bq.appendChild(n);
       out.push(bq);
       continue;
@@ -123,6 +129,7 @@ function mdBlocks(text) {
     if (m) {
       const ordered = /^\d/.test(m[1]);
       const list = document.createElement(ordered ? "ol" : "ul");
+      list.dataset.line = i + 1;
       const itemRe = ordered ? /^\s{0,3}\d+[.)]\s+(.*)$/ : /^\s{0,3}[-*+]\s+(.*)$/;
       while (i < lines.length) {
         const im = lines[i].match(itemRe);
@@ -150,6 +157,7 @@ function mdBlocks(text) {
       buf.push(l); i++;
     }
     const p = document.createElement("p");
+    p.dataset.line = i + 1;
     buf.forEach((l, idx) => {
       if (idx > 0) p.appendChild(document.createElement("br"));
       for (const n of mdInline(l)) p.appendChild(n);

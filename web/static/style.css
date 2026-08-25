@@ -472,19 +472,21 @@ aside {
 }
 .stream-a.hidden { display: none; }
 /* FEATURE-416: a floating "merge down" button shown between region B and
-   region A while the stream is split. Clicking it merges A back into B. */
+   region A while the stream is split. Clicking it merges A back into B.
+   FEATURE-436: the highlight background is a horizontal capsule and the icon
+   is centered both horizontally and vertically within it. */
 .stream-merge {
   flex: none;
   align-self: center;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--accent);
   cursor: pointer;
   font-size: 12px;
-  padding: 4px 10px;
+  padding: 2px 14px;
   border-radius: 999px;
 }
 .stream-merge:hover { background: var(--accent-dim); }
@@ -1316,6 +1318,21 @@ aside {
 .fv-body.md th { background: var(--bg-elev); }
 .fv-body.md a { color: var(--accent); text-decoration: none; }
 .fv-body.md a:hover { text-decoration: underline; }
+/* FEATURE-436: each md block is wrapped in a flex row with a line-number
+   gutter on the left showing the block's starting source line. */
+.fv-body.md .fv-md-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.fv-body.md .fv-md-no {
+  flex: none;
+  width: 3em;
+  text-align: right;
+  color: var(--fg-dim);
+  user-select: none;
+  font: 12px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
 
 /* FEATURE-425: hex dump rows for binary files. */
 .fv-line.fv-hex { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }

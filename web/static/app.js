@@ -1212,7 +1212,8 @@ function updateStatus() {
   const liTPS = tokenStats.lastInTPS, loTPS = tokenStats.lastOutTPS;
   const liDur = liTPS > 0 ? fmtDur(li / liTPS) : "-";
   const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
-  sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? liTPS + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? loTPS + "t/s" : "-") + ", " + loDur + ")";
+  // FEATURE-436: token rates use thousands separators (e.g. 1,234t/s).
+  sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "t/s" : "-") + ", " + loDur + ")";
 }
 
 /* ---------- session menu (FEATURE-387) ---------- */
@@ -2124,7 +2125,8 @@ function openFilePreview(node) {
   fvTotal = 0;
   fvDiff = new Map();
   fvHexMode = false;
-  fvRaw = false;
+  // FEATURE-436: keep the Raw preference across file switches (localStorage).
+  fvRaw = localStorage.getItem("fvRaw") === "1";
   fvBody.textContent = "";
   fvMdText = "";
   fvBody.classList.remove("md");
@@ -2134,7 +2136,7 @@ function openFilePreview(node) {
   fvMtimeEl.textContent = formatMtime(node.mtime);
   // FEATURE-435: show the Raw toggle only for md files (default off).
   fvRawEl.classList.toggle("hidden", !isMdFile(node.path));
-  fvRawEl.classList.remove("on");
+  fvRawEl.classList.toggle("on", fvRaw);
   // FEATURE-425: highlight the currently selected file in the workspace tree.
   highlightTreeFile(node.path);
   loadFileDiff(node.path);
@@ -2232,10 +2234,21 @@ function isMdFile(path) {
 }
 
 // renderFileBody renders the accumulated md text as markdown (Raw off).
+// FEATURE-436: each md block is wrapped in a flex row with a line-number
+// gutter on the left showing the block's starting source line.
 function renderFileBody() {
   fvBody.textContent = "";
   fvBody.classList.add("md");
-  mdRender(fvBody, fvMdText);
+  for (const block of mdBlocks(fvMdText)) {
+    const row = document.createElement("div");
+    row.className = "fv-md-row";
+    const no = document.createElement("span");
+    no.className = "fv-md-no";
+    no.textContent = block.dataset.line || "";
+    row.appendChild(no);
+    row.appendChild(block);
+    fvBody.appendChild(row);
+  }
 }
 
 // hasControlChars reports whether the text contains binary control characters
@@ -2469,6 +2482,8 @@ fvPathEl.onclick = () => { if (fvPath) revealInTree(fvPath); };
 fvRawEl.onclick = () => {
   if (!fvPath || !isMdFile(fvPath)) return;
   fvRaw = !fvRaw;
+  // FEATURE-436: persist the Raw preference so it survives file switches.
+  localStorage.setItem("fvRaw", fvRaw ? "1" : "0");
   fvRawEl.classList.toggle("on", fvRaw);
   // Reload the file from the start in the new mode.
   fvNextLine = 1;

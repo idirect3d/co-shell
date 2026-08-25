@@ -346,6 +346,7 @@
 | FEATURE-433 | 0.16.0 | P1 | Web UI 模型管理向导"2. 接口地址"步骤增加连通性测试按钮：点击测试 /models 端点连通性，按钮旁显示结果，复用 URL 自动补全 |
 | FEATURE-434 | 0.16.0 | P1 | 重新设计 --help 示例：从 12 个精简为 3 个突出重点（直接执行指令 / 绑定IP+白名单的 web ui 服务模式 / 工作空间+会话ID+指令的纯 agent 调用） |
 | FEATURE-435 | 0.16.0 | P1 | 文件预览标题栏改进：标题栏移到文件显示区域下方（与底边留空间）、关闭图标用高亮颜色、鼠标滑过文件显示区域下方100px区域标题栏即高亮、md 文件时在标题栏同水平位置增加 Raw 按钮开关（切换原始文本/解析渲染，默认为关） |
+| FEATURE-436 | 0.16.0 | P1 | 四项 UI 改进：Raw 按钮按下后切换其他文件时保持状态、MD 文件解析后内容显示时增加行号列、自动分屏融合按钮高亮背景形状改为横向胶囊（图标横向纵向居中）、底部状态栏右侧预装/输出速度（XXXt/s）以千分位格式显示 |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -407,6 +408,13 @@
   - 需求：`web/static/index.html` `fileViewer` 内标题栏移到下方 + 增加 Raw 按钮；`web/static/app.js` 标题栏高亮触发区域改为文件显示区域下方 100px、Raw 开关控制 md 渲染；`web/static/style.css` 标题栏移到下方、关闭图标高亮色、Raw 按钮样式。
   - 实施：`web/static/index.html` `fileViewer` 内标题栏移到 `fv-body` 之后（底部）+ 增加 Raw 按钮；`web/static/style.css` `.fv-titlebar` 改为 `bottom:12px`（与底边留空间）、`.fv-close` 改高亮色 `var(--accent)`、新增 `.fv-titlebar.active` 高亮状态 + `.fv-raw` Raw 按钮样式；`web/static/app.js` 新增 `fvRaw` 状态（默认 false）、`loadFileChunk` md 判断改为 `isMdFile(path) && !fvRaw`、`openFilePreview` 按是否 md 文件显示/隐藏 Raw 按钮、`fvRawEl.onclick` 切换 Raw 并重载文件、`fileViewer` mousemove 监听底部 100px 区域控制标题栏 `.active` 高亮、`closeFileViewer` 重置 fvRaw [BUILD-650]
   - 测试：见 use-case/FEATURE-435/
+
+- [ ] **FEATURE-436 四项 UI 改进**
+  - 背景：① Raw 按钮按下后切换其他文件时状态被重置（FEATURE-435 每次打开文件都重置 fvRaw=false）；② MD 文件解析后的内容显示时没有行号列；③ 自动分屏融合按钮高亮背景形状与图标不对称；④ 底部状态栏右侧预装/输出速度（XXXt/s）未用千分位格式。
+  - 方案（已确认）：① Raw 状态用 localStorage 持久化，切换文件时保持；② MD 解析渲染时也显示行号列；③ 融合按钮高亮背景形状改为横向胶囊，图标横向纵向居中；④ 状态栏速度以千分位格式显示。
+  - 需求：`web/static/app.js` Raw 状态持久化 + md 行号 + 状态栏千分位；`web/static/style.css` 融合按钮胶囊形状 + md 行号样式。
+  - 实施：`web/static/app.js` Raw 状态用 localStorage 持久化（`openFilePreview` 读取 `localStorage.getItem("fvRaw")`、`fvRawEl.onclick` 保存）、`renderFileBody` 每个 md 块包裹 flex 行 + 行号列（`fv-md-row`/`fv-md-no`）、状态栏速度 `fmtNum(liTPS)`/`fmtNum(loTPS)` 千分位；`web/static/md.js` `mdBlocks` 每个块设置 `data-line` 起始行号；`web/static/style.css` `.stream-merge` 高亮背景改横向胶囊（`justify-content:center` + `padding:2px 14px`）、新增 `.fv-md-row`/`.fv-md-no` md 行号样式 [BUILD-652]
+  - 测试：见 use-case/FEATURE-436/
 
 ## v0.9.1 — 开发中（已完成）
 
