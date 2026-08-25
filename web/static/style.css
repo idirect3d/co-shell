@@ -935,11 +935,11 @@ aside {
 .interaction-free input:focus { border-color: var(--accent); }
 
 /* Option items: a virtual-keyboard-style square key with its label written
-   beside it, laid out in a row (FEATURE-388). */
+   beside it, laid out one per row (FEATURE-388). */
 .option-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
