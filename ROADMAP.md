@@ -345,6 +345,7 @@
 | FEATURE-432 | 0.16.0 | P1 | Web UI 文件预览悬浮标题栏：文件预览顶部显示半透明悬浮标题栏（文件名全路径/最后修改时间/关闭图标），平时 25% 透明度，鼠标放上变清晰，点击路径自动定位展开工作区文件夹 |
 | FEATURE-433 | 0.16.0 | P1 | Web UI 模型管理向导"2. 接口地址"步骤增加连通性测试按钮：点击测试 /models 端点连通性，按钮旁显示结果，复用 URL 自动补全 |
 | FEATURE-434 | 0.16.0 | P1 | 重新设计 --help 示例：从 12 个精简为 3 个突出重点（直接执行指令 / 绑定IP+白名单的 web ui 服务模式 / 工作空间+会话ID+指令的纯 agent 调用） |
+| FEATURE-435 | 0.16.0 | P1 | 文件预览标题栏改进：标题栏移到文件显示区域下方（与底边留空间）、关闭图标用高亮颜色、鼠标滑过文件显示区域下方100px区域标题栏即高亮、md 文件时在标题栏同水平位置增加 Raw 按钮开关（切换原始文本/解析渲染，默认为关） |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -399,6 +400,13 @@
   - 需求：`usage.go` `buildUsage` 示例部分从 12 个精简为 3 个；`i18n`（zh/en）更新 `KeyCLIHelpEx1`/`Ex2`/`Ex3` 文案，移除 `Ex4`-`Ex12` 引用。
   - 实施：`usage.go` `buildUsage` 示例部分改为只输出 3 个示例（`KeyCLIHelpEx1`/`Ex2`/`Ex3`）；`i18n/zh.go`/`en.go` 更新 `KeyCLIHelpEx1`（直接执行指令）、`KeyCLIHelpEx2`（--serve --bind --whitelist web ui 服务模式）、`KeyCLIHelpEx3`（-w -s 指令纯 agent 调用）文案 [BUILD-648]
   - 测试：见 use-case/FEATURE-434/
+
+- [ ] **FEATURE-435 文件预览标题栏改进**
+  - 背景：文件预览（FEATURE-425/432）的悬浮标题栏位于文件显示区域顶部，用户需精确滑过标题栏才能高亮（区域太小不易操作）；关闭图标颜色不突出；md 文件缺少 Raw 开关切换原始文本/解析渲染。
+  - 方案（已确认）：① 标题栏移到文件显示区域下方，与底边留空间；② 关闭图标用高亮颜色；③ 鼠标滑过文件显示区域下方 100px 区域标题栏即高亮（不必精确滑到标题栏）；④ md 文件时在标题栏同水平位置增加与标题栏风格类似的 Raw 按钮开关（切换原始文本/解析渲染），默认为关。
+  - 需求：`web/static/index.html` `fileViewer` 内标题栏移到下方 + 增加 Raw 按钮；`web/static/app.js` 标题栏高亮触发区域改为文件显示区域下方 100px、Raw 开关控制 md 渲染；`web/static/style.css` 标题栏移到下方、关闭图标高亮色、Raw 按钮样式。
+  - 实施：`web/static/index.html` `fileViewer` 内标题栏移到 `fv-body` 之后（底部）+ 增加 Raw 按钮；`web/static/style.css` `.fv-titlebar` 改为 `bottom:12px`（与底边留空间）、`.fv-close` 改高亮色 `var(--accent)`、新增 `.fv-titlebar.active` 高亮状态 + `.fv-raw` Raw 按钮样式；`web/static/app.js` 新增 `fvRaw` 状态（默认 false）、`loadFileChunk` md 判断改为 `isMdFile(path) && !fvRaw`、`openFilePreview` 按是否 md 文件显示/隐藏 Raw 按钮、`fvRawEl.onclick` 切换 Raw 并重载文件、`fileViewer` mousemove 监听底部 100px 区域控制标题栏 `.active` 高亮、`closeFileViewer` 重置 fvRaw [BUILD-650]
+  - 测试：见 use-case/FEATURE-435/
 
 ## v0.9.1 — 开发中（已完成）
 
