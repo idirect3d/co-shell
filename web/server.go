@@ -126,6 +126,7 @@ type ServerOptions struct {
 	Lang    string // UI language ("zh"/"en"), handed to the frontend
 	Version string
 	Build   string
+	Bind    string // listen address (default "127.0.0.1")
 }
 
 // Server is the embedded web server: HTTP routes + the single-client
@@ -208,19 +209,23 @@ func (s *Server) SetModelInfoProvider(fn func() agent.ModelInfo) {
 	s.mu.Unlock()
 }
 
-// Listen binds 127.0.0.1 on the given port (auto-incrementing up to 10
-// ports when occupied) and serves HTTP in the background. It returns the
-// bound "host:port" address.
+// Listen binds the configured address (default 127.0.0.1) on the given port
+// (auto-incrementing up to 10 ports when occupied) and serves HTTP in the
+// background. It returns the bound "host:port" address.
 func (s *Server) Listen(port int) (string, error) {
+	bind := s.opts.Bind
+	if bind == "" {
+		bind = "127.0.0.1"
+	}
 	for i := 0; i < 10; i++ {
 		p := port + i
-		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
+		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", bind, p))
 		if err != nil {
 			continue
 		}
 		s.ln = ln
 		go func() { _ = s.httpSrv.Serve(ln) }()
-		return fmt.Sprintf("127.0.0.1:%d", p), nil
+		return fmt.Sprintf("%s:%d", bind, p), nil
 	}
 	return "", fmt.Errorf("ports %d-%d are all in use", port, port+9)
 }
