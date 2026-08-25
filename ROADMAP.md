@@ -342,6 +342,7 @@
 | FEATURE-429 | 0.16.0 | P1 | 新增模型向导 Web UI 分步表单化：后端新增结构化向导接口（不再走文本流），前端渲染真正的分步表单（模板下拉/endpoint输入/API key密码框/模型名下拉/能力勾选/ID/优先级/启用开关），底部上一步/下一步/完成按钮，保留 TUI 向导不变 |
 | FEATURE-430 | 0.16.0 | P1 | Web UI 绑定地址可配置：新增 --bind 命令行参数设定 Web UI 监听地址（默认 127.0.0.1），支持局域网访问 |
 | FEATURE-431 | 0.16.0 | P1 | Web 服务访问白名单：新增 --whitelist 命令行参数或系统设置指定白名单（支持 IP/网段），无白名单时强制本机访问 |
+| FEATURE-432 | 0.16.0 | P1 | Web UI 文件预览悬浮标题栏：文件预览顶部显示半透明悬浮标题栏（文件名全路径/最后修改时间/关闭图标），平时 25% 透明度，鼠标放上变清晰，点击路径自动定位展开工作区文件夹 |
 
 > 当前 BUILD: 620
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -376,6 +377,13 @@
   - 需求：`config` 新增 `web_whitelist` 配置项；`main.go` 新增 `--whitelist` 参数并合并配置；无白名单时强制 `bind=127.0.0.1`；`web.Server` 增加白名单校验（支持网段）。
   - 实施：`config/config.go` `Config` 新增 `WebWhitelist []string`（`web_whitelist`）；`main.go` 新增 `--whitelist` 参数（逗号分隔 IP/网段），`startWebUI` 合并命令行与配置白名单，无白名单时强制 `bind=127.0.0.1`；`web/server.go` `ServerOptions` 新增 `Whitelist`，`NewServer` 用 `whitelistMiddleware` 包装 mux（`parseWhitelist`/`ipAllowed` 支持精确 IP 与 CIDR 网段）；`cmd/settings_web.go` `SettingsJSON` 新增 `web-whitelist` 设置项，`cmd/settings.go` `Handle` 分发 `web-whitelist` 到新增 `handleWebSetting`；i18n 新增 `KeyCol3WebWhitelist`；`web/server_test.go` 新增 `TestIPAllowed` 单元测试 [BUILD-640]；⑳ 优化：`--help` 补充 `--bind`/`--whitelist` 参数说明（`usage.go` `buildUsage` 添加 `KeyCLIHelpBind`/`KeyCLIHelpWhitelist` 行，i18n 新增对应文案）[BUILD-641]
   - 测试：见 use-case/FEATURE-431/
+
+- [ ] **FEATURE-432 Web UI 文件预览悬浮标题栏**
+  - 背景：文件预览（FEATURE-425）没有标题栏，用户无法直观看到当前查看的文件名和最后修改时间，也无法快速关闭。
+  - 方案（已确认）：文件预览启动后，在文件内容顶部显示悬浮半透明标题栏，显示文件名（全路径）、最后修改时间、关闭图标。平时透明度 25%，鼠标放上后变清晰。点击路径自动定位到工作区文件所在位置（自动展开路径中的文件夹）。
+  - 需求：后端 `treeNode` 增加 `Mtime` 字段；前端 `fileViewer` 内增加悬浮标题栏；`openFilePreview` 填充标题栏；点击路径展开工作区树到该文件。
+  - 实施：`web/server.go` `treeNode` 增加 `Mtime` 字段，`buildTree` 为文件节点获取 `ModTime`；`web/static/index.html` `fileViewer` 内增加悬浮标题栏（`fv-titlebar`/`fvPath`/`fvMtime`/`fvClose`）；`web/static/app.js` `openFilePreview` 填充标题栏（路径/mtime），新增 `formatMtime` 辅助函数和 `revealInTree` 函数（点击路径展开工作区树到该文件），绑定关闭按钮；`web/static/style.css` 新增 `.fv-titlebar` 半透明悬浮样式（默认 25% 透明度，hover 变清晰）[BUILD-642]
+  - 测试：见 use-case/FEATURE-432/
 
 ## v0.9.1 — 开发中（已完成）
 
