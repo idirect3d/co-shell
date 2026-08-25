@@ -62,6 +62,8 @@ type clientMessage struct {
 	Key         string   `json:"key,omitempty"`   // settings_set: the setting key
 	Priority    int      `json:"priority,omitempty"` // model_set_priority: the new priority
 	Result      *interactionResultJSON `json:"result,omitempty"` // interaction_answer: the structured result
+	Step        string   `json:"step,omitempty"`   // model_wizard_next/prev: the current wizard step
+	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // model_wizard_next/prev/submit: accumulated wizard data
 }
 
 // interactionResultJSON is the wire form of an agent.InteractionResult.
@@ -97,6 +99,8 @@ type serverMessage struct {
 	Modes       []modeInfo      `json:"modes,omitempty"` // kind=mode: the work mode list
 	Models      json.RawMessage `json:"models,omitempty"` // kind=models: the model list JSON
 	Templates   json.RawMessage `json:"templates,omitempty"` // kind=models: the template list JSON
+	WizardStep  json.RawMessage `json:"wizard_step,omitempty"` // kind=model_wizard: the wizard step form JSON
+	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
 }
 
 // modeInfo is one work mode entry pushed to the browser for the mode
@@ -109,11 +113,12 @@ type modeInfo struct {
 
 // sessionInfo is one entry in the session list pushed to the browser.
 type sessionInfo struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Keywords  string `json:"keywords"`
-	CreatedAt string `json:"created_at"`
-	Current   bool   `json:"current"`
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Keywords     string `json:"keywords"`
+	CreatedAt    string `json:"created_at"`
+	Current      bool   `json:"current"`
+	MessageCount int    `json:"message_count"` // number of messages (FEATURE-428)
 }
 
 // ServerOptions carries the display parameters of a Server.
