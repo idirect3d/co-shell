@@ -2046,6 +2046,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyLoopJudgeResultNo:      "判定模型返回: is_loop=false, reason=%q\n",
 	KeyLoopJudgeResultFail:    "判定模型返回: 失败/超时\n",
 	KeyLoopHistoryFixApplied:  "已修正对话历史中 %d 处可能导致死循环的可疑话术\n",
+	KeyLoopHistoryFixDetail:   "  [消息 %d] %q → %q（%s）\n",
 	KeyNoActiveTaskPlan:       "（无活跃任务计划 / No active task plan）",
 	KeyNoRecentIterations:     "（无最近迭代内容 / No recent iterations）",
 	// FEATURE-345: unified problem solver (non-loop anomalies)

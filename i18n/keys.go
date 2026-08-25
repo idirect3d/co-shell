@@ -201,6 +201,7 @@ const (
 	KeyLoopJudgeResultFail  = "loop_judge_result_fail"
 	// FEATURE-438: history pollution fix
 	KeyLoopHistoryFixApplied = "loop_history_fix_applied"
+	KeyLoopHistoryFixDetail  = "loop_history_fix_detail"
 	KeyNoActiveTaskPlan     = "no_active_task_plan"
 	KeyNoRecentIterations   = "no_recent_iterations"
 	// FEATURE-345: unified problem solver (non-loop anomalies)

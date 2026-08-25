@@ -1187,9 +1187,9 @@ const loopHistoryFixMaxMessages = 3
 // Returns the number of fixes actually applied.
 func (a *Agent) applyHistoryFixes() int {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	if len(a.loopHistoryFixes) == 0 {
+		a.mu.Unlock()
 		return 0
 	}
 
@@ -1203,6 +1203,10 @@ func (a *Agent) applyHistoryFixes() int {
 	}
 
 	applied := 0
+	// Collect per-fix details (message index + search + replace + reason) so
+	// they can be emitted to the debug channel AFTER the lock is released
+	// (the callback may re-enter agent state).
+	var details []string
 	for _, fix := range a.loopHistoryFixes {
 		if strings.TrimSpace(fix.Search) == "" || fix.Search == fix.Replace {
 			log.Debug("applyHistoryFixes: skipping fix with empty/identical search (idx=%d)", fix.MessageIndex)
@@ -1235,6 +1239,18 @@ func (a *Agent) applyHistoryFixes() int {
 		if replaceFirstInMessage(&a.messages[targetIdx], fix.Search, fix.Replace) {
 			applied++
 			log.Info("applyHistoryFixes: applied fix to message[%d]: %q -> %q (%s)", targetIdx, fix.Search, fix.Replace, fix.Reason)
+			details = append(details, fmt.Sprintf(i18n.TF(i18n.KeyLoopHistoryFixDetail), targetIdx, fix.Search, fix.Replace, fix.Reason))
+		}
+	}
+	a.mu.Unlock()
+
+	// Emit per-fix details to the debug channel (dbg block) after releasing
+	// the lock, so the user can inspect exactly what was corrected.
+	if len(details) > 0 {
+		if cb := a.streamCb; cb != nil {
+			for _, d := range details {
+				cb(InfoEvent(ChannelDebug, d))
+			}
 		}
 	}
 	return applied
