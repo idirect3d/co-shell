@@ -51,7 +51,7 @@ import (
 
 const version = "0.16.0"
 
-const build = "637"
+const build = "638"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -204,6 +204,7 @@ type cliFlags struct {
 	// a browser.
 	serve bool
 	port  int
+	bind  string // listen address for the web UI (default "127.0.0.1")
 }
 
 func parseFlags() cliFlags {
@@ -345,6 +346,9 @@ func parseFlags() cliFlags {
 
 	// serve port (FEATURE-307c)
 	flag.IntVar(&f.port, "port", 8399, "Listen port for the web UI (auto-increments when occupied, up to 10 tries)")
+
+	// serve bind address (FEATURE-430): listen address for the web UI
+	flag.StringVar(&f.bind, "bind", "127.0.0.1", "Listen address for the web UI (default 127.0.0.1; use 0.0.0.0 for LAN access)")
 
 	// Unload mode (FEATURE-245)
 	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
@@ -1410,6 +1414,7 @@ func main() {
 			Lang:    string(i18n.GetLang()),
 			Version: version,
 			Build:   build,
+			Bind:    flags.bind,
 		})
 		repl.RegisterSessionFactory("web", srv.SessionFactory())
 		addr, listenErr := srv.Listen(flags.port)

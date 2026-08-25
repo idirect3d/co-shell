@@ -264,3 +264,31 @@ func TestGitBranch(t *testing.T) {
 		}
 	})
 }
+
+// TestListenBind verifies Listen binds the configured address (FEATURE-430):
+// the returned "host:port" reflects the ServerOptions.Bind value, defaulting
+// to 127.0.0.1 when empty.
+func TestListenBind(t *testing.T) {
+	cases := []struct {
+		name string
+		bind string
+		want string
+	}{
+		{"explicit loopback", "127.0.0.1", "127.0.0.1:"},
+		{"all interfaces", "0.0.0.0", "0.0.0.0:"},
+		{"default loopback", "", "127.0.0.1:"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewServer(t.TempDir(), ServerOptions{Lang: "zh", Version: "0", Build: "0", Bind: tc.bind})
+			addr, err := s.Listen(0)
+			if err != nil {
+				t.Fatalf("Listen(0): %v", err)
+			}
+			defer s.Close()
+			if !strings.HasPrefix(addr, tc.want) {
+				t.Errorf("Listen addr = %q, want prefix %q", addr, tc.want)
+			}
+		})
+	}
+}
