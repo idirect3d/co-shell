@@ -389,7 +389,7 @@
   - 背景：模型管理向导"2. 接口地址"步骤只能手动输入 endpoint，无法快速验证其连通性。
   - 方案（已确认）：在 endpoint 步骤增加"测试连通性"按钮，点击后测试 /models 端点连通性，按钮旁显示结果，复用 URL 自动补全（autoCompleteEndpoint）。
   - 需求：后端新增测试 API；前端 endpoint 步骤增加按钮和结果展示。
-  - 实施：见 FEATURE-433 分支提交记录。
+  - 实施：`cmd/model.go` 新增导出函数 `TestEndpointConnectivity`（复用 `autoCompleteEndpoint` 自动补全）；`web/server.go` 新增 `POST /api/test-endpoint` 路由和 `handleTestEndpoint` handler；`web/static/app.js` `renderWizardField` 在 endpoint 字段旁增加"测试连通性"按钮（点击调用 API 显示结果）；`web/static/style.css` 新增 `.wizard-endpoint-test`/`.wizard-test-btn`/`.wizard-test-result` 样式 [BUILD-645]；⑳ 优化：测试按钮配色与其他按钮一致（`.wizard-test-btn` 改为 accent-dim 背景 + accent 文字 + accent 边框，hover 变 accent 背景，深色风格适配）[BUILD-646]
   - 测试：见 use-case/FEATURE-433/
 
 ## v0.9.1 — 开发中（已完成）
