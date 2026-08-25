@@ -1221,6 +1221,8 @@ no liability whatsoever.`,
 	// serve subcommand (FEATURE-307c)
 	KeyCLIHelpPort:        "      --port <n>             Listen port for the web UI (default 8399, auto-increments when occupied, up to 10 tries)",
 	KeyCLIHelpServe:       "      --serve                Start the web UI without opening a browser (default mode opens the browser)",
+	KeyCLIHelpBind:        "      --bind <addr>          Listen address for the web UI (default 127.0.0.1; use 0.0.0.0 for LAN access)",
+	KeyCLIHelpWhitelist:   "      --whitelist <ips>      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)",
 	KeyServeStarted:       "🌐 Web UI started: http://%s (press Ctrl+C to stop)",
 	KeyServeNoPort:        "ports %d-%d are all in use, cannot start the web server",
 	KeyServeConflict:      "conflicting mode flags: %s (a command forces stdio mode; --serve and --input-mode are mutually exclusive with it)",

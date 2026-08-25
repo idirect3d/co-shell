@@ -1234,6 +1234,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// serve subcommand (FEATURE-307c)
 	KeyCLIHelpPort:        "      --port <n>             Web 界面监听端口（默认 8399，占用时自动递增，最多尝试 10 个）",
 	KeyCLIHelpServe:       "      --serve                启动 Web 界面但不自动打开浏览器（默认模式会打开浏览器）",
+	KeyCLIHelpBind:        "      --bind <地址>          Web 界面监听地址（默认 127.0.0.1；使用 0.0.0.0 支持局域网访问）",
+	KeyCLIHelpWhitelist:   "      --whitelist <IP列表>   Web 界面访问白名单（逗号分隔 IP/网段，空=仅本机访问）",
 	KeyServeStarted:       "🌐 Web 界面已启动: http://%s (按 Ctrl+C 停止)",
 	KeyServeNoPort:        "端口 %d-%d 均被占用，无法启动 Web 服务",
 	KeyServeConflict:      "模式参数冲突：%s（含指令时强制 stdio 模式；--serve 和 --input-mode 与其互斥）",
