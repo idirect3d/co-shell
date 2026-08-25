@@ -1875,6 +1875,7 @@ no liability whatsoever.`,
 	KeySettingsDescDebug: "Debug mode (display and edit messages before submitting to LLM)",
 	KeyCol3Debug:         "Debug Mode",
 	KeyCLIHelpDebug:      "Enable debug mode (display and edit messages before submitting to LLM)",
+	KeyCol3WebWhitelist:  "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)",
 	KeyCLIHelpSessionID:  "  -s, --session-id <id>  Specify session ID to load existing or create new session",
 
 	// Vault

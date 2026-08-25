@@ -127,6 +127,9 @@ type ServerOptions struct {
 	Version string
 	Build   string
 	Bind    string // listen address (default "127.0.0.1")
+	// Whitelist restricts access to the given IPs/CIDR networks (e.g.
+	// "192.168.1.100" or "192.168.1.0/24"). Empty means loopback only.
+	Whitelist []string
 }
 
 // Server is the embedded web server: HTTP routes + the single-client
@@ -175,8 +178,71 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("POST /api/reveal", s.handleReveal)
 	s.mux.HandleFunc("GET /api/file", s.handleFile)
 	s.mux.HandleFunc("GET /api/gitdiff", s.handleGitDiff)
-	s.httpSrv = &http.Server{Handler: s.mux}
+	handler := http.Handler(s.mux)
+	if len(opts.Whitelist) > 0 {
+		handler = s.whitelistMiddleware(handler, opts.Whitelist)
+	}
+	s.httpSrv = &http.Server{Handler: handler}
 	return s
+}
+
+// whitelistMiddleware rejects requests whose client IP is not in the given
+// whitelist (IPs or CIDR networks). It wraps the mux so every route (static,
+// API, WebSocket) is protected.
+func (s *Server) whitelistMiddleware(next http.Handler, whitelist []string) http.Handler {
+	nets := parseWhitelist(whitelist)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !ipAllowed(r.RemoteAddr, nets) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// parseWhitelist converts whitelist entries (IPs or CIDR networks) into
+// net.IPNet ranges. A bare IP becomes a /32 (or /128) host range.
+func parseWhitelist(entries []string) []*net.IPNet {
+	var nets []*net.IPNet
+	for _, e := range entries {
+		e = strings.TrimSpace(e)
+		if e == "" {
+			continue
+		}
+		if strings.Contains(e, "/") {
+			if _, ipnet, err := net.ParseCIDR(e); err == nil {
+				nets = append(nets, ipnet)
+			}
+			continue
+		}
+		if ip := net.ParseIP(e); ip != nil {
+			bits := 32
+			if ip.To4() == nil {
+				bits = 128
+			}
+			nets = append(nets, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+		}
+	}
+	return nets
+}
+
+// ipAllowed reports whether the client address ("host:port") is within any of
+// the whitelist networks. A nil/empty network list denies everything.
+func ipAllowed(remoteAddr string, nets []*net.IPNet) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // SetMessageHandler installs the dispatcher for browser messages (called by
