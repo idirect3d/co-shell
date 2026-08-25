@@ -212,6 +212,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-temp-min",
 		subcommand == "loop-judge-enabled",
 		subcommand == "loop-history-fix-enabled",
+		subcommand == "loop-history-fix-max-messages",
 		subcommand == "loop-judge-timeout",
 		subcommand == "loop-long-output-threshold",
 		subcommand == "loop-single-line-length",
@@ -713,6 +714,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("loop-judge-enabled", loopJudgeStatus, i18n.T(i18n.KeyCol3LoopJudgeEnabled)),
 		// Loop history fix (FEATURE-438)
 		makeLine("loop-history-fix-enabled", loopHistoryFixStatus, i18n.T(i18n.KeyCol3LoopHistoryFixEnabled)),
+		makeLine("loop-history-fix-max-messages", fmt.Sprintf("%d", cfg.LLM.LoopHistoryFixMaxMessages), i18n.T(i18n.KeyCol3LoopHistoryFixMaxMsgs)),
 		// Loop judge timeout
 		makeLine("loop-judge-timeout", fmt.Sprintf("%ds", cfg.LLM.LoopJudgeTimeout), i18n.T(i18n.KeySettingCmd_320)),
 		// Long output threshold
@@ -894,6 +896,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.LoopTempMin = def.LLM.LoopTempMin
 	h.cfg.LLM.LoopJudgeEnabled = def.LLM.LoopJudgeEnabled
 	h.cfg.LLM.LoopHistoryFixEnabled = def.LLM.LoopHistoryFixEnabled
+	h.cfg.LLM.LoopHistoryFixMaxMessages = def.LLM.LoopHistoryFixMaxMessages
 	h.cfg.LLM.LoopReorganizeEnabled = def.LLM.LoopReorganizeEnabled
 	h.cfg.LLM.LoopLongOutputThreshold = def.LLM.LoopLongOutputThreshold
 	h.cfg.LLM.DuplicateContentThreshold = def.LLM.DuplicateContentThreshold

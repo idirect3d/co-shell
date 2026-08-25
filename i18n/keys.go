@@ -1430,6 +1430,7 @@ const (
 	// Loop judgment settings (FEATURE-241)
 	KeyCol3LoopJudgeEnabled      = "col3_loop_judge_enabled"
 	KeyCol3LoopHistoryFixEnabled = "col3_loop_history_fix_enabled"
+	KeyCol3LoopHistoryFixMaxMsgs = "col3_loop_history_fix_max_messages"
 	KeyCol3LoopJudgeModel        = "col3_loop_judge_model"
 	KeyProblemSolverSystemPrompt = "problem_solver_system_prompt"
 	KeyProblemSolverUserPrompt   = "problem_solver_user_prompt"

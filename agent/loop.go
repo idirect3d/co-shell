@@ -1163,11 +1163,22 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 	}
 }
 
-// loopHistoryFixMaxMessages is the maximum number of most-recent assistant
-// messages that history fixes may target (FEATURE-438). Loop-causing wording
-// almost always lives in the last few assistant turns, and limiting the scope
-// keeps the correction surgical and minimizes prefix-cache invalidation.
-const loopHistoryFixMaxMessages = 3
+// defaultLoopHistoryFixMaxMessages is the fallback number of most-recent
+// assistant messages that history fixes may target when the config value is
+// unset (FEATURE-438). Loop-causing wording almost always lives in the last
+// few assistant turns, and limiting the scope keeps the correction surgical
+// and minimizes prefix-cache invalidation.
+const defaultLoopHistoryFixMaxMessages = 5
+
+// historyFixMaxMessages returns the configured number of most-recent assistant
+// messages that history fixes may target (FEATURE-438). Falls back to
+// defaultLoopHistoryFixMaxMessages when the config is unavailable or unset.
+func (a *Agent) historyFixMaxMessages() int {
+	if a.cfg != nil && a.cfg.LLM.LoopHistoryFixMaxMessages > 0 {
+		return a.cfg.LLM.LoopHistoryFixMaxMessages
+	}
+	return defaultLoopHistoryFixMaxMessages
+}
 
 // applyHistoryFixes applies the history corrections returned by the judge
 // model to the polluted assistant messages in a.messages (FEATURE-438). It is
@@ -1194,9 +1205,10 @@ func (a *Agent) applyHistoryFixes() int {
 	}
 
 	// Collect the indices of the most recent assistant messages (up to
-	// loopHistoryFixMaxMessages), in chronological order.
+	// historyFixMaxMessages), in chronological order.
+	maxMsgs := a.historyFixMaxMessages()
 	var assistantIdx []int
-	for i := len(a.messages) - 1; i >= 0 && len(assistantIdx) < loopHistoryFixMaxMessages; i-- {
+	for i := len(a.messages) - 1; i >= 0 && len(assistantIdx) < maxMsgs; i-- {
 		if a.messages[i].Role == "assistant" {
 			assistantIdx = append([]int{i}, assistantIdx...)
 		}
@@ -1432,26 +1444,6 @@ func (a *Agent) getLastUserCommand() string {
 	return ""
 }
 
-// getRecentIterations returns the last 2 assistant responses (without tool calls)
-// from a.messages, for the loop judge to analyze. Excludes the current iteration.
-func (a *Agent) getRecentIterations() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	var sb strings.Builder
-	count := 0
-	for i := len(a.messages) - 1; i >= 0 && count < 2; i-- {
-		m := a.messages[i]
-		if m.Role == "assistant" && len(m.ToolCalls) == 0 && m.Content != "" {
-			if count > 0 {
-				sb.WriteString("\n---\n")
-			}
-			sb.WriteString(m.Content)
-			count++
-		}
-	}
-	return sb.String()
-}
-
 // getRecentAssistantHistory returns the most recent assistant messages (up to
 // loopHistoryFixMaxMessages) with their REAL index in a.messages, formatted as
 // "[index] content" lines (FEATURE-438). The index is the actual position in
@@ -1464,7 +1456,8 @@ func (a *Agent) getRecentAssistantHistory() string {
 	defer a.mu.Unlock()
 	var sb strings.Builder
 	count := 0
-	for i := len(a.messages) - 1; i >= 0 && count < loopHistoryFixMaxMessages; i-- {
+	maxMsgs := a.historyFixMaxMessages()
+	for i := len(a.messages) - 1; i >= 0 && count < maxMsgs; i-- {
 		m := a.messages[i]
 		if m.Role != "assistant" || len(m.ToolCalls) > 0 {
 			continue
@@ -1607,12 +1600,6 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 		lastInput = a.lastUserInput
 	}
 
-	// {ITERATIONS} = last 2 assistant responses for context
-	iterations := a.getRecentIterations()
-	if iterations == "" {
-		iterations = i18n.T(i18n.KeyNoRecentIterations)
-	}
-
 	// {CONTEXT} = workspace & available tools context, so the judge can write a
 	// concrete, executable exit_strategy instead of guessing (FIX-322).
 	contextText := a.buildJudgeContext()
@@ -1641,7 +1628,6 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
-	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATIONS}", iterations)
 	userTemplate = strings.ReplaceAll(userTemplate, "{USER_PROMPTS}", userPrompts)
 	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATION_TOOLS}", iterTools)
 	userTemplate = strings.ReplaceAll(userTemplate, "{CONTEXT}", contextText)

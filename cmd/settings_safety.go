@@ -366,6 +366,21 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop history fix enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_216), status), nil
 
+	case "loop-history-fix-max-messages":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_217), h.cfg.LLM.LoopHistoryFixMaxMessages), nil
+		}
+		v, err := strconv.Atoi(args[1])
+		if err != nil || v < 1 || v > 50 {
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_218, args[1]))
+		}
+		h.cfg.LLM.LoopHistoryFixMaxMessages = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop history fix max messages set to %d", v)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_219), v), nil
+
 	case "duplicate-content-threshold":
 		if len(args) < 2 {
 			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_217), h.cfg.LLM.DuplicateContentThreshold), nil

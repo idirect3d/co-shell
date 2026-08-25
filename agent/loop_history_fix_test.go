@@ -30,6 +30,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/llm"
 )
 
@@ -141,11 +142,12 @@ func TestApplyHistoryFixes_NoMatchSkipped(t *testing.T) {
 }
 
 // TestApplyHistoryFixes_OnlyRecentThree verifies UC-0012: fixes targeting
-// assistant messages beyond the most recent 3 are skipped. The adjacent
-// fallback must not reach an in-scope message either, so the out-of-scope
-// target's neighbors are made to not contain the search text.
+// assistant messages beyond the configured max (here 3) are skipped. The
+// adjacent fallback must not reach an in-scope message either, so the
+// out-of-scope target's neighbors are made to not contain the search text.
 func TestApplyHistoryFixes_OnlyRecentThree(t *testing.T) {
 	a := &Agent{
+		cfg: &config.Config{LLM: config.LLMConfig{LoopHistoryFixMaxMessages: 3}},
 		messages: []llm.Message{
 			{Role: "system", Content: "system"},
 			{Role: "assistant", Content: "第一条让我看看"}, // oldest assistant (index 1, out of last 3)

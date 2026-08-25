@@ -108,12 +108,6 @@ Based on the above information, call the report_problem tool and produce a struc
 
 ===
 
-# Recent Iterations (last 2 assistant responses without current suspect)
-
-{ITERATIONS}
-
-===
-
 # Recent Assistant Messages (with message index; [index] is the real position in the conversation history, usable as history_fixes.message_index for locating a message)
 
 {HISTORY}
@@ -155,6 +149,7 @@ If you judge this is a loop (type=loop) and you find loop-causing wording in the
 	enMessages[KeyCol3LoopDetectEnabled] = "Loop Detect(on|off)"
 	enMessages[KeyCol3LoopJudgeEnabled] = "LLM Loop Judgment"
 	enMessages[KeyCol3LoopHistoryFixEnabled] = "Loop History Fix(on|off)"
+	enMessages[KeyCol3LoopHistoryFixMaxMsgs] = "Loop History Fix Max Messages"
 	enMessages[KeyCol3ShowLoopDetection] = "Show Loop Detection(on|off)"
 	enMessages[KeyCol3LoopJudgeModel] = "Loop Judge Model ID"
 	enMessages[KeyCol3LoopDetectThreshold] = "Loop Detect Threshold(repeat count)"
