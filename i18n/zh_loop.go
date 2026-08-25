@@ -146,6 +146,7 @@ func init() {
 	// Display & description keys moved from zh.go
 	zhMessages[KeyCol3LoopDetectEnabled] = "循环检测(on|off)"
 	zhMessages[KeyCol3LoopJudgeEnabled] = "LLM循环二次判定"
+	zhMessages[KeyCol3LoopHistoryFixEnabled] = "循环历史修正(on|off)"
 	zhMessages[KeyCol3ShowLoopDetection] = "显示循环检测过程(on|off)"
 	zhMessages[KeyCol3LoopJudgeModel] = "循环判定模型ID"
 	zhMessages[KeyCol3LoopDetectThreshold] = "循环检测阈值(重复次数)"

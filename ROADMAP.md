@@ -424,6 +424,31 @@
   - 实施：`cmd/model.go` 新增 `TestAPIKey`/`GetModelMaxLen`、`fetchModelSuggestions` 增加 error 返回值；`cmd/model_web_wizard.go` 新增 `WebWizardRefresh`、`WebWizardStepData.ModelMaxLens`/`Message`、`WebWizardData.ModelMaxLen`、max_model_len 默认值优先用 `ModelMaxLen` 并显示 hint；`web/server.go` 新增 `/api/test-api-key`/`/api/get-model-max-len`；`web/session.go` 新增 `model_wizard_refresh` 处理；`web/static/app.js` 步骤标题改"选择模型"、API Key 测试按钮、刷新模型列表按钮、记录模型 max len、max_model_len 获取按钮与错误提示；`web/static/style.css` `.wizard-step-message` 样式；`i18n` 新增 `KeyCmdMig_382`（选择模型）[BUILD-658]
   - 测试：见 use-case/FEATURE-437/
 
+## v0.17.0 — 开发中
+
+> **版本**: v0.17.0
+
+> **状态**: 🚧 开发中（死循环历史污染修正）
+> **里程碑**: 死循环历史污染修正
+> **说明**: 0.17.0 系列专注死循环二次判定后的历史污染修正，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-438 | 0.17.0 | P1 | 死循环历史污染修正：二次判定确认死循环后，判定模型额外返回 history_fixes 列表（message_index + search + replace + reason），程序执行历史修正（消息序号定位 + 原文匹配对 search→replace 精确替换 + 相邻消息兜底 + 只替换首次出现 + 仅 assistant 消息 + 与原有处理叠加），范围最近 3 条 assistant 消息，新增配置开关 loop-history-fix-enabled 默认 on，写日志 + 用户可见提示，先修正后 delete |
+
+> 当前 BUILD: 658
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-438 死循环历史污染修正**
+  - 背景：死循环二次判定确认后，当前处理主要是丢弃循环导致未完成的消息（delete_last_msg）或追加纠正信息（prompt_feedback），但发生死循环往往意味着历史消息可能已被导致死循环的文字污染。污染源不清理，下一轮 LLM 仍可能被带偏。
+  - 方案（已确认）：二次判定确认死循环后，判定模型在 report_problem 中额外返回 history_fixes 列表（每项含 message_index 消息序号 + search 被替换原文 + replace 替换新内容 + reason 原因），程序执行历史修正：用消息序号定位消息，原文匹配对 search→replace 精确替换，相邻消息（±1）兜底查找，只替换首次出现，仅允许 assistant 消息，与原有处理（prompt_feedback/delete_last_msg 等）叠加执行。范围：最近 3 条 assistant 消息。新增配置开关 loop-history-fix-enabled 默认 on。写日志 + 用户可见提示。先执行历史修正再执行 delete_last_msg。
+  - 需求：① `ProblemReport` 新增 `HistoryFixes []HistoryFix` 字段（HistoryFix: MessageIndex int + Search string + Replace string + Reason string）；② `reportProblemTool` schema 增加 `history_fixes` 数组属性；③ 新增 `applyHistoryFixes` 执行逻辑（消息序号定位 + 原文匹配替换 + 相邻兜底 + 仅 assistant + 首次出现）；④ 接入 run_stream.go 二次判定处理流程，与原有处理叠加，先修正后 delete；⑤ 新增配置开关 `loop-history-fix-enabled` 默认 on；⑥ i18n 文案 + 用户可见提示。
+  - 实施：① `agent/problem_solver.go` `ProblemReport` 新增 `HistoryFixes []HistoryFix` 字段 + 定义 `HistoryFix` 结构体（MessageIndex/Search/Replace/Reason）+ `reportProblemTool` schema 增加 `history_fixes` 数组属性；② `agent/loop_detector.go` `LoopJudgeResult` 新增 `HistoryFixes` 字段；③ `agent/loop.go` `judgeLoop` 从 report 传递 `HistoryFixes`、Agent 结构体新增 `loopHistoryFixes` 字段、`handleLoopDetection` 确认循环时保存/非循环时清空、新增 `applyHistoryFixes` 方法（消息序号定位 + 原文匹配替换 + 相邻兜底 + 仅 assistant + 只替换首次出现 + 仅最近 3 条 + 空 search/search==replace 忽略）+ `applyLoopIntervention` 确认循环时应用历史修正；④ `agent/run_stream.go` 迭代开始重置 `loopHistoryFixes`、`loopDetectCrit` 块中先执行历史修正再 strip/反馈；⑤ `config/config.go` 新增 `LoopHistoryFixEnabled` 字段默认 true；⑥ `cmd/settings.go`/`settings_safety.go`/`settings_web.go` 接入 `loop-history-fix-enabled` 设置项；⑦ i18n 新增 `KeyLoopHistoryFixApplied`/`KeyCol3LoopHistoryFixEnabled` 中英文案；⑧ `agent/loop_history_fix_test.go` 新增 10 个单元测试（定位替换/首次出现/非assistant跳过/相邻兜底/无匹配跳过/仅最近3条/空search/search==replace/ContentParts/空列表）[BUILD-659]
+  - 测试：见 use-case/FEATURE-438/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

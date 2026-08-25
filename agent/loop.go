@@ -229,6 +229,13 @@ type Agent struct {
 	// (FIX-285)
 	loopJudgeExitStrategy string
 
+	// loopHistoryFixes stores the history corrections returned by the judge
+	// model when a loop is confirmed (FEATURE-438). They are applied to the
+	// polluted assistant messages in a.messages by applyHistoryFixes before
+	// the loop intervention feedback is appended. Cleared when judge says
+	// not-a-loop and at the start of each loop iteration in RunStream.
+	loopHistoryFixes []HistoryFix
+
 	// loopFailedStrategies records the exit strategies that were issued by
 	// the judge for THIS task but failed to break the loop (FEATURE-349).
 	// They are fed back into the judge prompt ({FAILED_STRATEGIES}) so the
@@ -751,6 +758,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 		IsLoop:       report.IsLoop(),
 		Reason:       report.Reason,
 		ExitStrategy: report.Guidance,
+		HistoryFixes: report.HistoryFixes,
 	}
 	if result.IsLoop && strings.TrimSpace(result.ExitStrategy) == "" {
 		log.Warn("judgeLoop: problem solver confirmed loop with empty guidance, applying fallback")
@@ -811,6 +819,15 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 			// Store the judge's exit_strategy for the prompt strategy to use
 			// as feedback content (more targeted than the generic prompt).
 			event.Suggestion = result.ExitStrategy
+		}
+		// FEATURE-438: when the judge confirms a loop, apply the history
+		// corrections to the polluted assistant messages before the loop
+		// feedback is appended. Gated by loop-history-fix-enabled (default on).
+		if result != nil && result.IsLoop && (a.cfg == nil || a.cfg.LLM.LoopHistoryFixEnabled) {
+			a.loopHistoryFixes = result.HistoryFixes
+			if n := a.applyHistoryFixes(); n > 0 && cb != nil {
+				cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLoopHistoryFixApplied), n)))
+			}
 		}
 		// result == nil (judgment failed): continue with normal strategy
 		// If loopAction == "off" and judge confirmed, still treat as "off".
@@ -1106,13 +1123,16 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		// Judge confirmed loop: save exit_strategy and interrupt the stream.
 		a.mu.Lock()
 		a.loopJudgeExitStrategy = result.ExitStrategy
+		// FEATURE-438: save the history corrections so they can be applied to
+		// the polluted assistant messages before the loop feedback is appended.
+		a.loopHistoryFixes = result.HistoryFixes
 		// FEATURE-349: remember this strategy so a later judgment on the same
 		// task can see that it failed to break the loop.
 		a.recordFailedLoopStrategyLocked(result.ExitStrategy)
 		a.loopDetectSyncErr = detectErr
 		a.loopDetectCrit = true
 		a.mu.Unlock()
-		log.Debug("handleLoopDetection: judge confirmed loop, saved exit_strategy=%q, set loopDetectSyncErr", result.ExitStrategy)
+		log.Debug("handleLoopDetection: judge confirmed loop, saved exit_strategy=%q, history_fixes=%d, set loopDetectSyncErr", result.ExitStrategy, len(result.HistoryFixes))
 	} else if result != nil && !result.IsLoop {
 		// Judge explicitly NOT a loop: clear exit_strategy, reset detectors,
 		// set loopJudgeSkipped to prevent re-triggering for the remainder of
@@ -1120,6 +1140,7 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		log.Debug("handleLoopDetection: judge says NOT a loop, clearing exit_strategy, resetting detectors and continuing stream")
 		a.mu.Lock()
 		a.loopJudgeExitStrategy = ""
+		a.loopHistoryFixes = nil
 		a.mu.Unlock()
 		if a.loopDetector != nil {
 			a.loopDetector.Reset()
@@ -1140,6 +1161,136 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		a.loopDetectCrit = true
 		a.mu.Unlock()
 	}
+}
+
+// loopHistoryFixMaxMessages is the maximum number of most-recent assistant
+// messages that history fixes may target (FEATURE-438). Loop-causing wording
+// almost always lives in the last few assistant turns, and limiting the scope
+// keeps the correction surgical and minimizes prefix-cache invalidation.
+const loopHistoryFixMaxMessages = 3
+
+// applyHistoryFixes applies the history corrections returned by the judge
+// model to the polluted assistant messages in a.messages (FEATURE-438). It is
+// called after a loop is confirmed and BEFORE the loop intervention feedback
+// is appended, so the loop-causing wording is cleaned up at its source.
+//
+// For each fix:
+//   - locate the target message by MessageIndex
+//   - skip non-assistant messages (only assistant messages may be corrected)
+//   - skip messages outside the most recent loopHistoryFixMaxMessages assistant
+//     messages
+//   - replace only the FIRST occurrence of Search with Replace
+//   - if Search is not found in the target message, fall back to the adjacent
+//     messages (index±1)
+//   - ignore fixes with empty Search or Search==Replace
+//
+// Returns the number of fixes actually applied.
+func (a *Agent) applyHistoryFixes() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if len(a.loopHistoryFixes) == 0 {
+		return 0
+	}
+
+	// Collect the indices of the most recent assistant messages (up to
+	// loopHistoryFixMaxMessages), in chronological order.
+	var assistantIdx []int
+	for i := len(a.messages) - 1; i >= 0 && len(assistantIdx) < loopHistoryFixMaxMessages; i-- {
+		if a.messages[i].Role == "assistant" {
+			assistantIdx = append([]int{i}, assistantIdx...)
+		}
+	}
+
+	applied := 0
+	for _, fix := range a.loopHistoryFixes {
+		if strings.TrimSpace(fix.Search) == "" || fix.Search == fix.Replace {
+			log.Debug("applyHistoryFixes: skipping fix with empty/identical search (idx=%d)", fix.MessageIndex)
+			continue
+		}
+
+		// Locate the target message: try the requested index, then adjacent
+		// (index±1) as a fallback.
+		targetIdx := -1
+		for _, cand := range []int{fix.MessageIndex, fix.MessageIndex - 1, fix.MessageIndex + 1} {
+			if cand < 0 || cand >= len(a.messages) {
+				continue
+			}
+			if a.messages[cand].Role != "assistant" {
+				continue
+			}
+			if !containsInt(assistantIdx, cand) {
+				continue
+			}
+			if msgContains(a.messages[cand], fix.Search) {
+				targetIdx = cand
+				break
+			}
+		}
+		if targetIdx < 0 {
+			log.Debug("applyHistoryFixes: no matching assistant message found for fix (idx=%d, search=%q)", fix.MessageIndex, fix.Search)
+			continue
+		}
+
+		if replaceFirstInMessage(&a.messages[targetIdx], fix.Search, fix.Replace) {
+			applied++
+			log.Info("applyHistoryFixes: applied fix to message[%d]: %q -> %q (%s)", targetIdx, fix.Search, fix.Replace, fix.Reason)
+		}
+	}
+	return applied
+}
+
+// containsInt reports whether v is present in the slice s.
+func containsInt(s []int, v int) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// msgContains reports whether the message's text content contains the given
+// fragment. It checks both the plain Content field and the text ContentParts.
+func msgContains(m llm.Message, frag string) bool {
+	if strings.Contains(m.Content, frag) {
+		return true
+	}
+	for _, cp := range m.ContentParts {
+		if cp.Type == llm.ContentPartText && strings.Contains(cp.Text, frag) {
+			return true
+		}
+	}
+	return false
+}
+
+// replaceFirstInMessage replaces the FIRST occurrence of search with replace in
+// the message's text content. It handles both the plain Content field and the
+// text ContentParts. Returns true when a replacement was made.
+func replaceFirstInMessage(m *llm.Message, search, replace string) bool {
+	if m == nil {
+		return false
+	}
+	if strings.Contains(m.Content, search) {
+		m.Content = replaceFirst(m.Content, search, replace)
+		return true
+	}
+	for i := range m.ContentParts {
+		if m.ContentParts[i].Type == llm.ContentPartText && strings.Contains(m.ContentParts[i].Text, search) {
+			m.ContentParts[i].Text = replaceFirst(m.ContentParts[i].Text, search, replace)
+			return true
+		}
+	}
+	return false
+}
+
+// replaceFirst replaces the first occurrence of old with new in s.
+func replaceFirst(s, old, new string) string {
+	idx := strings.Index(s, old)
+	if idx < 0 {
+		return s
+	}
+	return s[:idx] + new + s[idx+len(old):]
 }
 
 // loopTypeFromError extracts the LoopType classification from a loop detection

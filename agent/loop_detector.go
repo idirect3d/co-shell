@@ -529,6 +529,10 @@ type LoopJudgeResult struct {
 	IsLoop       bool   `json:"is_loop"`
 	Reason       string `json:"reason"`
 	ExitStrategy string `json:"exit_strategy"`
+	// HistoryFixes lists corrections to polluted assistant messages in the
+	// conversation history (FEATURE-438). Empty when no history correction is
+	// needed or when the problem is not a confirmed loop.
+	HistoryFixes []HistoryFix `json:"history_fixes"`
 }
 
 // SingleLineLoopDetector detects repeating patterns within the last N characters

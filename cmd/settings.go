@@ -211,6 +211,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-temp-step-down", subcommand == "loop-temp-max",
 		subcommand == "loop-temp-min",
 		subcommand == "loop-judge-enabled",
+		subcommand == "loop-history-fix-enabled",
 		subcommand == "loop-judge-timeout",
 		subcommand == "loop-long-output-threshold",
 		subcommand == "loop-single-line-length",
@@ -686,6 +687,12 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		loopJudgeStatus = i18n.T(i18n.KeyOn)
 	}
 
+	// Loop history fix (FEATURE-438)
+	loopHistoryFixStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.LoopHistoryFixEnabled {
+		loopHistoryFixStatus = i18n.T(i18n.KeyOn)
+	}
+
 	// Group 4: Safety & Confirmation
 	allGroups = append(allGroups, []settingLine{
 		makeLine("confirm-tool", confirmStatus, i18n.T(i18n.KeyCol3Confirm)),
@@ -704,6 +711,8 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("loop-temp-min", fmt.Sprintf("%.2f", cfg.LLM.LoopTempMin), i18n.T(i18n.KeySettingCmd_319)),
 		// Loop judgment (FEATURE-241)
 		makeLine("loop-judge-enabled", loopJudgeStatus, i18n.T(i18n.KeyCol3LoopJudgeEnabled)),
+		// Loop history fix (FEATURE-438)
+		makeLine("loop-history-fix-enabled", loopHistoryFixStatus, i18n.T(i18n.KeyCol3LoopHistoryFixEnabled)),
 		// Loop judge timeout
 		makeLine("loop-judge-timeout", fmt.Sprintf("%ds", cfg.LLM.LoopJudgeTimeout), i18n.T(i18n.KeySettingCmd_320)),
 		// Long output threshold
@@ -884,6 +893,7 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.LoopTempMax = def.LLM.LoopTempMax
 	h.cfg.LLM.LoopTempMin = def.LLM.LoopTempMin
 	h.cfg.LLM.LoopJudgeEnabled = def.LLM.LoopJudgeEnabled
+	h.cfg.LLM.LoopHistoryFixEnabled = def.LLM.LoopHistoryFixEnabled
 	h.cfg.LLM.LoopReorganizeEnabled = def.LLM.LoopReorganizeEnabled
 	h.cfg.LLM.LoopLongOutputThreshold = def.LLM.LoopLongOutputThreshold
 	h.cfg.LLM.DuplicateContentThreshold = def.LLM.DuplicateContentThreshold

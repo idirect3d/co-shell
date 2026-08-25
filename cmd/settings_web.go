@@ -116,6 +116,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "loop-temp-max", Value: fmt.Sprintf("%.2f", llm.LoopTempMax), Desc: i18n.T(i18n.KeySettingCmd_318), Type: "number"},
 		{Key: "loop-temp-min", Value: fmt.Sprintf("%.2f", llm.LoopTempMin), Desc: i18n.T(i18n.KeySettingCmd_319), Type: "number"},
 		{Key: "loop-judge-enabled", Value: boolStr(llm.LoopJudgeEnabled), Desc: i18n.T(i18n.KeyCol3LoopJudgeEnabled), Type: "bool"},
+		{Key: "loop-history-fix-enabled", Value: boolStr(llm.LoopHistoryFixEnabled), Desc: i18n.T(i18n.KeyCol3LoopHistoryFixEnabled), Type: "bool"},
 		{Key: "loop-judge-timeout", Value: strconv.Itoa(llm.LoopJudgeTimeout), Desc: i18n.T(i18n.KeySettingCmd_320), Type: "number"},
 		{Key: "loop-long-output-threshold", Value: strconv.Itoa(llm.LoopLongOutputThreshold), Desc: i18n.T(i18n.KeySettingCmd_321), Type: "number"},
 		{Key: "loop-single-line-length", Value: strconv.Itoa(llm.LoopSingleLineLength), Desc: i18n.T(i18n.KeySettingCmd_322), Type: "number"},
