@@ -1191,6 +1191,43 @@ aside {
   flex-direction: column;
   overflow: hidden;
 }
+/* FEATURE-432: floating title bar over the file preview. Semi-transparent by
+   default (25% opacity); hovering makes it fully opaque so it is readable. */
+.fv-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  opacity: 0.25;
+  transition: opacity 0.2s ease;
+  cursor: default;
+  flex: none;
+}
+.fv-titlebar:hover { opacity: 1; }
+.fv-titlebar .fv-path {
+  flex: 1;
+  color: var(--accent);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fv-titlebar .fv-path:hover { text-decoration: underline; }
+.fv-titlebar .fv-mtime { color: var(--fg-dim); flex: none; }
+.fv-titlebar .fv-close {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.fv-titlebar .fv-close:hover { color: var(--err); }
 /* FEATURE-425: the highlighted dot before the session title in the main
    message area title bar (same as the current-session dot in the session
    list). */
