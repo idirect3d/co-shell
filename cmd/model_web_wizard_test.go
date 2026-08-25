@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -235,5 +236,68 @@ func TestWebWizardCapabilitiesStep(t *testing.T) {
 		if !keys[k] {
 			t.Errorf("capabilities field %q missing", k)
 		}
+	}
+}
+
+// TestWebWizardRefresh verifies WebWizardRefresh re-renders the current step
+// without advancing (used by the "refresh model list" button).
+func TestWebWizardRefresh(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "deepseek"}
+	step, err := h.WebWizardRefresh(data, WebWizardEndpoint)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if step.Step != WebWizardEndpoint {
+		t.Fatalf("refresh step = %q, want endpoint", step.Step)
+	}
+	if len(step.Fields) != 1 || step.Fields[0].Key != "endpoint" {
+		t.Fatalf("refresh fields = %+v, want one endpoint field", step.Fields)
+	}
+}
+
+// TestWebWizardMaxModelLenHint verifies the max_model_len step shows a hint with
+// the selected model's max context length when it was recorded on the
+// model_name step.
+func TestWebWizardMaxModelLenHint(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek", ModelName: "deepseek-chat",
+		ModelMaxLen: 65536,
+	}
+	step, err := h.webWizardStepData(data, WebWizardMaxModelLen)
+	if err != nil {
+		t.Fatalf("max_model_len step: %v", err)
+	}
+	if len(step.Fields) != 1 || step.Fields[0].Key != "max_model_len" {
+		t.Fatalf("max_model_len fields = %+v", step.Fields)
+	}
+	if step.Fields[0].Hint == "" {
+		t.Errorf("max_model_len field should have a hint when ModelMaxLen is set")
+	}
+	if !strings.Contains(step.Fields[0].Hint, "deepseek-chat") || !strings.Contains(step.Fields[0].Hint, "65536") {
+		t.Errorf("hint = %q, want it to mention the model and its max len", step.Fields[0].Hint)
+	}
+	// The API-reported max length should also pre-fill the value when the user
+	// has not set MaxModelLen manually.
+	if step.Fields[0].Value != "65536" {
+		t.Errorf("max_model_len value = %q, want 65536 (from ModelMaxLen)", step.Fields[0].Value)
+	}
+}
+
+// TestWebWizardMaxModelLenPrefill verifies the max_model_len step pre-fills the
+// user-set MaxModelLen value.
+func TestWebWizardMaxModelLenPrefill(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek", ModelName: "deepseek-chat",
+		MaxModelLen: 128000,
+	}
+	step, err := h.webWizardStepData(data, WebWizardMaxModelLen)
+	if err != nil {
+		t.Fatalf("max_model_len step: %v", err)
+	}
+	if step.Fields[0].Value != "128000" {
+		t.Errorf("max_model_len value = %q, want 128000", step.Fields[0].Value)
 	}
 }

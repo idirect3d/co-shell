@@ -198,6 +198,8 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleModelWizardNext(msg.Step, msg.WizardData)
 	case "model_wizard_prev":
 		s.handleModelWizardPrev(msg.Step, msg.WizardData)
+	case "model_wizard_refresh":
+		s.handleModelWizardRefresh(msg.Step, msg.WizardData)
 	case "model_wizard_submit":
 		s.handleModelWizardSubmit(msg.WizardData)
 	}
@@ -434,6 +436,25 @@ func (s *WebSession) handleModelWizardPrev(step string, raw json.RawMessage) {
 		return
 	}
 	s.sendWizardStep(prev, data)
+}
+
+// handleModelWizardRefresh re-renders the current step's form (used by the
+// "refresh model list" button on the model_name step).
+func (s *WebSession) handleModelWizardRefresh(step string, raw json.RawMessage) {
+	if s.model == nil {
+		return
+	}
+	data, err := decodeWizardData(raw)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	stepData, err := s.model.WebWizardRefresh(data, cmd.WebWizardStep(step))
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: false, Message: err.Error()})
+		return
+	}
+	s.sendWizardStep(stepData, data)
 }
 
 // handleModelWizardSubmit submits the structured wizard and saves the model.

@@ -1490,6 +1490,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCmdMig_183:             "\n  步骤: 检测模型能力",
 	KeyCmdMig_184:             "\n  步骤: 模型 ID",
 	KeyCmdMig_185:             "\n  步骤: 模型名称",
+	KeyCmdMig_382:             "选择模型",
 	KeyCmdMig_186:             "\n  步骤: 模型最大上下文长度",
 	KeyCmdMig_187:             "\n  编辑模式: %s\n",
 	KeyCmdMig_188:             "\n  请输入: ",

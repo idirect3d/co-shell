@@ -462,7 +462,7 @@ func (h *ModelHandler) AddModelWizard() (string, error) {
 			io := h.io()
 			io.Println(i18n.T(i18n.KeyCmdMig_185))
 			var modelSuggestions []string
-			modelSuggestions, state.Endpoint, state.APIModels = h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
+			modelSuggestions, state.Endpoint, state.APIModels, _ = h.fetchModelSuggestions(state.Endpoint, state.APIKey, state.Template)
 			modelName := h.wizardPromptString(i18n.T(i18n.KeyCmdMig_358), modelSuggestions, "q")
 			if modelName == "__BACK__" {
 				// Go back to API key step — keep the API key value
@@ -822,6 +822,62 @@ func TestEndpointConnectivity(endpoint string) (string, bool) {
 	return autoCompleteEndpoint(endpoint)
 }
 
+// TestAPIKey verifies that the given API key is valid against the endpoint by
+// calling ListModels (GET /models). It reuses the autoCompleteEndpoint logic to
+// try http/https and /v1 prefix/suffix fallbacks. Returns whether the key is
+// valid and a human-readable message.
+func TestAPIKey(endpoint, apiKey string) (bool, string) {
+	if strings.TrimSpace(apiKey) == "" {
+		return false, "API key is empty"
+	}
+	tested, ok := autoCompleteEndpoint(endpoint)
+	if !ok {
+		return false, "cannot connect to endpoint"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	client := llm.NewClient(tested, apiKey, "test", 0, 0, 15)
+	models, err := client.ListModels(ctx)
+	cancel()
+	if err != nil {
+		status := extractHTTPStatusCode(err)
+		if status == http.StatusUnauthorized || status == http.StatusForbidden {
+			return false, "invalid API key (HTTP " + strconv.Itoa(status) + ")"
+		}
+		return false, err.Error()
+	}
+	return true, fmt.Sprintf("valid, %d model(s) available", len(models))
+}
+
+// GetModelMaxLen fetches the max context length (in tokens) for the given model
+// by calling ListModels (GET /models). It reuses the autoCompleteEndpoint logic
+// to try http/https and /v1 prefix/suffix fallbacks. Returns 0 and an error if
+// the model is not found or the fetch fails.
+func GetModelMaxLen(endpoint, apiKey, modelName string) (int, error) {
+	if strings.TrimSpace(modelName) == "" {
+		return 0, fmt.Errorf("model name is empty")
+	}
+	tested, ok := autoCompleteEndpoint(endpoint)
+	if !ok {
+		return 0, fmt.Errorf("cannot connect to endpoint")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	client := llm.NewClient(tested, apiKey, "test", 0, 0, 15)
+	models, err := client.ListModels(ctx)
+	cancel()
+	if err != nil {
+		return 0, err
+	}
+	for _, m := range models {
+		if m.ID == modelName {
+			if m.MaxModelLen <= 0 {
+				return 0, fmt.Errorf("model %q does not report a max context length", modelName)
+			}
+			return m.MaxModelLen, nil
+		}
+	}
+	return 0, fmt.Errorf("model %q not found in the model list", modelName)
+}
+
 // testEndpointConnectivity tests an endpoint and prints the result.
 func (h *ModelHandler) testEndpointConnectivity(endpoint string) {
 	io := h.io()
@@ -844,11 +900,13 @@ func (h *ModelHandler) testEndpointConnectivity(endpoint string) {
 }
 
 // fetchModelSuggestions fetches available models from the API and combines with template defaults.
-// Returns the model suggestions list, the (possibly updated) endpoint URL, and the raw model info list
-// (for max_model_len lookup and other downstream use).
+// Returns the model suggestions list, the (possibly updated) endpoint URL, the raw model info list
+// (for max_model_len lookup and other downstream use), and an error describing why the API fetch
+// failed (nil on success). The error is informational — the caller still receives the template
+// default suggestions as a fallback.
 // If the initial ListModels call fails and the endpoint doesn't have a /vN suffix,
 // retries with +/v1 suffix as a fallback and updates the endpoint on success.
-func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *config.ModelTemplate) ([]string, string, []llm.ModelInfo) {
+func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *config.ModelTemplate) ([]string, string, []llm.ModelInfo, error) {
 	io := h.io()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	client := llm.NewClient(endpoint, apiKey, "test", 0, 0, 15)
@@ -857,6 +915,7 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 
 	suggestions := make([]string, 0)
 	seen := make(map[string]bool)
+	var fetchErr error
 
 	if err != nil && !hasVNSuffix(endpoint) {
 		// Stage 2: ListModels failed with API key — try +/v1 as a fallback
@@ -882,14 +941,16 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 					seen[m] = true
 				}
 			}
-			return suggestions, retryEndpoint, models2
+			return suggestions, retryEndpoint, models2, nil
 		}
 		// Both original and +/v1 failed, fall through to template defaults
 		io.Printf(i18n.T(i18n.KeyCmdMig_214), err)
 		io.Println(i18n.T(i18n.KeyCmdMig_092))
+		fetchErr = err
 	} else if err != nil {
 		io.Printf(i18n.T(i18n.KeyCmdMig_214), err)
 		io.Println(i18n.T(i18n.KeyCmdMig_092))
+		fetchErr = err
 	} else {
 		io.Printf(i18n.T(i18n.KeyCmdMig_226), len(models))
 		for _, m := range models {
@@ -905,7 +966,7 @@ func (h *ModelHandler) fetchModelSuggestions(endpoint, apiKey string, template *
 			seen[m] = true
 		}
 	}
-	return suggestions, endpoint, nil
+	return suggestions, endpoint, nil, fetchErr
 }
 
 // wizardEnterModelParams prompts user to enter model-specific parameters.

@@ -1634,6 +1634,16 @@ aside {
   margin-bottom: 12px;
   color: var(--fg);
 }
+.wizard-step-message {
+  font-size: 12px;
+  color: var(--err);
+  background: var(--err-dim, rgba(255, 0, 0, 0.08));
+  border: 1px solid var(--err);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 12px;
+  word-break: break-word;
+}
 .wizard-field {
   margin-bottom: 12px;
 }
