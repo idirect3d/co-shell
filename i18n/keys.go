@@ -1060,6 +1060,10 @@ const (
 	KeyBodyAddInvalidFmt  = "body_add_invalid_fmt"
 	KeyBodyAddEmptyKey    = "body_add_empty_key"
 	KeyBodyAddSaveFail    = "body_add_save_fail"
+
+	// YOLO (You Only Live Once) master switch (FEATURE-439)
+	KeyYOLOOn  = "yolo_on"
+	KeyYOLOOff = "yolo_off"
 	KeyBodyAddDone        = "body_add_done"
 	KeyBodyRemoveUsage    = "body_remove_usage"
 	KeyBodyRemoveNone     = "body_remove_none"

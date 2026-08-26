@@ -655,3 +655,49 @@ func TestWebIOAskInteractionSelect(t *testing.T) {
 		t.Fatal("Ask did not return after interaction_answer")
 	}
 }
+
+// TestYOLOGet verifies yolo_get returns the current YOLO state (default off)
+// (FEATURE-439, UC-0008).
+func TestYOLOGet(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	sendClient(t, client, clientMessage{Type: "yolo_get"})
+	msg := readServerMsg(t, client)
+	if msg.Kind != "yolo" {
+		t.Fatalf("expected yolo message, got kind=%q", msg.Kind)
+	}
+	if msg.YOLO {
+		t.Errorf("yolo_get returned YOLO=true, want false (default off)")
+	}
+	if ag.IsYOLO() {
+		t.Errorf("agent IsYOLO() = true, want false (default off)")
+	}
+}
+
+// TestYOLOSet verifies yolo_set applies the state and reports it back
+// (FEATURE-439, UC-0009/0010).
+func TestYOLOSet(t *testing.T) {
+	_, _, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	// Turn YOLO on.
+	sendClient(t, client, clientMessage{Type: "yolo_set", YOLO: true})
+	msg := readServerMsg(t, client)
+	if msg.Kind != "yolo" || !msg.YOLO {
+		t.Fatalf("yolo_set(true) reply = kind=%q yolo=%v, want yolo/true", msg.Kind, msg.YOLO)
+	}
+	if !ag.IsYOLO() {
+		t.Errorf("agent IsYOLO() = false after yolo_set(true), want true")
+	}
+
+	// Turn YOLO off.
+	sendClient(t, client, clientMessage{Type: "yolo_set", YOLO: false})
+	msg = readServerMsg(t, client)
+	if msg.Kind != "yolo" || msg.YOLO {
+		t.Fatalf("yolo_set(false) reply = kind=%q yolo=%v, want yolo/false", msg.Kind, msg.YOLO)
+	}
+	if ag.IsYOLO() {
+		t.Errorf("agent IsYOLO() = true after yolo_set(false), want false")
+	}
+}

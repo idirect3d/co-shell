@@ -65,6 +65,7 @@ type clientMessage struct {
 	Result      *interactionResultJSON `json:"result,omitempty"` // interaction_answer: the structured result
 	Step        string   `json:"step,omitempty"`   // model_wizard_next/prev: the current wizard step
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // model_wizard_next/prev/submit: accumulated wizard data
+	YOLO        bool     `json:"yolo,omitempty"`   // yolo_set: the new YOLO mode state
 }
 
 // interactionResultJSON is the wire form of an agent.InteractionResult.
@@ -102,6 +103,7 @@ type serverMessage struct {
 	Templates   json.RawMessage `json:"templates,omitempty"` // kind=models: the template list JSON
 	WizardStep  json.RawMessage `json:"wizard_step,omitempty"` // kind=model_wizard: the wizard step form JSON
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
+	YOLO        bool            `json:"yolo,omitempty"`    // kind=yolo: the current YOLO mode state
 }
 
 // modeInfo is one work mode entry pushed to the browser for the mode
