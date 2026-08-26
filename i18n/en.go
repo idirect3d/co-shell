@@ -271,6 +271,8 @@ var enMessages = map[string]string{
 	KeyBodyAddEmptyKey:    "Key cannot be empty",
 	KeyBodyAddSaveFail:    "Failed to save config: %w",
 	KeyBodyAddDone:        "Added %d custom properties to LLM request body",
+	KeyYOLOOn:             "YOLO mode is now ON (all tool calls auto-approved)",
+	KeyYOLOOff:            "YOLO mode is now OFF (tool calls require confirmation)",
 	KeyBodyRemoveUsage:    "Usage: .body-remove key",
 	KeyBodyRemoveNone:     "No custom properties to remove",
 	KeyBodyRemoveNotFound: "Property not found",
