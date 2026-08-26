@@ -75,6 +75,21 @@ const (
 	ActionRetry SuggestedAction = "retry"
 )
 
+// HistoryFix describes a single correction to a polluted assistant message
+// in the conversation history (FEATURE-438). It is returned by the problem
+// model when a loop is confirmed, so the code can clean up the loop-causing
+// wording at its source instead of only appending corrective feedback.
+type HistoryFix struct {
+	// MessageIndex is the index of the target message in a.messages.
+	MessageIndex int `json:"message_index"`
+	// Search is the suspicious original text fragment to be replaced.
+	Search string `json:"search"`
+	// Replace is the corrected replacement text.
+	Replace string `json:"replace"`
+	// Reason explains why this fragment is suspected of causing the loop.
+	Reason string `json:"reason"`
+}
+
 // ProblemReport is the structured payload the problem model returns via the
 // report_problem tool (FEATURE-342). It replaces the free-text JSON output
 // of judgeLoop with a schema-forced tool call.
@@ -90,6 +105,10 @@ type ProblemReport struct {
 	Guidance string `json:"guidance"`
 	// SuggestedAction is the recommended handling action.
 	SuggestedAction SuggestedAction `json:"suggested_action"`
+	// HistoryFixes lists corrections to polluted assistant messages in the
+	// conversation history (FEATURE-438). Empty when no history correction is
+	// needed or when the problem is not a confirmed loop.
+	HistoryFixes []HistoryFix `json:"history_fixes"`
 }
 
 // IsLoop returns true when the report classifies the signal as a loop.
@@ -147,6 +166,32 @@ func reportProblemTool() llm.Tool {
 						string(ActionRetry),
 					},
 					"description": "Recommended handling action (the code may override).",
+				},
+				"history_fixes": map[string]interface{}{
+					"type":        "array",
+					"description": "Optional corrections to polluted assistant messages in the conversation history (FEATURE-438). Only provide when type=loop and you identified loop-causing wording in the recent assistant messages. Each item locates a message by index and replaces the suspicious text fragment with a corrected one.",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"message_index": map[string]interface{}{
+								"type":        "integer",
+								"description": "Index of the target assistant message in the conversation history.",
+							},
+							"search": map[string]interface{}{
+								"type":        "string",
+								"description": "The exact suspicious original text fragment to be replaced (must appear verbatim in the target message).",
+							},
+							"replace": map[string]interface{}{
+								"type":        "string",
+								"description": "The corrected replacement text.",
+							},
+							"reason": map[string]interface{}{
+								"type":        "string",
+								"description": "Why this fragment is suspected of causing the loop.",
+							},
+						},
+						"required": []string{"message_index", "search", "replace"},
+					},
 				},
 			},
 			"required": []string{"type", "reason", "guidance", "suggested_action"},

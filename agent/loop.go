@@ -229,6 +229,13 @@ type Agent struct {
 	// (FIX-285)
 	loopJudgeExitStrategy string
 
+	// loopHistoryFixes stores the history corrections returned by the judge
+	// model when a loop is confirmed (FEATURE-438). They are applied to the
+	// polluted assistant messages in a.messages by applyHistoryFixes before
+	// the loop intervention feedback is appended. Cleared when judge says
+	// not-a-loop and at the start of each loop iteration in RunStream.
+	loopHistoryFixes []HistoryFix
+
 	// loopFailedStrategies records the exit strategies that were issued by
 	// the judge for THIS task but failed to break the loop (FEATURE-349).
 	// They are fed back into the judge prompt ({FAILED_STRATEGIES}) so the
@@ -751,6 +758,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 		IsLoop:       report.IsLoop(),
 		Reason:       report.Reason,
 		ExitStrategy: report.Guidance,
+		HistoryFixes: report.HistoryFixes,
 	}
 	if result.IsLoop && strings.TrimSpace(result.ExitStrategy) == "" {
 		log.Warn("judgeLoop: problem solver confirmed loop with empty guidance, applying fallback")
@@ -811,6 +819,15 @@ func (a *Agent) applyLoopIntervention(event *LoopEvent) error {
 			// Store the judge's exit_strategy for the prompt strategy to use
 			// as feedback content (more targeted than the generic prompt).
 			event.Suggestion = result.ExitStrategy
+		}
+		// FEATURE-438: when the judge confirms a loop, apply the history
+		// corrections to the polluted assistant messages before the loop
+		// feedback is appended. Gated by loop-history-fix-enabled (default on).
+		if result != nil && result.IsLoop && (a.cfg == nil || a.cfg.LLM.LoopHistoryFixEnabled) {
+			a.loopHistoryFixes = result.HistoryFixes
+			if n := a.applyHistoryFixes(); n > 0 && cb != nil {
+				cb(InfoEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyLoopHistoryFixApplied), n)))
+			}
 		}
 		// result == nil (judgment failed): continue with normal strategy
 		// If loopAction == "off" and judge confirmed, still treat as "off".
@@ -1106,13 +1123,16 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		// Judge confirmed loop: save exit_strategy and interrupt the stream.
 		a.mu.Lock()
 		a.loopJudgeExitStrategy = result.ExitStrategy
+		// FEATURE-438: save the history corrections so they can be applied to
+		// the polluted assistant messages before the loop feedback is appended.
+		a.loopHistoryFixes = result.HistoryFixes
 		// FEATURE-349: remember this strategy so a later judgment on the same
 		// task can see that it failed to break the loop.
 		a.recordFailedLoopStrategyLocked(result.ExitStrategy)
 		a.loopDetectSyncErr = detectErr
 		a.loopDetectCrit = true
 		a.mu.Unlock()
-		log.Debug("handleLoopDetection: judge confirmed loop, saved exit_strategy=%q, set loopDetectSyncErr", result.ExitStrategy)
+		log.Debug("handleLoopDetection: judge confirmed loop, saved exit_strategy=%q, history_fixes=%d, set loopDetectSyncErr", result.ExitStrategy, len(result.HistoryFixes))
 	} else if result != nil && !result.IsLoop {
 		// Judge explicitly NOT a loop: clear exit_strategy, reset detectors,
 		// set loopJudgeSkipped to prevent re-triggering for the remainder of
@@ -1120,6 +1140,7 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		log.Debug("handleLoopDetection: judge says NOT a loop, clearing exit_strategy, resetting detectors and continuing stream")
 		a.mu.Lock()
 		a.loopJudgeExitStrategy = ""
+		a.loopHistoryFixes = nil
 		a.mu.Unlock()
 		if a.loopDetector != nil {
 			a.loopDetector.Reset()
@@ -1140,6 +1161,164 @@ func (a *Agent) handleLoopDetection(content, reasoning string, detectErr error) 
 		a.loopDetectCrit = true
 		a.mu.Unlock()
 	}
+}
+
+// defaultLoopHistoryFixMaxMessages is the fallback number of most-recent
+// assistant messages that history fixes may target when the config value is
+// unset (FEATURE-438). Loop-causing wording almost always lives in the last
+// few assistant turns, and limiting the scope keeps the correction surgical
+// and minimizes prefix-cache invalidation.
+const defaultLoopHistoryFixMaxMessages = 5
+
+// historyFixMaxMessages returns the configured number of most-recent assistant
+// messages that history fixes may target (FEATURE-438). Falls back to
+// defaultLoopHistoryFixMaxMessages when the config is unavailable or unset.
+func (a *Agent) historyFixMaxMessages() int {
+	if a.cfg != nil && a.cfg.LLM.LoopHistoryFixMaxMessages > 0 {
+		return a.cfg.LLM.LoopHistoryFixMaxMessages
+	}
+	return defaultLoopHistoryFixMaxMessages
+}
+
+// applyHistoryFixes applies the history corrections returned by the judge
+// model to the polluted assistant messages in a.messages (FEATURE-438). It is
+// called after a loop is confirmed and BEFORE the loop intervention feedback
+// is appended, so the loop-causing wording is cleaned up at its source.
+//
+// For each fix:
+//   - locate the target message by MessageIndex
+//   - skip non-assistant messages (only assistant messages may be corrected)
+//   - skip messages outside the most recent loopHistoryFixMaxMessages assistant
+//     messages
+//   - replace only the FIRST occurrence of Search with Replace
+//   - if Search is not found in the target message, fall back to the adjacent
+//     messages (index±1)
+//   - ignore fixes with empty Search or Search==Replace
+//
+// Returns the number of fixes actually applied.
+func (a *Agent) applyHistoryFixes() int {
+	a.mu.Lock()
+
+	if len(a.loopHistoryFixes) == 0 {
+		a.mu.Unlock()
+		return 0
+	}
+
+	// Collect the indices of the most recent assistant messages (up to
+	// historyFixMaxMessages), in chronological order.
+	maxMsgs := a.historyFixMaxMessages()
+	var assistantIdx []int
+	for i := len(a.messages) - 1; i >= 0 && len(assistantIdx) < maxMsgs; i-- {
+		if a.messages[i].Role == "assistant" {
+			assistantIdx = append([]int{i}, assistantIdx...)
+		}
+	}
+
+	applied := 0
+	// Collect per-fix details (message index + search + replace + reason) so
+	// they can be emitted to the debug channel AFTER the lock is released
+	// (the callback may re-enter agent state).
+	var details []string
+	for _, fix := range a.loopHistoryFixes {
+		if strings.TrimSpace(fix.Search) == "" || fix.Search == fix.Replace {
+			log.Debug("applyHistoryFixes: skipping fix with empty/identical search (idx=%d)", fix.MessageIndex)
+			continue
+		}
+
+		// Locate the target message: try the requested index, then adjacent
+		// (index±1) as a fallback.
+		targetIdx := -1
+		for _, cand := range []int{fix.MessageIndex, fix.MessageIndex - 1, fix.MessageIndex + 1} {
+			if cand < 0 || cand >= len(a.messages) {
+				continue
+			}
+			if a.messages[cand].Role != "assistant" {
+				continue
+			}
+			if !containsInt(assistantIdx, cand) {
+				continue
+			}
+			if msgContains(a.messages[cand], fix.Search) {
+				targetIdx = cand
+				break
+			}
+		}
+		if targetIdx < 0 {
+			log.Debug("applyHistoryFixes: no matching assistant message found for fix (idx=%d, search=%q)", fix.MessageIndex, fix.Search)
+			continue
+		}
+
+		if replaceFirstInMessage(&a.messages[targetIdx], fix.Search, fix.Replace) {
+			applied++
+			log.Info("applyHistoryFixes: applied fix to message[%d]: %q -> %q (%s)", targetIdx, fix.Search, fix.Replace, fix.Reason)
+			details = append(details, fmt.Sprintf(i18n.TF(i18n.KeyLoopHistoryFixDetail), targetIdx, fix.Search, fix.Replace, fix.Reason))
+		}
+	}
+	a.mu.Unlock()
+
+	// Emit per-fix details to the debug channel (dbg block) after releasing
+	// the lock, so the user can inspect exactly what was corrected.
+	if len(details) > 0 {
+		if cb := a.streamCb; cb != nil {
+			for _, d := range details {
+				cb(InfoEvent(ChannelDebug, d))
+			}
+		}
+	}
+	return applied
+}
+
+// containsInt reports whether v is present in the slice s.
+func containsInt(s []int, v int) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// msgContains reports whether the message's text content contains the given
+// fragment. It checks both the plain Content field and the text ContentParts.
+func msgContains(m llm.Message, frag string) bool {
+	if strings.Contains(m.Content, frag) {
+		return true
+	}
+	for _, cp := range m.ContentParts {
+		if cp.Type == llm.ContentPartText && strings.Contains(cp.Text, frag) {
+			return true
+		}
+	}
+	return false
+}
+
+// replaceFirstInMessage replaces the FIRST occurrence of search with replace in
+// the message's text content. It handles both the plain Content field and the
+// text ContentParts. Returns true when a replacement was made.
+func replaceFirstInMessage(m *llm.Message, search, replace string) bool {
+	if m == nil {
+		return false
+	}
+	if strings.Contains(m.Content, search) {
+		m.Content = replaceFirst(m.Content, search, replace)
+		return true
+	}
+	for i := range m.ContentParts {
+		if m.ContentParts[i].Type == llm.ContentPartText && strings.Contains(m.ContentParts[i].Text, search) {
+			m.ContentParts[i].Text = replaceFirst(m.ContentParts[i].Text, search, replace)
+			return true
+		}
+	}
+	return false
+}
+
+// replaceFirst replaces the first occurrence of old with new in s.
+func replaceFirst(s, old, new string) string {
+	idx := strings.Index(s, old)
+	if idx < 0 {
+		return s
+	}
+	return s[:idx] + new + s[idx+len(old):]
 }
 
 // loopTypeFromError extracts the LoopType classification from a loop detection
@@ -1265,22 +1444,36 @@ func (a *Agent) getLastUserCommand() string {
 	return ""
 }
 
-// getRecentIterations returns the last 2 assistant responses (without tool calls)
-// from a.messages, for the loop judge to analyze. Excludes the current iteration.
-func (a *Agent) getRecentIterations() string {
+// getRecentAssistantHistory returns the most recent assistant messages (up to
+// loopHistoryFixMaxMessages) with their REAL index in a.messages, formatted as
+// "[index] content" lines (FEATURE-438). The index is the actual position in
+// a.messages, so the judge model can return it as history_fixes.message_index
+// and applyHistoryFixes can locate the exact message. Only assistant messages
+// with text content (no tool_calls) are included, matching the messages that
+// may carry loop-causing wording.
+func (a *Agent) getRecentAssistantHistory() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	var sb strings.Builder
 	count := 0
-	for i := len(a.messages) - 1; i >= 0 && count < 2; i-- {
+	maxMsgs := a.historyFixMaxMessages()
+	for i := len(a.messages) - 1; i >= 0 && count < maxMsgs; i-- {
 		m := a.messages[i]
-		if m.Role == "assistant" && len(m.ToolCalls) == 0 && m.Content != "" {
-			if count > 0 {
-				sb.WriteString("\n---\n")
-			}
-			sb.WriteString(m.Content)
-			count++
+		if m.Role != "assistant" || len(m.ToolCalls) > 0 {
+			continue
 		}
+		content := strings.TrimSpace(m.CombineContentParts())
+		if content == "" {
+			content = strings.TrimSpace(m.Content)
+		}
+		if content == "" {
+			continue
+		}
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(fmt.Sprintf("[%d] %s", i, content))
+		count++
 	}
 	return sb.String()
 }
@@ -1407,12 +1600,6 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 		lastInput = a.lastUserInput
 	}
 
-	// {ITERATIONS} = last 2 assistant responses for context
-	iterations := a.getRecentIterations()
-	if iterations == "" {
-		iterations = i18n.T(i18n.KeyNoRecentIterations)
-	}
-
 	// {CONTEXT} = workspace & available tools context, so the judge can write a
 	// concrete, executable exit_strategy instead of guessing (FIX-322).
 	contextText := a.buildJudgeContext()
@@ -1430,15 +1617,23 @@ func (a *Agent) buildLoopJudgeUserPrompt(taskPlanText, suspectContent string) st
 	// to break the loop in this task (empty-marked on first judgment).
 	failedStrategies := a.buildFailedStrategiesText()
 
+	// FEATURE-438: {HISTORY} = recent assistant messages with their real index
+	// in a.messages, so the judge can locate loop-causing wording and return it
+	// as history_fixes.message_index.
+	history := a.getRecentAssistantHistory()
+	if history == "" {
+		history = i18n.T(i18n.KeyNoRecentIterations)
+	}
+
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK}", firstInput)
 	userTemplate = strings.ReplaceAll(userTemplate, "{TASK_PLAN}", taskPlanText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{LAST_INPUT}", lastInput)
-	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATIONS}", iterations)
 	userTemplate = strings.ReplaceAll(userTemplate, "{USER_PROMPTS}", userPrompts)
 	userTemplate = strings.ReplaceAll(userTemplate, "{ITERATION_TOOLS}", iterTools)
 	userTemplate = strings.ReplaceAll(userTemplate, "{CONTEXT}", contextText)
 	userTemplate = strings.ReplaceAll(userTemplate, "{SUSPECT_CONTENT}", suspectContent)
 	userTemplate = strings.ReplaceAll(userTemplate, "{FAILED_STRATEGIES}", failedStrategies)
+	userTemplate = strings.ReplaceAll(userTemplate, "{HISTORY}", history)
 	return userTemplate
 }
 

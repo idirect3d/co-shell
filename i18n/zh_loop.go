@@ -108,9 +108,9 @@ func init() {
 
 ===
 
-# 最近迭代内容（最近两次迭代的返回，不含当前疑似循环的内容）
+# 最近助手消息（带消息序号，[序号] 即该消息在对话历史中的真实索引，可用于 history_fixes.message_index 定位）
 
-{ITERATIONS}
+{HISTORY}
 
 ===
 
@@ -139,6 +139,8 @@ func init() {
 ===
 
 请根据以上信息完成循环判定，并给出针对主模型的自包含、可执行的下一步指导：直接从操作指令开始；除非判定主LLM已明显偏离主线，否则不要复述终极目标、任务背景或当前进展。
+
+若你判定为循环（type=loop），且在上面的「最近助手消息」中发现可能导致死循环的可疑话术（如同一句话反复出现、"让我看看/让我执行"等空转措辞、或连续两条几乎相同的内容），请在 report_problem 的 history_fixes 数组中逐条给出修正：message_index 填该消息在「最近助手消息」中标注的 [序号]（即对话历史真实索引），search 填需要被替换的可疑原文片段（必须与消息内容逐字一致），replace 填修正后的新内容，reason 说明为何可疑。仅修正确实可疑的 assistant 消息，不要修改用户消息或工具结果。
 `
 	zhMessages[KeyLoopJudgeFallback] = `请围绕当前任务的下一步行动。如果仍有未完成的目标，请明确指示：就近选择一个具体文件/命令/搜索动作并立即执行；如果方向不明确，直接向用户提出具体问题。如果任务目标已达成，调用 attempt_completion 结束。`
 	zhMessages[KeyLoopFailedStrategiesNone] = `（无——这是本任务首次循环判定）`
@@ -146,6 +148,8 @@ func init() {
 	// Display & description keys moved from zh.go
 	zhMessages[KeyCol3LoopDetectEnabled] = "循环检测(on|off)"
 	zhMessages[KeyCol3LoopJudgeEnabled] = "LLM循环二次判定"
+	zhMessages[KeyCol3LoopHistoryFixEnabled] = "循环历史修正(on|off)"
+	zhMessages[KeyCol3LoopHistoryFixMaxMsgs] = "循环历史修正最大消息数"
 	zhMessages[KeyCol3ShowLoopDetection] = "显示循环检测过程(on|off)"
 	zhMessages[KeyCol3LoopJudgeModel] = "循环判定模型ID"
 	zhMessages[KeyCol3LoopDetectThreshold] = "循环检测阈值(重复次数)"

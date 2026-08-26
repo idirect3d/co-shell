@@ -621,6 +621,8 @@ var enMessages = map[string]string{
 	KeySettingCmd_612: "✅ Task completed\n\n%s",
 	KeySettingCmd_613: "Describe what specific information you need to analyze from the image/video. Examples: 'analyze the chart data', 'extract the text in the image', 'describe the picture content'. This intent guides the vision analysis and produces structured output.",
 	KeySettingCmd_614: "Font name (e.g. 'Arial', 'Microsoft YaHei')",
+	KeySettingCmd_776: "    [%d] Supplementary info (or type anything else / press space to input)\n",
+	KeySettingCmd_777: "  Enter supplementary info: ",
 	KeySettingCmd_615: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 New Section\\n\\nThis is the new content paragraph.\")",
 	KeySettingCmd_616: "💡 Hint: Use :set defaults to reset all settings to system defaults (LLM, Memory/Context, and Database preserved).",
 
@@ -2015,6 +2017,8 @@ no liability whatsoever.`,
 	KeyLoopJudgeResultLoop:    "Judge model returned: is_loop=true, reason=%q, exit_strategy=%q\n",
 	KeyLoopJudgeResultNo:      "Judge model returned: is_loop=false, reason=%q\n",
 	KeyLoopJudgeResultFail:    "Judge model returned: failed/timeout\n",
+	KeyLoopHistoryFixApplied:  "Corrected %d suspicious phrase(s) in the conversation history that may have caused the loop\n",
+	KeyLoopHistoryFixDetail:   "  [msg %d] %q -> %q (%s)\n",
 	KeyNoActiveTaskPlan:       "No active task plan",
 	KeyNoRecentIterations:     "No recent iterations",
 	// FEATURE-345: unified problem solver (non-loop anomalies)
