@@ -1014,8 +1014,16 @@ aside {
 .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .btn.primary:hover { background: var(--accent); color: var(--bg); }
 /* Merged send/interrupt button: while a turn runs it shows ⏸ in the error
-   color (click = interrupt), otherwise ▶ in accent (click = send). */
-#sendBtn { min-width: 52px; }
+   color (click = interrupt), otherwise ▶ in accent (click = send).
+   Height matches the single-line input box (FEATURE-439). */
+#sendBtn {
+  min-width: 52px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
 #sendBtn.run { border-color: var(--err); color: var(--err); background: none; }
 #sendBtn.run:hover { background: var(--err); color: var(--bg); }
 .btn.danger.ghost:hover { border-color: var(--err); color: var(--err); }
@@ -1029,7 +1037,7 @@ aside {
 .yolo-switch {
   flex: none;
   width: 34px;
-  height: 40px;
+  height: 30px; /* matches the single-line input box (FEATURE-439) */
   padding: 0;
   border: 1px solid var(--border, #444);
   border-radius: 6px;
@@ -1078,17 +1086,26 @@ aside {
   bottom: 3px;
   color: #fff;
 }
-/* The thumb: a solid block that slides up/down. Down by default (OFF). */
+/* The thumb: a solid block that slides up/down. Down by default (OFF).
+   It carries the small YOLO label and a 2px border for visibility. */
 .yolo-thumb {
   position: absolute;
   left: 0; right: 0;
   height: 50%;
   background: var(--bg, #1e1e1e);
-  border-top: 1px solid var(--border, #444);
-  border-bottom: 1px solid var(--border, #444);
+  border-top: 2px solid var(--border, #444);
+  border-bottom: 2px solid var(--border, #444);
   top: 50%;
   transition: top 0.15s ease;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--fg-dim, #999);
+  line-height: 1;
 }
 /* ON state: thumb slides up, revealing the orange-red ON half below. */
 .yolo-switch.on .yolo-thumb { top: 0; }
