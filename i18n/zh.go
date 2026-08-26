@@ -253,6 +253,8 @@ var zhMessages = map[string]string{
 	KeyBodyAddEmptyKey:    "属性名不能为空",
 	KeyBodyAddSaveFail:    "保存配置失败: %w",
 	KeyBodyAddDone:        "已添加 %d 个自定义属性到 LLM 请求体",
+	KeyYOLOOn:             "YOLO 模式已开启（所有工具调用自动批准）",
+	KeyYOLOOff:            "YOLO 模式已关闭（工具调用需确认）",
 	KeyBodyRemoveUsage:    "用法: .body-remove key",
 	KeyBodyRemoveNone:     "没有自定义属性可删除",
 	KeyBodyRemoveNotFound: "未找到指定的属性",

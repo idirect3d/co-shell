@@ -91,6 +91,12 @@ type Agent struct {
 	// Per-tool confirmation state
 	toolApproveCounts  map[string]int  // remaining auto-approve count per tool name
 	toolDisableConfirm map[string]bool // tools where confirmation is disabled via G option
+	// yoloMode is the YOLO (You Only Live Once) master switch (FEATURE-439).
+	// When true, every tool call that reaches the confirmation entry is
+	// auto-approved and executed without asking the user. Disabled tools are
+	// not sent to the LLM at all, so they are unaffected. Defaults to false
+	// and is not persisted across restarts.
+	yoloMode bool
 
 	cfg          *config.Config // configuration for timeout settings
 	resultMode   config.ResultMode

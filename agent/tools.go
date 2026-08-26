@@ -1939,7 +1939,11 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			mode = v
 		}
 	}
-	needsConfirm := mode == "confirm"
+	// YOLO master switch (FEATURE-439): when enabled, every tool call that
+	// reaches the confirmation entry is auto-approved and executed without
+	// asking the user. Disabled tools are not sent to the LLM at all, so they
+	// are unaffected by YOLO.
+	needsConfirm := mode == "confirm" && !a.yoloMode
 
 	if needsConfirm {
 		// Skip confirmation if:

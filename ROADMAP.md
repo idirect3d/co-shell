@@ -449,6 +449,31 @@
   - 实施：① `agent/problem_solver.go` `ProblemReport` 新增 `HistoryFixes []HistoryFix` 字段 + 定义 `HistoryFix` 结构体（MessageIndex/Search/Replace/Reason）+ `reportProblemTool` schema 增加 `history_fixes` 数组属性；② `agent/loop_detector.go` `LoopJudgeResult` 新增 `HistoryFixes` 字段；③ `agent/loop.go` `judgeLoop` 从 report 传递 `HistoryFixes`、Agent 结构体新增 `loopHistoryFixes` 字段、`handleLoopDetection` 确认循环时保存/非循环时清空、新增 `applyHistoryFixes` 方法（消息序号定位 + 原文匹配替换 + 相邻兜底 + 仅 assistant + 只替换首次出现 + 仅最近 3 条 + 空 search/search==replace 忽略）+ `applyLoopIntervention` 确认循环时应用历史修正；④ `agent/run_stream.go` 迭代开始重置 `loopHistoryFixes`、`loopDetectCrit` 块中先执行历史修正再 strip/反馈；⑤ `config/config.go` 新增 `LoopHistoryFixEnabled` 字段默认 true；⑥ `cmd/settings.go`/`settings_safety.go`/`settings_web.go` 接入 `loop-history-fix-enabled` 设置项；⑦ i18n 新增 `KeyLoopHistoryFixApplied`/`KeyCol3LoopHistoryFixEnabled` 中英文案；⑧ `agent/loop_history_fix_test.go` 新增 10 个单元测试（定位替换/首次出现/非assistant跳过/相邻兜底/无匹配跳过/仅最近3条/空search/search==replace/ContentParts/空列表）[BUILD-659]；⑨ 补充：`agent/loop.go` 新增 `getRecentAssistantHistory` 方法（最近 3 条 assistant 消息按 `[真实索引] 内容` 格式返回，排除 tool_calls 消息）、`buildLoopJudgeUserPrompt` 填充 `{HISTORY}` 占位符；`i18n/zh_loop.go`/`en_loop.go` `KeyLoopJudgeUserPrompt` 新增 `{HISTORY}` 段并说明 history_fixes 用法（type=loop 时返回 history_fixes，message_index 用 [序号]，search 逐字匹配，仅修正 assistant 消息）；`agent/loop_history_fix_test.go` 新增 3 个单元测试（getRecentAssistantHistory 索引格式/排除tool_calls/buildLoopJudgeUserPrompt 含 HISTORY）[BUILD-660]；⑩ 补充：`applyHistoryFixes` 每条修复详情（消息序号 + search→replace + reason）通过 `a.streamCb` 输出到 `ChannelDebug`（dbg 块，锁外输出避免死锁），结果提示（已修正 N 处）保留 `ChannelSystem`；i18n 新增 `KeyLoopHistoryFixDetail` 中英文案 [BUILD-661]；⑪ 补充：去掉 `{ITERATIONS}` 段（提示词模板 zh/en + `buildLoopJudgeUserPrompt` 填充 + 删除 `getRecentIterations` 方法），避免与 `{HISTORY}` 内容重复；新增配置项 `loop-history-fix-max-messages`（最近 N 条，默认 5，范围 1-50）替代硬编码 `loopHistoryFixMaxMessages=3`，`getRecentAssistantHistory`/`applyHistoryFixes` 通过 `historyFixMaxMessages()` 读取配置，接入 `:set`/Web 设置 + i18n `KeyCol3LoopHistoryFixMaxMsgs` [BUILD-662]；⑫ 补充：`ask_followup_question` 选项列表末尾固定显示"补充信息"选项（`[len(options)+1]`，取消移到 `[len(options)+2]`），用户选它后进入自由输入；用户输入以空格开头的内容直接作为补充信息送给 LLM；i18n 新增 `KeySettingCmd_776`/`KeySettingCmd_777` 中英文案；`agent/interaction_test.go` 更新 `TestTerminalSelectCancel`/`TestAskFollowupQuestionCancel` 并新增补充信息选项/空格输入测试 [BUILD-663]；⑬ 补充：Web UI 端 `web/static/app.js` `renderVirtualKeyboard` 的 select 分支（ask_followup_question 多选项）末尾固定渲染"补充信息"选项按钮（`空格/Ins/0`，点击后 `enterSupplementMode()`），`__vkHandler` 中 select 交互也支持空格/Insert/0 进入补充输入模式（原仅 `isToolConfirm` 时显示）；补充输入模式下主输入框输入内容按 Enter 发送 `{action:"input"}` 给后端，后端 `askFollowupQuestionTool` 的 ActionInput 分支处理 [BUILD-664]；⑭ 补充：Web UI 端 `web/static/style.css` `.option-buttons` 由 `flex-wrap: wrap`（一排自适应换行）改为 `flex-direction: column`（一个选项渲染一行），提升多选项可读性 [BUILD-665]；⑮ 补充：Web UI 端 `web/static/style.css` `.ask-area`（信息提示框）设置 `max-height: 50vh` + `overflow-y: auto`，内容超过界面高度 1/2 时自动显示滚动条，避免信息过大超出显示范围 [BUILD-666]；⑯ 合并前 build 计数更新 [BUILD-667]
   - 测试：见 use-case/FEATURE-438/
 
+## v0.18.0 — 开发中
+
+> **版本**: v0.18.0
+
+> **状态**: 🚧 开发中（YOLO 模式总开关）
+> **里程碑**: YOLO 模式总开关
+> **说明**: 0.18.0 系列专注 YOLO 模式（全自动执行模式）总开关，细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-439 | 0.18.0 | P1 | YOLO 模式总开关：在工具调用确认入口做总开关，开启后跳过所有人为判断直接执行所有工具调用（disabled 工具 LLM 看不到不受影响）；CLI `:YOLO`（必须大写）命令 toggle 并显示当前状态；Web UI 右下角运行/暂停按钮旁新增古典上下拨动开关（默认关拨杆向下 OFF，点击拨杆向上橙红色警示 ON，悬停显示 YOLO模式）；启动默认关，状态不持久化 |
+
+> 当前 BUILD: 668
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-439 YOLO 模式总开关** ✅ 已完成
+  - 背景：agent 工具中常见的 YOLO 模式（You Only Live Once）指自动批准所有工具调用、不逐个询问用户。co-shell 现有 confirm-tool 支持逐工具/全局 auto 模式，但缺少一个独立的、临时的总开关，用户希望一键开启/关闭全自动执行，且不改变 confirm-tool 配置。
+  - 方案（已确认）：在工具调用确认入口（agent/tools.go executeToolCall）加 YOLO 总开关判断，开启后 `needsConfirm=false` 跳过所有确认直接执行。disabled 工具 LLM 本来就看不到、不会调用，不受 YOLO 影响。CLI 新增 `:YOLO`（必须大写）命令 toggle 并显示当前状态。Web UI 右下角运行/暂停按钮旁新增古典上下拨动开关。启动默认关，状态不持久化。
+  - 需求：① Agent 新增 `yoloMode` 字段 + `SetYOLO`/`IsYOLO` 方法；② `agent/tools.go` 确认入口加 YOLO 判断（`needsConfirm = mode=="confirm" && !a.yoloMode`）；③ CLI `repl/repl.go` handleBuiltin 新增 `case ":YOLO":` toggle 并显示状态；④ Web `session.go` handleMessage 新增 `yolo_set`/`yolo_get` 消息；⑤ Web UI `index.html` input-row sendBtn 旁新增古典拨动开关 + `app.js` 交互 + `style.css` 样式；⑥ i18n 中英文案；⑦ 测试用例。
+  - 实施：① `agent/loop.go` Agent 结构体新增 `yoloMode` 字段；② `agent/agent.go` 新增 `SetYOLO`/`IsYOLO` 方法；③ `agent/tools.go` 确认入口 `needsConfirm = mode=="confirm" && !a.yoloMode`；④ `repl/repl.go` handleBuiltin 新增 `case ":YOLO":` + `handleYOLOCommand` 方法；⑤ `web/server.go` clientMessage/serverMessage 新增 `YOLO` 字段；⑥ `web/session.go` handleMessage 新增 `yolo_set`/`yolo_get` + `handleYOLOSet`/`handleYOLOGet` 方法；⑦ `web/static/index.html` input-row sendBtn 旁新增古典拨动开关；⑧ `web/static/app.js` 新增 `setYOLO`/`yoloSwitch.onclick`/`yolo` 消息处理/`yolo_get` 初始化；⑨ `web/static/style.css` 新增 `.yolo-switch` 系列样式；⑩ `i18n/keys.go`/`en.go`/`zh.go` 新增 `KeyYOLOOn`/`KeyYOLOOff` 中英文案；⑪ 测试：`agent/yolo_test.go`（4 个）、`web/session_test.go`（2 个）、`repl/yolo_test.go`（1 个）[BUILD-668]
+  - 测试：见 use-case/FEATURE-439/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

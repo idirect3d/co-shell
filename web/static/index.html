@@ -125,6 +125,16 @@
         <button class="new-session-btn" id="newSessionBtn" title="新建会话">+</button>
         <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
         <button class="btn primary" id="sendBtn" title="send">▶</button>
+        <!-- FEATURE-439: YOLO (You Only Live Once) master switch — a classic
+             up/down toggle. Default off (thumb down, OFF visible); clicking
+             flips it up to reveal the orange-red ON state. -->
+        <button class="yolo-switch" id="yoloSwitch" title="YOLO模式" aria-pressed="false">
+          <span class="yolo-track">
+            <span class="yolo-label yolo-off">OFF</span>
+            <span class="yolo-label yolo-on">ON</span>
+            <span class="yolo-thumb"></span>
+          </span>
+        </button>
       </div>
     </div>
     <div id="statusbar" class="statusbar hidden">

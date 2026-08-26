@@ -551,6 +551,11 @@ func (r *REPL) handleBuiltin(input string) {
 	case ":reset":
 		rh := cmd.NewResetHandler(r.agent)
 		result, err = rh.Handle(args)
+	case ":YOLO":
+		// YOLO (You Only Live Once) master switch toggle (FEATURE-439).
+		// Must be typed in uppercase. Toggles the YOLO mode and reports the
+		// resulting state (on/off).
+		result, err = r.handleYOLOCommand()
 	default:
 		io.Printf("%s%s\n", ep.Error, i18n.T(i18n.KeyUnknownCommand))
 		return
@@ -621,6 +626,21 @@ func (r *REPL) handleHistoryReExecute(num int) {
 		return
 	}
 	r.handleAgentInput(input)
+}
+
+// handleYOLOCommand toggles the YOLO (You Only Live Once) master switch and
+// reports the resulting state (FEATURE-439). It is invoked by the :YOLO
+// builtin command (must be typed in uppercase).
+func (r *REPL) handleYOLOCommand() (string, error) {
+	if r.agent == nil {
+		return "", fmt.Errorf("agent not available")
+	}
+	on := !r.agent.IsYOLO()
+	r.agent.SetYOLO(on)
+	if on {
+		return i18n.T(i18n.KeyYOLOOn), nil
+	}
+	return i18n.T(i18n.KeyYOLOOff), nil
 }
 
 func (r *REPL) handleBodyAdd(args []string) (string, error) {
