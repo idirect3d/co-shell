@@ -43,6 +43,7 @@ const I18N = {
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
     streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
     streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
+    yoloTitle: "YOLO 模式（You Only Live Once）：开启后所有工具调用自动批准，无需逐个确认",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -76,6 +77,7 @@ const I18N = {
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
     streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
     streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
+    yoloTitle: "YOLO mode (You Only Live Once): when on, all tool calls are auto-approved without asking",
   },
 };
 let T = I18N.zh;
