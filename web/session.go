@@ -202,6 +202,10 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleModelWizardRefresh(msg.Step, msg.WizardData)
 	case "model_wizard_submit":
 		s.handleModelWizardSubmit(msg.WizardData)
+	case "yolo_set":
+		s.handleYOLOSet(msg.YOLO)
+	case "yolo_get":
+		s.handleYOLOGet()
 	}
 }
 
@@ -474,6 +478,25 @@ func (s *WebSession) handleModelWizardSubmit(raw json.RawMessage) {
 	}
 	s.srv.sendJSON(serverMessage{Kind: "model_wizard", OK: true, Message: result})
 	s.handleModelGet()
+}
+
+// handleYOLOSet applies the YOLO master switch state from the browser and
+// reports the resulting state back (FEATURE-439).
+func (s *WebSession) handleYOLOSet(on bool) {
+	if s.ag == nil {
+		return
+	}
+	s.ag.SetYOLO(on)
+	s.srv.sendJSON(serverMessage{Kind: "yolo", YOLO: s.ag.IsYOLO()})
+}
+
+// handleYOLOGet sends the current YOLO master switch state to the browser
+// (FEATURE-439).
+func (s *WebSession) handleYOLOGet() {
+	if s.ag == nil {
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "yolo", YOLO: s.ag.IsYOLO()})
 }
 
 // sendWizardStep pushes a wizard step form and the accumulated data to the

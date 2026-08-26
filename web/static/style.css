@@ -1014,13 +1014,104 @@ aside {
 .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .btn.primary:hover { background: var(--accent); color: var(--bg); }
 /* Merged send/interrupt button: while a turn runs it shows ⏸ in the error
-   color (click = interrupt), otherwise ▶ in accent (click = send). */
-#sendBtn { min-width: 52px; }
+   color (click = interrupt), otherwise ▶ in accent (click = send).
+   Height matches the single-line input box (FEATURE-439). */
+#sendBtn {
+  min-width: 52px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
 #sendBtn.run { border-color: var(--err); color: var(--err); background: none; }
 #sendBtn.run:hover { background: var(--err); color: var(--bg); }
 .btn.danger.ghost:hover { border-color: var(--err); color: var(--err); }
 .btn.ghost { background: none; }
 .btn.sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+
+/* ---------- YOLO master switch (FEATURE-439) ---------- */
+/* A classic up/down toggle. The track is a vertical box split into an upper
+   OFF half (dark) and a lower ON half (orange-red). The thumb slides between
+   them: down = OFF (default), up = ON. */
+.yolo-switch {
+  flex: none;
+  width: 34px;
+  height: 34px; /* matches the single-line input box (FEATURE-439) */
+  padding: 0;
+  border: 1px solid var(--border, #444);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+/* On hover, only the YOLO label on the thumb highlights; the border stays. */
+.yolo-switch:hover .yolo-thumb { color: var(--accent); }
+.yolo-track {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Upper half: dark OFF background. */
+.yolo-track::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 50%;
+  background: var(--bg-elev, #2a2a2a);
+}
+/* Lower half: orange-red ON background (revealed when the thumb is up). */
+.yolo-track::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 50%;
+  background: #e8590c; /* orange-red warning */
+}
+.yolo-label {
+  position: absolute;
+  left: 0; right: 0;
+  font-size: 8px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+  z-index: 1;
+  pointer-events: none;
+}
+.yolo-off {
+  top: 3px;
+  color: var(--fg-dim, #999);
+}
+.yolo-on {
+  bottom: 3px;
+  color: #fff;
+}
+/* The thumb: a solid block that slides up/down. Down by default (OFF).
+   It carries the small YOLO label and a 2px border for visibility. */
+.yolo-thumb {
+  position: absolute;
+  left: 0; right: 0;
+  height: 50%;
+  background: var(--bg, #1e1e1e);
+  border-top: 2px solid var(--border, #444);
+  border-bottom: 2px solid var(--border, #444);
+  top: 50%;
+  transition: top 0.15s ease;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--fg-dim, #999);
+  line-height: 1;
+}
+/* ON state: thumb slides up, revealing the orange-red ON half below. */
+.yolo-switch.on .yolo-thumb { top: 0; }
+.yolo-switch.on .yolo-off { color: transparent; }
+.yolo-switch.on .yolo-on { color: #fff; }
 
 /* ---------- work-mode switcher (FEATURE-410) ---------- */
 

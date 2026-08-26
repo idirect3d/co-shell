@@ -163,6 +163,24 @@ func (a *Agent) SetToolMode(toolName string, mode string) {
 	}
 }
 
+// SetYOLO toggles the YOLO (You Only Live Once) master switch (FEATURE-439).
+// When enabled, every tool call that reaches the confirmation entry is
+// auto-approved and executed without asking the user. Disabled tools are not
+// sent to the LLM at all, so they are unaffected. The state is not persisted
+// across restarts and defaults to off.
+func (a *Agent) SetYOLO(on bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.yoloMode = on
+}
+
+// IsYOLO reports whether the YOLO master switch is currently enabled.
+func (a *Agent) IsYOLO() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.yoloMode
+}
+
 // ToolModes returns the current tool mode settings (for display purposes only).
 func (a *Agent) ToolModes() map[string]string {
 	a.mu.Lock()

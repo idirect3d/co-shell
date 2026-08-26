@@ -43,6 +43,7 @@ const I18N = {
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
     streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
     streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
+    yoloTitle: "YOLO 模式（You Only Live Once）：开启后所有工具调用自动批准，无需逐个确认",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -76,6 +77,7 @@ const I18N = {
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
     streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
     streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
+    yoloTitle: "YOLO mode (You Only Live Once): when on, all tool calls are auto-approved without asking",
   },
 };
 let T = I18N.zh;
@@ -162,6 +164,7 @@ const askSend = document.getElementById("askSend");
 const askInteraction = document.getElementById("askInteraction");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
+const yoloSwitch = document.getElementById("yoloSwitch");
 const modeSeg = document.getElementById("modeSeg");
 const modeSegSlider = document.getElementById("modeSegSlider");
 const tree = document.getElementById("tree");
@@ -252,6 +255,8 @@ function wsConnect() {
     // Fetch the session list on connect so the 💬 count is correct immediately
     // (FEATURE-387), not only after hovering the status-bar item.
     wsSend({ type: "session_list" });
+    // FEATURE-439: load the YOLO master switch state (defaults to off).
+    wsSend({ type: "yolo_get" });
   };
   ws.onclose = () => {
     wsReady = false;
@@ -283,6 +288,7 @@ function wsConnect() {
       // reflects the truncated history.
       if (msg.ok) location.reload();
     }
+    else if (msg.kind === "yolo") setYOLO(!!msg.yolo);
   };
 }
 
@@ -1829,6 +1835,25 @@ function setRunning(v) {
 }
 
 sendBtn.onclick = () => { if (running) wsSend({ type: "interrupt" }); else sendInput(); };
+
+/* ---------- YOLO master switch (FEATURE-439) ---------- */
+
+// setYOLO flips the classic up/down toggle to reflect the YOLO mode state.
+// When on, the thumb moves up and the orange-red ON label is revealed.
+function setYOLO(on) {
+  if (!yoloSwitch) return;
+  yoloSwitch.classList.toggle("on", on);
+  yoloSwitch.setAttribute("aria-pressed", on ? "true" : "false");
+}
+
+// Clicking the toggle sends the new state to the backend; the backend replies
+// with a yolo message that confirms the applied state.
+if (yoloSwitch) {
+  yoloSwitch.onclick = () => {
+    const next = !yoloSwitch.classList.contains("on");
+    wsSend({ type: "yolo_set", yolo: next });
+  };
+}
 
 // FEATURE-416: when the user scrolls up in region B while the LLM is still
 // streaming, split the stream so B becomes static and new output goes to A.
