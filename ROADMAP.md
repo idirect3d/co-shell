@@ -460,6 +460,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-439 | 0.18.0 | P1 | YOLO 模式总开关：在工具调用确认入口做总开关，开启后跳过所有人为判断直接执行所有工具调用（disabled 工具 LLM 看不到不受影响）；CLI `:YOLO`（必须大写）命令 toggle 并显示当前状态；Web UI 右下角运行/暂停按钮旁新增古典上下拨动开关（默认关拨杆向下 OFF，点击拨杆向上橙红色警示 ON，悬停显示 YOLO模式）；启动默认关，状态不持久化 |
+| FEATURE-440 | 0.18.0 | P1 | 新增 2 个 shell 启动脚本（与 co-shell 可执行程序同目录）：run-cli.sh 以 enhanced 模式启动 CLI（--input-mode enhanced）；run-web.sh 以白名单形式启动对其他主机的 Web UI 服务（--serve --bind 0.0.0.0 --whitelist，白名单通过参数或 COSHELL_WHITELIST 环境变量指定） |
 
 > 当前 BUILD: 668
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -473,6 +474,12 @@
   - 需求：① Agent 新增 `yoloMode` 字段 + `SetYOLO`/`IsYOLO` 方法；② `agent/tools.go` 确认入口加 YOLO 判断（`needsConfirm = mode=="confirm" && !a.yoloMode`）；③ CLI `repl/repl.go` handleBuiltin 新增 `case ":YOLO":` toggle 并显示状态；④ Web `session.go` handleMessage 新增 `yolo_set`/`yolo_get` 消息；⑤ Web UI `index.html` input-row sendBtn 旁新增古典拨动开关 + `app.js` 交互 + `style.css` 样式；⑥ i18n 中英文案；⑦ 测试用例。
   - 实施：① `agent/loop.go` Agent 结构体新增 `yoloMode` 字段；② `agent/agent.go` 新增 `SetYOLO`/`IsYOLO` 方法；③ `agent/tools.go` 确认入口 `needsConfirm = mode=="confirm" && !a.yoloMode`；④ `repl/repl.go` handleBuiltin 新增 `case ":YOLO":` + `handleYOLOCommand` 方法；⑤ `web/server.go` clientMessage/serverMessage 新增 `YOLO` 字段；⑥ `web/session.go` handleMessage 新增 `yolo_set`/`yolo_get` + `handleYOLOSet`/`handleYOLOGet` 方法；⑦ `web/static/index.html` input-row sendBtn 旁新增古典拨动开关；⑧ `web/static/app.js` 新增 `setYOLO`/`yoloSwitch.onclick`/`yolo` 消息处理/`yolo_get` 初始化；⑨ `web/static/style.css` 新增 `.yolo-switch` 系列样式；⑩ `i18n/keys.go`/`en.go`/`zh.go` 新增 `KeyYOLOOn`/`KeyYOLOOff` 中英文案；⑪ 测试：`agent/yolo_test.go`（4 个）、`web/session_test.go`（2 个）、`repl/yolo_test.go`（1 个）[BUILD-668]；⑫ 补充：Web UI 前端调整——sendBtn 高度调为 30px 与录入框一致、yolo-switch 高度调为 30px、扳手（.yolo-thumb）写小字 YOLO 且边框加粗为 2px [BUILD-669]；⑬ 补充：Web UI 前端调整——sendBtn/yolo-switch 高度调为 32px 与录入框对齐、YOLO 开关 hover 只高亮 YOLO 文字不高亮边框 [BUILD-670]；⑭ 补充：Web UI 前端调整——sendBtn/yolo-switch 高度调为 33px 与录入框完全对齐 [BUILD-671]；⑮ 补充：Web UI 前端调整——sendBtn/yolo-switch 高度调为 34px 与录入框完全对齐 [BUILD-672]；⑯ 补充：Web UI 前端调整——YOLO 开关 hover 提示信息解释 YOLO 含义（data-i18n-title=yoloTitle，中英文案）[BUILD-673]；⑰ 合并前 build 计数更新 [BUILD-674]
   - 测试：见 use-case/FEATURE-439/
+
+- [x] **FEATURE-440 新增 2 个 shell 启动脚本** ✅ 已完成
+  - 背景：用户希望提供便捷的启动脚本，与 co-shell 可执行程序放在一起，一键以 enhanced 模式启动 CLI，或以白名单形式启动对其他主机的 Web UI 服务。
+  - 方案（已确认）：在 work/ 目录（与 co-shell 可执行程序同目录）新增 2 个 shell 脚本：`run-cli.sh` 以 `--input-mode enhanced` 启动增强交互 REPL；`run-web.sh` 以 `--serve --bind 0.0.0.0 --whitelist` 启动 Web UI 服务（白名单通过第一个参数或 `COSHELL_WHITELIST` 环境变量指定，未指定时默认仅本机回环）。
+  - 实施：① `work/run-cli.sh`——定位脚本同目录 co-shell，`exec "$BIN" --input-mode enhanced "$@"` 透传参数；② `work/run-web.sh`——定位脚本同目录 co-shell，解析白名单（参数优先，其次环境变量，默认 127.0.0.1），`exec "$BIN" --serve --bind 0.0.0.0 --whitelist "$WHITELIST" "$@"`；③ 两个脚本 `chmod +x` 可执行；④ 验证：run-cli.sh 正确调用 co-shell 并传递 enhanced 参数、run-web.sh 正确启动 Web UI 服务（绑定 0.0.0.0，白名单生效）
+  - 测试：见 use-case/FEATURE-440/
 
 ## v0.9.1 — 开发中（已完成）
 
