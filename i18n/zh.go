@@ -603,6 +603,8 @@ var zhMessages = map[string]string{
 	KeySettingCmd_612: "✅ 任务完成\n\n%s",
 	KeySettingCmd_613: "Describe what specific information you need to analyze from the image/video. Examples: '分析图表数据', '识别画面中的文字', '描述图片内容'. This intent guides the vision analysis and produces structured output.",
 	KeySettingCmd_614: "Font name (e.g. 'Arial', '微软雅黑')",
+	KeySettingCmd_776: "    [%d] 补充信息（或直接输入其他内容 / 按空格开始输入）\n",
+	KeySettingCmd_777: "  请输入补充信息: ",
 	KeySettingCmd_615: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
 	KeySettingCmd_616: "💡 提示：使用 :set defaults 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
 
@@ -2045,6 +2047,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyLoopJudgeResultLoop:    "判定模型返回: is_loop=true, reason=%q, exit_strategy=%q\n",
 	KeyLoopJudgeResultNo:      "判定模型返回: is_loop=false, reason=%q\n",
 	KeyLoopJudgeResultFail:    "判定模型返回: 失败/超时\n",
+	KeyLoopHistoryFixApplied:  "已修正对话历史中 %d 处可能导致死循环的可疑话术\n",
+	KeyLoopHistoryFixDetail:   "  [消息 %d] %q → %q（%s）\n",
 	KeyNoActiveTaskPlan:       "（无活跃任务计划 / No active task plan）",
 	KeyNoRecentIterations:     "（无最近迭代内容 / No recent iterations）",
 	// FEATURE-345: unified problem solver (non-loop anomalies)

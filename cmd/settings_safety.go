@@ -340,6 +340,47 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop judge enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_216), status), nil
 
+	case "loop-history-fix-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.LoopHistoryFixEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_214), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.LoopHistoryFixEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.LoopHistoryFixEnabled = false
+		default:
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_215))
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.LoopHistoryFixEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Loop history fix enabled set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_216), status), nil
+
+	case "loop-history-fix-max-messages":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_217), h.cfg.LLM.LoopHistoryFixMaxMessages), nil
+		}
+		v, err := strconv.Atoi(args[1])
+		if err != nil || v < 1 || v > 50 {
+			return "", errors.New(i18n.TF(i18n.KeySettingCmd_218, args[1]))
+		}
+		h.cfg.LLM.LoopHistoryFixMaxMessages = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop history fix max messages set to %d", v)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_219), v), nil
+
 	case "duplicate-content-threshold":
 		if len(args) < 2 {
 			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_217), h.cfg.LLM.DuplicateContentThreshold), nil

@@ -177,12 +177,33 @@ func TestTerminalSelectOption(t *testing.T) {
 	}
 }
 
-// TestTerminalSelectCancel verifies the cancel option (UC-0012).
+// TestTerminalSelectCancel verifies the cancel option (UC-0012). With 2
+// options, the supplementary option is [3] and cancel is [4] (FEATURE-438).
 func TestTerminalSelectCancel(t *testing.T) {
-	m := NewTerminalInteractionManager(&mockUserIO{inputs: []string{"3"}})
+	m := NewTerminalInteractionManager(&mockUserIO{inputs: []string{"4"}})
 	res, _ := m.Ask(context.Background(), Interaction{Kind: InteractionSelect, Options: []string{"A", "B"}})
 	if res.Action != ActionCancel {
 		t.Errorf("Action = %q, want cancel", res.Action)
+	}
+}
+
+// TestTerminalSelectSupplementary verifies selecting the fixed supplementary
+// option (len(options)+1) enters free input mode (FEATURE-438).
+func TestTerminalSelectSupplementary(t *testing.T) {
+	m := NewTerminalInteractionManager(&mockUserIO{inputs: []string{"3", "请补充细节"}})
+	res, _ := m.Ask(context.Background(), Interaction{Kind: InteractionSelect, Options: []string{"A", "B"}})
+	if res.Action != ActionInput || res.Value != "请补充细节" {
+		t.Errorf("Action/Value = %q/%q, want input/请补充细节", res.Action, res.Value)
+	}
+}
+
+// TestTerminalSelectSpaceInput verifies typing a leading space enters
+// supplementary-info input directly (FEATURE-438).
+func TestTerminalSelectSpaceInput(t *testing.T) {
+	m := NewTerminalInteractionManager(&mockUserIO{inputs: []string{" 请补充细节"}})
+	res, _ := m.Ask(context.Background(), Interaction{Kind: InteractionSelect, Options: []string{"A", "B"}})
+	if res.Action != ActionInput || res.Value != "请补充细节" {
+		t.Errorf("Action/Value = %q/%q, want input/请补充细节", res.Action, res.Value)
 	}
 }
 
@@ -410,8 +431,9 @@ func TestAskFollowupQuestionFreeInput(t *testing.T) {
 }
 
 // TestAskFollowupQuestionCancel verifies cancel returns CANCEL_AGENT (UC-0017).
+// With 2 options, the supplementary option is [3] and cancel is [4].
 func TestAskFollowupQuestionCancel(t *testing.T) {
-	io := &mockUserIO{inputs: []string{"3"}}
+	io := &mockUserIO{inputs: []string{"4"}}
 	a := newAskFollowupAgent(io)
 	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
 		"question": "请选择处理方式",
@@ -419,5 +441,40 @@ func TestAskFollowupQuestionCancel(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "CANCEL_AGENT") {
 		t.Errorf("expected CANCEL_AGENT error, got %v", err)
+	}
+}
+
+// TestAskFollowupQuestionSupplementaryOption verifies selecting the fixed
+// supplementary-info option (len(options)+1) enters free input mode and the
+// typed text is stored (FEATURE-438).
+func TestAskFollowupQuestionSupplementaryOption(t *testing.T) {
+	io := &mockUserIO{inputs: []string{"3", "请补充更多细节"}}
+	a := newAskFollowupAgent(io)
+	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
+		"question": "请选择处理方式",
+		"options":  []interface{}{"立即执行", "稍后执行"},
+	})
+	if err != nil {
+		t.Fatalf("askFollowupQuestionTool error: %v", err)
+	}
+	if got := a.taskInstructionCache.String(); got != "请补充更多细节" {
+		t.Errorf("taskInstructionCache = %q, want 请补充更多细节", got)
+	}
+}
+
+// TestAskFollowupQuestionSpaceInput verifies typing a leading space enters
+// supplementary-info input directly (FEATURE-438).
+func TestAskFollowupQuestionSpaceInput(t *testing.T) {
+	io := &mockUserIO{inputs: []string{" 请补充细节"}}
+	a := newAskFollowupAgent(io)
+	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
+		"question": "请选择处理方式",
+		"options":  []interface{}{"立即执行", "稍后执行"},
+	})
+	if err != nil {
+		t.Fatalf("askFollowupQuestionTool error: %v", err)
+	}
+	if got := a.taskInstructionCache.String(); got != "请补充细节" {
+		t.Errorf("taskInstructionCache = %q, want 请补充细节", got)
 	}
 }

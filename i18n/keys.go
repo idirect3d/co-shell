@@ -199,6 +199,9 @@ const (
 	KeyLoopJudgeResultLoop  = "loop_judge_result_loop"
 	KeyLoopJudgeResultNo    = "loop_judge_result_no"
 	KeyLoopJudgeResultFail  = "loop_judge_result_fail"
+	// FEATURE-438: history pollution fix
+	KeyLoopHistoryFixApplied = "loop_history_fix_applied"
+	KeyLoopHistoryFixDetail  = "loop_history_fix_detail"
 	KeyNoActiveTaskPlan     = "no_active_task_plan"
 	KeyNoRecentIterations   = "no_recent_iterations"
 	// FEATURE-345: unified problem solver (non-loop anomalies)
@@ -866,6 +869,8 @@ const (
 	KeySettingCmd_614 = "setting_cmd_614"
 	KeySettingCmd_615 = "setting_cmd_615"
 	KeySettingCmd_616 = "setting_cmd_616"
+	KeySettingCmd_776 = "setting_cmd_776"
+	KeySettingCmd_777 = "setting_cmd_777"
 
 	// FEATURE-305 第 3 批: agent/vault.go
 	KeySettingCmd_617 = "setting_cmd_617"
@@ -1426,6 +1431,8 @@ const (
 
 	// Loop judgment settings (FEATURE-241)
 	KeyCol3LoopJudgeEnabled      = "col3_loop_judge_enabled"
+	KeyCol3LoopHistoryFixEnabled = "col3_loop_history_fix_enabled"
+	KeyCol3LoopHistoryFixMaxMsgs = "col3_loop_history_fix_max_messages"
 	KeyCol3LoopJudgeModel        = "col3_loop_judge_model"
 	KeyProblemSolverSystemPrompt = "problem_solver_system_prompt"
 	KeyProblemSolverUserPrompt   = "problem_solver_user_prompt"
