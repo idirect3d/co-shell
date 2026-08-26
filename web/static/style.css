@@ -1018,7 +1018,7 @@ aside {
    Height matches the single-line input box (FEATURE-439). */
 #sendBtn {
   min-width: 52px;
-  height: 33px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1037,7 +1037,7 @@ aside {
 .yolo-switch {
   flex: none;
   width: 34px;
-  height: 33px; /* matches the single-line input box (FEATURE-439) */
+  height: 34px; /* matches the single-line input box (FEATURE-439) */
   padding: 0;
   border: 1px solid var(--border, #444);
   border-radius: 6px;
