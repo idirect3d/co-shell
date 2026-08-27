@@ -449,9 +449,7 @@ aside {
   flex-direction: column;
   gap: 8px;
 }
-/* FEATURE-416: the stream splits into a static region B (scrollable history)
-   and a dynamic region A (fixed bottom, max 1/4 height) when the user scrolls
-   up while the LLM is streaming. */
+/* FEATURE-445: the stream is a single scrollable region B. */
 .stream-b {
   flex: 1;
   min-height: 0;
@@ -460,39 +458,33 @@ aside {
   flex-direction: column;
   gap: 8px;
 }
-.stream-a {
-  flex: none;
-  max-height: 25%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
-}
-.stream-a.hidden { display: none; }
-/* FEATURE-416: a floating "merge down" button shown between region B and
-   region A while the stream is split. Clicking it merges A back into B.
-   FEATURE-436: the highlight background is a horizontal capsule and the icon
-   is centered both horizontally and vertically within it. */
-.stream-merge {
-  flex: none;
-  align-self: center;
-  display: flex;
+/* FEATURE-445: floating down-arrow button, shown at the bottom centre of the
+   main message area when the user scrolls >100px from the output bottom. A
+   flat capsule with a translucent fill; hovering restores full highlight. */
+.scroll-down {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: none;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--bg-panel);
   color: var(--accent);
   cursor: pointer;
-  font-size: 12px;
-  padding: 2px 14px;
-  border-radius: 999px;
+  opacity: 0.55;
+  transition: opacity 0.2s ease, background 0.2s ease;
 }
-.stream-merge:hover { background: var(--accent-dim); }
-/* FIX-426: the merge icon is a single ⎶ glyph, sized up to sit proportionally
-   inside the pill button. FEATURE-429: doubled to 36px. */
-.stream-merge .merge-arrow { font-size: 36px; line-height: 1; }
+.scroll-down.on { display: flex; }
+.scroll-down:hover {
+  opacity: 1;
+  background: var(--accent-dim);
+}
 
 .ev {
   /* Never shrink: .stream is a flex column; without this, long sessions
