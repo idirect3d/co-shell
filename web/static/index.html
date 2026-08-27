@@ -76,8 +76,14 @@
     </div>
     <div id="stream" class="stream">
       <div id="streamB" class="stream-b"></div>
-      <div id="streamA" class="stream-a hidden"></div>
     </div>
+    <!-- FEATURE-445: floating down-arrow button to jump back to the output
+         bottom (shown when scrolled >100px from the bottom). -->
+    <button id="scrollDownBtn" class="scroll-down" title="回到最新输出">
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+        <path d="M3 5.5 L8 10.5 L13 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
     <!-- FEATURE-419: floating block-boundary navigation icons (top/bottom) -->
     <button id="blockNavTop" class="block-nav top" title="跳到当前块标题">↑</button>
     <button id="blockNavBottom" class="block-nav bottom" title="跳到当前块底部">↓</button>
@@ -88,6 +94,7 @@
       <div class="fv-body" id="fvBody"></div>
       <div class="fv-titlebar" id="fvTitlebar">
         <span class="fv-path" id="fvPath" title="点击定位到工作区文件位置"></span>
+        <span class="fv-size" id="fvSize"></span>
         <span class="fv-mtime" id="fvMtime"></span>
         <button class="fv-raw" id="fvRaw" title="切换原始文本/解析渲染">Raw</button>
         <button class="fv-close" id="fvClose" title="关闭预览">✕</button>
@@ -161,7 +168,13 @@
 
 <div id="preview" class="preview hidden">
   <div class="preview-box">
-    <button class="icon-btn preview-close" id="previewClose">✕</button>
+    <div class="preview-titlebar" id="previewTitlebar">
+      <span class="pv-name" id="pvName"></span>
+      <span class="pv-size" id="pvSize"></span>
+      <span class="pv-mtime" id="pvMtime"></span>
+      <span class="pv-res" id="pvRes"></span>
+      <button class="icon-btn preview-close" id="previewClose" title="关闭">✕</button>
+    </div>
     <img id="previewImg" alt="">
   </div>
 </div>

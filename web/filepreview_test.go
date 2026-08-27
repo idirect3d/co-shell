@@ -130,3 +130,33 @@ func TestGitDiffJSONShape(t *testing.T) {
 		t.Errorf("response missing 'lines' key: %v", raw)
 	}
 }
+
+// TestTreeSizeField verifies /api/tree carries the file size in bytes on each
+// file node (FEATURE-444, UC-0001).
+func TestTreeSizeField(t *testing.T) {
+	_, ts, root := newTestServer(t)
+	content := []byte("1234567")
+	if err := os.WriteFile(filepath.Join(root, "sized.txt"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+	var rootNode treeNode
+	getJSON(t, ts.URL+"/api/tree", &rootNode)
+	var found *treeNode
+	var walk func(n *treeNode)
+	walk = func(n *treeNode) {
+		if n.Name == "sized.txt" {
+			found = n
+			return
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(&rootNode)
+	if found == nil {
+		t.Fatal("sized.txt not found in tree")
+	}
+	if found.Size != int64(len(content)) {
+		t.Errorf("sized.txt size = %d, want %d", found.Size, len(content))
+	}
+}

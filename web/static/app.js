@@ -148,7 +148,8 @@ const connDot = document.getElementById("connDot");
 const connText = document.getElementById("connText");
 const stream = document.getElementById("stream");
 const streamB = document.getElementById("streamB");
-const streamA = document.getElementById("streamA");
+// FEATURE-445: floating down-arrow button to jump back to the output bottom.
+const scrollDownBtn = document.getElementById("scrollDownBtn");
 // FEATURE-419: floating block-boundary navigation icons (top/bottom).
 const blockNavTop = document.getElementById("blockNavTop");
 const blockNavBottom = document.getElementById("blockNavBottom");
@@ -207,12 +208,18 @@ const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
+// FEATURE-444: image preview title bar (name / size / mtime / resolution).
+const pvName = document.getElementById("pvName");
+const pvSize = document.getElementById("pvSize");
+const pvMtime = document.getElementById("pvMtime");
+const pvRes = document.getElementById("pvRes");
 // FEATURE-425: read-only text file previewer.
 const fileViewer = document.getElementById("fileViewer");
 const fvBody = document.getElementById("fvBody");
 // FEATURE-432/435: floating title bar (path / mtime / Raw / close).
 const fvTitlebar = document.getElementById("fvTitlebar");
 const fvPathEl = document.getElementById("fvPath");
+const fvSizeEl = document.getElementById("fvSize");
 const fvMtimeEl = document.getElementById("fvMtime");
 const fvRawEl = document.getElementById("fvRaw");
 const fvClose = document.getElementById("fvClose");
@@ -362,13 +369,34 @@ let curTool = null;     // current tool block (one block per invocation)
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
 
-// FEATURE-416: when the stream is split (region A active), scroll region A to
-// its bottom; otherwise scroll region B (the whole history).
-let splitActive = false; // true while the stream is split into B (static) + A (dynamic)
+// FEATURE-445: follow-output scrolling. When the scrollbar is within 100px of
+// the content bottom, new output auto-scrolls to the bottom (follows output);
+// otherwise it does not, so the user can read history. A floating down-arrow
+// button appears when scrolled >100px from the bottom; clicking it jumps to
+// the bottom and resumes following.
+const FOLLOW_THRESHOLD = 100;
+let followOutput = true; // whether new output should auto-scroll to the bottom
 
 function scrollStream() {
-  if (splitActive) streamA.scrollTop = streamA.scrollHeight;
-  else streamB.scrollTop = streamB.scrollHeight;
+  if (followOutput) {
+    streamB.scrollTop = streamB.scrollHeight;
+    if (scrollDownBtn) scrollDownBtn.classList.remove("on");
+  }
+}
+
+// updateFollowState recomputes followOutput from the current scroll position
+// and toggles the floating down-arrow button (FEATURE-445).
+function updateFollowState() {
+  const atBottom = streamB.scrollTop + streamB.clientHeight >= streamB.scrollHeight - FOLLOW_THRESHOLD;
+  followOutput = atBottom;
+  if (scrollDownBtn) scrollDownBtn.classList.toggle("on", !atBottom);
+}
+
+// jumpToBottom scrolls to the bottom and resumes following output.
+function jumpToBottom() {
+  followOutput = true;
+  streamB.scrollTop = streamB.scrollHeight;
+  if (scrollDownBtn) scrollDownBtn.classList.remove("on");
 }
 
 // FEATURE-419: floating block-boundary navigation. When the current block is
@@ -380,7 +408,7 @@ let blockNavCurrent = null; // the .ev box the icons currently target
 
 function updateBlockNav() {
   if (!blockNavTop || !blockNavBottom) return;
-  const scroller = splitActive ? streamA : streamB;
+  const scroller = streamB;
   const viewTop = scroller.scrollTop;
   const viewBottom = viewTop + scroller.clientHeight;
   // Find the .ev block with the largest visible area in the viewport.
@@ -413,60 +441,14 @@ function bindBlockNav() {
   if (!blockNavTop || !blockNavBottom) return;
   blockNavTop.addEventListener("click", () => {
     if (!blockNavCurrent) return;
-    const scroller = splitActive ? streamA : streamB;
-    scroller.scrollTop = blockNavCurrent.offsetTop;
+    streamB.scrollTop = blockNavCurrent.offsetTop;
   });
   blockNavBottom.addEventListener("click", () => {
     if (!blockNavCurrent) return;
-    const scroller = splitActive ? streamA : streamB;
-    scroller.scrollTop = blockNavCurrent.offsetTop + blockNavCurrent.offsetHeight - scroller.clientHeight;
+    streamB.scrollTop = blockNavCurrent.offsetTop + blockNavCurrent.offsetHeight - streamB.clientHeight;
   });
   streamB.addEventListener("scroll", updateBlockNav);
-  streamA.addEventListener("scroll", updateBlockNav);
 }
-
-// splitStream splits the stream into a static region B (history) and a dynamic
-// region A (new output). It moves the currently-streaming block(s) into A so
-// the user can keep reading B without it jumping to the newest line.
-function splitStream() {
-  if (splitActive || !running) return;
-  splitActive = true;
-  // Move the currently-streaming blocks (LLM/THINK/TOOL/REPL) into region A.
-  const moving = [curLLM, curThinking, curTool, curREPL].filter(Boolean);
-  for (const b of moving) {
-    const box = b.body.parentElement;
-    if (box && box.parentElement === streamB) streamA.appendChild(box);
-  }
-  // Show region A and the merge-down button.
-  streamA.classList.remove("hidden");
-  if (!mergeBtn) {
-    mergeBtn = document.createElement("button");
-    mergeBtn.className = "stream-merge";
-    mergeBtn.title = "向下继续";
-    const arrow = document.createElement("span");
-    arrow.className = "merge-arrow";
-    arrow.textContent = "⎶";
-    mergeBtn.appendChild(arrow);
-    mergeBtn.onclick = mergeStream;
-    stream.insertBefore(mergeBtn, streamA);
-  }
-  scrollStream();
-  updateBlockNav();
-}
-
-// mergeStream merges region A back into region B, restoring a single stream.
-function mergeStream() {
-  if (!splitActive) return;
-  splitActive = false;
-  // Move all blocks from A back into B.
-  while (streamA.firstChild) streamB.appendChild(streamA.firstChild);
-  streamA.classList.add("hidden");
-  if (mergeBtn) { mergeBtn.remove(); mergeBtn = null; }
-  streamB.scrollTop = streamB.scrollHeight;
-  updateBlockNav();
-}
-
-let mergeBtn = null; // the floating "merge down" button between B and A
 
 function newStreamBlock(cls, label, msgIndex) {
   const body = makeBlock(cls, label, msgIndex);
@@ -606,9 +588,8 @@ function makeBlock(cls, label, msgIndex) {
   if (cls === "tool" && /完成任务|Complete task/.test(label)) box.classList.add("ev-result");
   // FEATURE-425: apply the current display mode to the new block.
   applyBlockDisplayMode(box, cls);
-  // FEATURE-416: append the block to region A when the stream is split,
-  // otherwise to region B (the whole history).
-  (splitActive ? streamA : streamB).appendChild(box);
+  // FEATURE-445: all blocks append to the single stream region B.
+  streamB.appendChild(box);
   scrollStream();
   return body;
 }
@@ -1829,9 +1810,6 @@ function setRunning(v) {
   const logo = document.getElementById("logo");
   if (active) active.classList.toggle("breathing", v);
   if (logo) logo.classList.toggle("breathing", v);
-  // FEATURE-416: when the turn ends, merge region A back into B so the stream
-  // returns to a single whole output area.
-  if (!v && splitActive) mergeStream();
 }
 
 sendBtn.onclick = () => { if (running) wsSend({ type: "interrupt" }); else sendInput(); };
@@ -1855,22 +1833,15 @@ if (yoloSwitch) {
   };
 }
 
-// FEATURE-416: when the user scrolls up in region B while the LLM is still
-// streaming, split the stream so B becomes static and new output goes to A.
-// FEATURE-423: while split, if the user scrolls down to the bottom of region B,
-// auto-merge A back into B (same as clicking the merge button) so the stream
-// returns to a single whole output area. Only the top region's bottom matters;
-// region A's state is ignored for a reliable, consistent effect.
-streamB.addEventListener("scroll", () => {
-  if (!running) return;
-  if (splitActive) {
-    const bAtBottom = streamB.scrollTop + streamB.clientHeight >= streamB.scrollHeight - 4;
-    if (bAtBottom) mergeStream();
-    return;
-  }
-  const atBottom = streamB.scrollTop + streamB.clientHeight >= streamB.scrollHeight - 4;
-  if (!atBottom) splitStream();
-});
+// FEATURE-445: as the user scrolls, recompute whether to follow output. Within
+// 100px of the bottom we follow (auto-scroll to the newest line); beyond that we
+// stop following so the user can read history, and the floating down-arrow
+// button appears to jump back to the bottom.
+streamB.addEventListener("scroll", updateFollowState);
+
+// FEATURE-445: clicking the floating down-arrow jumps to the bottom and resumes
+// following output.
+if (scrollDownBtn) scrollDownBtn.addEventListener("click", jumpToBottom);
 
 // FEATURE-419: bind the floating block-boundary navigation icons.
 bindBlockNav();
@@ -2089,11 +2060,12 @@ function treeNode(node) {
       uploadFiles(e.dataTransfer.files, node.path);
     };
   } else {
-    // FEATURE-425: single-click previews a text file in the in-page viewer;
-    // double-click still opens it with the system handler (openFile). The two
-    // are distinguished so previewing never accidentally launches the OS app.
+    // FEATURE-425/444: single-click previews the file in-page (text files in
+    // the viewer, images in the popup); double-click opens it with the system
+    // handler (openFile). The two are distinguished so previewing never
+    // accidentally launches the OS app.
     row.dataset.path = node.path; // for highlighting the selected file
-    row.onclick = () => openFilePreview(node);
+    row.onclick = () => { if (IMAGE_EXT.test(node.name)) openImagePreview(node); else openFilePreview(node); };
     row.ondblclick = () => openFile(node);
   }
   return li;
@@ -2105,13 +2077,25 @@ const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 // code, docs, config, data, shell scripts, etc.).
 const TEXT_EXT = /\.(go|txt|md|markdown|csv|tsv|sh|bash|zsh|conf|cfg|ini|json|ya?ml|xml|py|js|mjs|cjs|ts|jsx|tsx|html?|css|scss|less|sql|java|c|h|cpp|hpp|rs|rb|php|vue|svelte|toml|env|gitignore|dockerfile|makefile|log|properties|gradle|lock|sum|mod)$/i;
 
+// openFile opens a file with the OS default handler (FEATURE-444: images are
+// opened by the system on double-click, not previewed in-page).
 function openFile(node) {
-  if (IMAGE_EXT.test(node.name)) {
-    previewImg.src = "/api/file?path=" + encodeURIComponent(node.path);
-    preview.classList.remove("hidden");
-  } else {
-    postPath("/api/open", node.path);
-  }
+  postPath("/api/open", node.path);
+}
+
+// openImagePreview opens an image in the popup and fills its title bar with
+// the file name, size, modification time and resolution (FEATURE-444). The
+// resolution is read from the loaded image's natural dimensions.
+function openImagePreview(node) {
+  pvName.textContent = node.name;
+  pvSize.textContent = formatSize(node.size);
+  pvMtime.textContent = formatMtime(node.mtime);
+  pvRes.textContent = "";
+  previewImg.onload = () => {
+    pvRes.textContent = previewImg.naturalWidth + " × " + previewImg.naturalHeight;
+  };
+  previewImg.src = "/api/file?path=" + encodeURIComponent(node.path);
+  preview.classList.remove("hidden");
 }
 
 /* ---------- text file previewer (FEATURE-425) ---------- */
@@ -2144,6 +2128,13 @@ function formatMtime(sec) {
     " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
 }
 
+// formatSize formats a byte count with thousands separators, e.g. 1234567 ->
+// "1,234,567B" (FEATURE-444).
+function formatSize(bytes) {
+  if (!bytes) return "";
+  return bytes.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "B";
+}
+
 function openFilePreview(node) {
   if (IMAGE_EXT.test(node.name)) return;
   // FEATURE-425: clicking the already-open file closes the preview.
@@ -2162,8 +2153,10 @@ function openFilePreview(node) {
   fvMdText = "";
   fvBody.classList.remove("md");
   fileViewer.classList.remove("hidden");
-  // FEATURE-432: fill the floating title bar with the full path and mtime.
+  // FEATURE-432/444: fill the floating title bar with the full path, size
+  // and mtime.
   fvPathEl.textContent = node.path;
+  fvSizeEl.textContent = formatSize(node.size);
   fvMtimeEl.textContent = formatMtime(node.mtime);
   // FEATURE-435: show the Raw toggle only for md files (default off).
   fvRawEl.classList.toggle("hidden", !isMdFile(node.path));
