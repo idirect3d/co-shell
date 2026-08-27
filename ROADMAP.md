@@ -462,6 +462,7 @@
 | FEATURE-439 | 0.18.0 | P1 | YOLO 模式总开关：在工具调用确认入口做总开关，开启后跳过所有人为判断直接执行所有工具调用（disabled 工具 LLM 看不到不受影响）；CLI `:YOLO`（必须大写）命令 toggle 并显示当前状态；Web UI 右下角运行/暂停按钮旁新增古典上下拨动开关（默认关拨杆向下 OFF，点击拨杆向上橙红色警示 ON，悬停显示 YOLO模式）；启动默认关，状态不持久化 |
 | FEATURE-440 | 0.18.0 | P1 | 新增 2 个 shell 启动脚本（与 co-shell 可执行程序同目录）：run-cli.sh 以 enhanced 模式启动 CLI（--input-mode enhanced）；run-web.sh 以白名单形式启动对其他主机的 Web UI 服务（--serve --bind 0.0.0.0 --whitelist，白名单通过参数或 COSHELL_WHITELIST 环境变量指定） |
 | FEATURE-441 | 0.18.0 | P1 | run-web.sh 白名单支持读取默认名称文件（WHITELIST）：白名单来源优先级 命令参数 > 环境变量 COSHELL_WHITELIST > 默认文件 WHITELIST；若三种来源均未提供白名单，则提示用户提供并退出（不再默认 127.0.0.1） |
+| FEATURE-442 | 0.18.0 | P1 | show-tool-input 配置默认值改为 true（默认打开）：修改 config/config.go DefaultConfig() 中 ShowToolInput 默认值 false→true，并更新字段注释 |
 
 > 当前 BUILD: 668
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -487,6 +488,11 @@
   - 方案（已确认）：run-web.sh 白名单来源优先级：命令参数 > 环境变量 COSHELL_WHITELIST > 默认文件 WHITELIST（脚本同目录）。若三种来源均未提供白名单，则打印提示并退出（exit 1），不再默认 127.0.0.1。
   - 实施：① `work/run-web.sh` 白名单解析改为：参数优先，其次环境变量，再次读取同目录 WHITELIST 文件（存在且非空时读取内容作为白名单）；② 三种来源均无时打印提示（说明三种提供方式）并 `exit 1`；③ 更新脚本头部注释说明；④ 验证：参数/环境变量/文件/无来源四种情况
   - 测试：见 use-case/FEATURE-441/
+
+- [x] **FEATURE-442 show-tool-input 默认打开** ✅ 已完成 [BUILD-676]
+  - 背景：show-tool-input 配置默认值为 false（不显示工具调用输入参数），用户希望默认打开。
+  - 方案（已确认）：将 config/config.go DefaultConfig() 中 ShowToolInput 默认值从 false 改为 true，并更新字段注释。
+  - 实施：① `config/config.go` DefaultConfig() 中 `ShowToolInput: false` → `true`；② 字段注释 `(default: false)` → `(default: true)`；③ 验证：无测试依赖该默认值，编译通过
 
 ## v0.9.1 — 开发中（已完成）
 

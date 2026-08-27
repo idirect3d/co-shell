@@ -128,7 +128,7 @@ type LLMConfig struct {
 	ShowLlmThinking   bool `json:"show_llm_thinking"`   // Show LLM thinking content (default: true)
 	ShowLlmContent    bool `json:"show_llm_content"`    // Show LLM main content (default: true)
 	ShowTool          bool `json:"show_tool"`           // Show tool call name (default: true)
-	ShowToolInput     bool `json:"show_tool_input"`     // Show tool call input parameters (default: false)
+	ShowToolInput     bool `json:"show_tool_input"`     // Show tool call input parameters (default: true)
 	ShowToolOutput    bool `json:"show_tool_output"`    // Show tool call return data (default: false)
 	ShowCommand       bool `json:"show_command"`        // Show system command (default: false)
 	ShowCommandOutput bool `json:"show_command_output"` // Show command return data (default: false)
@@ -895,7 +895,7 @@ func DefaultConfig() *Config {
 			ShowLlmThinking:            true,
 			ShowLlmContent:             true,
 			ShowTool:                   true,
-			ShowToolInput:              false,
+			ShowToolInput:              true,
 			ShowToolOutput:             false,
 			ShowCommand:                false,
 			ShowCommandOutput:          false,
