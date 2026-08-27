@@ -463,6 +463,7 @@
 | FEATURE-440 | 0.18.0 | P1 | 新增 2 个 shell 启动脚本（与 co-shell 可执行程序同目录）：run-cli.sh 以 enhanced 模式启动 CLI（--input-mode enhanced）；run-web.sh 以白名单形式启动对其他主机的 Web UI 服务（--serve --bind 0.0.0.0 --whitelist，白名单通过参数或 COSHELL_WHITELIST 环境变量指定） |
 | FEATURE-441 | 0.18.0 | P1 | run-web.sh 白名单支持读取默认名称文件（WHITELIST）：白名单来源优先级 命令参数 > 环境变量 COSHELL_WHITELIST > 默认文件 WHITELIST；若三种来源均未提供白名单，则提示用户提供并退出（不再默认 127.0.0.1） |
 | FEATURE-442 | 0.18.0 | P1 | show-tool-input 配置默认值改为 true（默认打开）：修改 config/config.go DefaultConfig() 中 ShowToolInput 默认值 false→true，并更新字段注释 |
+| FEATURE-443 | 0.18.0 | P1 | 修复 Web UI md 渲染器（md.js）有序列表编号问题：有序列表项被其他内容（如子列表、段落）打断时被分成多个 <ol>，每个从 1 开始编号，导致原文 1、2 渲染后都变 1；修复为使用 <ol start=N> 从原文序号开始编号 |
 
 > 当前 BUILD: 668
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -493,6 +494,11 @@
   - 背景：show-tool-input 配置默认值为 false（不显示工具调用输入参数），用户希望默认打开。
   - 方案（已确认）：将 config/config.go DefaultConfig() 中 ShowToolInput 默认值从 false 改为 true，并更新字段注释。
   - 实施：① `config/config.go` DefaultConfig() 中 `ShowToolInput: false` → `true`；② 字段注释 `(default: false)` → `(default: true)`；③ 验证：无测试依赖该默认值，编译通过
+
+- [x] **FEATURE-443 修复 md.js 有序列表编号问题** ✅ 已完成 [BUILD-677]
+  - 背景：Web UI md 渲染器（md.js）渲染有序列表时，当列表项被其他内容（如子列表、段落）打断，会被分成多个独立的 `<ol>`，每个都从 1 开始编号，导致原文中 `1.`、`2.` 的列表项渲染后都变成 `1.`。
+  - 方案（已确认）：有序列表渲染时解析首个列表项在原文中的序号，设置 `<ol start=N>` 属性，让每个 `<ol>` 从原文序号开始编号，即使被其他内容打断也能保持正确序号。
+  - 实施：① `web/static/md.js` 有序列表分支：`ordered` 时解析 `m[1]` 中的数字并设置 `list.start`；② 验证：原文 `1.`、`2.`（中间含 `•` 子列表）渲染后 `<ol>` 的 start 分别为 1、2，浏览器正确显示 1、2
 
 ## v0.9.1 — 开发中（已完成）
 
