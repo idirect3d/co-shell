@@ -130,6 +130,16 @@ function mdBlocks(text) {
       const ordered = /^\d/.test(m[1]);
       const list = document.createElement(ordered ? "ol" : "ul");
       list.dataset.line = i + 1;
+      // FEATURE-443: when an ordered list is interrupted by other content
+      // (e.g. a nested sub-list or a paragraph), the following items are
+      // rendered as a separate <ol>. Without an explicit start, each <ol>
+      // restarts at 1, so source items "1." and "2." both render as "1.".
+      // Parse the source number of the first item and set <ol start=N> so
+      // numbering continues from the source sequence.
+      if (ordered) {
+        const numMatch = m[1].match(/\d+/);
+        if (numMatch) list.start = parseInt(numMatch[0], 10);
+      }
       const itemRe = ordered ? /^\s{0,3}\d+[.)]\s+(.*)$/ : /^\s{0,3}[-*+]\s+(.*)$/;
       while (i < lines.length) {
         const im = lines[i].match(itemRe);
