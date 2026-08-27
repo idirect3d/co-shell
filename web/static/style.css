@@ -439,8 +439,11 @@ aside {
 }
 .block-nav.on { opacity: 1; pointer-events: auto; }
 .block-nav:hover { background: var(--accent-dim); }
-.block-nav.top { top: 10px; left: 50%; transform: translateX(-50%); }
-.block-nav.bottom { bottom: 10px; left: 50%; transform: translateX(-50%); }
+/* FEATURE-445: the block-boundary arrows sit near the right scrollbar, one
+   just above and one just below the vertical centre, so switching between the
+   top/bottom boundary of a block needs only a small move. */
+.block-nav.top { right: 8px; top: 50%; transform: translateY(-115%); }
+.block-nav.bottom { right: 8px; bottom: 50%; transform: translateY(115%); }
 .stream {
   flex: 1;
   overflow: hidden;
