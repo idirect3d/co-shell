@@ -788,11 +788,19 @@ function renderEvent(ev) {
       // ↑34,670 ↓154 Σ34,824/1,048,576 1.8s 75".
       const seq = m.ctx_index || (++iterCount);
       const parts = [seq + ". " + fmtTime(new Date())];
-      if (m.prompt) parts.push("↑" + fmtNum(parseInt(m.prompt, 10) || 0));
-      if (m.completion) parts.push("↓" + fmtNum(parseInt(m.completion, 10) || 0));
-      if (m.total) parts.push("Σ" + fmtNum(parseInt(m.total, 10) || 0) + (m.max && m.max !== "0" ? "/" + fmtNum(parseInt(m.max, 10) || 0) : ""));
-      if (m.ft) parts.push(m.ft);
-      if (m.out_tps) parts.push(/^\d+$/.test(m.out_tps) ? fmtNum(parseInt(m.out_tps, 10)) : m.out_tps);
+      const p = parseInt(m.prompt, 10) || 0;
+      const c = parseInt(m.completion, 10) || 0;
+      const inTPS = parseInt(m.in_tps, 10) || 0;
+      const outTPS = parseInt(m.out_tps, 10) || 0;
+      if (m.prompt) {
+        parts.push("↑" + fmtNum(p));
+        if (inTPS > 0) parts.push(fmtDur(p / inTPS) + " " + fmtNum(inTPS) + "t/s");
+      }
+      if (m.completion) {
+        parts.push("↓" + fmtNum(c));
+        if (m.ft && m.ft !== "-") parts.push(m.ft);
+        if (outTPS > 0) parts.push(fmtNum(outTPS) + "t/s");
+      }
       line.textContent = parts.join("  ");
       // FEATURE-419: place the token line AFTER (outside) every block created
       // during this iteration — each LLM/THINK/TOOL/REPL block is followed by
