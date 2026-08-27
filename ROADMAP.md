@@ -465,6 +465,7 @@
 | FEATURE-442 | 0.18.0 | P1 | show-tool-input 配置默认值改为 true（默认打开）：修改 config/config.go DefaultConfig() 中 ShowToolInput 默认值 false→true，并更新字段注释 |
 | FEATURE-443 | 0.18.0 | P1 | 修复 Web UI md 渲染器（md.js）有序列表编号问题：有序列表项被其他内容（如子列表、段落）打断时被分成多个 <ol>，每个从 1 开始编号，导致原文 1、2 渲染后都变 1；修复为使用 <ol start=N> 从原文序号开始编号 |
 | FEATURE-444 | 0.19.0 | P1 | Web UI 文件预览/图片查看 3 项改进：① 文件预览底部标题栏增加文件大小数字（格式 1,234,567B），标题栏边框改用与文件名一致的高亮色（accent），透明度规则不变；② 图片预览弹窗增加标题栏（关闭图标放标题栏右侧，显示名称/大小/修改日期/分辨率），标题栏不折行，小图时窗口被标题栏内容撑起；③ 图形查看由双击改为单击点选，双击改为用操作系统默认程序打开 |
+| FEATURE-445 | 0.19.0 | P1 | Web UI 自动分区滚动改为跟随滚动：不再自动分区（移除 splitStream/mergeStream 机制），改为当滚动条位置在距离内容末尾 100 像素内时，有新动态内容输出则自动滚动到内容末尾（自动跟随输出）；滚动位置超出 100 像素则不跟随，方便查看历史；滚动位置超过 100 像素后，底部悬浮显示向下箭头按钮（下三角矢量图标、扁平效果、胶囊边框、半透明、鼠标滑过恢复高亮），点击直达最后内容（恢复自动输出跟踪） |
 
 > 当前 BUILD: 668
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -524,6 +525,12 @@
   - 方案（已确认）：① 后端 treeNode 增加 Size 字段，前端文件预览标题栏增加文件大小显示（千分位格式 1,234,567B），标题栏边框改用 accent 高亮色，透明度规则不变；② 图片预览弹窗增加标题栏（关闭图标放标题栏右侧，显示名称/大小/修改日期/分辨率），标题栏不折行，小图时窗口被标题栏内容撑起；③ 图形文件单击打开图片预览，双击用系统默认程序打开。
   - 实施：① `web/server.go` treeNode 增加 `Size int64` 字段 + buildTree 填充 `info.Size()`；② `web/static/index.html` 文件预览标题栏增加 size 元素、图片预览弹窗增加标题栏结构；③ `web/static/app.js` 文件预览填充 size、图片预览填充标题栏信息（名称/大小/修改日期/分辨率，分辨率从图片 naturalWidth/naturalHeight 读取）、图形单击预览/双击系统打开；④ `web/static/style.css` 文件预览标题栏边框改 accent、图片预览标题栏样式（不折行、小图撑起窗口）；⑤ 测试用例 + `web/filepreview_test.go` 新增 TestTreeSizeField 验证 tree 节点 size 字段
   - 测试：见 use-case/FEATURE-444/
+
+- [x] **FEATURE-445 Web UI 自动分区滚动改为跟随滚动** ✅ 已完成 [BUILD-679]
+  - 背景：Web UI 当前使用自动分区滚动（FEATURE-416）：用户向上滚动查看历史时，流被分成静态区 B + 动态区 A，新输出进 A。用户希望改为更简单的跟随滚动机制：不再自动分区，而是当滚动条位置在距离内容末尾 100 像素内时自动跟随新输出；超出 100 像素则不跟随，方便查看历史；并提供底部悬浮向下箭头按钮一键回到末尾恢复跟随。
+  - 方案（已确认）：① 移除自动分区机制（splitStream/mergeStream/splitActive 及 streamA/mergeBtn 相关）；② 改为跟随滚动：`scrollStream()` 判断滚动条是否在距末尾 100px 内，是则滚动到底部；③ 滚动位置超过 100px 后，底部悬浮显示向下箭头按钮（下三角矢量图标、扁平效果、胶囊边框、半透明、hover 高亮），点击滚动到底部并恢复自动跟随。
+  - 实施：① `web/static/app.js` 移除 splitStream/mergeStream/splitActive/streamA/mergeBtn 相关逻辑，`scrollStream()` 改为 100px 阈值跟随判断（followOutput 状态），新增 updateFollowState/jumpToBottom 与底部箭头按钮的显示/隐藏/点击逻辑；② `web/static/index.html` 移除 streamA 元素，新增底部向下箭头按钮（SVG 下三角矢量图标）；③ `web/static/style.css` 移除 stream-a/stream-merge 样式，新增 scroll-down 按钮样式（胶囊/半透明/hover 高亮）；④ 测试用例
+  - 测试：见 use-case/FEATURE-445/
 
 ## v0.9.1 — 开发中（已完成）
 

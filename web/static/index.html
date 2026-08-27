@@ -76,8 +76,14 @@
     </div>
     <div id="stream" class="stream">
       <div id="streamB" class="stream-b"></div>
-      <div id="streamA" class="stream-a hidden"></div>
     </div>
+    <!-- FEATURE-445: floating down-arrow button to jump back to the output
+         bottom (shown when scrolled >100px from the bottom). -->
+    <button id="scrollDownBtn" class="scroll-down" title="回到最新输出">
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+        <path d="M3 5.5 L8 10.5 L13 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
     <!-- FEATURE-419: floating block-boundary navigation icons (top/bottom) -->
     <button id="blockNavTop" class="block-nav top" title="跳到当前块标题">↑</button>
     <button id="blockNavBottom" class="block-nav bottom" title="跳到当前块底部">↓</button>
