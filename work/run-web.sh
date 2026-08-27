@@ -5,10 +5,14 @@
 #   ./run-web.sh [白名单IP列表] [co-shell 参数...]
 #   COSHELL_WHITELIST="192.168.1.100,192.168.1.0/24" ./run-web.sh
 #
+# 白名单来源（优先级从高到低）:
+#   1. 第一个命令行参数（逗号分隔 IP/网段）
+#   2. 环境变量 COSHELL_WHITELIST（逗号分隔 IP/网段）
+#   3. 脚本同目录下的默认文件 WHITELIST（内容为逗号分隔 IP/网段）
+#
 # 说明:
 #   - 绑定 0.0.0.0，允许局域网/其他主机访问
-#   - 白名单通过第一个参数或环境变量 COSHELL_WHITELIST 指定（逗号分隔 IP/网段）
-#   - 未指定白名单时默认仅允许本机回环（127.0.0.1）
+#   - 若以上三种来源均未提供白名单，则提示用户提供并退出（不继续启动）
 #   - 脚本与 co-shell 可执行程序放在同一目录
 
 set -e
@@ -23,17 +27,25 @@ if [ ! -x "$BIN" ]; then
   exit 1
 fi
 
-# 解析白名单：优先取第一个参数，其次取环境变量 COSHELL_WHITELIST
-WHITELIST="${1:-$COSHELL_WHITELIST}"
+# 解析白名单：优先级 参数 > 环境变量 > 默认文件 WHITELIST
+WHITELIST=""
 if [ -n "$1" ]; then
+  WHITELIST="$1"
   shift
+elif [ -n "$COSHELL_WHITELIST" ]; then
+  WHITELIST="$COSHELL_WHITELIST"
+elif [ -f "$SCRIPT_DIR/WHITELIST" ]; then
+  WHITELIST="$(cat "$SCRIPT_DIR/WHITELIST")"
 fi
 
-# 未指定白名单时，默认仅允许本机回环访问
+# 三种来源均未提供白名单时，提示用户提供并退出
 if [ -z "$WHITELIST" ]; then
-  WHITELIST="127.0.0.1"
-  echo "提示: 未指定白名单，默认仅允许本机访问（127.0.0.1）。" >&2
-  echo "      用法: ./run-web.sh \"192.168.1.100,192.168.1.0/24\" 或设置 COSHELL_WHITELIST 环境变量。" >&2
+  echo "错误: 未提供白名单，无法启动 Web UI 服务。" >&2
+  echo "请通过以下任一方式提供白名单（逗号分隔 IP/网段，如 192.168.1.100,192.168.1.0/24）：" >&2
+  echo "  1. 命令行参数: ./run-web.sh \"192.168.1.100,192.168.1.0/24\"" >&2
+  echo "  2. 环境变量:   COSHELL_WHITELIST=\"192.168.1.100,192.168.1.0/24\" ./run-web.sh" >&2
+  echo "  3. 白名单文件: 在脚本同目录创建 WHITELIST 文件，内容为逗号分隔 IP/网段" >&2
+  exit 1
 fi
 
 echo "启动 co-shell Web UI 服务（绑定 0.0.0.0，白名单: $WHITELIST）..." >&2
