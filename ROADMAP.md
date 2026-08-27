@@ -461,6 +461,7 @@
 |------|------|------|------|
 | FEATURE-439 | 0.18.0 | P1 | YOLO 模式总开关：在工具调用确认入口做总开关，开启后跳过所有人为判断直接执行所有工具调用（disabled 工具 LLM 看不到不受影响）；CLI `:YOLO`（必须大写）命令 toggle 并显示当前状态；Web UI 右下角运行/暂停按钮旁新增古典上下拨动开关（默认关拨杆向下 OFF，点击拨杆向上橙红色警示 ON，悬停显示 YOLO模式）；启动默认关，状态不持久化 |
 | FEATURE-440 | 0.18.0 | P1 | 新增 2 个 shell 启动脚本（与 co-shell 可执行程序同目录）：run-cli.sh 以 enhanced 模式启动 CLI（--input-mode enhanced）；run-web.sh 以白名单形式启动对其他主机的 Web UI 服务（--serve --bind 0.0.0.0 --whitelist，白名单通过参数或 COSHELL_WHITELIST 环境变量指定） |
+| FEATURE-441 | 0.18.0 | P1 | run-web.sh 白名单支持读取默认名称文件（WHITELIST）：白名单来源优先级 命令参数 > 环境变量 COSHELL_WHITELIST > 默认文件 WHITELIST；若三种来源均未提供白名单，则提示用户提供并退出（不再默认 127.0.0.1） |
 
 > 当前 BUILD: 668
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -480,6 +481,12 @@
   - 方案（已确认）：在 work/ 目录（与 co-shell 可执行程序同目录）新增 2 个 shell 脚本：`run-cli.sh` 以 `--input-mode enhanced` 启动增强交互 REPL；`run-web.sh` 以 `--serve --bind 0.0.0.0 --whitelist` 启动 Web UI 服务（白名单通过第一个参数或 `COSHELL_WHITELIST` 环境变量指定，未指定时默认仅本机回环）。
   - 实施：① `work/run-cli.sh`——定位脚本同目录 co-shell，`exec "$BIN" --input-mode enhanced "$@"` 透传参数；② `work/run-web.sh`——定位脚本同目录 co-shell，解析白名单（参数优先，其次环境变量，默认 127.0.0.1），`exec "$BIN" --serve --bind 0.0.0.0 --whitelist "$WHITELIST" "$@"`；③ 两个脚本 `chmod +x` 可执行；④ 验证：run-cli.sh 正确调用 co-shell 并传递 enhanced 参数、run-web.sh 正确启动 Web UI 服务（绑定 0.0.0.0，白名单生效）
   - 测试：见 use-case/FEATURE-440/
+
+- [x] **FEATURE-441 run-web.sh 白名单文件支持** ✅ 已完成 [BUILD-675]
+  - 背景：run-web.sh 以白名单形式启动 Web UI 服务，但当前未指定白名单时默认仅本机回环（127.0.0.1）。用户希望白名单支持读取默认名称文件（如 WHITELIST），且若用户未提供任何白名单信息（命令参数、环境变量、白名单文件），则提示用户提供而不要继续。
+  - 方案（已确认）：run-web.sh 白名单来源优先级：命令参数 > 环境变量 COSHELL_WHITELIST > 默认文件 WHITELIST（脚本同目录）。若三种来源均未提供白名单，则打印提示并退出（exit 1），不再默认 127.0.0.1。
+  - 实施：① `work/run-web.sh` 白名单解析改为：参数优先，其次环境变量，再次读取同目录 WHITELIST 文件（存在且非空时读取内容作为白名单）；② 三种来源均无时打印提示（说明三种提供方式）并 `exit 1`；③ 更新脚本头部注释说明；④ 验证：参数/环境变量/文件/无来源四种情况
+  - 测试：见 use-case/FEATURE-441/
 
 ## v0.9.1 — 开发中（已完成）
 
