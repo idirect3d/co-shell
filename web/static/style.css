@@ -1262,9 +1262,51 @@ aside {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px;
+  /* FEATURE-444: column layout so the title bar sits above the image and the
+     window is sized by the title bar content when the image is small. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: min-content;
 }
 .preview-box img { max-width: 78vw; max-height: 74vh; display: block; }
-.preview-close { position: absolute; top: 6px; right: 6px; }
+/* FEATURE-444: image preview title bar. It never wraps; the close button sits
+   on the right. The box is min-width:min-content so a small image still gets a
+   window wide enough to fit the whole title bar. */
+.preview-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 2px 2px 8px;
+  font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  white-space: nowrap;
+  color: var(--fg-dim);
+}
+.preview-titlebar .pv-name {
+  color: var(--accent);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-titlebar .pv-size,
+.preview-titlebar .pv-mtime,
+.preview-titlebar .pv-res { flex: none; }
+.preview-titlebar .preview-close {
+  margin-left: auto;
+  flex: none;
+  position: static;
+  width: auto;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  color: var(--accent);
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+}
+.preview-titlebar .preview-close:hover { color: var(--err); }
 
 /* ---------- text file previewer (FEATURE-425) ---------- */
 
@@ -1305,7 +1347,8 @@ aside {
   padding: 4px 12px;
   font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   background: transparent;
-  border: 1px solid var(--border);
+  /* FEATURE-444: border uses the same highlight colour as the file name. */
+  border: 1px solid var(--accent);
   border-radius: 999px;
   opacity: 0.5;
   transition: opacity 0.2s ease, background 0.2s ease;
@@ -1327,6 +1370,7 @@ aside {
   white-space: nowrap;
 }
 .fv-titlebar .fv-path:hover { text-decoration: underline; }
+.fv-titlebar .fv-size { color: var(--fg-dim); flex: none; }
 .fv-titlebar .fv-mtime { color: var(--fg-dim); flex: none; }
 .fv-titlebar .fv-raw {
   flex: none;

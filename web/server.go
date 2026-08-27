@@ -520,6 +520,7 @@ type treeNode struct {
 	Status   string      `json:"status,omitempty"`   // file: git status code (M/A/D/R/U)
 	Changes  int         `json:"changes,omitempty"`  // dir: count of changed files below
 	Mtime    int64       `json:"mtime,omitempty"`    // file: last modified unix seconds
+	Size     int64       `json:"size,omitempty"`     // file: size in bytes
 	Children []*treeNode `json:"children,omitempty"`
 }
 
@@ -559,6 +560,7 @@ func (s *Server) buildTree(abs, rel string, depth int, statusMap map[string]stri
 			child := &treeNode{Name: e.Name(), Path: childRel}
 			if info, err := e.Info(); err == nil {
 				child.Mtime = info.ModTime().Unix()
+				child.Size = info.Size()
 			}
 			if st, ok := statusMap[childRel]; ok {
 				child.Status = st

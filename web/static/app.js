@@ -207,12 +207,18 @@ const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
+// FEATURE-444: image preview title bar (name / size / mtime / resolution).
+const pvName = document.getElementById("pvName");
+const pvSize = document.getElementById("pvSize");
+const pvMtime = document.getElementById("pvMtime");
+const pvRes = document.getElementById("pvRes");
 // FEATURE-425: read-only text file previewer.
 const fileViewer = document.getElementById("fileViewer");
 const fvBody = document.getElementById("fvBody");
 // FEATURE-432/435: floating title bar (path / mtime / Raw / close).
 const fvTitlebar = document.getElementById("fvTitlebar");
 const fvPathEl = document.getElementById("fvPath");
+const fvSizeEl = document.getElementById("fvSize");
 const fvMtimeEl = document.getElementById("fvMtime");
 const fvRawEl = document.getElementById("fvRaw");
 const fvClose = document.getElementById("fvClose");
@@ -2089,11 +2095,12 @@ function treeNode(node) {
       uploadFiles(e.dataTransfer.files, node.path);
     };
   } else {
-    // FEATURE-425: single-click previews a text file in the in-page viewer;
-    // double-click still opens it with the system handler (openFile). The two
-    // are distinguished so previewing never accidentally launches the OS app.
+    // FEATURE-425/444: single-click previews the file in-page (text files in
+    // the viewer, images in the popup); double-click opens it with the system
+    // handler (openFile). The two are distinguished so previewing never
+    // accidentally launches the OS app.
     row.dataset.path = node.path; // for highlighting the selected file
-    row.onclick = () => openFilePreview(node);
+    row.onclick = () => { if (IMAGE_EXT.test(node.name)) openImagePreview(node); else openFilePreview(node); };
     row.ondblclick = () => openFile(node);
   }
   return li;
@@ -2105,13 +2112,25 @@ const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 // code, docs, config, data, shell scripts, etc.).
 const TEXT_EXT = /\.(go|txt|md|markdown|csv|tsv|sh|bash|zsh|conf|cfg|ini|json|ya?ml|xml|py|js|mjs|cjs|ts|jsx|tsx|html?|css|scss|less|sql|java|c|h|cpp|hpp|rs|rb|php|vue|svelte|toml|env|gitignore|dockerfile|makefile|log|properties|gradle|lock|sum|mod)$/i;
 
+// openFile opens a file with the OS default handler (FEATURE-444: images are
+// opened by the system on double-click, not previewed in-page).
 function openFile(node) {
-  if (IMAGE_EXT.test(node.name)) {
-    previewImg.src = "/api/file?path=" + encodeURIComponent(node.path);
-    preview.classList.remove("hidden");
-  } else {
-    postPath("/api/open", node.path);
-  }
+  postPath("/api/open", node.path);
+}
+
+// openImagePreview opens an image in the popup and fills its title bar with
+// the file name, size, modification time and resolution (FEATURE-444). The
+// resolution is read from the loaded image's natural dimensions.
+function openImagePreview(node) {
+  pvName.textContent = node.name;
+  pvSize.textContent = formatSize(node.size);
+  pvMtime.textContent = formatMtime(node.mtime);
+  pvRes.textContent = "";
+  previewImg.onload = () => {
+    pvRes.textContent = previewImg.naturalWidth + " × " + previewImg.naturalHeight;
+  };
+  previewImg.src = "/api/file?path=" + encodeURIComponent(node.path);
+  preview.classList.remove("hidden");
 }
 
 /* ---------- text file previewer (FEATURE-425) ---------- */
@@ -2144,6 +2163,13 @@ function formatMtime(sec) {
     " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
 }
 
+// formatSize formats a byte count with thousands separators, e.g. 1234567 ->
+// "1,234,567B" (FEATURE-444).
+function formatSize(bytes) {
+  if (!bytes) return "";
+  return bytes.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "B";
+}
+
 function openFilePreview(node) {
   if (IMAGE_EXT.test(node.name)) return;
   // FEATURE-425: clicking the already-open file closes the preview.
@@ -2162,8 +2188,10 @@ function openFilePreview(node) {
   fvMdText = "";
   fvBody.classList.remove("md");
   fileViewer.classList.remove("hidden");
-  // FEATURE-432: fill the floating title bar with the full path and mtime.
+  // FEATURE-432/444: fill the floating title bar with the full path, size
+  // and mtime.
   fvPathEl.textContent = node.path;
+  fvSizeEl.textContent = formatSize(node.size);
   fvMtimeEl.textContent = formatMtime(node.mtime);
   // FEATURE-435: show the Raw toggle only for md files (default off).
   fvRawEl.classList.toggle("hidden", !isMdFile(node.path));
