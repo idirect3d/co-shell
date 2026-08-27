@@ -1162,7 +1162,7 @@ aside {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 4px 18px;
+  gap: 4px 8px;
   align-items: center;
   padding: 4px 14px 6px;
   border-top: 1px solid var(--border);

@@ -533,10 +533,10 @@
   - 实施：① `web/static/app.js` 移除 splitStream/mergeStream/splitActive/streamA/mergeBtn 相关逻辑，`scrollStream()` 改为 100px 阈值跟随判断（followOutput 状态），新增 updateFollowState/jumpToBottom 与底部箭头按钮的显示/隐藏/点击逻辑；② `web/static/index.html` 移除 streamA 元素，新增底部向下箭头按钮（SVG 下三角矢量图标）；③ `web/static/style.css` 移除 stream-a/stream-merge 样式，新增 scroll-down 按钮样式（胶囊/半透明/hover 高亮）；④ 测试用例
   - 测试：见 use-case/FEATURE-445/
 
-- [x] **FEATURE-446 Web UI 区块边界导航箭头位置调整 + token 统计行格式调整** ✅ 已完成 [BUILD-681]
-  - 背景：① 主消息区的区块边界导航小箭头（blockNavTop/blockNavBottom，FEATURE-419）当前位于顶部/底部居中位置，用户上下切换定位区块边界时需要移动较大距离，希望移到靠近右边滚动条、且靠近垂直方向中间的位置；② LLM 输出后的 token 统计行格式需调整，从 `↑335,499 ↓1,266 Σ336,765/524,288 4.0s 68` 改为 `↑335,499 10.0s 33,549t/s ↓1,266 4.0s 68t/s`（输入/输出分别显示耗时与速率，移除总 token/上下文窗口）。
-  - 方案（已确认）：① 将 `.block-nav.top` 从 `top:10px; left:50%` 改为 `right:8px; top:50%; transform:translateY(-115%)`（中间偏上），`.block-nav.bottom` 从 `bottom:10px; left:50%` 改为 `right:8px; bottom:50%; transform:translateY(115%)`（中间偏下）；② token 统计行改为：`↑prompt [输入耗时 输入速率t/s] ↓completion [ft] [输出速率t/s]`，输入耗时=prompt/in_tps，输入速率=in_tps，输出耗时=ft，输出速率=out_tps，移除 Σtotal/max。
-  - 实施：① `web/static/style.css` 修改 `.block-nav.top`/`.block-nav.bottom` 定位（right:8px + 垂直中间偏上/偏下）；② `web/static/app.js` token_iter 统计行格式改为输入/输出分别显示耗时与速率（复用 fmtDur，输入耗时=prompt/in_tps，输出耗时=ft，速率用 fmtNum+t/s），移除 Σtotal/max；③ 测试用例
+- [x] **FEATURE-446 Web UI 区块边界导航箭头位置调整 + token 统计行格式调整 + 状态条间距调整** ✅ 已完成 [BUILD-682]
+  - 背景：① 主消息区的区块边界导航小箭头（blockNavTop/blockNavBottom，FEATURE-419）当前位于顶部/底部居中位置，用户上下切换定位区块边界时需要移动较大距离，希望移到靠近右边滚动条、且靠近垂直方向中间的位置；② LLM 输出后的 token 统计行格式需调整，从 `↑335,499 ↓1,266 Σ336,765/524,288 4.0s 68` 改为 `↑335,499 10.0s 33,549t/s ↓1,266 4.0s 68t/s`（输入/输出分别显示耗时与速率，移除总 token/上下文窗口）；③ Web UI 下方状态条右侧显示项（图标引导的几部分信息）之间间距需调小到 8px。
+  - 方案（已确认）：① 将 `.block-nav.top` 从 `top:10px; left:50%` 改为 `right:8px; top:50%; transform:translateY(-115%)`（中间偏上），`.block-nav.bottom` 从 `bottom:10px; left:50%` 改为 `right:8px; bottom:50%; transform:translateY(115%)`（中间偏下）；② token 统计行改为：`↑prompt [输入耗时 输入速率t/s] ↓completion [ft] [输出速率t/s]`，输入耗时=prompt/in_tps，输入速率=in_tps，输出耗时=ft，输出速率=out_tps，移除 Σtotal/max；③ `.statusbar` 的 `gap: 4px 18px` 改为 `gap: 4px 8px`（列间距 18px→8px）。
+  - 实施：① `web/static/style.css` 修改 `.block-nav.top`/`.block-nav.bottom` 定位（right:8px + 垂直中间偏上/偏下）；② `web/static/app.js` token_iter 统计行格式改为输入/输出分别显示耗时与速率（复用 fmtDur，输入耗时=prompt/in_tps，输出耗时=ft，速率用 fmtNum+t/s），移除 Σtotal/max；③ `web/static/style.css` `.statusbar` gap 列间距 18px→8px；④ 测试用例
   - 测试：见 use-case/FEATURE-446/
 
 ## v0.9.1 — 开发中（已完成）
