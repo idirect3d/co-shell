@@ -1704,6 +1704,11 @@ function renderVirtualKeyboard(it, isSelect, container) {
     it.options.forEach((opt, i) => {
       keyMap[String(i + 1)] = { action: "select", value: opt };
     });
+    // FIX-454: register the interaction's fixed key options (e.g. "+" / "-")
+    // so pressing the physical key triggers the corresponding select action.
+    (it.keys || []).forEach((k) => {
+      if (k.key) keyMap[k.key.toLowerCase()] = { action: "select", value: k.value };
+    });
   } else {
     // FEATURE-427: symbol/numpad keys only (input-method independent). The
     // backend's letter keys (a/g/d/c) are intentionally ignored so an active
@@ -1747,6 +1752,13 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // key selects that option. No [1]-[9] approve-count or Enter approve items.
     it.options.forEach((opt, i) => {
       addItem(String(i + 1), opt, () => answerInteraction({ action: "select", value: opt }));
+    });
+    // FIX-454: render the interaction's fixed key options (e.g. attempt_completion's
+    // "+ 任务尚未达到目标" / "- 完成退出") as [Key] Label buttons. Clicking one
+    // sends {action:"select", value:k.Value} back to the backend, matching the
+    // TUI askSelect behaviour.
+    (it.keys || []).forEach((k) => {
+      addItem(k.key, k.label, () => answerInteraction({ action: "select", value: k.value }));
     });
     // FEATURE-438: a fixed supplementary-info option for select interactions
     // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
