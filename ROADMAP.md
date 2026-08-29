@@ -584,7 +584,7 @@
 - [x] **FIX-448 明确 meta.progress 中 index 的取值规范** ✅ 已完成 [BUILD-706]
   - 背景：meta.progress 中每个对象的 index 字段，其取值规范（0-based 还是 1-based）在系统提示词中没有明确说明。虽然代码逻辑是 0-based（`taskplan/taskplan.go` ApplyProgress：`s.Index < 0` 报错、`s.Index == len(plan.Steps)` 追加新步骤、`plan.Steps[s.Index]` 更新），但提示词只写了"index 必须与任务计划步骤索引一致"和"index 等于当前步骤数表示追加新步骤"，没有明确 index 从 0 开始，导致 LLM 难以给出准确值（可能用 1-based 导致 index 超出范围报错）。
   - 方案（已确认）：在系统提示词 meta 对象说明（`i18n/en_system.go`/`i18n/zh_system.go` 的 OpenAI + XML 两处 `KeySystemPromptToolUsageMetaOpenAI`/`KeySystemPromptToolUsageMetaXML`）中明确 index 是 **0-based（从 0 开始计数）**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1，index 等于当前步骤数时追加新步骤。
-  - 实施：`i18n/en_system.go`/`i18n/zh_system.go` 的 OpenAI + XML 两处 meta 说明的 progress 段落补充 index 为 0-based 的说明 [BUILD-705]
+  - 实施：`i18n/en_system.go`/`i18n/zh_system.go` 的 OpenAI + XML 两处 meta 说明的 progress 段落补充 index 为 0-based 的说明 [BUILD-705]；进一步强调 meta.progress 的作用是精准调整变动的部分——只报告状态有变化的步骤及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）[BUILD-707]
   - 测试：见 use-case/FIX-448/
 
 ## v0.9.1 — 开发中（已完成）
