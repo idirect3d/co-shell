@@ -601,6 +601,12 @@
   - 实施：① `agent/tools.go` 移除 `track_task_progress`/`attempt_completion` 的 meta 参数声明及必需清单项（track_task_progress required 改为 `[title, description, steps]`，attempt_completion required 改为 `[result, session_title, session_keywords]`）；② `agent/risk.go` 新增 `toolRequiresMeta(name)` 辅助方法（以必需清单为准判断工具是否要求 meta），`validateMeta` 要求 `meta.progress` 为非空数组（至少 1 条当前状态记录）；③ `agent/run_stream.go` 统一合法性校验（`assessRisk`）改为仅对必需清单含 meta 的工具调用；④ `i18n/en_system.go`/`zh_system.go` 从 `KeyToolUsageTrackTaskProgress`/`KeyToolUsageAttemptCompletion` 移除 meta 参数声明，OpenAI+XML 两处 meta 对象说明的 progress 规则更新为"至少提供 1 条当前状态记录（即便状态没变也要提供）"；⑤ `agent/meta_param_test.go` `TestInjectMetaParamAllTools` 排除这两个工具（断言 meta 不在其声明与必需清单中）[BUILD-714]
   - 测试：见 use-case/FEATURE-450/
 
+- [ ] **FIX-451 修复 path 参数缺失 bug（LLM 将参数误嵌套进 meta 对象）** [BUILD-715]
+  - 背景：search_files 等带 path 参数的工具，即便 LLM 传了 path 参数，也会报 "path argument is required"。日志显示失败调用中 path、regex 等参数被解析到了 meta 对象内部（`args=map[file_pattern:*.go meta:map[... path:/... regex:...] ...]`），顶层没有 path，导致 `searchFilesTool` 的 `args["path"].(string)` 断言失败。相邻成功调用中 path 在顶层，说明是 LLM 生成参数时把工具参数误嵌套进 meta 对象（OpenAI 模式 JSON 或 XML 模式）的不稳定格式错误。
+  - 方案（已确认）：在 `executeToolCall` 解析 args 后做容错——meta 对象只合法持有 intent/risk/risk_reason/affected_objects/progress，若 meta 内部出现其他键（如 path、regex、command 等误放的工具参数），自动提升到顶层，使工具能正常运行。
+  - 实施：① `agent/risk.go` 新增 `metaFieldNames` 常量集合与 `promoteMisplacedMetaParams(args)` 函数（遍历 meta 内部键，非 meta 字段且顶层不存在时提升到顶层，顶层已存在时以顶层为准）；② `agent/tools.go` `executeToolCall` 在 `json.Unmarshal` 解析 args 后调用 `promoteMisplacedMetaParams(args)`；③ `agent/promote_meta_test.go` 新增 `TestPromoteMisplacedMetaParams` 单元测试（验证 path/regex 提升、合法 meta 字段保留、顶层优先、无 meta 时 no-op）[BUILD-715]
+  - 测试：见 use-case/FIX-451/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
