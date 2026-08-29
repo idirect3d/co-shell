@@ -486,10 +486,6 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"meta": map[string]interface{}{
-							"type":        "object",
-							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
-						},
 						"title": map[string]interface{}{
 							"type":        "string",
 							"description": "The title of the task plan. Required when creating a new plan; optional when updating.",
@@ -518,7 +514,7 @@ Critical rules:
 							"description": "Array of step objects, each with description and status. Passing the complete array sets the desired state. Empty array archives and deletes the current plan.",
 						},
 					},
-					"required": []string{"meta", "title", "description", "steps"},
+					"required": []string{"title", "description", "steps"},
 				},
 				Callback: a.trackTaskProgressTool,
 			},
@@ -739,10 +735,6 @@ Besides result and command, this tool also requires session_title (a brief title
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"meta": map[string]interface{}{
-					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
-				},
 				"result": map[string]interface{}{
 					"type":        "string",
 					"description": "The result of the tool use. This should be a clear, specific description of the result.",
@@ -764,7 +756,7 @@ Besides result and command, this tool also requires session_title (a brief title
 					"description": "Comma-separated keywords summarizing the task's technology, domain, and purpose for future classification and retrieval.",
 				},
 			},
-			"required": []string{"meta", "result", "session_title", "session_keywords"},
+			"required": []string{"result", "session_title", "session_keywords"},
 		},
 		Callback: a.attemptCompletionTool,
 	})

@@ -106,8 +106,12 @@ func validateMeta(args map[string]interface{}) error {
 	if _, ok := meta["affected_objects"]; !ok {
 		return fmt.Errorf("meta.affected_objects is required")
 	}
-	if _, ok := meta["progress"]; !ok {
-		return fmt.Errorf("meta.progress is required")
+	// FEATURE-450: progress must contain at least 1 current-status record
+	// (even if the status did not change), so the LLM always reports the
+	// current execution state.
+	progressArr, ok := meta["progress"].([]interface{})
+	if !ok || len(progressArr) == 0 {
+		return fmt.Errorf("meta.progress is required and must contain at least 1 current-status record")
 	}
 	return nil
 }
@@ -137,4 +141,32 @@ func metaObject(args map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return map[string]interface{}{}
+}
+
+// toolRequiresMeta reports whether the named tool's required parameter list
+// includes "meta" (FEATURE-450). The unified meta validation (assessRisk) is
+// only applied to tools that require meta; tools like track_task_progress and
+// attempt_completion no longer declare meta, so they are skipped.
+func (a *Agent) toolRequiresMeta(name string) bool {
+	for _, t := range a.buildToolsInternal() {
+		if t.Name != name {
+			continue
+		}
+		switch req := t.Parameters["required"].(type) {
+		case []string:
+			for _, r := range req {
+				if r == "meta" {
+					return true
+				}
+			}
+		case []interface{}:
+			for _, r := range req {
+				if s, ok := r.(string); ok && s == "meta" {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return false
 }
