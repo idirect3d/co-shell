@@ -653,6 +653,29 @@
   - 背景：co-shell 缺少对 skill（可复用能力包）的支持，无法按需加载特定领域的操作指导。
   - 方案（已确认）：见 use-case/FEATURE-453/ [BUILD-720]
 
+## v0.23.1 — 开发中
+
+> **版本**: v0.23.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: Web UI attempt_completion 弹框 Keys 选项修复
+> **说明**: 0.23.1 系列修复 Web UI 端 attempt_completion 完成确认弹框缺少 Keys 选项（"+ 任务尚未达到目标" / "- 完成退出"）的 bug。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-454 | 0.23.1 | P1 | Web UI attempt_completion 弹框缺 Keys 选项：web/static/app.js 的 renderVirtualKeyboard select 分支只渲染 it.options（next_steps + 给出下一步的建议）和固定补充信息选项，未渲染 it.keys（"+ 任务尚未达到目标" / "- 完成退出"），导致 Web UI 上 attempt_completion 弹框缺少这两个选项；TUI 端正确渲染 Keys |
+
+> 当前 BUILD: 721
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-454 Web UI attempt_completion 弹框缺 Keys 选项**
+  - 背景：Web UI 端 attempt_completion 完成确认弹框只显示"1: 给出下一步建议"和"空格：补充信息"，缺少"+ 任务尚未达到目标"和"- 完成退出"两个 Keys 选项。
+  - 根因：web/static/app.js 的 renderVirtualKeyboard select 分支只渲染 it.options 和固定补充信息选项，未渲染 it.keys。
+  - 方案：在 renderVirtualKeyboard select 分支中渲染 it.keys（Keys 快捷键选项），并让物理按键（+/-）也能触发。 [BUILD-721]
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
