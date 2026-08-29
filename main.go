@@ -49,9 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.23.1"
+const version = "0.24.0"
 
-const build = "721"
+const build = "724"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -209,6 +209,10 @@ type cliFlags struct {
 	// whitelist restricts web UI access to the given IPs/CIDR networks
 	// (comma-separated, e.g. "192.168.1.100,192.168.1.0/24").
 	whitelist string
+
+	// downloadEnabled (FEATURE-455): when true, remote web UI access may
+	// download workspace files via the browser. Default off (security).
+	downloadEnabled bool
 }
 
 func parseFlags() cliFlags {
@@ -361,6 +365,9 @@ func parseFlags() cliFlags {
 	// serve whitelist (FEATURE-431): restrict web UI access to the given
 	// IPs/CIDR networks (comma-separated). Empty means loopback only.
 	flag.StringVar(&f.whitelist, "whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, e.g. 192.168.1.100,192.168.1.0/24)")
+
+	// serve download (FEATURE-455): enable remote web UI file download.
+	flag.BoolVar(&f.downloadEnabled, "download-enabled", false, "Enable remote web UI file download (default off; only effective when serving to non-loopback addresses)")
 
 	// Unload mode (FEATURE-245)
 	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
@@ -1452,11 +1459,12 @@ func main() {
 			bind = "127.0.0.1"
 		}
 		srv := web.NewServer(ws.Root(), web.ServerOptions{
-			Lang:      string(i18n.GetLang()),
-			Version:   version,
-			Build:     build,
-			Bind:      bind,
-			Whitelist: whitelist,
+			Lang:            string(i18n.GetLang()),
+			Version:         version,
+			Build:           build,
+			Bind:            bind,
+			Whitelist:       whitelist,
+			DownloadEnabled: flags.downloadEnabled,
 		})
 		repl.RegisterSessionFactory("web", srv.SessionFactory())
 		addr, listenErr := srv.Listen(flags.port)

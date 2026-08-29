@@ -1551,6 +1551,9 @@ const (
 	KeyCLIHelpWhitelist = "cli_help_whitelist"
 	KeyWebRevealFailed    = "web_reveal_failed"
 
+	// serve download (FEATURE-455)
+	KeyCLIHelpDownloadEnabled = "cli_help_download_enabled"
+
 	// Init capabilities/rules (deprecated)
 	KeyCLIHelpInitCapabilities = "cli_help_init_capabilities"
 	KeyCLIHelpInitRules        = "cli_help_init_rules"
