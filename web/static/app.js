@@ -366,6 +366,10 @@ function parseToolSummary(ev) {
 let curLLM = null;      // current streaming llm block
 let curThinking = null; // current streaming thinking block
 let curTool = null;     // current tool block (one block per invocation)
+// FIX-448: toolName -> curTool object map, so when one LLM iteration calls
+// multiple tools the input/result events can target the correct block instead
+// of always the last one (curTool points to the last block after streaming).
+let toolBlockByName = {};
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
 
@@ -857,6 +861,7 @@ function renderEvent(ev) {
     // last-block pointer so the next task starts with a fresh list.
     iterBlocks = [];
     lastBlock = null;
+    toolBlockByName = {};
     // FEATURE-427: mark the last content block as the result block so silent
     // mode shows and expands it — the final completion block, whatever its type
     // (TOOL: 完成任务, or a final LLM summary). Skip meta (token-stats) rows.
@@ -941,6 +946,14 @@ function renderEvent(ev) {
       const gear = text.indexOf("⚙️");
       if (gear >= 0) {
         const nl = text.indexOf("\n", gear);
+        // FIX-448: record the tool name on the block so the later tool_call
+        // input/result events can target this block (curTool points to the
+        // last block when one iteration calls multiple tools).
+        const name = text.slice(gear + 2, nl >= 0 ? nl : text.length).trim();
+        if (name) {
+          curTool.toolName = name;
+          toolBlockByName[name] = curTool;
+        }
         text = text.slice(nl >= 0 ? nl + 1 : text.length);
       }
     }
@@ -989,6 +1002,13 @@ function renderEvent(ev) {
       // from the structured ToolSummary.
       const summary = parseToolSummary(ev);
       if (summary) {
+        // FIX-448: when one iteration calls multiple tools, curTool points to
+        // the LAST tool's block (set by tool_call_stream). Switch to the block
+        // matching this tool's name so its title/risk and the following result
+        // event land on the correct block, in call order.
+        if (summary.tool_name && toolBlockByName[summary.tool_name]) {
+          curTool = toolBlockByName[summary.tool_name];
+        }
         const head = curTool.body.parentElement.children[0];
         const action = toolAction(summary.tool_name);
         const text = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
