@@ -1772,13 +1772,19 @@ func (a *Agent) IterTokenDelta() (prompt, completion, total int) {
 	return a.iterPromptTokens, a.iterCompletionTokens, a.iterTokens
 }
 
-// GetMaxModelLen returns the maximum context length (in tokens) of the current active model.
-// Returns 0 if no model manager or model is configured.
+// GetMaxModelLen returns the maximum context length (in tokens) of the model
+// actually used by the current mode (FIX-448). It follows the same selection
+// priority as the status bar: the current mode's bound text model first, then
+// the global default. Using the global default alone was wrong when the user
+// bound a different (non-first) model to the current mode, which skewed the
+// context-overflow calculation. Returns 0 if no model manager or model is
+// configured.
 func (a *Agent) GetMaxModelLen() int {
-	if a.modelManager != nil {
-		if modelCfg := a.modelManager.GetActiveModel(false); modelCfg != nil {
-			return modelCfg.MaxModelLen
-		}
+	if a.modelManager == nil {
+		return 0
+	}
+	if m := a.resolveModelForInfo(false); m != nil {
+		return m.MaxModelLen
 	}
 	return 0
 }
