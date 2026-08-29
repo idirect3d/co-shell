@@ -244,6 +244,8 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return boolToString(cfg.LLM.MemoryEnabled)
 	case "plan-enabled":
 		return boolToString(cfg.LLM.PlanEnabled)
+	case "intent-exposure-enabled":
+		return boolToString(cfg.LLM.IntentExposureEnabled)
 	case "subagent-enabled":
 		return boolToString(cfg.LLM.SubAgentEnabled)
 	case "context-limit":
@@ -684,6 +686,18 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		a.SetPlanEnabled(b)
 		log.Info("Plan enabled set via LLM tool: %v", b)
+
+	case "intent-exposure-enabled":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.IntentExposureEnabled = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		a.SetIntentExposureEnabled(b)
+		log.Info("Intent exposure enabled set via LLM tool: %v", b)
 
 	case "subagent-enabled":
 		b, err := parseBool(value)

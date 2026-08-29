@@ -534,6 +534,22 @@ aside {
   gap: 2px;
   margin-left: auto;
 }
+
+/* FEATURE-447: risk-level badge in the tool block title bar. A small pill
+   whose colour signals the operation risk (low=green, medium=yellow, high=red). */
+.risk-badge {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1.4;
+  border: 1px solid currentColor;
+}
+.risk-badge.risk-low { color: var(--ok); }
+.risk-badge.risk-medium { color: var(--warn); }
+.risk-badge.risk-high { color: var(--err); }
 .ev-act {
   background: none;
   border: none;
@@ -1479,6 +1495,17 @@ aside {
 /* FEATURE-425: the currently previewed file in the workspace tree. */
 .tree-row.fv-selected { background: var(--accent-dim); }
 .tree-row.fv-selected .name { color: var(--accent); }
+
+/* FEATURE-447: files/folders affected by the current tool call, reported by
+   the LLM. Highlighted with a blue text colour plus a subtle blue background
+   so the affected row stands out clearly in the tree. */
+.tree-row .name.aff-pred {
+  color: #58a6ff;
+  font-weight: 600;
+  background: rgba(88, 166, 255, 0.12);
+  border-radius: 3px;
+  padding: 0 3px;
+}
 
 /* Syntax highlighting (FEATURE-425), vscode-inspired palette. Comments are a
    single unified green across languages (go/java/python). */

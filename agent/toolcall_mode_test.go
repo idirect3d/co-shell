@@ -554,7 +554,7 @@ func TestParseXMLToolCallsWithTools_IgnoresCodeBlockXML(t *testing.T) {
 // block content is ignored while real XML tool calls outside code blocks
 // are still correctly parsed (FIX-291, Scenario 4).
 func TestParseXMLToolCallsWithTools_MixedCodeBlockAndReal(t *testing.T) {
-	input := "Example usage:\n\n```xml\n<cs:search_files>\n  <cs:intent>example</cs:intent>\n  <cs:path>src</cs:path>\n  <cs:regex>func main</cs:regex>\n  <cs:file_pattern>*.go</cs:file_pattern>\n</cs:search_files>\n```\n\nNow actually searching:\n<cs:search_files>\n  <cs:intent>search for main</cs:intent>\n  <cs:path>src</cs:path>\n  <cs:regex>func main</cs:regex>\n  <cs:file_pattern>*.go</cs:file_pattern>\n</cs:search_files>"
+	input := "Example usage:\n\n```xml\n<cs:search_files>\n  <cs:meta>\n    <cs:intent>example</cs:intent>\n    <cs:risk>low</cs:risk>\n  </cs:meta>\n  <cs:path>src</cs:path>\n  <cs:regex>func main</cs:regex>\n  <cs:file_pattern>*.go</cs:file_pattern>\n</cs:search_files>\n```\n\nNow actually searching:\n<cs:search_files>\n  <cs:meta>\n    <cs:intent>search for main</cs:intent>\n    <cs:risk>low</cs:risk>\n  </cs:meta>\n  <cs:path>src</cs:path>\n  <cs:regex>func main</cs:regex>\n  <cs:file_pattern>*.go</cs:file_pattern>\n</cs:search_files>"
 
 	calls := ParseXMLToolCallsWithTools(input, []llm.Tool{
 		{
@@ -562,12 +562,12 @@ func TestParseXMLToolCallsWithTools_MixedCodeBlockAndReal(t *testing.T) {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent":       map[string]interface{}{"type": "string"},
+					"meta":         map[string]interface{}{"type": "object"},
 					"path":         map[string]interface{}{"type": "string"},
 					"regex":        map[string]interface{}{"type": "string"},
 					"file_pattern": map[string]interface{}{"type": "string"},
 				},
-				"required": []interface{}{"intent", "path", "regex"},
+				"required": []interface{}{"meta", "path", "regex"},
 			},
 		},
 	})
@@ -582,8 +582,9 @@ func TestParseXMLToolCallsWithTools_MixedCodeBlockAndReal(t *testing.T) {
 	if err := json.Unmarshal([]byte(calls[0].Arguments), &args); err != nil {
 		t.Fatalf("failed to parse args: %v", err)
 	}
-	if intent, ok := args["intent"].(string); !ok || intent != "search for main" {
-		t.Errorf("expected intent 'search for main', got %q", intent)
+	meta, _ := args["meta"].(map[string]interface{})
+	if intent, ok := meta["intent"].(string); !ok || intent != "search for main" {
+		t.Errorf("expected meta.intent 'search for main', got %q", intent)
 	}
 }
 

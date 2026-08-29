@@ -121,6 +121,7 @@ type Agent struct {
 	memoryEnabled   bool     // whether persistent memory tools are enabled
 	planEnabled     bool     // whether task plan tools are enabled
 	subAgentEnabled bool     // whether sub-agent tools are enabled
+	intentExposureEnabled bool // whether tool-call intent exposure (meta object) is enabled
 
 	emojiEnabled    bool // whether emoji prefixes are enabled for output
 	toolCallEnabled bool // whether tool calling is enabled

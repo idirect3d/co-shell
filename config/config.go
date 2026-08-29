@@ -182,6 +182,12 @@ type LLMConfig struct {
 	// PlanEnabled: whether task plan tools (create_task_plan, etc.) are enabled
 	PlanEnabled bool `json:"plan_enabled"`
 
+	// IntentExposureEnabled: whether tool-call intent exposure (meta object
+	// transparency: intent/risk/affected_objects/progress) is enabled. When
+	// disabled, tools do not require the meta parameter and the system prompt
+	// does not inject the meta object description.
+	IntentExposureEnabled bool `json:"intent_exposure_enabled"`
+
 	// SubAgentEnabled: whether sub-agent tools (launch_sub_agent) are enabled
 	SubAgentEnabled bool `json:"sub_agent_enabled"`
 
@@ -904,6 +910,7 @@ func DefaultConfig() *Config {
 			ContextLimit:               -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
 			MemoryEnabled:              true,
 			PlanEnabled:                true,
+			IntentExposureEnabled:      true,
 			SubAgentEnabled:            true,
 			ShellSessionEnabled:        false,
 			ShellSessionTimeout:        0,
@@ -1173,6 +1180,7 @@ func (c *Config) Show() string {
 	col3ContextLimit := i18n.T(i18n.KeyCol3ContextLimit)
 	col3MemoryEnabled := i18n.T(i18n.KeyCol3MemoryEnabled)
 	col3PlanEnabled := i18n.T(i18n.KeyCol3PlanEnabled)
+	col3IntentExposureEnabled := i18n.T(i18n.KeyCol3IntentExposureEnabled)
 	col3SubAgentEnabled := i18n.T(i18n.KeyCol3SubAgentEnabled)
 	col3SearchMaxLineLength := i18n.T(i18n.KeyCol3SearchMaxLineLength)
 	col3SearchMaxResultBytes := i18n.T(i18n.KeyCol3SearchMaxResultBytes)
@@ -1203,6 +1211,10 @@ func (c *Config) Show() string {
 	planEnabledStatus := i18n.T(i18n.KeyOn)
 	if !c.LLM.PlanEnabled {
 		planEnabledStatus = i18n.T(i18n.KeyOff)
+	}
+	intentExposureStatus := i18n.T(i18n.KeyOn)
+	if !c.LLM.IntentExposureEnabled {
+		intentExposureStatus = i18n.T(i18n.KeyOff)
 	}
 
 	subAgentEnabledStatus := i18n.T(i18n.KeyOn)
@@ -1254,6 +1266,7 @@ func (c *Config) Show() string {
 		"context-limit:", contextLimitStr, col3ContextLimit,
 		"memory-enabled:", memoryEnabledStatus, col3MemoryEnabled,
 		"plan-enabled:", planEnabledStatus, col3PlanEnabled,
+		"intent-exposure-enabled:", intentExposureStatus, col3IntentExposureEnabled,
 		"subagent-enabled:", subAgentEnabledStatus, col3SubAgentEnabled,
 		"search-max-line-length:", fmt.Sprintf("%d", c.LLM.SearchMaxLineLength), col3SearchMaxLineLength,
 		"search-max-result-bytes:", fmt.Sprintf("%d", c.LLM.SearchMaxResultBytes), col3SearchMaxResultBytes,

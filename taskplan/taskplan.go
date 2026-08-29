@@ -69,6 +69,16 @@ type StepInput struct {
 	Status      string `json:"status"`
 }
 
+// ProgressInput is one incremental progress update from the LLM (FEATURE-447).
+// It is carried in a tool call's progress array. Index refers to the target
+// step array index in the task plan: an index equal to the current step count
+// appends a new step; an index beyond that is an error (tool call fails).
+type ProgressInput struct {
+	Index       int    `json:"index"`       // target step array index (required)
+	Description string `json:"description"` // new description (may be unchanged, required)
+	Status      string `json:"status"`      // current status (required)
+}
+
 // TaskStep represents a single step in a task plan.
 type TaskStep struct {
 	ID          int        `json:"id"`
@@ -297,6 +307,72 @@ func (m *Manager) UpdateSteps(title, description string, steps []StepInput) (*Ta
 	}
 
 	return existing, nil
+}
+
+// ApplyProgress applies an incremental progress report to the current task plan
+// (FEATURE-447). Each ProgressInput updates an existing step (index < current
+// step count) or appends a new step (index == current step count). An index
+// beyond the current step count is an error (the caller treats it as a tool
+// call failure). It returns the updated plan, or nil when no plan exists and
+// the report is empty.
+func (m *Manager) ApplyProgress(steps []ProgressInput) (*TaskPlan, error) {
+	if len(steps) == 0 {
+		return m.loadCurrent()
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+	plan, err := m.loadCurrent()
+	if err != nil {
+		return nil, err
+	}
+	if plan == nil {
+		// No plan yet — create one from the reported steps.
+		m.planCounter++
+		plan = &TaskPlan{
+			ID:          m.planCounter,
+			Title:       i18n.T(i18n.KeyTaskPlanDefaultTitle),
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+	}
+
+	for _, s := range steps {
+		if s.Index < 0 {
+			return nil, fmt.Errorf("progress step index must be >= 0, got %d", s.Index)
+		}
+		if s.Index > len(plan.Steps) {
+			return nil, fmt.Errorf("progress step index %d exceeds appendable range (current steps: %d)", s.Index, len(plan.Steps))
+		}
+		if s.Description == "" {
+			return nil, fmt.Errorf("progress step %d description is required", s.Index)
+		}
+		status, perr := ParseStatus(s.Status)
+		if perr != nil {
+			return nil, perr
+		}
+
+		if s.Index == len(plan.Steps) {
+			// Append a new step.
+			plan.Steps = append(plan.Steps, TaskStep{
+				ID:          len(plan.Steps) + 1,
+				Description: s.Description,
+				Status:      status,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			})
+		} else {
+			// Update an existing step.
+			plan.Steps[s.Index].Description = s.Description
+			plan.Steps[s.Index].Status = status
+			plan.Steps[s.Index].UpdatedAt = now
+		}
+	}
+	plan.UpdatedAt = now
+
+	if err := m.saveCurrent(plan); err != nil {
+		return nil, err
+	}
+	return plan, nil
 }
 
 // archiveToMemory archives the given task plan to conversation memory.

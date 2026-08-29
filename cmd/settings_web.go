@@ -63,6 +63,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "xml-tag-prefix", Value: llm.XMLTagPrefix, Desc: i18n.T(i18n.KeySettingCmd_304), Type: "string"},
 		{Key: "xml-stream-validate", Value: boolStr(llm.XMLStreamValidate), Desc: i18n.T(i18n.KeySettingCmd_305), Type: "bool"},
 		{Key: "plan-enabled", Value: boolStr(llm.PlanEnabled), Desc: i18n.T(i18n.KeyCol3PlanEnabled), Type: "bool"},
+		{Key: "intent-exposure-enabled", Value: boolStr(llm.IntentExposureEnabled), Desc: i18n.T(i18n.KeyCol3IntentExposureEnabled), Type: "bool"},
 		{Key: "subagent-enabled", Value: boolStr(llm.SubAgentEnabled), Desc: i18n.T(i18n.KeyCol3SubAgentEnabled), Type: "bool"},
 		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free"}},
 		{Key: "shell-session-enabled", Value: boolStr(llm.ShellSessionEnabled), Desc: i18n.T(i18n.KeyCol3ShellSessionEnabled), Type: "bool"},

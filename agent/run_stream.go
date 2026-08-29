@@ -396,6 +396,25 @@ iterationLoop:
 				toolName = "visual_analysis"
 			}
 
+			// FEATURE-447: append the vision model's token usage to the result
+			// returned to the main LLM so it knows how many tokens the
+			// recognition round consumed and what fraction of the vision
+			// model's context that represents. The percentage is computed
+			// against the VISION model's max context length (not the main
+			// text model's), since the recognition round runs on the vision
+			// model.
+			if prompt, comp, total := a.IterTokenDelta(); total > 0 {
+				maxLen := 0
+				if v := a.resolveModelForInfo(true); v != nil {
+					maxLen = v.MaxModelLen
+				}
+				pct := 0.0
+				if maxLen > 0 {
+					pct = float64(total) * 100.0 / float64(maxLen)
+				}
+				recognitionContent += i18n.TF(i18n.KeyVisionRecognitionTokenUsage, prompt, comp, total, pct)
+			}
+
 			isXML := false
 			if a.toolCallModeMgr != nil {
 				mode := a.toolCallModeMgr.Current()
@@ -1293,19 +1312,62 @@ iterationLoop:
 				// The summary is rendered from the parsed args so the user can
 				// grasp the impact intention of the call (FEATURE-310).
 				// It shares the same display control as show-tool.
-				if a.showTool {
-					var argsMap map[string]interface{}
-					if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-						summary := buildToolSummary(tc.Name, argsMap)
-						ev := NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, summary.Text)
-						// Carry the structured summary so Web/JSON consumers can render
-						// a tool card (FEATURE-388).
-						if sj, err := json.Marshal(summary); err == nil {
-							ev.Meta = map[string]string{MetaKeyToolSummary: string(sj)}
-						}
-						cb(withPhase(ev, PhaseInput))
+				// FEATURE-447: the summary also carries the risk level, affected
+				// files, and task progress report so Web/JSON consumers can colour
+				// the risk badge and highlight the affected files in the tree.
+				// FEATURE-447: the risk level is a REQUIRED field the LLM must
+				// self-assess on every tool call. A missing/invalid risk is a
+				// tool-call parse error — the tool call fails so the LLM can
+				// correct it. The affected files are also reported by the LLM.
+				var result string
+				var execErr error
+				skipExec := false
+				progressApplied := false
+				var argsMap map[string]interface{}
+				if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
+					risk, riskReason, rerr := assessRisk(argsMap)
+					if rerr != nil {
+						skipExec = true
+						execErr = rerr
+						result = fmt.Sprintf("Error: %v", rerr)
+						cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf("%s: %s\n", tc.Name, result)))
 					} else {
-						cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, tc.Name), PhaseInput))
+						if a.showTool {
+							summary := buildToolSummary(tc.Name, argsMap)
+							// FEATURE-447: fill the transparency metadata (risk + files).
+							summary.Risk = risk
+							summary.RiskReason = riskReason
+							summary.Files = a.affectedFiles(argsMap)
+							ev := NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, summary.Text)
+							// Carry the structured summary so Web/JSON consumers can render
+							// a tool card (FEATURE-388).
+							if sj, err := json.Marshal(summary); err == nil {
+								ev.Meta = map[string]string{MetaKeyToolSummary: string(sj)}
+							}
+							cb(withPhase(ev, PhaseInput))
+						}
+					}
+				}
+
+				// FEATURE-447: apply the LLM's task progress report before executing
+				// the tool. An invalid report (e.g. an index beyond the appendable
+				// range) fails the tool call so the LLM can correct it. When the
+				// report is invalid, skip the tool execution but still feed the
+				// error back to the LLM as the tool result.
+				if a.taskPlanMgr != nil {
+					// FEATURE-447: only apply the progress report when the tool
+					// actually carries a non-empty progress array (inside the
+					// meta object). Otherwise the plan is left untouched and no
+					// task_plan event is pushed.
+					if hasNonEmptyProgress(metaObject(argsMap)) {
+						if _, perr := a.applyProgressReport(argsMap); perr != nil {
+							skipExec = true
+							execErr = perr
+							result = fmt.Sprintf("Error: %v", perr)
+							cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf("%s: %s\n", tc.Name, result)))
+						} else {
+							progressApplied = true
+						}
 					}
 				}
 
@@ -1318,7 +1380,9 @@ iterationLoop:
 				if toolCtx == nil {
 					toolCtx = ctx // fallback if not set
 				}
-				result, execErr := a.executeToolCall(toolCtx, tc)
+				if !skipExec {
+					result, execErr = a.executeToolCall(toolCtx, tc)
+				}
 				if execErr != nil {
 					errStr := execErr.Error()
 					// Check if user cancelled
@@ -1412,14 +1476,15 @@ iterationLoop:
 					}
 				}
 
-				// FEATURE-307c: after a successful track_task_progress, push the
+				// FEATURE-307c: after a successful track_task_progress, or after any
+				// tool that carried a valid progress report (FEATURE-447), push the
 				// full task plan as a structured task_plan event so web/JSON
 				// consumers can render a live plan panel. An archived/cleared
 				// plan emits an empty plan snapshot (panel hides). The
 				// LineRenderer has no case for this event type and ignores it,
 				// so terminal output is unaffected. Independent of showTool:
 				// the panel must track the plan even when tool echo is off.
-				if tc.Name == "track_task_progress" && execErr == nil {
+				if execErr == nil && (tc.Name == "track_task_progress" || progressApplied) {
 					planJSON := ""
 					if plan, planErr := a.taskPlanMgr.GetCurrent(); planErr == nil && plan != nil {
 						if data, jsonErr := json.Marshal(plan); jsonErr == nil {

@@ -286,7 +286,7 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 	var tools []llm.Tool
 	systemPrompt := i18n.T(i18n.KeyProblemSolverSystemPrompt)
 	if xmlMode {
-		systemPrompt += "\n\n" + BuildToolUsagePrompt(ToolCallModeXML, []llm.Tool{reportProblemTool()}, string(i18n.GetLang()))
+		systemPrompt += "\n\n" + BuildToolUsagePrompt(ToolCallModeXML, []llm.Tool{reportProblemTool()}, string(i18n.GetLang()), true)
 	} else {
 		tools = []llm.Tool{reportProblemTool()}
 		// Force the model to call report_problem via body additions

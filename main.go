@@ -49,9 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.19.0"
+const version = "0.20.0"
 
-const build = "682"
+const build = "704"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -101,6 +101,7 @@ type cliFlags struct {
 
 	// Plan enabled
 	planEnabled string // "on"/"off"
+	intentExposureEnabled string // "on"/"off"
 
 	// SubAgent enabled
 	subAgentEnabled string // "on"/"off"
@@ -270,6 +271,10 @@ func parseFlags() cliFlags {
 	// Plan enabled
 	flag.StringVar(&f.planEnabled, "plan-enabled", "", "Enable task plan (overrides config file)")
 	flag.StringVar(&f.planEnabled, "plan-disabled", "", "Disable task plan (overrides config file)")
+
+	// Intent exposure enabled
+	flag.StringVar(&f.intentExposureEnabled, "intent-exposure-enabled", "", "Enable tool-call intent exposure (overrides config file)")
+	flag.StringVar(&f.intentExposureEnabled, "intent-exposure-disabled", "", "Disable tool-call intent exposure (overrides config file)")
 
 	// SubAgent enabled
 	flag.StringVar(&f.subAgentEnabled, "subagent-enabled", "", "Enable sub-agent (overrides config file)")
@@ -719,6 +724,17 @@ func main() {
 			cfg.LLM.PlanEnabled = false
 		default:
 			io.ErrPrintf("Warning: invalid --plan-enabled value %q, use on|off\n", flags.planEnabled)
+		}
+	}
+
+	if flags.intentExposureEnabled != "" {
+		switch flags.intentExposureEnabled {
+		case "on", "1", "true", "yes":
+			cfg.LLM.IntentExposureEnabled = true
+		case "off", "0", "false", "no":
+			cfg.LLM.IntentExposureEnabled = false
+		default:
+			io.ErrPrintf("Warning: invalid --intent-exposure-enabled value %q, use on|off\n", flags.intentExposureEnabled)
 		}
 	}
 
@@ -1312,6 +1328,9 @@ func main() {
 
 	// Apply plan enabled setting
 	ag.SetPlanEnabled(cfg.LLM.PlanEnabled)
+
+	// Apply intent exposure enabled setting
+	ag.SetIntentExposureEnabled(cfg.LLM.IntentExposureEnabled)
 
 	// Sync memory enabled to task plan manager
 	ag.TaskPlanManager().SetMemoryEnabled(cfg.LLM.MemoryEnabled)

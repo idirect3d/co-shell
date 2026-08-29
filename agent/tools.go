@@ -86,9 +86,9 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"command": map[string]interface{}{
 						"type":        "string",
@@ -96,15 +96,15 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					},
 					"timeout_seconds": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: Timeout in seconds. 0 means wait forever (no timeout). Set this based on your estimate of how long the command will take. When greater than 0, the actual timeout used will be the maximum of this value and the user-configured minimum timeout.",
+						"description": "Timeout in seconds. 0 means wait forever (no timeout). Set this based on your estimate of how long the command will take. When greater than 0, the actual timeout used will be the maximum of this value and the user-configured minimum timeout.",
 					},
 					"on_timeout": map[string]interface{}{
 						"type":        "string",
 						"enum":        []string{"kill", "detach"},
-						"description": "**REQUIRED**: What to do when timeout_seconds fires. \"kill\": terminate the whole process group and return an error (use for ordinary foreground commands). \"detach\": stop waiting and return the PID, partial output and a log file path while the process keeps running in the background (use for servers, long builds, watchers); you can later inspect the log file or kill the PID with another execute_command call. Ignored when timeout_seconds is 0.",
+						"description": "What to do when timeout_seconds fires. \"kill\": terminate the whole process group and return an error (use for ordinary foreground commands). \"detach\": stop waiting and return the PID, partial output and a log file path while the process keeps running in the background (use for servers, long builds, watchers); you can later inspect the log file or kill the PID with another execute_command call. Ignored when timeout_seconds is 0.",
 					},
 				},
-				"required": []string{"intent", "command", "timeout_seconds", "on_timeout"},
+				"required": []string{"meta", "command", "timeout_seconds", "on_timeout"},
 			},
 			Callback: a.executeSystemCommand,
 		})
@@ -119,9 +119,9 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"command": map[string]interface{}{
 						"type":        "string",
@@ -136,7 +136,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 						"description": "Optional total timeout in seconds. Set this based on your estimate of how long the entire operation will take. 0 or omitted means no total timeout (use the default shell-session-timeout).",
 					},
 				},
-				"required": []string{"intent", "command"},
+				"required": []string{"meta", "command"},
 			},
 			Callback: a.shellSendTool,
 		})
@@ -146,12 +146,12 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 				},
-				"required": []string{"intent"},
+				"required": []string{"meta"},
 			},
 			Callback: a.shellWindowContentTool,
 		})
@@ -161,9 +161,9 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"wait_ms": map[string]interface{}{
 						"type":        "number",
@@ -171,18 +171,18 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					},
 					"last_from": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional: Starting position from the end (1-based, 1=most recent line). If not provided, uses auto-increment mode (returns only new content since last call).",
+						"description": "Starting position from the end (1-based, 1=most recent line). If not provided, uses auto-increment mode (returns only new content since last call).",
 					},
 					"count": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional: Number of lines to return. If not provided with last_from, uses auto-increment mode.",
+						"description": "Number of lines to return. If not provided with last_from, uses auto-increment mode.",
 					},
 					"timeout_seconds": map[string]interface{}{
 						"type":        "number",
 						"description": "Optional total timeout in seconds. Set this to prevent infinite waiting. 0 or omitted means no total timeout (use the default shell-session-timeout).",
 					},
 				},
-				"required": []string{"intent"},
+				"required": []string{"meta"},
 			},
 			Callback: a.shellGetOutputTool,
 		})
@@ -192,12 +192,12 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 				},
-				"required": []string{"intent"},
+				"required": []string{"meta"},
 			},
 			Callback: a.shellResetTool,
 		})
@@ -210,9 +210,9 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
@@ -227,7 +227,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"description": "The 1-based line number to stop reading at (inclusive). Default: start_line + 1000",
 				},
 			},
-			"required": []string{"intent", "path", "start_line", "end_line"},
+			"required": []string{"meta", "path", "start_line", "end_line"},
 		},
 		Callback: a.readFileTool,
 	})
@@ -237,9 +237,9 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
@@ -254,7 +254,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"description": "Glob pattern to filter files (e.g., '*.go' for Go files). If not provided, searches all files.",
 				},
 			},
-			"required": []string{"intent", "path", "regex"},
+			"required": []string{"meta", "path", "regex"},
 		},
 		Callback: a.searchFilesTool,
 	})
@@ -264,9 +264,9 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
@@ -277,7 +277,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"description": "Recursion depth: 0=top-level only (default), 1=one level deep, 2=two levels, etc.",
 				},
 			},
-			"required": []string{"intent", "path"},
+			"required": []string{"meta", "path"},
 		},
 		Callback: a.listFilesTool,
 	})
@@ -287,16 +287,16 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"path": map[string]interface{}{
 					"type":        "string",
 					"description": "The directory path to list definitions for (absolute or relative to current working directory)",
 				},
 			},
-			"required": []string{"intent", "path"},
+			"required": []string{"meta", "path"},
 		},
 		Callback: a.listCodeDefinitionNamesTool,
 	})
@@ -311,12 +311,16 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"items":       map[string]interface{}{"type": "string"},
 					"description": "Array of image/video file paths to load for visual analysis (e.g., ['page1.png', 'page2.png', 'diagram.jpg']). Maximum controlled by visual-analysis-max-images config.",
 				},
-				"intent": map[string]interface{}{
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+				},
+				"instruct": map[string]interface{}{
 					"type":        "string",
-					"description": i18n.T(i18n.KeySettingCmd_613),
+					"description": "The explicit instruction for the vision model describing what to analyze/extract from the image(s). This is distinct from meta.intent (which is the intent shown to the user).",
 				},
 			},
-			"required": []string{"paths", "intent"},
+			"required": []string{"meta", "paths", "instruct"},
 		},
 		Callback: a.visualAnalysisTool,
 	})
@@ -333,9 +337,9 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 					"type":        "string",
 					"description": "The path to the file to modify (absolute or relative to current working directory)",
 				},
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"replacements": map[string]interface{}{
 					"type": "array",
@@ -344,7 +348,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 						"properties": map[string]interface{}{
 							"intent": map[string]interface{}{
 								"type":        "string",
-								"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+								"description": "Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
 							},
 							"search": map[string]interface{}{
 								"type":        "string",
@@ -356,7 +360,7 @@ func (a *Agent) buildToolsInternal() []llm.Tool {
 							},
 							"start_line": map[string]interface{}{
 								"type":        "number",
-								"description": "Optional: the 1-based line number in the original file where this 'search' content is expected to start. Used for precise positioning and to avoid duplicate matches. The system automatically adjusts for line count changes from previous replacements.",
+								"description": "the 1-based line number in the original file where this 'search' content is expected to start. Used for precise positioning and to avoid duplicate matches. The system automatically adjusts for line count changes from previous replacements.",
 							},
 						},
 						"required": []string{"search", "replace"},
@@ -374,7 +378,7 @@ Critical rules:
 6. The optional 'start_line' is 1-based and refers to the line number in the ORIGINAL file (before any replacements). The system automatically adjusts for line count changes from previous replacements. Use 'start_line' for precise positioning and to avoid duplicate matches.`,
 				},
 			},
-			"required": []string{"intent", "path", "replacements"},
+			"required": []string{"meta", "path", "replacements"},
 		},
 		Callback: a.replaceInFileTool,
 	})
@@ -391,20 +395,20 @@ Critical rules:
 					"type":        "string",
 					"description": "The absolute path to the file to write to",
 				},
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"mode": map[string]interface{}{
 					"type":        "string",
-					"description": "**REQUIRED**: The write mode. One of: 'new' (create new file), 'rewrite' (overwrite existing file), 'append' (append to existing file). The three modes are mutually exclusive and non-interchangeable.",
+					"description": "The write mode. One of: 'new' (create new file), 'rewrite' (overwrite existing file), 'append' (append to existing file). The three modes are mutually exclusive and non-interchangeable.",
 				},
 				"content": map[string]interface{}{
 					"type":        "string",
 					"description": "The content to write to the file. For 'append' mode, this content is appended to the end of the file.",
 				},
 			},
-			"required": []string{"intent", "mode", "path", "content"},
+			"required": []string{"meta", "mode", "path", "content"},
 		},
 		Callback: a.writeToFileTool,
 	})
@@ -417,9 +421,9 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"sub_agent_name": map[string]interface{}{
 							"type":        "string",
@@ -434,7 +438,7 @@ Critical rules:
 							"description": "Maximum time in seconds to wait for the sub-agent to complete. 0 means no timeout (default: 0).",
 						},
 					},
-					"required": []string{"intent", "sub_agent_name", "instruction"},
+					"required": []string{"meta", "sub_agent_name", "instruction"},
 				},
 				Callback: a.launchSubAgentTool,
 			},
@@ -450,9 +454,9 @@ Critical rules:
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"name": map[string]interface{}{
 						"type":        "string",
@@ -467,7 +471,7 @@ Critical rules:
 						"description": "The instruction to pass to the sub-agent when the task is triggered.",
 					},
 				},
-				"required": []string{"intent", "name", "cron", "instruction"},
+				"required": []string{"meta", "name", "cron", "instruction"},
 			},
 			Callback: a.scheduleTaskTool,
 		})
@@ -482,6 +486,10 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						},
 						"title": map[string]interface{}{
 							"type":        "string",
 							"description": "The title of the task plan. Required when creating a new plan; optional when updating.",
@@ -510,7 +518,7 @@ Critical rules:
 							"description": "Array of step objects, each with description and status. Passing the complete array sets the desired state. Empty array archives and deletes the current plan.",
 						},
 					},
-					"required": []string{"title", "description", "steps"},
+					"required": []string{"meta", "title", "description", "steps"},
 				},
 				Callback: a.trackTaskProgressTool,
 			},
@@ -520,12 +528,12 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.viewTaskPlanTool,
 			},
@@ -542,9 +550,9 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"last_from": map[string]interface{}{
 							"type":        "number",
@@ -555,7 +563,7 @@ Critical rules:
 							"description": "Ending position from the end (inclusive). 1 = most recent message.",
 						},
 					},
-					"required": []string{"intent", "last_from", "last_to"},
+					"required": []string{"meta", "last_from", "last_to"},
 				},
 				Callback: a.getMemorySliceTool,
 			},
@@ -565,9 +573,9 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"keywords": map[string]interface{}{
 							"type":        "array",
@@ -583,7 +591,7 @@ Critical rules:
 							"description": "Filter by speaker name (case-insensitive). Empty string means no name filter.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.memorySearchTool,
 			},
@@ -593,9 +601,9 @@ Critical rules:
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"last_from": map[string]interface{}{
 							"type":        "number",
@@ -606,7 +614,7 @@ Critical rules:
 							"description": "Ending position from the end (inclusive). 1 = most recent message.",
 						},
 					},
-					"required": []string{"intent", "last_from", "last_to"},
+					"required": []string{"meta", "last_from", "last_to"},
 				},
 				Callback: a.deleteMemoryTool,
 			},
@@ -621,9 +629,9 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"settings": map[string]interface{}{
 					"type": "array",
@@ -632,7 +640,7 @@ Critical rules:
 						"properties": map[string]interface{}{
 							"intent": map[string]interface{}{
 								"type":        "string",
-								"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+								"description": "Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
 							},
 							"param": map[string]interface{}{
 								"type":        "string",
@@ -652,7 +660,7 @@ Critical rules:
 					"description": "An array of setting changes to apply. Each change must include param, value, and reason.",
 				},
 			},
-			"required": []string{"intent", "settings"},
+			"required": []string{"meta", "settings"},
 		},
 		Callback: a.updateSettingsTool,
 	})
@@ -664,12 +672,12 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 			},
-			"required": []string{"intent"},
+			"required": []string{"meta"},
 		},
 		Callback: a.listSettingsTool,
 	})
@@ -681,6 +689,10 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+				},
 				"question": map[string]interface{}{
 					"type":        "string",
 					"description": "The question to ask the user. This should be a clear, specific question that addresses the information you need.",
@@ -691,7 +703,7 @@ Critical rules:
 					"description": "An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually.",
 				},
 			},
-			"required": []string{"question"},
+			"required": []string{"meta", "question"},
 		},
 		Callback: a.askFollowupQuestionTool,
 	})
@@ -703,16 +715,16 @@ Critical rules:
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent": map[string]interface{}{
-					"type":        "string",
-					"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 				},
 				"expression": map[string]interface{}{
 					"type":        "string",
 					"description": "The mathematical expression to evaluate. Examples: '3 + 4 * 2', 'sin(pi/2)', '2 ^ 10', 'sqrt(144)', 'log(100) + ln(e)', '45 * (1 + 0.05) ^ 10', 'abs(-5) + round(3.7)'",
 				},
 			},
-			"required": []string{"intent", "expression"},
+			"required": []string{"meta", "expression"},
 		},
 		Callback: a.evaluateExpressionTool,
 	})
@@ -727,28 +739,32 @@ Besides result and command, this tool also requires session_title (a brief title
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+				},
 				"result": map[string]interface{}{
 					"type":        "string",
 					"description": "The result of the tool use. This should be a clear, specific description of the result.",
 				},
 				"command": map[string]interface{}{
 					"type":        "string",
-					"description": "Optional: A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
+					"description": "A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
 				},
 				"task_message_no": map[string]interface{}{
 					"type":        "integer",
-					"description": "Optional: The message number to set as the new context start pointer after task completion. This truncates older conversation history, keeping only recent context. The value should be taken from the message_no field in <environment_details>. Use this when the task involved many iterations and the conversation context has grown long.",
+					"description": "The message number to set as the new context start pointer after task completion. This truncates older conversation history, keeping only recent context. The value should be taken from the message_no field in <environment_details>. Use this when the task involved many iterations and the conversation context has grown long.",
 				},
 				"session_title": map[string]interface{}{
 					"type":        "string",
-					"description": "**REQUIRED**: A brief title summarizing this session (≤30 characters). This will be used to name the saved session.",
+					"description": "A brief title summarizing this session (≤30 characters). This will be used to name the saved session.",
 				},
 				"session_keywords": map[string]interface{}{
 					"type":        "string",
-					"description": "**REQUIRED**: Comma-separated keywords summarizing the task's technology, domain, and purpose for future classification and retrieval.",
+					"description": "Comma-separated keywords summarizing the task's technology, domain, and purpose for future classification and retrieval.",
 				},
 			},
-			"required": []string{"result", "session_title", "session_keywords"},
+			"required": []string{"meta", "result", "session_title", "session_keywords"},
 		},
 		Callback: a.attemptCompletionTool,
 	})
@@ -779,12 +795,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+				},
 				"summary_prompt": map[string]interface{}{
 					"type":        "string",
-					"description": "**REQUIRED**: The context reorganization summary and task continuation prompt. Generated by the LLM to replace all previous conversation history. MUST include: 1) Original task goal and success criteria 2) Completed work and status assessment 3) Tried methods with effectiveness analysis 4) Optimized strategy revision with new approach 5) All preserved critical data (file paths, error messages, code snippets). This prompt must be fully self-contained to guide the next LLM invocation independently.",
+					"description": "The context reorganization summary and task continuation prompt. Generated by the LLM to replace all previous conversation history. MUST include: 1) Original task goal and success criteria 2) Completed work and status assessment 3) Tried methods with effectiveness analysis 4) Optimized strategy revision with new approach 5) All preserved critical data (file paths, error messages, code snippets). This prompt must be fully self-contained to guide the next LLM invocation independently.",
 				},
 			},
-			"required": []string{"summary_prompt"},
+			"required": []string{"meta", "summary_prompt"},
 		},
 		Callback: a.reorganizeContextTool,
 	})
@@ -798,16 +818,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"url": map[string]interface{}{
 							"type":        "string",
 							"description": "The URL to navigate to (must include protocol, e.g. https://example.com)",
 						},
 					},
-					"required": []string{"intent", "url"},
+					"required": []string{"meta", "url"},
 				},
 				Callback: a.browserNavigateTool,
 			},
@@ -817,9 +837,13 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+						},
+						"instruct": map[string]interface{}{
 							"type":        "string",
-							"description": "**REQUIRED**: Serves as the vision-recognition instruction for the screenshot. Write a concrete analysis request describing what to extract or verify from the page (e.g. 'identify the page title, navigation menu items, and main content', 'verify the form fields and their visible labels'). Avoid vague instructions like 'view the page'.",
+							"description": "The explicit instruction for the vision model describing what to analyze/extract from the image(s). This is distinct from meta.intent (which is the intent shown to the user).",
 						},
 						"quality": map[string]interface{}{
 							"type":        "number",
@@ -830,7 +854,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "Whether to capture the full page (true) or just the visible viewport (false, default). Full page captures all scrollable content.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta", "instruct"},
 				},
 				Callback: a.browserScreenshotTool,
 			},
@@ -840,9 +864,9 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"x": map[string]interface{}{
 							"type":        "number",
@@ -853,7 +877,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "The y-coordinate to click at (in pixels from the top edge of the viewport)",
 						},
 					},
-					"required": []string{"intent", "x", "y"},
+					"required": []string{"meta", "x", "y"},
 				},
 				Callback: a.browserClickTool,
 			},
@@ -863,9 +887,9 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"text": map[string]interface{}{
 							"type":        "string",
@@ -876,7 +900,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "Whether to clear existing content before typing (default: false)",
 						},
 					},
-					"required": []string{"intent", "text"},
+					"required": []string{"meta", "text"},
 				},
 				Callback: a.browserTypeTool,
 			},
@@ -886,16 +910,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"expression": map[string]interface{}{
 							"type":        "string",
 							"description": "The JavaScript expression or code to execute in the browser",
 						},
 					},
-					"required": []string{"intent", "expression"},
+					"required": []string{"meta", "expression"},
 				},
 				Callback: a.browserEvaluateTool,
 			},
@@ -905,12 +929,12 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.browserGetHTMLTool,
 			},
@@ -920,9 +944,9 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"delta_x": map[string]interface{}{
 							"type":        "number",
@@ -933,7 +957,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "Vertical scroll delta in pixels (positive = down, negative = up, default: 500)",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.browserScrollTool,
 			},
@@ -943,12 +967,12 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.browserGetInteractiveElementsTool,
 			},
@@ -958,12 +982,12 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.browserGoBackTool,
 			},
@@ -973,12 +997,12 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.browserGoForwardTool,
 			},
@@ -988,12 +1012,12 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish. This helps track and debug LLM decision-making.",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.browserCloseTool,
 			},
@@ -1010,12 +1034,12 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "Explain why you are listing vault entries and what you intend to do",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 					},
-					"required": []string{"intent"},
+					"required": []string{"meta"},
 				},
 				Callback: a.vaultListTool,
 			},
@@ -1025,9 +1049,9 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "Explain why this entry is needed",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"name": map[string]interface{}{
 							"type":        "string",
@@ -1042,7 +1066,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							"description": "Optional notes for this entry",
 						},
 					},
-					"required": []string{"intent", "name"},
+					"required": []string{"meta", "name"},
 				},
 				Callback: a.vaultAddTool,
 			},
@@ -1052,16 +1076,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"intent": map[string]interface{}{
-							"type":        "string",
-							"description": "Explain which entry you are removing and why",
+						"meta": map[string]interface{}{
+							"type":        "object",
+							"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 						},
 						"name": map[string]interface{}{
 							"type":        "string",
 							"description": "The name of the vault entry to remove",
 						},
 					},
-					"required": []string{"intent", "name"},
+					"required": []string{"meta", "name"},
 				},
 				Callback: a.vaultRemoveTool,
 			},
@@ -1077,20 +1101,20 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The path to the XLSX file to open (absolute or relative to current working directory)",
+						"description": "The path to the XLSX file to open (absolute or relative to current working directory)",
 					},
 					"mode": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Open mode: 'create' (new empty file), 'read' (read-only), 'copy' (copy with timestamp, then edit copy)",
+						"description": "Open mode: 'create' (new empty file), 'read' (read-only), 'copy' (copy with timestamp, then edit copy)",
 					},
 				},
-				"required": []string{"intent", "path", "mode"},
+				"required": []string{"meta", "path", "mode"},
 			},
 			Callback: a.excelOpenTool,
 		},
@@ -1100,16 +1124,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 				},
-				"required": []string{"intent", "session_id"},
+				"required": []string{"meta", "session_id"},
 			},
 			Callback: a.excelCloseTool,
 		},
@@ -1119,16 +1143,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 				},
-				"required": []string{"intent", "session_id"},
+				"required": []string{"meta", "session_id"},
 			},
 			Callback: a.excelSaveTool,
 		},
@@ -1138,16 +1162,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 				},
-				"required": []string{"intent", "session_id"},
+				"required": []string{"meta", "session_id"},
 			},
 			Callback: a.excelOverviewTool,
 		},
@@ -1157,45 +1181,45 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"sheet": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Sheet name (e.g. \"Sheet1\") or 1-based index",
+						"description": "Sheet name (e.g. \"Sheet1\") or 1-based index",
 					},
 					"start_row": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based start row",
+						"description": "1-based start row",
 					},
 					"end_row": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based end row",
+						"description": "1-based end row",
 					},
 					"start_col": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based start column",
+						"description": "1-based start column",
 					},
 					"end_col": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based end column",
+						"description": "1-based end column",
 					},
 					"format": map[string]interface{}{
 						"type":        "string",
 						"enum":        []string{"html", "full", "text", "md", "grid"},
-						"description": "**REQUIRED**: output format. Choose from: 'html' (HTML table with indentation), 'full' (HTML with cell formatting), 'text' (TSV with row prefix), 'md' (Markdown table), 'grid' (column letters + row numbers with type prefixes)",
+						"description": "output format. Choose from: 'html' (HTML table with indentation), 'full' (HTML with cell formatting), 'text' (TSV with row prefix), 'md' (Markdown table), 'grid' (column letters + row numbers with type prefixes)",
 					},
 					"max_cells": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional: maximum cells to return (default 1000). If the requested range exceeds this, the tool will return an error asking you to reduce the range.",
+						"description": "maximum cells to return (default 1000). If the requested range exceeds this, the tool will return an error asking you to reduce the range.",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col", "format"},
+				"required": []string{"meta", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col", "format"},
 			},
 			Callback: a.excelReadTool,
 		},
@@ -1205,21 +1229,21 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"sheet": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Sheet name (e.g. \"Sheet1\")",
+						"description": "Sheet name (e.g. \"Sheet1\")",
 					},
 					"start_cell": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Starting cell reference (e.g. \"A1\", \"C5\")",
+						"description": "Starting cell reference (e.g. \"A1\", \"C5\")",
 					},
 					"values": map[string]interface{}{
 						"type": "array",
@@ -1230,10 +1254,10 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 							},
 							"description": "Row values",
 						},
-						"description": "**REQUIRED**: 2D array of values to write. Example: [[\"Name\", \"Age\"], [\"Alice\", \"30\"]]",
+						"description": "2D array of values to write. Example: [[\"Name\", \"Age\"], [\"Alice\", \"30\"]]",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "start_cell", "values"},
+				"required": []string{"meta", "session_id", "sheet", "start_cell", "values"},
 			},
 			Callback: a.excelEditTool,
 		},
@@ -1243,40 +1267,40 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"sheet": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Sheet name",
+						"description": "Sheet name",
 					},
 					"start_row": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based start row",
+						"description": "1-based start row",
 					},
 					"end_row": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based end row",
+						"description": "1-based end row",
 					},
 					"start_col": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based start column",
+						"description": "1-based start column",
 					},
 					"end_col": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based end column",
+						"description": "1-based end column",
 					},
 					"cut": map[string]interface{}{
 						"type":        "boolean",
-						"description": "Optional: if true, marks as cut (paste will clear source). Default false.",
+						"description": "if true, marks as cut (paste will clear source). Default false.",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col"},
+				"required": []string{"meta", "session_id", "sheet", "start_row", "end_row", "start_col", "end_col"},
 			},
 			Callback: a.excelCopyTool,
 		},
@@ -1286,24 +1310,24 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"sheet": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Sheet name",
+						"description": "Sheet name",
 					},
 					"target_cell": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Target cell reference (e.g. \"F2\")",
+						"description": "Target cell reference (e.g. \"F2\")",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "target_cell"},
+				"required": []string{"meta", "session_id", "sheet", "target_cell"},
 			},
 			Callback: a.excelPasteTool,
 		},
@@ -1313,32 +1337,32 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"sheet": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Sheet name",
+						"description": "Sheet name",
 					},
 					"what": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: 'rows' or 'cols'",
+						"description": "'rows' or 'cols'",
 					},
 					"position": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based position to insert at",
+						"description": "1-based position to insert at",
 					},
 					"count": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional: number of rows/cols to insert (default 1)",
+						"description": "number of rows/cols to insert (default 1)",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "what", "position"},
+				"required": []string{"meta", "session_id", "sheet", "what", "position"},
 			},
 			Callback: a.excelInsertTool,
 		},
@@ -1348,21 +1372,21 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"sheet": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Sheet name",
+						"description": "Sheet name",
 					},
 					"what": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: 'rows', 'cols', or 'cells'",
+						"description": "'rows', 'cols', or 'cells'",
 					},
 					"position": map[string]interface{}{
 						"type":        "number",
@@ -1389,7 +1413,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 						"description": "For cells: 1-based end column",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "what"},
+				"required": []string{"meta", "session_id", "sheet", "what"},
 			},
 			Callback: a.excelDeleteTool,
 		},
@@ -1399,17 +1423,17 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"action": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Action: 'create', 'delete', 'rename', 'copy', or 'list'",
+						"description": "Action: 'create', 'delete', 'rename', 'copy', or 'list'",
 					},
 					"name": map[string]interface{}{
 						"type":        "string",
@@ -1420,7 +1444,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 						"description": "New sheet name (required for rename and copy)",
 					},
 				},
-				"required": []string{"intent", "session_id", "action"},
+				"required": []string{"meta", "session_id", "action"},
 			},
 			Callback: a.excelSheetTool,
 		},
@@ -1430,26 +1454,26 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by excel_open",
+						"description": "The session ID returned by excel_open",
 					},
 					"sheet": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Sheet name",
+						"description": "Sheet name",
 					},
 					"mode": map[string]interface{}{
 						"type":        "string",
-						"description": "Optional: 'reset' (default) replaces all style properties; 'merge' only updates the properties in what[] and preserves existing styles. Example: mode=\"merge\"",
+						"description": "'reset' (default) replaces all style properties; 'merge' only updates the properties in what[] and preserves existing styles. Example: mode=\"merge\"",
 					},
 					"what": map[string]interface{}{
 						"type":        "array",
 						"items":       map[string]interface{}{"type": "string"},
-						"description": "**REQUIRED**: Array of operations to perform. Options: 'font', 'fill', 'border', 'alignment', 'number_format', 'merge', 'unmerge', 'row_height', 'col_width'. Example: [\"font\", \"fill\", \"border\"]",
+						"description": "Array of operations to perform. Options: 'font', 'fill', 'border', 'alignment', 'number_format', 'merge', 'unmerge', 'row_height', 'col_width'. Example: [\"font\", \"fill\", \"border\"]",
 					},
 					"start_row": map[string]interface{}{
 						"type":        "number",
@@ -1550,7 +1574,7 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 						"description": "Column width in character units (for col_width operation)",
 					},
 				},
-				"required": []string{"intent", "session_id", "sheet", "what"},
+				"required": []string{"meta", "session_id", "sheet", "what"},
 			},
 			Callback: a.excelFormatTool,
 		},
@@ -1566,20 +1590,20 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The path to the DOCX file to open",
+						"description": "The path to the DOCX file to open",
 					},
 					"mode": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Open mode: 'create' (new empty file), 'read' (read-only), 'copy' (copy with timestamp, then edit copy)",
+						"description": "Open mode: 'create' (new empty file), 'read' (read-only), 'copy' (copy with timestamp, then edit copy)",
 					},
 				},
-				"required": []string{"intent", "path", "mode"},
+				"required": []string{"meta", "path", "mode"},
 			},
 			Callback: a.wordOpenTool,
 		},
@@ -1589,16 +1613,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 				},
-				"required": []string{"intent", "session_id"},
+				"required": []string{"meta", "session_id"},
 			},
 			Callback: a.wordCloseTool,
 		},
@@ -1608,16 +1632,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 				},
-				"required": []string{"intent", "session_id"},
+				"required": []string{"meta", "session_id"},
 			},
 			Callback: a.wordSaveTool,
 		},
@@ -1627,16 +1651,16 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 				},
-				"required": []string{"intent", "session_id"},
+				"required": []string{"meta", "session_id"},
 			},
 			Callback: a.wordOverviewTool,
 		},
@@ -1646,29 +1670,29 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 					"from_para": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based starting paragraph index",
+						"description": "1-based starting paragraph index",
 					},
 					"to_para": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based ending paragraph index",
+						"description": "1-based ending paragraph index",
 					},
 					"format": map[string]interface{}{
 						"type":        "string",
 						"enum":        []string{"simple", "full", "text", "md"},
-						"description": "**REQUIRED**: output format. Choose from: 'simple' (HTML with 'N| ' prefix), 'full' (HTML + CSS), 'text' (plain text with 'N| ' prefix), 'md' (Markdown with 'N| ' prefix)",
+						"description": "output format. Choose from: 'simple' (HTML with 'N| ' prefix), 'full' (HTML + CSS), 'text' (plain text with 'N| ' prefix), 'md' (Markdown with 'N| ' prefix)",
 					},
 				},
-				"required": []string{"intent", "session_id", "from_para", "to_para", "format"},
+				"required": []string{"meta", "session_id", "from_para", "to_para", "format"},
 			},
 			Callback: a.wordReadTool,
 		},
@@ -1678,24 +1702,24 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 					"table_index": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 0-based table index (from word_overview)",
+						"description": "0-based table index (from word_overview)",
 					},
 					"format": map[string]interface{}{
 						"type":        "string",
-						"description": "Optional: 'simple' (default) or 'full'",
+						"description": "'simple' (default) or 'full'",
 					},
 				},
-				"required": []string{"intent", "session_id", "table_index"},
+				"required": []string{"meta", "session_id", "table_index"},
 			},
 			Callback: a.wordTableReadTool,
 		},
@@ -1705,17 +1729,17 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Content to insert. Supports Markdown: # Heading1, ## Heading2, ### Heading3, - list item. Use \\n for line breaks.",
+						"description": "Content to insert. Supports Markdown: # Heading1, ## Heading2, ### Heading3, - list item. Use \\n for line breaks.",
 					},
 					"after_para": map[string]interface{}{
 						"type":        "number",
@@ -1723,14 +1747,14 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 					},
 					"same_style_as": map[string]interface{}{
 						"type":        "number",
-						"description": "Optional: inherit style from this paragraph number. Overridden by explicit style parameter.",
+						"description": "inherit style from this paragraph number. Overridden by explicit style parameter.",
 					},
 					"style": map[string]interface{}{
 						"type":        "string",
-						"description": "Optional: explicit style name like 'Heading1', 'Heading2', 'Normal'. Use word_inspect_style to see available styles. Takes precedence over same_style_as.",
+						"description": "explicit style name like 'Heading1', 'Heading2', 'Normal'. Use word_inspect_style to see available styles. Takes precedence over same_style_as.",
 					},
 				},
-				"required": []string{"intent", "session_id", "content"},
+				"required": []string{"meta", "session_id", "content"},
 			},
 			Callback: a.wordContinueTool,
 		},
@@ -1740,24 +1764,24 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 					"from_para": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based starting paragraph index",
+						"description": "1-based starting paragraph index",
 					},
 					"to_para": map[string]interface{}{
 						"type":        "number",
-						"description": "**REQUIRED**: 1-based ending paragraph index",
+						"description": "1-based ending paragraph index",
 					},
 				},
-				"required": []string{"intent", "session_id", "from_para", "to_para"},
+				"required": []string{"meta", "session_id", "from_para", "to_para"},
 			},
 			Callback: a.wordEraseTool,
 		},
@@ -1767,20 +1791,20 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 					"name": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Style name to inspect (e.g. 'Heading 1', 'Normal')",
+						"description": "Style name to inspect (e.g. 'Heading 1', 'Normal')",
 					},
 				},
-				"required": []string{"intent", "session_id", "name"},
+				"required": []string{"meta", "session_id", "name"},
 			},
 			Callback: a.wordInspectStyleTool,
 		},
@@ -1790,28 +1814,28 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"intent": map[string]interface{}{
-						"type":        "string",
-						"description": "**REQUIRED**: Explain why you are calling this tool and what you expect to accomplish.",
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: The session ID returned by word_open",
+						"description": "The session ID returned by word_open",
 					},
 					"what": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Property to change: 'style', 'font_name', 'font_size', 'bold', 'italic', 'color'",
+						"description": "Property to change: 'style', 'font_name', 'font_size', 'bold', 'italic', 'color'",
 					},
 					"value": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: New value for the property",
+						"description": "New value for the property",
 					},
 					"target": map[string]interface{}{
 						"type":        "string",
-						"description": "**REQUIRED**: Target: 'style:StyleName' or 'para:start-end' (e.g., 'style:Heading 2', 'para:3-5')",
+						"description": "Target: 'style:StyleName' or 'para:start-end' (e.g., 'style:Heading 2', 'para:3-5')",
 					},
 				},
-				"required": []string{"intent", "session_id", "what", "value", "target"},
+				"required": []string{"meta", "session_id", "what", "value", "target"},
 			},
 			Callback: a.wordFormatTool,
 		},
@@ -1821,14 +1845,19 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture
-		tools = append(tools, llm.Tool{
+		mcpLLMTool := llm.Tool{
 			Name:        tool.Name,
 			Description: tool.Description,
 			Parameters:  tool.InputSchema,
 			Callback: func(ctx context.Context, args map[string]interface{}) (string, error) {
 				return a.mcpMgr.CallTool(ctx, tool.Name, args)
 			},
-		})
+		}
+		// FEATURE-447: MCP tool InputSchema comes from the MCP server and has no
+		// meta parameter — inject it so MCP tools also carry the required
+		// transparency metadata.
+		injectMetaParam(&mcpLLMTool)
+		tools = append(tools, mcpLLMTool)
 	}
 
 	// Filter out disabled tools.
@@ -1867,7 +1896,92 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		tools = filtered
 	}
 
+	// FEATURE-447: the unified meta object parameter is declared directly in
+	// each tool definition above. MCP tools (whose InputSchema comes from the
+	// MCP server) get the meta parameter injected at build time so they also
+	// carry the required transparency metadata.
+
+	// FEATURE-447: when intent exposure is disabled, strip the meta parameter
+	// from every tool definition (properties + required) so the LLM is not
+	// asked to report transparency metadata.
+	if !a.intentExposureEnabled {
+		for i := range tools {
+			params := tools[i].Parameters
+			if props, ok := params["properties"].(map[string]interface{}); ok {
+				delete(props, "meta")
+			}
+			// required may be declared as []string or []interface{}; handle both.
+			switch req := params["required"].(type) {
+			case []string:
+				filtered := req[:0]
+				for _, r := range req {
+					if r != "meta" {
+						filtered = append(filtered, r)
+					}
+				}
+				params["required"] = filtered
+			case []interface{}:
+				filtered := req[:0]
+				for _, r := range req {
+					if r != "meta" {
+						filtered = append(filtered, r)
+					}
+				}
+				params["required"] = filtered
+			}
+		}
+	}
+
 	return tools
+}
+
+// injectMetaParam adds the unified meta object parameter to a tool definition
+// (FEATURE-447). It inserts meta as the first property, marks it required, and
+// removes the legacy top-level intent parameter (now inside meta.intent).
+// Vision tools (visual_analysis / browser_screenshot) additionally get an
+// "instruct" parameter that carries the explicit instruction for the vision
+// model (distinct from meta.intent which is for the user).
+func injectMetaParam(tool *llm.Tool) {
+	props, _ := tool.Parameters["properties"].(map[string]interface{})
+	if props == nil {
+		props = map[string]interface{}{}
+		tool.Parameters["properties"] = props
+	}
+
+	// Remove the legacy top-level intent parameter (moved into meta.intent).
+	delete(props, "intent")
+
+	// Add the meta object parameter.
+	props["meta"] = map[string]interface{}{
+		"type":        "object",
+		"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+	}
+
+	// Vision tools get an explicit instruct parameter for the vision model.
+	if tool.Name == "visual_analysis" || tool.Name == "browser_screenshot" {
+		props["instruct"] = map[string]interface{}{
+			"type":        "string",
+			"description": "The explicit instruction for the vision model describing what to analyze/extract from the image(s). This is distinct from meta.intent (which is the intent shown to the user).",
+		}
+	}
+
+	// Update the required list: remove intent, add meta (and instruct for
+	// vision tools).
+	required, _ := tool.Parameters["required"].([]interface{})
+	newRequired := make([]interface{}, 0, len(required)+2)
+	for _, r := range required {
+		s, _ := r.(string)
+		if s == "intent" {
+			continue // intent moved into meta
+		}
+		newRequired = append(newRequired, r)
+	}
+	// meta is always required and placed first.
+	newRequired = append([]interface{}{"meta"}, newRequired...)
+	if tool.Name == "visual_analysis" || tool.Name == "browser_screenshot" {
+		newRequired = append(newRequired, "instruct")
+	}
+	tool.Parameters["required"] = newRequired
 }
 
 // recordVisionToolCall stores the ToolCall ID and tool name of the most
@@ -2113,14 +2227,14 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 			}
 			log.Debug("Tool call result: %s -> %s", tc.Name, result)
 
-			// If the tool was called with an intent parameter, wrap the result
-			// with explicit labels (FIX-324). The result is clearly marked with
-			// [Result] so that an empty result cannot be confused with the
-			// [Intent] reminder text — the LLM sees exactly what the tool
-			// returned versus what the original purpose was. This applies to
-			// both OpenAI (tool message) and XML (tool result template) modes,
-			// which share this same return value.
-			if intent, ok := args["intent"].(string); ok && intent != "" {
+			// If the tool was called with an intent in its meta object, wrap the
+			// result with explicit labels (FIX-324). The result is clearly
+			// marked with [Result] so that an empty result cannot be confused
+			// with the [Intent] reminder text — the LLM sees exactly what the
+			// tool returned versus what the original purpose was. This applies
+			// to both OpenAI (tool message) and XML (tool result template)
+			// modes, which share this same return value.
+			if intent := argString(metaObject(args), "intent"); intent != "" {
 				if result == "" {
 					result = i18n.T(i18n.KeyToolNoOutput)
 				}

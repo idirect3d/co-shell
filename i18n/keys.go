@@ -1227,6 +1227,11 @@ const (
 	// System Prompt - legacy keys (not used in buildSystemPromptWithMode, kept for reference)
 	KeySystemPromptToolUsage    = "system_prompt_tool_usage"
 	KeySystemPromptToolUsageXML = "system_prompt_tool_usage_xml"
+	// FEATURE-447: standalone meta object description resources (openai/xml).
+	// Injected into the {META_DESCRIPTION} placeholder of the tool usage
+	// resources when intent exposure is enabled.
+	KeySystemPromptToolUsageMetaOpenAI = "system_prompt_tool_usage_meta_openai"
+	KeySystemPromptToolUsageMetaXML    = "system_prompt_tool_usage_meta_xml"
 	KeySystemPromptEnv          = "system_prompt_env"
 
 	KeySystemPromptEditingFiles = "system_prompt_editing_files"
@@ -1330,6 +1335,7 @@ const (
 
 	// Plan enabled
 	KeyCol3PlanEnabled     = "col3_plan_enabled"
+	KeyCol3IntentExposureEnabled = "col3_intent_exposure_enabled"
 	KeySettingsDescPlan    = "settings_desc_plan"
 	KeyPlanEnabledUpdated  = "plan_enabled_updated"
 	KeyCLIHelpPlanEnabled  = "cli_help_plan_enabled"
@@ -2463,6 +2469,9 @@ const (
 	// FEATURE-343: vision recognition round failure fallback (zh/en)
 	KeyVisionRecognitionFailed = "vision_recognition_failed"
 	KeyVisionRecognitionEmpty  = "vision_recognition_empty"
+	// FEATURE-447: vision recognition token usage appended to the result
+	// returned to the main LLM (input/output/total tokens + % of vision model context)
+	KeyVisionRecognitionTokenUsage = "vision_recognition_token_usage"
 	// Recognition round aborted (ESC cancel / failed retry) placeholder backfill
 	KeyVisionRecognitionCancelled = "vision_recognition_cancelled"
 	KeyMemoryDeletedRange      = "memory_deleted_range"
@@ -2475,6 +2484,7 @@ const (
 	KeyTaskStepDescRequired    = "task_step_desc_required"
 	KeyTaskPlanArchived        = "task_plan_archived"
 	KeyTaskPlanNone            = "task_plan_none"
+	KeyTaskPlanDefaultTitle    = "task_plan_default_title"
 	KeySchedulerExpired        = "scheduler_expired"
 	KeySchedulerMinutes        = "scheduler_minutes"
 	KeySchedulerHours          = "scheduler_hours"

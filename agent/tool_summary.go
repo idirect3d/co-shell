@@ -48,11 +48,32 @@ type SummaryParam struct {
 // carries both the human-readable Text (existing i18n template phrasing, used
 // by TUI) and structured fields (ToolName/Intent/Params, used by Web UI to
 // render a structured card).
+//
+// FEATURE-447: Risk/RiskReason/Files/Progress carry the tool-call transparency
+// metadata — the risk level (LLM self-assessment, required), the affected
+// files (reported by the LLM), and the task progress report. Web/JSON
+// consumers use them to colour the risk badge and highlight the affected
+// files in the workspace tree.
 type ToolSummary struct {
-	Text     string         `json:"text"`     // human-readable summary (TUI)
-	ToolName string         `json:"tool_name"` // tool name
-	Intent   string         `json:"intent"`   // intent
-	Params   []SummaryParam `json:"params"`   // key parameters
+	Text       string         `json:"text"`      // human-readable summary (TUI)
+	ToolName   string         `json:"tool_name"` // tool name
+	Intent     string         `json:"intent"`    // intent
+	Params     []SummaryParam `json:"params"`    // key parameters
+	Risk       string         `json:"risk"`      // low/medium/high (FEATURE-447)
+	RiskReason string         `json:"risk_reason,omitempty"` // LLM self-assessment reason
+	Files      []AffectedFile `json:"files,omitempty"`       // affected files (absolute paths + sensitive flag)
+	Progress   []ProgressStep `json:"progress,omitempty"`    // task progress report
+}
+
+// ProgressStep is one step of the task progress report carried in a tool call
+// (FEATURE-447). The LLM reports only steps whose status changed plus the
+// currently executing step. Index refers to the target step array index in the
+// task plan: an index equal to the current step count appends a new step; an
+// index beyond that is an error (tool call fails).
+type ProgressStep struct {
+	Index       int    `json:"index"`       // target step array index (required)
+	Description string `json:"description"` // new description (may be unchanged, required)
+	Status      string `json:"status"`      // current status (required)
 }
 
 // buildToolSummary constructs a structured summary of a tool call: friendly
@@ -60,7 +81,8 @@ type ToolSummary struct {
 // carries the existing i18n-template phrasing (FEATURE-310) for TUI; the
 // structured fields let Web UI render a card (FEATURE-388).
 func buildToolSummary(toolName string, args map[string]interface{}) ToolSummary {
-	intent := argString(args, "intent")
+	// FEATURE-447: the intent is carried inside the meta object.
+	intent := argString(metaObject(args), "intent")
 	s := ToolSummary{ToolName: toolName, Intent: intent}
 
 	// Tools with a dedicated i18n template are rendered with personalized
