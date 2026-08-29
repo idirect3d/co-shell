@@ -369,6 +369,7 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 			return i18n.TF(i18n.KeySettingsUpdated, "toolcall-mode", "openai")
 		}},
 		syncedOnOffParam(&h.cfg.LLM.PlanEnabled, "plan-enabled", func(v bool) { h.agent.SetPlanEnabled(v) }),
+		syncedOnOffParam(&h.cfg.LLM.IntentExposureEnabled, "intent-exposure-enabled", func(v bool) { h.agent.SetIntentExposureEnabled(v) }),
 		syncedOnOffParam(&h.cfg.LLM.SubAgentEnabled, "subagent-enabled", func(v bool) { h.agent.SetSubAgentEnabled(v) }),
 		{Name: "result-mode", Options: []string{"minimal", "explain", "analyze", "free"}, CurrentValue: func() string {
 			return config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))

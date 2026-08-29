@@ -38,7 +38,7 @@ import (
 func TestBuildToolSummaryFallback(t *testing.T) {
 	// Generic tool with intent
 	got := buildToolSummary("evaluate_expression", map[string]interface{}{
-		"intent":     "compute the final total",
+		"meta":       map[string]interface{}{"intent": "compute the final total"},
 		"expression": "3 + 4 * 2",
 	})
 	if !strings.Contains(got.Text, "compute the final total") {
@@ -78,7 +78,7 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 			name: "execute_command",
 			tool: "execute_command",
 			args: map[string]interface{}{
-				"intent":  "list files",
+				"meta":    map[string]interface{}{"intent": "list files"},
 				"command": "ls -la",
 			},
 			want: []string{"ls -la", "list files"},
@@ -87,7 +87,7 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 			name: "read_file",
 			tool: "read_file",
 			args: map[string]interface{}{
-				"intent":     "examine source",
+				"meta":       map[string]interface{}{"intent": "examine source"},
 				"path":       "src/main.go",
 				"start_line": float64(1),
 				"end_line":   float64(100),
@@ -98,7 +98,7 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 			name: "write_to_file",
 			tool: "write_to_file",
 			args: map[string]interface{}{
-				"intent":  "save report",
+				"meta":    map[string]interface{}{"intent": "save report"},
 				"mode":    "new",
 				"path":    "report.md",
 				"content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
@@ -109,9 +109,9 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 			name: "search_files",
 			tool: "search_files",
 			args: map[string]interface{}{
-				"intent": "find function",
-				"path":   "src",
-				"regex":  "func main",
+				"meta":  map[string]interface{}{"intent": "find function"},
+				"path":  "src",
+				"regex": "func main",
 			},
 			want: []string{"src", "func main", "find function"},
 		},
@@ -119,7 +119,7 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 			name: "list_files",
 			tool: "list_files",
 			args: map[string]interface{}{
-				"intent":    "explore",
+				"meta":      map[string]interface{}{"intent": "explore"},
 				"path":      "/tmp",
 				"recursive": float64(1),
 			},
@@ -129,8 +129,8 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 			name: "list_code_definition_names",
 			tool: "list_code_definition_names",
 			args: map[string]interface{}{
-				"intent": "understand API",
-				"path":   "src/api",
+				"meta": map[string]interface{}{"intent": "understand API"},
+				"path": "src/api",
 			},
 			want: []string{"src/api", "understand API"},
 		},
@@ -152,7 +152,7 @@ func TestBuildToolSummaryTextTools(t *testing.T) {
 // Intent, Params) are populated for high-frequency tools (UC-0027).
 func TestBuildToolSummaryStructured(t *testing.T) {
 	got := buildToolSummary("execute_command", map[string]interface{}{
-		"intent":  "list files",
+		"meta":    map[string]interface{}{"intent": "list files"},
 		"command": "ls -la",
 	})
 	if got.ToolName != "execute_command" || got.Intent != "list files" {
@@ -169,7 +169,7 @@ func TestBuildToolSummaryStructured(t *testing.T) {
 // TestBuildToolSummaryStructuredFallback verifies the generic fallback still
 // populates ToolName/Intent (UC-0028).
 func TestBuildToolSummaryStructuredFallback(t *testing.T) {
-	got := buildToolSummary("list_settings", map[string]interface{}{"intent": "查看配置"})
+	got := buildToolSummary("list_settings", map[string]interface{}{"meta": map[string]interface{}{"intent": "查看配置"}})
 	if got.ToolName != "list_settings" || got.Intent != "查看配置" {
 		t.Errorf("fallback structured fields wrong: %+v", got)
 	}
@@ -182,7 +182,7 @@ func TestBuildToolSummaryStructuredFallback(t *testing.T) {
 // (UC-0029).
 func TestBuildToolSummaryTextNonEmpty(t *testing.T) {
 	for _, tool := range []string{"execute_command", "read_file", "list_settings", "ask_followup_question"} {
-		got := buildToolSummary(tool, map[string]interface{}{"intent": "x"})
+		got := buildToolSummary(tool, map[string]interface{}{"meta": map[string]interface{}{"intent": "x"}})
 		if got.Text == "" {
 			t.Errorf("%s Text should be non-empty", tool)
 		}
@@ -203,9 +203,9 @@ func TestBuildToolSummaryTruncation(t *testing.T) {
 			name: "write_to_file long content not shown",
 			tool: "write_to_file",
 			args: map[string]interface{}{
-				"intent":  "write",
-				"mode":    "new",
-				"path":    "a.txt",
+				"meta": map[string]interface{}{"intent": "write"},
+				"mode": "new",
+				"path": "a.txt",
 				"content": longContent,
 			},
 			want: []string{"a.txt", "new"},
@@ -214,8 +214,8 @@ func TestBuildToolSummaryTruncation(t *testing.T) {
 			name: "replace_in_file shows replacement count",
 			tool: "replace_in_file",
 			args: map[string]interface{}{
-				"intent": "edit",
-				"path":   "main.go",
+				"meta": map[string]interface{}{"intent": "edit"},
+				"path": "main.go",
 				"replacements": []interface{}{
 					map[string]interface{}{"search": "x", "replace": "y"},
 					map[string]interface{}{"search": "a", "replace": "b"},
@@ -227,7 +227,7 @@ func TestBuildToolSummaryTruncation(t *testing.T) {
 			name: "visual_analysis shows file count",
 			tool: "visual_analysis",
 			args: map[string]interface{}{
-				"intent": "ocr",
+				"meta":   map[string]interface{}{"intent": "ocr"},
 				"paths":  []interface{}{"a.png", "b.png", "c.png"},
 			},
 			want: []string{"3"},
@@ -262,7 +262,7 @@ func TestBuildToolSummaryTruncation(t *testing.T) {
 // TestBuildToolSummaryShellTools covers shell tools (UC-0007).
 func TestBuildToolSummaryShellTools(t *testing.T) {
 	got := buildToolSummary("shell_send", map[string]interface{}{
-		"intent":  "run python",
+		"meta":    map[string]interface{}{"intent": "run python"},
 		"command": "python3 -c 'print(1)'",
 	})
 	if !strings.Contains(got.Text, "python3 -c 'print(1)'") || !strings.Contains(got.Text, "run python") {
@@ -271,7 +271,7 @@ func TestBuildToolSummaryShellTools(t *testing.T) {
 
 	// Intent-only tools
 	for _, tool := range []string{"shell_window_content", "shell_reset"} {
-		got := buildToolSummary(tool, map[string]interface{}{"intent": "check state"})
+		got := buildToolSummary(tool, map[string]interface{}{"meta": map[string]interface{}{"intent": "check state"}})
 		if !strings.Contains(got.Text, "check state") {
 			t.Errorf("%s summary missing intent: %q", tool, got.Text)
 		}
@@ -281,18 +281,18 @@ func TestBuildToolSummaryShellTools(t *testing.T) {
 // TestBuildToolSummaryDocTools covers excel/word tools (UC-0009).
 func TestBuildToolSummaryDocTools(t *testing.T) {
 	got := buildToolSummary("excel_open", map[string]interface{}{
-		"intent": "analyze",
-		"path":   "data.xlsx",
-		"mode":   "read",
+		"meta": map[string]interface{}{"intent": "analyze"},
+		"path": "data.xlsx",
+		"mode": "read",
 	})
 	if !strings.Contains(got.Text, "data.xlsx") || !strings.Contains(got.Text, "read") || !strings.Contains(got.Text, "analyze") {
 		t.Errorf("excel_open summary wrong: %q", got.Text)
 	}
 
 	got = buildToolSummary("word_open", map[string]interface{}{
-		"intent": "edit doc",
-		"path":   "doc.docx",
-		"mode":   "copy",
+		"meta": map[string]interface{}{"intent": "edit doc"},
+		"path": "doc.docx",
+		"mode": "copy",
 	})
 	if !strings.Contains(got.Text, "doc.docx") || !strings.Contains(got.Text, "copy") || !strings.Contains(got.Text, "edit doc") {
 		t.Errorf("word_open summary wrong: %q", got.Text)
@@ -302,7 +302,7 @@ func TestBuildToolSummaryDocTools(t *testing.T) {
 // TestBuildToolSummaryZeroParamTools covers intent-only tools (UC-0010).
 func TestBuildToolSummaryZeroParamTools(t *testing.T) {
 	for _, tool := range []string{"view_task_plan", "list_settings"} {
-		got := buildToolSummary(tool, map[string]interface{}{"intent": "check status"})
+		got := buildToolSummary(tool, map[string]interface{}{"meta": map[string]interface{}{"intent": "check status"}})
 		if !strings.Contains(got.Text, "check status") {
 			t.Errorf("%s summary missing intent: %q", tool, got.Text)
 		}
@@ -370,7 +370,7 @@ func TestBuildToolSummaryAskQuestionFull(t *testing.T) {
 // JSON and carried in an EventToolCall Meta (UC-0030).
 func TestToolSummaryJSONSerialization(t *testing.T) {
 	summary := buildToolSummary("execute_command", map[string]interface{}{
-		"intent":  "list files",
+		"meta":    map[string]interface{}{"intent": "list files"},
 		"command": "ls -la",
 	})
 	data, err := json.Marshal(summary)

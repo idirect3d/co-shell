@@ -795,15 +795,23 @@ func ParseXMLToolCallsWithTools(content string, tools []llm.Tool) []llm.ToolCall
 						// Check for missing required parameters
 						for _, tool := range tools {
 							if tool.Name == tagName {
-								if requiredRaw, ok := tool.Parameters["required"].([]interface{}); ok {
-									for _, r := range requiredRaw {
-										if reqName, ok := r.(string); ok {
-											// Skip "intent" - it's always the first required param
-											if _, found := parsedArgs[reqName]; !found {
-												errMsg := i18n.TF(i18n.KeyXMLErrMissingRequired, tagName, reqName)
-												parseErrors = append(parseErrors, errMsg)
-											}
+								// required may be declared as []string or []interface{}; handle both.
+								var requiredNames []string
+								switch req := tool.Parameters["required"].(type) {
+								case []string:
+									requiredNames = req
+								case []interface{}:
+									for _, r := range req {
+										if s, ok := r.(string); ok {
+											requiredNames = append(requiredNames, s)
 										}
+									}
+								}
+								for _, reqName := range requiredNames {
+									// Skip "intent" - it's always the first required param
+									if _, found := parsedArgs[reqName]; !found {
+										errMsg := i18n.TF(i18n.KeyXMLErrMissingRequired, tagName, reqName)
+										parseErrors = append(parseErrors, errMsg)
 									}
 								}
 								break
@@ -1780,14 +1788,14 @@ func (mgr *ToolCallModeMgr) ParseResponseToolCalls(content string) []llm.ToolCal
 // based on the current mode and tools.
 // For XML mode, returns detailed XML format instructions.
 // For OpenAI mode, returns brief instructions (tools are defined via JSON schema).
-func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string, workMode ...string) string {
+func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string, intentExposureEnabled bool, workMode ...string) string {
 	switch mode {
 	case ToolCallModeXML:
 		wm := ""
 		if len(workMode) > 0 {
 			wm = workMode[0]
 		}
-		return buildXMLToolPrompt(tools, lang, wm)
+		return buildXMLToolPrompt(tools, lang, wm, intentExposureEnabled)
 	default:
 		// For OpenAI mode, just return the basic tool usage text.
 		// Examples, task progress, editing files, browser usage are now
@@ -1802,7 +1810,7 @@ func BuildToolUsagePrompt(mode ToolCallMode, tools []llm.Tool, lang string, work
 //	<cs:execute_command>
 //	  <cs:command>ls -la</cs:command>
 //	</cs:execute_command>
-func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string) string {
+func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string, intentExposureEnabled bool) string {
 	if len(tools) == 0 {
 		return ""
 	}
@@ -1813,6 +1821,17 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string) string {
 	// Write the i18n content first (header + XML examples), inject prefix.
 	headerContent := i18n.T(i18n.KeySystemPromptToolUsageXML)
 	headerContent = strings.ReplaceAll(headerContent, "{XML_TAG_PREFIX}", xmlTagPrefix())
+	// FEATURE-447: inject the standalone meta object description into the
+	// {META_DESCRIPTION} placeholder when intent exposure is enabled. When
+	// disabled, the placeholder is replaced with an empty string so the LLM is
+	// not instructed to report transparency metadata.
+	if intentExposureEnabled {
+		metaDesc := i18n.T(i18n.KeySystemPromptToolUsageMetaXML)
+		metaDesc = strings.ReplaceAll(metaDesc, "{XML_TAG_PREFIX}", xmlTagPrefix())
+		headerContent = strings.ReplaceAll(headerContent, "{META_DESCRIPTION}", metaDesc)
+	} else {
+		headerContent = strings.ReplaceAll(headerContent, "{META_DESCRIPTION}", "")
+	}
 	sb.WriteString(headerContent)
 	sb.WriteString("\n")
 

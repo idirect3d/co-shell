@@ -239,10 +239,12 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 		return "", fmt.Errorf("paths argument is required — provide at least one image/video file path")
 	}
 
-	// Extract intent parameter (required)
-	intent, _ := args["intent"].(string)
-	if intent == "" {
-		return "", fmt.Errorf("intent argument is required — you must specify what information you need to analyze from the visual input")
+	// FEATURE-447: the vision instruction is carried by the explicit "instruct"
+	// parameter (distinct from meta.intent which is the intent shown to the
+	// user). The instruct is what the vision model is told to do.
+	instruct, _ := args["instruct"].(string)
+	if instruct == "" {
+		return "", fmt.Errorf("instruct argument is required — you must specify what information you need to analyze from the visual input")
 	}
 
 	// Get max images limit from config
@@ -258,10 +260,10 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 		paths = paths[:maxImages]
 	}
 
-	// FEATURE-319: Store the intent as the clean instruction for minimal
-	// vision-context mode (buildContextMessages sends [system, user(intent)]).
+	// FEATURE-319: Store the instruct as the clean instruction for minimal
+	// vision-context mode (buildContextMessages sends [system, user(instruct)]).
 	a.mu.Lock()
-	a.visionPendingIntent = intent
+	a.visionPendingIntent = instruct
 
 	loadedFiles := make([]string, 0, len(paths))
 	for _, p := range paths {
@@ -301,7 +303,7 @@ func (a *Agent) visualAnalysisTool(ctx context.Context, args map[string]interfac
 		fileList.WriteString(fmt.Sprintf("  %d. %s", i+1, fp))
 	}
 
-	taskContent := i18n.TF(i18n.KeyImageAnalyzePromptFull, fileList.String(), intent)
+	taskContent := i18n.TF(i18n.KeyImageAnalyzePromptFull, fileList.String(), instruct)
 
 	if truncated > 0 {
 		taskContent += i18n.TF(i18n.KeyImageTruncatedNotice, truncated, maxImages)

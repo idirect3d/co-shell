@@ -997,6 +997,24 @@ function renderEvent(ev) {
         const label = head.querySelector(".ev-head-label");
         if (label) label.textContent = text;
         else head.textContent = text;
+        // FEATURE-447: show the risk level as a coloured badge in the tool
+        // block title bar (low=green, medium=yellow, high=red). It is inserted
+        // right after the title label, before the action icons.
+        if (summary.risk) {
+          const riskBadge = document.createElement("span");
+          riskBadge.className = "risk-badge risk-" + summary.risk;
+          riskBadge.textContent = summary.risk.toUpperCase();
+          if (summary.risk_reason) riskBadge.title = summary.risk_reason;
+          const actions = head.querySelector(".ev-actions");
+          if (actions) head.insertBefore(riskBadge, actions);
+          else head.appendChild(riskBadge);
+        }
+        // FEATURE-447: highlight the affected files in the workspace tree.
+        // Deterministic files use the accent text colour (no background/border),
+        // predicted files use blue.
+        if (summary.files && summary.files.length) {
+          highlightAffectedFiles(summary.files);
+        }
         // FIX-426: the completion block (TOOL: 完成任务) is marked as the
         // result block so minimal/silent modes keep it expanded. The label at
         // makeBlock time is just "TOOL", so mark it here once the real title
@@ -1972,6 +1990,63 @@ input.addEventListener("input", autoGrow);
 // open/collapsed state instead of collapsing everything.
 const expandedDirs = new Set();
 
+// FEATURE-447: files/folders affected by the current tool call, reported by
+// the LLM via the "files" argument. The frontend highlights them in the tree
+// with a blue text colour (no background/border).
+let affectedFiles = [];
+
+// highlightAffectedFiles records the files affected by the current tool call,
+// clears any previous highlight, expands the affected files' parent folders,
+// rebuilds the tree and scrolls the first affected file into view (FEATURE-447).
+function highlightAffectedFiles(files) {
+  affectedFiles = files || [];
+  // Clear the previous tool call's highlight so only the current affected
+  // files stay blue.
+  tree.querySelectorAll(".tree-row .name.aff-pred").forEach((n) => n.classList.remove("aff-pred"));
+  if (!affectedFiles.length) return;
+  // Expand every affected file's parent folders so the highlighted row is
+  // visible even when its directory was collapsed.
+  affectedFiles.forEach((f) => {
+    const parts = f.path.split("/");
+    let acc = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      acc = acc ? acc + "/" + parts[i] : parts[i];
+      expandedDirs.add(acc);
+    }
+  });
+  // Rebuild the tree to apply the expansion, then highlight and scroll.
+  loadTree().then(() => {
+    applyAffectedHighlight();
+    scrollToAffected();
+  });
+}
+
+// applyAffectedHighlight applies the affected-file highlight to the current
+// workspace tree DOM. It is called after highlightAffectedFiles and after each
+// loadTree() rebuild (which recreates the DOM).
+function applyAffectedHighlight() {
+  if (!affectedFiles.length) return;
+  tree.querySelectorAll(".tree-row").forEach((r) => {
+    const path = r.dataset.path;
+    if (!path) return;
+    const hit = affectedFiles.find((f) => f.path === path);
+    if (!hit) return;
+    const nameEl = r.querySelector(".name");
+    if (!nameEl) return;
+    // All affected files are reported by the LLM — highlight with blue.
+    nameEl.classList.add("aff-pred");
+  });
+}
+
+// scrollToAffected scrolls the workspace tree so the first affected file is
+// visible (FEATURE-447).
+function scrollToAffected() {
+  if (!affectedFiles.length) return;
+  const first = affectedFiles[0];
+  const row = Array.from(tree.querySelectorAll(".tree-row")).find((r) => r.dataset.path === first.path);
+  if (row) row.scrollIntoView({ block: "nearest" });
+}
+
 async function loadTree() {
   try {
     const resp = await fetch("/api/tree");
@@ -1982,6 +2057,8 @@ async function loadTree() {
     // salient feature (the workspace name) is visible at a glance.
     ul.appendChild(treeNode(root));
     tree.appendChild(ul);
+    // FEATURE-447: re-apply the affected-file highlight after the DOM rebuild.
+    applyAffectedHighlight();
   } catch { /* keep old tree */ }
 }
 
@@ -2040,6 +2117,11 @@ function treeNode(node) {
   row.addEventListener("mouseenter", () => {
     if (name.scrollWidth > name.clientWidth) layout.classList.add("sidebar-auto");
   });
+
+  // FEATURE-447: every row (file and directory) carries its absolute path so
+  // the affected-file highlight can match directories too (predicted files
+  // may resolve to a shared folder).
+  row.dataset.path = node.path;
 
   li.appendChild(row);
 
@@ -3195,6 +3277,13 @@ function renderWizardField(f) {
         });
         const body = await resp.json();
         if (body.ok) {
+          // If the backend auto-completed the endpoint (e.g. added http:// or
+          // /v1), persist the completed URL so the saved model uses it instead
+          // of the user's incomplete input (FEATURE-447).
+          if (body.endpoint && body.endpoint !== ep) {
+            ctl.value = body.endpoint;
+            wizardData.endpoint = body.endpoint;
+          }
           res.textContent = "✅ 连通 (" + (body.endpoint || ep) + ")";
           res.className = "wizard-test-result ok";
         } else {

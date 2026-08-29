@@ -165,8 +165,8 @@ func collectTaskPlanEvents(t *testing.T, ag *Agent, input string) []string {
 // plan JSON.
 func TestTaskPlanEventEmittedAfterTrackProgress(t *testing.T) {
 	client := &scriptedPlanClient{script: []scriptStep{
-		{"track_task_progress", `{"title":"Build it","description":"D","steps":[{"description":"step one","status":"pending"}]}`},
-		{"attempt_completion", `{"result":"done","session_title":"t","session_keywords":"k"}`},
+		{"track_task_progress", `{"meta":{"intent":"make a plan","risk":"medium","risk_reason":"planning","affected_objects":[],"progress":[]},"title":"Build it","description":"D","steps":[{"description":"step one","status":"pending"}]}`},
+		{"attempt_completion", `{"meta":{"intent":"complete","risk":"low","risk_reason":"done","affected_objects":[],"progress":[]},"result":"done","session_title":"t","session_keywords":"k"}`},
 	}}
 	ag := newPlanEventAgent(t, client)
 
@@ -187,9 +187,9 @@ func TestTaskPlanEventEmittedAfterTrackProgress(t *testing.T) {
 // emits a task_plan event with an empty snapshot so consumers hide the panel.
 func TestTaskPlanEventEmptyOnArchive(t *testing.T) {
 	client := &scriptedPlanClient{script: []scriptStep{
-		{"track_task_progress", `{"title":"Build it","description":"D","steps":[{"description":"step one","status":"pending"}]}`},
-		{"track_task_progress", `{"title":"","description":"","steps":[]}`},
-		{"attempt_completion", `{"result":"done","session_title":"t","session_keywords":"k"}`},
+		{"track_task_progress", `{"meta":{"intent":"make a plan","risk":"medium","risk_reason":"planning","affected_objects":[],"progress":[]},"title":"Build it","description":"D","steps":[{"description":"step one","status":"pending"}]}`},
+		{"track_task_progress", `{"meta":{"intent":"archive plan","risk":"medium","risk_reason":"archiving","affected_objects":[],"progress":[]},"title":"","description":"","steps":[]}`},
+		{"attempt_completion", `{"meta":{"intent":"complete","risk":"low","risk_reason":"done","affected_objects":[],"progress":[]},"result":"done","session_title":"t","session_keywords":"k"}`},
 	}}
 	ag := newPlanEventAgent(t, client)
 
@@ -212,7 +212,7 @@ func TestTaskPlanEventEmptyOnArchive(t *testing.T) {
 // no task_plan events.
 func TestTaskPlanEventNotEmittedForOtherTools(t *testing.T) {
 	client := &scriptedPlanClient{script: []scriptStep{
-		{"attempt_completion", `{"result":"done","session_title":"t","session_keywords":"k"}`},
+		{"attempt_completion", `{"meta":{"intent":"complete","risk":"low","risk_reason":"done","affected_objects":[],"progress":[]},"result":"done","session_title":"t","session_keywords":"k"}`},
 	}}
 	ag := newPlanEventAgent(t, client)
 	if plans := collectTaskPlanEvents(t, ag, "hello"); len(plans) != 0 {
@@ -225,5 +225,46 @@ func TestTaskPlanEventSnapshotUndecorated(t *testing.T) {
 	ev := TaskPlanEvent(`{"title":"T"}`)
 	if strings.ContainsAny(ev.Meta[MetaKeyPlan], "✅⚠️❌\x1b") {
 		t.Errorf("plan snapshot carries decoration: %q", ev.Meta[MetaKeyPlan])
+	}
+}
+
+// TestApplyProgressReportFromMeta verifies the LLM's progress report is read
+// from the meta object (meta.progress), not the top-level arguments
+// (FEATURE-447). A non-track_task_progress tool carrying meta.progress must
+// update the current plan's step status.
+func TestApplyProgressReportFromMeta(t *testing.T) {
+	client := &scriptedPlanClient{script: []scriptStep{
+		{"track_task_progress", `{"meta":{"intent":"make a plan","risk":"medium","risk_reason":"planning","affected_objects":[],"progress":[]},"title":"Build it","description":"D","steps":[{"description":"step one","status":"pending"}]}`},
+		{"attempt_completion", `{"meta":{"intent":"complete","risk":"low","risk_reason":"done","affected_objects":[],"progress":[]},"result":"done","session_title":"t","session_keywords":"k"}`},
+	}}
+	ag := newPlanEventAgent(t, client)
+
+	// Create the plan first.
+	if _, err := ag.RunStream(context.Background(), "make a plan", func(ev StreamEvent) {}); err != nil {
+		t.Fatalf("RunStream(create): %v", err)
+	}
+
+	// Apply a progress report carried in the meta object of a generic tool
+	// call (not track_task_progress). The progress lives at meta.progress.
+	args := map[string]interface{}{
+		"meta": map[string]interface{}{
+			"intent":          "update progress",
+			"risk":            "low",
+			"risk_reason":     "updating",
+			"affected_objects": []interface{}{},
+			"progress": []interface{}{
+				map[string]interface{}{"index": float64(0), "description": "step one", "status": "in_progress"},
+			},
+		},
+	}
+	plan, err := ag.applyProgressReport(args)
+	if err != nil {
+		t.Fatalf("applyProgressReport: %v", err)
+	}
+	if plan == nil || len(plan.Steps) != 1 {
+		t.Fatalf("plan = %+v, want 1 step", plan)
+	}
+	if plan.Steps[0].Status != "in_progress" {
+		t.Errorf("step status = %q, want in_progress", plan.Steps[0].Status)
 	}
 }

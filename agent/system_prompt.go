@@ -418,7 +418,7 @@ func loadSectionText(cwd, modeName, name string, fallbackFn func() string) strin
 // buildNamedSection builds a single named prompt section. The section name determines
 // the source: custom sections look for {Name}.md, built-in names use i18n keys.
 // toolUsageText is passed through for sections that may need it (ToolUsage).
-func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEnabled bool, toolUsageText []string) string {
+func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEnabled bool, toolUsageText []string, intentExposureEnabled bool) string {
 	modeName := ""
 	if cfg != nil {
 		modeName = cfg.LLM.WorkMode
@@ -436,6 +436,13 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		})
 		if len(toolUsageText) > 0 && toolUsageText[0] != "" {
 			text = toolUsageText[0]
+		}
+		// FEATURE-447: inject the standalone meta object description into the
+		// {META_DESCRIPTION} placeholder when intent exposure is enabled.
+		if intentExposureEnabled {
+			text = strings.ReplaceAll(text, "{META_DESCRIPTION}", i18n.T(i18n.KeySystemPromptToolUsageMetaOpenAI))
+		} else {
+			text = strings.ReplaceAll(text, "{META_DESCRIPTION}", "")
 		}
 		return buildSectionWithPlaceholders(text, env)
 
@@ -563,7 +570,7 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 //
 // Each built-in section is separated by the section separator (i18n KeySectionSeparator),
 // but only between non-empty sections.
-func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, toolUsageText ...string) string {
+func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, intentExposureEnabled bool, toolUsageText ...string) string {
 	env := &promptEnv{}
 	env.cwd, _ = os.Getwd()
 	env.shell = shellName()
@@ -604,7 +611,7 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	separator := i18n.T(i18n.KeySectionSeparator)
 	var sections []string
 	for _, name := range sectionNames {
-		section := buildNamedSection(name, env, cfg, shellEnabled, toolUsageText)
+		section := buildNamedSection(name, env, cfg, shellEnabled, toolUsageText, intentExposureEnabled)
 		if section == "" {
 			continue
 		}
@@ -701,7 +708,7 @@ func buildVisionIdentityPrompt(cfg *config.Config) string {
 	if modeName == "" {
 		modeName = "act"
 	}
-	return buildNamedSection("Identity", env, cfg, false, nil)
+	return buildNamedSection("Identity", env, cfg, false, nil, false)
 }
 
 func resultModeInstruction(mode config.ResultMode) string {

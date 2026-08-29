@@ -144,16 +144,19 @@ func (a *Agent) browserScreenshotTool(ctx context.Context, args map[string]inter
 	if visionSupported {
 		// FEATURE-346: carry the screenshot into the FEATURE-343 minimal
 		// recognition round exactly like visual_analysis — set the pending
-		// intent (from the tool's intent argument, with a localized fallback)
-		// so buildContextMessages collapses to [Identity-only, intent+image]
-		// and the recognition result is backfilled as this tool's return.
-		intent, _ := args["intent"].(string)
-		if strings.TrimSpace(intent) == "" {
-			intent = i18n.T(i18n.KeyBrowserScreenshotVisionIntentDefault)
+		// instruct (from the tool's instruct argument, with a localized
+		// fallback) so buildContextMessages collapses to
+		// [Identity-only, instruct+image] and the recognition result is
+		// backfilled as this tool's return. FEATURE-447: the vision
+		// instruction is the explicit "instruct" parameter, distinct from
+		// meta.intent (which is the intent shown to the user).
+		instruct, _ := args["instruct"].(string)
+		if strings.TrimSpace(instruct) == "" {
+			instruct = i18n.T(i18n.KeyBrowserScreenshotVisionIntentDefault)
 		}
 		a.mu.Lock()
 		a.imagePaths = []string{screenshotPath}
-		a.visionPendingIntent = intent
+		a.visionPendingIntent = instruct
 		a.mu.Unlock()
 		baseMsg += i18n.T(i18n.KeySettingCmd_688)
 		baseMsg += i18n.T(i18n.KeySettingCmd_689)

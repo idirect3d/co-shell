@@ -207,6 +207,33 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Plan enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_120), status), nil
 
+	case "intent-exposure-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.IntentExposureEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_119), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.IntentExposureEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.IntentExposureEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set intent-exposure-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetIntentExposureEnabled(h.cfg.LLM.IntentExposureEnabled)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.IntentExposureEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Intent exposure enabled set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_120), status), nil
+
 	case "shell-session-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

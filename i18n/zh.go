@@ -1064,6 +1064,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 
 	// Plan enabled
 	KeyCol3PlanEnabled:     "任务计划(on|off)",
+	KeyCol3IntentExposureEnabled: "意图暴露(on|off)",
 	KeySettingsDescPlan:    "任务计划功能开关",
 	KeyPlanEnabledUpdated:  "✅ 任务计划功能已设置为: %s",
 	KeyCLIHelpPlanEnabled:  "      --plan-enabled    启用任务计划功能（覆盖配置文件）",
@@ -2115,6 +2116,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// FEATURE-343: vision recognition round failure fallback
 	KeyVisionRecognitionFailed: "视觉分析失败: %v",
 	KeyVisionRecognitionEmpty:  "视觉分析失败: 识别结果为空",
+	// FEATURE-447: vision recognition token usage appended to the result
+	KeyVisionRecognitionTokenUsage: "\n\n[视觉识别 token 消耗: 输入=%d, 输出=%d, 总计=%d (占视觉模型上下文 %.1f%%)]",
 	KeyVisionRecognitionCancelled: "视觉分析已取消",
 	KeyMemoryDeletedRange:      "✅ 已删除最近 %d 条记忆（从倒数第 %d 条到倒数第 %d 条）",
 	KeyToolNoOutputBracket:     "（工具调用无输出）",
@@ -2126,6 +2129,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyTaskStepDescRequired:    "步骤 #%d: description 字段不能为空",
 	KeyTaskPlanArchived:        "✅ 当前任务计划已归档并删除。",
 	KeyTaskPlanNone:            "当前没有活跃的任务计划。",
+	KeyTaskPlanDefaultTitle:    "任务进展",
 	KeySchedulerExpired:        "已过期",
 	KeySchedulerMinutes:        "%.0f 分钟后",
 	KeySchedulerHours:          "%.0f 小时后",

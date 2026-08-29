@@ -186,6 +186,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "name", subcommand == "description", subcommand == "principles",
 		subcommand == "max-iterations", subcommand == "max-retries",
 		subcommand == "memory-enabled", subcommand == "plan-enabled",
+		subcommand == "intent-exposure-enabled",
 		subcommand == "subagent-enabled", subcommand == "context-limit",
 		subcommand == "context-start", subcommand == "context-policy",
 		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
@@ -373,6 +374,10 @@ func (h *SettingsHandler) showSettingsHelp() string {
 	planEnabledStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.PlanEnabled {
 		planEnabledStatus = i18n.T(i18n.KeyOn)
+	}
+	intentExposureStatus := i18n.T(i18n.KeyOff)
+	if cfg.LLM.IntentExposureEnabled {
+		intentExposureStatus = i18n.T(i18n.KeyOn)
 	}
 	subAgentEnabledStatus := i18n.T(i18n.KeyOff)
 	if cfg.LLM.SubAgentEnabled {
@@ -595,6 +600,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("current-vision-model", defaultVisionModelID, i18n.T(i18n.KeyCol3DefaultVisionModel)),
 		makeLine("current-problem-model", defaultProblemModelID, i18n.T(i18n.KeyCol3DefaultProblemModel)),
 		makeLine("plan-enabled", planEnabledStatus, i18n.T(i18n.KeyCol3PlanEnabled)),
+		makeLine("intent-exposure-enabled", intentExposureStatus, i18n.T(i18n.KeyCol3IntentExposureEnabled)),
 		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
 		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),

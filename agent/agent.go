@@ -53,7 +53,7 @@ import (
 
 // New creates a new Agent instance.
 func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules string) *Agent {
-	systemPrompt := buildSystemPromptWithMode(nil, rules, config.ResultModeMinimal, false, "", "", "", "", "", "", "", i18n.T(i18n.KeySystemPromptToolUsage))
+	systemPrompt := buildSystemPromptWithMode(nil, rules, config.ResultModeMinimal, false, "", "", "", "", "", "", "", true, i18n.T(i18n.KeySystemPromptToolUsage))
 
 	return &Agent{
 		llmClient:       llmClient,
@@ -820,6 +820,10 @@ func (a *Agent) SetPlanEnabled(enabled bool) {
 	a.planEnabled = enabled
 }
 
+func (a *Agent) SetIntentExposureEnabled(enabled bool) {
+	a.intentExposureEnabled = enabled
+}
+
 func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }
@@ -1135,14 +1139,14 @@ func (a *Agent) rebuildSystemPrompt() {
 			if a.cfg != nil {
 				workMode = a.cfg.LLM.WorkMode
 			}
-			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, workMode)
+			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, a.intentExposureEnabled, workMode)
 		}
 	}
 
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.getCurrentTaskDescription()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(a.messages) > 0 {
@@ -1726,14 +1730,14 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 			if a.cfg != nil {
 				workMode = a.cfg.LLM.WorkMode
 			}
-			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, workMode)
+			toolUsageText = BuildToolUsagePrompt(ToolCallModeXML, tools, lang, a.intentExposureEnabled, workMode)
 		}
 	}
 
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.getCurrentTaskDescription()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
 
 	a.mu.Lock()
 	a.messages = []llm.Message{
