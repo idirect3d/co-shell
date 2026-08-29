@@ -731,10 +731,15 @@ Critical rules:
 		Description: `After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
 IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.
 If you were using create_task_plan/update_task_step/... to manage the task progress, all unfinished tasks will be set to finish state.
-Besides result and command, this tool also requires session_title (a brief title ≤30 chars) and session_keywords (comma-separated keywords) for automatic session saving.`,
+Besides result and command, this tool also requires session_title (a brief title ≤30 chars) and session_keywords (comma-separated keywords) for automatic session saving.
+When the completion-confirm switch is enabled (default), this tool presents the result and asks the user to choose a next step: the user may pick one of your next_steps suggestions, ask for more suggestions, report the task is not yet done, or confirm completion to exit.`,
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"meta": map[string]interface{}{
+					"type":        "object",
+					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+				},
 				"result": map[string]interface{}{
 					"type":        "string",
 					"description": "The result of the tool use. This should be a clear, specific description of the result.",
@@ -755,8 +760,13 @@ Besides result and command, this tool also requires session_title (a brief title
 					"type":        "string",
 					"description": "Comma-separated keywords summarizing the task's technology, domain, and purpose for future classification and retrieval.",
 				},
+				"next_steps": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Optional. 1 or more suggested next steps the user could choose to continue the task. When provided, these are shown as selectable options in the completion-confirm dialog. Omit when the task is fully done and no further work is suggested.",
+				},
 			},
-			"required": []string{"result", "session_title", "session_keywords"},
+			"required": []string{"meta", "result", "session_title", "session_keywords"},
 		},
 		Callback: a.attemptCompletionTool,
 	})
@@ -2279,10 +2289,17 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 	}
 
 	// Build the interaction: select when options exist, otherwise free input.
+	// FEATURE-452: append two fixed key options — "-" (think it over, exit for
+	// now) and "+" (are there other options or combinations?). Both are sent
+	// back to the LLM so it can decide how to proceed.
 	in := Interaction{Kind: InteractionInput, Title: question}
 	if len(options) > 0 {
 		in.Kind = InteractionSelect
 		in.Options = options
+		in.Keys = []KeyOption{
+			{Label: i18n.T(i18n.KeyAskFollowupThinkExit), Key: "-", Value: "think_exit"},
+			{Label: i18n.T(i18n.KeyAskFollowupMoreOptions), Key: "+", Value: "more_options"},
+		}
 	}
 
 	res, err := a.interactionManager().Ask(ctx, in)
@@ -2294,15 +2311,24 @@ func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]int
 	case ActionCancel:
 		return "", fmt.Errorf("CANCEL_AGENT")
 	case ActionSelect:
-		// res.Value is the selected option; res.Raw may carry a supplementary note.
+		// Map fixed key options back to their user-readable labels so the LLM
+		// receives meaningful text.
 		content := res.Value
-		if res.Raw != "" && res.Raw != res.Value {
-			// Extract the note after the option number.
-			fields := strings.Fields(res.Raw)
-			if len(fields) > 1 {
-				note := strings.TrimSpace(res.Raw[len(fields[0]):])
-				if note != "" {
-					content = res.Value + "\n" + note
+		switch res.Value {
+		case "think_exit":
+			content = i18n.T(i18n.KeyAskFollowupThinkExit)
+		case "more_options":
+			content = i18n.T(i18n.KeyAskFollowupMoreOptions)
+		default:
+			// res.Value is the selected option; res.Raw may carry a supplementary note.
+			if res.Raw != "" && res.Raw != res.Value {
+				// Extract the note after the option number.
+				fields := strings.Fields(res.Raw)
+				if len(fields) > 1 {
+					note := strings.TrimSpace(res.Raw[len(fields[0]):])
+					if note != "" {
+						content = res.Value + "\n" + note
+					}
 				}
 			}
 		}
@@ -2342,6 +2368,61 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 	}
 	if sessionKeywords == "" {
 		return "", fmt.Errorf("session_keywords is required — provide comma-separated keywords for this session")
+	}
+
+	// FEATURE-452: completion-confirm dialog. When enabled (default), present
+	// the result and ask the user to choose a next step before exiting. Only
+	// "完成退出" (exit) actually completes; the other choices are sent back to
+	// the LLM so the loop continues.
+	confirm := true
+	if a.cfg != nil {
+		confirm = a.cfg.LLM.AttemptCompletionConfirm
+	}
+	confirmed := true
+	if confirm {
+		var options []string
+		if ns, ok := args["next_steps"].([]interface{}); ok {
+			for _, s := range ns {
+				if str, ok := s.(string); ok && str != "" {
+					options = append(options, str)
+				}
+			}
+		}
+		options = append(options, i18n.T(i18n.KeyAttemptCompletionSuggestNext))
+		in := Interaction{
+			Kind:    InteractionSelect,
+			Title:   i18n.T(i18n.KeyAttemptCompletionPrompt),
+			Options: options,
+			Keys: []KeyOption{
+				{Label: i18n.T(i18n.KeyAttemptCompletionNotDone), Key: "+", Value: "not_done"},
+				{Label: i18n.T(i18n.KeyAttemptCompletionExit), Key: "-", Value: "exit"},
+			},
+		}
+		res, err := a.interactionManager().Ask(ctx, in)
+		if err != nil {
+			return "", fmt.Errorf("failed to read user input: %w", err)
+		}
+		switch res.Action {
+		case ActionCancel:
+			return "", fmt.Errorf("CANCEL_AGENT")
+		case ActionSelect:
+			if res.Value == "exit" {
+				confirmed = true
+			} else {
+				confirmed = false
+				a.storeUserReply(res.Value)
+			}
+		case ActionInput:
+			confirmed = false
+			a.storeUserReply(res.Value)
+		default:
+			confirmed = true
+		}
+	}
+
+	if !confirmed {
+		// User chose to continue — send the choice back to the LLM and keep looping.
+		return i18n.T(i18n.KeyAttemptCompletionContinue), nil
 	}
 
 	// Handle task_message_no for context pointer adjustment.

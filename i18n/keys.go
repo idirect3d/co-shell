@@ -866,6 +866,17 @@ const (
 	KeySettingCmd_611 = "setting_cmd_611"
 	KeySettingCmd_612 = "setting_cmd_612"
 	KeySettingCmd_613 = "setting_cmd_613"
+
+	// FEATURE-452: attempt_completion completion-confirm dialog
+	KeyAttemptCompletionSuggestNext = "attempt_completion_suggest_next"
+	KeyAttemptCompletionPrompt     = "attempt_completion_prompt"
+	KeyAttemptCompletionNotDone    = "attempt_completion_not_done"
+	KeyAttemptCompletionExit       = "attempt_completion_exit"
+	KeyAttemptCompletionContinue   = "attempt_completion_continue"
+
+	// FEATURE-452: ask_followup_question fixed options
+	KeyAskFollowupThinkExit    = "ask_followup_think_exit"
+	KeyAskFollowupMoreOptions  = "ask_followup_more_options"
 	KeySettingCmd_614 = "setting_cmd_614"
 	KeySettingCmd_615 = "setting_cmd_615"
 	KeySettingCmd_616 = "setting_cmd_616"

@@ -587,19 +587,33 @@ Usage:
 Description: 每次工具调用后，用户会回应该工具调用的结果（成功或失败及原因）。当你已确认任务完成时，使用此工具向用户呈现你的工作成果。可选择提供一个 CLI 命令来展示运行结果。用户可能会对结果提供反馈，你可以据此进行改进并重试。
 重要提示：在确认所有之前的工具调用都已成功之前，不得使用此工具。在未确认的情况下使用将导致代码损坏和系统故障。使用此工具前，你必须先自问是否已确认所有之前的工具调用都成功了。如果没有，请不要使用此工具。
 如果你使用 **track_task_progress** 来管理任务进度，所有未完成的步骤会被标记为完成。
+当完成确认开关开启（默认）时，此工具会展示结果并让用户选择下一步：选择你的 next_steps 建议之一、请求更多建议、报告任务尚未达到目标、或确认完成退出。
 Parameters:
+- meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
 - result (必需) 工具调用的结果。应是对结果的清晰、具体描述。
 - command (可选) 可选的 CLI 命令，用于向用户演示结果。例如使用 'open index.html' 展示创建的 HTML 网站，或使用 'open localhost:3000' 展示本地开发服务器。不要使用 'echo' 或 'cat' 等仅输出文本的命令。命令必须对当前操作系统有效，确保格式正确且不包含有害指令。
 - task_message_no (可选) 整数。任务完成后的上下文起始消息序号，应取自 <environment_details> 中的 message_no 值。设置此参数可将上下文起点指针移动到该消息位置，旧的历史消息将被忽略不再占用上下文窗口，但可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
 - session_title (必需) 字符串。当前会话的简短标题（不超过 30 个字符），用于标识此任务完成的会话，方便后续回顾。
 - session_keywords (必需) 字符串。逗号分隔的关键词列表，描述当前会话的核心内容，便于后续会话检索和恢复。
+- next_steps (可选) 字符串数组。1 个或多个建议的下一步操作，供用户选择以继续任务。当任务已完全完成且无进一步建议时省略。
 Usage:
 <{XML_TAG_PREFIX}attempt_completion>
+  <{XML_TAG_PREFIX}meta>
+    <{XML_TAG_PREFIX}intent>呈现已完成的用户登录功能</{XML_TAG_PREFIX}intent>
+    <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+    <{XML_TAG_PREFIX}risk_reason>无文件改动，仅报告完成</{XML_TAG_PREFIX}risk_reason>
+    <{XML_TAG_PREFIX}affected_objects></{XML_TAG_PREFIX}affected_objects>
+    <{XML_TAG_PREFIX}progress></{XML_TAG_PREFIX}progress>
+  </{XML_TAG_PREFIX}meta>
   <{XML_TAG_PREFIX}result>已完成用户登录功能的创建，包括前端页面、后端API和数据库表。</{XML_TAG_PREFIX}result>
   <{XML_TAG_PREFIX}command>open localhost:3000</{XML_TAG_PREFIX}command>
   <{XML_TAG_PREFIX}task_message_no>42</{XML_TAG_PREFIX}task_message_no>
   <{XML_TAG_PREFIX}session_title>用户登录功能</{XML_TAG_PREFIX}session_title>
   <{XML_TAG_PREFIX}session_keywords>用户登录,前端,后端,API,数据库</{XML_TAG_PREFIX}session_keywords>
+  <{XML_TAG_PREFIX}next_steps>
+    <{XML_TAG_PREFIX}item>为登录 API 添加单元测试</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>编写用户文档</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}next_steps>
 </{XML_TAG_PREFIX}attempt_completion>`
 
 	zhMessages[KeyToolUsageReorganizeContext] = `## reorganize_context
@@ -1283,6 +1297,7 @@ Usage:
 UPDATING TASK PROGRESS
 
 - **任何任务**都应通过调用 track_task_progress 拆解任务和创建任务执行计划，在后续实现任务目标的过程中还应动态更新。
+- **用 track_task_progress 建立初始计划**（title/description/steps）。执行过程中，**通过其他工具调用的 meta.progress 字段增量更新计划**——只报告状态有变化的步骤以及当前正在执行的步骤，每个 index 必须与计划中的步骤索引保持一致。
 - 任务拆解的每一步都应有明确的目标，且必须是可验证的，跟踪时只有验证某一步确实达到目标，才能将这一步标记为完成。
 `
 
