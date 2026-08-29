@@ -575,6 +575,7 @@
 |------|------|------|------|
 | FIX-448 | 0.20.1 | P1 | 明确 meta.progress 中 index 的取值规范：系统提示词未明确 index 是 0-based 还是 1-based，导致 LLM 难以给出准确值（代码逻辑为 0-based，index 从 0 开始，index == 当前步骤数时追加新步骤）；在系统提示词 meta 对象说明中明确 index 为 0-based（从 0 开始计数） |
 | FEATURE-449 | 0.21.0 | P1 | Web UI 优化：① 受影响对象为根路径时也标记高亮；② 修复受影响对象在文件列表未展开文件夹时高亮不生效；③ 受影响对象高亮清理策略改为用户录入正式指令时清空（回答问题/补充信息不算），工具调用时只清空背景保留字体高亮；④ 模型管理界面优化（显示 url、toggle 开关、图标化按钮、点击模型 ID 进入修改向导） |
+| FEATURE-450 | 0.21.0 | P1 | 任务计划相关改进：① track_task_progress 和 attempt_completion 去掉 meta 参数（从 xml/openai 方法声明及必需清单中移除），统一合法性校验以必需清单为准；② 对提供 meta 的方法，meta.progress 检查规则调整为至少提供 1 条当前状态记录（即便状态没变也要提供），并更新方法声明（xml/openai）及相关示例 |
 
 > 当前 BUILD: 705
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -593,6 +594,18 @@
   - 方案（已确认）：见 use-case/FEATURE-449/
   - 实施：① 受影响对象为根路径时也标记高亮：`web/static/app.js` `applyAffectedHighlight` 将根目录空路径 `""` 归一化为 `"."` 以匹配后端返回的根路径，使根目录行也能被高亮；② 修复未展开文件夹时高亮不生效：`web/static/app.js` `highlightAffectedFiles` 展开受影响对象所有祖先目录时同时把工作区根目录 `""` 加入 `expandedDirs`（此前根目录默认折叠，导致受影响对象所在的一级目录虽在 expandedDirs 中却因根 ul 折叠而不可见）；③ 高亮清理策略调整：`web/static/app.js` 新增 `clearAffectedHighlight`（完全清空背景+字体），`sendInput` 正式指令分支（pendingInteraction 为 false）调用它清空上一次高亮，回答问题/补充信息（pendingInteraction 为 true 的 answerInteraction 分支）不清空；工具调用时 `highlightAffectedFiles` 把上一次的 `aff-pred` 降级为新增的 `aff-pred-fg`（仅保留字体高亮、清空背景），`web/static/style.css` 新增 `.aff-pred-fg` 样式；④ 模型管理界面优化：`web/static/app.js` `renderModelsBody` 在 model-meta 下新增一行显示 endpoint URL（`.model-url`），禁用/启用改为 toggle 滑动开关（`.model-toggle`），切换改为向上箭头图标按钮（▲），删除改为垃圾桶图标按钮（🗑），去掉编辑按钮，点击模型 ID 打开编辑向导；`web/static/style.css` 新增 `.model-url`/`.model-icon`/`.model-del`/`.model-toggle`/`.model-toggle-slider` 样式 [BUILD-710]；修复降级高亮在 loadTree 重建后丢失：`web/static/app.js` 引入 `prevAffectedFiles` 变量记录上一次受影响对象，`highlightAffectedFiles` 保存上一次 affectedFiles 到 prevAffectedFiles，`applyAffectedHighlight` 在 loadTree 重建后对 prevAffectedFiles 应用 `aff-pred-fg`（仅字体）、对当前 affectedFiles 应用 `aff-pred`（完整高亮），`clearAffectedHighlight` 同时清空 prevAffectedFiles [BUILD-711]；模型管理操作模式调整：去掉每个模型行内的切换（▲）和删除（🗑）图标，移到工具栏（`web/static/index.html` 新增 `modelPinBtn` 置顶按钮在 +新增模型 左边、`modelDelBtn` 删除按钮在 +新增模型 右边且为红色 danger 样式），操作模式改为点选一个模型（`web/static/app.js` 新增 `selectedModelID` 变量和 `selectModel` 函数，点击模型行高亮边框表示选中，`web/static/style.css` 新增 `.model-row.selected` 高亮边框样式），置顶按钮对选中模型发送 `model_switch`，删除按钮对选中模型调用 `confirmDeleteModel` 显示警告确认对话框，模型行内仅保留 toggle 开关 [BUILD-712]；工具栏三个按钮（置顶/新增/删除）改为右对齐显示：`web/static/style.css` `.models-toolbar` 由 `justify-content: space-between` 改为 `justify-content: flex-end` 并加 gap [BUILD-713]
   - 测试：见 use-case/FEATURE-449/
+
+- [ ] **FEATURE-450 任务计划相关改进（meta 参数与 progress 检查规则调整）** [BUILD-714]
+  - 背景：① `track_task_progress` 和 `attempt_completion` 两个工具当前仍要求必填 `meta` 参数（xml/openai 方法声明及必需清单中均含 meta），但这两个工具本身是任务计划/完成报告工具，要求 meta 冗余且与统一合法性校验冲突；② 对提供 meta 的方法，`meta.progress` 当前规则允许"只报告状态变化的步骤，未变化可不传"，导致 LLM 可能完全不传 progress 或传空数组，无法反映当前执行状态。
+  - 方案（已确认）：① 从 `track_task_progress`/`attempt_completion` 的 xml/openai 方法声明及必需清单中移除 meta 参数，统一合法性校验（`agent/run_stream.go` 的 `assessRisk`→`validateMeta`）改为以必需清单为准——工具必需清单不含 meta 时跳过 meta 校验；② `meta.progress` 检查规则调整为至少提供 1 条当前状态记录（即便状态没变也要提供），并更新方法声明（xml/openai）及相关示例。
+  - 实施：① `agent/tools.go` 移除 `track_task_progress`/`attempt_completion` 的 meta 参数声明及必需清单项（track_task_progress required 改为 `[title, description, steps]`，attempt_completion required 改为 `[result, session_title, session_keywords]`）；② `agent/risk.go` 新增 `toolRequiresMeta(name)` 辅助方法（以必需清单为准判断工具是否要求 meta），`validateMeta` 要求 `meta.progress` 为非空数组（至少 1 条当前状态记录）；③ `agent/run_stream.go` 统一合法性校验（`assessRisk`）改为仅对必需清单含 meta 的工具调用；④ `i18n/en_system.go`/`zh_system.go` 从 `KeyToolUsageTrackTaskProgress`/`KeyToolUsageAttemptCompletion` 移除 meta 参数声明，OpenAI+XML 两处 meta 对象说明的 progress 规则更新为"至少提供 1 条当前状态记录（即便状态没变也要提供）"；⑤ `agent/meta_param_test.go` `TestInjectMetaParamAllTools` 排除这两个工具（断言 meta 不在其声明与必需清单中）[BUILD-714]
+  - 测试：见 use-case/FEATURE-450/
+
+- [ ] **FIX-451 修复 path 参数缺失 bug（LLM 将参数误嵌套进 meta 对象）** [BUILD-715]
+  - 背景：search_files 等带 path 参数的工具，即便 LLM 传了 path 参数，也会报 "path argument is required"。日志显示失败调用中 path、regex 等参数被解析到了 meta 对象内部（`args=map[file_pattern:*.go meta:map[... path:/... regex:...] ...]`），顶层没有 path，导致 `searchFilesTool` 的 `args["path"].(string)` 断言失败。相邻成功调用中 path 在顶层，说明是 LLM 生成参数时把工具参数误嵌套进 meta 对象（OpenAI 模式 JSON 或 XML 模式）的不稳定格式错误。
+  - 方案（已确认）：在 `executeToolCall` 解析 args 后做容错——meta 对象只合法持有 intent/risk/risk_reason/affected_objects/progress，若 meta 内部出现其他键（如 path、regex、command 等误放的工具参数），自动提升到顶层，使工具能正常运行。
+  - 实施：① `agent/risk.go` 新增 `metaFieldNames` 常量集合与 `promoteMisplacedMetaParams(args)` 函数（遍历 meta 内部键，非 meta 字段且顶层不存在时提升到顶层，顶层已存在时以顶层为准）；② `agent/tools.go` `executeToolCall` 在 `json.Unmarshal` 解析 args 后调用 `promoteMisplacedMetaParams(args)`；③ `agent/promote_meta_test.go` 新增 `TestPromoteMisplacedMetaParams` 单元测试（验证 path/regex 提升、合法 meta 字段保留、顶层优先、无 meta 时 no-op）[BUILD-715]
+  - 测试：见 use-case/FIX-451/
 
 ## v0.9.1 — 开发中（已完成）
 
