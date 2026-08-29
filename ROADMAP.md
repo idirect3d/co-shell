@@ -676,6 +676,30 @@
   - 根因：web/static/app.js 的 renderVirtualKeyboard select 分支只渲染 it.options 和固定补充信息选项，未渲染 it.keys。
   - 方案：在 renderVirtualKeyboard select 分支中渲染 it.keys（Keys 快捷键选项），并让物理按键（+/-）也能触发。 [BUILD-721]
 
+## v0.24.0 — 开发中
+
+> **版本**: v0.24.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 远程访问工作区文件下载功能
+> **说明**: 0.24.0 系列实现远程访问 Web UI 时工作区文件列表的下载功能。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-455 | 0.24.0 | P1 | 远程访问时工作区文件列表定位功能变为下载图标：当用户通过远程访问 web ui（监听地址非 127.0.0.1/localhost）时，文件列表的"定位到文件夹"图标受控自动变为"下载"图标（文件夹的定位功能消失），点击下载图标可通过浏览器下载目标文件；下载功能通过命令行参数 --download-enabled 控制启用/禁用，禁用时完全不提供此功能，需防止非授权下载（复用 whitelist IP 授权 + 路径穿越校验） |
+
+> 当前 BUILD: 721
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-455 远程访问时工作区文件列表定位功能变为下载图标** ✅ 已完成
+  - 背景：Web UI 工作区文件列表的"定位到文件夹"（reveal）功能通过 OS 文件管理器在服务器本地定位文件。当用户通过远程访问（监听地址非 127.0.0.1/localhost，如 0.0.0.0 或局域网 IP）时，该功能无意义（无法在远程浏览器上打开服务器本地文件管理器）。希望远程访问时该图标受控自动变为"下载"图标，用户点击可通过浏览器下载目标文件。
+  - 方案：① 新增 `--download-enabled` 命令行参数（默认禁用，安全优先），传入 `ServerOptions.DownloadEnabled`；② 后端新增 `/api/download` 路由，复用 `resolvePath` 路径穿越校验 + whitelist 中间件 IP 授权，仅当远程访问且下载启用时提供；③ bootstrap 下发 `remote`（是否远程访问）与 `downloadEnabled` 标志给前端；④ 前端：远程访问且下载启用时，文件列表 reveal 图标变为下载图标（文件夹的定位图标消失），点击触发浏览器下载。
+  - 实施：`main.go` 新增 `--download-enabled` 参数（默认 false）+ `cliFlags.downloadEnabled` + `ServerOptions.DownloadEnabled` 传入；`web/server.go` 新增 `ServerOptions.DownloadEnabled` 字段、`isRemote()`（Bind 非 loopback 判定）、`downloadEnabled()`（DownloadEnabled && isRemote）、`handleDownload`（路径穿越校验 + 仅文件 + Content-Disposition attachment）、`/api/download` 路由、bootstrap 下发 `remote`/`downloadEnabled`；`web/static/app.js` 新增 `remoteAccess`/`downloadEnabled` 全局变量（boot 读取）、treeNode 渲染逻辑（远程+下载启用时文件变下载图标 ⬇、文件夹定位图标消失）、`downloadFile()` 函数、`T.downloadFile` 中英文文本；`usage.go` + `i18n`（zh/en/keys）新增 `--download-enabled` 帮助文本；`web/server_test.go` 新增 `TestIsRemote`/`TestDownload` 单元测试 + 修复 `TestBootstrap` 解码类型 [BUILD-722]
+  - 测试：见 use-case/FEATURE-455/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
