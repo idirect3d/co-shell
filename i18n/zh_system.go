@@ -1334,6 +1334,12 @@ EXTERNAL TOOLS
 bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容解析。**处理 Word 文档或 PDF 时应优先使用多模态能力分析其版式内容，而非纯文本提取，以便在内容识别时保留表格、图表、图片等非文本元素及位置关系信息。**
 `
 
+	zhMessages[KeySystemPromptSkills] = `
+SKILLS
+
+以下 skills 可用。每个 skill 是一个包含 SKILL.md 文件的目录。此处仅列出 skill 索引（名称、简介、路径）。当你需要使用某个 skill 时，用 read_file 读取其 SKILL.md 文件获取完整说明。
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	zhMessages[KeySystemPromptToolUsageExamples] = ``
 

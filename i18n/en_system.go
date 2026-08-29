@@ -1347,6 +1347,12 @@ EXTERNAL TOOLS
 The bin/ directory provides Python tools for document format conversion and multimodal content parsing. **When processing Word or PDF documents, always prioritize multimodal analysis for content recognition, to preserve tables, charts, images, and other non-text elements along with their positional relationships.**
 `
 
+	enMessages[KeySystemPromptSkills] = `
+SKILLS
+
+The following skills are available. Each skill is a directory containing a SKILL.md file. Only the skill index (name, description, path) is listed here. When you need to use a skill, read its SKILL.md file with read_file to get the full instructions.
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	// OpenAI mode does not need examples — tool definitions are provided via
 	// the API tools parameter. Keep this empty to avoid unnecessary context.

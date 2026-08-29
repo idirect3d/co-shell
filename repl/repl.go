@@ -90,6 +90,7 @@ type REPL struct {
 	modeHandler     *cmd.ModeHandler
 	configHandler   *cmd.ConfigHandler
 	simulateHandler *cmd.SimulateHandler
+	skillHandler    *cmd.SkillHandler
 
 	history    []string
 	historyPos int
@@ -130,6 +131,7 @@ func New(cfg *config.Config, s *store.DualStore, mcpMgr *mcp.Manager, ag *agent.
 		modeHandler:     cmd.NewModeHandler(cfg, ag),
 		configHandler:   cmd.NewConfigHandler(cfg, ag),
 		simulateHandler: cmd.NewSimulateHandler(ag, cfg),
+		skillHandler:    cmd.NewSkillHandler(ag),
 	}
 	r.configHandler.SetScanner(bufio.NewScanner(os.Stdin))
 	r.configHandler.SetHandlers(r.mcpHandler, r.memoryHandler,
@@ -467,6 +469,8 @@ func (r *REPL) handleBuiltin(input string) {
 		result, err = r.imageHandler.Handle(args)
 	case ":plan":
 		result, err = r.planHandler.Handle(args)
+	case ":skill":
+		result, err = r.skillHandler.Handle(args)
 	case ":vault":
 		if r.agent != nil && r.agent.VaultStore() != nil {
 			result, err = r.handleVaultCommand(args)
