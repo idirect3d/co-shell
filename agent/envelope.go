@@ -135,13 +135,11 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	// Get per-iteration token usage for context_window (most recent LLM call only)
 	_, _, totalTokens := a.IterTokenDelta()
 
-	// Get max model length from the current active model
-	maxModelLen := 0
-	if a.modelManager != nil {
-		if modelCfg := a.modelManager.GetActiveModel(false); modelCfg != nil {
-			maxModelLen = modelCfg.MaxModelLen
-		}
-	}
+	// Get max model length from the model actually used by the current mode
+	// (FIX-448): the current mode's bound text model first, then the global
+	// default — not just the global default, which skewed the context_window
+	// percentage when the user bound a different (non-first) model to the mode.
+	maxModelLen := a.GetMaxModelLen()
 
 	var sb strings.Builder
 	sb.WriteString("<environment_details>\n")
