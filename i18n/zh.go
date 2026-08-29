@@ -798,6 +798,16 @@ var zhMessages = map[string]string{
 	KeySettingCmd_774: "✅ auto 模式重整阈值已设置为: %d",
 	KeySettingCmd_775: "auto 模式重整阈值必须 >= 1",
 
+	// FEATURE-453: :skill command messages
+	KeySkillCmdHelp:           "Skill 管理 (.skill)\n\n  .skill list                    列出所有可用 skills\n  .skill show <name>             显示某个 skill 的 SKILL.md 内容\n  .skill add <path> [--global]   复制 skill 目录到 ./skills/（加 --global 复制到 ~/.co-shell/skills/）\n  .skill remove <name>           移除某个 skill",
+	KeySkillCmdNoSkills:       "未找到任何 skills。",
+	KeySkillCmdNotFound:       "未找到 skill: %s",
+	KeySkillCmdAdded:          "已添加 skill: %s",
+	KeySkillCmdRemoved:        "已移除 skill: %s",
+	KeySkillCmdSourceNotExist: "源目录不存在: %s",
+	KeySkillCmdUsage:          "用法: .skill <list|show|add|remove> ...",
+	KeySkillCmdListHeader:     "可用 skills:",
+
 	// Help
 	KeyHelpTitle:        "可用命令:",
 	KeyHelpNLTitle:      "  自然语言:",
