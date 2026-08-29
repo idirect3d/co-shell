@@ -100,6 +100,27 @@ func (a *Agent) applyProgressReport(args map[string]interface{}) (*taskplan.Task
 	if len(steps) == 0 {
 		return a.taskPlanMgr.GetCurrent()
 	}
+
+	// FEATURE-452: every step that was in_progress before this update must be
+	// reflected in this progress report, otherwise an in-progress step could be
+	// forgotten. Check the current plan's in_progress steps against the reported
+	// indices and reject the report if any in-progress step is not covered.
+	if plan, gerr := a.taskPlanMgr.GetCurrent(); gerr == nil && plan != nil {
+		reported := make(map[int]bool, len(steps))
+		for _, s := range steps {
+			reported[s.Index] = true
+		}
+		var forgotten []int
+		for i, st := range plan.Steps {
+			if st.Status == taskplan.StatusInProgress && !reported[i] {
+				forgotten = append(forgotten, i)
+			}
+		}
+		if len(forgotten) > 0 {
+			return nil, fmt.Errorf("progress report must include the latest status of every in-progress step; missing step(s) at index %v", forgotten)
+		}
+	}
+
 	inputs := make([]taskplan.ProgressInput, 0, len(steps))
 	for _, s := range steps {
 		inputs = append(inputs, taskplan.ProgressInput{

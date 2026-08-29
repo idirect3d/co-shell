@@ -621,6 +621,17 @@ var enMessages = map[string]string{
 	KeySettingCmd_610: "\nCommand execution failed: %v\nOutput: %s",
 	KeySettingCmd_611: "\nCommand executed successfully, output:\n%s",
 	KeySettingCmd_612: "✅ Task completed\n\n%s",
+
+	// FEATURE-452: attempt_completion completion-confirm dialog
+	KeyAttemptCompletionSuggestNext: "Give next-step suggestions",
+	KeyAttemptCompletionPrompt:     "The task result is ready. Choose a next step:",
+	KeyAttemptCompletionNotDone:    "Task has not reached the goal yet",
+	KeyAttemptCompletionExit:       "Complete and exit",
+	KeyAttemptCompletionContinue:   "User chose to continue; awaiting your next action.",
+
+	// FEATURE-452: ask_followup_question fixed options
+	KeyAskFollowupThinkExit:   "I want to think it over, exit for now",
+	KeyAskFollowupMoreOptions: "Are there other options or combinations?",
 	KeySettingCmd_613: "Describe what specific information you need to analyze from the image/video. Examples: 'analyze the chart data', 'extract the text in the image', 'describe the picture content'. This intent guides the vision analysis and produces structured output.",
 	KeySettingCmd_614: "Font name (e.g. 'Arial', 'Microsoft YaHei')",
 	KeySettingCmd_776: "    [%d] Supplementary info (or type anything else / press space to input)\n",

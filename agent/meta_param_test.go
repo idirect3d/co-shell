@@ -33,10 +33,12 @@ func TestInjectMetaParamAllTools(t *testing.T) {
 			t.Errorf("tool %q: no properties map", tool.Name)
 			continue
 		}
-		// FEATURE-450: track_task_progress and attempt_completion no longer
-		// require meta. Assert meta is NOT declared and NOT in their required
-		// list, then skip the generic meta-required assertions for them.
-		if tool.Name == "track_task_progress" || tool.Name == "attempt_completion" {
+		// FEATURE-450: track_task_progress no longer requires meta. Assert meta
+		// is NOT declared and NOT in its required list, then skip the generic
+		// meta-required assertions for it.
+		// FEATURE-452: attempt_completion now requires meta again (it reports
+		// final progress via meta.progress), so it follows the generic path.
+		if tool.Name == "track_task_progress" {
 			if _, ok := props["meta"]; ok {
 				t.Errorf("tool %q: meta should not be declared", tool.Name)
 			}
