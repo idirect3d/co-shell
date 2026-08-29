@@ -133,6 +133,10 @@ type ServerOptions struct {
 	// Whitelist restricts access to the given IPs/CIDR networks (e.g.
 	// "192.168.1.100" or "192.168.1.0/24"). Empty means loopback only.
 	Whitelist []string
+
+	// DownloadEnabled (FEATURE-455): when true, remote web UI access may
+	// download workspace files via the browser. Default off (security).
+	DownloadEnabled bool
 }
 
 // Server is the embedded web server: HTTP routes + the single-client
@@ -179,6 +183,7 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("POST /api/upload", s.handleUpload)
 	s.mux.HandleFunc("POST /api/open", s.handleOpen)
 	s.mux.HandleFunc("POST /api/reveal", s.handleReveal)
+	s.mux.HandleFunc("GET /api/download", s.handleDownload)
 	s.mux.HandleFunc("GET /api/file", s.handleFile)
 	s.mux.HandleFunc("GET /api/gitdiff", s.handleGitDiff)
 	s.mux.HandleFunc("POST /api/test-endpoint", s.handleTestEndpoint)
@@ -470,11 +475,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	payload := map[string]interface{}{
-		"lang":      s.opts.Lang,
-		"version":   s.opts.Version,
-		"build":     s.opts.Build,
-		"workspace": s.root,
-		"branch":    gitBranch(s.root),
+		"lang":            s.opts.Lang,
+		"version":         s.opts.Version,
+		"build":           s.opts.Build,
+		"workspace":       s.root,
+		"branch":          gitBranch(s.root),
+		"remote":          s.isRemote(),
+		"downloadEnabled": s.downloadEnabled(),
 	}
 	// FEATURE-378: expose the active text/vision model context info for the
 	// status bar's context-usage display.
@@ -681,10 +688,22 @@ type pathRequest struct {
 }
 
 func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
+	// FEATURE-455: opening a file with the server's OS default app is
+	// meaningless (and a security concern) when the UI is served remotely.
+	if s.isRemote() {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "open disabled on remote access"})
+		return
+	}
 	s.handlePathAction(w, r, openFileFunc, i18n.KeyWebOpenFailed)
 }
 
 func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
+	// FEATURE-455: revealing a file in the server's OS file manager is
+	// meaningless (and a security concern) when the UI is served remotely.
+	if s.isRemote() {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "reveal disabled on remote access"})
+		return
+	}
 	s.handlePathAction(w, r, revealFileFunc, i18n.KeyWebRevealFailed)
 }
 
@@ -734,6 +753,49 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 		s.serveFileLines(w, abs, startStr, r.URL.Query().Get("end"))
 		return
 	}
+	http.ServeFile(w, r, abs)
+}
+
+// isRemote reports whether the web UI is served to non-loopback addresses
+// (FEATURE-455). A bind address other than 127.0.0.1/localhost (e.g. 0.0.0.0
+// or a LAN IP) means remote clients may reach the UI, so the OS-local
+// "reveal in folder" action is meaningless and download becomes available.
+func (s *Server) isRemote() bool {
+	b := strings.ToLower(strings.TrimSpace(s.opts.Bind))
+	if b == "" || b == "127.0.0.1" || b == "localhost" || b == "::1" {
+		return false
+	}
+	return true
+}
+
+// downloadEnabled reports whether remote file download is both allowed by the
+// operator (--download-enabled) and meaningful (served to a remote address).
+func (s *Server) downloadEnabled() bool {
+	return s.opts.DownloadEnabled && s.isRemote()
+}
+
+// handleDownload serves a workspace file to the browser as a download
+// (FEATURE-455). It is only available when the operator enabled download and
+// the UI is served to a remote address; otherwise it returns 403 so the
+// feature is never exposed unintentionally. The path is validated to stay
+// inside the workspace (no traversal) and must be a regular file.
+func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
+	if !s.downloadEnabled() {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "download disabled"})
+		return
+	}
+	abs, err := s.resolvePath(r.URL.Query().Get("path"))
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil || info.IsDir() {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not a file"})
+		return
+	}
+	// Force the browser to download rather than render inline.
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filepath.Base(abs)+"\"")
 	http.ServeFile(w, r, abs)
 }
 

@@ -220,13 +220,20 @@ func TestBootstrap(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	var b map[string]string
+	var b map[string]interface{}
 	getJSON(t, ts.URL+"/api/bootstrap", &b)
 	if b["lang"] != "zh" {
-		t.Errorf("bootstrap lang = %q, want zh", b["lang"])
+		t.Errorf("bootstrap lang = %v, want zh", b["lang"])
 	}
 	if b["branch"] != "main" {
-		t.Errorf("bootstrap branch = %q, want main", b["branch"])
+		t.Errorf("bootstrap branch = %v, want main", b["branch"])
+	}
+	// FEATURE-455: remote/download flags are booleans in the payload.
+	if b["remote"] != false {
+		t.Errorf("bootstrap remote = %v, want false (loopback bind)", b["remote"])
+	}
+	if b["downloadEnabled"] != false {
+		t.Errorf("bootstrap downloadEnabled = %v, want false", b["downloadEnabled"])
 	}
 }
 
@@ -316,4 +323,117 @@ func TestIPAllowed(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIsRemote verifies the remote-access detection (FEATURE-455): a bind
+// address other than loopback means the UI is served to remote clients.
+func TestIsRemote(t *testing.T) {
+	cases := []struct {
+		name string
+		bind string
+		want bool
+	}{
+		{"default loopback", "127.0.0.1", false},
+		{"localhost", "localhost", false},
+		{"ipv6 loopback", "::1", false},
+		{"empty", "", false},
+		{"all interfaces", "0.0.0.0", true},
+		{"lan ip", "192.168.1.5", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewServer(t.TempDir(), ServerOptions{Lang: "zh", Version: "0", Build: "0", Bind: tc.bind})
+			if got := s.isRemote(); got != tc.want {
+				t.Errorf("isRemote(bind=%q) = %v, want %v", tc.bind, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDownload verifies the /api/download endpoint (FEATURE-455): it is only
+// available when the UI is served to a remote address AND download is enabled;
+// otherwise it returns 403. Path traversal and directories are rejected.
+func TestDownload(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "hello.txt"), []byte("hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "sub"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Local bind + download disabled: always 403.
+	sLocal := NewServer(root, ServerOptions{Lang: "zh", Version: "0", Build: "0", Bind: "127.0.0.1"})
+	tsLocal := httptest.NewServer(sLocal.mux)
+	defer tsLocal.Close()
+	if st := getStatus(t, tsLocal.URL+"/api/download?path=hello.txt"); st != http.StatusForbidden {
+		t.Errorf("local+disabled status = %d, want 403", st)
+	}
+
+	// Remote bind + download disabled: still 403 (feature not exposed).
+	sRemoteOff := NewServer(root, ServerOptions{Lang: "zh", Version: "0", Build: "0", Bind: "0.0.0.0"})
+	tsRemoteOff := httptest.NewServer(sRemoteOff.mux)
+	defer tsRemoteOff.Close()
+	if st := getStatus(t, tsRemoteOff.URL+"/api/download?path=hello.txt"); st != http.StatusForbidden {
+		t.Errorf("remote+disabled status = %d, want 403", st)
+	}
+
+	// Remote bind + download enabled: normal file downloads.
+	sRemote := NewServer(root, ServerOptions{Lang: "zh", Version: "0", Build: "0", Bind: "0.0.0.0", DownloadEnabled: true})
+	tsRemote := httptest.NewServer(sRemote.mux)
+	defer tsRemote.Close()
+
+	resp, err := http.Get(tsRemote.URL + "/api/download?path=hello.txt")
+	if err != nil {
+		t.Fatalf("download: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("download status = %d, want 200", resp.StatusCode)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, "attachment") {
+		t.Errorf("Content-Disposition = %q, want attachment", cd)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "hi" {
+		t.Errorf("download body = %q, want hi", body)
+	}
+
+	// Traversal must be rejected.
+	if st := getStatus(t, tsRemote.URL+"/api/download?path=../../etc/passwd"); st != http.StatusForbidden {
+		t.Errorf("download traversal status = %d, want 403", st)
+	}
+
+	// Directories must be rejected.
+	if st := getStatus(t, tsRemote.URL+"/api/download?path=sub"); st != http.StatusNotFound {
+		t.Errorf("download dir status = %d, want 404", st)
+	}
+
+	// FEATURE-455: on remote access, the OS-local open/reveal actions are
+	// disabled (they would act on the server's local apps/file manager).
+	post := func(api string) int {
+		resp, err := http.Post(tsRemote.URL+api, "application/json", strings.NewReader(`{"path":"hello.txt"}`))
+		if err != nil {
+			t.Fatalf("POST %s: %v", api, err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+	if st := post("/api/open"); st != http.StatusForbidden {
+		t.Errorf("remote open status = %d, want 403", st)
+	}
+	if st := post("/api/reveal"); st != http.StatusForbidden {
+		t.Errorf("remote reveal status = %d, want 403", st)
+	}
+}
+
+// getStatus performs a GET and returns only the status code.
+func getStatus(t *testing.T, url string) int {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
 }
