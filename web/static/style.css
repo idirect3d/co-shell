@@ -1507,6 +1507,15 @@ aside {
   padding: 0 3px;
 }
 
+/* FEATURE-449: a previous tool call's affected highlight, demoted to keep only
+   the blue text colour (no background) when a new tool call starts. The font
+   highlight persists so the user can still see which files were touched, while
+   the background is cleared to make room for the new call's highlight. */
+.tree-row .name.aff-pred-fg {
+  color: #58a6ff;
+  font-weight: 600;
+}
+
 /* Syntax highlighting (FEATURE-425), vscode-inspired palette. Comments are a
    single unified green across languages (go/java/python). */
 .fv-code .tok-kw { color: #c586c0; }        /* keywords */
@@ -1708,7 +1717,8 @@ aside {
 /* ---------- model manager (FEATURE-422) ---------- */
 
 .models-box { min-width: 560px; max-width: 720px; }
-.models-toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+/* FEATURE-449: toolbar buttons (pin / add / delete) are right-aligned. */
+.models-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-bottom: 10px; }
 .models-body { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .models-empty { color: var(--fg-dim); padding: 16px; text-align: center; }
 .model-row {
@@ -1719,6 +1729,13 @@ aside {
   padding: 8px 10px;
   border-radius: 6px;
   background: var(--bg);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+/* FEATURE-449: the selected model row gets a highlighted border. */
+.model-row.selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
 }
 .model-row .model-logo {
   width: 32px;
@@ -1730,7 +1747,17 @@ aside {
 .model-info { min-width: 0; flex: 1; text-align: left; }
 .model-id { font-weight: 600; color: var(--fg); font-size: 13px; }
 .model-meta { color: var(--fg-dim); font-size: 11.5px; margin-top: 2px; }
-.model-actions { display: flex; gap: 4px; flex: none; }
+/* FEATURE-449: a second meta line showing the model's endpoint URL. */
+.model-url {
+  color: var(--fg-faint);
+  font-size: 11px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.model-actions { display: flex; gap: 4px; flex: none; align-items: center; }
 .model-act {
   border: 1px solid var(--border);
   background: none;
@@ -1741,6 +1768,63 @@ aside {
   cursor: pointer;
 }
 .model-act:hover { color: var(--accent); border-color: var(--accent); }
+/* FEATURE-449: icon-only action buttons (switch up-arrow, delete trash). */
+.model-act.model-icon {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+}
+.model-act.model-del:hover { color: var(--err); border-color: var(--err); }
+/* FEATURE-449: enable/disable toggle switch (mirrors the wizard toggle). */
+.model-toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.model-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.model-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  transition: 0.2s;
+}
+.model-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--fg);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.model-toggle input:checked + .model-toggle-slider {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.model-toggle input:checked + .model-toggle-slider::before {
+  transform: translateX(16px);
+  background: var(--bg);
+}
 
 /* Model wizard modal (FEATURE-429): a structured step-by-step form. */
 .wizard-box { min-width: 560px; max-width: 720px; width: 90vw; }
