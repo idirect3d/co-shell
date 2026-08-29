@@ -2186,12 +2186,13 @@ function treeNode(node) {
     badge.title = node.changes + " changed";
     actions.appendChild(badge);
   }
-  // FEATURE-455: when the UI is served to a remote address and download is
-  // enabled, the "reveal in folder" action is meaningless (it opens the
-  // server's local file manager). For files it becomes a download icon; for
-  // directories the action disappears entirely.
-  if (remoteAccess && downloadEnabled) {
-    if (!node.dir) {
+  // FEATURE-455: when the UI is served to a remote address, the "reveal in
+  // folder" action is meaningless (it would open the server's local file
+  // manager on the remote host) and is a security concern, so it is always
+  // disabled. When download is also enabled, files show a download icon
+  // instead; directories show no action at all. Locally the reveal icon stays.
+  if (remoteAccess) {
+    if (downloadEnabled && !node.dir) {
       const dl = document.createElement("button");
       dl.className = "reveal-btn";
       dl.title = T.downloadFile;

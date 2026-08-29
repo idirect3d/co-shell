@@ -408,6 +408,23 @@ func TestDownload(t *testing.T) {
 	if st := getStatus(t, tsRemote.URL+"/api/download?path=sub"); st != http.StatusNotFound {
 		t.Errorf("download dir status = %d, want 404", st)
 	}
+
+	// FEATURE-455: on remote access, the OS-local open/reveal actions are
+	// disabled (they would act on the server's local apps/file manager).
+	post := func(api string) int {
+		resp, err := http.Post(tsRemote.URL+api, "application/json", strings.NewReader(`{"path":"hello.txt"}`))
+		if err != nil {
+			t.Fatalf("POST %s: %v", api, err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+	if st := post("/api/open"); st != http.StatusForbidden {
+		t.Errorf("remote open status = %d, want 403", st)
+	}
+	if st := post("/api/reveal"); st != http.StatusForbidden {
+		t.Errorf("remote reveal status = %d, want 403", st)
+	}
 }
 
 // getStatus performs a GET and returns only the status code.

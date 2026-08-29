@@ -688,10 +688,22 @@ type pathRequest struct {
 }
 
 func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
+	// FEATURE-455: opening a file with the server's OS default app is
+	// meaningless (and a security concern) when the UI is served remotely.
+	if s.isRemote() {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "open disabled on remote access"})
+		return
+	}
 	s.handlePathAction(w, r, openFileFunc, i18n.KeyWebOpenFailed)
 }
 
 func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
+	// FEATURE-455: revealing a file in the server's OS file manager is
+	// meaningless (and a security concern) when the UI is served remotely.
+	if s.isRemote() {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "reveal disabled on remote access"})
+		return
+	}
 	s.handlePathAction(w, r, revealFileFunc, i18n.KeyWebRevealFailed)
 }
 
