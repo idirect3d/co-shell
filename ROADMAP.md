@@ -631,6 +631,28 @@
   - 实施：① `agent/tools.go` attempt_completion 工具定义加回 meta 参数（放最前，required 加 meta）+ 新增 next_steps 可选参数；② `agent/meta_param_test.go` 更新：attempt_completion 现在要求 meta，track_task_progress 仍不要求；③ `i18n/en_system.go`/`zh_system.go` KeyToolUsageAttemptCompletion 加 meta 参数声明与 XML 示例（含 next_steps）；④ `i18n/en_system.go`/`zh_system.go` KeySystemPromptToolUsageTaskProgress 明确"用 track_task_progress 建立初始计划，执行中用其他工具调用的 meta.progress 增量更新"；⑤ `config/config.go` LLMConfig 新增 AttemptCompletionConfirm 开关（默认 true）；⑥ `agent/interaction.go` askSelect 支持 Keys 快捷键解析（渲染 [Key] Label，输入匹配 Key 返回 ActionSelect+Value）；⑦ `agent/tools.go` attemptCompletionTool 重构：开关开启时弹 InteractionSelect（选项=next_steps+给出下一步的建议，Keys=[任务尚未达到目标(+), 完成退出(-)]），用户选"完成退出"才 SetCompleted，其他选择 storeUserReply 传回 LLM 继续循环（不 SetCompleted），开关关闭时直接退出；⑧ `agent/tools.go` askFollowupQuestionTool 增加两个固定选项（- 我要再想想先退出 / + 还有其他选项或组合吗），映射回用户可读文本传回 LLM；⑨ `i18n/keys.go`/`en.go`/`zh.go` 新增 KeyAttemptCompletion* 和 KeyAskFollowup* 键；⑩ 新增 `agent/attempt_completion_test.go` 测试弹框逻辑（exit/continue/not_done/disabled），`agent/interaction_test.go` 新增 askSelect Keys 快捷键与 ask_followup_question 固定选项测试 [BUILD-716]；⑪ meta.progress 校验规则：`agent/progress.go` applyProgressReport 增加校验——本次更新之前所有状态为 in_progress 的步骤必须在本次 progress 报告中体现最新状态，若遗漏任何 in_progress 步骤则报错拒绝（防止正在运行的任务被遗忘），`i18n/en_system.go`/`zh_system.go` OpenAI+XML 两处 meta 说明的 progress 段落强调该规则，`agent/taskplan_event_test.go` 新增 TestApplyProgressReportForgottenInProgress/TestApplyProgressReportCoversInProgress 验证 [BUILD-717]；⑫ 工具调用示例 meta.progress 补全为两个待办记录：`i18n/en_system.go`/`zh_system.go` KeySystemPromptToolUsageMetaXML 的 meta 示例 progress 由单个 item 改为两个 item（index 0 completed 上一条已完成 + index 1 in_progress 正在执行），使示例符合 in_progress 覆盖规则 [BUILD-718]
   - 测试：见 use-case/FEATURE-452/
 
+## v0.23.0 — 开发中
+
+> **版本**: v0.23.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: skill 支持（Agent Skills 开放标准）
+> **说明**: 0.23.0 系列专注 skill 支持：采用 Agent Skills 开放标准（SKILL.md + 目录，兼容 Claude Code/Cursor 生态），工作空间级 ./skills/ + 全局 ~/.co-shell/skills/ 合并展示，系统提示词只列 skill 索引按需加载，命令 :skill list/show/add/remove。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-453 | 0.23.0 | P1 | skill 支持：Agent Skills 开放标准（SKILL.md + 目录），工作空间级 ./skills/ + 全局 ~/.co-shell/skills/ 合并展示，系统提示词只列 skill 索引（name+description+路径）按需加载（LLM 用 read_file 读取 SKILL.md），命令 :skill list/show/add/remove（add 从本地路径复制，默认到工作空间 ./skills/，可指定 --global） |
+
+> 当前 BUILD: 720
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-453 skill 支持（Agent Skills 开放标准）**
+  - 背景：co-shell 缺少对 skill（可复用能力包）的支持，无法按需加载特定领域的操作指导。
+  - 方案（已确认）：见 use-case/FEATURE-453/ [BUILD-720]
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

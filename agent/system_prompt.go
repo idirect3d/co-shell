@@ -212,6 +212,8 @@ func sectionFileName(name string) string {
 		return "CAPABILITIES"
 	case "Rules":
 		return "RULES"
+	case "Skills":
+		return "SKILLS"
 	case "Objective":
 		return "OBJECTIVE"
 	case "ExternalTools":
@@ -311,6 +313,8 @@ func getRawSectionText(name, modeName, cwd string, cfg *config.Config) string {
 		return i18n.T(i18n.KeySystemPromptCapabilities)
 	case "Rules":
 		return i18n.T(i18n.KeySystemPromptRules)
+	case "Skills":
+		return i18n.T(i18n.KeySystemPromptSkills)
 	case "Objective":
 		if modeName == "plan" {
 			if planObj := i18n.T(i18n.KeySystemPromptObjectivePlan); planObj != "" && planObj != i18n.KeySystemPromptObjectivePlan {
@@ -485,6 +489,20 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 			return i18n.T(i18n.KeySystemPromptRules)
 		})
 		return buildSectionWithPlaceholders(text, env)
+
+	case "Skills":
+		// FEATURE-453: list skill index (name + description + path) without
+		// loading SKILL.md content. The LLM reads SKILL.md on demand via read_file.
+		skills := scanSkills(env.cwd, env.homeDir)
+		index := buildSkillsIndex(skills)
+		if index == "" {
+			return ""
+		}
+		header := i18n.T(i18n.KeySystemPromptSkills)
+		if header == "" || header == i18n.KeySystemPromptSkills {
+			header = "SKILLS"
+		}
+		return header + "\n\n" + index
 
 	case "Objective":
 		text := loadSectionText(env.cwd, modeName, "OBJECTIVE", func() string {

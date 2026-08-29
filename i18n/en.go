@@ -816,6 +816,16 @@ var enMessages = map[string]string{
 	KeySettingCmd_774: "✅ Auto mode reorganize threshold set to: %d",
 	KeySettingCmd_775: "Auto mode reorganize threshold must be >= 1",
 
+	// FEATURE-453: :skill command messages
+	KeySkillCmdHelp:           "Skill management (.skill)\n\n  .skill list                    List all available skills\n  .skill show <name>             Show a skill's SKILL.md content\n  .skill add <path> [--global]   Copy a skill directory into ./skills/ (or ~/.co-shell/skills/ with --global)\n  .skill remove <name>           Remove a skill",
+	KeySkillCmdNoSkills:       "No skills found.",
+	KeySkillCmdNotFound:       "Skill not found: %s",
+	KeySkillCmdAdded:          "Skill added: %s",
+	KeySkillCmdRemoved:        "Skill removed: %s",
+	KeySkillCmdSourceNotExist: "Source directory does not exist: %s",
+	KeySkillCmdUsage:          "Usage: .skill <list|show|add|remove> ...",
+	KeySkillCmdListHeader:     "Available skills:",
+
 	// Help
 	KeyHelpTitle:        "📖 co-shell Help",
 	KeyHelpNLTitle:      "Natural Language Commands:",
