@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/idirect3d/co-shell/i18n"
 )
 
 // mockUserIO is a scripted UserIO for testing TerminalInteractionManager.
@@ -476,5 +478,80 @@ func TestAskFollowupQuestionSpaceInput(t *testing.T) {
 	}
 	if got := a.taskInstructionCache.String(); got != "请补充细节" {
 		t.Errorf("taskInstructionCache = %q, want 请补充细节", got)
+	}
+}
+
+// TestTerminalSelectKeyOption verifies askSelect matches a fixed key option
+// (e.g. "-" or "+") and returns its Value (FEATURE-452).
+func TestTerminalSelectKeyOption(t *testing.T) {
+	m := NewTerminalInteractionManager(&mockUserIO{inputs: []string{"-"}})
+	res, err := m.Ask(context.Background(), Interaction{
+		Kind:    InteractionSelect,
+		Options: []string{"A", "B"},
+		Keys: []KeyOption{
+			{Label: "exit", Key: "-", Value: "exit"},
+			{Label: "more", Key: "+", Value: "more"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Ask error: %v", err)
+	}
+	if res.Action != ActionSelect || res.Value != "exit" {
+		t.Errorf("Action/Value = %q/%q, want select/exit", res.Action, res.Value)
+	}
+}
+
+// TestTerminalSelectKeyOptionPlus verifies the "+" key option (FEATURE-452).
+func TestTerminalSelectKeyOptionPlus(t *testing.T) {
+	m := NewTerminalInteractionManager(&mockUserIO{inputs: []string{"+"}})
+	res, err := m.Ask(context.Background(), Interaction{
+		Kind:    InteractionSelect,
+		Options: []string{"A", "B"},
+		Keys: []KeyOption{
+			{Label: "exit", Key: "-", Value: "exit"},
+			{Label: "more", Key: "+", Value: "more"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Ask error: %v", err)
+	}
+	if res.Action != ActionSelect || res.Value != "more" {
+		t.Errorf("Action/Value = %q/%q, want select/more", res.Action, res.Value)
+	}
+}
+
+// TestAskFollowupQuestionThinkExit verifies the "-" fixed option maps back to
+// the user-readable label and is stored in the task instruction cache
+// (FEATURE-452).
+func TestAskFollowupQuestionThinkExit(t *testing.T) {
+	io := &mockUserIO{inputs: []string{"-"}}
+	a := newAskFollowupAgent(io)
+	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
+		"question": "请选择处理方式",
+		"options":  []interface{}{"立即执行", "稍后执行"},
+	})
+	if err != nil {
+		t.Fatalf("askFollowupQuestionTool error: %v", err)
+	}
+	if got := a.taskInstructionCache.String(); got != i18n.T(i18n.KeyAskFollowupThinkExit) {
+		t.Errorf("taskInstructionCache = %q, want %q", got, i18n.T(i18n.KeyAskFollowupThinkExit))
+	}
+}
+
+// TestAskFollowupQuestionMoreOptions verifies the "+" fixed option maps back to
+// the user-readable label and is stored in the task instruction cache
+// (FEATURE-452).
+func TestAskFollowupQuestionMoreOptions(t *testing.T) {
+	io := &mockUserIO{inputs: []string{"+"}}
+	a := newAskFollowupAgent(io)
+	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
+		"question": "请选择处理方式",
+		"options":  []interface{}{"立即执行", "稍后执行"},
+	})
+	if err != nil {
+		t.Fatalf("askFollowupQuestionTool error: %v", err)
+	}
+	if got := a.taskInstructionCache.String(); got != i18n.T(i18n.KeyAskFollowupMoreOptions) {
+		t.Errorf("taskInstructionCache = %q, want %q", got, i18n.T(i18n.KeyAskFollowupMoreOptions))
 	}
 }

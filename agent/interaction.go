@@ -203,6 +203,13 @@ func (m *TerminalInteractionManager) askSelect(in Interaction) (InteractionResul
 			// Fixed supplementary-info option (FEATURE-438).
 			m.io.Printf(i18n.T(i18n.KeySettingCmd_776), suppIdx)
 			m.io.Printf(i18n.T(i18n.KeySettingCmd_602), cancelIdx)
+		}
+		// Fixed key options (FEATURE-452): rendered as [Key] Label, e.g. [-]
+		// and [+]. Parsed by matching the typed key.
+		for _, k := range in.Keys {
+			m.io.Printf("    [%s] %s\n", k.Key, k.Label)
+		}
+		if len(in.Options) > 0 || len(in.Keys) > 0 {
 			m.io.Println()
 		}
 
@@ -234,6 +241,15 @@ func (m *TerminalInteractionManager) askSelect(in Interaction) (InteractionResul
 				continue
 			}
 			return InteractionResult{Action: ActionInput}, nil
+		}
+
+		// Match a fixed key option (e.g. "-" or "+") before parsing numbers.
+		if len(in.Keys) > 0 {
+			for _, k := range in.Keys {
+				if input == k.Key {
+					return InteractionResult{Action: ActionSelect, Value: k.Value, Raw: input}, nil
+				}
+			}
 		}
 
 		// Parse the first token as a potential option number.

@@ -607,6 +607,30 @@
   - 实施：① `agent/risk.go` 新增 `metaFieldNames` 常量集合与 `promoteMisplacedMetaParams(args)` 函数（遍历 meta 内部键，非 meta 字段且顶层不存在时提升到顶层，顶层已存在时以顶层为准）；② `agent/tools.go` `executeToolCall` 在 `json.Unmarshal` 解析 args 后调用 `promoteMisplacedMetaParams(args)`；③ `agent/promote_meta_test.go` 新增 `TestPromoteMisplacedMetaParams` 单元测试（验证 path/regex 提升、合法 meta 字段保留、顶层优先、无 meta 时 no-op）[BUILD-715]
   - 测试：见 use-case/FIX-451/
 
+## v0.22.0 — 开发中
+
+> **版本**: v0.22.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: attempt_completion 下一步建议交互 + 交互选项统一
+> **说明**: 0.22.0 系列专注任务收尾交互优化：attempt_completion 增加"下一步建议"交互选项（可配置开关），ask_followup_question 增加两个固定选项，统一 -/+ 快捷键语义，补全 meta 参数。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-452 | 0.22.0 | P1 | attempt_completion 增加"下一步建议"交互选项 + ask_followup_question 增加两个固定选项 + meta 参数补全：① 系统提示词明确 track_task_progress 定计划 + meta.progress 更新；② 补全工具调用示例 meta 参数；③ attempt_completion 加 meta 参数（track_task_progress 不加）；④ attempt_completion 增加"下一步建议"交互（可配置开关默认弹框、next_steps 可选、三个固定选项：给出下一步的建议/任务尚未达到目标(+)/完成退出(-)，前两个传回 LLM 继续循环，完成退出直接退出）；⑤ ask_followup_question 增加两个固定选项：我要再想想先退出(-，传回 LLM 让 LLM 自己退出)/还有其他选项或组合吗(+，传回 LLM) |
+
+> 当前 BUILD: 715
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-452 attempt_completion 下一步建议交互 + 交互选项统一** [BUILD-716]
+  - 背景：任务收尾时 attempt_completion 直接退出，用户无法在收尾时引导 LLM 继续或确认是否真正完成；ask_followup_question 的选项交互缺少"先退出"和"更多选项"的固定入口。
+  - 方案（已确认）：见 use-case/FEATURE-452/
+  - 实施：① `agent/tools.go` attempt_completion 工具定义加回 meta 参数（放最前，required 加 meta）+ 新增 next_steps 可选参数；② `agent/meta_param_test.go` 更新：attempt_completion 现在要求 meta，track_task_progress 仍不要求；③ `i18n/en_system.go`/`zh_system.go` KeyToolUsageAttemptCompletion 加 meta 参数声明与 XML 示例（含 next_steps）；④ `i18n/en_system.go`/`zh_system.go` KeySystemPromptToolUsageTaskProgress 明确"用 track_task_progress 建立初始计划，执行中用其他工具调用的 meta.progress 增量更新"；⑤ `config/config.go` LLMConfig 新增 AttemptCompletionConfirm 开关（默认 true）；⑥ `agent/interaction.go` askSelect 支持 Keys 快捷键解析（渲染 [Key] Label，输入匹配 Key 返回 ActionSelect+Value）；⑦ `agent/tools.go` attemptCompletionTool 重构：开关开启时弹 InteractionSelect（选项=next_steps+给出下一步的建议，Keys=[任务尚未达到目标(+), 完成退出(-)]），用户选"完成退出"才 SetCompleted，其他选择 storeUserReply 传回 LLM 继续循环（不 SetCompleted），开关关闭时直接退出；⑧ `agent/tools.go` askFollowupQuestionTool 增加两个固定选项（- 我要再想想先退出 / + 还有其他选项或组合吗），映射回用户可读文本传回 LLM；⑨ `i18n/keys.go`/`en.go`/`zh.go` 新增 KeyAttemptCompletion* 和 KeyAskFollowup* 键；⑩ 新增 `agent/attempt_completion_test.go` 测试弹框逻辑（exit/continue/not_done/disabled），`agent/interaction_test.go` 新增 askSelect Keys 快捷键与 ask_followup_question 固定选项测试 [BUILD-716]
+  - 测试：见 use-case/FEATURE-452/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

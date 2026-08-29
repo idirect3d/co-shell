@@ -188,6 +188,14 @@ type LLMConfig struct {
 	// does not inject the meta object description.
 	IntentExposureEnabled bool `json:"intent_exposure_enabled"`
 
+	// AttemptCompletionConfirm: whether attempt_completion presents a
+	// completion-confirm dialog asking the user to choose a next step before
+	// exiting (FEATURE-452). When enabled (default), the user may pick one of
+	// the LLM's next_steps, ask for more suggestions, report the task is not
+	// yet done, or confirm completion to exit. When disabled, attempt_completion
+	// exits directly as before.
+	AttemptCompletionConfirm bool `json:"attempt_completion_confirm"`
+
 	// SubAgentEnabled: whether sub-agent tools (launch_sub_agent) are enabled
 	SubAgentEnabled bool `json:"sub_agent_enabled"`
 
@@ -911,6 +919,7 @@ func DefaultConfig() *Config {
 			MemoryEnabled:              true,
 			PlanEnabled:                true,
 			IntentExposureEnabled:      true,
+			AttemptCompletionConfirm:   true,
 			SubAgentEnabled:            true,
 			ShellSessionEnabled:        false,
 			ShellSessionTimeout:        0,
