@@ -603,6 +603,17 @@ var zhMessages = map[string]string{
 	KeySettingCmd_610: "\n命令执行失败: %v\n输出: %s",
 	KeySettingCmd_611: "\n命令执行成功，输出:\n%s",
 	KeySettingCmd_612: "✅ 任务完成\n\n%s",
+
+	// FEATURE-452: attempt_completion completion-confirm dialog
+	KeyAttemptCompletionSuggestNext: "给出下一步的建议",
+	KeyAttemptCompletionPrompt:     "任务结果已就绪，请选择下一步：",
+	KeyAttemptCompletionNotDone:    "任务尚未达到目标",
+	KeyAttemptCompletionExit:       "完成退出",
+	KeyAttemptCompletionContinue:   "用户选择继续，等待你的下一步行动。",
+
+	// FEATURE-452: ask_followup_question fixed options
+	KeyAskFollowupThinkExit:   "我要再想想，先退出",
+	KeyAskFollowupMoreOptions: "还有其他选项或者组合吗？",
 	KeySettingCmd_613: "Describe what specific information you need to analyze from the image/video. Examples: '分析图表数据', '识别画面中的文字', '描述图片内容'. This intent guides the vision analysis and produces structured output.",
 	KeySettingCmd_614: "Font name (e.g. 'Arial', '微软雅黑')",
 	KeySettingCmd_776: "    [%d] 补充信息（或直接输入其他内容 / 按空格开始输入）\n",

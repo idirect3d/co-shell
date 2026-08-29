@@ -68,7 +68,7 @@ Every tool call carries a REQUIRED **meta** object as its FIRST parameter. The m
   - Also consider whether the operation may involve the user's sensitive information (reading user home dirs, system folders, credentials).
 - **risk_reason** (REQUIRED): a brief reason for your risk assessment.
 - **affected_objects** (REQUIRED): the files/folders this operation will affect, as an array of absolute paths. Provide at most 3. If you cannot determine specific files, provide the deepest common folder path of all possibly-affected files.
-- **progress** (REQUIRED): your task progress report — an array of objects, each with index/description/status. It updates the task execution state set up by track_task_progress, so it MUST stay consistent with track_task_progress: each index must exactly match the corresponding step index in the task plan, and each status must be one of the same status values used by track_task_progress ("pending"/"in_progress"/"completed"/"cancelled"/"failed", or the display symbols "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"). Its purpose is to precisely adjust only the CHANGED parts — report ONLY steps whose status changed plus the currently executing step; steps that did not change can be omitted (no need to include them). You MUST provide at least 1 current-status record (even if the status did not change) so the current execution state is always reported. **index is 0-based**: the first step has index 0, the N-th step has index N-1. An index equal to the current step count appends a new step; an index beyond that is an error.
+- **progress** (REQUIRED): your task progress report — an array of objects, each with index/description/status. It updates the task execution state set up by track_task_progress, so it MUST stay consistent with track_task_progress: each index must exactly match the corresponding step index in the task plan, and each status must be one of the same status values used by track_task_progress ("pending"/"in_progress"/"completed"/"cancelled"/"failed", or the display symbols "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"). Its purpose is to precisely adjust only the CHANGED parts — report ONLY steps whose status changed plus the currently executing step; steps that did not change can be omitted (no need to include them). You MUST provide at least 1 current-status record (even if the status did not change) so the current execution state is always reported. **index is 0-based**: the first step has index 0, the N-th step has index N-1. An index equal to the current step count appends a new step; an index beyond that is an error. **Every step that was in_progress before this update MUST be reflected in this progress report** — you must include the latest status of each previously in-progress step (mark it completed, failed, cancelled, or keep it in_progress). If any in-progress step is omitted, the report is rejected as an error so no in-progress step is ever forgotten.
 
 Vision tools (visual_analysis / browser_screenshot) additionally take an **instruct** parameter — the explicit instruction for the vision model describing what to analyze/extract from the image(s). This is distinct from meta.intent (which is the intent shown to the user).
 `
@@ -158,7 +158,7 @@ Every tool call carries a REQUIRED **meta** object as its FIRST parameter. The m
   - Also consider whether the operation may involve the user's sensitive information (reading user home dirs, system folders, credentials).
 - **risk_reason** (REQUIRED): a brief reason for your risk assessment.
 - **affected_objects** (REQUIRED): the files/folders this operation will affect, as an array of absolute paths. Provide at most 3. If you cannot determine specific files, provide the deepest common folder path of all possibly-affected files.
-- **progress** (REQUIRED): your task progress report — an array of objects, each with index/description/status. It updates the task execution state set up by track_task_progress, so it MUST stay consistent with track_task_progress: each index must exactly match the corresponding step index in the task plan, and each status must be one of the same status values used by track_task_progress ("pending"/"in_progress"/"completed"/"cancelled"/"failed", or the display symbols "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"). Its purpose is to precisely adjust only the CHANGED parts — report ONLY steps whose status changed plus the currently executing step; steps that did not change can be omitted (no need to include them). You MUST provide at least 1 current-status record (even if the status did not change) so the current execution state is always reported. **index is 0-based**: the first step has index 0, the N-th step has index N-1. An index equal to the current step count appends a new step; an index beyond that is an error.
+- **progress** (REQUIRED): your task progress report — an array of objects, each with index/description/status. It updates the task execution state set up by track_task_progress, so it MUST stay consistent with track_task_progress: each index must exactly match the corresponding step index in the task plan, and each status must be one of the same status values used by track_task_progress ("pending"/"in_progress"/"completed"/"cancelled"/"failed", or the display symbols "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"). Its purpose is to precisely adjust only the CHANGED parts — report ONLY steps whose status changed plus the currently executing step; steps that did not change can be omitted (no need to include them). You MUST provide at least 1 current-status record (even if the status did not change) so the current execution state is always reported. **index is 0-based**: the first step has index 0, the N-th step has index N-1. An index equal to the current step count appends a new step; an index beyond that is an error. **Every step that was in_progress before this update MUST be reflected in this progress report** — you must include the latest status of each previously in-progress step (mark it completed, failed, cancelled, or keep it in_progress). If any in-progress step is omitted, the report is rejected as an error so no in-progress step is ever forgotten.
 
 Vision tools (visual_analysis / browser_screenshot) additionally take an **instruct** parameter — the explicit instruction for the vision model describing what to analyze/extract from the image(s). This is distinct from meta.intent (which is the intent shown to the user).
 
@@ -176,6 +176,11 @@ Example with the meta object:
       <{XML_TAG_PREFIX}item>
         <{XML_TAG_PREFIX}index>0</{XML_TAG_PREFIX}index>
         <{XML_TAG_PREFIX}description>Building the project</{XML_TAG_PREFIX}description>
+        <{XML_TAG_PREFIX}status>completed</{XML_TAG_PREFIX}status>
+      </{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}index>1</{XML_TAG_PREFIX}index>
+        <{XML_TAG_PREFIX}description>Running the tests</{XML_TAG_PREFIX}description>
         <{XML_TAG_PREFIX}status>in_progress</{XML_TAG_PREFIX}status>
       </{XML_TAG_PREFIX}item>
     </{XML_TAG_PREFIX}progress>
@@ -559,19 +564,33 @@ Usage:
 Description: After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
 IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.
 If you were using create_task_plan/update_task_step/... to manage the task progress, all unfinished tasks will be set to finish state.
+When the completion-confirm switch is enabled (default), this tool presents the result and asks the user to choose a next step: pick one of your next_steps, ask for more suggestions, report the task is not yet done, or confirm completion to exit.
 Parameters:
+- meta (required) Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
 - result (required) The result of the tool use. This should be a clear, specific description of the result.
 - command (optional) A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created html website, or 'open localhost:3000' to display a locally running development server. But DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions
 - task_message_no (optional) Integer. The message number to set as the new context start pointer after task completion, taken from the message_no field in <environment_details>. Setting this moves the context start pointer to that message position; older messages before the pointer are ignored and no longer occupy the context window, but can still be retrieved from persistent memory via memory_search or get_memory_slice if needed.
 - session_title (required) String. A brief session title (max 30 characters) describing the completed task, for easy identification when reviewing session history.
 - session_keywords (required) String. Comma-separated keywords describing the core content of this session, for efficient session search and restoration.
+- next_steps (optional) Array of strings. 1 or more suggested next steps the user could choose to continue the task. Omit when the task is fully done and no further work is suggested.
 Usage:
 <{XML_TAG_PREFIX}attempt_completion>
+  <{XML_TAG_PREFIX}meta>
+    <{XML_TAG_PREFIX}intent>Present the completed user login feature</{XML_TAG_PREFIX}intent>
+    <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+    <{XML_TAG_PREFIX}risk_reason>No file changes, just reporting completion</{XML_TAG_PREFIX}risk_reason>
+    <{XML_TAG_PREFIX}affected_objects></{XML_TAG_PREFIX}affected_objects>
+    <{XML_TAG_PREFIX}progress></{XML_TAG_PREFIX}progress>
+  </{XML_TAG_PREFIX}meta>
   <{XML_TAG_PREFIX}result>User login functionality created, including frontend pages, backend API, and database tables.</{XML_TAG_PREFIX}result>
   <{XML_TAG_PREFIX}command>open localhost:3000</{XML_TAG_PREFIX}command>
   <{XML_TAG_PREFIX}task_message_no>42</{XML_TAG_PREFIX}task_message_no>
   <{XML_TAG_PREFIX}session_title>User login feature</{XML_TAG_PREFIX}session_title>
   <{XML_TAG_PREFIX}session_keywords>user login,frontend,backend,API,database</{XML_TAG_PREFIX}session_keywords>
+  <{XML_TAG_PREFIX}next_steps>
+    <{XML_TAG_PREFIX}item>Add unit tests for the login API</{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>Write user documentation</{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}next_steps>
 </{XML_TAG_PREFIX}attempt_completion>`
 
 	enMessages[KeyToolUsageShellReset] = `## shell_reset
@@ -1296,6 +1315,7 @@ By waiting for and carefully considering the user's response after each tool use
 UPDATING TASK PROGRESS
 
 - **Any task** should be broken down and tracked via track_task_progress to create an execution plan, which should be dynamically updated during execution.
+- **Establish the initial plan with track_task_progress** (title/description/steps). During execution, **update the plan incrementally via the meta.progress field of other tool calls** — report only the steps whose status changed plus the currently executing step, keeping each index consistent with the plan's step index.
 - Each step in the breakdown must have a clear, verifiable goal. Only mark a step as complete after verifying it has achieved its goal.
 `
 
