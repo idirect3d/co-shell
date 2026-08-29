@@ -106,8 +106,12 @@ func validateMeta(args map[string]interface{}) error {
 	if _, ok := meta["affected_objects"]; !ok {
 		return fmt.Errorf("meta.affected_objects is required")
 	}
-	if _, ok := meta["progress"]; !ok {
-		return fmt.Errorf("meta.progress is required")
+	// FEATURE-450: progress must contain at least 1 current-status record
+	// (even if the status did not change), so the LLM always reports the
+	// current execution state.
+	progressArr, ok := meta["progress"].([]interface{})
+	if !ok || len(progressArr) == 0 {
+		return fmt.Errorf("meta.progress is required and must contain at least 1 current-status record")
 	}
 	return nil
 }
@@ -137,4 +141,67 @@ func metaObject(args map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return map[string]interface{}{}
+}
+
+// metaFieldNames are the only keys that legitimately belong inside the meta
+// object. Any other key found inside meta is a tool parameter that the LLM
+// mistakenly nested there (FIX-451) and should be promoted to the top level.
+var metaFieldNames = map[string]bool{
+	"intent":           true,
+	"risk":             true,
+	"risk_reason":      true,
+	"affected_objects": true,
+	"progress":         true,
+}
+
+// promoteMisplacedMetaParams promotes tool parameters that the LLM mistakenly
+// nested inside the meta object (e.g. path, regex, command) up to the top level
+// of the arguments map. The meta object only legitimately holds the transparency
+// fields (intent/risk/risk_reason/affected_objects/progress); any other key
+// found inside it is a misplaced tool parameter. This makes the tool call
+// resilient to LLM formatting errors where parameters are placed inside meta
+// instead of at the top level.
+func promoteMisplacedMetaParams(args map[string]interface{}) {
+	meta, ok := args["meta"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	for key, val := range meta {
+		if metaFieldNames[key] {
+			continue
+		}
+		// Only promote when the top level does not already have this key, so a
+		// correctly-placed top-level parameter always wins.
+		if _, exists := args[key]; !exists {
+			args[key] = val
+		}
+	}
+}
+
+// toolRequiresMeta reports whether the named tool's required parameter list
+// includes "meta" (FEATURE-450). The unified meta validation (assessRisk) is
+// only applied to tools that require meta; tools like track_task_progress and
+// attempt_completion no longer declare meta, so they are skipped.
+func (a *Agent) toolRequiresMeta(name string) bool {
+	for _, t := range a.buildToolsInternal() {
+		if t.Name != name {
+			continue
+		}
+		switch req := t.Parameters["required"].(type) {
+		case []string:
+			for _, r := range req {
+				if r == "meta" {
+					return true
+				}
+			}
+		case []interface{}:
+			for _, r := range req {
+				if s, ok := r.(string); ok && s == "meta" {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return false
 }

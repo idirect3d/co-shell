@@ -1325,26 +1325,32 @@ iterationLoop:
 				progressApplied := false
 				var argsMap map[string]interface{}
 				if err := json.Unmarshal([]byte(tc.Arguments), &argsMap); err == nil {
-					risk, riskReason, rerr := assessRisk(argsMap)
-					if rerr != nil {
-						skipExec = true
-						execErr = rerr
-						result = fmt.Sprintf("Error: %v", rerr)
-						cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf("%s: %s\n", tc.Name, result)))
-					} else {
-						if a.showTool {
-							summary := buildToolSummary(tc.Name, argsMap)
-							// FEATURE-447: fill the transparency metadata (risk + files).
-							summary.Risk = risk
-							summary.RiskReason = riskReason
-							summary.Files = a.affectedFiles(argsMap)
-							ev := NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, summary.Text)
-							// Carry the structured summary so Web/JSON consumers can render
-							// a tool card (FEATURE-388).
-							if sj, err := json.Marshal(summary); err == nil {
-								ev.Meta = map[string]string{MetaKeyToolSummary: string(sj)}
+					// FEATURE-450: only run the unified meta validation (assessRisk)
+					// when the tool's required list includes "meta". Tools like
+					// track_task_progress and attempt_completion no longer require
+					// meta, so skip it for them.
+					if a.toolRequiresMeta(tc.Name) {
+						risk, riskReason, rerr := assessRisk(argsMap)
+						if rerr != nil {
+							skipExec = true
+							execErr = rerr
+							result = fmt.Sprintf("Error: %v", rerr)
+							cb(NewStreamEvent(EventError, ChannelTool, LevelError, fmt.Sprintf("%s: %s\n", tc.Name, result)))
+						} else {
+							if a.showTool {
+								summary := buildToolSummary(tc.Name, argsMap)
+								// FEATURE-447: fill the transparency metadata (risk + files).
+								summary.Risk = risk
+								summary.RiskReason = riskReason
+								summary.Files = a.affectedFiles(argsMap)
+								ev := NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, summary.Text)
+								// Carry the structured summary so Web/JSON consumers can render
+								// a tool card (FEATURE-388).
+								if sj, err := json.Marshal(summary); err == nil {
+									ev.Meta = map[string]string{MetaKeyToolSummary: string(sj)}
+								}
+								cb(withPhase(ev, PhaseInput))
 							}
-							cb(withPhase(ev, PhaseInput))
 						}
 					}
 				}
