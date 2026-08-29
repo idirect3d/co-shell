@@ -774,6 +774,7 @@ func DefaultBuiltInSections() []string {
 		"ResultMode",
 		"Capabilities",
 		"Rules",
+		"Skills",
 		"ExternalTools",
 		"Environment",
 		"Objective",
@@ -788,6 +789,7 @@ func DefaultActSections() []string {
 		"ToolUsage",
 		"Capabilities",
 		"Rules",
+		"Skills",
 		"ExternalTools",
 		"Environment",
 	}
@@ -828,6 +830,7 @@ func DefaultPlanSections() []string {
 		"ToolUsage",
 		"Capabilities",
 		"Rules",
+		"Skills",
 		"ExternalTools",
 		"Environment",
 	}
@@ -840,6 +843,7 @@ func DefaultResearchSections() []string {
 		"ToolUsage",
 		"Capabilities",
 		"Rules",
+		"Skills",
 		"ExternalTools",
 		"Environment",
 	}

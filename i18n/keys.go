@@ -1004,6 +1004,17 @@ const (
 	KeySettingCmd_770 = "setting_cmd_770"
 	KeySettingCmd_771 = "setting_cmd_771"
 	KeySettingCmd_772 = "setting_cmd_772"
+
+	// FEATURE-453: :skill command messages
+	KeySkillCmdHelp          = "skill_cmd_help"
+	KeySkillCmdNoSkills      = "skill_cmd_no_skills"
+	KeySkillCmdNotFound      = "skill_cmd_not_found"
+	KeySkillCmdAdded         = "skill_cmd_added"
+	KeySkillCmdRemoved       = "skill_cmd_removed"
+	KeySkillCmdSourceNotExist = "skill_cmd_source_not_exist"
+	KeySkillCmdUsage         = "skill_cmd_usage"
+	KeySkillCmdListHeader    = "skill_cmd_list_header"
+
 	KeySettingCmd_622 = "setting_cmd_622"
 	KeySettingCmd_623 = "setting_cmd_623"
 	KeySettingCmd_624 = "setting_cmd_624"
@@ -2251,6 +2262,11 @@ const (
 	// ExternalTools section — describes how to use bin/ tools for document conversion
 	// and other utility tasks. Loaded lazily when building the system prompt.
 	KeySystemPromptExternalTools = "system_prompt_external_tools"
+
+	// Skills section (FEATURE-453) — header text for the SKILLS section that
+	// lists available skills as an index (name + description + path). The
+	// dynamic index body is appended by the agent when building the prompt.
+	KeySystemPromptSkills = "system_prompt_skills"
 
 	// Confirm-tool mode descriptions (FEATURE-200)
 	KeyModeConfirmDesc  = "mode_confirm_desc"
