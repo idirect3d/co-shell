@@ -91,7 +91,7 @@ func init() {
   - 同时要考虑本次操作是否可能涉及用户的敏感信息（读取用户主目录、系统文件夹、凭据等）。
 - **risk_reason**（必需）：你风险评估的简要理由。
 - **affected_objects**（必需）：本次操作会影响的文件/文件夹，用绝对路径数组表示。最多提供 3 个。如果无法确定具体文件，则提供所有可能受影响文件共有的最下一层文件夹路径。
-- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。
+- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。你必须**至少提供 1 条当前状态记录**（即便状态没变也要提供），以便始终反映当前执行状态。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。
 
 视觉工具（visual_analysis / browser_screenshot）额外带一个 **instruct** 参数——给视觉模型的明确指令，描述要从图像中分析/提取什么。这与 meta.intent（展示给用户的意图）不同。
 `
@@ -179,7 +179,7 @@ TOOL USE
   - 同时要考虑本次操作是否可能涉及用户的敏感信息（读取用户主目录、系统文件夹、凭据等）。
 - **risk_reason**（必需）：你风险评估的简要理由。
 - **affected_objects**（必需）：本次操作会影响的文件/文件夹，用绝对路径数组表示。最多提供 3 个。如果无法确定具体文件，则提供所有可能受影响文件共有的最下一层文件夹路径。
-- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。
+- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。你必须**至少提供 1 条当前状态记录**（即便状态没变也要提供），以便始终反映当前执行状态。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。
 
 视觉工具（visual_analysis / browser_screenshot）额外带一个 **instruct** 参数——给视觉模型的明确指令，描述要从图像中分析/提取什么。这与 meta.intent（展示给用户的意图）不同。
 
@@ -429,7 +429,6 @@ Usage:
 	zhMessages[KeyToolUsageTrackTaskProgress] = `## track_task_progress
 Description: 记录任务内容并跟踪各步骤执行进度。一次性传递完整的 steps 数组作为期望状态——系统自动处理创建或替换。description 参数用法：对于详细计划，将完整的任务背景、约束条件、技术方案和验收标准写入 description。step.description 参数用法：首行为步骤标题/摘要；后续行为步骤的具体详细内容。status 参数用法："[ ]" (待办)、"[=]" (进行中)、"[X]" (已完成)、"[C]" (已取消)、"[F]" (已失败)。将 steps 设置为空数组可归档并删除当前计划。
 Parameters:
-- meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
 - title (必需，新建时) 任务计划的标题
 - description (必需) 整体任务计划的详细描述。对于详细计划，应包含完整的任务背景、约束条件、技术方案和验收标准。
 - steps (必需) 步骤对象数组，每个对象包含 description 和 status。传递完整数组即设定期望状态。空数组归档并删除当前计划。
@@ -589,7 +588,6 @@ Description: 每次工具调用后，用户会回应该工具调用的结果（�
 重要提示：在确认所有之前的工具调用都已成功之前，不得使用此工具。在未确认的情况下使用将导致代码损坏和系统故障。使用此工具前，你必须先自问是否已确认所有之前的工具调用都成功了。如果没有，请不要使用此工具。
 如果你使用 **track_task_progress** 来管理任务进度，所有未完成的步骤会被标记为完成。
 Parameters:
-- meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
 - result (必需) 工具调用的结果。应是对结果的清晰、具体描述。
 - command (可选) 可选的 CLI 命令，用于向用户演示结果。例如使用 'open index.html' 展示创建的 HTML 网站，或使用 'open localhost:3000' 展示本地开发服务器。不要使用 'echo' 或 'cat' 等仅输出文本的命令。命令必须对当前操作系统有效，确保格式正确且不包含有害指令。
 - task_message_no (可选) 整数。任务完成后的上下文起始消息序号，应取自 <environment_details> 中的 message_no 值。设置此参数可将上下文起点指针移动到该消息位置，旧的历史消息将被忽略不再占用上下文窗口，但可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
