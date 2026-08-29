@@ -25,6 +25,7 @@ const I18N = {
     statusBar: "状态条",
     sbSession: "Σ", sbLast: "⏱️",
     revealDir: "定位到文件夹",
+    downloadFile: "下载文件",
     sessionDelete: "删除会话",
     sessionActive: "当前会话",
     sessionCount: "消息计数",
@@ -59,6 +60,7 @@ const I18N = {
     statusBar: "Status bar",
     sbSession: "Σ", sbLast: "⏱️",
     revealDir: "Reveal in folder",
+    downloadFile: "Download file",
     sessionDelete: "Delete session",
     sessionActive: "Current session",
     sessionCount: "Message count",
@@ -1200,6 +1202,13 @@ function fmtTime(d) {
 // (FEATURE-378): { textModel, textMaxLen, visionModel, visionMaxLen }.
 let modelInfo = null;
 
+// FEATURE-455: remote access + download flags from bootstrap. When the UI is
+// served to a remote address (remote=true) and the operator enabled download
+// (downloadEnabled=true), the workspace file list's "reveal in folder" icon
+// becomes a download icon (and the folder reveal action disappears).
+let remoteAccess = false;
+let downloadEnabled = false;
+
 function fmtNum(n) { return n ? n.toLocaleString() : "0"; }
 
 // fmtDur formats a duration in seconds as e.g. "2s" or "1.5m".
@@ -2177,12 +2186,27 @@ function treeNode(node) {
     badge.title = node.changes + " changed";
     actions.appendChild(badge);
   }
-  const reveal = document.createElement("button");
-  reveal.className = "reveal-btn";
-  reveal.title = T.revealDir;
-  reveal.textContent = "⌖";
-  reveal.onclick = (e) => { e.stopPropagation(); postPath("/api/reveal", node.path); };
-  actions.appendChild(reveal);
+  // FEATURE-455: when the UI is served to a remote address and download is
+  // enabled, the "reveal in folder" action is meaningless (it opens the
+  // server's local file manager). For files it becomes a download icon; for
+  // directories the action disappears entirely.
+  if (remoteAccess && downloadEnabled) {
+    if (!node.dir) {
+      const dl = document.createElement("button");
+      dl.className = "reveal-btn";
+      dl.title = T.downloadFile;
+      dl.textContent = "⬇";
+      dl.onclick = (e) => { e.stopPropagation(); downloadFile(node.path); };
+      actions.appendChild(dl);
+    }
+  } else {
+    const reveal = document.createElement("button");
+    reveal.className = "reveal-btn";
+    reveal.title = T.revealDir;
+    reveal.textContent = "⌖";
+    reveal.onclick = (e) => { e.stopPropagation(); postPath("/api/reveal", node.path); };
+    actions.appendChild(reveal);
+  }
   row.appendChild(actions);
 
   // FEATURE-383: hovering a long (truncated) file name auto-expands the
@@ -2644,6 +2668,13 @@ async function postPath(api, path) {
       console.error(T.actionFailed, body.error || resp.status);
     }
   } catch (err) { console.error(T.actionFailed, err); }
+}
+
+// downloadFile triggers a browser download of a workspace file (FEATURE-455).
+// It navigates to /api/download?path=... so the server's Content-Disposition
+// header makes the browser save the file instead of rendering it.
+function downloadFile(path) {
+  window.location.href = "/api/download?path=" + encodeURIComponent(path);
 }
 
 previewClose.onclick = () => preview.classList.add("hidden");
@@ -3725,6 +3756,10 @@ async function refreshBranch() {
     if (b.textModel) {
       modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
     }
+    // FEATURE-455: remote access + download flags. When remote and download
+    // are both enabled, the file list's reveal icon becomes a download icon.
+    remoteAccess = !!b.remote;
+    downloadEnabled = !!b.downloadEnabled;
   } catch { /* defaults stay zh */ }
   applyI18n();
   initStreamMode(); // FEATURE-425: wire the display-mode pill + session title
