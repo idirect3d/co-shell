@@ -186,6 +186,8 @@ const modelsModal = document.getElementById("models");
 const modelsClose = document.getElementById("modelsClose");
 const modelsBody = document.getElementById("modelsBody");
 const modelAddBtn = document.getElementById("modelAddBtn");
+const modelPinBtn = document.getElementById("modelPinBtn");
+const modelDelBtn = document.getElementById("modelDelBtn");
 const modelWizardModal = document.getElementById("modelWizard");
 const modelWizardBody = document.getElementById("modelWizardBody");
 const modelWizardCancel = document.getElementById("modelWizardCancel");
@@ -1822,6 +1824,11 @@ function sendInput() {
     autoGrow();
     return;
   }
+  // FEATURE-449: submitting a fresh command starts a new task, so clear the
+  // previous tool call's affected-object highlight (background and font).
+  // Answering a question or typing supplementary info (the branch above) does
+  // NOT clear it.
+  clearAffectedHighlight();
   wsSend({ type: "input", text });
   renderUserEcho(text);
   history.push(text);
@@ -2014,18 +2021,27 @@ const expandedDirs = new Set();
 // the LLM via the "files" argument. The frontend highlights them in the tree
 // with a blue text colour (no background/border).
 let affectedFiles = [];
+// FEATURE-449: the previous tool call's affected files, demoted to font-only
+// highlight (aff-pred-fg) when a new tool call starts. Kept separately because
+// loadTree() rebuilds the DOM and would otherwise drop the demoted highlight.
+let prevAffectedFiles = [];
 
 // highlightAffectedFiles records the files affected by the current tool call,
-// clears any previous highlight, expands the affected files' parent folders,
-// rebuilds the tree and scrolls the first affected file into view (FEATURE-447).
+// demotes the previous tool call's highlight to font-only (keeping the blue
+// text but clearing the background), expands the affected files' ancestor
+// folders (including the workspace root), rebuilds the tree and scrolls the
+// first affected file into view (FEATURE-447/449).
 function highlightAffectedFiles(files) {
+  // FEATURE-449: remember the current affected files as the previous ones so
+  // they can be re-applied as font-only after the tree rebuild (loadTree()
+  // destroys the DOM, dropping any in-place class change).
+  prevAffectedFiles = affectedFiles;
   affectedFiles = files || [];
-  // Clear the previous tool call's highlight so only the current affected
-  // files stay blue.
-  tree.querySelectorAll(".tree-row .name.aff-pred").forEach((n) => n.classList.remove("aff-pred"));
   if (!affectedFiles.length) return;
-  // Expand every affected file's parent folders so the highlighted row is
-  // visible even when its directory was collapsed.
+  // Expand every affected file's ancestor folders (including the workspace
+  // root "") so the highlighted row is visible even when its directory chain
+  // was collapsed. The root must be expanded too, otherwise the affected
+  // file's top-level folder sits inside a collapsed root and stays hidden.
   affectedFiles.forEach((f) => {
     const parts = f.path.split("/");
     let acc = "";
@@ -2033,6 +2049,9 @@ function highlightAffectedFiles(files) {
       acc = acc ? acc + "/" + parts[i] : parts[i];
       expandedDirs.add(acc);
     }
+    // The workspace root ("") is the first directory in the file list; expand
+    // it so the affected file's top-level folder is reachable (FEATURE-449).
+    expandedDirs.add("");
   });
   // Rebuild the tree to apply the expansion, then highlight and scroll.
   loadTree().then(() => {
@@ -2043,19 +2062,41 @@ function highlightAffectedFiles(files) {
 
 // applyAffectedHighlight applies the affected-file highlight to the current
 // workspace tree DOM. It is called after highlightAffectedFiles and after each
-// loadTree() rebuild (which recreates the DOM).
+// loadTree() rebuild (which recreates the DOM). The current call's files get
+// the full highlight (aff-pred); the previous call's files get the font-only
+// highlight (aff-pred-fg) so the user can still see which files were touched
+// (FEATURE-449).
 function applyAffectedHighlight() {
-  if (!affectedFiles.length) return;
   tree.querySelectorAll(".tree-row").forEach((r) => {
     const path = r.dataset.path;
-    if (!path) return;
-    const hit = affectedFiles.find((f) => f.path === path);
-    if (!hit) return;
+    // FEATURE-449: the workspace root row carries an empty path (""), while the
+    // backend reports the root as ".". Normalise both to match so the root is
+    // highlighted too when it is the affected object.
+    const norm = path === "" ? "." : path;
     const nameEl = r.querySelector(".name");
     if (!nameEl) return;
-    // All affected files are reported by the LLM — highlight with blue.
-    nameEl.classList.add("aff-pred");
+    // Previous call's files: font-only highlight (keep blue text, no background).
+    if (prevAffectedFiles.some((f) => f.path === norm)) {
+      nameEl.classList.add("aff-pred-fg");
+    }
+    // Current call's files: full highlight (blue text + background).
+    if (affectedFiles.some((f) => f.path === norm)) {
+      nameEl.classList.add("aff-pred");
+    }
   });
+}
+
+// clearAffectedHighlight fully clears the affected-object highlight (both the
+// background and the font colour) and forgets the current affected files. It is
+// called when the user submits a fresh command in the input box — a new task
+// starts, so the previous tool call's highlight is no longer relevant
+// (FEATURE-449). Answering a question or typing supplementary info does NOT
+// clear it, so the highlight survives mid-task interactions.
+function clearAffectedHighlight() {
+  affectedFiles = [];
+  prevAffectedFiles = [];
+  tree.querySelectorAll(".tree-row .name.aff-pred, .tree-row .name.aff-pred-fg")
+    .forEach((n) => n.classList.remove("aff-pred", "aff-pred-fg"));
 }
 
 // scrollToAffected scrolls the workspace tree so the first affected file is
@@ -2840,6 +2881,22 @@ modelAddBtn.onclick = () => {
   openModelWizard("add", "");
 };
 
+// FEATURE-449: the toolbar pin button pins (switches to) the selected model.
+modelPinBtn.onclick = () => {
+  if (!selectedModelID) return;
+  wsSend({ type: "model_switch", value: selectedModelID });
+};
+
+// FEATURE-449: the toolbar delete button asks for confirmation before removing
+// the selected model.
+modelDelBtn.onclick = () => {
+  if (!selectedModelID) return;
+  const m = modelList.find((x) => x.id === selectedModelID);
+  if (m) confirmDeleteModel(m);
+};
+
+
+
 // renderModels renders the model list into the manager modal and the status-bar
 // model selector menu.
 function renderModels(models, templates) {
@@ -2850,7 +2907,9 @@ function renderModels(models, templates) {
   renderModelVisionMenu();
 }
 
-// renderModelsBody renders the model list into the manager modal.
+// renderModelsBody renders the model list into the manager modal. Each row is
+// selectable (click to highlight with a border); the toolbar's pin/delete
+// buttons act on the selected model (FEATURE-449).
 function renderModelsBody() {
   modelsBody.textContent = "";
   if (!modelList.length) {
@@ -2862,7 +2921,11 @@ function renderModelsBody() {
   }
   for (const m of modelList) {
     const row = document.createElement("div");
-    row.className = "model-row" + (m.enabled ? " enabled" : "");
+    row.className = "model-row" + (m.enabled ? " enabled" : "") + (m.id === selectedModelID ? " selected" : "");
+    row.dataset.modelId = m.id;
+    // FEATURE-449: clicking a row selects it (highlighted border); the toolbar
+    // pin/delete buttons then act on the selected model.
+    row.onclick = () => selectModel(m.id);
     // Left: provider logo (FEATURE-429).
     const logo = document.createElement("img");
     logo.className = "model-logo";
@@ -2877,6 +2940,10 @@ function renderModelsBody() {
     id.className = "model-id";
     id.textContent = m.id;
     id.title = m.name || m.id;
+    // FEATURE-449: clicking the model ID opens the edit wizard (stopPropagation
+    // so it does not also select the row).
+    id.style.cursor = "pointer";
+    id.onclick = (e) => { e.stopPropagation(); modelsModal.classList.add("hidden"); openModelWizard("edit", m.id); };
     info.appendChild(id);
     const meta = document.createElement("div");
     meta.className = "model-meta";
@@ -2886,25 +2953,47 @@ function renderModelsBody() {
     if (m.thinking) caps.push("💭");
     meta.textContent = m.provider + " · " + m.model + (caps.length ? " · " + caps.join(" ") : "") + " · P" + m.priority;
     info.appendChild(meta);
+    // FEATURE-449: a second meta line showing the model's endpoint URL.
+    if (m.endpoint) {
+      const url = document.createElement("div");
+      url.className = "model-url";
+      url.textContent = m.endpoint;
+      url.title = m.endpoint;
+      info.appendChild(url);
+    }
     row.appendChild(info);
-    // Right: action buttons.
+    // Right: enable/disable toggle switch (the only per-row control; pin and
+    // delete moved to the toolbar, FEATURE-449).
     const actions = document.createElement("div");
     actions.className = "model-actions";
-    const mkBtn = (label, title, fn) => {
-      const b = document.createElement("button");
-      b.className = "model-act";
-      b.textContent = label;
-      b.title = title;
-      b.onclick = fn;
-      actions.appendChild(b);
-    };
-    mkBtn("切换", "切换为当前模型", () => wsSend({ type: "model_switch", value: m.id }));
-    mkBtn(m.enabled ? "禁用" : "启用", m.enabled ? "禁用此模型" : "启用此模型", () => wsSend({ type: m.enabled ? "model_disable" : "model_enable", value: m.id }));
-    mkBtn("编辑", "编辑此模型", () => { modelsModal.classList.add("hidden"); openModelWizard("edit", m.id); });
-    mkBtn("删除", "删除此模型", () => confirmDeleteModel(m));
+    const tgl = document.createElement("label");
+    tgl.className = "model-toggle";
+    tgl.title = m.enabled ? "禁用此模型" : "启用此模型";
+    const tglInp = document.createElement("input");
+    tglInp.type = "checkbox";
+    tglInp.checked = m.enabled;
+    tglInp.onchange = (e) => { e.stopPropagation(); wsSend({ type: m.enabled ? "model_disable" : "model_enable", value: m.id }); };
+    const tglSlider = document.createElement("span");
+    tglSlider.className = "model-toggle-slider";
+    tgl.appendChild(tglInp);
+    tgl.appendChild(tglSlider);
+    actions.appendChild(tgl);
     row.appendChild(actions);
     modelsBody.appendChild(row);
   }
+}
+
+// selectedModelID is the model currently selected in the manager modal. The
+// toolbar's pin/delete buttons act on it (FEATURE-449).
+let selectedModelID = null;
+
+// selectModel highlights the given model row with a selected border and records
+// it as the active selection for the toolbar pin/delete buttons (FEATURE-449).
+function selectModel(id) {
+  selectedModelID = id;
+  modelsBody.querySelectorAll(".model-row").forEach((r) => {
+    r.classList.toggle("selected", r.dataset.modelId === id);
+  });
 }
 
 // modelLogo maps a provider name to its logo file under /static/logos/.
