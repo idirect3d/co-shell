@@ -268,3 +268,95 @@ func TestApplyProgressReportFromMeta(t *testing.T) {
 		t.Errorf("step status = %q, want in_progress", plan.Steps[0].Status)
 	}
 }
+
+// TestApplyProgressReportForgottenInProgress verifies that when the current
+// plan has an in_progress step that is NOT covered by the new progress report,
+// the report is rejected (FEATURE-452).
+func TestApplyProgressReportForgottenInProgress(t *testing.T) {
+	client := &scriptedPlanClient{script: []scriptStep{
+		{"track_task_progress", `{"meta":{"intent":"make a plan","risk":"medium","risk_reason":"planning","affected_objects":[],"progress":[]},"title":"Build it","description":"D","steps":[{"description":"step one","status":"pending"},{"description":"step two","status":"pending"}]}`},
+		{"attempt_completion", `{"meta":{"intent":"complete","risk":"low","risk_reason":"done","affected_objects":[],"progress":[]},"result":"done","session_title":"t","session_keywords":"k"}`},
+	}}
+	ag := newPlanEventAgent(t, client)
+	if _, err := ag.RunStream(context.Background(), "make a plan", func(ev StreamEvent) {}); err != nil {
+		t.Fatalf("RunStream(create): %v", err)
+	}
+
+	// Mark step 0 as in_progress.
+	args := map[string]interface{}{
+		"meta": map[string]interface{}{
+			"intent":           "update progress",
+			"risk":             "low",
+			"risk_reason":      "updating",
+			"affected_objects": []interface{}{},
+			"progress": []interface{}{
+				map[string]interface{}{"index": float64(0), "description": "step one", "status": "in_progress"},
+			},
+		},
+	}
+	if _, err := ag.applyProgressReport(args); err != nil {
+		t.Fatalf("applyProgressReport(mark in_progress): %v", err)
+	}
+
+	// Now report only step 1, leaving in_progress step 0 uncovered → must fail.
+	args2 := map[string]interface{}{
+		"meta": map[string]interface{}{
+			"intent":           "update progress",
+			"risk":             "low",
+			"risk_reason":      "updating",
+			"affected_objects": []interface{}{},
+			"progress": []interface{}{
+				map[string]interface{}{"index": float64(1), "description": "step two", "status": "completed"},
+			},
+		},
+	}
+	if _, err := ag.applyProgressReport(args2); err == nil {
+		t.Fatal("applyProgressReport should fail when an in_progress step is forgotten")
+	}
+}
+
+// TestApplyProgressReportCoversInProgress verifies that when the current plan
+// has an in_progress step that IS covered by the new progress report, the
+// report is accepted (FEATURE-452).
+func TestApplyProgressReportCoversInProgress(t *testing.T) {
+	client := &scriptedPlanClient{script: []scriptStep{
+		{"track_task_progress", `{"meta":{"intent":"make a plan","risk":"medium","risk_reason":"planning","affected_objects":[],"progress":[]},"title":"Build it","description":"D","steps":[{"description":"step one","status":"pending"},{"description":"step two","status":"pending"}]}`},
+		{"attempt_completion", `{"meta":{"intent":"complete","risk":"low","risk_reason":"done","affected_objects":[],"progress":[]},"result":"done","session_title":"t","session_keywords":"k"}`},
+	}}
+	ag := newPlanEventAgent(t, client)
+	if _, err := ag.RunStream(context.Background(), "make a plan", func(ev StreamEvent) {}); err != nil {
+		t.Fatalf("RunStream(create): %v", err)
+	}
+
+	// Mark step 0 as in_progress.
+	args := map[string]interface{}{
+		"meta": map[string]interface{}{
+			"intent":           "update progress",
+			"risk":             "low",
+			"risk_reason":      "updating",
+			"affected_objects": []interface{}{},
+			"progress": []interface{}{
+				map[string]interface{}{"index": float64(0), "description": "step one", "status": "in_progress"},
+			},
+		},
+	}
+	if _, err := ag.applyProgressReport(args); err != nil {
+		t.Fatalf("applyProgressReport(mark in_progress): %v", err)
+	}
+
+	// Report step 0 (the in_progress one) as completed → must succeed.
+	args2 := map[string]interface{}{
+		"meta": map[string]interface{}{
+			"intent":           "update progress",
+			"risk":             "low",
+			"risk_reason":      "updating",
+			"affected_objects": []interface{}{},
+			"progress": []interface{}{
+				map[string]interface{}{"index": float64(0), "description": "step one", "status": "completed"},
+			},
+		},
+	}
+	if _, err := ag.applyProgressReport(args2); err != nil {
+		t.Fatalf("applyProgressReport(cover in_progress): %v", err)
+	}
+}
