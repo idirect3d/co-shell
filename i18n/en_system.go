@@ -176,6 +176,11 @@ Example with the meta object:
       <{XML_TAG_PREFIX}item>
         <{XML_TAG_PREFIX}index>0</{XML_TAG_PREFIX}index>
         <{XML_TAG_PREFIX}description>Building the project</{XML_TAG_PREFIX}description>
+        <{XML_TAG_PREFIX}status>completed</{XML_TAG_PREFIX}status>
+      </{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}index>1</{XML_TAG_PREFIX}index>
+        <{XML_TAG_PREFIX}description>Running the tests</{XML_TAG_PREFIX}description>
         <{XML_TAG_PREFIX}status>in_progress</{XML_TAG_PREFIX}status>
       </{XML_TAG_PREFIX}item>
     </{XML_TAG_PREFIX}progress>
