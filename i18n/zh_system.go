@@ -196,7 +196,12 @@ TOOL USE
     <{XML_TAG_PREFIX}progress>
       <{XML_TAG_PREFIX}item>
         <{XML_TAG_PREFIX}index>0</{XML_TAG_PREFIX}index>
-        <{XML_TAG_PREFIX}description>正在构建项目</{XML_TAG_PREFIX}description>
+        <{XML_TAG_PREFIX}description>构建项目</{XML_TAG_PREFIX}description>
+        <{XML_TAG_PREFIX}status>completed</{XML_TAG_PREFIX}status>
+      </{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}index>1</{XML_TAG_PREFIX}index>
+        <{XML_TAG_PREFIX}description>运行测试</{XML_TAG_PREFIX}description>
         <{XML_TAG_PREFIX}status>in_progress</{XML_TAG_PREFIX}status>
       </{XML_TAG_PREFIX}item>
     </{XML_TAG_PREFIX}progress>
