@@ -143,6 +143,41 @@ func metaObject(args map[string]interface{}) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
+// metaFieldNames are the only keys that legitimately belong inside the meta
+// object. Any other key found inside meta is a tool parameter that the LLM
+// mistakenly nested there (FIX-451) and should be promoted to the top level.
+var metaFieldNames = map[string]bool{
+	"intent":           true,
+	"risk":             true,
+	"risk_reason":      true,
+	"affected_objects": true,
+	"progress":         true,
+}
+
+// promoteMisplacedMetaParams promotes tool parameters that the LLM mistakenly
+// nested inside the meta object (e.g. path, regex, command) up to the top level
+// of the arguments map. The meta object only legitimately holds the transparency
+// fields (intent/risk/risk_reason/affected_objects/progress); any other key
+// found inside it is a misplaced tool parameter. This makes the tool call
+// resilient to LLM formatting errors where parameters are placed inside meta
+// instead of at the top level.
+func promoteMisplacedMetaParams(args map[string]interface{}) {
+	meta, ok := args["meta"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	for key, val := range meta {
+		if metaFieldNames[key] {
+			continue
+		}
+		// Only promote when the top level does not already have this key, so a
+		// correctly-placed top-level parameter always wins.
+		if _, exists := args[key]; !exists {
+			args[key] = val
+		}
+	}
+}
+
 // toolRequiresMeta reports whether the named tool's required parameter list
 // includes "meta" (FEATURE-450). The unified meta validation (assessRisk) is
 // only applied to tools that require meta; tools like track_task_progress and

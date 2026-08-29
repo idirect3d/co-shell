@@ -2024,6 +2024,13 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 		return "", fmt.Errorf("cannot parse tool arguments: %w", err)
 	}
 
+	// FIX-451: tolerate LLMs that mistakenly nest tool parameters (e.g. path,
+	// regex, command) inside the meta object instead of at the top level. The
+	// meta object only legitimately holds intent/risk/risk_reason/
+	// affected_objects/progress; any other key found inside it is a misplaced
+	// tool parameter and is promoted to the top level so the tool can run.
+	promoteMisplacedMetaParams(args)
+
 	// Check for vault placeholders and optionally mask them for confirmation display.
 	// Placeholders like @pwd:entry_name, @user:entry_name need the vault to be unlocked.
 	hasPlaceholders := store.HasPlaceholders(args)
