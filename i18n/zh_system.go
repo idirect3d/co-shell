@@ -91,7 +91,7 @@ func init() {
   - 同时要考虑本次操作是否可能涉及用户的敏感信息（读取用户主目录、系统文件夹、凭据等）。
 - **risk_reason**（必需）：你风险评估的简要理由。
 - **affected_objects**（必需）：本次操作会影响的文件/文件夹，用绝对路径数组表示。最多提供 3 个。如果无法确定具体文件，则提供所有可能受影响文件共有的最下一层文件夹路径。
-- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。你必须**至少提供 1 条当前状态记录**（即便状态没变也要提供），以便始终反映当前执行状态。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。
+- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。你必须**至少提供 1 条当前状态记录**（即便状态没变也要提供），以便始终反映当前执行状态。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。**本次更新之前所有状态为"正在运行"（in_progress）的步骤，都必须在本 progress 报告中体现它们的最新状态**——必须为每个此前正在运行的步骤提供最新状态（标记为完成/失败/取消，或继续保持 in_progress）。如果遗漏了任何正在运行的步骤，该报告会被拒绝并报错，以确保所有正在运行的任务状态都能得到更新而不会被遗忘。
 
 视觉工具（visual_analysis / browser_screenshot）额外带一个 **instruct** 参数——给视觉模型的明确指令，描述要从图像中分析/提取什么。这与 meta.intent（展示给用户的意图）不同。
 `
@@ -179,7 +179,7 @@ TOOL USE
   - 同时要考虑本次操作是否可能涉及用户的敏感信息（读取用户主目录、系统文件夹、凭据等）。
 - **risk_reason**（必需）：你风险评估的简要理由。
 - **affected_objects**（必需）：本次操作会影响的文件/文件夹，用绝对路径数组表示。最多提供 3 个。如果无法确定具体文件，则提供所有可能受影响文件共有的最下一层文件夹路径。
-- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。你必须**至少提供 1 条当前状态记录**（即便状态没变也要提供），以便始终反映当前执行状态。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。
+- **progress**（必需）：你的任务进展报告——对象数组，每个对象包含 index/description/status。它用于更新 track_task_progress 制订的任务执行状态，因此**必须与 track_task_progress 保持一致**：每个 index 必须与任务计划中对应步骤的索引完全一致，每个 status 必须取 track_task_progress 使用的同一组状态值（"pending"/"in_progress"/"completed"/"cancelled"/"failed"，或显示符号 "[ ]"/"[=]"/"[X]"/"[C]"/"[F]"）。其作用是**精准调整变动的部分**——只报告状态有变化的步骤以及当前正在执行的步骤，未变化的步骤可以不传（无需包含在 progress 数组中）。你必须**至少提供 1 条当前状态记录**（即便状态没变也要提供），以便始终反映当前执行状态。**index 从 0 开始计数**：第一个步骤 index 为 0，第 N 个步骤 index 为 N-1。index 等于当前步骤数表示追加新步骤；超出该范围则报错。**本次更新之前所有状态为"正在运行"（in_progress）的步骤，都必须在本 progress 报告中体现它们的最新状态**——必须为每个此前正在运行的步骤提供最新状态（标记为完成/失败/取消，或继续保持 in_progress）。如果遗漏了任何正在运行的步骤，该报告会被拒绝并报错，以确保所有正在运行的任务状态都能得到更新而不会被遗忘。
 
 视觉工具（visual_analysis / browser_screenshot）额外带一个 **instruct** 参数——给视觉模型的明确指令，描述要从图像中分析/提取什么。这与 meta.intent（展示给用户的意图）不同。
 
