@@ -1649,14 +1649,17 @@ aside {
 }
 /* FEATURE-457: iPad-style settings layout (left nav + right pane). */
 .settings-box {
-  width: 900px;
+  width: 600px;
+  height: 800px;
   max-width: 92vw;
+  max-height: 90vh;
 }
 .settings-body {
   flex-direction: row;
   align-items: stretch;
   padding: 0;
   overflow: hidden;
+  height: calc(100% - 41px);
 }
 .settings-nav {
   flex: 0 0 200px;
