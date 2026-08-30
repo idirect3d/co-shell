@@ -222,7 +222,15 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "duplicate-content-threshold",
 		subcommand == "problem-solver-enabled",
 		subcommand == "default-problem-model",
-		subcommand == "default-tool-model":
+		subcommand == "default-tool-model",
+		// FEATURE-456: dedicated supervisor LLM switches.
+		subcommand == "supervisor-enabled",
+		subcommand == "supervisor-entry-a",
+		subcommand == "supervisor-entry-b",
+		subcommand == "supervisor-entry-c",
+		subcommand == "supervisor-clear-context",
+		subcommand == "supervisor-max-retries",
+		subcommand == "supervisor-allowed-tools":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -749,6 +757,14 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("problem-solver-enabled", problemSolverStatus, i18n.T(i18n.KeyCol3ProblemSolverEnabled)),
 		makeLine("default-problem-model", defaultProblemModelDisplay, "auto/<model-id>"),
 		makeLine("default-tool-model", defaultToolModelDisplay, "auto/<model-id>"),
+		// FEATURE-456: dedicated supervisor LLM switches.
+		makeLine("supervisor-enabled", boolStr(cfg.LLM.Supervisor.Enabled), "on/off"),
+		makeLine("supervisor-entry-a", boolStr(cfg.LLM.Supervisor.EntryA), "on/off"),
+		makeLine("supervisor-entry-b", boolStr(cfg.LLM.Supervisor.EntryB), "on/off"),
+		makeLine("supervisor-entry-c", boolStr(cfg.LLM.Supervisor.EntryC), "on/off"),
+		makeLine("supervisor-clear-context", boolStr(cfg.LLM.Supervisor.ClearContext), "on/off"),
+		makeLine("supervisor-max-retries", fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRetries), "int"),
+		makeLine("supervisor-allowed-tools", supervisorAllowedToolsDisplay(cfg.LLM), "comma-separated"),
 	)
 	allGroups[len(allGroups)-1] = safetyGroup
 
@@ -827,6 +843,15 @@ func (h *SettingsHandler) showSettingsHelp() string {
 	sb.WriteString(i18n.T(i18n.KeySettingsSetDefaultHint) + "\n")
 
 	return sb.String()
+}
+
+// supervisorAllowedToolsDisplay returns the display string for the supervisor
+// tool whitelist (FEATURE-456). Empty whitelist shows "(default)".
+func supervisorAllowedToolsDisplay(llm config.LLMConfig) string {
+	if len(llm.Supervisor.AllowedTools) == 0 {
+		return "(default)"
+	}
+	return strings.Join(llm.Supervisor.AllowedTools, ",")
 }
 
 // handleSetDefault resets all non-critical settings to system defaults.
