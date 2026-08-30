@@ -1468,6 +1468,8 @@ const (
 	KeyCol3LoopJudgeModel        = "col3_loop_judge_model"
 	KeyProblemSolverSystemPrompt = "problem_solver_system_prompt"
 	KeyProblemSolverUserPrompt   = "problem_solver_user_prompt"
+	// FEATURE-456: dedicated supervisor LLM for delivery review
+	KeySupervisorSystemPrompt = "supervisor_system_prompt"
 	KeyLoopJudgeUserPrompt       = "loop_judge_user_prompt"
 	KeyLoopJudgeFallback         = "loop_judge_fallback"
 	KeyLoopFailedStrategiesNone  = "loop_failed_strategies_none" // FEATURE-349

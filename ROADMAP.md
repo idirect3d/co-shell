@@ -700,6 +700,30 @@
   - 实施：`main.go` 新增 `--download-enabled` 参数（默认 false）+ `cliFlags.downloadEnabled` + `ServerOptions.DownloadEnabled` 传入；`web/server.go` 新增 `ServerOptions.DownloadEnabled` 字段、`isRemote()`（Bind 非 loopback 判定）、`downloadEnabled()`（DownloadEnabled && isRemote）、`handleDownload`（路径穿越校验 + 仅文件 + Content-Disposition attachment）、`/api/download` 路由、bootstrap 下发 `remote`/`downloadEnabled`；`web/static/app.js` 新增 `remoteAccess`/`downloadEnabled` 全局变量（boot 读取）、treeNode 渲染逻辑（远程+下载启用时文件变下载图标 ⬇、文件夹定位图标消失）、`downloadFile()` 函数、`T.downloadFile` 中英文文本；`usage.go` + `i18n`（zh/en/keys）新增 `--download-enabled` 帮助文本；`web/server_test.go` 新增 `TestIsRemote`/`TestDownload` 单元测试 + 修复 `TestBootstrap` 解码类型 [BUILD-722]；⑪ 修复：远程访问时定位功能始终禁用（无论是否开启下载）——`web/static/app.js` treeNode 渲染改为 `if (remoteAccess)` 分支（下载启用时文件显示下载图标，否则文件/文件夹均不显示任何图标），`web/server.go` `handleOpen`/`handleReveal` 在 `isRemote()` 时返回 403（防止直接调用 API 触发远程主机本地应用/文件管理器），`web/server_test.go` TestDownload 补充远程 open/reveal 403 验证，测试用例 UC-002 更新 [BUILD-723]
   - 测试：见 use-case/FEATURE-455/
 
+## v0.25.0 — 开发中
+
+> **版本**: v0.25.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 专职监督 LLM 交付复核
+> **说明**: 0.25.0 系列实现专职监督 LLM，对主 LLM 的交付物进行独立复核，自动打回继续或重做，实现全自动化交付门禁。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-456 | 0.25.0 | P1 | 专职监督 LLM 交付复核：新增独立监督 LLM（复用问题解决 LLM 模型），以审查主 LLM 交付物是否达到用户终极目标为核心目标；监督 LLM 上下文与会话绑定独立累积（可配置清空）；三个介入点（A attempt_completion / B 未调用工具自动退出 / C 任务进度标记完成）由三个开关控制（A/B 默认开、C 默认关）；监督 LLM 只允许低风险工具（显式白名单可配置）；判定时给监督 LLM 用户历次消息增量 + taskplan description + 主 LLM 最后报告 + 场景入口信息 + 任务进度清单；完成审查工具收集是否放行/理由/建议（必填）；不放行则理由+建议作为 user 消息进主 LLM 上下文重跑，放行则理由+建议向用户报告并进记忆；防死循环最大打回 20 次（可配），超限交人工判定并报告次数 |
+
+> 当前 BUILD: 726
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-456 专职监督 LLM 交付复核**
+  - 背景：长任务完成后经常出现遗漏，需人工检查确认，但人工实际做不了什么。用同一套上下文（同一个人）自检容易漏，需要一个专职监督 LLM 专门做交付复核，自动打回继续或重做，实现全自动化。
+  - 方案（已确认）：① 新增监督 LLM（复用问题解决 LLM 模型），启用/禁用开关默认启用；② 监督 LLM 上下文与会话绑定独立累积（清空开关放[安全与确认]）；③ 三个介入点 A/B/C 由三个开关控制（A 默认开、B 默认开、C 默认关）；④ 监督 LLM 只允许低风险工具（显式白名单可配置：read_file/execute_command/memory_search 等）；⑤ 判定输入：用户历次消息增量 + taskplan description + 主 LLM 最后报告 + 场景入口信息 + 任务进度清单；⑥ 完成审查工具收集是否放行/理由/建议（必填）；⑦ 不放行则理由+建议作为 user 消息进主 LLM 上下文重跑，放行则理由+建议向用户报告并进记忆；⑧ 防死循环最大打回 20 次（可配），超限交人工判定并报告次数；⑨ 同步阻塞式审查。
+  - 实施：新增 `agent/supervisor.go`（监督 LLM 核心：supervisorContext 会话绑定独立累积上下文 + supervisorState 运行时状态 + SupervisorReview 审查结果结构 + submitReviewTool 完成审查工具（approved/reason/suggestion 三字段必填）+ callSupervisor 多轮工具调用循环（白名单方案 B：白名单内工具执行、白名单外自动拒绝）+ buildSupervisorTools/findToolDefinition 工具集构建 + runSupervisorReview 同步审查入口（放行/打回/防死循环 maxRetries 默认 20 超限强制放行并报告次数 + 放行时理由+建议进记忆））；`config/config.go` 新增 `SupervisorConfig`（Enabled 默认 true / EntryA 默认 true / EntryB 默认 true / EntryC 默认 false / ClearContext 默认 false / MaxRetries 默认 20 / AllowedTools 白名单）+ LLMConfig.Supervisor 字段 + 默认配置；`agent/loop.go` Agent 结构体新增 supervisorState 字段 + `agent/agent.go` New() 初始化；三个介入点挂载：A 在 `agent/tools.go` attemptCompletionTool（completion-confirm 前，打回则 feedback 作为 user 消息返回重跑）、B 在 `agent/run_stream.go` Rule 3（attempt_completion 不可用直接退出）和 Rule 2 noToolAction=exit（打回则 feedback 作为 user 消息 continue）、C 在 `agent/taskplan_tools.go` trackTaskProgressTool（hasCompletedStep 检测有步骤标记完成时触发）；`i18n/` 新增 KeySupervisorSystemPrompt（en/zh）+ keys.go 定义 [BUILD-725]
+  - 测试：见 use-case/FEATURE-456/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

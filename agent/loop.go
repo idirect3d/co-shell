@@ -123,6 +123,11 @@ type Agent struct {
 	subAgentEnabled bool     // whether sub-agent tools are enabled
 	intentExposureEnabled bool // whether tool-call intent exposure (meta object) is enabled
 
+	// supervisorState holds the dedicated supervisor LLM runtime state
+	// (FEATURE-456): session-bound independent context, incremental user-message
+	// pointer, and rejection counter for anti-dead-loop.
+	supervisorState *supervisorState
+
 	emojiEnabled    bool // whether emoji prefixes are enabled for output
 	toolCallEnabled bool // whether tool calling is enabled
 	// messagePointer is the index in a.messages that marks the starting position

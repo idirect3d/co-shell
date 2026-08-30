@@ -145,12 +145,37 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 	// a bare Println here (which bypassed showTool control and duplicated output).
 	formatted := taskplan.FormatPlan(plan)
 
+	// FEATURE-456: supervisor review at intervention point C (task progress
+	// marked complete). Only triggers when at least one step is marked completed.
+	if hasCompletedStep(steps) {
+		approved, feedback, report := a.runSupervisorReview(ctx, SupervisorEntryC, formatted)
+		if !approved {
+			// Rejected: return the feedback as the tool result so the main LLM
+			// sees it and reworks the sub-task.
+			return feedback, nil
+		}
+		if report != "" {
+			a.defaultIO().ErrPrintf("%s\n", report)
+		}
+	}
+
 	// Set flag so agent loop adjusts messagePointer after tool messages are appended
 	a.mu.Lock()
 	a.needAdjustPointer = true
 	a.mu.Unlock()
 
 	return formatted, nil
+}
+
+// hasCompletedStep reports whether any step in the given list is marked completed.
+func hasCompletedStep(steps []taskplan.StepInput) bool {
+	for _, s := range steps {
+		st := strings.TrimSpace(s.Status)
+		if st == "[X]" || st == "completed" || st == "[x]" {
+			return true
+		}
+	}
+	return false
 }
 
 // viewTaskPlanTool views the current active task plan.
