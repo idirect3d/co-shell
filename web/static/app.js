@@ -185,6 +185,7 @@ const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
 const settingsDynamic = document.getElementById("settingsDynamic");
 const settingsSearch = document.getElementById("settingsSearch");
+const settingsNav = document.getElementById("settingsNav");
 const modelsModal = document.getElementById("models");
 const modelsClose = document.getElementById("modelsClose");
 const modelsBody = document.getElementById("modelsBody");
@@ -2826,76 +2827,98 @@ setThemeMode.onchange = () => {
   applyTheme();
 };
 
+// iPad-style settings layout (FEATURE-457): a left category nav bar with
+// icons + a right pane showing the selected category's items.
+let settingsGroups = [];
+let settingsActiveGroup = 0;
+
+// settingsGroupIcon maps a group title keyword to a representative icon.
+function settingsGroupIcon(title) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("模型") || t.includes("model")) return "🧠";
+  if (t.includes("显示") || t.includes("display") || t.includes("输出")) return "🖥️";
+  if (t.includes("安全") || t.includes("safety") || t.includes("确认")) return "🛡️";
+  if (t.includes("记忆") || t.includes("memory") || t.includes("上下文")) return "📚";
+  if (t.includes("开发") || t.includes("debug") || t.includes("搜索")) return "🔧";
+  return "⚙️";
+}
+
 // renderSettings renders the grouped setting items returned by settings_get
-// (FEATURE-391). Each group is collapsible (default collapsed) and a search
-// box filters items in real time (FEATURE-457).
+// (FEATURE-391) in an iPad-style layout: left nav + right content pane.
 function renderSettings(groups) {
+  settingsGroups = groups || [];
+  settingsActiveGroup = 0;
+  renderSettingsNav();
+  renderSettingsPane();
+}
+
+// renderSettingsNav builds the left category navigation bar.
+function renderSettingsNav() {
+  settingsNav.innerHTML = "";
+  if (!settingsGroups.length) return;
+  const frag = document.createDocumentFragment();
+  settingsGroups.forEach((g, i) => {
+    const item = document.createElement("div");
+    item.className = "settings-nav-item" + (i === settingsActiveGroup ? " active" : "");
+    item.setAttribute("data-index", String(i));
+    const icon = document.createElement("span");
+    icon.className = "settings-nav-icon";
+    icon.textContent = settingsGroupIcon(g.title);
+    const label = document.createElement("span");
+    label.className = "settings-nav-label";
+    label.textContent = g.title || "";
+    item.appendChild(icon);
+    item.appendChild(label);
+    item.onclick = () => selectSettingsGroup(i);
+    frag.appendChild(item);
+  });
+  settingsNav.appendChild(frag);
+}
+
+// selectSettingsGroup switches the active category and re-renders the pane.
+function selectSettingsGroup(index) {
+  settingsActiveGroup = index;
+  settingsNav.querySelectorAll(".settings-nav-item").forEach((el) => {
+    el.classList.toggle("active", Number(el.getAttribute("data-index")) === index);
+  });
+  renderSettingsPane();
+}
+
+// renderSettingsPane renders the active category's items into the right pane.
+function renderSettingsPane() {
   settingsDynamic.innerHTML = "";
-  if (!groups || !groups.length) {
+  const g = settingsGroups[settingsActiveGroup];
+  if (!g) {
     settingsDynamic.textContent = "(no settings)";
     return;
   }
   const frag = document.createDocumentFragment();
-  for (const g of groups) {
-    const box = document.createElement("div");
-    box.className = "set-group";
-    const h = document.createElement("div");
-    h.className = "set-group-title";
-    h.textContent = g.title || "";
-    h.setAttribute("data-group", g.title || "");
-    const body = document.createElement("div");
-    body.className = "set-group-body";
-    for (const it of g.items || []) {
-      body.appendChild(renderSettingItem(it));
-    }
-    box.appendChild(h);
-    box.appendChild(body);
-    frag.appendChild(box);
+  for (const it of g.items || []) {
+    frag.appendChild(renderSettingItem(it));
   }
   settingsDynamic.appendChild(frag);
-  // Wire up collapse/expand toggles.
-  settingsDynamic.querySelectorAll(".set-group-title").forEach((h) => {
-    h.onclick = () => {
-      const box = h.parentElement;
-      box.classList.toggle("open");
-    };
-  });
   // Apply current search filter (if any) after re-render.
   const q = settingsSearch.value.trim().toLowerCase();
   if (q) applySettingsFilter(q);
 }
 
-// applySettingsFilter filters setting groups/items by the given query (FEATURE-457).
-// Items whose key or desc contains the query are kept; matching groups auto-expand.
+// applySettingsFilter filters the active category's items by the given query
+// (FEATURE-457). Items whose key or desc contains the query are kept.
 function applySettingsFilter(q) {
   q = (q || "").trim().toLowerCase();
-  settingsDynamic.querySelectorAll(".set-group").forEach((box) => {
-    const title = (box.querySelector(".set-group-title").textContent || "").toLowerCase();
-    let anyMatch = false;
-    box.querySelectorAll(".set-row").forEach((row) => {
-      const key = (row.getAttribute("data-key") || "").toLowerCase();
-      const desc = (row.getAttribute("data-desc") || "").toLowerCase();
-      const match = !q || key.includes(q) || desc.includes(q) || title.includes(q);
-      row.style.display = match ? "" : "none";
-      if (match) anyMatch = true;
-    });
-    box.style.display = anyMatch ? "" : "none";
-    if (q) {
-      box.classList.add("open");
-    }
+  settingsDynamic.querySelectorAll(".set-row").forEach((row) => {
+    const key = (row.getAttribute("data-key") || "").toLowerCase();
+    const desc = (row.getAttribute("data-desc") || "").toLowerCase();
+    const match = !q || key.includes(q) || desc.includes(q);
+    row.style.display = match ? "" : "none";
   });
 }
 
-// settingsSearch input handler: live filter (FEATURE-457).
+// settingsSearch input handler: live filter within the active category.
 settingsSearch.addEventListener("input", () => {
   const q = settingsSearch.value.trim().toLowerCase();
   if (!q) {
-    // Clear filter: restore all rows, collapse all groups.
-    settingsDynamic.querySelectorAll(".set-group").forEach((box) => {
-      box.style.display = "";
-      box.classList.remove("open");
-      box.querySelectorAll(".set-row").forEach((row) => { row.style.display = ""; });
-    });
+    settingsDynamic.querySelectorAll(".set-row").forEach((row) => { row.style.display = ""; });
     return;
   }
   applySettingsFilter(q);

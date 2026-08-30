@@ -1647,6 +1647,65 @@ aside {
   flex-direction: column;
   gap: 6px;
 }
+/* FEATURE-457: iPad-style settings layout (left nav + right pane). */
+.settings-box {
+  width: 900px;
+  max-width: 92vw;
+}
+.settings-body {
+  flex-direction: row;
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+}
+.settings-nav {
+  flex: 0 0 200px;
+  border-right: 1px solid var(--border);
+  padding: 8px 6px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--fg);
+  transition: background 0.15s;
+  user-select: none;
+}
+.settings-nav-item:hover { background: var(--mono-bg); }
+.settings-nav-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+.settings-nav-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  text-align: center;
+  font-size: 15px;
+}
+.settings-nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-pane {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .set-group-title {
   font-size: 12px;
   font-weight: 700;
