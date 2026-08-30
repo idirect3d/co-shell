@@ -100,11 +100,11 @@ func (a *Agent) supervisorEntryEnabled(entry SupervisorEntry) bool {
 	}
 	switch entry {
 	case SupervisorEntryA:
-		return a.cfg.LLM.Supervisor.EntryA
+		return a.cfg.LLM.Supervisor.EntryObject
 	case SupervisorEntryB:
-		return a.cfg.LLM.Supervisor.EntryB
+		return a.cfg.LLM.Supervisor.EntryExit
 	case SupervisorEntryC:
-		return a.cfg.LLM.Supervisor.EntryC
+		return a.cfg.LLM.Supervisor.EntryTask
 	}
 	return false
 }

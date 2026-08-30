@@ -587,17 +587,17 @@ type SupervisorConfig struct {
 	// Enabled: master switch for the supervisor. Default: true.
 	Enabled bool `json:"enabled"`
 
-	// EntryA: review when the main LLM calls attempt_completion (explicit delivery).
-	// Default: true.
-	EntryA bool `json:"entry_a"`
+	// EntryObject: review when the main LLM calls attempt_completion (explicit
+	// delivery of the final object). Default: true.
+	EntryObject bool `json:"entry_object"`
 
-	// EntryB: review when the main LLM exits without calling any tool (auto exit).
+	// EntryExit: review when the main LLM exits without calling any tool (auto exit).
 	// Default: true.
-	EntryB bool `json:"entry_b"`
+	EntryExit bool `json:"entry_exit"`
 
-	// EntryC: review when the main LLM updates task progress and marks steps
+	// EntryTask: review when the main LLM updates task progress and marks steps
 	// completed (sub-task completion). Default: false.
-	EntryC bool `json:"entry_c"`
+	EntryTask bool `json:"entry_task"`
 
 	// ClearContext: whether to clear the supervisor's context before each review.
 	// When false (default), the supervisor context accumulates across reviews
@@ -1024,12 +1024,12 @@ func DefaultConfig() *Config {
 			XMLStreamValidate:          true,
 			ProblemSolverEnabled:       true,
 			Supervisor: SupervisorConfig{
-				Enabled:     true,
-				EntryA:      true,
-				EntryB:      true,
-				EntryC:      false,
+				Enabled:      true,
+				EntryObject:  true,
+				EntryExit:    true,
+				EntryTask:    false,
 				ClearContext: false,
-				MaxRetries:  20,
+				MaxRetries:   20,
 			},
 		},
 

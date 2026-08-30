@@ -26,9 +26,9 @@ func newSupervisorTestAgent() *Agent {
 		LLM: config.LLMConfig{
 			Supervisor: config.SupervisorConfig{
 				Enabled:     true,
-				EntryA:      true,
-				EntryB:      true,
-				EntryC:      false,
+				EntryObject:  true,
+				EntryExit:    true,
+				EntryTask:    false,
 				ClearContext: false,
 				MaxRetries:  20,
 			},
@@ -174,13 +174,13 @@ func TestSupervisorMaxRetries(t *testing.T) {
 func TestSupervisorEntryEnabled(t *testing.T) {
 	ag := newSupervisorTestAgent()
 	if !ag.supervisorEntryEnabled(SupervisorEntryA) {
-		t.Error("EntryA should be enabled by default")
+		t.Error("EntryObject should be enabled by default")
 	}
 	if !ag.supervisorEntryEnabled(SupervisorEntryB) {
-		t.Error("EntryB should be enabled by default")
+		t.Error("EntryExit should be enabled by default")
 	}
 	if ag.supervisorEntryEnabled(SupervisorEntryC) {
-		t.Error("EntryC should be disabled by default")
+		t.Error("EntryTask should be disabled by default")
 	}
 }
 
@@ -200,7 +200,7 @@ func TestRunSupervisorReview_Disabled(t *testing.T) {
 // UC-0022: runSupervisorReview passes through when entry switch off.
 func TestRunSupervisorReview_EntryOff(t *testing.T) {
 	ag := newSupervisorTestAgent()
-	// EntryC is off by default.
+	// EntryTask is off by default.
 	approved, feedback, report := ag.runSupervisorReview(context.Background(), SupervisorEntryC, "report")
 	if !approved {
 		t.Error("should pass through when entry switch off")
@@ -213,7 +213,7 @@ func TestRunSupervisorReview_EntryOff(t *testing.T) {
 // UC-0023: runSupervisorReview forces pass to user when max retries exceeded.
 func TestRunSupervisorReview_MaxRetriesExceeded(t *testing.T) {
 	ag := newSupervisorTestAgent()
-	ag.SetConfig(&config.Config{LLM: config.LLMConfig{Supervisor: config.SupervisorConfig{Enabled: true, EntryA: true, MaxRetries: 3}}})
+	ag.SetConfig(&config.Config{LLM: config.LLMConfig{Supervisor: config.SupervisorConfig{Enabled: true, EntryObject: true, MaxRetries: 3}}})
 	// Simulate 3 prior rejections.
 	ag.supervisorState.ctx.rejectCount = 3
 	ag.supervisorState.ctx.lastReason = "still incomplete"
@@ -246,9 +246,9 @@ func TestRunSupervisorReview_CallFailure(t *testing.T) {
 func TestGetSettingValue_Supervisor(t *testing.T) {
 	cfg := &config.Config{LLM: config.LLMConfig{Supervisor: config.SupervisorConfig{
 		Enabled:      true,
-		EntryA:       true,
-		EntryB:       true,
-		EntryC:       false,
+		EntryObject:  true,
+		EntryExit:    true,
+		EntryTask:    false,
 		ClearContext: false,
 		MaxRetries:   20,
 		AllowedTools: []string{"read_file", "memory_search"},
@@ -258,9 +258,9 @@ func TestGetSettingValue_Supervisor(t *testing.T) {
 		want  string
 	}{
 		{"supervisor-enabled", "on"},
-		{"supervisor-entry-a", "on"},
-		{"supervisor-entry-b", "on"},
-		{"supervisor-entry-c", "off"},
+		{"supervisor-entry-object", "on"},
+		{"supervisor-entry-exit", "on"},
+		{"supervisor-entry-task", "off"},
 		{"supervisor-clear-context", "off"},
 		{"supervisor-max-retries", "20"},
 		{"supervisor-allowed-tools", "read_file,memory_search"},
@@ -304,9 +304,9 @@ func TestApplySetting_SupervisorBooleans(t *testing.T) {
 	ag := newSupervisorSettingAgent(t)
 	// Start with all false.
 	ag.cfg.LLM.Supervisor.Enabled = false
-	ag.cfg.LLM.Supervisor.EntryA = false
-	ag.cfg.LLM.Supervisor.EntryB = false
-	ag.cfg.LLM.Supervisor.EntryC = false
+	ag.cfg.LLM.Supervisor.EntryObject = false
+	ag.cfg.LLM.Supervisor.EntryExit = false
+	ag.cfg.LLM.Supervisor.EntryTask = false
 	ag.cfg.LLM.Supervisor.ClearContext = false
 
 	cases := []struct {
@@ -314,9 +314,9 @@ func TestApplySetting_SupervisorBooleans(t *testing.T) {
 		value string
 	}{
 		{"supervisor-enabled", "true"},
-		{"supervisor-entry-a", "true"},
-		{"supervisor-entry-b", "true"},
-		{"supervisor-entry-c", "true"},
+		{"supervisor-entry-object", "true"},
+		{"supervisor-entry-exit", "true"},
+		{"supervisor-entry-task", "true"},
 		{"supervisor-clear-context", "true"},
 	}
 	for _, c := range cases {
@@ -327,7 +327,7 @@ func TestApplySetting_SupervisorBooleans(t *testing.T) {
 	if !ag.cfg.LLM.Supervisor.Enabled {
 		t.Error("supervisor-enabled should be true after set")
 	}
-	if !ag.cfg.LLM.Supervisor.EntryA || !ag.cfg.LLM.Supervisor.EntryB || !ag.cfg.LLM.Supervisor.EntryC {
+	if !ag.cfg.LLM.Supervisor.EntryObject || !ag.cfg.LLM.Supervisor.EntryExit || !ag.cfg.LLM.Supervisor.EntryTask {
 		t.Error("entry switches should be true after set")
 	}
 	if !ag.cfg.LLM.Supervisor.ClearContext {

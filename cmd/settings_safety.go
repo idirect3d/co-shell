@@ -553,8 +553,8 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), value), nil
 
 	// FEATURE-456: dedicated supervisor LLM switches.
-	case "supervisor-enabled", "supervisor-entry-a", "supervisor-entry-b",
-		"supervisor-entry-c", "supervisor-clear-context":
+	case "supervisor-enabled", "supervisor-entry-object", "supervisor-entry-exit",
+		"supervisor-entry-task", "supervisor-clear-context":
 		if len(args) < 2 {
 			return h.showSupervisorBoolSetting(subcommand), nil
 		}
@@ -565,12 +565,12 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		switch subcommand {
 		case "supervisor-enabled":
 			h.cfg.LLM.Supervisor.Enabled = enabled
-		case "supervisor-entry-a":
-			h.cfg.LLM.Supervisor.EntryA = enabled
-		case "supervisor-entry-b":
-			h.cfg.LLM.Supervisor.EntryB = enabled
-		case "supervisor-entry-c":
-			h.cfg.LLM.Supervisor.EntryC = enabled
+		case "supervisor-entry-object":
+			h.cfg.LLM.Supervisor.EntryObject = enabled
+		case "supervisor-entry-exit":
+			h.cfg.LLM.Supervisor.EntryExit = enabled
+		case "supervisor-entry-task":
+			h.cfg.LLM.Supervisor.EntryTask = enabled
 		case "supervisor-clear-context":
 			h.cfg.LLM.Supervisor.ClearContext = enabled
 		}
@@ -635,12 +635,12 @@ func (h *SettingsHandler) showSupervisorBoolSetting(subcommand string) string {
 	switch subcommand {
 	case "supervisor-enabled":
 		return boolStr(h.cfg.LLM.Supervisor.Enabled)
-	case "supervisor-entry-a":
-		return boolStr(h.cfg.LLM.Supervisor.EntryA)
-	case "supervisor-entry-b":
-		return boolStr(h.cfg.LLM.Supervisor.EntryB)
-	case "supervisor-entry-c":
-		return boolStr(h.cfg.LLM.Supervisor.EntryC)
+	case "supervisor-entry-object":
+		return boolStr(h.cfg.LLM.Supervisor.EntryObject)
+	case "supervisor-entry-exit":
+		return boolStr(h.cfg.LLM.Supervisor.EntryExit)
+	case "supervisor-entry-task":
+		return boolStr(h.cfg.LLM.Supervisor.EntryTask)
 	case "supervisor-clear-context":
 		return boolStr(h.cfg.LLM.Supervisor.ClearContext)
 	}
