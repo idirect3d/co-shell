@@ -2406,10 +2406,17 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 			}
 		}
 		options = append(options, i18n.T(i18n.KeyAttemptCompletionSuggestNext))
+		// FEATURE-459: the dialog body shows the main LLM's final delivery report
+		// (result) first, then the supervisor's conclusion/reason/suggestion (if
+		// any) below it, so the human reviewer sees the full picture.
+		body := "【任务完成报告】\n" + result
+		if report != "" {
+			body += "\n\n" + report
+		}
 		in := Interaction{
 			Kind:    InteractionSelect,
 			Title:   i18n.T(i18n.KeyAttemptCompletionPrompt),
-			Body:    report, // FEATURE-459: show the supervisor's conclusion/reason/suggestion in the dialog body for human review
+			Body:    body,
 			Options: options,
 			Keys: []KeyOption{
 				{Label: i18n.T(i18n.KeyAttemptCompletionNotDone), Key: "+", Value: "not_done"},

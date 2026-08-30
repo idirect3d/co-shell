@@ -776,8 +776,8 @@
 - [ ] **FEATURE-459 attempt_completion 对话框显示监督信息**
   - 背景：任务完成时，attempt_completion 的 completion-confirm 对话框只显示标题和选项，人工判断选择的那块信息过于简单，用户无法方便地看到信息的全局。监督 LLM 返回的结论/理由/建议（如果有）没有在对话框中显示，人工审核缺乏支持。
   - 方案（已确认）：① attempt_completion 的 completion-confirm 对话框（Interaction）的 Body 字段中，显示监督 LLM 返回的结论/理由/建议（即 report 内容）；② 若监督 LLM 未启用或未返回 report，则不显示该部分；③ 信息提示部分（interaction-body）渲染为 markdown，为人工审核提供强有力支持。
-  - 实施：`agent/tools.go` attemptCompletionTool 中，将监督 LLM 放行时返回的 report（formatReviewAsText 生成的结论/理由/建议）设置到 completion-confirm 对话框 Interaction 的 Body 字段（report 为空时不显示，符合 omitempty）[BUILD-742]
-  - 测试：见 use-case/FEATURE-459/（9 个用例：监督放行时对话框显示监督结论/理由/建议、监督未启用/未返回 report 时不显示、信息提示部分渲染为 markdown、对话框选项仍正常显示、用户选择完成退出后任务正常完成、选择其他选项后继续循环）；单元测试：`agent/attempt_completion_test.go` 新增 TestAttemptCompletionBodyShowsSupervisorReport（监督强制放行时 Body 包含监督信息）+ TestAttemptCompletionBodyEmptyWithoutSupervisor（监督未启用时 Body 为空）[BUILD-742]
+  - 实施：`agent/tools.go` attemptCompletionTool 中，将监督 LLM 放行时返回的 report（formatReviewAsText 生成的结论/理由/建议）设置到 completion-confirm 对话框 Interaction 的 Body 字段（report 为空时不显示，符合 omitempty）[BUILD-742]；增强：对话框 Body 显示主 LLM 调用 attempt_completion 时的主要内容（result，前缀【任务完成报告】）+ 监督 LLM 审查内容（report，前缀【监督 LLM 审查】）；`agent/supervisor.go` runSupervisorReview 监督调用失败时返回失败信息作为 report（结论：审查失败 ⚠️ + 原因 + 错误），降级放行但向用户报告失败 [BUILD-743]
+  - 测试：见 use-case/FEATURE-459/（9 个用例：监督放行时对话框显示监督结论/理由/建议、监督未启用/未返回 report 时不显示、信息提示部分渲染为 markdown、对话框选项仍正常显示、用户选择完成退出后任务正常完成、选择其他选项后继续循环）；单元测试：`agent/attempt_completion_test.go` 新增 TestAttemptCompletionBodyShowsSupervisorReport（监督强制放行时 Body 包含主 LLM 报告 + 监督信息）+ TestAttemptCompletionBodyShowsMainReportWithoutSupervisor（监督未启用时 Body 显示主 LLM 报告但不含监督信息）[BUILD-742]；`agent/supervisor_test.go` 更新 TestRunSupervisorReview_CallFailure（监督调用失败时 report 包含失败信息）[BUILD-743]
 
 ## v0.9.1 — 开发中（已完成）
 
