@@ -755,6 +755,30 @@
   - 实施：`web/static/app.js` 修改 wsConnect 逻辑（移除 onclose 中的 setTimeout 自动重连，改为手动重连 + 防重入检查）+ conn 元素添加 onclick 事件（已连接时点击断开、已断开时点击连接）+ 新增 wsDisconnect 函数（主动关闭 WebSocket）+ 初始化时自动连接一次；`web/static/index.html` conn 元素添加 role="button" + tabindex="0"（可点击、可键盘操作）；`web/static/style.css` conn 添加外框（高度 28px 与明暗按钮一致、宽度自适应容纳指示灯+文字、边框、圆角、cursor:pointer、hover 效果）[BUILD-740]
   - 测试：见 use-case/FEATURE-458/（13 个用例：连接状态可点击开关、指示灯高亮/灰色、点击断开、断开不自动重连、点击重连、异常断开不自动重连、两浏览器互抢缓解、断开后输入框不可用、重连后功能恢复、外框存在、外框宽度自适应、外框与明暗按钮对齐）
 
+## v0.27.0 — 开发中
+
+> **版本**: v0.27.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: attempt_completion 对话框显示监督信息
+> **说明**: 0.27.0 系列实现 attempt_completion 的 completion-confirm 对话框显示监督 LLM 的结论/理由/建议，为人工审核提供强有力支持。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-459 | 0.27.0 | P1 | attempt_completion 对话框显示监督信息：调用 attempt_completion 时，连同监督 LLM 返回的（如果有）结论、理由、建议，都在信息提示选择框的信息提示部分全部显示出来，为人工审核提供强有力支持 |
+
+> 当前 BUILD: 741
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-459 attempt_completion 对话框显示监督信息**
+  - 背景：任务完成时，attempt_completion 的 completion-confirm 对话框只显示标题和选项，人工判断选择的那块信息过于简单，用户无法方便地看到信息的全局。监督 LLM 返回的结论/理由/建议（如果有）没有在对话框中显示，人工审核缺乏支持。
+  - 方案（已确认）：① attempt_completion 的 completion-confirm 对话框（Interaction）的 Body 字段中，显示监督 LLM 返回的结论/理由/建议（即 report 内容）；② 若监督 LLM 未启用或未返回 report，则不显示该部分；③ 信息提示部分（interaction-body）渲染为 markdown，为人工审核提供强有力支持。
+  - 实施：`agent/tools.go` attemptCompletionTool 中，将监督 LLM 放行时返回的 report（formatReviewAsText 生成的结论/理由/建议）设置到 completion-confirm 对话框 Interaction 的 Body 字段（report 为空时不显示，符合 omitempty）[BUILD-742]
+  - 测试：见 use-case/FEATURE-459/（9 个用例：监督放行时对话框显示监督结论/理由/建议、监督未启用/未返回 report 时不显示、信息提示部分渲染为 markdown、对话框选项仍正常显示、用户选择完成退出后任务正常完成、选择其他选项后继续循环）；单元测试：`agent/attempt_completion_test.go` 新增 TestAttemptCompletionBodyShowsSupervisorReport（监督强制放行时 Body 包含监督信息）+ TestAttemptCompletionBodyEmptyWithoutSupervisor（监督未启用时 Body 为空）[BUILD-742]
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
