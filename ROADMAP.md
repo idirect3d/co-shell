@@ -731,6 +731,30 @@
   - 实施：`web/static/index.html` 设置页顶部添加搜索框（settingsSearch）；`web/static/app.js` 重写 renderSettings 实现分组折叠（每个组包在 .set-group 容器中，组标题可点击展开/折叠，默认折叠，箭头 ▸/▾ 指示）+ 新增 applySettingsFilter 搜索过滤（匹配 key/desc/组标题，匹配分组自动展开）+ 声明 settingsSearch 变量 + settingsSearch input 事件监听（清空恢复默认折叠）；`web/static/style.css` 添加 .set-group/.set-group-body/.set-search 折叠与搜索样式 [BUILD-731]；iPad 风格布局：`web/static/index.html` settings modal 重构为左右两栏（左侧 settingsNav 分类导航栏 + 右侧 settings-pane 内容区，modal 固定 600x800）；`web/static/app.js` 重写 renderSettings 为 iPad 风格（settingsGroups/settingsActiveGroup 状态 + settingsGroupIcon 分类图标映射 + renderSettingsNav 渲染左侧分类导航（每个分类配图标）+ selectSettingsGroup 点击切换 + renderSettingsPane 渲染右侧选中分类设置项 + applySettingsFilter 在选中分类内过滤）+ 声明 settingsNav 变量；`web/static/style.css` 添加 .settings-box（加宽）/ .settings-nav / .settings-nav-item（图标+文字，选中高亮）/ .settings-pane 左右两栏布局样式 [BUILD-733]；窗口固定 600x800：`web/static/style.css` .settings-box 改为 width:600px/height:800px（max-width:92vw/max-height:90vh 小屏保护），.settings-body 固定高度 calc(100%-41px) + overflow:hidden，.settings-nav/.settings-pane overflow-y:auto 自动滚动条 [BUILD-734]；分组调整：`i18n/zh.go`/`i18n/en.go` 所有分组标题去掉 [] 方括号 + KeySettingsGroupDisplay 改名（zh: 显示与输出→外观与显示，en: Display & Output→Appearance & Display）；`cmd/settings_web.go` displayGroup 添加 theme-mode 设置项（前端本地主题，Type enum auto/dark/light）；`web/static/index.html` 移除静态外观组（主题选择器）；`web/static/app.js` 删除 setThemeMode 声明与 onchange 块 + renderSettingItem 对 theme-mode 特殊处理（渲染为主题选择器，onchange 保存 localStorage + applyTheme）[BUILD-735]；分组高亮调整：`web/static/style.css` .settings-nav-item 添加 border:1px solid transparent，.settings-nav-item.active 由绿色实心背景+白字改为高亮边框（border-color:var(--accent)）+ 低反差背景（background:var(--accent-dim)），参考模型设置 .model-row.selected 高亮方式，背景与字体颜色反差小、主要靠高亮边框 [BUILD-736]；监督输出独立通道：`agent/out.go` 新增 ChannelSupervisor 通道常量；`agent/supervisor.go` 新增 emitSupervisorReport 方法（report 非空时经 streamCb 发 InfoEvent(ChannelSupervisor, report)，否则回退 defaultIO().ErrPrintf）；三个介入点 A（`agent/tools.go` attemptCompletionTool）/ B（`agent/run_stream.go` no-tool exit）/ C（`agent/taskplan_tools.go` trackTaskProgressTool）统一改为调用 emitSupervisorReport；`web/static/app.js` CHAN_LABEL 新增 supervisor:SUP + eventClass 对 ui_text chan=supervisor 返回 supervisor 类 + renderEvent 新增 supervisor 分支（SUP 块，按结论打回/放行加 supervisor-reject/supervisor-pass 类）；`web/static/style.css` 新增 .ev.supervisor 纯亮白字体 + 放行绿/打回红指示灯样式 [BUILD-737]；SUP 标题栏字体与指示灯颜色改为 #ff58f3，并显式区分 YOU 标题行（.ev.user-msg .ev-head 用主题 accent 色，与 SUP 的 #ff58f3 区分）[BUILD-738]
   - 测试：见 use-case/FEATURE-457/
 
+## v0.26.0 — 开发中
+
+> **版本**: v0.26.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: Web UI 连接状态开关
+> **说明**: 0.26.0 系列实现 Web UI 右上角连接状态显示改为连接/断开开关，通过指示灯圆点指示连接状态，并增加手动重连策略（断开后不自动连接，等用户手动点击再连接），避免两个浏览器访问一个服务互抢连接。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-458 | 0.26.0 | P1 | Web UI 连接状态开关：右上角连接状态显示改为连接/断开动作的开关（点击可连接/断开），通过已连接/已断开左边的指示灯圆点指示当前连接状态；增加连接策略：断开后不自动连接，等用户手动点击再连接，避免两个浏览器访问一个服务互抢连接 |
+
+> 当前 BUILD: 739
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-458 Web UI 连接状态开关**
+  - 背景：Web UI 右上角的连接状态目前只是纯显示（已连接/已断开），无法主动控制连接。且断开后会自动重连（setTimeout 2 秒），当两个浏览器同时访问一个服务时，会互抢 WebSocket 单客户端连接，导致连接不稳定。
+  - 方案（已确认）：① 右上角连接状态显示改为可点击的开关（点击可连接/断开）；② 通过已连接/已断开左边的指示灯圆点（connDot）指示当前连接状态（已连接高亮、已断开灰色）；③ 增加连接策略：断开后不自动连接，等用户手动点击再连接，避免两个浏览器互抢连接。
+  - 实施：`web/static/app.js` 修改 wsConnect 逻辑（移除 onclose 中的 setTimeout 自动重连，改为手动重连 + 防重入检查）+ conn 元素添加 onclick 事件（已连接时点击断开、已断开时点击连接）+ 新增 wsDisconnect 函数（主动关闭 WebSocket）+ 初始化时自动连接一次；`web/static/index.html` conn 元素添加 role="button" + tabindex="0"（可点击、可键盘操作）；`web/static/style.css` conn 添加外框（高度 28px 与明暗按钮一致、宽度自适应容纳指示灯+文字、边框、圆角、cursor:pointer、hover 效果）[BUILD-740]
+  - 测试：见 use-case/FEATURE-458/（13 个用例：连接状态可点击开关、指示灯高亮/灰色、点击断开、断开不自动重连、点击重连、异常断开不自动重连、两浏览器互抢缓解、断开后输入框不可用、重连后功能恢复、外框存在、外框宽度自适应、外框与明暗按钮对齐）
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
