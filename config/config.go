@@ -572,6 +572,46 @@ type LLMConfig struct {
 	// DefaultProblemModelID). When empty, the auto-computed value (highest
 	// priority enabled ToolCall model) is used for display and resolution.
 	DefaultToolModelID string `json:"default_tool_model_id,omitempty"`
+
+	// Supervisor: dedicated supervisor LLM for delivery review (FEATURE-456).
+	// It independently reviews whether the main LLM's delivery meets the user's
+	// ultimate goal, and can reject (send back for rework) or approve (pass to
+	// user). See SupervisorConfig for details.
+	Supervisor SupervisorConfig `json:"supervisor"`
+}
+
+// SupervisorConfig holds the dedicated supervisor LLM configuration (FEATURE-456).
+// The supervisor reuses the problem-solver model and maintains a session-bound,
+// independent conversation context to review the main LLM's deliveries.
+type SupervisorConfig struct {
+	// Enabled: master switch for the supervisor. Default: true.
+	Enabled bool `json:"enabled"`
+
+	// EntryA: review when the main LLM calls attempt_completion (explicit delivery).
+	// Default: true.
+	EntryA bool `json:"entry_a"`
+
+	// EntryB: review when the main LLM exits without calling any tool (auto exit).
+	// Default: true.
+	EntryB bool `json:"entry_b"`
+
+	// EntryC: review when the main LLM updates task progress and marks steps
+	// completed (sub-task completion). Default: false.
+	EntryC bool `json:"entry_c"`
+
+	// ClearContext: whether to clear the supervisor's context before each review.
+	// When false (default), the supervisor context accumulates across reviews
+	// within a session. Placed under [安全与确认].
+	ClearContext bool `json:"clear_context"`
+
+	// MaxRetries: maximum consecutive rejections before forcing a pass to the
+	// user for manual judgment (anti-dead-loop). Default: 20.
+	MaxRetries int `json:"max_retries"`
+
+	// AllowedTools: explicit tool whitelist (scheme B) for the supervisor.
+	// Only these low-risk tools are allowed; anything else is auto-rejected.
+	// When empty, a safe default whitelist is used.
+	AllowedTools []string `json:"allowed_tools,omitempty"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -983,6 +1023,14 @@ func DefaultConfig() *Config {
 			XMLTagPrefix:               "cs:",
 			XMLStreamValidate:          true,
 			ProblemSolverEnabled:       true,
+			Supervisor: SupervisorConfig{
+				Enabled:     true,
+				EntryA:      true,
+				EntryB:      true,
+				EntryC:      false,
+				ClearContext: false,
+				MaxRetries:  20,
+			},
 		},
 
 		DB: DefaultDBConfig(),
