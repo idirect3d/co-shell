@@ -257,7 +257,12 @@ const delModelConfirm = document.getElementById("delModelConfirm");
 let ws = null;
 let wsReady = false;
 
+// FEATURE-458: the connection status control is now a connect/disconnect
+// toggle. When disconnected, we do NOT auto-reconnect — the user must click
+// the control to reconnect (avoids two browsers fighting over the single
+// WebSocket client connection).
 function wsConnect() {
+  if (wsReady || (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN))) return;
   ws = new WebSocket("ws://" + location.host + "/ws");
   ws.onopen = () => {
     wsReady = true;
@@ -276,7 +281,8 @@ function wsConnect() {
     connText.textContent = T.disconnected;
     hideAsk();
     setRunning(false);
-    setTimeout(wsConnect, 2000);
+    // FEATURE-458: no auto-reconnect. The user clicks the connection control
+    // to reconnect manually.
   };
   ws.onmessage = (m) => {
     let msg;
@@ -303,6 +309,29 @@ function wsConnect() {
     else if (msg.kind === "yolo") setYOLO(!!msg.yolo);
   };
 }
+
+// FEATURE-458: actively close the WebSocket (user clicked the toggle while
+// connected).
+function wsDisconnect() {
+  if (ws) {
+    try { ws.close(); } catch (e) { /* ignore */ }
+  }
+  wsReady = false;
+  conn.classList.remove("on");
+  connText.textContent = T.disconnected;
+  hideAsk();
+  setRunning(false);
+}
+
+// FEATURE-458: the connection control is a toggle — click to connect when
+// disconnected, click to disconnect when connected.
+conn.onclick = () => {
+  if (wsReady) {
+    wsDisconnect();
+  } else {
+    wsConnect();
+  }
+};
 
 function wsSend(obj) {
   if (wsReady) ws.send(JSON.stringify(obj));
