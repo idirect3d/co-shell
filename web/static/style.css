@@ -920,6 +920,17 @@ aside {
 .interaction-title.md a { color: var(--accent); text-decoration: none; }
 .interaction-title.md a:hover { text-decoration: underline; }
 .interaction-body { font-size: 12px; color: var(--fg-dim, #888); white-space: pre-wrap; }
+/* FEATURE-459: each report section (main LLM report / supervisor review) is an
+   independent scrollable block capped at 40% of the ask box height so long
+   reports stay readable and the two are clearly separated. */
+.report-block {
+  max-height: 40%;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--bg-elev);
+}
 /* FEATURE-409: the interaction body is rendered as markdown, so switch off
    pre-wrap (md blocks manage their own whitespace) and style the md nodes. */
 .interaction-body.md { white-space: normal; }

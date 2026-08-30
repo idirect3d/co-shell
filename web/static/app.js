@@ -1628,6 +1628,10 @@ function hideAsk() {
     window.removeEventListener("keydown", window.__vkHandler);
     window.__vkHandler = null;
   }
+  if (window.__vkKeyup) {
+    window.removeEventListener("keyup", window.__vkKeyup);
+    window.__vkKeyup = null;
+  }
 }
 
 /* ---------- structured interaction (FEATURE-388) ---------- */
@@ -1643,6 +1647,27 @@ function enterSupplementMode() {
   input.placeholder = T.supplementHint;
 }
 
+
+// splitReportSections splits a report body into distinct sections by the
+// known section markers (【任务完成报告】 / 【监督 LLM 审查】). When two or
+// more markers are present, each section is returned separately so the UI can
+// render them as independent scrollable blocks (FEATURE-459).
+function splitReportSections(body) {
+  const markers = ["【任务完成报告】", "【监督 LLM 审查】"];
+  const found = markers.filter((m) => body.indexOf(m) >= 0);
+  if (found.length < 2) return [body];
+  // Split on the first marker, then on the second marker.
+  const first = found[0];
+  const second = found[1];
+  const i1 = body.indexOf(first);
+  const i2 = body.indexOf(second);
+  const a = body.slice(i1, i2).trim();
+  const b = body.slice(i2).trim();
+  const out = [];
+  if (a) out.push(a);
+  if (b) out.push(b);
+  return out.length ? out : [body];
+}
 
 // showInteraction renders a structured interaction (confirm/select/input/key)
 // from the interaction payload. Buttons are built dynamically from the keys
@@ -1673,12 +1698,27 @@ function showInteraction(msg) {
     askInteraction.appendChild(t);
   }
   if (it.body) {
-    const b = document.createElement("div");
-    b.className = "interaction-body md";
-    // FEATURE-409: render the prompt body as markdown so lists, code and
-    // emphasis are laid out instead of piling up as one text blob.
-    mdRender(b, it.body);
-    askInteraction.appendChild(b);
+    // FEATURE-459: the attempt_completion dialog body may carry two distinct
+    // reports — the main LLM's final report (【任务完成报告】) and the
+    // supervisor's review (【监督 LLM 审查】). Render each as its own
+    // scrollable block (max-height 40% of the ask box) so long reports stay
+    // readable and the two are clearly separated.
+    const sections = splitReportSections(it.body);
+    if (sections.length > 1) {
+      sections.forEach((sec) => {
+        const b = document.createElement("div");
+        b.className = "interaction-body md report-block";
+        mdRender(b, sec);
+        askInteraction.appendChild(b);
+      });
+    } else {
+      const b = document.createElement("div");
+      b.className = "interaction-body md";
+      // FEATURE-409: render the prompt body as markdown so lists, code and
+      // emphasis are laid out instead of piling up as one text blob.
+      mdRender(b, it.body);
+      askInteraction.appendChild(b);
+    }
   }
 
   if (it.kind === "select" && it.options && it.options.length) {
@@ -1838,6 +1878,12 @@ function renderVirtualKeyboard(it, isSelect, container) {
   target.appendChild(wrap);
 
   // Listen for physical key presses while this interaction is pending.
+  // FEATURE-459: holding a shortcut key (>=500ms) selects the option AND fills
+  // its content into the main input box so the user can append supplementary
+  // info before sending.
+  let holdTimer = null;
+  let holdKey = null;
+  const clearHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } holdKey = null; };
   window.__vkHandler = (e) => {
     if (!pendingInteraction) return;
     // In supplement mode, stop hijacking keys so the user can type freely.
@@ -1855,10 +1901,37 @@ function renderVirtualKeyboard(it, isSelect, container) {
     } else if (key === "enter") {
       answerInteraction({ action: "approve" });
     } else if (keyMap[key]) {
+      const m = keyMap[key];
+      // Long-press: fill the option content into the main input box and enter
+      // supplement mode so the user can append extra info (FEATURE-459).
+      if (e.repeat) {
+        // A held key fires repeated keydown events; on the first repeat, fill
+        // the input and switch to supplement mode instead of answering.
+        if (holdKey === key) {
+          clearHold();
+          input.value = m.value || "";
+          autoGrow();
+          enterSupplementMode();
+        }
+        return;
+      }
+      // First keydown: arm a hold timer. If it fires (key held >=500ms), the
+      // next repeat will fill the input; otherwise keyup answers normally.
+      holdKey = key;
+      holdTimer = setTimeout(() => { holdTimer = null; }, 500);
+    }
+  };
+  window.__vkKeyup = (e) => {
+    if (!pendingInteraction || supplementMode) return;
+    const key = e.key.toLowerCase();
+    if (keyMap[key] && holdKey === key) {
+      // Released before the hold threshold → normal select.
+      clearHold();
       answerInteraction(keyMap[key]);
     }
   };
   window.addEventListener("keydown", window.__vkHandler);
+  window.addEventListener("keyup", window.__vkKeyup);
 }
 
 // answerInteraction sends the structured result back to the server.
