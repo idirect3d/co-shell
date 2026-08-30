@@ -9,6 +9,7 @@ package agent
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -238,5 +239,146 @@ func TestRunSupervisorReview_CallFailure(t *testing.T) {
 	}
 	if feedback != "" || report != "" {
 		t.Errorf("call-failure should return empty feedback/report, got %q / %q", feedback, report)
+	}
+}
+
+// UC-0025: getSettingValue reads supervisor parameter switches.
+func TestGetSettingValue_Supervisor(t *testing.T) {
+	cfg := &config.Config{LLM: config.LLMConfig{Supervisor: config.SupervisorConfig{
+		Enabled:      true,
+		EntryA:       true,
+		EntryB:       true,
+		EntryC:       false,
+		ClearContext: false,
+		MaxRetries:   20,
+		AllowedTools: []string{"read_file", "memory_search"},
+	}}}
+	cases := []struct {
+		param string
+		want  string
+	}{
+		{"supervisor-enabled", "on"},
+		{"supervisor-entry-a", "on"},
+		{"supervisor-entry-b", "on"},
+		{"supervisor-entry-c", "off"},
+		{"supervisor-clear-context", "off"},
+		{"supervisor-max-retries", "20"},
+		{"supervisor-allowed-tools", "read_file,memory_search"},
+	}
+	for _, c := range cases {
+		if got := getSettingValue(cfg, c.param); got != c.want {
+			t.Errorf("getSettingValue(%q) = %q, want %q", c.param, got, c.want)
+		}
+	}
+}
+
+// UC-0026: getSettingValue returns default marker for empty allowed-tools.
+func TestGetSettingValue_SupervisorAllowedToolsDefault(t *testing.T) {
+	cfg := &config.Config{LLM: config.LLMConfig{Supervisor: config.SupervisorConfig{}}}
+	if got := getSettingValue(cfg, "supervisor-allowed-tools"); got != "(default)" {
+		t.Errorf("empty allowed-tools should return (default), got %q", got)
+	}
+}
+
+// newSupervisorSettingAgent builds an Agent whose config has a real configPath
+// (via a temp file) so applySetting's cfg.Save() succeeds.
+func newSupervisorSettingAgent(t *testing.T) *Agent {
+	t.Helper()
+	dir := t.TempDir()
+	path := dir + "/config.json"
+	// Create a real config file so LoadFromFile sets configPath (Save needs it).
+	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write config error: %v", err)
+	}
+	cfg, _, err := config.LoadFromFile(path, nil)
+	if err != nil {
+		t.Fatalf("LoadFromFile error: %v", err)
+	}
+	ag := &Agent{supervisorState: newSupervisorState()}
+	ag.SetConfig(cfg)
+	return ag
+}
+
+// UC-0027: applySetting sets supervisor boolean switches.
+func TestApplySetting_SupervisorBooleans(t *testing.T) {
+	ag := newSupervisorSettingAgent(t)
+	// Start with all false.
+	ag.cfg.LLM.Supervisor.Enabled = false
+	ag.cfg.LLM.Supervisor.EntryA = false
+	ag.cfg.LLM.Supervisor.EntryB = false
+	ag.cfg.LLM.Supervisor.EntryC = false
+	ag.cfg.LLM.Supervisor.ClearContext = false
+
+	cases := []struct {
+		param string
+		value string
+	}{
+		{"supervisor-enabled", "true"},
+		{"supervisor-entry-a", "true"},
+		{"supervisor-entry-b", "true"},
+		{"supervisor-entry-c", "true"},
+		{"supervisor-clear-context", "true"},
+	}
+	for _, c := range cases {
+		if err := applySetting(ag, c.param, c.value); err != nil {
+			t.Fatalf("applySetting(%q) error: %v", c.param, err)
+		}
+	}
+	if !ag.cfg.LLM.Supervisor.Enabled {
+		t.Error("supervisor-enabled should be true after set")
+	}
+	if !ag.cfg.LLM.Supervisor.EntryA || !ag.cfg.LLM.Supervisor.EntryB || !ag.cfg.LLM.Supervisor.EntryC {
+		t.Error("entry switches should be true after set")
+	}
+	if !ag.cfg.LLM.Supervisor.ClearContext {
+		t.Error("clear-context should be true after set")
+	}
+}
+
+// UC-0028: applySetting sets supervisor-max-retries with validation.
+func TestApplySetting_SupervisorMaxRetries(t *testing.T) {
+	ag := newSupervisorSettingAgent(t)
+	if err := applySetting(ag, "supervisor-max-retries", "5"); err != nil {
+		t.Fatalf("applySetting(max-retries=5) error: %v", err)
+	}
+	if ag.cfg.LLM.Supervisor.MaxRetries != 5 {
+		t.Errorf("max-retries = %d, want 5", ag.cfg.LLM.Supervisor.MaxRetries)
+	}
+	// Negative value must be rejected.
+	if err := applySetting(ag, "supervisor-max-retries", "-1"); err == nil {
+		t.Error("negative max-retries should be rejected")
+	}
+	// Non-numeric value must be rejected.
+	if err := applySetting(ag, "supervisor-max-retries", "abc"); err == nil {
+		t.Error("non-numeric max-retries should be rejected")
+	}
+}
+
+// UC-0029: applySetting sets supervisor-allowed-tools (comma-separated).
+func TestApplySetting_SupervisorAllowedTools(t *testing.T) {
+	ag := newSupervisorSettingAgent(t)
+	if err := applySetting(ag, "supervisor-allowed-tools", "read_file, memory_search"); err != nil {
+		t.Fatalf("applySetting(allowed-tools) error: %v", err)
+	}
+	if len(ag.cfg.LLM.Supervisor.AllowedTools) != 2 {
+		t.Fatalf("allowed-tools len = %d, want 2", len(ag.cfg.LLM.Supervisor.AllowedTools))
+	}
+	if ag.cfg.LLM.Supervisor.AllowedTools[0] != "read_file" || ag.cfg.LLM.Supervisor.AllowedTools[1] != "memory_search" {
+		t.Errorf("allowed-tools = %v, want [read_file memory_search]", ag.cfg.LLM.Supervisor.AllowedTools)
+	}
+	// Empty resets to default (nil).
+	if err := applySetting(ag, "supervisor-allowed-tools", ""); err != nil {
+		t.Fatalf("applySetting(allowed-tools empty) error: %v", err)
+	}
+	if ag.cfg.LLM.Supervisor.AllowedTools != nil {
+		t.Errorf("empty allowed-tools should reset to nil, got %v", ag.cfg.LLM.Supervisor.AllowedTools)
+	}
+}
+
+// UC-0030: applySetting rejects invalid boolean for supervisor switches.
+func TestApplySetting_SupervisorInvalidBool(t *testing.T) {
+	ag := newSupervisorSettingAgent(t)
+	if err := applySetting(ag, "supervisor-enabled", "notabool"); err == nil {
+		t.Error("invalid boolean should be rejected")
 	}
 }
