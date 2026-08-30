@@ -552,9 +552,99 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Default tool model set to %s", value)
 		return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), value), nil
 
+	// FEATURE-456: dedicated supervisor LLM switches.
+	case "supervisor-enabled", "supervisor-entry-a", "supervisor-entry-b",
+		"supervisor-entry-c", "supervisor-clear-context":
+		if len(args) < 2 {
+			return h.showSupervisorBoolSetting(subcommand), nil
+		}
+		enabled, err := strconv.ParseBool(args[1])
+		if err != nil {
+			return "", fmt.Errorf("invalid boolean value: %s", args[1])
+		}
+		switch subcommand {
+		case "supervisor-enabled":
+			h.cfg.LLM.Supervisor.Enabled = enabled
+		case "supervisor-entry-a":
+			h.cfg.LLM.Supervisor.EntryA = enabled
+		case "supervisor-entry-b":
+			h.cfg.LLM.Supervisor.EntryB = enabled
+		case "supervisor-entry-c":
+			h.cfg.LLM.Supervisor.EntryC = enabled
+		case "supervisor-clear-context":
+			h.cfg.LLM.Supervisor.ClearContext = enabled
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("%s set to %v", subcommand, enabled)
+		return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), boolStr(enabled)), nil
+
+	case "supervisor-max-retries":
+		if len(args) < 2 {
+			return fmt.Sprintf("%d", h.cfg.LLM.Supervisor.MaxRetries), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("invalid supervisor-max-retries value: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("supervisor-max-retries must be >= 0")
+		}
+		h.cfg.LLM.Supervisor.MaxRetries = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Supervisor max-retries set to %d", n)
+		return fmt.Sprintf("%d", n), nil
+
+	case "supervisor-allowed-tools":
+		if len(args) < 2 {
+			if len(h.cfg.LLM.Supervisor.AllowedTools) == 0 {
+				return "(default)", nil
+			}
+			return strings.Join(h.cfg.LLM.Supervisor.AllowedTools, ","), nil
+		}
+		value := args[1]
+		if strings.TrimSpace(value) == "" || value == "default" {
+			h.cfg.LLM.Supervisor.AllowedTools = nil
+		} else {
+			var tools []string
+			for _, t := range strings.Split(value, ",") {
+				t = strings.TrimSpace(t)
+				if t != "" {
+					tools = append(tools, t)
+				}
+			}
+			h.cfg.LLM.Supervisor.AllowedTools = tools
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Supervisor allowed-tools set to %v", h.cfg.LLM.Supervisor.AllowedTools)
+		return fmt.Sprintf("%v", h.cfg.LLM.Supervisor.AllowedTools), nil
+
 	default:
 		return "", fmt.Errorf("unknown safety setting: %s", subcommand)
 	}
+}
+
+// showSupervisorBoolSetting returns the current value of a supervisor boolean
+// setting for display (FEATURE-456).
+func (h *SettingsHandler) showSupervisorBoolSetting(subcommand string) string {
+	switch subcommand {
+	case "supervisor-enabled":
+		return boolStr(h.cfg.LLM.Supervisor.Enabled)
+	case "supervisor-entry-a":
+		return boolStr(h.cfg.LLM.Supervisor.EntryA)
+	case "supervisor-entry-b":
+		return boolStr(h.cfg.LLM.Supervisor.EntryB)
+	case "supervisor-entry-c":
+		return boolStr(h.cfg.LLM.Supervisor.EntryC)
+	case "supervisor-clear-context":
+		return boolStr(h.cfg.LLM.Supervisor.ClearContext)
+	}
+	return "(unknown)"
 }
 
 // modelIDExistsInCfg checks whether the given model ID refers to an enabled
