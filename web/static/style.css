@@ -1653,7 +1653,30 @@ aside {
   color: var(--accent);
   margin: 10px 0 2px;
   text-align: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
 }
+.set-group-title:hover { background: var(--mono-bg); }
+.set-group-title::before { content: "▸ "; }
+.set-group.open > .set-group-title::before { content: "▾ "; }
+.set-group-body { display: none; }
+.set-group.open > .set-group-body { display: block; }
+.set-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--mono-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 4px;
+}
+.set-search:focus { border-color: var(--accent); }
 .set-row {
 }
 .set-label {
