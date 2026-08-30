@@ -742,8 +742,8 @@ aside {
 
 /* FEATURE-457: dedicated supervisor review output channel — pure bright-white
    font with a pass (green) / reject (red) indicator light in the title bar. */
-.ev.supervisor .ev-head { color: #ffffff; }
-.ev.supervisor .ev-head::before { background: #ffffff; box-shadow: 0 0 6px rgba(255,255,255,0.8); }
+.ev.supervisor .ev-head { color: #ff58f3; }
+.ev.supervisor .ev-head::before { background: #ff58f3; box-shadow: 0 0 6px rgba(255,88,243,0.8); }
 .ev.supervisor .ev-body { color: #ffffff; background: rgba(255,255,255,0.06); }
 .ev.supervisor.supervisor-pass .ev-head::before { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.9); }
 .ev.supervisor.supervisor-reject .ev-head::before { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.9); }
@@ -769,6 +769,8 @@ aside {
   border-color: var(--accent);
   background: var(--accent-dim);
 }
+.ev.user-msg .ev-head { color: var(--accent); }
+.ev.user-msg .ev-head::before { background: var(--accent); }
 .ev.user-msg .ev-body { font-family: inherit; }
 
 /* ---------- plan panel ---------- */
