@@ -1196,8 +1196,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3TokenUsage:              "Token 用量显示模式(on/off/none)",
 
 	// Settings group titles
-	KeySettingsGroupIdentity: "[ 身份与个性 ]",
-	KeySettingsGroupModel:    "[ 智能体设置 ]",
+	KeySettingsGroupIdentity: "身份与个性",
+	KeySettingsGroupModel:    "智能体设置",
 
 	// Model selection column 3 labels
 	KeyCol3DefaultToolModel:     "默认工具模型",
@@ -1206,11 +1206,11 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3ProblemSolverEnabled: "问题解决机制开关",
 	KeyDefaultModelCurrent:      "当前配置: %s",
 	KeyDefaultModelSet:          "✅ 已设置为: %s",
-	KeySettingsGroupDisplay:     "[ 显示与输出 ]",
-	KeySettingsGroupSafety:      "[ 安全与确认 ]",
-	KeySettingsGroupMemory:      "[ 记忆与上下文 ]",
-	KeySettingsGroupTask:        "[ 任务与子代理 ]",
-	KeySettingsGroupSearchDebug: "[ 开发者 ]",
+	KeySettingsGroupDisplay:     "外观与显示",
+	KeySettingsGroupSafety:      "安全与确认",
+	KeySettingsGroupMemory:      "记忆与上下文",
+	KeySettingsGroupTask:        "任务与子代理",
+	KeySettingsGroupSearchDebug: "开发者",
 
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "相同错误最大出现次数",
