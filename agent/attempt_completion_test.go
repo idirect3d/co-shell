@@ -9,6 +9,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/idirect3d/co-shell/config"
@@ -114,5 +115,62 @@ func TestAttemptCompletionConfirmDisabled(t *testing.T) {
 	}
 	if mgr.captured.Kind != "" {
 		t.Errorf("interaction captured = %+v, want none when disabled", mgr.captured)
+	}
+}
+
+// TestAttemptCompletionBodyShowsSupervisorReport verifies that when the
+// supervisor review returns a non-empty report (e.g. force-pass after max
+// retries), the completion-confirm dialog Body carries the supervisor's
+// conclusion/reason/suggestion for human review (FEATURE-459).
+func TestAttemptCompletionBodyShowsSupervisorReport(t *testing.T) {
+	ag, mgr := newAttemptCompletionAgent(true)
+	mgr.askResult = InteractionResult{Action: ActionSelect, Value: "exit", Raw: "-"}
+	// Enable supervisor and set rejectCount beyond maxRetries so
+	// runSupervisorReview force-passes with a non-empty report (no real LLM call).
+	ag.SetConfig(&config.Config{LLM: config.LLMConfig{
+		AttemptCompletionConfirm: true,
+		Supervisor: config.SupervisorConfig{
+			Enabled:     true,
+			EntryObject: true,
+			MaxRetries:  3,
+		},
+	}})
+	ag.supervisorState = newSupervisorState()
+	ag.supervisorState.ctx.rejectCount = 3
+	ag.supervisorState.ctx.lastReason = "still incomplete"
+
+	_, err := ag.attemptCompletionTool(context.Background(), map[string]interface{}{
+		"result":           "done",
+		"session_title":    "t",
+		"session_keywords": "k",
+	})
+	if err != nil {
+		t.Fatalf("attemptCompletionTool error: %v", err)
+	}
+	if mgr.captured.Body == "" {
+		t.Error("dialog Body is empty, want supervisor report shown for human review")
+	}
+	if !strings.Contains(mgr.captured.Body, "强制放行") {
+		t.Errorf("dialog Body = %q, want to contain 强制放行 (supervisor force-pass message)", mgr.captured.Body)
+	}
+}
+
+// TestAttemptCompletionBodyEmptyWithoutSupervisor verifies that when the
+// supervisor is disabled (no report), the completion-confirm dialog Body stays
+// empty (FEATURE-459).
+func TestAttemptCompletionBodyEmptyWithoutSupervisor(t *testing.T) {
+	ag, mgr := newAttemptCompletionAgent(true)
+	mgr.askResult = InteractionResult{Action: ActionSelect, Value: "exit", Raw: "-"}
+
+	_, err := ag.attemptCompletionTool(context.Background(), map[string]interface{}{
+		"result":           "done",
+		"session_title":    "t",
+		"session_keywords": "k",
+	})
+	if err != nil {
+		t.Fatalf("attemptCompletionTool error: %v", err)
+	}
+	if mgr.captured.Body != "" {
+		t.Errorf("dialog Body = %q, want empty when supervisor disabled", mgr.captured.Body)
 	}
 }

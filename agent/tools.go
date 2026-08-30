@@ -2409,6 +2409,7 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		in := Interaction{
 			Kind:    InteractionSelect,
 			Title:   i18n.T(i18n.KeyAttemptCompletionPrompt),
+			Body:    report, // FEATURE-459: show the supervisor's conclusion/reason/suggestion in the dialog body for human review
 			Options: options,
 			Keys: []KeyOption{
 				{Label: i18n.T(i18n.KeyAttemptCompletionNotDone), Key: "+", Value: "not_done"},
