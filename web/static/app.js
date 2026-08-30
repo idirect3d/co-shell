@@ -314,6 +314,7 @@ const CHAN_LABEL = {
   llm: "LLM", tool: "TOOL", command: "CMD", system: "SYS",
   taskplan: "PLAN", memory: "MEM", mcp: "MCP", db: "DB",
   wizard: "WIZ", debug: "DBG", bridge: "BRG", subagent: "SUB", repl: "REPL",
+  supervisor: "SUP",
 };
 
 // TOOL_ACTIONS maps a tool name to a human-readable action phrase (zh/en) used
@@ -766,7 +767,10 @@ function eventClass(ev) {
     case "thinking_chunk": case "thinking": return "thinking" + lvl;
     case "tool_call": case "tool_call_stream": return "tool" + lvl;
     case "command": case "output": return "command" + lvl;
-    case "ui_text": return (ev.chan === "repl" ? "repl" : "system") + lvl;
+    case "ui_text":
+      if (ev.chan === "repl") return "repl" + lvl;
+      if (ev.chan === "supervisor") return "supervisor" + lvl;
+      return "system" + lvl;
     default: return "system" + lvl;
   }
 }
@@ -1095,6 +1099,18 @@ function renderEvent(ev) {
     return;
   }
   curREPL = null;
+  // FEATURE-457: supervisor review output renders as a dedicated SUP block
+  // with a pure bright-white font and a pass/reject indicator light.
+  if (ev.type === "ui_text" && ev.chan === "supervisor") {
+    const body = makeBlock("supervisor", "SUP", msgIndex);
+    body.textContent = ev.text || "";
+    const box = body.parentElement;
+    const t = ev.text || "";
+    if (/打回|reject|Reject/.test(t)) box.classList.add("supervisor-reject");
+    else box.classList.add("supervisor-pass");
+    scrollStream();
+    return;
+  }
   const blockLabel = ev.type === "ui_text" ? "SYS" : label;
   const body = makeBlock(eventClass(ev), blockLabel, msgIndex);
   if (ev.type === "content" || ev.type === "thinking") {

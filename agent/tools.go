@@ -2382,8 +2382,9 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		return feedback, nil
 	}
 	if report != "" {
-		// Approved: report the supervisor's reason+suggestion to the user.
-		a.defaultIO().ErrPrintf("%s\n", report)
+		// Approved: report the supervisor's reason+suggestion to the user via
+		// the dedicated supervisor channel (FEATURE-456).
+		a.emitSupervisorReport(report)
 	}
 
 	// FEATURE-452: completion-confirm dialog. When enabled (default), present

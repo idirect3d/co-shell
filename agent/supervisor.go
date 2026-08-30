@@ -551,3 +551,20 @@ func formatReviewFeedback(r *SupervisorReview) string {
 	sb.WriteString("请重新检查并完成遗漏的部分，然后再次交付。")
 	return sb.String()
 }
+
+// emitSupervisorReport sends the supervisor review report to the user via the
+// dedicated supervisor channel (FEATURE-456). Falls back to stderr when no
+// stream callback is active.
+func (a *Agent) emitSupervisorReport(report string) {
+	if report == "" {
+		return
+	}
+	a.mu.Lock()
+	cb := a.streamCb
+	a.mu.Unlock()
+	if cb != nil {
+		cb(InfoEvent(ChannelSupervisor, report))
+	} else {
+		a.defaultIO().ErrPrintf("%s\n", report)
+	}
+}

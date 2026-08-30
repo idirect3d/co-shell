@@ -32,6 +32,7 @@ const (
 	ChannelBridge   ChannelID = "bridge"   // feishu / bridge / hub entry
 	ChannelSubAgent ChannelID = "subagent" // sub-agent
 	ChannelREPL     ChannelID = "repl"     // REPL builtin command output (:set, :mcp, ...)
+	ChannelSupervisor ChannelID = "supervisor" // dedicated supervisor LLM review output (FEATURE-456)
 )
 
 // Level is the importance level of an output, used for styling
