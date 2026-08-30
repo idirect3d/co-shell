@@ -155,7 +155,7 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 			return feedback, nil
 		}
 		if report != "" {
-			a.defaultIO().ErrPrintf("%s\n", report)
+			a.emitSupervisorReport(report)
 		}
 	}
 

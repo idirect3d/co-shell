@@ -740,6 +740,14 @@ aside {
 .ev.repl .ev-head::before { background: var(--debug); }
 .ev.repl .ev-body { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 
+/* FEATURE-457: dedicated supervisor review output channel — pure bright-white
+   font with a pass (green) / reject (red) indicator light in the title bar. */
+.ev.supervisor .ev-head { color: #ffffff; }
+.ev.supervisor .ev-head::before { background: #ffffff; box-shadow: 0 0 6px rgba(255,255,255,0.8); }
+.ev.supervisor .ev-body { color: #ffffff; background: rgba(255,255,255,0.06); }
+.ev.supervisor.supervisor-pass .ev-head::before { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.9); }
+.ev.supervisor.supervisor-reject .ev-head::before { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.9); }
+
 .ev.level-success .ev-head::before { background: var(--ok); }
 .ev.level-warning .ev-head::before { background: var(--warn); }
 .ev.level-warning .ev-body { color: var(--warn); }

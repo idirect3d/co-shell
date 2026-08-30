@@ -1011,7 +1011,7 @@ iterationLoop:
 					continue
 				}
 				if report != "" {
-					cb(InfoEvent(ChannelSystem, report))
+					a.emitSupervisorReport(report)
 				}
 				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 				a.mu.Lock()
