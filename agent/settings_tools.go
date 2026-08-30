@@ -344,6 +344,24 @@ func getSettingValue(cfg *config.Config, param string) string {
 			return "-"
 		}
 		return cfg.LLM.DefaultToolModelID
+	// FEATURE-456: dedicated supervisor LLM switches.
+	case "supervisor-enabled":
+		return boolToString(cfg.LLM.Supervisor.Enabled)
+	case "supervisor-entry-a":
+		return boolToString(cfg.LLM.Supervisor.EntryA)
+	case "supervisor-entry-b":
+		return boolToString(cfg.LLM.Supervisor.EntryB)
+	case "supervisor-entry-c":
+		return boolToString(cfg.LLM.Supervisor.EntryC)
+	case "supervisor-clear-context":
+		return boolToString(cfg.LLM.Supervisor.ClearContext)
+	case "supervisor-max-retries":
+		return fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRetries)
+	case "supervisor-allowed-tools":
+		if len(cfg.LLM.Supervisor.AllowedTools) == 0 {
+			return "(default)"
+		}
+		return strings.Join(cfg.LLM.Supervisor.AllowedTools, ",")
 	default:
 		return "(unknown)"
 	}
@@ -1046,6 +1064,95 @@ func applySetting(a *Agent, param, value string) error {
 			return err
 		}
 		log.Info("Default tool model set via LLM tool: %s", value)
+
+	// FEATURE-456: dedicated supervisor LLM switches.
+	case "supervisor-enabled":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.Supervisor.Enabled = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor enabled set via LLM tool: %v", b)
+
+	case "supervisor-entry-a":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.Supervisor.EntryA = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor entry A set via LLM tool: %v", b)
+
+	case "supervisor-entry-b":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.Supervisor.EntryB = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor entry B set via LLM tool: %v", b)
+
+	case "supervisor-entry-c":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.Supervisor.EntryC = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor entry C set via LLM tool: %v", b)
+
+	case "supervisor-clear-context":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.Supervisor.ClearContext = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor clear-context set via LLM tool: %v", b)
+
+	case "supervisor-max-retries":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid supervisor-max-retries value: %s", value)
+		}
+		if n < 0 {
+			return fmt.Errorf("supervisor-max-retries must be >= 0")
+		}
+		cfg.LLM.Supervisor.MaxRetries = n
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor max-retries set via LLM tool: %d", n)
+
+	case "supervisor-allowed-tools":
+		// Comma-separated tool names; empty resets to default whitelist.
+		if strings.TrimSpace(value) == "" || value == "default" {
+			cfg.LLM.Supervisor.AllowedTools = nil
+		} else {
+			var tools []string
+			for _, t := range strings.Split(value, ",") {
+				t = strings.TrimSpace(t)
+				if t != "" {
+					tools = append(tools, t)
+				}
+			}
+			cfg.LLM.Supervisor.AllowedTools = tools
+		}
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor allowed-tools set via LLM tool: %v", cfg.LLM.Supervisor.AllowedTools)
 
 	default:
 		return fmt.Errorf("unknown setting: %s", param)
