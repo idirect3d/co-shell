@@ -1676,6 +1676,7 @@ aside {
   gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
+  border: 1px solid transparent;
   cursor: pointer;
   font-size: 13px;
   color: var(--fg);
@@ -1684,8 +1685,8 @@ aside {
 }
 .settings-nav-item:hover { background: var(--mono-bg); }
 .settings-nav-item.active {
-  background: var(--accent);
-  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent-dim);
 }
 .settings-nav-icon {
   flex: 0 0 auto;
