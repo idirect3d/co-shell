@@ -711,8 +711,9 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-456 | 0.25.0 | P1 | 专职监督 LLM 交付复核：新增独立监督 LLM（复用问题解决 LLM 模型），以审查主 LLM 交付物是否达到用户终极目标为核心目标；监督 LLM 上下文与会话绑定独立累积（可配置清空）；三个介入点（A attempt_completion / B 未调用工具自动退出 / C 任务进度标记完成）由三个开关控制（A/B 默认开、C 默认关）；监督 LLM 只允许低风险工具（显式白名单可配置）；判定时给监督 LLM 用户历次消息增量 + taskplan description + 主 LLM 最后报告 + 场景入口信息 + 任务进度清单；完成审查工具收集是否放行/理由/建议（必填）；不放行则理由+建议作为 user 消息进主 LLM 上下文重跑，放行则理由+建议向用户报告并进记忆；防死循环最大打回 20 次（可配），超限交人工判定并报告次数 |
+| FEATURE-457 | 0.25.0 | P2 | Web UI 设置页分组折叠+搜索：设置页 5 大分组（LLM/Agent/显示输出/安全确认/记忆上下文）支持折叠/展开（默认折叠，点击组标题展开），设置页顶部加搜索框实时过滤（输入关键词只显示参数名/描述匹配的设置项，匹配的分组自动展开），减少设置项过多带来的视觉噪音，提升用户体验 |
 
-> 当前 BUILD: 730
+> 当前 BUILD: 731
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -723,6 +724,12 @@
   - 方案（已确认）：① 新增监督 LLM（复用问题解决 LLM 模型），启用/禁用开关默认启用；② 监督 LLM 上下文与会话绑定独立累积（清空开关放[安全与确认]）；③ 三个介入点 A/B/C 由三个开关控制（A 默认开、B 默认开、C 默认关）；④ 监督 LLM 只允许低风险工具（显式白名单可配置：read_file/execute_command/memory_search 等）；⑤ 判定输入：用户历次消息增量 + taskplan description + 主 LLM 最后报告 + 场景入口信息 + 任务进度清单；⑥ 完成审查工具收集是否放行/理由/建议（必填）；⑦ 不放行则理由+建议作为 user 消息进主 LLM 上下文重跑，放行则理由+建议向用户报告并进记忆；⑧ 防死循环最大打回 20 次（可配），超限交人工判定并报告次数；⑨ 同步阻塞式审查。
   - 实施：新增 `agent/supervisor.go`（监督 LLM 核心：supervisorContext 会话绑定独立累积上下文 + supervisorState 运行时状态 + SupervisorReview 审查结果结构 + submitReviewTool 完成审查工具（approved/reason/suggestion 三字段必填）+ callSupervisor 多轮工具调用循环（白名单方案 B：白名单内工具执行、白名单外自动拒绝）+ buildSupervisorTools/findToolDefinition 工具集构建 + runSupervisorReview 同步审查入口（放行/打回/防死循环 maxRetries 默认 20 超限强制放行并报告次数 + 放行时理由+建议进记忆））；`config/config.go` 新增 `SupervisorConfig`（Enabled 默认 true / EntryObject 默认 true / EntryExit 默认 true / EntryTask 默认 false / ClearContext 默认 false / MaxRetries 默认 20 / AllowedTools 白名单）+ LLMConfig.Supervisor 字段 + 默认配置；`agent/loop.go` Agent 结构体新增 supervisorState 字段 + `agent/agent.go` New() 初始化；三个介入点挂载：A 在 `agent/tools.go` attemptCompletionTool（completion-confirm 前，打回则 feedback 作为 user 消息返回重跑）、B 在 `agent/run_stream.go` Rule 3（attempt_completion 不可用直接退出）和 Rule 2 noToolAction=exit（打回则 feedback 作为 user 消息 continue）、C 在 `agent/taskplan_tools.go` trackTaskProgressTool（hasCompletedStep 检测有步骤标记完成时触发）；`i18n/` 新增 KeySupervisorSystemPrompt（en/zh）+ keys.go 定义 [BUILD-725]
   - 测试：见 use-case/FEATURE-456/；单元测试：`agent/supervisor_test.go`（20 个用例：parseSupervisorReview 放行/打回/JSON 容错、supervisorToolAllowed 白名单默认/自定义、hasCompletedStep 完成检测、formatReviewAsText/formatReviewFeedback 格式化、supervisorMaxRetries 默认 20/可配、supervisorEntryEnabled 三开关默认值、runSupervisorReview 禁用/入口关闭/超限强制放行/调用失败降级、getSettingValue 读取 supervisor 参数开关、applySetting 设置 supervisor 布尔开关/max-retries 校验/allowed-tools 逗号分隔/非法布尔拒绝）[BUILD-728]；设置入口：`cmd/settings.go` handleSafetySetting 分发 + showSettingsHelp safetyGroup 显示 + `cmd/settings_safety.go` handleSafetySetting 处理（supervisor-enabled/entry-object/entry-exit/entry-task/clear-context/max-retries/allowed-tools）+ `cmd/settings_web.go` safetyGroup 显示（Web UI 设置）+ `agent/settings_tools.go` getSettingValue/applySetting（LLM 工具设置）[BUILD-730]
+
+- [ ] **FEATURE-457 Web UI 设置页分组折叠+搜索**
+  - 背景：系统设置项非常多（LLM/Agent/显示输出/安全确认/记忆上下文 5 大组，每组几十个参数），Web UI 设置页一次性全部平铺展示，视觉噪音大，用户难以快速找到目标参数。
+  - 方案（已确认）：① Web UI 设置页 5 大分组支持折叠/展开（默认折叠，点击组标题展开）；② 设置页顶部加搜索框，输入关键词实时过滤，只显示参数名/描述匹配的设置项，匹配的分组自动展开；③ 本次只做 Web UI 端，REPL `.set` 端不做。
+  - 实施：`web/static/index.html` 设置页顶部添加搜索框（settingsSearch）；`web/static/app.js` 重写 renderSettings 实现分组折叠（每个组包在 .set-group 容器中，组标题可点击展开/折叠，默认折叠，箭头 ▸/▾ 指示）+ 新增 applySettingsFilter 搜索过滤（匹配 key/desc/组标题，匹配分组自动展开）+ 声明 settingsSearch 变量 + settingsSearch input 事件监听（清空恢复默认折叠）；`web/static/style.css` 添加 .set-group/.set-group-body/.set-search 折叠与搜索样式 [BUILD-731]
+  - 测试：见 use-case/FEATURE-457/
 
 ## v0.9.1 — 开发中（已完成）
 
