@@ -1191,13 +1191,13 @@ no liability whatsoever.`,
 	KeyDefaultModelSet:          "✅ Set to: %s",
 
 	// Settings group titles
-	KeySettingsGroupIdentity:    "[ Identity & Personality ]",
-	KeySettingsGroupModel:       "[ Agent Settings ]",
-	KeySettingsGroupDisplay:     "[ Display & Output ]",
-	KeySettingsGroupSafety:      "[ Safety & Confirmation ]",
-	KeySettingsGroupMemory:      "[ Memory & Context ]",
-	KeySettingsGroupTask:        "[ Tasks & Sub-Agents ]",
-	KeySettingsGroupSearchDebug: "[ Developer ]",
+	KeySettingsGroupIdentity:    "Identity & Personality",
+	KeySettingsGroupModel:       "Agent Settings",
+	KeySettingsGroupDisplay:     "Appearance & Display",
+	KeySettingsGroupSafety:      "Safety & Confirmation",
+	KeySettingsGroupMemory:      "Memory & Context",
+	KeySettingsGroupTask:        "Tasks & Sub-Agents",
+	KeySettingsGroupSearchDebug: "Developer",
 
 	// Error settings column 3 labels
 	KeyCol3ErrorMaxSingleCount: "Max single error count",

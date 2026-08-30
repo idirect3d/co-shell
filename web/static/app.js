@@ -210,7 +210,6 @@ const miIdentity = document.getElementById("miIdentity");
 const identityModal = document.getElementById("identity");
 const identityClose = document.getElementById("identityClose");
 const identityBody = document.getElementById("identityBody");
-const setThemeMode = document.getElementById("setThemeMode");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
@@ -2822,10 +2821,6 @@ miRestart.onclick = () => {
 };
 settingsClose.onclick = () => settingsModal.classList.add("hidden");
 settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.add("hidden"); };
-setThemeMode.onchange = () => {
-  localStorage.setItem("co-shell-theme", setThemeMode.value);
-  applyTheme();
-};
 
 // iPad-style settings layout (FEATURE-457): a left category nav bar with
 // icons + a right pane showing the selected category's items.
@@ -2937,7 +2932,25 @@ function renderSettingItem(it) {
   row.appendChild(label);
 
   let ctl;
-  if (it.type === "bool") {
+  if (it.key === "theme-mode") {
+    // Frontend-local theme setting (FEATURE-457): rendered as a select that
+    // persists to localStorage and applies the theme immediately.
+    ctl = document.createElement("select");
+    ctl.className = "set-select";
+    const opts = ["auto", "dark", "light"];
+    const cur = localStorage.getItem("co-shell-theme") || "auto";
+    for (const opt of opts) {
+      const o = document.createElement("option");
+      o.value = opt;
+      o.textContent = opt;
+      if (opt === cur) o.selected = true;
+      ctl.appendChild(o);
+    }
+    ctl.onchange = () => {
+      localStorage.setItem("co-shell-theme", ctl.value);
+      applyTheme();
+    };
+  } else if (it.type === "bool") {
     ctl = document.createElement("input");
     ctl.type = "checkbox";
     ctl.className = "set-toggle";

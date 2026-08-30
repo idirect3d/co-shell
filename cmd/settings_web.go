@@ -86,8 +86,11 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "parse-error-action", Value: parseErrorActionValue(llm.ParseErrorAction), Desc: i18n.T(i18n.KeySettingCmd_314), Type: "enum", Options: []string{"exit", "retry", "prompt"}},
 	}
 
-	// Group 2: Display & Output (matches showSettingsHelp Group 3)
+	// Group 2: Appearance & Display (matches showSettingsHelp Group 3).
+	// theme-mode is a frontend-local setting (stored in localStorage), rendered
+	// specially by the Web UI (FEATURE-457).
 	displayGroup := []WebSettingItem{
+		{Key: "theme-mode", Value: "auto", Desc: "主题", Type: "enum", Options: []string{"auto", "dark", "light"}},
 		{Key: "emoji-enabled", Value: boolStr(llm.EmojiEnabled), Desc: i18n.T(i18n.KeyCol3EmojiEnabled), Type: "bool"},
 		{Key: "show-llm-thinking", Value: boolStr(llm.ShowLlmThinking), Desc: i18n.T(i18n.KeyCol3LlmThinking), Type: "bool"},
 		{Key: "show-llm-content", Value: boolStr(llm.ShowLlmContent), Desc: i18n.T(i18n.KeyCol3LlmContent), Type: "bool"},
