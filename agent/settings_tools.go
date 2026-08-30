@@ -347,12 +347,12 @@ func getSettingValue(cfg *config.Config, param string) string {
 	// FEATURE-456: dedicated supervisor LLM switches.
 	case "supervisor-enabled":
 		return boolToString(cfg.LLM.Supervisor.Enabled)
-	case "supervisor-entry-a":
-		return boolToString(cfg.LLM.Supervisor.EntryA)
-	case "supervisor-entry-b":
-		return boolToString(cfg.LLM.Supervisor.EntryB)
-	case "supervisor-entry-c":
-		return boolToString(cfg.LLM.Supervisor.EntryC)
+	case "supervisor-entry-object":
+		return boolToString(cfg.LLM.Supervisor.EntryObject)
+	case "supervisor-entry-exit":
+		return boolToString(cfg.LLM.Supervisor.EntryExit)
+	case "supervisor-entry-task":
+		return boolToString(cfg.LLM.Supervisor.EntryTask)
 	case "supervisor-clear-context":
 		return boolToString(cfg.LLM.Supervisor.ClearContext)
 	case "supervisor-max-retries":
@@ -1077,38 +1077,38 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		log.Info("Supervisor enabled set via LLM tool: %v", b)
 
-	case "supervisor-entry-a":
+	case "supervisor-entry-object":
 		b, err := parseBool(value)
 		if err != nil {
 			return err
 		}
-		cfg.LLM.Supervisor.EntryA = b
+		cfg.LLM.Supervisor.EntryObject = b
 		if err := cfg.Save(); err != nil {
 			return err
 		}
-		log.Info("Supervisor entry A set via LLM tool: %v", b)
+		log.Info("Supervisor entry object set via LLM tool: %v", b)
 
-	case "supervisor-entry-b":
+	case "supervisor-entry-exit":
 		b, err := parseBool(value)
 		if err != nil {
 			return err
 		}
-		cfg.LLM.Supervisor.EntryB = b
+		cfg.LLM.Supervisor.EntryExit = b
 		if err := cfg.Save(); err != nil {
 			return err
 		}
-		log.Info("Supervisor entry B set via LLM tool: %v", b)
+		log.Info("Supervisor entry exit set via LLM tool: %v", b)
 
-	case "supervisor-entry-c":
+	case "supervisor-entry-task":
 		b, err := parseBool(value)
 		if err != nil {
 			return err
 		}
-		cfg.LLM.Supervisor.EntryC = b
+		cfg.LLM.Supervisor.EntryTask = b
 		if err := cfg.Save(); err != nil {
 			return err
 		}
-		log.Info("Supervisor entry C set via LLM tool: %v", b)
+		log.Info("Supervisor entry task set via LLM tool: %v", b)
 
 	case "supervisor-clear-context":
 		b, err := parseBool(value)

@@ -225,9 +225,9 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "default-tool-model",
 		// FEATURE-456: dedicated supervisor LLM switches.
 		subcommand == "supervisor-enabled",
-		subcommand == "supervisor-entry-a",
-		subcommand == "supervisor-entry-b",
-		subcommand == "supervisor-entry-c",
+		subcommand == "supervisor-entry-object",
+		subcommand == "supervisor-entry-exit",
+		subcommand == "supervisor-entry-task",
 		subcommand == "supervisor-clear-context",
 		subcommand == "supervisor-max-retries",
 		subcommand == "supervisor-allowed-tools":
@@ -759,9 +759,9 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("default-tool-model", defaultToolModelDisplay, "auto/<model-id>"),
 		// FEATURE-456: dedicated supervisor LLM switches.
 		makeLine("supervisor-enabled", boolStr(cfg.LLM.Supervisor.Enabled), "on/off"),
-		makeLine("supervisor-entry-a", boolStr(cfg.LLM.Supervisor.EntryA), "on/off"),
-		makeLine("supervisor-entry-b", boolStr(cfg.LLM.Supervisor.EntryB), "on/off"),
-		makeLine("supervisor-entry-c", boolStr(cfg.LLM.Supervisor.EntryC), "on/off"),
+		makeLine("supervisor-entry-object", boolStr(cfg.LLM.Supervisor.EntryObject), "on/off"),
+		makeLine("supervisor-entry-exit", boolStr(cfg.LLM.Supervisor.EntryExit), "on/off"),
+		makeLine("supervisor-entry-task", boolStr(cfg.LLM.Supervisor.EntryTask), "on/off"),
 		makeLine("supervisor-clear-context", boolStr(cfg.LLM.Supervisor.ClearContext), "on/off"),
 		makeLine("supervisor-max-retries", fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRetries), "int"),
 		makeLine("supervisor-allowed-tools", supervisorAllowedToolsDisplay(cfg.LLM), "comma-separated"),
