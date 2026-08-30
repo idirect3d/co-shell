@@ -713,7 +713,7 @@
 | FEATURE-456 | 0.25.0 | P1 | 专职监督 LLM 交付复核：新增独立监督 LLM（复用问题解决 LLM 模型），以审查主 LLM 交付物是否达到用户终极目标为核心目标；监督 LLM 上下文与会话绑定独立累积（可配置清空）；三个介入点（A attempt_completion / B 未调用工具自动退出 / C 任务进度标记完成）由三个开关控制（A/B 默认开、C 默认关）；监督 LLM 只允许低风险工具（显式白名单可配置）；判定时给监督 LLM 用户历次消息增量 + taskplan description + 主 LLM 最后报告 + 场景入口信息 + 任务进度清单；完成审查工具收集是否放行/理由/建议（必填）；不放行则理由+建议作为 user 消息进主 LLM 上下文重跑，放行则理由+建议向用户报告并进记忆；防死循环最大打回 20 次（可配），超限交人工判定并报告次数 |
 | FEATURE-457 | 0.25.0 | P2 | Web UI 设置页分组折叠+搜索：设置页 5 大分组（LLM/Agent/显示输出/安全确认/记忆上下文）支持折叠/展开（默认折叠，点击组标题展开），设置页顶部加搜索框实时过滤（输入关键词只显示参数名/描述匹配的设置项，匹配的分组自动展开），减少设置项过多带来的视觉噪音，提升用户体验 |
 
-> 当前 BUILD: 733
+> 当前 BUILD: 734
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -728,7 +728,7 @@
 - [ ] **FEATURE-457 Web UI 设置页分组折叠+搜索**
   - 背景：系统设置项非常多（LLM/Agent/显示输出/安全确认/记忆上下文 5 大组，每组几十个参数），Web UI 设置页一次性全部平铺展示，视觉噪音大，用户难以快速找到目标参数。
   - 方案（已确认）：① Web UI 设置页 5 大分组支持折叠/展开（默认折叠，点击组标题展开）；② 设置页顶部加搜索框，输入关键词实时过滤，只显示参数名/描述匹配的设置项，匹配的分组自动展开；③ 本次只做 Web UI 端，REPL `.set` 端不做。
-  - 实施：`web/static/index.html` 设置页顶部添加搜索框（settingsSearch）；`web/static/app.js` 重写 renderSettings 实现分组折叠（每个组包在 .set-group 容器中，组标题可点击展开/折叠，默认折叠，箭头 ▸/▾ 指示）+ 新增 applySettingsFilter 搜索过滤（匹配 key/desc/组标题，匹配分组自动展开）+ 声明 settingsSearch 变量 + settingsSearch input 事件监听（清空恢复默认折叠）；`web/static/style.css` 添加 .set-group/.set-group-body/.set-search 折叠与搜索样式 [BUILD-731]；iPad 风格布局：`web/static/index.html` settings modal 重构为左右两栏（左侧 settingsNav 分类导航栏 + 右侧 settings-pane 内容区，modal 加宽到 900px）；`web/static/app.js` 重写 renderSettings 为 iPad 风格（settingsGroups/settingsActiveGroup 状态 + settingsGroupIcon 分类图标映射 + renderSettingsNav 渲染左侧分类导航（每个分类配图标）+ selectSettingsGroup 点击切换 + renderSettingsPane 渲染右侧选中分类设置项 + applySettingsFilter 在选中分类内过滤）+ 声明 settingsNav 变量；`web/static/style.css` 添加 .settings-box（加宽）/ .settings-nav / .settings-nav-item（图标+文字，选中高亮）/ .settings-pane 左右两栏布局样式 [BUILD-733]
+  - 实施：`web/static/index.html` 设置页顶部添加搜索框（settingsSearch）；`web/static/app.js` 重写 renderSettings 实现分组折叠（每个组包在 .set-group 容器中，组标题可点击展开/折叠，默认折叠，箭头 ▸/▾ 指示）+ 新增 applySettingsFilter 搜索过滤（匹配 key/desc/组标题，匹配分组自动展开）+ 声明 settingsSearch 变量 + settingsSearch input 事件监听（清空恢复默认折叠）；`web/static/style.css` 添加 .set-group/.set-group-body/.set-search 折叠与搜索样式 [BUILD-731]；iPad 风格布局：`web/static/index.html` settings modal 重构为左右两栏（左侧 settingsNav 分类导航栏 + 右侧 settings-pane 内容区，modal 固定 600x800）；`web/static/app.js` 重写 renderSettings 为 iPad 风格（settingsGroups/settingsActiveGroup 状态 + settingsGroupIcon 分类图标映射 + renderSettingsNav 渲染左侧分类导航（每个分类配图标）+ selectSettingsGroup 点击切换 + renderSettingsPane 渲染右侧选中分类设置项 + applySettingsFilter 在选中分类内过滤）+ 声明 settingsNav 变量；`web/static/style.css` 添加 .settings-box（加宽）/ .settings-nav / .settings-nav-item（图标+文字，选中高亮）/ .settings-pane 左右两栏布局样式 [BUILD-733]；窗口固定 600x800：`web/static/style.css` .settings-box 改为 width:600px/height:800px（max-width:92vw/max-height:90vh 小屏保护），.settings-body 固定高度 calc(100%-41px) + overflow:hidden，.settings-nav/.settings-pane overflow-y:auto 自动滚动条 [BUILD-734]
   - 测试：见 use-case/FEATURE-457/
 
 ## v0.9.1 — 开发中（已完成）
