@@ -2370,6 +2370,22 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		return "", fmt.Errorf("session_keywords is required — provide comma-separated keywords for this session")
 	}
 
+	// FEATURE-456: supervisor review at intervention point A (attempt_completion).
+	// Synchronously ask the supervisor whether the delivery meets the user's
+	// ultimate goal. If rejected, return the feedback as a user message so the
+	// main LLM reworks and re-delivers (the loop continues).
+	approved, feedback, report := a.runSupervisorReview(ctx, SupervisorEntryA, result)
+	if !approved {
+		// Rejected: append feedback as a user message to the main LLM context
+		// and continue the loop for rework.
+		a.storeUserReply(feedback)
+		return feedback, nil
+	}
+	if report != "" {
+		// Approved: report the supervisor's reason+suggestion to the user.
+		a.defaultIO().ErrPrintf("%s\n", report)
+	}
+
 	// FEATURE-452: completion-confirm dialog. When enabled (default), present
 	// the result and ask the user to choose a next step before exiting. Only
 	// "完成退出" (exit) actually completes; the other choices are sent back to

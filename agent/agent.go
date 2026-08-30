@@ -70,6 +70,7 @@ func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules st
 		toolCallModeMgr: NewToolCallModeManager(),
 		excelSessionMgr: newExcelSessionManager(),
 		docxSessionMgr:  newDocxSessionManager(),
+		supervisorState: newSupervisorState(),
 		messages: []llm.Message{
 			{Role: "system", Content: systemPrompt},
 		},

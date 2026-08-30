@@ -127,6 +127,14 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "problem-solver-enabled", Value: boolStr(llm.ProblemSolverEnabled), Desc: i18n.T(i18n.KeyCol3ProblemSolverEnabled), Type: "bool"},
 		{Key: "default-problem-model", Value: defaultModelValue(llm.DefaultProblemModelID), Desc: "auto/<model-id>", Type: "string"},
 		{Key: "default-tool-model", Value: defaultModelValue(llm.DefaultToolModelID), Desc: "auto/<model-id>", Type: "string"},
+		// FEATURE-456: dedicated supervisor LLM switches.
+		{Key: "supervisor-enabled", Value: boolStr(llm.Supervisor.Enabled), Desc: "监督 LLM 启用", Type: "bool"},
+		{Key: "supervisor-entry-object", Value: boolStr(llm.Supervisor.EntryObject), Desc: "介入点 object (attempt_completion)", Type: "bool"},
+		{Key: "supervisor-entry-exit", Value: boolStr(llm.Supervisor.EntryExit), Desc: "介入点 exit (未调用工具退出)", Type: "bool"},
+		{Key: "supervisor-entry-task", Value: boolStr(llm.Supervisor.EntryTask), Desc: "介入点 task (任务进度完成)", Type: "bool"},
+		{Key: "supervisor-clear-context", Value: boolStr(llm.Supervisor.ClearContext), Desc: "每次审查清空上下文", Type: "bool"},
+		{Key: "supervisor-max-retries", Value: strconv.Itoa(llm.Supervisor.MaxRetries), Desc: "最大打回次数", Type: "number"},
+		{Key: "supervisor-allowed-tools", Value: supervisorAllowedToolsDisplay(llm), Desc: "工具白名单(逗号分隔)", Type: "string"},
 	}
 
 	// Group 4: Memory & Context (matches showSettingsHelp Group 5)

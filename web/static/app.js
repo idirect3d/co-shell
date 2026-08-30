@@ -184,6 +184,7 @@ const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
 const settingsDynamic = document.getElementById("settingsDynamic");
+const settingsSearch = document.getElementById("settingsSearch");
 const modelsModal = document.getElementById("models");
 const modelsClose = document.getElementById("modelsClose");
 const modelsBody = document.getElementById("modelsBody");
@@ -2826,8 +2827,8 @@ setThemeMode.onchange = () => {
 };
 
 // renderSettings renders the grouped setting items returned by settings_get
-// (FEATURE-391). Each item is rendered as a form control based on its type:
-// bool -> toggle, number -> number input, enum -> select, string -> text input.
+// (FEATURE-391). Each group is collapsible (default collapsed) and a search
+// box filters items in real time (FEATURE-457).
 function renderSettings(groups) {
   settingsDynamic.innerHTML = "";
   if (!groups || !groups.length) {
@@ -2836,21 +2837,76 @@ function renderSettings(groups) {
   }
   const frag = document.createDocumentFragment();
   for (const g of groups) {
+    const box = document.createElement("div");
+    box.className = "set-group";
     const h = document.createElement("div");
     h.className = "set-group-title";
     h.textContent = g.title || "";
-    frag.appendChild(h);
+    h.setAttribute("data-group", g.title || "");
+    const body = document.createElement("div");
+    body.className = "set-group-body";
     for (const it of g.items || []) {
-      frag.appendChild(renderSettingItem(it));
+      body.appendChild(renderSettingItem(it));
     }
+    box.appendChild(h);
+    box.appendChild(body);
+    frag.appendChild(box);
   }
   settingsDynamic.appendChild(frag);
+  // Wire up collapse/expand toggles.
+  settingsDynamic.querySelectorAll(".set-group-title").forEach((h) => {
+    h.onclick = () => {
+      const box = h.parentElement;
+      box.classList.toggle("open");
+    };
+  });
+  // Apply current search filter (if any) after re-render.
+  const q = settingsSearch.value.trim().toLowerCase();
+  if (q) applySettingsFilter(q);
 }
+
+// applySettingsFilter filters setting groups/items by the given query (FEATURE-457).
+// Items whose key or desc contains the query are kept; matching groups auto-expand.
+function applySettingsFilter(q) {
+  q = (q || "").trim().toLowerCase();
+  settingsDynamic.querySelectorAll(".set-group").forEach((box) => {
+    const title = (box.querySelector(".set-group-title").textContent || "").toLowerCase();
+    let anyMatch = false;
+    box.querySelectorAll(".set-row").forEach((row) => {
+      const key = (row.getAttribute("data-key") || "").toLowerCase();
+      const desc = (row.getAttribute("data-desc") || "").toLowerCase();
+      const match = !q || key.includes(q) || desc.includes(q) || title.includes(q);
+      row.style.display = match ? "" : "none";
+      if (match) anyMatch = true;
+    });
+    box.style.display = anyMatch ? "" : "none";
+    if (q) {
+      box.classList.add("open");
+    }
+  });
+}
+
+// settingsSearch input handler: live filter (FEATURE-457).
+settingsSearch.addEventListener("input", () => {
+  const q = settingsSearch.value.trim().toLowerCase();
+  if (!q) {
+    // Clear filter: restore all rows, collapse all groups.
+    settingsDynamic.querySelectorAll(".set-group").forEach((box) => {
+      box.style.display = "";
+      box.classList.remove("open");
+      box.querySelectorAll(".set-row").forEach((row) => { row.style.display = ""; });
+    });
+    return;
+  }
+  applySettingsFilter(q);
+});
 
 // renderSettingItem builds one setting row with its label and form control.
 function renderSettingItem(it) {
   const row = document.createElement("label");
   row.className = "set-row";
+  row.setAttribute("data-key", it.key || "");
+  row.setAttribute("data-desc", it.desc || "");
   const label = document.createElement("span");
   label.className = "set-label";
   label.textContent = it.key;

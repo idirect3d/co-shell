@@ -1001,6 +1001,18 @@ iterationLoop:
 
 			// Rule 3: attempt_completion not available → exit immediately
 			if !attemptCompAvailable {
+				// FEATURE-456: supervisor review at intervention point B (no-tool exit).
+				approved, feedback, report := a.runSupervisorReview(ctx, SupervisorEntryB, finalContent)
+				if !approved {
+					// Rejected: append feedback as a user message and continue the loop.
+					a.mu.Lock()
+					a.messages = append(a.messages, llm.Message{Role: "user", Content: feedback})
+					a.mu.Unlock()
+					continue
+				}
+				if report != "" {
+					cb(InfoEvent(ChannelSystem, report))
+				}
 				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
 				a.mu.Lock()
 				a.messages = append(a.messages, llm.Message{
@@ -1090,6 +1102,18 @@ iterationLoop:
 
 			switch noToolAction {
 			case "exit":
+				// FEATURE-456: supervisor review at intervention point B (no-tool exit).
+				approved, feedback, report := a.runSupervisorReview(ctx, SupervisorEntryB, finalContent)
+				if !approved {
+					// Rejected: append feedback as a user message and continue the loop.
+					a.mu.Lock()
+					a.messages = append(a.messages, llm.Message{Role: "user", Content: feedback})
+					a.mu.Unlock()
+					continue
+				}
+				if report != "" {
+					cb(InfoEvent(ChannelSystem, report))
+				}
 				// Treat as final answer — append assistant, send done, return
 				iterPrompt, iterComp, iterTotal := a.IterTokenDelta()
 				maxModelLen := a.GetMaxModelLen()
