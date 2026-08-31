@@ -761,7 +761,7 @@ func (a *Agent) judgeLoop(ctx context.Context, err error, suspectContent string)
 
 	// FEATURE-342: structured report_problem path (single model call).
 	// Convert the ProblemReport to the classic LoopJudgeResult.
-	report, perr := a.callProblemSolver(ctx, a.buildProblemSolverPrompt(suspectContent))
+	report, perr := a.callProblemSolver(ctx, SupScenarioLoopJudge, a.buildProblemSolverPrompt(suspectContent))
 	if perr != nil || report == nil {
 		log.Warn("judgeLoop: problem solver call failed: %v, judgment skipped", perr)
 		return nil

@@ -605,7 +605,7 @@ var zhMessages = map[string]string{
 	KeySettingCmd_612: "✅ 任务完成\n\n%s",
 
 	// FEATURE-452: attempt_completion completion-confirm dialog
-	KeyAttemptCompletionSuggestNext: "根据合理推理给出下一步建议",
+	KeyAttemptCompletionSuggestNext: "给出下一步建议",
 	KeyAttemptCompletionPrompt:     "任务结果已就绪，请选择下一步：",
 	KeyAttemptCompletionNotDone:    "任务尚未达到目标",
 	KeyAttemptCompletionExit:       "我已确认完成（退出）",
@@ -1204,6 +1204,8 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3DefaultVisionModel:   "默认视觉模型",
 	KeyCol3DefaultProblemModel:  "默认问题解决模型",
 	KeyCol3ProblemSolverEnabled: "问题解决机制开关",
+	KeyCol3ShowSupPrompt:        "显示 SUP 场景发送给 LLM 的 prompt",
+	KeyCol3ShowSupStream:        "流式显示 SUP 场景 LLM 回复",
 	KeyDefaultModelCurrent:      "当前配置: %s",
 	KeyDefaultModelSet:          "✅ 已设置为: %s",
 	KeySettingsGroupDisplay:     "外观与显示",

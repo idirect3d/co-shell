@@ -138,6 +138,9 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "supervisor-clear-context", Value: boolStr(llm.Supervisor.ClearContext), Desc: "每次审查清空上下文", Type: "bool"},
 		{Key: "supervisor-max-retries", Value: strconv.Itoa(llm.Supervisor.MaxRetries), Desc: "最大打回次数", Type: "number"},
 		{Key: "supervisor-allowed-tools", Value: supervisorAllowedToolsDisplay(llm), Desc: "工具白名单(逗号分隔)", Type: "string"},
+		// FEATURE-460: SUP LLM interaction streaming switches.
+		{Key: "show-sup-prompt", Value: boolStr(llm.Supervisor.ShowSupPrompt), Desc: i18n.T(i18n.KeyCol3ShowSupPrompt), Type: "bool"},
+		{Key: "show-sup-stream", Value: boolStr(llm.Supervisor.ShowSupStream), Desc: i18n.T(i18n.KeyCol3ShowSupStream), Type: "bool"},
 	}
 
 	// Group 4: Memory & Context (matches showSettingsHelp Group 5)
@@ -154,6 +157,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 	developerGroup := []WebSettingItem{
 		{Key: "debug", Value: boolStr(llm.DebugMode), Desc: i18n.T(i18n.KeyCol3Debug), Type: "bool"},
 		{Key: "log", Value: log.LogLevelString(log.GetLevel()), Desc: i18n.T(i18n.KeyCol3Log), Type: "enum", Options: []string{"debug", "info", "warn", "error", "off"}},
+		{Key: "llm-log", Value: boolStr(log.IsLLMInteractionEnabled()), Desc: i18n.T(i18n.KeyCol3LLMInteractionLog), Type: "bool"},
 		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string"},
 	}
 

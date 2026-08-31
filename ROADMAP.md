@@ -779,6 +779,36 @@
   - 实施：`agent/tools.go` attemptCompletionTool 中，将监督 LLM 放行时返回的 report（formatReviewAsText 生成的结论/理由/建议）设置到 completion-confirm 对话框 Interaction 的 Body 字段（report 为空时不显示，符合 omitempty）[BUILD-742]；增强：对话框 Body 显示主 LLM 调用 attempt_completion 时的主要内容（result，前缀【任务完成报告】）+ 监督 LLM 审查内容（report，前缀【监督 LLM 审查】）；`agent/supervisor.go` runSupervisorReview 监督调用失败时返回失败信息作为 report（结论：审查失败 ⚠️ + 原因 + 错误），降级放行但向用户报告失败 [BUILD-743]；前端优化：`web/static/app.js` showInteraction 新增 splitReportSections 函数（按【任务完成报告】/【监督 LLM 审查】标记拆分 Body 为多个独立信息块）+ 键盘事件处理新增长按检测（按住快捷键 >=500ms 时把选项内容填入主信息录入框并进入补充模式，松开前正常选择）+ hideAsk 清理 __vkKeyup 监听器；`web/static/style.css` 新增 .report-block 样式（max-height:40% + overflow-y:auto + 边框圆角背景）[BUILD-744]；对话框交互优化：点击【+：任务尚未达到目标】改为把“任务尚未达到目标：”填入主消息框并退出对话框（保持 interaction pending，用户补充后发送回后端继续循环），`web/static/app.js` 新增 fillInputAndExit 函数并同步处理物理 + 键点击/长按/keyup；i18n 文本调整：KeyAttemptCompletionSuggestNext 改为“根据合理推理给出下一步建议”（en: Give next-step suggestions based on reasonable reasoning）、KeyAttemptCompletionExit 改为“我已确认完成（退出）”（en: I have confirmed completion (exit)）[BUILD-746]
   - 测试：见 use-case/FEATURE-459/（9 个用例：监督放行时对话框显示监督结论/理由/建议、监督未启用/未返回 report 时不显示、信息提示部分渲染为 markdown、对话框选项仍正常显示、用户选择完成退出后任务正常完成、选择其他选项后继续循环）；单元测试：`agent/attempt_completion_test.go` 新增 TestAttemptCompletionBodyShowsSupervisorReport（监督强制放行时 Body 包含主 LLM 报告 + 监督信息）+ TestAttemptCompletionBodyShowsMainReportWithoutSupervisor（监督未启用时 Body 显示主 LLM 报告但不含监督信息）[BUILD-742]；`agent/supervisor_test.go` 更新 TestRunSupervisorReview_CallFailure（监督调用失败时 report 包含失败信息）[BUILD-743]
 
+## v0.28.0 — 开发中
+
+> **版本**: v0.28.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 问题解决/循环判定/监督 LLM 交互流式暴露
+> **说明**: 0.28.0 系列将问题解决、循环判定、监督三个场景与 LLM 的交互内容（发送的 prompt + 流式回复）以流式方式暴露给前端，使用独立的 SUP 块显示，并新增两个开关分别控制是否输出 prompt 与流式回复。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-460 | 0.28.0 | P1 | 问题解决/循环判定/监督 LLM 交互流式暴露：三个场景（问题解决 problem_solver / 循环判定 loop_detector / 监督 supervisor）与 LLM 的交互内容（发送的 prompt + 流式回复）以流式方式暴露给前端，使用独立的 SUP 块显示（SUP·问题解决 / SUP·循环判定 / SUP·监督）；新增两个开关 show-sup-prompt（是否显示发送给 LLM 的 prompt）与 show-sup-stream（是否流式显示 LLM 回复）分别控制是否输出；三个场景从非流式 Chat() 改为流式 ChatStream()，基于流式累积结果做结构化解析（report_problem / submit_review） |
+
+> 当前 BUILD: 747
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-460 问题解决/循环判定/监督 LLM 交互流式暴露**
+  - 背景：问题解决、循环判定、监督三个场景与 LLM 的交互目前是同步阻塞调用（非流式），用户无法在前端看到 LLM 的思考/输出过程，只能看到最终结果。希望将这三个场景的 LLM 交互内容（发送的 prompt + 流式回复）以流式方式暴露给前端，使用独立的 SUP 块显示，并新增两个开关分别控制是否输出 prompt 与流式回复。
+  - 方案（已确认）：① 新增两个开关 show-sup-prompt（是否显示发送给 LLM 的 prompt）与 show-sup-stream（是否流式显示 LLM 回复），默认关闭，放在 [安全与确认] 组，支持 REPL `.set` + Web UI 设置 + LLM 工具设置；② 将 callProblemSolver（问题解决/循环判定共用）与 callSupervisor（监督）从非流式 Chat() 改为流式 ChatStream()，累积流式内容，同时基于累积结果做结构化解析（report_problem / submit_review）；③ 三个场景分别用 SUP·问题解决 / SUP·循环判定 / SUP·监督 标题的 SUP 块显示；④ 前端新增流式 SUP 块渲染（复用现有 content_chunk 流式机制，归到 supervisor 通道并带场景标题）。
+  - 实施：`config/config.go` SupervisorConfig 新增 ShowSupPrompt/ShowSupStream 两个开关（默认 false）+ 默认配置；`agent/sup_stream.go` 新增 SupScenario 类型（problem_solver/loop_judge/supervisor）+ supTitle 标题映射（SUP·问题解决/SUP·循环判定/SUP·监督）+ supPromptEnabled/supStreamEnabled 开关读取 + emitSupPrompt（show-sup-prompt 开启时发 content_chunk 事件到 supervisor 通道带 sup_scenario meta）+ streamSupReply（show-sup-stream 开启时流式转发 content_chunk 到前端，累积内容与工具调用供结构化解析）；`agent/events.go` 新增 MetaKeySupScenario 常量；`agent/problem_solver.go` callProblemSolver 改为流式 ChatStream（新增 scenario 参数，emitSupPrompt + streamSupReply 累积后解析 report_problem），solveProblem 传 SupScenarioProblemSolver；`agent/loop.go` judgeLoop 传 SupScenarioLoopJudge；`agent/supervisor.go` callSupervisor 改为流式 ChatStream（emitSupPrompt + streamSupReply 累积后解析 submit_review）；设置入口：`cmd/settings.go` 分发 + showSettingsHelp safetyGroup 显示 + `cmd/settings_safety.go` handleSafetySetting/showSupervisorBoolSetting 处理（show-sup-prompt/show-sup-stream）+ `cmd/settings_web.go` safetyGroup 显示（Web UI 设置）+ `agent/settings_tools.go` getSettingValue/applySetting（LLM 工具设置）；i18n 新增 KeyCol3ShowSupPrompt/KeyCol3ShowSupStream（zh/en）；前端 `web/static/app.js` 新增 curSup 流式 SUP 块变量 + content_chunk 处理 supervisor 通道分支（按 sup_scenario 标题创建 SUP 块并流式累积）+ isStreamingBody 包含 curSup + 三处重置点重置 curSup；`web/static/style.css` 复用现有 .ev.supervisor 样式；单元测试：`agent/sup_stream_test.go`（6 个用例：supTitle 标题映射、supPromptEnabled/supStreamEnabled 开关、emitSupPrompt 事件/开关/空 prompt、streamSupReply 累积+转发+工具调用、streamSupReply 不转发、streamSupReply 错误传播）+ `agent/supervisor_test.go` 更新 TestGetSettingValue_Supervisor/TestApplySetting_SupervisorBooleans 覆盖两个新开关 [BUILD-749]
+  - 测试：见 use-case/FEATURE-460/
+
+- [ ] **FEATURE-461 attempt_completion 完成报告信息框改进**
+  - 背景：attempt_completion 的 completion-confirm 对话框（完成报告信息框）布局与交互需要改进：报告标题应作为加粗标题移到内容框外、补充信息录入框、选项+补充信息组合发送等。
+  - 方案（已确认）：① "任务结果已就绪，请选择下一步"标题保持在选项按钮框外/上方；② 【任务完成报告】提取为加粗标题"任务完成报告"（去括号）渲染在内容块外上方；③ 【监督 LLM 审查】改为"审查报告"标题渲染在内容块外；④ "根据合理推理给出下一步建议"选项改为"给出下一步建议"；⑤ 用户选择区下方新增"补充信息："录入框，点击后取消快捷键监控；⑥ 用户输入补充信息后可点击选项按钮，以【选项内容 + "，" + 补充信息】作为提示词发给 LLM（"我已确认完成（退出）"直接退出不发送，"补充信息"按钮直接发送用户输入）；⑦ 报告提示框最大高度提升到 UI 的 80%。
+  - 实施：`web/static/app.js` splitReportSections 改为返回 {title, content}（【任务完成报告】→"任务完成报告"、【监督 LLM 审查】→"审查报告"）+ showInteraction 渲染 report-title 加粗标题 + 新增 supplementInput 变量与 getSupplement/sendSupplement/answerSelectWithSupplement 辅助函数 + 用户选择区下方新增 .interaction-supplement 补充信息录入框（聚焦取消快捷键监控）+ 选项按钮点击附加补充信息（answerSelectWithSupplement）+ exit 键直接 hideAsk 退出不发送 + 补充信息按钮 sendSupplement 直接发送；`web/static/style.css` 新增 .report-title/.interaction-supplement 样式 + .report-block max-height 40%→80%；`i18n/zh.go`/`i18n/en.go` KeyAttemptCompletionSuggestNext 改为"给出下一步建议"/"Give next-step suggestions" [BUILD-750]
+  - 测试：见 use-case/FEATURE-461/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
