@@ -74,6 +74,13 @@ const MetaKeyPlan = "plan"
 // to render a streaming SUP block with the correct scenario title.
 const MetaKeySupScenario = "sup_scenario"
 
+// MetaKeySupPart is the Meta key of a content_chunk event on the supervisor
+// channel carrying which part of the SUP block the chunk belongs to: "prompt"
+// (the prompt sent to the LLM), "content" (the streaming reply), or "tool"
+// (a tool call's input) (FEATURE-461). The frontend routes each chunk to the
+// corresponding section of the SUP block.
+const MetaKeySupPart = "sup_part"
+
 // MetaKeyToolSummary is the Meta key of EventToolCall carrying the structured
 // ToolSummary JSON (FEATURE-388). Web/JSON consumers use it to render a
 // structured tool card; the LineRenderer ignores Meta, so terminal output is

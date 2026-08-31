@@ -503,6 +503,38 @@ function newStreamBlock(cls, label, msgIndex) {
   return { body, raw: "", raf: 0, hasResult: false };
 }
 
+// newSupBlock creates a SUP block with three sections (FEATURE-461):
+//   top    - the prompt sent to the LLM (.sup-prompt, max-height scrollable)
+//   middle - the streaming reply (the main .ev-body, max-height scrollable)
+//   bottom - the tool call's input (.sup-tool, max-height scrollable)
+function newSupBlock(title, msgIndex) {
+  const body = makeBlock("supervisor", title, msgIndex);
+  const box = body.parentElement;
+  // Top: prompt section.
+  const prompt = document.createElement("div");
+  prompt.className = "sup-prompt";
+  const promptHead = document.createElement("div");
+  promptHead.className = "sup-part-head";
+  promptHead.textContent = "提示词";
+  const promptBody = document.createElement("div");
+  promptBody.className = "sup-part-body";
+  prompt.appendChild(promptHead);
+  prompt.appendChild(promptBody);
+  box.insertBefore(prompt, body);
+  // Bottom: tool input section.
+  const tool = document.createElement("div");
+  tool.className = "sup-tool";
+  const toolHead = document.createElement("div");
+  toolHead.className = "sup-part-head";
+  toolHead.textContent = "工具输入";
+  const toolBody = document.createElement("div");
+  toolBody.className = "sup-part-body";
+  tool.appendChild(toolHead);
+  tool.appendChild(toolBody);
+  box.appendChild(tool);
+  return { body, raw: "", raf: 0, title, promptBody, toolBody };
+}
+
 // ensureToolParams creates (or returns) the input-parameter sub-block inside a
 // TOOL block (FEATURE-400). The sub-block has a title bar ("输入参数"), a
 // "原始内容" pill toggle (FEATURE-412) to the left of the collapse/expand
@@ -933,17 +965,33 @@ function renderEvent(ev) {
       // The scenario title is carried in ev.meta.sup_scenario.
       if (ev.chan === "supervisor") {
         const supTitle = (ev.meta && ev.meta.sup_scenario) || "SUP";
-        if (!curSup || curSup.title !== supTitle) {
+        const supPart = (ev.meta && ev.meta.sup_part) || "content";
+        // FEATURE-461: a prompt chunk starts a new round -> a new SUP block.
+        if (supPart === "prompt") {
           unmarkStreaming(curSup && curSup.body);
           unmarkStreaming(curLLM && curLLM.body);
           unmarkStreaming(curThinking && curThinking.body);
           unmarkStreaming(curTool && curTool.body);
-          curSup = newStreamBlock("supervisor", supTitle, msgIndex);
-          curSup.title = supTitle;
+          curSup = newSupBlock(supTitle, msgIndex);
+          curSup.promptBody.textContent = ev.text || "";
+          markStreaming(curSup.body);
+          scrollStream();
+          return;
+        }
+        if (!curSup || curSup.title !== supTitle) {
+          // No active SUP block (e.g. stream on but prompt off): create one.
+          unmarkStreaming(curSup && curSup.body);
+          curSup = newSupBlock(supTitle, msgIndex);
           curLLM = null;
           curThinking = null;
           curTool = null;
         }
+        if (supPart === "tool") {
+          curSup.toolBody.textContent = ev.text || "";
+          scrollStream();
+          return;
+        }
+        // content: stream into the middle section.
         curSup.raw += ev.text || "";
         markStreaming(curSup.body);
         scheduleMd(curSup);

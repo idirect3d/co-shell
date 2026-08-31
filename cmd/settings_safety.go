@@ -560,9 +560,17 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		if len(args) < 2 {
 			return h.showSupervisorBoolSetting(subcommand), nil
 		}
-		enabled, err := strconv.ParseBool(args[1])
-		if err != nil {
-			return "", fmt.Errorf("invalid boolean value: %s", args[1])
+		// Accept on/off (Web UI) and 1/true/yes/0/false/no (REPL), matching
+		// the other bool setting handlers (FIX: Web UI state was lost because
+		// strconv.ParseBool rejects "on"/"off").
+		var enabled bool
+		switch strings.ToLower(args[1]) {
+		case "on", "1", "true", "yes":
+			enabled = true
+		case "off", "0", "false", "no":
+			enabled = false
+		default:
+			return "", fmt.Errorf("invalid boolean value %q (valid: on/off)", args[1])
 		}
 		switch subcommand {
 		case "supervisor-enabled":
