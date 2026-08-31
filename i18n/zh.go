@@ -605,10 +605,10 @@ var zhMessages = map[string]string{
 	KeySettingCmd_612: "✅ 任务完成\n\n%s",
 
 	// FEATURE-452: attempt_completion completion-confirm dialog
-	KeyAttemptCompletionSuggestNext: "给出下一步的建议",
+	KeyAttemptCompletionSuggestNext: "根据合理推理给出下一步建议",
 	KeyAttemptCompletionPrompt:     "任务结果已就绪，请选择下一步：",
 	KeyAttemptCompletionNotDone:    "任务尚未达到目标",
-	KeyAttemptCompletionExit:       "完成退出",
+	KeyAttemptCompletionExit:       "我已确认完成（退出）",
 	KeyAttemptCompletionContinue:   "用户选择继续，等待你的下一步行动。",
 
 	// FEATURE-452: ask_followup_question fixed options

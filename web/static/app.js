@@ -1647,6 +1647,28 @@ function enterSupplementMode() {
   input.placeholder = T.supplementHint;
 }
 
+// fillInputAndExit fills the main input box with the given prefix and closes the
+// interaction dialog while keeping the interaction pending, so the user's typed
+// supplement is sent back as the interaction answer (FEATURE-459).
+function fillInputAndExit(prefix) {
+  input.value = prefix;
+  autoGrow();
+  supplementMode = true;
+  input.focus();
+  input.placeholder = T.supplementHint;
+  askArea.classList.add("hidden");
+  askInteraction.classList.add("hidden");
+  askInteraction.textContent = "";
+  if (window.__vkHandler) {
+    window.removeEventListener("keydown", window.__vkHandler);
+    window.__vkHandler = null;
+  }
+  if (window.__vkKeyup) {
+    window.removeEventListener("keyup", window.__vkKeyup);
+    window.__vkKeyup = null;
+  }
+}
+
 
 // splitReportSections splits a report body into distinct sections by the
 // known section markers (【任务完成报告】 / 【监督 LLM 审查】). When two or
@@ -1802,7 +1824,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // FIX-454: register the interaction's fixed key options (e.g. "+" / "-")
     // so pressing the physical key triggers the corresponding select action.
     (it.keys || []).forEach((k) => {
-      if (k.key) keyMap[k.key.toLowerCase()] = { action: "select", value: k.value };
+      if (k.key) keyMap[k.key.toLowerCase()] = { action: "select", value: k.value, label: k.label };
     });
   } else {
     // FEATURE-427: symbol/numpad keys only (input-method independent). The
@@ -1853,7 +1875,15 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // sends {action:"select", value:k.Value} back to the backend, matching the
     // TUI askSelect behaviour.
     (it.keys || []).forEach((k) => {
-      addItem(k.key, k.label, () => answerInteraction({ action: "select", value: k.value }));
+      addItem(k.key, k.label, () => {
+        // FEATURE-459: the "+ 任务尚未达到目标" key fills the prefix into the
+        // main input box and exits the dialog so the user can append info.
+        if (k.value === "not_done") {
+          fillInputAndExit(k.label + "：");
+          return;
+        }
+        answerInteraction({ action: "select", value: k.value });
+      });
     });
     // FEATURE-438: a fixed supplementary-info option for select interactions
     // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
@@ -1909,7 +1939,8 @@ function renderVirtualKeyboard(it, isSelect, container) {
         // the input and switch to supplement mode instead of answering.
         if (holdKey === key) {
           clearHold();
-          input.value = m.value || "";
+          // FEATURE-459: the "+" (not_done) key fills its label prefix.
+          input.value = m.value === "not_done" ? (m.label || "") + "：" : (m.value || "");
           autoGrow();
           enterSupplementMode();
         }
@@ -1927,7 +1958,14 @@ function renderVirtualKeyboard(it, isSelect, container) {
     if (keyMap[key] && holdKey === key) {
       // Released before the hold threshold → normal select.
       clearHold();
-      answerInteraction(keyMap[key]);
+      const m = keyMap[key];
+      // FEATURE-459: the "+" (not_done) key fills the prefix into the main
+      // input box and exits the dialog so the user can append info.
+      if (m.value === "not_done") {
+        fillInputAndExit((m.label || "") + "：");
+        return;
+      }
+      answerInteraction(m);
     }
   };
   window.addEventListener("keydown", window.__vkHandler);
