@@ -1645,6 +1645,7 @@ function hideAsk() {
   pendingAsk = null;
   pendingInteraction = null;
   supplementMode = false;
+  supplementInput = null;
   input.placeholder = T.inputHint;
   askArea.classList.add("hidden");
   askInteraction.classList.add("hidden");
@@ -1664,6 +1665,7 @@ function hideAsk() {
 
 let pendingInteraction = null;
 let supplementMode = false; // true while the user is typing supplementary info
+let supplementInput = null; // the dedicated supplement input box (FEATURE-460)
 
 // enterSupplementMode switches to supplement-input mode: the user types in the
 // main input box and the key handler stops hijacking keys (FEATURE-388).
@@ -1699,22 +1701,27 @@ function fillInputAndExit(prefix) {
 // splitReportSections splits a report body into distinct sections by the
 // known section markers (【任务完成报告】 / 【监督 LLM 审查】). When two or
 // more markers are present, each section is returned separately so the UI can
-// render them as independent scrollable blocks (FEATURE-459).
+// render them as independent scrollable blocks (FEATURE-459). Each section is
+// {title, content}: the marker is extracted as a bold title (without the
+// brackets) and the remaining text is the scrollable content (FEATURE-460).
 function splitReportSections(body) {
-  const markers = ["【任务完成报告】", "【监督 LLM 审查】"];
-  const found = markers.filter((m) => body.indexOf(m) >= 0);
-  if (found.length < 2) return [body];
+  const markers = [
+    { marker: "【任务完成报告】", title: "任务完成报告" },
+    { marker: "【监督 LLM 审查】", title: "审查报告" },
+  ];
+  const found = markers.filter((m) => body.indexOf(m.marker) >= 0);
+  if (found.length < 2) return [{ title: "", content: body }];
   // Split on the first marker, then on the second marker.
   const first = found[0];
   const second = found[1];
-  const i1 = body.indexOf(first);
-  const i2 = body.indexOf(second);
-  const a = body.slice(i1, i2).trim();
-  const b = body.slice(i2).trim();
+  const i1 = body.indexOf(first.marker);
+  const i2 = body.indexOf(second.marker);
+  const a = body.slice(i1, i2).replace(first.marker, "").trim();
+  const b = body.slice(i2).replace(second.marker, "").trim();
   const out = [];
-  if (a) out.push(a);
-  if (b) out.push(b);
-  return out.length ? out : [body];
+  if (a) out.push({ title: first.title, content: a });
+  if (b) out.push({ title: second.title, content: b });
+  return out.length ? out : [{ title: "", content: body }];
 }
 
 // showInteraction renders a structured interaction (confirm/select/input/key)
@@ -1754,9 +1761,15 @@ function showInteraction(msg) {
     const sections = splitReportSections(it.body);
     if (sections.length > 1) {
       sections.forEach((sec) => {
+        if (sec.title) {
+          const h = document.createElement("div");
+          h.className = "report-title";
+          h.textContent = sec.title;
+          askInteraction.appendChild(h);
+        }
         const b = document.createElement("div");
         b.className = "interaction-body md report-block";
-        mdRender(b, sec);
+        mdRender(b, sec.content);
         askInteraction.appendChild(b);
       });
     } else {
@@ -1777,6 +1790,31 @@ function showInteraction(msg) {
   } else if (it.kind === "confirm") {
     // Option buttons below.
     renderVirtualKeyboard(it, false);
+  }
+
+  // FEATURE-460: a dedicated supplement input box below the option buttons.
+  // Clicking it cancels shortcut-key monitoring (supplementMode=true) so the
+  // user can type extra info freely; the typed text is then appended to the
+  // chosen option when a button is clicked.
+  if (it.kind === "select" || it.kind === "confirm") {
+    const supRow = document.createElement("div");
+    supRow.className = "interaction-supplement";
+    const supLabel = document.createElement("span");
+    supLabel.className = "supplement-label";
+    supLabel.textContent = T.supplement + "：";
+    const supInput = document.createElement("input");
+    supInput.type = "text";
+    supInput.autocomplete = "off";
+    supInput.placeholder = T.supplementHint;
+    supInput.addEventListener("focus", () => { supplementMode = true; });
+    supInput.addEventListener("blur", () => { supplementMode = false; });
+    supInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); sendSupplement(); }
+    });
+    supRow.appendChild(supLabel);
+    supRow.appendChild(supInput);
+    askInteraction.appendChild(supRow);
+    supplementInput = supInput;
   }
 
   // Free input for the pure-input kind (ask_followup_question without options).
@@ -1894,7 +1932,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // option text beside it. Clicking a key or pressing the physical number
     // key selects that option. No [1]-[9] approve-count or Enter approve items.
     it.options.forEach((opt, i) => {
-      addItem(String(i + 1), opt, () => answerInteraction({ action: "select", value: opt }));
+      addItem(String(i + 1), opt, () => answerSelectWithSupplement(opt));
     });
     // FIX-454: render the interaction's fixed key options (e.g. attempt_completion's
     // "+ 任务尚未达到目标" / "- 完成退出") as [Key] Label buttons. Clicking one
@@ -1908,13 +1946,19 @@ function renderVirtualKeyboard(it, isSelect, container) {
           fillInputAndExit(k.label + "：");
           return;
         }
-        answerInteraction({ action: "select", value: k.value });
+        // FEATURE-460: "我已确认完成（退出）" directly exits without sending.
+        if (k.value === "exit") {
+          hideAsk();
+          return;
+        }
+        // FEATURE-460: append the typed supplement for other fixed keys.
+        answerSelectWithSupplement(k.value);
       });
     });
     // FEATURE-438: a fixed supplementary-info option for select interactions
     // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
     // supplement-input mode so the user can type extra info in the main box.
-    addItem("空格/Ins/0", T.supplement, () => enterSupplementMode(), "opt-space");
+    addItem("空格/Ins/0", T.supplement, () => sendSupplement(), "opt-space");
   } else {
     // FEATURE-427: symbol/numpad action keys (skip enter, handled separately).
     Object.keys(keyMap).forEach((key) => {
@@ -4053,3 +4097,34 @@ async function refreshBranch() {
   loadTree();
   wsConnect();
 })();
+
+
+/* ---------- FEATURE-460: supplement input helpers ---------- */
+
+// getSupplement returns the trimmed text typed in the dedicated supplement
+// input box, or "" if none (FEATURE-460).
+function getSupplement() {
+  return supplementInput ? supplementInput.value.trim() : "";
+}
+
+// sendSupplement sends the user's typed supplement as the interaction answer.
+// If nothing was typed, it just focuses the supplement input (FEATURE-460).
+function sendSupplement() {
+  const sup = getSupplement();
+  if (sup) {
+    answerInteraction({ action: "input", value: sup });
+  } else if (supplementInput) {
+    supplementInput.focus();
+  }
+}
+
+// answerSelectWithSupplement answers a select option, appending the user's
+// typed supplement (option + "，" + supplement) when present (FEATURE-460).
+function answerSelectWithSupplement(opt) {
+  const sup = getSupplement();
+  if (sup) {
+    answerInteraction({ action: "select", value: opt + "，" + sup });
+  } else {
+    answerInteraction({ action: "select", value: opt });
+  }
+}

@@ -623,7 +623,7 @@ var enMessages = map[string]string{
 	KeySettingCmd_612: "✅ Task completed\n\n%s",
 
 	// FEATURE-452: attempt_completion completion-confirm dialog
-	KeyAttemptCompletionSuggestNext: "Give next-step suggestions based on reasonable reasoning",
+	KeyAttemptCompletionSuggestNext: "Give next-step suggestions",
 	KeyAttemptCompletionPrompt:     "The task result is ready. Choose a next step:",
 	KeyAttemptCompletionNotDone:    "Task has not reached the goal yet",
 	KeyAttemptCompletionExit:       "I have confirmed completion (exit)",
