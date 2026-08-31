@@ -117,6 +117,15 @@ func (a *Agent) supervisorMaxRetries() int {
 	return 20
 }
 
+// supervisorMaxRounds returns the configured max tool-call rounds within a
+// single supervisor review (default 50).
+func (a *Agent) supervisorMaxRounds() int {
+	if a.cfg != nil && a.cfg.LLM.Supervisor.MaxRounds > 0 {
+		return a.cfg.LLM.Supervisor.MaxRounds
+	}
+	return 50
+}
+
 // supervisorClearContext reports whether the supervisor context should be
 // cleared before each review (default false = accumulate).
 func (a *Agent) supervisorClearContext() bool {
@@ -312,7 +321,7 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 	// Multi-round tool-call loop: the supervisor may call whitelisted tools to
 	// verify the delivery, then submit_review to conclude. Whitelisted tools are
 	// executed; non-whitelisted tools are auto-rejected (scheme B).
-	maxRounds := 8
+	maxRounds := a.supervisorMaxRounds()
 	// FEATURE-461: round 1 shows the initial template prompt; subsequent
 	// rounds show the previous round's tool-call return content (the new
 	// context added to the supervisor), not the same full template again.

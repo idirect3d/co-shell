@@ -612,6 +612,24 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Supervisor max-retries set to %d", n)
 		return fmt.Sprintf("%d", n), nil
 
+	case "supervisor-max-rounds":
+		if len(args) < 2 {
+			return fmt.Sprintf("%d", h.cfg.LLM.Supervisor.MaxRounds), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			return "", fmt.Errorf("invalid supervisor-max-rounds value: %s", args[1])
+		}
+		if n < 0 {
+			return "", fmt.Errorf("supervisor-max-rounds must be >= 0")
+		}
+		h.cfg.LLM.Supervisor.MaxRounds = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Supervisor max-rounds set to %d", n)
+		return fmt.Sprintf("%d", n), nil
+
 	case "supervisor-allowed-tools":
 		if len(args) < 2 {
 			if len(h.cfg.LLM.Supervisor.AllowedTools) == 0 {
