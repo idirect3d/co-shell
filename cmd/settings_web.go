@@ -157,6 +157,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 	developerGroup := []WebSettingItem{
 		{Key: "debug", Value: boolStr(llm.DebugMode), Desc: i18n.T(i18n.KeyCol3Debug), Type: "bool"},
 		{Key: "log", Value: log.LogLevelString(log.GetLevel()), Desc: i18n.T(i18n.KeyCol3Log), Type: "enum", Options: []string{"debug", "info", "warn", "error", "off"}},
+		{Key: "llm-log", Value: boolStr(log.IsLLMInteractionEnabled()), Desc: i18n.T(i18n.KeyCol3LLMInteractionLog), Type: "bool"},
 		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string"},
 	}
 
