@@ -229,7 +229,8 @@ func TestRunSupervisorReview_MaxRetriesExceeded(t *testing.T) {
 	}
 }
 
-// UC-0024: supervisor call failure degrades to pass-through (safe default).
+// UC-0024: supervisor call failure degrades to pass-through (safe default) and
+// surfaces the failure to the user via a non-empty report (FEATURE-459).
 func TestRunSupervisorReview_CallFailure(t *testing.T) {
 	ag := newSupervisorTestAgent()
 	// No model available → callSupervisor returns error → pass through.
@@ -237,8 +238,15 @@ func TestRunSupervisorReview_CallFailure(t *testing.T) {
 	if !approved {
 		t.Error("should pass through when supervisor call fails")
 	}
-	if feedback != "" || report != "" {
-		t.Errorf("call-failure should return empty feedback/report, got %q / %q", feedback, report)
+	if feedback != "" {
+		t.Errorf("call-failure should return empty feedback, got %q", feedback)
+	}
+	// The failure must be surfaced to the user via a non-empty report.
+	if report == "" {
+		t.Error("call-failure should return a non-empty report with the failure info")
+	}
+	if !strings.Contains(report, "审查失败") {
+		t.Errorf("report = %q, want to contain 审查失败 (supervisor failure info)", report)
 	}
 }
 

@@ -9,6 +9,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/idirect3d/co-shell/config"
@@ -114,5 +115,80 @@ func TestAttemptCompletionConfirmDisabled(t *testing.T) {
 	}
 	if mgr.captured.Kind != "" {
 		t.Errorf("interaction captured = %+v, want none when disabled", mgr.captured)
+	}
+}
+
+// TestAttemptCompletionBodyShowsSupervisorReport verifies that when the
+// supervisor review returns a non-empty report (e.g. force-pass after max
+// retries), the completion-confirm dialog Body carries the main LLM's final
+// report first, then the supervisor's conclusion/reason/suggestion for human
+// review (FEATURE-459).
+func TestAttemptCompletionBodyShowsSupervisorReport(t *testing.T) {
+	ag, mgr := newAttemptCompletionAgent(true)
+	mgr.askResult = InteractionResult{Action: ActionSelect, Value: "exit", Raw: "-"}
+	// Enable supervisor and set rejectCount beyond maxRetries so
+	// runSupervisorReview force-passes with a non-empty report (no real LLM call).
+	ag.SetConfig(&config.Config{LLM: config.LLMConfig{
+		AttemptCompletionConfirm: true,
+		Supervisor: config.SupervisorConfig{
+			Enabled:     true,
+			EntryObject: true,
+			MaxRetries:  3,
+		},
+	}})
+	ag.supervisorState = newSupervisorState()
+	ag.supervisorState.ctx.rejectCount = 3
+	ag.supervisorState.ctx.lastReason = "still incomplete"
+
+	_, err := ag.attemptCompletionTool(context.Background(), map[string]interface{}{
+		"result":           "done",
+		"session_title":    "t",
+		"session_keywords": "k",
+	})
+	if err != nil {
+		t.Fatalf("attemptCompletionTool error: %v", err)
+	}
+	if mgr.captured.Body == "" {
+		t.Error("dialog Body is empty, want main report + supervisor report shown for human review")
+	}
+	// The main LLM's final report must appear first.
+	if !strings.Contains(mgr.captured.Body, "任务完成报告") {
+		t.Errorf("dialog Body = %q, want to contain 任务完成报告 (main LLM report)", mgr.captured.Body)
+	}
+	if !strings.Contains(mgr.captured.Body, "done") {
+		t.Errorf("dialog Body = %q, want to contain the main LLM result", mgr.captured.Body)
+	}
+	// The supervisor force-pass message must appear below.
+	if !strings.Contains(mgr.captured.Body, "强制放行") {
+		t.Errorf("dialog Body = %q, want to contain 强制放行 (supervisor force-pass message)", mgr.captured.Body)
+	}
+}
+
+// TestAttemptCompletionBodyShowsMainReportWithoutSupervisor verifies that when
+// the supervisor is disabled (no report), the completion-confirm dialog Body
+// still shows the main LLM's final report but no supervisor section
+// (FEATURE-459).
+func TestAttemptCompletionBodyShowsMainReportWithoutSupervisor(t *testing.T) {
+	ag, mgr := newAttemptCompletionAgent(true)
+	mgr.askResult = InteractionResult{Action: ActionSelect, Value: "exit", Raw: "-"}
+
+	_, err := ag.attemptCompletionTool(context.Background(), map[string]interface{}{
+		"result":           "done",
+		"session_title":    "t",
+		"session_keywords": "k",
+	})
+	if err != nil {
+		t.Fatalf("attemptCompletionTool error: %v", err)
+	}
+	// The main LLM's final report must be shown even without supervisor.
+	if !strings.Contains(mgr.captured.Body, "任务完成报告") {
+		t.Errorf("dialog Body = %q, want to contain 任务完成报告 (main LLM report)", mgr.captured.Body)
+	}
+	if !strings.Contains(mgr.captured.Body, "done") {
+		t.Errorf("dialog Body = %q, want to contain the main LLM result", mgr.captured.Body)
+	}
+	// No supervisor section when supervisor is disabled.
+	if strings.Contains(mgr.captured.Body, "监督 LLM") {
+		t.Errorf("dialog Body = %q, want no supervisor section when disabled", mgr.captured.Body)
 	}
 }
