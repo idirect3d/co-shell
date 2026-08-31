@@ -357,6 +357,8 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return boolToString(cfg.LLM.Supervisor.ClearContext)
 	case "supervisor-max-retries":
 		return fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRetries)
+	case "supervisor-max-rounds":
+		return fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRounds)
 	case "supervisor-allowed-tools":
 		if len(cfg.LLM.Supervisor.AllowedTools) == 0 {
 			return "(default)"
@@ -1139,6 +1141,20 @@ func applySetting(a *Agent, param, value string) error {
 			return err
 		}
 		log.Info("Supervisor max-retries set via LLM tool: %d", n)
+
+	case "supervisor-max-rounds":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid supervisor-max-rounds value: %s", value)
+		}
+		if n < 0 {
+			return fmt.Errorf("supervisor-max-rounds must be >= 0")
+		}
+		cfg.LLM.Supervisor.MaxRounds = n
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Supervisor max-rounds set via LLM tool: %d", n)
 
 	case "supervisor-allowed-tools":
 		// Comma-separated tool names; empty resets to default whitelist.

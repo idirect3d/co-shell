@@ -608,6 +608,11 @@ type SupervisorConfig struct {
 	// user for manual judgment (anti-dead-loop). Default: 20.
 	MaxRetries int `json:"max_retries"`
 
+	// MaxRounds: maximum tool-call rounds within a single supervisor review
+	// (the supervisor may call whitelisted tools to verify the delivery before
+	// submitting its review). Default: 50.
+	MaxRounds int `json:"max_rounds"`
+
 	// AllowedTools: explicit tool whitelist (scheme B) for the supervisor.
 	// Only these low-risk tools are allowed; anything else is auto-rejected.
 	// When empty, a safe default whitelist is used.
@@ -1040,6 +1045,7 @@ func DefaultConfig() *Config {
 				EntryTask:     false,
 				ClearContext:  false,
 				MaxRetries:    20,
+				MaxRounds:     50,
 				ShowSupPrompt: false,
 				ShowSupStream: false,
 			},

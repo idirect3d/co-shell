@@ -137,6 +137,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "supervisor-entry-task", Value: boolStr(llm.Supervisor.EntryTask), Desc: "介入点 task (任务进度完成)", Type: "bool"},
 		{Key: "supervisor-clear-context", Value: boolStr(llm.Supervisor.ClearContext), Desc: "每次审查清空上下文", Type: "bool"},
 		{Key: "supervisor-max-retries", Value: strconv.Itoa(llm.Supervisor.MaxRetries), Desc: "最大打回次数", Type: "number"},
+		{Key: "supervisor-max-rounds", Value: strconv.Itoa(llm.Supervisor.MaxRounds), Desc: "单次审查最大迭代次数", Type: "number"},
 		{Key: "supervisor-allowed-tools", Value: supervisorAllowedToolsDisplay(llm), Desc: "工具白名单(逗号分隔)", Type: "string"},
 		// FEATURE-460: SUP LLM interaction streaming switches.
 		{Key: "show-sup-prompt", Value: boolStr(llm.Supervisor.ShowSupPrompt), Desc: i18n.T(i18n.KeyCol3ShowSupPrompt), Type: "bool"},

@@ -1819,6 +1819,16 @@ aside {
 }
 .set-result.ok { color: var(--ok, #2ecc71); }
 .set-result.err { color: var(--err, #e74c3c); }
+/* FEATURE-462: settings change result is pinned to the bottom of the settings
+   pane (right side) so it does not shift the setting list and cause the panel
+   to jump. */
+#settingsResult {
+  margin-top: auto;
+  min-height: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
 
 /* ---------- delete-session confirm modal (FEATURE-387) ---------- */
 
@@ -2314,26 +2324,12 @@ aside {
   overflow-y: auto;
 }
 .ev.sup-content-expanded .sup-content-body { max-height: none; }
-/* FEATURE-460: dedicated supplement input box below the option buttons. */
-.interaction-supplement {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* FEATURE-462: hint line below the option buttons telling the user they can
+   long-press a button or click the main input box to supplement. */
+.interaction-supplement-hint {
+  font-size: 11px;
+  color: var(--fg-faint);
+  text-align: center;
   margin-top: 8px;
+  user-select: none;
 }
-.interaction-supplement .supplement-label {
-  font-size: 12px;
-  color: var(--fg);
-  white-space: nowrap;
-}
-.interaction-supplement input {
-  flex: 1;
-  background: var(--mono-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--fg);
-  padding: 6px 10px;
-  font-family: ui-monospace, Menlo, monospace;
-  outline: none;
-}
-.interaction-supplement input:focus { border-color: var(--accent); }

@@ -230,6 +230,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "supervisor-entry-task",
 		subcommand == "supervisor-clear-context",
 		subcommand == "supervisor-max-retries",
+		subcommand == "supervisor-max-rounds",
 		subcommand == "supervisor-allowed-tools",
 		// FEATURE-460: SUP LLM interaction streaming switches.
 		subcommand == "show-sup-prompt",
@@ -767,6 +768,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("supervisor-entry-task", boolStr(cfg.LLM.Supervisor.EntryTask), "on/off"),
 		makeLine("supervisor-clear-context", boolStr(cfg.LLM.Supervisor.ClearContext), "on/off"),
 		makeLine("supervisor-max-retries", fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRetries), "int"),
+		makeLine("supervisor-max-rounds", fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRounds), "int"),
 		makeLine("supervisor-allowed-tools", supervisorAllowedToolsDisplay(cfg.LLM), "comma-separated"),
 		// FEATURE-460: SUP LLM interaction streaming switches.
 		makeLine("show-sup-prompt", boolStr(cfg.LLM.Supervisor.ShowSupPrompt), "on/off"),

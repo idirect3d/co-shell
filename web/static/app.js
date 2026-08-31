@@ -33,7 +33,7 @@ const I18N = {
     modelDeleteConfirm: "确定要删除模型「%s」吗？此操作不可撤销。",
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
-    supplement: "补充信息", supplementHint: "输入补充信息，Enter 发送（仍可点击上方按钮）",
+    supplement: "补充信息", supplementHint: "长按按钮或点击输入框可补充信息",
     numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
@@ -68,7 +68,7 @@ const I18N = {
     modelDeleteConfirm: "Delete model \"%s\"? This cannot be undone.",
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
-    supplement: "Supplement", supplementHint: "Type supplementary info, Enter to send (buttons still clickable)",
+    supplement: "Supplement", supplementHint: "Long-press a button or click the input box to supplement",
     numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
@@ -1783,7 +1783,6 @@ function hideAsk() {
   pendingAsk = null;
   pendingInteraction = null;
   supplementMode = false;
-  supplementInput = null;
   input.placeholder = T.inputHint;
   askArea.classList.add("hidden");
   askInteraction.classList.add("hidden");
@@ -1803,11 +1802,21 @@ function hideAsk() {
 
 let pendingInteraction = null;
 let supplementMode = false; // true while the user is typing supplementary info
-let supplementInput = null; // the dedicated supplement input box (FEATURE-460)
 
 // enterSupplementMode switches to supplement-input mode: the user types in the
 // main input box and the key handler stops hijacking keys (FEATURE-388).
 function enterSupplementMode() {
+  supplementMode = true;
+  input.focus();
+  input.placeholder = T.supplementHint;
+}
+
+// longPressSupplement fills the given content into the main input box and
+// enters supplement mode, so the user can append extra info before sending.
+// It is the mouse equivalent of the physical-key long-press (FEATURE-462).
+function longPressSupplement(content) {
+  input.value = content || "";
+  autoGrow();
   supplementMode = true;
   input.focus();
   input.placeholder = T.supplementHint;
@@ -1930,30 +1939,10 @@ function showInteraction(msg) {
     renderVirtualKeyboard(it, false);
   }
 
-  // FEATURE-460: a dedicated supplement input box below the option buttons.
-  // Clicking it cancels shortcut-key monitoring (supplementMode=true) so the
-  // user can type extra info freely; the typed text is then appended to the
-  // chosen option when a button is clicked.
-  if (it.kind === "select" || it.kind === "confirm") {
-    const supRow = document.createElement("div");
-    supRow.className = "interaction-supplement";
-    const supLabel = document.createElement("span");
-    supLabel.className = "supplement-label";
-    supLabel.textContent = T.supplement + "：";
-    const supInput = document.createElement("input");
-    supInput.type = "text";
-    supInput.autocomplete = "off";
-    supInput.placeholder = T.supplementHint;
-    supInput.addEventListener("focus", () => { supplementMode = true; });
-    supInput.addEventListener("blur", () => { supplementMode = false; });
-    supInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); sendSupplement(); }
-    });
-    supRow.appendChild(supLabel);
-    supRow.appendChild(supInput);
-    askInteraction.appendChild(supRow);
-    supplementInput = supInput;
-  }
+  // FEATURE-462: the dedicated supplement input box is removed. Supplement is
+  // typed in the main input box (clicking it cancels shortcut-key monitoring);
+  // a hint line below the option buttons tells the user they can long-press to
+  // supplement.
 
   // Free input for the pure-input kind (ask_followup_question without options).
   // For confirm interactions, supplementary instructions are typed in the main
@@ -2049,13 +2038,37 @@ function renderVirtualKeyboard(it, isSelect, container) {
   const wrap = document.createElement("div");
   wrap.className = "option-buttons";
   // Helper to build one option item: key button + label beside it.
-  const addItem = (keyText, labelText, onClick, extraCls) => {
+  // FEATURE-462: onLongPress (optional) is the content to fill into the main
+  // input box when the button is mouse-held >=500ms, entering supplement mode
+  // (equivalent to the physical-key long-press).
+  const addItem = (keyText, labelText, onClick, extraCls, onLongPress) => {
     const item = document.createElement("div");
     item.className = "opt-item" + (extraCls ? " " + extraCls : "");
     const b = document.createElement("button");
     b.className = "opt-key-btn";
     b.textContent = keyText;
     b.onclick = onClick;
+    if (onLongPress) {
+      let pressTimer = null;
+      let longPressed = false;
+      b.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        longPressed = false;
+        pressTimer = setTimeout(() => {
+          longPressed = true;
+          onLongPress();
+        }, 500);
+      });
+      b.addEventListener("mouseup", () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      });
+      b.addEventListener("mouseleave", () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      });
+      b.addEventListener("click", (e) => {
+        if (longPressed) { e.stopPropagation(); e.preventDefault(); longPressed = false; }
+      });
+    }
     const label = document.createElement("span");
     label.className = "opt-label";
     // FEATURE-409: option text may carry inline markdown (bold, code) —
@@ -2070,7 +2083,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // option text beside it. Clicking a key or pressing the physical number
     // key selects that option. No [1]-[9] approve-count or Enter approve items.
     it.options.forEach((opt, i) => {
-      addItem(String(i + 1), opt, () => answerSelectWithSupplement(opt));
+      addItem(String(i + 1), opt, () => answerSelectWithSupplement(opt), "", () => longPressSupplement(opt));
     });
     // FIX-454: render the interaction's fixed key options (e.g. attempt_completion's
     // "+ 任务尚未达到目标" / "- 完成退出") as [Key] Label buttons. Clicking one
@@ -2091,7 +2104,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
         }
         // FEATURE-460: append the typed supplement for other fixed keys.
         answerSelectWithSupplement(k.value);
-      });
+      }, "", () => longPressSupplement(k.label));
     });
     // FEATURE-438: a fixed supplementary-info option for select interactions
     // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
@@ -2114,6 +2127,14 @@ function renderVirtualKeyboard(it, isSelect, container) {
     addItem("空格/Ins/0", T.supplement, () => enterSupplementMode(), "opt-space");
   }
   target.appendChild(wrap);
+  // FEATURE-462: a hint line below the option buttons telling the user they
+  // can long-press a button (or click the main input box) to supplement.
+  if (isSelect || isToolConfirm) {
+    const hint = document.createElement("div");
+    hint.className = "interaction-supplement-hint";
+    hint.textContent = T.supplementHint;
+    target.appendChild(hint);
+  }
 
   // Listen for physical key presses while this interaction is pending.
   // FEATURE-459: holding a shortcut key (>=500ms) selects the option AND fills
@@ -2395,6 +2416,15 @@ document.addEventListener("keydown", (e) => {
   input.focus();
 });
 input.addEventListener("input", autoGrow);
+// FEATURE-462: clicking the main input box while an interaction is pending
+// cancels shortcut-key monitoring so the user can type supplementary info
+// freely (the dedicated supplement box was removed).
+input.addEventListener("focus", () => {
+  if (pendingInteraction) {
+    supplementMode = true;
+    input.placeholder = T.supplementHint;
+  }
+});
 
 /* ---------- workspace tree ---------- */
 
@@ -3348,12 +3378,21 @@ function renderSettingItem(it) {
   return row;
 }
 
-// showSettingsResult displays the result of a settings_set change.
+// showSettingsResult displays the result of a settings_set change. The message
+// is shown in the dedicated #settingsResult container pinned to the bottom of
+// the settings pane (right side), so it does not shift the setting list and
+// cause the panel to jump (FEATURE-462).
 function showSettingsResult(msg) {
   const el = document.createElement("div");
   el.className = "set-result " + (msg.ok ? "ok" : "err");
   el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
-  settingsDynamic.prepend(el);
+  const box = document.getElementById("settingsResult");
+  if (box) {
+    box.textContent = "";
+    box.appendChild(el);
+  } else {
+    settingsDynamic.prepend(el);
+  }
   setTimeout(() => el.remove(), 3000);
 }
 
@@ -4239,20 +4278,21 @@ async function refreshBranch() {
 
 /* ---------- FEATURE-460: supplement input helpers ---------- */
 
-// getSupplement returns the trimmed text typed in the dedicated supplement
-// input box, or "" if none (FEATURE-460).
+// getSupplement returns the trimmed text typed in the main input box, or ""
+// if none (FEATURE-462: the dedicated supplement box was removed; the main
+// input box is reused for supplementary info).
 function getSupplement() {
-  return supplementInput ? supplementInput.value.trim() : "";
+  return input.value.trim();
 }
 
 // sendSupplement sends the user's typed supplement as the interaction answer.
-// If nothing was typed, it just focuses the supplement input (FEATURE-460).
+// If nothing was typed, it just focuses the main input box (FEATURE-462).
 function sendSupplement() {
   const sup = getSupplement();
   if (sup) {
     answerInteraction({ action: "input", value: sup });
-  } else if (supplementInput) {
-    supplementInput.focus();
+  } else {
+    enterSupplementMode();
   }
 }
 
