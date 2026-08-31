@@ -230,7 +230,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "supervisor-entry-task",
 		subcommand == "supervisor-clear-context",
 		subcommand == "supervisor-max-retries",
-		subcommand == "supervisor-allowed-tools":
+		subcommand == "supervisor-allowed-tools",
+		// FEATURE-460: SUP LLM interaction streaming switches.
+		subcommand == "show-sup-prompt",
+		subcommand == "show-sup-stream":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -765,6 +768,9 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("supervisor-clear-context", boolStr(cfg.LLM.Supervisor.ClearContext), "on/off"),
 		makeLine("supervisor-max-retries", fmt.Sprintf("%d", cfg.LLM.Supervisor.MaxRetries), "int"),
 		makeLine("supervisor-allowed-tools", supervisorAllowedToolsDisplay(cfg.LLM), "comma-separated"),
+		// FEATURE-460: SUP LLM interaction streaming switches.
+		makeLine("show-sup-prompt", boolStr(cfg.LLM.Supervisor.ShowSupPrompt), "on/off"),
+		makeLine("show-sup-stream", boolStr(cfg.LLM.Supervisor.ShowSupStream), "on/off"),
 	)
 	allGroups[len(allGroups)-1] = safetyGroup
 

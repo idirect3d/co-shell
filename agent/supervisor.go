@@ -309,21 +309,32 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 	}
 	defer cancel()
 
+	// Emit the prompt as a SUP block when show-sup-prompt is on (FEATURE-460).
+	a.emitSupPrompt(SupScenarioSupervisor, prompt)
+
 	// Multi-round tool-call loop: the supervisor may call whitelisted tools to
 	// verify the delivery, then submit_review to conclude. Whitelisted tools are
 	// executed; non-whitelisted tools are auto-rejected (scheme B).
 	maxRounds := 8
 	for round := 0; round < maxRounds; round++ {
-		resp, err := client.Chat(cctx, messages, tools)
+		eventCh, err := client.ChatStream(cctx, messages, tools)
 		if err != nil {
 			return nil, fmt.Errorf("supervisor call failed: %w", err)
 		}
 
-		// Collect tool calls (OpenAI mode: resp.ToolCalls; XML mode: parse content).
+		// Consume the stream: forward content to the frontend as a SUP block
+		// (when show-sup-stream is on) and accumulate the full content + tool
+		// calls so the structured submit_review result can be parsed.
+		content, streamCalls, streamErr := a.streamSupReply(cctx, SupScenarioSupervisor, eventCh)
+		if streamErr != nil {
+			return nil, fmt.Errorf("supervisor call failed: %w", streamErr)
+		}
+
+		// Collect tool calls (OpenAI mode: accumulated tool calls; XML mode: parse content).
 		var calls []llm.ToolCall
-		calls = append(calls, resp.ToolCalls...)
-		if resp.Content != "" {
-			calls = append(calls, ParseXMLToolCalls(resp.Content)...)
+		calls = append(calls, streamCalls...)
+		if content != "" {
+			calls = append(calls, ParseXMLToolCalls(content)...)
 		}
 
 		if len(calls) == 0 {

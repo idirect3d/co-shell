@@ -1470,6 +1470,9 @@ const (
 	KeyProblemSolverUserPrompt   = "problem_solver_user_prompt"
 	// FEATURE-456: dedicated supervisor LLM for delivery review
 	KeySupervisorSystemPrompt = "supervisor_system_prompt"
+	// FEATURE-460: SUP LLM interaction streaming switches
+	KeyCol3ShowSupPrompt = "col3_show_sup_prompt"
+	KeyCol3ShowSupStream = "col3_show_sup_stream"
 	KeyLoopJudgeUserPrompt       = "loop_judge_user_prompt"
 	KeyLoopJudgeFallback         = "loop_judge_fallback"
 	KeyLoopFailedStrategiesNone  = "loop_failed_strategies_none" // FEATURE-349
