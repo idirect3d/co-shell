@@ -362,6 +362,11 @@ func getSettingValue(cfg *config.Config, param string) string {
 			return "(default)"
 		}
 		return strings.Join(cfg.LLM.Supervisor.AllowedTools, ",")
+	// FEATURE-460: SUP LLM interaction streaming switches.
+	case "show-sup-prompt":
+		return boolToString(cfg.LLM.Supervisor.ShowSupPrompt)
+	case "show-sup-stream":
+		return boolToString(cfg.LLM.Supervisor.ShowSupStream)
 	default:
 		return "(unknown)"
 	}
@@ -1153,6 +1158,29 @@ func applySetting(a *Agent, param, value string) error {
 			return err
 		}
 		log.Info("Supervisor allowed-tools set via LLM tool: %v", cfg.LLM.Supervisor.AllowedTools)
+
+	// FEATURE-460: SUP LLM interaction streaming switches.
+	case "show-sup-prompt":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.Supervisor.ShowSupPrompt = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Show-sup-prompt set via LLM tool: %v", b)
+
+	case "show-sup-stream":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.Supervisor.ShowSupStream = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Show-sup-stream set via LLM tool: %v", b)
 
 	default:
 		return fmt.Errorf("unknown setting: %s", param)

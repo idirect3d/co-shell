@@ -612,6 +612,16 @@ type SupervisorConfig struct {
 	// Only these low-risk tools are allowed; anything else is auto-rejected.
 	// When empty, a safe default whitelist is used.
 	AllowedTools []string `json:"allowed_tools,omitempty"`
+
+	// ShowSupPrompt: whether to expose the prompt sent to the LLM for the
+	// three SUP scenarios (problem solver / loop judge / supervisor) to the
+	// frontend as a SUP block (FEATURE-460). Default: false.
+	ShowSupPrompt bool `json:"show_sup_prompt"`
+
+	// ShowSupStream: whether to stream the LLM reply for the three SUP
+	// scenarios (problem solver / loop judge / supervisor) to the frontend
+	// as a SUP block (FEATURE-460). Default: false.
+	ShowSupStream bool `json:"show_sup_stream"`
 }
 
 // EmojiPrefixes defines the emoji prefixes for different output roles.
@@ -1024,12 +1034,14 @@ func DefaultConfig() *Config {
 			XMLStreamValidate:          true,
 			ProblemSolverEnabled:       true,
 			Supervisor: SupervisorConfig{
-				Enabled:      true,
-				EntryObject:  true,
-				EntryExit:    true,
-				EntryTask:    false,
-				ClearContext: false,
-				MaxRetries:   20,
+				Enabled:       true,
+				EntryObject:   true,
+				EntryExit:     true,
+				EntryTask:     false,
+				ClearContext:  false,
+				MaxRetries:    20,
+				ShowSupPrompt: false,
+				ShowSupStream: false,
 			},
 		},
 

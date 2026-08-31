@@ -401,6 +401,9 @@ function parseToolSummary(ev) {
 let curLLM = null;      // current streaming llm block
 let curThinking = null; // current streaming thinking block
 let curTool = null;     // current tool block (one block per invocation)
+// FEATURE-460: current streaming SUP block (problem solver / loop judge /
+// supervisor LLM interaction). { body, raw, raf, title }.
+let curSup = null;
 // FIX-448: toolName -> curTool object map, so when one LLM iteration calls
 // multiple tools the input/result events can target the correct block instead
 // of always the last one (curTool points to the last block after streaming).
@@ -664,7 +667,8 @@ function applyBlockDisplayMode(box, cls) {
 // currently streaming output (FEATURE-409).
 function isStreamingBody(body) {
   return (curLLM && curLLM.body === body) || (curThinking && curThinking.body === body) ||
-         (curTool && curTool.body === body) || (curREPL && curREPL.body === body);
+         (curTool && curTool.body === body) || (curREPL && curREPL.body === body) ||
+         (curSup && curSup.body === body);
 }
 
 // markStreaming flags a block as currently streaming: it shows the dynamic
@@ -869,7 +873,7 @@ function renderEvent(ev) {
         stream.appendChild(line);
       }
     }
-    curLLM = curThinking = null;
+    curLLM = curThinking = curSup = null;
     // FEATURE-409: the LLM iteration ended (token usage refreshed) — stop the
     // breathing dot on all blocks now, not only at the final done event.
     document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
@@ -924,6 +928,28 @@ function renderEvent(ev) {
   const streaming = ev.type === "content_chunk" || ev.type === "thinking_chunk";
   if (streaming) {
     if (ev.type === "content_chunk") {
+      // FEATURE-460: content_chunk on the supervisor channel is a streaming
+      // SUP block (problem solver / loop judge / supervisor LLM interaction).
+      // The scenario title is carried in ev.meta.sup_scenario.
+      if (ev.chan === "supervisor") {
+        const supTitle = (ev.meta && ev.meta.sup_scenario) || "SUP";
+        if (!curSup || curSup.title !== supTitle) {
+          unmarkStreaming(curSup && curSup.body);
+          unmarkStreaming(curLLM && curLLM.body);
+          unmarkStreaming(curThinking && curThinking.body);
+          unmarkStreaming(curTool && curTool.body);
+          curSup = newStreamBlock("supervisor", supTitle, msgIndex);
+          curSup.title = supTitle;
+          curLLM = null;
+          curThinking = null;
+          curTool = null;
+        }
+        curSup.raw += ev.text || "";
+        markStreaming(curSup.body);
+        scheduleMd(curSup);
+        scrollStream();
+        return;
+      }
       if (!curLLM) {
         // FEATURE-409: the previous thinking/tool blocks just ended — hide
         // their "..." immediately, then start the new LLM block.
@@ -1105,12 +1131,12 @@ function renderEvent(ev) {
       refreshBranch();
       loadTree();
     }
-    curLLM = curThinking = null;
+    curLLM = curThinking = curSup = null;
     scrollStream();
     return;
   }
 
-  curLLM = curThinking = null;
+  curLLM = curThinking = curSup = null;
   const label = CHAN_LABEL[ev.chan] || (ev.chan || "SYS").toUpperCase();
   // While the model wizard is active, route its ui_text output to the wizard
   // modal instead of the main event stream (FEATURE-422).

@@ -1187,6 +1187,8 @@ no liability whatsoever.`,
 	KeyCol3DefaultVisionModel:   "default vision model",
 	KeyCol3DefaultProblemModel:  "default problem-solving model",
 	KeyCol3ProblemSolverEnabled: "problem solver enabled",
+	KeyCol3ShowSupPrompt:        "show SUP scenario prompt sent to LLM",
+	KeyCol3ShowSupStream:        "stream SUP scenario LLM reply",
 	KeyDefaultModelCurrent:      "Current: %s",
 	KeyDefaultModelSet:          "✅ Set to: %s",
 
