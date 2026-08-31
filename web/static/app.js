@@ -401,6 +401,9 @@ function parseToolSummary(ev) {
 let curLLM = null;      // current streaming llm block
 let curThinking = null; // current streaming thinking block
 let curTool = null;     // current tool block (one block per invocation)
+// FEATURE-460: current streaming SUP block (problem solver / loop judge /
+// supervisor LLM interaction). { body, raw, raf, title }.
+let curSup = null;
 // FIX-448: toolName -> curTool object map, so when one LLM iteration calls
 // multiple tools the input/result events can target the correct block instead
 // of always the last one (curTool points to the last block after streaming).
@@ -498,6 +501,38 @@ function newStreamBlock(cls, label, msgIndex) {
   iterBlocks.push(body);
   lastBlock = body;
   return { body, raw: "", raf: 0, hasResult: false };
+}
+
+// newSupBlock creates a SUP block with three sections (FEATURE-461):
+//   top    - the prompt sent to the LLM (.sup-prompt, max-height scrollable)
+//   middle - the streaming reply (the main .ev-body, max-height scrollable)
+//   bottom - the tool call's input (.sup-tool, max-height scrollable)
+function newSupBlock(title, msgIndex) {
+  const body = makeBlock("supervisor", title, msgIndex);
+  const box = body.parentElement;
+  // Top: prompt section.
+  const prompt = document.createElement("div");
+  prompt.className = "sup-prompt";
+  const promptHead = document.createElement("div");
+  promptHead.className = "sup-part-head";
+  promptHead.textContent = "提示词";
+  const promptBody = document.createElement("div");
+  promptBody.className = "sup-part-body";
+  prompt.appendChild(promptHead);
+  prompt.appendChild(promptBody);
+  box.insertBefore(prompt, body);
+  // Bottom: tool input section.
+  const tool = document.createElement("div");
+  tool.className = "sup-tool";
+  const toolHead = document.createElement("div");
+  toolHead.className = "sup-part-head";
+  toolHead.textContent = "工具输入";
+  const toolBody = document.createElement("div");
+  toolBody.className = "sup-part-body";
+  tool.appendChild(toolHead);
+  tool.appendChild(toolBody);
+  box.appendChild(tool);
+  return { body, raw: "", raf: 0, title, promptBody, toolBody };
 }
 
 // ensureToolParams creates (or returns) the input-parameter sub-block inside a
@@ -664,7 +699,8 @@ function applyBlockDisplayMode(box, cls) {
 // currently streaming output (FEATURE-409).
 function isStreamingBody(body) {
   return (curLLM && curLLM.body === body) || (curThinking && curThinking.body === body) ||
-         (curTool && curTool.body === body) || (curREPL && curREPL.body === body);
+         (curTool && curTool.body === body) || (curREPL && curREPL.body === body) ||
+         (curSup && curSup.body === body);
 }
 
 // markStreaming flags a block as currently streaming: it shows the dynamic
@@ -869,7 +905,7 @@ function renderEvent(ev) {
         stream.appendChild(line);
       }
     }
-    curLLM = curThinking = null;
+    curLLM = curThinking = curSup = null;
     // FEATURE-409: the LLM iteration ended (token usage refreshed) — stop the
     // breathing dot on all blocks now, not only at the final done event.
     document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
@@ -924,6 +960,44 @@ function renderEvent(ev) {
   const streaming = ev.type === "content_chunk" || ev.type === "thinking_chunk";
   if (streaming) {
     if (ev.type === "content_chunk") {
+      // FEATURE-460: content_chunk on the supervisor channel is a streaming
+      // SUP block (problem solver / loop judge / supervisor LLM interaction).
+      // The scenario title is carried in ev.meta.sup_scenario.
+      if (ev.chan === "supervisor") {
+        const supTitle = (ev.meta && ev.meta.sup_scenario) || "SUP";
+        const supPart = (ev.meta && ev.meta.sup_part) || "content";
+        // FEATURE-461: a prompt chunk starts a new round -> a new SUP block.
+        if (supPart === "prompt") {
+          unmarkStreaming(curSup && curSup.body);
+          unmarkStreaming(curLLM && curLLM.body);
+          unmarkStreaming(curThinking && curThinking.body);
+          unmarkStreaming(curTool && curTool.body);
+          curSup = newSupBlock(supTitle, msgIndex);
+          curSup.promptBody.textContent = ev.text || "";
+          markStreaming(curSup.body);
+          scrollStream();
+          return;
+        }
+        if (!curSup || curSup.title !== supTitle) {
+          // No active SUP block (e.g. stream on but prompt off): create one.
+          unmarkStreaming(curSup && curSup.body);
+          curSup = newSupBlock(supTitle, msgIndex);
+          curLLM = null;
+          curThinking = null;
+          curTool = null;
+        }
+        if (supPart === "tool") {
+          curSup.toolBody.textContent = ev.text || "";
+          scrollStream();
+          return;
+        }
+        // content: stream into the middle section.
+        curSup.raw += ev.text || "";
+        markStreaming(curSup.body);
+        scheduleMd(curSup);
+        scrollStream();
+        return;
+      }
       if (!curLLM) {
         // FEATURE-409: the previous thinking/tool blocks just ended — hide
         // their "..." immediately, then start the new LLM block.
@@ -1105,12 +1179,12 @@ function renderEvent(ev) {
       refreshBranch();
       loadTree();
     }
-    curLLM = curThinking = null;
+    curLLM = curThinking = curSup = null;
     scrollStream();
     return;
   }
 
-  curLLM = curThinking = null;
+  curLLM = curThinking = curSup = null;
   const label = CHAN_LABEL[ev.chan] || (ev.chan || "SYS").toUpperCase();
   // While the model wizard is active, route its ui_text output to the wizard
   // modal instead of the main event stream (FEATURE-422).
@@ -1619,6 +1693,7 @@ function hideAsk() {
   pendingAsk = null;
   pendingInteraction = null;
   supplementMode = false;
+  supplementInput = null;
   input.placeholder = T.inputHint;
   askArea.classList.add("hidden");
   askInteraction.classList.add("hidden");
@@ -1638,6 +1713,7 @@ function hideAsk() {
 
 let pendingInteraction = null;
 let supplementMode = false; // true while the user is typing supplementary info
+let supplementInput = null; // the dedicated supplement input box (FEATURE-460)
 
 // enterSupplementMode switches to supplement-input mode: the user types in the
 // main input box and the key handler stops hijacking keys (FEATURE-388).
@@ -1673,22 +1749,27 @@ function fillInputAndExit(prefix) {
 // splitReportSections splits a report body into distinct sections by the
 // known section markers (【任务完成报告】 / 【监督 LLM 审查】). When two or
 // more markers are present, each section is returned separately so the UI can
-// render them as independent scrollable blocks (FEATURE-459).
+// render them as independent scrollable blocks (FEATURE-459). Each section is
+// {title, content}: the marker is extracted as a bold title (without the
+// brackets) and the remaining text is the scrollable content (FEATURE-460).
 function splitReportSections(body) {
-  const markers = ["【任务完成报告】", "【监督 LLM 审查】"];
-  const found = markers.filter((m) => body.indexOf(m) >= 0);
-  if (found.length < 2) return [body];
+  const markers = [
+    { marker: "【任务完成报告】", title: "任务完成报告" },
+    { marker: "【监督 LLM 审查】", title: "审查报告" },
+  ];
+  const found = markers.filter((m) => body.indexOf(m.marker) >= 0);
+  if (found.length < 2) return [{ title: "", content: body }];
   // Split on the first marker, then on the second marker.
   const first = found[0];
   const second = found[1];
-  const i1 = body.indexOf(first);
-  const i2 = body.indexOf(second);
-  const a = body.slice(i1, i2).trim();
-  const b = body.slice(i2).trim();
+  const i1 = body.indexOf(first.marker);
+  const i2 = body.indexOf(second.marker);
+  const a = body.slice(i1, i2).replace(first.marker, "").trim();
+  const b = body.slice(i2).replace(second.marker, "").trim();
   const out = [];
-  if (a) out.push(a);
-  if (b) out.push(b);
-  return out.length ? out : [body];
+  if (a) out.push({ title: first.title, content: a });
+  if (b) out.push({ title: second.title, content: b });
+  return out.length ? out : [{ title: "", content: body }];
 }
 
 // showInteraction renders a structured interaction (confirm/select/input/key)
@@ -1728,9 +1809,15 @@ function showInteraction(msg) {
     const sections = splitReportSections(it.body);
     if (sections.length > 1) {
       sections.forEach((sec) => {
+        if (sec.title) {
+          const h = document.createElement("div");
+          h.className = "report-title";
+          h.textContent = sec.title;
+          askInteraction.appendChild(h);
+        }
         const b = document.createElement("div");
         b.className = "interaction-body md report-block";
-        mdRender(b, sec);
+        mdRender(b, sec.content);
         askInteraction.appendChild(b);
       });
     } else {
@@ -1751,6 +1838,31 @@ function showInteraction(msg) {
   } else if (it.kind === "confirm") {
     // Option buttons below.
     renderVirtualKeyboard(it, false);
+  }
+
+  // FEATURE-460: a dedicated supplement input box below the option buttons.
+  // Clicking it cancels shortcut-key monitoring (supplementMode=true) so the
+  // user can type extra info freely; the typed text is then appended to the
+  // chosen option when a button is clicked.
+  if (it.kind === "select" || it.kind === "confirm") {
+    const supRow = document.createElement("div");
+    supRow.className = "interaction-supplement";
+    const supLabel = document.createElement("span");
+    supLabel.className = "supplement-label";
+    supLabel.textContent = T.supplement + "：";
+    const supInput = document.createElement("input");
+    supInput.type = "text";
+    supInput.autocomplete = "off";
+    supInput.placeholder = T.supplementHint;
+    supInput.addEventListener("focus", () => { supplementMode = true; });
+    supInput.addEventListener("blur", () => { supplementMode = false; });
+    supInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); sendSupplement(); }
+    });
+    supRow.appendChild(supLabel);
+    supRow.appendChild(supInput);
+    askInteraction.appendChild(supRow);
+    supplementInput = supInput;
   }
 
   // Free input for the pure-input kind (ask_followup_question without options).
@@ -1868,7 +1980,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // option text beside it. Clicking a key or pressing the physical number
     // key selects that option. No [1]-[9] approve-count or Enter approve items.
     it.options.forEach((opt, i) => {
-      addItem(String(i + 1), opt, () => answerInteraction({ action: "select", value: opt }));
+      addItem(String(i + 1), opt, () => answerSelectWithSupplement(opt));
     });
     // FIX-454: render the interaction's fixed key options (e.g. attempt_completion's
     // "+ 任务尚未达到目标" / "- 完成退出") as [Key] Label buttons. Clicking one
@@ -1882,13 +1994,19 @@ function renderVirtualKeyboard(it, isSelect, container) {
           fillInputAndExit(k.label + "：");
           return;
         }
-        answerInteraction({ action: "select", value: k.value });
+        // FEATURE-460: "我已确认完成（退出）" directly exits without sending.
+        if (k.value === "exit") {
+          hideAsk();
+          return;
+        }
+        // FEATURE-460: append the typed supplement for other fixed keys.
+        answerSelectWithSupplement(k.value);
       });
     });
     // FEATURE-438: a fixed supplementary-info option for select interactions
     // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
     // supplement-input mode so the user can type extra info in the main box.
-    addItem("空格/Ins/0", T.supplement, () => enterSupplementMode(), "opt-space");
+    addItem("空格/Ins/0", T.supplement, () => sendSupplement(), "opt-space");
   } else {
     // FEATURE-427: symbol/numpad action keys (skip enter, handled separately).
     Object.keys(keyMap).forEach((key) => {
@@ -4027,3 +4145,34 @@ async function refreshBranch() {
   loadTree();
   wsConnect();
 })();
+
+
+/* ---------- FEATURE-460: supplement input helpers ---------- */
+
+// getSupplement returns the trimmed text typed in the dedicated supplement
+// input box, or "" if none (FEATURE-460).
+function getSupplement() {
+  return supplementInput ? supplementInput.value.trim() : "";
+}
+
+// sendSupplement sends the user's typed supplement as the interaction answer.
+// If nothing was typed, it just focuses the supplement input (FEATURE-460).
+function sendSupplement() {
+  const sup = getSupplement();
+  if (sup) {
+    answerInteraction({ action: "input", value: sup });
+  } else if (supplementInput) {
+    supplementInput.focus();
+  }
+}
+
+// answerSelectWithSupplement answers a select option, appending the user's
+// typed supplement (option + "，" + supplement) when present (FEATURE-460).
+function answerSelectWithSupplement(opt) {
+  const sup = getSupplement();
+  if (sup) {
+    answerInteraction({ action: "select", value: opt + "，" + sup });
+  } else {
+    answerInteraction({ action: "select", value: opt });
+  }
+}

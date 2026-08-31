@@ -554,13 +554,23 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 
 	// FEATURE-456: dedicated supervisor LLM switches.
 	case "supervisor-enabled", "supervisor-entry-object", "supervisor-entry-exit",
-		"supervisor-entry-task", "supervisor-clear-context":
+		"supervisor-entry-task", "supervisor-clear-context",
+		// FEATURE-460: SUP LLM interaction streaming switches.
+		"show-sup-prompt", "show-sup-stream":
 		if len(args) < 2 {
 			return h.showSupervisorBoolSetting(subcommand), nil
 		}
-		enabled, err := strconv.ParseBool(args[1])
-		if err != nil {
-			return "", fmt.Errorf("invalid boolean value: %s", args[1])
+		// Accept on/off (Web UI) and 1/true/yes/0/false/no (REPL), matching
+		// the other bool setting handlers (FIX: Web UI state was lost because
+		// strconv.ParseBool rejects "on"/"off").
+		var enabled bool
+		switch strings.ToLower(args[1]) {
+		case "on", "1", "true", "yes":
+			enabled = true
+		case "off", "0", "false", "no":
+			enabled = false
+		default:
+			return "", fmt.Errorf("invalid boolean value %q (valid: on/off)", args[1])
 		}
 		switch subcommand {
 		case "supervisor-enabled":
@@ -573,6 +583,10 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 			h.cfg.LLM.Supervisor.EntryTask = enabled
 		case "supervisor-clear-context":
 			h.cfg.LLM.Supervisor.ClearContext = enabled
+		case "show-sup-prompt":
+			h.cfg.LLM.Supervisor.ShowSupPrompt = enabled
+		case "show-sup-stream":
+			h.cfg.LLM.Supervisor.ShowSupStream = enabled
 		}
 		if err := h.cfg.Save(); err != nil {
 			return "", err
@@ -643,6 +657,10 @@ func (h *SettingsHandler) showSupervisorBoolSetting(subcommand string) string {
 		return boolStr(h.cfg.LLM.Supervisor.EntryTask)
 	case "supervisor-clear-context":
 		return boolStr(h.cfg.LLM.Supervisor.ClearContext)
+	case "show-sup-prompt":
+		return boolStr(h.cfg.LLM.Supervisor.ShowSupPrompt)
+	case "show-sup-stream":
+		return boolStr(h.cfg.LLM.Supervisor.ShowSupStream)
 	}
 	return "(unknown)"
 }

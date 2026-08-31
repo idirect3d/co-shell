@@ -253,13 +253,15 @@ func TestRunSupervisorReview_CallFailure(t *testing.T) {
 // UC-0025: getSettingValue reads supervisor parameter switches.
 func TestGetSettingValue_Supervisor(t *testing.T) {
 	cfg := &config.Config{LLM: config.LLMConfig{Supervisor: config.SupervisorConfig{
-		Enabled:      true,
-		EntryObject:  true,
-		EntryExit:    true,
-		EntryTask:    false,
-		ClearContext: false,
-		MaxRetries:   20,
-		AllowedTools: []string{"read_file", "memory_search"},
+		Enabled:       true,
+		EntryObject:   true,
+		EntryExit:     true,
+		EntryTask:     false,
+		ClearContext:  false,
+		MaxRetries:    20,
+		AllowedTools:  []string{"read_file", "memory_search"},
+		ShowSupPrompt: true,
+		ShowSupStream: false,
 	}}}
 	cases := []struct {
 		param string
@@ -272,6 +274,8 @@ func TestGetSettingValue_Supervisor(t *testing.T) {
 		{"supervisor-clear-context", "off"},
 		{"supervisor-max-retries", "20"},
 		{"supervisor-allowed-tools", "read_file,memory_search"},
+		{"show-sup-prompt", "on"},
+		{"show-sup-stream", "off"},
 	}
 	for _, c := range cases {
 		if got := getSettingValue(cfg, c.param); got != c.want {
@@ -316,6 +320,8 @@ func TestApplySetting_SupervisorBooleans(t *testing.T) {
 	ag.cfg.LLM.Supervisor.EntryExit = false
 	ag.cfg.LLM.Supervisor.EntryTask = false
 	ag.cfg.LLM.Supervisor.ClearContext = false
+	ag.cfg.LLM.Supervisor.ShowSupPrompt = false
+	ag.cfg.LLM.Supervisor.ShowSupStream = false
 
 	cases := []struct {
 		param string
@@ -326,6 +332,8 @@ func TestApplySetting_SupervisorBooleans(t *testing.T) {
 		{"supervisor-entry-exit", "true"},
 		{"supervisor-entry-task", "true"},
 		{"supervisor-clear-context", "true"},
+		{"show-sup-prompt", "true"},
+		{"show-sup-stream", "true"},
 	}
 	for _, c := range cases {
 		if err := applySetting(ag, c.param, c.value); err != nil {
@@ -340,6 +348,9 @@ func TestApplySetting_SupervisorBooleans(t *testing.T) {
 	}
 	if !ag.cfg.LLM.Supervisor.ClearContext {
 		t.Error("clear-context should be true after set")
+	}
+	if !ag.cfg.LLM.Supervisor.ShowSupPrompt || !ag.cfg.LLM.Supervisor.ShowSupStream {
+		t.Error("show-sup switches should be true after set")
 	}
 }
 

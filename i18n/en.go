@@ -623,7 +623,7 @@ var enMessages = map[string]string{
 	KeySettingCmd_612: "✅ Task completed\n\n%s",
 
 	// FEATURE-452: attempt_completion completion-confirm dialog
-	KeyAttemptCompletionSuggestNext: "Give next-step suggestions based on reasonable reasoning",
+	KeyAttemptCompletionSuggestNext: "Give next-step suggestions",
 	KeyAttemptCompletionPrompt:     "The task result is ready. Choose a next step:",
 	KeyAttemptCompletionNotDone:    "Task has not reached the goal yet",
 	KeyAttemptCompletionExit:       "I have confirmed completion (exit)",
@@ -1187,6 +1187,8 @@ no liability whatsoever.`,
 	KeyCol3DefaultVisionModel:   "default vision model",
 	KeyCol3DefaultProblemModel:  "default problem-solving model",
 	KeyCol3ProblemSolverEnabled: "problem solver enabled",
+	KeyCol3ShowSupPrompt:        "show SUP scenario prompt sent to LLM",
+	KeyCol3ShowSupStream:        "stream SUP scenario LLM reply",
 	KeyDefaultModelCurrent:      "Current: %s",
 	KeyDefaultModelSet:          "✅ Set to: %s",
 

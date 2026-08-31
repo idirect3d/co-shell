@@ -313,17 +313,35 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 	// verify the delivery, then submit_review to conclude. Whitelisted tools are
 	// executed; non-whitelisted tools are auto-rejected (scheme B).
 	maxRounds := 8
+	// FEATURE-461: round 1 shows the initial template prompt; subsequent
+	// rounds show the previous round's tool-call return content (the new
+	// context added to the supervisor), not the same full template again.
+	var lastRoundText string
 	for round := 0; round < maxRounds; round++ {
-		resp, err := client.Chat(cctx, messages, tools)
+		if round == 0 {
+			a.emitSupPrompt(SupScenarioSupervisor, prompt)
+		} else {
+			a.emitSupPrompt(SupScenarioSupervisor, lastRoundText)
+		}
+
+		eventCh, err := client.ChatStream(cctx, messages, tools)
 		if err != nil {
 			return nil, fmt.Errorf("supervisor call failed: %w", err)
 		}
 
-		// Collect tool calls (OpenAI mode: resp.ToolCalls; XML mode: parse content).
+		// Consume the stream: forward content to the frontend as a SUP block
+		// (when show-sup-stream is on) and accumulate the full content + tool
+		// calls so the structured submit_review result can be parsed.
+		content, streamCalls, streamErr := a.streamSupReply(cctx, SupScenarioSupervisor, eventCh)
+		if streamErr != nil {
+			return nil, fmt.Errorf("supervisor call failed: %w", streamErr)
+		}
+
+		// Collect tool calls (OpenAI mode: accumulated tool calls; XML mode: parse content).
 		var calls []llm.ToolCall
-		calls = append(calls, resp.ToolCalls...)
-		if resp.Content != "" {
-			calls = append(calls, ParseXMLToolCalls(resp.Content)...)
+		calls = append(calls, streamCalls...)
+		if content != "" {
+			calls = append(calls, ParseXMLToolCalls(content)...)
 		}
 
 		if len(calls) == 0 {
@@ -331,6 +349,7 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 		}
 
 		// Process each tool call.
+		var roundText strings.Builder
 		for _, tc := range calls {
 			if tc.Name == "submit_review" {
 				review, perr := parseSupervisorReview(tc.Arguments)
@@ -344,6 +363,7 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 			}
 			if !a.supervisorToolAllowed(tc.Name) {
 				// Scheme B: non-whitelisted tool → auto-reject.
+				roundText.WriteString(fmt.Sprintf("工具 %q 不在白名单内，已自动拒绝。\n", tc.Name))
 				messages = append(messages,
 					llm.Message{Role: "assistant", Content: "", ToolCalls: []llm.ToolCall{tc}},
 					llm.Message{Role: "tool", ToolCallID: tc.ID, Content: fmt.Sprintf("工具 %q 不在监督 LLM 白名单内，已自动拒绝。你只能使用白名单内的低风险工具（read_file/execute_command/memory_search 等）来核实交付物。", tc.Name)},
@@ -355,11 +375,13 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 			if execErr != nil {
 				result = fmt.Sprintf("工具执行失败: %v", execErr)
 			}
+			roundText.WriteString(fmt.Sprintf("工具 %s 返回：\n%s\n", tc.Name, result))
 			messages = append(messages,
 				llm.Message{Role: "assistant", Content: "", ToolCalls: []llm.ToolCall{tc}},
 				llm.Message{Role: "tool", ToolCallID: tc.ID, Content: result},
 			)
 		}
+		lastRoundText = roundText.String()
 	}
 	return nil, fmt.Errorf("supervisor exceeded max tool-call rounds without submit_review")
 }

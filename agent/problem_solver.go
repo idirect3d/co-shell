@@ -254,7 +254,7 @@ func classifyConnectionError(err error) (ProblemType, bool) {
 // Judge model resolution: getLoopJudgeModel() uses getProblemModelID() which
 // resolves the full FEATURE-342 chain (mode ProblemModelID >
 // default-problem-model > default-tool-model > mode ModelID > active model).
-func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemReport, error) {
+func (a *Agent) callProblemSolver(ctx context.Context, scenario SupScenario, prompt string) (*ProblemReport, error) {
 	modelCfg := a.getLoopJudgeModel()
 	if modelCfg == nil {
 		return nil, fmt.Errorf("no problem solver model available")
@@ -324,22 +324,33 @@ func (a *Agent) callProblemSolver(ctx context.Context, prompt string) (*ProblemR
 	}
 	defer cancel()
 
-	resp, err := judgeClient.Chat(cctx, messages, tools)
+	// Emit the prompt as a SUP block when show-sup-prompt is on (FEATURE-460).
+	a.emitSupPrompt(scenario, prompt)
+
+	eventCh, err := judgeClient.ChatStream(cctx, messages, tools)
 	if err != nil {
 		return nil, fmt.Errorf("problem solver call failed: %w", err)
 	}
 
-	// OpenAI mode: the call is returned in resp.ToolCalls.
-	for _, tc := range resp.ToolCalls {
+	// Consume the stream: forward content to the frontend as a SUP block
+	// (when show-sup-stream is on) and accumulate the full content + tool
+	// calls so the structured report_problem result can be parsed.
+	content, toolCalls, streamErr := a.streamSupReply(cctx, scenario, eventCh)
+	if streamErr != nil {
+		return nil, fmt.Errorf("problem solver call failed: %w", streamErr)
+	}
+
+	// OpenAI mode: the call is returned as accumulated tool calls.
+	for _, tc := range toolCalls {
 		if tc.Name == "report_problem" {
 			return parseProblemReport(tc.Arguments)
 		}
 	}
 
 	// XML mode: the model emits XML tags in the content. Parse the
-	// report_problem call from the content.
-	if resp.Content != "" {
-		calls := ParseXMLToolCalls(resp.Content)
+	// report_problem call from the accumulated content.
+	if content != "" {
+		calls := ParseXMLToolCalls(content)
 		for _, tc := range calls {
 			if tc.Name == "report_problem" {
 				return parseProblemReport(tc.Arguments)
@@ -418,7 +429,7 @@ func (a *Agent) solveProblem(ctx context.Context, hint ProblemType, detail strin
 		return nil, nil
 	}
 	prompt := a.buildProblemSolverUserPrompt(hint, detail)
-	return a.callProblemSolver(ctx, prompt)
+	return a.callProblemSolver(ctx, SupScenarioProblemSolver, prompt)
 }
 
 // applyProblemAction maps a problem report's suggested_action to a concrete
