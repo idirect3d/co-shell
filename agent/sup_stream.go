@@ -93,7 +93,7 @@ func (a *Agent) emitSupPrompt(s SupScenario, prompt string) {
 		return
 	}
 	ev := NewStreamEvent(EventContentChunk, ChannelSupervisor, LevelInfo, prompt)
-	ev.Meta = map[string]string{MetaKeySupScenario: s.supTitle()}
+	ev.Meta = map[string]string{MetaKeySupScenario: s.supTitle(), MetaKeySupPart: "prompt"}
 	cb(ev)
 }
 
@@ -127,7 +127,7 @@ func (a *Agent) streamSupReply(ctx context.Context, s SupScenario, eventCh <-cha
 					sb.WriteString(ev.Content)
 					if stream && cb != nil {
 						se := NewStreamEvent(EventContentChunk, ChannelSupervisor, LevelInfo, ev.Content)
-						se.Meta = map[string]string{MetaKeySupScenario: s.supTitle()}
+						se.Meta = map[string]string{MetaKeySupScenario: s.supTitle(), MetaKeySupPart: "content"}
 						cb(se)
 					}
 				}
@@ -140,6 +140,8 @@ func (a *Agent) streamSupReply(ctx context.Context, s SupScenario, eventCh <-cha
 			case llm.StreamEventToolCall:
 				if ev.ToolCall != nil {
 					toolCalls = append(toolCalls, *ev.ToolCall)
+					// FEATURE-461: expose the tool call's input as the bottom section.
+					a.emitSupTool(s, *ev.ToolCall)
 				}
 			case llm.StreamEventError:
 				if ev.Err != nil {
@@ -150,4 +152,26 @@ func (a *Agent) streamSupReply(ctx context.Context, s SupScenario, eventCh <-cha
 			}
 		}
 	}
+}
+
+// emitSupTool exposes a tool call's input as the bottom section of the SUP
+// block when the show-sup-stream switch is on (FEATURE-461). It emits a
+// content_chunk event on the supervisor channel with sup_part="tool".
+func (a *Agent) emitSupTool(s SupScenario, tc llm.ToolCall) {
+	if !a.supStreamEnabled(s) {
+		return
+	}
+	a.mu.Lock()
+	cb := a.streamCb
+	a.mu.Unlock()
+	if cb == nil {
+		return
+	}
+	text := tc.Name
+	if tc.Arguments != "" {
+		text += "\n" + tc.Arguments
+	}
+	ev := NewStreamEvent(EventContentChunk, ChannelSupervisor, LevelInfo, text)
+	ev.Meta = map[string]string{MetaKeySupScenario: s.supTitle(), MetaKeySupPart: "tool"}
+	cb(ev)
 }

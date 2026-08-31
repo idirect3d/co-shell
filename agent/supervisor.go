@@ -309,14 +309,21 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 	}
 	defer cancel()
 
-	// Emit the prompt as a SUP block when show-sup-prompt is on (FEATURE-460).
-	a.emitSupPrompt(SupScenarioSupervisor, prompt)
-
 	// Multi-round tool-call loop: the supervisor may call whitelisted tools to
 	// verify the delivery, then submit_review to conclude. Whitelisted tools are
 	// executed; non-whitelisted tools are auto-rejected (scheme B).
 	maxRounds := 8
+	// FEATURE-461: round 1 shows the initial template prompt; subsequent
+	// rounds show the previous round's tool-call return content (the new
+	// context added to the supervisor), not the same full template again.
+	var lastRoundText string
 	for round := 0; round < maxRounds; round++ {
+		if round == 0 {
+			a.emitSupPrompt(SupScenarioSupervisor, prompt)
+		} else {
+			a.emitSupPrompt(SupScenarioSupervisor, lastRoundText)
+		}
+
 		eventCh, err := client.ChatStream(cctx, messages, tools)
 		if err != nil {
 			return nil, fmt.Errorf("supervisor call failed: %w", err)
@@ -342,6 +349,7 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 		}
 
 		// Process each tool call.
+		var roundText strings.Builder
 		for _, tc := range calls {
 			if tc.Name == "submit_review" {
 				review, perr := parseSupervisorReview(tc.Arguments)
@@ -355,6 +363,7 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 			}
 			if !a.supervisorToolAllowed(tc.Name) {
 				// Scheme B: non-whitelisted tool → auto-reject.
+				roundText.WriteString(fmt.Sprintf("工具 %q 不在白名单内，已自动拒绝。\n", tc.Name))
 				messages = append(messages,
 					llm.Message{Role: "assistant", Content: "", ToolCalls: []llm.ToolCall{tc}},
 					llm.Message{Role: "tool", ToolCallID: tc.ID, Content: fmt.Sprintf("工具 %q 不在监督 LLM 白名单内，已自动拒绝。你只能使用白名单内的低风险工具（read_file/execute_command/memory_search 等）来核实交付物。", tc.Name)},
@@ -366,11 +375,13 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 			if execErr != nil {
 				result = fmt.Sprintf("工具执行失败: %v", execErr)
 			}
+			roundText.WriteString(fmt.Sprintf("工具 %s 返回：\n%s\n", tc.Name, result))
 			messages = append(messages,
 				llm.Message{Role: "assistant", Content: "", ToolCalls: []llm.ToolCall{tc}},
 				llm.Message{Role: "tool", ToolCallID: tc.ID, Content: result},
 			)
 		}
+		lastRoundText = roundText.String()
 	}
 	return nil, fmt.Errorf("supervisor exceeded max tool-call rounds without submit_review")
 }
