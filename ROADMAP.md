@@ -821,7 +821,7 @@
 |------|------|------|------|
 | FIX-462 | 0.28.1 | P1 | SUP 块显示限高+展开+RAW：SUP 块每部分内容（提示词/流式内容/工具输入）限制最高高度，参考 TOOL 块输入参数的做法，提供限高文本输出区域 + 展开 + RAW 选项 |
 
-> 当前 BUILD: 753
+> 当前 BUILD: 755
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -831,6 +831,11 @@
   - 背景：SUP 块（提示词/流式内容/工具输入三部分）每部分内容没有限定最高高度，可能显示过多内容。需要参考 TOOL 块输入参数的做法，提供限制高度的文本输出区域 + 展开 + RAW 选项。
   - 方案（已确认）：① SUP 块三部分（提示词/流式内容/工具输入）每部分标题栏增加 Raw 小胶囊开关 + 展开/收起按钮；② 每部分 body 限制最高高度（max-height 200px）可滚动，展开后取消限高；③ Raw 开关控制 md 渲染/原始文本切换；④ 流式内容部分（主 ev-body）同样限高 + 展开 + Raw。
   - 实施：`web/static/app.js` newSupBlock 改造为三部分均用 makeSupPart 创建（标题栏含 Raw + 展开按钮 + 限高 body），新增 makeSupPart/renderSupPart/addSupContentControls 辅助函数，content_chunk supervisor 分支 prompt/tool 部分改用 renderSupPart 渲染、content 部分支持 contentRawMode；`web/static/style.css` 新增 .sup-part-head flex 布局 + .sup-part-raw/.sup-part-toggle 按钮样式 + .sup-part-body 限高（200px）+ .sup-prompt.expanded/.sup-tool.expanded 展开 + .sup-content-body 限高 + .ev.sup-content-expanded 展开 + .sup-part-body.md markdown 样式 [BUILD-753]
+  - 测试：见 use-case/FIX-462/
+
+- [ ] **FIX-462 风险标签中文化 + 多方法意图回填**
+  - 背景：风险标签 LOW/MEDIUM/HIGH 改为中文（低风险/中风险/高风险）并支持多语言；一个迭代调用两个方法时意图只写在后一个 TOOL 块，应倒序一个一个回填。
+  - 实施：`web/static/app.js` 新增 riskLabel() 辅助函数 + iterToolBlocks 数组；tool_call_stream 新建工具块时 push 到 iterToolBlocks；tool_call 处理中意图回填改为名称匹配+回退到下一个未匹配块，风险标签改用 riskLabel() [BUILD-755]
   - 测试：见 use-case/FIX-462/
 
 ## v0.9.1 — 开发中（已完成）

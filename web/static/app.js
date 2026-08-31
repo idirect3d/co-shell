@@ -389,6 +389,18 @@ function toolAction(toolName) {
   return currentLang === "en" ? a.en : a.zh;
 }
 
+// riskLabel returns the localized risk-level label for a risk key
+// (low/medium/high). zh shows 低风险/中风险/高风险, en shows Low/Medium/High
+// (FIX-462). Unknown keys fall back to the uppercased key.
+function riskLabel(risk) {
+  const map = {
+    low: currentLang === "en" ? "Low" : "低风险",
+    medium: currentLang === "en" ? "Medium" : "中风险",
+    high: currentLang === "en" ? "High" : "高风险",
+  };
+  return map[risk] || String(risk).toUpperCase();
+}
+
 // parseToolSummary extracts the structured ToolSummary from a tool_call event's
 // Meta (FEATURE-388). Returns null when absent or unparseable.
 function parseToolSummary(ev) {
@@ -408,6 +420,11 @@ let curSup = null;
 // multiple tools the input/result events can target the correct block instead
 // of always the last one (curTool points to the last block after streaming).
 let toolBlockByName = {};
+// FIX-462: ordered list of tool blocks created in the current iteration (in
+// creation order). The tool_call input events backfill the intent to each block
+// one by one; when the "⚙️" header is missed (so toolBlockByName has no entry)
+// the next unmatched block in this list is used instead of the last one.
+let iterToolBlocks = [];
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
 
@@ -1019,6 +1036,7 @@ function renderEvent(ev) {
     iterBlocks = [];
     lastBlock = null;
     toolBlockByName = {};
+    iterToolBlocks = [];
     // FEATURE-427: mark the last content block as the result block so silent
     // mode shows and expands it — the final completion block, whatever its type
     // (TOOL: 完成任务, or a final LLM summary). Skip meta (token-stats) rows.
@@ -1137,7 +1155,13 @@ function renderEvent(ev) {
     // earlier ones). The header itself is the tool title (shown in the block
     // header by the tool_call input event), so it is stripped from the params.
     const isNewTool = ev.text && ev.text.includes("⚙️");
-    if (!curTool || isNewTool) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+    if (!curTool || isNewTool) {
+      curTool = newStreamBlock("tool", "TOOL", msgIndex);
+      // FIX-462: record the block in creation order so the tool_call input
+      // events can backfill the intent to each block one by one, even when the
+      // "⚙️" header is missed (toolBlockByName has no entry for it).
+      iterToolBlocks.push(curTool);
+    }
     markStreaming(curTool.body);
     const params = ensureToolParams(curTool);
     let text = ev.text || "";
@@ -1208,9 +1232,17 @@ function renderEvent(ev) {
         // the LAST tool's block (set by tool_call_stream). Switch to the block
         // matching this tool's name so its title/risk and the following result
         // event land on the correct block, in call order.
+        // FIX-462: if the name lookup misses (the "⚙️" header was not detected
+        // for this tool), fall back to the next unmatched block in creation
+        // order (iterToolBlocks) so the intent is backfilled to each block one
+        // by one instead of always the last one.
         if (summary.tool_name && toolBlockByName[summary.tool_name]) {
           curTool = toolBlockByName[summary.tool_name];
+        } else if (iterToolBlocks.length) {
+          const next = iterToolBlocks.find((b) => !b._intentFilled);
+          if (next) curTool = next;
         }
+        curTool._intentFilled = true;
         const head = curTool.body.parentElement.children[0];
         const action = toolAction(summary.tool_name);
         const text = "TOOL: " + action + (summary.intent ? " - " + summary.intent : "");
@@ -1222,10 +1254,12 @@ function renderEvent(ev) {
         // FEATURE-447: show the risk level as a coloured badge in the tool
         // block title bar (low=green, medium=yellow, high=red). It is inserted
         // right after the title label, before the action icons.
+        // FIX-462: the badge text is localized (低风险/中风险/高风险 in zh,
+        // Low/Medium/High in en) instead of the raw LOW/MEDIUM/HIGH.
         if (summary.risk) {
           const riskBadge = document.createElement("span");
           riskBadge.className = "risk-badge risk-" + summary.risk;
-          riskBadge.textContent = summary.risk.toUpperCase();
+          riskBadge.textContent = riskLabel(summary.risk);
           if (summary.risk_reason) riskBadge.title = summary.risk_reason;
           const actions = head.querySelector(".ev-actions");
           if (actions) head.insertBefore(riskBadge, actions);
