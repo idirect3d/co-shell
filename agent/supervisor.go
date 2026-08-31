@@ -481,9 +481,11 @@ func (a *Agent) runSupervisorReview(ctx context.Context, entry SupervisorEntry, 
 	prompt := a.buildSupervisorUserPrompt(entry, finalReport)
 	review, err := a.callSupervisor(ctx, prompt)
 	if err != nil {
-		// Supervisor unavailable → degrade to pass-through (safe default).
+		// Supervisor unavailable → degrade to pass-through (safe default), but
+		// still surface the failure to the user so they know the review did not
+		// run (FEATURE-459).
 		log.Warn("runSupervisorReview: supervisor call failed, passing through: %v", err)
-		return true, "", ""
+		return true, "", fmt.Sprintf("【监督 LLM 审查】\n结论：审查失败 ⚠️\n原因：监督 LLM 调用失败，已降级放行，请人工判断。\n错误：%v", err)
 	}
 
 	// Record the review in the supervisor's own context (accumulate).

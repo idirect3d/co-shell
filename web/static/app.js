@@ -1628,6 +1628,10 @@ function hideAsk() {
     window.removeEventListener("keydown", window.__vkHandler);
     window.__vkHandler = null;
   }
+  if (window.__vkKeyup) {
+    window.removeEventListener("keyup", window.__vkKeyup);
+    window.__vkKeyup = null;
+  }
 }
 
 /* ---------- structured interaction (FEATURE-388) ---------- */
@@ -1643,6 +1647,49 @@ function enterSupplementMode() {
   input.placeholder = T.supplementHint;
 }
 
+// fillInputAndExit fills the main input box with the given prefix and closes the
+// interaction dialog while keeping the interaction pending, so the user's typed
+// supplement is sent back as the interaction answer (FEATURE-459).
+function fillInputAndExit(prefix) {
+  input.value = prefix;
+  autoGrow();
+  supplementMode = true;
+  input.focus();
+  input.placeholder = T.supplementHint;
+  askArea.classList.add("hidden");
+  askInteraction.classList.add("hidden");
+  askInteraction.textContent = "";
+  if (window.__vkHandler) {
+    window.removeEventListener("keydown", window.__vkHandler);
+    window.__vkHandler = null;
+  }
+  if (window.__vkKeyup) {
+    window.removeEventListener("keyup", window.__vkKeyup);
+    window.__vkKeyup = null;
+  }
+}
+
+
+// splitReportSections splits a report body into distinct sections by the
+// known section markers (【任务完成报告】 / 【监督 LLM 审查】). When two or
+// more markers are present, each section is returned separately so the UI can
+// render them as independent scrollable blocks (FEATURE-459).
+function splitReportSections(body) {
+  const markers = ["【任务完成报告】", "【监督 LLM 审查】"];
+  const found = markers.filter((m) => body.indexOf(m) >= 0);
+  if (found.length < 2) return [body];
+  // Split on the first marker, then on the second marker.
+  const first = found[0];
+  const second = found[1];
+  const i1 = body.indexOf(first);
+  const i2 = body.indexOf(second);
+  const a = body.slice(i1, i2).trim();
+  const b = body.slice(i2).trim();
+  const out = [];
+  if (a) out.push(a);
+  if (b) out.push(b);
+  return out.length ? out : [body];
+}
 
 // showInteraction renders a structured interaction (confirm/select/input/key)
 // from the interaction payload. Buttons are built dynamically from the keys
@@ -1673,12 +1720,27 @@ function showInteraction(msg) {
     askInteraction.appendChild(t);
   }
   if (it.body) {
-    const b = document.createElement("div");
-    b.className = "interaction-body md";
-    // FEATURE-409: render the prompt body as markdown so lists, code and
-    // emphasis are laid out instead of piling up as one text blob.
-    mdRender(b, it.body);
-    askInteraction.appendChild(b);
+    // FEATURE-459: the attempt_completion dialog body may carry two distinct
+    // reports — the main LLM's final report (【任务完成报告】) and the
+    // supervisor's review (【监督 LLM 审查】). Render each as its own
+    // scrollable block (max-height 40% of the ask box) so long reports stay
+    // readable and the two are clearly separated.
+    const sections = splitReportSections(it.body);
+    if (sections.length > 1) {
+      sections.forEach((sec) => {
+        const b = document.createElement("div");
+        b.className = "interaction-body md report-block";
+        mdRender(b, sec);
+        askInteraction.appendChild(b);
+      });
+    } else {
+      const b = document.createElement("div");
+      b.className = "interaction-body md";
+      // FEATURE-409: render the prompt body as markdown so lists, code and
+      // emphasis are laid out instead of piling up as one text blob.
+      mdRender(b, it.body);
+      askInteraction.appendChild(b);
+    }
   }
 
   if (it.kind === "select" && it.options && it.options.length) {
@@ -1762,7 +1824,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // FIX-454: register the interaction's fixed key options (e.g. "+" / "-")
     // so pressing the physical key triggers the corresponding select action.
     (it.keys || []).forEach((k) => {
-      if (k.key) keyMap[k.key.toLowerCase()] = { action: "select", value: k.value };
+      if (k.key) keyMap[k.key.toLowerCase()] = { action: "select", value: k.value, label: k.label };
     });
   } else {
     // FEATURE-427: symbol/numpad keys only (input-method independent). The
@@ -1813,7 +1875,15 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // sends {action:"select", value:k.Value} back to the backend, matching the
     // TUI askSelect behaviour.
     (it.keys || []).forEach((k) => {
-      addItem(k.key, k.label, () => answerInteraction({ action: "select", value: k.value }));
+      addItem(k.key, k.label, () => {
+        // FEATURE-459: the "+ 任务尚未达到目标" key fills the prefix into the
+        // main input box and exits the dialog so the user can append info.
+        if (k.value === "not_done") {
+          fillInputAndExit(k.label + "：");
+          return;
+        }
+        answerInteraction({ action: "select", value: k.value });
+      });
     });
     // FEATURE-438: a fixed supplementary-info option for select interactions
     // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
@@ -1838,6 +1908,12 @@ function renderVirtualKeyboard(it, isSelect, container) {
   target.appendChild(wrap);
 
   // Listen for physical key presses while this interaction is pending.
+  // FEATURE-459: holding a shortcut key (>=500ms) selects the option AND fills
+  // its content into the main input box so the user can append supplementary
+  // info before sending.
+  let holdTimer = null;
+  let holdKey = null;
+  const clearHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } holdKey = null; };
   window.__vkHandler = (e) => {
     if (!pendingInteraction) return;
     // In supplement mode, stop hijacking keys so the user can type freely.
@@ -1855,10 +1931,45 @@ function renderVirtualKeyboard(it, isSelect, container) {
     } else if (key === "enter") {
       answerInteraction({ action: "approve" });
     } else if (keyMap[key]) {
-      answerInteraction(keyMap[key]);
+      const m = keyMap[key];
+      // Long-press: fill the option content into the main input box and enter
+      // supplement mode so the user can append extra info (FEATURE-459).
+      if (e.repeat) {
+        // A held key fires repeated keydown events; on the first repeat, fill
+        // the input and switch to supplement mode instead of answering.
+        if (holdKey === key) {
+          clearHold();
+          // FEATURE-459: the "+" (not_done) key fills its label prefix.
+          input.value = m.value === "not_done" ? (m.label || "") + "：" : (m.value || "");
+          autoGrow();
+          enterSupplementMode();
+        }
+        return;
+      }
+      // First keydown: arm a hold timer. If it fires (key held >=500ms), the
+      // next repeat will fill the input; otherwise keyup answers normally.
+      holdKey = key;
+      holdTimer = setTimeout(() => { holdTimer = null; }, 500);
+    }
+  };
+  window.__vkKeyup = (e) => {
+    if (!pendingInteraction || supplementMode) return;
+    const key = e.key.toLowerCase();
+    if (keyMap[key] && holdKey === key) {
+      // Released before the hold threshold → normal select.
+      clearHold();
+      const m = keyMap[key];
+      // FEATURE-459: the "+" (not_done) key fills the prefix into the main
+      // input box and exits the dialog so the user can append info.
+      if (m.value === "not_done") {
+        fillInputAndExit((m.label || "") + "：");
+        return;
+      }
+      answerInteraction(m);
     }
   };
   window.addEventListener("keydown", window.__vkHandler);
+  window.addEventListener("keyup", window.__vkKeyup);
 }
 
 // answerInteraction sends the structured result back to the server.

@@ -755,6 +755,30 @@
   - 实施：`web/static/app.js` 修改 wsConnect 逻辑（移除 onclose 中的 setTimeout 自动重连，改为手动重连 + 防重入检查）+ conn 元素添加 onclick 事件（已连接时点击断开、已断开时点击连接）+ 新增 wsDisconnect 函数（主动关闭 WebSocket）+ 初始化时自动连接一次；`web/static/index.html` conn 元素添加 role="button" + tabindex="0"（可点击、可键盘操作）；`web/static/style.css` conn 添加外框（高度 28px 与明暗按钮一致、宽度自适应容纳指示灯+文字、边框、圆角、cursor:pointer、hover 效果）[BUILD-740]
   - 测试：见 use-case/FEATURE-458/（13 个用例：连接状态可点击开关、指示灯高亮/灰色、点击断开、断开不自动重连、点击重连、异常断开不自动重连、两浏览器互抢缓解、断开后输入框不可用、重连后功能恢复、外框存在、外框宽度自适应、外框与明暗按钮对齐）
 
+## v0.27.0 — 开发中
+
+> **版本**: v0.27.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: attempt_completion 对话框显示监督信息
+> **说明**: 0.27.0 系列实现 attempt_completion 的 completion-confirm 对话框显示监督 LLM 的结论/理由/建议，为人工审核提供强有力支持。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-459 | 0.27.0 | P1 | attempt_completion 对话框显示监督信息：调用 attempt_completion 时，连同监督 LLM 返回的（如果有）结论、理由、建议，都在信息提示选择框的信息提示部分全部显示出来，为人工审核提供强有力支持 |
+
+> 当前 BUILD: 741
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-459 attempt_completion 对话框显示监督信息**
+  - 背景：任务完成时，attempt_completion 的 completion-confirm 对话框只显示标题和选项，人工判断选择的那块信息过于简单，用户无法方便地看到信息的全局。监督 LLM 返回的结论/理由/建议（如果有）没有在对话框中显示，人工审核缺乏支持。
+  - 方案（已确认）：① attempt_completion 的 completion-confirm 对话框（Interaction）的 Body 字段中，显示监督 LLM 返回的结论/理由/建议（即 report 内容）；② 若监督 LLM 未启用或未返回 report，则不显示该部分；③ 信息提示部分（interaction-body）渲染为 markdown，为人工审核提供强有力支持。
+  - 实施：`agent/tools.go` attemptCompletionTool 中，将监督 LLM 放行时返回的 report（formatReviewAsText 生成的结论/理由/建议）设置到 completion-confirm 对话框 Interaction 的 Body 字段（report 为空时不显示，符合 omitempty）[BUILD-742]；增强：对话框 Body 显示主 LLM 调用 attempt_completion 时的主要内容（result，前缀【任务完成报告】）+ 监督 LLM 审查内容（report，前缀【监督 LLM 审查】）；`agent/supervisor.go` runSupervisorReview 监督调用失败时返回失败信息作为 report（结论：审查失败 ⚠️ + 原因 + 错误），降级放行但向用户报告失败 [BUILD-743]；前端优化：`web/static/app.js` showInteraction 新增 splitReportSections 函数（按【任务完成报告】/【监督 LLM 审查】标记拆分 Body 为多个独立信息块）+ 键盘事件处理新增长按检测（按住快捷键 >=500ms 时把选项内容填入主信息录入框并进入补充模式，松开前正常选择）+ hideAsk 清理 __vkKeyup 监听器；`web/static/style.css` 新增 .report-block 样式（max-height:40% + overflow-y:auto + 边框圆角背景）[BUILD-744]；对话框交互优化：点击【+：任务尚未达到目标】改为把“任务尚未达到目标：”填入主消息框并退出对话框（保持 interaction pending，用户补充后发送回后端继续循环），`web/static/app.js` 新增 fillInputAndExit 函数并同步处理物理 + 键点击/长按/keyup；i18n 文本调整：KeyAttemptCompletionSuggestNext 改为“根据合理推理给出下一步建议”（en: Give next-step suggestions based on reasonable reasoning）、KeyAttemptCompletionExit 改为“我已确认完成（退出）”（en: I have confirmed completion (exit)）[BUILD-746]
+  - 测试：见 use-case/FEATURE-459/（9 个用例：监督放行时对话框显示监督结论/理由/建议、监督未启用/未返回 report 时不显示、信息提示部分渲染为 markdown、对话框选项仍正常显示、用户选择完成退出后任务正常完成、选择其他选项后继续循环）；单元测试：`agent/attempt_completion_test.go` 新增 TestAttemptCompletionBodyShowsSupervisorReport（监督强制放行时 Body 包含主 LLM 报告 + 监督信息）+ TestAttemptCompletionBodyShowsMainReportWithoutSupervisor（监督未启用时 Body 显示主 LLM 报告但不含监督信息）[BUILD-742]；`agent/supervisor_test.go` 更新 TestRunSupervisorReview_CallFailure（监督调用失败时 report 包含失败信息）[BUILD-743]
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
