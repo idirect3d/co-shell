@@ -809,6 +809,30 @@
   - 实施：`web/static/app.js` splitReportSections 改为返回 {title, content}（【任务完成报告】→"任务完成报告"、【监督 LLM 审查】→"审查报告"）+ showInteraction 渲染 report-title 加粗标题 + 新增 supplementInput 变量与 getSupplement/sendSupplement/answerSelectWithSupplement 辅助函数 + 用户选择区下方新增 .interaction-supplement 补充信息录入框（聚焦取消快捷键监控）+ 选项按钮点击附加补充信息（answerSelectWithSupplement）+ exit 键直接 hideAsk 退出不发送 + 补充信息按钮 sendSupplement 直接发送；`web/static/style.css` 新增 .report-title/.interaction-supplement 样式 + .report-block max-height 40%→80%；`i18n/zh.go`/`i18n/en.go` KeyAttemptCompletionSuggestNext 改为"给出下一步建议"/"Give next-step suggestions" [BUILD-750]
   - 测试：见 use-case/FEATURE-461/
 
+## v0.28.1 — 开发中
+
+> **版本**: v0.28.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: SUP 块显示优化
+> **说明**: 0.28.1 系列优化 SUP 块显示，为 SUP 块每部分内容（提示词/流式内容/工具输入）限制最高高度，参考 TOOL 块输入参数的做法，提供限高文本输出区域 + 展开 + RAW 选项。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-462 | 0.28.1 | P1 | SUP 块显示限高+展开+RAW：SUP 块每部分内容（提示词/流式内容/工具输入）限制最高高度，参考 TOOL 块输入参数的做法，提供限高文本输出区域 + 展开 + RAW 选项 |
+
+> 当前 BUILD: 753
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-462 SUP 块显示限高+展开+RAW**
+  - 背景：SUP 块（提示词/流式内容/工具输入三部分）每部分内容没有限定最高高度，可能显示过多内容。需要参考 TOOL 块输入参数的做法，提供限制高度的文本输出区域 + 展开 + RAW 选项。
+  - 方案（已确认）：① SUP 块三部分（提示词/流式内容/工具输入）每部分标题栏增加 Raw 小胶囊开关 + 展开/收起按钮；② 每部分 body 限制最高高度（max-height 200px）可滚动，展开后取消限高；③ Raw 开关控制 md 渲染/原始文本切换；④ 流式内容部分（主 ev-body）同样限高 + 展开 + Raw。
+  - 实施：`web/static/app.js` newSupBlock 改造为三部分均用 makeSupPart 创建（标题栏含 Raw + 展开按钮 + 限高 body），新增 makeSupPart/renderSupPart/addSupContentControls 辅助函数，content_chunk supervisor 分支 prompt/tool 部分改用 renderSupPart 渲染、content 部分支持 contentRawMode；`web/static/style.css` 新增 .sup-part-head flex 布局 + .sup-part-raw/.sup-part-toggle 按钮样式 + .sup-part-body 限高（200px）+ .sup-prompt.expanded/.sup-tool.expanded 展开 + .sup-content-body 限高 + .ev.sup-content-expanded 展开 + .sup-part-body.md markdown 样式 [BUILD-753]
+  - 测试：见 use-case/FIX-462/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

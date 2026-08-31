@@ -504,35 +504,118 @@ function newStreamBlock(cls, label, msgIndex) {
 }
 
 // newSupBlock creates a SUP block with three sections (FEATURE-461):
-//   top    - the prompt sent to the LLM (.sup-prompt, max-height scrollable)
-//   middle - the streaming reply (the main .ev-body, max-height scrollable)
-//   bottom - the tool call's input (.sup-tool, max-height scrollable)
+//   top    - the prompt sent to the LLM (.sup-prompt, height-limited)
+//   middle - the streaming reply (the main .ev-body, height-limited)
+//   bottom - the tool call's input (.sup-tool, height-limited)
+// Each section has a title bar with a Raw pill and an expand/collapse toggle,
+// mirroring the TOOL input-parameter sub-block (FEATURE-461).
 function newSupBlock(title, msgIndex) {
   const body = makeBlock("supervisor", title, msgIndex);
   const box = body.parentElement;
   // Top: prompt section.
   const prompt = document.createElement("div");
   prompt.className = "sup-prompt";
-  const promptHead = document.createElement("div");
-  promptHead.className = "sup-part-head";
-  promptHead.textContent = "提示词";
-  const promptBody = document.createElement("div");
-  promptBody.className = "sup-part-body";
-  prompt.appendChild(promptHead);
-  prompt.appendChild(promptBody);
+  const promptPart = makeSupPart(prompt, "提示词");
   box.insertBefore(prompt, body);
   // Bottom: tool input section.
   const tool = document.createElement("div");
   tool.className = "sup-tool";
-  const toolHead = document.createElement("div");
-  toolHead.className = "sup-part-head";
-  toolHead.textContent = "工具输入";
-  const toolBody = document.createElement("div");
-  toolBody.className = "sup-part-body";
-  tool.appendChild(toolHead);
-  tool.appendChild(toolBody);
+  const toolPart = makeSupPart(tool, "工具输入");
   box.appendChild(tool);
-  return { body, raw: "", raf: 0, title, promptBody, toolBody };
+  // Middle: the streaming reply (main ev-body). Add Raw + expand controls to
+  // the block's own title bar and height-limit the body.
+  const state = { body, raw: "", raf: 0, title, promptBody: promptPart.body, toolBody: toolPart.body, prompt: promptPart, tool: toolPart, contentRawMode: false };
+  const head = box.querySelector(".ev-head");
+  if (head) addSupContentControls(head, state);
+  body.classList.add("sup-content-body");
+  return state;
+}
+
+// makeSupPart builds a titled, height-limited, expandable/raw section inside a
+// SUP block (FEATURE-461). Returns { body, raw, rawMode }.
+function makeSupPart(wrap, title) {
+  const head = document.createElement("div");
+  head.className = "sup-part-head";
+  const titleEl = document.createElement("span");
+  titleEl.className = "sup-part-title";
+  titleEl.textContent = title;
+  const rawPill = document.createElement("button");
+  rawPill.className = "sup-part-raw";
+  rawPill.textContent = "Raw";
+  rawPill.title = "Raw / md 渲染";
+  const toggle = document.createElement("button");
+  toggle.className = "sup-part-toggle";
+  toggle.textContent = "⤢";
+  toggle.title = "展开/固定高度";
+  const right = document.createElement("span");
+  right.className = "sup-part-right";
+  right.appendChild(rawPill);
+  right.appendChild(toggle);
+  head.appendChild(titleEl);
+  head.appendChild(right);
+  const body = document.createElement("div");
+  body.className = "sup-part-body";
+  wrap.appendChild(head);
+  wrap.appendChild(body);
+  const part = { body, raw: "", rawMode: false };
+  rawPill.onclick = () => {
+    rawPill.classList.toggle("on");
+    part.rawMode = !part.rawMode;
+    renderSupPart(part);
+  };
+  toggle.onclick = () => {
+    wrap.classList.toggle("expanded");
+    toggle.textContent = wrap.classList.contains("expanded") ? "⤡" : "⤢";
+  };
+  return part;
+}
+
+// renderSupPart renders a SUP part body according to its rawMode state: raw
+// text when ON, markdown otherwise (FEATURE-461).
+function renderSupPart(part) {
+  if (part.rawMode) {
+    part.body.classList.remove("md");
+    part.body.textContent = part.raw;
+  } else {
+    part.body.classList.add("md");
+    mdRender(part.body, part.raw);
+  }
+}
+
+// addSupContentControls adds a Raw pill and an expand/collapse toggle to the
+// SUP block's main title bar, controlling the streaming reply body (FEATURE-461).
+// state is the SUP block state object (not the global curSup) so each block's
+// controls act on their own content even when multiple SUP blocks exist.
+function addSupContentControls(head, state) {
+  const body = state.body;
+  const rawPill = document.createElement("button");
+  rawPill.className = "sup-part-raw";
+  rawPill.textContent = "Raw";
+  rawPill.title = "Raw / md 渲染";
+  const toggle = document.createElement("button");
+  toggle.className = "sup-part-toggle";
+  toggle.textContent = "⤢";
+  toggle.title = "展开/固定高度";
+  const right = document.createElement("span");
+  right.className = "sup-part-right";
+  right.appendChild(rawPill);
+  right.appendChild(toggle);
+  head.appendChild(right);
+  rawPill.onclick = () => {
+    rawPill.classList.toggle("on");
+    state.contentRawMode = !state.contentRawMode;
+    if (state.contentRawMode) {
+      body.classList.remove("md");
+      body.textContent = state.raw;
+    } else {
+      body.classList.add("md");
+      mdRender(body, state.raw);
+    }
+  };
+  toggle.onclick = () => {
+    body.parentElement.classList.toggle("sup-content-expanded");
+    toggle.textContent = body.parentElement.classList.contains("sup-content-expanded") ? "⤡" : "⤢";
+  };
 }
 
 // ensureToolParams creates (or returns) the input-parameter sub-block inside a
@@ -973,7 +1056,8 @@ function renderEvent(ev) {
           unmarkStreaming(curThinking && curThinking.body);
           unmarkStreaming(curTool && curTool.body);
           curSup = newSupBlock(supTitle, msgIndex);
-          curSup.promptBody.textContent = ev.text || "";
+          curSup.prompt.raw = ev.text || "";
+          renderSupPart(curSup.prompt);
           markStreaming(curSup.body);
           scrollStream();
           return;
@@ -987,14 +1071,20 @@ function renderEvent(ev) {
           curTool = null;
         }
         if (supPart === "tool") {
-          curSup.toolBody.textContent = ev.text || "";
+          curSup.tool.raw = ev.text || "";
+          renderSupPart(curSup.tool);
           scrollStream();
           return;
         }
         // content: stream into the middle section.
         curSup.raw += ev.text || "";
         markStreaming(curSup.body);
-        scheduleMd(curSup);
+        if (curSup.contentRawMode) {
+          curSup.body.classList.remove("md");
+          curSup.body.textContent = curSup.raw;
+        } else {
+          scheduleMd(curSup);
+        }
         scrollStream();
         return;
       }
