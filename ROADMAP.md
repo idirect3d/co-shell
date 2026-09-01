@@ -838,6 +838,11 @@
   - 实施：`web/static/app.js` 新增 riskLabel() 辅助函数 + iterToolBlocks 数组；tool_call_stream 新建工具块时 push 到 iterToolBlocks；tool_call 处理中意图回填改为名称匹配+回退到下一个未匹配块，风险标签改用 riskLabel() [BUILD-755]
   - 测试：见 use-case/FIX-462/
 
+- [ ] **FIX-462 修复报告确认框快捷键失效**
+  - 背景：FIX-462 新增的"点击输入框取消快捷键监控"导致输入框获得焦点时立即设置 supplementMode=true，从而禁用所有快捷键（1-9/空格/回车等）。因输入框在交互弹框出现时常已获得焦点，快捷键全部失效。
+  - 实施： 将 input 的 focus 监听改为 dblclick 双击才取消快捷键监控（进入补充输入模式），单次点击/聚焦不再禁用快捷键；同步更新 zh/en supplementHint 文案为"双击输入框" [BUILD-756]
+  - 测试：见 use-case/FIX-462/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
