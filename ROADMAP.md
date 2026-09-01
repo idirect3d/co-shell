@@ -866,7 +866,7 @@
 - [ ] **FIX-465 修复视觉模型选择 bug**
   - 背景：视觉识别时，当当前工作模式（如 act）未绑定 VisionModelID 时，getModelIDForCall() 直接返回该模式的 ModelID（可能不支持视觉），未检查视觉能力也未回退到全局视觉模型，导致视觉识别把图片发给不支持视觉的模型（如 deepseek-v4-flash），API 报 400。
   - 方案（已确认）：getModelIDForCall() 在 visionRequired 且模式未绑定 VisionModelID 时，检查模式 ModelID 是否支持视觉（modelSupportsVision）；若不支持则返回空字符串，让 selectModelForCall() 走全局回退路径（GetActiveModel(true) 正确选择全局最高优先级视觉模型）。
-  - 实施：`agent/agent.go`（getModelIDForCall 增加视觉能力检查 + 新增 modelSupportsVision 辅助函数）+ `agent/fix465_test.go`（TestGetModelIDForCallVisionFallback / TestSelectModelForCallVisionFallback）[BUILD-764]；补充：`web/static/style.css`（settings-body 覆盖定义加 max-height:none，重置基础 max-height:60vh，修复缩小窗口后右半边底部结构性空白）[BUILD-765]
+  - 实施：`agent/agent.go`（getModelIDForCall 增加视觉能力检查 + 新增 modelSupportsVision 辅助函数）+ `agent/fix465_test.go`（TestGetModelIDForCallVisionFallback / TestSelectModelForCallVisionFallback）[BUILD-764]；补充：`web/static/style.css`（settings-body 覆盖定义加 max-height:none，重置基础 max-height:60vh，修复缩小窗口后右半边底部结构性空白）[BUILD-765]；补充：`agent/tools.go`（injectMetaParam 修复 MCP 工具 required 字段类型断言 bug——MCP 工具 required 为 []string，原用 .([]interface{}) 断言失败导致必填字段丢失；改为 switch 处理 []interface{}/[]string 两种类型 + 去重 meta/instruct；buildTools 深拷贝 MCP 工具 InputSchema 避免修改共享引用导致重复 meta；新增 deepCopyMap/deepCopyValue 辅助函数）[BUILD-767]
 
 > 当前 BUILD: 761
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
