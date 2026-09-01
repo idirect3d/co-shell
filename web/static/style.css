@@ -1878,46 +1878,83 @@ aside {
 }
 .mcp-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-panel);
 }
 .mcp-row.off { opacity: 0.6; }
-.mcp-row-info {
-  flex: 1;
-  min-width: 0;
+/* First line: clickable title + toggle switch + delete button (FIX-465). */
+.mcp-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .mcp-row-name {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--fg);
-}
-.mcp-row-detail {
-  font-size: 12px;
-  color: var(--fg-dim);
+  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mcp-row-status {
-  flex: 0 0 auto;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--mono-bg);
+.mcp-row-name:hover { color: var(--accent); }
+/* Second line: command text, single full row, clickable to edit (FIX-465). */
+.mcp-row-detail {
+  font-size: 12px;
   color: var(--fg-dim);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.mcp-row-status.on {
-  background: var(--accent-dim);
-  color: var(--accent);
+.mcp-row-detail:hover { color: var(--accent); }
+/* iOS-style toggle switch for enabled state (FIX-465). */
+.mcp-toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
 }
-.mcp-row-actions {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 6px;
+.mcp-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.mcp-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--border);
+  border-radius: 999px;
+  transition: 0.2s;
+}
+.mcp-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--fg);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.mcp-toggle input:checked + .mcp-toggle-slider {
+  background: var(--accent);
+}
+.mcp-toggle input:checked + .mcp-toggle-slider::before {
+  transform: translateX(16px);
+  background: var(--bg);
 }
 
 /* ---------- delete-session confirm modal (FEATURE-387) ---------- */

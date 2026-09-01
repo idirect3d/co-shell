@@ -3511,14 +3511,6 @@ function renderMCPServerManager(fetch) {
   argsInput.placeholder = i18nT("mcpArgsPh", "空格分隔，如 -y @modelcontextprotocol/server-filesystem");
   argsInput.value = editing ? (editing.args || []).join(" ") : "";
 
-  const enabledLbl = document.createElement("span");
-  enabledLbl.className = "mcp-form-label";
-  enabledLbl.textContent = i18nT("mcpEnabled", "启用");
-  const enabledInput = document.createElement("input");
-  enabledInput.type = "checkbox";
-  enabledInput.className = "set-toggle mcp-enabled";
-  enabledInput.checked = editing ? editing.enabled : true;
-
   const btnRow = document.createElement("div");
   btnRow.className = "mcp-form-btns";
   const saveBtn = document.createElement("button");
@@ -3533,7 +3525,9 @@ function renderMCPServerManager(fetch) {
       return;
     }
     if (editing) {
-      wsSend({ type: "mcp_update", name, command, args, enabled: enabledInput.checked });
+      // FIX-465: enabled is toggled on the card, not in the edit form.
+      const cur = mcpServers.find((s) => s.name === name);
+      wsSend({ type: "mcp_update", name, command, args, enabled: cur ? cur.enabled : true });
     } else {
       wsSend({ type: "mcp_add", name, command, args });
     }
@@ -3551,7 +3545,6 @@ function renderMCPServerManager(fetch) {
   form.appendChild(nameLbl); form.appendChild(nameInput);
   form.appendChild(cmdLbl); form.appendChild(cmdInput);
   form.appendChild(argsLbl); form.appendChild(argsInput);
-  form.appendChild(enabledLbl); form.appendChild(enabledInput);
   form.appendChild(btnRow);
   frag.appendChild(form);
 
@@ -3573,32 +3566,38 @@ function renderMCPServerManager(fetch) {
   settingsDynamic.appendChild(frag);
 }
 
-// renderMCPServerRow builds one MCP server list row with edit/delete actions.
+// renderMCPServerRow builds one MCP server card (FIX-465): the first line holds
+// the clickable title + a toggle switch + the delete button; the second line
+// holds the command text (clickable to edit). Clicking the title or command
+// enters edit mode; the toggle switches enabled state directly.
 function renderMCPServerRow(s) {
   const row = document.createElement("div");
   row.className = "mcp-row" + (s.enabled ? "" : " off");
 
-  const info = document.createElement("div");
-  info.className = "mcp-row-info";
+  // First line: title (clickable) + toggle + delete.
+  const head = document.createElement("div");
+  head.className = "mcp-row-head";
   const name = document.createElement("div");
   name.className = "mcp-row-name";
   name.textContent = s.name;
-  const detail = document.createElement("div");
-  detail.className = "mcp-row-detail";
-  detail.textContent = s.command + (s.args && s.args.length ? " " + s.args.join(" ") : "");
-  info.appendChild(name);
-  info.appendChild(detail);
+  name.title = i18nT("mcpEditHint", "点击编辑");
+  name.onclick = () => { mcpEditing = s.name; renderMCPServerManager(); };
+  head.appendChild(name);
 
-  const status = document.createElement("span");
-  status.className = "mcp-row-status" + (s.enabled ? " on" : "");
-  status.textContent = s.enabled ? i18nT("mcpOn", "启用") : i18nT("mcpOff", "停用");
+  const toggle = document.createElement("label");
+  toggle.className = "mcp-toggle";
+  const toggleInput = document.createElement("input");
+  toggleInput.type = "checkbox";
+  toggleInput.checked = !!s.enabled;
+  toggleInput.onchange = () => {
+    wsSend({ type: "mcp_update", name: s.name, command: s.command, args: s.args || [], enabled: toggleInput.checked });
+  };
+  const slider = document.createElement("span");
+  slider.className = "mcp-toggle-slider";
+  toggle.appendChild(toggleInput);
+  toggle.appendChild(slider);
+  head.appendChild(toggle);
 
-  const actions = document.createElement("div");
-  actions.className = "mcp-row-actions";
-  const editBtn = document.createElement("button");
-  editBtn.className = "btn sm";
-  editBtn.textContent = i18nT("mcpEdit", "编辑");
-  editBtn.onclick = () => { mcpEditing = s.name; renderMCPServerManager(); };
   const delBtn = document.createElement("button");
   delBtn.className = "btn sm danger";
   delBtn.textContent = i18nT("mcpDelete", "删除");
@@ -3607,12 +3606,17 @@ function renderMCPServerRow(s) {
       wsSend({ type: "mcp_remove", name: s.name });
     }
   };
-  actions.appendChild(editBtn);
-  actions.appendChild(delBtn);
+  head.appendChild(delBtn);
+  row.appendChild(head);
 
-  row.appendChild(info);
-  row.appendChild(status);
-  row.appendChild(actions);
+  // Second line: command text (clickable to edit), single full row.
+  const detail = document.createElement("div");
+  detail.className = "mcp-row-detail";
+  detail.textContent = s.command + (s.args && s.args.length ? " " + s.args.join(" ") : "");
+  detail.title = i18nT("mcpEditHint", "点击编辑");
+  detail.onclick = () => { mcpEditing = s.name; renderMCPServerManager(); };
+  row.appendChild(detail);
+
   return row;
 }
 
