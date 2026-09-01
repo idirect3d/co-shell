@@ -847,7 +847,7 @@
 - [ ] **FIX-463 gitStatusMap 加超时保护**
   - 背景：mcp-sample 是 git 仓库，co-shell 的 gitStatusMap()（web/server.go:593-632）在 handleTree 中执行 `git status --porcelain -z`，但该命令在 mcp-sample 下卡住不返回（git 在 refresh_index 阶段对某个已跟踪文件执行 mmap 时挂起），且 cmd.Output() 没有超时保护，导致整个 /api/tree 请求永久挂起，Web UI 文件树为空。
   - 方案（已确认）：给 gitStatusMap 中的 git 命令设置超时（3 秒），超时则返回 nil（不显示 git 状态，但文件树正常显示）。这是健壮性缺陷——git 命令卡住不应阻塞文件树 API。
-  - 实施：`web/server.go` gitStatusMap 用 context.WithTimeout 包裹 git 命令，超时返回 nil；新增 `web/server_test.go` 测试超时场景 [BUILD-760]
+  - 实施：`web/server.go` gitStatusMap 用 context.WithTimeout 包裹 git 命令，超时返回 nil；新增 `web/gitstatus_timeout_test.go` 测试超时场景 [BUILD-761]
   - 测试：见 use-case/FIX-463/
 
 ## v0.9.1 — 开发中（已完成）
