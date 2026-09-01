@@ -1700,6 +1700,10 @@ aside {
   padding: 0;
   overflow: hidden;
   height: calc(100% - 41px);
+  /* FIX-465: reset the base max-height:60vh so the body fills the settings box
+     height (calc(100% - 41px)) instead of being capped at 60vh, which left a
+     blank area at the bottom when the window was shrunk. */
+  max-height: none;
 }
 .settings-nav {
   flex: 0 0 200px;

@@ -866,7 +866,7 @@
 - [ ] **FIX-465 修复视觉模型选择 bug**
   - 背景：视觉识别时，当当前工作模式（如 act）未绑定 VisionModelID 时，getModelIDForCall() 直接返回该模式的 ModelID（可能不支持视觉），未检查视觉能力也未回退到全局视觉模型，导致视觉识别把图片发给不支持视觉的模型（如 deepseek-v4-flash），API 报 400。
   - 方案（已确认）：getModelIDForCall() 在 visionRequired 且模式未绑定 VisionModelID 时，检查模式 ModelID 是否支持视觉（modelSupportsVision）；若不支持则返回空字符串，让 selectModelForCall() 走全局回退路径（GetActiveModel(true) 正确选择全局最高优先级视觉模型）。
-  - 实施：`agent/agent.go`（getModelIDForCall 增加视觉能力检查 + 新增 modelSupportsVision 辅助函数）+ `agent/fix465_test.go`（TestGetModelIDForCallVisionFallback / TestSelectModelForCallVisionFallback）[BUILD-764]
+  - 实施：`agent/agent.go`（getModelIDForCall 增加视觉能力检查 + 新增 modelSupportsVision 辅助函数）+ `agent/fix465_test.go`（TestGetModelIDForCallVisionFallback / TestSelectModelForCallVisionFallback）[BUILD-764]；补充：`web/static/style.css`（settings-body 覆盖定义加 max-height:none，重置基础 max-height:60vh，修复缩小窗口后右半边底部结构性空白）[BUILD-765]
 
 > 当前 BUILD: 761
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
