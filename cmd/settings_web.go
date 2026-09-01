@@ -31,6 +31,10 @@ type WebSettingItem struct {
 type WebSettingGroup struct {
 	Title string           `json:"title"`
 	Items []WebSettingItem `json:"items"`
+	// Kind marks a special-purpose group rendered by a dedicated UI instead of
+	// the generic key/value rows (FEATURE-464). "mcp" renders the MCP server
+	// manager; empty means the generic setting rows.
+	Kind string `json:"kind,omitempty"`
 }
 
 // boolStr converts a bool to "on"/"off".
@@ -167,6 +171,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Title: i18n.T(i18n.KeySettingsGroupDisplay), Items: displayGroup},
 		{Title: i18n.T(i18n.KeySettingsGroupSafety), Items: safetyGroup},
 		{Title: i18n.T(i18n.KeySettingsGroupMemory), Items: memoryGroup},
+		// FEATURE-464: MCP Server manager group (rendered by a dedicated UI).
+		{Title: i18n.T(i18n.KeySettingsGroupMCP), Kind: "mcp"},
 		{Title: i18n.T(i18n.KeySettingsGroupSearchDebug), Items: developerGroup},
 	}
 }

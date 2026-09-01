@@ -280,6 +280,7 @@ func (r *REPL) Run() error {
 		OutputFormat:    r.outputFormat,
 		Ag:              r.agent,
 		SettingsHandler: r.settingsHandler,
+		MCPHandler:      r.mcpHandler,
 	}
 	factory := sessionFactories[r.inputMode]
 	if factory == nil {

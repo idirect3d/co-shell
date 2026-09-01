@@ -102,6 +102,12 @@ function applyI18n() {
   menuBtn.title = T.menu;
 }
 
+// i18nT returns the localized string for key, falling back to the given default
+// when the key is not present in the current language dictionary (FEATURE-464).
+function i18nT(key, fallback) {
+  return (T && T[key]) ? T[key] : (fallback || key);
+}
+
 /* ---------- theme ---------- */
 
 // localStorage "co-shell-theme": "auto" (default, follow the OS) | "dark" |
@@ -294,6 +300,8 @@ function wsConnect() {
     else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
     else if (msg.kind === "settings") renderSettings(msg.settings || []);
     else if (msg.kind === "settings_result") showSettingsResult(msg);
+    else if (msg.kind === "mcp") renderMCPServers(msg.mcp_servers || []);
+    else if (msg.kind === "mcp_result") showMCPResult(msg);
     else if (msg.kind === "identity") renderIdentity(msg.identity || []);
     else if (msg.kind === "identity_result") showIdentityResult(msg);
     else if (msg.kind === "mode") renderModeSeg(msg.modes || []);
@@ -3271,6 +3279,7 @@ function settingsGroupIcon(title) {
   if (t.includes("显示") || t.includes("display") || t.includes("输出")) return "🖥️";
   if (t.includes("安全") || t.includes("safety") || t.includes("确认")) return "🛡️";
   if (t.includes("记忆") || t.includes("memory") || t.includes("上下文")) return "📚";
+  if (t.includes("mcp")) return "🔌";
   if (t.includes("开发") || t.includes("debug") || t.includes("搜索")) return "🔧";
   return "⚙️";
 }
@@ -3322,6 +3331,12 @@ function renderSettingsPane() {
   const g = settingsGroups[settingsActiveGroup];
   if (!g) {
     settingsDynamic.textContent = "(no settings)";
+    return;
+  }
+  // FEATURE-464: a group with kind "mcp" renders the dedicated MCP server
+  // manager instead of generic key/value rows.
+  if (g.kind === "mcp") {
+    renderMCPServerManager();
     return;
   }
   const frag = document.createDocumentFragment();
@@ -3426,6 +3441,178 @@ function renderSettingItem(it) {
 // the settings pane (right side), so it does not shift the setting list and
 // cause the panel to jump (FEATURE-462).
 function showSettingsResult(msg) {
+  const el = document.createElement("div");
+  el.className = "set-result " + (msg.ok ? "ok" : "err");
+  el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
+  const box = document.getElementById("settingsResult");
+  if (box) {
+    box.textContent = "";
+    box.appendChild(el);
+  } else {
+    settingsDynamic.prepend(el);
+  }
+  setTimeout(() => el.remove(), 3000);
+}
+
+/* ---------- MCP server manager (FEATURE-464) ---------- */
+
+// mcpServers holds the latest MCP server list from the backend.
+let mcpServers = [];
+// mcpEditing holds the name of the server currently being edited (null = none).
+let mcpEditing = null;
+
+// renderMCPServers stores the MCP server list and re-renders the manager if it
+// is the active settings group (FEATURE-464).
+function renderMCPServers(servers) {
+  mcpServers = servers || [];
+  const g = settingsGroups[settingsActiveGroup];
+  if (g && g.kind === "mcp") renderMCPServerManager();
+}
+
+// renderMCPServerManager renders the MCP server list + add/edit form into the
+// settings pane (FEATURE-464).
+function renderMCPServerManager() {
+  settingsDynamic.innerHTML = "";
+  const frag = document.createDocumentFragment();
+
+  // Add / edit form.
+  const form = document.createElement("div");
+  form.className = "mcp-form";
+  const editing = mcpEditing ? mcpServers.find((s) => s.name === mcpEditing) : null;
+
+  const nameLbl = document.createElement("span");
+  nameLbl.className = "mcp-form-label";
+  nameLbl.textContent = i18nT("mcpName", "名称");
+  const nameInput = document.createElement("input");
+  nameInput.className = "set-input mcp-name";
+  nameInput.placeholder = i18nT("mcpNamePh", "如 filesystem");
+  nameInput.value = editing ? editing.name : "";
+  if (editing) nameInput.disabled = true; // name is the identity key
+
+  const cmdLbl = document.createElement("span");
+  cmdLbl.className = "mcp-form-label";
+  cmdLbl.textContent = i18nT("mcpCommand", "命令");
+  const cmdInput = document.createElement("input");
+  cmdInput.className = "set-input mcp-command";
+  cmdInput.placeholder = i18nT("mcpCommandPh", "如 npx");
+  cmdInput.value = editing ? editing.command : "";
+
+  const argsLbl = document.createElement("span");
+  argsLbl.className = "mcp-form-label";
+  argsLbl.textContent = i18nT("mcpArgs", "参数");
+  const argsInput = document.createElement("input");
+  argsInput.className = "set-input mcp-args";
+  argsInput.placeholder = i18nT("mcpArgsPh", "空格分隔，如 -y @modelcontextprotocol/server-filesystem");
+  argsInput.value = editing ? (editing.args || []).join(" ") : "";
+
+  const enabledLbl = document.createElement("span");
+  enabledLbl.className = "mcp-form-label";
+  enabledLbl.textContent = i18nT("mcpEnabled", "启用");
+  const enabledInput = document.createElement("input");
+  enabledInput.type = "checkbox";
+  enabledInput.className = "set-toggle mcp-enabled";
+  enabledInput.checked = editing ? editing.enabled : true;
+
+  const btnRow = document.createElement("div");
+  btnRow.className = "mcp-form-btns";
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "btn sm primary";
+  saveBtn.textContent = editing ? i18nT("mcpSave", "保存") : i18nT("mcpAdd", "添加");
+  saveBtn.onclick = () => {
+    const name = nameInput.value.trim();
+    const command = cmdInput.value.trim();
+    const args = argsInput.value.trim() ? argsInput.value.trim().split(/\s+/) : [];
+    if (!name || !command) {
+      showMCPResult({ ok: false, message: i18nT("mcpNeedNameCmd", "名称和命令不能为空") });
+      return;
+    }
+    if (editing) {
+      wsSend({ type: "mcp_update", name, command, args, enabled: enabledInput.checked });
+    } else {
+      wsSend({ type: "mcp_add", name, command, args });
+    }
+    mcpEditing = null;
+  };
+  btnRow.appendChild(saveBtn);
+  if (editing) {
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "btn sm";
+    cancelBtn.textContent = i18nT("mcpCancel", "取消");
+    cancelBtn.onclick = () => { mcpEditing = null; renderMCPServerManager(); };
+    btnRow.appendChild(cancelBtn);
+  }
+
+  form.appendChild(nameLbl); form.appendChild(nameInput);
+  form.appendChild(cmdLbl); form.appendChild(cmdInput);
+  form.appendChild(argsLbl); form.appendChild(argsInput);
+  form.appendChild(enabledLbl); form.appendChild(enabledInput);
+  form.appendChild(btnRow);
+  frag.appendChild(form);
+
+  // Server list.
+  const list = document.createElement("div");
+  list.className = "mcp-list";
+  if (!mcpServers.length) {
+    const empty = document.createElement("div");
+    empty.className = "mcp-empty";
+    empty.textContent = i18nT("mcpEmpty", "未配置 MCP 服务器");
+    list.appendChild(empty);
+  } else {
+    for (const s of mcpServers) {
+      list.appendChild(renderMCPServerRow(s));
+    }
+  }
+  frag.appendChild(list);
+
+  settingsDynamic.appendChild(frag);
+}
+
+// renderMCPServerRow builds one MCP server list row with edit/delete actions.
+function renderMCPServerRow(s) {
+  const row = document.createElement("div");
+  row.className = "mcp-row" + (s.enabled ? "" : " off");
+
+  const info = document.createElement("div");
+  info.className = "mcp-row-info";
+  const name = document.createElement("div");
+  name.className = "mcp-row-name";
+  name.textContent = s.name;
+  const detail = document.createElement("div");
+  detail.className = "mcp-row-detail";
+  detail.textContent = s.command + (s.args && s.args.length ? " " + s.args.join(" ") : "");
+  info.appendChild(name);
+  info.appendChild(detail);
+
+  const status = document.createElement("span");
+  status.className = "mcp-row-status" + (s.enabled ? " on" : "");
+  status.textContent = s.enabled ? i18nT("mcpOn", "启用") : i18nT("mcpOff", "停用");
+
+  const actions = document.createElement("div");
+  actions.className = "mcp-row-actions";
+  const editBtn = document.createElement("button");
+  editBtn.className = "btn sm";
+  editBtn.textContent = i18nT("mcpEdit", "编辑");
+  editBtn.onclick = () => { mcpEditing = s.name; renderMCPServerManager(); };
+  const delBtn = document.createElement("button");
+  delBtn.className = "btn sm danger";
+  delBtn.textContent = i18nT("mcpDelete", "删除");
+  delBtn.onclick = () => {
+    if (confirm(i18nT("mcpDeleteConfirm", "确定删除 MCP 服务器 ") + s.name + "?")) {
+      wsSend({ type: "mcp_remove", name: s.name });
+    }
+  };
+  actions.appendChild(editBtn);
+  actions.appendChild(delBtn);
+
+  row.appendChild(info);
+  row.appendChild(status);
+  row.appendChild(actions);
+  return row;
+}
+
+// showMCPResult displays the result of an MCP add/update/remove operation in the
+// settings result box (FEATURE-464).
+function showMCPResult(msg) {
   const el = document.createElement("div");
   el.className = "set-result " + (msg.ok ? "ok" : "err");
   el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
