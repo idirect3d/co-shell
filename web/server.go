@@ -13,6 +13,7 @@ package web
 
 import (
 	"bufio"
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -28,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
@@ -589,12 +591,16 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 // returns a map of workspace-relative file path to a normalized status code
 // (M/A/D/R/U; "??" untracked becomes U). It returns an empty map when the
 // workspace is not a git repository or git is unavailable, so the tree is
-// unaffected. Argument-array exec (no shell) — no injection surface.
+// unaffected. The git command is bounded by a 3s timeout so a hung git
+// process (e.g. a repo whose status blocks) never stalls the file-tree API.
+// Argument-array exec (no shell) — no injection surface.
 func gitStatusMap(root string) map[string]string {
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		return nil
 	}
-	cmd := exec.Command("git", "status", "--porcelain", "-z")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "status", "--porcelain", "-z")
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
