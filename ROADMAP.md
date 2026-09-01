@@ -820,6 +820,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FIX-462 | 0.28.1 | P1 | SUP 块显示限高+展开+RAW：SUP 块每部分内容（提示词/流式内容/工具输入）限制最高高度，参考 TOOL 块输入参数的做法，提供限高文本输出区域 + 展开 + RAW 选项 |
+| FIX-463 | 0.28.1 | P1 | gitStatusMap 加超时保护：git status 命令卡住时不再阻塞 /api/tree 文件树 API，超时返回 nil（不显示 git 状态但文件树正常显示） |
 
 > 当前 BUILD: 755
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -842,6 +843,12 @@
   - 背景：FIX-462 新增的"点击输入框取消快捷键监控"导致输入框获得焦点时立即设置 supplementMode=true，从而禁用所有快捷键（1-9/空格/回车等）。因输入框在交互弹框出现时常已获得焦点，快捷键全部失效。
   - 实施： 将 input 的 focus 监听改为 click 单击才取消快捷键监控（进入补充输入模式），自动聚焦/Tab 聚焦不触发，仅显式鼠标单击才禁用快捷键；同步更新 zh/en supplementHint 文案为"单击输入框" [BUILD-757]
   - 测试：见 use-case/FIX-462/
+
+- [ ] **FIX-463 gitStatusMap 加超时保护**
+  - 背景：mcp-sample 是 git 仓库，co-shell 的 gitStatusMap()（web/server.go:593-632）在 handleTree 中执行 `git status --porcelain -z`，但该命令在 mcp-sample 下卡住不返回（git 在 refresh_index 阶段对某个已跟踪文件执行 mmap 时挂起），且 cmd.Output() 没有超时保护，导致整个 /api/tree 请求永久挂起，Web UI 文件树为空。
+  - 方案（已确认）：给 gitStatusMap 中的 git 命令设置超时（3 秒），超时则返回 nil（不显示 git 状态，但文件树正常显示）。这是健壮性缺陷——git 命令卡住不应阻塞文件树 API。
+  - 实施：`web/server.go` gitStatusMap 用 context.WithTimeout 包裹 git 命令，超时返回 nil；新增 `web/server_test.go` 测试超时场景 [BUILD-760]
+  - 测试：见 use-case/FIX-463/
 
 ## v0.9.1 — 开发中（已完成）
 
