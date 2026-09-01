@@ -33,7 +33,7 @@ const I18N = {
     modelDeleteConfirm: "确定要删除模型「%s」吗？此操作不可撤销。",
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
-    supplement: "补充信息", supplementHint: "长按按钮或双击输入框可补充信息",
+    supplement: "补充信息", supplementHint: "长按按钮或单击输入框可补充信息",
     numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
@@ -68,7 +68,7 @@ const I18N = {
     modelDeleteConfirm: "Delete model \"%s\"? This cannot be undone.",
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
-    supplement: "Supplement", supplementHint: "Long-press a button or double-click the input box to supplement",
+    supplement: "Supplement", supplementHint: "Long-press a button or click the input box to supplement",
     numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
@@ -2450,13 +2450,12 @@ document.addEventListener("keydown", (e) => {
   input.focus();
 });
 input.addEventListener("input", autoGrow);
-// FEATURE-462: double-clicking the main input box while an interaction is
-// pending cancels shortcut-key monitoring so the user can type supplementary
-// info freely (the dedicated supplement box was removed). A single click/focus
-// must NOT disable the shortcuts - the input box often already has focus when
-// the interaction dialog appears, which would otherwise break every shortcut
-// key (FIX-462).
-input.addEventListener("dblclick", () => {
+// FEATURE-462: clicking the main input box while an interaction is pending
+// cancels shortcut-key monitoring so the user can type supplementary info
+// freely (the dedicated supplement box was removed). A click (not focus) is
+// used so auto-focus / Tab-focus when the dialog appears does NOT disable the
+// shortcuts - only an explicit mouse click does (FIX-462).
+input.addEventListener("click", () => {
   if (pendingInteraction) {
     supplementMode = true;
     input.placeholder = T.supplementHint;
