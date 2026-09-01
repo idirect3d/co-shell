@@ -1744,6 +1744,11 @@ aside {
 .settings-pane {
   flex: 1;
   min-width: 0;
+  /* FEATURE-464: min-height:0 lets the pane shrink below its content height so
+     overflow-y:auto scrolls within the settings window height (not the browser
+     window height). Without it the flex item's implicit min-height:auto makes
+     the pane grow with content and follow the browser viewport. */
+  min-height: 0;
   padding: 12px 14px;
   overflow-y: auto;
   display: flex;
@@ -1828,6 +1833,87 @@ aside {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+}
+
+/* ---------- MCP server manager (FEATURE-464) ---------- */
+
+.mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--mono-bg);
+  margin-bottom: 10px;
+}
+.mcp-form-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+  margin-top: 2px;
+}
+.mcp-form .set-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.mcp-form-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mcp-empty {
+  font-size: 13px;
+  color: var(--fg-dim);
+  text-align: center;
+  padding: 16px 0;
+}
+.mcp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+.mcp-row.off { opacity: 0.6; }
+.mcp-row-info {
+  flex: 1;
+  min-width: 0;
+}
+.mcp-row-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.mcp-row-detail {
+  font-size: 12px;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-row-status {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--mono-bg);
+  color: var(--fg-dim);
+}
+.mcp-row-status.on {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.mcp-row-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
 }
 
 /* ---------- delete-session confirm modal (FEATURE-387) ---------- */

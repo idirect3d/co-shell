@@ -254,6 +254,7 @@ const (
 	KeyMCPDisabled      = "mcp_disabled"
 	KeyMCPEmpty         = "mcp_empty"
 	KeyMCPListTitle     = "mcp_list_title"
+	KeyMCPUpdated       = "mcp_updated"
 
 	// Rule
 	KeyRuleAdded   = "rule_added"
@@ -1450,6 +1451,7 @@ const (
 	KeySettingsGroupSafety      = "settings_group_safety"
 	KeySettingsGroupMemory      = "settings_group_memory"
 	KeySettingsGroupTask        = "settings_group_task"
+	KeySettingsGroupMCP         = "settings_group_mcp"
 	KeySettingsGroupSearchDebug = "settings_group_search_debug"
 	// Config wizard group titles (FEATURE-200)
 	KeyWizardGroupModelMgr   = "wizard_group_model_mgr"
