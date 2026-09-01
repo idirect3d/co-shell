@@ -835,7 +835,7 @@
 
 - [ ] **FIX-462 风险标签中文化 + 多方法意图回填**
   - 背景：风险标签 LOW/MEDIUM/HIGH 改为中文（低风险/中风险/高风险）并支持多语言；一个迭代调用两个方法时意图只写在后一个 TOOL 块，应倒序一个一个回填。
-  - 实施：`web/static/app.js` 新增 riskLabel() 辅助函数 + iterToolBlocks 数组；tool_call_stream 新建工具块时 push 到 iterToolBlocks；tool_call 处理中意图回填改为名称匹配+回退到下一个未匹配块，风险标签改用 riskLabel() [BUILD-755]
+  - 实施：`web/static/app.js` 新增 riskLabel() 辅助函数 + iterToolBlocks 数组；tool_call_stream 新建工具块时 push 到 iterToolBlocks；tool_call 处理中意图回填优先按 iterToolBlocks 创建顺序匹配下一个未填充块（解决同名工具如 execute_command 时 toolBlockByName 被覆盖导致第一个块缺意图/风险标签），风险标签改用 riskLabel() [BUILD-758]
   - 测试：见 use-case/FIX-462/
 
 - [ ] **FIX-462 修复报告确认框快捷键失效**

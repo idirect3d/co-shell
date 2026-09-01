@@ -1236,12 +1236,19 @@ function renderEvent(ev) {
         // for this tool), fall back to the next unmatched block in creation
         // order (iterToolBlocks) so the intent is backfilled to each block one
         // by one instead of always the last one.
-        if (summary.tool_name && toolBlockByName[summary.tool_name]) {
-          curTool = toolBlockByName[summary.tool_name];
-        } else if (iterToolBlocks.length) {
-          const next = iterToolBlocks.find((b) => !b._intentFilled);
-          if (next) curTool = next;
+        // FIX-462: prefer matching by creation order (iterToolBlocks) so that
+        // when multiple tools share the same name (e.g. two execute_command
+        // calls) each tool_call event lands on its own block instead of all
+        // landing on the last one (toolBlockByName is keyed by name and gets
+        // overwritten by the last same-named block).
+        let target = null;
+        if (iterToolBlocks.length) {
+          target = iterToolBlocks.find((b) => !b._intentFilled);
         }
+        if (!target && summary.tool_name && toolBlockByName[summary.tool_name] && !toolBlockByName[summary.tool_name]._intentFilled) {
+          target = toolBlockByName[summary.tool_name];
+        }
+        if (target) curTool = target;
         curTool._intentFilled = true;
         const head = curTool.body.parentElement.children[0];
         const action = toolAction(summary.tool_name);
