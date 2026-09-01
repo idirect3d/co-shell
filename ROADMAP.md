@@ -861,6 +861,12 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-464 | 0.29.0 | P1 | Web UI 系统设置改进：① 右侧属性/值设置区高度以系统设置窗口高度为基准（而非浏览器窗口高度）；② 在"记忆与上下文"和"开发者"之间增加 MCP Server 设置区块，支持列表展示、追加、修改、删除 MCP server，可命名并设置地址参数等 |
+| FIX-465 | 0.29.0 | P1 | 修复视觉模型选择 bug：getModelIDForCall() 在视觉识别时，当当前工作模式未绑定 VisionModelID 时直接返回该模式的 ModelID（可能不支持视觉），未检查视觉能力也未回退到全局视觉模型，导致视觉识别错误使用不支持视觉的模型 |
+
+- [ ] **FIX-465 修复视觉模型选择 bug**
+  - 背景：视觉识别时，当当前工作模式（如 act）未绑定 VisionModelID 时，getModelIDForCall() 直接返回该模式的 ModelID（可能不支持视觉），未检查视觉能力也未回退到全局视觉模型，导致视觉识别把图片发给不支持视觉的模型（如 deepseek-v4-flash），API 报 400。
+  - 方案（已确认）：getModelIDForCall() 在 visionRequired 且模式未绑定 VisionModelID 时，检查模式 ModelID 是否支持视觉（modelSupportsVision）；若不支持则返回空字符串，让 selectModelForCall() 走全局回退路径（GetActiveModel(true) 正确选择全局最高优先级视觉模型）。
+  - 实施：`agent/agent.go`（getModelIDForCall 增加视觉能力检查 + 新增 modelSupportsVision 辅助函数）+ `agent/fix465_test.go`（TestGetModelIDForCallVisionFallback / TestSelectModelForCallVisionFallback）[BUILD-764]
 
 > 当前 BUILD: 761
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
