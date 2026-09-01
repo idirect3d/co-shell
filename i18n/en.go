@@ -133,6 +133,7 @@ var enMessages = map[string]string{
 	KeyMCPDisabled:      "✅ MCP server disabled: %s",
 	KeyMCPEmpty:         "No MCP servers configured.",
 	KeyMCPListTitle:     "MCP Servers:",
+	KeyMCPUpdated:       "✅ MCP server updated: %s",
 
 	// Rule
 	KeyRuleAdded:   "✅ Rule added: %s",
@@ -1199,6 +1200,7 @@ no liability whatsoever.`,
 	KeySettingsGroupSafety:      "Safety & Confirmation",
 	KeySettingsGroupMemory:      "Memory & Context",
 	KeySettingsGroupTask:        "Tasks & Sub-Agents",
+	KeySettingsGroupMCP:         "MCP Server",
 	KeySettingsGroupSearchDebug: "Developer",
 
 	// Error settings column 3 labels

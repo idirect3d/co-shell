@@ -68,6 +68,11 @@ type clientMessage struct {
 	Step        string   `json:"step,omitempty"`   // model_wizard_next/prev: the current wizard step
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // model_wizard_next/prev/submit: accumulated wizard data
 	YOLO        bool     `json:"yolo,omitempty"`   // yolo_set: the new YOLO mode state
+	// MCP server management (FEATURE-464): mcp_add/mcp_update/mcp_remove.
+	Name    string   `json:"name,omitempty"`    // mcp_add/update/remove: the server name
+	Command string   `json:"command,omitempty"` // mcp_add/update: the server command
+	Args    []string `json:"args,omitempty"`    // mcp_add/update: the server args
+	Enabled bool     `json:"enabled,omitempty"` // mcp_update: the enabled state
 }
 
 // interactionResultJSON is the wire form of an agent.InteractionResult.
@@ -106,6 +111,7 @@ type serverMessage struct {
 	WizardStep  json.RawMessage `json:"wizard_step,omitempty"` // kind=model_wizard: the wizard step form JSON
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
 	YOLO        bool            `json:"yolo,omitempty"`    // kind=yolo: the current YOLO mode state
+	MCPServers  json.RawMessage `json:"mcp_servers,omitempty"` // kind=mcp: the MCP server list JSON
 }
 
 // modeInfo is one work mode entry pushed to the browser for the mode

@@ -1700,6 +1700,10 @@ aside {
   padding: 0;
   overflow: hidden;
   height: calc(100% - 41px);
+  /* FIX-465: reset the base max-height:60vh so the body fills the settings box
+     height (calc(100% - 41px)) instead of being capped at 60vh, which left a
+     blank area at the bottom when the window was shrunk. */
+  max-height: none;
 }
 .settings-nav {
   flex: 0 0 200px;
@@ -1744,6 +1748,11 @@ aside {
 .settings-pane {
   flex: 1;
   min-width: 0;
+  /* FEATURE-464: min-height:0 lets the pane shrink below its content height so
+     overflow-y:auto scrolls within the settings window height (not the browser
+     window height). Without it the flex item's implicit min-height:auto makes
+     the pane grow with content and follow the browser viewport. */
+  min-height: 0;
   padding: 12px 14px;
   overflow-y: auto;
   display: flex;
@@ -1828,6 +1837,124 @@ aside {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+}
+
+/* ---------- MCP server manager (FEATURE-464) ---------- */
+
+.mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--mono-bg);
+  margin-bottom: 10px;
+}
+.mcp-form-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+  margin-top: 2px;
+}
+.mcp-form .set-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.mcp-form-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mcp-empty {
+  font-size: 13px;
+  color: var(--fg-dim);
+  text-align: center;
+  padding: 16px 0;
+}
+.mcp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+.mcp-row.off { opacity: 0.6; }
+/* First line: clickable title + toggle switch + delete button (FIX-465). */
+.mcp-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mcp-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-row-name:hover { color: var(--accent); }
+/* Second line: command text, single full row, clickable to edit (FIX-465). */
+.mcp-row-detail {
+  font-size: 12px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-row-detail:hover { color: var(--accent); }
+/* iOS-style toggle switch for enabled state (FIX-465). */
+.mcp-toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.mcp-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.mcp-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--border);
+  border-radius: 999px;
+  transition: 0.2s;
+}
+.mcp-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--fg);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.mcp-toggle input:checked + .mcp-toggle-slider {
+  background: var(--accent);
+}
+.mcp-toggle input:checked + .mcp-toggle-slider::before {
+  transform: translateX(16px);
+  background: var(--bg);
 }
 
 /* ---------- delete-session confirm modal (FEATURE-387) ---------- */

@@ -1850,7 +1850,11 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		mcpLLMTool := llm.Tool{
 			Name:        tool.Name,
 			Description: tool.Description,
-			Parameters:  tool.InputSchema,
+			// FIX-465: deep-copy the InputSchema so injectMetaParam does not
+			// mutate the MCP manager's shared schema map. buildTools runs on
+			// every LLM call; without a copy, repeated injectMetaParam calls
+			// would accumulate duplicate "meta" entries in required.
+			Parameters: deepCopyMap(tool.InputSchema),
 			Callback: func(ctx context.Context, args map[string]interface{}) (string, error) {
 				return a.mcpMgr.CallTool(ctx, tool.Name, args)
 			},
@@ -1968,22 +1972,92 @@ func injectMetaParam(tool *llm.Tool) {
 	}
 
 	// Update the required list: remove intent, add meta (and instruct for
-	// vision tools).
-	required, _ := tool.Parameters["required"].([]interface{})
-	newRequired := make([]interface{}, 0, len(required)+2)
-	for _, r := range required {
-		s, _ := r.(string)
-		if s == "intent" {
-			continue // intent moved into meta
+	// vision tools). The required field may be []interface{} (built-in tools)
+	// or []string (MCP tools, whose schema comes from the MCP server) — handle
+	// both so MCP tools keep their original required fields (FIX-465).
+	// meta is deduplicated so repeated injectMetaParam calls (buildTools runs
+	// on every LLM call and shares the MCP tool's InputSchema map) do not
+	// accumulate duplicate "meta" entries, which the LLM API rejects as
+	// non-unique (FIX-465).
+	newRequired := make([]interface{}, 0, 4)
+	hasMeta := false
+	hasInstruct := false
+	switch req := tool.Parameters["required"].(type) {
+	case []interface{}:
+		for _, r := range req {
+			s, _ := r.(string)
+			if s == "intent" {
+				continue // intent moved into meta
+			}
+			if s == "meta" {
+				hasMeta = true
+				continue
+			}
+			if s == "instruct" {
+				hasInstruct = true
+				continue
+			}
+			newRequired = append(newRequired, r)
 		}
-		newRequired = append(newRequired, r)
+	case []string:
+		for _, s := range req {
+			if s == "intent" {
+				continue // intent moved into meta
+			}
+			if s == "meta" {
+				hasMeta = true
+				continue
+			}
+			if s == "instruct" {
+				hasInstruct = true
+				continue
+			}
+			newRequired = append(newRequired, s)
+		}
 	}
-	// meta is always required and placed first.
-	newRequired = append([]interface{}{"meta"}, newRequired...)
-	if tool.Name == "visual_analysis" || tool.Name == "browser_screenshot" {
+	// meta is always required and placed first (deduplicated).
+	if !hasMeta {
+		newRequired = append([]interface{}{"meta"}, newRequired...)
+	}
+	if (tool.Name == "visual_analysis" || tool.Name == "browser_screenshot") && !hasInstruct {
 		newRequired = append(newRequired, "instruct")
 	}
 	tool.Parameters["required"] = newRequired
+}
+
+// deepCopyMap returns a deep copy of a map[string]interface{} so that mutating
+// the copy (e.g. injectMetaParam adding meta) does not affect the original
+// (FIX-465). Nested maps and slices are copied recursively.
+func deepCopyMap(src map[string]interface{}) map[string]interface{} {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]interface{}, len(src))
+	for k, v := range src {
+		dst[k] = deepCopyValue(v)
+	}
+	return dst
+}
+
+// deepCopyValue returns a deep copy of an arbitrary value, recursing into maps
+// and slices (FIX-465).
+func deepCopyValue(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		return deepCopyMap(t)
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, e := range t {
+			out[i] = deepCopyValue(e)
+		}
+		return out
+	case []string:
+		out := make([]string, len(t))
+		copy(out, t)
+		return out
+	default:
+		return v
+	}
 }
 
 // recordVisionToolCall stores the ToolCall ID and tool name of the most

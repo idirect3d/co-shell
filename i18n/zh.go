@@ -159,6 +159,7 @@ var zhMessages = map[string]string{
 	KeyMCPDisabled:      "✅ MCP 服务器 '%s' 已禁用",
 	KeyMCPEmpty:         "未配置 MCP 服务器",
 	KeyMCPListTitle:     "MCP 服务器:",
+	KeyMCPUpdated:       "✅ MCP 服务器 '%s' 已更新",
 
 	// Rule
 	KeyRuleAdded:   "✅ 规则已添加",
@@ -1212,6 +1213,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySettingsGroupSafety:      "安全与确认",
 	KeySettingsGroupMemory:      "记忆与上下文",
 	KeySettingsGroupTask:        "任务与子代理",
+	KeySettingsGroupMCP:         "MCP Server",
 	KeySettingsGroupSearchDebug: "开发者",
 
 	// Error settings column 3 labels

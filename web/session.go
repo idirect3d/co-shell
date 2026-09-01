@@ -66,6 +66,10 @@ type WebSession struct {
 	// It is nil when the session was created without a SettingsHandler
 	// (e.g. in tests), in which case settings messages are ignored.
 	settings *cmd.SettingsHandler
+	// mcp handles mcp_get/mcp_add/mcp_update/mcp_remove messages (FEATURE-464).
+	// It is nil when the session was created without an MCPHandler (e.g. in
+	// tests), in which case MCP messages are ignored.
+	mcp *cmd.MCPHandler
 	// session handles :session pop to for the retry-from block action
 	// (FEATURE-409).
 	session *cmd.SessionHandler
@@ -100,6 +104,7 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		srv:      srv,
 		ag:       deps.Ag,
 		settings: deps.SettingsHandler,
+		mcp:      deps.MCPHandler,
 		session:  cmd.NewSessionHandler(deps.Ag, deps.Cfg),
 		mode:     cmd.NewModeHandler(deps.Cfg, deps.Ag),
 		model:    cmd.NewModelHandler(deps.Cfg, deps.Ag),
@@ -162,6 +167,14 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleSettingsGet()
 	case "settings_set":
 		s.handleSettingsSet(msg.Key, msg.Value)
+	case "mcp_get":
+		s.handleMCPGet()
+	case "mcp_add":
+		s.handleMCPAdd(msg.Name, msg.Command, msg.Args)
+	case "mcp_update":
+		s.handleMCPUpdate(msg.Name, msg.Command, msg.Args, msg.Enabled)
+	case "mcp_remove":
+		s.handleMCPRemove(msg.Name)
 	case "identity_get":
 		s.handleIdentityGet()
 	case "identity_set":
@@ -235,6 +248,61 @@ func (s *WebSession) handleSettingsSet(key, value string) {
 		return
 	}
 	s.srv.sendJSON(serverMessage{Kind: "settings_result", OK: true, Message: result})
+}
+
+// handleMCPGet sends the current MCP server list to the browser (FEATURE-464).
+func (s *WebSession) handleMCPGet() {
+	if s.mcp == nil {
+		return
+	}
+	servers := s.mcp.MCPServersJSON()
+	raw, err := json.Marshal(servers)
+	if err != nil {
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "mcp", MCPServers: raw})
+}
+
+// handleMCPAdd adds a new MCP server from the browser (FEATURE-464).
+func (s *WebSession) handleMCPAdd(name, command string, args []string) {
+	if s.mcp == nil || name == "" || command == "" {
+		return
+	}
+	result, err := s.mcp.AddServerJSON(name, command, args)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: true, Message: result})
+	s.handleMCPGet()
+}
+
+// handleMCPUpdate updates an existing MCP server from the browser (FEATURE-464).
+func (s *WebSession) handleMCPUpdate(name, command string, args []string, enabled bool) {
+	if s.mcp == nil || name == "" {
+		return
+	}
+	result, err := s.mcp.UpdateServerJSON(name, command, args, enabled)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: true, Message: result})
+	s.handleMCPGet()
+}
+
+// handleMCPRemove removes an MCP server from the browser (FEATURE-464).
+func (s *WebSession) handleMCPRemove(name string) {
+	if s.mcp == nil || name == "" {
+		return
+	}
+	result, err := s.mcp.RemoveServerJSON(name)
+	if err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: true, Message: result})
+	s.handleMCPGet()
 }
 
 // handleIdentityGet sends the current identity & personality fields to the
