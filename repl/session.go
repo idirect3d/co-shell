@@ -59,6 +59,10 @@ type SessionDeps struct {
 	// (FEATURE-391) uses it — to serve settings_get/settings_set messages so
 	// the browser can read and modify settings graphically.
 	SettingsHandler *cmd.SettingsHandler
+	// MCPHandler handles the :mcp built-in command. Only the web session
+	// (FEATURE-464) uses it — to serve mcp_get/mcp_add/mcp_update/mcp_remove
+	// messages so the browser can manage MCP servers graphically.
+	MCPHandler *cmd.MCPHandler
 }
 
 // sessionFactories maps the input mode name to its session constructor.

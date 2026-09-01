@@ -195,3 +195,73 @@ func (h *MCPHandler) listServers() string {
 	}
 	return result
 }
+
+// WebMCPServer is the JSON-friendly representation of an MCP server for the
+// Web UI (FEATURE-464).
+type WebMCPServer struct {
+	Name    string   `json:"name"`
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+	Enabled bool     `json:"enabled"`
+}
+
+// MCPServersJSON returns the current MCP server list for the Web UI.
+func (h *MCPHandler) MCPServersJSON() []WebMCPServer {
+	servers := make([]WebMCPServer, 0, len(h.cfg.MCP.Servers))
+	for _, s := range h.cfg.MCP.Servers {
+		servers = append(servers, WebMCPServer{
+			Name:    s.Name,
+			Command: s.Command,
+			Args:    s.Args,
+			Enabled: s.Enabled,
+		})
+	}
+	return servers
+}
+
+// AddServerJSON adds a new MCP server from the Web UI (FEATURE-464). It returns
+// the localized result message.
+func (h *MCPHandler) AddServerJSON(name, command string, args []string) (string, error) {
+	return h.addServer(append([]string{name, command}, args...))
+}
+
+// RemoveServerJSON removes an MCP server from the Web UI (FEATURE-464).
+func (h *MCPHandler) RemoveServerJSON(name string) (string, error) {
+	return h.removeServer([]string{name})
+}
+
+// UpdateServerJSON updates an existing MCP server's command/args/enabled from
+// the Web UI (FEATURE-464). It returns the localized result message.
+func (h *MCPHandler) UpdateServerJSON(name, command string, args []string, enabled bool) (string, error) {
+	index := -1
+	for i, s := range h.cfg.MCP.Servers {
+		if s.Name == name {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyMCPNotFound, name))
+	}
+
+	old := h.cfg.MCP.Servers[index]
+	h.cfg.MCP.Servers[index].Command = command
+	h.cfg.MCP.Servers[index].Args = args
+	h.cfg.MCP.Servers[index].Enabled = enabled
+
+	// Reconnect the server to reflect the new command/args/enabled state.
+	if err := h.mcpMgr.RemoveServer(name); err != nil {
+		log.Warn("MCP server %s removed during update but disconnect error: %v", name, err)
+	}
+	if enabled {
+		if err := h.mcpMgr.AddServer(name, command, args); err != nil {
+			log.Warn("MCP server %s updated but connection failed: %v", name, err)
+		}
+	}
+
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.Info("MCP server updated: %s (was %s %v)", name, old.Command, old.Args)
+	return i18n.TF(i18n.KeyMCPUpdated, name), nil
+}

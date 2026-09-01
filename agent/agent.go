@@ -1198,6 +1198,8 @@ func (a *Agent) selectModelForCall() *config.ModelConfig {
 
 // getModelIDForCall returns the model ID to use based on the current work mode.
 // Returns the VisionModelID if vision is needed and set, otherwise ModelID.
+// When vision is needed and the mode's ModelID does not support vision, returns
+// empty string so the caller falls back to the global vision model (FIX-465).
 // Returns empty string if neither is set (use global).
 func (a *Agent) getModelIDForCall() string {
 	if a.cfg == nil {
@@ -1233,9 +1235,29 @@ func (a *Agent) getModelIDForCall() string {
 		return *mode.VisionModelID
 	}
 	if mode.ModelID != nil {
+		// FIX-465: when vision is required, only return the mode's ModelID if it
+		// actually supports vision. Otherwise return empty so the caller falls
+		// back to the global highest-priority vision model.
+		if visionRequired && !a.modelSupportsVision(*mode.ModelID) {
+			return ""
+		}
 		return *mode.ModelID
 	}
 	return ""
+}
+
+// modelSupportsVision reports whether the model with the given ID is enabled and
+// has the vision capability (FIX-465).
+func (a *Agent) modelSupportsVision(modelID string) bool {
+	if a.cfg == nil {
+		return false
+	}
+	for _, m := range a.cfg.Models {
+		if m.ID == modelID && m.Enabled && m.Capabilities.Vision {
+			return true
+		}
+	}
+	return false
 }
 
 // ApplyWorkModeConfig creates a new LLM client using the current work mode's

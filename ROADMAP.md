@@ -850,6 +850,36 @@
   - 实施：`web/server.go` gitStatusMap 用 context.WithTimeout 包裹 git 命令，超时返回 nil；新增 `web/gitstatus_timeout_test.go` 测试超时场景 [BUILD-761]
   - 测试：见 use-case/FIX-463/
 
+## v0.29.0 — 开发中
+
+> **版本**: v0.29.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: Web UI 系统设置改进
+> **说明**: 0.29.0 系列改进 Web UI 系统设置功能：修复右侧属性/值设置区高度基准问题，新增 MCP Server 设置区块。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-464 | 0.29.0 | P1 | Web UI 系统设置改进：① 右侧属性/值设置区高度以系统设置窗口高度为基准（而非浏览器窗口高度）；② 在"记忆与上下文"和"开发者"之间增加 MCP Server 设置区块，支持列表展示、追加、修改、删除 MCP server，可命名并设置地址参数等 |
+| FIX-465 | 0.29.0 | P1 | 修复视觉模型选择 bug：getModelIDForCall() 在视觉识别时，当当前工作模式未绑定 VisionModelID 时直接返回该模式的 ModelID（可能不支持视觉），未检查视觉能力也未回退到全局视觉模型，导致视觉识别错误使用不支持视觉的模型 |
+
+- [ ] **FIX-465 修复视觉模型选择 bug**
+  - 背景：视觉识别时，当当前工作模式（如 act）未绑定 VisionModelID 时，getModelIDForCall() 直接返回该模式的 ModelID（可能不支持视觉），未检查视觉能力也未回退到全局视觉模型，导致视觉识别把图片发给不支持视觉的模型（如 deepseek-v4-flash），API 报 400。
+  - 方案（已确认）：getModelIDForCall() 在 visionRequired 且模式未绑定 VisionModelID 时，检查模式 ModelID 是否支持视觉（modelSupportsVision）；若不支持则返回空字符串，让 selectModelForCall() 走全局回退路径（GetActiveModel(true) 正确选择全局最高优先级视觉模型）。
+  - 实施：`agent/agent.go`（getModelIDForCall 增加视觉能力检查 + 新增 modelSupportsVision 辅助函数）+ `agent/fix465_test.go`（TestGetModelIDForCallVisionFallback / TestSelectModelForCallVisionFallback）[BUILD-764]；补充：`web/static/style.css`（settings-body 覆盖定义加 max-height:none，重置基础 max-height:60vh，修复缩小窗口后右半边底部结构性空白）[BUILD-765]；补充：`agent/tools.go`（injectMetaParam 修复 MCP 工具 required 字段类型断言 bug——MCP 工具 required 为 []string，原用 .([]interface{}) 断言失败导致必填字段丢失；改为 switch 处理 []interface{}/[]string 两种类型 + 去重 meta/instruct；buildTools 深拷贝 MCP 工具 InputSchema 避免修改共享引用导致重复 meta；新增 deepCopyMap/deepCopyValue 辅助函数）[BUILD-767]
+
+> 当前 BUILD: 761
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-464 Web UI 系统设置改进**
+  - 背景：Web UI 系统设置存在两个问题：① 右侧属性/值设置区高度以浏览器窗口高度为基准，会随浏览器大小变化；② 缺少 MCP Server 设置入口，用户无法在 Web UI 中管理 MCP server。
+  - 方案（已确认）：① 修复右侧属性/值设置区高度基准，使其以系统设置窗口高度为基准（flex 子项加 min-height:0 使滚动生效）；② 在"记忆与上下文"和"开发者"之间新增 MCP Server 设置区块，默认显示 MCP server 列表，支持追加、修改、删除，可命名并设置地址参数等。
+  - 实施：`web/static/style.css`（settings-pane 加 min-height:0 修复高度基准 + MCP manager 样式）+ `web/static/app.js`（MCP manager 渲染/增删改 + i18nT 辅助函数 + mcp/mcp_result 消息处理）+ `cmd/settings_web.go`（WebSettingGroup 加 Kind 字段 + 新增 MCP Server 组）+ `cmd/mcp.go`（MCPServersJSON/AddServerJSON/UpdateServerJSON/RemoveServerJSON）+ `web/session.go`（mcp 字段 + mcp_get/add/update/remove 处理）+ `web/server.go`（clientMessage/serverMessage 加 MCP 字段）+ `repl/session.go` + `repl/repl.go`（SessionDeps 加 MCPHandler）+ `i18n/`（KeyMCPUpdated/KeySettingsGroupMCP）[BUILD-762]；修复：MCP 列表为空——renderMCPServerManager 未发送 mcp_get 请求后端列表，且 renderMCPServers 回调会与 renderMCPServerManager 形成 mcp_get 无限循环；改为 renderMCPServerManager(fetch) 默认发送 mcp_get、renderMCPServers 以 fetch=false 调用避免循环 [BUILD-763]；改进：MCP 卡片界面——① 启用/禁用改为滑动开关（mcp-toggle），与标题、删除按钮在一行；② 命令单占一整行；③ 编辑框内去掉启用/禁用 checkbox；④ 去掉编辑按钮，改为点击卡片标题或命令文字进入编辑状态 [BUILD-766]
+  - 测试：见 use-case/FEATURE-464/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
