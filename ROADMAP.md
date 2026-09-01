@@ -871,7 +871,7 @@
 - [ ] **FEATURE-464 Web UI 系统设置改进**
   - 背景：Web UI 系统设置存在两个问题：① 右侧属性/值设置区高度以浏览器窗口高度为基准，会随浏览器大小变化；② 缺少 MCP Server 设置入口，用户无法在 Web UI 中管理 MCP server。
   - 方案（已确认）：① 修复右侧属性/值设置区高度基准，使其以系统设置窗口高度为基准（flex 子项加 min-height:0 使滚动生效）；② 在"记忆与上下文"和"开发者"之间新增 MCP Server 设置区块，默认显示 MCP server 列表，支持追加、修改、删除，可命名并设置地址参数等。
-  - 实施：`web/static/style.css`（settings-pane 加 min-height:0 修复高度基准 + MCP manager 样式）+ `web/static/app.js`（MCP manager 渲染/增删改 + i18nT 辅助函数 + mcp/mcp_result 消息处理）+ `cmd/settings_web.go`（WebSettingGroup 加 Kind 字段 + 新增 MCP Server 组）+ `cmd/mcp.go`（MCPServersJSON/AddServerJSON/UpdateServerJSON/RemoveServerJSON）+ `web/session.go`（mcp 字段 + mcp_get/add/update/remove 处理）+ `web/server.go`（clientMessage/serverMessage 加 MCP 字段）+ `repl/session.go` + `repl/repl.go`（SessionDeps 加 MCPHandler）+ `i18n/`（KeyMCPUpdated/KeySettingsGroupMCP）[BUILD-762]
+  - 实施：`web/static/style.css`（settings-pane 加 min-height:0 修复高度基准 + MCP manager 样式）+ `web/static/app.js`（MCP manager 渲染/增删改 + i18nT 辅助函数 + mcp/mcp_result 消息处理）+ `cmd/settings_web.go`（WebSettingGroup 加 Kind 字段 + 新增 MCP Server 组）+ `cmd/mcp.go`（MCPServersJSON/AddServerJSON/UpdateServerJSON/RemoveServerJSON）+ `web/session.go`（mcp 字段 + mcp_get/add/update/remove 处理）+ `web/server.go`（clientMessage/serverMessage 加 MCP 字段）+ `repl/session.go` + `repl/repl.go`（SessionDeps 加 MCPHandler）+ `i18n/`（KeyMCPUpdated/KeySettingsGroupMCP）[BUILD-762]；修复：MCP 列表为空——renderMCPServerManager 未发送 mcp_get 请求后端列表，且 renderMCPServers 回调会与 renderMCPServerManager 形成 mcp_get 无限循环；改为 renderMCPServerManager(fetch) 默认发送 mcp_get、renderMCPServers 以 fetch=false 调用避免循环 [BUILD-763]
   - 测试：见 use-case/FEATURE-464/
 
 ## v0.9.1 — 开发中（已完成）

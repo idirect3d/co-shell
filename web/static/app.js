@@ -3462,16 +3462,22 @@ let mcpServers = [];
 let mcpEditing = null;
 
 // renderMCPServers stores the MCP server list and re-renders the manager if it
-// is the active settings group (FEATURE-464).
+// is the active settings group (FEATURE-464). It does NOT re-send mcp_get (that
+// would loop with renderMCPServerManager); it only re-renders from the received
+// list.
 function renderMCPServers(servers) {
   mcpServers = servers || [];
   const g = settingsGroups[settingsActiveGroup];
-  if (g && g.kind === "mcp") renderMCPServerManager();
+  if (g && g.kind === "mcp") renderMCPServerManager(false);
 }
 
 // renderMCPServerManager renders the MCP server list + add/edit form into the
-// settings pane (FEATURE-464).
-function renderMCPServerManager() {
+// settings pane (FEATURE-464). When fetch is true (default) it requests the
+// latest server list from the backend so the list reflects the shared config
+// (same as the REPL :mcp). renderMCPServers calls it with fetch=false to avoid
+// a request loop.
+function renderMCPServerManager(fetch) {
+  if (fetch !== false) wsSend({ type: "mcp_get" });
   settingsDynamic.innerHTML = "";
   const frag = document.createDocumentFragment();
 
