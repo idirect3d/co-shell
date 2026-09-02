@@ -301,3 +301,96 @@ func TestWebWizardMaxModelLenPrefill(t *testing.T) {
 		t.Errorf("max_model_len value = %q, want 128000", step.Fields[0].Value)
 	}
 }
+
+// TestWebWizardTemplateThinkingFields verifies the template step exposes the
+// thinking switch, the provider-specific reasoning_effort select, and the
+// template raw JSON when a thinking-capable template is selected (FEATURE-467).
+func TestWebWizardTemplateThinkingFields(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "deepseek-official"}
+	step, err := h.webWizardStepData(data, WebWizardTemplate)
+	if err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	// template_id + thinking + reasoning_effort.
+	if len(step.Fields) != 3 {
+		t.Fatalf("template fields = %d, want 3 (template_id/thinking/reasoning_effort)", len(step.Fields))
+	}
+	if step.Fields[1].Key != "thinking" || step.Fields[1].Type != "switch" {
+		t.Errorf("field[1] = %+v, want thinking switch", step.Fields[1])
+	}
+	if step.Fields[1].Value != "true" {
+		t.Errorf("thinking default = %q, want true (deepseek supports thinking)", step.Fields[1].Value)
+	}
+	if step.Fields[2].Key != "reasoning_effort" || step.Fields[2].Type != "select" {
+		t.Errorf("field[2] = %+v, want reasoning_effort select", step.Fields[2])
+	}
+	if len(step.Fields[2].Options) == 0 {
+		t.Errorf("reasoning_effort should have options for deepseek")
+	}
+	if step.Fields[2].Value != "high" {
+		t.Errorf("reasoning_effort default = %q, want high (from deepseek template DefaultParams)", step.Fields[2].Value)
+	}
+	if step.TemplateJSON == "" {
+		t.Errorf("template_json should be populated")
+	}
+	if len(step.ReasoningEffortOptions) == 0 {
+		t.Errorf("reasoning_effort_options should be populated")
+	}
+}
+
+// TestWebWizardTemplateNoReasoningEffort verifies a template whose provider has
+// no reasoning_effort concept (qwen) exposes only the thinking switch, no
+// reasoning_effort select (FEATURE-467).
+func TestWebWizardTemplateNoReasoningEffort(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "qwen-official"}
+	step, err := h.webWizardStepData(data, WebWizardTemplate)
+	if err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	// template_id + thinking (no reasoning_effort for qwen).
+	if len(step.Fields) != 2 {
+		t.Fatalf("template fields = %d, want 2 (template_id/thinking)", len(step.Fields))
+	}
+	if step.Fields[1].Key != "thinking" {
+		t.Errorf("field[1] = %+v, want thinking switch", step.Fields[1])
+	}
+	if step.Fields[1].Value != "false" {
+		t.Errorf("thinking default = %q, want false (qwen template thinking=false)", step.Fields[1].Value)
+	}
+	if len(step.ReasoningEffortOptions) != 0 {
+		t.Errorf("qwen should have no reasoning_effort_options")
+	}
+}
+
+// TestWebWizardSubmitThinkingSettings verifies submitting the wizard persists the
+// model-level ThinkingEnabled / ReasoningEffort (FEATURE-467).
+func TestWebWizardSubmitThinkingSettings(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek-official", Endpoint: "https://api.deepseek.com",
+		APIKey: "k", ModelName: "deepseek-chat", ModelID: "deepseek-chat",
+		Priority: 10, MaxModelLen: 65536, Enabled: true,
+		Vision: true, ToolCall: true, Thinking: true, ReasoningEffort: "low",
+	}
+	if _, err := h.WebWizardSubmit(data); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	var saved *config.ModelConfig
+	for _, m := range h.cfg.Models {
+		if m.ID == "deepseek-chat" {
+			saved = m
+			break
+		}
+	}
+	if saved == nil {
+		t.Fatalf("model deepseek-chat not saved")
+	}
+	if saved.ThinkingEnabled == nil || !*saved.ThinkingEnabled {
+		t.Errorf("ThinkingEnabled = %v, want true", saved.ThinkingEnabled)
+	}
+	if saved.ReasoningEffort == nil || *saved.ReasoningEffort != "low" {
+		t.Errorf("ReasoningEffort = %v, want low", saved.ReasoningEffort)
+	}
+}

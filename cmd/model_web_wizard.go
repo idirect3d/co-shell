@@ -14,6 +14,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -76,6 +77,14 @@ type WebWizardStepData struct {
 	// Message carries an informational/error message to show the user (e.g. why
 	// the model list refresh failed). Empty when there is nothing to report.
 	Message string `json:"message,omitempty"`
+	// TemplateJSON carries the selected template's raw JSON (pretty-printed) so
+	// the frontend can show it in a collapsible viewer on the template step
+	// (FEATURE-467). Empty when no template is selected.
+	TemplateJSON string `json:"template_json,omitempty"`
+	// ReasoningEffortOptions lists the reasoning_effort choices for the selected
+	// template's provider (FEATURE-467). Empty when the provider has no
+	// reasoning_effort concept.
+	ReasoningEffortOptions []string `json:"reasoning_effort_options,omitempty"`
 }
 
 // WebWizardData holds all filled fields across steps. It is owned by the
@@ -91,9 +100,12 @@ type WebWizardData struct {
 	Vision      bool   `json:"vision"`
 	ToolCall    bool   `json:"tool_call"`
 	Thinking    bool   `json:"thinking"`
-	ModelID     string `json:"model_id,omitempty"`
-	Priority    int    `json:"priority"`
-	MaxModelLen int    `json:"max_model_len"`
+	// ReasoningEffort is the reasoning depth for the model (FEATURE-467).
+	// Empty means "use the provider/template default".
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	ModelID         string `json:"model_id,omitempty"`
+	Priority        int    `json:"priority"`
+	MaxModelLen     int    `json:"max_model_len"`
 	// ModelMaxLen is the max context length (in tokens) reported by the API for
 	// the currently selected model. Recorded on the model_name step and used to
 	// pre-fill / hint the max_model_len step (FEATURE-429).
@@ -117,6 +129,13 @@ func (h *ModelHandler) WebWizardStart(mode, id string) (*WebWizardStepData, *Web
 		data.Vision = model.Capabilities.Vision
 		data.ToolCall = model.Capabilities.ToolCall
 		data.Thinking = model.Capabilities.Thinking
+		// FEATURE-467: pre-fill the model-level thinking settings on edit.
+		if model.ThinkingEnabled != nil {
+			data.Thinking = *model.ThinkingEnabled
+		}
+		if model.ReasoningEffort != nil {
+			data.ReasoningEffort = *model.ReasoningEffort
+		}
 		data.ModelID = model.ID
 		data.Priority = model.Priority
 		data.MaxModelLen = model.MaxModelLen
@@ -173,6 +192,15 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 			ToolCall: data.ToolCall,
 			Thinking: data.Thinking,
 		}
+		// FEATURE-467: persist the model-level thinking settings.
+		thinking := data.Thinking
+		model.ThinkingEnabled = &thinking
+		if data.ReasoningEffort != "" {
+			effort := data.ReasoningEffort
+			model.ReasoningEffort = &effort
+		} else {
+			model.ReasoningEffort = nil
+		}
 		model.Enabled = data.Enabled
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
@@ -211,6 +239,14 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 		},
 		MaxModelLen: data.MaxModelLen,
 	}
+	// FEATURE-467: persist the model-level thinking settings chosen on the
+	// template step.
+	thinking := data.Thinking
+	modelConfig.ThinkingEnabled = &thinking
+	if data.ReasoningEffort != "" {
+		effort := data.ReasoningEffort
+		modelConfig.ReasoningEffort = &effort
+	}
 	if err := h.saveModel(modelConfig); err != nil {
 		return "", err
 	}
@@ -241,7 +277,39 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 			field.Options = append(field.Options, t.ID)
 		}
 		field.Value = data.TemplateID
+		// FEATURE-467: expose the selected template's thinking switch and, when
+		// thinking is on, the provider-specific reasoning_effort choices. The
+		// template's raw JSON is also returned so the frontend can show it in a
+		// collapsible viewer (transparency).
 		sd.Fields = []WebWizardField{field}
+		if t := h.template(data.TemplateID); t != nil {
+			// Thinking switch default: the template's declared thinking capability.
+			thinking := t.Capabilities.Thinking
+			if data.Thinking {
+				thinking = true
+			}
+			sd.Fields = append(sd.Fields, WebWizardField{
+				Key: "thinking", Type: "switch", Label: i18n.T(i18n.KeyCmdMig_378),
+				Value: webWizardBoolStr(thinking), Required: false,
+			})
+			// reasoning_effort select (shown only when thinking is on).
+			opts := reasoningEffortOptions(t.Provider)
+			if len(opts) > 0 {
+				sd.ReasoningEffortOptions = opts
+				effort := data.ReasoningEffort
+				if effort == "" {
+					effort = templateDefaultReasoningEffort(t)
+				}
+				sd.Fields = append(sd.Fields, WebWizardField{
+					Key: "reasoning_effort", Type: "select", Label: i18n.T(i18n.KeyCmdMig_383),
+					Value: effort, Options: opts, Required: false,
+				})
+			}
+			// Template raw JSON for the collapsible transparency viewer.
+			if j, err := json.MarshalIndent(t, "", "  "); err == nil {
+				sd.TemplateJSON = string(j)
+			}
+		}
 
 	case WebWizardEndpoint:
 		sd.Title = i18n.T(i18n.KeyCmdMig_180)
@@ -402,4 +470,32 @@ func webWizardBoolStr(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// reasoningEffortOptions returns the reasoning_effort choices for a provider
+// (FEATURE-467). Providers that express reasoning depth via a different field
+// (e.g. qwen's enable_thinking, minimax's reasoning_split) return nil so the
+// wizard hides the reasoning_effort select for them.
+func reasoningEffortOptions(provider string) []string {
+	switch provider {
+	case "deepseek", "zhipu", "moonshot", "kimi", "openai", "openai-compatible":
+		return []string{"low", "medium", "high"}
+	default:
+		return nil
+	}
+}
+
+// templateDefaultReasoningEffort extracts the reasoning_effort default from a
+// template's DefaultParams (FEATURE-467). Returns "" when the template does not
+// declare one.
+func templateDefaultReasoningEffort(t *config.ModelTemplate) string {
+	if t == nil || len(t.DefaultParams) == 0 {
+		return ""
+	}
+	if v, ok := t.DefaultParams["reasoning_effort"]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }

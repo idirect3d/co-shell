@@ -891,12 +891,19 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-466 | 0.30.0 | P1 | 元能力感知：内置元能力知识库（i18n 多语言资源，每个能力有稳定唯一 ID/分类/名称/简介/完整说明）+ introspect_capability 工具（按 ID 精确查询 / 按关键字数组模糊搜索 / 返回完整索引）+ CAPABILITIES 索引节（开关控制是否注入元能力清单）+ 元能力感知开关 meta-capability-enabled |
+| FEATURE-467 | 0.30.0 | P1 | Web UI 模型设置向导第一步（选择模板）改进：实时显示不同模板的思考相关开关选项并可设置（先显示 thinking 开关，开启后按 provider 显示对应 reasoning_effort 选项）+ 空白处显示模板原始 JSON（默认可收起隐藏，需要时展开）+ 补充 reasoning_effort 模板设置 |
 
 - [ ] **FEATURE-466 元能力感知（Meta-Capability Awareness）**
   - 背景：co-shell 主要依靠策略文件注入上下文的方式感知世界和自身能力，但元能力（自我改造 .rules/、模型调度、问题解决策略、分身协作、上下文管理等）没有以能力形式出现在上下文中，LLM 不知道自己可以这么做，导致有些事能做却因不知而走弯路。
   - 方案（已确认）：内置元能力知识库（i18n 多语言资源，每个能力有稳定唯一 ID 不随语言变化、分类、名称、简介、完整说明）+ 新增 introspect_capability 工具（按 ID 精确查询 / 按关键字数组多条件模糊搜索 / 返回完整索引）+ CAPABILITIES 增加元能力索引节（开关控制是否注入）+ 新增元能力感知开关 meta-capability-enabled（便于观察功能效果）。
   - 实施：`config/config.go`（LLMConfig 加 MetaCapabilityEnabled 字段 + DefaultConfig 默认值）+ `agent/loop.go`（Agent 加 metaCapabilityEnabled 字段 + Setter）+ `main.go`（初始化开关 + 版本号 0.30.0）+ `agent/tools.go`（buildToolsInternal 注册 introspect_capability 工具）+ `agent/capability.go`（元能力知识库查询逻辑：按 ID 查询 / 关键字模糊搜索 / 返回索引 + introspectCapabilityTool 回调 + argStringSlice 辅助）+ `agent/system_prompt.go`（Capabilities case 开关开启时注入元能力索引节）+ `i18n/keys.go`（新增元能力资源 key）+ `i18n/en_system.go`/`i18n/zh_system.go`（元能力知识库多语言资源）+ `cmd/config.go`/`cmd/settings_agent.go`/`agent/settings_tools.go`（meta-capability-enabled 参数支持）+ `agent/capability_test.go`（元能力索引/ID 查询/关键字搜索/工具回调/注入测试）[BUILD-769]
   - 测试：见 use-case/FEATURE-466/
+
+- [ ] **FEATURE-467 Web UI 模型设置向导思考设置改进**
+  - 背景：Web UI 模型设置向导第一步（选择模板）目前只显示模板下拉框，无法在选模板时查看/设置该模板的思考相关开关（thinking、reasoning_effort）。不同 provider 的思考参数不同（qwen 用 enable_thinking、deepseek 用 thinking+reasoning_effort 等），且模板的 DefaultParams 中 reasoning_effort 未在向导中暴露。
+  - 方案（已确认）：向导第一步选择模板时，实时显示该模板的思考相关开关选项并可设置：① 先显示 thinking 开关；② 开启后按 provider 显示对应的 reasoning_effort 选项；③ 在空白处显示模板原始 JSON 内容（默认可收起隐藏，需要时展开，保持透明）；④ 补充之前没处理的 reasoning_effort 模板设置。
+  - 实施：`cmd/model_web_wizard.go`（WebWizardData 增加 Thinking/ReasoningEffort 字段 + template 步骤返回思考字段与模板 JSON + submit 保存到模型级 ThinkingEnabled/ReasoningEffort）+ `web/static/app.js`（template 步骤渲染 thinking 开关 + reasoning_effort 下拉 + 模板 JSON 展示）+ `web/static/style.css`（模板 JSON 展示样式）+ `i18n/keys.go`/`en.go`/`zh.go`（新增 reasoning_effort/模板 JSON 标签 key）+ `cmd/model_web_wizard_test.go`（template 思考字段/无 reasoning_effort/submit 保存测试）[BUILD-770]
+  - 测试：见 use-case/FEATURE-467/
 
 > 当前 BUILD: 768
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。

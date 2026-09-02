@@ -38,7 +38,7 @@ const I18N = {
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
     switchMode: "切换工作模式",
-    models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导",
+    models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导", templateJson: "查看模板原始 JSON",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
     fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
@@ -73,7 +73,7 @@ const I18N = {
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
     switchMode: "Switch work mode",
-    models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard",
+    models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard", templateJson: "View template raw JSON",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
     fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
@@ -980,11 +980,11 @@ function renderEvent(ev) {
       const outTPS = parseInt(m.out_tps, 10) || 0;
       if (m.prompt) {
         parts.push("↑" + fmtNum(p));
+        if (m.ft && m.ft !== "-") parts.push(m.ft);
         if (inTPS > 0) parts.push(fmtDur(p / inTPS) + " " + fmtNum(inTPS) + "t/s");
       }
       if (m.completion) {
         parts.push("↓" + fmtNum(c));
-        if (m.ft && m.ft !== "-") parts.push(m.ft);
         if (outTPS > 0) parts.push(fmtNum(outTPS) + "t/s");
       }
       line.textContent = parts.join("  ");
@@ -4084,16 +4084,86 @@ function renderWizardStep(step) {
   for (const f of (step.fields || [])) {
     modelWizardBody.appendChild(renderWizardField(f));
   }
+  // FEATURE-467: on the template step, wire up the thinking switch to show/hide
+  // the reasoning_effort select, and render the collapsible template-JSON viewer.
+  if (step.step === "template") setupWizardTemplateExtras(step);
   // Bottom buttons.
   modelWizardPrev.style.display = step.is_first ? "none" : "";
   modelWizardNext.style.display = step.is_last ? "none" : "";
   modelWizardSubmit.style.display = step.is_last ? "" : "none";
 }
 
+// setupWizardTemplateExtras wires the template step's conditional thinking
+// controls and the collapsible template-JSON transparency viewer (FEATURE-467).
+function setupWizardTemplateExtras(step) {
+  const thinkingWrap = modelWizardBody.querySelector(".wizard-field-thinking");
+  const effortWrap = modelWizardBody.querySelector(".wizard-field-reasoning_effort");
+  const thinkingInput = thinkingWrap && thinkingWrap.querySelector("input[type=checkbox]");
+  // FEATURE-467: when the user switches the template dropdown, re-request the
+  // template step so the thinking switch / reasoning_effort / template JSON
+  // refresh to the newly selected template's values.
+  const tplSelect = modelWizardBody.querySelector(".wizard-field-template_id select");
+  if (tplSelect) {
+    tplSelect.addEventListener("change", () => {
+      // Switching template resets the thinking settings so the new template's
+      // defaults (capabilities.thinking / default reasoning_effort) apply.
+      wizardData.thinking = false;
+      wizardData.reasoning_effort = "";
+      collectWizardFields();
+      wsSend({ type: "model_wizard_refresh", step: "template", wizard_data: wizardData });
+    });
+  }
+  // Show reasoning_effort only while thinking is on. When thinking is turned
+  // off, clear the reasoning_effort value so it is not persisted.
+  const applyEffortVisibility = () => {
+    const on = !!(thinkingInput && thinkingInput.checked);
+    if (effortWrap) {
+      effortWrap.style.display = on ? "" : "none";
+      if (!on) {
+        const sel = effortWrap.querySelector("select");
+        if (sel) sel.value = "";
+        wizardData.reasoning_effort = "";
+      }
+    }
+  };
+  if (thinkingInput) {
+    thinkingInput.addEventListener("change", applyEffortVisibility);
+    applyEffortVisibility();
+  } else if (effortWrap) {
+    effortWrap.style.display = "none";
+  }
+  // Collapsible template-JSON viewer (transparency).
+  if (step.template_json) {
+    const box = document.createElement("div");
+    box.className = "wizard-template-json";
+    const head = document.createElement("div");
+    head.className = "wizard-template-json-head";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "wizard-template-json-toggle";
+    toggle.textContent = "▸ " + (T.templateJson || "查看模板原始 JSON");
+    const pre = document.createElement("pre");
+    pre.className = "wizard-template-json-body";
+    pre.textContent = step.template_json;
+    pre.style.display = "none";
+    toggle.onclick = () => {
+      const open = pre.style.display !== "none";
+      pre.style.display = open ? "none" : "";
+      toggle.textContent = (open ? "▸ " : "▾ ") + (T.templateJson || "查看模板原始 JSON");
+    };
+    head.appendChild(toggle);
+    box.appendChild(head);
+    box.appendChild(pre);
+    modelWizardBody.appendChild(box);
+  }
+}
+
 // renderWizardField builds a form control for one field.
 function renderWizardField(f) {
   const wrap = document.createElement("div");
-  wrap.className = "wizard-field" + ((f.type === "checkbox" || f.type === "switch") ? " toggle" : "");
+  // FEATURE-467: tag the wrapper with the field key so the wizard can locate
+  // and show/hide conditional fields (e.g. reasoning_effort under thinking).
+  wrap.className = "wizard-field wizard-field-" + f.key + ((f.type === "checkbox" || f.type === "switch") ? " toggle" : "");
   const label = document.createElement("label");
   label.className = "wizard-field-label";
   label.textContent = f.label || f.key;
