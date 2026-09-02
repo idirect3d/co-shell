@@ -880,6 +880,30 @@
   - 实施：`web/static/style.css`（settings-pane 加 min-height:0 修复高度基准 + MCP manager 样式）+ `web/static/app.js`（MCP manager 渲染/增删改 + i18nT 辅助函数 + mcp/mcp_result 消息处理）+ `cmd/settings_web.go`（WebSettingGroup 加 Kind 字段 + 新增 MCP Server 组）+ `cmd/mcp.go`（MCPServersJSON/AddServerJSON/UpdateServerJSON/RemoveServerJSON）+ `web/session.go`（mcp 字段 + mcp_get/add/update/remove 处理）+ `web/server.go`（clientMessage/serverMessage 加 MCP 字段）+ `repl/session.go` + `repl/repl.go`（SessionDeps 加 MCPHandler）+ `i18n/`（KeyMCPUpdated/KeySettingsGroupMCP）[BUILD-762]；修复：MCP 列表为空——renderMCPServerManager 未发送 mcp_get 请求后端列表，且 renderMCPServers 回调会与 renderMCPServerManager 形成 mcp_get 无限循环；改为 renderMCPServerManager(fetch) 默认发送 mcp_get、renderMCPServers 以 fetch=false 调用避免循环 [BUILD-763]；改进：MCP 卡片界面——① 启用/禁用改为滑动开关（mcp-toggle），与标题、删除按钮在一行；② 命令单占一整行；③ 编辑框内去掉启用/禁用 checkbox；④ 去掉编辑按钮，改为点击卡片标题或命令文字进入编辑状态 [BUILD-766]
   - 测试：见 use-case/FEATURE-464/
 
+## v0.30.0 — 开发中
+
+> **版本**: v0.30.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 元能力感知（Meta-Capability Awareness）
+> **说明**: 0.30.0 系列引入元能力感知机制：让 co-shell 感知自身隐藏的元能力（自我改造、模型调度、问题解决策略、分身协作、上下文管理等），通过内置知识库 + introspect_capability 工具 + CAPABILITIES 索引节 + 元能力感知开关实现。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-466 | 0.30.0 | P1 | 元能力感知：内置元能力知识库（i18n 多语言资源，每个能力有稳定唯一 ID/分类/名称/简介/完整说明）+ introspect_capability 工具（按 ID 精确查询 / 按关键字数组模糊搜索 / 返回完整索引）+ CAPABILITIES 索引节（开关控制是否注入元能力清单）+ 元能力感知开关 meta-capability-enabled |
+
+- [ ] **FEATURE-466 元能力感知（Meta-Capability Awareness）**
+  - 背景：co-shell 主要依靠策略文件注入上下文的方式感知世界和自身能力，但元能力（自我改造 .rules/、模型调度、问题解决策略、分身协作、上下文管理等）没有以能力形式出现在上下文中，LLM 不知道自己可以这么做，导致有些事能做却因不知而走弯路。
+  - 方案（已确认）：内置元能力知识库（i18n 多语言资源，每个能力有稳定唯一 ID 不随语言变化、分类、名称、简介、完整说明）+ 新增 introspect_capability 工具（按 ID 精确查询 / 按关键字数组多条件模糊搜索 / 返回完整索引）+ CAPABILITIES 增加元能力索引节（开关控制是否注入）+ 新增元能力感知开关 meta-capability-enabled（便于观察功能效果）。
+  - 实施：`config/config.go`（LLMConfig 加 MetaCapabilityEnabled 字段 + DefaultConfig 默认值）+ `agent/loop.go`（Agent 加 metaCapabilityEnabled 字段 + Setter）+ `main.go`（初始化开关 + 版本号 0.30.0）+ `agent/tools.go`（buildToolsInternal 注册 introspect_capability 工具）+ `agent/capability.go`（元能力知识库查询逻辑：按 ID 查询 / 关键字模糊搜索 / 返回索引 + introspectCapabilityTool 回调 + argStringSlice 辅助）+ `agent/system_prompt.go`（Capabilities case 开关开启时注入元能力索引节）+ `i18n/keys.go`（新增元能力资源 key）+ `i18n/en_system.go`/`i18n/zh_system.go`（元能力知识库多语言资源）+ `cmd/config.go`/`cmd/settings_agent.go`/`agent/settings_tools.go`（meta-capability-enabled 参数支持）+ `agent/capability_test.go`（元能力索引/ID 查询/关键字搜索/工具回调/注入测试）[BUILD-769]
+  - 测试：见 use-case/FEATURE-466/
+
+> 当前 BUILD: 768
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

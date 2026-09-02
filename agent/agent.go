@@ -825,6 +825,10 @@ func (a *Agent) SetIntentExposureEnabled(enabled bool) {
 	a.intentExposureEnabled = enabled
 }
 
+func (a *Agent) SetMetaCapabilityEnabled(enabled bool) {
+	a.metaCapabilityEnabled = enabled
+}
+
 func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }

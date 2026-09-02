@@ -122,6 +122,7 @@ type Agent struct {
 	planEnabled     bool     // whether task plan tools are enabled
 	subAgentEnabled bool     // whether sub-agent tools are enabled
 	intentExposureEnabled bool // whether tool-call intent exposure (meta object) is enabled
+	metaCapabilityEnabled bool // whether meta-capability awareness (FEATURE-466) is enabled
 
 	// supervisorState holds the dedicated supervisor LLM runtime state
 	// (FEATURE-456): session-bound independent context, incremental user-message

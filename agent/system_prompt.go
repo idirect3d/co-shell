@@ -482,6 +482,23 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		text := loadSectionText(env.cwd, modeName, "CAPABILITIES", func() string {
 			return i18n.T(i18n.KeySystemPromptCapabilities)
 		})
+		// FEATURE-466: when meta-capability awareness is enabled, append the
+		// meta-capability index (list of native meta-capabilities with stable
+		// IDs) to the CAPABILITIES section. The LLM can query full details via
+		// the introspect_capability tool.
+		if cfg != nil && cfg.LLM.MetaCapabilityEnabled {
+			index := buildMetaCapabilityIndex()
+			if index != "" {
+				header := i18n.T(i18n.KeySystemPromptCapabilitiesIndex)
+				if header == "" || header == i18n.KeySystemPromptCapabilitiesIndex {
+					header = "CAPABILITIES"
+				}
+				if text != "" {
+					text += "\n\n"
+				}
+				text += header + "\n\n" + index
+			}
+		}
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Rules":

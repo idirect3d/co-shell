@@ -49,9 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.29.0"
+const version = "0.30.0"
 
-const build = "768"
+const build = "769"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1338,6 +1338,9 @@ func main() {
 
 	// Apply intent exposure enabled setting
 	ag.SetIntentExposureEnabled(cfg.LLM.IntentExposureEnabled)
+
+	// Apply meta-capability awareness setting (FEATURE-466)
+	ag.SetMetaCapabilityEnabled(cfg.LLM.MetaCapabilityEnabled)
 
 	// Sync memory enabled to task plan manager
 	ag.TaskPlanManager().SetMemoryEnabled(cfg.LLM.MemoryEnabled)
