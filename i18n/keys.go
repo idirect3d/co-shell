@@ -2278,6 +2278,48 @@ const (
 	// dynamic index body is appended by the agent when building the prompt.
 	KeySystemPromptSkills = "system_prompt_skills"
 
+	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
+	// meta-capability index section. The dynamic index body is appended by the
+	// agent when building the prompt (buildMetaCapabilityIndex).
+	KeySystemPromptCapabilitiesIndex = "system_prompt_capabilities_index"
+
+	// Meta-capability categories (FEATURE-466).
+	KeyCapCategorySelf    = "cap_category_self"
+	KeyCapCategoryModel   = "cap_category_model"
+	KeyCapCategoryProblem = "cap_category_problem"
+	KeyCapCategoryCollab  = "cap_category_collab"
+	KeyCapCategoryContext = "cap_category_context"
+
+	// Meta-capability: self-modify (FEATURE-466).
+	KeyCapSelfModifyName   = "cap_self_modify_name"
+	KeyCapSelfModifyDesc   = "cap_self_modify_desc"
+	KeyCapSelfModifyDetail = "cap_self_modify_detail"
+
+	// Meta-capability: model-routing (FEATURE-466).
+	KeyCapModelRoutingName   = "cap_model_routing_name"
+	KeyCapModelRoutingDesc   = "cap_model_routing_desc"
+	KeyCapModelRoutingDetail = "cap_model_routing_detail"
+
+	// Meta-capability: problem-strategies (FEATURE-466).
+	KeyCapProblemStrategiesName   = "cap_problem_strategies_name"
+	KeyCapProblemStrategiesDesc   = "cap_problem_strategies_desc"
+	KeyCapProblemStrategiesDetail = "cap_problem_strategies_detail"
+
+	// Meta-capability: subagent-collab (FEATURE-466).
+	KeyCapSubagentCollabName   = "cap_subagent_collab_name"
+	KeyCapSubagentCollabDesc   = "cap_subagent_collab_desc"
+	KeyCapSubagentCollabDetail = "cap_subagent_collab_detail"
+
+	// Meta-capability: context-management (FEATURE-466).
+	KeyCapContextManagementName   = "cap_context_management_name"
+	KeyCapContextManagementDesc   = "cap_context_management_desc"
+	KeyCapContextManagementDetail = "cap_context_management_detail"
+
+	// Meta-capability: self-config (FEATURE-466).
+	KeyCapSelfConfigName   = "cap_self_config_name"
+	KeyCapSelfConfigDesc   = "cap_self_config_desc"
+	KeyCapSelfConfigDetail = "cap_self_config_detail"
+
 	// Confirm-tool mode descriptions (FEATURE-200)
 	KeyModeConfirmDesc  = "mode_confirm_desc"
 	KeyModeAutoDesc     = "mode_auto_desc"
