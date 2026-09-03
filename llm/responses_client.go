@@ -338,6 +338,13 @@ func (c *responsesClient) buildReasoning() *responsesReasoningJSON {
 		return nil
 	}
 
+	// Normalize chat-format effort values to the Responses API domain
+	// (FEATURE-468). The chat settings accept "max"/"default" which the
+	// Responses endpoints reject: LM Studio / Qwen accept only
+	// none|minimal|low|medium|high|xhigh, so "max" maps to "xhigh" and
+	// "default" behaves as "not configured".
+	effort = normalizeResponsesEffort(effort)
+
 	if !enable {
 		return &responsesReasoningJSON{Effort: "none"}
 	}
@@ -345,6 +352,22 @@ func (c *responsesClient) buildReasoning() *responsesReasoningJSON {
 		effort = "medium"
 	}
 	return &responsesReasoningJSON{Effort: effort}
+}
+
+// normalizeResponsesEffort maps a chat-format reasoning effort value to the
+// Responses API effort domain (FEATURE-468):
+//   - "max"  → "xhigh" (LM Studio/Qwen use xhigh; "max" is rejected)
+//   - "default" → "" (means not configured; caller decides a default)
+//   - anything else is passed through as-is (none/minimal/low/medium/high/xhigh).
+func normalizeResponsesEffort(effort string) string {
+	switch effort {
+	case "max":
+		return "xhigh"
+	case "default":
+		return ""
+	default:
+		return effort
+	}
 }
 
 // mergeResponsesBodyAdditions merges custom JSON properties into the serialized
@@ -602,9 +625,13 @@ func (c *responsesClient) ChatStream(ctx context.Context, messages []Message, to
 		defer log.WriteLLMInteractionEnd()
 
 		reader := NewStreamReader(&wireLogReader{r: resp.Body})
-		// Accumulate tool calls from stream deltas.
-		var currentToolCall *ToolCall
-		toolCallIndex := 0
+		// In-flight tool calls keyed by the Responses API output_index. The full
+		// function-call arguments arrive EITHER as function_call_arguments.delta
+		// chunks (OpenAI style) OR — as LM Studio does — only in the final
+		// output_item.done event's item.arguments. Both paths are merged per
+		// index so arguments are never lost (FEATURE-468).
+		toolCalls := make(map[int]*ToolCall)
+		toolCallEmitted := make(map[int]bool)
 		respHeaderWritten := false
 
 		sendEvent := func(ev StreamEvent) {
@@ -612,6 +639,17 @@ func (c *responsesClient) ChatStream(ctx context.Context, messages []Message, to
 			case eventCh <- ev:
 			default:
 				// Non-blocking: drop if the consumer is slow (stream is best-effort).
+			}
+		}
+
+		// emitToolCall sends a completed tool call at most once per index.
+		emitToolCall := func(idx int, tc *ToolCall) {
+			if toolCallEmitted[idx] {
+				return
+			}
+			if tc.Name != "" && tc.ID != "" && tc.Arguments != "" {
+				toolCallEmitted[idx] = true
+				sendEvent(StreamEvent{Type: StreamEventToolCall, ToolCall: tc})
 			}
 		}
 
@@ -663,33 +701,62 @@ func (c *responsesClient) ChatStream(ctx context.Context, messages []Message, to
 				}
 			case "response.output_item.added":
 				if ev.Item != nil && ev.Item.Type == "function_call" {
-					currentToolCall = &ToolCall{
-						ID:   ev.Item.CallID,
-						Name: ev.Item.Name,
+					toolCalls[ev.OutputIndex] = &ToolCall{
+						ID:        ev.Item.CallID,
+						Name:      ev.Item.Name,
+						Arguments: ev.Item.Arguments,
 					}
 				}
 			case "response.function_call_arguments.delta":
-				if currentToolCall == nil {
-					currentToolCall = &ToolCall{}
+				idx := ev.OutputIndex
+				tc, ok := toolCalls[idx]
+				if !ok {
+					tc = &ToolCall{}
+					toolCalls[idx] = tc
 				}
-				currentToolCall.Arguments += ev.Delta
+				tc.Arguments += ev.Delta
 				sendEvent(StreamEvent{
 					Type: StreamEventToolCallDelta,
 					ToolCallDelta: &ToolCallDelta{
-						Index:     toolCallIndex,
-						Name:      currentToolCall.Name,
+						Index:     idx,
+						Name:      tc.Name,
 						Arguments: ev.Delta,
 					},
 				})
 			case "response.function_call_arguments.done":
-				if currentToolCall != nil {
-					if currentToolCall.Name != "" && currentToolCall.ID != "" {
-						sendEvent(StreamEvent{Type: StreamEventToolCall, ToolCall: currentToolCall})
+				// OpenAI sends the complete delta-accumulated arguments here. Some
+				// servers (LM Studio) send an empty done and deliver the full
+				// arguments in the later output_item.done event, so we finalize on
+				// output_item.done instead of here; this case is a no-op.
+			case "response.output_item.done":
+				if ev.Item != nil && ev.Item.Type == "function_call" {
+					idx := ev.OutputIndex
+					tc := toolCalls[idx]
+					if tc == nil {
+						tc = &ToolCall{}
+						toolCalls[idx] = tc
 					}
-					currentToolCall = nil
-					toolCallIndex++
+					// item.arguments is the authoritative complete JSON (LM Studio
+					// delivers arguments only here); it overrides any partial
+					// delta accumulation.
+					if ev.Item.Arguments != "" {
+						tc.Arguments = ev.Item.Arguments
+					}
+					if tc.ID == "" {
+						tc.ID = ev.Item.CallID
+					}
+					if tc.Name == "" {
+						tc.Name = ev.Item.Name
+					}
+					emitToolCall(idx, tc)
+					delete(toolCalls, idx)
 				}
 			case "response.completed":
+				// Fallback for servers that never emit output_item.done: flush any
+				// still-in-flight tool call that accumulated enough via deltas.
+				for idx, tc := range toolCalls {
+					emitToolCall(idx, tc)
+				}
 				var usage *TokenUsage
 				if ev.Response != nil && ev.Response.Usage != nil {
 					usage = &TokenUsage{
