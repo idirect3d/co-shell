@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -105,6 +107,29 @@ type responsesResponseJSON struct {
 	Output  []responsesOutputItem `json:"output"`
 	Usage   *responsesUsageJSON   `json:"usage,omitempty"`
 	Error   json.RawMessage       `json:"error,omitempty"`
+}
+
+// dumpResponsesErr writes the full request body and server error response to a
+// /tmp file for diagnosis when a Responses API call fails (FEATURE-468). The
+// truncated in-log body is often insufficient to spot why the server rejects a
+// request (e.g. a malformed input item hidden behind a huge system prompt).
+func dumpResponsesErr(tag string, bodyBytes, respBytes []byte) {
+	name := fmt.Sprintf("co-shell-responses-%s-%d.json", tag, time.Now().UnixNano())
+	path := filepath.Join(os.TempDir(), name)
+	content := map[string]interface{}{
+		"request":  json.RawMessage(bodyBytes),
+		"response": json.RawMessage(respBytes),
+	}
+	data, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		log.Error("LLM Responses dump marshal failed: %v", err)
+		return
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		log.Error("LLM Responses dump write failed: %v", err)
+		return
+	}
+	log.Info("LLM Responses error details written to %s", path)
 }
 
 // parseError parses the raw error field into a responseErrorJSON.
@@ -430,6 +455,7 @@ func (c *responsesClient) Chat(ctx context.Context, messages []Message, tools []
 		errMsg := fmt.Sprintf("API error: %s (type=%s, code=%s)", errObj.Message, errObj.Type, errObj.Code)
 		log.Error("LLM Responses Chat API error: POST %s, status=%d, error=%s, request=%d bytes, body=%s",
 			apiURL, resp.StatusCode, errMsg, len(bodyBytes), truncateBody(bodyBytes))
+		dumpResponsesErr("chat", bodyBytes, respBytes)
 		summary := requestSummary(bodyBytes)
 		return nil, &OpenAIError{
 			StatusCode: resp.StatusCode,
@@ -440,6 +466,7 @@ func (c *responsesClient) Chat(ctx context.Context, messages []Message, tools []
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
 		log.Error("LLM Responses Chat HTTP error: POST %s, status=%d, body=%s", apiURL, resp.StatusCode, string(respBytes))
+		dumpResponsesErr("chat", bodyBytes, respBytes)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
@@ -539,6 +566,7 @@ func (c *responsesClient) ChatStream(ctx context.Context, messages []Message, to
 		errMsg := fmt.Sprintf("API returned status %d: %s", resp.StatusCode, string(respBytes))
 		log.Error("LLM Responses ChatStream HTTP error: POST %s, status=%d, body=%s, request=%d bytes, body=%s",
 			apiURL, resp.StatusCode, string(respBytes), len(bodyBytes), truncateBody(bodyBytes))
+		dumpResponsesErr("stream", bodyBytes, respBytes)
 		return nil, fmt.Errorf("%s (request=%d bytes, %s)", errMsg, len(bodyBytes), requestSummary(bodyBytes))
 	}
 
