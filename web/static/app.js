@@ -38,7 +38,7 @@ const I18N = {
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
     switchMode: "切换工作模式",
-    models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导", templateJson: "查看模板原始 JSON", reasoningEffortNone: "不设置", apiTypeChatDefault: "Chat (默认)",
+    models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导", templateJson: "查看模板原始 JSON", reasoningEffortNone: "不设置", apiTypeChatDefault: "chat（默认）",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
     fileViewerClose: "关闭", fileViewerLoadFailed: "文件读取失败",
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
@@ -73,7 +73,7 @@ const I18N = {
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
     switchMode: "Switch work mode",
-    models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard", templateJson: "View template raw JSON", reasoningEffortNone: "Not set", apiTypeChatDefault: "Chat (default)",
+    models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard", templateJson: "View template raw JSON", reasoningEffortNone: "Not set", apiTypeChatDefault: "chat (default)",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
     fileViewerClose: "Close", fileViewerLoadFailed: "Failed to read file",
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
@@ -4180,9 +4180,12 @@ function renderWizardField(f) {
       o.value = opt;
       // FEATURE-467: an empty option value means "not set" (do not send the
       // reasoning_effort parameter); show a friendly label instead of blank.
-      // FEATURE-468: for api_type the empty option is "chat" (the default API).
-      const emptyLabel = f.key === "api_type" ? (T.apiTypeChatDefault || "Chat (默认)") : (T.reasoningEffortNone || "不设置");
-      o.textContent = opt === "" ? emptyLabel : opt;
+      // FEATURE-468: the api_type "chat" option is the default API; its label
+      // carries a "(default)" suffix (the option itself is selected by default).
+      let optLabel = opt;
+      if (opt === "") optLabel = (T.reasoningEffortNone || "不设置");
+      else if (f.key === "api_type" && opt === "chat") optLabel = T.apiTypeChatDefault || "chat (默认)";
+      o.textContent = optLabel;
       ctl.appendChild(o);
     }
     if (f.value) ctl.value = f.value;

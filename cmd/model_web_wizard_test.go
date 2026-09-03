@@ -332,8 +332,12 @@ func TestWebWizardTemplateThinkingFields(t *testing.T) {
 	if step.Fields[3].Key != "api_type" || step.Fields[3].Type != "select" {
 		t.Errorf("field[3] = %+v, want api_type select", step.Fields[3])
 	}
-	if len(step.Fields[3].Options) != 3 || step.Fields[3].Options[0] != "" || step.Fields[3].Options[1] != "chat" || step.Fields[3].Options[2] != "responses" {
-		t.Errorf("api_type options = %v, want [\"\", chat, responses]", step.Fields[3].Options)
+	if len(step.Fields[3].Options) != 2 || step.Fields[3].Options[0] != "chat" || step.Fields[3].Options[1] != "responses" {
+		t.Errorf("api_type options = %v, want [chat, responses]", step.Fields[3].Options)
+	}
+	// Default value is chat (selected by default).
+	if step.Fields[3].Value != "chat" {
+		t.Errorf("api_type default = %q, want chat (selected)", step.Fields[3].Value)
 	}
 	// reasoning_effort default is the empty "not set" option (FEATURE-467).
 	if step.Fields[2].Value != "" {
@@ -472,13 +476,13 @@ func TestWebWizardTemplateApiType(t *testing.T) {
 	if apiField.Type != "select" {
 		t.Errorf("api_type type = %q, want select", apiField.Type)
 	}
-	// Options: empty (chat default), chat, responses.
-	if len(apiField.Options) != 3 || apiField.Options[0] != "" || apiField.Options[1] != "chat" || apiField.Options[2] != "responses" {
-		t.Errorf("api_type options = %v, want [\"\", chat, responses]", apiField.Options)
+	// Options: chat (default) and responses — no separate empty option.
+	if len(apiField.Options) != 2 || apiField.Options[0] != "chat" || apiField.Options[1] != "responses" {
+		t.Errorf("api_type options = %v, want [chat, responses]", apiField.Options)
 	}
-	// Default is empty (chat).
-	if apiField.Value != "" {
-		t.Errorf("api_type default = %q, want empty (chat)", apiField.Value)
+	// Default value is chat (selected by default).
+	if apiField.Value != "chat" {
+		t.Errorf("api_type default = %q, want chat (selected)", apiField.Value)
 	}
 	// Edit mode pre-fills the saved api_type.
 	h.cfg.Models = append(h.cfg.Models, &config.ModelConfig{
@@ -523,12 +527,13 @@ func TestWebWizardSubmitApiType(t *testing.T) {
 	if saved.APIType != "responses" {
 		t.Errorf("APIType = %q, want responses", saved.APIType)
 	}
-	// Empty APIType stays empty (= chat default), preserving compatibility.
+	// The frontend always submits a concrete value: "chat" (default selection)
+	// must be normalized back to empty on save, preserving compatibility.
 	data2 := &WebWizardData{
 		Mode: "add", TemplateID: "deepseek-official", Endpoint: "https://api.deepseek.com",
 		APIKey: "k", ModelName: "deepseek-chat2", ModelID: "deepseek-chat2",
 		Priority: 10, MaxModelLen: 65536, Enabled: true,
-		Vision: true, ToolCall: true, Thinking: false,
+		Vision: true, ToolCall: true, Thinking: false, APIType: "chat",
 	}
 	if _, err := h.WebWizardSubmit(data2); err != nil {
 		t.Fatalf("submit2: %v", err)
@@ -536,7 +541,7 @@ func TestWebWizardSubmitApiType(t *testing.T) {
 	for _, m := range h.cfg.Models {
 		if m.ID == "deepseek-chat2" {
 			if m.APIType != "" {
-				t.Errorf("APIType default = %q, want empty (chat)", m.APIType)
+				t.Errorf("APIType for chat selection = %q, want empty (chat)", m.APIType)
 			}
 		}
 	}
