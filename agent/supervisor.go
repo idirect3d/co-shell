@@ -275,7 +275,7 @@ func (a *Agent) callSupervisor(ctx context.Context, prompt string) (*SupervisorR
 		timeout = 0
 	}
 
-	client := llm.NewClient(modelCfg.Endpoint, modelCfg.APIKey, modelCfg.Model, 0.3, 8192, timeout)
+	client := llm.NewClientForAPIType(modelCfg.Endpoint, modelCfg.APIKey, modelCfg.Model, 0.3, 8192, modelCfg.APIType, timeout)
 	if client != nil {
 		defer client.Close()
 	}

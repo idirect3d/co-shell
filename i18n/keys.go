@@ -2045,6 +2045,7 @@ const (
 	KeyCmdMig_383 = "cmd_mig_g_383_f303"
 	KeyCmdMig_384 = "cmd_mig_g_384_f303"
 	KeyCmdMig_385 = "cmd_mig_g_385_f303"
+	KeyCmdMig_386 = "cmd_mig_g_386_f303"
 
 	// FEATURE-303 session.go migration keys (P3)
 	KeySessionMigUseImport    = "session_mig_use_import"

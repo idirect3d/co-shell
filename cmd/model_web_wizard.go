@@ -103,6 +103,10 @@ type WebWizardData struct {
 	// ReasoningEffort is the reasoning depth for the model (FEATURE-467).
 	// Empty means "use the provider/template default".
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	// APIType is the API protocol for the model (FEATURE-468).
+	// Empty or "chat" = Chat Completions (/v1/chat/completions);
+	// "responses" = Responses API (/v1/responses, reasoning.effort control).
+	APIType string `json:"api_type,omitempty"`
 	ModelID         string `json:"model_id,omitempty"`
 	Priority        int    `json:"priority"`
 	MaxModelLen     int    `json:"max_model_len"`
@@ -136,6 +140,8 @@ func (h *ModelHandler) WebWizardStart(mode, id string) (*WebWizardStepData, *Web
 		if model.ReasoningEffort != nil {
 			data.ReasoningEffort = *model.ReasoningEffort
 		}
+		// FEATURE-468: pre-fill the model-level API type on edit.
+		data.APIType = model.APIType
 		data.ModelID = model.ID
 		data.Priority = model.Priority
 		data.MaxModelLen = model.MaxModelLen
@@ -201,6 +207,8 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 		} else {
 			model.ReasoningEffort = nil
 		}
+		// FEATURE-468: persist the model-level API type.
+		model.APIType = data.APIType
 		model.Enabled = data.Enabled
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
@@ -238,6 +246,8 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 			Thinking: data.Thinking,
 		},
 		MaxModelLen: data.MaxModelLen,
+		// FEATURE-468: the API type chosen on the template step (empty = chat).
+		APIType: data.APIType,
 	}
 	// FEATURE-467: persist the model-level thinking settings chosen on the
 	// template step.
@@ -304,6 +314,16 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 					Value: effort, Options: opts, Required: false,
 				})
 			}
+			// FEATURE-468: API type select. Empty means Chat Completions (default);
+			// "responses" switches the model to the Responses API (/v1/responses)
+			// whose reasoning.effort=none reliably disables thinking for models
+			// like qwen3.6 that ignore the chat-format thinking parameters. The
+			// first (empty) option is labelled "Chat (default)" by the frontend.
+			apiType := data.APIType
+			sd.Fields = append(sd.Fields, WebWizardField{
+				Key: "api_type", Type: "select", Label: i18n.T(i18n.KeyCmdMig_386),
+				Value: apiType, Options: []string{"", "chat", "responses"}, Required: false,
+			})
 			// Template raw JSON for the collapsible transparency viewer.
 			if j, err := json.MarshalIndent(t, "", "  "); err == nil {
 				sd.TemplateJSON = string(j)
