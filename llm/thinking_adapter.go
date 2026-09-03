@@ -40,6 +40,20 @@ func GetThinkingAdapter(provider string) ThinkingAdapter {
 	return &fallbackThinkingAdapter{}
 }
 
+// NormalizeReasoningEffort normalizes a configured reasoning-effort value at
+// every config-resolution site (FEATURE-468). The global settings value
+// "default" means "do not override — fall back to the model-level value, then
+// to the provider/template default". It must NEVER reach the adapter or the API
+// as a literal effort, so it is mapped to the empty string (the adapters treat
+// an empty effort as "use the provider default": deepseek→high, openai→medium,
+// qwen→don't send reasoning_effort).
+func NormalizeReasoningEffort(effort string) string {
+	if effort == "default" {
+		return ""
+	}
+	return effort
+}
+
 func ThinkingModeFromBool(enabled bool) ThinkingMode {
 	if enabled {
 		return ThinkingModeEnabled

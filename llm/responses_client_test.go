@@ -324,6 +324,34 @@ func TestResponsesChatStreamOutputItemDone(t *testing.T) {
 	}
 }
 
+// TestNormalizeReasoningEffort verifies the global settings value "default" is
+// mapped to empty (fall back to model/template default) and never sent literally
+// (FEATURE-468).
+func TestNormalizeReasoningEffort(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"default", ""},
+		{"", ""},
+		{"none", "none"},
+		{"low", "low"},
+		{"max", "max"},
+	}
+	for _, tt := range tests {
+		if got := NormalizeReasoningEffort(tt.in); got != tt.want {
+			t.Errorf("NormalizeReasoningEffort(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+	// normalizeResponsesEffort additionally maps max→xhigh while keeping
+	// default→"" behavior.
+	if got := normalizeResponsesEffort("default"); got != "" {
+		t.Errorf("normalizeResponsesEffort(default) = %q, want empty", got)
+	}
+	if got := normalizeResponsesEffort("max"); got != "xhigh" {
+		t.Errorf("normalizeResponsesEffort(max) = %q, want xhigh", got)
+	}
+}
+
 // TestResponsesBuildReasoning covers UC-0007: reasoning.effort derivation from
 // thinking settings and chat-format body additions.
 func TestResponsesBuildReasoning(t *testing.T) {

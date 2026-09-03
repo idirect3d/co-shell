@@ -51,7 +51,7 @@ import (
 
 const version = "0.31.0"
 
-const build = "777"
+const build = "778"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1161,6 +1161,9 @@ func main() {
 		if activeModel.ReasoningEffort != nil {
 			reasoningEffort = *activeModel.ReasoningEffort
 		}
+		// FEATURE-468: the global settings "default" means "do not override" —
+		// fall back to the model/template default instead of sending "default".
+		reasoningEffort = llm.NormalizeReasoningEffort(reasoningEffort)
 		topP := cfg.LLM.TopP
 		if activeModel.TopP != nil {
 			topP = *activeModel.TopP
