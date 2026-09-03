@@ -356,18 +356,16 @@ func (c *responsesClient) buildReasoning() *responsesReasoningJSON {
 
 // normalizeResponsesEffort maps a chat-format reasoning effort value to the
 // Responses API effort domain (FEATURE-468):
+//   - "default" → "" via NormalizeReasoningEffort (not configured; the caller
+//     decides a default, so "default" is never sent as a literal effort)
 //   - "max"  → "xhigh" (LM Studio/Qwen use xhigh; "max" is rejected)
-//   - "default" → "" (means not configured; caller decides a default)
 //   - anything else is passed through as-is (none/minimal/low/medium/high/xhigh).
 func normalizeResponsesEffort(effort string) string {
-	switch effort {
-	case "max":
+	effort = NormalizeReasoningEffort(effort)
+	if effort == "max" {
 		return "xhigh"
-	case "default":
-		return ""
-	default:
-		return effort
 	}
+	return effort
 }
 
 // mergeResponsesBodyAdditions merges custom JSON properties into the serialized

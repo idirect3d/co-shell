@@ -1357,6 +1357,9 @@ func (a *Agent) ApplyWorkModeConfig() {
 	if mode != nil && mode.ReasoningEffort != nil {
 		reasoningEffort = *mode.ReasoningEffort
 	}
+	// FEATURE-468: the global settings "default" means "do not override" —
+	// fall back to the model/template default instead of sending "default".
+	reasoningEffort = llm.NormalizeReasoningEffort(reasoningEffort)
 
 	topP := a.cfg.LLM.TopP
 	if modelCfg.TopP != nil {

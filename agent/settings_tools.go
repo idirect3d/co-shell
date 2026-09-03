@@ -1245,6 +1245,9 @@ func (a *Agent) rebuildLLMClient() {
 	if activeModel.ReasoningEffort != nil {
 		reasoningEffort = *activeModel.ReasoningEffort
 	}
+	// FEATURE-468: the global settings "default" means "do not override" —
+	// fall back to the model/template default instead of sending "default".
+	reasoningEffort = llm.NormalizeReasoningEffort(reasoningEffort)
 	topP := a.cfg.LLM.TopP
 	if activeModel.TopP != nil {
 		topP = *activeModel.TopP
