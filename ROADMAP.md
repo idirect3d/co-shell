@@ -903,6 +903,7 @@
   - 背景：Web UI 模型设置向导第一步（选择模板）目前只显示模板下拉框，无法在选模板时查看/设置该模板的思考相关开关（thinking、reasoning_effort）。不同 provider 的思考参数不同（qwen 用 enable_thinking、deepseek 用 thinking+reasoning_effort 等），且模板的 DefaultParams 中 reasoning_effort 未在向导中暴露。
   - 方案（已确认）：向导第一步选择模板时，实时显示该模板的思考相关开关选项并可设置：① 先显示 thinking 开关；② 开启后按 provider 显示对应的 reasoning_effort 选项；③ 在空白处显示模板原始 JSON 内容（默认可收起隐藏，需要时展开，保持透明）；④ 补充之前没处理的 reasoning_effort 模板设置。
   - 实施：`cmd/model_web_wizard.go`（WebWizardData 增加 Thinking/ReasoningEffort 字段 + template 步骤返回思考字段与模板 JSON + submit 保存到模型级 ThinkingEnabled/ReasoningEffort）+ `web/static/app.js`（template 步骤渲染 thinking 开关 + reasoning_effort 下拉 + 模板 JSON 展示）+ `web/static/style.css`（模板 JSON 展示样式）+ `i18n/keys.go`/`en.go`/`zh.go`（新增 reasoning_effort/模板 JSON 标签 key）+ `cmd/model_web_wizard_test.go`（template 思考字段/无 reasoning_effort/submit 保存测试）[BUILD-770]
+  - 补充（BUILD-771）：新增 qwen3.8 模板（`config/model_template.go`，与 qwen 并列，ID=qwen3.8，模型 qwen3.8-27b，thinking 默认开）+ reasoning_effort 下拉对所有模板显示并含"不设置"（空值）选项（默认不设置，由用户决定）+ qwenThinkingAdapter 处理 ReasoningEffort（enable_thinking=true 且非空才传 reasoning_effort 顶层字段）+ 前端空值 option 显示"不设置"标签 + 测试更新（qwen reasoning_effort 含 xhigh / qwen3.8 模板测试）
   - 测试：见 use-case/FEATURE-467/
 
 > 当前 BUILD: 768

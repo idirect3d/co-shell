@@ -619,6 +619,8 @@ var zhMessages = map[string]string{
 	KeySettingCmd_614: "Font name (e.g. 'Arial', '微软雅黑')",
 	KeySettingCmd_776: "    [%d] 补充信息（或直接输入其他内容 / 按空格开始输入）\n",
 	KeySettingCmd_777: "  请输入补充信息: ",
+	KeySettingCmd_778: "Qwen3.8",
+	KeySettingCmd_779: "Qwen3.8 系列，支持思考与推理深度（xhigh/medium/low）",
 	KeySettingCmd_615: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
 	KeySettingCmd_616: "💡 提示：使用 :set defaults 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
 

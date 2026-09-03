@@ -89,7 +89,15 @@ func (a *qwenThinkingAdapter) BuildAdditions(cfg ThinkingConfig) map[string]stri
 	case ThinkingModeDisabled:
 		return map[string]string{"extra_body": `{"chat_template_kwargs":{"enable_thinking":false}}`}
 	case ThinkingModeEnabled:
-		return map[string]string{"extra_body": `{"chat_template_kwargs":{"enable_thinking":true}}`}
+		r := map[string]string{"extra_body": `{"chat_template_kwargs":{"enable_thinking":true}}`}
+		// FEATURE-467: Qwen3.8 supports reasoning_effort (xhigh/medium/low) as a
+		// top-level OpenAI-compatible field. Only send it when the user chose a
+		// value (the "not set" option leaves it empty so Qwen3.6, which does not
+		// support reasoning_effort, is unaffected).
+		if cfg.ReasoningEffort != "" {
+			r["reasoning_effort"] = fmt.Sprintf(`"%s"`, cfg.ReasoningEffort)
+		}
+		return r
 	}
 	return nil
 }

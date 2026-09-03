@@ -292,14 +292,13 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 				Key: "thinking", Type: "switch", Label: i18n.T(i18n.KeyCmdMig_378),
 				Value: webWizardBoolStr(thinking), Required: false,
 			})
-			// reasoning_effort select (shown only when thinking is on).
+			// reasoning_effort select (shown only when thinking is on). The default
+			// is the empty "not set" option so the user decides whether to send it
+			// (FEATURE-467). On edit, the model's saved value is pre-filled.
 			opts := reasoningEffortOptions(t.Provider)
 			if len(opts) > 0 {
 				sd.ReasoningEffortOptions = opts
 				effort := data.ReasoningEffort
-				if effort == "" {
-					effort = templateDefaultReasoningEffort(t)
-				}
 				sd.Fields = append(sd.Fields, WebWizardField{
 					Key: "reasoning_effort", Type: "select", Label: i18n.T(i18n.KeyCmdMig_383),
 					Value: effort, Options: opts, Required: false,
@@ -473,29 +472,20 @@ func webWizardBoolStr(b bool) string {
 }
 
 // reasoningEffortOptions returns the reasoning_effort choices for a provider
-// (FEATURE-467). Providers that express reasoning depth via a different field
-// (e.g. qwen's enable_thinking, minimax's reasoning_split) return nil so the
-// wizard hides the reasoning_effort select for them.
+// (FEATURE-467). The first (empty) entry is the "not set" option meaning the
+// reasoning_effort parameter is not sent, letting the user decide per model
+// (e.g. Qwen3.6 does not support reasoning_effort while Qwen3.8 does).
+// qwen includes xhigh because Qwen3.8 uses xhigh/medium/low.
 func reasoningEffortOptions(provider string) []string {
 	switch provider {
+	case "qwen":
+		return []string{"", "low", "medium", "high", "xhigh"}
 	case "deepseek", "zhipu", "moonshot", "kimi", "openai", "openai-compatible":
-		return []string{"low", "medium", "high"}
+		return []string{"", "low", "medium", "high"}
 	default:
-		return nil
+		// Providers without a reasoning_effort concept still expose the "not set"
+		// option so the wizard stays uniform and the user decides.
+		return []string{""}
 	}
 }
 
-// templateDefaultReasoningEffort extracts the reasoning_effort default from a
-// template's DefaultParams (FEATURE-467). Returns "" when the template does not
-// declare one.
-func templateDefaultReasoningEffort(t *config.ModelTemplate) string {
-	if t == nil || len(t.DefaultParams) == 0 {
-		return ""
-	}
-	if v, ok := t.DefaultParams["reasoning_effort"]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
