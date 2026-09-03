@@ -207,8 +207,10 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 		} else {
 			model.ReasoningEffort = nil
 		}
-		// FEATURE-468: persist the model-level API type.
-		model.APIType = data.APIType
+		// FEATURE-468: persist the model-level API type. The wizard select always
+		// carries a concrete value ("chat" or "responses"); normalize "chat" to
+		// empty so the config stays minimal (empty == chat, the default).
+		model.APIType = normalizeAPIType(data.APIType)
 		model.Enabled = data.Enabled
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
@@ -246,8 +248,9 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 			Thinking: data.Thinking,
 		},
 		MaxModelLen: data.MaxModelLen,
-		// FEATURE-468: the API type chosen on the template step (empty = chat).
-		APIType: data.APIType,
+		// FEATURE-468: the API type chosen on the template step (chat or responses;
+		// "chat" is normalized to empty so the config stays minimal).
+		APIType: normalizeAPIType(data.APIType),
 	}
 	// FEATURE-467: persist the model-level thinking settings chosen on the
 	// template step.
@@ -314,15 +317,19 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 					Value: effort, Options: opts, Required: false,
 				})
 			}
-			// FEATURE-468: API type select. Empty means Chat Completions (default);
-			// "responses" switches the model to the Responses API (/v1/responses)
-			// whose reasoning.effort=none reliably disables thinking for models
-			// like qwen3.6 that ignore the chat-format thinking parameters. The
-			// first (empty) option is labelled "Chat (default)" by the frontend.
+			// FEATURE-468: API type select. Two concrete options — "chat" (Chat
+			// Completions, the default, shown selected when nothing is configured)
+			// and "responses" (Responses API /v1/responses, whose
+			// reasoning.effort=none reliably disables thinking for models like
+			// qwen3.6 that ignore the chat-format thinking parameters). The
+			// default option is labelled "(default)" by the frontend.
 			apiType := data.APIType
+			if apiType == "" {
+				apiType = "chat"
+			}
 			sd.Fields = append(sd.Fields, WebWizardField{
 				Key: "api_type", Type: "select", Label: i18n.T(i18n.KeyCmdMig_386),
-				Value: apiType, Options: []string{"", "chat", "responses"}, Required: false,
+				Value: apiType, Options: []string{"chat", "responses"}, Required: false,
 			})
 			// Template raw JSON for the collapsible transparency viewer.
 			if j, err := json.MarshalIndent(t, "", "  "); err == nil {
@@ -489,6 +496,16 @@ func webWizardBoolStr(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// normalizeAPIType normalizes a wizard api_type value for persistence
+// (FEATURE-468). Empty or "chat" both mean the default Chat Completions API and
+// are stored as empty so the config stays minimal; only "responses" is kept.
+func normalizeAPIType(apiType string) string {
+	if apiType == "responses" {
+		return "responses"
+	}
+	return ""
 }
 
 // reasoningEffortOptions returns the reasoning_effort choices for a provider
