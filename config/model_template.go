@@ -90,6 +90,12 @@ type ModelConfig struct {
 	TemplateID   string                 `json:"template_id,omitempty"`
 	CustomParams map[string]interface{} `json:"custom_params,omitempty"`
 
+	// APIType selects the API protocol used for this model.
+	// Empty or "chat" uses the OpenAI Chat Completions API (/v1/chat/completions).
+	// "responses" uses the OpenAI Responses API (/v1/responses), which supports
+	// reasoning.effort control (e.g. {"effort": "none"} to disable thinking).
+	APIType string `json:"api_type,omitempty"`
+
 	// MaxModelLen is the maximum context length (in tokens) supported by the model.
 	// This value is automatically detected from the API when listing models.
 	// A value of 0 means unknown or not yet detected.

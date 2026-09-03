@@ -912,6 +912,32 @@
 
 ### 任务详情
 
+## v0.31.0 — 开发中
+
+> **版本**: v0.31.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: Responses API 支持
+> **说明**: 0.31.0 系列引入 Responses API 支持：让 co-shell 支持 OpenAI Responses API（/v1/responses），通过 `reasoning: {effort: "none"}` 控制思考开关（解决 qwen3.6 等模型在 Chat Completions 下无法关闭思考的问题），并支持按模型选择 API 类型。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-468 | 0.31.0 | P1 | Responses API 支持：新增 llm/responsesClient 实现 Client 接口（支持 LM Studio/DeepSeek 官方/本地代理三个端点）+ config 增加 api_type 字段让用户按模型选择 API（chat 默认 / responses）+ 模型向导支持 api_type 选择 |
+
+- [ ] **FEATURE-468 Responses API 支持**
+  - 背景：qwen3.6-35b (uncensored) 等模型在 Chat Completions API 下无法通过任何请求参数关闭思考（enable_thinking/reasoning_effort 均无效），但 Responses API（/v1/responses）的 `reasoning: {effort: "none"}` 能完全关闭思考。已实测验证 LM Studio（127.0.0.1:11234）、DeepSeek 官方（api.deepseek.com）、本地代理（localhost:11535）三个端点均支持 /responses 端点且格式基本一致。
+  - 方案（已确认）：新增 `llm/responses_client.go` 实现 `llm.Client` 接口（请求/响应/流式/工具调用转换，支持 `reasoning: {effort}` 思考控制）+ config `ModelConfig` 增加 `api_type` 字段（"chat" 默认 / "responses"）+ `NewClient` 根据 api_type 分发 + 模型向导支持 api_type 选择。
+  - 实施：`config/model_template.go`（ModelConfig 增加 APIType 字段）+ `llm/responses_client.go`（responsesClient 实现 Client 接口：请求转换 Message→input、工具定义转换、响应解析 output[]、流式事件解析、reasoning 思考控制）+ `llm/client.go`（NewClient 根据 api_type 分发）+ `main.go`/`cmd/settings.go`/`agent/agent.go`（NewClient 调用处传入 api_type）+ `cmd/model_web_wizard.go`/`web/static/app.js`（模型向导支持 api_type 选择）+ `llm/responses_client_test.go`（请求/响应/流式/工具调用转换测试）
+  - 测试：见 use-case/FEATURE-468/（开发中已验证：llm/responses_client_test.go 9 项 + cmd/model_web_wizard_test.go api_type 用例全绿；TestStreamSupReply 为存量失败（HEAD 亦失败），与本次改动无关）
+  - 状态：核心实现完成（responses_client + 分发 + 向导），端到端验证（UC-0009/0010）待真实端点
+  - 进度：[BUILD-772]
+
+> 当前 BUILD: 772
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

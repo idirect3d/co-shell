@@ -264,6 +264,11 @@ func (h *ModelHandler) listModels() (string, error) {
 		if m.ReasoningEffort != nil {
 			params = append(params, fmt.Sprintf("reasoning_effort=%s", *m.ReasoningEffort))
 		}
+		// FEATURE-468: flag models routed through the Responses API so the list
+		// makes clear which protocol each model uses (empty = chat, default).
+		if m.APIType == "responses" {
+			params = append(params, "api=responses")
+		}
 		if len(params) > 0 {
 			result.WriteString(fmt.Sprintf("      %s\n", strings.Join(params, " | ")))
 		}

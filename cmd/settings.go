@@ -105,12 +105,13 @@ func (h *SettingsHandler) rebuildLLMClient() {
 		repetitionPenalty = *activeModel.RepetitionPenalty
 	}
 
-	client := llm.NewClient(
+	client := llm.NewClientForAPIType(
 		activeModel.Endpoint,
 		activeModel.APIKey,
 		activeModel.Model,
 		temperature,
 		maxTokens,
+		activeModel.APIType,
 		h.cfg.LLM.LLMTimeout,
 	)
 	client.SetTopP(topP)

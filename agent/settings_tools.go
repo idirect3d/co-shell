@@ -1258,12 +1258,13 @@ func (a *Agent) rebuildLLMClient() {
 		repetitionPenalty = *activeModel.RepetitionPenalty
 	}
 
-	client := llm.NewClient(
+	client := llm.NewClientForAPIType(
 		activeModel.Endpoint,
 		activeModel.APIKey,
 		activeModel.Model,
 		temperature,
 		maxTokens,
+		activeModel.APIType,
 		a.cfg.LLM.LLMTimeout,
 	)
 	client.SetThinkingEnabled(thinkingEnabled)

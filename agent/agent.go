@@ -1382,10 +1382,10 @@ func (a *Agent) ApplyWorkModeConfig() {
 		repetitionPenalty = *mode.RepetitionPenalty
 	}
 
-	// Create the LLM client
-	newClient := llm.NewClient(
+	// Create the LLM client (dispatch by model-level api_type, FEATURE-468)
+	newClient := llm.NewClientForAPIType(
 		modelCfg.Endpoint, modelCfg.APIKey, modelCfg.Model,
-		temperature, maxTokens, a.cfg.LLM.LLMTimeout,
+		temperature, maxTokens, modelCfg.APIType, a.cfg.LLM.LLMTimeout,
 	)
 	newClient.SetTopP(topP)
 	newClient.SetTopK(topK)

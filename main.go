@@ -49,9 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.30.0"
+const version = "0.31.0"
 
-const build = "771"
+const build = "772"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1174,12 +1174,13 @@ func main() {
 			repetitionPenalty = *activeModel.RepetitionPenalty
 		}
 
-		llmClient = llm.NewClient(
+		llmClient = llm.NewClientForAPIType(
 			activeModel.Endpoint,
 			activeModel.APIKey,
 			activeModel.Model,
 			temperature,
 			maxTokens,
+			activeModel.APIType,
 			cfg.LLM.LLMTimeout,
 		)
 		llmClient.SetTopP(topP)

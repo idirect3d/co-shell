@@ -1527,6 +1527,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCmdMig_383:             "推理深度",
 	KeyCmdMig_384:             "查看模板原始 JSON",
 	KeyCmdMig_385:             "模板原始 JSON",
+	KeyCmdMig_386:             "API 类型 (chat/responses)",
 	KeyCmdMig_186:             "\n  步骤: 模型最大上下文长度",
 	KeyCmdMig_187:             "\n  编辑模式: %s\n",
 	KeyCmdMig_188:             "\n  请输入: ",
