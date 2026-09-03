@@ -175,6 +175,30 @@ func (m *ModelManager) initBuiltInTemplates() {
 			},
 		},
 		{
+			// FEATURE-467: Qwen3.8 series (supports reasoning_effort xhigh/medium/low).
+			// Kept as a separate template alongside qwen-official because the model
+			// family differs (thinking on by default, reasoning_effort supported).
+			ID:           "qwen3.8",
+			Name:         i18n.T(i18n.KeySettingCmd_778),
+			Provider:     "qwen",
+			Endpoint:     "https://dashscope.aliyuncs.com/compatible-mode/v1",
+			DefaultModel: "qwen3.8-27b",
+			Models:       []string{"qwen3.8-27b"},
+			APIKeyURL:    "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
+			Priority:     89,
+			Description:  i18n.T(i18n.KeySettingCmd_779),
+			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: true, Multimodal: true},
+			DefaultParams: map[string]interface{}{
+				"extra_body": map[string]interface{}{
+					"chat_template_kwargs": map[string]interface{}{
+						"enable_thinking": true,
+					},
+				},
+				"frequency_penalty": float64(0),
+				"presence_penalty":  float64(0),
+			},
+		},
+		{
 			ID:           "xiaomi-mimo",
 			Name:         i18n.T(i18n.KeySettingCmd_759),
 			Provider:     "xiaomi",

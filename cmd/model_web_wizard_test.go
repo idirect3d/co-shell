@@ -328,8 +328,13 @@ func TestWebWizardTemplateThinkingFields(t *testing.T) {
 	if len(step.Fields[2].Options) == 0 {
 		t.Errorf("reasoning_effort should have options for deepseek")
 	}
-	if step.Fields[2].Value != "high" {
-		t.Errorf("reasoning_effort default = %q, want high (from deepseek template DefaultParams)", step.Fields[2].Value)
+	// reasoning_effort default is the empty "not set" option (FEATURE-467).
+	if step.Fields[2].Value != "" {
+		t.Errorf("reasoning_effort default = %q, want empty (not set)", step.Fields[2].Value)
+	}
+	// The first option must be the empty "not set" choice.
+	if len(step.Fields[2].Options) == 0 || step.Fields[2].Options[0] != "" {
+		t.Errorf("reasoning_effort options should start with the empty not-set option, got %v", step.Fields[2].Options)
 	}
 	if step.TemplateJSON == "" {
 		t.Errorf("template_json should be populated")
@@ -339,19 +344,19 @@ func TestWebWizardTemplateThinkingFields(t *testing.T) {
 	}
 }
 
-// TestWebWizardTemplateNoReasoningEffort verifies a template whose provider has
-// no reasoning_effort concept (qwen) exposes only the thinking switch, no
-// reasoning_effort select (FEATURE-467).
-func TestWebWizardTemplateNoReasoningEffort(t *testing.T) {
+// TestWebWizardTemplateQwenReasoningEffort verifies the qwen template now exposes
+// a reasoning_effort select whose options include xhigh (for Qwen3.8) and the
+// empty "not set" option (FEATURE-467).
+func TestWebWizardTemplateQwenReasoningEffort(t *testing.T) {
 	h := newWebWizardHandler(t)
 	data := &WebWizardData{Mode: "add", TemplateID: "qwen-official"}
 	step, err := h.webWizardStepData(data, WebWizardTemplate)
 	if err != nil {
 		t.Fatalf("template step: %v", err)
 	}
-	// template_id + thinking (no reasoning_effort for qwen).
-	if len(step.Fields) != 2 {
-		t.Fatalf("template fields = %d, want 2 (template_id/thinking)", len(step.Fields))
+	// template_id + thinking + reasoning_effort.
+	if len(step.Fields) != 3 {
+		t.Fatalf("template fields = %d, want 3 (template_id/thinking/reasoning_effort)", len(step.Fields))
 	}
 	if step.Fields[1].Key != "thinking" {
 		t.Errorf("field[1] = %+v, want thinking switch", step.Fields[1])
@@ -359,8 +364,45 @@ func TestWebWizardTemplateNoReasoningEffort(t *testing.T) {
 	if step.Fields[1].Value != "false" {
 		t.Errorf("thinking default = %q, want false (qwen template thinking=false)", step.Fields[1].Value)
 	}
-	if len(step.ReasoningEffortOptions) != 0 {
-		t.Errorf("qwen should have no reasoning_effort_options")
+	if step.Fields[2].Key != "reasoning_effort" {
+		t.Errorf("field[2] = %+v, want reasoning_effort select", step.Fields[2])
+	}
+	// qwen options must include xhigh (Qwen3.8) and the empty not-set option.
+	opts := step.Fields[2].Options
+	if len(opts) == 0 || opts[0] != "" {
+		t.Errorf("qwen reasoning_effort options should start with empty not-set, got %v", opts)
+	}
+	foundXhigh := false
+	for _, o := range opts {
+		if o == "xhigh" {
+			foundXhigh = true
+		}
+	}
+	if !foundXhigh {
+		t.Errorf("qwen reasoning_effort options should include xhigh, got %v", opts)
+	}
+}
+
+// TestWebWizardTemplateQwen38 verifies the qwen3.8 template exposes thinking on
+// by default and a reasoning_effort select (FEATURE-467).
+func TestWebWizardTemplateQwen38(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "qwen3.8"}
+	step, err := h.webWizardStepData(data, WebWizardTemplate)
+	if err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	if len(step.Fields) != 3 {
+		t.Fatalf("template fields = %d, want 3 (template_id/thinking/reasoning_effort)", len(step.Fields))
+	}
+	if step.Fields[1].Key != "thinking" || step.Fields[1].Value != "true" {
+		t.Errorf("field[1] = %+v, want thinking switch on (qwen3.8 supports thinking)", step.Fields[1])
+	}
+	if step.Fields[2].Key != "reasoning_effort" {
+		t.Errorf("field[2] = %+v, want reasoning_effort select", step.Fields[2])
+	}
+	if step.Fields[2].Value != "" {
+		t.Errorf("qwen3.8 reasoning_effort default = %q, want empty (not set)", step.Fields[2].Value)
 	}
 }
 

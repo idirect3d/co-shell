@@ -883,6 +883,8 @@ const (
 	KeySettingCmd_616 = "setting_cmd_616"
 	KeySettingCmd_776 = "setting_cmd_776"
 	KeySettingCmd_777 = "setting_cmd_777"
+	KeySettingCmd_778 = "setting_cmd_778"
+	KeySettingCmd_779 = "setting_cmd_779"
 
 	// FEATURE-305 第 3 批: agent/vault.go
 	KeySettingCmd_617 = "setting_cmd_617"
