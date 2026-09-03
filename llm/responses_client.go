@@ -49,9 +49,12 @@ type responsesInputItem struct {
 }
 
 // responsesContentPart is a content part inside a Responses API message item.
+// Text intentionally has NO omitempty: the Responses API (LM Studio / OpenAI)
+// rejects an input_text part whose "text" key is absent (missing field fails
+// the pydantic union), while an explicit empty string is accepted.
 type responsesContentPart struct {
 	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Text string `json:"text"`
 }
 
 // responsesToolJSON is a flattened tool definition in the Responses API.
@@ -193,10 +196,27 @@ func NewClientForAPIType(endpoint, apiKey, model string, temperature float64, ma
 	return NewClient(endpoint, apiKey, model, temperature, maxTokens, timeoutSeconds...)
 }
 
+// responsesTextContent returns the text payload of a message: the plain
+// Content string when set, otherwise the concatenated text of the structured
+// ContentParts (FEATURE-468). The agent stores long user turns (instructions +
+// environment details) as ContentParts with an empty Content field; falling back
+// to CombineContentParts preserves that text instead of sending an empty part.
+func responsesTextContent(msg *Message) string {
+	if msg.Content != "" {
+		return msg.Content
+	}
+	return msg.CombineContentParts()
+}
+
 // buildResponsesInput converts our Message type to the Responses API input array.
 //   - system/user/assistant → {type: "message", role, content: [{type: "input_text", text}]}
 //   - assistant with ToolCalls → {type: "function_call", call_id, name, arguments}
 //   - tool → {type: "function_call_output", call_id, output}
+//
+// Text content is taken from Content (or ContentParts via CombineContentParts
+// when Content is empty). Image parts are not yet mapped to the Responses
+// input_image format; the responses API targets text-driven thinking control
+// (qwen3.6 / deepseek), so vision models keep using the chat API.
 func buildResponsesInput(messages []Message) []responsesInputItem {
 	var input []responsesInputItem
 	for _, msg := range messages {
@@ -206,17 +226,17 @@ func buildResponsesInput(messages []Message) []responsesInputItem {
 				Type: "message",
 				Role: msg.Role,
 				Content: []responsesContentPart{
-					{Type: "input_text", Text: msg.Content},
+					{Type: "input_text", Text: responsesTextContent(&msg)},
 				},
 			})
 		case "assistant":
 			// Assistant text content (if any) becomes a message item.
-			if msg.Content != "" {
+			if text := responsesTextContent(&msg); text != "" {
 				input = append(input, responsesInputItem{
 					Type: "message",
 					Role: "assistant",
 					Content: []responsesContentPart{
-						{Type: "input_text", Text: msg.Content},
+						{Type: "input_text", Text: text},
 					},
 				})
 			}
