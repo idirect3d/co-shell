@@ -68,6 +68,36 @@ func TestBuildResponsesInput(t *testing.T) {
 	}
 }
 
+// TestResponsesTextContentFallback verifies a user message whose text lives in
+// ContentParts (Content empty — the agent's structured multi-part user turns)
+// is converted with the concatenated text instead of an empty part (FEATURE-468).
+func TestResponsesTextContentFallback(t *testing.T) {
+	msg := Message{Role: "user"}
+	msg.AppendTextPart("first part\n")
+	msg.AppendTextPart("second part")
+	input := buildResponsesInput([]Message{msg})
+	if len(input) != 1 || input[0].Type != "message" || input[0].Role != "user" {
+		t.Fatalf("parts user conversion wrong: %+v", input)
+	}
+	if got := input[0].Content[0].Text; got != "first part\n\nsecond part" {
+		t.Errorf("parts text = %q, want parts joined by newline", got)
+	}
+}
+
+// TestResponsesEmptyTextKeepsKey guards the LM Studio / OpenAI requirement that
+// an input_text part always carries a "text" key (missing key fails the input
+// union even when the text is empty).
+func TestResponsesEmptyTextKeepsKey(t *testing.T) {
+	input := buildResponsesInput([]Message{{Role: "user"}})
+	body, err := json.Marshal(input[0])
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), `"text":""`) {
+		t.Errorf("input part must serialize an explicit empty text key, got: %s", body)
+	}
+}
+
 // TestBuildResponsesTools covers UC-0004: Tool → flattened tools conversion.
 func TestBuildResponsesTools(t *testing.T) {
 	tools := []Tool{
