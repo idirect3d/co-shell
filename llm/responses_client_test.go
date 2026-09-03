@@ -54,9 +54,13 @@ func TestBuildResponsesInput(t *testing.T) {
 	if input[1].Type != "message" || input[1].Role != "user" || input[1].Content[0].Text != "hello" {
 		t.Errorf("user item wrong: %+v", input[1])
 	}
-	// assistant text → message
+	// assistant text → message with an output_text part (input_text on an
+	// assistant message fails the LM Studio / OpenAI input union).
 	if input[2].Type != "message" || input[2].Role != "assistant" || input[2].Content[0].Text != "thinking..." {
 		t.Errorf("assistant text item wrong: %+v", input[2])
+	}
+	if input[2].Content[0].Type != "output_text" {
+		t.Errorf("assistant content part type = %q, want output_text (FEATURE-468)", input[2].Content[0].Type)
 	}
 	// assistant tool call → function_call
 	if input[3].Type != "function_call" || input[3].CallID != "call_1" || input[3].Name != "get_weather" || input[3].Arguments != `{"city":"beijing"}` {

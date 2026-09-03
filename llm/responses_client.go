@@ -230,13 +230,17 @@ func buildResponsesInput(messages []Message) []responsesInputItem {
 				},
 			})
 		case "assistant":
-			// Assistant text content (if any) becomes a message item.
+			// Assistant text content (if any) becomes a message item. The content
+			// part MUST be "output_text": the Responses API spec only allows
+			// input_text parts on user/system/developer messages; an assistant
+			// message carrying an input_text part fails the input union on
+			// LM Studio (and is invalid per the OpenAI schema).
 			if text := responsesTextContent(&msg); text != "" {
 				input = append(input, responsesInputItem{
 					Type: "message",
 					Role: "assistant",
 					Content: []responsesContentPart{
-						{Type: "input_text", Text: text},
+						{Type: "output_text", Text: text},
 					},
 				})
 			}
