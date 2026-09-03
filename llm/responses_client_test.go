@@ -281,6 +281,49 @@ func TestResponsesChatStream(t *testing.T) {
 	}
 }
 
+// TestResponsesChatStreamOutputItemDone covers the LM Studio event shape where
+// NO function_call_arguments.delta is emitted and the complete arguments arrive
+// in the output_item.done event's item.arguments (FEATURE-468).
+func TestResponsesChatStreamOutputItemDone(t *testing.T) {
+	stream := "" +
+		"event: response.created\n" +
+		"data: {\"type\":\"response.created\"}\n\n" +
+		"event: response.output_item.added\n" +
+		"data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"function_call\",\"call_id\":\"call_lm\",\"name\":\"run_cmd\"}}\n\n" +
+		"event: response.function_call_arguments.done\n" +
+		"data: {\"type\":\"response.function_call_arguments.done\",\"output_index\":0}\n\n" +
+		"event: response.output_item.done\n" +
+		"data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"function_call\",\"call_id\":\"call_lm\",\"name\":\"run_cmd\",\"arguments\":\"{\\\"command\\\":\\\"echo hi\\\"}\"}}\n\n" +
+		"event: response.completed\n" +
+		"data: {\"type\":\"response.completed\",\"response\":{}}\n\n"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte(stream))
+	}))
+	defer srv.Close()
+
+	c := NewResponsesClient(srv.URL, "key", "m", 0, 0, 10)
+	defer c.Close()
+
+	eventCh, err := c.ChatStream(context.Background(), []Message{{Role: "user", Content: "run"}}, nil)
+	if err != nil {
+		t.Fatalf("ChatStream error: %v", err)
+	}
+	var toolCall *ToolCall
+	for ev := range eventCh {
+		switch ev.Type {
+		case StreamEventToolCall:
+			toolCall = ev.ToolCall
+		case StreamEventError:
+			t.Fatalf("stream error: %v", ev.Err)
+		}
+	}
+	if toolCall == nil || toolCall.Name != "run_cmd" || toolCall.Arguments != `{"command":"echo hi"}` {
+		t.Errorf("tool call from output_item.done = %+v, want full arguments", toolCall)
+	}
+}
+
 // TestResponsesBuildReasoning covers UC-0007: reasoning.effort derivation from
 // thinking settings and chat-format body additions.
 func TestResponsesBuildReasoning(t *testing.T) {
