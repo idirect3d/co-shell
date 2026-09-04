@@ -49,6 +49,7 @@ const I18N = {
     streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
     streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
     yoloTitle: "YOLO 模式（You Only Live Once）：开启后所有工具调用自动批准，无需逐个确认",
+    setDefaultTip: "默认值", setDiffTip: "与默认值不一致",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -88,6 +89,7 @@ const I18N = {
     streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
     streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
     yoloTitle: "YOLO mode (You Only Live Once): when on, all tool calls are auto-approved without asking",
+    setDefaultTip: "Default", setDiffTip: "differs from default",
   },
 };
 let T = I18N.zh;
@@ -3551,9 +3553,12 @@ function settingsGroupIcon(title) {
 
 // renderSettings renders the grouped setting items returned by settings_get
 // (FEATURE-391) in an iPad-style layout: left nav + right content pane.
+// The active group is preserved across refreshes (e.g. after a settings_set
+// re-fetch) so the user stays on the current category instead of jumping back
+// to the first one (FEATURE-470).
 function renderSettings(groups) {
   settingsGroups = groups || [];
-  settingsActiveGroup = 0;
+  if (settingsActiveGroup >= settingsGroups.length) settingsActiveGroup = 0;
   cacheWebInputDir(groups);
   renderSettingsNav();
   renderSettingsPane();
@@ -3646,10 +3651,35 @@ function renderSettingItem(it) {
   const label = document.createElement("span");
   label.className = "set-label";
   label.textContent = it.key;
+  // FEATURE-470: the tooltip shows the system default value so the user knows
+  // what the default is for this parameter. An empty default (e.g. web-whitelist
+  // = loopback only) is shown as "(empty)".
+  const def = it.default != null ? String(it.default) : "";
+  const defDisplay = def === "" ? "(empty)" : def;
   label.title = it.desc || "";
+  if (def !== "" || it.default != null) label.title += (label.title ? "\n" : "") + i18nT("setDefaultTip", "默认值") + ": " + defDisplay;
   row.appendChild(label);
 
+  // FEATURE-470: red * marker shown right of the control when the current value
+  // differs from the default. Kept as a reference so onchange can add/remove it
+  // dynamically as the user edits the value.
+  let mark = null;
+  const updateDiffMark = (val) => {
+    const show = def !== "" && String(val) !== def;
+    if (show && !mark) {
+      mark = document.createElement("span");
+      mark.className = "set-diff";
+      mark.textContent = "*";
+      mark.title = i18nT("setDiffTip", "与默认值不一致") + " (" + i18nT("setDefaultTip", "默认值") + ": " + def + ")";
+      row.appendChild(mark);
+    } else if (!show && mark) {
+      mark.remove();
+      mark = null;
+    }
+  };
+
   let ctl;
+  let curVal = it.value;
   if (it.key === "theme-mode") {
     // Frontend-local theme setting (FEATURE-457): rendered as a select that
     // persists to localStorage and applies the theme immediately.
@@ -3657,6 +3687,7 @@ function renderSettingItem(it) {
     ctl.className = "set-select";
     const opts = ["auto", "dark", "light"];
     const cur = localStorage.getItem("co-shell-theme") || "auto";
+    curVal = cur;
     for (const opt of opts) {
       const o = document.createElement("option");
       o.value = opt;
@@ -3667,38 +3698,57 @@ function renderSettingItem(it) {
     ctl.onchange = () => {
       localStorage.setItem("co-shell-theme", ctl.value);
       applyTheme();
+      updateDiffMark(ctl.value);
     };
   } else if (it.type === "bool") {
     ctl = document.createElement("input");
     ctl.type = "checkbox";
     ctl.className = "set-toggle";
     ctl.checked = it.value === "on";
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.checked ? "on" : "off" });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.checked ? "on" : "off" });
+      updateDiffMark(ctl.checked ? "on" : "off");
+    };
   } else if (it.type === "number") {
     ctl = document.createElement("input");
     ctl.type = "number";
     ctl.className = "set-input";
     ctl.value = it.value;
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+      updateDiffMark(ctl.value);
+    };
   } else if (it.type === "enum") {
     ctl = document.createElement("select");
     ctl.className = "set-select";
+    // FEATURE-470: for thinking-enabled / reasoning-effort the internal value
+    // "default" is displayed as "by model" (the model decides), while the
+    // stored value stays "default".
+    const isByModel = it.key === "thinking-enabled" || it.key === "reasoning-effort";
+    const optLabel = (opt) => (isByModel && opt === "default" ? "by model" : opt);
     for (const opt of it.options || []) {
       const o = document.createElement("option");
       o.value = opt;
-      o.textContent = opt;
+      o.textContent = optLabel(opt);
       if (opt === it.value) o.selected = true;
       ctl.appendChild(o);
     }
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+      updateDiffMark(ctl.value);
+    };
   } else {
     ctl = document.createElement("input");
     ctl.type = "text";
     ctl.className = "set-input";
     ctl.value = it.value;
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+      updateDiffMark(ctl.value);
+    };
   }
   row.appendChild(ctl);
+  updateDiffMark(curVal);
   return row;
 }
 
@@ -3718,6 +3768,9 @@ function showSettingsResult(msg) {
     settingsDynamic.prepend(el);
   }
   setTimeout(() => el.remove(), 3000);
+  // FEATURE-470: after a successful change, re-fetch the settings so the pane
+  // reflects the new value immediately (switching groups no longer reverts it).
+  if (msg.ok) wsSend({ type: "settings_get" });
 }
 
 /* ---------- MCP server manager (FEATURE-464) ---------- */

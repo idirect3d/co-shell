@@ -962,6 +962,30 @@
   - 实施：`config/config.go`（Config.WebInputDir 字段）+ `cmd/settings.go`（:set web-input-dir 注册，非法路径拒绝）+ `cmd/settings_web.go`（开发者组设置项 + webInputDirValue 默认 input）+ `i18n/keys.go`/`en.go`/`zh.go`（KeyCol3WebInputDir）+ `web/server.go`（handleUpload 目标目录不存在时自动创建）+ `web/static/index.html`（录入框 📎 按钮 + 下方附件托盘 #attachBar/#attachList/#attachClear/#attachFile）+ `web/static/style.css`（.attach-* 缩略图/文件图标/删除/清空 + .user-dyn 动态标签 chips）+ `web/static/app.js`（paste 剪贴板图片、📎 多选、拖放加入附件托盘；缩略图与📄文件图标平铺；单项删除/清空/点击放大预览；发送时 FormData 批量上传至 web-input-dir → 图片走既有 attachments→SetImagePaths 视觉通道、全部文件以 <<<DYNAMIC>>> 动态感知标签追加 user 消息末尾；renderUserBody 将动态块渲染为气泡内标签区，回显即见；历史回看会话时 user 消息回放渲染沿用现有路径（原始动态块文本可读），与回显同渲染列为后续小任务）[BUILD-779]；补充：图片附件按主模型视觉能力门控——`agent/agent.go` 新增 MainModelSupportsVision()（GetActiveModel(false) 判断主模型 Capabilities.Vision），`web/session.go` ReadLine 仅当主模型支持视觉才 SetImagePaths 注入图片字节，否则只保留动态信息文本告知（避免把图片发给无视觉主模型）[BUILD-780]
   - 测试：见 use-case/FEATURE-469/（UC-0001~0004 运行时用例）；单测：`cmd/web_input_dir_test.go`（默认值 input/非法路径拒绝/设置组含 web-input-dir）+ `web/server_test.go` TestUploadAutoCreatesDir（上传目录自动创建）
 
+## v0.33.0 — 开发中
+
+> **版本**: v0.33.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: Web UI 系统设置界面默认值优化
+> **说明**: 0.33.0 系列为 Web UI 系统设置界面增加默认值展示与差异标记：所有参数的值和选项的 tips 信息里显示参数的默认值；当参数当前值不等于默认值时，在值的右边显示红色 * 标记，让用户快速知道哪些值当前是修改过默认值的。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-470 | 0.33.0 | P1 | Web UI 系统设置界面默认值优化：tips 显示默认值 + 当前值≠默认值时红色 * 标记 |
+
+> 当前 BUILD: 781
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-470 Web UI 系统设置界面默认值优化** [BUILD-789]
+  - 背景：Web UI 系统设置界面（settings_get 返回的分组设置项）只显示参数当前值，用户无法知道系统默认值是什么，也无法快速识别哪些参数被修改过默认值。
+  - 方案（已确认）：① 后端 `WebSettingItem` 新增 `Default` 字段（默认值），`SettingsJSON()` 为每个设置项填充默认值（来自 `config.DefaultConfig()` 与 normalize 函数）；② 前端 `renderSettingItem` 在 label 的 title（tips）中追加"默认值: xxx"；③ 当 `it.value !== it.default` 时，在控件右侧显示红色 * 标记。
+  - 实施：`cmd/settings_web.go`（WebSettingItem 加 Default 字段 + SettingsJSON 填充默认值）+ `web/static/app.js`（renderSettingItem 读取 it.default：tips 追加默认值 + 值≠默认值时控件右侧加红色 * 标记）+ `web/static/style.css`（.set-diff 红色 * 标记样式）
+  - 测试：见 use-case/FEATURE-470/
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1
