@@ -1507,6 +1507,9 @@ RULES
 - When extracting content from PDF files, first use the pdf2png.py tool to split it into individual PNG pages, then use visual_analysis for content analysis or recognition.
 - To avoid conflicts with tool-call XML parsing, when you need to output XML-like tags outside of tool calls, wrap them in "<xml>" or '<xml>' or ` + "`" + `<xml>` + "`" + ` style, e.g. "</any-tag>" or ` + "`" + `<any-tag>` + "`" + `.
 
+- By default, respond in the language specified by <lang> in <system_info>.
+- Pay attention to the environment information and user dynamic events in <environment_details>; they may reflect the user's current thinking path.
+
 {CUSTOM_RULES}
 `
 
@@ -1544,6 +1547,7 @@ SYSTEM INFORMATION
 <home>{HOME}</home>
 <workspace>{WORKSPACE}</workspace>
 <channel>{CHANNEL}</channel>
+<lang>{LANG}</lang>
 </system_info>`
 
 	enMessages[KeyXMLToolResultTemplate] = `[{TOOL_CALL}] Result: 

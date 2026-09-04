@@ -172,6 +172,9 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<cwd>")
 	sb.WriteString(cwd)
 	sb.WriteString("</cwd>\n")
+	sb.WriteString("<current_mode>")
+	sb.WriteString(a.currentWorkMode())
+	sb.WriteString("</current_mode>\n")
 	if incDir {
 		sb.WriteString("<current_dir>\n")
 		sb.WriteString(files)
@@ -229,6 +232,16 @@ func (a *Agent) envIncludeFlags() (details, dir, tools, research, dyn bool) {
 		dyn = true
 	}
 	return
+}
+
+// currentWorkMode returns the current work mode name (e.g. act/plan/research),
+// defaulting to "act" when unset. Written into <current_mode> in
+// <environment_details> (FEATURE-471).
+func (a *Agent) currentWorkMode() string {
+	if a.cfg != nil && a.cfg.LLM.WorkMode != "" {
+		return a.cfg.LLM.WorkMode
+	}
+	return "act"
 }
 
 // refreshLastUserEnvelope updates only the <time> tag in the last user message's

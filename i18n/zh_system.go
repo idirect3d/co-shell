@@ -1493,6 +1493,9 @@ RULES
 - 如果需要提取 pdf 文件中的内容，建议先使用 pdf2png.py 工具将其拆解为分页的 png 文件，再通过 visual_analysis 进行内容分析或内容识别。
 - 为避免与方法调用XML解析冲突，在方法调用以外需要输出XML标签内容时，如果带有"<>"，必须通过"<xml>"或'<xml>'或` + "`" + `<xml>` + "`" + `的方式将其包裹，如："</any-tag>"或` + "`" + `<any-tag>` + "`" + `。
 
+- 默认使用 <system_info> 中 <lang> 指定的语言进行回复。
+- 关注 <environment_details> 中的环境信息和用户动态，这些可能反映用户此时的思考路径。
+
 {CUSTOM_RULES}
 `
 
@@ -1528,6 +1531,7 @@ SYSTEM INFORMATION
 <home>{HOME}</home>
 <workspace>{WORKSPACE}</workspace>
 <channel>{CHANNEL}</channel>
+<lang>{LANG}</lang>
 </system_info>
 
 `
