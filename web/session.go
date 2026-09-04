@@ -813,8 +813,11 @@ func (s *WebSession) currentPlanJSON() string {
 
 // ReadLine waits for the next browser "input" message. Attachments (image
 // paths) are installed on the agent before returning, mirroring the CLI
-// --image flag path. Turn boundaries are signalled to the browser around
-// the wait: await_input before blocking, turn_start once an input arrives.
+// --image flag path. When the main model does not support vision, the image
+// bytes are NOT injected (the dynamic-context text already tells the model
+// about the uploaded files) — FEATURE-469.
+// Turn boundaries are signalled to the browser around the wait: await_input
+// before blocking, turn_start once an input arrives.
 func (s *WebSession) ReadLine(prompt string) (string, error) {
 	s.srv.sendEvent(agent.NewStreamEvent(eventAwaitInput, agent.ChannelSystem, agent.LevelInfo, ""))
 	select {
@@ -823,7 +826,7 @@ func (s *WebSession) ReadLine(prompt string) (string, error) {
 		// stream events can be mapped back to a message for retry-from.
 		s.msgIndex++
 		s.srv.sendEvent(agent.NewStreamEvent(eventTurnStart, agent.ChannelSystem, agent.LevelInfo, ""))
-		if len(msg.Attachments) > 0 {
+		if len(msg.Attachments) > 0 && s.ag.MainModelSupportsVision() {
 			paths := make([]string, 0, len(msg.Attachments))
 			for _, rel := range msg.Attachments {
 				if abs, err := s.srv.resolvePath(rel); err == nil {
