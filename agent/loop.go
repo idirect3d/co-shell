@@ -118,6 +118,11 @@ type Agent struct {
 	name            string   // agent name for identification (default: "co-shell")
 	imagePaths      []string // paths to image files for multimodal input (cleared after one-shot delivery)
 	workspacePath   string   // workspace root path for loading external config files
+
+	// dynEvents is the dynamic perception queue (FEATURE-471): user-action
+	// events (clip/upload/message/open) buffered while a task runs and drained
+	// into <environment_details> on each user/tool message injection.
+	dynEvents *dynamicEventQueue
 	memoryEnabled   bool     // whether persistent memory tools are enabled
 	planEnabled     bool     // whether task plan tools are enabled
 	subAgentEnabled bool     // whether sub-agent tools are enabled

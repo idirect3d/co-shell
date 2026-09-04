@@ -1917,6 +1917,7 @@ no liability whatsoever.`,
 	KeyCLIHelpDebug:      "Enable debug mode (display and edit messages before submitting to LLM)",
 	KeyCol3WebWhitelist:  "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)",
 	KeyCol3WebInputDir:   "Attachment upload dir under workspace (default: input)",
+	KeyCol3DynamicQueueSize: "Dynamic perception queue capacity (default: 100)",
 	KeyCLIHelpSessionID:  "  -s, --session-id <id>  Specify session ID to load existing or create new session",
 
 	// Vault

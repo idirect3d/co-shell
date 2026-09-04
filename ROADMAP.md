@@ -983,8 +983,8 @@
 - [ ] **FEATURE-471 动态感知机制改进**
   - 背景：现有 `<<<DYNAMIC>>>` 机制只在用户提交消息那一刻生成附件信息块，任务执行期间用户的新动作（粘贴截图/上传文件/补充消息/打开文件）无法被 LLM 感知。
   - 方案（已确认）：① 建立动态信息队列 Q，实时监控用户动作（粘贴截图/上传文件/任务执行期间补充消息/点击打开文件），动作发生时将动作及内容加入队列；② 用户提交命令或每次工具返回结果给 LLM 时，从队列提取所有缓存的动态事件，放入 `<environment_details>` 的 `<user_dynamic_events>` 标签（含 `<clip_objects>`/`<upload_files>`/`<user_messages>`/`<open_files>` 子标签，均含文件大小与时间），替代 `<<<DYNAMIC>>>` 机制；③ 根据时机，clip_objects/upload_files/open_files 可放入 tool 和 user 消息，user_messages 只能放入 tool 消息；④ 队列容量默认 100 可经系统参数配置；⑤ user_messages 任务结束未消费时，将未消费消息内容中间加换行插入到消息录入框内容头部，供用户直接提交；⑥ 新增 WebSocket dynamic_event 消息通道，前端在任务执行期间也能上报动作事件；⑦ CLI 端事件不入队列。
-  - 实施：`agent/`（动态事件队列 + buildFullEnvironmentDetails 注入 user_dynamic_events）+ `web/`（dynamic_event WebSocket 通道 + 前端上报 + 录入框回填）+ `config/config.go`/`cmd/settings.go`/`cmd/settings_web.go`/`i18n/`（队列容量参数）
-  - 测试：见 use-case/FEATURE-471/
+  - 实施：`agent/dynamic_events.go`（动态事件队列：AddDynamicEvent/消费/去重/容量上限/PendingUserMessages）+ `agent/envelope.go`（buildFullEnvironmentDetails 注入 user_dynamic_events，user_messages 仅 tool 消息）+ `agent/loop.go`（dynEvents 字段）+ `web/server.go`（clientMessage.Kind + serverMessage.Backfill）+ `web/session.go`（dynamic_event 分支 + done 事件回填）+ `web/static/app.js`（上传/打开/补充消息上报 dynamic_event + backfillInput 回填 + 移除 composeDynamicText）+ `config/config.go`/`cmd/settings.go`/`cmd/settings_web.go`/`i18n/`（dynamic-event-queue-size 参数，默认100）
+  - 测试：`agent/dynamic_events_test.go`（7 个单测：入队/排空/容量/去重/user vs tool/文件 stat/回填）；见 use-case/FEATURE-471/
 
 ## v0.33.0 — 开发中
 

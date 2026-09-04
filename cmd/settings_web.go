@@ -172,6 +172,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "llm-log", Value: boolStr(log.IsLLMInteractionEnabled()), Desc: i18n.T(i18n.KeyCol3LLMInteractionLog), Type: "bool", Default: boolStr(def.LLMInteractionLog)},
 		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string", Default: ""},
 		{Key: "web-input-dir", Value: webInputDirValue(cfg), Desc: i18n.T(i18n.KeyCol3WebInputDir), Type: "string", Default: "input"},
+		{Key: "dynamic-event-queue-size", Value: strconv.Itoa(dynamicQueueSizeValue(cfg)), Desc: i18n.T(i18n.KeyCol3DynamicQueueSize), Type: "number", Default: strconv.Itoa(100)},
 	}
 
 	return []WebSettingGroup{
@@ -297,4 +298,14 @@ func webInputDirValue(cfg *config.Config) string {
 		return "input"
 	}
 	return cfg.WebInputDir
+}
+
+// dynamicQueueSizeValue returns the effective dynamic perception queue
+// capacity: the configured dynamic-event-queue-size, or the default 100 when
+// unset (FEATURE-471).
+func dynamicQueueSizeValue(cfg *config.Config) int {
+	if cfg.DynamicEventQueueSize > 0 {
+		return cfg.DynamicEventQueueSize
+	}
+	return 100
 }
