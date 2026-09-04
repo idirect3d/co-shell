@@ -3553,9 +3553,12 @@ function settingsGroupIcon(title) {
 
 // renderSettings renders the grouped setting items returned by settings_get
 // (FEATURE-391) in an iPad-style layout: left nav + right content pane.
+// The active group is preserved across refreshes (e.g. after a settings_set
+// re-fetch) so the user stays on the current category instead of jumping back
+// to the first one (FEATURE-470).
 function renderSettings(groups) {
   settingsGroups = groups || [];
-  settingsActiveGroup = 0;
+  if (settingsActiveGroup >= settingsGroups.length) settingsActiveGroup = 0;
   cacheWebInputDir(groups);
   renderSettingsNav();
   renderSettingsPane();
