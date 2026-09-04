@@ -3718,10 +3718,15 @@ function renderSettingItem(it) {
   } else if (it.type === "enum") {
     ctl = document.createElement("select");
     ctl.className = "set-select";
+    // FEATURE-470: for thinking-enabled / reasoning-effort the internal value
+    // "default" is displayed as "by model" (the model decides), while the
+    // stored value stays "default".
+    const isByModel = it.key === "thinking-enabled" || it.key === "reasoning-effort";
+    const optLabel = (opt) => (isByModel && opt === "default" ? "by model" : opt);
     for (const opt of it.options || []) {
       const o = document.createElement("option");
       o.value = opt;
-      o.textContent = opt;
+      o.textContent = optLabel(opt);
       if (opt === it.value) o.selected = true;
       ctl.appendChild(o);
     }
@@ -3760,6 +3765,9 @@ function showSettingsResult(msg) {
     settingsDynamic.prepend(el);
   }
   setTimeout(() => el.remove(), 3000);
+  // FEATURE-470: after a successful change, re-fetch the settings so the pane
+  // reflects the new value immediately (switching groups no longer reverts it).
+  if (msg.ok) wsSend({ type: "settings_get" });
 }
 
 /* ---------- MCP server manager (FEATURE-464) ---------- */
