@@ -959,8 +959,8 @@
 - [ ] **FEATURE-469 Web UI 消息附件（剪贴板图片粘贴 + 文件上传）**
   - 背景：Web UI 主消息录入框不支持粘贴/上传图片与文件。协议层已预留（input 消息 attachments 字段 → ReadLine → agent.SetImagePaths → 视觉模型），历史版本曾实现 📎 附件按钮后被简化移除；本任务以剪贴板图片粘贴为入口重新提供更完整的附件体验。
   - 方案（已确认）：① 录入框 Ctrl+V：剪贴板含图片时生成缩略图加入录入框下方附件区；② 📎 文件选择按钮支持多选普通文件，与图片缩略图并排平铺（文件显示图标+文件名）；③ 每个待发附件提供删除（✕）与点击放大预览（图片走本地预览弹层，文件显示基本信息）；④ 发送消息时先批量 POST /api/upload?dir=<inputDir> 上传全部待发附件到工作区 input/ 目录（默认 input，可经系统参数 web-input-dir 修改，配置变更即时生效），再以图片路径作为 input 消息 attachments 发出（既有视觉通道）；⑤ 普通文件仅上传到工作区 input/ 目录并在附件区/消息回显可见，不进入视觉通道。
-  - 实施：（规划）`web/static/index.html`（附件区容器 + 📎 按钮 + 隐藏 file input）+ `web/static/style.css`（附件区/缩略图/文件图标/删除按钮样式）+ `web/static/app.js`（粘贴事件、缩略图/文件图标渲染、删除/预览、发送时上传+attachments）+ `web/server.go`（可选：目录不存在时自动创建、input 目录读取回调）+ `config/config.go`/`cmd/settings.go`/`cmd/settings_web.go`/`i18n/`（web-input-dir 参数）
-  - 测试：见 use-case/FEATURE-469/
+  - 实施：`config/config.go`（Config.WebInputDir 字段）+ `cmd/settings.go`（:set web-input-dir 注册，非法路径拒绝）+ `cmd/settings_web.go`（开发者组设置项 + webInputDirValue 默认 input）+ `i18n/keys.go`/`en.go`/`zh.go`（KeyCol3WebInputDir）+ `web/server.go`（handleUpload 目标目录不存在时自动创建）+ `web/static/index.html`（录入框 📎 按钮 + 下方附件托盘 #attachBar/#attachList/#attachClear/#attachFile）+ `web/static/style.css`（.attach-* 缩略图/文件图标/删除/清空 + .user-dyn 动态标签 chips）+ `web/static/app.js`（paste 剪贴板图片、📎 多选、拖放加入附件托盘；缩略图与📄文件图标平铺；单项删除/清空/点击放大预览；发送时 FormData 批量上传至 web-input-dir → 图片走既有 attachments→SetImagePaths 视觉通道、全部文件以 <<<DYNAMIC>>> 动态感知标签追加 user 消息末尾；renderUserBody 将动态块渲染为气泡内标签区，回显即见；历史回看会话时 user 消息回放渲染沿用现有路径（原始动态块文本可读），与回显同渲染列为后续小任务）[BUILD-779]
+  - 测试：见 use-case/FEATURE-469/（UC-0001~0004 运行时用例）；单测：`cmd/web_input_dir_test.go`（默认值 input/非法路径拒绝/设置组含 web-input-dir）+ `web/server_test.go` TestUploadAutoCreatesDir（上传目录自动创建）
 
 ## v0.9.1 — 开发中（已完成）
 

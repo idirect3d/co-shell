@@ -18,6 +18,10 @@ const I18N = {
     connected: "已连接", disconnected: "已断开",
     askLine: "代理请求一行输入：", askKey: "代理请求按键确认：",
     uploadFailed: "上传失败", actionFailed: "操作失败",
+    attach: "附加文件", clearAttach: "清空附件", attachRemove: "移除附件",
+    attachKindImage: "图片", attachKindFile: "文件",
+    attachUploading: "上传附件中…", attachFail: "附件上传失败，请重试",
+    attachPreviewFile: "发送后将保存到工作区（可被工具读取）",
     planEmpty: "（无步骤）",
     menu: "菜单", settings: "系统设置", identity: "身份与个性", restart: "重启后台",
     appearance: "[ 外观 ]",
@@ -53,6 +57,10 @@ const I18N = {
     connected: "connected", disconnected: "disconnected",
     askLine: "The agent asks for a line of input:", askKey: "The agent asks for a key:",
     uploadFailed: "Upload failed", actionFailed: "Action failed",
+    attach: "Attach file", clearAttach: "Clear attachments", attachRemove: "Remove attachment",
+    attachKindImage: "image", attachKindFile: "file",
+    attachUploading: "Uploading attachments…", attachFail: "Attachment upload failed, retry",
+    attachPreviewFile: "Saved to workspace after send (readable by tools)",
     planEmpty: "(no steps)",
     menu: "Menu", settings: "Settings", identity: "Identity & Personality", restart: "Restart backend",
     appearance: "[ Appearance ]",
@@ -1369,13 +1377,48 @@ function renderUserEcho(text) {
   // new block instead of appending to the previous one (FIX-411).
   curREPL = null;
   const body = makeBlock("user-msg", "YOU", lastMsgIndex);
-  body.textContent = text;
+  renderUserBody(body, text);
   // FEATURE-419: after creating the YOU block, scroll to the bottom on the
   // next frame (once the browser has rendered the new block and grown
   // streamB.scrollHeight). Without this, a user's Enter on a long history can
   // leave streamB not at the bottom, which the scroll listener misreads as an
   // intentional scroll-up and spuriously triggers the auto-split (FEATURE-416).
   requestAnimationFrame(scrollStream);
+}
+
+/* FEATURE-469: dynamic-context markers delimiting the auto-appended
+   attachment info (and future dynamic perception tags) inside a user message.
+   Stored text keeps the markers so the model sees a readable trailing block;
+   rendering splits it into the main text + styled tag chips. */
+const DYNAMIC_OPEN = "\n<<<DYNAMIC>>>\n";
+const DYNAMIC_END = "<<<END_DYNAMIC>>>";
+
+// renderUserBody renders a user message body: plain main text on top and, when
+// a trailing <<<DYNAMIC>>> block is present, small attachment tag chips below.
+function renderUserBody(body, text) {
+  let main = text == null ? "" : String(text);
+  let dyn = "";
+  const i0 = main.indexOf(DYNAMIC_OPEN);
+  const i1 = i0 > -1 ? main.indexOf(DYNAMIC_END, i0) : -1;
+  if (i0 > -1 && i1 > -1) {
+    dyn = main.slice(i0 + DYNAMIC_OPEN.length, i1);
+    main = main.slice(0, i0);
+  }
+  body.textContent = main;
+  if (!dyn) return;
+  const tag = document.createElement("div");
+  tag.className = "user-dyn";
+  for (const line of dyn.split("\n")) {
+    if (!line.trim()) continue;
+    const parts = line.split("\t");
+    const chip = document.createElement("span");
+    chip.className = "user-dyn-chip";
+    const kind = parts[1];
+    chip.textContent = (kind === "image" ? "🖼 " : "📄 ") + (parts[0] || line) + (parts[2] ? " · " + parts[2] : "");
+    chip.title = line;
+    tag.appendChild(chip);
+  }
+  body.appendChild(tag);
 }
 
 /* ---------- panel visibility (workspace / plan) ---------- */
@@ -2263,6 +2306,223 @@ askInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); answerAsk(askInput.value); }
 });
 
+/* ---------- FEATURE-469: message attachments (clipboard paste / pick) ---------- */
+
+const attachBar = document.getElementById("attachBar");
+const attachList = document.getElementById("attachList");
+const attachClear = document.getElementById("attachClear");
+const attachFile = document.getElementById("attachFile");
+const attachBtn = document.getElementById("attachBtn");
+
+// Effective upload dir: "web-input-dir" setting item from settings_get
+// (workspace-relative, default "input").
+let webInputDir = "input";
+let pendingAttach = []; // {uid,file,name,size,kind,url}
+let attachSeq = 0;
+let attachSending = false;
+
+function cacheWebInputDir(groups) {
+  for (const g of groups || []) {
+    for (const it of g.items || []) {
+      if (it.key === "web-input-dir") {
+        webInputDir = it.value || "input";
+        return;
+      }
+    }
+  }
+}
+
+function fmtBytes(b) {
+  if (!b && b !== 0) return "";
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + " MB";
+  return (b / 1073741824).toFixed(2) + " GB";
+}
+
+function attachKindOf(file) {
+  return (file.type || "").startsWith("image/") ? "image" : "file";
+}
+
+function addAttachFiles(files) {
+  if (!files || !files.length) return;
+  for (const f of Array.from(files)) {
+    const kind = attachKindOf(f);
+    let name = f.name || (kind === "image" ? "image.png" : "file");
+    // Clipboard screenshots usually reuse one generic name (image.png); give
+    // them a unique storage name so repeated pastes never collide on disk.
+    if (kind === "image" && /^image([.][a-z0-9]+)?$/i.test(name || "image.png")) {
+      const ext = ((name || "png").split(".").pop() || "png").toLowerCase();
+      const d = new Date();
+      const p2 = (n) => String(n).padStart(2, "0");
+      name = "clip-" + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + "-" +
+        p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + "-" + (attachSeq++) + "." + ext;
+    }
+    pendingAttach.push({
+      uid: "a" + (attachSeq++), file: f, name, size: f.size || 0,
+      kind, url: URL.createObjectURL(f),
+    });
+  }
+  renderAttachBar();
+}
+
+function renderAttachBar() {
+  attachList.textContent = "";
+  const has = pendingAttach.length > 0;
+  attachBar.classList.toggle("hidden", !has);
+  if (!has) return;
+  for (const it of pendingAttach) renderAttachItem(it);
+}
+
+function renderAttachItem(it) {
+  const item = document.createElement("div");
+  item.className = "attach-item";
+  item.title = it.name + " · " + (it.kind === "image" ? T.attachKindImage : T.attachKindFile) + " " + fmtBytes(it.size);
+  const rm = document.createElement("button");
+  rm.type = "button"; rm.className = "attach-rm"; rm.textContent = "✕";
+  rm.title = T.attachRemove;
+  rm.onclick = (e) => { e.stopPropagation(); removeAttach(it.uid); };
+  if (it.kind === "image") {
+    const img = document.createElement("img");
+    img.className = "attach-thumb"; img.src = it.url; img.alt = it.name;
+    item.appendChild(img);
+  } else {
+    const wrap = document.createElement("div");
+    wrap.className = "attach-file";
+    const ico = document.createElement("div"); ico.className = "af-icon"; ico.textContent = "📄";
+    const nm = document.createElement("div"); nm.className = "af-name"; nm.textContent = it.name;
+    wrap.appendChild(ico); wrap.appendChild(nm);
+    item.appendChild(wrap);
+  }
+  item.appendChild(rm);
+  item.onclick = () => openAttachPreview(it);
+  attachList.appendChild(item);
+}
+
+function removeAttach(uid) {
+  const idx = pendingAttach.findIndex((p) => p.uid === uid);
+  if (idx < 0) return;
+  URL.revokeObjectURL(pendingAttach[idx].url);
+  pendingAttach.splice(idx, 1);
+  renderAttachBar();
+}
+
+function clearAttachAll() {
+  for (const p of pendingAttach) URL.revokeObjectURL(p.url);
+  pendingAttach = [];
+  renderAttachBar();
+}
+
+function openAttachPreview(it) {
+  const pv = document.getElementById("preview");
+  const pvName = document.getElementById("pvName");
+  const pvSize = document.getElementById("pvSize");
+  const pvMtime = document.getElementById("pvMtime");
+  const pvRes = document.getElementById("pvRes");
+  const pvImg = document.getElementById("previewImg");
+  pvName.textContent = it.name;
+  pvSize.textContent = fmtBytes(it.size);
+  pvMtime.textContent = "";
+  if (it.kind === "image") {
+    pvRes.textContent = "";
+    pvImg.classList.remove("hidden");
+    pvImg.onload = null;
+    pvImg.src = it.url;
+    pvImg.onload = () => { pvRes.textContent = pvImg.naturalWidth + " × " + pvImg.naturalHeight; };
+  } else {
+    pvImg.classList.add("hidden");
+    pvRes.textContent = T.attachKindFile + " · " + T.attachPreviewFile;
+  }
+  pv.classList.remove("hidden");
+}
+
+attachBtn.onclick = () => attachFile.click();
+attachFile.addEventListener("change", () => {
+  addAttachFiles(attachFile.files);
+  attachFile.value = "";
+});
+attachClear.onclick = clearAttachAll;
+
+// Ctrl+V in the input box: when the clipboard carries image content, turn it
+// into a pending thumbnail. If text is also present we keep the default paste
+// AND add the image(s) so nothing is lost.
+input.addEventListener("paste", (e) => {
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  const imgs = [];
+  for (const it of items) {
+    if (it.kind === "file" && it.type && it.type.startsWith("image/") && it.getAsFile) {
+      const f = it.getAsFile();
+      if (f) imgs.push(f);
+    }
+  }
+  if (!imgs.length) return;
+  addAttachFiles(imgs);
+  const hasText = Array.from(items).some((it) => it.kind === "string");
+  if (!hasText) e.preventDefault();
+});
+
+// Dropping files straight onto the input box attaches them too.
+function hasDroppedFiles(e) {
+  return !!(e.dataTransfer && e.dataTransfer.types &&
+    Array.from(e.dataTransfer.types).includes("Files"));
+}
+input.addEventListener("dragover", (e) => { if (hasDroppedFiles(e)) e.preventDefault(); });
+input.addEventListener("drop", (e) => {
+  if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+  e.preventDefault();
+  addAttachFiles(e.dataTransfer.files);
+});
+
+// Builds the model-visible dynamic-context block appended to a user message:
+// one tab-separated line per attachment (path / kind / human size). The fixed
+// ASCII markers keep the block parseable on reload and language-neutral.
+function composeDynamicText(entries) {
+  if (!entries.length) return "";
+  const lines = entries.map((en) => en.path + "\t" + en.kind + "\t" + fmtBytes(en.sizeBytes));
+  return "\n" + DYNAMIC_OPEN + lines.join("\n") + "\n" + DYNAMIC_END;
+}
+
+// Uploads every pending attachment into web-input-dir, then sends the message:
+// image files go through the existing attachments (vision) channel and every
+// uploaded file is listed in the trailing dynamic tag block. Nothing is sent
+// (and items are kept for retry) when the upload fails.
+async function uploadAndSend(text) {
+  if (attachSending) return false;
+  attachSending = true;
+  try {
+    const fd = new FormData();
+    for (const it of pendingAttach) fd.append("file", it.file, it.name);
+    const resp = await fetch("/api/upload?dir=" + encodeURIComponent(webInputDir || "input"), {
+      method: "POST", body: fd,
+    });
+    const body = resp.ok ? await resp.json().catch(() => ({})) : {};
+    if (!resp.ok || !Array.isArray(body.paths) || body.paths.length < pendingAttach.length) {
+      alert(T.attachFail);
+      return false;
+    }
+    const entries = [];
+    const imageAtt = [];
+    pendingAttach.forEach((it, i) => {
+      const rel = body.paths[i];
+      entries.push({ path: rel, kind: it.kind, sizeBytes: it.size });
+      if (it.kind === "image") imageAtt.push(rel);
+    });
+    loadTree();
+    const composed = text + composeDynamicText(entries);
+    clearAttachAll();
+    wsSend({ type: "input", text: composed, attachments: imageAtt.length ? imageAtt : undefined });
+    renderUserEcho(composed);
+    history.push(text);
+    histPos = history.length;
+    input.value = "";
+    autoGrow();
+    if (wsReady) setRunning(true);
+    return true;
+  } finally {
+    attachSending = false;
+  }
+}
+
 /* ---------- input row / history ---------- */
 
 const history = [];
@@ -2271,10 +2531,14 @@ let histDraft = "";
 
 function sendInput() {
   const text = input.value.trim();
-  if (!text) return;
+  const hasAttach = pendingAttach.length > 0;
+  if (!text && !hasAttach) return;
   // When an interaction is pending, the main input box sends supplementary
-  // instructions instead of a new message (FEATURE-388).
+  // instructions instead of a new message (FEATURE-388). Attachments are not
+  // part of that answer protocol, so they stay in the tray until the
+  // interaction is resolved.
   if (pendingInteraction) {
+    if (hasAttach) { console.warn("attachments pending while an interaction is open"); return; }
     answerInteraction({ action: "input", value: text });
     input.value = "";
     autoGrow();
@@ -2285,6 +2549,7 @@ function sendInput() {
   // Answering a question or typing supplementary info (the branch above) does
   // NOT clear it.
   clearAffectedHighlight();
+  if (hasAttach) { uploadAndSend(text); return; }
   wsSend({ type: "input", text });
   renderUserEcho(text);
   history.push(text);
@@ -3289,6 +3554,7 @@ function settingsGroupIcon(title) {
 function renderSettings(groups) {
   settingsGroups = groups || [];
   settingsActiveGroup = 0;
+  cacheWebInputDir(groups);
   renderSettingsNav();
   renderSettingsPane();
 }

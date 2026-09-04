@@ -275,8 +275,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "tool":
 		return h.handleToolSubCommand(args[1:])
 
-	// Web service setting (FEATURE-431)
-	case subcommand == "web-whitelist":
+	// Web service setting (FEATURE-431 / FEATURE-469)
+	case subcommand == "web-whitelist" || subcommand == "web-input-dir":
 		return h.handleWebSetting(subcommand, args)
 
 	default:
@@ -284,28 +284,48 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	}
 }
 
-// handleWebSetting handles the web-whitelist setting (FEATURE-431): the
-// comma-separated IPs/CIDR networks allowed to access the web UI. Empty means
-// loopback only.
+// handleWebSetting handles the Web service settings (FEATURE-431/FEATURE-469):
+// - web-whitelist: comma-separated IPs/CIDR networks allowed to access the
+//   Web UI. Empty means loopback only.
+// - web-input-dir: workspace-relative directory storing Web UI message
+//   attachments (default "input" when empty).
 func (h *SettingsHandler) handleWebSetting(subcommand string, args []string) (string, error) {
-	if len(args) < 2 {
-		if len(h.cfg.WebWhitelist) == 0 {
-			return i18n.T(i18n.KeyCol3WebWhitelist) + ": (empty, loopback only)", nil
+	switch subcommand {
+	case "web-whitelist":
+		if len(args) < 2 {
+			if len(h.cfg.WebWhitelist) == 0 {
+				return i18n.T(i18n.KeyCol3WebWhitelist) + ": (empty, loopback only)", nil
+			}
+			return i18n.T(i18n.KeyCol3WebWhitelist) + ": " + strings.Join(h.cfg.WebWhitelist, ","), nil
 		}
-		return i18n.T(i18n.KeyCol3WebWhitelist) + ": " + strings.Join(h.cfg.WebWhitelist, ","), nil
-	}
-	var list []string
-	for _, e := range strings.Split(args[1], ",") {
-		if e = strings.TrimSpace(e); e != "" {
-			list = append(list, e)
+		var list []string
+		for _, e := range strings.Split(args[1], ",") {
+			if e = strings.TrimSpace(e); e != "" {
+				list = append(list, e)
+			}
 		}
+		h.cfg.WebWhitelist = list
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Web whitelist set to %v", list)
+		return i18n.T(i18n.KeyCol3WebWhitelist) + ": " + strings.Join(list, ","), nil
+	case "web-input-dir":
+		if len(args) < 2 {
+			return i18n.T(i18n.KeyCol3WebInputDir) + ": " + webInputDirValue(h.cfg), nil
+		}
+		v := strings.TrimSpace(args[1])
+		if v == "" || strings.HasPrefix(v, "/") || strings.Contains(v, "..") {
+			return "", fmt.Errorf("web-input-dir must be a workspace-relative path (no leading / or ..): %q", v)
+		}
+		h.cfg.WebInputDir = v
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Web input dir set to %s", v)
+		return i18n.T(i18n.KeyCol3WebInputDir) + ": " + v, nil
 	}
-	h.cfg.WebWhitelist = list
-	if err := h.cfg.Save(); err != nil {
-		return "", err
-	}
-	log.Info("Web whitelist set to %v", list)
-	return i18n.T(i18n.KeyCol3WebWhitelist) + ": " + strings.Join(list, ","), nil
+	return "", fmt.Errorf("unknown web setting: %s", subcommand)
 }
 
 // showSettingsHelp displays the current configuration grouped by category.
