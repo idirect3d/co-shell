@@ -980,7 +980,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-470 Web UI 系统设置界面默认值优化**
+- [x] **FEATURE-470 Web UI 系统设置界面默认值优化** [BUILD-789]
   - 背景：Web UI 系统设置界面（settings_get 返回的分组设置项）只显示参数当前值，用户无法知道系统默认值是什么，也无法快速识别哪些参数被修改过默认值。
   - 方案（已确认）：① 后端 `WebSettingItem` 新增 `Default` 字段（默认值），`SettingsJSON()` 为每个设置项填充默认值（来自 `config.DefaultConfig()` 与 normalize 函数）；② 前端 `renderSettingItem` 在 label 的 title（tips）中追加"默认值: xxx"；③ 当 `it.value !== it.default` 时，在控件右侧显示红色 * 标记。
   - 实施：`cmd/settings_web.go`（WebSettingItem 加 Default 字段 + SettingsJSON 填充默认值）+ `web/static/app.js`（renderSettingItem 读取 it.default：tips 追加默认值 + 值≠默认值时控件右侧加红色 * 标记）+ `web/static/style.css`（.set-diff 红色 * 标记样式）
