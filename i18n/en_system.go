@@ -1357,7 +1357,7 @@ The following skills are available. Each skill is a directory containing a SKILL
 	// meta-capability index section. The dynamic index body is appended by the
 	// agent when building the prompt (buildMetaCapabilityIndex).
 	enMessages[KeySystemPromptCapabilitiesIndex] = `
-CAPABILITIES
+NATIVE CAPABILITIES
 
 The following meta-capabilities are available. Each is a native ability of co-shell with a stable unique ID. When you need to understand or use a capability, call the introspect_capability tool with its ID to get the full instructions, or pass a keyword array for fuzzy search.
 `
