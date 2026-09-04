@@ -493,7 +493,7 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 			if index != "" {
 				header := i18n.T(i18n.KeySystemPromptCapabilitiesIndex)
 				if header == "" || header == i18n.KeySystemPromptCapabilitiesIndex {
-					header = "NATIVE CAPABILITIES"
+					header = "META-CAPABILITIES"
 				}
 				if text != "" {
 					text += "\n\n"

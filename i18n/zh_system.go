@@ -1344,7 +1344,7 @@ SKILLS
 	// meta-capability index section. The dynamic index body is appended by the
 	// agent when building the prompt (buildMetaCapabilityIndex).
 	zhMessages[KeySystemPromptCapabilitiesIndex] = `
-NATIVE CAPABILITIES
+META-CAPABILITIES
 
 以下元能力可用。每个都是 co-shell 的原生能力，具有稳定唯一 ID。当你需要了解或使用某个能力时，调用 introspect_capability 工具，传入能力 ID 获取完整说明；也可传入关键字数组进行模糊搜索。
 `
