@@ -92,6 +92,9 @@ func (h *SettingsHandler) rebuildLLMClient() {
 	if activeModel.ReasoningEffort != nil {
 		reasoningEffort = *activeModel.ReasoningEffort
 	}
+	// FEATURE-468: the global settings "default" means "do not override" —
+	// fall back to the model/template default instead of sending "default".
+	reasoningEffort = llm.NormalizeReasoningEffort(reasoningEffort)
 	topP := h.cfg.LLM.TopP
 	if activeModel.TopP != nil {
 		topP = *activeModel.TopP
@@ -105,12 +108,13 @@ func (h *SettingsHandler) rebuildLLMClient() {
 		repetitionPenalty = *activeModel.RepetitionPenalty
 	}
 
-	client := llm.NewClient(
+	client := llm.NewClientForAPIType(
 		activeModel.Endpoint,
 		activeModel.APIKey,
 		activeModel.Model,
 		temperature,
 		maxTokens,
+		activeModel.APIType,
 		h.cfg.LLM.LLMTimeout,
 	)
 	client.SetTopP(topP)

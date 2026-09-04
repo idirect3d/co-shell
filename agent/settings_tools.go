@@ -246,6 +246,8 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return boolToString(cfg.LLM.PlanEnabled)
 	case "intent-exposure-enabled":
 		return boolToString(cfg.LLM.IntentExposureEnabled)
+	case "meta-capability-enabled":
+		return boolToString(cfg.LLM.MetaCapabilityEnabled)
 	case "subagent-enabled":
 		return boolToString(cfg.LLM.SubAgentEnabled)
 	case "context-limit":
@@ -723,6 +725,18 @@ func applySetting(a *Agent, param, value string) error {
 		}
 		a.SetIntentExposureEnabled(b)
 		log.Info("Intent exposure enabled set via LLM tool: %v", b)
+
+	case "meta-capability-enabled":
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		cfg.LLM.MetaCapabilityEnabled = b
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		a.SetMetaCapabilityEnabled(b)
+		log.Info("Meta capability enabled set via LLM tool: %v", b)
 
 	case "subagent-enabled":
 		b, err := parseBool(value)
@@ -1231,6 +1245,9 @@ func (a *Agent) rebuildLLMClient() {
 	if activeModel.ReasoningEffort != nil {
 		reasoningEffort = *activeModel.ReasoningEffort
 	}
+	// FEATURE-468: the global settings "default" means "do not override" —
+	// fall back to the model/template default instead of sending "default".
+	reasoningEffort = llm.NormalizeReasoningEffort(reasoningEffort)
 	topP := a.cfg.LLM.TopP
 	if activeModel.TopP != nil {
 		topP = *activeModel.TopP
@@ -1244,12 +1261,13 @@ func (a *Agent) rebuildLLMClient() {
 		repetitionPenalty = *activeModel.RepetitionPenalty
 	}
 
-	client := llm.NewClient(
+	client := llm.NewClientForAPIType(
 		activeModel.Endpoint,
 		activeModel.APIKey,
 		activeModel.Model,
 		temperature,
 		maxTokens,
+		activeModel.APIType,
 		a.cfg.LLM.LLMTimeout,
 	)
 	client.SetThinkingEnabled(thinkingEnabled)

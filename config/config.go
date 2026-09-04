@@ -578,6 +578,13 @@ type LLMConfig struct {
 	// ultimate goal, and can reject (send back for rework) or approve (pass to
 	// user). See SupervisorConfig for details.
 	Supervisor SupervisorConfig `json:"supervisor"`
+
+	// MetaCapabilityEnabled: whether meta-capability awareness (FEATURE-466) is
+	// enabled. When enabled, the CAPABILITIES section injects the meta-capability
+	// index (list of native meta-capabilities with stable IDs) and the
+	// introspect_capability tool is available for the LLM to query capability
+	// details. When disabled, the meta-capability index is not injected.
+	MetaCapabilityEnabled bool `json:"meta_capability_enabled"`
 }
 
 // SupervisorConfig holds the dedicated supervisor LLM configuration (FEATURE-456).
@@ -1049,6 +1056,7 @@ func DefaultConfig() *Config {
 				ShowSupPrompt: false,
 				ShowSupStream: false,
 			},
+			MetaCapabilityEnabled: true,
 		},
 
 		DB: DefaultDBConfig(),

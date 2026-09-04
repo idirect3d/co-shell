@@ -234,6 +234,33 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Intent exposure enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_120), status), nil
 
+	case "meta-capability-enabled":
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.LLM.MetaCapabilityEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_119), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.LLM.MetaCapabilityEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.LLM.MetaCapabilityEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set meta-capability-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetMetaCapabilityEnabled(h.cfg.LLM.MetaCapabilityEnabled)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.LLM.MetaCapabilityEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Meta capability enabled set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_120), status), nil
+
 	case "shell-session-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

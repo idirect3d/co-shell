@@ -880,6 +880,64 @@
   - 实施：`web/static/style.css`（settings-pane 加 min-height:0 修复高度基准 + MCP manager 样式）+ `web/static/app.js`（MCP manager 渲染/增删改 + i18nT 辅助函数 + mcp/mcp_result 消息处理）+ `cmd/settings_web.go`（WebSettingGroup 加 Kind 字段 + 新增 MCP Server 组）+ `cmd/mcp.go`（MCPServersJSON/AddServerJSON/UpdateServerJSON/RemoveServerJSON）+ `web/session.go`（mcp 字段 + mcp_get/add/update/remove 处理）+ `web/server.go`（clientMessage/serverMessage 加 MCP 字段）+ `repl/session.go` + `repl/repl.go`（SessionDeps 加 MCPHandler）+ `i18n/`（KeyMCPUpdated/KeySettingsGroupMCP）[BUILD-762]；修复：MCP 列表为空——renderMCPServerManager 未发送 mcp_get 请求后端列表，且 renderMCPServers 回调会与 renderMCPServerManager 形成 mcp_get 无限循环；改为 renderMCPServerManager(fetch) 默认发送 mcp_get、renderMCPServers 以 fetch=false 调用避免循环 [BUILD-763]；改进：MCP 卡片界面——① 启用/禁用改为滑动开关（mcp-toggle），与标题、删除按钮在一行；② 命令单占一整行；③ 编辑框内去掉启用/禁用 checkbox；④ 去掉编辑按钮，改为点击卡片标题或命令文字进入编辑状态 [BUILD-766]
   - 测试：见 use-case/FEATURE-464/
 
+## v0.30.0 — 开发中
+
+> **版本**: v0.30.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 元能力感知（Meta-Capability Awareness）
+> **说明**: 0.30.0 系列引入元能力感知机制：让 co-shell 感知自身隐藏的元能力（自我改造、模型调度、问题解决策略、分身协作、上下文管理等），通过内置知识库 + introspect_capability 工具 + CAPABILITIES 索引节 + 元能力感知开关实现。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-466 | 0.30.0 | P1 | 元能力感知：内置元能力知识库（i18n 多语言资源，每个能力有稳定唯一 ID/分类/名称/简介/完整说明）+ introspect_capability 工具（按 ID 精确查询 / 按关键字数组模糊搜索 / 返回完整索引）+ CAPABILITIES 索引节（开关控制是否注入元能力清单）+ 元能力感知开关 meta-capability-enabled |
+| FEATURE-467 | 0.30.0 | P1 | Web UI 模型设置向导第一步（选择模板）改进：实时显示不同模板的思考相关开关选项并可设置（先显示 thinking 开关，开启后按 provider 显示对应 reasoning_effort 选项）+ 空白处显示模板原始 JSON（默认可收起隐藏，需要时展开）+ 补充 reasoning_effort 模板设置 |
+
+- [ ] **FEATURE-466 元能力感知（Meta-Capability Awareness）**
+  - 背景：co-shell 主要依靠策略文件注入上下文的方式感知世界和自身能力，但元能力（自我改造 .rules/、模型调度、问题解决策略、分身协作、上下文管理等）没有以能力形式出现在上下文中，LLM 不知道自己可以这么做，导致有些事能做却因不知而走弯路。
+  - 方案（已确认）：内置元能力知识库（i18n 多语言资源，每个能力有稳定唯一 ID 不随语言变化、分类、名称、简介、完整说明）+ 新增 introspect_capability 工具（按 ID 精确查询 / 按关键字数组多条件模糊搜索 / 返回完整索引）+ CAPABILITIES 增加元能力索引节（开关控制是否注入）+ 新增元能力感知开关 meta-capability-enabled（便于观察功能效果）。
+  - 实施：`config/config.go`（LLMConfig 加 MetaCapabilityEnabled 字段 + DefaultConfig 默认值）+ `agent/loop.go`（Agent 加 metaCapabilityEnabled 字段 + Setter）+ `main.go`（初始化开关 + 版本号 0.30.0）+ `agent/tools.go`（buildToolsInternal 注册 introspect_capability 工具）+ `agent/capability.go`（元能力知识库查询逻辑：按 ID 查询 / 关键字模糊搜索 / 返回索引 + introspectCapabilityTool 回调 + argStringSlice 辅助）+ `agent/system_prompt.go`（Capabilities case 开关开启时注入元能力索引节）+ `i18n/keys.go`（新增元能力资源 key）+ `i18n/en_system.go`/`i18n/zh_system.go`（元能力知识库多语言资源）+ `cmd/config.go`/`cmd/settings_agent.go`/`agent/settings_tools.go`（meta-capability-enabled 参数支持）+ `agent/capability_test.go`（元能力索引/ID 查询/关键字搜索/工具回调/注入测试）[BUILD-769]
+  - 测试：见 use-case/FEATURE-466/
+
+- [ ] **FEATURE-467 Web UI 模型设置向导思考设置改进**
+  - 背景：Web UI 模型设置向导第一步（选择模板）目前只显示模板下拉框，无法在选模板时查看/设置该模板的思考相关开关（thinking、reasoning_effort）。不同 provider 的思考参数不同（qwen 用 enable_thinking、deepseek 用 thinking+reasoning_effort 等），且模板的 DefaultParams 中 reasoning_effort 未在向导中暴露。
+  - 方案（已确认）：向导第一步选择模板时，实时显示该模板的思考相关开关选项并可设置：① 先显示 thinking 开关；② 开启后按 provider 显示对应的 reasoning_effort 选项；③ 在空白处显示模板原始 JSON 内容（默认可收起隐藏，需要时展开，保持透明）；④ 补充之前没处理的 reasoning_effort 模板设置。
+  - 实施：`cmd/model_web_wizard.go`（WebWizardData 增加 Thinking/ReasoningEffort 字段 + template 步骤返回思考字段与模板 JSON + submit 保存到模型级 ThinkingEnabled/ReasoningEffort）+ `web/static/app.js`（template 步骤渲染 thinking 开关 + reasoning_effort 下拉 + 模板 JSON 展示）+ `web/static/style.css`（模板 JSON 展示样式）+ `i18n/keys.go`/`en.go`/`zh.go`（新增 reasoning_effort/模板 JSON 标签 key）+ `cmd/model_web_wizard_test.go`（template 思考字段/无 reasoning_effort/submit 保存测试）[BUILD-770]
+  - 补充（BUILD-771）：新增 qwen3.8 模板（`config/model_template.go`，与 qwen 并列，ID=qwen3.8，模型 qwen3.8-27b，thinking 默认开）+ reasoning_effort 下拉对所有模板显示并含"不设置"（空值）选项（默认不设置，由用户决定）+ qwenThinkingAdapter 处理 ReasoningEffort（enable_thinking=true 且非空才传 reasoning_effort 顶层字段）+ 前端空值 option 显示"不设置"标签 + 测试更新（qwen reasoning_effort 含 xhigh / qwen3.8 模板测试）
+  - 测试：见 use-case/FEATURE-467/
+
+> 当前 BUILD: 768
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+## v0.31.0 — 开发中
+
+> **版本**: v0.31.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: Responses API 支持
+> **说明**: 0.31.0 系列引入 Responses API 支持：让 co-shell 支持 OpenAI Responses API（/v1/responses），通过 `reasoning: {effort: "none"}` 控制思考开关（解决 qwen3.6 等模型在 Chat Completions 下无法关闭思考的问题），并支持按模型选择 API 类型。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-468 | 0.31.0 | P1 | Responses API 支持：新增 llm/responsesClient 实现 Client 接口（支持 LM Studio/DeepSeek 官方/本地代理三个端点）+ config 增加 api_type 字段让用户按模型选择 API（chat 默认 / responses）+ 模型向导支持 api_type 选择 |
+
+- [ ] **FEATURE-468 Responses API 支持**
+  - 背景：qwen3.6-35b (uncensored) 等模型在 Chat Completions API 下无法通过任何请求参数关闭思考（enable_thinking/reasoning_effort 均无效），但 Responses API（/v1/responses）的 `reasoning: {effort: "none"}` 能完全关闭思考。已实测验证 LM Studio（127.0.0.1:11234）、DeepSeek 官方（api.deepseek.com）、本地代理（localhost:11535）三个端点均支持 /responses 端点且格式基本一致。
+  - 方案（已确认）：新增 `llm/responses_client.go` 实现 `llm.Client` 接口（请求/响应/流式/工具调用转换，支持 `reasoning: {effort}` 思考控制）+ config `ModelConfig` 增加 `api_type` 字段（"chat" 默认 / "responses"）+ `NewClient` 根据 api_type 分发 + 模型向导支持 api_type 选择。
+  - 实施：`config/model_template.go`（ModelConfig 增加 APIType 字段）+ `llm/responses_client.go`（responsesClient 实现 Client 接口：请求转换 Message→input、工具定义转换、响应解析 output[]、流式事件解析、reasoning 思考控制）+ `llm/client.go`（NewClient 根据 api_type 分发）+ `main.go`/`cmd/settings.go`/`agent/agent.go`（NewClient 调用处传入 api_type）+ `cmd/model_web_wizard.go`/`web/static/app.js`（模型向导支持 api_type 选择）+ `llm/responses_client_test.go`（请求/响应/流式/工具调用转换测试）
+  - 测试：见 use-case/FEATURE-468/（开发中已验证：llm/responses_client_test.go 9 项 + cmd/model_web_wizard_test.go api_type 用例全绿；TestStreamSupReply 为存量失败（HEAD 亦失败），与本次改动无关）
+  - 状态：核心实现完成（responses_client + 分发 + 向导），端到端验证（UC-0009/0010）待真实端点
+  - 进度：[BUILD-772]；[BUILD-773] api_type 下拉优化；[BUILD-774] 错误诊断落盘；[BUILD-775] 修复 input_text 缺 text 键 invalid_union（ContentParts 合并 + text 键常出）；[BUILD-776] 修复 assistant 消息 part 需用 output_text（实测 LM Studio input_text 400 / output_text 200）；[BUILD-777] 修复流式工具调用 arguments 丢失——LM Studio 不发 arguments delta、完整参数在 output_item.done.item.arguments，改为按 output_index 累积 + output_item.done 权威补全；同时 reasoning.effort 值域归一（max→xhigh、default→未设，适配 LM Studio 枚举 none/minimal/low/medium/high/xhigh）
+
+> 当前 BUILD: 777
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
 ## v0.9.1 — 开发中（已完成）
 
 > **版本**: v0.9.1

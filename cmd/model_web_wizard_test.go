@@ -301,3 +301,248 @@ func TestWebWizardMaxModelLenPrefill(t *testing.T) {
 		t.Errorf("max_model_len value = %q, want 128000", step.Fields[0].Value)
 	}
 }
+
+// TestWebWizardTemplateThinkingFields verifies the template step exposes the
+// thinking switch, the provider-specific reasoning_effort select, and the
+// template raw JSON when a thinking-capable template is selected (FEATURE-467).
+func TestWebWizardTemplateThinkingFields(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "deepseek-official"}
+	step, err := h.webWizardStepData(data, WebWizardTemplate)
+	if err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	// template_id + thinking + reasoning_effort + api_type.
+	if len(step.Fields) != 4 {
+		t.Fatalf("template fields = %d, want 4 (template_id/thinking/reasoning_effort/api_type)", len(step.Fields))
+	}
+	if step.Fields[1].Key != "thinking" || step.Fields[1].Type != "switch" {
+		t.Errorf("field[1] = %+v, want thinking switch", step.Fields[1])
+	}
+	if step.Fields[1].Value != "true" {
+		t.Errorf("thinking default = %q, want true (deepseek supports thinking)", step.Fields[1].Value)
+	}
+	if step.Fields[2].Key != "reasoning_effort" || step.Fields[2].Type != "select" {
+		t.Errorf("field[2] = %+v, want reasoning_effort select", step.Fields[2])
+	}
+	if len(step.Fields[2].Options) == 0 {
+		t.Errorf("reasoning_effort should have options for deepseek")
+	}
+	// FEATURE-468: the template step also carries the API type select.
+	if step.Fields[3].Key != "api_type" || step.Fields[3].Type != "select" {
+		t.Errorf("field[3] = %+v, want api_type select", step.Fields[3])
+	}
+	if len(step.Fields[3].Options) != 2 || step.Fields[3].Options[0] != "chat" || step.Fields[3].Options[1] != "responses" {
+		t.Errorf("api_type options = %v, want [chat, responses]", step.Fields[3].Options)
+	}
+	// Default value is chat (selected by default).
+	if step.Fields[3].Value != "chat" {
+		t.Errorf("api_type default = %q, want chat (selected)", step.Fields[3].Value)
+	}
+	// reasoning_effort default is the empty "not set" option (FEATURE-467).
+	if step.Fields[2].Value != "" {
+		t.Errorf("reasoning_effort default = %q, want empty (not set)", step.Fields[2].Value)
+	}
+	// The first option must be the empty "not set" choice.
+	if len(step.Fields[2].Options) == 0 || step.Fields[2].Options[0] != "" {
+		t.Errorf("reasoning_effort options should start with the empty not-set option, got %v", step.Fields[2].Options)
+	}
+	if step.TemplateJSON == "" {
+		t.Errorf("template_json should be populated")
+	}
+	if len(step.ReasoningEffortOptions) == 0 {
+		t.Errorf("reasoning_effort_options should be populated")
+	}
+}
+
+// TestWebWizardTemplateQwenReasoningEffort verifies the qwen template now exposes
+// a reasoning_effort select whose options include xhigh (for Qwen3.8) and the
+// empty "not set" option (FEATURE-467).
+func TestWebWizardTemplateQwenReasoningEffort(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "qwen-official"}
+	step, err := h.webWizardStepData(data, WebWizardTemplate)
+	if err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	// template_id + thinking + reasoning_effort + api_type.
+	if len(step.Fields) != 4 {
+		t.Fatalf("template fields = %d, want 4 (template_id/thinking/reasoning_effort/api_type)", len(step.Fields))
+	}
+	if step.Fields[1].Key != "thinking" {
+		t.Errorf("field[1] = %+v, want thinking switch", step.Fields[1])
+	}
+	if step.Fields[1].Value != "false" {
+		t.Errorf("thinking default = %q, want false (qwen template thinking=false)", step.Fields[1].Value)
+	}
+	if step.Fields[2].Key != "reasoning_effort" {
+		t.Errorf("field[2] = %+v, want reasoning_effort select", step.Fields[2])
+	}
+	if step.Fields[3].Key != "api_type" {
+		t.Errorf("field[3] = %+v, want api_type select", step.Fields[3])
+	}
+	// qwen options must include xhigh (Qwen3.8) and the empty not-set option.
+	opts := step.Fields[2].Options
+	if len(opts) == 0 || opts[0] != "" {
+		t.Errorf("qwen reasoning_effort options should start with empty not-set, got %v", opts)
+	}
+	foundXhigh := false
+	for _, o := range opts {
+		if o == "xhigh" {
+			foundXhigh = true
+		}
+	}
+	if !foundXhigh {
+		t.Errorf("qwen reasoning_effort options should include xhigh, got %v", opts)
+	}
+}
+
+// TestWebWizardTemplateQwen38 verifies the qwen3.8 template exposes thinking on
+// by default and a reasoning_effort select (FEATURE-467).
+func TestWebWizardTemplateQwen38(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "qwen3.8"}
+	step, err := h.webWizardStepData(data, WebWizardTemplate)
+	if err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	if len(step.Fields) != 4 {
+		t.Fatalf("template fields = %d, want 4 (template_id/thinking/reasoning_effort/api_type)", len(step.Fields))
+	}
+	if step.Fields[1].Key != "thinking" || step.Fields[1].Value != "true" {
+		t.Errorf("field[1] = %+v, want thinking switch on (qwen3.8 supports thinking)", step.Fields[1])
+	}
+	if step.Fields[2].Key != "reasoning_effort" {
+		t.Errorf("field[2] = %+v, want reasoning_effort select", step.Fields[2])
+	}
+	if step.Fields[2].Value != "" {
+		t.Errorf("qwen3.8 reasoning_effort default = %q, want empty (not set)", step.Fields[2].Value)
+	}
+	if step.Fields[3].Key != "api_type" {
+		t.Errorf("field[3] = %+v, want api_type select", step.Fields[3])
+	}
+}
+
+// TestWebWizardSubmitThinkingSettings verifies submitting the wizard persists the
+// model-level ThinkingEnabled / ReasoningEffort (FEATURE-467).
+func TestWebWizardSubmitThinkingSettings(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek-official", Endpoint: "https://api.deepseek.com",
+		APIKey: "k", ModelName: "deepseek-chat", ModelID: "deepseek-chat",
+		Priority: 10, MaxModelLen: 65536, Enabled: true,
+		Vision: true, ToolCall: true, Thinking: true, ReasoningEffort: "low",
+	}
+	if _, err := h.WebWizardSubmit(data); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	var saved *config.ModelConfig
+	for _, m := range h.cfg.Models {
+		if m.ID == "deepseek-chat" {
+			saved = m
+			break
+		}
+	}
+	if saved == nil {
+		t.Fatalf("model deepseek-chat not saved")
+	}
+	if saved.ThinkingEnabled == nil || !*saved.ThinkingEnabled {
+		t.Errorf("ThinkingEnabled = %v, want true", saved.ThinkingEnabled)
+	}
+	if saved.ReasoningEffort == nil || *saved.ReasoningEffort != "low" {
+		t.Errorf("ReasoningEffort = %v, want low", saved.ReasoningEffort)
+	}
+}
+
+// TestWebWizardTemplateApiType verifies the template step exposes the API type
+// select with chat/responses options (FEATURE-468, UC-0008).
+func TestWebWizardTemplateApiType(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{Mode: "add", TemplateID: "deepseek-official"}
+	step, err := h.webWizardStepData(data, WebWizardTemplate)
+	if err != nil {
+		t.Fatalf("template step: %v", err)
+	}
+	var apiField *WebWizardField
+	for i := range step.Fields {
+		if step.Fields[i].Key == "api_type" {
+			apiField = &step.Fields[i]
+			break
+		}
+	}
+	if apiField == nil {
+		t.Fatalf("api_type field not present in template step")
+	}
+	if apiField.Type != "select" {
+		t.Errorf("api_type type = %q, want select", apiField.Type)
+	}
+	// Options: chat (default) and responses — no separate empty option.
+	if len(apiField.Options) != 2 || apiField.Options[0] != "chat" || apiField.Options[1] != "responses" {
+		t.Errorf("api_type options = %v, want [chat, responses]", apiField.Options)
+	}
+	// Default value is chat (selected by default).
+	if apiField.Value != "chat" {
+		t.Errorf("api_type default = %q, want chat (selected)", apiField.Value)
+	}
+	// Edit mode pre-fills the saved api_type.
+	h.cfg.Models = append(h.cfg.Models, &config.ModelConfig{
+		ID: "tpl-resp", Name: "Tpl (resp)", Provider: "tpl", Endpoint: "https://x",
+		Model: "resp", APIKey: "k", Priority: 10, Enabled: true, TemplateID: "tpl",
+		APIType: "responses",
+	})
+	step2, _, err := h.WebWizardStart("edit", "tpl-resp")
+	if err != nil {
+		t.Fatalf("edit start: %v", err)
+	}
+	for i := range step2.Fields {
+		if step2.Fields[i].Key == "api_type" && step2.Fields[i].Value != "responses" {
+			t.Errorf("api_type prefill = %q, want responses", step2.Fields[i].Value)
+		}
+	}
+}
+
+// TestWebWizardSubmitApiType verifies submitting the wizard persists the
+// model-level APIType (FEATURE-468, UC-0008).
+func TestWebWizardSubmitApiType(t *testing.T) {
+	h := newWebWizardHandler(t)
+	data := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek-official", Endpoint: "https://api.deepseek.com",
+		APIKey: "k", ModelName: "deepseek-chat", ModelID: "deepseek-chat",
+		Priority: 10, MaxModelLen: 65536, Enabled: true,
+		Vision: true, ToolCall: true, Thinking: false, APIType: "responses",
+	}
+	if _, err := h.WebWizardSubmit(data); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	var saved *config.ModelConfig
+	for _, m := range h.cfg.Models {
+		if m.ID == "deepseek-chat" {
+			saved = m
+			break
+		}
+	}
+	if saved == nil {
+		t.Fatalf("model deepseek-chat not saved")
+	}
+	if saved.APIType != "responses" {
+		t.Errorf("APIType = %q, want responses", saved.APIType)
+	}
+	// The frontend always submits a concrete value: "chat" (default selection)
+	// must be normalized back to empty on save, preserving compatibility.
+	data2 := &WebWizardData{
+		Mode: "add", TemplateID: "deepseek-official", Endpoint: "https://api.deepseek.com",
+		APIKey: "k", ModelName: "deepseek-chat2", ModelID: "deepseek-chat2",
+		Priority: 10, MaxModelLen: 65536, Enabled: true,
+		Vision: true, ToolCall: true, Thinking: false, APIType: "chat",
+	}
+	if _, err := h.WebWizardSubmit(data2); err != nil {
+		t.Fatalf("submit2: %v", err)
+	}
+	for _, m := range h.cfg.Models {
+		if m.ID == "deepseek-chat2" {
+			if m.APIType != "" {
+				t.Errorf("APIType for chat selection = %q, want empty (chat)", m.APIType)
+			}
+		}
+	}
+}

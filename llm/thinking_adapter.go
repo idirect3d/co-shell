@@ -40,6 +40,20 @@ func GetThinkingAdapter(provider string) ThinkingAdapter {
 	return &fallbackThinkingAdapter{}
 }
 
+// NormalizeReasoningEffort normalizes a configured reasoning-effort value at
+// every config-resolution site (FEATURE-468). The global settings value
+// "default" means "do not override — fall back to the model-level value, then
+// to the provider/template default". It must NEVER reach the adapter or the API
+// as a literal effort, so it is mapped to the empty string (the adapters treat
+// an empty effort as "use the provider default": deepseek→high, openai→medium,
+// qwen→don't send reasoning_effort).
+func NormalizeReasoningEffort(effort string) string {
+	if effort == "default" {
+		return ""
+	}
+	return effort
+}
+
 func ThinkingModeFromBool(enabled bool) ThinkingMode {
 	if enabled {
 		return ThinkingModeEnabled
@@ -89,7 +103,15 @@ func (a *qwenThinkingAdapter) BuildAdditions(cfg ThinkingConfig) map[string]stri
 	case ThinkingModeDisabled:
 		return map[string]string{"extra_body": `{"chat_template_kwargs":{"enable_thinking":false}}`}
 	case ThinkingModeEnabled:
-		return map[string]string{"extra_body": `{"chat_template_kwargs":{"enable_thinking":true}}`}
+		r := map[string]string{"extra_body": `{"chat_template_kwargs":{"enable_thinking":true}}`}
+		// FEATURE-467: Qwen3.8 supports reasoning_effort (xhigh/medium/low) as a
+		// top-level OpenAI-compatible field. Only send it when the user chose a
+		// value (the "not set" option leaves it empty so Qwen3.6, which does not
+		// support reasoning_effort, is unaffected).
+		if cfg.ReasoningEffort != "" {
+			r["reasoning_effort"] = fmt.Sprintf(`"%s"`, cfg.ReasoningEffort)
+		}
+		return r
 	}
 	return nil
 }

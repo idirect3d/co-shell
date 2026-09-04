@@ -1340,6 +1340,135 @@ SKILLS
 以下 skills 可用。每个 skill 是一个包含 SKILL.md 文件的目录。此处仅列出 skill 索引（名称、简介、路径）。当你需要使用某个 skill 时，用 read_file 读取其 SKILL.md 文件获取完整说明。
 `
 
+	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
+	// meta-capability index section. The dynamic index body is appended by the
+	// agent when building the prompt (buildMetaCapabilityIndex).
+	zhMessages[KeySystemPromptCapabilitiesIndex] = `
+CAPABILITIES
+
+以下元能力可用。每个都是 co-shell 的原生能力，具有稳定唯一 ID。当你需要了解或使用某个能力时，调用 introspect_capability 工具，传入能力 ID 获取完整说明；也可传入关键字数组进行模糊搜索。
+`
+
+	// Meta-capability categories (FEATURE-466).
+	zhMessages[KeyCapCategorySelf]    = `自我改造`
+	zhMessages[KeyCapCategoryModel]   = `模型调度`
+	zhMessages[KeyCapCategoryProblem] = `问题解决`
+	zhMessages[KeyCapCategoryCollab]  = `协作`
+	zhMessages[KeyCapCategoryContext] = `上下文管理`
+
+	// Meta-capability: self-modify (FEATURE-466).
+	zhMessages[KeyCapSelfModifyName]   = `自我改造`
+	zhMessages[KeyCapSelfModifyDesc]   = `修改 .rules/ 或 PRINCIPLES.md 改变自身行为`
+	zhMessages[KeyCapSelfModifyDetail] = `# 自我改造（cap.self-modify）
+
+## 适用场景
+- 用户要求"以后都这样做" → 写入 .rules/ 规则文件
+- 需要改变 Agent 的身份/原则 → 修改 PRINCIPLES.md
+- 需要记录设计决策 → 更新 ROADMAP.md
+
+## 具体操作
+1. 在 .rules/ 下创建或修改 .md 文件（根目录文件始终加载）
+2. 调用 RebuildSystemPrompt 让新规则在下次迭代生效
+3. 子目录规则按需加载，需在规则树中列出
+
+## 注意事项
+- .rules/ 子目录按需加载，不占常驻上下文
+- 修改后需 RebuildSystemPrompt 才生效
+`
+
+	// Meta-capability: model-routing (FEATURE-466).
+	zhMessages[KeyCapModelRoutingName]   = `模型调度`
+	zhMessages[KeyCapModelRoutingDesc]   = `调用不同模型（文本/视觉/推理）、切换工作模式`
+	zhMessages[KeyCapModelRoutingDetail] = `# 模型调度（cap.model-routing）
+
+## 适用场景
+- 当前模型无法处理某任务（如需要视觉、更强推理）
+- 需要切换工作模式（act/plan/research）
+
+## 具体操作
+- 用 update_settings 修改当前模型或工作模式
+- 视觉任务会自动路由到支持视觉的模型
+- 问题求解和监督使用专用模型
+
+## 注意事项
+- 模型选择按优先级；视觉任务需要支持视觉的模型
+`
+
+	// Meta-capability: problem-strategies (FEATURE-466).
+	zhMessages[KeyCapProblemStrategiesName]   = `问题解决策略`
+	zhMessages[KeyCapProblemStrategiesDesc]   = `死循环检测、工具调用报错的重试/降级/换策略`
+	zhMessages[KeyCapProblemStrategiesDetail] = `# 问题解决策略（cap.problem-strategies）
+
+## 适用场景
+- 检测到死循环（重复相似内容）
+- 工具调用反复失败
+- 任务卡住需要换思路
+
+## 具体操作
+- 死循环时：系统可能调整温度、调用判定模型、或重组上下文
+- 工具报错时：重试、降级为更简单方案、或换策略
+- 卡住或上下文将满时：用 reorganize_context 重组上下文
+
+## 注意事项
+- 死循环检测和判定可配置（loop-detect-threshold、loop-judge-enabled）
+`
+
+	// Meta-capability: subagent-collab (FEATURE-466).
+	zhMessages[KeyCapSubagentCollabName]   = `分身协作`
+	zhMessages[KeyCapSubagentCollabDesc]   = `调用另一个 co-shell 分身协作`
+	zhMessages[KeyCapSubagentCollabDetail] = `# 分身协作（cap.subagent-collab）
+
+## 适用场景
+- 任务较大可拆分为并行部分
+- 需要从另一个 Agent 的工作区获取信息
+
+## 具体操作
+- 用 launch_sub_agent 与另一个 co-shell Agent 通信
+- 分身共享同一终端；结果会被收集并报告
+- 用 schedule_task 运行定时分身任务
+
+## 注意事项
+- 这是平等信息共享，不是任务委派
+- 需要启用分身支持
+`
+
+	// Meta-capability: context-management (FEATURE-466).
+	zhMessages[KeyCapContextManagementName]   = `上下文管理`
+	zhMessages[KeyCapContextManagementDesc]   = `压缩上下文（reorganize_context）、持久记忆（memory_*）`
+	zhMessages[KeyCapContextManagementDetail] = `# 上下文管理（cap.context-management）
+
+## 适用场景
+- 上下文窗口接近满
+- 需要回忆过去会话的信息
+
+## 具体操作
+- 用 reorganize_context 将对话压缩为自包含摘要
+- 用 memory_search / get_memory_slice 检索历史上下文
+- 用 delete_memory 删除过时信息
+
+## 注意事项
+- 上下文重组会用摘要替换历史
+- 持久记忆跨会话保留
+`
+
+	// Meta-capability: self-config (FEATURE-466).
+	zhMessages[KeyCapSelfConfigName]   = `自我配置`
+	zhMessages[KeyCapSelfConfigDesc]   = `修改自身行为参数（模型/温度/模式等）`
+	zhMessages[KeyCapSelfConfigDetail] = `# 自我配置（cap.self-config）
+
+## 适用场景
+- 用户要求修改设置（模型、温度、显示、安全）
+- 需要为当前任务调整行为
+
+## 具体操作
+- 用 list_settings 查看所有可用参数
+- 用 update_settings 修改参数（用户确认后生效）
+
+## 注意事项
+- 仅当用户明确要求或必要时才改设置
+- 设置持久化到 config.json
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	zhMessages[KeySystemPromptToolUsageExamples] = ``
 
