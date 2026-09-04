@@ -1705,8 +1705,8 @@ aside {
   color: var(--fg-dim);
 }
 .set-row select {
-  flex: 1;
-  width: auto;
+  flex: 0 0 auto;
+  width: 180px;
   min-width: 0;
   background: var(--mono-bg);
   color: var(--fg);
@@ -1846,8 +1846,8 @@ aside {
   box-sizing: border-box;
 }
 .set-input {
-  flex: 1;
-  width: auto;
+  flex: 0 0 auto;
+  width: 180px;
   min-width: 0;
   background: var(--mono-bg);
   color: var(--fg);

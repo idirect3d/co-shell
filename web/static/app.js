@@ -3655,6 +3655,24 @@ function renderSettingItem(it) {
   if (def !== "") label.title += (label.title ? "\n" : "") + i18nT("setDefaultTip", "默认值") + ": " + def;
   row.appendChild(label);
 
+  // FEATURE-470: red * marker shown right of the control when the current value
+  // differs from the default. Kept as a reference so onchange can add/remove it
+  // dynamically as the user edits the value.
+  let mark = null;
+  const updateDiffMark = (val) => {
+    const show = def !== "" && String(val) !== def;
+    if (show && !mark) {
+      mark = document.createElement("span");
+      mark.className = "set-diff";
+      mark.textContent = "*";
+      mark.title = i18nT("setDiffTip", "与默认值不一致") + " (" + i18nT("setDefaultTip", "默认值") + ": " + def + ")";
+      row.appendChild(mark);
+    } else if (!show && mark) {
+      mark.remove();
+      mark = null;
+    }
+  };
+
   let ctl;
   let curVal = it.value;
   if (it.key === "theme-mode") {
@@ -3675,19 +3693,26 @@ function renderSettingItem(it) {
     ctl.onchange = () => {
       localStorage.setItem("co-shell-theme", ctl.value);
       applyTheme();
+      updateDiffMark(ctl.value);
     };
   } else if (it.type === "bool") {
     ctl = document.createElement("input");
     ctl.type = "checkbox";
     ctl.className = "set-toggle";
     ctl.checked = it.value === "on";
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.checked ? "on" : "off" });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.checked ? "on" : "off" });
+      updateDiffMark(ctl.checked ? "on" : "off");
+    };
   } else if (it.type === "number") {
     ctl = document.createElement("input");
     ctl.type = "number";
     ctl.className = "set-input";
     ctl.value = it.value;
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+      updateDiffMark(ctl.value);
+    };
   } else if (it.type === "enum") {
     ctl = document.createElement("select");
     ctl.className = "set-select";
@@ -3698,24 +3723,22 @@ function renderSettingItem(it) {
       if (opt === it.value) o.selected = true;
       ctl.appendChild(o);
     }
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+      updateDiffMark(ctl.value);
+    };
   } else {
     ctl = document.createElement("input");
     ctl.type = "text";
     ctl.className = "set-input";
     ctl.value = it.value;
-    ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+    ctl.onchange = () => {
+      wsSend({ type: "settings_set", key: it.key, value: ctl.value });
+      updateDiffMark(ctl.value);
+    };
   }
   row.appendChild(ctl);
-  // FEATURE-470: when the current value differs from the default, show a red *
-  // right of the control so the user can quickly spot modified parameters.
-  if (def !== "" && String(curVal) !== def) {
-    const mark = document.createElement("span");
-    mark.className = "set-diff";
-    mark.textContent = "*";
-    mark.title = i18nT("setDiffTip", "与默认值不一致") + " (" + i18nT("setDefaultTip", "默认值") + ": " + def + ")";
-    row.appendChild(mark);
-  }
+  updateDiffMark(curVal);
   return row;
 }
 
