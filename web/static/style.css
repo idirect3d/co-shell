@@ -1864,6 +1864,16 @@ aside {
   accent-color: var(--accent);
   cursor: pointer;
 }
+/* FEATURE-470: red * marker shown right of a setting control when its current
+   value differs from the system default. */
+.set-diff {
+  flex: 0 0 auto;
+  color: var(--err);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+  cursor: help;
+}
 .set-result {
   font-size: 12px;
   padding: 4px 8px;

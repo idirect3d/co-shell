@@ -49,6 +49,7 @@ const I18N = {
     streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
     streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
     yoloTitle: "YOLO 模式（You Only Live Once）：开启后所有工具调用自动批准，无需逐个确认",
+    setDefaultTip: "默认值", setDiffTip: "与默认值不一致",
   },
   en: {
     workspace: "Workspace", refresh: "Refresh",
@@ -88,6 +89,7 @@ const I18N = {
     streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
     streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
     yoloTitle: "YOLO mode (You Only Live Once): when on, all tool calls are auto-approved without asking",
+    setDefaultTip: "Default", setDiffTip: "differs from default",
   },
 };
 let T = I18N.zh;
@@ -3646,10 +3648,15 @@ function renderSettingItem(it) {
   const label = document.createElement("span");
   label.className = "set-label";
   label.textContent = it.key;
+  // FEATURE-470: the tooltip shows the system default value so the user knows
+  // what the default is for this parameter.
+  const def = it.default != null ? String(it.default) : "";
   label.title = it.desc || "";
+  if (def !== "") label.title += (label.title ? "\n" : "") + i18nT("setDefaultTip", "默认值") + ": " + def;
   row.appendChild(label);
 
   let ctl;
+  let curVal = it.value;
   if (it.key === "theme-mode") {
     // Frontend-local theme setting (FEATURE-457): rendered as a select that
     // persists to localStorage and applies the theme immediately.
@@ -3657,6 +3664,7 @@ function renderSettingItem(it) {
     ctl.className = "set-select";
     const opts = ["auto", "dark", "light"];
     const cur = localStorage.getItem("co-shell-theme") || "auto";
+    curVal = cur;
     for (const opt of opts) {
       const o = document.createElement("option");
       o.value = opt;
@@ -3699,6 +3707,15 @@ function renderSettingItem(it) {
     ctl.onchange = () => wsSend({ type: "settings_set", key: it.key, value: ctl.value });
   }
   row.appendChild(ctl);
+  // FEATURE-470: when the current value differs from the default, show a red *
+  // right of the control so the user can quickly spot modified parameters.
+  if (def !== "" && String(curVal) !== def) {
+    const mark = document.createElement("span");
+    mark.className = "set-diff";
+    mark.textContent = "*";
+    mark.title = i18nT("setDiffTip", "与默认值不一致") + " (" + i18nT("setDefaultTip", "默认值") + ": " + def + ")";
+    row.appendChild(mark);
+  }
   return row;
 }
 
