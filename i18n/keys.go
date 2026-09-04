@@ -2424,6 +2424,7 @@ const (
 	KeyCLIHelpDebug      = "cli_help_debug"
 	KeyCol3WebWhitelist  = "col3_web_whitelist"
 	KeyCol3WebInputDir   = "col3_web_input_dir"
+	KeyCol3DynamicQueueSize = "col3_dynamic_queue_size"
 
 	// CLI Help - Session ID (FEATURE-290)
 	KeyCLIHelpSessionID = "cli_help_session_id"

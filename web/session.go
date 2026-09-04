@@ -133,6 +133,12 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		case s.inputCh <- msg:
 		case <-s.closed:
 		}
+	case "dynamic_event":
+		// FEATURE-471: a user-action event reported while a task is running
+		// (clip_object / upload_file / user_message / open_file). Enqueue it
+		// into the agent's dynamic perception queue so the next tool/user
+		// message injection surfaces it to the LLM.
+		s.ag.AddDynamicEvent(agent.DynamicEventKind(msg.Kind), msg.Value)
 	case "answer":
 		s.wio.resolve(msg.ID, msg.Value)
 	case "interaction_answer":
@@ -1059,6 +1065,13 @@ func (r *WebRenderer) Render(ev agent.StreamEvent) {
 	}
 	ev.Meta["msg_index"] = strconv.Itoa(r.s.msgIndex)
 	r.s.srv.sendEvent(ev)
+	// FEATURE-471: when a task ends (done event), hand any unconsumed
+	// user_message events back to the browser so they can be re-submitted.
+	if ev.Type == agent.EventDone {
+		if pending := r.s.ag.PendingUserMessages(); len(pending) > 0 {
+			r.s.srv.sendJSON(serverMessage{Kind: "dynamic_backfill", Backfill: pending})
+		}
+	}
 }
 
 // taskPlanJSON marshals a task plan snapshot for the state message.

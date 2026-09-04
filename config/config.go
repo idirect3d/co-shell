@@ -966,6 +966,11 @@ type Config struct {
 	// Empty means the default "input" (FEATURE-469).
 	WebInputDir string `json:"web_input_dir,omitempty"`
 
+	// DynamicEventQueueSize caps the dynamic perception queue (FEATURE-471):
+	// the number of buffered user-action events (clip/upload/message/open)
+	// drained into <environment_details>. 0 means the default 100.
+	DynamicEventQueueSize int `json:"dynamic_event_queue_size,omitempty"`
+
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }

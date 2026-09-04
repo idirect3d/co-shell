@@ -279,6 +279,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 	case subcommand == "web-whitelist" || subcommand == "web-input-dir":
 		return h.handleWebSetting(subcommand, args)
 
+	// Dynamic perception queue capacity (FEATURE-471)
+	case subcommand == "dynamic-event-queue-size":
+		return h.handleDynamicQueueSetting(args)
+
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
 	}
@@ -326,6 +330,26 @@ func (h *SettingsHandler) handleWebSetting(subcommand string, args []string) (st
 		return i18n.T(i18n.KeyCol3WebInputDir) + ": " + v, nil
 	}
 	return "", fmt.Errorf("unknown web setting: %s", subcommand)
+}
+
+// handleDynamicQueueSetting handles the dynamic perception queue capacity
+// (FEATURE-471): `:set dynamic-event-queue-size <n>`. With no argument it
+// prints the current value; otherwise it validates a positive integer and
+// persists it.
+func (h *SettingsHandler) handleDynamicQueueSetting(args []string) (string, error) {
+	if len(args) < 2 {
+		return i18n.T(i18n.KeyCol3DynamicQueueSize) + ": " + strconv.Itoa(h.cfg.DynamicEventQueueSize), nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(args[1]))
+	if err != nil || n < 1 {
+		return "", fmt.Errorf("dynamic-event-queue-size must be a positive integer")
+	}
+	h.cfg.DynamicEventQueueSize = n
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	log.Info("Dynamic event queue size set to %d", n)
+	return i18n.T(i18n.KeyCol3DynamicQueueSize) + ": " + strconv.Itoa(n), nil
 }
 
 // showSettingsHelp displays the current configuration grouped by category.

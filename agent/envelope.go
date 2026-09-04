@@ -186,6 +186,13 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	// Append opened resources block
 	sb.WriteString(a.buildOpenedResources())
 	sb.WriteString("\n")
+	// FEATURE-471: drain the dynamic perception queue into <user_dynamic_events>.
+	// user_messages are only included on tool messages (toolCallNames non-empty);
+	// clip/upload/open events are included on both user and tool messages.
+	if dyn := a.consumeDynamicEvents(len(toolCallNames) > 0); dyn != "" {
+		sb.WriteString(dyn)
+		sb.WriteString("\n")
+	}
 	sb.WriteString("</environment_details>")
 	return sb.String()
 }

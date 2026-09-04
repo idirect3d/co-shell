@@ -325,6 +325,7 @@ function wsConnect() {
       if (msg.ok) location.reload();
     }
     else if (msg.kind === "yolo") setYOLO(!!msg.yolo);
+    else if (msg.kind === "dynamic_backfill") backfillInput(msg.backfill || []);
   };
 }
 
@@ -2475,14 +2476,6 @@ input.addEventListener("drop", (e) => {
   addAttachFiles(e.dataTransfer.files);
 });
 
-// Builds the model-visible dynamic-context block appended to a user message:
-// one tab-separated line per attachment (path / kind / human size). The fixed
-// ASCII markers keep the block parseable on reload and language-neutral.
-function composeDynamicText(entries) {
-  if (!entries.length) return "";
-  const lines = entries.map((en) => en.path + "\t" + en.kind + "\t" + fmtBytes(en.sizeBytes));
-  return "\n" + DYNAMIC_OPEN + lines.join("\n") + "\n" + DYNAMIC_END;
-}
 
 // Uploads every pending attachment into web-input-dir, then sends the message:
 // image files go through the existing attachments (vision) channel and every
@@ -2510,10 +2503,16 @@ async function uploadAndSend(text) {
       if (it.kind === "image") imageAtt.push(rel);
     });
     loadTree();
-    const composed = text + composeDynamicText(entries);
+    // FEATURE-471: report each uploaded file as a dynamic event (clip_object
+    // for images, upload_file for others) instead of appending a <<<DYNAMIC>>>
+    // text block. The backend drains these into <user_dynamic_events> on the
+    // next user/tool message injection.
+    for (const en of entries) {
+      wsSend({ type: "dynamic_event", kind: en.kind === "image" ? "clip_object" : "upload_file", value: en.path });
+    }
     clearAttachAll();
-    wsSend({ type: "input", text: composed, attachments: imageAtt.length ? imageAtt : undefined });
-    renderUserEcho(composed);
+    wsSend({ type: "input", text, attachments: imageAtt.length ? imageAtt : undefined });
+    renderUserEcho(text);
     history.push(text);
     histPos = history.length;
     input.value = "";
@@ -2552,6 +2551,16 @@ function sendInput() {
   // NOT clear it.
   clearAffectedHighlight();
   if (hasAttach) { uploadAndSend(text); return; }
+  // FEATURE-471: while a task is running, typing in the main input box and
+  // sending reports a user_message dynamic event (buffered for the next tool
+  // message) instead of interrupting the running task with a new message.
+  if (running) {
+    wsSend({ type: "dynamic_event", kind: "user_message", value: text });
+    renderUserEcho(text);
+    input.value = "";
+    autoGrow();
+    return;
+  }
   wsSend({ type: "input", text });
   renderUserEcho(text);
   history.push(text);
@@ -2559,6 +2568,17 @@ function sendInput() {
   input.value = "";
   autoGrow();
   if (wsReady) setRunning(true);
+}
+
+// backfillInput prepends unconsumed user_message texts (joined by a blank
+// line) to the top of the input box so the user can review and re-submit them
+// after a task ended (FEATURE-471).
+function backfillInput(msgs) {
+  if (!msgs || !msgs.length) return;
+  const joined = msgs.join("\n\n");
+  input.value = input.value ? joined + "\n\n" + input.value : joined;
+  autoGrow();
+  input.focus();
 }
 
 function autoGrow() {
@@ -2982,6 +3002,9 @@ const TEXT_EXT = /\.(go|txt|md|markdown|csv|tsv|sh|bash|zsh|conf|cfg|ini|json|ya
 // opened by the system on double-click, not previewed in-page).
 function openFile(node) {
   postPath("/api/open", node.path);
+  // FEATURE-471: report the opened file as a dynamic event so the LLM can
+  // notice it during a running task.
+  wsSend({ type: "dynamic_event", kind: "open_file", value: node.path });
 }
 
 // openImagePreview opens an image in the popup and fills its title bar with

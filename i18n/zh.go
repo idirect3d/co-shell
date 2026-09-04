@@ -1948,6 +1948,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCLIHelpDebug:      "      --debug             启用调试模式（提交给 LLM 前显示并可编辑消息内容）",
 	KeyCol3WebWhitelist:  "Web 服务访问白名单（逗号分隔 IP/网段，空=仅本机访问）",
 	KeyCol3WebInputDir:   "上传附件目录（工作区相对路径，默认 input）",
+	KeyCol3DynamicQueueSize: "动态感知队列容量（默认 100）",
 	KeyCLIHelpSessionID:  "  -s, --session-id <id>  指定会话 ID，加载已有会话或创建新会话",
 
 	// Vault
