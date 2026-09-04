@@ -180,6 +180,47 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Memory enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_118), status), nil
 
+	case "env-include-details", "env-include-current-dir", "env-include-tools",
+		"env-include-research", "env-include-user-dynamic":
+		// FEATURE-471: per-block <environment_details> inclusion switches.
+		var target *bool
+		switch subcommand {
+		case "env-include-details":
+			target = &h.cfg.LLM.EnvIncludeDetails
+		case "env-include-current-dir":
+			target = &h.cfg.LLM.EnvIncludeCurrentDir
+		case "env-include-tools":
+			target = &h.cfg.LLM.EnvIncludeTools
+		case "env-include-research":
+			target = &h.cfg.LLM.EnvIncludeResearch
+		case "env-include-user-dynamic":
+			target = &h.cfg.LLM.EnvIncludeUserDynamic
+		}
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !*target {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf("%s: %s", subcommand, status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			*target = true
+		case "off", "0", "false", "no":
+			*target = false
+		default:
+			return "", fmt.Errorf("usage: .set %s on|off", subcommand)
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		status := i18n.T(i18n.KeyOn)
+		if !*target {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("%s set to %s", subcommand, status)
+		return fmt.Sprintf("%s: %s", subcommand, status), nil
+
 	case "plan-enabled":
 		if len(args) < 2 {
 			status := i18n.T(i18n.KeyOn)

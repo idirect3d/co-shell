@@ -163,6 +163,12 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "context-reorganize-threshold", Value: strconv.Itoa(llm.ContextReorganizeThreshold), Desc: "0-100%", Type: "number", Default: strconv.Itoa(def.ContextReorganizeThreshold)},
 		{Key: "memory-search-max-content-len", Value: strconv.Itoa(llm.MemorySearchMaxContentLen), Desc: i18n.T(i18n.KeyCol3MemorySearchMaxContentLen), Type: "number", Default: strconv.Itoa(def.MemorySearchMaxContentLen)},
 		{Key: "memory-search-max-results", Value: strconv.Itoa(llm.MemorySearchMaxResults), Desc: i18n.T(i18n.KeyCol3MemorySearchMaxResults), Type: "number", Default: strconv.Itoa(def.MemorySearchMaxResults)},
+		// FEATURE-471: per-block <environment_details> inclusion switches.
+		{Key: "env-include-details", Value: boolStr(llm.EnvIncludeDetails), Desc: i18n.T(i18n.KeyCol3EnvIncludeDetails), Type: "bool", Default: boolStr(def.EnvIncludeDetails)},
+		{Key: "env-include-current-dir", Value: boolStr(llm.EnvIncludeCurrentDir), Desc: i18n.T(i18n.KeyCol3EnvIncludeCurrentDir), Type: "bool", Default: boolStr(def.EnvIncludeCurrentDir)},
+		{Key: "env-include-tools", Value: boolStr(llm.EnvIncludeTools), Desc: i18n.T(i18n.KeyCol3EnvIncludeTools), Type: "bool", Default: boolStr(def.EnvIncludeTools)},
+		{Key: "env-include-research", Value: boolStr(llm.EnvIncludeResearch), Desc: i18n.T(i18n.KeyCol3EnvIncludeResearch), Type: "bool", Default: boolStr(def.EnvIncludeResearch)},
+		{Key: "env-include-user-dynamic", Value: boolStr(llm.EnvIncludeUserDynamic), Desc: i18n.T(i18n.KeyCol3EnvIncludeUserDynamic), Type: "bool", Default: boolStr(def.EnvIncludeUserDynamic)},
 	}
 
 	// Group 5: Developer (matches showSettingsHelp Group 6)

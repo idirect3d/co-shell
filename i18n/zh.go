@@ -1949,6 +1949,11 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3WebWhitelist:  "Web 服务访问白名单（逗号分隔 IP/网段，空=仅本机访问）",
 	KeyCol3WebInputDir:   "上传附件目录（工作区相对路径，默认 input）",
 	KeyCol3DynamicQueueSize: "动态感知队列容量（默认 100）",
+	KeyCol3EnvIncludeDetails:     "user/tool 消息是否包含整个 <environment_details>",
+	KeyCol3EnvIncludeCurrentDir:  "<environment_details> 是否包含 <current_dir>",
+	KeyCol3EnvIncludeTools:       "<environment_details> 是否包含 <tools>",
+	KeyCol3EnvIncludeResearch:    "<environment_details> 是否包含 <research>",
+	KeyCol3EnvIncludeUserDynamic: "<environment_details> 是否包含 <user_dynamic_events>",
 	KeyCLIHelpSessionID:  "  -s, --session-id <id>  指定会话 ID，加载已有会话或创建新会话",
 
 	// Vault
