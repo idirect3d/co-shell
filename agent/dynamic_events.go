@@ -48,6 +48,8 @@ const (
 	DynamicUserMessage DynamicEventKind = "user_message"
 	// DynamicOpenFile: a file the user opened / revealed from the Web UI.
 	DynamicOpenFile DynamicEventKind = "open_file"
+	// DynamicViewFile: a file the user single-clicked to preview in-page.
+	DynamicViewFile DynamicEventKind = "view_file"
 )
 
 // DynamicEvent is one user-action event buffered in the dynamic perception
@@ -182,8 +184,13 @@ func (a *Agent) AddDynamicEvent(kind DynamicEventKind, pathOrText string) {
 
 // consumeDynamicEvents drains the queue and renders the <user_dynamic_events>
 // block. includeUserMessages controls whether buffered user_message events are
-// included (tool messages only, per FEATURE-471). File size/mtime are resolved
-// live via os.Stat at injection time.
+// included (tool messages only, per FEATURE-471). Each event is rendered as a
+// single flat tag in queue (time) order:
+//
+//	<open_file>2026-09-04 12:33:43.321 ./work/test.md 20.3KB</open_file>
+//	<user_message>2026-09-04 12:35:00.000 补充消息</user_message>
+//
+// File size/mtime are resolved live via os.Stat at injection time.
 func (a *Agent) consumeDynamicEvents(includeUserMessages bool) string {
 	q := a.dynamicEventQueue()
 	events := q.drain()
@@ -191,63 +198,59 @@ func (a *Agent) consumeDynamicEvents(includeUserMessages bool) string {
 		return ""
 	}
 
-	var clips, uploads, msgs, opens []DynamicEvent
-	for _, ev := range events {
-		switch ev.Kind {
-		case DynamicClipObject:
-			clips = append(clips, ev)
-		case DynamicUploadFile:
-			uploads = append(uploads, ev)
-		case DynamicUserMessage:
-			if includeUserMessages {
-				msgs = append(msgs, ev)
-			}
-		case DynamicOpenFile:
-			opens = append(opens, ev)
-		}
-	}
-
 	var sb strings.Builder
 	sb.WriteString("<user_dynamic_events>\n")
-	if len(clips) > 0 {
-		sb.WriteString("  <clip_objects>\n")
-		for _, ev := range clips {
-			sb.WriteString("    " + formatFileEvent(ev) + "\n")
+	for _, ev := range events {
+		switch ev.Kind {
+		case DynamicUserMessage:
+			if includeUserMessages {
+				sb.WriteString("  <user_message>" + formatEventTime(ev.Time) + " " + ev.Text + "</user_message>\n")
+			}
+		case DynamicClipObject:
+			sb.WriteString("  <clip_object>" + formatFileEvent(ev) + "</clip_object>\n")
+		case DynamicUploadFile:
+			sb.WriteString("  <upload_file>" + formatFileEvent(ev) + "</upload_file>\n")
+		case DynamicOpenFile:
+			sb.WriteString("  <open_file>" + formatFileEvent(ev) + "</open_file>\n")
+		case DynamicViewFile:
+			sb.WriteString("  <view_file>" + formatFileEvent(ev) + "</view_file>\n")
 		}
-		sb.WriteString("  </clip_objects>\n")
-	}
-	if len(uploads) > 0 {
-		sb.WriteString("  <upload_files>\n")
-		for _, ev := range uploads {
-			sb.WriteString("    " + formatFileEvent(ev) + "\n")
-		}
-		sb.WriteString("  </upload_files>\n")
-	}
-	if len(msgs) > 0 {
-		sb.WriteString("  <user_messages>\n")
-		for _, ev := range msgs {
-			sb.WriteString("    <message time=\"" + ev.Time.Format(time.RFC3339) + "\">" + ev.Text + "</message>\n")
-		}
-		sb.WriteString("  </user_messages>\n")
-	}
-	if len(opens) > 0 {
-		sb.WriteString("  <open_files>\n")
-		for _, ev := range opens {
-			sb.WriteString("    " + formatFileEvent(ev) + "\n")
-		}
-		sb.WriteString("  </open_files>\n")
 	}
 	sb.WriteString("</user_dynamic_events>")
 	return sb.String()
 }
 
-// formatFileEvent renders one path event as a self-closing element carrying the
-// workspace-relative path, live size and mtime:
+// formatFileEvent renders one path event's inner text as:
 //
-//	<file path="input/clip-1.png" size="36739" mtime="2026-09-04T19:32:00+08:00"/>
+//	<time> <./path> <human-size>
+//
+// e.g. "2026-09-04 12:33:43.321 ./work/test.md 20.3KB". The path is prefixed
+// with "./" and the size is human-readable. The event's own timestamp is used
+// for the time (the action time), while the file's mtime is not shown.
 func formatFileEvent(ev DynamicEvent) string {
-	size, mtime := statFile(ev.Path)
-	return fmt.Sprintf("<file path=\"%s\" size=\"%d\" mtime=\"%s\"/>", ev.Path, size, mtime)
+	size, _ := statFile(ev.Path)
+	return formatEventTime(ev.Time) + " ./" + ev.Path + " " + humanSize(size)
+}
+
+// formatEventTime renders a timestamp with millisecond precision.
+func formatEventTime(t time.Time) string {
+	return t.Format("2006-01-02 15:04:05.000")
+}
+
+// humanSize renders a byte count in a human-readable form (B/KB/MB/GB).
+func humanSize(n int64) string {
+	if n < 1024 {
+		return fmt.Sprintf("%dB", n)
+	}
+	units := []string{"KB", "MB", "GB", "TB"}
+	f := float64(n)
+	for _, u := range units {
+		f /= 1024
+		if f < 1024 {
+			return fmt.Sprintf("%.1f%s", f, u)
+		}
+	}
+	return fmt.Sprintf("%.1fPB", f/1024)
 }
 
 // statFile resolves the size and modification time of a workspace-relative path

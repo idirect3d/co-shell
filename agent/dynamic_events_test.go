@@ -89,35 +89,36 @@ func TestDynamicQueueDedup(t *testing.T) {
 	}
 }
 
-// TestConsumeDynamicEventsUserVsTool verifies user_messages are only included
-// on tool messages (includeUserMessages=true), while clip/upload/open appear on
-// both user and tool messages.
+// TestConsumeDynamicEventsUserVsTool verifies user_message events are only
+// included on tool messages (includeUserMessages=true), while clip/upload/open
+// appear on both user and tool messages. Each event is a single flat tag.
 func TestConsumeDynamicEventsUserVsTool(t *testing.T) {
 	a := &Agent{cfg: config.DefaultConfig()}
 	a.AddDynamicEvent(DynamicClipObject, "input/a.png")
 	a.AddDynamicEvent(DynamicUserMessage, "补充说明")
 
-	// User message: no user_messages.
+	// User message: no user_message.
 	userBlock := a.consumeDynamicEvents(false)
-	if !strings.Contains(userBlock, "<clip_objects>") {
-		t.Errorf("user block should include clip_objects, got:\n%s", userBlock)
+	if !strings.Contains(userBlock, "<clip_object>") {
+		t.Errorf("user block should include clip_object, got:\n%s", userBlock)
 	}
-	if strings.Contains(userBlock, "<user_messages>") {
-		t.Errorf("user block must NOT include user_messages, got:\n%s", userBlock)
+	if strings.Contains(userBlock, "<user_message>") {
+		t.Errorf("user block must NOT include user_message, got:\n%s", userBlock)
 	}
 
-	// Tool message: includes user_messages.
+	// Tool message: includes user_message.
 	a.AddDynamicEvent(DynamicUserMessage, "补充说明")
 	toolBlock := a.consumeDynamicEvents(true)
-	if !strings.Contains(toolBlock, "<user_messages>") {
-		t.Errorf("tool block should include user_messages, got:\n%s", toolBlock)
+	if !strings.Contains(toolBlock, "<user_message>") {
+		t.Errorf("tool block should include user_message, got:\n%s", toolBlock)
 	}
 	if !strings.Contains(toolBlock, "补充说明") {
 		t.Errorf("tool block should carry the message text, got:\n%s", toolBlock)
 	}
 }
 
-// TestConsumeDynamicEventsFileStat verifies file events carry live size/mtime.
+// TestConsumeDynamicEventsFileStat verifies file events carry the ./ path
+// prefix and a human-readable size.
 func TestConsumeDynamicEventsFileStat(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "note.txt")
@@ -134,14 +135,14 @@ func TestConsumeDynamicEventsFileStat(t *testing.T) {
 	a := &Agent{cfg: config.DefaultConfig()}
 	a.AddDynamicEvent(DynamicUploadFile, "note.txt")
 	block := a.consumeDynamicEvents(false)
-	if !strings.Contains(block, `path="note.txt"`) {
-		t.Errorf("block should carry the path, got:\n%s", block)
+	if !strings.Contains(block, "<upload_file>") {
+		t.Errorf("block should carry upload_file tag, got:\n%s", block)
 	}
-	if !strings.Contains(block, `size="5"`) {
-		t.Errorf("block should carry size 5, got:\n%s", block)
+	if !strings.Contains(block, "./note.txt") {
+		t.Errorf("block should carry ./note.txt path, got:\n%s", block)
 	}
-	if !strings.Contains(block, "mtime=") {
-		t.Errorf("block should carry mtime, got:\n%s", block)
+	if !strings.Contains(block, "5B") {
+		t.Errorf("block should carry human size 5B, got:\n%s", block)
 	}
 }
 
@@ -157,13 +158,13 @@ func TestPendingUserMessages(t *testing.T) {
 	if len(msgs) != 2 || msgs[0] != "第一条" || msgs[1] != "第二条" {
 		t.Fatalf("PendingUserMessages = %v, want [第一条 第二条]", msgs)
 	}
-	// user_messages cleared, clip still buffered.
+	// user_message cleared, clip still buffered.
 	block := a.consumeDynamicEvents(true)
-	if strings.Contains(block, "<user_messages>") {
-		t.Errorf("user_messages should be cleared after PendingUserMessages, got:\n%s", block)
+	if strings.Contains(block, "<user_message>") {
+		t.Errorf("user_message should be cleared after PendingUserMessages, got:\n%s", block)
 	}
-	if !strings.Contains(block, "<clip_objects>") {
-		t.Errorf("clip_objects should remain buffered, got:\n%s", block)
+	if !strings.Contains(block, "<clip_object>") {
+		t.Errorf("clip_object should remain buffered, got:\n%s", block)
 	}
 }
 
@@ -178,10 +179,25 @@ func TestDynamicQueueCapacityFromConfig(t *testing.T) {
 	}
 	block := a.consumeDynamicEvents(false)
 	// Only the last 3 survive.
-	if strings.Contains(block, "fa.png") {
-		t.Errorf("oldest event fa.png should be dropped, got:\n%s", block)
+	if strings.Contains(block, "./fa.png") {
+		t.Errorf("oldest event ./fa.png should be dropped, got:\n%s", block)
 	}
-	if !strings.Contains(block, "fd.png") || !strings.Contains(block, "fe.png") {
+	if !strings.Contains(block, "./fd.png") || !strings.Contains(block, "./fe.png") {
 		t.Errorf("newest events should survive, got:\n%s", block)
+	}
+}
+
+// TestConsumeDynamicEventsViewFile verifies view_file events render as a flat
+// tag alongside other file events.
+func TestConsumeDynamicEventsViewFile(t *testing.T) {
+	a := &Agent{cfg: config.DefaultConfig()}
+	a.AddDynamicEvent(DynamicViewFile, "work/test.go")
+	a.AddDynamicEvent(DynamicOpenFile, "work/other.go")
+	block := a.consumeDynamicEvents(false)
+	if !strings.Contains(block, "<view_file>") || !strings.Contains(block, "./work/test.go") {
+		t.Errorf("block should carry view_file ./work/test.go, got:\n%s", block)
+	}
+	if !strings.Contains(block, "<open_file>") || !strings.Contains(block, "./work/other.go") {
+		t.Errorf("block should carry open_file ./work/other.go, got:\n%s", block)
 	}
 }
