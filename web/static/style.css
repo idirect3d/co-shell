@@ -1706,7 +1706,7 @@ aside {
 }
 .set-row select {
   flex: 0 0 auto;
-  width: 180px;
+  width: 144px;
   min-width: 0;
   background: var(--mono-bg);
   color: var(--fg);
@@ -1847,7 +1847,7 @@ aside {
 }
 .set-input {
   flex: 0 0 auto;
-  width: 180px;
+  width: 144px;
   min-width: 0;
   background: var(--mono-bg);
   color: var(--fg);
