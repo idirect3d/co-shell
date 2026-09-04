@@ -3066,6 +3066,9 @@ function openFilePreview(node) {
     closeFileViewer();
     return;
   }
+  // FEATURE-471: report the single-click preview as a view_file dynamic event
+  // so the LLM can notice which files the user is inspecting.
+  wsSend({ type: "dynamic_event", kind: "view_file", value: node.path });
   fvPath = node.path;
   fvNextLine = 1;
   fvTotal = 0;
