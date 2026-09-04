@@ -110,8 +110,10 @@ func TestSessionInputToReadLine(t *testing.T) {
 	}
 }
 
-// TestSessionAttachments verifies input attachments are resolved to
-// workspace-absolute paths and installed on the agent.
+// TestSessionAttachments verifies input attachments are NOT injected as
+// image paths when the main model does not support vision (FEATURE-469): the
+// uploaded files are only described by the dynamic-context text, so the image
+// bytes must not be sent to a non-vision model.
 func TestSessionAttachments(t *testing.T) {
 	_, sess, ag, client := newSessionFixture(t)
 	readServerMsg(t, client) // initial state
@@ -127,8 +129,43 @@ func TestSessionAttachments(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("ReadLine did not return")
 	}
+	if len(ag.ImagePaths()) != 0 {
+		t.Errorf("image paths = %v, want 0 (main model has no vision)", ag.ImagePaths())
+	}
+}
+
+// TestSessionAttachmentsVisionModel verifies attachments ARE injected as
+// image paths when the main model supports vision (FEATURE-469).
+func TestSessionAttachmentsVisionModel(t *testing.T) {
+	_, sess, ag, client := newSessionFixture(t)
+	readServerMsg(t, client) // initial state
+
+	// Give the agent a vision-capable main model so the attachment gate opens.
+	mm := config.GetDefaultModelManager()
+	if err := mm.AddModel(&config.ModelConfig{
+		ID:           "vision-main",
+		Name:         "vision-main",
+		Enabled:      true,
+		Priority:     10,
+		Capabilities: config.ModelCapability{Vision: true, ToolCall: true},
+	}); err != nil {
+		t.Fatalf("AddModel: %v", err)
+	}
+	ag.SetModelManager(mm)
+
+	done := make(chan string, 1)
+	go func() {
+		line, _ := sess.ReadLine("")
+		done <- line
+	}()
+	sendClient(t, client, clientMessage{Type: "input", Text: "hi", Attachments: []string{"a.png"}})
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ReadLine did not return")
+	}
 	if len(ag.ImagePaths()) != 1 {
-		t.Errorf("image paths = %v, want 1", ag.ImagePaths())
+		t.Errorf("image paths = %v, want 1 (main model supports vision)", ag.ImagePaths())
 	}
 }
 

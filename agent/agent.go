@@ -1171,6 +1171,20 @@ func (a *Agent) SetImagePaths(paths []string) { a.imagePaths = paths }
 func (a *Agent) ImagePaths() []string                    { return a.imagePaths }
 func (a *Agent) SetModelManager(mm *config.ModelManager) { a.modelManager = mm }
 
+// MainModelSupportsVision reports whether the current main (non-vision)
+// model — the one that would handle a message without image attachments —
+// supports vision. The Web UI uses this to decide whether uploaded images
+// should be injected as multimodal content (FEATURE-469): when the main
+// model cannot see images, only the dynamic-context text (file paths) is
+// sent and the image bytes are skipped.
+func (a *Agent) MainModelSupportsVision() bool {
+	if a.modelManager == nil {
+		return false
+	}
+	m := a.modelManager.GetActiveModel(false)
+	return m != nil && m.Capabilities.Vision
+}
+
 // selectModelForCall selects the appropriate model based on vision requirements
 // and the current work mode's model bindings.
 func (a *Agent) selectModelForCall() *config.ModelConfig {
