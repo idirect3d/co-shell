@@ -14,6 +14,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -76,6 +77,14 @@ type WebWizardStepData struct {
 	// Message carries an informational/error message to show the user (e.g. why
 	// the model list refresh failed). Empty when there is nothing to report.
 	Message string `json:"message,omitempty"`
+	// TemplateJSON carries the selected template's raw JSON (pretty-printed) so
+	// the frontend can show it in a collapsible viewer on the template step
+	// (FEATURE-467). Empty when no template is selected.
+	TemplateJSON string `json:"template_json,omitempty"`
+	// ReasoningEffortOptions lists the reasoning_effort choices for the selected
+	// template's provider (FEATURE-467). Empty when the provider has no
+	// reasoning_effort concept.
+	ReasoningEffortOptions []string `json:"reasoning_effort_options,omitempty"`
 }
 
 // WebWizardData holds all filled fields across steps. It is owned by the
@@ -91,9 +100,16 @@ type WebWizardData struct {
 	Vision      bool   `json:"vision"`
 	ToolCall    bool   `json:"tool_call"`
 	Thinking    bool   `json:"thinking"`
-	ModelID     string `json:"model_id,omitempty"`
-	Priority    int    `json:"priority"`
-	MaxModelLen int    `json:"max_model_len"`
+	// ReasoningEffort is the reasoning depth for the model (FEATURE-467).
+	// Empty means "use the provider/template default".
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	// APIType is the API protocol for the model (FEATURE-468).
+	// Empty or "chat" = Chat Completions (/v1/chat/completions);
+	// "responses" = Responses API (/v1/responses, reasoning.effort control).
+	APIType string `json:"api_type,omitempty"`
+	ModelID         string `json:"model_id,omitempty"`
+	Priority        int    `json:"priority"`
+	MaxModelLen     int    `json:"max_model_len"`
 	// ModelMaxLen is the max context length (in tokens) reported by the API for
 	// the currently selected model. Recorded on the model_name step and used to
 	// pre-fill / hint the max_model_len step (FEATURE-429).
@@ -117,6 +133,15 @@ func (h *ModelHandler) WebWizardStart(mode, id string) (*WebWizardStepData, *Web
 		data.Vision = model.Capabilities.Vision
 		data.ToolCall = model.Capabilities.ToolCall
 		data.Thinking = model.Capabilities.Thinking
+		// FEATURE-467: pre-fill the model-level thinking settings on edit.
+		if model.ThinkingEnabled != nil {
+			data.Thinking = *model.ThinkingEnabled
+		}
+		if model.ReasoningEffort != nil {
+			data.ReasoningEffort = *model.ReasoningEffort
+		}
+		// FEATURE-468: pre-fill the model-level API type on edit.
+		data.APIType = model.APIType
 		data.ModelID = model.ID
 		data.Priority = model.Priority
 		data.MaxModelLen = model.MaxModelLen
@@ -173,6 +198,19 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 			ToolCall: data.ToolCall,
 			Thinking: data.Thinking,
 		}
+		// FEATURE-467: persist the model-level thinking settings.
+		thinking := data.Thinking
+		model.ThinkingEnabled = &thinking
+		if data.ReasoningEffort != "" {
+			effort := data.ReasoningEffort
+			model.ReasoningEffort = &effort
+		} else {
+			model.ReasoningEffort = nil
+		}
+		// FEATURE-468: persist the model-level API type. The wizard select always
+		// carries a concrete value ("chat" or "responses"); normalize "chat" to
+		// empty so the config stays minimal (empty == chat, the default).
+		model.APIType = normalizeAPIType(data.APIType)
 		model.Enabled = data.Enabled
 		if err := h.cfg.Save(); err != nil {
 			return "", fmt.Errorf(i18n.T(i18n.KeyCmdMig_237), err)
@@ -210,6 +248,17 @@ func (h *ModelHandler) WebWizardSubmit(data *WebWizardData) (string, error) {
 			Thinking: data.Thinking,
 		},
 		MaxModelLen: data.MaxModelLen,
+		// FEATURE-468: the API type chosen on the template step (chat or responses;
+		// "chat" is normalized to empty so the config stays minimal).
+		APIType: normalizeAPIType(data.APIType),
+	}
+	// FEATURE-467: persist the model-level thinking settings chosen on the
+	// template step.
+	thinking := data.Thinking
+	modelConfig.ThinkingEnabled = &thinking
+	if data.ReasoningEffort != "" {
+		effort := data.ReasoningEffort
+		modelConfig.ReasoningEffort = &effort
 	}
 	if err := h.saveModel(modelConfig); err != nil {
 		return "", err
@@ -241,7 +290,52 @@ func (h *ModelHandler) webWizardStepData(data *WebWizardData, step WebWizardStep
 			field.Options = append(field.Options, t.ID)
 		}
 		field.Value = data.TemplateID
+		// FEATURE-467: expose the selected template's thinking switch and, when
+		// thinking is on, the provider-specific reasoning_effort choices. The
+		// template's raw JSON is also returned so the frontend can show it in a
+		// collapsible viewer (transparency).
 		sd.Fields = []WebWizardField{field}
+		if t := h.template(data.TemplateID); t != nil {
+			// Thinking switch default: the template's declared thinking capability.
+			thinking := t.Capabilities.Thinking
+			if data.Thinking {
+				thinking = true
+			}
+			sd.Fields = append(sd.Fields, WebWizardField{
+				Key: "thinking", Type: "switch", Label: i18n.T(i18n.KeyCmdMig_378),
+				Value: webWizardBoolStr(thinking), Required: false,
+			})
+			// reasoning_effort select (shown only when thinking is on). The default
+			// is the empty "not set" option so the user decides whether to send it
+			// (FEATURE-467). On edit, the model's saved value is pre-filled.
+			opts := reasoningEffortOptions(t.Provider)
+			if len(opts) > 0 {
+				sd.ReasoningEffortOptions = opts
+				effort := data.ReasoningEffort
+				sd.Fields = append(sd.Fields, WebWizardField{
+					Key: "reasoning_effort", Type: "select", Label: i18n.T(i18n.KeyCmdMig_383),
+					Value: effort, Options: opts, Required: false,
+				})
+			}
+			// FEATURE-468: API type select. Two concrete options — "chat" (Chat
+			// Completions, the default, shown selected when nothing is configured)
+			// and "responses" (Responses API /v1/responses, whose
+			// reasoning.effort=none reliably disables thinking for models like
+			// qwen3.6 that ignore the chat-format thinking parameters). The
+			// default option is labelled "(default)" by the frontend.
+			apiType := data.APIType
+			if apiType == "" {
+				apiType = "chat"
+			}
+			sd.Fields = append(sd.Fields, WebWizardField{
+				Key: "api_type", Type: "select", Label: i18n.T(i18n.KeyCmdMig_386),
+				Value: apiType, Options: []string{"chat", "responses"}, Required: false,
+			})
+			// Template raw JSON for the collapsible transparency viewer.
+			if j, err := json.MarshalIndent(t, "", "  "); err == nil {
+				sd.TemplateJSON = string(j)
+			}
+		}
 
 	case WebWizardEndpoint:
 		sd.Title = i18n.T(i18n.KeyCmdMig_180)
@@ -403,3 +497,32 @@ func webWizardBoolStr(b bool) string {
 	}
 	return "false"
 }
+
+// normalizeAPIType normalizes a wizard api_type value for persistence
+// (FEATURE-468). Empty or "chat" both mean the default Chat Completions API and
+// are stored as empty so the config stays minimal; only "responses" is kept.
+func normalizeAPIType(apiType string) string {
+	if apiType == "responses" {
+		return "responses"
+	}
+	return ""
+}
+
+// reasoningEffortOptions returns the reasoning_effort choices for a provider
+// (FEATURE-467). The first (empty) entry is the "not set" option meaning the
+// reasoning_effort parameter is not sent, letting the user decide per model
+// (e.g. Qwen3.6 does not support reasoning_effort while Qwen3.8 does).
+// qwen includes xhigh because Qwen3.8 uses xhigh/medium/low.
+func reasoningEffortOptions(provider string) []string {
+	switch provider {
+	case "qwen":
+		return []string{"", "low", "medium", "high", "xhigh"}
+	case "deepseek", "zhipu", "moonshot", "kimi", "openai", "openai-compatible":
+		return []string{"", "low", "medium", "high"}
+	default:
+		// Providers without a reasoning_effort concept still expose the "not set"
+		// option so the wizard stays uniform and the user decides.
+		return []string{""}
+	}
+}
+

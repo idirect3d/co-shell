@@ -1353,6 +1353,135 @@ SKILLS
 The following skills are available. Each skill is a directory containing a SKILL.md file. Only the skill index (name, description, path) is listed here. When you need to use a skill, read its SKILL.md file with read_file to get the full instructions.
 `
 
+	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
+	// meta-capability index section. The dynamic index body is appended by the
+	// agent when building the prompt (buildMetaCapabilityIndex).
+	enMessages[KeySystemPromptCapabilitiesIndex] = `
+CAPABILITIES
+
+The following meta-capabilities are available. Each is a native ability of co-shell with a stable unique ID. When you need to understand or use a capability, call the introspect_capability tool with its ID to get the full instructions, or pass a keyword array for fuzzy search.
+`
+
+	// Meta-capability categories (FEATURE-466).
+	enMessages[KeyCapCategorySelf]    = `Self-Modification`
+	enMessages[KeyCapCategoryModel]   = `Model Routing`
+	enMessages[KeyCapCategoryProblem] = `Problem Solving`
+	enMessages[KeyCapCategoryCollab]  = `Collaboration`
+	enMessages[KeyCapCategoryContext] = `Context Management`
+
+	// Meta-capability: self-modify (FEATURE-466).
+	enMessages[KeyCapSelfModifyName]   = `Self-Modification`
+	enMessages[KeyCapSelfModifyDesc]   = `Modify .rules/ or PRINCIPLES.md to change your own behavior`
+	enMessages[KeyCapSelfModifyDetail] = `# Self-Modification (cap.self-modify)
+
+## When to use
+- The user asks you to "always do it this way" → write a rule into .rules/
+- You need to change the agent's identity or principles → edit PRINCIPLES.md
+- You need to record a design decision → update ROADMAP.md
+
+## How to do it
+1. Create or edit a .md file under .rules/ (root-level files are always loaded)
+2. Call RebuildSystemPrompt so the new rule takes effect in the next iteration
+3. For subdirectory rules, they are loaded on demand — list them in the rules tree
+
+## Notes
+- .rules/ subdirectories are loaded on demand, not always in context
+- Changes take effect after RebuildSystemPrompt
+`
+
+	// Meta-capability: model-routing (FEATURE-466).
+	enMessages[KeyCapModelRoutingName]   = `Model Routing`
+	enMessages[KeyCapModelRoutingDesc]   = `Call different models (text/vision/reasoning) and switch work modes`
+	enMessages[KeyCapModelRoutingDetail] = `# Model Routing (cap.model-routing)
+
+## When to use
+- The current model cannot handle a task (e.g. needs vision, stronger reasoning)
+- You need to switch work modes (act/plan/research)
+
+## How to do it
+- Use update_settings to change the active model or work mode
+- Vision tasks automatically route to a vision-capable model when needed
+- Problem-solving and supervisor use dedicated models
+
+## Notes
+- Model selection follows priority order; vision tasks require a vision-capable model
+`
+
+	// Meta-capability: problem-strategies (FEATURE-466).
+	enMessages[KeyCapProblemStrategiesName]   = `Problem-Solving Strategies`
+	enMessages[KeyCapProblemStrategiesDesc]   = `Loop detection, tool-call error retry/degrade/switch strategies`
+	enMessages[KeyCapProblemStrategiesDetail] = `# Problem-Solving Strategies (cap.problem-strategies)
+
+## When to use
+- You detect a loop (repeated similar content)
+- A tool call fails repeatedly
+- The task is stuck and needs a different approach
+
+## How to do it
+- On loop detection: the system may adjust temperature, invoke a judge model, or reorganize context
+- On tool errors: retry, degrade to a simpler approach, or switch strategy
+- Use reorganize_context when stuck in a loop or context is nearly full
+
+## Notes
+- Loop detection and judge are configurable (loop-detect-threshold, loop-judge-enabled)
+`
+
+	// Meta-capability: subagent-collab (FEATURE-466).
+	enMessages[KeyCapSubagentCollabName]   = `Sub-Agent Collaboration`
+	enMessages[KeyCapSubagentCollabDesc]   = `Call another co-shell sub-agent to collaborate`
+	enMessages[KeyCapSubagentCollabDetail] = `# Sub-Agent Collaboration (cap.subagent-collab)
+
+## When to use
+- The task is large and can be split into parallel parts
+- You need information from another agent's workspace
+
+## How to do it
+- Use launch_sub_agent to communicate with another co-shell agent
+- The sub-agent shares the same terminal; results are collected and reported
+- Use schedule_task to run recurring sub-agent tasks
+
+## Notes
+- This is equal information sharing, not task delegation
+- Requires sub-agent support to be enabled
+`
+
+	// Meta-capability: context-management (FEATURE-466).
+	enMessages[KeyCapContextManagementName]   = `Context Management`
+	enMessages[KeyCapContextManagementDesc]   = `Compress context (reorganize_context) and use persistent memory (memory_*)`
+	enMessages[KeyCapContextManagementDetail] = `# Context Management (cap.context-management)
+
+## When to use
+- The context window is nearly full
+- You need to recall information from past conversations
+
+## How to do it
+- Use reorganize_context to compress the conversation into a self-contained summary
+- Use memory_search / get_memory_slice to retrieve historical context
+- Use delete_memory to remove outdated information
+
+## Notes
+- Context reorganization replaces history with a summary prompt
+- Persistent memory survives across sessions
+`
+
+	// Meta-capability: self-config (FEATURE-466).
+	enMessages[KeyCapSelfConfigName]   = `Self-Configuration`
+	enMessages[KeyCapSelfConfigDesc]   = `Modify your own behavior parameters (model/temperature/mode etc.)`
+	enMessages[KeyCapSelfConfigDetail] = `# Self-Configuration (cap.self-config)
+
+## When to use
+- The user asks to change a setting (model, temperature, display, safety)
+- You need to adjust behavior for the current task
+
+## How to do it
+- Use list_settings to see all available parameters
+- Use update_settings to change a parameter (user confirms before applying)
+
+## Notes
+- Only change settings when the user explicitly asks or it is necessary
+- Settings are persisted to config.json
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	// OpenAI mode does not need examples — tool definitions are provided via
 	// the API tools parameter. Keep this empty to avoid unnecessary context.

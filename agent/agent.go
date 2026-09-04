@@ -825,6 +825,10 @@ func (a *Agent) SetIntentExposureEnabled(enabled bool) {
 	a.intentExposureEnabled = enabled
 }
 
+func (a *Agent) SetMetaCapabilityEnabled(enabled bool) {
+	a.metaCapabilityEnabled = enabled
+}
+
 func (a *Agent) SetSubAgentEnabled(enabled bool) {
 	a.subAgentEnabled = enabled
 }
@@ -1353,6 +1357,9 @@ func (a *Agent) ApplyWorkModeConfig() {
 	if mode != nil && mode.ReasoningEffort != nil {
 		reasoningEffort = *mode.ReasoningEffort
 	}
+	// FEATURE-468: the global settings "default" means "do not override" —
+	// fall back to the model/template default instead of sending "default".
+	reasoningEffort = llm.NormalizeReasoningEffort(reasoningEffort)
 
 	topP := a.cfg.LLM.TopP
 	if modelCfg.TopP != nil {
@@ -1378,10 +1385,10 @@ func (a *Agent) ApplyWorkModeConfig() {
 		repetitionPenalty = *mode.RepetitionPenalty
 	}
 
-	// Create the LLM client
-	newClient := llm.NewClient(
+	// Create the LLM client (dispatch by model-level api_type, FEATURE-468)
+	newClient := llm.NewClientForAPIType(
 		modelCfg.Endpoint, modelCfg.APIKey, modelCfg.Model,
-		temperature, maxTokens, a.cfg.LLM.LLMTimeout,
+		temperature, maxTokens, modelCfg.APIType, a.cfg.LLM.LLMTimeout,
 	)
 	newClient.SetTopP(topP)
 	newClient.SetTopK(topK)

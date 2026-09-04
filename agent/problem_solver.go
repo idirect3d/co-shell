@@ -267,9 +267,9 @@ func (a *Agent) callProblemSolver(ctx context.Context, scenario SupScenario, pro
 		judgeTimeout = 0
 	}
 
-	judgeClient := llm.NewClient(
+	judgeClient := llm.NewClientForAPIType(
 		modelCfg.Endpoint, modelCfg.APIKey, modelCfg.Model,
-		0.3, 8192, judgeTimeout,
+		0.3, 8192, modelCfg.APIType, judgeTimeout,
 	)
 	if judgeClient != nil {
 		defer judgeClient.Close()

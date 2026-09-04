@@ -90,6 +90,12 @@ type ModelConfig struct {
 	TemplateID   string                 `json:"template_id,omitempty"`
 	CustomParams map[string]interface{} `json:"custom_params,omitempty"`
 
+	// APIType selects the API protocol used for this model.
+	// Empty or "chat" uses the OpenAI Chat Completions API (/v1/chat/completions).
+	// "responses" uses the OpenAI Responses API (/v1/responses), which supports
+	// reasoning.effort control (e.g. {"effort": "none"} to disable thinking).
+	APIType string `json:"api_type,omitempty"`
+
 	// MaxModelLen is the maximum context length (in tokens) supported by the model.
 	// This value is automatically detected from the API when listing models.
 	// A value of 0 means unknown or not yet detected.
@@ -168,6 +174,30 @@ func (m *ModelManager) initBuiltInTemplates() {
 				"extra_body": map[string]interface{}{
 					"chat_template_kwargs": map[string]interface{}{
 						"enable_thinking": false,
+					},
+				},
+				"frequency_penalty": float64(0),
+				"presence_penalty":  float64(0),
+			},
+		},
+		{
+			// FEATURE-467: Qwen3.8 series (supports reasoning_effort xhigh/medium/low).
+			// Kept as a separate template alongside qwen-official because the model
+			// family differs (thinking on by default, reasoning_effort supported).
+			ID:           "qwen3.8",
+			Name:         i18n.T(i18n.KeySettingCmd_778),
+			Provider:     "qwen",
+			Endpoint:     "https://dashscope.aliyuncs.com/compatible-mode/v1",
+			DefaultModel: "qwen3.8-27b",
+			Models:       []string{"qwen3.8-27b"},
+			APIKeyURL:    "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
+			Priority:     89,
+			Description:  i18n.T(i18n.KeySettingCmd_779),
+			Capabilities: ModelCapability{Vision: true, ToolCall: true, Thinking: true, Multimodal: true},
+			DefaultParams: map[string]interface{}{
+				"extra_body": map[string]interface{}{
+					"chat_template_kwargs": map[string]interface{}{
+						"enable_thinking": true,
 					},
 				},
 				"frequency_penalty": float64(0),

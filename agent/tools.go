@@ -1844,6 +1844,35 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 	}
 	tools = append(tools, wordTools...)
 
+	// Add introspect_capability tool (FEATURE-466) — meta-capability awareness.
+	// Available when meta-capability awareness is enabled.
+	if a.metaCapabilityEnabled {
+		tools = append(tools, llm.Tool{
+			Name:        "introspect_capability",
+			Description: "Query co-shell's native meta-capabilities (self-modification, model routing, problem-solving strategies, sub-agent collaboration, context management, self-configuration). Pass a capability ID to get the full instructions, or pass a keyword array for multi-condition fuzzy search. With no arguments, returns the full capability index.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"meta": map[string]interface{}{
+						"type":        "object",
+						"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
+					},
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "The capability ID to query (e.g. cap.self-modify). When provided, returns the full detail for that capability.",
+					},
+					"keywords": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Fuzzy search keywords (multi-condition AND match against ID/name/description/category).",
+					},
+				},
+				"required": []string{"meta"},
+			},
+			Callback: a.introspectCapabilityTool,
+		})
+	}
+
 	// Add MCP tools
 	for _, mcpTool := range a.mcpMgr.GetAllTools() {
 		tool := mcpTool // capture

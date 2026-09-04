@@ -49,9 +49,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.29.0"
+const version = "0.31.0"
 
-const build = "768"
+const build = "778"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1161,6 +1161,9 @@ func main() {
 		if activeModel.ReasoningEffort != nil {
 			reasoningEffort = *activeModel.ReasoningEffort
 		}
+		// FEATURE-468: the global settings "default" means "do not override" —
+		// fall back to the model/template default instead of sending "default".
+		reasoningEffort = llm.NormalizeReasoningEffort(reasoningEffort)
 		topP := cfg.LLM.TopP
 		if activeModel.TopP != nil {
 			topP = *activeModel.TopP
@@ -1174,12 +1177,13 @@ func main() {
 			repetitionPenalty = *activeModel.RepetitionPenalty
 		}
 
-		llmClient = llm.NewClient(
+		llmClient = llm.NewClientForAPIType(
 			activeModel.Endpoint,
 			activeModel.APIKey,
 			activeModel.Model,
 			temperature,
 			maxTokens,
+			activeModel.APIType,
 			cfg.LLM.LLMTimeout,
 		)
 		llmClient.SetTopP(topP)
@@ -1338,6 +1342,9 @@ func main() {
 
 	// Apply intent exposure enabled setting
 	ag.SetIntentExposureEnabled(cfg.LLM.IntentExposureEnabled)
+
+	// Apply meta-capability awareness setting (FEATURE-466)
+	ag.SetMetaCapabilityEnabled(cfg.LLM.MetaCapabilityEnabled)
 
 	// Sync memory enabled to task plan manager
 	ag.TaskPlanManager().SetMemoryEnabled(cfg.LLM.MemoryEnabled)

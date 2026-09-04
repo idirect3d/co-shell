@@ -2263,6 +2263,42 @@ aside {
   border-top: 1px solid var(--border);
 }
 
+/* FEATURE-467: collapsible template raw-JSON viewer on the wizard template step. */
+.wizard-template-json {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.wizard-template-json-head {
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+}
+.wizard-template-json-toggle {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.wizard-template-json-toggle:hover { color: var(--accent); }
+.wizard-template-json-body {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-dim);
+  background: var(--bg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Status-bar model selector (FEATURE-422): expands upward from the model item. */
 .sb-model-wrap { position: relative; }
 .sb-model-wrap .sb-item { cursor: pointer; }
