@@ -371,6 +371,7 @@ func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{HOME}", env.homeDir)
 	text = strings.ReplaceAll(text, "{COMMAND}", env.execName)
 	text = strings.ReplaceAll(text, "{WORKSPACE}", env.cwd)
+	text = strings.ReplaceAll(text, "{LANG}", env.lang)
 	text = strings.ReplaceAll(text, "{TASK}", env.taskDesc)
 	text = strings.ReplaceAll(text, "{CUSTOM_RULES}", env.customRules)
 	return text
@@ -394,6 +395,7 @@ type promptEnv struct {
 	customRules           string
 	shellEnabled          bool
 	mode                  config.ResultMode
+	lang                  string
 }
 
 // getModeSectionPath returns the path to a section file for the current work mode.
@@ -621,6 +623,7 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	}
 	env.mode = mode
 	env.shellEnabled = shellEnabled
+	env.lang = string(i18n.GetLang())
 
 	if agentName == "" {
 		agentName = "co-shell"
