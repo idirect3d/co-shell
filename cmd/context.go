@@ -235,6 +235,11 @@ func truncateStringForContext(s string, maxLen int) string {
 // stripEnvBlocks removes all <environment_details>...</environment_details>
 // blocks from a message content so the default :context output stays readable.
 // The blocks are restored by :context full (shown separately below the header).
+//
+// Only properly closed blocks are removed. An unterminated <environment_details>
+// (no matching </environment_details>) is treated as ordinary text and kept —
+// e.g. the system prompt's RULES section references <environment_details> as
+// plain text, and dropping from there to the end would truncate the message.
 func stripEnvBlocks(s string) string {
 	const openTag = "<environment_details>"
 	const closeTag = "</environment_details>"
@@ -245,8 +250,8 @@ func stripEnvBlocks(s string) string {
 		}
 		end := strings.Index(s[start:], closeTag)
 		if end < 0 {
-			// Unterminated block: drop from start to end of string.
-			s = s[:start]
+			// Unterminated block: this <environment_details> is plain text
+			// (no closing tag anywhere after it), so keep the rest intact.
 			break
 		}
 		s = s[:start] + s[start+end+len(closeTag):]

@@ -324,13 +324,16 @@ func TestShowContext_HeaderTime(t *testing.T) {
 func TestShowContext_FullShowsEnvAndDefaultHidesIt(t *testing.T) {
 	h := newTestContextHandler(t, buildSampleMessages())
 
-	// Default: env hidden.
+	// Default: env hidden. The system message's RULES section legitimately
+	// references <environment_details> as plain text (BUILD-796), so assert the
+	// user/tool env blocks (their inner <cwd> tag) are stripped rather than the
+	// whole output being free of the tag.
 	outDefault, err := h.showContext(false)
 	if err != nil {
 		t.Fatalf("showContext(false) error: %v", err)
 	}
-	if strings.Contains(outDefault, "<environment_details>") {
-		t.Fatalf("default output must hide <environment_details>, got:\n%s", outDefault)
+	if strings.Contains(outDefault, "<cwd>/tmp/test</cwd>") {
+		t.Fatalf("default output must hide user/tool <environment_details> blocks, got:\n%s", outDefault)
 	}
 
 	// Full: env shown.
