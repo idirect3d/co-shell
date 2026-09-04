@@ -132,6 +132,20 @@ func TestUploadTraversalRejected(t *testing.T) {
 	}
 }
 
+// TestUploadAutoCreatesDir verifies a missing target directory (e.g. the
+// message attachment dir "input") is auto-created on upload (FEATURE-469).
+func TestUploadAutoCreatesDir(t *testing.T) {
+	_, ts, root := newTestServer(t)
+	status, body := uploadFiles(t, ts.URL+"/api/upload?dir=input", "file", "shot.png", "img")
+	if status != http.StatusOK {
+		t.Fatalf("upload status = %d, body = %v", status, body)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "input", "shot.png"))
+	if err != nil || string(data) != "img" {
+		t.Errorf("uploaded file in auto-created dir: data = %q, err = %v", data, err)
+	}
+}
+
 // TestOpenRevealPathValidation verifies open/reveal invoke the injected
 // launcher for in-workspace paths and reject traversal without invoking it.
 func TestOpenRevealPathValidation(t *testing.T) {

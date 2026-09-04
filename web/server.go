@@ -649,9 +649,18 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
 	}
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "target is not a directory"})
-		return
+	// FEATURE-469: auto-create the target directory (e.g. the message
+	// attachment upload dir "input") when it does not exist yet.
+	if info, statErr := os.Stat(dir); statErr != nil || !info.IsDir() {
+		if os.IsNotExist(statErr) {
+			if mkErr := os.MkdirAll(dir, 0o755); mkErr != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": mkErr.Error()})
+				return
+			}
+		} else {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "target is not a directory"})
+			return
+		}
 	}
 	mr, err := r.MultipartReader()
 	if err != nil {

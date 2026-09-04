@@ -164,6 +164,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "log", Value: log.LogLevelString(log.GetLevel()), Desc: i18n.T(i18n.KeyCol3Log), Type: "enum", Options: []string{"debug", "info", "warn", "error", "off"}},
 		{Key: "llm-log", Value: boolStr(log.IsLLMInteractionEnabled()), Desc: i18n.T(i18n.KeyCol3LLMInteractionLog), Type: "bool"},
 		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string"},
+		{Key: "web-input-dir", Value: webInputDirValue(cfg), Desc: i18n.T(i18n.KeyCol3WebInputDir), Type: "string"},
 	}
 
 	return []WebSettingGroup{
@@ -279,4 +280,14 @@ func defaultModelValue(v string) string {
 		return "auto"
 	}
 	return v
+}
+
+// webInputDirValue returns the effective Web UI attachment upload directory:
+// the configured web-input-dir, or the default "input" when unset
+// (FEATURE-469).
+func webInputDirValue(cfg *config.Config) string {
+	if cfg.WebInputDir == "" {
+		return "input"
+	}
+	return cfg.WebInputDir
 }

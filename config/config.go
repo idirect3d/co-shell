@@ -961,6 +961,11 @@ type Config struct {
 	// (e.g. "192.168.1.100" or "192.168.1.0/24"). Empty means loopback only.
 	WebWhitelist []string `json:"web_whitelist,omitempty"`
 
+	// WebInputDir is the workspace-relative directory where Web UI message
+	// attachments (pasted images / uploaded files) are stored on send.
+	// Empty means the default "input" (FEATURE-469).
+	WebInputDir string `json:"web_input_dir,omitempty"`
+
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }

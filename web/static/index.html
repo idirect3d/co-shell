@@ -131,6 +131,7 @@
       <div class="input-row">
         <button class="new-session-btn" id="newSessionBtn" title="新建会话">+</button>
         <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
+        <button type="button" class="icon-btn attach-btn" id="attachBtn" title="附加文件" data-i18n-title="attach">📎</button>
         <button class="btn primary" id="sendBtn" title="send">▶</button>
         <!-- FEATURE-439: YOLO (You Only Live Once) master switch — a classic
              up/down toggle. Default off (thumb down, OFF visible); clicking
@@ -143,6 +144,14 @@
           </span>
         </button>
       </div>
+      <!-- FEATURE-469: pending message attachments (pasted images / picked
+           files). Sits right below the input row; each item shows a thumbnail
+           (image) or a file icon, with remove & enlarge actions before send. -->
+      <div id="attachBar" class="attach-bar hidden">
+        <div id="attachList" class="attach-list"></div>
+        <button type="button" class="icon-btn attach-clear" id="attachClear" title="移除全部附件" data-i18n-title="clearAttach">✕</button>
+      </div>
+      <input type="file" id="attachFile" multiple hidden>
     </div>
     <div id="statusbar" class="statusbar hidden">
       <div class="mode-seg" id="modeSeg" title="切换工作模式" data-i18n-title="switchMode">
