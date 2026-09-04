@@ -1053,7 +1053,7 @@ aside {
 
 /* FEATURE-469: pending attachment tray (pasted images / picked files) shown
    below the input row before the message is sent. */
-.attach-btn { flex: none; align-self: flex-end; width: 30px; height: 30px; font-size: 15px; }
+.attach-btn { flex: none; align-self: flex-end; width: 30px; height: 34px; font-size: 15px; border-color: transparent; }
 .attach-bar { display: flex; align-items: center; gap: 4px; padding: 6px 0 2px; }
 .attach-list { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; min-width: 0; max-height: 132px; overflow-y: auto; }
 .attach-item {
