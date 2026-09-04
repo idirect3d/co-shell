@@ -73,6 +73,10 @@ type clientMessage struct {
 	Command string   `json:"command,omitempty"` // mcp_add/update: the server command
 	Args    []string `json:"args,omitempty"`    // mcp_add/update: the server args
 	Enabled bool     `json:"enabled,omitempty"` // mcp_update: the enabled state
+
+	// Kind is the dynamic_event subtype (FEATURE-471): clip_object | upload_file |
+	// user_message | open_file. Only used when Type == "dynamic_event".
+	Kind string `json:"kind,omitempty"`
 }
 
 // interactionResultJSON is the wire form of an agent.InteractionResult.
@@ -112,6 +116,10 @@ type serverMessage struct {
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
 	YOLO        bool            `json:"yolo,omitempty"`    // kind=yolo: the current YOLO mode state
 	MCPServers  json.RawMessage `json:"mcp_servers,omitempty"` // kind=mcp: the MCP server list JSON
+
+	// Backfill carries unconsumed user_message texts back to the input box when
+	// a task ends (FEATURE-471). kind=dynamic_backfill.
+	Backfill []string `json:"backfill,omitempty"`
 }
 
 // modeInfo is one work mode entry pushed to the browser for the mode
