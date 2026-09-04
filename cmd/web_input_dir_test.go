@@ -54,3 +54,49 @@ func TestSettingsJSONIncludesWebInputDir(t *testing.T) {
 	}
 	t.Error("SettingsJSON missing web-input-dir item")
 }
+
+// TestSettingsJSONFillsDefaults verifies every generic setting item carries a
+// Default value (FEATURE-470) so the Web UI can show it in tooltips and mark
+// values that differ from the default. web-whitelist is the exception: its
+// default is the empty string (loopback only), which is a valid default.
+func TestSettingsJSONFillsDefaults(t *testing.T) {
+	cfg := config.DefaultConfig()
+	h := &SettingsHandler{cfg: cfg}
+	groups := h.SettingsJSON()
+	if len(groups) == 0 {
+		t.Fatal("SettingsJSON returned no groups")
+	}
+	checked := 0
+	for _, g := range groups {
+		if g.Kind == "mcp" {
+			continue // MCP manager group has no generic items
+		}
+		for _, it := range g.Items {
+			if it.Default == "" && it.Key != "web-whitelist" {
+				t.Errorf("setting %q (group %q) has empty Default", it.Key, g.Title)
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no generic setting items checked")
+	}
+}
+
+// TestSettingsJSONDefaultMatchesValue verifies that when the config equals the
+// default, each item's Value equals its Default (FEATURE-470).
+func TestSettingsJSONDefaultMatchesValue(t *testing.T) {
+	cfg := config.DefaultConfig()
+	h := &SettingsHandler{cfg: cfg}
+	groups := h.SettingsJSON()
+	for _, g := range groups {
+		if g.Kind == "mcp" {
+			continue
+		}
+		for _, it := range g.Items {
+			if it.Default != "" && it.Value != it.Default {
+				t.Errorf("setting %q value=%q default=%q should match on default config", it.Key, it.Value, it.Default)
+			}
+		}
+	}
+}
