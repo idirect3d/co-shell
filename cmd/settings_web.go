@@ -170,7 +170,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "debug", Value: boolStr(llm.DebugMode), Desc: i18n.T(i18n.KeyCol3Debug), Type: "bool", Default: boolStr(def.DebugMode)},
 		{Key: "log", Value: log.LogLevelString(log.GetLevel()), Desc: i18n.T(i18n.KeyCol3Log), Type: "enum", Options: []string{"debug", "info", "warn", "error", "off"}, Default: log.LogLevelString(log.LogLevelInfo)},
 		{Key: "llm-log", Value: boolStr(log.IsLLMInteractionEnabled()), Desc: i18n.T(i18n.KeyCol3LLMInteractionLog), Type: "bool", Default: boolStr(def.LLMInteractionLog)},
-		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string", Default: ""},
+		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string", Default: "(empty, loopback only)"},
 		{Key: "web-input-dir", Value: webInputDirValue(cfg), Desc: i18n.T(i18n.KeyCol3WebInputDir), Type: "string", Default: "input"},
 	}
 
