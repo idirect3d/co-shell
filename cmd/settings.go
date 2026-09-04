@@ -203,7 +203,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "read-file-max-size",
 		subcommand == "excel-max-cells", subcommand == "excel-max-sessions",
 		subcommand == "docx-max-sessions", subcommand == "docx-max-read-paras",
-		subcommand == "visual-analysis-max-images":
+		subcommand == "visual-analysis-max-images",
+		subcommand == "env-include-details", subcommand == "env-include-current-dir",
+		subcommand == "env-include-tools", subcommand == "env-include-research",
+		subcommand == "env-include-user-dynamic":
 		return h.handleAgentSetting(subcommand, args)
 
 	// Safety settings

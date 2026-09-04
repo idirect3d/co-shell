@@ -176,6 +176,19 @@ type LLMConfig struct {
 	// 0 = no history auto-included, -1 = all messages, N = last N messages
 	ContextLimit int `json:"context_limit"`
 
+	// EnvIncludeDetails: whether user/tool messages include the whole
+	// <environment_details> block (FEATURE-471). Default true.
+	EnvIncludeDetails bool `json:"env_include_details"`
+	// EnvIncludeCurrentDir: whether <environment_details> includes <current_dir>.
+	EnvIncludeCurrentDir bool `json:"env_include_current_dir"`
+	// EnvIncludeTools: whether <environment_details> includes <tools>.
+	EnvIncludeTools bool `json:"env_include_tools"`
+	// EnvIncludeResearch: whether <environment_details> includes <research>.
+	EnvIncludeResearch bool `json:"env_include_research"`
+	// EnvIncludeUserDynamic: whether <environment_details> includes
+	// <user_dynamic_events>.
+	EnvIncludeUserDynamic bool `json:"env_include_user_dynamic"`
+
 	// MemoryEnabled: whether persistent memory (get_history_slice, memory_search) is enabled
 	MemoryEnabled bool `json:"memory_enabled"`
 
@@ -992,6 +1005,11 @@ func DefaultConfig() *Config {
 			ToolModes:                  nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
 			ResultMode:                 int(ResultModeFree),
 			ContextLimit:               -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			EnvIncludeDetails:          true,
+			EnvIncludeCurrentDir:       true,
+			EnvIncludeTools:            true,
+			EnvIncludeResearch:         true,
+			EnvIncludeUserDynamic:      true,
 			MemoryEnabled:              true,
 			PlanEnabled:                true,
 			IntentExposureEnabled:      true,

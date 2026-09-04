@@ -110,6 +110,12 @@ func (a *Agent) buildOpenedResources() string {
 // content is already captured in the tool result message.
 // For user messages (toolCallNames is nil/empty), <task_plan> is always included.
 func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []string) string {
+	// FEATURE-471: per-block inclusion switches (default all on). When the whole
+	// <environment_details> is disabled, return empty so no envelope is attached.
+	incDetails, incDir, incTools, incResearch, incDyn := a.envIncludeFlags()
+	if !incDetails {
+		return ""
+	}
 	cwd, _ := os.Getwd()
 	now := time.Now().Format("2006-01-02 15:04:05 Monday")
 	taskPlan := a.getTaskPlanPrompt()
@@ -166,15 +172,17 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<cwd>")
 	sb.WriteString(cwd)
 	sb.WriteString("</cwd>\n")
-	sb.WriteString("<current_dir>\n")
-	sb.WriteString(files)
-	sb.WriteString("\n</current_dir>\n")
-	if binFiles != "" {
+	if incDir {
+		sb.WriteString("<current_dir>\n")
+		sb.WriteString(files)
+		sb.WriteString("\n</current_dir>\n")
+	}
+	if incTools && binFiles != "" {
 		sb.WriteString("<tools>\n")
 		sb.WriteString(binFiles)
 		sb.WriteString("\n</tools>\n")
 	}
-	if researchFiles != "" {
+	if incResearch && researchFiles != "" {
 		sb.WriteString("<research>\n")
 		sb.WriteString(researchFiles)
 		sb.WriteString("\n</research>\n")
@@ -190,12 +198,37 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	// FEATURE-471: drain the dynamic perception queue into <user_dynamic_events>.
 	// user_messages are only included on tool messages (toolCallNames non-empty);
 	// clip/upload/open events are included on both user and tool messages.
-	if dyn := a.consumeDynamicEvents(len(toolCallNames) > 0); dyn != "" {
-		sb.WriteString(dyn)
-		sb.WriteString("\n")
+	if incDyn {
+		if dyn := a.consumeDynamicEvents(len(toolCallNames) > 0); dyn != "" {
+			sb.WriteString(dyn)
+			sb.WriteString("\n")
+		}
 	}
 	sb.WriteString("</environment_details>")
 	return sb.String()
+}
+
+// envIncludeFlags returns the five per-block inclusion switches for
+// <environment_details> (FEATURE-471). All default to true when the config is
+// nil or the field is unset (zero value false is treated as true for backward
+// compatibility with configs saved before these fields existed).
+func (a *Agent) envIncludeFlags() (details, dir, tools, research, dyn bool) {
+	if a.cfg == nil || a.cfg.LLM.EnvIncludeDetails {
+		details = true
+	}
+	if a.cfg == nil || a.cfg.LLM.EnvIncludeCurrentDir {
+		dir = true
+	}
+	if a.cfg == nil || a.cfg.LLM.EnvIncludeTools {
+		tools = true
+	}
+	if a.cfg == nil || a.cfg.LLM.EnvIncludeResearch {
+		research = true
+	}
+	if a.cfg == nil || a.cfg.LLM.EnvIncludeUserDynamic {
+		dyn = true
+	}
+	return
 }
 
 // refreshLastUserEnvelope updates only the <time> tag in the last user message's
