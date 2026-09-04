@@ -176,6 +176,19 @@ type LLMConfig struct {
 	// 0 = no history auto-included, -1 = all messages, N = last N messages
 	ContextLimit int `json:"context_limit"`
 
+	// EnvIncludeDetails: whether user/tool messages include the whole
+	// <environment_details> block (FEATURE-471). Default true.
+	EnvIncludeDetails bool `json:"env_include_details"`
+	// EnvIncludeCurrentDir: whether <environment_details> includes <current_dir>.
+	EnvIncludeCurrentDir bool `json:"env_include_current_dir"`
+	// EnvIncludeTools: whether <environment_details> includes <tools>.
+	EnvIncludeTools bool `json:"env_include_tools"`
+	// EnvIncludeResearch: whether <environment_details> includes <research>.
+	EnvIncludeResearch bool `json:"env_include_research"`
+	// EnvIncludeUserDynamic: whether <environment_details> includes
+	// <user_dynamic_events>.
+	EnvIncludeUserDynamic bool `json:"env_include_user_dynamic"`
+
 	// MemoryEnabled: whether persistent memory (get_history_slice, memory_search) is enabled
 	MemoryEnabled bool `json:"memory_enabled"`
 
@@ -966,6 +979,11 @@ type Config struct {
 	// Empty means the default "input" (FEATURE-469).
 	WebInputDir string `json:"web_input_dir,omitempty"`
 
+	// DynamicEventQueueSize caps the dynamic perception queue (FEATURE-471):
+	// the number of buffered user-action events (clip/upload/message/open)
+	// drained into <environment_details>. 0 means the default 100.
+	DynamicEventQueueSize int `json:"dynamic_event_queue_size,omitempty"`
+
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }
@@ -987,6 +1005,11 @@ func DefaultConfig() *Config {
 			ToolModes:                  nil, // nil means "custom" mode: each tool uses its own default from DefaultToolModes()
 			ResultMode:                 int(ResultModeFree),
 			ContextLimit:               -1, // -1 = 所有消息；0 = 不自动包含历史消息，LLM 需通过记忆工具获取；N = 最近 N 条
+			EnvIncludeDetails:          true,
+			EnvIncludeCurrentDir:       true,
+			EnvIncludeTools:            true,
+			EnvIncludeResearch:         true,
+			EnvIncludeUserDynamic:      true,
 			MemoryEnabled:              true,
 			PlanEnabled:                true,
 			IntentExposureEnabled:      true,

@@ -1917,6 +1917,12 @@ no liability whatsoever.`,
 	KeyCLIHelpDebug:      "Enable debug mode (display and edit messages before submitting to LLM)",
 	KeyCol3WebWhitelist:  "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)",
 	KeyCol3WebInputDir:   "Attachment upload dir under workspace (default: input)",
+	KeyCol3DynamicQueueSize: "Dynamic perception queue capacity (default: 100)",
+	KeyCol3EnvIncludeDetails:     "Include whole <environment_details> in user/tool messages",
+	KeyCol3EnvIncludeCurrentDir:  "Include <current_dir> in <environment_details>",
+	KeyCol3EnvIncludeTools:       "Include <tools> in <environment_details>",
+	KeyCol3EnvIncludeResearch:    "Include <research> in <environment_details>",
+	KeyCol3EnvIncludeUserDynamic: "Include <user_dynamic_events> in <environment_details>",
 	KeyCLIHelpSessionID:  "  -s, --session-id <id>  Specify session ID to load existing or create new session",
 
 	// Vault

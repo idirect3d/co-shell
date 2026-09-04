@@ -444,7 +444,7 @@ func TestLoopRetry_FeedbackEnvComplete(t *testing.T) {
 
 	for _, block := range []string{
 		"<time>", "<message_no>", "<context_window>", "<cwd>",
-		"<files>", "<opened_resources>", "<loop_feedback>", "<retried_count>",
+		"<current_dir>", "<opened_resources>", "<loop_feedback>", "<retried_count>",
 	} {
 		if !strings.Contains(env, block) {
 			t.Errorf("feedback env should contain %q, got:\n%s", block, env)

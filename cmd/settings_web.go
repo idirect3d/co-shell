@@ -163,6 +163,12 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "context-reorganize-threshold", Value: strconv.Itoa(llm.ContextReorganizeThreshold), Desc: "0-100%", Type: "number", Default: strconv.Itoa(def.ContextReorganizeThreshold)},
 		{Key: "memory-search-max-content-len", Value: strconv.Itoa(llm.MemorySearchMaxContentLen), Desc: i18n.T(i18n.KeyCol3MemorySearchMaxContentLen), Type: "number", Default: strconv.Itoa(def.MemorySearchMaxContentLen)},
 		{Key: "memory-search-max-results", Value: strconv.Itoa(llm.MemorySearchMaxResults), Desc: i18n.T(i18n.KeyCol3MemorySearchMaxResults), Type: "number", Default: strconv.Itoa(def.MemorySearchMaxResults)},
+		// FEATURE-471: per-block <environment_details> inclusion switches.
+		{Key: "env-include-details", Value: boolStr(llm.EnvIncludeDetails), Desc: i18n.T(i18n.KeyCol3EnvIncludeDetails), Type: "bool", Default: boolStr(def.EnvIncludeDetails)},
+		{Key: "env-include-current-dir", Value: boolStr(llm.EnvIncludeCurrentDir), Desc: i18n.T(i18n.KeyCol3EnvIncludeCurrentDir), Type: "bool", Default: boolStr(def.EnvIncludeCurrentDir)},
+		{Key: "env-include-tools", Value: boolStr(llm.EnvIncludeTools), Desc: i18n.T(i18n.KeyCol3EnvIncludeTools), Type: "bool", Default: boolStr(def.EnvIncludeTools)},
+		{Key: "env-include-research", Value: boolStr(llm.EnvIncludeResearch), Desc: i18n.T(i18n.KeyCol3EnvIncludeResearch), Type: "bool", Default: boolStr(def.EnvIncludeResearch)},
+		{Key: "env-include-user-dynamic", Value: boolStr(llm.EnvIncludeUserDynamic), Desc: i18n.T(i18n.KeyCol3EnvIncludeUserDynamic), Type: "bool", Default: boolStr(def.EnvIncludeUserDynamic)},
 	}
 
 	// Group 5: Developer (matches showSettingsHelp Group 6)
@@ -172,6 +178,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "llm-log", Value: boolStr(log.IsLLMInteractionEnabled()), Desc: i18n.T(i18n.KeyCol3LLMInteractionLog), Type: "bool", Default: boolStr(def.LLMInteractionLog)},
 		{Key: "web-whitelist", Value: strings.Join(cfg.WebWhitelist, ","), Desc: i18n.T(i18n.KeyCol3WebWhitelist), Type: "string", Default: ""},
 		{Key: "web-input-dir", Value: webInputDirValue(cfg), Desc: i18n.T(i18n.KeyCol3WebInputDir), Type: "string", Default: "input"},
+		{Key: "dynamic-event-queue-size", Value: strconv.Itoa(dynamicQueueSizeValue(cfg)), Desc: i18n.T(i18n.KeyCol3DynamicQueueSize), Type: "number", Default: strconv.Itoa(100)},
 	}
 
 	return []WebSettingGroup{
@@ -297,4 +304,14 @@ func webInputDirValue(cfg *config.Config) string {
 		return "input"
 	}
 	return cfg.WebInputDir
+}
+
+// dynamicQueueSizeValue returns the effective dynamic perception queue
+// capacity: the configured dynamic-event-queue-size, or the default 100 when
+// unset (FEATURE-471).
+func dynamicQueueSizeValue(cfg *config.Config) int {
+	if cfg.DynamicEventQueueSize > 0 {
+		return cfg.DynamicEventQueueSize
+	}
+	return 100
 }

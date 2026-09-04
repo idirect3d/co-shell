@@ -2424,6 +2424,14 @@ const (
 	KeyCLIHelpDebug      = "cli_help_debug"
 	KeyCol3WebWhitelist  = "col3_web_whitelist"
 	KeyCol3WebInputDir   = "col3_web_input_dir"
+	KeyCol3DynamicQueueSize = "col3_dynamic_queue_size"
+
+	// FEATURE-471: per-block <environment_details> inclusion switches.
+	KeyCol3EnvIncludeDetails     = "col3_env_include_details"
+	KeyCol3EnvIncludeCurrentDir  = "col3_env_include_current_dir"
+	KeyCol3EnvIncludeTools       = "col3_env_include_tools"
+	KeyCol3EnvIncludeResearch    = "col3_env_include_research"
+	KeyCol3EnvIncludeUserDynamic = "col3_env_include_user_dynamic"
 
 	// CLI Help - Session ID (FEATURE-290)
 	KeyCLIHelpSessionID = "cli_help_session_id"
