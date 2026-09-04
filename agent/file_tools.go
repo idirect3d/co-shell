@@ -468,6 +468,41 @@ func listFilesForPrompt(dirPath string, depth int, maxEntries int) listFilesForP
 	}
 }
 
+// listFilesWithMeta lists a directory's top-level entries with each file's
+// modification time and human-readable size appended, e.g.
+//
+//	main.go 2026-09-04 23:00:00 12.3KB
+//	web/
+//
+// Directories are shown as "name/" with no time/size. pathPrefix, when
+// non-empty, is prepended to every entry (used to render tools as
+// "bin/xxx.py"). Used by <environment_details> <current_dir>/<tools>/<research>.
+func listFilesWithMeta(dirPath string, maxEntries int, pathPrefix string) string {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return ""
+	}
+	if maxEntries > 0 && len(entries) > maxEntries {
+		entries = entries[:maxEntries]
+	}
+	var sb strings.Builder
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() {
+			sb.WriteString(pathPrefix + name + "/\n")
+			continue
+		}
+		info, ierr := e.Info()
+		if ierr != nil {
+			sb.WriteString(pathPrefix + name + "\n")
+			continue
+		}
+		ts := info.ModTime().Format("2006-01-02 15:04:05")
+		sb.WriteString(pathPrefix + name + " " + ts + " " + humanSize(info.Size()) + "\n")
+	}
+	return sb.String()
+}
+
 // listFilesTool lists files and directories within the specified directory.
 // depth controls recursion: 0 = top-level only (default), 1 = one level deep, etc.
 // -1 means unlimited recursion. Returns at most maxItems items.

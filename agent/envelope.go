@@ -127,10 +127,11 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 		}
 	}
 
-	// Top-level files (depth=0) and two-level listing (depth=1) for bin and research
-	files := strings.TrimRight(listFilesForPrompt(cwd, 0, 128).listing, "\n")
-	binFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "bin"), 0, 64).listing, "\n")
-	researchFiles := strings.TrimRight(listFilesForPrompt(filepath.Join(cwd, "research"), 0, 64).listing, "\n")
+	// Top-level files (depth=0) and two-level listing (depth=1) for bin and research.
+	// FEATURE-471: use listFilesWithMeta so each file carries its mtime and size.
+	files := strings.TrimRight(listFilesWithMeta(cwd, 128, ""), "\n")
+	binFiles := strings.TrimRight(listFilesWithMeta(filepath.Join(cwd, "bin"), 64, "bin/"), "\n")
+	researchFiles := strings.TrimRight(listFilesWithMeta(filepath.Join(cwd, "research"), 64, ""), "\n")
 
 	// Get per-iteration token usage for context_window (most recent LLM call only)
 	_, _, totalTokens := a.IterTokenDelta()
@@ -165,13 +166,13 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<cwd>")
 	sb.WriteString(cwd)
 	sb.WriteString("</cwd>\n")
-	sb.WriteString("<files>\n")
+	sb.WriteString("<current_dir>\n")
 	sb.WriteString(files)
-	sb.WriteString("\n</files>\n")
+	sb.WriteString("\n</current_dir>\n")
 	if binFiles != "" {
-		sb.WriteString("<bin>\n")
+		sb.WriteString("<tools>\n")
 		sb.WriteString(binFiles)
-		sb.WriteString("\n</bin>\n")
+		sb.WriteString("\n</tools>\n")
 	}
 	if researchFiles != "" {
 		sb.WriteString("<research>\n")
