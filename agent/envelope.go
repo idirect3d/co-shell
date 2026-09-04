@@ -131,7 +131,7 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	// FEATURE-471: use listFilesWithMeta so each file carries its mtime and size.
 	files := strings.TrimRight(listFilesWithMeta(cwd, 128, ""), "\n")
 	binFiles := strings.TrimRight(listFilesWithMeta(filepath.Join(cwd, "bin"), 64, "bin/"), "\n")
-	researchFiles := strings.TrimRight(listFilesWithMeta(filepath.Join(cwd, "research"), 64, ""), "\n")
+	researchFiles := strings.TrimRight(listFilesWithMeta(filepath.Join(cwd, "research"), 64, "research/"), "\n")
 
 	// Get per-iteration token usage for context_window (most recent LLM call only)
 	_, _, totalTokens := a.IterTokenDelta()
