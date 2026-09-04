@@ -468,15 +468,15 @@ func listFilesForPrompt(dirPath string, depth int, maxEntries int) listFilesForP
 	}
 }
 
-// listFilesWithMeta lists a directory's top-level entries with each file's
-// modification time and human-readable size appended, e.g.
+// listFilesWithMeta lists a directory's top-level entries with each entry's
+// modification time (and human-readable size for files) appended, e.g.
 //
 //	main.go 2026-09-04 23:00:00 12.3KB
-//	web/
+//	web/ 2026-09-04 22:00:00
 //
-// Directories are shown as "name/" with no time/size. pathPrefix, when
-// non-empty, is prepended to every entry (used to render tools as
-// "bin/xxx.py"). Used by <environment_details> <current_dir>/<tools>/<research>.
+// Directories are shown as "name/ <time>". pathPrefix, when non-empty, is
+// prepended to every entry (used to render tools as "bin/xxx.py"). Used by
+// <environment_details> <current_dir>/<tools>/<research>.
 func listFilesWithMeta(dirPath string, maxEntries int, pathPrefix string) string {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
@@ -488,16 +488,16 @@ func listFilesWithMeta(dirPath string, maxEntries int, pathPrefix string) string
 	var sb strings.Builder
 	for _, e := range entries {
 		name := e.Name()
-		if e.IsDir() {
-			sb.WriteString(pathPrefix + name + "/\n")
-			continue
-		}
 		info, ierr := e.Info()
 		if ierr != nil {
 			sb.WriteString(pathPrefix + name + "\n")
 			continue
 		}
 		ts := info.ModTime().Format("2006-01-02 15:04:05")
+		if e.IsDir() {
+			sb.WriteString(pathPrefix + name + "/ " + ts + "\n")
+			continue
+		}
 		sb.WriteString(pathPrefix + name + " " + ts + " " + humanSize(info.Size()) + "\n")
 	}
 	return sb.String()
