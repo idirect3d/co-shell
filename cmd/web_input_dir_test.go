@@ -56,8 +56,9 @@ func TestSettingsJSONIncludesWebInputDir(t *testing.T) {
 }
 
 // TestSettingsJSONFillsDefaults verifies every generic setting item carries a
-// non-empty Default value (FEATURE-470) so the Web UI can show it in tooltips
-// and mark values that differ from the default.
+// Default value (FEATURE-470) so the Web UI can show it in tooltips and mark
+// values that differ from the default. web-whitelist is the exception: its
+// default is the empty string (loopback only), which is a valid default.
 func TestSettingsJSONFillsDefaults(t *testing.T) {
 	cfg := config.DefaultConfig()
 	h := &SettingsHandler{cfg: cfg}
@@ -71,7 +72,7 @@ func TestSettingsJSONFillsDefaults(t *testing.T) {
 			continue // MCP manager group has no generic items
 		}
 		for _, it := range g.Items {
-			if it.Default == "" {
+			if it.Default == "" && it.Key != "web-whitelist" {
 				t.Errorf("setting %q (group %q) has empty Default", it.Key, g.Title)
 			}
 			checked++
@@ -94,11 +95,6 @@ func TestSettingsJSONDefaultMatchesValue(t *testing.T) {
 		}
 		for _, it := range g.Items {
 			if it.Default != "" && it.Value != it.Default {
-				// web-whitelist: the default is a readable description of the
-				// empty value (loopback only), so an empty current value matches.
-				if it.Key == "web-whitelist" && it.Value == "" {
-					continue
-				}
 				t.Errorf("setting %q value=%q default=%q should match on default config", it.Key, it.Value, it.Default)
 			}
 		}

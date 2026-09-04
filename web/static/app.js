@@ -3649,10 +3649,12 @@ function renderSettingItem(it) {
   label.className = "set-label";
   label.textContent = it.key;
   // FEATURE-470: the tooltip shows the system default value so the user knows
-  // what the default is for this parameter.
+  // what the default is for this parameter. An empty default (e.g. web-whitelist
+  // = loopback only) is shown as "(empty)".
   const def = it.default != null ? String(it.default) : "";
+  const defDisplay = def === "" ? "(empty)" : def;
   label.title = it.desc || "";
-  if (def !== "") label.title += (label.title ? "\n" : "") + i18nT("setDefaultTip", "默认值") + ": " + def;
+  if (def !== "" || it.default != null) label.title += (label.title ? "\n" : "") + i18nT("setDefaultTip", "默认值") + ": " + defDisplay;
   row.appendChild(label);
 
   // FEATURE-470: red * marker shown right of the control when the current value
