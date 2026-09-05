@@ -29,14 +29,52 @@
   --fg-dim: #5b6474;
   --fg-faint: #9aa3b2;
   --placeholder: #9aa3b2;
-  --accent: #0878d1;
-  --accent-dim: rgba(8, 120, 209, 0.10);
+  --accent: #2e78c4;
+  --accent-dim: rgba(46, 120, 196, 0.10);
   --border: #d9dee8;
   --ok: #16a34a;
   --warn: #b45309;
   --err: #dc2626;
   --debug: #8a93a3;
   --glow: none;
+  /* FEATURE-476: sample blue/gray layered palette (light theme only). */
+  --ws-head-bg: #4a9bd5;                 /* workspace panel head blue base */
+  --ws-head-fg: #ffffff;                 /* workspace panel head text */
+  --ws-branch-bg: rgba(232, 240, 254, 0.6); /* branch translucent light blue */
+  --ws-branch-fg: #2e78c4;               /* branch text highlight blue */
+  --ws-tree-bg: #f2f2f2;                 /* file list light gray */
+  --topbar-border: #2e78c4;              /* topbar bottom border highlight blue */
+}
+
+/* FEATURE-476: light-theme workspace panel + topbar blue/gray layered
+   palette. Scoped to [data-theme="light"] so the dark theme is untouched. */
+[data-theme="light"] #topbar {
+  border-bottom: 2px solid var(--topbar-border);
+}
+
+[data-theme="light"] #sidebar .panel-head {
+  background: var(--ws-head-bg);
+  color: var(--ws-head-fg);
+  border-bottom: none;
+}
+[data-theme="light"] #sidebar .panel-head .ws-title {
+  color: var(--ws-head-fg);
+}
+[data-theme="light"] #sidebar .panel-head #treeRefresh {
+  color: rgba(255, 255, 255, 0.85);
+}
+[data-theme="light"] #sidebar .panel-head #treeRefresh:hover {
+  color: #ffffff;
+}
+[data-theme="light"] #wsBranch {
+  background: var(--ws-branch-bg);
+  color: var(--ws-branch-fg);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 600;
+}
+[data-theme="light"] #sidebar .tree {
+  background: var(--ws-tree-bg);
 }
 
 * { box-sizing: border-box; }
