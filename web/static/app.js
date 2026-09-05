@@ -121,27 +121,39 @@ function i18nT(key, fallback) {
 /* ---------- theme ---------- */
 
 // localStorage "co-shell-theme": "auto" (default, follow the OS) | "dark" |
-// "light". setTheme only applies; persistence is the caller's job so that
-// "auto" is never clobbered by a resolved value.
+// "light" | "light-tp". setTheme only applies; persistence is the caller's
+// job so that "auto" is never clobbered by a resolved value.
 const themeToggle = document.getElementById("themeToggle");
 const osThemeMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
+// themeIcon returns the toggle glyph for a resolved tone (FEATURE-477):
+// dark = moon, light = sun, light-tp = tree.
+function themeIcon(name) {
+  if (name === "dark") return "☾";
+  if (name === "light-tp") return "🌳";
+  return "☀";
+}
+
 function setTheme(name) {
   document.documentElement.setAttribute("data-theme", name);
-  themeToggle.textContent = name === "dark" ? "☾" : "☀";
+  themeToggle.textContent = themeIcon(name);
 }
 
 function themeMode() {
   const saved = localStorage.getItem("co-shell-theme");
-  return saved === "dark" || saved === "light" ? saved : "auto";
+  return saved === "dark" || saved === "light" || saved === "light-tp" ? saved : "auto";
 }
 
 function applyTheme() {
   const mode = themeMode();
   // No matchMedia (browser cannot report the OS scheme): fall back to dark
   // (FIX-363).
-  const dark = mode === "dark" || (mode === "auto" && (!osThemeMQ || osThemeMQ.matches));
-  setTheme(dark ? "dark" : "light");
+  let resolved;
+  if (mode === "dark") resolved = "dark";
+  else if (mode === "light") resolved = "light";
+  else if (mode === "light-tp") resolved = "light-tp";
+  else resolved = (!osThemeMQ || osThemeMQ.matches) ? "dark" : "light"; // auto
+  setTheme(resolved);
   const sel = document.getElementById("setThemeMode");
   if (sel && sel.value !== mode) sel.value = mode;
   updateBrandLogo();
@@ -164,7 +176,8 @@ function logoScale() {
 // the titlebar height (44px) scaled by the configured logo scale.
 function updateBrandLogo() {
   if (!brandLogo) return;
-  const theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  // light-tp is a light tone, so it uses the light logo (FEATURE-477).
+  const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
   // A cache-busting query param forces the browser to re-fetch the logo so an
   // overwrite/removal is reflected immediately (FEATURE-477).
   const url = "/logos/" + theme + "?t=" + Date.now();
@@ -190,7 +203,10 @@ applyTheme();
 
 themeToggle.onclick = () => {
   const cur = document.documentElement.getAttribute("data-theme");
-  localStorage.setItem("co-shell-theme", cur === "dark" ? "light" : "dark");
+  // Cycle through the three tones: dark -> light -> light-tp -> dark
+  // (FEATURE-477). Clicking always pins an explicit tone (never auto).
+  const next = cur === "dark" ? "light" : (cur === "light" ? "light-tp" : "dark");
+  localStorage.setItem("co-shell-theme", next);
   applyTheme();
 };
 
@@ -3773,7 +3789,7 @@ function renderSettingItem(it) {
     // persists to localStorage and applies the theme immediately.
     ctl = document.createElement("select");
     ctl.className = "set-select";
-    const opts = ["auto", "dark", "light"];
+    const opts = ["auto", "dark", "light", "light-tp"];
     const cur = localStorage.getItem("co-shell-theme") || "auto";
     curVal = cur;
     for (const opt of opts) {
@@ -3844,9 +3860,10 @@ function renderSettingItem(it) {
 }
 
 // currentResolvedTheme returns the actual parsed theme (dark|light) from the
-// <html> data-theme attribute (FEATURE-477).
+// <html> data-theme attribute (FEATURE-477). light-tp is a light tone, so it
+// maps to "light".
 function currentResolvedTheme() {
-  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
 }
 
 // renderLogoBlock builds the system-logo configuration block (FEATURE-477). It

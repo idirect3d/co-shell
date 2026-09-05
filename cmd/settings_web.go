@@ -101,7 +101,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 	// theme-mode is a frontend-local setting (stored in localStorage), rendered
 	// specially by the Web UI (FEATURE-457).
 	displayGroup := []WebSettingItem{
-		{Key: "theme-mode", Value: "auto", Desc: "主题", Type: "enum", Options: []string{"auto", "dark", "light"}, Default: "auto"},
+		{Key: "theme-mode", Value: "auto", Desc: "主题", Type: "enum", Options: []string{"auto", "dark", "light", "light-tp"}, Default: "auto"},
 		// FEATURE-477: system logo. Rendered as a special upload block by the
 		// Web UI (type "logo"). The target theme follows the current theme-mode
 		// (dark/light; auto resolves to the parsed theme), so only one logo item
