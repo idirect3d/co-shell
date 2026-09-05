@@ -174,3 +174,59 @@ func TestResultModeSectionStaticAcrossModes(t *testing.T) {
 		}
 	}
 }
+
+// TestRulesContextThresholdInjected verifies the RULES section carries the
+// {CONTEXT_REORGANIZE_THRESHOLD} placeholder and that buildSectionWithPlaceholders
+// replaces it with the configured value (FEATURE-472 optimization).
+func TestRulesContextThresholdInjected(t *testing.T) {
+	i18n.Init("en")
+	cfg := config.DefaultConfig()
+	cfg.LLM.ContextReorganizeThreshold = 80
+
+	// The RULES i18n resource must reference the placeholder.
+	rulesText := i18n.T(i18n.KeySystemPromptRules)
+	if !strings.Contains(rulesText, "{CONTEXT_REORGANIZE_THRESHOLD}") {
+		t.Errorf("RULES resource missing {CONTEXT_REORGANIZE_THRESHOLD} placeholder")
+	}
+
+	// buildSectionWithPlaceholders must substitute the configured value.
+	env := &promptEnv{contextReorganizeThreshold: "80"}
+	got := buildSectionWithPlaceholders(rulesText, env)
+	if strings.Contains(got, "{CONTEXT_REORGANIZE_THRESHOLD}") {
+		t.Errorf("placeholder not substituted:\n%s", got)
+	}
+	if !strings.Contains(got, "approaches 80%") {
+		t.Errorf("threshold value 80 not injected:\n%s", got)
+	}
+}
+
+// TestModeDescriptionsNoPlanModeRespond verifies the mode descriptions no longer
+// reference the non-existent plan_mode_respond tool (FEATURE-472 optimization).
+func TestModeDescriptionsNoPlanModeRespond(t *testing.T) {
+	for _, lang := range []string{"zh", "en"} {
+		i18n.Init(lang)
+		for _, key := range []string{
+			i18n.KeyWorkModeAct,
+			i18n.KeyWorkModePlan,
+			i18n.KeyWorkModeResearch,
+		} {
+			if v := i18n.T(key); strings.Contains(v, "plan_mode_respond") {
+				t.Errorf("[%s] mode description %q still references plan_mode_respond", lang, key)
+			}
+		}
+	}
+}
+
+// TestResearchRulesMovedFromGlobalRules verifies the research-specific rules were
+// removed from the global RULES section (they now live in RESEARCH MODE).
+func TestResearchRulesMovedFromGlobalRules(t *testing.T) {
+	for _, lang := range []string{"zh", "en"} {
+		i18n.Init(lang)
+		rulesText := i18n.T(i18n.KeySystemPromptRules)
+		for _, forbidden := range []string{"pdf2png.py", "GB/T 7714", "research/", "做调查研究"} {
+			if strings.Contains(rulesText, forbidden) {
+				t.Errorf("[%s] global RULES still contains research-specific %q", lang, forbidden)
+			}
+		}
+	}
+}

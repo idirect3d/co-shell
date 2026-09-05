@@ -69,11 +69,11 @@ func init() {
 
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
-	zhMessages[KeyWorkModeAct] = `行动模式：在此模式下，你可以访问所有工具（除 plan_mode_respond 外）。你使用工具来完成用户的任务；任务完成后，使用 attempt_completion 工具向用户呈现结果。`
+	zhMessages[KeyWorkModeAct] = `ACT MODE：在此模式下，你使用工具来完成用户的任务。任务完成后，使用 attempt_completion 工具向用户呈现结果。`
 
-	zhMessages[KeyWorkModePlan] = `规划模式：在此特殊模式下，你拥有 plan_mode_respond 工具。目标是收集信息、获取上下文，以制定完成任务的详细计划，供用户审阅批准后再切换到行动模式实施。需要与用户交流或呈现计划时，直接使用 plan_mode_respond 工具交付回复。`
+	zhMessages[KeyWorkModePlan] = `PLAN MODE：在此模式下，目标是收集信息、获取上下文，以制定完成任务的详细计划，供用户审阅批准后再切换到 ACT MODE 实施。需要与用户讨论计划或澄清需求时，使用 ask_followup_question 工具；计划制定完成后，使用 attempt_completion 工具交付计划。`
 
-	zhMessages[KeyWorkModeResearch] = `调研模式：在此模式下，你专注于搜索、查阅资料、收集信息并输出研究报告。你使用只读工具（search_files/read_file/list_files 等）与浏览器来调研，将收集到的原始资料保存到 ./research/ 工作目录，最终以 Markdown 整理并转换为 Word 文档呈现给用户。`
+	zhMessages[KeyWorkModeResearch] = `RESEARCH MODE：在此模式下，你专注于搜索、查阅资料、收集信息并输出研究报告。你使用只读工具（search_files/read_file/list_files 等）与浏览器来调研。做调查研究和生成报告时，必须保存所有收集到的原始资料，以便审稿人员快速验证所引用数据、观点、结论等内容的真实来源；基础资料命名规则为"[序号] 文章标题 - 出处 - 作者【发表日期】"，在主报告中以 GB/T 7714 标注出处；每次全新任务在 ./research/ 下创建新的工作文件夹；最终报告先用 Markdown 整理，再转换为 Word 文档，并尽量打开呈现给用户。`
 
 	// OpenAI mode tool usage (JSON format, used with API tools parameter)
 	// Keep concise — detailed tool definitions are provided via the API tools parameter.
@@ -1492,13 +1492,10 @@ CAPABILITIES
 	zhMessages[KeySystemPromptRules] = `
 RULES
 
-- 做调查研究和生成报告时，建议保存所有收集到的原始资料，以便审稿人员快速验证所引用数据、观点、结论等内容的真实来源。基础资料命名规则为："[序号] 文章标题 - 出处 - 作者【发表日期】"，在主报告中以 GB/T 7714 标注出处。每次全新任务在 ./research/ 下创建新的工作文件夹。最终报告先用 Markdown 整理，再转换为 Word 文档，并尽量打开呈现给用户。
-- 如果用户没有特别指定工作空间，那么每个独立任务都应在 "./research/" 下创建一个专用的子文件夹（如 "./research/任务名/"），所有该任务的输出文件（包括但不限于 md、程序脚本、word、pdf、excel 等）都应创建在该文件夹下，除非任务明确指定了其他位置。
-- 如果需要提取 pdf 文件中的内容，建议先使用 pdf2png.py 工具将其拆解为分页的 png 文件，再通过 visual_analysis 进行内容分析或内容识别。
 - 为避免与方法调用XML解析冲突，在方法调用以外需要输出XML标签内容时，如果带有"<>"，必须通过"<xml>"或'<xml>'或` + "`" + `<xml>` + "`" + `的方式将其包裹，如："</any-tag>"或` + "`" + `<any-tag>` + "`" + `。
-
 - 默认使用 <system_info> 中 <lang> 指定的语言进行回复。
 - 关注 <environment_details> 中的环境信息和用户动态，这些可能反映用户此时的思考路径。
+- 管理上下文窗口：如果上下文占用接近 {CONTEXT_REORGANIZE_THRESHOLD}%（context-reorganize-threshold），则应提前评估是否需要择机主动调用 reorganize_context 重整上下文，或通过 attempt_completion 的 task_message_no 参数缩短上下文，以便系统强制重整不会影响关键步骤的处理。历史上下文仍可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
 
 {CUSTOM_RULES}
 `
@@ -1514,9 +1511,6 @@ OBJECTIVE
 4. 在使用 attempt_completion 之前，使用可用工具验证任务要求。确认所需的输出文件存在，满足所需的内容/格式约束，并且没有引入禁止的额外产物。如果检查失败，继续工作直到结果可验证正确。
 5. 完成用户任务并验证结果后，必须使用 attempt_completion 工具向用户呈现任务结果。你也可以提供一个 CLI 命令来展示任务成果。
 6. 用户可能会提供反馈，你可以据此进行改进并重试。但不要陷入无意义的来回对话，即不要以问题或进一步帮助的提议结束回复。
-
-**管理上下文窗口**
-在多轮对话中，消息历史会不断增长。为了保持 LLM 的上下文窗口在一个合理的长度，每次任务完成时，如果上下文占用较多（如大于50%），则须使用 attempt_completion 的 task_message_no 参数将上下文起点指针移动到当前任务范围内的首条消息。调整指针后，系统会从指针位置开始构建上下文，指针之前的历史消息将被忽略（不再占用上下文窗口）。但如有需要仍可通过 memory_search 或 get_memory_slice 工具从永久记忆中检索完整的历史上下文。
 
 **重要：任务退出的唯一方式**
 每次迭代结束时，如果你没有调用任何工具，系统将自动停止迭代。要继续执行，必须调用工具或显式调用 attempt_completion。

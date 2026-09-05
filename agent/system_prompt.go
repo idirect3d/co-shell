@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/idirect3d/co-shell/config"
@@ -482,6 +483,9 @@ func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{LANG}", env.lang)
 	text = strings.ReplaceAll(text, "{TASK}", env.taskDesc)
 	text = strings.ReplaceAll(text, "{CUSTOM_RULES}", env.customRules)
+	// FEATURE-472: inject the configured context-reorganize-threshold percentage
+	// into the RULES section so the LLM knows when to proactively reorganize.
+	text = strings.ReplaceAll(text, "{CONTEXT_REORGANIZE_THRESHOLD}", env.contextReorganizeThreshold)
 	return text
 }
 
@@ -493,7 +497,10 @@ type promptEnv struct {
 	userName              string
 	channelInfo           string
 	resultModeInstruction string
-	os                    string
+	// contextReorganizeThreshold is the configured token-usage percentage that
+	// triggers an automatic reorganize_context suggestion (FEATURE-472).
+	contextReorganizeThreshold string
+	os                          string
 	arch                  string
 	shell                 string
 	homeDir               string
@@ -739,6 +746,14 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	env.taskDesc = taskDesc
 	env.customRules = rules
 	env.resultModeInstruction = resultModeInstruction(mode)
+	// FEATURE-472: expose the configured context-reorganize-threshold percentage
+	// (default 80) so the RULES section can tell the LLM when to proactively
+	// reorganize context before the system forces it.
+	threshold := 80
+	if cfg != nil && cfg.LLM.ContextReorganizeThreshold > 0 {
+		threshold = cfg.LLM.ContextReorganizeThreshold
+	}
+	env.contextReorganizeThreshold = strconv.Itoa(threshold)
 
 	// Get section names from work mode config (or default order)
 	sectionNames := getWorkModeSectionNames(cfg, "")
