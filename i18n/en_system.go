@@ -30,9 +30,6 @@ func init() {
 	enMessages[KeySystemPromptIdentity] = `Your name is {AGENT_NAME}. {AGENT_DESCRIPTION}
 {AGENT_PRINCIPLES}
 `
-	enMessages[KeyAgentDefaultDescriptionAct] = `You are a rigorous, pragmatic, goal-driven coding assistant.`
-	enMessages[KeyAgentDefaultDescriptionPlan] = `You are a rigorous, pragmatic, goal-driven architect and planner.`
-	enMessages[KeyAgentDefaultDescriptionResearch] = `You are a rigorous, pragmatic, goal-driven general researcher, skilled at collecting professional materials and writing professional reports, capable of conducting research from a professional perspective.`
 	enMessages[KeyAgentDefaultPrinciples] = `Follow these principles when handling code tasks:
 1. **Think Before Coding** — Don't assume, don't hide doubts; surface trade-offs early. State all implicit assumptions explicitly. List multiple understandings when ambiguous. Propose simpler approaches when possible, and push back on unreasonable requirements.
 2. **Simplicity First** — Solve current problems with minimal code; avoid speculative over-engineering. Implement only what's explicitly requested. Don't build generic frameworks for one-off tasks. Don't add unused flexibility or config. Don't write defensive error handling for impossible scenarios. Ask yourself: would a senior engineer find this over-complicated? If yes, simplify.

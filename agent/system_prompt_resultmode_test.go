@@ -241,3 +241,55 @@ func TestResearchRulesMovedFromGlobalRules(t *testing.T) {
 		}
 	}
 }
+
+// TestDefaultSectionsStaticAcrossModes verifies the three built-in modes share
+// the same default section list (all include ResultMode) so the system prompt
+// stays static across mode switches (FEATURE-472 staticization).
+func TestDefaultSectionsStaticAcrossModes(t *testing.T) {
+	i18n.Init("en")
+	act := config.DefaultActSections()
+	plan := config.DefaultPlanSections()
+	research := config.DefaultResearchSections()
+	if len(act) != len(plan) || len(act) != len(research) {
+		t.Fatalf("section list lengths differ: act=%d plan=%d research=%d", len(act), len(plan), len(research))
+	}
+	for i := range act {
+		if act[i] != plan[i] || act[i] != research[i] {
+			t.Errorf("section %d differs: act=%q plan=%q research=%q", i, act[i], plan[i], research[i])
+		}
+	}
+	// ResultMode must be present in the shared default list.
+	found := false
+	for _, s := range act {
+		if s == "ResultMode" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("default section list missing ResultMode: %v", act)
+	}
+}
+
+// TestAgentDescriptionDefaultUnified verifies the default agent description is
+// no longer mode-specific (all modes fall back to the same global default).
+func TestAgentDescriptionDefaultUnified(t *testing.T) {
+	for _, lang := range []string{"zh", "en"} {
+		i18n.Init(lang)
+		// The mode-specific default keys must be empty (removed).
+		for _, key := range []string{
+			i18n.KeyAgentDefaultDescriptionAct,
+			i18n.KeyAgentDefaultDescriptionPlan,
+			i18n.KeyAgentDefaultDescriptionResearch,
+		} {
+			if v := i18n.T(key); v != "" && v != key {
+				t.Errorf("[%s] mode-specific default %q should be empty, got %q", lang, key, v)
+			}
+		}
+		// The global default must be the unified general-purpose description.
+		global := i18n.T(i18n.KeyAgentDefaultDescription)
+		if global == "" || global == i18n.KeyAgentDefaultDescription {
+			t.Errorf("[%s] global default description is empty", lang)
+		}
+	}
+}
