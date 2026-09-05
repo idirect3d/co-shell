@@ -207,6 +207,16 @@ body {
 }
 .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
 .icon-btn.sm { width: 22px; height: 22px; font-size: 12px; }
+/* FEATURE-477: the light-tp (♤) and paper (☕︎) tone glyphs render smaller
+   than the moon/sun, so enlarge them on the theme toggle. light-tp by 10%
+   (14px -> 15px), paper by 30% (14px -> 18px). Scoped to the two new tones
+   so dark/light keep the base size. */
+[data-theme="light-tp"] #themeToggle {
+  font-size: 15px;
+}
+[data-theme="paper"] #themeToggle {
+  font-size: 18px;
+}
 
 /* ---------- layout ---------- */
 
