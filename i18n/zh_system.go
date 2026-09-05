@@ -59,7 +59,7 @@ func init() {
 	zhMessages[KeySystemPromptResultMode] = `%s`
 
 	// FEATURE-472: lead sentence of the static RESULT MODE section.
-	zhMessages[KeySystemPromptResultModeLead] = `In each user message, the environment_details will specify the current mode. There are %d modes:`
+	zhMessages[KeySystemPromptResultModeLead] = `在每个用户消息中，environment_details 会指明当前模式。共有 %d 种模式：`
 
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
