@@ -994,7 +994,7 @@
   - 实施：`agent/tools.go`（track_task_progress 工具定义 Description 强调初始化计划 + meta.progress 更新，不重复调用）+ `i18n/en_system.go`/`zh_system.go`（KeyToolUsageTrackTaskProgress + KeySystemPromptToolUsageTaskProgress 同步强调）[BUILD-811]
   - 测试：见 use-case/FEATURE-473/
 
-- [ ] **FIX-474 修复 Web UI TOOL 块标题栏意图错位（跨迭代孤儿块污染意图回填）**
+- [x] **FIX-474 修复 Web UI TOOL 块标题栏意图错位（跨迭代孤儿块污染意图回填）**
   - 背景：Web UI 中 TOOL 块标题栏的意图(intent)信息有时显示错位（张冠李戴、间歇性出现）——某个 TOOL 块标题栏显示的意图是另一个工具调用的意图。
   - 根因：`web/static/app.js` 的意图回填定位逻辑（FIX-462 引入的 iterToolBlocks 机制）中，`iterToolBlocks`/`curTool`/`toolBlockByName` 只在 `done` 事件时清空（1058 行），不在每次 LLM 迭代（`token_iter`，1027 行只重置 curLLM/curThinking/curSup）边界清空。因此一个任务内多次迭代产生的 TOOL 块持续累积在 `iterToolBlocks` 里；当其中存在孤儿块（在 tool_call_stream 中因 ⚙️ 头部创建了块、但对应 tool_call input 事件从未到达导致 _intentFilled 一直为 false，如 track_task_progress/attempt_completion/view_task_plan 等不要求 meta 的工具——后端 run_stream.go 1356-1379 整段跳过 input 事件发射，但 ⚙️ 头部仍照常发射创建块）时，下一次工具调用的意图回填优先按 iterToolBlocks 创建顺序取第一个未填充块，被错误填到孤儿块上，造成张冠李戴。
   - 方案（已确认）：在 `web/static/app.js` 的 `token_iter`（每次 LLM 迭代结束）分支中，同时重置工具块跟踪状态：`curTool = null; toolBlockByName = {}; iterToolBlocks = [];`（与 done 分支一致），使每次迭代从干净状态开始，避免跨迭代孤儿块污染。
