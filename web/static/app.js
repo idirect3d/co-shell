@@ -144,6 +144,30 @@ function applyTheme() {
   setTheme(dark ? "dark" : "light");
   const sel = document.getElementById("setThemeMode");
   if (sel && sel.value !== mode) sel.value = mode;
+  updateBrandLogo();
+}
+
+// brandLogo is the topbar system-logo <img> (FEATURE-477).
+const brandLogo = document.getElementById("brandLogo");
+
+// updateBrandLogo shows the logo configured for the current resolved theme
+// (dark|light) in the topbar, or hides it (falling back to the default ▸
+// co-shell text) when none is configured. The logo is served by GET
+// /logos/{theme}; a 404 means no logo for that theme.
+function updateBrandLogo() {
+  if (!brandLogo) return;
+  const theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  const url = "/logos/" + theme;
+  const probe = new Image();
+  probe.onload = () => {
+    brandLogo.src = url;
+    brandLogo.hidden = false;
+  };
+  probe.onerror = () => {
+    brandLogo.hidden = true;
+    brandLogo.removeAttribute("src");
+  };
+  probe.src = url;
 }
 
 if (osThemeMQ && osThemeMQ.addEventListener) {
@@ -3745,6 +3769,11 @@ function renderSettingItem(it) {
       applyTheme();
       updateDiffMark(ctl.value);
     };
+  } else if (it.type === "logo") {
+    // FEATURE-477: per-theme system logo upload control. The theme is the key
+    // suffix (logo-dark / logo-light). Uploads go straight to POST /api/logo
+    // (not settings_set) and the topbar refreshes on success.
+    ctl = renderLogoControl(it.key.replace(/^logo-/, ""));
   } else if (it.type === "bool") {
     ctl = document.createElement("input");
     ctl.type = "checkbox";
@@ -3795,6 +3824,104 @@ function renderSettingItem(it) {
   row.appendChild(ctl);
   updateDiffMark(curVal);
   return row;
+}
+
+// renderLogoControl builds the per-theme system-logo upload control (FEATURE-
+// 477): a preview thumbnail (when a logo is configured), an upload button that
+// reads an image from the clipboard (paste) or a file picker, and a remove
+// button. Uploads go to POST /api/logo?theme=<theme>; removal to
+// DELETE /api/logo?theme=<theme>. On success the topbar logo refreshes.
+function renderLogoControl(theme) {
+  const box = document.createElement("span");
+  box.className = "logo-ctl";
+
+  const preview = document.createElement("img");
+  preview.className = "logo-ctl-preview";
+  preview.alt = "";
+  preview.hidden = true;
+  box.appendChild(preview);
+
+  const uploadBtn = document.createElement("button");
+  uploadBtn.type = "button";
+  uploadBtn.className = "btn-mini";
+  uploadBtn.textContent = i18nT("logoUpload", "上传 logo");
+  box.appendChild(uploadBtn);
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "btn-mini";
+  removeBtn.textContent = i18nT("logoRemove", "移除");
+  removeBtn.hidden = true;
+  box.appendChild(removeBtn);
+
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "image/*";
+  fileInput.hidden = true;
+  box.appendChild(fileInput);
+
+  const refresh = () => {
+    const probe = new Image();
+    probe.onload = () => {
+      preview.src = "/logos/" + theme;
+      preview.hidden = false;
+      removeBtn.hidden = false;
+    };
+    probe.onerror = () => {
+      preview.hidden = true;
+      preview.removeAttribute("src");
+      removeBtn.hidden = true;
+    };
+    probe.src = "/logos/" + theme;
+  };
+
+  const uploadBlob = (blob) => {
+    if (!blob || !blob.type || !blob.type.startsWith("image/")) {
+      showSettingsResult({ ok: false, message: i18nT("logoNotImage", "请粘贴/选择图片") });
+      return;
+    }
+    const fd = new FormData();
+    fd.append("theme", theme);
+    fd.append("file", blob, "logo.png");
+    fetch("/api/logo", { method: "POST", body: fd })
+      .then((r) => r.json())
+      .then((j) => {
+        showSettingsResult({ ok: !!j.ok, message: j.ok ? i18nT("logoSaved", "logo 已保存") : (j.error || "error") });
+        if (j.ok) { refresh(); updateBrandLogo(); }
+      })
+      .catch(() => showSettingsResult({ ok: false, message: "upload failed" }));
+  };
+
+  uploadBtn.onclick = async () => {
+    // Prefer clipboard image (paste a screenshot); fall back to a file picker.
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const it of items) {
+          const t = it.types.find((x) => x.startsWith("image/"));
+          if (t) { uploadBlob(await it.getType(t)); return; }
+        }
+      }
+    } catch (e) { /* clipboard read denied/unsupported -> file picker */ }
+    fileInput.click();
+  };
+
+  fileInput.onchange = () => {
+    if (fileInput.files && fileInput.files[0]) uploadBlob(fileInput.files[0]);
+    fileInput.value = "";
+  };
+
+  removeBtn.onclick = () => {
+    fetch("/api/logo?theme=" + theme, { method: "DELETE" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok) { refresh(); updateBrandLogo(); }
+      })
+      .catch(() => {});
+  };
+
+  refresh();
+  return box;
 }
 
 // showSettingsResult displays the result of a settings_set change. The message

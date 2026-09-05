@@ -205,6 +205,10 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("POST /api/test-endpoint", s.handleTestEndpoint)
 	s.mux.HandleFunc("POST /api/test-api-key", s.handleTestAPIKey)
 	s.mux.HandleFunc("POST /api/get-model-max-len", s.handleGetModelMaxLen)
+	// FEATURE-477: system logo upload / remove / read (per theme dark|light).
+	s.mux.HandleFunc("POST /api/logo", s.handleLogoUpload)
+	s.mux.HandleFunc("DELETE /api/logo", s.handleLogoRemove)
+	s.mux.HandleFunc("GET /logos/{theme}", s.handleLogoRead)
 	handler := http.Handler(s.mux)
 	if len(opts.Whitelist) > 0 {
 		handler = s.whitelistMiddleware(handler, opts.Whitelist)
@@ -712,6 +716,99 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		saved = append(saved, filepath.ToSlash(rel))
 	}
 	writeJSON(w, http.StatusOK, map[string][]string{"paths": saved})
+}
+
+// logoThemeFromParam validates a theme query/path value (dark|light) and
+// returns it, or "" when invalid (FEATURE-477).
+func logoThemeFromParam(v string) string {
+	if v == "dark" || v == "light" {
+		return v
+	}
+	return ""
+}
+
+// logoPath returns the absolute path of the stored logo for a theme. The theme
+// must already be validated (dark|light). Logos live in the workspace logos/
+// directory (FEATURE-477).
+func (s *Server) logoPath(theme string) string {
+	return filepath.Join(s.root, "logos", "logo-"+theme+".png")
+}
+
+// handleLogoUpload stores the uploaded logo image for a theme (FEATURE-477).
+// The request is multipart/form-data with a "theme" field (dark|light) and a
+// "file" part carrying the image bytes. The image is saved as
+// <workspace>/logos/logo-<theme>.png, replacing any previous logo for that
+// theme.
+func (s *Server) handleLogoUpload(w http.ResponseWriter, r *http.Request) {
+	theme := logoThemeFromParam(r.FormValue("theme"))
+	if theme == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light)"})
+		return
+	}
+	if err := r.ParseMultipartForm(maxUploadFileSize); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing file part"})
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxUploadFileSize+1))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if len(data) > maxUploadFileSize {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "file exceeds 100MB limit"})
+		return
+	}
+	if len(data) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "empty file"})
+		return
+	}
+	if err := os.MkdirAll(filepath.Join(s.root, "logos"), 0o755); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := os.WriteFile(s.logoPath(theme), data, 0o644); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleLogoRemove deletes the stored logo for a theme (FEATURE-477). A missing
+// logo is not an error (idempotent).
+func (s *Server) handleLogoRemove(w http.ResponseWriter, r *http.Request) {
+	theme := logoThemeFromParam(r.URL.Query().Get("theme"))
+	if theme == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light)"})
+		return
+	}
+	_ = os.Remove(s.logoPath(theme))
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleLogoRead serves the stored logo image for a theme (FEATURE-477). It
+// returns 404 when no logo is configured for that theme so the frontend can
+// fall back to the default ▸ co-shell text.
+func (s *Server) handleLogoRead(w http.ResponseWriter, r *http.Request) {
+	theme := logoThemeFromParam(r.PathValue("theme"))
+	if theme == "" {
+		http.NotFound(w, r)
+		return
+	}
+	abs := s.logoPath(theme)
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(data)
 }
 
 // pathRequest is the JSON body of the open/reveal APIs.
