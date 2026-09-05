@@ -425,9 +425,14 @@ func modeDescription(cfg *config.Config, m config.WorkMode) string {
 //
 //	In each user message, the environment_details will specify the current mode. There are 3 modes:
 //
-//	- ACT MODE: <description>
-//	- PLAN MODE: <description>
-//	- RESEARCH MODE: <description>
+//	# ACT MODE
+//	<description>
+//
+//	# PLAN MODE
+//	<description>
+//
+//	# RESEARCH MODE
+//	<description>
 func buildResultModeSection(cfg *config.Config) string {
 	modes := collectAllWorkModes(cfg)
 	if len(modes) == 0 {
@@ -450,17 +455,18 @@ func buildResultModeSection(cfg *config.Config) string {
 	}
 	sb.WriteString(fmt.Sprintf(lead, len(modes)))
 	sb.WriteString("\n\n")
-	// Each mode description.
+	// Each mode description: a markdown heading followed by the (possibly
+	// multi-line) description body.
 	for _, m := range modes {
 		desc := modeDescription(cfg, m)
 		if desc == "" {
 			continue
 		}
-		sb.WriteString("- ")
+		sb.WriteString("# ")
 		sb.WriteString(strings.ToUpper(m.Name))
-		sb.WriteString(" MODE: ")
+		sb.WriteString(" MODE\n\n")
 		sb.WriteString(desc)
-		sb.WriteString("\n")
+		sb.WriteString("\n\n")
 	}
 	return strings.TrimSpace(sb.String())
 }

@@ -51,18 +51,18 @@ func TestBuildResultModeSection_DefaultModes(t *testing.T) {
 	for _, want := range []string{
 		"ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE",
 		"There are 3 modes:",
-		"- ACT MODE:",
-		"- PLAN MODE:",
-		"- RESEARCH MODE:",
+		"# ACT MODE",
+		"# PLAN MODE",
+		"# RESEARCH MODE",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("result mode section missing %q:\n%s", want, got)
 		}
 	}
 	// Order: act before plan before research.
-	actIdx := strings.Index(got, "ACT MODE:")
-	planIdx := strings.Index(got, "PLAN MODE:")
-	resIdx := strings.Index(got, "RESEARCH MODE:")
+	actIdx := strings.Index(got, "# ACT MODE")
+	planIdx := strings.Index(got, "# PLAN MODE")
+	resIdx := strings.Index(got, "# RESEARCH MODE")
 	if !(actIdx >= 0 && actIdx < planIdx && planIdx < resIdx) {
 		t.Errorf("mode order wrong (act=%d plan=%d research=%d)", actIdx, planIdx, resIdx)
 	}
@@ -82,7 +82,8 @@ func TestBuildResultModeSection_CustomMode(t *testing.T) {
 	for _, want := range []string{
 		"ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE V.S. REVIEW MODE",
 		"There are 4 modes:",
-		"- REVIEW MODE: Review mode - review code",
+		"# REVIEW MODE",
+		"Review mode - review code",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("result mode section missing %q:\n%s", want, got)
@@ -108,10 +109,10 @@ func TestBuildResultModeSection_CustomOverridesBuiltin(t *testing.T) {
 			strings.Count(got, "ACT MODE V.S."), got)
 	}
 	// The list entry must use the custom description, not the built-in one.
-	if !strings.Contains(got, "- ACT MODE: Custom act override") {
+	if !strings.Contains(got, "# ACT MODE\n\nCustom act override") {
 		t.Errorf("custom act description not used:\n%s", got)
 	}
-	if strings.Contains(got, "- ACT MODE: In this mode") {
+	if strings.Contains(got, "# ACT MODE\n\nIn this mode") {
 		t.Errorf("built-in act description should be overridden:\n%s", got)
 	}
 }
@@ -127,14 +128,24 @@ func TestBuildResultModeSection_EmptyDescriptionFallback(t *testing.T) {
 	cfg.LLM.WorkMode = "act"
 
 	got := buildResultModeSection(cfg)
-	if !strings.Contains(got, "- CUSTOM MODE: Custom mode desc") {
+	if !strings.Contains(got, "# CUSTOM MODE\n\nCustom mode desc") {
 		t.Errorf("custom mode description missing:\n%s", got)
 	}
-	// Every listed mode must carry a non-empty description (no bare "- X MODE:").
-	for _, line := range strings.Split(got, "\n") {
+	// Every listed mode must carry a non-empty description: a heading must not
+	// be immediately followed by another heading (which would mean empty body).
+	lines := strings.Split(got, "\n")
+	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "- ") && strings.HasSuffix(line, " MODE:") {
-			t.Errorf("mode entry with empty description: %q", line)
+		if !strings.HasPrefix(line, "# ") {
+			continue
+		}
+		// Look ahead past blank lines for the next non-blank line.
+		j := i + 1
+		for j < len(lines) && strings.TrimSpace(lines[j]) == "" {
+			j++
+		}
+		if j < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[j]), "# ") {
+			t.Errorf("mode heading %q has empty description (next is another heading)", line)
 		}
 	}
 }
