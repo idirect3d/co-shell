@@ -609,7 +609,7 @@ aside {
   width: 1px;
   flex: none;
   height: 100%;
-  margin-right: 1px; /* 1px gap between lines */
+  margin-right: 2px; /* 2px gap between lines */
   background: var(--fg-faint);
   cursor: pointer;
 }
