@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 // wsGUID is the fixed WebSocket handshake GUID from RFC 6455 section 1.3.
@@ -33,6 +34,19 @@ const (
 	maxWSFramePayload   = 4 << 20 // 4 MiB per frame
 	maxWSMessagePayload = 4 << 20 // 4 MiB per reassembled message
 )
+
+// FIX-475: wsWriteTimeout bounds each socket write so a stalled browser (full
+// TCP receive buffer) cannot block the writer goroutine forever. On timeout the
+// connection is closed and the agent keeps running (events are dropped instead
+// of freezing the agent loop).
+const wsWriteTimeout = 10 * time.Second
+
+// wsOutQueueSize is the bounded outbound message queue. It decouples the agent
+// goroutine from the socket write: producers enqueue (non-blocking) and a
+// dedicated writer goroutine drains the queue. When the queue is full (client
+// reading slower than the agent emits), the oldest events are dropped so the
+// agent never blocks on the network.
+const wsOutQueueSize = 512
 
 // WebSocket opcodes (RFC 6455 section 5.2).
 const (
@@ -65,13 +79,22 @@ func headerHasToken(h http.Header, name, token string) bool {
 	return false
 }
 
-// wsConn is one server-side WebSocket connection. Writes are serialized by
-// wmu (event pushes and ask requests are emitted from different goroutines).
+// wsConn is one server-side WebSocket connection. Outbound messages are
+// enqueued to outCh (non-blocking) and drained by a dedicated writer goroutine,
+// so producers (the agent loop, ask requests) never block on the socket. The
+// writer goroutine and the read goroutine's pong/close replies both write via
+// writeFrame, which serializes on wmu and applies a write deadline.
 type wsConn struct {
 	conn net.Conn
 	br   *bufio.Reader
 
 	wmu sync.Mutex
+
+	// FIX-475: async outbound queue + writer lifecycle.
+	outCh      chan []byte
+	done       chan struct{}
+	closeOnce  sync.Once
+	writerDone chan struct{}
 
 	// Fragmented message reassembly state (continuation frames).
 	fragBuf    []byte
@@ -109,7 +132,36 @@ func upgrade(w http.ResponseWriter, r *http.Request) (*wsConn, error) {
 		conn.Close()
 		return nil, err
 	}
-	return &wsConn{conn: conn, br: rw.Reader}, nil
+	c := &wsConn{
+		conn:       conn,
+		br:         rw.Reader,
+		outCh:      make(chan []byte, wsOutQueueSize),
+		done:       make(chan struct{}),
+		writerDone: make(chan struct{}),
+	}
+	// FIX-475: start the dedicated writer goroutine that drains outCh and
+	// writes frames with a deadline, so producers never block on the socket.
+	go c.writeLoop()
+	return c, nil
+}
+
+// writeLoop drains the outbound queue and writes each message as a text frame
+// with a write deadline. On a write error (stalled/dead client) it closes the
+// connection so the server stops trying to push to a client that cannot keep
+// up; producers keep running and simply drop further events.
+func (c *wsConn) writeLoop() {
+	defer close(c.writerDone)
+	for {
+		select {
+		case <-c.done:
+			return
+		case msg := <-c.outCh:
+			if err := c.writeFrame(wsOpText, msg); err != nil {
+				c.Close()
+				return
+			}
+		}
+	}
 }
 
 // wsFrame is one decoded WebSocket frame. Payload is already unmasked.
@@ -217,10 +269,13 @@ func (c *wsConn) ReadMessage() ([]byte, error) {
 }
 
 // writeFrame encodes and writes one frame. Server-to-client frames are
-// never masked (RFC 6455 section 5.1).
+// never masked (RFC 6455 section 5.1). A write deadline bounds each write so a
+// stalled client cannot block the caller forever (FIX-475).
 func (c *wsConn) writeFrame(opcode byte, payload []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
+	_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
+	defer c.conn.SetWriteDeadline(time.Time{})
 	header := []byte{0x80 | opcode}
 	switch n := len(payload); {
 	case n < 126:
@@ -240,13 +295,37 @@ func (c *wsConn) writeFrame(opcode byte, payload []byte) error {
 	return err
 }
 
-// WriteMessage sends one complete text message.
+// WriteMessage enqueues one complete text message to the outbound queue and
+// returns immediately (non-blocking). The dedicated writer goroutine drains the
+// queue and performs the actual socket write with a deadline, so the caller
+// (agent loop / ask request) never blocks on the network. When the queue is
+// full (client reading slower than the producer emits) the message is dropped
+// and nil is returned, so the producer keeps running. Returns an error only
+// when the connection is already closed.
 func (c *wsConn) WriteMessage(payload []byte) error {
-	return c.writeFrame(wsOpText, payload)
+	select {
+	case <-c.done:
+		return errors.New("websocket connection closed")
+	default:
+	}
+	select {
+	case c.outCh <- payload:
+		return nil
+	case <-c.done:
+		return errors.New("websocket connection closed")
+	default:
+		// Queue full: drop the message rather than block the producer.
+		return nil
+	}
 }
 
-// Close sends a close frame (best effort) and closes the connection.
+// Close stops the writer goroutine, sends a close frame (best effort) and
+// closes the connection. It is safe to call multiple times.
 func (c *wsConn) Close() error {
-	_ = c.writeFrame(wsOpClose, nil)
-	return c.conn.Close()
+	c.closeOnce.Do(func() {
+		close(c.done)
+		_ = c.writeFrame(wsOpClose, nil)
+		_ = c.conn.Close()
+	})
+	return nil
 }

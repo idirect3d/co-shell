@@ -975,6 +975,7 @@
 | FEATURE-472 | 0.35.0 | P1 | ResultMode 节静态化：遍历所有已配置模式生成标题与各模式介绍，填充 KeyWorkModeAct/Plan/Research 中英双语资源 |
 | FEATURE-473 | 0.35.0 | P1 | track_task_progress 说明优化：强调该方法主要用于初始化任务计划，之后的任务执行跟踪通过工具调用透明化中的 meta 对象（meta.progress）更新，不用重复调用 |
 | FIX-474 | 0.35.0 | P1 | 修复 Web UI TOOL 块标题栏意图错位：iterToolBlocks/curTool 只在 done 事件清空、不在每次 LLM 迭代（token_iter）边界清空，导致跨迭代孤儿块污染意图回填定位，使某工具块的意图被错误填到另一个工具块上 |
+| FIX-475 | 0.35.0 | P1 | 修复 Web UI 任务执行卡住不输出：WebSocket 事件推送是同步无超时的 TCP 写且跑在 agent 主循环 goroutine 上，浏览器接收缓冲满时 conn.Write 无限阻塞冻结整个 agent 循环；改为写超时 + 异步推送解耦 |
 
 > 当前 BUILD: 811
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -1000,6 +1001,13 @@
   - 方案（已确认）：在 `web/static/app.js` 的 `token_iter`（每次 LLM 迭代结束）分支中，同时重置工具块跟踪状态：`curTool = null; toolBlockByName = {}; iterToolBlocks = [];`（与 done 分支一致），使每次迭代从干净状态开始，避免跨迭代孤儿块污染。
   - 实施：`web/static/app.js` ① token_iter 分支重置 curTool/toolBlockByName/iterToolBlocks（与 done 分支一致）；② 意图回填优先按工具名匹配块（iterToolBlocks.find 加 b.toolName === summary.tool_name 条件），跳过不同名的孤儿块，同名工具仍按创建顺序解析 [BUILD-812]
   - 测试：见 use-case/FIX-474/
+
+- [ ] **FIX-475 修复 Web UI 任务执行卡住不输出（WebSocket 同步写阻塞冻结 agent 循环）**
+  - 背景：Web UI 任务执行时（不太常见）卡住不输出，运行按钮保持"正在运行"，按什么键都不管用；有时连接状态"已连接→已断开"后又继续收到数据；有时报浏览器 WebSocket 无法接收数据错误。
+  - 根因：事件推送链路 `agent.RunStream → cb → WebRenderer.Render → sendEvent → sendJSON → wsConn.WriteMessage → net.Conn.Write` 全部同步、无缓冲、无写超时，且跑在 agent 主循环 goroutine 上。当浏览器端 TCP 接收缓冲满（标签页后台节流/前端处理不过来/网络拥塞）时 `conn.Write` 无限阻塞，冻结整个 agent 循环——不再产生事件、不再返回 await_input/done，运行按钮无法复位，按键/打断均无效。
+  - 方案（已确认）：修复方向1——① 给 WebSocket 写加超时（SetWriteDeadline，超时即关闭连接返回错误）；② 事件推送改为异步队列 + 独立写 goroutine 解耦，agent 永不因网络阻塞（channel 满时丢弃最旧事件或降级，避免 agent 冻结）。
+  - 实施：`web/ws.go`（wsConn 增加有界 outCh 队列 + 独立 writeLoop goroutine 消费，WriteMessage 改为非阻塞入队（队列满丢弃不阻塞生产者），writeFrame 加 SetWriteDeadline 写超时（10s，超时关闭连接），Close 用 closeOnce 停止 writer goroutine）+ `web/server.go`（handleWS 读循环结束 defer c.Close() 停止 writer goroutine 防泄漏）+ `web/ws_test.go`（新增 TestWSWriteDoesNotBlockOnStalledClient 验证客户端停读时生产者不阻塞）[BUILD-813]
+  - 测试：见 use-case/FIX-475/
 
 ## v0.34.0 — 开发中
 
