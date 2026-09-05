@@ -55,6 +55,19 @@ func TestMetaCapabilityIndex(t *testing.T) {
 	}
 }
 
+// TestMetaCapabilityIndex_EnvAwareness verifies the static environment-awareness
+// section is appended to the meta-capability index (FEATURE-482).
+func TestMetaCapabilityIndex_EnvAwareness(t *testing.T) {
+	i18n.Init("zh")
+	index := buildMetaCapabilityIndex()
+	if !strings.Contains(index, "【环境感知】") {
+		t.Errorf("meta-capability index missing environment-awareness section:\n%s", index)
+	}
+	if !strings.Contains(index, "服务模式感知") || !strings.Contains(index, "用户动态感知") || !strings.Contains(index, "模型参数感知") {
+		t.Errorf("environment-awareness section missing expected sub-items:\n%s", index)
+	}
+}
+
 // TestFindMetaCapabilityByID verifies exact ID lookup.
 func TestFindMetaCapabilityByID(t *testing.T) {
 	i18n.Init("zh")
