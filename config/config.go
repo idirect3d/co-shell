@@ -862,6 +862,7 @@ func DefaultActSections() []string {
 	return []string{
 		"Identity",
 		"ToolUsage",
+		"ResultMode",
 		"Capabilities",
 		"Rules",
 		"Skills",
@@ -886,7 +887,8 @@ func DefaultWorkModes() []WorkMode {
 			Name:        "plan",
 			Description: i18n.T(i18n.KeyWorkModePlanDesc),
 			Sections:    DefaultPlanSections(),
-			ToolModes:   DefaultPlanToolModes(),
+			// FEATURE-472: no mode-specific ToolModes — plan uses the same global
+			// default tools as act so the system prompt stays static across modes.
 			Temperature: Float64Ptr(0),
 		},
 		{
@@ -899,29 +901,17 @@ func DefaultWorkModes() []WorkMode {
 }
 
 // DefaultPlanSections returns the default list of prompt sections for Plan mode.
+// FEATURE-472: identical to DefaultActSections so the system prompt stays
+// static across modes (mode switching does not change the section set).
 func DefaultPlanSections() []string {
-	return []string{
-		"Identity",
-		"ToolUsage",
-		"Capabilities",
-		"Rules",
-		"Skills",
-		"ExternalTools",
-		"Environment",
-	}
+	return DefaultActSections()
 }
 
 // DefaultResearchSections returns the default list of prompt sections for Research mode.
+// FEATURE-472: identical to DefaultActSections so the system prompt stays
+// static across modes (mode switching does not change the section set).
 func DefaultResearchSections() []string {
-	return []string{
-		"Identity",
-		"ToolUsage",
-		"Capabilities",
-		"Rules",
-		"Skills",
-		"ExternalTools",
-		"Environment",
-	}
+	return DefaultActSections()
 }
 
 // DefaultPlanToolModes returns the default tool mode settings for Plan mode.
