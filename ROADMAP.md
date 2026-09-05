@@ -1010,7 +1010,7 @@
   - 实施：`web/ws.go`（wsConn 增加有界 outCh 队列 + 独立 writeLoop goroutine 消费，WriteMessage 改为非阻塞入队（队列满丢弃不阻塞生产者），writeFrame 加 SetWriteDeadline 写超时（10s，超时关闭连接），Close 用 closeOnce 停止 writer goroutine）+ `web/server.go`（handleWS 读循环结束 defer c.Close() 停止 writer goroutine 防泄漏）+ `web/ws_test.go`（新增 TestWSWriteDoesNotBlockOnStalledClient 验证客户端停读时生产者不阻塞）[BUILD-813]
   - 测试：见 use-case/FIX-475/
 
-- [ ] **FEATURE-476 Web UI 亮色主题色调调整（样本蓝灰配色）** [BUILD-815]
+- [x] **FEATURE-476 Web UI 亮色主题色调调整（样本蓝灰配色）** [BUILD-815]
   - 背景：用户希望按样本界面（企业级蓝灰配色）对 co-shell Web UI 的亮色主题（[data-theme="light"]）做色调调整，色调版本不变（仍是亮色），仅调整各区域背景/文字颜色，引入"深蓝标题栏 + 浅蓝半透明次级条 + 浅灰内容区"的分层配色。
   - 方案（已确认）：仅左侧工作区面板——① 工作区标题栏（#sidebar .panel-head）背景改深蓝（约 #1F4E79），文字改白色；② 分支（#wsBranch）做成独立浅蓝半透明小块（约 #E8F0FE 半透明），与深蓝标题栏区分；③ 文件列表（#tree）背景改浅灰（约 #F2F2F2）；④ co-shell 主标题栏（#topbar）底边用深蓝画比现在粗一点的边框（参考样例左上 logo 栏底边）。
   - 实施：`web/static/style.css`（[data-theme="light"] 变量块新增深蓝/浅蓝/浅灰变量 + 针对 #sidebar .panel-head / #wsBranch / #tree / #topbar 的亮色覆盖规则，用 [data-theme="light"] 前缀限定不影响暗色主题）
