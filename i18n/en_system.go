@@ -423,7 +423,7 @@ Usage:
 </{XML_TAG_PREFIX}schedule_task>`
 
 	enMessages[KeyToolUsageTrackTaskProgress] = `## track_task_progress
-Description: Record task content and track progress of each step execution. Pass the complete array of steps as the desired state — the system handles creation or replacement automatically. DESCRIPTION usage: for detailed plans, write the full plan context, background, constraints, technical approach, and acceptance criteria into the description field. STEP.DESCRIPTION usage: the first line is the step title/summary; subsequent lines provide detailed content. STATUS values: "[ ]" (pending/todo), "[=]" (in_progress), "[X]" (completed), "[C]" (cancelled), "[F]" (failed). Set steps to an empty array to archive and delete the current plan.
+Description: PRIMARILY used to INITIALIZE a task plan: record task content and create the execution plan by passing the complete array of steps as the desired state — the system handles creation or replacement automatically. After the plan is created, DO NOT call this tool repeatedly to update progress; instead track execution via the meta.progress field of other tool calls (see the system prompt). DESCRIPTION usage: for detailed plans, write the full plan context, background, constraints, technical approach, and acceptance criteria into the description field. STEP.DESCRIPTION usage: the first line is the step title/summary; subsequent lines provide detailed content. STATUS values: "[ ]" (pending/todo), "[=]" (in_progress), "[X]" (completed), "[C]" (cancelled), "[F]" (failed). Set steps to an empty array to archive and delete the current plan.
 Parameters:
 - title (required for new plan) The title of the task plan.
 - description (required) A detailed description of the overall task plan. For detailed plans, include the full context, background, constraints, technical approach, and acceptance criteria.
@@ -1334,7 +1334,7 @@ By waiting for and carefully considering the user's response after each tool use
 UPDATING TASK PROGRESS
 
 - **Any task** should be broken down and tracked via track_task_progress to create an execution plan, which should be dynamically updated during execution.
-- **Establish the initial plan with track_task_progress** (title/description/steps). During execution, **update the plan incrementally via the meta.progress field of other tool calls** — report only the steps whose status changed plus the currently executing step, keeping each index consistent with the plan's step index.
+- **track_task_progress is PRIMARILY used to INITIALIZE the task plan** (title/description/steps). After the plan is created, **DO NOT call track_task_progress repeatedly** — instead, **update the plan incrementally via the meta.progress field of other tool calls** (the transparency meta object). Report only the steps whose status changed plus the currently executing step, keeping each index consistent with the plan's step index.
 - Each step in the breakdown must have a clear, verifiable goal. Only mark a step as complete after verifying it has achieved its goal.
 `
 

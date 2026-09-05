@@ -448,7 +448,7 @@ Usage:
 </{XML_TAG_PREFIX}schedule_task>`
 
 	zhMessages[KeyToolUsageTrackTaskProgress] = `## track_task_progress
-Description: 记录任务内容并跟踪各步骤执行进度。一次性传递完整的 steps 数组作为期望状态——系统自动处理创建或替换。description 参数用法：对于详细计划，将完整的任务背景、约束条件、技术方案和验收标准写入 description。step.description 参数用法：首行为步骤标题/摘要；后续行为步骤的具体详细内容。status 参数用法："[ ]" (待办)、"[=]" (进行中)、"[X]" (已完成)、"[C]" (已取消)、"[F]" (已失败)。将 steps 设置为空数组可归档并删除当前计划。
+Description: 主要用于初始化任务计划：记录任务内容并通过一次性传递完整的 steps 数组创建执行计划——系统自动处理创建或替换。计划创建后，不要重复调用本工具更新进度；执行跟踪请通过其他工具调用的 meta.progress 字段进行（见系统提示词）。description 参数用法：对于详细计划，将完整的任务背景、约束条件、技术方案和验收标准写入 description。step.description 参数用法：首行为步骤标题/摘要；后续行为步骤的具体详细内容。status 参数用法："[ ]" (待办)、"[=]" (进行中)、"[X]" (已完成)、"[C]" (已取消)、"[F]" (已失败)。将 steps 设置为空数组可归档并删除当前计划。
 Parameters:
 - title (必需，新建时) 任务计划的标题
 - description (必需) 整体任务计划的详细描述。对于详细计划，应包含完整的任务背景、约束条件、技术方案和验收标准。
@@ -1318,7 +1318,7 @@ Usage:
 UPDATING TASK PROGRESS
 
 - **任何任务**都应通过调用 track_task_progress 拆解任务和创建任务执行计划，在后续实现任务目标的过程中还应动态更新。
-- **用 track_task_progress 建立初始计划**（title/description/steps）。执行过程中，**通过其他工具调用的 meta.progress 字段增量更新计划**——只报告状态有变化的步骤以及当前正在执行的步骤，每个 index 必须与计划中的步骤索引保持一致。
+- **track_task_progress 主要用于初始化任务计划**（title/description/steps）。计划创建后，**不要重复调用 track_task_progress**——而是**通过其他工具调用的 meta.progress 字段（透明化 meta 对象）增量更新计划**。只报告状态有变化的步骤以及当前正在执行的步骤，每个 index 必须与计划中的步骤索引保持一致。
 - 任务拆解的每一步都应有明确的目标，且必须是可验证的，跟踪时只有验证某一步确实达到目标，才能将这一步标记为完成。
 `
 
