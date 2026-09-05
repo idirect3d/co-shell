@@ -50,9 +50,7 @@ func init() {
 - You have access to all tools and drive the task forward by calling them (e.g. execute_command, read_file, replace_in_file, browser, etc.).
 - Once you've completed the user's task, use the attempt_completion tool to present the result, optionally with a CLI command to showcase it.`
 
-	enMessages[KeyWorkModePlan] = `In this mode, you focus on gathering information and context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution. In PLAN MODE you do not perform any operation that modifies files or the system.
-- You may only use read-only and planning tools: read_file, search_files, list_files, list_code_definition_names to explore code and context; track_task_progress, view_task_plan to record and review the task plan; get_memory_slice, memory_search to retrieve historical memory; visual_analysis to view images.
-- Tools that execute commands (execute_command), modify files (write_to_file, replace_in_file), or operate the browser (browser_*) are disabled by default in PLAN MODE — do not call them.
+	enMessages[KeyWorkModePlan] = `In this mode, you focus on gathering information and context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
 - When you need to discuss the plan, clarify requirements, or confirm the next step with the user, use the ask_followup_question tool.
 - Once the plan is ready, record it with track_task_progress, then deliver it with the attempt_completion tool.
 
