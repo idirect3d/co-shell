@@ -602,25 +602,26 @@ aside {
   flex-direction: row;
   align-items: stretch;
 }
-/* Each message line: 1px wide, full height, coloured by its block type. */
+/* Each message line: 1px wide, full height, coloured by its block type. A
+   1px gap separates consecutive lines (FEATURE-482). */
 .msgviz-line {
   position: relative;
   width: 1px;
   flex: none;
   height: 100%;
+  margin-right: 1px; /* 1px gap between lines */
   background: var(--fg-faint);
   cursor: pointer;
 }
 .msgviz-line:hover { opacity: 0.85; }
-/* The red dot: its vertical position encodes the cumulative context usage
-   (bottom = empty, top = full). Pure red, centred on the line. */
+/* The red dot: a single pixel whose vertical position encodes the context
+   usage (bottom = empty, top = full). Pure red, centred on the line. */
 .msgviz-dot {
   position: absolute;
   left: 50%;
-  width: 3px;
-  height: 3px;
-  margin-left: -1.5px;
-  border-radius: 50%;
+  width: 1px;
+  height: 1px;
+  margin-left: -0.5px;
   background: #ff0000;
   pointer-events: none;
 }
