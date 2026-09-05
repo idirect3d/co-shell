@@ -980,7 +980,7 @@
 
 ### 任务详情
 
-- [x] **FEATURE-472 ResultMode 节静态化** [BUILD-801]
+- [x] **FEATURE-472 ResultMode 节静态化** [BUILD-802]
   - 背景：系统提示词 RESULT MODE 节当前只根据当前 modeName 注入当前模式的描述（KeyWorkModeAct/Plan/Research 填充 KeySystemPromptResultMode 的 %s），且这三个资源内容为空。LLM 无法同时了解各模式区别，不利于具体思考。
   - 方案（已确认）：① 遍历所有已配置模式（config.DefaultWorkModes + 用户自定义 cfg.WorkModes 去重），将模式名大写后接 MODE，用 " V.S. " 连接作为 RESULT MODE 节标题（如 ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE）；② 接引导句 "In each user message, the environment_details will specify the current mode. There are %s modes:"；③ 按顺序分别填入各模式介绍（KeyWorkModeAct/KeyWorkModePlan/KeyWorkModeResearch）；④ 参考 notes/cline.json 的 ACT MODE V.S. PLAN MODE 段落填充 KeyWorkModeAct/Plan 资源，并拟写 KeyWorkModeResearch 初稿；⑤ 中英双语维护（zh_system.go + en_system.go）；⑥ 三个内置模式都包含 ResultMode 节。
   - 实施：`agent/system_prompt.go`（buildNamedSection/getRawSectionText 的 ResultMode case 改为遍历所有模式生成静态节）+ `i18n/zh_system.go`/`en_system.go`（填充 KeyWorkModeAct/Plan/Research）+ `i18n/keys.go`（如需新增引导句/标题模板键）
