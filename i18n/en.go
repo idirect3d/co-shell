@@ -41,7 +41,7 @@ var enMessages = map[string]string{
 	KeyUnlimited:        "Unlimited",
 	KeyDefault:          "Default",
 	KeyUnknown:          "Unknown",
-	KeySectionSeparator: "\n====\n",
+	KeySectionSeparator: "\n\n====\n\n",
 
 	// Wizard
 	KeyWizardTitle:       "🔧 co-shell API Setup Wizard",
@@ -888,7 +888,6 @@ var enMessages = map[string]string{
 	KeyAgentDefaultPrinciplesAct:      "",
 	KeyAgentDefaultPrinciplesPlan:     "",
 	KeyAgentDefaultPrinciplesResearch: "",
-	KeyAgentDefaultDescription:        "a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices",
 	KeyCLIHelpEx8:                     "  co-shell -w /path/to/workspace          Start with custom workspace",
 	KeyCLIHelpEx9:                     "  co-shell --temperature 0.8 write a poem  Set temperature and execute command",
 	KeyCLIHelpEx10:                    "  co-shell --show-thinking on --show-command on analyze logs  Show thinking and commands",

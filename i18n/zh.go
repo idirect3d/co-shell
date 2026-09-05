@@ -41,7 +41,7 @@ var zhMessages = map[string]string{
 	KeyUnlimited:        "不限制",
 	KeyDefault:          "默认",
 	KeyUnknown:          "未知",
-	KeySectionSeparator: "\n====\n",
+	KeySectionSeparator: "\n\n====\n\n",
 
 	// Wizard
 	KeyWizardTitle:       "🔧 co-shell API 设置向导",
@@ -867,7 +867,6 @@ var zhMessages = map[string]string{
 	KeyCLIHelpEx7:              "  co-shell --max-iterations 20 列出文件  设置最大迭代次数并执行指令",
 	KeyCLIHelpName:             "  --name, -n <名称>                    指定 agent 名称（默认：co-shell）",
 	KeyAgentSaid:               "%s %s 说：",
-	KeyAgentDefaultDescription: "一位经验丰富的软件工程师，在多种编程语言、框架、设计模式和最佳实践方面拥有广泛知识",
 	KeyCLIHelpEx8:              "  co-shell -w /path/to/workspace         使用自定义工作区启动",
 	KeyCLIHelpEx9:              "  co-shell --temperature 0.8 写一首诗    指定温度参数并执行指令",
 	KeyCLIHelpEx10:             "  co-shell --show-thinking on --show-command on 分析日志  显示思考过程和命令",
