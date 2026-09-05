@@ -2570,6 +2570,11 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 			Kind:  InteractionSelect,
 			Title: i18n.T(i18n.KeyAttemptCompletionPrompt),
 			Body:  body,
+			// FEATURE-479: simple mode carries only the two fixed key actions
+			// (confirm complete / continue with more input) as Keys, with no
+			// Options. The Web frontend renders a keys-only select as the two
+			// [Key] Label buttons (mirroring the TUI askSelect), so exactly two
+			// options are shown.
 			Keys: []KeyOption{
 				{Label: i18n.T(i18n.KeyAttemptCompletionSimpleConfirm), Key: "-", Value: "exit"},
 				{Label: i18n.T(i18n.KeyAttemptCompletionSimpleContinue), Key: "+", Value: "continue"},

@@ -1071,6 +1071,30 @@
   - 实施：`config/config.go`（LLMConfig 新增 CompletionMode 字段 + 默认 active）+ `agent/tools.go`（attemptCompletionTool 按 CompletionMode 三态分支）+ `cmd/settings_safety.go`/`cmd/settings_web.go`（completion-mode 设置项 + safetyGroup 显示）+ `agent/settings_tools.go`（getSettingValue/applySetting）+ `i18n/`（KeyCol3CompletionMode 等文案）+ `agent/attempt_completion_test.go`（三态测试）
   - 测试：见 use-case/FEATURE-479/
 
+## v0.35.3 — 开发中
+
+> **版本**: v0.35.3
+
+> **状态**: 🚧 开发中
+> **里程碑**: simple 完成模式选项显示修复
+> **说明**: 0.35.3 系列修复 attempt_completion simple 完成模式完成提示框无选项的问题。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-480 | 0.35.3 | P1 | 修复 simple 完成模式完成提示框无选项：simple 分支 Interaction 只设置 Keys 未设置 Options，前端 renderVirtualKeyboard 因 options 为空不渲染任何选项按钮 |
+
+> 当前 BUILD: 841
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-480 修复 simple 完成模式完成提示框无选项** [BUILD-841]
+  - 背景：attempt_completion 设为 simple 模式时，完成提示框里没有任何选项。simple 分支构造的 Interaction 只设置了 Keys（两个 KeyOption），未设置 Options。前端 showInteraction 中 `if (it.kind === "select" && it.options && it.options.length)` 才调用 renderVirtualKeyboard 渲染选项按钮，simple 模式 options 为空导致整个虚拟键盘（含 keys 按钮）都不渲染。
+  - 方案（已确认）：simple 分支保持仅 Keys（两个固定按键："-" 确认任务完成 / "+" 继续输入需求），不设 Options（与 TUI askSelect 的 keys-only select 模型一致）。修复前端：① showInteraction 门控放宽为 options 或 keys 任一非空即渲染；② renderVirtualKeyboard 新增 keys-only select 分支，仅渲染两个 [Key] Label 按钮（不渲染编号选项、不渲染额外补充按钮），点击 exit 发送 {action:select,value:exit} 使后端完成，点击 continue 发送 value 使后端继续。
+  - 实施：`agent/tools.go`（simple 分支保持仅 Keys）+ `web/static/app.js`（showInteraction 门控 + renderVirtualKeyboard keys-only select 分支 + keyMap 注册）
+  - 测试：见 use-case/FIX-480/
+
 ## v0.34.0 — 开发中
 
 > **版本**: v0.34.0
