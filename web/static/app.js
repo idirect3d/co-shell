@@ -1025,6 +1025,16 @@ function renderEvent(ev) {
       }
     }
     curLLM = curThinking = curSup = null;
+    // FIX-474: the LLM iteration ended — reset the tool-block tracking state so
+    // the next iteration starts clean. Without this, iterToolBlocks/curTool/
+    // toolBlockByName persist across iterations (only cleared at the final done
+    // event), so an "orphan" block from an earlier iteration (created by a ⚙️
+    // header but whose tool_call input event never arrived, e.g. plan tools that
+    // skip meta) stays unfilled and steals the intent of a later tool call,
+    // misplacing the intent onto the wrong TOOL block.
+    curTool = null;
+    toolBlockByName = {};
+    iterToolBlocks = [];
     // FEATURE-409: the LLM iteration ended (token usage refreshed) — stop the
     // breathing dot on all blocks now, not only at the final done event.
     document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
@@ -1260,8 +1270,17 @@ function renderEvent(ev) {
         // calls) each tool_call event lands on its own block instead of all
         // landing on the last one (toolBlockByName is keyed by name and gets
         // overwritten by the last same-named block).
+        // FIX-474: among the unfilled blocks, prefer one whose tool name matches
+        // this tool call. This skips "orphan" blocks (created by a ⚙️ header but
+        // whose tool_call input event never arrives, e.g. plan tools that skip
+        // meta) so their unfilled slot does not steal the intent of a later,
+        // differently-named tool call. Same-named tools still resolve in
+        // creation order (first unfilled matching-name block).
         let target = null;
-        if (iterToolBlocks.length) {
+        if (summary.tool_name && iterToolBlocks.length) {
+          target = iterToolBlocks.find((b) => !b._intentFilled && b.toolName === summary.tool_name);
+        }
+        if (!target && iterToolBlocks.length) {
           target = iterToolBlocks.find((b) => !b._intentFilled);
         }
         if (!target && summary.tool_name && toolBlockByName[summary.tool_name] && !toolBlockByName[summary.tool_name]._intentFilled) {
