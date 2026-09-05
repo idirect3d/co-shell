@@ -101,8 +101,9 @@ func loadRulesDir(dir string) string {
 			sb.WriteString("\n\n")
 		}
 		// Title: filename without ".md" suffix, preceded by a "====" separator line.
+		// A blank line follows the separator so the title does not hug the line.
 		title := strings.TrimSuffix(name, filepath.Ext(name))
-		sb.WriteString("====\n" + title + "\n\n" + trimmed)
+		sb.WriteString("====\n\n" + title + "\n\n" + trimmed)
 	}
 	// FEATURE-417/418: append the on-demand rule tree (subdirectories + their
 	// .md files), formatted with markdown headings and recursive nesting.
@@ -110,7 +111,7 @@ func loadRulesDir(dir string) string {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
-		sb.WriteString("====\n可用规则类型（按需加载，需要时直接用 read_file 读取对应路径）\n\n")
+		sb.WriteString("====\n\n可用规则类型（按需加载，需要时直接用 read_file 读取对应路径）\n\n")
 		for _, sd := range subdirs {
 			appendRulesTree(&sb, filepath.Join(dir, sd), sd, 1)
 		}
