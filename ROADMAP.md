@@ -976,6 +976,7 @@
 | FEATURE-473 | 0.35.0 | P1 | track_task_progress 说明优化：强调该方法主要用于初始化任务计划，之后的任务执行跟踪通过工具调用透明化中的 meta 对象（meta.progress）更新，不用重复调用 |
 | FIX-474 | 0.35.0 | P1 | 修复 Web UI TOOL 块标题栏意图错位：iterToolBlocks/curTool 只在 done 事件清空、不在每次 LLM 迭代（token_iter）边界清空，导致跨迭代孤儿块污染意图回填定位，使某工具块的意图被错误填到另一个工具块上 |
 | FIX-475 | 0.35.0 | P1 | 修复 Web UI 任务执行卡住不输出：WebSocket 事件推送是同步无超时的 TCP 写且跑在 agent 主循环 goroutine 上，浏览器接收缓冲满时 conn.Write 无限阻塞冻结整个 agent 循环；改为写超时 + 异步推送解耦 |
+| FEATURE-476 | 0.35.0 | P1 | Web UI 亮色主题色调调整：按样本界面蓝灰配色，仅左侧工作区面板——工作区标题栏深蓝背景、分支独立浅蓝半透明小块、文件列表浅灰背景；主标题栏底边深蓝加粗边框 |
 
 > 当前 BUILD: 811
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -1008,6 +1009,12 @@
   - 方案（已确认）：修复方向1——① 给 WebSocket 写加超时（SetWriteDeadline，超时即关闭连接返回错误）；② 事件推送改为异步队列 + 独立写 goroutine 解耦，agent 永不因网络阻塞（channel 满时丢弃最旧事件或降级，避免 agent 冻结）。
   - 实施：`web/ws.go`（wsConn 增加有界 outCh 队列 + 独立 writeLoop goroutine 消费，WriteMessage 改为非阻塞入队（队列满丢弃不阻塞生产者），writeFrame 加 SetWriteDeadline 写超时（10s，超时关闭连接），Close 用 closeOnce 停止 writer goroutine）+ `web/server.go`（handleWS 读循环结束 defer c.Close() 停止 writer goroutine 防泄漏）+ `web/ws_test.go`（新增 TestWSWriteDoesNotBlockOnStalledClient 验证客户端停读时生产者不阻塞）[BUILD-813]
   - 测试：见 use-case/FIX-475/
+
+- [ ] **FEATURE-476 Web UI 亮色主题色调调整（样本蓝灰配色）** [BUILD-814]
+  - 背景：用户希望按样本界面（企业级蓝灰配色）对 co-shell Web UI 的亮色主题（[data-theme="light"]）做色调调整，色调版本不变（仍是亮色），仅调整各区域背景/文字颜色，引入"深蓝标题栏 + 浅蓝半透明次级条 + 浅灰内容区"的分层配色。
+  - 方案（已确认）：仅左侧工作区面板——① 工作区标题栏（#sidebar .panel-head）背景改深蓝（约 #1F4E79），文字改白色；② 分支（#wsBranch）做成独立浅蓝半透明小块（约 #E8F0FE 半透明），与深蓝标题栏区分；③ 文件列表（#tree）背景改浅灰（约 #F2F2F2）；④ co-shell 主标题栏（#topbar）底边用深蓝画比现在粗一点的边框（参考样例左上 logo 栏底边）。
+  - 实施：`web/static/style.css`（[data-theme="light"] 变量块新增深蓝/浅蓝/浅灰变量 + 针对 #sidebar .panel-head / #wsBranch / #tree / #topbar 的亮色覆盖规则，用 [data-theme="light"] 前缀限定不影响暗色主题）
+  - 测试：见 use-case/FEATURE-476/
 
 ## v0.34.0 — 开发中
 
