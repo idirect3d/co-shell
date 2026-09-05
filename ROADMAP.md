@@ -1023,6 +1023,30 @@
   - 实施：`web/server.go`（新增 /api/logo 上传 + /logos/{theme} 读取路由，logo 存工作区 logos/）+ `cmd/settings_web.go`（displayGroup 增加 logo 配置项）+ `web/static/app.js`（渲染 logo 上传控件 + topbar logo 显示与缩放）+ `web/static/index.html`/`style.css`（.brand 结构 + logo 样式）
   - 测试：见 use-case/FEATURE-477/
 
+## v0.35.1 — 开发中
+
+> **版本**: v0.35.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: light-tp/paper 色调图标放大
+> **说明**: 0.35.1 系列为小改进版本，调整 FEATURE-477 新增的 light-tp/paper 两个色调在 themeToggle 按钮上的图标尺寸。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-478 | 0.35.1 | P1 | light-tp/paper 色调图标放大：themeToggle 按钮在 light-tp（♤）与 paper（☕︎）色调下图标比 ☾/☀ 视觉偏小，按比例放大——light-tp +10%（14px→15px）、paper +30%（14px→18px） |
+
+> 当前 BUILD: 831
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-478 light-tp/paper 色调图标放大 + IME 回车误触发修复**
+  - 背景：① FEATURE-477 新增 light-tp（♤）与 paper（☕︎）两个色调后，themeToggle 按钮上这两个色调的图标（♤/☕︎）比 dark/light 的 ☾/☀ 视觉上偏小，需要按比例放大以保持视觉一致；② 输入框监听键盘按键实现快捷键，回车是发送键，但使用输入法（IME）时按回车选词会误触发发送，体验不佳。
+  - 方案（已确认）：① 在 `web/static/style.css` 中为 `[data-theme="light-tp"] #themeToggle` 与 `[data-theme="paper"] #themeToggle` 分别设置放大后的 font-size——light-tp 放大 10%（14px→15px）、paper 放大 30%（14px→18px）；dark/light 保持原尺寸；② 用 `KeyboardEvent.isComposing` + document 级 `compositionstart`/`compositionend` 维护 `window.__composing` 兜底标志，新增 `imeComposing(e)` 辅助函数，主输入框及各处 Enter 触发逻辑在 IME 组合期间不响应回车（选词），输入完成后正常响应。
+  - 实施：`web/static/style.css`（新增 `[data-theme="light-tp"] #themeToggle { font-size: 15px; }` + `[data-theme="paper"] #themeToggle { font-size: 18px; }`）+ `web/static/app.js`（新增 `window.__composing` 标志 + document compositionstart/compositionend 监听 + `imeComposing(e)` 辅助函数；主输入框回车发送、askInput、askInteraction inp、模型向导 inp、会话标题 streamTitle 共 5 处 Enter 触发逻辑加 `!imeComposing(e)` 判断）[BUILD-832]
+  - 测试：见 use-case/FEATURE-478/
+
 ## v0.34.0 — 开发中
 
 > **版本**: v0.34.0

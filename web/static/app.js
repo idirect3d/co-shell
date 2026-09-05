@@ -238,6 +238,21 @@ const askSend = document.getElementById("askSend");
 const askInteraction = document.getElementById("askInteraction");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
+
+/* FEATURE-478: IME composition guard. When an input method (e.g. Chinese
+   pinyin) is composing, pressing Enter confirms a candidate word rather than
+   sending. Browsers expose KeyboardEvent.isComposing during the composition
+   session, but some IMEs fire one more keydown right after compositionend
+   where isComposing is already false. So we also track a document-level
+   composing flag via compositionstart/compositionend as a fallback. */
+window.__composing = false;
+document.addEventListener("compositionstart", () => { window.__composing = true; });
+document.addEventListener("compositionend", () => { window.__composing = false; });
+// imeComposing(e) returns true while an IME composition is active, in which
+// case an Enter keypress must be ignored (it selects a candidate, not send).
+function imeComposing(e) {
+  return e.isComposing === true || window.__composing === true;
+}
 const yoloSwitch = document.getElementById("yoloSwitch");
 const modeSeg = document.getElementById("modeSeg");
 const modeSegSlider = document.getElementById("modeSegSlider");
@@ -1757,7 +1772,8 @@ function initStreamMode() {
     if (cur && v !== cur.title) wsSend({ type: "session_rename", value: v });
   };
   streamTitle.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); streamTitle.blur(); }
+    // FEATURE-478: ignore Enter while an IME is composing (candidate confirm).
+    if (e.key === "Enter" && !imeComposing(e)) { e.preventDefault(); streamTitle.blur(); }
   });
   streamTitle.addEventListener("blur", commitTitle);
 }
@@ -2128,7 +2144,8 @@ function showInteraction(msg) {
     send.textContent = T.send;
     send.onclick = () => answerInteraction({ action: "input", value: inp.value });
     inp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); answerInteraction({ action: "input", value: inp.value }); }
+      // FEATURE-478: ignore Enter while an IME is composing (candidate confirm).
+      if (e.key === "Enter" && !imeComposing(e)) { e.preventDefault(); answerInteraction({ action: "input", value: inp.value }); }
     });
     row.appendChild(inp);
     row.appendChild(send);
@@ -2380,7 +2397,8 @@ function answerInteraction(result) {
 
 askSend.onclick = () => answerAsk(askInput.value);
 askInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); answerAsk(askInput.value); }
+  // FEATURE-478: ignore Enter while an IME is composing (candidate confirm).
+  if (e.key === "Enter" && !imeComposing(e)) { e.preventDefault(); answerAsk(askInput.value); }
 });
 
 /* ---------- FEATURE-469: message attachments (clipboard paste / pick) ---------- */
@@ -2787,7 +2805,9 @@ input.addEventListener("keydown", (e) => {
     e.preventDefault();
     return;
   }
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInput(); return; }
+  // FEATURE-478: while an IME is composing, Enter confirms a candidate word
+  // (e.g. Chinese pinyin), not a send — ignore it until composition ends.
+  if (e.key === "Enter" && !e.shiftKey && !imeComposing(e)) { e.preventDefault(); sendInput(); return; }
   if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
   if (history.length === 0) return; // nothing to navigate; never touch the draft (FIX-367)
   // ↑ recalls only with the cursor on the first line, ↓ on the last line,
@@ -5049,7 +5069,7 @@ function showWizardAsk(msg) {
   send.textContent = T.send || "发送";
   const submit = () => { wsSend({ type: "answer", id: msg.id, value: inp.value }); wrap.remove(); };
   send.onclick = submit;
-  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter" && !imeComposing(e)) { e.preventDefault(); submit(); } });
   wrap.appendChild(inp);
   wrap.appendChild(send);
   modelWizardBody.appendChild(wrap);
