@@ -157,7 +157,9 @@ const brandLogo = document.getElementById("brandLogo");
 function updateBrandLogo() {
   if (!brandLogo) return;
   const theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
-  const url = "/logos/" + theme;
+  // A cache-busting query param forces the browser to re-fetch the logo so an
+  // overwrite/removal is reflected immediately (FEATURE-477).
+  const url = "/logos/" + theme + "?t=" + Date.now();
   const probe = new Image();
   probe.onload = () => {
     brandLogo.src = url;
@@ -3900,9 +3902,12 @@ function renderLogoBlock() {
   block.appendChild(fileInput);
 
   const refresh = () => {
+    // A cache-busting query param forces the browser to re-fetch the logo so an
+    // overwrite/removal is reflected immediately (FEATURE-477).
+    const url = "/logos/" + theme + "?t=" + Date.now();
     const probe = new Image();
     probe.onload = () => {
-      preview.src = "/logos/" + theme;
+      preview.src = url;
       preview.hidden = false;
       placeholder.hidden = true;
       removeBtn.hidden = false;
@@ -3913,7 +3918,7 @@ function renderLogoBlock() {
       placeholder.hidden = false;
       removeBtn.hidden = true;
     };
-    probe.src = "/logos/" + theme;
+    probe.src = url;
   };
 
   const uploadBlob = (blob) => {

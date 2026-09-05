@@ -807,7 +807,9 @@ func (s *Server) handleLogoRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "no-cache")
+	// no-store so an overwrite/removal is always reflected on the next fetch
+	// (the frontend also appends a cache-busting query param) (FEATURE-477).
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(data)
 }
 
