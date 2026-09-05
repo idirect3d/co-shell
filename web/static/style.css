@@ -300,6 +300,52 @@ aside {
   color: var(--fg-faint);
   font-size: 10px;
 }
+/* FEATURE-477: light theme draws directory rows as a blue rounded square with
+   a white folder glyph (closed when collapsed, open when expanded) instead of
+   the ▸/▾ arrow. Scoped to [data-theme="light"] so the dark theme keeps the
+   arrow. The .tw text arrow is hidden (font-size:0) and the folder is drawn
+   with the element background + ::before/::after. */
+[data-theme="light"] .tree-row.dir .tw {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  font-size: 0;
+  background: #4a9bd5;
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+/* White folder body (closed): a rounded rectangle filling the lower part. */
+[data-theme="light"] .tree-row.dir .tw::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  height: 8px;
+  background: #fff;
+  border-radius: 1px;
+}
+/* White folder tab (closed): a small tab at the top-left. */
+[data-theme="light"] .tree-row.dir .tw::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 3px;
+  width: 5px;
+  height: 3px;
+  background: #fff;
+  border-radius: 1px 1px 0 0;
+}
+/* Expanded (open folder): the body top edge drops to suggest an open mouth. */
+[data-theme="light"] .tree-row.dir .tw.open::before {
+  height: 6px;
+  top: 6px;
+  bottom: auto;
+}
+[data-theme="light"] .tree-row.dir .tw.open::after {
+  display: none;
+}
 .tree-row .name { overflow: hidden; text-overflow: ellipsis; }
 .tree-row.dir > .name { color: var(--fg); }
 /* Right-aligned action group (FEATURE-383): directory change-count badge +
