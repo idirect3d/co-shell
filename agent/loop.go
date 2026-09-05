@@ -119,6 +119,10 @@ type Agent struct {
 	imagePaths      []string // paths to image files for multimodal input (cleared after one-shot delivery)
 	workspacePath   string   // workspace root path for loading external config files
 
+	// runtimeInfo carries the co-shell runtime environment and startup
+	// configuration (FEATURE-481), injected once at startup via SetRuntimeInfo.
+	runtimeInfo RuntimeInfo
+
 	// dynEvents is the dynamic perception queue (FEATURE-471): user-action
 	// events (clip/upload/message/open) buffered while a task runs and drained
 	// into <environment_details> on each user/tool message injection.

@@ -175,6 +175,13 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<current_mode>")
 	sb.WriteString(a.currentWorkMode())
 	sb.WriteString("</current_mode>\n")
+	// FEATURE-481: expose the co-shell runtime environment and startup
+	// configuration (pid/version/build/service mode; serve mode adds
+	// port/bind/whitelist) so the LLM knows how it is running.
+	if ri := a.buildRuntimeInfo(); ri != "" {
+		sb.WriteString(ri)
+		sb.WriteString("\n")
+	}
 	if incDir {
 		sb.WriteString("<current_dir>\n")
 		sb.WriteString(files)
@@ -242,6 +249,49 @@ func (a *Agent) currentWorkMode() string {
 		return a.cfg.LLM.WorkMode
 	}
 	return "act"
+}
+
+// buildRuntimeInfo renders the <runtime_info> block describing the co-shell
+// runtime environment and startup configuration (FEATURE-481). It returns ""
+// when no runtime info was injected (SetRuntimeInfo never called), keeping the
+// envelope backward compatible. For serve mode it additionally reports the
+// listen port, bind address and (when present) the access whitelist.
+func (a *Agent) buildRuntimeInfo() string {
+	a.mu.Lock()
+	ri := a.runtimeInfo
+	a.mu.Unlock()
+	if ri.PID == 0 && ri.Version == "" && ri.Build == "" && ri.ServiceMode == "" {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("<runtime_info>\n")
+	sb.WriteString("  <pid>")
+	sb.WriteString(strconv.Itoa(ri.PID))
+	sb.WriteString("</pid>\n")
+	sb.WriteString("  <version>")
+	sb.WriteString(ri.Version)
+	sb.WriteString("</version>\n")
+	sb.WriteString("  <build>")
+	sb.WriteString(ri.Build)
+	sb.WriteString("</build>\n")
+	sb.WriteString("  <service_mode>")
+	sb.WriteString(ri.ServiceMode)
+	sb.WriteString("</service_mode>\n")
+	if ri.ServiceMode == "serve" {
+		sb.WriteString("  <serve_port>")
+		sb.WriteString(strconv.Itoa(ri.ServePort))
+		sb.WriteString("</serve_port>\n")
+		sb.WriteString("  <serve_bind>")
+		sb.WriteString(ri.ServeBind)
+		sb.WriteString("</serve_bind>\n")
+		if len(ri.ServeWhitelist) > 0 {
+			sb.WriteString("  <serve_whitelist>")
+			sb.WriteString(strings.Join(ri.ServeWhitelist, ","))
+			sb.WriteString("</serve_whitelist>\n")
+		}
+	}
+	sb.WriteString("</runtime_info>")
+	return sb.String()
 }
 
 // refreshLastUserEnvelope updates only the <time> tag in the last user message's
