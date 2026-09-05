@@ -973,8 +973,9 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-472 | 0.35.0 | P1 | ResultMode 节静态化：遍历所有已配置模式生成标题与各模式介绍，填充 KeyWorkModeAct/Plan/Research 中英双语资源 |
+| FEATURE-473 | 0.35.0 | P1 | track_task_progress 说明优化：强调该方法主要用于初始化任务计划，之后的任务执行跟踪通过工具调用透明化中的 meta 对象（meta.progress）更新，不用重复调用 |
 
-> 当前 BUILD: 799
+> 当前 BUILD: 811
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -985,6 +986,12 @@
   - 方案（已确认）：① 遍历所有已配置模式（config.DefaultWorkModes + 用户自定义 cfg.WorkModes 去重），将模式名大写后接 MODE，用 " V.S. " 连接作为 RESULT MODE 节标题（如 ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE）；② 接引导句 "In each user message, the environment_details will specify the current mode. There are %s modes:"；③ 按顺序分别填入各模式介绍（KeyWorkModeAct/KeyWorkModePlan/KeyWorkModeResearch）；④ 参考 notes/cline.json 的 ACT MODE V.S. PLAN MODE 段落填充 KeyWorkModeAct/Plan 资源，并拟写 KeyWorkModeResearch 初稿；⑤ 中英双语维护（zh_system.go + en_system.go）；⑥ 三个内置模式都包含 ResultMode 节。
   - 实施：`agent/system_prompt.go`（buildNamedSection/getRawSectionText 的 ResultMode case 改为遍历所有模式生成静态节）+ `i18n/zh_system.go`/`en_system.go`（填充 KeyWorkModeAct/Plan/Research）+ `i18n/keys.go`（如需新增引导句/标题模板键）
   - 测试：见 use-case/FEATURE-472/
+
+- [ ] **FEATURE-473 track_task_progress 说明优化（强调初始化计划 + meta.progress 更新）** [BUILD-811]
+  - 背景：`track_task_progress` 的说明（工具定义 Description、KeyToolUsageTrackTaskProgress、KeySystemPromptToolUsageTaskProgress）未明确强调该方法主要用于**初始化任务计划**，导致 LLM 在执行过程中反复调用 track_task_progress 更新计划，而不是通过其他工具调用的 meta.progress 增量更新，造成冗余调用与上下文浪费。
+  - 方案（已确认）：在 `track_task_progress` 相关说明中强调：该方法**主要用于初始化任务计划**（一次性传递完整 steps 数组建立计划）；之后的任务执行跟踪**通过工具调用透明化中的 meta 对象（meta.progress）更新**，**不用重复调用 track_task_progress**。
+  - 实施：`agent/tools.go`（track_task_progress 工具定义 Description 强调初始化计划 + meta.progress 更新，不重复调用）+ `i18n/en_system.go`/`zh_system.go`（KeyToolUsageTrackTaskProgress + KeySystemPromptToolUsageTaskProgress 同步强调）[BUILD-811]
+  - 测试：见 use-case/FEATURE-473/
 
 ## v0.34.0 — 开发中
 
