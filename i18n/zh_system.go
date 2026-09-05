@@ -69,11 +69,28 @@ func init() {
 
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
-	zhMessages[KeyWorkModeAct] = `ACT MODE：在此模式下，你使用工具来完成用户的任务。任务完成后，使用 attempt_completion 工具向用户呈现结果。`
+	zhMessages[KeyWorkModeAct] = `在此模式下，你使用工具来完成用户的任务。
+- 你拥有全部工具，通过调用工具（如 execute_command、read_file、replace_in_file、browser 等）实际执行并推进任务。
+- 任务完成后，使用 attempt_completion 工具向用户呈现结果，并可附带一个 CLI 命令来展示成果。`
 
-	zhMessages[KeyWorkModePlan] = `PLAN MODE：在此模式下，目标是收集信息、获取上下文，以制定完成任务的详细计划，供用户审阅批准后再切换到 ACT MODE 实施。需要与用户讨论计划或澄清需求时，使用 ask_followup_question 工具；计划制定完成后，使用 attempt_completion 工具交付计划。`
+	zhMessages[KeyWorkModePlan] = `在此模式下，目标是收集信息、获取上下文，以制定完成任务的详细计划，供用户审阅批准后再切换到 ACT MODE 实施。
+- 需要与用户讨论计划、澄清需求或确认下一步时，使用 ask_followup_question 工具。
+- 计划制定完成后，使用 attempt_completion 工具交付计划。
 
-	zhMessages[KeyWorkModeResearch] = `RESEARCH MODE：在此模式下，你专注于搜索、查阅资料、收集信息并输出研究报告。你使用只读工具（search_files/read_file/list_files 等）与浏览器来调研。做调查研究和生成报告时，必须保存所有收集到的原始资料，以便审稿人员快速验证所引用数据、观点、结论等内容的真实来源；基础资料命名规则为"[序号] 文章标题 - 出处 - 作者【发表日期】"，在主报告中以 GB/T 7714 标注出处；每次全新任务在 ./research/ 下创建新的工作文件夹；最终报告先用 Markdown 整理，再转换为 Word 文档，并尽量打开呈现给用户。`
+## 什么是 PLAN MODE？
+- 你通常处于 ACT MODE，用户可能切换到 PLAN MODE 以便与你来回讨论，规划如何最好地完成任务。
+- 进入 PLAN MODE 后，根据用户请求，你可能需要先收集信息（如用 read_file 或 search_files 获取更多任务上下文），也可用 ask_followup_question 向用户澄清问题以更好地理解任务。
+- 获得更多上下文后，应设计一份完成任务的详细计划，用 attempt_completion 呈现给用户。
+- 然后可询问用户是否满意此计划或需要修改，把它当作一次头脑风暴，讨论任务并规划最佳实现方式。
+- 最终达成良好计划后，请用户切换到 ACT MODE 来实施解决方案。`
+
+	zhMessages[KeyWorkModeResearch] = `在此模式下，你专注于搜索、查阅资料、收集信息并输出研究报告。
+- 你使用只读工具（search_files/read_file/list_files 等）与浏览器来调研，不修改代码或执行破坏性操作。
+- 做调查研究和生成报告时，必须保存所有收集到的原始资料，以便审稿人员快速验证所引用数据、观点、结论等内容的真实来源。
+- 基础资料命名规则为"[序号] 文章标题 - 出处 - 作者【发表日期】"，在主报告中以 GB/T 7714 标注出处。
+- 每次全新任务在 ./research/ 下创建新的工作文件夹；若用户未指定工作空间，所有输出文件（md、脚本、word、pdf、excel 等）都应创建在该文件夹下。
+- 需要提取 pdf 内容时，先用 pdf2png.py 拆解为分页 png，再通过 visual_analysis 分析识别。
+- 最终报告先用 Markdown 整理，再转换为 Word 文档，并尽量打开呈现给用户。`
 
 	// OpenAI mode tool usage (JSON format, used with API tools parameter)
 	// Keep concise — detailed tool definitions are provided via the API tools parameter.

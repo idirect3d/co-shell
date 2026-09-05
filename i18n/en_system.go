@@ -49,11 +49,28 @@ func init() {
 
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
-	enMessages[KeyWorkModeAct] = `ACT MODE: In this mode, you use tools to accomplish the user's task. Once you've completed the user's task, you use the attempt_completion tool to present the result of the task to the user.`
+	enMessages[KeyWorkModeAct] = `In this mode, you use tools to accomplish the user's task.
+- You have access to all tools and drive the task forward by calling them (e.g. execute_command, read_file, replace_in_file, browser, etc.).
+- Once you've completed the user's task, use the attempt_completion tool to present the result, optionally with a CLI command to showcase it.`
 
-	enMessages[KeyWorkModePlan] = `PLAN MODE: In this mode, the goal is to gather information and get context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution. When you need to discuss the plan or clarify requirements with the user, use the ask_followup_question tool; once the plan is ready, use the attempt_completion tool to deliver it.`
+	enMessages[KeyWorkModePlan] = `In this mode, the goal is to gather information and get context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
+- When you need to discuss the plan, clarify requirements, or confirm the next step with the user, use the ask_followup_question tool.
+- Once the plan is ready, use the attempt_completion tool to deliver it.
 
-	enMessages[KeyWorkModeResearch] = `RESEARCH MODE: In this mode, you focus on searching, gathering information, collecting data, and producing research reports. You use read-only tools (search_files/read_file/list_files, etc.) and the browser to investigate. When conducting research and generating reports, you MUST save all collected raw materials so that reviewers can quickly verify the true sources of cited data, opinions, and conclusions; name raw materials as "[Serial Number] Article Title - Source - Author [Publication Date]", cite all original sources using GB/T 7714 in the final report, create a new working folder under ./research/ for each new task, finalize the report in Markdown format first, then convert it to a Word document and open it for the user when possible.`
+## What is PLAN MODE?
+- While you are usually in ACT MODE, the user may switch to PLAN MODE in order to have a back and forth with you to plan how to best accomplish the task.
+- When starting in PLAN MODE, depending on the user's request, you may need to do some information gathering (e.g. using read_file or search_files to get more context about the task). You may also ask the user clarifying questions with ask_followup_question to get a better understanding of the task.
+- Once you've gained more context about the user's request, architect a detailed plan for how you will accomplish the task and present it to the user using attempt_completion.
+- Then you might ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it.
+- Finally, once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE to implement the solution.`
+
+	enMessages[KeyWorkModeResearch] = `In this mode, you focus on searching, gathering information, collecting data, and producing research reports.
+- You use read-only tools (search_files/read_file/list_files, etc.) and the browser to investigate; you do not modify code or perform destructive operations.
+- When conducting research and generating reports, you MUST save all collected raw materials so that reviewers can quickly verify the true sources of cited data, opinions, and conclusions.
+- Name raw materials as "[Serial Number] Article Title - Source - Author [Publication Date]" and cite all original sources using GB/T 7714 in the final report.
+- Create a new working folder under ./research/ for each new task; if the user does not specify a workspace, all output files (md, scripts, word, pdf, excel, etc.) should be created in that folder.
+- When extracting content from PDF files, first use the pdf2png.py tool to split it into individual PNG pages, then use visual_analysis for content analysis or recognition.
+- Finalize the report in Markdown format first, then convert it to a Word document and open it for the user when possible.`
 
 	enMessages[KeySystemPromptToolUsage] = `{META_DESCRIPTION}`
 
