@@ -121,16 +121,17 @@ function i18nT(key, fallback) {
 /* ---------- theme ---------- */
 
 // localStorage "co-shell-theme": "auto" (default, follow the OS) | "dark" |
-// "light" | "light-tp". setTheme only applies; persistence is the caller's
-// job so that "auto" is never clobbered by a resolved value.
+// "light" | "light-tp" | "paper". setTheme only applies; persistence is the
+// caller's job so that "auto" is never clobbered by a resolved value.
 const themeToggle = document.getElementById("themeToggle");
 const osThemeMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
 // themeIcon returns the toggle glyph for a resolved tone (FEATURE-477):
-// dark = moon, light = sun, light-tp = tree.
+// dark = moon, light = sun, light-tp = tree, paper = leaf.
 function themeIcon(name) {
   if (name === "dark") return "☾";
   if (name === "light-tp") return "🌳";
+  if (name === "paper") return "🍃";
   return "☀";
 }
 
@@ -141,7 +142,7 @@ function setTheme(name) {
 
 function themeMode() {
   const saved = localStorage.getItem("co-shell-theme");
-  return saved === "dark" || saved === "light" || saved === "light-tp" ? saved : "auto";
+  return saved === "dark" || saved === "light" || saved === "light-tp" || saved === "paper" ? saved : "auto";
 }
 
 function applyTheme() {
@@ -152,6 +153,7 @@ function applyTheme() {
   if (mode === "dark") resolved = "dark";
   else if (mode === "light") resolved = "light";
   else if (mode === "light-tp") resolved = "light-tp";
+  else if (mode === "paper") resolved = "paper";
   else resolved = (!osThemeMQ || osThemeMQ.matches) ? "dark" : "light"; // auto
   setTheme(resolved);
   const sel = document.getElementById("setThemeMode");
@@ -203,9 +205,11 @@ applyTheme();
 
 themeToggle.onclick = () => {
   const cur = document.documentElement.getAttribute("data-theme");
-  // Cycle through the three tones: dark -> light -> light-tp -> dark
+  // Cycle through the four tones: dark -> light -> light-tp -> paper -> dark
   // (FEATURE-477). Clicking always pins an explicit tone (never auto).
-  const next = cur === "dark" ? "light" : (cur === "light" ? "light-tp" : "dark");
+  const next = cur === "dark" ? "light"
+    : (cur === "light" ? "light-tp"
+      : (cur === "light-tp" ? "paper" : "dark"));
   localStorage.setItem("co-shell-theme", next);
   applyTheme();
 };
@@ -3789,7 +3793,7 @@ function renderSettingItem(it) {
     // persists to localStorage and applies the theme immediately.
     ctl = document.createElement("select");
     ctl.className = "set-select";
-    const opts = ["auto", "dark", "light", "light-tp"];
+    const opts = ["auto", "dark", "light", "light-tp", "paper"];
     const cur = localStorage.getItem("co-shell-theme") || "auto";
     curVal = cur;
     for (const opt of opts) {
@@ -3877,7 +3881,8 @@ function renderLogoBlock() {
   const theme = currentResolvedTheme();
   // Each tone has its own label (FEATURE-477).
   const themeLabel = theme === "dark" ? i18nT("logoThemeDark", "深色主题")
-    : (theme === "light-tp" ? i18nT("logoThemeLightTp", "浅色主题(蓝灰)") : i18nT("logoThemeLight", "浅色主题"));
+    : (theme === "light-tp" ? i18nT("logoThemeLightTp", "浅色主题(蓝灰)")
+      : (theme === "paper" ? i18nT("logoThemePaper", "纸张护眼") : i18nT("logoThemeLight", "浅色主题")));
 
   const block = document.createElement("div");
   block.className = "logo-block";
