@@ -1002,7 +1002,7 @@
   - 实施：`web/static/app.js` ① token_iter 分支重置 curTool/toolBlockByName/iterToolBlocks（与 done 分支一致）；② 意图回填优先按工具名匹配块（iterToolBlocks.find 加 b.toolName === summary.tool_name 条件），跳过不同名的孤儿块，同名工具仍按创建顺序解析 [BUILD-812]
   - 测试：见 use-case/FIX-474/
 
-- [ ] **FIX-475 修复 Web UI 任务执行卡住不输出（WebSocket 同步写阻塞冻结 agent 循环）**
+- [x] **FIX-475 修复 Web UI 任务执行卡住不输出（WebSocket 同步写阻塞冻结 agent 循环）**
   - 背景：Web UI 任务执行时（不太常见）卡住不输出，运行按钮保持"正在运行"，按什么键都不管用；有时连接状态"已连接→已断开"后又继续收到数据；有时报浏览器 WebSocket 无法接收数据错误。
   - 根因：事件推送链路 `agent.RunStream → cb → WebRenderer.Render → sendEvent → sendJSON → wsConn.WriteMessage → net.Conn.Write` 全部同步、无缓冲、无写超时，且跑在 agent 主循环 goroutine 上。当浏览器端 TCP 接收缓冲满（标签页后台节流/前端处理不过来/网络拥塞）时 `conn.Write` 无限阻塞，冻结整个 agent 循环——不再产生事件、不再返回 await_input/done，运行按钮无法复位，按键/打断均无效。
   - 方案（已确认）：修复方向1——① 给 WebSocket 写加超时（SetWriteDeadline，超时即关闭连接返回错误）；② 事件推送改为异步队列 + 独立写 goroutine 解耦，agent 永不因网络阻塞（channel 满时丢弃最旧事件或降级，避免 agent 冻结）。
