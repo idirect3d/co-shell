@@ -1610,24 +1610,25 @@ let msgVizUsage = 0;
 // Horizontal pan offset (px) applied to the track when lines overflow.
 let msgVizPan = 0;
 
-// msgVizColor maps a block to its title-bar indicator colour (CSS var).
-// cls is the class string captured at makeBlock time; box is the live .ev
-// element, whose later-added classes (e.g. level-error on a failed tool call)
-// are also honoured so a failed tool shows red.
+// msgVizColor maps a block to its title-bar indicator colour. The palette is
+// FIXED to the dark-theme values (not read from the live CSS variables) so the
+// chart's line colours stay identical whichever theme (dark/light/light-tp/
+// paper) the UI is currently in. cls is the class string captured at makeBlock
+// time; box is the live .ev element, whose later-added classes (e.g.
+// level-error on a failed tool call) are also honoured so a failed tool shows
+// red.
 function msgVizColor(cls, box) {
-  const cs = getComputedStyle(document.documentElement);
-  const v = (n) => cs.getPropertyValue(n).trim() || "#888";
   const bcls = box ? box.className : "";
-  if (/level-error/.test(cls) || /level-error/.test(bcls)) return v("--err");
-  if (/level-success/.test(cls) || /level-success/.test(bcls)) return v("--ok");
-  if (/level-warning/.test(cls) || /level-warning/.test(bcls)) return v("--warn");
+  if (/level-error/.test(cls) || /level-error/.test(bcls)) return "#f87171"; // dark --err
+  if (/level-success/.test(cls) || /level-success/.test(bcls)) return "#4ade80"; // dark --ok
+  if (/level-warning/.test(cls) || /level-warning/.test(bcls)) return "#facc15"; // dark --warn
   if (/user-msg/.test(cls)) return "transparent"; // user msg = empty gap between turns
-  if (/llm/.test(cls)) return v("--accent");
-  if (/tool/.test(cls)) return v("--warn");
-  if (/command/.test(cls)) return v("--ok");
-  if (/repl/.test(cls)) return v("--debug");
+  if (/llm/.test(cls)) return "#3fd6ef"; // dark --accent
+  if (/tool/.test(cls)) return "#facc15"; // dark --warn
+  if (/command/.test(cls)) return "#4ade80"; // dark --ok
+  if (/repl/.test(cls)) return "#6b7280"; // dark --debug
   if (/supervisor/.test(cls)) return "#ff58f3";
-  return v("--fg-faint"); // system / thinking / default
+  return "#5b6373"; // dark --fg-faint (system / thinking / default)
 }
 
 // msgVizFlush renders one line per pending block using the current context
@@ -1637,7 +1638,7 @@ function msgVizFlush() {
   if (!msgViz || !msgVizTrack || !msgVizPending.length) { msgVizPending = []; return; }
   const max = (modelInfo && modelInfo.textMaxLen) || 0;
   const h = msgViz.clientHeight || 27;
-  const dotH = 1; // FEATURE-482: the red dot is a single pixel
+  const dotH = 2; // FIX-483: the context-usage notch is 2px tall
   const range = Math.max(h - dotH, 1);
   const ratio = max > 0 ? Math.min(msgVizUsage / max, 1) : 0;
   const top = Math.round(range * (1 - ratio));
