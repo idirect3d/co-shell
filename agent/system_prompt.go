@@ -770,6 +770,9 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 		if section == "" {
 			continue
 		}
+		// Trim each section so the separator's surrounding blank lines are
+		// consistent regardless of each section's leading/trailing newlines.
+		section = strings.TrimSpace(section)
 		if len(sections) > 0 {
 			sections = append(sections, separator)
 		}

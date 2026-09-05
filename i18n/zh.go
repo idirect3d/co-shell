@@ -41,7 +41,7 @@ var zhMessages = map[string]string{
 	KeyUnlimited:        "不限制",
 	KeyDefault:          "默认",
 	KeyUnknown:          "未知",
-	KeySectionSeparator: "\n====\n",
+	KeySectionSeparator: "\n\n====\n\n",
 
 	// Wizard
 	KeyWizardTitle:       "🔧 co-shell API 设置向导",
