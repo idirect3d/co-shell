@@ -1501,6 +1501,18 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 - Settings are persisted to config.json
 `
 
+	// Environment-awareness section (FEATURE-482): static block appended to the
+	// META-CAPABILITIES index describing capabilities perceivable directly from
+	// <environment_details>.
+	enMessages[KeyCapEnvAwareness] = `【Environment Awareness】
+
+The following capabilities need no tool call — they are perceivable directly from the <environment_details> carried by every message:
+
+- Service-mode awareness: <service_mode> in <runtime_info> tells how you are running (stdio=single command / enhanced=interactive REPL / serve=web UI); serve mode also carries <serve_port>/<serve_bind>/<serve_whitelist>; <model_name> tells the API model name the current message is sent to.
+- User-dynamic awareness: <user_dynamic_events> carries the user's real-time actions (drag-drop files, copied screenshots, supplemental messages, opened/previewed files, etc.), reflecting the user's current thinking path — adjust your response accordingly.
+- Model-parameter awareness: <context_window> shows current token usage and limit, <current_mode> shows the active work mode (act/plan/research) — use these to judge remaining context and behavioral boundaries.
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	// OpenAI mode does not need examples — tool definitions are provided via
 	// the API tools parameter. Keep this empty to avoid unnecessary context.

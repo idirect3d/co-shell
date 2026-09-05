@@ -1071,6 +1071,31 @@
   - 实施：`config/config.go`（LLMConfig 新增 CompletionMode 字段 + 默认 active）+ `agent/tools.go`（attemptCompletionTool 按 CompletionMode 三态分支）+ `cmd/settings_safety.go`/`cmd/settings_web.go`（completion-mode 设置项 + safetyGroup 显示）+ `agent/settings_tools.go`（getSettingValue/applySetting）+ `i18n/`（KeyCol3CompletionMode 等文案）+ `agent/attempt_completion_test.go`（三态测试）
   - 测试：见 use-case/FEATURE-479/
 
+## v0.36.0 — 开发中
+
+> **版本**: v0.36.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 环境感知增强
+> **说明**: 0.36.0 系列增强 co-shell 的环境感知能力，让 co-shell 自己知道运行环境和启动配置。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-481 | 0.36.0 | P1 | 系统信息增加运行时环境：进程号、版本号、build号、服务模式（stdio/enhanced/serve），serve 模式含端口号、白名单（如有）、bind 地址 |
+
+> 当前 BUILD: 841
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-481 系统信息增加运行时环境感知** [BUILD-845]
+  - 背景：co-shell 需要让 LLM 自己知道当前运行环境和启动配置，以便更好地理解自身运行状态。当前 `<environment_details>` 只包含时间、消息号、上下文窗口、cwd、文件列表等，缺少进程号、版本号、build号、服务模式等运行时信息。
+  - 方案（已确认）：在 agent 上新增运行时环境信息注入机制，在 `<environment_details>` 中输出 `<runtime_info>` 块，包含进程号、版本号、build号、服务模式（stdio/enhanced/serve）；serve 模式额外输出端口号、白名单（如有）、bind 地址。
+  - 实施：`agent/agent.go`（RuntimeInfo 结构体 + SetRuntimeInfo/RuntimeInfo setter）+ `agent/loop.go`（Agent 结构体 runtimeInfo 字段）+ `agent/envelope.go`（buildRuntimeInfo 方法 + buildFullEnvironmentDetails 输出 runtime_info）+ `main.go`（agent 创建后注入 pid/version/build；stdio 单命令注入 serviceMode=stdio；startWebUI 注入 serve 端口/bind/白名单；REPL 启动前注入 enhanced）+ `agent/runtime_info_test.go`（5 个单元测试）
+  - 扩展（本次会话）：① `<runtime_info>` 增加 `<model_name>`（当前消息发送给模型的 API model name）——`agent/agent.go` RuntimeInfo 新增 ModelName 字段 + `agent/envelope.go` buildRuntimeInfo 在 `<build>` 后渲染 `<model_name>`（非空才输出）+ `main.go` SetRuntimeInfo 从 activeModel.Model 注入；② META-CAPABILITIES 新增【环境感知】静态段落（服务模式感知/用户动态感知/模型参数感知）——`i18n/keys.go` 新增 KeyCapEnvAwareness + `zh_system.go`/`en_system.go` 双语内容 + `agent/capability.go` buildMetaCapabilityIndex 末尾追加（修正：最初误加到 formatCapabilityList，后移到 buildMetaCapabilityIndex）+ `agent/capability_test.go` TestMetaCapabilityIndex_EnvAwareness
+  - 测试：见 use-case/FEATURE-481/
+
 ## v0.35.3 — 开发中
 
 > **版本**: v0.35.3
