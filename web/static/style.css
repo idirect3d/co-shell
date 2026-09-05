@@ -47,15 +47,19 @@
 }
 
 /* FEATURE-476: light-theme workspace panel + topbar blue/gray layered
-   palette. Scoped to [data-theme="light"] so the dark theme is untouched. */
-[data-theme="light"] #topbar {
+   palette. Scoped to [data-theme="light"] so the dark theme is untouched.
+   FEATURE-477: the topbar keeps its default light-gray bottom border; the
+   workspace / session-title / task-plan panel heads (the row below the topbar)
+   get the thicker deep-blue bottom border instead. */
+[data-theme="light"] #sidebar .panel-head,
+[data-theme="light"] .stream-head,
+[data-theme="light"] #plan-panel .panel-head {
   border-bottom: 2px solid var(--topbar-border);
 }
 
 [data-theme="light"] #sidebar .panel-head {
   background: var(--ws-head-bg);
   color: var(--ws-head-fg);
-  border-bottom: none;
 }
 [data-theme="light"] #sidebar .panel-head .ws-title {
   color: var(--ws-head-fg);
@@ -300,22 +304,19 @@ aside {
   color: var(--fg-faint);
   font-size: 10px;
 }
-/* FEATURE-477: light theme draws directory rows as a blue rounded square with
-   a white folder glyph (closed when collapsed, open when expanded) instead of
-   the ▸/▾ arrow. Scoped to [data-theme="light"] so the dark theme keeps the
-   arrow. The .tw text arrow is hidden (font-size:0) and the folder is drawn
-   with the element background + ::before/::after. */
+/* FEATURE-477: light theme draws directory rows as a blue folder glyph
+   (closed when collapsed, open when expanded) on a transparent background
+   instead of the ▸/▾ arrow. Scoped to [data-theme="light"] so the dark theme
+   keeps the arrow. The .tw text arrow is hidden (font-size:0) and the folder
+   is drawn with ::before (body) + ::after (tab). */
 [data-theme="light"] .tree-row.dir .tw {
   position: relative;
   display: inline-block;
   width: 16px;
   height: 16px;
   font-size: 0;
-  background: #4a9bd5;
-  border-radius: 3px;
-  box-sizing: border-box;
 }
-/* White folder body (closed): a rounded rectangle filling the lower part. */
+/* Blue folder body (closed): a rounded rectangle filling the lower part. */
 [data-theme="light"] .tree-row.dir .tw::before {
   content: "";
   position: absolute;
@@ -323,10 +324,10 @@ aside {
   right: 2px;
   bottom: 2px;
   height: 8px;
-  background: #fff;
+  background: #4a9bd5;
   border-radius: 1px;
 }
-/* White folder tab (closed): a small tab at the top-left. */
+/* Blue folder tab (closed): a small tab at the top-left. */
 [data-theme="light"] .tree-row.dir .tw::after {
   content: "";
   position: absolute;
@@ -334,7 +335,7 @@ aside {
   top: 3px;
   width: 5px;
   height: 3px;
-  background: #fff;
+  background: #4a9bd5;
   border-radius: 1px 1px 0 0;
 }
 /* Expanded (open folder): the body top edge drops to suggest an open mouth. */
