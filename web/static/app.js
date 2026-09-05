@@ -3004,12 +3004,16 @@ function treeNode(node) {
     const open = expandedDirs.has(node.path);
     ul.style.display = open ? "" : "none";
     tw.textContent = open ? "▾" : "▸";
+    // FEATURE-477: the .open class lets the light theme draw an "open folder"
+    // icon for expanded directories (vs a closed folder when collapsed).
+    tw.classList.toggle("open", open);
     for (const c of node.children || []) ul.appendChild(treeNode(c));
     li.appendChild(ul);
     row.onclick = () => {
       const isOpen = ul.style.display !== "none";
       ul.style.display = isOpen ? "none" : "";
       tw.textContent = isOpen ? "▸" : "▾";
+      tw.classList.toggle("open", !isOpen);
       if (isOpen) expandedDirs.delete(node.path);
       else expandedDirs.add(node.path);
     };
