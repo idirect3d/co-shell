@@ -274,6 +274,11 @@ func (a *Agent) buildRuntimeInfo() string {
 	sb.WriteString("  <build>")
 	sb.WriteString(ri.Build)
 	sb.WriteString("</build>\n")
+	if ri.ModelName != "" {
+		sb.WriteString("  <model_name>")
+		sb.WriteString(ri.ModelName)
+		sb.WriteString("</model_name>\n")
+	}
 	sb.WriteString("  <service_mode>")
 	sb.WriteString(ri.ServiceMode)
 	sb.WriteString("</service_mode>\n")

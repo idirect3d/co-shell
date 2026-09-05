@@ -142,6 +142,9 @@ type RuntimeInfo struct {
 	Version string
 	// Build is the co-shell build counter (e.g. "841").
 	Build string
+	// ModelName is the API model name the current message is sent to
+	// (e.g. "deepseek-chat"), i.e. the active model's Model field.
+	ModelName string
 	// ServiceMode is the startup service mode: "stdio" (single command),
 	// "enhanced" (interactive REPL) or "serve" (web UI).
 	ServiceMode string
