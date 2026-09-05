@@ -150,16 +150,25 @@ function applyTheme() {
 // brandLogo is the topbar system-logo <img> (FEATURE-477).
 const brandLogo = document.getElementById("brandLogo");
 
+// logoScale returns the topbar logo display scale (1-200%, default 100) from
+// localStorage (FEATURE-477).
+function logoScale() {
+  const v = parseInt(localStorage.getItem("co-shell-logo-scale"), 10);
+  return (v >= 1 && v <= 200) ? v : 100;
+}
+
 // updateBrandLogo shows the logo configured for the current resolved theme
 // (dark|light) in the topbar, or hides it (falling back to the default ▸
 // co-shell text) when none is configured. The logo is served by GET
-// /logos/{theme}; a 404 means no logo for that theme.
+// /logos/{theme}; a 404 means no logo for that theme. Its display height is
+// the titlebar height (44px) scaled by the configured logo scale.
 function updateBrandLogo() {
   if (!brandLogo) return;
   const theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   // A cache-busting query param forces the browser to re-fetch the logo so an
   // overwrite/removal is reflected immediately (FEATURE-477).
   const url = "/logos/" + theme + "?t=" + Date.now();
+  brandLogo.style.height = Math.round(44 * logoScale() / 100) + "px";
   const probe = new Image();
   probe.onload = () => {
     brandLogo.src = url;
@@ -3894,6 +3903,30 @@ function renderLogoBlock() {
   removeBtn.hidden = true;
   btns.appendChild(removeBtn);
   block.appendChild(btns);
+
+  // FEATURE-477: a scale slider (1-200%) controls the topbar logo display size.
+  const scaleRow = document.createElement("div");
+  scaleRow.className = "logo-block-scale";
+  const scaleLabel = document.createElement("span");
+  scaleLabel.className = "logo-block-scale-label";
+  scaleLabel.textContent = i18nT("logoScale", "显示大小");
+  const scaleVal = document.createElement("span");
+  scaleVal.className = "logo-block-scale-val";
+  const scaleInput = document.createElement("input");
+  scaleInput.type = "range";
+  scaleInput.min = "1";
+  scaleInput.max = "200";
+  scaleInput.value = String(logoScale());
+  scaleVal.textContent = scaleInput.value + "%";
+  scaleInput.oninput = () => {
+    localStorage.setItem("co-shell-logo-scale", scaleInput.value);
+    scaleVal.textContent = scaleInput.value + "%";
+    updateBrandLogo();
+  };
+  scaleRow.appendChild(scaleLabel);
+  scaleRow.appendChild(scaleInput);
+  scaleRow.appendChild(scaleVal);
+  block.appendChild(scaleRow);
 
   const fileInput = document.createElement("input");
   fileInput.type = "file";
