@@ -614,15 +614,18 @@ aside {
   cursor: pointer;
 }
 .msgviz-line:hover { opacity: 0.85; }
-/* The red dot: a single pixel whose vertical position encodes the context
-   usage (bottom = empty, top = full). Pure red, centred on the line. */
+/* The context-usage marker: a 2px-tall notch whose vertical position encodes
+   the context usage (bottom = empty, top = full). It is painted with the
+   control's own background (--bg-panel) so the coloured line appears to break
+   (be cut out) at that height, marking where the context sat when the message
+   was produced (FIX-483). */
 .msgviz-dot {
   position: absolute;
   left: 50%;
   width: 1px;
-  height: 1px;
+  height: 2px;
   margin-left: -0.5px;
-  background: #ff0000;
+  background: var(--bg-panel);
   pointer-events: none;
 }
 /* FEATURE-419: floating block-boundary navigation icons. Shown when the current
