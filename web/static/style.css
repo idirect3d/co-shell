@@ -20,7 +20,31 @@
   --glow: 0 0 6px rgba(63, 214, 239, 0.55);
 }
 
+/* FEATURE-477: original light theme (pre-FEATURE-476). Pure CSS-variable
+   driven, no blue/gray layered overrides. accent is the classic blue. */
 [data-theme="light"] {
+  --bg: #f6f7fa;
+  --bg-panel: #ffffff;
+  --bg-elev: #eef1f6;
+  --mono-bg: #f0f2f7;
+  --fg: #1d2433;
+  --fg-dim: #5b6474;
+  --fg-faint: #9aa3b2;
+  --placeholder: #9aa3b2;
+  --accent: #0878d1;
+  --accent-dim: rgba(8, 120, 209, 0.10);
+  --border: #d9dee8;
+  --ok: #16a34a;
+  --warn: #b45309;
+  --err: #dc2626;
+  --debug: #8a93a3;
+  --glow: none;
+}
+
+/* FEATURE-477: light-tp = the FEATURE-476 blue/gray layered palette (the
+   former light theme). Kept as a separate tone so the original light theme
+   is restored under [data-theme="light"]. */
+[data-theme="light-tp"] {
   --bg: #f6f7fa;
   --bg-panel: #ffffff;
   --bg-elev: #eef1f6;
@@ -37,7 +61,7 @@
   --err: #dc2626;
   --debug: #8a93a3;
   --glow: none;
-  /* FEATURE-476: sample blue/gray layered palette (light theme only). */
+  /* FEATURE-476: sample blue/gray layered palette (light-tp only). */
   --ws-head-bg: #4a9bd5;                 /* workspace panel head blue base */
   --ws-head-fg: #ffffff;                 /* workspace panel head text */
   --ws-branch-bg: rgba(232, 240, 254, 0.6); /* branch translucent light blue */
@@ -46,38 +70,38 @@
   --topbar-border: #2e78c4;              /* topbar bottom border highlight blue */
 }
 
-/* FEATURE-476: light-theme workspace panel + topbar blue/gray layered
-   palette. Scoped to [data-theme="light"] so the dark theme is untouched.
-   FEATURE-477: the topbar keeps its default light-gray bottom border; the
-   workspace / session-title / task-plan panel heads (the row below the topbar)
-   get the thicker deep-blue bottom border instead. */
-[data-theme="light"] #sidebar .panel-head,
-[data-theme="light"] .stream-head,
-[data-theme="light"] #plan-panel .panel-head {
+/* FEATURE-476: light-tp workspace panel + topbar blue/gray layered palette.
+   Scoped to [data-theme="light-tp"] so the dark and plain light themes are
+   untouched. FEATURE-477: the topbar keeps its default light-gray bottom
+   border; the workspace / session-title / task-plan panel heads (the row below
+   the topbar) get the thicker deep-blue bottom border instead. */
+[data-theme="light-tp"] #sidebar .panel-head,
+[data-theme="light-tp"] .stream-head,
+[data-theme="light-tp"] #plan-panel .panel-head {
   border-bottom: 2px solid var(--topbar-border);
 }
 
-[data-theme="light"] #sidebar .panel-head {
+[data-theme="light-tp"] #sidebar .panel-head {
   background: var(--ws-head-bg);
   color: var(--ws-head-fg);
 }
-[data-theme="light"] #sidebar .panel-head .ws-title {
+[data-theme="light-tp"] #sidebar .panel-head .ws-title {
   color: var(--ws-head-fg);
 }
-[data-theme="light"] #sidebar .panel-head #treeRefresh {
+[data-theme="light-tp"] #sidebar .panel-head #treeRefresh {
   color: rgba(255, 255, 255, 0.85);
 }
-[data-theme="light"] #sidebar .panel-head #treeRefresh:hover {
+[data-theme="light-tp"] #sidebar .panel-head #treeRefresh:hover {
   color: #ffffff;
 }
-[data-theme="light"] #wsBranch {
+[data-theme="light-tp"] #wsBranch {
   background: var(--ws-branch-bg);
   color: var(--ws-branch-fg);
   border-radius: 4px;
   padding: 1px 6px;
   font-weight: 600;
 }
-[data-theme="light"] #sidebar .tree {
+[data-theme="light-tp"] #sidebar .tree {
   background: var(--ws-tree-bg);
 }
 
@@ -304,12 +328,12 @@ aside {
   color: var(--fg-faint);
   font-size: 10px;
 }
-/* FEATURE-477: light theme draws directory rows as a blue folder glyph
+/* FEATURE-477: light-tp draws directory rows as a blue folder glyph
    (closed when collapsed, open when expanded) on a transparent background
-   instead of the ▸/▾ arrow. Scoped to [data-theme="light"] so the dark theme
-   keeps the arrow. The .tw text arrow is hidden (font-size:0) and the folder
-   is drawn with ::before (body) + ::after (tab). */
-[data-theme="light"] .tree-row.dir .tw {
+   instead of the ▸/▾ arrow. Scoped to [data-theme="light-tp"] so the dark and
+   plain light themes keep the arrow. The .tw text arrow is hidden
+   (font-size:0) and the folder is drawn with ::before (body) + ::after (tab). */
+[data-theme="light-tp"] .tree-row.dir .tw {
   position: relative;
   display: inline-block;
   width: 16px;
@@ -317,7 +341,7 @@ aside {
   font-size: 0;
 }
 /* Blue folder body (closed): a rounded rectangle filling the lower part. */
-[data-theme="light"] .tree-row.dir .tw::before {
+[data-theme="light-tp"] .tree-row.dir .tw::before {
   content: "";
   position: absolute;
   left: 2px;
@@ -328,7 +352,7 @@ aside {
   border-radius: 1px;
 }
 /* Blue folder tab (closed): a small tab at the top-left. */
-[data-theme="light"] .tree-row.dir .tw::after {
+[data-theme="light-tp"] .tree-row.dir .tw::after {
   content: "";
   position: absolute;
   left: 2px;
@@ -339,12 +363,12 @@ aside {
   border-radius: 1px 1px 0 0;
 }
 /* Expanded (open folder): the body top edge drops to suggest an open mouth. */
-[data-theme="light"] .tree-row.dir .tw.open::before {
+[data-theme="light-tp"] .tree-row.dir .tw.open::before {
   height: 6px;
   top: 6px;
   bottom: auto;
 }
-[data-theme="light"] .tree-row.dir .tw.open::after {
+[data-theme="light-tp"] .tree-row.dir .tw.open::after {
   display: none;
 }
 .tree-row .name { overflow: hidden; text-overflow: ellipsis; }
@@ -1701,18 +1725,29 @@ aside {
 .fv-code .tok-prop { color: #9cdcfe; }       /* json property keys */
 .fv-code .tok-brace { color: #d4d4d4; }      /* json {} [] braces */
 
-/* FEATURE-425: in light theme the pale tokens (variables, numbers) must be
-   darkened so they stay readable on the light background. */
-[data-theme="light"] .fv-code .tok-var { color: #0451a5; }
-[data-theme="light"] .fv-code .tok-num { color: #098658; }
-[data-theme="light"] .fv-code .tok-prop { color: #0451a5; }
-[data-theme="light"] .fv-code .tok-brace { color: #1d2433; }
-[data-theme="light"] .fv-code .tok-kw { color: #af00db; }
-[data-theme="light"] .fv-code .tok-str { color: #a31515; }
-[data-theme="light"] .fv-code .tok-com { color: #008000; }
-[data-theme="light"] .fv-code .tok-fn { color: #795e26; }
-[data-theme="light"] .fv-code .tok-type { color: #267f99; }
-[data-theme="light"] .fv-code .tok-pkg { color: #795e26; }
+/* FEATURE-425: in light themes (light and light-tp) the pale tokens
+   (variables, numbers) must be darkened so they stay readable on the light
+   background. */
+[data-theme="light"] .fv-code .tok-var,
+[data-theme="light-tp"] .fv-code .tok-var { color: #0451a5; }
+[data-theme="light"] .fv-code .tok-num,
+[data-theme="light-tp"] .fv-code .tok-num { color: #098658; }
+[data-theme="light"] .fv-code .tok-prop,
+[data-theme="light-tp"] .fv-code .tok-prop { color: #0451a5; }
+[data-theme="light"] .fv-code .tok-brace,
+[data-theme="light-tp"] .fv-code .tok-brace { color: #1d2433; }
+[data-theme="light"] .fv-code .tok-kw,
+[data-theme="light-tp"] .fv-code .tok-kw { color: #af00db; }
+[data-theme="light"] .fv-code .tok-str,
+[data-theme="light-tp"] .fv-code .tok-str { color: #a31515; }
+[data-theme="light"] .fv-code .tok-com,
+[data-theme="light-tp"] .fv-code .tok-com { color: #008000; }
+[data-theme="light"] .fv-code .tok-fn,
+[data-theme="light-tp"] .fv-code .tok-fn { color: #795e26; }
+[data-theme="light"] .fv-code .tok-type,
+[data-theme="light-tp"] .fv-code .tok-type { color: #267f99; }
+[data-theme="light"] .fv-code .tok-pkg,
+[data-theme="light-tp"] .fv-code .tok-pkg { color: #795e26; }
 
 /* ---------- dropdown menu (FEATURE-365) ---------- */
 
