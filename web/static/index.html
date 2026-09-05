@@ -68,6 +68,14 @@
     <div class="stream-head">
       <span class="stream-active" id="streamActive">●</span>
       <input type="text" class="stream-title" id="streamTitle" placeholder="会话标题" title="点击修改会话标题">
+      <!-- FEATURE-482: message-visualization chart between the session title
+           and the display-mode pill. Each 1px vertical line = one message block
+           (colour = its title-bar indicator light); the red dot's height shows
+           the cumulative context usage when that message was produced. Click a
+           line to jump to its block; drag to pan when lines overflow. -->
+      <div class="msgviz" id="msgViz" title="消息可视化：色线=消息类型，红点高度=上下文占用，点击定位，拖拽平移">
+        <div class="msgviz-track" id="msgVizTrack"></div>
+      </div>
       <div class="mode-seg stream-mode" id="streamMode" title="显示模式">
         <div class="mode-seg-slider" id="streamModeSlider"></div>
         <button class="mode-seg-item" data-mode="silent">静默</button>
