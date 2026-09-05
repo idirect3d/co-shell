@@ -335,6 +335,9 @@ const fvClose = document.getElementById("fvClose");
 // FEATURE-425: main message area title bar (display-mode pill + session title).
 const streamMode = document.getElementById("streamMode");
 const streamTitle = document.getElementById("streamTitle");
+// FEATURE-482: message-visualization chart (lines + pannable track).
+const msgViz = document.getElementById("msgViz");
+const msgVizTrack = document.getElementById("msgVizTrack");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
@@ -871,6 +874,9 @@ function makeBlock(cls, label, msgIndex) {
   applyBlockDisplayMode(box, cls);
   // FEATURE-445: all blocks append to the single stream region B.
   streamB.appendChild(box);
+  // FEATURE-482: queue this block for the message-visualization chart. Its
+  // context-usage value is backfilled when the iteration's token_iter arrives.
+  if (msgVizPending) msgVizPending.push({ cls: cls, box: box });
   scrollStream();
   return body;
 }
@@ -1143,6 +1149,10 @@ function renderEvent(ev) {
       tokenStats.lastInTPS = parseInt(m.in_tps, 10) || 0;
       tokenStats.lastOutTPS = parseInt(m.out_tps, 10) || 0;
       updateStatus();
+      // FEATURE-482: the iteration's token usage is now known — backfill the
+      // message-visualization chart with the blocks created this iteration.
+      msgVizUsage = tokenStats.sessionIn + tokenStats.sessionOut;
+      msgVizFlush();
     }
     return;
   }
@@ -1587,6 +1597,99 @@ miStatus.onclick = () => {
 // the running totals across all iterations; last* hold the most recent
 // iteration's values (including input/output tokens-per-second).
 const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0 };
+
+/* FEATURE-482: message-visualization chart. Each rendered message block (.ev)
+   becomes one 1px vertical line in #msgVizTrack, coloured by its title-bar
+   indicator light; a pure-red dot's vertical position encodes the cumulative
+   context usage when that message was produced. Lines are appended at the
+   right edge (newest) and pan leftwards by dragging when they overflow. */
+// Blocks created since the last token_iter, awaiting their context-usage value.
+let msgVizPending = [];
+// Cumulative context usage (tokens) at the most recent token_iter.
+let msgVizUsage = 0;
+// Horizontal pan offset (px) applied to the track when lines overflow.
+let msgVizPan = 0;
+
+// msgVizColor maps a block class to its title-bar indicator colour (CSS var).
+function msgVizColor(cls) {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (n) => cs.getPropertyValue(n).trim() || "#888";
+  if (/level-error/.test(cls)) return v("--err");
+  if (/level-success/.test(cls)) return v("--ok");
+  if (/level-warning/.test(cls)) return v("--warn");
+  if (/user-msg/.test(cls)) return v("--accent");
+  if (/llm/.test(cls)) return v("--accent");
+  if (/tool/.test(cls)) return v("--warn");
+  if (/command/.test(cls)) return v("--ok");
+  if (/repl/.test(cls)) return v("--debug");
+  if (/supervisor/.test(cls)) return "#ff58f3";
+  return v("--fg-faint"); // system / thinking / default
+}
+
+// msgVizFlush renders one line per pending block using the current cumulative
+// context usage, then clears the pending list. Called when a token_iter arrives
+// (the iteration's token usage is now known).
+function msgVizFlush() {
+  if (!msgViz || !msgVizTrack || !msgVizPending.length) { msgVizPending = []; return; }
+  const max = (modelInfo && modelInfo.textMaxLen) || 0;
+  const h = msgViz.clientHeight || 27;
+  const dotH = 3;
+  const range = Math.max(h - dotH, 1);
+  const ratio = max > 0 ? Math.min(msgVizUsage / max, 1) : 0;
+  const top = Math.round(range * (1 - ratio));
+  const pending = msgVizPending;
+  msgVizPending = [];
+  for (const p of pending) {
+    const line = document.createElement("div");
+    line.className = "msgviz-line";
+    line.style.background = msgVizColor(p.cls);
+    const dot = document.createElement("div");
+    dot.className = "msgviz-dot";
+    dot.style.top = top + "px";
+    line.appendChild(dot);
+    // Clicking a line scrolls the corresponding message block into view.
+    line.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (p.box && p.box.scrollIntoView) p.box.scrollIntoView({ block: "nearest" });
+    });
+    msgVizTrack.appendChild(line);
+  }
+  msgVizApplyPan();
+}
+
+// msgVizApplyPan clamps and applies the horizontal pan offset to the track.
+function msgVizApplyPan() {
+  if (!msgViz || !msgVizTrack) return;
+  const overflow = msgVizTrack.scrollWidth - msgViz.clientWidth;
+  if (overflow <= 0) msgVizPan = 0;
+  else msgVizPan = Math.max(-overflow, Math.min(0, msgVizPan));
+  msgVizTrack.style.transform = "translateX(" + msgVizPan + "px)";
+}
+
+// initMsgViz wires the drag-to-pan interaction on the chart.
+function initMsgViz() {
+  if (!msgViz || !msgVizTrack) return;
+  let dragging = false, startX = 0, startPan = 0;
+  msgViz.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startPan = msgVizPan;
+    msgViz.classList.add("dragging");
+    msgViz.setPointerCapture(e.pointerId);
+  });
+  msgViz.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    msgVizPan = startPan + (e.clientX - startX);
+    msgVizApplyPan();
+  });
+  const end = () => {
+    dragging = false;
+    msgViz.classList.remove("dragging");
+  };
+  msgViz.addEventListener("pointerup", end);
+  msgViz.addEventListener("pointercancel", end);
+  window.addEventListener("resize", msgVizApplyPan);
+}
 
 // FEATURE-419: per-iteration counter shown in the token-stats line (the same
 // sequence number :context displays for each message). Incremented on every
@@ -5236,6 +5339,7 @@ async function refreshBranch() {
   } catch { /* defaults stay zh */ }
   applyI18n();
   initStreamMode(); // FEATURE-425: wire the display-mode pill + session title
+  initMsgViz(); // FEATURE-482: wire the message-visualization chart drag-to-pan
   autoGrow(); // FEATURE-405: set the initial input height correctly on load
   setRunning(false); // apply localized button title
   applyPanels();
