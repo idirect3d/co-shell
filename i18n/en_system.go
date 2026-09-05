@@ -44,12 +44,16 @@ func init() {
 
 	enMessages[KeySystemPromptResultMode] = `%s`
 
-	// Work mode descriptions
-	enMessages[KeyWorkModeAct] = ``
+	// FEATURE-472: lead sentence of the static RESULT MODE section.
+	enMessages[KeySystemPromptResultModeLead] = `In each user message, the environment_details will specify the current mode. There are %d modes:`
 
-	enMessages[KeyWorkModePlan] = ``
+	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
+	// in the static RESULT MODE section.
+	enMessages[KeyWorkModeAct] = `In this mode, you have access to all tools EXCEPT the plan_mode_respond tool. In ACT MODE, you use tools to accomplish the user's task. Once you've completed the user's task, you use the attempt_completion tool to present the result of the task to the user.`
 
-	enMessages[KeyWorkModeResearch] = ``
+	enMessages[KeyWorkModePlan] = `In this special mode, you have access to the plan_mode_respond tool. The goal is to gather information and get context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution. When you need to converse with the user or present a plan, use the plan_mode_respond tool to deliver your response directly.`
+
+	enMessages[KeyWorkModeResearch] = `In this mode, you focus on searching, gathering information, collecting data, and producing research reports. You use read-only tools (search_files/read_file/list_files, etc.) and the browser to investigate, save all collected source material under ./research/, and finally organize the report in Markdown and convert it to a Word document to present to the user.`
 
 	enMessages[KeySystemPromptToolUsage] = `{META_DESCRIPTION}`
 

@@ -962,6 +962,30 @@
   - 实施：`config/config.go`（Config.WebInputDir 字段）+ `cmd/settings.go`（:set web-input-dir 注册，非法路径拒绝）+ `cmd/settings_web.go`（开发者组设置项 + webInputDirValue 默认 input）+ `i18n/keys.go`/`en.go`/`zh.go`（KeyCol3WebInputDir）+ `web/server.go`（handleUpload 目标目录不存在时自动创建）+ `web/static/index.html`（录入框 📎 按钮 + 下方附件托盘 #attachBar/#attachList/#attachClear/#attachFile）+ `web/static/style.css`（.attach-* 缩略图/文件图标/删除/清空 + .user-dyn 动态标签 chips）+ `web/static/app.js`（paste 剪贴板图片、📎 多选、拖放加入附件托盘；缩略图与📄文件图标平铺；单项删除/清空/点击放大预览；发送时 FormData 批量上传至 web-input-dir → 图片走既有 attachments→SetImagePaths 视觉通道、全部文件以 <<<DYNAMIC>>> 动态感知标签追加 user 消息末尾；renderUserBody 将动态块渲染为气泡内标签区，回显即见；历史回看会话时 user 消息回放渲染沿用现有路径（原始动态块文本可读），与回显同渲染列为后续小任务）[BUILD-779]；补充：图片附件按主模型视觉能力门控——`agent/agent.go` 新增 MainModelSupportsVision()（GetActiveModel(false) 判断主模型 Capabilities.Vision），`web/session.go` ReadLine 仅当主模型支持视觉才 SetImagePaths 注入图片字节，否则只保留动态信息文本告知（避免把图片发给无视觉主模型）[BUILD-780]
   - 测试：见 use-case/FEATURE-469/（UC-0001~0004 运行时用例）；单测：`cmd/web_input_dir_test.go`（默认值 input/非法路径拒绝/设置组含 web-input-dir）+ `web/server_test.go` TestUploadAutoCreatesDir（上传目录自动创建）
 
+## v0.35.0 — 开发中
+
+> **版本**: v0.35.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: ResultMode 节静态化
+> **说明**: 0.35.0 系列将系统提示词的 RESULT MODE 节从"只描述当前模式"改为静态列出所有已配置模式（标题如 ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE + 引导句 + 各模式介绍），让 LLM 同时了解各模式差异，避免模式切换导致系统提示词内容变化。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-472 | 0.35.0 | P1 | ResultMode 节静态化：遍历所有已配置模式生成标题与各模式介绍，填充 KeyWorkModeAct/Plan/Research 中英双语资源 |
+
+> 当前 BUILD: 799
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-472 ResultMode 节静态化**
+  - 背景：系统提示词 RESULT MODE 节当前只根据当前 modeName 注入当前模式的描述（KeyWorkModeAct/Plan/Research 填充 KeySystemPromptResultMode 的 %s），且这三个资源内容为空。LLM 无法同时了解各模式区别，不利于具体思考。
+  - 方案（已确认）：① 遍历所有已配置模式（config.DefaultWorkModes + 用户自定义 cfg.WorkModes 去重），将模式名大写后接 MODE，用 " V.S. " 连接作为 RESULT MODE 节标题（如 ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE）；② 接引导句 "In each user message, the environment_details will specify the current mode. There are %s modes:"；③ 按顺序分别填入各模式介绍（KeyWorkModeAct/KeyWorkModePlan/KeyWorkModeResearch）；④ 参考 notes/cline.json 的 ACT MODE V.S. PLAN MODE 段落填充 KeyWorkModeAct/Plan 资源，并拟写 KeyWorkModeResearch 初稿；⑤ 中英双语维护（zh_system.go + en_system.go）；⑥ 三个内置模式都包含 ResultMode 节。
+  - 实施：`agent/system_prompt.go`（buildNamedSection/getRawSectionText 的 ResultMode case 改为遍历所有模式生成静态节）+ `i18n/zh_system.go`/`en_system.go`（填充 KeyWorkModeAct/Plan/Research）+ `i18n/keys.go`（如需新增引导句/标题模板键）
+  - 测试：见 use-case/FEATURE-472/
+
 ## v0.34.0 — 开发中
 
 > **版本**: v0.34.0
