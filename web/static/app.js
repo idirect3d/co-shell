@@ -251,11 +251,25 @@ window.__composing = false;
 // phase (third arg true) so document receives them on the way down to the
 // focused input element.
 document.addEventListener("compositionstart", () => { window.__composing = true; }, true);
-document.addEventListener("compositionend", () => { window.__composing = false; }, true);
-// imeComposing(e) returns true while an IME composition is active, in which
-// case an Enter keypress must be ignored (it selects a candidate, not send).
+// __imeJustEnded: some IMEs (esp. macOS pinyin) end the composition BEFORE the
+// Enter that confirms the candidate reaches the page, so isComposing/__composing
+// are already false when that Enter fires. To catch it, after compositionend we
+// open a short window during which an Enter is treated as candidate-confirm
+// (not send). The window closes on a timeout, so a genuine send Enter right
+// after selecting still works.
+window.__imeJustEnded = false;
+let __imeEndTimer = null;
+document.addEventListener("compositionend", () => {
+  window.__composing = false;
+  window.__imeJustEnded = true;
+  clearTimeout(__imeEndTimer);
+  __imeEndTimer = setTimeout(() => { window.__imeJustEnded = false; }, 400);
+}, true);
+// imeComposing(e) returns true while an IME composition is active or just
+// ended, in which case an Enter keypress must be ignored (it selects a
+// candidate, not send).
 function imeComposing(e) {
-  return e.isComposing === true || window.__composing === true;
+  return e.isComposing === true || window.__composing === true || window.__imeJustEnded === true;
 }
 const yoloSwitch = document.getElementById("yoloSwitch");
 const modeSeg = document.getElementById("modeSeg");
