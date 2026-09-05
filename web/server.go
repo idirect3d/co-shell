@@ -448,6 +448,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	s.setConn(c)
 	s.sendState(c)
 	defer s.clearConn(c)
+	// FIX-475: close the connection when the read loop ends so the async
+	// writer goroutine stops (otherwise it would leak on client disconnect).
+	defer c.Close()
 	for {
 		msg, err := c.ReadMessage()
 		if err != nil {

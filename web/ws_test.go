@@ -12,6 +12,7 @@ package web
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestAcceptKey verifies the Sec-WebSocket-Accept computation against the
@@ -302,5 +304,49 @@ func TestWSOversizeFrameRejected(t *testing.T) {
 	}
 	if err := <-done; err == nil {
 		t.Errorf("oversize frame: ReadMessage succeeded, want error")
+	}
+}
+
+// TestWSWriteDoesNotBlockOnStalledClient verifies FIX-475: WriteMessage is
+// asynchronous (enqueues to a bounded outbound queue drained by a writer
+// goroutine), so a producer never blocks even when the client stops reading and
+// the socket's TCP receive buffer fills up. Flooding far more messages than the
+// queue holds must return promptly (dropping overflow) rather than freezing the
+// producer.
+func TestWSWriteDoesNotBlockOnStalledClient(t *testing.T) {
+	srvConn := make(chan *wsConn, 1)
+	// Server handler hands its wsConn to the test and then blocks (never reads
+	// from the client), so the client's receive buffer fills and a synchronous
+	// socket write would stall.
+	client := dialWS(t, wsHandler(func(c *wsConn) {
+		srvConn <- c
+		<-c.done // keep the handler alive until the connection closes
+	}))
+	defer client.conn.Close()
+
+	var c *wsConn
+	select {
+	case c = <-srvConn:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server wsConn not delivered")
+	}
+
+	// Flood the server->client outbound queue with far more messages than it
+	// can hold. Each WriteMessage must return promptly (enqueue or drop), never
+	// blocking on the stalled socket. The client deliberately does not read, so
+	// the writer goroutine will hit its write deadline and close the conn — but
+	// the producer loop below must still complete quickly.
+	payload := bytes.Repeat([]byte("x"), 4096)
+	start := time.Now()
+	for i := 0; i < wsOutQueueSize*4; i++ {
+		if err := c.WriteMessage(payload); err != nil {
+			// Connection closed by the writer goroutine after the deadline is
+			// acceptable — the key assertion is that we did not block forever.
+			break
+		}
+	}
+	elapsed := time.Since(start)
+	if elapsed > 2*time.Second {
+		t.Errorf("producer flood took %v, expected fast non-blocking writes", elapsed)
 	}
 }
