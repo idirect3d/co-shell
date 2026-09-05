@@ -1485,6 +1485,18 @@ META-CAPABILITIES
 - 设置持久化到 config.json
 `
 
+	// Environment-awareness section (FEATURE-482): static block appended to the
+	// META-CAPABILITIES index describing capabilities perceivable directly from
+	// <environment_details>.
+	zhMessages[KeyCapEnvAwareness] = `【环境感知】
+
+以下能力无需调用工具，直接通过每条消息携带的 <environment_details> 即可感知：
+
+- 服务模式感知：<runtime_info> 中的 <service_mode> 表明当前运行方式（stdio=单次命令 / enhanced=交互式 REPL / serve=Web UI），serve 模式还含 <serve_port>/<serve_bind>/<serve_whitelist>；<model_name> 表明当前消息发送给模型的 API 模型名。
+- 用户动态感知：<user_dynamic_events> 携带用户实时动作（拖拽文件、复制截图、补充消息、打开/预览文件等），反映用户当前思考路径，应据此调整响应。
+- 模型参数感知：<context_window> 显示当前 token 用量与上限，<current_mode> 表明当前工作模式（act/plan/research），据此判断上下文余量与行为边界。
+`
+
 	// Non-XML tool usage examples and task progress (for OpenAI mode)
 	zhMessages[KeySystemPromptToolUsageExamples] = ``
 

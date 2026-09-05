@@ -2336,6 +2336,12 @@ const (
 	KeyCapSelfConfigDesc   = "cap_self_config_desc"
 	KeyCapSelfConfigDetail = "cap_self_config_detail"
 
+	// Environment-awareness section (FEATURE-482): a static block appended to
+	// the META-CAPABILITIES index describing the capabilities the agent can
+	// perceive directly from <environment_details> (service mode, user dynamic
+	// events, model parameters).
+	KeyCapEnvAwareness = "cap_env_awareness"
+
 	// Confirm-tool mode descriptions (FEATURE-200)
 	KeyModeConfirmDesc  = "mode_confirm_desc"
 	KeyModeAutoDesc     = "mode_auto_desc"

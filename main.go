@@ -53,7 +53,7 @@ import (
 
 const version = "0.36.0"
 
-const build = "842"
+const build = "843"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1242,10 +1242,15 @@ func main() {
 	// FEATURE-481: inject the co-shell runtime environment (pid/version/build).
 	// The service mode and serve-mode details are filled in later once the
 	// startup mode is resolved (see injectServiceMode).
+	modelName := ""
+	if activeModel != nil {
+		modelName = activeModel.Model
+	}
 	ag.SetRuntimeInfo(agent.RuntimeInfo{
-		PID:     os.Getpid(),
-		Version: version,
-		Build:   build,
+		PID:       os.Getpid(),
+		Version:   version,
+		Build:     build,
+		ModelName: modelName,
 	})
 
 	// Apply result mode BEFORE restoring session, because SetResultMode

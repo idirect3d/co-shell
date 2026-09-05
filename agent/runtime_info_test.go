@@ -42,6 +42,25 @@ func TestBuildRuntimeInfo_Stdio(t *testing.T) {
 	}
 }
 
+// TestBuildRuntimeInfo_ModelName verifies the <model_name> tag is rendered when
+// a model name is injected and omitted when empty (FEATURE-482 UC-0006).
+func TestBuildRuntimeInfo_ModelName(t *testing.T) {
+	a := &Agent{}
+	a.SetRuntimeInfo(RuntimeInfo{PID: 1, Version: "0.36.0", Build: "842", ModelName: "deepseek-chat", ServiceMode: "stdio"})
+	got := a.buildRuntimeInfo()
+	if !strings.Contains(got, "<model_name>deepseek-chat</model_name>") {
+		t.Errorf("runtime_info missing model_name, got:\n%s", got)
+	}
+
+	// Empty model name must omit the tag entirely.
+	a2 := &Agent{}
+	a2.SetRuntimeInfo(RuntimeInfo{PID: 2, Version: "0.36.0", Build: "842", ServiceMode: "stdio"})
+	got2 := a2.buildRuntimeInfo()
+	if strings.Contains(got2, "<model_name>") {
+		t.Errorf("runtime_info should omit model_name when empty, got:\n%s", got2)
+	}
+}
+
 // TestBuildRuntimeInfo_Enhanced verifies enhanced service mode output (UC-0003).
 func TestBuildRuntimeInfo_Enhanced(t *testing.T) {
 	a := &Agent{}
