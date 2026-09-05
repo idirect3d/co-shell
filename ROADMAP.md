@@ -1017,7 +1017,7 @@
   - 实施：`web/static/style.css`（[data-theme="light"] 变量块新增深蓝/浅蓝/浅灰变量 + 针对 #sidebar .panel-head / #wsBranch / #tree / #topbar 的亮色覆盖规则，用 [data-theme="light"] 前缀限定不影响暗色主题）
   - 测试：见 use-case/FEATURE-476/
 
-- [x] **FEATURE-477 系统 logo 配置功能** [BUILD-825]
+- [x] **FEATURE-477 系统 logo 配置功能** [BUILD-826]
   - 背景：用户希望 co-shell Web UI 支持配置系统 logo，按实际主题(dark/light)各配一个，配置后显示在 topbar 左上角"▸ co-shell v0.35.0"左边，替代/前置默认的 ▸ 标记，co-shell 文字右移不盖住 logo。
   - 方案（已确认）：① logo 按实际主题(dark/light)各配置一个（auto 时跟随当前解析出的主题），存工作区 `logos/` 目录（logo-dark.png / logo-light.png）；② 用 HTTP 接口上传/读取——POST /api/logo（multipart 或 base64，参数 theme=dark/light）+ GET /logos/{theme}（读取 logo 图片）；③ 设置 UI"外观与显示"分组增加 logo 配置项（dark/light 各一个上传按钮，支持剪贴板粘贴上传）；④ topbar .brand 最左边插入 <img> 显示当前主题 logo，缩放高度=标题栏高度(44px)保持宽高比，co-shell 文字右移留空隙；未配置主题保持现状（显示 ▸ co-shell）。
   - 实施：`web/server.go`（新增 /api/logo 上传 + /logos/{theme} 读取路由，logo 存工作区 logos/）+ `cmd/settings_web.go`（displayGroup 增加 logo 配置项）+ `web/static/app.js`（渲染 logo 上传控件 + topbar logo 显示与缩放）+ `web/static/index.html`/`style.css`（.brand 结构 + logo 样式）

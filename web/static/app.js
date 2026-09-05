@@ -127,11 +127,11 @@ const themeToggle = document.getElementById("themeToggle");
 const osThemeMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
 // themeIcon returns the toggle glyph for a resolved tone (FEATURE-477):
-// dark = moon, light = sun, light-tp = tree, paper = leaf.
+// dark = moon, light = sun, light-tp = spade, paper = coffee.
 function themeIcon(name) {
   if (name === "dark") return "☾";
-  if (name === "light-tp") return "🌳";
-  if (name === "paper") return "🍃";
+  if (name === "light-tp") return "♤";
+  if (name === "paper") return "☕︎";
   return "☀";
 }
 
