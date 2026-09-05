@@ -132,6 +132,46 @@ func (a *Agent) Name() string {
 	return a.name
 }
 
+// RuntimeInfo carries the co-shell runtime environment and startup
+// configuration so the agent (and thus the LLM) knows how it is running
+// (FEATURE-481). It is injected once at startup by main.go via SetRuntimeInfo.
+type RuntimeInfo struct {
+	// PID is the co-shell process id.
+	PID int
+	// Version is the co-shell semantic version (e.g. "0.36.0").
+	Version string
+	// Build is the co-shell build counter (e.g. "841").
+	Build string
+	// ModelName is the API model name the current message is sent to
+	// (e.g. "deepseek-chat"), i.e. the active model's Model field.
+	ModelName string
+	// ServiceMode is the startup service mode: "stdio" (single command),
+	// "enhanced" (interactive REPL) or "serve" (web UI).
+	ServiceMode string
+	// ServePort is the web UI listen port (serve mode only).
+	ServePort int
+	// ServeBind is the web UI bind address (serve mode only).
+	ServeBind string
+	// ServeWhitelist is the web UI access whitelist (serve mode only, may be empty).
+	ServeWhitelist []string
+}
+
+// SetRuntimeInfo injects the co-shell runtime environment and startup
+// configuration into the agent (FEATURE-481). It is called once at startup.
+func (a *Agent) SetRuntimeInfo(info RuntimeInfo) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.runtimeInfo = info
+}
+
+// RuntimeInfo returns the injected runtime environment info (may be zero-valued
+// when SetRuntimeInfo was never called).
+func (a *Agent) RuntimeInfo() RuntimeInfo {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.runtimeInfo
+}
+
 func (a *Agent) Said() string {
 	now := time.Now().Format("2006-01-02 15:04:05")
 	return i18n.TF(i18n.KeyAgentSaid, now, a.name)

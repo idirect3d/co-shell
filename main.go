@@ -31,8 +31,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -49,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.35.3"
+const version = "0.36.0"
 
-const build = "841"
+const build = "845"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1237,6 +1239,20 @@ func main() {
 	ag.SetVaultStore(s.Vault())
 	ag.SetModelManager(modelMgr)
 
+	// FEATURE-481: inject the co-shell runtime environment (pid/version/build).
+	// The service mode and serve-mode details are filled in later once the
+	// startup mode is resolved (see injectServiceMode).
+	modelName := ""
+	if activeModel != nil {
+		modelName = activeModel.Model
+	}
+	ag.SetRuntimeInfo(agent.RuntimeInfo{
+		PID:       os.Getpid(),
+		Version:   version,
+		Build:     build,
+		ModelName: modelName,
+	})
+
 	// Apply result mode BEFORE restoring session, because SetResultMode
 	// resets a.messages to [{system}] which would destroy restored messages.
 	ag.SetResultMode(config.ResultMode(cfg.LLM.ResultMode))
@@ -1423,6 +1439,8 @@ func main() {
 			io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeConflict, "--input-mode/--serve with a command"))
 			os.Exit(1)
 		}
+		// FEATURE-481: single-command mode runs in stdio service mode.
+		injectServiceMode(ag, "stdio", 0, "", nil)
 		executeSingleCommand(ag, cfg, flags.command, outputFormat)
 		return
 	}
@@ -1480,6 +1498,16 @@ func main() {
 			os.Exit(1)
 		}
 		io.Printf("%s\n", i18n.TF(i18n.KeyServeStarted, addr))
+		// FEATURE-481: web UI runs in serve service mode. Report the actual
+		// listen port (addr may differ from flags.port when it was occupied
+		// and auto-incremented), the bind address and the access whitelist.
+		servePort := flags.port
+		if _, portStr, err := net.SplitHostPort(addr); err == nil {
+			if p, perr := strconv.Atoi(portStr); perr == nil {
+				servePort = p
+			}
+		}
+		injectServiceMode(ag, "serve", servePort, bind, whitelist)
 		if openBrowser {
 			if err := web.OpenBrowser("http://" + addr); err != nil {
 				io.ErrPrintf("%s\n", i18n.TF(i18n.KeyServeBrowserFailed, err, addr))
@@ -1510,6 +1538,12 @@ func main() {
 
 	r.SetInputMode(inputMode)
 	r.SetOutputFormat(outputFormat)
+	// FEATURE-481: when the REPL runs interactively (not the web/serve mode,
+	// which was already injected inside startWebUI), report the enhanced
+	// service mode. This covers both the tui (enhanced) and stdio REPL paths.
+	if inputMode != "web" {
+		injectServiceMode(ag, "enhanced", 0, "", nil)
+	}
 	log.Info("REPL started (input mode: %s)", inputMode)
 	if err := r.Run(); err != nil {
 		log.Error("REPL error: %v", err)
@@ -1567,6 +1601,18 @@ func renderSingleCmdEvent(io agent.UserIO, ep config.EmojiPrefixes, ev agent.Str
 	// preserved for the golden test baseline (render_single_cmd.golden).
 	renderer := agent.NewLineRenderer(io, ep, agent.StreamModeSingleCmd)
 	renderer.Render(ev)
+}
+
+// injectServiceMode fills in the resolved startup service mode and serve-mode
+// details on the agent's runtime info (FEATURE-481). It preserves the already
+// injected pid/version/build and only updates the mode-specific fields.
+func injectServiceMode(ag *agent.Agent, mode string, port int, bind string, whitelist []string) {
+	ri := ag.RuntimeInfo()
+	ri.ServiceMode = mode
+	ri.ServePort = port
+	ri.ServeBind = bind
+	ri.ServeWhitelist = whitelist
+	ag.SetRuntimeInfo(ri)
 }
 
 // executeSingleCommand executes a single command (natural language or system command)
