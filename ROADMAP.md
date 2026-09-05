@@ -1047,6 +1047,30 @@
   - 实施：`web/static/style.css`（新增 `[data-theme="light-tp"] #themeToggle { font-size: 15px; }` + `[data-theme="paper"] #themeToggle { font-size: 18px; }`）+ `web/static/app.js`（新增 `window.__composing` 标志 + document compositionstart/compositionend 监听 + `imeComposing(e)` 辅助函数；主输入框回车发送、askInput、askInteraction inp、模型向导 inp、会话标题 streamTitle 共 5 处 Enter 触发逻辑加 `!imeComposing(e)` 判断）[BUILD-832]
   - 测试：见 use-case/FEATURE-478/
 
+## v0.35.2 — 开发中
+
+> **版本**: v0.35.2
+
+> **状态**: 🚧 开发中
+> **里程碑**: attempt_completion 完成模式三态化
+> **说明**: 0.35.2 系列将 attempt_completion 的完成确认行为从布尔开关扩展为三态完成模式（主动/简单/退出），并新增 completion-mode 系统参数放到[安全与确认]设置页。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-479 | 0.35.2 | P1 | attempt_completion 完成模式三态化：将 AttemptCompletionConfirm 布尔开关扩展为 completion-mode 三态（active 主动=显示完整确认框含 LLM next_steps/简单 simple=只显示确认完成+继续输入两个固定选项/退出 exit=直接完成不显示确认框），新增系统参数放[安全与确认]设置页 |
+
+> 当前 BUILD: 838
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-479 attempt_completion 完成模式三态化** [BUILD-838]
+  - 背景：attempt_completion 的完成确认行为目前只有一个布尔开关 AttemptCompletionConfirm（默认 true），且未暴露到系统设置页。用户希望将完成确认行为扩展为三种模式：① 主动模式（active）：显示 LLM 收集的选项 + 下一步建议 + 取消 + 补充信息 + 完成（同当前 confirm=true 做法）；② 简单模式（simple）：只给用户提供【确认任务完成】和【继续输入需求】两个固定选项，不再显示 LLM 希望收集的问题；③ 退出模式（exit）：直接退出，不显示任何附加完成提示框（同当前 confirm=false 做法）。
+  - 方案（已确认）：① 将 config.LLMConfig.AttemptCompletionConfirm 布尔字段扩展为 CompletionMode 三态字符串字段（active/simple/exit，默认 active），保留 AttemptCompletionConfirm 兼容（active 对应 true、exit 对应 false）；② agent/tools.go attemptCompletionTool 按 CompletionMode 分支：active=现有完整确认框、simple=只显示【确认任务完成】+【继续输入需求】两个固定选项（继续输入把用户输入发回 LLM 继续循环）、exit=直接完成不弹框；③ 新增 completion-mode 系统参数，放[安全与确认]设置页（REPL .set + Web UI 设置 + LLM 工具设置）。
+  - 实施：`config/config.go`（LLMConfig 新增 CompletionMode 字段 + 默认 active）+ `agent/tools.go`（attemptCompletionTool 按 CompletionMode 三态分支）+ `cmd/settings_safety.go`/`cmd/settings_web.go`（completion-mode 设置项 + safetyGroup 显示）+ `agent/settings_tools.go`（getSettingValue/applySetting）+ `i18n/`（KeyCol3CompletionMode 等文案）+ `agent/attempt_completion_test.go`（三态测试）
+  - 测试：见 use-case/FEATURE-479/
+
 ## v0.34.0 — 开发中
 
 > **版本**: v0.34.0

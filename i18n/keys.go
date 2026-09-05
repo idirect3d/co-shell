@@ -875,6 +875,11 @@ const (
 	KeyAttemptCompletionExit       = "attempt_completion_exit"
 	KeyAttemptCompletionContinue   = "attempt_completion_continue"
 
+	// FEATURE-479: attempt_completion simple completion mode (two fixed options)
+	KeyAttemptCompletionSimpleConfirm        = "attempt_completion_simple_confirm"
+	KeyAttemptCompletionSimpleContinue       = "attempt_completion_simple_continue"
+	KeyAttemptCompletionSimpleContinuePrompt = "attempt_completion_simple_continue_prompt"
+
 	// FEATURE-452: ask_followup_question fixed options
 	KeyAskFollowupThinkExit    = "ask_followup_think_exit"
 	KeyAskFollowupMoreOptions  = "ask_followup_more_options"
@@ -1480,6 +1485,8 @@ const (
 	// FEATURE-460: SUP LLM interaction streaming switches
 	KeyCol3ShowSupPrompt = "col3_show_sup_prompt"
 	KeyCol3ShowSupStream = "col3_show_sup_stream"
+	// FEATURE-479: attempt_completion completion-confirm behavior mode
+	KeyCol3CompletionMode = "col3_completion_mode"
 	KeyLoopJudgeUserPrompt       = "loop_judge_user_prompt"
 	KeyLoopJudgeFallback         = "loop_judge_fallback"
 	KeyLoopFailedStrategiesNone  = "loop_failed_strategies_none" // FEATURE-349
