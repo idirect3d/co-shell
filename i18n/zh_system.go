@@ -64,12 +64,16 @@ func init() {
 
 	zhMessages[KeySystemPromptResultMode] = `%s`
 
-	// Work mode descriptions
-	zhMessages[KeyWorkModeAct] = ``
+	// FEATURE-472: lead sentence of the static RESULT MODE section.
+	zhMessages[KeySystemPromptResultModeLead] = `In each user message, the environment_details will specify the current mode. There are %d modes:`
 
-	zhMessages[KeyWorkModePlan] = ``
+	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
+	// in the static RESULT MODE section.
+	zhMessages[KeyWorkModeAct] = `行动模式：在此模式下，你可以访问所有工具（除 plan_mode_respond 外）。你使用工具来完成用户的任务；任务完成后，使用 attempt_completion 工具向用户呈现结果。`
 
-	zhMessages[KeyWorkModeResearch] = ``
+	zhMessages[KeyWorkModePlan] = `规划模式：在此特殊模式下，你拥有 plan_mode_respond 工具。目标是收集信息、获取上下文，以制定完成任务的详细计划，供用户审阅批准后再切换到行动模式实施。需要与用户交流或呈现计划时，直接使用 plan_mode_respond 工具交付回复。`
+
+	zhMessages[KeyWorkModeResearch] = `调研模式：在此模式下，你专注于搜索、查阅资料、收集信息并输出研究报告。你使用只读工具（search_files/read_file/list_files 等）与浏览器来调研，将收集到的原始资料保存到 ./research/ 工作目录，最终以 Markdown 整理并转换为 Word 文档呈现给用户。`
 
 	// OpenAI mode tool usage (JSON format, used with API tools parameter)
 	// Keep concise — detailed tool definitions are provided via the API tools parameter.
