@@ -41,7 +41,7 @@ var enMessages = map[string]string{
 	KeyUnlimited:        "Unlimited",
 	KeyDefault:          "Default",
 	KeyUnknown:          "Unknown",
-	KeySectionSeparator: "\n====\n",
+	KeySectionSeparator: "\n\n====\n\n",
 
 	// Wizard
 	KeyWizardTitle:       "🔧 co-shell API Setup Wizard",
