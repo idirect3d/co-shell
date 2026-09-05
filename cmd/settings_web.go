@@ -102,10 +102,11 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 	// specially by the Web UI (FEATURE-457).
 	displayGroup := []WebSettingItem{
 		{Key: "theme-mode", Value: "auto", Desc: "主题", Type: "enum", Options: []string{"auto", "dark", "light"}, Default: "auto"},
-		// FEATURE-477: per-theme system logo. Rendered as a special upload
-		// control by the Web UI (type "logo"); the theme is the key suffix.
-		{Key: "logo-dark", Value: "dark", Desc: "深色主题 logo（剪贴板粘贴上传）", Type: "logo"},
-		{Key: "logo-light", Value: "light", Desc: "亮色主题 logo（剪贴板粘贴上传）", Type: "logo"},
+		// FEATURE-477: system logo. Rendered as a special upload block by the
+		// Web UI (type "logo"). The target theme follows the current theme-mode
+		// (dark/light; auto resolves to the parsed theme), so only one logo item
+		// is shown at a time.
+		{Key: "logo", Value: "", Desc: "当前主题 logo（剪贴板粘贴上传）", Type: "logo"},
 		{Key: "emoji-enabled", Value: boolStr(llm.EmojiEnabled), Desc: i18n.T(i18n.KeyCol3EmojiEnabled), Type: "bool", Default: boolStr(def.EmojiEnabled)},
 		{Key: "show-llm-thinking", Value: boolStr(llm.ShowLlmThinking), Desc: i18n.T(i18n.KeyCol3LlmThinking), Type: "bool", Default: boolStr(def.ShowLlmThinking)},
 		{Key: "show-llm-content", Value: boolStr(llm.ShowLlmContent), Desc: i18n.T(i18n.KeyCol3LlmContent), Type: "bool", Default: boolStr(def.ShowLlmContent)},

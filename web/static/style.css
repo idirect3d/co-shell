@@ -1915,34 +1915,69 @@ aside {
   line-height: 1;
   cursor: help;
 }
-/* FEATURE-477: per-theme system logo upload control (preview + buttons). */
-.logo-ctl {
-  flex: 0 0 auto;
+/* FEATURE-477: system logo configuration block. It spans the settings pane
+   width, shows a large preview area and is separated from the parameter rows
+   below by a divider. The target theme follows the current theme-mode. */
+.logo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 2px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--mono-bg);
+}
+.logo-block-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
-.logo-ctl-preview {
-  height: 28px;
-  width: auto;
-  max-width: 120px;
+.logo-block-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.logo-block-badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+}
+.logo-block-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.logo-block-img {
+  max-height: 72px;
+  max-width: 100%;
   object-fit: contain;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--mono-bg);
-  padding: 2px;
 }
-.logo-ctl button {
-  flex: 0 0 auto;
+.logo-block-placeholder {
   font-size: 12px;
-  padding: 3px 8px;
+  color: var(--fg-faint);
+}
+.logo-block-btns {
+  display: flex;
+  gap: 8px;
+}
+.logo-block-btns button {
+  font-size: 12px;
+  padding: 4px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--mono-bg);
   color: var(--fg);
   cursor: pointer;
 }
-.logo-ctl button:hover { border-color: var(--accent); }
+.logo-block-btns button:hover { border-color: var(--accent); }
 .set-result {
   font-size: 12px;
   padding: 4px 8px;

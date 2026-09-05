@@ -3713,6 +3713,10 @@ settingsSearch.addEventListener("input", () => {
 
 // renderSettingItem builds one setting row with its label and form control.
 function renderSettingItem(it) {
+  // FEATURE-477: the system logo is rendered as a dedicated block (not a
+  // compact key/value row) so it has room for a large preview and a clear
+  // divider from the parameter rows below.
+  if (it.type === "logo") return renderLogoBlock();
   const row = document.createElement("label");
   row.className = "set-row";
   row.setAttribute("data-key", it.key || "");
@@ -3768,12 +3772,10 @@ function renderSettingItem(it) {
       localStorage.setItem("co-shell-theme", ctl.value);
       applyTheme();
       updateDiffMark(ctl.value);
+      // FEATURE-477: re-render the pane so the logo block follows the newly
+      // selected theme (dark/light).
+      if (!settingsModal.classList.contains("hidden")) renderSettingsPane();
     };
-  } else if (it.type === "logo") {
-    // FEATURE-477: per-theme system logo upload control. The theme is the key
-    // suffix (logo-dark / logo-light). Uploads go straight to POST /api/logo
-    // (not settings_set) and the topbar refreshes on success.
-    ctl = renderLogoControl(it.key.replace(/^logo-/, ""));
   } else if (it.type === "bool") {
     ctl = document.createElement("input");
     ctl.type = "checkbox";
@@ -3826,50 +3828,85 @@ function renderSettingItem(it) {
   return row;
 }
 
-// renderLogoControl builds the per-theme system-logo upload control (FEATURE-
-// 477): a preview thumbnail (when a logo is configured), an upload button that
-// reads an image from the clipboard (paste) or a file picker, and a remove
-// button. Uploads go to POST /api/logo?theme=<theme>; removal to
-// DELETE /api/logo?theme=<theme>. On success the topbar logo refreshes.
-function renderLogoControl(theme) {
-  const box = document.createElement("span");
-  box.className = "logo-ctl";
+// currentResolvedTheme returns the actual parsed theme (dark|light) from the
+// <html> data-theme attribute (FEATURE-477).
+function currentResolvedTheme() {
+  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+}
 
+// renderLogoBlock builds the system-logo configuration block (FEATURE-477). It
+// targets the theme that matches the current theme-mode (dark/light; auto
+// resolves to the parsed theme), so switching the theme-mode re-renders this
+// block for the new theme. It shows a large preview area (with a placeholder
+// when none is configured), an upload button (clipboard paste or file picker)
+// and a remove button, separated from the parameter rows below by a divider.
+function renderLogoBlock() {
+  const theme = currentResolvedTheme();
+  const themeLabel = theme === "light" ? i18nT("logoThemeLight", "亮色主题") : i18nT("logoThemeDark", "深色主题");
+
+  const block = document.createElement("div");
+  block.className = "logo-block";
+  block.setAttribute("data-key", "logo");
+  block.setAttribute("data-desc", "logo");
+
+  const head = document.createElement("div");
+  head.className = "logo-block-head";
+  const title = document.createElement("span");
+  title.className = "logo-block-title";
+  title.textContent = i18nT("logoTitle", "系统 logo");
+  const badge = document.createElement("span");
+  badge.className = "logo-block-badge";
+  badge.textContent = themeLabel;
+  head.appendChild(title);
+  head.appendChild(badge);
+  block.appendChild(head);
+
+  const previewWrap = document.createElement("div");
+  previewWrap.className = "logo-block-preview";
   const preview = document.createElement("img");
-  preview.className = "logo-ctl-preview";
+  preview.className = "logo-block-img";
   preview.alt = "";
   preview.hidden = true;
-  box.appendChild(preview);
+  const placeholder = document.createElement("span");
+  placeholder.className = "logo-block-placeholder";
+  placeholder.textContent = i18nT("logoEmpty", "尚未配置 " + themeLabel + " logo");
+  previewWrap.appendChild(preview);
+  previewWrap.appendChild(placeholder);
+  block.appendChild(previewWrap);
 
+  const btns = document.createElement("div");
+  btns.className = "logo-block-btns";
   const uploadBtn = document.createElement("button");
   uploadBtn.type = "button";
   uploadBtn.className = "btn-mini";
   uploadBtn.textContent = i18nT("logoUpload", "上传 logo");
-  box.appendChild(uploadBtn);
-
+  btns.appendChild(uploadBtn);
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
   removeBtn.className = "btn-mini";
   removeBtn.textContent = i18nT("logoRemove", "移除");
   removeBtn.hidden = true;
-  box.appendChild(removeBtn);
+  btns.appendChild(removeBtn);
+  block.appendChild(btns);
 
   const fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.accept = "image/*";
   fileInput.hidden = true;
-  box.appendChild(fileInput);
+  block.appendChild(fileInput);
 
   const refresh = () => {
     const probe = new Image();
     probe.onload = () => {
       preview.src = "/logos/" + theme;
       preview.hidden = false;
+      placeholder.hidden = true;
       removeBtn.hidden = false;
     };
     probe.onerror = () => {
       preview.hidden = true;
       preview.removeAttribute("src");
+      placeholder.hidden = false;
       removeBtn.hidden = true;
     };
     probe.src = "/logos/" + theme;
@@ -3921,7 +3958,7 @@ function renderLogoControl(theme) {
   };
 
   refresh();
-  return box;
+  return block;
 }
 
 // showSettingsResult displays the result of a settings_set change. The message
