@@ -105,6 +105,28 @@
   background: var(--ws-tree-bg);
 }
 
+/* FEATURE-477: paper = warm paper/ink palette for eye comfort. The background
+   is a soft cream paper tone and the text a dark warm brown (ink), with a warm
+   amber accent. Pure CSS-variable driven, no layered overrides. */
+[data-theme="paper"] {
+  --bg: #f5efe0;
+  --bg-panel: #fbf7ec;
+  --bg-elev: #efe7d3;
+  --mono-bg: #f0e9d8;
+  --fg: #4a3b2a;
+  --fg-dim: #7a6a55;
+  --fg-faint: #a89a82;
+  --placeholder: #a89a82;
+  --accent: #b5651d;
+  --accent-dim: rgba(181, 101, 29, 0.12);
+  --border: #d8cdb4;
+  --ok: #4a7c3f;
+  --warn: #a06a00;
+  --err: #b3402a;
+  --debug: #8a7a63;
+  --glow: none;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -1725,29 +1747,39 @@ aside {
 .fv-code .tok-prop { color: #9cdcfe; }       /* json property keys */
 .fv-code .tok-brace { color: #d4d4d4; }      /* json {} [] braces */
 
-/* FEATURE-425: in light themes (light and light-tp) the pale tokens
+/* FEATURE-425: in light themes (light, light-tp, paper) the pale tokens
    (variables, numbers) must be darkened so they stay readable on the light
    background. */
 [data-theme="light"] .fv-code .tok-var,
-[data-theme="light-tp"] .fv-code .tok-var { color: #0451a5; }
+[data-theme="light-tp"] .fv-code .tok-var,
+[data-theme="paper"] .fv-code .tok-var { color: #0451a5; }
 [data-theme="light"] .fv-code .tok-num,
-[data-theme="light-tp"] .fv-code .tok-num { color: #098658; }
+[data-theme="light-tp"] .fv-code .tok-num,
+[data-theme="paper"] .fv-code .tok-num { color: #098658; }
 [data-theme="light"] .fv-code .tok-prop,
-[data-theme="light-tp"] .fv-code .tok-prop { color: #0451a5; }
+[data-theme="light-tp"] .fv-code .tok-prop,
+[data-theme="paper"] .fv-code .tok-prop { color: #0451a5; }
 [data-theme="light"] .fv-code .tok-brace,
-[data-theme="light-tp"] .fv-code .tok-brace { color: #1d2433; }
+[data-theme="light-tp"] .fv-code .tok-brace,
+[data-theme="paper"] .fv-code .tok-brace { color: #1d2433; }
 [data-theme="light"] .fv-code .tok-kw,
-[data-theme="light-tp"] .fv-code .tok-kw { color: #af00db; }
+[data-theme="light-tp"] .fv-code .tok-kw,
+[data-theme="paper"] .fv-code .tok-kw { color: #af00db; }
 [data-theme="light"] .fv-code .tok-str,
-[data-theme="light-tp"] .fv-code .tok-str { color: #a31515; }
+[data-theme="light-tp"] .fv-code .tok-str,
+[data-theme="paper"] .fv-code .tok-str { color: #a31515; }
 [data-theme="light"] .fv-code .tok-com,
-[data-theme="light-tp"] .fv-code .tok-com { color: #008000; }
+[data-theme="light-tp"] .fv-code .tok-com,
+[data-theme="paper"] .fv-code .tok-com { color: #008000; }
 [data-theme="light"] .fv-code .tok-fn,
-[data-theme="light-tp"] .fv-code .tok-fn { color: #795e26; }
+[data-theme="light-tp"] .fv-code .tok-fn,
+[data-theme="paper"] .fv-code .tok-fn { color: #795e26; }
 [data-theme="light"] .fv-code .tok-type,
-[data-theme="light-tp"] .fv-code .tok-type { color: #267f99; }
+[data-theme="light-tp"] .fv-code .tok-type,
+[data-theme="paper"] .fv-code .tok-type { color: #267f99; }
 [data-theme="light"] .fv-code .tok-pkg,
-[data-theme="light-tp"] .fv-code .tok-pkg { color: #795e26; }
+[data-theme="light-tp"] .fv-code .tok-pkg,
+[data-theme="paper"] .fv-code .tok-pkg { color: #795e26; }
 
 /* ---------- dropdown menu (FEATURE-365) ---------- */
 
