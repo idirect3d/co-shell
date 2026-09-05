@@ -1120,6 +1120,30 @@
   - 实施：`web/static/index.html`（stream-head 布局 + 控件容器）+ `web/static/style.css`（控件样式：色线/红点/拖拽）+ `web/static/app.js`（makeBlock 挂钩记录消息 + token_iter 补记上下文占用 + 渲染色线红点 + 点击定位 + 拖拽滑动）
   - 测试：见 use-case/FEATURE-482/
 
+## v0.37.1 — 开发中
+
+> **版本**: v0.37.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: msgviz 红点样式修复
+> **说明**: 0.37.1 系列修复消息可视化控件（msgviz）上下文占用红点的显示样式：将纯红色 1px 红点改为控件底色（使所在线段看起来断开），并加高到 2px。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-483 | 0.37.1 | P1 | msgviz 上下文占用红点改为控件底色（线段断开效果）并加高到 2px；线段颜色固定为 dark 色调不随主题改变 |
+
+> 当前 BUILD: 851
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-483 msgviz 上下文占用红点改为控件底色并加高到 2px**
+  - 背景：FEATURE-482 消息可视化控件中，代表上下文占用的红点当前是纯红色（#ff0000）1px×1px，叠加在彩色线段上。用户希望红点改为控件的底色（stream-head 背景色 var(--bg-panel)），使红点位置看起来像线段在该处断开（被挖空），并加高到 2px，让上下文占用位置更清晰可辨。
+  - 方案（已确认）：① style.css `.msgviz-dot` 背景色从 `#ff0000` 改为 `var(--bg-panel)`（控件底色），高度从 1px 改为 2px；② app.js `msgVizFlush` 中 `dotH` 从 1 改为 2，使红点垂直位置计算（range = h - dotH）与 2px 高度匹配。
+  - 实施：`web/static/style.css`（.msgviz-dot 背景色 + 高度）+ `web/static/app.js`（dotH 常量）
+  - 测试：见 use-case/FIX-483/
+
 ## v0.35.3 — 开发中
 
 > **版本**: v0.35.3
