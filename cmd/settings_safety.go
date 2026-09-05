@@ -594,6 +594,22 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("%s set to %v", subcommand, enabled)
 		return fmt.Sprintf(i18n.T(i18n.KeyDefaultModelSet), boolStr(enabled)), nil
 
+	// FEATURE-479: attempt_completion completion-confirm behavior mode.
+	case "completion-mode":
+		if len(args) < 2 {
+			return h.cfg.LLM.CompletionMode, nil
+		}
+		mode := strings.ToLower(strings.TrimSpace(args[1]))
+		if mode != "active" && mode != "simple" && mode != "exit" {
+			return "", fmt.Errorf("invalid completion-mode %q (valid: active/simple/exit)", args[1])
+		}
+		h.cfg.LLM.CompletionMode = mode
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Completion mode set to %s", mode)
+		return fmt.Sprintf("completion-mode: %s", mode), nil
+
 	case "supervisor-max-retries":
 		if len(args) < 2 {
 			return fmt.Sprintf("%d", h.cfg.LLM.Supervisor.MaxRetries), nil

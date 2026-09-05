@@ -630,6 +630,11 @@ var enMessages = map[string]string{
 	KeyAttemptCompletionExit:       "I have confirmed completion (exit)",
 	KeyAttemptCompletionContinue:   "User chose to continue; awaiting your next action.",
 
+	// FEATURE-479: attempt_completion simple completion mode (two fixed options)
+	KeyAttemptCompletionSimpleConfirm:        "Confirm task complete",
+	KeyAttemptCompletionSimpleContinue:       "Continue with more input",
+	KeyAttemptCompletionSimpleContinuePrompt: "Please enter your additional request:",
+
 	// FEATURE-452: ask_followup_question fixed options
 	KeyAskFollowupThinkExit:   "I want to think it over, exit for now",
 	KeyAskFollowupMoreOptions: "Are there other options or combinations?",
@@ -1191,6 +1196,7 @@ no liability whatsoever.`,
 	KeyCol3ProblemSolverEnabled: "problem solver enabled",
 	KeyCol3ShowSupPrompt:        "show SUP scenario prompt sent to LLM",
 	KeyCol3ShowSupStream:        "stream SUP scenario LLM reply",
+	KeyCol3CompletionMode:       "task completion confirm mode (active/simple/exit)",
 	KeyDefaultModelCurrent:      "Current: %s",
 	KeyDefaultModelSet:          "✅ Set to: %s",
 

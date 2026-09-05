@@ -209,6 +209,17 @@ type LLMConfig struct {
 	// exits directly as before.
 	AttemptCompletionConfirm bool `json:"attempt_completion_confirm"`
 
+	// CompletionMode: the attempt_completion completion-confirm behavior mode
+	// (FEATURE-479). One of:
+	//   "active" (default) — show the full confirm dialog (LLM next_steps +
+	//     next-step suggestion + cancel + supplement + complete).
+	//   "simple" — show only two fixed options: confirm task complete, or
+	//     continue with more input (no LLM-collected questions).
+	//   "exit" — complete directly without showing any confirm dialog.
+	// When empty, it falls back to AttemptCompletionConfirm (true=active,
+	// false=exit) for backward compatibility.
+	CompletionMode string `json:"completion_mode"`
+
 	// SubAgentEnabled: whether sub-agent tools (launch_sub_agent) are enabled
 	SubAgentEnabled bool `json:"sub_agent_enabled"`
 
@@ -1004,6 +1015,7 @@ func DefaultConfig() *Config {
 			PlanEnabled:                true,
 			IntentExposureEnabled:      true,
 			AttemptCompletionConfirm:   true,
+			CompletionMode:             "simple",
 			SubAgentEnabled:            true,
 			ShellSessionEnabled:        false,
 			ShellSessionTimeout:        0,

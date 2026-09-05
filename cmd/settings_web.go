@@ -158,6 +158,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		// FEATURE-460: SUP LLM interaction streaming switches.
 		{Key: "show-sup-prompt", Value: boolStr(llm.Supervisor.ShowSupPrompt), Desc: i18n.T(i18n.KeyCol3ShowSupPrompt), Type: "bool", Default: boolStr(def.Supervisor.ShowSupPrompt)},
 		{Key: "show-sup-stream", Value: boolStr(llm.Supervisor.ShowSupStream), Desc: i18n.T(i18n.KeyCol3ShowSupStream), Type: "bool", Default: boolStr(def.Supervisor.ShowSupStream)},
+		// FEATURE-479: attempt_completion completion-confirm behavior mode.
+		{Key: "completion-mode", Value: completionModeDisplay(llm), Desc: i18n.T(i18n.KeyCol3CompletionMode), Type: "enum", Options: []string{"active", "simple", "exit"}, Default: completionModeDisplay(def)},
 	}
 
 	// Group 4: Memory & Context (matches showSettingsHelp Group 5)

@@ -2490,16 +2490,27 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		a.emitSupervisorReport(report)
 	}
 
-	// FEATURE-452: completion-confirm dialog. When enabled (default), present
-	// the result and ask the user to choose a next step before exiting. Only
-	// "完成退出" (exit) actually completes; the other choices are sent back to
-	// the LLM so the loop continues.
-	confirm := true
+	// FEATURE-479: completion-confirm behavior mode (active/simple/exit).
+	//   active — show the full confirm dialog (LLM next_steps + next-step
+	//            suggestion + cancel + supplement + complete).
+	//   simple — show only two fixed options: confirm task complete, or
+	//            continue with more input (no LLM-collected questions).
+	//   exit   — complete directly without showing any confirm dialog.
+	// When CompletionMode is empty, fall back to AttemptCompletionConfirm
+	// (true=active, false=exit) for backward compatibility (FEATURE-452).
+	mode := "simple"
 	if a.cfg != nil {
-		confirm = a.cfg.LLM.AttemptCompletionConfirm
+		mode = a.cfg.LLM.CompletionMode
+		if mode == "" {
+			if a.cfg.LLM.AttemptCompletionConfirm {
+				mode = "simple"
+			} else {
+				mode = "exit"
+			}
+		}
 	}
 	confirmed := true
-	if confirm {
+	if mode == "active" {
 		var options []string
 		if ns, ok := args["next_steps"].([]interface{}); ok {
 			for _, s := range ns {
@@ -2546,7 +2557,55 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		default:
 			confirmed = true
 		}
+	} else if mode == "simple" {
+		// FEATURE-479: simple mode shows only two fixed options — confirm the
+		// task is complete (exit), or continue with more input (the user's
+		// typed reply is sent back to the LLM so the loop continues). No
+		// LLM-collected next_steps questions are shown.
+		body := "【任务完成报告】\n" + result
+		if report != "" {
+			body += "\n\n" + report
+		}
+		in := Interaction{
+			Kind:  InteractionSelect,
+			Title: i18n.T(i18n.KeyAttemptCompletionPrompt),
+			Body:  body,
+			Keys: []KeyOption{
+				{Label: i18n.T(i18n.KeyAttemptCompletionSimpleConfirm), Key: "-", Value: "exit"},
+				{Label: i18n.T(i18n.KeyAttemptCompletionSimpleContinue), Key: "+", Value: "continue"},
+			},
+		}
+		res, err := a.interactionManager().Ask(ctx, in)
+		if err != nil {
+			return "", fmt.Errorf("failed to read user input: %w", err)
+		}
+		switch res.Action {
+		case ActionCancel:
+			return "", fmt.Errorf("CANCEL_AGENT")
+		case ActionSelect:
+			if res.Value == "exit" {
+				confirmed = true
+			} else {
+				// continue: prompt the user for more input, then send it back.
+				confirmed = false
+				contIn := Interaction{
+					Kind:  InteractionInput,
+					Title: i18n.T(i18n.KeyAttemptCompletionSimpleContinuePrompt),
+				}
+				contRes, cerr := a.interactionManager().Ask(ctx, contIn)
+				if cerr != nil {
+					return "", fmt.Errorf("failed to read user input: %w", cerr)
+				}
+				a.storeUserReply(contRes.Value)
+			}
+		case ActionInput:
+			confirmed = false
+			a.storeUserReply(res.Value)
+		default:
+			confirmed = true
+		}
 	}
+	// mode == "exit": confirmed stays true, complete directly without a dialog.
 
 	if !confirmed {
 		// User chose to continue — send the choice back to the LLM and keep looping.

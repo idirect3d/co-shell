@@ -371,6 +371,12 @@ func getSettingValue(cfg *config.Config, param string) string {
 		return boolToString(cfg.LLM.Supervisor.ShowSupPrompt)
 	case "show-sup-stream":
 		return boolToString(cfg.LLM.Supervisor.ShowSupStream)
+	// FEATURE-479: attempt_completion completion-confirm behavior mode.
+	case "completion-mode":
+		if cfg.LLM.CompletionMode == "" {
+			return "simple"
+		}
+		return cfg.LLM.CompletionMode
 	default:
 		return "(unknown)"
 	}
@@ -1211,6 +1217,18 @@ func applySetting(a *Agent, param, value string) error {
 			return err
 		}
 		log.Info("Show-sup-stream set via LLM tool: %v", b)
+
+	// FEATURE-479: attempt_completion completion-confirm behavior mode.
+	case "completion-mode":
+		mode := strings.ToLower(strings.TrimSpace(value))
+		if mode != "active" && mode != "simple" && mode != "exit" {
+			return fmt.Errorf("invalid completion-mode %q (valid: active/simple/exit)", value)
+		}
+		cfg.LLM.CompletionMode = mode
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		log.Info("Completion mode set via LLM tool: %s", mode)
 
 	default:
 		return fmt.Errorf("unknown setting: %s", param)

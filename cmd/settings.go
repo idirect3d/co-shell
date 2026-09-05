@@ -241,7 +241,9 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "supervisor-allowed-tools",
 		// FEATURE-460: SUP LLM interaction streaming switches.
 		subcommand == "show-sup-prompt",
-		subcommand == "show-sup-stream":
+		subcommand == "show-sup-stream",
+		// FEATURE-479: attempt_completion completion-confirm behavior mode.
+		subcommand == "completion-mode":
 		return h.handleSafetySetting(subcommand, args)
 
 	// Shell settings
@@ -824,6 +826,8 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		// FEATURE-460: SUP LLM interaction streaming switches.
 		makeLine("show-sup-prompt", boolStr(cfg.LLM.Supervisor.ShowSupPrompt), "on/off"),
 		makeLine("show-sup-stream", boolStr(cfg.LLM.Supervisor.ShowSupStream), "on/off"),
+		// FEATURE-479: attempt_completion completion-confirm behavior mode.
+		makeLine("completion-mode", completionModeDisplay(cfg.LLM), "active/simple/exit"),
 	)
 	allGroups[len(allGroups)-1] = safetyGroup
 
@@ -911,6 +915,15 @@ func supervisorAllowedToolsDisplay(llm config.LLMConfig) string {
 		return "(default)"
 	}
 	return strings.Join(llm.Supervisor.AllowedTools, ",")
+}
+
+// completionModeDisplay returns the attempt_completion completion-confirm
+// behavior mode for display (FEATURE-479). Empty falls back to simple.
+func completionModeDisplay(llm config.LLMConfig) string {
+	if llm.CompletionMode == "" {
+		return "simple"
+	}
+	return llm.CompletionMode
 }
 
 // handleSetDefault resets all non-critical settings to system defaults.
