@@ -108,7 +108,10 @@ body {
   flex: none;
 }
 
-.brand { display: flex; align-items: baseline; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; }
+/* FEATURE-477: system logo scales to the titlebar height (44px) keeping its
+   aspect ratio; the co-shell text sits to its right with a gap. */
+.brand-logo { height: 44px; width: auto; max-width: 220px; object-fit: contain; flex: none; }
 .brand-mark { color: var(--accent); text-shadow: var(--glow); }
 .brand-name { font-weight: 600; letter-spacing: 0.4px; }
 .brand-ver { color: var(--fg-faint); font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
@@ -1912,6 +1915,34 @@ aside {
   line-height: 1;
   cursor: help;
 }
+/* FEATURE-477: per-theme system logo upload control (preview + buttons). */
+.logo-ctl {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.logo-ctl-preview {
+  height: 28px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--mono-bg);
+  padding: 2px;
+}
+.logo-ctl button {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--mono-bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+.logo-ctl button:hover { border-color: var(--accent); }
 .set-result {
   font-size: 12px;
   padding: 4px 8px;
