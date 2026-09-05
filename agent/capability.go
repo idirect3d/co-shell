@@ -280,12 +280,6 @@ func formatCapabilityList(caps []MetaCapability) string {
 		}
 		sb.WriteString("\n")
 	}
-	// FEATURE-482: append the static environment-awareness section describing
-	// capabilities perceivable directly from <environment_details> (service
-	// mode, user dynamic events, model parameters) without a tool call.
-	if env := i18n.T(i18n.KeyCapEnvAwareness); env != "" && env != i18n.KeyCapEnvAwareness {
-		sb.WriteString(env)
-	}
 	return strings.TrimRight(sb.String(), "\n")
 }
 
@@ -314,6 +308,12 @@ func buildMetaCapabilityIndex() string {
 			sb.WriteString("- " + c.ID + ": " + c.Name + " — " + c.Description + "\n")
 		}
 		sb.WriteString("\n")
+	}
+	// FEATURE-482: append the static environment-awareness section describing
+	// capabilities perceivable directly from <environment_details> (service
+	// mode, user dynamic events, model parameters) without a tool call.
+	if env := i18n.T(i18n.KeyCapEnvAwareness); env != "" && env != i18n.KeyCapEnvAwareness {
+		sb.WriteString(env)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
