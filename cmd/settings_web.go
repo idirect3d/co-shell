@@ -104,8 +104,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "theme-mode", Value: "auto", Desc: "主题", Type: "enum", Options: []string{"auto", "dark", "light", "light-tp"}, Default: "auto"},
 		// FEATURE-477: system logo. Rendered as a special upload block by the
 		// Web UI (type "logo"). The target theme follows the current theme-mode
-		// (dark/light; auto resolves to the parsed theme), so only one logo item
-		// is shown at a time.
+		// (dark/light/light-tp; auto resolves to the parsed theme), so only one
+		// logo item is shown at a time.
 		{Key: "logo", Value: "", Desc: "当前主题 logo（剪贴板粘贴上传）", Type: "logo"},
 		{Key: "emoji-enabled", Value: boolStr(llm.EmojiEnabled), Desc: i18n.T(i18n.KeyCol3EmojiEnabled), Type: "bool", Default: boolStr(def.EmojiEnabled)},
 		{Key: "show-llm-thinking", Value: boolStr(llm.ShowLlmThinking), Desc: i18n.T(i18n.KeyCol3LlmThinking), Type: "bool", Default: boolStr(def.ShowLlmThinking)},

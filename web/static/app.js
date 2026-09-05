@@ -170,14 +170,14 @@ function logoScale() {
 }
 
 // updateBrandLogo shows the logo configured for the current resolved theme
-// (dark|light) in the topbar, or hides it (falling back to the default ▸
-// co-shell text) when none is configured. The logo is served by GET
+// (dark|light|light-tp) in the topbar, or hides it (falling back to the default
+// ▸ co-shell text) when none is configured. The logo is served by GET
 // /logos/{theme}; a 404 means no logo for that theme. Its display height is
 // the titlebar height (44px) scaled by the configured logo scale.
 function updateBrandLogo() {
   if (!brandLogo) return;
-  // light-tp is a light tone, so it uses the light logo (FEATURE-477).
-  const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  // Each tone (dark/light/light-tp) has its own logo (FEATURE-477).
+  const theme = document.documentElement.getAttribute("data-theme");
   // A cache-busting query param forces the browser to re-fetch the logo so an
   // overwrite/removal is reflected immediately (FEATURE-477).
   const url = "/logos/" + theme + "?t=" + Date.now();
@@ -3804,7 +3804,7 @@ function renderSettingItem(it) {
       applyTheme();
       updateDiffMark(ctl.value);
       // FEATURE-477: re-render the pane so the logo block follows the newly
-      // selected theme (dark/light).
+      // selected theme (dark/light/light-tp).
       if (!settingsModal.classList.contains("hidden")) renderSettingsPane();
     };
   } else if (it.type === "bool") {
@@ -3859,22 +3859,25 @@ function renderSettingItem(it) {
   return row;
 }
 
-// currentResolvedTheme returns the actual parsed theme (dark|light) from the
-// <html> data-theme attribute (FEATURE-477). light-tp is a light tone, so it
-// maps to "light".
+// currentResolvedTheme returns the actual parsed theme (dark|light|light-tp)
+// from the <html> data-theme attribute (FEATURE-477). Each tone has its own
+// logo, so no mapping is applied.
 function currentResolvedTheme() {
-  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  return document.documentElement.getAttribute("data-theme");
 }
 
 // renderLogoBlock builds the system-logo configuration block (FEATURE-477). It
-// targets the theme that matches the current theme-mode (dark/light; auto
-// resolves to the parsed theme), so switching the theme-mode re-renders this
-// block for the new theme. It shows a large preview area (with a placeholder
-// when none is configured), an upload button (clipboard paste or file picker)
-// and a remove button, separated from the parameter rows below by a divider.
+// targets the theme that matches the current theme-mode (dark/light/light-tp;
+// auto resolves to the parsed theme), so switching the theme-mode re-renders
+// this block for the new theme. It shows a large preview area (with a
+// placeholder when none is configured), an upload button (clipboard paste or
+// file picker) and a remove button, separated from the parameter rows below by
+// a divider.
 function renderLogoBlock() {
   const theme = currentResolvedTheme();
-  const themeLabel = theme === "light" ? i18nT("logoThemeLight", "亮色主题") : i18nT("logoThemeDark", "深色主题");
+  // Each tone has its own label (FEATURE-477).
+  const themeLabel = theme === "dark" ? i18nT("logoThemeDark", "深色主题")
+    : (theme === "light-tp" ? i18nT("logoThemeLightTp", "浅色主题(蓝灰)") : i18nT("logoThemeLight", "浅色主题"));
 
   const block = document.createElement("div");
   block.className = "logo-block";

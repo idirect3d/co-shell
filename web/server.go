@@ -718,31 +718,31 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]string{"paths": saved})
 }
 
-// logoThemeFromParam validates a theme query/path value (dark|light) and
-// returns it, or "" when invalid (FEATURE-477).
+// logoThemeFromParam validates a theme query/path value (dark|light|light-tp)
+// and returns it, or "" when invalid (FEATURE-477).
 func logoThemeFromParam(v string) string {
-	if v == "dark" || v == "light" {
+	if v == "dark" || v == "light" || v == "light-tp" {
 		return v
 	}
 	return ""
 }
 
 // logoPath returns the absolute path of the stored logo for a theme. The theme
-// must already be validated (dark|light). Logos live in the workspace logos/
-// directory (FEATURE-477).
+// must already be validated (dark|light|light-tp). Logos live in the workspace
+// logos/ directory (FEATURE-477).
 func (s *Server) logoPath(theme string) string {
 	return filepath.Join(s.root, "logos", "logo-"+theme+".png")
 }
 
 // handleLogoUpload stores the uploaded logo image for a theme (FEATURE-477).
-// The request is multipart/form-data with a "theme" field (dark|light) and a
-// "file" part carrying the image bytes. The image is saved as
+// The request is multipart/form-data with a "theme" field (dark|light|light-tp)
+// and a "file" part carrying the image bytes. The image is saved as
 // <workspace>/logos/logo-<theme>.png, replacing any previous logo for that
 // theme.
 func (s *Server) handleLogoUpload(w http.ResponseWriter, r *http.Request) {
 	theme := logoThemeFromParam(r.FormValue("theme"))
 	if theme == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light)"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light|light-tp)"})
 		return
 	}
 	if err := r.ParseMultipartForm(maxUploadFileSize); err != nil {
@@ -784,7 +784,7 @@ func (s *Server) handleLogoUpload(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogoRemove(w http.ResponseWriter, r *http.Request) {
 	theme := logoThemeFromParam(r.URL.Query().Get("theme"))
 	if theme == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light)"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light|light-tp)"})
 		return
 	}
 	_ = os.Remove(s.logoPath(theme))
