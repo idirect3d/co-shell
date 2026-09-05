@@ -246,8 +246,12 @@ const sendBtn = document.getElementById("sendBtn");
    where isComposing is already false. So we also track a document-level
    composing flag via compositionstart/compositionend as a fallback. */
 window.__composing = false;
-document.addEventListener("compositionstart", () => { window.__composing = true; });
-document.addEventListener("compositionend", () => { window.__composing = false; });
+// Native composition events do NOT bubble (bubbles=false), so a bubble-phase
+// listener on document never fires for real IME input. Listen in the CAPTURE
+// phase (third arg true) so document receives them on the way down to the
+// focused input element.
+document.addEventListener("compositionstart", () => { window.__composing = true; }, true);
+document.addEventListener("compositionend", () => { window.__composing = false; }, true);
 // imeComposing(e) returns true while an IME composition is active, in which
 // case an Enter keypress must be ignored (it selects a candidate, not send).
 function imeComposing(e) {
