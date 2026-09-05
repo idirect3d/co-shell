@@ -2132,10 +2132,11 @@ function showInteraction(msg) {
     }
   }
 
-  if (it.kind === "select" && it.options && it.options.length) {
+  if (it.kind === "select" && ((it.options && it.options.length) || (it.keys && it.keys.length))) {
     // FEATURE-399: render each option as a virtual-keyboard-style square key
     // (number 1..N) with the option text beside it. Clicking a key or pressing
-    // the physical number key selects that option.
+    // the physical number key selects that option. A keys-only select (simple
+    // completion mode, FIX-480) renders just its fixed [Key] Label buttons.
     renderVirtualKeyboard(it, true);
   } else if (it.kind === "confirm") {
     // Option buttons below.
@@ -2218,6 +2219,12 @@ function renderVirtualKeyboard(it, isSelect, container) {
     });
     // FIX-454: register the interaction's fixed key options (e.g. "+" / "-")
     // so pressing the physical key triggers the corresponding select action.
+    (it.keys || []).forEach((k) => {
+      if (k.key) keyMap[k.key.toLowerCase()] = { action: "select", value: k.value, label: k.label };
+    });
+  } else if (isSelect && it.keys && it.keys.length) {
+    // Keys-only select (simple completion mode, FIX-480): register the fixed
+    // key options so pressing the physical key triggers the select action.
     (it.keys || []).forEach((k) => {
       if (k.key) keyMap[k.key.toLowerCase()] = { action: "select", value: k.value, label: k.label };
     });
@@ -2314,6 +2321,24 @@ function renderVirtualKeyboard(it, isSelect, container) {
     // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
     // supplement-input mode so the user can type extra info in the main box.
     addItem("空格/Ins/0", T.supplement, () => sendSupplement(), "opt-space");
+  } else if (isSelect && it.keys && it.keys.length) {
+    // Keys-only select (simple completion mode, FIX-480): render just the two
+    // fixed [Key] Label buttons (confirm complete / continue with more input),
+    // mirroring the TUI askSelect. No numbered options and no extra supplement
+    // button — the "continue" key already covers adding more input.
+    (it.keys || []).forEach((k) => {
+      addItem(k.key, k.label, () => {
+        // "exit" (confirm complete): send the select answer so the backend
+        // marks the task completed (FIX-480).
+        if (k.value === "exit") {
+          answerInteraction({ action: "select", value: "exit" });
+          return;
+        }
+        // "continue" (or any other fixed key) sends its value back so the
+        // backend prompts for more input and keeps the loop going.
+        answerSelectWithSupplement(k.value);
+      }, "", () => longPressSupplement(k.label));
+    });
   } else {
     // FEATURE-427: symbol/numpad action keys (skip enter, handled separately).
     Object.keys(keyMap).forEach((key) => {
