@@ -564,7 +564,8 @@ aside {
    right of the stream title bar (override .mode-seg's margin-right:auto). */
 .stream-mode { margin-right: 0; margin-left: auto; }
 .stream-title {
-  flex: 1;
+  flex: none;
+  width: 200px; /* FEATURE-482: fixed width so the msgviz chart gets the rest */
   min-width: 0;
   background: none;
   border: none;
@@ -577,6 +578,52 @@ aside {
 }
 .stream-title:focus { border-bottom: 1px solid var(--accent); }
 .stream-title::placeholder { color: var(--placeholder); }
+/* FEATURE-482: message-visualization chart. Fills the space between the
+   session title and the display-mode pill. .msgviz is the fixed viewport
+   (overflow hidden); .msgviz-track is the pannable strip holding the 1px
+   lines, laid out right-to-left so the newest line sits at the right edge. */
+.msgviz {
+  flex: 1;
+  min-width: 0;
+  height: 27px; /* matches the display-mode pill outer height */
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.msgviz.dragging { cursor: grabbing; }
+.msgviz-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+/* Each message line: 1px wide, full height, coloured by its block type. */
+.msgviz-line {
+  position: relative;
+  width: 1px;
+  flex: none;
+  height: 100%;
+  background: var(--fg-faint);
+  cursor: pointer;
+}
+.msgviz-line:hover { opacity: 0.85; }
+/* The red dot: its vertical position encodes the cumulative context usage
+   (bottom = empty, top = full). Pure red, centred on the line. */
+.msgviz-dot {
+  position: absolute;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: #ff0000;
+  pointer-events: none;
+}
 /* FEATURE-419: floating block-boundary navigation icons. Shown when the current
    block is taller than the viewport and its title line / bottom is out of view;
    clicking jumps to that boundary. Positioned relative to the main data area. */
