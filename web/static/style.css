@@ -2025,6 +2025,30 @@ aside {
   cursor: pointer;
 }
 .logo-block-btns button:hover { border-color: var(--accent); }
+/* FEATURE-477: logo display-size scale slider (1-200%). */
+.logo-block-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-block-scale-label {
+  flex: none;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.logo-block-scale input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.logo-block-scale-val {
+  flex: none;
+  width: 42px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--fg-dim);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
 .set-result {
   font-size: 12px;
   padding: 4px 8px;
