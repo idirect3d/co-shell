@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/idirect3d/co-shell/config"
@@ -100,8 +101,9 @@ func loadRulesDir(dir string) string {
 			sb.WriteString("\n\n")
 		}
 		// Title: filename without ".md" suffix, preceded by a "====" separator line.
+		// A blank line follows the separator so the title does not hug the line.
 		title := strings.TrimSuffix(name, filepath.Ext(name))
-		sb.WriteString("====\n" + title + "\n\n" + trimmed)
+		sb.WriteString("====\n\n" + title + "\n\n" + trimmed)
 	}
 	// FEATURE-417/418: append the on-demand rule tree (subdirectories + their
 	// .md files), formatted with markdown headings and recursive nesting.
@@ -109,7 +111,7 @@ func loadRulesDir(dir string) string {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
-		sb.WriteString("====\n可用规则类型（按需加载，需要时直接用 read_file 读取对应路径）\n\n")
+		sb.WriteString("====\n\n可用规则类型（按需加载，需要时直接用 read_file 读取对应路径）\n\n")
 		for _, sd := range subdirs {
 			appendRulesTree(&sb, filepath.Join(dir, sd), sd, 1)
 		}
@@ -294,21 +296,8 @@ func getRawSectionText(name, modeName, cwd string, cfg *config.Config) string {
 				return strings.TrimSpace(string(data))
 			}
 		}
-		var modeDescKey string
-		switch modeName {
-		case "act":
-			modeDescKey = i18n.KeyWorkModeAct
-		case "plan":
-			modeDescKey = i18n.KeyWorkModePlan
-		case "research":
-			modeDescKey = i18n.KeyWorkModeResearch
-		}
-		if modeDescKey != "" {
-			if desc := i18n.T(modeDescKey); desc != "" && desc != modeDescKey {
-				return i18n.TF(i18n.KeySystemPromptResultMode, desc)
-			}
-		}
-		return ""
+		// FEATURE-472: statically list all configured work modes.
+		return buildResultModeSection(cfg)
 	case "Capabilities":
 		return i18n.T(i18n.KeySystemPromptCapabilities)
 	case "Rules":
@@ -356,6 +345,133 @@ func getRawSectionText(name, modeName, cwd string, cfg *config.Config) string {
 	}
 }
 
+// modeDetailKey maps a built-in work mode name to its detailed-description
+// i18n key (used in the RESULT MODE section). Custom modes have no dedicated
+// key and fall back to their WorkMode.Description.
+func modeDetailKey(name string) string {
+	switch name {
+	case "act":
+		return i18n.KeyWorkModeAct
+	case "plan":
+		return i18n.KeyWorkModePlan
+	case "research":
+		return i18n.KeyWorkModeResearch
+	}
+	return ""
+}
+
+// collectAllWorkModes merges the built-in default work modes with the
+// user-defined ones from cfg.WorkModes. A user-defined mode with the same name
+// as a built-in overrides it (kept at the built-in's original position).
+// Returns the merged list in built-in order followed by extra custom modes.
+func collectAllWorkModes(cfg *config.Config) []config.WorkMode {
+	builtins := config.DefaultWorkModes()
+	if cfg == nil || len(cfg.WorkModes) == 0 {
+		return builtins
+	}
+	// Map user-defined modes by name for override lookup.
+	customByName := make(map[string]config.WorkMode, len(cfg.WorkModes))
+	for _, wm := range cfg.WorkModes {
+		customByName[wm.Name] = wm
+	}
+	result := make([]config.WorkMode, 0, len(builtins)+len(cfg.WorkModes))
+	seen := make(map[string]bool, len(builtins)+len(cfg.WorkModes))
+	// Built-ins first; a same-named custom mode replaces the built-in entry.
+	for _, b := range builtins {
+		if c, ok := customByName[b.Name]; ok {
+			result = append(result, c)
+		} else {
+			result = append(result, b)
+		}
+		seen[b.Name] = true
+	}
+	// Append custom modes not shadowing any built-in.
+	for _, wm := range cfg.WorkModes {
+		if !seen[wm.Name] {
+			result = append(result, wm)
+			seen[wm.Name] = true
+		}
+	}
+	return result
+}
+
+// modeDescription returns the human-readable description of a work mode for
+// the RESULT MODE section. Priority: a user-defined override's Description,
+// then the built-in detailed i18n key (KeyWorkModeAct/Plan/Research), then the
+// mode's own Description.
+func modeDescription(cfg *config.Config, m config.WorkMode) string {
+	// User-defined override wins.
+	if cfg != nil {
+		for _, wm := range cfg.WorkModes {
+			if wm.Name == m.Name && wm.Description != "" {
+				return wm.Description
+			}
+		}
+	}
+	// Built-in detailed i18n key (act/plan/research).
+	if key := modeDetailKey(m.Name); key != "" {
+		if desc := i18n.T(key); desc != "" && desc != key {
+			return desc
+		}
+	}
+	return m.Description
+}
+
+// buildResultModeSection builds the static RESULT MODE section that lists all
+// configured work modes (built-in + user-defined) so the LLM understands the
+// differences between every mode, not just the currently active one (FEATURE-472).
+// Format:
+//
+//	ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE
+//
+//	In each user message, the environment_details will specify the current mode. There are 3 modes:
+//
+//	# ACT MODE
+//	<description>
+//
+//	# PLAN MODE
+//	<description>
+//
+//	# RESEARCH MODE
+//	<description>
+func buildResultModeSection(cfg *config.Config) string {
+	modes := collectAllWorkModes(cfg)
+	if len(modes) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	// Title: ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE
+	for i, m := range modes {
+		if i > 0 {
+			sb.WriteString(" V.S. ")
+		}
+		sb.WriteString(strings.ToUpper(m.Name))
+		sb.WriteString(" MODE")
+	}
+	sb.WriteString("\n\n")
+	// Lead sentence.
+	lead := i18n.T(i18n.KeySystemPromptResultModeLead)
+	if lead == "" || lead == i18n.KeySystemPromptResultModeLead {
+		lead = "In each user message, the environment_details will specify the current mode. There are %d modes:"
+	}
+	sb.WriteString(fmt.Sprintf(lead, len(modes)))
+	sb.WriteString("\n\n")
+	// Each mode description: a markdown heading followed by the (possibly
+	// multi-line) description body.
+	for _, m := range modes {
+		desc := modeDescription(cfg, m)
+		if desc == "" {
+			continue
+		}
+		sb.WriteString("# ")
+		sb.WriteString(strings.ToUpper(m.Name))
+		sb.WriteString(" MODE\n\n")
+		sb.WriteString(desc)
+		sb.WriteString("\n\n")
+	}
+	return strings.TrimSpace(sb.String())
+}
+
 // buildSectionWithPlaceholders returns a prompt section after applying all
 // named placeholders (e.g. {AGENT_NAME}, {OS}, etc.) to the given text.
 func buildSectionWithPlaceholders(text string, env *promptEnv) string {
@@ -374,6 +490,9 @@ func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{LANG}", env.lang)
 	text = strings.ReplaceAll(text, "{TASK}", env.taskDesc)
 	text = strings.ReplaceAll(text, "{CUSTOM_RULES}", env.customRules)
+	// FEATURE-472: inject the configured context-reorganize-threshold percentage
+	// into the RULES section so the LLM knows when to proactively reorganize.
+	text = strings.ReplaceAll(text, "{CONTEXT_REORGANIZE_THRESHOLD}", env.contextReorganizeThreshold)
 	return text
 }
 
@@ -385,7 +504,10 @@ type promptEnv struct {
 	userName              string
 	channelInfo           string
 	resultModeInstruction string
-	os                    string
+	// contextReorganizeThreshold is the configured token-usage percentage that
+	// triggers an automatic reorganize_context suggestion (FEATURE-472).
+	contextReorganizeThreshold string
+	os                          string
 	arch                  string
 	shell                 string
 	homeDir               string
@@ -461,22 +583,10 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 					return strings.TrimSpace(string(data))
 				}
 			}
-			// Priority 2: get mode-specific description and wrap with WORK MODE template
-			var modeDescKey string
-			switch modeName {
-			case "act":
-				modeDescKey = i18n.KeyWorkModeAct
-			case "plan":
-				modeDescKey = i18n.KeyWorkModePlan
-			case "research":
-				modeDescKey = i18n.KeyWorkModeResearch
-			}
-			if modeDescKey != "" {
-				if desc := i18n.T(modeDescKey); desc != "" && desc != modeDescKey {
-					return i18n.TF(i18n.KeySystemPromptResultMode, desc)
-				}
-			}
-			return ""
+			// Priority 2 (FEATURE-472): statically list all configured work modes
+			// (built-in + user-defined) so the LLM understands the differences
+			// between every mode, not just the currently active one.
+			return buildResultModeSection(cfg)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
@@ -643,6 +753,14 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	env.taskDesc = taskDesc
 	env.customRules = rules
 	env.resultModeInstruction = resultModeInstruction(mode)
+	// FEATURE-472: expose the configured context-reorganize-threshold percentage
+	// (default 80) so the RULES section can tell the LLM when to proactively
+	// reorganize context before the system forces it.
+	threshold := 80
+	if cfg != nil && cfg.LLM.ContextReorganizeThreshold > 0 {
+		threshold = cfg.LLM.ContextReorganizeThreshold
+	}
+	env.contextReorganizeThreshold = strconv.Itoa(threshold)
 
 	// Get section names from work mode config (or default order)
 	sectionNames := getWorkModeSectionNames(cfg, "")
@@ -653,6 +771,9 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 		if section == "" {
 			continue
 		}
+		// Trim each section so the separator's surrounding blank lines are
+		// consistent regardless of each section's leading/trailing newlines.
+		section = strings.TrimSpace(section)
 		if len(sections) > 0 {
 			sections = append(sections, separator)
 		}
