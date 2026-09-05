@@ -42,7 +42,7 @@
   --ws-head-fg: #ffffff;                 /* workspace panel head text */
   --ws-branch-bg: rgba(232, 240, 254, 0.6); /* branch translucent light blue */
   --ws-branch-fg: #2e78c4;               /* branch text highlight blue */
-  --ws-tree-bg: #f2f2f2;                 /* file list light gray */
+  --ws-tree-bg: #f6f8fc;                 /* file list light gray-blue */
   --topbar-border: #2e78c4;              /* topbar bottom border highlight blue */
 }
 
