@@ -1037,6 +1037,10 @@ aside {
   flex: none;
   border-top: 1px solid var(--border);
   padding: 0;
+  /* FEATURE-487: on notched/rounded iOS screens (iPhone X+) the page fills the
+     whole viewport (viewport-fit=cover); pad the bottom bar by the home-indicator
+     safe-area inset so the input/tool/status controls sit above it. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
@@ -3099,6 +3103,14 @@ body.narrow #modelWizard .modal-box {
   min-width: 0;
   border-radius: 0;
   border: none;
+}
+/* FEATURE-487: on notched/rounded iOS screens the full-screen config modals
+   pad their body by the home-indicator safe-area inset so bottom controls
+   (e.g. save) sit above it. */
+body.narrow #settings .modal-body,
+body.narrow #models .modal-body,
+body.narrow #modelWizard .modal-body {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 /* FEATURE-487: on narrow screens the config modal title-bar text is right
    aligned (next to the close icon) with a comfortable gap. */
