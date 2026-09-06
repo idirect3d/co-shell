@@ -2,6 +2,9 @@ package gateway
 
 import (
 	"net/http"
+	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -89,6 +92,68 @@ func (w *WebUI) handleAgentVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(rw, http.StatusOK, res)
+}
+
+// remoteDefaults is the JSON returned by GET /api/remote-defaults.
+type remoteDefaults struct {
+	RecommendedPort int   `json:"recommended_port"` // 0 = none free in the scan window
+	UsedPorts       []int `json:"used_ports"`       // ports already used by registered agents for this host
+}
+
+// remotePortBase is the first port scanned for a free remote-agent port.
+const remotePortBase = 28256
+
+// remotePortScan is how many consecutive ports are scanned from remotePortBase.
+const remotePortScan = 10
+
+// handleRemoteDefaults returns a recommended free port for a remote agent on
+// the given host (?host=...). It scans remotePortBase..+remotePortScan and picks
+// the first port whose host:port combination is not already used by a
+// registered agent. If none is free it returns recommended_port=0 (the user
+// must pick one manually).
+func (w *WebUI) handleRemoteDefaults(rw http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	used := w.usedRemotePorts(host)
+	rec := 0
+	for p := remotePortBase; p < remotePortBase+remotePortScan; p++ {
+		if !used[p] {
+			rec = p
+			break
+		}
+	}
+	writeJSON(rw, http.StatusOK, remoteDefaults{RecommendedPort: rec, UsedPorts: usedPortList(used)})
+}
+
+// usedRemotePorts returns the set of ports already used by registered agents
+// whose host matches the given host (or all ports when host is empty).
+func (w *WebUI) usedRemotePorts(host string) map[int]bool {
+	used := map[int]bool{}
+	host = strings.ToLower(strings.TrimSpace(host))
+	for _, a := range w.manager.Agents() {
+		if a.Type == AgentTypeExternal && a.WSURL != "" {
+			if u, err := url.Parse(a.WSURL); err == nil {
+				aHost := strings.ToLower(u.Hostname())
+				if host == "" || aHost == host {
+					if p := u.Port(); p != "" {
+						if n, err := strconv.Atoi(p); err == nil {
+							used[n] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	return used
+}
+
+// usedPortList converts a used-port set into a sorted slice.
+func usedPortList(used map[int]bool) []int {
+	out := make([]int, 0, len(used))
+	for p := range used {
+		out = append(out, p)
+	}
+	sort.Ints(out)
+	return out
 }
 
 // versionCompatible reports whether two co-shell versions share the same
