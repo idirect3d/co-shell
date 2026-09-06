@@ -1944,14 +1944,9 @@ function applyDisplayMode() {
   });
 }
 
-// Request the session list on connect and whenever the menu is opened.
-sbSessionsWrap.addEventListener("mouseenter", () => {
-  wsSend({ type: "session_list" });
-  sessionMenu.classList.remove("hidden");
-});
-sbSessionsWrap.addEventListener("mouseleave", () => {
-  sessionMenu.classList.add("hidden");
-});
+// FEATURE-487: the session list is now opened by clicking the 💬 item
+// (bound in the narrow-screen module at the bottom of this file) instead of
+// hovering. The session list is requested on connect and on open.
 
 // confirmDeleteSession opens the delete-confirmation modal for a session.
 // The actual session_delete message is only sent after the user confirms
@@ -3869,6 +3864,12 @@ function renderSettingsNav() {
     label.textContent = g.title || "";
     item.appendChild(icon);
     item.appendChild(label);
+    // FEATURE-487: a chevron on the right of each category row (always shown;
+    // on narrow screens it signals the drill-in to that category's page).
+    const chev = document.createElement("span");
+    chev.className = "settings-nav-chev";
+    chev.textContent = ">";
+    item.appendChild(chev);
     item.onclick = () => selectSettingsGroup(i);
     frag.appendChild(item);
   });
@@ -3876,12 +3877,27 @@ function renderSettingsNav() {
 }
 
 // selectSettingsGroup switches the active category and re-renders the pane.
+// On narrow screens it also drills into the category page (hides the category
+// list, shows the pane with a back button).
 function selectSettingsGroup(index) {
   settingsActiveGroup = index;
   settingsNav.querySelectorAll(".settings-nav-item").forEach((el) => {
     el.classList.toggle("active", Number(el.getAttribute("data-index")) === index);
   });
   renderSettingsPane();
+  if (document.body.classList.contains("narrow")) settingsShowPane();
+}
+
+// settingsShowPane / settingsShowList toggle the two-level narrow-screen
+// settings navigation: the category list (level 1) vs. the category page
+// (level 2). On wide screens both are always visible side by side.
+function settingsShowPane() {
+  const body = document.getElementById("settingsBody");
+  if (body) body.classList.add("settings-drilled");
+}
+function settingsShowList() {
+  const body = document.getElementById("settingsBody");
+  if (body) body.classList.remove("settings-drilled");
 }
 
 // renderSettingsPane renders the active category's items into the right pane.
@@ -4722,18 +4738,9 @@ function renderModelVisionMenu() {
   modelVisionMenu.appendChild(add);
 }
 
-// Status-bar model selectors: hover to expand, leave to hide. The main (text)
-// model and the vision model each have their own menu (FEATURE-422).
-sbModelTextWrap.addEventListener("mouseenter", () => {
-  wsSend({ type: "model_get" });
-  modelMenu.classList.remove("hidden");
-});
-sbModelTextWrap.addEventListener("mouseleave", () => modelMenu.classList.add("hidden"));
-sbModelVisionWrap.addEventListener("mouseenter", () => {
-  wsSend({ type: "model_get" });
-  modelVisionMenu.classList.remove("hidden");
-});
-sbModelVisionWrap.addEventListener("mouseleave", () => modelVisionMenu.classList.add("hidden"));
+// FEATURE-487: the status-bar model selectors are now opened by clicking the
+// model items (bound in the narrow-screen module at the bottom of this file)
+// instead of hovering.
 
 // refreshModelInfo re-fetches /api/bootstrap to update the status-bar model
 // info (modelInfo) after a model switch/unbind, then refreshes the status bar
@@ -5242,9 +5249,8 @@ function showWizardAsk(msg) {
 
 /* ---------- identity & personality (FEATURE-393) ---------- */
 
-// Logo hover menu: show the menu when hovering the logo, hide on leave.
-logoWrap.addEventListener("mouseenter", () => logoMenu.classList.remove("hidden"));
-logoWrap.addEventListener("mouseleave", () => logoMenu.classList.add("hidden"));
+// FEATURE-487: the logo identity menu is now opened by clicking the logo
+// (bound in the narrow-screen module at the bottom of this file).
 
 // FEATURE-401: the "+" button creates a new session.
 newSessionBtn.onclick = () => {
@@ -5372,6 +5378,7 @@ async function refreshBranch() {
   });
   loadTree();
   wsConnect();
+  updateResponsive(); // FEATURE-487: apply narrow-screen layout on load
 })();
 
 
@@ -5404,4 +5411,213 @@ function answerSelectWithSupplement(opt) {
   } else {
     answerInteraction({ action: "select", value: opt });
   }
+}
+
+
+/* ---------- FEATURE-487: narrow-screen responsive layout ---------- */
+
+// The narrow-screen threshold mirrors the hub's approach: measure the full
+// titlebar brand width (logo + co-shell + version) and treat the viewport as
+// "narrow" when it is narrower than twice that width. This keeps the threshold
+// adaptive to the configured logo scale / version text.
+const brandEl = document.querySelector(".brand");
+const verEl = document.getElementById("ver");
+const menuWrapEl = document.getElementById("menuWrap");
+const menuEl = document.getElementById("menu");
+const narrowToolsEl = document.getElementById("narrowTools");
+const inputRowEl = document.querySelector(".input-row");
+const attachBtnEl = document.getElementById("attachBtn");
+const sendBtnEl = document.getElementById("sendBtn");
+const bottomLeftEl = document.querySelector(".bottom-left");
+const streamHeadEl = document.querySelector(".stream-head");
+const msgVizEl = document.getElementById("msgViz");
+const streamModeEl = document.getElementById("streamMode");
+const streamTitleEl = document.getElementById("streamTitle");
+const streamActiveEl = document.getElementById("streamActive");
+
+// Remember each movable control's original parent so we can restore it when
+// the viewport widens again.
+const narrowMovables = [
+  { el: modeSeg, home: modeSeg.parentNode },
+  { el: newSessionBtn, home: newSessionBtn.parentNode },
+  { el: sbSessionsWrap, home: sbSessionsWrap.parentNode },
+  { el: attachBtnEl, home: attachBtnEl.parentNode },
+  { el: yoloSwitch, home: yoloSwitch.parentNode },
+];
+
+// isNarrow returns true when the viewport is narrower than twice the full
+// titlebar brand width (mirrors the hub badge logic).
+function isNarrow() {
+  if (!brandEl) return false;
+  // Measure with the version visible so the threshold reflects the full brand.
+  if (verEl) verEl.style.display = "";
+  const fullW = brandEl.getBoundingClientRect().width || 200;
+  return window.innerWidth < fullW * 2;
+}
+
+// applyNarrowLayout toggles the body.narrow class and moves the shared tool
+// controls (mode switcher, new-session, session list, attach, YOLO) into the
+// dedicated narrow tool row (or back to their original homes on wide screens).
+function applyNarrowLayout(narrow) {
+  document.body.classList.toggle("narrow", narrow);
+  if (!narrowToolsEl) return;
+  if (narrow) {
+    // Move controls into the narrow tool row (events travel with the nodes).
+    for (const m of narrowMovables) {
+      if (m.el && m.el.parentNode !== narrowToolsEl) narrowToolsEl.appendChild(m.el);
+    }
+    narrowToolsEl.classList.remove("hidden");
+  } else {
+    // Restore each control to its original parent.
+    for (const m of narrowMovables) {
+      if (m.el && m.home && m.el.parentNode !== m.home) m.home.appendChild(m.el);
+    }
+    narrowToolsEl.classList.add("hidden");
+  }
+}
+
+// updateResponsive re-evaluates the narrow-screen state and applies the
+// version-hide + layout changes. Called on load and on window resize.
+function updateResponsive() {
+  const narrow = isNarrow();
+  // FEATURE-487: hide the titlebar version on narrow screens (like the hub).
+  if (verEl) verEl.style.display = narrow ? "none" : "";
+  applyNarrowLayout(narrow);
+}
+
+window.addEventListener("resize", updateResponsive);
+
+/* ---------- FEATURE-487: click-to-open menus (session / model / top-right) ---------- */
+
+// closeAllPopups hides every open popup menu (session, model, vision, top-right
+// menu, logo menu). Called when clicking anywhere outside a popup.
+function closeAllPopups() {
+  sessionMenu.classList.add("hidden");
+  modelMenu.classList.add("hidden");
+  modelVisionMenu.classList.add("hidden");
+  logoMenu.classList.add("hidden");
+  if (menuWrapEl) menuWrapEl.classList.remove("open");
+}
+
+// Toggle a popup open/closed on click of its trigger; clicking anywhere else
+// closes it (FEATURE-487).
+function bindClickToggle(trigger, popup, onOpen) {
+  if (!trigger || !popup) return;
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = popup.classList.contains("hidden");
+    closeAllPopups();
+    if (willOpen) {
+      if (onOpen) onOpen();
+      popup.classList.remove("hidden");
+    }
+  });
+}
+
+// Session list: click the 💬 item to open, click anywhere to close.
+bindClickToggle(sbSessions, sessionMenu, () => wsSend({ type: "session_list" }));
+// Main (text) model selector: click to open.
+bindClickToggle(sbModelText, modelMenu, () => wsSend({ type: "model_get" }));
+// Vision model selector: click to open.
+bindClickToggle(sbModelVision, modelVisionMenu, () => wsSend({ type: "model_get" }));
+// Logo identity menu: click to open.
+bindClickToggle(logoWrap, logoMenu);
+
+// Top-right menu: click the ☰ button to open/close; clicking anywhere else
+// closes it (FEATURE-487). The .open class lives on the wrapper so the CSS
+// rule .menu-wrap.open .menu controls visibility.
+if (menuBtn && menuWrapEl) {
+  menuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = !menuWrapEl.classList.contains("open");
+    closeAllPopups();
+    if (willOpen) menuWrapEl.classList.add("open");
+  });
+}
+
+// Clicking anywhere outside a popup closes all of them.
+document.addEventListener("click", (e) => {
+  // Ignore clicks inside the top-right menu wrapper (its own handler manages it).
+  if (menuWrapEl && menuWrapEl.contains(e.target)) return;
+  closeAllPopups();
+});
+
+
+/* ---------- FEATURE-487: narrow-screen drawer swipe (workspace / task plan) ---------- */
+
+// On narrow screens the workspace (#sidebar) and task-plan (#plan-panel) panels
+// collapse into fixed drawers. Swiping right from the left edge opens the
+// workspace; swiping left from the right edge opens the task plan. Clicking the
+// main area closes an open drawer. Mouse drag and touch both work via pointer
+// events.
+const drawerSidebar = document.getElementById("sidebar");
+const drawerPlan = document.getElementById("plan-panel");
+const EDGE = 24; // px from the viewport edge that starts a swipe
+
+let drawerDrag = null; // { side: "ws"|"plan", startX, startY }
+
+function drawerOpen(el) {
+  if (el) el.classList.add("drawer-open");
+}
+function drawerClose(el) {
+  if (el) el.classList.remove("drawer-open");
+}
+function closeDrawers() {
+  drawerClose(drawerSidebar);
+  drawerClose(drawerPlan);
+}
+
+// Only enable swipe handling while the viewport is narrow.
+function narrowActive() {
+  return document.body.classList.contains("narrow");
+}
+
+document.addEventListener("pointerdown", (e) => {
+  if (!narrowActive()) return;
+  // Only start a swipe from near the left/right edge, and only when no drawer
+  // is already open (an open drawer is closed by clicking the main area).
+  const x = e.clientX;
+  const vw = window.innerWidth;
+  if (x <= EDGE) {
+    drawerDrag = { side: "ws", startX: x, startY: e.clientY };
+  } else if (x >= vw - EDGE) {
+    drawerDrag = { side: "plan", startX: x, startY: e.clientY };
+  }
+});
+
+document.addEventListener("pointermove", (e) => {
+  if (!drawerDrag) return;
+  const dx = e.clientX - drawerDrag.startX;
+  const dy = e.clientY - drawerDrag.startY;
+  // Require a mostly-horizontal drag of at least 40px to trigger.
+  if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  if (drawerDrag.side === "ws" && dx > 0) {
+    drawerOpen(drawerSidebar);
+    drawerDrag = null;
+  } else if (drawerDrag.side === "plan" && dx < 0) {
+    drawerOpen(drawerPlan);
+    drawerDrag = null;
+  }
+});
+
+document.addEventListener("pointerup", () => { drawerDrag = null; });
+document.addEventListener("pointercancel", () => { drawerDrag = null; });
+
+// Clicking the main message area closes any open drawer.
+document.addEventListener("click", (e) => {
+  if (!narrowActive()) return;
+  if (drawerSidebar && drawerSidebar.contains(e.target)) return;
+  if (drawerPlan && drawerPlan.contains(e.target)) return;
+  closeDrawers();
+});
+
+
+/* ---------- FEATURE-487: settings two-level navigation (narrow screens) ---------- */
+
+// The "<" back button returns from a drilled-in category page to the level-1
+// category list. It is always present but only acts as a drill-out on narrow
+// screens (on wide screens the list and pane are shown side by side).
+const settingsBackBtn = document.getElementById("settingsBack");
+if (settingsBackBtn) {
+  settingsBackBtn.addEventListener("click", () => settingsShowList());
 }

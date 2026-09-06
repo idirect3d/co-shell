@@ -1860,7 +1860,9 @@ aside {
   z-index: 60;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
 }
-.menu-wrap:hover .menu, .menu-wrap:focus-within .menu { display: block; }
+/* FEATURE-487: the top-right menu is now opened by clicking the ☰ button
+   (menuWrap.open) instead of hovering, so clicking anywhere else can close it. */
+.menu-wrap.open .menu { display: block; }
 .menu-item {
   display: flex;
   align-items: center;
@@ -2852,4 +2854,142 @@ aside {
   text-align: center;
   margin-top: 8px;
   user-select: none;
+}
+
+
+/* ---------- FEATURE-487: narrow-screen responsive layout ---------- */
+
+/* The narrow tool row: shown only when body.narrow is set (viewport narrower
+   than twice the titlebar brand width). It holds the mode switcher, new-session,
+   session-list, attach and YOLO controls on one row above the input box. */
+.narrow-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 2px;
+}
+.narrow-tools.hidden { display: none; }
+/* The mode switcher inside the narrow row should not push itself left via
+   margin-right:auto (that rule is scoped to .statusbar .mode-seg). */
+.narrow-tools .mode-seg { margin-right: 0; }
+/* Session list item inside the narrow row keeps its popup anchored upward. */
+.narrow-tools .sb-sessions { position: relative; }
+
+/* body.narrow: collapse the workspace / task-plan side panels so the main
+   message area fills the width. The panels become fixed drawers that slide in
+   from the left (workspace) / right (task plan) when swiped open. */
+body.narrow #layout {
+  grid-template-columns: 0 1fr 0;
+}
+body.narrow #sidebar {
+  position: fixed;
+  top: 44px; /* below the titlebar */
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  z-index: 55;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+}
+body.narrow #plan-panel {
+  position: fixed;
+  top: 44px;
+  right: 0;
+  bottom: 0;
+  width: 260px;
+  z-index: 55;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.35);
+}
+/* Open states: slide the drawer fully into view. */
+body.narrow #sidebar.drawer-open { transform: translateX(0); }
+body.narrow #plan-panel.drawer-open { transform: translateX(0); }
+/* Hide the co-shell mosaic logo at the left of the input row on narrow screens. */
+body.narrow .bottom-left {
+  display: none;
+}
+/* The input row keeps only the textarea + send button (the other controls were
+   moved into #narrowTools by JS), so it naturally fills the whole line. */
+body.narrow .bottom-main {
+  padding-left: 14px;
+}
+/* The message-visualization chart moves onto its own line below the session
+   title / display-mode pill, keeping its height. */
+body.narrow .stream-head {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 35px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  row-gap: 4px;
+}
+body.narrow .stream-title {
+  width: auto;
+  flex: 1;
+  min-width: 80px;
+}
+body.narrow .msgviz {
+  flex-basis: 100%;
+  order: 5;
+  height: 27px;
+}
+
+
+/* ---------- FEATURE-487: settings two-level navigation ---------- */
+
+/* The ">" chevron on each category row (always shown). */
+.settings-nav-chev {
+  flex: none;
+  color: var(--fg-faint);
+  font-size: 12px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+.settings-nav-item.active .settings-nav-chev { color: var(--accent); }
+
+/* The "<" back button at the top of the settings pane. Hidden on wide screens
+   (list + pane are side by side); shown on narrow screens to return from a
+   drilled-in category page to the level-1 list. */
+.settings-back {
+  display: none;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.settings-back:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Narrow screens: the settings body becomes a two-level drill-down. Level 1 is
+   the full-width category list; level 2 (settings-drilled) shows only the pane
+   with the back button. */
+body.narrow .settings-body {
+  flex-direction: column;
+  align-items: stretch;
+}
+body.narrow .settings-nav {
+  flex: 1 1 auto;
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+body.narrow .settings-pane {
+  display: none;
+}
+body.narrow .settings-back {
+  display: inline-block;
+}
+/* Drilled into a category: hide the list, show the pane full width. */
+body.narrow .settings-body.settings-drilled .settings-nav {
+  display: none;
+}
+body.narrow .settings-body.settings-drilled .settings-pane {
+  display: flex;
 }
