@@ -367,7 +367,16 @@ const webIndexHTML = `<!DOCTYPE html>
         var act = btn.getAttribute('data-act');
         var id = btn.getAttribute('data-id');
         if (act === 'start') api('POST', '/api/agents/' + encodeURIComponent(id) + '/start', null, function(st, j){
-          if (st >= 400) alert('启动失败: ' + (j.error || st)); refresh();
+          if (st >= 400){ alert('启动失败: ' + (j.error || st)); refresh(); return; }
+          // Switch to the agent and reload its iframe so the freshly-started
+          // co-shell UI appears (the old iframe may have loaded while stopped).
+          current = id;
+          renderList();
+          closePanel();
+          var f = frames[id];
+          if (f){ f.src = '/agent/' + encodeURIComponent(id) + '/'; }
+          else { ensureFrame(id); }
+          refresh();
         });
         else if (act === 'stop') api('POST', '/api/agents/' + encodeURIComponent(id) + '/stop', null, function(st, j){
           if (st >= 400) alert('停止失败: ' + (j.error || st)); refresh();
