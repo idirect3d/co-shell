@@ -3093,6 +3093,11 @@ body.narrow #modelWizard .modal-head {
   justify-content: flex-end;
   gap: 10px;
 }
+/* FEATURE-487: on narrow screens hide the model-wizard left step nav so only
+   the right configuration form is shown (full width). */
+body.narrow #modelWizard .wizard-nav {
+  display: none;
+}
 body.narrow .model-id {
   overflow: hidden;
   text-overflow: ellipsis;
