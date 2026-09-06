@@ -4,6 +4,34 @@
 
 ---
 
+## v0.39.0 — 开发中
+
+> **版本**: v0.39.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub https 远程安全访问 + 移动端浏览器内核化（FEATURE-485）
+> **说明**: 0.39.0 系列为移动端浏览器内核化做准备，改造 co-shell-hub 使其可通过 https 远程安全访问：增加系统设置界面（上传 SSL 证书/自签名生成、配置白名单、设置访问验证 KEY、全部访问需 key 开关），hub 配置证书后仅用 https 监听；对不在白名单的主机访问需提供访问 key（HTTP 头）。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-485 | 0.39.0 | P1 | hub https 远程安全访问：系统设置界面（SSL 证书/白名单/访问 KEY）、https 监听、访问 key 校验、移动端 mobile-legacy 复制 |
+
+> 当前 BUILD: 879
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-485 hub https 远程安全访问 + 移动端浏览器内核化准备**
+  - 背景：移动端将改为直接访问 co-shell-hub 的 Web UI（浏览器内核方式），需 hub 支持 https 远程安全访问。原 mobile/（UDP 方式）复制为 mobile-legacy/ 保留待以后实现。
+  - 方案（用户确认）：① 版本 v0.39.0（minor 递增）；② SSL 证书支持自签名自动生成（也支持上传 PEM）；③ 访问验证 KEY 加到 HTTP 头中（如 X-Access-Key），WEB 访问不提供则先提示输入；④ 配置证书后仅用 https（替换 http）；⑤ 本次范围：hub 端改造（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。
+  - 实施：cmd/co-shell-hub/ + hub/gateway/ + mobile/
+  - 测试：见 use-case/FEATURE-485/
+  - 进度：hub 端改造完成（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。实现：① gateway/settings.go 新增 Settings 结构（TLS 开关/证书路径/白名单/访问 KEY/全部需 key 开关），持久化到 hub-settings.json，支持自签名证书自动生成（ECDSA P256）；② webui.go WebUI 持有 settings，Serve() 支持 TLS（配置证书后仅 https），accessControl 中间件实现访问控制（白名单内放行、白名单外需 X-Access-Key 头否则 401、RequireKey 强制全部需 key），新增 GET/PUT /api/settings；③ webui_static.go 设置界面（+新建 下加 ⚙设置 按钮，新增 viewSettings：HTTPS 开关/证书路径/生成自签名/白名单/访问 KEY/全部需 key 开关）；④ cmd/co-shell-hub 加载 settings 并传给 NewWebUI；⑤ 复制 mobile/ → mobile-legacy/（保留 UDP 方式）。编译全绿 [BUILD-880]
+  - 进度（迭代调整）：① 设置按钮宽度与 +新建 一致；② 生成自签名证书后把证书路径填入输入框（GET /api/settings 返回 settings_dir）；③ 证书默认放 ~/.co-shell/（hub-cert.pem/hub-key.pem）；④ 访问 KEY 下加"重新生成安全 KEY"按钮（crypto 生成 64 位 hex）；⑤ 修复生成证书后无法访问——TLSConfig 在证书文件不存在时自动生成（不再因加载不存在的相对路径失败）；⑥ 新增 --serve 参数（不自动打开浏览器），自动打开浏览器时按 TLS 启用用 https://；⑦ accessControl 语义：白名单为空时默认仅本机(loopback)免 KEY，其他主机需 KEY（命令行 --whitelist 会覆盖 settings 白名单，需用设置界面管理时勿传 --whitelist）。编译全绿 [BUILD-881]
+
+---
+
 ## v0.38.0 — 开发中
 
 > **版本**: v0.38.0

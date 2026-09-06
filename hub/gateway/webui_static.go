@@ -204,7 +204,7 @@ const webIndexHTML = `<!DOCTYPE html>
   <div class="view" id="viewList">
     <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
     <div id="agentList"></div>
-    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button></div>
+    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:6px;width:100%">⚙ 设置</button></div>
   </div>
   <!-- View 2: config (add local/remote + manage list). -->
   <div class="view hidden" id="viewConfig">
@@ -252,6 +252,23 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field"><label>状态</label><div class="val" id="d-state"></div></div>
     </div>
   </div>
+  <!-- View 4: remote-access settings (TLS/whitelist/access key). -->
+  <div class="view hidden" id="viewSettings">
+    <div class="head"><button class="back" id="settingsBack" title="返回 Agent 列表">‹</button>设置<span class="close" id="settingsClose" title="收起">✕</span></div>
+    <div class="config-body">
+      <h3>HTTPS 访问</h3>
+      <div class="field"><div class="switch-row"><span class="switch-label">启用 HTTPS（配置证书后仅用 https 访问）</span><label class="switch"><input type="checkbox" id="s-tls"><span class="slider"></span></label></div></div>
+      <div class="field"><label>证书文件路径（PEM）</label><input id="s-cert" placeholder="如 /path/to/cert.pem，留空自动生成自签名证书"></div>
+      <div class="field"><label>私钥文件路径（PEM）</label><input id="s-keyfile" placeholder="如 /path/to/key.pem"></div>
+      <div class="field"><button class="btn" id="s-gencert" style="width:100%">生成自签名证书</button><div class="hint">生成后需重启 hub 生效。</div></div>
+      <h3>访问控制</h3>
+      <div class="field"><label>白名单（IP 或 CIDR，逗号分隔，空=仅本机）</label><input id="s-whitelist" placeholder="如 192.168.1.100,192.168.1.0/24"></div>
+      <div class="field"><label>访问验证 KEY（白名单外主机需在请求头 X-Access-Key 提供）</label><input id="s-accesskey" type="password" placeholder="留空表示不修改当前 KEY"><button class="btn" id="s-genkey" style="margin-top:6px;width:100%">重新生成安全 KEY</button></div>
+      <div class="field"><div class="switch-row"><span class="switch-label">全部访问都需要 KEY</span><label class="switch"><input type="checkbox" id="s-reqkey"><span class="slider"></span></label></div><div class="hint">开启后即使 IP 在白名单内也需提供访问 KEY。</div></div>
+      <div class="hint" id="s-status"></div>
+    </div>
+    <div class="foot"><button class="btn primary" id="s-save">保存设置</button></div>
+  </div>
 </div>
 <script>
 (function(){
@@ -264,6 +281,7 @@ const webIndexHTML = `<!DOCTYPE html>
   var viewList = document.getElementById('viewList');
   var viewConfig = document.getElementById('viewConfig');
   var viewDetail = document.getElementById('viewDetail');
+  var viewSettings = document.getElementById('viewSettings');
   var scrim = document.getElementById('scrim');
   var agents = [];
   var current = null;
@@ -303,9 +321,9 @@ const webIndexHTML = `<!DOCTYPE html>
   }
   // showView switches between the list, config and detail views with a slide
   // transition: the current view slides out, then the target slides in.
-  var viewEls = [viewList, viewConfig, viewDetail];
+  var viewEls = [viewList, viewConfig, viewDetail, viewSettings];
   function showView(name){
-    var target = name === 'list' ? viewList : (name === 'detail' ? viewDetail : viewConfig);
+    var target = name === 'list' ? viewList : (name === 'detail' ? viewDetail : (name === 'settings' ? viewSettings : viewConfig));
     var cur = viewEls.filter(function(v){ return !v.classList.contains('hidden'); })[0];
     if (cur === target) return;
     if (cur){
@@ -550,6 +568,71 @@ const webIndexHTML = `<!DOCTYPE html>
     if (!panel.classList.contains('open')) openPanel();
     showView('config');
     if (!defaultsLoaded) loadDefaults();
+  };
+  // ---- Settings view (remote-access: TLS/whitelist/access key) ----
+  document.getElementById('settingsBtn').onclick = function(){
+    if (!panel.classList.contains('open')) openPanel();
+    showView('settings');
+    loadSettings();
+  };
+  document.getElementById('settingsBack').onclick = function(){ showView('list'); };
+  document.getElementById('settingsClose').onclick = function(){ showView('list'); };
+  var sStatus = document.getElementById('s-status');
+  var settingsDir = '.'; // directory holding hub-settings.json (from GET /api/settings)
+  function loadSettings(){
+    api('GET', '/api/settings', null, function(st, j){
+      if (st === 401){ sStatus.textContent = '需要访问 KEY 才能查看设置'; return; }
+      var s = (j && j.settings) || {};
+      if (s.settings_dir) settingsDir = s.settings_dir;
+      document.getElementById('s-tls').checked = !!s.tls_enabled;
+      document.getElementById('s-cert').value = s.cert_file || '';
+      document.getElementById('s-keyfile').value = s.key_file || '';
+      document.getElementById('s-whitelist').value = (s.whitelist || []).join(', ');
+      document.getElementById('s-accesskey').value = '';
+      document.getElementById('s-accesskey').placeholder = s.access_key ? '已设置（留空不修改）' : '未设置';
+      document.getElementById('s-reqkey').checked = !!s.require_key;
+      sStatus.textContent = '';
+    });
+  }
+  function saveSettings(){
+    var body = {
+      tls_enabled: document.getElementById('s-tls').checked,
+      cert_file: document.getElementById('s-cert').value.trim(),
+      key_file: document.getElementById('s-keyfile').value.trim(),
+      whitelist: document.getElementById('s-whitelist').value.split(',').map(function(x){ return x.trim(); }).filter(Boolean),
+      access_key: document.getElementById('s-accesskey').value,
+      require_key: document.getElementById('s-reqkey').checked
+    };
+    api('PUT', '/api/settings', body, function(st, j){
+      if (st >= 400){ sStatus.textContent = '保存失败: ' + ((j && j.error) || st); return; }
+      sStatus.textContent = '已保存。HTTPS/白名单/KEY 变更需重启 hub 后完全生效。';
+      loadSettings();
+    });
+  }
+  document.getElementById('s-save').onclick = saveSettings;
+  document.getElementById('s-gencert').onclick = function(){
+    // Generate a self-signed cert: fill the cert/key paths (under the settings
+    // dir) into the inputs so the user sees where they will be written, then
+    // enable TLS.
+    var certPath = settingsDir.replace(/\/$/, '') + '/hub-cert.pem';
+    var keyPath = settingsDir.replace(/\/$/, '') + '/hub-key.pem';
+    document.getElementById('s-cert').value = certPath;
+    document.getElementById('s-keyfile').value = keyPath;
+    document.getElementById('s-tls').checked = true;
+    sStatus.textContent = '已选择自签名证书。保存并重启 hub 后，证书将生成到上述路径并启用 HTTPS。';
+  };
+  // Regenerate a random secure access key into the input (saved on 保存设置).
+  document.getElementById('s-genkey').onclick = function(){
+    var bytes = new Uint8Array(32);
+    if (window.crypto && crypto.getRandomValues){ crypto.getRandomValues(bytes); }
+    else { for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256); }
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) hex += ('0' + bytes[i].toString(16)).slice(-2);
+    var keyInput = document.getElementById('s-accesskey');
+    keyInput.type = 'text';
+    keyInput.value = hex;
+    keyInput.placeholder = '已生成新 KEY，保存后生效';
+    sStatus.textContent = '已生成新的访问 KEY（64 位十六进制）。点击保存设置后生效。';
   };
   // Clicking the scrim closes the whole drawer.
   scrim.onclick = closePanel;

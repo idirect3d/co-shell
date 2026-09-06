@@ -45,7 +45,7 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.38.0"
+	hubVersion = "0.39.0"
 	hubBuild   = "877"
 )
 
@@ -58,6 +58,11 @@ type config struct {
 	RegistryPath string `json:"registry_path,omitempty"`
 	CoShellPath  string `json:"co_shell_path,omitempty"`
 	BasePort     int    `json:"base_port,omitempty"`
+	// SettingsPath is the remote-access settings file (TLS/whitelist/access
+	// key). Default: ./hub-settings.json (same search order as the config).
+	SettingsPath string `json:"settings_path,omitempty"`
+	// Serve suppresses auto-opening the browser (headless/server mode).
+	Serve bool `json:"serve,omitempty"`
 }
 
 func main() {
@@ -69,6 +74,7 @@ func main() {
 	registryPath := flag.String("registry", "", "agent registry file (default: ./hub-agents.json)")
 	coShellPath := flag.String("co-shell-path", "", "co-shell executable for managed agents (default: same dir as this binary)")
 	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default 28256)")
+	serve := flag.Bool("serve", false, "serve without auto-opening the browser (headless/server mode)")
 	var agents multiFlag
 	flag.Var(&agents, "agent", "external agent endpoint as ID=WSURL (repeatable)")
 	showHelp := flag.Bool("help", false, "show help")
@@ -102,6 +108,9 @@ func main() {
 	}
 	if *basePort > 0 {
 		cfg.BasePort = *basePort
+	}
+	if *serve {
+		cfg.Serve = true
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -179,22 +188,40 @@ func main() {
 
 	// Start the Web UI server (chat + agent management).
 	webCfg := gateway.WebUIConfig{ListenAddr: cfg.WebAddr, Whitelist: cfg.Whitelist}
-	webUI := gateway.NewWebUI(webCfg, proxy, mgr, hubVersion, hubBuild)
+	// Load the remote-access settings (TLS/whitelist/access key). The settings
+	// file follows the same search order as the config.
+	if cfg.SettingsPath == "" {
+		cfg.SettingsPath = firstExisting("./hub-settings.json", filepath.Join(homeDir(), ".co-shell", "hub-settings.json"))
+	}
+	settings := gateway.LoadSettings(cfg.SettingsPath)
+	// A command-line --whitelist overrides the persisted settings whitelist so
+	// the flag remains authoritative when supplied.
+	if len(cfg.Whitelist) > 0 {
+		settings.Whitelist = cfg.Whitelist
+	}
+	webUI := gateway.NewWebUI(webCfg, proxy, mgr, settings, hubVersion, hubBuild)
 	if err := webUI.Listen(); err != nil {
 		log.Fatalf("web listen: %v", err)
+	}
+	// The Web UI scheme is https when TLS is enabled, else http.
+	scheme := "http"
+	if settings != nil && settings.TLSEnabled {
+		scheme = "https"
 	}
 	go func() {
 		if err := webUI.Serve(); err != nil {
 			log.Printf("web serve error: %v", err)
 		}
 	}()
-	log.Printf("hub-gateway: Web UI on http://%s (whitelist=%v)", cfg.WebAddr, cfg.Whitelist)
+	log.Printf("hub-gateway: Web UI on %s://%s (whitelist=%v)", scheme, cfg.WebAddr, cfg.Whitelist)
 
 	// Open the Web UI in the default browser (loopback URL so it is reachable
-	// even when the listener is bound to 0.0.0.0).
-	if url := browserURL(cfg.WebAddr); url != "" {
-		if err := web.OpenBrowser(url); err != nil {
-			log.Printf("hub-gateway: open browser: %v", err)
+	// even when the listener is bound to 0.0.0.0). Skipped in --serve mode.
+	if !cfg.Serve {
+		if url := browserURL(cfg.WebAddr, scheme); url != "" {
+			if err := web.OpenBrowser(url); err != nil {
+				log.Printf("hub-gateway: open browser: %v", err)
+			}
 		}
 	}
 
@@ -210,8 +237,9 @@ func main() {
 // defaultCoShellPath returns the co-shell executable next to this binary.
 // browserURL converts a listen address (host:port) into a loopback URL the
 // default browser can open. A wildcard/empty host (0.0.0.0, ::, "") maps to
-// 127.0.0.1 so the page is reachable from the local machine.
-func browserURL(addr string) string {
+// 127.0.0.1 so the page is reachable from the local machine. scheme is http or
+// https (https when TLS is enabled).
+func browserURL(addr, scheme string) string {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return ""
@@ -219,7 +247,7 @@ func browserURL(addr string) string {
 	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
 		host = "127.0.0.1"
 	}
-	return "http://" + net.JoinHostPort(host, port)
+	return scheme + "://" + net.JoinHostPort(host, port)
 }
 
 // homeDir returns the current user's home directory (empty on error).
@@ -323,6 +351,7 @@ Flags:
   --registry PATH      Agent registry file (default: ./hub-agents.json)
   --co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
   --base-port N        First port for auto-allocating managed agents (default 28256)
+  --serve              Serve without auto-opening the browser (headless/server mode)
   --agent ID=WSURL     External agent endpoint (repeatable, added to registry)
   --help               Show help
 
