@@ -128,6 +128,10 @@
       </div>
     </div>
     <div class="bottom-main">
+      <!-- FEATURE-487: narrow-screen tool row. Hidden on wide screens; on
+           narrow screens the mode switcher, new-session, session-list, attach
+           and YOLO controls are moved here (by JS) onto one row. -->
+      <div id="narrowTools" class="narrow-tools hidden"></div>
       <div id="askArea" class="ask-area hidden">
         <div class="ask-hint" id="askHint"></div>
         <div class="ask-keys" id="askKeys"></div>
@@ -218,6 +222,9 @@
     <div class="modal-body settings-body">
       <div id="settingsNav" class="settings-nav"></div>
       <div class="settings-pane">
+        <!-- FEATURE-487: back button to return from a category page to the
+             level-1 category list on narrow screens (always present). -->
+        <button class="settings-back" id="settingsBack" title="返回分类列表">&lt;</button>
         <input id="settingsSearch" class="set-search" type="text" placeholder="🔍 搜索设置..." />
         <div id="settingsDynamic"></div>
         <div id="settingsResult"></div>
