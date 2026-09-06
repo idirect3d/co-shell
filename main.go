@@ -53,7 +53,7 @@ import (
 
 const version = "0.38.0"
 
-const build = "864"
+const build = "865"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -359,7 +359,7 @@ func parseFlags() cliFlags {
 	flag.BoolVar(&f.serve, "serve", false, "Start the web UI mode without opening a browser (default mode opens the browser)")
 
 	// serve port (FEATURE-307c)
-	flag.IntVar(&f.port, "port", 8399, "Listen port for the web UI (auto-increments when occupied, up to 10 tries)")
+	flag.IntVar(&f.port, "port", 28256, "Listen port for the web UI (auto-increments when occupied, up to 10 tries)")
 
 	// serve bind address (FEATURE-430): listen address for the web UI
 	flag.StringVar(&f.bind, "bind", "127.0.0.1", "Listen address for the web UI (default 127.0.0.1; use 0.0.0.0 for LAN access)")
@@ -419,6 +419,32 @@ func parseFlags() cliFlags {
 	}
 
 	return f
+}
+
+// loadConfigByPriority resolves the config file by searching candidate paths
+// in priority order (FEATURE-484): {workspace}/config.json > ./config.json
+// (process cwd) > ~/.co-shell/config.json. The first existing file wins; if
+// none exists a default config is returned.
+func loadConfigByPriority(ws *workspace.Workspace) (*config.Config, string, error) {
+	candidates := []string{ws.ConfigPath()}
+	if cwd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, filepath.Join(cwd, "config.json"))
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, ".co-shell", "config.json"))
+	}
+	for _, path := range candidates {
+		cfg, loadedPath, err := config.LoadFromFile(path, ws)
+		if err != nil {
+			return nil, "", err
+		}
+		if loadedPath != "" {
+			return cfg, loadedPath, nil
+		}
+	}
+	// No config file found in any candidate location: return a default config
+	// bound to the workspace. LoadFromFile on a non-existent path yields that.
+	return config.LoadFromFile(ws.ConfigPath(), ws)
 }
 
 func main() {
@@ -532,7 +558,10 @@ func main() {
 	} else if envConfigPath := os.Getenv("CO_SHELL_CONFIG_PATH"); envConfigPath != "" {
 		cfg, configPath, err = config.LoadFromFile(envConfigPath, ws)
 	} else {
-		cfg, configPath, err = config.LoadWithPath(ws)
+		// Config search priority (FEATURE-484): {workspace}/config.json >
+		// ./config.json (process cwd) > ~/.co-shell/config.json. The first
+		// existing file wins; if none exists a default config is used.
+		cfg, configPath, err = loadConfigByPriority(ws)
 	}
 	if err != nil {
 		io.ErrPrintf("Warning: cannot load config: %v\n", err)

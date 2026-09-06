@@ -1269,7 +1269,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyOutputFormatInvalid:     "无效的 --output-format 取值或与输入模式冲突：%s（可选 text/json；json 隐含 stdio 输入模式，与 --input-mode tui 互斥）",
 
 	// serve subcommand (FEATURE-307c)
-	KeyCLIHelpPort:        "      --port <n>             Web 界面监听端口（默认 8399，占用时自动递增，最多尝试 10 个）",
+	KeyCLIHelpPort:        "      --port <n>             Web 界面监听端口（默认 28256，占用时自动递增，最多尝试 10 个）",
 	KeyCLIHelpServe:       "      --serve                启动 Web 界面但不自动打开浏览器（默认模式会打开浏览器）",
 	KeyCLIHelpBind:        "      --bind <地址>          Web 界面监听地址（默认 127.0.0.1；使用 0.0.0.0 支持局域网访问）",
 	KeyCLIHelpWhitelist:   "      --whitelist <IP列表>   Web 界面访问白名单（逗号分隔 IP/网段，空=仅本机访问）",
