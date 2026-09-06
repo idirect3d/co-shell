@@ -136,7 +136,8 @@ type agentView struct {
 	CoShell   string `json:"co_shell,omitempty"`
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
 	// {workspace}/config.json.
-	UseSharedConfig bool `json:"use_shared_config"`
+	UseSharedConfig bool   `json:"use_shared_config"`
+	ExtraArgs       string `json:"extra_args,omitempty"`
 }
 
 // handleListAgents returns the registry agents with their running/connected
@@ -158,8 +159,9 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 			WSURL:     s.WSURL,
 			Running:   w.manager.IsRunning(s.ID),
 			Connected: connected[s.ID],
-			CoShell:   s.CoShell,
+			CoShell:         s.CoShell,
 			UseSharedConfig: s.UseSharedConfig,
+			ExtraArgs:       s.ExtraArgs,
 		}
 		// Report the co-shell version for compatibility awareness.
 		if s.Type == AgentTypeManaged {
@@ -185,7 +187,8 @@ type createAgentRequest struct {
 	Port         int    `json:"port,omitempty"`
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
 	// {workspace}/config.json (created empty if absent).
-	UseSharedConfig bool `json:"use_shared_config"`
+	UseSharedConfig bool   `json:"use_shared_config"`
+	ExtraArgs       string `json:"extra_args,omitempty"`
 }
 
 // handleCreateAgent creates a managed agent (workspace + optional config.json).
@@ -203,7 +206,7 @@ func (w *WebUI) handleCreateAgent(rw http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = req.ID
 	}
-	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port)
+	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port, req.ExtraArgs)
 	if err != nil {
 		writeJSON(rw, http.StatusConflict, map[string]string{"error": err.Error()})
 		return

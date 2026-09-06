@@ -223,6 +223,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
+        <div class="field"><label>补充运行参数</label><input id="m-extra" placeholder="如 --accept-license --serve" value="--accept-license"></div>
         <div class="hint" id="m-ver"></div>
       </div>
       <!-- Remote mode: user supplies a host + port (hub builds the ws URL). -->
@@ -247,6 +248,7 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field" id="f-port"><label>端口</label><div class="val" id="d-port"></div></div>
       <div class="field" id="f-coshell"><label>co-shell</label><div class="val" id="d-coshell"></div></div>
       <div class="field" id="f-shared"><label>共享配置</label><div class="val" id="d-shared"></div></div>
+      <div class="field" id="f-extra"><label>补充运行参数</label><div class="val" id="d-extra"></div></div>
       <div class="field"><label>状态</label><div class="val" id="d-state"></div></div>
     </div>
   </div>
@@ -692,6 +694,7 @@ const webIndexHTML = `<!DOCTYPE html>
       workspace: ws,
       co_shell: coshellSel.value,
       use_shared_config: document.getElementById('m-shared').checked,
+      extra_args: document.getElementById('m-extra').value.trim(),
       port: port
     }, function(st, j){
       if (st >= 400){
