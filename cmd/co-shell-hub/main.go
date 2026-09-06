@@ -45,7 +45,7 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.38.0"
+	hubVersion = "0.39.0"
 	hubBuild   = "877"
 )
 
@@ -58,6 +58,9 @@ type config struct {
 	RegistryPath string `json:"registry_path,omitempty"`
 	CoShellPath  string `json:"co_shell_path,omitempty"`
 	BasePort     int    `json:"base_port,omitempty"`
+	// SettingsPath is the remote-access settings file (TLS/whitelist/access
+	// key). Default: ./hub-settings.json (same search order as the config).
+	SettingsPath string `json:"settings_path,omitempty"`
 }
 
 func main() {
@@ -179,7 +182,13 @@ func main() {
 
 	// Start the Web UI server (chat + agent management).
 	webCfg := gateway.WebUIConfig{ListenAddr: cfg.WebAddr, Whitelist: cfg.Whitelist}
-	webUI := gateway.NewWebUI(webCfg, proxy, mgr, hubVersion, hubBuild)
+	// Load the remote-access settings (TLS/whitelist/access key). The settings
+	// file follows the same search order as the config.
+	if cfg.SettingsPath == "" {
+		cfg.SettingsPath = firstExisting("./hub-settings.json", filepath.Join(homeDir(), ".co-shell", "hub-settings.json"))
+	}
+	settings := gateway.LoadSettings(cfg.SettingsPath)
+	webUI := gateway.NewWebUI(webCfg, proxy, mgr, settings, hubVersion, hubBuild)
 	if err := webUI.Listen(); err != nil {
 		log.Fatalf("web listen: %v", err)
 	}
