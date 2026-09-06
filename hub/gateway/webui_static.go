@@ -17,7 +17,9 @@ var errClosed = errors.New("use of closed network connection")
 //     strip by default and slides open when the pointer dwells on the left
 //     edge (or the badge is clicked). On wide screens the open drawer pushes
 //     the iframe aside; on narrow screens it overlays the iframe.
-//   - Agent management (create/start/stop/delete) opens in a right drawer.
+//   - The drawer has two internal views: the agent list and the config view
+//     (add local/remote agent + start/stop/delete). "Agent 管理" switches to
+//     the config view; its back button returns to the agent list.
 const webIndexHTML = `<!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -29,7 +31,7 @@ const webIndexHTML = `<!DOCTYPE html>
     --bg:#0b0e14; --panel:#10141d; --elev:#161b26; --fg:#d5dbe7; --fg-dim:#8b93a5;
     --fg-faint:#5b6373; --accent:#3fd6ef; --accent-dim:rgba(63,214,239,.14);
     --border:#232a3a; --ok:#4ade80; --err:#f87171; --warn:#facc15;
-    --edge-w:10px; --panel-w:230px;
+    --edge-w:10px; --panel-w:340px;
   }
   * { box-sizing:border-box; }
   html,body { height:100%; }
@@ -95,13 +97,17 @@ const webIndexHTML = `<!DOCTYPE html>
   .btn.primary { background:var(--accent); color:#0b0e14; width:100%; }
   .btn.primary:hover { filter:brightness(1.1); }
 
-  /* Right management drawer. */
-  #drawer { position:fixed; top:0; right:0; bottom:0; width:340px; max-width:90vw; background:var(--panel); border-left:1px solid var(--border); transform:translateX(100%); transition:transform .2s ease; z-index:50; overflow-y:auto; padding:14px; }
-  #drawer.open { transform:translateX(0); }
-  #scrim { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:40; display:none; }
+  /* Scrim overlay behind the left drawer. */
+  #scrim { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:24; display:none; }
   #scrim.show { display:block; }
-  #drawer h2 { font-size:15px; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
-  #drawer h3 { font-size:13px; margin:16px 0 6px; color:var(--accent); }
+
+  /* Two internal views inside the left drawer: list and config. */
+  #agentPanel .view { flex:1; min-height:0; display:flex; flex-direction:column; }
+  #agentPanel .view.hidden { display:none; }
+  #agentPanel .head .back { cursor:pointer; color:var(--fg-dim); font-size:18px; padding:0 4px; border:none; background:none; line-height:1; }
+  #agentPanel .head .back:hover { color:var(--fg); }
+  #agentPanel .config-body { flex:1; overflow-y:auto; padding:0 14px 14px; }
+  #agentPanel h3 { font-size:13px; margin:16px 0 6px; color:var(--accent); }
   .field { margin-bottom:8px; }
   .field label { display:block; font-size:12px; color:var(--fg-dim); margin-bottom:3px; }
   .field input, .field select { width:100%; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; }
@@ -157,44 +163,50 @@ const webIndexHTML = `<!DOCTYPE html>
 <!-- Left edge hot-zone (reveals the drawer on hover). -->
 <div id="edge"></div>
 
-<!-- Left agent drawer. -->
-<div id="agentPanel">
-  <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
-  <div id="agentList"></div>
-  <div class="foot"><button class="btn primary" id="manageBtn">⚙ Agent 管理</button></div>
-</div>
-
-<!-- Right management drawer. -->
+<!-- Scrim overlay behind the left drawer. -->
 <div id="scrim"></div>
-<div id="drawer">
-  <h2>Agent 管理 <button class="icon-btn" id="drawerClose" title="关闭">✕</button></h2>
-  <h3>添加 Agent</h3>
-  <div class="seg" id="modeSeg">
-    <button class="seg-btn active" data-mode="local">本地</button>
-    <button class="seg-btn" data-mode="remote">远程</button>
+
+<!-- Left agent drawer: two internal views (list / config). -->
+<div id="agentPanel">
+  <!-- View 1: agent list. -->
+  <div class="view" id="viewList">
+    <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
+    <div id="agentList"></div>
+    <div class="foot"><button class="btn primary" id="manageBtn">⚙ Agent 管理</button></div>
   </div>
-  <!-- Local mode: hub launches a co-shell --serve subprocess. -->
-  <div id="localFields">
-    <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
-    <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
-    <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
-    <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
-    <div class="field"><label>config.json（可选，留空由 co-shell 决定）</label><select id="m-config"><option value="">（不指定）</option></select></div>
-    <div class="field"><div class="check"><input type="checkbox" id="m-cfg"><label for="m-cfg">创建空 config.json</label></div></div>
-    <div class="hint" id="m-ver"></div>
-    <button class="btn primary" id="m-create">创建本地 Agent</button>
+  <!-- View 2: config (add local/remote + manage list). -->
+  <div class="view hidden" id="viewConfig">
+    <div class="head"><button class="back" id="configBack" title="返回 Agent 列表">‹</button>Agent 管理<span class="close" id="configClose" title="收起">✕</span></div>
+    <div class="config-body">
+      <h3>添加 Agent</h3>
+      <div class="seg" id="modeSeg">
+        <button class="seg-btn active" data-mode="local">本地</button>
+        <button class="seg-btn" data-mode="remote">远程</button>
+      </div>
+      <!-- Local mode: hub launches a co-shell --serve subprocess. -->
+      <div id="localFields">
+        <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
+        <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
+        <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
+        <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
+        <div class="field"><label>config.json（可选，留空由 co-shell 决定）</label><select id="m-config"><option value="">（不指定）</option></select></div>
+        <div class="field"><div class="check"><input type="checkbox" id="m-cfg"><label for="m-cfg">创建空 config.json</label></div></div>
+        <div class="hint" id="m-ver"></div>
+        <button class="btn primary" id="m-create">创建本地 Agent</button>
+      </div>
+      <!-- Remote mode: user supplies a host + port (hub builds the ws URL). -->
+      <div id="remoteFields" style="display:none">
+        <div class="field"><label><span class="req">*</span>主机地址</label><input id="e-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
+        <div class="field"><label><span class="req">*</span>端口号</label><input id="e-port" placeholder="自动推荐，可修改"></div>
+        <div class="field"><label>ID（默认 host-port）</label><input id="e-id" placeholder="自动生成"></div>
+        <div class="field"><label>备注</label><input id="e-name" placeholder="可选"></div>
+        <div class="hint" id="e-ver"></div>
+        <button class="btn primary" id="e-add">添加远程 Agent</button>
+      </div>
+      <h3>Agent 列表</h3>
+      <div id="agent-list"></div>
+    </div>
   </div>
-  <!-- Remote mode: user supplies a host + port (hub builds the ws URL). -->
-  <div id="remoteFields" style="display:none">
-    <div class="field"><label><span class="req">*</span>主机地址</label><input id="e-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
-    <div class="field"><label><span class="req">*</span>端口号</label><input id="e-port" placeholder="自动推荐，可修改"></div>
-    <div class="field"><label>ID（默认 host-port）</label><input id="e-id" placeholder="自动生成"></div>
-    <div class="field"><label>备注</label><input id="e-name" placeholder="可选"></div>
-    <div class="hint" id="e-ver"></div>
-    <button class="btn primary" id="e-add">添加远程 Agent</button>
-  </div>
-  <h3>Agent 列表</h3>
-  <div id="agent-list"></div>
 </div>
 <script>
 (function(){
@@ -204,7 +216,8 @@ const webIndexHTML = `<!DOCTYPE html>
   var edge = document.getElementById('edge');
   var panel = document.getElementById('agentPanel');
   var listEl = document.getElementById('agentList');
-  var drawer = document.getElementById('drawer');
+  var viewList = document.getElementById('viewList');
+  var viewConfig = document.getElementById('viewConfig');
   var scrim = document.getElementById('scrim');
   var mgrListEl = document.getElementById('agent-list');
   var agents = [];
@@ -225,22 +238,37 @@ const webIndexHTML = `<!DOCTYPE html>
   function openPanel(){
     clearTimeout(hideTimer);
     panel.classList.add('open');
+    scrim.classList.add('show');
     document.body.classList.add('drawer-open');
   }
   function closePanel(){
     panel.classList.remove('open');
+    scrim.classList.remove('show');
     document.body.classList.remove('drawer-open');
+    showView('list');
   }
   function scheduleClose(){
     clearTimeout(hideTimer);
     hideTimer = setTimeout(closePanel, 600);
   }
+  // showView switches between the list and config views inside the drawer.
+  function showView(name){
+    var showList = name === 'list';
+    viewList.classList.toggle('hidden', !showList);
+    viewConfig.classList.toggle('hidden', showList);
+  }
   badge.onclick = function(){ panel.classList.contains('open') ? closePanel() : openPanel(); };
   document.getElementById('panelClose').onclick = closePanel;
-  // Hover the left edge to open; leaving the panel schedules a close.
+  document.getElementById('configClose').onclick = closePanel;
+  // The config view's back button returns to the agent list view.
+  document.getElementById('configBack').onclick = function(){ showView('list'); };
+  // Hover the left edge to open; leaving the panel schedules a close only in
+  // the list view (the config view stays open until closed or backed out).
   edge.addEventListener('mouseenter', openPanel);
   panel.addEventListener('mouseenter', function(){ clearTimeout(hideTimer); });
-  panel.addEventListener('mouseleave', scheduleClose);
+  panel.addEventListener('mouseleave', function(){
+    if (viewConfig.classList.contains('hidden')) scheduleClose();
+  });
   badge.addEventListener('mouseenter', function(){ clearTimeout(hideTimer); });
 
   function refresh(){
@@ -350,12 +378,15 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
 
-  // ---- Right management drawer ----
-  function openDrawer(){ drawer.classList.add('open'); scrim.classList.add('show'); }
-  function closeDrawer(){ drawer.classList.remove('open'); scrim.classList.remove('show'); }
-  document.getElementById('manageBtn').onclick = openDrawer;
-  document.getElementById('drawerClose').onclick = closeDrawer;
-  scrim.onclick = closeDrawer;
+  // ---- Config view (inside the left drawer) ----
+  // "Agent 管理" opens the drawer (if closed) and switches to the config view.
+  document.getElementById('manageBtn').onclick = function(){
+    if (!panel.classList.contains('open')) openPanel();
+    showView('config');
+    if (!defaultsLoaded) loadDefaults();
+  };
+  // Clicking the scrim closes the whole drawer.
+  scrim.onclick = closePanel;
 
   // ---- Local/remote mode toggle ----
   var mode = 'local';
@@ -500,9 +531,6 @@ const webIndexHTML = `<!DOCTYPE html>
       refresh();
     });
   };
-
-  // Load defaults when the drawer first opens.
-  document.getElementById('manageBtn').addEventListener('click', function(){ if (!defaultsLoaded) loadDefaults(); });
 
   refresh();
   setInterval(refresh, 3000);
