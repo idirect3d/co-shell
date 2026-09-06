@@ -186,3 +186,11 @@ hub 维护 agent 配置列表，持久化到配置文件（如 hub-gateway.json�
 - hub 启动受控 agent：`co-shell --serve --port <port> --bind 127.0.0.1 -w <workspace> [-c <config>]`
 - hub 监控进程退出，agent 崩溃时自动重启（可选）
 - 停止 agent：终止子进程，断开 WS 连接
+
+### 9.6 实现状态（步骤7-8 已完成）
+
+- **Manager（hub/gateway/manager.go）**：agent 注册表持久化到独立 JSON 文件（默认 `./hub-agents.json`，`--registry` 指定）；`CreateManaged` 自动创建 workspace + 可选空 config.json + 自动分配端口（`--base-port` 起始，默认 12810）；`AddExternal` 注册不受控 agent；`Start` 启动 co-shell `--serve` 子进程并监控退出；`Stop`/`Remove`/`StopAll` 终止进程。co-shell 路径由 `--co-shell-path` 指定（默认取 hub 同目录 co-shell，解析为绝对路径）。
+- **入口集成（cmd/co-shell-hub-gateway/main.go）**：创建 Manager 加载注册表，启动时自动连接注册表中 external agent（及已运行的 managed agent）；`--agent ID=WSURL` 作为外部 agent 幂等加入注册表。
+- **Web UI 管理端点（hub/gateway/webui.go）**：`GET /api/agents`（列表含运行/连接状态）、`POST /api/agents`（创建受控）、`POST /api/agents/external`（添加不受控）、`POST /api/agents/{id}/start|stop`、`DELETE /api/agents/{id}`。启动受控 agent 后带重试连接其 WS 端口。
+- **前端（hub/gateway/webui_static.go）**：右侧管理面板含创建受控 agent 表单（workspace + 可选 config.json）、添加不受控 agent 表单、agent 列表（类型/运行状态徽标 + 启动/停止/删除按钮），每 3 秒自动刷新。
+- **说明**：受控 agent 的 workspace 若 config.json 为空（`{}`），co-shell 启动会进入模型配置向导并因无 TTY 退出——需在 workspace 提供含已配置模型的 config.json 才能正常 `--serve`。

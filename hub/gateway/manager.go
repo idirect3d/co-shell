@@ -211,7 +211,7 @@ func (m *Manager) Start(id string) (string, error) {
 	defer m.mu.Unlock()
 
 	if r, ok := m.running[id]; ok && r.cmd != nil && r.cmd.Process != nil {
-		return wsURLForPort(r.spec.Port), nil
+		return WSURLForPort(r.spec.Port), nil
 	}
 	var spec *AgentSpec
 	for i := range m.agents {
@@ -254,7 +254,7 @@ func (m *Manager) Start(id string) (string, error) {
 	}(id, cmd, cancel)
 
 	log.Printf("gateway: started managed agent %s on port %d", id, spec.Port)
-	return wsURLForPort(spec.Port), nil
+	return WSURLForPort(spec.Port), nil
 }
 
 // Stop terminates a running managed agent.
@@ -281,8 +281,8 @@ func (m *Manager) IsRunning(id string) bool {
 	return ok && r.cmd != nil && r.cmd.Process != nil
 }
 
-// wsURLForPort builds the local WebSocket URL for a serve port.
-func wsURLForPort(port int) string {
+// WSURLForPort builds the local WebSocket URL for a serve port.
+func WSURLForPort(port int) string {
 	return fmt.Sprintf("ws://127.0.0.1:%d/ws", port)
 }
 
