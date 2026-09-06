@@ -2968,6 +2968,11 @@ body.narrow #input {
 body.narrow #sbSession {
   display: none;
 }
+/* FEATURE-487: on narrow screens the status bar holds only the per-iteration
+   token usage (#sbLast), so centre it on the bottom line. */
+body.narrow .statusbar {
+  justify-content: center;
+}
 /* FEATURE-487: on narrow screens hide the model name + context text in the
    status bar, keeping only the 🧠/👀 icon (still clickable to switch model). */
 body.narrow .sb-model-name {
