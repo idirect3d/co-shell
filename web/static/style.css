@@ -3071,14 +3071,27 @@ body.narrow .settings-body.settings-drilled .settings-nav {
 body.narrow .settings-body.settings-drilled .settings-pane {
   display: flex;
 }
-/* FEATURE-487: on narrow screens the model manager / wizard modals must not
-   exceed the viewport width (their wide-screen min-width:560px would overflow
-   a phone). Cap the width and let long model names/IDs truncate. */
-body.narrow .models-box,
-body.narrow .wizard-box {
+/* FEATURE-487: on narrow screens the system-settings / model-manager /
+   model-wizard modals fill the whole viewport (full-screen pages) so the
+   configuration UI is comfortable to use on a phone. */
+body.narrow #settings .modal-box,
+body.narrow #models .modal-box,
+body.narrow #modelWizard .modal-box {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
   min-width: 0;
-  width: 92vw;
-  max-width: calc(100vw - 16px);
+  border-radius: 0;
+  border: none;
+}
+/* FEATURE-487: on narrow screens the config modal title-bar text is right
+   aligned (next to the close icon) with a comfortable gap. */
+body.narrow #settings .modal-head,
+body.narrow #models .modal-head,
+body.narrow #modelWizard .modal-head {
+  justify-content: flex-end;
+  gap: 10px;
 }
 body.narrow .model-id {
   overflow: hidden;
