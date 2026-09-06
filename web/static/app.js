@@ -5428,8 +5428,8 @@ function answerSelectWithSupplement(opt) {
 
 // The narrow-screen threshold mirrors the hub's approach: measure the full
 // titlebar brand width (logo + co-shell + version) and treat the viewport as
-// "narrow" when it is narrower than twice that width. This keeps the threshold
-// adaptive to the configured logo scale / version text.
+// "narrow" when it is narrower than three times that width. This keeps the
+// threshold adaptive to the configured logo scale / version text.
 const brandEl = document.querySelector(".brand");
 const verEl = document.getElementById("ver");
 const menuWrapEl = document.getElementById("menuWrap");
@@ -5552,17 +5552,14 @@ function applyNarrowLayout(narrow) {
 // version-hide + layout changes. Called on load and on window resize.
 function updateResponsive() {
   // Measure the brand width once (brandWidth() temporarily shows the version so
-  // the threshold reflects the full brand) and derive both breakpoints from it.
+  // the threshold reflects the full brand). A single breakpoint: the viewport is
+  // narrow when it is narrower than 3x the full titlebar brand width; otherwise
+  // it is wide (normal).
   const fullW = brandWidth();
-  const narrow = window.innerWidth < fullW * 2;
-  const narrower = window.innerWidth < fullW * 1.5;
+  const narrow = window.innerWidth < fullW * 3;
   // FEATURE-487: hide the titlebar version on narrow screens (like the hub).
   if (verEl) verEl.style.display = narrow ? "none" : "";
   applyNarrowLayout(narrow);
-  // FEATURE-487: a tighter breakpoint (viewport < 1.5x brand width) toggles
-  // body.narrower for the most cramped layouts (right-aligned tool icons,
-  // hidden per-iteration token usage).
-  document.body.classList.toggle("narrower", narrower);
 }
 
 window.addEventListener("resize", updateResponsive);
