@@ -435,6 +435,11 @@ const webIndexHTML = `<!DOCTYPE html>
         current = a.id; renderList(); ensureFrame(current); showFrame(current); closePanel();
       });
       // Power switch: running -> stop, stopped -> start (revert on start failure).
+      // The switch label stops click propagation so toggling it never triggers
+      // the card's switch-agent action (which would rebuild the list and drop
+      // the change event, leaving the switch visually unchanged).
+      var swLabel = r.querySelector('.switch');
+      if (swLabel) swLabel.addEventListener('click', function(e){ e.stopPropagation(); });
       var sw = r.querySelector('.switch input');
       if (sw){
         sw.addEventListener('change', function(){
