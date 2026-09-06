@@ -28,6 +28,7 @@
   - 实施：cmd/co-shell-hub/ + hub/gateway/ + mobile/
   - 测试：见 use-case/FEATURE-485/
   - 进度：hub 端改造完成（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。实现：① gateway/settings.go 新增 Settings 结构（TLS 开关/证书路径/白名单/访问 KEY/全部需 key 开关），持久化到 hub-settings.json，支持自签名证书自动生成（ECDSA P256）；② webui.go WebUI 持有 settings，Serve() 支持 TLS（配置证书后仅 https），accessControl 中间件实现访问控制（白名单内放行、白名单外需 X-Access-Key 头否则 401、RequireKey 强制全部需 key），新增 GET/PUT /api/settings；③ webui_static.go 设置界面（+新建 下加 ⚙设置 按钮，新增 viewSettings：HTTPS 开关/证书路径/生成自签名/白名单/访问 KEY/全部需 key 开关）；④ cmd/co-shell-hub 加载 settings 并传给 NewWebUI；⑤ 复制 mobile/ → mobile-legacy/（保留 UDP 方式）。编译全绿 [BUILD-880]
+  - 进度（迭代调整）：① 设置按钮宽度与 +新建 一致；② 生成自签名证书后把证书路径填入输入框（GET /api/settings 返回 settings_dir）；③ 证书默认放 ~/.co-shell/（hub-cert.pem/hub-key.pem）；④ 访问 KEY 下加"重新生成安全 KEY"按钮（crypto 生成 64 位 hex）；⑤ 修复生成证书后无法访问——TLSConfig 在证书文件不存在时自动生成（不再因加载不存在的相对路径失败）；⑥ 新增 --serve 参数（不自动打开浏览器），自动打开浏览器时按 TLS 启用用 https://；⑦ accessControl 语义：白名单为空时默认仅本机(loopback)免 KEY，其他主机需 KEY（命令行 --whitelist 会覆盖 settings 白名单，需用设置界面管理时勿传 --whitelist）。编译全绿 [BUILD-881]
 
 ---
 

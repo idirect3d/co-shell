@@ -204,7 +204,7 @@ const webIndexHTML = `<!DOCTYPE html>
   <div class="view" id="viewList">
     <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
     <div id="agentList"></div>
-    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:6px">⚙ 设置</button></div>
+    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:6px;width:100%">⚙ 设置</button></div>
   </div>
   <!-- View 2: config (add local/remote + manage list). -->
   <div class="view hidden" id="viewConfig">
@@ -263,7 +263,7 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field"><button class="btn" id="s-gencert" style="width:100%">生成自签名证书</button><div class="hint">生成后需重启 hub 生效。</div></div>
       <h3>访问控制</h3>
       <div class="field"><label>白名单（IP 或 CIDR，逗号分隔，空=仅本机）</label><input id="s-whitelist" placeholder="如 192.168.1.100,192.168.1.0/24"></div>
-      <div class="field"><label>访问验证 KEY（白名单外主机需在请求头 X-Access-Key 提供）</label><input id="s-accesskey" type="password" placeholder="留空表示不修改当前 KEY"></div>
+      <div class="field"><label>访问验证 KEY（白名单外主机需在请求头 X-Access-Key 提供）</label><input id="s-accesskey" type="password" placeholder="留空表示不修改当前 KEY"><button class="btn" id="s-genkey" style="margin-top:6px;width:100%">重新生成安全 KEY</button></div>
       <div class="field"><div class="switch-row"><span class="switch-label">全部访问都需要 KEY</span><label class="switch"><input type="checkbox" id="s-reqkey"><span class="slider"></span></label></div><div class="hint">开启后即使 IP 在白名单内也需提供访问 KEY。</div></div>
       <div class="hint" id="s-status"></div>
     </div>
@@ -578,10 +578,12 @@ const webIndexHTML = `<!DOCTYPE html>
   document.getElementById('settingsBack').onclick = function(){ showView('list'); };
   document.getElementById('settingsClose').onclick = function(){ showView('list'); };
   var sStatus = document.getElementById('s-status');
+  var settingsDir = '.'; // directory holding hub-settings.json (from GET /api/settings)
   function loadSettings(){
     api('GET', '/api/settings', null, function(st, j){
       if (st === 401){ sStatus.textContent = '需要访问 KEY 才能查看设置'; return; }
       var s = (j && j.settings) || {};
+      if (s.settings_dir) settingsDir = s.settings_dir;
       document.getElementById('s-tls').checked = !!s.tls_enabled;
       document.getElementById('s-cert').value = s.cert_file || '';
       document.getElementById('s-keyfile').value = s.key_file || '';
@@ -609,12 +611,28 @@ const webIndexHTML = `<!DOCTYPE html>
   }
   document.getElementById('s-save').onclick = saveSettings;
   document.getElementById('s-gencert').onclick = function(){
-    // Generate a self-signed cert: clear cert/key paths so the hub auto-generates
-    // on next start, then enable TLS.
-    document.getElementById('s-cert').value = '';
-    document.getElementById('s-keyfile').value = '';
+    // Generate a self-signed cert: fill the cert/key paths (under the settings
+    // dir) into the inputs so the user sees where they will be written, then
+    // enable TLS.
+    var certPath = settingsDir.replace(/\/$/, '') + '/hub-cert.pem';
+    var keyPath = settingsDir.replace(/\/$/, '') + '/hub-key.pem';
+    document.getElementById('s-cert').value = certPath;
+    document.getElementById('s-keyfile').value = keyPath;
     document.getElementById('s-tls').checked = true;
-    sStatus.textContent = '已选择自签名证书。保存后重启 hub 将自动生成并启用 HTTPS。';
+    sStatus.textContent = '已选择自签名证书。保存并重启 hub 后，证书将生成到上述路径并启用 HTTPS。';
+  };
+  // Regenerate a random secure access key into the input (saved on 保存设置).
+  document.getElementById('s-genkey').onclick = function(){
+    var bytes = new Uint8Array(32);
+    if (window.crypto && crypto.getRandomValues){ crypto.getRandomValues(bytes); }
+    else { for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256); }
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) hex += ('0' + bytes[i].toString(16)).slice(-2);
+    var keyInput = document.getElementById('s-accesskey');
+    keyInput.type = 'text';
+    keyInput.value = hex;
+    keyInput.placeholder = '已生成新 KEY，保存后生效';
+    sStatus.textContent = '已生成新的访问 KEY（64 位十六进制）。点击保存设置后生效。';
   };
   // Clicking the scrim closes the whole drawer.
   scrim.onclick = closePanel;

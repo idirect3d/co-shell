@@ -81,33 +81,52 @@ func (s *Settings) Save() error {
 }
 
 // TLSConfig builds a *tls.Config for https serving. When no cert/key files are
-// configured it generates (and persists) a self-signed certificate under the
-// settings directory. Returns nil when TLS is disabled.
+// configured, or the configured files do not exist on disk, it generates (and
+// persists) a self-signed certificate under ~/.co-shell/. Returns nil when TLS
+// is disabled.
 func (s *Settings) TLSConfig() (*tls.Config, error) {
 	if !s.TLSEnabled {
 		return nil, nil
 	}
 	certFile, keyFile := s.CertFile, s.KeyFile
-	if certFile == "" || keyFile == "" {
-		dir := filepath.Dir(s.path)
-		if dir == "" {
+	// If either path is empty or the cert file is missing on disk, fall back to
+	// a self-signed cert under ~/.co-shell/ (generated on first use). This keeps
+	// https working even when a stale/relative cert path was persisted.
+	if certFile == "" || keyFile == "" || fileExists(certFile) == false {
+		dir := filepath.Join(homeDir(), ".co-shell")
+		if dir == ".co-shell" {
 			dir = "."
 		}
 		certFile = filepath.Join(dir, "hub-cert.pem")
 		keyFile = filepath.Join(dir, "hub-key.pem")
-		if _, err := os.Stat(certFile); err != nil {
+		if !fileExists(certFile) {
 			if err := generateSelfSigned(certFile, keyFile); err != nil {
 				return nil, err
 			}
-			s.CertFile, s.KeyFile = certFile, keyFile
-			_ = s.Save()
 		}
+		s.CertFile, s.KeyFile = certFile, keyFile
+		_ = s.Save()
 	}
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, err
 	}
 	return &tls.Config{Certificates: []tls.Certificate{cert}}, nil
+}
+
+// fileExists reports whether the path exists on disk.
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// homeDir returns the current user's home directory (empty on error).
+func homeDir() string {
+	h, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return h
 }
 
 // generateSelfSigned writes a self-signed ECDSA certificate/key pair to the
