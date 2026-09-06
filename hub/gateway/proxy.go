@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 )
@@ -74,6 +75,55 @@ func (p *Proxy) AgentIDs() []string {
 	out := make([]string, len(p.order))
 	copy(out, p.order)
 	return out
+}
+
+// AddAgent connects a new agent (by WS URL) and registers it for routing.
+// It returns an error if the agent id is already present or the dial fails.
+func (p *Proxy) AddAgent(cfg AgentConfig) error {
+	p.mu.Lock()
+	if _, exists := p.agents[cfg.ID]; exists {
+		p.mu.Unlock()
+		return fmt.Errorf("agent %q already connected", cfg.ID)
+	}
+	p.mu.Unlock()
+
+	ac, err := NewAgentConn(p.ctx, cfg)
+	if err != nil {
+		return err
+	}
+	p.mu.Lock()
+	p.agents[cfg.ID] = ac
+	p.order = append(p.order, cfg.ID)
+	p.mu.Unlock()
+	log.Printf("gateway: connected agent %s (%s)", cfg.ID, cfg.WSURL)
+	return nil
+}
+
+// RemoveAgent disconnects and unregisters an agent.
+func (p *Proxy) RemoveAgent(id string) {
+	p.mu.Lock()
+	ac, ok := p.agents[id]
+	if ok {
+		ac.Close()
+		delete(p.agents, id)
+	}
+	for i, oid := range p.order {
+		if oid == id {
+			p.order = append(p.order[:i], p.order[i+1:]...)
+			break
+		}
+	}
+	// Re-point any client currently on this agent to the first remaining one.
+	for c, cur := range p.current {
+		if cur == id {
+			if len(p.order) > 0 {
+				p.current[c] = p.order[0]
+			} else {
+				delete(p.current, c)
+			}
+		}
+	}
+	p.mu.Unlock()
 }
 
 // OnConnect subscribes the client to its default (first) agent.

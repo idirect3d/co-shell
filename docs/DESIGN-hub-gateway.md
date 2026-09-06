@@ -141,3 +141,48 @@ hub Web UI 需与 co-shell 一致支持**访问白名单**，默认仅本机访�
 6. hub Web UI 界面
 7. 移动端适配 hub 网关
 8. 编译验证
+
+## 9. agent 生命周期管理（用户确认，扩展 hub 核心职责）
+
+hub 应具备**管理 co-shell agent 的能力**（核心职责之一）：在界面中创建 agent 实例（创建/指定 co-shell workspace 位置，可新建或复用），并提供 co-shell `--serve` 服务进程管理界面（启动/停止指定 agent）。
+
+### 9.1 设计决策（用户确认）
+
+1. **co-shell 可执行文件路径**：`--co-shell-path` 参数指定（默认取 hub 同目录的 co-shell）。
+2. **端口分配**：hub 自动分配（从起始端口递增），**用户可修改**（创建后可编辑端口）。
+3. **workspace 创建**：hub 自动创建 workspace 目录；**config.json 是可选项**，且只在指定 workspace 下创建**空文件**（代表一个 co-shell 实例仅使用一个专用 config.json，不使用默认路径配置）。
+4. **进程管理**：hub 作为 agent 进程的父进程，负责启动/停止/监控退出。
+5. **不受控 agent**：支持添加**不受控的 co-shell 服务地址**（外部已运行的 agent，hub 只连接访问，不负责启停）。
+
+### 9.2 agent 类型
+
+- **受控 agent（managed）**：hub 创建 workspace + 启动 co-shell --serve 子进程，hub 管理其生命周期（启动/停止/监控）。
+- **不受控 agent（external）**：用户提供 WS 地址，hub 只连接访问，不负责启停。
+
+### 9.3 agent 注册表（持久化）
+
+hub 维护 agent 配置列表，持久化到配置文件（如 hub-gateway.json）：
+
+```json
+{
+  "agents": [
+    {"id": "a1", "name": "Agent A", "type": "managed",
+     "workspace": "/path/ws/a1", "port": 8390, "config_file": "config.json"},
+    {"id": "ext1", "name": "External", "type": "external",
+     "ws_url": "ws://192.168.1.5:8399/ws"}
+  ]
+}
+```
+
+### 9.4 Web UI 管理界面
+
+- agent 列表显示：id/名称/类型/workspace/端口/运行状态
+- 操作：创建 agent（输入 workspace 路径，可新建或复用）、启动、停止、删除、编辑端口
+- 创建时可选：是否创建空 config.json
+- 支持添加不受控 agent（输入 WS 地址）
+
+### 9.5 进程管理
+
+- hub 启动受控 agent：`co-shell --serve --port <port> --bind 127.0.0.1 -w <workspace> [-c <config>]`
+- hub 监控进程退出，agent 崩溃时自动重启（可选）
+- 停止 agent：终止子进程，断开 WS 连接
