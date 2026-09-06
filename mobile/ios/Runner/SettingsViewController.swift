@@ -52,7 +52,10 @@ final class SettingsViewController: UIViewController {
             content.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -20),
             content.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 20),
             content.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -20),
-            content.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40)
+            content.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40),
+            // FEATURE-487: keep the content at least as tall as the viewport so
+            // the logo block can be centred in the empty area below the form.
+            content.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor)
         ])
 
         let intro = UILabel()
@@ -90,6 +93,39 @@ final class SettingsViewController: UIViewController {
         statusLabel.font = .systemFont(ofSize: 14)
         statusLabel.textColor = .systemRed
         content.addArrangedSubview(statusLabel)
+
+        // FEATURE-487: a co-shell mosaic logo + version block centred in the
+        // empty area below the form. Two flexible spacers (above and below)
+        // distribute the leftover viewport space so the block stays centred
+        // and the version label is never pushed off-screen.
+        let topSpacer = UIView()
+        topSpacer.setContentHuggingPriority(.defaultLow, for: .vertical)
+        content.addArrangedSubview(topSpacer)
+
+        let logo = CoShellLogoView(frame: CGRect(x: 0, y: 0, width: 72, height: 72))
+        logo.cellColor = .systemTeal
+        logo.translatesAutoresizingMaskIntoConstraints = false
+        logo.widthAnchor.constraint(equalToConstant: 72).isActive = true
+        logo.heightAnchor.constraint(equalToConstant: 72).isActive = true
+        content.addArrangedSubview(logo)
+
+        let nameLabel = UILabel()
+        nameLabel.text = "co-shell mobile"
+        nameLabel.font = .systemFont(ofSize: 16, weight: .semibold)
+        nameLabel.textColor = .secondaryLabel
+        nameLabel.textAlignment = .center
+        content.addArrangedSubview(nameLabel)
+
+        let verLabel = UILabel()
+        verLabel.text = "v0.39.0"
+        verLabel.font = .systemFont(ofSize: 12)
+        verLabel.textColor = .tertiaryLabel
+        verLabel.textAlignment = .center
+        content.addArrangedSubview(verLabel)
+
+        let bottomSpacer = UIView()
+        bottomSpacer.setContentHuggingPriority(.defaultLow, for: .vertical)
+        content.addArrangedSubview(bottomSpacer)
     }
 
     private func loadCurrentValues() {
