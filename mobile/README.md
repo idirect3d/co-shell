@@ -1,135 +1,40 @@
-# co-der - co-shell 移动端 APP
+# mobile/ — co-shell 移动端（原生 iOS）
 
-跨平台移动客户端，支持 iOS 和 Android，通过 UDP 与 co-shell-hub 通信。
+本目录为 co-shell 移动端客户端，采用**纯原生 iOS**（Swift + UIKit + WKWebView）实现，通过浏览器控件渲染 co-shell hub 的 web UI。
 
-## 功能特性
+> 旧版 Flutter UDP 客户端完整保留在 `mobile-legacy/`，本目录不再使用 Flutter。
 
-- 实时聊天界面
-- 语音输入（speech_to_text 插件）
-- 图片选择与发送（image_picker 插件）
-- UDP 通信 + 首次握手密钥验证
-- 多平台支持（iOS/Android）
+## 功能
 
-## 项目结构
+- **系统设置页**（原生 UI）：输入 hub 服务端地址（如 `https://192.168.3.19:23311`）与访问 KEY，存于 iOS Keychain。
+- **WKWebView 渲染 hub 页面**：加载前自动注入 `access_key` Cookie，用户无需在网页中重复输入访问 KEY。
+- **自签名证书信任**：ATS 例外 + WKWebView 证书校验放行，支持 hub 自签名 https。
+- **导航**：未配置 → 显示设置页；已配置 → 显示 hub WebView；随时可从 WebView 右上角"设置"返回配置页。
+
+## 目录结构
 
 ```
-mobile/
-├── lib/
-│   ├── main.dart                    # 应用入口
-│   ├── models/
-│   │   └── message.dart             # 消息模型
-│   ├── providers/
-│   │   └── chat_provider.dart       # 聊天状态管理
-│   ├── screens/
-│   │   └── chat_screen.dart         # 聊天主屏幕
-│   └── utils/
-│       └── udp_client.dart          # UDP 通信客户端
-├── android/                         # Android 平台文件
-├── ios/                             # iOS 平台文件
-├── pubspec.yaml                     # 依赖配置
-└── README.md                        # 本文档
+mobile/ios/
+  Runner.xcodeproj/        # Xcode 工程（纯 Swift 单 target，无 CocoaPods/Flutter）
+  Runner/
+    AppDelegate.swift      # 应用入口（纯 UIKit）
+    SceneDelegate.swift    # 场景入口，挂 RootViewController
+    RootViewController.swift   # 导航控制器：按配置状态选设置页或 WebView
+    SettingsStore.swift        # Keychain 存储（服务端地址 + 访问 KEY）
+    SettingsViewController.swift # 原生系统设置页
+    WebViewController.swift    # WKWebView 壳（注入 Cookie、放行自签名证书）
+    Info.plist             # 含 ATS 例外与本地网络权限
+    Assets.xcassets/       # App 图标
+    Base.lproj/LaunchScreen.storyboard
 ```
 
-## 环境要求
-
-- Flutter SDK >= 3.1.0
-- Dart SDK >= 3.1.0
-- Xcode（iOS 开发）
-- Android Studio / SDK（Android 开发）
-
-## 安装依赖
+## 构建
 
 ```bash
-cd mobile
-flutter pub get
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+cd mobile/ios
+xcodebuild -project Runner.xcodeproj -scheme Runner \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 ```
 
-## 运行项目
-
-### Android
-
-```bash
-flutter run
-```
-
-### iOS
-
-```bash
-flutter run -d ios
-```
-
-## 构建发布版本
-
-### Android APK
-
-```bash
-flutter build apk --release
-```
-
-### Android App Bundle（用于 Google Play）
-
-```bash
-flutter build appbundle --release
-```
-
-### iOS
-
-```bash
-flutter build ios --release
-```
-
-## 通信协议
-
-### UDP 通信
-
-- 客户端启动时创建 UDP socket
-- 首次连接发送 handshake 请求
-- 服务器验证后返回 handshake_ack
-- 后续消息通过 JSON 格式传输
-
-### 消息格式
-
-```json
-// 客户端 -> 服务器
-{
-  "type": "message",
-  "content": "用户输入文本",
-  "timestamp": 1234567890,
-  "images": ["/path/to/image1.jpg"]
-}
-
-// 服务器 -> 客户端
-{
-  "type": "message",
-  "content": "LLM 返回文本",
-  "timestamp": 1234567890
-}
-```
-
-## 权限配置
-
-### Android (`android/app/src/main/AndroidManifest.xml`)
-
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.RECORD_AUDIO"/>
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-```
-
-### iOS (`ios/Runner/Info.plist`)
-
-```xml
-<key>NSMicrophoneUsageDescription</key>
-<string>需要麦克风权限以进行语音输入</string>
-<key>NSPhotoLibraryUsageDescription</key>
-<string>需要相册权限以选择图片</string>
-```
-
-## 许可证
-
-MIT License - 参见项目根目录 LICENSE 文件
-
-## 作者
-
-L.Shuang
+真机运行需在 Xcode 中配置签名（`DEVELOPMENT_TEAM`）。
