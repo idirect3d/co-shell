@@ -34,6 +34,9 @@ type AgentSpec struct {
 	ConfigFile string `json:"config_file,omitempty"` // optional empty config.json name
 	CoShell    string `json:"co_shell,omitempty"`    // optional per-agent co-shell executable (defaults to manager's)
 	ConfigPath string `json:"config_path,omitempty"` // optional explicit config.json path
+	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
+	// {workspace}/config.json (created empty if absent).
+	UseSharedConfig bool `json:"use_shared_config,omitempty"`
 
 	// External field.
 	WSURL string `json:"ws_url,omitempty"`
@@ -159,17 +162,12 @@ func (m *Manager) RecommendedPort() int {
 }
 
 // CreateManaged registers a new managed agent. If workspace does not exist it
-// is created. If createConfig is true, an empty config.json is created in the
-// workspace (a dedicated config for this co-shell instance). coShell and
-// configPath are optional per-agent overrides (empty = use the manager's
-// defaults).
-// CreateManaged registers a new managed agent. If workspace does not exist it
-// is created. If createConfig is true, an empty config.json is created in the
-// workspace (a dedicated config for this co-shell instance). coShell and
-// configPath are optional per-agent overrides (empty = use the manager's
-// defaults). port > 0 uses the caller-specified port (which must be free);
-// port == 0 auto-allocates a free port.
-func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, port int) (AgentSpec, error) {
+// is created. useSharedConfig selects the config source: true uses
+// ~/.co-shell/config.json (shared); false uses {workspace}/config.json, which
+// is created empty if absent (a per-agent config). coShell and configPath are
+// optional per-agent overrides (empty = use the manager's defaults). port > 0
+// uses the caller-specified port (which must be free); port == 0 auto-allocates.
+func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int) (AgentSpec, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -187,20 +185,23 @@ func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string,
 		return AgentSpec{}, fmt.Errorf("port %d is already in use", port)
 	}
 	spec := AgentSpec{
-		ID:         id,
-		Name:       name,
-		Type:       AgentTypeManaged,
-		Workspace:  workspace,
-		Port:       port,
-		CoShell:    coShell,
-		ConfigPath: configPath,
+		ID:              id,
+		Name:            name,
+		Type:            AgentTypeManaged,
+		Workspace:       workspace,
+		Port:            port,
+		CoShell:         coShell,
+		ConfigPath:      configPath,
+		UseSharedConfig: useSharedConfig,
 	}
-	if createConfig {
+	// Per-agent config: ensure {workspace}/config.json exists (create empty if
+	// absent, never overwrite an existing one). Shared config needs no file.
+	if !useSharedConfig {
 		cfgPath := filepath.Join(workspace, "config.json")
 		if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 			if err := os.WriteFile(cfgPath, []byte("{}\n"), 0644); err != nil {
-			return AgentSpec{}, fmt.Errorf("create config: %w", err)
-		}
+				return AgentSpec{}, fmt.Errorf("create config: %w", err)
+			}
 		}
 		spec.ConfigFile = "config.json"
 	}
@@ -289,8 +290,14 @@ func (m *Manager) Start(id string) (string, error) {
 		coShell = m.coShell
 	}
 	args := []string{"--serve", "--port", fmt.Sprintf("%d", spec.Port), "--bind", "127.0.0.1", "-w", spec.Workspace}
+	// Config source: shared (~/.co-shell/config.json) or per-agent
+	// ({workspace}/config.json). An explicit ConfigPath wins over both.
 	if spec.ConfigPath != "" {
 		args = append(args, "-c", spec.ConfigPath)
+	} else if spec.UseSharedConfig {
+		if home, err := os.UserHomeDir(); err == nil {
+			args = append(args, "-c", filepath.Join(home, ".co-shell", "config.json"))
+		}
 	} else if spec.ConfigFile != "" {
 		args = append(args, "-c", filepath.Join(spec.Workspace, spec.ConfigFile))
 	}

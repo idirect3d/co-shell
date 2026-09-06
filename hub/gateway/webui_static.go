@@ -82,9 +82,17 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentPanel .head .close { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:16px; padding:2px 6px; }
   #agentPanel .head .close:hover { color:var(--fg); }
   #agentList { flex:1; overflow-y:auto; padding:8px; }
+  /* Each list row is a swipe container: a red delete button sits behind the
+     card and is revealed by swiping the card left. */
+  .agent-wrap { position:relative; overflow:hidden; border-radius:8px; margin-bottom:2px; }
+  .agent-del {
+    position:absolute; top:0; right:0; bottom:0; width:64px; border:none;
+    background:var(--err); color:#fff; font-size:13px; font-weight:600; cursor:pointer;
+  }
   .agent {
-    display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px;
-    cursor:pointer; font-size:13px; color:var(--fg-dim); margin-bottom:2px;
+    position:relative; display:flex; align-items:center; gap:8px; padding:8px 10px;
+    background:transparent; cursor:pointer; font-size:13px; color:var(--fg-dim);
+    transition:transform .18s ease;
   }
   .agent:hover { background:var(--elev); color:var(--fg); }
   .agent.active { background:var(--accent-dim); color:var(--accent); font-weight:600; }
@@ -92,8 +100,22 @@ const webIndexHTML = `<!DOCTYPE html>
   .agent .st.on { background:var(--ok); }
   .agent .st.off { background:var(--err); }
   .agent .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .agent .x { opacity:.5; font-size:12px; padding:0 2px; }
-  .agent .x:hover { opacity:1; }
+  /* Sliding power switch (start/stop). */
+  .switch { position:relative; display:inline-block; width:34px; height:18px; flex:none; cursor:pointer; }
+  .switch input { opacity:0; width:0; height:0; }
+  .switch .slider {
+    position:absolute; inset:0; border-radius:999px; background:#3a4256;
+    transition:background .18s ease;
+  }
+  .switch .slider:before {
+    content:''; position:absolute; top:2px; left:2px; width:14px; height:14px;
+    border-radius:50%; background:#fff; transition:transform .18s ease;
+  }
+  .switch input:checked + .slider { background:var(--ok); }
+  .switch input:checked + .slider:before { transform:translateX(16px); }
+  .switch input:disabled + .slider { opacity:.5; cursor:not-allowed; }
+  .switch-row { display:flex; align-items:center; justify-content:space-between; }
+  .switch-row .switch-label { font-size:12px; color:var(--fg-dim); }
   #agentPanel .foot { flex:none; padding:8px; border-top:1px solid var(--border); }
   .btn { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; }
   .btn.primary { background:var(--accent); color:#0b0e14; width:100%; }
@@ -174,11 +196,11 @@ const webIndexHTML = `<!DOCTYPE html>
   <div class="view" id="viewList">
     <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
     <div id="agentList"></div>
-    <div class="foot"><button class="btn primary" id="manageBtn">⚙ Agent 管理</button></div>
+    <div class="foot"><button class="btn primary" id="manageBtn">⚙ 新建</button></div>
   </div>
   <!-- View 2: config (add local/remote + manage list). -->
   <div class="view hidden" id="viewConfig">
-    <div class="head"><button class="back" id="configBack" title="返回 Agent 列表">‹</button>Agent 管理<span class="close" id="configClose" title="收起">✕</span></div>
+    <div class="head"><button class="back" id="configBack" title="返回 Agent 列表">‹</button>新建 Agent<span class="close" id="configClose" title="收起">✕</span></div>
     <div class="config-body">
       <h3>添加 Agent</h3>
       <div class="seg" id="modeSeg">
@@ -192,8 +214,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
         <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
-        <div class="field"><label>config.json（可选，留空由 co-shell 决定）</label><select id="m-config"><option value="">（不指定）</option></select></div>
-        <div class="field"><div class="check"><input type="checkbox" id="m-cfg"><label for="m-cfg">在 Workspace 路径下创建空 config.json</label></div></div>
+        <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
         <div class="hint" id="m-ver"></div>
         <button class="btn primary" id="m-create">创建本地 Agent</button>
       </div>
@@ -206,8 +227,6 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="hint" id="e-ver"></div>
         <button class="btn primary" id="e-add">添加远程 Agent</button>
       </div>
-      <h3>Agent 列表</h3>
-      <div id="agent-list"></div>
     </div>
   </div>
 </div>
@@ -222,7 +241,6 @@ const webIndexHTML = `<!DOCTYPE html>
   var viewList = document.getElementById('viewList');
   var viewConfig = document.getElementById('viewConfig');
   var scrim = document.getElementById('scrim');
-  var mgrListEl = document.getElementById('agent-list');
   var agents = [];
   var current = null;
   var frames = {};
@@ -292,7 +310,6 @@ const webIndexHTML = `<!DOCTYPE html>
       if (!current && agents.length) current = agents[0].id;
       if (current && !agents.some(function(a){ return a.id === current; })) current = agents.length ? agents[0].id : null;
       renderList();
-      renderMgrList();
       ensureFrame(current);
     });
   }
@@ -320,82 +337,99 @@ const webIndexHTML = `<!DOCTYPE html>
   function renderList(){
     listEl.innerHTML = '';
     agents.forEach(function(a){
+      var on = (a.running || a.connected);
+      var st = on ? 'on' : 'off';
+      var managed = a.type !== 'external';
+      // Swipe container: delete button behind the card, revealed by swiping left.
+      var wrap = document.createElement('div');
+      wrap.className = 'agent-wrap';
+      var del = document.createElement('button');
+      del.className = 'agent-del';
+      del.textContent = '删除';
+      del.onclick = function(e){ e.stopPropagation(); closeAgent(a.id); };
       var r = document.createElement('div');
       r.className = 'agent' + (a.id === current ? ' active' : '');
-      var st = (a.running || a.connected) ? 'on' : 'off';
-      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm">' + esc(a.name || a.id) + '</span><span class="x" title="关闭">✕</span>';
-      r.onclick = function(e){
-        if (e.target.classList.contains('x')){ closeAgent(a.id); return; }
+      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm">' + esc(a.name || a.id) + '</span>' +
+        (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '');
+      // Clicking the card selects the agent (unless swiping or toggling power).
+      r.addEventListener('click', function(e){
+        if (e.target.closest('.switch')) return;
+        if (r._moved || r._open){ if (r._open) setSwipe(r, false); return; }
         current = a.id; renderList(); ensureFrame(current); closePanel();
-      };
-      listEl.appendChild(r);
+      });
+      // Power switch: running -> stop, stopped -> start (revert on start failure).
+      var sw = r.querySelector('.switch input');
+      if (sw){
+        sw.addEventListener('change', function(){
+          if (sw.checked) startAgent(a.id, sw); else stopAgent(a.id, sw);
+        });
+      }
+      attachSwipe(r);
+      wrap.appendChild(del);
+      wrap.appendChild(r);
+      listEl.appendChild(wrap);
     });
   }
 
-  function closeAgent(id){
-    if (!confirm('关闭 agent ' + id + '？')) return;
-    api('DELETE', '/api/agents/' + encodeURIComponent(id), null, function(st, j){
-      if (st >= 400) alert('删除失败: ' + (j.error || st));
+  // setSwipe opens (true) or closes (false) the delete button behind a card.
+  function setSwipe(card, open){
+    card._open = open;
+    card.style.transition = 'transform .18s ease';
+    card.style.transform = open ? 'translateX(-64px)' : 'translateX(0)';
+  }
+  // attachSwipe wires mouse-drag and touch-swipe so a card can be swiped left
+  // to reveal its delete button.
+  function attachSwipe(card){
+    var startX = 0, startY = 0, dx = 0, dragging = false;
+    function begin(x, y){ startX = x; startY = y; dx = 0; dragging = true; card._moved = false; card.style.transition = 'none'; }
+    function move(x, y){
+      if (!dragging) return;
+      var mx = x - startX, my = y - startY;
+      if (!card._moved && Math.abs(my) > Math.abs(mx) && Math.abs(my) > 8){ dragging = false; return; } // vertical scroll
+      if (Math.abs(mx) > 4) card._moved = true;
+      dx = Math.max(-64, Math.min(0, (card._open ? -64 : 0) + mx));
+      card.style.transform = 'translateX(' + dx + 'px)';
+    }
+    function end(){
+      if (!dragging) return;
+      dragging = false;
+      setSwipe(card, dx < -32);
+    }
+    card.addEventListener('mousedown', function(e){ if (e.button === 0) begin(e.clientX, e.clientY); });
+    window.addEventListener('mousemove', function(e){ move(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', end);
+    card.addEventListener('touchstart', function(e){ var t = e.touches[0]; begin(t.clientX, t.clientY); }, {passive:true});
+    card.addEventListener('touchmove', function(e){ var t = e.touches[0]; move(t.clientX, t.clientY); }, {passive:true});
+    card.addEventListener('touchend', end);
+  }
+
+  // startAgent launches a managed agent and switches to it; on failure the
+  // switch is reverted to the stopped state.
+  function startAgent(id, sw){
+    api('POST', '/api/agents/' + encodeURIComponent(id) + '/start', null, function(st, j){
+      if (st >= 400){ alert('启动失败: ' + (j.error || st)); sw.checked = false; refresh(); return; }
+      current = id;
+      renderList();
+      closePanel();
+      var f = frames[id];
+      if (f){ f.src = '/agent/' + encodeURIComponent(id) + '/'; }
+      else { ensureFrame(id); }
+      refresh();
+    });
+  }
+  // stopAgent stops a managed agent; on failure the switch is reverted to on.
+  function stopAgent(id, sw){
+    api('POST', '/api/agents/' + encodeURIComponent(id) + '/stop', null, function(st, j){
+      if (st >= 400){ alert('停止失败: ' + (j.error || st)); sw.checked = true; refresh(); return; }
       refresh();
     });
   }
 
-  function renderMgrList(){
-    mgrListEl.innerHTML = '';
-    agents.forEach(function(a){
-      var typeBadge = a.type === 'external' ? 'external' : 'managed';
-      var typeLabel = a.type === 'external' ? '远程' : '本地';
-      var stateBadge = (a.running || a.connected) ? 'on' : 'off';
-      var stateLabel = (a.running || a.connected) ? '运行中' : '已停止';
-      var meta = a.type === 'external' ? ('WS: ' + (a.ws_url || '')) : ('WS: ' + (a.workspace || '') + ' · 端口 ' + (a.port || '-'));
-      if (a.version) meta += ' · co-shell v' + a.version + (a.build ? ' [BUILD-' + a.build + ']' : '');
-      var row = document.createElement('div');
-      row.className = 'agent-row';
-      row.innerHTML =
-        '<div class="top"><span class="name">' + esc(a.name || a.id) + '</span>' +
-        '<span class="badge ' + typeBadge + '">' + typeLabel + '</span>' +
-        '<span class="badge ' + stateBadge + '">' + stateLabel + '</span></div>' +
-        '<div class="meta">' + esc(meta) + '</div>' +
-        '<div class="actions">' + actionButtons(a) + '</div>';
-      mgrListEl.appendChild(row);
-    });
-    bindActions();
-  }
-  function actionButtons(a){
-    var s = '';
-    if (a.type === 'managed'){
-      if (a.running){ s += '<button class="btn stop" data-act="stop" data-id="' + esc(a.id) + '">停止</button>'; }
-      else { s += '<button class="btn ok" data-act="start" data-id="' + esc(a.id) + '">启动</button>'; }
-    }
-    s += '<button class="btn danger" data-act="del" data-id="' + esc(a.id) + '">删除</button>';
-    return s;
-  }
-  function bindActions(){
-    mgrListEl.querySelectorAll('button[data-act]').forEach(function(btn){
-      btn.onclick = function(){
-        var act = btn.getAttribute('data-act');
-        var id = btn.getAttribute('data-id');
-        if (act === 'start') api('POST', '/api/agents/' + encodeURIComponent(id) + '/start', null, function(st, j){
-          if (st >= 400){ alert('启动失败: ' + (j.error || st)); refresh(); return; }
-          // Switch to the agent and reload its iframe so the freshly-started
-          // co-shell UI appears (the old iframe may have loaded while stopped).
-          current = id;
-          renderList();
-          closePanel();
-          var f = frames[id];
-          if (f){ f.src = '/agent/' + encodeURIComponent(id) + '/'; }
-          else { ensureFrame(id); }
-          refresh();
-        });
-        else if (act === 'stop') api('POST', '/api/agents/' + encodeURIComponent(id) + '/stop', null, function(st, j){
-          if (st >= 400) alert('停止失败: ' + (j.error || st)); refresh();
-        });
-        else if (act === 'del'){
-          if (confirm('删除 agent ' + id + '？')) api('DELETE', '/api/agents/' + encodeURIComponent(id), null, function(st, j){
-            if (st >= 400) alert('删除失败: ' + (j.error || st)); refresh();
-          });
-        }
-      };
+  function closeAgent(id){
+    if (!confirm('删除 agent ' + id + '？')) return;
+    api('DELETE', '/api/agents/' + encodeURIComponent(id), null, function(st, j){
+      if (st >= 400) alert('删除失败: ' + (j.error || st));
+      refresh();
     });
   }
 
@@ -425,9 +459,8 @@ const webIndexHTML = `<!DOCTYPE html>
     };
   });
 
-  // ---- Load defaults (workspace, ID, co-shell list, config candidates) ----
+  // ---- Load defaults (workspace, ID, co-shell list) ----
   var coshellSel = document.getElementById('m-coshell');
-  var configSel = document.getElementById('m-config');
   var mVerEl = document.getElementById('m-ver');
   var eVerEl = document.getElementById('e-ver');
   var defaultsLoaded = false;
@@ -450,14 +483,6 @@ const webIndexHTML = `<!DOCTYPE html>
           coshellSel.appendChild(opt);
         });
       }
-      // config candidates.
-      configSel.innerHTML = '<option value="">（不指定）</option>';
-      (j.config_candidates || []).forEach(function(c){
-        var opt = document.createElement('option');
-        opt.value = c.path;
-        opt.textContent = c.path + (c.note ? '  (' + c.note + ')' : '');
-        configSel.appendChild(opt);
-      });
       defaultsLoaded = true;
       checkLocalVersion();
     });
@@ -543,8 +568,7 @@ const webIndexHTML = `<!DOCTYPE html>
       name: document.getElementById('m-name').value.trim(),
       workspace: ws,
       co_shell: coshellSel.value,
-      config_path: configSel.value,
-      create_config: document.getElementById('m-cfg').checked,
+      use_shared_config: document.getElementById('m-shared').checked,
       port: port
     }, function(st, j){
       if (st >= 400){
