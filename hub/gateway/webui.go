@@ -165,6 +165,7 @@ type createAgentRequest struct {
 	CoShell      string `json:"co_shell,omitempty"`
 	ConfigPath   string `json:"config_path,omitempty"`
 	CreateConfig bool   `json:"create_config"`
+	Port         int    `json:"port,omitempty"`
 }
 
 // handleCreateAgent creates a managed agent (workspace + optional config.json).
@@ -182,7 +183,7 @@ func (w *WebUI) handleCreateAgent(rw http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = req.ID
 	}
-	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig)
+	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.Port)
 	if err != nil {
 		writeJSON(rw, http.StatusConflict, map[string]string{"error": err.Error()})
 		return

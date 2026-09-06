@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,7 +112,19 @@ func (m *Manager) Agents() []AgentSpec {
 	return out
 }
 
-// nextPort returns the next free port starting from basePort.
+// portInUse reports whether the given TCP port on loopback is already bound by
+// some process on the system (not just by a registered managed agent).
+func portInUse(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return true
+	}
+	ln.Close()
+	return false
+}
+
+// nextPort returns the next free port starting from basePort, skipping ports
+// already registered to managed agents.
 func (m *Manager) nextPort() int {
 	used := map[int]bool{}
 	for _, a := range m.agents {
@@ -126,12 +139,37 @@ func (m *Manager) nextPort() int {
 	}
 }
 
+// RecommendedPort returns a free port for a new managed agent: it scans upward
+// from basePort, skipping both ports already registered to managed agents and
+// ports actually bound on the system.
+func (m *Manager) RecommendedPort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	used := map[int]bool{}
+	for _, a := range m.agents {
+		if a.Type == AgentTypeManaged && a.Port > 0 {
+			used[a.Port] = true
+		}
+	}
+	for p := m.basePort; ; p++ {
+		if !used[p] && !portInUse(p) {
+			return p
+		}
+	}
+}
+
 // CreateManaged registers a new managed agent. If workspace does not exist it
 // is created. If createConfig is true, an empty config.json is created in the
 // workspace (a dedicated config for this co-shell instance). coShell and
 // configPath are optional per-agent overrides (empty = use the manager's
 // defaults).
-func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool) (AgentSpec, error) {
+// CreateManaged registers a new managed agent. If workspace does not exist it
+// is created. If createConfig is true, an empty config.json is created in the
+// workspace (a dedicated config for this co-shell instance). coShell and
+// configPath are optional per-agent overrides (empty = use the manager's
+// defaults). port > 0 uses the caller-specified port (which must be free);
+// port == 0 auto-allocates a free port.
+func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, port int) (AgentSpec, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -143,12 +181,17 @@ func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string,
 	if err := os.MkdirAll(workspace, 0755); err != nil {
 		return AgentSpec{}, fmt.Errorf("create workspace: %w", err)
 	}
+	if port == 0 {
+		port = m.nextPort()
+	} else if portInUse(port) {
+		return AgentSpec{}, fmt.Errorf("port %d is already in use", port)
+	}
 	spec := AgentSpec{
 		ID:         id,
 		Name:       name,
 		Type:       AgentTypeManaged,
 		Workspace:  workspace,
-		Port:       m.nextPort(),
+		Port:       port,
 		CoShell:    coShell,
 		ConfigPath: configPath,
 	}

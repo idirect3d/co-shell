@@ -16,6 +16,7 @@ type agentDefaults struct {
 	DefaultID        string            `json:"default_id"`
 	CoShells         []coShellInfo     `json:"co_shells"`
 	ConfigCandidates []configCandidate `json:"config_candidates"`
+	RecommendedPort  int               `json:"recommended_port"`
 }
 
 // handleAgentDefaults returns detection results + derived defaults for the
@@ -31,6 +32,7 @@ func (w *WebUI) handleAgentDefaults(rw http.ResponseWriter, _ *http.Request) {
 		DefaultID:        DeriveID(ws, existing),
 		CoShells:         DetectCoShells(),
 		ConfigCandidates: DetectConfigCandidates(ws),
+		RecommendedPort:  w.manager.RecommendedPort(),
 	})
 }
 
