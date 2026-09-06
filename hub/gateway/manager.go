@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -37,6 +38,9 @@ type AgentSpec struct {
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
 	// {workspace}/config.json (created empty if absent).
 	UseSharedConfig bool `json:"use_shared_config,omitempty"`
+	// ExtraArgs: extra command-line arguments appended when launching the
+	// managed co-shell subprocess (in addition to the system-supplied ones).
+	ExtraArgs string `json:"extra_args,omitempty"`
 
 	// External field.
 	WSURL string `json:"ws_url,omitempty"`
@@ -167,7 +171,7 @@ func (m *Manager) RecommendedPort() int {
 // is created empty if absent (a per-agent config). coShell and configPath are
 // optional per-agent overrides (empty = use the manager's defaults). port > 0
 // uses the caller-specified port (which must be free); port == 0 auto-allocates.
-func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int) (AgentSpec, error) {
+func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string) (AgentSpec, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -193,6 +197,7 @@ func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string,
 		CoShell:         coShell,
 		ConfigPath:      configPath,
 		UseSharedConfig: useSharedConfig,
+		ExtraArgs:       extraArgs,
 	}
 	// Per-agent config: ensure {workspace}/config.json exists (create empty if
 	// absent, never overwrite an existing one). Shared config needs no file.
@@ -300,6 +305,16 @@ func (m *Manager) Start(id string) (string, error) {
 		}
 	} else if spec.ConfigFile != "" {
 		args = append(args, "-c", filepath.Join(spec.Workspace, spec.ConfigFile))
+	}
+	// Append user-supplied extra arguments (whitespace-separated). The default
+	// --accept-license is added when the user left the field empty; --serve is
+	// already supplied above so it is never duplicated.
+	extra := strings.TrimSpace(spec.ExtraArgs)
+	if extra == "" {
+		extra = "--accept-license"
+	}
+	for _, a := range strings.Fields(extra) {
+		args = append(args, a)
 	}
 	cmd := exec.Command(coShell, args...)
 	cmd.Dir = spec.Workspace
