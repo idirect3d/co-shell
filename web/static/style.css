@@ -617,12 +617,15 @@ aside {
   transition: width 0.1s ease, opacity 0.1s ease;
 }
 /* FEATURE-487: hovering a line widens it to 3px and makes it fully opaque so
-   it is easy to pick out; it returns to 1px/75% on mouse-out. */
+   it is easy to pick out; it returns to 1px/75% on mouse-out. The margin-right
+   drops to 0 at the same time (1px+2px = 3px+0px) so the line's total footprint
+   stays constant and the neighbouring lines never shift (no queue jitter). */
 .msgviz-line:hover {
   width: 3px;
+  margin-right: 0;
   opacity: 1;
 }
-/* The context-usage marker: a 3x3px dot whose vertical position encodes the
+/* The context-usage marker: a 3x2px dot whose vertical position encodes the
    context usage (bottom = empty, top = full). It is painted with the control's
    own background (--bg-panel) so the coloured line appears to break (be cut
    out) at that height, marking where the context sat when the message was
@@ -631,7 +634,7 @@ aside {
   position: absolute;
   left: 50%;
   width: 3px;
-  height: 3px;
+  height: 2px;
   margin-left: -1.5px;
   margin-top: -1px;
   background: var(--bg-panel);
