@@ -15,8 +15,9 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-485 | 0.39.0 | P1 | hub https 远程安全访问：系统设置界面（SSL 证书/白名单/访问 KEY）、https 监听、访问 key 校验、移动端 mobile-legacy 复制 |
+| FEATURE-486 | 0.39.0 | P1 | 移动端浏览器内核化：mobile/ 放弃 Flutter 改原生 iOS，内嵌本地代理注入访问 KEY，WKWebView 渲染 hub web ui，系统设置页（服务端地址 + 访问 KEY） |
 
-> 当前 BUILD: 879
+> 当前 BUILD: 883
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -29,6 +30,13 @@
   - 测试：见 use-case/FEATURE-485/
   - 进度：hub 端改造完成（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。实现：① gateway/settings.go 新增 Settings 结构（TLS 开关/证书路径/白名单/访问 KEY/全部需 key 开关），持久化到 hub-settings.json，支持自签名证书自动生成（ECDSA P256）；② webui.go WebUI 持有 settings，Serve() 支持 TLS（配置证书后仅 https），accessControl 中间件实现访问控制（白名单内放行、白名单外需 X-Access-Key 头否则 401、RequireKey 强制全部需 key），新增 GET/PUT /api/settings；③ webui_static.go 设置界面（+新建 下加 ⚙设置 按钮，新增 viewSettings：HTTPS 开关/证书路径/生成自签名/白名单/访问 KEY/全部需 key 开关）；④ cmd/co-shell-hub 加载 settings 并传给 NewWebUI；⑤ 复制 mobile/ → mobile-legacy/（保留 UDP 方式）。编译全绿 [BUILD-880]
   - 进度（迭代调整）：① 设置按钮宽度与 +新建 一致；② 生成自签名证书后把证书路径填入输入框（GET /api/settings 返回 settings_dir）；③ 证书默认放 ~/.co-shell/（hub-cert.pem/hub-key.pem）；④ 访问 KEY 下加"重新生成安全 KEY"按钮（crypto 生成 64 位 hex）；⑤ 修复生成证书后无法访问——TLSConfig 在证书文件不存在时自动生成（不再因加载不存在的相对路径失败）；⑥ 新增 --serve 参数（不自动打开浏览器），自动打开浏览器时按 TLS 启用用 https://；⑦ accessControl 语义：白名单为空时默认仅本机(loopback)免 KEY，其他主机需 KEY（命令行 --whitelist 会覆盖 settings 白名单，需用设置界面管理时勿传 --whitelist）。编译全绿 [BUILD-881]
+
+- [ ] **FEATURE-486 移动端浏览器内核化：原生 iOS + Cookie 注入访问 KEY**
+  - 背景：mobile/ 原为 Flutter UDP 客户端（已复制为 mobile-legacy/ 保留）。本次在 mobile/ 中直接改造：放弃 Flutter，先实现原生 iOS 版，通过浏览器控件（WKWebView）渲染 hub 的 web ui 页面。
+  - 方案（用户最终确认）：① 在 mobile/ 中直接修改，删除 mobile/ 全部内容重建纯原生 iOS 工程（mobile-legacy/ 保留完整 Flutter UDP 版勿动）；② 放弃 Flutter，纯原生 iOS（Swift + UIKit + WKWebView）；③ 访问 KEY 通过 Cookie 传递——hub 端 accessControl 已支持 access_key Cookie 校验（见 FEATURE-485 迭代：webui.go 新增 accessCookie 常量 + accessKeyFromRequest 函数，同时检查 X-Access-Key 头和 access_key Cookie），key 在移动端原生系统设置页输入（存 Keychain），WKWebView 加载 hub 页面前注入 access_key Cookie，用户无需在网页输入 key；④ 系统设置页（原生 UI）输入服务端地址（如 https://192.168.3.19:23311）+ 访问 KEY，存 Keychain；⑤ 已配置→显示 WKWebView 加载 hub 页面（加载前注入 access_key Cookie）；未配置→显示原生设置页；提供设置入口可随时回设置页；处理自签名 https 证书信任（ATS 例外 + WKWebView 证书校验放行）；⑥ 新任务号 FEATURE-486，归入 v0.39.0。
+  - 实施：mobile/（原生 iOS 工程）
+  - 测试：见 use-case/FEATURE-486/
+  - 进度：① hub 端 accessControl 支持 access_key Cookie（webui.go accessCookie + accessKeyFromRequest，编译通过）；② mobile/ 清空重建，从 Flutter 工程改造成纯原生 iOS 工程：重写 project.pbxproj（去 Flutter/CocoaPods/RunnerTests，单 target 纯 Swift）、Info.plist（去 FLUTTER_BUILD_NAME 占位符，加 ATS 例外 NSAllowsArbitraryLoads + 本地网络权限）、LaunchScreen.storyboard（去 LaunchImage 引用）、AppDelegate/SceneDelegate 改纯 UIKit；③ 新增 Swift 源码：SettingsStore（Keychain 存服务端地址+key）、SettingsViewController（原生设置页，输入服务端地址+key，校验 URL 格式）、WebViewController（WKWebView 壳，加载前注入 access_key Cookie，didReceive 放行自签名证书，target=_blank 同页打开）、RootViewController（导航，未配置→设置页，已配置→WebView，设置保存后切换/重载）；④ xcodebuild 编译到 iPhone 17 Pro 模拟器 BUILD SUCCEEDED，安装启动验证设置页正常渲染（标题/输入框/保存按钮齐全无崩溃）；⑤ 新增 mobile/README.md 说明目录用途；⑥ hub webui.go 新增 requestLog 中间件，向标准输出打印每个请求的时间/源地址/URI（含 X-Forwarded-For 支持），便于追踪移动端远程访问；⑦ 修复设置页保存无反应：模拟器上 Keychain 对未签名 app 不可用（SecItemAdd 返回 errSecMissingEntitlement -34018），SettingsStore 改为 Keychain + UserDefaults 双后端（Keychain 失败自动回退 UserDefaults，真机用 Keychain），并新增 Runner.entitlements（keychain-access-groups）。端到端验证通过：模拟器输入地址+key 保存后成功切换到 WKWebView 并加载 hub web UI（Cookie 注入通过认证、自签名证书正常）。go build+vet 全绿，co-shell-hub 编译到 ~/bin/ [BUILD-883]
 
 ---
 

@@ -81,8 +81,35 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	// when RequireKey is set).
 	handler := http.Handler(mux)
 	handler = w.accessControl(handler)
+	handler = w.requestLog(handler)
 	w.httpSrv = &http.Server{Handler: handler}
 	return w
+}
+
+// requestLog logs every HTTP request to stdout with its time, client address
+// and request URI, so remote access (e.g. from the mobile client) is traceable.
+func (w *WebUI) requestLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		log.Printf("webui: %s %s %s from %s",
+			time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.RequestURI(), clientIP(r))
+		next.ServeHTTP(rw, r)
+	})
+}
+
+// clientIP returns the client's IP address, honouring X-Forwarded-For when the
+// hub sits behind a reverse proxy, and falling back to the remote address.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.IndexByte(xff, ','); i >= 0 {
+			xff = xff[:i]
+		}
+		return strings.TrimSpace(xff)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 // Listen binds the HTTP listener.
@@ -333,15 +360,34 @@ func writeJSON(rw http.ResponseWriter, status int, v interface{}) {
 // accessHeader is the HTTP header carrying the access key.
 const accessHeader = "X-Access-Key"
 
+// accessCookie is the cookie name carrying the access key. It lets clients
+// (e.g. the native mobile WKWebView shell, FEATURE-486) authenticate by
+// injecting a cookie before loading the page, since a WebView cannot attach a
+// custom header to every sub-resource / WebSocket request but does send cookies
+// automatically (including on the WebSocket handshake).
+const accessCookie = "access_key"
+
+// accessKeyFromRequest returns the access key presented by the client, either
+// via the X-Access-Key header or the access_key cookie (header takes priority).
+func accessKeyFromRequest(r *http.Request) string {
+	if k := r.Header.Get(accessHeader); k != "" {
+		return k
+	}
+	if c, err := r.Cookie(accessCookie); err == nil && c.Value != "" {
+		return c.Value
+	}
+	return ""
+}
+
 // accessControl enforces the Web UI access policy from settings:
 //   - An empty whitelist means no IP restriction (the listen address itself
 //     already limits reachability, e.g. loopback-only by default).
 //   - A client whose IP is in the whitelist is allowed (unless RequireKey is
 //     set, which forces key auth for every client).
-//   - A client outside the whitelist must present the access key in the
-//     X-Access-Key header; otherwise it gets a 401 so the frontend can prompt
-//     for the key. If no access key is configured, out-of-whitelist clients are
-//     rejected with 403.
+//   - A client outside the whitelist must present the access key (via the
+//     X-Access-Key header or the access_key cookie); otherwise it gets a 401 so
+//     the frontend can prompt for the key. If no access key is configured,
+//     out-of-whitelist clients are rejected with 403.
 func (w *WebUI) accessControl(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		s := w.settings
@@ -359,7 +405,7 @@ func (w *WebUI) accessControl(next http.Handler) http.Handler {
 		}
 		needKey := s.RequireKey || (!allowed && s.AccessKey != "")
 		if needKey {
-			if s.AccessKey == "" || r.Header.Get(accessHeader) != s.AccessKey {
+			if s.AccessKey == "" || accessKeyFromRequest(r) != s.AccessKey {
 				writeJSON(rw, http.StatusUnauthorized, map[string]string{"error": "access key required", "need_key": "1"})
 				return
 			}
