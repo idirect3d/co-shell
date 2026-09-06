@@ -133,6 +133,10 @@ type agentView struct {
 	Build     string `json:"build,omitempty"`
 	Running   bool   `json:"running"`
 	Connected bool   `json:"connected"`
+	CoShell   string `json:"co_shell,omitempty"`
+	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
+	// {workspace}/config.json.
+	UseSharedConfig bool `json:"use_shared_config"`
 }
 
 // handleListAgents returns the registry agents with their running/connected
@@ -154,6 +158,8 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 			WSURL:     s.WSURL,
 			Running:   w.manager.IsRunning(s.ID),
 			Connected: connected[s.ID],
+			CoShell:   s.CoShell,
+			UseSharedConfig: s.UseSharedConfig,
 		}
 		// Report the co-shell version for compatibility awareness.
 		if s.Type == AgentTypeManaged {

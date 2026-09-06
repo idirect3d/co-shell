@@ -116,6 +116,9 @@ const webIndexHTML = `<!DOCTYPE html>
   .switch input:disabled + .slider { opacity:.5; cursor:not-allowed; }
   .switch-row { display:flex; align-items:center; justify-content:space-between; }
   .switch-row .switch-label { font-size:12px; color:var(--fg-dim); }
+  .detail-row { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .detail-row .k { flex:none; width:80px; color:var(--fg-dim); font-size:12px; padding-top:1px; }
+  .detail-row .v { flex:1; min-width:0; word-break:break-all; color:var(--fg); }
   #agentPanel .foot { flex:none; padding:8px; border-top:1px solid var(--border); }
   .btn { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; }
   .btn.primary { background:var(--accent); color:#0b0e14; width:100%; }
@@ -229,6 +232,20 @@ const webIndexHTML = `<!DOCTYPE html>
       </div>
     </div>
   </div>
+  <!-- View 3: read-only agent detail (click an agent card to view). -->
+  <div class="view hidden" id="viewDetail">
+    <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表">‹</button><span id="detailTitle">Agent 设置</span><span class="close" id="detailClose" title="收起">✕</span></div>
+    <div class="config-body">
+      <div class="detail-row"><span class="k">ID</span><span class="v" id="d-id"></span></div>
+      <div class="detail-row"><span class="k">备注</span><span class="v" id="d-name"></span></div>
+      <div class="detail-row"><span class="k">类型</span><span class="v" id="d-type"></span></div>
+      <div class="detail-row"><span class="k">Workspace</span><span class="v" id="d-ws"></span></div>
+      <div class="detail-row"><span class="k">端口</span><span class="v" id="d-port"></span></div>
+      <div class="detail-row"><span class="k">co-shell</span><span class="v" id="d-coshell"></span></div>
+      <div class="detail-row"><span class="k">共享配置</span><span class="v" id="d-shared"></span></div>
+      <div class="detail-row"><span class="k">状态</span><span class="v" id="d-state"></span></div>
+    </div>
+  </div>
 </div>
 <script>
 (function(){
@@ -240,6 +257,7 @@ const webIndexHTML = `<!DOCTYPE html>
   var listEl = document.getElementById('agentList');
   var viewList = document.getElementById('viewList');
   var viewConfig = document.getElementById('viewConfig');
+  var viewDetail = document.getElementById('viewDetail');
   var scrim = document.getElementById('scrim');
   var agents = [];
   var current = null;
@@ -274,17 +292,21 @@ const webIndexHTML = `<!DOCTYPE html>
     clearTimeout(hideTimer);
     hideTimer = setTimeout(closePanel, 600);
   }
-  // showView switches between the list and config views inside the drawer.
+  // showView switches between the list, config and detail views.
   function showView(name){
     var showList = name === 'list';
     viewList.classList.toggle('hidden', !showList);
-    viewConfig.classList.toggle('hidden', showList);
+    viewConfig.classList.toggle('hidden', showList || name === 'detail');
+    viewDetail.classList.toggle('hidden', name !== 'detail');
   }
   badge.onclick = function(){ panel.classList.contains('open') ? closePanel() : openPanel(); };
   document.getElementById('panelClose').onclick = closePanel;
   document.getElementById('configClose').onclick = closePanel;
   // The config view's back button returns to the agent list view.
   document.getElementById('configBack').onclick = function(){ showView('list'); };
+  // The detail view's back/close buttons return to the agent list view.
+  document.getElementById('detailBack').onclick = function(){ showView('list'); };
+  document.getElementById('detailClose').onclick = closePanel;
   // Hover the left edge to open; leaving the panel schedules a close only in
   // the list view (the config view stays open until closed or backed out).
   edge.addEventListener('mouseenter', openPanel);
@@ -353,13 +375,14 @@ const webIndexHTML = `<!DOCTYPE html>
       r.className = 'agent' + (a.id === current ? ' active' : '');
       r.innerHTML = '<span class="st ' + st + '"></span><span class="nm">' + esc(a.name || a.id) + '</span>' +
         (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '');
-      // Clicking the card selects the agent (unless swiping or toggling power).
+      // Clicking the card opens its read-only detail view (unless swiping or
+      // toggling power).
       r.addEventListener('click', function(e){
         if (e.target.closest('.switch')) return;
         if (r._moved){ r._moved = false; return; } // just finished a swipe drag
         if (r._open){ setSwipe(r, false); return; } // click an open card closes it
         if (openCard && openCard !== r) setSwipe(openCard, false);
-        current = a.id; renderList(); ensureFrame(current); closePanel();
+        showAgentDetail(a);
       });
       // Power switch: running -> stop, stopped -> start (revert on start failure).
       var sw = r.querySelector('.switch input');
@@ -373,6 +396,20 @@ const webIndexHTML = `<!DOCTYPE html>
       wrap.appendChild(r);
       listEl.appendChild(wrap);
     });
+  }
+
+  // showAgentDetail fills and shows the read-only detail view for an agent.
+  function showAgentDetail(a){
+    document.getElementById('detailTitle').textContent = (a.name || a.id) + ' · 设置';
+    document.getElementById('d-id').textContent = a.id || '-';
+    document.getElementById('d-name').textContent = a.name || '-';
+    document.getElementById('d-type').textContent = a.type === 'external' ? '远程' : '本地';
+    document.getElementById('d-ws').textContent = a.workspace || (a.ws_url || '-');
+    document.getElementById('d-port').textContent = a.type === 'external' ? (a.ws_url || '-') : (a.port || '-');
+    document.getElementById('d-coshell').textContent = a.co_shell || (a.type === 'external' ? '—' : '默认');
+    document.getElementById('d-shared').textContent = a.use_shared_config ? '开启（~/.co-shell/config.json）' : '关闭（{workspace}/config.json）';
+    document.getElementById('d-state').textContent = (a.running || a.connected) ? '运行中' : '已停止';
+    showView('detail');
   }
 
   // setSwipe opens (true) or closes (false) the delete button behind a card.
