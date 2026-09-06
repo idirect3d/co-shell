@@ -101,17 +101,34 @@
 
 ## 5. 待确认/待细化
 
-- [ ] hub Web UI 是复用 co-shell 前端静态资源还是新建
-- [ ] 移动端与 hub 的 UDP 协议如何承载 WebSocket 转发（消息封装格式）
+- [x] hub Web UI 是复用 co-shell 前端静态资源还是新建（待步骤6细化）
+- [x] 移动端与 hub 的 TCP 协议如何承载 WebSocket 转发（消息封装格式：长度前缀 JSON 帧，见 §7）
 - [ ] 单客户端限制下 hub 与 co-shell 的连接管理（重连、心跳）
 - [ ] 数据缓存的具体粒度（事件流/会话/任务计划）
 
-## 6. 实施步骤（对应任务计划）
+## 6. 代码组织决策（用户确认：方案 B）
+
+在 `hub/` 下新建**独立 gateway 包**（`hub/gateway/`），旧 UDP 代码（`hub/hub.go` 等）**保留不动**，新架构代码独立演进。gateway 包作为 hub module 的子包（`github.com/idirect3d/co-shell/hub/gateway`），零外部依赖（纯标准库），后续步骤4引入 gorilla/websocket 时再按需添加。
+
+## 7. gateway 包实现（步骤3：TCP 服务 + API Key 认证层）
+
+已实现文件：
+
+- `config.go` — `Config`（ListenAddr/APIKey/MaxFrameSize/AuthTimeout）+ `DefaultConfig`
+- `protocol.go` — 长度前缀 JSON 帧（4 字节大端长度头 + JSON 载荷），`Envelope{Type,Payload}` 信封
+- `auth.go` — `Authenticator`，API Key 常量时间比较（`crypto/subtle`）
+- `server.go` — `Server`（TCP 监听/连接管理/认证握手/读循环）+ `Conn`（并发安全 Send）+ `Handler` 接口（OnConnect/HandleMessage/OnDisconnect，供步骤4挂接 WebSocket 转发）
+- `server_test.go` — 单元测试（认证成功/失败/未认证拒绝/业务消息转发/ping-pong）
+
+**协议**：客户端连接后先发 `{"type":"auth","payload":{"api_key":"..."}}`；服务端校验通过回 `auth_ack`，失败回 `error` 并断开。认证通过后客户端可发任意业务消息（`input`/`session_switch` 等），gateway 不解释业务逻辑，经 `Handler` 透明转发（步骤4实现）。支持 `ping`/`pong` 心跳。
+
+## 8. 实施步骤（对应任务计划）
 
 1. 架构设计（本文档）
-2. hub 安全通讯层（UDP 加密通道）
-3. hub WebSocket 客户端连接多个 co-shell agent（代理转发）
-4. hub 多 agent 切换与数据缓存
-5. hub Web UI 界面
-6. 移动端适配 hub 网关
-7. 编译验证
+2. 修复 main.dart 编译错误
+3. hub TCP 服务 + API Key 认证层（gateway 包，已完成）
+4. hub WebSocket 客户端连接多个 co-shell agent（代理转发）
+5. hub 多 agent 切换与数据缓存
+6. hub Web UI 界面
+7. 移动端适配 hub 网关
+8. 编译验证
