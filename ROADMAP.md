@@ -32,6 +32,7 @@
   - 进度：步骤3-6（TCP+API Key 认证、WS 客户端代理转发、多 agent 切换与缓存、Web UI）已完成 [BUILD-857]；步骤7-8（agent 生命周期管理：Manager 注册表持久化 + co-shell --serve 子进程启停 + Web UI 管理界面创建/启动/停止/删除/添加不受控 agent）已完成，编译全绿、管理 API 与 Web UI 浏览器验证通过 [BUILD-861]
   - Web UI 架构演进（用户确认，架构讨论后）：hub 从"聚合转发业务消息 + 自绘简化聊天界面"转向 **iframe 多页外壳 + 反向代理**——hub 完整透传每个 co-shell 实例的 Web UI（含界面），只维护外壳（agent 切换 + 管理 + 移动端自适应）。单用户独占；hub 反向代理解决跨源/端口转发；数据缓存降级为可选优化。方案：单端口 + 子路径前缀（/agent/{id}/），co-shell 自身前端改相对路径（方式乙，单一代码源），hub 反向代理剥前缀转发。设计见 docs/DESIGN-hub-gateway.md §10。
   - 进度（新方向）：设计文档 §10 已完成（iframe 外壳 + 反向代理 + co-shell 前端改相对路径方案）；步骤12-13（完整实现）已完成：① co-shell 前端改相对路径（web/static/index.html + app.js 全部 /api、/logos、/static/logos、WS 地址改相对）；② hub 反向代理模块（hub/gateway/proxyhttp.go，/agent/{id}/ 前缀剥除后 httputil.ReverseProxy 转发 HTTP+WS）；③ hub 外壳页面（webui_static.go 重写为 agent 切换栏 + 管理抽屉 + iframe 布局 + 移动端自适应）；④ webui.go 注册 /agent/ 反向代理并移除旧 /ws 聊天桥接。编译全绿（hub 模块 + 主模块），浏览器实测通过：两个 agent（ws-a/ws-b）各自 iframe 完整显示 co-shell UI 且均"已连接"（WS 经反向代理隧道成功），点击标签可切换 agent 且状态保留 [BUILD-862]
+  - 进度（Web UI 管理界面迭代）：卡片交互与详情字段修复（点击 agent 卡片切换主界面、卡片最右侧 > 符号点击查看配置分离两功能；本地/远程 agent 详情显示不同字段，远程隐藏 workspace/co-shell/共享配置、端口行显示 WS 地址；创建确认按钮移到页面最下方 foot 与 +新建 设计语言一致）[BUILD-875]；修复点击卡片切换主界面失效——根因 ensureFrame 在 frame 已存在时直接 return 不调用 showFrame 切换 active iframe，导致点击卡片只更新卡片高亮但主界面 iframe 不切换；修复：点击卡片切换时在 ensureFrame 后显式调用 showFrame(current)，浏览器实测双向切换（agent-1↔agent-2）主界面 iframe 同步切换正常 [BUILD-876]
 
 ---
 

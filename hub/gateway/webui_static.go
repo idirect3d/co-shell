@@ -403,7 +403,7 @@ const webIndexHTML = `<!DOCTYPE html>
         if (r._moved){ r._moved = false; return; } // just finished a swipe drag
         if (r._open){ setSwipe(r, false); return; } // click an open card closes it
         if (openCard && openCard !== r) setSwipe(openCard, false);
-        current = a.id; renderList(); ensureFrame(current); closePanel();
+        current = a.id; renderList(); ensureFrame(current); showFrame(current); closePanel();
       });
       // Power switch: running -> stop, stopped -> start (revert on start failure).
       var sw = r.querySelector('.switch input');
