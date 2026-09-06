@@ -648,7 +648,6 @@ aside {
   background: transparent;
   opacity: 0.75; /* FEATURE-487: 75% translucent */
   cursor: pointer;
-  transition: width 0.1s ease, opacity 0.1s ease;
 }
 /* FEATURE-487: hovering a line widens it to 3px and makes it fully opaque so
    it is easy to pick out; it returns to 1px/75% on mouse-out. The margin-right
