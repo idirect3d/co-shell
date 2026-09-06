@@ -26,7 +26,7 @@ const I18N = {
     menu: "菜单", settings: "系统设置", identity: "身份与个性", restart: "重启后台",
     appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
-    statusBar: "状态条",
+    statusBar: "状态条", streamTitle: "会话标题", msgViz: "消息可视化",
     sbSession: "Σ", sbLast: "⏱️",
     revealDir: "定位到文件夹",
     downloadFile: "下载文件",
@@ -48,6 +48,7 @@ const I18N = {
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
     streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
     streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
+    stcGoal: "目标", stcRunning: "正在执行", stcProgress: "进展情况", stcDone: "已完成",
     yoloTitle: "YOLO 模式（You Only Live Once）：开启后所有工具调用自动批准，无需逐个确认",
     setDefaultTip: "默认值", setDiffTip: "与默认值不一致",
   },
@@ -66,7 +67,7 @@ const I18N = {
     menu: "Menu", settings: "Settings", identity: "Identity & Personality", restart: "Restart backend",
     appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
-    statusBar: "Status bar",
+    statusBar: "Status bar", streamTitle: "Session title", msgViz: "Message viz",
     sbSession: "Σ", sbLast: "⏱️",
     revealDir: "Reveal in folder",
     downloadFile: "Download file",
@@ -88,6 +89,7 @@ const I18N = {
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
     streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
     streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
+    stcGoal: "Goal", stcRunning: "Running", stcProgress: "Progress", stcDone: "done",
     yoloTitle: "YOLO mode (You Only Live Once): when on, all tool calls are auto-approved without asking",
     setDefaultTip: "Default", setDiffTip: "differs from default",
   },
@@ -283,7 +285,6 @@ const miWsCheck = document.getElementById("miWsCheck");
 const miPlanCheck = document.getElementById("miPlanCheck");
 const miSettings = document.getElementById("miSettings");
 const miModels = document.getElementById("miModels");
-const miRestart = document.getElementById("miRestart");
 const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
@@ -338,6 +339,9 @@ const streamTitle = document.getElementById("streamTitle");
 // FEATURE-482: message-visualization chart (lines + pannable track).
 const msgViz = document.getElementById("msgViz");
 const msgVizTrack = document.getElementById("msgVizTrack");
+// FEATURE-487: narrow-screen cycling session-title widget (read-only).
+const streamTitleCycle = document.getElementById("streamTitleCycle");
+const stcFace = document.getElementById("stcFace");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
@@ -1596,6 +1600,125 @@ miStatus.onclick = () => {
   applyStatus();
 };
 
+/* ---------- stream-title / msg-viz visibility toggles (menu) ---------- */
+
+// The "会话标题" and "消息可视化" menu switches control whether the editable
+// session title and the message-visualization chart show in the stream title
+// bar. Persisted in localStorage (absent = visible).
+const miStreamTitle = document.getElementById("miStreamTitle");
+const miStreamTitleCheck = document.getElementById("miStreamTitleCheck");
+const miMsgViz = document.getElementById("miMsgViz");
+const miMsgVizCheck = document.getElementById("miMsgVizCheck");
+let streamTitleOn = localStorage.getItem("co-shell-stream-title") !== "0";
+let msgVizOn = localStorage.getItem("co-shell-msgviz") !== "0";
+
+function applyStreamTitle() {
+  if (streamTitle) streamTitle.style.display = streamTitleOn ? "" : "none";
+  // FEATURE-487: the narrow-screen cycling widget replaces the editable input,
+  // so it honours the same "会话标题" display toggle.
+  if (streamTitleCycle) streamTitleCycle.style.display = streamTitleOn ? "" : "none";
+  if (miStreamTitleCheck) miStreamTitleCheck.classList.toggle("on", streamTitleOn);
+  stcSync();
+}
+function applyMsgViz() {
+  if (msgViz) msgViz.style.display = msgVizOn ? "" : "none";
+  if (miMsgVizCheck) miMsgVizCheck.classList.toggle("on", msgVizOn);
+}
+
+if (miStreamTitle) miStreamTitle.onclick = () => {
+  streamTitleOn = !streamTitleOn;
+  localStorage.setItem("co-shell-stream-title", streamTitleOn ? "1" : "0");
+  applyStreamTitle();
+};
+if (miMsgViz) miMsgViz.onclick = () => {
+  msgVizOn = !msgVizOn;
+  localStorage.setItem("co-shell-msgviz", msgVizOn ? "1" : "0");
+  applyMsgViz();
+};
+
+/* FEATURE-487: narrow-screen cycling session-title widget. On narrow screens
+   the editable #streamTitle is hidden and #streamTitleCycle shows a single
+   read-only line that flips every 2s between: the session title, the active
+   task-plan goal (plan.description), the running step and the completion tally
+   (done/total). When no task plan is active it shows the session title
+   statically (no cycling). All text truncates with an ellipsis (CSS). */
+let stcTimer = null;
+let stcIdx = 0;
+
+// stcItems builds the ordered display strings for the current state.
+function stcItems() {
+  const en = currentLang === "en";
+  const colon = en ? ": " : "：";
+  const title = (streamTitle && streamTitle.value.trim()) || "";
+  const items = [title];
+  if (lastPlan) {
+    const goal = (lastPlan.description || "").trim() || (lastPlan.title || "").trim();
+    if (goal) items.push(T.stcGoal + colon + goal);
+    // Running step: first in_progress, else first pending.
+    let run = "";
+    for (const st of lastPlan.steps) {
+      if (normStatus(st.status) === "in_progress") { run = st.description; break; }
+    }
+    if (!run) {
+      for (const st of lastPlan.steps) {
+        if (normStatus(st.status) === "pending") { run = st.description; break; }
+      }
+    }
+    if (run) {
+      const nl = run.indexOf("\n");
+      items.push(T.stcRunning + colon + (nl === -1 ? run : run.slice(0, nl)));
+    }
+    const total = lastPlan.steps.length;
+    const done = lastPlan.steps.filter((st) => normStatus(st.status) === "completed").length;
+    items.push(T.stcProgress + colon + T.stcDone + "(" + done + "/" + total + ")");
+  }
+  return items;
+}
+
+// stcShow sets the visible line, optionally with a vertical flip animation.
+function stcShow(text, animate) {
+  if (!stcFace) return;
+  if (!animate || stcFace.textContent === text) {
+    stcFace.textContent = text;
+    stcFace.classList.remove("flip-out", "flip-in");
+    return;
+  }
+  stcFace.classList.add("flip-out");
+  setTimeout(() => {
+    stcFace.textContent = text;
+    stcFace.classList.remove("flip-out");
+    stcFace.classList.add("flip-in");
+    setTimeout(() => stcFace.classList.remove("flip-in"), 200);
+  }, 180);
+}
+
+// stcTick advances to the next item (with a flip) on the 2s interval.
+function stcTick() {
+  const items = stcItems();
+  if (items.length <= 1) return;
+  stcIdx = (stcIdx + 1) % items.length;
+  stcShow(items[stcIdx], true);
+}
+
+// stcSync starts/stops the cycling timer based on the current state: it cycles
+// only while narrow AND a task plan is active AND the title toggle is on;
+// otherwise it shows the session title statically (or nothing when hidden).
+function stcSync() {
+  if (!streamTitleCycle || !stcFace) return;
+  if (stcTimer) { clearInterval(stcTimer); stcTimer = null; }
+  const narrow = document.body.classList.contains("narrow");
+  const active = narrow && streamTitleOn && !!lastPlan;
+  if (active) {
+    const items = stcItems();
+    stcIdx = 0;
+    stcShow(items[0] || "", false);
+    stcTimer = setInterval(stcTick, 2000);
+  } else {
+    const t = streamTitleOn ? ((streamTitle && streamTitle.value.trim()) || "") : "";
+    stcShow(t, false);
+  }
+}
+
 // Token stats accumulated from token_iter events. sessionIn/sessionOut are
 // the running totals across all iterations; last* hold the most recent
 // iteration's values (including input/output tokens-per-second).
@@ -1622,7 +1745,7 @@ let msgVizPan = 0;
 // red.
 function msgVizColor(cls, box) {
   const bcls = box ? box.className : "";
-  if (/level-error/.test(cls) || /level-error/.test(bcls)) return "#f87171"; // dark --err
+  if (/level-error/.test(cls) || /level-error/.test(bcls)) return "#FF0000"; // FEATURE-487: failed = pure red
   if (/level-success/.test(cls) || /level-success/.test(bcls)) return "#4ade80"; // dark --ok
   if (/level-warning/.test(cls) || /level-warning/.test(bcls)) return "#facc15"; // dark --warn
   if (/user-msg/.test(cls)) return "transparent"; // user msg = empty gap between turns
@@ -1634,6 +1757,35 @@ function msgVizColor(cls, box) {
   return "#5b6373"; // dark --fg-faint (system / thinking / default)
 }
 
+// msgVizTip builds the hover tooltip for a message-visualization line: the
+// message type, the tool intent (for tool blocks) and the context-usage
+// percentage (FEATURE-487).
+function msgVizTip(cls, box, ratio) {
+  const en = currentLang === "en";
+  let type = "";
+  if (/level-error/.test(cls)) type = en ? "Failed" : "失败";
+  else if (/level-success/.test(cls)) type = en ? "Success" : "成功";
+  else if (/level-warning/.test(cls)) type = en ? "Warning" : "警告";
+  else if (/user-msg/.test(cls)) type = en ? "User" : "用户";
+  else if (/llm/.test(cls)) type = en ? "LLM" : "LLM";
+  else if (/tool/.test(cls)) type = en ? "Tool" : "工具";
+  else if (/command/.test(cls)) type = en ? "Command" : "命令";
+  else if (/repl/.test(cls)) type = en ? "REPL" : "REPL";
+  else if (/supervisor/.test(cls)) type = en ? "Supervisor" : "监督";
+  else type = en ? "Message" : "消息";
+  const parts = [type];
+  // Tool intent: read the block title label ("TOOL: action - intent").
+  if (/tool/.test(cls) && box) {
+    const label = box.querySelector(".ev-head-label");
+    const t = (label ? label.textContent : "") || "";
+    const intent = t.replace(/^TOOL:\s*/i, "").trim();
+    if (intent) parts.push(intent);
+  }
+  const pct = Math.round((ratio || 0) * 100);
+  parts.push((en ? "context " : "上下文 ") + pct + "%");
+  return parts.join(" · ");
+}
+
 // msgVizFlush renders one line per pending block using the current context
 // usage, then clears the pending list. Called when a token_iter arrives (the
 // iteration's token usage is now known).
@@ -1641,7 +1793,7 @@ function msgVizFlush() {
   if (!msgViz || !msgVizTrack || !msgVizPending.length) { msgVizPending = []; return; }
   const max = (modelInfo && modelInfo.textMaxLen) || 0;
   const h = msgViz.clientHeight || 27;
-  const dotH = 2; // FIX-483: the context-usage notch is 2px tall
+  const dotH = 2; // FEATURE-487: the context-usage dot is 2px tall
   const range = Math.max(h - dotH, 1);
   const ratio = max > 0 ? Math.min(msgVizUsage / max, 1) : 0;
   const top = Math.round(range * (1 - ratio));
@@ -1650,12 +1802,19 @@ function msgVizFlush() {
   for (const p of pending) {
     const line = document.createElement("div");
     line.className = "msgviz-line";
-    line.style.background = msgVizColor(p.cls, p.box);
+    // FEATURE-487: draw the line as a dotted vertical line (1px dot + 1px gap)
+    // in the block colour; the 75% opacity is applied by CSS.
+    const col = msgVizColor(p.cls, p.box);
+    line.style.background = "repeating-linear-gradient(to bottom, " + col + " 0 1px, transparent 1px 2px)";
     line._box = p.box; // for click-to-locate in initMsgViz
+    line._cls = p.cls; // for the hover tooltip
     const dot = document.createElement("div");
     dot.className = "msgviz-dot";
     dot.style.top = top + "px";
     line.appendChild(dot);
+    // FEATURE-487: hovering shows a tooltip with the message type, tool intent
+    // (if any) and the context-usage percentage.
+    line.title = msgVizTip(p.cls, p.box, ratio);
     // Clicking a line scrolls the corresponding message block into view.
     line.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1771,14 +1930,16 @@ function updateStatus() {
   const total = sIn + sOut;
   const lastTotal = tokenStats.lastIn + tokenStats.lastOut;
   // FEATURE-422: the main (text) model and the vision model are separate
-  // hover targets, each with its own selector menu.
+  // hover targets, each with its own selector menu. The model name + context
+  // usage sit in a .sb-model-name span so narrow screens can hide the text and
+  // keep only the 🧠/👀 icon (FEATURE-487).
   if (modelInfo && modelInfo.textModel) {
-    sbModelText.innerHTML = "🧠" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
+    sbModelText.innerHTML = "🧠<span class='sb-model-name'>" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
   } else {
     sbModelText.innerHTML = "🧠";
   }
   if (modelInfo && modelInfo.visionModel) {
-    sbModelVision.innerHTML = "👀" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
+    sbModelVision.innerHTML = "👀<span class='sb-model-name'>" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
   } else {
     sbModelVision.innerHTML = "👀";
   }
@@ -1790,7 +1951,9 @@ function updateStatus() {
   const liDur = liTPS > 0 ? fmtDur(li / liTPS) : "-";
   const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
   // FEATURE-436: token rates use thousands separators (e.g. 1,234t/s).
-  sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "t/s" : "-") + ", " + loDur + ")";
+  // FEATURE-487: the ⏱️ icon sits in its own span so narrow screens can hide
+  // just the icon while keeping the per-iteration usage text.
+  sbLast.innerHTML = "<span class='sb-last-ico'>" + T.sbLast + "</span> ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "t/s" : "-") + ", " + loDur + ")";
 }
 
 /* ---------- session menu (FEATURE-387) ---------- */
@@ -1944,14 +2107,9 @@ function applyDisplayMode() {
   });
 }
 
-// Request the session list on connect and whenever the menu is opened.
-sbSessionsWrap.addEventListener("mouseenter", () => {
-  wsSend({ type: "session_list" });
-  sessionMenu.classList.remove("hidden");
-});
-sbSessionsWrap.addEventListener("mouseleave", () => {
-  sessionMenu.classList.add("hidden");
-});
+// FEATURE-487: the session list is now opened by clicking the 💬 item
+// (bound in the narrow-screen module at the bottom of this file) instead of
+// hovering. The session list is requested on connect and on open.
 
 // confirmDeleteSession opens the delete-confirmation modal for a session.
 // The actual session_delete message is only sent after the user confirms
@@ -2011,6 +2169,9 @@ const STATUS_ICON = { pending: "○", in_progress: "◐", completed: "●", canc
 function renderPlan(plan) {
   lastPlan = plan && plan.steps && plan.steps.length > 0 ? plan : null;
   applyPanels();
+  // FEATURE-487: start/stop the cycling session-title widget when the plan
+  // appears or disappears.
+  stcSync();
   if (!lastPlan) return;
   planBody.textContent = "";
 
@@ -2906,10 +3067,15 @@ let currentMode = "act";
 // renderModeSeg renders the horizontal segmented control from the mode list
 // pushed by the backend (kind=mode). Each mode is one segment; the selected
 // segment is highlighted and the highlight slider glides to it.
+// workModeOrder remembers the mode list order from the last renderModeSeg call
+// so the narrow single-capsule switcher can cycle to the next work mode.
+let workModeOrder = [];
+
 function renderModeSeg(modes) {
   if (!modes || modes.length === 0) return;
   const cur = modes.find((m) => m.current);
   if (cur) currentMode = cur.name;
+  workModeOrder = modes.map((m) => m.name);
   modeSeg.querySelectorAll(".mode-seg-item").forEach((el) => el.remove());
   let idx = 0;
   modes.forEach((m, i) => {
@@ -3812,12 +3978,10 @@ const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
 
 miSettings.onclick = () => {
   settingsModal.classList.remove("hidden");
+  // FEATURE-487: always open at the level-1 category list on narrow screens
+  // (clear any leftover drilled-in state from a previous close).
+  settingsShowList();
   wsSend({ type: "settings_get" });
-};
-// FEATURE-398: "重启后台" sends a restart signal to the backend, which
-// notifies the external supervisor to restart the process.
-miRestart.onclick = () => {
-  wsSend({ type: "restart" });
 };
 settingsClose.onclick = () => settingsModal.classList.add("hidden");
 settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.add("hidden"); };
@@ -3869,6 +4033,12 @@ function renderSettingsNav() {
     label.textContent = g.title || "";
     item.appendChild(icon);
     item.appendChild(label);
+    // FEATURE-487: a chevron on the right of each category row (always shown;
+    // on narrow screens it signals the drill-in to that category's page).
+    const chev = document.createElement("span");
+    chev.className = "settings-nav-chev";
+    chev.textContent = ">";
+    item.appendChild(chev);
     item.onclick = () => selectSettingsGroup(i);
     frag.appendChild(item);
   });
@@ -3876,12 +4046,27 @@ function renderSettingsNav() {
 }
 
 // selectSettingsGroup switches the active category and re-renders the pane.
+// On narrow screens it also drills into the category page (hides the category
+// list, shows the pane with a back button).
 function selectSettingsGroup(index) {
   settingsActiveGroup = index;
   settingsNav.querySelectorAll(".settings-nav-item").forEach((el) => {
     el.classList.toggle("active", Number(el.getAttribute("data-index")) === index);
   });
   renderSettingsPane();
+  if (document.body.classList.contains("narrow")) settingsShowPane();
+}
+
+// settingsShowPane / settingsShowList toggle the two-level narrow-screen
+// settings navigation: the category list (level 1) vs. the category page
+// (level 2). On wide screens both are always visible side by side.
+function settingsShowPane() {
+  const body = document.getElementById("settingsBody");
+  if (body) body.classList.add("settings-drilled");
+}
+function settingsShowList() {
+  const body = document.getElementById("settingsBody");
+  if (body) body.classList.remove("settings-drilled");
 }
 
 // renderSettingsPane renders the active category's items into the right pane.
@@ -4722,18 +4907,9 @@ function renderModelVisionMenu() {
   modelVisionMenu.appendChild(add);
 }
 
-// Status-bar model selectors: hover to expand, leave to hide. The main (text)
-// model and the vision model each have their own menu (FEATURE-422).
-sbModelTextWrap.addEventListener("mouseenter", () => {
-  wsSend({ type: "model_get" });
-  modelMenu.classList.remove("hidden");
-});
-sbModelTextWrap.addEventListener("mouseleave", () => modelMenu.classList.add("hidden"));
-sbModelVisionWrap.addEventListener("mouseenter", () => {
-  wsSend({ type: "model_get" });
-  modelVisionMenu.classList.remove("hidden");
-});
-sbModelVisionWrap.addEventListener("mouseleave", () => modelVisionMenu.classList.add("hidden"));
+// FEATURE-487: the status-bar model selectors are now opened by clicking the
+// model items (bound in the narrow-screen module at the bottom of this file)
+// instead of hovering.
 
 // refreshModelInfo re-fetches /api/bootstrap to update the status-bar model
 // info (modelInfo) after a model switch/unbind, then refreshes the status bar
@@ -5242,9 +5418,8 @@ function showWizardAsk(msg) {
 
 /* ---------- identity & personality (FEATURE-393) ---------- */
 
-// Logo hover menu: show the menu when hovering the logo, hide on leave.
-logoWrap.addEventListener("mouseenter", () => logoMenu.classList.remove("hidden"));
-logoWrap.addEventListener("mouseleave", () => logoMenu.classList.add("hidden"));
+// FEATURE-487: the logo identity menu is now opened by clicking the logo
+// (bound in the narrow-screen module at the bottom of this file).
 
 // FEATURE-401: the "+" button creates a new session.
 newSessionBtn.onclick = () => {
@@ -5362,6 +5537,8 @@ async function refreshBranch() {
   setRunning(false); // apply localized button title
   applyPanels();
   applyStatus();
+  applyStreamTitle();
+  applyMsgViz();
   updateStatus();
   // FEATURE-383: leaving the sidebar returns it to the fixed width after a
   // short delay (the auto-expand is triggered per-row on hover).
@@ -5372,6 +5549,7 @@ async function refreshBranch() {
   });
   loadTree();
   wsConnect();
+  updateResponsive(); // FEATURE-487: apply narrow-screen layout on load
 })();
 
 
@@ -5404,4 +5582,289 @@ function answerSelectWithSupplement(opt) {
   } else {
     answerInteraction({ action: "select", value: opt });
   }
+}
+
+
+/* ---------- FEATURE-487: narrow-screen responsive layout ---------- */
+
+// The narrow-screen threshold mirrors the hub's approach: measure the full
+// titlebar brand width (logo + co-shell + version) and treat the viewport as
+// "narrow" when it is narrower than three times that width. This keeps the
+// threshold adaptive to the configured logo scale / version text.
+const brandEl = document.querySelector(".brand");
+const verEl = document.getElementById("ver");
+const menuWrapEl = document.getElementById("menuWrap");
+const menuEl = document.getElementById("menu");
+const narrowToolsEl = document.getElementById("narrowTools");
+const inputRowEl = document.querySelector(".input-row");
+const attachBtnEl = document.getElementById("attachBtn");
+const sendBtnEl = document.getElementById("sendBtn");
+const bottomLeftEl = document.querySelector(".bottom-left");
+const streamHeadEl = document.querySelector(".stream-head");
+const msgVizEl = document.getElementById("msgViz");
+const streamModeEl = document.getElementById("streamMode");
+const streamTitleEl = document.getElementById("streamTitle");
+const streamActiveEl = document.getElementById("streamActive");
+
+// Remember each movable control's original parent so we can restore it when
+// the viewport widens again.
+const narrowMovables = [
+  { el: modeSeg, home: modeSeg.parentNode },
+  // FEATURE-487: the main/vision model icons sit right of the work-mode
+  // switcher in the narrow tool row (still clickable to switch model).
+  { el: sbModelTextWrap, home: sbModelTextWrap.parentNode },
+  { el: sbModelVisionWrap, home: sbModelVisionWrap.parentNode },
+  { el: newSessionBtn, home: newSessionBtn.parentNode },
+  { el: sbSessionsWrap, home: sbSessionsWrap.parentNode },
+  { el: attachBtnEl, home: attachBtnEl.parentNode },
+  { el: yoloSwitch, home: yoloSwitch.parentNode },
+  // FEATURE-487: the send button joins the narrow tool row (rightmost) so the
+  // input row above holds only the textarea on narrow screens.
+  { el: sendBtnEl, home: sendBtnEl.parentNode },
+];
+
+// brandWidth returns the full titlebar brand width (logo + co-shell + version),
+// measured with the version visible so the threshold reflects the full brand.
+function brandWidth() {
+  if (!brandEl) return 200;
+  if (verEl) verEl.style.display = "";
+  return brandEl.getBoundingClientRect().width || 200;
+}
+
+// The display-mode switcher (#streamMode) original home is the stream title
+// bar; on narrow screens it moves into the titlebar just left of the connection
+// control (#conn). Remember its home so it can be restored on wide screens.
+const streamModeHome = streamModeEl ? streamModeEl.parentNode : null;
+const topRightEl = document.querySelector(".top-right");
+
+// moveStreamModeToTopbar moves #streamMode into the titlebar (left of #conn)
+// on narrow screens, or back to the stream title bar on wide screens.
+function moveStreamModeToTopbar(narrow) {
+  if (!streamModeEl || !topRightEl || !conn) return;
+  if (narrow) {
+    if (streamModeEl.parentNode !== topRightEl) topRightEl.insertBefore(streamModeEl, conn);
+  } else if (streamModeHome && streamModeEl.parentNode !== streamModeHome) {
+    streamModeHome.appendChild(streamModeEl);
+  }
+}
+
+// cycleDisplayMode advances the display mode (silent -> minimal -> normal ->
+// silent) and re-renders. Used by the narrow single-capsule switcher.
+function cycleDisplayMode() {
+  const order = ["silent", "minimal", "normal"];
+  const idx = order.indexOf(displayMode);
+  displayMode = order[(idx + 1) % order.length];
+  localStorage.setItem("co-shell-display-mode", displayMode);
+  streamMode.querySelectorAll(".mode-seg-item").forEach((b) => b.classList.toggle("active", b.dataset.mode === displayMode));
+  applyDisplayMode();
+}
+
+// cycleWorkMode advances the work mode to the next in the current mode list.
+// The mode list order is captured from the last renderModeSeg call.
+function cycleWorkMode() {
+  if (!workModeOrder.length) return;
+  const idx = workModeOrder.indexOf(currentMode);
+  const next = workModeOrder[(idx + 1) % workModeOrder.length];
+  if (next && next !== currentMode) wsSend({ type: "mode_switch", value: next });
+}
+
+// bindCycleSwitchers wires the narrow single-capsule switchers so clicking the
+// visible active segment cycles to the next mode. On wide screens the original
+// per-segment click handlers (set in initStreamMode / renderModeSeg) apply.
+function bindCycleSwitchers(narrow) {
+  if (!streamModeEl || !modeSeg) return;
+  if (narrow) {
+    streamModeEl.onclick = (e) => { e.stopPropagation(); cycleDisplayMode(); };
+    modeSeg.onclick = (e) => { e.stopPropagation(); cycleWorkMode(); };
+  } else {
+    streamModeEl.onclick = null;
+    modeSeg.onclick = null;
+  }
+}
+
+// applyNarrowLayout toggles the body.narrow class and moves the shared tool
+// controls (mode switcher, new-session, session list, attach, YOLO) into the
+// dedicated narrow tool row (or back to their original homes on wide screens).
+function applyNarrowLayout(narrow) {
+  document.body.classList.toggle("narrow", narrow);
+  if (!narrowToolsEl) return;
+  if (narrow) {
+    // Move controls into the narrow tool row (events travel with the nodes).
+    for (const m of narrowMovables) {
+      if (m.el && m.el.parentNode !== narrowToolsEl) narrowToolsEl.appendChild(m.el);
+    }
+    narrowToolsEl.classList.remove("hidden");
+    // FEATURE-487: move the display-mode switcher into the titlebar (left of
+    // the connection control) and make both switchers cycle on click.
+    moveStreamModeToTopbar(true);
+    bindCycleSwitchers(true);
+  } else {
+    // Restore each control to its original parent.
+    for (const m of narrowMovables) {
+      if (m.el && m.home && m.el.parentNode !== m.home) m.home.appendChild(m.el);
+    }
+    narrowToolsEl.classList.add("hidden");
+    moveStreamModeToTopbar(false);
+    bindCycleSwitchers(false);
+  }
+  // FEATURE-487: start/stop the cycling session-title widget on resize.
+  stcSync();
+}
+
+// updateResponsive re-evaluates the narrow-screen state and applies the
+// version-hide + layout changes. Called on load and on window resize.
+function updateResponsive() {
+  // Measure the brand width once (brandWidth() temporarily shows the version so
+  // the threshold reflects the full brand). A single breakpoint: the viewport is
+  // narrow when it is narrower than 3x the full titlebar brand width; otherwise
+  // it is wide (normal).
+  const fullW = brandWidth();
+  const narrow = window.innerWidth < fullW * 3;
+  // FEATURE-487: hide the titlebar version on narrow screens (like the hub).
+  if (verEl) verEl.style.display = narrow ? "none" : "";
+  applyNarrowLayout(narrow);
+}
+
+window.addEventListener("resize", updateResponsive);
+
+/* ---------- FEATURE-487: click-to-open menus (session / model / top-right) ---------- */
+
+// closeAllPopups hides every open popup menu (session, model, vision, top-right
+// menu, logo menu). Called when clicking anywhere outside a popup.
+function closeAllPopups() {
+  sessionMenu.classList.add("hidden");
+  modelMenu.classList.add("hidden");
+  modelVisionMenu.classList.add("hidden");
+  logoMenu.classList.add("hidden");
+  if (menuWrapEl) menuWrapEl.classList.remove("open");
+}
+
+// Toggle a popup open/closed on click of its trigger; clicking anywhere else
+// closes it (FEATURE-487).
+function bindClickToggle(trigger, popup, onOpen) {
+  if (!trigger || !popup) return;
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = popup.classList.contains("hidden");
+    closeAllPopups();
+    if (willOpen) {
+      if (onOpen) onOpen();
+      // FEATURE-487: on narrow screens the session/model menus are full-width
+      // sheets that pop up from the bottom tool row. Anchor their bottom edge
+      // to the tool row's top so they span the viewport width above it.
+      if (document.body.classList.contains("narrow") && narrowToolsEl) {
+        const top = narrowToolsEl.getBoundingClientRect().top;
+        popup.style.setProperty("--menu-bottom", Math.max(0, window.innerHeight - top) + "px");
+      }
+      popup.classList.remove("hidden");
+    }
+  });
+}
+
+// Session list: click the 💬 item to open, click anywhere to close.
+bindClickToggle(sbSessions, sessionMenu, () => wsSend({ type: "session_list" }));
+// Main (text) model selector: click to open.
+bindClickToggle(sbModelText, modelMenu, () => wsSend({ type: "model_get" }));
+// Vision model selector: click to open.
+bindClickToggle(sbModelVision, modelVisionMenu, () => wsSend({ type: "model_get" }));
+// Logo identity menu: click to open.
+bindClickToggle(logoWrap, logoMenu);
+
+// Top-right menu: click the ☰ button to open/close; clicking anywhere else
+// closes it (FEATURE-487). The .open class lives on the wrapper so the CSS
+// rule .menu-wrap.open .menu controls visibility.
+if (menuBtn && menuWrapEl) {
+  menuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = !menuWrapEl.classList.contains("open");
+    closeAllPopups();
+    if (willOpen) menuWrapEl.classList.add("open");
+  });
+}
+
+// Clicking anywhere outside a popup closes all of them.
+document.addEventListener("click", (e) => {
+  // Ignore clicks inside the top-right menu wrapper (its own handler manages it).
+  if (menuWrapEl && menuWrapEl.contains(e.target)) return;
+  closeAllPopups();
+});
+
+
+/* ---------- FEATURE-487: narrow-screen drawer swipe (workspace / task plan) ---------- */
+
+// On narrow screens the workspace (#sidebar) and task-plan (#plan-panel) panels
+// collapse into fixed drawers. Swiping right from the left edge opens the
+// workspace; swiping left from the right edge opens the task plan. Clicking the
+// main area closes an open drawer. Mouse drag and touch both work via pointer
+// events.
+const drawerSidebar = document.getElementById("sidebar");
+const drawerPlan = document.getElementById("plan-panel");
+const EDGE = 24; // px from the viewport edge that starts a swipe
+
+let drawerDrag = null; // { side: "ws"|"plan", startX, startY }
+
+function drawerOpen(el) {
+  if (el) el.classList.add("drawer-open");
+}
+function drawerClose(el) {
+  if (el) el.classList.remove("drawer-open");
+}
+function closeDrawers() {
+  drawerClose(drawerSidebar);
+  drawerClose(drawerPlan);
+}
+
+// Only enable swipe handling while the viewport is narrow.
+function narrowActive() {
+  return document.body.classList.contains("narrow");
+}
+
+document.addEventListener("pointerdown", (e) => {
+  if (!narrowActive()) return;
+  // Only start a swipe from near the left/right edge, and only when no drawer
+  // is already open (an open drawer is closed by clicking the main area).
+  const x = e.clientX;
+  const vw = window.innerWidth;
+  if (x <= EDGE) {
+    drawerDrag = { side: "ws", startX: x, startY: e.clientY };
+  } else if (x >= vw - EDGE) {
+    drawerDrag = { side: "plan", startX: x, startY: e.clientY };
+  }
+});
+
+document.addEventListener("pointermove", (e) => {
+  if (!drawerDrag) return;
+  const dx = e.clientX - drawerDrag.startX;
+  const dy = e.clientY - drawerDrag.startY;
+  // Require a mostly-horizontal drag of at least 40px to trigger.
+  if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  if (drawerDrag.side === "ws" && dx > 0) {
+    drawerOpen(drawerSidebar);
+    drawerDrag = null;
+  } else if (drawerDrag.side === "plan" && dx < 0) {
+    drawerOpen(drawerPlan);
+    drawerDrag = null;
+  }
+});
+
+document.addEventListener("pointerup", () => { drawerDrag = null; });
+document.addEventListener("pointercancel", () => { drawerDrag = null; });
+
+// Clicking the main message area closes any open drawer.
+document.addEventListener("click", (e) => {
+  if (!narrowActive()) return;
+  if (drawerSidebar && drawerSidebar.contains(e.target)) return;
+  if (drawerPlan && drawerPlan.contains(e.target)) return;
+  closeDrawers();
+});
+
+
+/* ---------- FEATURE-487: settings two-level navigation (narrow screens) ---------- */
+
+// The "<" back button returns from a drilled-in category page to the level-1
+// category list. It is always present but only acts as a drill-out on narrow
+// screens (on wide screens the list and pane are shown side by side).
+const settingsBackBtn = document.getElementById("settingsBack");
+if (settingsBackBtn) {
+  settingsBackBtn.addEventListener("click", () => settingsShowList());
 }

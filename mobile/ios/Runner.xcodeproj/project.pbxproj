@@ -12,6 +12,7 @@
 		AA0000000000000000000003 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000103 /* SettingsStore.swift */; };
 		AA0000000000000000000004 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000104 /* SettingsViewController.swift */; };
 		AA0000000000000000000005 /* WebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000105 /* WebViewController.swift */; };
+		AA0000000000000000000009 /* CoShellLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000111 /* CoShellLogoView.swift */; };
 		AA0000000000000000000006 /* RootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000106 /* RootViewController.swift */; };
 		AA0000000000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000107 /* Assets.xcassets */; };
 		AA0000000000000000000008 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000108 /* LaunchScreen.storyboard */; };
@@ -23,6 +24,7 @@
 		AA0000000000000000000103 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		AA0000000000000000000104 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
 		AA0000000000000000000105 /* WebViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewController.swift; sourceTree = "<group>"; };
+		AA0000000000000000000111 /* CoShellLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoShellLogoView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000106 /* RootViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootViewController.swift; sourceTree = "<group>"; };
 		AA0000000000000000000107 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA0000000000000000000108 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -57,6 +59,7 @@
 				AA0000000000000000000103 /* SettingsStore.swift */,
 				AA0000000000000000000104 /* SettingsViewController.swift */,
 				AA0000000000000000000105 /* WebViewController.swift */,
+				AA0000000000000000000111 /* CoShellLogoView.swift */,
 				AA0000000000000000000106 /* RootViewController.swift */,
 				AA0000000000000000000107 /* Assets.xcassets */,
 				AA0000000000000000000108 /* LaunchScreen.storyboard */,
@@ -148,6 +151,7 @@
 				AA0000000000000000000003 /* SettingsStore.swift in Sources */,
 				AA0000000000000000000004 /* SettingsViewController.swift in Sources */,
 				AA0000000000000000000005 /* WebViewController.swift in Sources */,
+				AA0000000000000000000009 /* CoShellLogoView.swift in Sources */,
 				AA0000000000000000000006 /* RootViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

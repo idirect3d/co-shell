@@ -21,14 +21,24 @@ final class WebViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "co-shell"
         view.backgroundColor = .systemBackground
+
+        // Left: a refresh button to reload the hub page.
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "arrow.clockwise"),
+            style: .plain,
+            target: self,
+            action: #selector(refreshTapped)
+        )
+        // Right: open the native settings screen.
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: "设置",
             style: .plain,
             target: self,
             action: #selector(openSettings)
         )
+        // Title: co-shell mosaic logo + "co-shell" text.
+        navigationItem.titleView = makeTitleView()
 
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
@@ -62,6 +72,25 @@ final class WebViewController: UIViewController {
 
     private var didReturnFromSettings = false
 
+    /// Builds the navigation title: a small co-shell mosaic logo followed by
+    /// the "co-shell" wordmark.
+    private func makeTitleView() -> UIView {
+        let logo = CoShellLogoView(frame: CGRect(x: 0, y: 0, width: 33, height: 33))
+        logo.cellColor = .systemTeal
+
+        let label = UILabel()
+        label.text = "co-shell"
+        // Retro low-resolution terminal look: Menlo monospace font.
+        label.font = UIFont(name: "Menlo-Bold", size: 17) ?? .systemFont(ofSize: 17, weight: .semibold)
+        label.textColor = .label
+
+        let stack = UIStackView(arrangedSubviews: [logo, label])
+        stack.axis = .horizontal
+        stack.spacing = 6
+        stack.alignment = .center
+        return stack
+    }
+
     private func loadHub() {
         guard let url = URL(string: serverAddress) else {
             showError("服务端地址无效")
@@ -83,6 +112,10 @@ final class WebViewController: UIViewController {
         } else {
             webView.load(URLRequest(url: url))
         }
+    }
+
+    @objc private func refreshTapped() {
+        webView.reload()
     }
 
     @objc private func openSettings() {

@@ -578,6 +578,40 @@ aside {
 }
 .stream-title:focus { border-bottom: 1px solid var(--accent); }
 .stream-title::placeholder { color: var(--placeholder); }
+/* FEATURE-487: narrow-screen cycling session-title widget. Hidden on wide
+   screens (the editable #streamTitle input is shown instead); on narrow screens
+   it replaces the input with a read-only single-line display that flips every
+   2s between the session title / task-plan goal / running step / completion
+   tally. .stc-face is the single visible line; the vertical flip is done by
+   rotating it out (to -90deg) then in (from +90deg) around the X axis. */
+.stream-title-cycle {
+  display: none;
+  flex: none;
+  width: 200px; /* same slot as .stream-title on wide screens (unused) */
+  min-width: 0;
+  height: 27px;
+  align-items: center;
+  overflow: hidden;
+  cursor: default;
+}
+.stc-face {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+.stc-face.flip-out { animation: stcFlipOut 0.18s ease forwards; }
+.stc-face.flip-in  { animation: stcFlipIn  0.18s ease; }
+@keyframes stcFlipOut { from { transform: rotateX(0deg); } to { transform: rotateX(-90deg); } }
+@keyframes stcFlipIn  { from { transform: rotateX(90deg); } to { transform: rotateX(0deg); } }
 /* FEATURE-482: message-visualization chart. Fills the space between the
    session title and the display-mode pill. .msgviz is the fixed viewport
    (overflow hidden); .msgviz-track is the pannable strip holding the 1px
@@ -602,29 +636,40 @@ aside {
   flex-direction: row;
   align-items: stretch;
 }
-/* Each message line: 1px wide, full height, coloured by its block type. A
-   1px gap separates consecutive lines (FEATURE-482). */
+/* Each message line: 1px wide, full height, drawn as a dotted vertical line
+   (1px dot + 1px gap) at 75% opacity. The dot colour is set per-line by JS via
+   a repeating-linear-gradient. A 2px gap separates consecutive lines. */
 .msgviz-line {
   position: relative;
   width: 1px;
   flex: none;
   height: 100%;
   margin-right: 2px; /* 2px gap between lines */
-  background: var(--fg-faint);
+  background: transparent;
+  opacity: 0.75; /* FEATURE-487: 75% translucent */
   cursor: pointer;
 }
-.msgviz-line:hover { opacity: 0.85; }
-/* The context-usage marker: a 2px-tall notch whose vertical position encodes
-   the context usage (bottom = empty, top = full). It is painted with the
-   control's own background (--bg-panel) so the coloured line appears to break
-   (be cut out) at that height, marking where the context sat when the message
-   was produced (FIX-483). */
+/* FEATURE-487: hovering a line widens it to 3px and makes it fully opaque so
+   it is easy to pick out; it returns to 1px/75% on mouse-out. The margin-right
+   drops to 0 at the same time (1px+2px = 3px+0px) so the line's total footprint
+   stays constant and the neighbouring lines never shift (no queue jitter). */
+.msgviz-line:hover {
+  width: 3px;
+  margin-right: 0;
+  opacity: 1;
+}
+/* The context-usage marker: a 3x2px dot whose vertical position encodes the
+   context usage (bottom = empty, top = full). It is painted with the control's
+   own background (--bg-panel) so the coloured line appears to break (be cut
+   out) at that height, marking where the context sat when the message was
+   produced. Its centre aligns with the line (FEATURE-487). */
 .msgviz-dot {
   position: absolute;
   left: 50%;
-  width: 1px;
+  width: 3px;
   height: 2px;
-  margin-left: -0.5px;
+  margin-left: -1.5px;
+  margin-top: -1px;
   background: var(--bg-panel);
   pointer-events: none;
 }
@@ -763,7 +808,8 @@ aside {
 }
 .risk-badge.risk-low { color: var(--ok); }
 .risk-badge.risk-medium { color: var(--warn); }
-.risk-badge.risk-high { color: var(--err); }
+/* FEATURE-487: high-risk badge uses pure red #FF0000. */
+.risk-badge.risk-high { color: #FF0000; }
 .ev-act {
   background: none;
   border: none;
@@ -960,13 +1006,16 @@ aside {
 .ev.supervisor .ev-head::before { background: #ff58f3; box-shadow: 0 0 6px rgba(255,88,243,0.8); }
 .ev.supervisor .ev-body { color: #ffffff; background: rgba(255,255,255,0.06); }
 .ev.supervisor.supervisor-pass .ev-head::before { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.9); }
-.ev.supervisor.supervisor-reject .ev-head::before { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.9); }
+/* FEATURE-487: supervisor reject (failed tool approval) uses pure red. */
+.ev.supervisor.supervisor-reject .ev-head::before { background: #FF0000; box-shadow: 0 0 6px rgba(255,0,0,0.9); }
 
 .ev.level-success .ev-head::before { background: var(--ok); }
 .ev.level-warning .ev-head::before { background: var(--warn); }
 .ev.level-warning .ev-body { color: var(--warn); }
-.ev.level-error .ev-head::before { background: var(--err); }
-.ev.level-error .ev-body { color: var(--err); }
+/* FEATURE-487: failed messages use pure red #FF0000 (indicator dot + body
+   text) instead of the softer --err, so failures stand out clearly. */
+.ev.level-error .ev-head::before { background: #FF0000; }
+.ev.level-error .ev-body { color: #FF0000; }
 .ev.level-debug { opacity: 0.7; }
 .ev.level-debug .ev-body { color: var(--debug); }
 
@@ -1024,6 +1073,10 @@ aside {
   flex: none;
   border-top: 1px solid var(--border);
   padding: 0;
+  /* FEATURE-487: on notched/rounded iOS screens (iPhone X+) the page fills the
+     whole viewport (viewport-fit=cover); pad the bottom bar by the home-indicator
+     safe-area inset so the input/tool/status controls sit above it. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
@@ -1860,7 +1913,9 @@ aside {
   z-index: 60;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
 }
-.menu-wrap:hover .menu, .menu-wrap:focus-within .menu { display: block; }
+/* FEATURE-487: the top-right menu is now opened by clicking the ☰ button
+   (menuWrap.open) instead of hovering, so clicking anywhere else can close it. */
+.menu-wrap.open .menu { display: block; }
 .menu-item {
   display: flex;
   align-items: center;
@@ -2852,4 +2907,326 @@ aside {
   text-align: center;
   margin-top: 8px;
   user-select: none;
+}
+
+
+/* ---------- FEATURE-487: narrow-screen responsive layout ---------- */
+
+/* The narrow tool row: shown only when body.narrow is set (viewport narrower
+   than three times the titlebar brand width). It holds the mode switcher,
+   new-session, session-list, attach and YOLO controls on one row above the
+   input box. */
+.narrow-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 2px;
+}
+.narrow-tools.hidden { display: none; }
+/* The mode switcher inside the narrow row should not push itself left via
+   margin-right:auto (that rule is scoped to .statusbar .mode-seg). */
+.narrow-tools .mode-seg { margin-right: 0; }
+/* Session list item inside the narrow row keeps its popup anchored upward. */
+.narrow-tools .sb-sessions { position: relative; }
+
+/* body.narrow: collapse the workspace / task-plan side panels so the main
+   message area fills the width. The panels become fixed drawers that slide in
+   from the left (workspace) / right (task plan) when swiped open. */
+body.narrow #layout {
+  grid-template-columns: 0 1fr 0;
+}
+body.narrow #sidebar {
+  position: fixed;
+  top: 44px; /* below the titlebar */
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  z-index: 55;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+}
+body.narrow #plan-panel {
+  position: fixed;
+  top: 44px;
+  right: 0;
+  bottom: 0;
+  width: 260px;
+  z-index: 55;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.35);
+}
+/* Open states: slide the drawer fully into view. */
+body.narrow #sidebar.drawer-open { transform: translateX(0); }
+body.narrow #plan-panel.drawer-open { transform: translateX(0); }
+/* Hide the co-shell mosaic logo at the left of the input row on narrow screens. */
+body.narrow .bottom-left {
+  display: none;
+}
+/* The input row keeps only the textarea + send button (the other controls were
+   moved into #narrowTools by JS), so it naturally fills the whole line. */
+body.narrow .bottom-main {
+  padding-left: 14px;
+}
+/* FEATURE-487: on narrow screens the input row sits ABOVE the narrow tool row
+   (the tool icons move below the textarea). bottom-main is a column flex, so
+   order re-arranges the two visible rows without moving DOM nodes. */
+body.narrow .input-row {
+  order: 1;
+}
+body.narrow .narrow-tools {
+  order: 2;
+}
+/* FEATURE-487: the send (run) button joins the narrow tool row (rightmost).
+   Its width matches the YOLO switch (34px) so the whole row fits on one line. */
+body.narrow #sendBtn {
+  min-width: 34px;
+  width: 34px;
+  padding: 0;
+}
+/* YOLO switch is ~15% shorter on narrow screens (34px -> 29px). */
+body.narrow .yolo-switch {
+  height: 29px;
+}
+/* FEATURE-487: the send (run) button matches the YOLO switch size on narrow
+   screens so the tool row looks uniform. */
+body.narrow #sendBtn {
+  height: 29px;
+}
+/* FEATURE-487: the main message input box is ~20% taller on narrow screens
+   (single-line 34px -> ~41px) so it is easier to tap and read on a phone. */
+body.narrow #input {
+  min-height: 41px;
+}
+/* FEATURE-487: hide the status-bar session-total token counter on narrow
+   screens (the per-iteration usage in #sbLast is kept). */
+body.narrow #sbSession {
+  display: none;
+}
+/* FEATURE-487: on narrow screens the status bar holds only the per-iteration
+   token usage (#sbLast), so centre it on the bottom line. */
+body.narrow .statusbar {
+  justify-content: center;
+}
+/* FEATURE-487: on narrow screens hide the model name + context text in the
+   status bar, keeping only the 🧠/👀 icon (still clickable to switch model). */
+body.narrow .sb-model-name {
+  display: none;
+}
+/* FEATURE-487: on narrow screens the two three-segment switchers (display mode
+   silent/minimal/normal and work mode act/plan/research) collapse to a single
+   capsule showing only the active segment; clicking it cycles to the next mode
+   (wired in JS). Hiding the inactive segments shrinks the control's width. */
+body.narrow .mode-seg .mode-seg-item:not(.active) {
+  display: none;
+}
+body.narrow .mode-seg .mode-seg-slider {
+  display: none;
+}
+/* FEATURE-487: on narrow screens the status-bar popup menus (session list /
+   main model / vision model) become full-width sheets that pop up from the
+   bottom tool row. They are position:fixed so they span the whole viewport
+   width; the bottom edge is set by JS to sit just above the tool row (the
+   --menu-bottom custom property). The menu still expands upward from there. */
+body.narrow .session-menu,
+body.narrow .model-menu {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100vw;
+  max-width: 100vw;
+  bottom: var(--menu-bottom, 0px);
+}
+/* Let the model-id text shrink and truncate instead of forcing the menu wide. */
+body.narrow .model-menu-item {
+  min-width: 0;
+}
+body.narrow .model-menu-item .model-id {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.narrow .model-menu-item .model-ctx {
+  flex: none;
+}
+/* The message-visualization chart moves onto its own line below the session
+   title / display-mode pill, keeping its height. */
+body.narrow .stream-head {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 35px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  row-gap: 4px;
+}
+/* FEATURE-487: on narrow screens the display-mode switcher moves into the
+   titlebar, so the stream title bar's first row holds only the session title
+   and the message-visualization chart, each taking ~50% of the width. */
+body.narrow .stream-title {
+  width: auto;
+  flex: 1 1 50%;
+  min-width: 0;
+}
+body.narrow .msgviz {
+  flex: 1 1 50%;
+  order: 0;
+  height: 27px;
+}
+/* FEATURE-487: on narrow screens the editable session-title input is replaced
+   by the read-only cycling widget, which takes the same ~50% slot so the
+   message-visualization chart keeps its half of the row. */
+body.narrow #streamTitle { display: none; }
+body.narrow .stream-title-cycle {
+  display: flex;
+  flex: 1 1 50%;
+  min-width: 0;
+  height: 27px;
+}
+
+
+/* ---------- FEATURE-487: settings two-level navigation ---------- */
+
+/* The ">" chevron on each category row (always shown). */
+.settings-nav-chev {
+  flex: none;
+  color: var(--fg-faint);
+  font-size: 12px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+.settings-nav-item.active .settings-nav-chev { color: var(--accent); }
+
+/* The "<" back button at the top of the settings pane. Hidden on wide screens
+   (list + pane are side by side); shown on narrow screens to return from a
+   drilled-in category page to the level-1 list. */
+.settings-back {
+  display: none;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.settings-back:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Narrow screens: the settings body becomes a two-level drill-down. Level 1 is
+   the full-width category list; level 2 (settings-drilled) shows only the pane
+   with the back button. */
+body.narrow .settings-body {
+  flex-direction: column;
+  align-items: stretch;
+}
+body.narrow .settings-nav {
+  flex: 1 1 auto;
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+body.narrow .settings-pane {
+  display: none;
+}
+body.narrow .settings-back {
+  display: inline-block;
+}
+/* Drilled into a category: hide the list, show the pane full width. */
+body.narrow .settings-body.settings-drilled .settings-nav {
+  display: none;
+}
+body.narrow .settings-body.settings-drilled .settings-pane {
+  display: flex;
+}
+/* FEATURE-487: on narrow screens the system-settings / model-manager /
+   model-wizard modals fill the whole viewport (full-screen pages) so the
+   configuration UI is comfortable to use on a phone. */
+body.narrow #settings .modal-box,
+body.narrow #models .modal-box,
+body.narrow #modelWizard .modal-box {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  min-width: 0;
+  border-radius: 0;
+  border: none;
+}
+/* FEATURE-487: on notched/rounded iOS screens the full-screen config modals
+   pad their body by the home-indicator safe-area inset so bottom controls
+   (e.g. save) sit above it. */
+body.narrow #settings .modal-body,
+body.narrow #models .modal-body,
+body.narrow #modelWizard .modal-body {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* FEATURE-487: on narrow screens the config modal title-bar text is right
+   aligned (next to the close icon) with a comfortable gap. */
+body.narrow #settings .modal-head,
+body.narrow #models .modal-head,
+body.narrow #modelWizard .modal-head {
+  justify-content: flex-end;
+  gap: 10px;
+}
+/* FEATURE-487: on narrow screens hide the model-wizard left step nav so only
+   the right configuration form is shown (full width). */
+body.narrow #modelWizard .wizard-nav {
+  display: none;
+}
+body.narrow .model-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* FEATURE-487: on narrow screens the work-mode switcher (act/plan/research)
+   sits at the far left of the narrow tool row with margin-right:auto, so every
+   icon from the main model rightwards packs against the right edge. This keeps
+   the right-aligned group's position stable when the switcher's label length
+   changes (act/plan/research), so the other icons never shift. */
+body.narrow .narrow-tools .mode-seg {
+  margin-right: auto;
+}
+/* FEATURE-487: on narrow screens hide only the ⏱️ icon of the status-bar
+   per-iteration token usage (#sbLast), keeping the usage text visible. */
+body.narrow #sbLast .sb-last-ico {
+  display: none;
+}
+
+/* ---------- FEATURE-487: unify editable-control font size ---------- */
+
+/* iOS Safari (and some Android browsers) auto-zoom the page when a text
+   input/textarea whose font-size is under 16px gains focus, which makes the
+   UI look like it jumps. We raise every editable control's font to 16px on
+   ALL screens (wide and narrow alike) so the browser never zooms and the
+   input font is consistent everywhere (FEATURE-487). */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+/* FEATURE-487: force every editable control (including the model-config wizard,
+   system settings, identity and ask/interaction inputs that set their own
+   smaller font-size) to 16px so no input on any screen ever triggers the iOS
+   auto-zoom. !important overrides the more specific per-control rules. */
+input,
+textarea,
+select,
+.wizard-input,
+.set-input,
+.set-search,
+.identity-input,
+.ask-line input,
+.interaction-free input {
+  font-size: 16px !important;
+}
+/* The main input box keeps its monospace font and a matching line-height so
+   the taller glyphs stay vertically centred in the fixed-height box. */
+#input {
+  font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
