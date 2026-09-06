@@ -1771,14 +1771,16 @@ function updateStatus() {
   const total = sIn + sOut;
   const lastTotal = tokenStats.lastIn + tokenStats.lastOut;
   // FEATURE-422: the main (text) model and the vision model are separate
-  // hover targets, each with its own selector menu.
+  // hover targets, each with its own selector menu. The model name + context
+  // usage sit in a .sb-model-name span so narrow screens can hide the text and
+  // keep only the 🧠/👀 icon (FEATURE-487).
   if (modelInfo && modelInfo.textModel) {
-    sbModelText.innerHTML = "🧠" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")";
+    sbModelText.innerHTML = "🧠<span class='sb-model-name'>" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
   } else {
     sbModelText.innerHTML = "🧠";
   }
   if (modelInfo && modelInfo.visionModel) {
-    sbModelVision.innerHTML = "👀" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")";
+    sbModelVision.innerHTML = "👀<span class='sb-model-name'>" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
   } else {
     sbModelVision.innerHTML = "👀";
   }
@@ -2901,10 +2903,15 @@ let currentMode = "act";
 // renderModeSeg renders the horizontal segmented control from the mode list
 // pushed by the backend (kind=mode). Each mode is one segment; the selected
 // segment is highlighted and the highlight slider glides to it.
+// workModeOrder remembers the mode list order from the last renderModeSeg call
+// so the narrow single-capsule switcher can cycle to the next work mode.
+let workModeOrder = [];
+
 function renderModeSeg(modes) {
   if (!modes || modes.length === 0) return;
   const cur = modes.find((m) => m.current);
   if (cur) currentMode = cur.name;
+  workModeOrder = modes.map((m) => m.name);
   modeSeg.querySelectorAll(".mode-seg-item").forEach((el) => el.remove());
   let idx = 0;
   modes.forEach((m, i) => {
@@ -5458,6 +5465,57 @@ function isNarrow() {
   return window.innerWidth < fullW * 2;
 }
 
+// The display-mode switcher (#streamMode) original home is the stream title
+// bar; on narrow screens it moves into the titlebar just left of the connection
+// control (#conn). Remember its home so it can be restored on wide screens.
+const streamModeHome = streamModeEl ? streamModeEl.parentNode : null;
+const topRightEl = document.querySelector(".top-right");
+
+// moveStreamModeToTopbar moves #streamMode into the titlebar (left of #conn)
+// on narrow screens, or back to the stream title bar on wide screens.
+function moveStreamModeToTopbar(narrow) {
+  if (!streamModeEl || !topRightEl || !conn) return;
+  if (narrow) {
+    if (streamModeEl.parentNode !== topRightEl) topRightEl.insertBefore(streamModeEl, conn);
+  } else if (streamModeHome && streamModeEl.parentNode !== streamModeHome) {
+    streamModeHome.appendChild(streamModeEl);
+  }
+}
+
+// cycleDisplayMode advances the display mode (silent -> minimal -> normal ->
+// silent) and re-renders. Used by the narrow single-capsule switcher.
+function cycleDisplayMode() {
+  const order = ["silent", "minimal", "normal"];
+  const idx = order.indexOf(displayMode);
+  displayMode = order[(idx + 1) % order.length];
+  localStorage.setItem("co-shell-display-mode", displayMode);
+  streamMode.querySelectorAll(".mode-seg-item").forEach((b) => b.classList.toggle("active", b.dataset.mode === displayMode));
+  applyDisplayMode();
+}
+
+// cycleWorkMode advances the work mode to the next in the current mode list.
+// The mode list order is captured from the last renderModeSeg call.
+function cycleWorkMode() {
+  if (!workModeOrder.length) return;
+  const idx = workModeOrder.indexOf(currentMode);
+  const next = workModeOrder[(idx + 1) % workModeOrder.length];
+  if (next && next !== currentMode) wsSend({ type: "mode_switch", value: next });
+}
+
+// bindCycleSwitchers wires the narrow single-capsule switchers so clicking the
+// visible active segment cycles to the next mode. On wide screens the original
+// per-segment click handlers (set in initStreamMode / renderModeSeg) apply.
+function bindCycleSwitchers(narrow) {
+  if (!streamModeEl || !modeSeg) return;
+  if (narrow) {
+    streamModeEl.onclick = (e) => { e.stopPropagation(); cycleDisplayMode(); };
+    modeSeg.onclick = (e) => { e.stopPropagation(); cycleWorkMode(); };
+  } else {
+    streamModeEl.onclick = null;
+    modeSeg.onclick = null;
+  }
+}
+
 // applyNarrowLayout toggles the body.narrow class and moves the shared tool
 // controls (mode switcher, new-session, session list, attach, YOLO) into the
 // dedicated narrow tool row (or back to their original homes on wide screens).
@@ -5470,12 +5528,18 @@ function applyNarrowLayout(narrow) {
       if (m.el && m.el.parentNode !== narrowToolsEl) narrowToolsEl.appendChild(m.el);
     }
     narrowToolsEl.classList.remove("hidden");
+    // FEATURE-487: move the display-mode switcher into the titlebar (left of
+    // the connection control) and make both switchers cycle on click.
+    moveStreamModeToTopbar(true);
+    bindCycleSwitchers(true);
   } else {
     // Restore each control to its original parent.
     for (const m of narrowMovables) {
       if (m.el && m.home && m.el.parentNode !== m.home) m.home.appendChild(m.el);
     }
     narrowToolsEl.classList.add("hidden");
+    moveStreamModeToTopbar(false);
+    bindCycleSwitchers(false);
   }
 }
 

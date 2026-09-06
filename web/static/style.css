@@ -2935,6 +2935,31 @@ body.narrow #sendBtn {
 body.narrow .yolo-switch {
   height: 29px;
 }
+/* FEATURE-487: the send (run) button matches the YOLO switch size on narrow
+   screens so the tool row looks uniform. */
+body.narrow #sendBtn {
+  height: 29px;
+}
+/* FEATURE-487: hide the status-bar session-total token counter on narrow
+   screens (the per-iteration usage in #sbLast is kept). */
+body.narrow #sbSession {
+  display: none;
+}
+/* FEATURE-487: on narrow screens hide the model name + context text in the
+   status bar, keeping only the 🧠/👀 icon (still clickable to switch model). */
+body.narrow .sb-model-name {
+  display: none;
+}
+/* FEATURE-487: on narrow screens the two three-segment switchers (display mode
+   silent/minimal/normal and work mode act/plan/research) collapse to a single
+   capsule showing only the active segment; clicking it cycles to the next mode
+   (wired in JS). Hiding the inactive segments shrinks the control's width. */
+body.narrow .mode-seg .mode-seg-item:not(.active) {
+  display: none;
+}
+body.narrow .mode-seg .mode-seg-slider {
+  display: none;
+}
 /* FEATURE-487: keep the status-bar popup menus (session list / main model /
    vision model) inside the viewport on narrow screens. The menus are anchored
    to their trigger with right:0 and expand upward; on a phone a long model id
@@ -2971,14 +2996,17 @@ body.narrow .stream-head {
   padding-bottom: 4px;
   row-gap: 4px;
 }
+/* FEATURE-487: on narrow screens the display-mode switcher moves into the
+   titlebar, so the stream title bar's first row holds only the session title
+   and the message-visualization chart, each taking ~50% of the width. */
 body.narrow .stream-title {
   width: auto;
-  flex: 1;
-  min-width: 80px;
+  flex: 1 1 50%;
+  min-width: 0;
 }
 body.narrow .msgviz {
-  flex-basis: 100%;
-  order: 5;
+  flex: 1 1 50%;
+  order: 0;
   height: 27px;
 }
 
