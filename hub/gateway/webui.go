@@ -29,6 +29,7 @@ type WebUI struct {
 	proxy        *Proxy
 	manager      *Manager
 	reverseProxy *httpReverseProxy
+	settings     *Settings
 	ctx          context.Context
 	version      string
 	build        string
@@ -38,14 +39,17 @@ type WebUI struct {
 }
 
 // NewWebUI creates a WebUI server bound to the given proxy and agent manager.
-// version/build identify this hub build (shown in the logo badge).
-func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, version, build string) *WebUI {
+// version/build identify this hub build (shown in the logo badge). settings
+// carries the remote-access config (TLS/whitelist/access key) and is updated
+// through the settings panel at runtime.
+func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Settings, version, build string) *WebUI {
 	ctx := context.Background()
 	w := &WebUI{
 		cfg:          cfg,
 		proxy:        proxy,
 		manager:      manager,
 		reverseProxy: newHTTPReverseProxy(manager),
+		settings:     settings,
 		ctx:          ctx,
 		version:      version,
 		build:        build,
@@ -68,10 +72,14 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, version, build st
 	mux.HandleFunc("GET /api/agent-version", w.handleAgentVersion)
 	mux.HandleFunc("GET /api/remote-defaults", w.handleRemoteDefaults)
 	mux.HandleFunc("GET /api/hub-info", w.handleHubInfo)
+	// Remote-access settings (TLS/whitelist/access key).
+	mux.HandleFunc("GET /api/settings", w.handleGetSettings)
+	mux.HandleFunc("PUT /api/settings", w.handlePutSettings)
+	// The access-control middleware enforces the whitelist and the optional
+	// access key (required from hosts outside the whitelist, or from all hosts
+	// when RequireKey is set).
 	handler := http.Handler(mux)
-	if len(cfg.Whitelist) > 0 {
-		handler = w.whitelistMiddleware(handler, cfg.Whitelist)
-	}
+	handler = w.accessControl(handler)
 	w.httpSrv = &http.Server{Handler: handler}
 	return w
 }
@@ -94,10 +102,21 @@ func (w *WebUI) Addr() net.Addr {
 	return w.ln.Addr()
 }
 
-// Serve accepts HTTP requests until the server is closed.
+// Serve accepts HTTP(S) requests until the server is closed. When TLS is
+// enabled in settings the Web UI is served over https (replacing plain http).
 func (w *WebUI) Serve() error {
 	if w.ln == nil {
 		return errors.New("webui: Serve called before Listen")
+	}
+	if w.settings != nil && w.settings.TLSEnabled {
+		tlsCfg, err := w.settings.TLSConfig()
+		if err != nil {
+			return err
+		}
+		if tlsCfg != nil {
+			w.httpSrv.TLSConfig = tlsCfg
+			return w.httpSrv.ServeTLS(w.ln, "", "")
+		}
 	}
 	return w.httpSrv.Serve(w.ln)
 }
@@ -310,16 +329,102 @@ func writeJSON(rw http.ResponseWriter, status int, v interface{}) {
 	_ = json.NewEncoder(rw).Encode(v)
 }
 
-// whitelistMiddleware rejects requests whose client IP is not whitelisted.
-func (w *WebUI) whitelistMiddleware(next http.Handler, whitelist []string) http.Handler {
-	nets := parseWhitelist(whitelist)
+// accessHeader is the HTTP header carrying the access key.
+const accessHeader = "X-Access-Key"
+
+// accessControl enforces the Web UI access policy from settings:
+//   - A client whose IP is in the whitelist is allowed (unless RequireKey is
+//     set, which forces key auth for every client).
+//   - A client outside the whitelist must present the access key in the
+//     X-Access-Key header; otherwise it gets a 401 so the frontend can prompt
+//     for the key. If no access key is configured, out-of-whitelist clients are
+//     rejected with 403.
+func (w *WebUI) accessControl(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !ipAllowed(r.RemoteAddr, nets) {
-			http.Error(rw, "forbidden", http.StatusForbidden)
+		s := w.settings
+		if s == nil {
+			next.ServeHTTP(rw, r)
+			return
+		}
+		nets := parseWhitelist(s.Whitelist)
+		allowed := ipAllowed(r.RemoteAddr, nets)
+		needKey := s.RequireKey || (!allowed && s.AccessKey != "")
+		if needKey {
+			if s.AccessKey == "" || r.Header.Get(accessHeader) != s.AccessKey {
+				writeJSON(rw, http.StatusUnauthorized, map[string]string{"error": "access key required", "need_key": "1"})
+				return
+			}
+			next.ServeHTTP(rw, r)
+			return
+		}
+		if !allowed {
+			writeJSON(rw, http.StatusForbidden, map[string]string{"error": "forbidden"})
 			return
 		}
 		next.ServeHTTP(rw, r)
 	})
+}
+
+// handleGetSettings returns the current remote-access settings. The access key
+// is masked so it is never echoed back to the browser.
+func (w *WebUI) handleGetSettings(rw http.ResponseWriter, _ *http.Request) {
+	if w.settings == nil {
+		writeJSON(rw, http.StatusOK, map[string]interface{}{"settings": map[string]interface{}{}})
+		return
+	}
+	writeJSON(rw, http.StatusOK, map[string]interface{}{"settings": w.settings.view()})
+}
+
+// handlePutSettings updates the remote-access settings from the request body
+// and persists them. The access key is only overwritten when a non-empty value
+// is supplied (an empty field keeps the existing key).
+func (w *WebUI) handlePutSettings(rw http.ResponseWriter, r *http.Request) {
+	if w.settings == nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "settings unavailable"})
+		return
+	}
+	var req struct {
+		TLSEnabled bool     `json:"tls_enabled"`
+		CertFile   string   `json:"cert_file"`
+		KeyFile    string   `json:"key_file"`
+		Whitelist  []string `json:"whitelist"`
+		AccessKey  string   `json:"access_key"`
+		RequireKey bool     `json:"require_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "bad request"})
+		return
+	}
+	w.settings.TLSEnabled = req.TLSEnabled
+	w.settings.CertFile = req.CertFile
+	w.settings.KeyFile = req.KeyFile
+	w.settings.Whitelist = req.Whitelist
+	w.settings.RequireKey = req.RequireKey
+	if req.AccessKey != "" {
+		w.settings.AccessKey = req.AccessKey
+	}
+	if err := w.settings.Save(); err != nil {
+		writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "save failed: " + err.Error()})
+		return
+	}
+	writeJSON(rw, http.StatusOK, map[string]interface{}{"settings": w.settings.view()})
+}
+
+// view returns a copy of the settings safe to send to the browser (access key
+// masked).
+func (s *Settings) view() map[string]interface{} {
+	key := ""
+	if s.AccessKey != "" {
+		key = "********"
+	}
+	return map[string]interface{}{
+		"tls_enabled": s.TLSEnabled,
+		"cert_file":   s.CertFile,
+		"key_file":    s.KeyFile,
+		"whitelist":   s.Whitelist,
+		"access_key":  key,
+		"require_key": s.RequireKey,
+	}
 }
 
 // parseWhitelist converts whitelist entries (IPs or CIDR) into net.IPNet.
