@@ -40,6 +40,13 @@ import (
 	"github.com/idirect3d/co-shell/hub/gateway"
 )
 
+// hubVersion and hubBuild identify this co-shell-hub build. They track the
+// co-shell release they ship with (same version/build numbering).
+const (
+	hubVersion = "0.38.0"
+	hubBuild   = "869"
+)
+
 // config is the JSON config file shape.
 type config struct {
 	TCPAddr      string `json:"tcp_addr"`
@@ -166,7 +173,7 @@ func main() {
 
 	// Start the Web UI server (chat + agent management).
 	webCfg := gateway.WebUIConfig{ListenAddr: cfg.WebAddr, Whitelist: cfg.Whitelist}
-	webUI := gateway.NewWebUI(webCfg, proxy, mgr)
+	webUI := gateway.NewWebUI(webCfg, proxy, mgr, hubVersion, hubBuild)
 	if err := webUI.Listen(); err != nil {
 		log.Fatalf("web listen: %v", err)
 	}
