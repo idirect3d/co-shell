@@ -2916,6 +2916,51 @@ body.narrow .bottom-left {
 body.narrow .bottom-main {
   padding-left: 14px;
 }
+/* FEATURE-487: on narrow screens the input row sits ABOVE the narrow tool row
+   (the tool icons move below the textarea). bottom-main is a column flex, so
+   order re-arranges the two visible rows without moving DOM nodes. */
+body.narrow .input-row {
+  order: 1;
+}
+body.narrow .narrow-tools {
+  order: 2;
+}
+/* The send button joins the narrow tool row (rightmost) and is ~20% narrower
+   than its wide-screen 52px so the row fits on a phone. */
+body.narrow #sendBtn {
+  min-width: 42px;
+  padding: 0 10px;
+}
+/* YOLO switch is ~15% shorter on narrow screens (34px -> 29px). */
+body.narrow .yolo-switch {
+  height: 29px;
+}
+/* FEATURE-487: keep the status-bar popup menus (session list / main model /
+   vision model) inside the viewport on narrow screens. The menus are anchored
+   to their trigger with right:0 and expand upward; on a phone a long model id
+   or session title would otherwise push the menu past the screen edge. Cap the
+   menu width to the viewport and let the flexible text truncate with an
+   ellipsis. Anchoring to the trigger's left edge (left:0) keeps the menu from
+   spilling off the left side when the trigger sits near the right edge. */
+body.narrow .session-menu,
+body.narrow .model-menu {
+  left: 0;
+  right: auto;
+  max-width: calc(100vw - 16px);
+}
+/* Let the model-id text shrink and truncate instead of forcing the menu wide. */
+body.narrow .model-menu-item {
+  min-width: 0;
+}
+body.narrow .model-menu-item .model-id {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.narrow .model-menu-item .model-ctx {
+  flex: none;
+}
 /* The message-visualization chart moves onto its own line below the session
    title / display-mode pill, keeping its height. */
 body.narrow .stream-head {

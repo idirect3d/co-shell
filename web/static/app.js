@@ -5443,6 +5443,9 @@ const narrowMovables = [
   { el: sbSessionsWrap, home: sbSessionsWrap.parentNode },
   { el: attachBtnEl, home: attachBtnEl.parentNode },
   { el: yoloSwitch, home: yoloSwitch.parentNode },
+  // FEATURE-487: the send button joins the narrow tool row (rightmost) so the
+  // input row above holds only the textarea on narrow screens.
+  { el: sendBtnEl, home: sendBtnEl.parentNode },
 ];
 
 // isNarrow returns true when the viewport is narrower than twice the full
