@@ -180,7 +180,7 @@
 | feishu-bridge | cmd/co-shell-feishu-bridge/main.go | 29 | fmt | 🚀/✅/❌/📌 |
 | bridge 调度 | bridge/scheduler.go、executor.go | 12 | fmt | ⚙️/✅ |
 | feishu handler | feishu/handler.go | 10 | fmt | 📩/📤/⏳ |
-| hub CLI | cmd/co-shell-hub/main.go | 9 | fmt + log | ===/⚠️ |
+| hub CLI | cmd/co-shell-hub-legacy/main.go | 9 | fmt + log | ===/⚠️ |
 | subagent | subagent/subagent.go | 1 | fmt | 🔧 |
 
 **⚠️ D 类问题：** 角色前缀体系与主程序（`[👤]/[🐚]/[⚙️]/[🔴]`）完全不同，无法复用 EmojiPrefixes 语义。

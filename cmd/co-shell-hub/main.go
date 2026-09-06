@@ -1,30 +1,11 @@
-// Author: L.Shuang
-// Created: 2026-05-17
+// co-shell-hub is the new WebSocket aggregation gateway (FEATURE-484).
+// It connects to multiple co-shell agents over WebSocket, exposes a TCP service
+// with API Key authentication for mobile clients, and serves a Web UI for
+// browser access (default localhost only, whitelist configurable).
 //
-// MIT License
-//
-// Copyright (c) 2026 L.Shuang
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
-// co-shell-hub is a service that manages multiple co-shell agent instances
-// and handles UDP communication with mobile clients.
+// The gateway also manages co-shell agent lifecycles: it keeps an agent
+// registry (persisted to a JSON file), can create workspaces and launch/stop
+// managed co-shell --serve subprocesses, and connects to external agents.
 //
 // Usage:
 //
@@ -32,270 +13,266 @@
 //
 // Flags:
 //
-//	--config           Config file path (default: ./hub.json)
-//	--port             UDP port to listen on (default: 12800)
-//	--co-shell-path    Path to co-shell executable
-//	--hub-workspace    Hub workspace directory (default: current directory)
-//	--lazy-mode        Start agents on demand (default: true)
-//	--start-all        Start all agents on hub startup
-//	--gen-key          Generate a new Ed25519 key pair and exit
-//	--help             Show help
-//	--version          Show version
+//	--config PATH        Config file path (default: ./hub-gateway.json)
+//	--tcp-addr ADDR      TCP listen address (default 127.0.0.1:12801)
+//	--api-key KEY        API key required by TCP clients
+//	--web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
+//	--whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR)
+//	--registry PATH      Agent registry file (default: ./hub-agents.json)
+//	--co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
+//	--base-port N        First port for auto-allocating managed agents (default 28256)
+//	--agent ID=WSURL     External agent endpoint (repeatable, added to registry)
+//	--help               Show help
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"strings"
+	"syscall"
 
-	"github.com/idirect3d/co-shell/hub"
+	"github.com/idirect3d/co-shell/hub/gateway"
 )
 
-const version = "0.1.0"
+// config is the JSON config file shape.
+type config struct {
+	TCPAddr      string `json:"tcp_addr"`
+	APIKey       string `json:"api_key"`
+	WebAddr      string `json:"web_addr"`
+	Whitelist    []string `json:"whitelist,omitempty"`
+	RegistryPath string `json:"registry_path,omitempty"`
+	CoShellPath  string `json:"co_shell_path,omitempty"`
+	BasePort     int    `json:"base_port,omitempty"`
+}
 
 func main() {
-	configPath := flag.String("config", "", "config file path (default: ./hub.json)")
-	port := flag.Int("port", 0, "UDP port to listen on (default: 12800)")
-	coShellPath := flag.String("co-shell-path", "", "path to co-shell executable")
-	hubWorkspace := flag.String("hub-workspace", "", "hub workspace directory (default: current directory)")
-	lazyMode := flag.Bool("lazy-mode", true, "start agents on demand when message received")
-	startAll := flag.Bool("start-all", false, "start all agents on hub startup")
-	devMode := flag.Bool("dev", false, "development mode: return error details via UDP (insecure)")
-	logDir := flag.String("log-dir", "", "log directory (default: ./log)")
-	logLevel := flag.String("log-level", "info", "log level: debug, info, warn, error, off")
-	addClient := flag.String("add-client", "", "register a new mobile client with the given nickname and exit")
-	genKey := flag.Bool("gen-key", false, "generate a new Ed25519 key pair and exit")
-	showVersion := flag.Bool("version", false, "show version")
+	configPath := flag.String("config", "", "config file path (default: ./hub-gateway.json)")
+	tcpAddr := flag.String("tcp-addr", "", "TCP listen address (default 127.0.0.1:12801)")
+	apiKey := flag.String("api-key", "", "API key required by TCP clients")
+	webAddr := flag.String("web-addr", "", "Web UI listen address (default 127.0.0.1:12802)")
+	whitelist := flag.String("whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)")
+	registryPath := flag.String("registry", "", "agent registry file (default: ./hub-agents.json)")
+	coShellPath := flag.String("co-shell-path", "", "co-shell executable for managed agents (default: same dir as this binary)")
+	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default 28256)")
+	var agents multiFlag
+	flag.Var(&agents, "agent", "external agent endpoint as ID=WSURL (repeatable)")
 	showHelp := flag.Bool("help", false, "show help")
 	flag.Parse()
-
-	if *showVersion {
-		fmt.Printf("co-shell-hub v%s\n", version)
-		os.Exit(0)
-	}
 
 	if *showHelp {
 		printUsage()
 		os.Exit(0)
 	}
 
-	// Generate key pair and exit
-	if *genKey {
-		keyPair, err := hub.GenerateKeyPair()
-		if err != nil {
-			log.Fatalf("Failed to generate key pair: %v", err)
-		}
-		fmt.Println("=== Ed25519 Key Pair ===")
-		fmt.Printf("Private key: %x\n", keyPair.PrivateKey)
-		fmt.Printf("Public key:  %x\n", keyPair.PublicKey)
-		fmt.Println("\nThis key pair is for the hub itself.")
-		fmt.Println("Use --add-client to register mobile clients.")
-		os.Exit(0)
-	}
+	cfg := loadConfig(*configPath)
 
-	// Determine config path
-	if *configPath == "" {
-		exe, err := os.Executable()
-		if err != nil {
-			log.Printf("Warning: cannot determine executable path: %v", err)
-			*configPath = "./hub.json"
-		} else {
-			*configPath = filepath.Join(filepath.Dir(exe), "hub.json")
-		}
+	// Apply CLI overrides.
+	if *tcpAddr != "" {
+		cfg.TCPAddr = *tcpAddr
 	}
-
-	// Load or generate auth
-	auth, err := hub.LoadOrGenerateAuth(*configPath)
-	if err != nil {
-		log.Printf("Warning: cannot load auth config: %v", err)
-		auth = &hub.AuthConfig{}
+	if *apiKey != "" {
+		cfg.APIKey = *apiKey
 	}
-
-	// Add a new mobile client and exit
-	if *addClient != "" {
-		pubKey, err := auth.AddClient(*addClient)
-		if err != nil {
-			log.Fatalf("Failed to add client: %v", err)
-		}
-		if err := auth.SaveAuth(*configPath); err != nil {
-			log.Fatalf("Failed to save auth config: %v", err)
-		}
-		fmt.Printf("Client '%s' registered successfully.\n", *addClient)
-		fmt.Printf("Public key (save this on the mobile device): %s\n", pubKey)
-		os.Exit(0)
+	if *webAddr != "" {
+		cfg.WebAddr = *webAddr
 	}
-
-	// Load config
-	cfg, err := loadConfig(*configPath, port, coShellPath, hubWorkspace, lazyMode, startAll)
-	if err != nil {
-		log.Printf("Warning: %v", err)
-		log.Println("Using default configuration")
-		cfg = hub.DefaultConfig()
+	if *whitelist != "" {
+		cfg.Whitelist = splitList(*whitelist)
 	}
-
-	// Apply CLI overrides to default config as well
-	if *port != 0 {
-		cfg.Port = *port
+	if *registryPath != "" {
+		cfg.RegistryPath = *registryPath
 	}
 	if *coShellPath != "" {
 		cfg.CoShellPath = *coShellPath
 	}
-	if *hubWorkspace != "" {
-		cfg.Workspace = *hubWorkspace
-	}
-	if !*lazyMode {
-		cfg.LazyMode = false
-	}
-	if *startAll {
-		cfg.LazyMode = false
-		for i := range cfg.Agents {
-			cfg.Agents[i].AutoStart = true
-		}
-	}
-	if *devMode {
-		cfg.DevMode = true
+	if *basePort > 0 {
+		cfg.BasePort = *basePort
 	}
 
-	// Auto-discover agents from workspace subdirectories
-	if len(cfg.Agents) == 0 {
-		discovered := hub.DiscoverAgents(cfg.Workspace)
-		if len(discovered) > 0 {
-			log.Printf("Discovered %d agents from workspace", len(discovered))
-			cfg.Agents = discovered
-		}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Resolve defaults for the agent manager.
+	if cfg.RegistryPath == "" {
+		cfg.RegistryPath = "./hub-agents.json"
+	}
+	if cfg.CoShellPath == "" {
+		cfg.CoShellPath = defaultCoShellPath()
+	}
+	// Resolve to an absolute path: managed co-shell subprocesses run with their
+	// workspace as the working directory, so a relative path would break.
+	if abs, err := filepath.Abs(cfg.CoShellPath); err == nil {
+		cfg.CoShellPath = abs
+	}
+	if cfg.BasePort == 0 {
+		cfg.BasePort = 28256
 	}
 
-	// Save auth to config file first
-	if err := auth.SaveAuth(*configPath); err != nil {
-		log.Printf("Warning: cannot save auth config: %v", err)
-	}
-
-	// Save full config to file
-	if err := hub.SaveConfig(*configPath, cfg); err != nil {
-		log.Printf("Warning: cannot save config: %v", err)
-	}
-
-	// Initialize hub logger
-	logDirVal := *logDir
-	if logDirVal == "" {
-		logDirVal = filepath.Join(cfg.Workspace, "log")
-	}
-	logLevelVal := hub.LogLevelInfo
-	if parsed, ok := parseLogLevel(*logLevel); ok {
-		logLevelVal = parsed
-	}
-	if err := hub.InitHubLogger(logDirVal, true, logLevelVal); err != nil {
-		log.Printf("Warning: cannot initialize hub logger: %v", err)
-	}
-
-	// Create and run hub
-	h, err := hub.New(cfg, auth)
+	// Create the agent manager (loads the persisted registry).
+	mgr, err := gateway.NewManager(ctx, cfg.RegistryPath, cfg.CoShellPath, cfg.BasePort)
 	if err != nil {
-		log.Fatalf("Failed to create hub: %v", err)
+		log.Fatalf("agent manager: %v", err)
+	}
+	defer mgr.StopAll()
+
+	// Register any --agent external endpoints into the registry (idempotent).
+	for _, a := range agents {
+		id, url, ok := strings.Cut(a, "=")
+		if !ok || id == "" || url == "" {
+			log.Fatalf("invalid --agent %q (want ID=WSURL)", a)
+		}
+		if _, err := mgr.AddExternal(id, id, url); err != nil {
+			log.Printf("note: --agent %s not added: %v", id, err)
+		}
 	}
 
-	h.Run()
+	// Create an empty proxy and connect the registry's external agents (and any
+	// managed agent that is already running). Managed agents are started on
+	// demand through the Web UI.
+	proxy := gateway.NewProxy(ctx, nil)
+	defer proxy.Close()
+	for _, spec := range mgr.Agents() {
+		if spec.Type == gateway.AgentTypeExternal {
+			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
+				log.Printf("gateway: connect external agent %s failed: %v", spec.ID, err)
+			}
+		} else if mgr.IsRunning(spec.ID) {
+			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: gateway.WSURLForPort(spec.Port)}); err != nil {
+				log.Printf("gateway: connect running agent %s failed: %v", spec.ID, err)
+			}
+		}
+	}
+
+	// Start the TCP gateway service.
+	tcpCfg := gateway.DefaultConfig()
+	tcpCfg.ListenAddr = cfg.TCPAddr
+	tcpCfg.APIKey = cfg.APIKey
+	tcpSrv := gateway.NewServer(tcpCfg, proxy)
+	if err := tcpSrv.Listen(); err != nil {
+		log.Fatalf("tcp listen: %v", err)
+	}
+	go func() {
+		if err := tcpSrv.Serve(); err != nil {
+			log.Printf("tcp serve error: %v", err)
+		}
+	}()
+	log.Printf("hub-gateway: TCP service on %s (api-key=%v)", cfg.TCPAddr, cfg.APIKey != "")
+
+	// Start the Web UI server (chat + agent management).
+	webCfg := gateway.WebUIConfig{ListenAddr: cfg.WebAddr, Whitelist: cfg.Whitelist}
+	webUI := gateway.NewWebUI(webCfg, proxy, mgr)
+	if err := webUI.Listen(); err != nil {
+		log.Fatalf("web listen: %v", err)
+	}
+	go func() {
+		if err := webUI.Serve(); err != nil {
+			log.Printf("web serve error: %v", err)
+		}
+	}()
+	log.Printf("hub-gateway: Web UI on http://%s (whitelist=%v)", cfg.WebAddr, cfg.Whitelist)
+
+	// Wait for shutdown.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+	log.Println("hub-gateway: shutting down")
+	tcpSrv.Close()
+	webUI.Close()
 }
 
-// parseLogLevel parses a string into hub.LogLevel.
-func parseLogLevel(s string) (hub.LogLevel, bool) {
-	switch s {
-	case "debug":
-		return hub.LogLevelDebug, true
-	case "info":
-		return hub.LogLevelInfo, true
-	case "warn", "warning":
-		return hub.LogLevelWarn, true
-	case "error":
-		return hub.LogLevelError, true
-	case "off":
-		return hub.LogLevelOff, true
-	default:
-		return hub.LogLevelInfo, false
+// defaultCoShellPath returns the co-shell executable next to this binary.
+func defaultCoShellPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "co-shell"
 	}
+	return filepath.Join(filepath.Dir(exe), "co-shell")
 }
 
-func loadConfig(path string, port *int, coShellPath *string, hubWorkspace *string, lazyMode *bool, startAll *bool) (*hub.HubConfig, error) {
-	cfg, err := hub.LoadConfig(path)
-	if err != nil {
-		return nil, err
-	}
+// multiFlag collects repeated string flags.
+type multiFlag []string
 
-	// Apply CLI overrides
-	if *port != 0 {
-		cfg.Port = *port
+func (m *multiFlag) String() string { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error {
+	*m = append(*m, v)
+	return nil
+}
+
+// loadConfig reads the JSON config file if present, else returns defaults.
+// Config search priority: an explicit --config path > ./hub-gateway.json
+// (process cwd) > ~/.co-shell/hub-gateway.json. The first existing file wins;
+// if none exists a default config is returned.
+func loadConfig(path string) *config {
+	cfg := &config{
+		TCPAddr: "127.0.0.1:12801",
+		WebAddr: "127.0.0.1:12802",
 	}
-	if *coShellPath != "" {
-		cfg.CoShellPath = *coShellPath
-	}
-	if *hubWorkspace != "" {
-		cfg.Workspace = *hubWorkspace
-	}
-	if !*lazyMode {
-		cfg.LazyMode = false
-	}
-	if *startAll {
-		cfg.LazyMode = false
-		for i := range cfg.Agents {
-			cfg.Agents[i].AutoStart = true
+	var candidates []string
+	if path != "" {
+		// An explicit --config is authoritative: use it alone (no fallback).
+		candidates = append(candidates, path)
+	} else {
+		candidates = append(candidates, "./hub-gateway.json")
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates, filepath.Join(home, ".co-shell", "hub-gateway.json"))
 		}
 	}
+	for _, p := range candidates {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue // not found; try the next candidate
+		}
+		if err := json.Unmarshal(data, cfg); err != nil {
+			log.Printf("warning: parse config %s: %v", p, err)
+		}
+		break
+	}
+	return cfg
+}
 
-	return cfg, nil
+// splitList splits a comma-separated string into trimmed non-empty parts.
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func printUsage() {
-	fmt.Println(`co-shell-hub v0.1.0 - 多 Agent 管理服务端
+	fmt.Println(`co-shell-hub - WebSocket 聚合网关 (FEATURE-484)
 
 Usage:
   co-shell-hub [flags]
-  co-shell-hub --add-client <nickname>  注册移动端客户端
-  co-shell-hub --gen-key                生成密钥对
 
 Flags:
-  --config PATH           Config file path (default: ./hub.json)
-  --port NUM              UDP port to listen on (default: 12800)
-  --co-shell-path PATH    Path to co-shell executable
-  --hub-workspace PATH    Hub workspace directory (default: current directory)
-  --lazy-mode             Start agents on demand when message received (default: true)
-  --start-all             Start all agents on hub startup
-  --dev                   Development mode (return error details via UDP, insecure)
-  --log-dir PATH          Log directory (default: <workspace>/log)
-  --log-level LEVEL       Log level: debug, info, warn, error, off (default: info)
-  --add-client NICKNAME   Register a new mobile client with the given nickname
-  --gen-key               Generate a new Ed25519 key pair and exit
-  --help                  Show help
-  --version               Show version
+  --config PATH        Config file path (default: ./hub-gateway.json)
+  --tcp-addr ADDR      TCP listen address (default 127.0.0.1:12801)
+  --api-key KEY        API key required by TCP clients
+  --web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
+  --whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)
+  --registry PATH      Agent registry file (default: ./hub-agents.json)
+  --co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
+  --base-port N        First port for auto-allocating managed agents (default 28256)
+  --agent ID=WSURL     External agent endpoint (repeatable, added to registry)
+  --help               Show help
 
 Examples:
-  # 首次启动（自动生成密钥对）
-  co-shell-hub --hub-workspace ./work
+  # Serve Web UI on localhost; manage agents through the UI
+  co-shell-hub
 
-  # 注册一个移动端客户端
-  co-shell-hub --add-client 张三
+  # Connect one external agent and serve Web UI on localhost
+  co-shell-hub --agent default=ws://127.0.0.1:8399/ws
 
-  # 注册多个移动端客户端
-  co-shell-hub --add-client 张三
-  co-shell-hub --add-client 李四
-
-Config file (JSON):
-  {
-    "port": 12800,
-    "co_shell_path": "co-shell",
-    "workspace": ".",
-    "lazy_mode": true,
-    "auth": {
-      "hub_private_key": "base64_encoded_private_key",
-      "clients": [
-        {"nickname": "alice", "public_key": "base64_encoded_public_key"},
-        {"nickname": "bob", "public_key": "base64_encoded_public_key"}
-      ]
-    },
-    "agents": [
-      {"id": "default", "name": "Default Assistant"},
-      {"id": "research", "name": "Research Assistant"}
-    ]
-  }`)
+  # TCP service with API key + remote Web UI whitelist
+  co-shell-hub --api-key secret \
+    --web-addr 0.0.0.0:12802 --whitelist 192.168.1.100,192.168.1.0/24`)
 }
