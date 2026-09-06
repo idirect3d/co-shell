@@ -2,7 +2,7 @@
 <html lang="zh" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>co-shell</title>
 <link rel="icon" type="image/png" href="static/favicon.png">
 <link rel="stylesheet" href="static/style.css">
@@ -29,6 +29,12 @@
         <button class="menu-item" id="miPlan">
           <span class="mi-ico"></span><span class="mi-label" data-i18n="taskPlan">任务进展</span><span class="mi-check" id="miPlanCheck">✓</span>
         </button>
+        <button class="menu-item" id="miStreamTitle">
+          <span class="mi-ico"></span><span class="mi-label" data-i18n="streamTitle">会话标题</span><span class="mi-check" id="miStreamTitleCheck">✓</span>
+        </button>
+        <button class="menu-item" id="miMsgViz">
+          <span class="mi-ico"></span><span class="mi-label" data-i18n="msgViz">消息可视化</span><span class="mi-check" id="miMsgVizCheck">✓</span>
+        </button>
         <button class="menu-item" id="miStatus">
           <span class="mi-ico"></span><span class="mi-label" data-i18n="statusBar">状态条</span><span class="mi-check" id="miStatusCheck">✓</span>
         </button>
@@ -39,10 +45,6 @@
         <div class="menu-sep"></div>
         <button class="menu-item" id="miSettings">
           <span class="mi-ico">⚙️</span><span class="mi-label" data-i18n="settings">系统设置</span>
-        </button>
-        <div class="menu-sep"></div>
-        <button class="menu-item" id="miRestart">
-          <span class="mi-ico"></span><span class="mi-label" data-i18n="restart">重启后台</span>
         </button>
       </div>
     </div>
@@ -68,6 +70,14 @@
     <div class="stream-head">
       <span class="stream-active" id="streamActive">●</span>
       <input type="text" class="stream-title" id="streamTitle" placeholder="会话标题" title="点击修改会话标题">
+      <!-- FEATURE-487: on narrow screens the editable session title is replaced
+           by a read-only cycling widget that flips every 2s between the session
+           title, the active task-plan goal, the running step and the completion
+           tally (only when a task plan is active; otherwise it shows the title
+           statically). -->
+      <div class="stream-title-cycle" id="streamTitleCycle" title="">
+        <div class="stc-face" id="stcFace"></div>
+      </div>
       <!-- FEATURE-482: message-visualization chart between the session title
            and the display-mode pill. Each 1px vertical line = one message block
            (colour = its title-bar indicator light); the red dot's height shows
@@ -128,6 +138,10 @@
       </div>
     </div>
     <div class="bottom-main">
+      <!-- FEATURE-487: narrow-screen tool row. Hidden on wide screens; on
+           narrow screens the mode switcher, new-session, session-list, attach
+           and YOLO controls are moved here (by JS) onto one row. -->
+      <div id="narrowTools" class="narrow-tools hidden"></div>
       <div id="askArea" class="ask-area hidden">
         <div class="ask-hint" id="askHint"></div>
         <div class="ask-keys" id="askKeys"></div>
@@ -215,9 +229,12 @@
       <span data-i18n="settings">系统设置</span>
       <button class="icon-btn sm" id="settingsClose">✕</button>
     </div>
-    <div class="modal-body settings-body">
+    <div class="modal-body settings-body" id="settingsBody">
       <div id="settingsNav" class="settings-nav"></div>
       <div class="settings-pane">
+        <!-- FEATURE-487: back button to return from a category page to the
+             level-1 category list on narrow screens (always present). -->
+        <button class="settings-back" id="settingsBack" title="返回分类列表">&lt;</button>
         <input id="settingsSearch" class="set-search" type="text" placeholder="🔍 搜索设置..." />
         <div id="settingsDynamic"></div>
         <div id="settingsResult"></div>

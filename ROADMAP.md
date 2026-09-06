@@ -4,7 +4,34 @@
 
 ---
 
-## v0.39.0 — 开发中
+## v0.40.0 — 开发中
+
+> **版本**: v0.40.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: co-shell web ui 窄屏适配（FEATURE-487）
+> **说明**: 0.40.0 系列承接 v0.39.0 发布后的新功能。FEATURE-487 从 v0.39.0 移入本版本（v0.39.0 已随 FEATURE-486 发布打标签），完成 co-shell web ui 的窄屏（移动端）适配优化。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-487 | 0.40.0 | P1 | co-shell web ui 窄屏适配：会话标题循环切换任务进展(翻牌)、消息指示器 hover 无过渡动画等 |
+
+> 当前 BUILD: 908
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-487 co-shell web ui 窄屏适配** ✅ 已完成 [BUILD-908]
+  - 背景：co-shell web ui 在窄屏（移动端）下布局与交互不适配。
+  - 方案（用户确认）：FEATURE-487 归入 v0.40.0（v0.39.0 已发布）。
+  - 实施：web/static/（index.html + style.css + app.js）+ main.go（build 计数）
+  - 测试：见 use-case/FEATURE-487/
+  - 进度：见 v0.39.0 段原 FEATURE-487 进度（①~㉒），含窄屏布局微调、三段开关改胶囊、录入框16px、modal全屏、单一断点、全宽sheet、会话标题循环切换(翻牌)、消息指示器hover无过渡动画等。go build+vet 全绿，co-shell 编译到 ~/bin/ [BUILD-908]
+
+---
+
+## v0.39.0 — 已完成
 
 > **版本**: v0.39.0
 
@@ -17,7 +44,7 @@
 | FEATURE-485 | 0.39.0 | P1 | hub https 远程安全访问：系统设置界面（SSL 证书/白名单/访问 KEY）、https 监听、访问 key 校验、移动端 mobile-legacy 复制 |
 | FEATURE-486 | 0.39.0 | P1 | 移动端浏览器内核化：mobile/ 放弃 Flutter 改原生 iOS，内嵌本地代理注入访问 KEY，WKWebView 渲染 hub web ui，系统设置页（服务端地址 + 访问 KEY） |
 
-> 当前 BUILD: 883
+> 当前 BUILD: 884
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -28,7 +55,7 @@
   - 方案（用户确认）：① 版本 v0.39.0（minor 递增）；② SSL 证书支持自签名自动生成（也支持上传 PEM）；③ 访问验证 KEY 加到 HTTP 头中（如 X-Access-Key），WEB 访问不提供则先提示输入；④ 配置证书后仅用 https（替换 http）；⑤ 本次范围：hub 端改造（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。
   - 实施：cmd/co-shell-hub/ + hub/gateway/ + mobile/
   - 测试：见 use-case/FEATURE-485/
-  - 进度：hub 端改造完成（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。实现：① gateway/settings.go 新增 Settings 结构（TLS 开关/证书路径/白名单/访问 KEY/全部需 key 开关），持久化到 hub-settings.json，支持自签名证书自动生成（ECDSA P256）；② webui.go WebUI 持有 settings，Serve() 支持 TLS（配置证书后仅 https），accessControl 中间件实现访问控制（白名单内放行、白名单外需 X-Access-Key 头否则 401、RequireKey 强制全部需 key），新增 GET/PUT /api/settings；③ webui_static.go 设置界面（+新建 下加 ⚙设置 按钮，新增 viewSettings：HTTPS 开关/证书路径/生成自签名/白名单/访问 KEY/全部需 key 开关）；④ cmd/co-shell-hub 加载 settings 并传给 NewWebUI；⑤ 复制 mobile/ → mobile-legacy/（保留 UDP 方式）。编译全绿 [BUILD-880]
+  - 进度：① hubBadge 窄屏适配：新增 updateBadgeResponsive JS（loadHubInfo 回调 + resize 时调用），当视口宽度 < 徽标完整宽度×2 时隐藏版本号（.ver display:none），徽标自动收缩到只显示 ▸ co-shell-hub（280px→135px）；② 底部按钮上移+间距：.foot padding 8px→8px 8px 18px（底部 +10px，覆盖 agent 列表 ＋新建/⚙设置 和设置页 保存设置），settingsBtn margin-top 6px→16px（两按钮间距 +10px）。端到端验证：iOS 模拟器窄屏徽标版本号隐藏、浏览器 drawer 底部按钮上移+间距生效。go build+vet 全绿，co-shell-hub 编译到 ~/bin/ [BUILD-884]hub 端改造完成（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。实现：① gateway/settings.go 新增 Settings 结构（TLS 开关/证书路径/白名单/访问 KEY/全部需 key 开关），持久化到 hub-settings.json，支持自签名证书自动生成（ECDSA P256）；② webui.go WebUI 持有 settings，Serve() 支持 TLS（配置证书后仅 https），accessControl 中间件实现访问控制（白名单内放行、白名单外需 X-Access-Key 头否则 401、RequireKey 强制全部需 key），新增 GET/PUT /api/settings；③ webui_static.go 设置界面（+新建 下加 ⚙设置 按钮，新增 viewSettings：HTTPS 开关/证书路径/生成自签名/白名单/访问 KEY/全部需 key 开关）；④ cmd/co-shell-hub 加载 settings 并传给 NewWebUI；⑤ 复制 mobile/ → mobile-legacy/（保留 UDP 方式）。编译全绿 [BUILD-880]
   - 进度（迭代调整）：① 设置按钮宽度与 +新建 一致；② 生成自签名证书后把证书路径填入输入框（GET /api/settings 返回 settings_dir）；③ 证书默认放 ~/.co-shell/（hub-cert.pem/hub-key.pem）；④ 访问 KEY 下加"重新生成安全 KEY"按钮（crypto 生成 64 位 hex）；⑤ 修复生成证书后无法访问——TLSConfig 在证书文件不存在时自动生成（不再因加载不存在的相对路径失败）；⑥ 新增 --serve 参数（不自动打开浏览器），自动打开浏览器时按 TLS 启用用 https://；⑦ accessControl 语义：白名单为空时默认仅本机(loopback)免 KEY，其他主机需 KEY（命令行 --whitelist 会覆盖 settings 白名单，需用设置界面管理时勿传 --whitelist）。编译全绿 [BUILD-881]
 
 - [ ] **FEATURE-486 移动端浏览器内核化：原生 iOS + Cookie 注入访问 KEY**
@@ -37,6 +64,13 @@
   - 实施：mobile/（原生 iOS 工程）
   - 测试：见 use-case/FEATURE-486/
   - 进度：① hub 端 accessControl 支持 access_key Cookie（webui.go accessCookie + accessKeyFromRequest，编译通过）；② mobile/ 清空重建，从 Flutter 工程改造成纯原生 iOS 工程：重写 project.pbxproj（去 Flutter/CocoaPods/RunnerTests，单 target 纯 Swift）、Info.plist（去 FLUTTER_BUILD_NAME 占位符，加 ATS 例外 NSAllowsArbitraryLoads + 本地网络权限）、LaunchScreen.storyboard（去 LaunchImage 引用）、AppDelegate/SceneDelegate 改纯 UIKit；③ 新增 Swift 源码：SettingsStore（Keychain 存服务端地址+key）、SettingsViewController（原生设置页，输入服务端地址+key，校验 URL 格式）、WebViewController（WKWebView 壳，加载前注入 access_key Cookie，didReceive 放行自签名证书，target=_blank 同页打开）、RootViewController（导航，未配置→设置页，已配置→WebView，设置保存后切换/重载）；④ xcodebuild 编译到 iPhone 17 Pro 模拟器 BUILD SUCCEEDED，安装启动验证设置页正常渲染（标题/输入框/保存按钮齐全无崩溃）；⑤ 新增 mobile/README.md 说明目录用途；⑥ hub webui.go 新增 requestLog 中间件，向标准输出打印每个请求的时间/源地址/URI（含 X-Forwarded-For 支持），便于追踪移动端远程访问；⑦ 修复设置页保存无反应：模拟器上 Keychain 对未签名 app 不可用（SecItemAdd 返回 errSecMissingEntitlement -34018），SettingsStore 改为 Keychain + UserDefaults 双后端（Keychain 失败自动回退 UserDefaults，真机用 Keychain），并新增 Runner.entitlements（keychain-access-groups）。端到端验证通过：模拟器输入地址+key 保存后成功切换到 WKWebView 并加载 hub web UI（Cookie 注入通过认证、自签名证书正常）。go build+vet 全绿，co-shell-hub 编译到 ~/bin/ [BUILD-883]
+
+- [ ] **FEATURE-487 hub web ui 移动端适配**
+  - 背景：移动端（原生 iOS WKWebView）渲染 hub web ui 时，窄屏下 hub 徽标（logo+版本框）过宽遮挡内容，抽屉底部按钮贴底不便触控。
+  - 方案（用户确认）：① 当界面宽度小于徽标（logo+版本框）宽度的两倍时，自动隐藏版本信息，徽标外框自动收缩适应剩余 logo 长度；② 各页面底部按钮（Agent 抽屉的 ＋新建/⚙设置、设置页的 保存设置）整体上移 10px（增加与底边间距），并增加 ＋新建 与 ⚙设置 两按钮之间间距 10px。
+  - 实施：hub/gateway/webui_static.go
+  - 测试：见 use-case/FEATURE-487/
+  - 进度：① 窄屏隐藏徽标版本号、底部按钮上移+间距（webui_static.go）；② 窄屏布局微调：主输入栏移到工具图标行上方、发送按钮移到工具行最右并减宽20%、YOLO开关降高15%、主模型/视觉模型/会话清单弹出菜单保证在屏幕内+超长省略号（web/static app.js+style.css）；③ 移动端输入框聚焦自动放大修复（窄屏输入控件字号≥16px）；④ 窄屏优化：静默-极简-正常/act-plan-research 三段开关改为连续点击顺序切换的单个胶囊按钮（降低宽度）、静默-极简-正常开关移到标题栏连接状态按钮左边、运行按钮与YOLO同尺寸、隐藏状态条token总计栏保留迭代用量、隐藏主/视觉模型名只留图标、消息可视化(msgviz)放回会话名右边各占50%；⑤ 窄屏优化：主消息录入框加高20%、主/视觉模型图标移到 act-plan-research 三段开关右边、所有界面录入框字体统一16px；⑥ 优化：所有录入框（含模型配置/系统配置界面）强制16px防移动端自动放大、窄屏模型管理/向导界面宽度不超视口+模型名/ID省略号；⑦ 窄屏时系统设置/模型管理/模型向导 modal 全屏充满页面、配置页标题栏文字右对齐（与关闭图标保持间距）；⑧ 窄屏时模型配置向导界面隐藏左侧步骤页签栏，仅显示右侧配置信息（全宽）；⑨ 修复窄屏系统设置分类页签点击无作用：settings-body 缺 id=settingsBody 导致 settings-drilled 类永不生效，补 id 并打开设置时重置到分类列表；⑩ 新增更窄断点 body.narrower（视口<品牌宽度×1.5）：工具行图标右对齐、仅 act-plan-research 控件左对齐、隐藏状态栏迭代 token 用量(#sbLast)；⑪ 统一屏幕宽度标准为单一断点：视口≥品牌宽度×3 为宽屏（正常）、视口<品牌宽度×3 为窄屏，移除 body.narrower 更窄断点，将其布局效果（工具行图标右对齐、隐藏迭代 token 用量）合并到 body.narrow；⑫ 窄屏时主模型/视觉模型/会话三个弹出菜单改为全宽 sheet（position:fixed 铺满视口宽度，bottom 对齐工具行顶部向上展开，JS 设 --menu-bottom）；⑬ 窄屏时状态条迭代 token 用量(#sbLast)保留文字、仅隐藏 ⏱️ 图标（图标包进 .sb-last-ico span）；⑭ web ui 三项优化：① 系统菜单增加会话标题/消息可视化两个显示开关（状态条开关上方，localStorage 持久化）；② 失败消息颜色由橙红改纯红 #FF0000（指示灯圆点/可视化线段/高风险标签/报错文字，不含文本工具被替换删掉的文本）；③ 消息可视化控件：线段改点虚线(1px点+1px间隔+75%透明)、token用量黑点扩为3x3且中心对齐、hover线段变3px宽+100%不透明、tip显示消息类型/工具意图/上下文占比；⑮ iPhone X+ 圆角屏适配：viewport 加 viewport-fit=cover 让页面充满屏幕，底部 #bottom 与窄屏全屏 modal 加 env(safe-area-inset-bottom) padding 避开 Home Indicator；⑯ 窄屏时最下方状态栏 token 用量(#sbLast)居中显示（statusbar justify-content:center）；⑰ 窄屏工具行优化：运行按钮(#sendBtn)宽度调成与 YOLO 一致(34px)以便与其他图标同行；⑱ 窄屏工具行恢复右对齐：act-plan-research 开关(modeSeg)靠左(margin-right:auto)，从主模型开始向右的所有图标右对齐，使开关长度变化不影响其他图标位置；⑲ 去掉右上角系统菜单中的"重启后台"选项（移除 miRestart 菜单项及 JS 逻辑）；⑳ 消息可视化控件优化：hover 线段变宽时 margin-right 归零(1px+2px=3px+0px)避免后续线段抖动、token 用量黑点改 3x2。go build+vet 全绿，co-shell 编译到 ~/bin/ [BUILD-906]；㉑ 窄屏时会话标题栏的会话标题处改为只读循环切换控件：每2秒上下翻牌切换 会话标题(不可修改)→目标:{任务进展描述}→正在执行:{进行中步骤}→进展情况:已完成(完成数/总数)，无任务计划时静态显示会话标题，超长省略号。go build+vet 全绿，co-shell 编译到 ~/bin/ [BUILD-907]；㉒ 消息指示器控件(msgviz)鼠标划过焦点线段变粗及恢复时移除 transition 过渡动画，直接同时切换线段宽度与间距。go build+vet 全绿，co-shell 编译到 ~/bin/ [BUILD-908]
 
 ---
 
