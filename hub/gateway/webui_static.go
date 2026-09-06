@@ -55,7 +55,8 @@ const webIndexHTML = `<!DOCTYPE html>
     border-right:1px solid var(--border); border-bottom:1px solid var(--border);
     border-bottom-right-radius:8px; font-size:14px; white-space:nowrap;
   }
-  #hubBadge .mark { color:var(--accent); font-weight:700; }
+  #hubBadge .mark { color:var(--accent); font-weight:700; transition:color .3s ease; }
+  #hubBadge .mark.off { color:var(--fg-faint); } /* disconnected: grey triangle */
   #hubBadge .name { font-weight:600; letter-spacing:.4px; }
   #hubBadge .ver { color:var(--fg-faint); font-size:12px; font-family:ui-monospace,Menlo,monospace; }
   #hubBadge:hover { background:var(--elev); }
@@ -268,6 +269,9 @@ const webIndexHTML = `<!DOCTYPE html>
   var hideTimer = null;
   var hubVerEl = document.getElementById('hubVer');
   var openCard = null; // currently swipe-open agent card (delete revealed)
+  var markEl = badge.querySelector('.mark'); // hub connection indicator triangle
+  var pollTimer = null; // setInterval handle for the agent-list poll
+  var connected = true; // whether the last hub API poll succeeded
 
   function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
@@ -318,7 +322,10 @@ const webIndexHTML = `<!DOCTYPE html>
     v.classList.add('slide-in');
     setTimeout(function(){ v.classList.remove('slide-in'); }, 200);
   }
-  badge.onclick = function(){ panel.classList.contains('open') ? closePanel() : openPanel(); };
+  badge.onclick = function(){
+    if (!connected) startPolling(); // disconnected: clicking the triangle reconnects
+    panel.classList.contains('open') ? closePanel() : openPanel();
+  };
   document.getElementById('panelClose').onclick = closePanel;
   // The config view's close/back buttons return to the agent list view.
   document.getElementById('configClose').onclick = function(){ showView('list'); };
@@ -342,9 +349,31 @@ const webIndexHTML = `<!DOCTYPE html>
       if (j && j.version) hubVerEl.textContent = ' v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
     });
   }
+  // setConn toggles the hub connection indicator triangle: accent colour when
+  // connected, grey when the hub API is unreachable.
+  function setConn(on){
+    connected = on;
+    markEl.classList.toggle('off', !on);
+    markEl.title = on ? '已连接' : '连接断开 · 点击重连';
+  }
+  // startPolling begins the periodic agent-list refresh (used on load and on
+  // manual reconnect).
+  function startPolling(){
+    if (pollTimer) return;
+    refresh();
+    pollTimer = setInterval(refresh, 3000);
+  }
+  // stopPolling halts the periodic refresh. Called when the hub becomes
+  // unreachable so this tab stops competing with other browsers for the
+  // single-client connection; a click on the triangle or a page reload resumes.
+  function stopPolling(){
+    if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  }
   function refresh(){
     loadHubInfo();
     api('GET', '/api/agents', null, function(st, j){
+      if (st === 0){ setConn(false); stopPolling(); return; } // hub unreachable
+      setConn(true);
       agents = (j && j.agents) || [];
       Object.keys(frames).forEach(function(id){
         if (!agents.some(function(a){ return a.id === id; })){ removeFrame(id); }
@@ -702,8 +731,7 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
 
-  refresh();
-  setInterval(refresh, 3000);
+  startPolling();
 })();
 </script>
 </body>
