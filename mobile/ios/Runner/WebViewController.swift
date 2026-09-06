@@ -75,12 +75,13 @@ final class WebViewController: UIViewController {
     /// Builds the navigation title: a small co-shell mosaic logo followed by
     /// the "co-shell" wordmark.
     private func makeTitleView() -> UIView {
-        let logo = CoShellLogoView(frame: CGRect(x: 0, y: 0, width: 22, height: 22))
+        let logo = CoShellLogoView(frame: CGRect(x: 0, y: 0, width: 33, height: 33))
         logo.cellColor = .systemTeal
 
         let label = UILabel()
         label.text = "co-shell"
-        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        // Retro low-resolution terminal look: Menlo monospace font.
+        label.font = UIFont(name: "Menlo-Bold", size: 17) ?? .systemFont(ofSize: 17, weight: .semibold)
         label.textColor = .label
 
         let stack = UIStackView(arrangedSubviews: [logo, label])

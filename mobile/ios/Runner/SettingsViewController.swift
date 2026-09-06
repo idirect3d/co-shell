@@ -111,7 +111,8 @@ final class SettingsViewController: UIViewController {
 
         let nameLabel = UILabel()
         nameLabel.text = "co-shell mobile"
-        nameLabel.font = .systemFont(ofSize: 16, weight: .semibold)
+        // Retro low-resolution terminal look: Menlo monospace font.
+        nameLabel.font = UIFont(name: "Menlo-Bold", size: 16) ?? .systemFont(ofSize: 16, weight: .semibold)
         nameLabel.textColor = .secondaryLabel
         nameLabel.textAlignment = .center
         content.addArrangedSubview(nameLabel)
