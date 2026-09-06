@@ -188,11 +188,12 @@ const webIndexHTML = `<!DOCTYPE html>
       <!-- Local mode: hub launches a co-shell --serve subprocess. -->
       <div id="localFields">
         <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
+        <div class="field"><label>端口号（自动分配，可修改）</label><input id="m-port" placeholder="自动分配"></div>
         <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
         <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><label>config.json（可选，留空由 co-shell 决定）</label><select id="m-config"><option value="">（不指定）</option></select></div>
-        <div class="field"><div class="check"><input type="checkbox" id="m-cfg"><label for="m-cfg">创建空 config.json</label></div></div>
+        <div class="field"><div class="check"><input type="checkbox" id="m-cfg"><label for="m-cfg">在 Workspace 路径下创建空 config.json</label></div></div>
         <div class="hint" id="m-ver"></div>
         <button class="btn primary" id="m-create">创建本地 Agent</button>
       </div>
@@ -417,6 +418,7 @@ const webIndexHTML = `<!DOCTYPE html>
       if (st >= 400 || !j) return;
       if (!document.getElementById('m-ws').value) document.getElementById('m-ws').value = j.default_workspace || '';
       if (!document.getElementById('m-id').value) document.getElementById('m-id').value = j.default_id || '';
+      if (!document.getElementById('m-port').value && j.recommended_port) document.getElementById('m-port').value = j.recommended_port;
       // co-shell executables.
       coshellSel.innerHTML = '';
       var shells = j.co_shells || [];
@@ -508,17 +510,34 @@ const webIndexHTML = `<!DOCTYPE html>
   document.getElementById('m-create').onclick = function(){
     var ws = document.getElementById('m-ws').value.trim();
     if (!ws){ alert('请填写 Workspace 路径'); return; }
+    if (!coshellSel.value){
+      alert('未找到可用的 co-shell，无法创建本地 Agent。\n\n请将 co-shell 可执行文件安装到当前目录或加入 PATH，然后重新打开此界面。');
+      return;
+    }
     var id = document.getElementById('m-id').value.trim() || ws.split(/[\\\/]/).pop();
+    var port = parseInt(document.getElementById('m-port').value.trim(), 10);
+    if (!port || isNaN(port) || port < 1 || port > 65535){
+      alert('请填写有效的端口号（1-65535），或留空由系统自动分配。');
+      return;
+    }
     api('POST', '/api/agents', {
       id: id,
       name: document.getElementById('m-name').value.trim(),
       workspace: ws,
       co_shell: coshellSel.value,
       config_path: configSel.value,
-      create_config: document.getElementById('m-cfg').checked
+      create_config: document.getElementById('m-cfg').checked,
+      port: port
     }, function(st, j){
-      if (st >= 400) alert('创建失败: ' + (j.error || st));
-      else { document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; }
+      if (st >= 400){
+        var msg = (j && j.error) || st;
+        if (/port .* in use|already in use/i.test(msg)){
+          alert('端口 ' + port + ' 已被占用，无法创建。\n\n请先关闭占用该端口的服务，或改用其他端口（可清空端口号让系统重新自动分配）。');
+        } else {
+          alert('创建失败: ' + msg);
+        }
+      }
+      else { document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; document.getElementById('m-port').value=''; }
       refresh();
     });
   };
