@@ -25,7 +25,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';``
+import 'package:provider/provider.dart';
 import 'config/constants.dart';
 import 'providers/chat_provider.dart';
 import 'screens/agent_list_screen.dart';

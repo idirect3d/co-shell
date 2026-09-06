@@ -4,6 +4,32 @@
 
 ---
 
+## v0.38.0 — 开发中
+
+> **版本**: v0.38.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 移动端功能打通（FEATURE-128 收尾）
+> **说明**: 0.38.0 系列推进移动端（mobile/）与 co-shell-hub 的端到端打通，收尾 FEATURE-128 未完成项（多 agent 会话列表、聊天/语音/图片/任务计划查看）。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-484 | 0.38.0 | P1 | 移动端功能打通：修复编译错误、打通 hub 注册联调、补齐任务计划查看、完善配置与体验 |
+
+> 当前 BUILD: 855
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-484 移动端功能打通（FEATURE-128 收尾）**
+  - 背景：FEATURE-128 移动端 APP + co-shell-hub 基础框架已搭好（Flutter 工程、UI/状态/通信层、hub 服务端），但存在多处缺口：constants.dart 中 hubAccessKey 为空、clientNickname 为占位值；main.dart 第 28 行存在多余反引号语法错误导致编译失败；"任务计划查看"功能完全缺失；defaultServerAddress 写死演示 IP；shared_preferences 已引入未使用；chat_screen 的 sendMessage 只传 content，images 字段 hub 端是否消费需核对。
+  - 方案（已确认）：① 修复 main.dart 编译错误；② 打通端到端联调（注册拿 public_key 填 hubAccessKey，核对握手字段与 hub 校验逻辑）；③ 补齐"任务计划查看"功能（hub 端新增查询任务计划的 UDP 消息类型 + mobile 端新增界面与 provider 方法）；④ 完善配置与体验（服务器地址持久化、核对语音/图片发送协议）。
+  - 实施：mobile/ + cmd/co-shell-hub/ + hub/
+  - 测试：见 use-case/FEATURE-484/
+
+---
+
 ## v0.37.1 — 开发中
 
 > **版本**: v0.37.1
