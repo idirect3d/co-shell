@@ -26,9 +26,10 @@
   - 背景：原 hub（FEATURE-128/183）通过 UDP 与移动端通讯、stdin/stdout 管道管理 co-shell agent。用户确认架构演进：hub 通过 co-shell `--serve` WebSocket 端口与多个 co-shell 通讯，对外提供 TCP + API Key 服务与 Web UI 聚合多 agent。
   - 方案（已确认简化）：① 传统 TCP 服务 + API Key 认证（加密交给 VPN）；② 原则上不处理 co-shell 业务逻辑，仅代理转发；③ 同时与多个 agent 通讯，负责多 agent 切换；④ Web UI 转发 co-shell 返回信息，实现 agent 切换与数据缓存（切换不丢失会话）。
   - 代码组织（用户确认方案 B）：在 hub/ 下新建独立 gateway 包，旧 UDP 代码保留不动，新代码独立演进。
+  - Web UI 访问控制（用户确认，步骤6要求）：hub Web UI 与 co-shell 一致支持访问白名单，默认仅本机访问——复用 co-shell 模式（FEATURE-430/431）：`--bind`（默认 127.0.0.1）+ `--whitelist`（逗号分隔 IP/网段，空=仅本机访问）；无白名单时强制本机访问（忽略 --bind，绑定 127.0.0.1）；白名单校验支持精确 IP 与 CIDR 网段（复用 web/server.go 的 parseWhitelist/ipAllowed 逻辑）。
   - 实施：hub/gateway/（新）+ cmd/co-shell-hub/ + mobile/
   - 测试：见 use-case/FEATURE-484/
-  - 进度：步骤3（hub TCP 服务 + API Key 认证层，gateway 包）已完成，单元测试通过 [BUILD-856]
+  - 进度：步骤3（hub TCP 服务 + API Key 认证层，gateway 包）已完成，单元测试通过 [BUILD-857]
 
 ---
 

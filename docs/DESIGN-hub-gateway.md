@@ -106,6 +106,15 @@
 - [ ] 单客户端限制下 hub 与 co-shell 的连接管理（重连、心跳）
 - [ ] 数据缓存的具体粒度（事件流/会话/任务计划）
 
+### 5.1 hub Web UI 访问控制（用户确认，步骤6要求）
+
+hub Web UI 需与 co-shell 一致支持**访问白名单**，默认仅本机访问：
+
+- 复用 co-shell 的访问控制模式（FEATURE-430/431）：`--bind`（默认 127.0.0.1）+ `--whitelist`（逗号分隔 IP/网段，空=仅本机访问）
+- **无白名单时强制本机访问**（忽略 `--bind`，绑定 127.0.0.1），避免意外暴露到网络
+- 白名单校验支持精确 IP 与 CIDR 网段（复用 `web/server.go` 的 `parseWhitelist`/`ipAllowed` 逻辑）
+- 该要求纳入步骤6（hub Web UI 界面）实现
+
 ## 6. 代码组织决策（用户确认：方案 B）
 
 在 `hub/` 下新建**独立 gateway 包**（`hub/gateway/`），旧 UDP 代码（`hub/hub.go` 等）**保留不动**，新架构代码独立演进。gateway 包作为 hub module 的子包（`github.com/idirect3d/co-shell/hub/gateway`），零外部依赖（纯标准库），后续步骤4引入 gorilla/websocket 时再按需添加。
