@@ -5,11 +5,19 @@ import "errors"
 // errClosed is returned when serving on a closed listener.
 var errClosed = errors.New("use of closed network connection")
 
-// webIndexHTML is the embedded hub shell page (FEATURE-484). It is a multi-page
-// iframe shell: each registered agent's full co-shell Web UI is embedded in its
-// own <iframe> loaded from /agent/{id}/ (reverse-proxied by the hub). The shell
-// only maintains the agent switch bar, a management drawer, and mobile
-// responsiveness — it does not re-implement the co-shell UI.
+// webIndexHTML is the embedded hub shell page (FEATURE-484). It embeds each
+// registered agent's full co-shell Web UI in a full-screen <iframe> loaded from
+// /agent/{id}/ (reverse-proxied by the hub). To minimise intrusion on the
+// co-shell UI, the hub chrome is minimal:
+//
+//   - A small "co-shell-hub" badge floats over the top-left corner of the
+//     iframe (covering the co-shell logo/version area) so the user perceives
+//     they are on the hub, not a bare co-shell instance.
+//   - The agent list lives in a left drawer that is collapsed to a thin edge
+//     strip by default and slides open when the pointer dwells on the left
+//     edge (or the badge is clicked). On wide screens the open drawer pushes
+//     the iframe aside; on narrow screens it overlays the iframe.
+//   - Agent management (create/start/stop/delete) opens in a right drawer.
 const webIndexHTML = `<!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -17,31 +25,77 @@ const webIndexHTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>co-shell-hub</title>
 <style>
-  :root { --bg:#1e1e2e; --panel:#27273a; --panel2:#313244; --fg:#cdd6f4; --muted:#888; --accent:#89b4fa; --ok:#a6e3a1; --err:#f38ba8; --warn:#f9e2af; --border:#3a3a4d; }
+  :root {
+    --bg:#0b0e14; --panel:#10141d; --elev:#161b26; --fg:#d5dbe7; --fg-dim:#8b93a5;
+    --fg-faint:#5b6373; --accent:#3fd6ef; --accent-dim:rgba(63,214,239,.14);
+    --border:#232a3a; --ok:#4ade80; --err:#f87171; --warn:#facc15;
+    --edge-w:10px; --panel-w:230px;
+  }
   * { box-sizing:border-box; }
   html,body { height:100%; }
-  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--fg); display:flex; flex-direction:column; overflow:hidden; }
-  header { flex:none; display:flex; align-items:center; gap:8px; padding:0 10px; height:46px; background:var(--panel); border-bottom:1px solid var(--border); }
-  .brand { display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; white-space:nowrap; }
-  .brand .dot { width:10px; height:10px; border-radius:50%; background:var(--accent); }
-  #tabs { display:flex; gap:4px; overflow-x:auto; flex:1; min-width:0; padding:0 4px; scrollbar-width:none; }
-  #tabs::-webkit-scrollbar { display:none; }
-  .tab { flex:none; display:flex; align-items:center; gap:6px; padding:5px 12px; border-radius:8px; cursor:pointer; font-size:13px; color:var(--muted); border:1px solid transparent; white-space:nowrap; }
-  .tab:hover { background:var(--panel2); color:var(--fg); }
-  .tab.active { background:var(--accent); color:#111; font-weight:600; }
-  .tab .st { width:7px; height:7px; border-radius:50%; background:#666; flex:none; }
-  .tab .st.on { background:var(--ok); }
-  .tab .st.off { background:var(--err); }
-  .tab .x { opacity:.6; font-size:12px; padding:0 2px; }
-  .tab .x:hover { opacity:1; }
-  .icon-btn { flex:none; width:32px; height:32px; border:none; border-radius:8px; background:transparent; color:var(--fg); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  .icon-btn:hover { background:var(--panel2); }
-  #stage { flex:1; position:relative; min-height:0; }
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--fg); overflow:hidden; }
+
+  /* Full-screen iframe stage. */
+  #stage { position:fixed; inset:0; transition:left .22s ease; }
   .frame { position:absolute; inset:0; width:100%; height:100%; border:none; background:#fff; display:none; }
   .frame.active { display:block; }
-  .empty { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--muted); text-align:center; padding:20px; }
+  .empty { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--fg-dim); text-align:center; padding:20px; }
   .empty .big { font-size:40px; }
-  /* Management drawer */
+
+  /* Hub badge floating over the co-shell logo area (top-left, 44px tall to
+     match the co-shell topbar). Clicking it toggles the agent drawer. */
+  #hubBadge {
+    position:fixed; top:0; left:0; height:44px; padding:0 14px;
+    display:flex; align-items:center; gap:8px; cursor:pointer; z-index:30;
+    background:var(--panel); color:var(--fg); user-select:none;
+    border-right:1px solid var(--border); border-bottom:1px solid var(--border);
+    border-bottom-right-radius:8px; font-size:14px; white-space:nowrap;
+  }
+  #hubBadge .mark { color:var(--accent); font-weight:700; }
+  #hubBadge .name { font-weight:600; letter-spacing:.4px; }
+  #hubBadge .ver { color:var(--fg-faint); font-size:12px; font-family:ui-monospace,Menlo,monospace; }
+  #hubBadge:hover { background:var(--elev); }
+
+  /* Left edge hot-zone that reveals the agent drawer on hover. */
+  #edge {
+    position:fixed; top:0; left:0; bottom:0; width:var(--edge-w); z-index:20; cursor:pointer;
+  }
+
+  /* Left agent drawer. Collapsed by default (translated off-screen left,
+     leaving only the edge hot-zone). */
+  #agentPanel {
+    position:fixed; top:0; left:0; bottom:0; width:var(--panel-w); z-index:25;
+    background:var(--panel); border-right:1px solid var(--border);
+    transform:translateX(-100%); transition:transform .22s ease;
+    display:flex; flex-direction:column;
+  }
+  #agentPanel.open { transform:translateX(0); }
+  #agentPanel .head {
+    flex:none; height:44px; display:flex; align-items:center; gap:8px; padding:0 12px;
+    border-bottom:1px solid var(--border); font-weight:600; font-size:14px;
+  }
+  #agentPanel .head .mark { color:var(--accent); }
+  #agentPanel .head .close { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:16px; padding:2px 6px; }
+  #agentPanel .head .close:hover { color:var(--fg); }
+  #agentList { flex:1; overflow-y:auto; padding:8px; }
+  .agent {
+    display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px;
+    cursor:pointer; font-size:13px; color:var(--fg-dim); margin-bottom:2px;
+  }
+  .agent:hover { background:var(--elev); color:var(--fg); }
+  .agent.active { background:var(--accent-dim); color:var(--accent); font-weight:600; }
+  .agent .st { width:8px; height:8px; border-radius:50%; background:#555; flex:none; }
+  .agent .st.on { background:var(--ok); }
+  .agent .st.off { background:var(--err); }
+  .agent .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .agent .x { opacity:.5; font-size:12px; padding:0 2px; }
+  .agent .x:hover { opacity:1; }
+  #agentPanel .foot { flex:none; padding:8px; border-top:1px solid var(--border); }
+  .btn { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; }
+  .btn.primary { background:var(--accent); color:#0b0e14; width:100%; }
+  .btn.primary:hover { filter:brightness(1.1); }
+
+  /* Right management drawer. */
   #drawer { position:fixed; top:0; right:0; bottom:0; width:340px; max-width:90vw; background:var(--panel); border-left:1px solid var(--border); transform:translateX(100%); transition:transform .2s ease; z-index:50; overflow-y:auto; padding:14px; }
   #drawer.open { transform:translateX(0); }
   #scrim { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:40; display:none; }
@@ -49,75 +103,113 @@ const webIndexHTML = `<!DOCTYPE html>
   #drawer h2 { font-size:15px; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
   #drawer h3 { font-size:13px; margin:16px 0 6px; color:var(--accent); }
   .field { margin-bottom:8px; }
-  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
-  .field input { width:100%; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; }
+  .field label { display:block; font-size:12px; color:var(--fg-dim); margin-bottom:3px; }
+  .field input, .field select { width:100%; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; }
   .field .check { display:flex; align-items:center; gap:6px; }
   .field .check input { width:auto; }
-  .btn { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; }
-  .btn.primary { background:var(--accent); color:#111; }
-  .btn.ok { background:var(--ok); color:#111; }
-  .btn.stop { background:var(--warn); color:#111; }
-  .btn.danger { background:var(--err); color:#111; }
+  .req { color:var(--err); font-weight:700; }
+  .seg { display:flex; gap:4px; margin-bottom:12px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:3px; }
+  .seg-btn { flex:1; padding:5px 0; border:none; border-radius:6px; background:transparent; color:var(--fg-dim); font-size:13px; cursor:pointer; }
+  .seg-btn.active { background:var(--accent); color:#0b0e14; font-weight:600; }
+  .ver-ok { color:var(--ok); }
+  .ver-err { color:var(--err); }
+  .btn.ok { background:var(--ok); color:#0b0e14; }
+  .btn.stop { background:var(--warn); color:#0b0e14; }
+  .btn.danger { background:var(--err); color:#fff; }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
   .agent-row { border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:8px; background:var(--bg); }
   .agent-row .top { display:flex; align-items:center; gap:6px; }
   .agent-row .name { font-weight:600; font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .agent-row .meta { font-size:11px; color:var(--muted); margin:4px 0; word-break:break-all; }
+  .agent-row .meta { font-size:11px; color:var(--fg-dim); margin:4px 0; word-break:break-all; }
   .badge { font-size:10px; padding:1px 6px; border-radius:8px; flex:none; }
-  .badge.managed { background:var(--panel2); color:var(--accent); }
-  .badge.external { background:var(--panel2); color:var(--warn); }
-  .badge.on { background:#1e3a2a; color:var(--ok); }
-  .badge.off { background:#3a1e1e; color:var(--err); }
+  .badge.managed { background:var(--elev); color:var(--accent); }
+  .badge.external { background:var(--elev); color:var(--warn); }
+  .badge.on { background:#0f2a1a; color:var(--ok); }
+  .badge.off { background:#2a1010; color:var(--err); }
   .agent-row .actions { display:flex; gap:6px; margin-top:6px; }
-  .hint { font-size:11px; color:var(--muted); margin-top:4px; }
-  /* Mobile: collapse tabs into a horizontal scroll strip under the header */
-  @media (max-width:640px) {
-    header { flex-wrap:wrap; height:auto; padding:6px 8px; }
-    .brand { font-size:14px; }
-    #tabs { order:3; width:100%; flex:none; padding-top:4px; }
-    .tab { font-size:12px; padding:4px 10px; }
+  .hint { font-size:11px; color:var(--fg-dim); margin-top:4px; }
+  .icon-btn { width:28px; height:28px; border:none; border-radius:6px; background:transparent; color:var(--fg); font-size:16px; cursor:pointer; }
+  .icon-btn:hover { background:var(--elev); }
+
+  /* Wide screens: an open drawer pushes the iframe aside (side-by-side). */
+  @media (min-width:901px) {
+    body.drawer-open #stage { left:var(--panel-w); }
+  }
+  /* Narrow screens: the drawer overlays the iframe. */
+  @media (max-width:900px) {
+    #agentPanel { box-shadow:2px 0 12px rgba(0,0,0,.4); }
   }
 </style>
 </head>
 <body>
-<header>
-  <div class="brand"><span class="dot"></span>co-shell-hub</div>
-  <div id="tabs"></div>
-  <button class="icon-btn" id="manageBtn" title="Agent 管理">⚙</button>
-</header>
 <div id="stage">
   <div class="empty" id="empty">
     <div class="big">▸</div>
-    <div>暂无 Agent。点击右上角 ⚙ 创建或添加 Agent。</div>
+    <div>暂无 Agent。点击左上角 co-shell-hub 徽标，再点"管理"创建或添加 Agent。</div>
   </div>
 </div>
+
+<!-- Hub badge over the co-shell logo area; toggles the agent drawer. -->
+<div id="hubBadge" title="co-shell-hub · 点击展开 Agent 列表">
+  <span class="mark">▸</span><span class="name">co-shell-hub</span><span class="ver" id="hubVer"></span>
+</div>
+
+<!-- Left edge hot-zone (reveals the drawer on hover). -->
+<div id="edge"></div>
+
+<!-- Left agent drawer. -->
+<div id="agentPanel">
+  <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
+  <div id="agentList"></div>
+  <div class="foot"><button class="btn primary" id="manageBtn">⚙ Agent 管理</button></div>
+</div>
+
+<!-- Right management drawer. -->
 <div id="scrim"></div>
 <div id="drawer">
   <h2>Agent 管理 <button class="icon-btn" id="drawerClose" title="关闭">✕</button></h2>
-  <h3>创建受控 Agent</h3>
-  <div class="field"><label>ID</label><input id="m-id" placeholder="如 agent-a"></div>
-  <div class="field"><label>名称</label><input id="m-name" placeholder="可选，默认同 ID"></div>
-  <div class="field"><label>Workspace 路径</label><input id="m-ws" placeholder="如 /path/to/ws-a"></div>
-  <div class="field"><div class="check"><input type="checkbox" id="m-cfg"><label for="m-cfg">创建空 config.json</label></div></div>
-  <button class="btn primary" id="m-create">创建</button>
-  <h3>添加不受控 Agent</h3>
-  <div class="field"><label>ID</label><input id="e-id" placeholder="如 ext-1"></div>
-  <div class="field"><label>WS 地址</label><input id="e-url" placeholder="ws://host:port/ws"></div>
-  <button class="btn primary" id="e-add">添加</button>
+  <h3>添加 Agent</h3>
+  <div class="seg" id="modeSeg">
+    <button class="seg-btn active" data-mode="local">本地</button>
+    <button class="seg-btn" data-mode="remote">远程</button>
+  </div>
+  <!-- Local mode: hub launches a co-shell --serve subprocess. -->
+  <div id="localFields">
+    <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
+    <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
+    <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
+    <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
+    <div class="field"><label>config.json（可选，留空由 co-shell 决定）</label><select id="m-config"><option value="">（不指定）</option></select></div>
+    <div class="field"><div class="check"><input type="checkbox" id="m-cfg"><label for="m-cfg">创建空 config.json</label></div></div>
+    <div class="hint" id="m-ver"></div>
+    <button class="btn primary" id="m-create">创建本地 Agent</button>
+  </div>
+  <!-- Remote mode: user supplies a co-shell serve URL. -->
+  <div id="remoteFields" style="display:none">
+    <div class="field"><label><span class="req">*</span>co-shell serve URL</label><input id="e-url" placeholder="ws://host:port/ws"></div>
+    <div class="field"><label>ID（默认取 host:port）</label><input id="e-id" placeholder="自动生成"></div>
+    <div class="field"><label>备注</label><input id="e-name" placeholder="可选"></div>
+    <div class="hint" id="e-ver"></div>
+    <button class="btn primary" id="e-add">添加远程 Agent</button>
+  </div>
   <h3>Agent 列表</h3>
   <div id="agent-list"></div>
 </div>
 <script>
 (function(){
-  var tabsEl = document.getElementById('tabs');
   var stageEl = document.getElementById('stage');
   var emptyEl = document.getElementById('empty');
+  var badge = document.getElementById('hubBadge');
+  var edge = document.getElementById('edge');
+  var panel = document.getElementById('agentPanel');
+  var listEl = document.getElementById('agentList');
   var drawer = document.getElementById('drawer');
   var scrim = document.getElementById('scrim');
-  var listEl = document.getElementById('agent-list');
-  var agents = [];      // [{id,name,type,running,connected,workspace,port,ws_url}]
-  var current = null;   // active agent id
-  var frames = {};      // id -> iframe element
+  var mgrListEl = document.getElementById('agent-list');
+  var agents = [];
+  var current = null;
+  var frames = {};
+  var hideTimer = null;
 
   function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
@@ -128,17 +220,38 @@ const webIndexHTML = `<!DOCTYPE html>
       .catch(function(e){ cb(0, { error: String(e) }); });
   }
 
+  // ---- Drawer open/close ----
+  function openPanel(){
+    clearTimeout(hideTimer);
+    panel.classList.add('open');
+    document.body.classList.add('drawer-open');
+  }
+  function closePanel(){
+    panel.classList.remove('open');
+    document.body.classList.remove('drawer-open');
+  }
+  function scheduleClose(){
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(closePanel, 600);
+  }
+  badge.onclick = function(){ panel.classList.contains('open') ? closePanel() : openPanel(); };
+  document.getElementById('panelClose').onclick = closePanel;
+  // Hover the left edge to open; leaving the panel schedules a close.
+  edge.addEventListener('mouseenter', openPanel);
+  panel.addEventListener('mouseenter', function(){ clearTimeout(hideTimer); });
+  panel.addEventListener('mouseleave', scheduleClose);
+  badge.addEventListener('mouseenter', function(){ clearTimeout(hideTimer); });
+
   function refresh(){
     api('GET', '/api/agents', null, function(st, j){
       agents = (j && j.agents) || [];
-      // Drop frames for removed agents.
       Object.keys(frames).forEach(function(id){
         if (!agents.some(function(a){ return a.id === id; })){ removeFrame(id); }
       });
       if (!current && agents.length) current = agents[0].id;
       if (current && !agents.some(function(a){ return a.id === current; })) current = agents.length ? agents[0].id : null;
-      renderTabs();
       renderList();
+      renderMgrList();
       ensureFrame(current);
     });
   }
@@ -154,30 +267,27 @@ const webIndexHTML = `<!DOCTYPE html>
     frames[id] = f;
     showFrame(id);
   }
-
   function showFrame(id){
     Object.keys(frames).forEach(function(k){ frames[k].classList.remove('active'); });
     if (frames[id]) frames[id].classList.add('active');
     emptyEl.style.display = agents.length ? 'none' : 'flex';
   }
-
   function removeFrame(id){
     if (frames[id]){ frames[id].remove(); delete frames[id]; }
   }
 
-  function renderTabs(){
-    tabsEl.innerHTML = '';
+  function renderList(){
+    listEl.innerHTML = '';
     agents.forEach(function(a){
-      var t = document.createElement('div');
-      t.className = 'tab' + (a.id === current ? ' active' : '');
+      var r = document.createElement('div');
+      r.className = 'agent' + (a.id === current ? ' active' : '');
       var st = (a.running || a.connected) ? 'on' : 'off';
-      t.innerHTML = '<span class="st ' + st + '"></span>' + esc(a.name || a.id) +
-        '<span class="x" title="关闭">✕</span>';
-      t.onclick = function(e){
+      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm">' + esc(a.name || a.id) + '</span><span class="x" title="关闭">✕</span>';
+      r.onclick = function(e){
         if (e.target.classList.contains('x')){ closeAgent(a.id); return; }
-        current = a.id; renderTabs(); ensureFrame(current);
+        current = a.id; renderList(); ensureFrame(current); closePanel();
       };
-      tabsEl.appendChild(t);
+      listEl.appendChild(r);
     });
   }
 
@@ -189,14 +299,15 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
 
-  function renderList(){
-    listEl.innerHTML = '';
+  function renderMgrList(){
+    mgrListEl.innerHTML = '';
     agents.forEach(function(a){
       var typeBadge = a.type === 'external' ? 'external' : 'managed';
-      var typeLabel = a.type === 'external' ? '不受控' : '受控';
+      var typeLabel = a.type === 'external' ? '远程' : '本地';
       var stateBadge = (a.running || a.connected) ? 'on' : 'off';
       var stateLabel = (a.running || a.connected) ? '运行中' : '已停止';
       var meta = a.type === 'external' ? ('WS: ' + (a.ws_url || '')) : ('WS: ' + (a.workspace || '') + ' · 端口 ' + (a.port || '-'));
+      if (a.version) meta += ' · co-shell v' + a.version + (a.build ? ' [BUILD-' + a.build + ']' : '');
       var row = document.createElement('div');
       row.className = 'agent-row';
       row.innerHTML =
@@ -205,11 +316,10 @@ const webIndexHTML = `<!DOCTYPE html>
         '<span class="badge ' + stateBadge + '">' + stateLabel + '</span></div>' +
         '<div class="meta">' + esc(meta) + '</div>' +
         '<div class="actions">' + actionButtons(a) + '</div>';
-      listEl.appendChild(row);
+      mgrListEl.appendChild(row);
     });
     bindActions();
   }
-
   function actionButtons(a){
     var s = '';
     if (a.type === 'managed'){
@@ -219,9 +329,8 @@ const webIndexHTML = `<!DOCTYPE html>
     s += '<button class="btn danger" data-act="del" data-id="' + esc(a.id) + '">删除</button>';
     return s;
   }
-
   function bindActions(){
-    listEl.querySelectorAll('button[data-act]').forEach(function(btn){
+    mgrListEl.querySelectorAll('button[data-act]').forEach(function(btn){
       btn.onclick = function(){
         var act = btn.getAttribute('data-act');
         var id = btn.getAttribute('data-id');
@@ -240,39 +349,129 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
 
-  // ---- Drawer open/close ----
+  // ---- Right management drawer ----
   function openDrawer(){ drawer.classList.add('open'); scrim.classList.add('show'); }
   function closeDrawer(){ drawer.classList.remove('open'); scrim.classList.remove('show'); }
   document.getElementById('manageBtn').onclick = openDrawer;
   document.getElementById('drawerClose').onclick = closeDrawer;
   scrim.onclick = closeDrawer;
 
+  // ---- Local/remote mode toggle ----
+  var mode = 'local';
+  var localFields = document.getElementById('localFields');
+  var remoteFields = document.getElementById('remoteFields');
+  document.querySelectorAll('#modeSeg .seg-btn').forEach(function(btn){
+    btn.onclick = function(){
+      document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      mode = btn.getAttribute('data-mode');
+      localFields.style.display = mode === 'local' ? '' : 'none';
+      remoteFields.style.display = mode === 'remote' ? '' : 'none';
+    };
+  });
+
+  // ---- Load defaults (workspace, ID, co-shell list, config candidates) ----
+  var coshellSel = document.getElementById('m-coshell');
+  var configSel = document.getElementById('m-config');
+  var mVerEl = document.getElementById('m-ver');
+  var eVerEl = document.getElementById('e-ver');
+  var defaultsLoaded = false;
+  function loadDefaults(){
+    api('GET', '/api/agent-defaults', null, function(st, j){
+      if (st >= 400 || !j) return;
+      if (!document.getElementById('m-ws').value) document.getElementById('m-ws').value = j.default_workspace || '';
+      if (!document.getElementById('m-id').value) document.getElementById('m-id').value = j.default_id || '';
+      // co-shell executables.
+      coshellSel.innerHTML = '';
+      var shells = j.co_shells || [];
+      if (!shells.length){
+        coshellSel.innerHTML = '<option value="">未找到 co-shell，请先安装到当前目录或 PATH</option>';
+      } else {
+        shells.forEach(function(c){
+          var opt = document.createElement('option');
+          opt.value = c.path;
+          opt.textContent = c.path + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [不可执行]');
+          coshellSel.appendChild(opt);
+        });
+      }
+      // config candidates.
+      configSel.innerHTML = '<option value="">（不指定）</option>';
+      (j.config_candidates || []).forEach(function(c){
+        var opt = document.createElement('option');
+        opt.value = c.path;
+        opt.textContent = c.path + (c.note ? '  (' + c.note + ')' : '');
+        configSel.appendChild(opt);
+      });
+      defaultsLoaded = true;
+      checkLocalVersion();
+    });
+  }
+
+  // ---- Version checks ----
+  function checkLocalVersion(){
+    var path = coshellSel.value;
+    if (!path){ mVerEl.textContent = ''; mVerEl.className = 'hint'; return; }
+    api('GET', '/api/agent-version?kind=local&path=' + encodeURIComponent(path), null, function(st, j){
+      if (j && j.ok){
+        mVerEl.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
+        mVerEl.className = 'hint ver-ok';
+      } else {
+        mVerEl.textContent = (j && j.error) || '无法读取版本';
+        mVerEl.className = 'hint ver-err';
+      }
+    });
+  }
+  coshellSel.onchange = checkLocalVersion;
+  document.getElementById('e-url').addEventListener('input', function(){
+    var url = this.value.trim();
+    if (!url){ eVerEl.textContent = ''; eVerEl.className = 'hint'; return; }
+    api('GET', '/api/agent-version?kind=remote&url=' + encodeURIComponent(url), null, function(st, j){
+      if (j && j.ok){
+        eVerEl.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '') + ' ✓';
+        eVerEl.className = 'hint ver-ok';
+      } else {
+        eVerEl.textContent = (j && j.error) || '无法连接';
+        eVerEl.className = 'hint ver-err';
+      }
+    });
+  });
+
+  // ---- Create local agent ----
   document.getElementById('m-create').onclick = function(){
-    var id = document.getElementById('m-id').value.trim();
     var ws = document.getElementById('m-ws').value.trim();
-    if (!id || !ws){ alert('请填写 ID 和 Workspace 路径'); return; }
+    if (!ws){ alert('请填写 Workspace 路径'); return; }
+    var id = document.getElementById('m-id').value.trim() || ws.split(/[\\\/]/).pop();
     api('POST', '/api/agents', {
       id: id,
       name: document.getElementById('m-name').value.trim(),
       workspace: ws,
+      co_shell: coshellSel.value,
+      config_path: configSel.value,
       create_config: document.getElementById('m-cfg').checked
     }, function(st, j){
       if (st >= 400) alert('创建失败: ' + (j.error || st));
-      else { document.getElementById('m-id').value=''; document.getElementById('m-ws').value=''; }
+      else { document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; }
+      refresh();
+    });
+  };
+  // ---- Add remote agent ----
+  document.getElementById('e-add').onclick = function(){
+    var url = document.getElementById('e-url').value.trim();
+    if (!url){ alert('请填写 co-shell serve URL'); return; }
+    var id = document.getElementById('e-id').value.trim();
+    if (!id){
+      var m = url.match(/\/\/([^:\/]+):?(\d+)?/);
+      id = m ? (m[1] + (m[2] ? '-' + m[2] : '')) : 'remote';
+    }
+    api('POST', '/api/agents/external', { id: id, ws_url: url }, function(st, j){
+      if (st >= 400) alert('添加失败: ' + (j.error || st));
+      else { document.getElementById('e-url').value=''; document.getElementById('e-id').value=''; }
       refresh();
     });
   };
 
-  document.getElementById('e-add').onclick = function(){
-    var id = document.getElementById('e-id').value.trim();
-    var url = document.getElementById('e-url').value.trim();
-    if (!id || !url){ alert('请填写 ID 和 WS 地址'); return; }
-    api('POST', '/api/agents/external', { id: id, ws_url: url }, function(st, j){
-      if (st >= 400) alert('添加失败: ' + (j.error || st));
-      else { document.getElementById('e-id').value=''; document.getElementById('e-url').value=''; }
-      refresh();
-    });
-  };
+  // Load defaults when the drawer first opens.
+  document.getElementById('manageBtn').addEventListener('click', function(){ if (!defaultsLoaded) loadDefaults(); });
 
   refresh();
   setInterval(refresh, 3000);

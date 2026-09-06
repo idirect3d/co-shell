@@ -31,6 +31,8 @@ type AgentSpec struct {
 	Workspace  string `json:"workspace,omitempty"`
 	Port       int    `json:"port,omitempty"`
 	ConfigFile string `json:"config_file,omitempty"` // optional empty config.json name
+	CoShell    string `json:"co_shell,omitempty"`    // optional per-agent co-shell executable (defaults to manager's)
+	ConfigPath string `json:"config_path,omitempty"` // optional explicit config.json path
 
 	// External field.
 	WSURL string `json:"ws_url,omitempty"`
@@ -92,6 +94,14 @@ func (m *Manager) save() error {
 	return os.WriteFile(m.path, data, 0644)
 }
 
+// CoShellPath returns the configured co-shell executable path used to launch
+// managed agents.
+func (m *Manager) CoShellPath() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.coShell
+}
+
 // Agents returns a copy of the current agent specs.
 func (m *Manager) Agents() []AgentSpec {
 	m.mu.Lock()
@@ -118,8 +128,10 @@ func (m *Manager) nextPort() int {
 
 // CreateManaged registers a new managed agent. If workspace does not exist it
 // is created. If createConfig is true, an empty config.json is created in the
-// workspace (a dedicated config for this co-shell instance).
-func (m *Manager) CreateManaged(id, name, workspace string, createConfig bool) (AgentSpec, error) {
+// workspace (a dedicated config for this co-shell instance). coShell and
+// configPath are optional per-agent overrides (empty = use the manager's
+// defaults).
+func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool) (AgentSpec, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -132,18 +144,20 @@ func (m *Manager) CreateManaged(id, name, workspace string, createConfig bool) (
 		return AgentSpec{}, fmt.Errorf("create workspace: %w", err)
 	}
 	spec := AgentSpec{
-		ID:        id,
-		Name:      name,
-		Type:      AgentTypeManaged,
-		Workspace: workspace,
-		Port:      m.nextPort(),
+		ID:         id,
+		Name:       name,
+		Type:       AgentTypeManaged,
+		Workspace:  workspace,
+		Port:       m.nextPort(),
+		CoShell:    coShell,
+		ConfigPath: configPath,
 	}
 	if createConfig {
 		cfgPath := filepath.Join(workspace, "config.json")
 		if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 			if err := os.WriteFile(cfgPath, []byte("{}\n"), 0644); err != nil {
-				return AgentSpec{}, fmt.Errorf("create config: %w", err)
-			}
+			return AgentSpec{}, fmt.Errorf("create config: %w", err)
+		}
 		}
 		spec.ConfigFile = "config.json"
 	}
@@ -227,11 +241,17 @@ func (m *Manager) Start(id string) (string, error) {
 		return "", fmt.Errorf("agent %q is not managed", id)
 	}
 
+	coShell := spec.CoShell
+	if coShell == "" {
+		coShell = m.coShell
+	}
 	args := []string{"--serve", "--port", fmt.Sprintf("%d", spec.Port), "--bind", "127.0.0.1", "-w", spec.Workspace}
-	if spec.ConfigFile != "" {
+	if spec.ConfigPath != "" {
+		args = append(args, "-c", spec.ConfigPath)
+	} else if spec.ConfigFile != "" {
 		args = append(args, "-c", filepath.Join(spec.Workspace, spec.ConfigFile))
 	}
-	cmd := exec.Command(m.coShell, args...)
+	cmd := exec.Command(coShell, args...)
 	cmd.Dir = spec.Workspace
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
