@@ -194,3 +194,94 @@ hub 维护 agent 配置列表，持久化到配置文件（如 hub-gateway.json�
 - **Web UI 管理端点（hub/gateway/webui.go）**：`GET /api/agents`（列表含运行/连接状态）、`POST /api/agents`（创建受控）、`POST /api/agents/external`（添加不受控）、`POST /api/agents/{id}/start|stop`、`DELETE /api/agents/{id}`。启动受控 agent 后带重试连接其 WS 端口。
 - **前端（hub/gateway/webui_static.go）**：右侧管理面板含创建受控 agent 表单（workspace + 可选 config.json）、添加不受控 agent 表单、agent 列表（类型/运行状态徽标 + 启动/停止/删除按钮），每 3 秒自动刷新。
 - **说明**：受控 agent 的 workspace 若 config.json 为空（`{}`），co-shell 启动会进入模型配置向导并因无 TTY 退出——需在 workspace 提供含已配置模型的 config.json 才能正常 `--serve`。
+
+## 10. Web UI 架构演进：iframe 多页外壳 + 反向代理（用户确认，FEATURE-484 延续）
+
+> 本节记录 hub Web UI 的一次**架构方向调整**。经与用户讨论确认：hub 不再"聚合转发 co-shell 业务消息 + 自绘简化聊天界面"，而是转向 **iframe 多页外壳 + 反向代理**——hub 完整透传每个 co-shell 实例的 Web UI，只维护外壳（agent 切换 + 管理 + 移动端自适应）。
+
+### 10.1 背景与动机
+
+原实现（§3-§8）中 hub 作为 WebSocket 客户端连接多个 co-shell agent，把 agent 的 serverMessage 包进 `agent_event` 信封转发给浏览器，hub 前端（webui_static.go）自绘一个简化聊天界面。该方案存在明显局限：
+
+- hub 前端只渲染了 co-shell 消息流的**一小部分**（content_chunk/text/done），thinking/tool_call/command/ask/interaction/plan/session/settings 等结构化内容无法完整呈现。
+- 上行交互弱（只支持发文本，无法回答 ask、处理 interaction、切换 session 等）。
+- hub 需要长期维护一套"简化版"前端，且永远追不上 co-shell 原生前端的演进。
+
+用户确认新方向：**hub 不维护 co-shell 界面，完整透传 co-shell 的 Web UI（含界面），只注入/维护 hub 自己的增强部分（agent 切换、管理入口）**。
+
+### 10.2 目标架构
+
+```
+浏览器（单用户，后连独占，先连自动断开不重连）
+   │
+   ▼
+hub 外壳页面（hub 自己 serve：agent 切换栏 + 管理菜单，移动端自适应）
+   │
+   ├── iframe #1 ──▶ hub 反向代理 ──▶ co-shell agent A (127.0.0.1:portA)
+   ├── iframe #2 ──▶ hub 反向代理 ──▶ co-shell agent B (127.0.0.1:portB)
+   └── ...（每个 agent 一个 iframe，各自独立完整 co-shell Web UI）
+```
+
+- **每个 co-shell 实例的完整 Web UI**（index.html + app.js + style.css + /ws + /api/...）经 hub 反向代理原样透传，浏览器看到的就是 co-shell 原生界面，功能完整。
+- **hub 外壳**只负责：agent 切换（显示/隐藏对应 iframe）、agent 管理（创建/启停/删除，复用 §9 Manager）、移动端自适应。
+- **co-shell 实例界面内部状态**（session/plan/settings 等）由各实例自己负责，hub 不碰、不缓存。
+
+### 10.3 关键设计决策（用户确认）
+
+1. **单用户独占**：hub 外壳只允许一个浏览器客户端。后连接的独占，先连接的自动断开且不自动重连（与 co-shell 自身 single-client 模型一致）。
+2. **hub 负责跨源代理**：每个 iframe 加载 hub 自己的 URL（`http://hub:port/agent/{id}/`），hub 后端反向代理到对应 co-shell 实例的 `http://127.0.0.1:{port}/`。浏览器只与 hub 一个源打交道，规避跨域/同源问题。
+3. **hub 解决端口转发**：co-shell 实例监听 127.0.0.1，远程浏览器无法直连。hub 反向代理把 `hub/agent/{id}/...` 转发到 `127.0.0.1:{port}/...`（含 HTTP 静态资源 + WebSocket /ws + /api 文件接口）。
+4. **数据缓存降级为可选优化**：状态由各 co-shell 实例自己管理，hub 不做业务缓存。切换 agent 时 iframe 保留（或按需销毁重建），切回时状态仍在（co-shell 实例自己持久化 session）。
+5. **移动端适配**：外壳布局自适应，窄屏时 agent 切换栏/管理菜单自动收起为缩略图标（汉堡菜单/抽屉），点开才展开；iframe 全屏占满内容区。
+
+### 10.4 单端口 + 子路径前缀方案（用户确认）
+
+co-shell 前端硬编码大量**根路径绝对路径**（见 §10.6 清单），且 WS 用 `location.host + "/ws"`。为让多个 agent 的 iframe 在 hub 单端口下共存，采用**子路径前缀**区分：
+
+- 每个 agent 的 iframe 加载 `http://hub:port/agent/{id}/`（注意以 `/` 结尾）。
+- co-shell 前端改用**相对路径**（方式乙，见 §10.5），相对路径在 `/agent/{id}/` 下解析为 `/agent/{id}/static/...`、`/agent/{id}/api/...`、`/agent/{id}/ws`。
+- hub 反向代理把 `/agent/{id}` 前缀**剥掉**，转发到对应 co-shell 实例的根路径（`/static/...`、`/api/...`、`/ws`）。co-shell server 路由无需改动（仍部署在根路径）。
+
+### 10.5 co-shell 前端改相对路径（方式乙，单一代码源）
+
+**决策**：直接修改 co-shell 自身前端（`web/static/`），把绝对路径改为相对路径，让 co-shell Web UI 支持子路径部署。hub 不复制前端、不维护第二套代码。
+
+- **优点**：单一前端代码源（co-shell 自己维护）；hub 只做透明反向代理（剥前缀），不深度改写内容；符合"hub 不维护 co-shell 界面"。
+- **对 co-shell 自身无影响**：co-shell 默认部署在根路径，相对路径在根路径下与绝对路径等价。
+- **前提**：iframe 加载 URL 必须以 `/` 结尾，相对路径才能正确解析到 `/agent/{id}/` 前缀下。
+
+### 10.6 co-shell 前端需改的绝对路径清单（调研结果）
+
+**index.html**（4 处）：
+- `/static/app.js`、`/static/favicon.png`、`/static/md.js`、`/static/style.css`
+
+**app.js**（字符串字面量，需改为相对路径）：
+- `/api/bootstrap`、`/api/download`、`/api/file`、`/api/get-model-max-len`、`/api/gitdiff`、`/api/logo`、`/api/open`、`/api/reveal`、`/api/test-api-key`、`/api/test-endpoint`、`/api/tree`、`/api/upload`
+- `/logos/`（品牌 logo，`/logos/{theme}`）
+- `/static/logos/`（模型 logo）
+- `/ws`（WS 地址，`new WebSocket("ws://" + location.host + "/ws")` → 需改为相对 `ws` 或基于 `location.pathname` 前缀）
+
+**注意**：`/ws` 的 WS 地址是 `location.host + "/ws"`，改相对路径时需处理为基于当前路径前缀的 WS 地址（如 `(location.protocol==='https:'?'wss://':'ws://') + location.host + location.pathname + 'ws'`，其中 pathname 以 `/agent/{id}/` 结尾）。
+
+### 10.7 hub 新增模块
+
+- **反向代理模块**（hub/gateway/ 下新增，如 `proxyhttp.go`）：解析 `/agent/{id}/...` 路径，剥掉前缀后转发到对应 co-shell 实例的 `http://127.0.0.1:{port}/...`。支持：
+  - HTTP 静态资源与 /api 接口（用 `httputil.ReverseProxy` 或手写转发）。
+  - WebSocket /ws 升级后双向转发（用 gorilla/websocket 或 httputil 的 WS 支持）。
+- **外壳页面**（替换 webui_static.go 的独立聊天界面）：HTML/CSS/JS 实现 agent 切换栏 + 管理菜单 + iframe 布局 + 移动端自适应。
+- **单用户独占**：外壳 WS/连接管理，后连独占、先连断开。
+
+### 10.8 与现有代码的关系
+
+- **替换**：`hub/gateway/webui_static.go` 的独立聊天界面被外壳页面替换；`proxy.go` 的 WS 客户端代理转发逻辑不再需要（每个 agent 由 iframe 内 co-shell 前端经 hub 反向代理直连）。
+- **保留**：`manager.go`（agent 生命周期管理，外壳管理菜单调用）；`server.go`/`auth.go`（TCP + API Key 服务，供移动端）；`wsserver.go`（若移动端仍需 WS 网关）。
+- **新增**：反向代理模块 + 外壳页面。
+
+### 10.9 实施步骤（分步）
+
+1. **co-shell 前端改相对路径**：修改 `web/static/index.html` + `app.js`，把 §10.6 清单的绝对路径改相对路径；验证 co-shell 自身（根路径部署）功能不受影响。
+2. **hub 反向代理模块**：新增 `/agent/{id}/` 前缀的反向代理（HTTP + WS），转发到对应 co-shell 实例。
+3. **hub 外壳页面**：替换独立聊天界面，实现 agent 切换 + 管理 + iframe 布局 + 移动端自适应。
+4. **单用户独占**：外壳连接管理。
+5. **编译验证 + 浏览器实测**（多 agent 切换、完整 co-shell UI 显示、移动端布局）。
+6. **提交到分支 FEATURE-484**。

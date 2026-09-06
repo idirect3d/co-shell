@@ -30,6 +30,8 @@
   - 实施：hub/gateway/（新）+ cmd/co-shell-hub/ + mobile/
   - 测试：见 use-case/FEATURE-484/
   - 进度：步骤3-6（TCP+API Key 认证、WS 客户端代理转发、多 agent 切换与缓存、Web UI）已完成 [BUILD-857]；步骤7-8（agent 生命周期管理：Manager 注册表持久化 + co-shell --serve 子进程启停 + Web UI 管理界面创建/启动/停止/删除/添加不受控 agent）已完成，编译全绿、管理 API 与 Web UI 浏览器验证通过 [BUILD-861]
+  - Web UI 架构演进（用户确认，架构讨论后）：hub 从"聚合转发业务消息 + 自绘简化聊天界面"转向 **iframe 多页外壳 + 反向代理**——hub 完整透传每个 co-shell 实例的 Web UI（含界面），只维护外壳（agent 切换 + 管理 + 移动端自适应）。单用户独占；hub 反向代理解决跨源/端口转发；数据缓存降级为可选优化。方案：单端口 + 子路径前缀（/agent/{id}/），co-shell 自身前端改相对路径（方式乙，单一代码源），hub 反向代理剥前缀转发。设计见 docs/DESIGN-hub-gateway.md §10。
+  - 进度（新方向）：设计文档 §10 已完成（iframe 外壳 + 反向代理 + co-shell 前端改相对路径方案）
 
 ---
 
