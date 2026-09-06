@@ -5462,14 +5462,12 @@ const narrowMovables = [
   { el: sendBtnEl, home: sendBtnEl.parentNode },
 ];
 
-// isNarrow returns true when the viewport is narrower than twice the full
-// titlebar brand width (mirrors the hub badge logic).
-function isNarrow() {
-  if (!brandEl) return false;
-  // Measure with the version visible so the threshold reflects the full brand.
+// brandWidth returns the full titlebar brand width (logo + co-shell + version),
+// measured with the version visible so the threshold reflects the full brand.
+function brandWidth() {
+  if (!brandEl) return 200;
   if (verEl) verEl.style.display = "";
-  const fullW = brandEl.getBoundingClientRect().width || 200;
-  return window.innerWidth < fullW * 2;
+  return brandEl.getBoundingClientRect().width || 200;
 }
 
 // The display-mode switcher (#streamMode) original home is the stream title
@@ -5553,10 +5551,18 @@ function applyNarrowLayout(narrow) {
 // updateResponsive re-evaluates the narrow-screen state and applies the
 // version-hide + layout changes. Called on load and on window resize.
 function updateResponsive() {
-  const narrow = isNarrow();
+  // Measure the brand width once (brandWidth() temporarily shows the version so
+  // the threshold reflects the full brand) and derive both breakpoints from it.
+  const fullW = brandWidth();
+  const narrow = window.innerWidth < fullW * 2;
+  const narrower = window.innerWidth < fullW * 1.5;
   // FEATURE-487: hide the titlebar version on narrow screens (like the hub).
   if (verEl) verEl.style.display = narrow ? "none" : "";
   applyNarrowLayout(narrow);
+  // FEATURE-487: a tighter breakpoint (viewport < 1.5x brand width) toggles
+  // body.narrower for the most cramped layouts (right-aligned tool icons,
+  // hidden per-iteration token usage).
+  document.body.classList.toggle("narrower", narrower);
 }
 
 window.addEventListener("resize", updateResponsive);
