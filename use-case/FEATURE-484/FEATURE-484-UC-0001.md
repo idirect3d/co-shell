@@ -19,7 +19,7 @@
 
 ## UC-0003 hub 注册联调（握手字段核对）
 
-- **前置**：co-shell-hub 已启动，已用 `--add-client 我的手机` 注册客户端拿到 access_key
+- **前置**：co-shell-hub-legacy 已启动，已用 `--add-client 我的手机` 注册客户端拿到 access_key
 - **步骤**：
   1. 核对 `mobile/lib/utils/udp_client.dart` 握手字段（type/nickname/access_key）
   2. 核对 `hub/` 包实际校验逻辑是否一致
