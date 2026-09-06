@@ -5586,6 +5586,13 @@ function bindClickToggle(trigger, popup, onOpen) {
     closeAllPopups();
     if (willOpen) {
       if (onOpen) onOpen();
+      // FEATURE-487: on narrow screens the session/model menus are full-width
+      // sheets that pop up from the bottom tool row. Anchor their bottom edge
+      // to the tool row's top so they span the viewport width above it.
+      if (document.body.classList.contains("narrow") && narrowToolsEl) {
+        const top = narrowToolsEl.getBoundingClientRect().top;
+        popup.style.setProperty("--menu-bottom", Math.max(0, window.innerHeight - top) + "px");
+      }
       popup.classList.remove("hidden");
     }
   });

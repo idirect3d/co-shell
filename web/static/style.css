@@ -2966,18 +2966,19 @@ body.narrow .mode-seg .mode-seg-item:not(.active) {
 body.narrow .mode-seg .mode-seg-slider {
   display: none;
 }
-/* FEATURE-487: keep the status-bar popup menus (session list / main model /
-   vision model) inside the viewport on narrow screens. The menus are anchored
-   to their trigger with right:0 and expand upward; on a phone a long model id
-   or session title would otherwise push the menu past the screen edge. Cap the
-   menu width to the viewport and let the flexible text truncate with an
-   ellipsis. Anchoring to the trigger's left edge (left:0) keeps the menu from
-   spilling off the left side when the trigger sits near the right edge. */
+/* FEATURE-487: on narrow screens the status-bar popup menus (session list /
+   main model / vision model) become full-width sheets that pop up from the
+   bottom tool row. They are position:fixed so they span the whole viewport
+   width; the bottom edge is set by JS to sit just above the tool row (the
+   --menu-bottom custom property). The menu still expands upward from there. */
 body.narrow .session-menu,
 body.narrow .model-menu {
+  position: fixed;
   left: 0;
-  right: auto;
-  max-width: calc(100vw - 16px);
+  right: 0;
+  width: 100vw;
+  max-width: 100vw;
+  bottom: var(--menu-bottom, 0px);
 }
 /* Let the model-id text shrink and truncate instead of forcing the menu wide. */
 body.narrow .model-menu-item {
