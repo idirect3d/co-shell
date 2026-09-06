@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -333,6 +334,8 @@ func writeJSON(rw http.ResponseWriter, status int, v interface{}) {
 const accessHeader = "X-Access-Key"
 
 // accessControl enforces the Web UI access policy from settings:
+//   - An empty whitelist means no IP restriction (the listen address itself
+//     already limits reachability, e.g. loopback-only by default).
 //   - A client whose IP is in the whitelist is allowed (unless RequireKey is
 //     set, which forces key auth for every client).
 //   - A client outside the whitelist must present the access key in the
@@ -347,7 +350,13 @@ func (w *WebUI) accessControl(next http.Handler) http.Handler {
 			return
 		}
 		nets := parseWhitelist(s.Whitelist)
+		// An empty whitelist trusts only loopback (127.0.0.1/::1) by default;
+		// other hosts must present the access key. A non-empty whitelist allows
+		// the listed IPs/CIDRs without a key.
 		allowed := ipAllowed(r.RemoteAddr, nets)
+		if len(nets) == 0 {
+			allowed = isLoopback(r.RemoteAddr)
+		}
 		needKey := s.RequireKey || (!allowed && s.AccessKey != "")
 		if needKey {
 			if s.AccessKey == "" || r.Header.Get(accessHeader) != s.AccessKey {
@@ -411,19 +420,25 @@ func (w *WebUI) handlePutSettings(rw http.ResponseWriter, r *http.Request) {
 }
 
 // view returns a copy of the settings safe to send to the browser (access key
-// masked).
+// masked). settings_dir is the directory holding the settings file, used by the
+// frontend to show where a self-signed cert would be generated.
 func (s *Settings) view() map[string]interface{} {
 	key := ""
 	if s.AccessKey != "" {
 		key = "********"
 	}
+	dir := filepath.Join(homeDir(), ".co-shell")
+	if dir == ".co-shell" {
+		dir = "."
+	}
 	return map[string]interface{}{
-		"tls_enabled": s.TLSEnabled,
-		"cert_file":   s.CertFile,
-		"key_file":    s.KeyFile,
-		"whitelist":   s.Whitelist,
-		"access_key":  key,
-		"require_key": s.RequireKey,
+		"tls_enabled":  s.TLSEnabled,
+		"cert_file":    s.CertFile,
+		"key_file":     s.KeyFile,
+		"whitelist":    s.Whitelist,
+		"access_key":   key,
+		"require_key":  s.RequireKey,
+		"settings_dir": dir,
 	}
 }
 
@@ -468,4 +483,18 @@ func ipAllowed(remoteAddr string, nets []*net.IPNet) bool {
 		}
 	}
 	return false
+}
+
+// isLoopback reports whether the client address is a loopback IP (127.0.0.1 or
+// ::1). Used as the default trust when the whitelist is empty.
+func isLoopback(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback()
 }
