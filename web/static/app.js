@@ -26,7 +26,7 @@ const I18N = {
     menu: "菜单", settings: "系统设置", identity: "身份与个性", restart: "重启后台",
     appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
-    statusBar: "状态条",
+    statusBar: "状态条", streamTitle: "会话标题", msgViz: "消息可视化",
     sbSession: "Σ", sbLast: "⏱️",
     revealDir: "定位到文件夹",
     downloadFile: "下载文件",
@@ -66,7 +66,7 @@ const I18N = {
     menu: "Menu", settings: "Settings", identity: "Identity & Personality", restart: "Restart backend",
     appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
-    statusBar: "Status bar",
+    statusBar: "Status bar", streamTitle: "Session title", msgViz: "Message viz",
     sbSession: "Σ", sbLast: "⏱️",
     revealDir: "Reveal in folder",
     downloadFile: "Download file",
@@ -1596,6 +1596,38 @@ miStatus.onclick = () => {
   applyStatus();
 };
 
+/* ---------- stream-title / msg-viz visibility toggles (menu) ---------- */
+
+// The "会话标题" and "消息可视化" menu switches control whether the editable
+// session title and the message-visualization chart show in the stream title
+// bar. Persisted in localStorage (absent = visible).
+const miStreamTitle = document.getElementById("miStreamTitle");
+const miStreamTitleCheck = document.getElementById("miStreamTitleCheck");
+const miMsgViz = document.getElementById("miMsgViz");
+const miMsgVizCheck = document.getElementById("miMsgVizCheck");
+let streamTitleOn = localStorage.getItem("co-shell-stream-title") !== "0";
+let msgVizOn = localStorage.getItem("co-shell-msgviz") !== "0";
+
+function applyStreamTitle() {
+  if (streamTitle) streamTitle.style.display = streamTitleOn ? "" : "none";
+  if (miStreamTitleCheck) miStreamTitleCheck.classList.toggle("on", streamTitleOn);
+}
+function applyMsgViz() {
+  if (msgViz) msgViz.style.display = msgVizOn ? "" : "none";
+  if (miMsgVizCheck) miMsgVizCheck.classList.toggle("on", msgVizOn);
+}
+
+if (miStreamTitle) miStreamTitle.onclick = () => {
+  streamTitleOn = !streamTitleOn;
+  localStorage.setItem("co-shell-stream-title", streamTitleOn ? "1" : "0");
+  applyStreamTitle();
+};
+if (miMsgViz) miMsgViz.onclick = () => {
+  msgVizOn = !msgVizOn;
+  localStorage.setItem("co-shell-msgviz", msgVizOn ? "1" : "0");
+  applyMsgViz();
+};
+
 // Token stats accumulated from token_iter events. sessionIn/sessionOut are
 // the running totals across all iterations; last* hold the most recent
 // iteration's values (including input/output tokens-per-second).
@@ -1622,7 +1654,7 @@ let msgVizPan = 0;
 // red.
 function msgVizColor(cls, box) {
   const bcls = box ? box.className : "";
-  if (/level-error/.test(cls) || /level-error/.test(bcls)) return "#f87171"; // dark --err
+  if (/level-error/.test(cls) || /level-error/.test(bcls)) return "#FF0000"; // FEATURE-487: failed = pure red
   if (/level-success/.test(cls) || /level-success/.test(bcls)) return "#4ade80"; // dark --ok
   if (/level-warning/.test(cls) || /level-warning/.test(bcls)) return "#facc15"; // dark --warn
   if (/user-msg/.test(cls)) return "transparent"; // user msg = empty gap between turns
@@ -1634,6 +1666,35 @@ function msgVizColor(cls, box) {
   return "#5b6373"; // dark --fg-faint (system / thinking / default)
 }
 
+// msgVizTip builds the hover tooltip for a message-visualization line: the
+// message type, the tool intent (for tool blocks) and the context-usage
+// percentage (FEATURE-487).
+function msgVizTip(cls, box, ratio) {
+  const en = currentLang === "en";
+  let type = "";
+  if (/level-error/.test(cls)) type = en ? "Failed" : "失败";
+  else if (/level-success/.test(cls)) type = en ? "Success" : "成功";
+  else if (/level-warning/.test(cls)) type = en ? "Warning" : "警告";
+  else if (/user-msg/.test(cls)) type = en ? "User" : "用户";
+  else if (/llm/.test(cls)) type = en ? "LLM" : "LLM";
+  else if (/tool/.test(cls)) type = en ? "Tool" : "工具";
+  else if (/command/.test(cls)) type = en ? "Command" : "命令";
+  else if (/repl/.test(cls)) type = en ? "REPL" : "REPL";
+  else if (/supervisor/.test(cls)) type = en ? "Supervisor" : "监督";
+  else type = en ? "Message" : "消息";
+  const parts = [type];
+  // Tool intent: read the block title label ("TOOL: action - intent").
+  if (/tool/.test(cls) && box) {
+    const label = box.querySelector(".ev-head-label");
+    const t = (label ? label.textContent : "") || "";
+    const intent = t.replace(/^TOOL:\s*/i, "").trim();
+    if (intent) parts.push(intent);
+  }
+  const pct = Math.round((ratio || 0) * 100);
+  parts.push((en ? "context " : "上下文 ") + pct + "%");
+  return parts.join(" · ");
+}
+
 // msgVizFlush renders one line per pending block using the current context
 // usage, then clears the pending list. Called when a token_iter arrives (the
 // iteration's token usage is now known).
@@ -1641,7 +1702,7 @@ function msgVizFlush() {
   if (!msgViz || !msgVizTrack || !msgVizPending.length) { msgVizPending = []; return; }
   const max = (modelInfo && modelInfo.textMaxLen) || 0;
   const h = msgViz.clientHeight || 27;
-  const dotH = 2; // FIX-483: the context-usage notch is 2px tall
+  const dotH = 3; // FEATURE-487: the context-usage dot is 3px tall
   const range = Math.max(h - dotH, 1);
   const ratio = max > 0 ? Math.min(msgVizUsage / max, 1) : 0;
   const top = Math.round(range * (1 - ratio));
@@ -1650,12 +1711,19 @@ function msgVizFlush() {
   for (const p of pending) {
     const line = document.createElement("div");
     line.className = "msgviz-line";
-    line.style.background = msgVizColor(p.cls, p.box);
+    // FEATURE-487: draw the line as a dotted vertical line (1px dot + 1px gap)
+    // in the block colour; the 75% opacity is applied by CSS.
+    const col = msgVizColor(p.cls, p.box);
+    line.style.background = "repeating-linear-gradient(to bottom, " + col + " 0 1px, transparent 1px 2px)";
     line._box = p.box; // for click-to-locate in initMsgViz
+    line._cls = p.cls; // for the hover tooltip
     const dot = document.createElement("div");
     dot.className = "msgviz-dot";
     dot.style.top = top + "px";
     line.appendChild(dot);
+    // FEATURE-487: hovering shows a tooltip with the message type, tool intent
+    // (if any) and the context-usage percentage.
+    line.title = msgVizTip(p.cls, p.box, ratio);
     // Clicking a line scrolls the corresponding message block into view.
     line.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -5380,6 +5448,8 @@ async function refreshBranch() {
   setRunning(false); // apply localized button title
   applyPanels();
   applyStatus();
+  applyStreamTitle();
+  applyMsgViz();
   updateStatus();
   // FEATURE-383: leaving the sidebar returns it to the fixed width after a
   // short delay (the auto-expand is triggered per-row on hover).
