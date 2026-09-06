@@ -3814,6 +3814,9 @@ const LOGO_OPACITY = { "=": 0.35, "+": 0.55, "*": 0.75, "#": 0.9, "%": 1 };
 
 miSettings.onclick = () => {
   settingsModal.classList.remove("hidden");
+  // FEATURE-487: always open at the level-1 category list on narrow screens
+  // (clear any leftover drilled-in state from a previous close).
+  settingsShowList();
   wsSend({ type: "settings_get" });
 };
 // FEATURE-398: "重启后台" sends a restart signal to the backend, which
