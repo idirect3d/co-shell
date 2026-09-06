@@ -227,6 +227,7 @@ const webIndexHTML = `<!DOCTYPE html>
   var current = null;
   var frames = {};
   var hideTimer = null;
+  var hubVerEl = document.getElementById('hubVer');
 
   function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
@@ -274,7 +275,15 @@ const webIndexHTML = `<!DOCTYPE html>
   });
   badge.addEventListener('mouseenter', function(){ clearTimeout(hideTimer); });
 
+  // Load the hub version into the logo badge once.
+  function loadHubInfo(){
+    if (hubVerEl.textContent) return;
+    api('GET', '/api/hub-info', null, function(st, j){
+      if (j && j.version) hubVerEl.textContent = ' v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
+    });
+  }
   function refresh(){
+    loadHubInfo();
     api('GET', '/api/agents', null, function(st, j){
       agents = (j && j.agents) || [];
       Object.keys(frames).forEach(function(id){
@@ -545,9 +554,22 @@ const webIndexHTML = `<!DOCTYPE html>
         } else {
           alert('创建失败: ' + msg);
         }
+        refresh();
+        return;
       }
-      else { document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; document.getElementById('m-port').value=''; }
-      refresh();
+      // Created: clear the form, then auto-start the new agent and show it.
+      document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; document.getElementById('m-port').value='';
+      var nid = (j && j.id) || id;
+      api('POST', '/api/agents/' + encodeURIComponent(nid) + '/start', null, function(st2, j2){
+        if (st2 >= 400) alert('创建成功，但自动启动失败: ' + ((j2 && j2.error) || st2));
+        current = nid;
+        renderList();
+        closePanel();
+        var f = frames[nid];
+        if (f){ f.src = '/agent/' + encodeURIComponent(nid) + '/'; }
+        else { ensureFrame(nid); }
+        refresh();
+      });
     });
   };
   // ---- Add remote agent (hub builds the ws://host:port/ws URL) ----

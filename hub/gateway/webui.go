@@ -30,13 +30,16 @@ type WebUI struct {
 	manager      *Manager
 	reverseProxy *httpReverseProxy
 	ctx          context.Context
+	version      string
+	build        string
 
 	httpSrv *http.Server
 	ln      net.Listener
 }
 
 // NewWebUI creates a WebUI server bound to the given proxy and agent manager.
-func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager) *WebUI {
+// version/build identify this hub build (shown in the logo badge).
+func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, version, build string) *WebUI {
 	ctx := context.Background()
 	w := &WebUI{
 		cfg:          cfg,
@@ -44,6 +47,8 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager) *WebUI {
 		manager:      manager,
 		reverseProxy: newHTTPReverseProxy(manager),
 		ctx:          ctx,
+		version:      version,
+		build:        build,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", w.handleIndex)
@@ -62,6 +67,7 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager) *WebUI {
 	mux.HandleFunc("GET /api/config-candidates", w.handleConfigCandidates)
 	mux.HandleFunc("GET /api/agent-version", w.handleAgentVersion)
 	mux.HandleFunc("GET /api/remote-defaults", w.handleRemoteDefaults)
+	mux.HandleFunc("GET /api/hub-info", w.handleHubInfo)
 	handler := http.Handler(mux)
 	if len(cfg.Whitelist) > 0 {
 		handler = w.whitelistMiddleware(handler, cfg.Whitelist)
@@ -108,6 +114,11 @@ func (w *WebUI) Close() error {
 func (w *WebUI) handleIndex(rw http.ResponseWriter, _ *http.Request) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = rw.Write([]byte(webIndexHTML))
+}
+
+// handleHubInfo returns this hub's version/build for the logo badge.
+func (w *WebUI) handleHubInfo(rw http.ResponseWriter, _ *http.Request) {
+	writeJSON(rw, http.StatusOK, map[string]string{"name": "co-shell-hub", "version": w.version, "build": w.build})
 }
 
 // agentView is the JSON shape returned by GET /api/agents.
