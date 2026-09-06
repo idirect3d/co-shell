@@ -29,7 +29,7 @@
   - Web UI 访问控制（用户确认，步骤6要求）：hub Web UI 与 co-shell 一致支持访问白名单，默认仅本机访问——复用 co-shell 模式（FEATURE-430/431）：`--bind`（默认 127.0.0.1）+ `--whitelist`（逗号分隔 IP/网段，空=仅本机访问）；无白名单时强制本机访问（忽略 --bind，绑定 127.0.0.1）；白名单校验支持精确 IP 与 CIDR 网段（复用 web/server.go 的 parseWhitelist/ipAllowed 逻辑）。
   - 实施：hub/gateway/（新）+ cmd/co-shell-hub/ + mobile/
   - 测试：见 use-case/FEATURE-484/
-  - 进度：步骤3（hub TCP 服务 + API Key 认证层，gateway 包）已完成，单元测试通过 [BUILD-857]
+  - 进度：步骤3-6（TCP+API Key 认证、WS 客户端代理转发、多 agent 切换与缓存、Web UI）已完成 [BUILD-857]；步骤7-8（agent 生命周期管理：Manager 注册表持久化 + co-shell --serve 子进程启停 + Web UI 管理界面创建/启动/停止/删除/添加不受控 agent）已完成，编译全绿、管理 API 与 Web UI 浏览器验证通过 [BUILD-861]
 
 ---
 

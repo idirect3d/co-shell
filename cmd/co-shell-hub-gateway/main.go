@@ -3,6 +3,10 @@
 // with API Key authentication for mobile clients, and serves a Web UI for
 // browser access (default localhost only, whitelist configurable).
 //
+// The gateway also manages co-shell agent lifecycles: it keeps an agent
+// registry (persisted to a JSON file), can create workspaces and launch/stop
+// managed co-shell --serve subprocesses, and connects to external agents.
+//
 // Usage:
 //
 //	co-shell-hub-gateway [flags]
@@ -14,7 +18,10 @@
 //	--api-key KEY        API key required by TCP clients
 //	--web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
 //	--whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR)
-//	--agent ID=WSURL     co-shell agent endpoint (repeatable)
+//	--registry PATH      Agent registry file (default: ./hub-agents.json)
+//	--co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
+//	--base-port N        First port for auto-allocating managed agents (default 12810)
+//	--agent ID=WSURL     External agent endpoint (repeatable, added to registry)
 //	--help               Show help
 package main
 
@@ -26,6 +33,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -34,11 +42,13 @@ import (
 
 // config is the JSON config file shape.
 type config struct {
-	TCPAddr   string              `json:"tcp_addr"`
-	APIKey    string              `json:"api_key"`
-	WebAddr   string              `json:"web_addr"`
-	Whitelist []string            `json:"whitelist,omitempty"`
-	Agents    []gateway.AgentConfig `json:"agents"`
+	TCPAddr      string `json:"tcp_addr"`
+	APIKey       string `json:"api_key"`
+	WebAddr      string `json:"web_addr"`
+	Whitelist    []string `json:"whitelist,omitempty"`
+	RegistryPath string `json:"registry_path,omitempty"`
+	CoShellPath  string `json:"co_shell_path,omitempty"`
+	BasePort     int    `json:"base_port,omitempty"`
 }
 
 func main() {
@@ -47,8 +57,11 @@ func main() {
 	apiKey := flag.String("api-key", "", "API key required by TCP clients")
 	webAddr := flag.String("web-addr", "", "Web UI listen address (default 127.0.0.1:12802)")
 	whitelist := flag.String("whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)")
+	registryPath := flag.String("registry", "", "agent registry file (default: ./hub-agents.json)")
+	coShellPath := flag.String("co-shell-path", "", "co-shell executable for managed agents (default: same dir as this binary)")
+	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default 12810)")
 	var agents multiFlag
-	flag.Var(&agents, "agent", "co-shell agent endpoint as ID=WSURL (repeatable)")
+	flag.Var(&agents, "agent", "external agent endpoint as ID=WSURL (repeatable)")
 	showHelp := flag.Bool("help", false, "show help")
 	flag.Parse()
 
@@ -72,24 +85,69 @@ func main() {
 	if *whitelist != "" {
 		cfg.Whitelist = splitList(*whitelist)
 	}
-	for _, a := range agents {
-		id, url, ok := strings.Cut(a, "=")
-		if !ok || id == "" || url == "" {
-			log.Fatalf("invalid --agent %q (want ID=WSURL)", a)
-		}
-		cfg.Agents = append(cfg.Agents, gateway.AgentConfig{ID: id, Name: id, WSURL: url})
+	if *registryPath != "" {
+		cfg.RegistryPath = *registryPath
 	}
-
-	if len(cfg.Agents) == 0 {
-		log.Println("warning: no agents configured; use --agent ID=WSURL")
+	if *coShellPath != "" {
+		cfg.CoShellPath = *coShellPath
+	}
+	if *basePort > 0 {
+		cfg.BasePort = *basePort
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Connect to agents via the proxy.
-	proxy := gateway.NewProxy(ctx, cfg.Agents)
+	// Resolve defaults for the agent manager.
+	if cfg.RegistryPath == "" {
+		cfg.RegistryPath = "./hub-agents.json"
+	}
+	if cfg.CoShellPath == "" {
+		cfg.CoShellPath = defaultCoShellPath()
+	}
+	// Resolve to an absolute path: managed co-shell subprocesses run with their
+	// workspace as the working directory, so a relative path would break.
+	if abs, err := filepath.Abs(cfg.CoShellPath); err == nil {
+		cfg.CoShellPath = abs
+	}
+	if cfg.BasePort == 0 {
+		cfg.BasePort = 12810
+	}
+
+	// Create the agent manager (loads the persisted registry).
+	mgr, err := gateway.NewManager(ctx, cfg.RegistryPath, cfg.CoShellPath, cfg.BasePort)
+	if err != nil {
+		log.Fatalf("agent manager: %v", err)
+	}
+	defer mgr.StopAll()
+
+	// Register any --agent external endpoints into the registry (idempotent).
+	for _, a := range agents {
+		id, url, ok := strings.Cut(a, "=")
+		if !ok || id == "" || url == "" {
+			log.Fatalf("invalid --agent %q (want ID=WSURL)", a)
+		}
+		if _, err := mgr.AddExternal(id, id, url); err != nil {
+			log.Printf("note: --agent %s not added: %v", id, err)
+		}
+	}
+
+	// Create an empty proxy and connect the registry's external agents (and any
+	// managed agent that is already running). Managed agents are started on
+	// demand through the Web UI.
+	proxy := gateway.NewProxy(ctx, nil)
 	defer proxy.Close()
+	for _, spec := range mgr.Agents() {
+		if spec.Type == gateway.AgentTypeExternal {
+			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
+				log.Printf("gateway: connect external agent %s failed: %v", spec.ID, err)
+			}
+		} else if mgr.IsRunning(spec.ID) {
+			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: gateway.WSURLForPort(spec.Port)}); err != nil {
+				log.Printf("gateway: connect running agent %s failed: %v", spec.ID, err)
+			}
+		}
+	}
 
 	// Start the TCP gateway service.
 	tcpCfg := gateway.DefaultConfig()
@@ -106,9 +164,9 @@ func main() {
 	}()
 	log.Printf("hub-gateway: TCP service on %s (api-key=%v)", cfg.TCPAddr, cfg.APIKey != "")
 
-	// Start the Web UI server.
+	// Start the Web UI server (chat + agent management).
 	webCfg := gateway.WebUIConfig{ListenAddr: cfg.WebAddr, Whitelist: cfg.Whitelist}
-	webUI := gateway.NewWebUI(webCfg, proxy)
+	webUI := gateway.NewWebUI(webCfg, proxy, mgr)
 	if err := webUI.Listen(); err != nil {
 		log.Fatalf("web listen: %v", err)
 	}
@@ -126,6 +184,15 @@ func main() {
 	log.Println("hub-gateway: shutting down")
 	tcpSrv.Close()
 	webUI.Close()
+}
+
+// defaultCoShellPath returns the co-shell executable next to this binary.
+func defaultCoShellPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "co-shell"
+	}
+	return filepath.Join(filepath.Dir(exe), "co-shell")
 }
 
 // multiFlag collects repeated string flags.
@@ -178,15 +245,20 @@ Flags:
   --api-key KEY        API key required by TCP clients
   --web-addr ADDR      Web UI listen address (default 127.0.0.1:12802)
   --whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)
-  --agent ID=WSURL     co-shell agent endpoint (repeatable, e.g. --agent a=ws://127.0.0.1:8399/ws)
+  --registry PATH      Agent registry file (default: ./hub-agents.json)
+  --co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
+  --base-port N        First port for auto-allocating managed agents (default 12810)
+  --agent ID=WSURL     External agent endpoint (repeatable, added to registry)
   --help               Show help
 
 Examples:
-  # Connect one agent and serve Web UI on localhost
+  # Serve Web UI on localhost; manage agents through the UI
+  co-shell-hub-gateway
+
+  # Connect one external agent and serve Web UI on localhost
   co-shell-hub-gateway --agent default=ws://127.0.0.1:8399/ws
 
-  # Two agents + TCP service with API key + remote Web UI whitelist
+  # TCP service with API key + remote Web UI whitelist
   co-shell-hub-gateway --api-key secret \
-    --agent a=ws://127.0.0.1:8399/ws --agent b=ws://127.0.0.1:8400/ws \
     --web-addr 0.0.0.0:12802 --whitelist 192.168.1.100,192.168.1.0/24`)
 }
