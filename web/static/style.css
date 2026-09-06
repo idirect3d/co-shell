@@ -3071,6 +3071,21 @@ body.narrow .settings-body.settings-drilled .settings-nav {
 body.narrow .settings-body.settings-drilled .settings-pane {
   display: flex;
 }
+/* FEATURE-487: on narrow screens the model manager / wizard modals must not
+   exceed the viewport width (their wide-screen min-width:560px would overflow
+   a phone). Cap the width and let long model names/IDs truncate. */
+body.narrow .models-box,
+body.narrow .wizard-box {
+  min-width: 0;
+  width: 92vw;
+  max-width: calc(100vw - 16px);
+}
+body.narrow .model-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
 
 /* ---------- FEATURE-487: unify editable-control font size ---------- */
 
@@ -3083,6 +3098,21 @@ input,
 textarea,
 select {
   font-size: 16px;
+}
+/* FEATURE-487: force every editable control (including the model-config wizard,
+   system settings, identity and ask/interaction inputs that set their own
+   smaller font-size) to 16px so no input on any screen ever triggers the iOS
+   auto-zoom. !important overrides the more specific per-control rules. */
+input,
+textarea,
+select,
+.wizard-input,
+.set-input,
+.set-search,
+.identity-input,
+.ask-line input,
+.interaction-free input {
+  font-size: 16px !important;
 }
 /* The main input box keeps its monospace font and a matching line-height so
    the taller glyphs stay vertically centred in the fixed-height box. */
