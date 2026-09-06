@@ -2860,8 +2860,9 @@ aside {
 /* ---------- FEATURE-487: narrow-screen responsive layout ---------- */
 
 /* The narrow tool row: shown only when body.narrow is set (viewport narrower
-   than twice the titlebar brand width). It holds the mode switcher, new-session,
-   session-list, attach and YOLO controls on one row above the input box. */
+   than three times the titlebar brand width). It holds the mode switcher,
+   new-session, session-list, attach and YOLO controls on one row above the
+   input box. */
 .narrow-tools {
   display: flex;
   align-items: center;
@@ -3105,22 +3106,17 @@ body.narrow .model-id {
   max-width: 100%;
 }
 
-/* ---------- FEATURE-487: tighter narrower breakpoint ---------- */
-
-/* body.narrower is set when the viewport is narrower than 1.5x the titlebar
-   brand width (a tighter breakpoint than body.narrow's 2x). It always implies
-   body.narrow, so these rules only refine the most cramped layouts. */
-/* The narrow tool row: push the work-mode switcher (act/plan/research) to the
-   far left with margin-right:auto so every other icon (model, vision, new,
-   sessions, attach, YOLO, run) packs against the right edge. This overrides
-   .narrow-tools .mode-seg's margin-right:0 (which keeps the row left-packed at
-   the plain narrow size). */
-body.narrower .narrow-tools .mode-seg {
+/* FEATURE-487: on narrow screens the narrow tool row pushes the work-mode
+   switcher (act/plan/research) to the far left with margin-right:auto so every
+   other icon (model, vision, new, sessions, attach, YOLO, run) packs against the
+   right edge. This overrides .narrow-tools .mode-seg's margin-right:0 (which
+   keeps the row left-packed on wide screens). */
+body.narrow .narrow-tools .mode-seg {
   margin-right: auto;
 }
-/* Hide the status-bar per-iteration token usage (#sbLast) on the tightest
-   screens so the bottom status line stays compact. */
-body.narrower #sbLast {
+/* FEATURE-487: hide the status-bar per-iteration token usage (#sbLast) on
+   narrow screens so the bottom status line stays compact. */
+body.narrow #sbLast {
   display: none;
 }
 
