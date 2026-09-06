@@ -29,7 +29,7 @@ final class CoShellLogoView: UIView {
     /// UIStackView (which has no intrinsic size of its own). Callers that need
     /// a different size pin explicit width/height constraints instead.
     override var intrinsicContentSize: CGSize {
-        CGSize(width: 22, height: 22)
+        CGSize(width: 33, height: 33)
     }
 
     override init(frame: CGRect) {
