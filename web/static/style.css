@@ -2993,3 +2993,20 @@ body.narrow .settings-body.settings-drilled .settings-nav {
 body.narrow .settings-body.settings-drilled .settings-pane {
   display: flex;
 }
+
+/* ---------- FEATURE-487: disable mobile auto-zoom on input focus ---------- */
+
+/* iOS Safari (and some Android browsers) auto-zoom the page when a text
+   input/textarea whose font-size is under 16px gains focus, which makes the
+   UI look like it jumps. On narrow screens we raise every editable control's
+   font to >=16px so the browser no longer zooms. Wide screens are untouched. */
+body.narrow input,
+body.narrow textarea,
+body.narrow select {
+  font-size: 16px;
+}
+/* The main input box keeps its monospace font and a matching line-height so
+   the taller glyphs stay vertically centred in the fixed-height box. */
+body.narrow #input {
+  font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
