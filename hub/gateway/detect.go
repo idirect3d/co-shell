@@ -57,7 +57,11 @@ func DetectCoShells() []coShellInfo {
 			info.OK = true
 			info.Version, info.Build = coShellVersion(abs)
 		}
-		out = append(out, info)
+		// Only list co-shell executables that exist and are executable, so the
+		// UI dropdown never offers a path that cannot run.
+		if info.OK {
+			out = append(out, info)
+		}
 	}
 
 	// Current working directory.

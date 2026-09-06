@@ -43,6 +43,8 @@ const webIndexHTML = `<!DOCTYPE html>
   .frame.active { display:block; }
   .empty { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--fg-dim); text-align:center; padding:20px; }
   .empty .big { font-size:40px; }
+  .empty .big.run { cursor:pointer; color:var(--accent); transition:transform .15s ease; }
+  .empty .big.run:hover { transform:scale(1.15); }
 
   /* Hub badge floating over the co-shell logo area (top-left, 44px tall to
      match the co-shell topbar). Clicking it toggles the agent drawer. */
@@ -150,8 +152,8 @@ const webIndexHTML = `<!DOCTYPE html>
 <body>
 <div id="stage">
   <div class="empty" id="empty">
-    <div class="big">▸</div>
-    <div>暂无 Agent。点击左上角 co-shell-hub 徽标，再点"管理"创建或添加 Agent。</div>
+    <div class="big run" id="emptyRun" title="创建或添加 Agent">▸</div>
+    <div>暂无 Agent。点击上方"运行"箭头，或左上角 co-shell-hub 徽标再点"管理"创建或添加 Agent。</div>
   </div>
 </div>
 
@@ -387,6 +389,8 @@ const webIndexHTML = `<!DOCTYPE html>
   };
   // Clicking the scrim closes the whole drawer.
   scrim.onclick = closePanel;
+  // The empty-state "run" arrow opens the Agent management config view.
+  document.getElementById('emptyRun').onclick = function(){ document.getElementById('manageBtn').click(); };
 
   // ---- Local/remote mode toggle ----
   var mode = 'local';
