@@ -61,6 +61,7 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager) *WebUI {
 	mux.HandleFunc("GET /api/co-shell-locations", w.handleCoShellLocations)
 	mux.HandleFunc("GET /api/config-candidates", w.handleConfigCandidates)
 	mux.HandleFunc("GET /api/agent-version", w.handleAgentVersion)
+	mux.HandleFunc("GET /api/remote-defaults", w.handleRemoteDefaults)
 	handler := http.Handler(mux)
 	if len(cfg.Whitelist) > 0 {
 		handler = w.whitelistMiddleware(handler, cfg.Whitelist)

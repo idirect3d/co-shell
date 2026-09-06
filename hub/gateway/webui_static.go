@@ -184,10 +184,11 @@ const webIndexHTML = `<!DOCTYPE html>
     <div class="hint" id="m-ver"></div>
     <button class="btn primary" id="m-create">创建本地 Agent</button>
   </div>
-  <!-- Remote mode: user supplies a co-shell serve URL. -->
+  <!-- Remote mode: user supplies a host + port (hub builds the ws URL). -->
   <div id="remoteFields" style="display:none">
-    <div class="field"><label><span class="req">*</span>co-shell serve URL</label><input id="e-url" placeholder="ws://host:port/ws"></div>
-    <div class="field"><label>ID（默认取 host:port）</label><input id="e-id" placeholder="自动生成"></div>
+    <div class="field"><label><span class="req">*</span>主机地址</label><input id="e-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
+    <div class="field"><label><span class="req">*</span>端口号</label><input id="e-port" placeholder="自动推荐，可修改"></div>
+    <div class="field"><label>ID（默认 host-port）</label><input id="e-id" placeholder="自动生成"></div>
     <div class="field"><label>备注</label><input id="e-name" placeholder="可选"></div>
     <div class="hint" id="e-ver"></div>
     <button class="btn primary" id="e-add">添加远程 Agent</button>
@@ -422,8 +423,19 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
   coshellSel.onchange = checkLocalVersion;
-  document.getElementById('e-url').addEventListener('input', function(){
-    var url = this.value.trim();
+
+  // ---- Remote host + port: auto-recommend a free port from 28256 ----
+  var eHostEl = document.getElementById('e-host');
+  var ePortEl = document.getElementById('e-port');
+  var eIdEl = document.getElementById('e-id');
+  function remoteURL(){
+    var h = eHostEl.value.trim();
+    var p = ePortEl.value.trim();
+    if (!h || !p) return '';
+    return 'ws://' + h + ':' + p + '/ws';
+  }
+  function checkRemoteVersion(){
+    var url = remoteURL();
     if (!url){ eVerEl.textContent = ''; eVerEl.className = 'hint'; return; }
     api('GET', '/api/agent-version?kind=remote&url=' + encodeURIComponent(url), null, function(st, j){
       if (j && j.ok){
@@ -434,6 +446,27 @@ const webIndexHTML = `<!DOCTYPE html>
         eVerEl.className = 'hint ver-err';
       }
     });
+  }
+  // When the host is entered, ask the hub for a recommended free port.
+  eHostEl.addEventListener('input', function(){
+    var h = this.value.trim();
+    if (!h){ ePortEl.value=''; eIdEl.value=''; eVerEl.textContent=''; return; }
+    api('GET', '/api/remote-defaults?host=' + encodeURIComponent(h), null, function(st, j){
+      if (j && j.recommended_port){
+        ePortEl.value = j.recommended_port;
+        eIdEl.value = h + '-' + j.recommended_port;
+      } else {
+        ePortEl.value = ''; // none free in the scan window; user must fill
+        eIdEl.value = h;
+      }
+      checkRemoteVersion();
+    });
+  });
+  ePortEl.addEventListener('input', function(){
+    var h = eHostEl.value.trim();
+    var p = this.value.trim();
+    if (h && p) eIdEl.value = h + '-' + p;
+    checkRemoteVersion();
   });
 
   // ---- Create local agent ----
@@ -454,18 +487,16 @@ const webIndexHTML = `<!DOCTYPE html>
       refresh();
     });
   };
-  // ---- Add remote agent ----
+  // ---- Add remote agent (hub builds the ws://host:port/ws URL) ----
   document.getElementById('e-add').onclick = function(){
-    var url = document.getElementById('e-url').value.trim();
-    if (!url){ alert('请填写 co-shell serve URL'); return; }
-    var id = document.getElementById('e-id').value.trim();
-    if (!id){
-      var m = url.match(/\/\/([^:\/]+):?(\d+)?/);
-      id = m ? (m[1] + (m[2] ? '-' + m[2] : '')) : 'remote';
-    }
+    var host = eHostEl.value.trim();
+    var port = ePortEl.value.trim();
+    if (!host || !port){ alert('请填写主机地址和端口号'); return; }
+    var url = 'ws://' + host + ':' + port + '/ws';
+    var id = eIdEl.value.trim() || (host + '-' + port);
     api('POST', '/api/agents/external', { id: id, ws_url: url }, function(st, j){
       if (st >= 400) alert('添加失败: ' + (j.error || st));
-      else { document.getElementById('e-url').value=''; document.getElementById('e-id').value=''; }
+      else { eHostEl.value=''; ePortEl.value=''; eIdEl.value=''; }
       refresh();
     });
   };
