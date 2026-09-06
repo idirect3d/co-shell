@@ -21,14 +21,15 @@ type WebUIConfig struct {
 }
 
 // WebUI serves the hub's Web UI: an HTTP server that serves the embedded
-// frontend and bridges each browser WebSocket connection into the Proxy so the
-// browser can list/switch agents and exchange messages with the current agent.
-// It also exposes agent-management HTTP endpoints backed by the Manager.
+// iframe-shell frontend and reverse-proxies each agent's co-shell Web UI under
+// /agent/{id}/... (FEATURE-484). It also exposes agent-management HTTP
+// endpoints backed by the Manager.
 type WebUI struct {
-	cfg     WebUIConfig
-	proxy   *Proxy
-	manager *Manager
-	ctx     context.Context
+	cfg          WebUIConfig
+	proxy        *Proxy
+	manager      *Manager
+	reverseProxy *httpReverseProxy
+	ctx          context.Context
 
 	httpSrv *http.Server
 	ln      net.Listener
@@ -37,10 +38,17 @@ type WebUI struct {
 // NewWebUI creates a WebUI server bound to the given proxy and agent manager.
 func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager) *WebUI {
 	ctx := context.Background()
-	w := &WebUI{cfg: cfg, proxy: proxy, manager: manager, ctx: ctx}
+	w := &WebUI{
+		cfg:          cfg,
+		proxy:        proxy,
+		manager:      manager,
+		reverseProxy: newHTTPReverseProxy(manager),
+		ctx:          ctx,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", w.handleIndex)
-	mux.HandleFunc("GET /ws", w.handleWS)
+	// Reverse-proxy each agent's co-shell Web UI under /agent/{id}/...
+	mux.Handle("/agent/", w.reverseProxy)
 	// Agent management endpoints.
 	mux.HandleFunc("GET /api/agents", w.handleListAgents)
 	mux.HandleFunc("POST /api/agents", w.handleCreateAgent)
@@ -90,64 +98,10 @@ func (w *WebUI) Close() error {
 	return nil
 }
 
-// handleIndex serves the embedded frontend HTML.
+// handleIndex serves the embedded iframe-shell frontend HTML.
 func (w *WebUI) handleIndex(rw http.ResponseWriter, _ *http.Request) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = rw.Write([]byte(webIndexHTML))
-}
-
-// handleWS upgrades a browser connection and bridges it into the proxy.
-func (w *WebUI) handleWS(rw http.ResponseWriter, r *http.Request) {
-	ws, err := upgradeWS(rw, r)
-	if err != nil {
-		log.Printf("webui: ws upgrade failed: %v", err)
-		return
-	}
-	defer ws.Close()
-
-	// Bridge the browser WS to the proxy via an in-memory pipe. One end is a
-	// gateway Conn registered with the proxy; the other end is drained by a
-	// goroutine that forwards proxy envelopes to the browser.
-	proxyEnd, browserEnd := net.Pipe()
-	defer proxyEnd.Close()
-	defer browserEnd.Close()
-
-	conn := &Conn{conn: proxyEnd}
-	w.proxy.OnConnect(w.ctx, conn)
-	defer w.proxy.OnDisconnect(w.ctx, conn)
-
-	// Goroutine: read envelopes from the proxy side and push to the browser.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			var env Envelope
-			if err := readFrame(browserEnd, maxFrameSize, &env); err != nil {
-				return
-			}
-			// Forward the envelope to the browser as a JSON text message.
-			data, _ := json.Marshal(&env)
-			if err := ws.WriteText(data); err != nil {
-				return
-			}
-		}
-	}()
-
-	// Main loop: read browser messages and feed them to the proxy.
-	for {
-		msg, err := ws.ReadMessage()
-		if err != nil {
-			return
-		}
-		var env Envelope
-		if err := json.Unmarshal(msg, &env); err != nil {
-			continue
-		}
-		// Write the envelope to the proxy side of the pipe.
-		if err := writeFrame(proxyEnd, &env); err != nil {
-			return
-		}
-	}
 }
 
 // agentView is the JSON shape returned by GET /api/agents.
