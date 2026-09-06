@@ -31,6 +31,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -38,13 +39,14 @@ import (
 	"syscall"
 
 	"github.com/idirect3d/co-shell/hub/gateway"
+	"github.com/idirect3d/co-shell/web"
 )
 
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
 	hubVersion = "0.38.0"
-	hubBuild   = "869"
+	hubBuild   = "877"
 )
 
 // config is the JSON config file shape.
@@ -105,9 +107,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Resolve defaults for the agent manager.
+	// Resolve defaults for the agent manager. The registry file follows the
+	// same search order as the config: an explicit --registry path wins, then
+	// ./hub-agents.json (process cwd), then ~/.co-shell/hub-agents.json. The
+	// first existing file is used; if none exists, ./hub-agents.json is the
+	// default write target.
 	if cfg.RegistryPath == "" {
-		cfg.RegistryPath = "./hub-agents.json"
+		cfg.RegistryPath = firstExisting("./hub-agents.json", filepath.Join(homeDir(), ".co-shell", "hub-agents.json"))
 	}
 	if cfg.CoShellPath == "" {
 		cfg.CoShellPath = defaultCoShellPath()
@@ -184,6 +190,14 @@ func main() {
 	}()
 	log.Printf("hub-gateway: Web UI on http://%s (whitelist=%v)", cfg.WebAddr, cfg.Whitelist)
 
+	// Open the Web UI in the default browser (loopback URL so it is reachable
+	// even when the listener is bound to 0.0.0.0).
+	if url := browserURL(cfg.WebAddr); url != "" {
+		if err := web.OpenBrowser(url); err != nil {
+			log.Printf("hub-gateway: open browser: %v", err)
+		}
+	}
+
 	// Wait for shutdown.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -194,6 +208,46 @@ func main() {
 }
 
 // defaultCoShellPath returns the co-shell executable next to this binary.
+// browserURL converts a listen address (host:port) into a loopback URL the
+// default browser can open. A wildcard/empty host (0.0.0.0, ::, "") maps to
+// 127.0.0.1 so the page is reachable from the local machine.
+func browserURL(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return ""
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port)
+}
+
+// homeDir returns the current user's home directory (empty on error).
+func homeDir() string {
+	h, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return h
+}
+
+// firstExisting returns the first candidate path that exists on disk; if none
+// exist it returns the first candidate (the default write target).
+func firstExisting(candidates ...string) string {
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	if len(candidates) > 0 {
+		return candidates[0]
+	}
+	return ""
+}
+
 func defaultCoShellPath() string {
 	exe, err := os.Executable()
 	if err != nil {
