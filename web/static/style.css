@@ -3105,6 +3105,25 @@ body.narrow .model-id {
   max-width: 100%;
 }
 
+/* ---------- FEATURE-487: tighter narrower breakpoint ---------- */
+
+/* body.narrower is set when the viewport is narrower than 1.5x the titlebar
+   brand width (a tighter breakpoint than body.narrow's 2x). It always implies
+   body.narrow, so these rules only refine the most cramped layouts. */
+/* The narrow tool row: push the work-mode switcher (act/plan/research) to the
+   far left with margin-right:auto so every other icon (model, vision, new,
+   sessions, attach, YOLO, run) packs against the right edge. This overrides
+   .narrow-tools .mode-seg's margin-right:0 (which keeps the row left-packed at
+   the plain narrow size). */
+body.narrower .narrow-tools .mode-seg {
+  margin-right: auto;
+}
+/* Hide the status-bar per-iteration token usage (#sbLast) on the tightest
+   screens so the bottom status line stays compact. */
+body.narrower #sbLast {
+  display: none;
+}
+
 /* ---------- FEATURE-487: unify editable-control font size ---------- */
 
 /* iOS Safari (and some Android browsers) auto-zoom the page when a text
