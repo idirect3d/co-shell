@@ -285,3 +285,13 @@ co-shell 前端硬编码大量**根路径绝对路径**（见 §10.6 清单）�
 4. **单用户独占**：外壳连接管理。
 5. **编译验证 + 浏览器实测**（多 agent 切换、完整 co-shell UI 显示、移动端布局）。
 6. **提交到分支 FEATURE-484**。
+
+### 10.10 实现状态（步骤12-13 已完成）
+
+- **co-shell 前端改相对路径**：`web/static/index.html` 的 4 处静态资源（favicon/style.css/md.js/app.js）与 `web/static/app.js` 的全部 `/api/...`、`/logos/`、`/static/logos/` 改为相对路径；WS 地址改为基于 `location.pathname` 前缀的相对地址（`(location.protocol==='https:'?'wss://':'ws://') + location.host + location.pathname + 'ws'`）。co-shell 根路径部署时相对路径与绝对路径等价，功能不受影响。
+- **hub 反向代理模块（hub/gateway/proxyhttp.go）**：`httpReverseProxy` 解析 `/agent/{id}/...`，剥掉前缀后经 `httputil.ReverseProxy` 转发到对应 co-shell 实例的 `http://127.0.0.1:{port}/...`（managed 用 Port，external 从 WSURL 推导 HTTP base）。`httputil.ReverseProxy` 同时处理 HTTP 静态资源 + /api + WebSocket /ws 升级（Go 1.12+ 自动隧道升级连接）。
+- **hub 外壳页面（webui_static.go 重写）**：agent 切换栏（含运行状态点 + 关闭按钮）+ 管理抽屉（创建受控/添加不受控/启停删）+ iframe 布局（每 agent 一个 iframe，切换显示/隐藏，保留状态）+ 移动端自适应（`@media (max-width:640px)` 标签栏换行到第二行）。
+- **webui.go 集成**：注册 `/agent/` 前缀到反向代理；移除旧 `/ws` 聊天桥接（外壳不再需要 hub WS，各 agent 的 co-shell UI 经反向代理直连自身 /ws）。
+- **单用户独占**：iframe 架构下由各 co-shell 实例自身的 single-client WS 模型天然强制（第二个浏览器对同一 agent 的 iframe 连接会被 co-shell 拒绝/断开），hub 外壳本身为无状态 HTTP，无需额外 hub 级 WS 独占。
+- **浏览器实测通过**：hub 外壳加载两个 agent（ws-a/ws-b），各自 iframe 完整显示 co-shell UI（工作区侧栏 + 聊天区），均显示"已连接"（WS 经反向代理隧道成功），点击标签可切换 agent 且各自状态保留。
+- **说明**：`proxy.go` 的 WS 客户端代理转发逻辑（步骤4-6 产物）在新架构下不再被 Web UI 使用，但保留（供 TCP 服务端 / 移动端网关复用）。
