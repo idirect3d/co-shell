@@ -84,7 +84,7 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentList { flex:1; overflow-y:auto; padding:8px; }
   /* Each list row is a swipe container: a red delete button sits behind the
      card and is revealed by swiping the card left. */
-  .agent-wrap { position:relative; overflow:hidden; border-radius:8px; margin-bottom:2px; }
+  .agent-wrap { position:relative; overflow:hidden; border-radius:8px; margin-bottom:2px; background:var(--panel); }
   .agent-del {
     position:absolute; top:0; right:0; bottom:0; width:64px; border:none;
     background:var(--err); color:#fff; font-size:13px; font-weight:600; cursor:pointer;
@@ -95,7 +95,7 @@ const webIndexHTML = `<!DOCTYPE html>
     transition:transform .18s ease;
   }
   .agent:hover { background:var(--elev); color:var(--fg); }
-  .agent.active { background:var(--accent-dim); color:var(--accent); font-weight:600; }
+  .agent.active { background:#0e2a33; color:var(--accent); font-weight:600; }
   .agent .st { width:8px; height:8px; border-radius:50%; background:#555; flex:none; }
   .agent .st.on { background:var(--ok); }
   .agent .st.off { background:var(--err); }
@@ -131,6 +131,10 @@ const webIndexHTML = `<!DOCTYPE html>
   /* Two internal views inside the left drawer: list and config. */
   #agentPanel .view { flex:1; min-height:0; display:flex; flex-direction:column; }
   #agentPanel .view.hidden { display:none; }
+  #agentPanel .view.slide-in { animation:viewIn .18s ease; }
+  #agentPanel .view.slide-out { animation:viewOut .18s ease; }
+  @keyframes viewIn { from { transform:translateX(24px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+  @keyframes viewOut { from { transform:translateX(0); opacity:1; } to { transform:translateX(-24px); opacity:0; } }
   #agentPanel .head .back { cursor:pointer; color:var(--fg-dim); font-size:18px; padding:0 4px; border:none; background:none; line-height:1; }
   #agentPanel .head .back:hover { color:var(--fg); }
   #agentPanel .config-body { flex:1; overflow-y:auto; padding:0 14px 14px; }
@@ -292,21 +296,37 @@ const webIndexHTML = `<!DOCTYPE html>
     clearTimeout(hideTimer);
     hideTimer = setTimeout(closePanel, 600);
   }
-  // showView switches between the list, config and detail views.
+  // showView switches between the list, config and detail views with a slide
+  // transition: the current view slides out, then the target slides in.
+  var viewEls = [viewList, viewConfig, viewDetail];
   function showView(name){
-    var showList = name === 'list';
-    viewList.classList.toggle('hidden', !showList);
-    viewConfig.classList.toggle('hidden', showList || name === 'detail');
-    viewDetail.classList.toggle('hidden', name !== 'detail');
+    var target = name === 'list' ? viewList : (name === 'detail' ? viewDetail : viewConfig);
+    var cur = viewEls.filter(function(v){ return !v.classList.contains('hidden'); })[0];
+    if (cur === target) return;
+    if (cur){
+      cur.classList.add('slide-out');
+      setTimeout(function(){
+        cur.classList.remove('slide-out');
+        cur.classList.add('hidden');
+        revealView(target);
+      }, 180);
+    } else {
+      revealView(target);
+    }
+  }
+  function revealView(v){
+    v.classList.remove('hidden');
+    v.classList.add('slide-in');
+    setTimeout(function(){ v.classList.remove('slide-in'); }, 200);
   }
   badge.onclick = function(){ panel.classList.contains('open') ? closePanel() : openPanel(); };
   document.getElementById('panelClose').onclick = closePanel;
-  document.getElementById('configClose').onclick = closePanel;
-  // The config view's back button returns to the agent list view.
+  // The config view's close/back buttons return to the agent list view.
+  document.getElementById('configClose').onclick = function(){ showView('list'); };
   document.getElementById('configBack').onclick = function(){ showView('list'); };
-  // The detail view's back/close buttons return to the agent list view.
+  // The detail view's close/back buttons return to the agent list view.
   document.getElementById('detailBack').onclick = function(){ showView('list'); };
-  document.getElementById('detailClose').onclick = closePanel;
+  document.getElementById('detailClose').onclick = function(){ showView('list'); };
   // Hover the left edge to open; leaving the panel schedules a close only in
   // the list view (the config view stays open until closed or backed out).
   edge.addEventListener('mouseenter', openPanel);
