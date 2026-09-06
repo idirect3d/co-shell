@@ -602,29 +602,38 @@ aside {
   flex-direction: row;
   align-items: stretch;
 }
-/* Each message line: 1px wide, full height, coloured by its block type. A
-   1px gap separates consecutive lines (FEATURE-482). */
+/* Each message line: 1px wide, full height, drawn as a dotted vertical line
+   (1px dot + 1px gap) at 75% opacity. The dot colour is set per-line by JS via
+   a repeating-linear-gradient. A 2px gap separates consecutive lines. */
 .msgviz-line {
   position: relative;
   width: 1px;
   flex: none;
   height: 100%;
   margin-right: 2px; /* 2px gap between lines */
-  background: var(--fg-faint);
+  background: transparent;
+  opacity: 0.75; /* FEATURE-487: 75% translucent */
   cursor: pointer;
+  transition: width 0.1s ease, opacity 0.1s ease;
 }
-.msgviz-line:hover { opacity: 0.85; }
-/* The context-usage marker: a 2px-tall notch whose vertical position encodes
-   the context usage (bottom = empty, top = full). It is painted with the
-   control's own background (--bg-panel) so the coloured line appears to break
-   (be cut out) at that height, marking where the context sat when the message
-   was produced (FIX-483). */
+/* FEATURE-487: hovering a line widens it to 3px and makes it fully opaque so
+   it is easy to pick out; it returns to 1px/75% on mouse-out. */
+.msgviz-line:hover {
+  width: 3px;
+  opacity: 1;
+}
+/* The context-usage marker: a 3x3px dot whose vertical position encodes the
+   context usage (bottom = empty, top = full). It is painted with the control's
+   own background (--bg-panel) so the coloured line appears to break (be cut
+   out) at that height, marking where the context sat when the message was
+   produced. Its centre aligns with the line (FEATURE-487). */
 .msgviz-dot {
   position: absolute;
   left: 50%;
-  width: 1px;
-  height: 2px;
-  margin-left: -0.5px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  margin-top: -1px;
   background: var(--bg-panel);
   pointer-events: none;
 }
@@ -763,7 +772,8 @@ aside {
 }
 .risk-badge.risk-low { color: var(--ok); }
 .risk-badge.risk-medium { color: var(--warn); }
-.risk-badge.risk-high { color: var(--err); }
+/* FEATURE-487: high-risk badge uses pure red #FF0000. */
+.risk-badge.risk-high { color: #FF0000; }
 .ev-act {
   background: none;
   border: none;
@@ -960,13 +970,16 @@ aside {
 .ev.supervisor .ev-head::before { background: #ff58f3; box-shadow: 0 0 6px rgba(255,88,243,0.8); }
 .ev.supervisor .ev-body { color: #ffffff; background: rgba(255,255,255,0.06); }
 .ev.supervisor.supervisor-pass .ev-head::before { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.9); }
-.ev.supervisor.supervisor-reject .ev-head::before { background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.9); }
+/* FEATURE-487: supervisor reject (failed tool approval) uses pure red. */
+.ev.supervisor.supervisor-reject .ev-head::before { background: #FF0000; box-shadow: 0 0 6px rgba(255,0,0,0.9); }
 
 .ev.level-success .ev-head::before { background: var(--ok); }
 .ev.level-warning .ev-head::before { background: var(--warn); }
 .ev.level-warning .ev-body { color: var(--warn); }
-.ev.level-error .ev-head::before { background: var(--err); }
-.ev.level-error .ev-body { color: var(--err); }
+/* FEATURE-487: failed messages use pure red #FF0000 (indicator dot + body
+   text) instead of the softer --err, so failures stand out clearly. */
+.ev.level-error .ev-head::before { background: #FF0000; }
+.ev.level-error .ev-body { color: #FF0000; }
 .ev.level-debug { opacity: 0.7; }
 .ev.level-debug .ev-body { color: var(--debug); }
 
