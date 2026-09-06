@@ -5446,6 +5446,10 @@ const streamActiveEl = document.getElementById("streamActive");
 // the viewport widens again.
 const narrowMovables = [
   { el: modeSeg, home: modeSeg.parentNode },
+  // FEATURE-487: the main/vision model icons sit right of the work-mode
+  // switcher in the narrow tool row (still clickable to switch model).
+  { el: sbModelTextWrap, home: sbModelTextWrap.parentNode },
+  { el: sbModelVisionWrap, home: sbModelVisionWrap.parentNode },
   { el: newSessionBtn, home: newSessionBtn.parentNode },
   { el: sbSessionsWrap, home: sbSessionsWrap.parentNode },
   { el: attachBtnEl, home: attachBtnEl.parentNode },

@@ -2940,6 +2940,11 @@ body.narrow .yolo-switch {
 body.narrow #sendBtn {
   height: 29px;
 }
+/* FEATURE-487: the main message input box is ~20% taller on narrow screens
+   (single-line 34px -> ~41px) so it is easier to tap and read on a phone. */
+body.narrow #input {
+  min-height: 41px;
+}
 /* FEATURE-487: hide the status-bar session-total token counter on narrow
    screens (the per-iteration usage in #sbLast is kept). */
 body.narrow #sbSession {
@@ -3067,19 +3072,20 @@ body.narrow .settings-body.settings-drilled .settings-pane {
   display: flex;
 }
 
-/* ---------- FEATURE-487: disable mobile auto-zoom on input focus ---------- */
+/* ---------- FEATURE-487: unify editable-control font size ---------- */
 
 /* iOS Safari (and some Android browsers) auto-zoom the page when a text
    input/textarea whose font-size is under 16px gains focus, which makes the
-   UI look like it jumps. On narrow screens we raise every editable control's
-   font to >=16px so the browser no longer zooms. Wide screens are untouched. */
-body.narrow input,
-body.narrow textarea,
-body.narrow select {
+   UI look like it jumps. We raise every editable control's font to 16px on
+   ALL screens (wide and narrow alike) so the browser never zooms and the
+   input font is consistent everywhere (FEATURE-487). */
+input,
+textarea,
+select {
   font-size: 16px;
 }
 /* The main input box keeps its monospace font and a matching line-height so
    the taller glyphs stay vertically centred in the fixed-height box. */
-body.narrow #input {
+#input {
   font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
