@@ -4,7 +4,34 @@
 
 ---
 
-## v0.39.0 — 开发中
+## v0.40.0 — 开发中
+
+> **版本**: v0.40.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: co-shell web ui 窄屏适配（FEATURE-487）
+> **说明**: 0.40.0 系列承接 v0.39.0 发布后的新功能。FEATURE-487 从 v0.39.0 移入本版本（v0.39.0 已随 FEATURE-486 发布打标签），完成 co-shell web ui 的窄屏（移动端）适配优化。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-487 | 0.40.0 | P1 | co-shell web ui 窄屏适配：会话标题循环切换任务进展(翻牌)、消息指示器 hover 无过渡动画等 |
+
+> 当前 BUILD: 908
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-487 co-shell web ui 窄屏适配** ✅ 已完成 [BUILD-908]
+  - 背景：co-shell web ui 在窄屏（移动端）下布局与交互不适配。
+  - 方案（用户确认）：FEATURE-487 归入 v0.40.0（v0.39.0 已发布）。
+  - 实施：web/static/（index.html + style.css + app.js）+ main.go（build 计数）
+  - 测试：见 use-case/FEATURE-487/
+  - 进度：见 v0.39.0 段原 FEATURE-487 进度（①~㉒），含窄屏布局微调、三段开关改胶囊、录入框16px、modal全屏、单一断点、全宽sheet、会话标题循环切换(翻牌)、消息指示器hover无过渡动画等。go build+vet 全绿，co-shell 编译到 ~/bin/ [BUILD-908]
+
+---
+
+## v0.39.0 — 已完成
 
 > **版本**: v0.39.0
 
@@ -16,7 +43,6 @@
 |------|------|------|------|
 | FEATURE-485 | 0.39.0 | P1 | hub https 远程安全访问：系统设置界面（SSL 证书/白名单/访问 KEY）、https 监听、访问 key 校验、移动端 mobile-legacy 复制 |
 | FEATURE-486 | 0.39.0 | P1 | 移动端浏览器内核化：mobile/ 放弃 Flutter 改原生 iOS，内嵌本地代理注入访问 KEY，WKWebView 渲染 hub web ui，系统设置页（服务端地址 + 访问 KEY） |
-| FEATURE-487 | 0.39.0 | P1 | hub web ui 移动端适配：窄屏隐藏徽标版本号、底部按钮上移+间距 |
 
 > 当前 BUILD: 884
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
