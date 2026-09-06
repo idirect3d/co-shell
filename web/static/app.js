@@ -1792,7 +1792,9 @@ function updateStatus() {
   const liDur = liTPS > 0 ? fmtDur(li / liTPS) : "-";
   const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
   // FEATURE-436: token rates use thousands separators (e.g. 1,234t/s).
-  sbLast.innerHTML = T.sbLast + " ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "t/s" : "-") + ", " + loDur + ")";
+  // FEATURE-487: the ⏱️ icon sits in its own span so narrow screens can hide
+  // just the icon while keeping the per-iteration usage text.
+  sbLast.innerHTML = "<span class='sb-last-ico'>" + T.sbLast + "</span> ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "t/s" : "-") + ", " + loDur + ")";
 }
 
 /* ---------- session menu (FEATURE-387) ---------- */
