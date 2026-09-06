@@ -3139,11 +3139,12 @@ body.narrow .model-id {
 }
 
 /* FEATURE-487: on narrow screens the work-mode switcher (act/plan/research)
-   sits at the far left of the narrow tool row. A small fixed margin-right keeps
-   it close to the main-model icon that follows, so the whole row stays compact
-   and the run button fits on one line. */
+   sits at the far left of the narrow tool row with margin-right:auto, so every
+   icon from the main model rightwards packs against the right edge. This keeps
+   the right-aligned group's position stable when the switcher's label length
+   changes (act/plan/research), so the other icons never shift. */
 body.narrow .narrow-tools .mode-seg {
-  margin-right: 4px;
+  margin-right: auto;
 }
 /* FEATURE-487: on narrow screens hide only the ⏱️ icon of the status-bar
    per-iteration token usage (#sbLast), keeping the usage text visible. */
