@@ -1701,7 +1701,7 @@ function msgVizFlush() {
   if (!msgViz || !msgVizTrack || !msgVizPending.length) { msgVizPending = []; return; }
   const max = (modelInfo && modelInfo.textMaxLen) || 0;
   const h = msgViz.clientHeight || 27;
-  const dotH = 3; // FEATURE-487: the context-usage dot is 3px tall
+  const dotH = 2; // FEATURE-487: the context-usage dot is 2px tall
   const range = Math.max(h - dotH, 1);
   const ratio = max > 0 ? Math.min(msgVizUsage / max, 1) : 0;
   const top = Math.round(range * (1 - ratio));
