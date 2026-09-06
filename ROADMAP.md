@@ -9,24 +9,26 @@
 > **版本**: v0.38.0
 
 > **状态**: 🚧 开发中
-> **里程碑**: 移动端功能打通（FEATURE-128 收尾）
-> **说明**: 0.38.0 系列推进移动端（mobile/）与 co-shell-hub 的端到端打通，收尾 FEATURE-128 未完成项（多 agent 会话列表、聊天/语音/图片/任务计划查看）。细分任务：
+> **里程碑**: hub WebSocket 聚合网关架构（FEATURE-484）
+> **说明**: 0.38.0 系列将 co-shell-hub 从"UDP + stdin/stdout 管道"升级为 **WebSocket 聚合网关**架构：hub 提供传统 TCP 服务 + API Key 认证（加密交给 VPN），作为 WebSocket 客户端独占连接多个 co-shell agent（每 agent 一个 --serve 端口），代理转发不处理业务逻辑，支持多 agent 切换与数据缓存，对外提供 Web UI。细分任务：
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
-| FEATURE-484 | 0.38.0 | P1 | 移动端功能打通：修复编译错误、打通 hub 注册联调、补齐任务计划查看、完善配置与体验 |
+| FEATURE-484 | 0.38.0 | P1 | hub WebSocket 网关架构：TCP+API Key 认证层、WebSocket 客户端代理转发、多 agent 切换与缓存、Web UI、移动端适配 |
 
-> 当前 BUILD: 855
+> 当前 BUILD: 856
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-484 移动端功能打通（FEATURE-128 收尾）**
-  - 背景：FEATURE-128 移动端 APP + co-shell-hub 基础框架已搭好（Flutter 工程、UI/状态/通信层、hub 服务端），但存在多处缺口：constants.dart 中 hubAccessKey 为空、clientNickname 为占位值；main.dart 第 28 行存在多余反引号语法错误导致编译失败；"任务计划查看"功能完全缺失；defaultServerAddress 写死演示 IP；shared_preferences 已引入未使用；chat_screen 的 sendMessage 只传 content，images 字段 hub 端是否消费需核对。
-  - 方案（已确认）：① 修复 main.dart 编译错误；② 打通端到端联调（注册拿 public_key 填 hubAccessKey，核对握手字段与 hub 校验逻辑）；③ 补齐"任务计划查看"功能（hub 端新增查询任务计划的 UDP 消息类型 + mobile 端新增界面与 provider 方法）；④ 完善配置与体验（服务器地址持久化、核对语音/图片发送协议）。
-  - 实施：mobile/ + cmd/co-shell-hub/ + hub/
+- [ ] **FEATURE-484 hub WebSocket 网关架构**
+  - 背景：原 hub（FEATURE-128/183）通过 UDP 与移动端通讯、stdin/stdout 管道管理 co-shell agent。用户确认架构演进：hub 通过 co-shell `--serve` WebSocket 端口与多个 co-shell 通讯，对外提供 TCP + API Key 服务与 Web UI 聚合多 agent。
+  - 方案（已确认简化）：① 传统 TCP 服务 + API Key 认证（加密交给 VPN）；② 原则上不处理 co-shell 业务逻辑，仅代理转发；③ 同时与多个 agent 通讯，负责多 agent 切换；④ Web UI 转发 co-shell 返回信息，实现 agent 切换与数据缓存（切换不丢失会话）。
+  - 代码组织（用户确认方案 B）：在 hub/ 下新建独立 gateway 包，旧 UDP 代码保留不动，新代码独立演进。
+  - 实施：hub/gateway/（新）+ cmd/co-shell-hub/ + mobile/
   - 测试：见 use-case/FEATURE-484/
+  - 进度：步骤3（hub TCP 服务 + API Key 认证层，gateway 包）已完成，单元测试通过 [BUILD-856]
 
 ---
 
