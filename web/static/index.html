@@ -70,6 +70,14 @@
     <div class="stream-head">
       <span class="stream-active" id="streamActive">●</span>
       <input type="text" class="stream-title" id="streamTitle" placeholder="会话标题" title="点击修改会话标题">
+      <!-- FEATURE-487: on narrow screens the editable session title is replaced
+           by a read-only cycling widget that flips every 2s between the session
+           title, the active task-plan goal, the running step and the completion
+           tally (only when a task plan is active; otherwise it shows the title
+           statically). -->
+      <div class="stream-title-cycle" id="streamTitleCycle" title="">
+        <div class="stc-face" id="stcFace"></div>
+      </div>
       <!-- FEATURE-482: message-visualization chart between the session title
            and the display-mode pill. Each 1px vertical line = one message block
            (colour = its title-bar indicator light); the red dot's height shows

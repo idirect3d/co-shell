@@ -578,6 +578,40 @@ aside {
 }
 .stream-title:focus { border-bottom: 1px solid var(--accent); }
 .stream-title::placeholder { color: var(--placeholder); }
+/* FEATURE-487: narrow-screen cycling session-title widget. Hidden on wide
+   screens (the editable #streamTitle input is shown instead); on narrow screens
+   it replaces the input with a read-only single-line display that flips every
+   2s between the session title / task-plan goal / running step / completion
+   tally. .stc-face is the single visible line; the vertical flip is done by
+   rotating it out (to -90deg) then in (from +90deg) around the X axis. */
+.stream-title-cycle {
+  display: none;
+  flex: none;
+  width: 200px; /* same slot as .stream-title on wide screens (unused) */
+  min-width: 0;
+  height: 27px;
+  align-items: center;
+  overflow: hidden;
+  cursor: default;
+}
+.stc-face {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+.stc-face.flip-out { animation: stcFlipOut 0.18s ease forwards; }
+.stc-face.flip-in  { animation: stcFlipIn  0.18s ease; }
+@keyframes stcFlipOut { from { transform: rotateX(0deg); } to { transform: rotateX(-90deg); } }
+@keyframes stcFlipIn  { from { transform: rotateX(90deg); } to { transform: rotateX(0deg); } }
 /* FEATURE-482: message-visualization chart. Fills the space between the
    session title and the display-mode pill. .msgviz is the fixed viewport
    (overflow hidden); .msgviz-track is the pannable strip holding the 1px
@@ -3040,6 +3074,16 @@ body.narrow .stream-title {
 body.narrow .msgviz {
   flex: 1 1 50%;
   order: 0;
+  height: 27px;
+}
+/* FEATURE-487: on narrow screens the editable session-title input is replaced
+   by the read-only cycling widget, which takes the same ~50% slot so the
+   message-visualization chart keeps its half of the row. */
+body.narrow #streamTitle { display: none; }
+body.narrow .stream-title-cycle {
+  display: flex;
+  flex: 1 1 50%;
+  min-width: 0;
   height: 27px;
 }
 

@@ -48,6 +48,7 @@ const I18N = {
     fileViewerSearch: "搜索文件内容…", fileViewerRaw: "Raw",
     streamModeSilent: "静默", streamModeMinimal: "极简", streamModeNormal: "正常",
     streamTitlePlaceholder: "会话标题", streamTitleHint: "点击修改会话标题",
+    stcGoal: "目标", stcRunning: "正在执行", stcProgress: "进展情况", stcDone: "已完成",
     yoloTitle: "YOLO 模式（You Only Live Once）：开启后所有工具调用自动批准，无需逐个确认",
     setDefaultTip: "默认值", setDiffTip: "与默认值不一致",
   },
@@ -88,6 +89,7 @@ const I18N = {
     fileViewerSearch: "Search file content…", fileViewerRaw: "Raw",
     streamModeSilent: "Silent", streamModeMinimal: "Minimal", streamModeNormal: "Normal",
     streamTitlePlaceholder: "Session title", streamTitleHint: "Click to edit session title",
+    stcGoal: "Goal", stcRunning: "Running", stcProgress: "Progress", stcDone: "done",
     yoloTitle: "YOLO mode (You Only Live Once): when on, all tool calls are auto-approved without asking",
     setDefaultTip: "Default", setDiffTip: "differs from default",
   },
@@ -337,6 +339,9 @@ const streamTitle = document.getElementById("streamTitle");
 // FEATURE-482: message-visualization chart (lines + pannable track).
 const msgViz = document.getElementById("msgViz");
 const msgVizTrack = document.getElementById("msgVizTrack");
+// FEATURE-487: narrow-screen cycling session-title widget (read-only).
+const streamTitleCycle = document.getElementById("streamTitleCycle");
+const stcFace = document.getElementById("stcFace");
 const miStatus = document.getElementById("miStatus");
 const miStatusCheck = document.getElementById("miStatusCheck");
 const statusbar = document.getElementById("statusbar");
@@ -1609,7 +1614,11 @@ let msgVizOn = localStorage.getItem("co-shell-msgviz") !== "0";
 
 function applyStreamTitle() {
   if (streamTitle) streamTitle.style.display = streamTitleOn ? "" : "none";
+  // FEATURE-487: the narrow-screen cycling widget replaces the editable input,
+  // so it honours the same "会话标题" display toggle.
+  if (streamTitleCycle) streamTitleCycle.style.display = streamTitleOn ? "" : "none";
   if (miStreamTitleCheck) miStreamTitleCheck.classList.toggle("on", streamTitleOn);
+  stcSync();
 }
 function applyMsgViz() {
   if (msgViz) msgViz.style.display = msgVizOn ? "" : "none";
@@ -1626,6 +1635,89 @@ if (miMsgViz) miMsgViz.onclick = () => {
   localStorage.setItem("co-shell-msgviz", msgVizOn ? "1" : "0");
   applyMsgViz();
 };
+
+/* FEATURE-487: narrow-screen cycling session-title widget. On narrow screens
+   the editable #streamTitle is hidden and #streamTitleCycle shows a single
+   read-only line that flips every 2s between: the session title, the active
+   task-plan goal (plan.description), the running step and the completion tally
+   (done/total). When no task plan is active it shows the session title
+   statically (no cycling). All text truncates with an ellipsis (CSS). */
+let stcTimer = null;
+let stcIdx = 0;
+
+// stcItems builds the ordered display strings for the current state.
+function stcItems() {
+  const en = currentLang === "en";
+  const colon = en ? ": " : "：";
+  const title = (streamTitle && streamTitle.value.trim()) || "";
+  const items = [title];
+  if (lastPlan) {
+    const goal = (lastPlan.description || "").trim() || (lastPlan.title || "").trim();
+    if (goal) items.push(T.stcGoal + colon + goal);
+    // Running step: first in_progress, else first pending.
+    let run = "";
+    for (const st of lastPlan.steps) {
+      if (normStatus(st.status) === "in_progress") { run = st.description; break; }
+    }
+    if (!run) {
+      for (const st of lastPlan.steps) {
+        if (normStatus(st.status) === "pending") { run = st.description; break; }
+      }
+    }
+    if (run) {
+      const nl = run.indexOf("\n");
+      items.push(T.stcRunning + colon + (nl === -1 ? run : run.slice(0, nl)));
+    }
+    const total = lastPlan.steps.length;
+    const done = lastPlan.steps.filter((st) => normStatus(st.status) === "completed").length;
+    items.push(T.stcProgress + colon + T.stcDone + "(" + done + "/" + total + ")");
+  }
+  return items;
+}
+
+// stcShow sets the visible line, optionally with a vertical flip animation.
+function stcShow(text, animate) {
+  if (!stcFace) return;
+  if (!animate || stcFace.textContent === text) {
+    stcFace.textContent = text;
+    stcFace.classList.remove("flip-out", "flip-in");
+    return;
+  }
+  stcFace.classList.add("flip-out");
+  setTimeout(() => {
+    stcFace.textContent = text;
+    stcFace.classList.remove("flip-out");
+    stcFace.classList.add("flip-in");
+    setTimeout(() => stcFace.classList.remove("flip-in"), 200);
+  }, 180);
+}
+
+// stcTick advances to the next item (with a flip) on the 2s interval.
+function stcTick() {
+  const items = stcItems();
+  if (items.length <= 1) return;
+  stcIdx = (stcIdx + 1) % items.length;
+  stcShow(items[stcIdx], true);
+}
+
+// stcSync starts/stops the cycling timer based on the current state: it cycles
+// only while narrow AND a task plan is active AND the title toggle is on;
+// otherwise it shows the session title statically (or nothing when hidden).
+function stcSync() {
+  if (!streamTitleCycle || !stcFace) return;
+  if (stcTimer) { clearInterval(stcTimer); stcTimer = null; }
+  const narrow = document.body.classList.contains("narrow");
+  const active = narrow && streamTitleOn && !!lastPlan;
+  if (active) {
+    const items = stcItems();
+    stcIdx = 0;
+    stcShow(items[0] || "", false);
+    stcTimer = setInterval(stcTick, 2000);
+  } else {
+    const t = streamTitleOn ? ((streamTitle && streamTitle.value.trim()) || "") : "";
+    stcShow(t, false);
+  }
+}
 
 // Token stats accumulated from token_iter events. sessionIn/sessionOut are
 // the running totals across all iterations; last* hold the most recent
@@ -2077,6 +2169,9 @@ const STATUS_ICON = { pending: "○", in_progress: "◐", completed: "●", canc
 function renderPlan(plan) {
   lastPlan = plan && plan.steps && plan.steps.length > 0 ? plan : null;
   applyPanels();
+  // FEATURE-487: start/stop the cycling session-title widget when the plan
+  // appears or disappears.
+  stcSync();
   if (!lastPlan) return;
   planBody.textContent = "";
 
@@ -5612,6 +5707,8 @@ function applyNarrowLayout(narrow) {
     moveStreamModeToTopbar(false);
     bindCycleSwitchers(false);
   }
+  // FEATURE-487: start/stop the cycling session-title widget on resize.
+  stcSync();
 }
 
 // updateResponsive re-evaluates the narrow-screen state and applies the
