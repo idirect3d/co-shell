@@ -116,9 +116,6 @@ const webIndexHTML = `<!DOCTYPE html>
   .switch input:disabled + .slider { opacity:.5; cursor:not-allowed; }
   .switch-row { display:flex; align-items:center; justify-content:space-between; }
   .switch-row .switch-label { font-size:12px; color:var(--fg-dim); }
-  .detail-row { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
-  .detail-row .k { flex:none; width:80px; color:var(--fg-dim); font-size:12px; padding-top:1px; }
-  .detail-row .v { flex:1; min-width:0; word-break:break-all; color:var(--fg); }
   #agentPanel .foot { flex:none; padding:8px; border-top:1px solid var(--border); }
   .btn { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; }
   .btn.primary { background:var(--accent); color:#0b0e14; width:100%; }
@@ -139,9 +136,10 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentPanel .head .back:hover { color:var(--fg); }
   #agentPanel .config-body { flex:1; overflow-y:auto; padding:0 14px 14px; }
   #agentPanel h3 { font-size:13px; margin:16px 0 6px; color:var(--accent); }
-  .field { margin-bottom:8px; }
-  .field label { display:block; font-size:12px; color:var(--fg-dim); margin-bottom:3px; }
-  .field input, .field select { width:100%; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; }
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:12px; color:var(--fg-dim); margin-bottom:5px; }
+  .field input, .field select { width:100%; padding:7px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; }
+  .field .val { width:100%; padding:7px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; word-break:break-all; }
   .field .check { display:flex; align-items:center; gap:6px; }
   .field .check input { width:auto; }
   .req { color:var(--err); font-weight:700; }
@@ -240,14 +238,14 @@ const webIndexHTML = `<!DOCTYPE html>
   <div class="view hidden" id="viewDetail">
     <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表">‹</button><span id="detailTitle">Agent 设置</span><span class="close" id="detailClose" title="收起">✕</span></div>
     <div class="config-body">
-      <div class="detail-row"><span class="k">ID</span><span class="v" id="d-id"></span></div>
-      <div class="detail-row"><span class="k">备注</span><span class="v" id="d-name"></span></div>
-      <div class="detail-row"><span class="k">类型</span><span class="v" id="d-type"></span></div>
-      <div class="detail-row"><span class="k">Workspace</span><span class="v" id="d-ws"></span></div>
-      <div class="detail-row"><span class="k">端口</span><span class="v" id="d-port"></span></div>
-      <div class="detail-row"><span class="k">co-shell</span><span class="v" id="d-coshell"></span></div>
-      <div class="detail-row"><span class="k">共享配置</span><span class="v" id="d-shared"></span></div>
-      <div class="detail-row"><span class="k">状态</span><span class="v" id="d-state"></span></div>
+      <div class="field"><label>ID</label><div class="val" id="d-id"></div></div>
+      <div class="field"><label>备注</label><div class="val" id="d-name"></div></div>
+      <div class="field"><label>类型</label><div class="val" id="d-type"></div></div>
+      <div class="field"><label>Workspace</label><div class="val" id="d-ws"></div></div>
+      <div class="field"><label>端口</label><div class="val" id="d-port"></div></div>
+      <div class="field"><label>co-shell</label><div class="val" id="d-coshell"></div></div>
+      <div class="field"><label>共享配置</label><div class="val" id="d-shared"></div></div>
+      <div class="field"><label>状态</label><div class="val" id="d-state"></div></div>
     </div>
   </div>
 </div>
@@ -575,8 +573,13 @@ const webIndexHTML = `<!DOCTYPE html>
   var eHostEl = document.getElementById('e-host');
   var ePortEl = document.getElementById('e-port');
   var eIdEl = document.getElementById('e-id');
+  // normalizeHost strips any http(s):// or ws(s):// prefix so the user may
+  // paste a full URL or a bare host; both work.
+  function normalizeHost(h){
+    return String(h).replace(/^(https?:\/\/|wss?:\/\/)/i, '').replace(/\/$/, '');
+  }
   function remoteURL(){
-    var h = eHostEl.value.trim();
+    var h = normalizeHost(eHostEl.value.trim());
     var p = ePortEl.value.trim();
     if (!h || !p) return '';
     return 'ws://' + h + ':' + p + '/ws';
@@ -665,8 +668,14 @@ const webIndexHTML = `<!DOCTYPE html>
   };
   // ---- Add remote agent (hub builds the ws://host:port/ws URL) ----
   document.getElementById('e-add').onclick = function(){
-    var host = eHostEl.value.trim();
+    var host = normalizeHost(eHostEl.value.trim());
     var port = ePortEl.value.trim();
+    // If the host field itself carries a port (e.g. http://host:28256), split it.
+    var ci = host.lastIndexOf(':');
+    if (ci > 0 && /^\d+$/.test(host.slice(ci + 1))){
+      if (!port) port = host.slice(ci + 1);
+      host = host.slice(0, ci);
+    }
     if (!host || !port){ alert('请填写主机地址和端口号'); return; }
     var url = 'ws://' + host + ':' + port + '/ws';
     var id = eIdEl.value.trim() || (host + '-' + port);
