@@ -56,6 +56,11 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager) *WebUI {
 	mux.HandleFunc("POST /api/agents/{id}/start", w.handleStartAgent)
 	mux.HandleFunc("POST /api/agents/{id}/stop", w.handleStopAgent)
 	mux.HandleFunc("DELETE /api/agents/{id}", w.handleDeleteAgent)
+	// Agent-config helpers (detection + defaults + version).
+	mux.HandleFunc("GET /api/agent-defaults", w.handleAgentDefaults)
+	mux.HandleFunc("GET /api/co-shell-locations", w.handleCoShellLocations)
+	mux.HandleFunc("GET /api/config-candidates", w.handleConfigCandidates)
+	mux.HandleFunc("GET /api/agent-version", w.handleAgentVersion)
 	handler := http.Handler(mux)
 	if len(cfg.Whitelist) > 0 {
 		handler = w.whitelistMiddleware(handler, cfg.Whitelist)
@@ -112,12 +117,14 @@ type agentView struct {
 	Workspace string `json:"workspace,omitempty"`
 	Port      int    `json:"port,omitempty"`
 	WSURL     string `json:"ws_url,omitempty"`
+	Version   string `json:"version,omitempty"`
+	Build     string `json:"build,omitempty"`
 	Running   bool   `json:"running"`
 	Connected bool   `json:"connected"`
 }
 
 // handleListAgents returns the registry agents with their running/connected
-// status.
+// status and co-shell version.
 func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 	specs := w.manager.Agents()
 	connected := map[string]bool{}
@@ -136,6 +143,14 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 			Running:   w.manager.IsRunning(s.ID),
 			Connected: connected[s.ID],
 		}
+		// Report the co-shell version for compatibility awareness.
+		if s.Type == AgentTypeManaged {
+			v.Version, v.Build = coShellVersion(w.manager.CoShellPath())
+		} else if s.WSURL != "" {
+			if ver, b, err := remoteVersion(wsURLToBase(s.WSURL)); err == nil {
+				v.Version, v.Build = ver, b
+			}
+		}
 		views = append(views, v)
 	}
 	writeJSON(rw, http.StatusOK, map[string]interface{}{"agents": views})
@@ -146,6 +161,8 @@ type createAgentRequest struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	Workspace    string `json:"workspace"`
+	CoShell      string `json:"co_shell,omitempty"`
+	ConfigPath   string `json:"config_path,omitempty"`
 	CreateConfig bool   `json:"create_config"`
 }
 
@@ -164,7 +181,7 @@ func (w *WebUI) handleCreateAgent(rw http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = req.ID
 	}
-	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CreateConfig)
+	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig)
 	if err != nil {
 		writeJSON(rw, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
