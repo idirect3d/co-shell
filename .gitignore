@@ -2,6 +2,12 @@
 co-shell
 co-shell.exe
 co-shell-test
+co-shell-hub
+co-shell-hub.exe
+co-shell-hub-test
+
+# Hub runtime config (agent registry)
+hub-agents.json
 
 # IDE
 .idea/
