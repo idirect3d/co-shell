@@ -53,10 +53,14 @@ import (
 
 const version = "0.38.0"
 
-const build = "876"
+const build = "877"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
+	// acceptLicense (FEATURE-484): when set, the user agrees to the usage
+	// disclaimer up front so the interactive prompt is skipped and the
+	// acceptance is persisted to config.
+	acceptLicense bool
 	workspacePath string
 	configPath    string
 	model         string
@@ -357,6 +361,9 @@ func parseFlags() cliFlags {
 
 	// serve flag (FEATURE-307c): start the embedded web UI without opening a browser
 	flag.BoolVar(&f.serve, "serve", false, "Start the web UI mode without opening a browser (default mode opens the browser)")
+	// accept-license (FEATURE-484): agree to the usage disclaimer up front so
+	// the interactive prompt is skipped and the acceptance is persisted.
+	flag.BoolVar(&f.acceptLicense, "accept-license", false, "Accept the usage disclaimer up front (skips the interactive prompt and persists acceptance)")
 
 	// serve port (FEATURE-307c)
 	flag.IntVar(&f.port, "port", 28256, "Listen port for the web UI (auto-increments when occupied, up to 10 tries)")
@@ -1088,8 +1095,14 @@ func main() {
 			flags.model, flags.endpoint, maskKey(flags.apiKey))
 	}
 
-	// Show disclaimer on first run
-	if !cfg.DisclaimerAccepted {
+	// Show disclaimer on first run. --accept-license agrees up front: skip the
+	// interactive prompt and persist the acceptance to config.
+	if flags.acceptLicense {
+		cfg.DisclaimerAccepted = true
+		if err := cfg.Save(); err != nil {
+			log.Warn("Cannot save disclaimer acceptance: %v", err)
+		}
+	} else if !cfg.DisclaimerAccepted {
 		showDisclaimer(cfg, ws)
 	}
 
@@ -1135,9 +1148,11 @@ func main() {
 		}
 	}
 
-	// Run model setup wizard if no models are configured
+	// Run model setup wizard if no models are configured. In serve mode the
+	// wizard is skipped (the web UI has no interactive terminal to drive it);
+	// the user configures models through the web UI instead.
 	wasModelsEmpty := len(cfg.Models) == 0
-	if wasModelsEmpty {
+	if wasModelsEmpty && !flags.serve {
 		log.Info("No models configured, running model setup wizard")
 		modelHandler := cmd.NewModelHandler(cfg, nil)
 		if _, err := modelHandler.AddModelWizard(); err != nil {
