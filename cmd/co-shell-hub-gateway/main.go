@@ -205,19 +205,33 @@ func (m *multiFlag) Set(v string) error {
 }
 
 // loadConfig reads the JSON config file if present, else returns defaults.
+// Config search priority: an explicit --config path > ./hub-gateway.json
+// (process cwd) > ~/.co-shell/hub-gateway.json. The first existing file wins;
+// if none exists a default config is returned.
 func loadConfig(path string) *config {
 	cfg := &config{
 		TCPAddr: "127.0.0.1:12801",
 		WebAddr: "127.0.0.1:12802",
 	}
-	if path == "" {
-		path = "./hub-gateway.json"
-	}
-	data, err := os.ReadFile(path)
-	if err == nil {
-		if err := json.Unmarshal(data, cfg); err != nil {
-			log.Printf("warning: parse config %s: %v", path, err)
+	var candidates []string
+	if path != "" {
+		// An explicit --config is authoritative: use it alone (no fallback).
+		candidates = append(candidates, path)
+	} else {
+		candidates = append(candidates, "./hub-gateway.json")
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates, filepath.Join(home, ".co-shell", "hub-gateway.json"))
 		}
+	}
+	for _, p := range candidates {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue // not found; try the next candidate
+		}
+		if err := json.Unmarshal(data, cfg); err != nil {
+			log.Printf("warning: parse config %s: %v", p, err)
+		}
+		break
 	}
 	return cfg
 }
