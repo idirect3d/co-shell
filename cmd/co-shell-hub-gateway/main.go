@@ -20,7 +20,7 @@
 //	--whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR)
 //	--registry PATH      Agent registry file (default: ./hub-agents.json)
 //	--co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
-//	--base-port N        First port for auto-allocating managed agents (default 12810)
+//	--base-port N        First port for auto-allocating managed agents (default 28256)
 //	--agent ID=WSURL     External agent endpoint (repeatable, added to registry)
 //	--help               Show help
 package main
@@ -59,7 +59,7 @@ func main() {
 	whitelist := flag.String("whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)")
 	registryPath := flag.String("registry", "", "agent registry file (default: ./hub-agents.json)")
 	coShellPath := flag.String("co-shell-path", "", "co-shell executable for managed agents (default: same dir as this binary)")
-	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default 12810)")
+	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default 28256)")
 	var agents multiFlag
 	flag.Var(&agents, "agent", "external agent endpoint as ID=WSURL (repeatable)")
 	showHelp := flag.Bool("help", false, "show help")
@@ -111,7 +111,7 @@ func main() {
 		cfg.CoShellPath = abs
 	}
 	if cfg.BasePort == 0 {
-		cfg.BasePort = 12810
+		cfg.BasePort = 28256
 	}
 
 	// Create the agent manager (loads the persisted registry).
@@ -261,7 +261,7 @@ Flags:
   --whitelist IPS      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)
   --registry PATH      Agent registry file (default: ./hub-agents.json)
   --co-shell-path PATH co-shell executable for managed agents (default: same dir as this binary)
-  --base-port N        First port for auto-allocating managed agents (default 12810)
+  --base-port N        First port for auto-allocating managed agents (default 28256)
   --agent ID=WSURL     External agent endpoint (repeatable, added to registry)
   --help               Show help
 
