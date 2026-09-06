@@ -3115,9 +3115,9 @@ body.narrow .model-id {
 body.narrow .narrow-tools .mode-seg {
   margin-right: auto;
 }
-/* FEATURE-487: hide the status-bar per-iteration token usage (#sbLast) on
-   narrow screens so the bottom status line stays compact. */
-body.narrow #sbLast {
+/* FEATURE-487: on narrow screens hide only the ⏱️ icon of the status-bar
+   per-iteration token usage (#sbLast), keeping the usage text visible. */
+body.narrow #sbLast .sb-last-ico {
   display: none;
 }
 
