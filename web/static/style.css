@@ -2943,11 +2943,12 @@ body.narrow .input-row {
 body.narrow .narrow-tools {
   order: 2;
 }
-/* The send button joins the narrow tool row (rightmost) and is ~20% narrower
-   than its wide-screen 52px so the row fits on a phone. */
+/* FEATURE-487: the send (run) button joins the narrow tool row (rightmost).
+   Its width matches the YOLO switch (34px) so the whole row fits on one line. */
 body.narrow #sendBtn {
-  min-width: 42px;
-  padding: 0 10px;
+  min-width: 34px;
+  width: 34px;
+  padding: 0;
 }
 /* YOLO switch is ~15% shorter on narrow screens (34px -> 29px). */
 body.narrow .yolo-switch {
@@ -3137,13 +3138,12 @@ body.narrow .model-id {
   max-width: 100%;
 }
 
-/* FEATURE-487: on narrow screens the narrow tool row pushes the work-mode
-   switcher (act/plan/research) to the far left with margin-right:auto so every
-   other icon (model, vision, new, sessions, attach, YOLO, run) packs against the
-   right edge. This overrides .narrow-tools .mode-seg's margin-right:0 (which
-   keeps the row left-packed on wide screens). */
+/* FEATURE-487: on narrow screens the work-mode switcher (act/plan/research)
+   sits at the far left of the narrow tool row. A small fixed margin-right keeps
+   it close to the main-model icon that follows, so the whole row stays compact
+   and the run button fits on one line. */
 body.narrow .narrow-tools .mode-seg {
-  margin-right: auto;
+  margin-right: 4px;
 }
 /* FEATURE-487: on narrow screens hide only the ⏱️ icon of the status-bar
    per-iteration token usage (#sbLast), keeping the usage text visible. */
