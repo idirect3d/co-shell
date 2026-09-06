@@ -1256,7 +1256,7 @@ no liability whatsoever.`,
 	KeyOutputFormatInvalid:     "invalid --output-format value or input mode conflict: %s (must be text/json; json implies stdio input mode and conflicts with --input-mode tui)",
 
 	// serve subcommand (FEATURE-307c)
-	KeyCLIHelpPort:        "      --port <n>             Listen port for the web UI (default 8399, auto-increments when occupied, up to 10 tries)",
+	KeyCLIHelpPort:        "      --port <n>             Listen port for the web UI (default 28256, auto-increments when occupied, up to 10 tries)",
 	KeyCLIHelpServe:       "      --serve                Start the web UI without opening a browser (default mode opens the browser)",
 	KeyCLIHelpBind:        "      --bind <addr>          Listen address for the web UI (default 127.0.0.1; use 0.0.0.0 for LAN access)",
 	KeyCLIHelpWhitelist:   "      --whitelist <ips>      Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)",

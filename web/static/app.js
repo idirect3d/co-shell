@@ -182,7 +182,7 @@ function updateBrandLogo() {
   const theme = document.documentElement.getAttribute("data-theme");
   // A cache-busting query param forces the browser to re-fetch the logo so an
   // overwrite/removal is reflected immediately (FEATURE-477).
-  const url = "/logos/" + theme + "?t=" + Date.now();
+  const url = "logos/" + theme + "?t=" + Date.now();
   brandLogo.style.height = Math.round(44 * logoScale() / 100) + "px";
   const probe = new Image();
   probe.onload = () => {
@@ -370,7 +370,10 @@ let wsReady = false;
 // WebSocket client connection).
 function wsConnect() {
   if (wsReady || (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN))) return;
-  ws = new WebSocket("ws://" + location.host + "/ws");
+  // Relative WS endpoint: works both at the root path (co-shell standalone)
+  // and under a sub-path prefix (e.g. hub /agent/{id}/) (FEATURE-484).
+  const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  ws = new WebSocket(wsProto + location.host + location.pathname + 'ws');
   ws.onopen = () => {
     wsReady = true;
     conn.classList.add("on");
@@ -2740,7 +2743,7 @@ async function uploadAndSend(text) {
   try {
     const fd = new FormData();
     for (const it of pendingAttach) fd.append("file", it.file, it.name);
-    const resp = await fetch("/api/upload?dir=" + encodeURIComponent(webInputDir || "input"), {
+    const resp = await fetch("api/upload?dir=" + encodeURIComponent(webInputDir || "input"), {
       method: "POST", body: fd,
     });
     const body = resp.ok ? await resp.json().catch(() => ({})) : {};
@@ -3119,7 +3122,7 @@ function scrollToAffected() {
 
 async function loadTree() {
   try {
-    const resp = await fetch("/api/tree");
+    const resp = await fetch("api/tree");
     const root = await resp.json();
     tree.textContent = "";
     const ul = document.createElement("ul");
@@ -3193,7 +3196,7 @@ function treeNode(node) {
     reveal.className = "reveal-btn";
     reveal.title = T.revealDir;
     reveal.textContent = "⌖";
-    reveal.onclick = (e) => { e.stopPropagation(); postPath("/api/reveal", node.path); };
+    reveal.onclick = (e) => { e.stopPropagation(); postPath("api/reveal", node.path); };
     actions.appendChild(reveal);
   }
   row.appendChild(actions);
@@ -3260,7 +3263,7 @@ const TEXT_EXT = /\.(go|txt|md|markdown|csv|tsv|sh|bash|zsh|conf|cfg|ini|json|ya
 // openFile opens a file with the OS default handler (FEATURE-444: images are
 // opened by the system on double-click, not previewed in-page).
 function openFile(node) {
-  postPath("/api/open", node.path);
+  postPath("api/open", node.path);
   // FEATURE-471: report the opened file as a dynamic event so the LLM can
   // notice it during a running task.
   wsSend({ type: "dynamic_event", kind: "open_file", value: node.path });
@@ -3277,7 +3280,7 @@ function openImagePreview(node) {
   previewImg.onload = () => {
     pvRes.textContent = previewImg.naturalWidth + " × " + previewImg.naturalHeight;
   };
-  previewImg.src = "/api/file?path=" + encodeURIComponent(node.path);
+  previewImg.src = "api/file?path=" + encodeURIComponent(node.path);
   preview.classList.remove("hidden");
 }
 
@@ -3373,7 +3376,7 @@ function highlightTreeFile(path) {
 // shown as its new (added) content and highlighted green.
 async function loadFileDiff(path) {
   try {
-    const resp = await fetch("/api/gitdiff?path=" + encodeURIComponent(path));
+    const resp = await fetch("api/gitdiff?path=" + encodeURIComponent(path));
     const body = await resp.json();
     const map = new Map();
     for (const it of (body.lines || [])) {
@@ -3397,7 +3400,7 @@ async function loadFileChunk(path, start, end) {
   if (fvLoading || fvPath !== path) return;
   fvLoading = true;
   try {
-    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&start=" + start + "&end=" + end);
+    const resp = await fetch("api/file?path=" + encodeURIComponent(path) + "&start=" + start + "&end=" + end);
     if (!resp.ok) { console.error(T.fileViewerLoadFailed); return; }
     const body = await resp.json();
     if (fvPath !== path) return; // switched away while loading
@@ -3494,7 +3497,7 @@ async function loadFileHex(path, start, end) {
   if (fvLoading || fvPath !== path) return;
   fvLoading = true;
   try {
-    const resp = await fetch("/api/file?path=" + encodeURIComponent(path) + "&hex=1&start=" + start + "&end=" + end + "&width=" + fvHexWidth);
+    const resp = await fetch("api/file?path=" + encodeURIComponent(path) + "&hex=1&start=" + start + "&end=" + end + "&width=" + fvHexWidth);
     if (!resp.ok) { console.error(T.fileViewerLoadFailed); return; }
     const body = await resp.json();
     if (fvPath !== path) return; // switched away while loading
@@ -3673,7 +3676,7 @@ async function postPath(api, path) {
 // It navigates to /api/download?path=... so the server's Content-Disposition
 // header makes the browser save the file instead of rendering it.
 function downloadFile(path) {
-  window.location.href = "/api/download?path=" + encodeURIComponent(path);
+  window.location.href = "api/download?path=" + encodeURIComponent(path);
 }
 
 previewClose.onclick = () => preview.classList.add("hidden");
@@ -3729,7 +3732,7 @@ async function uploadFiles(files, dir) {
   const fd = new FormData();
   for (const f of files) fd.append("file", f);
   try {
-    const resp = await fetch("/api/upload?dir=" + encodeURIComponent(dir || ""), { method: "POST", body: fd });
+    const resp = await fetch("api/upload?dir=" + encodeURIComponent(dir || ""), { method: "POST", body: fd });
     const body = await resp.json();
     if (!resp.ok) { console.error(T.uploadFailed, body.error || resp.status); return []; }
     loadTree();
@@ -4143,7 +4146,7 @@ function renderLogoBlock() {
   const refresh = () => {
     // A cache-busting query param forces the browser to re-fetch the logo so an
     // overwrite/removal is reflected immediately (FEATURE-477).
-    const url = "/logos/" + theme + "?t=" + Date.now();
+    const url = "logos/" + theme + "?t=" + Date.now();
     const probe = new Image();
     probe.onload = () => {
       preview.src = url;
@@ -4168,7 +4171,7 @@ function renderLogoBlock() {
     const fd = new FormData();
     fd.append("theme", theme);
     fd.append("file", blob, "logo.png");
-    fetch("/api/logo", { method: "POST", body: fd })
+    fetch("api/logo", { method: "POST", body: fd })
       .then((r) => r.json())
       .then((j) => {
         showSettingsResult({ ok: !!j.ok, message: j.ok ? i18nT("logoSaved", "logo 已保存") : (j.error || "error") });
@@ -4197,7 +4200,7 @@ function renderLogoBlock() {
   };
 
   removeBtn.onclick = () => {
-    fetch("/api/logo?theme=" + theme, { method: "DELETE" })
+    fetch("api/logo?theme=" + theme, { method: "DELETE" })
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) { refresh(); updateBrandLogo(); }
@@ -4484,7 +4487,7 @@ function renderModelsBody() {
     // Left: provider logo (FEATURE-429).
     const logo = document.createElement("img");
     logo.className = "model-logo";
-    logo.src = "/static/logos/" + (MODEL_LOGOS[m.provider] || "generic.png");
+    logo.src = "static/logos/" + (MODEL_LOGOS[m.provider] || "generic.png");
     logo.alt = "";
     logo.onerror = () => { logo.style.display = "none"; };
     row.appendChild(logo);
@@ -4588,7 +4591,7 @@ function buildModelMenuItem(m, onClick, activeID) {
   item.title = m.provider + " · " + m.model;
   const logo = document.createElement("img");
   logo.className = "model-logo";
-  logo.src = "/static/logos/" + (MODEL_LOGOS[m.provider] || "generic.png");
+  logo.src = "static/logos/" + (MODEL_LOGOS[m.provider] || "generic.png");
   logo.alt = "";
   logo.onerror = () => { logo.style.display = "none"; };
   item.appendChild(logo);
@@ -4621,7 +4624,7 @@ function buildModelMenuDefault(target, menu, active) {
   if (def) {
     const logo = document.createElement("img");
     logo.className = "model-logo";
-    logo.src = "/static/logos/" + (MODEL_LOGOS[def.provider] || "generic.png");
+    logo.src = "static/logos/" + (MODEL_LOGOS[def.provider] || "generic.png");
     logo.alt = "";
     logo.onerror = () => { logo.style.display = "none"; };
     item.appendChild(logo);
@@ -4737,7 +4740,7 @@ sbModelVisionWrap.addEventListener("mouseleave", () => modelVisionMenu.classList
 // (FEATURE-422).
 async function refreshModelInfo() {
   try {
-    const resp = await fetch("/api/bootstrap");
+    const resp = await fetch("api/bootstrap");
     const b = await resp.json();
     if (b.textModel) {
       modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
@@ -5013,7 +5016,7 @@ function renderWizardField(f) {
       res.textContent = "测试中...";
       res.className = "wizard-test-result";
       try {
-        const resp = await fetch("/api/test-endpoint", {
+        const resp = await fetch("api/test-endpoint", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: ep }),
@@ -5064,7 +5067,7 @@ function renderWizardField(f) {
       res.textContent = "测试中...";
       res.className = "wizard-test-result";
       try {
-        const resp = await fetch("/api/test-api-key", {
+        const resp = await fetch("api/test-api-key", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: ep, api_key: key }),
@@ -5132,7 +5135,7 @@ function renderWizardField(f) {
       res.textContent = "获取中...";
       res.className = "wizard-test-result";
       try {
-        const resp = await fetch("/api/get-model-max-len", {
+        const resp = await fetch("api/get-model-max-len", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: ep, api_key: wizardData.api_key || "", model_name: model }),
@@ -5318,7 +5321,7 @@ function showIdentityResult(msg) {
 // reflected without a manual reload.
 async function refreshBranch() {
   try {
-    const resp = await fetch("/api/bootstrap");
+    const resp = await fetch("api/bootstrap");
     const b = await resp.json();
     if (b.branch) document.getElementById("wsBranch").textContent = b.branch;
   } catch { /* keep the current branch on failure */ }
@@ -5326,7 +5329,7 @@ async function refreshBranch() {
 
 (async function boot() {
   try {
-    const resp = await fetch("/api/bootstrap");
+    const resp = await fetch("api/bootstrap");
     const b = await resp.json();
     if (b.lang === "en") { T = I18N.en; currentLang = "en"; }
     document.documentElement.lang = b.lang || "zh";
