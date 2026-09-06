@@ -91,7 +91,7 @@ const webIndexHTML = `<!DOCTYPE html>
   }
   .agent {
     position:relative; display:flex; align-items:center; gap:8px; padding:8px 10px;
-    background:transparent; cursor:pointer; font-size:13px; color:var(--fg-dim);
+    background:var(--panel); cursor:pointer; font-size:13px; color:var(--fg-dim);
     transition:transform .18s ease;
   }
   .agent:hover { background:var(--elev); color:var(--fg); }
@@ -196,7 +196,7 @@ const webIndexHTML = `<!DOCTYPE html>
   <div class="view" id="viewList">
     <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
     <div id="agentList"></div>
-    <div class="foot"><button class="btn primary" id="manageBtn">⚙ 新建</button></div>
+    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button></div>
   </div>
   <!-- View 2: config (add local/remote + manage list). -->
   <div class="view hidden" id="viewConfig">
@@ -246,6 +246,7 @@ const webIndexHTML = `<!DOCTYPE html>
   var frames = {};
   var hideTimer = null;
   var hubVerEl = document.getElementById('hubVer');
+  var openCard = null; // currently swipe-open agent card (delete revealed)
 
   function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
@@ -336,6 +337,7 @@ const webIndexHTML = `<!DOCTYPE html>
 
   function renderList(){
     listEl.innerHTML = '';
+    openCard = null;
     agents.forEach(function(a){
       var on = (a.running || a.connected);
       var st = on ? 'on' : 'off';
@@ -354,7 +356,9 @@ const webIndexHTML = `<!DOCTYPE html>
       // Clicking the card selects the agent (unless swiping or toggling power).
       r.addEventListener('click', function(e){
         if (e.target.closest('.switch')) return;
-        if (r._moved || r._open){ if (r._open) setSwipe(r, false); return; }
+        if (r._moved){ r._moved = false; return; } // just finished a swipe drag
+        if (r._open){ setSwipe(r, false); return; } // click an open card closes it
+        if (openCard && openCard !== r) setSwipe(openCard, false);
         current = a.id; renderList(); ensureFrame(current); closePanel();
       });
       // Power switch: running -> stop, stopped -> start (revert on start failure).
@@ -376,6 +380,8 @@ const webIndexHTML = `<!DOCTYPE html>
     card._open = open;
     card.style.transition = 'transform .18s ease';
     card.style.transform = open ? 'translateX(-64px)' : 'translateX(0)';
+    if (open) openCard = card;
+    else if (openCard === card) openCard = null;
   }
   // attachSwipe wires mouse-drag and touch-swipe so a card can be swiped left
   // to reveal its delete button.
@@ -403,6 +409,11 @@ const webIndexHTML = `<!DOCTYPE html>
     card.addEventListener('touchend', end);
   }
 
+  // Clicking empty space in the list closes any swipe-open card.
+  listEl.addEventListener('click', function(e){
+    if (!e.target.closest('.agent') && openCard) setSwipe(openCard, false);
+  });
+
   // startAgent launches a managed agent and switches to it; on failure the
   // switch is reverted to the stopped state.
   function startAgent(id, sw){
@@ -426,7 +437,6 @@ const webIndexHTML = `<!DOCTYPE html>
   }
 
   function closeAgent(id){
-    if (!confirm('删除 agent ' + id + '？')) return;
     api('DELETE', '/api/agents/' + encodeURIComponent(id), null, function(st, j){
       if (st >= 400) alert('删除失败: ' + (j.error || st));
       refresh();
