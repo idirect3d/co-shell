@@ -119,7 +119,9 @@ const webIndexHTML = `<!DOCTYPE html>
   .switch input:disabled + .slider { opacity:.5; cursor:not-allowed; }
   .switch-row { display:flex; align-items:center; justify-content:space-between; }
   .switch-row .switch-label { font-size:12px; color:var(--fg-dim); }
-  #agentPanel .foot { flex:none; padding:8px; border-top:1px solid var(--border); }
+  /* FEATURE-487: bottom buttons sit 10px higher (extra bottom padding) so they
+     are easier to tap on mobile. */
+  #agentPanel .foot { flex:none; padding:8px 8px 18px; border-top:1px solid var(--border); }
   .btn { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; }
   .btn.primary { background:var(--accent); color:#0b0e14; width:100%; }
   .btn.primary:hover { filter:brightness(1.1); }
@@ -204,7 +206,7 @@ const webIndexHTML = `<!DOCTYPE html>
   <div class="view" id="viewList">
     <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
     <div id="agentList"></div>
-    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:6px;width:100%">⚙ 设置</button></div>
+    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:16px;width:100%">⚙ 设置</button></div>
   </div>
   <!-- View 2: config (add local/remote + manage list). -->
   <div class="view hidden" id="viewConfig">
@@ -367,8 +369,22 @@ const webIndexHTML = `<!DOCTYPE html>
     if (hubVerEl.textContent) return;
     api('GET', '/api/hub-info', null, function(st, j){
       if (j && j.version) hubVerEl.textContent = ' v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
+      updateBadgeResponsive();
     });
   }
+  // FEATURE-487: on narrow screens (viewport narrower than twice the full
+  // badge width, i.e. logo + version) hide the version text so the badge
+  // shrinks to just the logo and does not crowd the co-shell UI behind it.
+  var badgeFullW = 0; // cached full badge width (logo + version)
+  function updateBadgeResponsive(){
+    if (!badge) return;
+    // Measure the full width with the version visible.
+    hubVerEl.style.display = '';
+    badgeFullW = badge.getBoundingClientRect().width;
+    var narrow = window.innerWidth < badgeFullW * 2;
+    hubVerEl.style.display = narrow ? 'none' : '';
+  }
+  window.addEventListener('resize', updateBadgeResponsive);
   // setConn toggles the hub connection indicator triangle: accent colour when
   // connected, grey when the hub API is unreachable.
   function setConn(on){

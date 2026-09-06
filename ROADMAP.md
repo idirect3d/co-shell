@@ -16,8 +16,9 @@
 |------|------|------|------|
 | FEATURE-485 | 0.39.0 | P1 | hub https 远程安全访问：系统设置界面（SSL 证书/白名单/访问 KEY）、https 监听、访问 key 校验、移动端 mobile-legacy 复制 |
 | FEATURE-486 | 0.39.0 | P1 | 移动端浏览器内核化：mobile/ 放弃 Flutter 改原生 iOS，内嵌本地代理注入访问 KEY，WKWebView 渲染 hub web ui，系统设置页（服务端地址 + 访问 KEY） |
+| FEATURE-487 | 0.39.0 | P1 | hub web ui 移动端适配：窄屏隐藏徽标版本号、底部按钮上移+间距 |
 
-> 当前 BUILD: 883
+> 当前 BUILD: 884
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -28,7 +29,7 @@
   - 方案（用户确认）：① 版本 v0.39.0（minor 递增）；② SSL 证书支持自签名自动生成（也支持上传 PEM）；③ 访问验证 KEY 加到 HTTP 头中（如 X-Access-Key），WEB 访问不提供则先提示输入；④ 配置证书后仅用 https（替换 http）；⑤ 本次范围：hub 端改造（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。
   - 实施：cmd/co-shell-hub/ + hub/gateway/ + mobile/
   - 测试：见 use-case/FEATURE-485/
-  - 进度：hub 端改造完成（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。实现：① gateway/settings.go 新增 Settings 结构（TLS 开关/证书路径/白名单/访问 KEY/全部需 key 开关），持久化到 hub-settings.json，支持自签名证书自动生成（ECDSA P256）；② webui.go WebUI 持有 settings，Serve() 支持 TLS（配置证书后仅 https），accessControl 中间件实现访问控制（白名单内放行、白名单外需 X-Access-Key 头否则 401、RequireKey 强制全部需 key），新增 GET/PUT /api/settings；③ webui_static.go 设置界面（+新建 下加 ⚙设置 按钮，新增 viewSettings：HTTPS 开关/证书路径/生成自签名/白名单/访问 KEY/全部需 key 开关）；④ cmd/co-shell-hub 加载 settings 并传给 NewWebUI；⑤ 复制 mobile/ → mobile-legacy/（保留 UDP 方式）。编译全绿 [BUILD-880]
+  - 进度：① hubBadge 窄屏适配：新增 updateBadgeResponsive JS（loadHubInfo 回调 + resize 时调用），当视口宽度 < 徽标完整宽度×2 时隐藏版本号（.ver display:none），徽标自动收缩到只显示 ▸ co-shell-hub（280px→135px）；② 底部按钮上移+间距：.foot padding 8px→8px 8px 18px（底部 +10px，覆盖 agent 列表 ＋新建/⚙设置 和设置页 保存设置），settingsBtn margin-top 6px→16px（两按钮间距 +10px）。端到端验证：iOS 模拟器窄屏徽标版本号隐藏、浏览器 drawer 底部按钮上移+间距生效。go build+vet 全绿，co-shell-hub 编译到 ~/bin/ [BUILD-884]hub 端改造完成（设置界面 + https + 访问 key）+ 移动端 mobile-legacy 复制。实现：① gateway/settings.go 新增 Settings 结构（TLS 开关/证书路径/白名单/访问 KEY/全部需 key 开关），持久化到 hub-settings.json，支持自签名证书自动生成（ECDSA P256）；② webui.go WebUI 持有 settings，Serve() 支持 TLS（配置证书后仅 https），accessControl 中间件实现访问控制（白名单内放行、白名单外需 X-Access-Key 头否则 401、RequireKey 强制全部需 key），新增 GET/PUT /api/settings；③ webui_static.go 设置界面（+新建 下加 ⚙设置 按钮，新增 viewSettings：HTTPS 开关/证书路径/生成自签名/白名单/访问 KEY/全部需 key 开关）；④ cmd/co-shell-hub 加载 settings 并传给 NewWebUI；⑤ 复制 mobile/ → mobile-legacy/（保留 UDP 方式）。编译全绿 [BUILD-880]
   - 进度（迭代调整）：① 设置按钮宽度与 +新建 一致；② 生成自签名证书后把证书路径填入输入框（GET /api/settings 返回 settings_dir）；③ 证书默认放 ~/.co-shell/（hub-cert.pem/hub-key.pem）；④ 访问 KEY 下加"重新生成安全 KEY"按钮（crypto 生成 64 位 hex）；⑤ 修复生成证书后无法访问——TLSConfig 在证书文件不存在时自动生成（不再因加载不存在的相对路径失败）；⑥ 新增 --serve 参数（不自动打开浏览器），自动打开浏览器时按 TLS 启用用 https://；⑦ accessControl 语义：白名单为空时默认仅本机(loopback)免 KEY，其他主机需 KEY（命令行 --whitelist 会覆盖 settings 白名单，需用设置界面管理时勿传 --whitelist）。编译全绿 [BUILD-881]
 
 - [ ] **FEATURE-486 移动端浏览器内核化：原生 iOS + Cookie 注入访问 KEY**
@@ -37,6 +38,13 @@
   - 实施：mobile/（原生 iOS 工程）
   - 测试：见 use-case/FEATURE-486/
   - 进度：① hub 端 accessControl 支持 access_key Cookie（webui.go accessCookie + accessKeyFromRequest，编译通过）；② mobile/ 清空重建，从 Flutter 工程改造成纯原生 iOS 工程：重写 project.pbxproj（去 Flutter/CocoaPods/RunnerTests，单 target 纯 Swift）、Info.plist（去 FLUTTER_BUILD_NAME 占位符，加 ATS 例外 NSAllowsArbitraryLoads + 本地网络权限）、LaunchScreen.storyboard（去 LaunchImage 引用）、AppDelegate/SceneDelegate 改纯 UIKit；③ 新增 Swift 源码：SettingsStore（Keychain 存服务端地址+key）、SettingsViewController（原生设置页，输入服务端地址+key，校验 URL 格式）、WebViewController（WKWebView 壳，加载前注入 access_key Cookie，didReceive 放行自签名证书，target=_blank 同页打开）、RootViewController（导航，未配置→设置页，已配置→WebView，设置保存后切换/重载）；④ xcodebuild 编译到 iPhone 17 Pro 模拟器 BUILD SUCCEEDED，安装启动验证设置页正常渲染（标题/输入框/保存按钮齐全无崩溃）；⑤ 新增 mobile/README.md 说明目录用途；⑥ hub webui.go 新增 requestLog 中间件，向标准输出打印每个请求的时间/源地址/URI（含 X-Forwarded-For 支持），便于追踪移动端远程访问；⑦ 修复设置页保存无反应：模拟器上 Keychain 对未签名 app 不可用（SecItemAdd 返回 errSecMissingEntitlement -34018），SettingsStore 改为 Keychain + UserDefaults 双后端（Keychain 失败自动回退 UserDefaults，真机用 Keychain），并新增 Runner.entitlements（keychain-access-groups）。端到端验证通过：模拟器输入地址+key 保存后成功切换到 WKWebView 并加载 hub web UI（Cookie 注入通过认证、自签名证书正常）。go build+vet 全绿，co-shell-hub 编译到 ~/bin/ [BUILD-883]
+
+- [ ] **FEATURE-487 hub web ui 移动端适配**
+  - 背景：移动端（原生 iOS WKWebView）渲染 hub web ui 时，窄屏下 hub 徽标（logo+版本框）过宽遮挡内容，抽屉底部按钮贴底不便触控。
+  - 方案（用户确认）：① 当界面宽度小于徽标（logo+版本框）宽度的两倍时，自动隐藏版本信息，徽标外框自动收缩适应剩余 logo 长度；② 各页面底部按钮（Agent 抽屉的 ＋新建/⚙设置、设置页的 保存设置）整体上移 10px（增加与底边间距），并增加 ＋新建 与 ⚙设置 两按钮之间间距 10px。
+  - 实施：hub/gateway/webui_static.go
+  - 测试：见 use-case/FEATURE-487/
+  - 进度：
 
 ---
 
