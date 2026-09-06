@@ -17,7 +17,7 @@
 
 ## 一、编译与回归
 
-- **UC-0001**: `go build ./...` 退出码 0（含 cmd/co-shell-feishu-bridge、cmd/co-shell-hub）。
+- **UC-0001**: `go build ./...` 退出码 0（含 cmd/co-shell-feishu-bridge、cmd/co-shell-hub-legacy）。
 - **UC-0002**: `go test ./cmd/...` 无 FAIL（既有 file_tools 失败已知例外，不属本任务）。
 - **UC-0003**: `go vet ./cmd/...` 0 告警（P3 教训：无参 `fmt.Errorf/Printf(i18n.T(key))` 必须改用 `errors.New`/`fmt.Print`；含 % 占位符的保留 fmt）。
 
@@ -30,7 +30,7 @@
 
 ## 三、D 类外部入口 i18n 迁移
 
-- **UC-0008**: 逐文件断言 D 类硬编码中文迁移到 i18n（循环：cmd/co-shell-feishu-bridge/main.go、cmd/co-shell-hub/main.go、feishu/handler.go、bridge/executor.go、bridge/scheduler.go、subagent/subagent.go，每文件逐中文行断言已走 i18n.T）。
+- **UC-0008**: 逐文件断言 D 类硬编码中文迁移到 i18n（循环：cmd/co-shell-feishu-bridge/main.go、cmd/co-shell-hub-legacy/main.go、feishu/handler.go、bridge/executor.go、bridge/scheduler.go、subagent/subagent.go，每文件逐中文行断言已走 i18n.T）。
 - **UC-0009**: 新增 i18n key 双存在断言（循环：每新增 key 断言 zh.go + en.go 均存在；audit 第 5 项保持 =1 不增）。
 - **UC-0010**: `co-shell-feishu-bridge` 独立运行不受影响：`go build ./cmd/co-shell-feishu-bridge/` 成功；`--help` 输出正常；缺必填参数时退出码非 0 且提示明确。
 - **UC-0011**: 主程序集成侧：ChannelSubAgent 输出（subagent 启动日志）可通过 OutputCategories 关闭；`agent/subagent_tools.go` 中硬编码中文同步迁移。

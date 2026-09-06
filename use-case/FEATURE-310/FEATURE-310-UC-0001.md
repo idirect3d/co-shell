@@ -16,7 +16,7 @@
 
 ## 一、编译与回归
 
-- **UC-0001**: `go build ./...` 退出码 0（含 cmd/co-shell-feishu-bridge、cmd/co-shell-hub）。
+- **UC-0001**: `go build ./...` 退出码 0（含 cmd/co-shell-feishu-bridge、cmd/co-shell-hub-legacy）。
 - **UC-0002**: `go test ./agent/...` 无 FAIL（含既有测试 + 本任务新增测试）。
 - **UC-0003**: `go vet ./agent/...` 0 告警（无参 `fmt.Errorf/i18n.TF(key)` 必须改用 `errors.New`；含 % 占位符的保留）。
 

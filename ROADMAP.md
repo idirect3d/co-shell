@@ -4,6 +4,41 @@
 
 ---
 
+## v0.38.0 — 开发中
+
+> **版本**: v0.38.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub WebSocket 聚合网关架构（FEATURE-484）
+> **说明**: 0.38.0 系列将 co-shell-hub 从"UDP + stdin/stdout 管道"升级为 **WebSocket 聚合网关**架构：hub 提供传统 TCP 服务 + API Key 认证（加密交给 VPN），作为 WebSocket 客户端独占连接多个 co-shell agent（每 agent 一个 --serve 端口），代理转发不处理业务逻辑，支持多 agent 切换与数据缓存，对外提供 Web UI。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-484 | 0.38.0 | P1 | hub WebSocket 网关架构：TCP+API Key 认证层、WebSocket 客户端代理转发、多 agent 切换与缓存、Web UI、移动端适配 |
+
+> 当前 BUILD: 856
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-484 hub WebSocket 网关架构**
+  - 背景：原 hub（FEATURE-128/183）通过 UDP 与移动端通讯、stdin/stdout 管道管理 co-shell agent。用户确认架构演进：hub 通过 co-shell `--serve` WebSocket 端口与多个 co-shell 通讯，对外提供 TCP + API Key 服务与 Web UI 聚合多 agent。
+  - 方案（已确认简化）：① 传统 TCP 服务 + API Key 认证（加密交给 VPN）；② 原则上不处理 co-shell 业务逻辑，仅代理转发；③ 同时与多个 agent 通讯，负责多 agent 切换；④ Web UI 转发 co-shell 返回信息，实现 agent 切换与数据缓存（切换不丢失会话）。
+  - 代码组织（用户确认方案 B）：在 hub/ 下新建独立 gateway 包，旧 UDP 代码保留不动，新代码独立演进。
+  - Web UI 访问控制（用户确认，步骤6要求）：hub Web UI 与 co-shell 一致支持访问白名单，默认仅本机访问——复用 co-shell 模式（FEATURE-430/431）：`--bind`（默认 127.0.0.1）+ `--whitelist`（逗号分隔 IP/网段，空=仅本机访问）；无白名单时强制本机访问（忽略 --bind，绑定 127.0.0.1）；白名单校验支持精确 IP 与 CIDR 网段（复用 web/server.go 的 parseWhitelist/ipAllowed 逻辑）。
+  - 实施：hub/gateway/（新）+ cmd/co-shell-hub/ + mobile/
+  - 测试：见 use-case/FEATURE-484/
+  - 进度：步骤3-6（TCP+API Key 认证、WS 客户端代理转发、多 agent 切换与缓存、Web UI）已完成 [BUILD-857]；步骤7-8（agent 生命周期管理：Manager 注册表持久化 + co-shell --serve 子进程启停 + Web UI 管理界面创建/启动/停止/删除/添加不受控 agent）已完成，编译全绿、管理 API 与 Web UI 浏览器验证通过 [BUILD-861]
+  - Web UI 架构演进（用户确认，架构讨论后）：hub 从"聚合转发业务消息 + 自绘简化聊天界面"转向 **iframe 多页外壳 + 反向代理**——hub 完整透传每个 co-shell 实例的 Web UI（含界面），只维护外壳（agent 切换 + 管理 + 移动端自适应）。单用户独占；hub 反向代理解决跨源/端口转发；数据缓存降级为可选优化。方案：单端口 + 子路径前缀（/agent/{id}/），co-shell 自身前端改相对路径（方式乙，单一代码源），hub 反向代理剥前缀转发。设计见 docs/DESIGN-hub-gateway.md §10。
+  - 进度（新方向）：设计文档 §10 已完成（iframe 外壳 + 反向代理 + co-shell 前端改相对路径方案）；步骤12-13（完整实现）已完成：① co-shell 前端改相对路径（web/static/index.html + app.js 全部 /api、/logos、/static/logos、WS 地址改相对）；② hub 反向代理模块（hub/gateway/proxyhttp.go，/agent/{id}/ 前缀剥除后 httputil.ReverseProxy 转发 HTTP+WS）；③ hub 外壳页面（webui_static.go 重写为 agent 切换栏 + 管理抽屉 + iframe 布局 + 移动端自适应）；④ webui.go 注册 /agent/ 反向代理并移除旧 /ws 聊天桥接。编译全绿（hub 模块 + 主模块），浏览器实测通过：两个 agent（ws-a/ws-b）各自 iframe 完整显示 co-shell UI 且均"已连接"（WS 经反向代理隧道成功），点击标签可切换 agent 且状态保留 [BUILD-862]
+  - 进度（Web UI 管理界面迭代）：卡片交互与详情字段修复（点击 agent 卡片切换主界面、卡片最右侧 > 符号点击查看配置分离两功能；本地/远程 agent 详情显示不同字段，远程隐藏 workspace/co-shell/共享配置、端口行显示 WS 地址；创建确认按钮移到页面最下方 foot 与 +新建 设计语言一致）[BUILD-875]；修复点击卡片切换主界面失效——根因 ensureFrame 在 frame 已存在时直接 return 不调用 showFrame 切换 active iframe，导致点击卡片只更新卡片高亮但主界面 iframe 不切换；修复：点击卡片切换时在 ensureFrame 后显式调用 showFrame(current)，浏览器实测双向切换（agent-1↔agent-2）主界面 iframe 同步切换正常 [BUILD-876]
+  - 进度（连接状态指示 + serve/license 优化）：① hub 外壳页面左上角 co-shell-hub logo 左边的小三角（.mark ▸）通过颜色显示与 hub 的 API 轮询连接状态——连接正常=accent 色，断开=灰色；检测到断开后停止自动轮询（避免多浏览器互抢单客户端连接），点击三角或刷新页面触发重连（startPolling/stopPolling/setConn 控制）[BUILD-877]；② co-shell serve 模式运行时忽略模型配置向导（跳过 AddModelWizard，用户通过 Web UI 配置模型）；③ 新增 --accept-license 参数表示同意用户使用协议，跳过 disclaimer 交互提示并持久化 DisclaimerAccepted=true 到 config [BUILD-877]
+  - 进度（agent 补充运行参数界面）：agent 配置界面（新增/查看）新增"补充运行参数"字段，运行 co-shell agent 时除系统自动传递的参数（workspace/config/port 等）外附加用户自定义参数。实现：① AgentSpec 增加 ExtraArgs 字段（manager.go，持久化 extra_args）；② Start 启动命令构造时按空白拆分附加用户参数，字段为空时默认补 --accept-license（--serve 已由系统传递不重复）；③ webui.go agentView/createAgentRequest 增加 ExtraArgs 字段并透传 CreateManaged；④ webui_static.go 新增配置界面输入框（默认值 --accept-license）、详情界面展示字段（远程 agent 隐藏）、createLocalAgent POST body 带 extra_args。编译全绿 [BUILD-879]
+  - 进度（启动体验 + 配置搜索 + 开关冲突修复）：① hub 服务启动后默认自动打开浏览器（web.OpenBrowser + browserURL 将 0.0.0.0 监听地址转换为 loopback URL）[BUILD-878]；② hub-agents.json 注册表默认搜索路径与 hub-gateway.json 一致：命令行指定 > ./ > ~/.co-shell/（firstExisting/homeDir 辅助函数）[BUILD-878]；③ 修复 agent 卡片启动/停止开关点击冲突——点击开关时 click 事件冒泡到卡片触发切换逻辑并 renderList 重建 DOM，导致开关 change 事件丢失（开关状态不变）；修复：开关 label 添加 click 事件 stopPropagation 分离开关点击与卡片切换，浏览器实测点击开关正常触发启停且开关状态正确变化 [BUILD-878]
+
+---
+
 ## v0.37.1 — 开发中
 
 > **版本**: v0.37.1
