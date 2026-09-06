@@ -100,6 +100,8 @@ const webIndexHTML = `<!DOCTYPE html>
   .agent .st.on { background:var(--ok); }
   .agent .st.off { background:var(--err); }
   .agent .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .agent .chev { flex:none; font-size:16px; color:var(--fg-faint); padding:0 2px; cursor:pointer; line-height:1; }
+  .agent .chev:hover { color:var(--accent); }
   /* Sliding power switch (start/stop). */
   .switch { position:relative; display:inline-block; width:34px; height:18px; flex:none; cursor:pointer; }
   .switch input { opacity:0; width:0; height:0; }
@@ -221,7 +223,6 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
         <div class="hint" id="m-ver"></div>
-        <button class="btn primary" id="m-create">创建本地 Agent</button>
       </div>
       <!-- Remote mode: user supplies a host + port (hub builds the ws URL). -->
       <div id="remoteFields" style="display:none">
@@ -230,9 +231,9 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label>ID（默认 host-port）</label><input id="e-id" placeholder="自动生成"></div>
         <div class="field"><label>备注</label><input id="e-name" placeholder="可选"></div>
         <div class="hint" id="e-ver"></div>
-        <button class="btn primary" id="e-add">添加远程 Agent</button>
       </div>
     </div>
+    <div class="foot"><button class="btn primary" id="cfg-submit">创建本地 Agent</button></div>
   </div>
   <!-- View 3: read-only agent detail (click an agent card to view). -->
   <div class="view hidden" id="viewDetail">
@@ -241,10 +242,10 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field"><label>ID</label><div class="val" id="d-id"></div></div>
       <div class="field"><label>备注</label><div class="val" id="d-name"></div></div>
       <div class="field"><label>类型</label><div class="val" id="d-type"></div></div>
-      <div class="field"><label>Workspace</label><div class="val" id="d-ws"></div></div>
-      <div class="field"><label>端口</label><div class="val" id="d-port"></div></div>
-      <div class="field"><label>co-shell</label><div class="val" id="d-coshell"></div></div>
-      <div class="field"><label>共享配置</label><div class="val" id="d-shared"></div></div>
+      <div class="field" id="f-ws"><label>Workspace</label><div class="val" id="d-ws"></div></div>
+      <div class="field" id="f-port"><label>端口</label><div class="val" id="d-port"></div></div>
+      <div class="field" id="f-coshell"><label>co-shell</label><div class="val" id="d-coshell"></div></div>
+      <div class="field" id="f-shared"><label>共享配置</label><div class="val" id="d-shared"></div></div>
       <div class="field"><label>状态</label><div class="val" id="d-state"></div></div>
     </div>
   </div>
@@ -392,15 +393,17 @@ const webIndexHTML = `<!DOCTYPE html>
       var r = document.createElement('div');
       r.className = 'agent' + (a.id === current ? ' active' : '');
       r.innerHTML = '<span class="st ' + st + '"></span><span class="nm">' + esc(a.name || a.id) + '</span>' +
-        (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '');
-      // Clicking the card opens its read-only detail view (unless swiping or
-      // toggling power).
+        (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '') +
+        '<span class="chev" title="查看配置">›</span>';
+      // Clicking the card switches the main view to this agent; clicking the
+      // trailing chevron opens its read-only detail view.
       r.addEventListener('click', function(e){
         if (e.target.closest('.switch')) return;
+        if (e.target.closest('.chev')){ showAgentDetail(a); return; }
         if (r._moved){ r._moved = false; return; } // just finished a swipe drag
         if (r._open){ setSwipe(r, false); return; } // click an open card closes it
         if (openCard && openCard !== r) setSwipe(openCard, false);
-        showAgentDetail(a);
+        current = a.id; renderList(); ensureFrame(current); closePanel();
       });
       // Power switch: running -> stop, stopped -> start (revert on start failure).
       var sw = r.querySelector('.switch input');
@@ -418,13 +421,20 @@ const webIndexHTML = `<!DOCTYPE html>
 
   // showAgentDetail fills and shows the read-only detail view for an agent.
   function showAgentDetail(a){
+    var external = a.type === 'external';
     document.getElementById('detailTitle').textContent = (a.name || a.id) + ' · 设置';
     document.getElementById('d-id').textContent = a.id || '-';
     document.getElementById('d-name').textContent = a.name || '-';
-    document.getElementById('d-type').textContent = a.type === 'external' ? '远程' : '本地';
-    document.getElementById('d-ws').textContent = a.workspace || (a.ws_url || '-');
-    document.getElementById('d-port').textContent = a.type === 'external' ? (a.ws_url || '-') : (a.port || '-');
-    document.getElementById('d-coshell').textContent = a.co_shell || (a.type === 'external' ? '—' : '默认');
+    document.getElementById('d-type').textContent = external ? '远程' : '本地';
+    // Local-only fields (workspace / co-shell / shared config) are hidden for
+    // remote agents; the port row shows the remote ws URL instead.
+    document.getElementById('f-ws').style.display = external ? 'none' : '';
+    document.getElementById('f-coshell').style.display = external ? 'none' : '';
+    document.getElementById('f-shared').style.display = external ? 'none' : '';
+    document.getElementById('f-port').querySelector('label').textContent = external ? 'WS 地址' : '端口';
+    document.getElementById('d-ws').textContent = a.workspace || '-';
+    document.getElementById('d-port').textContent = external ? (a.ws_url || '-') : (a.port || '-');
+    document.getElementById('d-coshell').textContent = a.co_shell || '默认';
     document.getElementById('d-shared').textContent = a.use_shared_config ? '开启（~/.co-shell/config.json）' : '关闭（{workspace}/config.json）';
     document.getElementById('d-state').textContent = (a.running || a.connected) ? '运行中' : '已停止';
     showView('detail');
@@ -514,6 +524,10 @@ const webIndexHTML = `<!DOCTYPE html>
   var mode = 'local';
   var localFields = document.getElementById('localFields');
   var remoteFields = document.getElementById('remoteFields');
+  var cfgSubmit = document.getElementById('cfg-submit');
+  function updateSubmitLabel(){
+    cfgSubmit.textContent = mode === 'local' ? '创建本地 Agent' : '添加远程 Agent';
+  }
   document.querySelectorAll('#modeSeg .seg-btn').forEach(function(btn){
     btn.onclick = function(){
       document.querySelectorAll('#modeSeg .seg-btn').forEach(function(b){ b.classList.remove('active'); });
@@ -521,6 +535,7 @@ const webIndexHTML = `<!DOCTYPE html>
       mode = btn.getAttribute('data-mode');
       localFields.style.display = mode === 'local' ? '' : 'none';
       remoteFields.style.display = mode === 'remote' ? '' : 'none';
+      updateSubmitLabel();
     };
   });
 
@@ -619,8 +634,12 @@ const webIndexHTML = `<!DOCTYPE html>
     checkRemoteVersion();
   });
 
-  // ---- Create local agent ----
-  document.getElementById('m-create').onclick = function(){
+  // ---- Create / add agent (bottom submit button, mode-aware) ----
+  cfgSubmit.onclick = function(){
+    if (mode === 'remote'){ addRemoteAgent(); return; }
+    createLocalAgent();
+  };
+  function createLocalAgent(){
     var ws = document.getElementById('m-ws').value.trim();
     if (!ws){ alert('请填写 Workspace 路径'); return; }
     if (!coshellSel.value){
@@ -651,7 +670,6 @@ const webIndexHTML = `<!DOCTYPE html>
         refresh();
         return;
       }
-      // Created: clear the form, then auto-start the new agent and show it.
       document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; document.getElementById('m-port').value='';
       var nid = (j && j.id) || id;
       api('POST', '/api/agents/' + encodeURIComponent(nid) + '/start', null, function(st2, j2){
@@ -665,12 +683,10 @@ const webIndexHTML = `<!DOCTYPE html>
         refresh();
       });
     });
-  };
-  // ---- Add remote agent (hub builds the ws://host:port/ws URL) ----
-  document.getElementById('e-add').onclick = function(){
+  }
+  function addRemoteAgent(){
     var host = normalizeHost(eHostEl.value.trim());
     var port = ePortEl.value.trim();
-    // If the host field itself carries a port (e.g. http://host:28256), split it.
     var ci = host.lastIndexOf(':');
     if (ci > 0 && /^\d+$/.test(host.slice(ci + 1))){
       if (!port) port = host.slice(ci + 1);
@@ -684,7 +700,7 @@ const webIndexHTML = `<!DOCTYPE html>
       else { eHostEl.value=''; ePortEl.value=''; eIdEl.value=''; }
       refresh();
     });
-  };
+  }
 
   refresh();
   setInterval(refresh, 3000);
