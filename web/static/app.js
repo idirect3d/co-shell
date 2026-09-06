@@ -283,7 +283,6 @@ const miWsCheck = document.getElementById("miWsCheck");
 const miPlanCheck = document.getElementById("miPlanCheck");
 const miSettings = document.getElementById("miSettings");
 const miModels = document.getElementById("miModels");
-const miRestart = document.getElementById("miRestart");
 const settingsModal = document.getElementById("settings");
 const settingsClose = document.getElementById("settingsClose");
 const settingsBody = document.getElementById("settingsBody");
@@ -3888,11 +3887,6 @@ miSettings.onclick = () => {
   // (clear any leftover drilled-in state from a previous close).
   settingsShowList();
   wsSend({ type: "settings_get" });
-};
-// FEATURE-398: "重启后台" sends a restart signal to the backend, which
-// notifies the external supervisor to restart the process.
-miRestart.onclick = () => {
-  wsSend({ type: "restart" });
 };
 settingsClose.onclick = () => settingsModal.classList.add("hidden");
 settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.add("hidden"); };
