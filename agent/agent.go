@@ -517,6 +517,10 @@ func (a *Agent) Store() *store.DualStore {
 func (a *Agent) SetCurrentSessionID(id string) {
 	a.mu.Lock()
 	a.currentSessionID = id
+	// Switching/creating a session invalidates the cached title of the
+	// previous session (FEATURE-488). The caller re-sets it via
+	// SetCurrentSessionTitle when the target session's title is known.
+	a.currentSessionTitle = ""
 	// Notify the task plan manager so the task plan switches to the plan
 	// bound to the target session (FEATURE-386).
 	if a.taskPlanMgr != nil {
@@ -554,6 +558,24 @@ func (a *Agent) CurrentSessionID() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.currentSessionID
+}
+
+// SetCurrentSessionTitle caches the current session's title in memory
+// (FEATURE-488). Kept in sync when the session title is updated or a session
+// is created/switched, so buildFullEnvironmentDetails can inject it without
+// querying the store on every LLM call.
+func (a *Agent) SetCurrentSessionTitle(title string) {
+	a.mu.Lock()
+	a.currentSessionTitle = title
+	a.mu.Unlock()
+}
+
+// CurrentSessionTitle returns the cached title of the current session
+// (FEATURE-488). Empty when no meaningful title has been set yet.
+func (a *Agent) CurrentSessionTitle() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.currentSessionTitle
 }
 
 // UpdateCurrentSession writes current messages back to the current session entry and
@@ -610,6 +632,9 @@ func (a *Agent) UpdateCurrentSession(title, keywords string) error {
 		CreatedAt:    createdAt,
 		UpdatedAt:    now,
 	}
+	// Sync the in-memory title cache (FEATURE-488) so buildFullEnvironmentDetails
+	// can inject the current session title without querying the store.
+	a.SetCurrentSessionTitle(title)
 	return a.store.UpdateNamedSession(sessionID, entry)
 }
 

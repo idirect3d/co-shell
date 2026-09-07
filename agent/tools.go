@@ -2467,7 +2467,7 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 	sessionTitle, _ := args["session_title"].(string)
 	sessionKeywords, _ := args["session_keywords"].(string)
 	if sessionTitle == "" {
-		return "", fmt.Errorf("session_title is required — provide a brief session title (≤30 chars)")
+		return "", fmt.Errorf("session_title is required — provide a brief session title (≤60 chars)")
 	}
 	if sessionKeywords == "" {
 		return "", fmt.Errorf("session_keywords is required — provide comma-separated keywords for this session")
