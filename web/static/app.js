@@ -1803,9 +1803,11 @@ function msgVizFlush() {
     const line = document.createElement("div");
     line.className = "msgviz-line";
     // FEATURE-487: draw the line as a dotted vertical line (1px dot + 1px gap)
-    // in the block colour; the 75% opacity is applied by CSS.
+    // in the block colour; the 75% opacity is applied by CSS. The colour is set
+    // as a CSS variable so the CSS can switch between dotted (default) and
+    // solid (:hover) rendering.
     const col = msgVizColor(p.cls, p.box);
-    line.style.background = "repeating-linear-gradient(to bottom, " + col + " 0 1px, transparent 1px 2px)";
+    line.style.setProperty("--line-color", col);
     line._box = p.box; // for click-to-locate in initMsgViz
     line._cls = p.cls; // for the hover tooltip
     const dot = document.createElement("div");

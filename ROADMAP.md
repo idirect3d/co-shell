@@ -15,6 +15,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-488 | 0.41.0 | P1 | 会话标题自动生成优化：environment_details 注入会话标题 + session_title 提示词优化 + 长度放宽到 60 |
+| FIX-489 | 0.41.0 | P1 | msgviz 消息可视化控件 hover 实线改进：默认虚线、hover 实线、移开恢复虚线 |
 
 > 当前 BUILD: 908
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -28,6 +29,12 @@
   - 实施：agent/envelope.go（注入会话标题）+ agent/agent.go（内存缓存当前标题）+ agent/tools.go（长度限制 60）+ i18n/zh_system.go + i18n/en_system.go（提示词优化）+ main.go（版本号 0.41.0 + build 计数）
   - 测试：见 use-case/FEATURE-488/
   - 进度：待开发
+
+- [x] **FIX-489 msgviz 消息可视化控件 hover 实线改进** ✅ 已完成 [BUILD-911]
+  - 背景：msgviz 消息可视化控件线段当前为 1px 虚线（repeating-linear-gradient），hover 仅加宽到 3px 但仍为虚线，视觉区分度不足。
+  - 方案（用户确认）：① app.js 将线段颜色改为 CSS 变量 --line-color（line.style.setProperty）；② style.css 默认虚线（repeating-linear-gradient + var(--line-color)），:hover 实线（background: var(--line-color)）+ 3px 宽 + 100% 不透明；③ 移开鼠标自动恢复虚线（浏览器原生 :hover 行为）。
+  - 实施：web/static/app.js（--line-color 变量）+ web/static/style.css（默认虚线、:hover 实线）+ main.go（build 计数 911）
+  - 测试：浏览器验证默认虚线（repeating-linear-gradient 1px 点+1px 间隙）、hover 实线（纯色 var(--line-color)）、移开恢复虚线均正常。go build+vet 全绿，co-shell 编译到 ~/bin/ [BUILD-911]
 
 ---
 
