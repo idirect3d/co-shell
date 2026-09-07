@@ -175,6 +175,15 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 	sb.WriteString("<current_mode>")
 	sb.WriteString(a.currentWorkMode())
 	sb.WriteString("</current_mode>\n")
+	// FEATURE-488: expose the current session title so the LLM can use it as a
+	// memory anchor when generating a new session_title in attempt_completion
+	// (combining the existing title with the newly completed work). Only
+	// injected when a meaningful (non-default) title exists.
+	if t := a.CurrentSessionTitle(); t != "" && !isDefaultSessionTitle(t) {
+		sb.WriteString("<session_title>")
+		sb.WriteString(t)
+		sb.WriteString("</session_title>\n")
+	}
 	// FEATURE-481: expose the co-shell runtime environment and startup
 	// configuration (pid/version/build/service mode; serve mode adds
 	// port/bind/whitelist) so the LLM knows how it is running.
@@ -249,6 +258,25 @@ func (a *Agent) currentWorkMode() string {
 		return a.cfg.LLM.WorkMode
 	}
 	return "act"
+}
+
+// isDefaultSessionTitle reports whether the given title is the auto-generated
+// placeholder title (e.g. "新会话3" / "New session 3") assigned when a session
+// is first created (FEATURE-488). Such titles carry no meaningful summary, so
+// they are not injected into <environment_details> as a memory anchor.
+func isDefaultSessionTitle(title string) bool {
+	for _, prefix := range []string{"新会话", "New session"} {
+		if strings.HasPrefix(title, prefix) {
+			rest := strings.TrimPrefix(title, prefix)
+			if rest == "" {
+				return true
+			}
+			if _, err := strconv.Atoi(rest); err == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // buildRuntimeInfo renders the <runtime_info> block describing the co-shell

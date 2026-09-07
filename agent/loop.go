@@ -78,6 +78,7 @@ type Agent struct {
 	memoryManager    *memory.Manager
 	systemPrompt     string
 	currentSessionID string // ID of the current named session entry
+	currentSessionTitle string // cached title of the current session (FEATURE-488)
 	messages         []llm.Message
 	maxIterations    int
 	// toolModes stores per-tool mode settings.

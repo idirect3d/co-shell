@@ -731,7 +731,7 @@ Critical rules:
 		Description: `After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
 IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.
 If you were using create_task_plan/update_task_step/... to manage the task progress, all unfinished tasks will be set to finish state.
-Besides result and command, this tool also requires session_title (a brief title ≤30 chars) and session_keywords (comma-separated keywords) for automatic session saving.
+Besides result and command, this tool also requires session_title (a brief title ≤60 chars) and session_keywords (comma-separated keywords) for automatic session saving.
 When the completion-confirm switch is enabled (default), this tool presents the result and asks the user to choose a next step: the user may pick one of your next_steps suggestions, ask for more suggestions, report the task is not yet done, or confirm completion to exit.`,
 		Parameters: map[string]interface{}{
 			"type": "object",
@@ -754,7 +754,7 @@ When the completion-confirm switch is enabled (default), this tool presents the 
 				},
 				"session_title": map[string]interface{}{
 					"type":        "string",
-					"description": "A brief title summarizing this session (≤30 characters). This will be used to name the saved session.",
+					"description": "A brief title summarizing this session (≤60 characters). Combine the current session title (if any, from <session_title> in <environment_details>) with the newly completed work into a concise session-level summary. Use keywords / parallel phrases to densely condense all distinct topics done so far in this session; do not drop earlier distinct work when adding new topics. This will be used to name the saved session.",
 				},
 				"session_keywords": map[string]interface{}{
 					"type":        "string",
@@ -2467,7 +2467,7 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 	sessionTitle, _ := args["session_title"].(string)
 	sessionKeywords, _ := args["session_keywords"].(string)
 	if sessionTitle == "" {
-		return "", fmt.Errorf("session_title is required — provide a brief session title (≤30 chars)")
+		return "", fmt.Errorf("session_title is required — provide a brief session title (≤60 chars)")
 	}
 	if sessionKeywords == "" {
 		return "", fmt.Errorf("session_keywords is required — provide comma-separated keywords for this session")
