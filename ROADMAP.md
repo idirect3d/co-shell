@@ -4,6 +4,33 @@
 
 ---
 
+## v0.41.0 — 开发中
+
+> **版本**: v0.41.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 会话标题自动生成优化（FEATURE-488）
+> **说明**: 0.41.0 系列承接 v0.40.0 发布后的新功能。FEATURE-488 优化会话标题自动生成：在 environment_details 注入当前会话标题作为 LLM 记忆锚点，优化 attempt_completion 的 session_title 提示词引导 LLM 结合当前标题做会话级概括（用关键字/排比高度浓缩历史主题、尽量不丢失历史上做过的不同的事），并将 session_title 长度限制从 30 放宽到 60 字符。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-488 | 0.41.0 | P1 | 会话标题自动生成优化：environment_details 注入会话标题 + session_title 提示词优化 + 长度放宽到 60 |
+
+> 当前 BUILD: 908
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-488 会话标题自动生成优化**
+  - 背景：co-shell 会话标题由 LLM 在 attempt_completion 时自动生成，但只关注最近一次任务目标，对整个会话的概括性不足（后一次任务会整体覆盖前一次标题）。
+  - 方案（用户确认）：① 在 environment_details 注入当前会话标题（含默认标题处理），作为 LLM 记忆锚点；② 优化 attempt_completion 的 session_title 提示词，引导 LLM 结合当前标题做会话级概括，用关键字/排比高度浓缩历史主题、尽量不丢失历史上做过的不同的事；③ 将 session_title 长度限制从 30 放宽到 60 字符；④ Agent 内存缓存当前标题避免每次构建 environment_details 查库。
+  - 实施：agent/envelope.go（注入会话标题）+ agent/agent.go（内存缓存当前标题）+ agent/tools.go（长度限制 60）+ i18n/zh_system.go + i18n/en_system.go（提示词优化）+ main.go（版本号 0.41.0 + build 计数）
+  - 测试：见 use-case/FEATURE-488/
+  - 进度：待开发
+
+---
+
 ## v0.40.0 — 开发中
 
 > **版本**: v0.40.0

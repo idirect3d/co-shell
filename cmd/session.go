@@ -525,6 +525,8 @@ func (h *SessionHandler) handleSwitch(idStr string) (string, error) {
 
 	// Update the current session ID to the target session
 	h.agent.SetCurrentSessionID(target.ID)
+	// Sync the in-memory title cache to the target session's title (FEATURE-488).
+	h.agent.SetCurrentSessionTitle(target.Title)
 	if err := h.agent.Store().SaveCurrentSessionID(target.ID); err != nil {
 		log.Warn("SaveCurrentSessionID after switch: %v", err)
 	}
