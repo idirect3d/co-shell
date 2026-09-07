@@ -136,9 +136,9 @@ go build -o co-shell .
 首次启动会自动进入设置向导，或手动配置：
 
 ```bash
-❯ .settings api-key sk-your-api-key-here
-❯ .settings endpoint https://api.deepseek.com/v1
-❯ .settings model deepseek-chat
+❯ :settings api-key sk-your-api-key-here
+❯ :settings endpoint https://api.deepseek.com/v1
+❯ :settings model deepseek-chat
 ```
 
 ### 开始使用
@@ -208,9 +208,9 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 ## 配置清单
 
-下表列出了所有可配置参数，包含命令行参数、REPL `.set` 命令、JSON 配置键名、默认值和功能描述。
+下表列出了所有可配置参数，包含命令行参数、REPL `:settings` 命令、JSON 配置键名、默认值和功能描述。
 
-| 参数 | 命令行参数 | REPL `.set` | 配置键 | 默认值 | 功能描述 |
+| 参数 | 命令行参数 | REPL `:settings` | 配置键 | 默认值 | 功能描述 |
 |---|---|---|---|---|---|
 | **API 与模型** | | | | | |
 | API Key | `-k, --api-key` | `api-key` | `api_key` | `""` | LLM 供应商 API 密钥 |
@@ -283,19 +283,19 @@ co-shell [选项] <指令>             执行单条指令后退出
 
 | 命令 | 功能 |
 |---|---|
-| `.set` | LLM API 参数管理（详见上方配置清单） |
-| `.mcp` | MCP Server 管理（add / remove / list / enable / disable） |
-| `.rule` | 全局规则管理（add / remove / clear） |
-| `.memory` | 持久化记忆管理（save / get / search / delete / clear） |
-| `.context` | 上下文管理（show / reset / set） |
-| `.image` | 多模态图片缓存管理（add / remove / clear / list） |
-| `.plan` | 任务计划管理（list / view / create / insert / remove / update） |
-| `.wizard` | 重新启动 API 设置向导 |
-| `.list` | 查看历史任务列表 |
-| `.last` | 查看最近的历史任务 |
-| `.first` | 查看最早的历史任务 |
-| `.help` | 显示帮助信息 |
-| `.exit` | 退出 co-shell |
+| `:settings` | LLM API 参数管理（详见上方配置清单） |
+| `:mcp` | MCP Server 管理（add / remove / list / enable / disable） |
+| `:rule` | 全局规则管理（add / remove / clear） |
+| `:memory` | 持久化记忆管理（save / get / search / delete / clear） |
+| `:context` | 上下文管理（show / reset / set） |
+| `:image` | 多模态图片缓存管理（add / remove / clear / list） |
+| `:plan` | 任务计划管理（list / view / create / insert / remove / update） |
+| `:wizard` | 重新启动 API 设置向导 |
+| `:history` | 查看历史任务列表 |
+| `:history last` | 查看最近的历史任务 |
+| `:history first` | 查看最早的历史任务 |
+| `:help` | 显示帮助信息 |
+| `:exit` | 退出 co-shell |
 
 ---
 
@@ -386,19 +386,19 @@ Beta2 版本——功能完整，稳定可用。
 
 **已实现功能：**
 
-- **ToolCall 模式** — 可配置的工具调用机制，支持 OpenAI 标准 API 和 XML 嵌入模式。XML 模式使不支持原生 function calling 的模型也能使用工具调用，通过 `<tool_call>` XML 标签在 content 中嵌入。可通过 `.set tool mode openai|xml`、`--toolcall-mode` CLI 参数和 `config.json` 配置
-- **PostgreSQL 存储** — 通过 PostgreSQL 实现持久化存储，作为 bbolt 的替代方案。可通过 `.set db` 子命令（host/port/dbname/user/password/enabled）配置，支持连接测试和 bbolt 数据迁移
+- **ToolCall 模式** — 可配置的工具调用机制，支持 OpenAI 标准 API 和 XML 嵌入模式。XML 模式使不支持原生 function calling 的模型也能使用工具调用，通过 `<tool_call>` XML 标签在 content 中嵌入。可通过 `:settings tool mode openai|xml`、`--toolcall-mode` CLI 参数和 `config.json` 配置
+- **PostgreSQL 存储** — 通过 PostgreSQL 实现持久化存储，作为 bbolt 的替代方案。可通过 `:settings db` 子命令（host/port/dbname/user/password/enabled）配置，支持连接测试和 bbolt 数据迁移
 - **会话持久化** — 程序重启后自动恢复对话上下文。每次 LLM 请求后保存会话数据，启动时自动恢复
-- **循环检测** — 监控 LLM 流式输出中的重复模式，检测到后自动停止并发送纠正提示。可通过 `.set loop-detect-enabled`、`--loop-detect-enabled` 配置
-- **消息去重** — 基于特征的重复消息检测，使用 Jaccard 相似度比较。可通过 `.set dedup-enabled` 及相关参数配置
+- **循环检测** — 监控 LLM 流式输出中的重复模式，检测到后自动停止并发送纠正提示。可通过 `:settings loop-detect-enabled`、`--loop-detect-enabled` 配置
+- **消息去重** — 基于特征的重复消息检测，使用 Jaccard 相似度比较。可通过 `:settings dedup-enabled` 及相关参数配置
 - **工具调用确认** — 所有工具调用（不仅限于 execute_command）都需要用户确认。每个工具有独立的 confirm-tool 控制。新增"G"选项（同意并关闭该方法的确认）。数字批准计数器按方法独立，任务完成时重置
-- **模型管理 UX** — `.model switch/remove/enable/disable/info/set-priority/set-param` 命令在未提供模型 ID 时显示模型列表并支持数字选择
-- **DB 子命令模式** — `.set db enabled/host/port/dbname/user/password` 子命令用于数据库配置。首次运行 `.set db` 时启动交互式设置向导
+- **模型管理 UX** — `:model switch/remove/enable/disable/info/set-priority/set-param` 命令在未提供模型 ID 时显示模型列表并支持数字选择
+- **DB 子命令模式** — `:settings db enabled/host/port/dbname/user/password` 子命令用于数据库配置。首次运行 `:settings db` 时启动交互式设置向导
 - **默认 Agent 名称** — 程序使用当前工作目录名称（最后一段）作为默认 Agent 名称
 - **XML 模式 `<item>` 标签** — XML 工具调用模式中统一数组参数标签命名，所有数组元素使用 `<item>` 标签
 - **会话时间戳格式** — 改进可读性：从 "2026-05-12 10:15:30 - " 改为 "在 2026-05-12 10:15:30 说："
 - **write_to_file 工具增强** — 添加提醒，优先使用 replace_in_file 而非重写整个文件，避免引入新问题
-- **模型切换修复** — 修复了因 ModelManager 和 cfg.Models 不同步导致 `.model add/switch` 不生效的问题
+- **模型切换修复** — 修复了因 ModelManager 和 cfg.Models 不同步导致 `:model add/switch` 不生效的问题
 - **Qwen 3.6 无限循环修复** — 修复了使用 Qwen 3.6 模型写入大文件时的无限循环问题
 
 ### v0.4.0 — RC2
@@ -411,9 +411,9 @@ Beta2 版本——功能完整，稳定可用。
 
 **已实现功能：**
 
-- **LLM 设置工具** — LLM 可通过工具调用修改系统参数（等效于 `.set`），每次修改需用户确认
-- **表情符号角色标识** — 不同输出角色使用不同表情前缀：👤 用户输入、🐚 LLM 响应、⚙️ 工具调用/结果、🔴 命令执行。可通过 `.set emoji-enabled`、`--emoji-enabled` 和 `config.json` 配置
-- **日志级别控制** — `.set log debug/info/warn/error/off`、`--log-level` CLI 参数、config.json 持久化
+- **LLM 设置工具** — LLM 可通过工具调用修改系统参数（等效于 `:settings`），每次修改需用户确认
+- **表情符号角色标识** — 不同输出角色使用不同表情前缀：👤 用户输入、🐚 LLM 响应、⚙️ 工具调用/结果、🔴 命令执行。可通过 `:settings emoji-enabled`、`--emoji-enabled` 和 `config.json` 配置
+- **日志级别控制** — `:settings log debug/info/warn/error/off`、`--log-level` CLI 参数、config.json 持久化
 - **文件工具增强** — 改进的 read_file 和 write_file，更好的源代码操作体验
 - **智能超时** — `execute_command` 必须传 `timeout_seconds`（0 表示无限等待）和 `on_timeout`（`kill` 超时杀进程组，`detach` 超时返回 PID 和日志文件路径、进程继续运行）；大于 0 时系统取用户配置最小值和 LLM 预判超时值的较大值
 - **Agent 身份默认值** — 多语言默认 Agent 描述，确保行为一致性
@@ -431,26 +431,26 @@ Beta2 版本——功能完整，稳定可用。
 **已实现功能：**
 
 - 多模态模型支持（图片输入、视觉理解），👀 标识
-- 图片缓存管理（.image 命令，add_images/remove_images/clear_images 工具）
-- Agent 身份自定义（name/description/principles 通过 .set 设置）
-- 任务计划管理（.plan 命令，create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans 工具）
+- 图片缓存管理（:image 命令，add_images/remove_images/clear_images 工具）
+- Agent 身份自定义（name/description/principles 通过 :settings 设置）
+- 任务计划管理（:plan 命令，create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans 工具）
 - 任务计划单例模式——同一时间只能有一个活跃计划，完成后自动归档
 - 批量命令执行，"本次都批准"选项可继承给子 agent
 - 12 个新 CLI 参数（--temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout）
 - 视觉识别能力自动检测（通过模型 API）
 - 增强的帮助文档，完整参数描述
-- **对话上下文限制**（.set context-limit）——控制发送给 LLM 的历史消息数量
-- **持久化记忆管理**（.memory 命令，get_memory_slice/memory_search 工具）
-- **记忆功能开关**（.set memory-enabled，--memory-enabled/--memory-disabled）
-- **LLM 输出模式**（.set output-mode）——精简 / 标准 / 调试三种模式
-- **Sub-agent 开关**（.set subagent-enabled）——控制子 agent 工具可用性
-- **思考过程开关**（.set thinking-enabled，--thinking-enabled/--thinking-disabled）——控制 AI 推理过程显示
+- **对话上下文限制**（:settings context-limit）——控制发送给 LLM 的历史消息数量
+- **持久化记忆管理**（:memory 命令，get_memory_slice/memory_search 工具）
+- **记忆功能开关**（:settings memory-enabled，--memory-enabled/--memory-disabled）
+- **LLM 输出模式**（:settings output-mode）——精简 / 标准 / 调试三种模式
+- **Sub-agent 开关**（:settings subagent-enabled）——控制子 agent 工具可用性
+- **思考过程开关**（:settings thinking-enabled，--thinking-enabled/--thinking-disabled）——控制 AI 推理过程显示
 - **Token 用量统计**——通过 Agent.TokenUsage() 累计追踪
 - **对话重置**（.new 命令）——无需重启即可清空所有历史
 - **错误重试限制**——可配置单错误和错误类型最大次数，超限提示用户
 - **数字批准机制**——输入数字自动批准后续 N 次命令执行
 - **search_files 增强**——忽略二进制文件、内容长度保护、可配置限制
-- **即时生效**——.set 修改参数后无需重启
+- **即时生效**——:settings 修改参数后无需重启
 - **新增模型支持**——小米（Mi）、GLM（Z.ai）最新模型
 - **设置向导增强**——内置供应商跳过地址设置、增强风险警示
 - **成果样例**——新增真实使用案例
@@ -488,7 +488,7 @@ Beta 测试版，功能完善，可日常使用。
 - REPL 交互界面（go-prompt，Tab 补全）
 - LLM 客户端抽象（OpenAI 兼容 API，流式输出支持）
 - Agent 核心循环（LLM 调用 → 工具执行 → 迭代）
-- 内置命令系统（.set / .mcp / .rule / .memory / .context / .list / .last / .first / .wizard）
+- 内置命令系统（:settings / :mcp / :rule / :memory / :context / :history / :config）
 - 持久化存储（bbolt 记忆/上下文）
 - MCP 客户端管理器（多 Server 连接）
 - 系统命令执行（超时控制，命令确认机制）
@@ -498,7 +498,7 @@ Beta 测试版，功能完善，可日常使用。
 - 日志系统（文件日志，支持运行时开关）
 - API Key 脱敏显示
 - 命令行参数支持（--help / --version / --model / --endpoint / --api-key / --log / --max-iterations / --lang）
-- 会话历史管理（上下键翻页，跨会话持久化，.list/.last/.first 命令）
+- 会话历史管理（上下键翻页，跨会话持久化，:history 命令）
 - 国际化（i18n）支持中文/英文，--lang 参数，自动检测系统语言
 - 多供应商支持（DeepSeek v4 / 阿里千问 / OpenAI 兼容兜底）
 - 结果处理模式（minimal / explain / analyze / free）
@@ -572,24 +572,24 @@ winget install PostgreSQL.PostgreSQL
 
 ```bash
 # 交互式配置向导（推荐）
-❯ .db config
+❯ :db config
 
 # 或直接设置参数
-❯ .set db host localhost
-❯ .set db port 5432
-❯ .set db name co_shell
-❯ .set db user postgres
-❯ .set db password your-password
-❯ .set db enabled on
+❯ :settings db host localhost
+❯ :settings db port 5432
+❯ :settings db name co_shell
+❯ :settings db user postgres
+❯ :settings db password your-password
+❯ :settings db enabled on
 ```
 
 #### 数据管理
 
 ```bash
-❯ .db init      # 初始化数据库（重建所有表）
-❯ .db migrate   # 从本地 bbolt 迁移数据到 PostgreSQL
-❯ .db backup    # 备份所有表到 CSV 文件
-❯ .db restore   # 从备份恢复数据
+❯ :db init      # 初始化数据库（重建所有表）
+❯ :db migrate   # 从本地 bbolt 迁移数据到 PostgreSQL
+❯ :db backup    # 备份所有表到 CSV 文件
+❯ :db restore   # 从备份恢复数据
 ```
 
 ---

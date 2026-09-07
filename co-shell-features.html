@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>co-shell 功能架构图</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --panel2:#1d2740; --line:#2a3550;
+    --txt:#e6ecf7; --sub:#8fa0bd; --dim:#5c6b8a;
+    --accent:#4da3ff; --accent2:#2f7fe0;
+    --green:#3ddc97; --green2:#1fae74;
+    --orange:#ffb020; --orange2:#ff8a00;
+    --purple:#c792ea; --purple2:#9a5fd0;
+    --pink:#ff6b9d; --pink2:#e04a7e;
+    --cyan:#4dd8e0; --cyan2:#1fa8b0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 800px at 50% -10%,#1a2440 0%,var(--bg) 60%);
+    color:var(--txt); font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    min-height:100vh; padding:28px 20px 50px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+
+  /* ===== Header ===== */
+  header{text-align:center;margin-bottom:24px}
+  header h1{font-size:26px;letter-spacing:1px;font-weight:700}
+  header h1 .dot{color:var(--accent)}
+  header .tagline{
+    margin:12px auto 0; max-width:880px; font-size:14px; color:var(--sub); line-height:1.8;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 18px;
+  }
+  header .tagline b{color:var(--accent)}
+  header .start{
+    display:inline-block; margin-top:14px; background:var(--panel2); border:1px solid var(--accent2);
+    border-radius:10px; padding:8px 16px; font-size:13px; color:var(--accent);
+  }
+  header .start code{font-family:ui-monospace,Menlo,monospace;color:var(--green)}
+
+  /* ===== 核心工作流 ===== */
+  .flow{
+    display:flex; align-items:stretch; justify-content:center; gap:0; flex-wrap:wrap;
+    margin:22px 0 8px;
+  }
+  .flow .step{
+    flex:1; min-width:130px; max-width:190px; text-align:center; padding:14px 10px;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; position:relative;
+  }
+  .flow .step .ic{font-size:22px}
+  .flow .step .t{font-weight:700;font-size:13px;margin-top:6px}
+  .flow .step .d{font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.5}
+  .flow .arrow{display:flex;align-items:center;color:var(--accent);font-size:20px;padding:0 6px;font-weight:700}
+  .flow .step:nth-child(1){border-color:var(--accent2)}
+  .flow .step:nth-child(3){border-color:var(--orange2)}
+  .flow .step:nth-child(5){border-color:var(--green2)}
+  .flow .step:nth-child(7){border-color:var(--purple2)}
+  .flow .step:nth-child(9){border-color:var(--pink2)}
+
+  /* ===== 模块网格 ===== */
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px}
+  .mod{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px;
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .mod:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,0,0,.45)}
+  .mod h3{font-size:15px;display:flex;align-items:center;gap:9px;margin-bottom:12px}
+  .mod h3 .ic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none}
+  .mod ul{list-style:none}
+  .mod li{font-size:12px;color:var(--sub);padding:5px 0 5px 18px;position:relative;line-height:1.55}
+  .mod li::before{content:"▸";position:absolute;left:0;color:var(--accent)}
+  .mod li b{color:var(--txt);font-weight:600}
+  .mod .hint{font-size:10.5px;color:var(--dim);margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);line-height:1.6}
+
+  .mod.m1 h3 .ic{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+  .mod.m2 h3 .ic{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#1a1200}
+  .mod.m3 h3 .ic{background:linear-gradient(135deg,var(--green),var(--green2));color:#06281a}
+  .mod.m4 h3 .ic{background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff}
+  .mod.m5 h3 .ic{background:linear-gradient(135deg,var(--cyan),var(--cyan2));color:#06282a}
+  .mod.m6 h3 .ic{background:linear-gradient(135deg,var(--pink),var(--pink2));color:#fff}
+  .mod.m7 h3 .ic{background:linear-gradient(135deg,#7fd0ff,#3a9ad0);color:#06282a}
+  .mod.m1{border-color:#2a4a7a}
+  .mod.m2{border-color:#6b4d12}
+  .mod.m3{border-color:#1f5c44}
+  .mod.m4{border-color:#4a2a7a}
+  .mod.m5{border-color:#1f5c60}
+  .mod.m6{border-color:#7a2a4a}
+  .mod.m7{border-color:#2a5a7a}
+  .mod.m8 h3 .ic{background:linear-gradient(135deg,#ffd166,#f0a500);color:#1a1200}
+  .mod.m8{border-color:#6b5a1a}
+
+  /* ===== 场景 ===== */
+  .scenes{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .scene{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .scene h4{font-size:13.5px;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .scene p{font-size:11.5px;color:var(--sub);line-height:1.7}
+  .scene .ex{font-size:10.5px;color:var(--dim);margin-top:8px;padding-top:7px;border-top:1px dashed var(--line);line-height:1.6}
+  .scene .ex b{color:var(--accent);font-weight:600}
+
+  /* ===== 快速上手 ===== */
+  .quick{margin-top:20px;background:linear-gradient(135deg,#1a2440,#171e2e);border:1px solid var(--line);border-radius:16px;padding:20px}
+  .quick h3{font-size:15px;display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .quick h3 .ic{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--green),var(--green2));color:#06281a;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .quick .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .quick .s{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .quick .s .n{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--green2));color:#06281a;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;margin-bottom:8px}
+  .quick .s .t{font-weight:700;font-size:13px;margin-bottom:6px}
+  .quick .s code{display:block;background:#0f1420;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:11px;color:var(--green);font-family:ui-monospace,Menlo,monospace;margin-top:6px;word-break:break-all}
+
+  footer{text-align:center;color:var(--dim);font-size:11px;margin-top:24px;letter-spacing:.5px}
+
+  @media (max-width:1000px){ .grid{grid-template-columns:repeat(2,1fr)} .quick .steps{grid-template-columns:1fr} }
+  @media (max-width:600px){ .grid{grid-template-columns:1fr} .flow .arrow{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>co-shell <span class="dot">·</span> 功能架构图</h1>
+    <div class="tagline">
+      <b>co-shell</b> 是一个 AI 驱动的智能命令行 Shell —— 用<b>自然语言</b>描述你想做的事，AI Agent 自动<b>理解意图、编排命令、执行并分析结果</b>。
+      通过 <b>Web UI</b> 在浏览器中操作：对话、浏览文件、管理任务、上传附件，一站式完成。单文件约 10MB、零外部依赖、跨平台（macOS / Linux / Windows）。
+    </div>
+    <div class="start">启动 Web UI：<code>co-shell serve</code> → 浏览器打开 <code>http://127.0.0.1:端口</code></div>
+  </header>
+
+  <!-- ===== 核心工作流 ===== -->
+  <div class="flow">
+    <div class="step"><div class="ic">🗣️</div><div class="t">自然语言输入</div><div class="d">在输入框说出你想做的事</div></div>
+    <div class="arrow">➜</div>
+    <div class="step"><div class="ic">🧠</div><div class="t">AI 理解意图</div><div class="d">LLM 解析目标，规划执行步骤</div></div>
+    <div class="arrow">➜</div>
+    <div class="step"><div class="ic">⚙️</div><div class="t">编排系统命令</div><div class="d">自动选择并组合命令 / 工具 / 脚本</div></div>
+    <div class="arrow">➜</div>
+    <div class="step"><div class="ic">✅</div><div class="t">确认后执行</div><div class="d">每条命令执行前展示并征得同意</div></div>
+    <div class="arrow">➜</div>
+    <div class="step"><div class="ic">📊</div><div class="t">结果分析</div><div class="d">读取输出，继续迭代直至完成</div></div>
+  </div>
+
+  <!-- ===== 功能模块（Web UI 为主） ===== -->
+  <div class="grid">
+    <div class="mod m1">
+      <h3><span class="ic">💬</span>对话交互</h3>
+      <ul>
+        <li><b>自然语言对话</b>：直接描述任务，无需记命令</li>
+        <li><b>流式输出</b>：实时显示 AI 思考与执行过程</li>
+        <li><b>Markdown 渲染</b>：代码块 / 表格 / 列表实时美化</li>
+        <li><b>交互应答</b>：AI 提问时输入框即时响应</li>
+        <li><b>打断 / 继续</b>：▶/⏸ 单按钮控制任务</li>
+      </ul>
+      <div class="hint">聊天式界面，像用聊天软件一样指挥电脑</div>
+    </div>
+
+    <div class="mod m2">
+      <h3><span class="ic">📁</span>工作区管理</h3>
+      <ul>
+        <li><b>目录树侧栏</b>：浏览工作区文件结构</li>
+        <li><b>文件查看</b>：点击文件查看内容</li>
+        <li><b>拖放上传</b>：把文件拖进页面即上传</li>
+        <li><b>文件操作</b>：读写 / 搜索 / 重命名 / 删除</li>
+        <li><b>多工作区</b>：不同项目独立目录与配置</li>
+      </ul>
+      <div class="hint">文件都在浏览器里管理，所见即所得</div>
+    </div>
+
+    <div class="mod m3">
+      <h3><span class="ic">📋</span>任务计划面板</h3>
+      <ul>
+        <li><b>计划展示</b>：复杂任务自动拆解为步骤</li>
+        <li><b>进度跟踪</b>：每步状态实时更新</li>
+        <li><b>步骤高亮</b>：当前执行步骤醒目提示</li>
+        <li><b>子 Agent 协作</b>：并行分身处理子任务</li>
+        <li><b>定时任务</b>：cron 调度周期执行</li>
+      </ul>
+      <div class="hint">复杂任务一目了然，进度尽在掌握</div>
+    </div>
+
+    <div class="mod m4">
+      <h3><span class="ic">💾</span>会话与记忆</h3>
+      <ul>
+        <li><b>会话管理</b>：多会话切换，内容不丢失</li>
+        <li><b>持久记忆</b>：记住你的偏好与历史上下文</li>
+        <li><b>历史浏览</b>：回顾过往任务与结果</li>
+        <li><b>全局规则</b>：注入行为准则到 AI</li>
+        <li><b>多语言</b>：中 / 英界面自动适配</li>
+      </ul>
+      <div class="hint">越用越懂你，跨会话保持连续性</div>
+    </div>
+
+    <div class="mod m5">
+      <h3><span class="ic">⚙️</span>系统设置</h3>
+      <ul>
+        <li><b>模型配置</b>：DeepSeek / OpenAI / 通义 / Kimi / Ollama</li>
+        <li><b>主题切换</b>：深色 / 浅色 / 跟随系统</li>
+        <li><b>面板开关</b>：侧栏 / 任务面板自由显隐</li>
+        <li><b>安全确认</b>：命令与工具执行前确认</li>
+        <li><b>访问控制</b>：白名单 + 访问 Key 保护</li>
+      </ul>
+      <div class="hint">全部可视化配置，无需编辑配置文件</div>
+    </div>
+
+    <div class="mod m6">
+      <h3><span class="ic">🧰</span>内置工具集</h3>
+      <ul>
+        <li><b>浏览器自动化</b>：CDP 控制 Chrome，观察→评估→操作</li>
+        <li><b>Shell 会话</b>：PTY 持续交互 + 虚拟终端</li>
+        <li><b>文档处理</b>：Word / Excel / PDF / EML 读写转换</li>
+        <li><b>图片分析</b>：视觉理解本地 / 网络图片</li>
+        <li><b>表达式计算</b>：精确数学计算</li>
+      </ul>
+      <div class="hint">内置 30+ 工具，覆盖文件 / 代码 / 网络 / 文档全场景</div>
+    </div>
+
+    <div class="mod m7">
+      <h3><span class="ic">🎯</span>Skill 技能扩展</h3>
+      <ul>
+        <li><b>Agent Skills 标准</b>：SKILL.md 开放技能格式</li>
+        <li><b>技能索引</b>：系统提示词自动列出可用技能</li>
+        <li><b>按需加载</b>：用到时读取 SKILL.md 获取指令</li>
+        <li><b>工作区 / 全局</b>：项目级与用户级技能目录</li>
+        <li><b>示例技能</b>：agent-benchmark、image-generate</li>
+      </ul>
+      <div class="hint">把专业流程封装成技能，随时复用</div>
+    </div>
+
+    <div class="mod m8">
+      <h3><span class="ic">👁️</span>感知能力</h3>
+      <ul>
+        <li><b>用户动态感知</b>：实时感知拖拽文件 / 复制截图 / 补充消息 / 打开预览</li>
+        <li><b>环境感知</b>：自动注入工作目录 / 文件清单 / 工具列表 / 研究资料</li>
+        <li><b>服务模式感知</b>：识别 stdio / REPL / Web UI 运行方式</li>
+        <li><b>模型参数感知</b>：上下文用量 / 工作模式（act / plan / research）</li>
+        <li><b>会话标题锚点</b>：注入当前会话标题作为记忆锚点</li>
+      </ul>
+      <div class="hint">AI 能"看见"你在做什么，主动贴合你的思考路径</div>
+    </div>
+  </div>
+
+  <!-- ===== 使用场景 ===== -->
+  <div class="scenes">
+    <div class="scene"><h4>🛠️ 系统管理</h4><p>磁盘清理、进程管理、日志分析、环境配置 —— 一句话搞定，不用记命令参数。</p><div class="ex">例：<b>"清理超过 1GB 的临时文件"</b> · <b>"查看哪个进程占用 80 端口"</b></div></div>
+    <div class="scene"><h4>💻 开发辅助</h4><p>创建项目、代码统计、Git 操作、依赖管理、自动化测试，AI 帮你编排工具链。</p><div class="ex">例：<b>"统计本项目 Go 代码行数"</b> · <b>"帮我初始化一个 Git 仓库并提交"</b></div></div>
+    <div class="scene"><h4>📁 文件处理</h4><p>批量重命名、格式转换、内容搜索、Word / Excel / PDF 文档生成与处理。</p><div class="ex">例：<b>"把 100 张图片批量重命名"</b> · <b>"把这份 Markdown 转成 Word"</b></div></div>
+    <div class="scene"><h4>🔍 调研报告</h4><p>联网搜索、数据收集、自动生成结构化 Markdown / Word 深度调研报告。</p><div class="ex">例：<b>"调研北冰洋品牌历史并出报告"</b> · <b>"分析再保险市场趋势"</b></div></div>
+    <div class="scene"><h4>🌐 网页自动化</h4><p>浏览器自动化：打开网页、点击、填表、截图、抓取数据，SREA 闭环操作。</p><div class="ex">例：<b>"打开某网站并截图首页"</b> · <b>"自动填写表单并提交"</b></div></div>
+    <div class="scene"><h4>⏰ 自动化任务</h4><p>定时执行、任务计划拆解、子 Agent 并行，把重复工作交给 AI。</p><div class="ex">例：<b>"每天 9 点生成日报"</b> · <b>"并行调研 3 个主题"</b></div></div>
+    <div class="scene"><h4>📊 数据分析</h4><p>读取 Excel / 数据库，统计、透视、生成图表与结论，表达式精确计算。</p><div class="ex">例：<b>"分析销售表并汇总各区域业绩"</b> · <b>"计算复利收益"</b></div></div>
+    <div class="scene"><h4>🌐 远程操控</h4><p>配合 co-shell-hub 统一编排本地 / 远程实例，手机随时远程操作。</p><div class="ex">例：<b>"手机远程查看服务器状态"</b> · <b>"统一管理多台机器"</b></div></div>
+  </div>
+
+  <!-- ===== 快速上手 ===== -->
+  <div class="quick">
+    <h3><span class="ic">🚀</span>快速上手 · 三步开始</h3>
+    <div class="steps">
+      <div class="s">
+        <div class="n">1</div>
+        <div class="t">下载安装</div>
+        <div>从 Releases 下载对应平台二进制，或源码编译</div>
+        <code>./co-shell</code>
+      </div>
+      <div class="s">
+        <div class="n">2</div>
+        <div class="t">启动 Web UI</div>
+        <div>启动服务，浏览器自动打开界面</div>
+        <code>co-shell serve</code>
+      </div>
+      <div class="s">
+        <div class="n">3</div>
+        <div class="t">自然语言开用</div>
+        <div>在输入框直接说出你想做的事</div>
+        <code>❯ 列出当前目录所有文件</code>
+      </div>
+    </div>
+  </div>
+
+  <footer>co-shell · 一个命令，无限可能 —— 你的想象力就是它的燃料</footer>
+</div>
+</body>
+</html>

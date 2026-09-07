@@ -131,9 +131,9 @@ go build -o co-shell .
 The setup wizard will launch automatically on first startup. You can also configure manually:
 
 ```bash
-❯ .settings api-key sk-your-api-key-here
-❯ .settings endpoint https://api.deepseek.com/v1
-❯ .settings model deepseek-chat
+❯ :settings api-key sk-your-api-key-here
+❯ :settings endpoint https://api.deepseek.com/v1
+❯ :settings model deepseek-chat
 ```
 
 ### Start Using
@@ -203,9 +203,9 @@ Options:
 
 ## Configuration Reference
 
-The following table lists all configurable parameters, their CLI flags, REPL `.set` commands, JSON config keys, default values, and descriptions.
+The following table lists all configurable parameters, their CLI flags, REPL `:settings` commands, JSON config keys, default values, and descriptions.
 
-| Parameter | CLI Flag | REPL `.set` | Config Key | Default | Description |
+| Parameter | CLI Flag | REPL `:settings` | Config Key | Default | Description |
 |---|---|---|---|---|---|
 | **API & Model** | | | | | |
 | API Key | `-k, --api-key` | `api-key` | `api_key` | `""` | LLM provider API key |
@@ -274,23 +274,25 @@ The following table lists all configurable parameters, their CLI flags, REPL `.s
 
 ## Built-in Commands
 
-All built-in commands start with `.` and support Tab completion.
+All built-in commands start with `:` and support Tab completion.
 
 | Command | Description |
 |---|---|
-| `.set` | LLM API parameter management (see Configuration Reference above) |
-| `.mcp` | MCP Server management (add / remove / list / enable / disable) |
-| `.rule` | Global rule management (add / remove / clear) |
-| `.memory` | Persistent memory management (save / get / search / delete / clear) |
-| `.context` | Context management (show / reset / set) |
-| `.image` | Multimodal image cache management (add / remove / clear / list) |
-| `.plan` | Task plan management (list / view / create / insert / remove / update) |
-| `.wizard` | Restart the API setup wizard |
-| `.list` | View history task list |
-| `.last` | View recent history tasks |
-| `.first` | View earliest history tasks |
-| `.help` | Show this help message |
-| `.exit` | Exit co-shell |
+| `:settings` / `:set` | LLM API parameter management (see Configuration Reference above) |
+| `:mcp` | MCP Server management (add / remove / list / enable / disable) |
+| `:rule` | Global rule management (add / remove / clear) |
+| `:memory` | Persistent memory management (save / get / search / delete / clear) |
+| `:context` | Context management (show / reset / set) |
+| `:image` | Multimodal image cache management (add / remove / clear / list) |
+| `:plan` | Task plan management (list / view / create / insert / remove / update) |
+| `:skill` | Skill management (list / show / add / remove) |
+| `:history` | View history tasks (`:history last` / `:history first`) |
+| `:config` | Guided configuration wizard |
+| `:model` | Model management (switch / add / remove / ...) |
+| `:db` | Database management (config / init / migrate / backup / restore) |
+| `:session` | Session management (list / switch / new / ...) |
+| `:help` | Show this help message |
+| `:exit` | Exit co-shell |
 
 ---
 
@@ -381,19 +383,19 @@ Beta2 release — feature complete, stable and usable.
 
 **Implemented Features:**
 
-- **ToolCall mode** — configurable tool call mechanism supporting OpenAI standard API and XML embedded mode. XML mode enables tool calling for models without native function calling support, using `<tool_call>` XML tags in content. Configurable via `.set tool mode openai|xml`, `--toolcall-mode` CLI flag, and `config.json`
-- **PostgreSQL storage** — persistent storage via PostgreSQL as an alternative to bbolt. Configurable via `.set db` sub-commands (host/port/dbname/user/password/enabled), with connection test and bbolt data migration support
+- **ToolCall mode** — configurable tool call mechanism supporting OpenAI standard API and XML embedded mode. XML mode enables tool calling for models without native function calling support, using `<tool_call>` XML tags in content. Configurable via `:settings tool mode openai|xml`, `--toolcall-mode` CLI flag, and `config.json`
+- **PostgreSQL storage** — persistent storage via PostgreSQL as an alternative to bbolt. Configurable via `:settings db` sub-commands (host/port/dbname/user/password/enabled), with connection test and bbolt data migration support
 - **Session persistence** — automatic conversation context restoration after program restart. Session data is saved after each LLM request and restored on startup
-- **Loop detection** — monitors LLM streaming output for repetitive patterns, automatically stops and sends correction prompts when detected. Configurable via `.set loop-detect-enabled`, `--loop-detect-enabled`
-- **Message deduplication** — feature-based duplicate message detection with Jaccard similarity comparison. Configurable via `.set dedup-enabled` and related parameters
+- **Loop detection** — monitors LLM streaming output for repetitive patterns, automatically stops and sends correction prompts when detected. Configurable via `:settings loop-detect-enabled`, `--loop-detect-enabled`
+- **Message deduplication** — feature-based duplicate message detection with Jaccard similarity comparison. Configurable via `:settings dedup-enabled` and related parameters
 - **Tool call confirmation** — all tool calls (not just execute_command) require user confirmation. Each tool has independent confirm-tool control. Added "G" option (agree and disable confirmation for this method). Number-based approval counter is per-method, reset on task completion
-- **Model management UX** — `.model switch/remove/enable/disable/info/set-priority/set-param` commands show model list with number selection when no model ID is provided
-- **DB sub-command mode** — `.set db enabled/host/port/dbname/user/password` sub-commands for database configuration. Interactive setup wizard on first `.set db` run
+- **Model management UX** — `:model switch/remove/enable/disable/info/set-priority/set-param` commands show model list with number selection when no model ID is provided
+- **DB sub-command mode** — `:settings db enabled/host/port/dbname/user/password` sub-commands for database configuration. Interactive setup wizard on first `:settings db` run
 - **Default agent name** — program uses current working directory name (last segment) as default agent name
 - **XML mode `<item>` tag** — unified array parameter tag naming in XML tool call mode, all array elements use `<item>` tag
 - **Conversation timestamp format** — improved readability: changed from "2026-05-12 10:15:30 - " to "在 2026-05-12 10:15:30 说："
 - **write_to_file tool enhancement** — added reminder to prefer replace_in_file over rewriting entire files to avoid introducing new issues
-- **Model switch fix** — fixed `.model add/switch` not taking effect due to ModelManager and cfg.Models desynchronization
+- **Model switch fix** — fixed `:model add/switch` not taking effect due to ModelManager and cfg.Models desynchronization
 - **Qwen 3.6 infinite loop fix** — fixed infinite loop when writing large files with Qwen 3.6 model
 
 ### v0.4.0 — RC2
@@ -406,9 +408,9 @@ Release Candidate 2 — feature complete, stable and usable.
 
 **Implemented Features:**
 
-- **LLM settings tool** — LLM can modify system parameters via tool calls (equivalent to `.set`), with user confirmation for each change
-- **Emoji role indicators** — distinct emoji prefixes for different output roles: 👤 user input, 🐚 LLM response, ⚙️ tool calls/results, 🔴 command execution. Configurable via `.set emoji-enabled`, `--emoji-enabled`, and `config.json`
-- **Log level control** — `.set log debug/info/warn/error/off`, `--log-level` CLI flag, config.json persistence
+- **LLM settings tool** — LLM can modify system parameters via tool calls (equivalent to `:settings`), with user confirmation for each change
+- **Emoji role indicators** — distinct emoji prefixes for different output roles: 👤 user input, 🐚 LLM response, ⚙️ tool calls/results, 🔴 command execution. Configurable via `:settings emoji-enabled`, `--emoji-enabled`, and `config.json`
+- **Log level control** — `:settings log debug/info/warn/error/off`, `--log-level` CLI flag, config.json persistence
 - **Enhanced file tools** — improved read_file and write_file for better source code manipulation
 - **Intelligent timeout** — `execute_command` requires `timeout_seconds` (0 = wait forever) and `on_timeout` (`kill` terminates the process group, `detach` returns the PID and a log file path while the process keeps running); for values > 0 the system takes max of user-configured minimum and LLM-predicted timeout
 - **Agent identity defaults** — multi-language default agent descriptions for consistent behavior
@@ -426,27 +428,27 @@ Release Candidate 1 — feature complete, ready for preview.
 **Implemented Features:**
 
 - Multimodal model support (image input, visual understanding) with 👀 indicator
-- Image cache management (.image command, add_images/remove_images/clear_images tools)
-- Agent identity customization (name/description/principles via .set)
-- Task plan management (.plan command, create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans tools)
+- Image cache management (:image command, add_images/remove_images/clear_images tools)
+- Agent identity customization (name/description/principles via :settings)
+- Task plan management (:plan command, create_task_plan/update_task_step/insert_task_steps/remove_task_steps/view_task_plan/list_task_plans tools)
 - Task plan singleton mode — only one active plan at a time, auto-archive on completion
 - Batch command execution with "Approve All" inheritance for sub-agents
 - 12 new CLI flags (--temperature/--max-tokens/--show-thinking/--show-command/--show-output/--confirm-command/--result-mode/--description/--principles/--tool-timeout/--cmd-timeout/--llm-timeout)
 - Vision support auto-detection via model API
 - Enhanced help documentation with complete parameter descriptions
-- **Conversation context limit** (.set context-limit) — control how many history messages sent to LLM
-- **Persistent memory management** (.memory command, get_memory_slice/memory_search tools)
-- **Memory toggle** (.set memory-enabled, --memory-enabled/--memory-disabled)
-- **LLM output mode** (.set output-mode) — compact / normal / debug modes
-- **Sub-agent toggle** (.set subagent-enabled) — control sub-agent tool availability
-- **Thinking toggle** (.set thinking-enabled, --thinking-enabled/--thinking-disabled) — control AI reasoning process display
-- **Reasoning effort** (.set reasoning-effort) — control AI reasoning depth (low/medium/high)
+- **Conversation context limit** (:settings context-limit) — control how many history messages sent to LLM
+- **Persistent memory management** (:memory command, get_memory_slice/memory_search tools)
+- **Memory toggle** (:settings memory-enabled, --memory-enabled/--memory-disabled)
+- **LLM output mode** (:settings output-mode) — compact / normal / debug modes
+- **Sub-agent toggle** (:settings subagent-enabled) — control sub-agent tool availability
+- **Thinking toggle** (:settings thinking-enabled, --thinking-enabled/--thinking-disabled) — control AI reasoning process display
+- **Reasoning effort** (:settings reasoning-effort) — control AI reasoning depth (low/medium/high)
 - **Token usage statistics** — cumulative token tracking via Agent.TokenUsage()
 - **Conversation reset** (.new command) — clear all history without restart
 - **Error retry limit** — configurable single-error and type-error max counts with user prompt
 - **Number-based approval** — enter a number to auto-approve N subsequent command executions
 - **search_files enhancement** — binary file ignore, content length protection, configurable limits
-- **Instant .set effect** — no restart needed after parameter changes
+- **Instant :settings effect** — no restart needed after parameter changes
 - **New model support** — Xiaomi (Mi), GLM (Z.ai) latest models
 - **Setup wizard enhancement** — skip endpoint for built-in providers, enhanced risk warnings
 - **Sample research reports** — added real-world usage examples
@@ -484,7 +486,7 @@ First Alpha preview with core functionality.
 - REPL interactive interface (go-prompt, Tab completion)
 - LLM client abstraction (OpenAI-compatible API, streaming support)
 - Agent core loop (LLM call → tool execution → iteration)
-- Built-in command system (.set / .mcp / .rule / .memory / .context / .list / .last / .first / .wizard)
+- Built-in command system (:settings / :mcp / :rule / :memory / :context / :history / :config)
 - Persistent storage (bbolt for memory/context)
 - MCP client manager (multi-server connection)
 - System command execution (timeout control, command confirmation)
@@ -494,7 +496,7 @@ First Alpha preview with core functionality.
 - Logging system (file log, runtime toggle)
 - API Key masking (show first 4 + last 4 chars)
 - Command-line flags (--help / --version / --model / --endpoint / --api-key / --log / --max-iterations / --lang)
-- Session history (arrow key navigation, cross-session persistence, .list/.last/.first commands)
+- Session history (arrow key navigation, cross-session persistence, :history command)
 - Internationalization (i18n) support: Chinese and English, --lang flag, auto-detect system language
 - Multi-provider support (DeepSeek v4 / Alibaba Qwen / OpenAI-compatible fallback)
 - Result processing modes (minimal / explain / analyze / free)
@@ -567,24 +569,24 @@ winget install PostgreSQL.PostgreSQL
 
 ```bash
 # 交互式配置向导（推荐）
-❯ .db config
+❯ :db config
 
 # 或直接设置参数
-❯ .set db host localhost
-❯ .set db port 5432
-❯ .set db name co_shell
-❯ .set db user postgres
-❯ .set db password your-password
-❯ .set db enabled on
+❯ :settings db host localhost
+❯ :settings db port 5432
+❯ :settings db name co_shell
+❯ :settings db user postgres
+❯ :settings db password your-password
+❯ :settings db enabled on
 ```
 
 #### 数据管理
 
 ```bash
-❯ .db init      # 初始化数据库（重建所有表）
-❯ .db migrate   # 从本地 bbolt 迁移数据到 PostgreSQL
-❯ .db backup    # 备份所有表到 CSV 文件
-❯ .db restore   # 从备份恢复数据
+❯ :db init      # 初始化数据库（重建所有表）
+❯ :db migrate   # 从本地 bbolt 迁移数据到 PostgreSQL
+❯ :db backup    # 备份所有表到 CSV 文件
+❯ :db restore   # 从备份恢复数据
 ```
 
 ---

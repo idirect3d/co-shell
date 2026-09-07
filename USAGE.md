@@ -8,13 +8,13 @@
 
 - [快速开始](#快速开始)
 - [内置命令](#内置命令)
-  - [.settings — LLM 设置](#settings--llm-设置)
-  - [.mcp — MCP Server 管理](#mcp--mcp-server-管理)
-  - [.rule — 全局规则管理](#rule--全局规则管理)
-  - [.memory — 记忆管理](#memory--记忆管理)
-  - [.context — 上下文管理](#context--上下文管理)
-  - [.image — 多模态图片缓存管理](#image--多模态图片缓存管理)
-  - [.plan — 任务计划管理](#plan--任务计划管理)
+  - [:settings — LLM 设置](#settings--llm-设置)
+  - [:mcp — MCP Server 管理](#mcp--mcp-server-管理)
+  - [:rule — 全局规则管理](#rule--全局规则管理)
+  - [:memory — 记忆管理](#memory--记忆管理)
+  - [:context — 上下文管理](#context--上下文管理)
+  - [:image — 多模态图片缓存管理](#image--多模态图片缓存管理)
+  - [:plan — 任务计划管理](#plan--任务计划管理)
 - [自然语言交互](#自然语言交互)
 - [MCP 集成](#mcp-集成)
 - [配置文件](#配置文件)
@@ -38,7 +38,7 @@
 ║   Intelligent Command-Line Shell     ║
 ╚══════════════════════════════════════╝
 
-Type .help for available commands, or just type in natural language!
+Type :help for available commands, or just type in natural language!
 
 ❯
 ```
@@ -48,29 +48,29 @@ Type .help for available commands, or just type in natural language!
 首次使用需要设置 LLM API 密钥：
 
 ```bash
-❯ .settings api-key sk-your-api-key-here
+❯ :settings api-key sk-your-api-key-here
 ```
 
 ### 3. 选择模型（可选）
 
 ```bash
-❯ .settings model gpt-4o          # OpenAI
-❯ .settings model deepseek-chat   # DeepSeek
-❯ .settings model qwen-plus       # 通义千问
+❯ :settings model gpt-4o          # OpenAI
+❯ :settings model deepseek-chat   # DeepSeek
+❯ :settings model qwen-plus       # 通义千问
 ```
 
 ### 4. 设置 API Endpoint（可选，默认 OpenAI）
 
 ```bash
 # DeepSeek
-❯ .settings endpoint https://api.deepseek.com/v1
+❯ :settings endpoint https://api.deepseek.com/v1
 
 # 通义千问
-❯ .settings endpoint https://dashscope.aliyuncs.com/compatible-mode/v1
+❯ :settings endpoint https://dashscope.aliyuncs.com/compatible-mode/v1
 
 # 本地 Ollama
-❯ .settings endpoint http://localhost:11434/v1
-❯ .settings model llama3
+❯ :settings endpoint http://localhost:11434/v1
+❯ :settings model llama3
 ```
 
 ### 5. 开始使用
@@ -87,34 +87,34 @@ Type .help for available commands, or just type in natural language!
 
 所有内置命令以 `.` 开头，支持 Tab 自动补全。
 
-### .settings — LLM 设置
+### :settings — LLM 设置
 
 管理 LLM API 参数。
 
 ```bash
-.settings                          # 查看当前所有设置
-.settings api-key <key>            # 设置 API Key
-.settings endpoint <url>           # 设置 API Endpoint URL
-.settings model <model>            # 设置模型名称
-.settings temperature <value>      # 设置温度 (0.0-2.0)
-.settings max-tokens <count>       # 设置最大 Token 数 (1-128000)
-.settings tool mode <openai|xml>   # 设置工具调用模式
-.settings toolcall-enabled <on|off> # 启用/禁用工具调用
-.settings confirm-tool <on|off>    # 工具调用前需确认
-.settings loop-detect-enabled <on|off> # 启用/禁用循环检测
-.settings dedup-enabled <on|off>   # 启用/禁用消息去重
-.settings db enabled <on|off>      # 启用/禁用数据库
-.settings db host <host>           # 设置数据库主机
-.settings db port <port>           # 设置数据库端口
-.settings db dbname <name>         # 设置数据库名称
-.settings db user <user>           # 设置数据库用户
-.settings db password <pwd>        # 设置数据库密码
+:settings                          # 查看当前所有设置
+:settings api-key <key>            # 设置 API Key
+:settings endpoint <url>           # 设置 API Endpoint URL
+:settings model <model>            # 设置模型名称
+:settings temperature <value>      # 设置温度 (0.0-2.0)
+:settings max-tokens <count>       # 设置最大 Token 数 (1-128000)
+:settings tool mode <openai|xml>   # 设置工具调用模式
+:settings toolcall-enabled <on|off> # 启用/禁用工具调用
+:settings confirm-tool <on|off>    # 工具调用前需确认
+:settings loop-detect-enabled <on|off> # 启用/禁用循环检测
+:settings dedup-enabled <on|off>   # 启用/禁用消息去重
+:settings db enabled <on|off>      # 启用/禁用数据库
+:settings db host <host>           # 设置数据库主机
+:settings db port <port>           # 设置数据库端口
+:settings db dbname <name>         # 设置数据库名称
+:settings db user <user>           # 设置数据库用户
+:settings db password <pwd>        # 设置数据库密码
 ```
 
 **示例：**
 
 ```bash
-❯ .settings
+❯ :settings
 Current Settings:
   API Key:      sk-****abcd
   Endpoint:     https://api.openai.com/v1
@@ -122,35 +122,35 @@ Current Settings:
   Temperature:  0.7
   Max Tokens:   4096
 
-❯ .settings temperature 0.3
+❯ :settings temperature 0.3
 ✅ Temperature set to 0.3
 
-❯ .settings model deepseek-chat
+❯ :settings model deepseek-chat
 ✅ Model updated
 ```
 
-### .mcp — MCP Server 管理
+### :mcp — MCP Server 管理
 
 管理 MCP (Model Context Protocol) 服务器连接。
 
 ```bash
-.mcp                              # 列出所有已连接的 MCP Server
-.mcp add <name> <cmd> [args...]   # 添加并连接一个新的 MCP Server
-.mcp remove <name>                # 断开并移除一个 MCP Server
-.mcp list                         # 列出所有 MCP Server 及其工具
-.mcp enable <name>                # 启用一个 MCP Server
-.mcp disable <name>               # 禁用一个 MCP Server
+:mcp                              # 列出所有已连接的 MCP Server
+:mcp add <name> <cmd> [args...]   # 添加并连接一个新的 MCP Server
+:mcp remove <name>                # 断开并移除一个 MCP Server
+:mcp list                         # 列出所有 MCP Server 及其工具
+:mcp enable <name>                # 启用一个 MCP Server
+:mcp disable <name>               # 禁用一个 MCP Server
 ```
 
 **示例：**
 
 ```bash
 # 添加文件系统 MCP Server
-❯ .mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp
+❯ :mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp
 ✅ MCP server "filesystem" added and connected
 
 # 查看所有 MCP Server 及其工具
-❯ .mcp list
+❯ :mcp list
 MCP Servers:
 
   📡 filesystem
@@ -161,144 +161,144 @@ MCP Servers:
       • search_files - Search for files matching a pattern
 
 # 移除 MCP Server
-❯ .mcp remove filesystem
+❯ :mcp remove filesystem
 ✅ MCP server "filesystem" removed
 ```
 
-### .rule — 全局规则管理
+### :rule — 全局规则管理
 
 设置 AI Agent 的行为规则，规则会自动注入到 System Prompt 中。
 
 ```bash
-.rule                    # 列出所有规则
-.rule add <text>         # 添加一条新规则
-.rule remove <index>     # 按索引删除规则
-.rule clear              # 清除所有规则
+:rule                    # 列出所有规则
+:rule add <text>         # 添加一条新规则
+:rule remove <index>     # 按索引删除规则
+:rule clear              # 清除所有规则
 ```
 
 **示例：**
 
 ```bash
-❯ .rule add "Always confirm before deleting files"
+❯ :rule add "Always confirm before deleting files"
 ✅ Rule added: Always confirm before deleting files
 
-❯ .rule add "Use English for all responses"
+❯ :rule add "Use English for all responses"
 ✅ Rule added: Use English for all responses
 
-❯ .rule
+❯ :rule
 Global Rules:
   [0] Always confirm before deleting files
   [1] Use English for all responses
 
-❯ .rule remove 0
+❯ :rule remove 0
 ✅ Rule removed: Always confirm before deleting files
 ```
 
-### .memory — 记忆管理
+### :memory — 记忆管理
 
 持久化存储键值对记忆，Agent 在对话中可以读取这些记忆。
 
 ```bash
-.memory                    # 列出所有记忆
-.memory save <key> <value> # 保存一条记忆
-.memory get <key>          # 获取一条记忆
-.memory search <query>     # 按前缀搜索记忆
-.memory delete <key>       # 删除一条记忆
-.memory clear              # 清除所有记忆
+:memory                    # 列出所有记忆
+:memory save <key> <value> # 保存一条记忆
+:memory get <key>          # 获取一条记忆
+:memory search <query>     # 按前缀搜索记忆
+:memory delete <key>       # 删除一条记忆
+:memory clear              # 清除所有记忆
 ```
 
 **示例：**
 
 ```bash
-❯ .memory save language zh-CN
+❯ :memory save language zh-CN
 ✅ Memory saved: language = zh-CN
 
-❯ .memory save preference "Always use verbose output"
+❯ :memory save preference "Always use verbose output"
 ✅ Memory saved: preference = Always use verbose output
 
-❯ .memory search language
+❯ :memory search language
 Memory entries matching "language":
   language = zh-CN
 
-❯ .memory
+❯ :memory
 Memory:
   language = zh-CN
   preference = Always use verbose output
 ```
 
-### .context — 上下文管理
+### :context — 上下文管理
 
 管理当前会话的上下文变量。
 
 ```bash
-.context                  # 查看当前上下文摘要
-.context show             # 查看详细上下文
-.context reset            # 重置上下文（清除对话历史）
-.context set <k> <v>      # 设置上下文变量
+:context                  # 查看当前上下文摘要
+:context show             # 查看详细上下文
+:context reset            # 重置上下文（清除对话历史）
+:context set <k> <v>      # 设置上下文变量
 ```
 
 **示例：**
 
 ```bash
-❯ .context set mode expert
+❯ :context set mode expert
 ✅ Context set: mode = expert
 
-❯ .context show
+❯ :context show
 Current Context:
   mode: expert
 
-❯ .context reset
+❯ :context reset
 ✅ Context reset. Conversation history cleared.
 ```
 
-### .image — 多模态图片缓存管理
+### :image — 多模态图片缓存管理
 
 管理用于多模态输入的图片缓存。
 
 ```bash
-.image                    # 列出所有缓存的图片
-.image add <path>         # 添加一张图片到缓存
-.image remove <index>     # 按索引移除一张图片
-.image clear              # 清除所有缓存的图片
-.image list               # 列出所有缓存的图片
+:image                    # 列出所有缓存的图片
+:image add <path>         # 添加一张图片到缓存
+:image remove <index>     # 按索引移除一张图片
+:image clear              # 清除所有缓存的图片
+:image list               # 列出所有缓存的图片
 ```
 
 **示例：**
 
 ```bash
-❯ .image add /path/to/photo.jpg
+❯ :image add /path/to/photo.jpg
 ✅ Image added: /path/to/photo.jpg
 
-❯ .image
+❯ :image
 Cached Images:
   [0] /path/to/photo.jpg
   [1] /path/to/diagram.png
 
-❯ .image remove 0
+❯ :image remove 0
 ✅ Image removed: /path/to/photo.jpg
 ```
 
-### .plan — 任务计划管理
+### :plan — 任务计划管理
 
 管理多步骤任务计划，支持创建、查看、修改和跟踪进度。
 
 ```bash
-.plan                     # 列出所有任务计划
-.plan list                # 列出所有任务计划
-.plan view <id>           # 查看指定任务计划的详细内容
-.plan create <title>      # 创建一个新的任务计划
-.plan insert <id> <pos>   # 在指定位置插入新步骤
-.plan remove <id> <step>  # 移除指定步骤
-.plan update <id> <step>  # 更新指定步骤的状态或内容
+:plan                     # 列出所有任务计划
+:plan list                # 列出所有任务计划
+:plan view <id>           # 查看指定任务计划的详细内容
+:plan create <title>      # 创建一个新的任务计划
+:plan insert <id> <pos>   # 在指定位置插入新步骤
+:plan remove <id> <step>  # 移除指定步骤
+:plan update <id> <step>  # 更新指定步骤的状态或内容
 ```
 
 **示例：**
 
 ```bash
-❯ .plan create "部署新版本"
+❯ :plan create "部署新版本"
 ✅ Task plan created: id=plan-001, title=部署新版本
 
-❯ .plan view plan-001
+❯ :plan view plan-001
 Task Plan: 部署新版本 (plan-001)
   Status: 进行中
   Steps:
@@ -307,7 +307,7 @@ Task Plan: 部署新版本 (plan-001)
     [2] ⏳ 构建镜像
     [3] ⏳ 部署到服务器
 
-❯ .plan update plan-001 0
+❯ :plan update plan-001 0
 ✅ Step 0 marked as completed
 ```
 
@@ -362,16 +362,16 @@ MCP (Model Context Protocol) 让 co-shell 可以接入各种外部工具生态�
 
 ```bash
 # 文件系统操作
-❯ .mcp add fs npx @modelcontextprotocol/server-filesystem /path/to/project
+❯ :mcp add fs npx @modelcontextprotocol/server-filesystem /path/to/project
 
 # GitHub 集成
-❯ .mcp add github npx @modelcontextprotocol/server-github
+❯ :mcp add github npx @modelcontextprotocol/server-github
 
 # 数据库查询
-❯ .mcp add db npx @modelcontextprotocol/server-sqlite ./data.db
+❯ :mcp add db npx @modelcontextprotocol/server-sqlite ./data:db
 
 # 自定义 MCP Server
-❯ .mcp add my-tool /path/to/my-mcp-server --flag value
+❯ :mcp add my-tool /path/to/my-mcp-server --flag value
 ```
 
 ### 连接后使用
@@ -417,7 +417,7 @@ MCP 工具会自动注册为 Agent 可调用的工具，你只需用自然语言
 }
 ```
 
-数据库文件存储在 `~/.co-shell/co-shell.db`（bbolt 嵌入式 KV 数据库）。
+数据库文件存储在 `~/.co-shell/co-shell:db`（bbolt 嵌入式 KV 数据库）。
 
 ---
 
@@ -428,7 +428,7 @@ MCP 工具会自动注册为 Agent 可调用的工具，你只需用自然语言
 A: 需要先设置 API Key：
 
 ```bash
-❯ .settings api-key sk-your-key
+❯ :settings api-key sk-your-key
 ```
 
 ### Q: 支持哪些模型？
@@ -453,7 +453,7 @@ A: 确保：
 ```bash
 ❯ exit
 ❯ quit
-❯ .exit
+❯ :exit
 ❯ .quit
 # 或按 Ctrl+C
 ```

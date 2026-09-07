@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>co-shell 体系架构关系图</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --panel2:#1d2740; --line:#2a3550;
+    --txt:#e6ecf7; --sub:#8fa0bd; --dim:#5c6b8a;
+    --hub:#ffb020; --hub2:#ff8a00;
+    --cs:#4da3ff; --cs2:#2f7fe0;
+    --mobile:#3ddc97; --mobile2:#1fae74;
+    --browser:#c792ea;
+    --managed:#4da3ff; --external:#ff6b9d;
+    --ok:#3ddc97; --warn:#ffb020;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 800px at 50% -10%,#1a2440 0%,var(--bg) 60%);
+    color:var(--txt); font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    min-height:100vh; padding:28px 20px 60px;
+  }
+  .wrap{max-width:1280px;margin:0 auto}
+  header{text-align:center;margin-bottom:26px}
+  header h1{font-size:26px;letter-spacing:1px;font-weight:700}
+  header h1 .dot{color:var(--hub)}
+  header p{color:var(--sub);margin-top:8px;font-size:14px;line-height:1.7}
+  .legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--sub)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  /* ===== 主画布 ===== */
+  .canvas{
+    position:relative; background:var(--panel); border:1px solid var(--line);
+    border-radius:18px; padding:30px 24px; overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.45);
+    height:700px;
+  }
+  .canvas::before{ /* subtle grid */
+    content:""; position:absolute; inset:0; opacity:.35; pointer-events:none;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:44px 44px;
+  }
+
+  /* ===== 区域标签 ===== */
+  .zone{position:absolute;top:14px;font-size:11px;letter-spacing:2px;color:var(--dim);font-weight:600;text-transform:uppercase;z-index:2}
+
+  /* ===== 节点通用 ===== */
+  .node{
+    position:absolute; border-radius:14px; padding:12px 14px; z-index:3;
+    background:var(--panel2); border:1px solid var(--line);
+    box-shadow:0 8px 22px rgba(0,0,0,.35);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .node:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,0,0,.5)}
+  .node .t{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+  .node .t .ico{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+  .node .d{font-size:11.5px;color:var(--sub);margin-top:6px;line-height:1.55}
+  .node .tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;margin-top:7px;font-weight:600}
+
+  /* hub 中心 */
+  .hub{background:linear-gradient(135deg,#3a2c10,#2a2008);border-color:#6b4d12}
+  .hub .t{color:var(--hub);font-size:19px}
+  .hub .ico{background:linear-gradient(135deg,var(--hub),var(--hub2));color:#1a1200}
+  .hub .d{color:#d8c9a0}
+  .hub .core{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .hub .core span{font-size:10px;background:#3a2c10;border:1px solid #6b4d12;color:#f0d9a0;padding:2px 7px;border-radius:6px}
+
+  /* co-shell 实例 */
+  .cs .t{color:var(--cs)}
+  .cs .ico{background:linear-gradient(135deg,var(--cs),var(--cs2));color:#fff}
+  .cs.managed{border-color:#2a4a7a}
+  .cs.external{border-color:#7a2a4a}
+  .cs .tag.managed{background:rgba(77,163,255,.15);color:var(--cs)}
+  .cs .tag.external{background:rgba(255,107,157,.15);color:var(--external)}
+
+  /* 访问端 */
+  .acc .t{color:var(--browser)}
+  .acc .ico{background:linear-gradient(135deg,#c792ea,#9a5fd0);color:#fff}
+  .mobile .t{color:var(--mobile)}
+  .mobile .ico{background:linear-gradient(135deg,var(--mobile),var(--mobile2));color:#06281a}
+  .mobile{border-color:#1f5c44}
+
+  /* ===== 连线 ===== */
+  .link{position:absolute;top:0;left:0;z-index:1;pointer-events:none}
+  .link .lbl{
+    position:absolute; transform:translate(-50%,-50%); font-size:10px; color:#cfe0ff;
+    background:rgba(15,20,32,.9); border:1px solid var(--line); padding:2px 8px; border-radius:20px;
+    white-space:nowrap; z-index:2; letter-spacing:.3px;
+  }
+  .link svg{position:absolute;overflow:visible}
+  .link .lbl.hub{color:#ffe9b0;border-color:#6b4d12;background:rgba(42,32,8,.95)}
+  .link .lbl.mob{color:#bff5dd;border-color:#1f5c44;background:rgba(10,40,28,.95)}
+
+  /* ===== 场景区 ===== */
+  .scenes{margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  .scene{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .scene h3{font-size:14px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .scene h3 .n{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--hub),var(--hub2));color:#1a1200;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:none}
+  .scene ul{list-style:none}
+  .scene li{font-size:12px;color:var(--sub);padding:5px 0 5px 16px;position:relative;line-height:1.5}
+  .scene li::before{content:"▸";position:absolute;left:0;color:var(--hub)}
+  .scene li b{color:var(--txt);font-weight:600}
+
+  footer{text-align:center;color:var(--dim);font-size:11px;margin-top:22px;letter-spacing:.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>co-shell <span class="dot">·</span> co-shell-hub <span class="dot">·</span> co-shell-mobile-app 体系架构</h1>
+    <p>co-shell-hub 作为<b style="color:var(--hub)">网关中枢</b>，统一编排本地 / 远程的多个 co-shell 实例，并同时向桌面浏览器与移动端提供一致的操作入口 —— 一套体系，多端触达，灵活多样。</p>
+    <div class="legend">
+      <span><i class="sw" style="background:linear-gradient(135deg,var(--hub),var(--hub2))"></i>co-shell-hub 网关中枢</span>
+      <span><i class="sw" style="background:linear-gradient(135deg,var(--cs),var(--cs2))"></i>co-shell 实例（受控/本地）</span>
+      <span><i class="sw" style="background:linear-gradient(135deg,var(--external),#ff6b9d)"></i>co-shell 实例（不受控/远程）</span>
+      <span><i class="sw" style="background:linear-gradient(135deg,var(--mobile),var(--mobile2))"></i>co-shell-mobile-app</span>
+      <span><i class="sw" style="background:linear-gradient(135deg,#c792ea,#9a5fd0)"></i>桌面浏览器</span>
+    </div>
+  </header>
+
+  <div class="canvas" id="canvas">
+    <div class="zone" style="left:24px">访问端 · Access</div>
+    <div class="zone" style="left:50%;transform:translateX(-50%)">网关中枢 · Gateway</div>
+    <div class="zone" style="right:24px">co-shell 实例集群 · Agents</div>
+
+    <!-- ===== 连线层（SVG 由 JS 绘制） ===== -->
+    <div class="link" id="links"></div>
+
+    <!-- ===== 访问端节点 ===== -->
+    <div class="node mobile acc" id="mobile" style="left:30px;top:120px;width:210px">
+      <div class="t"><span class="ico">📱</span>co-shell-mobile-app</div>
+      <div class="d">原生 iOS · WKWebView 渲染 hub Web UI，注入 access_key，支持自签名证书</div>
+      <span class="tag" style="background:rgba(61,220,151,.15);color:var(--mobile)">移动端 · 随时随地</span>
+    </div>
+
+    <div class="node acc" id="browser" style="left:30px;top:330px;width:210px">
+      <div class="t"><span class="ico">🖥️</span>桌面浏览器</div>
+      <div class="d">访问 hub 外壳页面，经 iframe + 反向代理透传各 co-shell 完整 Web UI</div>
+      <span class="tag" style="background:rgba(199,146,234,.15);color:var(--browser)">桌面端 · 多标签</span>
+    </div>
+
+    <!-- ===== hub 中心节点 ===== -->
+    <div class="node hub" id="hub" style="left:50%;top:50%;transform:translate(-50%,-50%);width:330px;text-align:center">
+      <div class="t" style="justify-content:center"><span class="ico">⚙️</span>co-shell-hub</div>
+      <div class="d" style="text-align:center">WebSocket 聚合网关 · 多 agent 编排中枢</div>
+      <div class="core" style="justify-content:center">
+        <span>Agent 生命周期管理</span>
+        <span>反向代理外壳</span>
+        <span>TCP + API Key 认证</span>
+        <span>多 agent 切换</span>
+        <span>移动端网关</span>
+      </div>
+    </div>
+
+    <!-- ===== co-shell 实例集群 ===== -->
+    <div class="node cs managed" id="cs1" style="right:30px;top:70px;width:250px">
+      <div class="t"><span class="ico">🤖</span>co-shell 实例 A</div>
+      <div class="d">受控 · 本地 workspace<br>hub 创建并启动 <code>--serve</code> 子进程</div>
+      <span class="tag managed">managed · 本地</span>
+    </div>
+    <div class="node cs managed" id="cs2" style="right:30px;top:230px;width:250px">
+      <div class="t"><span class="ico">🤖</span>co-shell 实例 B</div>
+      <div class="d">受控 · 本地 workspace<br>独立端口 / 会话 / 配置</div>
+      <span class="tag managed">managed · 本地</span>
+    </div>
+    <div class="node cs external" id="cs3" style="right:30px;top:390px;width:250px">
+      <div class="t"><span class="ico">🌐</span>co-shell 实例 C</div>
+      <div class="d">不受控 · 远程主机<br>hub 仅连接访问，不负责启停</div>
+      <span class="tag external">external · 远程</span>
+    </div>
+    <div class="node cs external" id="cs4" style="right:30px;top:520px;width:250px">
+      <div class="t"><span class="ico">🌐</span>co-shell 实例 D</div>
+      <div class="d">不受控 · 远程主机<br>经 VPN / 公网 WS 地址接入</div>
+      <span class="tag external">external · 远程</span>
+    </div>
+  </div>
+
+  <!-- ===== 场景说明 ===== -->
+  <div class="scenes">
+    <div class="scene">
+      <h3><span class="n">1</span>本地多实例编排</h3>
+      <ul>
+        <li>hub 作为<b>父进程</b>创建 / 启动 / 停止多个本地 co-shell</li>
+        <li>自动分配端口，独立 workspace 与 config</li>
+        <li>崩溃监控与一键启停管理</li>
+      </ul>
+    </div>
+    <div class="scene">
+      <h3><span class="n">2</span>远程实例接入</h3>
+      <ul>
+        <li>添加<b>不受控</b>远程 co-shell（仅提供 WS 地址）</li>
+        <li>hub 只连接访问，不干预其生命周期</li>
+        <li>本地 + 远程实例<b>统一编排</b>、统一切换</li>
+      </ul>
+    </div>
+    <div class="scene">
+      <h3><span class="n">3</span>桌面多标签操作</h3>
+      <ul>
+        <li>浏览器打开 hub 外壳，<b>iframe 多页</b>并列各实例</li>
+        <li>反向代理透传<b>完整 co-shell Web UI</b></li>
+        <li>标签切换 agent，会话状态各自保留</li>
+      </ul>
+    </div>
+    <div class="scene">
+      <h3><span class="n">4</span>移动端远程操控</h3>
+      <ul>
+        <li>co-shell-mobile-app 经 <b>TCP + API Key</b> 连 hub</li>
+        <li>WKWebView 渲染 hub 外壳，窄屏自适应</li>
+        <li>随时随地操控本地 / 远程所有 agent</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>co-shell 体系 · hub 网关中枢统一编排 · 本地/远程/桌面/移动 全场景灵活触达</footer>
+</div>
+
+<script>
+(function(){
+  const canvas=document.getElementById('canvas');
+  const links=document.getElementById('links');
+  const nodes={
+    hub:document.getElementById('hub'),
+    mobile:document.getElementById('mobile'),
+    browser:document.getElementById('browser'),
+    cs1:document.getElementById('cs1'),cs2:document.getElementById('cs2'),
+    cs3:document.getElementById('cs3'),cs4:document.getElementById('cs4')
+  };
+  // 连线定义: [from,to,label,class]
+  const defs=[
+    ['mobile','hub','TCP + API Key','mob'],
+    ['browser','hub','HTTP / 外壳页面',''],
+    ['hub','cs1','WS 反向代理 /agent/a','hub'],
+    ['hub','cs2','WS 反向代理 /agent/b','hub'],
+    ['hub','cs3','WS 反向代理 /agent/c','hub'],
+    ['hub','cs4','WS 反向代理 /agent/d','hub']
+  ];
+  function center(el){
+    const r=el.getBoundingClientRect(), c=canvas.getBoundingClientRect();
+    return {x:r.left-c.left+r.width/2, y:r.top-c.top+r.height/2};
+  }
+  function draw(){
+    links.innerHTML='';
+    const H=canvas.clientHeight, W=canvas.clientWidth;
+    links.style.width=W+'px'; links.style.height=H+'px';
+    defs.forEach(d=>{
+      const a=center(nodes[d[0]]), b=center(nodes[d[1]]);
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('width',W); svg.setAttribute('height',H);
+      svg.style.position='absolute'; svg.style.left='0'; svg.style.top='0'; svg.style.overflow='visible';
+      // 渐变描边
+      const gid='g'+d[0]+d[1];
+      const def=document.createElementNS('http://www.w3.org/2000/svg','defs');
+      const lg=document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+      lg.setAttribute('id',gid); lg.setAttribute('x1','0');lg.setAttribute('y1','0');lg.setAttribute('x2','1');lg.setAttribute('y2','0');
+      const s1=document.createElementNS('http://www.w3.org/2000/svg','stop');s1.setAttribute('offset','0%');
+      const s2=document.createElementNS('http://www.w3.org/2000/svg','stop');s2.setAttribute('offset','100%');
+      if(d[0]==='mobile'){s1.setAttribute('stop-color','#3ddc97');s2.setAttribute('stop-color','#ffb020');}
+      else if(d[0]==='browser'){s1.setAttribute('stop-color','#c792ea');s2.setAttribute('stop-color','#ffb020');}
+      else {s1.setAttribute('stop-color','#ffb020');s2.setAttribute('stop-color', d[1].startsWith('cs3')||d[1].startsWith('cs4')?'#ff6b9d':'#4da3ff');}
+      lg.appendChild(s1);lg.appendChild(s2);def.appendChild(lg);svg.appendChild(def);
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',a.x);line.setAttribute('y1',a.y);line.setAttribute('x2',b.x);line.setAttribute('y2',b.y);
+      line.setAttribute('stroke','url(#'+gid+')');line.setAttribute('stroke-width','2.5');
+      line.setAttribute('stroke-dasharray','7 5');line.setAttribute('opacity','.85');
+      svg.appendChild(line);
+      // 箭头
+      const ang=Math.atan2(b.y-a.y,b.x-a.x), ar=10;
+      const ax=b.x-ar*Math.cos(ang), ay=b.y-ar*Math.sin(ang);
+      const p1=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      p1.setAttribute('points',`${ax},${ay} ${ax-8*Math.cos(ang-0.5)},${ay-8*Math.sin(ang-0.5)} ${ax-8*Math.cos(ang+0.5)},${ay-8*Math.sin(ang+0.5)}`);
+      p1.setAttribute('fill','#ffb020');p1.setAttribute('opacity','.9');
+      svg.appendChild(p1);
+      links.appendChild(svg);
+      // 标签
+      const lbl=document.createElement('div');
+      lbl.className='lbl'+(d[3]?' '+d[3]:'');
+      lbl.textContent=d[2];
+      lbl.style.left=((a.x+b.x)/2)+'px'; lbl.style.top=((a.y+b.y)/2)+'px';
+      links.appendChild(lbl);
+    });
+  }
+  window.addEventListener('resize',draw);
+  draw();
+})();
+</script>
+</body>
+</html>
