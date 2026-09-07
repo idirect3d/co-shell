@@ -638,25 +638,28 @@ aside {
 }
 /* Each message line: 1px wide, full height, drawn as a dotted vertical line
    (1px dot + 1px gap) at 75% opacity. The dot colour is set per-line by JS via
-   a repeating-linear-gradient. A 2px gap separates consecutive lines. */
+   the --line-color custom property. A 2px gap separates consecutive lines. */
 .msgviz-line {
   position: relative;
   width: 1px;
   flex: none;
   height: 100%;
   margin-right: 2px; /* 2px gap between lines */
-  background: transparent;
+  background: repeating-linear-gradient(to bottom, var(--line-color, #5b6373) 0 1px, transparent 1px 2px);
   opacity: 0.75; /* FEATURE-487: 75% translucent */
   cursor: pointer;
 }
 /* FEATURE-487: hovering a line widens it to 3px and makes it fully opaque so
    it is easy to pick out; it returns to 1px/75% on mouse-out. The margin-right
    drops to 0 at the same time (1px+2px = 3px+0px) so the line's total footprint
-   stays constant and the neighbouring lines never shift (no queue jitter). */
+   stays constant and the neighbouring lines never shift (no queue jitter).
+   The dotted background is also replaced by a solid line on hover, and restored
+   to dotted on mouse-out. */
 .msgviz-line:hover {
   width: 3px;
   margin-right: 0;
   opacity: 1;
+  background: var(--line-color, #5b6373);
 }
 /* The context-usage marker: a 3x2px dot whose vertical position encodes the
    context usage (bottom = empty, top = full). It is painted with the control's
