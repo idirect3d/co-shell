@@ -505,6 +505,15 @@ type LLMConfig struct {
 	// Default: 81920 (80KB)
 	ReadFileMaxSize int `json:"read_file_max_size"`
 
+	// ToolResultMaxSize: maximum total bytes of a tool result that may enter
+	// the LLM context (FEATURE-491). When a tool returns content larger than
+	// this, only the head (up to the limit) is kept in context, a notice with
+	// the saved file path / total size / total lines is appended, and the full
+	// content is saved to tmp/tool-result/ so the LLM can decide whether to
+	// read more. 0 means no limit.
+	// Default: 65536 (64KB)
+	ToolResultMaxSize int `json:"tool_result_max_size"`
+
 	// LoopIntervention: strategy for handling loop detection.
 	// Supported values:
 	//   "retry" — just resend context without feedback
@@ -1025,6 +1034,7 @@ func DefaultConfig() *Config {
 			SearchMaxLineLength:        8192,
 			SearchMaxResultBytes:       65536,
 			SearchContextLines:         5,
+			ToolResultMaxSize:          65536, // 64KB (FEATURE-491)
 			MemorySearchMaxContentLen:  512,
 			MemorySearchMaxResults:     100,
 			ErrorMaxSingleCount:        10,
