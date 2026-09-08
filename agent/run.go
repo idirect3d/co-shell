@@ -248,6 +248,11 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 				toolContent = i18n.T(i18n.KeyToolNoOutputBracket)
 			}
 
+			// FEATURE-491: apply the context length limit to the tool result
+			// before it enters the LLM context. Oversized results are truncated
+			// to the head and the full content is saved to tmp/tool-result/.
+			toolContent = a.limitToolResult(tc.Name, toolContent)
+
 			if isXMLMode {
 				// In XML mode, return tool results as user messages with ContentParts structure.
 				// The tool result becomes a separate text part in the ContentParts array.

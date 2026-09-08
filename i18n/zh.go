@@ -2240,4 +2240,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySectionActionAdd:    "添加自定义节",
 	KeySectionActionRemove: "删除自定义节",
 	KeySectionActionClear:  "清空所有自定义节",
+
+	// FEATURE-491: tool result context length limit
+	KeyToolResultTruncated: "\n\n⚠️ 工具结果超长，仅返回前 %d 字节（完整内容 %d 字节，共 %d 行，截断 %d 字节）。\n完整内容已保存到: %s\n如需查看完整内容，请使用 read_file 读取该文件，或使用其他工具按需获取。\n",
 }
