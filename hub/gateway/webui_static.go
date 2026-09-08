@@ -103,6 +103,7 @@ const webIndexHTML = `<!DOCTYPE html>
   .agent {
     position:relative; display:flex; align-items:center; gap:8px; padding:8px 10px;
     background:var(--panel); cursor:pointer; font-size:13px; color:var(--fg-dim);
+    border-radius:8px; /* FEATURE-492: match the wrap radius so the delete button behind is fully covered */
     transition:transform .18s ease;
   }
   .agent:hover { background:var(--elev); color:var(--fg); }
@@ -681,8 +682,9 @@ const webIndexHTML = `<!DOCTYPE html>
     keyInput.placeholder = '已生成新 KEY，保存后生效';
     sStatus.textContent = '已生成新的访问 KEY（64 位十六进制）。点击保存设置后生效。';
   };
-  // Clicking the scrim closes the whole drawer.
-  scrim.onclick = closePanel;
+  // FEATURE-492: clicking the scrim no longer closes the drawer (the pin
+  // controls auto-collapse; clicking elsewhere should not dismiss it).
+  scrim.onclick = function(e){ e.stopPropagation(); };
   // The empty-state "run" arrow opens the Agent management config view.
   document.getElementById('emptyRun').onclick = function(){ document.getElementById('manageBtn').click(); };
 
