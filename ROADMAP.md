@@ -19,7 +19,7 @@
 | FEATURE-493 | 0.43.0 | P1 | Web UI 2 项小改进：状态栏数字单位（%/t/s/s）亮色显示（深色纯白/亮色纯黑）+ 会话标题栏去加粗 |
 | FEATURE-494 | 0.43.0 | P1 | 文件查看器打开文件后定位到该文件最近一次提交的第一个修改位置（滚动到可视区上 1/3 处） |
 
-> 当前 BUILD: 912
+> 当前 BUILD: 917
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -52,6 +52,13 @@
   - 实施：web/server.go（新增 handleGitFirstChange + 路由）+ web/static/app.js（openFilePreview 后调用 + 滚动定位函数）
   - 测试：见 use-case/FEATURE-494/
   - 进度：核心实现完成——后端 /api/gitfirstchange 接口（git log -1 取最近提交 C，git diff C^ C 解析首个 hunk 起始行）+ 前端 openFilePreview 打开文件后调用并滚动到可视区上 1/3。修复 git rev-parse 缺 cmd.Dir 导致根提交回退误判的 bug（现正确返回首个修改行）。go build+vet 全绿，web 包 TestGitFirstChange 系列测试通过（修改第 3 行返回 line=3），node --check app.js 通过 [BUILD-917]
+
+- [ ] **FEATURE-495 提交指令后焦点自动移出**
+  - 背景：用户在主消息框提交指令后，焦点仍停留在输入框，光标闪烁干扰查看输出，且方向键/空格等按键会误入输入框。希望提交后焦点自动移出；因 document 级 keydown 监听已能在用户敲击普通字符键时自动把焦点带回输入框，故不影响后续录入。
+  - 方案（用户确认）：在 sendInput() 中，当用户真正提交了内容（发送新指令 / 发送动态消息 / 上传附件发送 / 回答交互补充）后调用 input.blur() 让焦点移出输入框。
+  - 实施：web/static/app.js（sendInput 各提交分支末尾 input.blur()）
+  - 测试：见 use-case/FEATURE-495/
+  - 进度：核心实现完成——sendInput 各提交分支（发送新指令 / 动态消息 / 上传附件 uploadAndSend / 回答交互补充）末尾调用 input.blur() 让焦点移出输入框；因 document 级 keydown 监听已能在敲击普通字符键时自动回焦，不影响后续录入。go build+vet 全绿，node --check app.js 通过 [BUILD-918]
 
 ---
 
