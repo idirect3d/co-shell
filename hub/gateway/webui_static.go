@@ -97,7 +97,7 @@ const webIndexHTML = `<!DOCTYPE html>
      card and is revealed by swiping the card left. */
   .agent-wrap { position:relative; overflow:hidden; border-radius:8px; margin-bottom:2px; background:var(--panel); }
   .agent-del {
-    position:absolute; top:0; right:0; bottom:0; width:64px; border:none;
+    position:absolute; top:0; right:1px; bottom:0; width:64px; border:none;
     background:var(--err); color:#fff; font-size:13px; font-weight:600; cursor:pointer;
   }
   .agent {
@@ -546,7 +546,7 @@ const webIndexHTML = `<!DOCTYPE html>
   function setSwipe(card, open){
     card._open = open;
     card.style.transition = 'transform .18s ease';
-    card.style.transform = open ? 'translateX(-64px)' : 'translateX(0)';
+    card.style.transform = open ? 'translateX(-63px)' : 'translateX(0)';
     if (open) openCard = card;
     else if (openCard === card) openCard = null;
   }
@@ -560,7 +560,7 @@ const webIndexHTML = `<!DOCTYPE html>
       var mx = x - startX, my = y - startY;
       if (!card._moved && Math.abs(my) > Math.abs(mx) && Math.abs(my) > 8){ dragging = false; return; } // vertical scroll
       if (Math.abs(mx) > 4) card._moved = true;
-      dx = Math.max(-64, Math.min(0, (card._open ? -64 : 0) + mx));
+      dx = Math.max(-63, Math.min(0, (card._open ? -63 : 0) + mx));
       card.style.transform = 'translateX(' + dx + 'px)';
     }
     function end(){
