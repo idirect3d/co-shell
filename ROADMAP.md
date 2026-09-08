@@ -15,6 +15,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-491 | 0.43.0 | P1 | 工具结果上下文长度限制：tool_result_max_size 配置 + 通用截断 + 保存完整内容到 tmp/tool-result/ + 告知 LLM 文件位置/大小/行数 |
+| FEATURE-492 | 0.43.0 | P1 | hub 界面 2 项小优化：左上角 logo/版本信息框 3 秒后渐变透明（hover 恢复）+ 实例列表收起图标改图钉（可钉住不收起） |
 
 > 当前 BUILD: 912
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -28,6 +29,13 @@
   - 实施：config/config.go（tool_result_max_size）+ agent/（通用截断函数 + run.go/run_stream.go 接入）+ i18n/（截断说明文案）+ main.go（版本号 0.43.0 + build 计数）
   - 测试：见 use-case/FEATURE-491/
   - 进度：核心实现完成——config 新增 tool_result_max_size（默认 64KB）+ agent/tool_result_limit.go 通用截断函数（截断头部 + 保存完整内容到 tmp/tool-result/ + 追加说明含文件路径/大小/行数）+ run.go/run_stream.go 两条路径接入（含视觉识别回填）+ i18n zh/en 文案。go build+vet 全绿，10 个单元测试通过 [BUILD-913]
+
+- [ ] **FEATURE-492 hub 界面 2 项小优化**
+  - 背景：co-shell-hub Web UI 左上角 logo/版本信息框常驻遮挡 co-shell 界面；实例列表抽屉右上角收起图标交互不够直观。
+  - 方案（用户确认）：① 左上角 co-shell-hub logo/版本信息框（#hubBadge）：页面初始化后先显示 3 秒，然后渐变为完全透明（但仍盖住下方内容、可接收点击），鼠标划过恢复不透明、移走变透明；② co-shell 实例列表从左侧弹出框（#agentPanel）右上角收起图标（#panelClose）改为图钉图标，用户可钉住该区域不自动收起。
+  - 实施：hub/gateway/webui_static.go（内嵌 HTML/CSS/JS：badge 自动透明 + hover 恢复；图钉图标 + 钉住状态）+ cmd/co-shell-hub/main.go（hub 版本号/build 计数）
+  - 测试：见 use-case/FEATURE-492/
+  - 进度：核心实现完成——#hubBadge 初始化显示 3 秒后渐变透明（opacity 0，仍盖住下方、可点击），hover 恢复不透明、移走变透明；#panelClose 改为图钉图标（📌），点击钉住后 mouseleave 不自动收起、再次点击取消钉住恢复自动收起。go build+vet 全绿，浏览器验证 10 个用例全部通过 [BUILD-879]
 
 ---
 
