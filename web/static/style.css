@@ -571,7 +571,7 @@ aside {
   border: none;
   color: var(--fg);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400; /* FEATURE-493: session title is no longer bold */
   outline: none;
   text-align: left;
   text-overflow: ellipsis;
@@ -604,7 +604,7 @@ aside {
   text-overflow: ellipsis;
   color: var(--fg);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400; /* FEATURE-493: session title is no longer bold */
   transform-origin: center;
   backface-visibility: hidden;
 }
@@ -1525,6 +1525,10 @@ aside {
 .statusbar.hidden { display: none; }
 .sb-item { white-space: nowrap; }
 .sb-item b { color: var(--fg); font-weight: 600; }
+/* FEATURE-493: status-bar numeric units (%, t/s, s) render in the bright
+   foreground colour (pure white on dark themes, pure black on light themes)
+   so they stand out from the dim explanatory text. */
+.sb-unit { color: var(--fg); }
 
 /* Session menu (FEATURE-387): a popup that expands upward from the 💬
    status-bar item, listing all sessions with switch/delete actions. */
