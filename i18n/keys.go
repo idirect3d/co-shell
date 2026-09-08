@@ -2660,4 +2660,7 @@ const (
 	KeySectionActionAdd    = "section_action_add"
 	KeySectionActionRemove = "section_action_remove"
 	KeySectionActionClear  = "section_action_clear"
+
+	// FEATURE-491: tool result context length limit
+	KeyToolResultTruncated = "tool_result_truncated"
 )

@@ -10,6 +10,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -158,5 +159,90 @@ func TestTreeSizeField(t *testing.T) {
 	}
 	if found.Size != int64(len(content)) {
 		t.Errorf("sized.txt size = %d, want %d", found.Size, len(content))
+	}
+}
+
+// TestGitFirstChange verifies /api/gitfirstchange returns the first changed
+// line of the file's most recent commit (FEATURE-494, UC-001).
+func TestGitFirstChange(t *testing.T) {
+	if testing.Short() || !gitAvailable(t) {
+		t.Skip("git not available")
+	}
+	root := t.TempDir()
+	// Initial commit: a.txt with 5 lines.
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("l1\nl2\nl3\nl4\nl5\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitInit(t, root)
+	// Second commit: modify line 3.
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("l1\nl2\nCHANGED\nl4\nl5\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", "a.txt")
+	git(t, root, "commit", "-q", "-m", "modify line 3")
+
+	s := NewServer(root, ServerOptions{Lang: "zh", Version: "0.0.0", Build: "0"})
+	ts := httptest.NewServer(s.mux)
+	defer ts.Close()
+	var body struct {
+		Line int `json:"line"`
+	}
+	getJSON(t, ts.URL+"/api/gitfirstchange?path=a.txt", &body)
+	if body.Line != 3 {
+		t.Errorf("first change line = %d, want 3", body.Line)
+	}
+}
+
+// TestGitFirstChangeUntracked verifies an untracked file yields line=0
+// (FEATURE-494, UC-003).
+func TestGitFirstChangeUntracked(t *testing.T) {
+	if testing.Short() || !gitAvailable(t) {
+		t.Skip("git not available")
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("v1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitInit(t, root)
+	// Untracked file.
+	if err := os.WriteFile(filepath.Join(root, "u.txt"), []byte("new"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := NewServer(root, ServerOptions{Lang: "zh", Version: "0.0.0", Build: "0"})
+	ts := httptest.NewServer(s.mux)
+	defer ts.Close()
+	var body struct {
+		Line int `json:"line"`
+	}
+	getJSON(t, ts.URL+"/api/gitfirstchange?path=u.txt", &body)
+	if body.Line != 0 {
+		t.Errorf("untracked first change line = %d, want 0", body.Line)
+	}
+}
+
+// TestGitFirstChangeNonRepo verifies a non-git workspace yields line=0
+// (FEATURE-494, UC-004).
+func TestGitFirstChangeNonRepo(t *testing.T) {
+	_, ts, _ := newTestServer(t)
+	var body struct {
+		Line int `json:"line"`
+	}
+	getJSON(t, ts.URL+"/api/gitfirstchange?path=hello.txt", &body)
+	if body.Line != 0 {
+		t.Errorf("non-repo first change line = %d, want 0", body.Line)
+	}
+}
+
+// TestGitFirstChangeTraversal verifies path traversal is rejected
+// (FEATURE-494, UC-005).
+func TestGitFirstChangeTraversal(t *testing.T) {
+	_, ts, _ := newTestServer(t)
+	resp, err := http.Get(ts.URL + "/api/gitfirstchange?path=../../etc/passwd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("traversal status = %d, want 403", resp.StatusCode)
 	}
 }

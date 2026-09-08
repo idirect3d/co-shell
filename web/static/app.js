@@ -1917,6 +1917,19 @@ function fmtPct(used, max) {
   return Math.round(used * 100 / max) + "%";
 }
 
+// FEATURE-493: status-bar variants of fmtPct/fmtDur that wrap the unit
+// (%, s, m) in a .sb-unit span so the status bar renders it in the bright
+// foreground colour. The plain fmtPct/fmtDur stay text-only because the
+// message-stream token line sets textContent (HTML would show literally).
+function sbPct(used, max) {
+  const s = fmtPct(used, max);
+  return s === "-" ? s : s.replace(/%$/, "<span class='sb-unit'>%</span>");
+}
+function sbDur(sec) {
+  const s = fmtDur(sec);
+  return s === "-" ? s : s.replace(/([sm])$/, "<span class='sb-unit'>$1</span>");
+}
+
 // fmtLen formats a context length with K/M units (e.g. 1048576 -> "1M").
 function fmtLen(n) {
   if (!(n > 0)) return "-";
@@ -1936,12 +1949,12 @@ function updateStatus() {
   // usage sit in a .sb-model-name span so narrow screens can hide the text and
   // keep only the 🧠/👀 icon (FEATURE-487).
   if (modelInfo && modelInfo.textModel) {
-    sbModelText.innerHTML = "🧠<span class='sb-model-name'>" + modelInfo.textModel + "(" + fmtPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
+    sbModelText.innerHTML = "🧠<span class='sb-model-name'>" + modelInfo.textModel + "(" + sbPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
   } else {
     sbModelText.innerHTML = "🧠";
   }
   if (modelInfo && modelInfo.visionModel) {
-    sbModelVision.innerHTML = "👀<span class='sb-model-name'>" + modelInfo.visionModel + "(" + fmtPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
+    sbModelVision.innerHTML = "👀<span class='sb-model-name'>" + modelInfo.visionModel + "(" + sbPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
   } else {
     sbModelVision.innerHTML = "👀";
   }
@@ -1950,12 +1963,12 @@ function updateStatus() {
   // Last turn: 最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)
   const li = tokenStats.lastIn, lo = tokenStats.lastOut;
   const liTPS = tokenStats.lastInTPS, loTPS = tokenStats.lastOutTPS;
-  const liDur = liTPS > 0 ? fmtDur(li / liTPS) : "-";
-  const loDur = loTPS > 0 ? fmtDur(lo / loTPS) : "-";
+  const liDur = liTPS > 0 ? sbDur(li / liTPS) : "-";
+  const loDur = loTPS > 0 ? sbDur(lo / loTPS) : "-";
   // FEATURE-436: token rates use thousands separators (e.g. 1,234t/s).
   // FEATURE-487: the ⏱️ icon sits in its own span so narrow screens can hide
   // just the icon while keeping the per-iteration usage text.
-  sbLast.innerHTML = "<span class='sb-last-ico'>" + T.sbLast + "</span> ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "t/s" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "t/s" : "-") + ", " + loDur + ")";
+  sbLast.innerHTML = "<span class='sb-last-ico'>" + T.sbLast + "</span> ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + loDur + ")";
 }
 
 /* ---------- session menu (FEATURE-387) ---------- */
@@ -3521,6 +3534,9 @@ function openFilePreview(node) {
   // FEATURE-425: highlight the currently selected file in the workspace tree.
   highlightTreeFile(node.path);
   loadFileDiff(node.path);
+  // FEATURE-494: after opening, scroll to the first change of the file's most
+  // recent commit (top 1/3 of the viewport).
+  loadFirstChange(node.path);
   // md files in auto-render mode still load on demand (200-line chunks); each
   // chunk is accumulated and the whole accumulated text re-rendered, so the
   // current viewport stays complete while large files are never fully loaded.
@@ -3558,6 +3574,49 @@ async function loadFileDiff(path) {
       row.classList.toggle("fv-del", false);
     });
   } catch { /* no diff available */ }
+}
+
+// loadFirstChange fetches the first changed line of the file's most recent
+// commit (FEATURE-494) and scrolls the viewer so that line sits at the top
+// 1/3 of the viewport. line=0 (no change) leaves the scroll position alone.
+// The target line may be beyond the first 200-line chunk, so the chunk is
+// loaded first and the scroll happens once the line is rendered.
+async function loadFirstChange(path) {
+  let line = 0;
+  try {
+    const resp = await fetch("api/gitfirstchange?path=" + encodeURIComponent(path));
+    const body = await resp.json();
+    line = body.line || 0;
+  } catch { /* no git info */ }
+  if (line <= 0 || fvPath !== path) return;
+  // Ensure the target line is loaded (on-demand chunks of 200 lines).
+  while (fvNextLine < line && fvNextLine <= fvTotal) {
+    await loadFileChunk(path, fvNextLine, fvNextLine + 200);
+  }
+  if (fvPath !== path) return;
+  scrollToLine(line);
+}
+
+// scrollToLine scrolls #fvBody so the given source line sits at the top 1/3
+// of the visible area. In raw mode the line is a .fv-line[data-no]; in md
+// auto-render mode it is the .fv-md-row whose gutter shows the block's
+// starting source line (the closest block at or before the target).
+function scrollToLine(line) {
+  // Raw mode: exact .fv-line[data-no]. md auto-render: the .fv-md-row whose
+  // gutter (textContent) is the closest block start at or before the target.
+  let row = fvBody.querySelector('.fv-line[data-no="' + line + '"]');
+  if (!row) {
+    let best = null;
+    for (const r of fvBody.querySelectorAll(".fv-md-row")) {
+      const noEl = r.querySelector(".fv-md-no");
+      const no = noEl ? parseInt(noEl.textContent, 10) : 0;
+      if (no > 0 && no <= line) best = r;
+    }
+    row = best;
+  }
+  if (!row) return;
+  const top = row.offsetTop - fvBody.clientHeight / 3;
+  fvBody.scrollTop = Math.max(0, top);
 }
 
 // loadFileChunk fetches a line range [start, end] and appends it to the body.

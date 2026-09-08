@@ -2210,4 +2210,7 @@ no liability whatsoever.`,
 	KeySectionActionAdd:    "Add a custom section",
 	KeySectionActionRemove: "Remove a custom section",
 	KeySectionActionClear:  "Clear all custom sections",
+
+	// FEATURE-491: tool result context length limit
+	KeyToolResultTruncated: "\n\n⚠️ Tool result too long, only the first %d bytes are shown (full content %d bytes, %d lines total, %d bytes truncated).\nFull content saved to: %s\nTo view the full content, use read_file to read that file, or use other tools to fetch what you need.\n",
 }
