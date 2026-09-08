@@ -321,18 +321,21 @@ const webIndexHTML = `<!DOCTYPE html>
     scrim.classList.add('show');
     document.body.classList.add('drawer-open');
   }
+  // FEATURE-492: when the drawer is pinned, leaving it never auto-collapses.
+  var pinned = false;
   function closePanel(){
     panel.classList.remove('open');
     scrim.classList.remove('show');
     document.body.classList.remove('drawer-open');
     showView('list');
   }
-  // FEATURE-492: when the drawer is pinned, leaving it never auto-collapses.
-  var pinned = false;
   function scheduleClose(){
     if (pinned) return;
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(closePanel, 600);
+    hideTimer = setTimeout(function(){
+      if (pinned) return; // re-check at fire time: pinned drawers never auto-close
+      closePanel();
+    }, 600);
   }
   // showView switches between the list, config and detail views with a slide
   // transition: the current view slides out, then the target slides in.
