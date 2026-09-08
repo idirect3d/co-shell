@@ -4,6 +4,57 @@
 
 ---
 
+## v0.43.0 — 开发中
+
+> **版本**: v0.43.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 工具结果上下文长度限制（FEATURE-491）
+> **说明**: 0.43.0 系列为工具结果进入上下文增加通用长度限制：当工具返回内容超过 tool_result_max_size（默认 64KB）时，只返回限定值以内的头部内容，追加说明（文件位置/大小/行数），并将完整内容保存为文本文件供 LLM 评估是否补充读取。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-491 | 0.43.0 | P1 | 工具结果上下文长度限制：tool_result_max_size 配置 + 通用截断 + 保存完整内容到 tmp/tool-result/ + 告知 LLM 文件位置/大小/行数 |
+| FEATURE-492 | 0.43.0 | P1 | hub 界面 2 项小优化：左上角 logo/版本信息框 3 秒后渐变透明（hover 恢复）+ 实例列表收起图标改图钉（可钉住不收起） |
+| FEATURE-493 | 0.43.0 | P1 | Web UI 2 项小改进：状态栏数字单位（%/t/s/s）亮色显示（深色纯白/亮色纯黑）+ 会话标题栏去加粗 |
+| FEATURE-494 | 0.43.0 | P1 | 文件查看器打开文件后定位到该文件最近一次提交的第一个修改位置（滚动到可视区上 1/3 处） |
+
+> 当前 BUILD: 912
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-491 工具结果上下文长度限制**
+  - 背景：当某个工具方法返回的文本内容太大时，可能导致上下文超限。这是无法避免的问题，需要兜底解决。
+  - 方案（用户确认）：① 新增配置 tool_result_max_size（默认 64KB，0=不限制）；② 工具结果进入上下文前统一拦截，超过限制只返回限定值以内的头部内容；③ 追加说明（完整内容保存的文件位置/总大小/总行数/截断字节数）；④ 完整内容保存为文本文件到 tmp/tool-result/，供 LLM 评估是否补充读取；⑤ 版本 v0.43.0（minor 递增）。
+  - 实施：config/config.go（tool_result_max_size）+ agent/（通用截断函数 + run.go/run_stream.go 接入）+ i18n/（截断说明文案）+ main.go（版本号 0.43.0 + build 计数）
+  - 测试：见 use-case/FEATURE-491/
+  - 进度：核心实现完成——config 新增 tool_result_max_size（默认 64KB）+ agent/tool_result_limit.go 通用截断函数（截断头部 + 保存完整内容到 tmp/tool-result/ + 追加说明含文件路径/大小/行数）+ run.go/run_stream.go 两条路径接入（含视觉识别回填）+ i18n zh/en 文案。go build+vet 全绿，10 个单元测试通过 [BUILD-913]
+
+- [ ] **FEATURE-492 hub 界面 2 项小优化**
+  - 背景：co-shell-hub Web UI 左上角 logo/版本信息框常驻遮挡 co-shell 界面；实例列表抽屉右上角收起图标交互不够直观。
+  - 方案（用户确认）：① 左上角 co-shell-hub logo/版本信息框（#hubBadge）：页面初始化后先显示 3 秒，然后渐变为完全透明（但仍盖住下方内容、可接收点击），鼠标划过恢复不透明、移走变透明；② co-shell 实例列表从左侧弹出框（#agentPanel）右上角收起图标（#panelClose）改为图钉图标，用户可钉住该区域不自动收起。
+  - 实施：hub/gateway/webui_static.go（内嵌 HTML/CSS/JS：badge 自动透明 + hover 恢复；图钉图标 + 钉住状态）+ cmd/co-shell-hub/main.go（hub 版本号/build 计数）
+  - 测试：见 use-case/FEATURE-492/
+  - 进度：核心实现完成——#hubBadge 初始化显示 3 秒后渐变透明（opacity 0，仍盖住下方、可点击），hover 恢复不透明、移走变透明；#panelClose 改为图钉图标（📌），点击钉住后 mouseleave 不自动收起、再次点击取消钉住恢复自动收起。go build+vet 全绿，浏览器验证 10 个用例全部通过 [BUILD-879]
+
+- [ ] **FEATURE-493 Web UI 2 项小改进（状态栏单位亮色 + 标题去加粗）**
+  - 背景：① 状态栏数字信息单位（%、t/s、s）颜色偏暗，希望显示为"亮"色（深色主题纯白、亮色主题纯黑）更醒目；② 会话标题栏字体加粗，希望去掉加粗更简洁。
+  - 方案（用户确认）：① 状态栏单位字符（%、t/s、s）包进 `<span class="sb-unit">`，CSS 用 `var(--fg)`（深色=纯白 #d5dbe7、亮色=纯黑 #1d2433）；② 会话标题栏 `.stream-title` 与窄屏循环标题 `.stc-face` 的 `font-weight: 600` 改为 `400`。仅改底部状态栏单位，不含消息流 token 行。
+  - 实施：web/static/app.js（updateStatus 中单位包 span）+ web/static/style.css（.sb-unit 亮色 + 标题去加粗）
+  - 测试：见 use-case/FEATURE-493/
+  - 进度：核心实现完成——状态栏单位（%/t/s/s）包进 .sb-unit span 用 var(--fg) 亮色显示（深色纯白/亮色纯黑），会话标题栏 .stream-title/.stc-face 去加粗（600→400）。go build+vet 全绿，web 包测试通过，浏览器验证标题去加粗生效 [BUILD-916]
+
+- [ ] **FEATURE-494 文件查看器定位最近提交首个修改位置**
+  - 背景：打开一个文本文件后，希望直接定位到该文件最近一次被修改的提交中的第一个修改位置，方便快速查看最近改动。
+  - 方案（用户确认）：① 后端新增接口（如 /api/gitfirstchange）：`git log -1 -- <file>` 取该文件最近一次被修改的提交 C，再 `git diff C^ C -- <file>` 解析第一个 hunk 的起始行（新侧行号）作为首个修改位置；② 前端 openFilePreview 打开文件后调用该接口，拿到首个修改行号后滚动文件查看器（#fvBody）使该行位于可视区上 1/3 处（scrollTop = 目标行 offsetTop - 可视区高度/3）；③ 无 git 仓库/文件未跟踪/无父提交时返回空，前端不滚动。
+  - 实施：web/server.go（新增 handleGitFirstChange + 路由）+ web/static/app.js（openFilePreview 后调用 + 滚动定位函数）
+  - 测试：见 use-case/FEATURE-494/
+  - 进度：核心实现完成——后端 /api/gitfirstchange 接口（git log -1 取最近提交 C，git diff C^ C 解析首个 hunk 起始行）+ 前端 openFilePreview 打开文件后调用并滚动到可视区上 1/3。修复 git rev-parse 缺 cmd.Dir 导致根提交回退误判的 bug（现正确返回首个修改行）。go build+vet 全绿，web 包 TestGitFirstChange 系列测试通过（修改第 3 行返回 line=3），node --check app.js 通过 [BUILD-917]
+
+---
+
 ## v0.41.0 — 开发中
 
 > **版本**: v0.41.0

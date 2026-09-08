@@ -423,6 +423,10 @@ iterationLoop:
 				}
 			}
 
+			// FEATURE-491: apply the context length limit to the vision
+			// recognition result before it enters the LLM context.
+			recognitionContent = a.limitToolResult(toolName, recognitionContent)
+
 			if isXML {
 				// XML mode: recognition result as a user tool-result message.
 				toolResultMsg := a.buildXMLToolResultMessage(toolName, "", recognitionContent, len(a.messages))
@@ -1535,6 +1539,11 @@ iterationLoop:
 				if toolContent == "" {
 					toolContent = i18n.T(i18n.KeyToolNoOutput)
 				}
+
+				// FEATURE-491: apply the context length limit to the tool result
+				// before it enters the LLM context. Oversized results are truncated
+				// to the head and the full content is saved to tmp/tool-result/.
+				toolContent = a.limitToolResult(tc.Name, toolContent)
 
 				if isXMLMode {
 					// In XML mode, return tool results as user messages with ContentParts structure.

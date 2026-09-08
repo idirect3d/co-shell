@@ -47,19 +47,24 @@ const webIndexHTML = `<!DOCTYPE html>
   .empty .big.run:hover { transform:scale(1.15); }
 
   /* Hub badge floating over the co-shell logo area (top-left, 44px tall to
-     match the co-shell topbar). Clicking it toggles the agent drawer. */
+     match the co-shell topbar). Clicking it toggles the agent drawer.
+     FEATURE-492: after 3s it fades to fully transparent (still covering the
+     co-shell logo area and still clickable); hovering restores it, leaving
+     fades it again. */
   #hubBadge {
     position:fixed; top:0; left:0; height:44px; padding:0 14px;
     display:flex; align-items:center; gap:8px; cursor:pointer; z-index:30;
     background:var(--panel); color:var(--fg); user-select:none;
     border-right:1px solid var(--border); border-bottom:1px solid var(--border);
     border-bottom-right-radius:8px; font-size:14px; white-space:nowrap;
+    opacity:1; transition:opacity .5s ease;
   }
+  #hubBadge.faded { opacity:0; }
+  #hubBadge:hover { background:var(--elev); opacity:1; }
   #hubBadge .mark { color:var(--accent); font-weight:700; transition:color .3s ease; }
   #hubBadge .mark.off { color:var(--fg-faint); } /* disconnected: grey triangle */
   #hubBadge .name { font-weight:600; letter-spacing:.4px; }
   #hubBadge .ver { color:var(--fg-faint); font-size:12px; font-family:ui-monospace,Menlo,monospace; }
-  #hubBadge:hover { background:var(--elev); }
 
   /* Left edge hot-zone that reveals the agent drawer on hover. */
   #edge {
@@ -82,17 +87,23 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentPanel .head .mark { color:var(--accent); }
   #agentPanel .head .close { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:16px; padding:2px 6px; }
   #agentPanel .head .close:hover { color:var(--fg); }
+  /* FEATURE-492: the drawer head close control is a pin. Clicking it pins the
+     drawer open (no auto-collapse on mouseleave); clicking again unpins. */
+  #agentPanel .head .pin { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:15px; padding:2px 6px; line-height:1; transition:color .2s ease, transform .2s ease; }
+  #agentPanel .head .pin:hover { color:var(--fg); }
+  #agentPanel .head .pin.pinned { color:var(--accent); transform:rotate(45deg); }
   #agentList { flex:1; overflow-y:auto; padding:8px; }
   /* Each list row is a swipe container: a red delete button sits behind the
      card and is revealed by swiping the card left. */
   .agent-wrap { position:relative; overflow:hidden; border-radius:8px; margin-bottom:2px; background:var(--panel); }
   .agent-del {
-    position:absolute; top:0; right:0; bottom:0; width:64px; border:none;
+    position:absolute; top:0; right:1px; bottom:0; width:64px; border:none;
     background:var(--err); color:#fff; font-size:13px; font-weight:600; cursor:pointer;
   }
   .agent {
     position:relative; display:flex; align-items:center; gap:8px; padding:8px 10px;
     background:var(--panel); cursor:pointer; font-size:13px; color:var(--fg-dim);
+    border-radius:8px; /* FEATURE-492: match the wrap radius so the delete button behind is fully covered */
     transition:transform .18s ease;
   }
   .agent:hover { background:var(--elev); color:var(--fg); }
@@ -204,7 +215,7 @@ const webIndexHTML = `<!DOCTYPE html>
 <div id="agentPanel">
   <!-- View 1: agent list. -->
   <div class="view" id="viewList">
-    <div class="head"><span class="mark">▸</span>Agents<span class="close" id="panelClose" title="收起">«</span></div>
+    <div class="head"><span class="mark">▸</span>Agents<span class="pin" id="panelPin" title="钉住（不自动收起）">📌</span></div>
     <div id="agentList"></div>
     <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:16px;width:100%">⚙ 设置</button></div>
   </div>
@@ -311,6 +322,8 @@ const webIndexHTML = `<!DOCTYPE html>
     scrim.classList.add('show');
     document.body.classList.add('drawer-open');
   }
+  // FEATURE-492: when the drawer is pinned, leaving it never auto-collapses.
+  var pinned = false;
   function closePanel(){
     panel.classList.remove('open');
     scrim.classList.remove('show');
@@ -318,8 +331,12 @@ const webIndexHTML = `<!DOCTYPE html>
     showView('list');
   }
   function scheduleClose(){
+    if (pinned) return;
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(closePanel, 600);
+    hideTimer = setTimeout(function(){
+      if (pinned) return; // re-check at fire time: pinned drawers never auto-close
+      closePanel();
+    }, 600);
   }
   // showView switches between the list, config and detail views with a slide
   // transition: the current view slides out, then the target slides in.
@@ -348,7 +365,15 @@ const webIndexHTML = `<!DOCTYPE html>
     if (!connected) startPolling(); // disconnected: clicking the triangle reconnects
     panel.classList.contains('open') ? closePanel() : openPanel();
   };
-  document.getElementById('panelClose').onclick = closePanel;
+  // FEATURE-492: the drawer head pin toggles the pinned state. Pinned drawers
+  // stay open (no auto-collapse on mouseleave); clicking the pin again unpins.
+  var pinEl = document.getElementById('panelPin');
+  pinEl.onclick = function(){
+    pinned = !pinned;
+    pinEl.classList.toggle('pinned', pinned);
+    pinEl.title = pinned ? '已钉住（点击取消）' : '钉住（不自动收起）';
+    if (pinned) clearTimeout(hideTimer);
+  };
   // The config view's close/back buttons return to the agent list view.
   document.getElementById('configClose').onclick = function(){ showView('list'); };
   document.getElementById('configBack').onclick = function(){ showView('list'); };
@@ -363,6 +388,13 @@ const webIndexHTML = `<!DOCTYPE html>
     if (viewConfig.classList.contains('hidden')) scheduleClose();
   });
   badge.addEventListener('mouseenter', function(){ clearTimeout(hideTimer); });
+
+  // FEATURE-492: the hub badge shows for 3s on load, then fades to fully
+  // transparent (still covering the co-shell logo area and still clickable).
+  // Hovering restores it; leaving fades it again.
+  setTimeout(function(){ badge.classList.add('faded'); }, 3000);
+  badge.addEventListener('mouseenter', function(){ badge.classList.remove('faded'); });
+  badge.addEventListener('mouseleave', function(){ badge.classList.add('faded'); });
 
   // Load the hub version into the logo badge once.
   function loadHubInfo(){
@@ -514,7 +546,7 @@ const webIndexHTML = `<!DOCTYPE html>
   function setSwipe(card, open){
     card._open = open;
     card.style.transition = 'transform .18s ease';
-    card.style.transform = open ? 'translateX(-64px)' : 'translateX(0)';
+    card.style.transform = open ? 'translateX(-63px)' : 'translateX(0)';
     if (open) openCard = card;
     else if (openCard === card) openCard = null;
   }
@@ -528,7 +560,7 @@ const webIndexHTML = `<!DOCTYPE html>
       var mx = x - startX, my = y - startY;
       if (!card._moved && Math.abs(my) > Math.abs(mx) && Math.abs(my) > 8){ dragging = false; return; } // vertical scroll
       if (Math.abs(mx) > 4) card._moved = true;
-      dx = Math.max(-64, Math.min(0, (card._open ? -64 : 0) + mx));
+      dx = Math.max(-63, Math.min(0, (card._open ? -63 : 0) + mx));
       card.style.transform = 'translateX(' + dx + 'px)';
     }
     function end(){
@@ -650,8 +682,9 @@ const webIndexHTML = `<!DOCTYPE html>
     keyInput.placeholder = '已生成新 KEY，保存后生效';
     sStatus.textContent = '已生成新的访问 KEY（64 位十六进制）。点击保存设置后生效。';
   };
-  // Clicking the scrim closes the whole drawer.
-  scrim.onclick = closePanel;
+  // FEATURE-492: clicking the scrim no longer closes the drawer (the pin
+  // controls auto-collapse; clicking elsewhere should not dismiss it).
+  scrim.onclick = function(e){ e.stopPropagation(); };
   // The empty-state "run" arrow opens the Agent management config view.
   document.getElementById('emptyRun').onclick = function(){ document.getElementById('manageBtn').click(); };
 

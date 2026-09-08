@@ -202,6 +202,7 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("GET /api/download", s.handleDownload)
 	s.mux.HandleFunc("GET /api/file", s.handleFile)
 	s.mux.HandleFunc("GET /api/gitdiff", s.handleGitDiff)
+	s.mux.HandleFunc("GET /api/gitfirstchange", s.handleGitFirstChange)
 	s.mux.HandleFunc("POST /api/test-endpoint", s.handleTestEndpoint)
 	s.mux.HandleFunc("POST /api/test-api-key", s.handleTestAPIKey)
 	s.mux.HandleFunc("POST /api/get-model-max-len", s.handleGetModelMaxLen)
@@ -1106,6 +1107,64 @@ func (s *Server) handleGitDiff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]gitDiffLine{"lines": parseGitDiff(string(out))})
 }
 
+// handleGitFirstChange returns the first changed line of the file's most
+// recent commit (FEATURE-494). It runs `git log -1 --format=%H -- <path>` to
+// find the last commit C that touched the file, then `git diff C^ C -- <path>`
+// and returns the new-side start line of the first hunk (the first changed
+// line in the current file). Returns line=0 when the workspace is not a git
+// repo, the file is untracked, C has no parent (root commit), or git is
+// unavailable.
+func (s *Server) handleGitFirstChange(w http.ResponseWriter, r *http.Request) {
+	abs, err := s.resolvePath(r.URL.Query().Get("path"))
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+	rel, err := filepath.Rel(s.root, abs)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]int{"line": 0})
+		return
+	}
+	if _, err := os.Stat(filepath.Join(s.root, ".git")); err != nil {
+		writeJSON(w, http.StatusOK, map[string]int{"line": 0})
+		return
+	}
+	// Find the most recent commit that touched this file.
+	logCmd := exec.Command("git", "log", "-1", "--format=%H", "--", filepath.ToSlash(rel))
+	logCmd.Dir = s.root
+	commit, err := logCmd.Output()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]int{"line": 0})
+		return
+	}
+	c := strings.TrimSpace(string(commit))
+	if c == "" {
+		writeJSON(w, http.StatusOK, map[string]int{"line": 0})
+		return
+	}
+	// Diff that commit against its parent; a root commit has no parent, so
+	// fall back to diffing against the empty tree (the whole file is new).
+	parent := c + "^"
+	rpCmd := exec.Command("git", "rev-parse", "--verify", parent)
+	rpCmd.Dir = s.root
+	if _, err := rpCmd.Output(); err != nil {
+		parent = emptyTreeHash
+	}
+	diffCmd := exec.Command("git", "diff", parent, c, "--", filepath.ToSlash(rel))
+	diffCmd.Dir = s.root
+	out, err := diffCmd.Output()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]int{"line": 0})
+		return
+	}
+	lines := parseGitDiff(string(out))
+	line := 0
+	if len(lines) > 0 {
+		line = lines[0].Line
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"line": line})
+}
+
 // handleTestEndpoint tests whether the given endpoint is reachable by calling
 // ListModels (GET /models), reusing the autoCompleteEndpoint fallback logic
 // (FEATURE-433). Returns ok + the tested endpoint.
@@ -1206,3 +1265,9 @@ func parseGitDiff(diff string) []gitDiffLine {
 // hunkNewRe matches the new-side start line in a unified diff hunk header
 // `@@ -a,b +c,d @@` and captures c.
 var hunkNewRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)`)
+
+// emptyTreeHash is the well-known SHA-1 of git's empty tree object, used as
+// the diff base for a root commit (which has no parent) so the whole file
+// shows as new (FEATURE-494).
+const emptyTreeHash = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
