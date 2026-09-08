@@ -4,6 +4,33 @@
 
 ---
 
+## v0.42.0 — 开发中
+
+> **版本**: v0.42.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub agent 公告板协作机制（FEATURE-490）
+> **说明**: 0.42.0 系列在 hub 中新增 agent 公告板协作机制，让接入 hub 的多个 co-shell 实例能互相协作：发出协助请求、其他实例按职责匹配响应、私信讨论、执行并返回结果。细分任务：
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-490 | 0.42.0 | P1 | hub agent 公告板协作机制：WS 原生双向通道为主 + MCP 可选外部接入面，广播用巡检感知 + 定向任务用主动注入 |
+
+> 当前 BUILD: 911
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-490 hub agent 公告板协作机制**
+  - 背景：接入 hub 的多个 co-shell 实例目前无法互相协作。需要公告板机制：一个 co-shell 发出协助请求，其他实例按职责匹配响应，条件不足时私信讨论，执行后返回结果。
+  - 方案（用户确认）：① 通信通道：WS 原生双向通道为主 + MCP 作为可选外部接入面；② 下发感知：广播用巡检感知 + 定向任务用主动注入；③ 执行方式：当前会话执行（以后再设计更好的多会话感知机制）；④ 安全边界：co-shell 增加公告板开关，默认关闭；⑤ 本次范围：最小可用闭环（发请求→认领→私信→执行→回结果）；⑥ 版本 v0.42.0（minor 递增）。
+  - 实施：hub/gateway/（board.go + AgentConn 下行通道 + Proxy 识别）+ co-shell（DynamicEventKind 扩展 + serve dispatch board_task + board_result 工具 + 公告板开关）
+  - 测试：见 use-case/FEATURE-490/
+  - 进度：核心实现完成——hub 侧 board.go（Request/DM/Task 状态机 + 职责注册表 + 广播/私信/任务推送）、Proxy 路由 board_* 消息、AgentConn onAgentMessage 回调处理 agent 上行 board_result；co-shell 侧 BoardEnabled 开关（默认关闭）、DynamicBoard* 动态感知、serve dispatch board_task 注入 inputCh、board_result/board_post/board_list/board_claim/board_dm/board_confirm 工具、boardSender 写回 WS。go build+vet 全绿，hub 6 个公告板单测通过 [BUILD-912]
+
+---
+
 ## v0.41.0 — 开发中
 
 > **版本**: v0.41.0

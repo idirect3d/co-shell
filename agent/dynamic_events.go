@@ -50,6 +50,14 @@ const (
 	DynamicOpenFile DynamicEventKind = "open_file"
 	// DynamicViewFile: a file the user single-clicked to preview in-page.
 	DynamicViewFile DynamicEventKind = "view_file"
+	// DynamicBoardRequest: a new help request appeared on the hub bulletin
+	// board (FEATURE-490). Text carries the request summary JSON.
+	DynamicBoardRequest DynamicEventKind = "board_request"
+	// DynamicBoardDM: a direct message arrived on a board thread (FEATURE-490).
+	DynamicBoardDM DynamicEventKind = "board_dm"
+	// DynamicBoardNotify: a board state change notification (claimed/result)
+	// (FEATURE-490).
+	DynamicBoardNotify DynamicEventKind = "board_notify"
 )
 
 // DynamicEvent is one user-action event buffered in the dynamic perception
@@ -174,9 +182,11 @@ func (a *Agent) dynamicEventQueueCapacity() int {
 // events take the raw text. Thread-safe; safe to call while a task is running.
 func (a *Agent) AddDynamicEvent(kind DynamicEventKind, pathOrText string) {
 	ev := DynamicEvent{Kind: kind, Time: time.Now()}
-	if kind == DynamicUserMessage {
+	switch kind {
+	case DynamicUserMessage, DynamicBoardRequest, DynamicBoardDM, DynamicBoardNotify:
+		// Message-like events carry raw text (user messages and board events).
 		ev.Text = pathOrText
-	} else {
+	default:
 		ev.Path = pathOrText
 	}
 	a.dynamicEventQueue().add(ev)
@@ -214,6 +224,10 @@ func (a *Agent) consumeDynamicEvents(includeUserMessages bool) string {
 			sb.WriteString("  <open_file>" + formatFileEvent(ev) + "</open_file>\n")
 		case DynamicViewFile:
 			sb.WriteString("  <view_file>" + formatFileEvent(ev) + "</view_file>\n")
+		case DynamicBoardRequest, DynamicBoardDM, DynamicBoardNotify:
+			// FEATURE-490: board events carry a JSON summary in Text. Render as
+			// a flat tag so the LLM can see the board activity.
+			sb.WriteString("  <" + string(ev.Kind) + ">" + formatEventTime(ev.Time) + " " + ev.Text + "</" + string(ev.Kind) + ">\n")
 		}
 	}
 	sb.WriteString("</user_dynamic_events>")

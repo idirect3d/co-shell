@@ -116,6 +116,17 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	// session menu/count when the current session changes (FEATURE-387).
 	sess.wio.pushSessionList = sess.pushSessionList
 	deps.Ag.SetIO(sess.wio)
+	// FEATURE-490: install the board sender so the agent can push board_*
+	// messages (board_result/board_post/...) back to the hub over the same
+	// WebSocket connection. The hub is the WS client that connected to us.
+	deps.Ag.SetBoardSender(func(msg map[string]interface{}) error {
+		data, err := json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		return srv.sendRaw(data)
+	})
+
 
 	srv.SetMessageHandler(sess.handleMessage)
 	srv.SetDisconnectHook(sess.wio.failAll)
@@ -139,6 +150,18 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		// into the agent's dynamic perception queue so the next tool/user
 		// message injection surfaces it to the LLM.
 		s.ag.AddDynamicEvent(agent.DynamicEventKind(msg.Kind), msg.Value)
+	case "board_task":
+		// FEATURE-490: the hub pushed an execution task to this agent. When the
+		// board switch is enabled, inject it as a marked input so the agent
+		// executes it in the current session; otherwise ignore it (safety).
+		if !s.ag.BoardEnabled() {
+			return
+		}
+		text := "[board-task " + msg.TaskID + " from " + msg.Requester + "] " + msg.Instruction
+		select {
+		case s.inputCh <- clientMessage{Type: "input", Text: text}:
+		case <-s.closed:
+		}
 	case "answer":
 		s.wio.resolve(msg.ID, msg.Value)
 	case "interaction_answer":
