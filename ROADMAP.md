@@ -17,6 +17,7 @@
 | FEATURE-491 | 0.43.0 | P1 | 工具结果上下文长度限制：tool_result_max_size 配置 + 通用截断 + 保存完整内容到 tmp/tool-result/ + 告知 LLM 文件位置/大小/行数 |
 | FEATURE-492 | 0.43.0 | P1 | hub 界面 2 项小优化：左上角 logo/版本信息框 3 秒后渐变透明（hover 恢复）+ 实例列表收起图标改图钉（可钉住不收起） |
 | FEATURE-493 | 0.43.0 | P1 | Web UI 2 项小改进：状态栏数字单位（%/t/s/s）亮色显示（深色纯白/亮色纯黑）+ 会话标题栏去加粗 |
+| FEATURE-494 | 0.43.0 | P1 | 文件查看器打开文件后定位到该文件最近一次提交的第一个修改位置（滚动到可视区上 1/3 处） |
 
 > 当前 BUILD: 912
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -44,6 +45,13 @@
   - 实施：web/static/app.js（updateStatus 中单位包 span）+ web/static/style.css（.sb-unit 亮色 + 标题去加粗）
   - 测试：见 use-case/FEATURE-493/
   - 进度：核心实现完成——状态栏单位（%/t/s/s）包进 .sb-unit span 用 var(--fg) 亮色显示（深色纯白/亮色纯黑），会话标题栏 .stream-title/.stc-face 去加粗（600→400）。go build+vet 全绿，web 包测试通过，浏览器验证标题去加粗生效 [BUILD-916]
+
+- [ ] **FEATURE-494 文件查看器定位最近提交首个修改位置**
+  - 背景：打开一个文本文件后，希望直接定位到该文件最近一次被修改的提交中的第一个修改位置，方便快速查看最近改动。
+  - 方案（用户确认）：① 后端新增接口（如 /api/gitfirstchange）：`git log -1 -- <file>` 取该文件最近一次被修改的提交 C，再 `git diff C^ C -- <file>` 解析第一个 hunk 的起始行（新侧行号）作为首个修改位置；② 前端 openFilePreview 打开文件后调用该接口，拿到首个修改行号后滚动文件查看器（#fvBody）使该行位于可视区上 1/3 处（scrollTop = 目标行 offsetTop - 可视区高度/3）；③ 无 git 仓库/文件未跟踪/无父提交时返回空，前端不滚动。
+  - 实施：web/server.go（新增 handleGitFirstChange + 路由）+ web/static/app.js（openFilePreview 后调用 + 滚动定位函数）
+  - 测试：见 use-case/FEATURE-494/
+  - 进度：核心实现完成——后端 /api/gitfirstchange 接口（git log -1 取最近提交 C，git diff C^ C 解析首个 hunk 起始行）+ 前端 openFilePreview 打开文件后调用并滚动到可视区上 1/3。修复 git rev-parse 缺 cmd.Dir 导致根提交回退误判的 bug（现正确返回首个修改行）。go build+vet 全绿，web 包 TestGitFirstChange 系列测试通过（修改第 3 行返回 line=3），node --check app.js 通过 [BUILD-917]
 
 ---
 
