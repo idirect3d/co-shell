@@ -16,6 +16,7 @@
 |------|------|------|------|
 | FEATURE-491 | 0.43.0 | P1 | 工具结果上下文长度限制：tool_result_max_size 配置 + 通用截断 + 保存完整内容到 tmp/tool-result/ + 告知 LLM 文件位置/大小/行数 |
 | FEATURE-492 | 0.43.0 | P1 | hub 界面 2 项小优化：左上角 logo/版本信息框 3 秒后渐变透明（hover 恢复）+ 实例列表收起图标改图钉（可钉住不收起） |
+| FEATURE-493 | 0.43.0 | P1 | Web UI 2 项小改进：状态栏数字单位（%/t/s/s）亮色显示（深色纯白/亮色纯黑）+ 会话标题栏去加粗 |
 
 > 当前 BUILD: 912
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -36,6 +37,13 @@
   - 实施：hub/gateway/webui_static.go（内嵌 HTML/CSS/JS：badge 自动透明 + hover 恢复；图钉图标 + 钉住状态）+ cmd/co-shell-hub/main.go（hub 版本号/build 计数）
   - 测试：见 use-case/FEATURE-492/
   - 进度：核心实现完成——#hubBadge 初始化显示 3 秒后渐变透明（opacity 0，仍盖住下方、可点击），hover 恢复不透明、移走变透明；#panelClose 改为图钉图标（📌），点击钉住后 mouseleave 不自动收起、再次点击取消钉住恢复自动收起。go build+vet 全绿，浏览器验证 10 个用例全部通过 [BUILD-879]
+
+- [ ] **FEATURE-493 Web UI 2 项小改进（状态栏单位亮色 + 标题去加粗）**
+  - 背景：① 状态栏数字信息单位（%、t/s、s）颜色偏暗，希望显示为"亮"色（深色主题纯白、亮色主题纯黑）更醒目；② 会话标题栏字体加粗，希望去掉加粗更简洁。
+  - 方案（用户确认）：① 状态栏单位字符（%、t/s、s）包进 `<span class="sb-unit">`，CSS 用 `var(--fg)`（深色=纯白 #d5dbe7、亮色=纯黑 #1d2433）；② 会话标题栏 `.stream-title` 与窄屏循环标题 `.stc-face` 的 `font-weight: 600` 改为 `400`。仅改底部状态栏单位，不含消息流 token 行。
+  - 实施：web/static/app.js（updateStatus 中单位包 span）+ web/static/style.css（.sb-unit 亮色 + 标题去加粗）
+  - 测试：见 use-case/FEATURE-493/
+  - 进度：核心实现完成——状态栏单位（%/t/s/s）包进 .sb-unit span 用 var(--fg) 亮色显示（深色纯白/亮色纯黑），会话标题栏 .stream-title/.stc-face 去加粗（600→400）。go build+vet 全绿，web 包测试通过，浏览器验证标题去加粗生效 [BUILD-916]
 
 ---
 
