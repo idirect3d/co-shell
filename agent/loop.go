@@ -128,6 +128,9 @@ type Agent struct {
 	// events (clip/upload/message/open) buffered while a task runs and drained
 	// into <environment_details> on each user/tool message injection.
 	dynEvents *dynamicEventQueue
+	// boardSender is the callback the web session installs so the agent can
+	// push board_* messages back to the hub (FEATURE-490).
+	boardSender BoardSender
 	memoryEnabled   bool     // whether persistent memory tools are enabled
 	planEnabled     bool     // whether task plan tools are enabled
 	subAgentEnabled bool     // whether sub-agent tools are enabled
@@ -1984,4 +1987,13 @@ func (a *Agent) GetLLMTiming() LLMTiming {
 	a.llmStreamEndTime = time.Time{}
 
 	return result
+}
+
+// SetBoardSender installs the callback used to push board_* messages back
+// to the hub over the WebSocket connection (FEATURE-490). It is set by the
+// web session when the agent runs in serve mode.
+func (a *Agent) SetBoardSender(fn BoardSender) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.boardSender = fn
 }

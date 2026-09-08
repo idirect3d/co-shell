@@ -89,6 +89,15 @@ func (a *Agent) SetIO(io UserIO) {
 	}
 }
 
+// BoardEnabled reports whether the hub agent bulletin board collaboration is
+// enabled (FEATURE-490). When false, board_task execution messages are ignored.
+func (a *Agent) BoardEnabled() bool {
+	if a.cfg != nil {
+		return a.cfg.BoardEnabled
+	}
+	return false
+}
+
 // interactionManager returns the unified interaction manager. When the
 // installed UserIO implements InteractionManager it is used directly;
 // otherwise a TerminalInteractionManager over the UserIO is used (FEATURE-388).
