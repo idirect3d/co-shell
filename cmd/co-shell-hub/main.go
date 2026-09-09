@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -46,7 +47,7 @@ import (
 // co-shell release they ship with (same version/build numbering).
 const (
 	hubVersion = "0.44.0"
-	hubBuild   = "920"
+	hubBuild   = "921"
 )
 
 // config is the JSON config file shape.
@@ -281,7 +282,11 @@ func defaultCoShellPath() string {
 	if err != nil {
 		return "co-shell"
 	}
-	return filepath.Join(filepath.Dir(exe), "co-shell")
+	name := "co-shell"
+	if runtime.GOOS == "windows" {
+		name = "co-shell.exe"
+	}
+	return filepath.Join(filepath.Dir(exe), name)
 }
 
 // multiFlag collects repeated string flags.
