@@ -14,14 +14,6 @@ import (
 	"time"
 )
 
-// coShellBinName is the co-shell executable name on the current platform.
-func coShellBinName() string {
-	if runtime.GOOS == "windows" {
-		return "co-shell.exe"
-	}
-	return "co-shell"
-}
-
 // coShellVersionRe matches the "co-shell vX.Y.Z [BUILD-N]" version banner.
 var coShellVersionRe = regexp.MustCompile(`v?(\d+\.\d+\.\d+)(?:\s+\[BUILD-(\d+)\])?`)
 
@@ -34,8 +26,16 @@ type coShellInfo struct {
 	OK      bool   `json:"ok"` // true if the file exists and is executable
 }
 
+// coShellPrefix is the file-name prefix of co-shell executables. Files whose
+// name starts with this prefix (e.g. "co-shell", "co-shell-0.44.0.darwin.arm64",
+// "co-shell-0.44.0.exe") are candidates for the dropdown.
+const coShellPrefix = "co-shell"
+
 // DetectCoShells finds co-shell executables in the current working directory
-// and the first match on PATH. It returns them in priority order (cwd first).
+// and on PATH. It scans every executable whose file name starts with
+// "co-shell" (including versioned names like co-shell-0.44.0.darwin.arm64),
+// verifies each candidate by running "--version" (only real co-shell binaries
+// are listed), and returns them in priority order (cwd first).
 func DetectCoShells() []coShellInfo {
 	var out []coShellInfo
 	seen := map[string]bool{}
@@ -54,40 +54,67 @@ func DetectCoShells() []coShellInfo {
 		seen[abs] = true
 		info := coShellInfo{Path: abs, Source: source}
 		if st, err := os.Stat(abs); err == nil && !st.IsDir() && st.Mode()&0111 != 0 {
-			info.OK = true
+			// Verify the candidate is a real co-shell binary by running
+			// "--version". Only candidates that report a version are listed, so
+			// the UI dropdown never offers a path that cannot run.
 			info.Version, info.Build = coShellVersion(abs)
+			if info.Version != "" {
+				info.OK = true
+			}
 		}
-		// Only list co-shell executables that exist and are executable, so the
-		// UI dropdown never offers a path that cannot run.
 		if info.OK {
 			out = append(out, info)
 		}
 	}
 
-	// Current working directory.
+	// Current working directory: every executable starting with "co-shell".
 	if cwd, err := os.Getwd(); err == nil {
-		add(filepath.Join(cwd, coShellBinName()), "cwd")
+		for _, p := range coShellCandidates(cwd) {
+			add(p, "cwd")
+		}
 	}
-	// First co-shell on PATH.
-	if p := findOnPath(coShellBinName()); p != "" {
-		add(p, "path")
+	// PATH: every executable starting with "co-shell" in each PATH directory.
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" {
+			continue
+		}
+		for _, p := range coShellCandidates(dir) {
+			add(p, "path")
+		}
 	}
 	return out
 }
 
-// findOnPath returns the first directory entry matching name on PATH.
-func findOnPath(name string) string {
-	pathEnv := os.Getenv("PATH")
-	for _, dir := range filepath.SplitList(pathEnv) {
-		if dir == "" {
+// coShellCandidates returns the paths of executable files in dir whose name
+// starts with the co-shell prefix. On Windows only files with the .exe
+// extension are considered (matching how the OS resolves executables).
+func coShellCandidates(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
 			continue
 		}
-		cand := filepath.Join(dir, name)
-		if st, err := os.Stat(cand); err == nil && !st.IsDir() && st.Mode()&0111 != 0 {
-			return cand
+		name := e.Name()
+		if !strings.HasPrefix(name, coShellPrefix) {
+			continue
 		}
+		if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(name), ".exe") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.Mode()&0111 == 0 {
+			continue
+		}
+		out = append(out, filepath.Join(dir, name))
 	}
-	return ""
+	return out
 }
 
 // coShellVersion runs "<path> --version" and parses the version/build banner.
