@@ -181,6 +181,8 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.handleMCPUpdate(msg.Name, msg.Command, msg.Args, msg.Enabled, msg.URL)
 	case "mcp_remove":
 		s.handleMCPRemove(msg.Name)
+	case "mcp_test":
+		s.handleMCPTest(msg.Name)
 	case "identity_get":
 		s.handleIdentityGet()
 	case "identity_set":
@@ -311,7 +313,20 @@ func (s *WebSession) handleMCPRemove(name string) {
 	s.handleMCPGet()
 }
 
-// handleIdentityGet sends the current identity & personality fields to the
+// handleMCPTest reconnects to an MCP server (connectivity test) and refreshes
+// its tool list, then pushes the updated server list to the browser
+// (FEATURE-498 ext).
+func (s *WebSession) handleMCPTest(name string) {
+	if s.mcp == nil || name == "" {
+		return
+	}
+	if _, err := s.mcp.TestServerJSON(name); err != nil {
+		s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: false, Message: err.Error()})
+		return
+	}
+	s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: true, Message: name})
+	s.handleMCPGet()
+}
 // browser (FEATURE-393).
 func (s *WebSession) handleIdentityGet() {
 	if s.settings == nil {

@@ -29,6 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/idirect3d/co-shell/log"
@@ -167,6 +168,31 @@ func (m *Manager) RemoveServer(name string) error {
 	err := c.client.Close()
 	delete(m.servers, name)
 	return err
+}
+
+// TestServer reconnects to an MCP server (connectivity test) and refreshes its
+// cached tool list, returning the current tool call names (FEATURE-498 ext).
+func (m *Manager) TestServer(name, command string, args []string, url string) ([]string, error) {
+	// Drop any existing connection so AddServer can reconnect fresh.
+	if err := m.RemoveServer(name); err != nil {
+		// Ignore "not found" — the server may simply not be connected yet.
+		if !strings.Contains(err.Error(), "not found") {
+			return nil, err
+		}
+	}
+	if err := m.AddServer(name, command, args, url); err != nil {
+		return nil, err
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var names []string
+	if c, ok := m.servers[name]; ok {
+		for _, t := range c.tools {
+			names = append(names, t.Name)
+		}
+	}
+	return names, nil
 }
 
 // ListServers returns the status of all connected MCP servers.

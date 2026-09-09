@@ -212,10 +212,25 @@ type WebMCPServer struct {
 	Enabled bool     `json:"enabled"`
 	// URL is the SSE endpoint for a remote MCP server (FEATURE-498).
 	URL string `json:"url,omitempty"`
+	// Tools lists the tool call names exposed by this connected server
+	// (FEATURE-498 extension). Empty when the server is not connected.
+	Tools []string `json:"tools,omitempty"`
 }
 
 // MCPServersJSON returns the current MCP server list for the Web UI.
 func (h *MCPHandler) MCPServersJSON() []WebMCPServer {
+	// Map connected server name -> tool names from the live MCP manager.
+	toolMap := map[string][]string{}
+	if h.mcpMgr != nil {
+		for _, st := range h.mcpMgr.ListServers() {
+			var names []string
+			for _, t := range st.Tools {
+				names = append(names, t.Name)
+			}
+			toolMap[st.Name] = names
+		}
+	}
+
 	servers := make([]WebMCPServer, 0, len(h.cfg.MCP.Servers))
 	for _, s := range h.cfg.MCP.Servers {
 		servers = append(servers, WebMCPServer{
@@ -224,6 +239,7 @@ func (h *MCPHandler) MCPServersJSON() []WebMCPServer {
 			Args:    s.Args,
 			Enabled: s.Enabled,
 			URL:     s.URL,
+			Tools:   toolMap[s.Name],
 		})
 	}
 	return servers
@@ -239,6 +255,20 @@ func (h *MCPHandler) AddServerJSON(name, command string, args []string, url stri
 // RemoveServerJSON removes an MCP server from the Web UI (FEATURE-464).
 func (h *MCPHandler) RemoveServerJSON(name string) (string, error) {
 	return h.removeServer([]string{name})
+}
+
+// TestServerJSON reconnects to an MCP server (connectivity test) and refreshes
+// its tool list, returning the current tool call names (FEATURE-498 ext).
+func (h *MCPHandler) TestServerJSON(name string) ([]string, error) {
+	if h.mcpMgr == nil {
+		return nil, fmt.Errorf("MCP manager unavailable")
+	}
+	for _, s := range h.cfg.MCP.Servers {
+		if s.Name == name {
+			return h.mcpMgr.TestServer(name, s.Command, s.Args, s.URL)
+		}
+	}
+	return nil, fmt.Errorf("%s", i18n.TF(i18n.KeyMCPNotFound, name))
 }
 
 // UpdateServerJSON updates an existing MCP server's command/args/enabled from
