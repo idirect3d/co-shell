@@ -2950,6 +2950,7 @@ async function uploadAndSend(text) {
     input.value = "";
     autoGrow();
     if (wsReady) setRunning(true);
+    input.blur();
     return true;
   } finally {
     attachSending = false;
@@ -2975,6 +2976,7 @@ function sendInput() {
     answerInteraction({ action: "input", value: text });
     input.value = "";
     autoGrow();
+    input.blur();
     return;
   }
   // FEATURE-449: submitting a fresh command starts a new task, so clear the
@@ -2991,6 +2993,7 @@ function sendInput() {
     renderUserEcho(text);
     input.value = "";
     autoGrow();
+    input.blur();
     return;
   }
   wsSend({ type: "input", text });
@@ -3000,6 +3003,7 @@ function sendInput() {
   input.value = "";
   autoGrow();
   if (wsReady) setRunning(true);
+  input.blur();
 }
 
 // backfillInput prepends unconsumed user_message texts (joined by a blank
