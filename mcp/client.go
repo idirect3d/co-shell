@@ -101,8 +101,17 @@ func (m *Manager) AddServer(name, command string, args []string, url string) err
 	var c client.MCPClient
 	var err error
 	if url != "" {
-		// Create SSE-based MCP client for a remote server.
-		c, err = client.NewSSEMCPClient(url)
+		// Create SSE-based MCP client for a remote server. We use our own fixed
+		// SSE client (sse_client.go) because the upstream mcp-go v0.8.3 client
+		// rejects relative-path "endpoint" events (FEATURE-498 fix).
+		sse, err := newSSEClient(url)
+		if err != nil {
+			return fmt.Errorf("cannot create MCP client for %q: %w", name, err)
+		}
+		if err := sse.start(context.Background()); err != nil {
+			return fmt.Errorf("cannot connect to MCP server %q: %w", name, err)
+		}
+		c = sse
 	} else {
 		// Create stdio-based MCP client
 		c, err = client.NewStdioMCPClient(
