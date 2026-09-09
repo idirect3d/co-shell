@@ -4543,6 +4543,14 @@ function renderMCPServerManager(fetch) {
   nameInput.value = editing ? editing.name : "";
   if (editing) nameInput.disabled = true; // name is the identity key
 
+  const urlLbl = document.createElement("span");
+  urlLbl.className = "mcp-form-label";
+  urlLbl.textContent = i18nT("mcpUrl", "URL (SSE)");
+  const urlInput = document.createElement("input");
+  urlInput.className = "set-input mcp-url";
+  urlInput.placeholder = i18nT("mcpUrlPh", "远程 SSE 地址，如 http://host:port/sse（留空则用本地命令）");
+  urlInput.value = editing ? (editing.url || "") : "";
+
   const cmdLbl = document.createElement("span");
   cmdLbl.className = "mcp-form-label";
   cmdLbl.textContent = i18nT("mcpCommand", "命令");
@@ -4568,16 +4576,17 @@ function renderMCPServerManager(fetch) {
     const name = nameInput.value.trim();
     const command = cmdInput.value.trim();
     const args = argsInput.value.trim() ? argsInput.value.trim().split(/\s+/) : [];
-    if (!name || !command) {
-      showMCPResult({ ok: false, message: i18nT("mcpNeedNameCmd", "名称和命令不能为空") });
+    const url = urlInput.value.trim();
+    if (!name || (!command && !url)) {
+      showMCPResult({ ok: false, message: i18nT("mcpNeedNameCmd", "名称和命令/URL 不能同时为空") });
       return;
     }
     if (editing) {
       // FIX-465: enabled is toggled on the card, not in the edit form.
       const cur = mcpServers.find((s) => s.name === name);
-      wsSend({ type: "mcp_update", name, command, args, enabled: cur ? cur.enabled : true });
+      wsSend({ type: "mcp_update", name, command, args, enabled: cur ? cur.enabled : true, url });
     } else {
-      wsSend({ type: "mcp_add", name, command, args });
+      wsSend({ type: "mcp_add", name, command, args, url });
     }
     mcpEditing = null;
   };
@@ -4591,6 +4600,7 @@ function renderMCPServerManager(fetch) {
   }
 
   form.appendChild(nameLbl); form.appendChild(nameInput);
+  form.appendChild(urlLbl); form.appendChild(urlInput);
   form.appendChild(cmdLbl); form.appendChild(cmdInput);
   form.appendChild(argsLbl); form.appendChild(argsInput);
   form.appendChild(btnRow);
@@ -4638,7 +4648,7 @@ function renderMCPServerRow(s) {
   toggleInput.type = "checkbox";
   toggleInput.checked = !!s.enabled;
   toggleInput.onchange = () => {
-    wsSend({ type: "mcp_update", name: s.name, command: s.command, args: s.args || [], enabled: toggleInput.checked });
+    wsSend({ type: "mcp_update", name: s.name, command: s.command, args: s.args || [], enabled: toggleInput.checked, url: s.url || "" });
   };
   const slider = document.createElement("span");
   slider.className = "mcp-toggle-slider";
@@ -4657,10 +4667,10 @@ function renderMCPServerRow(s) {
   head.appendChild(delBtn);
   row.appendChild(head);
 
-  // Second line: command text (clickable to edit), single full row.
+  // Second line: command/URL text (clickable to edit), single full row.
   const detail = document.createElement("div");
   detail.className = "mcp-row-detail";
-  detail.textContent = s.command + (s.args && s.args.length ? " " + s.args.join(" ") : "");
+  detail.textContent = s.url ? s.url : (s.command + (s.args && s.args.length ? " " + s.args.join(" ") : ""));
   detail.title = i18nT("mcpEditHint", "点击编辑");
   detail.onclick = () => { mcpEditing = s.name; renderMCPServerManager(); };
   row.appendChild(detail);

@@ -86,8 +86,10 @@ func NewManager() *Manager {
 	}
 }
 
-// AddServer starts and connects to an MCP server.
-func (m *Manager) AddServer(name, command string, args []string) error {
+// AddServer starts and connects to an MCP server. When url is non-empty the
+// server is connected over SSE (remote); otherwise it is launched as a local
+// stdio process (FEATURE-498).
+func (m *Manager) AddServer(name, command string, args []string, url string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -95,12 +97,19 @@ func (m *Manager) AddServer(name, command string, args []string) error {
 		return fmt.Errorf("server %q already exists", name)
 	}
 
-	// Create stdio-based MCP client
-	c, err := client.NewStdioMCPClient(
-		command,
-		nil, // env
-		args...,
-	)
+	var c client.MCPClient
+	var err error
+	if url != "" {
+		// Create SSE-based MCP client for a remote server.
+		c, err = client.NewSSEMCPClient(url)
+	} else {
+		// Create stdio-based MCP client
+		c, err = client.NewStdioMCPClient(
+			command,
+			nil, // env
+			args...,
+		)
+	}
 	if err != nil {
 		return fmt.Errorf("cannot create MCP client for %q: %w", name, err)
 	}

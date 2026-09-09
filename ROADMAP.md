@@ -4,6 +4,33 @@
 
 ---
 
+## v0.45.0 — 开发中
+
+> **版本**: v0.45.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: MCP server 支持 SSE URL 连接（FEATURE-498）
+> **说明**: 0.45.0 系列为 MCP server 配置界面增加通过 URL（SSE 传输）连接远程 MCP server 的能力。当前 MCP server 仅支持 stdio（本地命令）方式，本次新增 SSE URL 连接：配置结构增加 URL 字段，连接层根据 URL 选择 SSE 客户端，Web UI 配置界面增加 URL 输入框。暂不支持鉴权。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-498 | 0.45.0 | P1 | MCP server 支持 SSE URL 连接：MCPServerConfig 增加 URL 字段 + mcp/client.go AddServer 支持 SSE 客户端 + Web UI 配置界面增加 URL 输入框 + WebSocket 消息透传 URL |
+
+> 当前 BUILD: 923
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-498 MCP server 支持 SSE URL 连接**
+  - 背景：co-shell 的 MCP server 配置界面（Web UI 系统设置 MCP Server 区块 + REPL :mcp）目前只支持 stdio（本地命令）方式连接，无法通过 URL 连接远程 MCP server。底层依赖库 mark3labs/mcp-go v0.8.3 已内置 SSE 客户端（client.NewSSEMCPClient），具备 URL 连接能力但未被使用。
+  - 方案（用户确认）：① 先支持 SSE 传输，暂不考虑鉴权；② config.MCPServerConfig 增加 URL 字段（非空时走 SSE 连接，为空走 stdio）；③ mcp/client.go AddServer 根据 URL 选择 NewSSEMCPClient 或 NewStdioMCPClient；④ cmd/mcp.go WebMCPServer 透传 URL；⑤ Web UI 配置界面（web/static/app.js）表单增加 URL 输入框，卡片展示 URL；⑥ web/session.go/web/server.go WebSocket 消息透传 URL；⑦ i18n 文案。
+  - 实施：config/config.go + mcp/client.go + cmd/mcp.go + web/static/app.js + web/session.go + web/server.go + i18n/ + main.go + cmd/co-shell-hub/main.go（版本号 0.45.0 + build 计数）
+  - 测试：见 use-case/FEATURE-498/
+  - 进度：核心实现完成——config.MCPServerConfig 增加 URL 字段（omitempty）；mcp/client.go AddServer 增加 url 参数（非空走 NewSSEMCPClient，为空走 NewStdioMCPClient）；cmd/mcp.go addServerWithURL 支持 url + WebMCPServer/MCPServersJSON/AddServerJSON/UpdateServerJSON 透传 url；web/server.go clientMessage 增加 URL 字段；web/session.go handleMCPAdd/handleMCPUpdate 透传 url；web/static/app.js 表单增加 URL 输入框（命令/URL 至少填一）+ 卡片展示 URL + toggle 传 url；main.go 启动连接传 serverCfg.URL。go build+vet 全绿，node --check app.js 通过，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-925]
+
+---
+
 ## v0.44.1 — 开发中
 
 > **版本**: v0.44.1

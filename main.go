@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.44.1"
+const version = "0.45.0"
 
-const build = "923"
+const build = "925"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1139,7 +1139,7 @@ func main() {
 	// Connect to enabled MCP servers from config
 	for _, serverCfg := range cfg.MCP.Servers {
 		if serverCfg.Enabled {
-			if err := mcpMgr.AddServer(serverCfg.Name, serverCfg.Command, serverCfg.Args); err != nil {
+			if err := mcpMgr.AddServer(serverCfg.Name, serverCfg.Command, serverCfg.Args, serverCfg.URL); err != nil {
 				log.Warn("Cannot connect to MCP server %q: %v", serverCfg.Name, err)
 				io.ErrPrintf("Warning: cannot connect to MCP server %q: %v\n", serverCfg.Name, err)
 			} else {

@@ -78,7 +78,13 @@ func (h *MCPHandler) addServer(args []string) (string, error) {
 	if len(args) > 2 {
 		cmdArgs = args[2:]
 	}
+	return h.addServerWithURL(name, command, cmdArgs, "")
+}
 
+// addServerWithURL adds an MCP server with an optional SSE URL (FEATURE-498).
+// When url is non-empty the server is connected over SSE; otherwise it is
+// launched as a local stdio process.
+func (h *MCPHandler) addServerWithURL(name, command string, args []string, url string) (string, error) {
 	// Check for duplicates
 	for _, s := range h.cfg.MCP.Servers {
 		if s.Name == name {
@@ -89,12 +95,13 @@ func (h *MCPHandler) addServer(args []string) (string, error) {
 	server := config.MCPServerConfig{
 		Name:    name,
 		Command: command,
-		Args:    cmdArgs,
+		Args:    args,
 		Enabled: true,
+		URL:     url,
 	}
 	h.cfg.MCP.Servers = append(h.cfg.MCP.Servers, server)
 
-	if err := h.mcpMgr.AddServer(name, command, cmdArgs); err != nil {
+	if err := h.mcpMgr.AddServer(name, command, args, url); err != nil {
 		log.Warn("MCP server %s added to config but connection failed: %v", name, err)
 	}
 
@@ -144,7 +151,7 @@ func (h *MCPHandler) enableServer(args []string) (string, error) {
 	for i, s := range h.cfg.MCP.Servers {
 		if s.Name == name {
 			h.cfg.MCP.Servers[i].Enabled = true
-			if err := h.mcpMgr.AddServer(name, s.Command, s.Args); err != nil {
+			if err := h.mcpMgr.AddServer(name, s.Command, s.Args, s.URL); err != nil {
 				log.Warn("MCP server %s enabled but connection failed: %v", name, err)
 			}
 			if err := h.cfg.Save(); err != nil {
@@ -203,6 +210,8 @@ type WebMCPServer struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
 	Enabled bool     `json:"enabled"`
+	// URL is the SSE endpoint for a remote MCP server (FEATURE-498).
+	URL string `json:"url,omitempty"`
 }
 
 // MCPServersJSON returns the current MCP server list for the Web UI.
@@ -214,15 +223,17 @@ func (h *MCPHandler) MCPServersJSON() []WebMCPServer {
 			Command: s.Command,
 			Args:    s.Args,
 			Enabled: s.Enabled,
+			URL:     s.URL,
 		})
 	}
 	return servers
 }
 
 // AddServerJSON adds a new MCP server from the Web UI (FEATURE-464). It returns
-// the localized result message.
-func (h *MCPHandler) AddServerJSON(name, command string, args []string) (string, error) {
-	return h.addServer(append([]string{name, command}, args...))
+// the localized result message. When url is non-empty the server is connected
+// over SSE (FEATURE-498).
+func (h *MCPHandler) AddServerJSON(name, command string, args []string, url string) (string, error) {
+	return h.addServerWithURL(name, command, args, url)
 }
 
 // RemoveServerJSON removes an MCP server from the Web UI (FEATURE-464).
@@ -232,7 +243,7 @@ func (h *MCPHandler) RemoveServerJSON(name string) (string, error) {
 
 // UpdateServerJSON updates an existing MCP server's command/args/enabled from
 // the Web UI (FEATURE-464). It returns the localized result message.
-func (h *MCPHandler) UpdateServerJSON(name, command string, args []string, enabled bool) (string, error) {
+func (h *MCPHandler) UpdateServerJSON(name, command string, args []string, enabled bool, url string) (string, error) {
 	index := -1
 	for i, s := range h.cfg.MCP.Servers {
 		if s.Name == name {
@@ -248,13 +259,14 @@ func (h *MCPHandler) UpdateServerJSON(name, command string, args []string, enabl
 	h.cfg.MCP.Servers[index].Command = command
 	h.cfg.MCP.Servers[index].Args = args
 	h.cfg.MCP.Servers[index].Enabled = enabled
+	h.cfg.MCP.Servers[index].URL = url
 
-	// Reconnect the server to reflect the new command/args/enabled state.
+	// Reconnect the server to reflect the new command/args/enabled/url state.
 	if err := h.mcpMgr.RemoveServer(name); err != nil {
 		log.Warn("MCP server %s removed during update but disconnect error: %v", name, err)
 	}
 	if enabled {
-		if err := h.mcpMgr.AddServer(name, command, args); err != nil {
+		if err := h.mcpMgr.AddServer(name, command, args, url); err != nil {
 			log.Warn("MCP server %s updated but connection failed: %v", name, err)
 		}
 	}

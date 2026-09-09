@@ -753,6 +753,9 @@ type MCPServerConfig struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
 	Enabled bool     `json:"enabled"`
+	// URL is the SSE endpoint for a remote MCP server (FEATURE-498). When
+	// non-empty, the server is connected over SSE instead of stdio.
+	URL string `json:"url,omitempty"`
 }
 
 // DBConfig holds PostgreSQL database connection configuration.
