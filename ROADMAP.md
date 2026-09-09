@@ -22,12 +22,12 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-499 Hub Agents 列表优化：点击外部收起 + 三态状态指示灯**
+- [x] **FEATURE-499 Hub Agents 列表优化：点击外部收起 + 三态状态指示灯**
   - 背景：hub 界面（hub/gateway/webui_static.go 内嵌 HTML）的 Agents 列表存在两处体验问题：① FEATURE-492 移除了点击列表之外自动收起（scrim 点击仅 stopPropagation），用户希望恢复；② 列表每个 Agent 前的指示灯当前仅两态（on=绿 running/connected、off=红），用户希望改为三态实时监测：关闭=灰、已打开空闲=绿、正在执行任务=红呼吸灯。第三态需要 hub 感知 agent 是否正在执行任务，当前 /api/agents 仅返回 running/connected，无 busy 信号。
   - 方案（用户确认）：① 前端恢复点击 scrim/列表外自动收起（保留 pin 钉住功能）；② 后端新增 agent busy 状态——co-shell agent 暴露是否正在执行任务状态，hub 向每个已连接 agent 查询并在 /api/agents 返回 busy 字段；③ 前端指示灯三态：关闭灰、空闲绿、执行中红呼吸灯（CSS 动画）。
   - 实施：hub/gateway/webui_static.go + hub/gateway/webui.go + hub/gateway/agent.go/proxy.go + co-shell agent 端（web/ 或 agent/）+ main.go + cmd/co-shell-hub/main.go（版本号 0.46.0 + build 计数）
   - 测试：见 use-case/FEATURE-499/
-  - 进度：待开发
+  - 进度：完成——前端恢复点击 scrim/列表外自动收起（保留 pin 钉住）；指示灯三态 CSS（灰/绿/红呼吸灯 stBreath 动画）+ renderList 按 running/connected/busy 三态渲染；后端新增 agent busy 状态（agent/loop.go busyCount+SetBusy/IsBusy，RunStream 入口/出口设置 busy；web/server.go /api/status 端点+SetBusyProvider；web/session.go 注册 busy provider；hub/gateway/detect.go agentBusy helper；hub/gateway/webui.go agentView.Busy + handleListAgents 查询各 agent /api/status）。go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/，合并 main 打标签 v0.46.0 [BUILD-935]
 
 ---
 
