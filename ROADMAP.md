@@ -38,6 +38,7 @@
   - 实施：cmd/co-shell-hub/main.go + bridge/config.go + hub/hub.go（按 runtime.GOOS 判断 .exe 后缀）
   - 测试：见 use-case/FIX-497/
   - 进度：完成——cmd/co-shell-hub/main.go defaultCoShellPath 在 Windows 返回 co-shell.exe；bridge/config.go 新增 coShellBinName() 并在同目录/PATH 查找 .exe；hub/hub.go DefaultConfig 在 Windows 默认 co-shell.exe。go build+vet 全绿，GOOS=windows 交叉编译通过 [BUILD-921]
+  - 进度（增强）：hub/gateway/detect.go DetectCoShells 改为扫描当前目录/PATH 中所有以 co-shell 开头的可执行文件（含版本号如 co-shell-0.44.0.darwin.arm64），引用前先执行 --version 确认是 co-shell 才放入下拉列表；新增 coShellCandidates 辅助函数 + 单元测试 detect_test.go。go build+vet 全绿，GOOS=windows 交叉编译通过，hub 模块测试通过 [BUILD-922]
 
 ---
 
