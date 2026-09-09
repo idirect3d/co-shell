@@ -14,32 +14,26 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// sseClient is a fixed SSE MCP client that correctly handles a relative-path
-// "endpoint" event (e.g. "/message?sessionId=...") by resolving it against the
-// base URL. The upstream mark3labs/mcp-go v0.8.3 SSEMCPClient rejects such
-// endpoints because it compares endpoint.Host (empty for a relative path)
-// against baseURL.Host, so it never sets the endpoint and later fails with
-// "endpoint not received". This implementation drops that host check and
-// resolves relative endpoints with baseURL.ResolveReference.
+// sseClient is a self-contained SSE MCP client. It connects to a remote server
+// over Server-Sent Events, waits for the "endpoint" event, then sends JSON-RPC
+// requests over HTTP POST to that endpoint while receiving responses over the
+// SSE stream. It correctly handles a relative-path endpoint (e.g.
+// "/message?sessionId=...") by resolving it against the base URL.
 type sseClient struct {
-	baseURL       *url.URL
-	endpoint      *url.URL
-	httpClient    *http.Client
-	requestID     atomic.Int64
-	responses     map[int64]chan client.RPCResponse
-	mu            sync.RWMutex
-	done          chan struct{}
-	initialized   bool
-	endpointChan  chan struct{}
-	capabilities  mcp.ServerCapabilities
+	baseURL      *url.URL
+	endpoint     *url.URL
+	httpClient   *http.Client
+	requestID    atomic.Int64
+	responses    map[int64]chan jsonrpcResponse
+	mu           sync.Mutex
+	done         chan struct{}
+	initialized  bool
+	endpointChan chan struct{}
 }
 
-// newSSEClient creates a fixed SSE MCP client for the given base URL.
+// newSSEClient creates an SSE MCP client for the given base URL.
 func newSSEClient(baseURL string) (*sseClient, error) {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
@@ -48,7 +42,7 @@ func newSSEClient(baseURL string) (*sseClient, error) {
 	return &sseClient{
 		baseURL:      parsedURL,
 		httpClient:   &http.Client{},
-		responses:    make(map[int64]chan client.RPCResponse),
+		responses:    make(map[int64]chan jsonrpcResponse),
 		done:         make(chan struct{}),
 		endpointChan: make(chan struct{}),
 	}, nil
@@ -88,6 +82,7 @@ func (c *sseClient) start(ctx context.Context) error {
 func (c *sseClient) readSSE(reader io.ReadCloser) {
 	defer reader.Close()
 	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	var event, data string
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -114,9 +109,8 @@ func (c *sseClient) handleSSEEvent(event, data string) {
 		if err != nil {
 			return
 		}
-		// Resolve a relative endpoint (e.g. "/message?sessionId=...") against
-		// the base URL so it becomes an absolute URL. This is the fix over the
-		// upstream client, which rejects relative endpoints.
+		// Resolve a relative endpoint against the base URL so it becomes
+		// absolute (the upstream mcp-go client rejects relative endpoints).
 		if !endpoint.IsAbs() {
 			endpoint = c.baseURL.ResolveReference(endpoint)
 		}
@@ -124,39 +118,23 @@ func (c *sseClient) handleSSEEvent(event, data string) {
 		close(c.endpointChan)
 
 	case "message":
-		var baseMessage struct {
-			JSONRPC string          `json:"jsonrpc"`
-			ID      *int64          `json:"id,omitempty"`
-			Method  string          `json:"method,omitempty"`
-			Result  json.RawMessage `json:"result,omitempty"`
-			Error   *struct {
-				Code    int    `json:"code"`
-				Message string `json:"message"`
-			} `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal([]byte(data), &baseMessage); err != nil {
+		var resp jsonrpcResponse
+		if err := json.Unmarshal([]byte(data), &resp); err != nil {
 			return
 		}
-		if baseMessage.ID == nil {
-			return // notification; not used by co-shell
-		}
-		c.mu.RLock()
-		ch, ok := c.responses[*baseMessage.ID]
-		c.mu.RUnlock()
+		c.mu.Lock()
+		ch, ok := c.responses[resp.ID]
 		if ok {
-			if baseMessage.Error != nil {
-				ch <- client.RPCResponse{Error: &baseMessage.Error.Message}
-			} else {
-				ch <- client.RPCResponse{Response: &baseMessage.Result}
-			}
-			c.mu.Lock()
-			delete(c.responses, *baseMessage.ID)
-			c.mu.Unlock()
+			delete(c.responses, resp.ID)
+		}
+		c.mu.Unlock()
+		if ok {
+			ch <- resp
 		}
 	}
 }
 
-func (c *sseClient) sendRequest(ctx context.Context, method string, params interface{}) (*json.RawMessage, error) {
+func (c *sseClient) sendRequest(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	if !c.initialized && method != "initialize" {
 		return nil, fmt.Errorf("client not initialized")
 	}
@@ -165,46 +143,40 @@ func (c *sseClient) sendRequest(ctx context.Context, method string, params inter
 	}
 
 	id := c.requestID.Add(1)
-	request := mcp.JSONRPCRequest{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      id,
-		Request: mcp.Request{Method: method},
-	}
+	req := jsonrpcRequest{JSONRPC: jsonrpcVersion, ID: id, Method: method}
 	if params != nil {
-		paramsBytes, err := json.Marshal(params)
+		raw, err := json.Marshal(params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal params: %w", err)
 		}
-		if err := json.Unmarshal(paramsBytes, &request.Params); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal params: %w", err)
-		}
+		req.Params = raw
 	}
 
-	requestBytes, err := json.Marshal(request)
+	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	responseChan := make(chan client.RPCResponse, 1)
+	ch := make(chan jsonrpcResponse, 1)
 	c.mu.Lock()
-	c.responses[id] = responseChan
+	c.responses[id] = ch
 	c.mu.Unlock()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.endpoint.String(), bytes.NewReader(requestBytes))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.endpoint.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, body)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, respBody)
 	}
 
 	select {
@@ -213,86 +185,67 @@ func (c *sseClient) sendRequest(ctx context.Context, method string, params inter
 		delete(c.responses, id)
 		c.mu.Unlock()
 		return nil, ctx.Err()
-	case response := <-responseChan:
-		if response.Error != nil {
-			return nil, errors.New(*response.Error)
+	case rpcResp := <-ch:
+		if rpcResp.Error != nil {
+			return nil, errors.New(rpcResp.Error.Message)
 		}
-		return response.Response, nil
+		return rpcResp.Result, nil
 	}
 }
 
-// Initialize implements client.MCPClient.
-func (c *sseClient) Initialize(ctx context.Context, request mcp.InitializeRequest) (*mcp.InitializeResult, error) {
-	params := struct {
-		ProtocolVersion string                 `json:"protocolVersion"`
-		ClientInfo      mcp.Implementation     `json:"clientInfo"`
-		Capabilities    mcp.ClientCapabilities `json:"capabilities"`
-	}{
-		ProtocolVersion: request.Params.ProtocolVersion,
-		ClientInfo:      request.Params.ClientInfo,
-		Capabilities:    request.Params.Capabilities,
+// initialize performs the MCP initialize handshake.
+func (c *sseClient) initialize(ctx context.Context) error {
+	params := initializeParams{
+		ProtocolVersion: mcpProtocolVersion,
+		Capabilities:    map[string]any{},
+		ClientInfo:      implementation{Name: "co-shell", Version: "0.1.0"},
 	}
-	response, err := c.sendRequest(ctx, "initialize", params)
-	if err != nil {
-		return nil, err
+	if _, err := c.sendRequest(ctx, "initialize", params); err != nil {
+		return err
 	}
-	var result mcp.InitializeResult
-	if err := json.Unmarshal(*response, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-	c.capabilities = result.Capabilities
-
-	// Send initialized notification.
-	notification := mcp.JSONRPCNotification{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		Notification: mcp.Notification{Method: "notifications/initialized"},
-	}
-	notificationBytes, _ := json.Marshal(notification)
-	req, err := http.NewRequestWithContext(ctx, "POST", c.endpoint.String(), bytes.NewReader(notificationBytes))
+	// Send the initialized notification.
+	notif := jsonrpcNotification{JSONRPC: jsonrpcVersion, Method: "notifications/initialized"}
+	notifBody, _ := json.Marshal(notif)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.endpoint.String(), bytes.NewReader(notifBody))
 	if err == nil {
-		req.Header.Set("Content-Type", "application/json")
-		if resp, err := c.httpClient.Do(req); err == nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+		if resp, err := c.httpClient.Do(httpReq); err == nil {
 			resp.Body.Close()
 		}
 	}
 	c.initialized = true
-	return &result, nil
+	return nil
 }
 
-// Ping implements client.MCPClient.
-func (c *sseClient) Ping(ctx context.Context) error {
-	_, err := c.sendRequest(ctx, "ping", nil)
-	return err
-}
-
-// ListTools implements client.MCPClient.
-func (c *sseClient) ListTools(ctx context.Context, request mcp.ListToolsRequest) (*mcp.ListToolsResult, error) {
-	response, err := c.sendRequest(ctx, "tools/list", request.Params)
+// listTools returns the tools exposed by the server.
+func (c *sseClient) listTools(ctx context.Context) ([]tool, error) {
+	raw, err := c.sendRequest(ctx, "tools/list", map[string]any{})
 	if err != nil {
 		return nil, err
 	}
-	var result mcp.ListToolsResult
-	if err := json.Unmarshal(*response, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	var res listToolsResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tools/list: %w", err)
 	}
-	return &result, nil
+	return res.Tools, nil
 }
 
-// CallTool implements client.MCPClient.
-func (c *sseClient) CallTool(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	response, err := c.sendRequest(ctx, "tools/call", request.Params)
+// callTool invokes a tool on the server.
+func (c *sseClient) callTool(ctx context.Context, name string, args map[string]any) (*callToolResult, error) {
+	params := callToolParams{Name: name, Arguments: args}
+	raw, err := c.sendRequest(ctx, "tools/call", params)
 	if err != nil {
 		return nil, err
 	}
-	var result mcp.CallToolResult
-	if err := json.Unmarshal(*response, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	var res callToolResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tools/call: %w", err)
 	}
-	return &result, nil
+	return &res, nil
 }
 
-// Close implements client.MCPClient.
-func (c *sseClient) Close() error {
+// close shuts down the SSE client.
+func (c *sseClient) close() error {
 	select {
 	case <-c.done:
 		return nil
@@ -303,43 +256,7 @@ func (c *sseClient) Close() error {
 	for _, ch := range c.responses {
 		close(ch)
 	}
-	c.responses = make(map[int64]chan client.RPCResponse)
+	c.responses = make(map[int64]chan jsonrpcResponse)
 	c.mu.Unlock()
 	return nil
-}
-
-// OnNotification implements client.MCPClient (notifications are not used by
-// co-shell, so this is a no-op).
-func (c *sseClient) OnNotification(handler func(notification mcp.JSONRPCNotification)) {
-}
-
-// The following methods are part of the client.MCPClient interface but are not
-// used by co-shell; they return a "not supported" error.
-
-func (c *sseClient) ListResources(ctx context.Context, request mcp.ListResourcesRequest) (*mcp.ListResourcesResult, error) {
-	return nil, fmt.Errorf("resources not supported")
-}
-func (c *sseClient) ListResourceTemplates(ctx context.Context, request mcp.ListResourceTemplatesRequest) (*mcp.ListResourceTemplatesResult, error) {
-	return nil, fmt.Errorf("resource templates not supported")
-}
-func (c *sseClient) ReadResource(ctx context.Context, request mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	return nil, fmt.Errorf("read resource not supported")
-}
-func (c *sseClient) Subscribe(ctx context.Context, request mcp.SubscribeRequest) error {
-	return fmt.Errorf("subscribe not supported")
-}
-func (c *sseClient) Unsubscribe(ctx context.Context, request mcp.UnsubscribeRequest) error {
-	return fmt.Errorf("unsubscribe not supported")
-}
-func (c *sseClient) ListPrompts(ctx context.Context, request mcp.ListPromptsRequest) (*mcp.ListPromptsResult, error) {
-	return nil, fmt.Errorf("prompts not supported")
-}
-func (c *sseClient) GetPrompt(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-	return nil, fmt.Errorf("get prompt not supported")
-}
-func (c *sseClient) SetLevel(ctx context.Context, request mcp.SetLevelRequest) error {
-	return fmt.Errorf("set level not supported")
-}
-func (c *sseClient) Complete(ctx context.Context, request mcp.CompleteRequest) (*mcp.CompleteResult, error) {
-	return nil, fmt.Errorf("complete not supported")
 }
