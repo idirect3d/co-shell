@@ -176,9 +176,9 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 	case "mcp_get":
 		s.handleMCPGet()
 	case "mcp_add":
-		s.handleMCPAdd(msg.Name, msg.Command, msg.Args)
+		s.handleMCPAdd(msg.Name, msg.Command, msg.Args, msg.URL)
 	case "mcp_update":
-		s.handleMCPUpdate(msg.Name, msg.Command, msg.Args, msg.Enabled)
+		s.handleMCPUpdate(msg.Name, msg.Command, msg.Args, msg.Enabled, msg.URL)
 	case "mcp_remove":
 		s.handleMCPRemove(msg.Name)
 	case "identity_get":
@@ -270,11 +270,11 @@ func (s *WebSession) handleMCPGet() {
 }
 
 // handleMCPAdd adds a new MCP server from the browser (FEATURE-464).
-func (s *WebSession) handleMCPAdd(name, command string, args []string) {
-	if s.mcp == nil || name == "" || command == "" {
+func (s *WebSession) handleMCPAdd(name, command string, args []string, url string) {
+	if s.mcp == nil || name == "" {
 		return
 	}
-	result, err := s.mcp.AddServerJSON(name, command, args)
+	result, err := s.mcp.AddServerJSON(name, command, args, url)
 	if err != nil {
 		s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: false, Message: err.Error()})
 		return
@@ -284,11 +284,11 @@ func (s *WebSession) handleMCPAdd(name, command string, args []string) {
 }
 
 // handleMCPUpdate updates an existing MCP server from the browser (FEATURE-464).
-func (s *WebSession) handleMCPUpdate(name, command string, args []string, enabled bool) {
+func (s *WebSession) handleMCPUpdate(name, command string, args []string, enabled bool, url string) {
 	if s.mcp == nil || name == "" {
 		return
 	}
-	result, err := s.mcp.UpdateServerJSON(name, command, args, enabled)
+	result, err := s.mcp.UpdateServerJSON(name, command, args, enabled, url)
 	if err != nil {
 		s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: false, Message: err.Error()})
 		return

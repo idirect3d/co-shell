@@ -73,6 +73,7 @@ type clientMessage struct {
 	Command string   `json:"command,omitempty"` // mcp_add/update: the server command
 	Args    []string `json:"args,omitempty"`    // mcp_add/update: the server args
 	Enabled bool     `json:"enabled,omitempty"` // mcp_update: the enabled state
+	URL     string   `json:"url,omitempty"`     // mcp_add/update: the SSE URL (FEATURE-498)
 
 	// Kind is the dynamic_event subtype (FEATURE-471): clip_object | upload_file |
 	// user_message | open_file. Only used when Type == "dynamic_event".
