@@ -890,6 +890,8 @@ const (
 	KeySettingCmd_777 = "setting_cmd_777"
 	KeySettingCmd_778 = "setting_cmd_778"
 	KeySettingCmd_779 = "setting_cmd_779"
+	KeySettingCmd_780 = "setting_cmd_780"
+	KeySettingCmd_781 = "setting_cmd_781"
 
 	// FEATURE-305 第 3 批: agent/vault.go
 	KeySettingCmd_617 = "setting_cmd_617"
@@ -1369,6 +1371,7 @@ const (
 	// Plan enabled
 	KeyCol3PlanEnabled     = "col3_plan_enabled"
 	KeyCol3IntentExposureEnabled = "col3_intent_exposure_enabled"
+	KeyCol3MetaCapabilityEnabled = "col3_meta_capability_enabled"
 	KeySettingsDescPlan    = "settings_desc_plan"
 	KeyPlanEnabledUpdated  = "plan_enabled_updated"
 	KeyCLIHelpPlanEnabled  = "cli_help_plan_enabled"

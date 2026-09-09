@@ -14,6 +14,7 @@ package cmd
 
 import (
 	"github.com/idirect3d/co-shell/config"
+	"github.com/idirect3d/co-shell/llm"
 )
 
 // WebModel is one model exposed to the Web UI. The API key is masked.
@@ -31,6 +32,11 @@ type WebModel struct {
 	Thinking     bool   `json:"thinking"`
 	MaxModelLen  int    `json:"max_model_len"`
 	TemplateID   string `json:"template_id,omitempty"`
+
+	// Available reports whether the model was reachable and present in its
+	// endpoint's /models list at the time the list was built (FEATURE-496).
+	// The front end greys out unavailable models.
+	Available bool `json:"available"`
 }
 
 // WebTemplate is one built-in template exposed to the Web UI.
@@ -50,6 +56,16 @@ type WebTemplate struct {
 // Web UI model manager.
 func (h *ModelHandler) ModelWebJSON() (models []WebModel, templates []WebTemplate) {
 	for _, m := range h.cfg.Models {
+		// FEATURE-496: report whether the model is currently reachable and
+		// present in its endpoint's /models list so the front end can grey out
+		// unavailable models. Only models with an endpoint and API key are
+		// checked; others default to available=true (no info to judge).
+		available := true
+		if m.Endpoint != "" && m.APIKey != "" && m.Model != "" {
+			if ok, _ := llm.CheckModelAvailable(m.Endpoint, m.APIKey, m.Model, 5); !ok {
+				available = false
+			}
+		}
 		models = append(models, WebModel{
 			ID:          m.ID,
 			Name:        m.Name,
@@ -64,6 +80,7 @@ func (h *ModelHandler) ModelWebJSON() (models []WebModel, templates []WebTemplat
 			Thinking:    m.Capabilities.Thinking,
 			MaxModelLen: m.MaxModelLen,
 			TemplateID:  m.TemplateID,
+			Available:   available,
 		})
 	}
 	manager := config.GetDefaultModelManager()

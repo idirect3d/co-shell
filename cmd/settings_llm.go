@@ -171,6 +171,26 @@ func (h *SettingsHandler) handleLLMSetting(subcommand string, args []string) (st
 		log.Info("Vision context mode set to %s", args[1])
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_004), args[1]), nil
 
+	case "model-connectivity-check":
+		if len(args) < 2 {
+			mode := h.cfg.LLM.ModelConnectivityCheck
+			if mode == "" {
+				mode = "on_submit"
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_780), mode), nil
+		}
+		switch args[1] {
+		case "off", "on_submit", "on_send":
+			h.cfg.LLM.ModelConnectivityCheck = args[1]
+		default:
+			return "", fmt.Errorf("usage: .set model-connectivity-check off|on_submit|on_send")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Model connectivity check set to %s", args[1])
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_781), args[1]), nil
+
 	case "thinking-enabled":
 		if len(args) < 2 {
 			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_005), h.cfg.LLM.ThinkingEnabled), nil

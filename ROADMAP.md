@@ -4,6 +4,33 @@
 
 ---
 
+## v0.44.0 — 开发中
+
+> **版本**: v0.44.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 模型联通性检测（FEATURE-496）
+> **说明**: 0.44.0 系列为模型联通性检测：通过调用各模型 endpoint 的 /models 接口检查目标模型是否可用。用于 ① 用户提交指令前（可配置 on_submit/on_send/off，默认 on_submit）若主模型不可用则终止任务并报告；② 前端模型列表（状态条主/视觉模型列表、模型管理列表）将不可用模型字体变灰显示。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-496 | 0.44.0 | P1 | 模型联通性检测：model_connectivity_check 配置（off/on_submit/on_send，默认 on_submit）+ 后端检测函数（调用 /models 检查目标模型）+ agent 提交前检查终止任务 + 前端模型列表不可用模型字体变灰 |
+
+> 当前 BUILD: 918
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-496 模型联通性检测**
+  - 背景：当某个已配置模型的 endpoint 不可达、API Key 失效或模型名不在服务商 /models 列表中时，用户提交指令或 agent 发送消息会失败。希望在发送前检测模型联通性，避免无效请求；并在前端模型列表中直观标识不可用模型。
+  - 方案（用户确认）：① 新增配置 model_connectivity_check（off=关闭 / on_submit=仅用户提交指令时检测 / on_send=每次 agent 发消息前检测），默认 on_submit；② 后端新增联通性检测函数：对某 ModelConfig 调用其 endpoint 的 /models（复用 llm.Client.ListModels），若返回列表含该模型 model 名则可用，接口失败或列表不含则不可用；③ 检测时机：用户提交指令时（on_submit/on_send）或 agent 每次发消息前（on_send），若当前主模型不可用则终止任务并报告用户；④ 前端：后端推送 models 消息时为每个模型附带 available 字段，状态条主/视觉模型列表与模型管理列表据此将不可用模型字体变灰。
+  - 实施：config/config.go（model_connectivity_check）+ llm/（联通性检测函数）+ agent/（提交/发送前检查接入）+ cmd/model_web.go（WebModel 增加 available）+ web/session.go（models 消息附带可用性）+ web/static/app.js + style.css（不可用模型变灰）+ i18n/（文案）+ main.go + cmd/co-shell-hub/main.go（版本号 0.44.0 + build 计数）
+  - 测试：见 use-case/FEATURE-496/
+  - 进度：核心实现完成——config 新增 model_connectivity_check（默认 on_submit）+ llm/connectivity.go CheckModelAvailable（调用 /models 检查目标模型）+ agent/connectivity.go checkModelConnectivity + run_stream.go 接入（on_submit 主循环前检测、on_send 每次迭代检测，不可用则终止任务并报告）+ cmd/model_web.go WebModel 增加 available（ModelWebJSON 实时检测填充）+ 前端 app.js/style.css 不可用模型字体变灰 + i18n zh/en 文案 + 版本号 0.44.0。go build+vet 全绿，node --check app.js 通过 [BUILD-919]
+
+---
+
 ## v0.43.0 — 开发中
 
 > **版本**: v0.43.0

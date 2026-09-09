@@ -1488,6 +1488,17 @@ function renderEvent(ev) {
     scrollStream();
     return;
   }
+  // FEATURE-496: when the active model is unavailable, the backend emits an
+  // error event tagged with connectivity=1 before RunStream returns. Render
+  // the error block as usual, then return the rejected instruction to the
+  // input box so the user can review and re-submit it.
+  if (ev.type === "error" && ev.meta && ev.meta.connectivity === "1") {
+    if (lastSubmittedText) {
+      input.value = lastSubmittedText;
+      autoGrow();
+      input.focus();
+    }
+  }
   const blockLabel = ev.type === "ui_text" ? "SYS" : label;
   const body = makeBlock(eventClass(ev), blockLabel, msgIndex);
   if (ev.type === "content" || ev.type === "thinking") {
@@ -2962,6 +2973,10 @@ async function uploadAndSend(text) {
 const history = [];
 let histPos = 0; // sentinel: histPos === history.length means "at the unsent draft"
 let histDraft = "";
+// FEATURE-496: the most recent instruction text submitted via the main input
+// box, kept so it can be returned to the box if the task is rejected before
+// it starts (e.g. the active model is unavailable).
+let lastSubmittedText = "";
 
 function sendInput() {
   const text = input.value.trim();
@@ -2996,6 +3011,10 @@ function sendInput() {
     input.blur();
     return;
   }
+  // FEATURE-496: remember the submitted instruction so it can be returned to
+  // the input box if the task is rejected before it starts (e.g. the active
+  // model is unavailable).
+  lastSubmittedText = text;
   wsSend({ type: "input", text });
   renderUserEcho(text);
   history.push(text);
@@ -4729,7 +4748,7 @@ function renderModelsBody() {
   }
   for (const m of modelList) {
     const row = document.createElement("div");
-    row.className = "model-row" + (m.enabled ? " enabled" : "") + (m.id === selectedModelID ? " selected" : "");
+    row.className = "model-row" + (m.enabled ? " enabled" : "") + (m.id === selectedModelID ? " selected" : "") + (m.available === false ? " unavailable" : "");
     row.dataset.modelId = m.id;
     // FEATURE-449: clicking a row selects it (highlighted border); the toolbar
     // pin/delete buttons then act on the selected model.
@@ -4837,7 +4856,7 @@ function fmtLenShort(n) {
 // (FEATURE-422).
 function buildModelMenuItem(m, onClick, activeID) {
   const item = document.createElement("div");
-  item.className = "model-menu-item" + (activeID && m.id === activeID ? " active" : "");
+  item.className = "model-menu-item" + (activeID && m.id === activeID ? " active" : "") + (m.available === false ? " unavailable" : "");
   item.title = m.provider + " · " + m.model;
   const logo = document.createElement("img");
   logo.className = "model-logo";
