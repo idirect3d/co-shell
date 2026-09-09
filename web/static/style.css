@@ -2419,6 +2419,14 @@ aside {
   border-color: var(--accent);
   background: var(--accent-dim);
 }
+/* FEATURE-496: an unavailable model (endpoint unreachable / model not in the
+   /models list) is shown dimmed to signal it cannot be used right now. */
+.model-row.unavailable .model-id,
+.model-row.unavailable .model-meta,
+.model-row.unavailable .model-url {
+  color: var(--fg-faint);
+  opacity: 0.55;
+}
 .model-row .model-logo {
   width: 32px;
   height: 32px;
@@ -2781,6 +2789,12 @@ aside {
 .model-menu-item.default { color: var(--fg-dim); opacity: 0.5; }
 .model-menu-item.default .model-default-hint { color: var(--fg-faint); }
 .model-menu-item.default .model-ctx { color: var(--fg-faint); }
+/* FEATURE-496: an unavailable model in the status-bar selector is dimmed. */
+.model-menu-item.unavailable .model-id,
+.model-menu-item.unavailable .model-ctx {
+  color: var(--fg-faint);
+  opacity: 0.55;
+}
 .model-menu-item .model-logo {
   width: 18px;
   height: 18px;

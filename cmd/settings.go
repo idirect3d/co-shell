@@ -171,7 +171,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "toolcall-enabled", subcommand == "toolcall-mode",
 		subcommand == "xml-tag-prefix", subcommand == "xml-stream-validate",
 		subcommand == "top-p", subcommand == "top-k",
-		subcommand == "repetition-penalty", subcommand == "max-model-len":
+		subcommand == "repetition-penalty", subcommand == "max-model-len",
+		subcommand == "model-connectivity-check":
 		return h.handleLLMSetting(subcommand, args)
 
 	// Display settings
@@ -206,7 +207,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "visual-analysis-max-images",
 		subcommand == "env-include-details", subcommand == "env-include-current-dir",
 		subcommand == "env-include-tools", subcommand == "env-include-research",
-		subcommand == "env-include-user-dynamic":
+		subcommand == "env-include-user-dynamic",
+		subcommand == "meta-capability-enabled":
 		return h.handleAgentSetting(subcommand, args)
 
 	// Safety settings

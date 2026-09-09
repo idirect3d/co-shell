@@ -626,6 +626,8 @@ var zhMessages = map[string]string{
 	KeySettingCmd_777: "  请输入补充信息: ",
 	KeySettingCmd_778: "Qwen3.8",
 	KeySettingCmd_779: "Qwen3.8 系列，支持思考与推理深度（xhigh/medium/low）",
+	KeySettingCmd_780: "模型联通性检测: %s（可选值: off, on_submit, on_send）",
+	KeySettingCmd_781: "✅ 模型联通性检测已设置为: %s",
 	KeySettingCmd_615: "CRITICAL: Insert new content after a paragraph, inheriting its format. Use this to EXTEND an existing document with properly formatted new paragraphs. Supports Markdown heading syntax: # = Heading1, ## = Heading2, ### = Heading3, - or * = list. Use same_style_as=<paragraph number> to inherit format from an existing paragraph. Use style=\"Heading2\" to explicitly set a style. Example: word_continue(session_id=\"doc_1\", after_para=48, same_style_as=48, content=\"## 3.2 新章节\\n\\n这是新内容段落。\")",
 	KeySettingCmd_616: "💡 提示：使用 :set defaults 可将除 LLM、记忆与上下文、数据库以外的所有配置重置为系统默认值。",
 
@@ -1093,6 +1095,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	// Plan enabled
 	KeyCol3PlanEnabled:     "任务计划(on|off)",
 	KeyCol3IntentExposureEnabled: "意图暴露(on|off)",
+	KeyCol3MetaCapabilityEnabled: "元能力(on|off)",
 	KeySettingsDescPlan:    "任务计划功能开关",
 	KeyPlanEnabledUpdated:  "✅ 任务计划功能已设置为: %s",
 	KeyCLIHelpPlanEnabled:  "      --plan-enabled    启用任务计划功能（覆盖配置文件）",

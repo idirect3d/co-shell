@@ -75,6 +75,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "xml-stream-validate", Value: boolStr(llm.XMLStreamValidate), Desc: i18n.T(i18n.KeySettingCmd_305), Type: "bool", Default: boolStr(def.XMLStreamValidate)},
 		{Key: "plan-enabled", Value: boolStr(llm.PlanEnabled), Desc: i18n.T(i18n.KeyCol3PlanEnabled), Type: "bool", Default: boolStr(def.PlanEnabled)},
 		{Key: "intent-exposure-enabled", Value: boolStr(llm.IntentExposureEnabled), Desc: i18n.T(i18n.KeyCol3IntentExposureEnabled), Type: "bool", Default: boolStr(def.IntentExposureEnabled)},
+		{Key: "meta-capability-enabled", Value: boolStr(llm.MetaCapabilityEnabled), Desc: i18n.T(i18n.KeyCol3MetaCapabilityEnabled), Type: "bool", Default: boolStr(def.MetaCapabilityEnabled)},
 		{Key: "subagent-enabled", Value: boolStr(llm.SubAgentEnabled), Desc: i18n.T(i18n.KeyCol3SubAgentEnabled), Type: "bool", Default: boolStr(def.SubAgentEnabled)},
 		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free"}, Default: config.ResultModeString(config.ResultMode(def.ResultMode))},
 		{Key: "shell-session-enabled", Value: boolStr(llm.ShellSessionEnabled), Desc: i18n.T(i18n.KeyCol3ShellSessionEnabled), Type: "bool", Default: boolStr(def.ShellSessionEnabled)},
@@ -95,6 +96,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "search-context-lines", Value: strconv.Itoa(llm.SearchContextLines), Desc: i18n.T(i18n.KeyCol3SearchContextLines), Type: "number", Default: strconv.Itoa(def.SearchContextLines)},
 		{Key: "no-tool-action", Value: noToolActionValue(llm.NoToolAction), Desc: i18n.T(i18n.KeySettingCmd_313), Type: "enum", Options: []string{"exit", "retry", "prompt"}, Default: noToolActionValue(def.NoToolAction)},
 		{Key: "parse-error-action", Value: parseErrorActionValue(llm.ParseErrorAction), Desc: i18n.T(i18n.KeySettingCmd_314), Type: "enum", Options: []string{"exit", "retry", "prompt"}, Default: parseErrorActionValue(def.ParseErrorAction)},
+		// FEATURE-496: model connectivity pre-check strategy.
+		{Key: "model-connectivity-check", Value: modelConnectivityCheckValue(llm.ModelConnectivityCheck), Desc: i18n.T(i18n.KeySettingCmd_780), Type: "enum", Options: []string{"off", "on_submit", "on_send"}, Default: modelConnectivityCheckValue(def.ModelConnectivityCheck)},
 	}
 
 	// Group 2: Appearance & Display (matches showSettingsHelp Group 3).
@@ -275,6 +278,14 @@ func noToolActionValue(v string) string {
 func parseErrorActionValue(v string) string {
 	if v == "" {
 		return "retry"
+	}
+	return v
+}
+
+// modelConnectivityCheckValue normalizes the model connectivity check strategy.
+func modelConnectivityCheckValue(v string) string {
+	if v == "" {
+		return "on_submit"
 	}
 	return v
 }

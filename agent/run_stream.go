@@ -241,6 +241,20 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// Build available tools
 	tools := a.buildTools()
 
+	// FEATURE-496: in on_submit mode, verify the active model is available
+	// before starting the task (on_send is covered per-iteration below). If it
+	// is unavailable, abort immediately and report to the user.
+	if a.cfg != nil && a.cfg.LLM.ModelConnectivityCheck == "on_submit" {
+		if err := a.checkModelConnectivity(); err != nil {
+			// FEATURE-496: emit an error event so the Web UI shows the failure
+			// and can return the user's instruction to the input box.
+			ev := ErrEvent(ChannelSystem, err.Error())
+			ev.Meta = map[string]string{"connectivity": "1"}
+			cb(ev)
+			return "", err
+		}
+	}
+
 iterationLoop:
 	for iteration := 0; a.maxIterations < 0 || iteration < a.maxIterations; iteration++ {
 		// Refresh the last user message's <environment_details> so retries and
@@ -274,6 +288,18 @@ iterationLoop:
 		var toolCalls []llm.ToolCall
 		var streamErr error
 		var hasToolAttempt bool
+
+		// FEATURE-496: in on_send mode, re-check connectivity before every
+		// message send to the LLM (the first send is already covered by the
+		// pre-loop check above).
+		if a.cfg != nil && a.cfg.LLM.ModelConnectivityCheck == "on_send" {
+			if err := a.checkModelConnectivity(); err != nil {
+				ev := ErrEvent(ChannelSystem, err.Error())
+				ev.Meta = map[string]string{"connectivity": "1"}
+				cb(ev)
+				return "", err
+			}
+		}
 
 		finalContent, finalReasoning, toolCalls, hasToolAttempt, streamErr = a.streamLLMResponse(ctx, tools, cb)
 

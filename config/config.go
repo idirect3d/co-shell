@@ -429,6 +429,16 @@ type LLMConfig struct {
 	// "none" = don't display token usage and don't send include_usage
 	TokenUsage string `json:"token_usage"`
 
+	// ModelConnectivityCheck: when to check model connectivity (call the model
+	// endpoint's /models API to verify the target model is available) before
+	// sending a request (FEATURE-496). One of:
+	//   "off"       — never check (rely on the LLM call's own error handling)
+	//   "on_submit" — check only when the user submits a new instruction
+	//   "on_send"   — check before every agent message send to the LLM
+	// When the active model is found unavailable, the task is aborted and the
+	// user is informed. Default: "on_submit"
+	ModelConnectivityCheck string `json:"model_connectivity_check"`
+
 	// BodyAdditions: custom JSON properties to add to the LLM request body.
 	// Each entry is a key-value pair where the key is the property name and
 	// the value is a JSON string that will be merged into the request body.
@@ -1080,6 +1090,7 @@ func DefaultConfig() *Config {
 			ContextPolicy:              "reorganize",
 			ContextReorganizeThreshold: 80,
 			TokenUsage:                 "on",
+			ModelConnectivityCheck:     "on_submit",
 			InputMode:                  "enhanced",
 			BrowserEnabled:             true,
 			BrowserPort:                9222,
