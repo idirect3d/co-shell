@@ -121,6 +121,8 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	srv.SetDisconnectHook(sess.wio.failAll)
 	srv.SetPlanProvider(sess.currentPlanJSON)
 	srv.SetModelInfoProvider(sess.ag.ModelInfo)
+	// FEATURE-499: expose the agent busy state via GET /api/status for the hub.
+	srv.SetBusyProvider(sess.ag.IsBusy)
 	return sess, nil
 }
 

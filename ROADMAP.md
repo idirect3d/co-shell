@@ -4,6 +4,33 @@
 
 ---
 
+## v0.46.0 — 开发中
+
+> **版本**: v0.46.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: Hub Agents 列表优化——点击外部收起 + 三态状态指示灯（FEATURE-499）
+> **说明**: 0.46.0 系列为 hub 界面优化版本：① 恢复 Agents 列表展开后点击列表之外自动收起；② Agents 列表每个 Agent 前的指示灯改为三态实时监测——关闭灰色、已打开空闲绿色、正在执行任务红色呼吸灯。为支持第三态，需让 hub 能感知每个已连接 agent 是否正在执行任务（新增 busy 状态，hub 向 agent 查询）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-499 | 0.46.0 | P1 | Hub Agents 列表优化：点击外部自动收起 + 三态指示灯（关闭灰/空闲绿/执行中红呼吸灯），后端新增 agent busy 状态供 hub 查询 |
+
+> 当前 BUILD: 933
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-499 Hub Agents 列表优化：点击外部收起 + 三态状态指示灯**
+  - 背景：hub 界面（hub/gateway/webui_static.go 内嵌 HTML）的 Agents 列表存在两处体验问题：① FEATURE-492 移除了点击列表之外自动收起（scrim 点击仅 stopPropagation），用户希望恢复；② 列表每个 Agent 前的指示灯当前仅两态（on=绿 running/connected、off=红），用户希望改为三态实时监测：关闭=灰、已打开空闲=绿、正在执行任务=红呼吸灯。第三态需要 hub 感知 agent 是否正在执行任务，当前 /api/agents 仅返回 running/connected，无 busy 信号。
+  - 方案（用户确认）：① 前端恢复点击 scrim/列表外自动收起（保留 pin 钉住功能）；② 后端新增 agent busy 状态——co-shell agent 暴露是否正在执行任务状态，hub 向每个已连接 agent 查询并在 /api/agents 返回 busy 字段；③ 前端指示灯三态：关闭灰、空闲绿、执行中红呼吸灯（CSS 动画）。
+  - 实施：hub/gateway/webui_static.go + hub/gateway/webui.go + hub/gateway/agent.go/proxy.go + co-shell agent 端（web/ 或 agent/）+ main.go + cmd/co-shell-hub/main.go（版本号 0.46.0 + build 计数）
+  - 测试：见 use-case/FEATURE-499/
+  - 进度：待开发
+
+---
+
 ## v0.45.0 — 开发中
 
 > **版本**: v0.45.0

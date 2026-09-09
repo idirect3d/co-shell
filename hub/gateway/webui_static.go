@@ -108,9 +108,16 @@ const webIndexHTML = `<!DOCTYPE html>
   }
   .agent:hover { background:var(--elev); color:var(--fg); }
   .agent.active { background:#0e2a33; color:var(--accent); font-weight:600; }
+  /* FEATURE-499: three-state status light. Default (no extra class) = grey
+     (agent closed). .idle = green (open, no task running). .busy = red
+     breathing light (a task is executing). */
   .agent .st { width:8px; height:8px; border-radius:50%; background:#555; flex:none; }
-  .agent .st.on { background:var(--ok); }
-  .agent .st.off { background:var(--err); }
+  .agent .st.idle { background:var(--ok); box-shadow:0 0 4px var(--ok); }
+  .agent .st.busy { background:var(--err); animation:stBreath 1.2s ease-in-out infinite; }
+  @keyframes stBreath {
+    0%,100% { box-shadow:0 0 2px var(--err); opacity:.55; }
+    50% { box-shadow:0 0 8px var(--err); opacity:1; }
+  }
   .agent .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .agent .chev { flex:none; font-size:16px; color:var(--fg-faint); padding:0 2px; cursor:pointer; line-height:1; }
   .agent .chev:hover { color:var(--accent); }
@@ -478,7 +485,9 @@ const webIndexHTML = `<!DOCTYPE html>
     openCard = null;
     agents.forEach(function(a){
       var on = (a.running || a.connected);
-      var st = on ? 'on' : 'off';
+      // FEATURE-499: three-state status light. closed (not running/connected)
+      // = grey (no class); open+idle = green; busy (task executing) = red.
+      var st = on ? (a.busy ? 'busy' : 'idle') : '';
       var managed = a.type !== 'external';
       // Swipe container: delete button behind the card, revealed by swiping left.
       var wrap = document.createElement('div');
@@ -682,9 +691,17 @@ const webIndexHTML = `<!DOCTYPE html>
     keyInput.placeholder = '已生成新 KEY，保存后生效';
     sStatus.textContent = '已生成新的访问 KEY（64 位十六进制）。点击保存设置后生效。';
   };
-  // FEATURE-492: clicking the scrim no longer closes the drawer (the pin
-  // controls auto-collapse; clicking elsewhere should not dismiss it).
-  scrim.onclick = function(e){ e.stopPropagation(); };
+  // FEATURE-499: clicking the scrim (outside the agent list) auto-collapses
+  // the drawer, unless it is pinned. The pin still controls auto-collapse on
+  // mouseleave; clicking elsewhere dismisses the drawer as before FEATURE-492.
+  scrim.onclick = function(){ if (!pinned) closePanel(); };
+  // Clicking anywhere outside the drawer (e.g. the iframe stage) also closes it.
+  document.addEventListener('click', function(e){
+    if (pinned) return;
+    if (!panel.classList.contains('open')) return;
+    if (panel.contains(e.target) || badge.contains(e.target) || edge.contains(e.target)) return;
+    closePanel();
+  });
   // The empty-state "run" arrow opens the Agent management config view.
   document.getElementById('emptyRun').onclick = function(){ document.getElementById('manageBtn').click(); };
 

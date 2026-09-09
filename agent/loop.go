@@ -340,6 +340,11 @@ type Agent struct {
 	// competing with the sub-process for stdin reads (FIX-209).
 	commandRunning bool
 
+	// busyCount tracks the number of in-flight task runs (RunStream/Run).
+	// A value > 0 means the agent is currently executing a task (FEATURE-499),
+	// which the hub queries to show a red breathing status light.
+	busyCount int
+
 	// commandHooks stores optional callbacks invoked around system command
 	// execution. The REPL registers these to temporarily restore the terminal
 	// to cooked mode while an interactive command (e.g. sudo) reads from
@@ -391,6 +396,27 @@ func (a *Agent) IsCommandRunning() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.commandRunning
+}
+
+// SetBusy increments (busy=true) or decrements (busy=false) the in-flight task
+// counter. A task run (RunStream/Run) calls SetBusy(true) on entry and
+// SetBusy(false) on exit (FEATURE-499).
+func (a *Agent) SetBusy(busy bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if busy {
+		a.busyCount++
+	} else if a.busyCount > 0 {
+		a.busyCount--
+	}
+}
+
+// IsBusy reports whether the agent is currently executing a task (one or more
+// in-flight runs). The hub queries this to show a red breathing status light.
+func (a *Agent) IsBusy() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.busyCount > 0
 }
 
 // SetCommandHooks registers callbacks invoked before/after system command
