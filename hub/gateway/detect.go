@@ -235,3 +235,22 @@ func wsURLToBase(wsURL string) string {
 	}
 	return "http://" + u
 }
+
+// agentBusy queries a co-shell instance's /api/status for whether it is
+// currently executing a task (FEATURE-499). baseURL is like
+// "http://127.0.0.1:12820". Returns false on any error (treat as idle).
+func agentBusy(baseURL string) bool {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(baseURL + "/api/status")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Busy bool `json:"busy"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return false
+	}
+	return body.Busy
+}
