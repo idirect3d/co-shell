@@ -4508,6 +4508,10 @@ function showSettingsResult(msg) {
 let mcpServers = [];
 // mcpEditing holds the name of the server currently being edited (null = none).
 let mcpEditing = null;
+// mcpExpanded holds the name of the server whose tool list is expanded
+// (null = none). Kept across re-renders so the expanded card stays open after
+// a live mcp_test refresh (FEATURE-498 ext).
+let mcpExpanded = null;
 
 // renderMCPServers stores the MCP server list and re-renders the manager if it
 // is the active settings group (FEATURE-464). It does NOT re-send mcp_get (that
@@ -4631,10 +4635,32 @@ function renderMCPServerManager(fetch) {
 function renderMCPServerRow(s) {
   const row = document.createElement("div");
   row.className = "mcp-row" + (s.enabled ? "" : " off");
+  // Restore the expanded state after a live mcp_test refresh re-renders.
+  const wasExpanded = mcpExpanded === s.name;
+  if (wasExpanded) row.classList.add("expanded");
 
-  // First line: title (clickable) + toggle + delete.
+  // First line: expand toggle + title (clickable) + toggle + delete.
   const head = document.createElement("div");
   head.className = "mcp-row-head";
+
+  // Expand/collapse button revealing the server's tool call names. Clicking
+  // it runs a live connectivity test (mcp_test) and refreshes the tool list.
+  const expandBtn = document.createElement("button");
+  expandBtn.className = "mcp-expand";
+  expandBtn.textContent = wasExpanded ? "▾" : "▸";
+  expandBtn.title = i18nT("mcpExpand", "展开工具列表");
+  expandBtn.onclick = () => {
+    const expanded = row.classList.toggle("expanded");
+    expandBtn.textContent = expanded ? "▾" : "▸";
+    if (expanded) {
+      mcpExpanded = s.name;
+      wsSend({ type: "mcp_test", name: s.name });
+    } else {
+      mcpExpanded = null;
+    }
+  };
+  head.appendChild(expandBtn);
+
   const name = document.createElement("div");
   name.className = "mcp-row-name";
   name.textContent = s.name;
@@ -4674,6 +4700,22 @@ function renderMCPServerRow(s) {
   detail.title = i18nT("mcpEditHint", "点击编辑");
   detail.onclick = () => { mcpEditing = s.name; renderMCPServerManager(); };
   row.appendChild(detail);
+
+  // Expandable tool list (hidden by default, revealed by the expand button).
+  const tools = document.createElement("div");
+  tools.className = "mcp-row-tools";
+  const toolNames = s.tools || [];
+  if (toolNames.length) {
+    for (const t of toolNames) {
+      const chip = document.createElement("span");
+      chip.className = "mcp-tool-chip";
+      chip.textContent = t;
+      tools.appendChild(chip);
+    }
+  } else {
+    tools.textContent = i18nT("mcpNoTools", "（未连接或无工具）");
+  }
+  row.appendChild(tools);
 
   return row;
 }

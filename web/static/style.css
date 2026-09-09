@@ -2333,6 +2333,41 @@ aside {
   white-space: nowrap;
 }
 .mcp-row-detail:hover { color: var(--accent); }
+/* Expand/collapse button revealing the server's tool call names. */
+.mcp-expand {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1;
+}
+.mcp-expand:hover { color: var(--accent); }
+/* Expandable tool list (hidden by default, shown when .mcp-row.expanded). */
+.mcp-row-tools {
+  display: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.mcp-row.expanded .mcp-row-tools { display: flex; }
+.mcp-tool-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--mono-bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
 /* iOS-style toggle switch for enabled state (FIX-465). */
 .mcp-toggle {
   position: relative;
