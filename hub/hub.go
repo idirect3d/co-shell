@@ -38,6 +38,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -79,9 +80,13 @@ type HubConfig struct {
 
 // DefaultConfig returns the default hub configuration.
 func DefaultConfig() *HubConfig {
+	coShell := "co-shell"
+	if runtime.GOOS == "windows" {
+		coShell = "co-shell.exe"
+	}
 	return &HubConfig{
 		Port:        12800,
-		CoShellPath: "co-shell",
+		CoShellPath: coShell,
 		Workspace:   ".",
 		LazyMode:    true,
 		Agents:      []AgentConfig{},

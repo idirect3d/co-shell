@@ -15,6 +15,7 @@
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-496 | 0.44.0 | P1 | 模型联通性检测：model_connectivity_check 配置（off/on_submit/on_send，默认 on_submit）+ 后端检测函数（调用 /models 检查目标模型）+ agent 提交前检查终止任务 + 前端模型列表不可用模型字体变灰 |
+| FIX-497 | 0.44.0 | P1 | Windows 下 co-shell 可执行文件 .exe 后缀未处理：defaultCoShellPath / ResolveCoShellPath 硬编码无后缀，Windows 上无法找到 co-shell.exe |
 
 > 当前 BUILD: 918
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
@@ -28,6 +29,15 @@
   - 实施：config/config.go（model_connectivity_check）+ llm/（联通性检测函数）+ agent/（提交/发送前检查接入）+ cmd/model_web.go（WebModel 增加 available）+ web/session.go（models 消息附带可用性）+ web/static/app.js + style.css（不可用模型变灰）+ i18n/（文案）+ main.go + cmd/co-shell-hub/main.go（版本号 0.44.0 + build 计数）
   - 测试：见 use-case/FEATURE-496/
   - 进度：核心实现完成——config 新增 model_connectivity_check（默认 on_submit）+ llm/connectivity.go CheckModelAvailable（调用 /models 检查目标模型）+ agent/connectivity.go checkModelConnectivity + run_stream.go 接入（on_submit 主循环前检测、on_send 每次迭代检测，不可用则终止任务并报告）+ cmd/model_web.go WebModel 增加 available（ModelWebJSON 实时检测填充）+ 前端 app.js/style.css 不可用模型字体变灰 + i18n zh/en 文案 + 版本号 0.44.0。go build+vet 全绿，node --check app.js 通过 [BUILD-919]
+
+---
+
+- [ ] **FIX-497 Windows 下 co-shell 可执行文件 .exe 后缀未处理**
+  - 背景：hub 在 Windows 上执行时，系统找不到 PATH 路径下以及当前文件夹下的 co-shell.exe。原因是查找 co-shell 可执行文件时未考虑 Windows 上可执行文件带 .exe 后缀。
+  - 方案：① cmd/co-shell-hub/main.go 的 defaultCoShellPath() 在 Windows 上返回 {dir}/co-shell.exe；② bridge/config.go 的 ResolveCoShellPath() 在 Windows 上检查 {dir}/co-shell.exe 并在 PATH 中查找 co-shell.exe；③ hub/hub.go 的 DefaultConfig() 默认 CoShellPath 在 Windows 上为 co-shell.exe（裸名，exec.Command 会自动补后缀，但显式指定更稳妥）。
+  - 实施：cmd/co-shell-hub/main.go + bridge/config.go + hub/hub.go（按 runtime.GOOS 判断 .exe 后缀）
+  - 测试：见 use-case/FIX-497/
+  - 进度：完成——cmd/co-shell-hub/main.go defaultCoShellPath 在 Windows 返回 co-shell.exe；bridge/config.go 新增 coShellBinName() 并在同目录/PATH 查找 .exe；hub/hub.go DefaultConfig 在 Windows 默认 co-shell.exe。go build+vet 全绿，GOOS=windows 交叉编译通过 [BUILD-921]
 
 ---
 

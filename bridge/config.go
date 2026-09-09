@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // Config holds common configuration for bridge programs.
@@ -70,6 +71,14 @@ func LoadConfig(path string, cfg interface{}) error {
 	return nil
 }
 
+// coShellBinName returns the co-shell executable name on the current platform.
+func coShellBinName() string {
+	if runtime.GOOS == "windows" {
+		return "co-shell.exe"
+	}
+	return "co-shell"
+}
+
 // ResolveCoShellPath returns the path to the co-shell executable.
 // If path is empty, it searches the PATH.
 func ResolveCoShellPath(path string) (string, error) {
@@ -86,14 +95,14 @@ func ResolveCoShellPath(path string) (string, error) {
 	if err == nil {
 		// Check if co-shell is in the same directory as the bridge
 		dir := filepath.Dir(execPath)
-		candidate := filepath.Join(dir, "co-shell")
+		candidate := filepath.Join(dir, coShellBinName())
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}
 	}
 
 	// Fall back to PATH lookup
-	candidate, err := findInPath("co-shell")
+	candidate, err := findInPath(coShellBinName())
 	if err == nil {
 		return candidate, nil
 	}
