@@ -647,7 +647,17 @@ aside {
   margin-right: 2px; /* 2px gap between lines */
   background: repeating-linear-gradient(to bottom, var(--line-color, #5b6373) 0 1px, transparent 1px 2px);
   opacity: 0.75; /* FEATURE-487: 75% translucent */
+  /* FEATURE-498 ext: a soft shadow keeps the faint 75% lines visible even on
+     light themes; it is dropped when the whole control is hovered (100%). */
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
   cursor: pointer;
+}
+/* FEATURE-498 ext: hovering the whole msgviz control raises every line to
+   full opacity so the chart is easy to read; individual lines still widen on
+   their own hover below. */
+.msgviz:hover .msgviz-line {
+  opacity: 1;
+  box-shadow: none;
 }
 /* FEATURE-487: hovering a line widens it to 3px and makes it fully opaque so
    it is easy to pick out; it returns to 1px/75% on mouse-out. The margin-right
