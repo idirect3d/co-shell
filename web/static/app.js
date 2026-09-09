@@ -5681,7 +5681,7 @@ async function refreshBranch() {
   let sidebarAutoTimer = 0;
   sidebar.addEventListener("mouseleave", () => {
     clearTimeout(sidebarAutoTimer);
-    sidebarAutoTimer = setTimeout(() => layout.classList.remove("sidebar-auto"), 2500);
+    sidebarAutoTimer = setTimeout(() => layout.classList.remove("sidebar-auto"), 1000);
   });
   loadTree();
   wsConnect();
