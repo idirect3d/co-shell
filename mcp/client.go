@@ -1,6 +1,6 @@
 // Author: L.Shuang
 // Created: 2026-04-25
-// Last Modified: 2026-04-25
+// Last Modified: 2026-09-10
 //
 // # MIT License
 //
@@ -33,8 +33,6 @@ import (
 	"sync"
 
 	"github.com/idirect3d/co-shell/log"
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // ToolInfo holds metadata about an MCP tool.
@@ -45,26 +43,21 @@ type ToolInfo struct {
 	ServerName  string
 }
 
-// toolInputSchemaToMap converts mcp.ToolInputSchema to map[string]interface{}.
-func toolInputSchemaToMap(s mcp.ToolInputSchema) map[string]interface{} {
-	result := map[string]interface{}{
-		"type": s.Type,
-	}
-	if len(s.Properties) > 0 {
-		result["properties"] = s.Properties
-	}
-	if len(s.Required) > 0 {
-		result["required"] = s.Required
-	}
-	return result
-}
-
 // ServerStatus represents the status of an MCP server connection.
 type ServerStatus struct {
 	Name  string
 	Alive bool
 	Tools []ToolInfo
 	Error string
+}
+
+// conn is the transport-agnostic interface implemented by both the stdio and
+// SSE MCP clients. It is fully self-contained (no third-party MCP dependency).
+type conn interface {
+	initialize(ctx context.Context) error
+	listTools(ctx context.Context) ([]tool, error)
+	callTool(ctx context.Context, name string, args map[string]any) (*callToolResult, error)
+	close() error
 }
 
 // Manager manages multiple MCP server connections.
@@ -75,9 +68,9 @@ type Manager struct {
 
 // mcpClient wraps a single MCP client connection.
 type mcpClient struct {
-	client client.MCPClient
-	tools  []ToolInfo
-	name   string
+	conn  conn
+	tools []ToolInfo
+	name  string
 }
 
 // NewManager creates a new MCP manager.
@@ -89,7 +82,7 @@ func NewManager() *Manager {
 
 // AddServer starts and connects to an MCP server. When url is non-empty the
 // server is connected over SSE (remote); otherwise it is launched as a local
-// stdio process (FEATURE-498).
+// stdio process.
 func (m *Manager) AddServer(name, command string, args []string, url string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -98,12 +91,10 @@ func (m *Manager) AddServer(name, command string, args []string, url string) err
 		return fmt.Errorf("server %q already exists", name)
 	}
 
-	var c client.MCPClient
+	var c conn
 	var err error
 	if url != "" {
-		// Create SSE-based MCP client for a remote server. We use our own fixed
-		// SSE client (sse_client.go) because the upstream mcp-go v0.8.3 client
-		// rejects relative-path "endpoint" events (FEATURE-498 fix).
+		// Remote SSE server.
 		sse, err := newSSEClient(url)
 		if err != nil {
 			return fmt.Errorf("cannot create MCP client for %q: %w", name, err)
@@ -113,52 +104,43 @@ func (m *Manager) AddServer(name, command string, args []string, url string) err
 		}
 		c = sse
 	} else {
-		// Create stdio-based MCP client
-		c, err = client.NewStdioMCPClient(
-			command,
-			nil, // env
-			args...,
-		)
+		// Local stdio server.
+		c, err = newStdioClient(command, args)
+		if err != nil {
+			return fmt.Errorf("cannot create MCP client for %q: %w", name, err)
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("cannot create MCP client for %q: %w", name, err)
 	}
 
-	// Initialize the client
-	initRequest := mcp.InitializeRequest{}
-	initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-	initRequest.Params.ClientInfo = mcp.Implementation{
-		Name:    "co-shell",
-		Version: "0.1.0",
-	}
-
-	_, err = c.Initialize(context.Background(), initRequest)
-	if err != nil {
-		c.Close()
+	// Initialize the client.
+	if err := c.initialize(context.Background()); err != nil {
+		c.close()
 		return fmt.Errorf("cannot initialize MCP server %q: %w", name, err)
 	}
 
-	// List available tools
-	toolsResult, err := c.ListTools(context.Background(), mcp.ListToolsRequest{})
+	// List available tools.
+	toolsResult, err := c.listTools(context.Background())
 	if err != nil {
-		c.Close()
+		c.close()
 		return fmt.Errorf("cannot list tools from %q: %w", name, err)
 	}
 
 	var tools []ToolInfo
-	for _, t := range toolsResult.Tools {
+	for _, t := range toolsResult {
 		tools = append(tools, ToolInfo{
 			Name:        t.Name,
 			Description: t.Description,
-			InputSchema: toolInputSchemaToMap(t.InputSchema),
+			InputSchema: t.InputSchema,
 			ServerName:  name,
 		})
 	}
 
 	m.servers[name] = &mcpClient{
-		client: c,
-		tools:  tools,
-		name:   name,
+		conn:  c,
+		tools: tools,
+		name:  name,
 	}
 
 	return nil
@@ -174,13 +156,13 @@ func (m *Manager) RemoveServer(name string) error {
 		return fmt.Errorf("server %q not found", name)
 	}
 
-	err := c.client.Close()
+	err := c.conn.close()
 	delete(m.servers, name)
 	return err
 }
 
 // TestServer reconnects to an MCP server (connectivity test) and refreshes its
-// cached tool list, returning the current tool call names (FEATURE-498 ext).
+// cached tool list, returning the current tool call names.
 func (m *Manager) TestServer(name, command string, args []string, url string) ([]string, error) {
 	// Drop any existing connection so AddServer can reconnect fresh.
 	if err := m.RemoveServer(name); err != nil {
@@ -237,7 +219,7 @@ func (m *Manager) CallTool(ctx context.Context, toolName string, args map[string
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Find which server has this tool
+	// Find which server has this tool.
 	var target *mcpClient
 	for _, c := range m.servers {
 		for _, t := range c.tools {
@@ -255,48 +237,34 @@ func (m *Manager) CallTool(ctx context.Context, toolName string, args map[string
 		return "", fmt.Errorf("tool %q not found on any MCP server", toolName)
 	}
 
-	// Convert args to JSON
+	// Convert args to JSON.
 	argBytes, err := json.Marshal(args)
 	if err != nil {
 		return "", fmt.Errorf("cannot marshal arguments: %w", err)
 	}
-
 	var rawArgs map[string]interface{}
 	if err := json.Unmarshal(argBytes, &rawArgs); err != nil {
 		return "", fmt.Errorf("cannot unmarshal arguments: %w", err)
 	}
 
-	callRequest := mcp.CallToolRequest{}
-	callRequest.Params.Name = toolName
-	callRequest.Params.Arguments = rawArgs
-
 	log.Info("MCP CallTool: server=%s, tool=%s, args=%v", target.name, toolName, args)
 
-	result, err := target.client.CallTool(ctx, callRequest)
+	result, err := target.conn.callTool(ctx, toolName, rawArgs)
 	if err != nil {
 		log.Error("MCP CallTool failed: server=%s, tool=%s, error: %v", target.name, toolName, err)
 		return "", fmt.Errorf("cannot call tool %q: %w", toolName, err)
 	}
 
-	// Format the result
+	// Format the result.
 	var output string
 	for _, content := range result.Content {
-		switch v := content.(type) {
-		case mcp.TextContent:
-			output += v.Text
-		case mcp.ImageContent:
-			output += fmt.Sprintf("[Image: %s]", v.MIMEType)
+		switch content.Type {
+		case "text":
+			output += content.Text
+		case "image":
+			output += fmt.Sprintf("[Image: %s]", content.MIMEType)
 		default:
-			// Try to handle as embedded resource or unknown
-			if b, ok := content.(map[string]interface{}); ok {
-				if text, ok := b["text"]; ok {
-					output += fmt.Sprintf("%v", text)
-				} else {
-					output += fmt.Sprintf("[Resource: %v]", b)
-				}
-			} else {
-				output += fmt.Sprintf("[Unknown content type: %T]", content)
-			}
+			output += fmt.Sprintf("[Content: %s]", content.Type)
 		}
 	}
 
@@ -310,7 +278,7 @@ func (m *Manager) Close() error {
 
 	var lastErr error
 	for name, c := range m.servers {
-		if err := c.client.Close(); err != nil {
+		if err := c.conn.close(); err != nil {
 			lastErr = fmt.Errorf("error closing %q: %w", name, err)
 		}
 	}
