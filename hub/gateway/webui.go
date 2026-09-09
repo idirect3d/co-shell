@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -180,6 +181,9 @@ type agentView struct {
 	Build     string `json:"build,omitempty"`
 	Running   bool   `json:"running"`
 	Connected bool   `json:"connected"`
+	// Busy reports whether the agent is currently executing a task
+	// (FEATURE-499), queried from the agent's /api/status.
+	Busy bool `json:"busy"`
 	CoShell   string `json:"co_shell,omitempty"`
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
 	// {workspace}/config.json.
@@ -216,6 +220,15 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 		} else if s.WSURL != "" {
 			if ver, b, err := remoteVersion(wsURLToBase(s.WSURL)); err == nil {
 				v.Version, v.Build = ver, b
+			}
+		}
+		// FEATURE-499: query the agent's busy state (task executing) for the
+		// red breathing status light. Only connected agents are queried.
+		if v.Connected {
+			if s.Type == AgentTypeManaged && s.Port > 0 {
+				v.Busy = agentBusy("http://127.0.0.1:" + strconv.Itoa(s.Port))
+			} else if s.WSURL != "" {
+				v.Busy = agentBusy(wsURLToBase(s.WSURL))
 			}
 		}
 		views = append(views, v)
