@@ -182,6 +182,10 @@ type Server struct {
 	// modelInfoFn returns the active text/vision model context info for the
 	// status bar (FEATURE-378); nil when no provider is registered.
 	modelInfoFn func() agent.ModelInfo
+
+	// busyFn reports whether the agent is currently executing a task
+	// (FEATURE-499). Exposed via GET /api/status for the hub to poll.
+	busyFn func() bool
 }
 
 // NewServer creates the server for the given workspace root and registers
@@ -211,6 +215,8 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("POST /api/logo", s.handleLogoUpload)
 	s.mux.HandleFunc("DELETE /api/logo", s.handleLogoRemove)
 	s.mux.HandleFunc("GET /logos/{theme}", s.handleLogoRead)
+	// FEATURE-499: lightweight status endpoint the hub polls for busy state.
+	s.mux.HandleFunc("GET /api/status", s.handleStatus)
 	handler := http.Handler(s.mux)
 	if len(opts.Whitelist) > 0 {
 		handler = s.whitelistMiddleware(handler, opts.Whitelist)
@@ -305,6 +311,15 @@ func (s *Server) SetPlanProvider(fn func() string) {
 func (s *Server) SetModelInfoProvider(fn func() agent.ModelInfo) {
 	s.mu.Lock()
 	s.modelInfoFn = fn
+	s.mu.Unlock()
+}
+
+// SetBusyProvider installs the busy-state provider (FEATURE-499). It reports
+// whether the agent is currently executing a task, exposed via GET /api/status
+// for the hub to poll.
+func (s *Server) SetBusyProvider(fn func() bool) {
+	s.mu.Lock()
+	s.busyFn = fn
 	s.mu.Unlock()
 }
 
@@ -525,6 +540,20 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		payload["modeVisionModelID"] = info.ModeVisionModelID
 	}
 	writeJSON(w, http.StatusOK, payload)
+}
+
+// handleStatus reports whether the agent is currently executing a task
+// (FEATURE-499). The hub polls this lightweight endpoint to drive the red
+// breathing status light on each agent in its list.
+func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	fn := s.busyFn
+	s.mu.Unlock()
+	busy := false
+	if fn != nil {
+		busy = fn()
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"busy": busy})
 }
 
 // gitBranch returns the current git branch of the workspace root, or "" when

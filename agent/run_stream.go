@@ -105,6 +105,9 @@ func (a *Agent) abortVisionRecognitionRound() {
 // RunStream processes a user input through the agent loop with streaming output.
 // It sends stream events to the provided callback function.
 func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallback) (string, error) {
+	// FEATURE-499: mark the agent busy for the duration of this task run.
+	a.SetBusy(true)
+	defer a.SetBusy(false)
 	// Ensure non-system messages are persisted on any exit path
 	defer func() {
 		if err := a.PersistSessionNonSystem(); err != nil {
