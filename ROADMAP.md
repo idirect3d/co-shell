@@ -4,6 +4,33 @@
 
 ---
 
+## v0.44.1 — 开发中
+
+> **版本**: v0.44.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: Windows 下 co-shell 可执行文件 .exe 后缀处理（FIX-497）
+> **说明**: 0.44.1 系列为修复版本：① hub 在 Windows 上查找 co-shell 可执行文件时未考虑 .exe 后缀；② hub 检测 co-shell 可执行文件时仅精确匹配文件名，无法识别带版本号的文件（如 co-shell-0.44.0.darwin.arm64）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-497 | 0.44.1 | P1 | Windows 下 co-shell 可执行文件 .exe 后缀未处理 + hub 检测带版本号文件名：defaultCoShellPath / ResolveCoShellPath 处理 .exe；DetectCoShells 扫描所有 co-shell 开头可执行文件并验证 --version |
+
+> 当前 BUILD: 923
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-497 Windows 下 co-shell 可执行文件 .exe 后缀未处理 + 带版本号检测**
+  - 背景：hub 在 Windows 上执行时，系统找不到 PATH 路径下以及当前文件夹下的 co-shell.exe。原因是查找 co-shell 可执行文件时未考虑 Windows 上可执行文件带 .exe 后缀；且 hub 检测 co-shell 可执行文件时仅精确匹配文件名，无法识别带版本号的文件。
+  - 方案：① cmd/co-shell-hub/main.go 的 defaultCoShellPath() 在 Windows 上返回 {dir}/co-shell.exe；② bridge/config.go 的 ResolveCoShellPath() 在 Windows 上检查 {dir}/co-shell.exe 并在 PATH 中查找 co-shell.exe；③ hub/hub.go 的 DefaultConfig() 默认 CoShellPath 在 Windows 上为 co-shell.exe；④ hub/gateway/detect.go DetectCoShells 扫描当前目录/PATH 中所有以 co-shell 开头的可执行文件（含版本号），引用前先执行 --version 确认是 co-shell 才放入下拉列表。
+  - 实施：cmd/co-shell-hub/main.go + bridge/config.go + hub/hub.go + hub/gateway/detect.go + hub/gateway/detect_test.go（按 runtime.GOOS 判断 .exe 后缀 + 前缀扫描 + --version 验证）
+  - 测试：见 use-case/FIX-497/
+  - 进度：完成——defaultCoShellPath/ResolveCoShellPath/DefaultConfig 处理 .exe 后缀；DetectCoShells 扫描所有 co-shell 开头可执行文件并验证 --version；新增 coShellCandidates + 单元测试。go build+vet 全绿，GOOS=windows 交叉编译通过，hub 模块测试通过 [BUILD-923]
+
+---
+
 ## v0.44.0 — 开发中
 
 > **版本**: v0.44.0
