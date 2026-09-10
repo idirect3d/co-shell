@@ -1375,6 +1375,8 @@ The bin/ directory provides Python tools for document format conversion and mult
 SKILLS
 
 The following skills are available. Each skill is a directory containing a SKILL.md file. Only the skill index (name, description, path) is listed here. When you need to use a skill, read its SKILL.md file with read_file to get the full instructions.
+
+(You can customize skills by placing skill directories under ./skills/ (workspace-level) or ~/.co-shell/skills/ (global-level); each skill is a directory containing a SKILL.md, workspace-level takes precedence on name conflicts, and you can manage them with the :skill list/show/add/remove commands.)
 `
 
 	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
