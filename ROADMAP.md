@@ -9,7 +9,7 @@
 > **版本**: v0.48.0
 
 > **状态**: 🚧 开发中
-> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）+ PLAN/RESEARCH 模式描述优化（FEATURE-502）+ RESULT MODE 节追加 --unload-mode 说明（FEATURE-503）+ RULES 节追加 .rules/ 定制说明（FEATURE-504）
+> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）+ PLAN/RESEARCH 模式描述优化（FEATURE-502）+ RESULT MODE 节追加 --unload-mode 说明（FEATURE-503）+ RULES 节追加 .rules/ 定制说明（FEATURE-504） + SKILLS 节追加 skill 配置机制说明（FEATURE-505）
 > **说明**: 0.48.0 系列包含三项：① 内置能力可见性——co-shell 启动时自动在 workspace 根目录创建 12 个系统内置文件夹（.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos），让用户通过文件夹名字即可大致了解内置能力；② 工作模式描述优化——强化 PLAN MODE 挖掘需求/反复确认模糊点、RESEARCH MODE 结论须有高置信度证据支撑的行为纪律；③ RESULT MODE 节末尾追加 --unload-mode 配置说明，让 LLM 自己知道各模式策略可导出到 ./mode/ 下实时调整。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -18,8 +18,9 @@
 | FEATURE-502 | 0.48.0 | P1 | PLAN/RESEARCH 模式描述优化：PLAN MODE 强调挖掘需求、模糊处反复确认；RESEARCH MODE 强调结论须有高置信度证据支撑 |
 | FEATURE-503 | 0.48.0 | P1 | RESULT MODE 节末尾追加 --unload-mode 配置说明：让 LLM 知道各模式策略可导出到 ./mode/ 下编辑实时调整 |
 | FEATURE-504 | 0.48.0 | P1 | RULES 节末尾追加 .rules/ 定制说明：告知可通过向 .rules/ 下放规则文件定制规则/规范，文件名作为各节标题，子文件夹被列出（作为索引）但不再遍历 |
+| FEATURE-505 | 0.48.0 | P1 | SKILLS 节末尾追加 skill 配置机制说明：告知可通过向 ./skills/ 或 ~/.co-shell/skills/ 下放 skill 目录定制 skill，同名工作空间级优先，可用 :skill 命令管理；SKILLS 段改为始终输出 |
 
-> 当前 BUILD: 940
+> 当前 BUILD: 941
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -52,6 +53,13 @@
   - 实施：i18n/zh_system.go + i18n/en_system.go（中英双语括号说明）+ ROADMAP.md
   - 测试：见 use-case/FEATURE-504/
   - 进度：开发完成——i18n/zh_system.go 与 i18n/en_system.go 的 KeySystemPromptRules 文本末尾（{CUSTOM_RULES} 之前）各追加一句括号说明；新增 i18n/rules_note_test.go 单测 TestRulesDirCustomizationNote（zh/en 两子用例，断言说明存在、括号包裹、位于最后一条规则之后且位于 {CUSTOM_RULES} 之前）通过；端到端渲染验证说明位于 RULES 节末尾；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-940]
+
+- [ ] **FEATURE-505 SKILLS 节末尾追加 skill 配置机制说明**
+  - 背景：系统提示词的 SKILLS 节列出了可用 skill 索引，但 LLM 自身不知道用户可以通过向 `./skills/`（工作空间级）或 `~/.co-shell/skills/`（全局级）下放 skill 目录的方式定制 skill，也不知道同名时工作空间级优先、可用 `:skill` 命令管理，因此无法主动告知用户如何定制 skill。此外 SKILLS 段在无 skill 时整段不输出，导致说明也随之消失。
+  - 方案（用户确认）：① 在 SKILLS 段最末尾（动态索引列表之后）追加一句括号说明——（可以通过向 ./skills/（工作空间级）或 ~/.co-shell/skills/（全局级）下放 skill 目录的方式定制 skill，每个 skill 是一个包含 SKILL.md 的目录，同名时工作空间级优先，可用 :skill list/show/add/remove 命令管理）；② SKILLS 段改为始终输出（即使无 skill 也输出头部 + 说明）。
+  - 实施：i18n/zh_system.go + i18n/en_system.go（中英双语括号说明）+ agent/system_prompt.go（SKILLS 段始终输出 + 索引插入到说明之前）+ ROADMAP.md
+  - 测试：见 use-case/FEATURE-505/
+  - 进度：开发完成——i18n/zh_system.go 与 i18n/en_system.go 的 KeySystemPromptSkills 文本末尾各追加一句括号说明；agent/system_prompt.go 的 Skills 分支改为始终输出（无 skill 时返回 header），并在有 skill 时将索引插入到末尾括号说明之前（兼容中文全角「（」与英文半角「(」）；新增 agent/skills_note_test.go 3 个单测（中英说明断言、无 skill 仍输出、索引位于说明之前）全部通过；端到端渲染验证中英双语在有无 skill 两种场景下均正确；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-941]
 
 ---
 

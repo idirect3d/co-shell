@@ -1359,6 +1359,8 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 SKILLS
 
 以下 skills 可用。每个 skill 是一个包含 SKILL.md 文件的目录。此处仅列出 skill 索引（名称、简介、路径）。当你需要使用某个 skill 时，用 read_file 读取其 SKILL.md 文件获取完整说明。
+
+（可以通过向 ./skills/（工作空间级）或 ~/.co-shell/skills/（全局级）下放 skill 目录的方式定制 skill，每个 skill 是一个包含 SKILL.md 的目录，同名时工作空间级优先，可用 :skill list/show/add/remove 命令管理）
 `
 
 	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
