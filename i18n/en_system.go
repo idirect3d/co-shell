@@ -45,6 +45,10 @@ func init() {
 	// FEATURE-472: lead sentence of the static RESULT MODE section.
 	enMessages[KeySystemPromptResultModeLead] = `In each user message, the environment_details will specify the current mode. There are %d modes:`
 
+	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
+	// LLM how to export and tweak per-mode strategies via --unload-mode.
+	enMessages[KeySystemPromptResultModeNote] = `(The above can be exported per mode with --unload-mode {mode} into ./mode/, and these files can be edited for real-time adjustment)`
+
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
 	enMessages[KeyWorkModeAct] = `In this mode, you use tools to accomplish the user's task.
