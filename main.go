@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.47.0"
+const version = "0.48.0"
 
-const build = "936"
+const build = "937"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -454,6 +454,38 @@ func loadConfigByPriority(ws *workspace.Workspace) (*config.Config, string, erro
 	return config.LoadFromFile(ws.ConfigPath(), ws)
 }
 
+// builtinDirs lists the system folders co-shell creates under the workspace on
+// startup (FEATURE-501), so users can discover the built-in capabilities from
+// the directory names (e.g. .rules/ for rules, skills/ for skills).
+var builtinDirs = []string{
+	".rules",   // rules loaded on demand into the system prompt
+	"skills",   // SKILL.md skill packages
+	"research", // research notes and reports
+	"input",    // Web UI attachment upload directory
+	"output",   // sub-agent outputs / exported files
+	"mode",     // work-mode configuration (act/plan/research)
+	"bin",      // custom tool scripts
+	"tmp",      // temporary files (tool results, listings)
+	"log",      // logs
+	"db",       // database (bbolt, models.json)
+	"download", // browser downloads (screenshots, HTML)
+	"logos",    // custom logos
+}
+
+// ensureBuiltinDirs creates the system folders under root. It is idempotent:
+// existing directories are left untouched. The returned slice lists the
+// directory names that could not be created (e.g. a file occupies the path),
+// so the caller can warn without aborting startup.
+func ensureBuiltinDirs(root string) []string {
+	var failed []string
+	for _, name := range builtinDirs {
+		if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
+			failed = append(failed, name)
+		}
+	}
+	return failed
+}
+
 func main() {
 	flags := parseFlags()
 	io := agent.NewDefaultUserIO()
@@ -524,6 +556,12 @@ func main() {
 	// workspace regardless of how the application was launched.
 	if err := os.Chdir(ws.Root()); err != nil {
 		io.ErrPrintf("Warning: cannot change to workspace directory: %v\n", err)
+	}
+
+	// FEATURE-501: create the system folders so users can discover co-shell's
+	// built-in capabilities from the workspace layout. Failures are non-fatal.
+	for _, name := range ensureBuiltinDirs(ws.Root()) {
+		log.Warn("startup: cannot create builtin directory %q", name)
 	}
 
 	if flags.initCapabilities {
