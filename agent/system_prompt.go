@@ -469,6 +469,11 @@ func buildResultModeSection(cfg *config.Config) string {
 		sb.WriteString(desc)
 		sb.WriteString("\n\n")
 	}
+	// FEATURE-503: trailing note telling the LLM how to export and tweak the
+	// per-mode strategies via --unload-mode.
+	if note := i18n.T(i18n.KeySystemPromptResultModeNote); note != "" && note != i18n.KeySystemPromptResultModeNote {
+		sb.WriteString(note)
+	}
 	return strings.TrimSpace(sb.String())
 }
 

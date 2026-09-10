@@ -62,6 +62,10 @@ func init() {
 	// FEATURE-472: lead sentence of the static RESULT MODE section.
 	zhMessages[KeySystemPromptResultModeLead] = `在每个用户消息中，environment_details 会指明当前模式。共有 %d 种模式：`
 
+	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
+	// LLM how to export and tweak per-mode strategies via --unload-mode.
+	zhMessages[KeySystemPromptResultModeNote] = `（以上内容可以通过 --unload-mode {mode}，将各模式的策略导出到 ./mode/ 下，可以通过编辑这些文件进行实时调整）`
+
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
 	zhMessages[KeyWorkModeAct] = `在此模式下，你使用工具来完成用户的任务。
