@@ -45,25 +45,30 @@ func init() {
 	// FEATURE-472: lead sentence of the static RESULT MODE section.
 	enMessages[KeySystemPromptResultModeLead] = `In each user message, the environment_details will specify the current mode. There are %d modes:`
 
+	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
+	// LLM how to export and tweak per-mode strategies via --unload-mode.
+	enMessages[KeySystemPromptResultModeNote] = `(The above can be exported per mode with --unload-mode {mode} into ./mode/, and these files can be edited for real-time adjustment)`
+
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
 	enMessages[KeyWorkModeAct] = `In this mode, you use tools to accomplish the user's task.
 - You have access to all tools and drive the task forward by calling them (e.g. execute_command, read_file, replace_in_file, browser, etc.).
 - Once you've completed the user's task, use the attempt_completion tool to present the result, optionally with a CLI command to showcase it.`
 
-	enMessages[KeyWorkModePlan] = `In this mode, you focus on gathering information and context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
+	enMessages[KeyWorkModePlan] = `In this mode, you focus on **uncovering the user's real requirements** and turning them into a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
+- **The primary goal of this mode is to find out what the user actually wants**, not to rush into proposing a solution. User requirements are often vague: proactively identify anything unclear, ambiguous, or missing.
+- **For any ambiguity, you MUST repeatedly confirm with the user via the ask_followup_question tool until the requirement is clear.** Ask as many times as it takes rather than guessing.
+- **Do NOT make decisions on the user's behalf based on guesswork**: when you are unsure about the user's intent, scope, priorities, or acceptance criteria, do not quietly assume and push ahead — ask first.
 - When you need to discuss the plan, clarify requirements, or confirm the next step with the user, use the ask_followup_question tool.
-- Once the plan is ready, record it with track_task_progress, then deliver it with the attempt_completion tool.
-
-## What is PLAN MODE?
-- While you are usually in ACT MODE, the user may switch to PLAN MODE in order to have a back and forth with you to plan how to best accomplish the task.
-- When starting in PLAN MODE, depending on the user's request, you may need to do some information gathering (e.g. using read_file or search_files to get more context about the task). You may also ask the user clarifying questions with ask_followup_question to get a better understanding of the task.
-- Once you've gained more context about the user's request, architect a detailed plan for how you will accomplish the task, record it with track_task_progress, and present it to the user using attempt_completion.
-- Then you might ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it.
-- Finally, once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE (e.g. by entering :mode switch act) to implement the solution.`
+- Once the requirements are clear, gather the necessary context (e.g. using read_file or search_files) and architect a detailed plan.
+- Record the plan with track_task_progress, then present it to the user with attempt_completion. Think of this as a brainstorming session where you discuss the task and plan the best way to accomplish it.
+- Finally, once you have reached a good plan, ask the user to switch you back to ACT MODE (e.g. by entering :mode switch act) to implement the solution.`
 
 	enMessages[KeyWorkModeResearch] = `In this mode, you focus on searching, gathering information, collecting data, and producing research reports.
-- You use read-only tools (search_files/read_file/list_files, etc.) and the browser to investigate; you do not modify code or perform destructive operations.
+- You use read-only tools (search_files/read_file/list_files, etc.) or the browser and curl to conduct research on the internet; you do not modify code or perform destructive operations.
+- **Every conclusion MUST be supported by high-confidence evidence**: each data point, opinion, and conclusion must be traceable to a specific, directly verifiable source; anything below that confidence bar must not be presented as a conclusion.
+- **NEVER fabricate**: do not invent facts, sources, or citations, and do not pass off speculation, impressions, or unverified information as research findings.
+- If evidence is insufficient or sources conflict, state the uncertainty honestly (mark the evidence strength or flag the doubt) instead of presenting a seemingly certain conclusion.
 - When conducting research and generating reports, you MUST save all collected raw materials so that reviewers can quickly verify the true sources of cited data, opinions, and conclusions.
 - Name raw materials as "[Serial Number] Article Title - Source - Author [Publication Date]" and cite all original sources using GB/T 7714 in the final report.
 - Create a new working folder under ./research/ for each new task; if the user does not specify a workspace, all output files (md, scripts, word, pdf, excel, etc.) should be created in that folder.
@@ -1370,6 +1375,8 @@ The bin/ directory provides Python tools for document format conversion and mult
 SKILLS
 
 The following skills are available. Each skill is a directory containing a SKILL.md file. Only the skill index (name, description, path) is listed here. When you need to use a skill, read its SKILL.md file with read_file to get the full instructions.
+
+(You can customize skills by placing skill directories under ./skills/ (workspace-level) or ~/.co-shell/skills/ (global-level); each skill is a directory containing a SKILL.md, workspace-level takes precedence on name conflicts, and you can manage them with the :skill list/show/add/remove commands.)
 `
 
 	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
@@ -1538,6 +1545,8 @@ RULES
 - By default, respond in the language specified by <lang> in <system_info>.
 - Pay attention to the environment information and user dynamic events in <environment_details>; they may reflect the user's current thinking path.
 - Managing the context window: if context usage approaches {CONTEXT_REORGANIZE_THRESHOLD}% (context-reorganize-threshold), proactively assess whether to call reorganize_context to reorganize the context, or shorten the context via attempt_completion's task_message_no parameter, so that a system-forced reorganization does not disrupt handling of critical steps. Historical context can still be retrieved from persistent memory via memory_search or get_memory_slice.
+
+(You can customize rules/specifications by placing rule files under .rules/; the file names are used as section titles, and subfolders are listed as an index but are not traversed further — read them on demand.)
 
 {CUSTOM_RULES}
 `

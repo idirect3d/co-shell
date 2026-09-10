@@ -1258,6 +1258,9 @@ const (
 	// FEATURE-472: lead sentence of the static RESULT MODE section, with a %d
 	// placeholder for the number of configured work modes.
 	KeySystemPromptResultModeLead = "system_prompt_result_mode_lead"
+	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
+	// LLM how to export and tweak per-mode strategies via --unload-mode.
+	KeySystemPromptResultModeNote = "system_prompt_result_mode_note"
 
 	// System Prompt - legacy keys (not used in buildSystemPromptWithMode, kept for reference)
 	KeySystemPromptToolUsage    = "system_prompt_tool_usage"

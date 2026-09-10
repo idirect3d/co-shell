@@ -68,6 +68,35 @@ func TestBuildResultModeSection_DefaultModes(t *testing.T) {
 	}
 }
 
+// TestBuildResultModeSection_TrailingNote verifies the section ends with the
+// --unload-mode note in both languages (FEATURE-503, UC-0001/UC-0002).
+func TestBuildResultModeSection_TrailingNote(t *testing.T) {
+	for _, lang := range []string{"zh", "en"} {
+		t.Run(lang, func(t *testing.T) {
+			i18n.Init(lang)
+			cfg := config.DefaultConfig()
+			cfg.WorkModes = nil
+			cfg.LLM.WorkMode = "act"
+
+			got := buildResultModeSection(cfg)
+			const note = "--unload-mode {mode}"
+			if !strings.Contains(got, note) {
+				t.Errorf("result mode section missing trailing note %q:\n%s", note, got)
+			}
+			// The note must come after the last mode description.
+			noteIdx := strings.Index(got, note)
+			resIdx := strings.Index(got, "# RESEARCH MODE")
+			if !(resIdx >= 0 && resIdx < noteIdx) {
+				t.Errorf("trailing note not after mode descriptions (research=%d note=%d)", resIdx, noteIdx)
+			}
+			// The note must be wrapped in parentheses.
+			if !strings.Contains(got, "（") && !strings.Contains(got, "(") {
+				t.Errorf("trailing note is not parenthesized:\n%s", got)
+			}
+		})
+	}
+}
+
 // TestBuildResultModeSection_CustomMode verifies a user-defined mode is
 // appended to the section (UC-0002).
 func TestBuildResultModeSection_CustomMode(t *testing.T) {
