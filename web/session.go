@@ -715,22 +715,6 @@ func (s *WebSession) newSession() {
 	if err := s.ag.FlushCurrentSession(); err != nil {
 		log.Warn("newSession FlushCurrentSession: %v", err)
 	}
-	// Find the next "New session N" number.
-	nextN := 1
-	sessionNumRe := regexp.MustCompile(`(\d+)$`)
-	if entries, err := s.ag.Store().ListNamedSessions(); err == nil {
-		maxN := 0
-		for _, e := range entries {
-			if m := sessionNumRe.FindStringSubmatch(e.Title); m != nil {
-				if suffix, err := strconv.Atoi(m[1]); err == nil && suffix > maxN {
-					maxN = suffix
-				}
-			}
-		}
-		if maxN > 0 {
-			nextN = maxN + 1
-		}
-	}
 	s.ag.Reset()
 	now := time.Now()
 	randBytes := make([]byte, 4)
@@ -739,7 +723,7 @@ func (s *WebSession) newSession() {
 	randBytes[2] = byte(now.Second() & 0xFF)
 	randBytes[3] = byte(now.Minute() & 0xFF)
 	sessionID := fmt.Sprintf("sess-%s-%08x", now.Format("20060102150405"), randBytes)
-	title := fmt.Sprintf(i18n.T(i18n.KeyNewSessionTitle), nextN)
+	title := s.nextDefaultSessionTitle()
 	entry := &store.SessionEntry{
 		ID:           sessionID,
 		Title:        title,
@@ -757,6 +741,28 @@ func (s *WebSession) newSession() {
 	if err := s.ag.Store().SaveCurrentSessionID(sessionID); err != nil {
 		log.Warn("newSession SaveCurrentSessionID: %v", err)
 	}
+}
+
+// nextDefaultSessionTitle returns the next default placeholder title
+// (e.g. "新会话N" / "New session N"), mirroring newSession's numbering
+// (FEATURE-500). Used when a session title is cleared to unlock it.
+func (s *WebSession) nextDefaultSessionTitle() string {
+	nextN := 1
+	sessionNumRe := regexp.MustCompile(`(\d+)$`)
+	if entries, err := s.ag.Store().ListNamedSessions(); err == nil {
+		maxN := 0
+		for _, e := range entries {
+			if m := sessionNumRe.FindStringSubmatch(e.Title); m != nil {
+				if suffix, err := strconv.Atoi(m[1]); err == nil && suffix > maxN {
+					maxN = suffix
+				}
+			}
+		}
+		if maxN > 0 {
+			nextN = maxN + 1
+		}
+	}
+	return fmt.Sprintf(i18n.T(i18n.KeyNewSessionTitle), nextN)
 }
 
 // popTo implements the retry-from block action (FEATURE-409): it pops the
@@ -801,12 +807,12 @@ func (s *WebSession) deleteSession(id string) {
 // renameSession renames the current session (FEATURE-425). The new title is
 // persisted via UpdateNamedSession and the session list is refreshed so the
 // status-bar menu and the main message area title bar stay in sync.
+// FEATURE-500: a non-empty manual title is locked by prefixing "$" (so task
+// completion no longer overwrites it); an empty title restores the default
+// placeholder title and unlocks it, letting the next task completion
+// auto-generate a new title.
 func (s *WebSession) renameSession(title string) {
 	title = strings.TrimSpace(title)
-	if title == "" {
-		s.pushSessionList()
-		return
-	}
 	id := s.ag.CurrentSessionID()
 	if id == "" {
 		return
@@ -816,7 +822,15 @@ func (s *WebSession) renameSession(title string) {
 		log.Warn("renameSession LoadNamedSession: %v", err)
 		return
 	}
-	entry.Title = title
+	if title == "" {
+		// FEATURE-500: clearing the title restores the default placeholder
+		// title and unlocks it.
+		entry.Title = s.nextDefaultSessionTitle()
+	} else {
+		// FEATURE-500: lock the manual title with a "$" prefix (strip any
+		// existing leading "$" first so re-editing stays stable).
+		entry.Title = "$" + strings.TrimLeft(title, "$")
+	}
 	if err := s.ag.Store().UpdateNamedSession(id, entry); err != nil {
 		log.Warn("renameSession UpdateNamedSession: %v", err)
 		return
