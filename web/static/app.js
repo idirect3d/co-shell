@@ -2095,8 +2095,10 @@ function initStreamMode() {
   streamTitle.title = T.streamTitleHint;
   const commitTitle = () => {
     const v = streamTitle.value.trim();
-    if (!v) { streamTitle.value = streamTitle.placeholder; return; }
     const cur = sessionList.find((s) => s.current);
+    // FEATURE-500: an empty title is sent as-is so the backend restores the
+    // default placeholder title and unlocks it; a non-empty changed title is
+    // sent for locking (the backend adds the "$" prefix).
     if (cur && v !== cur.title) wsSend({ type: "session_rename", value: v });
   };
   streamTitle.addEventListener("keydown", (e) => {
