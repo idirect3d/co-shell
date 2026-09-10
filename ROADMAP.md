@@ -20,41 +20,41 @@
 | FEATURE-504 | 0.48.0 | P1 | RULES 节末尾追加 .rules/ 定制说明：告知可通过向 .rules/ 下放规则文件定制规则/规范，文件名作为各节标题，子文件夹被列出（作为索引）但不再遍历 |
 | FEATURE-505 | 0.48.0 | P1 | SKILLS 节末尾追加 skill 配置机制说明：告知可通过向 ./skills/ 或 ~/.co-shell/skills/ 下放 skill 目录定制 skill，同名工作空间级优先，可用 :skill 命令管理；SKILLS 段改为始终输出 |
 
-> 当前 BUILD: 941
+> 当前 BUILD: 942
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-501 启动时自动创建系统内置文件夹**
+- [x] **FEATURE-501 启动时自动创建系统内置文件夹**
   - 背景：co-shell 的多个内置能力各自对应 workspace 下的一个系统文件夹（.rules 规则、skills 技能、research 调研、input 输入附件、output 输出产物、mode 工作模式、bin 自定义工具脚本、tmp 临时文件、log 日志、db 数据库、download 下载、logos 自定义 logo），但这些文件夹只在对应功能首次使用时才按需创建，新用户无法从目录结构直观发现 co-shell 有哪些内置能力。
   - 方案（用户确认）：co-shell 启动时统一自动创建 12 个系统内置文件夹（方案B），使用户通过文件夹名大致了解内置能力；已存在则不覆盖、不报错；创建失败仅告警不阻断启动。
   - 实施：main.go（定义内置文件夹清单 + 启动时创建）+ main.go/cmd/co-shell-hub/main.go（版本号 0.48.0 + build 计数）
   - 测试：见 use-case/FEATURE-501/
   - 进度：开发完成——main.go 新增 builtinDirs（12 个内置文件夹）与纯函数 ensureBuiltinDirs（MkdirAll 幂等创建，返回失败项不 panic），在 os.Chdir(ws.Root()) 后调用并以 log.Warn 记录失败（不阻断启动）；新增 main_test.go 5 个单元测试（首次创建/保留已有内容/补齐缺失/路径被文件占用不崩溃/幂等）全部通过；全新目录端到端启动验证 12 个文件夹全部创建；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-937]
 
-- [ ] **FEATURE-502 PLAN/RESEARCH 模式描述优化**
+- [x] **FEATURE-502 PLAN/RESEARCH 模式描述优化**
   - 背景：PLAN MODE 与 RESEARCH MODE 的系统提示词行为指导文案未突出各自的核心纪律：PLAN MODE 的价值在于挖掘用户真实需求、对模糊之处反复确认，而不是自行猜测后替用户做决定；RESEARCH MODE 的价值在于结论有据可查，所有结论必须有高置信度证据支撑，不能凭空想像。
   - 方案（用户确认）：仅优化系统提示词中的模式行为指导（i18n/zh_system.go、i18n/en_system.go 的 KeyWorkModePlan / KeyWorkModeResearch）；UI 设置界面的简短标签保持不变。本任务与 FEATURE-501 一并在 v0.48.0 发布（追加在 FEATURE-501 分支）。
   - 实施：i18n/zh_system.go + i18n/en_system.go + ROADMAP.md
   - 测试：见 use-case/FEATURE-502/
   - 进度：开发完成——i18n/zh_system.go 与 i18n/en_system.go 重写 KeyWorkModePlan（强调挖掘真实需求、模糊处必须反复用 ask_followup_question 确认、不凭猜测替用户决定）；重写 KeyWorkModeResearch（所有结论须有高置信度证据、严禁凭空想像、证据不足须如实说明不确定性，调研手段补充“浏览器与curl在互联网开展调研”）；新增 i18n/mode_desc_test.go 3 个测试（中/英要点断言、非空渲染）全部通过；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-938]
 
-- [ ] **FEATURE-503 RESULT MODE 节末尾追加 --unload-mode 配置说明**
+- [x] **FEATURE-503 RESULT MODE 节末尾追加 --unload-mode 配置说明**
   - 背景：系统提示词的 RESULT MODE 节（标题 ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE）列出了各工作模式的行为策略，但 LLM 自身不知道这些策略可以通过 `--unload-mode {mode}` 导出到 `./mode/` 下编辑并实时生效，因此无法主动告知用户如何调整模式策略。
   - 方案（用户确认）：在该节末尾追加一句括号说明——（以上内容可以通过 --unload-mode {mode}，将各模式的策略导出到 ./mode/ 下，可以通过编辑这些文件进行实时调整）。
   - 实施：i18n/keys.go（新增 KeySystemPromptResultModeNote）+ i18n/zh_system.go / en_system.go（中英双语说明文本）+ agent/system_prompt.go（buildResultModeSection 末尾追加说明）+ ROADMAP.md
   - 测试：见 use-case/FEATURE-503/
   - 进度：开发完成——i18n/keys.go 新增 KeySystemPromptResultModeNote；zh_system.go/en_system.go 填充中英双语括号说明；agent/system_prompt.go 的 buildResultModeSection 在模式描述循环后追加该说明；新增单测 TestBuildResultModeSection_TrailingNote（zh/en 两子用例，断言说明存在、位于模式描述之后、括号包裹）通过；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-939]
 
-- [ ] **FEATURE-504 RULES 节末尾追加 .rules/ 定制说明**
+- [x] **FEATURE-504 RULES 节末尾追加 .rules/ 定制说明**
   - 背景：系统提示词的 RULES 节列出了核心规则，但 LLM 自身不知道用户可以通过向 `.rules/` 下放规则文件的方式定制规则/规范，也不知道文件名会被当作各节标题、子文件夹会被列出作为索引，因此无法主动告知用户如何定制规则。
   - 方案（用户确认）：在 RULES 节（i18n 的 KeySystemPromptRules 文本）末尾、`{CUSTOM_RULES}` 占位符之前，追加一句括号说明——（可以通过向 .rules/ 下放规则文件的方式，在以下位置定制规则/规范，文件名将被当作各节标题，子文件夹将被列出（作为索引），但不会再遍历子文件夹，需要时可自取）。
   - 实施：i18n/zh_system.go + i18n/en_system.go（中英双语括号说明）+ ROADMAP.md
   - 测试：见 use-case/FEATURE-504/
   - 进度：开发完成——i18n/zh_system.go 与 i18n/en_system.go 的 KeySystemPromptRules 文本末尾（{CUSTOM_RULES} 之前）各追加一句括号说明；新增 i18n/rules_note_test.go 单测 TestRulesDirCustomizationNote（zh/en 两子用例，断言说明存在、括号包裹、位于最后一条规则之后且位于 {CUSTOM_RULES} 之前）通过；端到端渲染验证说明位于 RULES 节末尾；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-940]
 
-- [ ] **FEATURE-505 SKILLS 节末尾追加 skill 配置机制说明**
+- [x] **FEATURE-505 SKILLS 节末尾追加 skill 配置机制说明**
   - 背景：系统提示词的 SKILLS 节列出了可用 skill 索引，但 LLM 自身不知道用户可以通过向 `./skills/`（工作空间级）或 `~/.co-shell/skills/`（全局级）下放 skill 目录的方式定制 skill，也不知道同名时工作空间级优先、可用 `:skill` 命令管理，因此无法主动告知用户如何定制 skill。此外 SKILLS 段在无 skill 时整段不输出，导致说明也随之消失。
   - 方案（用户确认）：① 在 SKILLS 段最末尾（动态索引列表之后）追加一句括号说明——（可以通过向 ./skills/（工作空间级）或 ~/.co-shell/skills/（全局级）下放 skill 目录的方式定制 skill，每个 skill 是一个包含 SKILL.md 的目录，同名时工作空间级优先，可用 :skill list/show/add/remove 命令管理）；② SKILLS 段改为始终输出（即使无 skill 也输出头部 + 说明）。
   - 实施：i18n/zh_system.go + i18n/en_system.go（中英双语括号说明）+ agent/system_prompt.go（SKILLS 段始终输出 + 索引插入到说明之前）+ ROADMAP.md
