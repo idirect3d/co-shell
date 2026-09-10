@@ -469,6 +469,11 @@ func buildResultModeSection(cfg *config.Config) string {
 		sb.WriteString(desc)
 		sb.WriteString("\n\n")
 	}
+	// FEATURE-503: trailing note telling the LLM how to export and tweak the
+	// per-mode strategies via --unload-mode.
+	if note := i18n.T(i18n.KeySystemPromptResultModeNote); note != "" && note != i18n.KeySystemPromptResultModeNote {
+		sb.WriteString(note)
+	}
 	return strings.TrimSpace(sb.String())
 }
 
@@ -507,17 +512,17 @@ type promptEnv struct {
 	// contextReorganizeThreshold is the configured token-usage percentage that
 	// triggers an automatic reorganize_context suggestion (FEATURE-472).
 	contextReorganizeThreshold string
-	os                          string
-	arch                  string
-	shell                 string
-	homeDir               string
-	cwd                   string
-	execName              string
-	taskDesc              string
-	customRules           string
-	shellEnabled          bool
-	mode                  config.ResultMode
-	lang                  string
+	os                         string
+	arch                       string
+	shell                      string
+	homeDir                    string
+	cwd                        string
+	execName                   string
+	taskDesc                   string
+	customRules                string
+	shellEnabled               bool
+	mode                       config.ResultMode
+	lang                       string
 }
 
 // getModeSectionPath returns the path to a section file for the current work mode.
@@ -624,12 +629,20 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		// loading SKILL.md content. The LLM reads SKILL.md on demand via read_file.
 		skills := scanSkills(env.cwd, env.homeDir)
 		index := buildSkillsIndex(skills)
-		if index == "" {
-			return ""
-		}
 		header := i18n.T(i18n.KeySystemPromptSkills)
 		if header == "" || header == i18n.KeySystemPromptSkills {
 			header = "SKILLS"
+		}
+		if index == "" {
+			return header
+		}
+		// Insert the index before the trailing parenthesized note (the last
+		// non-empty paragraph of the header), so the note stays at the very end.
+		// The note opens with a full-width paren in zh and a half-width one in en.
+		for _, open := range []string{"\n\n\uff08", "\n\n("} {
+			if i := strings.LastIndex(header, open); i >= 0 {
+				return header[:i] + "\n\n" + index + header[i:]
+			}
 		}
 		return header + "\n\n" + index
 

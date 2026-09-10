@@ -62,25 +62,30 @@ func init() {
 	// FEATURE-472: lead sentence of the static RESULT MODE section.
 	zhMessages[KeySystemPromptResultModeLead] = `在每个用户消息中，environment_details 会指明当前模式。共有 %d 种模式：`
 
+	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
+	// LLM how to export and tweak per-mode strategies via --unload-mode.
+	zhMessages[KeySystemPromptResultModeNote] = `（以上内容可以通过 --unload-mode {mode}，将各模式的策略导出到 ./mode/ 下，可以通过编辑这些文件进行实时调整）`
+
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
 	zhMessages[KeyWorkModeAct] = `在此模式下，你使用工具来完成用户的任务。
 - 你拥有全部工具，通过调用工具（如 execute_command、read_file、replace_in_file、browser 等）实际执行并推进任务。
 - 任务完成后，使用 attempt_completion 工具向用户呈现结果，并可附带一个 CLI 命令来展示成果。`
 
-	zhMessages[KeyWorkModePlan] = `在此模式下，你专注于收集信息、获取上下文，制定完成任务的详细计划，供用户审阅批准后再切换到 ACT MODE 实施。
+	zhMessages[KeyWorkModePlan] = `在此模式下，你专注于**挖掘用户的真实需求**，并据此制定完成任务的详细计划，供用户审阅批准后再切换到 ACT MODE 实施。
+- **本模式的首要目标是搞清楚“用户到底要什么”**，而不是急于给出方案。用户需求常常是模糊的：主动识别其中不明确、有歧义或信息缺失之处。
+- **对任何模糊之处，必须反复用 ask_followup_question 与用户确认，直到需求明确**；一次问不清就多问几次，宁可多确认也不要猜。
+- **不要仅凭猜测替用户做决定**：当你不确定用户的意图、范围、优先级或验收标准时，不要自行假定后继续推进——先问清楚。
 - 需要与用户讨论计划、澄清需求或确认下一步时，使用 ask_followup_question 工具。
-- 计划制定完成后，用 track_task_progress 记录方案，再用 attempt_completion 工具交付计划。
-
-## 什么是 PLAN MODE？
-- 你通常处于 ACT MODE，用户可能切换到 PLAN MODE 以便与你来回讨论，规划如何最好地完成任务。
-- 进入 PLAN MODE 后，根据用户请求，你可能需要先收集信息（如用 read_file 或 search_files 获取更多任务上下文），也可用 ask_followup_question 向用户澄清问题以更好地理解任务。
-- 获得更多上下文后，应设计一份完成任务的详细计划，用 track_task_progress 记录方案，再用 attempt_completion 呈现给用户。
-- 然后可询问用户是否满意此计划或需要修改，把它当作一次头脑风暴，讨论任务并规划最佳实现方式。
+- 需求明确后，收集必要信息（如用 read_file 或 search_files 获取更多任务上下文），设计详细计划。
+- 计划制定完成后，用 track_task_progress 记录方案，再用 attempt_completion 呈现给用户；把它当作一次头脑风暴，讨论并规划最佳实现方式。
 - 最终达成良好计划后，请用户切换到 ACT MODE（如输入 :mode switch act）来实施解决方案。`
 
 	zhMessages[KeyWorkModeResearch] = `在此模式下，你专注于搜索、查阅资料、收集信息并输出研究报告。
-- 你使用只读工具（search_files/read_file/list_files 等）与浏览器来调研，不修改代码或执行破坏性操作。
+- 你使用只读工具（search_files/read_file/list_files 等）或浏览器与curl在互联网开展调研，不修改代码或执行破坏性操作。
+- **所有结论都必须有高置信度证据支撑**：每一条数据、观点与结论都应能追溯到具体、可直接核验的来源；置信度不足的内容不得作为结论输出。
+- **严禁凭空想像**：不得编造事实、来源或引用，不得以推测、印象或未经核实的信息充当研究结论。
+- 若证据不足或来源相互矛盾，必须如实说明不确定性（标注证据强度或存疑），而不是给出看似确定的结论。
 - 做调查研究和生成报告时，必须保存所有收集到的原始资料，以便审稿人员快速验证所引用数据、观点、结论等内容的真实来源。
 - 基础资料命名规则为"[序号] 文章标题 - 出处 - 作者【发表日期】"，在主报告中以 GB/T 7714 标注出处。
 - 每次全新任务在 ./research/ 下创建新的工作文件夹；若用户未指定工作空间，所有输出文件（md、脚本、word、pdf、excel 等）都应创建在该文件夹下。
@@ -1354,6 +1359,8 @@ bin/ 目录下提供了 Python 工具用于文档格式转换和多模态内容�
 SKILLS
 
 以下 skills 可用。每个 skill 是一个包含 SKILL.md 文件的目录。此处仅列出 skill 索引（名称、简介、路径）。当你需要使用某个 skill 时，用 read_file 读取其 SKILL.md 文件获取完整说明。
+
+（可以通过向 ./skills/（工作空间级）或 ~/.co-shell/skills/（全局级）下放 skill 目录的方式定制 skill，每个 skill 是一个包含 SKILL.md 的目录，同名时工作空间级优先，可用 :skill list/show/add/remove 命令管理）
 `
 
 	// Meta-capability awareness (FEATURE-466) — header text for the CAPABILITIES
@@ -1520,6 +1527,8 @@ RULES
 - 默认使用 <system_info> 中 <lang> 指定的语言进行回复。
 - 关注 <environment_details> 中的环境信息和用户动态，这些可能反映用户此时的思考路径。
 - 管理上下文窗口：如果上下文占用接近 {CONTEXT_REORGANIZE_THRESHOLD}%（context-reorganize-threshold），则应提前评估是否需要择机主动调用 reorganize_context 重整上下文，或通过 attempt_completion 的 task_message_no 参数缩短上下文，以便系统强制重整不会影响关键步骤的处理。历史上下文仍可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
+
+（可以通过向 .rules/ 下放规则文件的方式，在以下位置定制规则/规范，文件名将被当作各节标题，子文件夹将被列出（作为索引），但不会再遍历子文件夹，需要时可自取）
 
 {CUSTOM_RULES}
 `
