@@ -1544,6 +1544,8 @@ RULES
 - Pay attention to the environment information and user dynamic events in <environment_details>; they may reflect the user's current thinking path.
 - Managing the context window: if context usage approaches {CONTEXT_REORGANIZE_THRESHOLD}% (context-reorganize-threshold), proactively assess whether to call reorganize_context to reorganize the context, or shorten the context via attempt_completion's task_message_no parameter, so that a system-forced reorganization does not disrupt handling of critical steps. Historical context can still be retrieved from persistent memory via memory_search or get_memory_slice.
 
+(You can customize rules/specifications by placing rule files under .rules/; the file names are used as section titles, and subfolders are listed as an index but are not traversed further — read them on demand.)
+
 {CUSTOM_RULES}
 `
 
