@@ -51,6 +51,7 @@
   - 方案（用户确认）：在 RULES 节（i18n 的 KeySystemPromptRules 文本）末尾、`{CUSTOM_RULES}` 占位符之前，追加一句括号说明——（可以通过向 .rules/ 下放规则文件的方式，在以下位置定制规则/规范，文件名将被当作各节标题，子文件夹将被列出（作为索引），但不会再遍历子文件夹，需要时可自取）。
   - 实施：i18n/zh_system.go + i18n/en_system.go（中英双语括号说明）+ ROADMAP.md
   - 测试：见 use-case/FEATURE-504/
+  - 进度：开发完成——i18n/zh_system.go 与 i18n/en_system.go 的 KeySystemPromptRules 文本末尾（{CUSTOM_RULES} 之前）各追加一句括号说明；新增 i18n/rules_note_test.go 单测 TestRulesDirCustomizationNote（zh/en 两子用例，断言说明存在、括号包裹、位于最后一条规则之后且位于 {CUSTOM_RULES} 之前）通过；端到端渲染验证说明位于 RULES 节末尾；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-940]
 
 ---
 
