@@ -2639,11 +2639,19 @@ func (a *Agent) attemptCompletionTool(ctx context.Context, args map[string]inter
 		}
 	}
 
-	// Update current session with LLM-provided title and keywords (not create new)
-	if err := a.UpdateCurrentSession(sessionTitle, sessionKeywords); err != nil {
+	// Update current session with LLM-provided title and keywords (not create new).
+	// FEATURE-500: when the current session title is locked (starts with "$"),
+	// keep the manual title and only update the keywords.
+	finalTitle := sessionTitle
+	if id := a.CurrentSessionID(); id != "" {
+		if entry, found, err := a.store.LoadNamedSession(id); err == nil && found && entry != nil && strings.HasPrefix(entry.Title, "$") {
+			finalTitle = entry.Title
+		}
+	}
+	if err := a.UpdateCurrentSession(finalTitle, sessionKeywords); err != nil {
 		log.Warn("attemptCompletion: failed to update session: %v", err)
 	} else {
-		log.Info("attemptCompletion: session updated with title=%q, keywords=%q", sessionTitle, sessionKeywords)
+		log.Info("attemptCompletion: session updated with title=%q, keywords=%q", finalTitle, sessionKeywords)
 	}
 
 	// If a command was provided, execute it as a demo
