@@ -9,7 +9,7 @@
 > **版本**: v0.48.0
 
 > **状态**: 🚧 开发中
-> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）+ PLAN/RESEARCH 模式描述优化（FEATURE-502）+ RESULT MODE 节追加 --unload-mode 说明（FEATURE-503）
+> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）+ PLAN/RESEARCH 模式描述优化（FEATURE-502）+ RESULT MODE 节追加 --unload-mode 说明（FEATURE-503）+ RULES 节追加 .rules/ 定制说明（FEATURE-504）
 > **说明**: 0.48.0 系列包含三项：① 内置能力可见性——co-shell 启动时自动在 workspace 根目录创建 12 个系统内置文件夹（.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos），让用户通过文件夹名字即可大致了解内置能力；② 工作模式描述优化——强化 PLAN MODE 挖掘需求/反复确认模糊点、RESEARCH MODE 结论须有高置信度证据支撑的行为纪律；③ RESULT MODE 节末尾追加 --unload-mode 配置说明，让 LLM 自己知道各模式策略可导出到 ./mode/ 下实时调整。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -17,8 +17,9 @@
 | FEATURE-501 | 0.48.0 | P1 | 启动时自动创建系统内置文件夹：.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos，体现内置能力 |
 | FEATURE-502 | 0.48.0 | P1 | PLAN/RESEARCH 模式描述优化：PLAN MODE 强调挖掘需求、模糊处反复确认；RESEARCH MODE 强调结论须有高置信度证据支撑 |
 | FEATURE-503 | 0.48.0 | P1 | RESULT MODE 节末尾追加 --unload-mode 配置说明：让 LLM 知道各模式策略可导出到 ./mode/ 下编辑实时调整 |
+| FEATURE-504 | 0.48.0 | P1 | RULES 节末尾追加 .rules/ 定制说明：告知可通过向 .rules/ 下放规则文件定制规则/规范，文件名作为各节标题，子文件夹被列出（作为索引）但不再遍历 |
 
-> 当前 BUILD: 939
+> 当前 BUILD: 940
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -44,6 +45,12 @@
   - 实施：i18n/keys.go（新增 KeySystemPromptResultModeNote）+ i18n/zh_system.go / en_system.go（中英双语说明文本）+ agent/system_prompt.go（buildResultModeSection 末尾追加说明）+ ROADMAP.md
   - 测试：见 use-case/FEATURE-503/
   - 进度：开发完成——i18n/keys.go 新增 KeySystemPromptResultModeNote；zh_system.go/en_system.go 填充中英双语括号说明；agent/system_prompt.go 的 buildResultModeSection 在模式描述循环后追加该说明；新增单测 TestBuildResultModeSection_TrailingNote（zh/en 两子用例，断言说明存在、位于模式描述之后、括号包裹）通过；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-939]
+
+- [ ] **FEATURE-504 RULES 节末尾追加 .rules/ 定制说明**
+  - 背景：系统提示词的 RULES 节列出了核心规则，但 LLM 自身不知道用户可以通过向 `.rules/` 下放规则文件的方式定制规则/规范，也不知道文件名会被当作各节标题、子文件夹会被列出作为索引，因此无法主动告知用户如何定制规则。
+  - 方案（用户确认）：在 RULES 节（i18n 的 KeySystemPromptRules 文本）末尾、`{CUSTOM_RULES}` 占位符之前，追加一句括号说明——（可以通过向 .rules/ 下放规则文件的方式，在以下位置定制规则/规范，文件名将被当作各节标题，子文件夹将被列出（作为索引），但不会再遍历子文件夹，需要时可自取）。
+  - 实施：i18n/zh_system.go + i18n/en_system.go（中英双语括号说明）+ ROADMAP.md
+  - 测试：见 use-case/FEATURE-504/
 
 ---
 
