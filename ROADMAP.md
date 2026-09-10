@@ -9,14 +9,15 @@
 > **版本**: v0.48.0
 
 > **状态**: 🚧 开发中
-> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）
-> **说明**: 0.48.0 系列为内置能力可见性版本：co-shell 启动时自动在 workspace 根目录创建 12 个系统内置文件夹（.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos），让用户通过文件夹名字即可大致了解 co-shell 的内置能力。
+> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）+ PLAN/RESEARCH 模式描述优化（FEATURE-502）
+> **说明**: 0.48.0 系列包含两项：① 内置能力可见性——co-shell 启动时自动在 workspace 根目录创建 12 个系统内置文件夹（.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos），让用户通过文件夹名字即可大致了解内置能力；② 工作模式描述优化——强化 PLAN MODE 挖掘需求/反复确认模糊点、RESEARCH MODE 结论须有高置信度证据支撑的行为纪律。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-501 | 0.48.0 | P1 | 启动时自动创建系统内置文件夹：.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos，体现内置能力 |
+| FEATURE-502 | 0.48.0 | P1 | PLAN/RESEARCH 模式描述优化：PLAN MODE 强调挖掘需求、模糊处反复确认；RESEARCH MODE 强调结论须有高置信度证据支撑 |
 
-> 当前 BUILD: 936
+> 当前 BUILD: 938
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -28,6 +29,13 @@
   - 实施：main.go（定义内置文件夹清单 + 启动时创建）+ main.go/cmd/co-shell-hub/main.go（版本号 0.48.0 + build 计数）
   - 测试：见 use-case/FEATURE-501/
   - 进度：开发完成——main.go 新增 builtinDirs（12 个内置文件夹）与纯函数 ensureBuiltinDirs（MkdirAll 幂等创建，返回失败项不 panic），在 os.Chdir(ws.Root()) 后调用并以 log.Warn 记录失败（不阻断启动）；新增 main_test.go 5 个单元测试（首次创建/保留已有内容/补齐缺失/路径被文件占用不崩溃/幂等）全部通过；全新目录端到端启动验证 12 个文件夹全部创建；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-937]
+
+- [ ] **FEATURE-502 PLAN/RESEARCH 模式描述优化**
+  - 背景：PLAN MODE 与 RESEARCH MODE 的系统提示词行为指导文案未突出各自的核心纪律：PLAN MODE 的价值在于挖掘用户真实需求、对模糊之处反复确认，而不是自行猜测后替用户做决定；RESEARCH MODE 的价值在于结论有据可查，所有结论必须有高置信度证据支撑，不能凭空想像。
+  - 方案（用户确认）：仅优化系统提示词中的模式行为指导（i18n/zh_system.go、i18n/en_system.go 的 KeyWorkModePlan / KeyWorkModeResearch）；UI 设置界面的简短标签保持不变。本任务与 FEATURE-501 一并在 v0.48.0 发布（追加在 FEATURE-501 分支）。
+  - 实施：i18n/zh_system.go + i18n/en_system.go + ROADMAP.md
+  - 测试：见 use-case/FEATURE-502/
+  - 进度：开发完成——i18n/zh_system.go 与 i18n/en_system.go 重写 KeyWorkModePlan（强调挖掘真实需求、模糊处必须反复用 ask_followup_question 确认、不凭猜测替用户决定）；重写 KeyWorkModeResearch（所有结论须有高置信度证据、严禁凭空想像、证据不足须如实说明不确定性，调研手段补充“浏览器与curl在互联网开展调研”）；新增 i18n/mode_desc_test.go 3 个测试（中/英要点断言、非空渲染）全部通过；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-938]
 
 ---
 
