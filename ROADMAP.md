@@ -4,7 +4,34 @@
 
 ---
 
-## v0.47.0 — 开发中
+## v0.48.0 — 开发中
+
+> **版本**: v0.48.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）
+> **说明**: 0.48.0 系列为内置能力可见性版本：co-shell 启动时自动在 workspace 根目录创建 12 个系统内置文件夹（.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos），让用户通过文件夹名字即可大致了解 co-shell 的内置能力。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-501 | 0.48.0 | P1 | 启动时自动创建系统内置文件夹：.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos，体现内置能力 |
+
+> 当前 BUILD: 936
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-501 启动时自动创建系统内置文件夹**
+  - 背景：co-shell 的多个内置能力各自对应 workspace 下的一个系统文件夹（.rules 规则、skills 技能、research 调研、input 输入附件、output 输出产物、mode 工作模式、bin 自定义工具脚本、tmp 临时文件、log 日志、db 数据库、download 下载、logos 自定义 logo），但这些文件夹只在对应功能首次使用时才按需创建，新用户无法从目录结构直观发现 co-shell 有哪些内置能力。
+  - 方案（用户确认）：co-shell 启动时统一自动创建 12 个系统内置文件夹（方案B），使用户通过文件夹名大致了解内置能力；已存在则不覆盖、不报错；创建失败仅告警不阻断启动。
+  - 实施：main.go（定义内置文件夹清单 + 启动时创建）+ main.go/cmd/co-shell-hub/main.go（版本号 0.48.0 + build 计数）
+  - 测试：见 use-case/FEATURE-501/
+  - 进度：开发完成——main.go 新增 builtinDirs（12 个内置文件夹）与纯函数 ensureBuiltinDirs（MkdirAll 幂等创建，返回失败项不 panic），在 os.Chdir(ws.Root()) 后调用并以 log.Warn 记录失败（不阻断启动）；新增 main_test.go 5 个单元测试（首次创建/保留已有内容/补齐缺失/路径被文件占用不崩溃/幂等）全部通过；全新目录端到端启动验证 12 个文件夹全部创建；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-937]
+
+---
+
+## v0.47.0 — 已发布
 
 > **版本**: v0.47.0
 
@@ -22,7 +49,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-500 Web UI 会话标题锁定优化**
+- [x] **FEATURE-500 Web UI 会话标题锁定优化**
   - 背景：Web UI 会话标题当前在任务完成时会被 LLM 自动生成的标题覆盖，用户手动修改的标题无法保留。需要引入标题锁定机制：用户手动修改标题后自动加 `$` 前缀表示锁定，任务完成时不再覆盖；清空标题则恢复默认占位标题并解除锁定。
   - 方案（用户确认）：① 用户修改标题（非空、有变化）生效时，后端保存为 `$` + 标题（锁定）；② 用户清空标题生效时，后端恢复默认占位标题（如"新会话N"，与新建会话逻辑相同）并解除锁定，下次任务完成时 LLM 自动生成新标题；③ 会话标题以 `$` 开头时，任务完成（attempt_completion）只更新 keywords，保留原标题。
   - 实施：web/session.go（renameSession 加 `$` 前缀/清空恢复默认标题）+ agent/tools.go（attemptCompletionTool 检测 `$` 前缀跳过标题更新）+ web/static/app.js（前端清空标题时发送 session_rename 空值）+ main.go + cmd/co-shell-hub/main.go（版本号 0.47.0 + build 计数）
