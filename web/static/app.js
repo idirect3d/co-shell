@@ -1790,6 +1790,13 @@ function renderHistory(msg) {
     historyInserting = true;
     const prevHeight = streamB.scrollHeight;
     const prevTop = streamB.scrollTop;
+    // FIX-509: remember whether the user was already at the very top. When they
+    // are, the newly loaded page is what they asked to see, so the viewport must
+    // stay pinned to the top instead of being pushed down by the height of the
+    // inserted content. Pushing it down also moved the top sentinel out of view,
+    // which stopped the IntersectionObserver from firing again — the reason
+    // paging appeared to stop after a single page.
+    const wasAtTop = prevTop < 5;
     // Every block created while insertAnchor is set lands before the current
     // oldest node, so the older page is prepended in order.
     insertAnchor = streamB.firstChild;
@@ -1800,7 +1807,12 @@ function renderHistory(msg) {
     ensureTopSentinel();
     // Compensate the scroll position so the visible content does not jump.
     const delta = streamB.scrollHeight - prevHeight;
-    if (delta > 0) streamB.scrollTop = prevTop + delta;
+    if (wasAtTop) {
+      // Stay at the top: the user is reading the newly prepended page.
+      streamB.scrollTop = 0;
+    } else if (delta > 0) {
+      streamB.scrollTop = prevTop + delta;
+    }
     historyInserting = false;
     updateBlockNav();
     return;
