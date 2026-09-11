@@ -131,9 +131,13 @@ type serverMessage struct {
 	// browser can replay the conversation after a refresh. Events are raw
 	// StreamEvent JSON, oldest first; HasMore reports whether older events exist
 	// and OldestSeq is the cursor to page further back.
+	//
+	// FIX-509: HasMore and OldestSeq must NOT be omitempty. Their zero values are
+	// meaningful ("no older events" / "no cursor"), and dropping them made the
+	// browser read undefined and stop paging after the first page.
 	Events    []json.RawMessage `json:"events,omitempty"`
-	HasMore   bool              `json:"has_more,omitempty"`
-	OldestSeq int               `json:"oldest_seq,omitempty"`
+	HasMore   bool              `json:"has_more"`
+	OldestSeq int               `json:"oldest_seq"`
 }
 
 // modeInfo is one work mode entry pushed to the browser for the mode

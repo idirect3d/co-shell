@@ -227,3 +227,56 @@ func TestPushHistoryEmptyStream(t *testing.T) {
 		t.Fatalf("oldestSeq = %d for an empty stream, want 0", oldestSeq)
 	}
 }
+
+// TestHistoryMessageAlwaysCarriesPagingFields is the FIX-509 regression guard for
+// the wire format: has_more and oldest_seq must be present in every history
+// message, even when they hold their zero values.
+//
+// They used to be tagged `omitempty`, so a page with has_more=false or
+// oldest_seq=0 serialized without those keys at all. The browser then read
+// undefined, stored oldest_seq as 0, and loadOlderHistory bailed out on its
+// `!historyOldestSeq` guard — paging stopped after the very first page.
+func TestHistoryMessageAlwaysCarriesPagingFields(t *testing.T) {
+	cases := []struct {
+		name      string
+		hasMore   bool
+		oldestSeq int
+	}{
+		{"zero values", false, 0},
+		{"has more", true, 42},
+		{"no more but cursor set", false, 7},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := json.Marshal(serverMessage{
+				Kind:      "history",
+				HasMore:   tc.hasMore,
+				OldestSeq: tc.oldestSeq,
+			})
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			var decoded map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &decoded); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if _, ok := decoded["has_more"]; !ok {
+				t.Errorf("has_more missing from %s", raw)
+			}
+			if _, ok := decoded["oldest_seq"]; !ok {
+				t.Errorf("oldest_seq missing from %s", raw)
+			}
+			var got struct {
+				HasMore   bool `json:"has_more"`
+				OldestSeq int  `json:"oldest_seq"`
+			}
+			if err := json.Unmarshal(raw, &got); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if got.HasMore != tc.hasMore || got.OldestSeq != tc.oldestSeq {
+				t.Errorf("round-trip = (%v, %d), want (%v, %d)",
+					got.HasMore, got.OldestSeq, tc.hasMore, tc.oldestSeq)
+			}
+		})
+	}
+}
