@@ -121,6 +121,9 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "show-loop-detection", Value: boolStr(llm.ShowLoopDetection), Desc: i18n.T(i18n.KeyCol3ShowLoopDetection), Type: "bool", Default: boolStr(def.ShowLoopDetection)},
 		{Key: "show-parse-error-raw", Value: boolStr(llm.ShowParseErrorRaw), Desc: i18n.T(i18n.KeySettingCmd_337), Type: "bool", Default: boolStr(def.ShowParseErrorRaw)},
 		{Key: "token-usage", Value: tokenUsageValue(llm.TokenUsage), Desc: i18n.T(i18n.KeyCol3TokenUsage), Type: "enum", Options: []string{"on", "off", "none"}, Default: tokenUsageValue(def.TokenUsage)},
+		// FEATURE-508: Web UI stream sliding-window thresholds.
+		{Key: "stream-window-max-blocks", Value: strconv.Itoa(llm.StreamWindowMaxBlocks), Desc: i18n.T(i18n.KeyCol3StreamWindowMaxBlocks), Type: "number", Default: strconv.Itoa(def.StreamWindowMaxBlocks)},
+		{Key: "stream-window-max-nodes", Value: strconv.Itoa(llm.StreamWindowMaxNodes), Desc: i18n.T(i18n.KeyCol3StreamWindowMaxNodes), Type: "number", Default: strconv.Itoa(def.StreamWindowMaxNodes)},
 	}
 
 	// Group 3: Safety & Confirmation (matches showSettingsHelp Group 4)

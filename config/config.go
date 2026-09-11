@@ -293,6 +293,16 @@ type LLMConfig struct {
 	// loaded in a single visual_analysis call. Default: 5.
 	VisualAnalysisMaxImages int `json:"visual_analysis_max_images"`
 
+	// StreamWindowMaxBlocks: maximum number of rendered event blocks kept in
+	// the Web UI stream. When exceeded, the oldest message-index groups are
+	// evicted from the top of the window (FEATURE-508). Default: 300.
+	StreamWindowMaxBlocks int `json:"stream_window_max_blocks"`
+
+	// StreamWindowMaxNodes: maximum number of DOM nodes kept in the Web UI
+	// stream. This bounds the case where a few blocks contain huge content
+	// (FEATURE-508). Default: 30000.
+	StreamWindowMaxNodes int `json:"stream_window_max_nodes"`
+
 	// VisionContextMode: how much context is sent to the vision model when the
 	// main model is temporarily swapped to a vision-capable model for image
 	// analysis (FEATURE-319).
@@ -1058,6 +1068,8 @@ func DefaultConfig() *Config {
 			DocxMaxSessions:            5,
 			DocxMaxReadParas:           200,
 			VisualAnalysisMaxImages:    5,
+			StreamWindowMaxBlocks:      300,
+			StreamWindowMaxNodes:       30000,
 			VisionContextMode:          "minimal",
 			VisionSupport:              true,
 			ParseErrorAction:           "prompt",
