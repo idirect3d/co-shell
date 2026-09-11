@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FIX-509 | 0.50.1 | P1 | 修复历史分页加载中断：pushHistory 改为循环加载直到凑够 count 组或没有更早事件；hasMore 语义修正为「是否还有更早事件」；风险标签去重 + 收紧块复用匹配 |
 
-> 当前 BUILD: 958
+> 当前 BUILD: 959
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -29,8 +29,8 @@
   - 实施：`web/session.go`（pushHistory 重写为循环加载）+ `web/static/app.js`（风险标签去重 + 收紧块复用匹配）+ `web/fix509_history_test.go`（4 个回归测试）+ `main.go`/`cmd/co-shell-hub/main.go`（版本 0.50.1）+ ROADMAP.md
   - 测试：`go test ./web/ -run TestPushHistory` 4 个用例全部通过（覆盖：凑够 count 组、到达最旧一条、游标向后翻页不重叠、空流）
   - 附带修复（FIX-508 回归）：① 风险标签插入无去重，叠加块复用导致标签累积（截图见 10 个）；② 块复用 fallback 过于宽松（`iterToolBlocks.find(b => !b._intentFilled && b.params)`），使后续无关工具调用（含 attempt_completion）误用前一个调用的块，标题与参数描述不同调用。已改为仅按 tool_name 精确命中。
-  - 进度：编码完成，待用户测试确认 [BUILD-958]
-
+  - 补充修复（BUILD 959，用户实测反馈）：① `web/server.go` 的 `HasMore`/`OldestSeq` 带 `omitempty`，零值（false/0）时字段被整个从 JSON 中删除，前端读到 `undefined` → `historyOldestSeq=0` → `loadOlderHistory` 因 `!historyOldestSeq` 直接 return，分页彻底停摆；已去掉 `omitempty` 并新增 `TestHistoryMessageAlwaysCarriesPagingFields` 回归测试。② `web/static/app.js` 的 `wasAtTop = prevTop < 5` 阈值过小，而 IntersectionObserver 的 `rootMargin` 为 120px，触发时 `prevTop≈120` 导致走 `else` 分支把视口向下推入内容高度（实测 scrollTop 0→583→9671）；阈值放宽到 200 以覆盖 rootMargin。
+  - 进度：编码完成，待用户测试确认 [BUILD-959]
 ---
 
 ## v0.50.0 — 开发中
