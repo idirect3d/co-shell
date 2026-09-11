@@ -84,9 +84,9 @@ type WebSession struct {
 	// model_wizard_cancel aborts a running wizard.
 	model *cmd.ModelHandler
 
-	// msgIndex is the current message index, incremented on each user input.
-	// It is attached to stream events so the frontend can map a block back to
-	// the message index for the retry-from action (FEATURE-409).
+	// msgIndex is the current turn counter, incremented on each user input.
+	// It is used for token-statistics display (iteration numbering).
+	// NOTE: it is NOT the message array index — see msgIndexForRetry.
 	msgIndex int
 
 	inputCh chan clientMessage
@@ -1086,6 +1086,34 @@ type WebRenderer struct {
 	s *WebSession
 }
 
+// msgIndexForRetry returns the index of the last message in the agent's
+// message array. It is attached to stream events as "msg_index" so the
+// frontend can map a block back to a message for the retry-from action
+// (FEATURE-409).
+//
+// FIX-506: this MUST be the real message array index (not the turn counter),
+// because the backend popTo() truncates by array index
+// (a.SetHistory(aMsg[:n+1])). Using the turn counter here made the frontend
+// send a much smaller number, truncating far more history than intended.
+//
+// FIX-506 (续修): the value is the index of the LAST message at render time,
+// which is only meaningful for the YOU block when read on the FIRST event of a
+// turn: at that point the agent has just appended the user message and no
+// assistant/tool message exists yet, so len-1 IS that user message's index.
+// The frontend therefore backfills the YOU block's index from the first event
+// of the turn (see backfillPendingUserIndex in app.js) instead of using the
+// stale value captured when the block was created.
+func (r *WebRenderer) msgIndexForRetry() int {
+	if r.s.ag == nil {
+		return 0
+	}
+	n := len(r.s.ag.Messages()) - 1
+	if n < 0 {
+		return 0
+	}
+	return n
+}
+
 // Render pushes one event. task_plan and all other event types pass through
 // uniformly; the frontend decides how to display them. The current message
 // index is attached so the frontend can map a block back to a message for
@@ -1094,7 +1122,7 @@ func (r *WebRenderer) Render(ev agent.StreamEvent) {
 	if ev.Meta == nil {
 		ev.Meta = map[string]string{}
 	}
-	ev.Meta["msg_index"] = strconv.Itoa(r.s.msgIndex)
+	ev.Meta["msg_index"] = strconv.Itoa(r.msgIndexForRetry())
 	r.s.srv.sendEvent(ev)
 	// FEATURE-471: when a task ends (done event), hand any unconsumed
 	// user_message events back to the browser so they can be re-submitted.

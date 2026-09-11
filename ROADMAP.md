@@ -9,7 +9,7 @@
 > **版本**: v0.48.0
 
 > **状态**: 🚧 开发中
-> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）+ PLAN/RESEARCH 模式描述优化（FEATURE-502）+ RESULT MODE 节追加 --unload-mode 说明（FEATURE-503）+ RULES 节追加 .rules/ 定制说明（FEATURE-504） + SKILLS 节追加 skill 配置机制说明（FEATURE-505）
+> **里程碑**: 启动时自动创建系统内置文件夹（FEATURE-501）+ PLAN/RESEARCH 模式描述优化（FEATURE-502）+ RESULT MODE 节追加 --unload-mode 说明（FEATURE-503）+ RULES 节追加 .rules/ 定制说明（FEATURE-504） + SKILLS 节追加 skill 配置机制说明（FEATURE-505）+ 修复“从此处重新执行”（FIX-506）
 > **说明**: 0.48.0 系列包含三项：① 内置能力可见性——co-shell 启动时自动在 workspace 根目录创建 12 个系统内置文件夹（.rules/skills/research/input/output/mode/bin/tmp/log/db/download/logos），让用户通过文件夹名字即可大致了解内置能力；② 工作模式描述优化——强化 PLAN MODE 挖掘需求/反复确认模糊点、RESEARCH MODE 结论须有高置信度证据支撑的行为纪律；③ RESULT MODE 节末尾追加 --unload-mode 配置说明，让 LLM 自己知道各模式策略可导出到 ./mode/ 下实时调整。
 
 | 任务 | 版本 | 阶段 | 内容 |
@@ -19,8 +19,9 @@
 | FEATURE-503 | 0.48.0 | P1 | RESULT MODE 节末尾追加 --unload-mode 配置说明：让 LLM 知道各模式策略可导出到 ./mode/ 下编辑实时调整 |
 | FEATURE-504 | 0.48.0 | P1 | RULES 节末尾追加 .rules/ 定制说明：告知可通过向 .rules/ 下放规则文件定制规则/规范，文件名作为各节标题，子文件夹被列出（作为索引）但不再遍历 |
 | FEATURE-505 | 0.48.0 | P1 | SKILLS 节末尾追加 skill 配置机制说明：告知可通过向 ./skills/ 或 ~/.co-shell/skills/ 下放 skill 目录定制 skill，同名工作空间级优先，可用 :skill 命令管理；SKILLS 段改为始终输出 |
+| FIX-506 | 0.48.0 | P1 | 修复 Web UI“从此处重新执行”三个问题：① 回退数变成退至序号（msg_index 注入的是轮次计数器而非消息数组下标，导致上百条上下文只剩 5 条）；② 点击后整页刷新（location.reload）；③ 图标 ↻ 改为 ⏪ |
 
-> 当前 BUILD: 942
+> 当前 BUILD: 945
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -61,11 +62,44 @@
   - 测试：见 use-case/FEATURE-505/
   - 进度：开发完成——i18n/zh_system.go 与 i18n/en_system.go 的 KeySystemPromptSkills 文本末尾各追加一句括号说明；agent/system_prompt.go 的 Skills 分支改为始终输出（无 skill 时返回 header），并在有 skill 时将索引插入到末尾括号说明之前（兼容中文全角「（」与英文半角「(」）；新增 agent/skills_note_test.go 3 个单测（中英说明断言、无 skill 仍输出、索引位于说明之前）全部通过；端到端渲染验证中英双语在有无 skill 两种场景下均正确；go build+vet 全绿，co-shell/co-shell-hub 编译到 ~/bin/ [BUILD-941]
 
+- [x] **FIX-506 修复 Web UI“从此处重新执行”回退语义错位 + 页面刷新 + 图标** ✅ 已完成 [BUILD-943]
+  - 背景：Web UI 的“从此处重新执行”（retry-from，块标题栏 ↻ 按钮）存在三个问题：① 点击倒数第二个用户消息，上百条消息的上下文只剩 5 条（回退数变成了退至序号）；② 点击后整页刷新（无必要）；③ 图标 ↻ 应改为两个向左的三角（古典倒带）。
+  - 根因：前端 `app.js` 的 ↻ 按钮发送 `session_pop` 时传 `box.dataset.msgIndex`，该值来自后端 `WebRenderer.Render` 注入的 `msg_index`——它是 `WebSession.msgIndex`，**每次用户输入 +1 的轮次计数器**（1、2、3…），并非 `a.messages` 数组下标；而后端 `cmd/session.go` 的 `popTo(n)` 按 `a.Messages()` 的**数组下标**截断（`a.SetHistory(aMsg[:n+1])`）。两者语义错位导致截断位置错误。
+  - 方案（用户确认）：① 后端 `WebRenderer` 注入的 `msg_index` 改为真实消息数组下标（`len(a.Messages())-1`），使前端传值与 `popTo` 语义一致；轮次计数保留用于 token 统计显示；② 前端 `pop_result` 成功后不再 `location.reload()`，改为本地截断事件流（移除目标块及其后所有块）并刷新分支/文件树；③ 图标 ↻ → ⏪。
+  - 实施：`web/session.go`（新增 `msgIndexForRetry()` 返回真实数组下标，`Render` 用它注入 `msg_index`；`msgIndex` 字段注释明确为轮次计数器）+ `web/static/app.js`（新增 `popTargetIndex` 变量与 `truncateStreamFrom()` 函数；`pop_result` 分支改为调用它；↻ 改 ⏪）+ `web/fix506_test.go`（3 个单测）[BUILD-943]
+  - 测试：见 use-case/FIX-506/；单元测试 `web/fix506_test.go`（TestMsgIndexForRetryIsArrayIndex / TestRenderAttachesArrayIndex / TestMsgIndexForRetryEmptyHistory）全部通过；`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过；`go test ./web/` 全绿（`cmd` 包 TestWebWizardModelNameStep 为既有网络依赖失败，与本次修改无关，已在干净 main 上复现）
+
+- [x] **FIX-506（续修）修正 YOU 块回退参数口径 + 移除其他块回退按钮** ✅ 已完成 [BUILD-944]
+  - 背景：首轮修复后用户实测仍失败——依次发送 hello 1/2/3，点击第 2 个 YOU 块的 ⏪，预期保留 hello 1 + hello 2，实际只剩 hello 1。
+  - 根因：首轮把 `msg_index` 改为 `len(a.Messages())-1`（**渲染时刻**的最后一条消息下标），方向正确但仍有缺陷：① 前端 `renderUserEcho` 在用户回车时**立即**渲染 YOU 块，此时后端尚未把该用户消息追加进 `a.messages`（追加发生在 `agent/run_stream.go` 的 `RunStream` 内），它用的是 `lastMsgIndex`——**上一轮最后一个事件**的下标；② 同一轮内 user→assistant→tool 消息依次追加，每个事件渲染时 `len-1` 持续增长，导致 YOU/LLM/TOOL 块各携带不同下标。结果点 hello 2 实际回退到第 1 轮末尾，第 2 轮被整体截断。
+  - 关键事实：一轮中**第一个**流事件到达时，`a.messages` 末尾正是该用户消息（assistant 消息要等流式结束才追加），因此**该轮首个事件的 `msg_index` 就是该用户消息的真实下标**。
+  - 方案（用户确认）：① 语义 = 点击 YOU 块 ⏪ 保留到该消息为止（含），丢弃其后所有内容；② **移除其他所有类型块（LLM/THINK/TOOL/REPL/SYSTEM）的回退按钮**，只保留 YOU 块；③ 重点保证前后端参数口径一致。
+  - 实施：`web/static/app.js`（新增 `pendingUserBlock` 变量；`renderUserEcho` 创建 YOU 块时不再用陈旧的 `lastMsgIndex`，改为标记 `data-msg-index-pending` 待定；`renderEvent` 在该轮首个带 `msg_index` 的事件到达时回填 YOU 块的真实下标；`addBlockActions` 仅当 `cls === "user-msg"` 时才添加 ⏪；`truncateStreamFrom` 清理 `pendingUserBlock`）+ `web/session.go`（补充 `msgIndexForRetry` 语义注释）+ `web/fix506_retry_test.go`（2 个单测）[BUILD-944]
+  - 测试：见 use-case/FIX-506/FIX-506-UC-0002.md；单元测试 `web/fix506_retry_test.go`（TestFirstEventOfTurnCarriesUserMessageIndex / TestPopToKeepsUpToUserMessage）与既有 `web/fix506_test.go` 3 个单测全部通过；`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过；`go test ./web/` 全绿；co-shell/co-shell-hub 编译到 ~/bin/
+
+- [x] **FIX-506（二次续修）修复 YOU 块 ⏪ 回退按钮点击无反应** ✅ 已完成 [BUILD-945]
+  - 背景：二次续修后用户实测仍失败——点击 YOU 块的 ⏪ 按钮完全无反应，前端控制台也无任何报错。
+  - 根因：`data-msg-index` 属性被写到了错误的 DOM 元素上。`makeBlock()` 把 `data-msg-index` 设置在 `.ev`（box）上并返回 `.ev-body`（body），而 `renderUserEcho` 把返回值 body 赋给了 `pendingUserBlock`，于是 `renderEvent` 的回填写到了 body 上；但 ⏪ 按钮读的是 `box.dataset.msgIndex`、`truncateStreamFrom` 查的是 `.ev[data-msg-index]`——两者都拿不到值。因果链：box 上始终无 `data-msg-index` → 点击发送 `value:""` → 后端 `Atoi("")` 失败 → 返回 `pop_result OK:false` → 前端 `if (msg.ok)` 不成立 → 静默无反应。
+  - 方案（用户确认）：① 让 `pendingUserBlock` 指向 box（`.ev`），使回填与 `makeBlock`/⏪按钮/`truncateStreamFrom` 三处口径一致；② 顺带修复静默失败——`pop_result` 失败时在消息流中给出可见提示，且按钮在索引缺失时直接提示而不发无效请求。
+  - 实施：`web/static/app.js`（`renderUserEcho` 改用 `body.parentElement` 作为 `pendingUserBlock`；新增 `showRetryFromError()` 提示函数；`pop_result` 失败分支调用它；⏪ 按钮在 `popTargetIndex` 为空时提前提示；i18n 中英新增 `retryFromFailed` 文案）+ `main.go` / `cmd/co-shell-hub/main.go`（版本 0.48.0→0.48.1，build 944→945）[BUILD-945]
+  - 测试：单元测试 `web/fix506_retry_test.go` 与 `web/fix506_test.go` 共 5 个单测全部通过；`go build ./... && go vet ./...` 全绿；co-shell/co-shell-hub 编译到 ~/bin/（`co-shell v0.48.1 [BUILD-945]`）
+
+- [x] **FIX-506（三次续修）回退后自动执行 :continue** ✅ 已完成 [BUILD-946]
+  - 背景：二次续修后 ⏪ 按钮已能正常回退，但回退后停在那里等用户手动输入 `:continue`，用户期望点击后直接自动继续运行。
+  - 方案（用户确认）：点击 YOU 块 ⏪ → 截断消息流（保留该用户消息，丢弃其后内容）→ **自动触发 `:continue`** 继续运行，无需确认。
+  - 实施：`web/static/app.js`（`pop_result` 成功分支在 `truncateStreamFrom(popTargetIndex)` 之后追加 `wsSend({ type: "input", text: "" })`——空输入即 `:continue` 的等价通道，Agent 追加 continue 提示词后继续运行）+ `main.go` / `cmd/co-shell-hub/main.go`（build 945→946）[BUILD-946]
+  - 测试：`node --check web/static/app.js` 通过；`go build ./... && go vet ./...` 全绿；co-shell/co-shell-hub 编译到 ~/bin/（`co-shell v0.48.1 [BUILD-946]`）
+
+- [x] **FIX-506（四次续修）修正自动 continue 通道：空输入被主循环丢弃** ✅ 已完成 [BUILD-947]
+  - 背景：三次续修后用户实测——回退位置准确了，但**并未自动继续执行**。
+  - 根因：前端发的是空输入 `wsSend({type:"input",text:""})`，而 REPL 主循环对空行直接跳过（`repl/repl.go`: `if input == "" { continue }`），所以什么都没发生。`:continue` 之所以有效，是因为它走 `handleBuiltin` 分支（`repl.go` case ":continue"）**直接调 `handleAgentInput("")`，绕过了主循环的空输入过滤**。
+  - 方案：前端改发字面量 `:continue` 内置命令（`wsSend({type:"input",text:":continue"})`），走既有成熟路径；`resumeReader()` 对 Web 会话为 no-op（仅对 tuiSession 生效），安全。
+  - 实施：`web/static/app.js`（`pop_result` 成功分支改发 `:continue`）+ `main.go` / `cmd/co-shell-hub/main.go`（build 946→947）[BUILD-947]
+  - 测试：`node --check web/static/app.js` 通过；`go build ./... && go vet ./...` 全绿；co-shell/co-shell-hub 编译到 ~/bin/（`co-shell v0.48.1 [BUILD-947]`）
+
 ---
 
 ## v0.47.0 — 已发布
-
-> **版本**: v0.47.0
 
 > **状态**: 🚧 开发中
 > **里程碑**: Web UI 会话标题锁定优化（FEATURE-500）

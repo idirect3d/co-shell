@@ -41,6 +41,7 @@ const I18N = {
     numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
+    retryFromFailed: "回退失败：%s",
     switchMode: "切换工作模式",
     models: "模型管理", modelAdd: "＋ 新增模型", modelWizard: "模型配置向导", templateJson: "查看模板原始 JSON", reasoningEffortNone: "不设置", apiTypeChatDefault: "chat（默认）",
     modelEmpty: "暂无模型，点击上方「＋ 新增模型」添加", modelMenuTitle: "选择主模型", modelVisionMenuTitle: "选择视觉模型", modelVisionEmpty: "暂无视觉模型", modelDefault: "默认", modelDefaultHint: "使用全局默认模型", modelRestoreDefault: "默认",
@@ -82,6 +83,7 @@ const I18N = {
     numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
+    retryFromFailed: "Retry-from failed: %s",
     switchMode: "Switch work mode",
     models: "Model Manager", modelAdd: "＋ Add Model", modelWizard: "Model Setup Wizard", templateJson: "View template raw JSON", reasoningEffortNone: "Not set", apiTypeChatDefault: "chat (default)",
     modelEmpty: "No models yet. Click「＋ Add Model」above to add one.", modelMenuTitle: "Select main model", modelVisionMenuTitle: "Select vision model", modelVisionEmpty: "No vision models", modelDefault: "Default", modelDefaultHint: "Use global default model", modelRestoreDefault: "Default",
@@ -418,9 +420,25 @@ function wsConnect() {
     else if (msg.kind === "model_result") showModelResult(msg);
     else if (msg.kind === "model_wizard") showModelWizardStep(msg);
     else if (msg.kind === "pop_result") {
-      // FEATURE-409: retry-from popped the session back; reload so the stream
-      // reflects the truncated history.
-      if (msg.ok) location.reload();
+      // FIX-506: retry-from popped the session back. Instead of reloading the
+      // whole page (which was unnecessary and disruptive), truncate the event
+      // stream locally: remove the target block and everything after it.
+      if (msg.ok) {
+        truncateStreamFrom(popTargetIndex);
+        // FIX-506 (三次续修): after popping, automatically resume the agent
+        // from the truncation point instead of waiting for the user to type
+        // :continue. We must send the literal ":continue" builtin command,
+        // NOT an empty input: the REPL main loop drops empty lines
+        // (repl.go: `if input == "" { continue }`), so an empty input would
+        // be silently ignored. The ":continue" builtin bypasses that filter
+        // and calls handleAgentInput("") directly (repl.go handleBuiltin),
+        // which is exactly the resume behaviour we want.
+        wsSend({ type: "input", text: ":continue" });
+      }
+      // FIX-506 (续修): a failed pop used to be swallowed silently, so the ⏪
+      // button appeared dead with no error anywhere. Surface the reason in the
+      // stream so the failure is diagnosable.
+      else showRetryFromError(msg.message);
     }
     else if (msg.kind === "yolo") setYOLO(!!msg.yolo);
     else if (msg.kind === "dynamic_backfill") backfillInput(msg.backfill || []);
@@ -544,6 +562,14 @@ let toolBlockByName = {};
 let iterToolBlocks = [];
 let curREPL = null;     // current repl block (consecutive ui_text lines merge)
 let lastMsgIndex = "";  // last message index seen, for the YOU block retry-from
+// FIX-506 (续修): the YOU block created by renderUserEcho whose retry-from index
+// is not yet known. The backend appends the user message inside agent.RunStream,
+// so the index only becomes available on the first event of the turn; that event
+// backfills this block (see backfillPendingUserIndex).
+let pendingUserBlock = null;
+// FIX-506: the msg_index of the block whose retry-from button was clicked.
+// pop_result uses it to truncate the stream locally instead of reloading.
+let popTargetIndex = "";
 
 // FEATURE-445: follow-output scrolling. When the scrollbar is within 100px of
 // the content bottom, new output auto-scrolls to the bottom (follows output);
@@ -1032,17 +1058,75 @@ function addBlockActions(head, box, body, cls, noCollapse) {
   }
 
   // 3) Retry-from: pop the session back to this block and re-run.
-  const retry = document.createElement("button");
-  retry.className = "ev-act";
-  retry.textContent = "↻";
-  retry.title = T.retryFrom;
-  retry.onclick = (e) => {
-    e.stopPropagation();
-    wsSend({ type: "session_pop", value: String(box.dataset.msgIndex || "") });
-  };
-  actions.appendChild(retry);
+  // FIX-506 (续修): only the YOU block (user message) carries this action —
+  // its semantics are unambiguous (keep up to that user message). Other block
+  // types (LLM/THINK/TOOL/REPL/SYSTEM) do not map cleanly to a message index
+  // (e.g. popping into the middle of a tool_calls pair would corrupt history),
+  // so the button is omitted for them.
+  if (cls === "user-msg") {
+    const retry = document.createElement("button");
+    retry.className = "ev-act";
+    retry.textContent = "⏪";
+    retry.title = T.retryFrom;
+    retry.onclick = (e) => {
+      e.stopPropagation();
+      // FIX-506: remember which block was clicked so pop_result can truncate the
+      // stream locally (instead of reloading the page).
+      popTargetIndex = box.dataset.msgIndex || "";
+      // FIX-506 (续修): without an index the backend cannot resolve the target
+      // message (it would reject an empty value). Report it instead of sending
+      // a request that fails silently.
+      if (!popTargetIndex) { showRetryFromError(""); return; }
+      wsSend({ type: "session_pop", value: String(popTargetIndex) });
+    };
+    actions.appendChild(retry);
+  }
 
   head.appendChild(actions);
+}
+
+// showRetryFromError reports a failed retry-from (⏪) action in the message
+// stream, so the button never appears dead without explanation (FIX-506 续修).
+// An empty reason falls back to a generic message.
+function showRetryFromError(reason) {
+  const body = makeBlock("system", "SYS", "");
+  body.parentElement.classList.add("level-error");
+  const tpl = i18nT("retryFromFailed", "Retry-from failed: %s");
+  body.textContent = tpl.replace("%s", reason || "-");
+  scrollStream();
+}
+
+// truncateStreamFrom removes the block whose msg_index is targetIndex and every
+// block after it, so the visible stream matches the truncated session history
+// (FIX-506). It replaces the previous location.reload() behaviour.
+// Blocks are direct children of #stream (each .ev box), and token-stats lines
+// are siblings placed right after their block. We therefore find the target
+// .ev box and remove it plus all following siblings.
+function truncateStreamFrom(targetIndex) {
+  if (targetIndex === undefined || targetIndex === null || targetIndex === "") return;
+  const target = stream.querySelector('.ev[data-msg-index="' + targetIndex + '"]');
+  if (!target) return;
+  // Remove every sibling from the target block onwards (blocks + token lines).
+  let node = target;
+  while (node) {
+    const next = node.nextSibling;
+    node.remove();
+    node = next;
+  }
+  // Reset streaming pointers: the removed blocks may have been the active ones.
+  curLLM = curThinking = curTool = curREPL = curSup = null;
+  iterBlocks = [];
+  iterToolBlocks = [];
+  toolBlockByName = {};
+  lastBlock = null;
+  // FIX-506 (续修): the pending YOU block may have been removed by the
+  // truncation; drop the reference so a later event cannot backfill a detached
+  // node.
+  pendingUserBlock = null;
+  // The session history changed — refresh the workspace state (branch + tree).
+  refreshBranch();
+  loadTree();
+  scrollStream();
 }
 
 function eventClass(ev) {
@@ -1065,6 +1149,16 @@ function renderEvent(ev) {
   // action map this block back to a message for :session pop to.
   const msgIndex = ev.meta && ev.meta.msg_index;
   if (msgIndex) lastMsgIndex = msgIndex;
+  // FIX-506 (续修): the first event of a turn carries the index of the user
+  // message that started it (the backend appends the user message before the
+  // first LLM event, and no assistant/tool message exists yet). Backfill the
+  // pending YOU block with it so its retry-from index is the real array index
+  // of that user message — not the previous turn's stale value.
+  if (pendingUserBlock && msgIndex) {
+    pendingUserBlock.dataset.msgIndex = msgIndex;
+    delete pendingUserBlock.dataset.msgIndexPending;
+    pendingUserBlock = null;
+  }
   // Turn-boundary signals from the web session (FEATURE-369): drive the
   // merged send/interrupt button, never render as blocks.
   if (ev.type === "await_input") { setRunning(false); return; }
@@ -1514,7 +1608,23 @@ function renderUserEcho(text) {
   // REPL output block: reset curREPL so the next ui_text repl event opens a
   // new block instead of appending to the previous one (FIX-411).
   curREPL = null;
-  const body = makeBlock("user-msg", "YOU", lastMsgIndex);
+  // FIX-506 (续修): the YOU block's retry-from index must be the index of THIS
+  // user message in the agent's message array. At this moment the backend has
+  // not appended the message yet (it is appended inside agent.RunStream), so
+  // lastMsgIndex still holds the PREVIOUS turn's last index — using it made
+  // "retry from hello 2" pop back to the end of turn 1. Create the block with
+  // no index and let the first event of this turn backfill it (see
+  // backfillPendingUserIndex in renderEvent).
+  const body = makeBlock("user-msg", "YOU", "");
+  // FIX-506 (续修): makeBlock() sets data-msg-index on the .ev box (and returns
+  // the .ev-body), while the ⏪ button reads box.dataset.msgIndex and
+  // truncateStreamFrom() queries .ev[data-msg-index]. The pending reference must
+  // therefore be the BOX, not the body — writing the backfilled index to the
+  // body left the box without the attribute, so the button sent an empty value
+  // and the backend rejected it silently.
+  const box = body.parentElement;
+  box.dataset.msgIndexPending = "1";
+  pendingUserBlock = box;
   renderUserBody(body, text);
   // FEATURE-419: after creating the YOU block, scroll to the bottom on the
   // next frame (once the browser has rendered the new block and grown
