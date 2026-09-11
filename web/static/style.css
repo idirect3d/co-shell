@@ -724,15 +724,20 @@ aside {
   flex-direction: column;
   gap: 8px;
 }
-/* FEATURE-508: zero-height marker kept as the first child of the stream so an
-   IntersectionObserver can detect scrolling to the very top and load an older
-   page of persisted events. It must not take part in the flex gap. */
+/* FEATURE-508 / FIX-509: zero-height marker kept as the first child of the
+   stream so an IntersectionObserver can detect scrolling to the very top and
+   load an older page of persisted events. It is position:sticky so it stays
+   pinned to the top edge of the scroll container even after a page is
+   prepended — otherwise the inserted content pushes the marker out of view and
+   the observer never fires again. It must not take part in the flex gap. */
 .stream-top-sentinel {
+  position: sticky;
+  top: 0;
   height: 1px;
   flex-shrink: 0;
   margin-bottom: -8px;
-}
-/* FEATURE-445: the stream is a single scrollable region B. */
+  z-index: 1;
+}/* FEATURE-445: the stream is a single scrollable region B. */
 .stream-b {
   flex: 1;
   min-height: 0;
