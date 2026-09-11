@@ -78,6 +78,11 @@ type clientMessage struct {
 	// Kind is the dynamic_event subtype (FEATURE-471): clip_object | upload_file |
 	// user_message | open_file. Only used when Type == "dynamic_event".
 	Kind string `json:"kind,omitempty"`
+
+	// FEATURE-507: history_get paging cursor. Count is the number of message
+	// groups to return (default 20); Before is the sequence cursor to page from.
+	Count  int `json:"count,omitempty"`
+	Before int `json:"before,omitempty"`
 }
 
 // interactionResultJSON is the wire form of an agent.InteractionResult.
@@ -121,6 +126,14 @@ type serverMessage struct {
 	// Backfill carries unconsumed user_message texts back to the input box when
 	// a task ends (FEATURE-471). kind=dynamic_backfill.
 	Backfill []string `json:"backfill,omitempty"`
+
+	// FEATURE-507: kind=history carries a page of persisted UI events so the
+	// browser can replay the conversation after a refresh. Events are raw
+	// StreamEvent JSON, oldest first; HasMore reports whether older events exist
+	// and OldestSeq is the cursor to page further back.
+	Events    []json.RawMessage `json:"events,omitempty"`
+	HasMore   bool              `json:"has_more,omitempty"`
+	OldestSeq int               `json:"oldest_seq,omitempty"`
 }
 
 // modeInfo is one work mode entry pushed to the browser for the mode

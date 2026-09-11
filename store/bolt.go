@@ -90,7 +90,7 @@ func NewStore(ws *workspace.Workspace) (*Store, error) {
 
 	// Create buckets
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, bucket := range []string{"sessions", "context", "history", "schedules", "taskplans", "memory"} {
+		for _, bucket := range []string{"sessions", "context", "history", "schedules", "taskplans", "memory", eventStreamBucket} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(bucket)); err != nil {
 				return fmt.Errorf("cannot create bucket %s: %w", bucket, err)
 			}

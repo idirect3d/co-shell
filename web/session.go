@@ -167,6 +167,10 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		s.renameSession(msg.Value)
 	case "session_new":
 		s.newSession()
+	case "history_get":
+		// FEATURE-507: the browser asks for a page of persisted UI events so it
+		// can replay history after a refresh. Nothing is cached in memory.
+		s.pushHistory(msg.Value, msg.Count, msg.Before)
 	case "session_pop":
 		// FEATURE-409: retry-from — pop the session back to the given message
 		// index (equivalent to :session pop to N).
@@ -642,6 +646,77 @@ func (s *WebSession) handleModelBind(target, id string) {
 	s.handleModelGet()
 }
 
+// defaultHistoryMessages is how many message groups the browser replays after
+// a refresh (FEATURE-507).
+const defaultHistoryMessages = 20
+
+// maxEventsPerMessage bounds how many raw events one message may contribute
+// when paging history, so the raw read window stays proportional to the
+// requested group count.
+const maxEventsPerMessage = 50
+
+// pushHistory sends a page of persisted UI events to the browser (FEATURE-507).
+//
+// The page is measured in message groups (meta.msg_index), not raw events: the
+// caller asks for the last N messages and gets every event belonging to them,
+// which matches the user's notion of "the last 20 messages". Events are read
+// straight from bbolt and never cached, so the backend keeps no history in
+// memory. beforeSeq > 0 pages further back (events strictly older than it).
+func (s *WebSession) pushHistory(sessionID string, count, beforeSeq int) {
+	if sessionID == "" {
+		sessionID = s.ag.CurrentSessionID()
+	}
+	if count <= 0 {
+		count = defaultHistoryMessages
+	}
+	// Read a generous window of raw events, then trim to the requested number
+	// of message groups. A single message can span many events, so the raw
+	// limit is a multiple of the group count.
+	entries, _, err := s.ag.Store().LoadEvents(sessionID, count*maxEventsPerMessage, beforeSeq)
+	if err != nil {
+		log.Warn("pushHistory LoadEvents: %v", err)
+		return
+	}
+	// Group by msg_index, keeping the order of first appearance.
+	var order []string
+	groups := map[string][]json.RawMessage{}
+	for _, e := range entries {
+		key := eventGroupKey(e.Data)
+		if _, seen := groups[key]; !seen {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], e.Data)
+	}
+	hasMore := false
+	if len(order) > count {
+		hasMore = true
+		order = order[len(order)-count:]
+	}
+	var events []json.RawMessage
+	for _, key := range order {
+		events = append(events, groups[key]...)
+	}
+	oldestSeq := 0
+	if len(entries) > 0 {
+		oldestSeq = entries[0].Seq
+	}
+	s.srv.sendJSON(serverMessage{Kind: "history", Events: events, HasMore: hasMore, OldestSeq: oldestSeq})
+}
+
+// eventGroupKey returns the message-group key of a persisted event: its
+// meta.msg_index when present, otherwise the event itself as a singleton group.
+func eventGroupKey(eventJSON []byte) string {
+	var ev struct {
+		Meta map[string]string `json:"meta"`
+	}
+	if err := json.Unmarshal(eventJSON, &ev); err == nil {
+		if idx := ev.Meta["msg_index"]; idx != "" {
+			return idx
+		}
+	}
+	return string(eventJSON)
+}
+
 // pushSessionList sends the current session list to the browser (FEATURE-387).
 func (s *WebSession) pushSessionList() {
 	entries, err := s.ag.Store().ListNamedSessions()
@@ -782,6 +857,11 @@ func (s *WebSession) popTo(value string) {
 		s.srv.sendJSON(serverMessage{Kind: "pop_result", OK: false, Message: err.Error()})
 		return
 	}
+	// FEATURE-507: keep the persisted event stream consistent with the popped
+	// conversation, so a refresh does not replay the discarded turns.
+	if err := s.ag.Store().DeleteEventsAfter(s.ag.CurrentSessionID(), n); err != nil {
+		log.Warn("popTo DeleteEventsAfter: %v", err)
+	}
 	s.srv.sendJSON(serverMessage{Kind: "pop_result", OK: true, Message: result})
 }
 
@@ -883,7 +963,7 @@ func (s *WebSession) ReadLine(prompt string) (string, error) {
 // Acquire wires the per-run renderer. The WebIO stays installed for the
 // whole session (see newWebSession), so release is a no-op.
 func (s *WebSession) Acquire(ag *agent.Agent) (agent.EventRenderer, func()) {
-	return &WebRenderer{s: s}, func() {}
+	return &WebRenderer{s: s, coalescer: newEventCoalescer()}, func() {}
 }
 
 // Interactive reports false: the page provides its own UI, so all terminal
@@ -1084,6 +1164,9 @@ func (w *WebIO) failAll() {
 // done by the frontend based on Type/Chan/Level.
 type WebRenderer struct {
 	s *WebSession
+	// coalescer merges streaming fragments into complete blocks before they
+	// are persisted for replay (FEATURE-507).
+	coalescer *eventCoalescer
 }
 
 // msgIndexForRetry returns the index of the last message in the agent's
@@ -1123,6 +1206,23 @@ func (r *WebRenderer) Render(ev agent.StreamEvent) {
 		ev.Meta = map[string]string{}
 	}
 	ev.Meta["msg_index"] = strconv.Itoa(r.msgIndexForRetry())
+	// FEATURE-507: persist the event so the browser can replay history after a
+	// refresh. Streaming fragments are coalesced into complete blocks first —
+	// replaying raw fragments would open one stray block per fragment because
+	// the browser's streaming cursors do not exist during replay. The backend
+	// keeps no history in memory; a write failure must not block the live stream.
+	if r.coalescer == nil {
+		r.coalescer = newEventCoalescer()
+	}
+	for _, pe := range r.coalescer.Add(ev) {
+		data, err := marshalEvent(pe)
+		if err != nil {
+			continue
+		}
+		if err := r.s.ag.Store().AppendEvent(r.s.ag.CurrentSessionID(), data); err != nil {
+			log.Warn("append event stream: %v", err)
+		}
+	}
 	r.s.srv.sendEvent(ev)
 	// FEATURE-471: when a task ends (done event), hand any unconsumed
 	// user_message events back to the browser so they can be re-submitted.

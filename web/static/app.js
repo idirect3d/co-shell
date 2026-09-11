@@ -390,6 +390,9 @@ function wsConnect() {
     wsSend({ type: "session_list" });
     // FEATURE-439: load the YOLO master switch state (defaults to off).
     wsSend({ type: "yolo_get" });
+    // FEATURE-507: replay the tail of the persisted event stream so a refresh
+    // (or a reconnect) restores the conversation instead of an empty view.
+    wsSend({ type: "history_get", count: 20 });
   };
   ws.onclose = () => {
     wsReady = false;
@@ -442,6 +445,7 @@ function wsConnect() {
     }
     else if (msg.kind === "yolo") setYOLO(!!msg.yolo);
     else if (msg.kind === "dynamic_backfill") backfillInput(msg.backfill || []);
+    else if (msg.kind === "history") renderHistory(msg);
   };
 }
 
@@ -570,6 +574,11 @@ let pendingUserBlock = null;
 // FIX-506: the msg_index of the block whose retry-from button was clicked.
 // pop_result uses it to truncate the stream locally instead of reloading.
 let popTargetIndex = "";
+// FEATURE-507: history replay state. historyOldestSeq is the cursor of the
+// oldest replayed event (for paging further back); historyHasMore reports
+// whether older events exist on the server.
+let historyOldestSeq = 0;
+let historyHasMore = false;
 
 // FEATURE-445: follow-output scrolling. When the scrollbar is within 100px of
 // the content bottom, new output auto-scrolls to the bottom (follows output);
@@ -1194,15 +1203,16 @@ function renderEvent(ev) {
         if (outTPS > 0) parts.push(fmtNum(outTPS) + "t/s");
       }
       line.textContent = parts.join("  ");
-      // FEATURE-419: place the token line AFTER (outside) every block created
-      // during this iteration — each LLM/THINK/TOOL/REPL block is followed by
-      // its own token line as a sibling, not nested inside the block body.
+      // FEATURE-419: one token line per iteration, appended INSIDE the last
+      // block of the iteration so it reads as that block's footer. Appending it
+      // as a sibling left it floating in the stream's flex gap, visually
+      // detached from the message it belongs to.
       const blocks = iterBlocks.slice();
       iterBlocks = [];
       if (blocks.length) {
-        for (const b of blocks) b.parentElement.after(line.cloneNode(true));
+        blocks[blocks.length - 1].parentElement.appendChild(line);
       } else {
-        stream.appendChild(line);
+        streamB.appendChild(line);
       }
     } else {
       // FEATURE-419: task-level summary line, total first with prompt/completion
@@ -1213,10 +1223,12 @@ function renderEvent(ev) {
       const c = parseInt(m.completion, 10) || 0;
       const t = parseInt(m.total, 10) || 0;
       line.textContent = "Σ" + fmtNum(t) + " (↑" + fmtNum(p) + " ↓" + fmtNum(c) + ")";
+      // Append INSIDE the task's last block so the summary reads as that
+      // block's footer instead of floating in the stream's flex gap.
       if (lastBlock) {
-        lastBlock.parentElement.parentElement.appendChild(line);
+        lastBlock.parentElement.appendChild(line);
       } else {
-        stream.appendChild(line);
+        streamB.appendChild(line);
       }
     }
     curLLM = curThinking = curSup = null;
@@ -1601,6 +1613,25 @@ function renderEvent(ev) {
   } else {
     body.textContent = ev.text || "";
   }
+}
+
+// FEATURE-507: replay a page of persisted events after a refresh. The events
+// are the same shape the live stream uses, so they go through renderEvent
+// unchanged; afterwards the view scrolls to the newest message.
+function renderHistory(msg) {
+  const events = msg.events || [];
+  if (!events.length) return;
+  historyOldestSeq = msg.oldest_seq || 0;
+  historyHasMore = !!msg.has_more;
+  for (const ev of events) {
+    try { renderEvent(ev); } catch (e) { /* skip malformed history entry */ }
+  }
+  // The replayed blocks are already complete: stop any streaming indicator and
+  // jump to the bottom so the user lands on the newest message.
+  document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
+  followOutput = true;
+  scrollStream();
+  updateBlockNav();
 }
 
 function renderUserEcho(text) {
