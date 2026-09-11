@@ -1598,18 +1598,20 @@ function renderEvent(ev) {
       // invocation. The backend emits token_iter for the previous iteration
       // between the two events, and that used to clear curTool, so this branch
       // saw fresh=true and opened a second, empty TOOL block beside the one
-      // holding the streamed params. Matching on the tool name (or, failing
-      // that, the last block that has params but no intent yet) keeps the
-      // params and the intent on a single block.
+      // holding the streamed params. Matching on the tool name keeps the params
+      // and the intent on a single block.
+      //
+      // FIX-509b: the match is deliberately strict — only an exact tool_name hit
+      // is reused. An earlier version also fell back to "the first block that
+      // has params but no intent yet", which was too loose: it let a later,
+      // unrelated tool call (or attempt_completion) adopt a previous call's
+      // block, so the title and the params ended up describing different calls.
       if (fresh) {
         const summaryForMatch = parseToolSummary(ev);
         let reuse = null;
         if (summaryForMatch && summaryForMatch.tool_name) {
           const byName = toolBlockByName[summaryForMatch.tool_name];
           if (byName && !byName._intentFilled) reuse = byName;
-        }
-        if (!reuse) {
-          reuse = iterToolBlocks.find((b) => !b._intentFilled && b.params) || null;
         }
         if (reuse) curTool = reuse;
         else curTool = newStreamBlock("tool", "TOOL", msgIndex);
@@ -1663,6 +1665,11 @@ function renderEvent(ev) {
         // FIX-462: the badge text is localized (低风险/中风险/高风险 in zh,
         // Low/Medium/High in en) instead of the raw LOW/MEDIUM/HIGH.
         if (summary.risk) {
+          // FIX-509b: drop any badge left by an earlier event of the same tool
+          // call. The input branch may reuse a block (see above), so without
+          // this the badges accumulate one per event.
+          const stale = head.querySelector(".risk-badge");
+          if (stale) stale.remove();
           const riskBadge = document.createElement("span");
           riskBadge.className = "risk-badge risk-" + summary.risk;
           riskBadge.textContent = riskLabel(summary.risk);

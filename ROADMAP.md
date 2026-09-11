@@ -14,9 +14,9 @@
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
-| FIX-509 | 0.50.1 | P1 | 修复历史分页加载中断：pushHistory 改为循环加载直到凑够 count 组或没有更早事件；hasMore 语义修正为「是否还有更早事件」 |
+| FIX-509 | 0.50.1 | P1 | 修复历史分页加载中断：pushHistory 改为循环加载直到凑够 count 组或没有更早事件；hasMore 语义修正为「是否还有更早事件」；风险标签去重 + 收紧块复用匹配 |
 
-> 当前 BUILD: 956
+> 当前 BUILD: 957
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -26,9 +26,10 @@
   - 背景：FEATURE-508 交付后，用户反馈向上滚动只能加载约 20 条，之后无法继续加载更早历史。
   - 根因：`web/session.go` 的 `pushHistory` 中，`hasMore` 基于 `len(order) > count` 判断。单次 `LoadEvents` 上限为 `count*maxEventsPerMessage = 1000` 条原始事件，而一个 TOOL 块可含 50+ 事件，因此 1000 条原始事件分组后常不足 20 组，导致 `hasMore=false`，前端 `loadOlderHistory` 因 `!historyHasMore` 直接 return。
   - 方案（用户确认）：后端循环加载，直到凑够 count 组或 store 报告没有更早事件为止；`hasMore` 语义修正为「是否还有更早事件」；`oldestSeq` 改为取最旧组的首个事件 seq（原实现取 `entries[0].Seq`，在循环加载下不再正确）。
-  - 实施：`web/session.go`（pushHistory 重写为循环加载）+ `web/fix509_history_test.go`（4 个回归测试）+ `main.go`/`cmd/co-shell-hub/main.go`（版本 0.50.1）+ ROADMAP.md
+  - 实施：`web/session.go`（pushHistory 重写为循环加载）+ `web/static/app.js`（风险标签去重 + 收紧块复用匹配）+ `web/fix509_history_test.go`（4 个回归测试）+ `main.go`/`cmd/co-shell-hub/main.go`（版本 0.50.1）+ ROADMAP.md
   - 测试：`go test ./web/ -run TestPushHistory` 4 个用例全部通过（覆盖：凑够 count 组、到达最旧一条、游标向后翻页不重叠、空流）
-  - 进度：编码完成，待用户测试确认 [BUILD-956]
+  - 附带修复（FIX-508 回归）：① 风险标签插入无去重，叠加块复用导致标签累积（截图见 10 个）；② 块复用 fallback 过于宽松（`iterToolBlocks.find(b => !b._intentFilled && b.params)`），使后续无关工具调用（含 attempt_completion）误用前一个调用的块，标题与参数描述不同调用。已改为仅按 tool_name 精确命中。
+  - 进度：编码完成，待用户测试确认 [BUILD-957]
 
 ---
 
