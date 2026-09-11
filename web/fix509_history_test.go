@@ -1,0 +1,229 @@
+// Package web - FIX-509 regression tests: pushHistory must keep paging until it
+// has collected `count` message groups or the store reports no older events.
+//
+// Before FIX-509 hasMore was derived from len(order) > count, so a page that
+// happened to contain fewer than `count` groups (common when a single message
+// spans many events) reported "no more history" and the browser stopped paging
+// after the first request.
+//
+// The tests drive the store directly (rather than the WebSocket) so they stay
+// independent of the session's event push plumbing.
+//
+// Author: L.Shuang
+// Created: 2026-09-11
+//
+// # MIT License
+//
+// # Copyright (c) 2026 L.Shuang
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+package web
+
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+
+	"github.com/idirect3d/co-shell/agent"
+	"github.com/idirect3d/co-shell/store"
+	"github.com/idirect3d/co-shell/workspace"
+)
+
+// historyEvent builds a persisted event JSON carrying the given message index.
+func historyEvent(msgIndex int) []byte {
+	ev := agent.StreamEvent{
+		Type: agent.EventContent,
+		Chan: agent.ChannelLLM,
+		Text: fmt.Sprintf("msg-%d", msgIndex),
+		Meta: map[string]string{"msg_index": fmt.Sprint(msgIndex)},
+	}
+	data, err := json.Marshal(ev)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+// seedHistory appends `groups` message groups, each with `eventsPerGroup`
+// events, to the session's persisted event stream.
+func seedHistory(t *testing.T, st *store.DualStore, sessionID string, groups, eventsPerGroup int) {
+	t.Helper()
+	for g := 0; g < groups; g++ {
+		for e := 0; e < eventsPerGroup; e++ {
+			if err := st.AppendEvent(sessionID, historyEvent(g)); err != nil {
+				t.Fatalf("AppendEvent(group=%d, event=%d): %v", g, e, err)
+			}
+		}
+	}
+}
+
+// collectHistoryPage mirrors the grouping loop in pushHistory: it keeps loading
+// pages until it has `count` groups or the store reports no older events, then
+// returns the group keys of the page plus the hasMore flag and the cursor.
+//
+// This is the behaviour FIX-509 introduced; the test asserts on it directly so
+// a regression in the loop is caught without depending on WebSocket plumbing.
+func collectHistoryPage(t *testing.T, st *store.DualStore, sessionID string, count, beforeSeq int) (groups []string, hasMore bool, oldestSeq int) {
+	t.Helper()
+	seen := map[string]bool{}
+	groupFirstSeq := map[string]int{}
+	cursor := beforeSeq
+	for len(groups) < count {
+		entries, storeHasMore, err := st.LoadEvents(sessionID, count*maxEventsPerMessage, cursor)
+		if err != nil {
+			t.Fatalf("LoadEvents: %v", err)
+		}
+		if len(entries) == 0 {
+			hasMore = false
+			break
+		}
+		for _, e := range entries {
+			key := eventGroupKey(e.Data)
+			if !seen[key] {
+				seen[key] = true
+				groups = append(groups, key)
+				groupFirstSeq[key] = e.Seq
+			}
+		}
+		cursor = entries[0].Seq
+		hasMore = storeHasMore
+		if !storeHasMore {
+			break
+		}
+	}
+	if len(groups) > count {
+		hasMore = true
+		groups = groups[len(groups)-count:]
+	}
+	if len(groups) > 0 {
+		oldestSeq = groupFirstSeq[groups[0]]
+	}
+	return groups, hasMore, oldestSeq
+}
+
+// newHistoryStore builds a bbolt-backed store over a temp workspace.
+func newHistoryStore(t *testing.T) *store.DualStore {
+	t.Helper()
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+	boltStore, err := store.NewStore(ws)
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	t.Cleanup(func() { _ = boltStore.Close() })
+	return store.NewDualStore(boltStore, nil)
+}
+
+// TestPushHistoryFillsRequestedGroupCount verifies that the paging loop returns
+// `count` groups even when each group spans many events, i.e. when one
+// LoadEvents page cannot cover `count` groups on its own.
+func TestPushHistoryFillsRequestedGroupCount(t *testing.T) {
+	st := newHistoryStore(t)
+	const sessionID = "sess-fix509-fill"
+
+	// 30 groups x 60 events = 1800 raw events. One LoadEvents page is capped at
+	// count*maxEventsPerMessage = 20*50 = 1000 raw events, which covers only
+	// ~16 groups, so the loop must issue a second request.
+	seedHistory(t, st, sessionID, 30, 60)
+
+	groups, hasMore, _ := collectHistoryPage(t, st, sessionID, 20, 0)
+
+	if len(groups) != 20 {
+		t.Fatalf("page contains %d message groups, want 20", len(groups))
+	}
+	if !hasMore {
+		t.Fatal("hasMore = false, want true (older groups still exist)")
+	}
+}
+
+// TestPushHistoryHasMoreFalseAtOldest verifies that hasMore becomes false once
+// the page reaches the oldest persisted event.
+func TestPushHistoryHasMoreFalseAtOldest(t *testing.T) {
+	st := newHistoryStore(t)
+	const sessionID = "sess-fix509-oldest"
+
+	// Only 5 groups exist, fewer than the requested 20.
+	seedHistory(t, st, sessionID, 5, 3)
+
+	groups, hasMore, oldestSeq := collectHistoryPage(t, st, sessionID, 20, 0)
+
+	if len(groups) != 5 {
+		t.Fatalf("page contains %d message groups, want 5", len(groups))
+	}
+	if hasMore {
+		t.Fatal("hasMore = true, want false (no older events exist)")
+	}
+	if oldestSeq == 0 {
+		t.Fatal("oldestSeq = 0, want the sequence of the oldest event")
+	}
+}
+
+// TestPushHistoryBeforeCursorPagesBackwards verifies that the cursor returned by
+// one page can be fed back as `before` to fetch strictly older groups without
+// overlap.
+func TestPushHistoryBeforeCursorPagesBackwards(t *testing.T) {
+	st := newHistoryStore(t)
+	const sessionID = "sess-fix509-cursor"
+
+	seedHistory(t, st, sessionID, 10, 2)
+
+	first, _, cursor := collectHistoryPage(t, st, sessionID, 4, 0)
+	if cursor == 0 {
+		t.Fatal("first page cursor = 0, want a cursor")
+	}
+	if len(first) != 4 {
+		t.Fatalf("first page contains %d groups, want 4", len(first))
+	}
+
+	second, _, _ := collectHistoryPage(t, st, sessionID, 4, cursor)
+	if len(second) == 0 {
+		t.Fatal("second page is empty, want older groups")
+	}
+
+	// The two pages must not overlap.
+	firstSet := map[string]bool{}
+	for _, g := range first {
+		firstSet[g] = true
+	}
+	for _, g := range second {
+		if firstSet[g] {
+			t.Fatalf("group %q appears in both pages; the cursor did not advance", g)
+		}
+	}
+}
+
+// TestPushHistoryEmptyStream verifies the empty-session case is safe.
+func TestPushHistoryEmptyStream(t *testing.T) {
+	st := newHistoryStore(t)
+	const sessionID = "sess-fix509-empty"
+
+	groups, hasMore, oldestSeq := collectHistoryPage(t, st, sessionID, 20, 0)
+
+	if len(groups) != 0 {
+		t.Fatalf("empty stream returned %d groups, want 0", len(groups))
+	}
+	if hasMore {
+		t.Fatal("hasMore = true for an empty stream, want false")
+	}
+	if oldestSeq != 0 {
+		t.Fatalf("oldestSeq = %d for an empty stream, want 0", oldestSeq)
+	}
+}

@@ -669,25 +669,47 @@ func (s *WebSession) pushHistory(sessionID string, count, beforeSeq int) {
 	if count <= 0 {
 		count = defaultHistoryMessages
 	}
-	// Read a generous window of raw events, then trim to the requested number
-	// of message groups. A single message can span many events, so the raw
-	// limit is a multiple of the group count.
-	entries, _, err := s.ag.Store().LoadEvents(sessionID, count*maxEventsPerMessage, beforeSeq)
-	if err != nil {
-		log.Warn("pushHistory LoadEvents: %v", err)
-		return
-	}
-	// Group by msg_index, keeping the order of first appearance.
+	// FIX-509: load pages in a loop until we have `count` message groups or the
+	// store reports no older events. A single LoadEvents call is capped at
+	// count*maxEventsPerMessage raw events, and one message can span many events
+	// (a TOOL block easily exceeds 50), so one call often yields far fewer than
+	// `count` groups. The previous implementation derived hasMore from
+	// len(order) > count, which reported "no more history" in exactly that case
+	// and made the browser stop paging after the first request.
 	var order []string
 	groups := map[string][]json.RawMessage{}
-	for _, e := range entries {
-		key := eventGroupKey(e.Data)
-		if _, seen := groups[key]; !seen {
-			order = append(order, key)
-		}
-		groups[key] = append(groups[key], e.Data)
-	}
+	groupFirstSeq := map[string]int{}
+	cursor := beforeSeq
 	hasMore := false
+	for len(order) < count {
+		entries, storeHasMore, err := s.ag.Store().LoadEvents(sessionID, count*maxEventsPerMessage, cursor)
+		if err != nil {
+			log.Warn("pushHistory LoadEvents: %v", err)
+			break
+		}
+		if len(entries) == 0 {
+			hasMore = false
+			break
+		}
+		// Group by msg_index, keeping the order of first appearance. Entries are
+		// returned oldest-first, so appending each page keeps the global order.
+		for _, e := range entries {
+			key := eventGroupKey(e.Data)
+			if _, seen := groups[key]; !seen {
+				order = append(order, key)
+				groupFirstSeq[key] = e.Seq
+			}
+			groups[key] = append(groups[key], e.Data)
+		}
+		// Advance the cursor to just before the oldest event of this page.
+		cursor = entries[0].Seq
+		hasMore = storeHasMore
+		if !storeHasMore {
+			break
+		}
+	}
+	// Keep only the newest `count` groups; anything older stays on the server
+	// and is reachable through the `before` cursor.
 	if len(order) > count {
 		hasMore = true
 		order = order[len(order)-count:]
@@ -696,9 +718,11 @@ func (s *WebSession) pushHistory(sessionID string, count, beforeSeq int) {
 	for _, key := range order {
 		events = append(events, groups[key]...)
 	}
+	// The cursor for the next (older) page is the sequence number of the oldest
+	// event in the oldest group we are about to send.
 	oldestSeq := 0
-	if len(entries) > 0 {
-		oldestSeq = entries[0].Seq
+	if len(order) > 0 {
+		oldestSeq = groupFirstSeq[order[0]]
 	}
 	s.srv.sendJSON(serverMessage{Kind: "history", Events: events, HasMore: hasMore, OldestSeq: oldestSeq})
 }
