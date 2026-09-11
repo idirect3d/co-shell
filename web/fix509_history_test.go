@@ -38,6 +38,9 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -278,5 +281,34 @@ func TestHistoryMessageAlwaysCarriesPagingFields(t *testing.T) {
 					got.HasMore, got.OldestSeq, tc.hasMore, tc.oldestSeq)
 			}
 		})
+	}
+}
+
+// TestTopSentinelIsNotSticky is the FIX-509 regression guard for the stream's
+// top sentinel style.
+//
+// The sentinel is watched by an IntersectionObserver to load older history
+// pages. It must stay in normal flow: a `position: sticky` marker is pinned to
+// the scroll container's top edge at every scroll offset, so it never leaves
+// the root and the observer sees no further enter/leave transitions. Paging
+// then stops after the very first page — the exact symptom users reported.
+func TestTopSentinelIsNotSticky(t *testing.T) {
+	css, err := os.ReadFile(filepath.Join("static", "style.css"))
+	if err != nil {
+		t.Fatalf("read style.css: %v", err)
+	}
+	// Isolate the .stream-top-sentinel rule body.
+	marker := ".stream-top-sentinel {"
+	start := strings.Index(string(css), marker)
+	if start < 0 {
+		t.Fatalf("%q rule not found in style.css", marker)
+	}
+	end := strings.Index(string(css)[start:], "}")
+	if end < 0 {
+		t.Fatalf("unterminated %q rule", marker)
+	}
+	body := string(css)[start : start+end]
+	if strings.Contains(body, "position: sticky") || strings.Contains(body, "position:sticky") {
+		t.Errorf("top sentinel must not be position:sticky (observer would never re-fire); rule body:\n%s", body)
 	}
 }

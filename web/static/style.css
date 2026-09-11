@@ -726,17 +726,18 @@ aside {
 }
 /* FEATURE-508 / FIX-509: zero-height marker kept as the first child of the
    stream so an IntersectionObserver can detect scrolling to the very top and
-   load an older page of persisted events. It is position:sticky so it stays
-   pinned to the top edge of the scroll container even after a page is
-   prepended — otherwise the inserted content pushes the marker out of view and
-   the observer never fires again. It must not take part in the flex gap. */
+   load an older page of persisted events.
+
+   It must stay in normal flow (NOT position:sticky). A sticky marker is pinned
+   to the scroll container's top edge at every scroll offset, so it never leaves
+   the root and the observer sees no further enter/leave transitions — paging
+   then stops after the very first page. In flow, the marker scrolls away with
+   the content and re-enters the root each time the user returns to the top.
+   It must not take part in the flex gap. */
 .stream-top-sentinel {
-  position: sticky;
-  top: 0;
   height: 1px;
   flex-shrink: 0;
   margin-bottom: -8px;
-  z-index: 1;
 }/* FEATURE-445: the stream is a single scrollable region B. */
 .stream-b {
   flex: 1;

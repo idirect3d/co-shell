@@ -1248,6 +1248,23 @@ function loadOlderHistory() {
   wsSend({ type: "history_get", count: 20, before: historyOldestSeq });
 }
 
+// scheduleChainLoad keeps paging while the user stays parked at the top
+// (FIX-509). The top sentinel is an in-flow node, so prepending a page pushes it
+// down and the IntersectionObserver sees no new enter transition; without this
+// the load would stop as soon as the first page landed. The check runs on the
+// next frame so the DOM has settled, and only continues while the sentinel is
+// still within the observer's margin — scrolling away cancels the chain.
+function scheduleChainLoad() {
+  requestAnimationFrame(() => {
+    if (historyLoading || !historyHasMore || !historyOldestSeq) return;
+    const s = document.getElementById("streamTopSentinel");
+    if (!s) return;
+    const margin = 120;
+    const rel = s.getBoundingClientRect().top - streamB.getBoundingClientRect().top;
+    if (rel <= margin) loadOlderHistory();
+  });
+}
+
 // initTopSentinel wires the IntersectionObserver that watches the top marker.
 function initTopSentinel() {
   const s = ensureTopSentinel();
@@ -1818,6 +1835,12 @@ function renderHistory(msg) {
     }
     historyInserting = false;
     updateBlockNav();
+    // FIX-509: the top sentinel is a normal in-flow node, so prepending a page
+    // pushes it down and the IntersectionObserver sees no new enter transition.
+    // If the user is still parked at the top, keep paging explicitly instead of
+    // waiting for an observer event that will never come — otherwise loading
+    // stops as soon as the first page lands.
+    if (wasAtTop) scheduleChainLoad();
     return;
   }
   for (const ev of events) {
