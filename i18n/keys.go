@@ -2448,6 +2448,10 @@ const (
 	KeyCol3WebInputDir   = "col3_web_input_dir"
 	KeyCol3DynamicQueueSize = "col3_dynamic_queue_size"
 
+	// FEATURE-508: Web UI stream sliding-window thresholds.
+	KeyCol3StreamWindowMaxBlocks = "col3_stream_window_max_blocks"
+	KeyCol3StreamWindowMaxNodes  = "col3_stream_window_max_nodes"
+
 	// FEATURE-471: per-block <environment_details> inclusion switches.
 	KeyCol3EnvIncludeDetails     = "col3_env_include_details"
 	KeyCol3EnvIncludeCurrentDir  = "col3_env_include_current_dir"

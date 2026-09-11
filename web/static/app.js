@@ -393,6 +393,9 @@ function wsConnect() {
     // FEATURE-507: replay the tail of the persisted event stream so a refresh
     // (or a reconnect) restores the conversation instead of an empty view.
     wsSend({ type: "history_get", count: 20 });
+    // FEATURE-508: watch the top marker so scrolling to the very top loads an
+    // older page of persisted events.
+    initTopSentinel();
   };
   ws.onclose = () => {
     wsReady = false;
@@ -579,6 +582,24 @@ let popTargetIndex = "";
 // whether older events exist on the server.
 let historyOldestSeq = 0;
 let historyHasMore = false;
+
+// FEATURE-508: sliding-window cache rendering. The stream keeps only a bounded
+// number of message-index groups in the DOM; older groups are evicted from the
+// top and can be re-loaded on demand via the history_get `before` cursor.
+// Thresholds come from the system settings (stream-window-max-blocks /
+// stream-window-max-nodes) and fall back to the defaults below.
+let streamWindowMaxBlocks = 300;
+let streamWindowMaxNodes = 30000;
+// True while a history page is being fetched for the top sentinel, so the
+// observer does not fire a second request for the same cursor.
+let historyLoading = false;
+// True while renderHistory is inserting an older page at the top: suppresses
+// the eviction pass so the freshly loaded page is not immediately trimmed.
+let historyInserting = false;
+// While an older history page is being replayed, every block created by
+// makeBlock is inserted BEFORE this node instead of being appended, so the
+// page lands at the top of the stream. null means "append at the bottom".
+let insertAnchor = null;
 
 // FEATURE-445: follow-output scrolling. When the scrollbar is within 100px of
 // the content bottom, new output auto-scrolls to the bottom (follows output);
@@ -915,11 +936,20 @@ function makeBlock(cls, label, msgIndex) {
   // FEATURE-425: apply the current display mode to the new block.
   applyBlockDisplayMode(box, cls);
   // FEATURE-445: all blocks append to the single stream region B.
-  streamB.appendChild(box);
+  // FEATURE-508: while an older history page is being replayed, insertAnchor
+  // points at the current oldest node, so new blocks land at the top instead.
+  if (insertAnchor && insertAnchor.parentNode === streamB) streamB.insertBefore(box, insertAnchor);
+  else streamB.appendChild(box);
+  // FEATURE-508: keep the top sentinel as the first child so the observer can
+  // still detect scrolling to the very top after new blocks are appended.
+  ensureTopSentinel();
   // FEATURE-482: queue this block for the message-visualization chart. Its
   // context-usage value is backfilled when the iteration's token_iter arrives.
   if (msgVizPending) msgVizPending.push({ cls: cls, box: box });
   scrollStream();
+  // FEATURE-508: evict the oldest message-index groups once the window exceeds
+  // either threshold (block count / DOM node count).
+  enforceStreamWindow();
   return body;
 }
 
@@ -1138,6 +1168,98 @@ function truncateStreamFrom(targetIndex) {
   scrollStream();
 }
 
+// FEATURE-508: group the stream's direct children by message index. Each group
+// is a contiguous run of nodes sharing the same data-msg-index (a block plus its
+// token-stats line, tool sub-blocks, etc.). Nodes without an index (e.g. the
+// top sentinel) form their own single-node group keyed by a unique marker.
+function streamGroups() {
+  const groups = [];
+  let cur = null;
+  for (const node of streamB.children) {
+    const idx = node.dataset ? node.dataset.msgIndex : undefined;
+    if (cur && idx !== undefined && cur.index === idx) {
+      cur.nodes.push(node);
+    } else {
+      cur = { index: idx, nodes: [node] };
+      groups.push(cur);
+    }
+  }
+  return groups;
+}
+
+// enforceStreamWindow evicts the oldest message-index groups from the top of the
+// stream until both thresholds are satisfied (FEATURE-508). Eviction is always
+// whole-group so a tool_call / tool_result pair is never split. The newest group
+// is never evicted, so the block currently being streamed stays in the DOM.
+function enforceStreamWindow() {
+  if (historyInserting) return;
+  const groups = streamGroups();
+  if (groups.length <= 1) return;
+  let blocks = streamB.children.length;
+  let nodes = streamB.querySelectorAll("*").length;
+  if (blocks <= streamWindowMaxBlocks && nodes <= streamWindowMaxNodes) return;
+  // Walk from the oldest group forward, dropping groups while the window is
+  // still over either threshold and at least one group would remain.
+  let drop = 0;
+  while (drop < groups.length - 1) {
+    const g = groups[drop];
+    const gBlocks = g.nodes.length;
+    const gNodes = g.nodes.reduce((n, el) => n + 1 + el.querySelectorAll("*").length, 0);
+    if (blocks - gBlocks < streamWindowMaxBlocks && nodes - gNodes < streamWindowMaxNodes) break;
+    blocks -= gBlocks;
+    nodes -= gNodes;
+    drop++;
+  }
+  if (!drop) return;
+  // Remember the scroll anchor so the viewport does not jump when the top is
+  // trimmed while the user is reading older content.
+  const prevHeight = streamB.scrollHeight;
+  const prevTop = streamB.scrollTop;
+  for (let i = 0; i < drop; i++) {
+    for (const node of groups[i].nodes) node.remove();
+  }
+  const delta = prevHeight - streamB.scrollHeight;
+  if (delta > 0) streamB.scrollTop = Math.max(0, prevTop - delta);
+  updateBlockNav();
+}
+
+// ensureTopSentinel keeps a zero-height marker as the first child of the stream
+// so an IntersectionObserver can detect when the user scrolls to the very top
+// and trigger loading of an older history page (FEATURE-508).
+function ensureTopSentinel() {
+  let s = document.getElementById("streamTopSentinel");
+  if (!s) {
+    s = document.createElement("div");
+    s.id = "streamTopSentinel";
+    s.className = "stream-top-sentinel";
+    streamB.insertBefore(s, streamB.firstChild);
+  } else if (streamB.firstChild !== s) {
+    streamB.insertBefore(s, streamB.firstChild);
+  }
+  return s;
+}
+
+// loadOlderHistory requests the previous page of persisted events using the
+// history_get `before` cursor (FEATURE-508). It is a no-op while a page is
+// already in flight or when the server reported no more history.
+function loadOlderHistory() {
+  if (historyLoading || !historyHasMore || !historyOldestSeq) return;
+  historyLoading = true;
+  wsSend({ type: "history_get", count: 20, before: historyOldestSeq });
+}
+
+// initTopSentinel wires the IntersectionObserver that watches the top marker.
+function initTopSentinel() {
+  const s = ensureTopSentinel();
+  if (!("IntersectionObserver" in window)) return;
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) loadOlderHistory();
+    }
+  }, { root: streamB, rootMargin: "120px 0px 0px 0px", threshold: 0 });
+  io.observe(s);
+}
+
 function eventClass(ev) {
   const lvl = ev.level ? " level-" + ev.level : "";
   switch (ev.type) {
@@ -1232,14 +1354,21 @@ function renderEvent(ev) {
       }
     }
     curLLM = curThinking = curSup = null;
-    // FIX-474: the LLM iteration ended — reset the tool-block tracking state so
+    // FIX-474: the LLM iteration ended — reset the tool-block LOOKUP tables so
     // the next iteration starts clean. Without this, iterToolBlocks/curTool/
     // toolBlockByName persist across iterations (only cleared at the final done
     // event), so an "orphan" block from an earlier iteration (created by a ⚙️
     // header but whose tool_call input event never arrived, e.g. plan tools that
     // skip meta) stays unfilled and steals the intent of a later tool call,
     // misplacing the intent onto the wrong TOOL block.
-    curTool = null;
+    //
+    // FIX-508b: curTool itself is deliberately NOT cleared here. The backend
+    // emits token_iter for the PREVIOUS iteration before the current iteration's
+    // tool_call(input) event, so clearing curTool made that event see
+    // fresh=true and open a second, empty TOOL block next to the one that
+    // already held the streamed params. Keeping the reference lets the input
+    // event reuse the existing block; the lookup tables are still reset so
+    // FIX-474's intent-misplacement fix keeps working.
     toolBlockByName = {};
     iterToolBlocks = [];
     // FEATURE-409: the LLM iteration ended (token usage refreshed) — stop the
@@ -1463,7 +1592,28 @@ function renderEvent(ev) {
     if (phase === "input" || (!phase && ev.type === "tool_call" && !fresh && !curTool.raw)) {
       // FEATURE-400: the input-parameter sub-block is the params container;
       // the pre-execution summary no longer replaces the streamed params.
-      if (fresh) curTool = newStreamBlock("tool", "TOOL", msgIndex);
+      //
+      // FIX-508b: before opening a new block, try to reuse the block that the
+      // preceding tool_call_stream event already created for this same tool
+      // invocation. The backend emits token_iter for the previous iteration
+      // between the two events, and that used to clear curTool, so this branch
+      // saw fresh=true and opened a second, empty TOOL block beside the one
+      // holding the streamed params. Matching on the tool name (or, failing
+      // that, the last block that has params but no intent yet) keeps the
+      // params and the intent on a single block.
+      if (fresh) {
+        const summaryForMatch = parseToolSummary(ev);
+        let reuse = null;
+        if (summaryForMatch && summaryForMatch.tool_name) {
+          const byName = toolBlockByName[summaryForMatch.tool_name];
+          if (byName && !byName._intentFilled) reuse = byName;
+        }
+        if (!reuse) {
+          reuse = iterToolBlocks.find((b) => !b._intentFilled && b.params) || null;
+        }
+        if (reuse) curTool = reuse;
+        else curTool = newStreamBlock("tool", "TOOL", msgIndex);
+      }
       // FEATURE-388: set the TOOL block title to "TOOL <action> - <intent>"
       // from the structured ToolSummary.
       const summary = parseToolSummary(ev);
@@ -1623,6 +1773,31 @@ function renderHistory(msg) {
   if (!events.length) return;
   historyOldestSeq = msg.oldest_seq || 0;
   historyHasMore = !!msg.has_more;
+  // FEATURE-508: a page requested with the `before` cursor is an OLDER page and
+  // must be inserted at the top of the stream, keeping the viewport anchored on
+  // the content the user is currently reading. The initial page (no cursor) is
+  // appended normally and scrolls to the bottom.
+  const prepend = historyLoading;
+  historyLoading = false;
+  if (prepend) {
+    historyInserting = true;
+    const prevHeight = streamB.scrollHeight;
+    const prevTop = streamB.scrollTop;
+    // Every block created while insertAnchor is set lands before the current
+    // oldest node, so the older page is prepended in order.
+    insertAnchor = streamB.firstChild;
+    for (const ev of events) {
+      try { renderEvent(ev); } catch (e) { /* skip malformed history entry */ }
+    }
+    insertAnchor = null;
+    ensureTopSentinel();
+    // Compensate the scroll position so the visible content does not jump.
+    const delta = streamB.scrollHeight - prevHeight;
+    if (delta > 0) streamB.scrollTop = prevTop + delta;
+    historyInserting = false;
+    updateBlockNav();
+    return;
+  }
   for (const ev of events) {
     try { renderEvent(ev); } catch (e) { /* skip malformed history entry */ }
   }
@@ -2916,6 +3091,22 @@ function cacheWebInputDir(groups) {
       if (it.key === "web-input-dir") {
         webInputDir = it.value || "input";
         return;
+      }
+    }
+  }
+}
+// cacheStreamWindowSettings reads the two sliding-window thresholds from the
+// settings_get payload (FEATURE-508). Invalid or missing values keep the
+// current defaults so the stream is never left unbounded.
+function cacheStreamWindowSettings(groups) {
+  for (const g of groups || []) {
+    for (const it of g.items || []) {
+      if (it.key === "stream-window-max-blocks") {
+        const n = parseInt(it.value, 10);
+        if (Number.isFinite(n) && n > 0) streamWindowMaxBlocks = n;
+      } else if (it.key === "stream-window-max-nodes") {
+        const n = parseInt(it.value, 10);
+        if (Number.isFinite(n) && n > 0) streamWindowMaxNodes = n;
       }
     }
   }
@@ -4239,6 +4430,9 @@ function renderSettings(groups) {
   settingsGroups = groups || [];
   if (settingsActiveGroup >= settingsGroups.length) settingsActiveGroup = 0;
   cacheWebInputDir(groups);
+  // FEATURE-508: pick up the sliding-window thresholds so a settings change
+  // takes effect without a page reload.
+  cacheStreamWindowSettings(groups);
   renderSettingsNav();
   renderSettingsPane();
 }

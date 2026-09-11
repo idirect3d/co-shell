@@ -184,7 +184,9 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "show-loop-detection",
 		subcommand == "token-usage",
 		subcommand == "output-categories",
-		subcommand == "show-parse-error-raw":
+		subcommand == "show-parse-error-raw",
+		subcommand == "stream-window-max-blocks",
+		subcommand == "stream-window-max-nodes":
 		return h.handleDisplaySetting(subcommand, args)
 
 	// Agent settings
@@ -748,6 +750,8 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("show-parse-error-raw", showParseErrorRawVal, i18n.T(i18n.KeySettingCmd_337)),
 		makeLine("token-usage", tokenUsageStatus, i18n.T(i18n.KeyCol3TokenUsage)),
 		makeLine("output-categories", outputCategoriesSummary, "cat=on|off"),
+		makeLine("stream-window-max-blocks", fmt.Sprintf("%d", cfg.LLM.StreamWindowMaxBlocks), i18n.T(i18n.KeyCol3StreamWindowMaxBlocks)),
+		makeLine("stream-window-max-nodes", fmt.Sprintf("%d", cfg.LLM.StreamWindowMaxNodes), i18n.T(i18n.KeyCol3StreamWindowMaxNodes)),
 	})
 
 	// Loop detection (FIX-179)

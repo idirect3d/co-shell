@@ -28,6 +28,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/idirect3d/co-shell/config"
@@ -416,6 +417,36 @@ func (h *SettingsHandler) handleDisplaySetting(subcommand string, args []string)
 		}
 		log.Info("Emoji enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_519), status), nil
+
+	case "stream-window-max-blocks":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeyCol3StreamWindowMaxBlocks)+": %d", h.cfg.LLM.StreamWindowMaxBlocks), nil
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(args[1]))
+		if err != nil || n < 10 || n > 100000 {
+			return "", fmt.Errorf("stream-window-max-blocks must be an integer between 10 and 100000")
+		}
+		h.cfg.LLM.StreamWindowMaxBlocks = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Stream window max blocks set to %d", n)
+		return fmt.Sprintf(i18n.T(i18n.KeyCol3StreamWindowMaxBlocks)+": %d", n), nil
+
+	case "stream-window-max-nodes":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeyCol3StreamWindowMaxNodes)+": %d", h.cfg.LLM.StreamWindowMaxNodes), nil
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(args[1]))
+		if err != nil || n < 1000 || n > 10000000 {
+			return "", fmt.Errorf("stream-window-max-nodes must be an integer between 1000 and 10000000")
+		}
+		h.cfg.LLM.StreamWindowMaxNodes = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Stream window max nodes set to %d", n)
+		return fmt.Sprintf(i18n.T(i18n.KeyCol3StreamWindowMaxNodes)+": %d", n), nil
 
 	default:
 		return "", fmt.Errorf("unknown display setting: %s", subcommand)
