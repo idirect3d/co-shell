@@ -4,6 +4,33 @@
 
 ---
 
+## v0.49.0 — 开发中
+
+> **版本**: v0.49.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 前端消息滑动窗口缓存渲染（FEATURE-507）
+> **说明**: 解决“大模型返回内容不断增多导致浏览器内存/CPU 持续增长”的问题。P1 阶段：后端将已下发的事件流按会话**持久化**（bbolt，不驻留内存，内存中仅保留当前上下文），新增按游标分页读取历史事件的接口，前端刷新/重建会话时从后端读取最后 N 条（默认 20）消息并渲染为多个消息块、滚动到最后一条。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-507 | 0.49.0 | P1 | 前端消息滑动窗口缓存渲染（P1）：后端事件流持久化 + 分页回放接口 + 刷新回填最后 20 条并滚到底 |
+
+> 当前 BUILD: 948
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-507 前端消息滑动窗口缓存渲染（P1：持久化事件流 + 分页回放 + 刷新回填）**
+  - 背景：随着大模型返回内容不断增多，浏览器占用内存与 CPU 持续增长——前端消息块只追加不回收（`makeBlock()` → `streamB.appendChild`，app.js:883/909），静默模式仅隐藏显示、DOM 与 raw 文本照旧保留；且后端目前**无历史回放**（`handleWS` 建连仅 `sendState()`），刷新浏览器后消息区为空。
+  - 方案（用户确认）：选 B —— 持久化“已下发的事件流”按游标分页回放；窗口按 message index 组；双阈值（块数 + DOM 节点数/文本字节数）。**关键约束：后端历史不得放内存，必须持久化；前端需要时直接从持久化读取；后端内存中仅有当前上下文内容。**
+  - 实施：`store/`（新增事件流持久化读写）+ `web/session.go`（下发事件时同步落盘 + 分页回放接口）+ `web/static/app.js`（刷新回填最后 20 条并滚到底）+ `web/server.go`（消息类型）+ ROADMAP.md
+  - 测试：见 use-case/FEATURE-507/
+  - 进度：开发完成——`store/eventstream.go` 新增 `eventstream` bucket 与 `AppendEvent`/`LoadEvents`/`DeleteEventsAfter`/`ClearEventStream`（key = `{sessionID}\x00{seq:08d}`，value = StreamEvent JSON，单会话上限 5000 条自动裁剪最旧）；`store/dual.go` 补 4 个转发方法；`web/session.go` 在 `WebRenderer.Render` 落盘（失败仅告警不阻断）、新增 `pushHistory`（按 `meta.msg_index` 分组取最后 N 组）与 `popTo` 同步裁剪；`web/server.go` 新增 `history_get` 入站字段与 `history` 出站字段；`web/static/app.js` 新增 `renderHistory` 并在 `ws.onopen` 请求最后 20 条、渲染后滚到底。新增 `store/eventstream_test.go` 8 个单测全部通过（含分页游标、上限裁剪、重启后仍可回放）；`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过；`go test ./store/` 全绿（`agent`/`cmd` 包 4 个失败已在干净 main 上复现，与本次修改无关）[BUILD-948]
+
+---
+
 ## v0.48.0 — 开发中
 
 > **版本**: v0.48.0

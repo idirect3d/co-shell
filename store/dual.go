@@ -312,6 +312,28 @@ func (d *DualStore) DeleteNamedSession(id string) error {
 	return d.Bolt.DeleteNamedSession(id)
 }
 
+// --- Event stream (FEATURE-507) ---
+
+// AppendEvent persists one UI event for the given session.
+func (d *DualStore) AppendEvent(sessionID string, eventJSON []byte) error {
+	return d.Bolt.AppendEvent(sessionID, eventJSON)
+}
+
+// LoadEvents returns up to limit events of a session (chronological order).
+func (d *DualStore) LoadEvents(sessionID string, limit, beforeSeq int) ([]EventStreamEntry, bool, error) {
+	return d.Bolt.LoadEvents(sessionID, limit, beforeSeq)
+}
+
+// DeleteEventsAfter drops events belonging to messages after msgIndex.
+func (d *DualStore) DeleteEventsAfter(sessionID string, msgIndex int) error {
+	return d.Bolt.DeleteEventsAfter(sessionID, msgIndex)
+}
+
+// ClearEventStream removes every persisted event of a session.
+func (d *DualStore) ClearEventStream(sessionID string) error {
+	return d.Bolt.ClearEventStream(sessionID)
+}
+
 // Vault returns a VaultStore using the underlying bbolt database.
 func (d *DualStore) Vault() *VaultStore {
 	return d.Bolt.Vault()

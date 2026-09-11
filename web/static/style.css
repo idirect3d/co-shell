@@ -1032,13 +1032,18 @@ aside {
 .ev.level-debug { opacity: 0.7; }
 .ev.level-debug .ev-body { color: var(--debug); }
 
+/* Token-stats footer. Rendered INSIDE the block it belongs to (as the last
+   child of .ev), so it reads as that message's footer rather than a detached
+   line floating in the stream's flex gap. */
 .ev.meta {
   border: none;
+  border-radius: 0;
   background: none;
   color: var(--fg-faint);
   font-size: 11px;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  padding: 0 4px;
+  padding: 3px 10px;
+  margin: 0;
 }
 
 .ev.user-msg {
