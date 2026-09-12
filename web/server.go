@@ -150,6 +150,12 @@ type serverMessage struct {
 	Mode        string          `json:"mode,omitempty"`  // kind=ask: "line" | "key"
 	Interaction json.RawMessage `json:"interaction,omitempty"` // kind=interaction: the Interaction JSON
 	Plan        json.RawMessage `json:"plan"`            // kind=state (null when no plan)
+	// FIX-511: kind=state also carries the agent's running state (agent.IsBusy)
+	// so a refreshed or reconnected browser can restore its running indicators
+	// (logo breathing, red ⏸ button, session-title highlight) instead of
+	// defaulting to idle. Pointer so that `false` is still serialised
+	// (omitempty alone would drop it).
+	Busy *bool `json:"busy,omitempty"`
 	Sessions    []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
 	Settings    json.RawMessage `json:"settings,omitempty"` // kind=settings: the grouped setting items
 	Identity    json.RawMessage `json:"identity,omitempty"` // kind=identity: the identity fields
@@ -495,11 +501,13 @@ func (s *Server) sendInteraction(id string, inJSON json.RawMessage) bool {
 	return s.sendJSON(serverMessage{Kind: "interaction", ID: id, Interaction: inJSON})
 }
 
-// sendState pushes the current task plan snapshot (null when none) to one
-// freshly connected client.
+// sendState pushes the current task plan and running state snapshot to one
+// freshly connected client. It runs on every connection, so a page refresh and
+// a manual reconnect both resynchronise the browser with the backend.
 func (s *Server) sendState(c *wsConn) {
 	s.mu.Lock()
 	fn := s.planFn
+	busyFn := s.busyFn
 	s.mu.Unlock()
 	plan := json.RawMessage("null")
 	if fn != nil {
@@ -507,7 +515,15 @@ func (s *Server) sendState(c *wsConn) {
 			plan = json.RawMessage(p)
 		}
 	}
-	data, err := json.Marshal(serverMessage{Kind: "state", Plan: plan})
+	// FIX-511: report whether a task run is in flight. The frontend derives its
+	// running indicators from live turn_start/await_input events only, and those
+	// are not persisted, so without this the UI stayed idle after a refresh
+	// while the agent was still working.
+	busy := false
+	if busyFn != nil {
+		busy = busyFn()
+	}
+	data, err := json.Marshal(serverMessage{Kind: "state", Plan: plan, Busy: &busy})
 	if err != nil {
 		return
 	}

@@ -379,11 +379,23 @@ function wsConnect() {
   // Relative WS endpoint: works both at the root path (co-shell standalone)
   // and under a sub-path prefix (e.g. hub /agent/{id}/) (FEATURE-484).
   const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-  ws = new WebSocket(wsProto + location.host + location.pathname + 'ws');
-  ws.onopen = () => {
+  // FIX-511: keep a per-connection reference. Callbacks bound to a socket that
+  // has already been superseded (disconnect → reconnect) must not touch the
+  // state of the current connection, otherwise a late onclose from the old
+  // socket resets wsReady and wipes the running state just restored on
+  // reconnect.
+  const sock = new WebSocket(wsProto + location.host + location.pathname + 'ws');
+  ws = sock;
+  sock.onopen = () => {
+    if (sock !== ws) return; // superseded socket
     wsReady = true;
     conn.classList.add("on");
     connText.textContent = T.connected;
+    // FIX-511: rebuild the view from the server's persisted history. On a page
+    // load the stream is already empty (no-op); on a reconnect this drops the
+    // previous content so the replay below rebuilds it instead of appending a
+    // second copy of the same messages.
+    resetStreamView();
     wsSend({ type: "mode_get" }); // FEATURE-410: load the work-mode list
     // Fetch the session list on connect so the 💬 count is correct immediately
     // (FEATURE-387), not only after hovering the status-bar item.
@@ -397,7 +409,8 @@ function wsConnect() {
     // older page of persisted events.
     initTopSentinel();
   };
-  ws.onclose = () => {
+  sock.onclose = () => {
+    if (sock !== ws) return; // superseded socket: leave the new connection alone
     wsReady = false;
     conn.classList.remove("on");
     connText.textContent = T.disconnected;
@@ -406,13 +419,25 @@ function wsConnect() {
     // FEATURE-458: no auto-reconnect. The user clicks the connection control
     // to reconnect manually.
   };
-  ws.onmessage = (m) => {
+  sock.onmessage = (m) => {
+    // FIX-511: after the user clicked "断开连接" no message may be processed
+    // until the next connection is established — messages already queued (or
+    // delivered during the closing handshake) used to keep rendering into the
+    // stream. Messages from a superseded socket are dropped as well.
+    if (!wsReady || sock !== ws) return;
     let msg;
     try { msg = JSON.parse(m.data); } catch { return; }
     if (msg.kind === "event" && msg.event) renderEvent(msg.event);
     else if (msg.kind === "ask") showAsk(msg);
     else if (msg.kind === "interaction") showInteraction(msg);
-    else if (msg.kind === "state") renderPlan(msg.plan || null);
+    else if (msg.kind === "state") {
+      // FIX-511: the connect-time snapshot carries the agent's running state, so
+      // a refreshed or reconnected page restores the running indicators (logo
+      // breathing, red ⏸ button, session-title highlight dot) instead of staying
+      // idle while the backend keeps working.
+      if (typeof msg.busy === "boolean") setRunning(msg.busy);
+      renderPlan(msg.plan || null);
+    }
     else if (msg.kind === "sessions") renderSessionMenu(msg.sessions || []);
     else if (msg.kind === "settings") renderSettings(msg.settings || []);
     else if (msg.kind === "settings_result") showSettingsResult(msg);
@@ -1255,6 +1280,50 @@ function loadOlderHistory() {
   if (historyLoading || !historyHasMore || !historyOldestSeq) return;
   historyLoading = true;
   wsSend({ type: "history_get", count: pageBufferSize, before: historyOldestSeq });
+}
+
+// resetStreamView clears the event stream and the renderer bookkeeping that
+// tracks in-flight blocks (FIX-511). It is called for every new WebSocket
+// connection, before the persisted history page is requested, so the replay
+// rebuilds the view from scratch: on a page load the stream is already empty
+// (no-op), while on a reconnect it drops the previous content so the replay
+// does not duplicate it.
+function resetStreamView() {
+  streamB.textContent = "";
+  if (msgVizTrack) msgVizTrack.textContent = "";
+  // In-flight block references.
+  curLLM = null;
+  curThinking = null;
+  curTool = null;
+  curSup = null;
+  curREPL = null;
+  lastBlock = null;
+  iterBlocks = [];
+  iterToolBlocks = [];
+  iterCount = 0;
+  toolBlockByName = {};
+  // Message-index bookkeeping used by retry-from / pop.
+  lastMsgIndex = "";
+  pendingUserBlock = null;
+  popTargetIndex = "";
+  // History paging + replay state.
+  historyOldestSeq = 0;
+  historyHasMore = false;
+  historyLoading = false;
+  historyInserting = false;
+  insertAnchor = null;
+  prependingHistory = false;
+  // View + statistics derived from the replayed events (rebuilt by the replay).
+  blockNavCurrent = null;
+  followOutput = true;
+  msgVizPending = [];
+  msgVizUsage = 0;
+  tokenStats.sessionIn = 0;
+  tokenStats.sessionOut = 0;
+  tokenStats.lastIn = 0;
+  tokenStats.lastOut = 0;
+  tokenStats.lastInTPS = 0;
+  tokenStats.lastOutTPS = 0;
 }
 
 // initTopSentinel wires the IntersectionObserver that watches the top marker.

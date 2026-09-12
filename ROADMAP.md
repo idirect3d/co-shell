@@ -4,6 +4,50 @@
 
 ---
 
+## v0.51.2 — 开发中
+
+> **版本**: v0.51.2
+
+> **状态**: 🚧 开发中（FIX-511）
+> **里程碑**: 修复 Web UI 页面刷新 / 重新连接后运行态控件与后端不一致，并加固“断开连接”后的消息接收语义（FIX-511）
+> **说明**: 运行态的界面表现（logo 呼吸、发送/中断按钮的红色 ⏸ 态、会话标题高亮点）完全由前端 `setRunning()` 驱动，而它只接收实时 WS 事件 `turn_start` / `await_input`；这两条事件由 `WebSession.ReadLine` 直接 `sendEvent`，不经过渲染器，因此不会被持久化到事件流，页面刷新后的历史回放里没有它们。同时前端在 WS 连接建立时只请求 mode/session/yolo/history，从不查询当前运行态，导致刷新后界面停留在空闲态（后端其实一直在跑）。本次复用连接时已有的 `kind:"state"` 状态快照通道携带 `busy`，让刷新与重连都能立即恢复运行态；同时按“断开即停止接收、重连即重新同步”的语义加固套接字生命周期（在途消息丢弃、旧套接字回调不污染新连接、重连重建事件流避免重复回放）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-511 | 0.51.2 | P1 | 连接时 state 快照携带 busy 以恢复运行态外观；断开后忽略在途消息与旧套接字回调；重连重建事件流避免重复追加 |
+
+> 当前 BUILD: 973
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-511 运行态同步与断连语义（刷新/重连后显示运行态控件与后端不一致）**
+  - 现象（用户报告）：任务正在运行时刷新页面，logo 失去呼吸效果、运行/暂停按钮显示为 ▶ 而非红色边框的 ⏸，运行态与后端不一致。
+  - 根因 1（状态无来源）：前端 `running` 仅由实时 WS 事件 `turn_start` → `setRunning(true)` / `await_input` → `setRunning(false)` 驱动（`web/static/app.js:1304-1305`）；这两条事件由 `WebSession.ReadLine` 直接 `srv.sendEvent` 发出（`web/session.go:1007`），**不经过渲染器**，因此不会走 `r.coalescer.Add(ev)` → `AppendEvent` 的持久化路径（`web/session.go:1285-1294`）→ 历史回放中不存在 turn 边界事件。
+  - 根因 2（连接时不查询）：`ws.onopen`（`web/static/app.js:383-399`）只发送 `mode_get` / `session_list` / `yolo_get` / `history_get`，从不查询当前运行态，于是 `boot()` 的 `setRunning(false)`（`app.js:6049`）一直生效。
+  - 根因 3（后端已有状态却未下发）：`agent.IsBusy()`（`agent/loop.go:419`，`RunStream` 进入 `SetBusy(true)`、退出 `SetBusy(false)`）已通过 FEATURE-499 注入服务端 `busyFn`（`web/session.go:137`），并暴露为 `GET /api/status`（`web/server.go:618`）；而连接时已有的状态快照通道 `handleWS` → `sendState`（`web/server.go:540`、`500-515`）只携带任务计划，未携带 `busy`。
+  - 根因 4（断开后仍接收）：`ws.onmessage`（`app.js:409`）没有任何连接态/套接字归属校验，点击“断开连接”后已在途（浏览器任务队列或 CLOSING 握手期间的）消息仍会被 `renderEvent` 渲染；且 `ws.onclose` 未校验套接字归属，快速“断开 → 重连”时旧套接字的回调会把新连接的 `wsReady` 置 false 并将状态重置为空闲，污染刚同步好的状态。
+  - 根因 5（重连重复回放）：`renderHistory` 的非 prepend 分支只追加不清空（`app.js:1833-1841`），而无游标的 `history_get` 只在 `ws.onopen` 发出（`app.js:395`）→ 重连（未刷新页面）时会把最近一页消息在已有事件流后重复追加。
+  - 方案（用户确认，方案 C）：复用连接时既有的 `kind:"state"` 快照通道下发 `busy`，前端在 `state` 分支调用 `setRunning(busy)`；服务端在每次连接建立（含重连）时推送该快照，天然满足“重连先同步状态”。
+  - 验收：任务运行时刷新 → logo 呼吸、按钮为红色边框 ⏸、会话标题高亮点呼吸；断开后事件流不再新增内容；重连后恢复运行态外观且不出现重复消息。
+  - 实现（BUILD-973）：
+    - `web/server.go`：`serverMessage` 新增 `Busy *bool`（指针 + omitempty，保证 `false` 仍会序列化，前端可区分“无该字段”与“非运行”）；`sendState` 同时读取 `planFn` 与 `busyFn`（即 `agent.IsBusy()`）并写入快照。
+    - `web/static/app.js`：`wsConnect` 为每个连接绑定独立套接字（`const sock`），`onopen`/`onmessage`/`onclose` 均校验收属（`sock !== ws` 时直接返回），避免旧连接回调污染新连接（快速断开→重连场景）；`onmessage` 增加 `!wsReady` 守卫，断开后不再处理任何在途消息；`state` 分支读取 `msg.busy` 并调用 `setRunning(busy)`；新增 `resetStreamView()`，在每次建立连接、请求历史前清空事件流并重置渲染簿记（在途块引用/工具块映射/消息索引/分页状态/令牌统计），使重连表现为“按后端持久化历史重建”而非重复追加。
+  - 验证（BUILD-973）：
+    - 单元测试：新增 `web/fix511_test.go`（UC-0010/0011）—— `sendState` 在 busyFn 为 true/false/nil 三态下均正确输出 `busy`（nil → false），无 provider 时 `plan` 为 null 且可正常序列化，plan 透传不受影响；`go test ./web/` 全部通过。
+    - 浏览器实测（独立实例 v0.51.2 BUILD-972，workspace /tmp/fix511，serve 端口 28260）：
+      - UC-0001：长任务运行中刷新 → `logo=true / streamActive=true / 按钮=⏸+run / running=true`，同时刻后端 `/api/status` 为 `busy=true`（修复前必为 false）。
+      - UC-0002：空闲时刷新 → 保持空闲（不误显运行态）。
+      - UC-0004：运行中点“断开连接” → 断开前 `.ev` 17 个、断开 7s 后仍为 17 且 `running=false`（在途消息被完全丢弃，事件流冻结）。
+      - UC-0003/UC-0005/UC-0006：重新连接 5s 后 → `logo=true / active=true / 按钮=⏸+run / running=true` 且 `.ev` 仍为 17（未被翻倍，证明重建而非追加重放）；旧套接字回调未污染新连接。
+      - UC-0007：重连后发送新输入可正常执行并渲染（实测“回复 ok”任务成功）。
+      - UC-0008/UC-0009：未单独构造交互场景，其语义由 `busy`（`RunStream` 全程为真，含等待交互）与 UC-0010 单元测试覆盖。
+    - `go build ./... && go vet ./...` 全绿；`go test ./...` 中 `agent` 包的 3 个失败（TestAutoIntervention_BelowThreshold / _EscalatesAtThreshold / TestStreamSupReply）与 `cmd` 包 TestWebWizardModelNameStep 的 panic（`fetchModelSuggestions` 网络探测失败导致空指针）均为 main 基线既有/环境相关，本次改动未触及这两个包的代码（仅版本常量）。
+  - 进度：已在分支 FIX-511 完成开发、自测与编译（co-shell / co-shell-hub 已更新至 ~/bin）[BUILD-973]，等待用户确认后合并。
+
+---
+
 ## v0.51.1 — 已合并
 
 > **版本**: v0.51.1
