@@ -1262,6 +1262,12 @@ iterationLoop:
 		// adding the assistant message and executing tools for this iteration.
 		// The reorganize instruction will be appended after the iteration's normal
 		// end-of-cycle processing (token_iter + flush + env injection).
+		// FIX-510: some tools must never be skipped by the context-overflow guard.
+		// reorganize_context shrinks the context, and attempt_completion closes out
+		// the task — skipping either one defeats the purpose of the guard. If the
+		// LLM already emitted one of them in this round, execute the whole round.
+		hasExemptCall := hasContextOverflowExemptTool(toolCalls)
+
 		var reorganizePending bool
 		maxModelLen := a.GetMaxModelLen()
 		if a.cfg != nil && a.cfg.LLM.ContextPolicy == "reorganize" && a.cfg.LLM.ContextReorganizeThreshold > 0 && maxModelLen > 0 {
@@ -1270,9 +1276,19 @@ iterationLoop:
 			threshold := float64(a.cfg.LLM.ContextReorganizeThreshold)
 
 			if usagePct >= threshold {
+				reorganizePending = true
+				if hasExemptCall {
+					// FIX-510: this round calls an exempt tool, so nothing is skipped.
+					// Stay silent towards the user (no "skipped" warning and no
+					// problem-solver consultation) — the warning would be wrong and
+					// stopping the task would defeat the exemption.
+					log.Info("Agent.RunStream: context usage %.1f%% exceeds threshold %.0f%%, but this round calls an exempt tool — executing it",
+						usagePct, threshold)
+				}
+			}
+			if contextOverflowSkipsTools(usagePct, threshold, toolCalls) {
 				log.Info("Agent.RunStream: context usage %.1f%% exceeds threshold %.0f%%, skipping tool calls",
 					usagePct, threshold)
-				reorganizePending = true
 				cb(WarnEvent(ChannelSystem, fmt.Sprintf(i18n.TF(i18n.KeyContextOverLimit), usagePct, threshold)))
 
 				// FEATURE-345: consult the problem model for context overflow.
@@ -1311,18 +1327,7 @@ iterationLoop:
 		// inside and the check below are in scope.
 		var cancelled bool
 
-		// If the LLM is already calling reorganize_context, do NOT skip it.
-		hasReorganizeCall := false
-		if reorganizePending && len(toolCalls) > 0 {
-			for _, tc := range toolCalls {
-				if tc.Name == "reorganize_context" {
-					hasReorganizeCall = true
-					break
-				}
-			}
-		}
-
-		if !reorganizePending || hasReorganizeCall {
+		if !reorganizePending || hasExemptCall {
 			// First add assistant message with tool_calls to history
 			// This must come BEFORE tool result messages to satisfy the API requirement
 			// that tool messages must follow a message with tool_calls.
@@ -1736,7 +1741,7 @@ iterationLoop:
 		// only the reorganize instruction. This is done AFTER the normal end-of-cycle
 		// processing (token_iter, flush, env injection), so the LLM sees a fresh,
 		// standalone instruction on the next iteration.
-		if reorganizePending && !hasReorganizeCall {
+		if reorganizePending && !hasExemptCall {
 			reorgMsg := i18n.T(i18n.KeyReorganizeUrgent)
 			a.mu.Lock()
 			a.messages = append(a.messages, llm.Message{

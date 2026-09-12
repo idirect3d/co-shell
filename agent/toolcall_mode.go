@@ -1834,6 +1834,8 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string, intentEx
 	if intentExposureEnabled {
 		metaDesc := i18n.T(i18n.KeySystemPromptToolUsageMetaXML)
 		metaDesc = strings.ReplaceAll(metaDesc, "{XML_TAG_PREFIX}", xmlTagPrefix())
+		// FIX-510: list the available tools that do not take a meta parameter.
+		metaDesc = applyNoMetaToolsHint(metaDesc, tools)
 		headerContent = strings.ReplaceAll(headerContent, "{META_DESCRIPTION}", metaDesc)
 	} else {
 		headerContent = strings.ReplaceAll(headerContent, "{META_DESCRIPTION}", "")
@@ -1850,6 +1852,55 @@ func buildXMLToolPrompt(tools []llm.Tool, lang string, workMode string, intentEx
 	}
 
 	return sb.String()
+}
+
+// toolRequiresMetaIn reports whether the tool's required parameter list includes
+// "meta". It is the pure-function form of Agent.toolRequiresMeta (FIX-510).
+func toolRequiresMetaIn(t llm.Tool) bool {
+	switch req := t.Parameters["required"].(type) {
+	case []string:
+		for _, r := range req {
+			if r == "meta" {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, r := range req {
+			if s, ok := r.(string); ok && s == "meta" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// toolsWithoutMetaNames returns the names of the tools that do NOT take a meta
+// parameter, in declaration order (FIX-510).
+func toolsWithoutMetaNames(tools []llm.Tool) []string {
+	names := make([]string, 0, 4)
+	for _, t := range tools {
+		if !toolRequiresMetaIn(t) {
+			names = append(names, t.Name)
+		}
+	}
+	return names
+}
+
+// applyNoMetaToolsHint replaces the {NO_META_TOOLS} placeholder with the list of
+// available tools that do not take a meta parameter (FIX-510). The list is
+// derived from the same required lists that toolRequiresMeta consults, so the
+// hint cannot drift from the enforced schema. Text without the placeholder is
+// returned unchanged.
+func applyNoMetaToolsHint(text string, tools []llm.Tool) string {
+	if !strings.Contains(text, "{NO_META_TOOLS}") {
+		return text
+	}
+	names := toolsWithoutMetaNames(tools)
+	if len(names) == 0 {
+		return strings.ReplaceAll(text, "{NO_META_TOOLS}", "")
+	}
+	hint := strings.ReplaceAll(i18n.T(i18n.KeySystemPromptMetaExemptTools), "%s", strings.Join(names, ", "))
+	return strings.ReplaceAll(text, "{NO_META_TOOLS}", hint)
 }
 
 // hasIncompleteToolCall checks whether the LLM output contains an incomplete

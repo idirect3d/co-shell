@@ -180,28 +180,14 @@ func promoteMisplacedMetaParams(args map[string]interface{}) {
 
 // toolRequiresMeta reports whether the named tool's required parameter list
 // includes "meta" (FEATURE-450). The unified meta validation (assessRisk) is
-// only applied to tools that require meta; tools like track_task_progress and
-// attempt_completion no longer declare meta, so they are skipped.
+// only applied to tools that require meta; tools such as track_task_progress,
+// reorganize_context and the board_* group do not declare meta, so they are
+// skipped.
 func (a *Agent) toolRequiresMeta(name string) bool {
 	for _, t := range a.buildToolsInternal() {
-		if t.Name != name {
-			continue
+		if t.Name == name {
+			return toolRequiresMetaIn(t)
 		}
-		switch req := t.Parameters["required"].(type) {
-		case []string:
-			for _, r := range req {
-				if r == "meta" {
-					return true
-				}
-			}
-		case []interface{}:
-			for _, r := range req {
-				if s, ok := r.(string); ok && s == "meta" {
-					return true
-				}
-			}
-		}
-		return false
 	}
 	return false
 }

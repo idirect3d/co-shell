@@ -49,6 +49,20 @@ func TestInjectMetaParamAllTools(t *testing.T) {
 			}
 			continue
 		}
+		// FIX-510: reorganize_context keeps the meta property declaration (it may
+		// be supplied optionally) but must NOT list meta as required, so a
+		// context reorganization is never blocked by meta format problems.
+		if tool.Name == "reorganize_context" {
+			if _, ok := props["meta"]; !ok {
+				t.Errorf("tool %q: meta should stay declared as optional", tool.Name)
+			}
+			for _, s := range requiredStrings(tool.Parameters["required"]) {
+				if s == "meta" {
+					t.Errorf("tool %q: meta must not be in required list", tool.Name)
+				}
+			}
+			continue
+		}
 		// meta must be declared.
 		if _, ok := props["meta"]; !ok {
 			t.Errorf("tool %q: missing meta parameter declaration", tool.Name)

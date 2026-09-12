@@ -1274,6 +1274,9 @@ const (
 	// resources when intent exposure is enabled.
 	KeySystemPromptToolUsageMetaOpenAI = "system_prompt_tool_usage_meta_openai"
 	KeySystemPromptToolUsageMetaXML    = "system_prompt_tool_usage_meta_xml"
+	// FIX-510: template (with %s) listing the available tools that do NOT take a
+	// meta parameter.
+	KeySystemPromptMetaExemptTools = "system_prompt_meta_exempt_tools"
 	KeySystemPromptEnv                 = "system_prompt_env"
 
 	KeySystemPromptEditingFiles = "system_prompt_editing_files"
