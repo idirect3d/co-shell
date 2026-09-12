@@ -647,7 +647,9 @@ func (s *WebSession) handleModelBind(target, id string) {
 }
 
 // defaultHistoryMessages is how many message groups the browser replays after
-// a refresh (FEATURE-507).
+// a refresh (FEATURE-507). It is only a fallback: the browser sends the
+// configured page-buffer-size (FIX-509) and this value is used when the request
+// carries no usable count.
 const defaultHistoryMessages = 20
 
 // maxEventsPerMessage bounds how many raw events one message may contribute

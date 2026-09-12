@@ -392,7 +392,7 @@ function wsConnect() {
     wsSend({ type: "yolo_get" });
     // FEATURE-507: replay the tail of the persisted event stream so a refresh
     // (or a reconnect) restores the conversation instead of an empty view.
-    wsSend({ type: "history_get", count: 20 });
+    wsSend({ type: "history_get", count: pageBufferSize });
     // FEATURE-508: watch the top marker so scrolling to the very top loads an
     // older page of persisted events.
     initTopSentinel();
@@ -590,6 +590,9 @@ let historyHasMore = false;
 // stream-window-max-nodes) and fall back to the defaults below.
 let streamWindowMaxBlocks = 300;
 let streamWindowMaxNodes = 30000;
+// FIX-509: how many message groups one history page holds. Loaded from the
+// page-buffer-size setting; the backend uses the same value as its fallback.
+let pageBufferSize = 20;
 // True while a history page is being fetched for the top sentinel, so the
 // observer does not fire a second request for the same cursor.
 let historyLoading = false;
@@ -1245,7 +1248,7 @@ function ensureTopSentinel() {
 function loadOlderHistory() {
   if (historyLoading || !historyHasMore || !historyOldestSeq) return;
   historyLoading = true;
-  wsSend({ type: "history_get", count: 20, before: historyOldestSeq });
+  wsSend({ type: "history_get", count: pageBufferSize, before: historyOldestSeq });
 }
 
 // scheduleChainLoad keeps paging while the user stays parked at the top
@@ -3152,6 +3155,9 @@ function cacheStreamWindowSettings(groups) {
       } else if (it.key === "stream-window-max-nodes") {
         const n = parseInt(it.value, 10);
         if (Number.isFinite(n) && n > 0) streamWindowMaxNodes = n;
+      } else if (it.key === "page-buffer-size") {
+        const n = parseInt(it.value, 10);
+        if (Number.isFinite(n) && n > 0) pageBufferSize = n;
       }
     }
   }
