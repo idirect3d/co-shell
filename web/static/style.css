@@ -919,6 +919,11 @@ aside {
 
 .ev.thinking { opacity: 0.75; }
 .ev.thinking .ev-body { color: var(--fg-dim); font-style: italic; }
+/* FEATURE-515: THINK bodies are height-capped (200px, the same limit as the
+   TOOL input-params sub-block) and scroll internally; the title-bar toggle
+   (⤢/⤡) expands the block to full height. */
+.ev.thinking .ev-body { max-height: 200px; overflow-y: auto; }
+.ev.thinking.think-expanded .ev-body { max-height: none; }
 
 .ev.tool .ev-head { color: #fbbf24; }
 .ev.tool .ev-head::before { background: var(--warn); }

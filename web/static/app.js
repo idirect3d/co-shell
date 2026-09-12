@@ -956,10 +956,43 @@ function scheduleMd(b) {
   if (b.raf) return;
   b.raf = requestAnimationFrame(() => {
     b.raf = null;
+    // FEATURE-515: keep a height-capped THINK body pinned to its bottom while
+    // it streams, so the newest text stays visible; a user who scrolled up
+    // inside the block is left alone.
+    const pinned = thinkPinned(b.body);
     b.body.classList.add("md");
     mdRender(b.body, b.raw);
+    if (pinned) b.body.scrollTop = b.body.scrollHeight;
     scrollStream();
   });
+}
+
+// thinkPinned reports whether a height-capped THINK body sits at (or near) its
+// bottom, i.e. whether following the newest streamed content would not fight
+// the user (FEATURE-515).
+function thinkPinned(body) {
+  const box = body.parentElement;
+  if (!box || !box.classList.contains("thinking")) return false;
+  if (box.classList.contains("think-expanded")) return false;
+  return body.scrollHeight - body.scrollTop - body.clientHeight <= 8;
+}
+
+// addThinkToggle appends the fixed-height expand/collapse control to a THINK
+// block's title bar (FEATURE-515). It mirrors the TOOL input-params toggle:
+// ⤢ while the body is capped at its fixed height, ⤡ when fully expanded.
+function addThinkToggle(head, box) {
+  const actions = head.querySelector(".ev-actions");
+  const toggle = document.createElement("button");
+  toggle.className = "ev-act think-toggle";
+  toggle.textContent = "⤢";
+  toggle.title = "展开/固定高度";
+  toggle.onclick = (e) => {
+    e.stopPropagation();
+    const expanded = box.classList.toggle("think-expanded");
+    toggle.textContent = expanded ? "⤡" : "⤢";
+  };
+  if (actions) actions.appendChild(toggle);
+  else head.appendChild(toggle);
 }
 
 function makeBlock(cls, label, msgIndex) {
@@ -982,6 +1015,9 @@ function makeBlock(cls, label, msgIndex) {
   if (!(cls === "tool" && /完成任务|Complete task/.test(label))) {
     addBlockActions(head, box, body, cls, cls === "user-msg");
   }
+  // FEATURE-515: THINK blocks keep a fixed height with internal scrolling; the
+  // title-bar toggle (⤢/⤡) expands the body to full height.
+  if (cls === "thinking") addThinkToggle(head, box);
   // FEATURE-425: mark the final completion block (TOOL: 完成任务) as the
   // result block so silent mode keeps it visible.
   if (cls === "tool" && /完成任务|Complete task/.test(label)) box.classList.add("ev-result");
@@ -4222,6 +4258,10 @@ input.addEventListener("click", () => {
 // open/collapsed state instead of collapsing everything.
 const expandedDirs = new Set();
 
+// FEATURE-515: pending timer for the "hover a long name for 1s" sidebar
+// auto-expand; cleared when the pointer leaves the row before it fires.
+let treeAutoTimer = 0;
+
 // FEATURE-447: files/folders affected by the current tool call, reported by
 // the LLM via the "files" argument. The frontend highlights them in the tree
 // with a blue text colour (no background/border).
@@ -4396,9 +4436,14 @@ function treeNode(node) {
 
   // FEATURE-383: hovering a long (truncated) file name auto-expands the
   // sidebar to fit it; leaving the sidebar returns it to the fixed width.
+  // FEATURE-515: only a sustained hover (1s) counts, so merely passing the
+  // pointer over the list no longer makes the layout jump.
   row.addEventListener("mouseenter", () => {
-    if (name.scrollWidth > name.clientWidth) layout.classList.add("sidebar-auto");
+    if (name.scrollWidth <= name.clientWidth) return;
+    clearTimeout(treeAutoTimer);
+    treeAutoTimer = setTimeout(() => layout.classList.add("sidebar-auto"), 1000);
   });
+  row.addEventListener("mouseleave", () => clearTimeout(treeAutoTimer));
 
   // FEATURE-447: every row (file and directory) carries its absolute path so
   // the affected-file highlight can match directories too (predicted files

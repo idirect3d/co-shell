@@ -58,6 +58,11 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", w.handleIndex)
+	// Hub favicon (FEATURE-515): SVG for modern browsers, PNG for older ones;
+	// /favicon.ico also serves the PNG so bookmark/shortcut fetches keep working.
+	mux.HandleFunc("GET /favicon.svg", handleFavicon(faviconSVG, "image/svg+xml"))
+	mux.HandleFunc("GET /favicon.png", handleFavicon(faviconPNG, "image/png"))
+	mux.HandleFunc("GET /favicon.ico", handleFavicon(faviconPNG, "image/png"))
 	// Reverse-proxy each agent's co-shell Web UI under /agent/{id}/...
 	mux.Handle("/agent/", w.reverseProxy)
 	// Agent management endpoints.

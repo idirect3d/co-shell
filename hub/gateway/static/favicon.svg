@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" role="img" aria-label="co-shell-hub">
+<rect x="7.273" y="4.800" width="10.455" height="1.045" fill="#3fd6ef"/>
+<rect x="7.273" y="5.845" width="10.455" height="1.045" fill="#3fd6ef"/>
+<rect x="5.182" y="6.891" width="16.727" height="1.045" fill="#3fd6ef"/>
+<rect x="5.182" y="7.936" width="16.727" height="1.045" fill="#3fd6ef"/>
+<rect x="3.091" y="8.982" width="20.909" height="1.045" fill="#3fd6ef"/>
+<rect x="3.091" y="10.027" width="20.909" height="1.045" fill="#3fd6ef"/>
+<rect x="1.000" y="11.073" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="7.273" y="11.073" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="13.545" y="11.073" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="19.818" y="11.073" width="6.273" height="1.045" fill="#3fd6ef"/>
+<rect x="1.000" y="12.118" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="7.273" y="12.118" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="13.545" y="12.118" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="19.818" y="12.118" width="6.273" height="1.045" fill="#3fd6ef"/>
+<rect x="7.273" y="13.164" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="13.545" y="13.164" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="19.818" y="13.164" width="2.091" height="1.045" fill="#3fd6ef"/>
+<rect x="7.273" y="14.209" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="13.545" y="14.209" width="4.182" height="1.045" fill="#3fd6ef"/>
+<rect x="19.818" y="14.209" width="2.091" height="1.045" fill="#3fd6ef"/>
+<rect x="3.091" y="15.255" width="20.909" height="1.045" fill="#3fd6ef"/>
+<rect x="3.091" y="16.300" width="20.909" height="1.045" fill="#3fd6ef"/>
+<rect x="5.182" y="17.345" width="16.727" height="1.045" fill="#3fd6ef"/>
+<rect x="5.182" y="18.391" width="16.727" height="1.045" fill="#3fd6ef"/>
+<ellipse cx="23.06" cy="21.97" rx="7.74" ry="5.7" fill="#ffffff" stroke="#9aa3b2" stroke-width="1.47"/>
+<polygon points="26.27,25.53 28.01,27.46 30.24,28.00 30.51,25.44 28.15,24.34" fill="#ffffff"/>
+<path d="M27.34 26.72 L30.24 28.00 L29.60 25.02" fill="none" stroke="#9aa3b2" stroke-width="1.47" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="19.6" cy="22" r="1.05" fill="#3fd6ef"/>
+<circle cx="23.1" cy="22" r="1.05" fill="#3fd6ef"/>
+<circle cx="26.6" cy="22" r="1.05" fill="#3fd6ef"/>
+</svg>

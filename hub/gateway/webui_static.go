@@ -26,12 +26,17 @@ const webIndexHTML = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>co-shell-hub</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" href="/favicon.png">
 <style>
   :root {
     --bg:#0b0e14; --panel:#10141d; --elev:#161b26; --fg:#d5dbe7; --fg-dim:#8b93a5;
     --fg-faint:#5b6373; --accent:#3fd6ef; --accent-dim:rgba(63,214,239,.14);
     --border:#232a3a; --ok:#4ade80; --err:#f87171; --warn:#facc15;
     --edge-w:10px; --panel-w:340px;
+    /* Height of the co-shell top bar inside the iframe; the hub drawer starts
+       below it so the hub chrome never covers the title bar (FEATURE-515). */
+    --topbar-h:44px;
   }
   * { box-sizing:border-box; }
   html,body { height:100%; }
@@ -42,9 +47,10 @@ const webIndexHTML = `<!DOCTYPE html>
   .frame { position:absolute; inset:0; width:100%; height:100%; border:none; background:#fff; display:none; }
   .frame.active { display:block; }
   .empty { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--fg-dim); text-align:center; padding:20px; }
-  .empty .big { font-size:40px; }
-  .empty .big.run { cursor:pointer; color:var(--accent); transition:transform .15s ease; }
-  .empty .big.run:hover { transform:scale(1.15); }
+  /* FEATURE-515: the empty (initial) state shows the hub vector icon — the same
+     artwork as the favicon — as its logo; clicking it opens the create panel. */
+  .empty .logo { width:96px; height:96px; cursor:pointer; transition:transform .15s ease; }
+  .empty .logo:hover { transform:scale(1.08); }
 
   /* Hub badge floating over the co-shell logo area (top-left, 44px tall to
      match the co-shell topbar). Clicking it toggles the agent drawer.
@@ -72,9 +78,10 @@ const webIndexHTML = `<!DOCTYPE html>
   }
 
   /* Left agent drawer. Collapsed by default (translated off-screen left,
-     leaving only the edge hot-zone). */
+     leaving only the edge hot-zone). FEATURE-515: the drawer starts right
+     below the co-shell top bar (--topbar-h) so it never covers the title bar. */
   #agentPanel {
-    position:fixed; top:0; left:0; bottom:0; width:var(--panel-w); z-index:25;
+    position:fixed; top:var(--topbar-h); left:0; bottom:0; width:var(--panel-w); z-index:25;
     background:var(--panel); border-right:1px solid var(--border);
     transform:translateX(-100%); transition:transform .22s ease;
     display:flex; flex-direction:column;
@@ -85,13 +92,43 @@ const webIndexHTML = `<!DOCTYPE html>
     border-bottom:1px solid var(--border); font-weight:600; font-size:14px;
   }
   #agentPanel .head .mark { color:var(--accent); }
+
+  /* FEATURE-515: the drawer stacks dockable sections (Agents / Chat). Every
+     section head is a fixed 44px bar; the two bodies split the remaining
+     height, and a collapsed body animates to zero height — so the collapsed
+     section docks under the expanded one (bottom of the drawer by default). */
+  #agentPanel .pane-head {
+    flex:none; height:44px; display:flex; align-items:center; gap:8px; padding:0 12px;
+    border-bottom:1px solid var(--border); font-weight:600; font-size:14px;
+    cursor:pointer; user-select:none; transition:background .18s ease;
+  }
+  #agentPanel .pane-head:hover { background:var(--elev); }
+  #agentPanel .pane-head .mark { color:var(--accent); }
+  #agentPanel .pane-head .chev {
+    margin-left:auto; font-size:12px; color:var(--fg-faint);
+    transition:transform .28s ease;
+  }
+  #agentPanel .pane-head.collapsed .chev { transform:rotate(-90deg); }
+  #agentPanel .pane-body {
+    flex:1 1 0; min-height:0; display:flex; flex-direction:column; overflow:hidden;
+    opacity:1; transition:flex-grow .28s ease, opacity .22s ease;
+  }
+  #agentPanel .pane-body.collapsed { flex-grow:0; opacity:0; pointer-events:none; }
+  /* Chat placeholder: a disabled input mock so the pane reads as "not yet". */
+  .chat-placeholder { flex:1; display:flex; flex-direction:column; justify-content:flex-end; gap:6px; padding:10px 10px 16px; }
+  .chat-mock {
+    display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border);
+    border-radius:10px; background:var(--bg); color:var(--fg-faint); font-size:13px; cursor:not-allowed;
+  }
+  .chat-mock .txt { flex:1; }
+  .chat-mock .send { flex:none; font-size:13px; color:var(--fg-faint); }
   #agentPanel .head .close { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:16px; padding:2px 6px; }
   #agentPanel .head .close:hover { color:var(--fg); }
   /* FEATURE-492: the drawer head close control is a pin. Clicking it pins the
      drawer open (no auto-collapse on mouseleave); clicking again unpins. */
-  #agentPanel .head .pin { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:15px; padding:2px 6px; line-height:1; transition:color .2s ease, transform .2s ease; }
-  #agentPanel .head .pin:hover { color:var(--fg); }
-  #agentPanel .head .pin.pinned { color:var(--accent); transform:rotate(45deg); }
+  #agentPanel .head .pin, #agentPanel .pane-head .pin { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:15px; padding:2px 6px; line-height:1; transition:color .2s ease, transform .2s ease; }
+  #agentPanel .head .pin:hover, #agentPanel .pane-head .pin:hover { color:var(--fg); }
+  #agentPanel .head .pin.pinned, #agentPanel .pane-head .pin.pinned { color:var(--accent); transform:rotate(45deg); }
   #agentList { flex:1; overflow-y:auto; padding:8px; }
   /* Each list row is a swipe container: a red delete button sits behind the
      card and is revealed by swiping the card left. */
@@ -202,7 +239,7 @@ const webIndexHTML = `<!DOCTYPE html>
 <body>
 <div id="stage">
   <div class="empty" id="empty">
-    <div class="big run" id="emptyRun" title="创建或添加 Agent">▸</div>
+    <img class="logo" id="emptyRun" src="/favicon.svg" alt="co-shell-hub" title="创建或添加 Agent">
     <div>暂无 Agent。点击上方"运行"箭头，或左上角 co-shell-hub 徽标再点"管理"创建或添加 Agent。</div>
   </div>
 </div>
@@ -218,11 +255,13 @@ const webIndexHTML = `<!DOCTYPE html>
 <!-- Scrim overlay behind the left drawer. -->
 <div id="scrim"></div>
 
-<!-- Left agent drawer: two internal views (list / config). -->
+<!-- Left drawer (FEATURE-515): two dockable sections, Agents / Chat. -->
 <div id="agentPanel">
+  <!-- Agents section head (click expands Agents; the pin keeps the drawer open). -->
+  <div class="pane-head" id="agentsHead"><span class="mark">▸</span>Agents<span class="pin" id="panelPin" title="钉住（不自动收起）">📌</span><span class="chev">▾</span></div>
+  <div class="pane-body" id="agentsBody">
   <!-- View 1: agent list. -->
   <div class="view" id="viewList">
-    <div class="head"><span class="mark">▸</span>Agents<span class="pin" id="panelPin" title="钉住（不自动收起）">📌</span></div>
     <div id="agentList"></div>
     <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:16px;width:100%">⚙ 设置</button></div>
   </div>
@@ -289,6 +328,15 @@ const webIndexHTML = `<!DOCTYPE html>
     </div>
     <div class="foot"><button class="btn primary" id="s-save">保存设置</button></div>
   </div>
+  </div><!-- /#agentsBody -->
+  <!-- Chat section (collapsed by default; placeholder UI only, FEATURE-515). -->
+  <div class="pane-head collapsed" id="chatHead"><span class="mark">💬</span>Chat<span class="chev">▾</span></div>
+  <div class="pane-body collapsed" id="chatBody">
+    <div class="chat-placeholder">
+      <div class="chat-mock" title="Chat 功能规划中，暂不可用"><span class="txt">输入消息…</span><span class="send">➤</span></div>
+      <div class="hint">Chat 功能规划中，敬请期待</div>
+    </div>
+  </div>
 </div>
 <script>
 (function(){
@@ -297,6 +345,10 @@ const webIndexHTML = `<!DOCTYPE html>
   var badge = document.getElementById('hubBadge');
   var edge = document.getElementById('edge');
   var panel = document.getElementById('agentPanel');
+  var agentsHead = document.getElementById('agentsHead');
+  var agentsBody = document.getElementById('agentsBody');
+  var chatHead = document.getElementById('chatHead');
+  var chatBody = document.getElementById('chatBody');
   var listEl = document.getElementById('agentList');
   var viewList = document.getElementById('viewList');
   var viewConfig = document.getElementById('viewConfig');
@@ -323,6 +375,19 @@ const webIndexHTML = `<!DOCTYPE html>
   }
 
   // ---- Drawer open/close ----
+  // FEATURE-515: the drawer holds dockable sections (Agents / Chat). Exactly
+  // one body expands (flex-grow 1) while the other animates to zero height, so
+  // the collapsed section docks under the expanded one. Agents is the default.
+  function setPane(name){
+    var chatOn = name === 'chat';
+    agentsHead.classList.toggle('collapsed', chatOn);
+    agentsBody.classList.toggle('collapsed', chatOn);
+    chatHead.classList.toggle('collapsed', !chatOn);
+    chatBody.classList.toggle('collapsed', !chatOn);
+  }
+  agentsHead.onclick = function(){ setPane('agents'); };
+  chatHead.onclick = function(){ setPane('chat'); };
+
   function openPanel(){
     clearTimeout(hideTimer);
     panel.classList.add('open');
@@ -335,6 +400,7 @@ const webIndexHTML = `<!DOCTYPE html>
     panel.classList.remove('open');
     scrim.classList.remove('show');
     document.body.classList.remove('drawer-open');
+    setPane('agents'); // FEATURE-515: reopening always shows the default section
     showView('list');
   }
   function scheduleClose(){
@@ -350,6 +416,9 @@ const webIndexHTML = `<!DOCTYPE html>
   var viewEls = [viewList, viewConfig, viewDetail, viewSettings];
   function showView(name){
     var target = name === 'list' ? viewList : (name === 'detail' ? viewDetail : (name === 'settings' ? viewSettings : viewConfig));
+    // FEATURE-515: config/detail/settings live inside the Agents section, so
+    // make sure that section is expanded before revealing them.
+    if (target !== viewList) setPane('agents');
     var cur = viewEls.filter(function(v){ return !v.classList.contains('hidden'); })[0];
     if (cur === target) return;
     if (cur){
@@ -375,7 +444,8 @@ const webIndexHTML = `<!DOCTYPE html>
   // FEATURE-492: the drawer head pin toggles the pinned state. Pinned drawers
   // stay open (no auto-collapse on mouseleave); clicking the pin again unpins.
   var pinEl = document.getElementById('panelPin');
-  pinEl.onclick = function(){
+  pinEl.onclick = function(e){
+    e.stopPropagation(); // the head itself is clickable (section toggle)
     pinned = !pinned;
     pinEl.classList.toggle('pinned', pinned);
     pinEl.title = pinned ? '已钉住（点击取消）' : '钉住（不自动收起）';
@@ -389,7 +459,14 @@ const webIndexHTML = `<!DOCTYPE html>
   document.getElementById('detailClose').onclick = function(){ showView('list'); };
   // Hover the left edge to open; leaving the panel schedules a close only in
   // the list view (the config view stays open until closed or backed out).
-  edge.addEventListener('mouseenter', openPanel);
+  // FEATURE-515: only a sustained hover (1s) opens the drawer, so merely
+  // brushing the left edge no longer pops it open.
+  var edgeTimer = 0;
+  edge.addEventListener('mouseenter', function(){
+    clearTimeout(edgeTimer);
+    edgeTimer = setTimeout(openPanel, 1000);
+  });
+  edge.addEventListener('mouseleave', function(){ clearTimeout(edgeTimer); });
   panel.addEventListener('mouseenter', function(){ clearTimeout(hideTimer); });
   panel.addEventListener('mouseleave', function(){
     if (viewConfig.classList.contains('hidden')) scheduleClose();
@@ -702,8 +779,17 @@ const webIndexHTML = `<!DOCTYPE html>
     if (panel.contains(e.target) || badge.contains(e.target) || edge.contains(e.target)) return;
     closePanel();
   });
-  // The empty-state "run" arrow opens the Agent management config view.
-  document.getElementById('emptyRun').onclick = function(){ document.getElementById('manageBtn').click(); };
+  // FEATURE-515: the empty-state logo opens the Agent management config view.
+  // Delegated on the container so it keeps working even if the empty-state
+  // markup is re-rendered. stopPropagation is required: otherwise the same
+  // click reaches the document-level outside-click handler below, which would
+  // close the drawer we just opened.
+  emptyEl.addEventListener('click', function(e){
+    if (e.target && e.target.id === 'emptyRun') {
+      e.stopPropagation();
+      document.getElementById('manageBtn').click();
+    }
+  });
 
   // ---- Local/remote mode toggle ----
   var mode = 'local';

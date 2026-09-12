@@ -4,6 +4,45 @@
 
 ---
 
+## v0.54.0 — 开发中
+
+> **版本**: v0.54.0
+
+> **状态**: ✅ 已合并到 main（tag v0.54.0）
+> **里程碑**: Web UI 交互细化——THINK 块固定高度（200px）+ 可展开；工作区文件列表长名称悬停 1 秒后才自适应加宽；hub 左侧热区悬停 1 秒后才展开 Agents 抽屉；hub 抽屉顶端下移至标题栏之下、改为 Agents/Chat 双分栏可折叠结构、新增专属矢量 favicon
+> **说明**: 三处交互优化均针对「鼠标一触即变」带来的干扰：① THINK 块内容全量展开会把事件流撑得很长，按既有 TOOL 输入参数块（`.tool-params-body` 限高 200px + 内部滚动 + 展开按钮）的范式统一；② 工作区侧栏在鼠标**掠过**长文件名时立即加宽（FEATURE-383），导致快速移动鼠标时布局反复抖动；③ hub 左侧热区一碰即弹出 Agents 抽屉，鼠标偶然掠过左边缘会误触发。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-515 | 0.54.0 | P2 | THINK 块固定高度（200px）+ 超高内部滚动 + 常驻展开/收起按钮；文件列长名称悬停 >1s 才自适应加宽；hub 左边缘悬停 >1s 才展开抽屉 |
+
+> 当前 BUILD: 1003
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-515 Web UI 交互优化（THINK 块限高 / 文件列悬停延时 / hub 边栏悬停延时 / hub 抽屉与 favicon）** [BUILD-1003]
+  - 需求：
+    1. co-shell：THINK 块默认固定高度，内容超高自动滚动（参考其他块中的限制高度内容），用户可展开内容（用户确认：高度 200px、展开按钮始终显示）。
+    2. co-shell：鼠标划过工作区文件列表中超长文件/文件夹名并停留超过 1 秒后才扩展工作区为自适应宽度（当前是立即扩展）。
+    3. co-shell-hub：鼠标划过左边框附近并停留超过 1 秒，才展开 Agents 边栏。
+  - 用例：`use-case/FEATURE-515/FEATURE-515-UC-0001.md`（15 条运行时用例）。
+  - 实施（BUILD-986）：
+    1. THINK 块限高（`web/static/style.css` + `web/static/app.js`）：`.ev.thinking .ev-body { max-height:200px; overflow-y:auto }`，`.ev.thinking.think-expanded .ev-body { max-height:none }`；`makeBlock` 在 `cls==="thinking"` 时为标题栏 `.ev-actions` 追加常驻展开按钮（`addThinkToggle`，⤢/⤡）；`scheduleMd` 在重渲前记录 `thinkPinned` 并在重渲后把仍在底部的流式块钉到底部，用户上滑时不干扰（新增 `thinkPinned` 辅助函数）。
+    2. 文件列悬停延时（`web/static/app.js`）：`treeNode` 的 `row.mouseenter` 不再立即加 `sidebar-auto`，改为 1s 定时器（`treeAutoTimer`），`mouseleave` 清除定时器；仅当 `name.scrollWidth > name.clientWidth`（名称被截断）时启动。
+    3. hub 左侧热区延时（`hub/gateway/webui_static.go`）：`edge.mouseenter` 改为 1s 定时器（`edgeTimer`）后调 `openPanel`，`mouseleave` 清除定时器；徽标点击开合与钉住逻辑不变。
+    4. 版本与构建：`main.go` version 0.53.0 → 0.54.0、build 985 → 986，`cmd/co-shell-hub/main.go` hubVersion/hubBuild 同步；co-shell 与 co-shell-hub 已编译到 `work/` 并原子替换至 `~/bin/`。
+  - 校验（BUILD-986）：`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 与 hub 内嵌 JS 语法检查通过；浏览器实测（co-shell v0.54.0 BUILD-986 @28260、hub @12902）：THINK 长内容 body 200px / scrollHeight 904（可滚动）、按钮 ⤢/⤡ 切换后 maxHeight none/200px、短内容不溢出且按钮仍在、底部跟随只在上滑前生效；文件列短悬停（400ms 离开）不加宽、持续悬停 500ms 仍未加宽、1500ms 已加宽；hub 热区掠过（300ms 离开）不展开、持续悬停 500ms 未展开、1300ms 已展开。
+  - hub UI 优化（BUILD-988）：
+    1. 抽屉位置：`#agentPanel` 由 `top:0` 改为 `top:var(--topbar-h)`（新增变量 44px），抽屉紧贴标题栏底部且不再遮挡标题栏。
+    2. 双分栏抽屉：左边栏拆为 Agents / Chat 两个可折叠区块（`.pane-head` + `.pane-body`）。两块 body 以 `flex:1 1 0` 分配剩余高度，收起时 `flex-grow:0`（`transition:flex-grow .28s` 动效），因此 Agents 展开时 Chat 停靠在抽屉最下方；点 Chat 后 Agents 收起为仅标题、Chat 紧贴 Agents 标题条下方展开并展开自身内容。默认 Agents 展开（关闭/重开恢复默认），进入新建/详情/设置视图会自动展开 Agents；Chat 内容暂为占位 UI（输入框样式 + “功能规划中”提示）。
+    3. hub favicon：新增 `hub/gateway/static/favicon.svg`（矢量，主用）与 `favicon.png`（64px 兜底），由 `webui_favicon.go` 以 go:embed 内置，路由 `/favicon.svg`、`/favicon.png`、`/favicon.ico`，页面 head 以 link 标签引用。构图：co-shell 标志居左上、白色对话气泡（深色描边 + 青色三点）居右下约 1/4 区域。
+  - 校验（BUILD-988）：`go build ./... && go vet ./...` 全绿；hub 内嵌 JS 语法检查通过；浏览器实测：抽屉 top=44px、默认 Agents 展开（body 581px）/ Chat 收起（body 0px）且 Chat 标题停靠在抽屉最底部、点击 Chat 后 Agents body=0 且 Chat body=581px、Chat 标题与 Agents 标题底间距 0px；favicon 三个路径均 200 且 content-type 正确（image/svg+xml / image/png）。
+  - hub 初始化页 logo（BUILD-1000）：空状态 `#empty` 中间的 `▸` 字符改为矢量 logo `<img class="logo" id="emptyRun" src="/favicon.svg">`（96×96、hover 放大 1.08），点击仍打开“新建 Agent”配置面板；点击绑定统一为 `#empty` 容器级事件委托（移除元素级 `onclick`，避免重复绑定，重渲染后依然生效）。
+  - hub favicon 矢量图修复（BUILD-1001）：逐像素比对 `favicon.png`（用户确认为准）与 `favicon.svg` 发现：SVG 的气泡（build 996–998 手写的弧线 path）实际渲染已塌缩为右下角约 4.7×6.7 的残片（白区包围盒 (27.3,25.3)-(31.9,31.9)，而 PNG 为 (16.1,17.0)-(30.1,26.9)），根因是弧线两端点与半径不自洽（端点落在外沿椭圆、半径却取中心线椭圆），渲染器选到另一个圆心。改为按 PNG 实测几何重建：`<ellipse cx=23.06 cy=21.97 rx=7.74 ry=5.7 stroke=#9aa3b2 stroke-width=1.47>` + 白色分片 + 尾巴描边（尖端 30.24,28.00），避免弧线圆心歧义。校验：白区/描边包围盒与各角度轮廓半径 Δ≤0.15，尾巴凸起峰值两侧均为 Δ2.69@40°。
+  - hub favicon 尾巴交界处修正（BUILD-1002）：用户反馈尾巴与气泡融合处能看到主气泡的细边框把两者隔开。原实现用「三角形」白块覆盖交界处，只盖住了尾巴区域，椭圆描边带靠圆心一侧（θ≈40°）未被覆盖。改为「四边形」白块（θ=48°/25° 两条径向边上各取描边带内、外两点：26.27,25.53 / 28.01,27.46 / 30.24,28.00 / 30.51,25.44 / 28.15,24.34），盖住整条描边带；尾巴描边路径不变。校验：各角度轮廓半径与上一版一致（尾巴凸起峰值 Δ2.64@40°，与 PNG 的 2.64 相同）；尾巴口内的灰色像素经核对均来自尾巴自身两条边线。
+  - 进度：✅ 已完成；用户验收通过后已合并到 main（tag v0.54.0，BUILD-1003）。
 ## v0.53.0 — 已合并
 
 > **版本**: v0.53.0
