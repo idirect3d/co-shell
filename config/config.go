@@ -302,7 +302,11 @@ type LLMConfig struct {
 	// stream. This bounds the case where a few blocks contain huge content
 	// (FEATURE-508). Default: 30000.
 	StreamWindowMaxNodes int `json:"stream_window_max_nodes"`
-
+	// PageBufferSize: how many message groups the Web UI requests per history
+	// page when the user scrolls up to load older events (FIX-509). It bounds
+	// both the initial replay and every subsequent `before`-cursor page.
+	// Valid range 10-100. Default: 20.
+	PageBufferSize int `json:"page_buffer_size"`
 	// VisionContextMode: how much context is sent to the vision model when the
 	// main model is temporarily swapped to a vision-capable model for image
 	// analysis (FEATURE-319).
@@ -1074,6 +1078,7 @@ func DefaultConfig() *Config {
 			VisualAnalysisMaxImages:    5,
 			StreamWindowMaxBlocks:      300,
 			StreamWindowMaxNodes:       30000,
+			PageBufferSize:             20,
 			VisionContextMode:          "minimal",
 			VisionSupport:              true,
 			ParseErrorAction:           "prompt",

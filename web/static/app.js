@@ -392,7 +392,7 @@ function wsConnect() {
     wsSend({ type: "yolo_get" });
     // FEATURE-507: replay the tail of the persisted event stream so a refresh
     // (or a reconnect) restores the conversation instead of an empty view.
-    wsSend({ type: "history_get", count: 20 });
+    wsSend({ type: "history_get", count: pageBufferSize });
     // FEATURE-508: watch the top marker so scrolling to the very top loads an
     // older page of persisted events.
     initTopSentinel();
@@ -590,6 +590,9 @@ let historyHasMore = false;
 // stream-window-max-nodes) and fall back to the defaults below.
 let streamWindowMaxBlocks = 300;
 let streamWindowMaxNodes = 30000;
+// FIX-509: how many message groups one history page holds. Loaded from the
+// page-buffer-size setting; the backend uses the same value as its fallback.
+let pageBufferSize = 20;
 // True while a history page is being fetched for the top sentinel, so the
 // observer does not fire a second request for the same cursor.
 let historyLoading = false;
@@ -600,6 +603,12 @@ let historyInserting = false;
 // makeBlock is inserted BEFORE this node instead of being appended, so the
 // page lands at the top of the stream. null means "append at the bottom".
 let insertAnchor = null;
+// FIX-509: true while renderHistory is prepending an older page. Blocks created
+// by makeBlock already honour insertAnchor, but the per-iteration token line and
+// the message-visualization line are created later (on token_iter) and used to
+// be appended unconditionally — the token lines piled up at the bottom of the
+// stream and the viz lines landed on the right edge instead of the left.
+let prependingHistory = false;
 
 // FEATURE-445: follow-output scrolling. When the scrollbar is within 100px of
 // the content bottom, new output auto-scrolls to the bottom (follows output);
@@ -1245,7 +1254,7 @@ function ensureTopSentinel() {
 function loadOlderHistory() {
   if (historyLoading || !historyHasMore || !historyOldestSeq) return;
   historyLoading = true;
-  wsSend({ type: "history_get", count: 20, before: historyOldestSeq });
+  wsSend({ type: "history_get", count: pageBufferSize, before: historyOldestSeq });
 }
 
 // initTopSentinel wires the IntersectionObserver that watches the top marker.
@@ -1333,6 +1342,12 @@ function renderEvent(ev) {
       iterBlocks = [];
       if (blocks.length) {
         blocks[blocks.length - 1].parentElement.appendChild(line);
+      } else if (prependingHistory && insertAnchor && insertAnchor.parentNode === streamB) {
+        // FIX-509: while an older page is being prepended the iteration's blocks
+        // were inserted above insertAnchor, so the token line must land there too.
+        // Appending it to streamB put it at the very bottom of the stream, which
+        // made every replayed page's token lines pile up under the newest message.
+        streamB.insertBefore(line, insertAnchor);
       } else {
         streamB.appendChild(line);
       }
@@ -1598,18 +1613,20 @@ function renderEvent(ev) {
       // invocation. The backend emits token_iter for the previous iteration
       // between the two events, and that used to clear curTool, so this branch
       // saw fresh=true and opened a second, empty TOOL block beside the one
-      // holding the streamed params. Matching on the tool name (or, failing
-      // that, the last block that has params but no intent yet) keeps the
-      // params and the intent on a single block.
+      // holding the streamed params. Matching on the tool name keeps the params
+      // and the intent on a single block.
+      //
+      // FIX-509b: the match is deliberately strict — only an exact tool_name hit
+      // is reused. An earlier version also fell back to "the first block that
+      // has params but no intent yet", which was too loose: it let a later,
+      // unrelated tool call (or attempt_completion) adopt a previous call's
+      // block, so the title and the params ended up describing different calls.
       if (fresh) {
         const summaryForMatch = parseToolSummary(ev);
         let reuse = null;
         if (summaryForMatch && summaryForMatch.tool_name) {
           const byName = toolBlockByName[summaryForMatch.tool_name];
           if (byName && !byName._intentFilled) reuse = byName;
-        }
-        if (!reuse) {
-          reuse = iterToolBlocks.find((b) => !b._intentFilled && b.params) || null;
         }
         if (reuse) curTool = reuse;
         else curTool = newStreamBlock("tool", "TOOL", msgIndex);
@@ -1663,6 +1680,11 @@ function renderEvent(ev) {
         // FIX-462: the badge text is localized (低风险/中风险/高风险 in zh,
         // Low/Medium/High in en) instead of the raw LOW/MEDIUM/HIGH.
         if (summary.risk) {
+          // FIX-509b: drop any badge left by an earlier event of the same tool
+          // call. The input branch may reuse a block (see above), so without
+          // this the badges accumulate one per event.
+          const stale = head.querySelector(".risk-badge");
+          if (stale) stale.remove();
           const riskBadge = document.createElement("span");
           riskBadge.className = "risk-badge risk-" + summary.risk;
           riskBadge.textContent = riskLabel(summary.risk);
@@ -1786,12 +1808,22 @@ function renderHistory(msg) {
     // Every block created while insertAnchor is set lands before the current
     // oldest node, so the older page is prepended in order.
     insertAnchor = streamB.firstChild;
+    prependingHistory = true;
     for (const ev of events) {
       try { renderEvent(ev); } catch (e) { /* skip malformed history entry */ }
     }
+    prependingHistory = false;
     insertAnchor = null;
     ensureTopSentinel();
-    // Compensate the scroll position so the visible content does not jump.
+    // FIX-509: anchor the viewport on the content the user is reading. The page
+    // is inserted ABOVE the current position, so shifting scrollTop down by
+    // exactly the inserted height keeps the same message under the viewport.
+    //
+    // This must apply even when the user is at the very top. An earlier version
+    // forced scrollTop = 0 in that case, which left the sentinel inside the
+    // observer margin; the chain-load then fired again immediately and paged all
+    // the way to the oldest event in one go. Anchoring instead moves the sentinel
+    // out of view, so paging stops until the user scrolls up again.
     const delta = streamB.scrollHeight - prevHeight;
     if (delta > 0) streamB.scrollTop = prevTop + delta;
     historyInserting = false;
@@ -2149,7 +2181,11 @@ function msgVizFlush() {
       e.stopPropagation();
       if (p.box && p.box.scrollIntoView) p.box.scrollIntoView({ block: "nearest" });
     });
-    msgVizTrack.appendChild(line);
+    // FIX-509: the track reads left-to-right in chronological order, so a line
+    // for a prepended (older) page must go on the LEFT. Appending it put the
+    // replayed history on the right edge, reversing the time axis.
+    if (prependingHistory) msgVizTrack.insertBefore(line, msgVizTrack.firstChild);
+    else msgVizTrack.appendChild(line);
   }
   msgVizApplyPan();
 }
@@ -3107,6 +3143,9 @@ function cacheStreamWindowSettings(groups) {
       } else if (it.key === "stream-window-max-nodes") {
         const n = parseInt(it.value, 10);
         if (Number.isFinite(n) && n > 0) streamWindowMaxNodes = n;
+      } else if (it.key === "page-buffer-size") {
+        const n = parseInt(it.value, 10);
+        if (Number.isFinite(n) && n > 0) pageBufferSize = n;
       }
     }
   }

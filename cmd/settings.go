@@ -186,7 +186,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "output-categories",
 		subcommand == "show-parse-error-raw",
 		subcommand == "stream-window-max-blocks",
-		subcommand == "stream-window-max-nodes":
+		subcommand == "stream-window-max-nodes",
+		subcommand == "page-buffer-size":
 		return h.handleDisplaySetting(subcommand, args)
 
 	// Agent settings
@@ -753,6 +754,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("output-categories", outputCategoriesSummary, "cat=on|off"),
 		makeLine("stream-window-max-blocks", fmt.Sprintf("%d", cfg.LLM.StreamWindowMaxBlocks), i18n.T(i18n.KeyCol3StreamWindowMaxBlocks)),
 		makeLine("stream-window-max-nodes", fmt.Sprintf("%d", cfg.LLM.StreamWindowMaxNodes), i18n.T(i18n.KeyCol3StreamWindowMaxNodes)),
+		makeLine("page-buffer-size", fmt.Sprintf("%d", cfg.LLM.PageBufferSize), i18n.T(i18n.KeyCol3PageBufferSize)),
 	})
 
 	// Loop detection (FIX-179)
