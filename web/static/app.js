@@ -603,6 +603,12 @@ let historyInserting = false;
 // makeBlock is inserted BEFORE this node instead of being appended, so the
 // page lands at the top of the stream. null means "append at the bottom".
 let insertAnchor = null;
+// FIX-509: true while renderHistory is prepending an older page. Blocks created
+// by makeBlock already honour insertAnchor, but the per-iteration token line and
+// the message-visualization line are created later (on token_iter) and used to
+// be appended unconditionally — the token lines piled up at the bottom of the
+// stream and the viz lines landed on the right edge instead of the left.
+let prependingHistory = false;
 
 // FEATURE-445: follow-output scrolling. When the scrollbar is within 100px of
 // the content bottom, new output auto-scrolls to the bottom (follows output);
@@ -1353,6 +1359,12 @@ function renderEvent(ev) {
       iterBlocks = [];
       if (blocks.length) {
         blocks[blocks.length - 1].parentElement.appendChild(line);
+      } else if (prependingHistory && insertAnchor && insertAnchor.parentNode === streamB) {
+        // FIX-509: while an older page is being prepended the iteration's blocks
+        // were inserted above insertAnchor, so the token line must land there too.
+        // Appending it to streamB put it at the very bottom of the stream, which
+        // made every replayed page's token lines pile up under the newest message.
+        streamB.insertBefore(line, insertAnchor);
       } else {
         streamB.appendChild(line);
       }
@@ -1821,9 +1833,11 @@ function renderHistory(msg) {
     // Every block created while insertAnchor is set lands before the current
     // oldest node, so the older page is prepended in order.
     insertAnchor = streamB.firstChild;
+    prependingHistory = true;
     for (const ev of events) {
       try { renderEvent(ev); } catch (e) { /* skip malformed history entry */ }
     }
+    prependingHistory = false;
     insertAnchor = null;
     ensureTopSentinel();
     // Compensate the scroll position so the visible content does not jump.
@@ -2197,7 +2211,11 @@ function msgVizFlush() {
       e.stopPropagation();
       if (p.box && p.box.scrollIntoView) p.box.scrollIntoView({ block: "nearest" });
     });
-    msgVizTrack.appendChild(line);
+    // FIX-509: the track reads left-to-right in chronological order, so a line
+    // for a prepended (older) page must go on the LEFT. Appending it put the
+    // replayed history on the right edge, reversing the time axis.
+    if (prependingHistory) msgVizTrack.insertBefore(line, msgVizTrack.firstChild);
+    else msgVizTrack.appendChild(line);
   }
   msgVizApplyPan();
 }
