@@ -82,12 +82,22 @@ func (s *Store) AppendEvent(sessionID string, eventJSON []byte) error {
 		prefix := eventStreamPrefix(sessionID)
 
 		// Determine the next sequence number from the last key of this session.
-		// Seek to the first key past the session prefix, then step back once:
-		// that lands on the session's highest sequence number.
+		// The session prefix ends with 0x00 and every key of the session continues
+		// with an 8-digit sequence number, so prefix+0xFF sorts after every key of
+		// this session yet before any other session's keys. Seek to it and step
+		// back once: that lands on this session's highest sequence number (or on a
+		// foreign key when the session has no events yet).
+		//
+		// FIX-509: the step back was missing, so when another session's keys sorted
+		// after this prefix, Seek returned that foreign key, the prefix check below
+		// failed, nextSeq fell back to 1 and every later event overwrote seq=1 —
+		// destroying the oldest event and scrambling the replayed history.
 		nextSeq := 1
 		cursor := bucket.Cursor()
 		last, _ := cursor.Seek(append(append([]byte(nil), prefix...), 0xFF))
-		if last == nil {
+		if last != nil {
+			last, _ = cursor.Prev()
+		} else {
 			last, _ = cursor.Last()
 		}
 		if last != nil && strings.HasPrefix(string(last), string(prefix)) {
