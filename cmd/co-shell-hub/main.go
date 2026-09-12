@@ -160,6 +160,10 @@ func main() {
 	// demand through the Web UI.
 	proxy := gateway.NewProxy(ctx, nil)
 	defer proxy.Close()
+
+	// Attach the agent bulletin board (FEATURE-490): the hub arbitrates
+	// agent-to-agent collaboration (post/claim/dm/confirm/result).
+	proxy.SetBoard(gateway.NewBoard())
 	for _, spec := range mgr.Agents() {
 		if spec.Type == gateway.AgentTypeExternal {
 			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
