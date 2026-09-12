@@ -154,7 +154,46 @@ func (a *Agent) collapseAfterReorganize() {
 	log.Info("Agent.collapseAfterReorganize: collapsed history to %d messages", len(a.messages))
 }
 
-// reorganizeContextOnLoop is called when a loop is confirmed and LoopReorganizeEnabled is true.
+// contextOverflowExemptTools lists the tools that must NOT be skipped when the
+// context usage exceeds context-reorganize-threshold (FIX-510).
+//
+// The overflow guard skips tool execution for the round and asks the LLM to
+// reorganize. Two tools must survive that guard:
+//   - reorganize_context: it IS the way to shrink the context. Skipping it can
+//     turn the very first reorganization attempt into a no-op.
+//   - attempt_completion: it closes out the task. Skipping it delays reporting
+//     a finished task behind a forced reorganization.
+//
+// Exemption is decided per round (not per tool call): if any call in the round
+// matches, the whole round executes. Partial execution is not an option because
+// an assistant message with N tool_calls requires a result for every call
+// (OpenAI rejects unpaired tool_calls with HTTP 400).
+var contextOverflowExemptTools = map[string]bool{
+	"reorganize_context": true,
+	"attempt_completion": true,
+}
+
+// contextOverflowSkipsTools reports whether the context-overflow guard skips
+// this round's tool execution: the context is over the threshold AND the round
+// does not call an exempt tool (FIX-510).
+//
+// The "skipped" warning and the problem-solver consultation are gated on this
+// same predicate, so a round that is actually executed can never be announced
+// as skipped.
+func contextOverflowSkipsTools(usagePct, threshold float64, toolCalls []llm.ToolCall) bool {
+	return usagePct >= threshold && !hasContextOverflowExemptTool(toolCalls)
+}
+
+// hasContextOverflowExemptTool reports whether any tool call in the round is
+// exempt from the context-overflow skip guard (FIX-510).
+func hasContextOverflowExemptTool(toolCalls []llm.ToolCall) bool {
+	for _, tc := range toolCalls {
+		if contextOverflowExemptTools[tc.Name] {
+			return true
+		}
+	}
+	return false
+}
 // It performs context reorganization based on the current ContextPolicy:
 // - "window" with context-limit=-1: trim context to system + last user message
 // - "smart"/"task"/"reorganize": append i18n suggestion to call reorganize_context

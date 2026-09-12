@@ -4,6 +4,41 @@
 
 ---
 
+## v0.51.1 — 已合并
+
+> **版本**: v0.51.1
+
+> **状态**: ✅ 已合并到 main（tag v0.51.1）
+> **里程碑**: 修复上下文超限时 reorganize_context / attempt_completion 被跳过，以及 reorganize_context 必需 meta 导致调用失败（FIX-510）
+> **说明**: 上下文占用超过 context-reorganize-threshold 时，原逻辑跳过本轮全部工具执行，仅豁免 reorganize_context；attempt_completion（报告完成）被一并跳过；而 reorganize_context 自身还因 required 含 meta 而可能被 meta 校验判失败（skipExec），导致超限时首次调用几乎无法成功。本次把二者纳入超限豁免集合，并移除 reorganize_context 的必需 meta。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-510 | 0.51.1 | P1 | 超限跳过工具执行时豁免 reorganize_context / attempt_completion；移除 reorganize_context 的 required meta |
+
+> 当前 BUILD: 972
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-510 超限时豁免 reorganize_context/attempt_completion 并移除其必需 meta**
+  - 根因：`agent/run_stream.go:1265-1323` 在 `usagePct >= ContextReorganizeThreshold` 时置 `reorganizePending=true` 跳过本轮全部工具执行，仅当本轮 toolCalls 含 `reorganize_context` 时豁免（`hasReorganizeCall`）；`attempt_completion` 未豁免，报告完成被一并跳过。
+  - 叠加缺陷：`agent/tools.go:809` 中 `reorganize_context` 的 required 含 `"meta"`，`risk.go` 的 `toolRequiresMeta` 据此执行 `assessRisk` 强校验；meta 缺失或 risk 非法 → `skipExec`，超限场景下首次重组高概率失败。
+  - 方案（用户确认）：① 豁免集合扩展为 `reorganize_context` + `attempt_completion`；② 移除 `reorganize_context` 的 required `"meta"`（properties 保留为可选）；③ 修正 `risk.go` 注释与代码的不一致。
+  - 实现（BUILD-970）：
+    - `agent/reorganize_context.go`：新增豁免集合 `contextOverflowExemptTools`（`reorganize_context` + `attempt_completion`）与判定函数 `hasContextOverflowExemptTool()`；`agent/run_stream.go` 的超限跳过分支改用它判定（保持“整轮豁免”语义，避免部分 tool_call 无结果导致 API 400），紧急重整指令的触发条件同步改名。
+    - `agent/tools.go`：`reorganize_context` 的 `required` 去掉 `"meta"`（properties 保留 → meta 变为可选），不再受 `assessRisk` 校验。
+    - `agent/toolcall_mode.go`：新增 `toolRequiresMetaIn` / `toolsWithoutMetaNames` / `applyNoMetaToolsHint`；`buildXMLToolPrompt` 在 XML 模式的 meta 说明中注入 `{NO_META_TOOLS}`（运行时按工具 schema 生成“不需要 meta 的工具”清单，与 required 不漂移）；`risk.go` 的 `Agent.toolRequiresMeta` 改为复用纯函数，并修正与代码不符的注释。
+    - i18n：`KeySystemPromptToolUsageMetaXML`（中/英）新增 `{NO_META_TOOLS}` 占位符与 `KeySystemPromptMetaExemptTools` 模板；`reorganize_context` 的工具用法中 meta 标注为可选（中文原先未提 meta，一并补齐）。
+    - 说明：OpenAI 模式不发文本清单（工具以 JSON schema 下发，`required` 对模型可见），因此 `KeySystemPromptToolUsageMetaOpenAI` 不含占位符。
+    - 另发现（已记录）：`buildToolsInternal` 仅在 `intent-exposure` 开启时保留 meta（关闭时统一剥离），因此“移除必需 meta”实际作用于意图透明化开启的场景。
+  - 验证（BUILD-970）：`go build ./... && go vet ./...` 全绿；新增 `agent/fix510_test.go`（豁免判定 6 例、reorganize_context 不再要求 meta、免 meta 清单生成、无 meta 调用成功）与 `i18n/fix510_test.go`（占位符/模板）全部通过；`go test ./i18n/` 通过；`agent` 包仅剩 3 个**既有**失败（TestAutoIntervention_BelowThreshold / _EscalatesAtThreshold / TestStreamSupReply），已用 main 基线 worktree 复核确认改动前即失败。`meta_param_test.go` 按新行为补充 reorganize_context 例外分支；测试中不再调用 `i18n.Init`（避免污染同进程语言状态）。
+  - 追加修复（用户实测反馈，BUILD-971）：超限时工具已豁免放行并执行成功，界面仍出现 SYS 警告块「上下文超限 (26.0% > 25%)，已跳过此轮工具执行」。根因：`run_stream.go` 中该警告（及 FEATURE-345 问题模型咨询/可能的终止任务）位于 `usagePct >= threshold` 分支内，而豁免判定 `hasContextOverflowExemptTool()` 在其后才计算 → 告警条件与跳过条件不一致。修复：新增 `contextOverflowSkipsTools(usagePct, threshold, toolCalls)`（`agent/reorganize_context.go`），并将「是否跳过」与「是否告警/咨询问题模型」都改为由它决定；超限且携带豁免工具时仅写 info 日志，界面完全静默（不咨询问题模型，避免其建议 stop 而终止任务）。新增 `TestContextOverflowSkipsTools`（6 例）与用例 UC-0013（含“普通工具仍应告警”对照场景）。
+  - 进度：已完成并合并到 main（tag v0.51.1）[BUILD-972]
+
+---
+
 ## v0.51.0 — 已合并
 
 > **版本**: v0.51.0
