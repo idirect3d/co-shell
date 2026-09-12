@@ -38,6 +38,8 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -379,5 +381,40 @@ func TestHistoryPageIsChronologicalAcrossWindows(t *testing.T) {
 	}
 	if lastGroup != totalGroups-1 {
 		t.Errorf("last group = %d, want %d (the newest group must come last)", lastGroup, totalGroups-1)
+	}
+}
+
+// TestStaticAssetsCarryAnETag is the FIX-509 regression guard for UI delivery.
+//
+// The UI assets are embedded in the binary and have no modification time, so
+// http.FileServer used to emit neither Last-Modified nor ETag. Browsers fell
+// back to heuristic caching and kept serving a stale app.js after a rebuild,
+// which made UI fixes appear to have no effect. Every static response must now
+// carry a validator and a Cache-Control that forces revalidation.
+func TestStaticAssetsCarryAnETag(t *testing.T) {
+	handler := serveStatic()
+
+	req := httptest.NewRequest(http.MethodGet, "/static/app.js", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("ETag header missing — the browser cannot revalidate the asset")
+	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "no-cache" {
+		t.Errorf("Cache-Control = %q, want %q", cc, "no-cache")
+	}
+
+	// A repeat request with the same validator must be answered with 304 so the
+	// revalidation stays cheap.
+	req2 := httptest.NewRequest(http.MethodGet, "/static/app.js", nil)
+	req2.Header.Set("If-None-Match", etag)
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusNotModified {
+		t.Errorf("status = %d, want 304 for a matching validator", rec2.Code)
 	}
 }

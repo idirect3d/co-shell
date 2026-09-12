@@ -14,7 +14,9 @@ package web
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +40,37 @@ import (
 
 //go:embed static
 var staticFS embed.FS
+
+// staticETag identifies the embedded UI assets. embed.FS entries carry no
+// modification time, so http.FileServer emits neither Last-Modified nor ETag;
+// browsers then fall back to heuristic caching and keep serving a stale app.js
+// across restarts, which silently hides UI changes. Deriving the tag from the
+// asset bytes makes it change whenever the UI is rebuilt.
+var staticETag = func() string {
+	h := sha256.New()
+	for _, name := range []string{"static/index.html", "static/app.js", "static/style.css"} {
+		if b, err := staticFS.ReadFile(name); err == nil {
+			_, _ = h.Write(b)
+		}
+	}
+	return `"` + hex.EncodeToString(h.Sum(nil))[:16] + `"`
+}()
+
+// serveStatic serves the embedded UI assets with an explicit validator so the
+// browser revalidates on every load. Without it a rebuilt binary keeps showing
+// the previous UI until the user performs a hard reload.
+func serveStatic() http.Handler {
+	files := http.FileServer(http.FS(staticFS))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("ETag", staticETag)
+		if r.Header.Get("If-None-Match") == staticETag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		files.ServeHTTP(w, r)
+	})
+}
 
 // maxUploadFileSize caps one uploaded file (bytes).
 const maxUploadFileSize = 100 << 20 // 100 MiB
@@ -214,7 +247,7 @@ func NewServer(root string, opts ServerOptions) *Server {
 	}
 	s := &Server{root: abs, opts: opts, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /{$}", s.handleIndex)
-	s.mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
+	s.mux.Handle("GET /static/", serveStatic())
 	s.mux.HandleFunc("GET /ws", s.handleWS)
 	s.mux.HandleFunc("GET /api/bootstrap", s.handleBootstrap)
 	s.mux.HandleFunc("GET /api/tree", s.handleTree)
