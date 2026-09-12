@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FIX-509 | 0.50.1 | P1 | 修复历史分页加载中断：pushHistory 改为循环加载直到凑够 count 组或没有更早事件；hasMore 语义修正为「是否还有更早事件」；风险标签去重 + 收紧块复用匹配 |
 
-> 当前 BUILD: 966
+> 当前 BUILD: 968
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FIX-509 修复历史分页加载中断**
+- [x] **FIX-509 修复历史分页加载中断（已合并 v0.50.1）**
   - 背景：FEATURE-508 交付后，用户反馈向上滚动只能加载约 20 条，之后无法继续加载更早历史。
   - 根因：`web/session.go` 的 `pushHistory` 中，`hasMore` 基于 `len(order) > count` 判断。单次 `LoadEvents` 上限为 `count*maxEventsPerMessage = 1000` 条原始事件，而一个 TOOL 块可含 50+ 事件，因此 1000 条原始事件分组后常不足 20 组，导致 `hasMore=false`，前端 `loadOlderHistory` 因 `!historyHasMore` 直接 return。
   - 方案（用户确认）：后端循环加载，直到凑够 count 组或 store 报告没有更早事件为止；`hasMore` 语义修正为「是否还有更早事件」；`oldestSeq` 改为取最旧组的首个事件 seq（原实现取 `entries[0].Seq`，在循环加载下不再正确）。
@@ -38,6 +38,7 @@
   - 补充修复 2（BUILD 960，用户实测反馈「到达滑动窗口边界后无法继续加载」）：`web/static/style.css` 的哨兵被改为 `position: sticky; top: 0`（BUILD 958 引入），导致哨兵在**任意滚动位置**都钉在滚动容器顶边（实测 scrollTop 0/500/2000/10000 时 relativeTop 恒为 0）。IntersectionObserver 只在**进入/离开**时触发，哨兵永不离开视口 → 首次触发后再无新事件 → 分页停摆。已回退为普通流内元素，并新增 `TestTopSentinelIsNotSticky` 回归测试。同时 `web/static/app.js` 新增 `scheduleChainLoad()`：prepend 后若用户仍在顶部，主动链式加载下一页，不再单纯依赖 observer 重新触发。
   - 新增配置项（BUILD 961，用户需求）：将历史分页「一次取 20 条」改为可配置参数 `page-buffer-size`（Go: `LLM.PageBufferSize` / JSON: `page_buffer_size`），范围 10-100，默认 20。接入点：`config/config.go`（字段 + 默认值）、`cmd/settings_web.go`（Web 设置面板）、`cmd/settings_display.go`（CLI `:set` 读写与校验）、`cmd/settings.go`（CLI 白名单 + 列表展示）、`i18n/{keys,zh,en}.go`（中英文描述）、`web/static/app.js`（`pageBufferSize` 变量 + `cacheStreamWindowSettings` 读取 + 两处 `history_get` 请求改用该值）。后端 `pushHistory` 的 `defaultHistoryMessages` 保留为兜底（前端未传 count 时使用）。
   - 补充修复 3（BUILD 962，用户实测反馈）：prepend 历史页时，① 每条消息的 token 用量行被追加到主消息区**最底端**堆叠（实测 8 个 `.ev.meta` 成了 `streamB` 的直接子节点，而非嵌套在各自 `.ev` 块内）；② 消息指示器（msgViz）的新线被加到**右端**，导致时间轴反向。根因：`insertAnchor` 只作用于 `makeBlock` 创建块的瞬间，而 token 行与指示器线是在**后续的 `token_iter` 事件**里创建的，仍无条件 `appendChild`。修复：新增 `prependingHistory` 标志（`renderHistory` 的 prepend 循环内置位），token 行改为 `streamB.insertBefore(line, insertAnchor)`，指示器线改为 `msgVizTrack.insertBefore(line, msgVizTrack.firstChild)`。
+  - 合并（BUILD-968）：按用户确认合并到 main（快进合并），并打版本标签 `v0.50.1`。合并前复核：`go build ./... && go vet ./...` 全绿；`store` 包全部单测通过；`cmd` 的 `TestWebWizardModelNameStep` 为既有失败（与本次无关）。
   - 补充修复 4（BUILD 963，用户实测反馈「向上滚动会连续加载很多页」）：BUILD 962 引入的 `wasAtTop` 分支在 prepend 后强制 `scrollTop = 0`，使哨兵始终留在 IntersectionObserver 的 120px 边距内，`scheduleChainLoad()` 于是立即再次触发，一路加载到最旧事件。已改为**统一位置补偿**：prepend 后一律 `scrollTop = prevTop + delta`，把新内容插到当前视口**上方**、视口位置保持不变；哨兵随之移出视口，分页自然停止，直到用户再次向上滚动。同时删除已无用的 `scheduleChainLoad()`。
   - 补充修复 5（BUILD 964，用户实测反馈「历史内容缺少记录或顺序不对，LLM 与 TOOL 块连成一片」）：`web/session.go` 的分页循环依赖「单页内有序」而非「全局有序」。`LoadEvents` 每次返回的是**最新**窗口（seq < cursor），第二次调用返回的是**更旧**的窗口，但代码把后读到的页 append 到 `order` 之后，于是 `order` 变成「较新组..., 较旧组...」；同时 `groups[key]` 跨页累积会把跨页分组的事件前后颠倒；裁剪 `order[len-count:]` 后顺序彻底错乱。已把分页逻辑提取为 `loadHistoryPage()` 并**先按 seq 全局排序再分组**，保证输出严格按时间顺序、最后一个是最新组。测试侧：`collectHistoryPage` 原先复制了生产逻辑（所以从未捕获该 bug），已改为调用真实 `loadHistoryPage`；新增 `TestHistoryPageIsChronologicalAcrossWindows`（40 组 × 60 事件，强制跨窗口），已验证该用例在旧实现下失败（`group went backwards (6 after 39)`）、修复后通过。
   - 补充修复 6（BUILD 965，定位「修复后仍复现」的关键原因）：`web/server.go` 的 `GET /static/` 直接用了 `http.FileServer`，而 `embed.FS` 中的文件**没有修改时间**，导致响应既无 `Last-Modified` 也无 `ETag`（实测响应头仅有 `Content-Type`/`Content-Length`）。浏览器因此退化为**启发式缓存**、无法校验，重启服务后仍继续使用旧 build 的 `app.js` —— 这正是前几轮修复在用户侧「看起来没生效」的原因。已改为 `serveStatic()`：按资源内容哈希生成 `ETag` 并设置 `Cache-Control: no-cache`，匹配 `If-None-Match` 时返回 304。新增 `TestStaticAssetsCarryAnETag` 回归测试。
