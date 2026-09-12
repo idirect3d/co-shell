@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FIX-509 | 0.50.1 | P1 | 修复历史分页加载中断：pushHistory 改为循环加载直到凑够 count 组或没有更早事件；hasMore 语义修正为「是否还有更早事件」；风险标签去重 + 收紧块复用匹配 |
 
-> 当前 BUILD: 963
+> 当前 BUILD: 964
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -34,7 +34,8 @@
   - 新增配置项（BUILD 961，用户需求）：将历史分页「一次取 20 条」改为可配置参数 `page-buffer-size`（Go: `LLM.PageBufferSize` / JSON: `page_buffer_size`），范围 10-100，默认 20。接入点：`config/config.go`（字段 + 默认值）、`cmd/settings_web.go`（Web 设置面板）、`cmd/settings_display.go`（CLI `:set` 读写与校验）、`cmd/settings.go`（CLI 白名单 + 列表展示）、`i18n/{keys,zh,en}.go`（中英文描述）、`web/static/app.js`（`pageBufferSize` 变量 + `cacheStreamWindowSettings` 读取 + 两处 `history_get` 请求改用该值）。后端 `pushHistory` 的 `defaultHistoryMessages` 保留为兜底（前端未传 count 时使用）。
   - 补充修复 3（BUILD 962，用户实测反馈）：prepend 历史页时，① 每条消息的 token 用量行被追加到主消息区**最底端**堆叠（实测 8 个 `.ev.meta` 成了 `streamB` 的直接子节点，而非嵌套在各自 `.ev` 块内）；② 消息指示器（msgViz）的新线被加到**右端**，导致时间轴反向。根因：`insertAnchor` 只作用于 `makeBlock` 创建块的瞬间，而 token 行与指示器线是在**后续的 `token_iter` 事件**里创建的，仍无条件 `appendChild`。修复：新增 `prependingHistory` 标志（`renderHistory` 的 prepend 循环内置位），token 行改为 `streamB.insertBefore(line, insertAnchor)`，指示器线改为 `msgVizTrack.insertBefore(line, msgVizTrack.firstChild)`。
   - 补充修复 4（BUILD 963，用户实测反馈「向上滚动会连续加载很多页」）：BUILD 962 引入的 `wasAtTop` 分支在 prepend 后强制 `scrollTop = 0`，使哨兵始终留在 IntersectionObserver 的 120px 边距内，`scheduleChainLoad()` 于是立即再次触发，一路加载到最旧事件。已改为**统一位置补偿**：prepend 后一律 `scrollTop = prevTop + delta`，把新内容插到当前视口**上方**、视口位置保持不变；哨兵随之移出视口，分页自然停止，直到用户再次向上滚动。同时删除已无用的 `scheduleChainLoad()`。
-  - 进度：编码完成，待用户测试确认 [BUILD-963]---
+  - 补充修复 5（BUILD 964，用户实测反馈「历史内容缺少记录或顺序不对，LLM 与 TOOL 块连成一片」）：`web/session.go` 的分页循环依赖「单页内有序」而非「全局有序」。`LoadEvents` 每次返回的是**最新**窗口（seq < cursor），第二次调用返回的是**更旧**的窗口，但代码把后读到的页 append 到 `order` 之后，于是 `order` 变成「较新组..., 较旧组...」；同时 `groups[key]` 跨页累积会把跨页分组的事件前后颠倒；裁剪 `order[len-count:]` 后顺序彻底错乱。已把分页逻辑提取为 `loadHistoryPage()` 并**先按 seq 全局排序再分组**，保证输出严格按时间顺序、最后一个是最新组。测试侧：`collectHistoryPage` 原先复制了生产逻辑（所以从未捕获该 bug），已改为调用真实 `loadHistoryPage`；新增 `TestHistoryPageIsChronologicalAcrossWindows`（40 组 × 60 事件，强制跨窗口），已验证该用例在旧实现下失败（`group went backwards (6 after 39)`）、修复后通过。
+  - 进度：编码完成，待用户测试确认 [BUILD-964]---
 
 ## v0.50.0 — 开发中
 

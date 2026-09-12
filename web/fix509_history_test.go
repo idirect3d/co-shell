@@ -76,46 +76,20 @@ func seedHistory(t *testing.T, st *store.DualStore, sessionID string, groups, ev
 	}
 }
 
-// collectHistoryPage mirrors the grouping loop in pushHistory: it keeps loading
-// pages until it has `count` groups or the store reports no older events, then
-// returns the group keys of the page plus the hasMore flag and the cursor.
-//
-// This is the behaviour FIX-509 introduced; the test asserts on it directly so
-// a regression in the loop is caught without depending on WebSocket plumbing.
+// collectHistoryPage drives the real paging function (loadHistoryPage) and
+// returns the group keys of the resulting page plus the hasMore flag and the
+// cursor. Calling production code here matters: an earlier version of this
+// helper duplicated the loop, so it kept passing while the real one regressed.
 func collectHistoryPage(t *testing.T, st *store.DualStore, sessionID string, count, beforeSeq int) (groups []string, hasMore bool, oldestSeq int) {
 	t.Helper()
+	events, hasMore, oldestSeq := loadHistoryPage(st, sessionID, count, beforeSeq)
 	seen := map[string]bool{}
-	groupFirstSeq := map[string]int{}
-	cursor := beforeSeq
-	for len(groups) < count {
-		entries, storeHasMore, err := st.LoadEvents(sessionID, count*maxEventsPerMessage, cursor)
-		if err != nil {
-			t.Fatalf("LoadEvents: %v", err)
+	for _, data := range events {
+		key := eventGroupKey(data)
+		if !seen[key] {
+			seen[key] = true
+			groups = append(groups, key)
 		}
-		if len(entries) == 0 {
-			hasMore = false
-			break
-		}
-		for _, e := range entries {
-			key := eventGroupKey(e.Data)
-			if !seen[key] {
-				seen[key] = true
-				groups = append(groups, key)
-				groupFirstSeq[key] = e.Seq
-			}
-		}
-		cursor = entries[0].Seq
-		hasMore = storeHasMore
-		if !storeHasMore {
-			break
-		}
-	}
-	if len(groups) > count {
-		hasMore = true
-		groups = groups[len(groups)-count:]
-	}
-	if len(groups) > 0 {
-		oldestSeq = groupFirstSeq[groups[0]]
 	}
 	return groups, hasMore, oldestSeq
 }
@@ -310,5 +284,100 @@ func TestTopSentinelIsNotSticky(t *testing.T) {
 	body := string(css)[start : start+end]
 	if strings.Contains(body, "position: sticky") || strings.Contains(body, "position:sticky") {
 		t.Errorf("top sentinel must not be position:sticky (observer would never re-fire); rule body:\n%s", body)
+	}
+}
+
+// historyEventTagged builds an event whose text encodes both its group index and
+// its position inside the group, so a test can verify the exact replay order.
+func historyEventTagged(group, inGroup int) []byte {
+	ev := agent.StreamEvent{
+		Type: agent.EventContent,
+		Chan: agent.ChannelLLM,
+		Text: fmt.Sprintf("g%d-%d", group, inGroup),
+		Meta: map[string]string{"msg_index": fmt.Sprint(group)},
+	}
+	data, err := json.Marshal(ev)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+// TestHistoryPageIsChronologicalAcrossWindows is the FIX-509 regression guard for
+// replay ordering. LoadEvents returns the NEWEST window below the cursor, so a
+// second call returns an older window. Appending pages in call order therefore
+// emitted newer events before older ones, and a group split across two windows
+// ended up internally reversed — the replayed conversation came back with LLM and
+// TOOL blocks clumped instead of alternating. The page must be globally
+// chronological and must end on the newest group.
+func TestHistoryPageIsChronologicalAcrossWindows(t *testing.T) {
+	const sessionID = "sess-fix509-order"
+	st := newHistoryStore(t)
+
+	// 40 groups x 60 events = 2400 events. One 1000-event window covers only
+	// ~16 groups, so requesting 20 forces a second, older window to be read.
+	const totalGroups = 40
+	const eventsPerGroup = 60
+	for g := 0; g < totalGroups; g++ {
+		for e := 0; e < eventsPerGroup; e++ {
+			if err := st.AppendEvent(sessionID, historyEventTagged(g, e)); err != nil {
+				t.Fatalf("AppendEvent(group=%d, event=%d): %v", g, e, err)
+			}
+		}
+	}
+
+	events, hasMore, oldestSeq := loadHistoryPage(st, sessionID, 20, 0)
+	if len(events) == 0 {
+		t.Fatal("loadHistoryPage returned no events")
+	}
+	if !hasMore {
+		t.Error("hasMore = false, want true (older groups still exist)")
+	}
+	if oldestSeq == 0 {
+		t.Error("oldestSeq = 0, want a usable cursor")
+	}
+
+	firstGroup, lastGroup := -1, -1
+	groupCount := 0
+	prevGroup, prevInGroup := -1, -1
+	for i, data := range events {
+		var ev struct {
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(data, &ev); err != nil {
+			t.Fatalf("unmarshal event %d: %v", i, err)
+		}
+		var g, e int
+		if _, err := fmt.Sscanf(ev.Text, "g%d-%d", &g, &e); err != nil {
+			t.Fatalf("event %d has unexpected text %q: %v", i, ev.Text, err)
+		}
+		if g < prevGroup {
+			t.Fatalf("event %d: group went backwards (%d after %d) — page is not chronological", i, g, prevGroup)
+		}
+		if g == prevGroup {
+			if e != prevInGroup+1 {
+				t.Fatalf("event %d: group %d out of order (event %d after %d)", i, g, e, prevInGroup)
+			}
+		} else {
+			if prevGroup >= 0 && e != 0 {
+				t.Fatalf("group %d starts at event %d, want 0", g, e)
+			}
+			groupCount++
+			if firstGroup < 0 {
+				firstGroup = g
+			}
+			lastGroup = g
+		}
+		prevGroup, prevInGroup = g, e
+	}
+
+	if groupCount != 20 {
+		t.Errorf("group count = %d, want 20", groupCount)
+	}
+	if firstGroup != totalGroups-20 {
+		t.Errorf("first group = %d, want %d", firstGroup, totalGroups-20)
+	}
+	if lastGroup != totalGroups-1 {
+		t.Errorf("last group = %d, want %d (the newest group must come last)", lastGroup, totalGroups-1)
 	}
 }
