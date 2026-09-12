@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FIX-509 | 0.50.1 | P1 | 修复历史分页加载中断：pushHistory 改为循环加载直到凑够 count 组或没有更早事件；hasMore 语义修正为「是否还有更早事件」；风险标签去重 + 收紧块复用匹配 |
 
-> 当前 BUILD: 965
+> 当前 BUILD: 966
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -28,6 +28,11 @@
   - 方案（用户确认）：后端循环加载，直到凑够 count 组或 store 报告没有更早事件为止；`hasMore` 语义修正为「是否还有更早事件」；`oldestSeq` 改为取最旧组的首个事件 seq（原实现取 `entries[0].Seq`，在循环加载下不再正确）。
   - 实施：`web/session.go`（pushHistory 重写为循环加载）+ `web/static/app.js`（风险标签去重 + 收紧块复用匹配）+ `web/fix509_history_test.go`（4 个回归测试）+ `main.go`/`cmd/co-shell-hub/main.go`（版本 0.50.1）+ ROADMAP.md
   - 测试：`go test ./web/ -run TestPushHistory` 4 个用例全部通过（覆盖：凑够 count 组、到达最旧一条、游标向后翻页不重叠、空流）
+  - [BUILD-966] 用户反馈「回放与实时不一致（顺序+内容）」后重新实测：直接读隔离实例 bbolt 副本，发现事件流 seq 连续无缺口（2584 条、gaps=0），但同一 session 内 msg_index 出现 7 次回落、8 段拼接，且 seq=1 存的是最新事件（真正的最旧事件已丢失）——证明写入侧本身已损坏，与此前前端修复无关。
+  - [BUILD-966] 根因（复现测试钉死）：`store/eventstream.go` 的 `AppendEvent` 注释写着「seek 到前缀之后、再回退一步」，代码却缺少回退。当存在排序在本会话之后的另一个会话（如新建会话 `sess-20260912…` 与旧会话 `sess-20260911…` 共存）时，`Seek(prefix+0xFF)` 返回的是**别的会话的 key**，前缀校验失败使 `nextSeq` 回落为 1，于是此后每条新事件都覆盖 `seq=1`。
+  - [BUILD-966] 修复：`Seek` 后显式 `Prev()`（无后继时仍回退 `Last()`），确保取到本会话最高 seq。新增 `store/eventstream_fix509_test.go`（2 个回归测试，修复前第一个用例失败：`kept 1 events, want 3`）。
+  - [BUILD-966] 待办：`loadHistoryPage` 按 `msg_index` 分组假设了 msg_index 会话内唯一，但 retry（`popTo` 截断）与 `reorganize_context` 折叠会使其回退/重置为 1（且 `ClearEventStream` 在生产代码中无调用方），跨世代分组会重排页内事件——待用户确认是否一并修复。
+  - [BUILD-966] 验证：`go test ./store/` 全部通过。
   - 附带修复（FIX-508 回归）：① 风险标签插入无去重，叠加块复用导致标签累积（截图见 10 个）；② 块复用 fallback 过于宽松（`iterToolBlocks.find(b => !b._intentFilled && b.params)`），使后续无关工具调用（含 attempt_completion）误用前一个调用的块，标题与参数描述不同调用。已改为仅按 tool_name 精确命中。
   - 补充修复（BUILD 959，用户实测反馈）：① `web/server.go` 的 `HasMore`/`OldestSeq` 带 `omitempty`，零值（false/0）时字段被整个从 JSON 中删除，前端读到 `undefined` → `historyOldestSeq=0` → `loadOlderHistory` 因 `!historyOldestSeq` 直接 return，分页彻底停摆；已去掉 `omitempty` 并新增 `TestHistoryMessageAlwaysCarriesPagingFields` 回归测试。② `web/static/app.js` 的 `wasAtTop = prevTop < 5` 阈值过小，而 IntersectionObserver 的 `rootMargin` 为 120px，触发时 `prevTop≈120` 导致走 `else` 分支把视口向下推入内容高度（实测 scrollTop 0→583→9671）；阈值放宽到 200 以覆盖 rootMargin。
   - 补充修复 2（BUILD 960，用户实测反馈「到达滑动窗口边界后无法继续加载」）：`web/static/style.css` 的哨兵被改为 `position: sticky; top: 0`（BUILD 958 引入），导致哨兵在**任意滚动位置**都钉在滚动容器顶边（实测 scrollTop 0/500/2000/10000 时 relativeTop 恒为 0）。IntersectionObserver 只在**进入/离开**时触发，哨兵永不离开视口 → 首次触发后再无新事件 → 分页停摆。已回退为普通流内元素，并新增 `TestTopSentinelIsNotSticky` 回归测试。同时 `web/static/app.js` 新增 `scheduleChainLoad()`：prepend 后若用户仍在顶部，主动链式加载下一页，不再单纯依赖 observer 重新触发。
