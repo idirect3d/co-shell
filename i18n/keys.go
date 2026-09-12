@@ -139,6 +139,7 @@ const (
 	KeyToolExecFailed       = "tool_exec_failed"
 	KeyToolExecRetry        = "tool_exec_retry"
 	KeyToolNoOutput         = "tool_no_output"
+	KeyToolAskUserNoAnswer  = "tool_ask_user_no_answer"
 	KeyToolResultLabel      = "tool_result_label"
 	KeyToolIntentLabel      = "tool_intent_label"
 	KeyReorganizeUrgent     = "reorganize_urgent"

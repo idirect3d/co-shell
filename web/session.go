@@ -168,12 +168,17 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 	case "answer":
 		s.wio.resolve(msg.ID, msg.Value)
 	case "interaction_answer":
-		if msg.Result != nil {
-			s.wio.resolveInteraction(msg.ID, agent.InteractionResult{
-				Action: agent.InteractionResultAction(msg.Result.Action),
-				Value:  msg.Result.Value,
-				Raw:    msg.Result.Raw,
-			})
+		// FIX-513: decode the browser result straight into agent.InteractionResult
+		// so every field survives the wire — the previous hand-written mirror
+		// struct silently dropped newer fields (notably Answers for multi-question
+		// forms), which left ask_user with no answer at all.
+		if len(msg.Result) > 0 {
+			var res agent.InteractionResult
+			if err := json.Unmarshal(msg.Result, &res); err != nil {
+				log.Warn("interaction_answer: invalid result JSON: %v", err)
+				break
+			}
+			s.wio.resolveInteraction(msg.ID, res)
 		}
 	case "interrupt":
 		s.ag.Interrupt()

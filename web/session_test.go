@@ -584,7 +584,7 @@ func TestWebIOAskInteractionPushesStructured(t *testing.T) {
 	sendClient(t, client, clientMessage{
 		Type: "interaction_answer",
 		ID:   msg.ID,
-		Result: &interactionResultJSON{Action: "approve"},
+		Result: resultJSON(t, agent.InteractionResult{Action: agent.ActionApprove}),
 	})
 	select {
 	case res := <-done:
@@ -633,7 +633,7 @@ func TestWebIOAskInteractionApproveCount(t *testing.T) {
 	sendClient(t, client, clientMessage{
 		Type: "interaction_answer",
 		ID:   msg.ID,
-		Result: &interactionResultJSON{Action: "approve_count", Value: "10"},
+		Result: resultJSON(t, agent.InteractionResult{Action: agent.ActionApproveCount, Value: "10"}),
 	})
 	select {
 	case res := <-done:
@@ -681,7 +681,7 @@ func TestWebIOAskInteractionSelect(t *testing.T) {
 	sendClient(t, client, clientMessage{
 		Type: "interaction_answer",
 		ID:   msg.ID,
-		Result: &interactionResultJSON{Action: "select", Value: "立即执行"},
+		Result: resultJSON(t, agent.InteractionResult{Action: agent.ActionSelect, Value: "立即执行"}),
 	})
 	select {
 	case res := <-done:

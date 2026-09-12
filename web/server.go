@@ -97,7 +97,7 @@ type clientMessage struct {
 	Value       string   `json:"value,omitempty"` // answer: the reply; session_switch/delete: the session id; settings_set: the new value
 	Key         string   `json:"key,omitempty"`   // settings_set: the setting key
 	Priority    int      `json:"priority,omitempty"` // model_set_priority: the new priority
-	Result      *interactionResultJSON `json:"result,omitempty"` // interaction_answer: the structured result
+	Result      json.RawMessage `json:"result,omitempty"` // interaction_answer: the structured result (agent.InteractionResult, FIX-513)
 	Step        string   `json:"step,omitempty"`   // model_wizard_next/prev: the current wizard step
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // model_wizard_next/prev/submit: accumulated wizard data
 	YOLO        bool     `json:"yolo,omitempty"`   // yolo_set: the new YOLO mode state
@@ -123,13 +123,6 @@ type clientMessage struct {
 	TaskID      string `json:"task_id,omitempty"`
 	Requester   string `json:"requester,omitempty"`
 	Instruction string `json:"instruction,omitempty"`
-}
-
-// interactionResultJSON is the wire form of an agent.InteractionResult.
-type interactionResultJSON struct {
-	Action string `json:"action"`
-	Value  string `json:"value,omitempty"`
-	Raw    string `json:"raw,omitempty"`
 }
 
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as
