@@ -124,6 +124,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		// FEATURE-508: Web UI stream sliding-window thresholds.
 		{Key: "stream-window-max-blocks", Value: strconv.Itoa(llm.StreamWindowMaxBlocks), Desc: i18n.T(i18n.KeyCol3StreamWindowMaxBlocks), Type: "number", Default: strconv.Itoa(def.StreamWindowMaxBlocks)},
 		{Key: "stream-window-max-nodes", Value: strconv.Itoa(llm.StreamWindowMaxNodes), Desc: i18n.T(i18n.KeyCol3StreamWindowMaxNodes), Type: "number", Default: strconv.Itoa(def.StreamWindowMaxNodes)},
+		// FIX-509: how many message groups the Web UI loads per history page.
+		{Key: "page-buffer-size", Value: strconv.Itoa(llm.PageBufferSize), Desc: i18n.T(i18n.KeyCol3PageBufferSize), Type: "number", Default: strconv.Itoa(def.PageBufferSize)},
 	}
 
 	// Group 3: Safety & Confirmation (matches showSettingsHelp Group 4)

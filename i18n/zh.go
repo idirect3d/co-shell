@@ -1959,6 +1959,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3DynamicQueueSize: "动态感知队列容量（默认 100）",
 	KeyCol3StreamWindowMaxBlocks: "前端消息窗口最大块数（默认 300）",
 	KeyCol3StreamWindowMaxNodes:  "前端消息窗口最大 DOM 节点数（默认 30000）",
+	KeyCol3PageBufferSize:        "历史分页每页消息数（向上滚动加载，范围 10-100，默认 20）",
 	KeyCol3EnvIncludeDetails:     "user/tool 消息是否包含整个 <environment_details>",
 	KeyCol3EnvIncludeCurrentDir:  "<environment_details> 是否包含 <current_dir>",
 	KeyCol3EnvIncludeTools:       "<environment_details> 是否包含 <tools>",
