@@ -372,6 +372,23 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		syncedOnOffParam(&h.cfg.LLM.IntentExposureEnabled, "intent-exposure-enabled", func(v bool) { h.agent.SetIntentExposureEnabled(v) }),
 		syncedOnOffParam(&h.cfg.LLM.MetaCapabilityEnabled, "meta-capability-enabled", func(v bool) { h.agent.SetMetaCapabilityEnabled(v) }),
 		syncedOnOffParam(&h.cfg.LLM.SubAgentEnabled, "subagent-enabled", func(v bool) { h.agent.SetSubAgentEnabled(v) }),
+		// FEATURE-490: the board collaboration switch defaults to OFF, so it uses
+		// a custom param whose reset also turns it off (syncedOnOffParam resets
+		// to on).
+		{Name: "board-enabled", Options: []string{"on", "off"},
+			CurrentValue: onOffFunc(&h.cfg.BoardEnabled),
+			SetValue: func(v string) (string, error) {
+				if err := setBoolPtr(&h.cfg.BoardEnabled, v); err != nil {
+					return "", err
+				}
+				h.agent.SetConfig(h.cfg)
+				return i18n.TF(i18n.KeySettingsUpdated, "board-enabled", v), nil
+			},
+			ResetValue: func() string {
+				h.cfg.BoardEnabled = false
+				h.agent.SetConfig(h.cfg)
+				return i18n.TF(i18n.KeySettingsUpdated, "board-enabled", "off")
+			}},
 		{Name: "result-mode", Options: []string{"minimal", "explain", "analyze", "free"}, CurrentValue: func() string {
 			return config.ResultModeString(config.ResultMode(h.cfg.LLM.ResultMode))
 		}, SetValue: func(v string) (string, error) {

@@ -609,6 +609,68 @@ Usage:
   </{XML_TAG_PREFIX}options>
 </{XML_TAG_PREFIX}ask_followup_question>`
 
+	zhMessages[KeyToolUsageBoardPost] = `## board_post
+描述: 向 hub 公告板发布一条求助请求（FEATURE-490）。其他职责匹配的 agent 可以认领，认领后双方可私信（board_dm）商定目标再执行。仅在公告板开关打开时可用。
+参数:
+- title (必需) 请求的简短标题。
+- description (必需) 需要何种协助的详细描述。
+- required_role (可选) 期望响应的职责角色。
+用法:
+<{XML_TAG_PREFIX}board_post>
+  <{XML_TAG_PREFIX}title>需要 Go 并发代码审查</{XML_TAG_PREFIX}title>
+  <{XML_TAG_PREFIX}description>请审查 agent/loop.go 的并发安全，重点看锁的使用与竞态</{XML_TAG_PREFIX}description>
+  <{XML_TAG_PREFIX}required_role>reviewer</{XML_TAG_PREFIX}required_role>
+</{XML_TAG_PREFIX}board_post>`
+
+	zhMessages[KeyToolUsageBoardList] = `## board_list
+描述: 巡检 hub 公告板上的未认领求助请求（FEATURE-490）。用于发现与自身职责相关的请求。无参数。
+用法:
+<{XML_TAG_PREFIX}board_list></{XML_TAG_PREFIX}board_list>`
+
+	zhMessages[KeyToolUsageBoardClaim] = `## board_claim
+描述: 认领 hub 公告板上的一条公开求助请求（FEATURE-490）。认领后仅请求方与认领方可使用 board_dm 讨论。
+参数:
+- request_id (必需) 要认领的请求 id（来自 board_list 结果）。
+用法:
+<{XML_TAG_PREFIX}board_claim>
+  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
+</{XML_TAG_PREFIX}board_claim>`
+
+	zhMessages[KeyToolUsageBoardDM] = `## board_dm
+描述: 向公告板请求会话中的另一方发送私信（FEATURE-490）。用于在执行前澄清需求与验收标准。
+参数:
+- request_id (必需) 请求 id。
+- content (必需) 私信内容。
+用法:
+<{XML_TAG_PREFIX}board_dm>
+  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
+  <{XML_TAG_PREFIX}content>请问需要覆盖哪些并发场景？</{XML_TAG_PREFIX}content>
+</{XML_TAG_PREFIX}board_dm>`
+
+	zhMessages[KeyToolUsageBoardConfirm] = `## board_confirm
+描述: 由请求方确认已认领的公告板请求并开始执行（FEATURE-490）。仅请求方可以确认；确认后认领方会收到 board_task 并开始执行。
+参数:
+- request_id (必需) 要确认的请求 id。
+用法:
+<{XML_TAG_PREFIX}board_confirm>
+  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
+</{XML_TAG_PREFIX}board_confirm>`
+
+	zhMessages[KeyToolUsageBoardResult] = `## board_result
+描述: 将公告板任务的执行结果回传给 hub（FEATURE-490）。执行完 board_task 后调用，结果会送达请求方。
+参数:
+- task_id (必需) 来自 board_task 消息的任务 id。
+- result (必需) 返回给请求方的结果文本。
+用法:
+<{XML_TAG_PREFIX}board_result>
+  <{XML_TAG_PREFIX}task_id>task-7d91b2</{XML_TAG_PREFIX}task_id>
+  <{XML_TAG_PREFIX}result>审查完成：发现 2 处数据竞争，已给出修复建议</{XML_TAG_PREFIX}result>
+</{XML_TAG_PREFIX}board_result>`
+
+	zhMessages[KeyCol3BoardEnabled] = "公告板协作(on|off)"
+	zhMessages[KeySettingCmd_782] = "公告板协作: %s"
+	zhMessages[KeySettingCmd_783] = "✅ 公告板协作已设为: %s"
+
 	zhMessages[KeyToolUsageAttemptCompletion] = `## attempt_completion
 Description: 每次工具调用后，用户会回应该工具调用的结果（成功或失败及原因）。当你已确认任务完成时，使用此工具向用户呈现你的工作成果。可选择提供一个 CLI 命令来展示运行结果。用户可能会对结果提供反馈，你可以据此进行改进并重试。
 重要提示：在确认所有之前的工具调用都已成功之前，不得使用此工具。在未确认的情况下使用将导致代码损坏和系统故障。使用此工具前，你必须先自问是否已确认所有之前的工具调用都成功了。如果没有，请不要使用此工具。
@@ -1373,15 +1435,15 @@ META-CAPABILITIES
 `
 
 	// Meta-capability categories (FEATURE-466).
-	zhMessages[KeyCapCategorySelf]    = `自我改造`
-	zhMessages[KeyCapCategoryModel]   = `模型调度`
+	zhMessages[KeyCapCategorySelf] = `自我改造`
+	zhMessages[KeyCapCategoryModel] = `模型调度`
 	zhMessages[KeyCapCategoryProblem] = `问题解决`
-	zhMessages[KeyCapCategoryCollab]  = `协作`
+	zhMessages[KeyCapCategoryCollab] = `协作`
 	zhMessages[KeyCapCategoryContext] = `上下文管理`
 
 	// Meta-capability: self-modify (FEATURE-466).
-	zhMessages[KeyCapSelfModifyName]   = `自我改造`
-	zhMessages[KeyCapSelfModifyDesc]   = `修改 .rules/ 或 PRINCIPLES.md 改变自身行为`
+	zhMessages[KeyCapSelfModifyName] = `自我改造`
+	zhMessages[KeyCapSelfModifyDesc] = `修改 .rules/ 或 PRINCIPLES.md 改变自身行为`
 	zhMessages[KeyCapSelfModifyDetail] = `# 自我改造（cap.self-modify）
 
 ## 适用场景
@@ -1400,8 +1462,8 @@ META-CAPABILITIES
 `
 
 	// Meta-capability: model-routing (FEATURE-466).
-	zhMessages[KeyCapModelRoutingName]   = `模型调度`
-	zhMessages[KeyCapModelRoutingDesc]   = `调用不同模型（文本/视觉/推理）、切换工作模式`
+	zhMessages[KeyCapModelRoutingName] = `模型调度`
+	zhMessages[KeyCapModelRoutingDesc] = `调用不同模型（文本/视觉/推理）、切换工作模式`
 	zhMessages[KeyCapModelRoutingDetail] = `# 模型调度（cap.model-routing）
 
 ## 适用场景
@@ -1418,8 +1480,8 @@ META-CAPABILITIES
 `
 
 	// Meta-capability: problem-strategies (FEATURE-466).
-	zhMessages[KeyCapProblemStrategiesName]   = `问题解决策略`
-	zhMessages[KeyCapProblemStrategiesDesc]   = `死循环检测、工具调用报错的重试/降级/换策略`
+	zhMessages[KeyCapProblemStrategiesName] = `问题解决策略`
+	zhMessages[KeyCapProblemStrategiesDesc] = `死循环检测、工具调用报错的重试/降级/换策略`
 	zhMessages[KeyCapProblemStrategiesDetail] = `# 问题解决策略（cap.problem-strategies）
 
 ## 适用场景
@@ -1437,8 +1499,8 @@ META-CAPABILITIES
 `
 
 	// Meta-capability: subagent-collab (FEATURE-466).
-	zhMessages[KeyCapSubagentCollabName]   = `分身协作`
-	zhMessages[KeyCapSubagentCollabDesc]   = `调用另一个 co-shell 分身协作`
+	zhMessages[KeyCapSubagentCollabName] = `分身协作`
+	zhMessages[KeyCapSubagentCollabDesc] = `调用另一个 co-shell 分身协作`
 	zhMessages[KeyCapSubagentCollabDetail] = `# 分身协作（cap.subagent-collab）
 
 ## 适用场景
@@ -1456,8 +1518,8 @@ META-CAPABILITIES
 `
 
 	// Meta-capability: context-management (FEATURE-466).
-	zhMessages[KeyCapContextManagementName]   = `上下文管理`
-	zhMessages[KeyCapContextManagementDesc]   = `压缩上下文（reorganize_context）、持久记忆（memory_*）`
+	zhMessages[KeyCapContextManagementName] = `上下文管理`
+	zhMessages[KeyCapContextManagementDesc] = `压缩上下文（reorganize_context）、持久记忆（memory_*）`
 	zhMessages[KeyCapContextManagementDetail] = `# 上下文管理（cap.context-management）
 
 ## 适用场景
@@ -1475,8 +1537,8 @@ META-CAPABILITIES
 `
 
 	// Meta-capability: self-config (FEATURE-466).
-	zhMessages[KeyCapSelfConfigName]   = `自我配置`
-	zhMessages[KeyCapSelfConfigDesc]   = `修改自身行为参数（模型/温度/模式等）`
+	zhMessages[KeyCapSelfConfigName] = `自我配置`
+	zhMessages[KeyCapSelfConfigDesc] = `修改自身行为参数（模型/温度/模式等）`
 	zhMessages[KeyCapSelfConfigDetail] = `# 自我配置（cap.self-config）
 
 ## 适用场景

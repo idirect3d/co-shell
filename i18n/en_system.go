@@ -584,6 +584,68 @@ Usage:
   </{XML_TAG_PREFIX}options>
 </{XML_TAG_PREFIX}ask_followup_question>`
 
+	enMessages[KeyToolUsageBoardPost] = `## board_post
+Description: Publish a help request to the hub bulletin board (FEATURE-490). Other agents whose role matches may claim it; the requester and the assignee can then clarify via board_dm before execution. Only available when the board switch is enabled.
+Parameters:
+- title (required) Short title of the request.
+- description (required) Detailed description of what help is needed.
+- required_role (optional) Role that should respond.
+Usage:
+<{XML_TAG_PREFIX}board_post>
+  <{XML_TAG_PREFIX}title>Need a Go concurrency review</{XML_TAG_PREFIX}title>
+  <{XML_TAG_PREFIX}description>Please review agent/loop.go for concurrency safety, focusing on locking and races</{XML_TAG_PREFIX}description>
+  <{XML_TAG_PREFIX}required_role>reviewer</{XML_TAG_PREFIX}required_role>
+</{XML_TAG_PREFIX}board_post>`
+
+	enMessages[KeyToolUsageBoardList] = `## board_list
+Description: Poll the hub bulletin board for open (unclaimed) help requests (FEATURE-490). Use this to discover requests relevant to your role. Takes no parameters.
+Usage:
+<{XML_TAG_PREFIX}board_list></{XML_TAG_PREFIX}board_list>`
+
+	enMessages[KeyToolUsageBoardClaim] = `## board_claim
+Description: Claim an open help request on the hub bulletin board (FEATURE-490). After claiming, only the requester and the assignee can discuss via board_dm.
+Parameters:
+- request_id (required) The request id to claim (from the board_list result).
+Usage:
+<{XML_TAG_PREFIX}board_claim>
+  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
+</{XML_TAG_PREFIX}board_claim>`
+
+	enMessages[KeyToolUsageBoardDM] = `## board_dm
+Description: Send a direct message to the other participant of a board request thread (FEATURE-490). Use it to clarify requirements and acceptance criteria before executing.
+Parameters:
+- request_id (required) The request id.
+- content (required) The message content.
+Usage:
+<{XML_TAG_PREFIX}board_dm>
+  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
+  <{XML_TAG_PREFIX}content>Which concurrency scenarios should be covered?</{XML_TAG_PREFIX}content>
+</{XML_TAG_PREFIX}board_dm>`
+
+	enMessages[KeyToolUsageBoardConfirm] = `## board_confirm
+Description: Confirm a claimed board request to start execution (FEATURE-490). Only the requester can confirm; the assignee then receives a board_task and starts executing.
+Parameters:
+- request_id (required) The request id to confirm.
+Usage:
+<{XML_TAG_PREFIX}board_confirm>
+  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
+</{XML_TAG_PREFIX}board_confirm>`
+
+	enMessages[KeyToolUsageBoardResult] = `## board_result
+Description: Report the result of a board task back to the hub (FEATURE-490). Call it after executing a board_task; the outcome is delivered to the requester.
+Parameters:
+- task_id (required) The task id from the board_task message.
+- result (required) The result text to return to the requester.
+Usage:
+<{XML_TAG_PREFIX}board_result>
+  <{XML_TAG_PREFIX}task_id>task-7d91b2</{XML_TAG_PREFIX}task_id>
+  <{XML_TAG_PREFIX}result>Review done: found 2 data races and suggested fixes</{XML_TAG_PREFIX}result>
+</{XML_TAG_PREFIX}board_result>`
+
+	enMessages[KeyCol3BoardEnabled] = "board collaboration(on|off)"
+	enMessages[KeySettingCmd_782] = "Board collaboration: %s"
+	enMessages[KeySettingCmd_783] = "✅ Board collaboration set to: %s"
+
 	enMessages[KeyToolUsageAttemptCompletion] = `## attempt_completion
 Description: After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
 IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.
@@ -1389,15 +1451,15 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 `
 
 	// Meta-capability categories (FEATURE-466).
-	enMessages[KeyCapCategorySelf]    = `Self-Modification`
-	enMessages[KeyCapCategoryModel]   = `Model Routing`
+	enMessages[KeyCapCategorySelf] = `Self-Modification`
+	enMessages[KeyCapCategoryModel] = `Model Routing`
 	enMessages[KeyCapCategoryProblem] = `Problem Solving`
-	enMessages[KeyCapCategoryCollab]  = `Collaboration`
+	enMessages[KeyCapCategoryCollab] = `Collaboration`
 	enMessages[KeyCapCategoryContext] = `Context Management`
 
 	// Meta-capability: self-modify (FEATURE-466).
-	enMessages[KeyCapSelfModifyName]   = `Self-Modification`
-	enMessages[KeyCapSelfModifyDesc]   = `Modify .rules/ or PRINCIPLES.md to change your own behavior`
+	enMessages[KeyCapSelfModifyName] = `Self-Modification`
+	enMessages[KeyCapSelfModifyDesc] = `Modify .rules/ or PRINCIPLES.md to change your own behavior`
 	enMessages[KeyCapSelfModifyDetail] = `# Self-Modification (cap.self-modify)
 
 ## When to use
@@ -1416,8 +1478,8 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 `
 
 	// Meta-capability: model-routing (FEATURE-466).
-	enMessages[KeyCapModelRoutingName]   = `Model Routing`
-	enMessages[KeyCapModelRoutingDesc]   = `Call different models (text/vision/reasoning) and switch work modes`
+	enMessages[KeyCapModelRoutingName] = `Model Routing`
+	enMessages[KeyCapModelRoutingDesc] = `Call different models (text/vision/reasoning) and switch work modes`
 	enMessages[KeyCapModelRoutingDetail] = `# Model Routing (cap.model-routing)
 
 ## When to use
@@ -1434,8 +1496,8 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 `
 
 	// Meta-capability: problem-strategies (FEATURE-466).
-	enMessages[KeyCapProblemStrategiesName]   = `Problem-Solving Strategies`
-	enMessages[KeyCapProblemStrategiesDesc]   = `Loop detection, tool-call error retry/degrade/switch strategies`
+	enMessages[KeyCapProblemStrategiesName] = `Problem-Solving Strategies`
+	enMessages[KeyCapProblemStrategiesDesc] = `Loop detection, tool-call error retry/degrade/switch strategies`
 	enMessages[KeyCapProblemStrategiesDetail] = `# Problem-Solving Strategies (cap.problem-strategies)
 
 ## When to use
@@ -1453,8 +1515,8 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 `
 
 	// Meta-capability: subagent-collab (FEATURE-466).
-	enMessages[KeyCapSubagentCollabName]   = `Sub-Agent Collaboration`
-	enMessages[KeyCapSubagentCollabDesc]   = `Call another co-shell sub-agent to collaborate`
+	enMessages[KeyCapSubagentCollabName] = `Sub-Agent Collaboration`
+	enMessages[KeyCapSubagentCollabDesc] = `Call another co-shell sub-agent to collaborate`
 	enMessages[KeyCapSubagentCollabDetail] = `# Sub-Agent Collaboration (cap.subagent-collab)
 
 ## When to use
@@ -1472,8 +1534,8 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 `
 
 	// Meta-capability: context-management (FEATURE-466).
-	enMessages[KeyCapContextManagementName]   = `Context Management`
-	enMessages[KeyCapContextManagementDesc]   = `Compress context (reorganize_context) and use persistent memory (memory_*)`
+	enMessages[KeyCapContextManagementName] = `Context Management`
+	enMessages[KeyCapContextManagementDesc] = `Compress context (reorganize_context) and use persistent memory (memory_*)`
 	enMessages[KeyCapContextManagementDetail] = `# Context Management (cap.context-management)
 
 ## When to use
@@ -1491,8 +1553,8 @@ The following meta-capabilities are available. Each is a native ability of co-sh
 `
 
 	// Meta-capability: self-config (FEATURE-466).
-	enMessages[KeyCapSelfConfigName]   = `Self-Configuration`
-	enMessages[KeyCapSelfConfigDesc]   = `Modify your own behavior parameters (model/temperature/mode etc.)`
+	enMessages[KeyCapSelfConfigName] = `Self-Configuration`
+	enMessages[KeyCapSelfConfigDesc] = `Modify your own behavior parameters (model/temperature/mode etc.)`
 	enMessages[KeyCapSelfConfigDetail] = `# Self-Configuration (cap.self-config)
 
 ## When to use

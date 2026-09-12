@@ -58,7 +58,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 	llm := cfg.LLM
 	// FEATURE-470: the system defaults come from DefaultConfig so the Web UI
 	// can show them in tooltips and mark values that differ from the default.
-	def := config.DefaultConfig().LLM
+	defCfg := config.DefaultConfig()
+	def := defCfg.LLM
 
 	// Group 1: Agent Settings (matches showSettingsHelp Group 2)
 	agentGroup := []WebSettingItem{
@@ -77,6 +78,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "intent-exposure-enabled", Value: boolStr(llm.IntentExposureEnabled), Desc: i18n.T(i18n.KeyCol3IntentExposureEnabled), Type: "bool", Default: boolStr(def.IntentExposureEnabled)},
 		{Key: "meta-capability-enabled", Value: boolStr(llm.MetaCapabilityEnabled), Desc: i18n.T(i18n.KeyCol3MetaCapabilityEnabled), Type: "bool", Default: boolStr(def.MetaCapabilityEnabled)},
 		{Key: "subagent-enabled", Value: boolStr(llm.SubAgentEnabled), Desc: i18n.T(i18n.KeyCol3SubAgentEnabled), Type: "bool", Default: boolStr(def.SubAgentEnabled)},
+		{Key: "board-enabled", Value: boolStr(cfg.BoardEnabled), Desc: i18n.T(i18n.KeyCol3BoardEnabled), Type: "bool", Default: boolStr(defCfg.BoardEnabled)},
 		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free"}, Default: config.ResultModeString(config.ResultMode(def.ResultMode))},
 		{Key: "shell-session-enabled", Value: boolStr(llm.ShellSessionEnabled), Desc: i18n.T(i18n.KeyCol3ShellSessionEnabled), Type: "bool", Default: boolStr(def.ShellSessionEnabled)},
 		{Key: "shell-session-timeout", Value: strconv.Itoa(llm.ShellSessionTimeout), Desc: i18n.T(i18n.KeyCol3ShellSessionTimeout), Type: "number", Default: strconv.Itoa(def.ShellSessionTimeout)},
