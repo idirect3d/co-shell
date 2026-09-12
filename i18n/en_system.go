@@ -57,9 +57,9 @@ func init() {
 
 	enMessages[KeyWorkModePlan] = `In this mode, you focus on **uncovering the user's real requirements** and turning them into a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
 - **The primary goal of this mode is to find out what the user actually wants**, not to rush into proposing a solution. User requirements are often vague: proactively identify anything unclear, ambiguous, or missing.
-- **For any ambiguity, you MUST repeatedly confirm with the user via the ask_followup_question tool until the requirement is clear.** Ask as many times as it takes rather than guessing.
+- **For any ambiguity, you MUST repeatedly confirm with the user via the ask_user tool until the requirement is clear.** Ask as many times as it takes rather than guessing.
 - **Do NOT make decisions on the user's behalf based on guesswork**: when you are unsure about the user's intent, scope, priorities, or acceptance criteria, do not quietly assume and push ahead — ask first.
-- When you need to discuss the plan, clarify requirements, or confirm the next step with the user, use the ask_followup_question tool.
+- When you need to discuss the plan, clarify requirements, or confirm the next step with the user, use the ask_user tool.
 - Once the requirements are clear, gather the necessary context (e.g. using read_file or search_files) and architect a detailed plan.
 - Record the plan with track_task_progress, then present it to the user with attempt_completion. Think of this as a brainstorming session where you discuss the task and plan the best way to accomplish it.
 - Finally, once you have reached a good plan, ask the user to switch you back to ACT MODE (e.g. by entering :mode switch act) to implement the solution.`
@@ -575,21 +575,42 @@ Usage:
 </{XML_TAG_PREFIX}meta>
 </{XML_TAG_PREFIX}list_settings>`
 
-	enMessages[KeyToolUsageAskFollowupQuestion] = `## ask_followup_question
-Description: Ask the user a question to gather additional information needed to complete the task. Use when there is ambiguity, need for clarification, or more details are required. Enables interactive problem-solving by allowing direct communication with the user. Only call this method when user confirmation is unclear or the user needs to provide additional clues.
+	enMessages[KeyToolUsageAskUser] = `## ask_user
+Description: Ask the user one or more questions to gather additional information needed to complete the task. Use when there is ambiguity, need for clarification, or more details are required. Enables interactive problem-solving by allowing direct communication with the user.
 Parameters:
 - meta (required) Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.
-- question (required) The question to ask the user. Should be a clear, specific question explaining what information you need.
-- options (optional) 2-5 options for the user to choose from. Each option is a string describing a possible answer. Try to provide options whenever possible to maximize ease of user operation.
+- questions (required) The questions to ask, presented one by one in order. Each item contains:
+  - title (required) The question text.
+  - options (optional) 2-5 options for the user to choose from; omit to ask for free-form text.
+  - multi (optional, default false) Whether the user may select several options.
+  - allow_note (optional, default true) Whether the user may attach a supplementary note to a chosen option.
+  - required (optional, default false) Whether the user must answer this question; when true the form cannot be submitted while it is unanswered.
+Note: collect all pending questions in a single call instead of asking one at a time; unanswered questions are reported back as "(not answered)".
 Usage:
-<{XML_TAG_PREFIX}ask_followup_question>
-  <{XML_TAG_PREFIX}question>Which database would you like to use?</{XML_TAG_PREFIX}question>
-  <{XML_TAG_PREFIX}options>
-    <{XML_TAG_PREFIX}item>MySQL</{XML_TAG_PREFIX}item>
-    <{XML_TAG_PREFIX}item>PostgreSQL</{XML_TAG_PREFIX}item>
-    <{XML_TAG_PREFIX}item>SQLite</{XML_TAG_PREFIX}item>
-  </{XML_TAG_PREFIX}options>
-</{XML_TAG_PREFIX}ask_followup_question>`
+<{XML_TAG_PREFIX}ask_user>
+  <{XML_TAG_PREFIX}meta>
+    <{XML_TAG_PREFIX}intent>Need the user to confirm the database choice and required capabilities</{XML_TAG_PREFIX}intent>
+    <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+  </{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}questions>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}title>Which database would you like to use?</{XML_TAG_PREFIX}title>
+      <{XML_TAG_PREFIX}options>
+        <{XML_TAG_PREFIX}item>MySQL</{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}item>PostgreSQL</{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}item>SQLite</{XML_TAG_PREFIX}item>
+      </{XML_TAG_PREFIX}options>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}title>Which capabilities are needed?</{XML_TAG_PREFIX}title>
+      <{XML_TAG_PREFIX}options>
+        <{XML_TAG_PREFIX}item>Read/write splitting</{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}item>Automatic backup</{XML_TAG_PREFIX}item>
+      </{XML_TAG_PREFIX}options>
+      <{XML_TAG_PREFIX}multi>true</{XML_TAG_PREFIX}multi>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}questions>
+</{XML_TAG_PREFIX}ask_user>`
 
 	enMessages[KeyToolUsageBoardPost] = `## board_post
 Description: Publish a help request to the hub bulletin board (FEATURE-490). Other agents whose role matches may claim it; the requester and the assignee can then clarify via board_dm before execution. Only available when the board switch is enabled.
@@ -1597,7 +1618,7 @@ The following capabilities need no tool call — they are perceivable directly f
 	enMessages[KeySystemPromptCapabilities] = `
 CAPABILITIES
 
-1. **Coding** — Use ` + "`" + `search_files` + "`" + ` / ` + "`" + `read_file` + "`" + ` / ` + "`" + `list_files` + "`" + ` / ` + "`" + `list_code_definition_names` + "`" + ` to fully understand existing code structure and logic, use ` + "`" + `ask_followup_question` + "`" + ` to clarify ambiguity, use ` + "`" + `memory_search` + "`" + ` / ` + "`" + `get_memory_slice` + "`" + ` to retrieve historical context for decision making.
+1. **Coding** — Use ` + "`" + `search_files` + "`" + ` / ` + "`" + `read_file` + "`" + ` / ` + "`" + `list_files` + "`" + ` / ` + "`" + `list_code_definition_names` + "`" + ` to fully understand existing code structure and logic, use ` + "`" + `ask_user` + "`" + ` to clarify ambiguity, use ` + "`" + `memory_search` + "`" + ` / ` + "`" + `get_memory_slice` + "`" + ` to retrieve historical context for decision making.
 
 2. **Simplicity** — Solve problems with minimal tool calls — use ` + "`" + `read_file` + "`" + ` + ` + "`" + `replace_in_file` + "`" + ` for small changes without extra tools, use ` + "`" + `evaluate_expression` + "`" + ` for calculations without Python or shell.
 
@@ -1625,9 +1646,9 @@ OBJECTIVE
 
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
 
-1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order. If the new task proposed by the user conflicts with the current task list, use ask_followup_question to let the user choose the next step.
+1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order. If the new task proposed by the user conflicts with the current task list, use ask_user to let the user choose the next step.
 2. Work through these goals sequentially, utilizing available tools one at a time as necessary. Each goal should correspond to a distinct step in your problem-solving process. You will be informed on the work completed and what's remaining as you go.
-3. Before calling a tool, first analyze the provided file structure for context. Check each required parameter of the relevant tool and determine if the user has directly provided or given enough information to infer a value. If a required parameter value is missing, do NOT invoke the tool — use ask_followup_question to ask the user for the missing parameter.
+3. Before calling a tool, first analyze the provided file structure for context. Check each required parameter of the relevant tool and determine if the user has directly provided or given enough information to infer a value. If a required parameter value is missing, do NOT invoke the tool — use ask_user to ask the user for the missing parameter.
 4. Before using attempt_completion, verify the task requirements with available tools. Confirm required output files exist, required content/format constraints are satisfied, and no forbidden extra artifacts were introduced. If checks fail, continue working until the result is verifiably correct.
 5. Once you've completed the user's task and verified the result, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result.
 6. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
@@ -1635,7 +1656,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 **IMPORTANT: The only way to end the task**
 At the end of each iteration, if you did not call any tools, the system will automatically stop the iteration. To continue, you must call a tool or explicitly call attempt_completion.
 - **Only call attempt_completion when you are absolutely sure, after careful consideration, that all task steps have been successfully completed and the results have been presented to the user.**
-- If the task is clearly infeasible, use ask_followup_question to explain the situation and ask the user to adjust the goal.
+- If the task is clearly infeasible, use ask_user to explain the situation and ask the user to adjust the goal.
 
 
 `
@@ -1667,7 +1688,7 @@ Current task plan:
 
 {TASK_PLAN}
 
-Note: If this plan does not align with the user's main task, use ask_followup_question to ask the user which to execute first, or whether the tasks should be merged.
+Note: If this plan does not align with the user's main task, use ask_user to ask the user which to execute first, or whether the tasks should be merged.
 `
 
 	// Vault tool usage examples (XML mode)

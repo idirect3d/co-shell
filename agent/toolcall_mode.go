@@ -114,7 +114,7 @@ var toolUsageKeyMap = map[string]string{
 	"delete_memory":                    i18n.KeyToolUsageDeleteMemory,
 	"update_settings":                  i18n.KeyToolUsageUpdateSettings,
 	"list_settings":                    i18n.KeyToolUsageListSettings,
-	"ask_followup_question":            i18n.KeyToolUsageAskFollowupQuestion,
+	"ask_user":                         i18n.KeyToolUsageAskUser,
 	"attempt_completion":               i18n.KeyToolUsageAttemptCompletion,
 	"evaluate_expression":              i18n.KeyToolUsageEvaluateExpression,
 	"reorganize_context":               i18n.KeyToolUsageReorganizeContext,

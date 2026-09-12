@@ -1171,7 +1171,7 @@ aside {
 }
 /* Top-bottom layout: prompt info on top, option buttons below. */
 .interaction-title { font-size: 13px; color: var(--fg); font-weight: 600; }
-/* FEATURE-409: the question (ask_followup_question) is rendered as markdown,
+/* FEATURE-409: the question (ask_user) is rendered as markdown,
    so drop the heavy title weight and let md blocks lay out the text. */
 .interaction-title.md { font-weight: 400; white-space: normal; }
 .interaction-title.md > :first-child { margin-top: 0; }
@@ -1198,6 +1198,183 @@ aside {
 }
 .interaction-title.md th { background: var(--bg-elev); }
 .interaction-title.md a { color: var(--accent); text-decoration: none; }
+
+/* FEATURE-512: multi-question form (ask_user) — one card per question with a
+   divider between questions, radio/checkbox options and per-option notes. */
+.qs-card { border-top: 1px dashed var(--border); padding-top: 10px; }
+.qs-card:first-of-type { border-top: none; padding-top: 0; }
+.qs-head { display: flex; align-items: baseline; gap: 8px; }
+.qs-index {
+  flex: none;
+  min-width: 26px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+}
+.qs-title { flex: 1; font-size: 13px; color: var(--fg); }
+/* FEATURE-512: mdRender wraps the question text in block elements whose default
+   margins pushed the text below the Qn badge; reset them so the badge and the
+   first line of the question sit on the same baseline. */
+.qs-title.md > :first-child { margin-top: 0; }
+.qs-title.md > :last-child { margin-bottom: 0; }
+.qs-title.md p { margin: 0; }
+.qs-tag { margin: 4px 0 0 34px; font-size: 11.5px; color: var(--accent); opacity: 0.85; }
+.qs-options { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 0 34px; }
+.qs-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  cursor: pointer;
+}
+.qs-option:hover { border-color: var(--accent); }
+.qs-option.on { border-color: var(--accent); background: var(--accent-dim); }
+.qs-mark { flex: none; width: 1.1em; text-align: center; color: var(--accent); }
+.qs-label { flex: 1; color: var(--fg); font-size: 12.5px; }
+.qs-note-btn {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.qs-note-btn:hover { border-color: var(--accent); }
+.qs-note-input {
+  display: block;
+  margin: 4px 0 0 42px;
+  width: calc(100% - 42px);
+  background: var(--mono-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  padding: 4px 8px;
+  font-size: 12px;
+  outline: none;
+}
+.qs-note-input:focus { border-color: var(--accent); }
+.qs-note-input.hidden { display: none; }
+.qs-free {
+  display: block;
+  margin: 6px 0 0 34px;
+  width: calc(100% - 34px);
+  background: var(--mono-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  padding: 5px 9px;
+  font-size: 12.5px;
+  outline: none;
+}
+.qs-free:focus { border-color: var(--accent); }
+/* FEATURE-512: the focused question swaps its Qn badge to an inverted solid
+   style (solid accent background + contrasting text colour), so it stands out
+   clearly against the outlined badges of the other questions. */
+.qs-index.hot {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+/* FEATURE-512: option key cap — same size as the legacy ask_followup_question
+   option keys (.opt-key-btn) and clickable: a click selects the option, holding
+   it opens that option's note input. */
+.qs-hotkey {
+  flex: none;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+.qs-hotkey:hover { background: var(--accent); color: #fff; }
+.qs-hotkey.hidden { display: none; }
+.qs-hint { margin: 6px 0 0 34px; font-size: 11.5px; color: var(--accent); opacity: 0.85; }
+/* FEATURE-512: key caps (方框) in the hint line and in the bottom action
+   buttons. They use the same size as the option key caps (.qs-hotkey /
+   legacy .opt-key-btn) so 回车 / 空格 / - / + are easy to hit with a mouse. */
+.qs-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  margin: 0 2px;
+  padding: 0 8px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+}
+button.qs-kbd { cursor: pointer; }
+button.qs-kbd:hover { background: var(--accent); color: #fff; }
+button.qs-kbd:active { transform: translateY(1px); }
+/* FEATURE-512: badge marking a required question, placed at the end of the
+   question text. */
+.qs-req {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* FEATURE-512: required question left unanswered on submit. */
+.qs-missing .qs-index { background: var(--warn); border-color: var(--warn); color: var(--bg); }
+.qs-warn { align-self: center; color: var(--warn); font-size: 11.5px; }
+.qs-bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.qs-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.qs-submit:hover { background: var(--accent); color: var(--bg); }
+.qs-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.qs-key:hover { border-color: var(--accent); color: var(--accent); }
 .interaction-title.md a:hover { text-decoration: underline; }
 .interaction-body { font-size: 12px; color: var(--fg-dim, #888); white-space: pre-wrap; }
 /* FEATURE-459: each report section (main LLM report / supervisor review) is an

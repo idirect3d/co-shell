@@ -371,113 +371,136 @@ func TestPromptErrorConfirmationInteractionFields(t *testing.T) {
 	}
 }
 
-// newAskFollowupAgent builds a minimal Agent for askFollowupQuestionTool tests.
-func newAskFollowupAgent(io UserIO) *Agent {
+// newAskUserAgent builds a minimal Agent for ask_user tool tests (FEATURE-512).
+func newAskUserAgent(io UserIO) *Agent {
 	return &Agent{
 		io:                   io,
 		taskInstructionCache: bytes.Buffer{},
 	}
 }
 
-// TestAskFollowupQuestionSelect verifies askFollowupQuestionTool stores the
-// selected option in the task instruction cache after migration (UC-0017).
-func TestAskFollowupQuestionSelect(t *testing.T) {
+// TestAskUserLegacySingleQuestion verifies the legacy question/options shape is
+// still accepted and treated as a single-question form (UC-0003).
+func TestAskUserLegacySingleQuestion(t *testing.T) {
 	io := &mockUserIO{inputs: []string{"1"}}
-	a := newAskFollowupAgent(io)
-	res, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
+	a := newAskUserAgent(io)
+	res, err := a.askUserTool(context.Background(), map[string]interface{}{
 		"question": "请选择处理方式",
 		"options":  []interface{}{"立即执行", "稍后执行"},
 	})
 	if err != nil {
-		t.Fatalf("askFollowupQuestionTool error: %v", err)
+		t.Fatalf("askUserTool error: %v", err)
 	}
 	if res == "" {
 		t.Error("expected non-empty result")
 	}
-	if got := a.taskInstructionCache.String(); got != "立即执行" {
-		t.Errorf("taskInstructionCache = %q, want 立即执行", got)
+	if got := a.taskInstructionCache.String(); !strings.Contains(got, "立即执行") {
+		t.Errorf("taskInstructionCache = %q, want to contain 立即执行", got)
 	}
 }
 
-// TestAskFollowupQuestionSelectWithNote verifies option + supplementary note is
-// stored (UC-0017).
-func TestAskFollowupQuestionSelectWithNote(t *testing.T) {
-	io := &mockUserIO{inputs: []string{"1 请补充细节"}}
-	a := newAskFollowupAgent(io)
-	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
-		"question": "请选择处理方式",
-		"options":  []interface{}{"立即执行", "稍后执行"},
+// TestAskUserMultipleQuestions verifies several questions are collected in one
+// round: single choice first, then multi choice (UC-0009/UC-0010).
+func TestAskUserMultipleQuestions(t *testing.T) {
+	io := &mockUserIO{inputs: []string{"1", "1,2"}}
+	a := newAskUserAgent(io)
+	_, err := a.askUserTool(context.Background(), map[string]interface{}{
+		"questions": []interface{}{
+			map[string]interface{}{
+				"title":   "用哪个数据库？",
+				"options": []interface{}{"MySQL", "PostgreSQL"},
+			},
+			map[string]interface{}{
+				"title":   "需要哪些能力？",
+				"options": []interface{}{"读写分离", "自动备份"},
+				"multi":   true,
+			},
+		},
 	})
 	if err != nil {
-		t.Fatalf("askFollowupQuestionTool error: %v", err)
+		t.Fatalf("askUserTool error: %v", err)
 	}
 	got := a.taskInstructionCache.String()
-	if !strings.Contains(got, "立即执行") || !strings.Contains(got, "请补充细节") {
-		t.Errorf("taskInstructionCache = %q, want to contain 立即执行 and 请补充细节", got)
+	// The compact format keeps only the question number and the answer; the
+	// question text itself is no longer repeated (FEATURE-512).
+	if strings.Contains(got, "用哪个数据库？") || strings.Contains(got, "需要哪些能力？") {
+		t.Errorf("taskInstructionCache = %q, should not repeat the question text", got)
+	}
+	for _, want := range []string{"Q1: MySQL", "Q2: 读写分离 + 自动备份"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("taskInstructionCache = %q, want to contain %q", got, want)
+		}
 	}
 }
 
-// TestAskFollowupQuestionFreeInput verifies free-form input is stored (UC-0017).
-func TestAskFollowupQuestionFreeInput(t *testing.T) {
-	io := &mockUserIO{inputs: []string{"任意内容"}}
-	a := newAskFollowupAgent(io)
-	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
-		"question": "请补充说明",
+// TestAskUserFreeTextQuestion verifies a question without options takes
+// free-form text (UC-0013).
+func TestAskUserFreeTextQuestion(t *testing.T) {
+	io := &mockUserIO{inputs: []string{"请保留旧表"}}
+	a := newAskUserAgent(io)
+	_, err := a.askUserTool(context.Background(), map[string]interface{}{
+		"questions": []interface{}{
+			map[string]interface{}{"title": "还有其他要说明的吗？"},
+		},
 	})
 	if err != nil {
-		t.Fatalf("askFollowupQuestionTool error: %v", err)
+		t.Fatalf("askUserTool error: %v", err)
 	}
-	if got := a.taskInstructionCache.String(); got != "任意内容" {
-		t.Errorf("taskInstructionCache = %q, want 任意内容", got)
+	if got := a.taskInstructionCache.String(); !strings.Contains(got, "请保留旧表") {
+		t.Errorf("taskInstructionCache = %q, want to contain 请保留旧表", got)
 	}
 }
 
-// TestAskFollowupQuestionCancel verifies cancel returns CANCEL_AGENT (UC-0017).
-// With 2 options, the supplementary option is [3] and cancel is [4].
-func TestAskFollowupQuestionCancel(t *testing.T) {
-	io := &mockUserIO{inputs: []string{"4"}}
-	a := newAskFollowupAgent(io)
-	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
+// TestAskUserEmptyAnswer verifies an unanswered question is reported back with
+// the "not answered" marker instead of being dropped (UC-0006/UC-0017).
+func TestAskUserEmptyAnswer(t *testing.T) {
+	io := &mockUserIO{inputs: []string{""}}
+	a := newAskUserAgent(io)
+	_, err := a.askUserTool(context.Background(), map[string]interface{}{
+		"questions": []interface{}{
+			map[string]interface{}{"title": "需要哪些能力？", "options": []interface{}{"A", "B"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("askUserTool error: %v", err)
+	}
+	if got := a.taskInstructionCache.String(); !strings.Contains(got, i18n.T(i18n.KeyAskUserNoAnswer)) {
+		t.Errorf("taskInstructionCache = %q, want the not-answered marker", got)
+	}
+}
+
+// TestAskUserOptionNote verifies a note typed after the option number is kept
+// with that option (UC-0011).
+func TestAskUserOptionNote(t *testing.T) {
+	io := &mockUserIO{inputs: []string{"2 每天凌晨执行"}}
+	a := newAskUserAgent(io)
+	_, err := a.askUserTool(context.Background(), map[string]interface{}{
+		"questions": []interface{}{
+			map[string]interface{}{"title": "需要哪些能力？", "options": []interface{}{"读写分离", "自动备份"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("askUserTool error: %v", err)
+	}
+	got := a.taskInstructionCache.String()
+	if !strings.Contains(got, "自动备份") || !strings.Contains(got, "每天凌晨执行") {
+		t.Errorf("taskInstructionCache = %q, want to contain 自动备份 and 每天凌晨执行", got)
+	}
+}
+
+// TestAskUserCancel verifies the cancel action aborts the tool (UC-0007).
+func TestAskUserCancel(t *testing.T) {
+	a := &Agent{
+		io:                   &mockUserIO{},
+		taskInstructionCache: bytes.Buffer{},
+		interactionMgr:       &captureInteractionManager{askResult: InteractionResult{Action: ActionCancel}},
+	}
+	_, err := a.askUserTool(context.Background(), map[string]interface{}{
 		"question": "请选择处理方式",
 		"options":  []interface{}{"立即执行", "稍后执行"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "CANCEL_AGENT") {
 		t.Errorf("expected CANCEL_AGENT error, got %v", err)
-	}
-}
-
-// TestAskFollowupQuestionSupplementaryOption verifies selecting the fixed
-// supplementary-info option (len(options)+1) enters free input mode and the
-// typed text is stored (FEATURE-438).
-func TestAskFollowupQuestionSupplementaryOption(t *testing.T) {
-	io := &mockUserIO{inputs: []string{"3", "请补充更多细节"}}
-	a := newAskFollowupAgent(io)
-	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
-		"question": "请选择处理方式",
-		"options":  []interface{}{"立即执行", "稍后执行"},
-	})
-	if err != nil {
-		t.Fatalf("askFollowupQuestionTool error: %v", err)
-	}
-	if got := a.taskInstructionCache.String(); got != "请补充更多细节" {
-		t.Errorf("taskInstructionCache = %q, want 请补充更多细节", got)
-	}
-}
-
-// TestAskFollowupQuestionSpaceInput verifies typing a leading space enters
-// supplementary-info input directly (FEATURE-438).
-func TestAskFollowupQuestionSpaceInput(t *testing.T) {
-	io := &mockUserIO{inputs: []string{" 请补充细节"}}
-	a := newAskFollowupAgent(io)
-	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
-		"question": "请选择处理方式",
-		"options":  []interface{}{"立即执行", "稍后执行"},
-	})
-	if err != nil {
-		t.Fatalf("askFollowupQuestionTool error: %v", err)
-	}
-	if got := a.taskInstructionCache.String(); got != "请补充细节" {
-		t.Errorf("taskInstructionCache = %q, want 请补充细节", got)
 	}
 }
 
@@ -517,41 +540,5 @@ func TestTerminalSelectKeyOptionPlus(t *testing.T) {
 	}
 	if res.Action != ActionSelect || res.Value != "more" {
 		t.Errorf("Action/Value = %q/%q, want select/more", res.Action, res.Value)
-	}
-}
-
-// TestAskFollowupQuestionThinkExit verifies the "-" fixed option maps back to
-// the user-readable label and is stored in the task instruction cache
-// (FEATURE-452).
-func TestAskFollowupQuestionThinkExit(t *testing.T) {
-	io := &mockUserIO{inputs: []string{"-"}}
-	a := newAskFollowupAgent(io)
-	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
-		"question": "请选择处理方式",
-		"options":  []interface{}{"立即执行", "稍后执行"},
-	})
-	if err != nil {
-		t.Fatalf("askFollowupQuestionTool error: %v", err)
-	}
-	if got := a.taskInstructionCache.String(); got != i18n.T(i18n.KeyAskFollowupThinkExit) {
-		t.Errorf("taskInstructionCache = %q, want %q", got, i18n.T(i18n.KeyAskFollowupThinkExit))
-	}
-}
-
-// TestAskFollowupQuestionMoreOptions verifies the "+" fixed option maps back to
-// the user-readable label and is stored in the task instruction cache
-// (FEATURE-452).
-func TestAskFollowupQuestionMoreOptions(t *testing.T) {
-	io := &mockUserIO{inputs: []string{"+"}}
-	a := newAskFollowupAgent(io)
-	_, err := a.askFollowupQuestionTool(context.Background(), map[string]interface{}{
-		"question": "请选择处理方式",
-		"options":  []interface{}{"立即执行", "稍后执行"},
-	})
-	if err != nil {
-		t.Fatalf("askFollowupQuestionTool error: %v", err)
-	}
-	if got := a.taskInstructionCache.String(); got != i18n.T(i18n.KeyAskFollowupMoreOptions) {
-		t.Errorf("taskInstructionCache = %q, want %q", got, i18n.T(i18n.KeyAskFollowupMoreOptions))
 	}
 }

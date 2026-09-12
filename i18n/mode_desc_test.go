@@ -24,7 +24,7 @@ func TestWorkModePlanDescRequirementDiscovery(t *testing.T) {
 			lang: LangZH,
 			mustHave: []string{
 				"挖掘用户的真实需求",
-				"反复用 ask_followup_question 与用户确认",
+				"反复用 ask_user 与用户确认",
 				"不要仅凭猜测替用户做决定",
 			},
 		},
@@ -33,7 +33,7 @@ func TestWorkModePlanDescRequirementDiscovery(t *testing.T) {
 			lang: LangEN,
 			mustHave: []string{
 				"uncovering the user's real requirements",
-				"repeatedly confirm with the user via the ask_followup_question tool",
+				"repeatedly confirm with the user via the ask_user tool",
 				"Do NOT make decisions on the user's behalf based on guesswork",
 			},
 		},

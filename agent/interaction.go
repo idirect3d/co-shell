@@ -33,6 +33,9 @@ const (
 	InteractionInput InteractionKind = "input"
 	// InteractionKey is a single-key confirmation.
 	InteractionKey InteractionKind = "key"
+	// InteractionQuestions is a multi-question form (FEATURE-512): several
+	// questions collected in one interaction round.
+	InteractionQuestions InteractionKind = "questions"
 )
 
 // InteractionResultAction is the structured action a user chose.
@@ -57,24 +60,57 @@ const (
 	ActionSelect InteractionResultAction = "select"
 	// ActionInput returns free-form text input.
 	ActionInput InteractionResultAction = "input"
+	// ActionSubmit submits all answers of a multi-question form (FEATURE-512).
+	ActionSubmit InteractionResultAction = "submit"
 )
 
 // KeyOption is a single key/button option offered to the user.
 type KeyOption struct {
-	Label string `json:"label"` // display label (e.g. "Approve", "Cancel")
-	Key   string `json:"key"`   // trigger key ("" = Enter)
-	Value string `json:"value"` // value returned to the backend
+	Label string `json:"label"`          // display label (e.g. "Approve", "Cancel")
+	Key   string `json:"key"`            // trigger key ("" = Enter)
+	Value string `json:"value"`          // value returned to the backend
 	Hint  string `json:"hint,omitempty"` // hover hint (Web)
+}
+
+// Question is one item of a multi-question interaction (FEATURE-512). Options
+// may be empty, in which case the question expects free-form text. Multi allows
+// selecting more than one option. AllowNote lets the user attach a supplementary
+// note to a selected option. Required marks a question the user must answer
+// before the form can be submitted (default false).
+type Question struct {
+	Title     string   `json:"title"`
+	Options   []string `json:"options,omitempty"`
+	Multi     bool     `json:"multi,omitempty"`
+	AllowNote bool     `json:"allow_note,omitempty"`
+	Required  bool     `json:"required,omitempty"`
+}
+
+// AnswerNote is a supplementary note attached to one selected option.
+type AnswerNote struct {
+	Option string `json:"option"`
+	Note   string `json:"note"`
+}
+
+// QuestionAnswer is the user's answer to one question. Selected holds the chosen
+// options (one for single-choice, several for multi-choice), Notes holds the
+// per-option supplementary notes, and Text carries the free-form answer for a
+// question without options.
+type QuestionAnswer struct {
+	Question string       `json:"question"`
+	Selected []string     `json:"selected,omitempty"`
+	Notes    []AnswerNote `json:"notes,omitempty"`
+	Text     string       `json:"text,omitempty"`
 }
 
 // Interaction is a complete declaration of one user interaction.
 type Interaction struct {
-	Kind      InteractionKind `json:"kind"`                // interaction type
-	Title     string          `json:"title,omitempty"`     // title (tool summary, question)
-	Body      string          `json:"body,omitempty"`      // body (risk warning, extra note)
-	Options   []string        `json:"options,omitempty"`   // select options
-	Keys      []KeyOption     `json:"keys,omitempty"`      // key/button options (confirm/key)
-	Default   string          `json:"default,omitempty"`   // default value (Enter)
+	Kind      InteractionKind `json:"kind"`                 // interaction type
+	Title     string          `json:"title,omitempty"`      // title (tool summary, question)
+	Body      string          `json:"body,omitempty"`       // body (risk warning, extra note)
+	Options   []string        `json:"options,omitempty"`    // select options
+	Keys      []KeyOption     `json:"keys,omitempty"`       // key/button options (confirm/key)
+	Questions []Question      `json:"questions,omitempty"`  // questions (kind=questions, FEATURE-512)
+	Default   string          `json:"default,omitempty"`    // default value (Enter)
 	AllowFree bool            `json:"allow_free,omitempty"` // allow free-form input
 	// Presets carries preset values for an action (e.g. approve_count [3,10,50]).
 	Presets []string `json:"presets,omitempty"`
@@ -82,9 +118,10 @@ type Interaction struct {
 
 // InteractionResult is the structured outcome of a user interaction.
 type InteractionResult struct {
-	Action InteractionResultAction `json:"action"` // action chosen
-	Value  string                  `json:"value"` // value (approve count, selected option, free text)
-	Raw    string                  `json:"raw"`   // raw input (preserved)
+	Action  InteractionResultAction `json:"action"`            // action chosen
+	Value   string                  `json:"value"`             // value (approve count, selected option, free text)
+	Raw     string                  `json:"raw"`               // raw input (preserved)
+	Answers []QuestionAnswer        `json:"answers,omitempty"` // answers (kind=questions, FEATURE-512)
 }
 
 // InteractionManager handles user interactions uniformly. Tool callbacks
@@ -118,6 +155,8 @@ func (m *TerminalInteractionManager) Ask(ctx context.Context, in Interaction) (I
 		return m.askSelect(in)
 	case InteractionInput:
 		return m.askInput(in)
+	case InteractionQuestions:
+		return m.askQuestions(in)
 	case InteractionKey:
 		return m.askKey(in)
 	default:

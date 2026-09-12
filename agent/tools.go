@@ -678,31 +678,8 @@ Critical rules:
 		Callback: a.listSettingsTool,
 	})
 
-	// Add ask_followup_question tool (always available)
-	tools = append(tools, llm.Tool{
-		Name:        "ask_followup_question",
-		Description: "Ask the user a question to gather additional information needed to complete the task. Use this when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.",
-		Parameters: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"meta": map[string]interface{}{
-					"type":        "object",
-					"description": "Transparency metadata object carrying intent/risk/risk_reason/affected_objects/progress. See the system prompt for the full structure.",
-				},
-				"question": map[string]interface{}{
-					"type":        "string",
-					"description": "The question to ask the user. This should be a clear, specific question that addresses the information you need.",
-				},
-				"options": map[string]interface{}{
-					"type":        "array",
-					"items":       map[string]interface{}{"type": "string"},
-					"description": "An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually.",
-				},
-			},
-			"required": []string{"meta", "question"},
-		},
-		Callback: a.askFollowupQuestionTool,
-	})
+	// Add ask_user tool (always available, FEATURE-512)
+	tools = append(tools, a.buildAskUserTool())
 
 	// Add evaluate_expression tool (always available)
 	tools = append(tools, llm.Tool{
@@ -1895,7 +1872,6 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		tools = append(tools, mcpLLMTool)
 	}
 
-
 	// FEATURE-490: board collaboration tools (only when the board switch is on).
 	if a.BoardEnabled() {
 		tools = append(tools, llm.Tool{
@@ -2438,89 +2414,6 @@ func (a *Agent) executeToolCall(ctx context.Context, tc llm.ToolCall) (string, e
 	}
 
 	return "", fmt.Errorf("tool %q not found", tc.Name)
-}
-
-// askFollowupQuestion presents a question with optional options to the user
-// and returns their selection. This tool allows interactive problem-solving
-// by enabling direct communication with the user. It delegates to the unified
-// Interaction model (FEATURE-388): a select interaction when options are
-// provided, otherwise a free-form input interaction.
-func (a *Agent) askFollowupQuestionTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	question, _ := args["question"].(string)
-	if question == "" {
-		return "", fmt.Errorf("question is required")
-	}
-
-	// Get options (optional)
-	// Support both "options" (OpenAI mode / direct JSON) and "item" (XML mode,
-	// where parseXMLChildrenToJSON converts <item> elements to a "item"-keyed array).
-	var options []string
-	if opts, ok := args["options"].([]interface{}); ok {
-		for _, opt := range opts {
-			if optStr, ok := opt.(string); ok {
-				options = append(options, optStr)
-			}
-		}
-	} else if opts, ok := args["item"].([]interface{}); ok {
-		for _, opt := range opts {
-			if optStr, ok := opt.(string); ok {
-				options = append(options, optStr)
-			}
-		}
-	}
-
-	// Build the interaction: select when options exist, otherwise free input.
-	// FEATURE-452: append two fixed key options — "-" (think it over, exit for
-	// now) and "+" (are there other options or combinations?). Both are sent
-	// back to the LLM so it can decide how to proceed.
-	in := Interaction{Kind: InteractionInput, Title: question}
-	if len(options) > 0 {
-		in.Kind = InteractionSelect
-		in.Options = options
-		in.Keys = []KeyOption{
-			{Label: i18n.T(i18n.KeyAskFollowupThinkExit), Key: "-", Value: "think_exit"},
-			{Label: i18n.T(i18n.KeyAskFollowupMoreOptions), Key: "+", Value: "more_options"},
-		}
-	}
-
-	res, err := a.interactionManager().Ask(ctx, in)
-	if err != nil {
-		return "", fmt.Errorf("failed to read user input: %w", err)
-	}
-
-	switch res.Action {
-	case ActionCancel:
-		return "", fmt.Errorf("CANCEL_AGENT")
-	case ActionSelect:
-		// Map fixed key options back to their user-readable labels so the LLM
-		// receives meaningful text.
-		content := res.Value
-		switch res.Value {
-		case "think_exit":
-			content = i18n.T(i18n.KeyAskFollowupThinkExit)
-		case "more_options":
-			content = i18n.T(i18n.KeyAskFollowupMoreOptions)
-		default:
-			// res.Value is the selected option; res.Raw may carry a supplementary note.
-			if res.Raw != "" && res.Raw != res.Value {
-				// Extract the note after the option number.
-				fields := strings.Fields(res.Raw)
-				if len(fields) > 1 {
-					note := strings.TrimSpace(res.Raw[len(fields[0]):])
-					if note != "" {
-						content = res.Value + "\n" + note
-					}
-				}
-			}
-		}
-		a.storeUserReply(content)
-		return i18n.T(i18n.KeySettingCmd_609), nil
-	case ActionInput:
-		a.storeUserReply(res.Value)
-		return i18n.T(i18n.KeySettingCmd_609), nil
-	default:
-		return "", nil
-	}
 }
 
 // storeUserReply writes a user reply into the task instruction cache, separated

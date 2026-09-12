@@ -74,9 +74,9 @@ func init() {
 
 	zhMessages[KeyWorkModePlan] = `在此模式下，你专注于**挖掘用户的真实需求**，并据此制定完成任务的详细计划，供用户审阅批准后再切换到 ACT MODE 实施。
 - **本模式的首要目标是搞清楚“用户到底要什么”**，而不是急于给出方案。用户需求常常是模糊的：主动识别其中不明确、有歧义或信息缺失之处。
-- **对任何模糊之处，必须反复用 ask_followup_question 与用户确认，直到需求明确**；一次问不清就多问几次，宁可多确认也不要猜。
+- **对任何模糊之处，必须反复用 ask_user 与用户确认，直到需求明确**；一次问不清就多问几次，宁可多确认也不要猜。
 - **不要仅凭猜测替用户做决定**：当你不确定用户的意图、范围、优先级或验收标准时，不要自行假定后继续推进——先问清楚。
-- 需要与用户讨论计划、澄清需求或确认下一步时，使用 ask_followup_question 工具。
+- 需要与用户讨论计划、澄清需求或确认下一步时，使用 ask_user 工具。
 - 需求明确后，收集必要信息（如用 read_file 或 search_files 获取更多任务上下文），设计详细计划。
 - 计划制定完成后，用 track_task_progress 记录方案，再用 attempt_completion 呈现给用户；把它当作一次头脑风暴，讨论并规划最佳实现方式。
 - 最终达成良好计划后，请用户切换到 ACT MODE（如输入 :mode switch act）来实施解决方案。`
@@ -600,21 +600,42 @@ Usage:
 </{XML_TAG_PREFIX}meta>
 </{XML_TAG_PREFIX}list_settings>`
 
-	zhMessages[KeyToolUsageAskFollowupQuestion] = `## ask_followup_question
-Description: 向用户提问以收集完成任务所需的额外信息。当遇到歧义、需要澄清或需要更多细节时使用。通过允许与用户直接通信来实现交互式问题解决。仅在不明确获得用户确认或需要用户补充线索时才调用此方法。
-Parameters:
+	zhMessages[KeyToolUsageAskUser] = `## ask_user
+描述: 向用户提问以收集完成任务所需的额外信息，一次可提出多个问题。当遇到歧义、需要澄清或需要更多细节时使用。通过允许与用户直接通信来实现交互式问题解决。
+参数:
 - meta (必需) 透明元数据对象，包含 intent/risk/risk_reason/affected_objects/progress。完整结构见系统提示词。
-- question (必需) 向用户提出的问题。应是一个清晰、具体的问题，说明你需要的信息。
-- options (可选) 2-5 个选项供用户选择。每个选项是一个描述可能答案的字符串。应尽量给用户提供选项给用户选择，以便最大程度方便用户操作。
-Usage:
-<{XML_TAG_PREFIX}ask_followup_question>
-  <{XML_TAG_PREFIX}question>您希望使用哪种数据库？</{XML_TAG_PREFIX}question>
-  <{XML_TAG_PREFIX}options>
-    <{XML_TAG_PREFIX}item>MySQL</{XML_TAG_PREFIX}item>
-    <{XML_TAG_PREFIX}item>PostgreSQL</{XML_TAG_PREFIX}item>
-    <{XML_TAG_PREFIX}item>SQLite</{XML_TAG_PREFIX}item>
-  </{XML_TAG_PREFIX}options>
-</{XML_TAG_PREFIX}ask_followup_question>`
+- questions (必需) 问题数组，按顺序逐个展示。每项包含：
+  - title (必需) 问题文本。
+  - options (可选) 2-5 个选项供用户选择；省略则请用户自由输入。
+  - multi (可选，默认 false) 是否允许多选。
+  - allow_note (可选，默认 true) 是否允许用户对所选选项补充说明。
+  - required (可选，默认 false) 是否为必填题；设为 true 时用户未作答则无法提交。
+建议: 一次收集全部待确认问题，而不是分多次逐个提问；用户未作答的题目会标注“（未作答）”。
+用法:
+<{XML_TAG_PREFIX}ask_user>
+  <{XML_TAG_PREFIX}meta>
+    <{XML_TAG_PREFIX}intent>需要用户确认数据库选型与能力范围</{XML_TAG_PREFIX}intent>
+    <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+  </{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}questions>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}title>您希望使用哪种数据库？</{XML_TAG_PREFIX}title>
+      <{XML_TAG_PREFIX}options>
+        <{XML_TAG_PREFIX}item>MySQL</{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}item>PostgreSQL</{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}item>SQLite</{XML_TAG_PREFIX}item>
+      </{XML_TAG_PREFIX}options>
+    </{XML_TAG_PREFIX}item>
+    <{XML_TAG_PREFIX}item>
+      <{XML_TAG_PREFIX}title>需要哪些能力？</{XML_TAG_PREFIX}title>
+      <{XML_TAG_PREFIX}options>
+        <{XML_TAG_PREFIX}item>读写分离</{XML_TAG_PREFIX}item>
+        <{XML_TAG_PREFIX}item>自动备份</{XML_TAG_PREFIX}item>
+      </{XML_TAG_PREFIX}options>
+      <{XML_TAG_PREFIX}multi>true</{XML_TAG_PREFIX}multi>
+    </{XML_TAG_PREFIX}item>
+  </{XML_TAG_PREFIX}questions>
+</{XML_TAG_PREFIX}ask_user>`
 
 	zhMessages[KeyToolUsageBoardPost] = `## board_post
 描述: 向 hub 公告板发布一条求助请求（FEATURE-490）。其他职责匹配的 agent 可以认领，认领后双方可私信（board_dm）商定目标再执行。仅在公告板开关打开时可用。
@@ -1580,7 +1601,7 @@ META-CAPABILITIES
 	zhMessages[KeySystemPromptCapabilities] = `
 CAPABILITIES
 
-1. **编码能力**：能够通过 ` + "`" + `search_files` + "`" + ` / ` + "`" + `read_file` + "`" + ` / ` + "`" + `list_files` + "`" + ` / ` + "`" + `list_code_definition_names` + "`" + ` 充分理解现有代码结构和逻辑，通过 ` + "`" + `ask_followup_question` + "`" + ` 主动澄清歧义和不明确之处，通过 ` + "`" + `memory_search` + "`" + ` / ` + "`" + `get_memory_slice` + "`" + ` 检索历史上下文辅助决策。
+1. **编码能力**：能够通过 ` + "`" + `search_files` + "`" + ` / ` + "`" + `read_file` + "`" + ` / ` + "`" + `list_files` + "`" + ` / ` + "`" + `list_code_definition_names` + "`" + ` 充分理解现有代码结构和逻辑，通过 ` + "`" + `ask_user` + "`" + ` 主动澄清歧义和不明确之处，通过 ` + "`" + `memory_search` + "`" + ` / ` + "`" + `get_memory_slice` + "`" + ` 检索历史上下文辅助决策。
 
 2. **简洁优先**：能够用最少的工具调用解决问题——能通过 ` + "`" + `read_file` + "`" + ` + ` + "`" + `replace_in_file` + "`" + ` 完成的小修改不调用额外工具，能通过 ` + "`" + `evaluate_expression` + "`" + ` 完成的简单计算不启动 Python 或 shell。
 
@@ -1608,9 +1629,9 @@ OBJECTIVE
 
 你要迭代式地完成任务，将其分解为清晰的步骤并系统性地逐步执行。
 
-1. 分析用户的任务，设定清晰、可实现的完成目标，按逻辑顺序排列优先级。如果用户新提出的任务与当前任务清单不一致，通过 ask_followup_question 提示用户选择下一步。
+1. 分析用户的任务，设定清晰、可实现的完成目标，按逻辑顺序排列优先级。如果用户新提出的任务与当前任务清单不一致，通过 ask_user 提示用户选择下一步。
 2. 按顺序逐步完成这些目标，每个目标对应问题解决过程中的一个独立步骤。你会随着进展收到已完成工作和剩余工作的反馈。
-3. 在调用工具之前，应首先分析提供的文件结构以获得上下文。检查工具的每个必需参数，确定用户是否直接提供或有足够信息推断出值。如果某个必需参数的值缺失，不要调用该工具，而是使用 ask_followup_question 工具询问用户提供缺失参数。
+3. 在调用工具之前，应首先分析提供的文件结构以获得上下文。检查工具的每个必需参数，确定用户是否直接提供或有足够信息推断出值。如果某个必需参数的值缺失，不要调用该工具，而是使用 ask_user 工具询问用户提供缺失参数。
 4. 在使用 attempt_completion 之前，使用可用工具验证任务要求。确认所需的输出文件存在，满足所需的内容/格式约束，并且没有引入禁止的额外产物。如果检查失败，继续工作直到结果可验证正确。
 5. 完成用户任务并验证结果后，必须使用 attempt_completion 工具向用户呈现任务结果。你也可以提供一个 CLI 命令来展示任务成果。
 6. 用户可能会提供反馈，你可以据此进行改进并重试。但不要陷入无意义的来回对话，即不要以问题或进一步帮助的提议结束回复。
@@ -1618,7 +1639,7 @@ OBJECTIVE
 **重要：任务退出的唯一方式**
 每次迭代结束时，如果你没有调用任何工具，系统将自动停止迭代。要继续执行，必须调用工具或显式调用 attempt_completion。
 - **只有当你经过深思熟虑、确认所有任务步骤都已成功完成、结果已向用户呈现后，才能调用 attempt_completion**。
-- 如果任务明显不可行，应通过 ask_followup_question 向用户说明情况并请求调整目标。
+- 如果任务明显不可行，应通过 ask_user 向用户说明情况并请求调整目标。
 `
 
 	zhMessages[KeySystemPromptEnvironment] = `
@@ -1649,7 +1670,7 @@ SYSTEM INFORMATION
 当前任务计划记录如下：
 {TASK_PLAN}
 
-注意：如果该计划与用户的主要任务不一致，必须通过ask_followup_question询问用户先执行哪个，或是否需要合并任务一起执行。
+注意：如果该计划与用户的主要任务不一致，必须通过ask_user询问用户先执行哪个，或是否需要合并任务一起执行。
 `
 
 	// Vault tool usage examples (XML mode)

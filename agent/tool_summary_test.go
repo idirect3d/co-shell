@@ -181,7 +181,7 @@ func TestBuildToolSummaryStructuredFallback(t *testing.T) {
 // TestBuildToolSummaryTextNonEmpty verifies ToolSummary.Text is always set
 // (UC-0029).
 func TestBuildToolSummaryTextNonEmpty(t *testing.T) {
-	for _, tool := range []string{"execute_command", "read_file", "list_settings", "ask_followup_question"} {
+	for _, tool := range []string{"execute_command", "read_file", "list_settings", "ask_user"} {
 		got := buildToolSummary(tool, map[string]interface{}{"meta": map[string]interface{}{"intent": "x"}})
 		if got.Text == "" {
 			t.Errorf("%s Text should be non-empty", tool)
@@ -350,19 +350,19 @@ func TestToolSummaryI18nKeyPairs(t *testing.T) {
 	i18n.SetLang(string(original))
 }
 
-// TestBuildToolSummaryAskQuestionFull verifies ask_followup_question shows the
+// TestBuildToolSummaryAskQuestionFull verifies ask_user shows the
 // complete question (no truncation) — the question is the very content the user
 // must read and answer, so truncating it would defeat the purpose of asking.
 func TestBuildToolSummaryAskQuestionFull(t *testing.T) {
 	longQuestion := "模型文件正在后台传输中（deepseek模型156G，预计2-3小时），下载完成后需要重启服务才能生效，请问是否现在重启？"
-	got := buildToolSummary("ask_followup_question", map[string]interface{}{
+	got := buildToolSummary("ask_user", map[string]interface{}{
 		"question": longQuestion,
 	})
 	if !strings.Contains(got.Text, longQuestion) {
-		t.Errorf("ask_followup_question question should be shown in full, got: %q", got.Text)
+		t.Errorf("ask_user question should be shown in full, got: %q", got.Text)
 	}
 	if strings.Contains(got.Text, i18n.T(i18n.KeyToolCallSummaryTruncated)) {
-		t.Errorf("ask_followup_question question should NOT be truncated, got: %q", got.Text)
+		t.Errorf("ask_user question should NOT be truncated, got: %q", got.Text)
 	}
 }
 

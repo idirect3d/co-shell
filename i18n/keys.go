@@ -880,9 +880,23 @@ const (
 	KeyAttemptCompletionSimpleContinue       = "attempt_completion_simple_continue"
 	KeyAttemptCompletionSimpleContinuePrompt = "attempt_completion_simple_continue_prompt"
 
-	// FEATURE-452: ask_followup_question fixed options
+	// FEATURE-452: ask_user fixed options
 	KeyAskFollowupThinkExit   = "ask_followup_think_exit"
 	KeyAskFollowupMoreOptions = "ask_followup_more_options"
+
+	// FEATURE-512: ask_user multi-question form
+	KeyAskUserQuestionLabel   = "ask_user_question_label"
+	KeyAskUserMultiHint       = "ask_user_multi_hint"
+	KeyAskUserSubmit          = "ask_user_submit"
+	KeyAskUserSubmitCount     = "ask_user_submit_count"
+	KeyAskUserNote            = "ask_user_note"
+	KeyAskUserNotePlaceholder = "ask_user_note_placeholder"
+	KeyAskUserNoAnswer        = "ask_user_no_answer"
+	KeyAskUserAnswered        = "ask_user_answered"
+	KeyAskUserChoiceLabel     = "ask_user_choice_label"
+	KeyAskUserAnswerLabel     = "ask_user_answer_label"
+	KeyAskUserNoteLabel       = "ask_user_note_label"
+	KeyAskUserSingleHint      = "ask_user_single_hint"
 	KeySettingCmd_614         = "setting_cmd_614"
 	KeySettingCmd_615         = "setting_cmd_615"
 	KeySettingCmd_616         = "setting_cmd_616"
@@ -1277,7 +1291,7 @@ const (
 	// FIX-510: template (with %s) listing the available tools that do NOT take a
 	// meta parameter.
 	KeySystemPromptMetaExemptTools = "system_prompt_meta_exempt_tools"
-	KeySystemPromptEnv                 = "system_prompt_env"
+	KeySystemPromptEnv             = "system_prompt_env"
 
 	KeySystemPromptEditingFiles = "system_prompt_editing_files"
 
@@ -2217,27 +2231,27 @@ const (
 	KeyUserMessageTemplate = "user_message_template"
 
 	// Tool usage examples (FIX-190)
-	KeyToolUsageExecuteCommand      = "tool_usage_execute_command"
-	KeyToolUsageReadFile            = "tool_usage_read_file"
-	KeyToolUsageSearchFiles         = "tool_usage_search_files"
-	KeyToolUsageListFiles           = "tool_usage_list_files"
-	KeyToolUsageListCodeDefNames    = "tool_usage_list_code_definition_names"
-	KeyToolUsageReplaceInFile       = "tool_usage_replace_in_file"
-	KeyToolUsageWriteToFile         = "tool_usage_write_to_file"
-	KeyToolUsageVisualAnalysis      = "tool_usage_visual_analysis"
-	KeyToolUsageLaunchSubAgent      = "tool_usage_launch_sub_agent"
-	KeyToolUsageScheduleTask        = "tool_usage_schedule_task"
-	KeyToolUsageTrackTaskProgress   = "tool_usage_track_task_progress"
-	KeyToolUsageViewTaskPlan        = "tool_usage_view_task_plan"
-	KeyToolUsageGetMemorySlice      = "tool_usage_get_memory_slice"
-	KeyToolUsageMemorySearch        = "tool_usage_memory_search"
-	KeyToolUsageDeleteMemory        = "tool_usage_delete_memory"
-	KeyToolUsageUpdateSettings      = "tool_usage_update_settings"
-	KeyToolUsageListSettings        = "tool_usage_list_settings"
-	KeyToolUsageAskFollowupQuestion = "tool_usage_ask_followup_question"
-	KeyToolUsageAttemptCompletion   = "tool_usage_attempt_completion"
-	KeyToolUsageEvaluateExpression  = "tool_usage_evaluate_expression"
-	KeyToolUsageReorganizeContext   = "tool_usage_reorganize_context"
+	KeyToolUsageExecuteCommand     = "tool_usage_execute_command"
+	KeyToolUsageReadFile           = "tool_usage_read_file"
+	KeyToolUsageSearchFiles        = "tool_usage_search_files"
+	KeyToolUsageListFiles          = "tool_usage_list_files"
+	KeyToolUsageListCodeDefNames   = "tool_usage_list_code_definition_names"
+	KeyToolUsageReplaceInFile      = "tool_usage_replace_in_file"
+	KeyToolUsageWriteToFile        = "tool_usage_write_to_file"
+	KeyToolUsageVisualAnalysis     = "tool_usage_visual_analysis"
+	KeyToolUsageLaunchSubAgent     = "tool_usage_launch_sub_agent"
+	KeyToolUsageScheduleTask       = "tool_usage_schedule_task"
+	KeyToolUsageTrackTaskProgress  = "tool_usage_track_task_progress"
+	KeyToolUsageViewTaskPlan       = "tool_usage_view_task_plan"
+	KeyToolUsageGetMemorySlice     = "tool_usage_get_memory_slice"
+	KeyToolUsageMemorySearch       = "tool_usage_memory_search"
+	KeyToolUsageDeleteMemory       = "tool_usage_delete_memory"
+	KeyToolUsageUpdateSettings     = "tool_usage_update_settings"
+	KeyToolUsageListSettings       = "tool_usage_list_settings"
+	KeyToolUsageAskUser            = "tool_usage_ask_user"
+	KeyToolUsageAttemptCompletion  = "tool_usage_attempt_completion"
+	KeyToolUsageEvaluateExpression = "tool_usage_evaluate_expression"
+	KeyToolUsageReorganizeContext  = "tool_usage_reorganize_context"
 
 	// Board collaboration tool usage examples (FEATURE-490, XML mode)
 	KeyToolUsageBoardPost    = "tool_usage_board_post"

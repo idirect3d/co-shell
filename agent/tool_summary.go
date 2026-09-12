@@ -55,11 +55,11 @@ type SummaryParam struct {
 // consumers use them to colour the risk badge and highlight the affected
 // files in the workspace tree.
 type ToolSummary struct {
-	Text       string         `json:"text"`      // human-readable summary (TUI)
-	ToolName   string         `json:"tool_name"` // tool name
-	Intent     string         `json:"intent"`    // intent
-	Params     []SummaryParam `json:"params"`    // key parameters
-	Risk       string         `json:"risk"`      // low/medium/high (FEATURE-447)
+	Text       string         `json:"text"`                  // human-readable summary (TUI)
+	ToolName   string         `json:"tool_name"`             // tool name
+	Intent     string         `json:"intent"`                // intent
+	Params     []SummaryParam `json:"params"`                // key parameters
+	Risk       string         `json:"risk"`                  // low/medium/high (FEATURE-447)
 	RiskReason string         `json:"risk_reason,omitempty"` // LLM self-assessment reason
 	Files      []AffectedFile `json:"files,omitempty"`       // affected files (absolute paths + sensitive flag)
 	Progress   []ProgressStep `json:"progress,omitempty"`    // task progress report
@@ -190,12 +190,13 @@ func buildToolSummary(toolName string, args map[string]interface{}) ToolSummary 
 		s.Params = []SummaryParam{
 			{Name: "settings", Value: fmt.Sprintf("%d", argSliceLen(args, "settings")), Kind: "count"},
 		}
-	case "ask_followup_question":
-		// The question is the very content the user must read and answer, so
-		// it is shown in full (no truncation) — truncating it would defeat the
-		// purpose of asking.
+	case "ask_user":
+		// The questions are the very content the user must read and answer, so
+		// they are shown in full (no truncation) — truncating them would defeat
+		// the purpose of asking. With several questions only the first line of
+		// each is kept so the summary stays readable.
 		s.Text = i18n.TF(i18n.KeyToolCallSummaryAskQuestion,
-			argString(args, "question"))
+			askUserSummaryText(args))
 		s.Params = []SummaryParam{
 			{Name: "question", Value: argString(args, "question"), Kind: "text"},
 		}
