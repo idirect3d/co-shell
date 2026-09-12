@@ -29,18 +29,18 @@ package i18n
 // Translation key constants for compile-time safety and discoverability.
 const (
 	// General
-	KeyCancelled      = "cancelled"
-	KeySetupCancelled = "setup_cancelled"
+	KeyCancelled           = "cancelled"
+	KeySetupCancelled      = "setup_cancelled"
 	KeySetupNonInteractive = "setup_non_interactive"
-	KeyYes            = "yes"
-	KeyNo             = "no"
-	KeyOn             = "on"
-	KeyOff            = "off"
-	KeyError          = "error"
-	KeyWarning        = "warning"
-	KeySuccess        = "success"
-	KeyUnlimited      = "unlimited"
-	KeyDefault        = "default"
+	KeyYes                 = "yes"
+	KeyNo                  = "no"
+	KeyOn                  = "on"
+	KeyOff                 = "off"
+	KeyError               = "error"
+	KeyWarning             = "warning"
+	KeySuccess             = "success"
+	KeyUnlimited           = "unlimited"
+	KeyDefault             = "default"
 
 	// Wizard - General
 	KeyWizardTitle       = "wizard_title"
@@ -202,8 +202,8 @@ const (
 	// FEATURE-438: history pollution fix
 	KeyLoopHistoryFixApplied = "loop_history_fix_applied"
 	KeyLoopHistoryFixDetail  = "loop_history_fix_detail"
-	KeyNoActiveTaskPlan     = "no_active_task_plan"
-	KeyNoRecentIterations   = "no_recent_iterations"
+	KeyNoActiveTaskPlan      = "no_active_task_plan"
+	KeyNoRecentIterations    = "no_recent_iterations"
 	// FEATURE-345: unified problem solver (non-loop anomalies)
 	KeyProblemSolverClassified = "problem_solver_classified"
 	KeyProblemSolverNotifyUser = "problem_solver_notify_user"
@@ -870,10 +870,10 @@ const (
 
 	// FEATURE-452: attempt_completion completion-confirm dialog
 	KeyAttemptCompletionSuggestNext = "attempt_completion_suggest_next"
-	KeyAttemptCompletionPrompt     = "attempt_completion_prompt"
-	KeyAttemptCompletionNotDone    = "attempt_completion_not_done"
-	KeyAttemptCompletionExit       = "attempt_completion_exit"
-	KeyAttemptCompletionContinue   = "attempt_completion_continue"
+	KeyAttemptCompletionPrompt      = "attempt_completion_prompt"
+	KeyAttemptCompletionNotDone     = "attempt_completion_not_done"
+	KeyAttemptCompletionExit        = "attempt_completion_exit"
+	KeyAttemptCompletionContinue    = "attempt_completion_continue"
 
 	// FEATURE-479: attempt_completion simple completion mode (two fixed options)
 	KeyAttemptCompletionSimpleConfirm        = "attempt_completion_simple_confirm"
@@ -881,17 +881,17 @@ const (
 	KeyAttemptCompletionSimpleContinuePrompt = "attempt_completion_simple_continue_prompt"
 
 	// FEATURE-452: ask_followup_question fixed options
-	KeyAskFollowupThinkExit    = "ask_followup_think_exit"
-	KeyAskFollowupMoreOptions  = "ask_followup_more_options"
-	KeySettingCmd_614 = "setting_cmd_614"
-	KeySettingCmd_615 = "setting_cmd_615"
-	KeySettingCmd_616 = "setting_cmd_616"
-	KeySettingCmd_776 = "setting_cmd_776"
-	KeySettingCmd_777 = "setting_cmd_777"
-	KeySettingCmd_778 = "setting_cmd_778"
-	KeySettingCmd_779 = "setting_cmd_779"
-	KeySettingCmd_780 = "setting_cmd_780"
-	KeySettingCmd_781 = "setting_cmd_781"
+	KeyAskFollowupThinkExit   = "ask_followup_think_exit"
+	KeyAskFollowupMoreOptions = "ask_followup_more_options"
+	KeySettingCmd_614         = "setting_cmd_614"
+	KeySettingCmd_615         = "setting_cmd_615"
+	KeySettingCmd_616         = "setting_cmd_616"
+	KeySettingCmd_776         = "setting_cmd_776"
+	KeySettingCmd_777         = "setting_cmd_777"
+	KeySettingCmd_778         = "setting_cmd_778"
+	KeySettingCmd_779         = "setting_cmd_779"
+	KeySettingCmd_780         = "setting_cmd_780"
+	KeySettingCmd_781         = "setting_cmd_781"
 
 	// FEATURE-305 第 3 批: agent/vault.go
 	KeySettingCmd_617 = "setting_cmd_617"
@@ -937,13 +937,13 @@ const (
 	// FEATURE-346: default vision intent for browser_screenshot when the tool
 	// call does not carry an intent argument (minimal recognition round).
 	KeyBrowserScreenshotVisionIntentDefault = "browser_screenshot_vision_intent_default"
-	KeySettingCmd_698 = "setting_cmd_698"
-	KeySettingCmd_699 = "setting_cmd_699"
-	KeySettingCmd_700 = "setting_cmd_700"
-	KeySettingCmd_701 = "setting_cmd_701"
-	KeySettingCmd_702 = "setting_cmd_702"
-	KeySettingCmd_703 = "setting_cmd_703"
-	KeySettingCmd_704 = "setting_cmd_704"
+	KeySettingCmd_698                       = "setting_cmd_698"
+	KeySettingCmd_699                       = "setting_cmd_699"
+	KeySettingCmd_700                       = "setting_cmd_700"
+	KeySettingCmd_701                       = "setting_cmd_701"
+	KeySettingCmd_702                       = "setting_cmd_702"
+	KeySettingCmd_703                       = "setting_cmd_703"
+	KeySettingCmd_704                       = "setting_cmd_704"
 
 	// FEATURE-305 第 5 批: agent/file_tools.go
 	KeySettingCmd_705 = "setting_cmd_705"
@@ -1016,14 +1016,14 @@ const (
 	KeySettingCmd_772 = "setting_cmd_772"
 
 	// FEATURE-453: :skill command messages
-	KeySkillCmdHelp          = "skill_cmd_help"
-	KeySkillCmdNoSkills      = "skill_cmd_no_skills"
-	KeySkillCmdNotFound      = "skill_cmd_not_found"
-	KeySkillCmdAdded         = "skill_cmd_added"
-	KeySkillCmdRemoved       = "skill_cmd_removed"
+	KeySkillCmdHelp           = "skill_cmd_help"
+	KeySkillCmdNoSkills       = "skill_cmd_no_skills"
+	KeySkillCmdNotFound       = "skill_cmd_not_found"
+	KeySkillCmdAdded          = "skill_cmd_added"
+	KeySkillCmdRemoved        = "skill_cmd_removed"
 	KeySkillCmdSourceNotExist = "skill_cmd_source_not_exist"
-	KeySkillCmdUsage         = "skill_cmd_usage"
-	KeySkillCmdListHeader    = "skill_cmd_list_header"
+	KeySkillCmdUsage          = "skill_cmd_usage"
+	KeySkillCmdListHeader     = "skill_cmd_list_header"
 
 	KeySettingCmd_622 = "setting_cmd_622"
 	KeySettingCmd_623 = "setting_cmd_623"
@@ -1073,6 +1073,10 @@ const (
 	KeySettingCmd_667 = "setting_cmd_667"
 	KeySettingCmd_668 = "setting_cmd_668"
 
+	// FEATURE-490: hub agent bulletin-board collaboration switch
+	KeySettingCmd_782 = "setting_cmd_782"
+	KeySettingCmd_783 = "setting_cmd_783"
+
 	// FEATURE-305: repl.go C 类基础设施 i18n 迁移
 	KeyDBSyncStart        = "db_sync_start"
 	KeyDBSyncPartial      = "db_sync_partial"
@@ -1094,8 +1098,8 @@ const (
 	KeyBodyAddSaveFail    = "body_add_save_fail"
 
 	// YOLO (You Only Live Once) master switch (FEATURE-439)
-	KeyYOLOOn  = "yolo_on"
-	KeyYOLOOff = "yolo_off"
+	KeyYOLOOn             = "yolo_on"
+	KeyYOLOOff            = "yolo_off"
 	KeyBodyAddDone        = "body_add_done"
 	KeyBodyRemoveUsage    = "body_remove_usage"
 	KeyBodyRemoveNone     = "body_remove_none"
@@ -1139,9 +1143,9 @@ const (
 	KeyCmdConfirmBtnApproveG   = "cmd_confirm_btn_approve_g"
 	KeyCmdConfirmBtnApproveD   = "cmd_confirm_btn_approve_d"
 	KeyCmdConfirmBtnCancel     = "cmd_confirm_btn_cancel"
-	KeyCmdConfirmCountPrefix  = "cmd_confirm_count_prefix"
-	KeyCmdConfirmCountSuffix  = "cmd_confirm_count_suffix"
-	KeyErrorRiskWarning       = "error_risk_warning"
+	KeyCmdConfirmCountPrefix   = "cmd_confirm_count_prefix"
+	KeyCmdConfirmCountSuffix   = "cmd_confirm_count_suffix"
+	KeyErrorRiskWarning        = "error_risk_warning"
 
 	// FEATURE-310: Tool call summary (intent + key params display)
 	KeyToolCallSummaryGeneric        = "tool_call_summary_generic"
@@ -1270,7 +1274,7 @@ const (
 	// resources when intent exposure is enabled.
 	KeySystemPromptToolUsageMetaOpenAI = "system_prompt_tool_usage_meta_openai"
 	KeySystemPromptToolUsageMetaXML    = "system_prompt_tool_usage_meta_xml"
-	KeySystemPromptEnv          = "system_prompt_env"
+	KeySystemPromptEnv                 = "system_prompt_env"
 
 	KeySystemPromptEditingFiles = "system_prompt_editing_files"
 
@@ -1372,16 +1376,17 @@ const (
 	KeyCLIHelpMemoryDisabled = "cli_help_memory_disabled"
 
 	// Plan enabled
-	KeyCol3PlanEnabled     = "col3_plan_enabled"
+	KeyCol3PlanEnabled           = "col3_plan_enabled"
 	KeyCol3IntentExposureEnabled = "col3_intent_exposure_enabled"
 	KeyCol3MetaCapabilityEnabled = "col3_meta_capability_enabled"
-	KeySettingsDescPlan    = "settings_desc_plan"
-	KeyPlanEnabledUpdated  = "plan_enabled_updated"
-	KeyCLIHelpPlanEnabled  = "cli_help_plan_enabled"
-	KeyCLIHelpPlanDisabled = "cli_help_plan_disabled"
+	KeySettingsDescPlan          = "settings_desc_plan"
+	KeyPlanEnabledUpdated        = "plan_enabled_updated"
+	KeyCLIHelpPlanEnabled        = "cli_help_plan_enabled"
+	KeyCLIHelpPlanDisabled       = "cli_help_plan_disabled"
 
 	// SubAgent enabled
 	KeyCol3SubAgentEnabled     = "col3_sub_agent_enabled"
+	KeyCol3BoardEnabled        = "col3_board_enabled"
 	KeySettingsDescSubAgent    = "settings_desc_sub_agent"
 	KeySubAgentEnabledUpdated  = "sub_agent_enabled_updated"
 	KeyCLIHelpSubAgentEnabled  = "cli_help_sub_agent_enabled"
@@ -1492,12 +1497,12 @@ const (
 	KeyCol3ShowSupPrompt = "col3_show_sup_prompt"
 	KeyCol3ShowSupStream = "col3_show_sup_stream"
 	// FEATURE-479: attempt_completion completion-confirm behavior mode
-	KeyCol3CompletionMode = "col3_completion_mode"
-	KeyLoopJudgeUserPrompt       = "loop_judge_user_prompt"
-	KeyLoopJudgeFallback         = "loop_judge_fallback"
-	KeyLoopFailedStrategiesNone  = "loop_failed_strategies_none" // FEATURE-349
-	KeySettingsDescLoopJudge     = "settings_desc_loop_judge"
-	KeyCol3ShowLoopDetection     = "col3_show_loop_detection"
+	KeyCol3CompletionMode       = "col3_completion_mode"
+	KeyLoopJudgeUserPrompt      = "loop_judge_user_prompt"
+	KeyLoopJudgeFallback        = "loop_judge_fallback"
+	KeyLoopFailedStrategiesNone = "loop_failed_strategies_none" // FEATURE-349
+	KeySettingsDescLoopJudge    = "settings_desc_loop_judge"
+	KeyCol3ShowLoopDetection    = "col3_show_loop_detection"
 
 	// Loop detection settings (FIX-179)
 	KeyCol3LoopDetectEnabled = "col3_loop_detect_enabled"
@@ -1574,7 +1579,7 @@ const (
 	// serve bind/whitelist (FEATURE-430/431)
 	KeyCLIHelpBind      = "cli_help_bind"
 	KeyCLIHelpWhitelist = "cli_help_whitelist"
-	KeyWebRevealFailed    = "web_reveal_failed"
+	KeyWebRevealFailed  = "web_reveal_failed"
 
 	// serve download (FEATURE-455)
 	KeyCLIHelpDownloadEnabled = "cli_help_download_enabled"
@@ -2231,6 +2236,14 @@ const (
 	KeyToolUsageEvaluateExpression  = "tool_usage_evaluate_expression"
 	KeyToolUsageReorganizeContext   = "tool_usage_reorganize_context"
 
+	// Board collaboration tool usage examples (FEATURE-490, XML mode)
+	KeyToolUsageBoardPost    = "tool_usage_board_post"
+	KeyToolUsageBoardList    = "tool_usage_board_list"
+	KeyToolUsageBoardClaim   = "tool_usage_board_claim"
+	KeyToolUsageBoardDM      = "tool_usage_board_dm"
+	KeyToolUsageBoardConfirm = "tool_usage_board_confirm"
+	KeyToolUsageBoardResult  = "tool_usage_board_result"
+
 	// Shell session tool usage examples (XML mode)
 	KeyToolUsageShellStart     = "tool_usage_shell_start"
 	KeyToolUsageShellSend      = "tool_usage_shell_send"
@@ -2438,14 +2451,14 @@ const (
 	KeyContentDupSuggestion  = "content_dup_suggestion"
 
 	// Debug mode (FEATURE-XXX)
-	KeyDebugMode         = "debug_mode"
-	KeyDebugPromptHeader = "debug_prompt_header"
-	KeyDebugPromptFooter = "debug_prompt_footer"
-	KeySettingsDescDebug = "settings_desc_debug"
-	KeyCol3Debug         = "col3_debug"
-	KeyCLIHelpDebug      = "cli_help_debug"
-	KeyCol3WebWhitelist  = "col3_web_whitelist"
-	KeyCol3WebInputDir   = "col3_web_input_dir"
+	KeyDebugMode            = "debug_mode"
+	KeyDebugPromptHeader    = "debug_prompt_header"
+	KeyDebugPromptFooter    = "debug_prompt_footer"
+	KeySettingsDescDebug    = "settings_desc_debug"
+	KeyCol3Debug            = "col3_debug"
+	KeyCLIHelpDebug         = "cli_help_debug"
+	KeyCol3WebWhitelist     = "col3_web_whitelist"
+	KeyCol3WebInputDir      = "col3_web_input_dir"
 	KeyCol3DynamicQueueSize = "col3_dynamic_queue_size"
 
 	// FEATURE-508: Web UI stream sliding-window thresholds.
@@ -2594,27 +2607,27 @@ const (
 	KeyVisionRecognitionTokenUsage = "vision_recognition_token_usage"
 	// Recognition round aborted (ESC cancel / failed retry) placeholder backfill
 	KeyVisionRecognitionCancelled = "vision_recognition_cancelled"
-	KeyMemoryDeletedRange      = "memory_deleted_range"
-	KeyToolNoOutputBracket     = "tool_no_output_bracket"
-	KeyShellCmdError           = "shell_cmd_error"
-	KeyShellTerminalOutput     = "shell_terminal_output"
-	KeyShellTerminalTruncated  = "shell_terminal_truncated"
-	KeyShellWindowContent      = "shell_window_content"
-	KeyTaskStepObjRequired     = "task_step_obj_required"
-	KeyTaskStepDescRequired    = "task_step_desc_required"
-	KeyTaskPlanArchived        = "task_plan_archived"
-	KeyTaskPlanNone            = "task_plan_none"
-	KeyTaskPlanDefaultTitle    = "task_plan_default_title"
-	KeySchedulerExpired        = "scheduler_expired"
-	KeySchedulerMinutes        = "scheduler_minutes"
-	KeySchedulerHours          = "scheduler_hours"
-	KeyShellTruncatedChar      = "shell_truncated_char"
-	KeyModelMaxLenUnknown      = "model_max_len_unknown"
-	KeyCmdExecOkNoRepeat       = "cmd_exec_ok_no_repeat"
-	KeyDebugModeEnabled        = "debug_mode_enabled"
-	KeyDebugModeDisabled       = "debug_mode_disabled"
-	KeyRemovedMessages         = "removed_messages"
-	KeyEndMarker               = "end_marker"
+	KeyMemoryDeletedRange         = "memory_deleted_range"
+	KeyToolNoOutputBracket        = "tool_no_output_bracket"
+	KeyShellCmdError              = "shell_cmd_error"
+	KeyShellTerminalOutput        = "shell_terminal_output"
+	KeyShellTerminalTruncated     = "shell_terminal_truncated"
+	KeyShellWindowContent         = "shell_window_content"
+	KeyTaskStepObjRequired        = "task_step_obj_required"
+	KeyTaskStepDescRequired       = "task_step_desc_required"
+	KeyTaskPlanArchived           = "task_plan_archived"
+	KeyTaskPlanNone               = "task_plan_none"
+	KeyTaskPlanDefaultTitle       = "task_plan_default_title"
+	KeySchedulerExpired           = "scheduler_expired"
+	KeySchedulerMinutes           = "scheduler_minutes"
+	KeySchedulerHours             = "scheduler_hours"
+	KeyShellTruncatedChar         = "shell_truncated_char"
+	KeyModelMaxLenUnknown         = "model_max_len_unknown"
+	KeyCmdExecOkNoRepeat          = "cmd_exec_ok_no_repeat"
+	KeyDebugModeEnabled           = "debug_mode_enabled"
+	KeyDebugModeDisabled          = "debug_mode_disabled"
+	KeyRemovedMessages            = "removed_messages"
+	KeyEndMarker                  = "end_marker"
 
 	// FEATURE-305 P4.5 IV: misc remaining hardcoded Chinese
 	KeyXMLToolResultMarker      = "xml_tool_result_marker"

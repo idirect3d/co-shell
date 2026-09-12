@@ -377,6 +377,38 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("SubAgent enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_128), status), nil
 
+	case "board-enabled":
+		// FEATURE-490: hub agent bulletin-board collaboration switch. It stays
+		// off by default, so the co-shell never joins board collaboration
+		// unless the user opts in.
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.BoardEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_782), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.BoardEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.BoardEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set board-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		// Re-point the agent at the updated config: the switch is read while
+		// registering tools, so it must take effect without a restart.
+		h.agent.SetConfig(h.cfg)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.BoardEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("Board collaboration set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_783), status), nil
+
 	case "context-limit":
 		if len(args) < 2 {
 			limitStr := fmt.Sprintf("%d", h.cfg.LLM.ContextLimit)

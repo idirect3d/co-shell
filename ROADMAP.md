@@ -32,6 +32,10 @@
     - 方案（用户确认）：① 通信通道：WS 原生双向通道为主 + MCP 作为可选外部接入面；② 下发感知：广播用巡检感知 + 定向任务用主动注入；③ 执行方式：当前会话执行；④ 安全边界：co-shell 增加公告板开关，默认关闭；⑤ 本次范围：最小可用闭环（发请求→认领→私信→执行→回结果）。
     - 原实施：`hub/gateway/`（board.go + AgentConn 下行通道 + Proxy 识别）+ co-shell（DynamicEventKind 扩展 + serve dispatch board_task + board_result 工具 + 公告板开关）
     - 原验证：go build+vet 全绿；hub 6 个公告板单测通过 [BUILD-912]
+  - 本次落地（BUILD-967）：在 FEATURE-490-merge 分支合并完成，冲突仅 3 处且已解决（ROADMAP.md 保留新版本段并收拢原实现记录；main.go 保留 0.51.0/967；web/server.go 同时保留 FEATURE-507 分页字段与 FEATURE-490 board_task 字段，sendRaw 自动合并）。
+  - 本次补齐规范缺口：① 6 个 board 工具新增 XML 模式用法示例（`KeyToolUsageBoard*` 中文/英文 + `toolUsageKeyMap` 映射）；② `BoardEnabled` 接入 `:set board-enabled on|off`、Web 设置面板、`:config` 参数（重置语义为 off）与中英文案；③ 新增 co-shell 侧单测 `agent/board_fix490_test.go`（工具注册开关、6 个工具线协议报文、三类 board 动态事件渲染、无 sender 时失败行为）。
+  - 本次验证：`go build ./... && go vet ./...` 全绿；`go test ./agent/ -run TestBoard` 4/4 通过；`go test ./web/ ./i18n/` 通过；hub 模块 `hub/gateway` 6 个公告板单测通过。既有失败与本次无关：`agent` 的 TestAutoIntervention_* / TestStreamSupReply、`cmd` 的 TestWebWizardModelNameStep（合并前后基线一致）。
+  - 待办：hub + 两个 co-shell 实例的公告板全链路联调（用户确认后执行）。
 
 ---
 

@@ -194,7 +194,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "max-iterations", subcommand == "max-retries",
 		subcommand == "memory-enabled", subcommand == "plan-enabled",
 		subcommand == "intent-exposure-enabled",
-		subcommand == "subagent-enabled", subcommand == "context-limit",
+		subcommand == "subagent-enabled", subcommand == "board-enabled", subcommand == "context-limit",
 		subcommand == "context-start", subcommand == "context-policy",
 		subcommand == "context-reorganize-threshold", subcommand == "result-mode",
 		subcommand == "no-tool-action",
@@ -298,10 +298,10 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 }
 
 // handleWebSetting handles the Web service settings (FEATURE-431/FEATURE-469):
-// - web-whitelist: comma-separated IPs/CIDR networks allowed to access the
-//   Web UI. Empty means loopback only.
-// - web-input-dir: workspace-relative directory storing Web UI message
-//   attachments (default "input" when empty).
+//   - web-whitelist: comma-separated IPs/CIDR networks allowed to access the
+//     Web UI. Empty means loopback only.
+//   - web-input-dir: workspace-relative directory storing Web UI message
+//     attachments (default "input" when empty).
 func (h *SettingsHandler) handleWebSetting(subcommand string, args []string) (string, error) {
 	switch subcommand {
 	case "web-whitelist":
@@ -671,6 +671,7 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("plan-enabled", planEnabledStatus, i18n.T(i18n.KeyCol3PlanEnabled)),
 		makeLine("intent-exposure-enabled", intentExposureStatus, i18n.T(i18n.KeyCol3IntentExposureEnabled)),
 		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
+		makeLine("board-enabled", boolStr(cfg.BoardEnabled), i18n.T(i18n.KeyCol3BoardEnabled)),
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
 		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),
 		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),
