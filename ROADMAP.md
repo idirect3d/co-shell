@@ -4,6 +4,38 @@
 
 ---
 
+## v0.52.1 — 已合并
+
+> **版本**: v0.52.1
+
+> **状态**: ✅ 已合并到 main（tag v0.52.1）
+> **里程碑**: 修复 v0.52.0 已知缺陷——Web UI 下 `ask_user` 的答案未送达 LLM（FIX-513）
+> **说明**: v0.52.0（FEATURE-512）上线 `ask_user` 多题收集后，Web UI 场景下用户提交的答案**从未到达 LLM**：浏览器发出的 `result.answers` 被 `web/server.go` 中手工维护的 wire DTO `interactionResultJSON`（仅 Action/Value/Raw）静默丢弃，`web/session.go` 组装 `InteractionResult` 时也没有 Answers；`agent/ask_user.go` 的 `ActionSubmit` 分支在 `len(res.Answers)==0` 时直接 `return "", nil`，既不回传答案也不调用 `storeUserReply`。前端「YOU · 回答」只是 `app.js` 本地渲染，掩盖了后端实际未收到答案的事实。本次修复同时删除手工镜像 DTO（根除“新增字段漏加”类回归）并补齐 web 层回归测试。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-513 | 0.52.1 | P1 | Web UI 下 `ask_user` 答案未送达 LLM：wire 层丢弃 Answers + agent 侧空答案兜底 |
+
+> 当前 BUILD: 983
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-513 Web UI 下 ask_user 答案未送达 LLM（修复 v0.52.0 已知缺陷）** [BUILD-983]
+  - 现象（用户报告 + 实测确认）：Web UI 上完成多题表单并提交后，下一轮 LLM 看不到任何答案；工具结果为空（渲染为「（工具调用无输出）」）。
+  - 根因（三处叠加）：
+    1. `web/server.go`：`clientMessage.Result` 使用手工镜像 DTO `interactionResultJSON`（字段仅 Action/Value/Raw），浏览器发出的 `answers` 在反序列化阶段即被丢弃。
+    2. `web/session.go`：`interaction_answer` 分支组装 `agent.InteractionResult` 时未传 Answers。
+    3. `agent/ask_user.go`：`ActionSubmit` 在 `len(res.Answers)==0` 时 `return "", nil` —— 空工具结果且不调用 `storeUserReply`，LLM 完全看不到回答。
+    4. 误判来源：前端「YOU · 回答」是 `app.js` 本地渲染，与后端是否收到答案无关；终端路径正常，agent 单测缺少 web wire 覆盖，故漏检。
+  - 修复：
+    - wire 层（A2，根除镜像 DTO 类回归）：删除 `interactionResultJSON`，`clientMessage.Result` 改为 `json.RawMessage`，`session.go` 直接 `json.Unmarshal` 到 `agent.InteractionResult`（解析失败记 `log.Warn` 后忽略）。
+    - agent 兜底：`ActionSubmit` 有 Answers 时按原逻辑格式化入库；Answers 为空但 `Value` 非空时用 `Value` 作为用户回复；两者皆空时返回新增 i18n 文案（`KeyToolAskUserNoAnswer`，zh「未收到答案」/ en「No answer received」）而不再返回空串；`default` 分支同样返回该文案。
+  - 校验（BUILD-983）：`web/interaction_answers_test.go` 新增 `TestWebIOAskInteractionAnswers`（含 selected/notes/text 的 answers 完整往返）与 `TestInteractionAnswerWireCarriesAnswers`（wire JSON 编解码断言）；`agent/ask_user_test.go` 新增 `TestAskUserSubmitFallsBackToValue` / `TestAskUserSubmitNoAnswers` / `TestAskUserUnknownAction`；`go build ./... && go vet ./...` 全绿；`go test ./agent/ ./web/` 通过（agent 包仅既有失败 TestAutoIntervention_* / TestStreamSupReply，与被改动代码无关）；co-shell / co-shell-hub 编译至 ~/bin。
+  - 运行时验收（A/B 对照，用户实测）：旧构建 v0.52.0 BUILD-982 下提交同一道三题表单，LLM 侧收到「（工具调用无输出）」；重启到 v0.52.1 BUILD-983 后重新提交，LLM 侧完整收到三题答案（含多选备注与自由文本），验收通过。
+  - 进度：✅ 已完成并合并到 main（tag v0.52.1）[BUILD-983]。
+
 ## v0.52.0 — 已合并
 
 > **版本**: v0.52.0

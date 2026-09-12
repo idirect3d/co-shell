@@ -292,3 +292,77 @@ func TestFormatQuestionAnswersCompact(t *testing.T) {
 		t.Errorf("answer text should not repeat the question text: %q", got)
 	}
 }
+
+// TestAskUserSubmitFallsBackToValue verifies that a submit result carrying a
+// plain Value (no structured Answers — e.g. a client that only sends text)
+// still stores the reply and returns a non-empty tool result (FIX-513).
+func TestAskUserSubmitFallsBackToValue(t *testing.T) {
+	a := newAskUserAgent(&mockUserIO{})
+	a.interactionMgr = &captureInteractionManager{
+		askResult: InteractionResult{Action: ActionSubmit, Value: "  立即执行  "},
+	}
+	out, err := a.askUserTool(context.Background(), map[string]interface{}{
+		"questions": []interface{}{
+			map[string]interface{}{
+				"title":   "请选择处理方式",
+				"options": []interface{}{"立即执行", "稍后执行"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("askUserTool error: %v", err)
+	}
+	if out == "" {
+		t.Error("submit with a plain value must not yield an empty tool result")
+	}
+	if got := a.taskInstructionCache.String(); !strings.Contains(got, "立即执行") {
+		t.Errorf("taskInstructionCache = %q, want it to contain 立即执行", got)
+	}
+}
+
+// TestAskUserSubmitNoAnswers verifies that a submit result with neither
+// Answers nor Value returns the dedicated message instead of an empty tool
+// result, and stores nothing as the user reply (FIX-513).
+func TestAskUserSubmitNoAnswers(t *testing.T) {
+	a := newAskUserAgent(&mockUserIO{})
+	a.interactionMgr = &captureInteractionManager{
+		askResult: InteractionResult{Action: ActionSubmit},
+	}
+	out, err := a.askUserTool(context.Background(), map[string]interface{}{
+		"questions": []interface{}{
+			map[string]interface{}{"title": "请选择处理方式", "options": []interface{}{"立即执行"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("askUserTool error: %v", err)
+	}
+	if out == "" {
+		t.Fatal("submit without any answer must not yield an empty tool result")
+	}
+	if want := i18n.T(i18n.KeyToolAskUserNoAnswer); out != want {
+		t.Errorf("result = %q, want %q", out, want)
+	}
+	if got := a.taskInstructionCache.String(); got != "" {
+		t.Errorf("taskInstructionCache = %q, want empty (no answer to store)", got)
+	}
+}
+
+// TestAskUserUnknownAction verifies an unrecognised result action also returns
+// a non-empty message rather than a silent empty tool result (FIX-513).
+func TestAskUserUnknownAction(t *testing.T) {
+	a := newAskUserAgent(&mockUserIO{})
+	a.interactionMgr = &captureInteractionManager{
+		askResult: InteractionResult{Action: "something_else"},
+	}
+	out, err := a.askUserTool(context.Background(), map[string]interface{}{
+		"questions": []interface{}{
+			map[string]interface{}{"title": "请选择处理方式", "options": []interface{}{"立即执行"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("askUserTool error: %v", err)
+	}
+	if out == "" {
+		t.Error("unknown action must not yield an empty tool result")
+	}
+}

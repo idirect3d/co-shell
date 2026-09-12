@@ -2053,6 +2053,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyToolExecFailed:       "工具 %s 执行失败（parse-error-action=exit）: %v\n",
 	KeyToolExecRetry:        "工具 %s 调用无效（parse-error-action=retry）: %v\n已丢弃无效调用并重新发送。",
 	KeyToolNoOutput:         "（工具调用无输出）",
+	KeyToolAskUserNoAnswer:  "未收到答案",
 	KeyToolResultLabel:      "[返回结果]",
 	KeyToolIntentLabel:      "[意图]",
 	KeyReorganizeUrgent:     "你必须马上进行上下文整理。\n\n当前上下文已经超限，立即调用 reorganize_context 工具。",

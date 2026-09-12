@@ -110,11 +110,19 @@ func (a *Agent) askUserTool(ctx context.Context, args map[string]interface{}) (s
 	case ActionCancel:
 		return "", fmt.Errorf("CANCEL_AGENT")
 	case ActionSubmit:
-		if len(res.Answers) == 0 {
-			return "", nil
+		// FIX-513: a channel may deliver only a plain value (older browser
+		// client, free-form submit) instead of structured answers. Fall back to
+		// Value so the LLM still receives the reply, and never return an empty
+		// tool result — an empty answer means the LLM would see nothing at all.
+		if len(res.Answers) > 0 {
+			a.storeUserReply(formatQuestionAnswers(res.Answers))
+			return i18n.T(i18n.KeySettingCmd_609), nil
 		}
-		a.storeUserReply(formatQuestionAnswers(res.Answers))
-		return i18n.T(i18n.KeySettingCmd_609), nil
+		if v := strings.TrimSpace(res.Value); v != "" {
+			a.storeUserReply(v)
+			return i18n.T(i18n.KeySettingCmd_609), nil
+		}
+		return i18n.T(i18n.KeyToolAskUserNoAnswer), nil
 	case ActionInput:
 		// Free-form fallback (e.g. a single question without options answered
 		// through a channel that only supports text input).
@@ -130,7 +138,8 @@ func (a *Agent) askUserTool(ctx context.Context, args map[string]interface{}) (s
 		a.storeUserReply(label)
 		return i18n.T(i18n.KeySettingCmd_609), nil
 	default:
-		return "", nil
+		// FIX-513: an unrecognised action must not look like a silent success.
+		return i18n.T(i18n.KeyToolAskUserNoAnswer), nil
 	}
 }
 
