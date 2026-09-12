@@ -4,6 +4,32 @@
 
 ---
 
+## v0.51.0 — 开发中
+
+> **版本**: v0.51.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub agent 公告板协作机制（FEATURE-490 合并落地）
+> **说明**: 把 2026-09-08 基于 v0.42.0 开发的 hub agent 公告板协作能力合并到当前基线：hub 侧公告板中枢（广播感知 / 认领 / 私信 / 确认 / 主动下发执行 / 结果回传）+ co-shell 侧 6 个 board 工具与 3 类动态感知事件 + `board_task` 主动执行注入；同时补齐当年缺失的 i18n、工具使用说明映射、配置暴露（:set 与 Web 面板）与 co-shell 侧单测。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-490 | 0.51.0 | P1 | hub agent 公告板协作机制合并落地：合并分支 FEATURE-490 + 解决 3 处冲突 + 补齐 i18n / 工具使用说明映射 / 配置暴露 / co-shell 侧测试 |
+
+> 当前 BUILD: 967
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-490 hub agent 公告板协作机制（合并落地）**
+  - 背景：FEATURE-490 于 2026-09-08 在 v0.42.0 基线上完成（单提交 `631c1f3`，+1264/−4，17 文件），但一直未合并进 main。实测确认 main 中没有任何 board 相关代码（`BoardEnabled` / `board_enabled` / `board_task` / `hub/gateway/board.go` 均不存在）。
+  - 实测合并预演：`git merge-tree main FEATURE-490` 仅 3 个文件冲突（`ROADMAP.md`、`main.go`、`web/server.go`），其余 14 个文件自动合并；hub 侧 `proxy.go`/`agent.go` 自 merge-base 起 main 一行未改（零漂移）。
+  - 本次补齐的规范缺口：① board 6 个工具的 Description/参数描述零 i18n；② `agent/toolcall_mode.go` 缺 board 使用说明映射；③ `BoardEnabled` 未接入 `:set` 与 Web 设置面板；④ co-shell 侧无任何测试。
+  - 分支：**FEATURE-490-merge**（基于 main 新建，与原分支 `FEATURE-490` 解耦）；版本：**v0.51.0**。
+
+---
+
 ## v0.50.0 — 开发中
 
 > **版本**: v0.50.0
