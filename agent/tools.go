@@ -494,6 +494,13 @@ Critical rules:
 							"type":        "string",
 							"description": "A detailed description of the task plan. For detailed plans, include the full context, background, constraints, technical approach, and acceptance criteria.",
 						},
+						"acceptance_criteria": map[string]interface{}{
+							"type":        "array",
+							"description": "Verifiable acceptance criteria of the whole plan (FEATURE-514). The supervisor model checks the delivery against each item and MUST reject it when any item is unmet. Use concrete, checkable statements (e.g. \"go build ./... passes\"). Optional; when omitted, previous criteria are preserved.",
+							"items": map[string]interface{}{
+								"type": "string",
+							},
+						},
 						"steps": map[string]interface{}{
 							"type": "array",
 							"items": map[string]interface{}{

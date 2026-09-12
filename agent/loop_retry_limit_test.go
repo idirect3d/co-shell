@@ -86,9 +86,14 @@ func buildRetryUser(instruction string, retry int) llm.Message {
 }
 
 // newRetryLimitAgent builds an Agent with the given config and message history.
+// It starts from DefaultConfig() so the test agent matches real runtime
+// configuration: with a &config.Config{} zero value the FEATURE-471
+// <environment_details> switches would be off, buildFullEnvironmentDetails
+// would return "" and envelope-based assertions (e.g. the <retried_count>
+// chain counter) could never observe an envelope at all.
 func newRetryLimitAgent(retry int, maxSingle int, userMsg llm.Message) *Agent {
 	a := &Agent{
-		cfg: &config.Config{},
+		cfg: config.DefaultConfig(),
 		messages: []llm.Message{
 			{Role: "system", Content: "system"},
 			userMsg,

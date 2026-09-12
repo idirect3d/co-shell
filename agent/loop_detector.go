@@ -64,6 +64,25 @@ type LoopDetector struct {
 	writePos             int                     // ring buffer write position (overwrite after full)
 	lineCount            int                     // total completed lines seen so far (for indexing)
 	singleLineDetector   *SingleLineLoopDetector // optional sub-detector for single-line patterns
+
+	// FEATURE-514: consecutive same-length line tracking. When the last
+	// uniformThreshold counted lines (blank lines excluded) all have exactly
+	// the same character length, the model is likely padding its output with
+	// same-width lines. 0 disables the check.
+	uniformThreshold int // min consecutive same-length lines to trigger (0 = disabled)
+	uniformRun       int // current run length of consecutive same-length lines
+	uniformLastLen   int // character length of the previous counted line (-1 = none)
+}
+
+// SetUniformLineThreshold enables/disables the "multi-line uniform length"
+// detector (FEATURE-514): when uniformThreshold consecutive counted lines have
+// exactly the same character length, AddChunk reports a LoopDetectedError with
+// LoopType "uniform_line_length". A value <= 0 disables the check. Blank lines
+// do not participate in the run (they are skipped during accumulation).
+func (ld *LoopDetector) SetUniformLineThreshold(n int) {
+	ld.uniformThreshold = n
+	ld.uniformRun = 0
+	ld.uniformLastLen = -1
 }
 
 // SetSingleLineDetector attaches a SingleLineLoopDetector sub-detector.
@@ -187,7 +206,16 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 			}
 		}
 
+		// FEATURE-514: track consecutive same-length lines. The run is evaluated
+		// only after the periodic check below returns nil, so a clean periodic
+		// repetition is still reported as multi_line (not uniform_line_length).
+		ld.trackUniformLine(line)
+
 		if err := ld.checkLoop(timestamp); err != nil {
+			return err
+		}
+
+		if err := ld.checkUniformLine(timestamp); err != nil {
 			return err
 		}
 	}
@@ -224,6 +252,48 @@ func (ld *LoopDetector) AddChunk(chunk string, timestamp time.Time) error {
 	return nil
 }
 
+// trackUniformLine updates the consecutive same-length line run for the
+// uniform-length detector (FEATURE-514). Callers must invoke it for every
+// counted (non-blank) completed line, before checkLoop/checkUniformLine.
+func (ld *LoopDetector) trackUniformLine(line string) {
+	if ld.uniformThreshold <= 0 {
+		return
+	}
+	if len(line) == ld.uniformLastLen {
+		ld.uniformRun++
+		return
+	}
+	ld.uniformLastLen = len(line)
+	ld.uniformRun = 1
+}
+
+// checkUniformLine reports a loop when the trailing run of same-length lines
+// reaches uniformThreshold (FEATURE-514). It returns nil when the detector is
+// disabled or the run is still too short.
+func (ld *LoopDetector) checkUniformLine(timestamp time.Time) error {
+	if ld.uniformThreshold <= 0 || ld.uniformRun < ld.uniformThreshold {
+		return nil
+	}
+	lineLen := ld.uniformLastLen
+	run := ld.uniformRun
+	// Reset the run so the same window is not reported again on the next line.
+	ld.uniformRun = 0
+	ld.uniformLastLen = -1
+	log.Warn("LoopDetector: UNIFORM LINE LOOP TRIGGERED: %d consecutive lines of %d chars each", run, lineLen)
+	return &LoopDetectedError{
+		pattern:     fmt.Sprintf("%d consecutive lines of %d characters each", run, lineLen),
+		period:      1,
+		repeatCount: run,
+		threshold:   ld.uniformThreshold,
+		startTime:   timestamp,
+		endTime:     timestamp,
+		LoopType:    "uniform_line_length",
+		suggestion: "Your output contains a long run of lines with exactly the same length, " +
+			"which usually means mechanical padding rather than real content. " +
+			"Stop repeating this pattern: call a tool for the next step or change the output format.",
+	}
+}
+
 // Reset clears the detector state. Must be called at the start of each
 // LLM iteration to avoid cross-iteration false positives.
 func (ld *LoopDetector) Reset() {
@@ -233,6 +303,8 @@ func (ld *LoopDetector) Reset() {
 	ld.lineTexts = make([]string, bufSize)
 	ld.writePos = 0
 	ld.lineCount = 0
+	ld.uniformRun = 0
+	ld.uniformLastLen = -1
 	log.Debug("LoopDetector: reset")
 }
 

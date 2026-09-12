@@ -23,6 +23,7 @@ const I18N = {
     attachUploading: "上传附件中…", attachFail: "附件上传失败，请重试",
     attachPreviewFile: "发送后将保存到工作区（可被工具读取）",
     planEmpty: "（无步骤）",
+    planAcceptance: "验收标准",
     menu: "菜单", settings: "系统设置", identity: "身份与个性", restart: "重启后台",
     appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
@@ -73,6 +74,7 @@ const I18N = {
     attachUploading: "Uploading attachments…", attachFail: "Attachment upload failed, retry",
     attachPreviewFile: "Saved to workspace after send (readable by tools)",
     planEmpty: "(no steps)",
+    planAcceptance: "Acceptance criteria",
     menu: "Menu", settings: "Settings", identity: "Identity & Personality", restart: "Restart backend",
     appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
@@ -2652,6 +2654,23 @@ function renderPlan(plan) {
     desc.className = "plan-desc";
     desc.textContent = plan.description;
     planBody.appendChild(desc);
+  }
+
+  // FEATURE-514: show the plan's acceptance criteria (if any).
+  if (Array.isArray(plan.acceptance_criteria) && plan.acceptance_criteria.length > 0) {
+    const ac = document.createElement("div");
+    ac.className = "plan-ac";
+    const head = document.createElement("div");
+    head.className = "plan-ac-head";
+    head.textContent = T.planAcceptance;
+    ac.appendChild(head);
+    plan.acceptance_criteria.forEach((c, i) => {
+      const item = document.createElement("div");
+      item.className = "plan-ac-item";
+      item.textContent = (i + 1) + ". " + c;
+      ac.appendChild(item);
+    });
+    planBody.appendChild(ac);
   }
 
   for (const st of plan.steps) {

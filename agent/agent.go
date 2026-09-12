@@ -2004,6 +2004,29 @@ func (a *Agent) CloseBrowser() {
 	}
 }
 
+// contextRemoveLimit returns the configured maximum number of
+// "remove problematic context and retry" actions allowed per user turn
+// (FEATURE-514). A value <= 0 means unlimited (legacy behavior).
+func (a *Agent) contextRemoveLimit() int {
+	if a.cfg == nil {
+		return 0
+	}
+	return a.cfg.LLM.ContextRemoveLimit
+}
+
+// noteContextRemovalAndCheckLimit records one successful context removal and
+// reports whether the per-turn limit has been exceeded. Callers terminate the
+// turn when it returns true. When the limit is unlimited (<= 0) it always
+// returns false.
+func (a *Agent) noteContextRemovalAndCheckLimit() bool {
+	a.mu.Lock()
+	a.contextRemoveCount++
+	count := a.contextRemoveCount
+	a.mu.Unlock()
+	limit := a.contextRemoveLimit()
+	return limit > 0 && count > limit
+}
+
 func (a *Agent) removeLastAssistantWithToolCalls() string {
 	lastAssistantIdx := -1
 	for i := len(a.messages) - 1; i >= 0; i-- {

@@ -143,9 +143,11 @@ func TestStreamSupReply(t *testing.T) {
 	if len(calls) != 1 || calls[0].Name != "submit_review" {
 		t.Errorf("unexpected tool calls %+v", calls)
 	}
-	// Content chunks forwarded (reasoning not forwarded).
-	if len(got) != 2 {
-		t.Fatalf("expected 2 forwarded content events, got %d", len(got))
+	// Content chunks forwarded (reasoning not forwarded) + one tool section:
+	// FEATURE-461 exposes the tool call input as the SUP block's bottom section,
+	// so it is a third forwarded event on the same channel.
+	if len(got) != 3 {
+		t.Fatalf("expected 3 forwarded events (2 content + 1 tool section), got %d", len(got))
 	}
 	for _, ev := range got {
 		if ev.Chan != ChannelSupervisor {
@@ -157,6 +159,16 @@ func TestStreamSupReply(t *testing.T) {
 	}
 	if got[0].Text != "part1" || got[1].Text != "part2" {
 		t.Errorf("unexpected forwarded texts %q / %q", got[0].Text, got[1].Text)
+	}
+	if got[0].Meta[MetaKeySupPart] != "content" || got[1].Meta[MetaKeySupPart] != "content" {
+		t.Errorf("content chunks must carry sup_part=content, got %q / %q",
+			got[0].Meta[MetaKeySupPart], got[1].Meta[MetaKeySupPart])
+	}
+	if got[2].Meta[MetaKeySupPart] != "tool" {
+		t.Errorf("tool section must carry sup_part=tool, got %q", got[2].Meta[MetaKeySupPart])
+	}
+	if got[2].Text != "submit_review\n{\"approved\":true}" {
+		t.Errorf("unexpected tool section text %q", got[2].Text)
 	}
 }
 

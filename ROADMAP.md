@@ -4,6 +4,39 @@
 
 ---
 
+## v0.53.0 — 已合并
+
+> **版本**: v0.53.0
+
+> **状态**: ✅ 已合并到 main（tag v0.53.0）
+> **里程碑**: 循环检测新增“多行等长”维度（触发二次判定）；“移除有问题的上下文”尝试次数上限（默认 0 = 不限制）；监督员按结构化验收标准逐条核对交付物
+> **说明**: 代码检视发现三处能力缺口：① 循环检测只有基于“内容重复”的检测（周期重复 / 单行重复 / 单行超长 / 字符级周期 / 跨迭代重复），缺少基于“行长度”维度的检测——等长但内容不同的多行输出（如逐行等宽的排版型/列表型输出）永不触发，也就进不了二次判定；③ `agent/run_stream.go` 中两处“移除有问题的上下文”（LLM 调用出错重试、问题解决模型 delete_last_msg）均无计数与上限，可能无限循环；⑤ 监督员链路已通但缺少结构化“验收标准”维度，无法逐条核对交付物是否达标。（② SUP 流式暴露与 ④ Plan 模式需求挖掘提示词经检视已实现，本次不改。）
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-514 | 0.53.0 | P1 | 循环检测新增多行等长检测；移除上下文尝试次数上限（默认 0=不限制，到达即终止）；监督员按结构化验收标准逐条核对并反馈 |
+
+> 当前 BUILD: 985
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-514 循环检测多行等长 + 移除上下文次数上限 + 监督员验收标准核对**
+  - 背景（代码检视结论）：
+    1. 循环检测无“行长度”维度：`agent/loop_detector.go` 只有周期重复（内容相同）、p=1 单行重复（数量门限）、单行超长（>2048 字符）、字符级周期、跨迭代内容重复、工具调用重复；等长但内容不同的多行输出不会被任何检测器命中。
+    2. `agent/run_stream.go` 两处移除上下文（LLM 调用出错移除最后 assistant+tool_calls 后重试；问题解决模型建议 delete_last_msg）无计数、无上限。
+    3. 监督员（FEATURE-456）已覆盖终极目标核对，但 `taskplan` 无验收标准结构字段，监督提示词也未要求逐条核对、未规定“未达标必须打回”。
+  - 实施（已编码完成，待用户验证）[BUILD-984]：
+    1. 多行等长：`LoopDetector` 增加行长环形缓冲，满足“连续 N 行（默认 100）字符长度完全一致且不构成周期重复”时产生新事件（LoopType=`uniform_line_length`），经 `applyLoopIntervention` 进入二次判定；新增配置 `loop-uniform-line-threshold`；
+    2. 移除上下文次数上限：新增配置 `context-remove-limit`（默认 0 = 不限制），两处移除路径计数，达到上限即终止并向用户报告；
+    3. 验收标准：`taskplan` 新增 `acceptance_criteria`，`buildSupervisorUserPrompt` 增“验收标准”段，监督系统提示词要求逐条核对、任一条不满足必须打回，`submit_review` 增加 `criteria_check`。  - 校验（BUILD-984）：`go build ./... && go vet ./...` 全绿；新增 `agent/feature514_test.go` 全绿（等长检测 6 例 + 移除上下文上限 3 例 + 验收标准解析/格式化 3 例）；`node --check web/static/app.js` 通过；`go test ./taskplan/ ./i18n/` 通过；agent 包仅剩既有失败 TestAutoIntervention_* / TestStreamSupReply（与本次改动无关，FIX-513 记录中同样存在）；co-shell / co-shell-hub 已编译至 ~/bin（v0.53.0 BUILD-984）。
+  - 进度：✅ 已完成并合并到 main（tag v0.53.0）[BUILD-985]。用户验收通过。
+  - 附带修复（用户要求查清并修复 3 个既有失败用例，BUILD-985）：
+    1. `TestAutoIntervention_BelowThreshold` / `TestAutoIntervention_EscalatesAtThreshold`（`agent/loop_retry_limit_test.go` 夹具 + `agent/loop_auto_test.go` 断言）：根因是测试夹具用 `&config.Config{}` **零值**构造 Agent，而 FEATURE-471 的 `<environment_details>` 开关（`EnvIncludeDetails` 等 bool）在零值下为 false，导致 `buildFullEnvironmentDetails` 返回空串——新增的反馈消息不带 env，`<retried_count>` 永远读到 0。**真实运行不受影响**：`LoadFromFile` 先 `DefaultConfig()` 再 `json.Unmarshal`，旧配置缺字段时保留默认 true。修复：夹具改用 `config.DefaultConfig()` 作为基线（贴近真实运行时配置）。
+    2. `TestStreamSupReply`（`agent/sup_stream_test.go`）：根因是**测试期望过时**——FEATURE-461 之后 `streamSupReply` 除转发 content 块外，还会通过 `emitSupTool` 把工具调用输入作为 SUP 块底部段转发（共 3 个事件）。修复：断言改为 3 个事件，并分别校验 `sup_part=content`（part1/part2）与 `sup_part=tool`（`submit_review` 段文本），断言强度不降反升。
+    校验：`go build ./... && go vet ./...` 全绿；`go test ./agent/ ./taskplan/ ./i18n/ -short` 全绿（agent 包此前 3 个失败已全部消除，无新增回归）。
+
 ## v0.52.1 — 已合并
 
 > **版本**: v0.52.1

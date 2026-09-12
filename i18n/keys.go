@@ -194,6 +194,7 @@ const (
 	KeyLoopTypeSingleRepeat = "loop_type_single_repeat"
 	KeyLoopTypeMultiLine    = "loop_type_multi_line"
 	KeyLoopTypeLineTooLong  = "loop_type_line_too_long"
+	KeyLoopTypeUniformLine = "loop_type_uniform_line"
 	KeyLoopTypeCharPeriod   = "loop_type_char_period"
 	KeyLoopTypeLongOutput   = "loop_type_long_output"
 	KeyLoopTypeToolCall     = "loop_type_tool_call"
@@ -2645,6 +2646,15 @@ const (
 	KeyDebugModeEnabled           = "debug_mode_enabled"
 	KeyDebugModeDisabled          = "debug_mode_disabled"
 	KeyRemovedMessages            = "removed_messages"
+	KeyContextRemoveLimitReached  = "context_remove_limit_reached"
+	KeyTaskPlanAcceptance         = "task_plan_acceptance"
+	KeySupervisorNoAcceptanceCriteria = "supervisor_no_acceptance_criteria"
+
+	// FEATURE-514: new loop / context settings exposed in REPL and Web UI.
+	KeySettingCmdLoopUniformLine        = "setting_cmd_loop_uniform_line"
+	KeySettingCmdContextRemoveLimit     = "setting_cmd_context_remove_limit"
+	KeySettingCmdLoopUniformLineSet     = "setting_cmd_loop_uniform_line_set"
+	KeySettingCmdContextRemoveLimitSet  = "setting_cmd_context_remove_limit_set"
 	KeyEndMarker                  = "end_marker"
 
 	// FEATURE-305 P4.5 IV: misc remaining hardcoded Chinese

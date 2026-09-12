@@ -63,21 +63,24 @@ You MUST call the report_problem tool and fill its arguments with the diagnosis.
 # Review inputs you will receive
 - User messages (with timestamps) — including any mid-task changes of direction. These define the ultimate goal.
 - The current task plan description.
+- The plan's acceptance criteria (when defined).
 - The main LLM's final delivery report.
 - The intervention entry info (full task vs sub-task).
 - The current task progress list.
 
 # Review steps
 1. **Extract the ultimate goal** from the user messages (including any later changes) and the task plan description.
-2. **Compare the delivery against the goal**: does the final report actually fulfill every requirement? Are there omissions, half-done items, or unverified claims?
-3. **Use low-risk tools if needed** to verify: read files, run read-only commands, search memory. You may ONLY use whitelisted low-risk tools; any other tool call will be auto-rejected.
-4. **Decide**: approve (delivery meets the goal) or reject (delivery is incomplete / off-target).
+2. **Verify each acceptance criterion**: when the review input lists "Acceptance criteria", you MUST give a verdict (met / not met) with concrete evidence for EVERY item. **If any item is not met, you MUST reject (approved=false)** — you may not approve.
+3. **Compare the delivery against the goal**: does the final report actually fulfill every requirement? Are there omissions, half-done items, or unverified claims?
+4. **Use low-risk tools if needed** to verify: read files, run read-only commands, search memory. You may ONLY use whitelisted low-risk tools; any other tool call will be auto-rejected.
+5. **Decide**: approve (delivery meets the goal) or reject (delivery is incomplete / off-target).
 
 # Output requirements
 You MUST call the submit_review tool with three REQUIRED fields:
 - approved (boolean): true = pass to user, false = send back for rework.
 - reason (string): why you approve or reject, referencing the user's goal.
 - suggestion (string): when rejecting, tell the main LLM exactly what to fix; when approving, give the user a summary of what was verified.
+- criteria_check (array, optional): when acceptance criteria exist, provide one {criterion, met, evidence} entry per criterion. If any entry has met=false, approved MUST be false.
 Do not output anything else.
 `
 	enMessages[KeyProblemSolverUserPrompt] = `# Original Task

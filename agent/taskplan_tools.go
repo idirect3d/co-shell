@@ -145,6 +145,18 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 	// a bare Println here (which bypassed showTool control and duplicated output).
 	formatted := taskplan.FormatPlan(plan)
 
+	// FEATURE-514: persist the plan's acceptance criteria (when provided) so the
+	// supervisor model can verify the delivery against each item. Re-format the
+	// plan so the criteria appear in the tool result shown to the main LLM.
+	if criteria, ok := parseAcceptanceCriteria(args["acceptance_criteria"]); ok {
+		if err := a.taskPlanMgr.SetAcceptanceCriteria(criteria); err != nil {
+			log.Warn("trackTaskProgressTool: cannot store acceptance criteria: %v", err)
+		} else if fresh, ferr := a.taskPlanMgr.GetCurrent(); ferr == nil && fresh != nil {
+			plan = fresh
+			formatted = taskplan.FormatPlan(plan)
+		}
+	}
+
 	// FEATURE-456: supervisor review at intervention point C (task progress
 	// marked complete). Only triggers when at least one step is marked completed.
 	if hasCompletedStep(steps) {
@@ -165,6 +177,47 @@ func (a *Agent) trackTaskProgressTool(ctx context.Context, args map[string]inter
 	a.mu.Unlock()
 
 	return formatted, nil
+}
+
+// parseAcceptanceCriteria extracts the acceptance_criteria argument of
+// track_task_progress (FEATURE-514). It accepts an array of strings (OpenAI
+// mode) or a single string with one criterion per line (XML mode), tolerating
+// leading "- " bullets. The second return value reports whether the argument
+// was present at all — absent means "keep the existing criteria".
+func parseAcceptanceCriteria(raw interface{}) ([]string, bool) {
+	switch v := raw.(type) {
+	case nil:
+		return nil, false
+	case []string:
+		out := make([]string, 0, len(v))
+		for _, s := range v {
+			if trimmed := strings.TrimSpace(s); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out, true
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				if trimmed := strings.TrimSpace(s); trimmed != "" {
+					out = append(out, trimmed)
+				}
+			}
+		}
+		return out, true
+	case string:
+		out := make([]string, 0, 4)
+		for _, line := range strings.Split(v, "\n") {
+			line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-"))
+			if line != "" {
+				out = append(out, line)
+			}
+		}
+		return out, true
+	default:
+		return nil, false
+	}
 }
 
 // hasCompletedStep reports whether any step in the given list is marked completed.

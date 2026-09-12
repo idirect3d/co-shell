@@ -97,6 +97,12 @@ type TaskPlan struct {
 	Steps       []TaskStep `json:"steps"`
 	CreatedAt   string     `json:"created_at"`
 	UpdatedAt   string     `json:"updated_at"`
+
+	// AcceptanceCriteria lists the verifiable acceptance criteria of the plan
+	// (FEATURE-514). The supervisor model checks the delivery against each item
+	// and must reject the delivery when any criterion is unmet. Empty for plans
+	// created without explicit criteria (backward compatible).
+	AcceptanceCriteria []string `json:"acceptance_criteria,omitempty"`
 }
 
 // currentPlanKey is the fixed key used to store the single current task plan.
@@ -203,6 +209,25 @@ func (m *Manager) HasUnfinished() bool {
 // GetCurrent returns the current task plan, or nil if none exists.
 func (m *Manager) GetCurrent() (*TaskPlan, error) {
 	return m.loadCurrent()
+}
+
+// SetAcceptanceCriteria stores the acceptance criteria of the current plan
+// (FEATURE-514). It is a no-op when no plan is active. Passing an empty slice
+// clears the criteria; nil input leaves them unchanged.
+func (m *Manager) SetAcceptanceCriteria(criteria []string) error {
+	if criteria == nil {
+		return nil
+	}
+	plan, err := m.loadCurrent()
+	if err != nil {
+		return err
+	}
+	if plan == nil {
+		return nil
+	}
+	plan.AcceptanceCriteria = criteria
+	plan.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+	return m.saveCurrent(plan)
 }
 
 // UpdateSteps is the unified method that:
@@ -458,6 +483,13 @@ func FormatPlan(plan *TaskPlan) string {
 	}
 	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_719), plan.CreatedAt))
 	sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeySettingCmd_727), plan.UpdatedAt))
+
+	if len(plan.AcceptanceCriteria) > 0 {
+		sb.WriteString("\n" + i18n.T(i18n.KeyTaskPlanAcceptance) + "\n")
+		for i, c := range plan.AcceptanceCriteria {
+			sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, c))
+		}
+	}
 
 	// Calculate progress
 	total := len(plan.Steps)

@@ -270,6 +270,13 @@ type Agent struct {
 	// new genuine user message starts a RunStream call.
 	loopFailedStrategies []string
 
+	// contextRemoveCount counts how many times the current user turn removed
+	// "problematic" context (FEATURE-514) — both the LLM-error retry path and
+	// the problem-solver delete_last_msg path. Reset at the start of each
+	// RunStream. When cfg.LLM.ContextRemoveLimit > 0 and the count exceeds the
+	// limit, the removal paths stop retrying and terminate the turn instead.
+	contextRemoveCount int
+
 	// loopDetectSyncErr stores the loop detection error for the sync (non-judge) path.
 	// When LoopJudgeEnabled is false, handleLoopDetection sets this and the stream
 	// event loop checks it to break out immediately.
@@ -1419,6 +1426,8 @@ func loopTypeKey(loopType string) string {
 		return i18n.KeyLoopTypeSingleRepeat
 	case "multi_line":
 		return i18n.KeyLoopTypeMultiLine
+	case "uniform_line_length":
+		return i18n.KeyLoopTypeUniformLine
 	case "line_too_long":
 		return i18n.KeyLoopTypeLineTooLong
 	case "char_period":
