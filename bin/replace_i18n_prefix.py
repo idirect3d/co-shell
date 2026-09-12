@@ -36,7 +36,7 @@ for lang in ['zh', 'en']:
         'track_task_progress', 'view_task_plan',
         'get_memory_slice', 'memory_search', 'delete_memory',
         'update_settings', 'list_settings',
-        'ask_followup_question', 'attempt_completion',
+        'ask_user', 'attempt_completion',
         'evaluate_expression', 'reorganize_context',
         'shell_send', 'shell_get_output', 'shell_window_content', 'shell_reset',
         'browser_navigate', 'browser_screenshot', 'browser_click',

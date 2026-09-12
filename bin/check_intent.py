@@ -6,7 +6,7 @@ import re
 
 # 不要求 intent 的工具
 SKIP = {
-    'track_task_progress', 'attempt_completion', 'ask_followup_question',
+    'track_task_progress', 'attempt_completion', 'ask_user',
     'reorganize_context', 'view_task_plan',
     'evaluate_expression', 'add_images', 'shell_reset',
 }
