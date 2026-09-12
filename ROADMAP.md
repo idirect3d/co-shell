@@ -4,11 +4,11 @@
 
 ---
 
-## v0.51.0 — 开发中
+## v0.51.0 — 已合并
 
 > **版本**: v0.51.0
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已合并到 main（tag v0.51.0）
 > **里程碑**: hub agent 公告板协作机制（FEATURE-490 合并落地）
 > **说明**: 把 2026-09-08 基于 v0.42.0 开发的 hub agent 公告板协作能力合并到当前基线：hub 侧公告板中枢（广播感知 / 认领 / 私信 / 确认 / 主动下发执行 / 结果回传）+ co-shell 侧 6 个 board 工具与 3 类动态感知事件 + `board_task` 主动执行注入；同时补齐当年缺失的 i18n、工具使用说明映射、配置暴露（:set 与 Web 面板）与 co-shell 侧单测。
 
@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FEATURE-490 | 0.51.0 | P1 | hub agent 公告板协作机制合并落地：合并分支 FEATURE-490 + 解决 3 处冲突 + 补齐 i18n / 工具使用说明映射 / 配置暴露 / co-shell 侧测试 |
 
-> 当前 BUILD: 967
+> 当前 BUILD: 969
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-490 hub agent 公告板协作机制（合并落地）**
+- [x] **FEATURE-490 hub agent 公告板协作机制（合并落地）**
   - 背景：FEATURE-490 于 2026-09-08 在 v0.42.0 基线上完成（单提交 `631c1f3`，+1264/−4，17 文件），但一直未合并进 main。实测确认 main 中没有任何 board 相关代码（`BoardEnabled` / `board_enabled` / `board_task` / `hub/gateway/board.go` 均不存在）。
   - 实测合并预演：`git merge-tree main FEATURE-490` 仅 3 个文件冲突（`ROADMAP.md`、`main.go`、`web/server.go`），其余 14 个文件自动合并；hub 侧 `proxy.go`/`agent.go` 自 merge-base 起 main 一行未改（零漂移）。
   - 本次补齐的规范缺口：① board 6 个工具的 Description/参数描述零 i18n；② `agent/toolcall_mode.go` 缺 board 使用说明映射；③ `BoardEnabled` 未接入 `:set` 与 Web 设置面板；④ co-shell 侧无任何测试。
@@ -35,7 +35,52 @@
   - 本次落地（BUILD-967）：在 FEATURE-490-merge 分支合并完成，冲突仅 3 处且已解决（ROADMAP.md 保留新版本段并收拢原实现记录；main.go 保留 0.51.0/967；web/server.go 同时保留 FEATURE-507 分页字段与 FEATURE-490 board_task 字段，sendRaw 自动合并）。
   - 本次补齐规范缺口：① 6 个 board 工具新增 XML 模式用法示例（`KeyToolUsageBoard*` 中文/英文 + `toolUsageKeyMap` 映射）；② `BoardEnabled` 接入 `:set board-enabled on|off`、Web 设置面板、`:config` 参数（重置语义为 off）与中英文案；③ 新增 co-shell 侧单测 `agent/board_fix490_test.go`（工具注册开关、6 个工具线协议报文、三类 board 动态事件渲染、无 sender 时失败行为）。
   - 本次验证：`go build ./... && go vet ./...` 全绿；`go test ./agent/ -run TestBoard` 4/4 通过；`go test ./web/ ./i18n/` 通过；hub 模块 `hub/gateway` 6 个公告板单测通过。既有失败与本次无关：`agent` 的 TestAutoIntervention_* / TestStreamSupReply、`cmd` 的 TestWebWizardModelNameStep（合并前后基线一致）。
-  - 待办：hub + 两个 co-shell 实例的公告板全链路联调（用户确认后执行）。
+  - 合并 main 前同步（BUILD-969）：先把 main 的 FIX-509（v0.50.1）合入本分支，冲突 3 处已解决（`main.go` / `cmd/co-shell-hub/main.go` 统一为版本 0.51.0 + BUILD 969；`ROADMAP.md` 同时保留 v0.51.0 与 v0.50.1 两个版本段）。
+  - 双实例联调：hub + 两个 co-shell 实例的公告板全链路已实测闭环（post → list → claim → dm → confirm → board_task → board_result → done），报告见 `tmp/fix490-e2e/LIAN-TIAO-REPORT.md`。
+  - 遗留缺口（已记录，建议另立 FIX 任务）：① hub 的 `routeAgentMessage` 只处理 `board_result`，agent 上行的其余 5 个 `board_*` 报文被丢弃；② co-shell 侧未处理 board 响应（`board_list` / `board_claim` 等），「巡检感知」缺失一半。
+  - 进度：已完成并合并到 main（tag v0.51.0）[BUILD-969]
+
+---
+
+## v0.50.1 — 已合并
+
+> **版本**: v0.50.1
+
+> **状态**: ✅ 已合并到 main（tag v0.50.1）
+> **里程碑**: 修复历史分页加载中断（FIX-509）
+> **说明**: 修复 Web UI 向上滚动只能加载一次（约 20 条）后无法继续加载更早历史的问题。根因是 `pushHistory` 的 `hasMore` 判断基于「本次加载的组数是否 > count」，而非「是否还有更早事件」；当单次 1000 条原始事件分组后 ≤ 20 组时（消息块较大时常见）误报无更多历史。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-509 | 0.50.1 | P1 | 修复历史分页加载中断：pushHistory 改为循环加载直到凑够 count 组或没有更早事件；hasMore 语义修正为「是否还有更早事件」；风险标签去重 + 收紧块复用匹配 |
+
+> 当前 BUILD: 968
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-509 修复历史分页加载中断（已合并 v0.50.1）**
+  - 背景：FEATURE-508 交付后，用户反馈向上滚动只能加载约 20 条，之后无法继续加载更早历史。
+  - 根因：`web/session.go` 的 `pushHistory` 中，`hasMore` 基于 `len(order) > count` 判断。单次 `LoadEvents` 上限为 `count*maxEventsPerMessage = 1000` 条原始事件，而一个 TOOL 块可含 50+ 事件，因此 1000 条原始事件分组后常不足 20 组，导致 `hasMore=false`，前端 `loadOlderHistory` 因 `!historyHasMore` 直接 return。
+  - 方案（用户确认）：后端循环加载，直到凑够 count 组或 store 报告没有更早事件为止；`hasMore` 语义修正为「是否还有更早事件」；`oldestSeq` 改为取最旧组的首个事件 seq（原实现取 `entries[0].Seq`，在循环加载下不再正确）。
+  - 实施：`web/session.go`（pushHistory 重写为循环加载）+ `web/static/app.js`（风险标签去重 + 收紧块复用匹配）+ `web/fix509_history_test.go`（4 个回归测试）+ `main.go`/`cmd/co-shell-hub/main.go`（版本 0.50.1）+ ROADMAP.md
+  - 测试：`go test ./web/ -run TestPushHistory` 4 个用例全部通过（覆盖：凑够 count 组、到达最旧一条、游标向后翻页不重叠、空流）
+  - [BUILD-966] 用户反馈「回放与实时不一致（顺序+内容）」后重新实测：直接读隔离实例 bbolt 副本，发现事件流 seq 连续无缺口（2584 条、gaps=0），但同一 session 内 msg_index 出现 7 次回落、8 段拼接，且 seq=1 存的是最新事件（真正的最旧事件已丢失）——证明写入侧本身已损坏，与此前前端修复无关。
+  - [BUILD-966] 根因（复现测试钉死）：`store/eventstream.go` 的 `AppendEvent` 注释写着「seek 到前缀之后、再回退一步」，代码却缺少回退。当存在排序在本会话之后的另一个会话（如新建会话 `sess-20260912…` 与旧会话 `sess-20260911…` 共存）时，`Seek(prefix+0xFF)` 返回的是**别的会话的 key**，前缀校验失败使 `nextSeq` 回落为 1，于是此后每条新事件都覆盖 `seq=1`。
+  - [BUILD-966] 修复：`Seek` 后显式 `Prev()`（无后继时仍回退 `Last()`），确保取到本会话最高 seq。新增 `store/eventstream_fix509_test.go`（2 个回归测试，修复前第一个用例失败：`kept 1 events, want 3`）。
+  - [BUILD-966] 待办：`loadHistoryPage` 按 `msg_index` 分组假设了 msg_index 会话内唯一，但 retry（`popTo` 截断）与 `reorganize_context` 折叠会使其回退/重置为 1（且 `ClearEventStream` 在生产代码中无调用方），跨世代分组会重排页内事件——待用户确认是否一并修复。
+  - [BUILD-966] 验证：`go test ./store/` 全部通过。
+  - 附带修复（FIX-508 回归）：① 风险标签插入无去重，叠加块复用导致标签累积（截图见 10 个）；② 块复用 fallback 过于宽松（`iterToolBlocks.find(b => !b._intentFilled && b.params)`），使后续无关工具调用（含 attempt_completion）误用前一个调用的块，标题与参数描述不同调用。已改为仅按 tool_name 精确命中。
+  - 补充修复（BUILD 959，用户实测反馈）：① `web/server.go` 的 `HasMore`/`OldestSeq` 带 `omitempty`，零值（false/0）时字段被整个从 JSON 中删除，前端读到 `undefined` → `historyOldestSeq=0` → `loadOlderHistory` 因 `!historyOldestSeq` 直接 return，分页彻底停摆；已去掉 `omitempty` 并新增 `TestHistoryMessageAlwaysCarriesPagingFields` 回归测试。② `web/static/app.js` 的 `wasAtTop = prevTop < 5` 阈值过小，而 IntersectionObserver 的 `rootMargin` 为 120px，触发时 `prevTop≈120` 导致走 `else` 分支把视口向下推入内容高度（实测 scrollTop 0→583→9671）；阈值放宽到 200 以覆盖 rootMargin。
+  - 补充修复 2（BUILD 960，用户实测反馈「到达滑动窗口边界后无法继续加载」）：`web/static/style.css` 的哨兵被改为 `position: sticky; top: 0`（BUILD 958 引入），导致哨兵在**任意滚动位置**都钉在滚动容器顶边（实测 scrollTop 0/500/2000/10000 时 relativeTop 恒为 0）。IntersectionObserver 只在**进入/离开**时触发，哨兵永不离开视口 → 首次触发后再无新事件 → 分页停摆。已回退为普通流内元素，并新增 `TestTopSentinelIsNotSticky` 回归测试。同时 `web/static/app.js` 新增 `scheduleChainLoad()`：prepend 后若用户仍在顶部，主动链式加载下一页，不再单纯依赖 observer 重新触发。
+  - 新增配置项（BUILD 961，用户需求）：将历史分页「一次取 20 条」改为可配置参数 `page-buffer-size`（Go: `LLM.PageBufferSize` / JSON: `page_buffer_size`），范围 10-100，默认 20。接入点：`config/config.go`（字段 + 默认值）、`cmd/settings_web.go`（Web 设置面板）、`cmd/settings_display.go`（CLI `:set` 读写与校验）、`cmd/settings.go`（CLI 白名单 + 列表展示）、`i18n/{keys,zh,en}.go`（中英文描述）、`web/static/app.js`（`pageBufferSize` 变量 + `cacheStreamWindowSettings` 读取 + 两处 `history_get` 请求改用该值）。后端 `pushHistory` 的 `defaultHistoryMessages` 保留为兜底（前端未传 count 时使用）。
+  - 补充修复 3（BUILD 962，用户实测反馈）：prepend 历史页时，① 每条消息的 token 用量行被追加到主消息区**最底端**堆叠（实测 8 个 `.ev.meta` 成了 `streamB` 的直接子节点，而非嵌套在各自 `.ev` 块内）；② 消息指示器（msgViz）的新线被加到**右端**，导致时间轴反向。根因：`insertAnchor` 只作用于 `makeBlock` 创建块的瞬间，而 token 行与指示器线是在**后续的 `token_iter` 事件**里创建的，仍无条件 `appendChild`。修复：新增 `prependingHistory` 标志（`renderHistory` 的 prepend 循环内置位），token 行改为 `streamB.insertBefore(line, insertAnchor)`，指示器线改为 `msgVizTrack.insertBefore(line, msgVizTrack.firstChild)`。
+  - 合并（BUILD-968）：按用户确认合并到 main（快进合并），并打版本标签 `v0.50.1`。合并前复核：`go build ./... && go vet ./...` 全绿；`store` 包全部单测通过；`cmd` 的 `TestWebWizardModelNameStep` 为既有失败（与本次无关）。
+  - 补充修复 4（BUILD 963，用户实测反馈「向上滚动会连续加载很多页」）：BUILD 962 引入的 `wasAtTop` 分支在 prepend 后强制 `scrollTop = 0`，使哨兵始终留在 IntersectionObserver 的 120px 边距内，`scheduleChainLoad()` 于是立即再次触发，一路加载到最旧事件。已改为**统一位置补偿**：prepend 后一律 `scrollTop = prevTop + delta`，把新内容插到当前视口**上方**、视口位置保持不变；哨兵随之移出视口，分页自然停止，直到用户再次向上滚动。同时删除已无用的 `scheduleChainLoad()`。
+  - 补充修复 5（BUILD 964，用户实测反馈「历史内容缺少记录或顺序不对，LLM 与 TOOL 块连成一片」）：`web/session.go` 的分页循环依赖「单页内有序」而非「全局有序」。`LoadEvents` 每次返回的是**最新**窗口（seq < cursor），第二次调用返回的是**更旧**的窗口，但代码把后读到的页 append 到 `order` 之后，于是 `order` 变成「较新组..., 较旧组...」；同时 `groups[key]` 跨页累积会把跨页分组的事件前后颠倒；裁剪 `order[len-count:]` 后顺序彻底错乱。已把分页逻辑提取为 `loadHistoryPage()` 并**先按 seq 全局排序再分组**，保证输出严格按时间顺序、最后一个是最新组。测试侧：`collectHistoryPage` 原先复制了生产逻辑（所以从未捕获该 bug），已改为调用真实 `loadHistoryPage`；新增 `TestHistoryPageIsChronologicalAcrossWindows`（40 组 × 60 事件，强制跨窗口），已验证该用例在旧实现下失败（`group went backwards (6 after 39)`）、修复后通过。
+  - 补充修复 6（BUILD 965，定位「修复后仍复现」的关键原因）：`web/server.go` 的 `GET /static/` 直接用了 `http.FileServer`，而 `embed.FS` 中的文件**没有修改时间**，导致响应既无 `Last-Modified` 也无 `ETag`（实测响应头仅有 `Content-Type`/`Content-Length`）。浏览器因此退化为**启发式缓存**、无法校验，重启服务后仍继续使用旧 build 的 `app.js` —— 这正是前几轮修复在用户侧「看起来没生效」的原因。已改为 `serveStatic()`：按资源内容哈希生成 `ETag` 并设置 `Cache-Control: no-cache`，匹配 `If-None-Match` 时返回 304。新增 `TestStaticAssetsCarryAnETag` 回归测试。
+  - 进度：已合并到 main 并打版本标签 v0.50.1（合并前复核：`go build ./... && go vet ./...` 全绿，`store` 包单测通过）[BUILD-968]
 
 ---
 

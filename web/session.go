@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -670,7 +671,9 @@ func (s *WebSession) handleModelBind(target, id string) {
 }
 
 // defaultHistoryMessages is how many message groups the browser replays after
-// a refresh (FEATURE-507).
+// a refresh (FEATURE-507). It is only a fallback: the browser sends the
+// configured page-buffer-size (FIX-509) and this value is used when the request
+// carries no usable count.
 const defaultHistoryMessages = 20
 
 // maxEventsPerMessage bounds how many raw events one message may contribute
@@ -689,41 +692,83 @@ func (s *WebSession) pushHistory(sessionID string, count, beforeSeq int) {
 	if sessionID == "" {
 		sessionID = s.ag.CurrentSessionID()
 	}
+	events, hasMore, oldestSeq := loadHistoryPage(s.ag.Store(), sessionID, count, beforeSeq)
+	s.srv.sendJSON(serverMessage{Kind: "history", Events: events, HasMore: hasMore, OldestSeq: oldestSeq})
+}
+
+// loadHistoryPage reads one page of persisted UI events: up to `count` message
+// groups (meta.msg_index) whose events all sit just before beforeSeq, together
+// with whether older events remain and the cursor for the next (older) page.
+// beforeSeq == 0 starts from the newest event.
+//
+// FIX-509: LoadEvents returns the NEWEST `limit` events below the cursor, so a
+// second call returns an OLDER window. Collecting pages in call order therefore
+// mixed newer and older events, which scrambled the replayed conversation (LLM
+// and TOOL blocks appeared clumped instead of alternating). Every page is now
+// collected first and sorted by sequence number, so grouping and the final
+// emission are globally chronological.
+func loadHistoryPage(st *store.DualStore, sessionID string, count, beforeSeq int) (events []json.RawMessage, hasMore bool, oldestSeq int) {
 	if count <= 0 {
 		count = defaultHistoryMessages
 	}
-	// Read a generous window of raw events, then trim to the requested number
-	// of message groups. A single message can span many events, so the raw
-	// limit is a multiple of the group count.
-	entries, _, err := s.ag.Store().LoadEvents(sessionID, count*maxEventsPerMessage, beforeSeq)
-	if err != nil {
-		log.Warn("pushHistory LoadEvents: %v", err)
-		return
+	type entry struct {
+		seq  int
+		data json.RawMessage
 	}
-	// Group by msg_index, keeping the order of first appearance.
+	var collected []entry
+	distinct := map[string]bool{}
+	cursor := beforeSeq
+	for {
+		entries, storeHasMore, err := st.LoadEvents(sessionID, count*maxEventsPerMessage, cursor)
+		if err != nil {
+			log.Warn("loadHistoryPage LoadEvents: %v", err)
+			break
+		}
+		if len(entries) == 0 {
+			hasMore = false
+			break
+		}
+		for _, e := range entries {
+			collected = append(collected, entry{seq: e.Seq, data: e.Data})
+			distinct[eventGroupKey(e.Data)] = true
+		}
+		// Advance the cursor to just before the oldest event of this window.
+		cursor = entries[0].Seq
+		hasMore = storeHasMore
+		// Stop once the requested number of groups is covered, or nothing older
+		// remains. distinct only grows, so this terminates.
+		if !storeHasMore || len(distinct) >= count {
+			break
+		}
+	}
+	sort.Slice(collected, func(i, j int) bool { return collected[i].seq < collected[j].seq })
+
 	var order []string
 	groups := map[string][]json.RawMessage{}
-	for _, e := range entries {
-		key := eventGroupKey(e.Data)
-		if _, seen := groups[key]; !seen {
+	groupFirstSeq := map[string]int{}
+	for _, e := range collected {
+		key := eventGroupKey(e.data)
+		if _, ok := groups[key]; !ok {
 			order = append(order, key)
+			groupFirstSeq[key] = e.seq
 		}
-		groups[key] = append(groups[key], e.Data)
+		groups[key] = append(groups[key], e.data)
 	}
-	hasMore := false
+	// Keep only the newest `count` groups; anything older stays on the server
+	// and is reachable through the `before` cursor.
 	if len(order) > count {
 		hasMore = true
 		order = order[len(order)-count:]
 	}
-	var events []json.RawMessage
 	for _, key := range order {
 		events = append(events, groups[key]...)
 	}
-	oldestSeq := 0
-	if len(entries) > 0 {
-		oldestSeq = entries[0].Seq
+	// The cursor for the next (older) page is the sequence number of the oldest
+	// event in the oldest group we are about to send.
+	if len(order) > 0 {
+		oldestSeq = groupFirstSeq[order[0]]
 	}
-	s.srv.sendJSON(serverMessage{Kind: "history", Events: events, HasMore: hasMore, OldestSeq: oldestSeq})
+	return events, hasMore, oldestSeq
 }
 
 // eventGroupKey returns the message-group key of a persisted event: its
