@@ -27,6 +27,11 @@
   - 实测合并预演：`git merge-tree main FEATURE-490` 仅 3 个文件冲突（`ROADMAP.md`、`main.go`、`web/server.go`），其余 14 个文件自动合并；hub 侧 `proxy.go`/`agent.go` 自 merge-base 起 main 一行未改（零漂移）。
   - 本次补齐的规范缺口：① board 6 个工具的 Description/参数描述零 i18n；② `agent/toolcall_mode.go` 缺 board 使用说明映射；③ `BoardEnabled` 未接入 `:set` 与 Web 设置面板；④ co-shell 侧无任何测试。
   - 分支：**FEATURE-490-merge**（基于 main 新建，与原分支 `FEATURE-490` 解耦）；版本：**v0.51.0**。
+  - 原实现记录（原分支 v0.42.0，提交 `631c1f3`）：
+    - 背景：接入 hub 的多个 co-shell 实例无法互相协作。需要公告板机制：一个 co-shell 发出协助请求，其他实例按职责匹配响应，条件不足时私信讨论，执行后返回结果。
+    - 方案（用户确认）：① 通信通道：WS 原生双向通道为主 + MCP 作为可选外部接入面；② 下发感知：广播用巡检感知 + 定向任务用主动注入；③ 执行方式：当前会话执行；④ 安全边界：co-shell 增加公告板开关，默认关闭；⑤ 本次范围：最小可用闭环（发请求→认领→私信→执行→回结果）。
+    - 原实施：`hub/gateway/`（board.go + AgentConn 下行通道 + Proxy 识别）+ co-shell（DynamicEventKind 扩展 + serve dispatch board_task + board_result 工具 + 公告板开关）
+    - 原验证：go build+vet 全绿；hub 6 个公告板单测通过 [BUILD-912]
 
 ---
 

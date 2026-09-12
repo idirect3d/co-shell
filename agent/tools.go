@@ -1895,6 +1895,84 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		tools = append(tools, mcpLLMTool)
 	}
 
+
+	// FEATURE-490: board collaboration tools (only when the board switch is on).
+	if a.BoardEnabled() {
+		tools = append(tools, llm.Tool{
+			Name:        "board_result",
+			Description: "Report the result of a hub bulletin-board task back to the hub (FEATURE-490). Call this after executing a board_task to deliver the outcome to the requester.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"task_id": map[string]interface{}{"type": "string", "description": "The task id from the board_task message"},
+					"result":  map[string]interface{}{"type": "string", "description": "The result text to return to the requester"},
+				},
+				"required": []string{"task_id", "result"},
+			},
+			Callback: a.boardResultTool,
+		})
+		tools = append(tools, llm.Tool{
+			Name:        "board_post",
+			Description: "Publish a help request to the hub bulletin board (FEATURE-490). Other agents whose role matches may claim it.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"title":         map[string]interface{}{"type": "string", "description": "Short title of the request"},
+					"description":   map[string]interface{}{"type": "string", "description": "Detailed description of what help is needed"},
+					"required_role": map[string]interface{}{"type": "string", "description": "Optional role that should respond"},
+				},
+				"required": []string{"title", "description"},
+			},
+			Callback: a.boardPostTool,
+		})
+		tools = append(tools, llm.Tool{
+			Name:        "board_list",
+			Description: "Poll the hub bulletin board for open help requests (FEATURE-490). Use this to discover requests relevant to your role.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+			Callback: a.boardListTool,
+		})
+		tools = append(tools, llm.Tool{
+			Name:        "board_claim",
+			Description: "Claim an open help request on the hub bulletin board (FEATURE-490). Only the requester and the assignee can then discuss via board_dm.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"request_id": map[string]interface{}{"type": "string", "description": "The request id to claim"},
+				},
+				"required": []string{"request_id"},
+			},
+			Callback: a.boardClaimTool,
+		})
+		tools = append(tools, llm.Tool{
+			Name:        "board_dm",
+			Description: "Send a direct message to the other participant of a board request thread (FEATURE-490). Use to clarify requirements before execution.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"request_id": map[string]interface{}{"type": "string", "description": "The request id"},
+					"content":    map[string]interface{}{"type": "string", "description": "The message content"},
+				},
+				"required": []string{"request_id", "content"},
+			},
+			Callback: a.boardDMTool,
+		})
+		tools = append(tools, llm.Tool{
+			Name:        "board_confirm",
+			Description: "Confirm a claimed board request to start execution (FEATURE-490). Only the requester can confirm; the assignee then receives a board_task.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"request_id": map[string]interface{}{"type": "string", "description": "The request id to confirm"},
+				},
+				"required": []string{"request_id"},
+			},
+			Callback: a.boardConfirmTool,
+		})
+	}
+
 	// Filter out disabled tools.
 	// Each disabled entry in toolModes causes that tool to be skipped.
 	// If "default" is disabled, all tools are skipped unless they have

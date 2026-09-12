@@ -1016,6 +1016,10 @@ type Config struct {
 	// the number of buffered user-action events (clip/upload/message/open)
 	// drained into <environment_details>. 0 means the default 100.
 	DynamicEventQueueSize int `json:"dynamic_event_queue_size,omitempty"`
+	// BoardEnabled enables the hub agent bulletin board collaboration
+	// (FEATURE-490). When false (default), the co-shell ignores board_task
+	// execution messages and does not participate in board collaboration.
+	BoardEnabled bool `json:"board_enabled,omitempty"`
 
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())

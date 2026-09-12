@@ -83,6 +83,13 @@ type clientMessage struct {
 	// groups to return (default 20); Before is the sequence cursor to page from.
 	Count  int `json:"count,omitempty"`
 	Before int `json:"before,omitempty"`
+
+	// TaskID, Requester and Instruction are the board_task fields (FEATURE-490):
+	// the hub pushes an execution task with a task id, the requester agent id
+	// and the instruction text to execute.
+	TaskID      string `json:"task_id,omitempty"`
+	Requester   string `json:"requester,omitempty"`
+	Instruction string `json:"instruction,omitempty"`
 }
 
 // interactionResultJSON is the wire form of an agent.InteractionResult.
@@ -416,6 +423,19 @@ func (s *Server) sendJSON(v serverMessage) bool {
 }
 
 // sendEvent pushes one agent stream event to the browser.
+// sendRaw writes a raw JSON message to the current WS client (the hub when
+// running in serve mode). Used by the board sender to push board_* messages
+// back to the hub (FEATURE-490).
+func (s *Server) sendRaw(data []byte) error {
+	s.mu.Lock()
+	c := s.conn
+	s.mu.Unlock()
+	if c == nil {
+		return errors.New("no web client connected")
+	}
+	return c.WriteMessage(data)
+}
+
 func (s *Server) sendEvent(ev agent.StreamEvent) bool {
 	ej := &eventJSON{Type: ev.Type, Text: ev.Text, Meta: ev.Meta}
 	if ev.Level != agent.LevelInfo {

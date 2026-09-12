@@ -29,6 +29,11 @@ type AgentConn struct {
 	mu      sync.RWMutex
 	clients map[*Conn]struct{} // subscribed gateway client connections
 	closed  bool
+
+	// onAgentMessage is an optional callback invoked for every message the
+	// agent sends up to the hub (FEATURE-490). The Proxy installs it so the
+	// Board can process agent-originated board_* messages (e.g. board_result).
+	onAgentMessage func(agentID string, msg []byte)
 }
 
 // NewAgentConn dials the agent's WebSocket endpoint and starts its read loop.
@@ -47,6 +52,14 @@ func NewAgentConn(ctx context.Context, cfg AgentConfig) (*AgentConn, error) {
 	}
 	go ac.readLoop()
 	return ac, nil
+}
+
+// SetOnAgentMessage installs the callback invoked for every agent-originated
+// message (FEATURE-490).
+func (ac *AgentConn) SetOnAgentMessage(fn func(agentID string, msg []byte)) {
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	ac.onAgentMessage = fn
 }
 
 // ID returns the agent identifier.
@@ -102,6 +115,12 @@ func (ac *AgentConn) readLoop() {
 			}
 			ac.Close()
 			return
+		}
+		ac.mu.RLock()
+		fn := ac.onAgentMessage
+		ac.mu.RUnlock()
+		if fn != nil {
+			fn(ac.cfg.ID, msg)
 		}
 		ac.broadcast(msg)
 	}
