@@ -1257,23 +1257,6 @@ function loadOlderHistory() {
   wsSend({ type: "history_get", count: pageBufferSize, before: historyOldestSeq });
 }
 
-// scheduleChainLoad keeps paging while the user stays parked at the top
-// (FIX-509). The top sentinel is an in-flow node, so prepending a page pushes it
-// down and the IntersectionObserver sees no new enter transition; without this
-// the load would stop as soon as the first page landed. The check runs on the
-// next frame so the DOM has settled, and only continues while the sentinel is
-// still within the observer's margin — scrolling away cancels the chain.
-function scheduleChainLoad() {
-  requestAnimationFrame(() => {
-    if (historyLoading || !historyHasMore || !historyOldestSeq) return;
-    const s = document.getElementById("streamTopSentinel");
-    if (!s) return;
-    const margin = 120;
-    const rel = s.getBoundingClientRect().top - streamB.getBoundingClientRect().top;
-    if (rel <= margin) loadOlderHistory();
-  });
-}
-
 // initTopSentinel wires the IntersectionObserver that watches the top marker.
 function initTopSentinel() {
   const s = ensureTopSentinel();
@@ -1822,14 +1805,6 @@ function renderHistory(msg) {
     historyInserting = true;
     const prevHeight = streamB.scrollHeight;
     const prevTop = streamB.scrollTop;
-    // FIX-509: remember whether the user was already near the very top. The
-    // IntersectionObserver fires with rootMargin 120px, so the load starts while
-    // scrollTop is still around 120 — a threshold of 5 would miss that case and
-    // take the "preserve position" branch, pushing the viewport down by the full
-    // height of the inserted page. Treat anything within the observer margin as
-    // "at the top" so the newly loaded page stays visible and the sentinel is
-    // not pushed out of view.
-    const wasAtTop = prevTop < 200;
     // Every block created while insertAnchor is set lands before the current
     // oldest node, so the older page is prepended in order.
     insertAnchor = streamB.firstChild;
@@ -1840,24 +1815,19 @@ function renderHistory(msg) {
     prependingHistory = false;
     insertAnchor = null;
     ensureTopSentinel();
-    // Compensate the scroll position so the visible content does not jump.
+    // FIX-509: anchor the viewport on the content the user is reading. The page
+    // is inserted ABOVE the current position, so shifting scrollTop down by
+    // exactly the inserted height keeps the same message under the viewport.
+    //
+    // This must apply even when the user is at the very top. An earlier version
+    // forced scrollTop = 0 in that case, which left the sentinel inside the
+    // observer margin; the chain-load then fired again immediately and paged all
+    // the way to the oldest event in one go. Anchoring instead moves the sentinel
+    // out of view, so paging stops until the user scrolls up again.
     const delta = streamB.scrollHeight - prevHeight;
-    if (wasAtTop) {
-      // Stay at the top: the user is reading the newly prepended page.
-      streamB.scrollTop = 0;
-    } else if (delta > 0) {
-      // Keep the same content under the viewport by shifting down by exactly the
-      // height that was inserted above it.
-      streamB.scrollTop = prevTop + delta;
-    }
+    if (delta > 0) streamB.scrollTop = prevTop + delta;
     historyInserting = false;
     updateBlockNav();
-    // FIX-509: the top sentinel is a normal in-flow node, so prepending a page
-    // pushes it down and the IntersectionObserver sees no new enter transition.
-    // If the user is still parked at the top, keep paging explicitly instead of
-    // waiting for an observer event that will never come — otherwise loading
-    // stops as soon as the first page lands.
-    if (wasAtTop) scheduleChainLoad();
     return;
   }
   for (const ev of events) {
