@@ -108,8 +108,8 @@ func getRequiredParamsDescription(toolName string) string {
 		return "'path' (string: directory path) - required"
 	case "visual_analysis":
 		return "'paths' (string: comma-separated image paths) - required"
-	case "ask_followup_question":
-		return "'question' (string: question text) - required; 'options' is optional"
+	case "ask_user":
+		return "'questions' (array: 1-N question objects, each with 'title' and optional 'options'/'multi'/'allow_note') - required"
 	default:
 		return "all parameters listed in the tool definition's 'required' array"
 	}

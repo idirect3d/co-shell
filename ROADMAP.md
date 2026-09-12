@@ -4,6 +4,87 @@
 
 ---
 
+## v0.52.0 — 已合并
+
+> **版本**: v0.52.0
+
+> **状态**: ✅ 已合并到 main（tag v0.52.0）
+> **里程碑**: 提问工具升级为「一次收集多题答案」（每题单选/多选 + 选项补充说明），并更名为 `ask_user`（FEATURE-512）
+> **说明**: 当前内置提问工具 `ask_followup_question` 只支持「一个问题 + 单选 + 一条补充说明」，而 LLM 经常需要一次性确认多个决策点（如「用哪个数据库 + 是否要迁移 + 是否保留旧表」），只能把多个问题硬塞进一个问题的选项里，导致选项语义混乱、用户难以逐题作答。本次将该能力升级为结构化问卷：一次下发多道题目，每题独立支持单选或多选，选项可附加补充说明，Web UI 上每题以独立卡片呈现并做视觉分隔，终端逐题作答；同时方法更名为 `ask_user`，为将来承载图片/文件等更多交互形态留出语义空间。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-512 | 0.52.0 | P1 | `ask_user` 支持多题收集（单选/多选/选项补充说明），Web 端分题卡片渲染、终端逐题作答 |
+
+> 当前 BUILD: 982
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-512 ask_user 多问题收集能力升级**
+  - 需求（用户提出）：LLM 经常会一次问多个问题以提高效率，而现有内置提问工具只支持单个单选问题，导致 LLM 只能把多个问题塞进同一个问题的选项里，选项不足以覆盖全部待确定项。需要升级为：一次收集多个问题的答案；每题可单选可多选；每个选项可在选择基础上补充说明；界面上用某种方式分隔不同的题目。同时讨论方法命名。
+  - 命名决策（用户确认）：更名为 `ask_user`（最简洁，为将来支持图片/文件等交互留语义空间），旧名 `ask_followup_question` 不再注册。
+  - 现状（调研结论）：工具注册于 `agent/tools.go`（`ask_followup_question`，参数 `question` 必需 / `options` 可选），回调 `askFollowupQuestionTool` 构造统一交互模型 `agent.Interaction`（`kind=select` 或 `input`，固定 `-`/`+` 键）→ `InteractionManager.Ask`；Web 端由 `web/session.go` 的 `WebIO.Ask` 下发 `interaction` 消息、`web/static/app.js` 的 `showInteraction()` + `renderVirtualKeyboard()` 渲染；终端由 `agent/interaction.go` 的 `TerminalInteractionManager.askSelect` 渲染。当前模型只有单一 `Options []string`，无法表达多选题。
+  - 设计：
+    - 工具层：`ask_user` 参数改为 `questions`（数组，1..N，每题 `title` 必需、`options` 可选、`multi` 可选默认 false、`allow_note` 可选默认 true）；兼容旧的 `question`/`options` 写法（归一化为单题），避免历史提示词与外部调用失效。
+    - 交互模型：`agent/interaction.go` 新增 `Question` 结构与 `Interaction.Questions` 字段、新增 `kind=questions`；`InteractionResult` 新增 `Answers []QuestionAnswer`（每题含 `selected[]` / `note` / `text`）。现有 `confirm`/`select`/`input`/`key` 语义保持不变。
+    - Web UI：每题一个独立卡片（序号 Q1/Q2 + 题面 markdown + 选项区），题目之间以分隔线/留白视觉分隔；单选渲染为 radio 样式、多选渲染为 checkbox 样式；每个选项提供「补充说明」入口（展开为输入框，附加到该选项）；底部一个「提交」按钮一次性回传全部答案。
+    - 终端：逐题渲染（Q1/N 题面 + 选项），多选以逗号分隔作答（如 `1,3`），补充说明沿用现有「空格进入补充」方式，全部答完后一次性回传。
+    - 回传：把每题答案格式化为可读文本（题面 + 所选项 + 补充说明）写入 task instruction cache 并作为工具结果返回，保证 LLM 能准确对应题与答。
+  - 验收：① LLM 一次调用可下发多道题，Web 端每题独立卡片且视觉分隔清晰；② 单选/多选均能正确收集，选项补充说明能附加到所选选项；③ 终端可逐题作答、多选逗号分隔；④ 旧的 `question`+`options` 调用仍可用；⑤ 答案完整回传 LLM 上下文。
+  - 实现（BUILD-974）：
+    - 新增 `agent/ask_user.go`（工具声明 + `questions` 归一化 + 回调 + 摘要文本）与 `agent/interaction_questions.go`（终端逐题渲染、选项解析、答案格式化）；`agent/interaction.go` 新增 `Question`/`AnswerNote`/`QuestionAnswer` 结构、`Interaction.Questions`、`InteractionResult.Answers`、`kind="questions"` 与 `ActionSubmit`。
+    - 工具改名：`agent/tools.go` 注册改为 `buildAskUserTool`（回调 `askUserTool`），`agent/agent.go`、`config/config.go`、`agent/toolcall_mode.go`、`agent/tool_summary.go`、`agent/tool_error.go` 与 i18n 文案/提示词全量同步；旧名 `ask_followup_question` 不再注册。
+    - Web：`web/static/app.js` 新增 `renderQuestions()`（每题卡片 + 单选/多选标记 + 每选项补充说明 + 统一提交按钮，题间虚线分隔，提交按钮显示已答进度），`web/static/style.css` 新增 `.qs-*` 样式；答案以 `{action:"submit", answers:[...]}` 回传。
+    - 终端：`askQuestions` 逐题渲染，多选以逗号分隔（如 `1,3`），`-` 退出整份表单，空格开头或「序号 + 空格 + 文本」作为选项补充说明；无选项题直接接收文本。
+  - 验证（BUILD-974）：
+    - 新增 `agent/ask_user_test.go`（XML/JSON 解析、交互结构、工具声明、JSON 往返、选项解析）并重写 `agent/interaction_test.go` 中的 ask_user 用例；`go test ./agent/ -run 'AskUser|Questions|SplitOption|Interaction|TerminalSelect'` 全部通过。
+    - `go build ./... && go vet ./...` 全绿；co-shell / co-shell-hub 已编译至 ~/bin（v0.52.0 BUILD-974）。
+    - 已知基线失败（与本次改动无关）：`agent` 包 `TestAutoIntervention_BelowThreshold` / `TestAutoIntervention_EscalatesAtThreshold` / `TestStreamSupReply`。
+  - 增量改进（用户实测后提出，BUILD-975）：
+    - 答案消息化：`ask_user` 的作答内容在前端以用户消息块渲染，标题为「YOU · 回答」（`renderUserEcho(text, {answer:true})`），以区别于用户键入的命令；答案文本与后端回传格式一致（题面 + 选择 + 回答 + 选项补充 + （未作答））。
+    - 多题快捷键：仅当前题显示 1-9 选项角标；数字键选中（单选选中后自动跳下一题，多选可反复勾选）；`-` 下一题、`+` 上一题；空格打开该题补充说明输入；底部显示快捷键提示行。
+  - 运行时验证（BUILD-975，独立实例 127.0.0.1:28260，不影响会话实例）：
+    - 渲染：注入 3 题表单 → 3 张卡片、仅当前题显示 1-3 角标、当前题高亮、快捷键提示行文案正确。
+    - 快捷键：`2`→A2 选中（多选停留本题）、`3`→A2+A3 复选、`-`→切到第 2 题（角标随之切换）、`1`→B1 选中并自动跳到第 3 题、`+`→回到第 2 题、空格→打开该题补充说明输入。
+    - 答案消息化：提交后事件流新增标题为「YOU · 回答」的用户消息，内容为「Q1 题面/选择: A2 + A3；Q2 选择: B1 + 回答: 补充；Q3 回答: 自由文本」，表单正常收起。
+  - 第三轮优化（用户实测后提出，BUILD-976）：
+    - 快捷键：`-`（下一题）改为 **Enter**（末题 Enter 直接提交）；`+` 仍为上一题；数字键短按选择、**长按 ≥450ms** 打开该选项的备注输入框（回车失焦即恢复快捷键监听）。
+    - 焦点标识改为 **Qn 徽标高亮**（`qs-index.hot`），快捷键提示行只显示在**当前焦点题**下方。
+    - 切换焦点题时自动 `scrollIntoView({block:"start"})` 将当前题滚动到可视区顶部；无选项的自由输入题在获得焦点时自动聚焦其输入框，Enter 进入下一题。
+    - 答案文本（界面与后端回传模型一致）简化为每题一行：`Q1: A + C（备注: A→xxx）`、`Q2: 文本`、`Q3: （未作答）`，不再重复题面；新增 `TestFormatQuestionAnswersCompact` 覆盖该格式。
+    - 浏览器实测（BUILD-976）：长按数字弹出该项备注框 → 填写后 Enter 失焦；Enter 逐题推进；单选选中即跳题；自由题自动聚焦且 Enter 提交末题；提交后「YOU · 回答」正文为 `Q1: A2（备注: A2→备注内容）/ Q2: （未作答）/ Q3: 自由文本答案`。
+  - 第四轮优化（用户实测后提出，BUILD-977）：
+    - 焦点题 Qn 徽标改为**反色实心高对比**（`background: var(--accent); color: var(--bg); font-weight:700`），非焦点题为描边镂空。
+  - 第五轮优化（用户实测后提出，BUILD-978）：
+    - 必填题：`questions[].required`（默认 false）→ `Question.Required`；Web 端必填徽标 `qs-req`，提交前校验未作答的必填题（阻止提交 + Qn 徽标高亮 `qs-missing` + 滚动到首个缺失题 + 按钮旁提示「必填题未作答 Q1, Q3」）；工具 schema 与中英文系统提示词用法同步补充 required 说明。
+    - 提示行动态生成 + 键位方框：按当前题生成 `[1]-[N] 选择 · 长按[1]-[N] 填备注 · [回车] 下一题/确定 · [+] 上一题 · [空格] 备注`（无选项题省略数字键部分），数字范围取当前题选项数，末题 Enter 标注为「确定」；新增 `kbdSpan()` 与 `.qs-kbd` 键帽样式，替换原固定文案 `qsHotkeyHint`。
+    - 底部按钮键位：提交按钮文案改为 `[回车] 确定 (n/N)` 且仅在最后一题显示（其他题 Enter 语义为「下一题」）；取消按钮前置 `[-]` 键位方框。
+    - 校验：`agent/ask_user_test.go` 新增 required 解析断言（XML `<required>true</required>` 与 JSON `"required": true`）与 schema `questions[].required` 断言；`node --check web/static/app.js` 通过；`go build ./... && go vet ./...` 全绿；`go test ./agent/ -run 'AskUser|Questions|SplitOption|Interaction|TerminalSelect|Format'` 通过；co-shell / co-shell-hub 已编译至 ~/bin（v0.52.0 BUILD-978）。
+  - 第六轮优化（用户实测后提出，BUILD-979）：
+    - 取消更顺手：每题提示行末尾新增 `[-] 取消`（与底部取消按钮同一动作 think_exit）。
+    - 提示行键帽改为**可点击的大键帽**（`button.qs-kbd`，accent 描边 + 悬停反色）：点数字选选项（单选自动跳题）、点「长按」组数字开该项备注、点 [回车] 下一题/提交、[+] 上一题、[空格] 本题备注、[-] 取消；点击后自动 blur，保证键盘快捷键仍可用。
+    - 「必填」徽标移到**题面文本末尾**（同行行尾；mdRender 输出块级元素，因此徽标挂到最后一个块元素内）。
+    - 修复 BUILD-978 引入的运行时缺陷：`qsWarn` 未声明导致 `renderQuestions` 收尾与提交校验分支抛 ReferenceError（表现为点提交无反应、焦点不回跳）；现声明为标准交互状态变量。
+    - 必填校验回跳：末题提交时若存在未作答必填题，阻止提交并高亮/滚动/**聚焦到第一个未作答的必填题**，如此往复直至无缺失项才提交成功。
+    - 验证（独立实例 127.0.0.1:28260 + 临时工作区，不影响会话实例）：注入 4 题表单实测 —— 点击数字键帽选中并自动跳题；末题提示行无数字键段且显示 `[回车] 确定 (n/N)`；未答必填时提交被拦截（Q2/Q4 高亮 + 「必填题未作答 Q2, Q4」+ 焦点回到 Q2）；补齐后提交成功，答案文本为紧凑格式 `Q1: 正确 / Q2: 数字选择 / Q3: （未作答）/ Q4: 自由文本答案`。
+    - 校验：`node --check`、`go build ./... && go vet ./...`、`go test ./agent/ -run 'AskUser|Questions|SplitOption|Interaction|TerminalSelect|Format'` 全绿；co-shell / co-shell-hub 已编译至 ~/bin（v0.52.0 BUILD-979）。
+  - 第七轮优化（用户实测后提出，BUILD-980）：
+    - 键盘 `-` 可直接取消整份表单（此前只监听了回车/数字/+/空格，键盘 `-` 无响应，只有渲染出的 `[-]` 键帽与底部按钮可用）。
+    - 选项左侧的数字键帽改为**老版尺寸**（34×34，与 `ask_followup_question` 的 `.opt-key-btn` 一致）并**可点击**：单击选中该选项（单选自动跳题），长按 ≥450ms 打开该选项备注框。
+    - 提示行简化：去掉开头的 1-N 数字键帽与「长按」处的数字键帽，改为纯文字 `数字键选择 · 长按选项数字键填备注`，仅保留 `[回车]`/`[+]`/`[空格]`/`[-]` 四个可点击键帽。
+    - Qn 徽标与题面文本**基线对齐**（`.qs-head` 改 `align-items: baseline`，并清除 markdown 段落的默认边距——此前题面被 `<p>` 的默认 margin 顶到下一行）。
+    - 验证（独立实例 127.0.0.1:28260 + 临时工作区）：实测键盘 `-` 触发 `select:think_exit`；提示行仅 4 个可点击键帽且文案正确；选项键帽 34×34，单击即选中并跳题、长按 450ms 打开并聚焦备注框；Qn 徽标与题面 top 差 0px。
+    - 校验：`node --check`、`go build ./... && go vet ./...` 全绿；co-shell / co-shell-hub 已编译至 ~/bin（v0.52.0 BUILD-980）。
+  - 第八轮优化（用户实测后提出，BUILD-981）：
+    - 提示行内的快捷键键帽（`回车` / `空格` / `-` / `+`）放大到与选项键帽同级：`min-width/height: 34px`、`font-size: 13px`、实心 `--bg-elev` 底 + accent 描边，悬停反色，与 `.qs-hotkey`/`.opt-key-btn` 视觉统一，便于鼠标点击。
+    - 底部提交与取消按钮改为 `inline-flex` 对齐，保证按钮内“键帽 + 文字”垂直居中且间距一致。
+    - 验证（独立实例 127.0.0.1:28260）：DOM 实测提示行键帽 `回车` 为 44×34、选项键帽 34×34（高度一致），底部取消按钮内键帽 34×34；`node --check`、`go build ./... && go vet ./...` 全绿；co-shell / co-shell-hub 已编译至 ~/bin（v0.52.0 BUILD-981）。
+  - 进度：✅ 已完成并合并到 main（tag v0.52.0），共九轮增量（BUILD-974 → BUILD-982）；前端为 embed 资源，重启服务后生效。
+
+---
+
 ## v0.51.2 — 开发中
 
 > **版本**: v0.51.2

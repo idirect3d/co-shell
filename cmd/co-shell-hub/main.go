@@ -46,19 +46,19 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.51.2"
-	hubBuild   = "973"
+	hubVersion = "0.52.0"
+	hubBuild   = "982"
 )
 
 // config is the JSON config file shape.
 type config struct {
-	TCPAddr      string `json:"tcp_addr"`
-	APIKey       string `json:"api_key"`
-	WebAddr      string `json:"web_addr"`
+	TCPAddr      string   `json:"tcp_addr"`
+	APIKey       string   `json:"api_key"`
+	WebAddr      string   `json:"web_addr"`
 	Whitelist    []string `json:"whitelist,omitempty"`
-	RegistryPath string `json:"registry_path,omitempty"`
-	CoShellPath  string `json:"co_shell_path,omitempty"`
-	BasePort     int    `json:"base_port,omitempty"`
+	RegistryPath string   `json:"registry_path,omitempty"`
+	CoShellPath  string   `json:"co_shell_path,omitempty"`
+	BasePort     int      `json:"base_port,omitempty"`
 	// SettingsPath is the remote-access settings file (TLS/whitelist/access
 	// key). Default: ./hub-settings.json (same search order as the config).
 	SettingsPath string `json:"settings_path,omitempty"`

@@ -257,7 +257,7 @@ func DefaultToolModes() map[string]string {
 		"visual_analysis":            "auto",
 		"update_settings":            "confirm",
 		"list_settings":              "auto",
-		"ask_followup_question":      "auto",
+		"ask_user":                   "auto",
 		"launch_sub_agent":           "confirm",
 		"schedule_task":              "confirm",
 		"track_task_progress":        "auto",

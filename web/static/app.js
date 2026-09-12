@@ -38,6 +38,14 @@ const I18N = {
     approveCount: "批准N次",
     approve: "批准", approveAll: "全部批准", approveG: "永久自动执行", approveD: "永久禁用",
     supplement: "补充信息", supplementHint: "长按按钮或单击输入框可补充信息",
+    qsSubmit: "提交", qsSubmitCount: "(%d/%d)", qsNote: "补充说明", qsNotePlaceholder: "补充说明（可选）",
+    qsMulti: "多选", qsSingle: "单选", qsFreePlaceholder: "请输入你的回答…",
+    answerTag: "回答", qsFreeNotePlaceholder: "针对本题补充说明（可作为答案，回车确认）",
+    qsConfirm: "确定", qsRequired: "必填", qsRequiredMissing: "必填题未作答",
+    qsHintDigitSelect: "数字键选择", qsHintHoldNote: "长按选项数字键填备注",
+    qsHintNext: "下一题", qsHintPrev: "上一题", qsHintSpace: "备注",
+    qsKeyEnter: "回车", qsKeySpace: "空格",
+    qsChoiceLabel: "选择", qsAnswerLabel: "回答", qsNoteLabel: "备注", qsNoAnswer: "（未作答）",
     numberHint: "按数字键选择放行次数（0=10次）",
     cancel: "取消", confirm: "确认",
     copyBlock: "复制内容", collapseBlock: "收起同类块", expandBlock: "展开同类块", retryFrom: "从此处重新运行",
@@ -80,6 +88,14 @@ const I18N = {
     approveCount: "Approve N times",
     approve: "Approve", approveAll: "Approve all", approveG: "Always auto-execute", approveD: "Permanently disable",
     supplement: "Supplement", supplementHint: "Long-press a button or click the input box to supplement",
+    qsSubmit: "Submit", qsSubmitCount: "(%d/%d)", qsNote: "Add note", qsNotePlaceholder: "Add a note (optional)",
+    qsMulti: "multi-select", qsSingle: "single choice", qsFreePlaceholder: "Type your answer…",
+    answerTag: "Answer", qsFreeNotePlaceholder: "Add a note for this question (Enter to confirm)",
+    qsConfirm: "Confirm", qsRequired: "Required", qsRequiredMissing: "Required question unanswered",
+    qsHintDigitSelect: "digit keys select", qsHintHoldNote: "hold an option digit for its note",
+    qsHintNext: "next", qsHintPrev: "previous", qsHintSpace: "note",
+    qsKeyEnter: "Enter", qsKeySpace: "Space",
+    qsChoiceLabel: "Selected", qsAnswerLabel: "Answer", qsNoteLabel: "Note", qsNoAnswer: "(not answered)",
     numberHint: "Press a digit to choose approve-count (0=10)",
     cancel: "Cancel", confirm: "Confirm",
     copyBlock: "Copy content", collapseBlock: "Collapse same-type blocks", expandBlock: "Expand same-type blocks", retryFrom: "Retry from here",
@@ -533,7 +549,7 @@ const TOOL_ACTIONS = {
   excel_open: { zh: "打开表格", en: "Open spreadsheet" },
   word_open: { zh: "打开文档", en: "Open document" },
   update_settings: { zh: "更新设置", en: "Update settings" },
-  ask_followup_question: { zh: "询问用户", en: "Ask user" },
+  ask_user: { zh: "询问用户", en: "Ask user" },
   launch_sub_agent: { zh: "启动子代理", en: "Launch sub-agent" },
   schedule_task: { zh: "调度任务", en: "Schedule task" },
   track_task_progress: { zh: "更新任务进展", en: "Update task progress" },
@@ -1910,7 +1926,7 @@ function renderHistory(msg) {
   updateBlockNav();
 }
 
-function renderUserEcho(text) {
+function renderUserEcho(text, opts) {
   // A new user input (command / confirmation / selection) starts a fresh
   // REPL output block: reset curREPL so the next ui_text repl event opens a
   // new block instead of appending to the previous one (FIX-411).
@@ -1922,7 +1938,9 @@ function renderUserEcho(text) {
   // "retry from hello 2" pop back to the end of turn 1. Create the block with
   // no index and let the first event of this turn backfill it (see
   // backfillPendingUserIndex in renderEvent).
-  const body = makeBlock("user-msg", "YOU", "");
+  // FEATURE-512: an answer collected by ask_user is still a user message, but
+  // its title carries a marker so it is distinguishable from a typed command.
+  const body = makeBlock("user-msg", opts && opts.answer ? "YOU · " + i18nT("answerTag", "Answer") : "YOU", "");
   // FIX-506 (续修): makeBlock() sets data-msg-index on the .ev box (and returns
   // the .ev-body), while the ⏪ button reads box.dataset.msgIndex and
   // truncateStreamFrom() queries .ev[data-msg-index]. The pending reference must
@@ -2828,7 +2846,7 @@ function showInteraction(msg) {
   if (it.title) {
     const t = document.createElement("div");
     t.className = "interaction-title md";
-    // FEATURE-409: the question (ask_followup_question) lives in title and
+    // FEATURE-409: the question (ask_user) lives in title and
     // may carry markdown (lists, emphasis, code) — render it as md too.
     mdRender(t, it.title);
     askInteraction.appendChild(t);
@@ -2863,6 +2881,14 @@ function showInteraction(msg) {
     }
   }
 
+  // FEATURE-512: multi-question form (ask_user) — one card per question, with
+  // radio/checkbox options, per-option notes and a single submit button.
+  if (it.kind === "questions" && it.questions && it.questions.length) {
+    renderQuestions(it);
+    scrollStream();
+    return;
+  }
+
   if (it.kind === "select" && ((it.options && it.options.length) || (it.keys && it.keys.length))) {
     // FEATURE-399: render each option as a virtual-keyboard-style square key
     // (number 1..N) with the option text beside it. Clicking a key or pressing
@@ -2879,7 +2905,7 @@ function showInteraction(msg) {
   // a hint line below the option buttons tells the user they can long-press to
   // supplement.
 
-  // Free input for the pure-input kind (ask_followup_question without options).
+  // Free input for the pure-input kind (ask_user without options).
   // For confirm interactions, supplementary instructions are typed in the main
   // input box (FEATURE-388).
   if (it.kind === "input") {
@@ -2904,6 +2930,499 @@ function showInteraction(msg) {
   }
 
   scrollStream();
+}
+
+/* ---------- FEATURE-512: multi-question form (ask_user) ---------- */
+
+// qsState mirrors the in-progress answers of the current multi-question form:
+// one entry per question — { selected: Set<string>, notes: Map<string,string>, text: string }.
+let qsState = [];
+// qsHotkeys holds the option hotkey badges of each question (only the active
+// question shows them); qsKeyHandler is the active keyboard listener.
+let qsHotkeys = [];
+
+// renderQuestions renders an ask_user form: one card per question with
+// radio/checkbox options, an optional per-option note input, and a single
+// submit button sending every answer back at once. Questions are separated by
+// a divider so several questions stay visually distinct (FEATURE-512).
+function renderQuestions(it) {
+  const total = it.questions.length;
+  qsState = it.questions.map(() => ({ selected: new Set(), notes: new Map(), text: "" }));
+
+  // FEATURE-512: keyboard navigation state. Only the active question renders its
+  // 1-9 option hotkeys; "-"/"+" move between questions and Space opens the note
+  // input of the active question.
+  if (window.__qsKey) {
+    window.removeEventListener("keydown", window.__qsKey, true);
+    window.__qsKey = null;
+  }
+  if (window.__qsKeyUp) {
+    window.removeEventListener("keyup", window.__qsKeyUp, true);
+    window.__qsKeyUp = null;
+  }
+  qsHotkeys = qsState.map(() => []);
+  const qSyncers = qsState.map(() => []);
+  const qCards = [];
+  const qBadges = qsState.map(() => null);
+  const qHints = qsState.map(() => null);
+  let activeQ = 0;
+  // qsWarn shows why a submit was rejected (unanswered required questions).
+  let qsWarn = null;
+
+  const submit = document.createElement("button");
+  submit.type = "button";
+  submit.className = "qs-submit";
+
+  // requiredMissing lists the required questions still unanswered; the form
+  // cannot be submitted while it is non-empty (FEATURE-512).
+  const requiredMissing = () =>
+    it.questions.reduce((acc, q, qi) => {
+      const st = qsState[qi];
+      if (q.required && st.selected.size === 0 && st.text.trim() === "") acc.push(qi);
+      return acc;
+    }, []);
+
+  const refreshSubmit = () => {
+    const done = qsState.filter((s) => s.selected.size > 0 || s.text.trim() !== "").length;
+    submit.textContent = "";
+    submit.appendChild(kbdSpan(i18nT("qsKeyEnter", "Enter")));
+    submit.appendChild(document.createTextNode(
+      " " + i18nT("qsConfirm", "Confirm") + " " +
+      i18nT("qsSubmitCount", "(%d/%d)").replace("%d", String(done)).replace("%d", String(total))
+    ));
+    // Clear the highlight of required questions the user has answered meanwhile.
+    const missing = requiredMissing();
+    it.questions.forEach((q, qi) => {
+      if (q.required && qCards[qi] && missing.indexOf(qi) < 0) qCards[qi].classList.remove("qs-missing");
+    });
+    if (!missing.length && qsWarn) {
+      qsWarn.textContent = "";
+      qsWarn.classList.add("hidden");
+    }
+  };
+
+  // FEATURE-512: shared submit path for the 确定 button and Enter on the last
+  // question. Required questions are validated first; the collected answers are
+  // echoed as a user message.
+  const submitAnswers = () => {
+    const missing = requiredMissing();
+    if (missing.length) {
+      missing.forEach((qi) => qCards[qi] && qCards[qi].classList.add("qs-missing"));
+      if (qsWarn) {
+        qsWarn.textContent = i18nT("qsRequiredMissing", "Required question unanswered") + " " +
+          missing.map((qi) => "Q" + (qi + 1)).join(", ");
+        qsWarn.classList.remove("hidden");
+      }
+      setActive(missing[0]);
+      return;
+    }
+    const answers = it.questions.map((q, qi) => {
+      const st = qsState[qi];
+      const notes = [];
+      st.notes.forEach((note, opt) => {
+        if (note.trim() !== "" && st.selected.has(opt)) notes.push({ option: opt, note: note.trim() });
+      });
+      return {
+        question: q.title || "",
+        selected: Array.from(st.selected),
+        notes: notes,
+        text: st.text.trim(),
+      };
+    });
+    answerInteraction({ action: "submit", answers: answers, value: answersAsText(it.questions, answers) });
+  };
+
+  it.questions.forEach((q, qi) => {
+    const card = document.createElement("div");
+    card.className = "qs-card";
+
+    const head = document.createElement("div");
+    head.className = "qs-head";
+    const badge = document.createElement("span");
+    badge.className = "qs-index";
+    badge.textContent = "Q" + (qi + 1);
+    qBadges[qi] = badge;
+    head.appendChild(badge);
+    const title = document.createElement("div");
+    title.className = "qs-title md";
+    mdRender(title, q.title || "");
+    // FEATURE-512: the "required" badge sits at the end of the question text
+    // (in front it crowded the Qn badge) and is validated on submit. mdRender
+    // wraps the text in block elements, so the badge goes into the last block
+    // to stay on the same line as the end of the text.
+    if (q.required) {
+      const req = document.createElement("span");
+      req.className = "qs-req";
+      req.textContent = i18nT("qsRequired", "Required");
+      (title.lastElementChild || title).appendChild(req);
+    }
+    head.appendChild(title);
+    card.appendChild(head);
+
+    const syncers = qSyncers[qi];
+
+    if (q.options && q.options.length) {
+      const tag = document.createElement("div");
+      tag.className = "qs-tag";
+      tag.textContent = q.multi ? i18nT("qsMulti", "multi-select") : i18nT("qsSingle", "single choice");
+      card.appendChild(tag);
+
+      const list = document.createElement("div");
+      list.className = "qs-options";
+
+      q.options.forEach((opt, optIndex) => {
+        const row = document.createElement("div");
+        row.className = "qs-option";
+        // FEATURE-512: option hotkey key cap. It shows only for the active
+        // question and is itself clickable (click selects the option, holding
+        // it opens that option's note), mirroring the physical digit key.
+        const hot = document.createElement("button");
+        hot.type = "button";
+        hot.className = "qs-hotkey hidden";
+        hot.textContent = String(optIndex + 1);
+        qsHotkeys[qi].push(hot);
+        let hotTimer = null;
+        let hotLong = false;
+        const clearHotTimer = () => {
+          if (hotTimer) { clearTimeout(hotTimer); hotTimer = null; }
+        };
+        hot.addEventListener("mousedown", (e) => {
+          e.stopPropagation();
+          setActive(qi);
+          hotLong = false;
+          hotTimer = setTimeout(() => {
+            hotTimer = null;
+            hotLong = true;
+            openNoteFor(qi, opt);
+          }, 450);
+        });
+        hot.addEventListener("mouseup", clearHotTimer);
+        hot.addEventListener("mouseleave", clearHotTimer);
+        hot.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          clearHotTimer();
+          hot.blur();
+          if (hotLong) { hotLong = false; return; }
+          setActive(qi);
+          pickOptionByDigit(optIndex + 1);
+        });
+        const mark = document.createElement("span");
+        mark.className = "qs-mark";
+        const label = document.createElement("span");
+        label.className = "qs-label";
+        mdInline(opt).forEach((n) => label.appendChild(n));
+        row.appendChild(hot);
+        row.appendChild(mark);
+        row.appendChild(label);
+
+        const noteBox = document.createElement("input");
+        noteBox.type = "text";
+        noteBox.className = "qs-note-input hidden";
+        noteBox.placeholder = i18nT("qsNotePlaceholder", "Add a note (optional)");
+        noteBox.addEventListener("keydown", (e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") noteBox.blur();
+        });
+        noteBox.addEventListener("input", () => qsState[qi].notes.set(opt, noteBox.value));
+
+        if (q.allow_note !== false) {
+          const noteBtn = document.createElement("button");
+          noteBtn.type = "button";
+          noteBtn.className = "qs-note-btn";
+          noteBtn.textContent = i18nT("qsNote", "Add note");
+          noteBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const hidden = noteBox.classList.contains("hidden");
+            noteBox.classList.toggle("hidden", !hidden);
+            if (hidden) {
+              if (!qsState[qi].selected.has(opt)) toggleOption(qi, opt, q, syncers, refreshSubmit);
+              noteBox.focus();
+            }
+          });
+          row.appendChild(noteBtn);
+        }
+
+        row.addEventListener("click", () => toggleOption(qi, opt, q, syncers, refreshSubmit));
+
+        syncers.push(() => {
+          const on = qsState[qi].selected.has(opt);
+          mark.textContent = on ? (q.multi ? "☑" : "◉") : (q.multi ? "☐" : "○");
+          row.classList.toggle("on", on);
+        });
+
+        list.appendChild(row);
+        list.appendChild(noteBox);
+      });
+      card.appendChild(list);
+      // FEATURE-512: per-question note input (Space opens it), appended to the
+      // answer as free text for this question.
+      const freeNote = document.createElement("input");
+      freeNote.type = "text";
+      freeNote.className = "qs-free qs-free-note hidden";
+      freeNote.placeholder = i18nT("qsFreeNotePlaceholder", "Add a note for this question");
+      freeNote.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") freeNote.blur();
+      });
+      freeNote.addEventListener("input", () => {
+        qsState[qi].text = freeNote.value;
+        refreshSubmit();
+      });
+      card._freeNote = freeNote;
+      card.appendChild(freeNote);
+    } else {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "qs-free";
+      inp.placeholder = i18nT("qsFreePlaceholder", "Type your answer…");
+      inp.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        // Enter on a free-text question advances to the next one (the last
+        // question submits), matching the option-hotkey behaviour.
+        if (e.key === "Enter") {
+          e.preventDefault();
+          inp.blur();
+          goNext();
+        }
+      });
+      inp.addEventListener("input", () => {
+        qsState[qi].text = inp.value;
+        refreshSubmit();
+      });
+      card.appendChild(inp);
+    }
+
+    syncers.forEach((fn) => fn());
+    const qh = document.createElement("div");
+    qh.className = "qs-hint hidden";
+    qHints[qi] = qh;
+    card.appendChild(qh);
+    qCards[qi] = card;
+    askInteraction.appendChild(card);
+  });
+
+  // FEATURE-512: hotkey navigation. Only the active question shows its 1-9
+  // option badges and its hint line. Enter advances to the next question (on
+  // the last one it submits), "+" goes back, digits select an option, holding a
+  // digit opens that option's note input, Space opens the note input of the
+  // active question.
+  let holdTimer = null;
+  let holdKey = null;
+  const clearHold = () => {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    holdKey = null;
+  };
+  function goNext() {
+    if (activeQ >= total - 1) { submitAnswers(); return; }
+    setActive(activeQ + 1);
+  }
+  // openNoteFor reveals the note input of one option (opt != null) or the
+  // per-question note input (opt == null) and focuses it.
+  const openNoteFor = (qi, opt) => {
+    const card = qCards[qi];
+    if (!card) return;
+    let el = null;
+    if (opt != null) {
+      const opts = it.questions[qi].options || [];
+      const idx = opts.indexOf(opt);
+      const list = card.querySelector(".qs-options");
+      if (idx >= 0 && list) el = list.querySelectorAll(".qs-note-input")[idx] || null;
+    }
+    if (!el) el = card._freeNote || card.querySelector(".qs-free");
+    if (!el) return;
+    el.classList.remove("hidden");
+    el.focus();
+  };
+  // cancelForm triggers the form's fixed exit key ("-" = think it over, exit
+  // for now), the same action as the bottom-bar cancel button.
+  const cancelForm = () => {
+    const k = (it.keys || []).find((x) => x.value === "think_exit") || (it.keys || [])[0];
+    if (k) answerInteraction({ action: "select", value: k.value });
+  };
+  // pickOptionByDigit selects the n-th option of the active question (a single
+  // choice then advances, exactly like pressing the digit key).
+  const pickOptionByDigit = (n) => {
+    const q = it.questions[activeQ];
+    if (!q || !q.options || n > q.options.length) return;
+    toggleOption(activeQ, q.options[n - 1], q, qSyncers[activeQ], refreshSubmit);
+    if (!q.multi) goNext();
+  };
+  // renderHint rebuilds the hint line of the active question (FEATURE-512). Its
+  // keys mirror what is available for that question, and every key cap is
+  // clickable: digits pick an option (or open its note), Enter advances/submits,
+  // "+" goes back, Space opens the note of the question and "-" cancels the
+  // whole form.
+  const renderHint = (qi) => {
+    const el = qHints[qi];
+    const q = it.questions[qi];
+    if (!el || !q) return;
+    el.textContent = "";
+    const opts = q.options || [];
+    const parts = [];
+    if (opts.length) {
+      // The option rows already carry their 1..N key caps, so the hint only
+      // spells out the actions instead of repeating the digits.
+      parts.push({ text: i18nT("qsHintDigitSelect", "digit keys select") + " · " });
+      parts.push({ text: i18nT("qsHintHoldNote", "hold an option digit for its note") + " · " });
+    }
+    parts.push({ kbd: i18nT("qsKeyEnter", "Enter"), click: () => goNext() });
+    parts.push({ text: " " + (qi === total - 1 ? i18nT("qsConfirm", "Confirm") : i18nT("qsHintNext", "Next")) + " · " });
+    parts.push({ kbd: "+", click: () => setActive(activeQ - 1) });
+    parts.push({ text: " " + i18nT("qsHintPrev", "previous") + " · " });
+    parts.push({ kbd: i18nT("qsKeySpace", "Space"), click: () => openNoteFor(activeQ, null) });
+    parts.push({ text: " " + i18nT("qsHintSpace", "note") + " · " });
+    parts.push({ kbd: "-", click: cancelForm });
+    parts.push({ text: " " + i18nT("cancel", "Cancel") });
+    parts.forEach((p) => {
+      if (p.kbd != null) el.appendChild(kbdSpan(p.kbd, p.click));
+      else el.appendChild(document.createTextNode(p.text));
+    });
+  };
+  const setActive = (idx) => {
+    activeQ = Math.max(0, Math.min(total - 1, idx));
+    it.questions.forEach((_, qi) => {
+      const on = qi === activeQ;
+      (qsHotkeys[qi] || []).forEach((h) => h.classList.toggle("hidden", !on));
+      if (qBadges[qi]) qBadges[qi].classList.toggle("hot", on);
+      if (qHints[qi]) qHints[qi].classList.toggle("hidden", !on);
+      if (qCards[qi]) qCards[qi].classList.toggle("active", on);
+    });
+    renderHint(activeQ);
+    // The submit button only applies to the last question: on the others Enter
+    // means "next question" (FEATURE-512).
+    submit.classList.toggle("hidden", activeQ !== total - 1);
+    // Keep the focused question readable: anchor it to the top of the
+    // interaction area so its options and hint line are visible at once.
+    const card = qCards[activeQ];
+    if (card && card.scrollIntoView) card.scrollIntoView({ block: "start" });
+    // A free-text question takes focus immediately; Enter then advances.
+    const q = it.questions[activeQ];
+    if (q && (!q.options || !q.options.length) && card) {
+      const inp = card.querySelector(".qs-free");
+      if (inp) inp.focus();
+    }
+  };
+  const onQsKey = (e) => {
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    const q = it.questions[activeQ];
+    if (!q) return;
+    if (e.key === "Enter") {
+      goNext();
+    } else if (e.key === "-") {
+      // FEATURE-512: the "-" key cancels the whole form, like the bottom-bar
+      // cancel button (previously only the rendered key cap worked).
+      cancelForm();
+    } else if (e.key === "+") {
+      setActive(activeQ - 1);
+    } else if (e.key === " ") {
+      openNoteFor(activeQ, null);
+    } else if (e.key >= "1" && e.key <= "9") {
+      const n = parseInt(e.key, 10);
+      if (!q.options || n > q.options.length) return;
+      const opt = q.options[n - 1];
+      toggleOption(activeQ, opt, q, qSyncers[activeQ], refreshSubmit);
+      // Long-press (>=450ms) opens the note input of that very option; short
+      // press just selects. Key auto-repeat keeps the timer alive.
+      if (holdKey !== e.key) {
+        clearHold();
+        holdKey = e.key;
+        holdTimer = setTimeout(() => {
+          holdTimer = null;
+          openNoteFor(activeQ, opt);
+        }, 450);
+      }
+      if (!q.multi) goNext();
+    } else {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const onQsKeyUp = (e) => {
+    if (holdKey && e.key === holdKey) clearHold();
+  };
+  window.addEventListener("keydown", onQsKey, true);
+  window.addEventListener("keyup", onQsKeyUp, true);
+  window.__qsKey = onQsKey;
+  window.__qsKeyUp = onQsKeyUp;
+  setActive(0);
+
+  const bar = document.createElement("div");
+  bar.className = "qs-bar";
+  submit.addEventListener("click", submitAnswers);
+  bar.appendChild(submit);
+  qsWarn = document.createElement("span");
+  qsWarn.className = "qs-warn hidden";
+  bar.appendChild(qsWarn);
+
+  // Fixed keys (e.g. "-" think it over, exit for now) cancel/close the form.
+  (it.keys || []).forEach((k) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "qs-key";
+    // FEATURE-512: show the trigger key as a key cap in front of the label.
+    b.appendChild(kbdSpan(k.key || ""));
+    b.appendChild(document.createTextNode(" " + (k.label || k.key)));
+    b.addEventListener("click", () => answerInteraction({ action: "select", value: k.value }));
+    bar.appendChild(b);
+  });
+  askInteraction.appendChild(bar);
+
+  refreshSubmit();
+}
+
+// kbdSpan builds a key-cap element for the ask_user hint line and the bottom
+// action buttons (FEATURE-512). When onClick is given the cap is rendered as a
+// clickable button that performs the very action the key stands for.
+function kbdSpan(text, onClick, hint) {
+  const k = document.createElement(onClick ? "button" : "span");
+  k.className = "qs-kbd";
+  k.textContent = text;
+  if (onClick) {
+    k.type = "button";
+    if (hint) k.title = hint;
+    k.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      k.blur(); // keep the keyboard shortcuts working right after the click
+      onClick();
+    });
+  }
+  return k;
+}
+
+// answersAsText renders collected answers in the compact form used both in the
+// transcript and by the backend when reporting to the model (FEATURE-512):
+// "Q1: A + C（备注: A→xxx）", "Q2: 自由文本", "Q3: （未作答）".
+function answersAsText(questions, answers) {
+  return answers.map((a, i) => {
+    const parts = [];
+    if (a.selected && a.selected.length) parts.push(a.selected.join(" + "));
+    if (a.text) parts.push(a.text);
+    let line = "Q" + (i + 1) + ": " + (parts.length ? parts.join(" ") : i18nT("qsNoAnswer", "(not answered)"));
+    const notes = (a.notes || []).map(
+      (n) => "（" + i18nT("qsNoteLabel", "Note") + ": " + n.option + "→" + n.note + "）"
+    );
+    return notes.length ? line + notes.join("") : line;
+  }).join("\n");
+}
+
+// toggleOption applies a click on one option of a multi-question form, keeping
+// single-choice questions exclusive and dropping notes of deselected options.
+function toggleOption(qi, opt, q, syncers, refresh) {
+  const st = qsState[qi];
+  if (q.multi) {
+    if (st.selected.has(opt)) st.selected.delete(opt);
+    else st.selected.add(opt);
+  } else {
+    st.selected.clear();
+    st.selected.add(opt);
+  }
+  if (!st.selected.has(opt)) st.notes.delete(opt);
+  syncers.forEach((fn) => fn());
+  refresh();
 }
 
 // legendLabel maps an interaction action to a friendly label for the key legend.
@@ -3049,7 +3568,7 @@ function renderVirtualKeyboard(it, isSelect, container) {
       }, "", () => longPressSupplement(k.label));
     });
     // FEATURE-438: a fixed supplementary-info option for select interactions
-    // (ask_followup_question). Clicking it (or pressing Space/Insert/0) enters
+    // (ask_user). Clicking it (or pressing Space/Insert/0) enters
     // supplement-input mode so the user can type extra info in the main box.
     addItem("空格/Ins/0", T.supplement, () => sendSupplement(), "opt-space");
   } else if (isSelect && it.keys && it.keys.length) {
@@ -3164,8 +3683,17 @@ function renderVirtualKeyboard(it, isSelect, container) {
 // answerInteraction sends the structured result back to the server.
 function answerInteraction(result) {
   if (!pendingInteraction) return;
+  // FEATURE-512: drop the multi-question hotkey listeners with the form.
+  if (window.__qsKey) {
+    window.removeEventListener("keydown", window.__qsKey, true);
+    window.__qsKey = null;
+  }
+  if (window.__qsKeyUp) {
+    window.removeEventListener("keyup", window.__qsKeyUp, true);
+    window.__qsKeyUp = null;
+  }
   wsSend({ type: "interaction_answer", id: pendingInteraction, result });
-  if (result.value) renderUserEcho(result.value);
+  if (result.value) renderUserEcho(result.value, { answer: !!(result && result.answers) });
   hideAsk();
 }
 
