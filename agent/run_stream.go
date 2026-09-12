@@ -138,6 +138,8 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 
 	// Initialize loop detectors and temperature controller for this request
 	a.loopDetectCrit = false
+	// FEATURE-514: reset the per-turn context-removal counter.
+	a.contextRemoveCount = 0
 	if a.cfg != nil && a.cfg.LLM.LoopIntervention != "off" {
 		a.loopDetectOn = true
 		threshold := a.cfg.LLM.LoopDetectThreshold
@@ -159,6 +161,9 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 			a.cfg.LLM.LoopSingleLineWindow,
 		)
 		a.loopDetector.SetSingleLineDetector(singleLineDetector)
+
+		// FEATURE-514: attach the multi-line uniform-length detector (<=0 = off).
+		a.loopDetector.SetUniformLineThreshold(a.cfg.LLM.LoopUniformLineThreshold)
 		// FEATURE-273: ToolCallLoopDetector uses threshold=2 (trigger on first duplicate)
 		// instead of the content loop threshold, so a single repeated tool call is caught.
 		toolCallThreshold := 2
@@ -763,6 +768,17 @@ iterationLoop:
 			removedContent := a.removeLastAssistantWithToolCalls()
 			a.mu.Unlock()
 
+			// FEATURE-514: enforce the per-turn context-removal limit. When the
+			// configured limit is exceeded (<=0 = unlimited), stop retrying and
+			// terminate the turn so the error surfaces to the user.
+			if removedContent != "" && a.noteContextRemovalAndCheckLimit() {
+				limitMsg := fmt.Sprintf(i18n.TF(i18n.KeyContextRemoveLimitReached), a.contextRemoveLimit())
+				log.Warn("Agent.RunStream: context remove limit reached (%d), terminating turn", a.contextRemoveLimit())
+				cb(NewStreamEvent(EventError, ChannelSystem, LevelError, limitMsg))
+				cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
+				return "", fmt.Errorf("context remove limit reached (%d): %w", a.contextRemoveLimit(), streamErr)
+			}
+
 			if removedContent != "" {
 				// Found and removed a problematic assistant message with tool_calls.
 				log.Warn("Agent.RunStream: stream error at iteration %d: %v, removed problematic assistant+tool messages (%d bytes)",
@@ -948,6 +964,14 @@ iterationLoop:
 						removed := a.removeLastAssistantWithToolCalls()
 						a.mu.Unlock()
 						log.Warn("RunStream: problem model recommended delete_last_msg for tool format error, removed %d bytes", len(removed))
+						// FEATURE-514: stop when the per-turn context-removal limit is exceeded.
+						if a.noteContextRemovalAndCheckLimit() {
+							limitMsg := fmt.Sprintf(i18n.TF(i18n.KeyContextRemoveLimitReached), a.contextRemoveLimit())
+							log.Warn("RunStream: context remove limit reached (%d) on delete_last_msg, terminating turn", a.contextRemoveLimit())
+							cb(NewStreamEvent(EventError, ChannelSystem, LevelError, limitMsg))
+							cb(NewStreamEvent(EventDone, ChannelSystem, LevelInfo, ""))
+							return "", fmt.Errorf("context remove limit reached (%d) while handling tool format error", a.contextRemoveLimit())
+						}
 						continue
 					}
 					if feedback != "" {

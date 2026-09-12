@@ -231,6 +231,8 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "loop-single-line-length",
 		subcommand == "loop-single-line-window",
 		subcommand == "loop-single-line-block-limit",
+		subcommand == "loop-uniform-line-threshold",
+		subcommand == "context-remove-limit",
 		subcommand == "duplicate-content-threshold",
 		subcommand == "problem-solver-enabled",
 		subcommand == "default-problem-model",
@@ -802,6 +804,8 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("loop-single-line-length", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineLength), i18n.T(i18n.KeySettingCmd_322)),
 		makeLine("loop-single-line-window", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineWindow), i18n.T(i18n.KeySettingCmd_323)),
 		makeLine("loop-single-line-block-limit", fmt.Sprintf("%d", cfg.LLM.LoopSingleLineBlockLimit), i18n.T(i18n.KeySettingCmd_324)),
+		makeLine("loop-uniform-line-threshold", fmt.Sprintf("%d", cfg.LLM.LoopUniformLineThreshold), i18n.T(i18n.KeySettingCmdLoopUniformLine)),
+		makeLine("context-remove-limit", fmt.Sprintf("%d", cfg.LLM.ContextRemoveLimit), i18n.T(i18n.KeySettingCmdContextRemoveLimit)),
 	})
 	// loop-reorganize-enabled removed, controlled by loop-intervention
 
@@ -1016,6 +1020,8 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.LoopSingleLineLength = def.LLM.LoopSingleLineLength
 	h.cfg.LLM.LoopSingleLineWindow = def.LLM.LoopSingleLineWindow
 	h.cfg.LLM.LoopSingleLineBlockLimit = def.LLM.LoopSingleLineBlockLimit
+	h.cfg.LLM.LoopUniformLineThreshold = def.LLM.LoopUniformLineThreshold
+	h.cfg.LLM.ContextRemoveLimit = def.LLM.ContextRemoveLimit
 	h.cfg.LLM.NoToolAction = def.LLM.NoToolAction
 	h.cfg.LLM.ParseErrorAction = def.LLM.ParseErrorAction
 	h.cfg.LLM.ShowParseErrorRaw = def.LLM.ShowParseErrorRaw

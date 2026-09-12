@@ -459,6 +459,36 @@ func (h *SettingsHandler) handleSafetySetting(subcommand string, args []string) 
 		log.Info("Loop single line block limit set to %d", n)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_227), n), nil
 
+	case "loop-uniform-line-threshold":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmdLoopUniformLineSet), h.cfg.LLM.LoopUniformLineThreshold), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
+		}
+		h.cfg.LLM.LoopUniformLineThreshold = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Loop uniform line threshold set to %d", n)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmdLoopUniformLineSet), n), nil
+
+	case "context-remove-limit":
+		if len(args) < 2 {
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmdContextRemoveLimitSet), h.cfg.LLM.ContextRemoveLimit), nil
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 {
+			return "", errors.New(i18n.T(i18n.KeySettingCmd_190))
+		}
+		h.cfg.LLM.ContextRemoveLimit = n
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		log.Info("Context remove limit set to %d", n)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingCmdContextRemoveLimitSet), n), nil
+
 	case "loop-long-output-threshold":
 		if len(args) < 2 {
 			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_228), h.cfg.LLM.LoopLongOutputThreshold), nil

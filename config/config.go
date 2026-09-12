@@ -570,6 +570,13 @@ type LLMConfig struct {
 	// "prompt" — send structured error feedback (with reference format) to LLM
 	ParseErrorAction string `json:"parse_error_action"`
 
+	// ContextRemoveLimit: maximum number of "remove the problematic context and
+	// retry" actions allowed per user turn (FEATURE-514). It applies to both the
+	// LLM-call-error path and the problem-solver delete_last_msg path.
+	// 0 (default) means unlimited (legacy behavior); when the limit is exceeded
+	// the agent stops retrying and reports the error to the user.
+	ContextRemoveLimit int `json:"context_remove_limit"`
+
 	// NoToolAction: strategy for handling iterations with 0 tool calls.
 	// "exit" — treat as final answer (append assistant msg, exit iteration loop)
 	// "retry" — discard assistant content, resend context without any feedback or memory
@@ -594,6 +601,13 @@ type LLMConfig struct {
 	// false positives when a code block ends with two identical closing braces.
 	// 0 means disabled (legacy behavior). Default: 200
 	LoopSingleLineBlockLimit int `json:"loop_single_line_block_limit"`
+
+	// LoopUniformLineThreshold: number of consecutive counted (non-blank) lines
+	// with exactly the same character length that triggers the multi-line
+	// uniform-length loop detector (FEATURE-514). Such runs usually indicate
+	// mechanical padding rather than real content. 0 disables the check.
+	// Default: 100
+	LoopUniformLineThreshold int `json:"loop_uniform_line_threshold"`
 
 	// LLMInteractionLog: whether to enable LLM interaction full logging.
 	// When enabled, all LLM request and response payloads are written to
@@ -1089,6 +1103,8 @@ func DefaultConfig() *Config {
 			LoopSingleLineLength:        2048,
 			LoopSingleLineWindow:        128,
 			LoopSingleLineBlockLimit:    200,
+			LoopUniformLineThreshold:    100,
+			ContextRemoveLimit:          0,
 			LoopTempEnabled:             true,
 			LoopTempStepUp:              0.05,
 			LoopTempStepDown:            0.07,

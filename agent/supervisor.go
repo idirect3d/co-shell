@@ -60,6 +60,20 @@ type SupervisorReview struct {
 	Reason string `json:"reason"`
 	// Suggestion: concrete, actionable advice for the main LLM (or for the user).
 	Suggestion string `json:"suggestion"`
+	// CriteriaCheck lists the per-criterion verification results (FEATURE-514).
+	// Optional; populated when the task plan defines acceptance criteria.
+	CriteriaCheck []CriteriaCheckItem `json:"criteria_check,omitempty"`
+}
+
+// CriteriaCheckItem records the supervisor's verdict for one acceptance
+// criterion (FEATURE-514).
+type CriteriaCheckItem struct {
+	// Criterion is the acceptance criterion being verified.
+	Criterion string `json:"criterion"`
+	// Met reports whether the delivery satisfies the criterion.
+	Met bool `json:"met"`
+	// Evidence is the concrete verification result (file read, command output, ...).
+	Evidence string `json:"evidence"`
 }
 
 // supervisorContext holds the supervisor LLM's session-bound, independent
@@ -186,6 +200,11 @@ func (a *Agent) buildSupervisorUserPrompt(entry SupervisorEntry, finalReport str
 	sb.WriteString(taskPlan)
 	sb.WriteString("\n\n")
 
+	// 2.5 Acceptance criteria (FEATURE-514): the supervisor must verify each item.
+	sb.WriteString("# 验收标准\n")
+	sb.WriteString(a.acceptanceCriteriaText())
+	sb.WriteString("\n\n")
+
 	// 3. Main LLM final delivery report.
 	sb.WriteString("# 主 LLM 最终交付报告\n")
 	if strings.TrimSpace(finalReport) == "" {
@@ -216,6 +235,24 @@ func (a *Agent) buildSupervisorUserPrompt(entry SupervisorEntry, finalReport str
 	sb.WriteString("\n")
 
 	return sb.String()
+}
+
+// acceptanceCriteriaText renders the current plan's acceptance criteria as a
+// numbered list for the supervisor prompt (FEATURE-514). It returns a
+// placeholder when no plan or no criteria are defined.
+func (a *Agent) acceptanceCriteriaText() string {
+	if a.taskPlanMgr == nil {
+		return i18n.T(i18n.KeySupervisorNoAcceptanceCriteria)
+	}
+	plan, err := a.taskPlanMgr.GetCurrent()
+	if err != nil || plan == nil || len(plan.AcceptanceCriteria) == 0 {
+		return i18n.T(i18n.KeySupervisorNoAcceptanceCriteria)
+	}
+	var sb strings.Builder
+	for i, c := range plan.AcceptanceCriteria {
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, c))
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 // getIncrementalUserMessages returns user messages added since the last review
@@ -454,6 +491,28 @@ func submitReviewTool() llm.Tool {
 					"type":        "string",
 					"description": "Concrete, actionable advice. When rejecting, tell the main LLM exactly what to fix. When approving, give the user a summary of what was verified.",
 				},
+				"criteria_check": map[string]interface{}{
+					"type":        "array",
+					"description": "Per-criterion verification results (FEATURE-514). Provide one entry for EACH acceptance criterion listed in the review prompt. If any entry has met=false, approved MUST be false.",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"criterion": map[string]interface{}{
+								"type":        "string",
+								"description": "The acceptance criterion being verified (quote it).",
+							},
+							"met": map[string]interface{}{
+								"type":        "boolean",
+								"description": "Whether the delivery satisfies this criterion.",
+							},
+							"evidence": map[string]interface{}{
+								"type":        "string",
+								"description": "Concrete evidence (file content, command output, etc.).",
+							},
+						},
+						"required": []string{"criterion", "met"},
+					},
+				},
 			},
 			"required": []string{"approved", "reason", "suggestion"},
 		},
@@ -563,6 +622,17 @@ func formatReviewAsText(r *SupervisorReview) string {
 	if r.Suggestion != "" {
 		sb.WriteString("建议：" + r.Suggestion + "\n")
 	}
+	for _, c := range r.CriteriaCheck {
+		mark := "未达标 ❌"
+		if c.Met {
+			mark = "达标 ✅"
+		}
+		sb.WriteString(fmt.Sprintf("  - [%s] %s", mark, c.Criterion))
+		if c.Evidence != "" {
+			sb.WriteString("（" + c.Evidence + "）")
+		}
+		sb.WriteString("\n")
+	}
 	return sb.String()
 }
 
@@ -580,6 +650,19 @@ func formatReviewFeedback(r *SupervisorReview) string {
 	}
 	if r.Suggestion != "" {
 		sb.WriteString("建议：" + r.Suggestion + "\n")
+	}
+	if len(r.CriteriaCheck) > 0 {
+		sb.WriteString("未达标的验收标准：\n")
+		for _, c := range r.CriteriaCheck {
+			if c.Met {
+				continue
+			}
+			sb.WriteString("  - " + c.Criterion)
+			if c.Evidence != "" {
+				sb.WriteString("（" + c.Evidence + "）")
+			}
+			sb.WriteString("\n")
+		}
 	}
 	sb.WriteString("请重新检查并完成遗漏的部分，然后再次交付。")
 	return sb.String()

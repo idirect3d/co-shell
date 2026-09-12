@@ -2108,6 +2108,7 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyLoopSuspectedWithType:  "检测到疑似循环内容（类型: %s）...",
 	KeyLoopTypeSingleRepeat:   "单行重复",
 	KeyLoopTypeMultiLine:      "多行周期重复",
+	KeyLoopTypeUniformLine:    "多行等长",
 	KeyLoopTypeLineTooLong:    "单行超长",
 	KeyLoopTypeCharPeriod:     "单行内字符周期",
 	KeyLoopTypeLongOutput:     "长输出无进展",
@@ -2204,6 +2205,13 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyDebugModeEnabled:            "调试模式已开启",
 	KeyDebugModeDisabled:           "调试模式已关闭",
 	KeyRemovedMessages:             "--- 已移除的消息 (从索引 %d 开始) ---\n",
+	KeyContextRemoveLimitReached:   "已达到移除上下文次数上限（%d 次），为避免无限重试已终止本轮；请检查上下文后重新发起。",
+	KeyTaskPlanAcceptance:          "验收标准：",
+	KeySupervisorNoAcceptanceCriteria: "（任务计划未定义验收标准；仍请以用户终极目标为准逐项核对交付物）",
+	KeySettingCmdLoopUniformLine:       "多行等长检测阈值(0=不检测，连续等长行数)",
+	KeySettingCmdContextRemoveLimit:    "移除上下文次数上限(0=不限制，超出即终止本轮)",
+	KeySettingCmdLoopUniformLineSet:    "多行等长检测阈值：%d",
+	KeySettingCmdContextRemoveLimitSet: "移除上下文次数上限：%d",
 	KeyEndMarker:                   "--- 结束 ---",
 
 	// FEATURE-305 P4.5 IV: misc remaining hardcoded Chinese

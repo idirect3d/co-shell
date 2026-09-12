@@ -153,6 +153,8 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "loop-single-line-length", Value: strconv.Itoa(llm.LoopSingleLineLength), Desc: i18n.T(i18n.KeySettingCmd_322), Type: "number", Default: strconv.Itoa(def.LoopSingleLineLength)},
 		{Key: "loop-single-line-window", Value: strconv.Itoa(llm.LoopSingleLineWindow), Desc: i18n.T(i18n.KeySettingCmd_323), Type: "number", Default: strconv.Itoa(def.LoopSingleLineWindow)},
 		{Key: "loop-single-line-block-limit", Value: strconv.Itoa(llm.LoopSingleLineBlockLimit), Desc: i18n.T(i18n.KeySettingCmd_324), Type: "number", Default: strconv.Itoa(def.LoopSingleLineBlockLimit)},
+		{Key: "loop-uniform-line-threshold", Value: strconv.Itoa(llm.LoopUniformLineThreshold), Desc: i18n.T(i18n.KeySettingCmdLoopUniformLine), Type: "number", Default: strconv.Itoa(def.LoopUniformLineThreshold)},
+		{Key: "context-remove-limit", Value: strconv.Itoa(llm.ContextRemoveLimit), Desc: i18n.T(i18n.KeySettingCmdContextRemoveLimit), Type: "number", Default: strconv.Itoa(def.ContextRemoveLimit)},
 		{Key: "problem-solver-enabled", Value: boolStr(llm.ProblemSolverEnabled), Desc: i18n.T(i18n.KeyCol3ProblemSolverEnabled), Type: "bool", Default: boolStr(def.ProblemSolverEnabled)},
 		{Key: "default-problem-model", Value: defaultModelValue(llm.DefaultProblemModelID), Desc: "auto/<model-id>", Type: "string", Default: defaultModelValue(def.DefaultProblemModelID)},
 		{Key: "default-tool-model", Value: defaultModelValue(llm.DefaultToolModelID), Desc: "auto/<model-id>", Type: "string", Default: defaultModelValue(def.DefaultToolModelID)},
