@@ -4,6 +4,80 @@
 
 ---
 
+## v0.55.0 — 已完成
+
+> **版本**: v0.55.0
+
+> **状态**: ✅ 已完成（2026-09-13 合并 main，v0.55.0 BUILD-1013）
+> **里程碑**: Web UI 图标矢量化——4 个主题图标（暗色/亮色/tp/护眼）与暂停键、主模型、视觉模型图标由系统字体/emoji 字符改为矢量图标（内联 SVG sprite + currentColor），消除跨系统、跨浏览器的渲染差异
+> **说明**: 现有图标多为 Unicode 字符与 emoji（`☾ ☀ ♤ ☕︎ ⏸ 🧠 👀`），其字形由操作系统与浏览器字体决定：Windows / macOS / Linux 以及 Chrome / Safari / Firefox 下大小、粗细、基线、配色可能明显不同，且彩色 emoji 无法随主题文字色着色。改为内联 SVG sprite（`<symbol>` + `<use>`，`fill`/`stroke` 用 `currentColor`）后，图标几何由路径定义、颜色继承主题文字色，可保证各系统一致并随 4 个主题自动变色。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-516 | 0.55.0 | P2 | 图标矢量化：4 主题图标（暗色月亮/亮色太阳/tp 黑桃/护眼叶片）+ 暂停（双竖线）+ 主模型（大脑）+ 视觉模型（眼睛），内联 SVG sprite，先出预览页确认后集成 |
+
+> 当前 BUILD: 1013
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-516 图标矢量化（4 主题 + 暂停 + 主模型 + 视觉模型）**
+  - 需求：
+    1. 以矢量（SVG）替换现有系统字体 / emoji 图标，保证跨系统、跨浏览器渲染一致。
+    2. 本次范围：4 个主题图标（暗色、亮色、tp、护眼）+ 暂停键（双竖线）+ 主模型（大脑）+ 视觉模型（眼睛）。
+    3. 技术形态：内联 SVG sprite（`<symbol>` + `<use>`），`fill`/`stroke` 用 `currentColor`，随主题文字色自动变色。
+    4. 图标语义（用户确认）：暗色=月亮、亮色=太阳、tp=黑桃矢量重绘（延续现有识别符号）、护眼=叶片/植物、暂停=双竖线、主模型=大脑、视觉模型=眼睛。
+    5. 交付方式（用户确认）：先出预览页（SVG 源文件 + 总览 HTML，含 4 主题呈现）由用户确认，确认后再集成到 Web UI。
+  - 用例：`use-case/FEATURE-516/FEATURE-516-UC-0001.md`
+  - 实施（BUILD-1004）：
+    1. `web/static/index.html`：`<body>` 后内联 8 个图标的 SVG sprite（`i-theme-dark` / `i-theme-light` / `i-theme-tp` / `i-theme-eyecare` / `i-send` / `i-pause` / `i-model-text` / `i-model-vision`）；`#themeToggle`、`#miModels .mi-ico`、`#sendBtn` 由字符改为 `<svg><use></svg>`。
+    2. `web/static/app.js`：新增 `iconHTML(id, cls)` 与 `setIcon(host, id)`；`themeIcon()` 由返回字形字符改为返回 symbol id；`setTheme()` / `setRunning()` 改为替换 `<use href>`；状态栏主模型 / 视觉模型图标改为 `iconHTML("i-model-text"/"i-model-vision")`。
+    3. `web/static/style.css`：新增 `.ico`（1em 随字号、继承 `currentColor`、基线对齐）与 `.icon-sprite`，并为主题按钮 16px / 发送按钮 15px / 菜单图标 15px / 状态栏图标 14px 设定尺寸。
+    4. 图标几何：月亮、太阳、黑桃、叶片、双竖线为自绘；大脑（`i-model-text`）采用 Feather/Lucide `brain` 几何（ISC 许可，代码注释已标注来源）；四主题图标外接框已统一为 34–36px@48px。
+    5. 版本与构建：`main.go` version 0.54.0 → 0.55.0、build 1003 → 1004，`cmd/co-shell-hub/main.go` hubVersion/hubBuild 同步；co-shell 与 co-shell-hub 已编译到 `work/` 并原子替换至 `~/bin/`。
+  - 校验（BUILD-1004）：`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过；独立实例（v0.55.0 BUILD-1004 @28260）DOM 实测：sprite 8 个 symbol 齐备、页面 `<use>` 引用零缺失；主题切换 paper → `#i-theme-eyecare`、light-tp → `#i-theme-tp`、light → `#i-theme-light`、dark → `#i-theme-dark` 均正确；主题按钮图标 16×16、发送按钮 15×15；界面已无 `☾/☀/♤/☕/⏸/🧠/👀` 字符（`app.js:5133` 的工具分类图标属本次范围外，未改）。
+  - 第二阶段（BUILD-1006）：状态栏三图标 + 系统设置齿轮 + 设置界面分类图标矢量化
+    1. 新增 9 个 symbol：`i-sessions`（对话气泡，原 💬）、`i-sum`（Σ）、`i-timer`（秒表，原 ⏱️）、`i-settings`（齿轮，原 ⚙️；Feather settings 几何）、`i-display`（显示器，原 🖥️）、`i-shield`（盾牌+对勾，原 🛡️）、`i-memory`（打开的书，原 📚）、`i-mcp`（插头，原 🔌）、`i-devtools`（终端窗口，原 🔧）；累计 17 个 symbol。
+    2. `app.js`：`settingsGroupIcon()` 由返回 emoji 改为返回 symbol id；`renderSettingsNav()` 改用 `iconHTML()`；状态栏 `sbSessions`/`sbSession`/`sbLast` 三处改用矢量；事件流内任务级 token 汇总行（`Σ2,087,596 (↑… ↓…)`）的 Σ 一并改为矢量以保持同一符号全 UI 一致；移除仅供图标使用的 i18n 常量 `sbSession`/`sbLast`（zh/en 各一处）。
+    3. `index.html`：sprite 追加 9 个 symbol；`.mi-ico`（系统设置菜单）改为矢量；设置搜索框 placeholder 去掉 `🔍`（placeholder 无法内嵌 SVG，改为纯文字）。
+    4. `style.css`：`.settings-nav-icon` 改 flex 居中并给内部图标 15px；新增 `.sb-last-ico .ico`（13px）与 `.ico-inline`（12px）。
+    5. 版本与构建：build 1004 → 1006，co-shell 与 co-shell-hub 已同步编译并原子替换至 `~/bin/`。
+  - 校验（BUILD-1006）：`go build ./... && go vet ./...` 全绿；`node --check app.js` 通过；独立实例（v0.55.0 BUILD-1006 @28262）DOM 实测：17 个 symbol 齐备、引用零缺失；设置分类 7 种标题映射依次为 `i-model-text`/`i-display`/`i-shield`/`i-memory`/`i-mcp`/`i-devtools`/`i-settings`；状态栏三项与菜单齿轮均为 `<use>` 矢量；截图确认无豆腐块/错位。
+  - 第三阶段（BUILD-1009）：状态栏 hover/间距 + hub 图标矢量化与布局优化
+    1. co-shell 状态栏：`.sb-item .ico` 与 `.sb-last-ico` 加 `margin-right:5px`（`.sb-last-ico .ico` 归零避免叠加），并移除图标后紧跟的空格字符（改为 CSS 控制间距，5 处一致）；新增分组 hover 规则：`.sb-sessions`/`.sb-model-wrap`/`.statusbar > .sb-item` 悬停时整组（图标+文字+`b`/`.sb-unit`）同变 accent，悬停目标读作一个整体。
+    2. hub 前端（`hub/gateway/webui_static.go`）：新增 9 个 symbol 的内联 SVG sprite（`i-hub-mark`/`i-pin`/`i-chev`/`i-back`/`i-close`/`i-plus`/`i-gear`/`i-send`/`i-check`），替换全部 emoji/字符图标（▸ 📌 ▾ ‹ ✕ ＋ ⚙ 💬 ➤ ✓）。
+    3. hub logo 栏：抽屉打开时 `#hubBadge.open` 宽度对齐抽屉（`--panel-w` 340px）、取消右下圆角、抽屉打开期间不淡出；按钉从 Agents 标题移到 logo 栏并右对齐（实测图标 18×18、右留白 15px 与左侧 14px 对称、垂直中心 22 = 栏高 44/2）；图钉改为填充剪影，pinned 时旋转 45°。
+    4. hub 抽屉标题：Agents / Chat 去掉左侧 `.mark` 图标，文字靠左对齐。
+    5. hub 详情页：去掉右上角关闭图标（`#detailClose` 元素与其 JS 绑定一并移除，仅保留左侧返回）。
+  - 校验（BUILD-1009）：`go build ./... && go vet ./...` 全绿；`node --check` 通过（co-shell app.js + hub 内嵌 JS 646 行）；独立实例实测：co-shell 状态栏 5 处图标 `margin-right` 均为 5px、hover 规则已生效、图标后无多余空格；hub 9 个 symbol 齐备、引用零缺失、页面 emoji 计数为 0、logo 栏展开宽度 340 = 抽屉宽、pin 在 logo 栏内右对齐、Agents/Chat 无 `.mark`、`#detailClose` 不存在。
+  - 第四阶段（BUILD-1010）：状态栏悬停呼吸效果 + 任务进展面板限高
+    1. 状态栏悬停改为「图标呼吸闪烁」：悬停组内图标时图标变 accent 并做 `sbIcoBreath` 透明度脉动（1.1s 循环，1 → 0.2 → 1）；同组文字与数值颜色不再变化（移除了上一阶段的整组变色规则）。
+    2. 任务进展面板限高：`renderPlan()` 把任务标题与概要包进 `.plan-head-scroll`（`max-height:200px; overflow-y:auto`），验收标准 `.plan-ac` 同样限高 200px；子任务列表结构不变（仍直接挂在 `.plan-body` 下），样式与行为不受影响。
+    3. 版本与构建：build 1009 → 1010，co-shell 与 co-shell-hub 已同步编译并替换到 `~/bin/`。
+  - 校验（BUILD-1010）：`go build ./... && go vet ./...` 全绿；`node --check app.js` 通过；独立实例（BUILD-1010 @28264）注入 61 行概要 + 40 条验收标准的测试 plan 实测：概要区 maxHeight=200px / overflowY=auto / clientHeight=200 / scrollHeight=1141，验收标准区 maxHeight=200px / clientHeight=200 / scrollHeight=755（均可内部滚动）；`.plan-step` 仍为 2 个且父元素为 `.plan-body`（结构未变）；hover 规则实测为 `animation: 1.1s ease-in-out infinite` 且仅作用于 `.ico`。
+  - 第五阶段（BUILD-1011）：全量图标矢量化（co-shell Web UI 零字符图标）+ 护眼叶片重绘
+    1. sprite 扩充：`index.html` 本阶段新增 30 个 symbol——（前 21 个）`i-tri`/`i-tri-down`/`i-menu`/`i-close`/`i-xmark`/`i-clip`/`i-plus`/`i-trash`/`i-expand`/`i-collapse`/`i-image`/`i-file`/`i-download`/`i-dot`/`i-circle`/`i-half`/`i-checkbox-on`/`i-checkbox-off`/`i-radio-on`/`i-tool`，（本阶段新增 9 个）`i-think`（灯泡，替换 💭）、`i-check`、`i-refresh`、`i-retry`、`i-arrow-up`、`i-arrow-down`、`i-tri-up`、`i-copy`、`i-reveal`；累计 46 个 symbol。
+    2. `app.js`：新增 `mkIcon(id, cls)`（以 DOM 节点建图标，配合 textContent 避免 HTML 注入）与 `setResultIcon(host, id, text)`；会话列表当前/删除标记、块操作（复制 ⧉ / 重试 ⏪）、在目录中定位（⌖）、模板 JSON 折叠三角（▸/▾）、任务进展状态图标（○/◐/●/✕/✗ → `i-circle`/`i-half`/`i-dot`/`i-close`/`i-xmark`）、交互选项勾选（☑/◉/☐/○）、附件相关（📎/📄/🖼/⬇/✕）、目录变更计数（●）、模型能力标记（👁/🔧/💭）、模型菜单「＋ 新增模型」（两处）、模型连通/API Key/最大长度校验结果（✅/❌）等全部改为内联 SVG。
+    3. `index.html`：顶栏 brand-mark（▸）、菜单按钮（☰）、工作区刷新（⟳）、会话运行高亮点（●）、菜单勾选（✓×5）、块导航箭头（↑/↓）、置顶按钮（▲）全部改为 `<svg><use></svg>`。
+    4. `style.css`：设置分组标题的 `content:"▸ "`/`"▾ "` 字符三角改为纯 CSS 矢量三角（border 技巧 + open 态 `rotate(90deg)`），不再依赖字体字形。
+    5. 护眼叶片重绘（`i-theme-eyecare`）：改为单片饱满叶型（`M4.8 19.2A12 12 0 0 1 19.4 4.6 14 14 0 0 1 4.8 19.2Z`）+ 主脉（`M6.6 17.4 17.6 6.4`），主轴保持斜向 45°；已对比确认不再呈窄长梭形/羽毛感。
+    6. 保留项（非图标，未改）：`⚙️ <tool>` 为后端协议标记（`app.js` 用它解析工具块），i18n 文案中的 `＋`、状态栏 token 行的 `↑/↓/Σ` 属文本内容。
+    7. 版本与构建：build 1010 → 1011，co-shell 与 co-shell-hub 已同步编译并原子替换到 `~/bin/`。
+  - 校验（BUILD-1011）：`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过；独立实例（v0.55.0 BUILD-1011 @28361，workdir `/tmp/fe516-domsite`）DOM 实测：46 个 symbol 齐备、页面 `<use>` 引用零缺失（缺失集为空）、正文与 DOM 中的字符图标残留计数为 0、关键可见图标尺寸正常（brand-mark 14×14、主题按钮 16×16、菜单 14×14、菜单勾选 13×13）；截图视觉确认叶片为「单片饱满叶 + 单条主脉 + 主轴 45°」；验证实例已关闭（未影响主实例 28256）。
+  - 第六阶段（BUILD-1012）：图标尺寸与对齐微调（用户反馈）
+    1. 标题栏 logo 左侧三角缩小 50%：新增 `.brand-mark .ico { width: 7px; height: 7px; }`（原为 1em = 14px），使文字标记更突出。
+    2. 工作区文件树目录三角缩小 20%：新增 `.tree-row .tw .ico { width: 0.8em; height: 0.8em; }`（`.tw` 字号 10px → 8px）；用 em 而非固定 px，使 light-tp 主题下 `font-size:0`（用文件夹图形替代箭头）的行为保持不变。
+    3. 「工作区」标签与刷新图标中心对齐：删除 `#treeRefresh` 上为旧字体字形保留的 `transform: translateY(-2.5px)`（该光学微调会让矢量图标整体偏上 2.5px），改由 `.ws-title` 的 flex `align-items:center` 居中。
+  - 校验（BUILD-1012）：`go build ./... && go vet ./...` 全绿；独立实例（v0.55.0 BUILD-1012 @28362，workdir `/tmp/fe516-domsite2`）DOM 实测：`.brand-mark .ico` 7×7px（原 14×14，缩小 50%）、`.tree-row .tw .ico` 8×8px（13 个目录节点一致，原 10×10，缩小 20%）、`#treeRefresh` 图标中心 Y=61.2 与「工作区」文字（行盒 18.6px）中心 Y=61.3 相差 0.1px（< 1px 达标）、`transform` 计算值为 none；验证实例已关闭（未影响主实例 28256）。注：截图复核因 CDP `Page.captureScreenshot` 超时未完成，结论以上述 DOM 量化测量为准。
+  - 第七阶段（BUILD-1013）：品牌三角与关闭按钮居中（用户反馈）
+    1. logo 三角与「co-shell」文字中心对齐：`.brand-mark` 改为 `display:inline-flex; align-items:center`，使三角在标记盒内居中、不再受共享 `.ico` 规则中 `vertical-align:-0.14em` 的基线偏移影响（.brand 的 align-items:center 再将其与文字行盒中心对齐）。
+    2. 弹窗关闭按钮 X 居中：`.icon-btn` 改为 `display:inline-flex; align-items:center; justify-content:center; padding:0`——原先按钮沿用 UA 默认 padding（水平 6px）导致 22px 按钮内内容盒被挤窄，叠加 `.ico` 的 vertical-align 偏移，X 看起来未居中。
+  - 校验（BUILD-1013）：`go build ./... && go vet ./...` 全绿；独立实例（v0.55.0 BUILD-1013 @28363，workdir `/tmp/fe516-domsite3`）DOM 实测：`.brand-mark .ico` 中心 Y=21.5 与 `.brand-name` 中心 Y=21.5 **差值 0px**（`.brand-mark` display=flex）；弹窗头部关闭按钮 22×22 中心 (928.5, 414) 与内部图标 12×12 中心 (928.5, 414) **dx=0 / dy=0**（按钮 display=flex、padding=0px）；回归检查 `#treeRefresh` 图标与「工作区」文字中心 Y 均为 61.3px（差值 0，第六阶段效果保持）。注：本轮及上一轮截图复核均因 CDP `Page.captureScreenshot` 超时未完成（调试浏览器通道问题，非页面问题），结论以上述 DOM 量化测量为准。
+  - 进度：✅ 已完成（第七阶段验收通过，2026-09-13 合并 main，v0.55.0 BUILD-1013）
+
+---
+
 ## v0.54.0 — 开发中
 
 > **版本**: v0.54.0

@@ -28,7 +28,6 @@ const I18N = {
     appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条", streamTitle: "会话标题", msgViz: "消息可视化",
-    sbSession: "Σ", sbLast: "⏱️",
     revealDir: "定位到文件夹",
     downloadFile: "下载文件",
     sessionDelete: "删除会话",
@@ -79,7 +78,6 @@ const I18N = {
     appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar", streamTitle: "Session title", msgViz: "Message viz",
-    sbSession: "Σ", sbLast: "⏱️",
     revealDir: "Reveal in folder",
     downloadFile: "Download file",
     sessionDelete: "Delete session",
@@ -148,18 +146,54 @@ function i18nT(key, fallback) {
 const themeToggle = document.getElementById("themeToggle");
 const osThemeMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
-// themeIcon returns the toggle glyph for a resolved tone (FEATURE-477):
-// dark = moon, light = sun, light-tp = spade, paper = coffee.
+// FEATURE-516: iconHTML returns an inline <svg> reference to a sprite symbol.
+// Icons are vectors (not font glyphs / emoji) so they render identically on
+// every OS and browser, and they inherit the current text colour through
+// currentColor, which makes them theme-aware without per-theme assets.
+function iconHTML(id, cls) {
+  return '<svg class="ico' + (cls ? " " + cls : "") + '" aria-hidden="true"><use href="#' + id + '"/></svg>';
+}
+
+// setIcon swaps the sprite icon referenced by a host element in place.
+function setIcon(host, id) {
+  if (!host) return;
+  const use = host.querySelector("use");
+  if (use) use.setAttribute("href", "#" + id);
+  else host.innerHTML = iconHTML(id);
+}
+
+// mkIcon builds the same icon as a DOM node, for callers that mix it with
+// untrusted text (the text is then appended as a text node, never as HTML).
+function mkIcon(id, cls) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", cls ? "ico " + cls : "ico");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(NS, "use");
+  use.setAttribute("href", "#" + id);
+  svg.appendChild(use);
+  return svg;
+}
+
+// setResultIcon replaces a status line with a vector status icon plus text.
+function setResultIcon(host, id, text) {
+  host.textContent = "";
+  host.appendChild(mkIcon(id, "ico-inline"));
+  host.appendChild(document.createTextNode(" " + text));
+}
+
+// themeIcon returns the sprite icon for a resolved tone (FEATURE-477/516):
+// dark = moon, light = sun, light-tp = spade, paper = leaf.
 function themeIcon(name) {
-  if (name === "dark") return "☾";
-  if (name === "light-tp") return "♤";
-  if (name === "paper") return "☕︎";
-  return "☀";
+  if (name === "dark") return "i-theme-dark";
+  if (name === "light-tp") return "i-theme-tp";
+  if (name === "paper") return "i-theme-eyecare";
+  return "i-theme-light";
 }
 
 function setTheme(name) {
   document.documentElement.setAttribute("data-theme", name);
-  themeToggle.textContent = themeIcon(name);
+  setIcon(themeToggle, themeIcon(name));
 }
 
 function themeMode() {
@@ -787,7 +821,7 @@ function makeSupPart(wrap, title) {
   rawPill.title = "Raw / md 渲染";
   const toggle = document.createElement("button");
   toggle.className = "sup-part-toggle";
-  toggle.textContent = "⤢";
+  setIcon(toggle, "i-expand");
   toggle.title = "展开/固定高度";
   const right = document.createElement("span");
   right.className = "sup-part-right";
@@ -807,7 +841,7 @@ function makeSupPart(wrap, title) {
   };
   toggle.onclick = () => {
     wrap.classList.toggle("expanded");
-    toggle.textContent = wrap.classList.contains("expanded") ? "⤡" : "⤢";
+    setIcon(toggle, wrap.classList.contains("expanded") ? "i-collapse" : "i-expand");
   };
   return part;
 }
@@ -836,7 +870,7 @@ function addSupContentControls(head, state) {
   rawPill.title = "Raw / md 渲染";
   const toggle = document.createElement("button");
   toggle.className = "sup-part-toggle";
-  toggle.textContent = "⤢";
+  setIcon(toggle, "i-expand");
   toggle.title = "展开/固定高度";
   const right = document.createElement("span");
   right.className = "sup-part-right";
@@ -856,7 +890,7 @@ function addSupContentControls(head, state) {
   };
   toggle.onclick = () => {
     body.parentElement.classList.toggle("sup-content-expanded");
-    toggle.textContent = body.parentElement.classList.contains("sup-content-expanded") ? "⤡" : "⤢";
+    setIcon(toggle, body.parentElement.classList.contains("sup-content-expanded") ? "i-collapse" : "i-expand");
   };
 }
 
@@ -887,11 +921,11 @@ function ensureToolParams(curTool) {
   };
   const toggle = document.createElement("button");
   toggle.className = "tool-params-toggle";
-  toggle.textContent = "⤢";
+  setIcon(toggle, "i-expand");
   toggle.title = "展开/固定高度";
   toggle.onclick = () => {
     params.classList.toggle("expanded");
-    toggle.textContent = params.classList.contains("expanded") ? "⤡" : "⤢";
+    setIcon(toggle, params.classList.contains("expanded") ? "i-collapse" : "i-expand");
   };
   head.appendChild(title);
   // Group the pill and the collapse/expand toggle on the right so the pill
@@ -984,12 +1018,12 @@ function addThinkToggle(head, box) {
   const actions = head.querySelector(".ev-actions");
   const toggle = document.createElement("button");
   toggle.className = "ev-act think-toggle";
-  toggle.textContent = "⤢";
+  setIcon(toggle, "i-expand");
   toggle.title = "展开/固定高度";
   toggle.onclick = (e) => {
     e.stopPropagation();
     const expanded = box.classList.toggle("think-expanded");
-    toggle.textContent = expanded ? "⤡" : "⤢";
+    setIcon(toggle, expanded ? "i-collapse" : "i-expand");
   };
   if (actions) actions.appendChild(toggle);
   else head.appendChild(toggle);
@@ -1142,7 +1176,7 @@ function addBlockActions(head, box, body, cls, noCollapse) {
   // 1) Copy: copy the block's plain-text content to the clipboard.
   const copy = document.createElement("button");
   copy.className = "ev-act";
-  copy.textContent = "⧉";
+  copy.innerHTML = iconHTML("i-copy");
   copy.title = T.copyBlock;
   copy.onclick = (e) => {
     e.stopPropagation();
@@ -1157,7 +1191,7 @@ function addBlockActions(head, box, body, cls, noCollapse) {
   if (!noCollapse) {
     const collapse = document.createElement("button");
     collapse.className = "ev-act";
-    collapse.textContent = "▾";
+    setIcon(collapse, "i-tri-down");
     collapse.title = T.collapseBlock;
     const storageKey = "co-shell-collapse-" + cls;
     const applyCollapse = () => {
@@ -1165,7 +1199,7 @@ function addBlockActions(head, box, body, cls, noCollapse) {
       // collapsed, so the user always sees the live dynamic content.
       const collapsed = !isStreamingBody(body) && localStorage.getItem(storageKey) === "1";
       box.classList.toggle("collapsed", collapsed);
-      collapse.textContent = collapsed ? "▸" : "▾";
+      setIcon(collapse, collapsed ? "i-tri" : "i-tri-down");
       collapse.title = collapsed ? T.expandBlock : T.collapseBlock;
     };
     collapse.onclick = (e) => {
@@ -1193,7 +1227,7 @@ function addBlockActions(head, box, body, cls, noCollapse) {
   if (cls === "user-msg") {
     const retry = document.createElement("button");
     retry.className = "ev-act";
-    retry.textContent = "⏪";
+    retry.innerHTML = iconHTML("i-retry");
     retry.title = T.retryFrom;
     retry.onclick = (e) => {
       e.stopPropagation();
@@ -1482,7 +1516,10 @@ function renderEvent(ev) {
       const p = parseInt(m.prompt, 10) || 0;
       const c = parseInt(m.completion, 10) || 0;
       const t = parseInt(m.total, 10) || 0;
-      line.textContent = "Σ" + fmtNum(t) + " (↑" + fmtNum(p) + " ↓" + fmtNum(c) + ")";
+      // FEATURE-419/FEATURE-516: the sigma is an inline SVG icon (not the "Σ"
+      // glyph) so it matches the status-bar total and renders identically across
+      // OSes/browsers.
+      line.innerHTML = iconHTML("i-sum", "ico-inline") + fmtNum(t) + " (↑" + fmtNum(p) + " ↓" + fmtNum(c) + ")";
       // Append INSIDE the task's last block so the summary reads as that
       // block's footer instead of floating in the stream's flex gap.
       if (lastBlock) {
@@ -2025,7 +2062,9 @@ function renderUserBody(body, text) {
     const chip = document.createElement("span");
     chip.className = "user-dyn-chip";
     const kind = parts[1];
-    chip.textContent = (kind === "image" ? "🖼 " : "📄 ") + (parts[0] || line) + (parts[2] ? " · " + parts[2] : "");
+    // FEATURE-516: vector icon followed by a plain text node.
+    chip.appendChild(mkIcon(kind === "image" ? "i-image" : "i-file", "ico-inline"));
+    chip.appendChild(document.createTextNode((parts[0] || line) + (parts[2] ? " · " + parts[2] : "")));
     chip.title = line;
     tag.appendChild(chip);
   }
@@ -2427,27 +2466,28 @@ function fmtLen(n) {
 }
 
 function updateStatus() {
-  // Model context usage: 🧠{text}(89% of 1M) 👀{vision}(50% of 1M). The
-  // usage numerator is the last turn's input+output tokens (FEATURE-378).
+  // Model context usage: brain{text}(89% of 1M) eye{vision}(50% of 1M), both
+  // as inline SVG icons (FEATURE-516). The usage numerator is the last turn's
+  // input+output tokens (FEATURE-378).
   const sIn = tokenStats.sessionIn, sOut = tokenStats.sessionOut;
   const total = sIn + sOut;
   const lastTotal = tokenStats.lastIn + tokenStats.lastOut;
   // FEATURE-422: the main (text) model and the vision model are separate
   // hover targets, each with its own selector menu. The model name + context
   // usage sit in a .sb-model-name span so narrow screens can hide the text and
-  // keep only the 🧠/👀 icon (FEATURE-487).
+  // keep only the brain/eye icon (FEATURE-487).
   if (modelInfo && modelInfo.textModel) {
-    sbModelText.innerHTML = "🧠<span class='sb-model-name'>" + modelInfo.textModel + "(" + sbPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
+    sbModelText.innerHTML = iconHTML("i-model-text", "ico-sb") + "<span class='sb-model-name'>" + modelInfo.textModel + "(" + sbPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
   } else {
-    sbModelText.innerHTML = "🧠";
+    sbModelText.innerHTML = iconHTML("i-model-text", "ico-sb");
   }
   if (modelInfo && modelInfo.visionModel) {
-    sbModelVision.innerHTML = "👀<span class='sb-model-name'>" + modelInfo.visionModel + "(" + sbPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
+    sbModelVision.innerHTML = iconHTML("i-model-vision", "ico-sb") + "<span class='sb-model-name'>" + modelInfo.visionModel + "(" + sbPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
   } else {
-    sbModelVision.innerHTML = "👀";
+    sbModelVision.innerHTML = iconHTML("i-model-vision", "ico-sb");
   }
   // Session: 会话 15000（↑14500 ↓500）
-  sbSession.innerHTML = T.sbSession + " <b>" + fmtNum(total) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
+  sbSession.innerHTML = iconHTML("i-sum", "ico-sb") + "<b>" + fmtNum(total) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
   // Last turn: 最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)
   const li = tokenStats.lastIn, lo = tokenStats.lastOut;
   const liTPS = tokenStats.lastInTPS, loTPS = tokenStats.lastOutTPS;
@@ -2456,7 +2496,7 @@ function updateStatus() {
   // FEATURE-436: token rates use thousands separators (e.g. 1,234t/s).
   // FEATURE-487: the ⏱️ icon sits in its own span so narrow screens can hide
   // just the icon while keeping the per-iteration usage text.
-  sbLast.innerHTML = "<span class='sb-last-ico'>" + T.sbLast + "</span> ↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + loDur + ")";
+  sbLast.innerHTML = "<span class='sb-last-ico'>" + iconHTML("i-timer") + "</span>↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + loDur + ")";
 }
 
 /* ---------- session menu (FEATURE-387) ---------- */
@@ -2467,7 +2507,7 @@ let sessionList = [];
 // updates the 💬 count. Called when the server pushes a "sessions" message.
 function renderSessionMenu(sessions) {
   sessionList = sessions || [];
-  sbSessions.textContent = "💬 " + sessionList.length;
+  sbSessions.innerHTML = iconHTML("i-sessions", "ico-sb") + sessionList.length;
   sessionMenu.textContent = "";
   if (sessionList.length === 0) {
     const empty = document.createElement("div");
@@ -2484,11 +2524,11 @@ function renderSessionMenu(sessions) {
     const del = document.createElement("span");
     if (s.current) {
       del.className = "session-active";
-      del.textContent = "●";
+      setIcon(del, "i-dot");
       del.title = T.sessionActive;
     } else {
       del.className = "session-del";
-      del.textContent = "✕";
+      setIcon(del, "i-close");
       del.title = T.sessionDelete;
       del.onclick = (e) => {
         e.stopPropagation();
@@ -2669,7 +2709,7 @@ function normStatus(s) {
   }
 }
 
-const STATUS_ICON = { pending: "○", in_progress: "◐", completed: "●", cancelled: "✕", failed: "✗" };
+const STATUS_ICON = { pending: "i-circle", in_progress: "i-half", completed: "i-dot", cancelled: "i-close", failed: "i-xmark" };
 
 function renderPlan(plan) {
   lastPlan = plan && plan.steps && plan.steps.length > 0 ? plan : null;
@@ -2680,17 +2720,23 @@ function renderPlan(plan) {
   if (!lastPlan) return;
   planBody.textContent = "";
 
+  // FEATURE-516: the title + summary sit in a height-capped scroll box (see
+  // .plan-head-scroll) so a long summary cannot push the step list, which is
+  // the part that matters most, out of view.
+  const headBox = document.createElement("div");
+  headBox.className = "plan-head-scroll";
   const title = document.createElement("div");
   title.className = "plan-title";
   title.textContent = plan.title || "";
-  planBody.appendChild(title);
+  headBox.appendChild(title);
 
   if (plan.description) {
     const desc = document.createElement("div");
     desc.className = "plan-desc";
     desc.textContent = plan.description;
-    planBody.appendChild(desc);
+    headBox.appendChild(desc);
   }
+  planBody.appendChild(headBox);
 
   // FEATURE-514: show the plan's acceptance criteria (if any).
   if (Array.isArray(plan.acceptance_criteria) && plan.acceptance_criteria.length > 0) {
@@ -2715,7 +2761,7 @@ function renderPlan(plan) {
     row.className = "plan-step " + status;
     const icon = document.createElement("span");
     icon.className = "st";
-    icon.textContent = STATUS_ICON[status] || "○";
+    icon.innerHTML = iconHTML(STATUS_ICON[status] || "i-circle");
     const desc = document.createElement("span");
     desc.className = "desc";
     // Only the first line of a step is the highlighted "title"; any
@@ -3202,7 +3248,7 @@ function renderQuestions(it) {
 
         syncers.push(() => {
           const on = qsState[qi].selected.has(opt);
-          mark.textContent = on ? (q.multi ? "☑" : "◉") : (q.multi ? "☐" : "○");
+          mark.innerHTML = iconHTML(on ? (q.multi ? "i-checkbox-on" : "i-radio-on") : (q.multi ? "i-checkbox-off" : "i-circle"));
           row.classList.toggle("on", on);
         });
 
@@ -3850,7 +3896,7 @@ function renderAttachItem(it) {
   item.className = "attach-item";
   item.title = it.name + " · " + (it.kind === "image" ? T.attachKindImage : T.attachKindFile) + " " + fmtBytes(it.size);
   const rm = document.createElement("button");
-  rm.type = "button"; rm.className = "attach-rm"; rm.textContent = "✕";
+  rm.type = "button"; rm.className = "attach-rm"; rm.innerHTML = iconHTML("i-close");
   rm.title = T.attachRemove;
   rm.onclick = (e) => { e.stopPropagation(); removeAttach(it.uid); };
   if (it.kind === "image") {
@@ -3860,7 +3906,7 @@ function renderAttachItem(it) {
   } else {
     const wrap = document.createElement("div");
     wrap.className = "attach-file";
-    const ico = document.createElement("div"); ico.className = "af-icon"; ico.textContent = "📄";
+    const ico = document.createElement("div"); ico.className = "af-icon"; ico.innerHTML = iconHTML("i-file");
     const nm = document.createElement("div"); nm.className = "af-name"; nm.textContent = it.name;
     wrap.appendChild(ico); wrap.appendChild(nm);
     item.appendChild(wrap);
@@ -4070,13 +4116,14 @@ function autoGrow() {
 
 let running = false;
 
-// setRunning flips the single button between ▶ send (idle) and ⏸
-// interrupt (agent turn in progress). Turn boundaries arrive as the web
+// setRunning flips the single button between the send icon (idle) and the
+// pause icon (agent turn in progress). Both are inline SVG (FEATURE-516).
+// Turn boundaries arrive as the web
 // session's turn_start / await_input events; sendInput flips to running
 // immediately for responsive feedback.
 function setRunning(v) {
   running = v;
-  sendBtn.textContent = v ? "⏸" : "▶";
+  setIcon(sendBtn, v ? "i-pause" : "i-send");
   sendBtn.title = v ? T.interrupt : T.send;
   sendBtn.classList.toggle("run", v);
   // FEATURE-425/FIX-426: while a task is running, the session-title highlight
@@ -4390,7 +4437,7 @@ function treeNode(node) {
 
   const tw = document.createElement("span");
   tw.className = "tw";
-  tw.textContent = node.dir ? "▸" : "";
+  setIcon(tw, "i-tri");
   row.appendChild(tw);
 
   const name = document.createElement("span");
@@ -4406,7 +4453,7 @@ function treeNode(node) {
   if (node.dir && node.changes > 0) {
     const badge = document.createElement("span");
     badge.className = "git-badge dir-count";
-    badge.textContent = "●" + node.changes;
+    badge.innerHTML = iconHTML("i-dot", "ico-inline") + node.changes;
     badge.title = node.changes + " changed";
     actions.appendChild(badge);
   }
@@ -4420,7 +4467,7 @@ function treeNode(node) {
       const dl = document.createElement("button");
       dl.className = "reveal-btn";
       dl.title = T.downloadFile;
-      dl.textContent = "⬇";
+      setIcon(dl, "i-download");
       dl.onclick = (e) => { e.stopPropagation(); downloadFile(node.path); };
       actions.appendChild(dl);
     }
@@ -4428,7 +4475,7 @@ function treeNode(node) {
     const reveal = document.createElement("button");
     reveal.className = "reveal-btn";
     reveal.title = T.revealDir;
-    reveal.textContent = "⌖";
+    reveal.innerHTML = iconHTML("i-reveal");
     reveal.onclick = (e) => { e.stopPropagation(); postPath("api/reveal", node.path); };
     actions.appendChild(reveal);
   }
@@ -4456,7 +4503,7 @@ function treeNode(node) {
     const ul = document.createElement("ul");
     const open = expandedDirs.has(node.path);
     ul.style.display = open ? "" : "none";
-    tw.textContent = open ? "▾" : "▸";
+    setIcon(tw, open ? "i-tri-down" : "i-tri");
     // FEATURE-477: the .open class lets the light theme draw an "open folder"
     // icon for expanded directories (vs a closed folder when collapsed).
     tw.classList.toggle("open", open);
@@ -4465,7 +4512,7 @@ function treeNode(node) {
     row.onclick = () => {
       const isOpen = ul.style.display !== "none";
       ul.style.display = isOpen ? "none" : "";
-      tw.textContent = isOpen ? "▸" : "▾";
+      setIcon(tw, isOpen ? "i-tri" : "i-tri-down");
       tw.classList.toggle("open", !isOpen);
       if (isOpen) expandedDirs.delete(node.path);
       else expandedDirs.add(node.path);
@@ -5112,13 +5159,13 @@ let settingsActiveGroup = 0;
 // settingsGroupIcon maps a group title keyword to a representative icon.
 function settingsGroupIcon(title) {
   const t = (title || "").toLowerCase();
-  if (t.includes("模型") || t.includes("model")) return "🧠";
-  if (t.includes("显示") || t.includes("display") || t.includes("输出")) return "🖥️";
-  if (t.includes("安全") || t.includes("safety") || t.includes("确认")) return "🛡️";
-  if (t.includes("记忆") || t.includes("memory") || t.includes("上下文")) return "📚";
-  if (t.includes("mcp")) return "🔌";
-  if (t.includes("开发") || t.includes("debug") || t.includes("搜索")) return "🔧";
-  return "⚙️";
+  if (t.includes("模型") || t.includes("model")) return "i-model-text";
+  if (t.includes("显示") || t.includes("display") || t.includes("输出")) return "i-display";
+  if (t.includes("安全") || t.includes("safety") || t.includes("确认")) return "i-shield";
+  if (t.includes("记忆") || t.includes("memory") || t.includes("上下文")) return "i-memory";
+  if (t.includes("mcp")) return "i-mcp";
+  if (t.includes("开发") || t.includes("debug") || t.includes("搜索")) return "i-devtools";
+  return "i-settings";
 }
 
 // renderSettings renders the grouped setting items returned by settings_get
@@ -5148,7 +5195,7 @@ function renderSettingsNav() {
     item.setAttribute("data-index", String(i));
     const icon = document.createElement("span");
     icon.className = "settings-nav-icon";
-    icon.textContent = settingsGroupIcon(g.title);
+    icon.innerHTML = iconHTML(settingsGroupIcon(g.title));
     const label = document.createElement("span");
     label.className = "settings-nav-label";
     label.textContent = g.title || "";
@@ -5684,11 +5731,11 @@ function renderMCPServerRow(s) {
   // it runs a live connectivity test (mcp_test) and refreshes the tool list.
   const expandBtn = document.createElement("button");
   expandBtn.className = "mcp-expand";
-  expandBtn.textContent = wasExpanded ? "▾" : "▸";
+  setIcon(expandBtn, wasExpanded ? "i-tri-down" : "i-tri");
   expandBtn.title = i18nT("mcpExpand", "展开工具列表");
   expandBtn.onclick = () => {
     const expanded = row.classList.toggle("expanded");
-    expandBtn.textContent = expanded ? "▾" : "▸";
+    setIcon(expandBtn, expanded ? "i-tri-down" : "i-tri");
     if (expanded) {
       mcpExpanded = s.name;
       wsSend({ type: "mcp_test", name: s.name });
@@ -5863,11 +5910,20 @@ function renderModelsBody() {
     info.appendChild(id);
     const meta = document.createElement("div");
     meta.className = "model-meta";
+    meta.textContent = m.provider + " · " + m.model;
+    // FEATURE-516: capability marks are vector icons, not emoji.
     const caps = [];
-    if (m.vision) caps.push("👁");
-    if (m.tool_call) caps.push("🔧");
-    if (m.thinking) caps.push("💭");
-    meta.textContent = m.provider + " · " + m.model + (caps.length ? " · " + caps.join(" ") : "") + " · P" + m.priority;
+    if (m.vision) caps.push(mkIcon("i-model-vision", "ico-inline"));
+    if (m.tool_call) caps.push(mkIcon("i-tool", "ico-inline"));
+    if (m.thinking) caps.push(mkIcon("i-think", "ico-inline"));
+    if (caps.length) {
+      meta.appendChild(document.createTextNode(" · "));
+      caps.forEach((el, i) => {
+        if (i) meta.appendChild(document.createTextNode(" "));
+        meta.appendChild(el);
+      });
+    }
+    meta.appendChild(document.createTextNode(" · P" + m.priority));
     info.appendChild(meta);
     // FEATURE-449: a second meta line showing the model's endpoint URL.
     if (m.endpoint) {
@@ -6047,7 +6103,8 @@ function renderModelMenu() {
   modelMenu.appendChild(buildModelMenuDefault("text", modelMenu, !(modelInfo && modelInfo.modeTextModelID)));
   const add = document.createElement("div");
   add.className = "model-menu-item add";
-  add.textContent = "＋ 新增模型";
+  // FEATURE-516: the "＋" glyph is drawn as a vector icon; strip it from the label.
+  add.innerHTML = iconHTML("i-plus", "ico-inline") + (T.modelAdd || "＋ 新增模型").replace(/^＋\s*/, "");
   add.onclick = () => { modelMenu.classList.add("hidden"); openModelWizard("add", ""); };
   modelMenu.appendChild(add);
 }
@@ -6075,7 +6132,7 @@ function renderModelVisionMenu() {
   modelVisionMenu.appendChild(buildModelMenuDefault("vision", modelVisionMenu, !(modelInfo && modelInfo.modeVisionModelID)));
   const add = document.createElement("div");
   add.className = "model-menu-item add";
-  add.textContent = "＋ 新增模型";
+  add.innerHTML = iconHTML("i-plus", "ico-inline") + (T.modelAdd || "＋ 新增模型").replace(/^＋\s*/, "");
   add.onclick = () => { modelVisionMenu.classList.add("hidden"); openModelWizard("add", ""); };
   modelVisionMenu.appendChild(add);
 }
@@ -6271,7 +6328,7 @@ function setupWizardTemplateExtras(step) {
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "wizard-template-json-toggle";
-    toggle.textContent = "▸ " + (T.templateJson || "查看模板原始 JSON");
+    toggle.innerHTML = iconHTML("i-tri", "ico-inline") + " " + (T.templateJson || "查看模板原始 JSON");
     const pre = document.createElement("pre");
     pre.className = "wizard-template-json-body";
     pre.textContent = step.template_json;
@@ -6279,7 +6336,8 @@ function setupWizardTemplateExtras(step) {
     toggle.onclick = () => {
       const open = pre.style.display !== "none";
       pre.style.display = open ? "none" : "";
-      toggle.textContent = (open ? "▸ " : "▾ ") + (T.templateJson || "查看模板原始 JSON");
+      toggle.querySelector("use").setAttribute("href", open ? "#i-tri" : "#i-tri-down");
+      toggle.lastChild.textContent = " " + (T.templateJson || "查看模板原始 JSON");
     };
     head.appendChild(toggle);
     box.appendChild(head);
@@ -6379,14 +6437,14 @@ function renderWizardField(f) {
             ctl.value = body.endpoint;
             wizardData.endpoint = body.endpoint;
           }
-          res.textContent = "✅ 连通 (" + (body.endpoint || ep) + ")";
+          setResultIcon(res, "i-check", "连通 (" + (body.endpoint || ep) + ")");
           res.className = "wizard-test-result ok";
         } else {
-          res.textContent = "❌ 失败: " + (body.message || "无法连接");
+          setResultIcon(res, "i-xmark", "失败: " + (body.message || "无法连接"));
           res.className = "wizard-test-result err";
         }
       } catch (e) {
-        res.textContent = "❌ 失败: " + e.message;
+        setResultIcon(res, "i-xmark", "失败: " + e.message);
         res.className = "wizard-test-result err";
       } finally {
         btn.disabled = false;
@@ -6423,14 +6481,14 @@ function renderWizardField(f) {
         });
         const body = await resp.json();
         if (body.ok) {
-          res.textContent = "✅ " + (body.message || "API Key 有效");
+          setResultIcon(res, "i-check", body.message || "API Key 有效");
           res.className = "wizard-test-result ok";
         } else {
-          res.textContent = "❌ " + (body.message || "API Key 无效");
+          setResultIcon(res, "i-xmark", body.message || "API Key 无效");
           res.className = "wizard-test-result err";
         }
       } catch (e) {
-        res.textContent = "❌ 失败: " + e.message;
+        setResultIcon(res, "i-xmark", "失败: " + e.message);
         res.className = "wizard-test-result err";
       } finally {
         btn.disabled = false;
@@ -6493,14 +6551,14 @@ function renderWizardField(f) {
         if (body.ok && body.max_model_len > 0) {
           ctl.value = body.max_model_len;
           wizardData.max_model_len = body.max_model_len;
-          res.textContent = "✅ 已填入 " + body.max_model_len;
+          setResultIcon(res, "i-check", "已填入 " + body.max_model_len);
           res.className = "wizard-test-result ok";
         } else {
-          res.textContent = "❌ " + (body.message || "未获取到该模型的最大上下文长度");
+          setResultIcon(res, "i-xmark", body.message || "未获取到该模型的最大上下文长度");
           res.className = "wizard-test-result err";
         }
       } catch (e) {
-        res.textContent = "❌ 失败: " + e.message;
+        setResultIcon(res, "i-xmark", "失败: " + e.message);
         res.className = "wizard-test-result err";
       } finally {
         btn.disabled = false;
