@@ -67,6 +67,16 @@ const webIndexHTML = `<!DOCTYPE html>
   }
   #hubBadge.faded { opacity:0; }
   #hubBadge:hover { background:var(--elev); opacity:1; }
+  /* FEATURE-516: when the drawer is open the badge becomes the drawer's logo
+     bar: same width as the agent panel, with the pin pushed to its right edge. */
+  #hubBadge.open { width:var(--panel-w); transition:width .22s ease; border-bottom-right-radius:0; }
+  #hubBadge .pin {
+    margin-left:auto; display:flex; align-items:center; cursor:pointer;
+    color:var(--fg-dim); padding:2px 0; line-height:1;
+    transition:color .2s ease, transform .2s ease;
+  }
+  #hubBadge .pin:hover { color:var(--fg); }
+  #hubBadge .pin.pinned { color:var(--accent); transform:rotate(45deg); }
   #hubBadge .mark { color:var(--accent); font-weight:700; transition:color .3s ease; }
   #hubBadge .mark.off { color:var(--fg-faint); } /* disconnected: grey triangle */
   #hubBadge .name { font-weight:600; letter-spacing:.4px; }
@@ -124,11 +134,9 @@ const webIndexHTML = `<!DOCTYPE html>
   .chat-mock .send { flex:none; font-size:13px; color:var(--fg-faint); }
   #agentPanel .head .close { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:16px; padding:2px 6px; }
   #agentPanel .head .close:hover { color:var(--fg); }
-  /* FEATURE-492: the drawer head close control is a pin. Clicking it pins the
-     drawer open (no auto-collapse on mouseleave); clicking again unpins. */
-  #agentPanel .head .pin, #agentPanel .pane-head .pin { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:15px; padding:2px 6px; line-height:1; transition:color .2s ease, transform .2s ease; }
-  #agentPanel .head .pin:hover, #agentPanel .pane-head .pin:hover { color:var(--fg); }
-  #agentPanel .head .pin.pinned, #agentPanel .pane-head .pin.pinned { color:var(--accent); transform:rotate(45deg); }
+  /* FEATURE-492/FEATURE-516: the pin moved from the Agents section head onto
+     the hub logo bar (#hubBadge .pin above); it pins the drawer open so that
+     mouseleave no longer auto-collapses it. */
   #agentList { flex:1; overflow-y:auto; padding:8px; }
   /* Each list row is a swipe container: a red delete button sits behind the
      card and is revealed by swiping the card left. */
@@ -226,6 +234,20 @@ const webIndexHTML = `<!DOCTYPE html>
   .icon-btn { width:28px; height:28px; border:none; border-radius:6px; background:transparent; color:var(--fg); font-size:16px; cursor:pointer; }
   .icon-btn:hover { background:var(--elev); }
 
+  /* FEATURE-516: inline SVG icons (sprite <use>). Geometry instead of emoji /
+     font glyphs, coloured by currentColor so they follow the surrounding text. */
+  .ico { display:inline-block; vertical-align:middle; flex:none; width:14px; height:14px; }
+  .icon-sprite { position:absolute; width:0; height:0; overflow:hidden; }
+  .ico-inline { width:12px; height:12px; }
+  #hubBadge .mark { width:12px; height:12px; }
+  #hubBadge .pin .ico { width:18px; height:18px; }
+  #agentPanel .pane-head .chev .ico { width:14px; height:14px; }
+  #agentPanel .head .back .ico { width:16px; height:16px; }
+  #agentPanel .head .close .ico { width:15px; height:15px; }
+  .btn .ico { width:15px; height:15px; margin-right:5px; }
+  .chat-mock .send { display:flex; align-items:center; }
+  .chat-mock .send .ico { width:15px; height:15px; }
+
   /* Wide screens: an open drawer pushes the iframe aside (side-by-side). */
   @media (min-width:901px) {
     body.drawer-open #stage { left:var(--panel-w); }
@@ -237,6 +259,59 @@ const webIndexHTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
+
+<!-- FEATURE-516: inline SVG icon sprite for the hub chrome. Icons are drawn as
+     geometry (not emoji / font glyphs) so they render identically on every OS
+     and browser and inherit the current text colour via currentColor. -->
+<svg class="icon-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-hub-mark" viewBox="0 0 24 24">
+      <path d="M7.6 4.8 19 12 7.6 19.2Z" fill="currentColor" stroke="currentColor"
+            stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <!-- Push-pin silhouette (filled), legible at 16-18px; rotates 45° when
+           pinned (see #hubBadge .pin.pinned). -->
+      <path d="M9 3h6v2.2h-1.4v4.4l3.1 2.2c.5.4.8.9.8 1.5V14H6v-.7c0-.6.3-1.1.8-1.5l3.1-2.2V5.2H9V3Z"
+            fill="currentColor"/>
+      <path d="M12 14.2v6.3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24">
+      <path d="M6 9.5 12 15.5 18 9.5"
+            fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-back" viewBox="0 0 24 24">
+      <path d="M14.5 5 7.5 12l7 7"
+            fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-close" viewBox="0 0 24 24">
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11"
+            fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24">
+      <path d="M12 5v14M5 12h14"
+            fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+            fill="none" stroke="currentColor" stroke-width="1.7"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-send" viewBox="0 0 24 24">
+      <path d="M20.5 3.5 3.5 10.5l7 3 3 7 7-17Z"
+            fill="none" stroke="currentColor" stroke-width="1.7"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="M5 12.5l4.5 4.5L19 7.5"
+            fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+</svg>
 <div id="stage">
   <div class="empty" id="empty">
     <img class="logo" id="emptyRun" src="/favicon.svg" alt="co-shell-hub" title="创建或添加 Agent">
@@ -246,7 +321,7 @@ const webIndexHTML = `<!DOCTYPE html>
 
 <!-- Hub badge over the co-shell logo area; toggles the agent drawer. -->
 <div id="hubBadge" title="co-shell-hub · 点击展开 Agent 列表">
-  <span class="mark">▸</span><span class="name">co-shell-hub</span><span class="ver" id="hubVer"></span>
+  <svg class="ico mark" aria-hidden="true"><use href="#i-hub-mark"/></svg><span class="name">co-shell-hub</span><span class="ver" id="hubVer"></span><span class="pin" id="panelPin" title="钉住（不自动收起）"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg></span>
 </div>
 
 <!-- Left edge hot-zone (reveals the drawer on hover). -->
@@ -258,16 +333,16 @@ const webIndexHTML = `<!DOCTYPE html>
 <!-- Left drawer (FEATURE-515): two dockable sections, Agents / Chat. -->
 <div id="agentPanel">
   <!-- Agents section head (click expands Agents; the pin keeps the drawer open). -->
-  <div class="pane-head" id="agentsHead"><span class="mark">▸</span>Agents<span class="pin" id="panelPin" title="钉住（不自动收起）">📌</span><span class="chev">▾</span></div>
+  <div class="pane-head" id="agentsHead">Agents<span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
   <div class="pane-body" id="agentsBody">
   <!-- View 1: agent list. -->
   <div class="view" id="viewList">
     <div id="agentList"></div>
-    <div class="foot"><button class="btn primary" id="manageBtn">＋ 新建</button><button class="btn" id="settingsBtn" style="margin-top:16px;width:100%">⚙ 设置</button></div>
+    <div class="foot"><button class="btn primary" id="manageBtn"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>新建</button><button class="btn" id="settingsBtn" style="margin-top:16px;width:100%"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg>设置</button></div>
   </div>
   <!-- View 2: config (add local/remote + manage list). -->
   <div class="view hidden" id="viewConfig">
-    <div class="head"><button class="back" id="configBack" title="返回 Agent 列表">‹</button>新建 Agent<span class="close" id="configClose" title="收起">✕</span></div>
+    <div class="head"><button class="back" id="configBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>新建 Agent<span class="close" id="configClose" title="收起"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></span></div>
     <div class="config-body">
       <h3>添加 Agent</h3>
       <div class="seg" id="modeSeg">
@@ -298,7 +373,7 @@ const webIndexHTML = `<!DOCTYPE html>
   </div>
   <!-- View 3: read-only agent detail (click an agent card to view). -->
   <div class="view hidden" id="viewDetail">
-    <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表">‹</button><span id="detailTitle">Agent 设置</span><span class="close" id="detailClose" title="收起">✕</span></div>
+    <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span id="detailTitle">Agent 设置</span></div>
     <div class="config-body">
       <div class="field"><label>ID</label><div class="val" id="d-id"></div></div>
       <div class="field"><label>备注</label><div class="val" id="d-name"></div></div>
@@ -313,7 +388,7 @@ const webIndexHTML = `<!DOCTYPE html>
   </div>
   <!-- View 4: remote-access settings (TLS/whitelist/access key). -->
   <div class="view hidden" id="viewSettings">
-    <div class="head"><button class="back" id="settingsBack" title="返回 Agent 列表">‹</button>设置<span class="close" id="settingsClose" title="收起">✕</span></div>
+    <div class="head"><button class="back" id="settingsBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>设置<span class="close" id="settingsClose" title="收起"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></span></div>
     <div class="config-body">
       <h3>HTTPS 访问</h3>
       <div class="field"><div class="switch-row"><span class="switch-label">启用 HTTPS（配置证书后仅用 https 访问）</span><label class="switch"><input type="checkbox" id="s-tls"><span class="slider"></span></label></div></div>
@@ -330,10 +405,10 @@ const webIndexHTML = `<!DOCTYPE html>
   </div>
   </div><!-- /#agentsBody -->
   <!-- Chat section (collapsed by default; placeholder UI only, FEATURE-515). -->
-  <div class="pane-head collapsed" id="chatHead"><span class="mark">💬</span>Chat<span class="chev">▾</span></div>
+  <div class="pane-head collapsed" id="chatHead">Chat<span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
   <div class="pane-body collapsed" id="chatBody">
     <div class="chat-placeholder">
-      <div class="chat-mock" title="Chat 功能规划中，暂不可用"><span class="txt">输入消息…</span><span class="send">➤</span></div>
+      <div class="chat-mock" title="Chat 功能规划中，暂不可用"><span class="txt">输入消息…</span><span class="send"><svg class="ico" aria-hidden="true"><use href="#i-send"/></svg></span></div>
       <div class="hint">Chat 功能规划中，敬请期待</div>
     </div>
   </div>
@@ -391,6 +466,10 @@ const webIndexHTML = `<!DOCTYPE html>
   function openPanel(){
     clearTimeout(hideTimer);
     panel.classList.add('open');
+    // FEATURE-516: the hub logo bar expands together with the drawer (same
+    // width) and stays visible for as long as the drawer is open.
+    badge.classList.add('open');
+    badge.classList.remove('faded');
     scrim.classList.add('show');
     document.body.classList.add('drawer-open');
   }
@@ -398,6 +477,7 @@ const webIndexHTML = `<!DOCTYPE html>
   var pinned = false;
   function closePanel(){
     panel.classList.remove('open');
+    badge.classList.remove('open');
     scrim.classList.remove('show');
     document.body.classList.remove('drawer-open');
     setPane('agents'); // FEATURE-515: reopening always shows the default section
@@ -454,9 +534,9 @@ const webIndexHTML = `<!DOCTYPE html>
   // The config view's close/back buttons return to the agent list view.
   document.getElementById('configClose').onclick = function(){ showView('list'); };
   document.getElementById('configBack').onclick = function(){ showView('list'); };
-  // The detail view's close/back buttons return to the agent list view.
+  // The detail view's back button returns to the agent list view. FEATURE-516:
+  // its top-right close control was removed (the back button covers it).
   document.getElementById('detailBack').onclick = function(){ showView('list'); };
-  document.getElementById('detailClose').onclick = function(){ showView('list'); };
   // Hover the left edge to open; leaving the panel schedules a close only in
   // the list view (the config view stays open until closed or backed out).
   // FEATURE-515: only a sustained hover (1s) opens the drawer, so merely
@@ -476,9 +556,12 @@ const webIndexHTML = `<!DOCTYPE html>
   // FEATURE-492: the hub badge shows for 3s on load, then fades to fully
   // transparent (still covering the co-shell logo area and still clickable).
   // Hovering restores it; leaving fades it again.
-  setTimeout(function(){ badge.classList.add('faded'); }, 3000);
+  setTimeout(function(){ if (!panel.classList.contains('open')) badge.classList.add('faded'); }, 3000);
   badge.addEventListener('mouseenter', function(){ badge.classList.remove('faded'); });
-  badge.addEventListener('mouseleave', function(){ badge.classList.add('faded'); });
+  badge.addEventListener('mouseleave', function(){
+    // FEATURE-516: never fade the logo bar while the drawer is open.
+    if (!panel.classList.contains('open')) badge.classList.add('faded');
+  });
 
   // Load the hub version into the logo badge once.
   function loadHubInfo(){
@@ -875,7 +958,8 @@ const webIndexHTML = `<!DOCTYPE html>
     if (!url){ eVerEl.textContent = ''; eVerEl.className = 'hint'; return; }
     api('GET', '/api/agent-version?kind=remote&url=' + encodeURIComponent(url), null, function(st, j){
       if (j && j.ok){
-        eVerEl.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '') + ' ✓';
+        eVerEl.innerHTML = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '') +
+          ' <svg class="ico ico-inline" aria-hidden="true"><use href="#i-check"/></svg>';
         eVerEl.className = 'hint ver-ok';
       } else {
         eVerEl.textContent = (j && j.error) || '无法连接';

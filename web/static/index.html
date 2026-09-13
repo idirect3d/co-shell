@@ -8,10 +8,279 @@
 <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
+
+<!-- FEATURE-516: inline SVG icon sprite. Icons are drawn as geometry instead of
+     font glyphs / emoji so they render identically across OSes and browsers, and
+     inherit the current text colour through currentColor (theme-aware). -->
+<svg class="icon-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- theme-dark: moon -->
+    <symbol id="i-theme-dark" viewBox="0 0 24 24">
+      <path d="M20.9 13.1A8.5 8.5 0 1 1 10.9 3.3a7.4 7.4 0 0 0 10 9.8Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- theme-light: sun -->
+    <symbol id="i-theme-light" viewBox="0 0 24 24">
+      <g transform="translate(12 12) scale(0.88) translate(-12 -12)">
+        <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 1.9v2.6M12 19.5v2.6M1.9 12h2.6M19.5 12h2.6M4.9 4.9l1.9 1.9M17.2 17.2l1.9 1.9M19.1 4.9l-1.9 1.9M6.8 17.2l-1.9 1.9"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </g>
+    </symbol>
+    <!-- theme-tp: spade -->
+    <symbol id="i-theme-tp" viewBox="0 0 24 24">
+      <g transform="translate(12 12) scale(1.12 0.96) translate(-12 -12)">
+        <path d="M12 3C12 3 4.4 9.2 4.4 13.6 4.4 16.3 6.4 18 8.6 18 10 18 11.3 17.2 12 16.1 11.5 18.3 10.2 20 8.8 21.4H15.2C13.8 20 12.5 18.3 12 16.1 12.7 17.2 14 18 15.4 18 17.6 18 19.6 16.3 19.6 13.6 19.6 9.2 12 3 12 3Z"
+              fill="none" stroke="currentColor" stroke-width="1.7"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </symbol>
+    <!-- theme-eyecare: leaf. FEATURE-516: single plump leaf — the two arcs use
+         different radii so the blade stays full and asymmetric; the main axis
+         is still the 45° diagonal (bottom-left to top-right). -->
+    <symbol id="i-theme-eyecare" viewBox="0 0 24 24">
+      <path d="M4.8 19.2A12 12 0 0 1 19.4 4.6 14 14 0 0 1 4.8 19.2Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M6.6 17.4 17.6 6.4"
+            fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+    <!-- send: solid play triangle (idle state of the send button) -->
+    <symbol id="i-send" viewBox="0 0 24 24">
+      <path d="M8.4 5.9v12.2L18.9 12 8.4 5.9Z" fill="currentColor" stroke="currentColor"
+            stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+    <!-- pause: double bar (running state of the send button) -->
+    <symbol id="i-pause" viewBox="0 0 24 24">
+      <path d="M9.2 5.5v13M14.8 5.5v13"
+            fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    </symbol>
+    <!-- model-text: brain (geometry from the Feather/Lucide brain icon, ISC) -->
+    <symbol id="i-model-text" viewBox="0 0 24 24">
+      <g transform="translate(12 12) scale(0.88) translate(-12 -12)">
+        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5C11.3 9 12.7 14 12 19.5a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"
+              fill="none" stroke="currentColor" stroke-width="1.9"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5C12.7 9 11.3 14 12 19.5a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"
+              fill="none" stroke="currentColor" stroke-width="1.9"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </symbol>
+    <!-- model-vision: eye -->
+    <symbol id="i-model-vision" viewBox="0 0 24 24">
+      <path d="M12 5.2C7 5.2 3.2 8.8 2.2 12.2c1 3 4.8 6 9.8 6s8.8-3 9.8-6C20.8 8.8 17 5.2 12 5.2Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="12" cy="12.1" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </symbol>
+    <!-- sessions: chat bubble (status-bar session count, was 💬) -->
+    <symbol id="i-sessions" viewBox="0 0 24 24">
+      <path d="M20.4 11.8c0 4-3.8 7.2-8.4 7.2-1 0-2-.16-2.9-.46L4.6 20.4l1.3-3.5c-1.5-1.3-2.4-3.1-2.4-5.1 0-4 3.8-7.2 8.5-7.2s8.4 3.2 8.4 7.2Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- sum: sigma (session token total, was Σ) -->
+    <symbol id="i-sum" viewBox="0 0 24 24">
+      <path d="M17.6 4.6H6.6l5.6 7.4-5.6 7.4h11"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- timer: stopwatch (last-turn token usage, was ⏱️) -->
+    <symbol id="i-timer" viewBox="0 0 24 24">
+      <circle cx="12" cy="13.6" r="7.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 13.6V9.4M12 3.2v2.8M9.9 3.2h4.2"
+            fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <!-- settings: gear (menu + default settings category, was ⚙️; Feather settings geometry, ISC) -->
+    <symbol id="i-settings" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+            fill="none" stroke="currentColor" stroke-width="1.7"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- display: monitor (settings category, was 🖥️) -->
+    <symbol id="i-display" viewBox="0 0 24 24">
+      <rect x="3.2" y="4.8" width="17.6" height="11.4" rx="1.6"
+            fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 16.2v3.4M8.6 19.6h6.8"
+            fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <!-- shield: safety (settings category, was 🛡️) -->
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <path d="M12 3.2 5.2 6v5.5c0 4.2 2.8 7.6 6.8 9.5 4-1.9 6.8-5.3 6.8-9.5V6L12 3.2Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9.2 11.9l2 2 3.7-3.9"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- memory: open book (settings category, was 📚) -->
+    <symbol id="i-memory" viewBox="0 0 24 24">
+      <path d="M4.2 5.4c2.5-1 5.3-.8 7.8.9 2.5-1.7 5.3-1.9 7.8-.9v12.3c-2.5-1-5.3-.8-7.8.9-2.5-1.7-5.3-1.9-7.8-.9V5.4Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 6.3v12.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <!-- mcp: plug (settings category, was 🔌) -->
+    <symbol id="i-mcp" viewBox="0 0 24 24">
+      <path d="M9 3.2v4.6M15 3.2v4.6"
+            fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M6.6 7.8h10.8v3.4a5.4 5.4 0 0 1-10.8 0V7.8Z"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 16.6v4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <!-- devtools: terminal window (settings category, was 🔧) -->
+    <symbol id="i-devtools" viewBox="0 0 24 24">
+      <rect x="2.8" y="4.6" width="18.4" height="14.8" rx="2.2"
+            fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M7.2 10l2.8 2.6-2.8 2.6M12.6 15.4h4.2"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- FEATURE-516: remaining UI glyphs, all as vector symbols. -->
+    <symbol id="i-tri" viewBox="0 0 24 24">
+      <path d="M8 5.5 19 12 8 18.5Z" fill="currentColor" stroke="currentColor"
+            stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-tri-down" viewBox="0 0 24 24">
+      <path d="M5.5 8 12 19l6.5-11Z" fill="currentColor" stroke="currentColor"
+            stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24">
+      <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-close" viewBox="0 0 24 24">
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor"
+            stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-xmark" viewBox="0 0 24 24">
+      <path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor"
+            stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24">
+      <path d="M20 11.5 12.6 19a4.6 4.6 0 0 1-6.5-6.5l7.9-7.9a3 3 0 0 1 4.3 4.3l-7.9 7.9a1.5 1.5 0 0 1-2.1-2.1l7.4-7.4"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24">
+      <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24">
+      <path d="M4 6.5h16M9.5 6.5V4.9c0-.8.6-1.4 1.4-1.4h2.2c.8 0 1.4.6 1.4 1.4v1.6M6.6 6.5l1 12.1c.1.9.8 1.6 1.7 1.6h5.4c.9 0 1.6-.7 1.7-1.6l1-12.1"
+            fill="none" stroke="currentColor" stroke-width="1.7"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24">
+      <path d="M14 4h6v6M20 4l-7.5 7.5M10 20H4v-6M4 20l7.5-7.5"
+            fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-collapse" viewBox="0 0 24 24">
+      <path d="M20 10h-6V4M14 10l7-7M4 14h6v6M10 14l-7 7"
+            fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-image" viewBox="0 0 24 24">
+      <rect x="3.5" y="5" width="17" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <circle cx="8.6" cy="10" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M4.5 17.4 9.5 13l4 3.5 2.5-2 3.5 3"
+            fill="none" stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-file" viewBox="0 0 24 24">
+      <path d="M6.5 3.5h7L18 8v12.5H6.5Z" fill="none" stroke="currentColor"
+            stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M13.5 3.5V8H18" fill="none" stroke="currentColor"
+            stroke-width="1.7" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24">
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"
+            fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-dot" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="5" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="i-half" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 5.5a6.5 6.5 0 0 0 0 13Z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-checkbox-on" viewBox="0 0 24 24">
+      <rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M8 12.5 11 15.5 16.5 9" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-checkbox-off" viewBox="0 0 24 24">
+      <rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="i-radio-on" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <circle cx="12" cy="12" r="3.6" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-tool" viewBox="0 0 24 24">
+      <path d="M17.3 3.6a4.6 4.6 0 0 0-5.8 5.8l-7 7a2.1 2.1 0 0 0 3 3l7-7a4.6 4.6 0 0 0 5.8-5.8l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6Z"
+            fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    </symbol>
+    <!-- FEATURE-516: thinking-capability mark (replaces the 💭 emoji). -->
+    <symbol id="i-think" viewBox="0 0 24 24">
+      <path d="M12 3.4a6.2 6.2 0 0 0-3.6 11.2c.5.4.8 1 .8 1.6v.6h5.6v-.6c0-.6.3-1.2.8-1.6A6.2 6.2 0 0 0 12 3.4Z"
+            fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M10.2 20.1h3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+    <!-- FEATURE-516: remaining UI glyphs promoted to vectors (were ✓ ⟳ ↑ ↓ ▲ ⧉ ⏪ ⌖). -->
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="M4.8 12.6 9.8 17.6 19.4 6.6" fill="none" stroke="currentColor"
+            stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M19.6 12a7.6 7.6 0 1 1-2.3-5.4" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M19.9 3.4v4.4h-4.4" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24">
+      <path d="M4.4 12a7.6 7.6 0 1 0 2.3-5.4" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M4.1 3.4v4.4h4.4" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24">
+      <path d="M12 19.4V5M5.9 11.1 12 5l6.1 6.1" fill="none" stroke="currentColor"
+            stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24">
+      <path d="M12 4.6V19M5.9 12.9 12 19l6.1-6.1" fill="none" stroke="currentColor"
+            stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-tri-up" viewBox="0 0 24 24">
+      <path d="M12 5.6 18.6 18.4H5.4Z" fill="currentColor" stroke="currentColor"
+            stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24">
+      <rect x="8.6" y="8.6" width="10.8" height="10.8" rx="2.2" fill="none"
+            stroke="currentColor" stroke-width="1.7"/>
+      <path d="M15.4 5.4H7a1.6 1.6 0 0 0-1.6 1.6v8.4" fill="none" stroke="currentColor"
+            stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-reveal" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 2.8v3.2M12 18v3.2M2.8 12H6M18 12h3.2" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
 <header id="topbar">
   <div class="brand">
     <img id="brandLogo" class="brand-logo" alt="" hidden>
-    <span class="brand-mark">▸</span>
+    <span class="brand-mark"><svg class="ico" aria-hidden="true"><use href="#i-tri"/></svg></span>
     <span class="brand-name">co-shell</span>
     <span class="brand-ver" id="ver"></span>
   </div>
@@ -19,32 +288,32 @@
     <span class="conn" id="conn" title="WebSocket" role="button" tabindex="0">
       <span class="conn-dot" id="connDot"></span><span id="connText"></span>
     </span>
-    <button class="icon-btn" id="themeToggle" title="theme">☾</button>
+    <button class="icon-btn" id="themeToggle" title="theme"><svg class="ico" aria-hidden="true"><use href="#i-theme-dark"/></svg></button>
     <div class="menu-wrap" id="menuWrap">
-      <button class="icon-btn" id="menuBtn" title="menu">☰</button>
+      <button class="icon-btn" id="menuBtn" title="menu"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
       <div class="menu" id="menu">
         <button class="menu-item" id="miWs">
-          <span class="mi-ico"></span><span class="mi-label" data-i18n="workspace">工作区</span><span class="mi-check" id="miWsCheck">✓</span>
+          <span class="mi-ico"></span><span class="mi-label" data-i18n="workspace">工作区</span><span class="mi-check" id="miWsCheck"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
         </button>
         <button class="menu-item" id="miPlan">
-          <span class="mi-ico"></span><span class="mi-label" data-i18n="taskPlan">任务进展</span><span class="mi-check" id="miPlanCheck">✓</span>
+          <span class="mi-ico"></span><span class="mi-label" data-i18n="taskPlan">任务进展</span><span class="mi-check" id="miPlanCheck"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
         </button>
         <button class="menu-item" id="miStreamTitle">
-          <span class="mi-ico"></span><span class="mi-label" data-i18n="streamTitle">会话标题</span><span class="mi-check" id="miStreamTitleCheck">✓</span>
+          <span class="mi-ico"></span><span class="mi-label" data-i18n="streamTitle">会话标题</span><span class="mi-check" id="miStreamTitleCheck"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
         </button>
         <button class="menu-item" id="miMsgViz">
-          <span class="mi-ico"></span><span class="mi-label" data-i18n="msgViz">消息可视化</span><span class="mi-check" id="miMsgVizCheck">✓</span>
+          <span class="mi-ico"></span><span class="mi-label" data-i18n="msgViz">消息可视化</span><span class="mi-check" id="miMsgVizCheck"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
         </button>
         <button class="menu-item" id="miStatus">
-          <span class="mi-ico"></span><span class="mi-label" data-i18n="statusBar">状态条</span><span class="mi-check" id="miStatusCheck">✓</span>
+          <span class="mi-ico"></span><span class="mi-label" data-i18n="statusBar">状态条</span><span class="mi-check" id="miStatusCheck"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
         </button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miModels">
-          <span class="mi-ico">🧠</span><span class="mi-label" data-i18n="models">模型管理</span>
+          <span class="mi-ico"><svg class="ico" aria-hidden="true"><use href="#i-model-text"/></svg></span><span class="mi-label" data-i18n="models">模型管理</span>
         </button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miSettings">
-          <span class="mi-ico">⚙️</span><span class="mi-label" data-i18n="settings">系统设置</span>
+          <span class="mi-ico"><svg class="ico" aria-hidden="true"><use href="#i-settings"/></svg></span><span class="mi-label" data-i18n="settings">系统设置</span>
         </button>
       </div>
     </div>
@@ -56,7 +325,7 @@
     <div class="panel-head">
       <span class="ws-title">
         <span data-i18n="workspace">工作区</span>
-        <button class="icon-btn sm" id="treeRefresh" data-i18n-title="refresh">⟳</button>
+        <button class="icon-btn sm" id="treeRefresh" data-i18n-title="refresh"><svg class="ico" aria-hidden="true"><use href="#i-refresh"/></svg></button>
       </span>
       <span id="wsBranch"></span>
     </div>
@@ -68,7 +337,7 @@
          / task-plan panel heads). Left: a three-segment display-mode pill
          (silent/minimal/normal); centre: the current session title (editable). -->
     <div class="stream-head">
-      <span class="stream-active" id="streamActive">●</span>
+      <span class="stream-active" id="streamActive"><svg class="ico" aria-hidden="true"><use href="#i-dot"/></svg></span>
       <input type="text" class="stream-title" id="streamTitle" placeholder="会话标题" title="点击修改会话标题">
       <!-- FEATURE-487: on narrow screens the editable session title is replaced
            by a read-only cycling widget that flips every 2s between the session
@@ -104,8 +373,8 @@
       </svg>
     </button>
     <!-- FEATURE-419: floating block-boundary navigation icons (top/bottom) -->
-    <button id="blockNavTop" class="block-nav top" title="跳到当前块标题">↑</button>
-    <button id="blockNavBottom" class="block-nav bottom" title="跳到当前块底部">↓</button>
+    <button id="blockNavTop" class="block-nav top" title="跳到当前块标题"><svg class="ico" aria-hidden="true"><use href="#i-arrow-up"/></svg></button>
+    <button id="blockNavBottom" class="block-nav bottom" title="跳到当前块底部"><svg class="ico" aria-hidden="true"><use href="#i-arrow-down"/></svg></button>
     <!-- FEATURE-425: read-only text file previewer. Absolutely positioned over
          the main message area (#stream-wrap) so it never covers the workspace
          tree, task plan or input row, and auto-scales with the window. -->
@@ -116,7 +385,7 @@
         <span class="fv-size" id="fvSize"></span>
         <span class="fv-mtime" id="fvMtime"></span>
         <button class="fv-raw" id="fvRaw" title="切换原始文本/解析渲染">Raw</button>
-        <button class="fv-close" id="fvClose" title="关闭预览">✕</button>
+        <button class="fv-close" id="fvClose" title="关闭预览"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
     </div>
   </section>
@@ -154,8 +423,8 @@
       <div class="input-row">
         <button class="new-session-btn" id="newSessionBtn" title="新建会话">+</button>
         <textarea id="input" rows="1" autocomplete="off" data-i18n-ph="inputHint"></textarea>
-        <button type="button" class="icon-btn attach-btn" id="attachBtn" title="附加文件" data-i18n-title="attach">📎</button>
-        <button class="btn primary" id="sendBtn" title="send">▶</button>
+        <button type="button" class="icon-btn attach-btn" id="attachBtn" title="附加文件" data-i18n-title="attach"><svg class="ico" aria-hidden="true"><use href="#i-clip"/></svg></button>
+        <button class="btn primary" id="sendBtn" title="send"><svg class="ico" aria-hidden="true"><use href="#i-send"/></svg></button>
         <!-- FEATURE-439: YOLO (You Only Live Once) master switch — a classic
              up/down toggle. Default off (thumb down, OFF visible); clicking
              flips it up to reveal the orange-red ON state. -->
@@ -172,7 +441,7 @@
            (image) or a file icon, with remove & enlarge actions before send. -->
       <div id="attachBar" class="attach-bar hidden">
         <div id="attachList" class="attach-list"></div>
-        <button type="button" class="icon-btn attach-clear" id="attachClear" title="移除全部附件" data-i18n-title="clearAttach">✕</button>
+        <button type="button" class="icon-btn attach-clear" id="attachClear" title="移除全部附件" data-i18n-title="clearAttach"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <input type="file" id="attachFile" multiple hidden>
     </div>
@@ -181,7 +450,7 @@
         <div class="mode-seg-slider" id="modeSegSlider"></div>
       </div>
       <div class="sb-sessions" id="sbSessionsWrap">
-        <span class="sb-item" id="sbSessions">💬 0</span>
+        <span class="sb-item" id="sbSessions"><svg class="ico" aria-hidden="true"><use href="#i-sessions"/></svg>0</span>
         <div class="session-menu hidden" id="sessionMenu"></div>
       </div>
       <div class="sb-model-wrap" id="sbModelTextWrap">
@@ -205,7 +474,7 @@
       <span class="pv-size" id="pvSize"></span>
       <span class="pv-mtime" id="pvMtime"></span>
       <span class="pv-res" id="pvRes"></span>
-      <button class="icon-btn preview-close" id="previewClose" title="关闭">✕</button>
+      <button class="icon-btn preview-close" id="previewClose" title="关闭"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <img id="previewImg" alt="">
   </div>
@@ -215,7 +484,7 @@
   <div class="modal-box identity-box">
     <div class="modal-head">
       <span data-i18n="identity">身份与个性</span>
-      <button class="icon-btn sm" id="identityClose">✕</button>
+      <button class="icon-btn sm" id="identityClose"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="identityBody" class="identity-body"></div>
@@ -227,7 +496,7 @@
   <div class="modal-box settings-box">
     <div class="modal-head">
       <span data-i18n="settings">系统设置</span>
-      <button class="icon-btn sm" id="settingsClose">✕</button>
+      <button class="icon-btn sm" id="settingsClose"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body settings-body" id="settingsBody">
       <div id="settingsNav" class="settings-nav"></div>
@@ -235,7 +504,7 @@
         <!-- FEATURE-487: back button to return from a category page to the
              level-1 category list on narrow screens (always present). -->
         <button class="settings-back" id="settingsBack" title="返回分类列表">&lt;</button>
-        <input id="settingsSearch" class="set-search" type="text" placeholder="🔍 搜索设置..." />
+        <input id="settingsSearch" class="set-search" type="text" placeholder="搜索设置..." />
         <div id="settingsDynamic"></div>
         <div id="settingsResult"></div>
       </div>
@@ -247,7 +516,7 @@
   <div class="modal-box">
     <div class="modal-head">
       <span data-i18n="sessionDelete">删除会话</span>
-      <button class="icon-btn sm" id="delSessionClose">✕</button>
+      <button class="icon-btn sm" id="delSessionClose"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="del-session-msg" id="delSessionMsg"></div>
@@ -264,7 +533,7 @@
   <div class="modal-box">
     <div class="modal-head">
       <span data-i18n="modelDelete">删除模型</span>
-      <button class="icon-btn sm" id="delModelClose">✕</button>
+      <button class="icon-btn sm" id="delModelClose"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="del-session-msg" id="delModelMsg"></div>
@@ -281,13 +550,13 @@
   <div class="modal-box models-box">
     <div class="modal-head">
       <span data-i18n="models">模型管理</span>
-      <button class="icon-btn sm" id="modelsClose">✕</button>
+      <button class="icon-btn sm" id="modelsClose"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="models-toolbar">
-        <button class="btn" id="modelPinBtn" title="置顶选中的模型">▲ 置顶</button>
-        <button class="btn" id="modelAddBtn" data-i18n="modelAdd">＋ 新增模型</button>
-        <button class="btn danger" id="modelDelBtn" title="删除选中的模型">🗑 删除</button>
+        <button class="btn" id="modelPinBtn" title="置顶选中的模型"><svg class="ico" aria-hidden="true"><use href="#i-tri-up"/></svg>置顶</button>
+        <button class="btn" id="modelAddBtn" data-i18n="modelAdd"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>新增模型</button>
+        <button class="btn danger" id="modelDelBtn" title="删除选中的模型"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>删除</button>
       </div>
       <div id="modelsBody" class="models-body"></div>
     </div>
@@ -299,7 +568,7 @@
   <div class="modal-box wizard-box">
     <div class="modal-head">
       <span data-i18n="modelWizard">模型配置向导</span>
-      <button class="icon-btn sm" id="modelWizardCancel" title="取消">✕</button>
+      <button class="icon-btn sm" id="modelWizardCancel" title="取消"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body wizard-layout">
       <div id="modelWizardNav" class="wizard-nav"></div>
