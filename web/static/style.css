@@ -1269,6 +1269,10 @@ aside {
   font-size: 11.5px;
   font-weight: 600;
   text-align: center;
+  /* FEATURE-517: the badge cross-fades when the focused question moves, so the
+     focus shift (e.g. Q1 → Q2) is visible instead of snapping. 450ms (v0.56.0,
+     +50% after the first hands-on review) is mirrored by QS_FADE_MS in app.js. */
+  transition: background-color 0.45s ease, color 0.45s ease, border-color 0.45s ease;
 }
 .qs-title { flex: 1; font-size: 13px; color: var(--fg); }
 /* FEATURE-512: mdRender wraps the question text in block elements whose default
@@ -1357,10 +1361,18 @@ aside {
   font-weight: 600;
   text-align: center;
   cursor: pointer;
+  /* FEATURE-517: fades in / out with the focus move (see .qs-fading below). */
+  transition: opacity 0.45s ease;
 }
 .qs-hotkey:hover { background: var(--accent); color: #fff; }
 .qs-hotkey.hidden { display: none; }
-.qs-hint { margin: 6px 0 0 34px; font-size: 11.5px; color: var(--accent); opacity: 0.85; }
+.qs-hint { margin: 6px 0 0 34px; font-size: 11.5px; color: var(--accent); opacity: 0.85; transition: opacity 0.45s ease; }
+/* FEATURE-517: focus-transition helper. A fading key cap / hint line is kept in
+   place (opacity only) until the fade ends and .hidden (display:none) takes
+   over, so the fade is actually visible while the resting layout stays exactly
+   as before. Fading elements are not interactive. The 0.45s here is mirrored
+   by QS_FADE_MS in app.js. */
+.qs-hotkey.qs-fading, .qs-hint.qs-fading { opacity: 0; pointer-events: none; }
 /* FEATURE-512: key caps (方框) in the hint line and in the bottom action
    buttons. They use the same size as the option key caps (.qs-hotkey /
    legacy .opt-key-btn) so 回车 / 空格 / - / + are easy to hit with a mouse. */

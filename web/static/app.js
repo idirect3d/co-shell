@@ -3070,6 +3070,78 @@ function renderQuestions(it) {
   // qsWarn shows why a submit was rejected (unanswered required questions).
   let qsWarn = null;
 
+  // FEATURE-517: focus-transition state. Moving the focus between questions has
+  // to be visible: the key caps and the hint line fade out before they are
+  // hidden and fade in right after they are shown, the Qn badge cross-fades in
+  // CSS, and the focused question is scrolled into place smoothly. QS_FADE_MS
+  // mirrors the 0.45s transitions set on .qs-index / .qs-hotkey / .qs-hint and
+  // is the rhythm shared by the fades and the scroll (300ms → 450ms in v0.56.0
+  // after the first hands-on review asked for a longer, clearer focus move).
+  const QS_FADE_MS = 450;
+  const qFadeTimers = new Map();
+  let qsFirstActivation = true;
+
+  // fadeToggle shows (on=true) or hides (on=false) one hotkey / hint element
+  // with a fade. .hidden is display:none, which cannot be transitioned, so a
+  // hiding element keeps its slot (opacity only) until the fade ends and only
+  // then collapses — exactly the resting layout of the pre-FEATURE-517 form.
+  // `instant` skips the transition and is used for the initial activation, so a
+  // freshly rendered form does not animate in.
+  const fadeToggle = (el, on, instant) => {
+    if (!el) return;
+    const pending = qFadeTimers.get(el);
+    if (pending) { clearTimeout(pending); qFadeTimers.delete(el); }
+    if (on) {
+      const settled = !el.classList.contains("hidden") && !el.classList.contains("qs-fading");
+      el.classList.remove("hidden");
+      if (settled) return;
+      if (instant) { el.classList.remove("qs-fading"); return; }
+      el.classList.add("qs-fading");
+      void el.offsetWidth;                 // flush the 0-opacity start style
+      el.classList.remove("qs-fading");
+      return;
+    }
+    if (el.classList.contains("hidden") && !el.classList.contains("qs-fading")) return;
+    if (instant) { el.classList.add("hidden"); el.classList.remove("qs-fading"); return; }
+    el.classList.add("qs-fading");
+    qFadeTimers.set(el, setTimeout(() => {
+      qFadeTimers.delete(el);
+      el.classList.add("hidden");
+      el.classList.remove("qs-fading");
+    }, QS_FADE_MS));
+  };
+
+  // qsScrollTo animates the ask area so the focused question sits at its top.
+  // scrollIntoView({behavior:"smooth"}) computes its target once, but the
+  // previous question's key caps / hint line only collapse when their fade ends
+  // (QS_FADE_MS later), which shrinks that card and shifts every card below it
+  // — the pre-computed target then lands ~70px off (measured). Re-reading the
+  // target every frame keeps the focused card exactly at the top for the whole
+  // transition while still reading as a smooth scroll. `instant` skips the
+  // animation for the initial activation.
+  let qsScrollRAF = 0;
+  const qsScrollTo = (card, instant) => {
+    if (!card || !askArea) return;
+    const want = () =>
+      askArea.scrollTop + card.getBoundingClientRect().top - askArea.getBoundingClientRect().top;
+    if (qsScrollRAF) { cancelAnimationFrame(qsScrollRAF); qsScrollRAF = 0; }
+    if (instant) { askArea.scrollTop = want(); return; }
+    // Exponential ease-out: ~18% of the remaining distance per frame, so the
+    // scroll settles in roughly the same 450ms as the fades (0.25/frame, the
+    // initial value, was ~300ms). An exponential follow is used rather than a
+    // fixed-duration tween because the target moves when the previous
+    // question's key caps collapse — following absorbs that shift smoothly
+    // instead of re-interpolating against a stale origin.
+    const deadline = performance.now() + QS_FADE_MS * 2;
+    const step = (now) => {
+      const delta = want() - askArea.scrollTop;
+      if (Math.abs(delta) < 0.5 || now > deadline) { qsScrollRAF = 0; return; }
+      askArea.scrollTop += delta * 0.18;
+      qsScrollRAF = requestAnimationFrame(step);
+    };
+    qsScrollRAF = requestAnimationFrame(step);
+  };
+
   const submit = document.createElement("button");
   submit.type = "button";
   submit.className = "qs-submit";
@@ -3382,21 +3454,25 @@ function renderQuestions(it) {
   };
   const setActive = (idx) => {
     activeQ = Math.max(0, Math.min(total - 1, idx));
+    const instant = qsFirstActivation;
+    qsFirstActivation = false;
     it.questions.forEach((_, qi) => {
       const on = qi === activeQ;
-      (qsHotkeys[qi] || []).forEach((h) => h.classList.toggle("hidden", !on));
+      (qsHotkeys[qi] || []).forEach((h) => fadeToggle(h, on, instant));
       if (qBadges[qi]) qBadges[qi].classList.toggle("hot", on);
-      if (qHints[qi]) qHints[qi].classList.toggle("hidden", !on);
+      if (qHints[qi]) fadeToggle(qHints[qi], on, instant);
       if (qCards[qi]) qCards[qi].classList.toggle("active", on);
     });
     renderHint(activeQ);
     // The submit button only applies to the last question: on the others Enter
     // means "next question" (FEATURE-512).
     submit.classList.toggle("hidden", activeQ !== total - 1);
-    // Keep the focused question readable: anchor it to the top of the
-    // interaction area so its options and hint line are visible at once.
-    const card = qCards[activeQ];
-    if (card && card.scrollIntoView) card.scrollIntoView({ block: "start" });
+    // Keep the focused question readable: anchor it to the top of the ask area
+    // so its options and hint line are visible at once. FEATURE-517 scrolls
+    // there with a short animation so the move is followable instead of a cut;
+    // the first activation still positions the form instantly (no animation on
+    // appearance).
+    qsScrollTo(qCards[activeQ], instant);
     // A free-text question takes focus immediately; Enter then advances.
     const q = it.questions[activeQ];
     if (q && (!q.options || !q.options.length) && card) {
