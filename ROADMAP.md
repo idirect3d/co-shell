@@ -4,11 +4,67 @@
 
 ---
 
-## v0.56.0 — 开发中
+## v0.56.1 — 开发中
+
+> **版本**: v0.56.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: 修复 Web UI 刷新后 10–20 秒高 CPU / 输入卡顿——历史回放期间的工作区刷新风暴
+> **说明**: 刷新页面（或 WebSocket 重连）时前端回放一页持久化事件，而 `renderEvent()` 在 `token_iter`、`done`、工具调用结束三类事件上都会立即调用 `refreshBranch()+loadTree()`。`loadTree()` 会 `fetch("api/tree")` 并清空重建整棵工作区树 DOM；该接口每次都递归遍历整个工作区（深度上限 8 层、每目录最多 500 项，跳过 `.git/node_modules/db/log/tmp`）并执行一次 git status。本仓库工作区实测 **4065 目录 / 16753 文件**（其中 `work/` 占 3441 目录 + 13511 文件），/api/tree 单次响应 **6.3 MB**、服务端耗时 155 ms。一页历史含数十条上述事件，于是刷新后触发几十至上百次「6.3 MB 树请求 + JSON 解析 + 整树 DOM 重建」，主线程被占满十余秒，输入框随之卡顿。用户反馈“已有几个版本”均存在，与 FEATURE-517 无关。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-518 | 0.56.1 | P2 | 工作区刷新风暴治理：回放期间抑制 `refreshBranch/loadTree`（结束只刷一次）；其余场景 300ms 去抖合并；文件树目录子节点按需渲染（方案 B，默认折叠、首次展开才构建） |
+
+> 当前 BUILD: 1018
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [X] **FIX-518 修复刷新后高 CPU / 输入卡顿（工作区刷新风暴）** [BUILD-1018]
+  - 现象：刷新页面后 10–20 秒内 CPU 占用极高，焦点在主输入框时操作极慢、卡顿，随后自行恢复。
+  - 根因：见上方「说明」（历史回放 × 每次事件触发 6.3 MB 文件树重建）。
+  - 修复（`web/static/app.js`）：
+    1. 新增 `scheduleWorkspaceRefresh(immediate)`：合并工作区刷新请求；`historyReplaying` 期间仅置 `workspaceRefreshPending`，其余场景 300 ms 去抖（`WORKSPACE_REFRESH_DEBOUNCE_MS`）。
+    2. 三类高频事件（`token_iter` / `done` / 工具调用结束）由「立即 refreshBranch+loadTree」改为 `scheduleWorkspaceRefresh()`。
+    3. `renderHistory()` 全程持有 `historyReplaying`，结束时 `endHistoryReplay()` 释放，并仅在有待处理请求时刷新一次。
+    4. 保留用户主动动作（上传、revealInTree、session 截断、首屏加载）的直接刷新。
+  - 用例：`use-case/FIX-518/FIX-518-UC-0001.md`
+  - 实施（BUILD-1017）：
+    1. 新增 `scheduleWorkspaceRefresh(immediate)`：`historyReplaying` 期间仅置 `workspaceRefreshPending`（不发起请求）；其余场景 300 ms 去抖（`WORKSPACE_REFRESH_DEBOUNCE_MS`）；`immediate` 跳过去抖立即执行。
+    2. `renderEvent()` 的三类高频事件（`token_iter` / `done` / 工具调用结束）改调 `scheduleWorkspaceRefresh()`，不再直接 `refreshBranch()+loadTree()`。
+    3. `renderHistory()` 全程持有 `historyReplaying`；`endHistoryReplay()` 释放标志，并仅在有待处理请求（`workspaceRefreshPending`）时刷新一次；分页追加（`prepend`）分支同样适用。
+    4. 保留用户主动动作（上传、`revealInTree`、session 截断、首屏加载）的直接刷新。
+    5. 版本与构建：`main.go` version 0.56.0 → 0.56.1、build 1016 → 1017，`cmd/co-shell-hub/main.go` hubVersion/hubBuild 同步；co-shell 与 co-shell-hub 已编译到 `work/` 并原子替换至 `~/bin/`。
+  - 校验（BUILD-1017）：`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过；独立实例（v0.56.1 BUILD-1017 @28384）在页面内包裹 `fetch` 计数实测：
+    1. 模拟一页含 **30 个 `token_iter`** 的历史回放：`api/tree` 调用 **1 次**（改前同场景 **30 次**）、`api/bootstrap` **1 次**（改前 30 次）——降幅 30×。
+    2. 运行时去抖：连续 3 次 `scheduleWorkspaceRefresh()` 只产生 **1 次** 刷新（tree 与 bootstrap 各 1）。
+    3. 回放结束但无待处理请求时：**0 次**刷新（不产生多余请求）。
+    4. 旧行为对照：直接循环 30 次 `refreshBranch()+loadTree()` 实测产生 30 次请求、耗时 39.6 ms（小工作区）；真实工作区单次响应 6.3 MB / 服务端 155 ms，故改前 30 次约需 9 s 以上的主线程占用，与用户观察到的 10–20 秒卡顿量级吻合。
+  - 实施（BUILD-1018，方案 B 文件树按需渲染）：
+    1. `treeNode(node)` 目录分支不再无条件递归构建全部子节点：折叠目录只保留一个空 `<ul>`，仅当该目录在 `expandedDirs` 中时才调用新增的 `fillDirChildren(ul, node)` 构建子项。
+    2. 新增 `fillDirChildren(ul, node)`：以 `ul.dataset.filled` 作幂等标记（同一目录不重复构建），用 `DocumentFragment` 一次性插入子行。
+    3. 修复由此暴露的真实缺陷：`revealInTree(path)` 原本只把祖先目录加入 `expandedDirs`、**漏了工作区根 `""`**（`highlightAffectedFiles` 有这一行）。旧代码整棵树都在 DOM 里所以只是「看不见」，懒渲染后根未填充会导致目标行根本不存在——已补 `expandedDirs.add("")`。
+    4. 服务端 `/api/tree` 与可见内容**未改动**（实测 `JSON.parse` 仅 6 ms，非瓶颈，无需改服务端）。
+    5. 版本与构建：`main.go` build 1017 → 1018、`cmd/co-shell-hub/main.go` hubBuild 同步 1018（version 0.56.1 不变，FIX 类不动版本位）。
+  - 校验（BUILD-1018）：在诊断实例（`--serve --port 28385 -w /tmp/fe518-big`，合成大树 15006 文件 / 6034 目录 = 21040 条目）实测：
+    1. 首屏 `.tree-row` **21034 → 1**；`document.getElementsByTagName('*').length` **237953 → 560**。
+    2. 单次 `await loadTree()` **498.9 ms → 134.2 ms**（基线 498.9 ms 为 HEAD 真实单次成本；此前记录的 4618.8 ms 是重建脚本测量值，对应 LoAF 多次调用累计，非单次成本）。
+    3. 展开根目录 **0.4 ms**（渲染 14 行）；折叠后再展开耗时 0 ms、行数不变（14）——**不重复渲染**；深层展开 190 → 340 行，折叠 340，再展开仍 340（noDup）。
+    4. 功能回归全部通过：`revealInTree` 目标行存在且可见（rows 190 / expanded 5）；刷新后 `highlightTreeFile` → `fv-selected` 生效；`highlightAffectedFiles` → `.name.aff-pred` 存在且可见；懒渲染出的目录行 `onclick/ondrop/ondragover` handler 齐全（拖拽上传可用）；点击文件行预览器打开且 `fv-selected` 生效。
+    5. `go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过。
+  - 遗留（仅记录，未修）：`web/server.go` 的 `buildTree` 每个目录上限 500 项且**静默丢弃**超出部分（`work/` 这类目录在树中看不全），建议另开任务处理。
+  - 附带（规范）：`.rules/PROJECT STANDARDS.md`「编译可执行码」新增第 3 条「部署到内网 Linux 主机」——参数为 `3` 编译后自动把 Linux arm64 的 `co-shell` / `co-shell-hub` 复制到 `liangshuang@192.168.3.39:~/bin/`（先传 `.new` 再远端 `mv`，避开 Linux `Text file busy`；仅复制不重启远端服务；失败仅告警不阻断；参数 `release` 不部署）。
+  - 进度：✅ 已完成（v0.56.1 / BUILD-1018）——BUILD-1017 刷新风暴修复（回放期间抑制 + 300ms 去抖）与 BUILD-1018 文件树目录子节点按需渲染（方案 B）均已实测验证，用户已确认合并到 main。
+
+---
+
+## v0.56.0 — 已完成
 
 > **版本**: v0.56.0
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（2026-09-13 合并 main，tag v0.56.0，v0.56.0 BUILD-1016）
 > **里程碑**: ask_user 多问题表单（qs-card）焦点切换动效——焦点在题目间移动时提供可见的过渡反馈（淡入淡出 + 平滑滚动），消除瞬移带来的眩晕感
 > **说明**: Web UI 的 ask_user 多问题表单在切换焦点题目时为「瞬时跳变」：`setActive()` 直接调用 `card.scrollIntoView({block:"start"})`（无动画），Qn 徽标的 `.hot` 类、1-9 选项键帽与提示行仅切换 `hidden` 类（无过渡）。用户在长表单中按回车前进或按 `+` 返回时看不到焦点移动轨迹，容易迷失与眩晕。本次在 CSS 层为徽标 / 键帽 / 提示行加入淡出淡入过渡，在 JS 层将滚动改为平滑滚动，并保持既有键盘交互不变。
 
@@ -45,14 +101,14 @@
     5. 交互回归：`+` 回退（ofs 由 0.9 → -0.9，中途 -18.9 有过程）；Q1 再按 `+` 不越界；数字键 `2` 选择后 Q1 选项变 `qs-option on` 并自动前进；鼠标点击选项行仅勾选、`scrollTop` 位移 0（不前进）；空格打开题目备注输入框（`qs-free qs-free-note` 获焦）；长按数字键打开选项备注框（测试中未派发 keyup 时 450ms 后自动弹出）；`-` 取消表单后 `#askArea` 隐藏。
     6. 初次渲染：表单刚渲染时 Q1 键帽 `qs-fading` 数 0、可见 2 枚、提示行可见且无 fading、opacity 1——无突兀动画。
     7. 截图视觉复核：焦点题徽标高亮 + 键帽 1/2/3 + 提示行齐备；非焦点题键帽与提示行完全隐藏、无残留空行；无错位/重叠/文字裁切。
-  - 进度：🚧 开发中（BUILD-1015 已完成实现与用例验证，等待用户确认后合并）
+  - 进度：✅ 已完成（BUILD-1015 实现 + 独立实例用例验证）
   - 第二轮调整（BUILD-1016）：用户实机体验后要求焦点移动时长「再延长 50%」，仅调参数、不改结构：`QS_FADE_MS` 300 → **450**，`.qs-index` / `.qs-hotkey` / `.qs-hint` 的 transition 由 `0.3s` → **`0.45s`**，滚动的每帧收敛系数由 `0.25` → **`0.18`**（使滚动走完时间与淡入淡出同步拉长；仍用指数跟随而非定长补间，以平滑吸收旧题塌陷带来的目标位移）。
   - 校验（BUILD-1016）：`go build ./... && go vet ./...` 全绿；`node --check web/static/app.js` 通过；独立实例（v0.56.0 BUILD-1016 @28382）DOM 实测：
     1. `transition-duration` = `0.45s, 0.45s, 0.45s`（徽标）/ `0.45s`（键帽）/ `0.45s`（提示行）——已同步放大。
     2. 时间线拉长可量化：前进时 t120ms 徽标高亮为 **0.573 / 0.427**、t250ms 为 **0.150 / 0.850**、t400ms 为 **0.008 / 0.992**、t520ms 回到终态（对比 300ms 版 t60ms 已达 0.718 / 0.282）；键帽透明度同步为 0.571/0.429 → 0.148/0.852。
     3. 滚动仍为渐进且终态精确：`scrollTop` 97.5 → 287.5 → 298.5（布局塌陷后跟随）→ 221.5，焦点题相对容器顶部偏差 **1.4px**；滑动过程中有中间值，非瞬移。
     4. 回归无影响：淡出结束后键帽/提示行仍回落到 `hidden` 终态（键帽 hidden 数 `3,0,3,3,3,3`），静止布局与旧版一致。
-  - 进度：🚧 开发中（BUILD-1016：450ms 节奏已实测验证，等待用户确认后合并）
+  - 进度：✅ 已完成（BUILD-1016 450ms 节奏实测通过；用户确认后已 squash 合并 main，tag v0.56.0）
 
 ---
 

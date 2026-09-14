@@ -687,6 +687,52 @@ let insertAnchor = null;
 // stream and the viz lines landed on the right edge instead of the left.
 let prependingHistory = false;
 
+/* FIX-518: workspace-refresh coalescing. Every LLM iteration (token_iter),
+   iteration end (done) and finished tool call used to call
+   refreshBranch()+loadTree() right away. During a history replay those events
+   arrive in a burst — one page can hold dozens of them — and /api/tree is
+   ~6 MB for a workspace with build output in it, so a page refresh pinned the
+   main thread (and the input box) for tens of seconds. Refreshes are now
+   merged: deferred while a replay is running, debounced otherwise. */
+const WORKSPACE_REFRESH_DEBOUNCE_MS = 300;
+let workspaceRefreshTimer = 0;
+let workspaceRefreshPending = false;
+let historyReplaying = false;
+
+// scheduleWorkspaceRefresh asks for a branch + file-tree refresh, coalescing a
+// burst of requests into one. `immediate` skips the debounce (used when a
+// replay ends, or when a user action expects a freshly rebuilt tree).
+function scheduleWorkspaceRefresh(immediate) {
+  if (historyReplaying && !immediate) {
+    workspaceRefreshPending = true;
+    return;
+  }
+  if (workspaceRefreshTimer) {
+    clearTimeout(workspaceRefreshTimer);
+    workspaceRefreshTimer = 0;
+  }
+  if (immediate) {
+    refreshBranch();
+    loadTree();
+    return;
+  }
+  workspaceRefreshTimer = setTimeout(() => {
+    workspaceRefreshTimer = 0;
+    refreshBranch();
+    loadTree();
+  }, WORKSPACE_REFRESH_DEBOUNCE_MS);
+}
+
+// endHistoryReplay releases the replay guard and runs the refresh that was
+// deferred while it was held (if any).
+function endHistoryReplay() {
+  historyReplaying = false;
+  if (workspaceRefreshPending) {
+    workspaceRefreshPending = false;
+    scheduleWorkspaceRefresh(true);
+  }
+}
+
 // FEATURE-445: follow-output scrolling. When the scrollbar is within 100px of
 // the content bottom, new output auto-scrolls to the bottom (follows output);
 // otherwise it does not, so the user can read history. A floating down-arrow
@@ -1551,10 +1597,10 @@ function renderEvent(ev) {
     document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
     scrollStream();
     // FEATURE-419: each display block just completed (the "..." was removed) —
-    // refresh the workspace file tree and branch label so the user sees file /
-    // branch changes after every iteration, not only when the whole task ends.
-    refreshBranch();
-    loadTree();
+    // FIX-518: one coalesced workspace refresh instead of an immediate
+    // loadTree() per iteration; the tree is ~6 MB here, so a burst of events
+    // used to pin the CPU. See scheduleWorkspaceRefresh.
+    scheduleWorkspaceRefresh();
     // FEATURE-378: accumulate token stats into the status bar.
     if (ev.type === "token_iter") {
       const p = parseInt(m.prompt, 10) || 0;
@@ -1596,9 +1642,8 @@ function renderEvent(ev) {
     document.querySelectorAll(".ev-head.streaming").forEach((h) => h.classList.remove("streaming"));
     // An LLM iteration finished — the agent may have switched git branches
     // or modified files, so refresh the branch label and the tree's git
-    // status badges without a manual reload.
-    refreshBranch();
-    loadTree();
+    // status badges without a manual reload (FIX-518: coalesced).
+    scheduleWorkspaceRefresh();
     return;
   }
 
@@ -1887,9 +1932,9 @@ function renderEvent(ev) {
       scheduleMd(curTool);
       // A tool call finished — the agent may have modified files or switched
       // branches, so refresh the tree and branch label after each call (not
-      // only at the end of the whole LLM iteration).
-      refreshBranch();
-      loadTree();
+      // only at the end of the whole LLM iteration). FIX-518: coalesced, so a
+      // burst of tool calls triggers one refresh instead of one each.
+      scheduleWorkspaceRefresh();
     }
     curLLM = curThinking = curSup = null;
     scrollStream();
@@ -1953,6 +1998,10 @@ function renderEvent(ev) {
 function renderHistory(msg) {
   const events = msg.events || [];
   if (!events.length) return;
+  // FIX-518: hold back workspace refreshes for the whole replay — the events
+  // below are historical, so nothing they change needs to be reflected in the
+  // file tree while it runs; one refresh is issued when the replay ends.
+  historyReplaying = true;
   historyOldestSeq = msg.oldest_seq || 0;
   historyHasMore = !!msg.has_more;
   // FEATURE-508: a page requested with the `before` cursor is an OLDER page and
@@ -1988,6 +2037,7 @@ function renderHistory(msg) {
     if (delta > 0) streamB.scrollTop = prevTop + delta;
     historyInserting = false;
     updateBlockNav();
+    endHistoryReplay();
     return;
   }
   for (const ev of events) {
@@ -1999,6 +2049,7 @@ function renderHistory(msg) {
   followOutput = true;
   scrollStream();
   updateBlockNav();
+  endHistoryReplay();
 }
 
 function renderUserEcho(text, opts) {
@@ -4583,7 +4634,10 @@ function treeNode(node) {
     // FEATURE-477: the .open class lets the light theme draw an "open folder"
     // icon for expanded directories (vs a closed folder when collapsed).
     tw.classList.toggle("open", open);
-    for (const c of node.children || []) ul.appendChild(treeNode(c));
+    // FIX-518: a collapsed directory keeps an empty <ul>; its rows are built the
+    // first time it is opened. Rendering every node up front cost ~500 ms and
+    // 238k DOM elements for a 21k-entry workspace, all of it hidden.
+    if (open) fillDirChildren(ul, node);
     li.appendChild(ul);
     row.onclick = () => {
       const isOpen = ul.style.display !== "none";
@@ -4591,7 +4645,10 @@ function treeNode(node) {
       setIcon(tw, isOpen ? "i-tri" : "i-tri-down");
       tw.classList.toggle("open", !isOpen);
       if (isOpen) expandedDirs.delete(node.path);
-      else expandedDirs.add(node.path);
+      else {
+        expandedDirs.add(node.path);
+        fillDirChildren(ul, node);
+      }
     };
     // Drop files onto a directory row to upload into it.
     row.ondragover = (e) => { e.preventDefault(); row.classList.add("drop-target"); };
@@ -4613,6 +4670,22 @@ function treeNode(node) {
     row.ondblclick = () => openFile(node);
   }
   return li;
+}
+
+// fillDirChildren builds a directory's child rows on demand (FIX-518). Rows are
+// created in a detached fragment and inserted with a single append, and a
+// directory that was already filled is left untouched — so expanding a folder
+// costs one batched insert instead of rebuilding the whole tree, and repeated
+// expand/collapse never duplicates work. Directories inside it that the user
+// had already opened are filled by the same rule (treeNode checks expandedDirs),
+// which keeps the expansion state — and the affected-file highlight that relies
+// on it — intact across a loadTree() refresh.
+function fillDirChildren(ul, node) {
+  if (ul.dataset.filled) return;
+  ul.dataset.filled = "1";
+  const frag = document.createDocumentFragment();
+  for (const c of node.children || []) frag.appendChild(treeNode(c));
+  ul.appendChild(frag);
 }
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
@@ -5099,6 +5172,10 @@ async function revealInTree(path) {
     acc = acc ? acc + "/" + parts[i] : parts[i];
     expandedDirs.add(acc);
   }
+  // FIX-518: the workspace root ("") must be expanded too. Rows are now built on
+  // demand, so a collapsed root has no children in the DOM at all and the target
+  // row could not be created (highlightAffectedFiles already does this).
+  expandedDirs.add("");
   await loadTree();
   highlightTreeFile(path);
 }
