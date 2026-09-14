@@ -141,8 +141,9 @@ function i18nT(key, fallback) {
 /* ---------- theme ---------- */
 
 // localStorage "co-shell-theme": "auto" (default, follow the OS) | "dark" |
-// "light" | "light-tp" | "paper". setTheme only applies; persistence is the
-// caller's job so that "auto" is never clobbered by a resolved value.
+// "dark-muted" | "light" | "light-tp" | "paper". setTheme only applies;
+// persistence is the caller's job so that "auto" is never clobbered by a
+// resolved value.
 const themeToggle = document.getElementById("themeToggle");
 const osThemeMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
@@ -182,10 +183,12 @@ function setResultIcon(host, id, text) {
   host.appendChild(document.createTextNode(" " + text));
 }
 
-// themeIcon returns the sprite icon for a resolved tone (FEATURE-477/516):
-// dark = moon, light = sun, light-tp = spade, paper = leaf.
+// themeIcon returns the sprite icon for a resolved tone (FEATURE-477/516/522):
+// dark = moon, dark-muted = half-filled circle (low contrast), light = sun,
+// light-tp = spade, paper = leaf.
 function themeIcon(name) {
   if (name === "dark") return "i-theme-dark";
+  if (name === "dark-muted") return "i-theme-muted";
   if (name === "light-tp") return "i-theme-tp";
   if (name === "paper") return "i-theme-eyecare";
   return "i-theme-light";
@@ -198,7 +201,8 @@ function setTheme(name) {
 
 function themeMode() {
   const saved = localStorage.getItem("co-shell-theme");
-  return saved === "dark" || saved === "light" || saved === "light-tp" || saved === "paper" ? saved : "auto";
+  return saved === "dark" || saved === "dark-muted" || saved === "light"
+    || saved === "light-tp" || saved === "paper" ? saved : "auto";
 }
 
 function applyTheme() {
@@ -207,6 +211,7 @@ function applyTheme() {
   // (FIX-363).
   let resolved;
   if (mode === "dark") resolved = "dark";
+  else if (mode === "dark-muted") resolved = "dark-muted";
   else if (mode === "light") resolved = "light";
   else if (mode === "light-tp") resolved = "light-tp";
   else if (mode === "paper") resolved = "paper";
@@ -261,11 +266,13 @@ applyTheme();
 
 themeToggle.onclick = () => {
   const cur = document.documentElement.getAttribute("data-theme");
-  // Cycle through the four tones: dark -> light -> light-tp -> paper -> dark
-  // (FEATURE-477). Clicking always pins an explicit tone (never auto).
-  const next = cur === "dark" ? "light"
-    : (cur === "light" ? "light-tp"
-      : (cur === "light-tp" ? "paper" : "dark"));
+  // Cycle through the five tones: dark -> dark-muted -> light -> light-tp ->
+  // paper -> dark (FEATURE-477/522). Clicking always pins an explicit tone
+  // (never auto).
+  const next = cur === "dark" ? "dark-muted"
+    : (cur === "dark-muted" ? "light"
+      : (cur === "light" ? "light-tp"
+        : (cur === "light-tp" ? "paper" : "dark")));
   localStorage.setItem("co-shell-theme", next);
   applyTheme();
 };
@@ -5487,7 +5494,7 @@ function renderSettingItem(it) {
     // persists to localStorage and applies the theme immediately.
     ctl = document.createElement("select");
     ctl.className = "set-select";
-    const opts = ["auto", "dark", "light", "light-tp", "paper"];
+    const opts = ["auto", "dark", "dark-muted", "light", "light-tp", "paper"];
     const cur = localStorage.getItem("co-shell-theme") || "auto";
     curVal = cur;
     for (const opt of opts) {
@@ -5575,8 +5582,9 @@ function renderLogoBlock() {
   const theme = currentResolvedTheme();
   // Each tone has its own label (FEATURE-477).
   const themeLabel = theme === "dark" ? i18nT("logoThemeDark", "深色主题")
-    : (theme === "light-tp" ? i18nT("logoThemeLightTp", "浅色主题(蓝灰)")
-      : (theme === "paper" ? i18nT("logoThemePaper", "纸张护眼") : i18nT("logoThemeLight", "浅色主题")));
+    : (theme === "dark-muted" ? i18nT("logoThemeDarkMuted", "暗色低对比")
+      : (theme === "light-tp" ? i18nT("logoThemeLightTp", "浅色主题(蓝灰)")
+        : (theme === "paper" ? i18nT("logoThemePaper", "纸张护眼") : i18nT("logoThemeLight", "浅色主题"))));
 
   const block = document.createElement("div");
   block.className = "logo-block";

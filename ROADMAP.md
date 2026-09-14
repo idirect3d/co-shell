@@ -4,6 +4,52 @@
 
 ---
 
+## v0.58.0 — 开发中
+
+> **版本**: v0.58.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 新增 dark-muted（暗色低对比）主题——主消息区信息块正文字体适度调暗
+> **说明**: dark 主题下，主消息区信息块（`.ev`）背景为近黑深灰（`--bg-panel` #10141d、代码块 `--mono-bg` #0d1119），块正文使用 `--fg` #d5dbe7，对比度约 **13.5:1**，长时间阅读偏刺眼。本版本基于 dark 配色新增一套 `dark-muted` 色调，**仅**把信息块正文（`.ev-body`，含正文/代码/思考/引用）的文字颜色调暗（正文约 8.7:1、次级文字约 4.9:1），工作区与标题栏保持 dark 原配色，块标题与警示色（工具标题、错误红、监督块亮白、警告黄）保持现状。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-522 | 0.58.0 | P1 | 基于 dark 新增 `dark-muted` 色调：仅调暗主消息区信息块正文字色（`.ev-body` 及 md 引用/次级标题），工作区与标题栏配色不变；接入主题循环切换与系统设置下拉；logo 支持独立色调槽 |
+
+> 当前 BUILD: 1022
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-522 dark-muted 暗色低对比主题（主消息区正文字体调暗）**
+  - 需求（用户确认）：
+    1. 基于当前 dark 主题样式，增加一套主题风格；主要目的是在**背景为黑或接近黑色的深灰区域**，避免使用亮白色或其他对比度过高的亮色作为文字颜色，**适当调暗字体颜色**。
+    2. **工作区、标题栏不用调**，主要是主消息区的信息块。
+    3. 主题标识（`data-theme` 值）为 `dark-muted`，显示名「暗色低对比」；归属版本 v0.58.0。
+    4. 调暗范围：**仅信息块正文**（`.ev-body` 的正文/代码/思考/工具输出文字）；**块标题与警示色亮度保持现状**。
+    5. 接入方式：**加入主题循环切换按钮 + 系统设置下拉**（与现有 4 个色调并列）。
+  - 方案（实际实施）：
+    - `web/static/style.css`：在 dark 基础变量块新增 `--ev-body-fg` / `--ev-body-fg-dim`（默认分别为 `var(--fg)` / `var(--fg-dim)`，其余主题行为不变）；`.ev-body` 显式使用 `--ev-body-fg`，`.ev.thinking .ev-body`、`.ev-body.md blockquote`、`.ev-body.md h5/h6` 改用 `--ev-body-fg-dim`；新增 `[data-theme="dark-muted"]` 块仅覆盖上述两个变量（正文 #a9b1c1 ≈8.7:1、次级 #7b8395 ≈4.9:1，dark 原值分别约 13.5:1 / 6.1:1）。配色取自 `:root`（即 dark），故工作区/标题栏与 dark 完全一致。
+    - `web/static/app.js`：`themeIcon()` 新增映射到 `i-theme-muted`；`themeMode()` / `applyTheme()` 接受 `dark-muted`；`themeToggle` 循环改为 dark → dark-muted → light → light-tp → paper → dark；设置下拉 `opts` 与 logo 区块色调标签同步。
+    - `web/static/index.html`：图标 sprite 新增 `i-theme-muted`（半明半暗圆，表意「低对比」）。
+    - `cmd/settings_web.go`：`theme-mode` 的 `Options` 加入 `dark-muted`。
+    - `web/server.go`：`logoThemeFromParam` 白名单加入 `dark-muted`（及其错误提示文案）。
+  - 用例：`use-case/FEATURE-522/FEATURE-522-UC-0001.md`（UC-0001~0014，14 条，用户已确认）
+  - 校验（独立实例 v0.58.0 BUILD-1023 @28257，workdir `/tmp/fe522`，未影响生产实例 28256）：
+    1. 静态与构建：`go build ./... && go vet ./...`（root 与 hub 两模块）全绿；`node --check web/static/app.js` 通过；`--version` = `0.58.0 [BUILD-1023]`。
+    2. 核心效果（实测计算值）：`.ev.llm .ev-body` 文字色 dark `rgb(213,219,231)`（#d5dbe7，对 `--mono-bg` #0d1119 对比度 **13.6:1**）→ dark-muted `rgb(169,177,193)`（#a9b1c1，**8.77:1**，对比度降 35.5%）；思考/引用次级文字 `rgb(139,147,165)`（5.98:1）→ `rgb(123,131,149)`（**4.85:1**）；代码块/行内代码文字随正文一并调暗，代码块底色仍为 #0d1119。
+    3. 反向用例（保持现状）：块标题 `.ev-head`、工具标题 #fbbf24、错误 #FF0000（文字与指示点）、警告 #facc15、监督块 #ffffff、user-msg 标题 accent —— 在 dark 与 dark-muted 下逐项完全相同。
+    4. 工作区与标题栏：`#topbar` 底色/底边框、`.brand-name`、`.stream-head`、`.stream-title`、`.tree-row.dir > .name` 在两主题下逐项完全相同（dark-muted 未重定义任何调色板变量，直接继承 `:root`）。
+    5. 回归：dark/light/light-tp/paper 下 `.ev-body` 色仍分别等于各自 `--fg`（#d5dbe7 / #1d2433 / #1d2433 / #4a3b2a），即变量默认回落正确。
+    6. 交互：`themeToggle` 循环实测 `dark → dark-muted → light → light-tp → paper → dark`；图标切换为新增 sprite `i-theme-muted`（16×16）；设置→外观→主题下拉选项为 `auto, dark, dark-muted, light, light-tp, paper`，选中后即时生效、`localStorage` 持久化且刷新后仍为 dark-muted。
+    7. 接口：`GET /logos/dark-muted` 未配置时 404、上传/删除接口接受 `theme=dark-muted`（落盘 `logos/logo-dark-muted.png`）、非法主题仍 400 且提示文案已更新。
+    8. 视觉：dark 与 dark-muted 同载具截图对照，后者正文/代码/引用明显更柔和，警示色与标题栏/工作区外观无变化（需用户主观确认“调暗适度”）。
+  - 版本与构建：`main.go` version 0.57.1 → 0.58.0、build 1022 → 1023，`cmd/co-shell-hub/main.go` hubVersion/hubBuild 同步；co-shell 与 co-shell-hub 已编译到 `work/` 并原子替换至 `~/bin/`。
+  - 进度：🚧 已实现并自测通过，**待用户确认测试结果**后合并 [BUILD-1023]
+
+---
+
 ## v0.57.1 — 已完成
 
 > **版本**: v0.57.1
