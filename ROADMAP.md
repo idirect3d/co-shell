@@ -4,11 +4,11 @@
 
 ---
 
-## v0.57.1 — 开发中
+## v0.57.1 — 已完成
 
 > **版本**: v0.57.1
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（2026-09-15 合并 main，v0.57.1 BUILD-1022）
 > **里程碑**: hub 探测 co-shell 增加「hub 自身目录」并标注候选来源
 > **说明**: `DetectCoShells()` 只扫描 hub 进程的当前工作目录与 PATH，**不扫描 hub 可执行文件自身所在目录**；而启动 managed agent 时用的 `defaultCoShellPath()` 恰恰取 hub 同目录。两者语义不一致，导致「co-shell 与 hub 放同一目录却在下拉里搜不到」——实测双击启动 hub 时 CWD=$HOME，仅因为 `~/bin` 恰好位于 PATH 首位才被搜到。本版本让探测覆盖 hub 自身目录，并让下拉候选显示来源，便于区分同名/陈旧文件。
 
@@ -22,14 +22,21 @@
 
 ### 任务详情
 
-- [ ] **FIX-521 hub 探测 co-shell 增加「hub 自身目录」并标注候选来源** [BUILD-1022]
+- [x] **FIX-521 hub 探测 co-shell 增加「hub 自身目录」并标注候选来源** [BUILD-1022]
   - 需求（用户确认）：
     1. `DetectCoShells()` 在现有「进程 CWD」+「PATH 各目录」之外，新增扫描 **hub 可执行文件所在目录**，与 `defaultCoShellPath()` 的启动语义对齐；取目录时解析软链（macOS 上 `os.Executable()` 不保证解引用）。
     2. 候选列表的 `source` 能区分三类来源，前端下拉在选项中显示来源（当前目录 / PATH / hub 同目录），便于区分同名或版本陈旧的二进制（实测环境 `~/bin` 下存在被命名为 `.exe` 的旧 0.7.8 macOS 二进制）。
     3. **不改名、不删除**任何既有文件（用户明确：不动 `co-shell-b455.exe`）。
-  - 方案：待编码阶段细化（`hub/gateway/detect.go` + `hub/gateway/webui_static.go` + `hub/gateway/detect_test.go`）。
-  - 用例：`use-case/FIX-521/FIX-521-UC-0001.md`（用例生成后待用户确认）
-  - 进度：🚧 开发中（2026-09-14，FIX-521 分支）
+  - 方案（实际实施）：
+    - 后端 `hub/gateway/detect.go`：`DetectCoShells()` 在 CWD → PATH **之后追加**扫描 hub 可执行文件所在目录（用户确认「对现有候选顺序零影响」）；新增 `hubDir()`（`os.Executable()` + `filepath.EvalSymlinks`）；候选 `source` 新增 `"hubdir"`。
+    - 前端 `hub/gateway/webui_static.go`：新增 `coShellSourceLabel()` / `coShellOptionText()`，新建与修改表单的 co-shell 下拉均显示「<路径>（hub 同目录 / 当前目录 / PATH）  (vX.Y.Z)」，`value` 仍为纯绝对路径；「未找到」提示补上 hub 同目录。
+    - 单测 `hub/gateway/detect_test.go`（新增）：`TestHubDirResolvesExecutableDir`、`TestDetectCoShellsHubDir`（含同前缀但 `--version` 无效的反例过滤断言）。
+  - 用例：`use-case/FIX-521/FIX-521-UC-0001.md`（UC-0001~0011，11 条，用户已确认）
+  - 校验（BUILD-1022）：
+    1. root 与 hub 两模块 `go build ./... && go vet ./...` 全绿；`go test ./gateway/` 通过；前端 JS 经 `node --check` 通过且 `webui_static.go` 反引号计数 = 2（未破坏 Go 原始字符串）。
+    2. 隔离实例实测（`/tmp/fix521`，独立端口 12901/12900 与注册表）：候选顺序为 `cwd → path → path → hubdir`；`co-shell-fake`（`--version` 无效）与 `not-co-shell`（前缀不符）均未被列入；`/api/co-shell-locations` 与 `/api/agent-defaults` 的 `co_shells` 一致；下拉 4 项均带来源标注（含旧版 `co-shell-b455.exe（PATH） (v0.7.8)` 可辨识）；`/api/hub-info` = 0.57.1/1022。
+    3. UC-0004（同一路径双路命中的来源归属）与 UC-0006（hub 目录无 co-shell 时）未单独构造场景实测；去重沿用既有 `seen` map（本次未改动）。
+  - 进度：✅ 已确认并合并（2026-09-15，main 41637f7，v0.57.1 BUILD-1022，标签 v0.57.1）
 
 ---
 
