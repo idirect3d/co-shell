@@ -4,6 +4,35 @@
 
 ---
 
+## v0.57.1 — 开发中
+
+> **版本**: v0.57.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub 探测 co-shell 增加「hub 自身目录」并标注候选来源
+> **说明**: `DetectCoShells()` 只扫描 hub 进程的当前工作目录与 PATH，**不扫描 hub 可执行文件自身所在目录**；而启动 managed agent 时用的 `defaultCoShellPath()` 恰恰取 hub 同目录。两者语义不一致，导致「co-shell 与 hub 放同一目录却在下拉里搜不到」——实测双击启动 hub 时 CWD=$HOME，仅因为 `~/bin` 恰好位于 PATH 首位才被搜到。本版本让探测覆盖 hub 自身目录，并让下拉候选显示来源，便于区分同名/陈旧文件。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-521 | 0.57.1 | P2 | `DetectCoShells()` 新增扫描 hub 可执行文件所在目录（`os.Executable()` + 软链解析），来源标注为可辨识值；hub Web UI 的 co-shell 下拉对每个候选显示来源（当前目录 / PATH / hub 同目录） |
+
+> 当前 BUILD: 1022
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-521 hub 探测 co-shell 增加「hub 自身目录」并标注候选来源** [BUILD-1022]
+  - 需求（用户确认）：
+    1. `DetectCoShells()` 在现有「进程 CWD」+「PATH 各目录」之外，新增扫描 **hub 可执行文件所在目录**，与 `defaultCoShellPath()` 的启动语义对齐；取目录时解析软链（macOS 上 `os.Executable()` 不保证解引用）。
+    2. 候选列表的 `source` 能区分三类来源，前端下拉在选项中显示来源（当前目录 / PATH / hub 同目录），便于区分同名或版本陈旧的二进制（实测环境 `~/bin` 下存在被命名为 `.exe` 的旧 0.7.8 macOS 二进制）。
+    3. **不改名、不删除**任何既有文件（用户明确：不动 `co-shell-b455.exe`）。
+  - 方案：待编码阶段细化（`hub/gateway/detect.go` + `hub/gateway/webui_static.go` + `hub/gateway/detect_test.go`）。
+  - 用例：`use-case/FIX-521/FIX-521-UC-0001.md`（用例生成后待用户确认）
+  - 进度：🚧 开发中（2026-09-14，FIX-521 分支）
+
+---
+
 ## v0.57.0 — 已完成
 
 > **版本**: v0.57.0

@@ -716,6 +716,19 @@ const webIndexHTML = `<!DOCTYPE html>
     el.closest('.field').classList.toggle('disabled', !on);
     el.disabled = !on;
   }
+  // coShellSourceLabel maps a detection source to the label shown in the
+  // dropdown, so copies found in different places can be told apart (FIX-521).
+  function coShellSourceLabel(src){
+    if (src === 'hubdir') return 'hub 同目录';
+    if (src === 'cwd') return '当前目录';
+    if (src === 'path') return 'PATH';
+    return src || '';
+  }
+  // coShellOptionText renders one candidate as "<path>（<来源>）  (vX.Y.Z)".
+  function coShellOptionText(c){
+    var label = coShellSourceLabel(c.source);
+    return c.path + (label ? '（' + label + '）' : '') + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [不可执行]');
+  }
   function loadCoShellOptions(cb){
     if (coShellsCache){ cb(); return; }
     api('GET', '/api/agent-defaults', null, function(st, j){
@@ -733,7 +746,7 @@ const webIndexHTML = `<!DOCTYPE html>
     (coShellsCache || []).forEach(function(c){
       var opt = document.createElement('option');
       opt.value = c.path;
-      opt.textContent = c.path + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [不可执行]');
+      opt.textContent = coShellOptionText(c);
       if (c.path === current) found = true;
       sel.appendChild(opt);
     });
@@ -1028,12 +1041,12 @@ const webIndexHTML = `<!DOCTYPE html>
       coshellSel.innerHTML = '';
       var shells = j.co_shells || [];
       if (!shells.length){
-        coshellSel.innerHTML = '<option value="">未找到 co-shell，请先安装到当前目录或 PATH</option>';
+        coshellSel.innerHTML = '<option value="">未找到 co-shell，请放到 hub 同目录、当前目录或 PATH</option>';
       } else {
         shells.forEach(function(c){
           var opt = document.createElement('option');
           opt.value = c.path;
-          opt.textContent = c.path + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [不可执行]');
+          opt.textContent = coShellOptionText(c);
           coshellSel.appendChild(opt);
         });
       }
