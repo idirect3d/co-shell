@@ -69,6 +69,7 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	mux.HandleFunc("GET /api/agents", w.handleListAgents)
 	mux.HandleFunc("POST /api/agents", w.handleCreateAgent)
 	mux.HandleFunc("POST /api/agents/external", w.handleAddExternal)
+	mux.HandleFunc("PUT /api/agents/{id}", w.handleUpdateAgent)
 	mux.HandleFunc("POST /api/agents/{id}/start", w.handleStartAgent)
 	mux.HandleFunc("POST /api/agents/{id}/stop", w.handleStopAgent)
 	mux.HandleFunc("DELETE /api/agents/{id}", w.handleDeleteAgent)
@@ -312,6 +313,61 @@ func (w *WebUI) handleAddExternal(rw http.ResponseWriter, r *http.Request) {
 		log.Printf("webui: external agent %s registered but connect failed: %v", spec.ID, err)
 	}
 	writeJSON(rw, http.StatusCreated, spec)
+}
+
+// updateAgentRequest is the PUT /api/agents/{id} body (FEATURE-520). Every field
+// is a pointer so an omitted field is left unchanged; the agent's id and type
+// are immutable.
+type updateAgentRequest struct {
+	Name            *string `json:"name"`
+	Workspace       *string `json:"workspace"`
+	Port            *int    `json:"port"`
+	CoShell         *string `json:"co_shell"`
+	UseSharedConfig *bool   `json:"use_shared_config"`
+	ExtraArgs       *string `json:"extra_args"`
+	WSURL           *string `json:"ws_url"`
+}
+
+// handleUpdateAgent updates an agent's editable fields and persists the registry
+// (FEATURE-520). A running managed agent is deliberately not restarted: port /
+// workspace / co-shell / extra-arg changes take effect on the next start, which
+// the frontend tells the user about.
+func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var req updateAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "bad request"})
+		return
+	}
+	spec, err := w.manager.Update(id, AgentPatch{
+		Name:            req.Name,
+		Workspace:       req.Workspace,
+		Port:            req.Port,
+		CoShell:         req.CoShell,
+		UseSharedConfig: req.UseSharedConfig,
+		ExtraArgs:       req.ExtraArgs,
+		WSURL:           req.WSURL,
+	})
+	if err != nil {
+		status := http.StatusConflict
+		switch {
+		case errors.Is(err, ErrAgentNotFound):
+			status = http.StatusNotFound
+		case errors.Is(err, ErrInvalidAgent):
+			status = http.StatusBadRequest
+		}
+		writeJSON(rw, status, map[string]string{"error": err.Error()})
+		return
+	}
+	// An external agent's endpoint lives in the proxy connection: re-dial it so
+	// a changed ws_url takes effect immediately. A failed dial is logged only.
+	if spec.Type == AgentTypeExternal {
+		w.proxy.RemoveAgent(spec.ID)
+		if err := w.proxy.AddAgent(AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
+			log.Printf("webui: external agent %s updated but reconnect failed: %v", spec.ID, err)
+		}
+	}
+	writeJSON(rw, http.StatusOK, spec)
 }
 
 // handleStartAgent starts a managed agent subprocess and connects it to the

@@ -4,6 +4,49 @@
 
 ---
 
+## v0.57.0 — 开发中
+
+> **版本**: v0.57.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: Hub Agent 信息与启动参数支持修改——把只读详情页替换为与新建表单一致的可编辑界面
+> **说明**: co-shell-hub 的 Agent 列表卡片右侧箭头目前打开一个**只读**详情页（`viewDetail`，字段以 `<div class="val">` 展示），添加 Agent 后无法再调整其信息与启动参数。本版本把该只读页替换为**可编辑的修改表单**，字段与「新建 Agent」界面保持一致；后端相应新增 agent 修改接口与持久化逻辑。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-520 | 0.57.0 | P2 | Hub Agent 信息与启动参数支持修改：只读详情页 → 可编辑表单（字段与新建一致）；新增 `PUT /api/agents/{id}` 与 `Manager.Update`；ID 只读；运行中保存后提示需重启生效；远程 Agent 与本地字段集一致、本地专有字段置灰 |
+
+> 当前 BUILD: 1020
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-520 Hub Agent 信息与启动参数支持修改** [BUILD-1021]
+  - 需求（用户确认）：
+    1. 把 Agent 列表卡片右侧箭头打开的**只读详情页**替换为**修改界面**，控件与「新建 Agent」表单同款。字段集统一为：ID（只读）/ 备注 / 类型（只读）/ Workspace 路径 / 主机地址 / 端口号 / co-shell 可执行程序 / 共享配置 / 补充运行参数。
+    2. **ID 只读展示、不可修改**（ID 是注册表唯一键与连接标识，改名需迁移注册表与代理连接，本次不做）。
+    3. 对**运行中**的 Agent 保存修改后，仅持久化并提示「需重启 agent 后生效」，**不自动重启**（不打断正在执行的任务）。
+    4. **远程（external）Agent 与本地使用同一套字段集**，不适用的字段置灰不可编辑：本地 Agent 的「主机地址」置灰；远程 Agent 的 Workspace / co-shell / 共享配置 / 补充运行参数置灰。「端口号」两者均可编辑（本地 = serve 端口，远程 = WS 端口），远程保存后按「主机地址 + 端口号」重建 ws_url（主机地址字段即为此而设）。
+  - 方案：
+    - 后端 `manager.go`：新增 `Update(id, patch)`——校验 agent 存在、端口合法性/占用、workspace 目录，处理 {workspace}/config.json 创建，更新注册表并持久化。
+    - 后端 `webui.go`：新增 `PUT /api/agents/{id}` handler（含请求体校验与错误码）。
+    - 前端 `webui_static.go`：`viewDetail` 由只读 `<div class="val">` 改为可编辑控件（与新建表单同款 `.field`/`.switch` 结构），新增「保存 / 取消」按钮，远程 Agent 隐藏本地专有字段区域。
+  - 用例：`use-case/FEATURE-520/FEATURE-520-UC-0001.md`（UC-0001~0014）
+  - 实施（BUILD-1021）：
+    1. `hub/gateway/manager.go`：新增 `AgentPatch`（指针字段，区分“未提供”与“置空”）与 `Manager.Update(id, patch)`——仅更新携带的字段；ID/Type 不可变；校验 ws_url/workspace 非空、端口范围 1–65535，且仅当端口变化时才检查占用；维护 {workspace}/config.json；`save()` 落盘。新增哨兵错 `ErrAgentNotFound`（404）与 `ErrInvalidAgent`（400），端口占用返回 409。
+    2. `hub/gateway/webui.go`：新增 `PUT /api/agents/{id}` 与 `handleUpdateAgent`（指针型请求体）；按错误类型映射状态码；远程 agent 修改后重建代理连接（`RemoveAgent` + `AddAgent`）使新 ws_url 立即生效。
+    3. `hub/gateway/webui_static.go`：删除只读详情页（`viewDetail` 的 `.val` 字段 + 对应 CSS）与 `showAgentDetail`，改为可编辑表单（`showAgentEdit` / `saveAgentEdit` / `wsURLParts` / `setFieldEnabled` / `fillCoShellOptions` / `checkEditVersion`）；新增主机地址字段与「保存修改」按钮；不同类型置灰相应字段；co-shell 下拉保留“已配置但未检测到”的当前值，避免静默改写。
+    4. `hub/gateway/manager_test.go`（新增）：`Manager.Update` 的 table-driven 单测（8 组）——未知 agent、全量字段更新与落盘、部分补丁不扰其他字段、空备注回退 ID、自身端口可重复提交、端口占用拒绝且不落库、非法输入（端口越界/空 workspace/空 ws_url）、远程 ws_url 与字段隔离。
+  - 校验（BUILD-1021）：
+    1. `go build ./... && go vet ./...`（root 与 hub 模块）全绿；`go test ./gateway/ -run TestManagerUpdate` 全通过；hub JS 经 `node --check` 语法校验通过（反引号计数=2，未破坏 Go 原始字符串）。
+    2. HTTP 端到端（独立测试实例 `--web-addr 127.0.0.1:12901 --registry /tmp/fe520-hub-agents.json`，脚本 `tmp/fe520_verify.sh`）：29/29 断言通过——字段回填、改名/改 workspace/端口/co-shell/共享配置/参数落盘、workspace 与 config.json 自动创建、端口占用 409 且不落库、未知 agent 404、非法 JSON 与越界端口 400、远程 ws_url 可改、`/api/hub-info` 版本 0.57.0 / BUILD-1021。
+    3. 浏览器 DOM（UC-0008~0013）：箭头打开的是可编辑表单（9 个控件、`.val` 只读字段=0）；ID 只读；本地 agent 的「主机地址」置灰（disabled）；修改界面提示“运行中（修改需重启后生效）”，保存后提示“已保存，需重启该 agent 后生效。”；UI 保存使注册表出现新备注且受管进程 PID 未变（未自动重启）；保存后列表即时刷新、启动/停止/删除无回归。
+    4. 反引号、点：截图留待最终交付确认（旧只读页已无 `.val` 残留）。
+  - 进度：🧪 待用户确认（2026-09-14，FEATURE-520 分支，BUILD-1021）
+
+---
+
 ## v0.56.2 — 已完成
 
 > **版本**: v0.56.2
