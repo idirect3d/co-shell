@@ -207,7 +207,10 @@ const webIndexHTML = `<!DOCTYPE html>
   .field { margin-bottom:14px; }
   .field label { display:block; font-size:12px; color:var(--fg-dim); margin-bottom:5px; }
   .field input, .field select { width:100%; padding:7px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; }
-  .field .val { width:100%; padding:7px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; word-break:break-all; }
+  /* FEATURE-520: a field whose control does not apply to this agent type
+     (e.g. Workspace for a remote agent) is greyed out and non-editable. */
+  .field.disabled label { opacity:.5; }
+  .field.disabled input, .field.disabled select { opacity:.5; cursor:not-allowed; }
   .field .check { display:flex; align-items:center; gap:6px; }
   .field .check input { width:auto; }
   .req { color:var(--err); font-weight:700; }
@@ -371,20 +374,25 @@ const webIndexHTML = `<!DOCTYPE html>
     </div>
     <div class="foot"><button class="btn primary" id="cfg-submit">创建本地 Agent</button></div>
   </div>
-  <!-- View 3: read-only agent detail (click an agent card to view). -->
+  <!-- View 3: agent settings — editable (FEATURE-520). The field set mirrors
+       the create form; a field that does not apply to the agent's type is
+       greyed out (managed: 主机地址; external: Workspace / co-shell /
+       共享配置 / 补充运行参数). The ID is immutable. -->
   <div class="view hidden" id="viewDetail">
     <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span id="detailTitle">Agent 设置</span></div>
     <div class="config-body">
-      <div class="field"><label>ID</label><div class="val" id="d-id"></div></div>
-      <div class="field"><label>备注</label><div class="val" id="d-name"></div></div>
-      <div class="field"><label>类型</label><div class="val" id="d-type"></div></div>
-      <div class="field" id="f-ws"><label>Workspace</label><div class="val" id="d-ws"></div></div>
-      <div class="field" id="f-port"><label>端口</label><div class="val" id="d-port"></div></div>
-      <div class="field" id="f-coshell"><label>co-shell</label><div class="val" id="d-coshell"></div></div>
-      <div class="field" id="f-shared"><label>共享配置</label><div class="val" id="d-shared"></div></div>
-      <div class="field" id="f-extra"><label>补充运行参数</label><div class="val" id="d-extra"></div></div>
-      <div class="field"><label>状态</label><div class="val" id="d-state"></div></div>
+      <div class="field"><label>ID（不可修改）</label><input id="d-id" readonly></div>
+      <div class="field"><label>备注</label><input id="d-name" placeholder="可选"></div>
+      <div class="field"><label>类型</label><input id="d-type" readonly></div>
+      <div class="field" id="f-ws"><label>Workspace 路径</label><input id="d-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
+      <div class="field" id="f-host"><label>主机地址</label><input id="d-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
+      <div class="field" id="f-port"><label id="d-port-label">端口号</label><input id="d-port" placeholder="如 28256"></div>
+      <div class="field" id="f-coshell"><label>co-shell 可执行程序</label><select id="d-coshell"></select><div class="hint" id="d-ver"></div></div>
+      <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
+      <div class="field" id="f-extra"><label>补充运行参数</label><input id="d-extra" placeholder="如 --accept-license"></div>
+      <div class="hint" id="d-state"></div>
     </div>
+    <div class="foot"><button class="btn primary" id="d-save">保存修改</button><div class="hint" id="d-msg"></div></div>
   </div>
   <!-- View 4: remote-access settings (TLS/whitelist/access key). -->
   <div class="view hidden" id="viewSettings">
@@ -660,12 +668,12 @@ const webIndexHTML = `<!DOCTYPE html>
       r.className = 'agent' + (a.id === current ? ' active' : '');
       r.innerHTML = '<span class="st ' + st + '"></span><span class="nm">' + esc(a.name || a.id) + '</span>' +
         (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '') +
-        '<span class="chev" title="查看配置">›</span>';
+        '<span class="chev" title="修改配置">›</span>';
       // Clicking the card switches the main view to this agent; clicking the
       // trailing chevron opens its read-only detail view.
       r.addEventListener('click', function(e){
         if (e.target.closest('.switch')) return;
-        if (e.target.closest('.chev')){ showAgentDetail(a); return; }
+        if (e.target.closest('.chev')){ showAgentEdit(a); return; }
         if (r._moved){ r._moved = false; return; } // just finished a swipe drag
         if (r._open){ setSwipe(r, false); return; } // click an open card closes it
         if (openCard && openCard !== r) setSwipe(openCard, false);
@@ -690,26 +698,138 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
 
-  // showAgentDetail fills and shows the read-only detail view for an agent.
-  function showAgentDetail(a){
+  // ---- Agent settings view (FEATURE-520) ----
+  // showAgentEdit fills and shows the editable settings form for an agent. The
+  // field set mirrors the create form; fields that do not apply to the agent's
+  // type are disabled (managed: 主机地址; external: Workspace / co-shell /
+  // 共享配置 / 补充运行参数). The ID itself is immutable.
+  var editID = null; // agent id being edited
+  var coShellsCache = null; // co_shells list from /api/agent-defaults
+  // wsURLParts splits ws(s)://host:port/ws into its host and port parts.
+  function wsURLParts(u){
+    var m = /^wss?:\/\/([^\/:]+):(\d+)/.exec(String(u || ''));
+    return m ? { host: m[1], port: m[2] } : { host: '', port: '' };
+  }
+  // setFieldEnabled enables/disables a form control and greys its row out.
+  function setFieldEnabled(id, on){
+    var el = document.getElementById(id);
+    el.closest('.field').classList.toggle('disabled', !on);
+    el.disabled = !on;
+  }
+  function loadCoShellOptions(cb){
+    if (coShellsCache){ cb(); return; }
+    api('GET', '/api/agent-defaults', null, function(st, j){
+      coShellsCache = (j && j.co_shells) || [];
+      cb();
+    });
+  }
+  function fillCoShellOptions(current){
+    var sel = document.getElementById('d-coshell');
+    sel.innerHTML = '';
+    var def = document.createElement('option');
+    def.value = ''; def.textContent = '默认（沿用 hub 配置）';
+    sel.appendChild(def);
+    var found = false;
+    (coShellsCache || []).forEach(function(c){
+      var opt = document.createElement('option');
+      opt.value = c.path;
+      opt.textContent = c.path + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [不可执行]');
+      if (c.path === current) found = true;
+      sel.appendChild(opt);
+    });
+    // An explicitly configured executable that is no longer detected stays
+    // selectable, so opening the form never silently resets the value.
+    if (current && !found){
+      var extra = document.createElement('option');
+      extra.value = current; extra.textContent = current + '  （当前值）';
+      sel.appendChild(extra);
+    }
+    sel.value = current || '';
+  }
+  function checkEditVersion(){
+    var el = document.getElementById('d-ver');
+    var path = document.getElementById('d-coshell').value;
+    if (!path){ el.textContent = ''; el.className = 'hint'; return; }
+    api('GET', '/api/agent-version?kind=local&path=' + encodeURIComponent(path), null, function(st, j){
+      if (j && j.ok){
+        el.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
+        el.className = 'hint ver-ok';
+      } else {
+        el.textContent = (j && j.error) || '无法读取版本';
+        el.className = 'hint ver-err';
+      }
+    });
+  }
+  document.getElementById('d-coshell').onchange = checkEditVersion;
+  function showAgentEdit(a){
+    editID = a.id;
     var external = a.type === 'external';
-    document.getElementById('detailTitle').textContent = (a.name || a.id) + ' · 设置';
-    document.getElementById('d-id').textContent = a.id || '-';
-    document.getElementById('d-name').textContent = a.name || '-';
-    document.getElementById('d-type').textContent = external ? '远程' : '本地';
-    // Local-only fields (workspace / co-shell / shared config) are hidden for
-    // remote agents; the port row shows the remote ws URL instead.
-    document.getElementById('f-ws').style.display = external ? 'none' : '';
-    document.getElementById('f-coshell').style.display = external ? 'none' : '';
-    document.getElementById('f-shared').style.display = external ? 'none' : '';
-    document.getElementById('f-port').querySelector('label').textContent = external ? 'WS 地址' : '端口';
-    document.getElementById('d-ws').textContent = a.workspace || '-';
-    document.getElementById('d-port').textContent = external ? (a.ws_url || '-') : (a.port || '-');
-    document.getElementById('d-coshell').textContent = a.co_shell || '默认';
-    document.getElementById('d-shared').textContent = a.use_shared_config ? '开启（~/.co-shell/config.json）' : '关闭（{workspace}/config.json）';
-    document.getElementById('d-state').textContent = (a.running || a.connected) ? '运行中' : '已停止';
+    var parts = wsURLParts(a.ws_url);
+    document.getElementById('detailTitle').textContent = (a.name || a.id) + ' · 修改';
+    document.getElementById('d-id').value = a.id || '';
+    document.getElementById('d-name').value = a.name || '';
+    document.getElementById('d-type').value = external ? '远程' : '本地';
+    document.getElementById('d-ws').value = a.workspace || '';
+    document.getElementById('d-host').value = parts.host;
+    document.getElementById('d-port').value = external ? parts.port : (a.port || '');
+    document.getElementById('d-shared').checked = !!a.use_shared_config;
+    document.getElementById('d-extra').value = a.extra_args || '';
+    document.getElementById('d-state').textContent = (a.running || a.connected) ? '运行中（修改需重启后生效）' : '已停止';
+    document.getElementById('d-msg').textContent = '';
+    // Local-only fields are greyed out for a remote agent, and vice versa.
+    setFieldEnabled('d-ws', !external);
+    setFieldEnabled('d-host', external);
+    setFieldEnabled('d-port', true);
+    setFieldEnabled('d-coshell', !external);
+    setFieldEnabled('d-shared', !external);
+    setFieldEnabled('d-extra', !external);
+    document.getElementById('d-port-label').textContent = external ? '端口号（与主机地址组成 WS 地址）' : '端口号（可修改，需重启后生效）';
+    loadCoShellOptions(function(){ fillCoShellOptions(a.co_shell); checkEditVersion(); });
     showView('detail');
   }
+  // saveAgentEdit PUTs the edited fields back to the hub. A running managed
+  // agent is not restarted by the hub, so the user is told to restart it.
+  function saveAgentEdit(){
+    if (!editID) return;
+    var a = null;
+    for (var i = 0; i < agents.length; i++){ if (agents[i].id === editID){ a = agents[i]; break; } }
+    if (!a) return;
+    var external = a.type === 'external';
+    var port = parseInt(document.getElementById('d-port').value.trim(), 10);
+    if (!port || isNaN(port) || port < 1 || port > 65535){
+      alert('请填写有效的端口号（1-65535）。');
+      return;
+    }
+    var body = { name: document.getElementById('d-name').value.trim() };
+    if (external){
+      var host = normalizeHost(document.getElementById('d-host').value.trim());
+      if (!host){ alert('请填写主机地址'); return; }
+      body.ws_url = 'ws://' + host + ':' + port + '/ws';
+    } else {
+      var ws = document.getElementById('d-ws').value.trim();
+      if (!ws){ alert('请填写 Workspace 路径'); return; }
+      body.workspace = ws;
+      body.port = port;
+      body.use_shared_config = document.getElementById('d-shared').checked;
+      body.extra_args = document.getElementById('d-extra').value.trim();
+      // Only send co_shell once the executable list has loaded: a slow
+      // /api/agent-defaults response must never silently reset the value.
+      var editShellSel = document.getElementById('d-coshell');
+      if (editShellSel.options.length) body.co_shell = editShellSel.value;
+    }
+    api('PUT', '/api/agents/' + encodeURIComponent(editID), body, function(st, j){
+      var msg = document.getElementById('d-msg');
+      if (st >= 400){
+        msg.textContent = '';
+        alert('保存失败: ' + ((j && j.error) || st));
+        return;
+      }
+      msg.textContent = (a.running || a.connected) ? '已保存，需重启该 agent 后生效。' : '已保存。';
+      msg.className = 'hint ver-ok';
+      refresh();
+    });
+  }
+  document.getElementById('d-save').onclick = saveAgentEdit;
 
   // setSwipe opens (true) or closes (false) the delete button behind a card.
   function setSwipe(card, open){

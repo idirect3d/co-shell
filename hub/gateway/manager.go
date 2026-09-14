@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -228,6 +229,114 @@ func (m *Manager) AddExternal(id, name, wsURL string) (AgentSpec, error) {
 	}
 	spec := AgentSpec{ID: id, Name: name, Type: AgentTypeExternal, WSURL: wsURL}
 	m.agents = append(m.agents, spec)
+	if err := m.save(); err != nil {
+		return AgentSpec{}, err
+	}
+	return spec, nil
+}
+
+// ErrAgentNotFound is returned by Update when the target agent ID is unknown.
+var ErrAgentNotFound = errors.New("agent not found")
+
+// ErrInvalidAgent marks an Update rejected because the supplied values are not
+// usable (blank workspace/ws_url, out-of-range port). Callers map it to a 400.
+var ErrInvalidAgent = errors.New("invalid agent config")
+
+// AgentPatch carries the editable fields of an agent for Manager.Update. A nil
+// field is left unchanged; the agent's ID and type are immutable.
+type AgentPatch struct {
+	Name            *string
+	Workspace       *string
+	Port            *int
+	CoShell         *string
+	UseSharedConfig *bool
+	ExtraArgs       *string
+	WSURL           *string
+}
+
+// Update applies patch to the agent with the given ID and persists the registry.
+// It validates the workspace and the port (rejecting a port already bound on the
+// system) and keeps {workspace}/config.json in place when a per-agent config is
+// selected. A running managed subprocess is deliberately left untouched: port /
+// workspace / co-shell / extra-args changes take effect on the next start.
+func (m *Manager) Update(id string, patch AgentPatch) (AgentSpec, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	idx := -1
+	for i := range m.agents {
+		if m.agents[i].ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return AgentSpec{}, fmt.Errorf("%w: %q", ErrAgentNotFound, id)
+	}
+	spec := m.agents[idx]
+
+	if patch.Name != nil {
+		// An empty remark falls back to the ID, matching CreateManaged.
+		name := strings.TrimSpace(*patch.Name)
+		if name == "" {
+			name = spec.ID
+		}
+		spec.Name = name
+	}
+
+	if spec.Type == AgentTypeExternal {
+		if patch.WSURL != nil {
+			wsURL := strings.TrimSpace(*patch.WSURL)
+			if wsURL == "" {
+				return AgentSpec{}, fmt.Errorf("%w: ws_url is required", ErrInvalidAgent)
+			}
+			spec.WSURL = wsURL
+		}
+	} else {
+		if patch.Workspace != nil {
+			workspace := strings.TrimSpace(*patch.Workspace)
+			if workspace == "" {
+				return AgentSpec{}, fmt.Errorf("%w: workspace is required", ErrInvalidAgent)
+			}
+			if err := os.MkdirAll(workspace, 0755); err != nil {
+				return AgentSpec{}, fmt.Errorf("create workspace: %w", err)
+			}
+			spec.Workspace = workspace
+		}
+		if patch.Port != nil {
+			port := *patch.Port
+			if port < 1 || port > 65535 {
+				return AgentSpec{}, fmt.Errorf("%w: invalid port %d", ErrInvalidAgent, port)
+			}
+			// The port in use by this very agent must stay acceptable.
+			if port != spec.Port && portInUse(port) {
+				return AgentSpec{}, fmt.Errorf("port %d is already in use", port)
+			}
+			spec.Port = port
+		}
+		if patch.CoShell != nil {
+			spec.CoShell = strings.TrimSpace(*patch.CoShell)
+		}
+		if patch.ExtraArgs != nil {
+			spec.ExtraArgs = strings.TrimSpace(*patch.ExtraArgs)
+		}
+		if patch.UseSharedConfig != nil {
+			spec.UseSharedConfig = *patch.UseSharedConfig
+		}
+		// Per-agent config: ensure {workspace}/config.json exists when a
+		// non-shared config is selected (create empty, never overwrite).
+		if !spec.UseSharedConfig {
+			cfgPath := filepath.Join(spec.Workspace, "config.json")
+			if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
+				if err := os.WriteFile(cfgPath, []byte("{}\n"), 0644); err != nil {
+					return AgentSpec{}, fmt.Errorf("create config: %w", err)
+				}
+			}
+			spec.ConfigFile = "config.json"
+		}
+	}
+
+	m.agents[idx] = spec
 	if err := m.save(); err != nil {
 		return AgentSpec{}, err
 	}
