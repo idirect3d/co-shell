@@ -46,8 +46,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.56.1"
-	hubBuild   = "1018"
+	hubVersion = "0.56.2"
+	hubBuild   = "1020"
 )
 
 // config is the JSON config file shape.
