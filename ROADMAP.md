@@ -45,8 +45,15 @@
     6. 交互：`themeToggle` 循环实测 `dark → dark-muted → light → light-tp → paper → dark`；图标切换为新增 sprite `i-theme-muted`（16×16）；设置→外观→主题下拉选项为 `auto, dark, dark-muted, light, light-tp, paper`，选中后即时生效、`localStorage` 持久化且刷新后仍为 dark-muted。
     7. 接口：`GET /logos/dark-muted` 未配置时 404、上传/删除接口接受 `theme=dark-muted`（落盘 `logos/logo-dark-muted.png`）、非法主题仍 400 且提示文案已更新。
     8. 视觉：dark 与 dark-muted 同载具截图对照，后者正文/代码/引用明显更柔和，警示色与标题栏/工作区外观无变化（需用户主观确认“调暗适度”）。
-  - 版本与构建：`main.go` version 0.57.1 → 0.58.0、build 1022 → 1023，`cmd/co-shell-hub/main.go` hubVersion/hubBuild 同步；co-shell 与 co-shell-hub 已编译到 `work/` 并原子替换至 `~/bin/`。
-  - 进度：🚧 已实现并自测通过，**待用户确认测试结果**后合并 [BUILD-1023]
+  - 第二轮（用户反馈，BUILD-1024）：**再调暗一档 + 录入框 / 会话标题栏**
+    - 需求（用户确认）：① 刚才变动的颜色再调暗（选定档位「中」）；② 录入框与会话标题栏也一起调，范围为「文字色 + 录入框背景/边框一并压暗」。
+    - 实施：
+      1. `--ev-body-fg`：`#a9b1c1` → **`#8f97a9`**（6.29:1，上一轮 8.70:1，再降 28%）；`--ev-body-fg-dim`：`#7b8395` → **`#767e90`**（4.52:1）。**次级未严格按比例降**：按比例会落到 ≈3.7:1（低于 WCAG AA 4.5:1，且 `.ev.thinking` 另有 `opacity:.75` 叠加），故取 AA 下限附近的 4.52:1。
+      2. 新增 4 个变量（默认回落原值，其余主题零变化）：`--input-fg`/`--input-bg`/`--input-border`（`#input` 改用）与 `--stream-head-fg`（`.stream-title`、窄屏 `.stc-face` 改用）。dark-muted 下：录入框文字 `#8f97a9`、底 `#090c12`（原 `#0d1119`）、边框 `#1a2030`（原 `#232a3a`）；会话标题文字 `#8f97a9`（标题栏背景不变）。
+      3. 非目标：`#input::placeholder`（占位符）、`.ask-line input` 等次要输入框、状态条、工作区与顶栏、块标题与警示色——均未改动。`#input:focus` 仍为 accent 边框。
+    - 校验（BUILD-1024，独立实例 @28257）：正文 `rgb(143,151,169)` / 对比度 **6.29:1**（dark 13.26:1）；次级 `rgb(118,126,144)` / **4.52:1** ≥ AA；录入框 dark `rgb(213,219,231)`+`rgb(13,17,25)`+`rgb(35,42,58)` → muted `rgb(143,151,169)`+`rgb(9,12,18)`+`rgb(26,32,48)`；会话标题 `rgb(213,219,231)` → `rgb(143,151,169)`、标题栏背景两主题均 `rgb(16,20,29)`；light/light-tp/paper 下 `#input` 与标题文字仍等于各自 `--fg`/`--mono-bg`/`--border`；反向用例（顶栏/工作区/警示色/占位符）两主题逐项相同；dark/dark-muted 截图对照确认录入框与会话标题同步变柔。
+  - 版本与构建：`main.go` version 0.57.1 → 0.58.0、build 1022 → **1024**（第二轮 +1），`cmd/co-shell-hub/main.go` hubVersion/hubBuild 同步；co-shell 与 co-shell-hub 已编译到 `work/` 并原子替换至 `~/bin/`。
+  - 进度：🚧 两轮均已实现并自测通过，**待用户确认测试结果**后合并 [BUILD-1024]
 
 ---
 
