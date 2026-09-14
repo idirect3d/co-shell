@@ -4,6 +4,53 @@
 
 ---
 
+## v0.58.1 — 开发中
+
+> **版本**: v0.58.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: 修复「身份与个性」配置弹窗在矮窗口下显示不全的问题（高度自适应 + 内部滚动）
+> **说明**: 点击左下角 logo 图标弹出菜单中的「身份与个性」弹窗（`.identity-box`）此前没有高度上限，弹窗高度完全由内容撑开；窗口高度较矮时弹窗上下溢出视口且无滚动条，底部字段与保存按钮无法访问。本次为 `.identity-box` 增加 `max-height: 90vh`（与既有系统设置 / 模型管理弹窗一致），并把 `.modal-body` 改为可伸缩 + 内部滚动，使弹窗最大高度不超过页面高度、内容超出时自动出现滚动条。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-523 | 0.58.1 | P1 | 「身份与个性」弹窗高度自适应：max-height 90vh + 内容区内部滚动，矮窗口下不再被裁切 |
+
+> 当前 BUILD: 1025
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-523 「身份与个性」弹窗高度自适应（矮窗口不再裁切）** [BUILD-1025]
+  - 需求（用户确认）：
+    1. 点击左下角 logo 图标 → 弹出菜单 →「身份与个性」，进入该配置界面。
+    2. 当前页面（窗口）比较矮时该界面显示不全，要求**最大高度不超过页面高度**，并**自动出现滚动条**。
+    3. 归属版本 v0.58.1（FIX，patch+1）；最大高度取 **90vh**（与现有系统设置 / 模型管理弹窗一致）。
+  - 根因：
+    - `web/static/style.css:588` `.identity-box { width: 560px; max-width: 92vw; }` **无高度上限**，弹窗高度完全由表单内容撑开。
+    - `web/static/style.css:2295` `.modal-body { padding: 14px; }` **无滚动容器**。
+    - `.modal` 为 `position: fixed; inset: 0` 居中弹层，内容超高时向视口上下溢出且无滚动条，底部字段与「保存」按钮不可达。
+  - 方案（实际实施，仅改 `web/static/style.css` 两条规则）：
+    - `.identity-box` 增加 `max-height: 90vh`、`display: flex`、`flex-direction: column`。
+    - 新增 `.identity-box .modal-body { min-height: 0; overflow-y: auto; }`（`min-height: 0` 是滚动生效的关键：flex 子项默认 `min-height: auto` 不会收缩到内容高度以下）。
+    - 未改动 `.modal` / `.modal-box` / `.modal-body` 的公共规则，也未改动 JS 与其他弹窗样式。
+  - 用例：`use-case/FIX-523/FIX-523-UC-0001.md`（UC-01~UC-16，用户已确认）
+  - 校验（独立实例 v0.58.1 BUILD-1025 @28258，workdir `/tmp/fix523`，未影响生产实例 28256）：
+    1. **缺陷复现（修复前）**：800×500 视口下弹窗 `top=-207.6` / `bottom=707.6`（上下各溢出 207.6px），高度 **915.3px**（>90vh=450px），`max-height` 计算值 `none`、`overflow-y: visible`、`scrollHeight == clientHeight == 870`（无滚动条），最后一个保存按钮 `bottom=692.6 > 500` 且 `scrollTop` 恒为 0，标题栏本身 `top=-206.6`（已在视口外）——UC-02/03/04/05/06 均失败，缺陷确认。
+    2. **修复后主用例**：800×500 → `top=25 / bottom=475`（不溢出）、高度 **450 = 90vh**、`overflow-y: auto`（`clientH 405` / `scrollH 870`）、滚动后最后一个保存按钮 `top=423.3 / bottom=459.8`（完全可见）、标题栏滚动前后 `top` 均为 26（固定）。
+    3. **高度自适应（无回归）**：800×1400 → 高度 **915.3 < 90vh(1260)**，`scrollHeight == clientHeight`（无多余滚动条），上下居中（top 242.4 / bottom 1157.6）。
+    4. **极矮窗口**：800×360 → 高度 324 = 90vh，`top=18 / bottom=342`，滚动条存在，保存按钮滚动后可见（bottom 326.8）。
+    5. **动态自适应**：500 → 1400 → 360 → 1280×800 连续改变视口高度（不重载页面），每次都满足 `top≥0`、`bottom≤innerHeight`、`height≤90vh`。
+    6. **宽度与窄屏**：桌面 1280×800 宽度仍为 **560px**；窄屏 390×640（`body.narrow` 为真）宽度 **358.8 = 92vw**、高度 576 = 90vh、`top=32 / bottom=608` 不溢出、滚动条存在、保存按钮可达。
+    7. **回归（其他弹窗无变化）**：1280×800 下 `.settings-box` 仍为 600×720（max-height 90vh 生效）、`.settings-nav`/`.settings-pane` 仍 `overflow-y: auto`、`.models-body` max-height 480px（60vh）、`.preview-box` max-width 1024px（80vw）；窄屏下系统设置仍按 FEATURE-487 全屏（390×640 / 800×800 均为整视口）。
+    8. **静态与构建**：`node --check web/static/app.js` 通过（未改动 JS）；`go build ./... && go vet ./...` 在根模块与 `cmd/co-shell-hub` 模块均全绿；`--version` = `0.58.1 [BUILD-1025]`。
+    9. **视觉**：800×500 截图对照，修复前弹窗被硬裁剪、底部保存按钮缺失且无滚动条；修复后标题栏/关闭按钮固定在顶部、内容区出现纵向滚动条、底部字段与保存按钮可达。
+  - 版本与构建：`main.go` version 0.58.0 → 0.58.1、build 1024 → **1025**，`cmd/co-shell-hub/main.go` hubVersion/hubBuild 同步；co-shell 与 co-shell-hub 已编译到 `work/` 并原子替换至 `~/bin/`。
+  - 进度：⏳ 待用户确认（用户确认后合并 main 并打标签 v0.58.1）[BUILD-1025]
+
+---
+
 ## v0.58.0 — 开发中
 
 > **版本**: v0.58.0

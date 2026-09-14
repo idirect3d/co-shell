@@ -585,7 +585,20 @@ aside {
 .logo-menu-item:hover { background: var(--bg-elev); }
 
 /* Identity & personality form (FEATURE-393). */
-.identity-box { width: 560px; max-width: 92vw; }
+/* FIX-523: cap the box at 90vh (same limit as the settings / models modals) and
+   make it a column flex container so the form body can shrink and scroll
+   internally when the window is short; previously the box grew with its content
+   and overflowed the viewport with no way to reach the bottom fields. */
+.identity-box {
+  width: 560px;
+  max-width: 92vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+/* FIX-523: min-height:0 is required here — a flex item's default min-height:auto
+   would keep the body at its content height, so the scrollbar would never show. */
+.identity-box .modal-body { min-height: 0; overflow-y: auto; }
 .identity-body { display: flex; flex-direction: column; gap: 12px; }
 .identity-row { display: flex; flex-direction: column; gap: 4px; }
 .identity-label { font-size: 12px; color: var(--fg-dim); }
