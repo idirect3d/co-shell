@@ -137,3 +137,60 @@ cd /tmp/fe522 && /Users/direct3d/github/co-shell/work/co-shell --serve --port 28
 2. **选择器特异性**：`.ev.level-error .ev-body`、`.ev.supervisor .ev-body`、`.ev.thinking .ev-body` 的特异性高于 `.ev-body`；本次用「变量驱动」而非新增选择器，避免特异性冲突——UC-0006/UC-0007 验证。
 3. **`node --check`**：`app.js` 改动为字母串与条件分支，语法错误会直接导致 UI 白屏——UC-0011 验证。
 4. **hub 版本同步**：`cmd/co-shell-hub/main.go` 的 `hubVersion` 必须与 `main.go` 的 `version` 一致——UC-0011 验证。
+
+---
+
+## 追加需求（第二轮，2026-09-15）：正文再调暗 + 录入框 / 会话标题栏
+
+### 需求（用户确认）
+
+1. **主消息区正文字色再调暗一档**：用户选定档位「中」→ `--ev-body-fg` = `#8f97a9`（≈6.4:1，原 `#a9b1c1` 8.70:1）；次级文字按同比例跟随（实现时按可读性下限处理，见下）。
+2. **录入框与会话标题栏也调整**：范围为「文字色 + 录入框背景/边框一并压暗」。
+
+### 实现契约（追加）
+
+| 项 | 约定 |
+|---|---|
+| 正文 | `--ev-body-fg`：`#a9b1c1` → **`#8f97a9`**（对 `--bg-panel` #10141d ≈6.4:1；对代码块底 #0d1119 ≈6.5:1） |
+| 次级 | `--ev-body-fg-dim`：`#7b8395` → **`#767e90`**（≈4.60:1）。**不严格按比例降**（按比例会到 ≈3.7:1，低于 WCAG AA 4.5:1，且 `.ev.thinking` 整体另有 `opacity:.75` 叠加）；取 AA 下限附近的 4.60:1 |
+| 录入框 | 新增变量 `--input-fg` / `--input-bg` / `--input-border`（默认分别回落 `var(--fg)` / `var(--mono-bg)` / `var(--border)`）；`dark-muted` 下：文字 `#8f97a9`、背景 `#090c12`（原 `#0d1119`）、边框 `#1a2030`（原 `#232a3a`） |
+| 会话标题栏 | 新增变量 `--stream-head-fg`（默认 `var(--fg)`）；`.stream-title` 与窄屏 `.stc-face` 改用该变量；`dark-muted` 下 `#8f97a9`。**标题栏背景 `.stream-head` 不变** |
+| focus 态 | `#input:focus` 仍为 accent 边框（激活态提示色，与本主题「警示/强调色保持现状」一致） |
+| 非目标（本轮不动） | ① `#input::placeholder`（占位符文字，用户未选该项）；② `.ask-line input` / `.identity-input` 等次要输入框；③ 状态条（`.sb-*`）；④ 工作区与顶栏（仍与 dark 完全一致）；⑤ 块标题与警示色 |
+
+### 追加用例
+
+### UC-0015 正文再调暗一档（核心）
+- **步骤**：隔离实例中取 dark-muted 下 `.ev.llm .ev-body` 的 `color`，并与 dark 值比较，计算与 `--bg-panel` #10141d 的对比度。
+- **预期**：`rgb(143, 151, 169)`（#8f97a9），≈6.4:1；dark 仍为 `rgb(213, 219, 231)`（≈13.5:1）；相比上一轮（8.70:1）再降约 26%。
+- **判定**：取值与对比度区间成立。
+
+### UC-0016 次级文字再调暗且不低于 WCAG AA
+- **步骤**：取 dark-muted 下 `.ev.thinking .ev-body` 与 `.ev-body.md blockquote` 的 `color`，计算对比度。
+- **预期**：`rgb(118, 126, 144)`（#767e90），对 `--bg-panel` 对比度 **≥4.5:1**（实测 ≈4.60:1）；dark 仍为 `rgb(139, 147, 165)`。
+- **判定**：两项均成立（若 <4.5:1 视为不合格）。
+
+### UC-0017 录入框文字/背景/边框一并压暗
+- **步骤**：分别在 dark 与 dark-muted 下取 `#input` 的 `color` / `background-color` / `border-*-color`；再切 light / light-tp / paper 观察是否受变量改动影响。
+- **预期**：dark-muted = 文字 `rgb(143,151,169)`、背景 `rgb(9,12,18)`、边框 `rgb(26,32,48)`；dark = `rgb(213,219,231)` / `rgb(13,17,25)` / `rgb(35,42,58)`；light/light-tp/paper 与改动前一致（各自 `--fg` / `--mono-bg` / `--border`）。
+- **判定**：全部成立。
+
+### UC-0018 会话标题栏文字压暗、背景不变
+- **步骤**：取 `#streamTitle`（宽屏输入框）与 `.stc-face`（窄屏循环显示）的 `color`，以及 `.stream-head` 的 `background-color`，在 dark 与 dark-muted 下比对。
+- **预期**：标题文字 dark `rgb(213,219,231)` → dark-muted `rgb(143,151,169)`；`.stream-head` 背景两主题均为 `rgb(16,20,29)`（未变）。
+- **判定**：成立。
+
+### UC-0019 反向用例：本轮改动不外溢
+- **步骤**：dark 与 dark-muted 下比对 `#topbar` 底色/底边框、`.brand-name`、`.tree-row.dir > .name`、`.ev.tool .ev-head`（#fbbf24）、`.ev.level-error .ev-body`（#FF0000）、`.ev.supervisor .ev-body`（#ffffff）、`#input::placeholder` 计算色。
+- **预期**：顶栏/工作区各项两主题完全一致；警示色逐项一致；占位符色未变（两主题相同）。
+- **判定**：无任何一项不同。
+
+### UC-0020 视觉复核（截图）
+- **步骤**：同载具下分别以 dark 与 dark-muted 截图（含消息区 + 底部录入框 + 会话标题栏）。
+- **预期**：dark-muted 的正文、次级文字、录入框（含底色/边框）、会话标题均明显更柔和；警告/错误仍醒目；工作区与顶栏无变化。
+- **判定**：视觉确认通过（截图留档）。
+
+### 追加通过标准
+
+- UC-0015 ~ UC-0019 **必须全过**；UC-0020 由用户主观确认「再调暗一档是否合适（不过暗、仍可读）」。
+- 若用户认为仍偏亮或过暗，仅需调整 `[data-theme="dark-muted"]` 块内 4 个色值 + 2 个正文变量，重跑 UC-0015 ~ UC-0019 与 UC-0020。

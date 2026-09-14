@@ -24,6 +24,13 @@
      theme's own --fg / --fg-dim, so every existing theme is unchanged. */
   --ev-body-fg: var(--fg);
   --ev-body-fg-dim: var(--fg-dim);
+  /* FEATURE-522 (part 2): composer (main input box) and session title bar
+     colours, also var-driven so dark-muted can dim them while every other
+     theme keeps its current values. */
+  --input-fg: var(--fg);
+  --input-bg: var(--mono-bg);
+  --input-border: var(--border);
+  --stream-head-fg: var(--fg);
 }
 
 /* FEATURE-477: original light theme (pre-FEATURE-476). Pure CSS-variable
@@ -120,8 +127,12 @@
    ≈6.1:1), i.e. the bright near-white body text is softened noticeably while
    staying comfortably readable. */
 [data-theme="dark-muted"] {
-  --ev-body-fg: #a9b1c1;
-  --ev-body-fg-dim: #7b8395;
+  --ev-body-fg: #8f97a9;      /* ≈6.4:1 (dark ≈13.5:1) */
+  --ev-body-fg-dim: #767e90;  /* ≈4.6:1, kept at the WCAG AA floor (dark ≈6.1:1) */
+  --input-fg: #8f97a9;
+  --input-bg: #090c12;        /* composer background, dimmed from --mono-bg #0d1119 */
+  --input-border: #1a2030;    /* composer border, dimmed from --border #232a3a */
+  --stream-head-fg: #8f97a9;  /* session title bar text */
 }
 
 /* FEATURE-477: paper = warm paper/ink palette for eye comfort. The background
@@ -627,7 +638,7 @@ aside {
   min-width: 0;
   background: none;
   border: none;
-  color: var(--fg);
+  color: var(--stream-head-fg);
   font-size: 12px;
   font-weight: 400; /* FEATURE-493: session title is no longer bold */
   outline: none;
@@ -660,7 +671,7 @@ aside {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--fg);
+  color: var(--stream-head-fg);
   font-size: 12px;
   font-weight: 400; /* FEATURE-493: session title is no longer bold */
   transform-origin: center;
@@ -1583,10 +1594,10 @@ button.qs-kbd:active { transform: translateY(1px); }
 #input {
   flex: 1;
   resize: none;
-  background: var(--mono-bg);
-  border: 1px solid var(--border);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 8px;
-  color: var(--fg);
+  color: var(--input-fg);
   padding: 6px 12px 2px; /* FEATURE-406: top 6px / bottom 2px to center the caret vertically */
   font: 13.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   outline: none;
