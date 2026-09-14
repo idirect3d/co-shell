@@ -4562,9 +4562,13 @@ function treeNode(node) {
   }
   row.appendChild(status);
 
+  // FIX-519: the twisty (▸/▾) belongs to directories only. The span is still
+  // created for every row so its 12px gutter keeps file and directory names
+  // left-aligned, but it is left EMPTY for files — the dir branch below sets
+  // i-tri / i-tri-down based on the open state. Setting i-tri here made files
+  // render a stray expand/collapse arrow.
   const tw = document.createElement("span");
   tw.className = "tw";
-  setIcon(tw, "i-tri");
   row.appendChild(tw);
 
   const name = document.createElement("span");
