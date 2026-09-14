@@ -20,7 +20,7 @@ var coShellVersionRe = regexp.MustCompile(`v?(\d+\.\d+\.\d+)(?:\s+\[BUILD-(\d+)\
 // coShellInfo describes one detected co-shell executable.
 type coShellInfo struct {
 	Path    string `json:"path"`
-	Source  string `json:"source"` // "cwd" | "path"
+	Source  string `json:"source"` // "cwd" | "path" | "hubdir"
 	Version string `json:"version,omitempty"`
 	Build   string `json:"build,omitempty"`
 	OK      bool   `json:"ok"` // true if the file exists and is executable
@@ -31,11 +31,12 @@ type coShellInfo struct {
 // "co-shell-0.44.0.exe") are candidates for the dropdown.
 const coShellPrefix = "co-shell"
 
-// DetectCoShells finds co-shell executables in the current working directory
-// and on PATH. It scans every executable whose file name starts with
-// "co-shell" (including versioned names like co-shell-0.44.0.darwin.arm64),
-// verifies each candidate by running "--version" (only real co-shell binaries
-// are listed), and returns them in priority order (cwd first).
+// DetectCoShells finds co-shell executables in the current working directory,
+// on PATH, and next to the hub executable itself. It scans every executable
+// whose file name starts with "co-shell" (including versioned names like
+// co-shell-0.44.0.darwin.arm64), verifies each candidate by running
+// "--version" (only real co-shell binaries are listed), and returns them in
+// priority order (cwd, then PATH, then the hub's own directory).
 func DetectCoShells() []coShellInfo {
 	var out []coShellInfo
 	seen := map[string]bool{}
@@ -82,7 +83,29 @@ func DetectCoShells() []coShellInfo {
 			add(p, "path")
 		}
 	}
+	// Hub's own directory: managed agents are launched with the co-shell that
+	// sits next to this binary (see defaultCoShellPath), so expose that copy
+	// too. Scanned last so existing CWD/PATH candidates keep their precedence.
+	if dir, err := hubDir(); err == nil {
+		for _, p := range coShellCandidates(dir) {
+			add(p, "hubdir")
+		}
+	}
 	return out
+}
+
+// hubDir returns the directory holding the running hub executable, resolving
+// symlinks so a linked launcher still maps to the real install directory.
+func hubDir() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(exe)
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	return dir, nil
 }
 
 // coShellCandidates returns the paths of executable files in dir whose name
