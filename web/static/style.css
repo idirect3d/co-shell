@@ -18,6 +18,12 @@
   --err: #f87171;
   --debug: #6b7280;
   --glow: 0 0 6px rgba(63, 214, 239, 0.55);
+  /* FEATURE-522: main message area body text colours. .ev-body text reads these
+     instead of --fg / --fg-dim directly, so a theme can dim only the message
+     area text while the workspace panel and topbar keep --fg. Defaults to the
+     theme's own --fg / --fg-dim, so every existing theme is unchanged. */
+  --ev-body-fg: var(--fg);
+  --ev-body-fg-dim: var(--fg-dim);
 }
 
 /* FEATURE-477: original light theme (pre-FEATURE-476). Pure CSS-variable
@@ -103,6 +109,19 @@
 }
 [data-theme="light-tp"] #sidebar .tree {
   background: var(--ws-tree-bg);
+}
+
+/* FEATURE-522: dark-muted = the dark palette (inherited from :root, i.e. no
+   palette variable is redefined here, so the workspace panel and topbar stay
+   byte-for-byte identical to dark) with the main message area body text dimmed.
+   Only .ev-body text is lowered; block title bars, warning/error colours and
+   the supervisor block keep their dark values.
+   #a9b1c1 ≈8.7:1 and #7b8395 ≈4.9:1 on --bg-panel #10141d (dark ≈13.5:1 and
+   ≈6.1:1), i.e. the bright near-white body text is softened noticeably while
+   staying comfortably readable. */
+[data-theme="dark-muted"] {
+  --ev-body-fg: #a9b1c1;
+  --ev-body-fg-dim: #7b8395;
 }
 
 /* FEATURE-477: paper = warm paper/ink palette for eye comfort. The background
@@ -899,6 +918,8 @@ aside {
   font-size: 13px;
   white-space: pre-wrap;
   word-break: break-word;
+  /* FEATURE-522: var-driven body text colour so dark-muted can dim it. */
+  color: var(--ev-body-fg);
 }
 
 /* ---------- markdown rendering (FEATURE-362) ---------- */
@@ -914,7 +935,7 @@ aside {
 }
 .ev-body.md h3 { font-size: 15px; }
 .ev-body.md h4 { font-size: 14px; }
-.ev-body.md h5, .ev-body.md h6 { font-size: 13px; color: var(--fg-dim); }
+.ev-body.md h5, .ev-body.md h6 { font-size: 13px; color: var(--ev-body-fg-dim); }
 .ev-body.md pre {
   margin: 6px 0;
   padding: 8px 10px;
@@ -939,7 +960,7 @@ aside {
   margin: 6px 0;
   padding: 2px 0 2px 10px;
   border-left: 3px solid var(--border);
-  color: var(--fg-dim);
+  color: var(--ev-body-fg-dim);
 }
 .ev-body.md table { border-collapse: collapse; margin: 6px 0; }
 .ev-body.md th, .ev-body.md td {
@@ -957,7 +978,7 @@ aside {
 .ev.llm .ev-body { background: var(--mono-bg); }
 
 .ev.thinking { opacity: 0.75; }
-.ev.thinking .ev-body { color: var(--fg-dim); font-style: italic; }
+.ev.thinking .ev-body { color: var(--ev-body-fg-dim); font-style: italic; }
 /* FEATURE-515: THINK bodies are height-capped (200px, the same limit as the
    TOOL input-params sub-block) and scroll internally; the title-bar toggle
    (⤢/⤡) expands the block to full height. */

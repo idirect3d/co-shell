@@ -829,10 +829,10 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 // logoThemeFromParam validates a theme query/path value
-// (dark|light|light-tp|paper) and returns it, or "" when invalid
-// (FEATURE-477).
+// (dark|dark-muted|light|light-tp|paper) and returns it, or "" when invalid
+// (FEATURE-477/522).
 func logoThemeFromParam(v string) string {
-	if v == "dark" || v == "light" || v == "light-tp" || v == "paper" {
+	if v == "dark" || v == "dark-muted" || v == "light" || v == "light-tp" || v == "paper" {
 		return v
 	}
 	return ""
@@ -853,7 +853,7 @@ func (s *Server) logoPath(theme string) string {
 func (s *Server) handleLogoUpload(w http.ResponseWriter, r *http.Request) {
 	theme := logoThemeFromParam(r.FormValue("theme"))
 	if theme == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light|light-tp|paper)"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|dark-muted|light|light-tp|paper)"})
 		return
 	}
 	if err := r.ParseMultipartForm(maxUploadFileSize); err != nil {
@@ -895,7 +895,7 @@ func (s *Server) handleLogoUpload(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogoRemove(w http.ResponseWriter, r *http.Request) {
 	theme := logoThemeFromParam(r.URL.Query().Get("theme"))
 	if theme == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|light|light-tp|paper)"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid theme (dark|dark-muted|light|light-tp|paper)"})
 		return
 	}
 	_ = os.Remove(s.logoPath(theme))
