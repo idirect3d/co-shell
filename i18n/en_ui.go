@@ -66,6 +66,8 @@ Node shape:
 
 Component catalog:
 - card: container. props{title?, subtitle?, icon?}
+- row: layout container; children are laid out horizontally (they stack vertically on narrow screens). props{gap?} (spacing in px). Use it for side-by-side sections; rows can nest.
+- col: layout container; one column inside a row, stacking several components vertically. props{flex?} (growth weight, equal shares by default).
 - kv: key/value list. props{items:[{k, v}]}
 - table: table. props{columns:[{key, label?, align?, width?}], rows:[{columnKey: value}]}
 - chart: chart. props{kind:"bar"|"line"|"pie", unit?, series:[{name, data:[{label, value}]}]}
@@ -82,6 +84,7 @@ Rules:
 3. A tree may nest at most %d levels and hold at most %d nodes; a single node's props must stay under %d bytes.
 4. To let the user click a data point and drill deeper, declare actions:[{on:"select", id:"drill", payload:"point"}] on that node.
 5. Component trees in the history are compressed into a summary, so never put critical data only inside a component without also stating it in your reply text.
+6. For a left/right layout, split with row and wrap each child in a col, e.g. row{children:[col(steps), col(card with icon, form)]} (steps on the left; icon above the form on the right). Narrow screens stack the columns automatically.
 
 Usage:
 <{XML_TAG_PREFIX}render_ui>

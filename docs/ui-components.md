@@ -67,11 +67,13 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
   已有一次等待在挂起时，第二次 `waiting` 调用降级为普通回执，避免争抢同一动作
   （`agent/beginUIWait`）。
 
-## 5. 组件目录（10 个）
+## 5. 组件目录（12 个）
 
 | type | 关键 props | 说明 |
 | --- | --- | --- |
 | `card` | `title?`, `subtitle?`, `icon?` | 容器；承载标题栏与子节点 |
+| `row` | `gap?`（间距 px） | **布局容器**；子节点横向排列，窄屏自动堆叠为单列，可嵌套 |
+| `col` | `flex?`（占比权重，默认均分） | **布局容器**；row 内的一列，用于在单列里纵向堆叠多个组件 |
 | `kv` | `items: [{k, v}]` | 键值明细（适合"要点/参数"紧凑展示） |
 | `callout` | `variant: info\|warn\|success\|error`, `title?`, `text` | 提示块；用于结论与告警 |
 | `progress` | `value`, `max?`, `label?` | 进度条 |
@@ -82,7 +84,21 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
 | `form` | `title?`, `fields: [{name, label, type, options?, value?}]`, `submit` | 表单；提交后开启新一轮回合 |
 | `html` | `content` | **逃生舱**，沙箱 iframe 内运行（见 §6） |
 
-新增组件 = 在 `web/static/ui.js`（或 `ui-chart.js`/`ui-form.js`）里
+**两栅版式例**（左流程 / 右上图标 + 右下表单）：
+
+```json
+{"type":"row","props":{"gap":12},"children":[
+  {"type":"col","props":{"flex":2},"children":[{"type":"steps","props":{"items":[…]}}]},
+  {"type":"col","children":[
+    {"type":"card","props":{"icon":"👤","title":"用户信息"}},
+    {"type":"form","props":{"title":"登记","fields":[…]},"actions":[{"on":"submit","id":"save"}]}
+  ]}
+]}
+```
+
+窄屏（每列不足 220px）时 row 自动变为上下堆叠，无需额外声明。
+
+新增组件 = 在 `web/static/ui.js`（或 `ui-chart.js`/`ui-form.js`/`ui-layout.js`）里
 `UI.register("name", {render(node, ctx)})`。协议、Go 校验与 agent 主循环**无需改动**；
 未注册类型在前端优雅降级为原始 JSON 文本块。
 
@@ -90,7 +106,7 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
 
 ### 6.1 声明式组件：不做 HTML 拼接
 
-`ui.js` / `ui-chart.js` / `ui-form.js` 与 `md.js` 遵守同一条铁律：**永不赋值 innerHTML，
+`ui.js` / `ui-chart.js` / `ui-form.js` / `ui-layout.js` 与 `md.js` 遵守同一条铁律：**永不赋值 innerHTML，
 永不用字符串拼 HTML**。所有元素用 `document.createElement` 创建，所有动态字符串经
 `textContent` 落地。因此 LLM 写出 `<img onerror=...>` 时，它在页面上只是**字面文本**，
 不会产生任何 DOM。属性（如 `href`、`style`）都由组件实现自行赋值，不接受 LLM 传来的

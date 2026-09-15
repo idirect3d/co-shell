@@ -66,6 +66,8 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 
 组件清单:
 - card: 容器。props{title?, subtitle?, icon?}
+- row: 布局容器，children 横向排列（窄屏自动堆叠为单列）。props{gap?}（间距，px）。用于并排分区，可嵌套。
+- col: 布局容器，row 里的一列，纵向堆叠多个组件。props{flex?}（占比权重，默认各列等分）。
 - kv: 键值列表。props{items:[{k, v}]}
 - table: 表格。props{columns:[{key, label?, align?, width?}], rows:[{列key: 值}]}
 - chart: 图表。props{kind:"bar"|"line"|"pie", unit?, series:[{name, data:[{label, value}]}]}
@@ -82,6 +84,7 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 3. 组件树最多嵌套 %d 层、最多 %d 个节点；单个节点 props 不超过 %d 字节。
 4. 需要用户点击某个数据点继续深入时，在该节点上声明 actions:[{on:"select", id:"drill", payload:"point"}]。
 5. 渲染历史中的组件树会被压缩为摘要，因此不要把关键数据只放在组件里而不写进你的回复文本。
+6. 需要「左栏 + 右栏」版式时用 row 分栏：row 的每个 child 建议用 col 包裹，例如 row{children:[col(steps 流程), col(card 图标, form 表单)]}（左栏流程、右栏上方图标下方表单）；窄屏会自动变为上下堆叠。
 
 用法:
 <{XML_TAG_PREFIX}render_ui>
