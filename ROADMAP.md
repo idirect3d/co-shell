@@ -4,11 +4,11 @@
 
 ---
 
-## v0.61.0 — 开发中
+## v0.61.0 — 已完成
 
 > **版本**: v0.61.0
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成
 > **里程碑**: hub “使用最新版本”co-shell 自动选版
 > **说明**: hub 设置 Agent 时，co-shell 可执行程序下拉列表新增“使用最新版本”选项；选中后每次启动该 Agent 都重新扫描搜索路径，选取“hub 同目录优先、其余路径取全局最大版本”的可执行程序运行。
 
@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FEATURE-527 | 0.61.0 | P2 | hub “使用最新版本”co-shell 选项：新建/修改 Agent 下拉新增该选项，启动 Agent 时实时扫描搜索路径并选取最高版本可执行程序 |
 
-> 当前 BUILD: 1050
+> 当前 BUILD: 1051
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-527 hub “使用最新版本”co-shell 选项**
+- [x] **FEATURE-527 hub “使用最新版本”co-shell 选项** [BUILD-1051]
   - 需求（用户确认）：
     1. 创建 Agent 与 Agent 设置（修改）两个表单的 co-shell 可执行程序下拉列表中，新增“使用最新版本”选项。
     2. 选中该选项时，每次启动该 Agent 都重新扫描搜索路径，定位最高版本的 co-shell 可执行程序后运行（不缓存、不固定路径）。
@@ -31,12 +31,13 @@
     - 生效范围：创建 Agent 表单 + Agent 设置（修改）表单。
     - 全部搜索路径均无可用 co-shell 时：启动失败并如实报错（不静默回退）。
   - 用例：`use-case/FEATURE-527/FEATURE-527-UC-*.md`
-  - 实施（BUILD-1050，待用户确认）：
+  - 实施（BUILD-1050，合并于 BUILD-1051）：
     1. `hub/gateway/detect.go`：新增 `CoShellLatest = "latest"` 哨兵、`ResolveLatestCoShell()` 与可注入路径的 `resolveLatestCoShell(hubDir, cwd, pathDirs)`；选版规则为「hub 同目录存在可用 co-shell 则取其中最高版本，否则在 cwd + PATH 全部候选中取全局最高」；版本比较按 `major.minor.patch` **数值**比较（非字符串）。
     2. `hub/gateway/manager.go`：`Manager.Start()` 识别 `latest`，**每次启动**实时解析；解析失败直接返回错误（agent 不启动、不回退）。
     3. `hub/gateway/webui.go`：`/api/agents` 对 `latest` agent 不再误报 hub 默认版本（version 留空）。
     4. `hub/gateway/webui_static.go`：新建与修改表单下拉新增「使用最新版本（启动时自动搜索）」（新建表单置于首位但默认仍选中第一个候选；修改表单紧随「默认（沿用 hub 配置）」）；选中 latest 时版本提示为「启动时自动搜索最高版本 co-shell」且不再请求 `/api/agent-version?path=latest`；修复 latest 被重复追加为「当前值」的问题。
     5. 版本号：`main.go` / `cmd/co-shell-hub/main.go` → v0.61.0，BUILD-1050；产物 `work/co-shell-0.61.0.darwin.arm64`、`work/co-shell-hub-0.61.0.darwin.arm64`。
+  - 用户确认：2026-09-16 测试通过，同意合并（工作流 /merge）。
   - 验证：
     1. `go build ./... && go vet ./...`（主模块 + hub 模块）一次执行通过；`go test ./hub/gateway/` 全绿（含新增 `TestResolveLatestCoShell` / `TestCompareCoShellVersion`，6 个子用例全 PASS）。
     2. 隔离实例端到端（/tmp/feat527，独立端口）：hub 同目录优先（0.50.0 胜过 PATH 的 0.61.0）、同目录多版本取最大、同目录无候选时取全局最大、数值比较（0.10.0 > 0.9.0）、重启后重新扫描（新增 0.70.0 被采用）、全部路径无候选时 `POST /start` 返回 400 + `no usable co-shell executable found ...`（agent 未启动）、默认（空 co_shell）不走 latest 解析 —— 全部 PASS。验证脚本：`tmp/feat527-e2e.sh`。
