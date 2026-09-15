@@ -4,6 +4,50 @@
 
 ---
 
+## v0.59.1 — 开发中
+
+> **版本**: v0.59.1
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub 配置界面的 co-shell 可执行文件下拉「每次进入都重新扫描」
+> **说明**: hub Web UI 的 co-shell 候选列表被**前端缓存**——新建表单 `defaultsLoaded` 整个页面生命周期只拉取一次、修改表单 `coShellsCache` 命中后不再请求，于是用户把新编译的 co-shell 复制到被扫描目录（cwd / PATH / hub 同目录）后，不重启 hub、不刷新页面就在下拉里选不到新版本。本版本让两个表单在**每次进入时**重新探测并刷新下拉。后端 `DetectCoShells()` 本就每次请求都重新扫描目录并逐个执行 `--version` 校验（无缓存），因此无需后端改动。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-525 | 0.59.1 | P2 | hub 配置界面（新建 / 修改 Agent）每次进入时重新探测 co-shell 可执行文件并刷新下拉列表，新复制的程序无需重启 hub 即可选择 |
+
+> 当前 BUILD: 1046
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-525 hub 配置界面 co-shell 下拉每次进入重新扫描** [BUILD-1046]
+  - 需求（用户确认）：
+    1. 进入配置界面时（**新建**、**修改** Agent 两个入口）都重新搜索一遍 co-shell 可执行文件并刷新下拉列表；用户把新复制/新编译的程序放进被搜索路径后，无需重启 hub 即可选择。
+    2. **不额外增加手动「刷新」按钮**（仅进入表单时自动重扫）。
+    3. 归属版本 **v0.59.1**（FIX，patch+1）；任务号 **FIX-525**；分支 `FIX-525`。
+  - 根因：纯前端缓存（后端无缓存）。
+    - 新建表单：`hub/gateway/webui_static.go` 的 `manageBtn.onclick` 里 `if (!defaultsLoaded) loadDefaults();`，只拉取一次 `/api/agent-defaults`。
+    - 修改表单：`loadCoShellOptions()` 命中 `coShellsCache` 后直接回调，不再请求后端。
+  - 方案（实际实施，只改前端 `hub/gateway/webui_static.go`，后端 `DetectCoShells()` 本就每次重扫、无需改动）：
+    1. 新建表单：`manageBtn.onclick` 去掉 `if (!defaultsLoaded) loadDefaults()` 一次性门控，改为**每次进入都** `loadDefaults()`（GET `/api/agent-defaults`）；`defaultsLoaded` 变量随之删除。重填前记录 `#m-coshell` 当前选中值，重填后仍被探测到时恢复选中；Workspace / ID / 端口仍只在为空时填充。
+    2. 修改表单：`loadCoShellOptions()` 去掉 `if (coShellsCache){ cb(); return; }` 短路，改为**每次进入都**请求轻量端点 GET `/api/co-shell-locations`（用户选定：只重扫可执行文件，不重算 config 候选）；请求失败（`st >= 400`）时保留上一次候选列表，不下拉清空。
+    3. 不新增手动「刷新」按钮（用户确认）。
+  - 用例：`use-case/FIX-525/FIX-525-UC-0001.md`
+  - 验证（BUILD-1046，隔离实例 `/tmp/fix525`：hub 同目录无候选启动，restricted PATH，端口 12921/12920，页面全程不刷新）：
+    1. **UC-0001/UC-0002（核心）**：页面打开后向 hub 同目录拷入 `co-shell-0.59.1-A`，重进新建表单下拉即出现 `/private/tmp/fix525/bin/co-shell-0.59.1-A（hub 同目录）  (v0.59.0)` 且自动选中、版本提示 `v0.59.0 [BUILD-1045]`；再拷入 `co-shell-0.59.0-C` 后重进修改表单（agent-1）下拉同步出现该项，原配置值 A 仍保持选中。
+    2. **UC-0003（重扫粒度为「进入」）**：钩 `window.fetch` 计数——连续进入新建表单 3 次 → `/api/agent-defaults` 恰好 **3 次**（修复前恒为 1）；连续进入修改表单 3 次 → `/api/co-shell-locations` 恰好 **3 次**（修复前恒为 0，被 `coShellsCache` 短路）。
+    3. **UC-0004/UC-0005（不覆盖用户输入）**：手填 Workspace `/tmp/fix525/manual-ws`、端口 `28599`，选中**非首项** A 后重进表单，三者均保持不变。
+    4. **UC-0006（FIX-521 不回归）**：把 agent 的 co-shell 设为 C 并保存（注册表 `co_shell` = C），删除 C 后重进修改表单 → 选项仍含 `…/co-shell-0.59.0-C  （当前值）` 且选中；再次保存后注册表仍为 C（未被静默清空）。
+    5. **UC-0007/UC-0008**：删除 B 后重进下拉即消失、放回 C 后即出现；无任何候选时新建表单显示 `未找到 co-shell，请放到 hub 同目录、当前目录或 PATH`。全程 `window.onerror` 与 console 无 `Uncaught`。
+    6. **UC-0009/UC-0010（回归）**：外部（远程）Agent `remote-1` 修改界面中 `#d-coshell.disabled === true`、所在 `.field` 带 `disabled`（主机地址可编、Workspace 置灰）；`#viewConfig`/`#viewDetail` 内不存在任何「刷新」按钮或刷新文案。
+    7. **UC-0012（降级）**：把 `/api/co-shell-locations` 改写为 500 响应后重进修改表单，下拉仍为上一次列表（`["", A, C（当前值）]`）且选中不变，无 JS 报错。
+    8. **UC-0013（端点一致）**：`/api/co-shell-locations` 与 `/api/agent-defaults` 的 `co_shells` 逐项相同，后者仍带 `default_workspace`/`default_id`/`config_candidates`/`recommended_port`。
+    9. **UC-0011（静态）**：`grep defaultsLoaded hub/gateway/webui_static.go` 无匹配；`co-shell-locations` 仅出现在修改表单重扫处；反引号计数 = 2；内嵌 JS 经 `node --check` 通过；根模块与 hub 模块 `go build ./... && go vet ./...` 全绿。
+
+---
+
 ## v0.59.0 — 开发中
 
 > **版本**: v0.59.0
