@@ -3656,6 +3656,13 @@ select,
 .ui-card-subtitle { margin-top: 2px; font-size: 12px; color: var(--ev-body-fg-dim); }
 .ui-card-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
 
+/* Stage 5 layout containers: row splits its children horizontally, col is one
+   column of a row. Children wrap into a single column on narrow screens
+   (220px minimum basis) instead of overflowing the block. */
+.ui-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.ui-row > * { flex: 1 1 220px; min-width: 0; }
+.ui-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
 /* kv: key/value list */
 .ui-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; }
 .ui-kv-k { color: var(--ev-body-fg-dim); }

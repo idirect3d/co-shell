@@ -35,6 +35,8 @@ const (
 	UICompFile     = "file"     // file card with open/reveal
 	UICompForm     = "form"     // form with buttons/selects/inputs
 	UICompHTML     = "html"     // sandboxed HTML escape hatch
+	UICompRow      = "row"      // horizontal layout container
+	UICompCol      = "col"      // one vertical column inside a row
 )
 
 // Tree limits. They bound memory, layout cost and (most importantly) how
@@ -70,11 +72,13 @@ var uiComponentTypes = []string{
 	UICompCallout,
 	UICompCard,
 	UICompChart,
+	UICompCol,
 	UICompFile,
 	UICompForm,
 	UICompHTML,
 	UICompKV,
 	UICompProgress,
+	UICompRow,
 	UICompSteps,
 	UICompTable,
 }

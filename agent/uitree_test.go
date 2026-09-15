@@ -151,3 +151,47 @@ func TestUIUC05DecodeErrors(t *testing.T) {
 		t.Fatal("malformed JSON must be rejected")
 	}
 }
+
+// UC-45: layout containers (row / col) are accepted, nest, and stay inside the
+// existing depth guard (FEATURE-524 Stage 5).
+func TestUIRowColLayoutContainers(t *testing.T) {
+	const tree = `{"type":"row","props":{"gap":12},"children":[` +
+		`{"type":"col","props":{"flex":2},"children":[{"type":"steps"}]},` +
+		`{"type":"col","children":[` +
+		`{"type":"card","props":{"icon":"u","title":"user info"}},` +
+		`{"type":"form","props":{"title":"signup"},"actions":[{"on":"submit","id":"save"}]}` +
+		`]}]}`
+
+	root, err := ParseUITree(tree)
+	if err != nil {
+		t.Fatalf("UC-45: row/col layout tree rejected: %v", err)
+	}
+	if root.Type != UICompRow {
+		t.Fatalf("UC-45: root type = %q, want %q", root.Type, UICompRow)
+	}
+	if got := CountUINodes(root); got != 6 {
+		t.Fatalf("UC-45: node count = %d, want 6", got)
+	}
+	for _, typ := range []string{UICompRow, UICompCol} {
+		if !UIComponentTypeSupported(typ) {
+			t.Fatalf("UC-45: component %q must be registered", typ)
+		}
+		if !strings.Contains(UIComponentCatalog(), typ) {
+			t.Fatalf("UC-45: catalogue %q must list %q", UIComponentCatalog(), typ)
+		}
+	}
+
+	// Rows nest (a row inside a col, e.g. a grid of columns) ...
+	if _, err := ParseUITree(`{"type":"col","children":[{"type":"row","children":[{"type":"kv"}]}]}`); err != nil {
+		t.Fatalf("UC-45: nested row rejected: %v", err)
+	}
+
+	// ... but the depth guard still applies to layout containers.
+	deep := `{"type":"kv"}`
+	for i := 0; i < UIMaxTreeDepth; i++ {
+		deep = `{"type":"row","children":[` + deep + `]}`
+	}
+	if _, err := ParseUITree(deep); err == nil {
+		t.Fatalf("UC-45: depth %d must be rejected for row containers", UIMaxTreeDepth+1)
+	}
+}
