@@ -280,6 +280,178 @@
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // Stage 2 components: table / steps / file
+  // ---------------------------------------------------------------------------
+
+  // alignClass maps a column's align prop to the alignment class.
+  function alignClass(align) {
+    if (align === "right") return "ui-align-right";
+    if (align === "center") return "ui-align-center";
+    return "";
+  }
+
+  // tableCell renders one cell: the value is a scalar, or an object {v, status}
+  // whose status (ok|warn|err) tints the cell. Any other status is ignored so a
+  // hostile value cannot inject a class name.
+  function tableCell(row, col) {
+    var raw = row[col.key];
+    var status = "";
+    var text;
+    if (raw && typeof raw === "object") {
+      if (["ok", "warn", "err"].indexOf(raw.status) >= 0) status = raw.status;
+      text = str(raw.v);
+    } else {
+      text = str(raw);
+    }
+    var cls = [alignClass(col.align), status ? "ui-td-status ui-td-" + status : ""].filter(Boolean).join(" ");
+    return el("td", cls, text);
+  }
+
+  // table renders tabular data with a header row. An empty row list renders a
+  // dedicated empty state instead of an empty tbody (UC-18).
+  register("table", {
+    children: false,
+    render: function (node) {
+      var p = node.props;
+      var cols = Array.isArray(p.columns) ? p.columns.slice() : [];
+      var rows = Array.isArray(p.rows) ? p.rows : [];
+      var box = el("div", "ui-table-wrap");
+      if (!rows.length) {
+        box.appendChild(el("div", "ui-empty", uiText("暂无数据", "No data")));
+        return box;
+      }
+      // No column declaration: derive them from the first row's keys.
+      if (!cols.length && rows[0] && typeof rows[0] === "object") {
+        cols = Object.keys(rows[0]).map(function (k) { return { key: k }; });
+      }
+      var table = el("table", "ui-table");
+      var thead = document.createElement("thead");
+      var headRow = document.createElement("tr");
+      for (var i = 0; i < cols.length; i++) {
+        var c = cols[i] || {};
+        var label = c.label === undefined || c.label === null ? str(c.key) : str(c.label);
+        var th = el("th", alignClass(c.align), label);
+        if (c.width) th.style.width = typeof c.width === "number" ? c.width + "px" : String(c.width);
+        headRow.appendChild(th);
+      }
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      var tbody = document.createElement("tbody");
+      for (var r = 0; r < rows.length; r++) {
+        var tr = document.createElement("tr");
+        for (var k = 0; k < cols.length; k++) tr.appendChild(tableCell(rows[r] || {}, cols[k] || {}));
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      box.appendChild(table);
+      return box;
+    }
+  });
+
+  // steps renders a vertical timeline; status (done|active|pending) drives the
+  // dot styling and whether a connector line segment is drawn.
+  register("steps", {
+    children: false,
+    render: function (node) {
+      var items = Array.isArray(node.props.items) ? node.props.items : [];
+      var list = el("ol", "ui-steps");
+      if (!items.length) {
+        list.appendChild(el("li", "ui-empty", uiText("暂无步骤", "No steps")));
+        return list;
+      }
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i] && typeof items[i] === "object" ? items[i] : {};
+        var st = ["done", "active", "pending"].indexOf(it.status) >= 0 ? it.status : "pending";
+        var li = el("li", "ui-step ui-step-" + st);
+        li.appendChild(el("span", "ui-step-dot", st === "done" ? "\u2713" : ""));
+        var bodyEl = el("div", "ui-step-body");
+        bodyEl.appendChild(el("div", "ui-step-title", str(it.title)));
+        var desc = str(it.desc);
+        if (desc) bodyEl.appendChild(el("div", "ui-step-desc", desc));
+        li.appendChild(bodyEl);
+        list.appendChild(li);
+      }
+      return list;
+    }
+  });
+
+  // basename returns the last path segment.
+  function basename(p) {
+    var s = String(p || "");
+    var i = s.lastIndexOf("/");
+    return i >= 0 ? s.slice(i + 1) : s;
+  }
+
+  // safeWorkspacePath rejects absolute paths and any ".." segment: a file card
+  // must never point outside the workspace (UC-25).
+  function safeWorkspacePath(p) {
+    var s = String(p || "").replace(/\\/g, "/").trim();
+    if (!s || s.charAt(0) === "/" || /^[a-zA-Z]:/.test(s)) return null;
+    var parts = s.split("/");
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === "..") return null;
+    }
+    return s;
+  }
+
+  // fmtBytes renders a byte count as a human size; an already formatted size
+  // string passes through unchanged.
+  function fmtBytes(size) {
+    if (size === undefined || size === null || size === "") return "";
+    if (typeof size === "string" && !/^[0-9.]+$/.test(size)) return size;
+    var n = typeof size === "number" ? size : parseFloat(size);
+    if (!isFinite(n) || n < 0) return "";
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+    return (n / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  // fileActionButton builds one open/reveal button reusing the app.js
+  // postPath helper (the same endpoints the workspace tree uses).
+  function fileActionButton(label, path, endpoint, ghost) {
+    var b = document.createElement("button");
+    b.className = "btn sm" + (ghost ? " ghost" : "");
+    b.textContent = label;
+    b.title = label;
+    b.onclick = function (e) {
+      e.stopPropagation();
+      if (typeof global.postPath === "function") global.postPath(endpoint, path);
+    };
+    return b;
+  }
+
+  // file renders a file card with open/reveal actions. A path that escapes the
+  // workspace degrades to plain text and never gets action buttons.
+  register("file", {
+    children: false,
+    render: function (node) {
+      var p = node.props;
+      var path = str(p.path);
+      var safe = safeWorkspacePath(path);
+      var box = el("div", "ui-file");
+      box.appendChild(el("span", "ui-file-icon", "\uD83D\uDCC4"));
+      var meta = el("div", "ui-file-meta");
+      meta.appendChild(el("div", "ui-file-name", str(p.name) || basename(path)));
+      meta.appendChild(el("div", "ui-file-path", path));
+      box.appendChild(meta);
+      var size = fmtBytes(p.size);
+      if (size) box.appendChild(el("span", "ui-file-size", size));
+      if (!safe) {
+        meta.appendChild(el("div", "ui-file-rejected", uiText(
+          "路径超出工作区，已降级为纯文本展示。",
+          "Path is outside the workspace; showing plain text only."
+        )));
+        return box;
+      }
+      var actions = el("div", "ui-file-actions");
+      actions.appendChild(fileActionButton(uiText("打开", "Open"), safe, "api/open", false));
+      actions.appendChild(fileActionButton(uiText("定位", "Reveal"), safe, "api/reveal", true));
+      box.appendChild(actions);
+      return box;
+    }
+  });
+
   global.UI = {
     version: "1",
     register: register,
@@ -287,6 +459,9 @@
     types: registeredTypes,
     renderTree: renderTree,
     updateTree: updateTree,
-    findByUIID: findByUIID
+    findByUIID: findByUIID,
+    // t/fmtBytes are shared with ui-chart.js (loaded after this file).
+    t: uiText,
+    fmtBytes: fmtBytes
   };
 })(window);

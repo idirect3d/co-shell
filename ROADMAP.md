@@ -54,6 +54,7 @@
     - 已知非本次引入的失败：`cmd` 包 `TestSettingsJSONFillsDefaults` 报 `setting "logo" has empty Default`（`cmd/settings_web.go:114` 定义处即无 Default），与 FEATURE-524 无关，待单独修复。
     - 待办：Stage 2 数据展示（table/chart/steps/file）、Stage 3 交互与原地更新（form/ui_action/waiting）、Stage 4 逃生舱与治理（html 沙箱/CSP/上下文裁剪落地）。
     - FIX [BUILD-1027]：`ui` 块未纳入显示模式可见性规则——静默模式下被 `display:none` 隐藏、精简模式下被折叠，导致用户「看不到新特性」（切到正常模式才可见）。新增 `isResultLikeBlock(box, cls)`（`ev-result` 或 `cls === "ui"`），`applyBlockDisplayMode` 与 `applyDisplayMode` 两处共用，使 LLM 组件树与最终结果块同等待遇。已验证：静默/精简下块可见且展开、普通 tool 块仍被隐藏（无回归）、模式切换重套用正常。
+    - Stage 2 [BUILD-1029]：数据展示组件完成——`web/static/ui-chart.js`（手写 SVG：柱/折线/饼 + 坐标轴/网格/图例/响应式 viewBox/主题色经 `--c` 变量注入；数据点带 `data-point-*` 供 Stage 3 钻取）、`table`（列对齐/单元格状态色/空态 i18n）、`steps`（done/active/pending + 连接线）、`file`（打开/定位复用 `/api/open`、`/api/reveal`；路径逃逸降级为纯文本且不给按钮）。实测 UC-17~UC-25 全部通过：柱高比例 0.5±3%、饼图扇区角 36/72/108/144±2°、全 0 与负值无 NaN、超长分类名截断+tooltip 且不溢出、逃逸路径 0 按钮+告警。期间修两处缺陷：①图表容器类名与 `.ui-chart-bar` 撞车（每图多出 1 个「假柱子」）；②表格对齐/状态色被 `.ui-table td` 基础规则按 CSS 特异性压过。
 
 ---
 
