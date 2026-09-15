@@ -2399,6 +2399,9 @@ button.qs-kbd:active { transform: translateY(1px); }
 .settings-nav-icon .ico { width: 15px; height: 15px; vertical-align: middle; }
 .sb-last-ico .ico { width: 13px; height: 13px; vertical-align: -0.15em; }
 .ico-inline { width: 12px; height: 12px; vertical-align: -0.12em; }
+/* FEATURE-526: the thinking-depth bulb carries a letter inside the glass, so it
+   needs more room than a plain capability mark to stay readable. */
+.ico-think { width: 16px; height: 16px; vertical-align: -0.24em; }
 .settings-nav-label {
   flex: 1;
   min-width: 0;
@@ -2821,7 +2824,22 @@ button.qs-kbd:active { transform: translateY(1px); }
 }
 .model-info { min-width: 0; flex: 1; text-align: left; }
 .model-id { font-weight: 600; color: var(--fg); font-size: 13px; }
-.model-meta { color: var(--fg-dim); font-size: 11.5px; margin-top: 2px; }
+/* FEATURE-526: the meta line is a flex row so the max context length
+   appended at its end sticks to the right edge of the line. */
+.model-meta {
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.model-meta .model-ctx {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
 /* FEATURE-449: a second meta line showing the model's endpoint URL. */
 .model-url {
   color: var(--fg-faint);
