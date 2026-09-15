@@ -128,7 +128,6 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		return srv.sendRaw(data)
 	})
 
-
 	srv.SetMessageHandler(sess.handleMessage)
 	srv.SetDisconnectHook(sess.wio.failAll)
 	srv.SetPlanProvider(sess.currentPlanJSON)
@@ -164,6 +163,22 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		// is that call's result and the agent continues in the same turn;
 		// otherwise it starts a fresh turn as described above.
 		if s.ag.SubmitUIAction(msg.UIID, msg.UIActionID, msg.Payload) {
+			return
+		}
+		// FEATURE-524 window mode (Q3-A): while a turn is running, the action is
+		// injected into that turn -- the agent sees it before its next LLM call --
+		// instead of starting a new one, so a window stays interactive while the
+		// agent keeps working. The dynamic queue survives a turn boundary: an
+		// action that arrives just as the turn ends is injected at the start of
+		// the next turn instead of being lost.
+		if s.ag.IsBusy() {
+			// A blocking action that finds no parked wait cannot be returned as a
+			// tool result. It degrades to the non-blocking path on purpose: better
+			// an immediate in-turn delivery than hanging until the wait deadline.
+			if msg.Blocking {
+				log.Warn("session: blocking ui_action %q/%q has no parked wait; injected into the running turn", msg.UIID, msg.UIActionID)
+			}
+			s.ag.AddDynamicEvent(agent.DynamicUIAction, agent.UIActionMessage(msg.UIID, msg.UIActionID, msg.Payload))
 			return
 		}
 		select {
@@ -388,6 +403,7 @@ func (s *WebSession) handleMCPTest(name string) {
 	s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: true, Message: name})
 	s.handleMCPGet()
 }
+
 // browser (FEATURE-393).
 func (s *WebSession) handleIdentityGet() {
 	if s.settings == nil {

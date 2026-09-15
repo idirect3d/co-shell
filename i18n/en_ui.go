@@ -47,6 +47,44 @@ func init() {
 
 	enMessages[KeyUINoRenderer] = `The current interface cannot render UI components; output was degraded to text.`
 
+	enMessages[KeyUIToolParamTarget] = `Optional string: the render target. stream (default) paints into the chat stream; window paints into the persistent window opened by ui_window (its content can be refreshed in place with update, and it outlives the turn).`
+
+	enMessages[KeyUIErrTarget] = `The target parameter of render_ui only accepts "stream" or "window"; got "%s".`
+
+	enMessages[KeyUIWindowDefaultTitle] = `Task window`
+
+	enMessages[KeyUIWindowOpenSummary] = `Opened the UI window "%s"; an already open window is reused, and its content is written or refreshed with render_ui(target="window").`
+
+	enMessages[KeyUIWindowCloseSummary] = `Closed the UI window.`
+
+	enMessages[KeyUIErrWindowAction] = `The action parameter of ui_window only accepts "open" or "close"; got "%s".`
+
+	enMessages[KeyUIErrWindowTitle] = `The ui_window title exceeds the length limit (%d characters); please shorten it.`
+
+	enMessages[KeyUIToolParamWindowTitle] = `Optional string: the window title (open only; defaults to "Task window").`
+
+	enMessages[KeyUIToolUsageUIWindow] = `## ui_window
+Description: Open or close a persistent floating window (not a block inside the chat stream). Once open, you can render a component tree into it with render_ui(target="window"), keep working in the background and push intermediate results into the same window with render_ui(target="window", update="<id>"). The window stays open after the turn ends until you close it or the user clicks its close button. Use it for continuously updated panels: progress boards, intermediate results of a long task, or a form the user fills in and confirms repeatedly.
+
+Parameters:
+- action: "open" shows the window (an existing window is reused and its title updated); "close" dismisses it.
+- title: optional string, the window title (open only).
+- meta: the transparency metadata object (intent/risk/risk_reason/affected_objects/progress).
+
+Rules:
+1. There is only one window: opening it again reuses the same window and updates the title, it never stacks a second one.
+2. The content still comes from render_ui: target="window" renders new components, update="<id>" refreshes them in place.
+3. The window does not block you: unless a user action must be awaited (see render_ui's waiting parameter), keep calling tools and push as many updates as you need.
+4. A user action in the window starts a new turn by default; while a turn is running it is injected into that turn before your next LLM call. If the action declares blocking:true while you are waiting, it is returned as the wait result instead.
+5. As with the chat stream, frontends without window support (terminal, Feishu) degrade to text instead of failing.
+
+Usage:
+<{XML_TAG_PREFIX}ui_window>
+  <{XML_TAG_PREFIX}meta>...</{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}action>open</{XML_TAG_PREFIX}action>
+  <{XML_TAG_PREFIX}title>Task progress</{XML_TAG_PREFIX}title>
+</{XML_TAG_PREFIX}ui_window>`
+
 	enMessages[KeyUIToolUsageRenderUI] = `## render_ui
 Description: Render the result as structured UI components (cards, key/value lists, tables, charts, steps, callouts, ...) instead of a wall of text. Use it when the user needs to see data analysis results, comparisons, process explanations or progress, or when they need to click/choose something. Rendering happens in the user's Web interface.
 

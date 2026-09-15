@@ -181,3 +181,50 @@ LLM——LLM 自己刚写过，回传只会重复占用上下文。
 | `agent/ui_wait_test.go` | `waiting` 挂起/释放、原地更新（UC-28~UC-32） |
 | `agent/ui_prune_test.go` | 上下文裁剪开关与两种历史形态（UC-40~UC-44） |
 | `use-case/FEATURE-524/FEATURE-524-UC-0001.md` | 全量用例（UC-01~UC-49），含浏览器端到端实测 |
+
+## 8. 窗口模式：`ui_window`（BUILD-1041）
+
+让 LLM 弹出一个常驻浮层窗口，并在"后台"继续工作时把中间结果持续推回同一窗口，而不是只能把结果追加到对话流里。
+
+### 8.1 两个工具的分工
+
+| 工具 | 职责 |
+|---|---|
+| `ui_window(meta, action="open"\|"close", title?)` | 只管窗口的开关与标题：**不携带内容** |
+| `render_ui(meta, tree, target="window", update?)` | 窗口内容：`target="window"` 渲染进窗口，`update="<id>"` 原地刷新 |
+
+窗口只有**一个实例**：重复 `ui_window(open)` 不会叠加浮层，而是复用同一窗口并更新标题。窗口**不阻塞**回合：除用户操作需要等待外，agent 可以边跑边多次推送更新。
+
+### 8.2 事件与 Meta
+
+| 事件 | 通道 | Meta |
+|---|---|---|
+| `ui_window` | `ChannelSystem` | `ui_window_action` = `open`/`close`，`ui_window_title`（仅 open） |
+| `ui_render` / `ui_update` | `ChannelSystem` | 原有 `ui_id` + `ui_tree`/`ui_patch`；`target="window"` 时额外带 `ui_target` |
+
+`ui_target` 只在非默认（窗口）时出现，因此对话流渲染的事件形状与既有用例（UC-08/UC-09）完全一致。终端等无窗口出口没有 `ui_window` 事件的分支，只输出降级文本，不会报错。
+
+### 8.3 用户操作的两条路径
+
+| 场景 | 行为 |
+|---|---|
+| 存在 `render_ui(waiting=true)` 挂起 | 动作作为该调用的**工具结果**返回，同一回合继续（沿用 UC-32/UC-48） |
+| 回合运行中、动作未声明 `blocking` | 作为 `<ui_action>` **动态事件**在当前回合的下一次 LLM 调用前注入（Q3-A），回合不被打断 |
+| 无活跃回合 | 退化为既有的"开启新一轮"行为 |
+
+`actions:[{on, id, payload, blocking?}]` 中的 `blocking:true` 由前端随 `ui_action` 上行（`clientMessage.blocking`）：它声明"这个动作期望被一个挂起的 `waiting=true` 调用消费"。若此时没有挂起的等待，则退化为非阻塞路径并记 warning，而不是空等到超时。
+
+回合结束与注入的竞态：注入走的是动态感知队列（FEATURE-471），队列在下一次消息构造时才被 drain。因此即使动作恰好在回合结束瞬间到达，也会在下一回合的第一次 LLM 调用前被注入，不会丢失。
+
+### 8.4 前端窗口（本期最小可用）
+
+- 单实例 `#uiWindow`（`web/static/index.html`），样式 `.ui-window`：固定右下角、标题栏 + 关闭按钮 + body。
+- `UI.openWindow(title)` / `UI.closeWindow()` / `UI.isWindowOpen()`（`web/static/ui.js`）；`app.js` 消费 `ui_window` 事件，并把 `ui_target="window"` 的树渲染进 `#uiWindowTree`。
+- 窗口内节点同样带 `data-ui-id` / `data-ui-tree-id`，因此既有的 `ui_update` 全局寻址（`findByUIID`）与动作上行（`uiTreeIDOf`）对窗口内容**无需改动即可工作**。
+- 关闭窗口会清空 body：此后指向窗口内 id 的 `ui_update` 找不到目标，落到既有告警分支（`console.warn`），不会复活游离 DOM。
+- 本期不做：多窗口、拖动/缩放/最小化、位置尺寸自定义、刷新或切会话后的恢复。刷新与切会话都会丢弃窗口（`app.js` 在 `session_switch` 前调用 `UI.closeWindow()`）。
+
+### 8.5 相关测试
+
+- Go 单测：`agent/ui_window_test.go`（UC-50 打开并 park、UC-51 `target=window` 与事件 Meta、UC-52 `blocking` 往返与 `<ui_action>` 注入、UC-53 等待通道、UC-54 生命周期事件、UC-55 单窗口与标题限长）。
+- 浏览器实测用例：`use-case/FEATURE-524/FEATURE-524-UC-0001.md` I 组 UC-50~UC-56。

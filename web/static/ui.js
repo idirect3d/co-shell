@@ -540,6 +540,53 @@
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // FEATURE-524 window mode: the single floating window
+  // ---------------------------------------------------------------------------
+
+  // windowElements resolves the window shell and its parts. It returns null when
+  // the page has no window markup (an older bundle, or a non-window frontend),
+  // so every caller can degrade instead of throwing.
+  function windowElements() {
+    var shell = document.getElementById("uiWindow");
+    if (!shell) return null;
+    return {
+      shell: shell,
+      title: document.getElementById("uiWindowTitle"),
+      body: document.getElementById("uiWindowBody")
+    };
+  }
+
+  // isWindowOpen reports whether the floating window is currently visible.
+  function isWindowOpen() {
+    var w = windowElements();
+    return !!w && !w.shell.classList.contains("hidden");
+  }
+
+  // openWindow shows the window and returns the element its tree must be painted
+  // into. There is exactly one window: opening it while it is already open only
+  // updates the title (and keeps the content), so repeated ui_window calls never
+  // stack overlays.
+  function openWindow(title) {
+    var w = windowElements();
+    if (!w) return null;
+    if (w.title && title) w.title.textContent = String(title);
+    w.shell.classList.remove("hidden");
+    return w.body;
+  }
+
+  // closeWindow hides the window and clears its content. Clearing matters: a
+  // later ui_update addressed to a node inside the closed window then finds
+  // nothing and takes the caller's warning path instead of resurrecting stray
+  // DOM. Nothing is persisted, so a refresh or a session switch starts clean.
+  function closeWindow() {
+    var w = windowElements();
+    if (!w) return false;
+    w.shell.classList.add("hidden");
+    if (w.body) w.body.replaceChildren();
+    return true;
+  }
+
   // uiTreeIDOf resolves the backend-assigned ui id of the tree enclosing el.
   // It deliberately never falls back to the innermost data-ui-id: that one
   // belongs to the component node itself, and reporting it would make the
@@ -560,11 +607,17 @@
   // knows which component the user acted on. It returns false when nothing was
   // sent (page not ready, no tree id): callers must then leave the control
   // usable instead of pretending the action was delivered.
-  function sendUIAction(actionID, payload, sourceEl) {
+  function sendUIAction(actionID, payload, sourceEl, blocking) {
     if (!actionID) return false;
     var uiID = uiTreeIDOf(sourceEl);
     if (!uiID || typeof global.wsSend !== "function") return false;
-    global.wsSend({ type: "ui_action", ui_id: uiID, action_id: String(actionID), payload: payload });
+    var msg = { type: "ui_action", ui_id: uiID, action_id: String(actionID), payload: payload };
+    // blocking travels with the action so the backend can tell the two cases
+    // apart: a parked render_ui(waiting=true) consumes it as its tool result,
+    // while a running turn receives a non-blocking action as an injection
+    // (FEATURE-524 window mode).
+    if (blocking) msg.blocking = true;
+    global.wsSend(msg);
     return true;
   }
 
@@ -576,6 +629,11 @@
     renderTree: renderTree,
     updateTree: updateTree,
     findByUIID: findByUIID,
+    // FEATURE-524 window mode: the app.js ui_window handler drives the single
+    // floating window through this pair.
+    openWindow: openWindow,
+    closeWindow: closeWindow,
+    isWindowOpen: isWindowOpen,
     // t/fmtBytes are shared with ui-chart.js and ui-form.js (loaded after this
     // file); sendUIAction is the single outbound path for component actions.
     t: uiText,

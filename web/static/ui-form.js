@@ -161,8 +161,11 @@
           if (!name) continue;
           payload[name] = readValue(controls[k]);
         }
+        // blocking travels with the action: it tells the backend that this
+        // submit expects a parked render_ui(waiting=true) call to consume it
+        // (FEATURE-524 window mode).
         var sent = typeof global.UI.sendUIAction === "function"
-          ? global.UI.sendUIAction(submitAction.id, payload, form)
+          ? global.UI.sendUIAction(submitAction.id, payload, form, !!(submitAction.blocking))
           : false;
         if (sent) {
           submit.disabled = true;

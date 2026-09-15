@@ -1509,6 +1509,25 @@ function eventClass(ev) {
 // markup inside the tree stays inert text.
 function renderUIBlock(ev) {
   const m = ev.meta || {};
+  // FEATURE-524 window mode: a tree rendered with target="window" belongs to
+  // the floating window, not to the chat stream. The window is opened on
+  // demand, so a render that races ahead of its ui_window event still lands in
+  // a visible place instead of being dropped.
+  if (m.ui_target === "window" && window.UI && typeof UI.openWindow === "function") {
+    const winBody = UI.openWindow(m.ui_window_title || "");
+    if (!winBody) return;
+    let host = document.getElementById("uiWindowTree");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "ui-tree";
+      host.id = "uiWindowTree";
+      winBody.appendChild(host);
+    }
+    host.dataset.uiId = m.ui_id || "";
+    host.replaceChildren();
+    if (typeof UI.renderTree === "function") UI.renderTree(m.ui_tree || "", host);
+    return;
+  }
   const body = makeBlock("ui", "UI · " + toolAction("render_ui"), m.msg_index);
   const host = document.createElement("div");
   host.className = "ui-tree";
@@ -1524,6 +1543,27 @@ function renderUIBlock(ev) {
 // applyUIUpdate replaces an already rendered component in place: the agent
 // addresses it by meta.ui_id and sends the replacement subtree in
 // meta.ui_patch (FEATURE-524).
+// applyUIWindow opens or closes the single floating window on a ui_window
+// event (FEATURE-524 window mode). Opening an open window reuses it and only
+// updates the title, so repeated opens never stack overlays.
+function applyUIWindow(ev) {
+  const m = ev.meta || {};
+  if (!window.UI || typeof UI.closeWindow !== "function" || typeof UI.openWindow !== "function") return;
+  if (m.ui_window_action === "close") { UI.closeWindow(); return; }
+  if (m.ui_window_action === "open") { UI.openWindow(m.ui_window_title || ""); }
+}
+
+// The window's own close button dismisses it (FEATURE-524 window mode). The
+// window is never persisted, so closing hides it and drops its content; a later
+// ui_update addressed to it then warns instead of resurrecting DOM.
+(function bindUIWindowClose() {
+  const btn = document.getElementById("uiWindowClose");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    if (window.UI && typeof UI.closeWindow === "function") UI.closeWindow();
+  });
+})();
+
 function applyUIUpdate(ev) {
   const m = ev.meta || {};
   if (!m.ui_id || !window.UI || typeof UI.updateTree !== "function") return;
@@ -1569,6 +1609,7 @@ function renderEvent(ev) {
   // FEATURE-524: LLM component trees (render_ui / ui_update).
   if (ev.type === "ui_render") { renderUIBlock(ev); return; }
   if (ev.type === "ui_update") { applyUIUpdate(ev); return; }
+  if (ev.type === "ui_window") { applyUIWindow(ev); return; }
   if (ev.type === "token_iter" || ev.type === "token_task") {
     const m = ev.meta || {};
     const line = document.createElement("div");
@@ -2658,6 +2699,9 @@ function renderSessionMenu(sessions) {
     row.appendChild(count);
     row.onclick = () => {
       if (s.current) return;
+            // FEATURE-524 window mode: the window is not persisted, so a session
+      // switch closes it instead of leaving a stale panel behind.
+      if (window.UI && typeof UI.closeWindow === "function") UI.closeWindow();
       wsSend({ type: "session_switch", value: s.id });
     };
     sessionMenu.appendChild(row);

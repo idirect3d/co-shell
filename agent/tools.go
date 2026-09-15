@@ -714,6 +714,7 @@ Critical rules:
 	// ui_enabled switch is off.
 	if a.uiEnabled() {
 		tools = append(tools, a.buildRenderUITool())
+		tools = append(tools, a.buildUIWindowTool())
 	}
 
 	// Add attempt_completion tool (always available)
