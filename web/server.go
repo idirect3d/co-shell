@@ -280,6 +280,9 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("GET /logos/{theme}", s.handleLogoRead)
 	// FEATURE-499: lightweight status endpoint the hub polls for busy state.
 	s.mux.HandleFunc("GET /api/status", s.handleStatus)
+	// FEATURE-524: the escape hatch for LLM-authored HTML runs in a sandboxed
+	// iframe whose shell is served from its own endpoint with its own CSP.
+	s.mux.HandleFunc("GET /api/ui-sandbox", s.handleUISandbox)
 	handler := http.Handler(s.mux)
 	if len(opts.Whitelist) > 0 {
 		handler = s.whitelistMiddleware(handler, opts.Whitelist)
@@ -589,6 +592,20 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// indexCSP is the policy for the main application document: own scripts and
+// sockets only, no plugins, no framing by others. 'unsafe-inline' covers style
+// attributes alone (index.html uses one) — scripts stay restricted to 'self'.
+const indexCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:; " +
+	"frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
+// uiSandboxCSP isolates the html escape hatch: no network at all (default-src
+// 'none', connect-src 'none'), so even a hostile tree cannot exfiltrate data
+// or pull remote code. The shell's own inline driver is the only script allowed.
+const uiSandboxCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+	"img-src data:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; " +
+	"base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := staticFS.ReadFile("static/index.html")
 	if err != nil {
@@ -596,6 +613,25 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", indexCSP)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	_, _ = w.Write(data)
+}
+
+// handleUISandbox serves the fixed shell the `html` component embeds. It never
+// carries LLM output: the parent posts the markup into the frame after load.
+func (s *Server) handleUISandbox(w http.ResponseWriter, r *http.Request) {
+	data, err := staticFS.ReadFile("static/ui-sandbox.html")
+	if err != nil {
+		http.Error(w, "sandbox shell not found", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", uiSandboxCSP)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	_, _ = w.Write(data)
 }
 

@@ -3787,3 +3787,18 @@ select,
 .ui-textarea { min-height: 60px; resize: vertical; }
 .ui-check-input { width: 14px; height: 14px; accent-color: var(--accent); }
 .ui-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* FEATURE-524 Stage 4: html escape hatch. The LLM markup lives in a sandboxed
+   iframe (opaque origin), so it can neither style nor reach the main document;
+   the frame only gets a neutral bordered box that its content fills. */
+.ui-html { display: block; }
+.ui-html-frame {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  height: 120px;
+  border: 1px dashed var(--border, #3a3f46);
+  border-radius: 8px;
+  background: transparent;
+}
+.ui-html-empty { color: var(--fg-dim, #8b9198); font-size: 12px; }
