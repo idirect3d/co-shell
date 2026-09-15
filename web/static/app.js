@@ -601,6 +601,7 @@ const TOOL_ACTIONS = {
   memory_search: { zh: "搜索记忆", en: "Search memory" },
   delete_memory: { zh: "删除记忆", en: "Delete memory" },
   evaluate_expression: { zh: "计算表达式", en: "Evaluate expression" },
+  render_ui: { zh: "渲染界面组件", en: "Render UI components" },
   attempt_completion: { zh: "完成任务", en: "Complete task" },
   reorganize_context: { zh: "重组上下文", en: "Reorganize context" },
   shell_send: { zh: "发送命令", en: "Send command" },
@@ -1494,6 +1495,35 @@ function eventClass(ev) {
   }
 }
 
+// FEATURE-524: paint an LLM-authored component tree into the main DOM. The
+// tree arrives as JSON text in meta.ui_tree; UI.renderTree builds every node
+// with createElement/textContent and never touches innerHTML, so hostile
+// markup inside the tree stays inert text.
+function renderUIBlock(ev) {
+  const m = ev.meta || {};
+  const body = makeBlock("ui", "UI · " + toolAction("render_ui"), m.msg_index);
+  const host = document.createElement("div");
+  host.className = "ui-tree";
+  if (m.ui_id) host.dataset.uiId = m.ui_id;
+  body.appendChild(host);
+  if (window.UI && typeof UI.renderTree === "function") {
+    UI.renderTree(m.ui_tree || "", host);
+  } else {
+    host.textContent = m.ui_id || "";
+  }
+}
+
+// applyUIUpdate replaces an already rendered component in place: the agent
+// addresses it by meta.ui_id and sends the replacement subtree in
+// meta.ui_patch (FEATURE-524).
+function applyUIUpdate(ev) {
+  const m = ev.meta || {};
+  if (!m.ui_id || !window.UI || typeof UI.updateTree !== "function") return;
+  let patch = null;
+  try { patch = JSON.parse(m.ui_patch || ""); } catch { return; }
+  UI.updateTree(m.ui_id, patch);
+}
+
 function renderEvent(ev) {
   // FEATURE-409: the message index attached by the backend lets the retry-from
   // action map this block back to a message for :session pop to.
@@ -1519,6 +1549,9 @@ function renderEvent(ev) {
     renderPlan(plan);
     return;
   }
+  // FEATURE-524: LLM component trees (render_ui / ui_update).
+  if (ev.type === "ui_render") { renderUIBlock(ev); return; }
+  if (ev.type === "ui_update") { applyUIUpdate(ev); return; }
   if (ev.type === "token_iter" || ev.type === "token_task") {
     const m = ev.meta || {};
     const line = document.createElement("div");

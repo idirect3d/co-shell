@@ -32,6 +32,12 @@ const (
 	EventToolCallStream = "tool_call_stream" // FEATURE-235: streaming tool-call render (show-tool / show-tool-input gated)
 	EventToolCallDiff   = "tool_call_diff"   // FEATURE-424: unified diff rendering for a completed replace_in_file call
 	EventTaskPlan       = "task_plan"        // FEATURE-307c: full task plan snapshot (Meta[MetaKeyPlan] = plan JSON, "" when archived)
+
+	// FEATURE-524: LLM-driven rich component output. EventUIRender carries a
+	// validated component tree for the Web UI to paint; EventUIUpdate replaces
+	// the content of an already rendered node addressed by Meta[MetaKeyUIID].
+	EventUIRender = "ui_render" // component tree to render (Meta[MetaKeyUIID] + Meta[MetaKeyUITree])
+	EventUIUpdate = "ui_update" // in-place update of a rendered tree (Meta[MetaKeyUIID] + Meta[MetaKeyUIPatch])
 )
 
 // StreamEvent is the structured stream event emitted by the agent loop and
@@ -192,5 +198,44 @@ func TaskPlanEvent(planJSON string) StreamEvent {
 		Chan:  ChannelTaskPlan,
 		Level: LevelInfo,
 		Meta:  map[string]string{MetaKeyPlan: planJSON},
+	}
+}
+
+// MetaKeyUIID is the Meta key of the UI events (FEATURE-524) carrying the id
+// of a rendered component tree — the handle the frontend (and a later
+// ui_update) uses to address it.
+const MetaKeyUIID = "ui_id"
+
+// MetaKeyUITree is the Meta key of EventUIRender carrying the validated
+// component tree as a JSON string.
+const MetaKeyUITree = "ui_tree"
+
+// MetaKeyUIPatch is the Meta key of EventUIUpdate carrying the replacement
+// subtree as a JSON string.
+const MetaKeyUIPatch = "ui_patch"
+
+// UIRenderEvent builds an EventUIRender event carrying one component tree
+// (FEATURE-524). It is emitted on ChannelSystem on purpose: the LLM/tool/
+// command channels are filtered by the seven show-* switches, while the Web
+// UI must receive the tree however verbose the user wants the stream. The
+// LineRenderer has no case for this type, so terminals ignore the event and
+// fall back to the LLM's plain-text reply.
+func UIRenderEvent(uiID, treeJSON string) StreamEvent {
+	return StreamEvent{
+		Type:  EventUIRender,
+		Chan:  ChannelSystem,
+		Level: LevelInfo,
+		Meta:  map[string]string{MetaKeyUIID: uiID, MetaKeyUITree: treeJSON},
+	}
+}
+
+// UIUpdateEvent builds an EventUIUpdate event replacing the content of the
+// tree addressed by uiID (FEATURE-524).
+func UIUpdateEvent(uiID, patchJSON string) StreamEvent {
+	return StreamEvent{
+		Type:  EventUIUpdate,
+		Chan:  ChannelSystem,
+		Level: LevelInfo,
+		Meta:  map[string]string{MetaKeyUIID: uiID, MetaKeyUIPatch: patchJSON},
 	}
 }
