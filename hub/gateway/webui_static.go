@@ -747,7 +747,14 @@ const webIndexHTML = `<!DOCTYPE html>
     var def = document.createElement('option');
     def.value = ''; def.textContent = '默认（沿用 hub 配置）';
     sel.appendChild(def);
-    var found = false;
+    // FEATURE-527: "latest" is resolved on every start (hub dir first, then
+    // the highest version across the current dir and PATH).
+    var latest = document.createElement('option');
+    latest.value = 'latest'; latest.textContent = '使用最新版本（启动时自动搜索）';
+    sel.appendChild(latest);
+    // FEATURE-527: "latest" is always offered above, so it counts as found
+    // and is never re-added as a trailing "current value" entry below.
+    var found = (current === 'latest');
     (coShellsCache || []).forEach(function(c){
       var opt = document.createElement('option');
       opt.value = c.path;
@@ -768,6 +775,12 @@ const webIndexHTML = `<!DOCTYPE html>
     var el = document.getElementById('d-ver');
     var path = document.getElementById('d-coshell').value;
     if (!path){ el.textContent = ''; el.className = 'hint'; return; }
+    // FEATURE-527: "latest" has no path to query — it is resolved at start.
+    if (path === 'latest'){
+      el.textContent = '启动时自动搜索最高版本 co-shell';
+      el.className = 'hint';
+      return;
+    }
     api('GET', '/api/agent-version?kind=local&path=' + encodeURIComponent(path), null, function(st, j){
       if (j && j.ok){
         el.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
@@ -1052,8 +1065,20 @@ const webIndexHTML = `<!DOCTYPE html>
       // co-shell executables.
       coshellSel.innerHTML = '';
       var shells = j.co_shells || [];
+      // FEATURE-527: offer "latest" first, then the detected candidates. The
+      // default selection stays the first candidate (set below) so creating an
+      // agent keeps behaving as before; without any candidate "latest" stays
+      // selected (a miss is reported when the agent starts).
+      var latestOpt = document.createElement('option');
+      latestOpt.value = 'latest';
+      latestOpt.textContent = '使用最新版本（启动时自动搜索）';
+      coshellSel.appendChild(latestOpt);
       if (!shells.length){
-        coshellSel.innerHTML = '<option value="">未找到 co-shell，请放到 hub 同目录、当前目录或 PATH</option>';
+        var noneOpt = document.createElement('option');
+        noneOpt.value = '';
+        noneOpt.textContent = '未找到 co-shell，请放到 hub 同目录、当前目录或 PATH';
+        coshellSel.appendChild(noneOpt);
+        coshellSel.value = 'latest';
       } else {
         shells.forEach(function(c){
           var opt = document.createElement('option');
@@ -1061,6 +1086,7 @@ const webIndexHTML = `<!DOCTYPE html>
           opt.textContent = coShellOptionText(c);
           coshellSel.appendChild(opt);
         });
+        if (!prevShell) coshellSel.value = shells[0].path;
       }
       // Restore the previous choice only while it is still detected.
       for (var i = 0; i < coshellSel.options.length; i++){
@@ -1074,6 +1100,12 @@ const webIndexHTML = `<!DOCTYPE html>
   function checkLocalVersion(){
     var path = coshellSel.value;
     if (!path){ mVerEl.textContent = ''; mVerEl.className = 'hint'; return; }
+    // FEATURE-527: "latest" is resolved when the agent starts.
+    if (path === 'latest'){
+      mVerEl.textContent = '启动时自动搜索最高版本 co-shell';
+      mVerEl.className = 'hint';
+      return;
+    }
     api('GET', '/api/agent-version?kind=local&path=' + encodeURIComponent(path), null, function(st, j){
       if (j && j.ok){
         mVerEl.textContent = 'co-shell v' + j.version + (j.build ? ' [BUILD-' + j.build + ']' : '');
