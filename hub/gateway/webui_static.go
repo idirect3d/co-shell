@@ -704,7 +704,7 @@ const webIndexHTML = `<!DOCTYPE html>
   // type are disabled (managed: 主机地址; external: Workspace / co-shell /
   // 共享配置 / 补充运行参数). The ID itself is immutable.
   var editID = null; // agent id being edited
-  var coShellsCache = null; // co_shells list from /api/agent-defaults
+  var coShellsCache = null; // latest co_shells scan result
   // wsURLParts splits ws(s)://host:port/ws into its host and port parts.
   function wsURLParts(u){
     var m = /^wss?:\/\/([^\/:]+):(\d+)/.exec(String(u || ''));
@@ -729,10 +729,15 @@ const webIndexHTML = `<!DOCTYPE html>
     var label = coShellSourceLabel(c.source);
     return c.path + (label ? '（' + label + '）' : '') + (c.version ? '  (v' + c.version + ')' : '') + (c.ok ? '' : '  [不可执行]');
   }
+  // loadCoShellOptions re-scans on every entry into the edit form (FIX-525):
+  // the previous implementation short-circuited on the cached list, so a
+  // co-shell copied after page load never showed up. /api/co-shell-locations
+  // is the light endpoint (executable scan only, no config candidates). When
+  // the request fails the previous list is kept, so the dropdown never goes
+  // blank.
   function loadCoShellOptions(cb){
-    if (coShellsCache){ cb(); return; }
-    api('GET', '/api/agent-defaults', null, function(st, j){
-      coShellsCache = (j && j.co_shells) || [];
+    api('GET', '/api/co-shell-locations', null, function(st, j){
+      if (st < 400 && j) coShellsCache = j.co_shells || [];
       cb();
     });
   }
@@ -917,7 +922,10 @@ const webIndexHTML = `<!DOCTYPE html>
   document.getElementById('manageBtn').onclick = function(){
     if (!panel.classList.contains('open')) openPanel();
     showView('config');
-    if (!defaultsLoaded) loadDefaults();
+    // FIX-525: re-run detection on every entry, so a co-shell copied into a
+    // scanned directory is selectable without restarting the hub or reloading
+    // the page.
+    loadDefaults();
   };
   // ---- Settings view (remote-access: TLS/whitelist/access key) ----
   document.getElementById('settingsBtn').onclick = function(){
@@ -1030,8 +1038,12 @@ const webIndexHTML = `<!DOCTYPE html>
   var coshellSel = document.getElementById('m-coshell');
   var mVerEl = document.getElementById('m-ver');
   var eVerEl = document.getElementById('e-ver');
-  var defaultsLoaded = false;
+  // loadDefaults re-runs on every entry into the create form (FIX-525) so the
+  // co-shell list reflects binaries copied after the page was loaded. Fields
+  // the user already filled are not overwritten, and a previously selected
+  // executable stays selected as long as it is still detected.
   function loadDefaults(){
+    var prevShell = coshellSel.value;
     api('GET', '/api/agent-defaults', null, function(st, j){
       if (st >= 400 || !j) return;
       if (!document.getElementById('m-ws').value) document.getElementById('m-ws').value = j.default_workspace || '';
@@ -1050,7 +1062,10 @@ const webIndexHTML = `<!DOCTYPE html>
           coshellSel.appendChild(opt);
         });
       }
-      defaultsLoaded = true;
+      // Restore the previous choice only while it is still detected.
+      for (var i = 0; i < coshellSel.options.length; i++){
+        if (coshellSel.options[i].value === prevShell){ coshellSel.value = prevShell; break; }
+      }
       checkLocalVersion();
     });
   }
