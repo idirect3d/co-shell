@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,6 +32,13 @@ type coShellInfo struct {
 // name starts with this prefix (e.g. "co-shell", "co-shell-0.44.0.darwin.arm64",
 // "co-shell-0.44.0.exe") are candidates for the dropdown.
 const coShellPrefix = "co-shell"
+
+// CoShellLatest is the sentinel stored in AgentSpec.CoShell when the user picks
+// the "use the latest version" entry in the hub UI (FEATURE-527). A managed
+// agent carrying it resolves its executable on EVERY start: the hub directory
+// wins outright, otherwise the highest version across the current directory and
+// PATH is used (see ResolveLatestCoShell).
+const CoShellLatest = "latest"
 
 // DetectCoShells finds co-shell executables in the current working directory,
 // on PATH, and next to the hub executable itself. It scans every executable
@@ -157,6 +166,102 @@ func coShellVersion(path string) (version, build string) {
 		}
 	}
 	return version, build
+}
+
+// ResolveLatestCoShell picks the co-shell executable a "latest" agent must run
+// (FEATURE-527). It is called on EVERY start, so the choice always reflects the
+// executables present at that moment. Selection rules:
+//
+//	1. a usable co-shell next to the hub binary wins outright (highest version
+//	   in that directory);
+//	2. otherwise the highest version across the current working directory and
+//	   every PATH directory is used.
+//
+// No usable candidate anywhere is an error: the caller reports it instead of
+// silently falling back to a different executable.
+func ResolveLatestCoShell() (string, error) {
+	hub, _ := hubDir()
+	cwd, _ := os.Getwd()
+	return resolveLatestCoShell(hub, cwd, filepath.SplitList(os.Getenv("PATH")))
+}
+
+// resolveLatestCoShell implements the selection rules with injectable search
+// paths, so they can be unit-tested without touching the real environment.
+func resolveLatestCoShell(hubDir, cwd string, pathDirs []string) (string, error) {
+	if best := bestCoShellIn(hubDir); best != "" {
+		return best, nil
+	}
+	seen := map[string]bool{}
+	best, bestVer := "", ""
+	for _, dir := range append([]string{cwd}, pathDirs...) {
+		if dir == "" || seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		for _, p := range coShellCandidates(dir) {
+			ver, _ := coShellVersion(p)
+			if ver == "" {
+				continue // same-prefix file that is not a co-shell binary
+			}
+			if best == "" || compareCoShellVersion(ver, bestVer) > 0 {
+				best, bestVer = p, ver
+			}
+		}
+	}
+	if best == "" {
+		return "", errors.New("no usable co-shell executable found in the hub directory, the current directory or PATH")
+	}
+	return best, nil
+}
+
+// bestCoShellIn returns the highest-versioned usable co-shell executable in dir
+// ("" when the directory holds none).
+func bestCoShellIn(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	best, bestVer := "", ""
+	for _, p := range coShellCandidates(dir) {
+		ver, _ := coShellVersion(p)
+		if ver == "" {
+			continue
+		}
+		if best == "" || compareCoShellVersion(ver, bestVer) > 0 {
+			best, bestVer = p, ver
+		}
+	}
+	return best
+}
+
+// compareCoShellVersion compares two "X.Y.Z" version strings numerically
+// (returns -1, 0 or 1), so 0.9.0 sorts below 0.10.0 — a plain string compare
+// would get that backwards.
+func compareCoShellVersion(a, b string) int {
+	pa, pb := coShellVersionParts(a), coShellVersionParts(b)
+	for i := range pa {
+		switch {
+		case pa[i] < pb[i]:
+			return -1
+		case pa[i] > pb[i]:
+			return 1
+		}
+	}
+	return 0
+}
+
+// coShellVersionParts splits a version string into its three numeric parts;
+// missing or non-numeric parts count as 0.
+func coShellVersionParts(v string) [3]int {
+	var out [3]int
+	for i, f := range strings.Split(v, ".") {
+		if i >= len(out) {
+			break
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(f)); err == nil {
+			out[i] = n
+		}
+	}
+	return out
 }
 
 // configCandidate describes one detected config.json path.

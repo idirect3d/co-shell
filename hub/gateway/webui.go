@@ -222,7 +222,11 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 		}
 		// Report the co-shell version for compatibility awareness.
 		if s.Type == AgentTypeManaged {
-			v.Version, v.Build = coShellVersion(w.manager.CoShellPath())
+			// FEATURE-527: a "latest" agent resolves its executable at start
+			// time, so there is no fixed version to report here.
+			if s.CoShell != CoShellLatest {
+				v.Version, v.Build = coShellVersion(w.manager.CoShellPath())
+			}
 		} else if s.WSURL != "" {
 			if ver, b, err := remoteVersion(wsURLToBase(s.WSURL)); err == nil {
 				v.Version, v.Build = ver, b
