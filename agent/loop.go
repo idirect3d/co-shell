@@ -138,6 +138,13 @@ type Agent struct {
 	// window mode).
 	pendingUIWindow *uiWindowRequest
 
+	// uiEmit is the StreamCallback RunStream installs for the duration of a
+	// turn. render_ui publishes its tree through it *before* parking a waiting
+	// call: the loop can only emit after the tool returns, and a waiting call
+	// returns when the user acts, so without this the component would stay
+	// invisible for the whole wait (FEATURE-524 fix).
+	uiEmit StreamCallback
+
 	rules         string // user-defined rules for rebuilding system prompt
 	subAgentMgr   *subagent.Manager
 	taskPlanMgr   *taskplan.Manager

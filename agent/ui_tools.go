@@ -160,6 +160,12 @@ func (a *Agent) renderUITool(ctx context.Context, args map[string]interface{}) (
 	if waiting, _ := args["waiting"].(bool); waiting {
 		if ch := a.beginUIWait(); ch != nil {
 			defer a.endUIWait(ch)
+			// The tree must reach the frontend now. The stream loop emits the
+			// parked tree after this call returns, but a waiting call returns
+			// only when the user acts, so emitting there would keep the
+			// component invisible for the whole wait (it then surfaced only
+			// after an interrupt).
+			a.emitUIRender()
 			return a.waitUIAction(ctx, ch), nil
 		}
 	}
@@ -220,6 +226,54 @@ func (a *Agent) takePendingUITarget() string {
 	target := a.pendingUITarget
 	a.pendingUITarget = ""
 	return target
+}
+
+// setUIEmitter installs (nil clears) the live stream callback the render_ui
+// tool publishes through. RunStream owns that callback, so it installs it for
+// the duration of a turn and clears it afterwards.
+func (a *Agent) setUIEmitter(cb StreamCallback) {
+	a.mu.Lock()
+	a.uiEmit = cb
+	a.mu.Unlock()
+}
+
+// takeUIRenderEvent turns whatever render_ui parked into the event that must be
+// sent and consumes it. It is the single place that builds such an event, so
+// the two emitters (the tool, before parking a wait, and the stream loop, after
+// a call returns) can never send the same tree twice. ok is false when nothing
+// is parked, which is exactly what the loop sees after the tool published it.
+func (a *Agent) takeUIRenderEvent() (StreamEvent, bool) {
+	if target, node := a.takePendingUIUpdate(); node != nil {
+		if patchJSON, err := MarshalUITree(node); err == nil {
+			return UIUpdateEventTo(target, patchJSON, a.takePendingUITarget()), true
+		}
+		return StreamEvent{}, false
+	}
+	if root, uiID := a.takePendingUITree(); root != nil {
+		if treeJSON, err := MarshalUITree(root); err == nil {
+			return UIRenderEventTo(uiID, treeJSON, a.takePendingUITarget()), true
+		}
+	}
+	return StreamEvent{}, false
+}
+
+// emitUIRender publishes the parked tree immediately, using the callback the
+// stream loop installed. It reports whether an event was emitted; with no
+// callback (unit tests, embedders) nothing is consumed and the loop's own
+// post-call emission still delivers it.
+func (a *Agent) emitUIRender() bool {
+	a.mu.Lock()
+	emit := a.uiEmit
+	a.mu.Unlock()
+	if emit == nil {
+		return false
+	}
+	ev, ok := a.takeUIRenderEvent()
+	if !ok {
+		return false
+	}
+	emit(ev)
+	return true
 }
 
 // uiRenderTarget reads the optional target of a render_ui call. An empty value
