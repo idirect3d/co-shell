@@ -71,7 +71,7 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 - callout: 提示块。props{variant:"info"|"warn"|"success"|"error", title?, text}
 - progress: 进度条。props{value, max?, label?}
 - file: 文件卡片。props{path, name?, size?}
-- form: 表单。props{title?, fields:[{name, label, type:"text"|"select"|"checkbox", options?, value?}], submit}
+- form: 表单。props{title?, fields:[{name, label, type:"text"|"number"|"textarea"|"select"|"checkbox", options?:[{value, label}], value?, placeholder?, rows?}]}；在 form 节点上声明提交动作：actions:[{on:"submit", id:"提交动作 id"}]。
 - html: 逃生舱，props{content} 内可写任意 HTML/CSS/JS，在隔离沙箱内渲染，适合上述组件无法表达的图形。仅在你确实需要时使用。
 
 规则:
