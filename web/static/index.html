@@ -591,7 +591,22 @@
   </div>
 </div>
 
+<!-- FEATURE-524 window mode: the single floating window the LLM opens with
+     ui_window (fixed bottom-right, close only). Its body hosts the component
+     tree painted by render_ui(target="window"); app.js shows/hides the shell. -->
+<div id="uiWindow" class="ui-window hidden" role="dialog" aria-label="task window">
+  <div class="ui-window-head">
+    <span class="ui-window-title" id="uiWindowTitle"></span>
+    <button type="button" class="ui-window-close" id="uiWindowClose" aria-label="close window">✕</button>
+  </div>
+  <div class="ui-window-body" id="uiWindowBody"></div>
+</div>
+
 <script src="static/md.js"></script>
+<script src="static/ui.js"></script>
+<script src="static/ui-chart.js"></script>
+<script src="static/ui-form.js"></script>
+<script src="static/ui-layout.js"></script>
 <script src="static/app.js"></script>
 </body>
 </html>

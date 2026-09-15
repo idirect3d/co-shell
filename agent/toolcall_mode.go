@@ -117,6 +117,7 @@ var toolUsageKeyMap = map[string]string{
 	"ask_user":                         i18n.KeyToolUsageAskUser,
 	"attempt_completion":               i18n.KeyToolUsageAttemptCompletion,
 	"evaluate_expression":              i18n.KeyToolUsageEvaluateExpression,
+	"render_ui":                        i18n.KeyUIToolUsageRenderUI,
 	"reorganize_context":               i18n.KeyToolUsageReorganizeContext,
 	"board_post":                       i18n.KeyToolUsageBoardPost,
 	"board_list":                       i18n.KeyToolUsageBoardList,

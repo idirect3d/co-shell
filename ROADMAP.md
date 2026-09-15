@@ -4,6 +4,81 @@
 
 ---
 
+## v0.59.0 — 开发中
+
+> **版本**: v0.59.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: LLM 组件化输出协议——LLM 用结构化组件树（而非纯文本/Markdown）表达结果，Web UI 渲染为现代、直观、可交互的富组件
+> **说明**: 当前 Web UI 的瓶颈不是排版，而是 LLM 没有「画东西」的表达通道：唯一下行单元是 `agent.StreamEvent`（`agent/events.go:19`），而前端 `web/static/md.js` 只是手写 Markdown 子集渲染器（注释明确 *never feeds raw input to innerHTML*），LLM 输出的上限就是「一段排版过的文本」，没有卡片/图表/交互控件。本版本新增 `render_ui` 工具，LLM 传入结构化组件树 JSON，前端 registry 递归渲染为主 DOM 富组件；并提供 `html` 逃生舱（sandbox iframe）承载长尾表达需求。硬约束：零第三方依赖、无前端构建步骤、`embed.FS` 单二进制打包。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-524 | 0.59.0 | P1 | LLM 组件化输出协议：`render_ui` 工具 + 组件树协议 + 前端 registry + 10 个基础组件 + 交互回传 + html 沙箱 + 上下文裁剪 |
+
+> 当前 BUILD: 1039
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-524 LLM 组件化输出协议（co-shell Web UI 富组件渲染）**
+  - 需求（用户确认，6 轮讨论）：
+    1. 目标用户：非技术用户直接用 co-shell 完成任务并看结果（办公/数据分析/资料整理）。
+    2. 表达载体：**工具调用为主**——新增 `render_ui` 工具，参数为组件树 JSON。
+    3. 渲染归属：声明式组件走**主 DOM**（复用现有 CSS 变量，四套主题自动一致）；仅 `html` 逃生舱进 sandbox iframe。
+    4. 图表/地图：**手写 SVG**（柱/折线/饼），零依赖红线不破；本期不做地图。
+    5. 交互语义：组件动作开启新一轮 agent 回合（续作型），支持图表数据点钻取。
+    6. 阻塞策略：由工具参数 `waiting` 控制，**默认不阻塞**。
+    7. 更新机制：`ui_update` 按 id 原地更新，作用域=当前回合内任意组件。
+    8. 上下文裁剪：本期就做，配置开关控制，**默认开**。
+    9. 跨端：只做 Web UI，终端/飞书降级为纯文本或省略。
+    10. 归属版本 **v0.59.0**（FEATURE，minor+1）；任务号 **FEATURE-524**；分支 `FEATURE-524`。
+  - 协议契约：
+    - 组件树节点 `{type, id?, props?, children?, actions?}`；动作声明 `{on: click|select|submit|change, id, payload: node|value|row|point|form}`。
+    - 工具签名 `render_ui(tree: object, waiting: bool=false, intent: string)`；**只读安全免确认**；返回值仅简短回执（如「已渲染 card/ui-7（3 个子节点）」），不回传树本身。
+    - 下行事件 `ui_render`（`Meta{ui_id, ui_tree}`）与 `ui_update`（`Meta{ui_id, ui_patch}`）。
+    - 上行消息 `{"type":"ui_action","ui_id","action_id","payload"}`。
+    - 阻塞语义：`waiting=false`（默认）→ 立即返回回执，用户动作作为用户输入注入并**开启新一轮**；`waiting=true` → 阻塞等待，用户动作作为**工具返回值**在同一回合内继续；用户直接打字 / ESC 打断 / 超时 → 释放阻塞并返回「用户未操作」。
+  - MVP 组件（10 个）：`card` / `kv` / `table` / `chart` / `steps` / `callout` / `progress` / `file` / `form` / `html`。
+  - 实施阶段（4 个 Stage）：
+    1. **Stage 1 骨架**：`agent/uitree.go`（Node/Action 类型 + 校验）、`agent/ui_tools.go`（render_ui）、`agent/events.go`（新事件）、`agent/tools.go`（注册）、`web/static/ui.js`（registry + 递归渲染）、`renderEvent` 接入；首批组件 card/kv/callout/progress。
+    2. **Stage 2 数据展示**：`web/static/ui-chart.js`（SVG 柱/折线/饼）+ table + steps + file。
+    3. **Stage 3 交互与原地更新**：form + 动作回传（`web/session.go` 新增 `ui_action` 分支）+ `ui_update` + `waiting` 阻塞与释放。
+    4. **Stage 4 逃生舱与治理**：html 沙箱（`/api/ui-sandbox` 独立端点 + 独立 CSP）+ 主页面 CSP + 组件目录进系统提示词（i18n zh/en）+ 上下文裁剪开关 + 文档与前端控件规范。
+  - 安全约束：声明式组件一律 `createElement` + `textContent`（**禁止 innerHTML**，沿用 md.js 铁律）；html 逃生舱 iframe `sandbox="allow-scripts"`（**不加 `allow-same-origin`**，不透明源，无法访问父页面 DOM/存储）；`postMessage` 校验 `event.source === iframe.contentWindow` + 消息结构白名单。
+  - 测试用例：`use-case/FEATURE-524/FEATURE-524-UC-0001.md`（UC-01~UC-49，A~H 共 8 组，已获用户确认）。
+  - **阶段 6 · 窗口模式（BUILD-1041）**：新增独立工具 `ui_window`（只管 open/close，单实例窗口，重复 open 复用并更新标题）；`render_ui` 新增 `target="stream"(默认)/"window"`，窗口内容仍由 `render_ui`/`ui_update` 写入；`actions[].blocking` 可选——声明 blocking:true 且存在 `render_ui(waiting=true)` 挂起时走现有等待通道作为工具结果，否则非阻塞（回合运行中以 `<ui_action>` 动态事件在下次 LLM 调用前注入，无活跃回合则开新轮）；前端为右下固定浮层（仅关闭按钮，不拖动/不最小化/不持久化，刷新或切会话即关；关闭后对该窗口内 ui-id 的 ui_update 为安全 no-op + console.warn）。新增用例 I 组 UC-50~UC-56；协议层单测 `agent/ui_window_test.go`（UC-50~UC-55）。设计详情见 `docs/ui-components.md` §8。
+  - 进度：🚧 Stage 1（骨架：组件树协议 + 校验 + render_ui 工具 + ui_render 事件 + 前端 registry）已完成 [BUILD-1026]。
+    - 已完成：`agent/uitree.go`（组件白名单/深度≤6/节点≤200/props≤8KB + ParseUITree/ValidateUITree/UISummary/MarshalUITree）、`agent/ui_tools.go`（render_ui：校验→暂存→简短回执，不回调树）、`agent/events.go`（`ui_render`/`ui_update` 事件 + Meta key + 构造器，走 ChannelSystem 以避开 show-* 过滤）、`agent/run_stream.go` 发射点、`agent/tools.go` 注册、`config` 的 `ui_enabled`/`ui_context_prune`（均默认开）、`i18n` 中英文案（`zh_ui.go`/`en_ui.go`，含系统提示词分节）、`web/static/ui.js`（registry + 递归渲染 + card/kv/callout/progress + 未注册降级）、`app.js`/`index.html`/`style.css` 接入。
+    - 已通过：A/B 组单测（UC-01~UC-10）`go test ./agent/`；浏览器实测（UC-11~UC-16，28260 实例）——card/kv/callout(warn)/progress(75%) 渲染正确、`steps` 优雅降级、XSS 载荷零元素（`img/script/iframe/svg` 均为 0，`window.__xss` 未被置位）；`go build ./... && go vet ./...` 全绿。
+    - 已知非本次引入的失败：`cmd` 包 `TestSettingsJSONFillsDefaults` 报 `setting "logo" has empty Default`（`cmd/settings_web.go:114` 定义处即无 Default），与 FEATURE-524 无关，待单独修复。
+    - 待办：Stage 2 数据展示（table/chart/steps/file）、Stage 3 交互与原地更新（form/ui_action/waiting）、Stage 4 逃生舱与治理（html 沙箱/CSP/上下文裁剪落地）。
+    - FIX [BUILD-1027]：`ui` 块未纳入显示模式可见性规则——静默模式下被 `display:none` 隐藏、精简模式下被折叠，导致用户「看不到新特性」（切到正常模式才可见）。新增 `isResultLikeBlock(box, cls)`（`ev-result` 或 `cls === "ui"`），`applyBlockDisplayMode` 与 `applyDisplayMode` 两处共用，使 LLM 组件树与最终结果块同等待遇。已验证：静默/精简下块可见且展开、普通 tool 块仍被隐藏（无回归）、模式切换重套用正常。
+    - Stage 2 [BUILD-1029]：数据展示组件完成——`web/static/ui-chart.js`（手写 SVG：柱/折线/饼 + 坐标轴/网格/图例/响应式 viewBox/主题色经 `--c` 变量注入；数据点带 `data-point-*` 供 Stage 3 钻取）、`table`（列对齐/单元格状态色/空态 i18n）、`steps`（done/active/pending + 连接线）、`file`（打开/定位复用 `/api/open`、`/api/reveal`；路径逃逸降级为纯文本且不给按钮）。实测 UC-17~UC-25 全部通过：柱高比例 0.5±3%、饼图扇区角 36/72/108/144±2°、全 0 与负值无 NaN、超长分类名截断+tooltip 且不溢出、逃逸路径 0 按钮+告警。期间修两处缺陷：①图表容器类名与 `.ui-chart-bar` 撞车（每图多出 1 个「假柱子」）；②表格对齐/状态色被 `.ui-table td` 基础规则按 CSS 特异性压过。
+    - Stage 3（进行中）[BUILD-1031]：`form` 组件（`web/static/ui-form.js`：text/number/textarea/select/checkbox 原生控件 + 提交/重置按钮，全程 createElement）+ 组件动作上行链路（`UI.sendUIAction` → `{"type":"ui_action", ui_id, action_id, payload}` → `web/session.go` 新增 `ui_action` 分支 → 作为新一轮用户消息注入，`agent.UIActionMessage` 渲染结构化载荷）。已验证：表单 4 字段/下拉/数字/多行/勾选渲染正确，提交后上行消息含 ui_id/action_id/结构化 payload。期间修一处缺陷：`render()` 回调收到的是 `{props,id,raw}` 包装对象，误读 `node.actions` 使提交按钮从渲染起就禁用（改为 `node.raw.actions`）。待办：`ui_update` 原地更新、`waiting` 阻塞与释放、UC-27~UC-32。
+    - Stage 3 完成 [BUILD-1032]：①修 `sendUIAction` 取错 `ui_id`——树容器新增专用属性 `data-ui-tree-id`（`renderTree` 从容器 `data-ui-id` 镜像），动作解析顺序为「专用属性 → `.ui-tree` 容器 → 无则不发」，不再把组件节点自身 id（如 `f1`）上报成树 id；实测上行 `ui_id` 为 `ui-form-3`，无树 id 时不发送且按钮保持可用（表单未置 `data-submitted`）。②`ui_update` 原地更新：`render_ui` 新增可选 `update` 参数（i18n 中英文案），带该参数时 park 为更新并由 `run_stream` 发射 `ui_update`（`takePendingUIUpdate`，与 `ui_render` 互斥），前端 `applyUIUpdate` 目标缺失/补丁损坏仅 `console.warn` 不中断流，`updateTree` 以整树为目标时保留容器只换内容；实测 `.ui-card` 数量 1→1、标题 旧→新、位置与容器不变、未知目标返回 false 且产生两条告警。③`waiting=true` 阻塞与释放：新增 `agent/ui_wait.go`（`beginUIWait`/`SubmitUIAction`/`ReleaseUIWait`/`waitUIAction`，缓冲 1、超时 120s、并发第二个等待降级为普通回执），`web/session.go` 中 `ui_action` 优先交给挂起调用（动作即工具返回值，同回合继续），普通输入与 ESC 中断调用 `ReleaseUIWait`（工具返回「用户未操作」，消息照常开启新一轮）。④单测 `agent/ui_wait_test.go`（UC-28/29/31/32，含并发守卫与 ctx 取消）全部通过。
+      - 待办：UC-27/UC-30 的浏览器端到端细项复测（含四套主题观感）、Stage 4 逃生舱与治理（html 沙箱/CSP/上下文裁剪落地）。
+    - FIX [BUILD-1033]：`form` 的 `select` 取值恒为空——`web/static/ui-form.js` 的 `optionValue()` 只读旧别名 `o.v`，而协议/提示词与实际用法均为 `{value, label}`，导致 `option.value` 全被写成空串，用户选择丢失（演示中实测 `optionValues: ["",""]`、payload `plan:""`）。修法：`optionValue` 改为 `value → v` 回退，`optionLabel` 改为 `label → value → v` 回退；同时把中英文系统提示词的 `form` 行补齐字段类型（`text|number|textarea|select|checkbox`）、`options?:[{value,label}]` 与提交动作写法。复测：`optionValues` 为 `["A","B"]`，提交 payload `plan:"B"`。
+    - Stage 4 完成 [BUILD-1034]：① `html` 逃生舱落地——`/api/ui-sandbox` 独立端点（`web/server.go:handleUISandbox`，帧 CSP `uiSandboxCSP`：`default-src 'none'` + `connect-src 'none'` + `img-src data:` + `frame-ancestors 'self'`），主页面 CSP `indexCSP` 补 `frame-src 'self'`；iframe `sandbox="allow-scripts"`（不加 `allow-same-origin`）。实测：帧内 `parent/parentDom/storage/cookie/topnav` 全部 `blocked:SecurityError`，外部 img/script 被 CSP 阻断，`iframe.contentDocument` 为 null；沙箱内联脚本可执行（canvas 绘制成功）。② 修复沙箱自动高度：块若在 `display:none` 容器里创建（折叠块/静默模式），帧内测量恒为 0，且帧重新可见时帧内 ResizeObserver **不会触发**（实测「隐藏→显示」零上报）。修法：父侧用 ResizeObserver 观察 iframe 元素，拿到真实盒子即发轻量 `ui-html-measure`（不重渲染、不重跑脚本）请帧内重测；帧侧新增该消息处理，并保留 0/80/400ms 采样与帧内 RO 兜底。实测：可见场景与隐藏→显示场景 `frame.style.height` 均为 525px（此前恒为 CSS 默认 120px）。③ 上下文裁剪落地：`UIContextPrune`（`ui_context_prune`，默认开）在 `buildContextMessages()` 交给 provider 前把 render_ui 的树替换为一行摘要（新增 `agent/ui_prune.go`），两种历史形态（`ToolCalls[].Arguments` 与 XML 的 `<tree>`）都处理，兄弟参数与持久化历史不受影响（刷新回放仍渲染完整组件）；单测 `agent/ui_prune_test.go` UC-40~UC-44 全部通过。④ 文档 `docs/ui-components.md`（协议/组件目录/事件流/安全模型/裁剪开关）。⑤ `go build ./... && go vet ./...` 全绿，`go test ./agent/` 通过。
+  - 规范调整（2026-09-15，用户要求）：「无参数编译」不再写本机 `~/bin/`。`.rules/PROJECT STANDARDS.md` 的「编译可执行码」第 1 条改为——仅编译**当前操作系统/架构**版本，产物**只落在 `work/` 下**且文件名带版本号 `{app}-{full version}.{os}.{arch}[.exe]`（例 `work/co-shell-0.59.0.darwin.arm64`、`work/co-shell-hub-0.59.0.darwin.arm64`）；不再复制/替换到 `~/bin/`，原「先编 `work/` → 换新 inode 替换 `~/bin/`」的两步法与 `cp`/`mv` 注意事项随之取消（“为何不写 `~/bin`”的风险说明保留为注记：`~/bin` 下的二进制可能正被运行中的进程占用，原地覆盖会破坏它，如 macOS 代码签名缓存失效导致 `Killed: 9`）。本机运行改用 `work/` 下的版本化产物；运行环境部署继续由带参数的发布编译承担（参数 `3` → 内网 Linux 主机，`release` → `dist/Release/`）。同步修正「开发流程」第 4 步、「代码提交及合并」第 2 步与 `.rules/go使用规范.md` 收尾检查中「编译并复制到 `~/bin/`」的表述，避免自相矛盾。注：`.rules/` 受 `.gitignore` 忽略（本地配置），规范文本本身不入库，仅在本记录留档。
+    - 复测（2026-09-15，Stage 4 收尾细项）：① **UC-27 不通过（发现缺陷）**——`chart` 上声明的 `actions:[{on:"select", id:"drill", payload:"point"}]` **完全没有接线**：实测（在带 `data-ui-tree-id` 的测试块上真实点击第 3 根柱、`wsSend` 打桩）零上行消息；源码核实 `web/static/ui.js` 仅 `file` 组件自建按钮调用 `sendUIAction`，**没有任何代码消费 `node.actions`**；`web/static/ui-chart.js` 只 `pointAttrs()` 打 `data-point-*` 属性，无 click 监听；`app.js` 亦无事件委托。而提示词（`i18n/zh_ui.go:83`「声明 actions:[{on:"select", id:"drill", payload:"point"}] 即可钻取」）与 `docs/ui-components.md` 已对该能力作出承诺 → 属 Stage 3 遗漏项，需修复。② UC-30 部分通过——`UI.updateTree('ui-不存在', patch)` 运行时返回 `false` 且不抛异常；`app.js:1527-1545` 两条失败分支均为 `console.warn` 后 `return`（补丁不可解析 / 目标不存在），流内其余事件不受影响；**限制**：`applyUIUpdate` 未暴露到 `window`，且页面 WS 当时为「已断开」，未能构造 `ui_update` 事件走真实事件流注入，建议后续以 LLM 驱动回合补测。③ 四套主题观感：程序化对比度（前景/背景 WCAG 比值）卡片标题与表格单元 dark 12.40 / dark-muted 5.88 / light 13.72 / paper 8.74；图表图例 dark 5.59 / dark-muted 4.23 / light 5.27 / paper 4.24（12px 小字，后两者略低于 AA 4.5，为轻微观察项，未擅自改色）。④ 柱状图几何复核（受控数据 10/20/30/40）：柱高 67/134/201/268 严格成比例，最高柱顶距 svg 顶边 24.89px（**不溢出**）——视觉模型所报「柱子超出绘图区」经程序化复核为**视口裁切造成的误读**。
+    - FIX [BUILD-1039]（2026-09-15，用户报告「新编译的 0.59.0 hub 启动后界面全白」）：根因是 Stage 4 给 agent 首页新加的 CSP `frame-ancestors 'none'`——hub 的 Web UI 正是用**同源 iframe** 嵌入 agent 页面（`hub/gateway/webui_static.go:634`：`f.src = '/agent/' + id + '/'`，经 `hub/gateway/proxyhttp.go` 反向代理到 agent），而 `frame-ancestors 'none'` 连**同源**嵌入也禁止，浏览器拒绝渲染该 frame → hub 舞台全白。实测证据：修复前 `curl -I http://127.0.0.1:12899/agent/feat524/` 返回 `… form-action 'self'; frame-ancestors 'none'`。修法：`web/server.go` 的 `indexCSP` 改为 `frame-ancestors 'self'`（跨站嵌入仍被禁止；被嵌页与 hub 页同源，'self' 已足够，且同源页面本就可读取被嵌页 DOM，不构成安全降级）。复测：修复后同一代理请求返回 `frame-ancestors 'self'`；hub 界面 iframe 内 `contentDocument.title` = agent 页面标题、`#input` 存在、DOM 长度 37 KB（中央空白仅为新会话无消息的消息区，非白屏）。**复核（同日，改用 BUILD-1039 的 hub 二进制，排除前次截图时 hub 仍为 BUILD-1038 且浏览器可能缓存旧 CSP 响应的干扰）**：以 `work/co-shell-hub-0.59.0.darwin.arm64 --serve --web-addr 127.0.0.1:12899 --tcp-addr 127.0.0.1:12898 --agent feat524=ws://127.0.0.1:28267/ws` 重启后，`/api/agents` 返回 `build:"1039"`、`connected:true`，hub 顶栏自标 `v0.59.0 [BUILD-1039]`；浏览器硬刷新 hub 页（带 `?cb=` 规避缓存）后中央 iframe 为深色主题（`body` 计算背景 `rgb(11, 14, 20)`，非白），实测 `window.UI` 为 object、`window.WebSocketReady` 为 function（`ui.js`/`app.js` 均已执行），经 hub 代理的 `static/style.css` 载入 845 条规则，`#stream`（消息区容器）与 `#input`（输入框，`disabled=false`）、3 个视图模式标签均在，顶栏连接指示 `#conn` 为 `conn on` /「已连接」（即 agent UI 的 WebSocket 经 hub 代理已连通）→ 中央空白确系**新会话无消息**，白屏缺陷已消除。
+    - Stage 5 [BUILD-1040]（2026-09-15，用户要求「左栏流程 / 右上图标 / 右下表单」两栏版式）：新增布局容器组件 `row` / `col`——原来的 10 个组件全是竖向堆叠，无法表达分栏（用户当时的两栏需求不可表达，经拍板选方案 B 新增容器）。实现：① 前端新文件 `web/static/ui-layout.js`（`UI.register("row"/"col")`，全程 createElement、无 innerHTML）：`row` 子节点横向排列，`gap?`（px）可调间距，窄屏自动堆叠；`col` 是 row 里的一列（`flex?` 占比权重），用于在一列内纵向堆叠多个组件；`web/static/index.html` 引入脚本（位于 ui-form.js 与 app.js 之间）；`style.css` 新增 `.ui-row`（flex + wrap + 220px 最小基准）与 `.ui-col`。② 协议侧 `agent/uitree.go` 白名单新增 `UICompRow`/`UICompCol`（现有校验本来就通用，深度/节点数/props/actions 约束不变）。③ 中英提示词（`i18n/zh_ui.go`、`en_ui.go`）补组件说明与「row 分栏、每列用 col 包裹」规则；`docs/ui-components.md` 组件目录 10 → 12 并给出两栏示例。④ 单测 `agent/uitree_test.go` UC-45：row/col 合法、可嵌套（row 套 col 再套 row）、节点计数、超深仍被拒。实测（`work/co-shell-0.59.0.darwin.arm64` BUILD-1040，端口 28267）：`row` 计算样式 `display:flex; flex-wrap:wrap; gap:12px`；两列几何 `left 30–517`（487px）与 `529–882`（353px），同 `top=78`、同 `bottom=382` → **确实并排**，宽度比恰为 `flex:2` 与 `flex:1` 按 220px 基准的分配（220+266.7 / 220+133.3）；右列子节点顺序 `["card","form"]`；截图确认左栏为步骤时间线、右栏上方为 👤 图标卡片、右栏下方为「姓名 / 角色（下拉）/ 提交」表单，且**无未注册组件降级提示**。
+
+    - FIX [BUILD-1045]（2026-09-15，用户报告「调用 `render_ui` 后界面不出现，直到点暂停才把渲染内容补到主消息窗口」）：根因是 `ui_render` 事件的**发射时机**——`agent/run_stream.go` 只在**工具调用返回后**才把 park 在 agent 上的组件树发成事件，而 `render_ui(waiting=true)` 会**阻塞在工具内部**（`agent/ui_tools.go` → `waitUIAction`），于是树一直排着队、要等 wait 被释放才发（用户看到的「点暂停后出现」正是中断释放了 wait）。修法：新增 `Agent.uiEmit`（本轮 `StreamCallback`；`RunStream` 进入时 `setUIEmitter(cb)`、退出时清空）+ `emitUIRender()`——`render_ui` 在 park 等待**之前**就把树发出去；同时抽出 `takeUIRenderEvent()` 作为「park 状态 → 线上事件」的**唯一构造点**，两条发射路径互斥消费，同一棵树绝不重复渲染（waiting 路径已消费 → 循环处为 no-op）。前端无需改动（`app.js` 收到 `ui_render` 即插块渲染）。新增回归单测 `agent/ui_render_emit_test.go`（UC-60 ×3：等待期间已发射且恰好一次、无发射器时不消费以便循环兜底、发射器随回合清理），`go test ./agent/` 全绿。实测（`work/co-shell-0.59.0.darwin.arm64` BUILD-1045，端口 28267）：发出 `render_ui(waiting=true)` 后**未点任何暂停**，卡片「信息填写」（callout + form 两字段 + 启用态提交按钮）已渲染出现，同屏截图可见回合仍在等待（橙色暂停按钮激活）；填写并提交后，**同一回合内** agent 收到工具结果 `{"name":"审核员A","memo":"已核对，同意"}` 并据此给出结论。`go build ./... && go vet ./...` 全绿。
+
+- [ ] **待排期 · LLM 可控布局（FEATURE-524 后续能力，v0.60.0 候选）**  - 来源：用户 2026-09-15 看 BUILD-1032 演示后提出——“由 LLM 控制输出布局，把多个控件有机整合，让界面整体感更强”。
+  - 决策（用户确认，5 轮）：
+    1. **机制**：新增通用网格容器 `grid` / `row` / `col`，子节点用 `span` 权重占位（改动最小、最通用）；不采用语义预设版式（stats/split）作为本期主路径。
+    2. **控制粒度**：**语义权重**——`span=1|2|3`、`size=sm|md|lg`，具体像素/断点由样式决定；不允许 LLM 给百分比或像素级坐标（小屏与四主题下易做坏）。
+    3. **作用范围**：两者都要，但**分两步**——先做“同一棵组件树内部”的控件编排，再做“跨块/页面级统一”（块间距、对齐、最大宽度、标题层级；需改 `app.js` 块布局与 `style.css` 流式样式）。
+    4. **交互**：本期只做**静态布局**（纯视觉，零交互），不做 tabs 等交互式容器。
+    5. **排期**：先把 FEATURE-524 的 Stage 4（html 沙箱/CSP/上下文裁剪）做完，再开新任务与新分支实现布局。
+  - 已知约束（实现时需一并处理）：容器会加快嵌套深度消耗（当前上限 6 层）；响应式需用 CSS Grid `auto-fit`/`minmax` + 窄屏自动堆叠；不必引入任何第三方依赖。
+
+---
+
 ## v0.58.1 — 开发中
 
 > **版本**: v0.58.1

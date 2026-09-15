@@ -79,6 +79,9 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "meta-capability-enabled", Value: boolStr(llm.MetaCapabilityEnabled), Desc: i18n.T(i18n.KeyCol3MetaCapabilityEnabled), Type: "bool", Default: boolStr(def.MetaCapabilityEnabled)},
 		{Key: "subagent-enabled", Value: boolStr(llm.SubAgentEnabled), Desc: i18n.T(i18n.KeyCol3SubAgentEnabled), Type: "bool", Default: boolStr(def.SubAgentEnabled)},
 		{Key: "board-enabled", Value: boolStr(cfg.BoardEnabled), Desc: i18n.T(i18n.KeyCol3BoardEnabled), Type: "bool", Default: boolStr(defCfg.BoardEnabled)},
+		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
+		{Key: "ui-enabled", Value: boolStr(cfg.UIEnabled), Desc: i18n.T(i18n.KeyCol3UIEnabled), Type: "bool", Default: boolStr(defCfg.UIEnabled)},
+		{Key: "ui-context-prune", Value: boolStr(cfg.UIContextPrune), Desc: i18n.T(i18n.KeyCol3UIContextPrune), Type: "bool", Default: boolStr(defCfg.UIContextPrune)},
 		{Key: "result-mode", Value: config.ResultModeString(config.ResultMode(llm.ResultMode)), Desc: i18n.T(i18n.KeyCol3ResultMode), Type: "enum", Options: []string{"minimal", "explain", "analyze", "free"}, Default: config.ResultModeString(config.ResultMode(def.ResultMode))},
 		{Key: "shell-session-enabled", Value: boolStr(llm.ShellSessionEnabled), Desc: i18n.T(i18n.KeyCol3ShellSessionEnabled), Type: "bool", Default: boolStr(def.ShellSessionEnabled)},
 		{Key: "shell-session-timeout", Value: strconv.Itoa(llm.ShellSessionTimeout), Desc: i18n.T(i18n.KeyCol3ShellSessionTimeout), Type: "number", Default: strconv.Itoa(def.ShellSessionTimeout)},

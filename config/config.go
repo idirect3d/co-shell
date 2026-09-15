@@ -1039,6 +1039,16 @@ type Config struct {
 	// execution messages and does not participate in board collaboration.
 	BoardEnabled bool `json:"board_enabled,omitempty"`
 
+	// UIEnabled exposes the render_ui tool (FEATURE-524): the LLM can answer
+	// with structured UI components (cards, tables, charts, ...) rendered by
+	// the Web UI instead of a wall of text. On by default.
+	UIEnabled bool `json:"ui_enabled"`
+	// UIContextPrune replaces component trees in the conversation history with
+	// their one-line summary before the history is sent back to the LLM
+	// (FEATURE-524), so a rendered chart costs a few tokens instead of its
+	// whole JSON. On by default.
+	UIContextPrune bool `json:"ui_context_prune"`
+
 	ws         *workspace.Workspace // workspace reference for Save()
 	configPath string               // actual config file path loaded from (may differ from ws.ConfigPath())
 }
@@ -1160,6 +1170,9 @@ func DefaultConfig() *Config {
 		Rules:      []string{},
 		LogEnabled: true,
 		LogLevel:   "info",
+
+		UIEnabled:      true,
+		UIContextPrune: true,
 	}
 }
 

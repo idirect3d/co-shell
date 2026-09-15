@@ -3636,3 +3636,258 @@ select,
 #input {
   font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
+
+/* ---------------------------------------------------------------------------
+   FEATURE-524: LLM component trees (render_ui / ui.js).
+   Every colour comes from the existing theme variables (or color-mix of them),
+   so the four themes (dark / dark-muted / light / eyecare) stay consistent
+   without a single per-theme override.
+   --------------------------------------------------------------------------- */
+
+.ui-tree { display: flex; flex-direction: column; gap: 10px; }
+.ui-tree > * { min-width: 0; }
+
+/* card: container with an optional head and a body hosting child components */
+.ui-card { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elev); overflow: hidden; }
+.ui-card-head { display: flex; gap: 8px; align-items: baseline; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.ui-card-icon { font-size: 15px; line-height: 1; }
+.ui-card-titles { min-width: 0; }
+.ui-card-title { font-weight: 600; color: var(--ev-body-fg); }
+.ui-card-subtitle { margin-top: 2px; font-size: 12px; color: var(--ev-body-fg-dim); }
+.ui-card-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+
+/* Stage 5 layout containers: row splits its children horizontally, col is one
+   column of a row. Children wrap into a single column on narrow screens
+   (220px minimum basis) instead of overflowing the block. FEATURE-524: the
+   protective 180px minimum width is itself capped by the container width, so a
+   window narrower than 180px wraps instead of spilling out. */
+.ui-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.ui-row > * { flex: 1 1 220px; min-width: min(180px, 100%); }
+.ui-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+/* kv: key/value list */
+.ui-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; }
+.ui-kv-k { color: var(--ev-body-fg-dim); }
+.ui-kv-v { margin: 0; color: var(--ev-body-fg); overflow-wrap: anywhere; }
+
+/* callout: one highlighted conclusion, tinted by variant */
+.ui-callout { border-left: 3px solid var(--accent); border-radius: 6px; padding: 8px 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ui-callout-title { margin-bottom: 2px; font-weight: 600; color: var(--ev-body-fg); }
+.ui-callout-text { color: var(--ev-body-fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ui-callout-warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.ui-callout-success { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.ui-callout-error { border-left-color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+
+/* progress bar */
+.ui-progress { display: flex; flex-direction: column; gap: 4px; }
+.ui-progress-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--ev-body-fg-dim); }
+.ui-progress-track { height: 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--mono-bg); overflow: hidden; }
+.ui-progress-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+
+/* unknown / failed component: degrade to a labelled placeholder, never a hole */
+.ui-unknown { border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; color: var(--ev-body-fg-dim); }
+.ui-unknown-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.ui-unknown-type { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ev-body-fg); }
+.ui-unknown-raw { margin-top: 6px; }
+.ui-unknown-raw summary { cursor: pointer; }
+.ui-unknown-raw pre { max-height: 220px; margin: 6px 0 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--mono-bg); overflow: auto; }
+
+/* ---------------------------------------------------------------------------
+   FEATURE-524 Stage 2: table / steps / file / SVG chart.
+   Colours come from the theme variables only; SVG elements receive the series
+   colour through a --c custom property so var() can be used inside SVG.
+   --------------------------------------------------------------------------- */
+
+/* shared empty state */
+.ui-empty { padding: 6px 0; color: var(--ev-body-fg-dim); font-style: italic; }
+
+/* table */
+.ui-table-wrap { width: 100%; overflow-x: auto; }
+.ui-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ui-table th, .ui-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.ui-table th { color: var(--ev-body-fg-dim); font-weight: 600; white-space: nowrap; }
+.ui-table td { color: var(--ev-body-fg); overflow-wrap: anywhere; }
+.ui-table tbody tr:hover { background: var(--bg-elev); }
+/* qualified with .ui-table th/td: the base `.ui-table td` rule is more
+   specific than a bare class, so these must match its specificity to win */
+.ui-table th.ui-align-right, .ui-table td.ui-align-right { text-align: right; }
+.ui-table th.ui-align-center, .ui-table td.ui-align-center { text-align: center; }
+.ui-table td.ui-td-status { font-weight: 600; }
+.ui-table td.ui-td-ok { color: var(--ok); }
+.ui-table td.ui-td-warn { color: var(--warn); }
+.ui-table td.ui-td-err { color: var(--err); }
+
+/* steps / timeline */
+.ui-steps { margin: 0; padding: 0; list-style: none; }
+.ui-step { position: relative; padding: 0 0 14px 26px; }
+.ui-step:last-child { padding-bottom: 0; }
+/* connector line between steps (hidden after the last one) */
+.ui-step::before { content: ""; position: absolute; left: 8px; top: 17px; bottom: 0; width: 2px; background: var(--border); }
+.ui-step:last-child::before { display: none; }
+.ui-step-dot {
+  position: absolute; left: 0; top: 2px; box-sizing: border-box;
+  width: 18px; height: 18px; border-radius: 999px;
+  border: 2px solid var(--border); background: var(--bg-elev);
+  color: var(--bg); font-size: 11px; line-height: 14px; text-align: center;
+}
+.ui-step-title { color: var(--ev-body-fg); }
+.ui-step-desc { margin-top: 2px; font-size: 12px; color: var(--ev-body-fg-dim); }
+.ui-step-done .ui-step-dot { border-color: var(--ok); background: var(--ok); }
+.ui-step-done::before { background: var(--ok); }
+.ui-step-done .ui-step-title { color: var(--ev-body-fg-dim); }
+.ui-step-active .ui-step-dot { border-color: var(--accent); background: var(--accent-dim); }
+.ui-step-active .ui-step-title { color: var(--accent); font-weight: 600; }
+.ui-step-pending .ui-step-title { color: var(--ev-body-fg-dim); }
+
+/* file card */
+.ui-file { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); }
+.ui-file-icon { font-size: 18px; line-height: 1; }
+.ui-file-meta { flex: 1 1 auto; min-width: 0; }
+.ui-file-name { color: var(--ev-body-fg); font-weight: 600; overflow-wrap: anywhere; }
+.ui-file-path { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; color: var(--ev-body-fg-dim); overflow-wrap: anywhere; }
+.ui-file-size { color: var(--ev-body-fg-dim); font-size: 12px; white-space: nowrap; }
+.ui-file-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ui-file-rejected { margin-top: 4px; font-size: 12px; color: var(--warn); }
+
+/* SVG chart */
+.ui-chart { display: flex; flex-direction: column; gap: 6px; }
+/* the viewBox scales to the container, so a chart is responsive without JS
+   resize handlers and can never overflow the block horizontally */
+.ui-chart-svg { display: block; width: 100%; height: auto; }
+.ui-chart-grid { stroke: var(--border); stroke-width: 1; }
+.ui-chart-axis { stroke: var(--border); stroke-width: 1.2; }
+.ui-chart-label { fill: var(--ev-body-fg-dim); font-size: 11px; }
+/* five rotating series colours, delivered through the --c custom property */
+.ui-chart-s0 { --c: var(--accent); }
+.ui-chart-s1 { --c: var(--ok); }
+.ui-chart-s2 { --c: var(--warn); }
+.ui-chart-s3 { --c: var(--err); }
+.ui-chart-s4 { --c: var(--fg-dim); }
+.ui-chart-bar, .ui-chart-slice, .ui-chart-swatch { fill: var(--c, var(--accent)); }
+.ui-chart-bar { stroke: none; }
+.ui-chart-bar:hover { opacity: 0.82; }
+.ui-chart-slice { stroke: var(--bg-elev); stroke-width: 1; }
+.ui-chart-line { fill: none; stroke: var(--c, var(--accent)); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ui-chart-point { fill: var(--c, var(--accent)); stroke: var(--bg-elev); stroke-width: 1.5; }
+.ui-chart-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--ev-body-fg-dim); }
+.ui-chart-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.ui-chart-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+
+/* ---------------------------------------------------------------------------
+   FEATURE-524 Stage 3: form component.
+   Native controls styled with the theme variables; the buttons reuse the
+   project's .btn variants so they match every other control in the UI.
+   --------------------------------------------------------------------------- */
+
+.ui-form { display: flex; flex-direction: column; gap: 10px; }
+.ui-form-title { color: var(--ev-body-fg); font-weight: 600; }
+.ui-field { display: flex; flex-direction: column; gap: 4px; }
+.ui-field-label { color: var(--ev-body-fg-dim); font-size: 12px; }
+/* checkbox: control and its label sit on one line */
+.ui-field-checkbox { flex-direction: row; align-items: center; gap: 8px; }
+.ui-field-checkbox .ui-field-label { font-size: inherit; color: var(--ev-body-fg); }
+.ui-input {
+  box-sizing: border-box; width: 100%; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--mono-bg); color: var(--input-fg, var(--fg));
+  font: inherit;
+}
+.ui-input:focus { border-color: var(--accent); outline: none; }
+.ui-textarea { min-height: 60px; resize: vertical; }
+.ui-check-input { width: 14px; height: 14px; accent-color: var(--accent); }
+.ui-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* FEATURE-524 Stage 4: html escape hatch. The LLM markup lives in a sandboxed
+   iframe (opaque origin), so it can neither style nor reach the main document;
+   the frame only gets a neutral bordered box that its content fills. */
+.ui-html { display: block; }
+.ui-html-frame {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  height: 120px;
+  border: 1px dashed var(--border, #3a3f46);
+  border-radius: 8px;
+  background: transparent;
+}
+.ui-html-empty { color: var(--fg-dim, #8b9198); font-size: 12px; }
+
+/* FEATURE-524 window mode: the single floating window opened by ui_window.
+   Fixed to the bottom-right, close button only (no drag/minimise/resize), and
+   nothing is persisted: a refresh or a session switch starts without it. */
+.ui-window {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: min(420px, calc(100vw - 32px));
+  /* FEATURE-524: protective minimum size, capped by the viewport: on a screen
+     smaller than the minimum the window may shrink below it but never overflows
+     (viewport protection wins over the minimum-size guard). */
+  min-width: min(240px, calc(100vw - 32px));
+  min-height: min(160px, calc(100vh - 32px));
+  max-height: min(70vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #fff);
+  color: var(--fg, inherit);
+  border: 1px solid var(--border-color, rgba(127, 127, 127, 0.45));
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  z-index: 60;
+  overflow: hidden;
+}
+.ui-window.hidden { display: none; }
+.ui-window-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color, rgba(127, 127, 127, 0.35));
+  background: rgba(127, 127, 127, 0.12);
+}
+.ui-window-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-window-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+.ui-window-close:hover { background: rgba(127, 127, 127, 0.22); }
+.ui-window-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow: auto;
+  /* FEATURE-524: the body is the query container for the folding rules below,
+     so they react to the WINDOW width instead of the viewport width. */
+  container-type: inline-size;
+}
+/* FEATURE-524: children keep their own height instead of being squeezed by the
+   flex column, so overflowing content really scrolls (overflow:auto above)
+   rather than being flattened to fit. */
+.ui-window-body > * { flex-shrink: 0; }
+
+/* FEATURE-524 responsive folding: the body is a query container, so a row
+   collapses to a single column as soon as the WINDOW gets narrow (not the
+   viewport), and a key/value list drops to one column so its label column can
+   no longer push the table wide. Browsers without container queries ignore
+   this block and fall back to the flex-wrap + capped min-width rules above;
+   .ui-window-body's overflow:auto remains the final scroll fallback. */
+@container (max-width: 380px) {
+  .ui-row { flex-direction: column; }
+  .ui-row > * { flex: 0 0 auto; width: 100%; min-width: 0; }
+  .ui-kv { grid-template-columns: minmax(0, 1fr); }
+}
