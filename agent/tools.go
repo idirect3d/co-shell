@@ -709,6 +709,13 @@ Critical rules:
 		Callback: a.evaluateExpressionTool,
 	})
 
+	// Add render_ui tool (FEATURE-524): lets the LLM answer with a structured
+	// component tree instead of plain text. Not advertised at all when the
+	// ui_enabled switch is off.
+	if a.uiEnabled() {
+		tools = append(tools, a.buildRenderUITool())
+	}
+
 	// Add attempt_completion tool (always available)
 	tools = append(tools, llm.Tool{
 		Name: "attempt_completion",

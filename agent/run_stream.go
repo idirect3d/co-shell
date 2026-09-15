@@ -1586,6 +1586,20 @@ iterationLoop:
 					cb(TaskPlanEvent(planJSON))
 				}
 
+				// FEATURE-524: a successful render_ui call parks its validated
+				// component tree on the agent (the tool callback has no access to
+				// cb); this loop is the only owner of the callback, so it emits
+				// the ui_render event here. Not gated by showTool: the Web UI must
+				// stay in sync with what the LLM actually rendered, and the
+				// LineRenderer ignores this event type anyway.
+				if execErr == nil && tc.Name == "render_ui" {
+					if root, uiID := a.takePendingUITree(); root != nil {
+						if treeJSON, mErr := MarshalUITree(root); mErr == nil {
+							cb(UIRenderEvent(uiID, treeJSON))
+						}
+					}
+				}
+
 				// Show tool call output if enabled (for all tools)
 				if a.showToolOutput && result != "" {
 					cb(withPhase(NewStreamEvent(EventToolCall, ChannelTool, LevelInfo, fmt.Sprintf("  Result:\n%s", result)), PhaseResult))

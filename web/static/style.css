@@ -3636,3 +3636,49 @@ select,
 #input {
   font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
+
+/* ---------------------------------------------------------------------------
+   FEATURE-524: LLM component trees (render_ui / ui.js).
+   Every colour comes from the existing theme variables (or color-mix of them),
+   so the four themes (dark / dark-muted / light / eyecare) stay consistent
+   without a single per-theme override.
+   --------------------------------------------------------------------------- */
+
+.ui-tree { display: flex; flex-direction: column; gap: 10px; }
+.ui-tree > * { min-width: 0; }
+
+/* card: container with an optional head and a body hosting child components */
+.ui-card { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elev); overflow: hidden; }
+.ui-card-head { display: flex; gap: 8px; align-items: baseline; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.ui-card-icon { font-size: 15px; line-height: 1; }
+.ui-card-titles { min-width: 0; }
+.ui-card-title { font-weight: 600; color: var(--ev-body-fg); }
+.ui-card-subtitle { margin-top: 2px; font-size: 12px; color: var(--ev-body-fg-dim); }
+.ui-card-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+
+/* kv: key/value list */
+.ui-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; }
+.ui-kv-k { color: var(--ev-body-fg-dim); }
+.ui-kv-v { margin: 0; color: var(--ev-body-fg); overflow-wrap: anywhere; }
+
+/* callout: one highlighted conclusion, tinted by variant */
+.ui-callout { border-left: 3px solid var(--accent); border-radius: 6px; padding: 8px 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ui-callout-title { margin-bottom: 2px; font-weight: 600; color: var(--ev-body-fg); }
+.ui-callout-text { color: var(--ev-body-fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ui-callout-warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.ui-callout-success { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.ui-callout-error { border-left-color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+
+/* progress bar */
+.ui-progress { display: flex; flex-direction: column; gap: 4px; }
+.ui-progress-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--ev-body-fg-dim); }
+.ui-progress-track { height: 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--mono-bg); overflow: hidden; }
+.ui-progress-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+
+/* unknown / failed component: degrade to a labelled placeholder, never a hole */
+.ui-unknown { border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; color: var(--ev-body-fg-dim); }
+.ui-unknown-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.ui-unknown-type { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ev-body-fg); }
+.ui-unknown-raw { margin-top: 6px; }
+.ui-unknown-raw summary { cursor: pointer; }
+.ui-unknown-raw pre { max-height: 220px; margin: 6px 0 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--mono-bg); overflow: auto; }

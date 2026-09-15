@@ -271,6 +271,7 @@ func DefaultToolModes() map[string]string {
 		"shell_reset":                "auto",
 		"attempt_completion":         "auto",
 		"evaluate_expression":        "auto",
+		"render_ui":                  "auto",
 		"reorganize_context":         "auto",
 		// Vault tools (FEATURE-274) - list is auto, add/remove require confirmation
 		"vault_list":   "auto",

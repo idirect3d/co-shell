@@ -112,6 +112,12 @@ type Agent struct {
 	showCommand       bool
 	showCommandOutput bool
 
+	// pendingUITree / pendingUIID hold the component tree produced by the most
+	// recent render_ui call, waiting for the stream loop (which owns the
+	// StreamCallback) to emit it as a ui_render event (FEATURE-524).
+	pendingUITree *UINode
+	pendingUIID   string
+
 	rules           string // user-defined rules for rebuilding system prompt
 	subAgentMgr     *subagent.Manager
 	taskPlanMgr     *taskplan.Manager

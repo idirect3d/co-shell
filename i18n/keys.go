@@ -2253,6 +2253,26 @@ const (
 	KeyToolUsageAskUser            = "tool_usage_ask_user"
 	KeyToolUsageAttemptCompletion  = "tool_usage_attempt_completion"
 	KeyToolUsageEvaluateExpression = "tool_usage_evaluate_expression"
+
+	// FEATURE-524: LLM-driven UI component tree (render_ui tool).
+	// Validation errors are surfaced to the LLM verbatim so a malformed call
+	// can be corrected without human intervention.
+	KeyUIErrTreeEmpty         = "ui_err_tree_empty"
+	KeyUIErrTreeDecode        = "ui_err_tree_decode"
+	KeyUIErrTreeTooDeep       = "ui_err_tree_too_deep"
+	KeyUIErrTreeTooManyNodes  = "ui_err_tree_too_many_nodes"
+	KeyUIErrNodeTypeMissing   = "ui_err_node_type_missing"
+	KeyUIErrNodeTypeUnknown   = "ui_err_node_type_unknown"
+	KeyUIErrNodePropsTooLarge = "ui_err_node_props_too_large"
+	KeyUIErrActionKind        = "ui_err_action_kind"
+	KeyUIErrActionID          = "ui_err_action_id"
+	KeyUISummaryNoChildren    = "ui_summary_no_children"
+	KeyUISummaryChildren      = "ui_summary_children"
+	KeyUIErrRenderFailed      = "ui_err_render_failed"
+	KeyUIWaitingCancelled     = "ui_waiting_cancelled"
+	KeyUIWaitingTimeout       = "ui_waiting_timeout"
+	KeyUIToolUsageRenderUI    = "tool_usage_render_ui"
+	KeyUINoRenderer           = "ui_no_renderer"
 	KeyToolUsageReorganizeContext  = "tool_usage_reorganize_context"
 
 	// Board collaboration tool usage examples (FEATURE-490, XML mode)

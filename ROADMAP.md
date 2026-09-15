@@ -4,6 +4,58 @@
 
 ---
 
+## v0.59.0 — 开发中
+
+> **版本**: v0.59.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: LLM 组件化输出协议——LLM 用结构化组件树（而非纯文本/Markdown）表达结果，Web UI 渲染为现代、直观、可交互的富组件
+> **说明**: 当前 Web UI 的瓶颈不是排版，而是 LLM 没有「画东西」的表达通道：唯一下行单元是 `agent.StreamEvent`（`agent/events.go:19`），而前端 `web/static/md.js` 只是手写 Markdown 子集渲染器（注释明确 *never feeds raw input to innerHTML*），LLM 输出的上限就是「一段排版过的文本」，没有卡片/图表/交互控件。本版本新增 `render_ui` 工具，LLM 传入结构化组件树 JSON，前端 registry 递归渲染为主 DOM 富组件；并提供 `html` 逃生舱（sandbox iframe）承载长尾表达需求。硬约束：零第三方依赖、无前端构建步骤、`embed.FS` 单二进制打包。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-524 | 0.59.0 | P1 | LLM 组件化输出协议：`render_ui` 工具 + 组件树协议 + 前端 registry + 10 个基础组件 + 交互回传 + html 沙箱 + 上下文裁剪 |
+
+> 当前 BUILD: 1025
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-524 LLM 组件化输出协议（co-shell Web UI 富组件渲染）**
+  - 需求（用户确认，6 轮讨论）：
+    1. 目标用户：非技术用户直接用 co-shell 完成任务并看结果（办公/数据分析/资料整理）。
+    2. 表达载体：**工具调用为主**——新增 `render_ui` 工具，参数为组件树 JSON。
+    3. 渲染归属：声明式组件走**主 DOM**（复用现有 CSS 变量，四套主题自动一致）；仅 `html` 逃生舱进 sandbox iframe。
+    4. 图表/地图：**手写 SVG**（柱/折线/饼），零依赖红线不破；本期不做地图。
+    5. 交互语义：组件动作开启新一轮 agent 回合（续作型），支持图表数据点钻取。
+    6. 阻塞策略：由工具参数 `waiting` 控制，**默认不阻塞**。
+    7. 更新机制：`ui_update` 按 id 原地更新，作用域=当前回合内任意组件。
+    8. 上下文裁剪：本期就做，配置开关控制，**默认开**。
+    9. 跨端：只做 Web UI，终端/飞书降级为纯文本或省略。
+    10. 归属版本 **v0.59.0**（FEATURE，minor+1）；任务号 **FEATURE-524**；分支 `FEATURE-524`。
+  - 协议契约：
+    - 组件树节点 `{type, id?, props?, children?, actions?}`；动作声明 `{on: click|select|submit|change, id, payload: node|value|row|point|form}`。
+    - 工具签名 `render_ui(tree: object, waiting: bool=false, intent: string)`；**只读安全免确认**；返回值仅简短回执（如「已渲染 card/ui-7（3 个子节点）」），不回传树本身。
+    - 下行事件 `ui_render`（`Meta{ui_id, ui_tree}`）与 `ui_update`（`Meta{ui_id, ui_patch}`）。
+    - 上行消息 `{"type":"ui_action","ui_id","action_id","payload"}`。
+    - 阻塞语义：`waiting=false`（默认）→ 立即返回回执，用户动作作为用户输入注入并**开启新一轮**；`waiting=true` → 阻塞等待，用户动作作为**工具返回值**在同一回合内继续；用户直接打字 / ESC 打断 / 超时 → 释放阻塞并返回「用户未操作」。
+  - MVP 组件（10 个）：`card` / `kv` / `table` / `chart` / `steps` / `callout` / `progress` / `file` / `form` / `html`。
+  - 实施阶段（4 个 Stage）：
+    1. **Stage 1 骨架**：`agent/uitree.go`（Node/Action 类型 + 校验）、`agent/ui_tools.go`（render_ui）、`agent/events.go`（新事件）、`agent/tools.go`（注册）、`web/static/ui.js`（registry + 递归渲染）、`renderEvent` 接入；首批组件 card/kv/callout/progress。
+    2. **Stage 2 数据展示**：`web/static/ui-chart.js`（SVG 柱/折线/饼）+ table + steps + file。
+    3. **Stage 3 交互与原地更新**：form + 动作回传（`web/session.go` 新增 `ui_action` 分支）+ `ui_update` + `waiting` 阻塞与释放。
+    4. **Stage 4 逃生舱与治理**：html 沙箱（`/api/ui-sandbox` 独立端点 + 独立 CSP）+ 主页面 CSP + 组件目录进系统提示词（i18n zh/en）+ 上下文裁剪开关 + 文档与前端控件规范。
+  - 安全约束：声明式组件一律 `createElement` + `textContent`（**禁止 innerHTML**，沿用 md.js 铁律）；html 逃生舱 iframe `sandbox="allow-scripts"`（**不加 `allow-same-origin`**，不透明源，无法访问父页面 DOM/存储）；`postMessage` 校验 `event.source === iframe.contentWindow` + 消息结构白名单。
+  - 测试用例：`use-case/FEATURE-524/FEATURE-524-UC-0001.md`（UC-01~UC-49，A~H 共 8 组，已获用户确认）。
+  - 进度：🚧 Stage 1（骨架：组件树协议 + 校验 + render_ui 工具 + ui_render 事件 + 前端 registry）已完成 [BUILD-1026]。
+    - 已完成：`agent/uitree.go`（组件白名单/深度≤6/节点≤200/props≤8KB + ParseUITree/ValidateUITree/UISummary/MarshalUITree）、`agent/ui_tools.go`（render_ui：校验→暂存→简短回执，不回调树）、`agent/events.go`（`ui_render`/`ui_update` 事件 + Meta key + 构造器，走 ChannelSystem 以避开 show-* 过滤）、`agent/run_stream.go` 发射点、`agent/tools.go` 注册、`config` 的 `ui_enabled`/`ui_context_prune`（均默认开）、`i18n` 中英文案（`zh_ui.go`/`en_ui.go`，含系统提示词分节）、`web/static/ui.js`（registry + 递归渲染 + card/kv/callout/progress + 未注册降级）、`app.js`/`index.html`/`style.css` 接入。
+    - 已通过：A/B 组单测（UC-01~UC-10）`go test ./agent/`；浏览器实测（UC-11~UC-16，28260 实例）——card/kv/callout(warn)/progress(75%) 渲染正确、`steps` 优雅降级、XSS 载荷零元素（`img/script/iframe/svg` 均为 0，`window.__xss` 未被置位）；`go build ./... && go vet ./...` 全绿。
+    - 已知非本次引入的失败：`cmd` 包 `TestSettingsJSONFillsDefaults` 报 `setting "logo" has empty Default`（`cmd/settings_web.go:114` 定义处即无 Default），与 FEATURE-524 无关，待单独修复。
+    - 待办：Stage 2 数据展示（table/chart/steps/file）、Stage 3 交互与原地更新（form/ui_action/waiting）、Stage 4 逃生舱与治理（html 沙箱/CSP/上下文裁剪落地）。
+
+---
+
 ## v0.58.1 — 开发中
 
 > **版本**: v0.58.1

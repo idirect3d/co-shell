@@ -1,0 +1,86 @@
+// Package i18n - Chinese translations for the LLM-driven UI component tree
+// protocol (FEATURE-524).
+//
+// Author: L.Shuang
+// Created: 2026-09-15
+// MIT License - Copyright (c) 2026 L.Shuang
+
+package i18n
+
+func init() {
+	zhMessages[KeyUIErrTreeEmpty] = `render_ui 的 tree 参数不能为空。`
+
+	zhMessages[KeyUIErrTreeDecode] = `组件树 JSON 解析失败：%s`
+
+	zhMessages[KeyUIErrTreeTooDeep] = `组件树嵌套层数超过上限（%d 层），请减少嵌套后重试。`
+
+	zhMessages[KeyUIErrTreeTooManyNodes] = `组件树节点数超过上限（%d 个），请拆分成多次渲染。`
+
+	zhMessages[KeyUIErrNodeTypeMissing] = `组件节点缺少 type 字段。可用组件类型：%s`
+
+	zhMessages[KeyUIErrNodeTypeUnknown] = `不支持的组件类型「%s」。可用组件类型：%s`
+
+	zhMessages[KeyUIErrNodePropsTooLarge] = `组件 %s 的 props 体积超过上限（%d 字节），请精简数据（大表格改用文件或分批渲染）。`
+
+	zhMessages[KeyUIErrActionKind] = `组件 %s 声明了不支持的交互方式「%s」，可用：click、select、submit、change。`
+
+	zhMessages[KeyUIErrActionID] = `组件 %s 的交互动作缺少 id 字段。`
+
+	zhMessages[KeyUISummaryNoChildren] = `已渲染 %s（id=%s，无子节点）。`
+
+	zhMessages[KeyUISummaryChildren] = `已渲染 %s（id=%s，%d 个子节点）。`
+
+	zhMessages[KeyUIErrRenderFailed] = `组件渲染失败：%s`
+
+	zhMessages[KeyUIWaitingCancelled] = `用户未操作（已取消等待，改为直接发送消息）。`
+
+	zhMessages[KeyUIWaitingTimeout] = `用户未在 %d 秒内操作，已结束等待。`
+
+	zhMessages[KeyUINoRenderer] = `当前界面不支持渲染 UI 组件，已降级为文本输出。`
+
+	zhMessages[KeyUIToolUsageRenderUI] = `## render_ui
+Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表格、图表、步骤、提示块等），而不是输出一大段文本。当用户需要看数据分析结果、对比信息、流程说明、进度，或者需要点击/选择时使用。渲染发生在用户的 Web 界面上。
+
+参数:
+- tree: 组件树根节点，必须是对象。
+- waiting: 可选布尔值。true 表示渲染后等待用户操作，用户的动作会作为本工具的返回值立即返回给你（适合你确实需要用户先做选择才能继续的场景）；false 或不传表示立即返回，用户之后的动作会作为一条新的用户消息开启新一轮对话（默认，推荐）。
+- meta: 透明化元数据对象（intent/risk/risk_reason/affected_objects/progress）。
+
+组件树节点结构:
+{type, id?, props?, children?, actions?}
+- type: 组件类型（见下方组件清单）
+- id: 可选字符串，同一回合内可用它原地更新该组件
+- props: 组件属性（各组件自定义，见下方）
+- children: 子节点数组（仅容器类组件使用）
+- actions: 交互声明数组 [{on, id, payload}]，on 取 click/select/submit/change，id 是动作标识，payload 取 node/value/row/point/form 决定回传哪些数据
+
+组件清单:
+- card: 容器。props{title?, subtitle?, icon?}
+- kv: 键值列表。props{items:[{k, v}]}
+- table: 表格。props{columns:[{key, label?, align?, width?}], rows:[{列key: 值}]}
+- chart: 图表。props{kind:"bar"|"line"|"pie", unit?, series:[{name, data:[{label, value}]}]}
+- steps: 步骤/时间线。props{items:[{title, desc?, status:"done"|"active"|"pending"}]}
+- callout: 提示块。props{variant:"info"|"warn"|"success"|"error", title?, text}
+- progress: 进度条。props{value, max?, label?}
+- file: 文件卡片。props{path, name?, size?}
+- form: 表单。props{title?, fields:[{name, label, type:"text"|"select"|"checkbox", options?, value?}], submit}
+- html: 逃生舱，props{content} 内可写任意 HTML/CSS/JS，在隔离沙箱内渲染，适合上述组件无法表达的图形。仅在你确实需要时使用。
+
+规则:
+1. 优先用组件而不是大段文本；数值对比用 chart，明细用 table，结论用 callout。
+2. 一次渲染内的顶层组件控制在 1~3 个，避免信息过载。
+3. 组件树最多嵌套 %d 层、最多 %d 个节点；单个节点 props 不超过 %d 字节。
+4. 需要用户点击某个数据点继续深入时，在该节点上声明 actions:[{on:"select", id:"drill", payload:"point"}]。
+5. 渲染历史中的组件树会被压缩为摘要，因此不要把关键数据只放在组件里而不写进你的回复文本。
+
+用法:
+<{XML_TAG_PREFIX}render_ui>
+  <{XML_TAG_PREFIX}meta>
+    <{XML_TAG_PREFIX}intent>向用户展示销售分析结果</{XML_TAG_PREFIX}intent>
+    <{XML_TAG_PREFIX}risk>low</{XML_TAG_PREFIX}risk>
+    <{XML_TAG_PREFIX}risk_reason>只读渲染，不修改任何文件</{XML_TAG_PREFIX}risk_reason>
+    <{XML_TAG_PREFIX}affected_objects>[]</{XML_TAG_PREFIX}affected_objects>
+  </{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}tree>{"type":"card","props":{"title":"销售分析"},"children":[{"type":"chart","props":{"kind":"bar","series":[{"name":"销售额","data":[{"label":"华东","value":320},{"label":"华南","value":180}]}]}}]}</{XML_TAG_PREFIX}tree>
+</{XML_TAG_PREFIX}render_ui>`
+}
