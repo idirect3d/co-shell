@@ -108,6 +108,11 @@ func (a *Agent) RunStream(ctx context.Context, userInput string, cb StreamCallba
 	// FEATURE-499: mark the agent busy for the duration of this task run.
 	a.SetBusy(true)
 	defer a.SetBusy(false)
+	// FEATURE-524: hand the live callback to the render_ui tool for the length
+	// of this turn, so a waiting call can publish its component tree before it
+	// parks instead of only after it returns.
+	a.setUIEmitter(cb)
+	defer a.setUIEmitter(nil)
 	// Ensure non-system messages are persisted on any exit path
 	defer func() {
 		if err := a.PersistSessionNonSystem(); err != nil {
@@ -1592,15 +1597,12 @@ iterationLoop:
 				// the ui_render event here. Not gated by showTool: the Web UI must
 				// stay in sync with what the LLM actually rendered, and the
 				// LineRenderer ignores this event type anyway.
+				// A waiting call has already published its tree (it blocks until the
+				// user acts, so emitting here would hide the component for the whole
+				// wait); its park is consumed by then and this becomes a no-op.
 				if execErr == nil && tc.Name == "render_ui" {
-					if target, node := a.takePendingUIUpdate(); node != nil {
-						if patchJSON, mErr := MarshalUITree(node); mErr == nil {
-							cb(UIUpdateEventTo(target, patchJSON, a.takePendingUITarget()))
-						}
-					} else if root, uiID := a.takePendingUITree(); root != nil {
-						if treeJSON, mErr := MarshalUITree(root); mErr == nil {
-							cb(UIRenderEventTo(uiID, treeJSON, a.takePendingUITarget()))
-						}
+					if ev, ok := a.takeUIRenderEvent(); ok {
+						cb(ev)
 					}
 				}
 				// FEATURE-524 window mode: ui_window only opens/closes the floating
