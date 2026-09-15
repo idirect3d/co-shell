@@ -563,14 +563,79 @@
     return !!w && !w.shell.classList.contains("hidden");
   }
 
+  // FEATURE-524 window sizing: a preset is a fraction of the usable viewport
+  // (viewport minus the 32px margin the fixed bottom-right layout keeps), so the
+  // same preset yields different pixels on different screens and can never
+  // overflow. "auto" (and anything unknown) keeps the original CSS-driven size.
+  var WIN_MARGIN = 32;
+  var WIN_MIN_W = 240;
+  var WIN_MIN_H = 160;
+  var WIN_SIZE_RATIO = { small: 0.5, medium: 2 / 3, large: 1 };
+
+  // clampWindowSize turns a preset into the pixels the window should occupy,
+  // clamped to the usable viewport. Viewport protection wins over the minimum
+  // size: on a tiny screen the window may be smaller than the minimum, but it
+  // never overflows the visible area.
+  function clampWindowSize(size) {
+    var ratio = WIN_SIZE_RATIO[size];
+    if (ratio === undefined) return null;
+    var availW = Math.max(0, window.innerWidth - WIN_MARGIN);
+    var availH = Math.max(0, window.innerHeight - WIN_MARGIN);
+    var w = Math.min(Math.round(availW * ratio), availW);
+    var h = Math.min(Math.round(availH * ratio), availH);
+    if (availW >= WIN_MIN_W) w = Math.max(w, WIN_MIN_W);
+    if (availH >= WIN_MIN_H) h = Math.max(h, WIN_MIN_H);
+    return { w: Math.max(0, w), h: Math.max(0, h) };
+  }
+
+  // applyWindowSize writes the clamp result onto the shell. A null box (auto or
+  // an unknown preset) clears the inline size so the stylesheet's original
+  // rules apply again. The effective pixels stay readable for diagnostics (and
+  // for the browser tests) in data-ui-win-w / data-ui-win-h.
+  function applyWindowSize(shell, size) {
+    if (!shell) return;
+    var box = clampWindowSize(size);
+    if (!box) {
+      shell.style.width = "";
+      shell.style.height = "";
+      shell.style.maxHeight = "";
+      shell.dataset.uiWinW = "";
+      shell.dataset.uiWinH = "";
+      return;
+    }
+    shell.style.width = box.w + "px";
+    shell.style.height = box.h + "px";
+    // The stylesheet caps every window height at min(70vh, 640px). An explicit
+    // preset is already inside the usable viewport, so lift that cap --
+    // otherwise large (the full usable height) would be silently truncated.
+    shell.style.maxHeight = "none";
+    shell.dataset.uiWinW = String(box.w);
+    shell.dataset.uiWinH = String(box.h);
+  }
+
+  // resizeWindow re-clamps the open window after a viewport change. The last
+  // requested preset is remembered on the shell (data-ui-win-size), so shrinking
+  // the browser narrows the window instead of dropping it back to auto.
+  function resizeWindow() {
+    var w = windowElements();
+    if (!w || !isWindowOpen()) return;
+    applyWindowSize(w.shell, w.shell.dataset.uiWinSize || "");
+  }
+
   // openWindow shows the window and returns the element its tree must be painted
   // into. There is exactly one window: opening it while it is already open only
-  // updates the title (and keeps the content), so repeated ui_window calls never
-  // stack overlays.
-  function openWindow(title) {
+  // updates the title and the size (and keeps the content), so repeated
+  // ui_window calls never stack overlays. An omitted/unknown size keeps the
+  // current geometry, which is what render_ui(target="window") relies on.
+  function openWindow(title, size) {
     var w = windowElements();
     if (!w) return null;
     if (w.title && title) w.title.textContent = String(title);
+    var preset = size === undefined || size === null ? "" : String(size).toLowerCase().trim();
+    if (preset && preset !== "auto" || preset === "auto") {
+      w.shell.dataset.uiWinSize = preset === "auto" ? "" : preset;
+      applyWindowSize(w.shell, preset === "auto" ? "" : preset);
+    }
     w.shell.classList.remove("hidden");
     return w.body;
   }
@@ -584,6 +649,14 @@
     if (!w) return false;
     w.shell.classList.add("hidden");
     if (w.body) w.body.replaceChildren();
+    // FEATURE-524: no size survives a close, so reopening with auto starts from
+    // the stylesheet defaults instead of the previous preset's pixels.
+    w.shell.style.width = "";
+    w.shell.style.height = "";
+    w.shell.style.maxHeight = "";
+    w.shell.dataset.uiWinSize = "";
+    w.shell.dataset.uiWinW = "";
+    w.shell.dataset.uiWinH = "";
     return true;
   }
 
@@ -621,6 +694,10 @@
     return true;
   }
 
+  // FEATURE-524: a viewport change re-clamps the open window so it never
+  // spills outside the visible area after the user resizes the browser.
+  window.addEventListener("resize", resizeWindow);
+
   global.UI = {
     version: "1",
     register: register,
@@ -634,6 +711,7 @@
     openWindow: openWindow,
     closeWindow: closeWindow,
     isWindowOpen: isWindowOpen,
+    resizeWindow: resizeWindow,
     // t/fmtBytes are shared with ui-chart.js and ui-form.js (loaded after this
     // file); sendUIAction is the single outbound path for component actions.
     t: uiText,

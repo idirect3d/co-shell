@@ -41,6 +41,22 @@ const (
 	UIWindowClose = "close"
 )
 
+// ui_window size presets (FEATURE-524). A preset is a fraction of the usable
+// viewport (viewport minus the 32px margin kept by the fixed bottom-right
+// position), so the same preset yields different pixels on different screens
+// and can never overflow. Auto keeps the original content-driven behaviour.
+const (
+	// UIWindowSizeAuto is the default: width min(420, viewport-32), height
+	// driven by the content and capped by CSS at min(70vh, 640px).
+	UIWindowSizeAuto = "auto"
+	// UIWindowSizeSmall is half of the usable viewport.
+	UIWindowSizeSmall = "small"
+	// UIWindowSizeMedium is two thirds of the usable viewport.
+	UIWindowSizeMedium = "medium"
+	// UIWindowSizeLarge fills the usable viewport.
+	UIWindowSizeLarge = "large"
+)
+
 // UIMaxWindowTitle bounds the window title in runes. A title is a UI label, not
 // a payload: an over-long one is refused so it cannot flood the event or the
 // title bar.
@@ -228,11 +244,12 @@ func uiRenderTarget(args map[string]interface{}) (string, error) {
 	}
 }
 
-// uiWindowRequest is one parked ui_window call: the action to perform and the
-// window title (empty for close).
+// uiWindowRequest is one parked ui_window call: the action to perform, the
+// window title and the size preset (both empty for close).
 type uiWindowRequest struct {
 	Action string
 	Title  string
+	Size   string
 }
 
 // buildUIWindowTool declares the ui_window tool (FEATURE-524 window mode). It
@@ -259,6 +276,11 @@ func (a *Agent) buildUIWindowTool() llm.Tool {
 					"type":        "string",
 					"description": i18n.T(i18n.KeyUIToolParamWindowTitle),
 				},
+				"size": map[string]interface{}{
+					"type":        "string",
+					"description": i18n.T(i18n.KeyUIToolParamWindowSize),
+					"enum":        []string{UIWindowSizeAuto, UIWindowSizeSmall, UIWindowSizeMedium, UIWindowSizeLarge},
+				},
 			},
 			"required": []string{"meta", "action"},
 		},
@@ -279,10 +301,17 @@ func (a *Agent) uiWindowTool(ctx context.Context, args map[string]interface{}) (
 	if n := len([]rune(title)); n > UIMaxWindowTitle {
 		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrWindowTitle, UIMaxWindowTitle))
 	}
+
+	size, err := normalizeUIWindowSize(uiStringArg(args, "size"))
+	if err != nil {
+		return "", err
+	}
+
 	switch action {
 	case UIWindowClose:
-		// The title only belongs to an open window.
+		// The title and the size only belong to an open window.
 		title = ""
+		size = ""
 	default:
 		if title == "" {
 			title = i18n.T(i18n.KeyUIWindowDefaultTitle)
@@ -290,13 +319,29 @@ func (a *Agent) uiWindowTool(ctx context.Context, args map[string]interface{}) (
 	}
 
 	a.mu.Lock()
-	a.pendingUIWindow = &uiWindowRequest{Action: action, Title: title}
+	a.pendingUIWindow = &uiWindowRequest{Action: action, Title: title, Size: size}
 	a.mu.Unlock()
 
 	if action == UIWindowClose {
 		return i18n.T(i18n.KeyUIWindowCloseSummary), nil
 	}
-	return i18n.TF(i18n.KeyUIWindowOpenSummary, title), nil
+	return i18n.TF(i18n.KeyUIWindowOpenSummary, title, size), nil
+}
+
+// normalizeUIWindowSize folds a ui_window size argument to a known preset; an
+// empty value means the default (auto). The backend validates the shape only:
+// the pixels are decided by the frontend, the only side that knows the
+// viewport.
+func normalizeUIWindowSize(s string) (string, error) {
+	raw := s
+	switch size := strings.ToLower(strings.TrimSpace(s)); size {
+	case "":
+		return UIWindowSizeAuto, nil
+	case UIWindowSizeAuto, UIWindowSizeSmall, UIWindowSizeMedium, UIWindowSizeLarge:
+		return size, nil
+	default:
+		return "", fmt.Errorf("%s", i18n.TF(i18n.KeyUIErrWindowSize, raw))
+	}
 }
 
 // takePendingUIWindow returns and clears the window action parked by the most

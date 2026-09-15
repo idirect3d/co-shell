@@ -3658,9 +3658,11 @@ select,
 
 /* Stage 5 layout containers: row splits its children horizontally, col is one
    column of a row. Children wrap into a single column on narrow screens
-   (220px minimum basis) instead of overflowing the block. */
+   (220px minimum basis) instead of overflowing the block. FEATURE-524: the
+   protective 180px minimum width is itself capped by the container width, so a
+   window narrower than 180px wraps instead of spilling out. */
 .ui-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
-.ui-row > * { flex: 1 1 220px; min-width: 0; }
+.ui-row > * { flex: 1 1 220px; min-width: min(180px, 100%); }
 .ui-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 /* kv: key/value list */
@@ -3818,6 +3820,11 @@ select,
   right: 16px;
   bottom: 16px;
   width: min(420px, calc(100vw - 32px));
+  /* FEATURE-524: protective minimum size, capped by the viewport: on a screen
+     smaller than the minimum the window may shrink below it but never overflows
+     (viewport protection wins over the minimum-size guard). */
+  min-width: min(240px, calc(100vw - 32px));
+  min-height: min(160px, calc(100vh - 32px));
   max-height: min(70vh, 640px);
   display: flex;
   flex-direction: column;
@@ -3864,4 +3871,23 @@ select,
   gap: 10px;
   padding: 10px;
   overflow: auto;
+  /* FEATURE-524: the body is the query container for the folding rules below,
+     so they react to the WINDOW width instead of the viewport width. */
+  container-type: inline-size;
+}
+/* FEATURE-524: children keep their own height instead of being squeezed by the
+   flex column, so overflowing content really scrolls (overflow:auto above)
+   rather than being flattened to fit. */
+.ui-window-body > * { flex-shrink: 0; }
+
+/* FEATURE-524 responsive folding: the body is a query container, so a row
+   collapses to a single column as soon as the WINDOW gets narrow (not the
+   viewport), and a key/value list drops to one column so its label column can
+   no longer push the table wide. Browsers without container queries ignore
+   this block and fall back to the flex-wrap + capped min-width rules above;
+   .ui-window-body's overflow:auto remains the final scroll fallback. */
+@container (max-width: 380px) {
+  .ui-row { flex-direction: column; }
+  .ui-row > * { flex: 0 0 auto; width: 100%; min-width: 0; }
+  .ui-kv { grid-template-columns: minmax(0, 1fr); }
 }

@@ -279,6 +279,24 @@ func isDefaultSessionTitle(title string) bool {
 	return false
 }
 
+// runtimeChannel returns the terminal channel reported in <channel>
+// (FEATURE-524): an explicit RuntimeInfo.Channel wins; otherwise it is derived
+// from the service mode (serve → web, stdio/enhanced → tui). Unknown modes
+// yield "" so the tag is omitted and older frontends keep their old envelope.
+func runtimeChannel(ri RuntimeInfo) string {
+	if ri.Channel != "" {
+		return ri.Channel
+	}
+	switch ri.ServiceMode {
+	case "serve":
+		return ChannelWeb
+	case "stdio", "enhanced":
+		return ChannelTUI
+	default:
+		return ""
+	}
+}
+
 // buildRuntimeInfo renders the <runtime_info> block describing the co-shell
 // runtime environment and startup configuration (FEATURE-481). It returns ""
 // when no runtime info was injected (SetRuntimeInfo never called), keeping the
@@ -310,6 +328,22 @@ func (a *Agent) buildRuntimeInfo() string {
 	sb.WriteString("  <service_mode>")
 	sb.WriteString(ri.ServiceMode)
 	sb.WriteString("</service_mode>\n")
+	// FEATURE-524: the terminal channel (web/tui/mobile/feishu) and the current
+	// client viewport, so the LLM can size its UI output for the surface it is
+	// actually talking to. Both are optional: clients that never report them
+	// (stdio, older frontends) simply omit the tags.
+	if ch := runtimeChannel(ri); ch != "" {
+		sb.WriteString("  <channel>")
+		sb.WriteString(ch)
+		sb.WriteString("</channel>\n")
+	}
+	if ri.ViewportW > 0 && ri.ViewportH > 0 {
+		sb.WriteString("  <viewport>")
+		sb.WriteString(strconv.Itoa(ri.ViewportW))
+		sb.WriteString("x")
+		sb.WriteString(strconv.Itoa(ri.ViewportH))
+		sb.WriteString("</viewport>\n")
+	}
 	if ri.ServiceMode == "serve" {
 		sb.WriteString("  <serve_port>")
 		sb.WriteString(strconv.Itoa(ri.ServePort))
@@ -326,7 +360,6 @@ func (a *Agent) buildRuntimeInfo() string {
 	sb.WriteString("</runtime_info>")
 	return sb.String()
 }
-
 // refreshLastUserEnvelope updates only the <time> tag in the last user message's
 // <environment_details>. All other content (task_plan, opened_resources, etc.)
 // is preserved as-is from when the message was first created.

@@ -467,6 +467,8 @@ function wsConnect() {
     // FEATURE-508: watch the top marker so scrolling to the very top loads an
     // older page of persisted events.
     initTopSentinel();
+    // FEATURE-524: publish the current viewport so <runtime_info> can report it.
+    reportViewport();
   };
   sock.onclose = () => {
     if (sock !== ws) return; // superseded socket: leave the new connection alone
@@ -561,6 +563,19 @@ conn.onclick = () => {
 
 function wsSend(obj) {
   if (wsReady) ws.send(JSON.stringify(obj));
+}
+
+// FEATURE-524: report the browser viewport (CSS pixels) so <runtime_info>
+// carries a <viewport> tag and the LLM can size its UI output for the surface
+// it is talking to. Sent once the socket is open and again (debounced) on every
+// resize; a dropped report is harmless because the next one refreshes it.
+let viewportTimer = null;
+function reportViewport() {
+  wsSend({ type: "viewport", viewport_w: window.innerWidth, viewport_h: window.innerHeight });
+}
+function scheduleViewportReport() {
+  if (viewportTimer) clearTimeout(viewportTimer);
+  viewportTimer = setTimeout(reportViewport, 150);
 }
 
 /* ---------- event stream rendering ---------- */
@@ -1550,7 +1565,7 @@ function applyUIWindow(ev) {
   const m = ev.meta || {};
   if (!window.UI || typeof UI.closeWindow !== "function" || typeof UI.openWindow !== "function") return;
   if (m.ui_window_action === "close") { UI.closeWindow(); return; }
-  if (m.ui_window_action === "open") { UI.openWindow(m.ui_window_title || ""); }
+  if (m.ui_window_action === "open") { UI.openWindow(m.ui_window_title || "", m.ui_window_size || ""); }
 }
 
 // The window's own close button dismisses it (FEATURE-524 window mode). The
@@ -7217,6 +7232,9 @@ function updateResponsive() {
 }
 
 window.addEventListener("resize", updateResponsive);
+
+// FEATURE-524: keep the backend viewport in sync while the user resizes.
+window.addEventListener("resize", scheduleViewportReport);
 
 /* ---------- FEATURE-487: click-to-open menus (session / model / top-right) ---------- */
 

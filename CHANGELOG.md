@@ -161,3 +161,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stream completion causing non-streaming API call and halving iteration count
 - Message history incomplete (assistant with tool_calls but missing tool messages) causing API 400 error
 
+    - 阶段 7 · 窗口尺寸档位 + 屏幕保护 + 响应式折叠 + channel/viewport 感知 [BUILD-1043]：ui_window 新增 size 档位（auto/small/medium/large，按视口可用区比例 small=1/2、medium=2/3、large=1，auto 保持原行为）；前端按视口钳制并写入 #uiWindow 的 data-ui-win-w/h；窗口最小 240x160、row 子项 min(180px,100%)、.ui-window-body overflow:auto；@container (max-width:380px) 时 .ui-row 转 column、.ui-kv 转单列；RuntimeInfo 新增 Channel 与 ViewportW/H 并注入 <runtime_info>，新增上行消息 {"type":"viewport"}。
