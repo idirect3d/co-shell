@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/idirect3d/co-shell/i18n"
@@ -54,6 +55,10 @@ func (a *Agent) buildRenderUITool() llm.Tool {
 					"type":        "object",
 					"description": "Component tree root node {type, id?, props?, children?, actions?}. See the render_ui section of the system prompt for the component catalogue and per-component props.",
 				},
+				"update": map[string]interface{}{
+					"type":        "string",
+					"description": i18n.T(i18n.KeyUIToolParamUpdate),
+				},
 				"waiting": map[string]interface{}{
 					"type":        "boolean",
 					"description": "false (default): return immediately; a later user action starts a new turn. true: keep the tool call open until the user acts, and return that action as this tool's result.",
@@ -82,14 +87,31 @@ func (a *Agent) renderUITool(ctx context.Context, args map[string]interface{}) (
 		return "", err
 	}
 
+	if target := uiUpdateTarget(args); target != "" {
+		a.mu.Lock()
+		a.pendingUIUpdateID = target
+		a.pendingUIUpdateNode = root
+		a.mu.Unlock()
+		return i18n.TF(i18n.KeyUIUpdateSummary, target, CountUINodes(root)), nil
+	}
+
 	id := fmt.Sprintf("ui-%d", atomic.AddUint64(&uiIDSeq, 1))
 	a.mu.Lock()
 	a.pendingUITree = root
 	a.pendingUIID = id
 	a.mu.Unlock()
 
-	// Stage 3 (FEATURE-524) adds the waiting=true branch here: the tool call
-	// parks on a channel and returns the user's action instead of a receipt.
+	// waiting=true parks the call until the user acts on a rendered component:
+	// the action then becomes the tool result, so the agent continues in the
+	// same turn with the structured values the user chose (FEATURE-524, UC-32).
+	// A second concurrent wait is refused by beginUIWait and degrades to the
+	// normal receipt rather than racing for the same user action.
+	if waiting, _ := args["waiting"].(bool); waiting {
+		if ch := a.beginUIWait(); ch != nil {
+			defer a.endUIWait(ch)
+			return a.waitUIAction(ctx, ch), nil
+		}
+	}
 	return UISummary(root, id), nil
 }
 
@@ -102,6 +124,40 @@ func (a *Agent) takePendingUITree() (*UINode, string) {
 	root, id := a.pendingUITree, a.pendingUIID
 	a.pendingUITree, a.pendingUIID = nil, ""
 	return root, id
+}
+
+// takePendingUIUpdate returns and clears the in-place update parked by the most
+// recent render_ui call that carried an update target. It is the sibling of
+// takePendingUITree: a call parks exactly one of the two, never both, so the
+// stream loop emits exactly one event per call.
+func (a *Agent) takePendingUIUpdate() (string, *UINode) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	target, node := a.pendingUIUpdateID, a.pendingUIUpdateNode
+	a.pendingUIUpdateID, a.pendingUIUpdateNode = "", nil
+	return target, node
+}
+
+// uiUpdateTarget reads the optional update target of a render_ui call. An empty
+// result means "render a new tree" (the default).
+func uiUpdateTarget(args map[string]interface{}) string {
+	s, ok := args["update"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(s)
+}
+
+// UIActionMessage renders a component interaction as the user message that
+// starts the next agent turn (FEATURE-524). The payload is inlined as JSON so
+// the LLM receives the exact structured values the user provided, without the
+// frontend having to invent prose for them.
+func UIActionMessage(uiID, actionID string, payload json.RawMessage) string {
+	p := strings.TrimSpace(string(payload))
+	if p == "" || p == "null" {
+		p = "{}"
+	}
+	return i18n.TF(i18n.KeyUIUserAction, uiID, actionID, p)
 }
 
 // uiTreeArgJSON normalizes the tree argument to JSON text. Providers without a

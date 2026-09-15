@@ -143,8 +143,31 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 func (s *WebSession) handleMessage(msg clientMessage) {
 	switch msg.Type {
 	case "input":
+		// FEATURE-524: a message typed while render_ui(waiting=true) is parked
+		// releases that wait (the tool reports that the user did not interact),
+		// and the message itself then starts the next turn as usual.
+		s.ag.ReleaseUIWait()
 		select {
 		case s.inputCh <- msg:
+		case <-s.closed:
+		}
+	case "ui_action":
+		// FEATURE-524: a component interaction (form submit, chart drill-down,
+		// button action) starts a fresh user turn. The action and its structured
+		// payload are injected as the user message so the agent continues with
+		// exactly the data the user provided (decision 5: continuation semantics).
+		if msg.UIID == "" || msg.UIActionID == "" {
+			log.Warn("session: ui_action ignored (ui_id=%q action_id=%q)", msg.UIID, msg.UIActionID)
+			return
+		}
+		// FEATURE-524: while a render_ui(waiting=true) call is parked, the action
+		// is that call's result and the agent continues in the same turn;
+		// otherwise it starts a fresh turn as described above.
+		if s.ag.SubmitUIAction(msg.UIID, msg.UIActionID, msg.Payload) {
+			return
+		}
+		select {
+		case s.inputCh <- clientMessage{Type: "input", Text: agent.UIActionMessage(msg.UIID, msg.UIActionID, msg.Payload)}:
 		case <-s.closed:
 		}
 	case "dynamic_event":
@@ -182,6 +205,9 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		}
 	case "interrupt":
 		s.ag.Interrupt()
+		// FEATURE-524: ESC also ends a parked render_ui(waiting=true) instead of
+		// leaving the turn blocked until the timeout.
+		s.ag.ReleaseUIWait()
 	case "restart":
 		// FEATURE-398: send a restart signal to the current process so an
 		// external supervisor (launchd/systemd) restarts the service.

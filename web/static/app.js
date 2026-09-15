@@ -1528,8 +1528,17 @@ function applyUIUpdate(ev) {
   const m = ev.meta || {};
   if (!m.ui_id || !window.UI || typeof UI.updateTree !== "function") return;
   let patch = null;
-  try { patch = JSON.parse(m.ui_patch || ""); } catch { return; }
-  UI.updateTree(m.ui_id, patch);
+  try {
+    patch = JSON.parse(m.ui_patch || "");
+  } catch (err) {
+    // A broken patch stays local: report it and let the rest of the stream
+    // render normally (FEATURE-524, UC-30).
+    console.warn("[ui_update] unparsable patch for " + m.ui_id, err);
+    return;
+  }
+  if (!UI.updateTree(m.ui_id, patch)) {
+    console.warn("[ui_update] no rendered component with id " + m.ui_id);
+  }
 }
 
 function renderEvent(ev) {

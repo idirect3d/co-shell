@@ -8,6 +8,7 @@
 package i18n
 
 func init() {
+	zhMessages[KeyUIUserAction] = `[界面操作] 用户操作了组件 %s，动作「%s」，提交内容：%s`
 	zhMessages[KeyUIErrTreeEmpty] = `render_ui 的 tree 参数不能为空。`
 
 	zhMessages[KeyUIErrTreeDecode] = `组件树 JSON 解析失败：%s`
@@ -30,6 +31,12 @@ func init() {
 
 	zhMessages[KeyUISummaryChildren] = `已渲染 %s（id=%s，%d 个子节点）。`
 
+	zhMessages[KeyUIUpdateSummary] = `已在原位置更新组件 %s（%d 个节点）。`
+
+	zhMessages[KeyUIUpdateNoTarget] = `没有找到 id 为 %s 的已渲染组件，本次更新未生效。`
+
+	zhMessages[KeyUIToolParamUpdate] = `可选字符串：要原地更新的已有组件 id（组件树节点的 id，或本次回执中给出的树 id）。设置后本次调用不新建组件块，而是把该 id 对应的组件在原位置替换为 tree。`
+
 	zhMessages[KeyUIErrRenderFailed] = `组件渲染失败：%s`
 
 	zhMessages[KeyUIWaitingCancelled] = `用户未操作（已取消等待，改为直接发送消息）。`
@@ -43,6 +50,7 @@ Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表
 
 参数:
 - tree: 组件树根节点，必须是对象。
+- update: 可选字符串，要原地更新的已有组件 id。设置后不新建组件块，而是把该组件在原位置替换为 tree（适合“进度条推进、表格追加一行”这类刷新）。
 - waiting: 可选布尔值。true 表示渲染后等待用户操作，用户的动作会作为本工具的返回值立即返回给你（适合你确实需要用户先做选择才能继续的场景）；false 或不传表示立即返回，用户之后的动作会作为一条新的用户消息开启新一轮对话（默认，推荐）。
 - meta: 透明化元数据对象（intent/risk/risk_reason/affected_objects/progress）。
 

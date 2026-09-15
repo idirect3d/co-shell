@@ -2273,6 +2273,10 @@ const (
 	KeyUIWaitingTimeout       = "ui_waiting_timeout"
 	KeyUIToolUsageRenderUI    = "tool_usage_render_ui"
 	KeyUINoRenderer           = "ui_no_renderer"
+	KeyUIUserAction           = "ui_user_action"
+	KeyUIUpdateSummary        = "ui_update_summary"
+	KeyUIUpdateNoTarget       = "ui_update_no_target"
+	KeyUIToolParamUpdate      = "ui_tool_param_update"
 	KeyToolUsageReorganizeContext  = "tool_usage_reorganize_context"
 
 	// Board collaboration tool usage examples (FEATURE-490, XML mode)

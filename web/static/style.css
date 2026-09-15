@@ -3763,3 +3763,27 @@ select,
 .ui-chart-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--ev-body-fg-dim); }
 .ui-chart-legend-item { display: inline-flex; align-items: center; gap: 5px; }
 .ui-chart-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+
+/* ---------------------------------------------------------------------------
+   FEATURE-524 Stage 3: form component.
+   Native controls styled with the theme variables; the buttons reuse the
+   project's .btn variants so they match every other control in the UI.
+   --------------------------------------------------------------------------- */
+
+.ui-form { display: flex; flex-direction: column; gap: 10px; }
+.ui-form-title { color: var(--ev-body-fg); font-weight: 600; }
+.ui-field { display: flex; flex-direction: column; gap: 4px; }
+.ui-field-label { color: var(--ev-body-fg-dim); font-size: 12px; }
+/* checkbox: control and its label sit on one line */
+.ui-field-checkbox { flex-direction: row; align-items: center; gap: 8px; }
+.ui-field-checkbox .ui-field-label { font-size: inherit; color: var(--ev-body-fg); }
+.ui-input {
+  box-sizing: border-box; width: 100%; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--mono-bg); color: var(--input-fg, var(--fg));
+  font: inherit;
+}
+.ui-input:focus { border-color: var(--accent); outline: none; }
+.ui-textarea { min-height: 60px; resize: vertical; }
+.ui-check-input { width: 14px; height: 14px; accent-color: var(--accent); }
+.ui-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
