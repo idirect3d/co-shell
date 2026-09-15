@@ -185,6 +185,11 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		case s.inputCh <- clientMessage{Type: "input", Text: agent.UIActionMessage(msg.UIID, msg.UIActionID, msg.Payload)}:
 		case <-s.closed:
 		}
+	case "viewport":
+		// FEATURE-524: the browser reports its window size (CSS pixels) once it
+		// connects and again on resize, so <runtime_info><viewport> can tell the
+		// LLM how much room the current surface has. Invalid sizes are ignored.
+		s.ag.SetViewport(msg.ViewportW, msg.ViewportH)
 	case "dynamic_event":
 		// FEATURE-471: a user-action event reported while a task is running
 		// (clip_object / upload_file / user_message / open_file). Enqueue it

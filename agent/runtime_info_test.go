@@ -112,3 +112,39 @@ func TestBuildRuntimeInfo_ServeNoWhitelist(t *testing.T) {
 		t.Errorf("serve runtime_info should omit serve_whitelist when empty, got:\n%s", got)
 	}
 }
+
+// UC-72: <runtime_info> carries the terminal channel and the client viewport
+// (FEATURE-524). The channel is derived from the service mode unless it was
+// explicitly injected; the viewport tag only appears after a client reported a
+// size, and invalid reports never overwrite a good one.
+func TestBuildRuntimeInfo_ChannelAndViewport(t *testing.T) {
+	a := &Agent{}
+	a.SetRuntimeInfo(RuntimeInfo{PID: 7, Version: "0.59.0", Build: "1042", ServiceMode: "serve"})
+	got := a.buildRuntimeInfo()
+	if !strings.Contains(got, "<channel>web</channel>") {
+		t.Errorf("serve mode must report <channel>web</channel>, got:\n%s", got)
+	}
+	if strings.Contains(got, "<viewport>") {
+		t.Errorf("viewport must be omitted before a client reports it, got:\n%s", got)
+	}
+
+	a.SetViewport(1280, 900)
+	got = a.buildRuntimeInfo()
+	if !strings.Contains(got, "<viewport>1280x900</viewport>") {
+		t.Errorf("viewport not rendered after SetViewport, got:\n%s", got)
+	}
+
+	// Invalid reports are ignored, so the good value survives.
+	a.SetViewport(0, 900)
+	a.SetViewport(-1, 768)
+	if !strings.Contains(a.buildRuntimeInfo(), "<viewport>1280x900</viewport>") {
+		t.Error("invalid viewport values must not overwrite the reported one")
+	}
+
+	// An explicit channel wins over the service-mode derivation.
+	b := &Agent{}
+	b.SetRuntimeInfo(RuntimeInfo{PID: 8, Version: "0.59.0", Build: "1042", ServiceMode: "stdio", Channel: ChannelFeishu})
+	if got := b.buildRuntimeInfo(); !strings.Contains(got, "<channel>feishu</channel>") {
+		t.Errorf("an explicit channel must win over the derivation, got:\n%s", got)
+	}
+}

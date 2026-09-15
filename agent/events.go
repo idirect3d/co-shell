@@ -231,6 +231,9 @@ const MetaKeyUITarget = "ui_target"
 const (
 	MetaKeyUIWindowAction = "ui_window_action"
 	MetaKeyUIWindowTitle  = "ui_window_title"
+	// MetaKeyUIWindowSize carries the size preset of an open window
+	// (auto/small/medium/large); it is absent on close.
+	MetaKeyUIWindowSize = "ui_window_size"
 )
 
 // UIRenderEvent builds an EventUIRender event carrying one component tree
@@ -281,13 +284,18 @@ func UIUpdateEventTo(uiID, patchJSON, target string) StreamEvent {
 }
 
 // UIWindowEvent builds an EventUIWindow opening (action=open) or closing
-// (action=close) the floating UI window (FEATURE-524 window mode). It rides
+// (action=close) the floating UI window (FEATURE-524 window mode). The size
+// preset rides along on open (FEATURE-524 size presets); the frontend turns it
+// into pixels, clamped to the viewport. It rides
 // ChannelSystem for the same reason as the other UI events: it belongs to the
 // Web UI regardless of the show-* switches, and terminals have no case for it.
-func UIWindowEvent(action, title string) StreamEvent {
+func UIWindowEvent(action, title, size string) StreamEvent {
 	meta := map[string]string{MetaKeyUIWindowAction: action}
 	if title != "" {
 		meta[MetaKeyUIWindowTitle] = title
+	}
+	if size != "" {
+		meta[MetaKeyUIWindowSize] = size
 	}
 	return StreamEvent{
 		Type:  EventUIWindow,

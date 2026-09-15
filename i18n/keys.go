@@ -2285,8 +2285,10 @@ const (
 	KeyUIWindowCloseSummary       = "ui_window_close_summary"
 	KeyUIErrWindowAction          = "ui_err_window_action"
 	KeyUIErrWindowTitle           = "ui_err_window_title"
+	KeyUIErrWindowSize            = "ui_err_window_size"
 	KeyUIToolUsageUIWindow        = "tool_usage_ui_window"
 	KeyUIToolParamWindowTitle     = "ui_tool_param_window_title"
+	KeyUIToolParamWindowSize      = "ui_tool_param_window_size"
 	KeyToolUsageReorganizeContext = "tool_usage_reorganize_context"
 
 	// Board collaboration tool usage examples (FEATURE-490, XML mode)

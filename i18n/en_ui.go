@@ -53,7 +53,7 @@ func init() {
 
 	enMessages[KeyUIWindowDefaultTitle] = `Task window`
 
-	enMessages[KeyUIWindowOpenSummary] = `Opened the UI window "%s"; an already open window is reused, and its content is written or refreshed with render_ui(target="window").`
+	enMessages[KeyUIWindowOpenSummary] = `Opened the UI window "%s" (size preset %s; narrowed automatically if the viewport is small). An already open window is reused; write or refresh its content with render_ui(target="window").`
 
 	enMessages[KeyUIWindowCloseSummary] = `Closed the UI window.`
 
@@ -61,7 +61,11 @@ func init() {
 
 	enMessages[KeyUIErrWindowTitle] = `The ui_window title exceeds the length limit (%d characters); please shorten it.`
 
+	enMessages[KeyUIErrWindowSize] = `The size parameter of ui_window only accepts "auto", "small", "medium" or "large"; got "%s".`
+
 	enMessages[KeyUIToolParamWindowTitle] = `Optional string: the window title (open only; defaults to "Task window").`
+
+	enMessages[KeyUIToolParamWindowSize] = `Optional string: the window size preset (open only). auto (default) keeps the current content-driven size; small / medium / large take 1/2, 2/3 or all of the usable viewport (viewport minus the 32px margin). The frontend clamps to the viewport, so the window never overflows the screen.`
 
 	enMessages[KeyUIToolUsageUIWindow] = `## ui_window
 Description: Open or close a persistent floating window (not a block inside the chat stream). Once open, you can render a component tree into it with render_ui(target="window"), keep working in the background and push intermediate results into the same window with render_ui(target="window", update="<id>"). The window stays open after the turn ends until you close it or the user clicks its close button. Use it for continuously updated panels: progress boards, intermediate results of a long task, or a form the user fills in and confirms repeatedly.
@@ -69,6 +73,7 @@ Description: Open or close a persistent floating window (not a block inside the 
 Parameters:
 - action: "open" shows the window (an existing window is reused and its title updated); "close" dismisses it.
 - title: optional string, the window title (open only).
+- size: optional string, the window size preset (open only): auto (default, keeps the current content-driven size) / small / medium / large, i.e. 1/2, 2/3 or all of the usable viewport; the frontend narrows it automatically when the viewport is small, so it never overflows. You never pass pixels.
 - meta: the transparency metadata object (intent/risk/risk_reason/affected_objects/progress).
 
 Rules:
@@ -77,6 +82,7 @@ Rules:
 3. The window does not block you: unless a user action must be awaited (see render_ui's waiting parameter), keep calling tools and push as many updates as you need.
 4. A user action in the window starts a new turn by default; while a turn is running it is injected into that turn before your next LLM call. If the action declares blocking:true while you are waiting, it is returned as the wait result instead.
 5. As with the chat stream, frontends without window support (terminal, Feishu) degrade to text instead of failing.
+6. A size preset is a fraction of the current viewport, so the same preset yields different pixels on different screens; the backend does not clamp pixels — the frontend guarantees the window stays inside the visible area.
 
 Usage:
 <{XML_TAG_PREFIX}ui_window>

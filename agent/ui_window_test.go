@@ -209,7 +209,7 @@ func TestUIWindowUC53BlockingUsesWaitChannel(t *testing.T) {
 // UC-54: the close event carries the action and no title, while the open event
 // carries the title; both ride ChannelSystem so the Web UI always sees them.
 func TestUIWindowUC54LifecycleEvents(t *testing.T) {
-	open := UIWindowEvent(UIWindowOpen, "任务窗口")
+	open := UIWindowEvent(UIWindowOpen, "任务窗口", UIWindowSizeLarge)
 	if open.Type != EventUIWindow || open.Chan != ChannelSystem || open.Level != LevelInfo {
 		t.Fatalf("UC-54: open event = %+v, want ui_window on ChannelSystem", open)
 	}
@@ -219,13 +219,19 @@ func TestUIWindowUC54LifecycleEvents(t *testing.T) {
 	if got := open.Meta[MetaKeyUIWindowTitle]; got != "任务窗口" {
 		t.Fatalf("UC-54: meta[%s] = %q, want the title", MetaKeyUIWindowTitle, got)
 	}
+	if got := open.Meta[MetaKeyUIWindowSize]; got != UIWindowSizeLarge {
+		t.Fatalf("UC-59: meta[%s] = %q, want %q", MetaKeyUIWindowSize, got, UIWindowSizeLarge)
+	}
 
-	closeEv := UIWindowEvent(UIWindowClose, "")
+	closeEv := UIWindowEvent(UIWindowClose, "", "")
 	if got := closeEv.Meta[MetaKeyUIWindowAction]; got != UIWindowClose {
 		t.Fatalf("UC-54: meta[%s] = %q, want %q", MetaKeyUIWindowAction, got, UIWindowClose)
 	}
 	if _, ok := closeEv.Meta[MetaKeyUIWindowTitle]; ok {
 		t.Fatal("UC-54: a close event must not carry a title")
+	}
+	if _, ok := closeEv.Meta[MetaKeyUIWindowSize]; ok {
+		t.Fatal("UC-59: a close event must not carry a size preset")
 	}
 
 	// Closing through the tool parks the same action the stream loop emits.
@@ -263,5 +269,72 @@ func TestUIWindowUC55SingleWindowAndTitleLimit(t *testing.T) {
 	}
 	if req := ag.takePendingUIWindow(); req != nil {
 		t.Fatal("UC-55: a refused title must not park a request")
+	}
+}
+
+// UC-57/UC-58: the size preset is validated by shape only — every known preset
+// (and an omitted or empty value, folded to auto) is accepted, parked and named
+// in the receipt, while an unknown one is refused without parking anything.
+func TestUIWindowUC5758SizePresets(t *testing.T) {
+	ag := &Agent{}
+	cases := []struct {
+		arg  interface{}
+		want string
+	}{
+		{nil, UIWindowSizeAuto},
+		{"", UIWindowSizeAuto},
+		{UIWindowSizeAuto, UIWindowSizeAuto},
+		{"small", UIWindowSizeSmall},
+		{" Medium ", UIWindowSizeMedium},
+		{"LARGE", UIWindowSizeLarge},
+	}
+	for _, tc := range cases {
+		args := map[string]interface{}{"action": "open"}
+		if tc.arg != nil {
+			args["size"] = tc.arg
+		}
+		receipt, err := ag.uiWindowTool(context.Background(), args)
+		if err != nil {
+			t.Fatalf("UC-57: open(size=%v) failed: %v", tc.arg, err)
+		}
+		if !strings.Contains(receipt, tc.want) {
+			t.Fatalf("UC-57: receipt %q must name the preset %q", receipt, tc.want)
+		}
+		req := ag.takePendingUIWindow()
+		if req == nil || req.Size != tc.want {
+			t.Fatalf("UC-57: parked request = %+v, want size %q", req, tc.want)
+		}
+	}
+
+	for _, bad := range []string{"huge", "LARGE!", "1000", "medium x"} {
+		if _, err := ag.uiWindowTool(context.Background(), map[string]interface{}{"action": "open", "size": bad}); err == nil {
+			t.Fatalf("UC-58: size %q must be refused", bad)
+		}
+		if req := ag.takePendingUIWindow(); req != nil {
+			t.Fatalf("UC-58: a refused size must not park a request, got %+v", req)
+		}
+	}
+}
+
+// UC-59: only an open request carries a size preset. The event exposes it as
+// Meta[MetaKeyUIWindowSize]; close clears it exactly like the title.
+func TestUIWindowUC59SizeOnEvents(t *testing.T) {
+	ev := UIWindowEvent(UIWindowOpen, "面板", UIWindowSizeSmall)
+	if got := ev.Meta[MetaKeyUIWindowSize]; got != UIWindowSizeSmall {
+		t.Fatalf("UC-59: meta[%s] = %q, want %q", MetaKeyUIWindowSize, got, UIWindowSizeSmall)
+	}
+	if _, ok := UIWindowEvent(UIWindowClose, "", "").Meta[MetaKeyUIWindowSize]; ok {
+		t.Fatal("UC-59: a close event must not carry a size preset")
+	}
+
+	ag := &Agent{}
+	if _, err := ag.uiWindowTool(context.Background(), map[string]interface{}{
+		"action": "close",
+		"size":   "large",
+	}); err != nil {
+		t.Fatalf("UC-59: close failed: %v", err)
+	}
+	if req := ag.takePendingUIWindow(); req == nil || req.Size != "" || req.Title != "" {
+		t.Fatalf("UC-59: parked close = %+v, want no size and no title", req)
 	}
 }

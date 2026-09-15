@@ -133,8 +133,13 @@ type clientMessage struct {
 	// Blocking mirrors the action's declared blocking flag: true means the
 	// action expects a parked render_ui(waiting=true) call to consume it.
 	Blocking bool `json:"blocking,omitempty"`
-}
 
+	// FEATURE-524: viewport_w / viewport_h carry the browser window size in CSS
+	// pixels (type "viewport"), reported once the WebSocket connects and again
+	// on every resize. Strictly an enhancement: older clients never send them.
+	ViewportW int `json:"viewport_w,omitempty"`
+	ViewportH int `json:"viewport_h,omitempty"`
+}
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as
 // the JSON-Lines StreamRenderer: level only when not info).
 type eventJSON struct {

@@ -53,7 +53,7 @@ func init() {
 
 	zhMessages[KeyUIWindowDefaultTitle] = `任务窗口`
 
-	zhMessages[KeyUIWindowOpenSummary] = `已打开界面窗口「%s」；若窗口已打开则复用同一窗口，用 render_ui(target="window") 写入或更新内容。`
+	zhMessages[KeyUIWindowOpenSummary] = `已打开界面窗口「%s」（尺寸档位 %s；若视口不足会自动收窄）；若窗口已打开则复用同一窗口，用 render_ui(target="window") 写入或更新内容。`
 
 	zhMessages[KeyUIWindowCloseSummary] = `已关闭界面窗口。`
 
@@ -61,7 +61,11 @@ func init() {
 
 	zhMessages[KeyUIErrWindowTitle] = `ui_window 的 title 超过长度上限（%d 个字符），请精简。`
 
+	zhMessages[KeyUIErrWindowSize] = `ui_window 的 size 参数只支持 "auto"、"small"、"medium"、"large"，收到「%s」。`
+
 	zhMessages[KeyUIToolParamWindowTitle] = `可选字符串：窗口标题（仅 open 时使用，缺省为“任务窗口”）。`
+
+	zhMessages[KeyUIToolParamWindowSize] = `可选字符串：窗口尺寸档位（仅 open 时使用）。auto（默认）保持内容驱动的现有尺寸；small / medium / large 分别取当前视口可用区（视口减去 32px 边距）的 1/2、2/3、全部。前端会按视口钳制，窗口绝不超出屏幕。`
 
 	zhMessages[KeyUIToolUsageUIWindow] = `## ui_window
 Description: 打开或关闭一个常驻浮层窗口（不是对话流里的块）。窗口打开后，可以用 render_ui(target="window") 把组件树渲染进窗口，并在后台继续工作、持续用 render_ui(target="window", update="<id>") 把中间结果推回同一个窗口；窗口在整轮结束后仍然保留，直到你关闭它或用户点关闭按钮。适合“持续更新的面板”：进度看板、长任务的中间结果、需要用户反复填写/确认的表单。
@@ -69,6 +73,7 @@ Description: 打开或关闭一个常驻浮层窗口（不是对话流里的块�
 参数:
 - action: "open" 打开窗口（已打开时复用同一窗口并更新标题）；"close" 关闭窗口。
 - title: 可选字符串，窗口标题（仅 open 时有效）。
+- size: 可选字符串，窗口尺寸档位（仅 open 时有效）：auto（默认，保持现有内容驱动尺寸）/ small / medium / large，分别取当前视口可用区的 1/2、2/3、全部；视口不足时前端自动收窄，绝不超出屏幕。你无需指定像素。
 - meta: 透明化元数据对象（intent/risk/risk_reason/affected_objects/progress）。
 
 规则:
@@ -77,6 +82,7 @@ Description: 打开或关闭一个常驻浮层窗口（不是对话流里的块�
 3. 窗口不阻塞你：除用户操作需要等待（见 render_ui 的 waiting 参数）外，你可以继续调用工具并多次推送更新。
 4. 用户在窗口里的操作默认开启新一轮对话；若对话仍在运行，则该操作会在下一次 LLM 调用前即时注入当前回合。若该操作声明了 blocking:true 且你正在等待，它会直接作为等待结果返回。
 5. 与对话流一样，终端/飞书等不支持窗口的出口会降级为文本，不会报错。
+6. 尺寸档位按当前视口的比例计算：同一档位在不同屏幕上像素不同；后端不做像素钳制，由前端保证窗口始终落在可视区内。
 
 用法:
 <{XML_TAG_PREFIX}ui_window>

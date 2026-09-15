@@ -141,6 +141,19 @@ func (a *Agent) Name() string {
 	return a.name
 }
 
+// Runtime info channels (FEATURE-524): the surface the agent is talking to,
+// reported in <runtime_info><channel>.
+const (
+	// ChannelWeb is the browser Web UI (serve mode).
+	ChannelWeb = "web"
+	// ChannelTUI is a terminal frontend (stdio / enhanced REPL).
+	ChannelTUI = "tui"
+	// ChannelMobile is the mobile bridge.
+	ChannelMobile = "mobile"
+	// ChannelFeishu is the Feishu bridge.
+	ChannelFeishu = "feishu"
+)
+
 // RuntimeInfo carries the co-shell runtime environment and startup
 // configuration so the agent (and thus the LLM) knows how it is running
 // (FEATURE-481). It is injected once at startup by main.go via SetRuntimeInfo.
@@ -163,6 +176,15 @@ type RuntimeInfo struct {
 	ServeBind string
 	// ServeWhitelist is the web UI access whitelist (serve mode only, may be empty).
 	ServeWhitelist []string
+	// Channel is the terminal channel the agent is talking to: web / tui /
+	// mobile / feishu (FEATURE-524). Empty falls back to a value derived from
+	// ServiceMode (serve → web, stdio/enhanced → tui).
+	Channel string
+	// ViewportW and ViewportH are the connected client's viewport in CSS
+	// pixels (FEATURE-524), reported by the Web UI once it connects and again on
+	// resize. Zero means "not reported" and the tag is omitted.
+	ViewportW int
+	ViewportH int
 }
 
 // SetRuntimeInfo injects the co-shell runtime environment and startup
@@ -171,6 +193,20 @@ func (a *Agent) SetRuntimeInfo(info RuntimeInfo) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.runtimeInfo = info
+}
+
+// SetViewport records the connected client's viewport in CSS pixels
+// (FEATURE-524). The Web UI calls it once after connecting and again on every
+// resize. Non-positive values are ignored so a misbehaving client cannot wipe a
+// previously reported viewport.
+func (a *Agent) SetViewport(w, h int) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	a.mu.Lock()
+	a.runtimeInfo.ViewportW = w
+	a.runtimeInfo.ViewportH = h
+	a.mu.Unlock()
 }
 
 // RuntimeInfo returns the injected runtime environment info (may be zero-valued
