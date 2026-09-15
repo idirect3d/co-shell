@@ -32,6 +32,18 @@ const (
 	EventToolCallStream = "tool_call_stream" // FEATURE-235: streaming tool-call render (show-tool / show-tool-input gated)
 	EventToolCallDiff   = "tool_call_diff"   // FEATURE-424: unified diff rendering for a completed replace_in_file call
 	EventTaskPlan       = "task_plan"        // FEATURE-307c: full task plan snapshot (Meta[MetaKeyPlan] = plan JSON, "" when archived)
+
+	// FEATURE-524: LLM-driven rich component output. EventUIRender carries a
+	// validated component tree for the Web UI to paint; EventUIUpdate replaces
+	// the content of an already rendered node addressed by Meta[MetaKeyUIID].
+	EventUIRender = "ui_render" // component tree to render (Meta[MetaKeyUIID] + Meta[MetaKeyUITree])
+	EventUIUpdate = "ui_update" // in-place update of a rendered tree (Meta[MetaKeyUIID] + Meta[MetaKeyUIPatch])
+
+	// FEATURE-524 window mode: EventUIWindow opens or closes the floating UI
+	// window (Meta[MetaKeyUIWindowAction] + Meta[MetaKeyUIWindowTitle]). The
+	// window only carries its title on open; its content is written by
+	// ui_render/ui_update events whose Meta[MetaKeyUITarget] is UITargetWindow.
+	EventUIWindow = "ui_window"
 )
 
 // StreamEvent is the structured stream event emitted by the agent loop and
@@ -192,5 +204,103 @@ func TaskPlanEvent(planJSON string) StreamEvent {
 		Chan:  ChannelTaskPlan,
 		Level: LevelInfo,
 		Meta:  map[string]string{MetaKeyPlan: planJSON},
+	}
+}
+
+// MetaKeyUIID is the Meta key of the UI events (FEATURE-524) carrying the id
+// of a rendered component tree — the handle the frontend (and a later
+// ui_update) uses to address it.
+const MetaKeyUIID = "ui_id"
+
+// MetaKeyUITree is the Meta key of EventUIRender carrying the validated
+// component tree as a JSON string.
+const MetaKeyUITree = "ui_tree"
+
+// MetaKeyUIPatch is the Meta key of EventUIUpdate carrying the replacement
+// subtree as a JSON string.
+const MetaKeyUIPatch = "ui_patch"
+
+// MetaKeyUITarget is the Meta key of EventUIRender/EventUIUpdate carrying the
+// surface the tree must be painted on: UITargetStream ("") or UITargetWindow.
+// It is only set when the target is not the default chat stream, so a stream
+// render keeps its original wire shape (FEATURE-524 window mode).
+const MetaKeyUITarget = "ui_target"
+
+// MetaKeyUIWindowAction and MetaKeyUIWindowTitle are the Meta keys of
+// EventUIWindow: the action (open/close) and the window title (open only).
+const (
+	MetaKeyUIWindowAction = "ui_window_action"
+	MetaKeyUIWindowTitle  = "ui_window_title"
+	// MetaKeyUIWindowSize carries the size preset of an open window
+	// (auto/small/medium/large); it is absent on close.
+	MetaKeyUIWindowSize = "ui_window_size"
+)
+
+// UIRenderEvent builds an EventUIRender event carrying one component tree
+// (FEATURE-524). It is emitted on ChannelSystem on purpose: the LLM/tool/
+// command channels are filtered by the seven show-* switches, while the Web
+// UI must receive the tree however verbose the user wants the stream. The
+// LineRenderer has no case for this type, so terminals ignore the event and
+// fall back to the LLM's plain-text reply.
+func UIRenderEvent(uiID, treeJSON string) StreamEvent {
+	return StreamEvent{
+		Type:  EventUIRender,
+		Chan:  ChannelSystem,
+		Level: LevelInfo,
+		Meta:  map[string]string{MetaKeyUIID: uiID, MetaKeyUITree: treeJSON},
+	}
+}
+
+// UIUpdateEvent builds an EventUIUpdate event replacing the content of the
+// tree addressed by uiID (FEATURE-524).
+func UIUpdateEvent(uiID, patchJSON string) StreamEvent {
+	return StreamEvent{
+		Type:  EventUIUpdate,
+		Chan:  ChannelSystem,
+		Level: LevelInfo,
+		Meta:  map[string]string{MetaKeyUIID: uiID, MetaKeyUIPatch: patchJSON},
+	}
+}
+
+// UIRenderEventTo is UIRenderEvent for a named surface: the target is added to
+// the Meta only when it is not the default chat stream, so stream renders keep
+// the exact wire shape of UC-08 (FEATURE-524 window mode).
+func UIRenderEventTo(uiID, treeJSON, target string) StreamEvent {
+	ev := UIRenderEvent(uiID, treeJSON)
+	if target != "" && target != UITargetStream {
+		ev.Meta[MetaKeyUITarget] = target
+	}
+	return ev
+}
+
+// UIUpdateEventTo is UIUpdateEvent for a named surface (FEATURE-524 window
+// mode): the patch is addressed to the window when target is UITargetWindow.
+func UIUpdateEventTo(uiID, patchJSON, target string) StreamEvent {
+	ev := UIUpdateEvent(uiID, patchJSON)
+	if target != "" && target != UITargetStream {
+		ev.Meta[MetaKeyUITarget] = target
+	}
+	return ev
+}
+
+// UIWindowEvent builds an EventUIWindow opening (action=open) or closing
+// (action=close) the floating UI window (FEATURE-524 window mode). The size
+// preset rides along on open (FEATURE-524 size presets); the frontend turns it
+// into pixels, clamped to the viewport. It rides
+// ChannelSystem for the same reason as the other UI events: it belongs to the
+// Web UI regardless of the show-* switches, and terminals have no case for it.
+func UIWindowEvent(action, title, size string) StreamEvent {
+	meta := map[string]string{MetaKeyUIWindowAction: action}
+	if title != "" {
+		meta[MetaKeyUIWindowTitle] = title
+	}
+	if size != "" {
+		meta[MetaKeyUIWindowSize] = size
+	}
+	return StreamEvent{
+		Type:  EventUIWindow,
+		Chan:  ChannelSystem,
+		Level: LevelInfo,
+		Meta:  meta,
 	}
 }

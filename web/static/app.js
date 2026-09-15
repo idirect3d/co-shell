@@ -467,6 +467,8 @@ function wsConnect() {
     // FEATURE-508: watch the top marker so scrolling to the very top loads an
     // older page of persisted events.
     initTopSentinel();
+    // FEATURE-524: publish the current viewport so <runtime_info> can report it.
+    reportViewport();
   };
   sock.onclose = () => {
     if (sock !== ws) return; // superseded socket: leave the new connection alone
@@ -563,6 +565,19 @@ function wsSend(obj) {
   if (wsReady) ws.send(JSON.stringify(obj));
 }
 
+// FEATURE-524: report the browser viewport (CSS pixels) so <runtime_info>
+// carries a <viewport> tag and the LLM can size its UI output for the surface
+// it is talking to. Sent once the socket is open and again (debounced) on every
+// resize; a dropped report is harmless because the next one refreshes it.
+let viewportTimer = null;
+function reportViewport() {
+  wsSend({ type: "viewport", viewport_w: window.innerWidth, viewport_h: window.innerHeight });
+}
+function scheduleViewportReport() {
+  if (viewportTimer) clearTimeout(viewportTimer);
+  viewportTimer = setTimeout(reportViewport, 150);
+}
+
 /* ---------- event stream rendering ---------- */
 
 const CHAN_LABEL = {
@@ -601,6 +616,7 @@ const TOOL_ACTIONS = {
   memory_search: { zh: "搜索记忆", en: "Search memory" },
   delete_memory: { zh: "删除记忆", en: "Delete memory" },
   evaluate_expression: { zh: "计算表达式", en: "Evaluate expression" },
+  render_ui: { zh: "渲染界面组件", en: "Render UI components" },
   attempt_completion: { zh: "完成任务", en: "Complete task" },
   reorganize_context: { zh: "重组上下文", en: "Reorganize context" },
   shell_send: { zh: "发送命令", en: "Send command" },
@@ -1130,13 +1146,21 @@ function makeBlock(cls, label, msgIndex) {
 
 // applyBlockDisplayMode shows/hides or collapses a single block according to
 // the current display mode (FEATURE-425).
+// isResultLikeBlock reports whether a block carries the answer the user asked
+// for rather than process noise. Besides the final completion block
+// (.ev-result), an LLM-rendered component tree (cls "ui", FEATURE-524) counts
+// as a result: hiding or collapsing it would hide the rendered answer itself.
+function isResultLikeBlock(box, cls) {
+  return box.classList.contains("ev-result") || cls === "ui";
+}
+
 function applyBlockDisplayMode(box, cls) {
   if (displayMode === "silent") {
-    const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+    const show = cls === "user-msg" || box.classList.contains("level-error") || isResultLikeBlock(box, cls);
     box.style.display = show ? "" : "none";
     // The final result block must be fully expanded so the user sees the
     // completion report (FIX-426).
-    if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
+    if (isResultLikeBlock(box, cls)) box.classList.remove("collapsed");
   } else if (displayMode === "minimal") {
     box.style.display = "";
     // User-msg blocks are always expanded so the user sees their original
@@ -1144,7 +1168,7 @@ function applyBlockDisplayMode(box, cls) {
     if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
     const body = box.querySelector(".ev-body");
     const isStreaming = body && isStreamingBody(body);
-    const isResult = box.classList.contains("ev-result");
+    const isResult = isResultLikeBlock(box, cls);
     if (!isStreaming && !isResult) box.classList.add("collapsed");
     else box.classList.remove("collapsed");
   } else {
@@ -1494,6 +1518,84 @@ function eventClass(ev) {
   }
 }
 
+// FEATURE-524: paint an LLM-authored component tree into the main DOM. The
+// tree arrives as JSON text in meta.ui_tree; UI.renderTree builds every node
+// with createElement/textContent and never touches innerHTML, so hostile
+// markup inside the tree stays inert text.
+function renderUIBlock(ev) {
+  const m = ev.meta || {};
+  // FEATURE-524 window mode: a tree rendered with target="window" belongs to
+  // the floating window, not to the chat stream. The window is opened on
+  // demand, so a render that races ahead of its ui_window event still lands in
+  // a visible place instead of being dropped.
+  if (m.ui_target === "window" && window.UI && typeof UI.openWindow === "function") {
+    const winBody = UI.openWindow(m.ui_window_title || "");
+    if (!winBody) return;
+    let host = document.getElementById("uiWindowTree");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "ui-tree";
+      host.id = "uiWindowTree";
+      winBody.appendChild(host);
+    }
+    host.dataset.uiId = m.ui_id || "";
+    host.replaceChildren();
+    if (typeof UI.renderTree === "function") UI.renderTree(m.ui_tree || "", host);
+    return;
+  }
+  const body = makeBlock("ui", "UI · " + toolAction("render_ui"), m.msg_index);
+  const host = document.createElement("div");
+  host.className = "ui-tree";
+  if (m.ui_id) host.dataset.uiId = m.ui_id;
+  body.appendChild(host);
+  if (window.UI && typeof UI.renderTree === "function") {
+    UI.renderTree(m.ui_tree || "", host);
+  } else {
+    host.textContent = m.ui_id || "";
+  }
+}
+
+// applyUIUpdate replaces an already rendered component in place: the agent
+// addresses it by meta.ui_id and sends the replacement subtree in
+// meta.ui_patch (FEATURE-524).
+// applyUIWindow opens or closes the single floating window on a ui_window
+// event (FEATURE-524 window mode). Opening an open window reuses it and only
+// updates the title, so repeated opens never stack overlays.
+function applyUIWindow(ev) {
+  const m = ev.meta || {};
+  if (!window.UI || typeof UI.closeWindow !== "function" || typeof UI.openWindow !== "function") return;
+  if (m.ui_window_action === "close") { UI.closeWindow(); return; }
+  if (m.ui_window_action === "open") { UI.openWindow(m.ui_window_title || "", m.ui_window_size || ""); }
+}
+
+// The window's own close button dismisses it (FEATURE-524 window mode). The
+// window is never persisted, so closing hides it and drops its content; a later
+// ui_update addressed to it then warns instead of resurrecting DOM.
+(function bindUIWindowClose() {
+  const btn = document.getElementById("uiWindowClose");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    if (window.UI && typeof UI.closeWindow === "function") UI.closeWindow();
+  });
+})();
+
+function applyUIUpdate(ev) {
+  const m = ev.meta || {};
+  if (!m.ui_id || !window.UI || typeof UI.updateTree !== "function") return;
+  let patch = null;
+  try {
+    patch = JSON.parse(m.ui_patch || "");
+  } catch (err) {
+    // A broken patch stays local: report it and let the rest of the stream
+    // render normally (FEATURE-524, UC-30).
+    console.warn("[ui_update] unparsable patch for " + m.ui_id, err);
+    return;
+  }
+  if (!UI.updateTree(m.ui_id, patch)) {
+    console.warn("[ui_update] no rendered component with id " + m.ui_id);
+  }
+}
+
 function renderEvent(ev) {
   // FEATURE-409: the message index attached by the backend lets the retry-from
   // action map this block back to a message for :session pop to.
@@ -1519,6 +1621,10 @@ function renderEvent(ev) {
     renderPlan(plan);
     return;
   }
+  // FEATURE-524: LLM component trees (render_ui / ui_update).
+  if (ev.type === "ui_render") { renderUIBlock(ev); return; }
+  if (ev.type === "ui_update") { applyUIUpdate(ev); return; }
+  if (ev.type === "ui_window") { applyUIWindow(ev); return; }
   if (ev.type === "token_iter" || ev.type === "token_task") {
     const m = ev.meta || {};
     const line = document.createElement("div");
@@ -2608,6 +2714,9 @@ function renderSessionMenu(sessions) {
     row.appendChild(count);
     row.onclick = () => {
       if (s.current) return;
+            // FEATURE-524 window mode: the window is not persisted, so a session
+      // switch closes it instead of leaving a stale panel behind.
+      if (window.UI && typeof UI.closeWindow === "function") UI.closeWindow();
       wsSend({ type: "session_switch", value: s.id });
     };
     sessionMenu.appendChild(row);
@@ -2690,17 +2799,18 @@ function applyDisplayMode() {
     const body = box.querySelector(".ev-body");
     const isStreaming = body && isStreamingBody(body);
     if (displayMode === "silent") {
-      // Show only user-msg, error, and the final result block.
-      const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+      // Show only user-msg, error, and result-like blocks (the completion
+      // report and LLM-rendered component trees).
+      const show = cls === "user-msg" || box.classList.contains("level-error") || isResultLikeBlock(box, cls);
       box.style.display = show ? "" : "none";
-      // The final result block must be fully expanded (FIX-426).
-      if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
+      // Result-like blocks must be fully expanded (FIX-426).
+      if (isResultLikeBlock(box, cls)) box.classList.remove("collapsed");
     } else if (displayMode === "minimal") {
       box.style.display = "";
       // User-msg blocks are always expanded (FIX-426).
       if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
       // Collapse finished non-result blocks to just their title.
-      const isResult = box.classList.contains("ev-result");
+      const isResult = isResultLikeBlock(box, cls);
       if (!isStreaming && !isResult) box.classList.add("collapsed");
       else box.classList.remove("collapsed");
     } else {
@@ -7122,6 +7232,9 @@ function updateResponsive() {
 }
 
 window.addEventListener("resize", updateResponsive);
+
+// FEATURE-524: keep the backend viewport in sync while the user resizes.
+window.addEventListener("resize", scheduleViewportReport);
 
 /* ---------- FEATURE-487: click-to-open menus (session / model / top-right) ---------- */
 

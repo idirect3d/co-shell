@@ -409,6 +409,67 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("Board collaboration set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_783), status), nil
 
+	case "ui-enabled":
+		// FEATURE-524: master switch of the structured UI rendering pipeline
+		// (render_ui + ui_window). Both tools are registered only while it is
+		// on, so re-point the agent at the updated config to make the change
+		// effective without a restart.
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.UIEnabled {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingUIEnabledStatus), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.UIEnabled = true
+		case "off", "0", "false", "no":
+			h.cfg.UIEnabled = false
+		default:
+			return "", fmt.Errorf("usage: .set ui-enabled on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetConfig(h.cfg)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.UIEnabled {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("UI rendering set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingUIEnabledStatus), status), nil
+
+	case "ui-context-prune":
+		// FEATURE-524: replaces rendered component trees in the conversation
+		// history with their one-line summary (read while building the context,
+		// so SetConfig is enough for it to take effect immediately).
+		if len(args) < 2 {
+			status := i18n.T(i18n.KeyOn)
+			if !h.cfg.UIContextPrune {
+				status = i18n.T(i18n.KeyOff)
+			}
+			return fmt.Sprintf(i18n.T(i18n.KeySettingUIContextPruneStatus), status), nil
+		}
+		switch args[1] {
+		case "on", "1", "true", "yes":
+			h.cfg.UIContextPrune = true
+		case "off", "0", "false", "no":
+			h.cfg.UIContextPrune = false
+		default:
+			return "", fmt.Errorf("usage: .set ui-context-prune on|off")
+		}
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		h.agent.SetConfig(h.cfg)
+		status := i18n.T(i18n.KeyOn)
+		if !h.cfg.UIContextPrune {
+			status = i18n.T(i18n.KeyOff)
+		}
+		log.Info("UI context prune set to %s", status)
+		return fmt.Sprintf(i18n.T(i18n.KeySettingUIContextPruneStatus), status), nil
+
 	case "context-limit":
 		if len(args) < 2 {
 			limitStr := fmt.Sprintf("%d", h.cfg.LLM.ContextLimit)

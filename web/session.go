@@ -128,7 +128,6 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 		return srv.sendRaw(data)
 	})
 
-
 	srv.SetMessageHandler(sess.handleMessage)
 	srv.SetDisconnectHook(sess.wio.failAll)
 	srv.SetPlanProvider(sess.currentPlanJSON)
@@ -143,10 +142,54 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 func (s *WebSession) handleMessage(msg clientMessage) {
 	switch msg.Type {
 	case "input":
+		// FEATURE-524: a message typed while render_ui(waiting=true) is parked
+		// releases that wait (the tool reports that the user did not interact),
+		// and the message itself then starts the next turn as usual.
+		s.ag.ReleaseUIWait()
 		select {
 		case s.inputCh <- msg:
 		case <-s.closed:
 		}
+	case "ui_action":
+		// FEATURE-524: a component interaction (form submit, chart drill-down,
+		// button action) starts a fresh user turn. The action and its structured
+		// payload are injected as the user message so the agent continues with
+		// exactly the data the user provided (decision 5: continuation semantics).
+		if msg.UIID == "" || msg.UIActionID == "" {
+			log.Warn("session: ui_action ignored (ui_id=%q action_id=%q)", msg.UIID, msg.UIActionID)
+			return
+		}
+		// FEATURE-524: while a render_ui(waiting=true) call is parked, the action
+		// is that call's result and the agent continues in the same turn;
+		// otherwise it starts a fresh turn as described above.
+		if s.ag.SubmitUIAction(msg.UIID, msg.UIActionID, msg.Payload) {
+			return
+		}
+		// FEATURE-524 window mode (Q3-A): while a turn is running, the action is
+		// injected into that turn -- the agent sees it before its next LLM call --
+		// instead of starting a new one, so a window stays interactive while the
+		// agent keeps working. The dynamic queue survives a turn boundary: an
+		// action that arrives just as the turn ends is injected at the start of
+		// the next turn instead of being lost.
+		if s.ag.IsBusy() {
+			// A blocking action that finds no parked wait cannot be returned as a
+			// tool result. It degrades to the non-blocking path on purpose: better
+			// an immediate in-turn delivery than hanging until the wait deadline.
+			if msg.Blocking {
+				log.Warn("session: blocking ui_action %q/%q has no parked wait; injected into the running turn", msg.UIID, msg.UIActionID)
+			}
+			s.ag.AddDynamicEvent(agent.DynamicUIAction, agent.UIActionMessage(msg.UIID, msg.UIActionID, msg.Payload))
+			return
+		}
+		select {
+		case s.inputCh <- clientMessage{Type: "input", Text: agent.UIActionMessage(msg.UIID, msg.UIActionID, msg.Payload)}:
+		case <-s.closed:
+		}
+	case "viewport":
+		// FEATURE-524: the browser reports its window size (CSS pixels) once it
+		// connects and again on resize, so <runtime_info><viewport> can tell the
+		// LLM how much room the current surface has. Invalid sizes are ignored.
+		s.ag.SetViewport(msg.ViewportW, msg.ViewportH)
 	case "dynamic_event":
 		// FEATURE-471: a user-action event reported while a task is running
 		// (clip_object / upload_file / user_message / open_file). Enqueue it
@@ -182,6 +225,9 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		}
 	case "interrupt":
 		s.ag.Interrupt()
+		// FEATURE-524: ESC also ends a parked render_ui(waiting=true) instead of
+		// leaving the turn blocked until the timeout.
+		s.ag.ReleaseUIWait()
 	case "restart":
 		// FEATURE-398: send a restart signal to the current process so an
 		// external supervisor (launchd/systemd) restarts the service.
@@ -362,6 +408,7 @@ func (s *WebSession) handleMCPTest(name string) {
 	s.srv.sendJSON(serverMessage{Kind: "mcp_result", OK: true, Message: name})
 	s.handleMCPGet()
 }
+
 // browser (FEATURE-393).
 func (s *WebSession) handleIdentityGet() {
 	if s.settings == nil {

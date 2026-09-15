@@ -58,6 +58,12 @@ const (
 	// DynamicBoardNotify: a board state change notification (claimed/result)
 	// (FEATURE-490).
 	DynamicBoardNotify DynamicEventKind = "board_notify"
+
+	// DynamicUIAction: a component interaction (form submit, button, chart
+	// drill-down) reported while a turn is running (FEATURE-524 window mode).
+	// It is injected into the running turn instead of starting a new one, so the
+	// LLM sees the user's action right before its next call.
+	DynamicUIAction DynamicEventKind = "ui_action"
 )
 
 // DynamicEvent is one user-action event buffered in the dynamic perception
@@ -183,8 +189,9 @@ func (a *Agent) dynamicEventQueueCapacity() int {
 func (a *Agent) AddDynamicEvent(kind DynamicEventKind, pathOrText string) {
 	ev := DynamicEvent{Kind: kind, Time: time.Now()}
 	switch kind {
-	case DynamicUserMessage, DynamicBoardRequest, DynamicBoardDM, DynamicBoardNotify:
-		// Message-like events carry raw text (user messages and board events).
+	case DynamicUserMessage, DynamicBoardRequest, DynamicBoardDM, DynamicBoardNotify, DynamicUIAction:
+		// Message-like events carry raw text (user messages, board events and
+		// rendered-component actions).
 		ev.Text = pathOrText
 	default:
 		ev.Path = pathOrText
@@ -216,6 +223,11 @@ func (a *Agent) consumeDynamicEvents(includeUserMessages bool) string {
 			if includeUserMessages {
 				sb.WriteString("  <user_message>" + formatEventTime(ev.Time) + " " + ev.Text + "</user_message>\n")
 			}
+		case DynamicUIAction:
+			// FEATURE-524 window mode: a component interaction that happened while
+			// the agent was working. The text already carries the ui id, the action
+			// id and the structured payload, so it is injected verbatim.
+			sb.WriteString("  <ui_action>" + formatEventTime(ev.Time) + " " + ev.Text + "</ui_action>\n")
 		case DynamicClipObject:
 			sb.WriteString("  <clip_object>" + formatFileEvent(ev) + "</clip_object>\n")
 		case DynamicUploadFile:
