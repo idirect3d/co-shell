@@ -1131,13 +1131,21 @@ function makeBlock(cls, label, msgIndex) {
 
 // applyBlockDisplayMode shows/hides or collapses a single block according to
 // the current display mode (FEATURE-425).
+// isResultLikeBlock reports whether a block carries the answer the user asked
+// for rather than process noise. Besides the final completion block
+// (.ev-result), an LLM-rendered component tree (cls "ui", FEATURE-524) counts
+// as a result: hiding or collapsing it would hide the rendered answer itself.
+function isResultLikeBlock(box, cls) {
+  return box.classList.contains("ev-result") || cls === "ui";
+}
+
 function applyBlockDisplayMode(box, cls) {
   if (displayMode === "silent") {
-    const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+    const show = cls === "user-msg" || box.classList.contains("level-error") || isResultLikeBlock(box, cls);
     box.style.display = show ? "" : "none";
     // The final result block must be fully expanded so the user sees the
     // completion report (FIX-426).
-    if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
+    if (isResultLikeBlock(box, cls)) box.classList.remove("collapsed");
   } else if (displayMode === "minimal") {
     box.style.display = "";
     // User-msg blocks are always expanded so the user sees their original
@@ -1145,7 +1153,7 @@ function applyBlockDisplayMode(box, cls) {
     if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
     const body = box.querySelector(".ev-body");
     const isStreaming = body && isStreamingBody(body);
-    const isResult = box.classList.contains("ev-result");
+    const isResult = isResultLikeBlock(box, cls);
     if (!isStreaming && !isResult) box.classList.add("collapsed");
     else box.classList.remove("collapsed");
   } else {
@@ -2723,17 +2731,18 @@ function applyDisplayMode() {
     const body = box.querySelector(".ev-body");
     const isStreaming = body && isStreamingBody(body);
     if (displayMode === "silent") {
-      // Show only user-msg, error, and the final result block.
-      const show = cls === "user-msg" || box.classList.contains("level-error") || box.classList.contains("ev-result");
+      // Show only user-msg, error, and result-like blocks (the completion
+      // report and LLM-rendered component trees).
+      const show = cls === "user-msg" || box.classList.contains("level-error") || isResultLikeBlock(box, cls);
       box.style.display = show ? "" : "none";
-      // The final result block must be fully expanded (FIX-426).
-      if (box.classList.contains("ev-result")) box.classList.remove("collapsed");
+      // Result-like blocks must be fully expanded (FIX-426).
+      if (isResultLikeBlock(box, cls)) box.classList.remove("collapsed");
     } else if (displayMode === "minimal") {
       box.style.display = "";
       // User-msg blocks are always expanded (FIX-426).
       if (cls === "user-msg") { box.classList.remove("collapsed"); return; }
       // Collapse finished non-result blocks to just their title.
-      const isResult = box.classList.contains("ev-result");
+      const isResult = isResultLikeBlock(box, cls);
       if (!isStreaming && !isResult) box.classList.add("collapsed");
       else box.classList.remove("collapsed");
     } else {
