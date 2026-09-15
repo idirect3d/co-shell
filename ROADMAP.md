@@ -58,6 +58,17 @@
     - Stage 3（进行中）[BUILD-1031]：`form` 组件（`web/static/ui-form.js`：text/number/textarea/select/checkbox 原生控件 + 提交/重置按钮，全程 createElement）+ 组件动作上行链路（`UI.sendUIAction` → `{"type":"ui_action", ui_id, action_id, payload}` → `web/session.go` 新增 `ui_action` 分支 → 作为新一轮用户消息注入，`agent.UIActionMessage` 渲染结构化载荷）。已验证：表单 4 字段/下拉/数字/多行/勾选渲染正确，提交后上行消息含 ui_id/action_id/结构化 payload。期间修一处缺陷：`render()` 回调收到的是 `{props,id,raw}` 包装对象，误读 `node.actions` 使提交按钮从渲染起就禁用（改为 `node.raw.actions`）。待办：`ui_update` 原地更新、`waiting` 阻塞与释放、UC-27~UC-32。
     - Stage 3 完成 [BUILD-1032]：①修 `sendUIAction` 取错 `ui_id`——树容器新增专用属性 `data-ui-tree-id`（`renderTree` 从容器 `data-ui-id` 镜像），动作解析顺序为「专用属性 → `.ui-tree` 容器 → 无则不发」，不再把组件节点自身 id（如 `f1`）上报成树 id；实测上行 `ui_id` 为 `ui-form-3`，无树 id 时不发送且按钮保持可用（表单未置 `data-submitted`）。②`ui_update` 原地更新：`render_ui` 新增可选 `update` 参数（i18n 中英文案），带该参数时 park 为更新并由 `run_stream` 发射 `ui_update`（`takePendingUIUpdate`，与 `ui_render` 互斥），前端 `applyUIUpdate` 目标缺失/补丁损坏仅 `console.warn` 不中断流，`updateTree` 以整树为目标时保留容器只换内容；实测 `.ui-card` 数量 1→1、标题 旧→新、位置与容器不变、未知目标返回 false 且产生两条告警。③`waiting=true` 阻塞与释放：新增 `agent/ui_wait.go`（`beginUIWait`/`SubmitUIAction`/`ReleaseUIWait`/`waitUIAction`，缓冲 1、超时 120s、并发第二个等待降级为普通回执），`web/session.go` 中 `ui_action` 优先交给挂起调用（动作即工具返回值，同回合继续），普通输入与 ESC 中断调用 `ReleaseUIWait`（工具返回「用户未操作」，消息照常开启新一轮）。④单测 `agent/ui_wait_test.go`（UC-28/29/31/32，含并发守卫与 ctx 取消）全部通过。
       - 待办：UC-27/UC-30 的浏览器端到端细项复测（含四套主题观感）、Stage 4 逃生舱与治理（html 沙箱/CSP/上下文裁剪落地）。
+    - FIX [BUILD-1033]：`form` 的 `select` 取值恒为空——`web/static/ui-form.js` 的 `optionValue()` 只读旧别名 `o.v`，而协议/提示词与实际用法均为 `{value, label}`，导致 `option.value` 全被写成空串，用户选择丢失（演示中实测 `optionValues: ["",""]`、payload `plan:""`）。修法：`optionValue` 改为 `value → v` 回退，`optionLabel` 改为 `label → value → v` 回退；同时把中英文系统提示词的 `form` 行补齐字段类型（`text|number|textarea|select|checkbox`）、`options?:[{value,label}]` 与提交动作写法。复测：`optionValues` 为 `["A","B"]`，提交 payload `plan:"B"`。
+
+- [ ] **待排期 · LLM 可控布局（FEATURE-524 后续能力，v0.60.0 候选）**
+  - 来源：用户 2026-09-15 看 BUILD-1032 演示后提出——“由 LLM 控制输出布局，把多个控件有机整合，让界面整体感更强”。
+  - 决策（用户确认，5 轮）：
+    1. **机制**：新增通用网格容器 `grid` / `row` / `col`，子节点用 `span` 权重占位（改动最小、最通用）；不采用语义预设版式（stats/split）作为本期主路径。
+    2. **控制粒度**：**语义权重**——`span=1|2|3`、`size=sm|md|lg`，具体像素/断点由样式决定；不允许 LLM 给百分比或像素级坐标（小屏与四主题下易做坏）。
+    3. **作用范围**：两者都要，但**分两步**——先做“同一棵组件树内部”的控件编排，再做“跨块/页面级统一”（块间距、对齐、最大宽度、标题层级；需改 `app.js` 块布局与 `style.css` 流式样式）。
+    4. **交互**：本期只做**静态布局**（纯视觉，零交互），不做 tabs 等交互式容器。
+    5. **排期**：先把 FEATURE-524 的 Stage 4（html 沙箱/CSP/上下文裁剪）做完，再开新任务与新分支实现布局。
+  - 已知约束（实现时需一并处理）：容器会加快嵌套深度消耗（当前上限 6 层）；响应式需用 CSS Grid `auto-fit`/`minmax` + 窄屏自动堆叠；不必引入任何第三方依赖。
 
 ---
 

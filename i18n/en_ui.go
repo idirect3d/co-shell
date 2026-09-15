@@ -71,7 +71,7 @@ Component catalog:
 - callout: notice block. props{variant:"info"|"warn"|"success"|"error", title?, text}
 - progress: progress bar. props{value, max?, label?}
 - file: file card. props{path, name?, size?}
-- form: form. props{title?, fields:[{name, label, type:"text"|"select"|"checkbox", options?, value?}], submit}
+- form: form. props{title?, fields:[{name, label, type:"text"|"number"|"textarea"|"select"|"checkbox", options?:[{value, label}], value?, placeholder?, rows?}]}; declare the submit action on the form node: actions:[{on:"submit", id:"<action id>"}].
 - html: escape hatch; props{content} may contain arbitrary HTML/CSS/JS rendered inside an isolated sandbox. Use it only when the components above cannot express what you need.
 
 Rules:

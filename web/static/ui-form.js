@@ -33,14 +33,20 @@
     return v === undefined || v === null ? "" : String(v);
   }
 
-  // optionValue accepts either "方案A" or {v, label}.
+  // optionValue accepts "方案A", {value, label} (the documented shape) or the
+  // legacy {v, label} alias. Reading only one of the two keys silently turned
+  // every option value into "", so the user's choice never reached the LLM.
   function optionValue(o) {
-    return o && typeof o === "object" ? str(o.v) : str(o);
+    if (!o || typeof o !== "object") return str(o);
+    if (o.value !== undefined && o.value !== null) return str(o.value);
+    return str(o.v);
   }
 
   function optionLabel(o) {
-    if (o && typeof o === "object") return str(o.label !== undefined ? o.label : o.v);
-    return str(o);
+    if (!o || typeof o !== "object") return str(o);
+    if (o.label !== undefined && o.label !== null) return str(o.label);
+    if (o.value !== undefined && o.value !== null) return str(o.value);
+    return str(o.v);
   }
 
   // buildControl renders one field and returns the element whose value is read
