@@ -2268,6 +2268,7 @@ const (
 	KeyUIErrActionID          = "ui_err_action_id"
 	KeyUISummaryNoChildren    = "ui_summary_no_children"
 	KeyUISummaryChildren      = "ui_summary_children"
+	KeyUIPrunedTree           = "ui_pruned_tree"
 	KeyUIErrRenderFailed      = "ui_err_render_failed"
 	KeyUIWaitingCancelled     = "ui_waiting_cancelled"
 	KeyUIWaitingTimeout       = "ui_waiting_timeout"

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
+<title>co-shell ui sandbox</title>
+<!--
+  co-shell UI sandbox shell (FEATURE-524, Stage 4).
+
+  Served at GET /api/ui-sandbox with a locked-down Content-Security-Policy and
+  embedded by the `html` component through <iframe sandbox="allow-scripts">.
+  Without allow-same-origin the frame runs in an opaque origin, so the markup it
+  renders can never reach the main page DOM, its cookies, its storage or its
+  WebSocket. The only channel back is a whitelisted ui-html-height message.
+
+  The inline script below is intentional: an opaque-origin document cannot load
+  same-origin files ('self' matches nothing), so the driver must ship inline.
+  It is fixed server-side code — never LLM output.
+
+  Author: L.Shuang
+  Created: 2026-09-15
+  MIT License - Copyright (c) 2026 L.Shuang
+-->
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body {
+    font: 13px/1.65 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #d8dbe0;
+    /* Height reporting may not land (e.g. a host page without the hook), so the
+       frame stays scrollable instead of clipping taller content. */
+    overflow: auto;
+  }
+  #root { display: block; }
+  /* A neutral default so LLM markup that forgets to style itself stays legible. */
+  #root > :first-child { margin-top: 0; }
+  #root > :last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(function () {
+  "use strict";
+
+  // MAX_HTML keeps one escape-hatch frame from becoming an unbounded document;
+  // the tree budget already caps a node's props, this is the second line.
+  var MAX_HTML = 262144;
+
+  var root = document.getElementById("root");
+
+  // reportHeight tells the embedding page how tall the content ended up, so the
+  // iframe can size itself instead of showing an inner scrollbar.
+  function reportHeight() {
+    var box = root ? root.getBoundingClientRect().height : 0;
+    var body = document.body ? document.body.getBoundingClientRect().height : 0;
+    var h = Math.ceil(Math.max(box, body));
+    if (!h) h = Math.ceil(Math.max(
+      document.body ? document.body.scrollHeight : 0,
+      document.documentElement ? document.documentElement.scrollHeight : 0
+    ));
+    if (!h) return;
+    try {
+      window.parent.postMessage({ type: "ui-html-height", height: h }, "*");
+    } catch (err) {
+      // Parent navigated away; nothing to report to.
+    }
+  }
+
+  // runScripts re-creates <script> elements: scripts inserted through innerHTML
+  // never execute, so an escape hatch that promises "arbitrary JS" has to
+  // rebuild them explicitly.
+  function runScripts(box) {
+    var scripts = box.querySelectorAll("script");
+    for (var i = 0; i < scripts.length; i++) {
+      var old = scripts[i];
+      var fresh = document.createElement("script");
+      if (old.src) fresh.src = old.src;
+      else fresh.textContent = old.textContent;
+      if (old.parentNode) old.parentNode.replaceChild(fresh, old);
+    }
+  }
+
+  function render(html) {
+    root.innerHTML = html;
+    runScripts(root);
+    // Content height settles at different speeds (fonts, images, late layout),
+    // so sample it a few times instead of trusting one shot.
+    reportHeight();
+    setTimeout(reportHeight, 80);
+    setTimeout(reportHeight, 400);
+  }
+
+  window.addEventListener("message", function (e) {
+    // Only the embedding page may drive this frame.
+    if (e.source !== window.parent) return;
+    var d = e.data;
+    if (!d || typeof d !== "object") return;
+    // ui-html-measure only re-reads the layout: the host asks for it when the
+    // frame gains a real box (it was display:none while the block composed),
+    // which the in-frame ResizeObserver does not report. No re-render, so no
+    // script inside the content runs twice.
+    if (d.type === "ui-html-measure") {
+      reportHeight();
+      return;
+    }
+    if (d.type !== "ui-html-render") return;
+    if (typeof d.html !== "string") return;
+    render(d.html.slice(0, MAX_HTML));
+  });
+
+  window.addEventListener("resize", reportHeight);
+  setTimeout(reportHeight, 60);
+
+  // The frame's layout box can still be 0-sized while the host page composes
+  // the block (measurements read 0 and the report above is skipped), so report
+  // again whenever the document or the content actually changes size. This does
+  // not cover "frame was display:none, then shown" — the host asks for that
+  // case through ui-html-measure.
+  if (typeof ResizeObserver === "function") {
+    var ro = new ResizeObserver(function () { reportHeight(); });
+    ro.observe(document.documentElement);
+    if (document.body) ro.observe(document.body);
+    if (root) ro.observe(root);
+  }
+})();
+</script>
+</body>
+</html>

@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FEATURE-524 | 0.59.0 | P1 | LLM 组件化输出协议：`render_ui` 工具 + 组件树协议 + 前端 registry + 10 个基础组件 + 交互回传 + html 沙箱 + 上下文裁剪 |
 
-> 当前 BUILD: 1025
+> 当前 BUILD: 1034
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-524 LLM 组件化输出协议（co-shell Web UI 富组件渲染）**
+- [x] **FEATURE-524 LLM 组件化输出协议（co-shell Web UI 富组件渲染）**
   - 需求（用户确认，6 轮讨论）：
     1. 目标用户：非技术用户直接用 co-shell 完成任务并看结果（办公/数据分析/资料整理）。
     2. 表达载体：**工具调用为主**——新增 `render_ui` 工具，参数为组件树 JSON。
@@ -59,7 +59,7 @@
     - Stage 3 完成 [BUILD-1032]：①修 `sendUIAction` 取错 `ui_id`——树容器新增专用属性 `data-ui-tree-id`（`renderTree` 从容器 `data-ui-id` 镜像），动作解析顺序为「专用属性 → `.ui-tree` 容器 → 无则不发」，不再把组件节点自身 id（如 `f1`）上报成树 id；实测上行 `ui_id` 为 `ui-form-3`，无树 id 时不发送且按钮保持可用（表单未置 `data-submitted`）。②`ui_update` 原地更新：`render_ui` 新增可选 `update` 参数（i18n 中英文案），带该参数时 park 为更新并由 `run_stream` 发射 `ui_update`（`takePendingUIUpdate`，与 `ui_render` 互斥），前端 `applyUIUpdate` 目标缺失/补丁损坏仅 `console.warn` 不中断流，`updateTree` 以整树为目标时保留容器只换内容；实测 `.ui-card` 数量 1→1、标题 旧→新、位置与容器不变、未知目标返回 false 且产生两条告警。③`waiting=true` 阻塞与释放：新增 `agent/ui_wait.go`（`beginUIWait`/`SubmitUIAction`/`ReleaseUIWait`/`waitUIAction`，缓冲 1、超时 120s、并发第二个等待降级为普通回执），`web/session.go` 中 `ui_action` 优先交给挂起调用（动作即工具返回值，同回合继续），普通输入与 ESC 中断调用 `ReleaseUIWait`（工具返回「用户未操作」，消息照常开启新一轮）。④单测 `agent/ui_wait_test.go`（UC-28/29/31/32，含并发守卫与 ctx 取消）全部通过。
       - 待办：UC-27/UC-30 的浏览器端到端细项复测（含四套主题观感）、Stage 4 逃生舱与治理（html 沙箱/CSP/上下文裁剪落地）。
     - FIX [BUILD-1033]：`form` 的 `select` 取值恒为空——`web/static/ui-form.js` 的 `optionValue()` 只读旧别名 `o.v`，而协议/提示词与实际用法均为 `{value, label}`，导致 `option.value` 全被写成空串，用户选择丢失（演示中实测 `optionValues: ["",""]`、payload `plan:""`）。修法：`optionValue` 改为 `value → v` 回退，`optionLabel` 改为 `label → value → v` 回退；同时把中英文系统提示词的 `form` 行补齐字段类型（`text|number|textarea|select|checkbox`）、`options?:[{value,label}]` 与提交动作写法。复测：`optionValues` 为 `["A","B"]`，提交 payload `plan:"B"`。
-
+    - Stage 4 完成 [BUILD-1034]：① `html` 逃生舱落地——`/api/ui-sandbox` 独立端点（`web/server.go:handleUISandbox`，帧 CSP `uiSandboxCSP`：`default-src 'none'` + `connect-src 'none'` + `img-src data:` + `frame-ancestors 'self'`），主页面 CSP `indexCSP` 补 `frame-src 'self'`；iframe `sandbox="allow-scripts"`（不加 `allow-same-origin`）。实测：帧内 `parent/parentDom/storage/cookie/topnav` 全部 `blocked:SecurityError`，外部 img/script 被 CSP 阻断，`iframe.contentDocument` 为 null；沙箱内联脚本可执行（canvas 绘制成功）。② 修复沙箱自动高度：块若在 `display:none` 容器里创建（折叠块/静默模式），帧内测量恒为 0，且帧重新可见时帧内 ResizeObserver **不会触发**（实测「隐藏→显示」零上报）。修法：父侧用 ResizeObserver 观察 iframe 元素，拿到真实盒子即发轻量 `ui-html-measure`（不重渲染、不重跑脚本）请帧内重测；帧侧新增该消息处理，并保留 0/80/400ms 采样与帧内 RO 兜底。实测：可见场景与隐藏→显示场景 `frame.style.height` 均为 525px（此前恒为 CSS 默认 120px）。③ 上下文裁剪落地：`UIContextPrune`（`ui_context_prune`，默认开）在 `buildContextMessages()` 交给 provider 前把 render_ui 的树替换为一行摘要（新增 `agent/ui_prune.go`），两种历史形态（`ToolCalls[].Arguments` 与 XML 的 `<tree>`）都处理，兄弟参数与持久化历史不受影响（刷新回放仍渲染完整组件）；单测 `agent/ui_prune_test.go` UC-40~UC-44 全部通过。④ 文档 `docs/ui-components.md`（协议/组件目录/事件流/安全模型/裁剪开关）。⑤ `go build ./... && go vet ./...` 全绿，`go test ./agent/` 通过。
 - [ ] **待排期 · LLM 可控布局（FEATURE-524 后续能力，v0.60.0 候选）**
   - 来源：用户 2026-09-15 看 BUILD-1032 演示后提出——“由 LLM 控制输出布局，把多个控件有机整合，让界面整体感更强”。
   - 决策（用户确认，5 轮）：

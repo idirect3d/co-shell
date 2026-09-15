@@ -469,6 +469,77 @@
     }
   });
 
+  // html is the escape hatch: LLM-authored markup runs inside a sandboxed iframe
+  // served from /api/ui-sandbox. The frame carries sandbox="allow-scripts"
+  // WITHOUT allow-same-origin, so it lives in an opaque origin — no parent DOM,
+  // no cookies, no storage, no socket. It never touches the main DOM: the
+  // content is handed over by postMessage and interpreted inside the frame.
+  register("html", {
+    children: false,
+    render: function (node) {
+      var content = str(node.props.content);
+      var box = el("div", "ui-html");
+      if (!content) {
+        box.appendChild(el("div", "ui-html-empty", uiText("（无 HTML 内容）", "(no HTML content)")));
+        return box;
+      }
+      var frame = document.createElement("iframe");
+      frame.className = "ui-html-frame";
+      frame.setAttribute("sandbox", "allow-scripts");
+      frame.setAttribute("referrerpolicy", "no-referrer");
+      frame.setAttribute("title", uiText("沙箱内容", "Sandboxed content"));
+      frame.setAttribute("src", "/api/ui-sandbox");
+
+      // onMessage accepts exactly one message shape, and only from this frame.
+      var onMessage = function (e) {
+        if (!frame.isConnected) {
+          global.removeEventListener("message", onMessage);
+          return;
+        }
+        if (e.source !== frame.contentWindow) return;
+        var d = e.data;
+        if (!d || typeof d !== "object" || d.type !== "ui-html-height") return;
+        var h = Number(d.height);
+        if (!isFinite(h) || h <= 0) return;
+        frame.style.height = Math.min(Math.max(Math.round(h), 60), 1200) + "px";
+      };
+      // askMeasure re-reads the frame's layout without re-rendering it. The
+      // block may be composed while its container is hidden (collapsed block,
+      // silent display mode), in which case the frame's box is 0 and the inner
+      // shell reports nothing; it also never notices becoming visible again.
+      var ro = null;
+      var askMeasure = function () {
+        if (!frame.isConnected) {
+          if (ro) ro.disconnect();
+          return;
+        }
+        if (!frame.getBoundingClientRect().height) return;
+        try {
+          frame.contentWindow.postMessage({ type: "ui-html-measure" }, "*");
+        } catch (err) {
+          // Frame torn down between check and post.
+        }
+      };
+      if (typeof ResizeObserver === "function") {
+        ro = new ResizeObserver(askMeasure);
+        ro.observe(frame);
+      }
+      frame.addEventListener("load", function () {
+        try {
+          frame.contentWindow.postMessage({ type: "ui-html-render", html: content }, "*");
+        } catch (err) {
+          // Frame torn down between load and post; nothing left to hand over.
+        }
+        // Content height settles late (fonts, images, late layout).
+        setTimeout(askMeasure, 300);
+        setTimeout(askMeasure, 900);
+      });
+      global.addEventListener("message", onMessage);
+      box.appendChild(frame);
+      return box;
+    }
+  });
+
   // uiTreeIDOf resolves the backend-assigned ui id of the tree enclosing el.
   // It deliberately never falls back to the innermost data-ui-id: that one
   // belongs to the component node itself, and reporting it would make the
