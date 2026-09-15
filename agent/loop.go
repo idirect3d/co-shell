@@ -624,6 +624,12 @@ func (a *Agent) buildContextMessages() []llm.Message {
 		}
 	}
 
+	// FEATURE-524: render_ui writes a whole component tree into the history as
+	// tool-call arguments. UIContextPrune (default on) turns those trees into a
+	// one-line summary on their way into the context; the persisted history and
+	// the Web UI replay keep the full tree.
+	msgs = a.pruneUIContext(msgs)
+
 	return msgs
 }
 

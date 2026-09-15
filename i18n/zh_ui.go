@@ -29,6 +29,8 @@ func init() {
 
 	zhMessages[KeyUISummaryNoChildren] = `已渲染 %s（id=%s，无子节点）。`
 
+	zhMessages[KeyUIPrunedTree] = `%s 组件树（%d 个节点）已裁剪为摘要，完整内容见已渲染的结果。`
+
 	zhMessages[KeyUISummaryChildren] = `已渲染 %s（id=%s，%d 个子节点）。`
 
 	zhMessages[KeyUIUpdateSummary] = `已在原位置更新组件 %s（%d 个节点）。`

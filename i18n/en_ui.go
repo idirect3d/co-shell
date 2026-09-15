@@ -29,6 +29,8 @@ func init() {
 
 	enMessages[KeyUISummaryNoChildren] = `Rendered %s (id=%s, no child nodes).`
 
+	enMessages[KeyUIPrunedTree] = `The %s component tree (%d nodes) was pruned to a summary; the rendered result holds the full content.`
+
 	enMessages[KeyUISummaryChildren] = `Rendered %s (id=%s, %d child nodes).`
 
 	enMessages[KeyUIUpdateSummary] = `Updated component %s in place (%d nodes).`
