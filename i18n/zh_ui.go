@@ -47,6 +47,44 @@ func init() {
 
 	zhMessages[KeyUINoRenderer] = `当前界面不支持渲染 UI 组件，已降级为文本输出。`
 
+	zhMessages[KeyUIToolParamTarget] = `可选字符串：渲染目标。stream（默认）渲染在对话流里；window 渲染到 ui_window 打开的常驻窗口里（窗口内容可用 update 原地刷新，窗口不随回合结束消失）。`
+
+	zhMessages[KeyUIErrTarget] = `render_ui 的 target 参数只支持 "stream" 或 "window"，收到「%s」。`
+
+	zhMessages[KeyUIWindowDefaultTitle] = `任务窗口`
+
+	zhMessages[KeyUIWindowOpenSummary] = `已打开界面窗口「%s」；若窗口已打开则复用同一窗口，用 render_ui(target="window") 写入或更新内容。`
+
+	zhMessages[KeyUIWindowCloseSummary] = `已关闭界面窗口。`
+
+	zhMessages[KeyUIErrWindowAction] = `ui_window 的 action 参数只支持 "open"、"close"，收到「%s」。`
+
+	zhMessages[KeyUIErrWindowTitle] = `ui_window 的 title 超过长度上限（%d 个字符），请精简。`
+
+	zhMessages[KeyUIToolParamWindowTitle] = `可选字符串：窗口标题（仅 open 时使用，缺省为“任务窗口”）。`
+
+	zhMessages[KeyUIToolUsageUIWindow] = `## ui_window
+Description: 打开或关闭一个常驻浮层窗口（不是对话流里的块）。窗口打开后，可以用 render_ui(target="window") 把组件树渲染进窗口，并在后台继续工作、持续用 render_ui(target="window", update="<id>") 把中间结果推回同一个窗口；窗口在整轮结束后仍然保留，直到你关闭它或用户点关闭按钮。适合“持续更新的面板”：进度看板、长任务的中间结果、需要用户反复填写/确认的表单。
+
+参数:
+- action: "open" 打开窗口（已打开时复用同一窗口并更新标题）；"close" 关闭窗口。
+- title: 可选字符串，窗口标题（仅 open 时有效）。
+- meta: 透明化元数据对象（intent/risk/risk_reason/affected_objects/progress）。
+
+规则:
+1. 只有一个窗口：重复 open 不会叠加新窗口，而是复用并更新标题。
+2. 窗口内容仍然用 render_ui 写入：target="window" 渲染新组件，update="<id>" 原地更新。
+3. 窗口不阻塞你：除用户操作需要等待（见 render_ui 的 waiting 参数）外，你可以继续调用工具并多次推送更新。
+4. 用户在窗口里的操作默认开启新一轮对话；若对话仍在运行，则该操作会在下一次 LLM 调用前即时注入当前回合。若该操作声明了 blocking:true 且你正在等待，它会直接作为等待结果返回。
+5. 与对话流一样，终端/飞书等不支持窗口的出口会降级为文本，不会报错。
+
+用法:
+<{XML_TAG_PREFIX}ui_window>
+  <{XML_TAG_PREFIX}meta>...</{XML_TAG_PREFIX}meta>
+  <{XML_TAG_PREFIX}action>open</{XML_TAG_PREFIX}action>
+  <{XML_TAG_PREFIX}title>任务进度</{XML_TAG_PREFIX}title>
+</{XML_TAG_PREFIX}ui_window>`
+
 	zhMessages[KeyUIToolUsageRenderUI] = `## render_ui
 Description: 把结果渲染成结构化 UI 组件（卡片、键值列表、表格、图表、步骤、提示块等），而不是输出一大段文本。当用户需要看数据分析结果、对比信息、流程说明、进度，或者需要点击/选择时使用。渲染发生在用户的 Web 界面上。
 

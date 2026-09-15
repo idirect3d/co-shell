@@ -71,16 +71,16 @@ const (
 
 // Agent is the core AI agent that orchestrates tool calls and LLM interactions.
 type Agent struct {
-	mu               sync.Mutex
-	llmClient        llm.Client
-	mcpMgr           *mcp.Manager
-	store            *store.DualStore
-	memoryManager    *memory.Manager
-	systemPrompt     string
-	currentSessionID string // ID of the current named session entry
+	mu                  sync.Mutex
+	llmClient           llm.Client
+	mcpMgr              *mcp.Manager
+	store               *store.DualStore
+	memoryManager       *memory.Manager
+	systemPrompt        string
+	currentSessionID    string // ID of the current named session entry
 	currentSessionTitle string // cached title of the current session (FEATURE-488)
-	messages         []llm.Message
-	maxIterations    int
+	messages            []llm.Message
+	maxIterations       int
 	// toolModes stores per-tool mode settings.
 	// Key is the tool name, "default" is the default for all tools.
 	// Value is one of: "disabled" (not sent to LLM), "confirm" (enabled, requires user confirmation),
@@ -128,13 +128,23 @@ type Agent struct {
 	// nil while no call is parked (FEATURE-524).
 	uiWaitCh chan string
 
-	rules           string // user-defined rules for rebuilding system prompt
-	subAgentMgr     *subagent.Manager
-	taskPlanMgr     *taskplan.Manager
-	scheduler       *scheduler.Scheduler
-	name            string   // agent name for identification (default: "co-shell")
-	imagePaths      []string // paths to image files for multimodal input (cleared after one-shot delivery)
-	workspacePath   string   // workspace root path for loading external config files
+	// pendingUITarget records which surface the parked tree/update belongs to:
+	// "" (the chat stream, the default) or UITargetWindow. The stream loop reads
+	// it together with the parked tree it describes (FEATURE-524 window mode).
+	pendingUITarget string
+
+	// pendingUIWindow parks a ui_window call until the stream loop, the only
+	// owner of the StreamCallback, turns it into a ui_window event (FEATURE-524
+	// window mode).
+	pendingUIWindow *uiWindowRequest
+
+	rules         string // user-defined rules for rebuilding system prompt
+	subAgentMgr   *subagent.Manager
+	taskPlanMgr   *taskplan.Manager
+	scheduler     *scheduler.Scheduler
+	name          string   // agent name for identification (default: "co-shell")
+	imagePaths    []string // paths to image files for multimodal input (cleared after one-shot delivery)
+	workspacePath string   // workspace root path for loading external config files
 
 	// runtimeInfo carries the co-shell runtime environment and startup
 	// configuration (FEATURE-481), injected once at startup via SetRuntimeInfo.
@@ -146,10 +156,10 @@ type Agent struct {
 	dynEvents *dynamicEventQueue
 	// boardSender is the callback the web session installs so the agent can
 	// push board_* messages back to the hub (FEATURE-490).
-	boardSender BoardSender
-	memoryEnabled   bool     // whether persistent memory tools are enabled
-	planEnabled     bool     // whether task plan tools are enabled
-	subAgentEnabled bool     // whether sub-agent tools are enabled
+	boardSender           BoardSender
+	memoryEnabled         bool // whether persistent memory tools are enabled
+	planEnabled           bool // whether task plan tools are enabled
+	subAgentEnabled       bool // whether sub-agent tools are enabled
 	intentExposureEnabled bool // whether tool-call intent exposure (meta object) is enabled
 	metaCapabilityEnabled bool // whether meta-capability awareness (FEATURE-466) is enabled
 
@@ -1083,6 +1093,7 @@ func (a *Agent) autoEscalateToReorganize() bool {
 //   - Judge enabled AND confirmed loop → set syncErr (stream will break)
 //   - Judge enabled AND NOT confirmed → reset detectors (stream continues)
 //   - Judge disabled → always set syncErr (stream breaks immediately)
+//
 // loopFailedStrategiesMax caps how many failed exit strategies are kept and
 // fed back to the judge (FEATURE-349). Only the most recent ones matter;
 // older failures belong to phases the task has already moved past.
@@ -1868,10 +1879,10 @@ func (a *Agent) GetMaxModelLen() int {
 // ModelInfo holds the active text and vision model context info for the web
 // status bar (FEATURE-378).
 type ModelInfo struct {
-	TextModelName  string // main text model name
-	TextMaxLen     int    // main text model max context length (0 = unknown)
+	TextModelName   string // main text model name
+	TextMaxLen      int    // main text model max context length (0 = unknown)
 	VisionModelName string // vision model name (empty when none)
-	VisionMaxLen   int    // vision model max context length (0 = unknown)
+	VisionMaxLen    int    // vision model max context length (0 = unknown)
 	// ModeTextModelID / ModeVisionModelID are the current work mode's bound
 	// model IDs (empty when the mode has no binding, i.e. uses the global
 	// default). Used by the web UI to highlight the "默认" option (FEATURE-422).

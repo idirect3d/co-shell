@@ -116,6 +116,14 @@ type UIAction struct {
 	On      string `json:"on"`                // click | select | submit | change
 	ID      string `json:"id"`                // action id, echoed back on fire
 	Payload string `json:"payload,omitempty"` // node | value | row | point | form
+
+	// Blocking declares that this action expects a parked render_ui(waiting=true)
+	// call: the backend then hands the action back as that call's tool result so
+	// the agent continues in the same turn. Without a parked wait it degrades to
+	// the normal routing (injected into the running turn, or a new turn when the
+	// agent is idle) instead of hanging until the wait deadline (FEATURE-524
+	// window mode).
+	Blocking bool `json:"blocking,omitempty"`
 }
 
 // UINode is one node of the component tree. Props is kept as raw JSON so the

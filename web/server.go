@@ -90,17 +90,17 @@ var errPathOutside = errors.New("path escapes workspace")
 
 // clientMessage is a browser-to-server WebSocket message.
 type clientMessage struct {
-	Type        string   `json:"type"` // "input" | "answer" | "interaction_answer" | "interrupt" | "session_list" | "session_switch" | "session_delete" | "session_new" | "settings_get" | "settings_set" | "identity_get" | "identity_set" | "restart"
-	Text        string   `json:"text,omitempty"`
-	Attachments []string `json:"attachments,omitempty"`
-	ID          string   `json:"id,omitempty"`    // answer: the ask id; interaction_answer: the interaction id
-	Value       string   `json:"value,omitempty"` // answer: the reply; session_switch/delete: the session id; settings_set: the new value
-	Key         string   `json:"key,omitempty"`   // settings_set: the setting key
-	Priority    int      `json:"priority,omitempty"` // model_set_priority: the new priority
-	Result      json.RawMessage `json:"result,omitempty"` // interaction_answer: the structured result (agent.InteractionResult, FIX-513)
-	Step        string   `json:"step,omitempty"`   // model_wizard_next/prev: the current wizard step
+	Type        string          `json:"type"` // "input" | "answer" | "interaction_answer" | "interrupt" | "session_list" | "session_switch" | "session_delete" | "session_new" | "settings_get" | "settings_set" | "identity_get" | "identity_set" | "restart"
+	Text        string          `json:"text,omitempty"`
+	Attachments []string        `json:"attachments,omitempty"`
+	ID          string          `json:"id,omitempty"`          // answer: the ask id; interaction_answer: the interaction id
+	Value       string          `json:"value,omitempty"`       // answer: the reply; session_switch/delete: the session id; settings_set: the new value
+	Key         string          `json:"key,omitempty"`         // settings_set: the setting key
+	Priority    int             `json:"priority,omitempty"`    // model_set_priority: the new priority
+	Result      json.RawMessage `json:"result,omitempty"`      // interaction_answer: the structured result (agent.InteractionResult, FIX-513)
+	Step        string          `json:"step,omitempty"`        // model_wizard_next/prev: the current wizard step
 	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // model_wizard_next/prev/submit: accumulated wizard data
-	YOLO        bool     `json:"yolo,omitempty"`   // yolo_set: the new YOLO mode state
+	YOLO        bool            `json:"yolo,omitempty"`        // yolo_set: the new YOLO mode state
 	// MCP server management (FEATURE-464): mcp_add/mcp_update/mcp_remove.
 	Name    string   `json:"name,omitempty"`    // mcp_add/update/remove: the server name
 	Command string   `json:"command,omitempty"` // mcp_add/update: the server command
@@ -130,6 +130,9 @@ type clientMessage struct {
 	UIID       string          `json:"ui_id,omitempty"`
 	UIActionID string          `json:"action_id,omitempty"`
 	Payload    json.RawMessage `json:"payload,omitempty"`
+	// Blocking mirrors the action's declared blocking flag: true means the
+	// action expects a parked render_ui(waiting=true) call to consume it.
+	Blocking bool `json:"blocking,omitempty"`
 }
 
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as
@@ -144,30 +147,30 @@ type eventJSON struct {
 
 // serverMessage is a server-to-browser WebSocket message.
 type serverMessage struct {
-	Kind        string          `json:"kind"`            // "event" | "ask" | "interaction" | "state" | "sessions" | "settings" | "settings_result" | "identity" | "identity_result"
-	Event       *eventJSON      `json:"event,omitempty"` // kind=event
-	ID          string          `json:"id,omitempty"`    // kind=ask / kind=interaction
-	Mode        string          `json:"mode,omitempty"`  // kind=ask: "line" | "key"
+	Kind        string          `json:"kind"`                  // "event" | "ask" | "interaction" | "state" | "sessions" | "settings" | "settings_result" | "identity" | "identity_result"
+	Event       *eventJSON      `json:"event,omitempty"`       // kind=event
+	ID          string          `json:"id,omitempty"`          // kind=ask / kind=interaction
+	Mode        string          `json:"mode,omitempty"`        // kind=ask: "line" | "key"
 	Interaction json.RawMessage `json:"interaction,omitempty"` // kind=interaction: the Interaction JSON
-	Plan        json.RawMessage `json:"plan"`            // kind=state (null when no plan)
+	Plan        json.RawMessage `json:"plan"`                  // kind=state (null when no plan)
 	// FIX-511: kind=state also carries the agent's running state (agent.IsBusy)
 	// so a refreshed or reconnected browser can restore its running indicators
 	// (logo breathing, red ⏸ button, session-title highlight) instead of
 	// defaulting to idle. Pointer so that `false` is still serialised
 	// (omitempty alone would drop it).
-	Busy *bool `json:"busy,omitempty"`
-	Sessions    []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
-	Settings    json.RawMessage `json:"settings,omitempty"` // kind=settings: the grouped setting items
-	Identity    json.RawMessage `json:"identity,omitempty"` // kind=identity: the identity fields
-	OK          bool            `json:"ok,omitempty"`    // kind=settings_result: success flag
-	Message     string          `json:"message,omitempty"` // kind=settings_result: result message
-	Modes       []modeInfo      `json:"modes,omitempty"` // kind=mode: the work mode list
-	Models      json.RawMessage `json:"models,omitempty"` // kind=models: the model list JSON
-	Templates   json.RawMessage `json:"templates,omitempty"` // kind=models: the template list JSON
-	WizardStep  json.RawMessage `json:"wizard_step,omitempty"` // kind=model_wizard: the wizard step form JSON
-	WizardData  json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
-	YOLO        bool            `json:"yolo,omitempty"`    // kind=yolo: the current YOLO mode state
-	MCPServers  json.RawMessage `json:"mcp_servers,omitempty"` // kind=mcp: the MCP server list JSON
+	Busy       *bool           `json:"busy,omitempty"`
+	Sessions   []sessionInfo   `json:"sessions,omitempty"`    // kind=sessions: the session list
+	Settings   json.RawMessage `json:"settings,omitempty"`    // kind=settings: the grouped setting items
+	Identity   json.RawMessage `json:"identity,omitempty"`    // kind=identity: the identity fields
+	OK         bool            `json:"ok,omitempty"`          // kind=settings_result: success flag
+	Message    string          `json:"message,omitempty"`     // kind=settings_result: result message
+	Modes      []modeInfo      `json:"modes,omitempty"`       // kind=mode: the work mode list
+	Models     json.RawMessage `json:"models,omitempty"`      // kind=models: the model list JSON
+	Templates  json.RawMessage `json:"templates,omitempty"`   // kind=models: the template list JSON
+	WizardStep json.RawMessage `json:"wizard_step,omitempty"` // kind=model_wizard: the wizard step form JSON
+	WizardData json.RawMessage `json:"wizard_data,omitempty"` // kind=model_wizard: the accumulated wizard data JSON
+	YOLO       bool            `json:"yolo,omitempty"`        // kind=yolo: the current YOLO mode state
+	MCPServers json.RawMessage `json:"mcp_servers,omitempty"` // kind=mcp: the MCP server list JSON
 
 	// Backfill carries unconsumed user_message texts back to the input box when
 	// a task ends (FEATURE-471). kind=dynamic_backfill.
@@ -705,10 +708,10 @@ type treeNode struct {
 	Name     string      `json:"name"`
 	Path     string      `json:"path"` // workspace-relative
 	Dir      bool        `json:"dir"`
-	Status   string      `json:"status,omitempty"`   // file: git status code (M/A/D/R/U)
-	Changes  int         `json:"changes,omitempty"`  // dir: count of changed files below
-	Mtime    int64       `json:"mtime,omitempty"`    // file: last modified unix seconds
-	Size     int64       `json:"size,omitempty"`     // file: size in bytes
+	Status   string      `json:"status,omitempty"`  // file: git status code (M/A/D/R/U)
+	Changes  int         `json:"changes,omitempty"` // dir: count of changed files below
+	Mtime    int64       `json:"mtime,omitempty"`   // file: last modified unix seconds
+	Size     int64       `json:"size,omitempty"`    // file: size in bytes
 	Children []*treeNode `json:"children,omitempty"`
 }
 
@@ -1121,7 +1124,7 @@ func (s *Server) serveFileHex(w http.ResponseWriter, r *http.Request, abs, start
 	if endStr != "" {
 		end, err = strconv.Atoi(endStr)
 		if err != nil || end < start {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end"})
 			return
 		}
 	}
@@ -1427,4 +1430,3 @@ var hunkNewRe = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)`)
 // the diff base for a root commit (which has no parent) so the whole file
 // shows as new (FEATURE-494).
 const emptyTreeHash = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-

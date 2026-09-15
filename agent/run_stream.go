@@ -1595,12 +1595,19 @@ iterationLoop:
 				if execErr == nil && tc.Name == "render_ui" {
 					if target, node := a.takePendingUIUpdate(); node != nil {
 						if patchJSON, mErr := MarshalUITree(node); mErr == nil {
-							cb(UIUpdateEvent(target, patchJSON))
+							cb(UIUpdateEventTo(target, patchJSON, a.takePendingUITarget()))
 						}
 					} else if root, uiID := a.takePendingUITree(); root != nil {
 						if treeJSON, mErr := MarshalUITree(root); mErr == nil {
-							cb(UIRenderEvent(uiID, treeJSON))
+							cb(UIRenderEventTo(uiID, treeJSON, a.takePendingUITarget()))
 						}
+					}
+				}
+				// FEATURE-524 window mode: ui_window only opens/closes the floating
+				// window; it carries no tree, so it is emitted on its own event.
+				if execErr == nil && tc.Name == "ui_window" {
+					if req := a.takePendingUIWindow(); req != nil {
+						cb(UIWindowEvent(req.Action, req.Title))
 					}
 				}
 

@@ -3809,3 +3809,59 @@ select,
   background: transparent;
 }
 .ui-html-empty { color: var(--fg-dim, #8b9198); font-size: 12px; }
+
+/* FEATURE-524 window mode: the single floating window opened by ui_window.
+   Fixed to the bottom-right, close button only (no drag/minimise/resize), and
+   nothing is persisted: a refresh or a session switch starts without it. */
+.ui-window {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(70vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #fff);
+  color: var(--fg, inherit);
+  border: 1px solid var(--border-color, rgba(127, 127, 127, 0.45));
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  z-index: 60;
+  overflow: hidden;
+}
+.ui-window.hidden { display: none; }
+.ui-window-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color, rgba(127, 127, 127, 0.35));
+  background: rgba(127, 127, 127, 0.12);
+}
+.ui-window-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-window-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+.ui-window-close:hover { background: rgba(127, 127, 127, 0.22); }
+.ui-window-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow: auto;
+}
