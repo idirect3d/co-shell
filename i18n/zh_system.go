@@ -699,6 +699,12 @@ Usage:
 	zhMessages[KeySettingCmd_782] = "公告板协作: %s"
 	zhMessages[KeySettingCmd_783] = "✅ 公告板协作已设为: %s"
 
+	// FEATURE-524: UI 组件与窗口渲染开关（Web 设置面板「智能体」组）
+	zhMessages[KeyCol3UIEnabled] = "UI 组件与窗口渲染(on|off)"
+	zhMessages[KeyCol3UIContextPrune] = "组件树上下文裁剪(on|off)"
+	zhMessages[KeySettingUIEnabledStatus] = "UI 组件与窗口渲染: %s"
+	zhMessages[KeySettingUIContextPruneStatus] = "组件树上下文裁剪: %s"
+
 	zhMessages[KeyToolUsageAttemptCompletion] = `## attempt_completion
 Description: 每次工具调用后，用户会回应该工具调用的结果（成功或失败及原因）。当你已确认任务完成时，使用此工具向用户呈现你的工作成果。可选择提供一个 CLI 命令来展示运行结果。用户可能会对结果提供反馈，你可以据此进行改进并重试。
 重要提示：在确认所有之前的工具调用都已成功之前，不得使用此工具。在未确认的情况下使用将导致代码损坏和系统故障。使用此工具前，你必须先自问是否已确认所有之前的工具调用都成功了。如果没有，请不要使用此工具。

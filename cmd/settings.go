@@ -211,6 +211,7 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		subcommand == "env-include-details", subcommand == "env-include-current-dir",
 		subcommand == "env-include-tools", subcommand == "env-include-research",
 		subcommand == "env-include-user-dynamic",
+		subcommand == "ui-enabled", subcommand == "ui-context-prune",
 		subcommand == "meta-capability-enabled":
 		return h.handleAgentSetting(subcommand, args)
 
@@ -675,6 +676,8 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		makeLine("intent-exposure-enabled", intentExposureStatus, i18n.T(i18n.KeyCol3IntentExposureEnabled)),
 		makeLine("subagent-enabled", subAgentEnabledStatus, i18n.T(i18n.KeyCol3SubAgentEnabled)),
 		makeLine("board-enabled", boolStr(cfg.BoardEnabled), i18n.T(i18n.KeyCol3BoardEnabled)),
+		makeLine("ui-enabled", boolStr(cfg.UIEnabled), i18n.T(i18n.KeyCol3UIEnabled)),
+		makeLine("ui-context-prune", boolStr(cfg.UIContextPrune), i18n.T(i18n.KeyCol3UIContextPrune)),
 		makeLine("result-mode", resultModeStr, i18n.T(i18n.KeyCol3ResultMode)),
 		makeLine("shell-session-enabled", shellSessionEnabledStatus, i18n.T(i18n.KeyCol3ShellSessionEnabled)),
 		makeLine("shell-session-timeout", shellTimeoutStr, i18n.T(i18n.KeyCol3ShellSessionTimeout)),

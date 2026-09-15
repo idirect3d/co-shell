@@ -1093,6 +1093,11 @@ const (
 	KeySettingCmd_782 = "setting_cmd_782"
 	KeySettingCmd_783 = "setting_cmd_783"
 
+	// FEATURE-524: UI component/window rendering switches (ui_enabled and
+	// ui_context_prune), exposed in the Web settings panel (Agent group).
+	KeySettingUIEnabledStatus      = "setting_ui_enabled_status"
+	KeySettingUIContextPruneStatus = "setting_ui_context_prune_status"
+
 	// FEATURE-305: repl.go C 类基础设施 i18n 迁移
 	KeyDBSyncStart        = "db_sync_start"
 	KeyDBSyncPartial      = "db_sync_partial"
@@ -1406,6 +1411,9 @@ const (
 	// SubAgent enabled
 	KeyCol3SubAgentEnabled     = "col3_sub_agent_enabled"
 	KeyCol3BoardEnabled        = "col3_board_enabled"
+	// FEATURE-524: UI component/window rendering switch descriptions.
+	KeyCol3UIEnabled           = "col3_ui_enabled"
+	KeyCol3UIContextPrune      = "col3_ui_context_prune"
 	KeySettingsDescSubAgent    = "settings_desc_sub_agent"
 	KeySubAgentEnabledUpdated  = "sub_agent_enabled_updated"
 	KeyCLIHelpSubAgentEnabled  = "cli_help_sub_agent_enabled"

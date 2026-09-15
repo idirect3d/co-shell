@@ -319,6 +319,53 @@ work/co-shell-0.59.0.darwin.arm64 --serve --port 28267 -w /tmp/feat524
 
 ---
 
+## E 组：系统设置面板开关（ui_enabled / ui_context_prune 接入「智能体」页）
+
+### UC-73 设置面板「智能体」页暴露两个开关
+
+**目标**：用户能在系统设置里看到（而不只是写 config.json）组件渲染与窗口渲染的开关。
+
+**步骤**：
+1. 以 `--serve` 启动实例，打开设置面板 →「智能体」组；
+2. 读取渲染出的开关项（key / value / default / desc）；
+3. 对照 `cmd/settings_web.go` 的 agentGroup 定义与 `SettingsJSON()` 输出。
+
+**断言**：
+1. 面板出现 `ui-enabled`（UI 组件与窗口渲染）与 `ui-context-prune`（组件树上下文裁剪）两个 **bool** 项；
+2. 两者均带当前值与默认值，默认均为 `on`（与 `config.DefaultConfig()` 的 `UIEnabled` / `UIContextPrune` = true 一致）；
+3. 描述文案中英齐备（`KeyCol3UIEnabled` / `KeyCol3UIContextPrune` 在 `i18n/zh_system.go` 与 `i18n/en_system.go` 均有取值），风格与同组 `board-enabled` 一致（`...(on|off)`）；
+4. Go 单测 `TestSettingsJSONIncludesUISwitches` 通过。
+
+### UC-74 开关切换可落盘且免重启生效
+
+**目标**：不只是“显示得出来”，而是**改得动**——写回 `config.json` 并在当前会话内立即生效。
+
+**步骤**：
+1. 面板中把 `ui-enabled` 置为 off（前端提交 `settings_set {key:"ui-enabled", value:"off"}`，与服务端 `.set` 同一链路）；
+2. 检查 `config.json` 顶层 `ui_enabled`；
+3. 再置为 on，校验恢复；对 `ui-context-prune` 重复一次。
+
+**断言**：
+1. `settings_result.ok = true`（CLI 路径：`Handle(["ui-enabled","off"])` 返回 nil error）；
+2. `config.json` 顶层出现 `"ui_enabled": false`（键存在且为 false，非 `omitempty` 缺失），`ui_context_prune` 同理；
+3. 关闭总开关后，`agent/tools.go` 的 `if a.uiEnabled()` 分支不再注册 `render_ui` / `ui_window`（`SetConfig` 已重指向，**无需重启进程**）；重新打开后工具恢复；
+4. Go 单测 `TestSetUISwitchesPersist` 通过（含从磁盘反读校验）。
+
+### UC-75 非法值与非布尔输入的容错
+
+**步骤**：
+1. 面板/CLI 提交 `ui-enabled = maybe`；
+2. 提交不携带 value 的查询请求；
+3. 提交非法值后检查 `config.json` 是否被写坏。
+
+**断言**：
+1. 非法值返回错误（`usage: .set ui-enabled on|off` / `ui-context-prune on|off`），面板显示失败结果；
+2. 查询形式返回当前状态（`...: on|off`）；
+3. `config.json` 不会因非法输入而损坏（仍为合法 JSON，开关值保持原状）；
+4. Go 单测 `TestSetUISwitchesQueryAndInvalidValue` 通过。
+
+---
+
 ## 非目标（本期明确不做）
 
 1. 自由 px 尺寸参数（`width`/`height` 数值）；
@@ -339,3 +386,5 @@ work/co-shell-0.59.0.darwin.arm64 --serve --port 28267 -w /tmp/feat524
 | UC-68/69 | 单窗口复用语义与状态清理 | 浏览器断言 |
 | UC-71 | 比例档位数学闭合与边界（4 种视口 × 3 档位） | 浏览器断言 + 截图 |
 | UC-72 | R2：channel / viewport 注入与上行协议 | Go 单测 + 浏览器断言 |
+| UC-73 | 设置面板「智能体」页暴露窗口/组件渲染开关 | Go 单测 + 浏览器断言 + 截图 |
+| UC-74/75 | 开关落盘与免重启生效、非法值容错 | Go 单测 + 浏览器断言 + `config.json` 校验 |
