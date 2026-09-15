@@ -6185,12 +6185,20 @@ function renderModelsBody() {
     info.appendChild(id);
     const meta = document.createElement("div");
     meta.className = "model-meta";
-    meta.textContent = m.provider + " · " + m.model;
+    // FEATURE-526: the provider/model text is its own element so the context
+    // length appended at the end of the line can stick to the right edge.
+    const metaMain = document.createElement("span");
+    metaMain.className = "model-meta-main";
+    metaMain.textContent = m.provider + " · " + m.model;
+    meta.appendChild(metaMain);
     // FEATURE-516: capability marks are vector icons, not emoji.
     const caps = [];
     if (m.vision) caps.push(mkIcon("i-model-vision", "ico-inline"));
     if (m.tool_call) caps.push(mkIcon("i-tool", "ico-inline"));
-    if (m.thinking) caps.push(mkIcon("i-think", "ico-inline"));
+    // FEATURE-526: the bulb shows the thinking depth (empty / L / M / H / X)
+    // instead of the bare "supports thinking" capability mark.
+    const think = thinkIconEl(m);
+    if (think) caps.push(think);
     if (caps.length) {
       meta.appendChild(document.createTextNode(" · "));
       caps.forEach((el, i) => {
@@ -6199,6 +6207,12 @@ function renderModelsBody() {
       });
     }
     meta.appendChild(document.createTextNode(" · P" + m.priority));
+    // FEATURE-526: max context length (K units) at the right end of the line;
+    // "?K" when it is not configured.
+    const ctx = document.createElement("span");
+    ctx.className = "model-ctx";
+    ctx.textContent = fmtLenShort(m.max_model_len) || "?K";
+    meta.appendChild(ctx);
     info.appendChild(meta);
     // FEATURE-449: a second meta line showing the model's endpoint URL.
     if (m.endpoint) {
@@ -6269,6 +6283,32 @@ function fmtLenShort(n) {
   return String(n);
 }
 
+// FEATURE-526: the thinking-depth states shared by the status-bar model menu
+// and the model manager cards. Returns "" when no bulb should be shown (the
+// model does not support thinking, or it was explicitly disabled), "none" for
+// the plain bulb (depth not set) and the depth name otherwise. "max" is the
+// alias some providers use for the top depth.
+function thinkDepthOf(m) {
+  if (!m || !m.thinking || m.thinking_enabled === false) return "";
+  switch (String(m.reasoning_effort || "").trim().toLowerCase()) {
+    case "low": return "low";
+    case "medium": return "medium";
+    case "high": return "high";
+    case "xhigh":
+    case "max": return "xhigh";
+    default: return "none";
+  }
+}
+
+// thinkIconEl builds the bulb icon for a model, or null when the model shows no
+// bulb. Both render sites (status-bar menu and manager cards) call it, so the
+// two views can never disagree (FEATURE-526).
+function thinkIconEl(m) {
+  const depth = thinkDepthOf(m);
+  if (!depth) return null;
+  return mkIcon(depth === "none" ? "i-think" : "i-think-" + depth, "ico-think");
+}
+
 // buildModelMenuItem builds one model row in a selector menu: a provider logo
 // on the left, the model ID, and the max context length right-aligned. The row
 // never wraps; the menu width adapts to its widest row. When activeID matches
@@ -6288,6 +6328,10 @@ function buildModelMenuItem(m, onClick, activeID) {
   id.className = "model-id";
   id.textContent = m.id;
   item.appendChild(id);
+  // FEATURE-526: the thinking-depth bulb sits between the model ID and the
+  // right-aligned context length; no bulb when thinking is off.
+  const think = thinkIconEl(m);
+  if (think) item.appendChild(think);
   const ctx = document.createElement("span");
   ctx.className = "model-ctx";
   ctx.textContent = fmtLenShort(m.max_model_len);

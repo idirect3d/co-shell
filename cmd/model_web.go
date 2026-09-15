@@ -19,19 +19,27 @@ import (
 
 // WebModel is one model exposed to the Web UI. The API key is masked.
 type WebModel struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Provider     string `json:"provider"`
-	Endpoint     string `json:"endpoint"`
-	Model        string `json:"model"`
-	APIKey       string `json:"api_key"`
-	Priority     int    `json:"priority"`
-	Enabled      bool   `json:"enabled"`
-	Vision       bool   `json:"vision"`
-	ToolCall     bool   `json:"tool_call"`
-	Thinking     bool   `json:"thinking"`
-	MaxModelLen  int    `json:"max_model_len"`
-	TemplateID   string `json:"template_id,omitempty"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Provider        string `json:"provider"`
+	Endpoint        string `json:"endpoint"`
+	Model           string `json:"model"`
+	APIKey          string `json:"api_key"`
+	Priority        int    `json:"priority"`
+	Enabled         bool   `json:"enabled"`
+	Vision          bool   `json:"vision"`
+	ToolCall        bool   `json:"tool_call"`
+	Thinking        bool   `json:"thinking"`
+
+	// FEATURE-526: the model-level thinking switch (a nil config value means
+	// "not explicitly disabled") and the reasoning depth. The Web UI renders a
+	// thinking-depth bulb from these two values; Thinking above stays the
+	// capability mark ("the model supports thinking").
+	ThinkingEnabled bool   `json:"thinking_enabled"`
+	ReasoningEffort string `json:"reasoning_effort"`
+
+	MaxModelLen int    `json:"max_model_len"`
+	TemplateID  string `json:"template_id,omitempty"`
 
 	// Available reports whether the model was reachable and present in its
 	// endpoint's /models list at the time the list was built (FEATURE-496).
@@ -66,21 +74,31 @@ func (h *ModelHandler) ModelWebJSON() (models []WebModel, templates []WebTemplat
 				available = false
 			}
 		}
+		// FEATURE-526: a nil switch means "not explicitly disabled" (true); the
+		// Web UI combines it with the capability mark and the reasoning depth
+		// to pick the thinking-depth bulb it shows.
+		thinkingEnabled := m.ThinkingEnabled == nil || *m.ThinkingEnabled
+		effort := ""
+		if m.ReasoningEffort != nil {
+			effort = *m.ReasoningEffort
+		}
 		models = append(models, WebModel{
-			ID:          m.ID,
-			Name:        m.Name,
-			Provider:    m.Provider,
-			Endpoint:    m.Endpoint,
-			Model:       m.Model,
-			APIKey:      maskKey(m.APIKey),
-			Priority:    m.Priority,
-			Enabled:     m.Enabled,
-			Vision:      m.Capabilities.Vision,
-			ToolCall:    m.Capabilities.ToolCall,
-			Thinking:    m.Capabilities.Thinking,
-			MaxModelLen: m.MaxModelLen,
-			TemplateID:  m.TemplateID,
-			Available:   available,
+			ID:              m.ID,
+			Name:            m.Name,
+			Provider:        m.Provider,
+			Endpoint:        m.Endpoint,
+			Model:           m.Model,
+			APIKey:          maskKey(m.APIKey),
+			Priority:        m.Priority,
+			Enabled:         m.Enabled,
+			Vision:          m.Capabilities.Vision,
+			ToolCall:        m.Capabilities.ToolCall,
+			Thinking:        m.Capabilities.Thinking,
+			ThinkingEnabled: thinkingEnabled,
+			ReasoningEffort: effort,
+			MaxModelLen:     m.MaxModelLen,
+			TemplateID:      m.TemplateID,
+			Available:       available,
 		})
 	}
 	manager := config.GetDefaultModelManager()

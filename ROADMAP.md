@@ -4,6 +4,47 @@
 
 ---
 
+## v0.60.0 — 开发中
+
+> **版本**: v0.60.0
+
+> **状态**: ✅ 已完成
+> **里程碑**: Web UI 模型设置可视化（思考深度灯泡 + 上下文长度）
+> **说明**: 状态栏模型选择列表与模型配置卡片统一用灯泡矢量图标表达「思考深度」（空 = 未设置 / L = Low / M = Medium / H = High / X = Xhigh），并在配置卡片第二行右侧显示上下文最大长度（K 单位）。现状：状态栏菜单完全没有该信息，配置卡片只显示一个笼统的能力灯泡（无法区分深度）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-526 | 0.60.0 | P2 | Web UI 模型设置优化：状态栏模型菜单与配置卡片按思考深度显示灯泡矢量图标（空/L/M/H/X），配置卡片第二行右侧显示上下文最大长度（K） |
+
+> 当前 BUILD: 1049
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-526 Web UI 模型设置优化：思考深度灯泡 + 上下文长度(K)** [BUILD-1049]
+  - 需求（用户确认）：
+    1. 状态栏模型选择列表中，模型名字右边显示思考深度灯泡图标（5 种：空 = 未设置 / L = Low / M = Medium / H = High / X = Xhigh）；除空灯泡外的 4 个为本次新绘制矢量图标。
+    2. 模型配置卡片中已显示的灯泡按同一规则更新（与状态栏菜单对同一模型显示保持一致）。
+    3. 模型配置卡片每行模型信息第二行右侧显示上下文最大长度（K 单位，如 128K）；未配置时显示 `?K`。
+  - 决策（用户拍板）：版本 **v0.60.0**（FEATURE，minor+1）；任务号 **FEATURE-526**；分支 `FEATURE-526`。
+    - 灯泡显示条件：`capabilities.thinking === true && thinking_enabled !== false`（支持思考且未被显式关闭才显示灯泡）。
+    - 深度映射：`""` / `none` / `default` → 空灯泡；`low` → L；`medium` → M；`high` → H；`xhigh` / `max` → X。
+    - 上下文长度：`max_model_len > 0` 时显示 K 单位长度（复用前端 `fmtLenShort()`），为 0 / 未知时显示 `?K`。
+  - 用例：`use-case/FEATURE-526/FEATURE-526-UC-*.md`
+  - 实施（BUILD-1048，用户确认通过后合并于 BUILD-1049）：
+    1. 后端 `cmd/model_web.go`：`WebModel` 新增 `thinking_enabled`（`m.ThinkingEnabled == nil || *m.ThinkingEnabled`）与 `reasoning_effort`（nil → `""`），`thinking` 能力位语义不变；新增单测 `cmd/model_web_test.go`。
+    2. 图标 `web/static/index.html`：新增 `i-think-low` / `i-think-medium` / `i-think-high` / `i-think-xhigh` 四个 symbol，同 viewBox 0 0 24 24 与描边风格，灯罩内字母用 path 笔画绘制（不用 `<text>`）；原 `i-think` 作空灯泡保留。
+    3. 前端逻辑 `web/static/app.js`：新增 `thinkDepthOf(m)` / `thinkIconEl(m)` 两个纯函数，由 `buildModelMenuItem()`（状态栏菜单：模型 ID 之后、长度之前）与 `renderModelsBody()`（配置卡片第二行）共同复用，保证两处一致；卡片第二行末尾新增 `span.model-ctx` 显示 `fmtLenShort(max_model_len) || "?K"`。
+    4. 样式 `web/static/style.css`：`.model-meta` 改为 flex 行（`.model-meta-main` + 右对齐 `.model-ctx`）；新增 `.ico-think`（16px）以保障 12px 下不可辨的灯罩字母可读。
+  - 验证（隔离实例 `/tmp/feat526`，端口 12881，build 1048）：
+    1. `go build ./... && go vet ./...` 一次执行通过；`go test ./cmd/ -run TestModelWebJSONThinkingFields -v` PASS。
+    2. 合成数据逐项比对：8/17 个模型行，卡片与菜单灯泡 `href` **逐项相同**；`""/none/default/未知值` → `#i-think`，`low/medium/high` → 对应字母，`xhigh/max` → `#i-think-xhigh`；`thinking_enabled=false` 与 `thinking=false` 两处均无灯泡；长度 `128K` / `1024K` / `1.5K` / `?K` 均正确。
+    3. 衬图实测：灯泡渲染尺寸 16px；模型管理弹窗与菜单行截图识别出 `empty / L / M / H / X` 五种状态。
+  - 备注：`gofmt` 对本仓库多个既有文件（`main.go`、`cmd/model.go` 等，HEAD 即如此）不干净，本次沿用文件既有的宽对齐风格，未改动无关行。
+
+---
+
 ## v0.59.1 — 开发中
 
 > **版本**: v0.59.1
