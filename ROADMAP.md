@@ -53,6 +53,7 @@
     - 已通过：A/B 组单测（UC-01~UC-10）`go test ./agent/`；浏览器实测（UC-11~UC-16，28260 实例）——card/kv/callout(warn)/progress(75%) 渲染正确、`steps` 优雅降级、XSS 载荷零元素（`img/script/iframe/svg` 均为 0，`window.__xss` 未被置位）；`go build ./... && go vet ./...` 全绿。
     - 已知非本次引入的失败：`cmd` 包 `TestSettingsJSONFillsDefaults` 报 `setting "logo" has empty Default`（`cmd/settings_web.go:114` 定义处即无 Default），与 FEATURE-524 无关，待单独修复。
     - 待办：Stage 2 数据展示（table/chart/steps/file）、Stage 3 交互与原地更新（form/ui_action/waiting）、Stage 4 逃生舱与治理（html 沙箱/CSP/上下文裁剪落地）。
+    - FIX [BUILD-1027]：`ui` 块未纳入显示模式可见性规则——静默模式下被 `display:none` 隐藏、精简模式下被折叠，导致用户「看不到新特性」（切到正常模式才可见）。新增 `isResultLikeBlock(box, cls)`（`ev-result` 或 `cls === "ui"`），`applyBlockDisplayMode` 与 `applyDisplayMode` 两处共用，使 LLM 组件树与最终结果块同等待遇。已验证：静默/精简下块可见且展开、普通 tool 块仍被隐藏（无回归）、模式切换重套用正常。
 
 ---
 
