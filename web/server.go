@@ -593,11 +593,16 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 }
 
 // indexCSP is the policy for the main application document: own scripts and
-// sockets only, no plugins, no framing by others. 'unsafe-inline' covers style
-// attributes alone (index.html uses one) — scripts stay restricted to 'self'.
+// sockets only, no plugins. 'unsafe-inline' covers style attributes alone
+// (index.html uses one) — scripts stay restricted to 'self'.
+//
+// frame-ancestors is 'self', not 'none': the co-shell-hub embeds each agent's
+// Web UI in a same-origin iframe (it reverse-proxies the agent under
+// /agent/{id}/, see hub/gateway/proxyhttp.go), so 'none' blanked the hub stage.
+// 'self' keeps every cross-site framing blocked.
 const indexCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
 	"img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:; " +
-	"frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	"frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
 
 // uiSandboxCSP isolates the html escape hatch: no network at all (default-src
 // 'none', connect-src 'none'), so even a hostile tree cannot exfiltrate data
