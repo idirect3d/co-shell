@@ -149,9 +149,19 @@
     return box;
   }
 
+  // stampTreeID mirrors the backend-assigned ui id of a tree container onto a
+  // dedicated attribute (FEATURE-524). Component nodes carry their own
+  // data-ui-id (the LLM-chosen node id), so an action must resolve the
+  // enclosing tree id explicitly instead of the nearest data-ui-id.
+  function stampTreeID(container) {
+    var id = container.getAttribute("data-ui-id");
+    if (id) container.setAttribute("data-ui-tree-id", id);
+  }
+
   // renderTree paints a tree (object or JSON text) into container.
   function renderTree(root, container) {
     if (!container) return false;
+    stampTreeID(container);
     var node = root;
     if (typeof node === "string") {
       try {
@@ -177,6 +187,13 @@
     if (!host || !host.parentNode) return false;
     var fresh = renderNode(node, 1);
     if (!fresh) return false;
+    if (host.classList && host.classList.contains("ui-tree")) {
+      // The target is a whole tree (addressed by the backend-assigned tree id).
+      // Keep the wrapper — and with it the block and its position in the
+      // stream — and swap only its content.
+      host.replaceChildren(fresh);
+      return true;
+    }
     if (node.id) {
       host.replaceWith(fresh);
     } else {
@@ -452,6 +469,34 @@
     }
   });
 
+  // uiTreeIDOf resolves the backend-assigned ui id of the tree enclosing el.
+  // It deliberately never falls back to the innermost data-ui-id: that one
+  // belongs to the component node itself, and reporting it would make the
+  // backend attribute the action to a tree it never created.
+  function uiTreeIDOf(el) {
+    if (!el || !el.closest) return "";
+    var host = el.closest("[data-ui-tree-id]");
+    if (host) {
+      var id = host.getAttribute("data-ui-tree-id");
+      if (id) return id;
+    }
+    host = el.closest(".ui-tree[data-ui-id]");
+    return host ? host.getAttribute("data-ui-id") || "" : "";
+  }
+
+  // sendUIAction reports a component interaction upstream (FEATURE-524). The
+  // enclosing rendered tree carries the backend-assigned ui id, so the backend
+  // knows which component the user acted on. It returns false when nothing was
+  // sent (page not ready, no tree id): callers must then leave the control
+  // usable instead of pretending the action was delivered.
+  function sendUIAction(actionID, payload, sourceEl) {
+    if (!actionID) return false;
+    var uiID = uiTreeIDOf(sourceEl);
+    if (!uiID || typeof global.wsSend !== "function") return false;
+    global.wsSend({ type: "ui_action", ui_id: uiID, action_id: String(actionID), payload: payload });
+    return true;
+  }
+
   global.UI = {
     version: "1",
     register: register,
@@ -460,8 +505,10 @@
     renderTree: renderTree,
     updateTree: updateTree,
     findByUIID: findByUIID,
-    // t/fmtBytes are shared with ui-chart.js (loaded after this file).
+    // t/fmtBytes are shared with ui-chart.js and ui-form.js (loaded after this
+    // file); sendUIAction is the single outbound path for component actions.
     t: uiText,
-    fmtBytes: fmtBytes
+    fmtBytes: fmtBytes,
+    sendUIAction: sendUIAction
   };
 })(window);

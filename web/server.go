@@ -123,6 +123,13 @@ type clientMessage struct {
 	TaskID      string `json:"task_id,omitempty"`
 	Requester   string `json:"requester,omitempty"`
 	Instruction string `json:"instruction,omitempty"`
+
+	// FEATURE-524: ui_action fields. UIID / UIActionID address the rendered
+	// component and the action it declared; Payload carries the structured
+	// values the frontend collected (form fields, chart point, …).
+	UIID       string          `json:"ui_id,omitempty"`
+	UIActionID string          `json:"action_id,omitempty"`
+	Payload    json.RawMessage `json:"payload,omitempty"`
 }
 
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as

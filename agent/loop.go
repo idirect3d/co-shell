@@ -118,6 +118,16 @@ type Agent struct {
 	pendingUITree *UINode
 	pendingUIID   string
 
+	// pendingUIUpdateID / pendingUIUpdateNode park an in-place update: a render_ui
+	// call that names an existing component becomes a ui_update event instead of
+	// a ui_render one (FEATURE-524).
+	pendingUIUpdateID   string
+	pendingUIUpdateNode *UINode
+
+	// uiWaitCh is the release channel of a render_ui(waiting=true) call; it is
+	// nil while no call is parked (FEATURE-524).
+	uiWaitCh chan string
+
 	rules           string // user-defined rules for rebuilding system prompt
 	subAgentMgr     *subagent.Manager
 	taskPlanMgr     *taskplan.Manager

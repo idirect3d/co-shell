@@ -1593,7 +1593,11 @@ iterationLoop:
 				// stay in sync with what the LLM actually rendered, and the
 				// LineRenderer ignores this event type anyway.
 				if execErr == nil && tc.Name == "render_ui" {
-					if root, uiID := a.takePendingUITree(); root != nil {
+					if target, node := a.takePendingUIUpdate(); node != nil {
+						if patchJSON, mErr := MarshalUITree(node); mErr == nil {
+							cb(UIUpdateEvent(target, patchJSON))
+						}
+					} else if root, uiID := a.takePendingUITree(); root != nil {
 						if treeJSON, mErr := MarshalUITree(root); mErr == nil {
 							cb(UIRenderEvent(uiID, treeJSON))
 						}

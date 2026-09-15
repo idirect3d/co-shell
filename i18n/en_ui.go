@@ -8,6 +8,7 @@
 package i18n
 
 func init() {
+	enMessages[KeyUIUserAction] = `[UI action] the user acted on component %s, action "%s", payload: %s`
 	enMessages[KeyUIErrTreeEmpty] = `The tree parameter of render_ui must not be empty.`
 
 	enMessages[KeyUIErrTreeDecode] = `Failed to parse the component tree JSON: %s`
@@ -30,6 +31,12 @@ func init() {
 
 	enMessages[KeyUISummaryChildren] = `Rendered %s (id=%s, %d child nodes).`
 
+	enMessages[KeyUIUpdateSummary] = `Updated component %s in place (%d nodes).`
+
+	enMessages[KeyUIUpdateNoTarget] = `No rendered component found with id %s; the update was not applied.`
+
+	enMessages[KeyUIToolParamUpdate] = `Optional string: the id of an already rendered component to update in place (a component node id, or the tree id given in a previous receipt). When set, the call does not create a new component block; it replaces that component with tree at its current position.`
+
 	enMessages[KeyUIErrRenderFailed] = `Component rendering failed: %s`
 
 	enMessages[KeyUIWaitingCancelled] = `The user did not interact (waiting was cancelled because they sent a message instead).`
@@ -43,6 +50,7 @@ Description: Render the result as structured UI components (cards, key/value lis
 
 Parameters:
 - tree: the component tree root node; must be an object.
+- update: optional string, the id of an already rendered component to replace in place. It creates no new component block; the addressed component is swapped for tree at its current position (use it for refreshes such as advancing a progress bar or appending a table row).
 - waiting: optional boolean. true means wait for the user to interact after rendering, and their action is returned to you as this tool's result immediately (use it only when you genuinely need the user's choice before continuing); false or omitted means return immediately, and the user's later action starts a new conversation turn as a fresh user message (default, preferred).
 - meta: the transparency metadata object (intent/risk/risk_reason/affected_objects/progress).
 
