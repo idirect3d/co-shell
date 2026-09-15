@@ -400,7 +400,17 @@ func (m *Manager) Start(id string) (string, error) {
 	}
 
 	coShell := spec.CoShell
-	if coShell == "" {
+	if coShell == CoShellLatest {
+		// FEATURE-527: a "latest" agent re-scans the search paths on EVERY
+		// start and runs the highest-versioned co-shell found. A miss is
+		// reported to the caller instead of silently falling back to a
+		// different executable.
+		resolved, err := ResolveLatestCoShell()
+		if err != nil {
+			return "", fmt.Errorf("agent %q: %w", id, err)
+		}
+		coShell = resolved
+	} else if coShell == "" {
 		coShell = m.coShell
 	}
 	args := []string{"--serve", "--port", fmt.Sprintf("%d", spec.Port), "--bind", "127.0.0.1", "-w", spec.Workspace}

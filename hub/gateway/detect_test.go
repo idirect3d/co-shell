@@ -111,3 +111,132 @@ func TestDetectCoShellsHubDir(t *testing.T) {
 		t.Errorf("Version = %q, want 9.9.9", got.Version)
 	}
 }
+
+// fakeCoShell writes an executable shell-script stand-in for a co-shell binary
+// reporting the given version, and returns its path. The stat/--version probes
+// used by the detector treat the script exactly like a real binary.
+func fakeCoShell(t *testing.T, dir, name, version string) string {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("mkdir %s: %v", dir, err)
+	}
+	p := filepath.Join(dir, name)
+	body := "#!/bin/sh\necho \"co-shell v" + version + " [BUILD-1]\"\n"
+	if err := os.WriteFile(p, []byte(body), 0755); err != nil {
+		t.Fatalf("write fake co-shell %s: %v", p, err)
+	}
+	return p
+}
+
+// TestCompareCoShellVersion pins the numeric (not lexical) version ordering.
+func TestCompareCoShellVersion(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"0.9.0", "0.10.0", -1},
+		{"0.10.0", "0.9.0", 1},
+		{"1.2.3", "1.2.3", 0},
+		{"0.61", "0.61.0", 0},
+		{"1.0.0", "0.99.99", 1},
+	}
+	for _, c := range cases {
+		if got := compareCoShellVersion(c.a, c.b); got != c.want {
+			t.Errorf("compareCoShellVersion(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+// TestResolveLatestCoShell covers the "use the latest version" selection rules
+// (FEATURE-527) with injectable search paths.
+func TestResolveLatestCoShell(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script stand-ins are not executable on Windows")
+	}
+	base := t.TempDir()
+	hub, cwd, p1, p2 := filepath.Join(base, "hub"), filepath.Join(base, "cwd"), filepath.Join(base, "p1"), filepath.Join(base, "p2")
+	for _, d := range []string{hub, cwd, p1, p2} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatalf("mkdir %s: %v", d, err)
+		}
+	}
+
+	t.Run("hub directory wins over a higher version elsewhere", func(t *testing.T) {
+		low := fakeCoShell(t, hub, "co-shell-0.50.0.darwin.arm64", "0.50.0")
+		fakeCoShell(t, cwd, "co-shell-0.58.0.darwin.arm64", "0.58.0")
+		fakeCoShell(t, p1, "co-shell-0.61.0.darwin.arm64", "0.61.0")
+		got, err := resolveLatestCoShell(hub, cwd, []string{p1, p2})
+		if err != nil {
+			t.Fatalf("resolveLatestCoShell: %v", err)
+		}
+		if got != low {
+			t.Errorf("got %q, want the hub-directory copy %q", got, low)
+		}
+	})
+
+	t.Run("highest version inside the hub directory", func(t *testing.T) {
+		best := fakeCoShell(t, hub, "co-shell-0.62.0.darwin.arm64", "0.62.0")
+		got, err := resolveLatestCoShell(hub, cwd, []string{p1, p2})
+		if err != nil {
+			t.Fatalf("resolveLatestCoShell: %v", err)
+		}
+		if got != best {
+			t.Errorf("got %q, want %q", got, best)
+		}
+	})
+
+	t.Run("global maximum when the hub directory has none", func(t *testing.T) {
+		empty := t.TempDir()
+		want := filepath.Join(p1, "co-shell-0.61.0.darwin.arm64")
+		got, err := resolveLatestCoShell(empty, cwd, []string{p1, p2})
+		if err != nil {
+			t.Fatalf("resolveLatestCoShell: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("numeric comparison across PATH entries", func(t *testing.T) {
+		empty := t.TempDir()
+		other := t.TempDir()
+		fakeCoShell(t, other, "co-shell-0.9.0.darwin.arm64", "0.9.0")
+		want := fakeCoShell(t, other, "co-shell-0.10.0.darwin.arm64", "0.10.0")
+		got, err := resolveLatestCoShell(empty, t.TempDir(), []string{other})
+		if err != nil {
+			t.Fatalf("resolveLatestCoShell: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("invalid candidates are skipped", func(t *testing.T) {
+		empty := t.TempDir()
+		only := t.TempDir()
+		// Same name prefix but not a co-shell (its --version output has no
+		// version banner), and a co-shell that lacks the execute bit.
+		decoy := filepath.Join(only, "co-shell-decoy")
+		if err := os.WriteFile(decoy, []byte("#!/bin/sh\necho hi\n"), 0755); err != nil {
+			t.Fatalf("write decoy: %v", err)
+		}
+		noExec := filepath.Join(only, "co-shell-9.9.9.darwin.arm64")
+		if err := os.WriteFile(noExec, []byte("#!/bin/sh\necho \"co-shell v9.9.9\"\n"), 0644); err != nil {
+			t.Fatalf("write non-executable: %v", err)
+		}
+		want := fakeCoShell(t, only, "co-shell-0.61.0.darwin.arm64", "0.61.0")
+		got, err := resolveLatestCoShell(empty, t.TempDir(), []string{only})
+		if err != nil {
+			t.Fatalf("resolveLatestCoShell: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("error when every search path is empty", func(t *testing.T) {
+		if _, err := resolveLatestCoShell(t.TempDir(), t.TempDir(), []string{t.TempDir()}); err == nil {
+			t.Error("want an error when no usable co-shell exists, got nil")
+		}
+	})
+}
