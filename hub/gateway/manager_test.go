@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -72,7 +73,7 @@ func TestManagerUpdateUnknownAgent(t *testing.T) {
 func TestManagerUpdateManagedFields(t *testing.T) {
 	m := newTestManager(t)
 	wsOld := filepath.Join(t.TempDir(), "old")
-	spec, err := m.CreateManaged("a1", "a1", wsOld, "", "", false, true, 0, "--accept-license")
+	spec, err := m.CreateManaged("a1", "a1", wsOld, "", "", false, true, 0, "--accept-license", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -120,7 +121,7 @@ func TestManagerUpdateManagedFields(t *testing.T) {
 // fields it carries.
 func TestManagerUpdatePartialPatchLeavesOtherFields(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "/opt/co-shell", "", false, true, 0, "--accept-license")
+	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "/opt/co-shell", "", false, true, 0, "--accept-license", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -137,7 +138,7 @@ func TestManagerUpdatePartialPatchLeavesOtherFields(t *testing.T) {
 // TestManagerUpdateEmptyNameFallsBackToID matches CreateManaged semantics.
 func TestManagerUpdateEmptyNameFallsBackToID(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, ""); err != nil {
+	if _, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
 	updated, err := m.Update("a1", AgentPatch{Name: strPtr("   ")})
@@ -153,7 +154,7 @@ func TestManagerUpdateEmptyNameFallsBackToID(t *testing.T) {
 // this very agent must succeed (it is used by the running agent itself).
 func TestManagerUpdateKeepsCurrentPort(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "")
+	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -170,7 +171,7 @@ func TestManagerUpdateKeepsCurrentPort(t *testing.T) {
 
 func TestManagerUpdateRejectsBusyPort(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "")
+	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -198,7 +199,7 @@ func TestManagerUpdateRejectsBusyPort(t *testing.T) {
 
 func TestManagerUpdateRejectsInvalidInput(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, ""); err != nil {
+	if _, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
 	if _, err := m.AddExternal("e1", "e1", "ws://127.0.0.1:29001/ws"); err != nil {
@@ -263,4 +264,98 @@ func itoa(i int) string {
 		i /= 10
 	}
 	return string(buf[pos:])
+}
+
+// TestBuildArgsYOLO verifies the YOLO master switch is rendered as a pure
+// boolean co-shell flag: absent while the agent is opted out, present between
+// the system-supplied arguments and the user's extra arguments once opted in
+// (FEATURE-528, UC-07/UC-08).
+func TestBuildArgsYOLO(t *testing.T) {
+	base := &AgentSpec{
+		ID:        "a1",
+		Type:      AgentTypeManaged,
+		Workspace: "/tmp/ws",
+		Port:      28256,
+		ExtraArgs: "--accept-license --log-level debug",
+	}
+
+	offWant := []string{"--serve", "--port", "28256", "--bind", "127.0.0.1", "-w", "/tmp/ws", "--accept-license", "--log-level", "debug"}
+	off := buildArgs(base)
+	if !slices.Equal(off, offWant) {
+		t.Fatalf("YOLO off args = %v, want %v", off, offWant)
+	}
+	if slices.Contains(off, "--yolo") {
+		t.Errorf("YOLO off args must not contain --yolo: %v", off)
+	}
+
+	on := *base
+	on.YOLO = true
+	onWant := []string{"--serve", "--port", "28256", "--bind", "127.0.0.1", "-w", "/tmp/ws", "--yolo", "--accept-license", "--log-level", "debug"}
+	got := buildArgs(&on)
+	if !slices.Equal(got, onWant) {
+		t.Fatalf("YOLO on args = %v, want %v", got, onWant)
+	}
+}
+
+// TestBuildArgsYOLODefaultExtraArgs checks the YOLO flag does not disturb the
+// default --accept-license fallback used when the user left the extra-args
+// field empty (FEATURE-528).
+func TestBuildArgsYOLODefaultExtraArgs(t *testing.T) {
+	spec := &AgentSpec{ID: "a1", Type: AgentTypeManaged, Workspace: "/tmp/ws", Port: 28256, YOLO: true}
+	want := []string{"--serve", "--port", "28256", "--bind", "127.0.0.1", "-w", "/tmp/ws", "--yolo", "--accept-license"}
+	if got := buildArgs(spec); !slices.Equal(got, want) {
+		t.Fatalf("args = %v, want %v", got, want)
+	}
+}
+
+// TestManagerYOLOPersisted covers the YOLO round trip through create, a patch
+// that omits the field, and an explicit disable (FEATURE-528, UC-05/UC-06/UC-09).
+func TestManagerYOLOPersisted(t *testing.T) {
+	m := newTestManager(t)
+	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "--accept-license", true)
+	if err != nil {
+		t.Fatalf("CreateManaged: %v", err)
+	}
+	if !spec.YOLO {
+		t.Errorf("created spec YOLO = false, want true")
+	}
+	persisted, ok := findAgent(readRegistry(t, m), "a1")
+	if !ok {
+		t.Fatal("agent a1 missing from persisted registry")
+	}
+	if !persisted.YOLO {
+		t.Errorf("persisted YOLO = false after create with yolo=true, want true")
+	}
+
+	// A patch without yolo (nil) must leave the flag untouched: an older
+	// frontend that never sends the field must not silently disable YOLO.
+	if _, err := m.Update("a1", AgentPatch{Name: strPtr("note")}); err != nil {
+		t.Fatalf("Update(name): %v", err)
+	}
+	persisted, _ = findAgent(readRegistry(t, m), "a1")
+	if !persisted.YOLO {
+		t.Errorf("nil YOLO patch cleared the flag, want unchanged (true)")
+	}
+
+	// An explicit false must be applied and persisted.
+	updated, err := m.Update("a1", AgentPatch{YOLO: boolPtr(false)})
+	if err != nil {
+		t.Fatalf("Update(yolo=false): %v", err)
+	}
+	if updated.YOLO {
+		t.Errorf("updated spec YOLO = true, want false")
+	}
+	persisted, _ = findAgent(readRegistry(t, m), "a1")
+	if persisted.YOLO {
+		t.Errorf("persisted YOLO = true after disabling, want false")
+	}
+
+	// Turning it back on must also persist.
+	if _, err := m.Update("a1", AgentPatch{YOLO: boolPtr(true)}); err != nil {
+		t.Fatalf("Update(yolo=true): %v", err)
+	}
+	persisted, _ = findAgent(readRegistry(t, m), "a1")
+	if !persisted.YOLO {
+		t.Errorf("persisted YOLO = false after re-enabling, want true")
+	}
 }

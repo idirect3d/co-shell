@@ -43,6 +43,12 @@ type AgentSpec struct {
 	// managed co-shell subprocess (in addition to the system-supplied ones).
 	ExtraArgs string `json:"extra_args,omitempty"`
 
+	// YOLO (FEATURE-528): when true the managed subprocess is started with the
+	// --yolo flag, which auto-approves every tool call. Opt-in only: the flag
+	// is never passed while this is false (the zero value, so existing registry
+	// entries keep their behaviour).
+	YOLO bool `json:"yolo,omitempty"`
+
 	// External field.
 	WSURL string `json:"ws_url,omitempty"`
 }
@@ -172,7 +178,7 @@ func (m *Manager) RecommendedPort() int {
 // is created empty if absent (a per-agent config). coShell and configPath are
 // optional per-agent overrides (empty = use the manager's defaults). port > 0
 // uses the caller-specified port (which must be free); port == 0 auto-allocates.
-func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string) (AgentSpec, error) {
+func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string, yolo bool) (AgentSpec, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -199,6 +205,7 @@ func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string,
 		ConfigPath:      configPath,
 		UseSharedConfig: useSharedConfig,
 		ExtraArgs:       extraArgs,
+		YOLO:            yolo,
 	}
 	// Per-agent config: ensure {workspace}/config.json exists (create empty if
 	// absent, never overwrite an existing one). Shared config needs no file.
@@ -251,6 +258,7 @@ type AgentPatch struct {
 	CoShell         *string
 	UseSharedConfig *bool
 	ExtraArgs       *string
+	YOLO            *bool
 	WSURL           *string
 }
 
@@ -320,6 +328,9 @@ func (m *Manager) Update(id string, patch AgentPatch) (AgentSpec, error) {
 		if patch.ExtraArgs != nil {
 			spec.ExtraArgs = strings.TrimSpace(*patch.ExtraArgs)
 		}
+		if patch.YOLO != nil {
+			spec.YOLO = *patch.YOLO
+		}
 		if patch.UseSharedConfig != nil {
 			spec.UseSharedConfig = *patch.UseSharedConfig
 		}
@@ -376,6 +387,39 @@ func (m *Manager) Remove(id string) error {
 	return fmt.Errorf("agent %q not found", id)
 }
 
+// buildArgs assembles the co-shell command line for a managed agent spec. The
+// YOLO flag (FEATURE-528) is a pure boolean switch: it is appended only when
+// the agent explicitly opted in, and it sits between the system-supplied
+// arguments and the user's extra arguments.
+func buildArgs(spec *AgentSpec) []string {
+	args := []string{"--serve", "--port", fmt.Sprintf("%d", spec.Port), "--bind", "127.0.0.1", "-w", spec.Workspace}
+	// Config source: shared (~/.co-shell/config.json) or per-agent
+	// ({workspace}/config.json). An explicit ConfigPath wins over both.
+	if spec.ConfigPath != "" {
+		args = append(args, "-c", spec.ConfigPath)
+	} else if spec.UseSharedConfig {
+		if home, err := os.UserHomeDir(); err == nil {
+			args = append(args, "-c", filepath.Join(home, ".co-shell", "config.json"))
+		}
+	} else if spec.ConfigFile != "" {
+		args = append(args, "-c", filepath.Join(spec.Workspace, spec.ConfigFile))
+	}
+	if spec.YOLO {
+		args = append(args, "--yolo")
+	}
+	// Append user-supplied extra arguments (whitespace-separated). The default
+	// --accept-license is added when the user left the field empty; --serve is
+	// already supplied above so it is never duplicated.
+	extra := strings.TrimSpace(spec.ExtraArgs)
+	if extra == "" {
+		extra = "--accept-license"
+	}
+	for _, a := range strings.Fields(extra) {
+		args = append(args, a)
+	}
+	return args
+}
+
 // Start launches the co-shell --serve subprocess for a managed agent and
 // returns its WS URL. It is a no-op if the agent is already running.
 func (m *Manager) Start(id string) (string, error) {
@@ -413,29 +457,7 @@ func (m *Manager) Start(id string) (string, error) {
 	} else if coShell == "" {
 		coShell = m.coShell
 	}
-	args := []string{"--serve", "--port", fmt.Sprintf("%d", spec.Port), "--bind", "127.0.0.1", "-w", spec.Workspace}
-	// Config source: shared (~/.co-shell/config.json) or per-agent
-	// ({workspace}/config.json). An explicit ConfigPath wins over both.
-	if spec.ConfigPath != "" {
-		args = append(args, "-c", spec.ConfigPath)
-	} else if spec.UseSharedConfig {
-		if home, err := os.UserHomeDir(); err == nil {
-			args = append(args, "-c", filepath.Join(home, ".co-shell", "config.json"))
-		}
-	} else if spec.ConfigFile != "" {
-		args = append(args, "-c", filepath.Join(spec.Workspace, spec.ConfigFile))
-	}
-	// Append user-supplied extra arguments (whitespace-separated). The default
-	// --accept-license is added when the user left the field empty; --serve is
-	// already supplied above so it is never duplicated.
-	extra := strings.TrimSpace(spec.ExtraArgs)
-	if extra == "" {
-		extra = "--accept-license"
-	}
-	for _, a := range strings.Fields(extra) {
-		args = append(args, a)
-	}
-	cmd := exec.Command(coShell, args...)
+	cmd := exec.Command(coShell, buildArgs(spec)...)
 	cmd.Dir = spec.Workspace
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

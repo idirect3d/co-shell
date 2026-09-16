@@ -1239,6 +1239,7 @@ const (
 	KeyCLIHelpShowCommand  = "cli_help_show_command"
 	KeyCLIHelpConfirmTool  = "cli_help_confirm_tool"
 	KeyCLIHelpResultMode   = "cli_help_result_mode"
+	KeyCLIHelpYOLO         = "cli_help_yolo"
 
 	// CLI Help - New output control (ENHANCEMENT-126)
 	KeyCLIHelpShowLlmThinking   = "cli_help_show_llm_thinking"
@@ -1409,8 +1410,8 @@ const (
 	KeyCLIHelpPlanDisabled       = "cli_help_plan_disabled"
 
 	// SubAgent enabled
-	KeyCol3SubAgentEnabled     = "col3_sub_agent_enabled"
-	KeyCol3BoardEnabled        = "col3_board_enabled"
+	KeyCol3SubAgentEnabled = "col3_sub_agent_enabled"
+	KeyCol3BoardEnabled    = "col3_board_enabled"
 	// FEATURE-524: UI component/window rendering switch descriptions.
 	KeyCol3UIEnabled           = "col3_ui_enabled"
 	KeyCol3UIContextPrune      = "col3_ui_context_prune"

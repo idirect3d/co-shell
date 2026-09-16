@@ -117,6 +117,7 @@ func buildUsage(version, build string) string {
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowCommand)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpConfirmTool)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpResultMode)))
+	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpYOLO)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpDescription)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowLlmThinking)))
 	sb.WriteString(formatHelpLine(i18n.T(i18n.KeyCLIHelpShowLlmContent)))

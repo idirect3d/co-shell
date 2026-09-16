@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.61.0"
+const version = "0.62.0"
 
-const build = "1051"
+const build = "1053"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -92,8 +92,13 @@ type cliFlags struct {
 	showCommand       string // "on"/"off"
 	showCommandOutput string // "on"/"off"
 	confirmTool       string // "on"/"off" for default
-	resultMode        string // minimal/explain/analyze/free
-	outputCategories  string // "cat=on;cat2=off" CLI override for OutputCategories
+
+	// yolo (FEATURE-528) enables the YOLO (You Only Live Once) master switch
+	// for this run when the flag is present. It is a pure boolean switch
+	// (default off) and is intentionally not persisted to the config file.
+	yolo             bool
+	resultMode       string // minimal/explain/analyze/free
+	outputCategories string // "cat=on;cat2=off" CLI override for OutputCategories
 
 	// Agent identity parameters
 	description string
@@ -106,7 +111,7 @@ type cliFlags struct {
 	memoryEnabled string // "on"/"off"
 
 	// Plan enabled
-	planEnabled string // "on"/"off"
+	planEnabled           string // "on"/"off"
 	intentExposureEnabled string // "on"/"off"
 
 	// SubAgent enabled
@@ -265,6 +270,7 @@ func parseFlags() cliFlags {
 	flag.StringVar(&f.outputCategories, "output-categories", "", "Output category switches (format: cat=on;cat2=off, e.g. bridge=off;subagent=off, overrides config)")
 
 	flag.StringVar(&f.confirmTool, "confirm-tool", "", "Require confirmation before tool calls (on/off, overrides config file)")
+	flag.BoolVar(&f.yolo, "yolo", false, "YOLO mode: auto-approve all tool calls without confirmation (default off)")
 	flag.StringVar(&f.resultMode, "result-mode", "", "Result processing mode (minimal/explain/analyze/free, overrides config file)")
 
 	// Agent identity parameters
@@ -1320,6 +1326,14 @@ func main() {
 	ag.SetWorkspacePath(ws.Root())
 	ag.SetVaultStore(s.Vault())
 	ag.SetModelManager(modelMgr)
+
+	// FEATURE-528: --yolo turns the YOLO master switch on for this run. It is a
+	// pure boolean flag (present = on, default off); the state is runtime-only
+	// and is never written back to the config file.
+	if flags.yolo {
+		ag.SetYOLO(true)
+		log.Info("YOLO mode enabled by --yolo")
+	}
 
 	// FEATURE-481: inject the co-shell runtime environment (pid/version/build).
 	// The service mode and serve-mode details are filled in later once the
