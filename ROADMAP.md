@@ -4,6 +4,41 @@
 
 ---
 
+## v0.62.1 — 开发中
+
+> **版本**: v0.62.1
+
+> **状态**: ✅ 已完成
+> **里程碑**: hub 徽标三角图标与 co-shell 品牌三角尺寸对齐
+> **说明**: hub UI 标题栏「co-shell-hub」徽标文字前的三角箭头图标此前为 12×12px，比 co-shell Web UI 标题栏品牌三角（7×7px）偏大；本次统一为 7×7px，使 hub 徽标与内层 co-shell 标题栏视觉一致。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-529 | 0.62.1 | P2 | hub 徽标三角图标尺寸对齐 co-shell 品牌三角（12×12px → 7×7px） |
+
+> 当前 BUILD: 1055
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FIX-529 hub 徽标三角图标尺寸与 co-shell 品牌三角对齐** [BUILD-1054]
+  - 需求（用户确认）：调整 hub UI 标题栏 logo 文字前的三角箭头图标，使其大小与 co-shell Web UI 同一位置的图标保持一致。
+  - 诊断：co-shell 侧 `.brand-mark .ico { width: 7px; height: 7px }`（web/static/style.css:201）；hub 侧图标尺寸块内 `#hubBadge .mark { width:12px; height:12px }`（hub/gateway/webui_static.go:248，位于通用 `.ico` 之后故实际生效）。两个图形路径同形同比例（`#i-tri`：24 视箱内 11×13；`#i-hub-mark`：24 视箱内 11.4×14.4）。
+  - 决策（用户拍板）：版本 **v0.62.1**（FIX，patch+1）；任务号 **FIX-529**；分支 `FIX-529`。
+  - 用例：`use-case/FIX-529/FIX-529-UC-0001.md`
+  - 实施（BUILD-1054）：`hub/gateway/webui_static.go` 内嵌 CSS 图标尺寸块：`#hubBadge .mark` 由 `width:12px; height:12px` 改为 `width:7px; height:7px`（补注释说明与 co-shell 品牌三角对齐）；未改 SVG 路径、JS 与其它图标尺寸。
+  - 验证：
+    1. `go build ./... && go vet ./...` 一次执行通过；产物 `work/co-shell-0.62.1.darwin.arm64`、`work/co-shell-hub-0.62.1.darwin.arm64`。
+    2. 隔离 hub 实例（/tmp/fix529，独立端口与 registry）+ 由其拉起的 agent，chrome 实测：hub 徽标三角 7×7（computed 7px），iframe 内 co-shell `.brand-mark .ico` 7×7，两者逐值相等（UC-0001/UC-0002 通过）。
+    3. 布局：徽标高 44px、三角垂直居中（偏差 <1px）、与文字间距 8px、无换行/溢出；抽屉展开时徽标宽 340px 且三角仍 7×7（UC-0004/UC-0006/UC-0007 通过）。
+    4. 回归：`.pin` 18px / `.chev` 14px / `.btn` 15px 未变；co-shell 侧品牌三角仍为 7px；hub 徽标显示 v0.62.1 [BUILD-1054]、iframe 内亦为 v0.62.1 [BUILD-1054]（UC-0008/UC-0009/UC-0010 通过）。
+    5. 视觉：抽屉展开使 iframe 右移后同屏比对，两个青色三角目视同尺寸（UC-0003 通过）。
+    6. 断连态：停掉 hub 后徽标三角 class 变为 `ico mark off`、颜色转为 `--fg-faint`（rgb(91,99,115)），尺寸仍 7×7（UC-0005 通过）。
+  - 用户确认：2026-09-16 测试通过，同意合并（工作流 /merge）。
+
+---
+
 ## v0.62.0 — 开发中
 
 > **版本**: v0.62.0

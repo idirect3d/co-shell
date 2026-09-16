@@ -242,7 +242,11 @@ const webIndexHTML = `<!DOCTYPE html>
   .ico { display:inline-block; vertical-align:middle; flex:none; width:14px; height:14px; }
   .icon-sprite { position:absolute; width:0; height:0; overflow:hidden; }
   .ico-inline { width:12px; height:12px; }
-  #hubBadge .mark { width:12px; height:12px; }
+  /* FIX-529: the badge triangle matches the co-shell titlebar brand triangle
+     (web/static/style.css .brand-mark .ico = 7px), so the hub chrome and the UI
+     behind it read as the same size. This rule comes after .ico and therefore
+     is the effective size. */
+  #hubBadge .mark { width:7px; height:7px; }
   #hubBadge .pin .ico { width:18px; height:18px; }
   #agentPanel .pane-head .chev .ico { width:14px; height:14px; }
   #agentPanel .head .back .ico { width:16px; height:16px; }
