@@ -4,6 +4,50 @@
 
 ---
 
+## v0.62.0 — 开发中
+
+> **版本**: v0.62.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: YOLO 模式开关（CLI 启动参数 + hub Agent 配置项）
+> **说明**: 命令行新增 `--yolo` 纯布尔启动开关（出现即开启，默认关闭）；hub 配置 Agent 时显式提供 YOLO 模式滑动开关（默认关闭，需用户明确打开）。开启时开关下方提示简单风险信息，关闭时显示 YOLO 含义说明；开启后 hub 启动该 Agent 时追加 `--yolo`。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-528 | 0.62.0 | P2 | CLI 新增 `--yolo` 纯布尔启动开关；hub 新建/修改 Agent 表单新增 YOLO 模式滑动开关（默认关闭、开启提示风险、关闭说明含义），启动 Agent 时追加 `--yolo` |
+
+> 当前 BUILD: 1053
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-528 CLI `--yolo` 开关 + hub Agent YOLO 滑动开关** [BUILD-1053]
+  - 需求（用户确认）：
+    1. 检查命令行启动参数，若无 YOLO 模式开关则新增：`--yolo` 为**纯布尔开关**（出现即开启，默认关闭），启动时对当前 agent 生效，并出现在 `--help` 与 zh/en 帮助文案中。
+    2. hub 配置 Agent 时显式增加 YOLO 模式选项（滑动开关），默认关闭、需用户明确打开：开启时在开关下方提示简单风险信息，关闭时显示 YOLO 含义说明。
+  - 决策（用户拍板）：版本 **v0.62.0**（FEATURE，minor+1）；任务号 **FEATURE-528**；分支 `FEATURE-528`。
+    - CLI 形式：`--yolo` 纯布尔（出现即开启）；不采用 `--yolo on|off`。
+    - hub 范围：**新建 Agent 表单 + Agent 详情/编辑表单**都加。
+  - 用例：`use-case/FEATURE-528/FEATURE-528-UC-*.md`
+  - 实施（BUILD-1052）：
+    1. `main.go`：`cliFlags` 新增 `yolo bool`；`parseFlags` 注册纯布尔标志 `--yolo`（默认 false）；agent 初始化后 `if flags.yolo { ag.SetYOLO(true) }`（仅本次运行生效，不写回配置）。
+    2. `usage.go` + `i18n/{keys,zh,en}.go`：`--help` 新增 `--yolo` 说明行（中英双语）。
+    3. `hub/gateway/manager.go`：`AgentSpec` 新增 `YOLO bool \`json:"yolo,omitempty"\``；`CreateManaged` 新增 `yolo` 参数；`AgentPatch` 新增 `YOLO *bool`（nil 不改动）；抽出 `buildArgs(spec)` 拼装启动参数，`spec.YOLO == true` 时在系统参数之后、补充运行参数之前追加 `--yolo`。
+    4. `hub/gateway/webui.go`：`agentView`/`createAgentRequest` 新增 `yolo`，`updateAgentRequest` 新增 `YOLO *bool`（兼容旧前端）。
+    5. `hub/gateway/webui_static.go`：新建（`m-yolo`）与详情/编辑（`d-yolo`）表单新增「YOLO 模式」滑动开关（默认关）；关闭态显示 YOLO 含义说明，开启态切换为橙色风险提示；外部 Agent 时字段置灰。
+    6. 版本号：`main.go` / `cmd/co-shell-hub/main.go` → v0.62.0，BUILD-1052；产物 `work/co-shell-0.62.0.darwin.arm64`、`work/co-shell-hub-0.62.0.darwin.arm64`。
+  - 用户确认：2026-09-16 测试通过，同意合并（工作流 /merge）。
+  - 验证：
+    1. `go build ./... && go vet ./...`（主模块）一次执行通过；`go test ./hub/...` 全绿（含新增 `TestBuildArgsYOLO` / `TestBuildArgsYOLODefaultExtraArgs` / `TestManagerYOLYPersisted` 全 PASS）。
+    2. CLI：`--help` 中英均输出 `--yolo`（描述默认关闭、不写入配置文件）。
+    3. 隔离 hub 实例（/tmp/feat528，独立 web/tcp 端口与独立 registry）：创建 `yolo=true` agent → 接口与注册表均回显 `yolo:true`；未传 `yolo` 创建的 agent 默认关闭；启动后的子进程命令行分别为 `--serve --port 12961 ... -c ... --yolo --accept-license`（开启）与 `... --accept-license`（未开）——`--yolo` 注入位置与开关语义均符合预期。
+    4. 修改接口：PUT 不带 `yolo` 时已开启的 agent 保持 `true`（旧前端兼容）；PUT `yolo:false/true` 均正确持久化。
+    5. Web UI（隔离实例实测）：新建表单与详情/编辑表单均含「YOLO 模式」滑动开关，默认关闭；关闭态文案为 YOLO 含义说明，开启态切换为橙色风险提示。
+    6. 既有基线失败项（与本次无关，已在未改动的 main 对比复现）：`cmd.TestSettingsJSONFillsDefaults`（设置项 `logo` 缺 Default）、`cmd.TestWebWizardModelNameStep`（需访问外部模型接口）。
+
+---
+
 ## v0.61.0 — 已完成
 
 > **版本**: v0.61.0

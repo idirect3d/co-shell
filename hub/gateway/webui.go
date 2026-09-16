@@ -189,12 +189,14 @@ type agentView struct {
 	Connected bool   `json:"connected"`
 	// Busy reports whether the agent is currently executing a task
 	// (FEATURE-499), queried from the agent's /api/status.
-	Busy bool `json:"busy"`
-	CoShell   string `json:"co_shell,omitempty"`
+	Busy    bool   `json:"busy"`
+	CoShell string `json:"co_shell,omitempty"`
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
 	// {workspace}/config.json.
 	UseSharedConfig bool   `json:"use_shared_config"`
 	ExtraArgs       string `json:"extra_args,omitempty"`
+	// YOLO reports whether the agent is started with --yolo (FEATURE-528).
+	YOLO bool `json:"yolo"`
 }
 
 // handleListAgents returns the registry agents with their running/connected
@@ -208,17 +210,18 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 	views := make([]agentView, 0, len(specs))
 	for _, s := range specs {
 		v := agentView{
-			ID:        s.ID,
-			Name:      s.Name,
-			Type:      s.Type,
-			Workspace: s.Workspace,
-			Port:      s.Port,
-			WSURL:     s.WSURL,
-			Running:   w.manager.IsRunning(s.ID),
-			Connected: connected[s.ID],
+			ID:              s.ID,
+			Name:            s.Name,
+			Type:            s.Type,
+			Workspace:       s.Workspace,
+			Port:            s.Port,
+			WSURL:           s.WSURL,
+			Running:         w.manager.IsRunning(s.ID),
+			Connected:       connected[s.ID],
 			CoShell:         s.CoShell,
 			UseSharedConfig: s.UseSharedConfig,
 			ExtraArgs:       s.ExtraArgs,
+			YOLO:            s.YOLO,
 		}
 		// Report the co-shell version for compatibility awareness.
 		if s.Type == AgentTypeManaged {
@@ -259,6 +262,8 @@ type createAgentRequest struct {
 	// {workspace}/config.json (created empty if absent).
 	UseSharedConfig bool   `json:"use_shared_config"`
 	ExtraArgs       string `json:"extra_args,omitempty"`
+	// YOLO starts the agent with --yolo (auto-approve every tool call).
+	YOLO bool `json:"yolo"`
 }
 
 // handleCreateAgent creates a managed agent (workspace + optional config.json).
@@ -276,7 +281,7 @@ func (w *WebUI) handleCreateAgent(rw http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = req.ID
 	}
-	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port, req.ExtraArgs)
+	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port, req.ExtraArgs, req.YOLO)
 	if err != nil {
 		writeJSON(rw, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
@@ -329,6 +334,7 @@ type updateAgentRequest struct {
 	CoShell         *string `json:"co_shell"`
 	UseSharedConfig *bool   `json:"use_shared_config"`
 	ExtraArgs       *string `json:"extra_args"`
+	YOLO            *bool   `json:"yolo"`
 	WSURL           *string `json:"ws_url"`
 }
 
@@ -350,6 +356,7 @@ func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
 		CoShell:         req.CoShell,
 		UseSharedConfig: req.UseSharedConfig,
 		ExtraArgs:       req.ExtraArgs,
+		YOLO:            req.YOLO,
 		WSURL:           req.WSURL,
 	})
 	if err != nil {

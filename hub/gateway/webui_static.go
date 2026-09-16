@@ -360,6 +360,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
+        <div class="field"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
         <div class="field"><label>补充运行参数</label><input id="m-extra" placeholder="如 --accept-license --serve" value="--accept-license"></div>
         <div class="hint" id="m-ver"></div>
       </div>
@@ -389,6 +390,7 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field" id="f-port"><label id="d-port-label">端口号</label><input id="d-port" placeholder="如 28256"></div>
       <div class="field" id="f-coshell"><label>co-shell 可执行程序</label><select id="d-coshell"></select><div class="hint" id="d-ver"></div></div>
       <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
+      <div class="field" id="f-yolo"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="d-yolo"><span class="slider"></span></label></div><div class="hint" id="d-yolo-hint"></div></div>
       <div class="field" id="f-extra"><label>补充运行参数</label><input id="d-extra" placeholder="如 --accept-license"></div>
       <div class="hint" id="d-state"></div>
     </div>
@@ -716,6 +718,23 @@ const webIndexHTML = `<!DOCTYPE html>
     el.closest('.field').classList.toggle('disabled', !on);
     el.disabled = !on;
   }
+  // FEATURE-528: YOLO mode switch. While the switch is off the hint explains
+  // what YOLO means; once it is on the hint states the risk instead, so
+  // enabling it is always an explicit, informed choice.
+  var YOLO_OFF_HINT = 'YOLO 模式（You Only Live Once）：开启后该 agent 的所有工具调用自动批准，不再逐个询问（等效于启动参数 --yolo）。默认关闭，需重启 agent 后生效。';
+  var YOLO_ON_HINT = '⚠️ 风险提示：已开启 YOLO，该 agent 的工具调用将不再逐个确认，可能自动执行删除/覆盖文件、运行系统命令等高风险操作。请仅在受控环境中使用；需重启 agent 后生效。';
+  function syncYoloHint(input, hint){
+    if (!input || !hint) return;
+    hint.textContent = input.checked ? YOLO_ON_HINT : YOLO_OFF_HINT;
+    hint.style.color = input.checked ? '#e8590c' : '';
+  }
+  function initYoloSwitch(inputID, hintID){
+    var input = document.getElementById(inputID);
+    var hint = document.getElementById(hintID);
+    if (!input || !hint) return;
+    input.addEventListener('change', function(){ syncYoloHint(input, hint); });
+    syncYoloHint(input, hint);
+  }
   // coShellSourceLabel maps a detection source to the label shown in the
   // dropdown, so copies found in different places can be told apart (FIX-521).
   function coShellSourceLabel(src){
@@ -805,6 +824,9 @@ const webIndexHTML = `<!DOCTYPE html>
     document.getElementById('d-port').value = external ? parts.port : (a.port || '');
     document.getElementById('d-shared').checked = !!a.use_shared_config;
     document.getElementById('d-extra').value = a.extra_args || '';
+    var yoloInput = document.getElementById('d-yolo');
+    yoloInput.checked = !!a.yolo;
+    syncYoloHint(yoloInput, document.getElementById('d-yolo-hint'));
     document.getElementById('d-state').textContent = (a.running || a.connected) ? '运行中（修改需重启后生效）' : '已停止';
     document.getElementById('d-msg').textContent = '';
     // Local-only fields are greyed out for a remote agent, and vice versa.
@@ -814,6 +836,7 @@ const webIndexHTML = `<!DOCTYPE html>
     setFieldEnabled('d-coshell', !external);
     setFieldEnabled('d-shared', !external);
     setFieldEnabled('d-extra', !external);
+    setFieldEnabled('d-yolo', !external);
     document.getElementById('d-port-label').textContent = external ? '端口号（与主机地址组成 WS 地址）' : '端口号（可修改，需重启后生效）';
     loadCoShellOptions(function(){ fillCoShellOptions(a.co_shell); checkEditVersion(); });
     showView('detail');
@@ -843,6 +866,7 @@ const webIndexHTML = `<!DOCTYPE html>
       body.port = port;
       body.use_shared_config = document.getElementById('d-shared').checked;
       body.extra_args = document.getElementById('d-extra').value.trim();
+      body.yolo = document.getElementById('d-yolo').checked;
       // Only send co_shell once the executable list has loaded: a slow
       // /api/agent-defaults response must never silently reset the value.
       var editShellSel = document.getElementById('d-coshell');
@@ -1194,6 +1218,7 @@ const webIndexHTML = `<!DOCTYPE html>
       co_shell: coshellSel.value,
       use_shared_config: document.getElementById('m-shared').checked,
       extra_args: document.getElementById('m-extra').value.trim(),
+      yolo: document.getElementById('m-yolo').checked,
       port: port
     }, function(st, j){
       if (st >= 400){
@@ -1207,6 +1232,9 @@ const webIndexHTML = `<!DOCTYPE html>
         return;
       }
       document.getElementById('m-ws').value=''; document.getElementById('m-id').value=''; document.getElementById('m-port').value='';
+      var newYolo = document.getElementById('m-yolo');
+      newYolo.checked = false;
+      syncYoloHint(newYolo, document.getElementById('m-yolo-hint'));
       var nid = (j && j.id) || id;
       api('POST', '/api/agents/' + encodeURIComponent(nid) + '/start', null, function(st2, j2){
         if (st2 >= 400) alert('创建成功，但自动启动失败: ' + ((j2 && j2.error) || st2));
@@ -1238,6 +1266,8 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
 
+  initYoloSwitch('m-yolo', 'm-yolo-hint');
+  initYoloSwitch('d-yolo', 'd-yolo-hint');
   startPolling();
 })();
 </script>
