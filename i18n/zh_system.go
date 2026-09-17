@@ -29,6 +29,8 @@ package i18n
 func init() {
 	zhMessages[KeySystemPromptIdentity] = `你的名字是 {AGENT_NAME}。{AGENT_DESCRIPTION}
 {AGENT_PRINCIPLES}
+
+（以上身份信息存于 ./IDENTITY.md，可通过 --init 导出，编辑后在下一回合实时生效）
 `
 	zhMessages[KeyAgentDefaultDescription] = `你是一个严谨、务实、目标驱动的通用智能体，能够恰当的融入用户问题场景，并为用户提供专业的帮助。`
 	zhMessages[KeyAgentDefaultPrinciples] = `处理代码任务时要遵循以下原则：
@@ -63,8 +65,8 @@ func init() {
 	zhMessages[KeySystemPromptResultModeLead] = `在每个用户消息中，environment_details 会指明当前模式。共有 %d 种模式：`
 
 	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
-	// LLM how to export and tweak per-mode strategies via --unload-mode.
-	zhMessages[KeySystemPromptResultModeNote] = `（以上内容可以通过 --unload-mode {mode}，将各模式的策略导出到 ./mode/ 下，可以通过编辑这些文件进行实时调整）`
+	// LLM how to export and tweak the sections and per-mode strategies via --init.
+	zhMessages[KeySystemPromptResultModeNote] = `（以上各模式策略可通过 --init 导出为 ./mode/{MODE}.md，编辑后在下一回合实时生效）`
 
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
@@ -1577,6 +1579,8 @@ CAPABILITIES
 3. **精准修改**：能够使用 ` + "`" + `replace_in_file` + "`" + ` 对文件做精确的 search/replace 修改而非整体重写，使用 ` + "`" + `read_file` + "`" + ` 精确读取特定行范围而非全量读取，使用 ` + "`" + `search_files` + "`" + ` 精准定位代码位置而非手动查找。
 
 4. **目标驱动**：能够通过 ` + "`" + `track_task_progress` + "`" + ` 创建可验证的任务计划和验收步骤，每一步完成后通过 ` + "`" + `execute_command` + "`" + ` 运行测试或验证命令来确认结果，确认全部达标后通过 ` + "`" + `attempt_completion` + "`" + ` 交付。
+
+（以上能力说明可由 ./CAPABILITIES.md 覆盖，可通过 --init 导出，编辑后在下一回合实时生效）
 `
 
 	// Shell session capabilities (no execute_command, focused on shell interaction)
@@ -1588,7 +1592,7 @@ RULES
 - 关注 <environment_details> 中的环境信息和用户动态，这些可能反映用户此时的思考路径。
 - 管理上下文窗口：如果上下文占用接近 {CONTEXT_REORGANIZE_THRESHOLD}%（context-reorganize-threshold），则应提前评估是否需要择机主动调用 reorganize_context 重整上下文，或通过 attempt_completion 的 task_message_no 参数缩短上下文，以便系统强制重整不会影响关键步骤的处理。历史上下文仍可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
 
-（可以通过向 .rules/ 下放规则文件的方式，在以下位置定制规则/规范，文件名将被当作各节标题，子文件夹将被列出（作为索引），但不会再遍历子文件夹，需要时可自取）
+（可以通过向 .rules/ 下放规则文件的方式，在以下位置定制规则/规范，文件名将被当作各节标题，子文件夹将被列出（作为索引），但不会再遍历子文件夹，需要时可自取；也可直接编辑 ./RULES.md 整节覆盖以上内容——两者均可用 --init 导出，编辑后在下一回合实时生效）
 
 {CUSTOM_RULES}
 `

@@ -29,6 +29,8 @@ package i18n
 func init() {
 	enMessages[KeySystemPromptIdentity] = `Your name is {AGENT_NAME}. {AGENT_DESCRIPTION}
 {AGENT_PRINCIPLES}
+
+(The identity information above lives in ./IDENTITY.md; export it with --init and edits take effect on the next turn)
 `
 	enMessages[KeyAgentDefaultDescription] = `You are a rigorous, pragmatic, goal-driven general-purpose agent that can appropriately adapt to the user's problem context and provide professional assistance.`
 	enMessages[KeyAgentDefaultPrinciples] = `Follow these principles when handling code tasks:
@@ -46,8 +48,8 @@ func init() {
 	enMessages[KeySystemPromptResultModeLead] = `In each user message, the environment_details will specify the current mode. There are %d modes:`
 
 	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
-	// LLM how to export and tweak per-mode strategies via --unload-mode.
-	enMessages[KeySystemPromptResultModeNote] = `(The above can be exported per mode with --unload-mode {mode} into ./mode/, and these files can be edited for real-time adjustment)`
+	// LLM how to export and tweak the sections and per-mode strategies via --init.
+	enMessages[KeySystemPromptResultModeNote] = `(The strategies above can be exported with --init to ./mode/{MODE}.md; edits take effect on the next turn)`
 
 	// Work mode descriptions (FEATURE-472): detailed per-mode descriptions shown
 	// in the static RESULT MODE section.
@@ -1594,6 +1596,8 @@ CAPABILITIES
 3. **Precision** — Use ` + "`" + `replace_in_file` + "`" + ` for precise search/replace instead of full rewrites, use ` + "`" + `read_file` + "`" + ` to read specific line ranges, use ` + "`" + `search_files` + "`" + ` to locate code instead of manual searching.
 
 4. **Goal-Driven** — Use ` + "`" + `track_task_progress` + "`" + ` to create verifiable task plans with acceptance criteria, use ` + "`" + `execute_command` + "`" + ` to run tests after each step to verify results, deliver via ` + "`" + `attempt_completion` + "`" + ` when all criteria are met.
+
+(The capabilities above can be overridden by ./CAPABILITIES.md; export it with --init and edits take effect on the next turn)
 `
 
 	enMessages[KeySystemPromptRules] = `
@@ -1605,7 +1609,7 @@ RULES
 - Pay attention to the environment information and user dynamic events in <environment_details>; they may reflect the user's current thinking path.
 - Managing the context window: if context usage approaches {CONTEXT_REORGANIZE_THRESHOLD}% (context-reorganize-threshold), proactively assess whether to call reorganize_context to reorganize the context, or shorten the context via attempt_completion's task_message_no parameter, so that a system-forced reorganization does not disrupt handling of critical steps. Historical context can still be retrieved from persistent memory via memory_search or get_memory_slice.
 
-(You can customize rules/specifications by placing rule files under .rules/; the file names are used as section titles, and subfolders are listed as an index but are not traversed further — read them on demand.)
+(You can customize rules/specifications by placing rule files under .rules/; the file names are used as section titles, and subfolders are listed as an index but are not traversed further — read them on demand. You can also edit ./RULES.md to override everything above; both can be exported with --init, and edits take effect on the next turn.)
 
 {CUSTOM_RULES}
 `

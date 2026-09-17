@@ -269,22 +269,25 @@ func runHandler(handler func([]string) (string, error), args []string) {
 func (h *ConfigHandler) identityParams() []ConfigParam {
 	return []ConfigParam{
 		{Name: "name", CurrentValue: func() string {
-			n := h.cfg.LLM.AgentName
-			if n == "" {
-				return "co-shell"
-			}
-			return n
+			return h.agent.IdentityName()
 		}, SetValue: func(v string) (string, error) {
-			h.cfg.LLM.AgentName = v
+			// FEATURE-531 follow-up: personalization goes to ./IDENTITY.md.
+			if err := h.agent.SetIdentityField("agent-name", v); err != nil {
+				return "", err
+			}
 			h.agent.SetName(v)
+			h.agent.RebuildSystemPrompt()
 			return i18n.TF(i18n.KeySettingsUpdated, "name", v), nil
 		}, ResetValue: func() string {
-			h.cfg.LLM.AgentName = ""
+			if err := h.agent.SetIdentityField("agent-name", "co-shell"); err != nil {
+				return err.Error()
+			}
 			h.agent.SetName("co-shell")
+			h.agent.RebuildSystemPrompt()
 			return i18n.TF(i18n.KeySettingsUpdated, "name", "co-shell")
 		}},
 		{Name: "description", CurrentValue: func() string {
-			d := h.cfg.LLM.AgentDescription
+			d := h.agent.IdentityDescription()
 			if d == "" {
 				return i18n.T(i18n.KeyDefault)
 			}
@@ -293,10 +296,16 @@ func (h *ConfigHandler) identityParams() []ConfigParam {
 			}
 			return d
 		}, SetValue: func(v string) (string, error) {
-			h.cfg.LLM.AgentDescription = v
+			if err := h.agent.SetIdentityField("agent-description", v); err != nil {
+				return "", err
+			}
+			h.agent.RebuildSystemPrompt()
 			return i18n.TF(i18n.KeySettingsUpdated, "description", v), nil
 		}, ResetValue: func() string {
-			h.cfg.LLM.AgentDescription = ""
+			if err := h.agent.SetIdentityField("agent-description", ""); err != nil {
+				return err.Error()
+			}
+			h.agent.RebuildSystemPrompt()
 			return i18n.TF(i18n.KeySettingsUpdated, "description", i18n.T(i18n.KeyDefault))
 		}},
 	}

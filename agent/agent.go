@@ -1065,6 +1065,19 @@ func (a *Agent) WorkspacePath() string {
 	return a.workspacePath
 }
 
+// identityDir returns the directory holding the agent personalization files
+// (IDENTITY.md, PRINCIPLES.md, RULES.md, CAPABILITIES.md): the workspace root
+// when set, else the process working directory (FEATURE-531 follow-up).
+func (a *Agent) identityDir() string {
+	if a.workspacePath != "" {
+		return a.workspacePath
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return cwd
+	}
+	return ""
+}
+
 // RebuildSystemPrompt rebuilds the system prompt from the current config and
 // external files (PRINCIPLES.md / .rules/) on disk, then refreshes the system
 // message in the active conversation. Call this to reflect external file edits.
@@ -1139,8 +1152,10 @@ func (a *Agent) RulesDirFiles() []string {
 
 // resolveAgentPrinciples resolves agent principles with priority:
 //  1. PRINCIPLES.md in workspace root, then current working directory
-//  2. cfg.LLM.AgentPrinciples (config.json / :config modified)
-//  3. i18n KeyAgentDefaultPrinciples fallback (with key-leakage guard)
+//  2. i18n KeyAgentDefaultPrinciples fallback (with key-leakage guard)
+//
+// FEATURE-531 follow-up: cfg.LLM.AgentPrinciples is no longer read - principles
+// live in ./PRINCIPLES.md only (config.json must not carry personalization).
 func (a *Agent) resolveAgentPrinciples() string {
 	if a.cfg == nil {
 		return ""
@@ -1156,10 +1171,7 @@ func (a *Agent) resolveAgentPrinciples() string {
 			return p
 		}
 	}
-	// Priority 2: config.json
-	if p := a.cfg.LLM.AgentPrinciples; p != "" {
-		return p
-	}
+	// FEATURE-531 follow-up: no config.json fallback (旧值失效).
 	// Priority 3: i18n default (guard against key name leakage)
 	p := i18n.T(i18n.KeyAgentDefaultPrinciples)
 	if p == string(i18n.KeyAgentDefaultPrinciples) {
@@ -1168,16 +1180,15 @@ func (a *Agent) resolveAgentPrinciples() string {
 	return p
 }
 
-// resolveRules builds the rules string for the system prompt RULES section:
-//  1. cfg.Rules joined by newline (live, so .rule add/remove/clear takes effect)
-//  2. .rules/*.md from workspace root, then current working directory (sorted, "# {filename}" header)
+// resolveRules builds the rules string merged into the RULES section's
+// {CUSTOM_RULES} placeholder:
+//  1. .rules/*.md from workspace root, then current working directory (sorted, "# {filename}" header)
 //
-// Returns the merged text, or "" when both sources are empty.
+// FEATURE-531 follow-up: cfg.Rules is no longer read - rules live in
+// ./RULES.md, which overrides the whole RULES section when present.
+// Returns the merged text, or "" when no .rules/ entry exists.
 func (a *Agent) resolveRules() string {
 	var sb strings.Builder
-	if a.cfg != nil && len(a.cfg.Rules) > 0 {
-		sb.WriteString(strings.Join(a.cfg.Rules, "\n"))
-	}
 	// Priority: workspace root .rules/ first, then cwd .rules/
 	dirRules := ""
 	if a.workspacePath != "" {
@@ -1236,12 +1247,11 @@ func (a *Agent) rebuildSystemPrompt() {
 	userName := ""
 	channel := ""
 	if a.cfg != nil {
-		agentName = a.cfg.LLM.AgentName
-		// Resolve description with priority (ModeDescriptions → global
-		// AgentDescription → mode-specific i18n default → global i18n default).
-		agentDesc = resolveAgentDescription(a.cfg)
+		agentName = ResolveAgentName(a.identityDir())
+		// FEATURE-531 follow-up: description comes from ./IDENTITY.md.
+		agentDesc = ResolveAgentDescription(a.identityDir())
 		agentPrinciples = a.resolveAgentPrinciples()
-		userName = a.cfg.LLM.UserName
+		userName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
 		channel = a.cfg.LLM.Channel
 	}
 
@@ -1852,11 +1862,11 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	userName := ""
 	channel := ""
 	if a.cfg != nil {
-		agentName = a.cfg.LLM.AgentName
+		agentName = ResolveAgentName(a.identityDir())
 		workMode = a.cfg.LLM.WorkMode
-		agentDesc = a.cfg.LLM.AgentDescription
+		agentDesc = ResolveAgentDescription(a.identityDir())
 		agentPrinciples = a.resolveAgentPrinciples()
-		userName = a.cfg.LLM.UserName
+		userName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
 		channel = a.cfg.LLM.Channel
 		// Fall back to mode-specific i18n description
 		if agentDesc == "" {

@@ -68,7 +68,6 @@ func setupExternalTestAgent(t *testing.T) (*SettingsHandler, string) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Rules = []string{"配置文件规则 1", "配置文件规则 2"}
 
 	// Build a real agent via agent.New so the taskplan manager (which requires
 	// a store) is properly initialized.
@@ -100,9 +99,9 @@ func TestShowSettingsHelp_ReflectsExternalFiles(t *testing.T) {
 	if !strings.Contains(out, "a.md") || !strings.Contains(out, "b.md") {
 		t.Errorf("expected .rules/ file names in :set output, got:\n%s", out)
 	}
-	// config rules count reflected
-	if !strings.Contains(out, "2 条") {
-		t.Errorf("expected config rules count in :set output, got:\n%s", out)
+	// FEATURE-531 follow-up: rules come from ./RULES.md only (none here)
+	if !strings.Contains(out, "0 条") {
+		t.Errorf("expected zero rules count in :set output, got:\n%s", out)
 	}
 	// PRINCIPLES.md external content reflected in principles value
 	if !strings.Contains(out, "外部原则") {
@@ -120,7 +119,6 @@ func TestShowSettingsHelp_WithoutExternalFiles(t *testing.T) {
 	i18n.Init("zh")
 	ws := t.TempDir()
 	cfg := config.DefaultConfig()
-	cfg.Rules = []string{"仅配置文件规则"}
 	wsObj, err := workspace.New(ws)
 	if err != nil {
 		t.Fatalf("cannot init workspace: %v", err)
@@ -140,9 +138,9 @@ func TestShowSettingsHelp_WithoutExternalFiles(t *testing.T) {
 	if !strings.Contains(out, "内置默认") {
 		t.Errorf("expected built-in default capabilities marker, got:\n%s", out)
 	}
-	// Rules shows config-only count without .rules/
-	if !strings.Contains(out, "1 条") {
-		t.Errorf("expected config rules count 1 条, got:\n%s", out)
+	// Rules shows zero count without ./RULES.md and .rules/
+	if !strings.Contains(out, "0 条") {
+		t.Errorf("expected zero rules count, got:\n%s", out)
 	}
 	if strings.Contains(out, ".rules/") {
 		t.Errorf("expected no .rules/ mention when dir absent, got:\n%s", out)

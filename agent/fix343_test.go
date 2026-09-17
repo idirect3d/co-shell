@@ -66,7 +66,7 @@ func visionAgent(cfg *config.Config) *Agent {
 func TestFeature343BuildContextMessagesIdentityOnly(t *testing.T) {
 	cfg := minimalVisionCfg()
 
-	sys := buildVisionIdentityPrompt(cfg)
+	sys := buildVisionIdentityPrompt(cfg, "")
 	if strings.TrimSpace(sys) == "" {
 		t.Fatal("buildVisionIdentityPrompt returned empty system prompt")
 	}

@@ -1153,8 +1153,11 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeyCol3Principles:           "Agent 核心原则",
 	KeyCol3Capabilities:         "Agent 能力",
 	KeyIdentityRules:            "规则",
-	KeyCol3Vision:               "视觉识别(on|off)",
-	KeyCol3ContextLimit:         "对话上下文限制(0=不包含历史, N=最近N条, -1=不限制)",
+	// FEATURE-534: user identity field labels (./IDENTITY.md user-name / user-description).
+	KeyIdentityUserName: "用户名",
+	KeyIdentityUserDesc: "用户描述",
+	KeyCol3Vision:       "视觉识别(on|off)",
+	KeyCol3ContextLimit: "对话上下文限制(0=不包含历史, N=最近N条, -1=不限制)",
 
 	// New column 3 labels (ENHANCEMENT-126)
 	KeyCol3LlmThinking:   "显示 LLM 思考过程(on|off)",
@@ -1950,13 +1953,14 @@ AI 模型可能会生成并执行以下类型的危险命令：
 	KeySimulateLabelResult:   "结果: ",
 
 	// Unload mode (FEATURE-245)
-	KeyCLIHelpUnloadMode:       "      --unload-mode <name>  将当前模式各节配置卸载到 mode/<name>/ .md 文件",
+	KeyCLIHelpInit:             "      --init                导出个性化文件到 ./IDENTITY.md、./PRINCIPLES.md、./CAPABILITIES.md、./RULES.md 与 mode/{MODE}.md（个性化只存工作区文件，不再写入 config.json）",
 	KeyCLIHelpUnloadPrinciples: "      --unload-principles  将当前系统 principles 导出到工作区根目录的 PRINCIPLES.md 文件",
 	KeyCLIHelpOutputMode:       "      --output-mode    LLM 前端输出模式（compact/normal/debug，覆盖配置文件）",
 	KeyCLIHelpTokenUsage:       "      --token-usage    Token 用量显示模式（on/off/none，覆盖配置文件）",
 	KeyCLIHelpBodyAdd:          "      --body-add key=value  向 LLM 请求体添加自定义 JSON 属性（可多次指定，用逗号分隔）",
-	KeyUnloadModeDone:          "✅ 模式配置已卸载到 mode/%s/ (%d 个文件)",
-	KeyUnloadModeFailed:        "❌ 卸载模式配置失败: %v",
+	KeyInitDone:                "✅ 已导出 %d 个文件（同名文件已备份为 .bak）",
+	KeyInitFailed:              "❌ 导出失败: %v",
+	KeyModeSectionsGlobalNote:  "提示：%s 的节列表已全局统一（所有模式共用 %d 个节），不能再按模式编辑；如需调整请编辑 ./IDENTITY.md、./CAPABILITIES.md、./RULES.md 与 mode/{MODE}.md（可用 --init 导出）",
 
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token用量: 首字=%s | 输入=%d(%s t/s) | 输出=%d(%s t/s) | 总计=%d (%.1f%%)",

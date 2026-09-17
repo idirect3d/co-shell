@@ -4,6 +4,82 @@
 
 ---
 
+## v0.64.0 — 开发中
+
+> **版本**: v0.64.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: 系统提示词组成策略调整（全局节列表 + ResultMode 动态拼装 + --init 导出）
+> **说明**: 把系统提示词从「按 mode 定义节列表与节内容」改为「全局统一定义节列表、模式差异只体现在 ResultMode 节」：所有 mode 共用同一套 8 节固定顺序（Identity/ToolUsage/ResultMode/Capabilities/Rules/Skills/ExternalTools/Environment）；ResultMode 节动态罗列系统内全部 mode 的策略（切换 mode 时该节文本完全一致）；去掉 `--unload-mode`，新增 `--init` 一键导出 `./IDENTITY.md`、`./CAPABILITIES.md`、`./RULES.md` 与 `mode/{MODE}.md`（不建子目录）；新会话构建提示词时实时优先读取这些文件，缺失则回退 i18n 默认值（KeyWorkModeAct/Plan/Research）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-531 | 0.64.0 | P1 | 系统提示词组成策略调整：全局节列表（8 节固定顺序、不再按 mode 定义）+ ResultMode 由各 mode 策略动态拼装（跨 mode 文本一致）+ 移除 `--unload-mode`、新增 `--init`（导出 IDENTITY/PRINCIPLES/CAPABILITIES/RULES 与 mode/{MODE}.md，已存在文件先备份 .bak 再覆盖）+ 新会话实时优先读取磁盘文件否则回退系统默认值；废弃旧机制（mode/{mode}/*.md、WORKMODE.md 不再读取）；自定义 mode 同样生成 mode/{NAME}.md 并参与 ResultMode 拼装；**增量：agent 个性化（身份/描述/原则/规则/能力/mode 策略）只存工作区 md 文件，config.json 不再承载个性化** |
+| FIX-532 | 0.64.0 | P1 | 修复 `:set defaults` 未重置 `work_modes`：清空 `WorkModes`（配置里从内置模式物化的简短 `description` 会遮蔽 ResultMode 节的详细模式策略文本），当前模式指向被清掉的自定义模式时回退 `act` |
+| FEATURE-533 | 0.64.0 | P1 | 可编辑文件说明按节归位：MODE 节末尾注记只保留 `./mode/{MODE}.md`，`./IDENTITY.md` / `./CAPABILITIES.md` / `./RULES.md` 的说明分别移入 Identity / CAPABILITIES / RULES 节末尾（RULES 与既有 `.rules/` 说明合并，不新增第二条） |
+| FEATURE-534 | 0.64.0 | P1 | Web UI 身份与个性配置界面两栏化：借鉴系统设置弹窗，左分类标签（**智能体 / 用户 / 核心原则 / 能力 / 规则**，其中智能体与用户由原「身份定义」拆出）+ 右明细面板；智能体页含 agent-name / agent-description，用户页含 user-name / user-description，其余三页各一个大文本框；后端补齐 user-name / user-description 两项（IdentityJSON + SaveIdentity 分支 + 中英 i18n）；窄屏镜像设置弹窗两级行为（分类列表 → 详情 → 返回 `<`） |
+
+> 当前 BUILD: 1071
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-531 系统提示词组成策略调整（全局节列表 + ResultMode 动态拼装 + --init 导出）** [BUILD-1065]
+  - 背景：当前系统提示词的节列表与节内容都支持按 mode 个性化（`WorkMode.Sections`、`mode/{mode}/{SECTION}.md`），且磁盘上的旧配置快照不会随默认值变更而迁移，导致 `ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE`（ResultMode 节）在 act/research 模式下实际不出现。本任务把模式差异彻底收敛到 ResultMode 节，同时用显式的 `--init` 导出替代隐式的按 mode 覆盖机制。
+  - 需求（用户确认）：① 除 ResultMode 外，其他节不再设置各 mode 个性化值，各 mode 保持一致；② ResultMode 由系统内各 mode 的处理策略拼凑而成，切换 mode 时拼合文本完全一致（动态罗列各 mode 策略）；③ 各 mode 缺省选取的节统一按全局集合与顺序：Identity → ToolUsage → ResultMode → Capabilities → Rules → Skills → ExternalTools → Environment，不再分 mode 定义；④ 去掉 `--unload-mode`，新增 `--init`：一次导出 Identity、Capabilities、Rules 以及各 mode 策略（ResultMode），文件名为 `{大写节名}.md` 与 `mode/{MODE NAME}.md`（如 `./IDENTITY.md`、`./CAPABILITIES.md`、`./RULES.md`、`./mode/ACT.md`），不再建子文件夹；⑤ 启动新会话时实时优先读取上述文件，否则使用系统默认值（KeyWorkModeAct/Plan/KeyWorkModeResearch）。
+  - 决策（用户拍板）：
+    - 版本归属：新建 v0.64.0（minor 递增）。
+    - 根目录 .md 覆盖仅限 `--init` 导出的三节（IDENTITY / CAPABILITIES / RULES）。
+    - 旧机制彻底废弃：`mode/{mode}/*.md`、`mode/{mode}/RESULT_MODE.md`、根目录 `WORKMODE.md` 一律不再读取。
+    - 自定义 mode 纳入：同样生成 `mode/{NAME}.md` 并参与 ResultMode 拼装；无文件时回退其 Description。
+    - `--init` 冲突策略：目标文件已存在时先备份为 `.bak` 再覆盖。
+    - 配置中 `work_modes[].sections` 等不再参与提示词拼装的变量予以删除；各 mode 的 temperature / 模型等参数保留。
+  - 用例：`use-case/FEATURE-531/`
+  - 分支：**FEATURE-531**（基于 main），版本 v0.64.0
+  - **增量（2026-09-17，用户追加指令）[BUILD-1065]**：个性化内容只落 md 文件，不再写入 config.json，避免多 agent 共享 config.json 时个性化互相污染。
+    - 澄清结论：principles → `./PRINCIPLES.md`；description 迁入 `./IDENTITY.md`（每 mode 描述废弃，三 mode 共用同一身份描述）；config.json 旧值读取时完全忽略；`--agent-name` / `--description` 改为写入 `./IDENTITY.md`；name 从 IDENTITY.md 解析。
+    - `./IDENTITY.md` 采用结构化 markdown 分节（`## agent-name` / `## agent-description` / `## user-name` / `## user-description`），未识别文本保留为自由文本（写回时置于文件顶部以保证往返一致）；身份节仍由 i18n 模板渲染并替换 `{AGENT_NAME}` / `{AGENT_DESCRIPTION}` / `{USER_NAME}` / `{USER_DESCRIPTION}` / `{AGENT_PRINCIPLES}`。
+    - 全部入口统一改造：Web UI 身份表单、Web UI agent 表单、`:set` / `:config`、LLM 设置工具；设置页与 `:set` 显示改为文件来源。
+    - `:set defaults` 不再重置个性化字段、不删除 md 文件。
+    - 删除 config 字段：`llm.agent_name`、`llm.agent_description`、`llm.agent_principles`、`llm.mode_descriptions`、顶层 `rules`。
+    - 回退：name 缺失回退 `co-shell`；description 缺失回退 i18n 默认；principles 缺失回退 i18n；rules 缺失回退 i18n 模板 + `.rules/` 目录树。
+    - `--init` 导出 `./IDENTITY.md`、`./PRINCIPLES.md`、`./CAPABILITIES.md`、`./RULES.md` 与 `./mode/{MODE}.md`（已存在先备份 `.bak`，不建子目录）。
+    - 用例：`use-case/FEATURE-531/FEATURE-531-UC-0002.md`
+    - 验证：`go build ./...` / `go vet ./...` 通过；`go test ./...` 仅 cmd 包既有失败 `TestWebWizardModelNameStep`（cmd/model.go:968，未触碰）为红；`TestSettingsJSONFillsDefaults`（cmd，FEATURE-477 logo 项缺 Default）同为既有失败、与本增量无关。
+
+- [ ] **FIX-532 `:set defaults` 未重置 `work_modes`（ResultMode 节被配置里的简短 Description 遮蔽）** [BUILD-1066]
+  - 背景：`~/.co-shell/config.json` 的 `work_modes` 中存在从内置模式物化而来的 `description`（“行动模式 - 可执行系统命令…”、“规划模式 - 仅分析和规划…”、“调研模式 - 搜索、查阅资料…”，即 i18n `KeyWorkModeActDesc/PlanDesc/ResearchDesc`）。`modeDescription()`（`agent/system_prompt.go:376-395`）取值优先级为「`mode/{MODE}.md` → `cfg.WorkModes` 同名且 `Description` 非空 → 内置详细 i18n 键 `KeyWorkModeAct/Plan/Research` → `m.Description`」，因此这些简短 description 长期遮蔽 ResultMode 节本应显示的详细模式策略；而 `:set defaults`（`cmd/settings.go:974-1108`）未重置 `WorkModes`，重置后问题依旧。
+  - 需求（用户确认）：`:set defaults` 重置 `WorkModes`（全部清空）。
+  - 决策（用户拍板）：① 归属当前未发布版本 v0.64.0（不递增版本号），任务编号 FIX-532，沿用分支 FEATURE-531；② 清空后若 `cfg.LLM.WorkMode` 指向已被清掉的自定义模式，回退为 `act`；③ 最小改动：自定义模式目录 `mode/{自定义模式名}/` 不再纳入 `renameModeRetainedDirs` 重命名（清空后 known 集合仅 act/plan/research）。
+  - 实施：`cmd/settings.go`（`handleSetDefault` 增加 `h.cfg.WorkModes = nil`，并在当前模式非内置 act/plan/research 时回退 `act`）+ `ROADMAP.md`  - 用例：`use-case/FEATURE-531/FEATURE-531-UC-0003.md`
+  - 实施：`cmd/settings.go`（`handleSetDefault` 在 `Save()` 前清空 `WorkModes`，并在当前模式非 act/plan/research 时回退 `act`；doc comment 同步说明）
+  - 进度：开发完成 [BUILD-1066]——新增 `cmd/settings_defaults_test.go`（5 例：清空并落盘、模式回退表驱动、保留项与 DB 回归、幂等）与 `agent/system_prompt_resultmode_test.go` 新增 1 例（清空 `WorkModes` 后 ResultMode 节由简短 Description 回落为 KeyWorkModeAct/Plan/Research 详细策略），全部通过；`go build ./... && go vet ./...` 全绿；co-shell / co-shell-hub 编译为 `work/co-shell-0.64.0.darwin.arm64`、`work/co-shell-hub-0.64.0.darwin.arm64`。CLI 端到端本轮未执行：隔离 workdir 下启动仍打开全局 db 并报 `cannot open database: timeout`（被运行中实例锁定，属环境限制），改由上述单测覆盖，待用户在自己实例上 `:set defaults` 实测确认。
+
+- [ ] **FEATURE-533 可编辑文件说明按节归位（MODE 注记只留 mode 策略，其余三文件说明移到各自节的末尾）** [BUILD-1067]
+  - 背景：MODE 节（`ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE`）末尾注记（`i18n.KeySystemPromptResultModeNote`，由 `agent/system_prompt.go:451` 追加）同时罗列 `./mode/{MODE}.md`、`./IDENTITY.md`、`./CAPABILITIES.md`、`./RULES.md` 四个文件，而另外三个文件各自有对应节（Identity / CAPABILITIES / RULES），说明位置与内容错位。
+  - 需求（用户确认）：① MODE 注记只保留 `./mode/{MODE}.md`；② `./IDENTITY.md` 说明移到 Identity 节（`KeySystemPromptIdentity`）末尾；③ `./CAPABILITIES.md` 说明放到 CAPABILITIES 正文末尾（`4. 目标驱动` 之后、META-CAPABILITIES 清单之前，**只改 i18n，零代码改动**）；④ `./RULES.md` 说明合并进 RULES 节既有 `.rules/` 注记（不开第二条注记）；⑤ 中英双语一致。
+  - 决策（用户拍板）：归属当前未发布版本 v0.64.0（不递增版本号），任务编号 FEATURE-533，沿用分支 FEATURE-531。
+  - 实施：`i18n/zh_system.go` / `i18n/en_system.go`（4 处文本：Identity / Capabilities / Rules / ResultModeNote）+ `i18n/section_notes_test.go`（新增）+ `ROADMAP.md`；不动 `agent/system_prompt.go`（注记挂载点不变）。
+  - 用例：`use-case/FEATURE-533/FEATURE-533-UC-0001.md`
+  - 进度：开发完成 [BUILD-1067]——新增 `i18n/section_notes_test.go`（3 例：四处注记按节归位、RULES 注记合并且不重复、MODE 注记不再罗列其他三文件）全部通过；既有 `i18n/rules_note_test.go`、`agent/system_prompt_resultmode_test.go` 仍通过；`go build ./... && go vet ./...` 全绿；`go test ./agent/` 仅 2 个**既有失败**（`TestLineRendererTokenEvents`、`TestRetryCountLimit_EnterResets`，在 HEAD 基线工作树副本上同样失败，与本任务无关）为红。
+
+- [X] **FEATURE-534 Web UI 身份与个性配置界面两栏化（左分类标签 + 右明细面板）** [BUILD-1071]
+  - 背景：`#identity` 弹窗原为单列平铺（agent-name / agent-description / principles / capabilities / rules 共 5 个字段，分别对应 `./IDENTITY.md`、`./PRINCIPLES.md`、`./CAPABILITIES.md`、`./RULES.md`），多个大文本框堆叠在一起录入不便；同时后端 `IdentityJSON()` 只暴露 5 项，`./IDENTITY.md` 中的 `user-name` / `user-description` 在 Web UI 上无法编辑。
+  - 需求（用户确认）：① 借鉴系统设置界面改为「左分类标签 + 右明细面板」，把需要较大录入框的项目分类/分开；② 分类固定五项：智能体 / 用户 / 核心原则 / 能力 / 规则；③ 智能体页含 agent-name、agent-desc，用户页含 user-name、user-desc，其余三页各只含一项大文本框。
+    - **追加指令（2026-09-18）**：把原「身份定义」拆分为「智能体」与「用户」两个标签，每个标签分别包含名字和描述——智能体 = agent-name + agent-description，用户 = user-name + user-description。
+  - 决策（用户拍板）：① 保存粒度沿用现状——每个字段各自一个「保存」按钮（身份定义页 4 个）；② `user-name` / `user-description` 本次一并扩展后端（IdentityJSON 字段 + SaveIdentity 分支 + 中英 i18n 标签，写入 `./IDENTITY.md`）；③ 窄屏镜像系统设置的两级行为（分类列表 → 详情 → 返回 `<`）。
+  - 实施：`web/static/index.html`（`#identityBody` 改为 `.modal-body.settings-body.identity-body`，内含 `#identityNav.settings-nav` + `.settings-pane`，`#identityBack.settings-back` / `#identityFields.identity-fields` / `#identityResult`）；`web/static/app.js`（新增 i18n `identityCatIdentity/identityCatPrinciples/identityCatCapabilities/identityCatRules` 与 `save`；`IDENTITY_CATS` 五分类（智能体 `name/description`、用户 `user-name/user-description`、核心原则、能力、规则）+ `identityActiveCat` / `identityCatOf` / `renderIdentityNav` / `selectIdentityCat` / `applyIdentityCat` / `renderIdentityField` / `identityShowList` / `identityShowPane`，行常驻 DOM 仅切换显隐以保证切换分类不丢未保存编辑，未映射 key 回落到第一个分类，保存仍发 `{type:"identity_set", key, value}`）；`web/static/style.css`（`.identity-box` 尺寸对齐设置弹窗 600×800 / ≤90vh，新增 `.identity-fields`，`.identity-textarea` min-height 72px→220px，窄屏全屏/安全区/标题右对齐三处选择器补 `#identity`）；`cmd/settings_identity.go`（`IdentityJSON()` 扩为 7 项，新增 `user-name`(text) / `user-description`(textarea)；`SaveIdentity()` 新增对应两个 case）；`i18n/keys.go` / `i18n/zh.go` / `i18n/en.go`（`KeyIdentityUserName` / `KeyIdentityUserDesc`）。
+  - 用例：`use-case/FEATURE-531/FEATURE-531-UC-0004.md`（FEATURE-534 UC-0001~UC-0005；UC-0003 已改为五分类）
+  - 单测：`cmd/settings_identity_test.go`（`TestIdentityJSONExposesUserFields` / `TestSaveIdentityPersistsUserFields`）通过。
+  - 分支：**FEATURE-531**（沿用），版本 v0.64.0。
+  - 进度：开发完成 [BUILD-1068]——`go build ./... && go vet ./...` 全绿；`gofmt -l` 干净；`node --check web/static/app.js` 通过；`go test ./cmd/ -run Identity` 通过；co-shell / co-shell-hub 编译为 `work/co-shell-0.64.0.darwin.arm64`、`work/co-shell-hub-0.64.0.darwin.arm64`（`--version` 显示 v0.64.0 [BUILD-1068]）。隔离实例 `--serve --port 28300` 启动成功且 HTTP 200；**浏览器实测未完成**：调试用 Chrome 不可用（`browser_navigate` 报 `cannot get any page from Chrome after all attempts`），改为 HTTP 层验证——curl 确认新产物实际服务了 `#identityNav` / `#identityFields` / `#identityBack` / `.identity-body`、`IDENTITY_CATS` / `identityCatRules` / `identityShowList` 与 `.identity-fields` / `.identity-textarea`；视觉效果待用户在自己实例上确认。
+  - 进度（追加指令）[BUILD-1069]：「身份定义」拆分为「智能体」与「用户」两个标签（智能体 = agent-name + agent-description，用户 = user-name + user-description），分类固定五项：智能体 / 用户 / 核心原则 / 能力 / 规则。实施：`web/static/app.js`（i18n 新增 `identityCatAgent`(智能体/Agent) 与 `identityCatUser`(用户/User)；`IDENTITY_CATS` 由四项拆为五项，智能体页 keys = `name`/`description`、用户页 keys = `user-name`/`user-description`，图标复用现有 `i-model-text` / `i-circle`，不新增图标资源），后端与 DOM 结构不变；`use-case/FEATURE-531/FEATURE-531-UC-0004.md` 的 UC-0003/UC-0004 同步为五分类；`go build ./... && go vet ./...` 全绿、`node --check web/static/app.js` 通过；co-shell / co-shell-hub 重新编译为 `work/co-shell-0.64.0.darwin.arm64`、`work/co-shell-hub-0.64.0.darwin.arm64`（BUILD-1069）。
+  - 进度（用户确认后重新编译）[BUILD-1070]：无代码改动，仅 build 计数 +1 后重编；`go build ./... && go vet ./...` 全绿，co-shell / co-shell-hub 产物重建为 `work/co-shell-0.64.0.darwin.arm64`、`work/co-shell-hub-0.64.0.darwin.arm64`（`--version` = v0.64.0 [BUILD-1070]）。
+  - 进度（追加指令：文本框自适应高度）[BUILD-1071]：各标签中的大文本框改为择满面板有效高度，并保证每个字段的保存按钮完整可见、弹窗本体不出现滚动条；大文本框保留 `min-height:160px` 兜底，空间不足时由 pane 内部兵底滚动。实施：`web/static/style.css`（`.identity-fields` 提升为 `flex:1 1 auto; min-height:0`；新增 `.identity-row-grow`（含文本框的行吸收剩余高度）；`.identity-textarea` 由固定 `height:60vh` 改为 `flex:1 1 auto; height:auto; min-height:160px`；`.identity-label` / `.identity-save` / `#identityBack` / `#identityResult` 设为 `flex:none`）；`web/static/app.js`（`renderIdentityField` 为含文本框的行加 `identity-row-grow` 类）。**浏览器实测通过（Chrome 已恢复）**：智能体/用户页 = 单行 39px + 文本框 548px，单文本框页 = 662px，四个保存按钮均完整可见，面板溢出均为 0；模拟矮窗（box 420px）时文本框回落至 168px（min-height 生效）且保存按钮仍可见。用例：`use-case/FEATURE-531/FEATURE-531-UC-0004.md` UC-0006。
+
+---
+
 ## v0.63.0 — 开发中
 
 > **版本**: v0.63.0

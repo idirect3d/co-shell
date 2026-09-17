@@ -632,7 +632,7 @@ func (a *Agent) buildContextMessages() []llm.Message {
 			// FEATURE-343: replace msgs[0] (full system prompt) with a minimal
 			// Identity-only prompt so the visual model never sees tool usage
 			// instructions or agent context beyond its own identity.
-			identityPrompt := buildVisionIdentityPrompt(a.cfg)
+			identityPrompt := buildVisionIdentityPrompt(a.cfg, a.identityDir())
 			sysMsg := llm.Message{Role: "system", Content: identityPrompt}
 
 			msgs = []llm.Message{sysMsg, cleanMsg}

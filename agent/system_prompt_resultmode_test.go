@@ -44,7 +44,7 @@ func TestBuildResultModeSection_DefaultModes(t *testing.T) {
 	cfg.WorkModes = nil // no user-defined modes
 	cfg.LLM.WorkMode = "act"
 
-	got := buildResultModeSection(cfg)
+	got := buildResultModeSection("", cfg)
 	if got == "" {
 		t.Fatal("buildResultModeSection returned empty for default modes")
 	}
@@ -78,8 +78,8 @@ func TestBuildResultModeSection_TrailingNote(t *testing.T) {
 			cfg.WorkModes = nil
 			cfg.LLM.WorkMode = "act"
 
-			got := buildResultModeSection(cfg)
-			const note = "--unload-mode {mode}"
+			got := buildResultModeSection("", cfg)
+			const note = "--init"
 			if !strings.Contains(got, note) {
 				t.Errorf("result mode section missing trailing note %q:\n%s", note, got)
 			}
@@ -107,7 +107,7 @@ func TestBuildResultModeSection_CustomMode(t *testing.T) {
 	}
 	cfg.LLM.WorkMode = "act"
 
-	got := buildResultModeSection(cfg)
+	got := buildResultModeSection("", cfg)
 	for _, want := range []string{
 		"ACT MODE V.S. PLAN MODE V.S. RESEARCH MODE V.S. REVIEW MODE",
 		"There are 4 modes:",
@@ -131,7 +131,7 @@ func TestBuildResultModeSection_CustomOverridesBuiltin(t *testing.T) {
 	}
 	cfg.LLM.WorkMode = "act"
 
-	got := buildResultModeSection(cfg)
+	got := buildResultModeSection("", cfg)
 	// act must not be duplicated in the title (title lists each mode once).
 	if strings.Count(got, "ACT MODE V.S.") != 1 {
 		t.Errorf("ACT MODE should appear once in the title, got %d:\n%s",
@@ -156,7 +156,7 @@ func TestBuildResultModeSection_EmptyDescriptionFallback(t *testing.T) {
 	}
 	cfg.LLM.WorkMode = "act"
 
-	got := buildResultModeSection(cfg)
+	got := buildResultModeSection("", cfg)
 	if !strings.Contains(got, "# CUSTOM MODE\n\nCustom mode desc") {
 		t.Errorf("custom mode description missing:\n%s", got)
 	}
@@ -203,13 +203,13 @@ func TestResultModeSectionStaticAcrossModes(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.WorkModes = nil
 	cfg.LLM.WorkMode = "act"
-	base := buildResultModeSection(cfg)
+	base := buildResultModeSection("", cfg)
 	if base == "" {
 		t.Fatal("base result mode section empty")
 	}
 	for _, mode := range []string{"plan", "research"} {
 		cfg.LLM.WorkMode = mode
-		if got := buildResultModeSection(cfg); got != base {
+		if got := buildResultModeSection("", cfg); got != base {
 			t.Errorf("result mode section differs in %s mode:\nbase:\n%s\n%s:\n%s", mode, base, mode, got)
 		}
 	}
@@ -276,27 +276,15 @@ func TestResearchRulesMovedFromGlobalRules(t *testing.T) {
 // stays static across mode switches (FEATURE-472 staticization).
 func TestDefaultSectionsStaticAcrossModes(t *testing.T) {
 	i18n.Init("en")
-	act := config.DefaultActSections()
-	plan := config.DefaultPlanSections()
-	research := config.DefaultResearchSections()
-	if len(act) != len(plan) || len(act) != len(research) {
-		t.Fatalf("section list lengths differ: act=%d plan=%d research=%d", len(act), len(plan), len(research))
+	sections := config.DefaultSections()
+	want := []string{"Identity", "ToolUsage", "ResultMode", "Capabilities", "Rules", "Skills", "ExternalTools", "Environment"}
+	if len(sections) != len(want) {
+		t.Fatalf("global section list length = %d, want %d: %v", len(sections), len(want), sections)
 	}
-	for i := range act {
-		if act[i] != plan[i] || act[i] != research[i] {
-			t.Errorf("section %d differs: act=%q plan=%q research=%q", i, act[i], plan[i], research[i])
+	for i := range want {
+		if sections[i] != want[i] {
+			t.Errorf("section %d = %q, want %q", i, sections[i], want[i])
 		}
-	}
-	// ResultMode must be present in the shared default list.
-	found := false
-	for _, s := range act {
-		if s == "ResultMode" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("default section list missing ResultMode: %v", act)
 	}
 }
 
@@ -319,6 +307,38 @@ func TestAgentDescriptionDefaultUnified(t *testing.T) {
 		global := i18n.T(i18n.KeyAgentDefaultDescription)
 		if global == "" || global == i18n.KeyAgentDefaultDescription {
 			t.Errorf("[%s] global default description is empty", lang)
+		}
+	}
+}
+
+// FIX-532: a cfg.WorkModes entry carrying the short description
+// (KeyWorkModeActDesc/PlanDesc/ResearchDesc) shadows the detailed per-mode
+// strategy text in the ResultMode section; clearing WorkModes restores it.
+// This is exactly the state transition ":set defaults" now performs.
+func TestResultModeSectionClearingWorkModesRestoresDetailedStrategy(t *testing.T) {
+	i18n.Init("zh")
+	cfg := config.DefaultConfig()
+	short := i18n.T(i18n.KeyWorkModeActDesc)
+	// actDetailProbe only appears in the detailed ACT strategy (KeyWorkModeAct),
+	// never in the short KeyWorkModeActDesc.
+	const actDetailProbe = "你拥有全部工具"
+	cfg.WorkModes = []config.WorkMode{{Name: "act", Description: short}}
+
+	shadowed := buildResultModeSection("", cfg)
+	if !strings.Contains(shadowed, short) {
+		t.Fatalf("expected the short description to shadow the strategy:\n%s", shadowed)
+	}
+	if strings.Contains(shadowed, actDetailProbe) {
+		t.Errorf("detailed ACT strategy should be shadowed, got:\n%s", shadowed)
+	}
+	cfg.WorkModes = nil
+	restored := buildResultModeSection("", cfg)
+	if strings.Contains(restored, short) {
+		t.Errorf("short description should be gone after clearing WorkModes:\n%s", restored)
+	}
+	for _, want := range []string{"# ACT MODE", "# PLAN MODE", "# RESEARCH MODE", actDetailProbe} {
+		if !strings.Contains(restored, want) {
+			t.Errorf("restored ResultMode section missing %q:\n%s", want, restored)
 		}
 	}
 }

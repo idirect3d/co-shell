@@ -1,8 +1,13 @@
-// Web UI identity & personality settings support (FEATURE-393): IdentityJSON
-// returns the current identity fields (name/description/principles/capabilities/
-// rules) so the browser can render an identity form, and SaveIdentity persists
-// a single field. name/description/principles are stored in config.json,
-// capabilities in the external CAPABILITIES.md file, and rules in cfg.Rules.
+// Web UI identity & personality settings support (FEATURE-393, FEATURE-531).
+// IdentityJSON returns the current identity fields (name/description/
+// principles/capabilities/rules) so the browser can render an identity form,
+// and SaveIdentity persists a single field.
+//
+// Since FEATURE-531 every agent personalization value is stored in workspace
+// files - ./IDENTITY.md (structured fields: agent-name, agent-description,
+// user-name, user-description), ./PRINCIPLES.md, ./RULES.md and
+// ./CAPABILITIES.md - and never in config.json, so that several agents sharing
+// one config.json keep their own identity.
 //
 // Author: L.Shuang
 // Created: 2026-08-21
@@ -16,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/i18n"
 	"github.com/idirect3d/co-shell/log"
 )
@@ -28,61 +34,78 @@ type IdentityField struct {
 	Label string `json:"label"` // localized field label
 }
 
-// IdentityJSON returns the current identity & personality fields for the Web UI.
-// name is single-line; description/principles/capabilities/rules are multi-line.
-func (h *SettingsHandler) IdentityJSON() []IdentityField {
-	cfg := h.cfg
-
-	// name
-	name := cfg.LLM.AgentName
-	if name == "" {
-		name = "co-shell"
-	}
-
-	// description (current work mode)
-	workMode := cfg.LLM.WorkMode
-	if workMode == "" {
-		workMode = "act"
-	}
-	desc := ""
-	if cfg.LLM.ModeDescriptions != nil {
-		if md, ok := cfg.LLM.ModeDescriptions[workMode]; ok {
-			desc = md
-		}
-	}
-	if desc == "" {
-		desc = cfg.LLM.AgentDescription
-	}
-	if desc == "" {
-		desc = i18n.T(i18n.KeyAgentDefaultDescription)
-	}
-
-	// principles (config value; PRINCIPLES.md external file takes priority)
-	principles := cfg.LLM.AgentPrinciples
+// identityDir returns the directory holding the personalization files: the
+// agent workspace root when set, else the process working directory.
+func (h *SettingsHandler) identityDir() string {
 	if h.agent != nil {
-		if p := h.agent.ExternalFile("PRINCIPLES.md"); p != "" {
-			principles = p
+		if d := h.agent.WorkspacePath(); d != "" {
+			return d
 		}
 	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return cwd
+}
+
+// identityFileContent reads a personalization file (e.g. RULES.md) from the
+// identity directory; returns "" when the file is missing.
+func (h *SettingsHandler) identityFileContent(name string) string {
+	dir := h.identityDir()
+	if dir == "" {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// IdentityJSON returns the current identity & personality fields for the Web UI.
+// name/description/user-name/user-description come from ./IDENTITY.md, the rest
+// from the matching workspace file (FEATURE-531 follow-up). name and user-name
+// are single-line; the others are multi-line textareas.
+func (h *SettingsHandler) IdentityJSON() []IdentityField {
+	dir := h.identityDir()
+
+	// name (./IDENTITY.md, fallback "co-shell")
+	name := agent.ResolveAgentName(dir)
+
+	// description (./IDENTITY.md, fallback i18n default; no longer per mode)
+	desc := agent.ResolveAgentDescription(dir)
+
+	// user-name / user-description (./IDENTITY.md, FEATURE-534). The user name
+	// falls back to the legacy config value and finally to the anonymous
+	// default, so the form shows the effective value.
+	userFallback := ""
+	if h.cfg != nil {
+		userFallback = h.cfg.LLM.UserName
+	}
+	userName := agent.ResolveUserName(dir, userFallback)
+	userDesc := agent.ResolveUserDescription(dir)
+
+	// principles (./PRINCIPLES.md, fallback built-in default)
+	principles := h.identityFileContent("PRINCIPLES.md")
 	if principles == "" {
 		principles = i18n.T(i18n.KeyAgentDefaultPrinciples)
 	}
 
-	// capabilities (external CAPABILITIES.md file, fallback to built-in default)
-	capabilities := ""
-	if h.agent != nil {
-		capabilities = h.agent.ExternalFile("CAPABILITIES.md")
-	}
+	// capabilities (./CAPABILITIES.md, fallback built-in default)
+	capabilities := h.identityFileContent("CAPABILITIES.md")
 	if capabilities == "" {
 		capabilities = i18n.T(i18n.KeySystemPromptCapabilities)
 	}
 
-	// rules (config rules joined by newline)
-	rules := strings.Join(cfg.Rules, "\n")
+	// rules (./RULES.md)
+	rules := h.identityFileContent("RULES.md")
 
 	return []IdentityField{
 		{Key: "name", Value: name, Type: "text", Label: i18n.T(i18n.KeyCol3Name)},
 		{Key: "description", Value: desc, Type: "textarea", Label: i18n.T(i18n.KeyCol3Desc)},
+		{Key: "user-name", Value: userName, Type: "text", Label: i18n.T(i18n.KeyIdentityUserName)},
+		{Key: "user-description", Value: userDesc, Type: "textarea", Label: i18n.T(i18n.KeyIdentityUserDesc)},
 		{Key: "principles", Value: principles, Type: "textarea", Label: i18n.T(i18n.KeyCol3Principles)},
 		{Key: "capabilities", Value: capabilities, Type: "textarea", Label: i18n.T(i18n.KeyCol3Capabilities)},
 		{Key: "rules", Value: rules, Type: "textarea", Label: i18n.T(i18n.KeyIdentityRules)},
@@ -90,64 +113,53 @@ func (h *SettingsHandler) IdentityJSON() []IdentityField {
 }
 
 // SaveIdentity persists a single identity & personality field (FEATURE-393).
-// name/description/principles are stored in config.json, capabilities in the
-// external CAPABILITIES.md file, and rules in cfg.Rules (one per line).
+// Since FEATURE-531 the value is written to the matching workspace file
+// (./IDENTITY.md field, ./PRINCIPLES.md, ./RULES.md, ./CAPABILITIES.md);
+// config.json is left untouched.
 func (h *SettingsHandler) SaveIdentity(key, value string) error {
-	cfg := h.cfg
+	dir := h.identityDir()
 	switch key {
 	case "name":
-		cfg.LLM.AgentName = value
-		if err := cfg.Save(); err != nil {
+		if err := agent.UpdateIdentityField(dir, "agent-name", value); err != nil {
 			return err
 		}
 		if h.agent != nil {
 			h.agent.SetName(value)
+			h.agent.RebuildSystemPrompt()
 		}
-		log.Info("Agent name set to %s", value)
+		log.Info("Agent name written to %s", agent.IdentityPath(dir))
 		return nil
 
 	case "description":
-		workMode := cfg.LLM.WorkMode
-		if workMode == "" {
-			workMode = "act"
-		}
-		if cfg.LLM.ModeDescriptions == nil {
-			cfg.LLM.ModeDescriptions = make(map[string]string)
-		}
-		cfg.LLM.ModeDescriptions[workMode] = value
-		if err := cfg.Save(); err != nil {
+		if err := agent.UpdateIdentityField(dir, "agent-description", value); err != nil {
 			return err
 		}
 		if h.agent != nil {
-			h.agent.SetConfig(cfg)
+			h.agent.RebuildSystemPrompt()
 		}
-		log.Info("Agent description set for mode %s", workMode)
+		log.Info("Agent description written to %s", agent.IdentityPath(dir))
+		return nil
+
+	case "user-name", "user-description":
+		// FEATURE-534: the ./IDENTITY.md user fields; both feed the Identity
+		// section ({USER_NAME} / {USER_DESCRIPTION}) so rebuild the prompt.
+		if err := agent.UpdateIdentityField(dir, key, value); err != nil {
+			return err
+		}
+		if h.agent != nil {
+			h.agent.RebuildSystemPrompt()
+		}
+		log.Info("Identity field %s written to %s", key, agent.IdentityPath(dir))
 		return nil
 
 	case "principles":
-		cfg.LLM.AgentPrinciples = value
-		if err := cfg.Save(); err != nil {
-			return err
-		}
-		if h.agent != nil {
-			h.agent.SetConfig(cfg)
-		}
-		log.Info("Agent principles set")
-		return nil
+		return h.saveExternalFile("PRINCIPLES.md", value)
 
 	case "capabilities":
 		return h.saveExternalFile("CAPABILITIES.md", value)
 
 	case "rules":
-		cfg.Rules = splitLines(value)
-		if err := cfg.Save(); err != nil {
-			return err
-		}
-		if h.agent != nil {
-			h.agent.SetConfig(cfg)
-		}
-		log.Info("Agent rules set (%d rules)", len(cfg.Rules))
-		return nil
+		return h.saveExternalFile("RULES.md", value)
 
 	default:
 		return fmt.Errorf("unknown identity field: %s", key)
@@ -180,16 +192,4 @@ func (h *SettingsHandler) saveExternalFile(filename, content string) error {
 	}
 	log.Info("External file %s written (%d bytes)", filename, len(content))
 	return nil
-}
-
-// splitLines splits a multi-line string into non-empty trimmed lines.
-func splitLines(s string) []string {
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
 }

@@ -42,19 +42,16 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 	switch subcommand {
 	case "name":
 		if len(args) < 2 {
-			name := h.cfg.LLM.AgentName
-			if name == "" {
-				name = "co-shell"
-			}
-			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_101), name), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_101), h.agent.IdentityName()), nil
 		}
 		value := strings.Join(args[1:], " ")
-		h.cfg.LLM.AgentName = value
-		if err := h.cfg.Save(); err != nil {
+		// FEATURE-531 follow-up: personalization goes to ./IDENTITY.md.
+		if err := h.agent.SetIdentityField("agent-name", value); err != nil {
 			return "", err
 		}
 		h.agent.SetName(value)
-		log.Info("Agent name set to %s", value)
+		h.agent.RebuildSystemPrompt()
+		log.Info("Agent name written to %s", h.agent.IdentityFilePath())
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_102), value), nil
 
 	case "description":
@@ -64,48 +61,35 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		}
 		if len(args) < 2 {
 			// Display current description for this mode
-			desc := ""
-			if h.cfg.LLM.ModeDescriptions != nil {
-				if md, ok := h.cfg.LLM.ModeDescriptions[workMode]; ok && md != "" {
-					desc = md
-				}
-			}
-			if desc == "" {
-				desc = h.cfg.LLM.AgentDescription
-			}
+			// FEATURE-531 follow-up: the description is mode-independent and comes
+			// from ./IDENTITY.md (config.json no longer stores it).
+			desc := h.agent.IdentityDescription()
 			if desc == "" {
 				desc = i18n.T(i18n.KeyAgentDefaultDescription)
 			}
 			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_103), workMode, desc), nil
 		}
 		value := strings.Join(args[1:], " ")
-		// Set mode-specific description
-		if h.cfg.LLM.ModeDescriptions == nil {
-			h.cfg.LLM.ModeDescriptions = make(map[string]string)
-		}
-		h.cfg.LLM.ModeDescriptions[workMode] = value
-		if err := h.cfg.Save(); err != nil {
+		// FEATURE-531 follow-up: the description is mode-independent and lives
+		// in ./IDENTITY.md (config.json no longer stores it).
+		if err := h.agent.SetIdentityField("agent-description", value); err != nil {
 			return "", err
 		}
-		h.agent.SetConfig(h.cfg)
-		log.Info("Agent description set for mode %s: %s", workMode, value)
+		h.agent.RebuildSystemPrompt()
+		log.Info("Agent description written to %s", h.agent.IdentityFilePath())
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_104), workMode, value), nil
 
 	case "principles":
 		if len(args) < 2 {
-			principles := h.cfg.LLM.AgentPrinciples
-			if principles == "" {
-				principles = ""
-			}
-			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_105), principles), nil
+			return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_105), h.agent.ResolveAgentPrinciples()), nil
 		}
 		value := strings.Join(args[1:], " ")
-		h.cfg.LLM.AgentPrinciples = value
-		if err := h.cfg.Save(); err != nil {
+		// FEATURE-531 follow-up: principles live in ./PRINCIPLES.md.
+		if err := h.agent.WritePersonalizationFile("PRINCIPLES.md", value); err != nil {
 			return "", err
 		}
-		h.agent.SetConfig(h.cfg)
-		log.Info("Agent principles set to %s", value)
+		h.agent.RebuildSystemPrompt()
+		log.Info("Agent principles written to PRINCIPLES.md (%d bytes)", len(value))
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_106), value), nil
 
 	case "max-iterations":

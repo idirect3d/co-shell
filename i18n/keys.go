@@ -1284,8 +1284,8 @@ const (
 	// FEATURE-472: lead sentence of the static RESULT MODE section, with a %d
 	// placeholder for the number of configured work modes.
 	KeySystemPromptResultModeLead = "system_prompt_result_mode_lead"
-	// FEATURE-503: trailing note of the static RESULT MODE section, telling the
-	// LLM how to export and tweak per-mode strategies via --unload-mode.
+	// FEATURE-503/531: trailing note of the static RESULT MODE section, telling the
+	// LLM how to export and tweak per-mode strategies via --init.
 	KeySystemPromptResultModeNote = "system_prompt_result_mode_note"
 
 	// System Prompt - legacy keys (not used in buildSystemPromptWithMode, kept for reference)
@@ -1438,6 +1438,10 @@ const (
 	KeyCol3Rules        = "col3_rules"
 	KeyCol3Capabilities = "col3_capabilities"
 	KeyIdentityRules    = "identity_rules"
+	// FEATURE-534: labels for the two user identity fields (the ./IDENTITY.md
+	// user-name / user-description sections) shown in the identity form.
+	KeyIdentityUserName = "identity_user_name"
+	KeyIdentityUserDesc = "identity_user_desc"
 
 	// Session
 	KeySessionTitle          = "session_title"
@@ -2471,7 +2475,7 @@ const (
 	KeyConfigValCtxStart      = "config_val_ctx_start"
 
 	// CLI Help - Unload mode (FEATURE-245)
-	KeyCLIHelpUnloadMode       = "cli_help_unload_mode"
+	KeyCLIHelpInit             = "cli_help_init"
 	KeyCLIHelpUnloadPrinciples = "cli_help_unload_principles"
 
 	// CLI Help - Output mode (FEATURE-288)
@@ -2484,8 +2488,11 @@ const (
 	KeyCLIHelpBodyAdd = "cli_help_body_add"
 
 	// Unload mode messages (FEATURE-245)
-	KeyUnloadModeDone   = "unload_mode_done"
-	KeyUnloadModeFailed = "unload_mode_failed"
+	KeyInitDone   = "init_done"
+	KeyInitFailed = "init_failed"
+	// KeyModeSectionsGlobalNote explains that prompt sections are global and no
+	// longer editable per mode (FEATURE-531). Takes %s (mode name) and %d (count).
+	KeyModeSectionsGlobalNote = "mode_sections_global_note"
 
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay = "token_usage_display"

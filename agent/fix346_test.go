@@ -182,11 +182,11 @@ func TestFeature346XMLBackfillUsesRecordedToolName(t *testing.T) {
 // even when the global AgentDescription is not explicitly set (FEATURE-346).
 func TestFeature346VisionIdentityPromptIncludesDescription(t *testing.T) {
 	cfg := minimalVisionCfg()
-	desc := resolveAgentDescription(cfg)
+	desc := resolveAgentDescription("")
 	if strings.TrimSpace(desc) == "" {
 		t.Fatal("resolveAgentDescription returned an empty description for the act mode")
 	}
-	prompt := buildVisionIdentityPrompt(cfg)
+	prompt := buildVisionIdentityPrompt(cfg, "")
 	if !strings.Contains(prompt, desc) {
 		t.Errorf("vision identity prompt missing agent description %q; prompt=%.200s", desc, prompt)
 	}

@@ -555,53 +555,36 @@ aside {
   color: var(--accent);
   border-color: var(--accent);
 }
-.logo-menu {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  min-width: 180px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
-  padding: 4px;
-  z-index: 100;
-}
-.logo-menu.hidden { display: none; }
-.logo-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  background: none;
-  border: none;
-  border-radius: 4px;
-  color: var(--fg);
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-.logo-menu-item:hover { background: var(--bg-elev); }
-
 /* Identity & personality form (FEATURE-393). */
 /* FIX-523: cap the box at 90vh (same limit as the settings / models modals) and
    make it a column flex container so the form body can shrink and scroll
    internally when the window is short; previously the box grew with its content
    and overflowed the viewport with no way to reach the bottom fields. */
 .identity-box {
-  width: 560px;
+  /* FEATURE-534: same footprint as the settings modal now that the form is a
+     left-nav / right-pane layout. */
+  width: 600px;
+  height: 800px;
   max-width: 92vw;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
 }
 /* FIX-523: min-height:0 is required here — a flex item's default min-height:auto
-   would keep the body at its content height, so the scrollbar would never show. */
-.identity-box .modal-body { min-height: 0; overflow-y: auto; }
-.identity-body { display: flex; flex-direction: column; gap: 12px; }
-.identity-row { display: flex; flex-direction: column; gap: 4px; }
-.identity-label { font-size: 12px; color: var(--fg-dim); }
+   would keep the body at its content height, so the scrollbar would never show.
+   FEATURE-534: scrolling is now handled by the reused .settings-body pane. */
+.identity-box .modal-body { min-height: 0; }
+/* FEATURE-534: the form body / nav / pane reuse the settings classes; only the
+   fields column and the taller textareas are identity-specific. */
+/* FEATURE-534 增量: the fields column takes the pane's leftover height so the
+   active category's textarea can stretch into it. Rows keep their natural height
+   unless they hold a textarea (.identity-row-grow), which is what absorbs the
+   slack; that keeps the save button of every row visible and leaves the modal
+   body without a scrollbar. */
+.identity-fields { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.identity-row { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; }
+.identity-row-grow { flex: 1 1 auto; min-height: 0; }
+.identity-label { flex: none; font-size: 12px; color: var(--fg-dim); }
 .identity-input {
   width: 100%;
   padding: 6px 8px;
@@ -613,7 +596,12 @@ aside {
 }
 .identity-textarea {
   width: 100%;
-  min-height: 72px;
+  /* FEATURE-534 增量: fill the row's free space instead of using a fixed height;
+     the min-height keeps the field usable when the window (or the pane) gets
+     short, in which case the pane scrolls rather than the page. */
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 160px;
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -622,7 +610,11 @@ aside {
   font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   resize: vertical;
 }
-.identity-save { align-self: flex-end; }
+.identity-save { flex: none; align-self: flex-end; }
+/* FEATURE-534 增量: the back button and the result list keep their natural
+   height so they never steal space from the stretching fields. */
+#identityBack { flex: none; }
+#identityResult { flex: none; }
 
 /* ---------- event stream ---------- */
 
@@ -3570,6 +3562,7 @@ body.narrow .settings-body.settings-drilled .settings-pane {
    model-wizard modals fill the whole viewport (full-screen pages) so the
    configuration UI is comfortable to use on a phone. */
 body.narrow #settings .modal-box,
+body.narrow #identity .modal-box,
 body.narrow #models .modal-box,
 body.narrow #modelWizard .modal-box {
   width: 100vw;
@@ -3584,6 +3577,7 @@ body.narrow #modelWizard .modal-box {
    pad their body by the home-indicator safe-area inset so bottom controls
    (e.g. save) sit above it. */
 body.narrow #settings .modal-body,
+body.narrow #identity .modal-body,
 body.narrow #models .modal-body,
 body.narrow #modelWizard .modal-body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -3591,6 +3585,7 @@ body.narrow #modelWizard .modal-body {
 /* FEATURE-487: on narrow screens the config modal title-bar text is right
    aligned (next to the close icon) with a comfortable gap. */
 body.narrow #settings .modal-head,
+body.narrow #identity .modal-head,
 body.narrow #models .modal-head,
 body.narrow #modelWizard .modal-head {
   justify-content: flex-end;

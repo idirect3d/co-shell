@@ -437,11 +437,6 @@
     <div class="bottom-left">
       <div id="logoWrap" class="logo-wrap">
         <div id="logo" class="logo" title="co-shell"></div>
-        <div id="logoMenu" class="logo-menu hidden">
-          <button class="logo-menu-item" id="miIdentity">
-            <span class="mi-label" data-i18n="identity">身份与个性</span>
-          </button>
-        </div>
       </div>
     </div>
     <div class="bottom-main">
@@ -524,8 +519,17 @@
       <span data-i18n="identity">身份与个性</span>
       <button class="icon-btn sm" id="identityClose"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
-    <div class="modal-body">
-      <div id="identityBody" class="identity-body"></div>
+    <!-- FEATURE-534: two-pane layout (left category nav / right detail pane),
+         mirroring the settings modal. The body / nav / pane reuse the settings
+         classes so the layout, internal scrolling and the narrow-screen
+         drill-down (category list -> detail -> back) behave identically. -->
+    <div class="modal-body settings-body identity-body" id="identityBody">
+      <div id="identityNav" class="settings-nav"></div>
+      <div class="settings-pane">
+        <button class="settings-back" id="identityBack" title="返回分类列表">&lt;</button>
+        <div id="identityFields" class="identity-fields"></div>
+        <div id="identityResult"></div>
+      </div>
     </div>
   </div>
 </div>

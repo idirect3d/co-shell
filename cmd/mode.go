@@ -373,7 +373,7 @@ func (h *ModeHandler) showModeDetail(modeName string) {
 		io.Println()
 
 		// Option 1: Prompt sections
-		io.Printf(i18n.T(i18n.KeyCmdMig_044), len(mode.Sections))
+		io.Printf(i18n.T(i18n.KeyCmdMig_044), len(config.DefaultSections()))
 		// Option 2: Tool modes
 		toolModeCount := 0
 		if mode.ToolModes != nil {
@@ -960,12 +960,9 @@ func (h *ModeHandler) interactiveCreateWizard() (string, error) {
 			return "", nil
 		}
 
-		sections := h.interactiveSelectSections(i18n.T(i18n.KeyCmdMig_368))
-
 		newMode := config.WorkMode{
 			Name:        name,
 			Description: desc,
-			Sections:    sections,
 		}
 		h.cfg.WorkModes = append(h.cfg.WorkModes, newMode)
 		if err := h.cfg.Save(); err != nil {
@@ -1015,9 +1012,6 @@ func (h *ModeHandler) listModes() string {
 			desc = "-"
 		}
 		sb.WriteString(fmt.Sprintf("  %s [%d] %s: %s\n", marker, i+1, m.Name, desc))
-		if len(m.Sections) > 0 {
-			sb.WriteString(fmt.Sprintf(i18n.T(i18n.KeyCmdMig_008), len(m.Sections)))
-		}
 	}
 	return sb.String()
 }
@@ -1025,7 +1019,7 @@ func (h *ModeHandler) listModes() string {
 // getAllAvailableSections returns all available section names (built-in + custom).
 func (h *ModeHandler) getAllAvailableSections() []string {
 	var sections []string
-	sections = append(sections, config.DefaultBuiltInSections()...)
+	sections = append(sections, config.DefaultSections()...)
 	for _, s := range h.cfg.PromptSections {
 		sections = append(sections, s.Name)
 	}
@@ -1170,13 +1164,9 @@ func (h *ModeHandler) interactiveCreate() (string, error) {
 	io.Print(i18n.T(i18n.KeyCmdMig_118))
 	desc := h.readLine()
 
-	// Select sections
-	sections := h.interactiveSelectSections(i18n.T(i18n.KeyCmdMig_367))
-
 	newMode := config.WorkMode{
 		Name:        name,
 		Description: desc,
-		Sections:    sections,
 	}
 
 	h.cfg.WorkModes = append(h.cfg.WorkModes, newMode)
@@ -1279,7 +1269,7 @@ func (h *ModeHandler) interactiveSelectSections(prompt string) []string {
 		}
 	}
 	if len(result) == 0 {
-		result = config.DefaultBuiltInSections()
+		result = config.DefaultSections()
 	}
 	return result
 }
@@ -1306,8 +1296,8 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 	allSections := h.getAllAvailableSections()
 
 	// Build current section index mapping
-	currentIndices := make([]int, 0, len(mode.Sections))
-	for _, s := range mode.Sections {
+	currentIndices := make([]int, 0, len(config.DefaultSections()))
+	for _, s := range config.DefaultSections() {
 		for i, a := range allSections {
 			if a == s {
 				currentIndices = append(currentIndices, i)
@@ -1434,20 +1424,8 @@ func (h *ModeHandler) interactiveEdit(args []string) (string, error) {
 		io.Println(i18n.T(i18n.KeyCmdMig_107))
 	}
 
-	// Build updated sections
-	mode.Sections = make([]string, 0, len(currentIndices))
-	for _, idx := range currentIndices {
-		mode.Sections = append(mode.Sections, allSections[idx])
-	}
-
-	if err := h.cfg.Save(); err != nil {
-		return "", fmt.Errorf("cannot save config: %w", err)
-	}
-	if h.ag != nil {
-		h.ag.SetConfig(h.cfg)
-	}
-
-	return fmt.Sprintf(i18n.T(i18n.KeyCmdMig_260), mode.Name, len(mode.Sections)), nil
+	// FEATURE-531: prompt section lists are global now, so nothing is persisted here.
+	return fmt.Sprintf(i18n.T(i18n.KeyModeSectionsGlobalNote), mode.Name, len(config.DefaultSections())), nil
 }
 
 // interactiveRemove removes a mode interactively or by name.
@@ -1512,7 +1490,12 @@ func (h *ModeHandler) previewSection(name string) string {
 	content := i18n.T(i18nKey)
 	if content != "" && content != i18nKey {
 		// Try to replace common placeholders with static values
-		content = strings.ReplaceAll(content, "{AGENT_NAME}", h.cfg.LLM.AgentName)
+		// FEATURE-531 follow-up: the agent name lives in ./IDENTITY.md.
+		agentName := "co-shell"
+		if h.ag != nil {
+			agentName = h.ag.IdentityName()
+		}
+		content = strings.ReplaceAll(content, "{AGENT_NAME}", agentName)
 		content = strings.ReplaceAll(content, "{CWD}", cwd)
 		content = strings.ReplaceAll(content, "{CUSTOM_RULES}", "")
 		if len(content) > 500 {

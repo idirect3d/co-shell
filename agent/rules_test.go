@@ -240,7 +240,6 @@ func TestResolveAgentPrinciples(t *testing.T) {
 			t.Fatal(err)
 		}
 		cfg := config.DefaultConfig()
-		cfg.LLM.AgentPrinciples = "config principles"
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
 		if got := a.resolveAgentPrinciples(); got != "file principles" {
@@ -255,7 +254,6 @@ func TestResolveAgentPrinciples(t *testing.T) {
 			t.Fatal(err)
 		}
 		cfg := config.DefaultConfig()
-		cfg.LLM.AgentPrinciples = "config principles"
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
 		oldWD, _ := os.Getwd()
@@ -268,21 +266,21 @@ func TestResolveAgentPrinciples(t *testing.T) {
 		}
 	})
 
-	t.Run("config value when no PRINCIPLES.md", func(t *testing.T) {
+	t.Run("config value ignored, i18n default used", func(t *testing.T) {
 		ws := t.TempDir()
 		cfg := config.DefaultConfig()
-		cfg.LLM.AgentPrinciples = "config principles"
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
-		if got := a.resolveAgentPrinciples(); got != "config principles" {
-			t.Errorf("expected config principles, got %q", got)
+		// FEATURE-531 follow-up: config.json is no longer consulted, so an
+		// empty workspace falls back to the i18n default.
+		if got := a.resolveAgentPrinciples(); got != i18n.T(i18n.KeyAgentDefaultPrinciples) {
+			t.Errorf("expected i18n default principles, got %q", got)
 		}
 	})
 
 	t.Run("i18n default when no file and empty config", func(t *testing.T) {
 		ws := t.TempDir()
 		cfg := config.DefaultConfig()
-		cfg.LLM.AgentPrinciples = ""
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
 		got := a.resolveAgentPrinciples()
@@ -293,18 +291,18 @@ func TestResolveAgentPrinciples(t *testing.T) {
 	})
 }
 
-func TestResolveAgentPrinciples_BlankFileFallsBackToConfig(t *testing.T) {
-	// UC-0013: PRINCIPLES.md exists but content is blank → fall back to cfg
+func TestResolveAgentPrinciples_BlankFileFallsBackToDefault(t *testing.T) {
+	// UC-0013: PRINCIPLES.md exists but content is blank → fall back to the
+	// built-in default (config.json is ignored since FEATURE-531 follow-up).
 	ws := t.TempDir()
 	if err := os.WriteFile(filepath.Join(ws, "PRINCIPLES.md"), []byte("  \n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.DefaultConfig()
-	cfg.LLM.AgentPrinciples = "config principles"
 	a := newTestAgentWithCfg(cfg)
 	a.workspacePath = ws
-	if got := a.resolveAgentPrinciples(); got != "config principles" {
-		t.Errorf("expected fallback to config, got %q", got)
+	if got := a.resolveAgentPrinciples(); got != i18n.T(i18n.KeyAgentDefaultPrinciples) {
+		t.Errorf("expected i18n default, got %q", got)
 	}
 }
 
@@ -317,17 +315,15 @@ func TestResolveAgentPrinciplesPackageFunc(t *testing.T) {
 			t.Fatal(err)
 		}
 		cfg := config.DefaultConfig()
-		cfg.LLM.AgentPrinciples = "pkg config principles"
 		if got := ResolveAgentPrinciples(cfg, ws); got != "pkg file principles" {
 			t.Errorf("expected pkg file principles, got %q", got)
 		}
 	})
-	t.Run("cfg fallback when no file", func(t *testing.T) {
+	t.Run("i18n default when no file (config ignored)", func(t *testing.T) {
 		ws := t.TempDir()
 		cfg := config.DefaultConfig()
-		cfg.LLM.AgentPrinciples = "pkg config principles"
-		if got := ResolveAgentPrinciples(cfg, ws); got != "pkg config principles" {
-			t.Errorf("expected pkg config principles, got %q", got)
+		if got := ResolveAgentPrinciples(cfg, ws); got != i18n.T(i18n.KeyAgentDefaultPrinciples) {
+			t.Errorf("expected i18n default principles, got %q", got)
 		}
 	})
 	t.Run("nil cfg returns empty", func(t *testing.T) {
@@ -340,14 +336,14 @@ func TestResolveAgentPrinciplesPackageFunc(t *testing.T) {
 // --- resolveRules merge priority tests (UC-0014 ~ 0018) ---
 
 func TestResolveRules(t *testing.T) {
-	t.Run("only config rules", func(t *testing.T) {
+	t.Run("config rules are ignored", func(t *testing.T) {
 		ws := t.TempDir()
 		cfg := config.DefaultConfig()
-		cfg.Rules = []string{"rule 1", "rule 2"}
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
-		if got := a.resolveRules(); got != "rule 1\nrule 2" {
-			t.Errorf("expected joined config rules, got %q", got)
+		// FEATURE-531 follow-up: rules live in ./RULES.md and .rules/ only.
+		if got := a.resolveRules(); got != "" {
+			t.Errorf("expected empty rules when no .rules/ dir, got %q", got)
 		}
 	})
 
@@ -368,7 +364,7 @@ func TestResolveRules(t *testing.T) {
 		}
 	})
 
-	t.Run("config rules + rules dir merged, config first", func(t *testing.T) {
+	t.Run("config rules ignored, rules dir used", func(t *testing.T) {
 		ws := t.TempDir()
 		rulesDir := filepath.Join(ws, ".rules")
 		if err := os.MkdirAll(rulesDir, 0755); err != nil {
@@ -378,26 +374,24 @@ func TestResolveRules(t *testing.T) {
 			t.Fatal(err)
 		}
 		cfg := config.DefaultConfig()
-		cfg.Rules = []string{"config rule"}
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
 		got := a.resolveRules()
-		if !strings.HasPrefix(got, "config rule\n\n====\n\nteam") {
-			t.Errorf("expected config rule first then rules dir, got: %q", got)
+		if got != "====\n\nteam\n\nteam rule" {
+			t.Errorf("expected rules dir output, got: %q", got)
 		}
 	})
 
-	t.Run("empty rules dir equals only config rules", func(t *testing.T) {
+	t.Run("empty rules dir returns empty", func(t *testing.T) {
 		ws := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(ws, ".rules"), 0755); err != nil {
 			t.Fatal(err)
 		}
 		cfg := config.DefaultConfig()
-		cfg.Rules = []string{"only rule"}
 		a := newTestAgentWithCfg(cfg)
 		a.workspacePath = ws
-		if got := a.resolveRules(); got != "only rule" {
-			t.Errorf("expected only config rule, got %q", got)
+		if got := a.resolveRules(); got != "" {
+			t.Errorf("expected empty rules, got %q", got)
 		}
 	})
 
@@ -457,29 +451,31 @@ func TestRebuildSystemPrompt_LiveRulesAndPrinciples(t *testing.T) {
 	a := newTestAgentWithCfg(cfg)
 	a.workspacePath = ws
 
-	// UC-0019: config rules become visible after rebuild
-	cfg.Rules = []string{"rule after add"}
+	// UC-0019: .rules/ file content becomes visible after rebuild
+	rulesDir := filepath.Join(ws, ".rules")
+	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "a.md"), []byte("rule after add"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	a.rebuildSystemPrompt()
 	msg := a.Messages()
 	if len(msg) == 0 || msg[0].Role != "system" {
 		t.Fatalf("expected system message, got %d messages", len(msg))
 	}
 	if !strings.Contains(msg[0].Content, "rule after add") {
-		t.Errorf("expected newly added config rule in system prompt, got: %q", msg[0].Content)
+		t.Errorf("expected newly added .rules/ rule in system prompt, got: %q", msg[0].Content)
 	}
 
-	// UC-0020: .rules/ file content becomes visible after rebuild
-	rulesDir := filepath.Join(ws, ".rules")
-	if err := os.MkdirAll(rulesDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(rulesDir, "a.md"), []byte("external rule"), 0644); err != nil {
+	// UC-0020: a second .rules/ file becomes visible after another rebuild
+	if err := os.WriteFile(filepath.Join(rulesDir, "b.md"), []byte("external rule"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	a.rebuildSystemPrompt()
 	msg = a.Messages()
-	if !strings.Contains(msg[0].Content, "====\n\na\n\nexternal rule") {
-		t.Errorf("expected .rules/a.md content in system prompt, got: %q", msg[0].Content)
+	if !strings.Contains(msg[0].Content, "external rule") {
+		t.Errorf("expected .rules/b.md content in system prompt, got: %q", msg[0].Content)
 	}
 
 	// UC-0021: PRINCIPLES.md content appears in Identity section
@@ -498,8 +494,6 @@ func TestSetResultMode_UsesResolvedRulesAndPrinciples(t *testing.T) {
 
 	ws := t.TempDir()
 	cfg := config.DefaultConfig()
-	cfg.LLM.AgentPrinciples = "config principles"
-	cfg.Rules = []string{"config rule"}
 	a := newTestAgentWithCfg(cfg)
 	a.workspacePath = ws
 
@@ -526,8 +520,5 @@ func TestSetResultMode_UsesResolvedRulesAndPrinciples(t *testing.T) {
 	}
 	if !strings.Contains(content, "team rule") {
 		t.Errorf("expected team rule in SetResultMode output, got: %q", content)
-	}
-	if !strings.Contains(content, "config rule") {
-		t.Errorf("expected config rule in SetResultMode output, got: %q", content)
 	}
 }

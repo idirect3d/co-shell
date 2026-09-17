@@ -1143,8 +1143,11 @@ no liability whatsoever.`,
 	KeyCol3Principles:           "Agent principles",
 	KeyCol3Capabilities:         "Agent capabilities",
 	KeyIdentityRules:            "Rules",
-	KeyCol3Vision:               "vision(on|off)",
-	KeyCol3ContextLimit:         "context limit(0=no history, N=last N, -1=unlimited)",
+	// FEATURE-534: user identity field labels (./IDENTITY.md user-name / user-description).
+	KeyIdentityUserName: "User name",
+	KeyIdentityUserDesc: "User description",
+	KeyCol3Vision:       "vision(on|off)",
+	KeyCol3ContextLimit: "context limit(0=no history, N=last N, -1=unlimited)",
 
 	// Context limit
 	KeyContextLimitLabel:    "Context Limit",
@@ -1922,10 +1925,11 @@ no liability whatsoever.`,
 	KeySimulateLabelResult:   "Result: ",
 
 	// Unload mode (FEATURE-245)
-	KeyCLIHelpUnloadMode:       "      --unload-mode <name>  Unload current mode sections to mode/<name>/ .md files",
+	KeyCLIHelpInit:             "      --init                Export personalization files to ./IDENTITY.md, ./PRINCIPLES.md, ./CAPABILITIES.md, ./RULES.md and mode/{MODE}.md (personalization lives in workspace files only, never in config.json)",
 	KeyCLIHelpUnloadPrinciples: "      --unload-principles  Export current system principles to PRINCIPLES.md in the workspace root",
-	KeyUnloadModeDone:          "✅ Unloaded mode sections to mode/%s/ (%d files)",
-	KeyUnloadModeFailed:        "❌ Failed to unload mode: %v",
+	KeyInitDone:                "✅ Exported %d files (existing files were backed up as .bak)",
+	KeyInitFailed:              "❌ Export failed: %v",
+	KeyModeSectionsGlobalNote:  "Note: %s now shares the global prompt section list (%d sections) and can no longer be edited per mode; edit ./IDENTITY.md, ./CAPABILITIES.md, ./RULES.md and mode/{MODE}.md instead (export them with --init)",
 
 	// Token usage display (FEATURE-247)
 	KeyTokenUsageDisplay: "Token usage: TTFT=%s | input=%d(%s t/s) | output=%d(%s t/s) | total=%d (%.1f%%)",

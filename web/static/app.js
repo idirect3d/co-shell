@@ -25,6 +25,9 @@ const I18N = {
     planEmpty: "（无步骤）",
     planAcceptance: "验收标准",
     menu: "菜单", settings: "系统设置", identity: "身份与个性", restart: "重启后台",
+    identityCatAgent: "智能体", identityCatUser: "用户",
+    identityCatPrinciples: "核心原则",
+    identityCatCapabilities: "能力", identityCatRules: "规则", save: "保存",
     appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条", streamTitle: "会话标题", msgViz: "消息可视化",
@@ -75,6 +78,9 @@ const I18N = {
     planEmpty: "(no steps)",
     planAcceptance: "Acceptance criteria",
     menu: "Menu", settings: "Settings", identity: "Identity & Personality", restart: "Restart backend",
+    identityCatAgent: "Agent", identityCatUser: "User",
+    identityCatPrinciples: "Principles",
+    identityCatCapabilities: "Capabilities", identityCatRules: "Rules", save: "Save",
     appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar", streamTitle: "Session title", msgViz: "Message viz",
@@ -370,12 +376,14 @@ const sbModelVisionWrap = document.getElementById("sbModelVisionWrap");
 const modelMenu = document.getElementById("modelMenu");
 const modelVisionMenu = document.getElementById("modelVisionMenu");
 const logoWrap = document.getElementById("logoWrap");
-const logoMenu = document.getElementById("logoMenu");
 const newSessionBtn = document.getElementById("newSessionBtn");
-const miIdentity = document.getElementById("miIdentity");
 const identityModal = document.getElementById("identity");
 const identityClose = document.getElementById("identityClose");
 const identityBody = document.getElementById("identityBody");
+const identityNav = document.getElementById("identityNav");
+const identityFieldsEl = document.getElementById("identityFields");
+const identityResult = document.getElementById("identityResult");
+const identityBack = document.getElementById("identityBack");
 const preview = document.getElementById("preview");
 const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
@@ -6968,65 +6976,165 @@ function showWizardAsk(msg) {
 
 /* ---------- identity & personality (FEATURE-393) ---------- */
 
-// FEATURE-487: the logo identity menu is now opened by clicking the logo
-// (bound in the narrow-screen module at the bottom of this file).
-
 // FEATURE-401: the "+" button creates a new session.
 newSessionBtn.onclick = () => {
   wsSend({ type: "session_new" });
 };
 
-// Open the identity form when clicking the [身份与个性] menu item.
-miIdentity.onclick = () => {
-  logoMenu.classList.add("hidden");
+// openIdentity shows the identity & personality form and asks the backend for
+// the field values.
+function openIdentity() {
   identityModal.classList.remove("hidden");
+  identityShowList();
   wsSend({ type: "identity_get" });
+}
+
+// FEATURE-534 增量: clicking the logo opens the identity & personality form
+// directly; the previous single-item logo menu was removed.
+logoWrap.onclick = (e) => {
+  e.stopPropagation();
+  closeAllPopups();
+  openIdentity();
 };
 identityClose.onclick = () => identityModal.classList.add("hidden");
 identityModal.onclick = (e) => { if (e.target === identityModal) identityModal.classList.add("hidden"); };
+identityBack.onclick = () => identityShowList();
 
-// renderIdentity renders the identity & personality form. name is a single-line
-// input; the rest are multi-line textareas. Each field has its own save button.
-// Field labels come from the backend (localized), falling back to the key.
+// FEATURE-534: the identity & personality form is grouped into five categories
+// rendered with the same left-nav / right-pane layout as the settings modal.
+// The agent (name + description) and the user (name + description) live in
+// separate categories; each category lists the backend field keys it owns, and
+// a field whose key is not mapped to any category falls back to the first one.
+const IDENTITY_CATS = [
+  { labelKey: "identityCatAgent", label: "智能体", icon: "i-model-text",
+    keys: ["name", "description"] },
+  { labelKey: "identityCatUser", label: "用户", icon: "i-circle",
+    keys: ["user-name", "user-description"] },
+  { labelKey: "identityCatPrinciples", label: "核心原则", icon: "i-shield",
+    keys: ["principles"] },
+  { labelKey: "identityCatCapabilities", label: "能力", icon: "i-devtools",
+    keys: ["capabilities"] },
+  { labelKey: "identityCatRules", label: "规则", icon: "i-file",
+    keys: ["rules"] },
+];
+let identityFields = [];
+let identityActiveCat = 0;
+
+// identityShowList / identityShowPane toggle the narrow-screen two-level
+// navigation (category list vs. category page); on wide screens both panes are
+// always visible side by side. The classes are shared with the settings modal.
+function identityShowList() { identityBody.classList.remove("settings-drilled"); }
+function identityShowPane() { identityBody.classList.add("settings-drilled"); }
+
+// renderIdentity renders the identity & personality form: the left nav lists the
+// categories, the right pane shows the active category's fields. name /
+// user-name are single-line inputs, the rest are multi-line textareas. Every
+// field keeps its own save button. Field labels come from the backend
+// (localized), falling back to the key.
 function renderIdentity(fields) {
-  identityBody.innerHTML = "";
-  if (!fields || !fields.length) {
-    identityBody.textContent = "(empty)";
-    return;
+  identityFields = fields || [];
+  if (identityActiveCat >= IDENTITY_CATS.length) identityActiveCat = 0;
+  identityFieldsEl.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (const f of identityFields) {
+    const row = renderIdentityField(f);
+    row.setAttribute("data-cat", String(identityCatOf(f.key)));
+    frag.appendChild(row);
   }
-  for (const f of fields) {
-    const row = document.createElement("div");
-    row.className = "identity-row";
+  identityFieldsEl.appendChild(frag);
+  renderIdentityNav();
+  applyIdentityCat();
+}
 
-    const label = document.createElement("label");
-    label.className = "identity-label";
-    label.textContent = f.label || f.key;
-    row.appendChild(label);
+// identityCatOf returns the category index owning a field key; unmapped keys
+// fall back to the first category so nothing becomes unreachable.
+function identityCatOf(key) {
+  const i = IDENTITY_CATS.findIndex((c) => c.keys.includes(key));
+  return i >= 0 ? i : 0;
+}
 
-    let ctl;
-    if (f.type === "text") {
-      ctl = document.createElement("input");
-      ctl.type = "text";
-      ctl.className = "identity-input";
-      ctl.value = f.value || "";
-    } else {
-      ctl = document.createElement("textarea");
-      ctl.className = "identity-textarea";
-      ctl.rows = 4;
-      ctl.value = f.value || "";
-    }
-    row.appendChild(ctl);
+// renderIdentityNav builds the left category navigation.
+function renderIdentityNav() {
+  identityNav.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  IDENTITY_CATS.forEach((c, i) => {
+    const item = document.createElement("div");
+    item.className = "settings-nav-item" + (i === identityActiveCat ? " active" : "");
+    item.setAttribute("data-index", String(i));
+    const icon = document.createElement("span");
+    icon.className = "settings-nav-icon";
+    icon.innerHTML = iconHTML(c.icon);
+    const label = document.createElement("span");
+    label.className = "settings-nav-label";
+    label.textContent = i18nT(c.labelKey, c.label);
+    const chev = document.createElement("span");
+    chev.className = "settings-nav-chev";
+    chev.textContent = ">";
+    item.appendChild(icon);
+    item.appendChild(label);
+    item.appendChild(chev);
+    item.onclick = () => selectIdentityCat(i);
+    frag.appendChild(item);
+  });
+  identityNav.appendChild(frag);
+}
 
-    const saveBtn = document.createElement("button");
-    saveBtn.className = "btn identity-save";
-    saveBtn.textContent = "保存";
-    saveBtn.onclick = () => {
-      wsSend({ type: "identity_set", key: f.key, value: ctl.value });
-    };
-    row.appendChild(saveBtn);
+// selectIdentityCat switches the active category; on narrow screens it drills
+// into that category's page.
+function selectIdentityCat(index) {
+  identityActiveCat = index;
+  identityNav.querySelectorAll(".settings-nav-item").forEach((el) => {
+    el.classList.toggle("active", Number(el.getAttribute("data-index")) === index);
+  });
+  applyIdentityCat();
+  if (document.body.classList.contains("narrow")) identityShowPane();
+}
 
-    identityBody.appendChild(row);
+// applyIdentityCat shows only the active category's rows. All rows stay in the
+// DOM (hidden), so unsaved edits survive switching categories.
+function applyIdentityCat() {
+  const want = String(identityActiveCat);
+  identityFieldsEl.querySelectorAll(".identity-row").forEach((row) => {
+    row.style.display = row.getAttribute("data-cat") === want ? "" : "none";
+  });
+}
+
+// renderIdentityField builds one field row: label, control and its own save
+// button (save granularity unchanged from the previous flat form).
+function renderIdentityField(f) {
+  const row = document.createElement("div");
+  // FEATURE-534 增量: single-line fields keep their natural height; rows holding
+  // a textarea absorb the pane's leftover height so the field fills the space
+  // while its own save button stays visible.
+  row.className = f.type === "text" ? "identity-row" : "identity-row identity-row-grow";
+
+  const label = document.createElement("label");
+  label.className = "identity-label";
+  label.textContent = f.label || f.key;
+  row.appendChild(label);
+
+  let ctl;
+  if (f.type === "text") {
+    ctl = document.createElement("input");
+    ctl.type = "text";
+    ctl.className = "identity-input";
+    ctl.value = f.value || "";
+  } else {
+    ctl = document.createElement("textarea");
+    ctl.className = "identity-textarea";
+    ctl.rows = 8;
+    ctl.value = f.value || "";
   }
+  row.appendChild(ctl);
+
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "btn identity-save";
+  saveBtn.textContent = i18nT("save", "保存");
+  saveBtn.onclick = () => {
+    wsSend({ type: "identity_set", key: f.key, value: ctl.value });
+  };
+  row.appendChild(saveBtn);
+  return row;
 }
 
 // showIdentityResult displays the result of an identity_set change.
@@ -7034,7 +7142,7 @@ function showIdentityResult(msg) {
   const el = document.createElement("div");
   el.className = "set-result " + (msg.ok ? "ok" : "err");
   el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
-  identityBody.prepend(el);
+  identityResult.prepend(el);
   setTimeout(() => el.remove(), 3000);
 }
 
@@ -7282,13 +7390,12 @@ window.addEventListener("resize", scheduleViewportReport);
 
 /* ---------- FEATURE-487: click-to-open menus (session / model / top-right) ---------- */
 
-// closeAllPopups hides every open popup menu (session, model, vision, top-right
-// menu, logo menu). Called when clicking anywhere outside a popup.
+// closeAllPopups hides every open popup menu (session, model, vision and the
+// top-right menu). Called when clicking anywhere outside a popup.
 function closeAllPopups() {
   sessionMenu.classList.add("hidden");
   modelMenu.classList.add("hidden");
   modelVisionMenu.classList.add("hidden");
-  logoMenu.classList.add("hidden");
   if (menuWrapEl) menuWrapEl.classList.remove("open");
 }
 
@@ -7320,9 +7427,6 @@ bindClickToggle(sbSessions, sessionMenu, () => wsSend({ type: "session_list" }))
 bindClickToggle(sbModelText, modelMenu, () => wsSend({ type: "model_get" }));
 // Vision model selector: click to open.
 bindClickToggle(sbModelVision, modelVisionMenu, () => wsSend({ type: "model_get" }));
-// Logo identity menu: click to open.
-bindClickToggle(logoWrap, logoMenu);
-
 // Top-right menu: click the ☰ button to open/close; clicking anywhere else
 // closes it (FEATURE-487). The .open class lives on the wrapper so the CSS
 // rule .menu-wrap.open .menu controls visibility.

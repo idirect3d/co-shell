@@ -516,9 +516,19 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		contextLimitStr = i18n.T(i18n.KeyUnlimited)
 	}
 
-	agentName := cfg.LLM.AgentName
+	// FEATURE-531 follow-up: identity fields come from the workspace md files
+	// (./IDENTITY.md for name/description) instead of config.json.
+	agentName := ""
+	modeDesc := ""
+	if h.agent != nil {
+		agentName = h.agent.IdentityName()
+		modeDesc = h.agent.IdentityDescription()
+	}
 	if agentName == "" {
 		agentName = "co-shell"
+	}
+	if modeDesc == "" {
+		modeDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 	}
 	resultModeStr := config.ResultModeString(config.ResultMode(cfg.LLM.ResultMode))
 
@@ -528,35 +538,10 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		modeName = "act"
 	}
 
-	// Resolve mode-specific description (same priority as agent/agent.go)
-	modeDesc := ""
-	if cfg.LLM.ModeDescriptions != nil {
-		modeDesc = cfg.LLM.ModeDescriptions[modeName]
-	}
-	if modeDesc == "" {
-		modeDesc = cfg.LLM.AgentDescription
-	}
-	if modeDesc == "" {
-		switch modeName {
-		case "plan":
-			modeDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
-		case "research":
-			modeDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
-		default:
-			modeDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
-		}
-	}
-	if modeDesc == "" {
-		modeDesc = i18n.T(i18n.KeyAgentDefaultDescription)
-	}
-
-	// Resolve principles display: reflect PRINCIPLES.md external file when present.
+	// Resolve principles display: PRINCIPLES.md is the only source (FEATURE-531).
 	principlesDisplay := ""
 	if h.agent != nil {
 		principlesDisplay = h.agent.ResolveAgentPrinciples()
-	}
-	if principlesDisplay == "" {
-		principlesDisplay = cfg.LLM.AgentPrinciples
 	}
 	if principlesDisplay == "" {
 		principlesDisplay = i18n.T(i18n.KeyAgentDefaultPrinciples)
@@ -587,11 +572,19 @@ func (h *SettingsHandler) showSettingsHelp() string {
 		if h.agent.ExternalFile("PRINCIPLES.md") != "" {
 			idGroup = append(idGroup, makeLine("principles-file", i18n.T(i18n.KeySettingsPrinciplesLoaded), i18n.T(i18n.KeyCol3Principles)))
 		}
-		// Rules: config rules count + .rules/ dir files
+		// Rules: ./RULES.md content + .rules/ dir files (FEATURE-531 follow-up)
+		rulesCount := 0
+		if rulesText := h.agent.ReadPersonalizationFile("RULES.md"); rulesText != "" {
+			for _, line := range strings.Split(rulesText, "\n") {
+				if strings.TrimSpace(line) != "" {
+					rulesCount++
+				}
+			}
+		}
 		if files := h.agent.RulesDirFiles(); len(files) > 0 {
-			idGroup = append(idGroup, makeLine("rules", i18n.TF(i18n.KeySettingsRulesCount, len(cfg.Rules), strings.Join(files, ", ")), i18n.T(i18n.KeyCol3Rules)))
+			idGroup = append(idGroup, makeLine("rules", i18n.TF(i18n.KeySettingsRulesCount, rulesCount, strings.Join(files, ", ")), i18n.T(i18n.KeyCol3Rules)))
 		} else {
-			idGroup = append(idGroup, makeLine("rules", i18n.TF(i18n.KeySettingsRulesOnly, len(cfg.Rules)), i18n.T(i18n.KeyCol3Rules)))
+			idGroup = append(idGroup, makeLine("rules", i18n.TF(i18n.KeySettingsRulesOnly, rulesCount), i18n.T(i18n.KeyCol3Rules)))
 		}
 	}
 	allGroups = append(allGroups, idGroup)
@@ -978,6 +971,7 @@ func completionModeDisplay(llm config.LLMConfig) string {
 
 // handleSetDefault resets all non-critical settings to system defaults.
 // Preserves LLM, Memory & Context, and Database settings.
+// FIX-532: also clears WorkModes (the user-defined work mode list).
 func (h *SettingsHandler) handleSetDefault() (string, error) {
 	// Snapshot preserved values
 	savedLLM := h.cfg.LLM
@@ -1076,11 +1070,12 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LLM.ExcelSessionTTL = def.LLM.ExcelSessionTTL
 	h.cfg.LLM.LoopPromptTemplate = def.LLM.LoopPromptTemplate
 	h.cfg.LLM.ToolCallModeSystemPrompts = def.LLM.ToolCallModeSystemPrompts
-	h.cfg.LLM.ModeDescriptions = def.LLM.ModeDescriptions
 	h.cfg.LLM.ToolCallEnabled = def.LLM.ToolCallEnabled
 	h.cfg.LLM.PlanEnabled = def.LLM.PlanEnabled
 	h.cfg.LLM.SubAgentEnabled = def.LLM.SubAgentEnabled
-	h.cfg.LLM.AgentPrinciples = ""
+	// FEATURE-531 follow-up: agent personalization (IDENTITY.md, PRINCIPLES.md,
+	// RULES.md, mode strategies) lives in workspace files and is intentionally
+	// NOT reset by ":set defaults".
 
 	// Restore DB
 	h.cfg.DB = savedDB
@@ -1092,8 +1087,19 @@ func (h *SettingsHandler) handleSetDefault() (string, error) {
 	h.cfg.LogEnabled = def.LogEnabled
 	h.cfg.LogLevel = def.LogLevel
 
-	// Reset Rules
-	h.cfg.Rules = def.Rules
+	// FIX-532: clear the work mode list. A stale entry for a built-in mode
+	// carries a short Description (KeyWorkModeActDesc/PlanDesc/ResearchDesc)
+	// which takes priority over the detailed per-mode strategy text
+	// (KeyWorkModeAct/Plan/Research) in the ResultMode section, so keeping it
+	// would defeat the reset. Built-in modes come from DefaultWorkModes().
+	h.cfg.WorkModes = nil
+	// The active mode may point to a custom mode that was just removed: fall
+	// back to the built-in default so the agent never runs a missing mode.
+	switch h.cfg.LLM.WorkMode {
+	case "act", "plan", "research":
+	default:
+		h.cfg.LLM.WorkMode = "act"
+	}
 
 	// Save config
 	if err := h.cfg.Save(); err != nil {
@@ -1256,29 +1262,19 @@ func lookupWorkModeDescription(cfg *config.Config, modeName string) string {
 
 	// If no identity text resolved at all, fall back to agent description
 	if identityText == "" || identityText == i18n.KeySystemPromptIdentity {
-		agentDesc := cfg.LLM.AgentDescription
+		cwd, _ := os.Getwd()
+		agentDesc := agent.ResolveAgentDescription(cwd)
 		if agentDesc == "" {
 			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
 		}
 		return agentDesc
 	}
 
-	agentName := cfg.LLM.AgentName
-	if agentName == "" {
-		agentName = "co-shell"
-	}
+	agentName := agent.ResolveAgentName(cwd)
 	identityText = strings.ReplaceAll(identityText, "{AGENT_NAME}", agentName)
 
-	// Resolve {AGENT_DESCRIPTION} with same priority as rebuildSystemPrompt
-	agentDesc := ""
-	if cfg.LLM.ModeDescriptions != nil {
-		if md, ok := cfg.LLM.ModeDescriptions[modeName]; ok && md != "" {
-			agentDesc = md
-		}
-	}
-	if agentDesc == "" {
-		agentDesc = cfg.LLM.AgentDescription
-	}
+	// Resolve {AGENT_DESCRIPTION} from ./IDENTITY.md (FEATURE-531 follow-up)
+	agentDesc := agent.ResolveAgentDescription(cwd)
 	if agentDesc == "" {
 		switch modeName {
 		case "plan":

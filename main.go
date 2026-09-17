@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.63.0"
+const version = "0.64.0"
 
-const build = "1063"
+const build = "1071"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -185,7 +185,7 @@ type cliFlags struct {
 	outputFormat string
 
 	// Unload mode (FEATURE-245)
-	unloadMode string // mode name to unload sections to disk
+	initSections bool // export prompt sections and mode strategies to disk (--init)
 
 	// Debug mode
 	debugMode string // "on"/"off"
@@ -385,7 +385,7 @@ func parseFlags() cliFlags {
 	flag.BoolVar(&f.downloadEnabled, "download-enabled", false, "Enable remote web UI file download (default off; only effective when serving to non-loopback addresses)")
 
 	// Unload mode (FEATURE-245)
-	flag.StringVar(&f.unloadMode, "unload-mode", "", "Unload current mode sections to mode/<name>/ .md files")
+	flag.BoolVar(&f.initSections, "init", false, "Export prompt sections (IDENTITY/CAPABILITIES/RULES) and mode strategies to disk")
 
 	// Debug mode
 	flag.StringVar(&f.debugMode, "debug", "", "Enable debug mode (preview and edit messages before sending to LLM)")
@@ -765,10 +765,9 @@ func main() {
 		}
 	}
 
-	// Apply agent identity CLI overrides
-	if flags.description != "" {
-		cfg.LLM.AgentDescription = flags.description
-	}
+	// FEATURE-531 follow-up: --agent-name / --description overrides are applied
+	// after the agent is created, because personalization lives in the
+	// workspace's ./IDENTITY.md (see below).
 
 	// Apply vision CLI override
 	if flags.vision != "" {
@@ -1086,32 +1085,18 @@ func main() {
 		}
 	}
 
-	// Handle unload mode (FEATURE-245): export mode sections to disk and exit
-	if flags.unloadMode != "" {
-		if err := agent.UnloadModeSections(cfg, flags.unloadMode); err != nil {
-			io.Print(i18n.TF(i18n.KeyUnloadModeFailed, err) + "\n")
+	// Handle --init (FEATURE-531): export the overridable prompt sections and
+	// every configured work mode's strategy to disk, then exit.
+	if flags.initSections {
+		files, err := agent.ExportSections(cfg)
+		if err != nil {
+			io.Print(i18n.TF(i18n.KeyInitFailed, err) + "\n")
 			os.Exit(1)
 		}
-		// Count written files
-		sectionNames := config.DefaultBuiltInSections()
-		if cfg != nil {
-			for _, wm := range cfg.WorkModes {
-				if wm.Name == flags.unloadMode && len(wm.Sections) > 0 {
-					sectionNames = wm.Sections
-					break
-				}
-			}
+		io.Print(i18n.TF(i18n.KeyInitDone, len(files)) + "\n")
+		for _, file := range files {
+			io.Print("  " + file + "\n")
 		}
-		if len(sectionNames) == 0 {
-			// Check built-in modes
-			for _, wm := range config.DefaultWorkModes() {
-				if wm.Name == flags.unloadMode && len(wm.Sections) > 0 {
-					sectionNames = wm.Sections
-					break
-				}
-			}
-		}
-		io.Print(i18n.TF(i18n.KeyUnloadModeDone, flags.unloadMode, len(sectionNames)) + "\n")
 		os.Exit(0)
 	}
 
@@ -1315,11 +1300,9 @@ func main() {
 		log.Warn("No API key configured, using no-op LLM client")
 	}
 
-	// Build rules string
+	// FEATURE-531 follow-up: rules live in ./RULES.md and the .rules/ directory
+	// (resolved on every prompt rebuild), so nothing is passed here any more.
 	rules := ""
-	for _, rule := range cfg.Rules {
-		rules += rule + "\n"
-	}
 
 	// Initialize agent
 	ag := agent.New(llmClient, mcpMgr, s, rules)
@@ -1402,18 +1385,21 @@ func main() {
 
 	ag.SetScheduler(sch)
 
-	// Apply agent name: default to current working directory name if not set in config
-	if cfg.LLM.AgentName == "" {
-		cwd, _ := os.Getwd()
-		if cwd != "" {
-			cfg.LLM.AgentName = filepath.Base(cwd)
+	// FEATURE-531 follow-up: the agent name/description live in ./IDENTITY.md.
+	// CLI flags, when given, update that file so the display name, the session
+	// name and the system prompt stay consistent.
+	identityDir := agent.PersonalizationDir(ws.Root())
+	if flags.agentName != "" {
+		if err := agent.UpdateIdentityField(identityDir, "agent-name", flags.agentName); err != nil {
+			log.Warn("Cannot save agent name to %s: %v", agent.IdentityPath(identityDir), err)
 		}
 	}
-	// CLI flag overrides everything
-	if flags.agentName != "" {
-		cfg.LLM.AgentName = flags.agentName
+	if flags.description != "" {
+		if err := agent.UpdateIdentityField(identityDir, "agent-description", flags.description); err != nil {
+			log.Warn("Cannot save agent description to %s: %v", agent.IdentityPath(identityDir), err)
+		}
 	}
-	ag.SetName(cfg.LLM.AgentName)
+	ag.SetName(agent.ResolveAgentName(identityDir))
 	ag.SetShowLlmThinking(cfg.LLM.ShowLlmThinking)
 	ag.SetShowLlmContent(cfg.LLM.ShowLlmContent)
 	ag.SetShowTool(cfg.LLM.ShowTool)
@@ -1462,7 +1448,7 @@ func main() {
 	ag.TaskPlanManager().SetMemoryEnabled(cfg.LLM.MemoryEnabled)
 
 	// Sync agent name to task plan manager for memory archival
-	ag.TaskPlanManager().SetAgentName(cfg.LLM.AgentName)
+	ag.TaskPlanManager().SetAgentName(agent.ResolveAgentName(identityDir))
 
 	// Apply subagent enabled setting
 	ag.SetSubAgentEnabled(cfg.LLM.SubAgentEnabled)
@@ -1499,7 +1485,7 @@ func main() {
 		log.Info("Image paths set for multimodal input: %v", paths)
 	}
 
-	log.Info("Agent initialized with %d rules", len(cfg.Rules))
+	log.Info("Agent initialized (rules resolved from ./RULES.md and .rules/)")
 
 	// FEATURE-307b: resolve and validate the output format. It is CLI-only
 	// (never persisted); json is mutually exclusive with an explicitly

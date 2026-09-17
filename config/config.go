@@ -140,19 +140,16 @@ type LLMConfig struct {
 	OutputCategories map[string]bool `json:"output_categories,omitempty"`
 
 	// Agent identity
-	AgentName string `json:"agent_name"`           // Agent name (default: co-shell)
 	AgentDuty string `json:"agent_duty,omitempty"` // Responsibility reported to the hub board (FEATURE-530)
 	// AgentDuty is what this agent is responsible for. It is reported to the
 	// hub when the agent registers on the message board (FEATURE-530); the hub
 	// entry of the same agent wins when both are set.
-	AgentDescription string `json:"agent_description"` // Agent expertise description (global fallback)
-	AgentPrinciples  string `json:"agent_principles"`  // Agent core principles
-
-	// ModeDescriptions maps mode names to their specific descriptions.
-	// Key is the mode name (e.g., "act", "plan", "research" or custom names).
-	// Value is the description text (can contain {AGENT_NAME} placeholder).
-	// Priority: ModeDescriptions[mode] > AgentDescription > i18n mode-specific default > global i18n default
-	ModeDescriptions map[string]string `json:"mode_descriptions,omitempty"`
+	//
+	// FEATURE-531 follow-up: agent personalization (name, description,
+	// principles, rules, capabilities, per-mode strategies) is NO longer stored
+	// in config.json - it lives in the workspace files ./IDENTITY.md,
+	// ./PRINCIPLES.md, ./RULES.md, ./CAPABILITIES.md and ./mode/{MODE}.md so
+	// that agents sharing one config.json keep their own identity.
 
 	// User identity
 	UserName string `json:"user_name"` // User name for LLM to identify different users (default: OS username)
@@ -867,8 +864,6 @@ type WorkMode struct {
 	Name string `json:"name"`
 	// Description provides a human-readable summary of this mode.
 	Description string `json:"description,omitempty"`
-	// Sections lists the names of PromptSection entries to assemble, in order.
-	Sections []string `json:"sections"`
 	// ToolModes stores per-tool mode settings for this work mode.
 	// Key is the tool name, "default" is the default for all tools.
 	// Value is one of: "disabled", "confirm", "auto", "custom".
@@ -901,29 +896,11 @@ type WorkMode struct {
 	ToolCallMode      *string  `json:"tool_call_mode,omitempty"`
 }
 
-// DefaultBuiltInSections returns the default list of built-in prompt section names
-// in their standard assembly order.
-func DefaultBuiltInSections() []string {
-	return []string{
-		"Identity",
-		"ToolUsage",
-		"ToolExamples",
-		"TaskProgress",
-		"EditingFiles",
-		"BrowserUsage",
-		"ResultMode",
-		"Capabilities",
-		"Rules",
-		"Skills",
-		"ExternalTools",
-		"Environment",
-		"Objective",
-	}
-}
-
-// DefaultActSections returns the default prompt section list for act mode.
-// Same as DefaultBuiltInSections but without ToolExamples.
-func DefaultActSections() []string {
+// DefaultSections returns the global prompt section list shared by every work
+// mode, in assembly order (FEATURE-531). Work modes no longer define their own
+// section lists: the only mode-specific prompt content is the ResultMode
+// section, which statically lists every configured mode's strategy.
+func DefaultSections() []string {
 	return []string{
 		"Identity",
 		"ToolUsage",
@@ -939,19 +916,19 @@ func DefaultActSections() []string {
 // Float64Ptr returns a pointer to a float64 value.
 func Float64Ptr(v float64) *float64 { return &v }
 
-// DefaultWorkModes returns the list of default work modes.
+// DefaultWorkModes returns the list of default work modes. All modes share the
+// same prompt section list (config.DefaultSections); they differ only in the
+// strategy text rendered inside the ResultMode section.
 func DefaultWorkModes() []WorkMode {
 	return []WorkMode{
 		{
 			Name:        "act",
 			Description: i18n.T(i18n.KeyWorkModeActDesc),
-			Sections:    DefaultActSections(),
 			Temperature: Float64Ptr(0),
 		},
 		{
 			Name:        "plan",
 			Description: i18n.T(i18n.KeyWorkModePlanDesc),
-			Sections:    DefaultPlanSections(),
 			// FEATURE-472: no mode-specific ToolModes — plan uses the same global
 			// default tools as act so the system prompt stays static across modes.
 			Temperature: Float64Ptr(0),
@@ -959,24 +936,9 @@ func DefaultWorkModes() []WorkMode {
 		{
 			Name:        "research",
 			Description: i18n.T(i18n.KeyWorkModeResearchDesc),
-			Sections:    DefaultResearchSections(),
 			Temperature: Float64Ptr(0),
 		},
 	}
-}
-
-// DefaultPlanSections returns the default list of prompt sections for Plan mode.
-// FEATURE-472: identical to DefaultActSections so the system prompt stays
-// static across modes (mode switching does not change the section set).
-func DefaultPlanSections() []string {
-	return DefaultActSections()
-}
-
-// DefaultResearchSections returns the default list of prompt sections for Research mode.
-// FEATURE-472: identical to DefaultActSections so the system prompt stays
-// static across modes (mode switching does not change the section set).
-func DefaultResearchSections() []string {
-	return DefaultActSections()
 }
 
 // DefaultPlanToolModes returns the default tool mode settings for Plan mode.
@@ -1013,7 +975,6 @@ type Config struct {
 	LLM                LLMConfig `json:"llm"`
 	MCP                MCPConfig `json:"mcp"`
 	DB                 DBConfig  `json:"db"`
-	Rules              []string  `json:"rules"`
 	LogEnabled         bool      `json:"log_enabled"`
 	LogLevel           string    `json:"log_level"` // debug/info/warn/error/off
 	DisclaimerAccepted bool      `json:"disclaimer_accepted"`
@@ -1177,7 +1138,6 @@ func DefaultConfig() *Config {
 		MCP: MCPConfig{
 			Servers: []MCPServerConfig{},
 		},
-		Rules:      []string{},
 		LogEnabled: true,
 		LogLevel:   "info",
 
@@ -1433,10 +1393,10 @@ func (c *Config) Show() string {
 		contextLimitStr = i18n.T(i18n.KeyUnlimited)
 	}
 
-	agentName := c.LLM.AgentName
-	if agentName == "" {
-		agentName = "co-shell"
-	}
+	// FEATURE-531 follow-up: agent personalization lives in the workspace files
+	// (./IDENTITY.md etc.); config.json no longer carries the agent name, so the
+	// display falls back to the built-in default.
+	agentName := "co-shell"
 	// Build description from Identity i18n content (with agent name populated)
 	identityContent := strings.ReplaceAll(i18n.T(i18n.KeySystemPromptIdentity), "{AGENT_NAME}", agentName)
 	// Truncate long description for display

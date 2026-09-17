@@ -81,7 +81,7 @@ func (a *Agent) updateSettingsTool(ctx context.Context, args map[string]interfac
 		}
 
 		// Get the old value for display
-		oldValue := getSettingValue(a.cfg, param)
+		oldValue := getSettingValue(a.cfg, a.identityDir(), param)
 
 		changes = append(changes, settingChange{
 			param:    param,
@@ -179,7 +179,9 @@ func (a *Agent) updateSettingsTool(ctx context.Context, args map[string]interfac
 }
 
 // getSettingValue returns the current string representation of a setting value.
-func getSettingValue(cfg *config.Config, param string) string {
+// dir is the personalization directory (FEATURE-531: name/description/principles
+// live in ./IDENTITY.md and ./PRINCIPLES.md, not in config.json).
+func getSettingValue(cfg *config.Config, dir, param string) string {
 	activeModel := config.GetActiveModelFromConfig(cfg)
 	switch param {
 	case "api-key":
@@ -258,20 +260,18 @@ func getSettingValue(cfg *config.Config, param string) string {
 		}
 		return fmt.Sprintf("%d", cfg.LLM.ContextLimit)
 	case "name":
-		if cfg.LLM.AgentName == "" {
-			return "co-shell"
-		}
-		return cfg.LLM.AgentName
+		// FEATURE-531 follow-up: read from ./IDENTITY.md.
+		return ResolveAgentName(dir)
 	case "description":
-		if cfg.LLM.AgentDescription == "" {
-			return "(not set)"
+		if d := ResolveAgentDescription(dir); d != "" {
+			return d
 		}
-		return cfg.LLM.AgentDescription
+		return "(not set)"
 	case "principles":
-		if cfg.LLM.AgentPrinciples == "" {
-			return "(not set)"
+		if p := resolveAgentPrinciples(dir); p != "" {
+			return p
 		}
-		return cfg.LLM.AgentPrinciples
+		return "(not set)"
 	case "tool-timeout":
 		if cfg.LLM.ToolTimeout <= 0 {
 			return "unlimited"
@@ -771,28 +771,27 @@ func applySetting(a *Agent, param, value string) error {
 		log.Info("Context limit set via LLM tool: %d", n)
 
 	case "name":
-		cfg.LLM.AgentName = value
-		if err := cfg.Save(); err != nil {
+		// FEATURE-531 follow-up: personalization is written to ./IDENTITY.md.
+		if err := UpdateIdentityField(a.identityDir(), "agent-name", value); err != nil {
 			return err
 		}
 		a.SetName(value)
-		log.Info("Agent name set via LLM tool: %s", value)
+		a.rebuildSystemPrompt()
+		log.Info("Agent name written to %s: %s", IdentityPath(a.identityDir()), value)
 
 	case "description":
-		cfg.LLM.AgentDescription = value
-		if err := cfg.Save(); err != nil {
+		if err := UpdateIdentityField(a.identityDir(), "agent-description", value); err != nil {
 			return err
 		}
-		a.SetConfig(cfg)
-		log.Info("Agent description set via LLM tool: %s", value)
+		a.rebuildSystemPrompt()
+		log.Info("Agent description written to %s", IdentityPath(a.identityDir()))
 
 	case "principles":
-		cfg.LLM.AgentPrinciples = value
-		if err := cfg.Save(); err != nil {
+		if err := WritePersonalizationFile(a.identityDir(), "PRINCIPLES.md", value); err != nil {
 			return err
 		}
-		a.SetConfig(cfg)
-		log.Info("Agent principles set via LLM tool: %s", value)
+		a.rebuildSystemPrompt()
+		log.Info("Agent principles written to PRINCIPLES.md (%d bytes)", len(value))
 
 	case "tool-timeout":
 		n, err := strconv.Atoi(value)
@@ -1342,15 +1341,12 @@ func (a *Agent) listSettingsTool(ctx context.Context, args map[string]interface{
 
 	// Group 1: Identity & Personality
 	sb.WriteString(i18n.T(i18n.KeySettingCmd_529))
-	agentName := cfg.LLM.AgentName
-	if agentName == "" {
-		agentName = "co-shell"
-	}
-	agentDesc := cfg.LLM.AgentDescription
+	agentName := ResolveAgentName(a.identityDir())
+	agentDesc := ResolveAgentDescription(a.identityDir())
 	if agentDesc == "" {
 		agentDesc = i18n.T(i18n.KeySettingCmd_536)
 	}
-	agentPrinciples := cfg.LLM.AgentPrinciples
+	agentPrinciples := a.resolveAgentPrinciples()
 	if agentPrinciples == "" {
 		agentPrinciples = i18n.T(i18n.KeySettingCmd_536)
 	}

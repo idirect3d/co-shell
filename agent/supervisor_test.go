@@ -278,7 +278,7 @@ func TestGetSettingValue_Supervisor(t *testing.T) {
 		{"show-sup-stream", "off"},
 	}
 	for _, c := range cases {
-		if got := getSettingValue(cfg, c.param); got != c.want {
+		if got := getSettingValue(cfg, "", c.param); got != c.want {
 			t.Errorf("getSettingValue(%q) = %q, want %q", c.param, got, c.want)
 		}
 	}
@@ -287,7 +287,7 @@ func TestGetSettingValue_Supervisor(t *testing.T) {
 // UC-0026: getSettingValue returns default marker for empty allowed-tools.
 func TestGetSettingValue_SupervisorAllowedToolsDefault(t *testing.T) {
 	cfg := &config.Config{LLM: config.LLMConfig{Supervisor: config.SupervisorConfig{}}}
-	if got := getSettingValue(cfg, "supervisor-allowed-tools"); got != "(default)" {
+	if got := getSettingValue(cfg, "", "supervisor-allowed-tools"); got != "(default)" {
 		t.Errorf("empty allowed-tools should return (default), got %q", got)
 	}
 }

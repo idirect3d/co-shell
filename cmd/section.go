@@ -70,7 +70,7 @@ func (h *SectionHandler) Handle(args []string) (string, error) {
 		// Try to treat the first argument as a section name and show its content
 		name := subcommand
 		// Check built-in sections first
-		for _, b := range config.DefaultBuiltInSections() {
+		for _, b := range config.DefaultSections() {
 			if strings.EqualFold(b, name) {
 				return i18n.TF(i18n.KeySectionBuiltinView, name), nil
 			}
@@ -113,7 +113,7 @@ func (h *SectionHandler) listSections() string {
 	sb.WriteString("\n  [")
 	sb.WriteString(i18n.T(i18n.KeyDefault))
 	sb.WriteString("]\n")
-	for _, name := range config.DefaultBuiltInSections() {
+	for _, name := range config.DefaultSections() {
 		sb.WriteString(fmt.Sprintf("  - %s\n", name))
 	}
 
@@ -144,7 +144,7 @@ func (h *SectionHandler) addSection(args []string) (string, error) {
 		}
 	}
 	// Check for built-in name collision
-	for _, builtIn := range config.DefaultBuiltInSections() {
+	for _, builtIn := range config.DefaultSections() {
 		if strings.EqualFold(builtIn, name) {
 			return "", fmt.Errorf("cannot create section with built-in name: %s", name)
 		}

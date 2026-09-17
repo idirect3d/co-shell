@@ -152,197 +152,171 @@ func appendRulesTree(sb *strings.Builder, dir, name string, level int) {
 	}
 }
 
-// loadExternalFileWithMode attempts to load a text file with mode support.
-// Priority:
-// 1. {cwd}/mode/{modeName}/{filename} (if modeName is set and file exists)
-// 2. {cwd}/{filename} (root fallback)
-// 3. empty string (caller should use i18n fallback)
-func loadExternalFileWithMode(cwd, modeName, filename string) string {
-	if cwd == "" || filename == "" {
+// overridableSections lists the prompt sections that may be overridden by a
+// same-named file in the workspace root (FEATURE-531), e.g. ./CAPABILITIES.md.
+// IDENTITY.md is no longer a raw-text override: it stores the structured
+// identity fields (FEATURE-531 follow-up).
+var overridableSections = map[string]bool{
+	"Capabilities": true,
+	"Rules":        true,
+}
+
+// modeStrategyFile returns the path of a work mode's strategy file:
+// {cwd}/mode/{MODE NAME}.md (upper-case mode name, no per-mode sub-directory).
+func modeStrategyFile(cwd, modeName string) string {
+	if cwd == "" || modeName == "" {
 		return ""
 	}
-	// Priority 1: mode-specific path
-	if modeName != "" {
-		modePath := filepath.Join(cwd, "mode", modeName, filename)
-		if data, err := os.ReadFile(modePath); err == nil {
-			return strings.TrimSpace(string(data))
-		}
-	}
-	// Priority 2: root path
-	rootPath := filepath.Join(cwd, filename)
-	if data, err := os.ReadFile(rootPath); err == nil {
-		return strings.TrimSpace(string(data))
-	}
-	return ""
+	return filepath.Join(cwd, "mode", strings.ToUpper(modeName)+".md")
 }
 
-// getWorkModeSectionNames returns the list of section names for the given work mode name.
-// Falls back to default sections if the mode doesn't exist in config.
-func getWorkModeSectionNames(cfg *config.Config, modeName string) []string {
-	if modeName == "" && cfg != nil {
-		modeName = cfg.LLM.WorkMode
+// loadModeStrategy reads a work mode's strategy text from {cwd}/mode/{MODE}.md.
+// Returns "" when the file is missing or blank.
+func loadModeStrategy(cwd, modeName string) string {
+	path := modeStrategyFile(cwd, modeName)
+	if path == "" {
+		return ""
 	}
-	// Search user-defined modes first
-	if cfg != nil {
-		for _, wm := range cfg.WorkModes {
-			if wm.Name == modeName && len(wm.Sections) > 0 {
-				return wm.Sections
-			}
-		}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
 	}
-	// Fall back to built-in modes (act, plan)
-	for _, wm := range config.DefaultWorkModes() {
-		if wm.Name == modeName && len(wm.Sections) > 0 {
-			return wm.Sections
-		}
-	}
-	return config.DefaultBuiltInSections()
+	return strings.TrimSpace(string(data))
 }
 
-// sectionFileName maps built-in section names (e.g. "Identity") to their
-// external filename convention (e.g. "IDENTITY") used by loadSectionText.
-// Custom sections return the name as-is.
-func sectionFileName(name string) string {
-	switch name {
-	case "Identity":
-		return "IDENTITY"
-	case "ToolUsage":
-		return "TOOL_USAGE"
-	case "ResultMode":
-		return "RESULT_MODE"
-	case "Capabilities":
-		return "CAPABILITIES"
-	case "Rules":
-		return "RULES"
-	case "Skills":
-		return "SKILLS"
-	case "Objective":
-		return "OBJECTIVE"
-	case "ExternalTools":
-		return "EXTERNAL_TOOLS"
-	case "Environment":
-		return "ENVIRONMENT"
-	case "ToolExamples":
-		return "TOOL_EXAMPLES"
-	case "TaskProgress":
-		return "TASK_PROGRESS"
-	case "EditingFiles":
-		return "EDITING_FILES"
-	case "BrowserUsage":
-		return "BROWSER_USAGE"
+// loadRootSectionFile reads the workspace-root override file for a section
+// ({cwd}/{SECTION}.md). Only sections in overridableSections are overridable.
+// Returns "" when the file is missing or blank.
+func loadRootSectionFile(cwd, name string) string {
+	if cwd == "" || !overridableSections[name] {
+		return ""
 	}
-	return name
+	data, err := os.ReadFile(filepath.Join(cwd, strings.ToUpper(name)+".md"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
-// UnloadModeSections exports all section content for the given mode to
-// mode/{modeName}/ directory as .md files. Each file contains the raw
-// section text with placeholders intact, so users can edit them before
-// co-shell loads them at runtime.
-func UnloadModeSections(cfg *config.Config, modeName string) error {
-	if modeName == "" {
-		return fmt.Errorf("mode name is required")
-	}
+// ExportSections implements the --init flag (FEATURE-531): it writes the three
+// overridable prompt sections (IDENTITY.md, CAPABILITIES.md, RULES.md) plus one
+// strategy file per configured work mode (mode/{MODE NAME}.md) into the current
+// working directory. Existing target files are backed up to {name}.bak first.
+// Placeholders are written verbatim so the files can be edited in place.
+// Returns the list of written file paths.
+func ExportSections(cfg *config.Config) ([]string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("cannot get working directory: %w", err)
+		return nil, fmt.Errorf("cannot get working directory: %w", err)
 	}
-
-	// Get section names for this mode
-	sectionNames := getWorkModeSectionNames(cfg, modeName)
-
-	// Create mode directory
-	modeDir := filepath.Join(cwd, "mode", modeName)
-	if err := os.MkdirAll(modeDir, 0755); err != nil {
-		return fmt.Errorf("cannot create mode directory %s: %w", modeDir, err)
+	var written []string
+	// Identity fields: structured ./IDENTITY.md. Existing values are kept so
+	// re-running --init never discards the user's personalization.
+	id := LoadIdentity(cwd)
+	if strings.TrimSpace(id.AgentName) == "" {
+		id.AgentName = "co-shell"
 	}
-
-	written := 0
-	for _, name := range sectionNames {
-		// Get raw text without placeholder substitution
-		text := getRawSectionText(name, modeName, cwd, cfg)
-		if text == "" {
+	if strings.TrimSpace(id.AgentDescription) == "" {
+		id.AgentDescription = i18n.T(i18n.KeyAgentDefaultDescription)
+	}
+	if strings.TrimSpace(id.UserName) == "" {
+		id.UserName = i18n.T(i18n.KeyAnonymousUser)
+	}
+	idPath := IdentityPath(cwd)
+	if err := writeWithBackup(idPath, strings.TrimSpace(IdentityText(id))); err != nil {
+		return written, err
+	}
+	written = append(written, idPath)
+	// Principles: keep the existing ./PRINCIPLES.md, else export the default.
+	principles := loadExternalFile(cwd, "PRINCIPLES.md")
+	if strings.TrimSpace(principles) == "" {
+		principles = i18n.T(i18n.KeyAgentDefaultPrinciples)
+	}
+	if strings.TrimSpace(principles) != "" {
+		pPath := filepath.Join(cwd, "PRINCIPLES.md")
+		if err := writeWithBackup(pPath, strings.TrimSpace(principles)); err != nil {
+			return written, err
+		}
+		written = append(written, pPath)
+	}
+	// Section files (workspace root, upper-case names).
+	for _, name := range sectionExportNames() {
+		text := rawSectionText(name)
+		if strings.TrimSpace(text) == "" {
 			continue
 		}
-
-		// Use the same filename convention as loadSectionText (UPPER_CASE for builtins)
-		fileName := sectionFileName(name) + ".md"
-		filePath := filepath.Join(modeDir, fileName)
-		if err := os.WriteFile(filePath, []byte(text), 0644); err != nil {
-			return fmt.Errorf("cannot write section %s: %w", name, err)
+		path := filepath.Join(cwd, strings.ToUpper(name)+".md")
+		if err := writeWithBackup(path, text); err != nil {
+			return written, err
 		}
-		written++
+		written = append(written, path)
 	}
-
-	if written == 0 {
-		return fmt.Errorf("no sections found for mode: %s", modeName)
+	// Mode strategy files: mode/{MODE}.md, no per-mode sub-directory.
+	modeDir := filepath.Join(cwd, "mode")
+	if err := os.MkdirAll(modeDir, 0755); err != nil {
+		return written, fmt.Errorf("cannot create mode directory %s: %w", modeDir, err)
 	}
+	for _, m := range collectAllWorkModes(cfg) {
+		text := rawModeStrategy(cfg, m)
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		path := modeStrategyFile(cwd, m.Name)
+		if err := writeWithBackup(path, text); err != nil {
+			return written, err
+		}
+		written = append(written, path)
+	}
+	return written, nil
+}
 
+// sectionExportNames returns the sections exported by --init.
+// sectionExportNames lists the sections exported as raw-text files by --init.
+// The IDENTITY section is exported separately as structured fields.
+func sectionExportNames() []string {
+	return []string{"Capabilities", "Rules"}
+}
+
+// writeWithBackup writes text to path, backing up an existing file to
+// {path}.bak first (FEATURE-531).
+func writeWithBackup(path, text string) error {
+	if _, err := os.Stat(path); err == nil {
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return fmt.Errorf("cannot read existing %s: %w", path, readErr)
+		}
+		if writeErr := os.WriteFile(path+".bak", data, 0644); writeErr != nil {
+			return fmt.Errorf("cannot back up %s: %w", path, writeErr)
+		}
+	}
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(text)+"\n"), 0644); err != nil {
+		return fmt.Errorf("cannot write %s: %w", path, err)
+	}
 	return nil
 }
 
-// getRawSectionText returns the raw section text (with placeholders intact)
-// for the given section name. It mirrors the i18n fallback logic of
-// buildNamedSection but skips placeholder substitution.
-func getRawSectionText(name, modeName, cwd string, cfg *config.Config) string {
+// rawSectionText returns a section's default text with placeholders intact.
+func rawSectionText(name string) string {
 	switch name {
 	case "Identity":
 		return i18n.T(i18n.KeySystemPromptIdentity)
-	case "ToolUsage":
-		return i18n.T(i18n.KeySystemPromptToolUsage)
-	case "ResultMode":
-		if cwd != "" {
-			rootPath := filepath.Join(cwd, "WORKMODE.md")
-			if data, err := os.ReadFile(rootPath); err == nil {
-				return strings.TrimSpace(string(data))
-			}
-		}
-		// FEATURE-472: statically list all configured work modes.
-		return buildResultModeSection(cfg)
 	case "Capabilities":
 		return i18n.T(i18n.KeySystemPromptCapabilities)
 	case "Rules":
 		return i18n.T(i18n.KeySystemPromptRules)
-	case "Skills":
-		return i18n.T(i18n.KeySystemPromptSkills)
-	case "Objective":
-		if modeName == "plan" {
-			if planObj := i18n.T(i18n.KeySystemPromptObjectivePlan); planObj != "" && planObj != i18n.KeySystemPromptObjectivePlan {
-				return planObj
-			}
-		}
-		return i18n.T(i18n.KeySystemPromptObjective)
-	case "ExternalTools":
-		return i18n.T(i18n.KeySystemPromptExternalTools)
-	case "Environment":
-		return i18n.T(i18n.KeySystemPromptEnvironment)
-	case "ToolExamples":
-		// OpenAI mode uses JSON-style tool call examples, XML mode uses
-		// XML-style examples with the configurable tag prefix.
-		if cfg != nil && cfg.LLM.ToolCallMode == "openai" {
-			return i18n.T(i18n.KeySystemPromptToolUsageExamples)
-		}
-		return i18n.T(i18n.KeySystemPromptXMLExamples)
-	case "TaskProgress":
-		return i18n.T(i18n.KeySystemPromptToolUsageTaskProgress)
-	case "EditingFiles":
-		return i18n.T(i18n.KeySystemPromptEditingFiles)
-	case "BrowserUsage":
-		return i18n.T(i18n.KeySystemPromptBrowserUsage)
-	default:
-		// Custom section
-		if cfg != nil {
-			for _, ps := range cfg.PromptSections {
-				if ps.Name == name && ps.Content != "" {
-					return ps.Content
-				}
-			}
-		}
-		i18nKey := "system_prompt_" + strings.ToLower(name)
-		if i18n.T(i18nKey) != "" {
-			return i18n.T(i18nKey)
-		}
-		return ""
 	}
+	return ""
+}
+
+// rawModeStrategy returns a work mode's default strategy text with placeholders
+// intact: the built-in i18n key when available, otherwise the mode Description.
+func rawModeStrategy(cfg *config.Config, m config.WorkMode) string {
+	if key := modeDetailKey(m.Name); key != "" {
+		if desc := i18n.T(key); desc != "" && desc != key {
+			return desc
+		}
+	}
+	return m.Description
 }
 
 // modeDetailKey maps a built-in work mode name to its detailed-description
@@ -399,7 +373,10 @@ func collectAllWorkModes(cfg *config.Config) []config.WorkMode {
 // the RESULT MODE section. Priority: a user-defined override's Description,
 // then the built-in detailed i18n key (KeyWorkModeAct/Plan/Research), then the
 // mode's own Description.
-func modeDescription(cfg *config.Config, m config.WorkMode) string {
+func modeDescription(cwd string, cfg *config.Config, m config.WorkMode) string {
+	if text := loadModeStrategy(cwd, m.Name); text != "" {
+		return text
+	}
 	// User-defined override wins.
 	if cfg != nil {
 		for _, wm := range cfg.WorkModes {
@@ -434,7 +411,7 @@ func modeDescription(cfg *config.Config, m config.WorkMode) string {
 //
 //	# RESEARCH MODE
 //	<description>
-func buildResultModeSection(cfg *config.Config) string {
+func buildResultModeSection(cwd string, cfg *config.Config) string {
 	modes := collectAllWorkModes(cfg)
 	if len(modes) == 0 {
 		return ""
@@ -459,7 +436,7 @@ func buildResultModeSection(cfg *config.Config) string {
 	// Each mode description: a markdown heading followed by the (possibly
 	// multi-line) description body.
 	for _, m := range modes {
-		desc := modeDescription(cfg, m)
+		desc := modeDescription(cwd, cfg, m)
 		if desc == "" {
 			continue
 		}
@@ -484,6 +461,7 @@ func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	text = strings.ReplaceAll(text, "{AGENT_DESCRIPTION}", env.agentDescription)
 	text = strings.ReplaceAll(text, "{AGENT_PRINCIPLES}", env.agentPrinciples)
 	text = strings.ReplaceAll(text, "{USER_NAME}", env.userName)
+	text = strings.ReplaceAll(text, "{USER_DESCRIPTION}", env.userDescription)
 	text = strings.ReplaceAll(text, "{CHANNEL}", env.channelInfo)
 	text = strings.ReplaceAll(text, "{RESULT_MODE_INSTRUCTION}", env.resultModeInstruction)
 	text = strings.ReplaceAll(text, "{OS}", env.os)
@@ -507,6 +485,7 @@ type promptEnv struct {
 	agentDescription      string
 	agentPrinciples       string
 	userName              string
+	userDescription       string
 	channelInfo           string
 	resultModeInstruction string
 	// contextReorganizeThreshold is the configured token-usage percentage that
@@ -525,25 +504,12 @@ type promptEnv struct {
 	lang                       string
 }
 
-// getModeSectionPath returns the path to a section file for the current work mode.
-// Format: {cwd}/mode/{modeName}/{sectionName}.md
-func getModeSectionPath(cwd, modeName, sectionName string) string {
-	if modeName == "" {
-		return ""
-	}
-	return filepath.Join(cwd, "mode", modeName, sectionName+".md")
-}
-
-// loadSectionText loads section content for a given work mode.
-// Priority:
-// 1. {cwd}/mode/{modeName}/{name}.md (if modeName is set and file exists)
-// 2. i18n fallback (handled by caller via fallbackFn)
-func loadSectionText(cwd, modeName, name string, fallbackFn func() string) string {
-	if modeName != "" {
-		modePath := getModeSectionPath(cwd, modeName, name)
-		if data, err := os.ReadFile(modePath); err == nil {
-			return strings.TrimSpace(string(data))
-		}
+// loadSectionText loads a prompt section: a workspace-root override file
+// (only for sections listed in overridableSections) wins over the built-in
+// i18n fallback.
+func loadSectionText(cwd, name string, fallbackFn func() string) string {
+	if text := loadRootSectionFile(cwd, name); text != "" {
+		return text
 	}
 	return fallbackFn()
 }
@@ -552,19 +518,20 @@ func loadSectionText(cwd, modeName, name string, fallbackFn func() string) strin
 // the source: custom sections look for {Name}.md, built-in names use i18n keys.
 // toolUsageText is passed through for sections that may need it (ToolUsage).
 func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEnabled bool, toolUsageText []string, intentExposureEnabled bool) string {
-	modeName := ""
-	if cfg != nil {
-		modeName = cfg.LLM.WorkMode
-	}
 	switch name {
 	case "Identity":
-		text := loadSectionText(env.cwd, modeName, "IDENTITY", func() string {
-			return i18n.T(i18n.KeySystemPromptIdentity)
-		})
+		// FEATURE-531 follow-up: the IDENTITY section text is always the i18n
+		// template; its values come from ./IDENTITY.md (structured fields) and
+		// ./PRINCIPLES.md via placeholders. Free-form text kept in IDENTITY.md
+		// is appended verbatim.
+		text := i18n.T(i18n.KeySystemPromptIdentity)
+		if extra := identityExtra(env.cwd); extra != "" {
+			text += "\n\n" + extra
+		}
 		return buildSectionWithPlaceholders(text, env)
 
 	case "ToolUsage":
-		text := loadSectionText(env.cwd, modeName, "TOOL_USAGE", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptToolUsage)
 		})
 		if len(toolUsageText) > 0 && toolUsageText[0] != "" {
@@ -580,23 +547,13 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return buildSectionWithPlaceholders(text, env)
 
 	case "ResultMode":
-		text := loadSectionText(env.cwd, modeName, "RESULT_MODE", func() string {
-			// Priority 1: root-level {cwd}/WORKMODE.md (multi-mode config file)
-			if env.cwd != "" {
-				rootPath := filepath.Join(env.cwd, "WORKMODE.md")
-				if data, err := os.ReadFile(rootPath); err == nil {
-					return strings.TrimSpace(string(data))
-				}
-			}
-			// Priority 2 (FEATURE-472): statically list all configured work modes
-			// (built-in + user-defined) so the LLM understands the differences
-			// between every mode, not just the currently active one.
-			return buildResultModeSection(cfg)
-		})
+		// FEATURE-531: always generated statically by listing every configured work
+		// mode's strategy (mode/{MODE}.md when present, else the i18n default).
+		text := buildResultModeSection(env.cwd, cfg)
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Capabilities":
-		text := loadSectionText(env.cwd, modeName, "CAPABILITIES", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptCapabilities)
 		})
 		// FEATURE-466: when meta-capability awareness is enabled, append the
@@ -619,7 +576,7 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Rules":
-		text := loadSectionText(env.cwd, modeName, "RULES", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptRules)
 		})
 		return buildSectionWithPlaceholders(text, env)
@@ -647,30 +604,25 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return header + "\n\n" + index
 
 	case "Objective":
-		text := loadSectionText(env.cwd, modeName, "OBJECTIVE", func() string {
-			if modeName == "plan" {
-				if planObj := i18n.T(i18n.KeySystemPromptObjectivePlan); planObj != "" && planObj != i18n.KeySystemPromptObjectivePlan {
-					return planObj
-				}
-			}
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptObjective)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "ExternalTools":
-		text := loadSectionText(env.cwd, modeName, "EXTERNAL_TOOLS", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptExternalTools)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Environment":
-		text := loadSectionText(env.cwd, modeName, "ENVIRONMENT", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptEnvironment)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "ToolExamples":
-		text := loadSectionText(env.cwd, modeName, "TOOL_EXAMPLES", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			// OpenAI mode uses JSON-style tool call examples, XML mode uses
 			// XML-style examples with the configurable tag prefix.
 			if cfg != nil && cfg.LLM.ToolCallMode == "openai" {
@@ -681,27 +633,26 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return buildSectionWithPlaceholders(text, env)
 
 	case "TaskProgress":
-		text := loadSectionText(env.cwd, modeName, "TASK_PROGRESS", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptToolUsageTaskProgress)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "EditingFiles":
-		text := loadSectionText(env.cwd, modeName, "EDITING_FILES", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptEditingFiles)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
 	case "BrowserUsage":
-		text := loadSectionText(env.cwd, modeName, "BROWSER_USAGE", func() string {
+		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptBrowserUsage)
 		})
 		return buildSectionWithPlaceholders(text, env)
 
 	default:
-		// Custom user-defined section: try mode/{modeName}/{name}.md, then {name}.md,
-		// then Content from PromptSection, then i18n fallback.
-		text := loadSectionText(env.cwd, modeName, name, func() string {
+		// Custom user-defined section: Content from PromptSection, then i18n fallback.
+		text := loadSectionText(env.cwd, name, func() string {
 			// Check PromptSections from config for inline content
 			if cfg != nil {
 				for _, ps := range cfg.PromptSections {
@@ -775,8 +726,8 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	}
 	env.contextReorganizeThreshold = strconv.Itoa(threshold)
 
-	// Get section names from work mode config (or default order)
-	sectionNames := getWorkModeSectionNames(cfg, "")
+	// Get the global section list shared by every work mode (FEATURE-531).
+	sectionNames := config.DefaultSections()
 	separator := i18n.T(i18n.KeySectionSeparator)
 	var sections []string
 	for _, name := range sectionNames {
@@ -795,46 +746,36 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	return strings.Join(sections, "")
 }
 
-// resolveAgentDescription returns the agent description for the current work
-// mode using the same priority chain as the main system prompt:
-//  1. ModeDescriptions[workMode]
-//  2. cfg.LLM.AgentDescription
-//  3. mode-specific i18n default (act/plan/research)
-//  4. global i18n default
+// resolveAgentDescription returns the agent description for dir: the
+// ./IDENTITY.md value when set, otherwise the built-in i18n default.
+//
+// FEATURE-531 follow-up: per-mode descriptions were dropped - every work mode
+// shares the single identity description stored in ./IDENTITY.md, and
+// config.json is no longer read.
 //
 // FEATURE-346: used by the minimal recognition round so the vision model also
 // receives the agent identity description.
-func resolveAgentDescription(cfg *config.Config) string {
-	if cfg == nil {
-		return ""
-	}
-	workMode := cfg.LLM.WorkMode
-	if workMode == "" {
-		workMode = "act"
-	}
-	if cfg.LLM.ModeDescriptions != nil {
-		if md, ok := cfg.LLM.ModeDescriptions[workMode]; ok && md != "" {
-			return md
-		}
-	}
-	if cfg.LLM.AgentDescription != "" {
-		return cfg.LLM.AgentDescription
-	}
-	switch workMode {
-	case "plan":
-		if d := i18n.T(i18n.KeyAgentDefaultDescriptionPlan); d != "" && d != i18n.KeyAgentDefaultDescriptionPlan {
-			return d
-		}
-	case "research":
-		if d := i18n.T(i18n.KeyAgentDefaultDescriptionResearch); d != "" && d != i18n.KeyAgentDefaultDescriptionResearch {
-			return d
-		}
-	default:
-		if d := i18n.T(i18n.KeyAgentDefaultDescriptionAct); d != "" && d != i18n.KeyAgentDefaultDescriptionAct {
-			return d
-		}
+func resolveAgentDescription(dir string) string {
+	if d := ResolveAgentDescription(dir); d != "" {
+		return d
 	}
 	return i18n.T(i18n.KeyAgentDefaultDescription)
+}
+
+// resolveAgentPrinciples returns the agent principles for dir: the
+// ./PRINCIPLES.md content when present, otherwise the built-in i18n default.
+//
+// FEATURE-531 follow-up: config.json no longer carries personalization, so
+// ./PRINCIPLES.md is the only source of user-defined principles.
+func resolveAgentPrinciples(dir string) string {
+	if dir != "" {
+		if data, err := os.ReadFile(filepath.Join(dir, "PRINCIPLES.md")); err == nil {
+			if p := strings.TrimSpace(string(data)); p != "" {
+				return p
+			}
+		}
+	}
+	return i18n.T(i18n.KeyAgentDefaultPrinciples)
 }
 
 // buildVisionIdentityPrompt returns a minimal system prompt containing ONLY the
@@ -842,7 +783,7 @@ func resolveAgentDescription(cfg *config.Config) string {
 // vision-context mode (FEATURE-343). The visual model performing recognition
 // should not receive tool-usage instructions or other agent context — it is a
 // dedicated OCR/vision pass, not a tool-calling round.
-func buildVisionIdentityPrompt(cfg *config.Config) string {
+func buildVisionIdentityPrompt(cfg *config.Config, dir string) string {
 	if cfg == nil {
 		// Minimal fallback: plain Identity text without placeholders.
 		return i18n.T(i18n.KeySystemPromptIdentity)
@@ -861,13 +802,10 @@ func buildVisionIdentityPrompt(cfg *config.Config) string {
 		env.homeDir = os.Getenv("USERPROFILE")
 	}
 	env.mode = config.ResultMode(cfg.LLM.ResultMode)
-	env.agentName = cfg.LLM.AgentName
-	if env.agentName == "" {
-		env.agentName = "co-shell"
-	}
-	env.agentDescription = resolveAgentDescription(cfg)
-	env.agentPrinciples = cfg.LLM.AgentPrinciples
-	env.userName = cfg.LLM.UserName
+	env.agentName = ResolveAgentName(dir)
+	env.agentDescription = resolveAgentDescription(dir)
+	env.agentPrinciples = resolveAgentPrinciples(dir)
+	env.userName = ResolveUserName(dir, cfg.LLM.UserName)
 	if env.userName == "" {
 		env.userName = i18n.T(i18n.KeyAnonymousUser)
 	}
