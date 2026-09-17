@@ -8,7 +8,7 @@
 
 > **版本**: v0.64.0
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（已合并 main，标签 v0.64.0）
 > **里程碑**: 系统提示词组成策略调整（全局节列表 + ResultMode 动态拼装 + --init 导出）
 > **说明**: 把系统提示词从「按 mode 定义节列表与节内容」改为「全局统一定义节列表、模式差异只体现在 ResultMode 节」：所有 mode 共用同一套 8 节固定顺序（Identity/ToolUsage/ResultMode/Capabilities/Rules/Skills/ExternalTools/Environment）；ResultMode 节动态罗列系统内全部 mode 的策略（切换 mode 时该节文本完全一致）；去掉 `--unload-mode`，新增 `--init` 一键导出 `./IDENTITY.md`、`./CAPABILITIES.md`、`./RULES.md` 与 `mode/{MODE}.md`（不建子目录）；新会话构建提示词时实时优先读取这些文件，缺失则回退 i18n 默认值（KeyWorkModeAct/Plan/Research）。
 
