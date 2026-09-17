@@ -92,6 +92,11 @@ type WebSession struct {
 
 	inputCh chan clientMessage
 	closed  chan struct{}
+
+	// boardAgg merges board messages that arrive within a short window so a
+	// burst delivered while the agent is busy is injected as one block
+	// (FEATURE-530). Nil when the board switch is off.
+	boardAgg *agent.BoardAggregator
 }
 
 // newWebSession creates the session, installs the WebIO on the agent for
@@ -117,9 +122,11 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	// session menu/count when the current session changes (FEATURE-387).
 	sess.wio.pushSessionList = sess.pushSessionList
 	deps.Ag.SetIO(sess.wio)
-	// FEATURE-490: install the board sender so the agent can push board_*
-	// messages (board_result/board_post/...) back to the hub over the same
-	// WebSocket connection. The hub is the WS client that connected to us.
+	// FEATURE-530: wire the message board (aggregator + hub registration).
+	sess.initBoard(deps.Cfg.LLM.AgentName, deps.Cfg.LLM.AgentDuty)
+	// FEATURE-530: install the board sender so board_send can push frames back
+	// to the hub over the same WebSocket connection. The hub is the WS client
+	// that connected to us.
 	deps.Ag.SetBoardSender(func(msg map[string]interface{}) error {
 		data, err := json.Marshal(msg)
 		if err != nil {
@@ -196,18 +203,9 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 		// into the agent's dynamic perception queue so the next tool/user
 		// message injection surfaces it to the LLM.
 		s.ag.AddDynamicEvent(agent.DynamicEventKind(msg.Kind), msg.Value)
-	case "board_task":
-		// FEATURE-490: the hub pushed an execution task to this agent. When the
-		// board switch is enabled, inject it as a marked input so the agent
-		// executes it in the current session; otherwise ignore it (safety).
-		if !s.ag.BoardEnabled() {
-			return
-		}
-		text := "[board-task " + msg.TaskID + " from " + msg.Requester + "] " + msg.Instruction
-		select {
-		case s.inputCh <- clientMessage{Type: "input", Text: text}:
-		case <-s.closed:
-		}
+	case "board_registered", "board_roster", "board_sent", "board_message", "board_timeout":
+		// FEATURE-530: flat board frames pushed by the hub.
+		s.handleBoardFrame(msg)
 	case "answer":
 		s.wio.resolve(msg.ID, msg.Value)
 	case "interaction_answer":

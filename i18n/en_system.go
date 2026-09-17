@@ -612,64 +612,27 @@ Usage:
   </{XML_TAG_PREFIX}questions>
 </{XML_TAG_PREFIX}ask_user>`
 
-	enMessages[KeyToolUsageBoardPost] = `## board_post
-Description: Publish a help request to the hub bulletin board (FEATURE-490). Other agents whose role matches may claim it; the requester and the assignee can then clarify via board_dm before execution. Only available when the board switch is enabled.
+	enMessages[KeyToolUsageBoardSend] = `## board_send
+Description: Send a message to other agents through the hub message board (FEATURE-530). The board is how agents coordinate: announce work, ask other agents for help, or reply to a message you received. Only available when the board switch (board-enabled) is on.
 Parameters:
-- title (required) Short title of the request.
-- description (required) Detailed description of what help is needed.
-- required_role (optional) Role that should respond.
+- to (required) One or more agent ids, or "*" to reach every other agent.
+- content (required) Message body (max 8 KB).
+- reply_to (optional) The id of the message you are answering (from the board_message you received).
+- no_reply (optional, default false) true means the message needs no answer (FYI only).
+- state (required when reply_to is set) One of handled / declined / need_info.
+- timeout_seconds (required) Reply window in seconds, 5..86400.
+Collaboration conventions:
+- <board_agents> lists the agents on the board and their responsibility; check it before addressing someone.
+- A message that is your responsibility must be answered with state=handled; if it is not yours use state=declined; if you need details first use state=need_info.
+- Answer each message id exactly once, and never answer a message that has no_reply=true.
+- Estimate timeout_seconds from the work involved: 30-60s to judge whether the message is yours, 300-600s to read code and answer, 1800-7200s for an implementation request; use no_reply=true for pure FYI.
 Usage:
-<{XML_TAG_PREFIX}board_post>
-  <{XML_TAG_PREFIX}title>Need a Go concurrency review</{XML_TAG_PREFIX}title>
-  <{XML_TAG_PREFIX}description>Please review agent/loop.go for concurrency safety, focusing on locking and races</{XML_TAG_PREFIX}description>
-  <{XML_TAG_PREFIX}required_role>reviewer</{XML_TAG_PREFIX}required_role>
-</{XML_TAG_PREFIX}board_post>`
-
-	enMessages[KeyToolUsageBoardList] = `## board_list
-Description: Poll the hub bulletin board for open (unclaimed) help requests (FEATURE-490). Use this to discover requests relevant to your role. Takes no parameters.
-Usage:
-<{XML_TAG_PREFIX}board_list></{XML_TAG_PREFIX}board_list>`
-
-	enMessages[KeyToolUsageBoardClaim] = `## board_claim
-Description: Claim an open help request on the hub bulletin board (FEATURE-490). After claiming, only the requester and the assignee can discuss via board_dm.
-Parameters:
-- request_id (required) The request id to claim (from the board_list result).
-Usage:
-<{XML_TAG_PREFIX}board_claim>
-  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
-</{XML_TAG_PREFIX}board_claim>`
-
-	enMessages[KeyToolUsageBoardDM] = `## board_dm
-Description: Send a direct message to the other participant of a board request thread (FEATURE-490). Use it to clarify requirements and acceptance criteria before executing.
-Parameters:
-- request_id (required) The request id.
-- content (required) The message content.
-Usage:
-<{XML_TAG_PREFIX}board_dm>
-  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
-  <{XML_TAG_PREFIX}content>Which concurrency scenarios should be covered?</{XML_TAG_PREFIX}content>
-</{XML_TAG_PREFIX}board_dm>`
-
-	enMessages[KeyToolUsageBoardConfirm] = `## board_confirm
-Description: Confirm a claimed board request to start execution (FEATURE-490). Only the requester can confirm; the assignee then receives a board_task and starts executing.
-Parameters:
-- request_id (required) The request id to confirm.
-Usage:
-<{XML_TAG_PREFIX}board_confirm>
-  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
-</{XML_TAG_PREFIX}board_confirm>`
-
-	enMessages[KeyToolUsageBoardResult] = `## board_result
-Description: Report the result of a board task back to the hub (FEATURE-490). Call it after executing a board_task; the outcome is delivered to the requester.
-Parameters:
-- task_id (required) The task id from the board_task message.
-- result (required) The result text to return to the requester.
-Usage:
-<{XML_TAG_PREFIX}board_result>
-  <{XML_TAG_PREFIX}task_id>task-7d91b2</{XML_TAG_PREFIX}task_id>
-  <{XML_TAG_PREFIX}result>Review done: found 2 data races and suggested fixes</{XML_TAG_PREFIX}result>
-</{XML_TAG_PREFIX}board_result>`
-
+<{XML_TAG_PREFIX}board_send>
+  <{XML_TAG_PREFIX}to>agent-b</{XML_TAG_PREFIX}to>
+  <{XML_TAG_PREFIX}content>Please review the locking in agent/loop.go</{XML_TAG_PREFIX}content>
+  <{XML_TAG_PREFIX}timeout_seconds>600</{XML_TAG_PREFIX}timeout_seconds>
+</{XML_TAG_PREFIX}board_send>`
+	enMessages[KeyCol3BoardAckTimeout] = "Seconds board_send waits for the hub acknowledgement (default 5, range 5-86400)"
 	enMessages[KeyCol3BoardEnabled] = "board collaboration(on|off)"
 	enMessages[KeySettingCmd_782] = "Board collaboration: %s"
 	enMessages[KeySettingCmd_783] = "✅ Board collaboration set to: %s"

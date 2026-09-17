@@ -8,7 +8,7 @@ require (
 	github.com/larksuite/oapi-sdk-go/v3 v3.6.1
 	github.com/lib/pq v1.10.9
 	go.etcd.io/bbolt v1.3.11
-	golang.org/x/sys v0.29.0
+	golang.org/x/sys v0.45.0
 )
 
 require (

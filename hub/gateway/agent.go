@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/url"
 	"sync"
 )
 
@@ -34,11 +35,34 @@ type AgentConn struct {
 	// agent sends up to the hub (FEATURE-490). The Proxy installs it so the
 	// Board can process agent-originated board_* messages (e.g. board_result).
 	onAgentMessage func(agentID string, msg []byte)
+	// onClose is invoked once when the connection goes away (FEATURE-530).
+	onClose   func(agentID string)
+	closeOnce sync.Once
+}
+
+// gatewayRole marks the hub's own agent link with the WS query role=hub. The
+// agent keeps such a connection in a slot of its own, so a browser tab showing
+// the agent UI (the hub page embeds it in an iframe) cannot evict the hub's
+// board/proxy link, and vice versa (FEATURE-530).
+const gatewayRole = "hub"
+
+// gatewayURL tags a raw agent ws URL with the hub role. It is applied at dial
+// time so registry entries (managed ws URLs, user-entered external ones) need
+// no change.
+func gatewayURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	q := u.Query()
+	q.Set("role", gatewayRole)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 // NewAgentConn dials the agent's WebSocket endpoint and starts its read loop.
 func NewAgentConn(ctx context.Context, cfg AgentConfig) (*AgentConn, error) {
-	ws, err := dialWS(cfg.WSURL)
+	ws, err := dialWS(gatewayURL(cfg.WSURL))
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +79,24 @@ func NewAgentConn(ctx context.Context, cfg AgentConfig) (*AgentConn, error) {
 }
 
 // SetOnAgentMessage installs the callback invoked for every agent-originated
-// message (FEATURE-490).
+// message (FEATURE-530).
 func (ac *AgentConn) SetOnAgentMessage(fn func(agentID string, msg []byte)) {
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
 	ac.onAgentMessage = fn
 }
+
+// SetOnClose installs the callback invoked once when the connection is torn
+// down (FEATURE-530: the Proxy marks the agent offline and refreshes roster).
+func (ac *AgentConn) SetOnClose(fn func(agentID string)) {
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	ac.onClose = fn
+}
+
+// Done returns a channel closed when the connection is torn down. The proxy's
+// supervisor waits on it to notice a dropped link and re-dial (FEATURE-530).
+func (ac *AgentConn) Done() <-chan struct{} { return ac.ctx.Done() }
 
 // ID returns the agent identifier.
 func (ac *AgentConn) ID() string { return ac.cfg.ID }
@@ -90,13 +126,19 @@ func (ac *AgentConn) Send(data []byte) error {
 	return ac.ws.WriteText(data)
 }
 
-// Close tears down the agent connection.
+// Close tears down the agent connection and fires the close hook once.
 func (ac *AgentConn) Close() {
-	ac.cancel()
-	ac.mu.Lock()
-	ac.closed = true
-	ac.mu.Unlock()
-	ac.ws.Close()
+	ac.closeOnce.Do(func() {
+		ac.cancel()
+		ac.mu.Lock()
+		ac.closed = true
+		fn := ac.onClose
+		ac.mu.Unlock()
+		ac.ws.Close()
+		if fn != nil {
+			fn(ac.cfg.ID)
+		}
+	})
 }
 
 // readLoop reads server messages from the agent and broadcasts them to all

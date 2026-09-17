@@ -140,7 +140,11 @@ type LLMConfig struct {
 	OutputCategories map[string]bool `json:"output_categories,omitempty"`
 
 	// Agent identity
-	AgentName        string `json:"agent_name"`        // Agent name (default: co-shell)
+	AgentName string `json:"agent_name"`           // Agent name (default: co-shell)
+	AgentDuty string `json:"agent_duty,omitempty"` // Responsibility reported to the hub board (FEATURE-530)
+	// AgentDuty is what this agent is responsible for. It is reported to the
+	// hub when the agent registers on the message board (FEATURE-530); the hub
+	// entry of the same agent wins when both are set.
 	AgentDescription string `json:"agent_description"` // Agent expertise description (global fallback)
 	AgentPrinciples  string `json:"agent_principles"`  // Agent core principles
 
@@ -1038,6 +1042,12 @@ type Config struct {
 	// (FEATURE-490). When false (default), the co-shell ignores board_task
 	// execution messages and does not participate in board collaboration.
 	BoardEnabled bool `json:"board_enabled,omitempty"`
+	// BoardAckTimeout is how long the board_send tool waits for the hub's
+	// board_sent acknowledgement, in seconds (FEATURE-530, default 5).
+	BoardAckTimeout int `json:"board_ack_timeout,omitempty"`
+	// BoardAckTimeout is how long board_send waits for the hub's board_sent
+	// acknowledgement, in seconds (FEATURE-530, default 5). It is a system
+	// parameter exposed through :set / :config / the Web settings panel.
 
 	// UIEnabled exposes the render_ui tool (FEATURE-524): the LLM can answer
 	// with structured UI components (cards, tables, charts, ...) rendered by

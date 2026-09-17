@@ -206,6 +206,13 @@ func (a *Agent) buildFullEnvironmentDetails(messageNo int, toolCallNames []strin
 		sb.WriteString(researchFiles)
 		sb.WriteString("\n</research>\n")
 	}
+	// FEATURE-530: render the hub board roster so the LLM knows which agents
+	// exist and what each of them is responsible for. The whole block is
+	// omitted while the roster is empty.
+	if roster := a.BoardRosterBlock(); roster != "" {
+		sb.WriteString(roster)
+		sb.WriteString("\n")
+	}
 	if taskPlan != "" && !skipTaskPlan {
 		sb.WriteString("<task_plan>\n")
 		sb.WriteString(taskPlan)

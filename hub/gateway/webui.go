@@ -36,6 +36,10 @@ type WebUI struct {
 	version      string
 	build        string
 
+	// board is the agent message board (FEATURE-530). It is optional: when
+	// nil the board endpoints simply return empty results.
+	board *Board
+
 	httpSrv *http.Server
 	ln      net.Listener
 }
@@ -80,6 +84,10 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	mux.HandleFunc("GET /api/agent-version", w.handleAgentVersion)
 	mux.HandleFunc("GET /api/remote-defaults", w.handleRemoteDefaults)
 	mux.HandleFunc("GET /api/hub-info", w.handleHubInfo)
+	// Message board (FEATURE-530): conversations and their messages for the
+	// Chat pane. Read-only: agents post through the board protocol.
+	mux.HandleFunc("GET /api/board/conversations", w.handleBoardConversations)
+	mux.HandleFunc("GET /api/board/conversations/{key}/messages", w.handleBoardMessages)
 	// Remote-access settings (TLS/whitelist/access key).
 	mux.HandleFunc("GET /api/settings", w.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", w.handlePutSettings)
@@ -92,6 +100,10 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	w.httpSrv = &http.Server{Handler: handler}
 	return w
 }
+
+// SetBoard attaches the message board (FEATURE-530) so the Web UI can show
+// board conversations in its Chat pane. It must be called before Serve.
+func (w *WebUI) SetBoard(b *Board) { w.board = b }
 
 // requestLog logs every HTTP request to stdout with its time, client address
 // and request URI, so remote access (e.g. from the mobile client) is traceable.

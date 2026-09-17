@@ -50,14 +50,14 @@ const (
 	DynamicOpenFile DynamicEventKind = "open_file"
 	// DynamicViewFile: a file the user single-clicked to preview in-page.
 	DynamicViewFile DynamicEventKind = "view_file"
-	// DynamicBoardRequest: a new help request appeared on the hub bulletin
-	// board (FEATURE-490). Text carries the request summary JSON.
-	DynamicBoardRequest DynamicEventKind = "board_request"
-	// DynamicBoardDM: a direct message arrived on a board thread (FEATURE-490).
-	DynamicBoardDM DynamicEventKind = "board_dm"
-	// DynamicBoardNotify: a board state change notification (claimed/result)
-	// (FEATURE-490).
-	DynamicBoardNotify DynamicEventKind = "board_notify"
+	// DynamicBoardMessage: a message delivered by the hub message board while
+	// the agent was busy (FEATURE-530). Text carries a ready-rendered
+	// <board_message> tag.
+	DynamicBoardMessage DynamicEventKind = "board_message"
+	// DynamicBoardTimeout: the hub reports that a recipient never answered a
+	// message that expected a reply (FEATURE-530). Text carries a rendered
+	// <board_timeout> tag.
+	DynamicBoardTimeout DynamicEventKind = "board_timeout"
 
 	// DynamicUIAction: a component interaction (form submit, button, chart
 	// drill-down) reported while a turn is running (FEATURE-524 window mode).
@@ -189,7 +189,7 @@ func (a *Agent) dynamicEventQueueCapacity() int {
 func (a *Agent) AddDynamicEvent(kind DynamicEventKind, pathOrText string) {
 	ev := DynamicEvent{Kind: kind, Time: time.Now()}
 	switch kind {
-	case DynamicUserMessage, DynamicBoardRequest, DynamicBoardDM, DynamicBoardNotify, DynamicUIAction:
+	case DynamicUserMessage, DynamicUIAction, DynamicBoardMessage, DynamicBoardTimeout:
 		// Message-like events carry raw text (user messages, board events and
 		// rendered-component actions).
 		ev.Text = pathOrText
@@ -236,10 +236,10 @@ func (a *Agent) consumeDynamicEvents(includeUserMessages bool) string {
 			sb.WriteString("  <open_file>" + formatFileEvent(ev) + "</open_file>\n")
 		case DynamicViewFile:
 			sb.WriteString("  <view_file>" + formatFileEvent(ev) + "</view_file>\n")
-		case DynamicBoardRequest, DynamicBoardDM, DynamicBoardNotify:
-			// FEATURE-490: board events carry a JSON summary in Text. Render as
-			// a flat tag so the LLM can see the board activity.
-			sb.WriteString("  <" + string(ev.Kind) + ">" + formatEventTime(ev.Time) + " " + ev.Text + "</" + string(ev.Kind) + ">\n")
+		case DynamicBoardMessage, DynamicBoardTimeout:
+			// FEATURE-530: board events carry an already-rendered tag in Text (like
+			// ui_action), so they are injected verbatim.
+			sb.WriteString("  " + ev.Text + "\n")
 		}
 	}
 	sb.WriteString("</user_dynamic_events>")

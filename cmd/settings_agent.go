@@ -377,6 +377,25 @@ func (h *SettingsHandler) handleAgentSetting(subcommand string, args []string) (
 		log.Info("SubAgent enabled set to %s", status)
 		return fmt.Sprintf(i18n.T(i18n.KeySettingCmd_128), status), nil
 
+	case "board-ack-timeout":
+		// FEATURE-530: how long the board_send tool waits for the hub ack.
+		cur := h.cfg.BoardAckTimeout
+		if cur <= 0 {
+			cur = 5
+		}
+		if len(args) < 2 {
+			return fmt.Sprintf("board-ack-timeout = %ds (default 5, range 5..86400)", cur), nil
+		}
+		secs := 0
+		if _, err := fmt.Sscanf(args[1], "%d", &secs); err != nil || secs < 5 || secs > 86400 {
+			return "", fmt.Errorf("usage: .set board-ack-timeout <seconds 5..86400>")
+		}
+		h.cfg.BoardAckTimeout = secs
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("board-ack-timeout set to %ds", secs), nil
+
 	case "board-enabled":
 		// FEATURE-490: hub agent bulletin-board collaboration switch. It stays
 		// off by default, so the co-shell never joins board collaboration

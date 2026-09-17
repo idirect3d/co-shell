@@ -46,8 +46,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.62.1"
-	hubBuild   = "1055"
+	hubVersion = "0.63.0"
+	hubBuild   = "1063"
 )
 
 // config is the JSON config file shape.
@@ -62,6 +62,9 @@ type config struct {
 	// SettingsPath is the remote-access settings file (TLS/whitelist/access
 	// key). Default: ./hub-settings.json (same search order as the config).
 	SettingsPath string `json:"settings_path,omitempty"`
+	// BoardDBPath is the message board database (bbolt). Default:
+	// hub-board.db next to the agent registry (FEATURE-530).
+	BoardDBPath string `json:"board_db_path,omitempty"`
 	// Serve suppresses auto-opening the browser (headless/server mode).
 	Serve bool `json:"serve,omitempty"`
 }
@@ -73,6 +76,7 @@ func main() {
 	webAddr := flag.String("web-addr", "", "Web UI listen address (default 127.0.0.1:12802)")
 	whitelist := flag.String("whitelist", "", "Web UI access whitelist (comma-separated IPs/CIDR, empty=loopback only)")
 	registryPath := flag.String("registry", "", "agent registry file (default: ./hub-agents.json)")
+	boardDB := flag.String("board-db", "", "message board database file (default: hub-board.db next to the registry)")
 	coShellPath := flag.String("co-shell-path", "", "co-shell executable for managed agents (default: same dir as this binary)")
 	basePort := flag.Int("base-port", 0, "first port for auto-allocating managed agents (default 28256)")
 	serve := flag.Bool("serve", false, "serve without auto-opening the browser (headless/server mode)")
@@ -109,6 +113,9 @@ func main() {
 	}
 	if *basePort > 0 {
 		cfg.BasePort = *basePort
+	}
+	if *boardDB != "" {
+		cfg.BoardDBPath = *boardDB
 	}
 	if *serve {
 		cfg.Serve = true
@@ -161,9 +168,36 @@ func main() {
 	proxy := gateway.NewProxy(ctx, nil)
 	defer proxy.Close()
 
-	// Attach the agent bulletin board (FEATURE-490): the hub arbitrates
-	// agent-to-agent collaboration (post/claim/dm/confirm/result).
-	proxy.SetBoard(gateway.NewBoard())
+	// Attach the agent message board (FEATURE-530): the hub arbitrates
+	// agent-to-agent messaging, keeps the roster and persists board state.
+	if cfg.BoardDBPath == "" {
+		cfg.BoardDBPath = filepath.Join(filepath.Dir(cfg.RegistryPath), "hub-board.db")
+	}
+	boardStore, err := gateway.OpenBoardStore(cfg.BoardDBPath)
+	if err != nil {
+		log.Fatalf("board store: %v", err)
+	}
+	defer func() {
+		if cerr := boardStore.Close(); cerr != nil {
+			log.Printf("board store close: %v", cerr)
+		}
+	}()
+	board, err := gateway.NewBoard(boardStore)
+	if err != nil {
+		log.Fatalf("board: %v", err)
+	}
+	// The hub-side "职责描述" entry (agent config) wins over the duty the agent
+	// reports at registration time (decision 9).
+	board.SetDutyResolver(func(agentID string) (string, bool) {
+		for _, spec := range mgr.Agents() {
+			if spec.ID == agentID && strings.TrimSpace(spec.Name) != "" {
+				return spec.Name, true
+			}
+		}
+		return "", false
+	})
+	proxy.SetBoard(board)
+	log.Printf("board: message board enabled (db=%s)", cfg.BoardDBPath)
 	for _, spec := range mgr.Agents() {
 		if spec.Type == gateway.AgentTypeExternal {
 			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
@@ -205,6 +239,8 @@ func main() {
 		settings.Whitelist = cfg.Whitelist
 	}
 	webUI := gateway.NewWebUI(webCfg, proxy, mgr, settings, hubVersion, hubBuild)
+	// The Chat pane shows the board conversations (FEATURE-530).
+	webUI.SetBoard(board)
 	if err := webUI.Listen(); err != nil {
 		log.Fatalf("web listen: %v", err)
 	}

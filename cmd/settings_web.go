@@ -79,6 +79,7 @@ func (h *SettingsHandler) SettingsJSON() []WebSettingGroup {
 		{Key: "meta-capability-enabled", Value: boolStr(llm.MetaCapabilityEnabled), Desc: i18n.T(i18n.KeyCol3MetaCapabilityEnabled), Type: "bool", Default: boolStr(def.MetaCapabilityEnabled)},
 		{Key: "subagent-enabled", Value: boolStr(llm.SubAgentEnabled), Desc: i18n.T(i18n.KeyCol3SubAgentEnabled), Type: "bool", Default: boolStr(def.SubAgentEnabled)},
 		{Key: "board-enabled", Value: boolStr(cfg.BoardEnabled), Desc: i18n.T(i18n.KeyCol3BoardEnabled), Type: "bool", Default: boolStr(defCfg.BoardEnabled)},
+		{Key: "board-ack-timeout", Value: strconv.Itoa(boardAckTimeoutValue(cfg)), Desc: i18n.T(i18n.KeyCol3BoardAckTimeout), Type: "number", Default: strconv.Itoa(5)},
 		// FEATURE-524: structured UI rendering switches (render_ui + ui_window).
 		{Key: "ui-enabled", Value: boolStr(cfg.UIEnabled), Desc: i18n.T(i18n.KeyCol3UIEnabled), Type: "bool", Default: boolStr(defCfg.UIEnabled)},
 		{Key: "ui-context-prune", Value: boolStr(cfg.UIContextPrune), Desc: i18n.T(i18n.KeyCol3UIContextPrune), Type: "bool", Default: boolStr(defCfg.UIContextPrune)},
@@ -344,4 +345,12 @@ func dynamicQueueSizeValue(cfg *config.Config) int {
 		return cfg.DynamicEventQueueSize
 	}
 	return 100
+}
+
+// boardAckTimeoutValue returns the effective board-ack-timeout (default 5).
+func boardAckTimeoutValue(cfg *config.Config) int {
+	if cfg.BoardAckTimeout > 0 {
+		return cfg.BoardAckTimeout
+	}
+	return 5
 }

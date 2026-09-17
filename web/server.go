@@ -117,12 +117,31 @@ type clientMessage struct {
 	Count  int `json:"count,omitempty"`
 	Before int `json:"before,omitempty"`
 
-	// TaskID, Requester and Instruction are the board_task fields (FEATURE-490):
-	// the hub pushes an execution task with a task id, the requester agent id
-	// and the instruction text to execute.
-	TaskID      string `json:"task_id,omitempty"`
-	Requester   string `json:"requester,omitempty"`
-	Instruction string `json:"instruction,omitempty"`
+	// FEATURE-530: board frames pushed by the hub (board_registered /
+	// board_roster / board_sent / board_message / board_timeout). Board frames
+	// are flat JSON — the type sits next to the fields — so each frame maps
+	// onto the fields below.
+	BoardAgents json.RawMessage `json:"agents,omitempty"`     // board_roster: roster entries
+	BoardRev    int             `json:"rev,omitempty"`        // board_roster: roster revision
+	RosterRev   int             `json:"roster_rev,omitempty"` // board_registered
+	ReqID       string          `json:"req_id,omitempty"`     // board_sent: echoes board_send req_id
+	BoardOK     bool            `json:"ok,omitempty"`         // board_sent: accepted by the hub
+	MessageID   string          `json:"message_id,omitempty"` // board_sent / board_timeout
+	Conv        string          `json:"conversation,omitempty"`
+	Deliveries  json.RawMessage `json:"deliveries,omitempty"` // board_sent: per-recipient outcome
+	TimeoutSecs int             `json:"timeout_seconds,omitempty"`
+	BoardError  string          `json:"error,omitempty"`    // board_sent: rejection reason
+	AgentID     string          `json:"agent_id,omitempty"` // board_registered / board_timeout
+	Deadline    int64           `json:"deadline,omitempty"` // board_timeout: reply deadline (unix s)
+	To          []string        `json:"to,omitempty"`       // board_message
+	From        string          `json:"from,omitempty"`     // board_message
+	Content     string          `json:"content,omitempty"`  // board_message
+	ReplyTo     string          `json:"reply_to,omitempty"` // board_message
+	NoReply     bool            `json:"no_reply,omitempty"` // board_message
+	BoardState  string          `json:"state,omitempty"`    // board_message: reply state
+	BoardTS     int64           `json:"ts,omitempty"`       // board_message: unix seconds
+	Seq         int             `json:"seq,omitempty"`      // board_message: hub sequence
+	Timeout     int             `json:"timeout,omitempty"`  // board_message: reply window (s)
 
 	// FEATURE-524: ui_action fields. UIID / UIActionID address the rendered
 	// component and the action it declared; Payload carries the structured
@@ -140,6 +159,7 @@ type clientMessage struct {
 	ViewportW int `json:"viewport_w,omitempty"`
 	ViewportH int `json:"viewport_h,omitempty"`
 }
+
 // eventJSON is the wire form of an agent.StreamEvent (same field rules as
 // the JSON-Lines StreamRenderer: level only when not info).
 type eventJSON struct {
@@ -242,9 +262,19 @@ type Server struct {
 	conn    *wsConn // current browser client (single-client hub)
 	handler func(clientMessage)
 
+	// gwConn is the hub's own link (WS query role=hub, FEATURE-530). It lives in
+	// a separate slot so the hub's board/proxy link and a browser tab showing
+	// this agent's UI never evict each other.
+	gwConn *wsConn
+
 	// onDisconnect is called when the current client disconnects (pending
 	// ask requests must fail instead of blocking forever).
 	onDisconnect func()
+
+	// onConnect is called when a new client takes over the connection. In serve
+	// mode the hub dials in, so this fires on every hub (re)connect and lets the
+	// board re-announce this agent (FEATURE-530).
+	onConnect func()
 
 	// planFn returns the current task plan as a JSON string ("" when none),
 	// pushed to the browser on connect as a state message.
@@ -373,6 +403,14 @@ func (s *Server) SetDisconnectHook(fn func()) {
 	s.mu.Unlock()
 }
 
+// SetConnectHook installs the client-connect callback (FEATURE-530: the board
+// re-sends its registration whenever the hub link is (re)established).
+func (s *Server) SetConnectHook(fn func()) {
+	s.mu.Lock()
+	s.onConnect = fn
+	s.mu.Unlock()
+}
+
 // SetPlanProvider installs the task-plan snapshot provider.
 func (s *Server) SetPlanProvider(fn func() string) {
 	s.mu.Lock()
@@ -418,9 +456,10 @@ func (s *Server) Listen(port int) (string, error) {
 	return "", fmt.Errorf("ports %d-%d are all in use", port, port+9)
 }
 
-// Close shuts the server down and drops the current client.
+// Close shuts the server down and drops the current clients.
 func (s *Server) Close() error {
 	s.setConn(nil)
+	s.setGatewayConn(nil)
 	if s.ln != nil {
 		return s.ln.Close()
 	}
@@ -438,6 +477,7 @@ func (s *Server) setConn(c *wsConn) {
 	old := s.conn
 	s.conn = c
 	onDisc := s.onDisconnect
+	onConn := s.onConnect
 	s.mu.Unlock()
 	if old != nil {
 		old.Close()
@@ -445,6 +485,36 @@ func (s *Server) setConn(c *wsConn) {
 			onDisc()
 		}
 	}
+	if c != nil && onConn != nil {
+		onConn()
+	}
+}
+
+// setGatewayConn replaces the hub gateway connection (role=hub). Unlike
+// setConn it never touches the browser slot, so the hub link and a browser
+// session coexist (FEATURE-530). A new gateway connection re-announces the
+// board registration through onConnect.
+func (s *Server) setGatewayConn(c *wsConn) {
+	s.mu.Lock()
+	old := s.gwConn
+	s.gwConn = c
+	onConn := s.onConnect
+	s.mu.Unlock()
+	if old != nil {
+		old.Close()
+	}
+	if c != nil && onConn != nil {
+		onConn()
+	}
+}
+
+// clearGatewayConn drops the gateway connection if it is still the current one.
+func (s *Server) clearGatewayConn(c *wsConn) {
+	s.mu.Lock()
+	if s.gwConn == c {
+		s.gwConn = nil
+	}
+	s.mu.Unlock()
 }
 
 // clearConn drops the client if it is still the current one.
@@ -477,17 +547,30 @@ func (s *Server) sendJSON(v serverMessage) bool {
 }
 
 // sendEvent pushes one agent stream event to the browser.
-// sendRaw writes a raw JSON message to the current WS client (the hub when
-// running in serve mode). Used by the board sender to push board_* messages
-// back to the hub (FEATURE-490).
+// sendRaw writes a raw JSON message to the hub link (role=hub gateway slot)
+// and to the browser client. Used by the board sender to push board_* messages
+// back to the hub (FEATURE-490); a browser client (agent UI) keeps receiving
+// them too, exactly as before the gateway slot existed.
 func (s *Server) sendRaw(data []byte) error {
 	s.mu.Lock()
+	gw := s.gwConn
 	c := s.conn
 	s.mu.Unlock()
-	if c == nil {
+	if gw == nil && c == nil {
 		return errors.New("no web client connected")
 	}
-	return c.WriteMessage(data)
+	var firstErr error
+	if gw != nil {
+		if err := gw.WriteMessage(data); err != nil {
+			firstErr = err
+		}
+	}
+	if c != nil {
+		if err := c.WriteMessage(data); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func (s *Server) sendEvent(ev agent.StreamEvent) bool {
@@ -555,20 +638,31 @@ func (s *Server) dispatch(raw []byte) {
 	}
 }
 
-// handleWS upgrades the connection, registers it as the current client,
-// pushes the initial state, then reads messages until disconnect.
+// gatewayRole is the WS query value marking the hub's own link (FEATURE-530).
+const gatewayRole = "hub"
+
+// handleWS upgrades the connection, registers it in the browser or gateway
+// slot, pushes the initial state to a browser, then reads messages until
+// disconnect.
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrade(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.setConn(c)
-	s.sendState(c)
-	defer s.clearConn(c)
-	// FIX-475: close the connection when the read loop ends so the async
-	// writer goroutine stops (otherwise it would leak on client disconnect).
-	defer c.Close()
+	gateway := r.URL.Query().Get("role") == gatewayRole
+	if gateway {
+		s.setGatewayConn(c)
+		// FIX-475: close the connection when the read loop ends so the async
+		// writer goroutine stops (otherwise it would leak on client disconnect).
+		defer c.Close()
+		defer s.clearGatewayConn(c)
+	} else {
+		s.setConn(c)
+		s.sendState(c)
+		defer c.Close()
+		defer s.clearConn(c)
+	}
 	for {
 		msg, err := c.ReadMessage()
 		if err != nil {

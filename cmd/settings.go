@@ -293,12 +293,46 @@ func (h *SettingsHandler) Handle(args []string) (string, error) {
 		return h.handleWebSetting(subcommand, args)
 
 	// Dynamic perception queue capacity (FEATURE-471)
+	// Message board hub-ack window (FEATURE-530)
+	case subcommand == "board-ack-timeout":
+		return h.handleBoardAckTimeoutSetting(args)
+
 	case subcommand == "dynamic-event-queue-size":
 		return h.handleDynamicQueueSetting(args)
 
 	default:
 		return "", fmt.Errorf("unknown setting: %s", subcommand)
 	}
+}
+
+// handleBoardAckTimeoutSetting gets/sets the board-ack-timeout setting
+// (FEATURE-530): the seconds board_send waits for the hub's board_sent
+// acknowledgement. Valid range 5..86400; 0 restores the default of 5.
+func (h *SettingsHandler) handleBoardAckTimeoutSetting(args []string) (string, error) {
+	cur := h.cfg.BoardAckTimeout
+	if cur <= 0 {
+		cur = 5
+	}
+	if len(args) < 2 {
+		return fmt.Sprintf("board-ack-timeout = %ds (default 5, range 5..86400)", cur), nil
+	}
+	v := strings.TrimSpace(args[1])
+	if v == "default" || v == "0" {
+		h.cfg.BoardAckTimeout = 0
+		if err := h.cfg.Save(); err != nil {
+			return "", err
+		}
+		return "board-ack-timeout reset to default (5s)", nil
+	}
+	secs := 0
+	if _, err := fmt.Sscanf(v, "%d", &secs); err != nil || secs < 5 || secs > 86400 {
+		return "", fmt.Errorf("usage: board-ack-timeout <seconds 5..86400|default>")
+	}
+	h.cfg.BoardAckTimeout = secs
+	if err := h.cfg.Save(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("board-ack-timeout set to %ds", secs), nil
 }
 
 // handleWebSetting handles the Web service settings (FEATURE-431/FEATURE-469):

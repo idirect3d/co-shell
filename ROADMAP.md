@@ -4,6 +4,49 @@
 
 ---
 
+## v0.63.0 — 开发中
+
+> **版本**: v0.63.0
+
+> **状态**: ✅ 已完成（已合并 main，标签 v0.63.0）
+> **里程碑**: 公告板 v2 重构（消息模型）
+> **说明**: 把原 FEATURE-490 的「工单型公告板」（Request/认领/确认/Task/结果 状态机）整体替换为「消息模型」：hub 提供消息板与注册表，co-shell 启动后自动注册（名称 + 职责描述），注册变化时 hub 广播 agent 清单并注入 `environment_details`；agent 通过唯一工具 `board_send` 发消息/回复（支持 `*` 广播与定向、必填 `timeout_seconds`），收件方空闲时开新回合处理、忙碌时注入动态感知；回复带三态（`handled`/`declined`/`need_info`）让发送方知道由谁处理，超时由 hub 生成「未响应」事件；hub Web UI 的 Chat 栏按参与者聚合展示会話（公告会話唯一），消息与会話持久化到 bbolt。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-530 | 0.63.0 | P1 | 公告板 v2 消息模型重构：hub 消息板（注册表/roster/消息与三态/超时未响应/会話索引/bbolt 持久化 + Chat 栏 UI）+ co-shell 侧自动注册、`board_send` 工具与忙闲分派注入；删除旧工单模型与 6 个 board 工具 |
+
+> 当前 BUILD: 1063
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-530 公告板 v2 重构（消息模型）** [BUILD-1063]
+  - 验证（BUILD-1059）：真机 E2E 跑完 UC-0001~UC-0033，**33/33 通过**（driver 23 checks / 0 failed；UC-0006 掉线与 UC-0026 重启后扫描由 `tmp/fix530-e2e3/uc0006_check.py` 专项校验 2/2 通过）。验证过程中修复 3 个真实缺陷：① hub→agent 的 board 帧由 envelope 改为扁平帧（修复前注册/roster/广播投递全线失败）；② co-shell 侧 `board_message` 帧的 `id` 字段未解析（去重键恒空）；③ hub 链接重连后不重发 `board_register`（roster 永久 offline、rev 冻结）。报告：`use-case/FEATURE-530/FEATURE-530-验证报告.md`。
+  - 补充修复 [BUILD-1061]：修复「两个 agent 互相显示 offline」。根因：serve 模式 agent 只接受单个 WS 客户端，hub 外任何客户端（hub Web UI 转发的会话/浏览器）接入都会顶掉公告板 link，而 hub 既不重拨、也不会重新把该 agent 置为 online，于是 hub roster 永久 offline、agent 侧 roster 冻結在注册瞬间的快照。修复：hub 每 agent 增加守护循环（断线 2s→30s 退避重拨、重拨成功即 `MarkOnline` + `BroadcastRoster`、被顶掉的旧连接 close 不再误判 offline、死 link 从表移除）、`Board.MarkOnline`、`Send` 触碰上线也递增 rev 并广播、`Register` 幂等（仅真实变化才递增 rev）、agent 侧 60s 心跳重注册。新增 UC-0034 复现/回归脚本 `tmp/fix530-e2e3/uc0034_check.py`（修复前 FAIL：rev 36→37、agent-a offline；修复后 PASS：rev 39→41、两 agent 均 online）和 4 个 board 单测（`hub/gateway/board_online_test.go`）；UC-0006（rev 45→46 掉线上线）、UC-0025（重启持久化）、UC-0026（pending 6→0）重跑仍 PASS。
+  - 补充修复 [BUILD-1062]：消除「hub Web UI 点启动 agent 后已连接状态很快变未连接（且周期性复抖）」（用户 2026-09-17 反馈）。根因：agent serve 模式只接受单个 WS 客户端，而 hub 自身需要一条 AgentConn（公告板 roster/消息 + 代理帧），hub Web UI 又以 iframe 内嵌 `/agent/{id}/`（agent 自身 UI）——两者互抢同一槽位：浏览器顶掉 hub link（`connected` 立刻转 false），hub 2s 后重拨又把浏览器顶掉，循环拉锯（旧版因 order 不清理表现为“假在线”，故该缺陷在 BUILD-1061 才暴露）。修复（用户选定方案 A）：agent 侧新增网关槽位，hub 拨号时带 `role=hub`，网关连接与浏览器连接互不顶替、互不接管；board 帧双发（网关 + 浏览器）；浏览器之间仍保持单客户端接管语义。新增单测 `web/server_gateway_test.go`、`hub/gateway/agent_role_test.go`；新增 E2E 复现脚本 `tmp/fix530-e2e3/uc0035_check.py`：修复前（1061）持续抢占槽位时 connected 有 9/18 采样为未连接、phase B 掉线 1.6s，修复后 0/18（phase A/B/C 全程 true）。UC-0034 断言按新语义更新（接管不再断 hub link，因此 roster rev 保持不变即通过）；UC-0001~0028、UC-0025 回归全 PASS。
+  - 背景：FEATURE-490 落地的是工单型公告板，与目标设计（消息总线）不符；实测其可用链路仅 `board_result` 与 `board_task` 生效，广播通知因职责注册表为空而根本不发出，且 co-shell 不消费任何 board 响应，「巡检感知」缺失一半。
+  - 需求（用户确认）：① hub 提供公告板；② co-shell 启动/启用时自动注册（名称、职责描述，非 LLM）；③ 注册变化时 hub 广播清单并注入 `environment_details`；④ 工具发消息 → hub 广播 → 收件方空闲则当前会话处理、忙碌则注入动态感知，且回复须带「是否处理」标记；⑤ 支持定向私信；⑥ `board_send` 参数：收件人（多个逗号分隔或 `*`）、免回复标志、内容、消息 ID（0=首条），返回消息 ID 与发送状态；⑦ hub 分配消息 ID、异步转发、立即回执；⑧ hub Web UI 的 Chat 栏按参与者聚合会話，公告会話唯一。
+  - 决策（用户拍板）：
+    - hub 主动拨号（co-shell 无 hub 地址，改设置需重启，注册在连接建立后自动上行一次）。
+    - 回复三态 `handled`/`declined`/`need_info`；`no_reply` 仅用于发送侧声明「本条无需回复」。
+    - `*` 广播排除发送者自己。
+    - 要求回复的消息超时后由 hub 生成「未响应」事件（超时时长由发送方指定）。
+    - 忙碌时多条消息合并成一条注入；roster 每轮注入；同一 `message_id` 绝不重复注入。
+    - 删除旧 6 个 board 工具与工单状态机（不留兼容层）。
+    - 「能力」概念改为「职责描述」；hub 配置 agent 的录入项「备注」改名「职责描述」（只改显示标签，不动字段名）。
+    - 职责描述优先级：hub 手工录入 > agent 上报。
+    - `timeout_seconds` 一律必填（含 `no_reply=true`，后者 hub 忽略超时计时），范围 5..86400。
+    - 工具等待 hub 发送回执的超时固定默认 5s，并通过系统参数暴露为可配置项。
+    - 消息与会話持久化到 bbolt。
+  - 设计文档：`research/agent-board-design-v2.md`
+  - 用例：`use-case/FEATURE-530/`
+  - 分支：**FEATURE-530**（基于 main），版本 v0.63.0
+  - 合并（BUILD-1063）：已 squash 合并到 main，并打标签 **v0.63.0**；发布产物 work/co-shell-0.63.0.*、work/co-shell-hub-0.63.0.*；验证报告：use-case/FEATURE-530/FEATURE-530-验证报告.md。
+
+---
+
 ## v0.62.1 — 开发中
 
 > **版本**: v0.62.1

@@ -124,14 +124,25 @@ const webIndexHTML = `<!DOCTYPE html>
     opacity:1; transition:flex-grow .28s ease, opacity .22s ease;
   }
   #agentPanel .pane-body.collapsed { flex-grow:0; opacity:0; pointer-events:none; }
-  /* Chat placeholder: a disabled input mock so the pane reads as "not yet". */
-  .chat-placeholder { flex:1; display:flex; flex-direction:column; justify-content:flex-end; gap:6px; padding:10px 10px 16px; }
-  .chat-mock {
-    display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border);
-    border-radius:10px; background:var(--bg); color:var(--fg-faint); font-size:13px; cursor:not-allowed;
-  }
-  .chat-mock .txt { flex:1; }
-  .chat-mock .send { flex:none; font-size:13px; color:var(--fg-faint); }
+  /* Chat pane (FEATURE-530): board conversations on top, message stream
+     below. The broadcast conversation (key "*") is pinned first. */
+  .board-convs { flex:none; max-height:40%; overflow-y:auto; padding:6px 8px; border-bottom:1px solid var(--border); }
+  .board-conv { padding:6px 8px; border-radius:8px; cursor:pointer; font-size:12px; color:var(--fg-dim); }
+  .board-conv:hover { background:var(--elev); }
+  .board-conv.active { background:var(--elev); color:var(--fg); }
+  .board-conv .k { display:flex; justify-content:space-between; gap:6px; }
+  .board-conv .k b { font-weight:600; color:var(--fg); }
+  .board-conv .last { margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .board-msgs { flex:1; overflow-y:auto; padding:8px 10px; display:flex; flex-direction:column; gap:8px; }
+  .board-msg { border:1px solid var(--border); border-radius:10px; padding:6px 8px; font-size:12px; }
+  .board-msg .meta { display:flex; align-items:center; gap:6px; color:var(--fg-dim); font-size:11px; }
+  .board-msg .meta .to { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .board-msg .body { margin-top:4px; white-space:pre-wrap; word-break:break-word; color:var(--fg); }
+  .board-badge { border-radius:6px; padding:0 5px; font-size:10px; border:1px solid var(--border); white-space:nowrap; }
+  .board-badge.handled { color:var(--ok); border-color:var(--ok); }
+  .board-badge.declined { color:var(--err); border-color:var(--err); }
+  .board-badge.need_info { color:var(--warn); border-color:var(--warn); }
+  .board-badge.waiting { color:var(--fg-dim); }
   #agentPanel .head .close { margin-left:auto; cursor:pointer; color:var(--fg-dim); font-size:16px; padding:2px 6px; }
   #agentPanel .head .close:hover { color:var(--fg); }
   /* FEATURE-492/FEATURE-516: the pin moved from the Agents section head onto
@@ -252,8 +263,7 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentPanel .head .back .ico { width:16px; height:16px; }
   #agentPanel .head .close .ico { width:15px; height:15px; }
   .btn .ico { width:15px; height:15px; margin-right:5px; }
-  .chat-mock .send { display:flex; align-items:center; }
-  .chat-mock .send .ico { width:15px; height:15px; }
+
 
   /* Wide screens: an open drawer pushes the iframe aside (side-by-side). */
   @media (min-width:901px) {
@@ -361,7 +371,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
         <div class="field"><label>端口号（自动分配，可修改）</label><input id="m-port" placeholder="自动分配"></div>
         <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
-        <div class="field"><label>备注</label><input id="m-name" placeholder="可选"></div>
+        <div class="field"><label>职责描述</label><input id="m-name" placeholder="可选"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
         <div class="field"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
@@ -373,7 +383,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label><span class="req">*</span>主机地址</label><input id="e-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
         <div class="field"><label><span class="req">*</span>端口号</label><input id="e-port" placeholder="自动推荐，可修改"></div>
         <div class="field"><label>ID（默认 host-port）</label><input id="e-id" placeholder="自动生成"></div>
-        <div class="field"><label>备注</label><input id="e-name" placeholder="可选"></div>
+        <div class="field"><label>职责描述</label><input id="e-name" placeholder="可选"></div>
         <div class="hint" id="e-ver"></div>
       </div>
     </div>
@@ -387,7 +397,7 @@ const webIndexHTML = `<!DOCTYPE html>
     <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span id="detailTitle">Agent 设置</span></div>
     <div class="config-body">
       <div class="field"><label>ID（不可修改）</label><input id="d-id" readonly></div>
-      <div class="field"><label>备注</label><input id="d-name" placeholder="可选"></div>
+      <div class="field"><label>职责描述</label><input id="d-name" placeholder="可选"></div>
       <div class="field"><label>类型</label><input id="d-type" readonly></div>
       <div class="field" id="f-ws"><label>Workspace 路径</label><input id="d-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
       <div class="field" id="f-host"><label>主机地址</label><input id="d-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
@@ -418,13 +428,11 @@ const webIndexHTML = `<!DOCTYPE html>
     <div class="foot"><button class="btn primary" id="s-save">保存设置</button></div>
   </div>
   </div><!-- /#agentsBody -->
-  <!-- Chat section (collapsed by default; placeholder UI only, FEATURE-515). -->
+  <!-- Chat section (FEATURE-530): board conversations + message stream. -->
   <div class="pane-head collapsed" id="chatHead">Chat<span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
   <div class="pane-body collapsed" id="chatBody">
-    <div class="chat-placeholder">
-      <div class="chat-mock" title="Chat 功能规划中，暂不可用"><span class="txt">输入消息…</span><span class="send"><svg class="ico" aria-hidden="true"><use href="#i-send"/></svg></span></div>
-      <div class="hint">Chat 功能规划中，敬请期待</div>
-    </div>
+    <div class="board-convs" id="boardConvs"></div>
+    <div class="board-msgs" id="boardMsgs"><div class="hint">暂无公告会話</div></div>
   </div>
 </div>
 <script>
@@ -475,7 +483,7 @@ const webIndexHTML = `<!DOCTYPE html>
     chatBody.classList.toggle('collapsed', !chatOn);
   }
   agentsHead.onclick = function(){ setPane('agents'); };
-  chatHead.onclick = function(){ setPane('chat'); };
+  chatHead.onclick = function(){ setPane('chat'); loadBoard(); };
 
   function openPanel(){
     clearTimeout(hideTimer);
@@ -631,7 +639,88 @@ const webIndexHTML = `<!DOCTYPE html>
       if (current && !agents.some(function(a){ return a.id === current; })) current = agents.length ? agents[0].id : null;
       renderList();
       ensureFrame(current);
+      // FEATURE-530: keep the Chat pane in sync while it is expanded.
+      if (!chatBody.classList.contains('collapsed')) loadBoard();
     });
+  }
+
+  // ---- Message board (FEATURE-530) ----
+  // The Chat pane lists board conversations (broadcast conversation key "*"
+  // pinned first, shown as 全部) and renders the selected one's messages.
+  var boardConvsEl = document.getElementById('boardConvs');
+  var boardMsgsEl = document.getElementById('boardMsgs');
+  var boardConvKey = null;
+
+  function badge(state){
+    if (state === 'handled') return '<span class="board-badge handled">已受理</span>';
+    if (state === 'declined') return '<span class="board-badge declined">已拒绝</span>';
+    if (state === 'need_info') return '<span class="board-badge need_info">待补充</span>';
+    return '';
+  }
+  function fmtTime(ts){
+    if (!ts) return '';
+    var d = new Date(ts * 1000), p = function(n){ return (n < 10 ? '0' : '') + n; };
+    return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function convTitle(c){
+    if (c.key === '*') return '全部（公告）';
+    var parts = (c.participants || []).filter(function(p){ return p !== '*'; });
+    return parts.length ? parts.join(' + ') : c.key;
+  }
+  function loadBoard(){
+    api('GET', '/api/board/conversations', null, function(st, j){
+      if (st !== 200 || !j) return;
+      var convs = j.conversations || [];
+      convs.sort(function(a, b){
+        if (a.key === '*') return -1;
+        if (b.key === '*') return 1;
+        return (b.updated_at || 0) - (a.updated_at || 0);
+      });
+      if (boardConvKey && !convs.some(function(c){ return c.key === boardConvKey; })) boardConvKey = null;
+      if (!boardConvKey && convs.length) boardConvKey = convs[0].key;
+      renderConvs(convs);
+      if (boardConvKey) loadMessages(boardConvKey);
+      else boardMsgsEl.innerHTML = '<div class="hint">暂无公告会話</div>';
+    });
+  }
+  function renderConvs(convs){
+    if (!convs.length){ boardConvsEl.innerHTML = '<div class="hint">暂无会話</div>'; return; }
+    boardConvsEl.innerHTML = convs.map(function(c){
+      var last = c.last_from ? (c.last_from + ': ' + (c.last_content || '')) : (c.last_content || '');
+      return '<div class="board-conv' + (c.key === boardConvKey ? ' active' : '') + '" data-key="' + esc(c.key) + '">'
+        + '<div class="k"><b>' + esc(convTitle(c)) + '</b><span>' + (c.count || 0) + '</span></div>'
+        + '<div class="last">' + esc(last) + '</div></div>';
+    }).join('');
+    Array.prototype.forEach.call(boardConvsEl.querySelectorAll('.board-conv'), function(el){
+      el.onclick = function(){ boardConvKey = el.getAttribute('data-key'); loadBoard(); };
+    });
+  }
+  function loadMessages(key){
+    api('GET', '/api/board/conversations/' + encodeURIComponent(key) + '/messages?limit=100', null, function(st, j){
+      if (st !== 200 || !j) return;
+      renderMessages(j.messages || [], j.pending || []);
+    });
+  }
+  function renderMessages(msgs, pending){
+    if (!msgs.length){ boardMsgsEl.innerHTML = '<div class="hint">该会話暂无消息</div>'; return; }
+    var wait = {};
+    pending.forEach(function(a){ wait[a.message_id] = a.deadline; });
+    var now = Math.floor(Date.now() / 1000);
+    boardMsgsEl.innerHTML = msgs.map(function(m){
+      var to = (m.to && m.to.length) ? m.to.join(', ') : '';
+      var extra = '';
+      if (m.state) extra += badge(m.state);
+      else if (m.no_reply) extra += '<span class="board-badge waiting">免回复</span>';
+      else if (wait[m.id]) extra += '<span class="board-badge waiting">等待 ' + Math.max(0, wait[m.id] - now) + 's</span>';
+      else if (m.timeout > 0) extra += '<span class="board-badge waiting">窗口 ' + m.timeout + 's</span>';
+      return '<div class="board-msg"><div class="meta"><b>' + esc(m.from) + '</b>'
+        + '<span class="to">→ ' + esc(to === '*' ? '全部' : to) + '</span>'
+        + extra + '<span>' + esc(fmtTime(m.ts)) + '</span></div>'
+        + '<div class="body">' + esc(m.content) + '</div>'
+        + (m.reply_to ? '<div class="meta">回复 ' + esc(m.reply_to) + '</div>' : '')
+        + '</div>';
+    }).join('');
+    boardMsgsEl.scrollTop = boardMsgsEl.scrollHeight;
   }
 
   function ensureFrame(id){

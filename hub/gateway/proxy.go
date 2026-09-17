@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 // Control message types understood by the proxy (in addition to the raw
@@ -40,46 +41,184 @@ type agentLink interface {
 type Proxy struct {
 	ctx context.Context
 
+	// sweepOnce guards the single board timeout sweeper goroutine.
+	sweepOnce sync.Once
+
 	mu      sync.RWMutex
 	agents  map[string]agentLink
-	order   []string // stable agent id order
+	order   []string         // stable agent id order
 	current map[*Conn]string // per-client current agent id
 
-	// board is the agent bulletin board (FEATURE-490). It is nil when the
+	// removed marks agents whose supervision was stopped on purpose
+	// (RemoveAgent); a supervisor must not re-dial them.
+	removed map[string]bool
+
+	// board is the agent message board (FEATURE-530). It is nil when the
 	// proxy is created without one (e.g. in tests), in which case board_*
 	// messages are forwarded transparently like any other business message.
 	board *Board
 }
 
-// NewProxy creates a Proxy and connects to every configured agent. Agents that
-// fail to connect are skipped (logged) so a partial outage does not block the
-// gateway; they can be retried later.
+// agentRetryMin / agentRetryMax bound the re-dial backoff of one agent link.
+const (
+	agentRetryMin = 2 * time.Second
+	agentRetryMax = 30 * time.Second
+)
+
+// NewProxy creates a Proxy and starts one supervisor per configured agent.
+// A supervisor keeps a live connection to its agent and re-dials when the link
+// drops: a serve-mode agent accepts a single WS client, so any other client
+// (hub Web UI relay, browser) replaces our socket. Without the re-dial the
+// board link stayed dead and the agent was frozen offline forever (FEATURE-530).
 func NewProxy(ctx context.Context, cfgs []AgentConfig) *Proxy {
 	p := &Proxy{
 		ctx:     ctx,
 		agents:  make(map[string]agentLink),
 		current: make(map[*Conn]string),
+		removed: make(map[string]bool),
 	}
 	for _, cfg := range cfgs {
 		ac, err := NewAgentConn(ctx, cfg)
 		if err != nil {
 			log.Printf("gateway: connect agent %s (%s) failed: %v", cfg.ID, cfg.WSURL, err)
-			continue
 		}
-		ac.SetOnAgentMessage(p.routeAgentMessage)
-		p.agents[cfg.ID] = ac
-		p.order = append(p.order, cfg.ID)
-		log.Printf("gateway: connected agent %s (%s)", cfg.ID, cfg.WSURL)
+		go p.superviseAgent(cfg, ac)
 	}
 	return p
 }
 
-// SetBoard attaches the agent bulletin board to the proxy and wires the
-// board's agent-connection resolver to the proxy's agent registry
-// (FEATURE-490). The board can then push board_* messages down to agents.
+// superviseAgent owns one agent link: it installs the given connection (or
+// dials a fresh one) and re-dials with backoff after the link drops, until the
+// proxy context is cancelled or the agent is removed.
+func (p *Proxy) superviseAgent(cfg AgentConfig, first *AgentConn) {
+	ac := first
+	delay := agentRetryMin
+	for {
+		if p.ctx.Err() != nil {
+			return
+		}
+		if ac == nil {
+			if p.isRemoved(cfg.ID) {
+				return
+			}
+			dialed, err := NewAgentConn(p.ctx, cfg)
+			if err != nil {
+				log.Printf("gateway: connect agent %s (%s) failed: %v", cfg.ID, cfg.WSURL, err)
+				if !p.waitRetry(delay) {
+					return
+				}
+				if delay *= 2; delay > agentRetryMax {
+					delay = agentRetryMax
+				}
+				continue
+			}
+			ac = dialed
+		}
+		delay = agentRetryMin
+		cur := ac
+		cur.SetOnAgentMessage(p.routeAgentMessage)
+		cur.SetOnClose(func(id string) { p.dropAgentLink(cur, id) })
+		p.installAgentLink(cfg, cur)
+		<-cur.Done()
+		ac = nil
+		if !p.waitRetry(delay) {
+			return
+		}
+	}
+}
+
+// waitRetry sleeps before the next dial; it reports false when the proxy is
+// shutting down.
+func (p *Proxy) waitRetry(d time.Duration) bool {
+	select {
+	case <-p.ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
+	}
+}
+
+// installAgentLink registers ac as the agent's link and tells the board the
+// agent is reachable again (its link is up before any board frame arrives).
+func (p *Proxy) installAgentLink(cfg AgentConfig, ac *AgentConn) {
+	p.mu.Lock()
+	p.agents[cfg.ID] = ac
+	if !containsID(p.order, cfg.ID) {
+		p.order = append(p.order, cfg.ID)
+	}
+	b := p.board
+	p.mu.Unlock()
+	log.Printf("gateway: connected agent %s (%s)", cfg.ID, cfg.WSURL)
+	if b != nil {
+		b.MarkOnline(cfg.ID)
+		// Push the current roster down the fresh link so a reconnected agent
+		// immediately learns who else is online.
+		b.BroadcastRoster()
+	}
+}
+
+// dropAgentLink handles one connection going away. A connection that was
+// already replaced by a newer one is ignored: only the current link may take
+// an agent offline (a superseded socket used to mark a live agent offline and
+// left the board without a working link).
+func (p *Proxy) dropAgentLink(ac *AgentConn, agentID string) {
+	p.mu.Lock()
+	cur, ok := p.agents[agentID]
+	if !ok || cur != agentLink(ac) {
+		p.mu.Unlock()
+		return
+	}
+	delete(p.agents, agentID)
+	p.order = removeID(p.order, agentID)
+	p.mu.Unlock()
+	p.handleAgentGone(agentID)
+}
+
+// containsID reports whether ids holds id.
+func containsID(ids []string, id string) bool {
+	for _, v := range ids {
+		if v == id {
+			return true
+		}
+	}
+	return false
+}
+
+// removeID returns ids without id.
+func removeID(ids []string, id string) []string {
+	out := ids[:0:0]
+	for _, v := range ids {
+		if v != id {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// markRemoved records that an agent must not be re-dialed (RemoveAgent).
+// The caller must hold p.mu.
+func (p *Proxy) markRemoved(id string) {
+	if p.removed == nil {
+		p.removed = make(map[string]bool)
+	}
+	p.removed[id] = true
+}
+
+// isRemoved reports whether supervision of id was stopped on purpose.
+func (p *Proxy) isRemoved(id string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.removed[id]
+}
+
+// boardSweepInterval is how often expired reply obligations are checked.
+const boardSweepInterval = 5 * time.Second
+
+// SetBoard attaches the agent message board to the proxy and wires the board's
+// agent-connection resolver to the proxy's agent registry (FEATURE-530). The
+// board can then push roster and message frames down to agents.
 func (p *Proxy) SetBoard(b *Board) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.board = b
 	if b != nil {
 		b.SetAgentLink(func(id string) agentLink {
@@ -88,10 +227,76 @@ func (p *Proxy) SetBoard(b *Board) {
 			return p.agents[id]
 		})
 	}
+	p.mu.Unlock()
+	if b != nil {
+		p.startBoardSweeper()
+	}
 }
 
-// routeAgentMessage forwards an agent-originated message to the Board when it
-// is a board_* message (FEATURE-490). The agent id is the message origin.
+// startBoardSweeper launches the single background goroutine that turns expired
+// reply obligations into board_timeout events for the original senders.
+func (p *Proxy) startBoardSweeper() {
+	p.sweepOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(boardSweepInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-p.ctx.Done():
+					return
+				case <-ticker.C:
+					p.sweepBoardTimeouts()
+				}
+			}
+		}()
+	})
+}
+
+// sweepBoardTimeouts emits one board_timeout frame per message whose reply
+// window elapsed without an answer.
+func (p *Proxy) sweepBoardTimeouts() {
+	p.mu.RLock()
+	b := p.board
+	p.mu.RUnlock()
+	if b == nil {
+		return
+	}
+	for _, ev := range b.SweepTimeouts() {
+		b.Notify(ev.From, MsgTypeBoardTimeout, ev)
+	}
+}
+
+// agentBoardFrame is the flat board frame shape co-shell agents speak: the
+// board fields sit directly next to "type". Gateway clients (TCP / browser)
+// keep using Envelope instead.
+type agentBoardFrame struct {
+	Type        string   `json:"type"`
+	Name        string   `json:"name"`
+	Duty        string   `json:"duty"`
+	To          []string `json:"to"`
+	Content     string   `json:"content"`
+	ReplyTo     string   `json:"reply_to"`
+	NoReply     bool     `json:"no_reply"`
+	State       string   `json:"state"`
+	TimeoutSecs int      `json:"timeout_seconds"`
+	ReqID       string   `json:"req_id"`
+}
+
+// boardSendRequest is a parsed board_send, shared by the agent (flat) path and
+// the gateway client (envelope) path.
+type boardSendRequest struct {
+	To          []string `json:"to"`
+	Content     string   `json:"content"`
+	ReplyTo     string   `json:"reply_to"`
+	NoReply     bool     `json:"no_reply"`
+	State       string   `json:"state"`
+	TimeoutSecs int      `json:"timeout_seconds"`
+	ReqID       string   `json:"req_id"`
+}
+
+// routeAgentMessage handles frames an agent sends up to the hub. Board frames
+// (registration, sends) are consumed by the Board; every other agent message is
+// relayed to subscribed clients by AgentConn.broadcast.
 func (p *Proxy) routeAgentMessage(agentID string, msg []byte) {
 	p.mu.RLock()
 	b := p.board
@@ -99,22 +304,50 @@ func (p *Proxy) routeAgentMessage(agentID string, msg []byte) {
 	if b == nil {
 		return
 	}
-	var env Envelope
-	if err := json.Unmarshal(msg, &env); err != nil {
+	var frame agentBoardFrame
+	if err := json.Unmarshal(msg, &frame); err != nil {
 		return
 	}
-	switch env.Type {
-	case MsgTypeBoardResult:
-		var payload struct {
-			TaskID string `json:"task_id"`
-			Result string `json:"result"`
-		}
-		if err := json.Unmarshal(env.Payload, &payload); err != nil {
-			return
-		}
-		if err := b.Result(payload.TaskID, agentID, payload.Result); err != nil {
-			log.Printf("board: agent %s result failed: %v", agentID, err)
-		}
+	switch frame.Type {
+	case MsgTypeBoardRegister:
+		info, rev := b.Register(agentID, frame.Name, frame.Duty)
+		b.Notify(agentID, MsgTypeBoardRegistered, map[string]interface{}{
+			"ok":          true,
+			"agent_id":    info.ID,
+			"name":        info.Name,
+			"duty":        info.Duty,
+			"duty_source": info.DutyFrom,
+			"roster_rev":  rev,
+		})
+		b.BroadcastRoster()
+		log.Printf("board: agent %s registered (duty source=%s)", agentID, info.DutyFrom)
+	case MsgTypeBoardSend:
+		ack := p.sendBoardMessage(agentID, boardSendRequest{
+			To:          frame.To,
+			Content:     frame.Content,
+			ReplyTo:     frame.ReplyTo,
+			NoReply:     frame.NoReply,
+			State:       frame.State,
+			TimeoutSecs: frame.TimeoutSecs,
+			ReqID:       frame.ReqID,
+		})
+		b.Notify(agentID, MsgTypeBoardSent, ack)
+	}
+}
+
+// handleAgentGone marks a disconnected agent offline and refreshes the roster.
+// The caller (dropAgentLink) has already dropped the link, so a live agent that
+// still has a newer connection is never taken offline.
+func (p *Proxy) handleAgentGone(agentID string) {
+	p.mu.RLock()
+	b := p.board
+	p.mu.RUnlock()
+	if b == nil {
+		return
+	}
+	if _, changed := b.SetOffline(agentID); changed {
+		b.BroadcastRoster()
+		log.Printf("board: agent %s went offline", agentID)
 	}
 }
 
@@ -141,23 +374,26 @@ func (p *Proxy) AddAgent(cfg AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	ac.SetOnAgentMessage(p.routeAgentMessage)
-	p.mu.Lock()
-	p.agents[cfg.ID] = ac
-	p.order = append(p.order, cfg.ID)
-	p.mu.Unlock()
-	log.Printf("gateway: connected agent %s (%s)", cfg.ID, cfg.WSURL)
+	// The supervisor owns the link from here on: it installs the connection
+	// and re-dials it when a serve-mode takeover drops it (FEATURE-530).
+	go p.superviseAgent(cfg, ac)
 	return nil
 }
 
 // RemoveAgent disconnects and unregisters an agent.
 func (p *Proxy) RemoveAgent(id string) {
 	p.mu.Lock()
+	p.markRemoved(id)
 	ac, ok := p.agents[id]
 	if ok {
-		ac.Close()
 		delete(p.agents, id)
 	}
+	p.mu.Unlock()
+	// Close outside the lock: the close hook takes p.mu again.
+	if ok {
+		ac.Close()
+	}
+	p.mu.Lock()
 	for i, oid := range p.order {
 		if oid == id {
 			p.order = append(p.order[:i], p.order[i+1:]...)
@@ -175,6 +411,7 @@ func (p *Proxy) RemoveAgent(id string) {
 		}
 	}
 	p.mu.Unlock()
+	p.handleAgentGone(id)
 }
 
 // OnConnect subscribes the client to its default (first) agent.
@@ -210,19 +447,18 @@ func (p *Proxy) HandleMessage(ctx context.Context, c *Conn, env *Envelope) {
 		p.handleSwitchAgent(c, env)
 	case MsgTypeListAgents:
 		p.handleListAgents(c)
-	case MsgTypeBoardPost, MsgTypeBoardList, MsgTypeBoardClaim,
-		MsgTypeBoardDM, MsgTypeBoardConfirm, MsgTypeBoardResult:
-		p.handleBoard(c, env)
+	case MsgTypeBoardSend:
+		p.handleBoardClient(c, env)
+	case MsgTypeBoardRegister:
+		_ = c.Send(&Envelope{Type: MsgTypeError, Payload: json.RawMessage(`"board_register is agent-only"`)})
 	default:
 		p.forwardToCurrent(c, env)
 	}
 }
 
-// handleBoard routes a board_* message to the attached Board (FEATURE-490).
-// The board message payload is a JSON object; the requester/agent identity is
-// derived from the client's current agent. When no board is attached the
-// message is forwarded transparently.
-func (p *Proxy) handleBoard(c *Conn, env *Envelope) {
+// handleBoardClient handles a board_send sent by a gateway client (browser or
+// TCP client). The sender identity is the client's current agent.
+func (p *Proxy) handleBoardClient(c *Conn, env *Envelope) {
 	p.mu.RLock()
 	b := p.board
 	agentID := p.current[c]
@@ -231,55 +467,59 @@ func (p *Proxy) handleBoard(c *Conn, env *Envelope) {
 		p.forwardToCurrent(c, env)
 		return
 	}
-	var payload map[string]interface{}
-	if len(env.Payload) > 0 {
-		if err := json.Unmarshal(env.Payload, &payload); err != nil {
-			_ = c.Send(&Envelope{Type: MsgTypeError, Payload: json.RawMessage(`"bad board payload"`)})
-			return
-		}
+	if agentID == "" {
+		_ = c.Send(&Envelope{Type: MsgTypeError, Payload: json.RawMessage(`"no agent selected"`)})
+		return
 	}
-	if payload == nil {
-		payload = map[string]interface{}{}
+	ack := p.sendBoardMessage(agentID, parseBoardSend(env))
+	payload, err := json.Marshal(ack)
+	if err != nil {
+		return
 	}
-	str := func(k string) string {
-		if v, ok := payload[k].(string); ok {
-			return v
-		}
-		return ""
-	}
-
-	var resp interface{}
-	var err error
-	switch env.Type {
-	case MsgTypeBoardPost:
-		req := b.Post(agentID, str("title"), str("description"), str("required_role"))
-		resp = req
-	case MsgTypeBoardList:
-		resp = b.List(str("open_only") == "true")
-	case MsgTypeBoardClaim:
-		err = b.Claim(str("request_id"), agentID)
-		resp = map[string]interface{}{"ok": err == nil, "error": errString(err)}
-	case MsgTypeBoardDM:
-		err = b.DM(str("request_id"), agentID, str("content"))
-		resp = map[string]interface{}{"ok": err == nil, "error": errString(err)}
-	case MsgTypeBoardConfirm:
-		var task *BoardTask
-		task, err = b.Confirm(str("request_id"), agentID)
-		resp = map[string]interface{}{"ok": err == nil, "error": errString(err), "task": task}
-	case MsgTypeBoardResult:
-		err = b.Result(str("task_id"), agentID, str("result"))
-		resp = map[string]interface{}{"ok": err == nil, "error": errString(err)}
-	}
-	raw, _ := json.Marshal(resp)
-	_ = c.Send(&Envelope{Type: env.Type, Payload: raw})
+	_ = c.Send(&Envelope{Type: MsgTypeBoardSent, Payload: payload})
 }
 
-// errString converts an error to a string ("" when nil).
-func errString(err error) string {
-	if err == nil {
-		return ""
+// parseBoardSend decodes a board_send from a gateway client envelope.
+func parseBoardSend(env *Envelope) boardSendRequest {
+	var req boardSendRequest
+	if env != nil {
+		_ = json.Unmarshal(env.Payload, &req)
 	}
-	return err.Error()
+	return req
+}
+
+// sendBoardMessage validates and relays one board_send on behalf of the given
+// sender, returning the immediate acknowledgement payload.
+func (p *Proxy) sendBoardMessage(senderID string, req boardSendRequest) map[string]interface{} {
+	ack := map[string]interface{}{"req_id": req.ReqID}
+	p.mu.RLock()
+	b := p.board
+	p.mu.RUnlock()
+	if b == nil {
+		ack["ok"] = false
+		ack["error"] = "board is not attached"
+		return ack
+	}
+	msg, deliveries, err := b.Send(SendRequest{
+		From:        senderID,
+		To:          req.To,
+		Content:     req.Content,
+		ReplyTo:     req.ReplyTo,
+		NoReply:     req.NoReply,
+		State:       req.State,
+		TimeoutSecs: req.TimeoutSecs,
+	})
+	if err != nil {
+		ack["ok"] = false
+		ack["error"] = err.Error()
+		return ack
+	}
+	ack["ok"] = true
+	ack["message_id"] = msg.ID
+	ack["conversation"] = msg.Conv
+	ack["deliveries"] = deliveries
+	ack["timeout_seconds"] = msg.Timeout
+	return ack
 }
 
 // handleSwitchAgent changes the client's current agent and re-subscribes it.

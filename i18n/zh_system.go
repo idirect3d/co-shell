@@ -637,64 +637,27 @@ Usage:
   </{XML_TAG_PREFIX}questions>
 </{XML_TAG_PREFIX}ask_user>`
 
-	zhMessages[KeyToolUsageBoardPost] = `## board_post
-描述: 向 hub 公告板发布一条求助请求（FEATURE-490）。其他职责匹配的 agent 可以认领，认领后双方可私信（board_dm）商定目标再执行。仅在公告板开关打开时可用。
+	zhMessages[KeyToolUsageBoardSend] = `## board_send
+描述: 通过 hub 消息公告板向其他 agent 发消息（FEATURE-530）。公告板用于 agent 之间协作：通报工作、请求协助、回复收到的消息。仅在公告板开关（board-enabled）打开时可用。
 参数:
-- title (必需) 请求的简短标题。
-- description (必需) 需要何种协助的详细描述。
-- required_role (可选) 期望响应的职责角色。
+- to (必需) 一个或多个 agent id，或用 "*" 广播给除自己外的所有 agent。
+- content (必需) 消息正文（不超过 8KB）。
+- reply_to (可选) 你正在回复的消息 id（来自收到的 board_message）。
+- no_reply (可选，默认 false) true 表示这条消息不需要回复（仅告知）。
+- state (设置 reply_to 时必需) 三态之一：handled / declined / need_info。
+- timeout_seconds (必需) 期望回复的时间窗口（秒），范围 5..86400。
+协作约定:
+- 先看 <board_agents> 了解公告板上有哪些 agent、各自职责，再决定发给谁。
+- 属于自己职责的消息必须回复，并填 state=handled；不属于自己职责用 state=declined；需要先问清细节用 state=need_info。
+- 同一个消息 id 只回复一次；对 no_reply=true 的消息不应答。
+- timeout_seconds 按工作量估算：30-60 秒用于判断是否属自己职责，读取代码并回复用 300-600 秒，需要实施改造用 1800-7200 秒；纯告知类消息用 no_reply=true。
 用法:
-<{XML_TAG_PREFIX}board_post>
-  <{XML_TAG_PREFIX}title>需要 Go 并发代码审查</{XML_TAG_PREFIX}title>
-  <{XML_TAG_PREFIX}description>请审查 agent/loop.go 的并发安全，重点看锁的使用与竞态</{XML_TAG_PREFIX}description>
-  <{XML_TAG_PREFIX}required_role>reviewer</{XML_TAG_PREFIX}required_role>
-</{XML_TAG_PREFIX}board_post>`
-
-	zhMessages[KeyToolUsageBoardList] = `## board_list
-描述: 巡检 hub 公告板上的未认领求助请求（FEATURE-490）。用于发现与自身职责相关的请求。无参数。
-用法:
-<{XML_TAG_PREFIX}board_list></{XML_TAG_PREFIX}board_list>`
-
-	zhMessages[KeyToolUsageBoardClaim] = `## board_claim
-描述: 认领 hub 公告板上的一条公开求助请求（FEATURE-490）。认领后仅请求方与认领方可使用 board_dm 讨论。
-参数:
-- request_id (必需) 要认领的请求 id（来自 board_list 结果）。
-用法:
-<{XML_TAG_PREFIX}board_claim>
-  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
-</{XML_TAG_PREFIX}board_claim>`
-
-	zhMessages[KeyToolUsageBoardDM] = `## board_dm
-描述: 向公告板请求会话中的另一方发送私信（FEATURE-490）。用于在执行前澄清需求与验收标准。
-参数:
-- request_id (必需) 请求 id。
-- content (必需) 私信内容。
-用法:
-<{XML_TAG_PREFIX}board_dm>
-  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
-  <{XML_TAG_PREFIX}content>请问需要覆盖哪些并发场景？</{XML_TAG_PREFIX}content>
-</{XML_TAG_PREFIX}board_dm>`
-
-	zhMessages[KeyToolUsageBoardConfirm] = `## board_confirm
-描述: 由请求方确认已认领的公告板请求并开始执行（FEATURE-490）。仅请求方可以确认；确认后认领方会收到 board_task 并开始执行。
-参数:
-- request_id (必需) 要确认的请求 id。
-用法:
-<{XML_TAG_PREFIX}board_confirm>
-  <{XML_TAG_PREFIX}request_id>req-18acfe03</{XML_TAG_PREFIX}request_id>
-</{XML_TAG_PREFIX}board_confirm>`
-
-	zhMessages[KeyToolUsageBoardResult] = `## board_result
-描述: 将公告板任务的执行结果回传给 hub（FEATURE-490）。执行完 board_task 后调用，结果会送达请求方。
-参数:
-- task_id (必需) 来自 board_task 消息的任务 id。
-- result (必需) 返回给请求方的结果文本。
-用法:
-<{XML_TAG_PREFIX}board_result>
-  <{XML_TAG_PREFIX}task_id>task-7d91b2</{XML_TAG_PREFIX}task_id>
-  <{XML_TAG_PREFIX}result>审查完成：发现 2 处数据竞争，已给出修复建议</{XML_TAG_PREFIX}result>
-</{XML_TAG_PREFIX}board_result>`
-
+<{XML_TAG_PREFIX}board_send>
+  <{XML_TAG_PREFIX}to>agent-b</{XML_TAG_PREFIX}to>
+  <{XML_TAG_PREFIX}content>请审查 agent/loop.go 的加锁逻辑</{XML_TAG_PREFIX}content>
+  <{XML_TAG_PREFIX}timeout_seconds>600</{XML_TAG_PREFIX}timeout_seconds>
+</{XML_TAG_PREFIX}board_send>`
+	zhMessages[KeyCol3BoardAckTimeout] = "board_send 等待 hub 回执的秒数（默认 5，范围 5-86400）"
 	zhMessages[KeyCol3BoardEnabled] = "公告板协作(on|off)"
 	zhMessages[KeySettingCmd_782] = "公告板协作: %s"
 	zhMessages[KeySettingCmd_783] = "✅ 公告板协作已设为: %s"

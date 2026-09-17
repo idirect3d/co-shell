@@ -1887,80 +1887,43 @@ The summary_prompt is your continuation prompt that replaces all previous conver
 		tools = append(tools, mcpLLMTool)
 	}
 
-	// FEATURE-490: board collaboration tools (only when the board switch is on).
+	// FEATURE-530: the message-board tool. Agents address each other directly
+	// (one or more ids, or "*" for the broadcast conversation) and answer with
+	// one of the three reply states.
 	if a.BoardEnabled() {
 		tools = append(tools, llm.Tool{
-			Name:        "board_result",
-			Description: "Report the result of a hub bulletin-board task back to the hub (FEATURE-490). Call this after executing a board_task to deliver the outcome to the requester.",
+			Name:        "board_send",
+			Description: "Send a message to other agents through the hub message board (FEATURE-530). Use \"*\" to publish to the broadcast conversation, or one/more agent ids for a direct conversation. When the message answers a board_message you received, set reply_to to that message id and state to handled/declined/need_info. Set no_reply=true for FYI messages that need no answer; timeout_seconds is always required and tells the hub how long to wait for the answers (even for FYI, pass a value such as 300).",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"task_id": map[string]interface{}{"type": "string", "description": "The task id from the board_task message"},
-					"result":  map[string]interface{}{"type": "string", "description": "The result text to return to the requester"},
+					"to": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Recipient agent ids, or [\"*\"] to publish to every agent (excluding yourself).",
+					},
+					"content": map[string]interface{}{"type": "string", "description": "Message body"},
+					"reply_to": map[string]interface{}{
+						"type":        "string",
+						"description": "The message id this message answers (empty for a new topic)",
+					},
+					"no_reply": map[string]interface{}{
+						"type":        "boolean",
+						"description": "true when no answer is expected (the hub then starts no reply timer)",
+					},
+					"state": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"handled", "declined", "need_info"},
+						"description": "Reply state: handled = it is mine, declined = not mine, need_info = need more information. Required when reply_to is set.",
+					},
+					"timeout_seconds": map[string]interface{}{
+						"type":        "integer",
+						"description": "Required. How long the hub waits for the answer(s), 5..86400 seconds.",
+					},
 				},
-				"required": []string{"task_id", "result"},
+				"required": []string{"to", "content", "timeout_seconds"},
 			},
-			Callback: a.boardResultTool,
-		})
-		tools = append(tools, llm.Tool{
-			Name:        "board_post",
-			Description: "Publish a help request to the hub bulletin board (FEATURE-490). Other agents whose role matches may claim it.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"title":         map[string]interface{}{"type": "string", "description": "Short title of the request"},
-					"description":   map[string]interface{}{"type": "string", "description": "Detailed description of what help is needed"},
-					"required_role": map[string]interface{}{"type": "string", "description": "Optional role that should respond"},
-				},
-				"required": []string{"title", "description"},
-			},
-			Callback: a.boardPostTool,
-		})
-		tools = append(tools, llm.Tool{
-			Name:        "board_list",
-			Description: "Poll the hub bulletin board for open help requests (FEATURE-490). Use this to discover requests relevant to your role.",
-			Parameters: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-			Callback: a.boardListTool,
-		})
-		tools = append(tools, llm.Tool{
-			Name:        "board_claim",
-			Description: "Claim an open help request on the hub bulletin board (FEATURE-490). Only the requester and the assignee can then discuss via board_dm.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"request_id": map[string]interface{}{"type": "string", "description": "The request id to claim"},
-				},
-				"required": []string{"request_id"},
-			},
-			Callback: a.boardClaimTool,
-		})
-		tools = append(tools, llm.Tool{
-			Name:        "board_dm",
-			Description: "Send a direct message to the other participant of a board request thread (FEATURE-490). Use to clarify requirements before execution.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"request_id": map[string]interface{}{"type": "string", "description": "The request id"},
-					"content":    map[string]interface{}{"type": "string", "description": "The message content"},
-				},
-				"required": []string{"request_id", "content"},
-			},
-			Callback: a.boardDMTool,
-		})
-		tools = append(tools, llm.Tool{
-			Name:        "board_confirm",
-			Description: "Confirm a claimed board request to start execution (FEATURE-490). Only the requester can confirm; the assignee then receives a board_task.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"request_id": map[string]interface{}{"type": "string", "description": "The request id to confirm"},
-				},
-				"required": []string{"request_id"},
-			},
-			Callback: a.boardConfirmTool,
+			Callback: a.boardSendTool,
 		})
 	}
 

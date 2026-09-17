@@ -163,7 +163,10 @@ type Agent struct {
 	dynEvents *dynamicEventQueue
 	// boardSender is the callback the web session installs so the agent can
 	// push board_* messages back to the hub (FEATURE-490).
-	boardSender           BoardSender
+	boardSender BoardSender
+	// boardSt caches the hub message-board roster, dedupes delivered messages
+	// and tracks pending send acknowledgements (FEATURE-530).
+	boardSt *boardState
 	memoryEnabled         bool // whether persistent memory tools are enabled
 	planEnabled           bool // whether task plan tools are enabled
 	subAgentEnabled       bool // whether sub-agent tools are enabled

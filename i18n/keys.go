@@ -1412,6 +1412,7 @@ const (
 	// SubAgent enabled
 	KeyCol3SubAgentEnabled = "col3_sub_agent_enabled"
 	KeyCol3BoardEnabled    = "col3_board_enabled"
+	KeyCol3BoardAckTimeout = "col3_board_ack_timeout"
 	// FEATURE-524: UI component/window rendering switch descriptions.
 	KeyCol3UIEnabled           = "col3_ui_enabled"
 	KeyCol3UIContextPrune      = "col3_ui_context_prune"
@@ -2301,12 +2302,7 @@ const (
 	KeyToolUsageReorganizeContext = "tool_usage_reorganize_context"
 
 	// Board collaboration tool usage examples (FEATURE-490, XML mode)
-	KeyToolUsageBoardPost    = "tool_usage_board_post"
-	KeyToolUsageBoardList    = "tool_usage_board_list"
-	KeyToolUsageBoardClaim   = "tool_usage_board_claim"
-	KeyToolUsageBoardDM      = "tool_usage_board_dm"
-	KeyToolUsageBoardConfirm = "tool_usage_board_confirm"
-	KeyToolUsageBoardResult  = "tool_usage_board_result"
+	KeyToolUsageBoardSend = "tool_usage_board_send"
 
 	// Shell session tool usage examples (XML mode)
 	KeyToolUsageShellStart     = "tool_usage_shell_start"

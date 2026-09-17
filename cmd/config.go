@@ -375,6 +375,29 @@ func (h *ConfigHandler) agentParams() []ConfigParam {
 		// FEATURE-490: the board collaboration switch defaults to OFF, so it uses
 		// a custom param whose reset also turns it off (syncedOnOffParam resets
 		// to on).
+		{Name: "board-ack-timeout",
+			CurrentValue: func() string {
+				n := h.cfg.BoardAckTimeout
+				if n <= 0 {
+					n = 5
+				}
+				return fmt.Sprintf("%d", n)
+			},
+			SetValue: func(v string) (string, error) {
+				secs := 0
+				if _, err := fmt.Sscanf(v, "%d", &secs); err != nil || secs < 5 || secs > 86400 {
+					return "", fmt.Errorf("usage: board-ack-timeout <seconds 5..86400>")
+				}
+				h.cfg.BoardAckTimeout = secs
+				if err := h.cfg.Save(); err != nil {
+					return "", err
+				}
+				return fmt.Sprintf("board-ack-timeout set to %ds", secs), nil
+			},
+			ResetValue: func() string {
+				h.cfg.BoardAckTimeout = 0
+				return "board-ack-timeout reset to default (5s)"
+			}},
 		{Name: "board-enabled", Options: []string{"on", "off"},
 			CurrentValue: onOffFunc(&h.cfg.BoardEnabled),
 			SetValue: func(v string) (string, error) {
