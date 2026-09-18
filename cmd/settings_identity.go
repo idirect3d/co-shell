@@ -98,8 +98,12 @@ func (h *SettingsHandler) IdentityJSON() []IdentityField {
 		capabilities = i18n.T(i18n.KeySystemPromptCapabilities)
 	}
 
-	// rules (./RULES.md)
+	// rules (./RULES.md; falls back to the built-in default so the form shows
+	// what is actually in effect — FEATURE-535)
 	rules := h.identityFileContent("RULES.md")
+	if rules == "" {
+		rules = strings.TrimSpace(i18n.T(i18n.KeySystemPromptRules))
+	}
 
 	return []IdentityField{
 		{Key: "name", Value: name, Type: "text", Label: i18n.T(i18n.KeyCol3Name)},

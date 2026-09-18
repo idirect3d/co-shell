@@ -4,7 +4,36 @@
 
 ---
 
-## v0.64.0 — 开发中
+## v0.65.0 — 已完成
+
+> **版本**: v0.65.0
+
+> **状态**: ✅ 已完成（已合并 main，标签 v0.65.0）
+> **里程碑**: 系统提示词身份注入（Environment 节）+ RULES 节语义显式化
+> **说明**: ① 把 `./IDENTITY.md` 的 user-name / user-description 注入 Environment 节 `<system_info>`（新增 `<user>` / `<user_description>` 结构化字段），`<channel>` 收窄为仅频道名；② 消除 `promptEnv.userDescription` 的三重断链（未赋值 / 未传参 / i18n 模板未引用），并把 5 个身份参数打包为 `promptIdentity` 结构体，根治「加字段忘传参」；③ RULES 节语义显式化：`./RULES.md` 整节替换 + `.rules/` 在 `{CUSTOM_RULES}` 处追加，新增 `{DEFAULT_RULES}` 占位符（展开为内置默认段，运行时解析因此跟随版本更新），RULES.md 缺 `{CUSTOM_RULES}` 致 `.rules/` 未注入时输出告警；④ Settings「规则」框在无 RULES.md 时显示默认文本（与 `--init` 导出原文一致）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-535 | 0.65.0 | P1 | 系统提示词身份注入与 RULES 语义显式化：user-name / user-description 注入 Environment 节 `<system_info>`（`<user>` / `<user_description>`，空描述不输出整行），`<channel>` 只保留频道名；`buildSystemPromptWithMode` 的 5 个身份参数打包为 `promptIdentity`（参数 12 → ~6）；RULES 节新增 `{DEFAULT_RULES}`（= 内置默认段原文，含说明与 `{CUSTOM_RULES}`，顺序替换保证嵌套占位符继续解析）+ RULES.md 缺 `{CUSTOM_RULES}` 时告警（判断置于 `{DEFAULT_RULES}` 展开之后以免误报）+ Settings「规则」框回退默认文本 |
+
+> 当前 BUILD: 1073
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-535 系统提示词身份注入与 RULES 语义显式化**
+  - 背景：FEATURE-534 只完成了 user-name / user-description 的「存储 + Web UI 编辑」，注入侧未做——`promptEnv.userDescription` 声明于 `agent/system_prompt.go:488`、替换语句在 `:464`，但 `buildSystemPromptWithMode`（`:705-716`）从未赋值、函数签名亦无该参数（调用方 `agent/agent.go:1275`、`1905` 未传）、中英 Identity 模板也无 `{USER_DESCRIPTION}`，形成三重断链；user-name 仅以 `env.channelInfo = userName + " @ " + channel` 的形式间接出现在 Environment 节 `<channel>` 中。同时 RULES 节实为「两层混用」：`./RULES.md` 存在即整节替换默认模板（`system_prompt.go:510-515`、`578-582`），`.rules/` 内容在 `{CUSTOM_RULES}` 处追加（`agent/agent.go:1190-1209`），但 RULES.md 缺该占位符时 `.rules/` 被**静默丢弃**；Settings「规则」框读不到文件即显示空框（`cmd/settings_identity.go:101-102`），用户感知不到系统默认值。
+  - 需求（用户确认）：① 身份注入放 Environment 节 `<system_info>`（结构化字段 `<user>` / `<user_description>`），用户名从 channel 拆出、`<channel>` 只保留频道名；② user_description 为空时不输出该标签行；③ 做 `promptIdentity` 结构体重构（根治「加字段忘传参」，本 bug 根因）；④ RULES 采用显式两层（RULES.md 整节替换 + `.rules/` 在 `{CUSTOM_RULES}` 处追加），语义写清、删占位符告警；⑤ 新增 `{DEFAULT_RULES}` 占位符，展开边界为**整个默认段**（含说明与 `{CUSTOM_RULES}`），用于防止用户改写 RULES.md 后丢失后续版本新增的内置规则；⑥ Settings「规则」框无文件时显示默认文本（口径 = `{DEFAULT_RULES}` 已展开、`{CUSTOM_RULES}` 保留字面量，等价于 `--init` 导出原文，零漂移）；⑦ `--init` 维持「备份 .bak 后覆盖」；⑧ 视觉识别轮 `buildVisionIdentityPrompt` 只构建 Identity 节，天然不受影响，不注入 user 信息。
+  - 实施：`i18n/zh_system.go` + `i18n/en_system.go`（Environment 模板新增 `<user>` / `<user_description>`、`<channel>` 仅频道名、RULES 说明文案补 `{DEFAULT_RULES}` 语义）；`agent/system_prompt.go`（新增 `promptIdentity` 结构体并收敛 `buildSystemPromptWithMode` 参数、贯通 `env.userDescription`、`env.channelInfo` 语义收窄、Rules 分支展开 `{DEFAULT_RULES}` 并在缺 `{CUSTOM_RULES}` 且有 `.rules/` 内容时告警、空 `user_description` 不输出标签行）；`agent/agent.go`（两处构建点传入 `ResolveUserDescription`）；`cmd/settings_identity.go`（rules 回退默认文本）。
+  - 已知限制（不在本仓改动范围）：每轮消息 `<environment_details>` 中的 `<system_info>`（含 `<channel>匿名 @ co-shell</channel>`）在本仓 Go 代码中找不到构造点——`buildFullEnvironmentDetails`（`agent/envelope.go:112-235`）不产出该块，`<system_info>` 字样仅存在于 i18n 的 Environment 模板，故该块由宿主层注入；本次仅改系统提示词侧，若需两侧一致须由宿主层配合。
+  - 用例：`use-case/FEATURE-535/`
+  - 分支：**FEATURE-535**（基于 main），版本 v0.65.0
+  - 进度：开发完成 [BUILD-1073]——① 身份注入 Environment 节（`<user>` / `<user_description>`，空描述整行删除）；② `<channel>` 仅频道名、用户名从 channel 拆出；③ `promptIdentity` 结构体重构完成（参数 12 → 9，`rebuildSystemPrompt` / `SetResultMode` / `New` 三处已改）；④ RULES 显式两层（`{DEFAULT_RULES}` 展开为整个默认段 + 缺 `{CUSTOM_RULES}` 且有 `.rules/` 内容时告警，判断抽为纯函数 `rulesPlaceholderMissing` 以便单测，且置于 `{DEFAULT_RULES}` 展开后以避免误报）；⑤ Settings「规则」框无文件时回退 `i18n.T(KeySystemPromptRules)`。验证：新增 `agent/system_prompt_feature535_test.go`（UC-0001~0006、UC-0008）与 `cmd/settings_identity_test.go:TestFeature535IdentityRulesFallback`（UC-0007）全部通过；`go build ./... && go vet ./...` 全绿；产物 `work/co-shell-0.65.0.darwin.arm64`、`work/co-shell-hub-0.65.0.darwin.arm64`。全量测试中 `TestLineRendererTokenEvents` / `TestRetryCountLimit_EnterResets` / `TestWebWizardModelNameStep` 三项失败，已经独立 worktree 在 HEAD（86ac427）基线上复现，确认是既有问题、与本次改动无关。待用户测试确认后合并（/merge）。本次编译 3：生成 darwin.arm64 / windows.amd64 / linux.arm64 三平台 zip，并把 Linux arm64 的 co-shell 与 co-shell-hub 部署到内网主机 [BUILD-1073]。
+
+---
+
+## v0.64.0 — 已完成
 
 > **版本**: v0.64.0
 

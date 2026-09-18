@@ -37,6 +37,7 @@ import (
 
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/log"
 )
 
 // loadExternalFile attempts to load a text file from the workspace root directory.
@@ -454,6 +455,41 @@ func buildResultModeSection(cwd string, cfg *config.Config) string {
 	return strings.TrimSpace(sb.String())
 }
 
+// stripEmptyTagLines removes lines that consist of a single empty XML tag pair
+// (e.g. "<user_description></user_description>"). A placeholder whose value is
+// empty would otherwise leave a noisy empty field in the prompt (FEATURE-535).
+func stripEmptyTagLines(text string) string {
+	if !strings.Contains(text, "></") {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if isEmptyTagLine(strings.TrimSpace(line)) {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+// isEmptyTagLine reports whether s is exactly one empty tag pair, e.g.
+// "<user_description></user_description>".
+func isEmptyTagLine(s string) bool {
+	if len(s) < 7 || s[0] != '<' {
+		return false
+	}
+	mid := strings.Index(s, "></")
+	if mid <= 1 {
+		return false
+	}
+	name := s[1:mid]
+	if strings.ContainsAny(name, " \t=") {
+		return false
+	}
+	return s[mid+3:] == name+">"
+}
+
 // buildSectionWithPlaceholders returns a prompt section after applying all
 // named placeholders (e.g. {AGENT_NAME}, {OS}, etc.) to the given text.
 func buildSectionWithPlaceholders(text string, env *promptEnv) string {
@@ -477,6 +513,18 @@ func buildSectionWithPlaceholders(text string, env *promptEnv) string {
 	// into the RULES section so the LLM knows when to proactively reorganize.
 	text = strings.ReplaceAll(text, "{CONTEXT_REORGANIZE_THRESHOLD}", env.contextReorganizeThreshold)
 	return text
+}
+
+// promptIdentity groups the personalization values injected into the prompt via
+// named placeholders (FEATURE-535). Bundling them keeps the builder signature
+// small and, more importantly, turns a forgotten field into a visible mistake
+// instead of a silently empty placeholder.
+type promptIdentity struct {
+	Name            string
+	Description     string
+	Principles      string
+	UserName        string
+	UserDescription string
 }
 
 // promptEnv holds all environment values reused across multiple sections.
@@ -512,6 +560,14 @@ func loadSectionText(cwd, name string, fallbackFn func() string) string {
 		return text
 	}
 	return fallbackFn()
+}
+
+// rulesPlaceholderMissing reports whether the .rules/ content cannot be injected
+// because the resolved RULES section text lost its {CUSTOM_RULES} placeholder
+// (FEATURE-535). The caller evaluates it after the {DEFAULT_RULES} expansion, so
+// a section that pulls in the default rules indirectly is not a false positive.
+func rulesPlaceholderMissing(text, customRules string) bool {
+	return customRules != "" && !strings.Contains(text, "{CUSTOM_RULES}")
 }
 
 // buildNamedSection builds a single named prompt section. The section name determines
@@ -576,10 +632,34 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		return buildSectionWithPlaceholders(text, env)
 
 	case "Rules":
+		fromFile := loadRootSectionFile(env.cwd, name) != ""
 		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptRules)
 		})
-		return buildSectionWithPlaceholders(text, env)
+		// FEATURE-535: {DEFAULT_RULES} expands to the built-in default rules
+		// (including their own {CUSTOM_RULES} placeholder), so a user-edited
+		// ./RULES.md can keep following the built-in rules across releases.
+		// The placeholders inside the expanded text are still resolved by
+		// buildSectionWithPlaceholders below, which runs after this expansion.
+		text = strings.ReplaceAll(text, "{DEFAULT_RULES}", i18n.T(i18n.KeySystemPromptRules))
+		// Warn when the .rules/ content cannot be injected because the resolved
+		// section has no {CUSTOM_RULES} placeholder. Checked after the
+		// {DEFAULT_RULES} expansion so that a section which pulls in the default
+		// rules indirectly is not reported as a false positive.
+		if rulesPlaceholderMissing(text, env.customRules) {
+			log.Warn("RULES section has no {CUSTOM_RULES} placeholder: %d bytes of .rules/ content not injected", len(env.customRules))
+		}
+		section := buildSectionWithPlaceholders(text, env)
+		// The customization note is appended AFTER substitution, and only for the
+		// built-in default: the note mentions the placeholder tokens literally
+		// (substituting them inside the note would corrupt it), and a user-provided
+		// ./RULES.md replaces the section as a whole.
+		if !fromFile {
+			if note := i18n.T(i18n.KeySystemPromptRulesNote); note != "" && note != i18n.KeySystemPromptRulesNote {
+				section = strings.TrimSpace(section) + "\n\n" + note
+			}
+		}
+		return section
 
 	case "Skills":
 		// FEATURE-453: list skill index (name + description + path) without
@@ -619,7 +699,9 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 		text := loadSectionText(env.cwd, name, func() string {
 			return i18n.T(i18n.KeySystemPromptEnvironment)
 		})
-		return buildSectionWithPlaceholders(text, env)
+		// FEATURE-535: drop fields whose value is empty (e.g. an unset
+		// <user_description>) instead of leaving an empty tag behind.
+		return stripEmptyTagLines(buildSectionWithPlaceholders(text, env))
 
 	case "ToolExamples":
 		text := loadSectionText(env.cwd, name, func() string {
@@ -681,7 +763,10 @@ func buildNamedSection(name string, env *promptEnv, cfg *config.Config, shellEna
 //
 // Each built-in section is separated by the section separator (i18n KeySectionSeparator),
 // but only between non-empty sections.
-func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.ResultMode, shellEnabled bool, agentName, agentDescription, agentPrinciples, userName, channel, taskDesc, taskPlanText string, intentExposureEnabled bool, toolUsageText ...string) string {
+//
+// id bundles the identity/personalization values (FEATURE-535); channel is the
+// channel name only — the user name is injected as its own <user> field.
+func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.ResultMode, shellEnabled bool, id promptIdentity, channel, taskDesc, taskPlanText string, intentExposureEnabled bool, toolUsageText ...string) string {
 	env := &promptEnv{}
 	env.cwd, _ = os.Getwd()
 	env.shell = shellName()
@@ -699,21 +784,26 @@ func buildSystemPromptWithMode(cfg *config.Config, rules string, mode config.Res
 	env.shellEnabled = shellEnabled
 	env.lang = string(i18n.GetLang())
 
-	if agentName == "" {
-		agentName = "co-shell"
+	if id.Name == "" {
+		id.Name = "co-shell"
 	}
-	env.agentName = agentName
-	env.agentDescription = agentDescription
-	env.agentPrinciples = agentPrinciples
-	env.userName = userName
+	env.agentName = id.Name
+	env.agentDescription = id.Description
+	env.agentPrinciples = id.Principles
+	env.userName = id.UserName
 	if env.userName == "" {
 		env.userName = i18n.T(i18n.KeyAnonymousUser)
 	}
+	// FEATURE-535: the user description is injected as its own
+	// <user_description> field, never mixed into <channel>.
+	env.userDescription = strings.TrimSpace(id.UserDescription)
 	displayChannel := channel
 	if displayChannel == "" {
 		displayChannel = "co-shell"
 	}
-	env.channelInfo = env.userName + " @ " + displayChannel
+	// FEATURE-535: <channel> carries the channel name only; the user name moved
+	// to the dedicated <user> field.
+	env.channelInfo = displayChannel
 	env.taskDesc = taskDesc
 	env.customRules = rules
 	env.resultModeInstruction = resultModeInstruction(mode)

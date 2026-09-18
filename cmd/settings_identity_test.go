@@ -131,3 +131,43 @@ func TestSaveIdentityPersistsUserFields(t *testing.T) {
 		t.Errorf("user-name changed after saving principles: %q", got)
 	}
 }
+
+// TestFeature535IdentityRulesFallback verifies the "rules" field of the identity
+// form: ./RULES.md wins when present, otherwise the built-in default is shown, so
+// the Web UI never renders an empty rules box (FEATURE-535, UC-0007).
+func TestFeature535IdentityRulesFallback(t *testing.T) {
+	h, ws := setupIdentityTestHandler(t)
+
+	rulesValue := func() string {
+		for _, f := range h.IdentityJSON() {
+			if f.Key == "rules" {
+				return f.Value
+			}
+		}
+		t.Fatal("IdentityJSON has no rules field")
+		return ""
+	}
+
+	want := strings.TrimSpace(i18n.T(i18n.KeySystemPromptRules))
+	if want == "" {
+		t.Fatal("built-in RULES default is empty")
+	}
+	got := rulesValue()
+	if got != want {
+		t.Errorf("rules value without ./RULES.md = %q, want the built-in default", got)
+	}
+	// The form shows the raw template (what --init exports): no placeholder may
+	// be substituted away.
+	for _, token := range []string{"{CUSTOM_RULES}", "{CONTEXT_REORGANIZE_THRESHOLD}"} {
+		if strings.Contains(want, token) && !strings.Contains(got, token) {
+			t.Errorf("rules value must keep %s literal, got: %q", token, got)
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(ws, "RULES.md"), []byte("我的规则"), 0o644); err != nil {
+		t.Fatalf("write RULES.md: %v", err)
+	}
+	if got := rulesValue(); got != "我的规则" {
+		t.Errorf("rules value with ./RULES.md = %q, want the file content", got)
+	}
+}

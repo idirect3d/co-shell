@@ -1592,10 +1592,13 @@ RULES
 - 关注 <environment_details> 中的环境信息和用户动态，这些可能反映用户此时的思考路径。
 - 管理上下文窗口：如果上下文占用接近 {CONTEXT_REORGANIZE_THRESHOLD}%（context-reorganize-threshold），则应提前评估是否需要择机主动调用 reorganize_context 重整上下文，或通过 attempt_completion 的 task_message_no 参数缩短上下文，以便系统强制重整不会影响关键步骤的处理。历史上下文仍可通过 memory_search 或 get_memory_slice 从永久记忆中检索。
 
-（可以通过向 .rules/ 下放规则文件的方式，在以下位置定制规则/规范，文件名将被当作各节标题，子文件夹将被列出（作为索引），但不会再遍历子文件夹，需要时可自取；也可直接编辑 ./RULES.md 整节覆盖以上内容——两者均可用 --init 导出，编辑后在下一回合实时生效）
-
 {CUSTOM_RULES}
 `
+
+	// FEATURE-535: the customization note is appended AFTER placeholder
+	// substitution (see the "Rules" case in buildNamedSection). It mentions the
+	// placeholder tokens literally, so it must stay OUT of the substituted text.
+	zhMessages[KeySystemPromptRulesNote] = `（本节的定制方式：① 直接编辑 ./RULES.md——文件存在即【整节替换】以上默认内容；② 在 .rules/ 下放规则文件——内容会注入到本节 {CUSTOM_RULES} 处（文件名作为小节标题；子文件夹只列出路径索引、不自动加载，需要时用 read_file 读取）；③ 在 RULES.md 中写 {DEFAULT_RULES}——在该处插入系统内置默认规则（运行时解析，随版本更新，可避免改写后丢失新增的内置规则）。注意：RULES.md 若不含 {CUSTOM_RULES}，.rules/ 下的规则不会生效（系统会记录告警）；本节内其余 {…} 占位符由系统在运行时替换，请勿删除。以上文件均可用 --init 导出，编辑后在下一回合实时生效）`
 
 	zhMessages[KeySystemPromptObjective] = `
 OBJECTIVE
@@ -1625,6 +1628,8 @@ SYSTEM INFORMATION
 <shell>{SHELL}</shell>
 <home>{HOME}</home>
 <workspace>{WORKSPACE}</workspace>
+<user>{USER_NAME}</user>
+<user_description>{USER_DESCRIPTION}</user_description>
 <channel>{CHANNEL}</channel>
 <lang>{LANG}</lang>
 </system_info>

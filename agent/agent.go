@@ -53,7 +53,7 @@ import (
 
 // New creates a new Agent instance.
 func New(llmClient llm.Client, mcpMgr *mcp.Manager, s *store.DualStore, rules string) *Agent {
-	systemPrompt := buildSystemPromptWithMode(nil, rules, config.ResultModeMinimal, false, "", "", "", "", "", "", "", true, i18n.T(i18n.KeySystemPromptToolUsage))
+	systemPrompt := buildSystemPromptWithMode(nil, rules, config.ResultModeMinimal, false, promptIdentity{}, "", "", "", true, i18n.T(i18n.KeySystemPromptToolUsage))
 
 	return &Agent{
 		llmClient:       llmClient,
@@ -1241,17 +1241,16 @@ func (a *Agent) rebuildSystemPrompt() {
 		}
 	}
 
-	agentName := ""
-	agentDesc := ""
-	agentPrinciples := ""
-	userName := ""
+	id := promptIdentity{}
 	channel := ""
 	if a.cfg != nil {
-		agentName = ResolveAgentName(a.identityDir())
+		id.Name = ResolveAgentName(a.identityDir())
 		// FEATURE-531 follow-up: description comes from ./IDENTITY.md.
-		agentDesc = ResolveAgentDescription(a.identityDir())
-		agentPrinciples = a.resolveAgentPrinciples()
-		userName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
+		id.Description = ResolveAgentDescription(a.identityDir())
+		id.Principles = a.resolveAgentPrinciples()
+		id.UserName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
+		// FEATURE-535: the user description now reaches the prompt.
+		id.UserDescription = ResolveUserDescription(a.identityDir())
 		channel = a.cfg.LLM.Channel
 	}
 
@@ -1272,7 +1271,7 @@ func (a *Agent) rebuildSystemPrompt() {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.getCurrentTaskDescription()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), a.resultMode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), a.resultMode, a.shellEnabled, id, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(a.messages) > 0 {
@@ -1856,32 +1855,31 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	a.mu.Unlock()
 
 	workMode := ""
-	agentName := ""
-	agentDesc := ""
-	agentPrinciples := ""
-	userName := ""
+	id := promptIdentity{}
 	channel := ""
 	if a.cfg != nil {
-		agentName = ResolveAgentName(a.identityDir())
+		id.Name = ResolveAgentName(a.identityDir())
 		workMode = a.cfg.LLM.WorkMode
-		agentDesc = ResolveAgentDescription(a.identityDir())
-		agentPrinciples = a.resolveAgentPrinciples()
-		userName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
+		id.Description = ResolveAgentDescription(a.identityDir())
+		id.Principles = a.resolveAgentPrinciples()
+		id.UserName = ResolveUserName(a.identityDir(), a.cfg.LLM.UserName)
+		// FEATURE-535: the user description now reaches the prompt.
+		id.UserDescription = ResolveUserDescription(a.identityDir())
 		channel = a.cfg.LLM.Channel
 		// Fall back to mode-specific i18n description
-		if agentDesc == "" {
+		if id.Description == "" {
 			switch workMode {
 			case "plan":
-				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
+				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionPlan)
 			case "research":
-				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
+				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionResearch)
 			default:
-				agentDesc = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
+				id.Description = i18n.T(i18n.KeyAgentDefaultDescriptionAct)
 			}
 		}
 		// Fall back to global i18n description
-		if agentDesc == "" {
-			agentDesc = i18n.T(i18n.KeyAgentDefaultDescription)
+		if id.Description == "" {
+			id.Description = i18n.T(i18n.KeyAgentDefaultDescription)
 		}
 	}
 
@@ -1902,7 +1900,7 @@ func (a *Agent) SetResultMode(mode config.ResultMode) {
 	taskPlanText := a.getTaskPlanText()
 	taskDesc := a.getCurrentTaskDescription()
 
-	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), mode, a.shellEnabled, agentName, agentDesc, agentPrinciples, userName, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
+	a.systemPrompt = buildSystemPromptWithMode(a.cfg, a.resolveRules(), mode, a.shellEnabled, id, channel, taskDesc, taskPlanText, a.intentExposureEnabled, toolUsageText)
 
 	a.mu.Lock()
 	a.messages = []llm.Message{

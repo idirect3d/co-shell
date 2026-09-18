@@ -1609,10 +1609,13 @@ RULES
 - Pay attention to the environment information and user dynamic events in <environment_details>; they may reflect the user's current thinking path.
 - Managing the context window: if context usage approaches {CONTEXT_REORGANIZE_THRESHOLD}% (context-reorganize-threshold), proactively assess whether to call reorganize_context to reorganize the context, or shorten the context via attempt_completion's task_message_no parameter, so that a system-forced reorganization does not disrupt handling of critical steps. Historical context can still be retrieved from persistent memory via memory_search or get_memory_slice.
 
-(You can customize rules/specifications by placing rule files under .rules/; the file names are used as section titles, and subfolders are listed as an index but are not traversed further — read them on demand. You can also edit ./RULES.md to override everything above; both can be exported with --init, and edits take effect on the next turn.)
-
 {CUSTOM_RULES}
 `
+
+	// FEATURE-535: the customization note is appended AFTER placeholder
+	// substitution (see the "Rules" case in buildNamedSection). It mentions the
+	// placeholder tokens literally, so it must stay OUT of the substituted text.
+	enMessages[KeySystemPromptRulesNote] = `(How to customize this section: (1) edit ./RULES.md directly — when the file exists it REPLACES everything above as a whole section; (2) place rule files under .rules/ — their content is injected at {CUSTOM_RULES} below (file names become subsection titles; subfolders are listed as a path index only and are loaded on demand with read_file); (3) put {DEFAULT_RULES} in RULES.md — the built-in default rules are inserted there at runtime, so they keep following new releases and you do not lose newly added built-in rules after rewriting the file. Note: if RULES.md has no {CUSTOM_RULES}, the .rules/ files are NOT injected (the system logs a warning); other {…} placeholders in this section are resolved by the system at build time — do not remove them. All of these files can be exported with --init, and edits take effect on the next turn.)`
 
 	enMessages[KeySystemPromptObjective] = `
 OBJECTIVE
@@ -1644,6 +1647,8 @@ SYSTEM INFORMATION
 <shell>{SHELL}</shell>
 <home>{HOME}</home>
 <workspace>{WORKSPACE}</workspace>
+<user>{USER_NAME}</user>
+<user_description>{USER_DESCRIPTION}</user_description>
 <channel>{CHANNEL}</channel>
 <lang>{LANG}</lang>
 </system_info>`

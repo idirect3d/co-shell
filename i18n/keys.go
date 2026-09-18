@@ -1277,6 +1277,10 @@ const (
 	KeySystemPromptEnvironment      = "system_prompt_environment"
 	KeySystemPromptCapabilities     = "system_prompt_capabilities"
 	KeySystemPromptRules            = "system_prompt_rules"
+	// FEATURE-535: two parts of the RULES section. The note is appended AFTER
+	// placeholder substitution (it mentions the placeholder tokens literally),
+	// while {DEFAULT_RULES} expands to the built-in default text at runtime.
+	KeySystemPromptRulesNote        = "system_prompt_rules_note"
 	KeyWorkModeAct                  = "work_mode_act"
 	KeyWorkModePlan                 = "work_mode_plan"
 	KeyWorkModeResearch             = "work_mode_research"
