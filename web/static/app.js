@@ -28,6 +28,14 @@ const I18N = {
     identityCatAgent: "智能体", identityCatUser: "用户",
     identityCatPrinciples: "核心原则",
     identityCatCapabilities: "能力", identityCatRules: "规则", save: "保存",
+    identityNavHint: "本配置中的数值与系统提示词相关：修改可能降低大模型请求缓存命中率、增加费用，并延长变更后首次访问的预处理时间，请谨慎修改。",
+    identityHintName: "命名当前 co-shell 实例，会注入系统提示词，可能影响 LLM 的行为，也可用于在 co-shell-hub 中辨识当前实例。",
+    identityHintDescription: "描述当前 co-shell 实例的职责，会注入系统提示词，可能影响 LLM 的行为，也可用于在 co-shell-hub 中向其他 co-shell 实例介绍自己的能力。",
+    identityHintUserName: "用于 co-shell 辨识你，可能轻微影响 LLM 的行为。",
+    identityHintUserDescription: "用于 co-shell 了解你的岗位、职责、偏好等，以便更好的为你提供帮助，可能直接影响 LLM 的行为。",
+    identityHintPrinciples: "co-shell 的核心工作原则，直接影响 LLM 的行为。",
+    identityHintCapabilities: "让 co-shell 了解自己的能力，直接影响 LLM 的行为。",
+    identityHintRules: "co-shell 的做事规则，尽量不要修改/删除 {} 占位符，直接影响 LLM 的行为。",
     appearance: "[ 外观 ]",
     themeMode: "主题", themeAuto: "跟随系统", themeDark: "深色", themeLight: "浅色",
     statusBar: "状态条", streamTitle: "会话标题", msgViz: "消息可视化",
@@ -81,6 +89,14 @@ const I18N = {
     identityCatAgent: "Agent", identityCatUser: "User",
     identityCatPrinciples: "Principles",
     identityCatCapabilities: "Capabilities", identityCatRules: "Rules", save: "Save",
+    identityNavHint: "These values are part of the system prompt. Changing them may lower the LLM request cache hit rate, increase cost, and lengthen preprocessing on the first request after the change - edit with care.",
+    identityHintName: "Names this co-shell instance. Injected into the system prompt, may affect LLM behavior, and also identifies this instance in co-shell-hub.",
+    identityHintDescription: "Describes this co-shell instance's responsibility. Injected into the system prompt, may affect LLM behavior, and also introduces its capabilities to other co-shell instances in co-shell-hub.",
+    identityHintUserName: "Lets co-shell identify you; may slightly affect LLM behavior.",
+    identityHintUserDescription: "Tells co-shell your role, duties and preferences so it can help you better; may directly affect LLM behavior.",
+    identityHintPrinciples: "co-shell's core working principles; directly affects LLM behavior.",
+    identityHintCapabilities: "Lets co-shell know its own capabilities; directly affects LLM behavior.",
+    identityHintRules: "co-shell's working rules. Try not to modify/delete {} placeholders; directly affects LLM behavior.",
     appearance: "[ Appearance ]",
     themeMode: "Theme", themeAuto: "Follow system", themeDark: "Dark", themeLight: "Light",
     statusBar: "Status bar", streamTitle: "Session title", msgViz: "Message viz",
@@ -7077,6 +7093,13 @@ function renderIdentityNav() {
     frag.appendChild(item);
   });
   identityNav.appendChild(frag);
+  // FEATURE-536: a caution note pinned to the bottom of the category nav — every
+  // value here feeds the system prompt, so editing it affects request caching,
+  // cost and the preprocessing time of the first request after the change.
+  const hint = document.createElement("div");
+  hint.className = "identity-nav-hint";
+  hint.textContent = i18nT("identityNavHint", "");
+  identityNav.appendChild(hint);
 }
 
 // selectIdentityCat switches the active category; on narrow screens it drills
@@ -7133,8 +7156,35 @@ function renderIdentityField(f) {
   saveBtn.onclick = () => {
     wsSend({ type: "identity_set", key: f.key, value: ctl.value });
   };
-  row.appendChild(saveBtn);
+  // FEATURE-536: the hint sits left of the save button in the same footer row,
+  // reserving two lines of height that match the button height.
+  const foot = document.createElement("div");
+  foot.className = "identity-field-foot";
+  const hint = document.createElement("div");
+  hint.className = "identity-hint";
+  hint.textContent = identityHintOf(f.key);
+  foot.appendChild(hint);
+  foot.appendChild(saveBtn);
+  row.appendChild(foot);
   return row;
+}
+
+// IDENTITY_HINT_KEYS maps a field key to the i18n key of its explanatory hint
+// (FEATURE-536); a key without an entry renders no hint text.
+const IDENTITY_HINT_KEYS = {
+  name: "identityHintName",
+  description: "identityHintDescription",
+  "user-name": "identityHintUserName",
+  "user-description": "identityHintUserDescription",
+  principles: "identityHintPrinciples",
+  capabilities: "identityHintCapabilities",
+  rules: "identityHintRules",
+};
+
+// identityHintOf returns the localized hint for a field key ("" when unmapped).
+function identityHintOf(key) {
+  const k = IDENTITY_HINT_KEYS[key];
+  return k ? i18nT(k, "") : "";
 }
 
 // showIdentityResult displays the result of an identity_set change.

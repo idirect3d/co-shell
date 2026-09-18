@@ -4,6 +4,38 @@
 
 ---
 
+## v0.66.0 — 已完成
+
+> **版本**: v0.66.0
+
+> **状态**: ✅ 已完成（已合并 main，标签 v0.66.0）
+> **里程碑**: 身份与个性设置界面提示信息（缓存/费用警示 + 各字段说明）
+> **说明**: 在「身份与个性」配置界面上补充说明性文案：① 左侧分类栏底部增加全局提示，告知本配置中的数值与系统提示词相关，修改可能降低大模型请求缓存命中率、增加费用并延长变更后首次访问的预处理时间，需谨慎修改；② 每个字段下方、保存按钮左侧增加该字段的说明文案（两行高度与保存按钮基本一致），分别说明 Agent 名称 / Agent 描述 / 用户名 / 用户描述 / Agent 核心原则 / Agent 能力 / 规则 的作用与影响面。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-536 | 0.66.0 | P1 | 身份与个性设置界面提示信息：左分类栏底部全局警戒（系统提示词相关 / 缓存命中率下降 / 费用增加 / 首次访问预处理变长），且各字段下方保存按钮左侧加字段说明（两行、高度与保存按钮齐平） |
+
+> 当前 BUILD: 1075
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-536 身份与个性设置界面提示信息**
+  - 背景：FEATURE-534 把「身份与个性」改为左分类 / 右明细的两栏表单后，各字段只有标签、没有说明，用户不清楚这些值会注入系统提示词、修改会影响 LLM 行为与请求缓存（进而影响费用与响应处理时间）。
+  - 需求（用户确认）：① 左侧标签栏底部增加全局提示（修改会降低大模型请求缓存命中率、增加费用、变更后首次访问预处理时间变长，需谨慎修改）；② 各输入栏下方、保存按钮左边增加字段说明，字体显示两行、两行高度与保存按钮基本一致；说明文案见下：名称 / 描述 / 用户名 / 用户描述 / 核心原则 / 能力 / 规则共 7 条。
+  - 用例：`use-case/FEATURE-536/`
+  - 分支：**FEATURE-536**（基于 main），版本 v0.66.0，任务编号 FEATURE-536
+  - 实现：`web/static/app.js`（I18N.zh/en 新增 `identityNavHint` + 7 条 `identityHint*`；`renderIdentityNav` 尾部追加 `.identity-nav-hint`；`renderIdentityField` 把「说明 + 保存按钮」包进 `.identity-field-foot`，说明在左、按钮在右，新增 `IDENTITY_HINT_KEYS` 与 `identityHintOf`）；`web/static/style.css`（新增 `.identity-field-foot` / `.identity-hint`（min-height 35.2px = 2×1.6×11px）与 `#identityNav .identity-nav-hint`（margin-top:auto 置底 + 分隔线））；`index.html` 无需改动（提示节点由 JS 生成）。
+  - 决策（用户拍板）：说明排版取「自动折行」——说明区预留两行高度（≈保存按钮高），超长文案（中文 Agent 描述、宽屏英文）自然折成 3~4 行，不截断不加省略号。
+  - 实测（BUILD-1074，测试实例 127.0.0.1:28301 + 独立工作区 `tmp/feat536-ws`）：左栏提示常驻底部、无截断、弹窗溢出 0；中文 6/7 条说明恰好 2 行 35px vs 按钮 37px（差 2px），Agent 描述 3 行 53px；英文宽屏 3/4 行、窄屏均 2 行 35px；说明与按钮中心对齐差 0px、横向溢出 0；窄屏面板/body 溢出 0 且保存按钮完整可见；点保存返回 `set-result ok`，7 行结构不变；`go build ./... && go vet ./...` 全绿、`node --check` 通过。用例：`use-case/FEATURE-536/FEATURE-536-UC-0001.md`（UC-0001~UC-0007 + 实测记录表）[BUILD-1074]。
+  - 微调（用户反馈，BUILD-1075）：左栏提示由「贴底 + 上方分隔线 + 弱化色」改为「撑满标签列表下方的剩余空间、文字在该区域内短垂直居中」（不再贴底），颜色改用主题强调色 `var(--accent)`，并去掉 `border-top` 分割线。实现：`web/static/style.css` 的 `#identityNav .identity-nav-hint` 改为 `flex:1 1 auto; display:flex; align-items:center; padding:6px 2px; color:var(--accent)`（去除 `margin-top:auto` 与 `border-top`）。用户口径确认：区域 = 左栏标签列表下方的整块剩余空间；颜色 = `var(--accent)`。
+  - 微调实测（BUILD-1075，测试实例 127.0.0.1:28301 + 独立工作区 `tmp/feat536-ws`）：提示块高 344px（撑满剩余空间），文字 4 行 64.5px，上留白 139.5px / 下留白 140px（居中对齐差 0.5px）；`color: rgb(63,214,239)` = `--accent`；`border-top: 0px none`（分割线已去除）；弹窗/文档横向溢出 0、左栏纵向溢出 0；窄屏（narrow + drilled）下左栏整体隐藏、无溢出；7 条字段说明与保存按钮布局未变。`go build ./... && go vet ./...` 全绿、`node --check` 通过。[BUILD-1075]。
+  - 交付：用户实测确认通过（2026-09-18），FEATURE-536 已合并 main、发布 v0.66.0、打标签 `v0.66.0`；产物 `work/co-shell-0.66.0.darwin.arm64`、`work/co-shell-hub-0.66.0.darwin.arm64`。[BUILD-1075]。
+
+---
+
 ## v0.65.0 — 已完成
 
 > **版本**: v0.65.0

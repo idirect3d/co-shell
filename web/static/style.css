@@ -610,7 +610,31 @@ aside {
   font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   resize: vertical;
 }
-.identity-save { flex: none; align-self: flex-end; }
+/* FEATURE-536: the field footer holds the explanatory hint on the left and the
+   save button on the right; the hint reserves two lines whose total height
+   matches the button height (11px x 1.6 x 2 ≈ 35px). */
+.identity-field-foot { flex: none; display: flex; align-items: center; gap: 10px; }
+.identity-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 35.2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+}
+.identity-save { flex: none; }
+/* FEATURE-536: the caution note fills the nav's leftover space below the
+   category list and centres its text vertically inside that area (no divider,
+   accent colour so it reads as a caution rather than dim helper text). */
+#identityNav .identity-nav-hint {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  padding: 6px 2px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--accent);
+}
 /* FEATURE-534 增量: the back button and the result list keep their natural
    height so they never steal space from the stretching fields. */
 #identityBack { flex: none; }
