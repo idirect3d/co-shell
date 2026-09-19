@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.68.4"
+const version = "0.68.5"
 
-const build = "1086"
+const build = "1087"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
