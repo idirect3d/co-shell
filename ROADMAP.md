@@ -4,6 +4,37 @@
 
 ---
 
+## v0.68.6 — 已完成
+
+> **版本**: v0.68.6
+
+> **状态**: ✅ 已完成（已合并 main，tag `v0.68.6`）
+> **里程碑**: 「身份与个性」窗口正方形化（加宽右半部分）+ 保存提示可读化
+> **说明**：两项 Web UI 优化。① 该窗口原为 600×800 竖长矩形，右侧编辑区（`.settings-pane`，`flex:1`）在 200px 分类导航之外只剩 400px，编辑 principles / rules / capabilities 这类长文本时很拥挤；② 点「保存」后只弹一个裸 key（如 `name`）——因为后端把字段名塞进了 `Message`，前端直接当文案渲染。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-544 | 0.68.6 | P3 | 「身份与个性」窗口宽 600→800px 与高相等（正方形，增量全部落入右编辑栏）；宽高均受 90vw/90vh 约束；窄屏全屏 + 翻页式保持不变。保存提示由裸 key 改为「<本地化label>已保存」/「<label> saved」 |
+
+> 当前 BUILD: 1088
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [X] **FIX-544 「身份与个性」窗口正方形化与保存提示文案** ✅ 已完成 [BUILD-1088]
+  - 背景（用户提出）：「加宽“身份与个性”设置窗口的右半部份，让配置窗口整体变为一个正方形（增加宽度，高度不变），但在宽屏模式下需要设置最大高度和宽度为页面的90%，窄屏模式下需要充满屏幕且变为翻页式（现已实现，不用变）」；「点击保存后现在的提示信息太过简单，需要提示 XXX 已保存」。经 ask_user 确认：归入 v0.68.6（patch 递增）；文案不带书名号等符号；尺寸 800×800、左栏仍 200px。
+  - 正方形（`web/static/style.css` `.identity-box`）：`width` 600px → `min(800px, 90vw, 90vh)`，`height` 800px → 同一表达式。**为何两边都用 `min()` 而不是固定 800px + `max-height:90vh`**：后者在矮窗口下只压高不压宽，正方形会退化成矩形；两边取同一个 `min()` 则任意视口下宽高始终相等。`max-width` 从 92vw 收为 90vw（与 90% 上限一致，作为不支持 `min()` 时的兵底）。左栏 `.settings-nav` 是 `flex: 0 0 200px` 固定宽、右栏 `.settings-pane` 是 `flex: 1`，所以新增的 200px 全部落入右编辑区（400px → 600px），止好就是“只加宽右半部分”。
+  - 窄屏：未动任何一行。`body.narrow #identity .modal-box`（style.css）已给 100vw/100vh + 零圆角，且 ID 选择器优先级高于 `.identity-box` 类，自动覆盖；翻页式（`settings-drilled` 两级导航）也不变。
+  - 保存提示（后端 `web/server.go` + `web/session.go`）：`serverMessage` 新增 `Key string json:"key,omitempty"`；`handleIdentitySet` 成功分支从 `Message: key` 改为 `Key: key`——`Message` 从此只承载错误。改前先 `grep identity_result web/*_test.go` 确认无测试依赖旧语义。
+  - 保存提示（前端 `web/static/app.js`）：中/英字典各新增 `identitySaved`（`{name}已保存` / `{name} saved`）；`showIdentityResult` 成功时走新函数 `identitySavedText(msg.key)`，从 `identityFields` 取该 key 的**本地化 label**（即输入框上方那行文字，如“Agent 名称”）填入 `{name}`，无 label 时回退到 key 本身；失败仍显示 `msg.message`。`i18nT` 不支持参数替换，故用 `replace("{name}", …)` 自行填充。
+  - 版本号：`main.go` `version=0.68.6`/`build=1088`，`cmd/co-shell-hub/main.go` `hubVersion=0.68.6`/`hubBuild=1088` 同步。
+  - 用例：`use-case/FIX-544/FIX-544-UC-0001.md`（UC-0001~UC-0010）。
+  - 分支：**FIX-544**（基于 main，v0.68.5 已合并），版本 v0.68.6
+  - 状态：✅ 已完成（v0.68.6 已合并 main，tag `v0.68.6`）[BUILD-1088]
+
+---
+
 ## v0.68.5 — 已完成
 
 > **版本**: v0.68.5

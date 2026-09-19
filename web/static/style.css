@@ -602,11 +602,18 @@ aside {
    internally when the window is short; previously the box grew with its content
    and overflowed the viewport with no way to reach the bottom fields. */
 .identity-box {
-  /* FEATURE-534: same footprint as the settings modal now that the form is a
-     left-nav / right-pane layout. */
-  width: 600px;
-  height: 800px;
-  max-width: 92vw;
+  /* FIX-544: the form is a square. The left category nav is a fixed 200px
+     (.settings-nav), so every extra pixel of width lands in the right detail
+     pane - widening 600px -> 800px grows that pane from 400px to 600px while
+     the height stays 800px.
+     Both axes use the same min() so the box stays square at any viewport: with
+     a plain 800px + max-height:90vh pair a short window would clamp the height
+     but not the width and the square would degrade into a rectangle. The 90vw /
+     90vh terms are the "at most 90% of the page" cap; the max-* below are the
+     same cap as a fallback for engines without min(). */
+  width: min(800px, 90vw, 90vh);
+  height: min(800px, 90vw, 90vh);
+  max-width: 90vw;
   max-height: 90vh;
   display: flex;
   flex-direction: column;

@@ -28,6 +28,7 @@ const I18N = {
     identityCatAgent: "智能体", identityCatUser: "用户",
     identityCatPrinciples: "核心原则",
     identityCatCapabilities: "能力", identityCatRules: "规则", save: "保存",
+    identitySaved: "{name}已保存",
     identityNavHint: "本配置中的数值与系统提示词相关：修改可能降低大模型请求缓存命中率、增加费用，并延长变更后首次访问的预处理时间，请谨慎修改。",
     identityHintName: "命名当前 co-shell 实例，会注入系统提示词，可能影响 LLM 的行为，也可用于在 co-shell-hub 中辨识当前实例。",
     identityHintDescription: "描述当前 co-shell 实例的职责，会注入系统提示词，可能影响 LLM 的行为，也可用于在 co-shell-hub 中向其他 co-shell 实例介绍自己的能力。",
@@ -89,6 +90,7 @@ const I18N = {
     identityCatAgent: "Agent", identityCatUser: "User",
     identityCatPrinciples: "Principles",
     identityCatCapabilities: "Capabilities", identityCatRules: "Rules", save: "Save",
+    identitySaved: "{name} saved",
     identityNavHint: "These values are part of the system prompt. Changing them may lower the LLM request cache hit rate, increase cost, and lengthen preprocessing on the first request after the change - edit with care.",
     identityHintName: "Names this co-shell instance. Injected into the system prompt, may affect LLM behavior, and also identifies this instance in co-shell-hub.",
     identityHintDescription: "Describes this co-shell instance's responsibility. Injected into the system prompt, may affect LLM behavior, and also introduces its capabilities to other co-shell instances in co-shell-hub.",
@@ -7206,12 +7208,25 @@ function identityHintOf(key) {
 }
 
 // showIdentityResult displays the result of an identity_set change.
+// FIX-544: a successful save used to render msg.message, which the backend
+// filled with the raw field key - the user saw "name" instead of a readable
+// confirmation. The key now arrives in msg.key and is turned into the field's
+// localized label (the same text shown above the input) inside the
+// "<label>已保存" / "<label> saved" template. Failures still show the backend error.
 function showIdentityResult(msg) {
   const el = document.createElement("div");
   el.className = "set-result " + (msg.ok ? "ok" : "err");
-  el.textContent = msg.ok ? (msg.message || "ok") : (msg.message || "error");
+  el.textContent = msg.ok ? identitySavedText(msg.key) : (msg.message || "error");
   identityResult.prepend(el);
   setTimeout(() => el.remove(), 3000);
+}
+
+// identitySavedText composes the save confirmation for a field key, falling
+// back to the key itself when the field list has no label for it.
+function identitySavedText(key) {
+  const f = identityFields.find((x) => x.key === key);
+  const name = (f && f.label) || key || "";
+  return i18nT("identitySaved", "{name}已保存").replace("{name}", name);
 }
 
 /* ---------- bootstrap ---------- */
