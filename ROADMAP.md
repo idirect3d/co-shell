@@ -4,6 +4,36 @@
 
 ---
 
+## v0.68.5 — 已完成
+
+> **版本**: v0.68.5
+
+> **状态**: ✅ 已完成（已合并 main，tag `v0.68.5`）
+> **里程碑**: 工作区 `IDENTITY.md` 纳入 git 版本控制
+> **说明**: `IDENTITY.md`（FEATURE-531 的 agent 个性化文件，承载 `## agent-name` / `## agent-description`）长期处于**未跟踪**状态。`.gitignore`（84 行）中并无 IDENTITY.md 规则，即它并非被有意排除，只是从未 `git add`——导致新克隆的工作区没有身份文件、`--init` 导出的个性化也无法随代码追溯。本次将其纳入版本控制，使 agent 身份随仓库可追溯。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-543 | 0.68.5 | P3 | 将工作区 `IDENTITY.md` 纳入 git 版本控制（此前从未 add，非 gitignore 排除）；发布 v0.68.5 |
+
+> 当前 BUILD: 1087
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [X] **FIX-543 IDENTITY.md 纳入版本控制** ✅ 已完成 [BUILD-1087]
+  - 背景（用户提出）：「这个文件也提交合并到main分支」，指工作区未跟踪的 `IDENTITY.md`。经确认三项决定：① 直接提交本体（不做模板文件、不改 `.gitignore`）；② 新建 FIX-543，成果归入 v0.68.5（patch 位递增）；③ 不动 `agent/tmp/`，一律不 add。
+  - 调研（该文件的运行时写入方，即提交后会产生脏改动的来源）：`agent/identity_file.go`（FEATURE-531 个性化存于 workspace 文件，使多 agent 共享 `config.json` 时各自保留身份）、`agent/system_prompt.go:202-219`（`--init` 导出物）、`main.go:1392-1401`（CLI `--agent-name`/`--description` 改写）、`hub/gateway/identity.go:83-88`（hub 读写 `{workspace}/IDENTITY.md` 的 Agent描述，每次读盘）、`web/session_board.go:124-133`（每 4s 轮询 mtime/size，变化即向 hub 广播）。
+  - **已知代价（用户已知情并接受）**：该文件是运行时可被改写的文件，纳入版本控制后，任何身份变更（Web「身份与个性」保存、CLI 参数、hub 写描述）都会在 `git status` 中表现为脏改动。同类本地文件 `config.json`、`hub-agents.json` 在 `.gitignore` 中被排除，本任务按用户决定不做同等处理。
+  - 实现：仅 `git add -f IDENTITY.md`（`-f` 用于绕过 `.gitignore` 中 `co-shell-hub` 规则对 `cmd/co-shell-hub` 目录的误匹配导致的 add 失败），无代码改动；版本号 `main.go` `version=0.68.5`/`build=1087`，`cmd/co-shell-hub/main.go` `hubVersion=0.68.5`/`hubBuild=1087` 同步。
+  - 验证：`go build ./... && go vet ./...` 无错误；`go test ./web/... -short` → `ok github.com/idirect3d/co-shell/web`；产物 `work/co-shell-0.68.5.darwin.arm64`、`work/co-shell-hub-0.68.5.darwin.arm64`；`git ls-files --error-unmatch IDENTITY.md` 返回 `IDENTITY.md`，`git status --short` 不再出现 `?? IDENTITY.md`。
+  - 用例：`use-case/FIX-543/FIX-543-UC-0001.md`（UC-0001~UC-0010）。
+  - 分支：**FIX-543**（基于 main，v0.68.4 已合并），版本 v0.68.5
+  - 状态：✅ 已完成（v0.68.5 已合并 main，tag `v0.68.5`）[BUILD-1087]
+
+---
+
 ## v0.68.4 — 已完成
 
 > **版本**: v0.68.4
