@@ -232,7 +232,7 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 	for _, s := range specs {
 		v := agentView{
 			ID:              s.ID,
-			Name:            w.agentDisplayName(s.ID),
+			Name:            w.agentDisplayName(s.ID, connected[s.ID]),
 			Type:            s.Type,
 			Workspace:       s.Workspace,
 			Port:            s.Port,
@@ -285,11 +285,16 @@ func agentErrorStatus(err error) int {
 }
 
 // agentDisplayName returns the display name an agent reported on the board
-// (FEATURE-538); agents that never registered fall back to their ID.
-func (w *WebUI) agentDisplayName(id string) string {
-	if w.board != nil {
-		if info, ok := w.board.Agent(id); ok && strings.TrimSpace(info.Name) != "" {
-			return info.Name
+// (FEATURE-538). Only a currently connected agent's name is trusted: a cached
+// roster entry of an offline agent would otherwise keep showing a stale name
+// (e.g. "co-shell" left over from a previous run). Otherwise the hub-configured
+// ID is the default (FIX-542).
+func (w *WebUI) agentDisplayName(id string, connected bool) string {
+	if connected && w.board != nil {
+		if info, ok := w.board.Agent(id); ok {
+			if name := strings.TrimSpace(info.Name); name != "" {
+				return name
+			}
 		}
 	}
 	return id
