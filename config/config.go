@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
@@ -1161,6 +1162,13 @@ func LoadFromFile(path string, ws *workspace.Workspace) (*Config, string, error)
 		if os.IsNotExist(err) {
 			cfg := DefaultConfig()
 			cfg.ws = ws
+			// FIX-541: remember the requested path so a later Save() writes back
+			// to it (recreating the directory and file when they are missing)
+			// instead of silently falling back to {workspace}/config.json. The
+			// returned path stays empty on purpose so callers can still tell that
+			// nothing was loaded from disk -- loadConfigByPriority relies on that
+			// to keep searching the remaining candidate locations (FEATURE-484).
+			cfg.configPath = path
 			return cfg, "", nil
 		}
 		return nil, "", fmt.Errorf("cannot read config %s: %w", path, err)
@@ -1230,6 +1238,15 @@ func (c *Config) Save() error {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return fmt.Errorf("cannot marshal config: %w", err)
+	}
+
+	// FIX-541: recreate the parent directory when it is missing so saving a
+	// shared config (e.g. ~/.co-shell/config.json) works on a fresh machine
+	// where that directory does not exist yet.
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("cannot create config directory %s: %w", dir, err)
+		}
 	}
 
 	if err := os.WriteFile(path, data, 0644); err != nil {

@@ -4,11 +4,40 @@
 
 ---
 
-## v0.68.2 — 进行中
+## v0.68.3 — 进行中
+
+> **版本**: v0.68.3
+
+> **状态**: 🚧 进行中（分支 FIX-541）
+> **里程碑**: 修复配置保存：目标目录或文件不存在时自动重建
+> **说明**: hub 创建 agent 勾选「共享配置」时会把 `-c ~/.co-shell/config.json` 传给 co-shell，但无论 hub（`hub/gateway/manager.go:268-278` 注释明写 `Shared config needs no file`）还是 co-shell（`config/config.go` 的 `LoadFromFile` 遇 `IsNotExist` 静默返回默认配置）都不会创建该目录与文件。更关键的是保存链路：`LoadFromFile` 在文件不存在时不记录 `configPath`，导致 `Save()` 回退写到 `{workspace}/config.json`，表现为「保存了却不生效」；且 `Save()` 直接 `os.WriteFile` 无 `MkdirAll`，目录缺失时直接 ENOENT。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-541 | 0.68.3 | P2 | co-shell 保存配置时，若保存路径中的文件夹或配置文件不存在则自动重建文件夹和文件 |
+
+> 当前 BUILD: 1082
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-541 配置保存时自动重建目录与文件** 🚧 进行中
+  - 背景（用户提出）：hub 配置 agent 时若选择共享配置，而 `~/.co-shell/` 不存在，是否会自动生成？调查结论：不会（证据链见 `docs/web-session-resilience.md` 附录 A/B）。用户要求：**在 co-shell 保存配置时，如果保存路径中的文件夹或配置文件不存在，则自动重建文件夹和文件。**
+  - 根因（两处）：① `config/config.go` `LoadFromFile` 的 `IsNotExist` 分支返回默认配置时**未记录 `cfg.configPath`**（对比成功分支 L1192 会赋值），使 `Save()` 中 `path == ""` 而回退到 `c.ws.ConfigPath()`（= `{workspace}/config.json`），共享配置场景下写入错误位置；② `Save()` 直接 `os.WriteFile` 而无 `MkdirAll`，父目录缺失时报 ENOENT。
+  - 约束（重要）：**不能改动 `LoadFromFile` 的返回值语义**。`main.go:454` 的 `loadConfigByPriority` 用 `loadedPath != ""` 判定「文件确实存在」，据此继续尝试后续候选路径（FEATURE-484：`{workspace}/config.json` > `./config.json` > `~/.co-shell/config.json`）。因此只在 `IsNotExist` 分支设置 `cfg.configPath = path`，**返回值仍为空**。
+  - 实现：① `config/config.go` imports 新增 `path/filepath`；② `LoadFromFile` 的 `IsNotExist` 分支记录 `cfg.configPath = path`；③ `Save()` 在 `os.WriteFile` 前对 `filepath.Dir(path)`（非空且非 `.` 时）执行 `os.MkdirAll(dir, 0755)`；④ 新增 `config/config_test.go`。
+  - 测试：`config/config_test.go` 四个用例——`TestLoadFromFileMissingKeepsEmptyLoadedPath`（钉死返回值语义 + 断言 configPath 被记录）、`TestSaveCreatesMissingDirAndFile`（多层缺失目录写入并回读）、`TestSaveOverwritesExistingFile`（覆盖写回归）、`TestSaveWithoutPathOrWorkspaceStillErrors`（无路径无 workspace 仍报错）。
+  - 分支：**FIX-541**（基于 main，v0.68.2 已合并），版本 v0.68.3
+  - 状态：🚧 进行中
+
+---
+
+## v0.68.2 — 已完成
 
 > **版本**: v0.68.2
 
-> **状态**: 🚧 进行中（分支 FIX-540）
+> **状态**: ✅ 已完成（已合并 main，tag `v0.68.2`）
 > **里程碑**: hub 页面输入控件字号提升到 16px，消除移动端聚焦自动放大
 > **说明**: iOS Safari（及部分 Android 浏览器）在聚焦 font-size < 16px 的输入控件时会自动放大页面，在手机上发消息时表现为局部界面被放大。hub 外壳页（`hub/gateway/webui_static.go` 内嵌 HTML）的「Chat 会话」发送框与 Agent 配置／详情／远程访问设置表单输入框当前为 13px，统一提升到 16px（不触发自动放大的最小字号）。
 
@@ -22,14 +51,14 @@
 
 ### 任务详情
 
-- [ ] **FIX-540 hub 输入控件字号提升到 16px，修复移动端聚焦自动放大**
+- [x] **FIX-540 hub 输入控件字号提升到 16px，修复移动端聚焦自动放大**
   - 需求（用户确认）：① hub 抽屉「Chat 会话」里「我」的消息发送框字号改为移动端不触发自动放大的最小字号；② 同时把 hub 内其它输入控件（Agent 配置 / Agent 详情 / 远程访问设置等 13px 输入框）一并提到 16px。
   - 涉及：`hub/gateway/webui_static.go`（`.chat-compose input`、`.field input, .field select`）
   - 用例：`use-case/FIX-540/`
   - 分支：**FIX-540**（基于 main，v0.68.1 已合并），版本 v0.68.2
   - 实现要点（BUILD-1081）：两处 CSS 字号 `13px → 16px`，并各加注释说明 16px 为移动端不触发聚焦自动放大的最小字号；控件尺寸/内边距/布局逻辑均未动；版本号与 build 计数同步更新到 `main.go`（0.68.2 / 1081）与 `cmd/co-shell-hub/main.go`（hubVersion 0.68.2 / hubBuild 1081）。
   - 实测（BUILD-1081）：`go build ./... && go vet ./...` 通过；用 `work/co-shell-hub-0.68.2.darwin.arm64` 在隔离目录/端口（web 28399）启动，页面量测：会话发送框 + 22 个表单控件（新建本地/远程、详情、设置）computed font-size 均为 16px；`.btn` 12px、`.chat-bubble` 12px、`.agent` 13px、`.conv-title` 13px 均与改动前一致（无外溢）；开关 34×18 未变；390px 抽屉宽度下发送框 319px + 发送按钮 48px 同行、无横向滚动；480px 下表单字段仍为「标签+控件」两行且可纵向滚动。UC-0001/0003~0008/0010/0011 通过，UC-0002（真机聚焦手感）与 UC-0009（发送流程回归）留待用户确认。详情见 `use-case/FIX-540/FIX-540-UC-0001.md`。
-  - 状态：🚧 待用户确认（已提交到 FIX-540 分支，未合并 main）
+  - 状态：✅ 已完成并合并到 main（tag `v0.68.2`，提交 e47bc17）
 
 ---
 
