@@ -6364,20 +6364,33 @@ function buildModelMenuItem(m, onClick, activeID) {
   return item;
 }
 
+// topPriorityModel returns the highest-priority enabled model in modelList,
+// restricted to vision-capable models when vision is true. Returns null when no
+// model qualifies (FIX-539).
+function topPriorityModel(vision) {
+  let best = null;
+  for (const m of modelList) {
+    if (!m.enabled) continue;
+    if (vision && !m.vision) continue;
+    if (!best || m.priority > best.priority) best = m;
+  }
+  return best;
+}
+
 // buildModelMenuDefault builds the "默认" row that clears the current mode's
-// model binding for the given target ("text" or "vision"). It shows the
-// current default model's logo + name (semi-transparent), a "(默认)" hint,
-// and the default model's context length. When active is true (the mode has no
-// binding for this slot), the row is highlighted (FEATURE-422).
+// model binding for the given target ("text" or "vision"). It always shows the
+// model this row falls back to, i.e. the globally highest-priority one: the
+// highest-priority enabled model for "text", or the highest-priority enabled
+// vision model for "vision" (FIX-539). A "(默认)" hint and the model's context
+// length follow. When active is true (the mode has no binding for this slot),
+// the row is highlighted (FEATURE-422).
 function buildModelMenuDefault(target, menu, active) {
   const item = document.createElement("div");
   item.className = "model-menu-item default" + (active ? " active" : "");
   item.title = T.modelDefaultHint || "使用全局默认模型";
-  // The current default model is the one shown in the status bar (modelInfo).
-  // modelInfo.textModel/visionModel hold the model NAME (m.model), not the
-  // model ID, so match against m.model (FEATURE-422).
-  const defaultName = target === "vision" ? (modelInfo && modelInfo.visionModel) : (modelInfo && modelInfo.textModel);
-  const def = modelList.find((m) => m.model === defaultName);
+  // The current mode's binding is deliberately ignored: selecting this row
+  // unbinds the slot, so showing the bound model here was misleading (FIX-539).
+  const def = topPriorityModel(target === "vision");
   if (def) {
     const logo = document.createElement("img");
     logo.className = "model-logo";
