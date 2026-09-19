@@ -173,9 +173,12 @@ const webIndexHTML = `<!DOCTYPE html>
   .chat-row.me .chat-bubble { background:rgba(63,214,239,.20); border-color:rgba(63,214,239,.5); text-align:left; }
   .chat-reply { margin-top:3px; font-size:10px; color:var(--fg-faint); }
   .chat-compose { flex:none; display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); }
+  /* FIX-540: 16px is the smallest size at which mobile browsers (iOS Safari,
+     some Android browsers) no longer auto-zoom the page when the box is
+     focused — sending a message used to magnify the UI on a phone. */
   .chat-compose input {
     flex:1; min-width:0; background:var(--bg); border:1px solid var(--border); border-radius:8px;
-    color:var(--fg); font-size:13px; padding:7px 9px; font-family:inherit;
+    color:var(--fg); font-size:16px; padding:7px 9px; font-family:inherit;
   }
   .chat-compose input:focus { outline:none; border-color:var(--accent); }
   .chat-compose .btn { flex:none; width:auto; }
@@ -261,7 +264,9 @@ const webIndexHTML = `<!DOCTYPE html>
   #agentPanel h3 { font-size:13px; margin:16px 0 6px; color:var(--accent); }
   .field { margin-bottom:14px; }
   .field label { display:block; font-size:12px; color:var(--fg-dim); margin-bottom:5px; }
-  .field input, .field select { width:100%; padding:7px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:13px; }
+  /* FIX-540: editable controls stay at 16px (same reason as .chat-compose
+     input) so no hub form ever triggers the mobile focus auto-zoom. */
+  .field input, .field select { width:100%; padding:7px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); font-size:16px; }
   /* FEATURE-520: a field whose control does not apply to this agent type
      (e.g. Workspace for a remote agent) is greyed out and non-editable. */
   .field.disabled label { opacity:.5; }
