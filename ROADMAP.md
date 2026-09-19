@@ -4,11 +4,11 @@
 
 ---
 
-## v0.68.4 — 进行中
+## v0.68.4 — 已完成
 
 > **版本**: v0.68.4
 
-> **状态**: 🚧 进行中（分支 FIX-542）
+> **状态**: ✅ 已完成（已合并 main，tag `v0.68.4`）
 > **里程碑**: hub agent 列表名称显示统一（ID 为 name 默认值）+ co-shell Web UI 标题栏中间显示 agent name（窄屏隐藏 co-shell 文字 logo）
 > **说明**: hub agent 列表里名称显示时而是上报名、时而是 ID，规律不可预期。根因是后端 `agentDisplayName` 只读 board 缓存 roster、**不校验 agent 是否已连接**，使**离线 agent 仍显示上一次运行上报的旧名字**（如 board 数据中 `uaad` 已 offline 却显示 name="co-shell"）；前端 `a.name || a.id` 只对 falsy 兜底，**纯空白字符串是 truthy** → 渲染出空白。本次统一语义：**ID 是 agent name 的默认值**，只有在 agent 当前已连接且上报了非空白 name 时才显示上报名；前后端都做 trim 判断，空或全空白均回退 ID。
 
@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FIX-542 | 0.68.4 | P2 | hub agent 列表名称显示统一：未上报（或上报空白）name 时以 hub 配置的 ID 为默认值；仅在线 agent 的上报名可信；前后端均做 trim 兜底。追加：co-shell Web UI 标题栏中间显示 agent name（取自 IDENTITY.md），窄屏隐藏「co-shell」文字与版本号 |
 
-> 当前 BUILD: 1085
+> 当前 BUILD: 1086
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FIX-542 hub agent 列表名称显示统一（ID 作为 name 的默认值）** 🚧 进行中
+- [X] **FIX-542 hub agent 列表名称显示统一（ID 作为 name 的默认值）** ✅ 已完成 [BUILD-1086]
   - 背景（用户提出）：「当因为实例未运行，没有返回 agent name 或者返回 name 为空时，在 agent 列表用 ID 替代名字显示，即 ID 为 agent name 的默认值。」补充澄清：「现在并不是空白，但有规律——有时是 co-shell，有时是 work；**co-shell 没有证实返回 name 前，先显示在 hub 中配置的 ID**」；并选择「加固：前后端都做 trim 判断，空或全空白均回退 ID」以根治空白。
   - 根因（三处）：① `hub/gateway/webui.go` `agentDisplayName` 只查 `w.board.Agent(id)` 缓存，**不看 agent 是否已连接** → 离线 agent 显示历史上报的旧名（用户看到的“有时是 co-shell”）；② 同函数返回 `info.Name` 未 trim → 空白名直接透传；③ 前端 `webui_static.go` 两处 `(a && a.name) || id` / `esc(a.name || a.id)` 仅对 falsy 兜底，`" "` 为 truthy → 渲染空白。
   - 实现：① 后端 `agentDisplayName(id string, connected bool)`，仅 `connected && w.board != nil` 时取 board 上报 name 并 `strings.TrimSpace`，空则回退 `id`；调用点 `handleListAgents` 传 `connected[s.ID]`（该 map 已由 `w.proxy.AgentIDs()` 构建）；② 前端新增 `displayName(a)` helper（`String(a.name||'').trim() || a.id`），`renderList` 与 `agentName()` 均改用它（`title=` 仍为 id，class 结构不变）。
@@ -31,7 +31,7 @@
   - 追加实现：① `web/server.go` `handleBootstrap` 新增 `agent_name`（`agent.ResolveAgentName(s.root)`，自带 trim 与 `"co-shell"` 回退；`LoadIdentity` 每次读盘 → 刷新页面即最新）；② `web/static/index.html` topbar 在 `.brand` 与 `.top-right` 之间新增 `.top-center > #agentName`；③ `web/static/style.css`：`#topbar` 加 `position:relative` 作定位上下文；`.top-center` 改为**绝对定位居中**（`left:50%; top:50%; transform:translate(-50%,-50%); max-width:40%`）——用 flex 剩余空间居中会因 `.brand`（实测宽 226px）宽于 `.top-right`（152px）而整体偏右 37px（名字中点 701 vs 栏中线 665）；绝对定位后实测 665 vs 665（delta=0），`max-width:40%` 确保不与两侧重叠（1329px 栏下名字区 599–730，brand 右界 240、top-right 左界 1163）；`.agent-name` 保持 `overflow:hidden; text-overflow:ellipsis; white-space:nowrap`；另加 `body.narrow .top-center{position:static;transform:none;flex:1 1 auto;max-width:none;margin:0 8px}` 回退——480px 视口下右侧控件左界 246 已越过中线 238，强行居中必然叠字，故窄屏改为在 brand 三角与右侧控件之间居中（名字完整显示、不截断、不重叠，实测 nameRect 68–199）；④ `web/static/app.js`：新增 `setAgentName()`（boot 取 `api/bootstrap` 的 `agent_name`）、`kind=identity` 消息到达时按 `agent-name` 字段同步、`updateResponsive` 中窄屏隐藏 `.brand-name`（沿用既有 `verEl` 的 inline display 模式，**不用 CSS 类**，避免破坏 `brandWidth()` 阈值测量而引发窄/宽振荡）。
   - 浏览器实测（临时 mock 站 + 仓库静态资源；480px 用 iframe 真实视口）：宽屏 `agentNameText="co-shell developer"`、`textOverflow=ellipsis`、`brandNameDisplay=block`、`brandVerDisplay=block`、delta=0；窄屏 `bodyClass=narrow`、`brandNameDisplay=none`、`brandVerDisplay=none`、`brandMarkDisplay=flex`、名字完整未截断、与左右控件无重叠；注入超长名时 `scrollWidth 722 > clientWidth 233`（省略号生效）且 `title` 保留全文。
   - 分支：**FIX-542**（基于 main，v0.68.3 已合并），版本 v0.68.4
-  - 状态：🚧 进行中
+  - 状态：✅ 已完成（v0.68.4 已合并 main，tag `v0.68.4`）[BUILD-1086]
 
 ---
 
