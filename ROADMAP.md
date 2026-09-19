@@ -4,6 +4,36 @@
 
 ---
 
+## v0.67.0 — 开发中
+
+> **版本**: v0.67.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub Chat 面板的微信式会话列表 / 会话详情（含用户发言）与移动端适配
+> **说明**: 把 hub Web UI 左侧抽屉的 Chat 区块从「会话列表 + 消息流上下同屏」改造为两级结构：第一级是会话列表（头像 + 名称 + 最后一条消息摘要 + 时间），点击后整体滑入第二级会话详情（微信式气泡：发送者、时间、内容，自己的消息靠右），带返回按钮回列表；抽屉在窄屏铺满（100vw）以适配移动端；同时新增用户在 hub 内向会话发言的能力（后端新增写接口 + 前端底部输入框）。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-537 | 0.67.0 | P1 | hub Chat 面板改造：会话列表（第一级）/ 会话详情（第二级、气泡展示「谁在何时说了什么」）；新增用户发言（POST 接口 + 输入框）；窄屏整屏切换 + 返回按钮 |
+
+> 当前 BUILD: 1076
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-537 hub Chat 面板微信式会话列表 + 详情 + 用户发言 + 移动端适配**
+  - 需求（用户确认）：① Chat 抽屉两级结构（会话列表 → 点击进入详情，详情为微信式气泡：发送者/时间/内容）；② 覆盖式切换（宽窄屏一致：详情滑入覆盖列表，带返回）；③ 支持用户在 hub 内向会话发言（新增后端发送接口 + 前端输入框）；④ 窄屏抽屉铺满 100vw，点击会话整体进入详情、返回退出到列表。
+  - 涉及：`hub/gateway/webui_static.go`（前端页面结构/CSS/JS）、`hub/gateway/webui.go`（新增 POST 路由）、`hub/gateway/webui_board.go`（发送 handler）、`hub/gateway/board.go`（发送时显式指定会话 key，使人类发言归入既有会话）。
+  - 用例：`use-case/FEATURE-537/FEATURE-537-UC-0001.md`（UC-0001~UC-0008，实测记录已回填）
+  - 分支：**FEATURE-537**（基于 main），版本 v0.67.0，任务编号 FEATURE-537
+  - 实现：① `board.go` 的 `SendRequest` 增 `Conv` 字段，人类发言显式归属既有会话（不再新开 `a+b+user`）；② `webui.go` 新增路由 `POST /api/board/conversations/{key}/messages`；③ `webui_board.go` 新增发送 handler（503 board 未挂载 / 404 会话不存在 / 400 空内容·超长·非法 JSON / 200 返回 `{"message":{...}}`）+ 常量 `boardUserSender="user"`、`boardUserReplyWindowSecs=300` + `boardRecipients()`；④ `webui_static.go` Chat 区块改为两级（`#chatListView` + `#chatDetailView` + 返回按钮 + 微信式气泡 + 底部输入框），`--panel-w:480px`，窄屏 `max-width:640px` 抽屉 `100vw`。
+  - 实测（BUILD-1076）：`hub/` 与根目录 `go build ./... && go vet ./...` 均通过；`go test ./hub/gateway/` 全绿（含新增 `board_user_post_test.go`、`webui_board_post_test.go`）；临时 hub（`127.0.0.1:28290`）运行时核对：宽屏面板 480px、列表 2 行（标题/摘要/时间/头像、广播置顶）、点击进入详情（`#chatSub=共 3 条`）、3 条气泡（「我」靠右并 `row-reverse`、他人靠左带状态徽标）、无横向溢出；375px 视口下 `panelW=375=innerWidth`（100vw）、进入/返回正常。过程中修复 2 个真实 bug：`badge(state)` 与顶部 `var badge` 同名冲突（改名 `stateBadge`）、发送按钮 `width:100%` 挤压输入框（提高特异性）。
+  - 未验证（待用户实测）：真实 agent 是否收到 `board_message` 帧并回复（本次为单测 + 注入 stub 数据的运行时界面验证，无真实在线 agent）。
+  - 状态：代码完成、自测通过，**待用户确认后合并**。 `[BUILD-1076]`
+
+---
+
 ## v0.66.0 — 已完成
 
 > **版本**: v0.66.0

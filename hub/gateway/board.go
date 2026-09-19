@@ -140,6 +140,11 @@ type SendRequest struct {
 	NoReply     bool
 	State       string
 	TimeoutSecs int
+	// Conv (FEATURE-537) pins a new message to an existing conversation key
+	// instead of deriving the key from From+To. The hub Web UI uses it to post
+	// as a non-agent sender ("user") into an existing conversation, so a human
+	// post never splits off a separate conversation.
+	Conv string
 }
 
 // DutyResolver returns the hub-side manually entered duty description for an
@@ -490,8 +495,13 @@ func (b *Board) Send(req SendRequest) (*Message, []Delivery, error) {
 	} else {
 		// The key is derived from the requested recipients so a broadcast stays
 		// in the single announcement conversation instead of expanding into a
-		// participant list.
-		conv = conversationKey(req.From, req.To)
+		// participant list. An explicit Conv (FEATURE-537) instead pins the
+		// message to an existing conversation (human posts from the hub UI).
+		if req.Conv != "" {
+			conv = req.Conv
+		} else {
+			conv = conversationKey(req.From, req.To)
+		}
 	}
 	b.seq++
 	msg := &Message{

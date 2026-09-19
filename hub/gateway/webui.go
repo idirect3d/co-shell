@@ -85,9 +85,11 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	mux.HandleFunc("GET /api/remote-defaults", w.handleRemoteDefaults)
 	mux.HandleFunc("GET /api/hub-info", w.handleHubInfo)
 	// Message board (FEATURE-530): conversations and their messages for the
-	// Chat pane. Read-only: agents post through the board protocol.
+	// Chat pane. Agents post through the board protocol; the hub Web UI can
+	// additionally post into a conversation as the human user (FEATURE-537).
 	mux.HandleFunc("GET /api/board/conversations", w.handleBoardConversations)
 	mux.HandleFunc("GET /api/board/conversations/{key}/messages", w.handleBoardMessages)
+	mux.HandleFunc("POST /api/board/conversations/{key}/messages", w.handleBoardPostMessage)
 	// Remote-access settings (TLS/whitelist/access key).
 	mux.HandleFunc("GET /api/settings", w.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", w.handlePutSettings)

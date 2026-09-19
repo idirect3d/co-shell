@@ -33,7 +33,7 @@ const webIndexHTML = `<!DOCTYPE html>
     --bg:#0b0e14; --panel:#10141d; --elev:#161b26; --fg:#d5dbe7; --fg-dim:#8b93a5;
     --fg-faint:#5b6373; --accent:#3fd6ef; --accent-dim:rgba(63,214,239,.14);
     --border:#232a3a; --ok:#4ade80; --err:#f87171; --warn:#facc15;
-    --edge-w:10px; --panel-w:340px;
+    --edge-w:10px; --panel-w:480px;
     /* Height of the co-shell top bar inside the iframe; the hub drawer starts
        below it so the hub chrome never covers the title bar (FEATURE-515). */
     --topbar-h:44px;
@@ -124,20 +124,64 @@ const webIndexHTML = `<!DOCTYPE html>
     opacity:1; transition:flex-grow .28s ease, opacity .22s ease;
   }
   #agentPanel .pane-body.collapsed { flex-grow:0; opacity:0; pointer-events:none; }
-  /* Chat pane (FEATURE-530): board conversations on top, message stream
-     below. The broadcast conversation (key "*") is pinned first. */
-  .board-convs { flex:none; max-height:40%; overflow-y:auto; padding:6px 8px; border-bottom:1px solid var(--border); }
-  .board-conv { padding:6px 8px; border-radius:8px; cursor:pointer; font-size:12px; color:var(--fg-dim); }
-  .board-conv:hover { background:var(--elev); }
-  .board-conv.active { background:var(--elev); color:var(--fg); }
-  .board-conv .k { display:flex; justify-content:space-between; gap:6px; }
-  .board-conv .k b { font-weight:600; color:var(--fg); }
-  .board-conv .last { margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .board-msgs { flex:1; overflow-y:auto; padding:8px 10px; display:flex; flex-direction:column; gap:8px; }
-  .board-msg { border:1px solid var(--border); border-radius:10px; padding:6px 8px; font-size:12px; }
-  .board-msg .meta { display:flex; align-items:center; gap:6px; color:var(--fg-dim); font-size:11px; }
-  .board-msg .meta .to { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .board-msg .body { margin-top:4px; white-space:pre-wrap; word-break:break-word; color:var(--fg); }
+  /* Chat pane (FEATURE-537): two stacked views inside the Chat section —
+     level 1 is the conversation list, level 2 is the conversation detail,
+     which slides in over the list (WeChat-style). The broadcast conversation
+     (key "*") is pinned first. */
+  .chat-view { flex:1 1 0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+  .chat-view.hidden { display:none; }
+  .chat-view.slide-in { animation:viewIn .18s ease; }
+  .chat-view.slide-out { animation:viewOut .18s ease; }
+
+  /* Level 1: WeChat-style conversation rows (avatar + title + last message). */
+  .board-convs { flex:1; overflow-y:auto; padding:4px 6px; }
+  .conv-row { display:flex; align-items:flex-start; gap:10px; padding:9px 8px; border-radius:10px; cursor:pointer; }
+  .conv-row:hover { background:var(--elev); }
+  .conv-avatar {
+    flex:none; width:36px; height:36px; border-radius:7px; display:flex; align-items:center;
+    justify-content:center; font-size:15px; font-weight:600; color:#0b0e14; background:var(--accent);
+  }
+  .conv-main { flex:1; min-width:0; }
+  .conv-title { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:var(--fg); }
+  .conv-title .n { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .conv-title .cnt { flex:none; margin-left:auto; font-size:10px; font-weight:400; color:var(--fg-faint); }
+  .conv-last { margin-top:3px; font-size:11px; color:var(--fg-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .conv-time { flex:none; font-size:10px; color:var(--fg-faint); padding-top:2px; }
+
+  /* Level 2: detail head (back + title), message bubbles and the composer. */
+  .chat-head { flex:none; height:40px; display:flex; align-items:center; gap:8px; padding:0 10px; border-bottom:1px solid var(--border); }
+  .chat-head .back { flex:none; cursor:pointer; color:var(--fg-dim); font-size:16px; border:none; background:none; padding:0 4px; line-height:1; }
+  .chat-head .back:hover { color:var(--fg); }
+  .chat-head .title { flex:1; min-width:0; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chat-head .sub { flex:none; font-size:10px; color:var(--fg-faint); }
+  .board-msgs { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:10px; }
+  .chat-row { display:flex; align-items:flex-start; gap:8px; }
+  .chat-row .av {
+    flex:none; width:28px; height:28px; border-radius:6px; display:flex; align-items:center;
+    justify-content:center; font-size:12px; font-weight:600; color:#0b0e14; background:var(--fg-faint);
+  }
+  .chat-row .col { min-width:0; max-width:calc(100% - 44px); }
+  .chat-row .who { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--fg-dim); margin-bottom:3px; }
+  .chat-bubble {
+    border:1px solid var(--border); background:var(--elev); border-radius:10px; padding:6px 9px;
+    font-size:12px; white-space:pre-wrap; word-break:break-word; color:var(--fg);
+  }
+  .chat-row.me { flex-direction:row-reverse; }
+  .chat-row.me .col { text-align:right; }
+  .chat-row.me .who { flex-direction:row-reverse; }
+  .chat-row.me .av { background:var(--accent); }
+  .chat-row.me .chat-bubble { background:rgba(63,214,239,.20); border-color:rgba(63,214,239,.5); text-align:left; }
+  .chat-reply { margin-top:3px; font-size:10px; color:var(--fg-faint); }
+  .chat-compose { flex:none; display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); }
+  .chat-compose input {
+    flex:1; min-width:0; background:var(--bg); border:1px solid var(--border); border-radius:8px;
+    color:var(--fg); font-size:13px; padding:7px 9px; font-family:inherit;
+  }
+  .chat-compose input:focus { outline:none; border-color:var(--accent); }
+  .chat-compose .btn { flex:none; width:auto; }
+  /* The generic .btn.primary sets width:100%; keep the composer button narrow. */
+  .chat-compose .btn.primary { flex:none; width:auto; }
+  .chat-err { flex:none; padding:0 10px 6px; font-size:11px; color:var(--err); }
   .board-badge { border-radius:6px; padding:0 5px; font-size:10px; border:1px solid var(--border); white-space:nowrap; }
   .board-badge.handled { color:var(--ok); border-color:var(--ok); }
   .board-badge.declined { color:var(--err); border-color:var(--err); }
@@ -272,6 +316,12 @@ const webIndexHTML = `<!DOCTYPE html>
   /* Narrow screens: the drawer overlays the iframe. */
   @media (max-width:900px) {
     #agentPanel { box-shadow:2px 0 12px rgba(0,0,0,.4); }
+  }
+  /* FEATURE-537: on phone-sized screens the drawer fills the viewport, so the
+     Chat list and the Chat detail each take one screen (WeChat mobile style). */
+  @media (max-width:640px) {
+    #agentPanel { width:100vw; }
+    #hubBadge.open { width:100vw; }
   }
 </style>
 </head>
@@ -428,11 +478,28 @@ const webIndexHTML = `<!DOCTYPE html>
     <div class="foot"><button class="btn primary" id="s-save">保存设置</button></div>
   </div>
   </div><!-- /#agentsBody -->
-  <!-- Chat section (FEATURE-530): board conversations + message stream. -->
+  <!-- Chat section (FEATURE-530/FEATURE-537): two levels — the conversation
+       list, then the conversation detail sliding in over it. -->
   <div class="pane-head collapsed" id="chatHead">Chat<span class="chev"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg></span></div>
   <div class="pane-body collapsed" id="chatBody">
-    <div class="board-convs" id="boardConvs"></div>
-    <div class="board-msgs" id="boardMsgs"><div class="hint">暂无公告会話</div></div>
+    <!-- Level 1: conversation list (WeChat-style rows). -->
+    <div class="chat-view" id="chatListView">
+      <div class="board-convs" id="boardConvs"></div>
+    </div>
+    <!-- Level 2: conversation detail (bubbles + composer), slid in over the list. -->
+    <div class="chat-view hidden" id="chatDetailView">
+      <div class="chat-head">
+        <button class="back" id="chatBack" title="返回会话列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button>
+        <span class="title" id="chatTitle">会话</span>
+        <span class="sub" id="chatSub"></span>
+      </div>
+      <div class="board-msgs" id="boardMsgs"></div>
+      <div class="chat-err" id="chatErr"></div>
+      <form class="chat-compose" id="chatForm">
+        <input id="chatInput" type="text" placeholder="输入消息…" autocomplete="off" maxlength="8192">
+        <button class="btn primary" type="submit" id="chatSend">发送</button>
+      </form>
+    </div>
   </div>
 </div>
 <script>
@@ -446,6 +513,12 @@ const webIndexHTML = `<!DOCTYPE html>
   var agentsBody = document.getElementById('agentsBody');
   var chatHead = document.getElementById('chatHead');
   var chatBody = document.getElementById('chatBody');
+  var chatListView = document.getElementById('chatListView');
+  var chatDetailView = document.getElementById('chatDetailView');
+  var chatTitleEl = document.getElementById('chatTitle');
+  var chatSubEl = document.getElementById('chatSub');
+  var chatErrEl = document.getElementById('chatErr');
+  var chatInputEl = document.getElementById('chatInput');
   var listEl = document.getElementById('agentList');
   var viewList = document.getElementById('viewList');
   var viewConfig = document.getElementById('viewConfig');
@@ -483,7 +556,7 @@ const webIndexHTML = `<!DOCTYPE html>
     chatBody.classList.toggle('collapsed', !chatOn);
   }
   agentsHead.onclick = function(){ setPane('agents'); };
-  chatHead.onclick = function(){ setPane('chat'); loadBoard(); };
+  chatHead.onclick = function(){ setPane('chat'); showChatView('list'); loadBoard(); };
 
   function openPanel(){
     clearTimeout(hideTimer);
@@ -504,6 +577,7 @@ const webIndexHTML = `<!DOCTYPE html>
     document.body.classList.remove('drawer-open');
     setPane('agents'); // FEATURE-515: reopening always shows the default section
     showView('list');
+    showChatView('list'); // FEATURE-537: the Chat pane reopens on the list too
   }
   function scheduleClose(){
     if (pinned) return;
@@ -644,14 +718,59 @@ const webIndexHTML = `<!DOCTYPE html>
     });
   }
 
-  // ---- Message board (FEATURE-530) ----
-  // The Chat pane lists board conversations (broadcast conversation key "*"
-  // pinned first, shown as 全部) and renders the selected one's messages.
+  // ---- Message board (FEATURE-530 / FEATURE-537) ----
+  // The Chat pane has two levels: the conversation list (level 1) and the
+  // conversation detail (level 2), which slides in over the list — same
+  // behaviour on wide and narrow screens (WeChat style). The broadcast
+  // conversation (key "*") is pinned first and shown as 全部（公告）.
   var boardConvsEl = document.getElementById('boardConvs');
   var boardMsgsEl = document.getElementById('boardMsgs');
   var boardConvKey = null;
+  var boardConvsCache = [];  // last rendered conversation summaries
+  var rosterById = {};       // agent id -> roster entry (display name)
+  var lastMsgSig = '';       // signature of the rendered message list
 
-  function badge(state){
+  // showChatView slides the detail in over the list, and the list back in on
+  // return. Called on entering a conversation / tapping the back button.
+  function showChatView(name){
+    var toDetail = name === 'detail';
+    var nxt = toDetail ? chatDetailView : chatListView;
+    var cur = toDetail ? chatListView : chatDetailView;
+    if (!nxt.classList.contains('hidden')) return; // already showing
+    if (cur.classList.contains('hidden')){ nxt.classList.remove('hidden'); return; }
+    cur.classList.add('slide-out');
+    setTimeout(function(){
+      cur.classList.remove('slide-out');
+      cur.classList.add('hidden');
+      nxt.classList.remove('hidden');
+      nxt.classList.add('slide-in');
+      setTimeout(function(){ nxt.classList.remove('slide-in'); }, 200);
+    }, 160);
+  }
+  // agentName maps a sender id to its display name: the hub UI posts as "user"
+  // (rendered as 我), "*" is the broadcast target, agents resolve via roster.
+  function agentName(id){
+    if (id === 'user') return '我';
+    if (id === '*') return '全部';
+    var a = rosterById[id];
+    return (a && a.name) || id;
+  }
+  function initialOf(name){
+    var s = String(name || '?').trim();
+    return s ? s.charAt(0).toUpperCase() : '?';
+  }
+  var AVATAR_COLORS = ['#3fd6ef', '#7dd3fc', '#a78bfa', '#f472b6', '#fbbf24', '#4ade80', '#60a5fa', '#fb923c'];
+  function avatarColor(id){
+    var s = String(id), h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973;
+    return AVATAR_COLORS[h % AVATAR_COLORS.length];
+  }
+  function setChatErr(msg){ if (chatErrEl) chatErrEl.textContent = msg || ''; }
+
+  // stateBadge renders the reply-state chip of one message. It is named
+  // stateBadge (not badge) because "badge" already names the hub logo bar
+  // element in this scope.
+  function stateBadge(state){
     if (state === 'handled') return '<span class="board-badge handled">已受理</span>';
     if (state === 'declined') return '<span class="board-badge declined">已拒绝</span>';
     if (state === 'need_info') return '<span class="board-badge need_info">待补充</span>';
@@ -664,64 +783,117 @@ const webIndexHTML = `<!DOCTYPE html>
   }
   function convTitle(c){
     if (c.key === '*') return '全部（公告）';
-    var parts = (c.participants || []).filter(function(p){ return p !== '*'; });
-    return parts.length ? parts.join(' + ') : c.key;
+    var names = (c.participants || []).filter(function(p){ return p !== '*'; }).map(agentName);
+    return names.length ? names.join(' · ') : c.key;
   }
   function loadBoard(){
     api('GET', '/api/board/conversations', null, function(st, j){
       if (st !== 200 || !j) return;
+      rosterById = {};
+      (j.roster || []).forEach(function(a){ rosterById[a.id] = a; });
       var convs = j.conversations || [];
       convs.sort(function(a, b){
         if (a.key === '*') return -1;
         if (b.key === '*') return 1;
         return (b.updated_at || 0) - (a.updated_at || 0);
       });
-      if (boardConvKey && !convs.some(function(c){ return c.key === boardConvKey; })) boardConvKey = null;
-      if (!boardConvKey && convs.length) boardConvKey = convs[0].key;
+      boardConvsCache = convs;
+      if (boardConvKey && !convs.some(function(c){ return c.key === boardConvKey; })){
+        boardConvKey = null;      // the open conversation disappeared
+        showChatView('list');
+      }
       renderConvs(convs);
       if (boardConvKey) loadMessages(boardConvKey);
-      else boardMsgsEl.innerHTML = '<div class="hint">暂无公告会話</div>';
     });
   }
+  // renderConvs draws level 1: avatar + title + last message + time. Tapping a
+  // row opens the conversation detail (level 2).
   function renderConvs(convs){
-    if (!convs.length){ boardConvsEl.innerHTML = '<div class="hint">暂无会話</div>'; return; }
+    if (!convs.length){ boardConvsEl.innerHTML = '<div class="hint">暂无会话</div>'; return; }
     boardConvsEl.innerHTML = convs.map(function(c){
-      var last = c.last_from ? (c.last_from + ': ' + (c.last_content || '')) : (c.last_content || '');
-      return '<div class="board-conv' + (c.key === boardConvKey ? ' active' : '') + '" data-key="' + esc(c.key) + '">'
-        + '<div class="k"><b>' + esc(convTitle(c)) + '</b><span>' + (c.count || 0) + '</span></div>'
-        + '<div class="last">' + esc(last) + '</div></div>';
+      var title = convTitle(c);
+      var last = c.last_from ? (agentName(c.last_from) + '：' + (c.last_content || '')) : (c.last_content || '');
+      return '<div class="conv-row" data-key="' + esc(c.key) + '">'
+        + '<div class="conv-avatar" style="background:' + avatarColor(c.key) + '">' + esc(initialOf(title)) + '</div>'
+        + '<div class="conv-main">'
+        + '<div class="conv-title"><span class="n">' + esc(title) + '</span><span class="cnt">' + (c.count || 0) + '</span></div>'
+        + '<div class="conv-last">' + esc(last) + '</div>'
+        + '</div>'
+        + '<div class="conv-time">' + esc(fmtTime(c.updated_at)) + '</div>'
+        + '</div>';
     }).join('');
-    Array.prototype.forEach.call(boardConvsEl.querySelectorAll('.board-conv'), function(el){
-      el.onclick = function(){ boardConvKey = el.getAttribute('data-key'); loadBoard(); };
+    Array.prototype.forEach.call(boardConvsEl.querySelectorAll('.conv-row'), function(el){
+      el.onclick = function(){ openConv(el.getAttribute('data-key')); };
     });
+  }
+  // openConv enters level 2 (the detail view) for the given conversation key.
+  function openConv(key){
+    boardConvKey = key;
+    lastMsgSig = '';
+    var c = boardConvsCache.filter(function(x){ return x.key === key; })[0];
+    chatTitleEl.textContent = c ? convTitle(c) : key;
+    chatSubEl.textContent = '';
+    setChatErr('');
+    if (chatInputEl) chatInputEl.value = '';
+    boardMsgsEl.innerHTML = '<div class="hint">加载中…</div>';
+    showChatView('detail');
+    loadMessages(key);
   }
   function loadMessages(key){
     api('GET', '/api/board/conversations/' + encodeURIComponent(key) + '/messages?limit=100', null, function(st, j){
-      if (st !== 200 || !j) return;
+      if (st !== 200 || !j){ setChatErr('加载消息失败'); return; }
       renderMessages(j.messages || [], j.pending || []);
     });
   }
+  // renderMessages draws level 2 bubbles: sender + time + body, with the human
+  // user's own posts (from "user") aligned to the right, WeChat style.
   function renderMessages(msgs, pending){
-    if (!msgs.length){ boardMsgsEl.innerHTML = '<div class="hint">该会話暂无消息</div>'; return; }
+    chatSubEl.textContent = msgs.length ? ('共 ' + msgs.length + ' 条') : '';
+    var sig = msgs.map(function(m){ return m.id + '|' + (m.state || '') + '|' + (m.no_reply ? 'n' : ''); }).join(',') + '/' + pending.length;
+    if (sig === lastMsgSig) return; // unchanged: keep the DOM and the scroll stable
+    lastMsgSig = sig;
+    if (!msgs.length){ boardMsgsEl.innerHTML = '<div class="hint">该会话暂无消息</div>'; return; }
     var wait = {};
     pending.forEach(function(a){ wait[a.message_id] = a.deadline; });
     var now = Math.floor(Date.now() / 1000);
     boardMsgsEl.innerHTML = msgs.map(function(m){
-      var to = (m.to && m.to.length) ? m.to.join(', ') : '';
+      var mine = m.from === 'user';
+      var name = agentName(m.from);
+      var to = (m.to && m.to.length) ? m.to.map(agentName).join('、') : '';
       var extra = '';
-      if (m.state) extra += badge(m.state);
+      if (m.state) extra += stateBadge(m.state);
       else if (m.no_reply) extra += '<span class="board-badge waiting">免回复</span>';
       else if (wait[m.id]) extra += '<span class="board-badge waiting">等待 ' + Math.max(0, wait[m.id] - now) + 's</span>';
       else if (m.timeout > 0) extra += '<span class="board-badge waiting">窗口 ' + m.timeout + 's</span>';
-      return '<div class="board-msg"><div class="meta"><b>' + esc(m.from) + '</b>'
-        + '<span class="to">→ ' + esc(to === '*' ? '全部' : to) + '</span>'
-        + extra + '<span>' + esc(fmtTime(m.ts)) + '</span></div>'
-        + '<div class="body">' + esc(m.content) + '</div>'
-        + (m.reply_to ? '<div class="meta">回复 ' + esc(m.reply_to) + '</div>' : '')
-        + '</div>';
+      var foot = '';
+      if (to) foot += '<div class="chat-reply">→ ' + esc(to) + '</div>';
+      if (m.reply_to) foot += '<div class="chat-reply">回复 ' + esc(m.reply_to) + '</div>';
+      return '<div class="chat-row' + (mine ? ' me' : '') + '">'
+        + '<div class="av" style="background:' + avatarColor(m.from) + '">' + esc(initialOf(name)) + '</div>'
+        + '<div class="col"><div class="who"><span>' + esc(name) + '</span>' + extra + '<span>' + esc(fmtTime(m.ts)) + '</span></div>'
+        + '<div class="chat-bubble">' + esc(m.content) + '</div>' + foot
+        + '</div></div>';
     }).join('');
     boardMsgsEl.scrollTop = boardMsgsEl.scrollHeight;
   }
+  // The composer posts as the human user ("user") into the open conversation
+  // (FEATURE-537); the conversation key pins the post to the existing thread.
+  document.getElementById('chatForm').onsubmit = function(e){
+    e.preventDefault();
+    var text = (chatInputEl.value || '').trim();
+    if (!text || !boardConvKey) return;
+    var btn = document.getElementById('chatSend');
+    btn.disabled = true;
+    setChatErr('');
+    api('POST', '/api/board/conversations/' + encodeURIComponent(boardConvKey) + '/messages', { content: text }, function(st, j){
+      btn.disabled = false;
+      if (st !== 200){ setChatErr((j && j.error) || '发送失败'); return; }
+      chatInputEl.value = '';
+      lastMsgSig = '';
+      loadBoard(); // refresh both the list summary and the open messages
+    });
+  };
+  document.getElementById('chatBack').onclick = function(){ showChatView('list'); };
 
   function ensureFrame(id){
     if (!id) return;
