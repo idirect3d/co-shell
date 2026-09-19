@@ -4,11 +4,42 @@
 
 ---
 
-## v0.68.3 — 进行中
+## v0.68.4 — 已完成
+
+> **版本**: v0.68.4
+
+> **状态**: ✅ 已完成（已合并 main，tag `v0.68.4`）
+> **里程碑**: hub agent 列表名称显示统一（ID 为 name 默认值）+ co-shell Web UI 标题栏中间显示 agent name（窄屏隐藏 co-shell 文字 logo）
+> **说明**: hub agent 列表里名称显示时而是上报名、时而是 ID，规律不可预期。根因是后端 `agentDisplayName` 只读 board 缓存 roster、**不校验 agent 是否已连接**，使**离线 agent 仍显示上一次运行上报的旧名字**（如 board 数据中 `uaad` 已 offline 却显示 name="co-shell"）；前端 `a.name || a.id` 只对 falsy 兜底，**纯空白字符串是 truthy** → 渲染出空白。本次统一语义：**ID 是 agent name 的默认值**，只有在 agent 当前已连接且上报了非空白 name 时才显示上报名；前后端都做 trim 判断，空或全空白均回退 ID。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-542 | 0.68.4 | P2 | hub agent 列表名称显示统一：未上报（或上报空白）name 时以 hub 配置的 ID 为默认值；仅在线 agent 的上报名可信；前后端均做 trim 兜底。追加：co-shell Web UI 标题栏中间显示 agent name（取自 IDENTITY.md），窄屏隐藏「co-shell」文字与版本号 |
+
+> 当前 BUILD: 1086
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [X] **FIX-542 hub agent 列表名称显示统一（ID 作为 name 的默认值）** ✅ 已完成 [BUILD-1086]
+  - 背景（用户提出）：「当因为实例未运行，没有返回 agent name 或者返回 name 为空时，在 agent 列表用 ID 替代名字显示，即 ID 为 agent name 的默认值。」补充澄清：「现在并不是空白，但有规律——有时是 co-shell，有时是 work；**co-shell 没有证实返回 name 前，先显示在 hub 中配置的 ID**」；并选择「加固：前后端都做 trim 判断，空或全空白均回退 ID」以根治空白。
+  - 根因（三处）：① `hub/gateway/webui.go` `agentDisplayName` 只查 `w.board.Agent(id)` 缓存，**不看 agent 是否已连接** → 离线 agent 显示历史上报的旧名（用户看到的“有时是 co-shell”）；② 同函数返回 `info.Name` 未 trim → 空白名直接透传；③ 前端 `webui_static.go` 两处 `(a && a.name) || id` / `esc(a.name || a.id)` 仅对 falsy 兜底，`" "` 为 truthy → 渲染空白。
+  - 实现：① 后端 `agentDisplayName(id string, connected bool)`，仅 `connected && w.board != nil` 时取 board 上报 name 并 `strings.TrimSpace`，空则回退 `id`；调用点 `handleListAgents` 传 `connected[s.ID]`（该 map 已由 `w.proxy.AgentIDs()` 构建）；② 前端新增 `displayName(a)` helper（`String(a.name||'').trim() || a.id`），`renderList` 与 `agentName()` 均改用它（`title=` 仍为 id，class 结构不变）。
+  - 未动：`.agent-row .name` CSS（HTML/JS 无使用点，属死样式，与本任务无关）。
+  - 追加（Web UI，用户提出）：「在最上面的标题栏中间显示 agent name。当窄屏时隐藏现在左上角的 co-shell 文字 logo，以便显示完整的 agent name。」确认：取 IDENTITY.md 的 `## agent-name`；窄屏隐藏「co-shell」文字 + 版本号（保留三角 mark）；宽屏也始终显示；过长省略号截断。
+  - 追加实现：① `web/server.go` `handleBootstrap` 新增 `agent_name`（`agent.ResolveAgentName(s.root)`，自带 trim 与 `"co-shell"` 回退；`LoadIdentity` 每次读盘 → 刷新页面即最新）；② `web/static/index.html` topbar 在 `.brand` 与 `.top-right` 之间新增 `.top-center > #agentName`；③ `web/static/style.css`：`#topbar` 加 `position:relative` 作定位上下文；`.top-center` 改为**绝对定位居中**（`left:50%; top:50%; transform:translate(-50%,-50%); max-width:40%`）——用 flex 剩余空间居中会因 `.brand`（实测宽 226px）宽于 `.top-right`（152px）而整体偏右 37px（名字中点 701 vs 栏中线 665）；绝对定位后实测 665 vs 665（delta=0），`max-width:40%` 确保不与两侧重叠（1329px 栏下名字区 599–730，brand 右界 240、top-right 左界 1163）；`.agent-name` 保持 `overflow:hidden; text-overflow:ellipsis; white-space:nowrap`；另加 `body.narrow .top-center{position:static;transform:none;flex:1 1 auto;max-width:none;margin:0 8px}` 回退——480px 视口下右侧控件左界 246 已越过中线 238，强行居中必然叠字，故窄屏改为在 brand 三角与右侧控件之间居中（名字完整显示、不截断、不重叠，实测 nameRect 68–199）；④ `web/static/app.js`：新增 `setAgentName()`（boot 取 `api/bootstrap` 的 `agent_name`）、`kind=identity` 消息到达时按 `agent-name` 字段同步、`updateResponsive` 中窄屏隐藏 `.brand-name`（沿用既有 `verEl` 的 inline display 模式，**不用 CSS 类**，避免破坏 `brandWidth()` 阈值测量而引发窄/宽振荡）。
+  - 浏览器实测（临时 mock 站 + 仓库静态资源；480px 用 iframe 真实视口）：宽屏 `agentNameText="co-shell developer"`、`textOverflow=ellipsis`、`brandNameDisplay=block`、`brandVerDisplay=block`、delta=0；窄屏 `bodyClass=narrow`、`brandNameDisplay=none`、`brandVerDisplay=none`、`brandMarkDisplay=flex`、名字完整未截断、与左右控件无重叠；注入超长名时 `scrollWidth 722 > clientWidth 233`（省略号生效）且 `title` 保留全文。
+  - 分支：**FIX-542**（基于 main，v0.68.3 已合并），版本 v0.68.4
+  - 状态：✅ 已完成（v0.68.4 已合并 main，tag `v0.68.4`）[BUILD-1086]
+
+---
+
+## v0.68.3 — 已完成
 
 > **版本**: v0.68.3
 
-> **状态**: 🚧 进行中（分支 FIX-541）
+> **状态**: ✅ 已完成（已合并 main，tag `v0.68.3`）
 > **里程碑**: 修复配置保存：目标目录或文件不存在时自动重建
 > **说明**: hub 创建 agent 勾选「共享配置」时会把 `-c ~/.co-shell/config.json` 传给 co-shell，但无论 hub（`hub/gateway/manager.go:268-278` 注释明写 `Shared config needs no file`）还是 co-shell（`config/config.go` 的 `LoadFromFile` 遇 `IsNotExist` 静默返回默认配置）都不会创建该目录与文件。更关键的是保存链路：`LoadFromFile` 在文件不存在时不记录 `configPath`，导致 `Save()` 回退写到 `{workspace}/config.json`，表现为「保存了却不生效」；且 `Save()` 直接 `os.WriteFile` 无 `MkdirAll`，目录缺失时直接 ENOENT。
 
@@ -22,14 +53,14 @@
 
 ### 任务详情
 
-- [ ] **FIX-541 配置保存时自动重建目录与文件** 🚧 进行中
+- [x] **FIX-541 配置保存时自动重建目录与文件** ✅ 已完成 [BUILD-1082]
   - 背景（用户提出）：hub 配置 agent 时若选择共享配置，而 `~/.co-shell/` 不存在，是否会自动生成？调查结论：不会（证据链见 `docs/web-session-resilience.md` 附录 A/B）。用户要求：**在 co-shell 保存配置时，如果保存路径中的文件夹或配置文件不存在，则自动重建文件夹和文件。**
   - 根因（两处）：① `config/config.go` `LoadFromFile` 的 `IsNotExist` 分支返回默认配置时**未记录 `cfg.configPath`**（对比成功分支 L1192 会赋值），使 `Save()` 中 `path == ""` 而回退到 `c.ws.ConfigPath()`（= `{workspace}/config.json`），共享配置场景下写入错误位置；② `Save()` 直接 `os.WriteFile` 而无 `MkdirAll`，父目录缺失时报 ENOENT。
   - 约束（重要）：**不能改动 `LoadFromFile` 的返回值语义**。`main.go:454` 的 `loadConfigByPriority` 用 `loadedPath != ""` 判定「文件确实存在」，据此继续尝试后续候选路径（FEATURE-484：`{workspace}/config.json` > `./config.json` > `~/.co-shell/config.json`）。因此只在 `IsNotExist` 分支设置 `cfg.configPath = path`，**返回值仍为空**。
   - 实现：① `config/config.go` imports 新增 `path/filepath`；② `LoadFromFile` 的 `IsNotExist` 分支记录 `cfg.configPath = path`；③ `Save()` 在 `os.WriteFile` 前对 `filepath.Dir(path)`（非空且非 `.` 时）执行 `os.MkdirAll(dir, 0755)`；④ 新增 `config/config_test.go`。
   - 测试：`config/config_test.go` 四个用例——`TestLoadFromFileMissingKeepsEmptyLoadedPath`（钉死返回值语义 + 断言 configPath 被记录）、`TestSaveCreatesMissingDirAndFile`（多层缺失目录写入并回读）、`TestSaveOverwritesExistingFile`（覆盖写回归）、`TestSaveWithoutPathOrWorkspaceStillErrors`（无路径无 workspace 仍报错）。
   - 分支：**FIX-541**（基于 main，v0.68.2 已合并），版本 v0.68.3
-  - 状态：🚧 进行中
+  - 状态：✅ 已完成并合并到 main（tag `v0.68.3`，提交 dffc4fb）
 
 ---
 

@@ -528,7 +528,12 @@ function wsConnect() {
     else if (msg.kind === "settings_result") showSettingsResult(msg);
     else if (msg.kind === "mcp") renderMCPServers(msg.mcp_servers || []);
     else if (msg.kind === "mcp_result") showMCPResult(msg);
-    else if (msg.kind === "identity") renderIdentity(msg.identity || []);
+    else if (msg.kind === "identity") {
+      renderIdentity(msg.identity || []);
+      // FIX-542: keep the titlebar agent name in sync with the identity form.
+      const nameField = (msg.identity || []).find((f) => f.key === "agent-name");
+      if (nameField) setAgentName(nameField.value);
+    }
     else if (msg.kind === "identity_result") showIdentityResult(msg);
     else if (msg.kind === "mode") renderModeSeg(msg.modes || []);
     else if (msg.kind === "mode_result") showModeResult(msg);
@@ -7230,6 +7235,7 @@ async function refreshBranch() {
     if (b.lang === "en") { T = I18N.en; currentLang = "en"; }
     document.documentElement.lang = b.lang || "zh";
     document.getElementById("ver").textContent = "v" + b.version + " [BUILD-" + b.build + "]";
+    setAgentName(b.agent_name);
     // Browser tab title = "{current folder name} - {full absolute path}"
     // (FEATURE-366), so multiple co-shell tabs are distinguishable at a
     // glance and the most salient feature (the folder name) shows first
@@ -7313,7 +7319,9 @@ function answerSelectWithSupplement(opt) {
 // "narrow" when it is narrower than three times that width. This keeps the
 // threshold adaptive to the configured logo scale / version text.
 const brandEl = document.querySelector(".brand");
+const brandNameEl = document.querySelector(".brand-name");
 const verEl = document.getElementById("ver");
+const agentNameEl = document.getElementById("agentName");
 const menuWrapEl = document.getElementById("menuWrap");
 const menuEl = document.getElementById("menu");
 const narrowToolsEl = document.getElementById("narrowTools");
@@ -7343,6 +7351,17 @@ const narrowMovables = [
   // input row above holds only the textarea on narrow screens.
   { el: sendBtnEl, home: sendBtnEl.parentNode },
 ];
+
+// setAgentName writes the agent name (FIX-542) into the centre of the titlebar;
+// an empty value clears the slot.
+function setAgentName(name) {
+  if (!agentNameEl) return;
+  const n = String(name || "").trim();
+  agentNameEl.textContent = n;
+  // The name can be ellipsised when space runs out, so keep the full text in
+  // the tooltip.
+  agentNameEl.title = n;
+}
 
 // brandWidth returns the full titlebar brand width (logo + co-shell + version),
 // measured with the version visible so the threshold reflects the full brand.
@@ -7443,6 +7462,9 @@ function updateResponsive() {
   const narrow = window.innerWidth < fullW * 3;
   // FEATURE-487: hide the titlebar version on narrow screens (like the hub).
   if (verEl) verEl.style.display = narrow ? "none" : "";
+  // FIX-542: hide the wordmark too on narrow screens so the centred agent name
+  // gets the full width; the brand triangle stays as the logo mark.
+  if (brandNameEl) brandNameEl.style.display = narrow ? "none" : "";
   applyNarrowLayout(narrow);
 }
 

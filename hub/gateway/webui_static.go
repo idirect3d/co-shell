@@ -754,13 +754,18 @@ const webIndexHTML = `<!DOCTYPE html>
       setTimeout(function(){ nxt.classList.remove('slide-in'); }, 200);
     }, 160);
   }
+  // displayName returns an agent's non-blank display name, falling back to its
+  // id: a blank or whitespace-only name counts as "not reported yet" (FIX-542).
+  function displayName(a){
+    var n = String((a && a.name) || '').trim();
+    return n || ((a && a.id) || '');
+  }
   // agentName maps a sender id to its display name: the hub UI posts as "user"
   // (rendered as 我), "*" is the broadcast target, agents resolve via roster.
   function agentName(id){
     if (id === 'user') return '我';
     if (id === '*') return '全部';
-    var a = rosterById[id];
-    return (a && a.name) || id;
+    return displayName(rosterById[id]) || id;
   }
   function initialOf(name){
     var s = String(name || '?').trim();
@@ -940,7 +945,7 @@ const webIndexHTML = `<!DOCTYPE html>
       del.onclick = function(e){ e.stopPropagation(); closeAgent(a.id); };
       var r = document.createElement('div');
       r.className = 'agent' + (a.id === current ? ' active' : '');
-      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm" title="' + esc(a.id || '') + '">' + esc(a.name || a.id) + '</span>' +
+      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm" title="' + esc(a.id || '') + '">' + esc(displayName(a)) + '</span>' +
         (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '') +
         '<span class="chev" title="修改配置">›</span>';
       // Clicking the card switches the main view to this agent; clicking the

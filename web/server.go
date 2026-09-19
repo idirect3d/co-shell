@@ -744,10 +744,14 @@ func (s *Server) handleUISandbox(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	payload := map[string]interface{}{
-		"lang":            s.opts.Lang,
-		"version":         s.opts.Version,
-		"build":           s.opts.Build,
-		"workspace":       s.root,
+		"lang":      s.opts.Lang,
+		"version":   s.opts.Version,
+		"build":     s.opts.Build,
+		"workspace": s.root,
+		// FIX-542: the agent name shown in the centre of the titlebar. Resolved
+		// from IDENTITY.md on every request (ResolveAgentName trims the value and
+		// falls back to "co-shell"), so an edit made elsewhere shows up on reload.
+		"agent_name":      agent.ResolveAgentName(s.root),
 		"branch":          gitBranch(s.root),
 		"remote":          s.isRemote(),
 		"downloadEnabled": s.downloadEnabled(),
