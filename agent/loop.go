@@ -2010,10 +2010,15 @@ func (a *Agent) resolveModelForInfo(vision bool) *config.ModelConfig {
 }
 
 // LLMTiming holds performance timing for the most recent LLM call.
+//
+// Both durations are measured from stream timestamps (call start → first token,
+// first token → stream end), so they never include tool-execution time: tools
+// only start running after the stream has already ended (FIX-545).
 type LLMTiming struct {
 	FirstTokenLatency string // time to first token (e.g. "1.2s")
 	InputTPS          string // input tokens per second (prompt_tokens / time_to_first_token)
 	OutputTPS         string // output tokens per second (completion_tokens / generation_time)
+	OutputDuration    string // generation window (first token → stream end, e.g. "15.1s")
 }
 
 // GetLLMTiming computes and returns the performance timing for the current LLM call.
@@ -2041,7 +2046,7 @@ func (a *Agent) GetLLMTiming() LLMTiming {
 
 	var result LLMTiming
 	if firstLat > 0 {
-		result.FirstTokenLatency = fmt.Sprintf("%.1fs", firstLat)
+		result.FirstTokenLatency = formatDuration(firstLat)
 	} else {
 		result.FirstTokenLatency = "-"
 	}
@@ -2056,6 +2061,16 @@ func (a *Agent) GetLLMTiming() LLMTiming {
 	} else {
 		result.OutputTPS = "-"
 	}
+	// FIX-545: ship the measured generation window to the frontend instead of
+	// letting it back out "tokens / tps". Deriving duration from a rounded
+	// integer t/s lost precision, and whenever OutputTPS was "-" the derived
+	// duration collapsed to "-" as well — which is what made the status bar
+	// render "↓1,266 (-, -)".
+	if genDuration > 0 {
+		result.OutputDuration = formatDuration(genDuration)
+	} else {
+		result.OutputDuration = "-"
+	}
 
 	// Update previous counters
 	a.prevPromptTokens = a.totalPromptTokens
@@ -2065,6 +2080,16 @@ func (a *Agent) GetLLMTiming() LLMTiming {
 	a.llmStreamEndTime = time.Time{}
 
 	return result
+}
+
+// formatDuration renders a duration in seconds the way the token-stats line
+// expects: "12.3s" below a minute, "2.5m" at or above it. This matches the
+// frontend fmtDur so the Web UI and the REPL print the same string.
+func formatDuration(sec float64) string {
+	if sec >= 60 {
+		return fmt.Sprintf("%.1fm", sec/60)
+	}
+	return fmt.Sprintf("%.1fs", sec)
 }
 
 // SetBoardSender installs the callback used to push board_* messages back

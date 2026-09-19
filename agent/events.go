@@ -73,6 +73,11 @@ const (
 	MetaKeyFT         = "ft"         // first-token latency display string
 	MetaKeyInTPS      = "in_tps"     // input tokens-per-second display string
 	MetaKeyOutTPS     = "out_tps"    // output tokens-per-second display string
+	// MetaKeyOutDur is the measured generation window (first token → stream end)
+	// as a display string. FIX-545: the frontend used to back this out of
+	// "completion tokens / out_tps", which collapsed to "-" whenever out_tps was
+	// unavailable and lost precision to the rounded rate.
+	MetaKeyOutDur = "out_dur" // output duration display string (e.g. "15.1s")
 )
 
 // MetaKeyPlan is the Meta key of EventTaskPlan carrying the full task plan

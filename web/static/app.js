@@ -1520,6 +1520,8 @@ function resetStreamView() {
   tokenStats.lastOut = 0;
   tokenStats.lastInTPS = 0;
   tokenStats.lastOutTPS = 0;
+  tokenStats.lastInDur = "-";
+  tokenStats.lastOutDur = "-";
 }
 
 // initTopSentinel wires the IntersectionObserver that watches the top marker.
@@ -1669,16 +1671,15 @@ function renderEvent(ev) {
       const parts = [seq + ". " + fmtTime(new Date())];
       const p = parseInt(m.prompt, 10) || 0;
       const c = parseInt(m.completion, 10) || 0;
-      const inTPS = parseInt(m.in_tps, 10) || 0;
-      const outTPS = parseInt(m.out_tps, 10) || 0;
+      // FIX-545: same shape as the status bar — "↑N（tps, 用时） ↓N（tps, 用时）".
+      // The old line printed the input duration twice (m.ft, then p/in_tps which
+      // is algebraically the same number) and never showed the output duration.
+      // Both durations now come straight from the backend (ft / out_dur).
       if (m.prompt) {
-        parts.push("↑" + fmtNum(p));
-        if (m.ft && m.ft !== "-") parts.push(m.ft);
-        if (inTPS > 0) parts.push(fmtDur(p / inTPS) + " " + fmtNum(inTPS) + "t/s");
+        parts.push("↑" + fmtNum(p) + "（" + perfPair(m.in_tps, m.ft) + "）");
       }
       if (m.completion) {
-        parts.push("↓" + fmtNum(c));
-        if (outTPS > 0) parts.push(fmtNum(outTPS) + "t/s");
+        parts.push("↓" + fmtNum(c) + "（" + perfPair(m.out_tps, m.out_dur) + "）");
       }
       line.textContent = parts.join("  ");
       // FEATURE-419: one token line per iteration, appended INSIDE the last
@@ -1755,6 +1756,8 @@ function renderEvent(ev) {
       tokenStats.lastOut = c;
       tokenStats.lastInTPS = parseInt(m.in_tps, 10) || 0;
       tokenStats.lastOutTPS = parseInt(m.out_tps, 10) || 0;
+      tokenStats.lastInDur = m.ft || "-";
+      tokenStats.lastOutDur = m.out_dur || "-";
       updateStatus();
       // FEATURE-482: the iteration's token usage is now known — backfill the
       // message-visualization chart with the blocks created this iteration.
@@ -2440,7 +2443,7 @@ function stcSync() {
 // Token stats accumulated from token_iter events. sessionIn/sessionOut are
 // the running totals across all iterations; last* hold the most recent
 // iteration's values (including input/output tokens-per-second).
-const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0 };
+const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0, lastInDur: "-", lastOutDur: "-" };
 
 /* FEATURE-482: message-visualization chart. Each rendered message block (.ev)
    becomes one 1px vertical line in #msgVizTrack, coloured by its title-bar
@@ -2627,29 +2630,42 @@ let downloadEnabled = false;
 
 function fmtNum(n) { return n ? n.toLocaleString() : "0"; }
 
-// fmtDur formats a duration in seconds as e.g. "2s" or "1.5m".
-function fmtDur(sec) {
-  if (!(sec > 0)) return "-";
-  return sec >= 60 ? (sec / 60).toFixed(1) + "m" : sec.toFixed(1) + "s";
-}
-
 // fmtPct formats a context-usage percentage (0-100) as e.g. "89%".
 function fmtPct(used, max) {
   if (!(max > 0)) return "-";
   return Math.round(used * 100 / max) + "%";
 }
 
-// FEATURE-493: status-bar variants of fmtPct/fmtDur that wrap the unit
-// (%, s, m) in a .sb-unit span so the status bar renders it in the bright
-// foreground colour. The plain fmtPct/fmtDur stay text-only because the
-// message-stream token line sets textContent (HTML would show literally).
+// fmtPct's status-bar variant wraps the % in a .sb-unit span so the status bar
+// renders it in the bright foreground colour (FEATURE-493). The plain fmtPct
+// stays text-only because the message-stream token line sets textContent.
 function sbPct(used, max) {
   const s = fmtPct(used, max);
   return s === "-" ? s : s.replace(/%$/, "<span class='sb-unit'>%</span>");
 }
-function sbDur(sec) {
-  const s = fmtDur(sec);
-  return s === "-" ? s : s.replace(/([sm])$/, "<span class='sb-unit'>$1</span>");
+
+// FIX-545: durations are measured and formatted by the backend (meta keys ft and
+// out_dur) and only decorated here. They used to be derived as tokens/tps, which
+// lost precision to the rounded rate and collapsed to "-" whenever the rate was
+// unavailable — so fmtDur is gone with it.
+
+// perfPair renders one "<rate>t/s, <duration>" group as plain text for the
+// message-stream token line.
+function perfPair(tpsRaw, durRaw) {
+  const tps = parseInt(tpsRaw, 10) || 0;
+  const dur = durRaw && durRaw !== "-" ? durRaw : "-";
+  return (tps > 0 ? fmtNum(tps) + "t/s" : "-") + ", " + dur;
+}
+
+// sbDur decorates a backend-formatted duration ("1.5s" / "2.5m") for the status
+// bar by wrapping its unit in .sb-unit.
+function sbDur(d) {
+  return d && d !== "-" ? d.replace(/([sm])$/, "<span class='sb-unit'>$1</span>") : "-";
+}
+
+// sbPerfPair is perfPair's status-bar twin (HTML, units highlighted).
+function sbPerfPair(tps, dur) {
+  return (tps > 0 ? fmtNum(tps) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + sbDur(dur);
 }
 
 // fmtLen formats a context length with K/M units (e.g. 1048576 -> "1M").
@@ -2683,15 +2699,16 @@ function updateStatus() {
   }
   // Session: 会话 15000（↑14500 ↓500）
   sbSession.innerHTML = iconHTML("i-sum", "ico-sb") + "<b>" + fmtNum(total) + "</b>（↑" + fmtNum(sIn) + " ↓" + fmtNum(sOut) + "）";
-  // Last turn: 最后一轮 ↑4500（2250t/s, 2s) ↓500 (20t/s, 25s)
-  const li = tokenStats.lastIn, lo = tokenStats.lastOut;
-  const liTPS = tokenStats.lastInTPS, loTPS = tokenStats.lastOutTPS;
-  const liDur = liTPS > 0 ? sbDur(li / liTPS) : "-";
-  const loDur = loTPS > 0 ? sbDur(lo / loTPS) : "-";
+  // Last turn: 最后一轮 ↑4500（2250t/s, 2s） ↓500（20t/s, 25s）
+  // FIX-545: durations come straight from the backend (ft / out_dur) instead of
+  // being back-derived as tokens/tps — that derivation collapsed to "-" for every
+  // round whose rate was unavailable (pure tool-call rounds), which is what users
+  // saw as "↓1,266 (-, -)". Both groups now use full-width parens so this line
+  // and the message-stream token line are shaped identically.
   // FEATURE-436: token rates use thousands separators (e.g. 1,234t/s).
   // FEATURE-487: the ⏱️ icon sits in its own span so narrow screens can hide
   // just the icon while keeping the per-iteration usage text.
-  sbLast.innerHTML = "<span class='sb-last-ico'>" + iconHTML("i-timer") + "</span>↑" + fmtNum(li) + "（" + (liTPS > 0 ? fmtNum(liTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + liDur + ") ↓" + fmtNum(lo) + " (" + (loTPS > 0 ? fmtNum(loTPS) + "<span class='sb-unit'>t/s</span>" : "-") + ", " + loDur + ")";
+  sbLast.innerHTML = "<span class='sb-last-ico'>" + iconHTML("i-timer") + "</span>↑" + fmtNum(tokenStats.lastIn) + "（" + sbPerfPair(tokenStats.lastInTPS, tokenStats.lastInDur) + "） ↓" + fmtNum(tokenStats.lastOut) + "（" + sbPerfPair(tokenStats.lastOutTPS, tokenStats.lastOutDur) + "）";
 }
 
 /* ---------- session menu (FEATURE-387) ---------- */

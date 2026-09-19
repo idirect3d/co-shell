@@ -4,6 +4,39 @@
 
 ---
 
+## v0.68.7 — 开发中
+
+> **版本**: v0.68.7
+
+> **状态**: 🚧 开发中
+> **里程碑**: token 输出性能统计修复（速率缺失 + 消息行与状态栏对齐）
+> **说明**：状态栏最右段经常显示 `↓xxxx (-, -)`——单次输出总 token 有值，但速率与用时两项都是 `-`，在 LLM 一次连续调用多个工具时尤其高发；同时每条消息末尾的 token 统计行里有一个重复的用时项，且数据项与状态栏不一致。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-545 | 0.68.7 | P3 | 纯 tool_calls 轮次未记录首字时刻导致速率/用时全为 `-`；后端直出输出有效用时（`out_dur`），消息行与状态栏统一为 `↑N（tps, 用时） ↓N（tps, 用时）` |
+
+> 当前 BUILD: 1089
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-545 token 输出性能统计：速率缺失 + 消息行与状态栏对齐** [BUILD-1089]
+  - 背景（用户提出）：「状态栏上最右边的 token 输出性能，经常出现 `↓xxxx (-, -)`，单次总输出数有，但后面速率都是 `-`，似乎 LLM 一次连续调用多个工具时就会出现，分母为 0 了」；「每一条消息后面的 token 用量统计有一个重复的用时项，输出内容/数据应与状态栏那一段对齐」。经 ask_user 确认：归入新建版本 v0.68.7（FIX 默认 patch 递增）；保持流时间戳口径，只修「tool_call 事件未触发首字记录」；消息行与状态栏完全同构为 `↑12,345（8,123t/s, 1.5s） ↓678（45t/s, 15.1s）`。
+  - 根因一（速率全为 `-`）：`agent/stream_response.go` 的首字判定只认 `StreamEventContent`/`StreamEventReasoning`。OpenAI JSON 工具调用模式下，一轮只返回 tool_calls 时 content 为空、无思考文本，`firstTokenTime` 永远是零值 → `firstLat=0`、`genDuration=0` → `ft`/`in_tps`/`out_tps` 全为 `-`（completion token 数来自 usage 所以仍有值，故呈现「数字有、速率没有」）。前端用时又由 `tokens / tps` 反推，tps 为 `-` 时用时连带失效，两个数据项一起崩。这正是「连续多工具」高发的原因。
+  - 根因二（重复用时项）：`web/static/app.js` 输入侧先 push `m.ft`，再 push `fmtDur(p / inTPS)`；而 `in_tps = prompt / ft`，所以 `p / inTPS ≡ ft`——同一份耗时打印两次；输出侧则完全没有用时项，与状态栏不对齐。
+  - 口径决策（用户确认）：两个用时均取自**流时间戳**（调用发起→首字、首字→流结束）。工具是在流结束之后才开始执行的，所以该差值天然不含工具耗时，比「迭代墙钟总用时 − 各工具耗时」更精确，故不改墙钟相减，只修「首字未被记录」这一真实缺陷。
+  - 实施（后端）：① `agent/stream_response.go` 把首字判定抽成 `isFirstTokenEvent(t)`，纳入 `StreamEventToolCallDelta`/`StreamEventToolCall`，使纯工具调用轮次也能测出 TTFT 与生成窗口；② `agent/loop.go` `LLMTiming` 新增 `OutputDuration`（复用已算出的 `genDuration`），并新增 `formatDuration`（<60s 走 `x.xs`、≥60s 走 `x.xm`，与前端 `fmtDur` 一致），`FirstTokenLatency` 改用它以统一长时长显示；③ `agent/events.go` 新增 meta 键 `out_dur`；④ `agent/run_stream.go` `emitTokenIter` 改收 `LLMTiming` 并附加 `out_dur`，**`TokenIterEvent` 保持 7 参数签名不变**，4 处既有测试调用点零改动。
+  - 实施（前端 `web/static/app.js`）：① 消息行改为与状态栏同构 `↑N（tps, 用时） ↓N（tps, 用时）`，去掉重复的 `ft`，补上输出侧用时；② 新增 `perfPair`（纯文本）/`sbPerfPair`（HTML）共用同一份数据项；③ `sbDur` 改为直接装饰后端已格式化的时长字符串，`fmtDur` 随反推逻辑一并删除；④ `tokenStats` 新增 `lastInDur`/`lastOutDur` 承载 `ft`/`out_dur`；⑤ 状态栏两组括号统一为全角，与消息行形状一致。
+  - 测试：`agent/fix545_test.go` 8 个用例（纯 tool_call 轮次计时、文本/思考轮次不回归、Done/Error 不得锚定首字、无新 token 返回零值、读取后复位、`formatDuration` 单位切换、`out_dur` 随事件下发、`TokenIterEvent` 签名兼容）。用例文档 `use-case/FIX-545/FIX-545-UC-0001.md`（UC-0001~UC-0012）。
+  - 基线说明：`go build ./... && go vet ./...` 全绿；新增 8 个测试全通过。全量 `go test ./... -short` 有 5 项失败（`agent/TestLineRendererTokenEvents`、`agent/TestRetryCountLimit_EnterResets`、`cmd/TestSkillHandlerListEmpty`、`cmd/TestSettingsJSONFillsDefaults`、`i18n/TestRulesDirCustomizationNote`），已在 HEAD 基线 worktree 上复现完全相同的失败，确认全部为既有问题（测试间 i18n 全局态污染 ×2、本机装了全局 skills、`logo` 设置项 Default 为空、本机 `.rules/` 定制），与本修改无关，按「发现无关 bug 只记录不擅自修复」原则仅登记。
+  - 版本号：`main.go` `version=0.68.7`/`build=1089`，`cmd/co-shell-hub/main.go` `hubVersion=0.68.7`/`hubBuild=1089` 同步。
+  - 分支：**FIX-545**（基于 main，v0.68.6 已合并），版本 v0.68.7
+  - 状态：🚧 待用户测试验证
+
+---
+
 ## v0.68.6 — 已完成
 
 > **版本**: v0.68.6
