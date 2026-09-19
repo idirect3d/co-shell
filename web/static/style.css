@@ -186,6 +186,8 @@ body {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   flex: none;
+  /* FIX-542: positioning context for the absolutely centred .top-center. */
+  position: relative;
 }
 
 .brand { display: flex; align-items: center; gap: 8px; }
@@ -202,10 +204,22 @@ body {
 .brand-name { font-weight: 600; letter-spacing: 0.4px; }
 .brand-ver { color: var(--fg-faint); font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 
-/* FIX-542: the agent name (IDENTITY.md "agent-name") is centred in the
-   titlebar. It takes the free space between .brand and .top-right, so it never
-   overlaps either side, and ellipsises once that space runs out. */
-.top-center { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; margin: 0 8px; }
+/* FIX-542: the agent name (IDENTITY.md "agent-name") is centred on the
+   titlebar midline. It is absolutely positioned because the flex leftover space
+   is not symmetric (.brand is wider than .top-right), which pushed the name
+   right of centre; max-width keeps it clear of both flanking groups (measured
+   free gap: brand right edge 240px, top-right left edge 1163px on a 1329px
+   bar), so an over-long name ellipsises instead of covering them. */
+.top-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 40%;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
 .agent-name {
   min-width: 0;
   overflow: hidden;
@@ -214,6 +228,19 @@ body {
   font-weight: 600;
   letter-spacing: 0.3px;
   color: var(--fg-dim);
+}
+
+/* On narrow screens the right-hand controls reach past the midline (they keep
+   the display-mode/connection/theme/menu buttons), so a centred slot would sit
+   on top of them. Drop the centring there and let the name flow in the free
+   gap after the brand triangle - it stays fully readable because the wordmark
+   and version are hidden at this width (FIX-542). */
+body.narrow .top-center {
+  position: static;
+  transform: none;
+  flex: 1 1 auto;
+  max-width: none;
+  margin: 0 8px;
 }
 
 .top-right { display: flex; align-items: center; gap: 12px; }

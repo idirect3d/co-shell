@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FIX-542 | 0.68.4 | P2 | hub agent 列表名称显示统一：未上报（或上报空白）name 时以 hub 配置的 ID 为默认值；仅在线 agent 的上报名可信；前后端均做 trim 兜底。追加：co-shell Web UI 标题栏中间显示 agent name（取自 IDENTITY.md），窄屏隐藏「co-shell」文字与版本号 |
 
-> 当前 BUILD: 1084
+> 当前 BUILD: 1085
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -28,7 +28,8 @@
   - 实现：① 后端 `agentDisplayName(id string, connected bool)`，仅 `connected && w.board != nil` 时取 board 上报 name 并 `strings.TrimSpace`，空则回退 `id`；调用点 `handleListAgents` 传 `connected[s.ID]`（该 map 已由 `w.proxy.AgentIDs()` 构建）；② 前端新增 `displayName(a)` helper（`String(a.name||'').trim() || a.id`），`renderList` 与 `agentName()` 均改用它（`title=` 仍为 id，class 结构不变）。
   - 未动：`.agent-row .name` CSS（HTML/JS 无使用点，属死样式，与本任务无关）。
   - 追加（Web UI，用户提出）：「在最上面的标题栏中间显示 agent name。当窄屏时隐藏现在左上角的 co-shell 文字 logo，以便显示完整的 agent name。」确认：取 IDENTITY.md 的 `## agent-name`；窄屏隐藏「co-shell」文字 + 版本号（保留三角 mark）；宽屏也始终显示；过长省略号截断。
-  - 追加实现：① `web/server.go` `handleBootstrap` 新增 `agent_name`（`agent.ResolveAgentName(s.root)`，自带 trim 与 `"co-shell"` 回退；`LoadIdentity` 每次读盘 → 刷新页面即最新）；② `web/static/index.html` topbar 在 `.brand` 与 `.top-right` 之间新增 `.top-center > #agentName`；③ `web/static/style.css` 新增 `.top-center`（flex 占位 + 居中，不重叠不挤压）与 `.agent-name`（`overflow:hidden; text-overflow:ellipsis; white-space:nowrap`）；④ `web/static/app.js`：新增 `setAgentName()`（boot 取 `api/bootstrap` 的 `agent_name`）、`kind=identity` 消息到达时按 `agent-name` 字段同步、`updateResponsive` 中窄屏隐藏 `.brand-name`（沿用既有 `verEl` 的 inline display 模式，**不用 CSS 类**，避免破坏 `brandWidth()` 阈值测量而引发窄/宽振荡）。
+  - 追加实现：① `web/server.go` `handleBootstrap` 新增 `agent_name`（`agent.ResolveAgentName(s.root)`，自带 trim 与 `"co-shell"` 回退；`LoadIdentity` 每次读盘 → 刷新页面即最新）；② `web/static/index.html` topbar 在 `.brand` 与 `.top-right` 之间新增 `.top-center > #agentName`；③ `web/static/style.css`：`#topbar` 加 `position:relative` 作定位上下文；`.top-center` 改为**绝对定位居中**（`left:50%; top:50%; transform:translate(-50%,-50%); max-width:40%`）——用 flex 剩余空间居中会因 `.brand`（实测宽 226px）宽于 `.top-right`（152px）而整体偏右 37px（名字中点 701 vs 栏中线 665）；绝对定位后实测 665 vs 665（delta=0），`max-width:40%` 确保不与两侧重叠（1329px 栏下名字区 599–730，brand 右界 240、top-right 左界 1163）；`.agent-name` 保持 `overflow:hidden; text-overflow:ellipsis; white-space:nowrap`；另加 `body.narrow .top-center{position:static;transform:none;flex:1 1 auto;max-width:none;margin:0 8px}` 回退——480px 视口下右侧控件左界 246 已越过中线 238，强行居中必然叠字，故窄屏改为在 brand 三角与右侧控件之间居中（名字完整显示、不截断、不重叠，实测 nameRect 68–199）；④ `web/static/app.js`：新增 `setAgentName()`（boot 取 `api/bootstrap` 的 `agent_name`）、`kind=identity` 消息到达时按 `agent-name` 字段同步、`updateResponsive` 中窄屏隐藏 `.brand-name`（沿用既有 `verEl` 的 inline display 模式，**不用 CSS 类**，避免破坏 `brandWidth()` 阈值测量而引发窄/宽振荡）。
+  - 浏览器实测（临时 mock 站 + 仓库静态资源；480px 用 iframe 真实视口）：宽屏 `agentNameText="co-shell developer"`、`textOverflow=ellipsis`、`brandNameDisplay=block`、`brandVerDisplay=block`、delta=0；窄屏 `bodyClass=narrow`、`brandNameDisplay=none`、`brandVerDisplay=none`、`brandMarkDisplay=flex`、名字完整未截断、与左右控件无重叠；注入超长名时 `scrollWidth 722 > clientWidth 233`（省略号生效）且 `title` 保留全文。
   - 分支：**FIX-542**（基于 main，v0.68.3 已合并），版本 v0.68.4
   - 状态：🚧 进行中
 
