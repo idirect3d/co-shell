@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // WebUIConfig configures the hub Web UI HTTP server.
@@ -77,6 +78,10 @@ func NewWebUI(cfg WebUIConfig, proxy *Proxy, manager *Manager, settings *Setting
 	mux.HandleFunc("POST /api/agents/{id}/start", w.handleStartAgent)
 	mux.HandleFunc("POST /api/agents/{id}/stop", w.handleStopAgent)
 	mux.HandleFunc("DELETE /api/agents/{id}", w.handleDeleteAgent)
+	// Agent描述 (FEATURE-538): the description lives in the agent's workspace
+	// IDENTITY.md, not in the hub registry.
+	mux.HandleFunc("GET /api/agents/{id}/identity", w.handleGetAgentIdentity)
+	mux.HandleFunc("PUT /api/agents/{id}/identity", w.handlePutAgentIdentity)
 	// Agent-config helpers (detection + defaults + version).
 	mux.HandleFunc("GET /api/agent-defaults", w.handleAgentDefaults)
 	mux.HandleFunc("GET /api/co-shell-locations", w.handleCoShellLocations)
@@ -189,7 +194,9 @@ func (w *WebUI) handleHubInfo(rw http.ResponseWriter, _ *http.Request) {
 	writeJSON(rw, http.StatusOK, map[string]string{"name": "co-shell-hub", "version": w.version, "build": w.build})
 }
 
-// agentView is the JSON shape returned by GET /api/agents.
+// agentView is the JSON shape returned by GET /api/agents. Name is the agent's
+// self-reported display name (its IDENTITY.md agent-name, from the board
+// roster), not a value the hub stores (FEATURE-538).
 type agentView struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -225,7 +232,7 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 	for _, s := range specs {
 		v := agentView{
 			ID:              s.ID,
-			Name:            s.Name,
+			Name:            w.agentDisplayName(s.ID),
 			Type:            s.Type,
 			Workspace:       s.Workspace,
 			Port:            s.Port,
@@ -263,10 +270,39 @@ func (w *WebUI) handleListAgents(rw http.ResponseWriter, _ *http.Request) {
 	writeJSON(rw, http.StatusOK, map[string]interface{}{"agents": views})
 }
 
+// agentErrorStatus maps a manager error to the HTTP status the agent forms show
+// (FEATURE-538: invalid IDs are 400, duplicate IDs are 409).
+func agentErrorStatus(err error) int {
+	switch {
+	case errors.Is(err, ErrAgentNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, ErrInvalidAgentID), errors.Is(err, ErrInvalidAgent):
+		return http.StatusBadRequest
+	case errors.Is(err, ErrAgentExists):
+		return http.StatusConflict
+	}
+	return http.StatusConflict
+}
+
+// agentDisplayName returns the display name an agent reported on the board
+// (FEATURE-538); agents that never registered fall back to their ID.
+func (w *WebUI) agentDisplayName(id string) string {
+	if w.board != nil {
+		if info, ok := w.board.Agent(id); ok && strings.TrimSpace(info.Name) != "" {
+			return info.Name
+		}
+	}
+	return id
+}
+
 // createAgentRequest is the POST /api/agents body.
 type createAgentRequest struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
+	ID string `json:"id"`
+	// AgentDescription (FEATURE-538) is optional: when set the hub writes it to
+	// {workspace}/IDENTITY.md after creating the agent (creating the file, with
+	// agent-name initialised to the ID, when it does not exist yet). It is never
+	// stored in the registry.
+	AgentDescription string `json:"agent_description,omitempty"`
 	Workspace    string `json:"workspace"`
 	CoShell      string `json:"co_shell,omitempty"`
 	ConfigPath   string `json:"config_path,omitempty"`
@@ -287,26 +323,30 @@ func (w *WebUI) handleCreateAgent(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "bad request"})
 		return
 	}
-	if req.ID == "" || req.Workspace == "" {
+	if strings.TrimSpace(req.ID) == "" || req.Workspace == "" {
 		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "id and workspace are required"})
 		return
 	}
-	name := req.Name
-	if name == "" {
-		name = req.ID
-	}
-	spec, err := w.manager.CreateManaged(req.ID, name, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port, req.ExtraArgs, req.YOLO)
+	spec, err := w.manager.CreateManaged(req.ID, req.Workspace, req.CoShell, req.ConfigPath, req.CreateConfig, req.UseSharedConfig, req.Port, req.ExtraArgs, req.YOLO)
 	if err != nil {
-		writeJSON(rw, http.StatusConflict, map[string]string{"error": err.Error()})
+		writeJSON(rw, agentErrorStatus(err), map[string]string{"error": err.Error()})
 		return
+	}
+	// FEATURE-538: an Agent描述 typed in the create form goes straight to the
+	// agent's IDENTITY.md (the file, not the registry).
+	if desc := strings.TrimSpace(req.AgentDescription); desc != "" {
+		if err := WriteIdentityDescription(spec.Workspace, spec.ID, desc); err != nil {
+			log.Printf("webui: agent %s created but identity write failed: %v", spec.ID, err)
+		}
 	}
 	writeJSON(rw, http.StatusCreated, spec)
 }
 
-// addExternalRequest is the POST /api/agents/external body.
+// addExternalRequest is the POST /api/agents/external body. An external agent
+// has no local workspace, so it carries no Agent描述 (the hub shows the value
+// the agent reports on the board, read-only).
 type addExternalRequest struct {
 	ID    string `json:"id"`
-	Name  string `json:"name"`
 	WSURL string `json:"ws_url"`
 }
 
@@ -321,18 +361,14 @@ func (w *WebUI) handleAddExternal(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "id and ws_url are required"})
 		return
 	}
-	name := req.Name
-	if name == "" {
-		name = req.ID
-	}
-	spec, err := w.manager.AddExternal(req.ID, name, req.WSURL)
+	spec, err := w.manager.AddExternal(req.ID, req.WSURL)
 	if err != nil {
-		writeJSON(rw, http.StatusConflict, map[string]string{"error": err.Error()})
+		writeJSON(rw, agentErrorStatus(err), map[string]string{"error": err.Error()})
 		return
 	}
 	// An external agent may be temporarily offline; register it regardless and
 	// attempt to connect. A failed connect is logged, not fatal.
-	if err := w.proxy.AddAgent(AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
+	if err := w.proxy.AddAgent(AgentConfig{ID: spec.ID, WSURL: spec.WSURL}); err != nil {
 		log.Printf("webui: external agent %s registered but connect failed: %v", spec.ID, err)
 	}
 	writeJSON(rw, http.StatusCreated, spec)
@@ -342,7 +378,6 @@ func (w *WebUI) handleAddExternal(rw http.ResponseWriter, r *http.Request) {
 // is a pointer so an omitted field is left unchanged; the agent's id and type
 // are immutable.
 type updateAgentRequest struct {
-	Name            *string `json:"name"`
 	Workspace       *string `json:"workspace"`
 	Port            *int    `json:"port"`
 	CoShell         *string `json:"co_shell"`
@@ -364,7 +399,6 @@ func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spec, err := w.manager.Update(id, AgentPatch{
-		Name:            req.Name,
 		Workspace:       req.Workspace,
 		Port:            req.Port,
 		CoShell:         req.CoShell,
@@ -374,25 +408,100 @@ func (w *WebUI) handleUpdateAgent(rw http.ResponseWriter, r *http.Request) {
 		WSURL:           req.WSURL,
 	})
 	if err != nil {
-		status := http.StatusConflict
-		switch {
-		case errors.Is(err, ErrAgentNotFound):
-			status = http.StatusNotFound
-		case errors.Is(err, ErrInvalidAgent):
-			status = http.StatusBadRequest
-		}
-		writeJSON(rw, status, map[string]string{"error": err.Error()})
+		writeJSON(rw, agentErrorStatus(err), map[string]string{"error": err.Error()})
 		return
 	}
 	// An external agent's endpoint lives in the proxy connection: re-dial it so
 	// a changed ws_url takes effect immediately. A failed dial is logged only.
 	if spec.Type == AgentTypeExternal {
 		w.proxy.RemoveAgent(spec.ID)
-		if err := w.proxy.AddAgent(AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
+		if err := w.proxy.AddAgent(AgentConfig{ID: spec.ID, WSURL: spec.WSURL}); err != nil {
 			log.Printf("webui: external agent %s updated but reconnect failed: %v", spec.ID, err)
 		}
 	}
 	writeJSON(rw, http.StatusOK, spec)
+}
+
+// maxAgentDescriptionRunes caps an Agent描述 accepted by the hub.
+const maxAgentDescriptionRunes = 2000
+
+// agentIdentityView is the JSON shape of GET/PUT /api/agents/{id}/identity
+// (FEATURE-538).
+type agentIdentityView struct {
+	AgentID          string `json:"agent_id"`
+	AgentDescription string `json:"agent_description"`
+	// Source reports where the description came from: "file" (a managed agent's
+	// IDENTITY.md) or "agent" (an external agent's board report).
+	Source   string `json:"source"`
+	Readonly bool   `json:"readonly"`
+	// Workspace is the file's directory (managed agents only).
+	Workspace string `json:"workspace,omitempty"`
+}
+
+// identityFor builds one agent's identity view: a managed agent is read from
+// {workspace}/IDENTITY.md every time (no cache), while an external agent has no
+// local workspace and shows the value it reported on the board.
+func (w *WebUI) identityFor(spec AgentSpec) agentIdentityView {
+	view := agentIdentityView{AgentID: spec.ID}
+	if spec.Type == AgentTypeManaged {
+		view.Source = "file"
+		view.Workspace = spec.Workspace
+		view.AgentDescription = ReadIdentityDescription(spec.Workspace)
+		return view
+	}
+	view.Source = DutySourceAgent
+	view.Readonly = true
+	if w.board != nil {
+		if info, ok := w.board.Agent(spec.ID); ok {
+			view.AgentDescription = info.Duty
+		}
+	}
+	return view
+}
+
+// handleGetAgentIdentity returns one agent's Agent描述 (FEATURE-538).
+func (w *WebUI) handleGetAgentIdentity(rw http.ResponseWriter, r *http.Request) {
+	spec, ok := w.manager.Spec(r.PathValue("id"))
+	if !ok {
+		writeJSON(rw, http.StatusNotFound, map[string]string{"error": "agent not found"})
+		return
+	}
+	writeJSON(rw, http.StatusOK, w.identityFor(spec))
+}
+
+// handlePutAgentIdentity writes a managed agent's Agent描述 into
+// {workspace}/IDENTITY.md (creating the file when absent). An external agent's
+// description can only be changed on its own machine, so it is read-only here.
+func (w *WebUI) handlePutAgentIdentity(rw http.ResponseWriter, r *http.Request) {
+	spec, ok := w.manager.Spec(r.PathValue("id"))
+	if !ok {
+		writeJSON(rw, http.StatusNotFound, map[string]string{"error": "agent not found"})
+		return
+	}
+	var req struct {
+		AgentDescription *string `json:"agent_description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AgentDescription == nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "agent_description is required"})
+		return
+	}
+	if utf8.RuneCountInString(*req.AgentDescription) > maxAgentDescriptionRunes {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": "agent_description is too long"})
+		return
+	}
+	if spec.Type != AgentTypeManaged {
+		writeJSON(rw, http.StatusConflict, map[string]string{
+			"error": "\u5916\u90e8 Agent \u7684 Agent \u63cf\u8ff0\u4e3a\u53ea\u8bfb\uff0c\u8bf7\u5728\u5bf9\u65b9 co-shell \u7684\u300c\u8eab\u4efd\u4e0e\u4e2a\u6027\u300d\u4e2d\u4fee\u6539",
+		})
+		return
+	}
+	if err := WriteIdentityDescription(spec.Workspace, spec.ID, *req.AgentDescription); err != nil {
+		writeJSON(rw, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	// The agent reports the new value itself (board_identity); the response
+	// carries the freshly read file so the UI can show what was stored.
+	writeJSON(rw, http.StatusOK, w.identityFor(spec))
 }
 
 // handleStartAgent starts a managed agent subprocess and connects it to the
@@ -436,7 +545,7 @@ func (w *WebUI) handleDeleteAgent(rw http.ResponseWriter, r *http.Request) {
 // connectWithRetry dials an agent WS URL, retrying briefly to allow a freshly
 // started co-shell --serve process to begin listening.
 func (w *WebUI) connectWithRetry(id, wsURL string) error {
-	cfg := AgentConfig{ID: id, Name: id, WSURL: wsURL}
+	cfg := AgentConfig{ID: id, WSURL: wsURL}
 	var lastErr error
 	for i := 0; i < 20; i++ {
 		if err := w.proxy.AddAgent(cfg); err == nil {

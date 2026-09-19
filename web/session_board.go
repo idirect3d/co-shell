@@ -27,6 +27,7 @@ package web
 
 import (
 	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/idirect3d/co-shell/agent"
@@ -42,22 +43,33 @@ import (
 // the hub delivers.
 
 // initBoard wires the message aggregator and announces this agent to the hub.
-// It is a no-op when the board switch is off.
-func (s *WebSession) initBoard(name, duty string) {
+// It is a no-op when the board switch is off. The announced name and 职责 are
+// read from IDENTITY.md (FEATURE-538), never from the hub registry.
+func (s *WebSession) initBoard() {
 	if !s.ag.BoardEnabled() {
 		return
 	}
+	name, duty := s.currentIdentity()
 	s.boardAgg = agent.NewBoardAggregator(agent.BoardAggregateWindow, s.flushBoardMessages)
 	// The hub dials in, so a hub restart or a dropped socket means a brand new
 	// client connection. Re-announce on every connect, otherwise the hub keeps
 	// this agent marked offline with a frozen roster revision (UC-0006).
 	s.srv.SetConnectHook(func() {
-		go s.registerBoard(name, duty)
+		n, d := s.currentIdentity()
+		go s.registerBoard(n, d)
 	})
 	go s.registerBoard(name, duty)
 	// Re-announce periodically: the hub keeps the roster and can only see agents
 	// that talk to it, so a lost registration must not stay lost (FEATURE-530).
-	go s.boardHeartbeat(name, duty)
+	go s.boardHeartbeat()
+	// Push an immediate update when IDENTITY.md changes on disk (FEATURE-538).
+	go s.watchBoardIdentity()
+}
+
+// currentIdentity returns the identity to announce right now: the agent name
+// and "Agent描述" currently stored in IDENTITY.md.
+func (s *WebSession) currentIdentity() (string, string) {
+	return s.ag.IdentityName(), s.ag.IdentityDescription()
 }
 
 // registerBoard sends one board_register frame (non-LLM). The WS connection may
@@ -89,11 +101,13 @@ func (s *WebSession) registerBoard(name, duty string) {
 // boardHeartbeatInterval is how often this agent re-announces itself.
 const boardHeartbeatInterval = 60 * time.Second
 
-// boardHeartbeat re-announces this agent periodically. The hub keeps the roster
-// and can only see agents that talk to it, so a registration that got lost (the
-// agent's WS socket was replaced by another serve-mode client) would otherwise
-// keep this agent invisible until the next reconnect (FEATURE-530).
-func (s *WebSession) boardHeartbeat(name, duty string) {
+// boardHeartbeat re-announces this agent periodically (reading IDENTITY.md
+// afresh, so an edit that was somehow missed still reaches the hub). The hub
+// keeps the roster and can only see agents that talk to it, so a registration
+// that got lost (the agent's WS socket was replaced by another serve-mode
+// client) would otherwise keep this agent invisible until the next reconnect
+// (FEATURE-530).
+func (s *WebSession) boardHeartbeat() {
 	t := time.NewTicker(boardHeartbeatInterval)
 	defer t.Stop()
 	for {
@@ -101,9 +115,71 @@ func (s *WebSession) boardHeartbeat(name, duty string) {
 		case <-s.closed:
 			return
 		case <-t.C:
+			name, duty := s.currentIdentity()
 			s.registerBoard(name, duty)
 		}
 	}
+}
+
+// boardIdentityInterval is how often this agent looks for external edits to its
+// own IDENTITY.md (mtime/size). A change is pushed at once with a
+// board_identity frame (FEATURE-538), so the hub roster never needs to poll the
+// file; an edit made through co-shell's settings pushes immediately (see
+// Agent.SetIdentityField).
+const boardIdentityInterval = 4 * time.Second
+
+// watchBoardIdentity polls ./IDENTITY.md and announces this agent whenever the
+// file changes on disk (manual edit, another tool, a hub-side write).
+func (s *WebSession) watchBoardIdentity() {
+	path := s.ag.IdentityFilePath()
+	if path == "" {
+		return
+	}
+	var lastMod time.Time
+	var lastSize int64
+	t := time.NewTicker(boardIdentityInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.closed:
+			return
+		case <-t.C:
+			fi, err := os.Stat(path)
+			if err != nil {
+				continue
+			}
+			if fi.ModTime().Equal(lastMod) && fi.Size() == lastSize {
+				continue
+			}
+			lastMod, lastSize = fi.ModTime(), fi.Size()
+			s.registerBoardIdentity()
+		}
+	}
+}
+
+// registerBoardIdentity pushes a board_identity frame carrying the current
+// identity (IDENTITY.md agent-name + agent-description). The hub handles it like
+// a registration, so the roster's name and 职责 refresh immediately. An older
+// hub ignores the frame and still picks the change up from the next heartbeat.
+func (s *WebSession) registerBoardIdentity() {
+	if !s.ag.BoardEnabled() {
+		return
+	}
+	name, duty := s.currentIdentity()
+	payload, err := json.Marshal(map[string]interface{}{
+		"type": "board_identity",
+		"name": name,
+		"duty": duty,
+	})
+	if err != nil {
+		log.Warn("session: board identity marshal: %v", err)
+		return
+	}
+	if err := s.srv.sendRaw(payload); err != nil {
+		log.Info("session: board identity not sent (hub link unavailable)")
+		return
+	}
+	log.Info("session: board identity pushed (name=%q)", name)
 }
 
 // handleBoardFrame routes one flat board frame pushed by the hub.

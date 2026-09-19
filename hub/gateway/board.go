@@ -31,6 +31,11 @@ import (
 const (
 	// MsgTypeBoardRegister registers an agent (name + duty) with the hub.
 	MsgTypeBoardRegister = "board_register"
+	// MsgTypeBoardIdentity re-announces an agent whose IDENTITY.md changed
+	// (FEATURE-538). It carries the same name/duty fields as board_register and
+	// is handled identically, so a rename or description edit reaches the hub
+	// without waiting for the 60s heartbeat.
+	MsgTypeBoardIdentity = "board_identity"
 	// MsgTypeBoardSend posts a message or replies to one.
 	MsgTypeBoardSend = "board_send"
 	// MsgTypeBoardRegistered acknowledges a registration.
@@ -147,8 +152,11 @@ type SendRequest struct {
 	Conv string
 }
 
-// DutyResolver returns the hub-side manually entered duty description for an
-// agent. It has priority over the agent-reported duty (decision 9).
+// DutyResolver returns the hub-side duty fallback for an agent. FEATURE-538: the
+// duty shown on the board is the agent's "Agent描述" (the agent-description
+// section of {workspace}/IDENTITY.md). Agents report it themselves
+// (board_register / board_identity); this resolver only covers the case where a
+// managed agent has not reported anything yet (the hub then reads its file).
 type DutyResolver func(agentID string) (string, bool)
 
 // conversation is the in-memory index of one conversation.
@@ -299,14 +307,15 @@ func conversationKey(from string, to []string) string {
 }
 
 // Register records (or refreshes) an agent registration and returns the
-// effective roster entry plus the new revision. dutyFromHub is true when the
-// hub has a manual duty for this agent (which then wins).
+// effective roster entry plus the new revision. The duty the agent reports wins
+// (FEATURE-538: that is its "Agent描述"); dutyFn is only consulted as a fallback
+// when nothing was reported — the hub then reads the managed agent's IDENTITY.md.
 func (b *Board) Register(agentID, name, duty string) (AgentInfo, int) {
 	effectiveDuty := truncateRunes(strings.TrimSpace(duty), maxDutyRunes)
 	source := DutySourceAgent
 
 	b.mu.Lock()
-	if b.dutyFn != nil {
+	if effectiveDuty == "" && b.dutyFn != nil {
 		if v, ok := b.dutyFn(agentID); ok && strings.TrimSpace(v) != "" {
 			effectiveDuty = truncateRunes(strings.TrimSpace(v), maxDutyRunes)
 			source = DutySourceHub

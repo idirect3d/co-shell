@@ -10,10 +10,10 @@ import (
 
 // AgentConfig describes one co-shell agent that the hub connects to.
 type AgentConfig struct {
-	// ID is the unique agent identifier used for routing.
+	// ID is the unique agent identifier used for routing. It is also the
+	// board's unique key (FEATURE-538): the display name comes from the agent
+	// itself (its IDENTITY.md agent-name, reported on board_register).
 	ID string `json:"id"`
-	// Name is the display name.
-	Name string `json:"name"`
 	// WSURL is the agent's WebSocket endpoint, e.g. "ws://127.0.0.1:8399/ws".
 	WSURL string `json:"ws_url"`
 }
@@ -100,9 +100,6 @@ func (ac *AgentConn) Done() <-chan struct{} { return ac.ctx.Done() }
 
 // ID returns the agent identifier.
 func (ac *AgentConn) ID() string { return ac.cfg.ID }
-
-// Name returns the agent display name.
-func (ac *AgentConn) Name() string { return ac.cfg.Name }
 
 // Subscribe registers a gateway client to receive this agent's messages.
 func (ac *AgentConn) Subscribe(c *Conn) {

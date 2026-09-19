@@ -32,6 +32,7 @@ import (
 	"strings"
 
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/log"
 )
 
 // IdentityFileName is the workspace-root file holding the agent identity.
@@ -303,8 +304,35 @@ func (a *Agent) IdentityFilePath() string {
 
 // SetIdentityField updates a single field of ./IDENTITY.md (FEATURE-531).
 // Supported keys: agent-name, agent-description, user-name, user-description.
+// A name or description change is announced to the hub board right away
+// (FEATURE-538) so the roster shows the new value without waiting for the
+// heartbeat.
 func (a *Agent) SetIdentityField(key, value string) error {
-	return UpdateIdentityField(a.identityDir(), key, value)
+	if err := UpdateIdentityField(a.identityDir(), key, value); err != nil {
+		return err
+	}
+	if key == "agent-name" || key == "agent-description" {
+		a.announceBoardIdentity()
+	}
+	return nil
+}
+
+// announceBoardIdentity pushes the current identity (IDENTITY.md agent-name and
+// agent-description) to the hub board as a board_identity frame (FEATURE-538).
+// It is a no-op when no hub link is installed (the board is off or the agent is
+// not connected to a hub).
+func (a *Agent) announceBoardIdentity() {
+	send := a.boardLink()
+	if send == nil {
+		return
+	}
+	if err := send(map[string]interface{}{
+		"type": "board_identity",
+		"name": a.IdentityName(),
+		"duty": a.IdentityDescription(),
+	}); err != nil {
+		log.Info("identity: board_identity not sent: %v", err)
+	}
 }
 
 // WritePersonalizationFile writes content into the personalization file {name}

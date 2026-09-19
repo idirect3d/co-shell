@@ -4,11 +4,38 @@
 
 ---
 
-## v0.67.0 — 开发中
+## v0.68.0 — 开发中
+
+> **版本**: v0.68.0
+
+> **状态**: 🚧 开发中
+> **里程碑**: hub 去存储化：Agent 描述改读写工作空间 IDENTITY.md；新增 agent ID 唯一校验；公告板标识与职责口径统一
+> **说明**: hub 侧不再保存「职责描述」（原内部字段 `AgentSpec.Name`）。界面标签统一改为「Agent描述」，与 co-shell「身份与个性」一致；打开设置界面时实时读取 `{workspace}/IDENTITY.md` 的 `agent-description`，保存时直接写回该文件（仅 managed；external 置灰只读，由对方自行修改）。新增 agent 的 ID 全局唯一（不区分大小写、格式校验）。公告板以 hub 配置的 ID 为唯一标识，职责取 Agent 描述。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-538 | 0.68.0 | P1 | hub 去掉职责描述存储（改读写 IDENTITY.md 的 Agent 描述）；设置界面标签改「Agent描述」并实时读取；新增 agent ID 唯一校验（含 external + 格式 + 大小写不敏感）；公告板标识=ID、职责=Agent 描述 |
+
+> 当前 BUILD: 1078
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [X] **FEATURE-538 hub：Agent 描述改接 IDENTITY.md，ID 唯一校验与公告板口径统一** [BUILD-1078]
+  - 需求（用户确认）：① hub registry 不再存储职责/名称值（删除 `AgentSpec.Name`），界面与公告板均改读 IDENTITY.md 的 `agent-description`；② 设置界面标签「职责描述」→「Agent描述」（与 co-shell 身份与个性一致），每次打开实时读取；③ 新增 agent 的 ID 唯一（managed + external 两条路径，非空、禁空格/斜杠等非法字符、大小写不敏感去重）；④ 公告板 agent 标识 = hub 配置的 ID（界面主要显示自报名字、悬停显示 ID，API 用唯一 ID）；⑤ 公告板「职责」= Agent 描述（managed 由 hub 读文件；external 由 co-shell 上报，上报值改用 `IdentityDescription()` 取代 `llm.agent_duty`）；⑥ 保存后提示「即时生效/下一轮对话生效」，不要求重启。
+  - 涉及：`hub/gateway/manager.go`（AgentSpec 去 Name、ID 校验）、`hub/gateway/webui.go` + `webui_static.go`（标签、实时读取、写入、提示）、`hub/gateway/board.go`（roster 标识/职责口径）、`cmd/co-shell-hub/main.go`（duty resolver 改读文件）、`web/session.go`（上报表述改 `IdentityDescription()`）。
+  - 用例：`use-case/FEATURE-538/`
+  - 分支：**FEATURE-538**（基于 main，v0.67.0 已合并），版本 v0.68.0
+  - 实现要点（BUILD-1078）：新增 `hub/gateway/identity.go`（hub 侧极简 IDENTITY.md 读写；只改 `agent-description`，其它小节/自由文本逐字保留；文件不存在时创建并把 `agent-name` 初始化为 agent ID）；`AgentSpec.Name` / `AgentPatch.Name` / `AgentConfig.Name` 删除，`validateAgentID` 统一 managed + external 校验（重复 409 / 非法 400 / 大小写不敏感）；新增 `GET/PUT /api/agents/{id}/identity`（external 只读 409，managed 实时读文件）；前端 3 处标签改「Agent描述」、external 置灰并给提示、打开详情实时 GET、保存提示「已写入 IDENTITY.md，即时生效（下一轮对话生效）」；展示位改 ID：详情标题改 ID、列表行 hover `title`=ID（主显仍为自报名字）；公告板新增 `board_identity` 帧（co-shell 侧 IDENTITY.md mtime/size 4s 轮询 + 本机写身份时立即上报），duty 口径改为「agent 上报优先，managed 未上报时 hub 读文件兜底」。实测记录见 `use-case/FEATURE-538/FEATURE-538-UC-0001.md`。
+
+---
+
+## v0.67.0 — 已完成
 
 > **版本**: v0.67.0
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（已合并 main，tag `v0.67.0`）
 > **里程碑**: hub Chat 面板的微信式会话列表 / 会话详情（含用户发言）与移动端适配
 > **说明**: 把 hub Web UI 左侧抽屉的 Chat 区块从「会话列表 + 消息流上下同屏」改造为两级结构：第一级是会话列表（头像 + 名称 + 最后一条消息摘要 + 时间），点击后整体滑入第二级会话详情（微信式气泡：发送者、时间、内容，自己的消息靠右），带返回按钮回列表；抽屉在窄屏铺满（100vw）以适配移动端；同时新增用户在 hub 内向会话发言的能力（后端新增写接口 + 前端底部输入框）。
 
@@ -22,7 +49,7 @@
 
 ### 任务详情
 
-- [ ] **FEATURE-537 hub Chat 面板微信式会话列表 + 详情 + 用户发言 + 移动端适配**
+- [x] **FEATURE-537 hub Chat 面板微信式会话列表 + 详情 + 用户发言 + 移动端适配**
   - 需求（用户确认）：① Chat 抽屉两级结构（会话列表 → 点击进入详情，详情为微信式气泡：发送者/时间/内容）；② 覆盖式切换（宽窄屏一致：详情滑入覆盖列表，带返回）；③ 支持用户在 hub 内向会话发言（新增后端发送接口 + 前端输入框）；④ 窄屏抽屉铺满 100vw，点击会话整体进入详情、返回退出到列表。
   - 涉及：`hub/gateway/webui_static.go`（前端页面结构/CSS/JS）、`hub/gateway/webui.go`（新增 POST 路由）、`hub/gateway/webui_board.go`（发送 handler）、`hub/gateway/board.go`（发送时显式指定会话 key，使人类发言归入既有会话）。
   - 用例：`use-case/FEATURE-537/FEATURE-537-UC-0001.md`（UC-0001~UC-0008，实测记录已回填）
@@ -30,7 +57,7 @@
   - 实现：① `board.go` 的 `SendRequest` 增 `Conv` 字段，人类发言显式归属既有会话（不再新开 `a+b+user`）；② `webui.go` 新增路由 `POST /api/board/conversations/{key}/messages`；③ `webui_board.go` 新增发送 handler（503 board 未挂载 / 404 会话不存在 / 400 空内容·超长·非法 JSON / 200 返回 `{"message":{...}}`）+ 常量 `boardUserSender="user"`、`boardUserReplyWindowSecs=300` + `boardRecipients()`；④ `webui_static.go` Chat 区块改为两级（`#chatListView` + `#chatDetailView` + 返回按钮 + 微信式气泡 + 底部输入框），`--panel-w:480px`，窄屏 `max-width:640px` 抽屉 `100vw`。
   - 实测（BUILD-1076）：`hub/` 与根目录 `go build ./... && go vet ./...` 均通过；`go test ./hub/gateway/` 全绿（含新增 `board_user_post_test.go`、`webui_board_post_test.go`）；临时 hub（`127.0.0.1:28290`）运行时核对：宽屏面板 480px、列表 2 行（标题/摘要/时间/头像、广播置顶）、点击进入详情（`#chatSub=共 3 条`）、3 条气泡（「我」靠右并 `row-reverse`、他人靠左带状态徽标）、无横向溢出；375px 视口下 `panelW=375=innerWidth`（100vw）、进入/返回正常。过程中修复 2 个真实 bug：`badge(state)` 与顶部 `var badge` 同名冲突（改名 `stateBadge`）、发送按钮 `width:100%` 挤压输入框（提高特异性）。
   - 未验证（待用户实测）：真实 agent 是否收到 `board_message` 帧并回复（本次为单测 + 注入 stub 数据的运行时界面验证，无真实在线 agent）。
-  - 状态：代码完成、自测通过，**待用户确认后合并**。 `[BUILD-1076]`
+  - 状态：✅ 已完成并合并到 main（squash `04ae63a`），tag `v0.67.0`；公告板回帧（m-4，reply_to=m-3）已实证「board 出帧 → 真实 agent 收帧 → 带 reply_to 回帧」链路。 `[BUILD-1076]`
 
 ---
 

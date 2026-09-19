@@ -55,8 +55,9 @@ func newTestBoard(t *testing.T, ids ...string) (*Board, map[string]*fakeAgentLin
 	return b, links
 }
 
-// TestBoardRegisterAndDutyPriority verifies registration and that the hub-side
-// duty entry wins over the agent-reported one (decision 9).
+// TestBoardRegisterAndDutyPriority verifies registration and the duty
+// precedence of FEATURE-538: the agent-reported description wins, while the
+// hub-side resolver only covers an agent that reported nothing.
 func TestBoardRegisterAndDutyPriority(t *testing.T) {
 	b, _ := newTestBoard(t, "agent-a")
 	b.Register("agent-b", "B", "agent reported duty")
@@ -71,13 +72,19 @@ func TestBoardRegisterAndDutyPriority(t *testing.T) {
 
 	b.SetDutyResolver(func(id string) (string, bool) {
 		if id == "agent-b" {
-			return "hub duty", true
+			return "hub fallback duty", true
 		}
 		return "", false
 	})
+	// A reported duty still wins over the resolver ...
 	info, _ = b.Register("agent-b", "B", "agent reported duty")
-	if info.Duty != "hub duty" || info.DutyFrom != DutySourceHub {
-		t.Fatalf("duty=%q source=%q, want hub duty/hub", info.Duty, info.DutyFrom)
+	if info.Duty != "agent reported duty" || info.DutyFrom != DutySourceAgent {
+		t.Fatalf("duty=%q source=%q, want agent reported/agent", info.Duty, info.DutyFrom)
+	}
+	// ... which is only consulted when the agent reports nothing.
+	info, _ = b.Register("agent-b", "B", "")
+	if info.Duty != "hub fallback duty" || info.DutyFrom != DutySourceHub {
+		t.Fatalf("duty=%q source=%q, want hub fallback duty/hub", info.Duty, info.DutyFrom)
 	}
 	if len(b.Roster()) != 2 {
 		t.Fatalf("roster size = %d, want 2", len(b.Roster()))

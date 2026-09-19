@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 )
@@ -27,7 +28,6 @@ type switchAgentRequest struct {
 // unit-tested with stubs.
 type agentLink interface {
 	ID() string
-	Name() string
 	Subscribe(c *Conn)
 	Unsubscribe(c *Conn)
 	Send(data []byte) error
@@ -309,7 +309,10 @@ func (p *Proxy) routeAgentMessage(agentID string, msg []byte) {
 		return
 	}
 	switch frame.Type {
-	case MsgTypeBoardRegister:
+	case MsgTypeBoardRegister, MsgTypeBoardIdentity:
+		// board_identity carries the same name/duty payload as board_register:
+		// co-shell sends it when its IDENTITY.md changed (FEATURE-538), so the
+		// roster refreshes without waiting for the 60s heartbeat.
 		info, rev := b.Register(agentID, frame.Name, frame.Duty)
 		b.Notify(agentID, MsgTypeBoardRegistered, map[string]interface{}{
 			"ok":          true,
@@ -320,7 +323,7 @@ func (p *Proxy) routeAgentMessage(agentID string, msg []byte) {
 			"roster_rev":  rev,
 		})
 		b.BroadcastRoster()
-		log.Printf("board: agent %s registered (duty source=%s)", agentID, info.DutyFrom)
+		log.Printf("board: agent %s reported identity (type=%s, duty source=%s)", agentID, frame.Type, info.DutyFrom)
 	case MsgTypeBoardSend:
 		ack := p.sendBoardMessage(agentID, boardSendRequest{
 			To:          frame.To,
@@ -553,17 +556,24 @@ func (p *Proxy) handleListAgents(c *Conn) {
 	p.mu.RLock()
 	agents := make([]map[string]string, 0, len(p.order))
 	for _, id := range p.order {
-		ac := p.agents[id]
-		name := id
-		if ac != nil {
-			name = ac.Name()
-		}
-		agents = append(agents, map[string]string{"id": id, "name": name})
+		agents = append(agents, map[string]string{"id": id, "name": p.boardNameLocked(id)})
 	}
 	cur := p.current[c]
 	p.mu.RUnlock()
 	payload, _ := json.Marshal(map[string]interface{}{"agents": agents, "current": cur})
 	_ = c.Send(&Envelope{Type: MsgTypeListAgents, Payload: payload})
+}
+
+// boardNameLocked returns the display name of an agent: the name it reported
+// on the board (its IDENTITY.md agent-name, FEATURE-538), falling back to the
+// ID when it never registered. The caller must hold p.mu.
+func (p *Proxy) boardNameLocked(id string) string {
+	if p.board != nil {
+		if info, ok := p.board.Agent(id); ok && strings.TrimSpace(info.Name) != "" {
+			return info.Name
+		}
+	}
+	return id
 }
 
 // forwardToCurrent forwards a business message to the client's current agent.

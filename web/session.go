@@ -123,7 +123,9 @@ func newWebSession(srv *Server, deps repl.SessionDeps) (*WebSession, error) {
 	sess.wio.pushSessionList = sess.pushSessionList
 	deps.Ag.SetIO(sess.wio)
 	// FEATURE-530: wire the message board (aggregator + hub registration).
-	sess.initBoard(deps.Ag.IdentityName(), deps.Cfg.LLM.AgentDuty)
+	// FEATURE-538: the announced 职责 is the agent's "Agent描述" (IDENTITY.md),
+	// read by the session itself so edits are picked up without a restart.
+	sess.initBoard()
 	// FEATURE-530: install the board sender so board_send can push frames back
 	// to the hub over the same WebSocket connection. The hub is the WS client
 	// that connected to us.

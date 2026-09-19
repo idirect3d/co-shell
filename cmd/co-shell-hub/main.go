@@ -46,8 +46,8 @@ import (
 // hubVersion and hubBuild identify this co-shell-hub build. They track the
 // co-shell release they ship with (same version/build numbering).
 const (
-	hubVersion = "0.67.0"
-	hubBuild   = "1076"
+	hubVersion = "0.68.0"
+	hubBuild   = "1078"
 )
 
 // config is the JSON config file shape.
@@ -157,7 +157,7 @@ func main() {
 		if !ok || id == "" || url == "" {
 			log.Fatalf("invalid --agent %q (want ID=WSURL)", a)
 		}
-		if _, err := mgr.AddExternal(id, id, url); err != nil {
+		if _, err := mgr.AddExternal(id, url); err != nil {
 			log.Printf("note: --agent %s not added: %v", id, err)
 		}
 	}
@@ -186,12 +186,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("board: %v", err)
 	}
-	// The hub-side "职责描述" entry (agent config) wins over the duty the agent
-	// reports at registration time (decision 9).
+	// FEATURE-538: the roster "职责" is the agent's Agent描述, i.e. the
+	// agent-description section of {workspace}/IDENTITY.md. Agents report it
+	// themselves (board_register / board_identity); this resolver is only a
+	// fallback for a managed agent that has not reported anything yet.
 	board.SetDutyResolver(func(agentID string) (string, bool) {
 		for _, spec := range mgr.Agents() {
-			if spec.ID == agentID && strings.TrimSpace(spec.Name) != "" {
-				return spec.Name, true
+			if spec.ID != agentID || spec.Type != gateway.AgentTypeManaged || spec.Workspace == "" {
+				continue
+			}
+			if v := strings.TrimSpace(gateway.ReadIdentityDescription(spec.Workspace)); v != "" {
+				return v, true
 			}
 		}
 		return "", false
@@ -200,11 +205,11 @@ func main() {
 	log.Printf("board: message board enabled (db=%s)", cfg.BoardDBPath)
 	for _, spec := range mgr.Agents() {
 		if spec.Type == gateway.AgentTypeExternal {
-			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: spec.WSURL}); err != nil {
+			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, WSURL: spec.WSURL}); err != nil {
 				log.Printf("gateway: connect external agent %s failed: %v", spec.ID, err)
 			}
 		} else if mgr.IsRunning(spec.ID) {
-			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, Name: spec.Name, WSURL: gateway.WSURLForPort(spec.Port)}); err != nil {
+			if err := proxy.AddAgent(gateway.AgentConfig{ID: spec.ID, WSURL: gateway.WSURLForPort(spec.Port)}); err != nil {
 				log.Printf("gateway: connect running agent %s failed: %v", spec.ID, err)
 			}
 		}

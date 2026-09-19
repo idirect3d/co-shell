@@ -421,7 +421,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label><span class="req">*</span>Workspace 路径</label><input id="m-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
         <div class="field"><label>端口号（自动分配，可修改）</label><input id="m-port" placeholder="自动分配"></div>
         <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
-        <div class="field"><label>职责描述</label><input id="m-name" placeholder="可选"></div>
+        <div class="field"><label>Agent描述</label><input id="m-name" placeholder="可选，写入 IDENTITY.md"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
         <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
         <div class="field"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
@@ -433,7 +433,8 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label><span class="req">*</span>主机地址</label><input id="e-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
         <div class="field"><label><span class="req">*</span>端口号</label><input id="e-port" placeholder="自动推荐，可修改"></div>
         <div class="field"><label>ID（默认 host-port）</label><input id="e-id" placeholder="自动生成"></div>
-        <div class="field"><label>职责描述</label><input id="e-name" placeholder="可选"></div>
+        <div class="field"><label>Agent描述（由对方设置）</label><input id="e-name" placeholder="（未设置）" readonly></div>
+        <div class="hint">外部 Agent 的 Agent描述由对方在其 co-shell 的「身份与个性」中修改，此处只读。</div>
         <div class="hint" id="e-ver"></div>
       </div>
     </div>
@@ -447,7 +448,8 @@ const webIndexHTML = `<!DOCTYPE html>
     <div class="head"><button class="back" id="detailBack" title="返回 Agent 列表"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg></button><span id="detailTitle">Agent 设置</span></div>
     <div class="config-body">
       <div class="field"><label>ID（不可修改）</label><input id="d-id" readonly></div>
-      <div class="field"><label>职责描述</label><input id="d-name" placeholder="可选"></div>
+      <div class="field"><label>Agent描述</label><input id="d-name" placeholder="（未设置）"></div>
+      <div class="hint" id="d-name-hint">写入 {workspace}/IDENTITY.md，即时生效（下一轮对话生效）。</div>
       <div class="field"><label>类型</label><input id="d-type" readonly></div>
       <div class="field" id="f-ws"><label>Workspace 路径</label><input id="d-ws" placeholder="如 ~/.co-shell/agents/agent-1"></div>
       <div class="field" id="f-host"><label>主机地址</label><input id="d-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
@@ -933,7 +935,7 @@ const webIndexHTML = `<!DOCTYPE html>
       del.onclick = function(e){ e.stopPropagation(); closeAgent(a.id); };
       var r = document.createElement('div');
       r.className = 'agent' + (a.id === current ? ' active' : '');
-      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm">' + esc(a.name || a.id) + '</span>' +
+      r.innerHTML = '<span class="st ' + st + '"></span><span class="nm" title="' + esc(a.id || '') + '">' + esc(a.name || a.id) + '</span>' +
         (managed ? '<label class="switch" title="' + (on ? '停止' : '启动') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' : '') +
         '<span class="chev" title="修改配置">›</span>';
       // Clicking the card switches the main view to this agent; clicking the
@@ -1080,9 +1082,9 @@ const webIndexHTML = `<!DOCTYPE html>
     editID = a.id;
     var external = a.type === 'external';
     var parts = wsURLParts(a.ws_url);
-    document.getElementById('detailTitle').textContent = (a.name || a.id) + ' · 修改';
+    document.getElementById('detailTitle').textContent = (a.id || '') + ' · 修改';
     document.getElementById('d-id').value = a.id || '';
-    document.getElementById('d-name').value = a.name || '';
+    loadAgentIdentity(a.id, external);
     document.getElementById('d-type').value = external ? '远程' : '本地';
     document.getElementById('d-ws').value = a.workspace || '';
     document.getElementById('d-host').value = parts.host;
@@ -1102,9 +1104,26 @@ const webIndexHTML = `<!DOCTYPE html>
     setFieldEnabled('d-shared', !external);
     setFieldEnabled('d-extra', !external);
     setFieldEnabled('d-yolo', !external);
+    setFieldEnabled('d-name', !external);
     document.getElementById('d-port-label').textContent = external ? '端口号（与主机地址组成 WS 地址）' : '端口号（可修改，需重启后生效）';
     loadCoShellOptions(function(){ fillCoShellOptions(a.co_shell); checkEditVersion(); });
     showView('detail');
+  }
+  // loadAgentIdentity fills the Agent描述 field from the agent's workspace
+  // IDENTITY.md (FEATURE-538). The hub reads the file on every call, so opening
+  // the form always shows the current value rather than a stored copy.
+  function loadAgentIdentity(id, external){
+    var el = document.getElementById('d-name');
+    var hint = document.getElementById('d-name-hint');
+    el.value = '';
+    hint.textContent = external
+      ? '外部 Agent 的描述由对方在其 co-shell 的「身份与个性」中修改，此处只读。'
+      : '写入 {workspace}/IDENTITY.md，即时生效（下一轮对话生效）。';
+    api('GET', '/api/agents/' + encodeURIComponent(id) + '/identity', null, function(st, j){
+      if (editID !== id) return; // the form switched to another agent meanwhile
+      if (st !== 200){ hint.textContent = '无法读取 Agent描述: ' + ((j && j.error) || st); return; }
+      el.value = (j && j.agent_description) || '';
+    });
   }
   // saveAgentEdit PUTs the edited fields back to the hub. A running managed
   // agent is not restarted by the hub, so the user is told to restart it.
@@ -1119,7 +1138,7 @@ const webIndexHTML = `<!DOCTYPE html>
       alert('请填写有效的端口号（1-65535）。');
       return;
     }
-    var body = { name: document.getElementById('d-name').value.trim() };
+    var body = {};
     if (external){
       var host = normalizeHost(document.getElementById('d-host').value.trim());
       if (!host){ alert('请填写主机地址'); return; }
@@ -1137,6 +1156,7 @@ const webIndexHTML = `<!DOCTYPE html>
       var editShellSel = document.getElementById('d-coshell');
       if (editShellSel.options.length) body.co_shell = editShellSel.value;
     }
+    var desc = document.getElementById('d-name').value;
     api('PUT', '/api/agents/' + encodeURIComponent(editID), body, function(st, j){
       var msg = document.getElementById('d-msg');
       if (st >= 400){
@@ -1144,9 +1164,25 @@ const webIndexHTML = `<!DOCTYPE html>
         alert('保存失败: ' + ((j && j.error) || st));
         return;
       }
-      msg.textContent = (a.running || a.connected) ? '已保存，需重启该 agent 后生效。' : '已保存。';
-      msg.className = 'hint ver-ok';
-      refresh();
+      if (external){
+        msg.textContent = '已保存。';
+        msg.className = 'hint ver-ok';
+        refresh();
+        return;
+      }
+      // FEATURE-538: the Agent描述 goes to {workspace}/IDENTITY.md through its
+      // own endpoint (the registry no longer stores it). co-shell reads the file
+      // when it builds each turn's prompt, so no restart is required.
+      api('PUT', '/api/agents/' + encodeURIComponent(editID) + '/identity', { agent_description: desc }, function(st2, j2){
+        if (st2 >= 400){
+          msg.textContent = '';
+          alert('运行参数已保存，但 Agent描述写入失败: ' + ((j2 && j2.error) || st2));
+          return;
+        }
+        msg.textContent = '已保存：Agent描述已写入 IDENTITY.md，即时生效（下一轮对话生效）。';
+        msg.className = 'hint ver-ok';
+        refresh();
+      });
     });
   }
   document.getElementById('d-save').onclick = saveAgentEdit;
@@ -1478,7 +1514,7 @@ const webIndexHTML = `<!DOCTYPE html>
     }
     api('POST', '/api/agents', {
       id: id,
-      name: document.getElementById('m-name').value.trim(),
+      agent_description: document.getElementById('m-name').value.trim(),
       workspace: ws,
       co_shell: coshellSel.value,
       use_shared_config: document.getElementById('m-shared').checked,

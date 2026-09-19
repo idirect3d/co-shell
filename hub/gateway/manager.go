@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 // Agent type constants.
@@ -24,10 +25,11 @@ const (
 	AgentTypeExternal = "external"
 )
 
-// AgentSpec is the persisted configuration of one agent.
+// AgentSpec is the persisted configuration of one agent. FEATURE-538: the ID is
+// the only identity (and the board's unique key); the former "职责描述" Name
+// field is gone — that text now lives in {workspace}/IDENTITY.md.
 type AgentSpec struct {
 	ID   string `json:"id"`
-	Name string `json:"name"`
 	Type string `json:"type"` // "managed" | "external"
 
 	// Managed fields.
@@ -126,6 +128,61 @@ func (m *Manager) Agents() []AgentSpec {
 	return out
 }
 
+// ID validation errors (FEATURE-538). Callers map ErrAgentExists to 409 and
+// ErrInvalidAgentID to 400.
+var (
+	// ErrAgentExists marks a create/add rejected because the ID is taken.
+	ErrAgentExists = errors.New("agent already exists")
+	// ErrInvalidAgentID marks a create/add rejected because the ID is unusable.
+	ErrInvalidAgentID = errors.New("invalid agent id")
+)
+
+// idForbiddenChars are the characters an agent ID may not contain: they break
+// filesystem paths, URLs and the ID's use as a single path segment.
+const idForbiddenChars = `/\:*?"<>|`
+
+// validateAgentID normalizes and validates an agent ID: it must be non-empty,
+// contain no whitespace and none of idForbiddenChars. The trimmed ID is
+// returned on success.
+func validateAgentID(id string) (string, error) {
+	trimmed := strings.TrimSpace(id)
+	if trimmed == "" {
+		return "", fmt.Errorf("%w: id is required", ErrInvalidAgentID)
+	}
+	for _, r := range trimmed {
+		if unicode.IsSpace(r) {
+			return "", fmt.Errorf("%w: id must not contain whitespace", ErrInvalidAgentID)
+		}
+		if strings.ContainsRune(idForbiddenChars, r) {
+			return "", fmt.Errorf("%w: id must not contain %q", ErrInvalidAgentID, string(r))
+		}
+	}
+	return trimmed, nil
+}
+
+// findAgentLocked returns the index of the agent with the given ID, comparing
+// case-insensitively so "Agent-1" and "agent-1" cannot coexist. The caller must
+// hold the manager lock.
+func (m *Manager) findAgentLocked(id string) int {
+	for i := range m.agents {
+		if strings.EqualFold(m.agents[i].ID, id) {
+			return i
+		}
+	}
+	return -1
+}
+
+// Spec returns the agent spec with the given ID. The comparison is
+// case-insensitive, matching findAgentLocked.
+func (m *Manager) Spec(id string) (AgentSpec, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if i := m.findAgentLocked(id); i >= 0 {
+		return m.agents[i], true
+	}
+	return AgentSpec{}, false
+}
+
 // portInUse reports whether the given TCP port on loopback is already bound by
 // some process on the system (not just by a registered managed agent).
 func portInUse(port int) bool {
@@ -178,14 +235,16 @@ func (m *Manager) RecommendedPort() int {
 // is created empty if absent (a per-agent config). coShell and configPath are
 // optional per-agent overrides (empty = use the manager's defaults). port > 0
 // uses the caller-specified port (which must be free); port == 0 auto-allocates.
-func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string, yolo bool) (AgentSpec, error) {
+func (m *Manager) CreateManaged(id, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string, yolo bool) (AgentSpec, error) {
+	id, err := validateAgentID(id)
+	if err != nil {
+		return AgentSpec{}, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for _, a := range m.agents {
-		if a.ID == id {
-			return AgentSpec{}, fmt.Errorf("agent %q already exists", id)
-		}
+	if m.findAgentLocked(id) >= 0 {
+		return AgentSpec{}, fmt.Errorf("%w: %q", ErrAgentExists, id)
 	}
 	if err := os.MkdirAll(workspace, 0755); err != nil {
 		return AgentSpec{}, fmt.Errorf("create workspace: %w", err)
@@ -197,7 +256,6 @@ func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string,
 	}
 	spec := AgentSpec{
 		ID:              id,
-		Name:            name,
 		Type:            AgentTypeManaged,
 		Workspace:       workspace,
 		Port:            port,
@@ -225,16 +283,19 @@ func (m *Manager) CreateManaged(id, name, workspace, coShell, configPath string,
 	return spec, nil
 }
 
-// AddExternal registers an external agent reachable at wsURL.
-func (m *Manager) AddExternal(id, name, wsURL string) (AgentSpec, error) {
+// AddExternal registers an external agent reachable at wsURL. The ID follows the
+// same rules as a managed agent (FEATURE-538).
+func (m *Manager) AddExternal(id, wsURL string) (AgentSpec, error) {
+	id, err := validateAgentID(id)
+	if err != nil {
+		return AgentSpec{}, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, a := range m.agents {
-		if a.ID == id {
-			return AgentSpec{}, fmt.Errorf("agent %q already exists", id)
-		}
+	if m.findAgentLocked(id) >= 0 {
+		return AgentSpec{}, fmt.Errorf("%w: %q", ErrAgentExists, id)
 	}
-	spec := AgentSpec{ID: id, Name: name, Type: AgentTypeExternal, WSURL: wsURL}
+	spec := AgentSpec{ID: id, Type: AgentTypeExternal, WSURL: wsURL}
 	m.agents = append(m.agents, spec)
 	if err := m.save(); err != nil {
 		return AgentSpec{}, err
@@ -252,7 +313,6 @@ var ErrInvalidAgent = errors.New("invalid agent config")
 // AgentPatch carries the editable fields of an agent for Manager.Update. A nil
 // field is left unchanged; the agent's ID and type are immutable.
 type AgentPatch struct {
-	Name            *string
 	Workspace       *string
 	Port            *int
 	CoShell         *string
@@ -271,26 +331,11 @@ func (m *Manager) Update(id string, patch AgentPatch) (AgentSpec, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	idx := -1
-	for i := range m.agents {
-		if m.agents[i].ID == id {
-			idx = i
-			break
-		}
-	}
+	idx := m.findAgentLocked(id)
 	if idx < 0 {
 		return AgentSpec{}, fmt.Errorf("%w: %q", ErrAgentNotFound, id)
 	}
 	spec := m.agents[idx]
-
-	if patch.Name != nil {
-		// An empty remark falls back to the ID, matching CreateManaged.
-		name := strings.TrimSpace(*patch.Name)
-		if name == "" {
-			name = spec.ID
-		}
-		spec.Name = name
-	}
 
 	if spec.Type == AgentTypeExternal {
 		if patch.WSURL != nil {

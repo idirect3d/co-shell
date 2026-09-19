@@ -63,7 +63,7 @@ func boolPtr(b bool) *bool    { return &b }
 
 func TestManagerUpdateUnknownAgent(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.Update("missing", AgentPatch{Name: strPtr("x")}); !errors.Is(err, ErrAgentNotFound) {
+	if _, err := m.Update("missing", AgentPatch{ExtraArgs: strPtr("x")}); !errors.Is(err, ErrAgentNotFound) {
 		t.Fatalf("expected ErrAgentNotFound, got %v", err)
 	}
 }
@@ -73,7 +73,7 @@ func TestManagerUpdateUnknownAgent(t *testing.T) {
 func TestManagerUpdateManagedFields(t *testing.T) {
 	m := newTestManager(t)
 	wsOld := filepath.Join(t.TempDir(), "old")
-	spec, err := m.CreateManaged("a1", "a1", wsOld, "", "", false, true, 0, "--accept-license", false)
+	spec, err := m.CreateManaged("a1", wsOld, "", "", false, true, 0, "--accept-license", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -81,7 +81,6 @@ func TestManagerUpdateManagedFields(t *testing.T) {
 	wsNew := filepath.Join(t.TempDir(), "new")
 	port := freePort(t)
 	updated, err := m.Update("a1", AgentPatch{
-		Name:            strPtr("renamed"),
 		Workspace:       strPtr(wsNew),
 		Port:            intPtr(port),
 		CoShell:         strPtr("/usr/local/bin/co-shell"),
@@ -95,7 +94,7 @@ func TestManagerUpdateManagedFields(t *testing.T) {
 	if updated.ID != spec.ID || updated.Type != AgentTypeManaged {
 		t.Fatalf("id/type must be immutable, got id=%q type=%q", updated.ID, updated.Type)
 	}
-	if updated.Name != "renamed" || updated.Workspace != wsNew || updated.Port != port ||
+	if updated.Workspace != wsNew || updated.Port != port ||
 		updated.CoShell != "/usr/local/bin/co-shell" || updated.UseSharedConfig ||
 		updated.ExtraArgs != "--accept-license --log-level debug" {
 		t.Fatalf("unexpected updated spec: %+v", updated)
@@ -111,7 +110,7 @@ func TestManagerUpdateManagedFields(t *testing.T) {
 	if !ok {
 		t.Fatal("agent a1 missing from persisted registry")
 	}
-	if persisted.Name != "renamed" || persisted.Workspace != wsNew || persisted.Port != port ||
+	if persisted.Workspace != wsNew || persisted.Port != port ||
 		persisted.ExtraArgs != "--accept-license --log-level debug" {
 		t.Fatalf("persisted spec not updated: %+v", persisted)
 	}
@@ -121,32 +120,34 @@ func TestManagerUpdateManagedFields(t *testing.T) {
 // fields it carries.
 func TestManagerUpdatePartialPatchLeavesOtherFields(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "/opt/co-shell", "", false, true, 0, "--accept-license", false)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "/opt/co-shell", "", false, true, 0, "--accept-license", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
-	updated, err := m.Update("a1", AgentPatch{Name: strPtr("note")})
+	updated, err := m.Update("a1", AgentPatch{ExtraArgs: strPtr("--note")})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if updated.Name != "note" || updated.Port != spec.Port || updated.Workspace != spec.Workspace ||
-		updated.CoShell != "/opt/co-shell" || updated.ExtraArgs != "--accept-license" || !updated.UseSharedConfig {
+	if updated.Port != spec.Port || updated.Workspace != spec.Workspace ||
+		updated.CoShell != "/opt/co-shell" || updated.ExtraArgs != "--note" || !updated.UseSharedConfig {
 		t.Fatalf("untouched fields changed: %+v", updated)
 	}
 }
 
-// TestManagerUpdateEmptyNameFallsBackToID matches CreateManaged semantics.
-func TestManagerUpdateEmptyNameFallsBackToID(t *testing.T) {
+// TestManagerUpdateWithoutNamePatch proves a description-only edit no longer
+// travels through the registry (FEATURE-538): a patch on another field is
+// applied and everything else stays untouched.
+func TestManagerUpdateWithoutNamePatch(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
+	if _, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
-	updated, err := m.Update("a1", AgentPatch{Name: strPtr("   ")})
+	updated, err := m.Update("a1", AgentPatch{ExtraArgs: strPtr("--note")})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if updated.Name != "a1" {
-		t.Fatalf("expected name fallback to id, got %q", updated.Name)
+	if updated.ExtraArgs != "--note" {
+		t.Fatalf("expected extra args to be applied, got %q", updated.ExtraArgs)
 	}
 }
 
@@ -154,7 +155,7 @@ func TestManagerUpdateEmptyNameFallsBackToID(t *testing.T) {
 // this very agent must succeed (it is used by the running agent itself).
 func TestManagerUpdateKeepsCurrentPort(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -164,14 +165,14 @@ func TestManagerUpdateKeepsCurrentPort(t *testing.T) {
 		// The agent's own port is bound: updating to it must still be accepted.
 		defer ln.Close()
 	}
-	if _, err := m.Update("a1", AgentPatch{Port: &port, Name: strPtr("same-port")}); err != nil {
+	if _, err := m.Update("a1", AgentPatch{Port: &port}); err != nil {
 		t.Fatalf("Update with unchanged port: %v", err)
 	}
 }
 
 func TestManagerUpdateRejectsBusyPort(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -199,10 +200,10 @@ func TestManagerUpdateRejectsBusyPort(t *testing.T) {
 
 func TestManagerUpdateRejectsInvalidInput(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
+	if _, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "", false); err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
-	if _, err := m.AddExternal("e1", "e1", "ws://127.0.0.1:29001/ws"); err != nil {
+	if _, err := m.AddExternal("e1", "ws://127.0.0.1:29001/ws"); err != nil {
 		t.Fatalf("AddExternal: %v", err)
 	}
 
@@ -230,15 +231,15 @@ func TestManagerUpdateRejectsInvalidInput(t *testing.T) {
 
 func TestManagerUpdateExternalWSURL(t *testing.T) {
 	m := newTestManager(t)
-	if _, err := m.AddExternal("e1", "e1", "ws://127.0.0.1:29001/ws"); err != nil {
+	if _, err := m.AddExternal("e1", "ws://127.0.0.1:29001/ws"); err != nil {
 		t.Fatalf("AddExternal: %v", err)
 	}
 	wsURL := "ws://10.0.0.9:29005/ws"
-	updated, err := m.Update("e1", AgentPatch{Name: strPtr("remote-a"), WSURL: strPtr(wsURL)})
+	updated, err := m.Update("e1", AgentPatch{WSURL: strPtr(wsURL)})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if updated.Type != AgentTypeExternal || updated.WSURL != wsURL || updated.Name != "remote-a" {
+	if updated.Type != AgentTypeExternal || updated.WSURL != wsURL {
 		t.Fatalf("unexpected external spec: %+v", updated)
 	}
 	// Managed-only fields must be ignored for an external agent.
@@ -312,7 +313,7 @@ func TestBuildArgsYOLODefaultExtraArgs(t *testing.T) {
 // that omits the field, and an explicit disable (FEATURE-528, UC-05/UC-06/UC-09).
 func TestManagerYOLOPersisted(t *testing.T) {
 	m := newTestManager(t)
-	spec, err := m.CreateManaged("a1", "a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "--accept-license", true)
+	spec, err := m.CreateManaged("a1", filepath.Join(t.TempDir(), "ws"), "", "", false, true, 0, "--accept-license", true)
 	if err != nil {
 		t.Fatalf("CreateManaged: %v", err)
 	}
@@ -329,8 +330,8 @@ func TestManagerYOLOPersisted(t *testing.T) {
 
 	// A patch without yolo (nil) must leave the flag untouched: an older
 	// frontend that never sends the field must not silently disable YOLO.
-	if _, err := m.Update("a1", AgentPatch{Name: strPtr("note")}); err != nil {
-		t.Fatalf("Update(name): %v", err)
+	if _, err := m.Update("a1", AgentPatch{ExtraArgs: strPtr("--note")}); err != nil {
+		t.Fatalf("Update(extra args): %v", err)
 	}
 	persisted, _ = findAgent(readRegistry(t, m), "a1")
 	if !persisted.YOLO {
