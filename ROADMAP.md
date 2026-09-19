@@ -9,14 +9,14 @@
 > **版本**: v0.68.4
 
 > **状态**: 🚧 进行中（分支 FIX-542）
-> **里程碑**: hub agent 列表名称显示统一：未证实上报 name 前，以 hub 中配置的 ID 为默认值
+> **里程碑**: hub agent 列表名称显示统一（ID 为 name 默认值）+ co-shell Web UI 标题栏中间显示 agent name（窄屏隐藏 co-shell 文字 logo）
 > **说明**: hub agent 列表里名称显示时而是上报名、时而是 ID，规律不可预期。根因是后端 `agentDisplayName` 只读 board 缓存 roster、**不校验 agent 是否已连接**，使**离线 agent 仍显示上一次运行上报的旧名字**（如 board 数据中 `uaad` 已 offline 却显示 name="co-shell"）；前端 `a.name || a.id` 只对 falsy 兜底，**纯空白字符串是 truthy** → 渲染出空白。本次统一语义：**ID 是 agent name 的默认值**，只有在 agent 当前已连接且上报了非空白 name 时才显示上报名；前后端都做 trim 判断，空或全空白均回退 ID。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
-| FIX-542 | 0.68.4 | P2 | hub agent 列表名称显示统一：未上报（或上报空白）name 时以 hub 配置的 ID 为默认值；仅在线 agent 的上报名可信；前后端均做 trim 兜底 |
+| FIX-542 | 0.68.4 | P2 | hub agent 列表名称显示统一：未上报（或上报空白）name 时以 hub 配置的 ID 为默认值；仅在线 agent 的上报名可信；前后端均做 trim 兜底。追加：co-shell Web UI 标题栏中间显示 agent name（取自 IDENTITY.md），窄屏隐藏「co-shell」文字与版本号 |
 
-> 当前 BUILD: 1083
+> 当前 BUILD: 1084
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -27,6 +27,8 @@
   - 根因（三处）：① `hub/gateway/webui.go` `agentDisplayName` 只查 `w.board.Agent(id)` 缓存，**不看 agent 是否已连接** → 离线 agent 显示历史上报的旧名（用户看到的“有时是 co-shell”）；② 同函数返回 `info.Name` 未 trim → 空白名直接透传；③ 前端 `webui_static.go` 两处 `(a && a.name) || id` / `esc(a.name || a.id)` 仅对 falsy 兜底，`" "` 为 truthy → 渲染空白。
   - 实现：① 后端 `agentDisplayName(id string, connected bool)`，仅 `connected && w.board != nil` 时取 board 上报 name 并 `strings.TrimSpace`，空则回退 `id`；调用点 `handleListAgents` 传 `connected[s.ID]`（该 map 已由 `w.proxy.AgentIDs()` 构建）；② 前端新增 `displayName(a)` helper（`String(a.name||'').trim() || a.id`），`renderList` 与 `agentName()` 均改用它（`title=` 仍为 id，class 结构不变）。
   - 未动：`.agent-row .name` CSS（HTML/JS 无使用点，属死样式，与本任务无关）。
+  - 追加（Web UI，用户提出）：「在最上面的标题栏中间显示 agent name。当窄屏时隐藏现在左上角的 co-shell 文字 logo，以便显示完整的 agent name。」确认：取 IDENTITY.md 的 `## agent-name`；窄屏隐藏「co-shell」文字 + 版本号（保留三角 mark）；宽屏也始终显示；过长省略号截断。
+  - 追加实现：① `web/server.go` `handleBootstrap` 新增 `agent_name`（`agent.ResolveAgentName(s.root)`，自带 trim 与 `"co-shell"` 回退；`LoadIdentity` 每次读盘 → 刷新页面即最新）；② `web/static/index.html` topbar 在 `.brand` 与 `.top-right` 之间新增 `.top-center > #agentName`；③ `web/static/style.css` 新增 `.top-center`（flex 占位 + 居中，不重叠不挤压）与 `.agent-name`（`overflow:hidden; text-overflow:ellipsis; white-space:nowrap`）；④ `web/static/app.js`：新增 `setAgentName()`（boot 取 `api/bootstrap` 的 `agent_name`）、`kind=identity` 消息到达时按 `agent-name` 字段同步、`updateResponsive` 中窄屏隐藏 `.brand-name`（沿用既有 `verEl` 的 inline display 模式，**不用 CSS 类**，避免破坏 `brandWidth()` 阈值测量而引发窄/宽振荡）。
   - 分支：**FIX-542**（基于 main，v0.68.3 已合并），版本 v0.68.4
   - 状态：🚧 进行中
 

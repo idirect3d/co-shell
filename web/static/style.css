@@ -202,6 +202,20 @@ body {
 .brand-name { font-weight: 600; letter-spacing: 0.4px; }
 .brand-ver { color: var(--fg-faint); font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 
+/* FIX-542: the agent name (IDENTITY.md "agent-name") is centred in the
+   titlebar. It takes the free space between .brand and .top-right, so it never
+   overlaps either side, and ellipsises once that space runs out. */
+.top-center { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; margin: 0 8px; }
+.agent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--fg-dim);
+}
+
 .top-right { display: flex; align-items: center; gap: 12px; }
 
 /* FEATURE-458: the connection control is now a clickable toggle with a
