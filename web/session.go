@@ -432,7 +432,10 @@ func (s *WebSession) handleIdentitySet(key, value string) {
 		s.srv.sendJSON(serverMessage{Kind: "identity_result", OK: false, Message: err.Error()})
 		return
 	}
-	s.srv.sendJSON(serverMessage{Kind: "identity_result", OK: true, Message: key})
+	// FIX-544: the saved key travels in its own field. It used to be stuffed
+	// into Message, which the browser rendered verbatim - the user saw a raw key
+	// like "name" instead of a readable confirmation.
+	s.srv.sendJSON(serverMessage{Kind: "identity_result", OK: true, Key: key})
 }
 
 // handleModeGet sends the current work mode and all available modes to the

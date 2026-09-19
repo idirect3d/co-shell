@@ -189,6 +189,10 @@ type serverMessage struct {
 	Identity   json.RawMessage `json:"identity,omitempty"`    // kind=identity: the identity fields
 	OK         bool            `json:"ok,omitempty"`          // kind=settings_result: success flag
 	Message    string          `json:"message,omitempty"`     // kind=settings_result: result message
+	// FIX-544: kind=identity_result carries the saved field key separately, so
+	// the browser can build a "<label> saved" confirmation from the field's
+	// localized label instead of showing the raw key.
+	Key        string          `json:"key,omitempty"`         // kind=identity_result: the identity field key
 	Modes      []modeInfo      `json:"modes,omitempty"`       // kind=mode: the work mode list
 	Models     json.RawMessage `json:"models,omitempty"`      // kind=models: the model list JSON
 	Templates  json.RawMessage `json:"templates,omitempty"`   // kind=models: the template list JSON
