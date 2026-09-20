@@ -61,12 +61,25 @@ func (a *Agent) emitTokenIter(cb StreamCallback, iterPrompt, iterComp, iterTotal
 		timing.FirstTokenLatency, timing.InputTPS, timing.OutputTPS)
 	a.mu.Lock()
 	ctxIdx := len(a.messages) - 1
+	cached, cachedReported := a.iterCachedTokens, a.iterCachedReported
 	a.mu.Unlock()
 	if ev.Meta == nil {
 		ev.Meta = map[string]string{}
 	}
 	ev.Meta["ctx_index"] = strconv.Itoa(ctxIdx)
 	ev.Meta[MetaKeyOutDur] = timing.OutputDuration
+	// FEATURE-546: only emit a rate when the engine actually reported cache
+	// usage, so the frontend can tell "prefix caching off" apart from "0 hits".
+	if cachedReported && iterPrompt > 0 {
+		rate := float64(cached) / float64(iterPrompt) * 100
+		if rate < 0 {
+			rate = 0
+		}
+		if rate > 100 {
+			rate = 100
+		}
+		ev.Meta[MetaKeyCacheRate] = strconv.FormatFloat(rate, 'f', 1, 64) + "%"
+	}
 	cb(ev)
 }
 

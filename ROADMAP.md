@@ -4,11 +4,42 @@
 
 ---
 
-## v0.68.7 — 开发中
+## v0.69.0 — 已完成
+
+> **版本**: v0.69.0
+
+> **状态**: ✅ 已完成（已合并 main，tag `v0.69.0`）
+> **里程碑**: 状态栏用量浮层（汇总 / 单轮）+ KV cache 命中率 + MTP 命中率
+> **说明**：状态栏最右侧两段用量（Σ 汇总、⏱ 单轮）目前只是纯文本，点不开、看不到明细。本次让两者可点击并在图标上方弹出浮层：汇总浮层展示历史用量统计与分析图表，单轮浮层展示本轮各项指标。同时接入两个此前完全没有数据来源的推理侧指标——KV cache 命中率与 MTP（投机解码）命中率。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-546 | 0.69.0 | P3 | 状态栏汇总/单轮用量可点击弹出向上浮层；汇总浮层含总量概览、历史总 KV cache 命中率、按天/按小时 token 趋势、in/out tokens/s 速率趋势；单轮浮层含本轮各项指标 + KV cache 命中率 + MTP 命中率。KV cache 取自响应 `usage.prompt_tokens_details.cached_tokens`；MTP 取自 vLLM `/metrics` 的 `vllm:spec_decode_num_accepted_tokens_total / num_draft_tokens_total`，不可用时须提示用户并给出建议 |
+
+> 当前 BUILD: 1093
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [x] **FEATURE-546 状态栏用量浮层（汇总/单轮）+ KV cache / MTP 命中率**
+  - 背景（用户提出）：「点击状态栏最右侧的汇总用量图标或文字，在图标上方弹出小浮层，展示历史用量统计与分析图表（可以讨论一下都显示什么维度），至少应该包含历史总 KV cache 命中率等聚合维度」；「点击单轮用量图标或文字，弹出浮层展示单轮各项指标，除已有的用量、速度指标外，新增 MTP 命中率，并尽量展示 KV cache 命中率」。
+  - 现状调研（编码前确认，全部为硬事实）：`llm.TokenUsage`（llm/client.go）只有 `prompt_tokens`/`completion_tokens`/`total_tokens` 三字段，未解析 `prompt_tokens_details`；`store.TokenUsageEntry`（store/bolt.go）只有 `ID/PromptTokens/CompletionTokens/TotalTokens/Timestamp`，无 model/session/cached 维度；全仓 Go 代码对 `kv_cache`/`cache_hit`/`speculative`/`mtp`/`metrics` **零命中**；`web/server.go` 无任何历史用量查询端点；前端 `#sbSession`/`#sbLast`（index.html）是裸 `<span class="sb-item">`，无点击行为。
+  - 数据来源决策（经 ask_user 确认）：① **KV cache 命中率**——解析响应 `usage.prompt_tokens_details.cached_tokens`（OpenAI/vLLM 标准扩展字段，需 vLLM 开 `--enable-prefix-caching` 才返回），命中率 = `cached_tokens / prompt_tokens`，改动面小；② **MTP 命中率**——抓取 vLLM `/metrics`（Prometheus 文本）的 `vllm:spec_decode_num_accepted_tokens_total / vllm:spec_decode_num_draft_tokens_total` 算比值；**`/metrics` 不可用时必须提示用户并给出建议**（不得静默显示空值）。
+  - 汇总浮层维度决策（经 ask_user 确认，共三项）：① 总量概览（历史总 prompt / completion / total、累计请求次数）；② 按天/按小时的 token 用量趋势折线；③ in/out tokens/s 历史均值趋势折线。另加用户已明确要求的**历史总 KV cache 命中率**。
+  - 前端可复用基础设施：`.sb-sessions{position:relative}` + `.session-menu{position:absolute;bottom:100%;right:0}`（style.css）已实现「从状态栏条目向上弹出」，`bindClickToggle()`（app.js）已实现点击开合 + 点击外部关闭，本次沿用同一模式。
+  - 分支：**FEATURE-546**（基于 main，v0.68.7 已合并并打 tag），版本 v0.69.0
+  - 状态：✅ 已完成（已合并 main，tag `v0.69.0`）[BUILD-1093]（后端 cached_tokens 解析/落盘/下发 + GET /api/usage 聚合 + metrics_endpoint 配置项与 MTP 探测；前端汇总/单轮两个向上浮层 + 折线图 + 中英双语文案 + 缺失原因提示；22 个 TestFEATURE546 单测全绿，全量测试无新增失败项；用户实测通过）
+  - [BUILD-1092] 回归修复（用户反馈）：两个用量图标（`#sbSession`/`#sbLast`）的 hover 呼吸灯消失——本特性把它们包进新增的 `.sb-usage-wrap` 后不再是 `.statusbar` 的直接子元素，原规则 `.statusbar > .sb-item:hover .ico` 不再命中；已在 style.css 呼吸灯选择器列表补入 `.sb-usage-wrap:hover .sb-item .ico`（与 `.sb-sessions:hover`/`.sb-model-wrap:hover` 同构），仅此一处 CSS 改动，无其他变动。
+  - 合并与发布：FEATURE-546 → main（`--no-ff`），tag `v0.69.0`。三平台分发包（co-shell / co-shell-hub × darwin.arm64 / windows.amd64 / linux.arm64）基于 [BUILD-1091] 构建，已分发至 U 盘根目录与内网 `liangshuang@192.168.3.39:~/bin`（未重启远端服务）；分发包尚未包含上述呼吸灯回归修复（[BUILD-1092] 及之后），如需同步可重新执行三平台编译。
+
+---
+
+## v0.68.7 — 已完成
 
 > **版本**: v0.68.7
 
-> **状态**: 🚧 开发中
+> **状态**: ✅ 已完成（已合并 main，tag `v0.68.7`）
 > **里程碑**: token 输出性能统计修复（速率缺失 + 消息行与状态栏对齐）
 > **说明**：状态栏最右段经常显示 `↓xxxx (-, -)`——单次输出总 token 有值，但速率与用时两项都是 `-`，在 LLM 一次连续调用多个工具时尤其高发；同时每条消息末尾的 token 统计行里有一个重复的用时项，且数据项与状态栏不一致。
 
@@ -33,7 +64,7 @@
   - 基线说明：`go build ./... && go vet ./...` 全绿；新增 8 个测试全通过。全量 `go test ./... -short` 有 5 项失败（`agent/TestLineRendererTokenEvents`、`agent/TestRetryCountLimit_EnterResets`、`cmd/TestSkillHandlerListEmpty`、`cmd/TestSettingsJSONFillsDefaults`、`i18n/TestRulesDirCustomizationNote`），已在 HEAD 基线 worktree 上复现完全相同的失败，确认全部为既有问题（测试间 i18n 全局态污染 ×2、本机装了全局 skills、`logo` 设置项 Default 为空、本机 `.rules/` 定制），与本修改无关，按「发现无关 bug 只记录不擅自修复」原则仅登记。
   - 版本号：`main.go` `version=0.68.7`/`build=1089`，`cmd/co-shell-hub/main.go` `hubVersion=0.68.7`/`hubBuild=1089` 同步。
   - 分支：**FIX-545**（基于 main，v0.68.6 已合并），版本 v0.68.7
-  - 状态：🚧 待用户测试验证
+  - 状态：✅ 已完成（v0.68.7 已合并 main，tag `v0.68.7`）[BUILD-1089]
 
 ---
 

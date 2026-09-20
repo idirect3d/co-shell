@@ -563,12 +563,32 @@ func (s *Store) DeleteMemoryRange(lastFrom, lastTo int) error {
 // --- Token Usage Operations ---
 
 // TokenUsageEntry records token usage for a single LLM API call.
+//
+// FEATURE-546 added CachedTokens / FirstTokenSec / OutputSec. Entries written
+// before that release simply decode to zero for the new fields, so no
+// migration is needed — callers must treat a zero as "not recorded".
 type TokenUsageEntry struct {
 	ID               string    `json:"id"`                // unique ID (timestamp-based)
 	PromptTokens     int       `json:"prompt_tokens"`     // input tokens
 	CompletionTokens int       `json:"completion_tokens"` // output tokens
 	TotalTokens      int       `json:"total_tokens"`      // total tokens
 	Timestamp        time.Time `json:"timestamp"`         // when the API call was made
+	// CachedTokens is how many prompt tokens came from the engine's KV cache.
+	// Zero means the engine did not report it (vLLM needs
+	// --enable-prefix-caching), not a genuine 0% hit rate.
+	CachedTokens int `json:"cached_tokens,omitempty"`
+	// CachedReported is true when the engine actually sent prompt_tokens_details
+	// for this call. Aggregates must skip entries where it is false, otherwise a
+	// prefix-caching-disabled engine would drag the historical hit rate to 0%.
+	CachedReported bool `json:"cached_reported,omitempty"`
+	// FirstTokenSec is the prefill window (call start → first token). Non-
+	// streaming call sites have no stream timestamps and store the wall-clock
+	// duration instead, which is an approximation that includes network
+	// round-trip. Zero means "not recorded".
+	FirstTokenSec float64 `json:"first_token_sec,omitempty"`
+	// OutputSec is the generation window (first token → stream end); zero means
+	// "not recorded" for the same reason as FirstTokenSec.
+	OutputSec float64 `json:"output_sec,omitempty"`
 }
 
 // SaveTokenUsage stores a token usage entry in the token_usage bucket.

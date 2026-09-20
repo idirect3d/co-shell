@@ -148,6 +148,18 @@ type TokenUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	// CachedTokens is how many prompt tokens were served from the engine's
+	// KV cache (prefix cache). FEATURE-546: it is the numerator of the KV
+	// cache hit rate. OpenAI-compatible engines only report it under
+	// usage.prompt_tokens_details, and vLLM needs --enable-prefix-caching for
+	// the field to appear at all, so a zero here means "not reported" rather
+	// than a genuine 0% hit rate.
+	CachedTokens int `json:"cached_tokens,omitempty"`
+	// CachedReported tells a zero CachedTokens apart from a missing field: true
+	// only when the response actually carried prompt_tokens_details. Without it
+	// a cold-cache round (genuine 0 hits) is indistinguishable from an engine
+	// that has prefix caching switched off.
+	CachedReported bool `json:"cached_reported,omitempty"`
 }
 
 // LLMResponse is the parsed response from the LLM.
@@ -422,6 +434,24 @@ type usageJSON struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	// Details carries the optional prompt-token breakdown that OpenAI-compatible
+	// engines use to report KV cache reuse. Absent when the engine does not
+	// support prefix caching, hence a pointer.
+	Details *promptTokensDetailsJSON `json:"prompt_tokens_details,omitempty"`
+}
+
+// promptTokensDetailsJSON is the optional usage.prompt_tokens_details object.
+type promptTokensDetailsJSON struct {
+	CachedTokens int `json:"cached_tokens"`
+}
+
+// cached returns the reported KV cache hit count, or 0 when the engine did not
+// send the details object at all.
+func (u *usageJSON) cached() int {
+	if u == nil || u.Details == nil {
+		return 0
+	}
+	return u.Details.CachedTokens
 }
 
 // responseErrorJSON is the JSON structure for an API error response.
@@ -779,9 +809,11 @@ func (c *openAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 			PromptTokens:     chatResp.Usage.PromptTokens,
 			CompletionTokens: chatResp.Usage.CompletionTokens,
 			TotalTokens:      chatResp.Usage.TotalTokens,
+			CachedTokens:     chatResp.Usage.cached(),
+			CachedReported:   chatResp.Usage.Details != nil,
 		}
-		log.Debug("LLM Chat token usage: prompt=%d, completion=%d, total=%d",
-			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+		log.Debug("LLM Chat token usage: prompt=%d, completion=%d, total=%d, cached=%d",
+			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens, usage.CachedTokens)
 	}
 
 	// Log response content at DEBUG level
@@ -1088,6 +1120,8 @@ func (c *openAIClient) ChatStream(ctx context.Context, messages []Message, tools
 							PromptTokens:     finalUsage.PromptTokens,
 							CompletionTokens: finalUsage.CompletionTokens,
 							TotalTokens:      finalUsage.TotalTokens,
+							CachedTokens:     finalUsage.cached(),
+							CachedReported:   finalUsage.Details != nil,
 						}
 					}
 					sendEvent(StreamEvent{

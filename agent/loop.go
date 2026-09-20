@@ -248,6 +248,11 @@ type Agent struct {
 	iterPromptTokens     int // prompt tokens for the current iteration (most recent LLM call)
 	iterCompletionTokens int // completion tokens for the current iteration
 	iterTokens           int // total tokens for the current iteration
+	// iterCachedTokens is how many of this iteration's prompt tokens came from
+	// the engine's KV cache (FEATURE-546). Zero means the engine did not report
+	// it, which is distinct from a genuine 0% hit rate.
+	iterCachedTokens   int
+	iterCachedReported bool // whether the engine reported cache usage at all
 
 	// LLM performance timing (per-call, reset before each ChatStream)
 	llmCallStartTime time.Time // when ChatStream/Chat is initiated
@@ -693,10 +698,17 @@ func (a *Agent) isXMLMode() bool {
 func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb StreamCallback) (string, string, []llm.ToolCall, error) {
 	// Apply context limit to messages
 	contextMsgs := a.buildContextMessages()
+	// FEATURE-546: a non-streaming call has no first-token / stream-end stamps,
+	// so the wall-clock duration of the whole request is recorded as an
+	// approximation for the historical rate charts. It includes network
+	// round-trip and full generation, hence it is coarser than the streaming
+	// measurements but the only figure available on this path.
+	callStart := time.Now()
 	resp, err := a.llmClient.Chat(ctx, contextMsgs, tools)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("LLM call failed: %w", err)
 	}
+	wallSec := time.Since(callStart).Seconds()
 
 	// Accumulate token usage from API response
 	if resp.Usage != nil {
@@ -712,6 +724,10 @@ func (a *Agent) nonStreamingFallback(ctx context.Context, tools []llm.Tool, cb S
 				CompletionTokens: resp.Usage.CompletionTokens,
 				TotalTokens:      resp.Usage.TotalTokens,
 				Timestamp:        time.Now(),
+				CachedTokens:     resp.Usage.CachedTokens,
+				CachedReported:   resp.Usage.CachedReported,
+				FirstTokenSec:    wallSec,
+				OutputSec:        wallSec,
 			}
 			if err := a.store.SaveTokenUsage(entry); err != nil {
 				log.Warn("Failed to save token usage: %v", err)

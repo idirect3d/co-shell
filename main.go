@@ -51,9 +51,9 @@ import (
 	"github.com/idirect3d/co-shell/workspace"
 )
 
-const version = "0.68.7"
+const version = "0.69.0"
 
-const build = "1089"
+const build = "1093"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1572,6 +1572,9 @@ func main() {
 			Bind:            bind,
 			Whitelist:       whitelist,
 			DownloadEnabled: flags.downloadEnabled,
+			// FEATURE-546: the status-bar usage popover reads its history from
+			// the persisted per-call token records.
+			UsageFn: s.ListTokenUsage,
 		})
 		repl.RegisterSessionFactory("web", srv.SessionFactory())
 		addr, listenErr := srv.Listen(flags.port)
