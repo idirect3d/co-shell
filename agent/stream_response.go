@@ -60,6 +60,26 @@ func lastNChars(s string, n int) string {
 	return s[len(s)-n:]
 }
 
+// isFirstTokenEvent reports whether a stream event marks the arrival of the
+// model's first output token, which anchors both performance durations
+// measured in GetLLMTiming.
+//
+// FIX-545: tool-call fragments count as output. A round that returns ONLY
+// tool_calls (OpenAI JSON mode) emits no content/reasoning event at all, so
+// with a content/reasoning-only gate firstTokenTime stayed zero — both the TTFT
+// and the generation window came out zero and every rate in the status bar
+// blanked to "↓1,266 (-, -)". That is exactly the multi-tool-call case users hit.
+func isFirstTokenEvent(t llm.StreamEventType) bool {
+	switch t {
+	case llm.StreamEventContent,
+		llm.StreamEventReasoning,
+		llm.StreamEventToolCallDelta,
+		llm.StreamEventToolCall:
+		return true
+	}
+	return false
+}
+
 // streamLLMResponse streams the LLM response and returns the complete content, reasoning, tool calls,
 // and a hasToolAttempt boolean indicating whether the LLM's output contains an incomplete tool call
 // (e.g., <known_tool_name without closing tag or proper structure).
@@ -255,8 +275,8 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 			}
 			eventCount++
 
-			// Record first token arrival time for performance timing
-			if !firstTokenArrived && (event.Type == llm.StreamEventContent || event.Type == llm.StreamEventReasoning) {
+			// Record first token arrival time for performance timing.
+			if !firstTokenArrived && isFirstTokenEvent(event.Type) {
 				firstTokenArrived = true
 				a.mu.Lock()
 				a.firstTokenTime = time.Now()
