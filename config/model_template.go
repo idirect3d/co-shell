@@ -101,6 +101,13 @@ type ModelConfig struct {
 	// A value of 0 means unknown or not yet detected.
 	MaxModelLen int `json:"max_model_len,omitempty"`
 
+	// MetricsEndpoint is the Prometheus scrape URL of the inference engine
+	// serving this model (e.g. "http://192.168.3.39:8000/metrics"). FEATURE-546
+	// uses it to read vllm:spec_decode_num_*_tokens_total and report the MTP
+	// (speculative decoding) acceptance rate. Empty means "not configured": the
+	// Web UI then shows the metric as unavailable instead of 0%.
+	MetricsEndpoint string `json:"metrics_endpoint,omitempty"`
+
 	// Model-level LLM parameters (override global cfg.LLM settings when set)
 	// A value of nil/0 means "use global default from cfg.LLM"
 	Temperature       *float64 `json:"temperature,omitempty"`

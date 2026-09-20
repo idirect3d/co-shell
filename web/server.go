@@ -36,6 +36,7 @@ import (
 	"github.com/idirect3d/co-shell/agent"
 	"github.com/idirect3d/co-shell/cmd"
 	"github.com/idirect3d/co-shell/i18n"
+	"github.com/idirect3d/co-shell/store"
 )
 
 //go:embed static
@@ -249,6 +250,11 @@ type ServerOptions struct {
 	// DownloadEnabled (FEATURE-455): when true, remote web UI access may
 	// download workspace files via the browser. Default off (security).
 	DownloadEnabled bool
+
+	// UsageFn returns every persisted per-call token record, used by
+	// GET /api/usage to build the history popover (FEATURE-546). Nil means the
+	// endpoint answers with zeroed totals.
+	UsageFn func() ([]store.TokenUsageEntry, error)
 }
 
 // Server is the embedded web server: HTTP routes + the single-client
@@ -291,6 +297,10 @@ type Server struct {
 	// busyFn reports whether the agent is currently executing a task
 	// (FEATURE-499). Exposed via GET /api/status for the hub to poll.
 	busyFn func() bool
+
+	// usageFn lists the persisted token usage records for GET /api/usage
+	// (FEATURE-546); taken from ServerOptions.UsageFn.
+	usageFn func() ([]store.TokenUsageEntry, error)
 }
 
 // NewServer creates the server for the given workspace root and registers
@@ -300,7 +310,7 @@ func NewServer(root string, opts ServerOptions) *Server {
 	if err != nil {
 		abs = root
 	}
-	s := &Server{root: abs, opts: opts, mux: http.NewServeMux()}
+	s := &Server{root: abs, opts: opts, mux: http.NewServeMux(), usageFn: opts.UsageFn}
 	s.mux.HandleFunc("GET /{$}", s.handleIndex)
 	s.mux.Handle("GET /static/", serveStatic())
 	s.mux.HandleFunc("GET /ws", s.handleWS)
@@ -322,6 +332,8 @@ func NewServer(root string, opts ServerOptions) *Server {
 	s.mux.HandleFunc("GET /logos/{theme}", s.handleLogoRead)
 	// FEATURE-499: lightweight status endpoint the hub polls for busy state.
 	s.mux.HandleFunc("GET /api/status", s.handleStatus)
+	// FEATURE-546: aggregated token history for the status-bar usage popover.
+	s.mux.HandleFunc("GET /api/usage", s.handleUsage)
 	// FEATURE-524: the escape hatch for LLM-authored HTML runs in a sandboxed
 	// iframe whose shell is served from its own endpoint with its own CSP.
 	s.mux.HandleFunc("GET /api/ui-sandbox", s.handleUISandbox)

@@ -13,6 +13,8 @@
 package cmd
 
 import (
+	"sync"
+
 	"github.com/idirect3d/co-shell/config"
 	"github.com/idirect3d/co-shell/llm"
 )
@@ -45,6 +47,16 @@ type WebModel struct {
 	// endpoint's /models list at the time the list was built (FEATURE-496).
 	// The front end greys out unavailable models.
 	Available bool `json:"available"`
+
+	// MetricsEndpoint is the configured Prometheus URL of the engine serving
+	// this model, echoed so the front end can tell "not configured" from
+	// "configured but unreachable" (FEATURE-546).
+	MetricsEndpoint string `json:"metrics_endpoint,omitempty"`
+
+	// MTP is the speculative-decoding acceptance rate probed while the model
+	// list was built. It is always present: when unavailable it carries a
+	// reason key the front end localises (FEATURE-546).
+	MTP llm.MTPStatus `json:"mtp"`
 }
 
 // WebTemplate is one built-in template exposed to the Web UI.
@@ -99,8 +111,10 @@ func (h *ModelHandler) ModelWebJSON() (models []WebModel, templates []WebTemplat
 			MaxModelLen:     m.MaxModelLen,
 			TemplateID:      m.TemplateID,
 			Available:       available,
+			MetricsEndpoint: m.MetricsEndpoint,
 		})
 	}
+	probeMTP(models)
 	manager := config.GetDefaultModelManager()
 	for _, t := range manager.GetAllTemplates() {
 		templates = append(templates, WebTemplate{
@@ -155,4 +169,29 @@ func (h *ModelHandler) StartAddWizard() (string, error) {
 // model ID.
 func (h *ModelHandler) StartEditWizard(id string) (string, error) {
 	return h.editModelWizard([]string{id})
+}
+
+// probeMTP fills in the MTP status of every model in the list by scraping its
+// configured metrics_endpoint (FEATURE-546). Probes run concurrently because
+// each one is an HTTP round-trip to a possibly remote inference host: doing
+// them serially would make the model list take N timeouts to appear when a
+// host is down. Models without a metrics_endpoint get the "not configured"
+// reason without any network access.
+func probeMTP(models []WebModel) {
+	var wg sync.WaitGroup
+	for i := range models {
+		if models[i].MetricsEndpoint == "" {
+			models[i].MTP = llm.MTPStatus{
+				Available: false,
+				Reason:    llm.MTPReasonNotConfigured,
+			}
+			continue
+		}
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			models[idx].MTP = llm.FetchMTPRate(models[idx].MetricsEndpoint, 0)
+		}(i)
+	}
+	wg.Wait()
 }

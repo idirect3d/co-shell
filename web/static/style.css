@@ -1945,6 +1945,45 @@ button.qs-kbd:active { transform: translateY(1px); }
 }
 .session-menu.hidden { display: none; }
 .session-empty { padding: 6px 8px; color: var(--fg-dim); }
+
+/* Usage popovers (FEATURE-546): the session-total and per-turn status-bar
+   items open a statistics panel upward, reusing the session-menu geometry. */
+.sb-usage-wrap { position: relative; }
+.sb-usage-wrap .sb-item { cursor: pointer; }
+.usage-pop {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  width: 420px;
+  max-width: calc(100vw - 20px);
+  max-height: min(62vh, 460px);
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  padding: 10px 12px;
+  z-index: 100;
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+}
+.usage-pop.hidden { display: none; }
+.usage-title { font-weight: 600; margin-bottom: 6px; }
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 14px;
+}
+.usage-row { display: flex; justify-content: space-between; gap: 8px; }
+.usage-row .k { color: var(--fg-dim); }
+.usage-row .v { color: var(--fg); font-variant-numeric: tabular-nums; }
+.usage-sec { margin-top: 10px; }
+.usage-sec-title { color: var(--fg-dim); font-size: 11px; }
+.usage-chart { height: 118px; margin-top: 2px; }
+.usage-note { margin-top: 6px; color: var(--fg-dim); font-size: 11px; }
+.usage-warn { color: var(--warn, #d9822b); }
 .session-item {
   display: flex;
   align-items: center;
@@ -3489,8 +3528,10 @@ body.narrow #input {
   min-height: 41px;
 }
 /* FEATURE-487: hide the status-bar session-total token counter on narrow
-   screens (the per-iteration usage in #sbLast is kept). */
-body.narrow #sbSession {
+   screens (the per-iteration usage in #sbLast is kept). FEATURE-546 wrapped the
+   counter in .sb-usage-wrap, so the wrapper is hidden to keep it out of the
+   flex row entirely. */
+body.narrow #sbSessionWrap {
   display: none;
 }
 /* FEATURE-487: on narrow screens the status bar holds only the per-iteration

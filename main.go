@@ -53,7 +53,7 @@ import (
 
 const version = "0.69.0"
 
-const build = "1090"
+const build = "1091"
 
 // cliFlags holds parsed command-line flags.
 type cliFlags struct {
@@ -1572,6 +1572,9 @@ func main() {
 			Bind:            bind,
 			Whitelist:       whitelist,
 			DownloadEnabled: flags.downloadEnabled,
+			// FEATURE-546: the status-bar usage popover reads its history from
+			// the persisted per-call token records.
+			UsageFn: s.ListTokenUsage,
 		})
 		repl.RegisterSessionFactory("web", srv.SessionFactory())
 		addr, listenErr := srv.Listen(flags.port)

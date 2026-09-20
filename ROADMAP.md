@@ -29,7 +29,7 @@
   - 汇总浮层维度决策（经 ask_user 确认，共三项）：① 总量概览（历史总 prompt / completion / total、累计请求次数）；② 按天/按小时的 token 用量趋势折线；③ in/out tokens/s 历史均值趋势折线。另加用户已明确要求的**历史总 KV cache 命中率**。
   - 前端可复用基础设施：`.sb-sessions{position:relative}` + `.session-menu{position:absolute;bottom:100%;right:0}`（style.css）已实现「从状态栏条目向上弹出」，`bindClickToggle()`（app.js）已实现点击开合 + 点击外部关闭，本次沿用同一模式。
   - 分支：**FEATURE-546**（基于 main，v0.68.7 已合并并打 tag），版本 v0.69.0
-  - 状态：🚧 需求规格已确认，待生成测试用例
+  - 状态：🚧 开发完成，待用户测试验证 [BUILD-1091]（后端 cached_tokens 解析/落盘/下发 + GET /api/usage 聚合 + metrics_endpoint 配置项与 MTP 探测；前端汇总/单轮两个向上浮层 + 折线图 + 中英双语文案 + 缺失原因提示；22 个 TestFEATURE546 单测全绿，全量测试无新增失败项）
 
 ---
 

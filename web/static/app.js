@@ -29,6 +29,37 @@ const I18N = {
     identityCatPrinciples: "核心原则",
     identityCatCapabilities: "能力", identityCatRules: "规则", save: "保存",
     identitySaved: "{name}已保存",
+    // FEATURE-546: status-bar usage popovers
+    usageTotalTitle: "历史用量统计",
+    usageLastTitle: "本轮用量",
+    usageRequests: "请求次数",
+    usagePrompt: "输入 tokens",
+    usageCompletion: "输出 tokens",
+    usageTotal: "总 tokens",
+    usageCached: "命中缓存 tokens",
+    usageRange: "统计区间",
+    usageCacheRate: "KV cache 命中率",
+    usageCacheUnavailable: "引擎未上报 cached_tokens（需 vLLM --enable-prefix-caching）",
+    usageMTP: "MTP 命中率",
+    usageMTPNotConfigured: "未配置 metrics_endpoint，无法获取 MTP 命中率（在模型配置中填写推理引擎 /metrics 地址）",
+    usageMTPFetchFailed: "metrics 端点不可达，无法获取 MTP 命中率（检查地址与网络）",
+    usageMTPNoSpec: "引擎未上报 spec_decode 指标（需 vLLM --speculative-config 开启 MTP）",
+    usageMTPNoDraft: "尚无 draft token 统计（引擎启动后还未跑过投机解码）",
+    usageTrendDay: "按天 token 用量",
+    usageTrendHour: "按小时 token 用量",
+    usageRateTrend: "按天平均速率（tokens/s）",
+    usageSeriesPrompt: "输入",
+    usageSeriesCompletion: "输出",
+    usageSeriesInTPS: "输入速率",
+    usageSeriesOutTPS: "输出速率",
+    usageInTPS: "输入速率",
+    usageOutTPS: "输出速率",
+    usageFirstToken: "首 token 用时",
+    usageOutDur: "输出生成用时",
+    usageLoading: "加载中…",
+    usageEmpty: "暂无历史用量记录",
+    usageFailed: "用量数据读取失败",
+    usageApproxNote: "非流式请求的速率以墙钟总耗时近似，含网络往返。",
     identityNavHint: "本配置中的数值与系统提示词相关：修改可能降低大模型请求缓存命中率、增加费用，并延长变更后首次访问的预处理时间，请谨慎修改。",
     identityHintName: "命名当前 co-shell 实例，会注入系统提示词，可能影响 LLM 的行为，也可用于在 co-shell-hub 中辨识当前实例。",
     identityHintDescription: "描述当前 co-shell 实例的职责，会注入系统提示词，可能影响 LLM 的行为，也可用于在 co-shell-hub 中向其他 co-shell 实例介绍自己的能力。",
@@ -91,6 +122,37 @@ const I18N = {
     identityCatPrinciples: "Principles",
     identityCatCapabilities: "Capabilities", identityCatRules: "Rules", save: "Save",
     identitySaved: "{name} saved",
+    // FEATURE-546: status-bar usage popovers
+    usageTotalTitle: "Lifetime usage",
+    usageLastTitle: "This turn",
+    usageRequests: "Requests",
+    usagePrompt: "Prompt tokens",
+    usageCompletion: "Completion tokens",
+    usageTotal: "Total tokens",
+    usageCached: "Cached tokens",
+    usageRange: "Range",
+    usageCacheRate: "KV cache hit rate",
+    usageCacheUnavailable: "Engine did not report cached_tokens (requires vLLM --enable-prefix-caching)",
+    usageMTP: "MTP acceptance rate",
+    usageMTPNotConfigured: "metrics_endpoint is not configured, MTP rate unavailable (set the engine /metrics URL in the model config)",
+    usageMTPFetchFailed: "metrics endpoint unreachable, MTP rate unavailable (check the address and network)",
+    usageMTPNoSpec: "Engine reports no spec_decode metrics (requires vLLM --speculative-config)",
+    usageMTPNoDraft: "No draft tokens counted yet (speculative decoding has not run since start)",
+    usageTrendDay: "Daily token usage",
+    usageTrendHour: "Hourly token usage",
+    usageRateTrend: "Daily average speed (tokens/s)",
+    usageSeriesPrompt: "Prompt",
+    usageSeriesCompletion: "Completion",
+    usageSeriesInTPS: "Input speed",
+    usageSeriesOutTPS: "Output speed",
+    usageInTPS: "Input speed",
+    usageOutTPS: "Output speed",
+    usageFirstToken: "Time to first token",
+    usageOutDur: "Generation time",
+    usageLoading: "Loading…",
+    usageEmpty: "No usage records yet",
+    usageFailed: "Failed to load usage data",
+    usageApproxNote: "Non-streaming speeds approximate with wall-clock duration, including network round-trip.",
     identityNavHint: "These values are part of the system prompt. Changing them may lower the LLM request cache hit rate, increase cost, and lengthen preprocessing on the first request after the change - edit with care.",
     identityHintName: "Names this co-shell instance. Injected into the system prompt, may affect LLM behavior, and also identifies this instance in co-shell-hub.",
     identityHintDescription: "Describes this co-shell instance's responsibility. Injected into the system prompt, may affect LLM behavior, and also introduces its capabilities to other co-shell instances in co-shell-hub.",
@@ -436,6 +498,9 @@ const sbModelText = document.getElementById("sbModelText");
 const sbModelVision = document.getElementById("sbModelVision");
 const sbSession = document.getElementById("sbSession");
 const sbLast = document.getElementById("sbLast");
+// FEATURE-546: the two usage popovers opened from the status-bar items above.
+const sbSessionPop = document.getElementById("sbSessionPop");
+const sbLastPop = document.getElementById("sbLastPop");
 const sbSessionsWrap = document.getElementById("sbSessionsWrap");
 const sbSessions = document.getElementById("sbSessions");
 const sessionMenu = document.getElementById("sessionMenu");
@@ -1522,6 +1587,7 @@ function resetStreamView() {
   tokenStats.lastOutTPS = 0;
   tokenStats.lastInDur = "-";
   tokenStats.lastOutDur = "-";
+  tokenStats.lastCacheRate = "";
 }
 
 // initTopSentinel wires the IntersectionObserver that watches the top marker.
@@ -1758,6 +1824,9 @@ function renderEvent(ev) {
       tokenStats.lastOutTPS = parseInt(m.out_tps, 10) || 0;
       tokenStats.lastInDur = m.ft || "-";
       tokenStats.lastOutDur = m.out_dur || "-";
+      // FEATURE-546: KV cache hit rate of this call, empty when the engine did
+      // not report prompt_tokens_details (rendered as a reason, not as 0%).
+      tokenStats.lastCacheRate = m.cache_rate || "";
       updateStatus();
       // FEATURE-482: the iteration's token usage is now known — backfill the
       // message-visualization chart with the blocks created this iteration.
@@ -2443,7 +2512,7 @@ function stcSync() {
 // Token stats accumulated from token_iter events. sessionIn/sessionOut are
 // the running totals across all iterations; last* hold the most recent
 // iteration's values (including input/output tokens-per-second).
-const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0, lastInDur: "-", lastOutDur: "-" };
+const tokenStats = { sessionIn: 0, sessionOut: 0, lastIn: 0, lastOut: 0, lastInTPS: 0, lastOutTPS: 0, lastInDur: "-", lastOutDur: "-", lastCacheRate: "" };
 
 /* FEATURE-482: message-visualization chart. Each rendered message block (.ev)
    becomes one 1px vertical line in #msgVizTrack, coloured by its title-bar
@@ -2620,6 +2689,10 @@ function fmtTime(d) {
 // modelInfo holds the active text/vision model context info from bootstrap
 // (FEATURE-378): { textModel, textMaxLen, visionModel, visionMaxLen }.
 let modelInfo = null;
+// activeMTP is the speculative-decoding (MTP) status of the model the status
+// bar currently shows, taken from the model list the backend probed
+// (FEATURE-546). Null means no model reported one.
+let activeMTP = null;
 
 // FEATURE-455: remote access + download flags from bootstrap. When the UI is
 // served to a remote address (remote=true) and the operator enabled download
@@ -6191,6 +6264,25 @@ function renderModels(models, templates) {
   renderModelsBody();
   renderModelMenu();
   renderModelVisionMenu();
+  // FEATURE-546: the model list carries the MTP probe result of every model,
+  // collected while the list was built. Keep the active model's status so the
+  // per-turn popover can show it without probing again.
+  activeMTP = pickActiveMTP();
+}
+
+// pickActiveMTP returns the MTP status of the model the status bar currently
+// shows, falling back to the first model that has one. Returns null when no
+// model carries the field (an older backend), which the popover renders as
+// "not configured".
+function pickActiveMTP() {
+  const name = modelInfo && modelInfo.textModel;
+  for (const m of modelList) {
+    if (name && (m.model === name || m.name === name)) return m.mtp || null;
+  }
+  for (const m of modelList) {
+    if (m.mtp) return m.mtp;
+  }
+  return null;
 }
 
 // renderModelsBody renders the model list into the manager modal. Each row is
@@ -7513,6 +7605,9 @@ function closeAllPopups() {
   sessionMenu.classList.add("hidden");
   modelMenu.classList.add("hidden");
   modelVisionMenu.classList.add("hidden");
+  // FEATURE-546: the usage popovers close with every other popup.
+  if (sbSessionPop) sbSessionPop.classList.add("hidden");
+  if (sbLastPop) sbLastPop.classList.add("hidden");
   if (menuWrapEl) menuWrapEl.classList.remove("open");
 }
 
@@ -7540,6 +7635,37 @@ function bindClickToggle(trigger, popup, onOpen) {
 
 // Session list: click the 💬 item to open, click anywhere to close.
 bindClickToggle(sbSessions, sessionMenu, () => wsSend({ type: "session_list" }));
+
+// FEATURE-546: the two usage popovers. The per-turn one renders from the
+// in-memory token stats and the MTP probe that came with the model list, so it
+// opens instantly; the lifetime one fetches GET /api/usage on open.
+bindClickToggle(sbLast, sbLastPop, () => {
+  sbLastPop.textContent = "";
+  UsagePop.renderLast(sbLastPop, tokenStats, activeMTP, T);
+});
+
+bindClickToggle(sbSession, sbSessionPop, () => {
+  sbSessionPop.textContent = "";
+  const loading = document.createElement("div");
+  loading.className = "usage-note";
+  loading.textContent = T.usageLoading;
+  sbSessionPop.appendChild(loading);
+  fetch("api/usage").then((resp) => {
+    if (!resp.ok) throw new Error("http " + resp.status);
+    return resp.json();
+  }).then((data) => {
+    // The popover may have been closed while the request was in flight.
+    if (sbSessionPop.classList.contains("hidden")) return;
+    UsagePop.renderTotal(sbSessionPop, data, T);
+  }).catch(() => {
+    if (sbSessionPop.classList.contains("hidden")) return;
+    sbSessionPop.textContent = "";
+    const err = document.createElement("div");
+    err.className = "usage-note usage-warn";
+    err.textContent = T.usageFailed;
+    sbSessionPop.appendChild(err);
+  });
+});
 // Main (text) model selector: click to open.
 bindClickToggle(sbModelText, modelMenu, () => wsSend({ type: "model_get" }));
 // Vision model selector: click to open.
