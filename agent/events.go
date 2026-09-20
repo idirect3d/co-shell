@@ -78,6 +78,11 @@ const (
 	// "completion tokens / out_tps", which collapsed to "-" whenever out_tps was
 	// unavailable and lost precision to the rounded rate.
 	MetaKeyOutDur = "out_dur" // output duration display string (e.g. "15.1s")
+	// MetaKeyCacheRate is this iteration's KV cache hit rate as a percentage
+	// string (e.g. "62.5%"). FEATURE-546: it stays empty when the engine did not
+	// report prompt_tokens_details at all, so the frontend can distinguish
+	// "prefix caching not enabled" from a genuine 0% hit rate.
+	MetaKeyCacheRate = "cache_rate"
 )
 
 // MetaKeyPlan is the Meta key of EventTaskPlan carrying the full task plan

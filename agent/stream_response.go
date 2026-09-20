@@ -653,6 +653,20 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 					a.iterPromptTokens = event.Usage.PromptTokens
 					a.iterCompletionTokens = event.Usage.CompletionTokens
 					a.iterTokens = event.Usage.TotalTokens
+					a.iterCachedTokens = event.Usage.CachedTokens
+					a.iterCachedReported = event.Usage.CachedReported
+					// FEATURE-546: the stream timestamps are still intact here (they
+					// are only cleared later by GetLLMTiming), so the persisted entry
+					// can carry the real prefill / generation windows. A zero duration
+					// means the round produced no measurable token and must be skipped
+					// when averaging rates.
+					var firstSec, outSec float64
+					if !a.firstTokenTime.IsZero() && !a.llmCallStartTime.IsZero() {
+						firstSec = a.firstTokenTime.Sub(a.llmCallStartTime).Seconds()
+					}
+					if !a.llmStreamEndTime.IsZero() && !a.firstTokenTime.IsZero() {
+						outSec = a.llmStreamEndTime.Sub(a.firstTokenTime).Seconds()
+					}
 					// Persist token usage to database
 					if a.store != nil {
 						entry := &store.TokenUsageEntry{
@@ -661,6 +675,10 @@ func (a *Agent) streamLLMResponse(ctx context.Context, tools []llm.Tool, cb Stre
 							CompletionTokens: event.Usage.CompletionTokens,
 							TotalTokens:      event.Usage.TotalTokens,
 							Timestamp:        time.Now(),
+							CachedTokens:     event.Usage.CachedTokens,
+							CachedReported:   event.Usage.CachedReported,
+							FirstTokenSec:    firstSec,
+							OutputSec:        outSec,
 						}
 						if err := a.store.SaveTokenUsage(entry); err != nil {
 							log.Warn("Failed to save token usage: %v", err)

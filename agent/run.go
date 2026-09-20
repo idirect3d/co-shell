@@ -92,7 +92,11 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 		a.ApplyWorkModeConfig()
 
 		// Call LLM
+		// FEATURE-546: no stream timestamps on this path, so the wall-clock
+		// duration stands in as an approximation for the rate charts.
+		callStart := time.Now()
 		resp, err := a.llmClient.Chat(ctx, a.messages, tools)
+		wallSec := time.Since(callStart).Seconds()
 
 		if err != nil {
 			log.Error("Agent.Run: LLM call failed at iteration %d: %v", iteration, err)
@@ -113,6 +117,10 @@ func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 					CompletionTokens: resp.Usage.CompletionTokens,
 					TotalTokens:      resp.Usage.TotalTokens,
 					Timestamp:        time.Now(),
+					CachedTokens:     resp.Usage.CachedTokens,
+					CachedReported:   resp.Usage.CachedReported,
+					FirstTokenSec:    wallSec,
+					OutputSec:        wallSec,
 				}
 				if err := a.store.SaveTokenUsage(entry); err != nil {
 					log.Warn("Failed to save token usage: %v", err)
