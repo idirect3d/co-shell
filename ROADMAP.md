@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FEATURE-546 | 0.69.0 | P3 | 状态栏汇总/单轮用量可点击弹出向上浮层；汇总浮层含总量概览、历史总 KV cache 命中率、按天/按小时 token 趋势、in/out tokens/s 速率趋势；单轮浮层含本轮各项指标 + KV cache 命中率 + MTP 命中率。KV cache 取自响应 `usage.prompt_tokens_details.cached_tokens`；MTP 取自 vLLM `/metrics` 的 `vllm:spec_decode_num_accepted_tokens_total / num_draft_tokens_total`，不可用时须提示用户并给出建议 |
 
-> 当前 BUILD: 1089
+> 当前 BUILD: 1092
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -29,7 +29,8 @@
   - 汇总浮层维度决策（经 ask_user 确认，共三项）：① 总量概览（历史总 prompt / completion / total、累计请求次数）；② 按天/按小时的 token 用量趋势折线；③ in/out tokens/s 历史均值趋势折线。另加用户已明确要求的**历史总 KV cache 命中率**。
   - 前端可复用基础设施：`.sb-sessions{position:relative}` + `.session-menu{position:absolute;bottom:100%;right:0}`（style.css）已实现「从状态栏条目向上弹出」，`bindClickToggle()`（app.js）已实现点击开合 + 点击外部关闭，本次沿用同一模式。
   - 分支：**FEATURE-546**（基于 main，v0.68.7 已合并并打 tag），版本 v0.69.0
-  - 状态：🚧 开发完成，待用户测试验证 [BUILD-1091]（后端 cached_tokens 解析/落盘/下发 + GET /api/usage 聚合 + metrics_endpoint 配置项与 MTP 探测；前端汇总/单轮两个向上浮层 + 折线图 + 中英双语文案 + 缺失原因提示；22 个 TestFEATURE546 单测全绿，全量测试无新增失败项）
+  - 状态：🚧 开发完成，待用户测试验证 [BUILD-1092]（后端 cached_tokens 解析/落盘/下发 + GET /api/usage 聚合 + metrics_endpoint 配置项与 MTP 探测；前端汇总/单轮两个向上浮层 + 折线图 + 中英双语文案 + 缺失原因提示；22 个 TestFEATURE546 单测全绿，全量测试无新增失败项）
+  - [BUILD-1092] 回归修复（用户反馈）：两个用量图标（`#sbSession`/`#sbLast`）的 hover 呼吸灯消失——本特性把它们包进新增的 `.sb-usage-wrap` 后不再是 `.statusbar` 的直接子元素，原规则 `.statusbar > .sb-item:hover .ico` 不再命中；已在 style.css 呼吸灯选择器列表补入 `.sb-usage-wrap:hover .sb-item .ico`（与 `.sb-sessions:hover`/`.sb-model-wrap:hover` 同构），仅此一处 CSS 改动，无其他变动。
 
 ---
 
