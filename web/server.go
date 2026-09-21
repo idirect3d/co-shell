@@ -780,8 +780,10 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	if fn != nil {
 		info := fn()
 		payload["textModel"] = info.TextModelName
+		payload["textModelID"] = info.TextModelID
 		payload["textMaxLen"] = info.TextMaxLen
 		payload["visionModel"] = info.VisionModelName
+		payload["visionModelID"] = info.VisionModelID
 		payload["visionMaxLen"] = info.VisionMaxLen
 		// Current mode's bound model IDs (empty = no binding, uses global
 		// default). Lets the web UI highlight the "默认" option (FEATURE-422).

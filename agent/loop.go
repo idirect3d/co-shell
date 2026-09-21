@@ -166,7 +166,7 @@ type Agent struct {
 	boardSender BoardSender
 	// boardSt caches the hub message-board roster, dedupes delivered messages
 	// and tracks pending send acknowledgements (FEATURE-530).
-	boardSt *boardState
+	boardSt               *boardState
 	memoryEnabled         bool // whether persistent memory tools are enabled
 	planEnabled           bool // whether task plan tools are enabled
 	subAgentEnabled       bool // whether sub-agent tools are enabled
@@ -1906,8 +1906,10 @@ func (a *Agent) GetMaxModelLen() int {
 // status bar (FEATURE-378).
 type ModelInfo struct {
 	TextModelName   string // main text model name
+	TextModelID     string // main text model ID (the configured model id)
 	TextMaxLen      int    // main text model max context length (0 = unknown)
 	VisionModelName string // vision model name (empty when none)
+	VisionModelID   string // vision model ID (the configured model id)
 	VisionMaxLen    int    // vision model max context length (0 = unknown)
 	// ModeTextModelID / ModeVisionModelID are the current work mode's bound
 	// model IDs (empty when the mode has no binding, i.e. uses the global
@@ -1927,10 +1929,12 @@ func (a *Agent) ModelInfo() ModelInfo {
 	}
 	if m := a.resolveModelForInfo(false); m != nil {
 		info.TextModelName = m.Model
+		info.TextModelID = m.ID
 		info.TextMaxLen = m.MaxModelLen
 	}
 	if v := a.resolveModelForInfo(true); v != nil {
 		info.VisionModelName = v.Model
+		info.VisionModelID = v.ID
 		info.VisionMaxLen = v.MaxModelLen
 	}
 	// Expose the current mode's bound model IDs so the web UI can tell whether

@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FIX-549 | 0.71.1 | P1 | 回放显示三修：块标题按事件类型（THINK/LLM/TOOL）；工具块开始时关闭当前 LLM 块使实时与回放顺序一致；事件持久化携带发生时间 ts，前端优先用 ts 显示（回放排序仍用库内自然顺序 seq） |
 
-> 当前 BUILD: 1103
+> 当前 BUILD: 1105
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FIX-549 会话记录回放显示修复** [BUILD-1103]
+- [ ] **FIX-549 会话记录回放显示修复** [BUILD-1105]
   - 背景（用户实测反馈）：① 回放出来的 LLM 块似乎都按 THINK 块显示（暗色字 + 斜体）；② 完成报告（`TOOL: 完成任务`）之后又跟着若干 LLM 块，这些块本应显示在完成报告之前；③ 回放的所有信息块时间戳显示为同一个时间，不可能全部相同。
   - 根因（隔离实例 + 调试浏览器实测确认，非推测）：
     1. **标题错**：回放走 `renderEvent` 尾部通用分支，标题只按通道取（`web/static/app.js:2184` `CHAN_LABEL[ev.chan] || …`，chan=llm → `LLM`）；实时流式路径用的是类型专属标题（`app.js:1956-1958`，`THINK`/`LLM`/`TOOL`）。隔离实例实测 DOM：`cls: ev thinking  label: LLM`（推理文本块的标题被写成 LLM）→ 视觉上即“LLM 块被 THINK 化”。
@@ -38,6 +38,8 @@
   - 验证情况：
     - A 组（自动化）全绿：新增 `web/fix549_test.go`（UC-0001~0008，8 个用例）全部 PASS；`go test ./web/ ./store/` 通过；`go build ./... && go vet ./...` 通过；`gofmt` 无差异；产物 `work/co-shell-0.71.1.darwin.arm64`（自检 `co-shell v0.71.1 [BUILD-1103]`）。
     - B 组（隔离实例 `--serve --port 28281` + 调试浏览器）：隔离实例可正常启动并响应（HTTP 200），但提交真实任务后调试浏览器的单客户端接管把页面流重置（DOM 采到空列表），未取得有效的实时/回放 DOM 对照证据 → 待用户在真实界面复核 UC-0009~0011（标题为 THINK/LLM/TOOL、顺序 `[LLM][TOOL][LLM]`、迭代行时间戳互不相同）。
+    - C 组（编译 3）：build 计数 1103→1104（co-shell `main.go` 与 co-shell-hub `cmd/co-shell-hub/main.go` 同步），交叉编译 co-shell / co-shell-hub 的 darwin.arm64、linux.arm64、windows.amd64.exe 六产物（已压 zip），Linux arm64 版已复制到 `liangshuang@192.168.3.39:~/bin/`（仅复制，未重启远端）。
+    - D 组（小优化）：状态条主/视觉模型显示改为用户配置的模型 ID（`agent/loop.go` ModelInfo 新增 `TextModelID`/`VisionModelID` 并填充 `m.ID`；`web/server.go` bootstrap 下发 `textModelID`/`visionModelID`；`web/static/app.js` 状态条优先显示 ID、缺失回退名称，两处 modelInfo 构建加入 ID 字段）。验证：`gofmt` 无差异、`go build ./... && go vet ./...` 通过、`go test ./web/ ./store/ -short` 通过、`node --check web/static/app.js` 通过。
 
 > **版本**: v0.71.0
 

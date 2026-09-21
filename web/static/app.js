@@ -2821,13 +2821,17 @@ function updateStatus() {
   // hover targets, each with its own selector menu. The model name + context
   // usage sit in a .sb-model-name span so narrow screens can hide the text and
   // keep only the brain/eye icon (FEATURE-487).
-  if (modelInfo && modelInfo.textModel) {
-    sbModelText.innerHTML = iconHTML("i-model-text", "ico-sb") + "<span class='sb-model-name'>" + modelInfo.textModel + "(" + sbPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
+  // Show the configured model ID (fall back to the model name when the
+  // backend does not provide the ID yet).
+  const textModelLabel = (modelInfo && (modelInfo.textModelID || modelInfo.textModel)) || "";
+  const visionModelLabel = (modelInfo && (modelInfo.visionModelID || modelInfo.visionModel)) || "";
+  if (textModelLabel) {
+    sbModelText.innerHTML = iconHTML("i-model-text", "ico-sb") + "<span class='sb-model-name'>" + textModelLabel + "(" + sbPct(lastTotal, modelInfo.textMaxLen) + " of " + fmtLen(modelInfo.textMaxLen) + ")</span>";
   } else {
     sbModelText.innerHTML = iconHTML("i-model-text", "ico-sb");
   }
-  if (modelInfo && modelInfo.visionModel) {
-    sbModelVision.innerHTML = iconHTML("i-model-vision", "ico-sb") + "<span class='sb-model-name'>" + modelInfo.visionModel + "(" + sbPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
+  if (visionModelLabel) {
+    sbModelVision.innerHTML = iconHTML("i-model-vision", "ico-sb") + "<span class='sb-model-name'>" + visionModelLabel + "(" + sbPct(lastTotal, modelInfo.visionMaxLen) + " of " + fmtLen(modelInfo.visionMaxLen) + ")</span>";
   } else {
     sbModelVision.innerHTML = iconHTML("i-model-vision", "ico-sb");
   }
@@ -6729,7 +6733,7 @@ async function refreshModelInfo() {
     const resp = await fetch("api/bootstrap");
     const b = await resp.json();
     if (b.textModel) {
-      modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
+      modelInfo = { textModel: b.textModel, textModelID: b.textModelID || "", textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionModelID: b.visionModelID || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
     }
     updateStatus();
   } catch { /* keep the current modelInfo on failure */ }
@@ -7482,7 +7486,7 @@ async function refreshBranch() {
     if (b.branch) document.getElementById("wsBranch").textContent = b.branch;
     // FEATURE-378: active text/vision model context info for the status bar.
     if (b.textModel) {
-      modelInfo = { textModel: b.textModel, textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
+      modelInfo = { textModel: b.textModel, textModelID: b.textModelID || "", textMaxLen: b.textMaxLen || 0, visionModel: b.visionModel || "", visionModelID: b.visionModelID || "", visionMaxLen: b.visionMaxLen || 0, modeTextModelID: b.modeTextModelID || "", modeVisionModelID: b.modeVisionModelID || "" };
     }
     // FEATURE-455: remote access + download flags. When remote and download
     // are both enabled, the file list's reveal icon becomes a download icon.
