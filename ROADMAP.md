@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FEATURE-547 | 0.70.0 | P2 | 工作区图片点击预览由全屏模态弹窗改为中央主工作区非模态视图（复用 `.file-viewer` 定位与 `.fv-titlebar` 气泡样式）；底部信息气泡显示文件名/大小/修改时间/分辨率，点 ✕ 关闭；非模态期间可直接在左侧文件列表切换预览（图片↔图片、图片↔文本互斥）；原模态 `#preview` 保留给输入框附件缩略图放大使用 |
 
-> 当前 BUILD: 1095
+> 当前 BUILD: 1096
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -30,6 +30,8 @@
   - 分支：**FEATURE-547**（基于 main，v0.69.0 已合并并打 tag），版本 v0.70.0
   - 实现概要：`web/static/index.html` 新增 `#imgViewer`（复用 `.file-viewer` 定位与 `.fv-titlebar` 气泡类，仅新增 `.iv-body` 与 `.iv-name` 两条样式）；`web/static/app.js` 重写 `openImagePreview` 为非模态实现（互斥关闭文本预览、树高亮、view_file 动态事件、再点关闭）、新增 `closeImageViewer`、绑定 `ivClose` 与气泡 hover 激活；原 `#preview` 模态与其点击遮罩关闭绑定**保持不变**（输入框附件缩略图放大仍在用），并清理了仅旧弹窗使用的 `previewImg`/`pvName` 等死引用。
   - 验证情况：[BUILD-1094] 新增 `web/feature547_test.go`（UC-0001~0004 结构单测全绿）；用 `work/co-shell-0.70.0.darwin.arm64 -w /tmp/co-shell-547-ws --serve --port 28391` 隔离实例浏览器实测 UC-0005~0016：无模态遮罩、预览仅覆盖中央主工作区（240,79 ~ 1033×503）、气泡显示 `favicon.png | 130B | 时间 | 24 × 24` 且仅 ✕ 可关、点气泡本体/点外部不关、长文件名省略号且气泡 423px < 预览区 470px、列表直切与图片↔文本互斥、同图再点关闭且高亮清零、损坏图片可开可关、320×320 图渲染不拉伸。
+   - 追加（BUILD-1095、1096，用户要求）：「hub 中启动 agent 时，同样自动激活打开的 co-shell 输入框」。所有「切换到某 agent 并打开它」的入口统一聚焦其输入框：① 抽屉卡片点击（BUILD-1095）；② 卡片电源开关启动已停止的 agent（`startAgent`）；③ 新建 agent 后自动启动并打开（`createLocalAgent`）。首屏自动选中第一个 agent 仍不聚焦（用户确认）。`saveAgentEdit` 保存后仅 `refresh()`（不重建 iframe、不切换当前 agent），无「打开」动作故无聚焦行为。
+   - 追加验证：[BUILD-1096] `hub/gateway/webui_focus_test.go` 扩展（`TestHubFocusOnEverySwitchEntry` 锁定 1 定义 + 3 调用，并断言首屏自动选中处无聚焦），hub 模块 `go build ./... && go vet ./...` 通过、单测全绿；隔离 hub 实例浏览器实测：电源开关启动、新建 agent 后自动打开两条路径焦点均落入该 agent 输入框（可直接键入）。
   - 基线对比：`go test ./...` 中 `agent`（i18n 文案）与 `cmd`（TestWebWizardModelNameStep）的失败在 main 基线 worktree 上同样复现，非本特性引入；`go build ./... && go vet ./...` 通过。
   - 状态：🚧 待用户验证（等待用户实测确认后再执行合并 main）
 

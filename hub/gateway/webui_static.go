@@ -927,11 +927,12 @@ const webIndexHTML = `<!DOCTYPE html>
     if (frames[id]){ frames[id].remove(); delete frames[id]; }
   }
 
-  // FEATURE-547: after the drawer switches to an agent, put the keyboard focus
-  // into that agent's co-shell input so the user can start typing without an
-  // extra click. The frame is same-origin (reverse-proxied under /agent/{id}/),
-  // so its input can be focused directly; a frame that is still loading has no
-  // input yet, hence the one-shot load listener as a fallback.
+  // FEATURE-547: after the hub switches to an agent — a drawer card click, the
+  // power switch starting a stopped agent, or the create-then-start flow — put
+  // the keyboard focus into that agent's co-shell input so the user can start
+  // typing without an extra click. The frame is same-origin (reverse-proxied
+  // under /agent/{id}/), so its input can be focused directly; a frame that is
+  // still loading has no input yet, hence the one-shot load listener fallback.
   function focusAgentInput(id){
     var f = frames[id];
     if (!f) return;
@@ -1266,6 +1267,7 @@ const webIndexHTML = `<!DOCTYPE html>
       var f = frames[id];
       if (f){ f.src = '/agent/' + encodeURIComponent(id) + '/'; }
       else { ensureFrame(id); }
+      focusAgentInput(id); // FEATURE-547: a started agent is focused like a card switch
       refresh();
     });
   }
@@ -1574,6 +1576,7 @@ const webIndexHTML = `<!DOCTYPE html>
         var f = frames[nid];
         if (f){ f.src = '/agent/' + encodeURIComponent(nid) + '/'; }
         else { ensureFrame(nid); }
+        focusAgentInput(nid); // FEATURE-547: a freshly created agent is focused too
         refresh();
       });
     });

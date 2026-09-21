@@ -58,15 +58,26 @@ func TestHubSwitchFocusesAgentInput(t *testing.T) {
 	}
 }
 
-// TestHubFocusOnlyOnCardSwitch pins the agreed scope: only the drawer's agent
-// card click focuses the input — the other switch entry points (create / edit
-// save) and the boot-time auto-selection keep the previous behaviour. Exactly
-// two occurrences (one definition + one call) enforce that.
-func TestHubFocusOnlyOnCardSwitch(t *testing.T) {
-	if got := strings.Count(webIndexHTML, "focusAgentInput("); got != 2 {
-		t.Errorf("focusAgentInput( occurrences = %d, want 2 (definition + card-click call)", got)
+// TestHubFocusOnEverySwitchEntry pins the agreed scope: every hub entry point
+// that switches to an agent and opens its frame focuses that agent's input —
+// the drawer card click, the power switch starting a stopped agent, and the
+// create-then-start flow. The boot-time auto-selection keeps the previous
+// behaviour and must not steal the focus. Exactly four occurrences (one
+// definition + three calls) enforce the agreed set.
+func TestHubFocusOnEverySwitchEntry(t *testing.T) {
+	if got := strings.Count(webIndexHTML, "focusAgentInput("); got != 4 {
+		t.Errorf("focusAgentInput( occurrences = %d, want 4 (definition + card click + start + create)", got)
 	}
 	if !strings.Contains(webIndexHTML, "closePanel(); focusAgentInput(current);") {
 		t.Error("the agent card click does not focus the newly opened agent")
+	}
+	if body := uiFuncBody(webIndexHTML, "function startAgent(id, sw)"); !strings.Contains(body, "focusAgentInput(id)") {
+		t.Error("starting a stopped agent does not focus its co-shell input")
+	}
+	if body := uiFuncBody(webIndexHTML, "function createLocalAgent()"); !strings.Contains(body, "focusAgentInput(nid)") {
+		t.Error("the create-then-start flow does not focus the new agent's co-shell input")
+	}
+	if strings.Contains(webIndexHTML, "ensureFrame(current);\n      focusAgentInput") {
+		t.Error("the boot-time auto-selection must not steal the keyboard focus")
 	}
 }
