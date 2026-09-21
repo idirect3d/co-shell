@@ -927,6 +927,25 @@ const webIndexHTML = `<!DOCTYPE html>
     if (frames[id]){ frames[id].remove(); delete frames[id]; }
   }
 
+  // FEATURE-547: after the drawer switches to an agent, put the keyboard focus
+  // into that agent's co-shell input so the user can start typing without an
+  // extra click. The frame is same-origin (reverse-proxied under /agent/{id}/),
+  // so its input can be focused directly; a frame that is still loading has no
+  // input yet, hence the one-shot load listener as a fallback.
+  function focusAgentInput(id){
+    var f = frames[id];
+    if (!f) return;
+    function doFocus(){
+      try {
+        var doc = f.contentDocument;
+        var inp = doc && doc.getElementById('input');
+        if (inp) inp.focus();
+      } catch (e) { /* frame not ready: keep the hub focus */ }
+    }
+    doFocus();
+    f.addEventListener('load', doFocus, { once: true });
+  }
+
   function renderList(){
     listEl.innerHTML = '';
     openCard = null;
@@ -956,7 +975,7 @@ const webIndexHTML = `<!DOCTYPE html>
         if (r._moved){ r._moved = false; return; } // just finished a swipe drag
         if (r._open){ setSwipe(r, false); return; } // click an open card closes it
         if (openCard && openCard !== r) setSwipe(openCard, false);
-        current = a.id; renderList(); ensureFrame(current); showFrame(current); closePanel();
+        current = a.id; renderList(); ensureFrame(current); showFrame(current); closePanel(); focusAgentInput(current);
       });
       // Power switch: running -> stop, stopped -> start (revert on start failure).
       // The switch label stops click propagation so toggling it never triggers

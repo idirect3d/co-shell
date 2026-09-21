@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FEATURE-547 | 0.70.0 | P2 | 工作区图片点击预览由全屏模态弹窗改为中央主工作区非模态视图（复用 `.file-viewer` 定位与 `.fv-titlebar` 气泡样式）；底部信息气泡显示文件名/大小/修改时间/分辨率，点 ✕ 关闭；非模态期间可直接在左侧文件列表切换预览（图片↔图片、图片↔文本互斥）；原模态 `#preview` 保留给输入框附件缩略图放大使用 |
 
-> 当前 BUILD: 1094
+> 当前 BUILD: 1095
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -47,7 +47,7 @@
 |------|------|------|------|
 | FEATURE-546 | 0.69.0 | P3 | 状态栏汇总/单轮用量可点击弹出向上浮层；汇总浮层含总量概览、历史总 KV cache 命中率、按天/按小时 token 趋势、in/out tokens/s 速率趋势；单轮浮层含本轮各项指标 + KV cache 命中率 + MTP 命中率。KV cache 取自响应 `usage.prompt_tokens_details.cached_tokens`；MTP 取自 vLLM `/metrics` 的 `vllm:spec_decode_num_accepted_tokens_total / num_draft_tokens_total`，不可用时须提示用户并给出建议 |
 
-> 当前 BUILD: 1094
+> 当前 BUILD: 1095
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
