@@ -371,7 +371,10 @@
     <div id="tree" class="tree"></div>
   </aside>
 
-  <section id="stream-wrap">
+  <!-- FEATURE-547: tabindex="-1" makes the main workspace a programmatic focus
+       target (the hub focuses it instead of the message input box after
+       switching to an agent); -1 keeps it out of the Tab order. -->
+  <section id="stream-wrap" tabindex="-1">
     <!-- FEATURE-425: main message area title bar (height matches the workspace
          / task-plan panel heads). Left: a three-segment display-mode pill
          (silent/minimal/normal); centre: the current session title (editable). -->
@@ -425,6 +428,22 @@
         <span class="fv-mtime" id="fvMtime"></span>
         <button class="fv-raw" id="fvRaw" title="切换原始文本/解析渲染">Raw</button>
         <button class="fv-close" id="fvClose" title="关闭预览"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <!-- FEATURE-547: non-modal image previewer. It borrows the text previewer's
+         layout (.file-viewer) so it covers only the central message area — the
+         workspace tree stays clickable and the user can switch the previewed
+         file straight from the list — and shows the same floating info bubble
+         (.fv-titlebar) at the bottom with name / size / mtime / resolution.
+         The #preview modal below is kept for the attachment thumbnails. -->
+    <div id="imgViewer" class="file-viewer hidden">
+      <div class="iv-body" id="ivBody"><img id="ivImg" alt=""></div>
+      <div class="fv-titlebar" id="ivTitlebar">
+        <span class="iv-name" id="ivName"></span>
+        <span class="fv-size" id="ivSize"></span>
+        <span class="fv-mtime" id="ivMtime"></span>
+        <span class="fv-size" id="ivRes"></span>
+        <button class="fv-close" id="ivClose" title="关闭预览"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
     </div>
   </section>

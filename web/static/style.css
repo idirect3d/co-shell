@@ -691,6 +691,11 @@ aside {
 /* ---------- event stream ---------- */
 
 #stream-wrap { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+/* FEATURE-547: the main workspace is a programmatic focus target (the hub
+   focuses it instead of the message input box after switching to an agent),
+   so suppress the browser's default focus ring — it would otherwise paint a
+   blue border around the whole workspace. */
+#stream-wrap:focus { outline: none; }
 /* FEATURE-425: main message area title bar. Height matches the workspace /
    task-plan panel heads (35px) so the three align. Left: three-segment
    display-mode pill; centre: editable session title. */
@@ -2184,6 +2189,34 @@ button.qs-kbd:active { transform: translateY(1px); }
   line-height: 1;
 }
 .fv-titlebar .fv-close:hover { color: var(--err); }
+/* FEATURE-547: non-modal image viewer. The container and the info bubble reuse
+   .file-viewer / .fv-titlebar as-is, so the bubble sits at exactly the same
+   place and size as the text previewer's; only the image stage below is new.
+   The bottom padding keeps the whole image clear of the floating bubble. */
+.iv-body {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 8px 48px;
+  background: var(--mono-bg);
+}
+.iv-body img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+/* FEATURE-547: the image name is a plain label (no reveal-in-tree action), so
+   it reuses the path colour without the pointer/underline affordance. */
+.fv-titlebar .iv-name {
+  flex: 1;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* FEATURE-425: the highlighted dot before the session title in the main
    message area title bar (same as the current-session dot in the session
    list). */

@@ -4,6 +4,43 @@
 
 ---
 
+## v0.70.0 — 工作区图片预览改为非模态
+
+> **版本**: v0.70.0
+
+> **状态**: 🚧 进行中（分支 `FEATURE-547`）
+> **里程碑**: 工作区图片文件改为在主工作区非模态预览 + 底部文件信息气泡
+> **说明**：当前点击工作区文件列表中的图片文件会弹出**模态**窗口（铺满全屏的遮罩，点击遮罩即关闭），既遮挡了左侧文件列表，也无法在列表里直接切换预览下一张图。本次把图片预览改为与文本预览（FEATURE-425 `#fileViewer`）一致的形态：在中央主工作区（`#stream-wrap`）内以**非模态**视图覆盖显示，底部悬浮文件信息气泡（文件名 / 大小 / 修改时间 / 分辨率 + 关闭按钮），预览期间左侧文件列表可直接点击切换文件。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-547 | 0.70.0 | P2 | 工作区图片点击预览由全屏模态弹窗改为中央主工作区非模态视图（复用 `.file-viewer` 定位与 `.fv-titlebar` 气泡样式）；底部信息气泡显示文件名/大小/修改时间/分辨率，点 ✕ 关闭；非模态期间可直接在左侧文件列表切换预览（图片↔图片、图片↔文本互斥）；原模态 `#preview` 保留给输入框附件缩略图放大使用 |
+
+> 当前 BUILD: 1098
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-547 工作区图片预览改为中央主工作区非模态视图 + 底部文件信息气泡**
+  - 背景（用户提出）：「当用户点击工作区的图片文件，现在是“弹出”模态窗口方式，用户点击其他位置关闭，改为和其他文本预览类似的方式，在主工作区显示一个非模态的窗口，覆盖整个中央主工作区。在下方显示文件信息气泡，可以点击关闭，以便能够在左侧工作区文件列表快速切换预览文件」。
+  - 现状调研（编码前确认，全部为硬事实）：图片单击入口 `web/static/app.js:4911`（`IMAGE_EXT` 命中即 `openImagePreview`）；`openImagePreview`（`app.js:4951`）显示 `#preview`，而 `.preview`（`style.css:2033`）是 `position:fixed; inset:0` 的全屏模态遮罩，`app.js:5405` 绑定「点击遮罩空白处关闭」；`#preview` 同时被输入框附件缩略图放大复用（`app.js:4299`），**不可删除**。文本预览 `#fileViewer`（`index.html:420`）用 `.file-viewer`（`style.css:2087`）绝对定位覆盖在 `#stream-wrap` 内、底部 `.fv-titlebar`（`style.css:2124`）为悬浮气泡 + ✕ 关闭（`app.js:5408`），是非模态形态，可直接复用。
+  - 交互决策（经 ask_user 确认）：① 版本 **v0.70.0**、任务号 **FEATURE-547**；② 再次单击「当前正在预览的同一张图片」与文本预览一致——**再点一次即关闭**；③ 信息气泡**仅 ✕ 按钮可关闭**（气泡体不响应点击，与文本预览气泡一致）。
+  - 实现约定：新增 `#imgViewer`（复用 `.file-viewer` + `.fv-titlebar` 样式类，避免重复 CSS），仅在容器/图片填充方式上新增少量样式；图片与文本预览互斥（打开一方即关闭另一方）；打开图片时同步 `highlightTreeFile()` 高亮并上报 `view_file` 动态事件（与文本预览一致）。
+  - 分支：**FEATURE-547**（基于 main，v0.69.0 已合并并打 tag），版本 v0.70.0
+  - 实现概要：`web/static/index.html` 新增 `#imgViewer`（复用 `.file-viewer` 定位与 `.fv-titlebar` 气泡类，仅新增 `.iv-body` 与 `.iv-name` 两条样式）；`web/static/app.js` 重写 `openImagePreview` 为非模态实现（互斥关闭文本预览、树高亮、view_file 动态事件、再点关闭）、新增 `closeImageViewer`、绑定 `ivClose` 与气泡 hover 激活；原 `#preview` 模态与其点击遮罩关闭绑定**保持不变**（输入框附件缩略图放大仍在用），并清理了仅旧弹窗使用的 `previewImg`/`pvName` 等死引用。
+  - 验证情况：[BUILD-1094] 新增 `web/feature547_test.go`（UC-0001~0004 结构单测全绿）；用 `work/co-shell-0.70.0.darwin.arm64 -w /tmp/co-shell-547-ws --serve --port 28391` 隔离实例浏览器实测 UC-0005~0016：无模态遮罩、预览仅覆盖中央主工作区（240,79 ~ 1033×503）、气泡显示 `favicon.png | 130B | 时间 | 24 × 24` 且仅 ✕ 可关、点气泡本体/点外部不关、长文件名省略号且气泡 423px < 预览区 470px、列表直切与图片↔文本互斥、同图再点关闭且高亮清零、损坏图片可开可关、320×320 图渲染不拉伸。
+   - 追加（BUILD-1095、1096，用户要求）：「hub 中启动 agent 时，同样自动激活打开的 co-shell 输入框」。所有「切换到某 agent 并打开它」的入口统一聚焦其输入框：① 抽屉卡片点击（BUILD-1095）；② 卡片电源开关启动已停止的 agent（`startAgent`）；③ 新建 agent 后自动启动并打开（`createLocalAgent`）。首屏自动选中第一个 agent 仍不聚焦（用户确认）。`saveAgentEdit` 保存后仅 `refresh()`（不重建 iframe、不切换当前 agent），无「打开」动作故无聚焦行为。
+   - 追加验证：[BUILD-1096] `hub/gateway/webui_focus_test.go` 扩展（`TestHubFocusOnEverySwitchEntry` 锁定 1 定义 + 3 调用，并断言首屏自动选中处无聚焦），hub 模块 `go build ./... && go vet ./...` 通过、单测全绿；隔离 hub 实例浏览器实测：电源开关启动、新建 agent 后自动打开两条路径焦点均落入该 agent 输入框（可直接键入）。
+   - 追加（BUILD-1097，用户修正焦点目标）：「设置焦点目前是设置到录入框，我希望是 co-shell 主工作区即可，**不要把焦点放进消息输入框**，否则当时如果需要用户选择一个选项，用户按快捷键是没用的」。三条切换/启动入口改为把键盘交给该 agent 的**主工作区**：`focusAgentInput` → `focusAgentView`（先 `contentWindow.focus()` 使按键进入该 agent，再聚焦 `#stream-wrap`，退化 `doc.body`，不再触碰 `#input`）；`web/static/index.html` 给 `#stream-wrap` 加 `tabindex="-1"`，使其成为可程序化聚焦的主工作区元素（不进 Tab 顺序，直接访问 co-shell 时行为不变）；`web/static/app.js` 的 document 级 keydown 增加 `pendingInteraction && !supplementMode` 例外，交互待答时不再把焦点抢回消息输入框（原有「不在输入框时单字符按键把焦点带回输入框」行为仅在该例外之外保留）。
+   - 追加验证：[BUILD-1097] hub 模块 `go build ./... && go vet ./...` 与 `go test ./gateway/ -run TestHub -v`（`TestHubSwitchFocusesAgentWorkspace`、`TestHubFocusOnEverySwitchEntry`）全绿；根模块 `go build ./... && go vet ./...` 通过；隔离 hub（28396，agent t1/t2 于 28394/28395）浏览器实测：首屏自动选中 `BODY#`（不聚焦）、卡片点击切换后 t2 内 `SECTION#stream-wrap`（hasFocus=true）、电源开关启动后 t1 内 `SECTION#stream-wrap`（hasFocus=true），均不再是 `TEXTAREA#input`；新建 agent（`createLocalAgent`）与另两条共用同一函数与断言，未另做浏览器实测；app.js 的 `pendingInteraction` 例外为代码审查确认（未做 ask_user 全链路实测）。
+   - 追加（BUILD-1098，用户反馈修正视觉）：用户实测发现聚焦主工作区后其四周出现「蓝色粗边框」并询问是否必须——**非必须，已去除**。这是浏览器（Chrome UA 样式）对获得焦点元素的默认 focus ring，由 `#stream-wrap` 获得 `tabindex="-1"` 并被 `focus()` 引入；`web/static/style.css` 新增 `#stream-wrap:focus { outline: none; }`（作者样式优先于 UA 样式），`tabindex="-1"` 与聚焦行为保持不变。
+   - 追加验证：[BUILD-1098] 根模块与 hub 模块 `go build ./... && go vet ./...` 通过、hub `go test ./gateway/ -run TestHub` 通过；隔离实例 `work/co-shell-0.70.0.darwin.arm64 -w /tmp/co-shell-hub-547b/ws1 --serve --port 28391` 确认新样式已随产物下发（`#stream-wrap:focus { outline: none; }` 与 `tabindex="-1"`）。浏览器目视复测未能在本会话完成：调试浏览器 CDP 导航持续超时（另一 agent 的 Chrome 占用 9222、隔离 agent 端口已不可达），改为在 BUILD 1098 产物上由用户目视确认。
+  - 基线对比：`go test ./...` 中 `agent`（i18n 文案）与 `cmd`（TestWebWizardModelNameStep）的失败在 main 基线 worktree 上同样复现，非本特性引入；`go build ./... && go vet ./...` 通过。
+  - 状态：✅ 已完成并合并到 main（tag `v0.70.0`，BUILD-1098；用户已用 BUILD 1098 产物实测通过）
+
+---
+
 ## v0.69.0 — 已完成
 
 > **版本**: v0.69.0
@@ -16,7 +53,7 @@
 |------|------|------|------|
 | FEATURE-546 | 0.69.0 | P3 | 状态栏汇总/单轮用量可点击弹出向上浮层；汇总浮层含总量概览、历史总 KV cache 命中率、按天/按小时 token 趋势、in/out tokens/s 速率趋势；单轮浮层含本轮各项指标 + KV cache 命中率 + MTP 命中率。KV cache 取自响应 `usage.prompt_tokens_details.cached_tokens`；MTP 取自 vLLM `/metrics` 的 `vllm:spec_decode_num_accepted_tokens_total / num_draft_tokens_total`，不可用时须提示用户并给出建议 |
 
-> 当前 BUILD: 1093
+> 当前 BUILD: 1095
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
