@@ -1622,6 +1622,19 @@ function initTopSentinel() {
   io.observe(s);
 }
 
+// eventBlockLabel returns the title a block shows. FIX-549: the replay path
+// used to derive it from the channel alone, so a THINK block was titled "LLM"
+// (dim italic text under an LLM heading). The live streaming path already uses
+// these same type-specific titles ("THINK"/"LLM"/"TOOL"); keep both in step.
+function eventBlockLabel(ev) {
+  switch (ev.type) {
+    case "content_chunk": case "content": return "LLM";
+    case "thinking_chunk": case "thinking": return "THINK";
+    case "tool_call": case "tool_call_stream": return "TOOL";
+  }
+  return CHAN_LABEL[ev.chan] || (ev.chan || "SYS").toUpperCase();
+}
+
 function eventClass(ev) {
   const lvl = ev.level ? " level-" + ev.level : "";
   switch (ev.type) {
@@ -1757,7 +1770,10 @@ function renderEvent(ev) {
       // timestamp and thousands separators, e.g. "58. 2026-08-23 12:30:58
       // ↑34,670 ↓154 Σ34,824/1,048,576 1.8s 75".
       const seq = m.ctx_index || (++iterCount);
-      const parts = [seq + ". " + fmtTime(new Date())];
+      // FIX-549: use the event's own timestamp. It used to be "now" at render
+      // time, so a replay — a whole page painted in one tick — showed the same
+      // clock value on every line.
+      const parts = [seq + ". " + fmtTime(ev.ts ? new Date(ev.ts) : new Date())];
       const p = parseInt(m.prompt, 10) || 0;
       const c = parseInt(m.completion, 10) || 0;
       // FIX-545: same shape as the status bar — "↑N（tps, 用时） ↓N（tps, 用时）".
@@ -1984,6 +2000,14 @@ function renderEvent(ev) {
     // header by the tool_call input event), so it is stripped from the params.
     const isNewTool = ev.text && ev.text.includes("⚙️");
     if (!curTool || isNewTool) {
+      // FIX-549: a concrete tool block ends the LLM text block before it. The
+      // live view used to keep curLLM open, so text emitted after the tool call
+      // was appended to the LLM block ABOVE the tool card, while a replay (no
+      // cursors) drew it as a new block AFTER the tool card. Both paths now
+      // agree on [LLM][TOOL][LLM] in strict emission order.
+      unmarkStreaming(curLLM && curLLM.body);
+      maybeCollapseEnded("llm");
+      curLLM = null;
       curTool = newStreamBlock("tool", "TOOL", msgIndex);
       // FIX-462: record the block in creation order so the tool_call input
       // events can backfill the intent to each block one by one, even when the
@@ -2073,7 +2097,14 @@ function renderEvent(ev) {
           if (byName && !byName._intentFilled) reuse = byName;
         }
         if (reuse) curTool = reuse;
-        else curTool = newStreamBlock("tool", "TOOL", msgIndex);
+        else {
+          // FIX-549: same rule as the streaming path — a new tool block ends the
+          // LLM text block before it, so live and replay agree on the order.
+          unmarkStreaming(curLLM && curLLM.body);
+          maybeCollapseEnded("llm");
+          curLLM = null;
+          curTool = newStreamBlock("tool", "TOOL", msgIndex);
+        }
       }
       // FEATURE-388: set the TOOL block title to "TOOL <action> - <intent>"
       // from the structured ToolSummary.
@@ -2181,7 +2212,7 @@ function renderEvent(ev) {
   }
 
   curLLM = curThinking = curSup = null;
-  const label = CHAN_LABEL[ev.chan] || (ev.chan || "SYS").toUpperCase();
+  const label = eventBlockLabel(ev);
   // While the model wizard is active, route its ui_text output to the wizard
   // modal instead of the main event stream (FEATURE-422).
   if (ev.type === "ui_text" && ev.chan === "repl" && wizardActive) {

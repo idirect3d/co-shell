@@ -169,6 +169,11 @@ type eventJSON struct {
 	Chan  string            `json:"chan,omitempty"`
 	Text  string            `json:"text,omitempty"`
 	Meta  map[string]string `json:"meta,omitempty"`
+	// FIX-549: the moment the event happened (epoch milliseconds). Live frames and
+	// persisted events both carry it, so a replayed record can show the real time
+	// instead of the moment the browser painted the block (which made every
+	// replayed line show the same clock value).
+	Ts int64 `json:"ts,omitempty"`
 }
 
 // serverMessage is a server-to-browser WebSocket message.
@@ -184,12 +189,12 @@ type serverMessage struct {
 	// (logo breathing, red ⏸ button, session-title highlight) instead of
 	// defaulting to idle. Pointer so that `false` is still serialised
 	// (omitempty alone would drop it).
-	Busy       *bool           `json:"busy,omitempty"`
-	Sessions   []sessionInfo   `json:"sessions,omitempty"`    // kind=sessions: the session list
-	Settings   json.RawMessage `json:"settings,omitempty"`    // kind=settings: the grouped setting items
-	Identity   json.RawMessage `json:"identity,omitempty"`    // kind=identity: the identity fields
-	OK         bool            `json:"ok,omitempty"`          // kind=settings_result: success flag
-	Message    string          `json:"message,omitempty"`     // kind=settings_result: result message
+	Busy     *bool           `json:"busy,omitempty"`
+	Sessions []sessionInfo   `json:"sessions,omitempty"` // kind=sessions: the session list
+	Settings json.RawMessage `json:"settings,omitempty"` // kind=settings: the grouped setting items
+	Identity json.RawMessage `json:"identity,omitempty"` // kind=identity: the identity fields
+	OK       bool            `json:"ok,omitempty"`       // kind=settings_result: success flag
+	Message  string          `json:"message,omitempty"`  // kind=settings_result: result message
 	// FIX-544: kind=identity_result carries the saved field key separately, so
 	// the browser can build a "<label> saved" confirmation from the field's
 	// localized label instead of showing the raw key.
@@ -590,14 +595,9 @@ func (s *Server) sendRaw(data []byte) error {
 }
 
 func (s *Server) sendEvent(ev agent.StreamEvent) bool {
-	ej := &eventJSON{Type: ev.Type, Text: ev.Text, Meta: ev.Meta}
-	if ev.Level != agent.LevelInfo {
-		ej.Level = ev.Level.String()
-	}
-	if ev.Chan != "" {
-		ej.Chan = string(ev.Chan)
-	}
-	return s.sendJSON(serverMessage{Kind: "event", Event: ej})
+	// FIX-549: stamp the frame with the moment it was emitted; newEventJSON falls
+	// back to now when the caller has no better time to offer.
+	return s.sendJSON(serverMessage{Kind: "event", Event: newEventJSON(ev, 0)})
 }
 
 // sendAsk pushes an interactive question request to the browser.
