@@ -360,3 +360,49 @@ func TestManagerYOLOPersisted(t *testing.T) {
 		t.Errorf("persisted YOLO = false after re-enabling, want true")
 	}
 }
+
+// TestCopySharedConfigCopiesShared verifies that when ~/.co-shell/config.json
+// exists, copySharedConfig copies it to the destination (FEATURE-550).
+func TestCopySharedConfigCopiesShared(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sharedDir := filepath.Join(home, ".co-shell")
+	if err := os.MkdirAll(sharedDir, 0755); err != nil {
+		t.Fatalf("mkdir shared dir: %v", err)
+	}
+	shared := filepath.Join(sharedDir, "config.json")
+	if err := os.WriteFile(shared, []byte(`{"llm":{"temperature":0.5}}`), 0644); err != nil {
+		t.Fatalf("write shared config: %v", err)
+	}
+
+	dst := filepath.Join(t.TempDir(), "config.json")
+	if err := copySharedConfig(dst); err != nil {
+		t.Fatalf("copySharedConfig: %v", err)
+	}
+	data, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("read dst: %v", err)
+	}
+	if string(data) != `{"llm":{"temperature":0.5}}` {
+		t.Errorf("dst content = %q, want copied shared config", string(data))
+	}
+}
+
+// TestCopySharedConfigCreatesEmpty verifies that when ~/.co-shell/config.json
+// does not exist, copySharedConfig creates an empty config file (FEATURE-550).
+func TestCopySharedConfigCreatesEmpty(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	dst := filepath.Join(t.TempDir(), "config.json")
+	if err := copySharedConfig(dst); err != nil {
+		t.Fatalf("copySharedConfig: %v", err)
+	}
+	data, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("read dst: %v", err)
+	}
+	if string(data) != "{}\n" {
+		t.Errorf("dst content = %q, want empty config", string(data))
+	}
+}

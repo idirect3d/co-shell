@@ -4,6 +4,34 @@
 
 ---
 
+## v0.72.0 — hub 非共享配置优先复制共享配置
+
+> **版本**: v0.72.0
+
+> **状态**: 🚧 进行中（分支 `FEATURE-550`）
+> **里程碑**: hub 创建/更新 agent 时，若「共享配置」关闭且 `{workspace}/config.json` 不存在，先尝试从 `~/.co-shell/config.json` 复制一份；若共享配置也不存在，再自动创建空文件
+> **说明**：当前 hub 在「共享配置」关闭时，若 `{workspace}/config.json` 不存在则直接创建空文件 `{}`，导致新 agent 没有任何模型/API 配置，需要用户手动配置。本次优化为：先尝试从 `~/.co-shell/config.json`（共享配置）复制一份到 `{workspace}/config.json`，使新 agent 继承用户已有的模型/API 设置；若共享配置也不存在，再回退为创建空文件。同时更新 Web UI 提示信息。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-550 | 0.72.0 | P1 | hub 非共享配置创建时优先复制 ~/.co-shell/config.json，不存在则创建空文件；同步更新 Web UI 提示信息 |
+
+> 当前 BUILD: 1106
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-550 hub 非共享配置优先复制共享配置** [BUILD-1106]
+  - 背景（用户提出）：「如果共享配置选择关，则使用 {workspace}/config.json，现在是不存在自动创建空文件，改成先尝试从~/.co-shell/config.json复制一份到{workspace}/，如不存在~/.co-shell/config.json再自动创建空文件。注意调整提示信息。」
+  - 分支：**FEATURE-550**（基于 main，v0.71.1 已合并并打 tag），版本 v0.72.0
+  - 实现概要：
+    - `hub/gateway/manager.go`：新增 `copySharedConfig(dst)` 辅助函数——先尝试读取 `~/.co-shell/config.json`，存在则复制到目标路径，不存在则创建空文件 `{}`；`CreateManaged` 与 `Update` 两处创建 `{workspace}/config.json` 的逻辑改为调用 `copySharedConfig`（仍不覆盖已存在的文件）。
+    - `hub/gateway/webui_static.go`：创建 Agent 表单与 Agent 详情两处「共享配置」提示信息更新为「不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件」。
+    - `hub/gateway/webui.go` 与 `manager.go` 相关注释同步更新。
+
+---
+
 ## v0.71.1 — 会话记录回放显示修复（标题/顺序/时间戳）
 
 > **版本**: v0.71.1
