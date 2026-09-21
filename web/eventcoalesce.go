@@ -26,9 +26,37 @@ package web
 
 import (
 	"encoding/json"
+	"strconv"
+	"time"
 
 	"github.com/idirect3d/co-shell/agent"
 )
+
+// eventTimeKey is the internal Meta key carrying the moment a coalesced block
+// started (epoch milliseconds). marshalEvent turns it into the wire field "ts"
+// and drops it from the serialized meta, so the browser never sees the internal
+// key (FIX-549).
+const eventTimeKey = "ts"
+
+// newEventJSON builds the wire form of one event. ts is when the event happened
+// (epoch milliseconds); <= 0 falls back to now.
+//
+// FIX-549: the value used to be missing entirely, and the browser stamped every
+// block with the moment it rendered — a replay paints a whole page in one tick,
+// which is why all replayed timestamp lines looked identical.
+func newEventJSON(ev agent.StreamEvent, ts int64) *eventJSON {
+	if ts <= 0 {
+		ts = time.Now().UnixMilli()
+	}
+	ej := &eventJSON{Type: ev.Type, Text: ev.Text, Meta: ev.Meta, Ts: ts}
+	if ev.Level != agent.LevelInfo {
+		ej.Level = ev.Level.String()
+	}
+	if ev.Chan != "" {
+		ej.Chan = string(ev.Chan)
+	}
+	return ej
+}
 
 // eventCoalescer turns the live event stream into a replayable one
 // (FEATURE-507).
@@ -50,10 +78,14 @@ type eventCoalescer struct {
 
 // pendingBlock is one in-flight block being accumulated.
 type pendingBlock struct {
-	kind string // "content" | "thinking" | "tool" | "sup"
+	kind  string // "content" | "thinking" | "tool" | "sup"
 	chan_ agent.ChannelID
-	text string
-	meta map[string]string
+	text  string
+	meta  map[string]string
+	// startedAt is when the block's first fragment arrived (epoch milliseconds).
+	// FIX-549: the block is stamped with this instead of the flush moment, so a
+	// replayed block shows when it really happened.
+	startedAt int64
 }
 
 // newEventCoalescer creates a coalescer for one session's stream.
@@ -90,7 +122,7 @@ func (c *eventCoalescer) appendFragment(kind string, ev agent.StreamEvent) []age
 	}
 	if startsNew {
 		out = c.flush()
-		c.pending = &pendingBlock{kind: kind, chan_: ev.Chan, meta: cloneMeta(ev.Meta)}
+		c.pending = &pendingBlock{kind: kind, chan_: ev.Chan, meta: cloneMeta(ev.Meta), startedAt: time.Now().UnixMilli()}
 	}
 	c.pending.text += ev.Text
 	return out
@@ -104,6 +136,14 @@ func (c *eventCoalescer) flush() []agent.StreamEvent {
 		return nil
 	}
 	c.pending = nil
+	if p.startedAt > 0 {
+		// FIX-549: carry the block's start time out through meta; newEventJSON (via
+		// marshalEvent) turns it into the wire field ts.
+		if p.meta == nil {
+			p.meta = map[string]string{}
+		}
+		p.meta[eventTimeKey] = strconv.FormatInt(p.startedAt, 10)
+	}
 	ev := agent.StreamEvent{
 		Type: coalescedType(p.kind),
 		Chan: p.chan_,
@@ -163,13 +203,24 @@ func cloneMeta(m map[string]string) map[string]string {
 // marshalling agent.StreamEvent directly: StreamEvent has no JSON tags, so a
 // direct marshal emits capitalised keys ("Type", "Chan", …) that the browser
 // cannot read — every replayed block then fell through to the SYS fallback.
+//
+// FIX-549: the persisted JSON also carries "ts": a coalesced block keeps the
+// moment it started (carried in eventTimeKey), any other event is stamped with
+// the moment it is written, which is its emission moment.
 func marshalEvent(ev agent.StreamEvent) ([]byte, error) {
-	ej := &eventJSON{Type: ev.Type, Text: ev.Text, Meta: ev.Meta}
-	if ev.Level != agent.LevelInfo {
-		ej.Level = ev.Level.String()
+	ts := int64(0)
+	if raw, ok := ev.Meta[eventTimeKey]; ok {
+		if v, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			ts = v
+		}
+		// Drop the internal key so it never reaches the browser's meta.
+		filtered := make(map[string]string, len(ev.Meta))
+		for k, v := range ev.Meta {
+			if k != eventTimeKey {
+				filtered[k] = v
+			}
+		}
+		ev.Meta = filtered
 	}
-	if ev.Chan != "" {
-		ej.Chan = string(ev.Chan)
-	}
-	return json.Marshal(ej)
+	return json.Marshal(newEventJSON(ev, ts))
 }

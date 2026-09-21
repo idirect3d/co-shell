@@ -4,7 +4,42 @@
 
 ---
 
-## v0.71.0 — 会话记录按会话隔离 + 完整有序
+## v0.71.1 — 会话记录回放显示修复（标题/顺序/时间戳）
+
+> **版本**: v0.71.1
+
+> **状态**: 🚧 进行中（分支 `FIX-549`）
+> **里程碑**: 回放块的标题按事件类型显示；实时与回放的块顺序统一；事件落盘携带真实发生时间
+> **说明**：v0.71.0 上线的会话记录回放在实测中发现三处缺陷：① 回放的 THINK 块标题落成「LLM」（回放走通用分支，标题只按通道取），表现为“LLM 块被渲染成 THINK 样式（暗色+斜体）”；② 持久化块边界（合并器类型一变即 flush）与前端实时游标规则（工具片段不关闭当前 LLM 块）不一致，使工具块之后的同一条消息正文在回放中落到工具块之后；③ 持久化事件不含发生时间，前端迭代行时间戳由渲染时 `new Date()` 生成，回放同瞬间渲染造成所有时间戳相同。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FIX-549 | 0.71.1 | P1 | 回放显示三修：块标题按事件类型（THINK/LLM/TOOL）；工具块开始时关闭当前 LLM 块使实时与回放顺序一致；事件持久化携带发生时间 ts，前端优先用 ts 显示（回放排序仍用库内自然顺序 seq） |
+
+> 当前 BUILD: 1105
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FIX-549 会话记录回放显示修复** [BUILD-1105]
+  - 背景（用户实测反馈）：① 回放出来的 LLM 块似乎都按 THINK 块显示（暗色字 + 斜体）；② 完成报告（`TOOL: 完成任务`）之后又跟着若干 LLM 块，这些块本应显示在完成报告之前；③ 回放的所有信息块时间戳显示为同一个时间，不可能全部相同。
+  - 根因（隔离实例 + 调试浏览器实测确认，非推测）：
+    1. **标题错**：回放走 `renderEvent` 尾部通用分支，标题只按通道取（`web/static/app.js:2184` `CHAN_LABEL[ev.chan] || …`，chan=llm → `LLM`）；实时流式路径用的是类型专属标题（`app.js:1956-1958`，`THINK`/`LLM`/`TOOL`）。隔离实例实测 DOM：`cls: ev thinking  label: LLM`（推理文本块的标题被写成 LLM）→ 视觉上即“LLM 块被 THINK 化”。
+    2. **顺序错**：合并器在块类型变化时立即 flush（`web/eventcoalesce.go:84-97`），工具片段会把已开始的正文块提前落盘，工具之后的正文再落成新块（落盘序 content, tool, content）；而前端实时在工具片段到达时**不关闭** `curLLM`（`app.js:1937-1950`：仅 `!curLLM` 才新建，tool 分支不置空游标），后续正文仍追加回工具卡上方那一个 LLM 块 → 实时与回放顺序不一致。
+    3. **时间戳相同**：持久化事件不含时间字段（`web/server.go:166-172` 仅 `type/level/chan/text/meta`）；前端唯一流内时间戳来自 `app.js:1760` `fmtTime(new Date())`（渲染时刻）→ 回放时同一瞬间渲染，时间戳全部相同。与排序无关：回放按 bbolt seq 升序（`store/eventstream.go:230 LoadEventsByGroups`），不按时间排序。
+  - 交互决策（经 ask_user 确认）：① 顺序采用 **B 实时对齐回放**——工具块开始时关闭当前 LLM 块，实时与回放统一为 `[LLM(前段)][TOOL][LLM(后段)]`，保持严格时间序（用户补充：持久化存自然顺序、恢复按自然顺序取，不按时间排序）；② 时间戳采用 **A**——后端在持久化事件里带发生时间 `ts`，前端优先用 ts 显示、缺失时回退渲染时刻；③ 版本 **v0.71.1**、任务号 **FIX-549**，并把此前 BUILD-1102 的计数变更一并提交到本分支。
+  - 分支：**FIX-549**（基于 main，v0.71.0 已合并并打 tag）
+  - 实现概要：
+    - `web/server.go`：`eventJSON` 新增 `ts` 字段（发生时刻，epoch 毫秒）；`sendEvent` 改走统一的 `newEventJSON`。
+    - `web/eventcoalesce.go`：新增 `eventTimeKey`（内部 meta 键）、`newEventJSON` 与 `pendingBlock.startedAt`（首片段到达时刻）；合并块 flush 时把块**开始时刻**写入 meta，`marshalEvent` 把它转为线字段 `ts` 并从落盘 meta 中剔除。
+    - `web/static/app.js`：① 新增 `eventBlockLabel(ev)`（content→LLM、thinking→THINK、tool_call→TOOL，其余仍按通道），`renderEvent` 尾部标题改用它；② 工具块开始（流式 `tool_call_stream` 与非流式 `tool_call` 两条路径）时 `curLLM = null` + 收起旧 LLM 块，使实时与回放统一为 `[LLM][TOOL][LLM]`；③ 迭代行时间戳改为 `fmtTime(ev.ts ? new Date(ev.ts) : new Date())`（缺失时回退）。
+    - 排序不变：回放仍按 bbolt seq 升序（`store/eventstream.go` / `web/session.go` `loadHistoryPage`），`ts` 仅用于显示。
+  - 验证情况：
+    - A 组（自动化）全绿：新增 `web/fix549_test.go`（UC-0001~0008，8 个用例）全部 PASS；`go test ./web/ ./store/` 通过；`go build ./... && go vet ./...` 通过；`gofmt` 无差异；产物 `work/co-shell-0.71.1.darwin.arm64`（自检 `co-shell v0.71.1 [BUILD-1103]`）。
+    - B 组（隔离实例 `--serve --port 28281` + 调试浏览器）：隔离实例可正常启动并响应（HTTP 200），但提交真实任务后调试浏览器的单客户端接管把页面流重置（DOM 采到空列表），未取得有效的实时/回放 DOM 对照证据 → 待用户在真实界面复核 UC-0009~0011（标题为 THINK/LLM/TOOL、顺序 `[LLM][TOOL][LLM]`、迭代行时间戳互不相同）。
+    - C 组（编译 3）：build 计数 1103→1104（co-shell `main.go` 与 co-shell-hub `cmd/co-shell-hub/main.go` 同步），交叉编译 co-shell / co-shell-hub 的 darwin.arm64、linux.arm64、windows.amd64.exe 六产物（已压 zip），Linux arm64 版已复制到 `liangshuang@192.168.3.39:~/bin/`（仅复制，未重启远端）。
+    - D 组（小优化）：状态条主/视觉模型显示改为用户配置的模型 ID（`agent/loop.go` ModelInfo 新增 `TextModelID`/`VisionModelID` 并填充 `m.ID`；`web/server.go` bootstrap 下发 `textModelID`/`visionModelID`；`web/static/app.js` 状态条优先显示 ID、缺失回退名称，两处 modelInfo 构建加入 ID 字段）。验证：`gofmt` 无差异、`go build ./... && go vet ./...` 通过、`go test ./web/ ./store/ -short` 通过、`node --check web/static/app.js` 通过。
 
 > **版本**: v0.71.0
 
