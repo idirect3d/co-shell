@@ -4,6 +4,42 @@
 
 ---
 
+## v0.71.0 — 会话记录按会话隔离 + 完整有序
+
+> **版本**: v0.71.0
+
+> **状态**: 🚧 进行中（分支 `FEATURE-548`）
+> **里程碑**: 每个会话维护独立的 UI 会话记录；切换会话时清空并回放目标会话的完整记录；记录严格按时间顺序完整落盘
+> **说明**：当前所有会话共享同一份「会话记录」（Web UI 事件流）：切换会话时消息区不回放目标会话的记录（历史只在 WebSocket 建连时拉取一次），且事件流本身存在多处记录缺失与错序。本次按 ask_user 确认口径修复：① 切会话清空消息区并回放该会话完整记录；② 任务运行中禁止切换会话；③ 历史分页按消息组整组取数绝不切半、事件流上限改为按消息组裁剪、用户消息事件补持久化。
+
+| 任务 | 版本 | 阶段 | 内容 |
+|------|------|------|------|
+| FEATURE-548 | 0.71.0 | P1 | 会话记录按会话隔离并完整有序：切换会话清空并回放目标会话记录；新增用户消息事件持久化（YOU 块可回放）；历史分页改为整组取数不切半；事件流上限改为按消息组裁剪；运行中禁止切换会话 |
+
+> 当前 BUILD: 1099
+> 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
+> 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
+
+### 任务详情
+
+- [ ] **FEATURE-548 会话记录按会话隔离 + 完整有序**
+  - 背景（用户提出）：「1、现在所有会话都共享一个会话记录（不是上下文），会话切换会话记录不变，这个不太符合一般用户习惯，希望每个会话都维护一套会话，当切换会话时，应该显示这一会话的记录。2、现在会话记录的数量、内容和实际会话有差距，记录数量不完整，时序似乎也有问题，需要整体梳理一下现在会话记录的实现机制，应该确保所有记录严格按时间顺序进行完整记录。」
+  - 现状调研（编码前确认，全部为硬事实）：
+    - 存储层**已是按会话隔离**：`store/eventstream.go` 以 `sessionID\x00<8位seq>` 为 key 存 bbolt（`eventStreamBucket`）；`AppendEvent`/`LoadEvents` 均以 sessionID 为前缀（`store/eventstream.go:58-65,73,153`），隔离由 `store/eventstream_test.go` 的 `TestEventStreamSessionIsolation` 锁定。
+    - 写入端只有一处：`web/session.go:1345` `AppendEvent(r.s.ag.CurrentSessionID(), data)`，事件先经 `eventCoalescer` 合并成完整块（`web/session.go:1327-1348`）。
+    - 读取端：`web/session.go:746 pushHistory` → `loadHistoryPage`（`web/session.go:765`），按 `meta.msg_index` 分组分页；`pushHistory` 仅在 `sessionID == ""` 时回退 `CurrentSessionID()`。
+    - 前端只在 WebSocket `onopen` 请求一次历史：`web/static/app.js:560` `wsSend({type:"history_get", count: pageBufferSize})`（不带 session、不带 before）。
+    - 缺陷 1（切会话不换记录）：`web/static/app.js:2839-2845` 点击会话项只 `wsSend({type:"session_switch", value:s.id})`，**不清空消息区、不重新请求历史**；后端 `web/session.go:869 switchSession` 只做 FlushCurrentSession + 载入目标会话消息到 agent 上下文 + `SetCurrentSessionID`（触发会话列表推送），没有任何「回放目标会话记录」的信号。
+    - 缺陷 2（用户消息未持久化）：用户输入只在前端本地造 YOU 块（`app.js:3123/4165/4397/4447/4458` 调 `renderUserEcho`），后端从未为其落事件；`dynamic_event/user_message`（`app.js:4446`）走 `ag.AddDynamicEvent`（`web/session.go:208`）也不进事件流 → 刷新/重连回放后 YOU 块全丢。
+    - 缺陷 3（分页切半）：`loadHistoryPage` 以 `count*maxEventsPerMessage` 读取原始事件窗口（`web/session.go:777`；`maxEventsPerMessage = 50`，`web/session.go:737`），`distinct[eventGroupKey(...)]` 按组计数，`len(distinct) >= count` 即停；随后 `if len(order) > count` 只保留最新 count 组（`web/session.go:806-810`）。当单个 `msg_index` 的事件数 > 50 时窗口边界落在该组中间：该组只收集到部分事件却被计为完整一组，`oldestSeq = groupFirstSeq[order[0]]`（`web/session.go:812-816`）又指向被截断组首个「已收集」事件，下一页面板会再取到同组更旧事件并渲染成第二个块 → 内容缺半截 + 顺序错乱。
+    - 缺陷 4（上限静默裁剪）：`maxEventStreamEntries = 5000`（`store/eventstream.go:43`），`trimEventStream`（`store/eventstream.go:130`）在每次 Append 时按**事件条数**删除最旧事件 → 长会话头部记录被整段丢弃，且裁剪粒度是事件而非消息组，会把一条消息切成两半。
+    - 缺陷 5（切会话竞态）：`AppendEvent` 用「事件到达时刻」的 `CurrentSessionID()`，而 `WebRenderer.coalescer` 是 WebSession 级共享（`web/session.go:1292,1337`）；运行中切会话时，前一会话仍在 pending 的块 flush 后会写进新会话 → 串记录 + 时序错乱。
+  - 交互决策（经 ask_user 确认）：① 版本 **v0.71.0**、任务号 **FEATURE-548**；② 切会话时**清空消息区并从 bbolt 回放该会话完整记录**；③ **任务运行中禁止切换会话**，提示当前任务运行中不可切换；④ 分页**按消息组整组取数绝不切半**，事件流上限**改为按消息组裁剪**。
+  - 分支：**FEATURE-548**（基于 main，v0.70.0 已合并并打 tag），版本 v0.71.0
+  - 状态：🚧 进行中
+
+---
+
 ## v0.70.0 — 工作区图片预览改为非模态
 
 > **版本**: v0.70.0
