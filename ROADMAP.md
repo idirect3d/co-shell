@@ -37,7 +37,7 @@
    - 追加（BUILD-1098，用户反馈修正视觉）：用户实测发现聚焦主工作区后其四周出现「蓝色粗边框」并询问是否必须——**非必须，已去除**。这是浏览器（Chrome UA 样式）对获得焦点元素的默认 focus ring，由 `#stream-wrap` 获得 `tabindex="-1"` 并被 `focus()` 引入；`web/static/style.css` 新增 `#stream-wrap:focus { outline: none; }`（作者样式优先于 UA 样式），`tabindex="-1"` 与聚焦行为保持不变。
    - 追加验证：[BUILD-1098] 根模块与 hub 模块 `go build ./... && go vet ./...` 通过、hub `go test ./gateway/ -run TestHub` 通过；隔离实例 `work/co-shell-0.70.0.darwin.arm64 -w /tmp/co-shell-hub-547b/ws1 --serve --port 28391` 确认新样式已随产物下发（`#stream-wrap:focus { outline: none; }` 与 `tabindex="-1"`）。浏览器目视复测未能在本会话完成：调试浏览器 CDP 导航持续超时（另一 agent 的 Chrome 占用 9222、隔离 agent 端口已不可达），改为在 BUILD 1098 产物上由用户目视确认。
   - 基线对比：`go test ./...` 中 `agent`（i18n 文案）与 `cmd`（TestWebWizardModelNameStep）的失败在 main 基线 worktree 上同样复现，非本特性引入；`go build ./... && go vet ./...` 通过。
-  - 状态：🚧 待用户验证（等待用户实测确认后再执行合并 main）
+  - 状态：✅ 已完成并合并到 main（tag `v0.70.0`，BUILD-1098；用户已用 BUILD 1098 产物实测通过）
 
 ---
 
