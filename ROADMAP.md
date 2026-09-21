@@ -16,7 +16,7 @@
 |------|------|------|------|
 | FEATURE-547 | 0.70.0 | P2 | 工作区图片点击预览由全屏模态弹窗改为中央主工作区非模态视图（复用 `.file-viewer` 定位与 `.fv-titlebar` 气泡样式）；底部信息气泡显示文件名/大小/修改时间/分辨率，点 ✕ 关闭；非模态期间可直接在左侧文件列表切换预览（图片↔图片、图片↔文本互斥）；原模态 `#preview` 保留给输入框附件缩略图放大使用 |
 
-> 当前 BUILD: 1097
+> 当前 BUILD: 1098
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -34,6 +34,8 @@
    - 追加验证：[BUILD-1096] `hub/gateway/webui_focus_test.go` 扩展（`TestHubFocusOnEverySwitchEntry` 锁定 1 定义 + 3 调用，并断言首屏自动选中处无聚焦），hub 模块 `go build ./... && go vet ./...` 通过、单测全绿；隔离 hub 实例浏览器实测：电源开关启动、新建 agent 后自动打开两条路径焦点均落入该 agent 输入框（可直接键入）。
    - 追加（BUILD-1097，用户修正焦点目标）：「设置焦点目前是设置到录入框，我希望是 co-shell 主工作区即可，**不要把焦点放进消息输入框**，否则当时如果需要用户选择一个选项，用户按快捷键是没用的」。三条切换/启动入口改为把键盘交给该 agent 的**主工作区**：`focusAgentInput` → `focusAgentView`（先 `contentWindow.focus()` 使按键进入该 agent，再聚焦 `#stream-wrap`，退化 `doc.body`，不再触碰 `#input`）；`web/static/index.html` 给 `#stream-wrap` 加 `tabindex="-1"`，使其成为可程序化聚焦的主工作区元素（不进 Tab 顺序，直接访问 co-shell 时行为不变）；`web/static/app.js` 的 document 级 keydown 增加 `pendingInteraction && !supplementMode` 例外，交互待答时不再把焦点抢回消息输入框（原有「不在输入框时单字符按键把焦点带回输入框」行为仅在该例外之外保留）。
    - 追加验证：[BUILD-1097] hub 模块 `go build ./... && go vet ./...` 与 `go test ./gateway/ -run TestHub -v`（`TestHubSwitchFocusesAgentWorkspace`、`TestHubFocusOnEverySwitchEntry`）全绿；根模块 `go build ./... && go vet ./...` 通过；隔离 hub（28396，agent t1/t2 于 28394/28395）浏览器实测：首屏自动选中 `BODY#`（不聚焦）、卡片点击切换后 t2 内 `SECTION#stream-wrap`（hasFocus=true）、电源开关启动后 t1 内 `SECTION#stream-wrap`（hasFocus=true），均不再是 `TEXTAREA#input`；新建 agent（`createLocalAgent`）与另两条共用同一函数与断言，未另做浏览器实测；app.js 的 `pendingInteraction` 例外为代码审查确认（未做 ask_user 全链路实测）。
+   - 追加（BUILD-1098，用户反馈修正视觉）：用户实测发现聚焦主工作区后其四周出现「蓝色粗边框」并询问是否必须——**非必须，已去除**。这是浏览器（Chrome UA 样式）对获得焦点元素的默认 focus ring，由 `#stream-wrap` 获得 `tabindex="-1"` 并被 `focus()` 引入；`web/static/style.css` 新增 `#stream-wrap:focus { outline: none; }`（作者样式优先于 UA 样式），`tabindex="-1"` 与聚焦行为保持不变。
+   - 追加验证：[BUILD-1098] 根模块与 hub 模块 `go build ./... && go vet ./...` 通过、hub `go test ./gateway/ -run TestHub` 通过；隔离实例 `work/co-shell-0.70.0.darwin.arm64 -w /tmp/co-shell-hub-547b/ws1 --serve --port 28391` 确认新样式已随产物下发（`#stream-wrap:focus { outline: none; }` 与 `tabindex="-1"`）。浏览器目视复测未能在本会话完成：调试浏览器 CDP 导航持续超时（另一 agent 的 Chrome 占用 9222、隔离 agent 端口已不可达），改为在 BUILD 1098 产物上由用户目视确认。
   - 基线对比：`go test ./...` 中 `agent`（i18n 文案）与 `cmd`（TestWebWizardModelNameStep）的失败在 main 基线 worktree 上同样复现，非本特性引入；`go build ./... && go vet ./...` 通过。
   - 状态：🚧 待用户验证（等待用户实测确认后再执行合并 main）
 
