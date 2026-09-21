@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,6 +44,12 @@ var errNoWebClient = errors.New("no web client connected")
 const (
 	eventAwaitInput = "await_input" // REPL is about to block for the next input (turn ended)
 	eventTurnStart  = "turn_start"  // an input was consumed from the queue (turn begins)
+
+	// eventUserEcho records the user's own message in the session's event stream
+	// (FEATURE-548). It is persisted only — never forwarded live — because the
+	// browser already renders the YOU block from its local echo when the input is
+	// sent; replaying the event rebuilds that same block.
+	eventUserEcho = "user_echo"
 )
 
 // SessionFactory returns the repl session factory bound to this server.
@@ -91,7 +96,13 @@ type WebSession struct {
 	msgIndex int
 
 	inputCh chan clientMessage
-	closed  chan struct{}
+
+	// pendingUserEcho holds the text of the user message that started the current
+	// turn (FEATURE-548). It is persisted to the session's event stream by the
+	// WebRenderer on the turn's first event, when the message's index in the
+	// message array is known — see WebRenderer.persistPendingUserEcho.
+	pendingUserEcho string
+	closed          chan struct{}
 
 	// boardAgg merges board messages that arrive within a short window so a
 	// burst delivered while the agent is busy is injected as one block
@@ -235,7 +246,7 @@ func (s *WebSession) handleMessage(msg clientMessage) {
 	case "session_list":
 		s.pushSessionList()
 	case "session_switch":
-		s.switchSession(msg.Value)
+		s.switchSessionRequest(msg.Value)
 	case "session_delete":
 		s.deleteSession(msg.Value)
 	case "session_rename":
@@ -731,11 +742,6 @@ func (s *WebSession) handleModelBind(target, id string) {
 // carries no usable count.
 const defaultHistoryMessages = 20
 
-// maxEventsPerMessage bounds how many raw events one message may contribute
-// when paging history, so the raw read window stays proportional to the
-// requested group count.
-const maxEventsPerMessage = 50
-
 // pushHistory sends a page of persisted UI events to the browser (FEATURE-507).
 //
 // The page is measured in message groups (meta.msg_index), not raw events: the
@@ -756,88 +762,32 @@ func (s *WebSession) pushHistory(sessionID string, count, beforeSeq int) {
 // with whether older events remain and the cursor for the next (older) page.
 // beforeSeq == 0 starts from the newest event.
 //
-// FIX-509: LoadEvents returns the NEWEST `limit` events below the cursor, so a
-// second call returns an OLDER window. Collecting pages in call order therefore
-// mixed newer and older events, which scrambled the replayed conversation (LLM
-// and TOOL blocks appeared clumped instead of alternating). Every page is now
-// collected first and sorted by sequence number, so grouping and the final
-// emission are globally chronological.
+// FEATURE-548: grouping moved into the store (LoadEventsByGroups), which returns
+// whole message groups. The previous implementation read a raw window of
+// count*maxEventsPerMessage events here and stopped once it had seen `count`
+// group keys, so a message whose events outnumbered that window was sent
+// half-complete and the remainder reappeared as a second block on the next page.
 func loadHistoryPage(st *store.DualStore, sessionID string, count, beforeSeq int) (events []json.RawMessage, hasMore bool, oldestSeq int) {
 	if count <= 0 {
 		count = defaultHistoryMessages
 	}
-	type entry struct {
-		seq  int
-		data json.RawMessage
+	entries, hasMore, oldestSeq, err := st.LoadEventsByGroups(sessionID, count, beforeSeq)
+	if err != nil {
+		log.Warn("loadHistoryPage LoadEventsByGroups: %v", err)
+		return nil, false, 0
 	}
-	var collected []entry
-	distinct := map[string]bool{}
-	cursor := beforeSeq
-	for {
-		entries, storeHasMore, err := st.LoadEvents(sessionID, count*maxEventsPerMessage, cursor)
-		if err != nil {
-			log.Warn("loadHistoryPage LoadEvents: %v", err)
-			break
-		}
-		if len(entries) == 0 {
-			hasMore = false
-			break
-		}
-		for _, e := range entries {
-			collected = append(collected, entry{seq: e.Seq, data: e.Data})
-			distinct[eventGroupKey(e.Data)] = true
-		}
-		// Advance the cursor to just before the oldest event of this window.
-		cursor = entries[0].Seq
-		hasMore = storeHasMore
-		// Stop once the requested number of groups is covered, or nothing older
-		// remains. distinct only grows, so this terminates.
-		if !storeHasMore || len(distinct) >= count {
-			break
-		}
-	}
-	sort.Slice(collected, func(i, j int) bool { return collected[i].seq < collected[j].seq })
-
-	var order []string
-	groups := map[string][]json.RawMessage{}
-	groupFirstSeq := map[string]int{}
-	for _, e := range collected {
-		key := eventGroupKey(e.data)
-		if _, ok := groups[key]; !ok {
-			order = append(order, key)
-			groupFirstSeq[key] = e.seq
-		}
-		groups[key] = append(groups[key], e.data)
-	}
-	// Keep only the newest `count` groups; anything older stays on the server
-	// and is reachable through the `before` cursor.
-	if len(order) > count {
-		hasMore = true
-		order = order[len(order)-count:]
-	}
-	for _, key := range order {
-		events = append(events, groups[key]...)
-	}
-	// The cursor for the next (older) page is the sequence number of the oldest
-	// event in the oldest group we are about to send.
-	if len(order) > 0 {
-		oldestSeq = groupFirstSeq[order[0]]
+	for _, e := range entries {
+		events = append(events, e.Data)
 	}
 	return events, hasMore, oldestSeq
 }
 
-// eventGroupKey returns the message-group key of a persisted event: its
-// meta.msg_index when present, otherwise the event itself as a singleton group.
+// eventGroupKey returns the message-group key of a persisted event.
+//
+// FEATURE-548: a thin wrapper over store.EventGroupKey, so paging here and
+// group-aware trimming in the store agree on what a message group is.
 func eventGroupKey(eventJSON []byte) string {
-	var ev struct {
-		Meta map[string]string `json:"meta"`
-	}
-	if err := json.Unmarshal(eventJSON, &ev); err == nil {
-		if idx := ev.Meta["msg_index"]; idx != "" {
-			return idx
-		}
-	}
-	return string(eventJSON)
+	return store.EventGroupKey(eventJSON)
 }
 
 // pushSessionList sends the current session list to the browser (FEATURE-387).
@@ -859,6 +809,20 @@ func (s *WebSession) pushSessionList() {
 		})
 	}
 	s.srv.sendJSON(serverMessage{Kind: "sessions", Sessions: infos})
+}
+
+// switchSessionRequest handles a browser session_switch request (FEATURE-548).
+//
+// A switch is refused while a task is running: every recorded event is written
+// under whichever session is current when it arrives, so switching mid-task
+// would append the running task's blocks to another session's record and leave
+// both records incomplete.
+func (s *WebSession) switchSessionRequest(id string) {
+	if s.ag.IsBusy() {
+		s.srv.sendJSON(serverMessage{Kind: "session_switch_result", OK: false, Message: "busy"})
+		return
+	}
+	s.switchSession(id)
 }
 
 // switchSession switches the current session to the target ID (FEATURE-387).
@@ -905,11 +869,22 @@ func (s *WebSession) switchSession(id string) {
 	}
 	// SetCurrentSessionID already pushes the updated session list (FEATURE-387),
 	// so the frontend reflects the new current without an extra push here.
+	//
+	// FEATURE-548: tell the browser which session is now current so it discards
+	// the previous session's blocks and replays this one's recorded stream — the
+	// record is per session, so the visible stream must follow the switch.
+	s.srv.sendJSON(serverMessage{Kind: "session_switched", Message: id})
 }
 
 // newSession creates a new empty session and switches to it (FEATURE-401),
 // mirroring the REPL :new command.
 func (s *WebSession) newSession() {
+	// FEATURE-548: refusing while busy keeps the running task's events in the
+	// session they belong to (same reason as switchSessionRequest).
+	if s.ag.IsBusy() {
+		s.srv.sendJSON(serverMessage{Kind: "session_switch_result", OK: false, Message: "busy"})
+		return
+	}
 	if err := s.ag.FlushCurrentSession(); err != nil {
 		log.Warn("newSession FlushCurrentSession: %v", err)
 	}
@@ -939,6 +914,10 @@ func (s *WebSession) newSession() {
 	if err := s.ag.Store().SaveCurrentSessionID(sessionID); err != nil {
 		log.Warn("newSession SaveCurrentSessionID: %v", err)
 	}
+	// FEATURE-548: tell the browser which session is now current so it discards
+	// the previous session's blocks and replays this (empty) session's record —
+	// the same reload signal switchSession pushes.
+	s.srv.sendJSON(serverMessage{Kind: "session_switched", Message: sessionID})
 }
 
 // nextDefaultSessionTitle returns the next default placeholder title
@@ -1077,7 +1056,13 @@ func (s *WebSession) ReadLine(prompt string) (string, error) {
 				s.ag.SetImagePaths(paths)
 			}
 		}
-		return strings.TrimSpace(msg.Text), nil
+		text := strings.TrimSpace(msg.Text)
+		// FEATURE-548: remember the user's own message so the recorded stream
+		// replays it too. The message's index in the agent's array is only known
+		// once the agent has appended it, so the WebRenderer persists it on this
+		// turn's first stream event.
+		s.pendingUserEcho = text
+		return text, nil
 	case <-s.closed:
 		return "", io.EOF
 	}
@@ -1329,6 +1314,12 @@ func (r *WebRenderer) Render(ev agent.StreamEvent) {
 		ev.Meta = map[string]string{}
 	}
 	ev.Meta["msg_index"] = strconv.Itoa(r.msgIndexForRetry())
+	// FEATURE-548: record the user message that started this turn. It is written
+	// here (not when the input arrived) because only now is its index in the
+	// message array known. The event is persisted to the session's own stream and
+	// deliberately NOT forwarded to the browser, which already rendered the YOU
+	// block locally when the input was sent.
+	r.persistPendingUserEcho()
 	// FEATURE-507: persist the event so the browser can replay history after a
 	// refresh. Streaming fragments are coalesced into complete blocks first —
 	// replaying raw fragments would open one stray block per fragment because
@@ -1353,6 +1344,30 @@ func (r *WebRenderer) Render(ev agent.StreamEvent) {
 		if pending := r.s.ag.PendingUserMessages(); len(pending) > 0 {
 			r.s.srv.sendJSON(serverMessage{Kind: "dynamic_backfill", Backfill: pending})
 		}
+	}
+}
+
+// persistPendingUserEcho writes the user message that started the current turn
+// into the session's event stream (FEATURE-548) and clears it. It is a no-op
+// when no input is pending.
+//
+// The event carries the same meta.msg_index as the turn's first event, so it
+// belongs to the same message group: paging keeps it together with that turn's
+// blocks and :session pop removes it together with the message it started.
+func (r *WebRenderer) persistPendingUserEcho() {
+	text := r.s.pendingUserEcho
+	if text == "" {
+		return
+	}
+	r.s.pendingUserEcho = ""
+	ev := agent.NewStreamEvent(eventUserEcho, agent.ChannelSystem, agent.LevelInfo, text)
+	ev.Meta = map[string]string{"msg_index": strconv.Itoa(r.msgIndexForRetry())}
+	data, err := marshalEvent(ev)
+	if err != nil {
+		return
+	}
+	if err := r.s.ag.Store().AppendEvent(r.s.ag.CurrentSessionID(), data); err != nil {
+		log.Warn("append user echo: %v", err)
 	}
 }
 

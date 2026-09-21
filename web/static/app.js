@@ -74,6 +74,7 @@ const I18N = {
     revealDir: "定位到文件夹",
     downloadFile: "下载文件",
     sessionDelete: "删除会话",
+    sessionSwitchBusy: "任务运行中，无法切换会话",
     sessionActive: "当前会话",
     sessionCount: "消息计数",
     sessionDeleteConfirm: "确定要删除会话「%s」吗？此操作不可撤销。",
@@ -167,6 +168,7 @@ const I18N = {
     revealDir: "Reveal in folder",
     downloadFile: "Download file",
     sessionDelete: "Delete session",
+    sessionSwitchBusy: "A task is running — cannot switch sessions",
     sessionActive: "Current session",
     sessionCount: "Message count",
     sessionDeleteConfirm: "Delete session \"%s\"? This cannot be undone.",
@@ -634,6 +636,21 @@ function wsConnect() {
     else if (msg.kind === "yolo") setYOLO(!!msg.yolo);
     else if (msg.kind === "dynamic_backfill") backfillInput(msg.backfill || []);
     else if (msg.kind === "history") renderHistory(msg);
+    // FEATURE-548: the backend accepted a session switch. The message area still
+    // holds the PREVIOUS session's blocks (the record is per session), so drop
+    // them and replay the target session's own recorded events. The session id is
+    // sent explicitly so the replay does not depend on when the backend applied
+    // the switch.
+    else if (msg.kind === "session_switched") {
+      resetStreamView();
+      wsSend({ type: "history_get", count: pageBufferSize, value: msg.message || "" });
+    }
+    // FEATURE-548: the switch was refused (a task is running). Refresh the list so
+    // the current-session highlight snaps back and tell the user why.
+    else if (msg.kind === "session_switch_result" && msg.ok === false) {
+      wsSend({ type: "session_list" });
+      notifyUser(msg.message === "busy" ? (T.sessionSwitchBusy || "A task is running") : (msg.message || T.sessionSwitchFailed || ""));
+    }
   };
 }
 
@@ -1715,6 +1732,9 @@ function renderEvent(ev) {
   }
   // Turn-boundary signals from the web session (FEATURE-369): drive the
   // merged send/interrupt button, never render as blocks.
+  // FEATURE-548: the user's own message, recorded when its turn began. Replaying
+  // it rebuilds the YOU block that the live view drew from the local echo.
+  if (ev.type === "user_echo") { renderUserEcho(ev.text); return; }
   if (ev.type === "await_input") { setRunning(false); return; }
   if (ev.type === "turn_start") { setRunning(true); return; }
   if (ev.type === "task_plan") {
@@ -2269,6 +2289,13 @@ function renderHistory(msg) {
   scrollStream();
   updateBlockNav();
   endHistoryReplay();
+}
+
+// notifyUser surfaces a short backend notice in the message stream
+// (FEATURE-548). It reuses the error-block rendering path.
+function notifyUser(text) {
+  if (!text) return;
+  renderEvent({ type: "error", text: text, meta: {} });
 }
 
 function renderUserEcho(text, opts) {

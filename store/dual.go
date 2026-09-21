@@ -324,6 +324,12 @@ func (d *DualStore) LoadEvents(sessionID string, limit, beforeSeq int) ([]EventS
 	return d.Bolt.LoadEvents(sessionID, limit, beforeSeq)
 }
 
+// LoadEventsByGroups returns the newest `groups` message groups of a session,
+// never splitting a group (FEATURE-548).
+func (d *DualStore) LoadEventsByGroups(sessionID string, groups, beforeSeq int) ([]EventStreamEntry, bool, int, error) {
+	return d.Bolt.LoadEventsByGroups(sessionID, groups, beforeSeq)
+}
+
 // DeleteEventsAfter drops events belonging to messages after msgIndex.
 func (d *DualStore) DeleteEventsAfter(sessionID string, msgIndex int) error {
 	return d.Bolt.DeleteEventsAfter(sessionID, msgIndex)

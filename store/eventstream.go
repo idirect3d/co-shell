@@ -40,6 +40,11 @@ const eventStreamBucket = "eventstream"
 // maxEventStreamEntries caps the number of persisted events per session. When
 // exceeded, the oldest events are dropped so a long-running session cannot grow
 // the database without bound.
+//
+// FEATURE-548: trimming never cuts a message group in half — the cut point is
+// moved towards older events until it sits on a group boundary, so the oldest
+// surviving message is always complete (the stream may temporarily hold a few
+// more events than this cap).
 const maxEventStreamEntries = 5000
 
 // eventStreamSep separates the session ID from the sequence number in a key.
@@ -127,6 +132,10 @@ func parseEventSeq(key, prefix []byte) (int, error) {
 
 // trimEventStream deletes the oldest events of a session until the count is
 // within maxEventStreamEntries. It must be called inside an Update transaction.
+//
+// FEATURE-548: the cut point is moved towards older events while it would split
+// a message group, so a trimmed stream never loses half a message (the group
+// boundary is honoured instead of the raw event budget).
 func trimEventStream(bucket *bbolt.Bucket, prefix []byte) error {
 	cursor := bucket.Cursor()
 	var keys [][]byte
@@ -136,7 +145,14 @@ func trimEventStream(bucket *bbolt.Bucket, prefix []byte) error {
 	if len(keys) <= maxEventStreamEntries {
 		return nil
 	}
-	for _, k := range keys[:len(keys)-maxEventStreamEntries] {
+	cut := len(keys) - maxEventStreamEntries
+	for cut > 0 {
+		if EventGroupKey(bucket.Get(keys[cut-1])) != EventGroupKey(bucket.Get(keys[cut])) {
+			break
+		}
+		cut--
+	}
+	for _, k := range keys[:cut] {
 		if err := bucket.Delete(k); err != nil {
 			return err
 		}
@@ -198,6 +214,95 @@ func (s *Store) LoadEvents(sessionID string, limit, beforeSeq int) ([]EventStrea
 		return nil
 	})
 	return entries, hasMore, err
+}
+
+// LoadEventsByGroups returns the newest `groups` message groups of a session,
+// newest group last, together with whether older groups remain and the paging
+// cursor for the next (older) page. When beforeSeq > 0 only events with a
+// sequence number strictly lower than beforeSeq are considered.
+//
+// FEATURE-548: a message group is never split. The previous paging implementation
+// ([loadHistoryPage]) read a raw window of count*maxEventsPerMessage events and
+// stopped once it had seen `count` group keys, so a message whose events
+// outnumbered that window was returned half-complete. Grouping here is done on
+// the store side over the whole (capped) stream, so every returned group is
+// complete by construction.
+func (s *Store) LoadEventsByGroups(sessionID string, groups, beforeSeq int) ([]EventStreamEntry, bool, int, error) {
+	if sessionID == "" {
+		return nil, false, 0, nil
+	}
+	if groups <= 0 {
+		groups = 1
+	}
+	var entries []EventStreamEntry
+	hasMore := false
+	oldestSeq := 0
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(eventStreamBucket))
+		if bucket == nil {
+			return nil
+		}
+		prefix := eventStreamPrefix(sessionID)
+		cursor := bucket.Cursor()
+
+		// Collect the session's keys below the cursor, then split them into
+		// contiguous runs of equal group key (a group is contiguous because
+		// msg_index only grows while a turn is produced).
+		var keys [][]byte
+		for k, _ := cursor.Seek(prefix); k != nil && strings.HasPrefix(string(k), string(prefix)); k, _ = cursor.Next() {
+			if beforeSeq > 0 {
+				if seq, err := parseEventSeq(k, prefix); err == nil && seq >= beforeSeq {
+					break
+				}
+			}
+			keys = append(keys, append([]byte(nil), k...))
+		}
+		var starts []int
+		for i, k := range keys {
+			if i == 0 || EventGroupKey(bucket.Get(keys[i-1])) != EventGroupKey(bucket.Get(k)) {
+				starts = append(starts, i)
+			}
+		}
+		first := 0
+		if len(starts) > groups {
+			hasMore = true
+			first = starts[len(starts)-groups]
+		}
+		for _, k := range keys[first:] {
+			v := bucket.Get(k)
+			if v == nil {
+				continue
+			}
+			seq, err := parseEventSeq(k, prefix)
+			if err != nil {
+				continue
+			}
+			if oldestSeq == 0 {
+				oldestSeq = seq
+			}
+			entries = append(entries, EventStreamEntry{
+				Seq:  seq,
+				Data: append(json.RawMessage(nil), v...),
+			})
+		}
+		return nil
+	})
+	return entries, hasMore, oldestSeq, err
+}
+
+// EventGroupKey returns the message-group key of a persisted event: its
+// meta.msg_index when present, otherwise the event itself as a singleton group.
+// Paging and trimming use it so a message is always kept and emitted whole.
+func EventGroupKey(eventJSON []byte) string {
+	var ev struct {
+		Meta map[string]string `json:"meta"`
+	}
+	if err := json.Unmarshal(eventJSON, &ev); err == nil {
+		if idx := ev.Meta["msg_index"]; idx != "" {
+			return idx
+		}
+	}
+	return string(eventJSON)
 }
 
 // DeleteEventsAfter removes all events of a session whose sequence number is

@@ -16,13 +16,13 @@
 |------|------|------|------|
 | FEATURE-548 | 0.71.0 | P1 | 会话记录按会话隔离并完整有序：切换会话清空并回放目标会话记录；新增用户消息事件持久化（YOU 块可回放）；历史分页改为整组取数不切半；事件流上限改为按消息组裁剪；运行中禁止切换会话 |
 
-> 当前 BUILD: 1099
+> 当前 BUILD: 1101
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
 ### 任务详情
 
-- [ ] **FEATURE-548 会话记录按会话隔离 + 完整有序**
+- [ ] **FEATURE-548 会话记录按会话隔离 + 完整有序** [BUILD-1101]
   - 背景（用户提出）：「1、现在所有会话都共享一个会话记录（不是上下文），会话切换会话记录不变，这个不太符合一般用户习惯，希望每个会话都维护一套会话，当切换会话时，应该显示这一会话的记录。2、现在会话记录的数量、内容和实际会话有差距，记录数量不完整，时序似乎也有问题，需要整体梳理一下现在会话记录的实现机制，应该确保所有记录严格按时间顺序进行完整记录。」
   - 现状调研（编码前确认，全部为硬事实）：
     - 存储层**已是按会话隔离**：`store/eventstream.go` 以 `sessionID\x00<8位seq>` 为 key 存 bbolt（`eventStreamBucket`）；`AppendEvent`/`LoadEvents` 均以 sessionID 为前缀（`store/eventstream.go:58-65,73,153`），隔离由 `store/eventstream_test.go` 的 `TestEventStreamSessionIsolation` 锁定。
@@ -36,7 +36,16 @@
     - 缺陷 5（切会话竞态）：`AppendEvent` 用「事件到达时刻」的 `CurrentSessionID()`，而 `WebRenderer.coalescer` 是 WebSession 级共享（`web/session.go:1292,1337`）；运行中切会话时，前一会话仍在 pending 的块 flush 后会写进新会话 → 串记录 + 时序错乱。
   - 交互决策（经 ask_user 确认）：① 版本 **v0.71.0**、任务号 **FEATURE-548**；② 切会话时**清空消息区并从 bbolt 回放该会话完整记录**；③ **任务运行中禁止切换会话**，提示当前任务运行中不可切换；④ 分页**按消息组整组取数绝不切半**，事件流上限**改为按消息组裁剪**。
   - 分支：**FEATURE-548**（基于 main，v0.70.0 已合并并打 tag），版本 v0.71.0
-  - 状态：🚧 进行中
+  - 实现概要：
+    - `store/eventstream.go`：新增 `EventGroupKey`（按 `meta.msg_index` 归组）与 `LoadEventsByGroups(sessionID, groups, beforeSeq)`（按连续同组 run **整组取数**，返回 hasMore 与最旧返回组首事件 seq 作分页游标）；`trimEventStream` 改为把裁剪点前移到消息组边界，绝不切半（`maxEventStreamEntries` 语义变为「按组裁剪」）。
+    - `store/dual.go`：`LoadEventsByGroups` 代理到 Bolt。
+    - `web/session.go`：`loadHistoryPage` 改为薄封装直调 `store.LoadEventsByGroups`（删除 `maxEventsPerMessage`）；新增 `user_echo` 事件（`ReadLine` 记录 `pendingUserEcho`，`WebRenderer.persistPendingUserEcho` 在本轮首事件按 `msg_index` 落盘，**只落盘、不实时推送**，实时 YOU 块仍由前端本地渲染）；`switchSessionRequest`/`newSession` 在 `ag.IsBusy()` 时拒绝并回 `session_switch_result{ok:false,message:"busy"}`；`switchSession` 与 `newSession` 成功后推送 `session_switched{message:<id>}` 供前端清空并重拉；`history_get` 用显式 `value` 指定会话。
+    - `web/static/app.js`：处理 `session_switched` → `resetStreamView()` + 重新 `history_get`（携带目标 id）；`session_switch_result(ok=false)` → 提示「任务运行中，无法切换会话」；`renderEvent` 新增 `user_echo` 分支回放为 YOU 块。
+  - 验证情况：
+    - A 组：`store/feature548_test.go`（UC-0001~0004）与 `web/feature548_test.go`（UC-0005~0011）全绿；`go test ./store/ ./web/` 通过；`go build ./... && go vet ./...` 通过；产物 `work/co-shell-0.71.0.darwin.arm64`、`work/co-shell-hub-0.71.0.darwin.arm64`。
+    - B 组（隔离实例 `--serve --port 28280` + 调试浏览器）：UC-0013（新建会话后消息区清空、旧会话内容消失）✔；UC-0014（刷新后回放含 YOU 块且顺序与实时一致）✔。UC-0012/0015/0016 建议在真实工作区复核：UC-0012 切回场景在本实例中初始会话非命名会话、无法从列表点选；UC-0015 长会话分页已由 store 层 UC-0001~0004 覆盖；UC-0016 运行中拒绝切换已由 UC-0007 后端单测 + 前端静态校验覆盖。
+    - 实测发现并修复的缺口：`newSession()` 原先未推送 `session_switched`，新建会话后消息区仍显示旧会话块；已补齐（BUILD 1101）。
+  - 状态：🚧 待用户确认（BUILD-1101）
 
 ---
 
