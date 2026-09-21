@@ -1,6 +1,7 @@
 // Package gateway - FEATURE-547 tests: switching to an agent from the hub drawer
-// must move the keyboard focus into that agent's co-shell input, so the user can
-// start typing without an extra click.
+// must hand the keyboard over to that agent's co-shell, but the focus belongs on
+// the main workspace — never on the message input box, which would get in the way
+// of the option hotkeys of a pending interaction.
 //
 // Author: L.Shuang
 // Created: 2026-09-21
@@ -35,49 +36,60 @@ func uiFuncBody(src, signature string) string {
 	return ""
 }
 
-// TestHubSwitchFocusesAgentInput pins the FEATURE-547 behaviour: focusing an
-// agent's co-shell input after the drawer switches to it.
-func TestHubSwitchFocusesAgentInput(t *testing.T) {
-	body := uiFuncBody(webIndexHTML, "function focusAgentInput(id)")
+// TestHubSwitchFocusesAgentWorkspace pins the FEATURE-547 behaviour: after the
+// drawer switches to an agent the keyboard belongs to that agent, but the focus
+// lands on the main workspace instead of the message input box.
+func TestHubSwitchFocusesAgentWorkspace(t *testing.T) {
+	body := uiFuncBody(webIndexHTML, "function focusAgentView(id)")
 	if body == "" {
-		t.Fatal("focusAgentInput is missing — switching agents would leave the keyboard focus in the hub")
+		t.Fatal("focusAgentView is missing — switching agents would leave the keyboard focus in the hub")
 	}
-	// The frame is same-origin (reverse-proxied under /agent/{id}/), so the
-	// co-shell input can be focused directly; a still-loading frame is covered
-	// by the one-shot load listener.
+	// The frame is same-origin (reverse-proxied under /agent/{id}/), so its
+	// document can be reached directly; a still-loading frame is covered by the
+	// one-shot load listener. #stream-wrap is the co-shell main workspace.
 	for _, want := range []string{
 		"frames[id]",
 		"f.contentDocument",
-		"getElementById('input')",
-		"inp.focus()",
+		"f.contentWindow.focus()",
+		"getElementById('stream-wrap')",
+		"doc.body",
+		"view.focus()",
 		"addEventListener('load', doFocus, { once: true })",
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("focusAgentInput missing %q", want)
+			t.Errorf("focusAgentView missing %q", want)
 		}
+	}
+	// The message input box must never be focused by the hub: a focused input
+	// box is exactly what the user asked to avoid (option hotkeys).
+	if strings.Contains(body, "getElementById('input')") {
+		t.Error("focusAgentView must not focus the message input box")
 	}
 }
 
 // TestHubFocusOnEverySwitchEntry pins the agreed scope: every hub entry point
-// that switches to an agent and opens its frame focuses that agent's input —
-// the drawer card click, the power switch starting a stopped agent, and the
-// create-then-start flow. The boot-time auto-selection keeps the previous
-// behaviour and must not steal the focus. Exactly four occurrences (one
+// that switches to an agent and opens its frame hands the keyboard to that
+// agent's workspace — the drawer card click, the power switch starting a stopped
+// agent, and the create-then-start flow. The boot-time auto-selection keeps the
+// previous behaviour and must not steal the focus. Exactly four occurrences (one
 // definition + three calls) enforce the agreed set.
 func TestHubFocusOnEverySwitchEntry(t *testing.T) {
-	if got := strings.Count(webIndexHTML, "focusAgentInput("); got != 4 {
-		t.Errorf("focusAgentInput( occurrences = %d, want 4 (definition + card click + start + create)", got)
+	if got := strings.Count(webIndexHTML, "focusAgentView("); got != 4 {
+		t.Errorf("focusAgentView( occurrences = %d, want 4 (definition + card click + start + create)", got)
 	}
-	if !strings.Contains(webIndexHTML, "closePanel(); focusAgentInput(current);") {
-		t.Error("the agent card click does not focus the newly opened agent")
+	if strings.Contains(webIndexHTML, "focusAgentInput(") {
+		t.Error("the old focusAgentInput (message input box) is still referenced")
 	}
-	if body := uiFuncBody(webIndexHTML, "function startAgent(id, sw)"); !strings.Contains(body, "focusAgentInput(id)") {
-		t.Error("starting a stopped agent does not focus its co-shell input")
+	if !strings.Contains(webIndexHTML, "closePanel(); focusAgentView(current);") {
+		t.Error("the agent card click does not focus the newly opened agent's workspace")
 	}
-	if body := uiFuncBody(webIndexHTML, "function createLocalAgent()"); !strings.Contains(body, "focusAgentInput(nid)") {
-		t.Error("the create-then-start flow does not focus the new agent's co-shell input")
+	if body := uiFuncBody(webIndexHTML, "function startAgent(id, sw)"); !strings.Contains(body, "focusAgentView(id)") {
+		t.Error("starting a stopped agent does not focus its co-shell workspace")
 	}
-	if strings.Contains(webIndexHTML, "ensureFrame(current);\n      focusAgentInput") {
+	if body := uiFuncBody(webIndexHTML, "function createLocalAgent()"); !strings.Contains(body, "focusAgentView(nid)") {
+		t.Error("the create-then-start flow does not focus the new agent's workspace")
+	}
+	if strings.Contains(webIndexHTML, "ensureFrame(current);\n      focusAgentView") {
 		t.Error("the boot-time auto-selection must not steal the keyboard focus")
 	}
 }

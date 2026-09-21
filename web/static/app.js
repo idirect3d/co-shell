@@ -4651,6 +4651,11 @@ document.addEventListener("keydown", (e) => {
   // Keep modifier/function keys working (shortcuts, arrows, F-keys, etc.).
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key.length > 1) return; // e.g. "F5", "ArrowUp", "Escape", "Shift"
+  // FEATURE-547: while an interaction is pending the virtual keyboard on window
+  // owns the keys (option hotkeys). Never pull the focus into the input box in
+  // that state - otherwise answering an option would leave the caret in the
+  // input box and the hotkeys would no longer look usable.
+  if (pendingInteraction && !supplementMode) return;
   input.focus();
 });
 input.addEventListener("input", autoGrow);

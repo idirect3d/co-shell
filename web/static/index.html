@@ -371,7 +371,10 @@
     <div id="tree" class="tree"></div>
   </aside>
 
-  <section id="stream-wrap">
+  <!-- FEATURE-547: tabindex="-1" makes the main workspace a programmatic focus
+       target (the hub focuses it instead of the message input box after
+       switching to an agent); -1 keeps it out of the Tab order. -->
+  <section id="stream-wrap" tabindex="-1">
     <!-- FEATURE-425: main message area title bar (height matches the workspace
          / task-plan panel heads). Left: a three-segment display-mode pill
          (silent/minimal/normal); centre: the current session title (editable). -->

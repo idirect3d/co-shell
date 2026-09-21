@@ -928,19 +928,24 @@ const webIndexHTML = `<!DOCTYPE html>
   }
 
   // FEATURE-547: after the hub switches to an agent — a drawer card click, the
-  // power switch starting a stopped agent, or the create-then-start flow — put
-  // the keyboard focus into that agent's co-shell input so the user can start
-  // typing without an extra click. The frame is same-origin (reverse-proxied
-  // under /agent/{id}/), so its input can be focused directly; a frame that is
-  // still loading has no input yet, hence the one-shot load listener fallback.
-  function focusAgentInput(id){
+  // power switch starting a stopped agent, or the create-then-start flow — hand
+  // the keyboard over to that agent's co-shell so the user needs no extra click,
+  // but leave the focus on the main workspace (#stream-wrap). The message input
+  // box must NOT be focused: while an interaction (ask_select / tool confirm) is
+  // pending the user answers with the option hotkeys, and a focused input box
+  // gets in the way of those keys. The frame is same-origin (reverse-proxied
+  // under /agent/{id}/), so its document can be reached directly; a frame that
+  // is still loading has no document yet, hence the one-shot load listener.
+  function focusAgentView(id){
     var f = frames[id];
     if (!f) return;
     function doFocus(){
       try {
         var doc = f.contentDocument;
-        var inp = doc && doc.getElementById('input');
-        if (inp) inp.focus();
+        if (!doc) return;
+        f.contentWindow.focus();
+        var view = doc.getElementById('stream-wrap') || doc.body;
+        if (view) view.focus();
       } catch (e) { /* frame not ready: keep the hub focus */ }
     }
     doFocus();
@@ -976,7 +981,7 @@ const webIndexHTML = `<!DOCTYPE html>
         if (r._moved){ r._moved = false; return; } // just finished a swipe drag
         if (r._open){ setSwipe(r, false); return; } // click an open card closes it
         if (openCard && openCard !== r) setSwipe(openCard, false);
-        current = a.id; renderList(); ensureFrame(current); showFrame(current); closePanel(); focusAgentInput(current);
+        current = a.id; renderList(); ensureFrame(current); showFrame(current); closePanel(); focusAgentView(current);
       });
       // Power switch: running -> stop, stopped -> start (revert on start failure).
       // The switch label stops click propagation so toggling it never triggers
@@ -1267,7 +1272,7 @@ const webIndexHTML = `<!DOCTYPE html>
       var f = frames[id];
       if (f){ f.src = '/agent/' + encodeURIComponent(id) + '/'; }
       else { ensureFrame(id); }
-      focusAgentInput(id); // FEATURE-547: a started agent is focused like a card switch
+      focusAgentView(id); // FEATURE-547: a started agent gets the keyboard on its workspace, like a card switch
       refresh();
     });
   }
@@ -1576,7 +1581,7 @@ const webIndexHTML = `<!DOCTYPE html>
         var f = frames[nid];
         if (f){ f.src = '/agent/' + encodeURIComponent(nid) + '/'; }
         else { ensureFrame(nid); }
-        focusAgentInput(nid); // FEATURE-547: a freshly created agent is focused too
+        focusAgentView(nid); // FEATURE-547: a freshly created agent gets the keyboard on its workspace too
         refresh();
       });
     });
