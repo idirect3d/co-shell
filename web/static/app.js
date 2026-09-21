@@ -465,13 +465,7 @@ const identityFieldsEl = document.getElementById("identityFields");
 const identityResult = document.getElementById("identityResult");
 const identityBack = document.getElementById("identityBack");
 const preview = document.getElementById("preview");
-const previewImg = document.getElementById("previewImg");
 const previewClose = document.getElementById("previewClose");
-// FEATURE-444: image preview title bar (name / size / mtime / resolution).
-const pvName = document.getElementById("pvName");
-const pvSize = document.getElementById("pvSize");
-const pvMtime = document.getElementById("pvMtime");
-const pvRes = document.getElementById("pvRes");
 // FEATURE-425: read-only text file previewer.
 const fileViewer = document.getElementById("fileViewer");
 const fvBody = document.getElementById("fvBody");
@@ -482,6 +476,15 @@ const fvSizeEl = document.getElementById("fvSize");
 const fvMtimeEl = document.getElementById("fvMtime");
 const fvRawEl = document.getElementById("fvRaw");
 const fvClose = document.getElementById("fvClose");
+// FEATURE-547: non-modal image previewer (name / size / mtime / resolution).
+const imgViewer = document.getElementById("imgViewer");
+const ivImg = document.getElementById("ivImg");
+const ivTitlebar = document.getElementById("ivTitlebar");
+const ivName = document.getElementById("ivName");
+const ivSize = document.getElementById("ivSize");
+const ivMtime = document.getElementById("ivMtime");
+const ivRes = document.getElementById("ivRes");
+const ivClose = document.getElementById("ivClose");
 // FEATURE-425: main message area title bar (display-mode pill + session title).
 const streamMode = document.getElementById("streamMode");
 const streamTitle = document.getElementById("streamTitle");
@@ -4945,19 +4948,48 @@ function openFile(node) {
   wsSend({ type: "dynamic_event", kind: "open_file", value: node.path });
 }
 
-// openImagePreview opens an image in the popup and fills its title bar with
-// the file name, size, modification time and resolution (FEATURE-444). The
-// resolution is read from the loaded image's natural dimensions.
+// Current image viewer state: the workspace-relative path being shown, used to
+// toggle off on a second click on the same file (FEATURE-547).
+let ivPath = null;
+
+// openImagePreview shows an image in the non-modal main-area viewer
+// (FEATURE-547; it used to open the #preview modal, which dimmed the whole
+// page and swallowed clicks on the workspace list). The viewer covers only the
+// central message area, so the tree stays clickable and the user can switch
+// files straight from the list, and it keeps a floating info bubble (name /
+// size / mtime / resolution) at the bottom. Re-clicking the same image closes
+// it, matching the text previewer; the resolution is read from the loaded
+// image's natural dimensions.
 function openImagePreview(node) {
-  pvName.textContent = node.name;
-  pvSize.textContent = formatSize(node.size);
-  pvMtime.textContent = formatMtime(node.mtime);
-  pvRes.textContent = "";
-  previewImg.onload = () => {
-    pvRes.textContent = previewImg.naturalWidth + " × " + previewImg.naturalHeight;
+  if (ivPath === node.path) { closeImageViewer(); return; }
+  // FEATURE-471: report the single-click preview as a view_file dynamic event
+  // so the LLM can notice which files the user is inspecting.
+  wsSend({ type: "dynamic_event", kind: "view_file", value: node.path });
+  // FEATURE-547: the text and image viewers never show at the same time.
+  closeFileViewer();
+  ivPath = node.path;
+  ivName.textContent = node.name;
+  ivSize.textContent = formatSize(node.size);
+  ivMtime.textContent = formatMtime(node.mtime);
+  ivRes.textContent = "";
+  ivImg.onload = () => {
+    ivRes.textContent = ivImg.naturalWidth + " × " + ivImg.naturalHeight;
   };
-  previewImg.src = "api/file?path=" + encodeURIComponent(node.path);
-  preview.classList.remove("hidden");
+  ivImg.src = "api/file?path=" + encodeURIComponent(node.path);
+  imgViewer.classList.remove("hidden");
+  // FEATURE-425: highlight the currently selected file in the workspace tree.
+  highlightTreeFile(node.path);
+}
+
+// closeImageViewer hides the non-modal image viewer and clears its state
+// (FEATURE-547).
+function closeImageViewer() {
+  if (ivPath === null) return;
+  imgViewer.classList.add("hidden");
+  ivPath = null;
+  ivTitlebar.classList.remove("active");
+  ivImg.removeAttribute("src");
+  tree.querySelectorAll(".tree-row.fv-selected").forEach((r) => r.classList.remove("fv-selected"));
 }
 
 /* ---------- text file previewer (FEATURE-425) ---------- */
@@ -4999,6 +5031,8 @@ function formatSize(bytes) {
 
 function openFilePreview(node) {
   if (IMAGE_EXT.test(node.name)) return;
+  // FEATURE-547: the text and image viewers never show at the same time.
+  closeImageViewer();
   // FEATURE-425: clicking the already-open file closes the preview.
   if (fvPath === node.path) {
     closeFileViewer();
@@ -5403,6 +5437,17 @@ function downloadFile(path) {
 
 previewClose.onclick = () => preview.classList.add("hidden");
 preview.onclick = (e) => { if (e.target === preview) preview.classList.add("hidden"); };
+
+// FEATURE-547: image viewer bubble — only the ✕ closes the preview (the bubble
+// body is inert, like the text viewer's); hovering near the bottom of the
+// viewer fills the bubble the same way the text viewer does.
+ivClose.onclick = () => closeImageViewer();
+imgViewer.addEventListener("mousemove", (e) => {
+  if (ivPath === null) return;
+  const rect = imgViewer.getBoundingClientRect();
+  ivTitlebar.classList.toggle("active", rect.bottom - e.clientY <= 100);
+});
+imgViewer.addEventListener("mouseleave", () => ivTitlebar.classList.remove("active"));
 
 // FEATURE-432: floating title bar — close button and path reveal.
 fvClose.onclick = () => closeFileViewer();

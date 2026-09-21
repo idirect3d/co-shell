@@ -427,6 +427,22 @@
         <button class="fv-close" id="fvClose" title="关闭预览"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
     </div>
+    <!-- FEATURE-547: non-modal image previewer. It borrows the text previewer's
+         layout (.file-viewer) so it covers only the central message area — the
+         workspace tree stays clickable and the user can switch the previewed
+         file straight from the list — and shows the same floating info bubble
+         (.fv-titlebar) at the bottom with name / size / mtime / resolution.
+         The #preview modal below is kept for the attachment thumbnails. -->
+    <div id="imgViewer" class="file-viewer hidden">
+      <div class="iv-body" id="ivBody"><img id="ivImg" alt=""></div>
+      <div class="fv-titlebar" id="ivTitlebar">
+        <span class="iv-name" id="ivName"></span>
+        <span class="fv-size" id="ivSize"></span>
+        <span class="fv-mtime" id="ivMtime"></span>
+        <span class="fv-size" id="ivRes"></span>
+        <button class="fv-close" id="ivClose" title="关闭预览"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
   </section>
 
   <aside id="plan-panel" class="hidden">
