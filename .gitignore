@@ -21,6 +21,8 @@ Thumbs.db
 
 # Config (user-specific)
 config.json
+config.json.bak
+*.bak
 
 # Private Notes
 notes/
