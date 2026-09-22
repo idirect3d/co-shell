@@ -314,7 +314,8 @@ type createAgentRequest struct {
 	CreateConfig bool   `json:"create_config"`
 	Port         int    `json:"port,omitempty"`
 	// UseSharedConfig: true uses ~/.co-shell/config.json; false uses
-	// {workspace}/config.json (created empty if absent).
+	// {workspace}/config.json (copied from ~/.co-shell/config.json when absent,
+	// or created empty if the shared config does not exist either).
 	UseSharedConfig bool   `json:"use_shared_config"`
 	ExtraArgs       string `json:"extra_args,omitempty"`
 	// YOLO starts the agent with --yolo (auto-approve every tool call).

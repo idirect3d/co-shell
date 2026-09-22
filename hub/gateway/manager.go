@@ -232,9 +232,11 @@ func (m *Manager) RecommendedPort() int {
 // CreateManaged registers a new managed agent. If workspace does not exist it
 // is created. useSharedConfig selects the config source: true uses
 // ~/.co-shell/config.json (shared); false uses {workspace}/config.json, which
-// is created empty if absent (a per-agent config). coShell and configPath are
-// optional per-agent overrides (empty = use the manager's defaults). port > 0
-// uses the caller-specified port (which must be free); port == 0 auto-allocates.
+// is copied from ~/.co-shell/config.json when absent, or created empty if the
+// shared config does not exist either (a per-agent config). coShell and
+// configPath are optional per-agent overrides (empty = use the manager's
+// defaults). port > 0 uses the caller-specified port (which must be free);
+// port == 0 auto-allocates.
 func (m *Manager) CreateManaged(id, workspace, coShell, configPath string, createConfig bool, useSharedConfig bool, port int, extraArgs string, yolo bool) (AgentSpec, error) {
 	id, err := validateAgentID(id)
 	if err != nil {
@@ -265,12 +267,15 @@ func (m *Manager) CreateManaged(id, workspace, coShell, configPath string, creat
 		ExtraArgs:       extraArgs,
 		YOLO:            yolo,
 	}
-	// Per-agent config: ensure {workspace}/config.json exists (create empty if
-	// absent, never overwrite an existing one). Shared config needs no file.
+	// Per-agent config: ensure {workspace}/config.json exists (never overwrite
+	// an existing one). When absent, first try to copy ~/.co-shell/config.json
+	// (the shared config) so the per-agent config inherits the user's settings;
+	// if that shared config does not exist either, create an empty file.
+	// Shared config needs no file.
 	if !useSharedConfig {
 		cfgPath := filepath.Join(workspace, "config.json")
 		if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
-			if err := os.WriteFile(cfgPath, []byte("{}\n"), 0644); err != nil {
+			if err := copySharedConfig(cfgPath); err != nil {
 				return AgentSpec{}, fmt.Errorf("create config: %w", err)
 			}
 		}
@@ -380,11 +385,14 @@ func (m *Manager) Update(id string, patch AgentPatch) (AgentSpec, error) {
 			spec.UseSharedConfig = *patch.UseSharedConfig
 		}
 		// Per-agent config: ensure {workspace}/config.json exists when a
-		// non-shared config is selected (create empty, never overwrite).
+		// non-shared config is selected (never overwrite). When absent, first
+		// try to copy ~/.co-shell/config.json (the shared config) so the
+		// per-agent config inherits the user's settings; if that shared config
+		// does not exist either, create an empty file.
 		if !spec.UseSharedConfig {
 			cfgPath := filepath.Join(spec.Workspace, "config.json")
 			if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
-				if err := os.WriteFile(cfgPath, []byte("{}\n"), 0644); err != nil {
+				if err := copySharedConfig(cfgPath); err != nil {
 					return AgentSpec{}, fmt.Errorf("create config: %w", err)
 				}
 			}
@@ -550,6 +558,20 @@ func (m *Manager) IsRunning(id string) bool {
 	defer m.mu.Unlock()
 	r, ok := m.running[id]
 	return ok && r.cmd != nil && r.cmd.Process != nil
+}
+
+// copySharedConfig ensures dst exists by first copying the shared config
+// (~/.co-shell/config.json) when it is present, otherwise creating an empty
+// config file. It never overwrites an existing dst (callers only invoke it
+// after confirming dst is absent).
+func copySharedConfig(dst string) error {
+	if home, err := os.UserHomeDir(); err == nil {
+		src := filepath.Join(home, ".co-shell", "config.json")
+		if data, err := os.ReadFile(src); err == nil {
+			return os.WriteFile(dst, data, 0644)
+		}
+	}
+	return os.WriteFile(dst, []byte("{}\n"), 0644)
 }
 
 // WSURLForPort builds the local WebSocket URL for a serve port.

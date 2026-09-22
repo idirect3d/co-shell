@@ -428,7 +428,7 @@ const webIndexHTML = `<!DOCTYPE html>
         <div class="field"><label>ID（默认取 workspace 末段）</label><input id="m-id" placeholder="自动生成"></div>
         <div class="field"><label>Agent描述</label><input id="m-name" placeholder="可选，写入 IDENTITY.md"></div>
         <div class="field"><label>co-shell 可执行程序</label><select id="m-coshell"></select></div>
-        <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
+        <div class="field"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="m-shared"><span class="slider"></span></label></div><div class="hint" id="m-shared-hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
         <div class="field"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="m-yolo"><span class="slider"></span></label></div><div class="hint" id="m-yolo-hint"></div></div>
         <div class="field"><label>补充运行参数</label><input id="m-extra" placeholder="如 --accept-license --serve" value="--accept-license"></div>
         <div class="hint" id="m-ver"></div>
@@ -460,7 +460,7 @@ const webIndexHTML = `<!DOCTYPE html>
       <div class="field" id="f-host"><label>主机地址</label><input id="d-host" placeholder="IP 或主机名，如 192.168.1.5"></div>
       <div class="field" id="f-port"><label id="d-port-label">端口号</label><input id="d-port" placeholder="如 28256"></div>
       <div class="field" id="f-coshell"><label>co-shell 可执行程序</label><select id="d-coshell"></select><div class="hint" id="d-ver"></div></div>
-      <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在则自动创建空文件）。需重启 agent 后生效。</div></div>
+      <div class="field" id="f-shared"><div class="switch-row"><span class="switch-label">共享配置</span><label class="switch"><input type="checkbox" id="d-shared"><span class="slider"></span></label></div><div class="hint">开启：使用 ~/.co-shell/config.json（共享）；关闭：使用 {workspace}/config.json（不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件）。需重启 agent 后生效。</div></div>
       <div class="field" id="f-yolo"><div class="switch-row"><span class="switch-label">YOLO 模式</span><label class="switch"><input type="checkbox" id="d-yolo"><span class="slider"></span></label></div><div class="hint" id="d-yolo-hint"></div></div>
       <div class="field" id="f-extra"><label>补充运行参数</label><input id="d-extra" placeholder="如 --accept-license"></div>
       <div class="hint" id="d-state"></div>
