@@ -1248,8 +1248,8 @@ iterationLoop:
 				}
 				continuePrompt := i18n.T(i18n.KeyContinuePrompt)
 				a.messages = append(a.messages, llm.Message{
-					Role:    "user",
-					Content: continuePrompt,
+					Role:         "user",
+					ContentParts: []llm.ContentPart{{Type: llm.ContentPartText, Text: continuePrompt}},
 				})
 				a.mu.Unlock()
 

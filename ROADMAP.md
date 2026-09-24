@@ -4,19 +4,20 @@
 
 ---
 
-## v0.72.0 — hub 非共享配置优先复制共享配置
+## v0.72.1 — no-tool-action=prompt 提示词格式调整
 
-> **版本**: v0.72.0
+> **版本**: v0.72.1
 
-> **状态**: ✅ 已完成（分支 `FEATURE-550` 已合并）
+> **状态**: ✅ 已完成（v0.72.1 已合并并打 tag）
 > **里程碑**: hub 创建/更新 agent 时，若「共享配置」关闭且 `{workspace}/config.json` 不存在，先尝试从 `~/.co-shell/config.json` 复制一份；若共享配置也不存在，再自动创建空文件
 > **说明**：当前 hub 在「共享配置」关闭时，若 `{workspace}/config.json` 不存在则直接创建空文件 `{}`，导致新 agent 没有任何模型/API 配置，需要用户手动配置。本次优化为：先尝试从 `~/.co-shell/config.json`（共享配置）复制一份到 `{workspace}/config.json`，使新 agent 继承用户已有的模型/API 设置；若共享配置也不存在，再回退为创建空文件。同时更新 Web UI 提示信息。
 
 | 任务 | 版本 | 阶段 | 内容 |
 |------|------|------|------|
 | FEATURE-550 | 0.72.0 | P1 | hub 非共享配置创建时优先复制 ~/.co-shell/config.json，不存在则创建空文件；同步更新 Web UI 提示信息 |
+| FIX-551 | 0.72.1 | P1 | no-tool-action=prompt 的 continue 提示词改为与一般用户消息一致的 ContentParts 数组格式，观察对 LLM 的影响 |
 
-> 当前 BUILD: 1108
+> 当前 BUILD: 1109
 > 每次 `go build ./...` 编译成功后，BUILD 编号 +1。
 > 完成任务时，在任务后标注 `[BUILD-XX]` 标记完成时的编译版本。
 
@@ -29,6 +30,13 @@
     - `hub/gateway/manager.go`：新增 `copySharedConfig(dst)` 辅助函数——先尝试读取 `~/.co-shell/config.json`，存在则复制到目标路径，不存在则创建空文件 `{}`；`CreateManaged` 与 `Update` 两处创建 `{workspace}/config.json` 的逻辑改为调用 `copySharedConfig`（仍不覆盖已存在的文件）。
     - `hub/gateway/webui_static.go`：创建 Agent 表单与 Agent 详情两处「共享配置」提示信息更新为「不存在时先复制 ~/.co-shell/config.json，若共享配置也不存在则创建空文件」。
     - `hub/gateway/webui.go` 与 `manager.go` 相关注释同步更新。
+
+- [X] **FIX-551 no-tool-action=prompt 的 continue 提示词改为 ContentParts 数组格式** ✅ 已完成 [BUILD-1109]
+  - 背景（用户提出）：「no-tool-action 如果选择 prompt，在没有工具调用的情况下，系统会自动代用户发一个提示给 LLM，但似乎 LLM 并不在意这句话；另外这句提示词发送的格式和一般用户发送的提示词格式有所区别——一般用户消息 content 本身是一个数组，每个元素中同时包含 text 和 type 属性，是否可以将上面格式改为和一般用户发送的消息一样的格式，看看对 LLM 的影响。」
+  - 分支：**FIX-551**（基于 main，v0.72.0 已合并并打 tag），版本 v0.72.1
+  - 实现概要：
+    - `agent/run_stream.go`：`no-tool-action=prompt` 分支中，把 `llm.Message{Role: "user", Content: continuePrompt}` 改为 `llm.Message{Role: "user", ContentParts: []llm.ContentPart{{Type: llm.ContentPartText, Text: continuePrompt}}}`，与一般用户消息（`envelope.go` 的 `ContentParts` 数组格式）保持一致。
+    - 影响面确认：`getAllUserPrompts`（`agent/loop.go`）用 `CombineContentParts()` 提取内容后过滤 continuePrompt，改为数组格式后 `CombineContentParts()` 仍返回相同文本，过滤逻辑不受影响。
 
 ---
 
